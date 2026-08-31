@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useCallback, useRef } from 'react';
+import { ListSkeleton } from '@/components/ui/ds';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { GraduationCap, BookOpen, Wallet, BarChart3, Plus, Trash2, Users, Award, Building2, Camera, ImageIcon, Radio, BookMarked } from 'lucide-react';
@@ -218,7 +219,7 @@ export default function SchoolWorkspace() {
   };
 
   if (loading) {
-    return <div className="flex justify-center py-20"><div className="h-9 w-9 rounded-full border-[3px] border-dv-gold/30 border-t-dv-gold animate-spin" /></div>;
+    return <ListSkeleton count={6} />;
   }
 
   if (contexts.length === 0) {

@@ -1,11 +1,14 @@
 ﻿import React, { useState, useMemo, useEffect } from 'react'
 import { useOutletContext, useSearchParams } from 'react-router-dom'
 import { motion } from 'framer-motion'
-import { Package, Plus, Search, Minus, AlertTriangle, Edit, DollarSign, ShoppingCart } from 'lucide-react'
+import { Package, Plus, Search, Minus, AlertTriangle, Edit, DollarSign, ShoppingCart, History, PackageMinus } from 'lucide-react'
 import { useToast } from '@/components/ui/ds/Toast'
 import { useNavigate } from 'react-router-dom'
+import { useQueryClient } from '@tanstack/react-query'
 import { useDataQuery } from '../../queries/useDataQuery'
+import { queryKeys } from '../../queries/keys'
 import * as api from '../../utils/api'
+import { InventoryItemPicker } from '../../components/crm/InventoryItemPicker'
 import { Button } from '../../components/ui/ds/Button'
 import { Card } from '../../components/ui/ds/Card'
 import { Input, Select } from '../../components/ui/ds/Input'
@@ -13,7 +16,7 @@ import { Badge } from '../../components/ui/ds/Badge'
 import { Modal } from '../../components/ui/ds/Modal'
 import { EmptyState } from '../../components/ui/ds/EmptyState'
 import { StatCard, PageHeader } from '../../components/ui/ds/StatCard'
-import { gid, today, INVENTORY_CATEGORIES, INVENTORY_UNITS } from '../../utils/constants'
+import { INVENTORY_CATEGORIES, INVENTORY_UNITS } from '../../utils/constants'
 import { cn, formatMoney } from '../../lib/utils'
 import { buildClinicRestockSuggestions, findShopMatches } from '@/lib/inventory-shop-match'
 import type { InventoryItem, Clinic, User as UserType, RoleInfo } from '../../types'
@@ -21,6 +24,7 @@ import type { InventoryItem, Clinic, User as UserType, RoleInfo } from '../../ty
 const EMPTY_FORM = {
   name: '', quantity: 0, unit: 'шт', minQuantity: 0,
   category: '', supplier: '', cost: 0, expiryDate: '',
+  sku: '', productId: '', autoRestock: true,
 }
 
 const stagger = { hidden: { opacity: 0 }, show: { opacity: 1, transition: { staggerChildren: 0.03 } } }
@@ -41,6 +45,11 @@ interface InventoryForm {
   supplier: string
   cost: number | string
   expiryDate: string
+  /** Артикул и товар маркета — заполняются выбором подсказки. */
+  sku: string
+  productId: string
+  /** Принимать ли автоприход из доставленных заказов. */
+  autoRestock: boolean
 }
 
 export default function Inventory() {
@@ -49,6 +58,7 @@ export default function Inventory() {
   const [searchParams, setSearchParams] = useSearchParams()
   const { showToast, toast, clearToast } = useToast()
   const { inventory, upsertInventoryItem } = useDataQuery(clinic?.id)
+  const queryClient = useQueryClient()
   const [modalOpen, setModalOpen] = useState(false)
   const [form, setForm] = useState<InventoryForm>(EMPTY_FORM)
   const [editing, setEditing] = useState<InventoryItem | null>(null)
@@ -57,6 +67,8 @@ export default function Inventory() {
   const [search, setSearch] = useState('')
   const [sortBy, setSortBy] = useState('name')
   const [shopProducts, setShopProducts] = useState<any[]>([])
+  const [historyItem, setHistoryItem] = useState<InventoryItem | null>(null)
+  const [movements, setMovements] = useState<api.InventoryMovementRow[] | null>(null)
 
   useEffect(() => {
     const f = searchParams.get('filter')
@@ -114,9 +126,12 @@ export default function Inventory() {
     if (!form.name.trim()) { showToast('Введите название', 'warning'); return }
     setSubmitting(true)
     try {
+      // Идентификатор ставим только при правке. Раньше здесь всегда
+      // подставлялся свежий gid(), запрос уходил на создание, и каждое
+      // «Сохранить» заводило на складе дубликат вместо обновления.
       await upsertInventoryItem({
         ...form,
-        id: editing?.id || gid(),
+        ...(editing?.id ? { id: editing.id } : {}),
         clinicId: clinic?.id,
         quantity: Number(form.quantity) || 0,
         minQuantity: Number(form.minQuantity) || 0,
@@ -138,14 +153,39 @@ export default function Inventory() {
     setForm({
       name: item.name || '', quantity: item.quantity || 0, unit: item.unit || 'шт',
       minQuantity: item.minQuantity || item.min || 0, category: item.category || '',
-      supplier: item.supplier || '', cost: item.cost || 0, expiryDate: item.expiryDate || '',
+      supplier: item.supplier || '', cost: item.cost || 0,
+      // Сервер отдаёт дату целиком, а полю `type="date"` нужен YYYY-MM-DD.
+      expiryDate: String((item as any).expiryDate || '').slice(0, 10),
+      sku: (item as any).sku || '', productId: (item as any).productId || '',
+      autoRestock: (item as any).autoRestock !== false,
     })
     setModalOpen(true)
   }
 
-  const quickAdjust = (item: InventoryItem, delta: number) => {
-    const newQty = Math.max(0, (item.quantity || 0) + delta)
-    upsertInventoryItem({ ...item, quantity: newQty, clinicId: clinic?.id })
+  /**
+   * Приход или списание одним движением.
+   *
+   * Не присваивание нового количества: пока карточка открыта, остаток мог
+   * измениться закрытым приёмом или доставкой заказа, и «+1» поверх старого
+   * значения затёр бы их. Плюс движение попадает в историю позиции.
+   */
+  const quickAdjust = async (item: InventoryItem, delta: number) => {
+    try {
+      await api.adjustInventoryItem(item.id, delta)
+      await queryClient.invalidateQueries({ queryKey: [...queryKeys.inventory, clinic?.id || ''] })
+    } catch (err: any) {
+      showToast(err?.message || 'Не удалось изменить остаток', 'error')
+    }
+  }
+
+  const openHistory = async (item: InventoryItem) => {
+    setHistoryItem(item)
+    setMovements(null)
+    try {
+      setMovements(await api.getInventoryMovements(item.id))
+    } catch {
+      setMovements([])
+    }
   }
 
   const getStockVariant = (item: InventoryItem) => {
@@ -162,9 +202,15 @@ export default function Inventory() {
         subtitle={`${clinic?.name} · ${stats.total} позиций`}
         icon={<Package size={20} />}
         actions={
-          <Button className="min-h-11" icon={<Plus size={16} />} onClick={() => { setForm(EMPTY_FORM); setEditing(null); setModalOpen(true) }}>
-            Добавить товар
-          </Button>
+          <div className="flex flex-wrap gap-2">
+            <Button className="min-h-11" icon={<Plus size={16} />} onClick={() => { setForm(EMPTY_FORM); setEditing(null); setModalOpen(true) }}>
+              Добавить товар
+            </Button>
+            <Button variant="secondary" className="min-h-11" icon={<PackageMinus size={16} />}
+              onClick={() => navigate('/crm/stock-rules')}>
+              Списание после приёма
+            </Button>
+          </div>
         }
       />
 
@@ -310,6 +356,15 @@ export default function Inventory() {
                       <Button variant="danger" size="icon-xs" className="min-h-11 min-w-11" icon={<Minus size={12} />} onClick={() => quickAdjust(item, -1)} aria-label="Уменьшить на 1" />
                       <Button variant="primary" size="icon-xs" className="min-h-11 min-w-11" icon={<Plus size={12} />} onClick={() => quickAdjust(item, 1)} aria-label="Увеличить на 1" />
                       <Button variant="primary" size="icon-xs" className="min-h-11 min-w-11" onClick={() => quickAdjust(item, 10)}>+10</Button>
+                      <Button
+                        variant="ghost"
+                        size="icon-xs"
+                        className="min-h-11 min-w-11"
+                        title="История движений"
+                        icon={<History size={12} />}
+                        onClick={() => openHistory(item)}
+                        aria-label={`История движений: ${item.name}`}
+                      />
                       {isLow && (
                         <Button
                           variant="secondary"
@@ -330,7 +385,7 @@ export default function Inventory() {
                     {item.supplier && <p className="text-xs text-txt-muted mt-2">Поставщик: {item.supplier}</p>}
                     {item.expiryDate && (
                       <p className={cn('text-xs mt-0.5', new Date(item.expiryDate) < new Date() ? 'text-error' : 'text-txt-muted')}>
-                        Годен до: {item.expiryDate}
+                        Годен до: {String(item.expiryDate).slice(0, 10)}
                       </p>
                     )}
                   </div>
@@ -349,9 +404,36 @@ export default function Inventory() {
         className="max-w-[95vw] sm:max-w-md md:max-w-lg lg:max-w-xl"
       >
         <form onSubmit={handleSubmit} className="space-y-4">
-          <Input label="Название *" value={form.name}
-            onChange={e => setForm({ ...form, name: e.target.value })}
-            placeholder="Пломбировочный материал" required icon={<Package size={16} />} className="min-h-11" />
+          <InventoryItemPicker
+            value={form.name}
+            autoFocus={!editing}
+            onChange={(name) => setForm(f => ({ ...f, name }))}
+            onPick={(s) => {
+              // Позиция с таким названием уже заведена — открываем её вместо
+              // создания второй. Иначе подсказка честно писала бы «уже на
+              // складе», а выбор всё равно вёл бы к дубликату.
+              const known = s.existingItemId
+                ? inventory.find(i => i.id === s.existingItemId)
+                : undefined
+              if (known) {
+                openEdit(known)
+                showToast(`«${known.name}» уже на складе — открыли карточку`, 'info')
+                return
+              }
+              // Один выбор заполняет всю карточку: название, категорию,
+              // единицу, цену, поставщика и связь с товаром маркета.
+              setForm(f => ({
+                ...f,
+                name: s.name,
+                category: s.category || f.category,
+                unit: s.unit || f.unit,
+                cost: s.price ?? f.cost,
+                supplier: s.supplier || f.supplier,
+                sku: s.sku || '',
+                productId: s.productId || '',
+              }))
+            }}
+          />
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <Input label="Кол-во" type="number" min="0" value={form.quantity}
               onChange={e => setForm({ ...form, quantity: e.target.value })} className="min-h-11" />
@@ -373,12 +455,72 @@ export default function Inventory() {
           <Input label="Поставщик" value={form.supplier}
             onChange={e => setForm({ ...form, supplier: e.target.value })}
             placeholder="Название компании" className="min-h-11" />
+          <label className="flex items-start gap-3 rounded-lg border border-bdr-subtle bg-surface-1 p-3 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={form.autoRestock}
+              onChange={e => setForm({ ...form, autoRestock: e.target.checked })}
+              className="mt-0.5 h-4 w-4 accent-dv-gold"
+            />
+            <span>
+              <span className="block text-sm font-medium text-txt-primary">Приходовать автоматически</span>
+              <span className="block text-2xs text-txt-muted mt-0.5">
+                Когда заказ из маркетплейса доставлен, остаток вырастет сам.
+                Снимите, если приходуете эту позицию по факту вскрытия коробки.
+              </span>
+            </span>
+          </label>
           <div className="flex gap-2 pt-2">
             <Button type="submit" className="flex-1 min-h-11" disabled={submitting}>{submitting ? 'Сохранение…' : (editing ? 'Сохранить' : 'Добавить')}</Button>
             <Button type="button" variant="ghost" onClick={() => setModalOpen(false)} className="min-h-11">Отмена</Button>
           </div>
         </form>
       </Modal>
+
+      <Modal
+        open={!!historyItem}
+        onClose={() => setHistoryItem(null)}
+        title={historyItem ? `История: ${historyItem.name}` : 'История движений'}
+        size="md"
+        className="max-w-[95vw] sm:max-w-lg"
+      >
+        {movements === null ? (
+          <p className="text-sm text-txt-muted py-6 text-center">Загружаем…</p>
+        ) : movements.length === 0 ? (
+          <EmptyState
+            icon={<History size={28} />}
+            title="Движений пока нет"
+            description="Здесь появятся приходы из заказов, списания после приёмов и правки вручную."
+          />
+        ) : (
+          <div className="space-y-2 max-h-96 overflow-y-auto">
+            {movements.map((m) => (
+              <div key={m.id} className="flex items-start justify-between gap-3 rounded-lg border border-bdr-subtle bg-surface-1 p-3">
+                <div className="min-w-0">
+                  <p className="text-sm font-medium text-txt-primary m-0">{MOVEMENT_LABELS[m.reason] || m.reason}</p>
+                  {m.note && <p className="text-2xs text-txt-muted m-0 mt-0.5 truncate">{m.note}</p>}
+                  <p className="text-2xs text-txt-muted m-0 mt-0.5">
+                    {new Date(m.createdAt).toLocaleString('ru-RU')}
+                  </p>
+                </div>
+                <span className={cn(
+                  'shrink-0 text-sm font-bold tabular-nums',
+                  m.delta > 0 ? 'text-success' : 'text-error',
+                )}>
+                  {m.delta > 0 ? '+' : ''}{m.delta}
+                </span>
+              </div>
+            ))}
+          </div>
+        )}
+      </Modal>
     </div>
   )
+}
+
+const MOVEMENT_LABELS: Record<string, string> = {
+  order_delivery: 'Приход из заказа',
+  appointment_close: 'Списание после приёма',
+  manual: 'Приход вручную',
+  correction: 'Правка остатка',
 }

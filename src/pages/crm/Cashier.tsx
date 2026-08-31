@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useEffect } from 'react'
+import { ListSkeleton } from '@/components/ui/ds';
 import { useOutletContext, useSearchParams } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import {
@@ -634,7 +635,7 @@ export default function Cashier() {
                     <thead>
                       <tr className="border-b border-bdr-subtle">
                         {['Дата', 'Пациент', 'Услуга', 'Зуб', 'Диагноз', 'Способ', 'Статус', 'Сумма', ''].map(h => (
-                          <th key={h || 'actions'} className="text-left py-2 px-3 text-2xs font-bold text-txt-muted uppercase tracking-wider">{h}</th>
+                          <th key={h || 'actions'} className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider text-txt-muted whitespace-nowrap">{h}</th>
                         ))}
                       </tr>
                     </thead>
@@ -755,9 +756,7 @@ export default function Cashier() {
                 </Button>
               </div>
               {reportLoading ? (
-                <div className="flex justify-center py-10">
-                  <div className="w-8 h-8 rounded-full border-2 border-dv-gold/30 border-t-dv-gold animate-spin" />
-                </div>
+                <ListSkeleton count={3} />
               ) : !financeReport ? (
                 <EmptyState icon={<TrendingUp size={32} />} title="Нет данных" description="Оплатите счета — отчёт появится автоматически" />
               ) : (

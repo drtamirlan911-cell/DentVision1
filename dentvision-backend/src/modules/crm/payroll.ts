@@ -3,6 +3,15 @@ import { parseMeta, type AppointmentMeta } from './appointmentMeta.js';
 export type PayType = 'commission' | 'salary' | 'mixed';
 
 export interface PayrollServiceLine {
+  /**
+   * Код услуги из прайса.
+   *
+   * Раньше терялся: тело закрытия приёма его присылало, а разбор оставлял
+   * только имя, цену и материалы. Без кода правило списания «на эту услугу»
+   * не к чему привязать — по названию услуги сопоставлять нельзя, клиника
+   * переименовывает их в своём прайсе.
+   */
+  code?: string;
   name: string;
   price: number;
   matCost: number;
@@ -63,6 +72,7 @@ export function appointmentRevenue(meta: AppointmentMeta): { gross: number; matC
   if (Array.isArray(meta.services) && meta.services.length > 0) {
     for (const row of meta.services) {
       services.push({
+        ...((row as any).code ? { code: String((row as any).code) } : {}),
         name: String(row.name || 'Услуга'),
         price: Number(row.price) || 0,
         matCost: Number(row.matCost) || 0,
@@ -168,6 +178,7 @@ export function aggregateServicesFromBody(body: Record<string, unknown>): Payrol
   const services = Array.isArray(body.services) ? body.services : [];
   if (services.length > 0) {
     return services.map((row: any) => ({
+      ...(row?.code || row?.serviceCode ? { code: String(row.code || row.serviceCode) } : {}),
       name: String(row?.name || 'Услуга'),
       price: Number(row?.price) || 0,
       matCost: Number(row?.matCost) || 0,
@@ -176,6 +187,7 @@ export function aggregateServicesFromBody(body: Record<string, unknown>): Payrol
 
   if (body.serviceName || body.servicePrice) {
     return [{
+      ...(body.service || body.serviceCode ? { code: String(body.service || body.serviceCode) } : {}),
       name: String(body.serviceName || 'Услуга'),
       price: Number(body.servicePrice) || 0,
       matCost: Number(body.matCost) || 0,

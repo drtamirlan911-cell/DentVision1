@@ -102,6 +102,10 @@ export default function Patients() {
   const [params] = useSearchParams()
 
   const [selected, setSelected] = useState<Patient | null>(null)
+  /** Диалог пополнения баланса: открыт и введённая сумма. */
+  const [depositOpen, setDepositOpen] = useState(false)
+  const [depositAmount, setDepositAmount] = useState('')
+  const [depositBusy, setDepositBusy] = useState(false)
   const [modalOpen, setModalOpen] = useState(false)
   const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false)
   const [activeTab, setActiveTab] = useState('info')
@@ -510,6 +514,54 @@ export default function Patients() {
           </Button>
         </div>
       </form>
+    </Modal>
+  )
+
+  const handleDeposit = async () => {
+    if (!selected) return
+    const amount = Number(depositAmount)
+    // Прежний ввод шёл через window.prompt, и проверка `!amount || isNaN`
+    // пропускала отрицательное число: минус в поле уводил баланс вниз.
+    if (!Number.isFinite(amount) || amount <= 0) {
+      showToast('Введите сумму больше нуля', 'warning')
+      return
+    }
+    setDepositBusy(true)
+    try {
+      const updated = await api.depositPatient(selected.id, amount)
+      setSelected({
+        ...selected,
+        prepaidBalance: updated?.prepaidBalance ?? (Number(selected.prepaidBalance || 0) + amount),
+      })
+      showToast('Баланс пополнен', 'success')
+      setDepositOpen(false)
+    } catch (err: any) {
+      showToast(err?.message || 'Не удалось пополнить', 'error')
+    } finally {
+      setDepositBusy(false)
+    }
+  }
+
+  const depositModal = (
+    <Modal open={depositOpen} onClose={() => setDepositOpen(false)} title="Пополнить баланс" size="sm">
+      <div className="space-y-4">
+        <p className="text-sm text-txt-secondary m-0">
+          Текущий баланс: <span className="font-bold text-dv-gold">{tg(Number(selected?.prepaidBalance || 0))}</span>
+        </p>
+        <Input
+          label="Сумма пополнения (₸)"
+          type="number"
+          min="1"
+          value={depositAmount}
+          onChange={(e) => setDepositAmount(e.target.value)}
+          autoFocus
+          className="min-h-11"
+        />
+        <div className="flex gap-2 pt-2">
+          <Button className="flex-1 min-h-11" loading={depositBusy} onClick={handleDeposit}>Пополнить</Button>
+          <Button variant="ghost" className="min-h-11" onClick={() => setDepositOpen(false)}>Отмена</Button>
+        </div>
+      </div>
     </Modal>
   )
 
@@ -1116,18 +1168,7 @@ export default function Patients() {
                       <Button
                         variant="secondary"
                         size="sm"
-                        onClick={async () => {
-                          const raw = window.prompt('Сумма пополнения баланса (₸)', '10000')
-                          const amount = Number(raw)
-                          if (!amount || Number.isNaN(amount)) return
-                          try {
-                            const updated = await api.depositPatient(selected.id, amount)
-                            setSelected({ ...selected, prepaidBalance: updated?.prepaidBalance ?? (Number(selected.prepaidBalance || 0) + amount) })
-                            showToast('Баланс пополнен', 'success')
-                          } catch (err: any) {
-                            showToast(err?.message || 'Не удалось пополнить', 'error')
-                          }
-                        }}
+                        onClick={() => { setDepositAmount('10000'); setDepositOpen(true) }}
                       >
                         Пополнить баланс
                       </Button>
@@ -1315,6 +1356,7 @@ export default function Patients() {
         </Card>
         {formModal}
         {confirmDeleteModal}
+        {depositModal}
       </div>
     </div>
     )

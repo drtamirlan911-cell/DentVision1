@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { StatCard, PageHeader, GlassCard, Card, CardContent, Button, Badge, Modal, Input, Select, EmptyState, Skeleton } from '../../components/ui/ds';
+import { StatCard, PageHeader, GlassCard, Card, CardContent, Button, Badge, Modal, ConfirmModal, Input, Select, EmptyState, Skeleton } from '../../components/ui/ds';
 import { useToast } from '../../components/ui/ds/Toast';
 import * as api from '../../utils/api';
 import { Activity, Building2, Users, ShoppingCart, GraduationCap, AlertTriangle, Check, X, RefreshCw, Zap, Settings, Shield, Clock, Power, PowerOff, Calendar, TrendingUp, DollarSign } from 'lucide-react';
@@ -15,6 +15,8 @@ export default function OpsTab() {
   const [extendModal, setExtendModal] = useState<any>(null);
   const [extendMonths, setExtendMonths] = useState(3);
   const [planModal, setPlanModal] = useState<any>(null);
+  /** Клиника, заморозка которой ждёт подтверждения. */
+  const [toSuspend, setToSuspend] = useState<any>(null);
   const [newPlan, setNewPlan] = useState('professional');
 
   const overview = useQuery({
@@ -174,7 +176,7 @@ export default function OpsTab() {
                               {c.subscription?.status === 'suspended' ? (
                                 <Button size="icon-sm" variant="ghost" title="Активировать" onClick={() => activateClinic.mutate(c.id)} className="text-green-400 hover:text-green-300"><Power size={14} /></Button>
                               ) : (
-                                <Button size="icon-sm" variant="ghost" title="Заморозить" onClick={() => { if (confirm(`Заморозить ${c.name}?`)) suspendClinic.mutate(c.id); }} className="text-red-400 hover:text-red-300"><PowerOff size={14} /></Button>
+                                <Button size="icon-sm" variant="ghost" title="Заморозить" onClick={() => setToSuspend(c)} className="text-red-400 hover:text-red-300"><PowerOff size={14} /></Button>
                               )}
                             </div>
                           </td>
@@ -246,6 +248,16 @@ export default function OpsTab() {
           </div>
         </div>
       </Modal>
+
+      <ConfirmModal
+        open={!!toSuspend}
+        onClose={() => setToSuspend(null)}
+        onConfirm={() => { if (toSuspend) suspendClinic.mutate(toSuspend.id); }}
+        title="Заморозить клинику?"
+        message={toSuspend ? `«${toSuspend.name}» потеряет доступ к системе до повторной активации. Данные клиники сохранятся.` : ''}
+        confirmLabel="Заморозить"
+        variant="warning"
+      />
     </div>
   );
 }

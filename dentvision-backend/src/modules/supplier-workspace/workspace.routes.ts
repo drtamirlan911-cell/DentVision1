@@ -154,6 +154,14 @@ supplierWorkspaceRouter.patch('/orders/:id/status', requireSupplierWrite, async 
       // Full-order release: multi-supplier split needs per-line status (future).
       await releaseOrderCashback(order.id)
         .catch((err) => console.error('[dentcash release]', err));
+
+      // Коробка приехала — склад клиники должен узнать об этом сам.
+      // Приход идемпотентен по ссылке на заказ, так что повторный перевод
+      // в «доставлен» ничего не задвоит. Ошибка не валит смену статуса:
+      // заказ доставлен независимо от того, удалось ли оприходовать.
+      const { restockFromOrder } = await import('../inventory/orderRestock.js');
+      await restockFromOrder(order.id)
+        .catch((err) => console.error('[inventory restock]', err));
     }
     if (status === 'cancelled') {
       const { reverseCashback } = await import('../dentcash/refund.service.js');

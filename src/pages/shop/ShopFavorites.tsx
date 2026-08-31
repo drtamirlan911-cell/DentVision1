@@ -1,4 +1,5 @@
 ﻿import React, { useState, useEffect } from 'react';
+import { CardSkeleton } from '@/components/ui/ds';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Heart, Star, ShoppingCart, Trash2 } from 'lucide-react';
@@ -35,9 +36,7 @@ export default function ShopFavorites() {
   };
 
   if (loading) return (
-    <div className="flex justify-center py-16">
-      <div className="h-9 w-9 rounded-full border-[3px] border-dv-gold/30 border-t-dv-gold animate-spin" />
-    </div>
+    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">{Array.from({ length: 6 }).map((_, i) => <CardSkeleton key={i} />)}</div>
   );
 
   return (

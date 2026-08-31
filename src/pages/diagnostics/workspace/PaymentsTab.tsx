@@ -46,14 +46,14 @@ export function PaymentsTab({ config, orgId }: TabProps) {
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr className="text-left text-txt-muted text-xs uppercase tracking-wider border-b border-bdr-subtle">
-                  <th className="pb-2 pr-3">Пациент</th>
-                  <th className="pb-2 pr-3">Услуга</th>
-                  <th className="pb-2 pr-3">Стоимость</th>
-                  <th className="pb-2 pr-3">Комиссия</th>
-                  <th className="pb-2 pr-3">К выплате</th>
-                  <th className="pb-2 pr-3">Статус</th>
-                  <th className="pb-2 pr-3">Дата</th>
+                <tr className="border-b border-bdr-subtle">
+                  <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider text-txt-muted whitespace-nowrap">Пациент</th>
+                  <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider text-txt-muted whitespace-nowrap">Услуга</th>
+                  <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider text-txt-muted whitespace-nowrap">Стоимость</th>
+                  <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider text-txt-muted whitespace-nowrap">Комиссия</th>
+                  <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider text-txt-muted whitespace-nowrap">К выплате</th>
+                  <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider text-txt-muted whitespace-nowrap">Статус</th>
+                  <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider text-txt-muted whitespace-nowrap">Дата</th>
                 </tr>
               </thead>
               <tbody>

@@ -14,6 +14,7 @@ import {
   toDbStatus,
 } from '../crm/appointmentMeta.js';
 import { metaFromClosedVisit } from '../crm/payroll.js';
+import { resolveDeductionPlan, applyDeductionPlan } from '../inventory/deductionRules.js';
 import { loadClinicAccess, requireClinicWritable } from '../../middleware/planGate.js';
 import { isClinicMember } from '../../lib/orgContext.js';
 
@@ -348,6 +349,8 @@ appointmentsRouter.post('/:id/close', requireClinicWritable, async (req: AuthReq
     const prevMeta = parseMeta(existing.meta);
     const meta = metaFromClosedVisit(prevMeta, body);
     const deducted: string[] = [];
+    /** Позиции, которых не хватило на складе, — уходят в ответ, чтобы врач узнал сразу. */
+    const shortages: Array<{ itemId: string; name: string; requested: number; taken: number }> = [];
 
     // Atomically transition to completed; only the FIRST close deducts inventory,
     // so concurrent /close calls can't double-deduct.
@@ -356,32 +359,29 @@ appointmentsRouter.post('/:id/close', requireClinicWritable, async (req: AuthReq
       data: { status: 'completed' },
     });
     if (firstClose.count === 1 && !prevMeta.inventoryDeducted) {
-      const clinic = await prisma.clinic.findUnique({
-        where: { id: clinicId },
-        select: { settings: true },
+      // Что списать — решают правила клиники: общие расходники приёма плюс
+      // материалы под конкретные услуги и диагнозы этого визита.
+      const plan = await resolveDeductionPlan(prisma, {
+        clinicId,
+        serviceCodes: (meta.services || [])
+          .map((line) => (line as { code?: string }).code)
+          .filter((code): code is string => typeof code === 'string' && code.length > 0),
+        diagnosisText: meta.diagnosis,
       });
-      const settings = (clinic?.settings && typeof clinic.settings === 'object'
-        ? clinic.settings
-        : {}) as Record<string, unknown>;
-      const autoItems = String(settings.autoDeductItems || '')
-        .split(',')
-        .map((s) => s.trim())
-        .filter(Boolean);
 
-      for (const itemName of autoItems) {
-        const item = await prisma.inventoryItem.findFirst({
-          where: { clinicId, name: { equals: itemName, mode: 'insensitive' } },
-          select: { id: true, name: true },
-        });
-        if (!item) continue;
-        // Atomic guarded decrement — never drives quantity below zero.
-        const dec = await prisma.inventoryItem.updateMany({
-          where: { id: item.id, quantity: { gte: 1 } },
-          data: { quantity: { decrement: 1 } },
-        });
-        if (dec.count === 1) deducted.push(item.name);
+      if (plan.length > 0) {
+        const outcome = await prisma.$transaction((tx) => applyDeductionPlan(tx, {
+          clinicId,
+          appointmentId: existing.id,
+          plan,
+          userId,
+        }));
+        for (const line of outcome.deducted) {
+          deducted.push(line.unit ? `${line.name} × ${line.quantity} ${line.unit}` : `${line.name} × ${line.quantity}`);
+        }
+        shortages.push(...outcome.short);
+        if (outcome.deducted.length > 0) meta.inventoryDeducted = true;
       }
-      if (deducted.length > 0) meta.inventoryDeducted = true;
     }
 
     const appointment = await prisma.appointment.update({
@@ -399,7 +399,7 @@ appointmentsRouter.post('/:id/close', requireClinicWritable, async (req: AuthReq
       action: 'appointment.closed',
       entity: 'appointment',
       entityId: appointment.id,
-      details: { deducted },
+      details: { deducted, shortages },
     });
 
     return res.json({
@@ -407,6 +407,7 @@ appointmentsRouter.post('/:id/close', requireClinicWritable, async (req: AuthReq
       data: {
         appointment: serializeAppointment(appointment),
         deducted,
+        shortages,
       },
     } satisfies ApiResponse);
   } catch (error) {

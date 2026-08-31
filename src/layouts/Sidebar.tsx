@@ -177,6 +177,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
           { id: 'inventory', label: t('nav.inventory'), path: '/crm/inventory' },
           { id: 'lab', label: t('nav.lab'), path: '/crm/lab' },
           { id: 'promotions', label: t('nav.promotions'), path: '/crm/promotions' },
+          { id: 'promotions', label: t('nav.marketing'), path: '/crm/marketing' },
         ],
       },
       {
@@ -420,7 +421,11 @@ export const Sidebar: React.FC<SidebarProps> = ({
                         const subActive = location.pathname === sub.path || location.pathname.startsWith(sub.path + '/');
                         return (
                           <button
-                            key={sub.id}
+                            // Ключ по пути, а не по id: несколько пунктов
+                            // законно делят один id, когда живут под одним
+                            // правом доступа (акции и контент — одна работа).
+                            // Путь в меню уникален по построению.
+                            key={sub.path}
                             type="button"
                             aria-current={subActive ? 'page' : undefined}
                             onClick={() => handleNavClick(sub.path)}

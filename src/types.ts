@@ -103,7 +103,6 @@ export interface ClinicSettings {
   taxPercent?: number
   notifyNoShow?: boolean
   requireChair?: boolean
-  autoDeductItems?: string
   /** Schedule conflict behaviour: warn-and-allow (default) or hard block. */
   scheduleConflictMode?: 'warn' | 'block'
   /** Doctor commission base: from net (revenue − materials, default) or gross. */
@@ -479,6 +478,12 @@ export interface Service {
   cat: string
   name: string
   price: number
+  /** Типичное время в кресле, минут — подставляется в длительность записи. */
+  durationMin?: number
+  /** Типичная себестоимость материалов, ₸ — база для маржи в прайсе. */
+  matCost?: number
+  /** Коды МКБ-10, которые этой услугой обычно лечат. */
+  icd?: string[]
 }
 
 // ─── Toast ──────────────────────────────────────────────────────

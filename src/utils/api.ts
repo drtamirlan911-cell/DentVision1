@@ -724,15 +724,263 @@ export async function upsertExpense(data: Partial<Expense>): Promise<any> {
   return apiRequest('/api/crm/expenses', { method: 'POST', body: JSON.stringify(data) });
 }
 
-export async function upsertInventoryItem(data: Partial<InventoryItem>): Promise<any> {
+/** Поля склада на бэкенде зовутся иначе, чем в UI: minimum/price против minQuantity/cost. */
+function inventoryPayload(data: Partial<InventoryItem>): Record<string, unknown> {
+  const out: Record<string, unknown> = { ...data };
+  if (data.minQuantity !== undefined || data.min !== undefined) {
+    out.minimum = data.minQuantity ?? data.min ?? 0;
+  }
+  const cost = (data as any).cost ?? (data as any).price;
+  if (cost !== undefined) out.price = cost;
+  // `id` на создании не нужен — сервер выдаёт свой; на обновлении он в пути.
+  delete out.id;
+  return out;
+}
+
+export async function createInventoryItem(data: Partial<InventoryItem>): Promise<any> {
   return apiRequest('/api/inventory', {
     method: 'POST',
-    body: JSON.stringify({
-      ...data,
-      minimum: data.minQuantity ?? data.min ?? 0,
-      price: (data as any).cost ?? (data as any).price,
-    }),
+    body: JSON.stringify({ quantity: 0, ...inventoryPayload(data) }),
   });
+}
+
+export async function updateInventoryItem(id: string, data: Partial<InventoryItem>): Promise<any> {
+  return apiRequest(`/api/inventory/${id}`, {
+    method: 'PATCH',
+    body: JSON.stringify(inventoryPayload(data)),
+  });
+}
+
+/**
+ * Создать или обновить позицию склада.
+ *
+ * Раньше эта функция всегда слала POST, а POST на бэкенде всегда создаёт
+ * новую строку с новым идентификатором. То есть редактирование позиции и
+ * каждый клик «+/−» заводили на складе дубликат.
+ */
+export async function upsertInventoryItem(data: Partial<InventoryItem>): Promise<any> {
+  return data.id ? updateInventoryItem(String(data.id), data) : createInventoryItem(data);
+}
+
+/**
+ * Приход или списание на заданное число единиц.
+ *
+ * Отдельно от обновления позиции: остаток меняется движением, поэтому
+ * «+1» — это приход в журнале, а не новое значение поля, затирающее то,
+ * что параллельно списал закрытый приём.
+ */
+export async function adjustInventoryItem(id: string, delta: number, note?: string): Promise<any> {
+  return apiRequest(`/api/inventory/${id}/adjust`, {
+    method: 'POST',
+    body: JSON.stringify({ delta, note }),
+  });
+}
+
+export interface InventorySuggestion {
+  key: string;
+  source: 'clinic' | 'shop' | 'preset' | 'catalog';
+  name: string;
+  category: string | null;
+  unit: string | null;
+  price: number | null;
+  supplier: string | null;
+  sku: string | null;
+  productId: string | null;
+  existingItemId: string | null;
+  existingQuantity: number | null;
+  stock: number | null;
+}
+
+/** Подсказки товаров при добавлении позиции вручную. */
+export async function getInventorySuggestions(q: string, limit = 12): Promise<InventorySuggestion[]> {
+  const res = await apiRequest(`/api/inventory/suggest?q=${encodeURIComponent(q)}&limit=${limit}`);
+  return (res?.suggestions || []) as InventorySuggestion[];
+}
+
+export interface MarketingContext {
+  clinicName: string;
+  city: string | null;
+  topServices: Array<{ name: string; count: number; averagePrice: number }>;
+  neglectedServices: string[];
+  activePromotions: Array<{ title: string; description: string | null; discountPercent: number; endsAt: string | null }>;
+  busiestMonth: { month: string; appointments: number } | null;
+  quietestMonth: { month: string; appointments: number } | null;
+  frequentDiagnoses: Array<{ code: string; count: number }>;
+  doctorCount: number;
+  appointmentsAnalysed: number;
+}
+
+export interface ContentIdea {
+  title: string;
+  format: 'post' | 'reels' | 'story' | 'carousel';
+  hook: string;
+  caption: string;
+  hashtags: string[];
+  callToAction: string;
+  /** Факт из данных клиники, на котором стоит идея. */
+  basedOn: string;
+}
+
+export interface ContentPlan {
+  ideas: ContentIdea[];
+  context: MarketingContext;
+  /** true — план собран без модели, из одних фактов. */
+  deterministic: boolean;
+}
+
+/** Факты о клинике, на которых строится контент. Без обращения к модели. */
+export async function getMarketingContext(): Promise<MarketingContext> {
+  return apiRequest('/api/marketing/context');
+}
+
+export interface StoredIdea extends ContentIdea {
+  id: string;
+  position: number;
+  /** Текст правил человек — карточка перестаёт выдавать его за машинный. */
+  edited: boolean;
+  coverUrl: string | null;
+  slideUrls: string[];
+}
+
+export interface StoredPlan {
+  id: string;
+  title: string;
+  tone: string | null;
+  deterministic: boolean;
+  createdAt: string;
+  ideas: StoredIdea[];
+  context: MarketingContext;
+}
+
+export interface PlanSummary {
+  id: string;
+  title: string;
+  deterministic: boolean;
+  ideaCount: number;
+  createdAt: string;
+}
+
+export interface ImageQuota {
+  used: number;
+  limit: number;
+  remaining: number;
+  /** Генерация настроена: есть и ключ модели, и объектное хранилище. */
+  configured: boolean;
+}
+
+/** Собрать план и сразу сохранить — он больше не живёт только во вкладке. */
+export async function generateContentPlan(count = 6, tone?: string): Promise<StoredPlan> {
+  return apiRequest('/api/marketing/content-plan', {
+    method: 'POST',
+    body: JSON.stringify({ count, tone }),
+  });
+}
+
+export async function listContentPlans(limit = 20): Promise<PlanSummary[]> {
+  return collection(await apiRequest(`/api/marketing/content-plans?limit=${limit}`));
+}
+
+export async function getContentPlan(id: string): Promise<StoredPlan> {
+  return apiRequest(`/api/marketing/content-plans/${id}`);
+}
+
+export async function deleteContentPlan(id: string): Promise<void> {
+  await apiRequest(`/api/marketing/content-plans/${id}`, { method: 'DELETE' });
+}
+
+/** Правка текстов идеи. `basedOn` не отправляем — сервер его и не примет. */
+export async function updateContentIdea(
+  id: string,
+  patch: { title?: string; hook?: string; caption?: string; hashtags?: string[]; callToAction?: string },
+): Promise<StoredIdea> {
+  return apiRequest(`/api/marketing/content-ideas/${id}`, {
+    method: 'PATCH',
+    body: JSON.stringify(patch),
+  });
+}
+
+export async function getImageQuota(): Promise<ImageQuota> {
+  return apiRequest('/api/marketing/image-quota');
+}
+
+export async function generateIdeaCover(id: string): Promise<StoredIdea> {
+  return apiRequest(`/api/marketing/content-ideas/${id}/cover`, { method: 'POST' });
+}
+
+export async function generateIdeaCarousel(id: string, slides = 3): Promise<StoredIdea> {
+  return apiRequest(`/api/marketing/content-ideas/${id}/carousel`, {
+    method: 'POST',
+    body: JSON.stringify({ slides }),
+  });
+}
+
+export interface StockRuleLine {
+  id?: string;
+  itemId: string;
+  quantity: number;
+  item?: { id: string; name: string; unit: string | null; quantity: number };
+}
+
+export interface StockRule {
+  id: string;
+  scope: 'always' | 'service' | 'diagnosis';
+  matchKey: string;
+  label: string | null;
+  active: boolean;
+  items: StockRuleLine[];
+}
+
+/** Правила списания расходников после приёма. */
+export async function getStockRules(): Promise<StockRule[]> {
+  return collection(await apiRequest('/api/stock-rules'));
+}
+
+export async function saveStockRule(data: {
+  scope: 'always' | 'service' | 'diagnosis';
+  matchKey?: string;
+  label?: string | null;
+  active?: boolean;
+  items: Array<{ itemId: string; quantity: number }>;
+}): Promise<StockRule> {
+  return apiRequest('/api/stock-rules', { method: 'POST', body: JSON.stringify(data) });
+}
+
+export async function deleteStockRule(id: string): Promise<void> {
+  await apiRequest(`/api/stock-rules/${id}`, { method: 'DELETE' });
+}
+
+export interface StockDeductionPreviewLine {
+  itemId: string;
+  itemName: string;
+  unit: string | null;
+  quantity: number;
+  available: number;
+  sources: string[];
+}
+
+/** Что спишется за приём с такими услугами и диагнозом — до самого приёма. */
+export async function previewStockDeduction(
+  serviceCodes: string[],
+  diagnosis?: string,
+): Promise<StockDeductionPreviewLine[]> {
+  const params = new URLSearchParams();
+  if (serviceCodes.length) params.set('services', serviceCodes.join(','));
+  if (diagnosis) params.set('diagnosis', diagnosis);
+  return collection(await apiRequest(`/api/stock-rules/preview?${params.toString()}`));
+}
+
+export interface InventoryMovementRow {
+  id: string;
+  delta: number;
+  reason: string;
+  refType: string | null;
+  refId: string | null;
+  note: string | null;
+  createdAt: string;
+}
+
+export async function getInventoryMovements(id: string, limit = 50): Promise<InventoryMovementRow[]> {
+  return collection(await apiRequest(`/api/inventory/${id}/movements?limit=${limit}`));
 }
 
 export async function upsertUser(data: Partial<User> & { clinicId?: string; password?: string; login?: string }): Promise<any> {
@@ -821,7 +1069,9 @@ export async function closeAppointment(
   id: string,
   data: {
     notes?: string;
-    services?: Array<{ name: string; price: number; matCost?: number }>;
+    // `code` — идентификатор услуги из прайса: по нему срабатывают правила
+    // списания «на эту услугу». Без него правило не к чему привязать.
+    services?: Array<{ code?: string; name: string; price: number; matCost?: number }>;
     serviceName?: string;
     servicePrice?: number;
     matCost?: number;
@@ -829,6 +1079,8 @@ export async function closeAppointment(
     paymentStatus?: string;
     diagnosis?: string;
     toothNumber?: string;
+    /** Код услуги, когда закрывают одной позицией, а не списком `services`. */
+    service?: string;
   },
 ): Promise<any> {
   return apiRequest(`/api/appointments/${id}/close`, {

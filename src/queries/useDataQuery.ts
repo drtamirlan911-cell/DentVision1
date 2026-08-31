@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import * as api from '@/utils/api';
 import { queryKeys } from './keys';
+import { useAuth } from '@/store/auth.store';
 import type {
   Patient,
   Appointment,
@@ -74,6 +75,12 @@ export function useDataQuery(clinicId?: string | null): UseDataQueryReturn {
   const queryClient = useQueryClient();
   const enabled = !!clinicId;
 
+  // Чеки и расходы закрыты правом finance.manage. Без этой проверки браузер
+  // врача и ассистента слал два заведомо отказных запроса на каждой странице
+  // CRM: данные всё равно не приходили, а консоль была постоянно красной.
+  const { roleInfo } = useAuth();
+  const canFinance = Boolean(roleInfo?.canManageFinance);
+
   // ─── Queries ───
   const patientsQ = useQuery({
     queryKey: [...queryKeys.patients, safeClinicId],
@@ -90,7 +97,7 @@ export function useDataQuery(clinicId?: string | null): UseDataQueryReturn {
   const receiptsQ = useQuery({
     queryKey: [...queryKeys.receipts, safeClinicId],
     queryFn: () => api.getReceipts(safeClinicId),
-    enabled,
+    enabled: enabled && canFinance,
   });
 
   const labOrdersQ = useQuery({
@@ -102,7 +109,7 @@ export function useDataQuery(clinicId?: string | null): UseDataQueryReturn {
   const expensesQ = useQuery({
     queryKey: [...queryKeys.expenses, safeClinicId],
     queryFn: () => api.getExpenses(safeClinicId),
-    enabled,
+    enabled: enabled && canFinance,
   });
 
   const inventoryQ = useQuery({

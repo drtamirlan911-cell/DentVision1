@@ -69,7 +69,6 @@ const DEFAULT_SETTINGS: ClinicSettings = {
   taxPercent: 0,
   notifyNoShow: true,
   requireChair: false,
-  autoDeductItems: '',
   bookingLink: '',
   onlineBookingEnabled: true,
   payments: {
@@ -556,15 +555,21 @@ export default function ClinicSettingsPage() {
                 onCheckedChange={(v: boolean) => setSettings({ ...settings, notifyNoShow: v })}
               />
             </div>
-            <Input
-              label="Авто-списание со склада"
-              value={settings.autoDeductItems || ''}
-              onChange={(e) => setSettings({ ...settings, autoDeductItems: e.target.value })}
-              placeholder="Перчатки:1, Маска:1, Слюноотсос:1"
-            />
-            <p className="text-2xs text-txt-muted -mt-2">
-              При закрытии приёма эти позиции спишутся со склада (имя должно совпадать со складом).
-            </p>
+            <div className="rounded-lg border border-bdr-subtle bg-surface-1 p-3">
+              <p className="text-sm font-medium text-txt-primary m-0">Списание со склада после приёма</p>
+              <p className="text-2xs text-txt-muted m-0 mt-1">
+                Настраивается отдельным экраном: расходники каждого приёма, материалы под
+                услугу и под диагноз — с количествами и предпросмотром.
+              </p>
+              <Button
+                variant="secondary"
+                size="sm"
+                className="min-h-11 mt-2"
+                onClick={() => navigate('/crm/stock-rules')}
+              >
+                Настроить списание
+              </Button>
+            </div>
             <Input
               label="Ссылка онлайн-записи"
               value={settings.bookingLink || ''}

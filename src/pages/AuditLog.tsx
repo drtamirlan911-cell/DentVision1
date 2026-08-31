@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { ListSkeleton } from '@/components/ui/ds';
 import { useOutletContext } from 'react-router-dom';
 import { Shield, Search, RefreshCw, Clock, User as UserIcon, Download } from 'lucide-react';
 import * as api from '../utils/api';
@@ -115,9 +116,7 @@ export default function AuditLog() {
 
       <Card>
         {loading ? (
-          <div className="flex justify-center py-20">
-            <div className="h-8 w-8 animate-spin rounded-full border-4 border-dv-gold/30 border-t-dv-gold" />
-          </div>
+          <div className="p-3"><ListSkeleton count={6} /></div>
         ) : filteredLogs.length === 0 ? (
           <EmptyState
             icon={<Shield size={48} />}
@@ -129,11 +128,11 @@ export default function AuditLog() {
             <table className="w-full text-left text-sm">
               <thead>
                 <tr className="border-b border-bdr-subtle">
-                  <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wider text-txt-muted">Время</th>
-                  <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wider text-txt-muted">Пользователь</th>
-                  <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wider text-txt-muted">Действие</th>
-                  <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wider text-txt-muted">Объект</th>
-                  <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wider text-txt-muted">ID</th>
+                  <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider text-txt-muted whitespace-nowrap">Время</th>
+                  <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider text-txt-muted whitespace-nowrap">Пользователь</th>
+                  <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider text-txt-muted whitespace-nowrap">Действие</th>
+                  <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider text-txt-muted whitespace-nowrap">Объект</th>
+                  <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider text-txt-muted whitespace-nowrap">ID</th>
                 </tr>
               </thead>
               <tbody>

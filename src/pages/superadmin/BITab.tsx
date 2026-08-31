@@ -235,18 +235,18 @@ export default function BITab() {
       <PageHeader
         title="Business Intelligence"
         subtitle="Платформенная аналитика и AI CFO"
-        icon={<BarChart3 className="text-primary" size={24} />}
+        icon={<BarChart3 className="text-dv-gold" size={24} />}
       />
 
-      <div className="flex flex-wrap gap-2 p-1 bg-surface/50 rounded-xl w-full sm:w-fit">
+      <div className="flex flex-wrap gap-2 p-1 bg-surface-2/50 rounded-xl w-full sm:w-fit">
         {subTabs.map((tab) => (
           <button
             key={tab.id}
             onClick={() => setActiveSubTab(tab.id)}
             className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${
               activeSubTab === tab.id
-                ? 'bg-primary text-primary-foreground shadow-lg'
-                : 'text-muted-foreground hover:text-foreground hover:bg-surface'
+                ? 'bg-dv-gold text-dv-gold-on shadow-lg'
+                : 'text-txt-muted hover:text-txt-primary hover:bg-surface-2'
             }`}
           >
             {tab.icon}
@@ -269,10 +269,10 @@ export default function BITab() {
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <Card className="bg-surface/50 border-border/50">
+            <Card className="bg-surface-2/50 border-bdr-subtle">
               <CardContent className="p-6">
                 <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
-                  <TrendingUp className="text-primary" size={20} />
+                  <TrendingUp className="text-dv-gold" size={20} />
                   MRR Тренд
                 </h3>
                 {mrrLoading ? (
@@ -291,10 +291,10 @@ export default function BITab() {
               </CardContent>
             </Card>
 
-            <Card className="bg-surface/50 border-border/50">
+            <Card className="bg-surface-2/50 border-bdr-subtle">
               <CardContent className="p-6">
                 <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
-                  <BarChart3 className="text-primary" size={20} />
+                  <BarChart3 className="text-dv-gold" size={20} />
                   Выручка по доменам
                 </h3>
                 {cashflowLoading ? (
@@ -315,10 +315,10 @@ export default function BITab() {
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            <Card className="bg-surface/50 border-border/50">
+            <Card className="bg-surface-2/50 border-bdr-subtle">
               <CardContent className="p-6">
                 <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
-                  <PieChart className="text-primary" size={20} />
+                  <PieChart className="text-dv-gold" size={20} />
                   Распределение подписок
                 </h3>
                 {mrrLoading ? (
@@ -334,10 +334,10 @@ export default function BITab() {
               </CardContent>
             </Card>
 
-            <Card className="bg-surface/50 border-border/50">
+            <Card className="bg-surface-2/50 border-bdr-subtle">
               <CardContent className="p-6">
                 <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
-                  <Activity className="text-primary" size={20} />
+                  <Activity className="text-dv-gold" size={20} />
                   Churn Analysis
                 </h3>
                 {churnLoading ? (
@@ -356,10 +356,10 @@ export default function BITab() {
               </CardContent>
             </Card>
 
-            <Card className="bg-surface/50 border-border/50">
+            <Card className="bg-surface-2/50 border-bdr-subtle">
               <CardContent className="p-6">
                 <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
-                  <Zap className="text-primary" size={20} />
+                  <Zap className="text-dv-gold" size={20} />
                   Unit Economics
                 </h3>
                 {unitEconomicsLoading ? (
@@ -367,25 +367,25 @@ export default function BITab() {
                 ) : unitEconomics ? (
                   <div className="space-y-4">
                     <div className="flex justify-between items-center">
-                      <span className="text-muted-foreground">LTV</span>
+                      <span className="text-txt-muted">LTV</span>
                       <span className="text-lg font-semibold text-emerald-400">
                         {formatCurrency(unitEconomics.ltv || 0)}
                       </span>
                     </div>
                     <div className="flex justify-between items-center">
-                      <span className="text-muted-foreground">CAC</span>
+                      <span className="text-txt-muted">CAC</span>
                       <span className="text-lg font-semibold text-rose-400">
                         {formatCurrency(unitEconomics.cac || 0)}
                       </span>
                     </div>
                     <div className="flex justify-between items-center">
-                      <span className="text-muted-foreground">LTV/CAC</span>
-                      <span className="text-lg font-semibold text-primary">
+                      <span className="text-txt-muted">LTV/CAC</span>
+                      <span className="text-lg font-semibold text-dv-gold">
                         {(unitEconomics.ratio || 0).toFixed(2)}x
                       </span>
                     </div>
                     <div className="flex justify-between items-center">
-                      <span className="text-muted-foreground">Payback Period</span>
+                      <span className="text-txt-muted">Payback Period</span>
                       <span className="text-lg font-semibold text-amber-400">
                         {unitEconomics.paybackMonths || 0} мес
                       </span>
@@ -402,10 +402,10 @@ export default function BITab() {
 
       {activeSubTab === 'aifinance' && (
         <div className="flex flex-col h-[calc(100vh-300px)]">
-          <Card className="bg-surface/50 border-border/50 flex-1 flex flex-col">
+          <Card className="bg-surface-2/50 border-bdr-subtle flex-1 flex flex-col">
             <CardContent className="p-6 flex-1 flex flex-col">
-              <div className="flex items-center gap-2 mb-4 pb-4 border-b border-border/50">
-                <Brain className="text-primary" size={20} />
+              <div className="flex items-center gap-2 mb-4 pb-4 border-b border-bdr-subtle">
+                <Brain className="text-dv-gold" size={20} />
                 <h3 className="text-lg font-semibold">AI CFO Assistant</h3>
                 <Badge variant="default" className="ml-auto">
                   <div className="w-2 h-2 rounded-full bg-emerald-400 mr-2 animate-pulse" />
@@ -431,7 +431,7 @@ export default function BITab() {
               <div className="flex-1 overflow-y-auto space-y-4 mb-4">
                 {chatMessages.length === 0 ? (
                   <div className="flex-1 flex items-center justify-center h-full">
-                    <div className="text-center text-muted-foreground">
+                    <div className="text-center text-txt-muted">
                       <Brain size={48} className="mx-auto mb-4 opacity-50" />
                       <p className="text-lg">Задайте вопрос вашему AI CFO</p>
                       <p className="text-sm mt-2">Используйте готовые запросы или введите свой вопрос</p>
@@ -446,18 +446,18 @@ export default function BITab() {
                       <div
                         className={`max-w-[80%] rounded-2xl px-4 py-3 ${
                           title.role === 'user'
-                            ? 'bg-primary/20 text-foreground'
-                            : 'bg-surface border border-border/50 text-foreground'
+                            ? 'bg-dv-gold/20 text-txt-primary'
+                            : 'bg-surface-2 border border-bdr-subtle text-txt-primary'
                         }`}
                       >
                         {title.role === 'assistant' && (
-                          <div className="flex items-center gap-2 mb-2 text-xs text-muted-foreground">
+                          <div className="flex items-center gap-2 mb-2 text-xs text-txt-muted">
                             <Brain size={12} />
                             AI CFO
                           </div>
                         )}
                         <p className="whitespace-pre-wrap">{title.content}</p>
-                        <div className={`text-xs mt-2 ${title.role === 'user' ? 'text-right' : 'text-left'} text-muted-foreground`}>
+                        <div className={`text-xs mt-2 ${title.role === 'user' ? 'text-right' : 'text-left'} text-txt-muted`}>
                           {title.timestamp.toLocaleTimeString('ru-RU', { 
                             hour: '2-digit', 
                             minute: '2-digit' 
@@ -470,7 +470,7 @@ export default function BITab() {
                 <div ref={chatEndRef} />
               </div>
 
-              <div className="flex flex-wrap gap-2 pt-4 border-t border-border/50">
+              <div className="flex flex-wrap gap-2 pt-4 border-t border-bdr-subtle">
                 <Input
                   placeholder="Задайте вопрос о финансах..."
                   value={chatInput}
@@ -481,15 +481,12 @@ export default function BITab() {
                 />
                 <Button
                   onClick={handleSendMessage}
-                  disabled={!chatInput.trim() || cfoChatMutation.isPending}
+                  disabled={!chatInput.trim()}
+                  loading={cfoChatMutation.isPending}
                   size="icon"
                   className="min-h-11 min-w-11"
                 >
-                  {cfoChatMutation.isPending ? (
-                    <div className="w-4 h-4 border-2 border-primary-foreground border-t-transparent rounded-full animate-spin" />
-                  ) : (
-                    <Send size={16} />
-                  )}
+                  <Send size={16} />
                 </Button>
               </div>
             </CardContent>
@@ -499,10 +496,10 @@ export default function BITab() {
 
       {activeSubTab === 'scenarios' && (
         <div className="space-y-6">
-          <Card className="bg-surface/50 border-border/50">
+          <Card className="bg-surface-2/50 border-bdr-subtle">
             <CardContent className="p-6">
               <h3 className="text-lg font-semibold mb-6 flex items-center gap-2">
-                <Target className="text-primary" size={20} />
+                <Target className="text-dv-gold" size={20} />
                 Финансовые сценарии
               </h3>
 
@@ -521,30 +518,30 @@ export default function BITab() {
                       </div>
                       <div>
                         <h4 className="font-semibold text-emerald-400">Оптимистичный</h4>
-                        <p className="text-xs text-muted-foreground">Лучший сценарий</p>
+                        <p className="text-xs text-txt-muted">Лучший сценарий</p>
                       </div>
                     </div>
                     <div className="space-y-3">
                       <div className="flex justify-between">
-                        <span className="text-muted-foreground">MRR (12 мес)</span>
+                        <span className="text-txt-muted">MRR (12 мес)</span>
                         <span className="font-semibold text-emerald-400">
                           {formatCurrency(scenarios.optimistic?.mrr12 || 0)}
                         </span>
                       </div>
                       <div className="flex justify-between">
-                        <span className="text-muted-foreground">Рост</span>
+                        <span className="text-txt-muted">Рост</span>
                         <span className="font-semibold text-emerald-400">
                           +{formatPercentage(scenarios.optimistic?.growth || 0)}
                         </span>
                       </div>
                       <div className="flex justify-between">
-                        <span className="text-muted-foreground">Клиенты</span>
+                        <span className="text-txt-muted">Клиенты</span>
                         <span className="font-semibold text-emerald-400">
                           {scenarios.optimistic?.clients || 0}
                         </span>
                       </div>
                       <div className="flex justify-between">
-                        <span className="text-muted-foreground">Churn</span>
+                        <span className="text-txt-muted">Churn</span>
                         <span className="font-semibold text-emerald-400">
                           {formatPercentage(scenarios.optimistic?.churn || 0)}
                         </span>
@@ -559,30 +556,30 @@ export default function BITab() {
                       </div>
                       <div>
                         <h4 className="font-semibold text-blue-400">Базовый</h4>
-                        <p className="text-xs text-muted-foreground">Реалистичный сценарий</p>
+                        <p className="text-xs text-txt-muted">Реалистичный сценарий</p>
                       </div>
                     </div>
                     <div className="space-y-3">
                       <div className="flex justify-between">
-                        <span className="text-muted-foreground">MRR (12 мес)</span>
+                        <span className="text-txt-muted">MRR (12 мес)</span>
                         <span className="font-semibold text-blue-400">
                           {formatCurrency(scenarios.base?.mrr12 || 0)}
                         </span>
                       </div>
                       <div className="flex justify-between">
-                        <span className="text-muted-foreground">Рост</span>
+                        <span className="text-txt-muted">Рост</span>
                         <span className="font-semibold text-blue-400">
                           +{formatPercentage(scenarios.base?.growth || 0)}
                         </span>
                       </div>
                       <div className="flex justify-between">
-                        <span className="text-muted-foreground">Клиенты</span>
+                        <span className="text-txt-muted">Клиенты</span>
                         <span className="font-semibold text-blue-400">
                           {scenarios.base?.clients || 0}
                         </span>
                       </div>
                       <div className="flex justify-between">
-                        <span className="text-muted-foreground">Churn</span>
+                        <span className="text-txt-muted">Churn</span>
                         <span className="font-semibold text-blue-400">
                           {formatPercentage(scenarios.base?.churn || 0)}
                         </span>
@@ -597,30 +594,30 @@ export default function BITab() {
                       </div>
                       <div>
                         <h4 className="font-semibold text-rose-400">Пессимистичный</h4>
-                        <p className="text-xs text-muted-foreground">Худший сценарий</p>
+                        <p className="text-xs text-txt-muted">Худший сценарий</p>
                       </div>
                     </div>
                     <div className="space-y-3">
                       <div className="flex justify-between">
-                        <span className="text-muted-foreground">MRR (12 мес)</span>
+                        <span className="text-txt-muted">MRR (12 мес)</span>
                         <span className="font-semibold text-rose-400">
                           {formatCurrency(scenarios.pessimistic?.mrr12 || 0)}
                         </span>
                       </div>
                       <div className="flex justify-between">
-                        <span className="text-muted-foreground">Рост</span>
+                        <span className="text-txt-muted">Рост</span>
                         <span className="font-semibold text-rose-400">
                           +{formatPercentage(scenarios.pessimistic?.growth || 0)}
                         </span>
                       </div>
                       <div className="flex justify-between">
-                        <span className="text-muted-foreground">Клиенты</span>
+                        <span className="text-txt-muted">Клиенты</span>
                         <span className="font-semibold text-rose-400">
                           {scenarios.pessimistic?.clients || 0}
                         </span>
                       </div>
                       <div className="flex justify-between">
-                        <span className="text-muted-foreground">Churn</span>
+                        <span className="text-txt-muted">Churn</span>
                         <span className="font-semibold text-rose-400">
                           {formatPercentage(scenarios.pessimistic?.churn || 0)}
                         </span>
@@ -635,10 +632,10 @@ export default function BITab() {
           </Card>
 
           {scenarios?.chart?.length > 0 && (
-            <Card className="bg-surface/50 border-border/50">
+            <Card className="bg-surface-2/50 border-bdr-subtle">
               <CardContent className="p-6">
                 <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
-                  <BarChart3 className="text-primary" size={20} />
+                  <BarChart3 className="text-dv-gold" size={20} />
                   Прогноз по сценариям
                 </h3>
                 <BarChartComponent

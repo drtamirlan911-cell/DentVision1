@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { Skeleton } from '@/components/ui/ds';
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router-dom'
 import { Wallet, ArrowDownLeft, ArrowUpRight, Clock, Gift, ShoppingBag } from 'lucide-react'
@@ -54,9 +55,7 @@ export function DentWalletCard({ className }: { className?: string }) {
         </div>
 
         {loading ? (
-          <div className="h-20 flex items-center justify-center">
-            <div className="w-6 h-6 rounded-full border-2 border-dv-gold/30 border-t-dv-gold animate-spin" />
-          </div>
+          <Skeleton className="h-20" />
         ) : error || !wallet ? (
           <div className="space-y-2">
             <p className="text-sm text-txt-muted">{error || t('wallet.load_error')}</p>

@@ -23,6 +23,9 @@ export const PATH_PAGE_ID: Record<string, string> = {
   '/crm/staff': 'staff',
   '/crm/reminders': 'reminders',
   '/crm/promotions': 'promotions',
+  // Контент и продвижение живут под тем же правом, что и акции:
+  // это одна работа — привлечение пациентов.
+  '/crm/marketing': 'promotions',
   '/crm/icd10': 'icd10',
   '/analytics': 'analytics',
   '/admin': 'admin',

@@ -6,7 +6,7 @@ import {
   Loader2, Stethoscope, MapPin, Phone, CheckCircle2, ChevronLeft,
   ChevronRight, Calendar, User, Clock, Sparkles, AlertTriangle,
 } from 'lucide-react';
-import { Button, Input, Textarea } from '@/components/ui/ds';
+import { Button, Input, Textarea, Skeleton } from '@/components/ui/ds';
 import { EmptyState } from '@/components/ui/ds/EmptyState';
 import { Badge } from '@/components/ui/ds/Badge';
 import { cn } from '@/lib/utils';
@@ -504,8 +504,8 @@ export default function PublicBooking() {
                     <Clock size={12} /> {t('patientPortal.publicBooking.datetime.time')}
                   </p>
                   {slotsLoading ? (
-                    <div className="flex justify-center py-8">
-                      <Loader2 size={24} className="animate-spin text-dv-gold" />
+                    <div className="grid grid-cols-3 sm:grid-cols-4 gap-2 py-2">
+                      {Array.from({ length: 8 }).map((_, i) => <Skeleton key={i} className="h-11" />)}
                     </div>
                   ) : !workingDay ? (
                     <p className="text-sm text-txt-muted text-center py-6">{t('patientPortal.publicBooking.datetime.not_working')}</p>

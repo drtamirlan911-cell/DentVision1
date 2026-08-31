@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { ListSkeleton } from '@/components/ui/ds';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import {
@@ -201,9 +202,7 @@ export default function TreatmentPlans() {
       </motion.div>
 
       {loading ? (
-        <motion.div className="flex justify-center py-12">
-          <div className="w-8 h-8 rounded-full border-2 border-dv-gold/30 border-t-dv-gold animate-spin" />
-        </motion.div>
+        <ListSkeleton count={4} />
       ) : combined.length === 0 ? (
         <EmptyState
           icon={<ClipboardList size={28} />}

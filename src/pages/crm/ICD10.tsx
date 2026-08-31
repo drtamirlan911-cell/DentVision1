@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { CardSkeleton } from '@/components/ui/ds';
 import { motion } from 'framer-motion';
 import { Search, BookOpen, Tag } from 'lucide-react';
 import * as api from '@/utils/api';
@@ -138,9 +139,7 @@ export default function ICD10() {
 
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
         {loading ? (
-          <div className="col-span-full flex justify-center py-20">
-            <div className="h-8 w-8 animate-spin rounded-full border-4 border-dv-gold/30 border-t-dv-gold" />
-          </div>
+          <>{Array.from({ length: 8 }).map((_, i) => <CardSkeleton key={i} />)}</>
         ) : filteredCodes.length === 0 ? (
           <EmptyState
             icon={<BookOpen size={48} />}

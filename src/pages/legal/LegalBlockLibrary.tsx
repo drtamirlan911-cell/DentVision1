@@ -4,6 +4,7 @@ import {
   Card, Button, Badge, Modal, Input, Select, EmptyState, Skeleton,
 } from '../../components/ui/ds';
 import { useToast } from '../../components/ui/ds/Toast';
+import { ConfirmModal } from '../../components/ui/ds/Modal';
 import { apiRequest } from '../../utils/api';
 import { Grid, Plus, Search, Edit3, Trash2 } from 'lucide-react';
 
@@ -49,6 +50,8 @@ export default function LegalBlockLibrary() {
   const [search, setSearch] = useState('');
   const [modal, setModal] = useState<false | 'create' | 'edit'>(false);
   const [editId, setEditId] = useState<string | null>(null);
+  /** Блок, деактивация которого ждёт подтверждения. */
+  const [toDeactivate, setToDeactivate] = useState<{ id: string; name: string } | null>(null);
   const [form, setForm] = useState<BlockForm>(EMPTY_FORM);
 
   const blocks = useQuery({
@@ -190,9 +193,7 @@ export default function LegalBlockLibrary() {
                           <Edit3 size={14} />
                         </Button>
                         {b.isActive !== false && (
-                          <Button size="icon-sm" variant="ghost" className="min-h-11" aria-label="Деактивировать" onClick={() => {
-                            if (confirm('Деактивировать блок?')) deleteBlock.mutate(b.id);
-                          }} title="Деактивировать" loading={deleteBlock.isPending && deleteBlock.variables === b.id}>
+                          <Button size="icon-sm" variant="ghost" className="min-h-11" aria-label="Деактивировать" onClick={() => setToDeactivate({ id: b.id, name: b.name || 'Без названия' })} title="Деактивировать" loading={deleteBlock.isPending && deleteBlock.variables === b.id}>
                             <Trash2 size={14} />
                           </Button>
                         )}
@@ -230,6 +231,16 @@ export default function LegalBlockLibrary() {
           </div>
         </form>
       </Modal>
+
+      <ConfirmModal
+        open={!!toDeactivate}
+        onClose={() => setToDeactivate(null)}
+        onConfirm={() => { if (toDeactivate) deleteBlock.mutate(toDeactivate.id); }}
+        title="Деактивировать блок?"
+        message={toDeactivate ? `«${toDeactivate.name}» больше не будет предлагаться при сборке документов.` : ''}
+        confirmLabel="Деактивировать"
+        variant="warning"
+      />
     </div>
   );
 }

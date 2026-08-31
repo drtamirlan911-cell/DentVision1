@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { Skeleton } from '@/components/ui/ds';
 import { useParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion'
@@ -172,12 +173,9 @@ export default function TreatmentPresentation() {
   if (isLoading) {
     return (
       <PatientSurface width="wide">
-        <div className="flex min-h-[60vh] items-center justify-center">
-          <div
-            className="h-10 w-10 animate-spin rounded-full border-2 border-bdr-subtle"
-            style={{ borderTopColor: 'var(--dv-gold)' }}
-            aria-label={t('common.loading')}
-          />
+        <div className="space-y-4 py-8" aria-label={t('common.loading')}>
+          <Skeleton className="h-48" />
+          <Skeleton variant="text" lines={4} />
         </div>
       </PatientSurface>
     )

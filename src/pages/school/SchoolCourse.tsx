@@ -2,7 +2,7 @@
 import { useParams, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ArrowLeft, ChevronRight, Play, Clock, Users, Star, BookOpen, Check, FileText, Video, HelpCircle, Award, CheckCircle2, Sparkles, Send } from 'lucide-react';
-import { Button, Badge, EmptyState, Card, ProgressBar } from '../../components/ui/ds';
+import { Button, Badge, EmptyState, Card, ProgressBar, Skeleton } from '../../components/ui/ds';
 import { tintedAccent } from '@/lib/utils';
 import { useAuth } from '@/store/auth.store';
 import { useToast } from '../../components/ui/ds/Toast';
@@ -247,9 +247,7 @@ export default function SchoolCourse() {
   };
 
   if (loading) return (
-    <div className="flex justify-center py-20">
-      <div className="w-9 h-9 rounded-full border-[3px] border-dv-gold/30 border-t-dv-gold animate-spin" />
-    </div>
+    <div className="space-y-4"><Skeleton className="h-40" /><Skeleton variant="text" lines={4} /></div>
   );
 
   if (!course) return <div className="py-10 text-center text-txt-muted">Курс не найден</div>;

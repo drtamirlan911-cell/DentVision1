@@ -4,6 +4,7 @@ import { apiRequest } from '@/utils/api'
 import { MessageCircle, Camera, RefreshCw, ExternalLink, AlertCircle, CheckCircle2, XCircle, Trash2 } from 'lucide-react'
 import { Card } from '@/components/ui/ds/Card'
 import { PageHeader } from '@/components/ui/ds/StatCard'
+import { ConfirmModal } from '@/components/ui/ds/Modal'
 
 interface ChannelStatus {
   id: string
@@ -28,6 +29,8 @@ export default function IntegrationsMessaging() {
   const [status, setStatus] = useState<StatusData | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  /** Канал, отключение которого ждёт подтверждения. */
+  const [toDisconnect, setToDisconnect] = useState<string | null>(null)
 
   const loadStatus = useCallback(async () => {
     if (!clinicId) return
@@ -59,10 +62,10 @@ export default function IntegrationsMessaging() {
       .finally(() => setLoading(false))
   }
 
-  const handleDisconnect = async (channel: string) => {
-    if (!clinicId || !confirm('Отключить интеграцию? История сообщений будет сохранена.')) return
+  const confirmDisconnect = async () => {
+    if (!clinicId || !toDisconnect) return
     try {
-      await apiRequest(`/api/meta/disconnect/${channel}?clinicId=${clinicId}`, { method: 'DELETE' })
+      await apiRequest(`/api/meta/disconnect/${toDisconnect}?clinicId=${clinicId}`, { method: 'DELETE' })
       await loadStatus()
     } catch {
       setError('Failed to disconnect')
@@ -114,7 +117,7 @@ export default function IntegrationsMessaging() {
           </div>
           {connected && (
             <button
-              onClick={() => handleDisconnect(channel)}
+              onClick={() => setToDisconnect(channel)}
               className="rounded-lg p-2 min-h-11 min-w-11 text-txt-muted hover:bg-error/10 hover:text-error transition-colors"
               title="Отключить"
             >
@@ -179,6 +182,19 @@ export default function IntegrationsMessaging() {
         {renderCard('WHATSAPP')}
         {renderCard('INSTAGRAM')}
       </div>
+
+      <ConfirmModal
+        open={!!toDisconnect}
+        onClose={() => setToDisconnect(null)}
+        onConfirm={confirmDisconnect}
+        title="Отключить интеграцию?"
+        message={
+          toDisconnect === 'WHATSAPP'
+            ? 'WhatsApp Business отключится от клиники. Новые сообщения перестанут приходить, история переписки сохранится.'
+            : 'Instagram Direct отключится от клиники. Новые сообщения перестанут приходить, история переписки сохранится.'
+        }
+        confirmLabel="Отключить"
+      />
 
       <Card padding="lg" className="text-sm text-txt-muted">
         <p className="font-medium text-txt-secondary mb-1">Как это работает</p>

@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react'
+import { Skeleton } from '@/components/ui/ds';
 import { Wallet, ChevronDown, ChevronUp, Calendar, User } from 'lucide-react'
 import * as api from '@/utils/api'
 import { Card, CardContent } from '@/components/ui/ds/Card'
@@ -81,9 +82,7 @@ export function DoctorPayrollCard({ className, refreshKey = 0, discreet = false 
           {open && (
             <div className="px-4 pb-4 space-y-3 border-t border-bdr-subtle pt-3">
               {loading ? (
-                <div className="h-12 flex items-center justify-center">
-                  <div className="w-5 h-5 rounded-full border-2 border-dv-gold/30 border-t-dv-gold animate-spin" />
-                </div>
+                <Skeleton className="h-12" />
               ) : !payroll ? (
                 <p className="text-sm text-txt-muted">Нет данных по начислениям</p>
               ) : (
@@ -157,9 +156,7 @@ export function DoctorPayrollCard({ className, refreshKey = 0, discreet = false 
         </div>
 
         {loading ? (
-          <div className="h-16 flex items-center justify-center">
-            <div className="w-6 h-6 rounded-full border-2 border-dv-gold/30 border-t-dv-gold animate-spin" />
-          </div>
+          <Skeleton className="h-16" />
         ) : !payroll ? (
           <p className="text-sm text-txt-muted">Не удалось загрузить начисления</p>
         ) : (

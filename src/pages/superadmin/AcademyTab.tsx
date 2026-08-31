@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   StatCard, PageHeader, GlassCard, Card, CardContent, Button, Badge, Modal,
-  Input, Select, Textarea, EmptyState, Skeleton,
+  Input, Select, Textarea, EmptyState, Skeleton, ConfirmModal,
 } from '../../components/ui/ds';
 import { useToast } from '../../components/ui/ds/Toast';
 import { apiRequest } from '../../utils/api';
@@ -117,6 +117,8 @@ export default function AcademyTab() {
   const [lecturerForm, setLecturerForm] = useState({ userId: '', academyId: '', speciality: '' });
   const [selectedLecturerId, setSelectedLecturerId] = useState<string | null>(null);
   const [selectedAcademy, setSelectedAcademy] = useState<any>(null);
+  /** Академия, удаление которой ждёт подтверждения. */
+  const [toDeleteAcademy, setToDeleteAcademy] = useState<any>(null);
   const [editingAcademy, setEditingAcademy] = useState<any>(null);
   const [verifyDetailId, setVerifyDetailId] = useState<string | null>(null);
 
@@ -411,7 +413,7 @@ export default function AcademyTab() {
                             <Button size="icon-sm" variant="ghost" onClick={() => { setEditingAcademy(a); setAcademyForm({ name: a.name || '', description: a.description || '' }); setAcademyModal(true); }} title="Редактировать">
                               <Pencil size={14} />
                             </Button>
-                            <Button size="icon-sm" variant="ghost" onClick={() => { if (confirm('Удалить академию?')) deleteAcademy.mutate(a.id); }} title="Удалить">
+                            <Button size="icon-sm" variant="ghost" onClick={() => setToDeleteAcademy(a)} title="Удалить">
                               <Trash2 size={14} className="text-danger" />
                             </Button>
                             <Button size="icon-sm" variant="ghost" onClick={() => setSelectedAcademy(a)} title="Подробнее">
@@ -830,6 +832,15 @@ export default function AcademyTab() {
           </div>
         </form>
       </Modal>
+
+      <ConfirmModal
+        open={!!toDeleteAcademy}
+        onClose={() => setToDeleteAcademy(null)}
+        onConfirm={() => { if (toDeleteAcademy) deleteAcademy.mutate(toDeleteAcademy.id); }}
+        title="Удалить академию?"
+        message={toDeleteAcademy ? `«${toDeleteAcademy.name || 'Без названия'}» будет удалена безвозвратно вместе со связью с лекторами.` : ''}
+        confirmLabel="Удалить"
+      />
     </div>
   );
 }
