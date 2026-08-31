@@ -2496,6 +2496,20 @@ export async function biUnitEconomics(): Promise<any> {
   return biRequest('/api/bi/unit-economics');
 }
 
+/**
+ * How complete the platform's IIN directory is — the number that shows whether
+ * "the system gradually collects every IIN" is actually happening.
+ */
+export interface IinCoverage {
+  patients: { total: number; withIin: number; waived: number; missing: number }
+  coveragePercent: number
+  clinics: { total: number; complete: number }
+}
+
+export async function biIinCoverage(): Promise<IinCoverage> {
+  return biRequest('/api/bi/iin-coverage')
+}
+
 export async function biCashFlow(): Promise<any> {
   return biRequest('/api/bi/cashflow');
 }

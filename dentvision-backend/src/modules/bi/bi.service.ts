@@ -834,3 +834,48 @@ ${clinicData ? `
   const reply = await simpleChat(systemPrompt, question).catch(() => null);
   return reply || 'Не удалось сгенерировать ответ';
 }
+
+export interface IinCoverage {
+  patients: { total: number; withIin: number; waived: number; missing: number };
+  /** Share of patients carrying an IIN, 0–100. */
+  coveragePercent: number;
+  clinics: { total: number; complete: number };
+}
+
+/**
+ * How complete the platform's IIN directory is.
+ *
+ * The IIN is the identifier a Kazakhstan clinic works by, and the platform
+ * accumulates one per person by working rather than by a migration: it became
+ * required when a patient is created, so coverage climbs as clinics use the
+ * product. This is the number that shows whether that is actually happening —
+ * without it, "the system gradually collects every IIN" is a claim nobody can
+ * check.
+ *
+ * `waived` is not a failure: a foreign national has no IIN, and a WhatsApp
+ * booking has nobody to ask. `missing` — neither a number nor a stated reason
+ * — is what remains to be completed, and those are the records the patient
+ * card flags.
+ */
+export async function getIinCoverage(): Promise<IinCoverage> {
+  const [total, withIin, waived, clinicsTotal, clinicsIncomplete] = await Promise.all([
+    prisma.patient.count({ where: { deletedAt: null } }),
+    prisma.patient.count({ where: { deletedAt: null, iinHash: { not: null } } }),
+    prisma.patient.count({ where: { deletedAt: null, iinHash: null, noIinReason: { not: null } } }),
+    prisma.clinic.count(),
+    // Clinics that still hold at least one unexplained record. Grouping is
+    // cheaper than counting per clinic and keeps this a fixed number of
+    // queries no matter how many clinics exist.
+    prisma.patient.groupBy({
+      by: ['clinicId'],
+      where: { deletedAt: null, iinHash: null, noIinReason: null },
+      _count: { _all: true },
+    }),
+  ]);
+
+  return {
+    patients: { total, withIin, waived, missing: Math.max(0, total - withIin - waived) },
+    coveragePercent: total > 0 ? Math.round((withIin / total) * 100) : 0,
+    clinics: { total: clinicsTotal, complete: Math.max(0, clinicsTotal - clinicsIncomplete.length) },
+  };
+}
