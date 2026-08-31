@@ -1,11 +1,15 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { auditLogCreate } = vi.hoisted(() => ({
+const { auditLogCreate, assignmentUpsert } = vi.hoisted(() => ({
   auditLogCreate: vi.fn(),
+  assignmentUpsert: vi.fn(),
 }));
 
 vi.mock('../lib/prisma.js', () => ({
-  default: { auditLog: { create: auditLogCreate } },
+  default: {
+    auditLog: { create: auditLogCreate },
+    patientAssignment: { upsert: assignmentUpsert },
+  },
 }));
 
 import { publish } from '../lib/events.js';
@@ -63,6 +67,43 @@ describe('subscribers: supplier.status_changed / lecturer.level_changed', () => 
         entityId: 'sup-2',
         details: { from: null, to: null },
       }),
+    });
+  });
+});
+
+describe('subscribers: appointment.created → patient assignment', () => {
+  it('makes the booked doctor responsible for the patient', async () => {
+    publish('appointment.created', {
+      clinicId: 'c-1',
+      appointmentId: 'a-1',
+      patientId: 'p-1',
+      doctorId: 'd-1',
+      userId: 'u-1',
+    });
+    await flush();
+
+    expect(assignmentUpsert).toHaveBeenCalledTimes(1);
+    expect(assignmentUpsert.mock.calls[0][0].create).toMatchObject({
+      clinicId: 'c-1',
+      patientId: 'p-1',
+      userId: 'd-1',
+      role: 'treating_doctor',
+      active: true,
+    });
+  });
+
+  it('still writes the audit row when there is no doctor to assign', async () => {
+    publish('appointment.created', {
+      clinicId: 'c-1',
+      appointmentId: 'a-2',
+      patientId: 'p-1',
+      doctorId: null,
+    });
+    await flush();
+
+    expect(assignmentUpsert).not.toHaveBeenCalled();
+    expect(auditLogCreate).toHaveBeenCalledWith({
+      data: expect.objectContaining({ action: 'appointment.created', entityId: 'a-2' }),
     });
   });
 });

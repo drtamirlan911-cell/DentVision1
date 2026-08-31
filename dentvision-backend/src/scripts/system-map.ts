@@ -145,6 +145,16 @@ function readClientPaths(): Set<string> {
     for (const match of source.matchAll(/['"`](\/api\/[^'"`\s]*)['"`]/g)) {
       paths.add(match[1]);
     }
+    // Also take the literal prefix of a template that interpolates *after* the
+    // path — `` `/api/finance/revenue-by-source${qs ? `?${qs}` : ''}` ``. The
+    // pattern above needs a closing quote right after the path and the nested
+    // backtick defeats it, so a perfectly consumed route was reported as
+    // having no consumer. A prefix that stops mid-path (`/api/crm/${id}/...`)
+    // just yields a shorter path that matches no route, which is harmless —
+    // the full-literal pass above already covers that shape.
+    for (const match of source.matchAll(/['"`](\/api\/[^'"`\s]*?)(?:\$\{|['"`])/g)) {
+      paths.add(match[1]);
+    }
   }
   return paths;
 }
@@ -287,9 +297,20 @@ function readAiTools(): string[] {
 // a coarse, file-level heuristic in the same spirit as the rest of this
 // generator — a signal to look, not a verdict.
 
+/**
+ * Staff-surface tool names, from the shape of a `ToolDefinition` rather than
+ * from `name:` alone.
+ *
+ * `tools.ts` also holds constants that carry a `name` and are not tools —
+ * `RADIOGRAPH_FINDINGS_SCHEMA` is the JSON schema the vision model answers in.
+ * Matching bare `name:` reported it as an ungated tool, which is a false alarm
+ * about permissions on something that has no permissions to have. An audit
+ * that cries wolf stops being read, so this requires the `description:` line
+ * every real `ToolDefinition` carries next.
+ */
 function readStaffToolNames(): string[] {
   const source = read(join(BACKEND_SRC, 'modules/ai/os/tools.ts'));
-  return [...source.matchAll(/^\s*name:\s*'(\w+)'/gm)].map((m) => m[1]);
+  return [...source.matchAll(/^\s*name:\s*'(\w+)',\s*\n\s*description:/gm)].map((m) => m[1]);
 }
 
 function readToolPermissionKeys(): { gated: string[]; ungated: string[] } {

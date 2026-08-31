@@ -3,6 +3,19 @@ import { getAccessToken } from '@/utils/api'
 
 // ─── Types ───
 
+/**
+ * What an action was based on. `sourceId` comes back empty on PHI-sensitive
+ * rows for a caller without `medical.read` — they see that a patient record
+ * was involved, not which one.
+ */
+export interface TimelineEvidence {
+  id: string
+  sourceType: string
+  sourceId: string
+  access?: string | null
+  snapshot?: Record<string, unknown> | null
+}
+
 export interface TimelineEvent {
   id: string
   type: string
@@ -18,6 +31,7 @@ export interface TimelineEvent {
   error?: string | null
   durationMs?: number
   processedAt: string
+  evidence?: TimelineEvidence[]
 }
 
 export interface TimelineStats {

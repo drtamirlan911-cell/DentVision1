@@ -2032,6 +2032,41 @@ async function main() {
     await tx.$executeRawUnsafe(`DROP TYPE IF EXISTS "ActionStatus"`);
   });
 
+  // `prisma/migrations/20260825_lecturer_speciality/` shipped without its
+  // mirrored block, and migrations here are applied by these calls at boot,
+  // not by `migrate deploy` — so the folder never ran anywhere. Any database
+  // older than that PR is still missing the column, and `POST
+  // /api/lecturer/register` answers 500 on it (found by the E2E pass: the
+  // column exists in schema.prisma, so Prisma selects it and Postgres refuses).
+  // Both statements are guarded, so this is a no-op where the columns exist.
+  await runOnceMigration('lecturer_speciality', 'Lecturer.speciality column + userId FK', async (tx) => {
+    await tx.$executeRawUnsafe(`ALTER TABLE "lecturers" ADD COLUMN IF NOT EXISTS "speciality" TEXT`);
+    await tx.$executeRawUnsafe(`
+      DO $$
+      BEGIN
+        IF NOT EXISTS (
+          SELECT 1 FROM pg_constraint WHERE conname = 'lecturers_userId_fkey'
+        ) THEN
+          ALTER TABLE "lecturers" ADD CONSTRAINT "lecturers_userId_fkey"
+            FOREIGN KEY ("userId") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+        END IF;
+      END $$;
+    `);
+  });
+
+  // Same self-audit, re-run against a map that had gone five PRs stale.
+  // SpecTemplate / FinancialTransaction / Schedule: zero Prisma-client calls,
+  // reachable only through back-relations nothing selects, empty on a real
+  // database. `RevenueSource` deliberately survives — `Revenue` uses it and
+  // is written on every sale; it lacked a reader, not a purpose.
+  await runOnceMigration('drop_unreferenced_models', 'SpecTemplate/FinancialTransaction/Schedule dropped (unreferenced, see docs/SYSTEM_MAP.md)', async (tx) => {
+    await tx.$executeRawUnsafe(`DROP TABLE IF EXISTS "spec_templates"`);
+    await tx.$executeRawUnsafe(`DROP TABLE IF EXISTS "financial_transactions"`);
+    await tx.$executeRawUnsafe(`DROP TABLE IF EXISTS "diagnostic_schedules"`);
+    await tx.$executeRawUnsafe(`DROP TYPE IF EXISTS "SpecFieldType"`);
+    await tx.$executeRawUnsafe(`DROP TYPE IF EXISTS "FinancialTxType"`);
+  });
+
   // `upcomingWebinars()`/`upcomingOfficeCourses()` (academyContent.ts) used to be
   // hardcoded JS arrays spliced into the marketplace response alongside real
   // `Course` rows — `seats`/`enrolled` were literal numbers that never moved no

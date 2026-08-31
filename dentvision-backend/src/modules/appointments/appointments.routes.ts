@@ -3,6 +3,7 @@ import prisma from '../../lib/prisma.js';
 import { authenticate } from '../../middleware/auth.js';
 import { requirePermission } from '../../middleware/rbac.js';
 import { publish } from '../../lib/events.js';
+import { ensurePatientAssignment } from '../../lib/patientAssignment.js';
 import { auditFromReq } from '../compliance/audit.service.js';
 import { uid, paginate, paginatedResponse } from '../../lib/helpers.js';
 import type { AuthRequest, ApiResponse } from '../../types/index.js';
@@ -262,9 +263,21 @@ appointmentsRouter.post('/', requirePermission('appointment.write'), requireClin
       publish('appointment.created', {
         clinicId,
         appointmentId: appointment.id,
+        patientId: appointment.patientId,
+        doctorId: appointment.doctorId,
         userId: req.user?.id,
       });
     } else {
+      // Moving an existing appointment to another doctor makes that doctor
+      // responsible for the patient just as booking a new one does. There is
+      // no `appointment.updated` domain event to hang this on, and inventing
+      // one only for this would move audit plumbing that already works — so
+      // the call is direct here, and only here.
+      await ensurePatientAssignment({
+        clinicId,
+        patientId: appointment.patientId,
+        userId: appointment.doctorId,
+      });
       await auditFromReq(req, {
         action: 'appointment.updated',
         entity: 'appointment',

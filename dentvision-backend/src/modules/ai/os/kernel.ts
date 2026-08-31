@@ -83,6 +83,98 @@ function buildApprovalSummary(tool: string, args: Record<string, unknown>): stri
   }
 }
 
+/** What an action was based on, beyond what the row itself already says. */
+export interface EvidenceEntry {
+  sourceType: string;
+  sourceId: string;
+  access?: string;
+  clinicId?: string | null;
+  snapshot?: unknown;
+}
+
+/**
+ * Derive the evidence every action carries, from the activity row itself.
+ *
+ * Kept here rather than at the nine exit points of `runAiAction` for the same
+ * reason the appointment event has one subscriber and not six publishers: a
+ * tenth exit path added later gets its evidence without anyone remembering.
+ * Before this, evidence was written on the success path only — so a refusal,
+ * the case where "what was this based on?" matters most, recorded nothing,
+ * despite this module's own header promising otherwise.
+ */
+function deriveEvidence(
+  row: {
+    tool: string;
+    status: string;
+    denyReason?: AiDenyReason | null;
+    clinicId: string | null;
+    patientId?: string | null;
+    argsRedacted?: Record<string, unknown> | null;
+    approvalId?: string | null;
+  },
+  extra: EvidenceEntry[] = [],
+): EvidenceEntry[] {
+  const entries: EvidenceEntry[] = [
+    {
+      sourceType: 'tool',
+      sourceId: row.tool,
+      access: row.denyReason || row.status,
+      clinicId: row.clinicId,
+    },
+  ];
+
+  // Which patient the action was about, and — the part worth recording —
+  // whether that id came from the model or was filled in server-side from the
+  // open patient card (`redactArgs` marks the latter in `_source`).
+  const args = row.argsRedacted || {};
+  const patientArg = TOOL_PATIENT_ARG[row.tool];
+  const argPatientId = patientArg ? args[patientArg] : undefined;
+  const patientId = (typeof argPatientId === 'string' && argPatientId) || row.patientId || null;
+  if (patientId) {
+    const source = args._source as Record<string, string> | undefined;
+    const fromContext = Boolean(patientArg && source?.[patientArg] === 'context');
+    entries.push({
+      sourceType: 'patient',
+      sourceId: patientId,
+      access: fromContext ? 'context' : 'argument',
+      clinicId: row.clinicId,
+    });
+  }
+
+  if (row.approvalId) {
+    entries.push({ sourceType: 'approval', sourceId: row.approvalId, access: 'granted', clinicId: row.clinicId });
+  }
+
+  // A read tool returns the very record it was asked about, so its result
+  // evidence would repeat the patient entry verbatim. Keep the first mention
+  // — the one that says where the id came from — and drop the echo.
+  const seen = new Set(entries.map((e) => e.sourceId));
+  return [...entries, ...extra.filter((e) => !seen.has(e.sourceId))];
+}
+
+/**
+ * The record a successful tool produced or read, when it names one.
+ *
+ * `deriveEvidence` can only see the request; this sees the answer. A created
+ * appointment, invoice or plan comes back with its own id, and that id is the
+ * one a reader of the Activity Center will want to open.
+ */
+function resultEvidence(
+  result: { ok: boolean; data?: unknown; error?: string; navigate?: string },
+  clinicId: string | null,
+): EvidenceEntry[] {
+  const data = result.data as Record<string, unknown> | undefined;
+  const recordId = data && typeof data === 'object' && typeof data.id === 'string' ? data.id : null;
+  if (!recordId) return [];
+  return [{
+    sourceType: 'record',
+    sourceId: recordId,
+    access: result.ok ? 'written' : 'rejected',
+    clinicId,
+    snapshot: result.navigate ? { navigate: result.navigate } : undefined,
+  }];
+}
+
 /** Best-effort, non-throwing: activity recording must never break the caller's action. */
 async function recordActivity(row: {
   traceId?: string;
@@ -100,7 +192,7 @@ async function recordActivity(row: {
   resultSummary?: string | null;
   durationMs?: number | null;
   approvalId?: string | null;
-}): Promise<string> {
+}, extraEvidence: EvidenceEntry[] = []): Promise<string> {
   const id = uid();
   try {
     await prisma.agentActivity.create({
@@ -127,7 +219,11 @@ async function recordActivity(row: {
     });
   } catch (err) {
     console.error('[ai kernel] failed to record activity:', err);
+    // No activity row means no parent for the evidence rows (the FK cascades
+    // from it), so there is nothing to attach and nothing to attempt.
+    return id;
   }
+  await recordEvidence(id, deriveEvidence(row, extraEvidence));
   return id;
 }
 
@@ -504,16 +600,7 @@ export async function runAiAction(p: AiPrincipal, inv: AiInvocation): Promise<Ke
     resultSummary: toolResult.ok ? undefined : toolResult.error,
     durationMs,
     approvalId: inv.approvalId || undefined,
-  });
-  await recordEvidence(activityId, [
-    {
-      sourceType: 'tool',
-      sourceId: inv.tool,
-      access: toolResult.ok ? 'verified' : 'rejected',
-      clinicId,
-      snapshot: { ok: toolResult.ok, error: toolResult.error, navigate: toolResult.navigate },
-    },
-  ]);
+  }, resultEvidence(toolResult, clinicId));
 
   return { status: 'ok', data: toolResult, navigate: toolResult.navigate, activityId };
 }

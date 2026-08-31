@@ -102,13 +102,35 @@ export async function buildApprovalFilter(userId: string, clinicId: string | nul
   return { where: { OR: or } };
 }
 
-/** Nulls the payload/result of PHI-sensitivity rows for a caller who cannot read PHI. Visibility (which rows) is separate from this (what those rows reveal). */
-export function redactPhiRows<T extends { sensitivity: string; argsRedacted: unknown; resultSummary: string | null }>(
-  rows: T[],
-  canReadPhi: boolean,
-): T[] {
+/**
+ * Nulls the payload/result of PHI-sensitivity rows for a caller who cannot read
+ * PHI. Visibility (which rows) is separate from this (what those rows reveal).
+ *
+ * Evidence goes through the same gate. Its `sourceId` is a patient id on
+ * exactly the tools whose rows are marked `phi`, so returning it while nulling
+ * `argsRedacted` would hand back through one field what the other just hid.
+ * The entries are kept, with the identifying half removed: the reader still
+ * learns the action was based on a patient record, without learning which one.
+ */
+export function redactPhiRows<
+  T extends {
+    sensitivity: string;
+    argsRedacted: unknown;
+    resultSummary: string | null;
+    evidence?: Array<{ sourceId: string; snapshot?: unknown }>;
+  },
+>(rows: T[], canReadPhi: boolean): T[] {
   if (canReadPhi) return rows;
   return rows.map((row) =>
-    row.sensitivity === 'phi' ? { ...row, argsRedacted: null, resultSummary: null } : row,
+    row.sensitivity === 'phi'
+      ? {
+          ...row,
+          argsRedacted: null,
+          resultSummary: null,
+          ...(row.evidence
+            ? { evidence: row.evidence.map((e) => ({ ...e, sourceId: '', snapshot: null })) }
+            : {}),
+        }
+      : row,
   );
 }

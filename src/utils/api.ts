@@ -1096,6 +1096,73 @@ export async function depositPatient(patientId: string, amount: number): Promise
   });
 }
 
+// ─────────────── Platform revenue by source ───────────────
+// Reads the `Revenue` ledger, which `writeRevenue` has been filling on every
+// marketplace/academy sale and clinic subscription activation since the finance
+// core was built. Amounts are minor units (тиын) as strings — BigInt-safe.
+
+export interface RevenueBySourceRow {
+  source: string
+  amountMinor: string
+  sales: number
+}
+
+export interface RevenueBySourceReport {
+  from: string
+  to: string
+  rows: RevenueBySourceRow[]
+  totalMinor: string
+  totalSales: number
+}
+
+export async function getRevenueBySource(range?: { from?: string; to?: string }): Promise<RevenueBySourceReport> {
+  const params = new URLSearchParams()
+  if (range?.from) params.set('from', range.from)
+  if (range?.to) params.set('to', range.to)
+  const qs = params.toString()
+  return apiRequest(`/api/finance/revenue-by-source${qs ? `?${qs}` : ''}`)
+}
+
+// ─────────────── Responsible staff (PatientAssignment) ───────────────
+// Accrues on its own as appointments are booked; these calls exist so a clinic
+// can correct the list by hand. Read by the AI kernel's patient-scope check
+// when it is switched on — human access to the card is unaffected either way.
+
+export type PatientAssignmentRole = 'treating_doctor' | 'assistant' | 'coordinator';
+
+export interface PatientAssignment {
+  id: string
+  userId: string
+  role: PatientAssignmentRole
+  createdAt: string
+  name: string
+  spec: string | null
+  systemRole: string | null
+}
+
+export async function getPatientAssignments(patientId: string): Promise<PatientAssignment[]> {
+  const res = await apiRequest(`/api/patients/${patientId}/assignments`);
+  return (res as PatientAssignment[]) || [];
+}
+
+export async function addPatientAssignment(
+  patientId: string,
+  userId: string,
+  role: PatientAssignmentRole = 'treating_doctor',
+): Promise<PatientAssignment[]> {
+  const res = await apiRequest(`/api/patients/${patientId}/assignments`, {
+    method: 'POST',
+    body: JSON.stringify({ userId, role }),
+  });
+  return (res as PatientAssignment[]) || [];
+}
+
+export async function removePatientAssignment(patientId: string, assignmentId: string): Promise<any> {
+  return apiRequest(`/api/patients/${patientId}/assignments/${assignmentId}`, {
+    method: 'DELETE',
+  });
+}
+
 export async function markReminderSent(reminderKey: string, channel = 'whatsapp'): Promise<any> {
   return apiRequest('/api/crm/reminders/sent', {
     method: 'POST',

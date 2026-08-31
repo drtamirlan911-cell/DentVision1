@@ -1,7 +1,7 @@
 ﻿import React, { useState, useMemo, useEffect } from 'react';
 import { useOutletContext, useSearchParams, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Stethoscope, User, Heart, AlertTriangle, Pill, FileText, Phone, Shield, Plus, Search, Edit3, Save, X, Activity, Droplets, ThermometerSun, Microscope, Building2, Image as ImageIcon } from 'lucide-react';
+import { Stethoscope, User, Heart, AlertTriangle, Pill, FileText, Phone, Shield, Plus, Search, Edit3, Save, X, Activity, Droplets, ThermometerSun, Microscope, Building2, Image as ImageIcon, Users, UserMinus } from 'lucide-react';
 import { gid, today } from '../../utils/constants';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/components/ui/ds/Toast'
@@ -22,6 +22,7 @@ const CARD_SECTIONS = [
   { id: 'personal', label: 'Личные данные', icon: <User size={16} /> },
   { id: 'medical', label: 'Медицинская карта', icon: <Stethoscope size={16} /> },
   { id: 'diagnostics', label: 'Диагностика', icon: <Microscope size={16} /> },
+  { id: 'team', label: 'Ответственные', icon: <Users size={16} /> },
   { id: 'allergies', label: 'Аллергии и лекарства', icon: <AlertTriangle size={16} /> },
   { id: 'history', label: 'История болезней', icon: <FileText size={16} /> },
   { id: 'cross-clinic', label: 'Из других клиник', icon: <Building2 size={16} /> },
@@ -54,7 +55,7 @@ export default function MedicalCard() {
   const { clinic, user } = useOutletContext<OutletContext>();
   const navigate = useNavigate();
   const [params] = useSearchParams();
-  const { patients, medicalCards, upsertMedicalCard, visits } = useDataQuery(clinic?.id);
+  const { patients, medicalCards, upsertMedicalCard, visits, doctors } = useDataQuery(clinic?.id);
   const toast = useToast();
   const [selectedPatientId, setSelectedPatientId] = useState<string | null>(params.get('patient'));
 
@@ -308,6 +309,10 @@ export default function MedicalCard() {
                   </div>
                 )}
 
+                {activeSection === 'team' && selectedPatientId && (
+                  <ResponsibleStaff patientId={selectedPatientId} staff={doctors} />
+                )}
+
                 {activeSection === 'allergies' && (
                   <div className="space-y-4">
                     <h3 className="flex items-center gap-2 text-sm font-bold text-txt-primary"><AlertTriangle size={16} className="text-error" /> Аллергии и лекарства</h3>
@@ -559,6 +564,157 @@ function DiagnosticsList({ patientId }: { patientId: string }) {
           <p className="text-xs text-txt-ghost shrink-0">{new Date(r.createdAt).toLocaleDateString()}</p>
         </button>
       ))}
+    </div>
+  );
+}
+
+const ASSIGNMENT_ROLE_LABELS: Record<string, string> = {
+  treating_doctor: 'Лечащий врач',
+  assistant: 'Ассистент',
+  coordinator: 'Координатор',
+};
+
+/**
+ * Who is responsible for this patient.
+ *
+ * The list fills itself as appointments are booked — a doctor booked with a
+ * patient becomes their treating doctor. Editing here is for the exceptions:
+ * a second opinion, an assistant who should see the card, or someone who no
+ * longer treats this patient.
+ */
+function ResponsibleStaff({ patientId, staff }: { patientId: string; staff: UserType[] }) {
+  const toast = useToast();
+  const [rows, setRows] = useState<api.PatientAssignment[] | null>(null);
+  const [adding, setAdding] = useState(false);
+  const [pickedUser, setPickedUser] = useState('');
+  const [pickedRole, setPickedRole] = useState<api.PatientAssignmentRole>('treating_doctor');
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    setRows(null);
+    api.getPatientAssignments(patientId)
+      .then((data) => { if (!cancelled) setRows(data); })
+      .catch(() => { if (!cancelled) setRows([]); });
+    return () => { cancelled = true; };
+  }, [patientId]);
+
+  const assignedIds = useMemo(() => new Set((rows || []).map((r) => `${r.userId}:${r.role}`)), [rows]);
+  const available = useMemo(
+    () => staff.filter((s) => !assignedIds.has(`${s.id}:${pickedRole}`)),
+    [staff, assignedIds, pickedRole],
+  );
+
+  async function handleAdd() {
+    if (!pickedUser) return;
+    setBusy(true);
+    try {
+      setRows(await api.addPatientAssignment(patientId, pickedUser, pickedRole));
+      setAdding(false);
+      setPickedUser('');
+      toast.success('Ответственный назначен');
+    } catch (error: any) {
+      toast.error(error?.message || 'Не удалось назначить');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleRemove(assignment: api.PatientAssignment) {
+    setBusy(true);
+    try {
+      await api.removePatientAssignment(patientId, assignment.id);
+      setRows((prev) => (prev || []).filter((r) => r.id !== assignment.id));
+      toast.success(`${assignment.name} снят${assignment.role === 'treating_doctor' ? '' : 'а'} с пациента`);
+    } catch (error: any) {
+      toast.error(error?.message || 'Не удалось снять');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <h3 className="flex items-center gap-2 text-sm font-bold text-txt-primary">
+          <Users size={16} className="text-dv-gold" /> Ответственные за пациента
+        </h3>
+        {!adding && (
+          <Button size="sm" variant="outline" icon={<Plus size={14} />} onClick={() => setAdding(true)}>
+            Добавить
+          </Button>
+        )}
+      </div>
+
+      <p className="text-xs text-txt-muted">
+        Заполняется само: врач, к которому записан пациент, становится лечащим. Список нужен ассистенту ИИ,
+        чтобы понимать, чей это пациент — доступ сотрудников к карте он не ограничивает.
+      </p>
+
+      {adding && (
+        <div className="flex flex-col sm:flex-row gap-2 p-3 rounded-xl border border-bdr-subtle bg-white/[0.02]">
+          <select
+            value={pickedUser}
+            onChange={(e) => setPickedUser(e.target.value)}
+            className="flex-1 min-h-11 px-3 rounded-lg bg-surface-2 border border-bdr-subtle text-sm text-txt-primary focus:outline-none focus:ring-2 focus:ring-dv-gold/40"
+          >
+            <option value="">Выберите сотрудника</option>
+            {available.map((s) => (
+              <option key={s.id} value={s.id}>{s.name || 'Без имени'}</option>
+            ))}
+          </select>
+          <select
+            value={pickedRole}
+            onChange={(e) => setPickedRole(e.target.value as api.PatientAssignmentRole)}
+            className="sm:w-48 min-h-11 px-3 rounded-lg bg-surface-2 border border-bdr-subtle text-sm text-txt-primary focus:outline-none focus:ring-2 focus:ring-dv-gold/40"
+          >
+            {Object.entries(ASSIGNMENT_ROLE_LABELS).map(([value, label]) => (
+              <option key={value} value={value}>{label}</option>
+            ))}
+          </select>
+          <div className="flex gap-2">
+            <Button size="sm" onClick={handleAdd} disabled={!pickedUser || busy}>Назначить</Button>
+            <Button size="sm" variant="ghost" onClick={() => { setAdding(false); setPickedUser(''); }}>Отмена</Button>
+          </div>
+        </div>
+      )}
+
+      {rows === null && <p className="text-xs text-txt-muted">Загрузка...</p>}
+
+      {rows !== null && rows.length === 0 && (
+        <EmptyState
+          icon={<Users size={24} />}
+          title="Пока никто не назначен"
+          description="Появится автоматически, как только пациента запишут на приём."
+        />
+      )}
+
+      {rows !== null && rows.length > 0 && (
+        <div className="space-y-2">
+          {rows.map((row) => (
+            <div key={row.id} className="flex items-center gap-3 p-3 rounded-xl border border-bdr-subtle bg-white/[0.02]">
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <p className="text-sm font-semibold text-txt-primary">{row.name}</p>
+                  <Badge variant="outline" size="xs">{ASSIGNMENT_ROLE_LABELS[row.role] || row.role}</Badge>
+                </div>
+                <p className="text-xs text-txt-muted mt-0.5">
+                  {row.spec || row.systemRole || '—'} · с {new Date(row.createdAt).toLocaleDateString()}
+                </p>
+              </div>
+              <Button
+                size="sm"
+                variant="ghost"
+                icon={<UserMinus size={14} />}
+                disabled={busy}
+                onClick={() => handleRemove(row)}
+              >
+                Снять
+              </Button>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

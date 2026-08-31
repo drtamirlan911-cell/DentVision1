@@ -2,6 +2,7 @@ import { Agent } from '../core/agent.router.js';
 import { AIContext, AIResponse } from '../types/ai.types.js';
 import { prisma } from '../../../lib/prisma.js';
 import { uid } from '../../../lib/helpers.js';
+import { publish } from '../../../lib/events.js';
 import { hmacIin } from '../../../lib/phi.js';
 import { assertValidIinFormat, assertUniquePatientIin, IinValidationError } from '../../../lib/patientIin.js';
 
@@ -429,6 +430,13 @@ export class AdminAgent implements Agent {
         type: 'consultation',
         notes: `Жалобы: ${session.data.complaints.join(', ')}. ${session.data.painDetails?.type ? `Боль: ${session.data.painDetails.type}. ` : ''}Рекомендация AI: ${session.data.triage?.specialty} — ${session.data.triage?.likelyDiagnosis}`,
       },
+    });
+
+    publish('appointment.created', {
+      clinicId: context.clinicId,
+      appointmentId: appointment.id,
+      patientId: patient.id,
+      doctorId: doctorId as string,
     });
 
     // Create notification for doctor

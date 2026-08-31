@@ -18,6 +18,7 @@ import { checkImageAnalysisConsent, isImageConsentDenied, IMAGE_CONSENT_MESSAGE 
 import { applyToothFindings as applyToothFindingsToChart, isValidFdi } from '../../patients/teethStore.js';
 import { searchClinicalNotes } from '../lib/clinicalSearch.js';
 import { uid } from '../../../lib/helpers.js';
+import { publish } from '../../../lib/events.js';
 import { isClinicMember } from '../../../lib/orgContext.js';
 import { buildClinicLoadPlan } from '../core/clinicLoadPlan.js';
 import { scrubToolOutput } from '../lib/piiScrubber.js';
@@ -407,6 +408,15 @@ export const TOOLS: Record<string, ToolSpec> = {
           type: args.type ? String(args.type) : null,
           meta: meta as any,
         },
+      });
+      // Same event the schedule screen publishes — an appointment the AI books
+      // is an appointment, and audit / workflows / webhooks were blind to it.
+      publish('appointment.created', {
+        clinicId,
+        appointmentId: appointment.id,
+        patientId: patient.id,
+        doctorId,
+        userId: ctx.userId,
       });
       return { ok: true, data: appointment, navigate: '/crm/schedule' };
     },

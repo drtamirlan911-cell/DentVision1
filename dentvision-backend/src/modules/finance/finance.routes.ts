@@ -6,6 +6,7 @@ import { requirePermission } from '../../middleware/rbac.js';
 import { serializeBigInt, parseTengeToMinor } from '../../lib/money.js';
 import type { ExpenseCategory } from '@prisma/client';
 import { getOrCreateWallet, recordSale, ledgerNetBalance } from './finance.service.js';
+import { revenueBySource } from './revenue.service.js';
 import {
   PAYOUT_STATUSES,
   PayoutError,
@@ -91,7 +92,14 @@ financeRouter.get('/transactions', requirePermission('finance.manage'), async (r
       if (ids.length === 0) {
         return res.json({ ok: true, data: [] } satisfies ApiResponse);
       }
-      ownerFilter.wallet = { ownerId: { in: ids } };
+      // A transaction has no wallet of its own — it reaches one through its
+      // ledger entries, and a transfer has two. `where: { wallet: ... }` named
+      // a field `Transaction` does not have, so Prisma rejected the query and
+      // this endpoint answered 500 for every caller who was not SUPERADMIN
+      // (a SUPERADMIN skips this branch entirely, which is why it went
+      // unnoticed). "Transactions that touched one of my wallets" is the
+      // filter that was meant.
+      ownerFilter.ledgerEntries = { some: { wallet: { ownerId: { in: [...new Set(ids)] } } } };
     }
     const transactions = await prisma.transaction.findMany({
       where: ownerFilter,
@@ -388,5 +396,32 @@ financeRouter.post('/expenses', requirePermission('finance.manage'), async (req:
   } catch (error) {
     console.error('Create platform expense error:', error);
     return res.status(500).json({ ok: false, error: 'Ошибка при создании расхода' } satisfies ApiResponse);
+  }
+});
+
+/**
+ * Platform revenue split by source, over a date range (default: last 30 days).
+ *
+ * Reads the `Revenue` ledger that `writeRevenue` has been filling on every
+ * marketplace/academy sale and every clinic subscription activation since the
+ * finance core was built, and which nothing read until now.
+ */
+financeRouter.get('/revenue-by-source', requirePermission('finance.manage'), async (req: AuthRequest, res) => {
+  try {
+    const parseDate = (value: unknown): Date | undefined => {
+      if (typeof value !== 'string' || !value) return undefined;
+      const d = new Date(value);
+      return Number.isNaN(d.getTime()) ? undefined : d;
+    };
+
+    const report = await revenueBySource({
+      from: parseDate(req.query.from),
+      to: parseDate(req.query.to),
+    });
+
+    return res.json({ ok: true, data: report } satisfies ApiResponse);
+  } catch (error) {
+    console.error('[finance] revenue-by-source', error);
+    return res.status(500).json({ ok: false, error: 'Не удалось собрать выручку по источникам' } satisfies ApiResponse);
   }
 });
