@@ -87,6 +87,9 @@ export async function bookAppointment(
           firstName: nameParts[0] ?? args.patient_name,
           lastName: nameParts.slice(1).join(' ') || '',
           phone: args.patient_phone,
+          // A patient booking over WhatsApp cannot be asked for a document;
+          // the waiver is explicit so the record is flagged for completion.
+          noIinReason: 'created_without_iin',
         },
       })
     }

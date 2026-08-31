@@ -1,5 +1,6 @@
 import { test, expect, APIRequestContext } from '@playwright/test';
 import { payload as apiPayload } from '../helpers/api';
+import { makeIin } from '../helpers/iin';
 
 const BASE = 'http://localhost:3001';
 
@@ -29,6 +30,7 @@ test.describe('Patient Workflow', () => {
 
   test('PATIENT-001: Create patient → 201 + data persisted', async ({ request }) => {
     const payload = {
+      iin: makeIin('1990-05-15', 'male'),
       firstName: 'John',
       lastName: 'Doe',
       phone: '+1555000001',
@@ -54,7 +56,7 @@ test.describe('Patient Workflow', () => {
   test('PATIENT-002: Search patients → 200 + results include created patient', async ({ request }) => {
     const createRes = await request.post(`${BASE}/api/patients`, {
       headers: { Authorization: `Bearer ${ownerToken}` },
-      data: { firstName: 'Searchable', lastName: 'Patient', phone: '+1555000002' },
+      data: { iin: makeIin(), firstName: 'Searchable', lastName: 'Patient', phone: '+1555000002' },
     });
     const created = await apiPayload(createRes);
 
@@ -74,7 +76,7 @@ test.describe('Patient Workflow', () => {
   test('PATIENT-003: Get patient by ID → 200 + correct data', async ({ request }) => {
     const createRes = await request.post(`${BASE}/api/patients`, {
       headers: { Authorization: `Bearer ${ownerToken}` },
-      data: { firstName: 'GetMe', lastName: 'ByID', phone: '+1555000003' },
+      data: { iin: makeIin(), firstName: 'GetMe', lastName: 'ByID', phone: '+1555000003' },
     });
     const created = await apiPayload(createRes);
 
@@ -93,7 +95,7 @@ test.describe('Patient Workflow', () => {
   test('PATIENT-004: Update patient → 200 + changes persisted after refresh', async ({ request }) => {
     const createRes = await request.post(`${BASE}/api/patients`, {
       headers: { Authorization: `Bearer ${ownerToken}` },
-      data: { firstName: 'Original', lastName: 'Name', phone: '+1555000004' },
+      data: { iin: makeIin(), firstName: 'Original', lastName: 'Name', phone: '+1555000004' },
     });
     const created = await apiPayload(createRes);
 
@@ -119,14 +121,14 @@ test.describe('Patient Workflow', () => {
   test('PATIENT-005: Create duplicate patient (same name, different phone) → 201', async ({ request }) => {
     const p1 = await request.post(`${BASE}/api/patients`, {
       headers: { Authorization: `Bearer ${ownerToken}` },
-      data: { firstName: 'Dupe', lastName: 'Patient', phone: '+1555000005a' },
+      data: { iin: makeIin(), firstName: 'Dupe', lastName: 'Patient', phone: '+1555000005a' },
     });
     expect(p1.status()).toBe(201);
     const d1 = await apiPayload(p1);
 
     const p2 = await request.post(`${BASE}/api/patients`, {
       headers: { Authorization: `Bearer ${ownerToken}` },
-      data: { firstName: 'Dupe', lastName: 'Patient', phone: '+1555000005b' },
+      data: { iin: makeIin(), firstName: 'Dupe', lastName: 'Patient', phone: '+1555000005b' },
     });
     expect(p2.status()).toBe(201);
     const d2 = await apiPayload(p2);
@@ -145,7 +147,7 @@ test.describe('Patient Workflow', () => {
     // later), not a gap this test should assert doesn't exist.
     const res = await request.post(`${BASE}/api/patients`, {
       headers: { Authorization: `Bearer ${ownerToken}` },
-      data: { firstName: '', lastName: '', phone: '' },
+      data: { iin: makeIin(), firstName: '', lastName: '', phone: '' },
     });
     expect([200, 201]).toContain(res.status());
     const body = await apiPayload(res);
@@ -157,7 +159,7 @@ test.describe('Patient Workflow', () => {
   test('PATIENT-007: Create patient with special characters in name → 201', async ({ request }) => {
     const res = await request.post(`${BASE}/api/patients`, {
       headers: { Authorization: `Bearer ${ownerToken}` },
-      data: {
+      data: { iin: makeIin(),
         firstName: "O'Brien-Smith",
         lastName: 'García-López',
         phone: '+1555000007',
@@ -174,7 +176,7 @@ test.describe('Patient Workflow', () => {
   test('PATIENT-008: Delete patient → 200 + patient no longer accessible', async ({ request }) => {
     const createRes = await request.post(`${BASE}/api/patients`, {
       headers: { Authorization: `Bearer ${ownerToken}` },
-      data: { firstName: 'ToDelete', lastName: 'Patient', phone: '+1555000008' },
+      data: { iin: makeIin(), firstName: 'ToDelete', lastName: 'Patient', phone: '+1555000008' },
     });
     const created = await apiPayload(createRes);
 
@@ -194,7 +196,7 @@ test.describe('Patient Workflow', () => {
     for (let i = 0; i < 5; i++) {
       const r = await request.post(`${BASE}/api/patients`, {
         headers: { Authorization: `Bearer ${ownerToken}` },
-        data: { firstName: `PageTest${i}`, lastName: 'Patient', phone: `+15550090${i}` },
+        data: { iin: makeIin(), firstName: `PageTest${i}`, lastName: 'Patient', phone: `+15550090${i}` },
       });
       const b = await apiPayload(r);
       ids.push(b.id);
@@ -221,7 +223,7 @@ test.describe('Patient Workflow', () => {
   test('PATIENT-010: Refresh does not lose patient data → 200 + same data', async ({ request }) => {
     const createRes = await request.post(`${BASE}/api/patients`, {
       headers: { Authorization: `Bearer ${ownerToken}` },
-      data: { firstName: 'Stable', lastName: 'Data', phone: '+1555000010', email: 'stable@test.com' },
+      data: { iin: makeIin(), firstName: 'Stable', lastName: 'Data', phone: '+1555000010', email: 'stable@test.com' },
     });
     const created = await apiPayload(createRes);
 

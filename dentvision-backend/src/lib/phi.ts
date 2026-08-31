@@ -11,6 +11,7 @@
 import crypto from 'crypto';
 
 import { encrypt as rawEncrypt, decrypt as rawDecrypt } from './fieldEncryption.js';
+import { normalizeIin } from './iin.js';
 
 let encryptionAvailable: boolean | null = null;
 
@@ -73,8 +74,15 @@ function iinHashPepper(): Buffer {
   return crypto.scryptSync(raw, 'iin-hash-pepper', 32);
 }
 
+/**
+ * `normalizeIin` rather than a bare `trim()`: the search path now hashes a
+ * string a human just typed, and "123 456 789 012" must land on the same row
+ * as "123456789012". Every existing caller already passed a normalized value
+ * (`assertValidPatientIin` normalizes before hashing, `cross-clinic.service`
+ * hashes a stored one), so no hash that exists today changes.
+ */
 export function hmacIin(iin: string | null | undefined): string | null {
-  const normalized = String(iin ?? '').trim();
+  const normalized = normalizeIin(iin);
   if (!normalized) return null;
   return crypto.createHmac('sha256', iinHashPepper()).update(normalized).digest('hex');
 }

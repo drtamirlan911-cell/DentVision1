@@ -3,6 +3,7 @@ import { AIContext, AIResponse } from '../types/ai.types.js';
 import { prisma } from '../../../lib/prisma.js';
 import { uid } from '../../../lib/helpers.js';
 import { publish } from '../../../lib/events.js';
+import { decryptField } from '../../../lib/phi.js';
 import {
   collectPlanTeeth,
   enrichStages,
@@ -193,7 +194,7 @@ export class DoctorAgent implements Agent {
             id: patient.id,
             name,
             phone: patient.phone,
-            iin: patient.iin,
+            iin: decryptField(patient.iin),
             birthDate: patient.birthDate,
           },
           appointment: appointment ? {

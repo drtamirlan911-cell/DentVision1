@@ -1,4 +1,5 @@
 import { test, expect, APIRequestContext, request as apiRequest } from '@playwright/test';
+import { makeIin } from '../helpers/iin';
 
 const BASE_URL = process.env.PLAYWRIGHT_BASE_URL || 'http://localhost:3001';
 
@@ -107,7 +108,7 @@ test.describe('RBAC - Role-Based Access Control', () => {
     // fresh patient just to satisfy that requirement is enough.
     const patientRes = await api.post(`${BASE_URL}/api/patients`, {
       headers: authHeaders(token),
-      data: { firstName: 'RBAC', lastName: 'InvoiceTarget', phone: '+77000000005' },
+      data: { iin: makeIin(), firstName: 'RBAC', lastName: 'InvoiceTarget', phone: '+77000000005' },
     });
     const patientBody = await patientRes.json();
     const patientId = (patientBody.data || patientBody).id;

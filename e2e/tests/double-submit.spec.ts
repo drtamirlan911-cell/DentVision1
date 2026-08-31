@@ -3,6 +3,7 @@ import { createHmac } from 'crypto';
 import { readFileSync } from 'fs';
 import { payload as apiPayload } from '../helpers/api';
 import { prisma, cleanupTestUser } from '../helpers/db';
+import { makeIin } from '../helpers/iin';
 
 // The backend loads this the same way (`dotenv/config` in
 // dentvision-backend/src/config.ts) — read straight from the same .env
@@ -88,6 +89,7 @@ test.describe('Double Submit / Race Condition Tests', () => {
   test('DOUBLE-001: Double create patient → only 1 patient created', async () => {
     const ts = Date.now();
     const payload = {
+      iin: makeIin(),
       firstName: 'Double',
       lastName: `Patient ${ts}`,
       phone: `+7700${Math.floor(1000000 + Math.random() * 9000000)}`,

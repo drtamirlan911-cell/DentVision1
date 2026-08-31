@@ -23,6 +23,7 @@ import {
   getClinicBI,
   getNetworkBI,
   cfoChat,
+  getIinCoverage,
 } from './bi.service.js';
 import prisma from '../../lib/prisma.js';
 import { serializeBigInt } from '../../lib/money.js';
@@ -133,6 +134,15 @@ biRouter.get('/partner-roi', requirePermission('bi.platform'), async (_req: Auth
 // ═══════════════════════════════════════════════════════════════
 // NETWORK BI — superadmin only (multi-clinic aggregation)
 // ═══════════════════════════════════════════════════════════════
+
+biRouter.get('/iin-coverage', requirePermission('bi.platform'), async (_req: AuthRequest, res) => {
+  try {
+    return res.json({ ok: true, data: await getIinCoverage() } satisfies ApiResponse);
+  } catch (error) {
+    console.error('[BI] iin-coverage', error);
+    return res.status(500).json({ ok: false, error: 'Не удалось посчитать покрытие ИИН' } satisfies ApiResponse);
+  }
+});
 
 biRouter.get('/network', requirePermission('bi.network'), async (_req: AuthRequest, res) => {
   try {

@@ -5,6 +5,7 @@ import { randomUUID } from 'node:crypto';
 // doesn't have it as a dependency at all — only `dentvision-backend` does.
 import bcrypt from '../../dentvision-backend/node_modules/bcryptjs/index.js';
 import { prisma } from '../helpers/db';
+import { makeIin } from '../helpers/iin';
 
 const BASE_URL = process.env.PLAYWRIGHT_BASE_URL || 'http://localhost:3001';
 const E2E_PASSWORD = 'Test1234!';
@@ -100,7 +101,7 @@ test.describe('Cross-Module Workflow: referral → center → result → lab →
 
     const patientRes = await api.post(`${BASE_URL}/api/patients`, {
       headers: auth(ownerToken),
-      data: { firstName: 'CrossModule', lastName: 'Patient', phone: `+7700${Date.now() % 10000000}` },
+      data: { iin: makeIin(), firstName: 'CrossModule', lastName: 'Patient', phone: `+7700${Date.now() % 10000000}` },
     });
     expect(patientRes.status()).toBe(201);
     patientId = (await patientRes.json()).data.id;

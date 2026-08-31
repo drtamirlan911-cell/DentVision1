@@ -11,7 +11,7 @@ import { useAuth } from '@/store/auth.store'
 import { useDataQuery } from '../../queries/useDataQuery'
 import * as api from '@/utils/api'
 import { getRecallCandidates, findDuplicatePatients } from '@/utils/recall'
-import { isValidIin } from '@/lib/iin'
+import { isValidIin, normalizeIin, iinBirthDate, iinSex } from '@/lib/iin'
 import { Button } from '../../components/ui/ds/Button'
 import { Card, CardHeader, CardTitle, CardContent } from '../../components/ui/ds/Card'
 import { Input, Textarea, Select } from '../../components/ui/ds/Input'
@@ -75,9 +75,15 @@ const PHOTO_ICONS: Record<string, React.ReactNode> = {
 }
 
 const EMPTY_FORM = {
-  name: '', phone: '', email: '', dob: '', address: '',
-  category: 'new', notes: '', iin: '', teeth: {},
+  name: '', phone: '', email: '', dob: '', address: '', gender: '',
+  category: 'new', notes: '', iin: '', noIinReason: '', teeth: {},
 }
+
+/** Mirrors NO_IIN_REASONS on the backend — «нет ИИН» stays a documented choice, not a free-text box. */
+const NO_IIN_REASONS = [
+  { value: 'foreign', label: 'Иностранный гражданин' },
+  { value: 'no_document', label: 'Нет документа при себе' },
+]
 
 const EMPTY_PAYMENT = { amount: '', payMethod: 'QR-оплата' }
 
@@ -110,8 +116,22 @@ export default function Patients() {
   const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false)
   const [activeTab, setActiveTab] = useState('info')
   const [search, setSearch] = useState('')
+  /**
+   * A full IIN is resolved on the server, not in this list.
+   *
+   * The screen loads only the first 200 patients and filters them in the
+   * browser, so the person being looked for may simply not be loaded. The IIN
+   * is also stored encrypted with a random IV, which is why the backend
+   * matches it through the blind index rather than by substring — a partial
+   * number cannot be searched at all, by design.
+   */
+  const [iinResults, setIinResults] = useState<Patient[] | null>(null)
   const [form, setForm] = useState(EMPTY_FORM)
   const iinError = form.iin && !isValidIin(form.iin) ? 'Неверный формат ИИН' : undefined
+  /** Result of «Проверить ИИН»: what the system already knows about this number. */
+  const [iinLookup, setIinLookup] = useState<api.IinLookup | null>(null)
+  const [iinChecking, setIinChecking] = useState(false)
+  const noIin = Boolean(form.noIinReason)
   const [editPatient, setEditPatient] = useState<Patient | null>(null)
   const [teethState, setTeethState] = useState<Record<number, any>>({})
   const [selectedTooth, setSelectedTooth] = useState<number | null>(null)
@@ -260,8 +280,19 @@ export default function Patients() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selected?.id])
 
-  const filtered = patients.filter(p => {
-    const matchSearch = p.name?.toLowerCase().includes(search.toLowerCase())
+  useEffect(() => {
+    const iin = normalizeIin(search)
+    if (iin.length !== 12) { setIinResults(null); return }
+    let cancelled = false
+    api.searchPatients(iin)
+      .then(rows => { if (!cancelled) setIinResults(rows) })
+      .catch(() => { if (!cancelled) setIinResults([]) })
+    return () => { cancelled = true }
+  }, [search])
+
+  const filtered = (iinResults ?? patients).filter(p => {
+    const matchSearch = iinResults !== null
+      || p.name?.toLowerCase().includes(search.toLowerCase())
       || p.phone?.includes(search)
       || p.email?.toLowerCase().includes(search.toLowerCase())
     if (filterCat === 'recall') {
@@ -274,6 +305,7 @@ export default function Patients() {
   const openNew = () => {
     setEditPatient(null)
     setForm(EMPTY_FORM)
+    setIinLookup(null)
     setModalOpen(true)
   }
 
@@ -281,17 +313,55 @@ export default function Patients() {
     setEditPatient(p)
     setForm({
       name: p.name || '', phone: p.phone || '', email: p.email || '',
-      dob: p.dob || '', address: p.address || '',
-      category: p.category || 'regular', notes: p.notes || '', iin: p.iin || '', teeth: p.teeth || {},
+      dob: p.dob || '', address: p.address || '', gender: (p as any).gender || '',
+      category: p.category || 'regular', notes: p.notes || '', iin: p.iin || '',
+      noIinReason: (p as any).noIinReason || '', teeth: p.teeth || {},
     })
+    setIinLookup(null)
     setModalOpen(true)
   }
+
+  /**
+   * «Проверить ИИН» — the entry point, shaped after how a government service
+   * treats the number: you type it, and the system fills in what it can
+   * already tell you rather than asking you to type it twice.
+   *
+   * Birth date and sex come out of the number itself, so they are filled in
+   * and shown as derived. A duplicate is caught here instead of surfacing as
+   * an error after saving. Deliberately one explicit press, not a check on
+   * every keystroke: this is a lookup by national ID and it is audited.
+   */
+  const checkIin = useCallback(async () => {
+    const iin = normalizeIin(form.iin)
+    if (!isValidIin(iin)) { showToast('Неверный формат ИИН', 'warning'); return }
+    setIinChecking(true)
+    try {
+      const result = await api.lookupPatientByIin(iin)
+      setIinLookup(result)
+      setForm(f => ({
+        ...f,
+        // Only fills what is still empty — a value typed by hand is never
+        // overwritten by a derived one.
+        dob: f.dob || result.derived.birthDate || '',
+        gender: f.gender || result.derived.gender || '',
+      }))
+    } catch (err: any) {
+      showToast(err?.message || 'Не удалось проверить ИИН', 'error')
+    } finally {
+      setIinChecking(false)
+    }
+  }, [form.iin, showToast])
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
     if (submitting) return
     if (!form.name.trim()) { showToast('Введите ФИО пациента', 'warning'); return }
     if (iinError) { showToast(iinError, 'warning'); return }
+    // Required on create only — an older record without one is edited freely
+    // and flagged in the card instead.
+    if (!editPatient && !form.iin.trim() && !form.noIinReason) {
+      showToast('Укажите ИИН или отметьте, почему его нет', 'warning'); return
+    }
     setSubmitting(true)
     try {
       await upsertPatient({ ...form, id: editPatient?.id, clinicId: clinic?.id } as Partial<Patient>)
@@ -433,6 +503,90 @@ export default function Patients() {
       className="max-md:!w-[calc(100vw-1rem)] max-md:!max-h-[calc(100vh-2rem)] max-md:!m-2"
     >
       <form onSubmit={handleSubmit} className="space-y-4">
+        {/*
+          The IIN comes first because it is the identifier a Kazakhstan clinic
+          actually works by — and because pressing «Проверить» fills in what
+          the system can already tell from the number, instead of asking for it.
+        */}
+        <div className="rounded-xl border border-bdr-subtle bg-white/[0.02] p-3 space-y-3">
+          <div className="flex flex-col sm:flex-row gap-2 sm:items-end">
+            <div className="flex-1">
+              <Input
+                label="ИИН"
+                value={form.iin}
+                onChange={e => { setForm({ ...form, iin: e.target.value }); setIinLookup(null) }}
+                placeholder="12 цифр"
+                maxLength={12}
+                inputMode="numeric"
+                disabled={noIin}
+                error={iinError}
+              />
+            </div>
+            <Button
+              type="button"
+              variant="secondary"
+              className="min-h-11 shrink-0"
+              onClick={checkIin}
+              disabled={noIin || iinChecking || !form.iin.trim()}
+            >
+              {iinChecking ? 'Проверяю…' : 'Проверить'}
+            </Button>
+          </div>
+
+          {iinLookup?.existing && (
+            <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-warning/30 bg-warning/5 px-3 py-2">
+              <div className="min-w-0">
+                <p className="text-sm font-semibold text-txt-primary">Такой пациент уже есть</p>
+                <p className="text-xs text-txt-muted">{iinLookup.existing.name} · {iinLookup.existing.phone || 'без телефона'}</p>
+              </div>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                onClick={() => {
+                  const found = patients.find(p => p.id === iinLookup.existing!.id)
+                  setModalOpen(false)
+                  if (found) setSelected(found)
+                  else navigate(`/crm/patients?patient=${iinLookup.existing!.id}`)
+                }}
+              >
+                Открыть карточку
+              </Button>
+            </div>
+          )}
+
+          {iinLookup && !iinLookup.existing && (
+            <p className="text-xs text-success">
+              ИИН проверен. Дата рождения и пол заполнены из номера — при
+              необходимости их можно поправить.
+            </p>
+          )}
+
+          <label className="flex items-center gap-2 text-sm text-txt-secondary">
+            <input
+              type="checkbox"
+              checked={noIin}
+              onChange={e => {
+                setIinLookup(null)
+                setForm({ ...form, noIinReason: e.target.checked ? 'foreign' : '', iin: e.target.checked ? '' : form.iin })
+              }}
+            />
+            Нет ИИН
+          </label>
+
+          {noIin && (
+            <select
+              value={form.noIinReason}
+              onChange={e => setForm({ ...form, noIinReason: e.target.value })}
+              className="w-full min-h-11 px-3 rounded-lg bg-surface-2 border border-bdr-subtle text-sm text-txt-primary focus:outline-none focus:ring-2 focus:ring-dv-gold/40"
+            >
+              {NO_IIN_REASONS.map(r => (
+                <option key={r.value} value={r.value}>{r.label}</option>
+              ))}
+            </select>
+          )}
+        </div>
+
         <Input
           label="ФИО"
           value={form.name}
@@ -458,14 +612,18 @@ export default function Patients() {
           />
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          <Input
-            label="ИИН"
-            value={form.iin}
-            onChange={e => setForm({ ...form, iin: e.target.value })}
-            placeholder="12 цифр"
-            maxLength={12}
-            error={iinError}
-          />
+          <div>
+            <label className="mb-1 block text-xs font-semibold uppercase tracking-wider text-txt-muted">Пол</label>
+            <select
+              value={form.gender}
+              onChange={e => setForm({ ...form, gender: e.target.value })}
+              className="w-full min-h-11 px-3 rounded-lg bg-surface-2 border border-bdr-subtle text-sm text-txt-primary focus:outline-none focus:ring-2 focus:ring-dv-gold/40"
+            >
+              <option value="">Не указан</option>
+              <option value="male">Мужской</option>
+              <option value="female">Женский</option>
+            </select>
+          </div>
           <Input
             label="Email"
             type="email"
@@ -609,7 +767,7 @@ export default function Patients() {
             <Input
               value={search}
               onChange={e => setSearch(e.target.value)}
-              placeholder="Поиск по ФИО, телефону, email..."
+              placeholder="ИИН целиком, ФИО, телефон, email..."
               icon={<Search size={16} />}
             />
           </div>
@@ -827,6 +985,22 @@ export default function Patients() {
           <Button variant="secondary" icon={<FileText size={16} />} className="min-h-[44px] sm:min-h-0" onClick={() => openEdit(selected)}>
             Редактировать
           </Button>
+          {/*
+            Records older than the IIN requirement carry neither a number nor a
+            stated reason. Flagged rather than force-fixed: the directory fills
+            in as records are touched, which is how the platform accumulates
+            IINs by working instead of by a one-off migration.
+          */}
+          {!selected.iin && !(selected as any).noIinReason && (
+            <Button
+              variant="outline"
+              icon={<AlertTriangle size={16} />}
+              className="min-h-[44px] sm:min-h-0"
+              onClick={() => openEdit(selected)}
+            >
+              ИИН не указан
+            </Button>
+          )}
           {selected.iin && ccStatus === 'none' && (
             <Button
               variant="outline"

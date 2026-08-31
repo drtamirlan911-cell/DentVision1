@@ -514,6 +514,34 @@ export async function getPatients(clinicId: string): Promise<Patient[]> {
   return collection<Patient>(await apiRequest('/api/patients?limit=200'));
 }
 
+/**
+ * What the desk gets when it presses «Проверить» on an IIN — the shape a
+ * Kazakhstan government service uses: the number is the entry point, and the
+ * system answers with what it already knows instead of asking again.
+ *
+ * `derived` comes out of the number itself (birth date and sex are encoded in
+ * it), `existing` is this clinic's own patient with that IIN. Nothing about
+ * other clinics is returned: that lookup would be an enumeration oracle over
+ * national IDs, and cross-clinic history goes through the patient's consent.
+ */
+export interface IinLookup {
+  derived: { birthDate: string | null; gender: 'male' | 'female' | null }
+  existing: { id: string; name: string; phone: string } | null
+}
+
+export async function lookupPatientByIin(iin: string): Promise<IinLookup> {
+  return apiRequest(`/api/patients/lookup?iin=${encodeURIComponent(iin)}`)
+}
+
+/**
+ * Server-side search. The patients screen loads only the first 200 rows and
+ * filters them in the browser, so a full IIN has to be resolved here — the
+ * person being looked for may be patient number 1500.
+ */
+export async function searchPatients(query: string): Promise<Patient[]> {
+  return collection<Patient>(await apiRequest(`/api/patients?limit=50&search=${encodeURIComponent(query)}`))
+}
+
 export async function getPatient(id: string): Promise<Patient> {
   return apiRequest(`/api/patients/${id}`);
 }
@@ -2466,6 +2494,20 @@ export async function biCAC(): Promise<any> {
 
 export async function biUnitEconomics(): Promise<any> {
   return biRequest('/api/bi/unit-economics');
+}
+
+/**
+ * How complete the platform's IIN directory is — the number that shows whether
+ * "the system gradually collects every IIN" is actually happening.
+ */
+export interface IinCoverage {
+  patients: { total: number; withIin: number; waived: number; missing: number }
+  coveragePercent: number
+  clinics: { total: number; complete: number }
+}
+
+export async function biIinCoverage(): Promise<IinCoverage> {
+  return biRequest('/api/bi/iin-coverage')
 }
 
 export async function biCashFlow(): Promise<any> {

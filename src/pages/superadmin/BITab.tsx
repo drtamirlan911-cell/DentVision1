@@ -93,6 +93,14 @@ export default function BITab() {
     queryFn: () => api.biUnitEconomics(),
   });
 
+  // How complete the platform's IIN directory is. The IIN became required
+  // when a patient is created, so coverage climbs as clinics use the product —
+  // this is the number that shows whether that is actually happening.
+  const { data: iinCoverageData, isLoading: iinCoverageLoading } = useQuery({
+    queryKey: ['bi-iin-coverage'],
+    queryFn: () => api.biIinCoverage(),
+  });
+
   const { data: cashflowData, isLoading: cashflowLoading } = useQuery({
     queryKey: ['bi-cashflow'],
     queryFn: () => api.biCashFlow(),
@@ -165,6 +173,7 @@ export default function BITab() {
   const ltv = ltvData?.data;
   const cac = cacData?.data;
   const unitEconomics = unitEconomicsData?.data;
+  const iinCoverage = iinCoverageData;
   const cashflow = cashflowData?.data;
   const scenarios = scenariosData?.data;
 
@@ -388,6 +397,53 @@ export default function BITab() {
                       <span className="text-txt-muted">Payback Period</span>
                       <span className="text-lg font-semibold text-amber-400">
                         {unitEconomics.paybackMonths || 0} мес
+                      </span>
+                    </div>
+                  </div>
+                ) : (
+                  <EmptyState title="Нет данных для отображения" />
+                )}
+              </CardContent>
+            </Card>
+
+            <Card className="bg-surface-2/50 border-bdr-subtle">
+              <CardContent className="p-6">
+                <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
+                  <Users className="text-dv-gold" size={20} />
+                  Справочник ИИН
+                </h3>
+                {iinCoverageLoading ? (
+                  <Skeleton className="h-64" />
+                ) : iinCoverage ? (
+                  <div className="space-y-4">
+                    <div className="flex justify-between items-center">
+                      <span className="text-txt-muted">Покрытие</span>
+                      <span className="text-lg font-semibold text-dv-gold">
+                        {iinCoverage.coveragePercent}%
+                      </span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-txt-muted">С ИИН</span>
+                      <span className="text-lg font-semibold text-emerald-400">
+                        {iinCoverage.patients.withIin} из {iinCoverage.patients.total}
+                      </span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-txt-muted">Без ИИН по причине</span>
+                      <span className="text-lg font-semibold text-txt-primary">
+                        {iinCoverage.patients.waived}
+                      </span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-txt-muted">Осталось заполнить</span>
+                      <span className="text-lg font-semibold text-amber-400">
+                        {iinCoverage.patients.missing}
+                      </span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-txt-muted">Клиник заполнено полностью</span>
+                      <span className="text-lg font-semibold text-txt-primary">
+                        {iinCoverage.clinics.complete} из {iinCoverage.clinics.total}
                       </span>
                     </div>
                   </div>

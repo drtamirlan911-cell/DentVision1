@@ -10,7 +10,9 @@ import { uid, paginate, paginatedResponse, stripHtmlTags } from '../../lib/helpe
 import type { AuthRequest, ApiResponse } from '../../types/index.js';
 import type { Prisma } from '@prisma/client';
 import { loadClinicAccess, requireClinicWritable, guardPatientCreate } from '../../middleware/planGate.js';
-import { assertValidPatientIin, IinValidationError } from '../../lib/patientIin.js';
+import { buildPatientIinFields, IinValidationError, type PatientIinFields } from '../../lib/patientIin.js';
+import { decryptField, hmacIin } from '../../lib/phi.js';
+import { normalizeIin, iinBirthDate, iinSex } from '../../lib/iin.js';
 import { ensurePatientAssignment, revokePatientAssignment, isAssignmentRole } from '../../lib/patientAssignment.js';
 import { isClinicMember } from '../../lib/orgContext.js';
 import { reserveIdempotencyKey, completeIdempotencyKey, deleteIdempotencyKey } from '../../lib/idempotency.js';
@@ -98,7 +100,8 @@ function serializePatient(p: {
     gender: p.gender || '',
     address: p.address || '',
     notes: p.notes || '',
-    iin: (p as any).iin || '',
+    iin: decryptField((p as any).iin ?? null) || '',
+    noIinReason: (p as any).noIinReason || '',
     prepaidBalance: Number((p as any).prepaidBalance || 0),
     category: (history.category as string) || 'regular',
     source: (history.source as string) || '',
@@ -124,19 +127,28 @@ patientsRouter.get('/', async (req: AuthRequest, res) => {
     const search = (req.query.search as string) || '';
     const { skip, take } = paginate(page, limit);
 
+    // A full IIN is looked up through the blind index, never by substring:
+    // `iin` is encrypted with a random IV, so `contains` compares a typed
+    // number against ciphertext and matches nothing — it looked like a working
+    // IIN search and found no one. The trade-off of the hash is that only a
+    // complete number resolves; a partial one is not searchable by design.
+    const searchIin = normalizeIin(search);
+    const iinHash = searchIin.length === 12 ? hmacIin(searchIin) : null;
+
     const where = {
       clinicId,
-      ...(search
-        ? {
-            OR: [
-              { firstName: { contains: search, mode: 'insensitive' as const } },
-              { lastName: { contains: search, mode: 'insensitive' as const } },
-              { phone: { contains: search, mode: 'insensitive' as const } },
-              { email: { contains: search, mode: 'insensitive' as const } },
-              { iin: { contains: search, mode: 'insensitive' as const } },
-            ],
-          }
-        : {}),
+      ...(iinHash
+        ? { iinHash }
+        : search
+          ? {
+              OR: [
+                { firstName: { contains: search, mode: 'insensitive' as const } },
+                { lastName: { contains: search, mode: 'insensitive' as const } },
+                { phone: { contains: search, mode: 'insensitive' as const } },
+                { email: { contains: search, mode: 'insensitive' as const } },
+              ],
+            }
+          : {}),
     };
 
     const [patients, total] = await Promise.all([
@@ -219,22 +231,26 @@ patientsRouter.post('/', requirePermission('patient.write'), guardPatientCreate,
 
     // A patient does not have to have an IIN on file (minors, foreign
     // patients) — validation only runs when one was actually submitted.
-    // An explicit empty string clears a previously-entered IIN rather than
-    // being treated as "no change".
-    let validatedIin: { iin: string; iinHash: string } | undefined;
-    let clearIin = false;
-    if (body.iin !== undefined) {
-      if (String(body.iin).trim() === '') {
-        clearIin = true;
-      } else {
-        validatedIin = await assertValidPatientIin({
-          iin: body.iin,
-          clinicId,
-          excludePatientId: existing?.id,
-          birthDate: (body.dob || body.birthDate) ?? existing?.birthDate ?? null,
-          gender: body.gender ?? existing?.gender ?? null,
-        });
-      }
+    //
+    // Required on create, not on update: a record older than the requirement
+    // has neither an IIN nor a reason, and blocking a phone-number edit over
+    // that would just keep the record wrong for longer. The patient card flags
+    // it instead, so the directory fills in as records are touched.
+    //
+    // On update, an untouched `iin` keeps the stored value verbatim — it is
+    // already ciphertext, and re-encrypting it would double-wrap it.
+    const iinTouched = body.iin !== undefined || body.noIinReason !== undefined;
+    let iinFields: PatientIinFields | undefined;
+    if (!existing || iinTouched) {
+      iinFields = await buildPatientIinFields({
+        iin: body.iin,
+        noIinReason: body.noIinReason,
+        clinicId,
+        excludePatientId: existing?.id,
+        birthDate: (body.dob || body.birthDate) ?? existing?.birthDate ?? null,
+        gender: body.gender ?? existing?.gender ?? null,
+        required: !existing,
+      });
     }
 
     const patient = existing
@@ -251,8 +267,9 @@ patientsRouter.post('/', requirePermission('patient.write'), guardPatientCreate,
             gender: body.gender ?? existing.gender,
             address: body.address ?? existing.address,
             notes: body.notes ?? existing.notes,
-            iin: clearIin ? null : (validatedIin?.iin ?? (existing as any).iin),
-            iinHash: clearIin ? null : (validatedIin?.iinHash ?? undefined),
+            iin: iinFields ? iinFields.iin : (existing as any).iin,
+            iinHash: iinFields ? iinFields.iinHash : undefined,
+            noIinReason: iinFields ? iinFields.noIinReason : undefined,
             medicalHistory: history as Prisma.InputJsonValue,
           },
           include: { teeth: true },
@@ -269,8 +286,9 @@ patientsRouter.post('/', requirePermission('patient.write'), guardPatientCreate,
             gender: body.gender || null,
             address: body.address || null,
             notes: body.notes || null,
-            iin: validatedIin?.iin ?? null,
-            iinHash: validatedIin?.iinHash ?? null,
+            iin: iinFields!.iin,
+            iinHash: iinFields!.iinHash,
+            noIinReason: iinFields!.noIinReason,
             medicalHistory: history as Prisma.InputJsonValue,
           },
           include: { teeth: true },
@@ -322,6 +340,79 @@ patientsRouter.post('/', requirePermission('patient.write'), guardPatientCreate,
     }
     console.error('Upsert patient error:', error);
     return res.status(500).json({ ok: false, error: 'Ошибка при сохранении пациента' } satisfies ApiResponse);
+  }
+});
+
+/**
+ * GET /api/patients/lookup?iin=… — what happens when the desk presses «Проверить».
+ *
+ * Shaped after how a Kazakhstan government service treats an IIN: it is the
+ * entry point, not a form field. You type the number, and the system says what
+ * it already knows instead of asking you to type it again.
+ *
+ * Two answers, and deliberately only two:
+ *
+ * `derived` — birth date and sex, decoded from the number itself. eGov reads
+ * these from ГБД ФЛ; they are encoded in the IIN, so no external service is
+ * involved and nothing about this patient is revealed by returning them.
+ *
+ * `existing` — this clinic's own patient with that IIN, so a duplicate is
+ * caught before saving rather than as a 400 afterwards.
+ *
+ * What this deliberately does NOT answer is whether the IIN is known to any
+ * *other* clinic. `cross-clinic.service.ts` states the reason in its header: a
+ * free-standing "does this IIN exist elsewhere" check is an enumeration oracle
+ * over national IDs — anyone with a list could learn who is a patient
+ * somewhere. That module collapses "check" and "request" into one action with
+ * a constant response on purpose, and this route must not reopen what it
+ * closed. Cross-clinic history stays where it belongs: the patient is created,
+ * and their card offers to request it with the patient's consent.
+ */
+patientsRouter.get('/lookup', requirePermission('patient.read'), async (req: AuthRequest, res) => {
+  try {
+    const clinicId = req.user?.clinicId;
+    if (!clinicId) {
+      return res.status(400).json({ ok: false, error: 'Клиника не указана' } satisfies ApiResponse);
+    }
+
+    const iin = normalizeIin(req.query.iin);
+    if (iin.length !== 12) {
+      return res.status(400).json({ ok: false, error: 'ИИН должен состоять из 12 цифр' } satisfies ApiResponse);
+    }
+
+    const hash = hmacIin(iin);
+    const existing = hash
+      ? await prisma.patient.findFirst({
+          where: { clinicId, iinHash: hash, deletedAt: null },
+          select: { id: true, firstName: true, lastName: true, phone: true },
+        })
+      : null;
+
+    // Looking someone up by their national ID is access to personal data even
+    // when nothing is found — the log is what makes it accountable.
+    await auditFromReq(req, {
+      action: 'patient.iin_lookup',
+      entity: 'patient',
+      entityId: existing?.id || null,
+      details: { found: Boolean(existing) },
+    });
+
+    return res.json({
+      ok: true,
+      data: {
+        derived: { birthDate: iinBirthDate(iin), gender: iinSex(iin) },
+        existing: existing
+          ? {
+              id: existing.id,
+              name: `${existing.firstName} ${existing.lastName}`.trim(),
+              phone: existing.phone || '',
+            }
+          : null,
+      },
+    } satisfies ApiResponse);
+  } catch (error) {
+    console.error('Patient IIN lookup error:', error);
+    return res.status(500).json({ ok: false, error: 'Не удалось проверить ИИН' } satisfies ApiResponse);
   }
 });
 

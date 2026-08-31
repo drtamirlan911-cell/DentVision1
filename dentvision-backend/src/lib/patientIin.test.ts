@@ -18,6 +18,8 @@ const {
   checkIinCrossFields,
   assertUniquePatientIin,
   assertValidPatientIin,
+  buildPatientIinFields,
+  isNoIinReason,
 } = await import('./patientIin.js');
 
 // 1990-01-01, century/sex digit 3 → 1900s, odd → male.
@@ -157,5 +159,72 @@ describe('assertValidPatientIin', () => {
     await expect(
       assertValidPatientIin({ iin: MALE_IIN, clinicId: 'clinic-1' }),
     ).rejects.toMatchObject({ code: 'DUPLICATE' });
+  });
+});
+
+/**
+ * `buildPatientIinFields` is the single place a Patient's IIN columns are
+ * produced. Before it, five patient-creation sites each decided for themselves
+ * whether to validate, hash and encrypt — which is how one column ended up
+ * holding ciphertext from the CRM and plaintext from the AI agent, and how the
+ * directory ended up with holes.
+ */
+describe('buildPatientIinFields', () => {
+  beforeEach(() => {
+    patientFindFirst.mockResolvedValue(null);
+  });
+
+  it('validates, hashes and encrypts in one step', async () => {
+    const fields = await buildPatientIinFields({ iin: MALE_IIN, clinicId: 'c1', required: true });
+
+    expect(fields.iinHash).toMatch(/^[0-9a-f]{64}$/);
+    expect(fields.noIinReason).toBeNull();
+    // Never the bare number: what lands in the column is not the IIN itself.
+    expect(fields.iin).not.toBe(MALE_IIN);
+  });
+
+  it('refuses a create with neither an IIN nor a stated reason', async () => {
+    await expect(buildPatientIinFields({ clinicId: 'c1', required: true }))
+      .rejects.toMatchObject({ code: 'REQUIRED' });
+  });
+
+  it('accepts a create with no IIN when the reason is explicit', async () => {
+    const fields = await buildPatientIinFields({ noIinReason: 'foreign', clinicId: 'c1', required: true });
+
+    expect(fields).toEqual({ iin: null, iinHash: null, noIinReason: 'foreign' });
+  });
+
+  // A free-form reason would defeat the point: "no IIN" has to stay a
+  // documented decision, not whatever someone typed into a box.
+  it('rejects a made-up reason and still demands an IIN', async () => {
+    await expect(buildPatientIinFields({ noIinReason: 'потому что', clinicId: 'c1', required: true }))
+      .rejects.toMatchObject({ code: 'REQUIRED' });
+  });
+
+  it('allows both to be empty when not required — an update that leaves the IIN alone', async () => {
+    await expect(buildPatientIinFields({ clinicId: 'c1' }))
+      .resolves.toEqual({ iin: null, iinHash: null, noIinReason: null });
+  });
+
+  it('still refuses a duplicate inside the same clinic', async () => {
+    patientFindFirst.mockResolvedValue({ id: 'other-patient' });
+
+    await expect(buildPatientIinFields({ iin: MALE_IIN, clinicId: 'c1', required: true }))
+      .rejects.toMatchObject({ code: 'DUPLICATE' });
+  });
+
+  it('still cross-checks the IIN against the entered sex', async () => {
+    await expect(buildPatientIinFields({ iin: MALE_IIN, clinicId: 'c1', gender: 'female', required: true }))
+      .rejects.toMatchObject({ code: 'SEX_MISMATCH' });
+  });
+});
+
+describe('isNoIinReason', () => {
+  it.each(['foreign', 'no_document', 'created_without_iin'])('accepts %s', (value) => {
+    expect(isNoIinReason(value)).toBe(true);
+  });
+
+  it.each([['other'], [''], [null], [42]])('rejects %s', (value) => {
+    expect(isNoIinReason(value)).toBe(false);
   });
 });

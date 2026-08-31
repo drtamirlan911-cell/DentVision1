@@ -1,4 +1,5 @@
 import { test, expect, APIRequestContext, request as apiRequest } from '@playwright/test';
+import { makeIin } from '../helpers/iin';
 
 const BASE_URL = process.env.PLAYWRIGHT_BASE_URL || 'http://localhost:3001';
 
@@ -118,7 +119,7 @@ test.describe('Error Handling & Injection', () => {
   test('ERROR-007: Method not allowed → 405', async () => {
     const res = await api.put(`${BASE_URL}/api/auth/login`, {
       headers: auth(ownerToken),
-      data: { email: 'test@test.com', password: 'test' },
+      data: { iin: makeIin(), email: 'test@test.com', password: 'test' },
     });
     expect(res.status()).not.toBe(500);
     expect([404, 405]).toContain(res.status());
