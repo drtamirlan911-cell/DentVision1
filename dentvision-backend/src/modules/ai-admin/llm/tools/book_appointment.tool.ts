@@ -1,5 +1,6 @@
 import prisma from '../../../../lib/prisma.js'
 import { uid } from '../../../../lib/helpers.js'
+import { publish } from '../../../../lib/events.js'
 import type { AiAdminSession } from '@prisma/client'
 
 interface BookArgs {
@@ -90,7 +91,7 @@ export async function bookAppointment(
       })
     }
 
-    await prisma.appointment.create({
+    const appointment = await prisma.appointment.create({
       data: {
         id: uid(),
         clinicId: args.clinic_id,
@@ -104,6 +105,16 @@ export async function bookAppointment(
         notes: `Записан через AI-администратор (${session.channel})`,
         meta: { source: 'ai_admin', sessionId: session.id },
       },
+    })
+
+    // No `userId`: this path runs off a webhook session, with no human actor.
+    // The event still has to fire — audit, workflows and webhooks all listen
+    // for it, and the patient still gets a treating doctor out of it.
+    publish('appointment.created', {
+      clinicId: args.clinic_id,
+      appointmentId: appointment.id,
+      patientId: patient.id,
+      doctorId,
     })
 
     await prisma.aiAdminSession.update({

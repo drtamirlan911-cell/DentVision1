@@ -13,7 +13,11 @@ import { EventEmitter } from 'node:events';
 export interface DomainEventMap {
   'patient.created': { clinicId: string; patientId: string; userId?: string; name?: string };
   'patient.deleted': { clinicId: string; patientId: string; userId?: string };
-  'appointment.created': { clinicId: string; appointmentId: string; userId?: string };
+  // `patientId`/`doctorId` are required rather than optional so the compiler
+  // refuses a publisher that forgets them: the patient-assignment subscriber
+  // needs both, and a silently-empty payload would leave a doctor out of scope
+  // for their own patient. `doctorId` is nullable because the column is.
+  'appointment.created': { clinicId: string; appointmentId: string; patientId: string; doctorId: string | null; userId?: string };
   'supplier.status_changed': { supplierId: string; status: string; from?: string; to?: string; userId?: string };
   'lecturer.level_changed': { lecturerId: string; level: string; from?: string; to?: string; userId?: string };
   'referral.created': { referralId: string; clinicId: string; centerId: string; doctorId: string; patientName: string; studyType: string; status: string; userId?: string };

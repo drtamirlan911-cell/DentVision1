@@ -108,9 +108,19 @@ const envSchema = z.object({
    * Enforces the AI kernel's patient-scope check (`ai/os/kernel.ts` step 5):
    * a DOCTOR/ASSISTANT may only use a single-patient tool (getPatientCard,
    * createTreatmentPlan, createAppointment, createInvoice) on a patient
-   * `PatientAssignment` links them to. Off by default — flipping it on
-   * before the backfill migration has run would blind a doctor to their own
-   * patients. AI-only: human REST/UI access is unaffected either way.
+   * `PatientAssignment` links them to. AI-only: human REST/UI access is
+   * unaffected either way.
+   *
+   * Safe to turn on once the backfill migration has run: assignments no longer
+   * come only from that one-off backfill. `lib/patientAssignment.ts`, driven by
+   * the `appointment.created` subscriber, records one every time a patient is
+   * booked with a doctor — through the schedule, online booking, the AI tools
+   * or the ai-admin webhook — and the patient card has a «Ответственные»
+   * section for the exceptions. Before that existed, every patient seen after
+   * the backfill had no row and their own doctor was refused.
+   *
+   * Still off by default: switching it on narrows what the AI will do for a
+   * doctor, and that is a clinic's decision to make deliberately.
    */
   AI_PATIENT_SCOPE: z.enum(['on', 'off']).default('off'),
 });

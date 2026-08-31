@@ -3,6 +3,7 @@
 import prisma from '../lib/prisma.js';
 import { subscribe } from '../lib/events.js';
 import { uid } from '../lib/helpers.js';
+import { ensurePatientAssignment } from '../lib/patientAssignment.js';
 
 let registered = false;
 
@@ -50,6 +51,16 @@ export function registerSubscribers(): void {
         entityId: appointmentId,
       },
     });
+  });
+
+  // Booking a patient with a doctor is what makes that doctor responsible for
+  // them. Doing it here rather than at each `prisma.appointment.create` call
+  // means the six write paths (schedule, online booking, the AI tool, the
+  // legacy admin agent, the ai-admin webhook, and whatever is added next) all
+  // record it without having to remember to. Handler errors are already
+  // isolated by `subscribe`, so a failure here cannot break booking.
+  subscribe('appointment.created', async ({ clinicId, patientId, doctorId }) => {
+    await ensurePatientAssignment({ clinicId, patientId, userId: doctorId });
   });
 
   // Platform-level (not clinic-scoped) — no audit trail existed for either

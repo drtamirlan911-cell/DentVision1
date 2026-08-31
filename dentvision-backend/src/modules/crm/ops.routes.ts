@@ -7,6 +7,7 @@ import prisma from '../../lib/prisma.js';
 import { authenticate } from '../../middleware/auth.js';
 import { requirePermission } from '../../middleware/rbac.js';
 import { uid } from '../../lib/helpers.js';
+import { publish } from '../../lib/events.js';
 import type { AuthRequest, ApiResponse } from '../../types/index.js';
 
 import { splitPatientName } from '../public/bookingSlots.js';
@@ -481,6 +482,18 @@ crmOpsRouter.post('/bookings/:id/confirm', requirePermission('appointment.write'
           bookingId: booking.id,
         },
       },
+    });
+
+    // Until this call an appointment born from an online booking reached
+    // neither the audit log, nor workflow triggers, nor developer webhooks —
+    // all three subscribe to `appointment.created`, and only the schedule
+    // screen was publishing it.
+    publish('appointment.created', {
+      clinicId,
+      appointmentId: appointment.id,
+      patientId: patient.id,
+      doctorId,
+      userId: req.user?.id,
     });
 
     const updated = await prisma.booking.update({

@@ -11,6 +11,8 @@ import type { AuthRequest, ApiResponse } from '../../types/index.js';
 import type { Prisma } from '@prisma/client';
 import { loadClinicAccess, requireClinicWritable, guardPatientCreate } from '../../middleware/planGate.js';
 import { assertValidPatientIin, IinValidationError } from '../../lib/patientIin.js';
+import { ensurePatientAssignment, revokePatientAssignment, isAssignmentRole } from '../../lib/patientAssignment.js';
+import { isClinicMember } from '../../lib/orgContext.js';
 import { reserveIdempotencyKey, completeIdempotencyKey, deleteIdempotencyKey } from '../../lib/idempotency.js';
 
 export const patientsRouter = Router();
@@ -632,5 +634,148 @@ patientsRouter.post('/:id/deposit', requireClinicWritable, async (req: AuthReque
   } catch (error) {
     console.error('Patient deposit error:', error);
     return res.status(500).json({ ok: false, error: 'Не удалось пополнить баланс' } satisfies ApiResponse);
+  }
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Responsible staff (PatientAssignment)
+//
+// Read by the AI kernel's patient-scope check when `AI_PATIENT_SCOPE=on`
+// (`modules/ai/os/kernel.ts` step 5). Rows accrue automatically as
+// appointments are booked (see `lib/patientAssignment.ts`); these routes exist
+// so a clinic can also see and correct that list by hand — assign a second
+// doctor, add an assistant, or take someone off a patient they no longer treat.
+//
+// Deliberately does NOT gate human access to the patient: whoever may read the
+// card may read who is responsible for it. Only the AI layer treats the list
+// as a boundary.
+// ─────────────────────────────────────────────────────────────────────────────
+
+async function loadClinicPatient(req: AuthRequest, res: any): Promise<{ clinicId: string; patientId: string } | null> {
+  const clinicId = req.user?.clinicId;
+  if (!clinicId) {
+    res.status(400).json({ ok: false, error: 'Клиника не указана' } satisfies ApiResponse);
+    return null;
+  }
+  const patient = await prisma.patient.findFirst({
+    where: { id: req.params.id as string, clinicId },
+    select: { id: true },
+  });
+  if (!patient) {
+    res.status(404).json({ ok: false, error: 'Пациент не найден' } satisfies ApiResponse);
+    return null;
+  }
+  return { clinicId, patientId: patient.id };
+}
+
+/** Resolve staff names in one query — PatientAssignment holds no relation to User. */
+async function serializeAssignments(rows: Array<{ id: string; userId: string; role: string; createdAt: Date }>) {
+  if (rows.length === 0) return [];
+  const users = await prisma.user.findMany({
+    where: { id: { in: rows.map((r) => r.userId) } },
+    select: { id: true, firstName: true, lastName: true, role: true, spec: true },
+  });
+  const byId = new Map(users.map((u) => [u.id, u]));
+  return rows.map((row) => {
+    const user = byId.get(row.userId);
+    return {
+      id: row.id,
+      userId: row.userId,
+      role: row.role,
+      createdAt: row.createdAt,
+      name: user ? `${user.firstName} ${user.lastName}`.trim() : 'Сотрудник удалён',
+      spec: user?.spec || null,
+      systemRole: user?.role || null,
+    };
+  });
+}
+
+patientsRouter.get('/:id/assignments', async (req: AuthRequest, res) => {
+  try {
+    const scope = await loadClinicPatient(req, res);
+    if (!scope) return;
+    const rows = await prisma.patientAssignment.findMany({
+      where: { patientId: scope.patientId, clinicId: scope.clinicId, active: true },
+      orderBy: { createdAt: 'asc' },
+      select: { id: true, userId: true, role: true, createdAt: true },
+    });
+    return res.json({ ok: true, data: await serializeAssignments(rows) } satisfies ApiResponse);
+  } catch (error) {
+    console.error('List patient assignments error:', error);
+    return res.status(500).json({ ok: false, error: 'Не удалось загрузить ответственных' } satisfies ApiResponse);
+  }
+});
+
+patientsRouter.post('/:id/assignments', requirePermission('patient.write'), requireClinicWritable, async (req: AuthRequest, res) => {
+  try {
+    const scope = await loadClinicPatient(req, res);
+    if (!scope) return;
+
+    const userId = String(req.body?.userId || '');
+    const role = req.body?.role;
+    if (!userId) {
+      return res.status(400).json({ ok: false, error: 'Укажите сотрудника' } satisfies ApiResponse);
+    }
+    if (role !== undefined && !isAssignmentRole(role)) {
+      return res.status(400).json({ ok: false, error: 'Неизвестная роль' } satisfies ApiResponse);
+    }
+    // Assigning someone from another clinic would hand them a patient they may
+    // not read — the same check `createAppointment` makes before booking.
+    if (!(await isClinicMember(userId, scope.clinicId))) {
+      return res.status(400).json({ ok: false, error: 'Сотрудник не работает в этой клинике' } satisfies ApiResponse);
+    }
+
+    const written = await ensurePatientAssignment({
+      clinicId: scope.clinicId,
+      patientId: scope.patientId,
+      userId,
+      role,
+    });
+    if (!written) {
+      return res.status(500).json({ ok: false, error: 'Не удалось назначить ответственного' } satisfies ApiResponse);
+    }
+
+    await auditFromReq(req, {
+      action: 'patient.assignment.added',
+      entity: 'patient',
+      entityId: scope.patientId,
+      details: { userId, role: role || 'treating_doctor' },
+    });
+
+    const rows = await prisma.patientAssignment.findMany({
+      where: { patientId: scope.patientId, clinicId: scope.clinicId, active: true },
+      orderBy: { createdAt: 'asc' },
+      select: { id: true, userId: true, role: true, createdAt: true },
+    });
+    return res.status(201).json({ ok: true, data: await serializeAssignments(rows) } satisfies ApiResponse);
+  } catch (error) {
+    console.error('Add patient assignment error:', error);
+    return res.status(500).json({ ok: false, error: 'Не удалось назначить ответственного' } satisfies ApiResponse);
+  }
+});
+
+patientsRouter.delete('/:id/assignments/:assignmentId', requirePermission('patient.write'), requireClinicWritable, async (req: AuthRequest, res) => {
+  try {
+    const scope = await loadClinicPatient(req, res);
+    if (!scope) return;
+
+    // `revokePatientAssignment` filters on clinicId itself, so an id from
+    // another clinic finds nothing rather than being revoked.
+    const revoked = await revokePatientAssignment(scope.clinicId, req.params.assignmentId as string);
+    if (!revoked) {
+      return res.status(404).json({ ok: false, error: 'Назначение не найдено' } satisfies ApiResponse);
+    }
+
+    await auditFromReq(req, {
+      action: 'patient.assignment.removed',
+      entity: 'patient',
+      entityId: scope.patientId,
+      details: { assignmentId: req.params.assignmentId },
+    });
+
+    return res.json({ ok: true, data: { id: req.params.assignmentId } } satisfies ApiResponse);
+  } catch (error) {
+    console.error('Revoke patient assignment error:', error);
+    return res.status(500).json({ ok: false, error: 'Не удалось снять ответственного' } satisfies ApiResponse);
   }
 });

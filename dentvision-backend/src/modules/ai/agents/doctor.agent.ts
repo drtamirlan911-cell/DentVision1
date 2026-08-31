@@ -2,6 +2,7 @@ import { Agent } from '../core/agent.router.js';
 import { AIContext, AIResponse } from '../types/ai.types.js';
 import { prisma } from '../../../lib/prisma.js';
 import { uid } from '../../../lib/helpers.js';
+import { publish } from '../../../lib/events.js';
 import {
   collectPlanTeeth,
   enrichStages,
@@ -455,6 +456,14 @@ export class DoctorAgent implements Agent {
         status: 'pending',
         type: service as string,
       },
+    });
+
+    publish('appointment.created', {
+      clinicId: context.clinicId,
+      appointmentId: appointment.id,
+      patientId: patientId as string,
+      doctorId: (doctorId as string) || context.userId,
+      userId: context.userId,
     });
 
     return {
