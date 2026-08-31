@@ -27,7 +27,7 @@
 | — ссылаются на несуществующий инструмент | **0** |
 | Агентов в реестре | 16 |
 | — недостижимы ни из одной роли | **0** |
-| Маршрутов без негативного теста в e2e/ | **455** из 579 |
+| Маршрутов без негативного теста в e2e/ | **447** из 579 |
 
 ## Роутеры
 
@@ -307,8 +307,6 @@ _нет — каждый агент достижим хотя бы одной р
 - `POST /api/appointments/:id/close`
 - `GET /api/medical/patients/:patientId/visits`
 - `POST /api/medical/treatment-plan`
-- `PATCH /api/medical/treatment-plan/:id`
-- `GET /api/medical/treatment-plan/:patientId`
 - `POST /api/medical/teeth`
 - `GET /api/medical/teeth/:patientId`
 - `POST /api/medical/images`
@@ -590,10 +588,6 @@ _нет — каждый агент достижим хотя бы одной р
 - `GET /api/bi/snapshots`
 - `POST /api/bi/cfo/chat`
 - `POST /api/diagnostics/register`
-- `GET /api/diagnostics/centers`
-- `GET /api/diagnostics/centers/:id`
-- `POST /api/diagnostics/centers`
-- `PATCH /api/diagnostics/centers/:id`
 - `GET /api/diagnostics/laboratories`
 - `GET /api/diagnostics/laboratories/:id`
 - `POST /api/diagnostics/laboratories`
@@ -636,13 +630,11 @@ _нет — каждый агент достижим хотя бы одной р
 - `GET /api/diagnostics/centers/:id/dashboard`
 - `GET /api/finance/wallets`
 - `GET /api/finance/wallets/:ownerType/:ownerId`
-- `GET /api/finance/transactions`
 - `GET /api/finance/ledger/health`
 - `GET /api/finance/commission-rules`
 - `POST /api/finance/commission-rules`
 - `POST /api/finance/sales`
 - `POST /api/finance/transactions/manual`
-- `GET /api/finance/revenue-by-source`
 - `POST /api/disputes/:id/status`
 - `POST /api/ai-governance/review`
 - `GET /api/ai-governance/supplier/:id/suggest`
