@@ -26,6 +26,9 @@ import { buildActivityFilter, redactPhiRows } from './os/activityQuery.js';
 
 const router = Router();
 
+/** Enough for tool + patient + approval + produced record, with room to spare. */
+const EVIDENCE_PER_ACTIVITY = 12;
+
 function resolveClinicParam(req: AuthRequest): string | null {
   return req.user?.clinicId || (req.query.clinicId as string) || null;
 }
@@ -80,6 +83,19 @@ router.get('/', authenticate, async (req: AuthRequest, res: Response) => {
         orderBy: { createdAt: 'desc' },
         take: limit,
         skip: offset,
+        // What each action was based on. The kernel has recorded this since
+        // the governance core was built and nothing ever read it, so the
+        // Activity Center could say what the AI did but not why.
+        // `EVIDENCE_PER_ACTIVITY` caps a pathological row rather than the
+        // normal case: an action carries the tool, the patient, sometimes an
+        // approval and a produced record — four or so.
+        include: {
+          evidence: {
+            orderBy: { createdAt: 'asc' },
+            take: EVIDENCE_PER_ACTIVITY,
+            select: { id: true, sourceType: true, sourceId: true, access: true, snapshot: true },
+          },
+        },
       }),
       prisma.agentActivity.count({ where }),
     ]);
@@ -103,6 +119,15 @@ router.get('/', authenticate, async (req: AuthRequest, res: Response) => {
       error: activity.status !== 'ok' ? (activity.denyReason || activity.resultSummary || null) : null,
       durationMs: activity.durationMs ?? 0,
       processedAt: activity.createdAt,
+      // Additive: `useAITimeline.ts` ignores fields it does not know about,
+      // so older clients keep working unchanged.
+      evidence: activity.evidence.map((e) => ({
+        id: e.id,
+        sourceType: e.sourceType,
+        sourceId: e.sourceId,
+        access: e.access,
+        snapshot: e.snapshot ?? null,
+      })),
     }));
 
     res.json({

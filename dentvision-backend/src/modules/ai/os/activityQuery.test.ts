@@ -90,6 +90,58 @@ describe('redactPhiRows', () => {
     expect(result[0]).toMatchObject({ id: 'a1', argsRedacted: null, resultSummary: null });
     expect(result[1]).toEqual(rows[1]);
   });
+
+  // Evidence carries the patient id as `sourceId`. Returning it while nulling
+  // `argsRedacted` would hand back through one field exactly what the other
+  // just hid, so it goes through the same gate.
+  describe('evidence', () => {
+    const withEvidence = [
+      {
+        id: 'a1',
+        sensitivity: 'phi',
+        argsRedacted: { patientId: 'p1' },
+        resultSummary: 'saw patient',
+        evidence: [
+          { id: 'e1', sourceType: 'tool', sourceId: 'getPatientCard', snapshot: null },
+          { id: 'e2', sourceType: 'patient', sourceId: 'p1', snapshot: { name: 'Иванов' } },
+        ],
+      },
+      {
+        id: 'a2',
+        sensitivity: 'standard',
+        argsRedacted: { foo: 'bar' },
+        resultSummary: 'ok',
+        evidence: [{ id: 'e3', sourceType: 'tool', sourceId: 'getSchedule', snapshot: null }],
+      },
+    ];
+
+    it('strips identifying source ids on PHI rows for a caller without medical.read', () => {
+      const result = redactPhiRows(withEvidence, false);
+
+      expect(result[0].evidence).toEqual([
+        { id: 'e1', sourceType: 'tool', sourceId: '', snapshot: null },
+        { id: 'e2', sourceType: 'patient', sourceId: '', snapshot: null },
+      ]);
+    });
+
+    // The entries themselves stay: "an action touched a patient record" is not
+    // secret, only which record it was.
+    it('keeps the entries so the reader still sees what kind of source was used', () => {
+      const result = redactPhiRows(withEvidence, false);
+
+      expect(result[0].evidence?.map((e) => e.sourceType)).toEqual(['tool', 'patient']);
+    });
+
+    it('leaves evidence on standard rows untouched', () => {
+      const result = redactPhiRows(withEvidence, false);
+
+      expect(result[1].evidence).toEqual(withEvidence[1].evidence);
+    });
+
+    it('passes everything through for a caller who can read PHI', () => {
+      expect(redactPhiRows(withEvidence, true)).toEqual(withEvidence);
+    });
+  });
 });
 
 /**

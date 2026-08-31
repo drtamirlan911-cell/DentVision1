@@ -1,13 +1,13 @@
 import React, { useMemo, useState } from 'react'
 import { useOutletContext } from 'react-router-dom'
-import { Bot, Clock, RefreshCw, ShieldAlert, User as UserIcon } from 'lucide-react'
+import { Bot, ChevronDown, ChevronRight, Clock, RefreshCw, ShieldAlert, User as UserIcon } from 'lucide-react'
 import { Card } from '@/components/ui/ds/Card'
 import { Button } from '@/components/ui/ds/Button'
 import { Badge } from '@/components/ui/ds/Badge'
 import { EmptyState } from '@/components/ui/ds/EmptyState'
 import { PageHeader } from '@/components/ui/ds/StatCard'
 import { Skeleton } from '@/components/ui/ds/Skeleton'
-import { useAITimeline, useAITimelineStats, type TimelineEvent } from '@/hooks/useAITimeline'
+import { useAITimeline, useAITimelineStats, type TimelineEvent, type TimelineEvidence } from '@/hooks/useAITimeline'
 import type { Clinic, User, RoleInfo } from '@/types'
 
 const STATUS_LABEL: Record<string, { l: string; v: 'success' | 'warning' | 'error' }> = {
@@ -37,10 +37,49 @@ function formatTime(iso: string) {
   return d.toLocaleString('ru-RU', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })
 }
 
+const SOURCE_LABEL: Record<string, string> = {
+  tool: 'Инструмент',
+  patient: 'Пациент',
+  approval: 'Подтверждение',
+  record: 'Запись',
+}
+
+/** How the action came by this source — the interesting case is `context`. */
+const ACCESS_LABEL: Record<string, string> = {
+  argument: 'запрошен моделью',
+  context: 'взят из открытой карточки',
+  granted: 'подтверждено человеком',
+  written: 'создано',
+  rejected: 'отклонено',
+  ok: 'выполнено',
+}
+
+function EvidenceList({ items }: { items: TimelineEvidence[] }) {
+  if (items.length === 0) {
+    return <p className="text-xs text-txt-muted">Источники не записаны — действие старше журнала оснований.</p>
+  }
+  return (
+    <div className="space-y-1.5">
+      {items.map((item) => (
+        <div key={item.id} className="flex flex-wrap items-center gap-2 text-xs">
+          <Badge variant="outline" size="xs">{SOURCE_LABEL[item.sourceType] || item.sourceType}</Badge>
+          <span className="font-mono text-txt-primary break-all">
+            {item.sourceId || <span className="text-txt-ghost not-italic">скрыто — нет доступа к медицинским данным</span>}
+          </span>
+          {item.access && (
+            <span className="text-txt-ghost">· {ACCESS_LABEL[item.access] || item.access}</span>
+          )}
+        </div>
+      ))}
+    </div>
+  )
+}
+
 export default function AgentActivity() {
   const { clinic } = useOutletContext<{ clinic: Clinic; user: User; roleInfo: RoleInfo }>()
   const [statusFilter, setStatusFilter] = useState<string>('all')
   const [searchQuery, setSearchQuery] = useState('')
+  const [openRow, setOpenRow] = useState<string | null>(null)
 
   const timeline = useAITimeline({
     clinicId: clinic?.id,
@@ -137,10 +176,17 @@ export default function AgentActivity() {
                 {filteredEntries.map((e) => {
                   const info = statusInfo(e.status)
                   const reason = e.status !== 'ok' && e.error ? (DENY_REASON_LABEL[e.error] || e.error) : null
+                  const evidence = e.evidence || []
+                  const expanded = openRow === e.id
                   return (
-                    <tr key={e.id} className="border-b border-white/[0.03] hover:bg-white/[0.02] transition-colors">
+                    <React.Fragment key={e.id}>
+                    <tr
+                      className="border-b border-white/[0.03] hover:bg-white/[0.02] transition-colors cursor-pointer"
+                      onClick={() => setOpenRow(expanded ? null : e.id)}
+                    >
                       <td className="px-4 py-3 text-xs text-txt-secondary whitespace-nowrap">
                         <div className="flex items-center gap-1.5">
+                          {expanded ? <ChevronDown size={12} className="text-txt-ghost" /> : <ChevronRight size={12} className="text-txt-ghost" />}
                           <Clock size={12} className="text-txt-ghost" />
                           {formatTime(e.timestamp)}
                         </div>
@@ -166,6 +212,15 @@ export default function AgentActivity() {
                       </td>
                       <td className="px-4 py-3 text-xs text-txt-ghost">{e.durationMs != null ? `${e.durationMs} мс` : '—'}</td>
                     </tr>
+                    {expanded && (
+                      <tr className="border-b border-white/[0.03] bg-white/[0.02]">
+                        <td colSpan={6} className="px-4 py-4">
+                          <p className="mb-2 text-xs font-bold uppercase tracking-wider text-txt-muted">На чём основано</p>
+                          <EvidenceList items={evidence} />
+                        </td>
+                      </tr>
+                    )}
+                    </React.Fragment>
                   )
                 })}
               </tbody>

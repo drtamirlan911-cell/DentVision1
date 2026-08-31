@@ -500,3 +500,92 @@ describe('runAiAction — context substitution (Stage 10, p.entity)', () => {
     expect(patientCardTool).not.toHaveBeenCalled();
   });
 });
+
+/**
+ * Evidence answers "на чём основано" for a row in the Activity Center. It used
+ * to be written on the success path only — so a refusal, the case where the
+ * question matters most, recorded nothing, despite this module's header
+ * promising evidence "always, including on denial". Folding it into
+ * `recordActivity` fixed that for all nine exit paths at once.
+ */
+describe('runAiAction — evidence on every path', () => {
+  function evidenceOf(callIndex = 0): Array<Record<string, unknown>> {
+    return evidenceCreateMany.mock.calls[callIndex][0].data;
+  }
+
+  it('records evidence for a refusal, not only for a success', async () => {
+    const result = await runAiAction(PRINCIPAL, { tool: 'doesNotExist', args: {} });
+
+    expect(result.status).toBe('denied');
+    expect(evidenceCreateMany).toHaveBeenCalledTimes(1);
+    expect(evidenceOf()).toEqual([
+      expect.objectContaining({ sourceType: 'tool', sourceId: 'doesNotExist', access: 'NO_TOOL' }),
+    ]);
+  });
+
+  it('names the patient an action was about', async () => {
+    await runAiAction(PRINCIPAL, { tool: 'getPatientCard', args: { patientId: 'p-7' } });
+
+    expect(evidenceOf()).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ sourceType: 'patient', sourceId: 'p-7', access: 'argument' }),
+      ]),
+    );
+  });
+
+  // The distinction the Activity Center exists to show: an id the model asked
+  // for versus one the server filled in from the open patient card.
+  it('marks a patient id substituted from workspace context as `context`, not `argument`', async () => {
+    await runAiAction(
+      { ...PRINCIPAL, entity: { type: 'patient', id: 'p-from-card' } },
+      { tool: 'getPatientCard', args: {} },
+    );
+
+    expect(evidenceOf()).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ sourceType: 'patient', sourceId: 'p-from-card', access: 'context' }),
+      ]),
+    );
+  });
+
+  it('records the id of the record a tool produced', async () => {
+    okTool.mockResolvedValueOnce({ ok: true, data: { id: 'created-1' }, navigate: '/crm/schedule' });
+
+    await runAiAction(PRINCIPAL, { tool: 'getSchedule', args: {} });
+
+    expect(evidenceOf()).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ sourceType: 'record', sourceId: 'created-1', access: 'written' }),
+      ]),
+    );
+  });
+
+  it('writes no evidence when the activity row itself could not be written — there would be no parent row to hang it on', async () => {
+    activityCreate.mockRejectedValueOnce(new Error('db down'));
+
+    await runAiAction(PRINCIPAL, { tool: 'getSchedule', args: {} });
+
+    expect(evidenceCreateMany).not.toHaveBeenCalled();
+  });
+});
+
+describe('runAiAction — evidence deduplication', () => {
+  it('does not echo the patient entry when a read tool returns that same record', async () => {
+    patientCardTool.mockResolvedValueOnce({ ok: true, data: { id: 'p-7' } });
+
+    await runAiAction(PRINCIPAL, { tool: 'getPatientCard', args: { patientId: 'p-7' } });
+
+    const rows: Array<Record<string, unknown>> = evidenceCreateMany.mock.calls[0][0].data;
+    expect(rows.filter((r) => r.sourceId === 'p-7')).toHaveLength(1);
+    expect(rows.find((r) => r.sourceId === 'p-7')).toMatchObject({ sourceType: 'patient', access: 'argument' });
+  });
+
+  it('still records a produced record whose id is new', async () => {
+    patientCardTool.mockResolvedValueOnce({ ok: true, data: { id: 'appt-9' } });
+
+    await runAiAction(PRINCIPAL, { tool: 'getPatientCard', args: { patientId: 'p-7' } });
+
+    const rows: Array<Record<string, unknown>> = evidenceCreateMany.mock.calls[0][0].data;
+    expect(rows).toEqual(expect.arrayContaining([expect.objectContaining({ sourceType: 'record', sourceId: 'appt-9' })]));
+  });
+});
