@@ -13,6 +13,7 @@
  * branch, so nothing noticed for as long as nothing asked.
  */
 import { test, expect, APIRequestContext, request } from '@playwright/test';
+import { makeIin } from '../helpers/iin';
 
 const BASE_URL = process.env.PLAYWRIGHT_BASE_URL || 'http://localhost:3001';
 
@@ -80,7 +81,7 @@ test.describe('Деньги: биллинг клиники', () => {
   test('счёт чужой клиники не читается её соседом', async () => {
     const patient = await ctx.post('/api/patients', {
       headers: auth(ownerB),
-      data: { firstName: 'Negative', lastName: 'Invoice', phone: '+77000009998' },
+      data: { iin: makeIin(), firstName: 'Negative', lastName: 'Invoice', phone: '+77000009998' },
     });
     expect(patient.ok(), await patient.text()).toBeTruthy();
     const patientId = ((await patient.json()).data || {}).id as string;
@@ -169,7 +170,7 @@ test.describe('Здоровье: медицинские записи', () => {
   test('пациент чужой клиники не отдаёт свою медкарту соседу', async () => {
     const created = await ctx.post('/api/patients', {
       headers: auth(ownerB),
-      data: { firstName: 'Negative', lastName: 'Isolation', phone: '+77000009999' },
+      data: { iin: makeIin(), firstName: 'Negative', lastName: 'Isolation', phone: '+77000009999' },
     });
     test.skip(!created.ok(), `клиника B не смогла завести пациента (${created.status()})`);
     const patientId = ((await created.json()).data || {}).id as string;

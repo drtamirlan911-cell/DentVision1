@@ -1,4 +1,5 @@
 import { test, expect, APIRequestContext } from '@playwright/test';
+import { makeIin } from '../helpers/iin';
 
 const BASE_URL = process.env.PLAYWRIGHT_BASE_URL || 'http://localhost:3001';
 
@@ -27,7 +28,7 @@ async function headers(token: string) {
 async function createPatient(ctx: APIRequestContext, token: string): Promise<string> {
   const res = await ctx.post('/api/patients', {
     headers: await headers(token),
-    data: { firstName: 'IDOR', lastName: 'TestPatient', phone: '+77000000002' },
+    data: { iin: makeIin(), firstName: 'IDOR', lastName: 'TestPatient', phone: '+77000000002' },
   });
   expect(res.ok()).toBeTruthy();
   const body = await res.json();

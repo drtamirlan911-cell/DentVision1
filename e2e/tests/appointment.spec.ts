@@ -1,5 +1,6 @@
 import { test, expect, APIRequestContext } from '@playwright/test';
 import { payload as apiPayload } from '../helpers/api';
+import { makeIin } from '../helpers/iin';
 
 const BASE = 'http://localhost:3001';
 
@@ -26,7 +27,7 @@ async function getDoctorId(request: APIRequestContext, token: string): Promise<s
 async function createPatient(request: APIRequestContext, token: string): Promise<string> {
   const res = await request.post(`${BASE}/api/patients`, {
     headers: { Authorization: `Bearer ${token}` },
-    data: { firstName: 'Appt', lastName: 'Patient', phone: '+1555100001' },
+    data: { iin: makeIin(), firstName: 'Appt', lastName: 'Patient', phone: '+1555100001' },
   });
   const body = await apiPayload(res);
   return body.id;

@@ -1,4 +1,5 @@
 import { test, expect, APIRequestContext, request as apiRequest } from '@playwright/test';
+import { makeIin } from '../helpers/iin';
 
 const BASE_URL = process.env.PLAYWRIGHT_BASE_URL || 'http://localhost:3001';
 
@@ -78,6 +79,7 @@ test.describe('API Contract Tests', () => {
 
   test('CONTRACT-003: POST /api/patients returns {id, firstName, lastName, ...}', async () => {
     const payload = {
+      iin: makeIin(),
       firstName: 'Contract',
       lastName: `Patient ${Date.now()}`,
       phone: `+7700${Math.floor(1000000 + Math.random() * 9000000)}`,
