@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!--
+      Тема запуска. Цвета совпадают с public/manifest.json:
+      background_color #080F1A, theme_color #C9A96E. Всё остальное оформление
+      живёт в Compose (ui/theme).
+    -->
+    <style name="Theme.DentVision" parent="android:Theme.Material.NoActionBar">
+        <item name="android:windowBackground">@color/dv_surface_0</item>
+        <item name="android:statusBarColor">@color/dv_surface_0</item>
+        <item name="android:navigationBarColor">@color/dv_surface_0</item>
+    </style>
+</resources>

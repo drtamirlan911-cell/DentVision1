@@ -1,0 +1,11 @@
+# Локальные пути к SDK — у каждого свои.
+local.properties
+
+# Продукты сборки.
+.gradle/
+build/
+app/build/
+*.apk
+*.aab
+captures/
+.cxx/

@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Значения из src/styles/global.css (тёмная тема). -->
+    <color name="dv_surface_0">#FF080F1A</color>
+    <color name="dv_gold">#FFC9A96E</color>
+</resources>
