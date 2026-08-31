@@ -200,6 +200,23 @@ const aiLimiter = rateLimit({
   skip: (req) => req.method === 'OPTIONS',
   message: { ok: false, error: 'Слишком много AI-запросов. Подождите немного.', code: 'AI_RATE_LIMIT' },
 });
+/**
+ * `GET /api/patients/lookup` answers "who is this IIN" with a name, phone and
+ * email drawn from any clinic on the platform — by design, so a patient never
+ * dictates their contact details twice. That also makes it the one route where
+ * a valid session could be walked through a list of national IDs to harvest
+ * contact data, so it gets a tighter budget than the rest of the API. A busy
+ * front desk checks a few dozen people a day; this leaves room for that and
+ * none for a sweep.
+ */
+const iinLookupLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 120,
+  standardHeaders: true,
+  legacyHeaders: false,
+  skip: (req) => req.method === 'OPTIONS',
+  message: { ok: false, error: 'Слишком много проверок ИИН. Подождите немного.', code: 'IIN_LOOKUP_RATE_LIMIT' },
+});
 const guestSessionLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 50,
@@ -214,6 +231,7 @@ app.use('/api/auth/refresh', authLimiter);
 app.use('/api/auth/forgot-password', authLimiter);
 app.use('/api/auth/reset-password', authLimiter);
 app.use('/api/auth/switch-clinic', authLimiter);
+app.use('/api/patients/lookup', iinLookupLimiter);
 app.use('/api/ai/query', aiLimiter);
 app.use('/api/ai/query/stream', aiLimiter);
 app.use('/api/guest/session', guestSessionLimiter);

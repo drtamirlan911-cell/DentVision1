@@ -1,11 +1,22 @@
 /**
- * Patient-consented, cross-clinic access to medical history.
+ * Patient-consented, cross-clinic access to **medical history**.
  *
- * The receiving clinic never gets a free-standing "does this IIN exist
- * elsewhere?" lookup — that would be an enumeration oracle over patients'
- * national IDs. `requestAccess` collapses "check" and "request" into one
- * action with a constant response (see its doc comment); the only way to
- * learn anything is to actually be granted access by the patient.
+ * `requestAccess` collapses "check" and "request" into one action with a
+ * constant response (see its doc comment): nothing clinical is revealed until
+ * the patient grants it, and a refusal is indistinguishable from "no records
+ * elsewhere".
+ *
+ * That guarantee is about clinical data, and only clinical data. It used to be
+ * stated more broadly here — that no free-standing "does this IIN exist
+ * elsewhere" lookup exists at all — and that is no longer accurate:
+ * `GET /api/patients/lookup` deliberately returns a person's name, phone and
+ * email from any clinic on the platform, so a patient never has to dictate
+ * their own contact details twice. That was an explicit product decision, and
+ * it does mean the lookup confirms a person is known to the platform.
+ *
+ * The line now sits between contact identity and everything clinical. Nothing
+ * in this file loosens: visits, plans, images and diagnoses still require the
+ * patient's consent, and that consent is what this module exists to obtain.
  */
 import prisma from '../../lib/prisma.js';
 import { uid } from '../../lib/helpers.js';

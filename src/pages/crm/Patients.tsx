@@ -341,9 +341,14 @@ export default function Patients() {
       setForm(f => ({
         ...f,
         // Only fills what is still empty — a value typed by hand is never
-        // overwritten by a derived one.
+        // overwritten by one the system supplied.
         dob: f.dob || result.derived.birthDate || '',
         gender: f.gender || result.derived.gender || '',
+        // Contact identity the platform already holds for this person, so a
+        // patient does not dictate their name and number a second time.
+        name: f.name || result.suggested?.name || '',
+        phone: f.phone || result.suggested?.phone || '',
+        email: f.email || result.suggested?.email || '',
       }))
     } catch (err: any) {
       showToast(err?.message || 'Не удалось проверить ИИН', 'error')
@@ -557,8 +562,9 @@ export default function Patients() {
 
           {iinLookup && !iinLookup.existing && (
             <p className="text-xs text-success">
-              ИИН проверен. Дата рождения и пол заполнены из номера — при
-              необходимости их можно поправить.
+              {iinLookup.suggested
+                ? 'ИИН проверен. Этот человек уже известен системе — ФИО и контакты подставлены, дата рождения и пол выведены из номера. Всё можно поправить.'
+                : 'ИИН проверен. Дата рождения и пол заполнены из номера — при необходимости их можно поправить.'}
             </p>
           )}
 
