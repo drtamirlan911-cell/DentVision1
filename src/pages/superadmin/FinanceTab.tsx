@@ -92,6 +92,15 @@ const SUB_TABS: { id: SubTab; label: string; icon: React.ReactNode }[] = [
   { id: 'ledger', label: 'Леджер', icon: <Shield size={14} /> },
 ];
 
+/** Mirrors the `RevenueSource` enum in schema.prisma. */
+const REVENUE_SOURCE_LABELS: Record<string, string> = {
+  SaaS: 'Подписки клиник',
+  SHOP: 'Магазин',
+  MARKETPLACE: 'Маркетплейс',
+  ACADEMY: 'Академия',
+  AI: 'ИИ',
+};
+
 const PAYOUT_STATUS_OPTIONS = [
   { value: 'requested', label: 'Заявлено' },
   { value: 'approved', label: 'Одобрено' },
@@ -154,6 +163,15 @@ export default function FinanceTab() {
   const [payoutStatusFilter, setPayoutStatusFilter] = useState('requested');
 
   const report = useQuery({ queryKey: ['finance', 'report'], queryFn: () => api.getFinanceReport(), staleTime: 30_000 });
+  // Platform revenue split by where the money came from. `report` above cannot
+  // answer this: its `revenue` is one number, and BI's `bySource` keys on the
+  // free-form `payment.domain` string rather than the RevenueSource enum this
+  // ledger records.
+  const revenueSources = useQuery({
+    queryKey: ['finance', 'revenue-by-source'],
+    queryFn: () => api.getRevenueBySource(),
+    staleTime: 60_000,
+  });
 
   const txParams: Record<string, string> = { page: String(txPage), limit: String(TX_PAGE_SIZE) };
   if (txType) txParams.type = txType;
@@ -376,6 +394,38 @@ export default function FinanceTab() {
               </div>
             </GlassCard>
           </div>
+
+          <GlassCard padding="md">
+            <div className="mb-4 flex flex-wrap items-baseline justify-between gap-2">
+              <h3 className="text-sm font-semibold text-txt-primary">Выручка по источникам</h3>
+              <p className="text-xs text-txt-muted">за последние 30 дней</p>
+            </div>
+            {revenueSources.isLoading ? (
+              <Skeleton className="h-32 rounded-xl" />
+            ) : (revenueSources.data?.rows.length ?? 0) === 0 ? (
+              <EmptyState
+                icon={<DollarSign size={40} />}
+                title="Продаж за период не было"
+                description="Строка появляется на каждую продажу маркетплейса, академии и активацию подписки клиники"
+              />
+            ) : (
+              <div className="space-y-2">
+                {revenueSources.data!.rows.map(row => (
+                  <div key={row.source} className="flex items-center justify-between gap-4 rounded-xl border border-bdr-subtle bg-white/[0.02] px-4 py-3">
+                    <div className="min-w-0">
+                      <p className="text-sm font-semibold text-txt-primary">{REVENUE_SOURCE_LABELS[row.source] || row.source}</p>
+                      <p className="text-xs text-txt-muted">{row.sales} {row.sales === 1 ? 'продажа' : row.sales < 5 ? 'продажи' : 'продаж'}</p>
+                    </div>
+                    <p className="text-sm font-bold text-txt-primary whitespace-nowrap">{fmtKzt(Number(row.amountMinor) / 100)}</p>
+                  </div>
+                ))}
+                <div className="flex items-center justify-between gap-4 px-4 pt-2">
+                  <p className="text-xs font-bold uppercase tracking-wider text-txt-muted">Итого</p>
+                  <p className="text-sm font-bold text-dv-gold whitespace-nowrap">{fmtKzt(Number(revenueSources.data!.totalMinor) / 100)}</p>
+                </div>
+              </div>
+            )}
+          </GlassCard>
         </div>
       )}
 

@@ -2032,6 +2032,19 @@ async function main() {
     await tx.$executeRawUnsafe(`DROP TYPE IF EXISTS "ActionStatus"`);
   });
 
+  // Same self-audit, re-run against a map that had gone five PRs stale.
+  // SpecTemplate / FinancialTransaction / Schedule: zero Prisma-client calls,
+  // reachable only through back-relations nothing selects, empty on a real
+  // database. `RevenueSource` deliberately survives — `Revenue` uses it and
+  // is written on every sale; it lacked a reader, not a purpose.
+  await runOnceMigration('drop_unreferenced_models', 'SpecTemplate/FinancialTransaction/Schedule dropped (unreferenced, see docs/SYSTEM_MAP.md)', async (tx) => {
+    await tx.$executeRawUnsafe(`DROP TABLE IF EXISTS "spec_templates"`);
+    await tx.$executeRawUnsafe(`DROP TABLE IF EXISTS "financial_transactions"`);
+    await tx.$executeRawUnsafe(`DROP TABLE IF EXISTS "diagnostic_schedules"`);
+    await tx.$executeRawUnsafe(`DROP TYPE IF EXISTS "SpecFieldType"`);
+    await tx.$executeRawUnsafe(`DROP TYPE IF EXISTS "FinancialTxType"`);
+  });
+
   // `upcomingWebinars()`/`upcomingOfficeCourses()` (academyContent.ts) used to be
   // hardcoded JS arrays spliced into the marketplace response alongside real
   // `Course` rows — `seats`/`enrolled` were literal numbers that never moved no

@@ -43,3 +43,63 @@ export async function writeRevenue(
     },
   });
 }
+
+export interface RevenueBySourceRow {
+  source: RevenueSource;
+  /** Minor units (тиын), as a string so the JSON stays BigInt-safe. */
+  amountMinor: string;
+  sales: number;
+}
+
+export interface RevenueBySourceReport {
+  from: string;
+  to: string;
+  rows: RevenueBySourceRow[];
+  totalMinor: string;
+  totalSales: number;
+}
+
+/**
+ * Platform revenue split by where the money came from.
+ *
+ * The reader this ledger never had. `writeRevenue` has been recording a row
+ * per sale since the finance core was built — marketplace, academy and clinic
+ * subscription activation all call it — and nothing ever read the table back,
+ * so `docs/SYSTEM_MAP.md` listed `Revenue` as "пишется, но никогда не
+ * читается". The split it answers (SaaS vs Shop vs Academy) is exactly the
+ * one `bi.service.ts::getClinicBI` cannot give: that one keys on
+ * `payment.domain`, a free-form string, not this enum.
+ *
+ * One grouped query, no per-source round-trip.
+ */
+export async function revenueBySource(range?: { from?: Date; to?: Date }): Promise<RevenueBySourceReport> {
+  const to = range?.to ?? new Date();
+  // A month back by default: long enough to be a report, short enough that the
+  // indexed `date` range stays selective.
+  const from = range?.from ?? new Date(to.getTime() - 30 * 24 * 60 * 60 * 1000);
+
+  const grouped = await prisma.revenue.groupBy({
+    by: ['source'],
+    where: { tenantId: 'platform', date: { gte: from, lte: to } },
+    _sum: { amount: true },
+    _count: { _all: true },
+  });
+
+  const rows: RevenueBySourceRow[] = grouped
+    .map((g) => ({
+      source: g.source,
+      amountMinor: String(g._sum.amount ?? 0n),
+      sales: g._count._all,
+    }))
+    .sort((a, b) => (BigInt(b.amountMinor) > BigInt(a.amountMinor) ? 1 : -1));
+
+  const totalMinor = rows.reduce((acc, r) => acc + BigInt(r.amountMinor), 0n);
+
+  return {
+    from: from.toISOString(),
+    to: to.toISOString(),
+    rows,
+    totalMinor: String(totalMinor),
+    totalSales: rows.reduce((acc, r) => acc + r.sales, 0),
+  };
+}

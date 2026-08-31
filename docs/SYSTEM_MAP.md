@@ -5,29 +5,29 @@
 > Суждения («это скрытая функция», «это мёртвый код») живут в `SYSTEM_AUDIT.md`;
 > здесь только факты, которые можно вывести из кода.
 
-Собрано: 2026-08-24
+Собрано: 2026-08-31
 
 ## Сводка
 
 | Измерение | Значение |
 |---|---|
-| Смонтированных роутеров | 63 |
-| Обработчиков маршрутов | 548 |
-| Маршрутов без потребителя на фронте | **84** |
+| Смонтированных роутеров | 66 |
+| Обработчиков маршрутов | 571 |
+| Маршрутов без потребителя на фронте | **81** |
 | Роутеров, объявленных но не смонтированных | 0 |
-| Prisma-моделей | 141 |
-| — без прямых вызовов Prisma-клиента | **3** |
-| — только пишутся, никогда не читаются | **2** |
-| — только читаются, никогда не пишутся | 8 |
+| Prisma-моделей | 145 |
+| — без прямых вызовов Prisma-клиента | **0** |
+| — только пишутся, никогда не читаются | **0** |
+| — только читаются, никогда не пишутся | 7 |
 | Ролей в матрице прав | 10 |
 | Фоновых задач | 8 |
-| Инструментов AI | 44 |
+| Инструментов AI | 47 |
 | — без записи в TOOL_PERMISSIONS/UNGATED_TOOLS | **0** |
 | Skills | 11 |
 | — ссылаются на несуществующий инструмент | **0** |
 | Агентов в реестре | 16 |
 | — недостижимы ни из одной роли | **0** |
-| Маршрутов без негативного теста в e2e/ | **435** из 556 |
+| Маршрутов без негативного теста в e2e/ | **455** из 579 |
 
 ## Роутеры
 
@@ -41,14 +41,16 @@
 | `/api/auth` | authRouter | 15 | **2** |
 | `/api/iam` | iamRouter | 11 | **1** |
 | `/api/clinics` | clinicsRouter | 10 | **1** |
-| `/api/patients` | patientsRouter | 10 | **3** |
+| `/api/patients` | patientsRouter | 13 | **3** |
 | `/api/appointments` | appointmentsRouter | 6 | **1** |
 | `/api/medical` | medicalRouter | 14 | **3** |
-| `/api/billing` | billingRouter | 9 | **3** |
+| `/api/billing` | billingRouter | 9 | **1** |
 | `/api/payments` | paymentsRouter | 5 | **2** |
 | `/api/subscriptions` | subscriptionsRouter | 2 | **1** |
 | `/api/clinic-billing` | clinicBillingRouter | 5 | **1** |
-| `/api/inventory` | inventoryRouter | 5 | 0 |
+| `/api/inventory` | inventoryRouter | 8 | 0 |
+| `/api/stock-rules` | stockRulesRouter | 4 | 0 |
+| `/api/marketing` | marketingRouter | 9 | 0 |
 | `/api/shop` | shopRouter | 37 | **1** |
 | `/api/suppliers` | suppliersRouter | 10 | **3** |
 | `/api/supplier` | supplierWorkspaceRouter | 22 | 0 |
@@ -56,8 +58,8 @@
 | `/api/school` | schoolRouter | 27 | 0 |
 | `/api/dentcash` | dentcashRouter | 4 | **1** |
 | `/api/academies` | academiesRouter | 4 | 0 |
-| `/api/lecturers` | lecturersRouter | 5 | **2** |
-| `/api/ai` | aiRouter | 20 | **2** |
+| `/api/lecturers` | lecturersRouter | 6 | **2** |
+| `/api/ai` | aiRouter | 21 | **2** |
 | `/api/guest` | guestRouter | 2 | **2** |
 | `/api/analytics` | analyticsRouter | 4 | **4** |
 | `/api/analytics` | ecosystemRouter | 1 | **1** |
@@ -76,13 +78,14 @@
 | `/api/public` | publicRouter | 7 | **7** |
 | `/api/profile` | profileRouter | 12 | 0 |
 | `/api/jobs` | jobsRouter | 4 | 0 |
-| `/api/ops/suppliers` | opsSuppliersRouter | 4 | **1** |
+| `/api/ops/suppliers` | opsSuppliersRouter | 4 | 0 |
 | `/api/ops` | opsHubRouter | 11 | 0 |
+| `/api/quality` | qualityRouter | 1 | 0 |
 | `/api/bi` | biRouter | 16 | **3** |
 | `/api/diagnostics` | diagnosticsRouter | 51 | **7** |
 | `/api/legal` | legalRouter | 0 | 0 |
 | `/api/partner/legal` | legalPartnerRouter | 0 | 0 |
-| `/api/finance` | financeRouter | 12 | **4** |
+| `/api/finance` | financeRouter | 13 | **4** |
 | `/api/disputes` | disputesRouter | 3 | 0 |
 | `/api/ai-admin/webhook` | webhookGatewayRouter | 0 | 0 |
 | `/api/ai-governance` | aiGovernanceRouter | 3 | **1** |
@@ -117,8 +120,6 @@
 - `GET /api/medical/treatment-plan/:patientId` — dentvision-backend/src/modules/medical/medical.routes.ts
 - `GET /api/medical/teeth/:patientId` — dentvision-backend/src/modules/medical/medical.routes.ts
 - `GET /api/billing/summary` — dentvision-backend/src/modules/billing/billing.routes.ts
-- `GET /api/billing/my-payroll` — dentvision-backend/src/modules/billing/billing.routes.ts
-- `GET /api/billing/reports` — dentvision-backend/src/modules/billing/billing.routes.ts
 - `POST /api/payments/callbacks/kaspi` — dentvision-backend/src/modules/payments/payments.routes.ts
 - `POST /api/payments/callbacks/kaspi/clinic/:clinicId` — dentvision-backend/src/modules/payments/payments.routes.ts
 - `GET /api/subscriptions/:ownerType/:ownerId` — dentvision-backend/src/modules/billing/subscriptions.routes.ts
@@ -162,7 +163,6 @@
 - `POST /api/public/document/:token/sign` — dentvision-backend/src/modules/public/public.routes.ts
 - `GET /api/public/privacy` — dentvision-backend/src/modules/public/public.routes.ts
 - `GET /api/public/terms` — dentvision-backend/src/modules/public/public.routes.ts
-- `GET /api/ops/suppliers` — dentvision-backend/src/modules/ops/ops.suppliers.routes.ts
 - `GET /api/bi/saas-metrics/history` — dentvision-backend/src/modules/bi/bi.routes.ts
 - `GET /api/bi/customer-metrics/:clinicId/history` — dentvision-backend/src/modules/bi/bi.routes.ts
 - `GET /api/bi/snapshots` — dentvision-backend/src/modules/bi/bi.routes.ts
@@ -194,30 +194,11 @@
 
 ## Модели данных
 
-### Нет ни одного прямого вызова Prisma-клиента
-
-Учитываются и прямые вызовы клиента, и чтение через `include`/`select`
-родителя — без второго счёт врал: `Permission`, `RolePermission` и
-`PersonRole` читаются именно так, в `middleware/rbac.ts`.
-Всё равно повод посмотреть, а не приговор.
-
-`SpecTemplate`, `FinancialTransaction`, `Schedule`
-
-### Пишутся, но никогда не читаются
-
-Данные копятся и никому не показываются — либо незаконченный workflow,
-либо запись «на будущее».
-
-| Модель | Записей |
-|---|---|
-| `Revenue` | 1 |
-| `ActionEvidence` | 1 |
-
 ### Читаются, но никогда не пишутся из приложения
 
 Заполняются миграцией, сидом или вручную.
 
-`ShopBanner`, `ShopPromotion`, `LedgerEntry`, `ServiceAccess`, `Operator`, `Radiologist`, `DiagnosticBooking`, `PatientAssignment`
+`ShopBanner`, `ShopPromotion`, `LedgerEntry`, `ServiceAccess`, `Operator`, `Radiologist`, `DiagnosticBooking`
 
 ## Права по ролям
 
@@ -227,16 +208,16 @@
 
 | Роль | Прав | Ключи |
 |---|---|---|
-| **OWNER** | 36 | `patients.read` `patients.write` `patients.delete` `appointments.read` `appointments.write` `appointments.delete` `medical.read` `medical.write` `medical.delete` `medical.manage` `billing.read` `billing.write` `billing.delete` `billing.manage` `inventory.read` `inventory.write` `inventory.delete` `lab.read` `lab.write` `lab.delete` `staff.read` `staff.write` `staff.delete` `staff.manage` `settings.manage` `analytics.read` `diagnostics.read` `diagnostics.write` `academy.manage` `shop.manage` `community.read` `community.write` `audit.read` `bi.read` `backup.read` `dashboard.read` |
-| **ADMIN** | 26 | `patients.read` `patients.write` `patients.delete` `appointments.read` `appointments.write` `appointments.delete` `medical.read` `medical.write` `billing.read` `billing.write` `billing.manage` `inventory.read` `inventory.write` `lab.read` `lab.write` `staff.read` `staff.write` `settings.manage` `analytics.read` `diagnostics.read` `diagnostics.write` `academy.manage` `shop.manage` `community.read` `community.write` `bi.read` |
+| **OWNER** | 36 | `patients.read` `patients.write` `patients.delete` `appointments.read` `appointments.write` `appointments.delete` `medical.read` `medical.write` `medical.delete` `medical.manage` `billing.read` `billing.write` `billing.delete` `billing.manage` `inventory.read` `inventory.write` `inventory.delete` `lab.read` `lab.write` `lab.delete` `staff.read` `staff.write` `staff.delete` `staff.manage` `settings.manage` `analytics.read` `diagnostics.read` `diagnostics.write` `academy.read` `shop.manage` `community.read` `community.write` `audit.read` `bi.read` `backup.read` `dashboard.read` |
+| **ADMIN** | 26 | `patients.read` `patients.write` `patients.delete` `appointments.read` `appointments.write` `appointments.delete` `medical.read` `medical.write` `billing.read` `billing.write` `billing.manage` `inventory.read` `inventory.write` `lab.read` `lab.write` `staff.read` `staff.write` `settings.manage` `analytics.read` `diagnostics.read` `diagnostics.write` `academy.read` `shop.manage` `community.read` `community.write` `bi.read` |
 | **MANAGER** | 15 | `patients.read` `appointments.read` `medical.read` `billing.read` `inventory.read` `inventory.write` `lab.read` `staff.read` `settings.manage` `analytics.read` `diagnostics.read` `shop.read` `academy.read` `bi.read` `dashboard.read` |
 | **DOCTOR** | 15 | `patients.read` `patients.write` `appointments.read` `appointments.write` `medical.read` `medical.write` `medical.manage` `billing.read` `inventory.read` `lab.read` `lab.write` `diagnostics.read` `shop.read` `academy.read` `community.read` |
 | **ASSISTANT** | 10 | `patients.read` `appointments.read` `appointments.write` `medical.read` `inventory.read` `lab.read` `shop.read` `academy.read` `community.read` `diagnostics.read` |
 | **LAB** | 7 | `patients.read` `appointments.read` `lab.read` `lab.write` `inventory.read` `shop.read` `diagnostics.read` |
-| **STUDENT** | 5 | `patients.read` `appointments.read` `medical.read` `shop.read` `academy.read` |
+| **STUDENT** | 2 | `shop.read` `academy.read` |
 | **SUPPORT** | 7 | `patients.read` `appointments.read` `billing.read` `bi.read` `admin.read` `shop.read` `analytics.read` |
-| **DIRECTOR** | 36 | `patients.read` `patients.write` `patients.delete` `appointments.read` `appointments.write` `appointments.delete` `medical.read` `medical.write` `medical.delete` `medical.manage` `billing.read` `billing.write` `billing.delete` `billing.manage` `inventory.read` `inventory.write` `inventory.delete` `lab.read` `lab.write` `lab.delete` `staff.read` `staff.write` `staff.delete` `staff.manage` `settings.manage` `analytics.read` `diagnostics.read` `diagnostics.write` `academy.manage` `shop.manage` `community.read` `community.write` `audit.read` `bi.read` `backup.read` `dashboard.read` |
-| **CASHIER** | 26 | `patients.read` `patients.write` `patients.delete` `appointments.read` `appointments.write` `appointments.delete` `medical.read` `medical.write` `billing.read` `billing.write` `billing.manage` `inventory.read` `inventory.write` `lab.read` `lab.write` `staff.read` `staff.write` `settings.manage` `analytics.read` `diagnostics.read` `diagnostics.write` `academy.manage` `shop.manage` `community.read` `community.write` `bi.read` |
+| **DIRECTOR** | 36 | `patients.read` `patients.write` `patients.delete` `appointments.read` `appointments.write` `appointments.delete` `medical.read` `medical.write` `medical.delete` `medical.manage` `billing.read` `billing.write` `billing.delete` `billing.manage` `inventory.read` `inventory.write` `inventory.delete` `lab.read` `lab.write` `lab.delete` `staff.read` `staff.write` `staff.delete` `staff.manage` `settings.manage` `analytics.read` `diagnostics.read` `diagnostics.write` `academy.read` `shop.manage` `community.read` `community.write` `audit.read` `bi.read` `backup.read` `dashboard.read` |
+| **CASHIER** | 26 | `patients.read` `patients.write` `patients.delete` `appointments.read` `appointments.write` `appointments.delete` `medical.read` `medical.write` `billing.read` `billing.write` `billing.manage` `inventory.read` `inventory.write` `lab.read` `lab.write` `staff.read` `staff.write` `settings.manage` `analytics.read` `diagnostics.read` `diagnostics.write` `academy.read` `shop.manage` `community.read` `community.write` `bi.read` |
 
 ## Фоновые задачи
 
@@ -251,7 +232,7 @@
 
 ## Инструменты AI
 
-`askClinicStaff`, `assessUrgency`, `book_appointment`, `cancelAppointment`, `cancelMyAppointment`, `composeCeoBrief`, `createAppointment`, `createDiagnosticReferral`, `createInvoice`, `createLabOrder`, `createTreatmentPlan`, `draftPromoCopy`, `escalate_to_human`, `getClinicLoadPlan`, `getDashboardStats`, `getDebtors`, `getDoctorUtilization`, `getInventory`, `getLabOrders`, `getMyAppointments`, `getMyAvailableSlots`, `getMyClinicAccess`, `getMyDiagnostics`, `getMyDocuments`, `getMyInvoices`, `getMyTreatmentPlans`, `getMyTreatments`, `getMyVisits`, `getPatientCard`, `getPromotions`, `getRecallList`, `getRevenue`, `getSchedule`, `getTreatmentPlans`, `getVisits`, `get_available_slots`, `navigate`, `requestAppointment`, `rescheduleAppointment`, `searchCourses`, `searchPatients`, `searchProducts`, `updateAppointmentStatus`, `updateLabOrderStatus`
+`analyzeRadiograph`, `applyToothFindings`, `askClinicStaff`, `assessUrgency`, `book_appointment`, `cancelAppointment`, `cancelMyAppointment`, `composeCeoBrief`, `createAppointment`, `createDiagnosticReferral`, `createInvoice`, `createLabOrder`, `createTreatmentPlan`, `draftPromoCopy`, `escalate_to_human`, `getClinicLoadPlan`, `getDashboardStats`, `getDebtors`, `getDoctorUtilization`, `getInventory`, `getLabOrders`, `getMyAppointments`, `getMyAvailableSlots`, `getMyClinicAccess`, `getMyDiagnostics`, `getMyDocuments`, `getMyInvoices`, `getMyTreatmentPlans`, `getMyTreatments`, `getMyVisits`, `getPatientCard`, `getPromotions`, `getRecallList`, `getRevenue`, `getSchedule`, `getTreatmentPlans`, `getVisits`, `get_available_slots`, `navigate`, `requestAppointment`, `rescheduleAppointment`, `searchClinicalNotes`, `searchCourses`, `searchPatients`, `searchProducts`, `updateAppointmentStatus`, `updateLabOrderStatus`
 
 ## Самоаудит слоя AI OS (Stage 12)
 
@@ -320,6 +301,9 @@ _нет — каждый агент достижим хотя бы одной р
 - `GET /api/patients/:id/images`
 - `GET /api/patients/:id/treatment-plan`
 - `POST /api/patients/:id/deposit`
+- `GET /api/patients/:id/assignments`
+- `POST /api/patients/:id/assignments`
+- `DELETE /api/patients/:id/assignments/:assignmentId`
 - `POST /api/appointments/:id/close`
 - `GET /api/medical/patients/:patientId/visits`
 - `POST /api/medical/treatment-plan`
@@ -341,6 +325,19 @@ _нет — каждый агент достижим хотя бы одной р
 - `POST /api/clinic-billing/checkout`
 - `POST /api/clinic-billing/confirm`
 - `GET /api/clinic-billing/payments/:id`
+- `POST /api/inventory/:id/adjust`
+- `GET /api/inventory/:id/movements`
+- `GET /api/stock-rules/preview`
+- `DELETE /api/stock-rules/:id`
+- `GET /api/marketing/context`
+- `POST /api/marketing/content-plan`
+- `GET /api/marketing/content-plans`
+- `GET /api/marketing/content-plans/:id`
+- `PATCH /api/marketing/content-ideas/:id`
+- `DELETE /api/marketing/content-plans/:id`
+- `GET /api/marketing/image-quota`
+- `POST /api/marketing/content-ideas/:id/cover`
+- `POST /api/marketing/content-ideas/:id/carousel`
 - `POST /api/shop/favorites`
 - `GET /api/shop/favorites`
 - `GET /api/shop/product-presets`
@@ -436,6 +433,8 @@ _нет — каждый агент достижим хотя бы одной р
 - `GET /api/lecturers/:id`
 - `POST /api/lecturers/:id/level`
 - `POST /api/lecturers/:id/verifications`
+- `PATCH /api/lecturers/:id/verifications/:verificationId`
+- `POST /api/ai/transcribe`
 - `POST /api/ai/query/stream`
 - `GET /api/ai/threads/active`
 - `POST /api/ai/threads/new`
@@ -573,6 +572,7 @@ _нет — каждый агент достижим хотя бы одной р
 - `POST /api/ops/automations/advance-supplier-reviews`
 - `POST /api/ops/automations/verify-new-lecturers`
 - `POST /api/ops/automations/extend-expiring-clinics`
+- `POST /api/quality/scan`
 - `GET /api/bi/dashboard`
 - `GET /api/bi/mrr`
 - `GET /api/bi/churn`
@@ -642,6 +642,7 @@ _нет — каждый агент достижим хотя бы одной р
 - `POST /api/finance/commission-rules`
 - `POST /api/finance/sales`
 - `POST /api/finance/transactions/manual`
+- `GET /api/finance/revenue-by-source`
 - `POST /api/disputes/:id/status`
 - `POST /api/ai-governance/review`
 - `GET /api/ai-governance/supplier/:id/suggest`

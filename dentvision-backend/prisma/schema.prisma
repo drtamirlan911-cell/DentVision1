@@ -1346,7 +1346,6 @@ model ShopCategory {
   children ShopCategory[] @relation("CategoryTree")
 
   products      Product[]
-  specTemplates SpecTemplate[]
   presets       ProductPreset[]
 
   createdAt DateTime  @default(now())
@@ -1356,33 +1355,6 @@ model ShopCategory {
   @@index([slug])
   @@index([isActive, sortOrder])
   @@map("shop_categories")
-}
-
-enum SpecFieldType {
-  TEXT
-  NUMBER
-  BOOLEAN
-  SELECT
-  MULTI_SELECT
-}
-
-model SpecTemplate {
-  id         String        @id @default(uuid())
-  categoryId String?
-  name       String
-  type       SpecFieldType @default(TEXT)
-  unit       String? // РµРґ. РёР·РјРµСЂРµРЅРёСЏ
-  options    Json? // for SELECT/MULTI_SELECT: [{ value, label }]
-  required   Boolean       @default(false)
-  sortOrder  Int           @default(0)
-
-  category ShopCategory? @relation(fields: [categoryId], references: [id], onDelete: Cascade)
-
-  createdAt DateTime  @default(now())
-  updatedAt DateTime? @updatedAt
-
-  @@index([categoryId])
-  @@map("spec_templates")
 }
 
 // в”Ђв”Ђв”Ђ MARKETPLACE V2: REVIEWS в”Ђв”Ђв”Ђ
@@ -2527,13 +2499,6 @@ model BISnapshot {
 
 // --- BI FINANCIAL MODELS ---
 
-enum FinancialTxType {
-  INCOME
-  EXPENSE
-  REFUND
-  COMMISSION
-}
-
 enum RevenueSource {
   SaaS
   SHOP
@@ -2549,25 +2514,6 @@ enum ExpenseCategory {
   SALARY
   SUPPORT
   PAYMENT_FEES
-}
-
-model FinancialTransaction {
-  id        String          @id @default(uuid())
-  tenantId  String
-  type      FinancialTxType
-  category  String
-  amount    BigInt
-  currency  String          @default("KZT")
-  source    RevenueSource
-  refType   String?
-  refId     String?
-  meta      Json?
-  createdAt DateTime        @default(now())
-
-  @@index([tenantId, source])
-  @@index([tenantId, type])
-  @@index([createdAt])
-  @@map("financial_transactions")
 }
 
 model Revenue {
@@ -2876,7 +2822,6 @@ model DiagnosticCenter {
   operators    Operator[]
   radiologists Radiologist[]
   bookings     DiagnosticBooking[]
-  schedules    Schedule[]
 
   @@map("diagnostic_centers")
 }
@@ -3194,22 +3139,6 @@ model DiagnosticBooking {
   @@index([centerId])
   @@index([date])
   @@map("diagnostic_bookings")
-}
-
-model Schedule {
-  id        String   @id @default(uuid())
-  centerId  String
-  date      DateTime
-  startTime String
-  endTime   String
-  slots     Int      @default(1)
-  available Boolean  @default(true)
-  createdAt DateTime @default(now())
-
-  center DiagnosticCenter @relation(fields: [centerId], references: [id], onDelete: Cascade)
-
-  @@index([centerId, date])
-  @@map("diagnostic_schedules")
 }
 
 model RegistrationRequest {
