@@ -388,13 +388,31 @@ patientsRouter.get('/lookup', requirePermission('patient.read'), async (req: Aut
         })
       : null;
 
+    // The directory the platform has been accumulating, put to work: a person
+    // already entered by any clinic does not have to be typed in again.
+    //
+    // Contact identity only — name, phone, email. Everything clinical stays
+    // behind the patient's consent (`cross-clinic.service.ts`), and the id and
+    // clinic of the other record are deliberately not returned: this fills a
+    // form, it is not a handle on someone else's patient.
+    //
+    // Most recent wins: a person who changed their surname or number was most
+    // likely last correct where they were last seen.
+    const suggested = !existing && hash
+      ? await prisma.patient.findFirst({
+          where: { iinHash: hash, deletedAt: null, clinicId: { not: clinicId } },
+          orderBy: { updatedAt: 'desc' },
+          select: { firstName: true, lastName: true, phone: true, email: true },
+        })
+      : null;
+
     // Looking someone up by their national ID is access to personal data even
     // when nothing is found — the log is what makes it accountable.
     await auditFromReq(req, {
       action: 'patient.iin_lookup',
       entity: 'patient',
       entityId: existing?.id || null,
-      details: { found: Boolean(existing) },
+      details: { found: Boolean(existing), suggested: Boolean(suggested) },
     });
 
     return res.json({
@@ -406,6 +424,13 @@ patientsRouter.get('/lookup', requirePermission('patient.read'), async (req: Aut
               id: existing.id,
               name: `${existing.firstName} ${existing.lastName}`.trim(),
               phone: existing.phone || '',
+            }
+          : null,
+        suggested: suggested
+          ? {
+              name: `${suggested.firstName} ${suggested.lastName}`.trim(),
+              phone: suggested.phone || '',
+              email: suggested.email || '',
             }
           : null,
       },

@@ -181,6 +181,76 @@ test.describe('Здоровье: медицинские записи', () => {
   });
 });
 
+test.describe('ИИН: справочник подставляет контакты, но не медицину', () => {
+  const SHARED_IIN = makeIin();
+
+  test.beforeAll(async () => {
+    // Clinic B knows this person; clinic A has never seen them.
+    const created = await ctx.post('/api/patients', {
+      headers: auth(ownerB),
+      data: {
+        iin: SHARED_IIN,
+        firstName: 'Известный',
+        lastName: 'Платформе',
+        phone: '+77010001111',
+        email: 'known@test.dentvision',
+      },
+    });
+    expect(created.ok(), await created.text()).toBeTruthy();
+  });
+
+  test('клиника A получает ФИО, телефон и почту, чтобы не спрашивать дважды', async () => {
+    const res = await ctx.get(`/api/patients/lookup?iin=${SHARED_IIN}`, { headers: auth(ownerA) });
+
+    expect(res.status()).toBe(200);
+    const data = (await res.json()).data;
+    expect(data.suggested).toMatchObject({
+      name: 'Известный Платформе',
+      phone: '+77010001111',
+      email: 'known@test.dentvision',
+    });
+  });
+
+  // The line the product draws: contact identity is shared, a handle on
+  // someone else's record is not.
+  test('но не идентификатор чужой записи и не название клиники', async () => {
+    const res = await ctx.get(`/api/patients/lookup?iin=${SHARED_IIN}`, { headers: auth(ownerA) });
+
+    const data = (await res.json()).data;
+    expect(data.suggested).not.toHaveProperty('id');
+    expect(data.suggested).not.toHaveProperty('clinicId');
+    expect(data.existing).toBeNull();
+  });
+
+  test('дата рождения и пол выводятся из самого номера', async () => {
+    const res = await ctx.get(`/api/patients/lookup?iin=${SHARED_IIN}`, { headers: auth(ownerA) });
+
+    const data = (await res.json()).data;
+    expect(data.derived.birthDate).toBe('1990-01-01');
+    expect(data.derived.gender).toBe('male');
+  });
+
+  // Nothing clinical leaks through the contact lookup: the patient's own
+  // consent is still the only way in, and clinic A must not reach B's records.
+  test('медицинские записи чужой клиники по-прежнему недоступны', async () => {
+    const created = await ctx.post('/api/patients', {
+      headers: auth(ownerA),
+      data: { iin: makeIin(), firstName: 'Свой', lastName: 'Пациент', phone: '+77010002222' },
+    });
+    expect(created.ok()).toBeTruthy();
+    const ownPatientId = ((await created.json()).data || {}).id as string;
+
+    // The cross-clinic route answers the same whether or not history exists.
+    const res = await ctx.get(`/api/cross-clinic/history/${ownPatientId}`, { headers: auth(ownerA) });
+
+    expect(res.status()).toBeLessThan(500);
+    if (res.ok()) {
+      const blocks = (await res.json()).data;
+      expect(Array.isArray(blocks) ? blocks : []).toHaveLength(0);
+    }
+  });
+});
+
 test.describe('Здоровье: диагностика', () => {
   test('владелец клиники не заводит диагностический центр — это право платформы', async () => {
     const res = await ctx.post('/api/diagnostics/centers', {

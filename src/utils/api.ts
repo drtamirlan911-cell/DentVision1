@@ -520,13 +520,21 @@ export async function getPatients(clinicId: string): Promise<Patient[]> {
  * system answers with what it already knows instead of asking again.
  *
  * `derived` comes out of the number itself (birth date and sex are encoded in
- * it), `existing` is this clinic's own patient with that IIN. Nothing about
- * other clinics is returned: that lookup would be an enumeration oracle over
- * national IDs, and cross-clinic history goes through the patient's consent.
+ * it), `existing` is this clinic's own patient with that IIN, and `suggested`
+ * is the contact identity the platform already holds for that person. Medical
+ * history is not here and never will be: it goes through the patient's consent.
  */
 export interface IinLookup {
   derived: { birthDate: string | null; gender: 'male' | 'female' | null }
+  /** This clinic's own patient with that IIN — open the card instead of creating a duplicate. */
   existing: { id: string; name: string; phone: string } | null
+  /**
+   * Contact details this person already gave any clinic on the platform, so
+   * they never have to dictate them twice. Contact identity only — everything
+   * clinical stays behind the patient's consent, and neither the id nor the
+   * clinic of that record is returned.
+   */
+  suggested: { name: string; phone: string; email: string } | null
 }
 
 export async function lookupPatientByIin(iin: string): Promise<IinLookup> {
