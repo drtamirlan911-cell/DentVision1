@@ -10,12 +10,12 @@
  */
 
 import prisma from './prisma.js';
-import { hmacIin } from './phi.js';
+import { hmacIin, encryptField } from './phi.js';
 import { normalizeIin, isValidIin, iinBirthDate, iinSex } from './iin.js';
 
 export class IinValidationError extends Error {
   constructor(
-    public code: 'FORMAT' | 'DUPLICATE' | 'BIRTHDATE_MISMATCH' | 'SEX_MISMATCH',
+    public code: 'FORMAT' | 'DUPLICATE' | 'BIRTHDATE_MISMATCH' | 'SEX_MISMATCH' | 'REQUIRED',
     message: string,
   ) {
     super(message);
@@ -110,4 +110,77 @@ export async function assertValidPatientIin(input: {
   const iinHash = hmacIin(iin);
   await assertUniquePatientIin(input.clinicId, iinHash, input.excludePatientId);
   return { iin, iinHash };
+}
+
+/**
+ * Reasons the IIN requirement may be waived, and the only values the API
+ * accepts. A free-form string would defeat the point: "no IIN" has to stay a
+ * documented decision, not a text box someone types a space into.
+ */
+export const NO_IIN_REASONS = ['foreign', 'no_document', 'created_without_iin'] as const;
+export type NoIinReason = (typeof NO_IIN_REASONS)[number];
+
+export function isNoIinReason(value: unknown): value is NoIinReason {
+  return typeof value === 'string' && (NO_IIN_REASONS as readonly string[]).includes(value);
+}
+
+/** The three IIN columns of a `Patient`, ready to write. `iin` is already encrypted. */
+export interface PatientIinFields {
+  iin: string | null;
+  iinHash: string | null;
+  noIinReason: string | null;
+}
+
+/**
+ * The single place a Patient's IIN columns are produced.
+ *
+ * A patient is created in five places — the CRM form, the online-booking
+ * confirmation, the ai-admin webhook, the legacy admin agent and the demo
+ * seed — and before this each of them decided for itself whether to validate,
+ * whether to hash, and whether to encrypt. The result was a directory with
+ * holes and a mix of plaintext and ciphertext in one column. Routing all five
+ * through here is what makes "the platform gradually collects every IIN" true
+ * rather than aspirational.
+ *
+ * `required` is what separates a desk that can ask for a document from a
+ * channel that cannot: the CRM form passes `true`, the booking paths pass
+ * `false` with an explicit `noIinReason`.
+ */
+export async function buildPatientIinFields(input: {
+  iin?: unknown;
+  noIinReason?: unknown;
+  clinicId: string;
+  excludePatientId?: string;
+  birthDate?: unknown;
+  gender?: unknown;
+  required?: boolean;
+}): Promise<PatientIinFields> {
+  const raw = input.iin === undefined || input.iin === null ? '' : String(input.iin).trim();
+
+  if (raw) {
+    const validated = await assertValidPatientIin({
+      iin: raw,
+      clinicId: input.clinicId,
+      excludePatientId: input.excludePatientId,
+      birthDate: input.birthDate,
+      gender: input.gender,
+    });
+    // Encrypted here rather than at the call site so no write path can forget:
+    // the hash is what stays queryable, the value itself does not need to be
+    // readable in a database dump.
+    return { iin: encryptField(validated.iin), iinHash: validated.iinHash, noIinReason: null };
+  }
+
+  if (isNoIinReason(input.noIinReason)) {
+    return { iin: null, iinHash: null, noIinReason: input.noIinReason };
+  }
+
+  if (input.required) {
+    throw new IinValidationError(
+      'REQUIRED',
+      'Укажите ИИН или отметьте, почему его нет',
+    );
+  }
+
+  return { iin: null, iinHash: null, noIinReason: null };
 }

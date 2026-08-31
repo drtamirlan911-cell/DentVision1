@@ -357,6 +357,12 @@ model Patient {
   /// person have records at another clinic" a queryable equality lookup at
   /// all. Written alongside every `iin` write via `hmacIin()` (lib/phi.ts).
   iinHash        String?   @db.VarChar(64)
+  /// Why this patient has no IIN — set only when the IIN requirement was
+  /// waived deliberately (foreign national, no document at the desk, a
+  /// booking channel where there is nobody to ask). A row with neither `iin`
+  /// nor this is either older than the requirement or a bug; the patient card
+  /// flags it so the record gets completed rather than silently staying empty.
+  noIinReason    String?
   medicalHistory Json?
   prepaidBalance Int       @default(0)
   deletedAt      DateTime?

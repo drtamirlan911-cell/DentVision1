@@ -455,6 +455,11 @@ crmOpsRouter.post('/bookings/:id/confirm', requirePermission('appointment.write'
           lastName,
           phone: booking.phone,
           email: booking.email,
+          // An online booking never carries an IIN — there is nobody at the
+          // desk to ask for a document. Recorded as a deliberate waiver so the
+          // record shows up as "ИИН не указан" and gets completed on the
+          // first visit, instead of being an empty field nobody notices.
+          noIinReason: 'created_without_iin',
         },
       });
     }

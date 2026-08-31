@@ -57,3 +57,30 @@ describe('hmacIin', () => {
     expect(hmacIin('123456789012')).toMatch(/^[0-9a-f]{64}$/);
   });
 });
+
+/**
+ * The blind index is what makes an IIN searchable at all: `iin` is encrypted
+ * with a random IV, so equality lives entirely in this hash. That makes
+ * normalization part of the contract, not a nicety — the search path now
+ * hashes a string a receptionist just typed, and a stray space would send it
+ * to a different bucket than the stored row.
+ */
+describe('hmacIin — normalization', () => {
+  it('ignores spaces, dashes and surrounding whitespace', async () => {
+    const { hmacIin } = await import('./phi.js');
+    const hash = hmacIin('900101350125');
+
+    expect(hmacIin('  900101 350 125 ')).toBe(hash);
+    expect(hmacIin('900101-350-125')).toBe(hash);
+  });
+
+  it.each([[null], [undefined], [''], ['   ']])('returns null for %s', async (value) => {
+    const { hmacIin } = await import('./phi.js');
+    expect(hmacIin(value as never)).toBeNull();
+  });
+
+  it('never returns the number itself', async () => {
+    const { hmacIin } = await import('./phi.js');
+    expect(hmacIin('900101350125')).not.toContain('900101350125');
+  });
+});

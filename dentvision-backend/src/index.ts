@@ -405,6 +405,16 @@ async function main() {
     await tx.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "patients_iin_idx" ON "patients"("iin")`);
   });
 
+  // The IIN becomes required when a patient is created, so the platform
+  // accumulates one per person by working rather than by a migration. It
+  // cannot be required unconditionally — a foreign national has none, and a
+  // WhatsApp booking has nobody to ask — so this records that the requirement
+  // was waived on purpose. Nullable, no backfill: older rows keep it empty and
+  // are flagged in the patient card instead.
+  await runOnceMigration('patient_no_iin_reason', 'Patient.noIinReason column', async (tx) => {
+    await tx.$executeRawUnsafe(`ALTER TABLE "patients" ADD COLUMN IF NOT EXISTS "noIinReason" TEXT`);
+  });
+
   // UserRole enum may be missing SUPPORT (init_full_schema was generated before it was added)
   await runOnceMigration('userrole_support', 'UserRole SUPPORT value', async (tx) => {
     await tx.$executeRawUnsafe(`ALTER TYPE "UserRole" ADD VALUE IF NOT EXISTS 'SUPPORT'`);

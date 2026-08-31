@@ -4,7 +4,13 @@ import { prisma } from '../../../lib/prisma.js';
 import { uid } from '../../../lib/helpers.js';
 import { publish } from '../../../lib/events.js';
 import { hmacIin } from '../../../lib/phi.js';
-import { assertValidIinFormat, assertUniquePatientIin, IinValidationError } from '../../../lib/patientIin.js';
+import {
+  assertValidIinFormat,
+  assertUniquePatientIin,
+  buildPatientIinFields,
+  IinValidationError,
+  type PatientIinFields,
+} from '../../../lib/patientIin.js';
 
 const PAIN_LOCATIONS = ['Верхняя челюсть', 'Нижняя челюсть', 'Слева', 'Справа', 'Передние зубы', 'Жевательные', 'Не знает'];
 const PAIN_DURATIONS = ['Сегодня', 'Несколько дней', 'Неделю', 'Месяц', 'Больше месяца'];
@@ -400,6 +406,33 @@ export class AdminAgent implements Agent {
 
     const { doctorId, date, time } = params;
 
+    // Routed through the shared builder like every other patient write site:
+    // it validates, hashes and encrypts in one place. Before this, the agent
+    // wrote the IIN in plaintext with a hash computed inline — the same column
+    // held ciphertext from the CRM and plaintext from here.
+    let iinFields: PatientIinFields;
+    try {
+      iinFields = await buildPatientIinFields({
+        iin: session.data.iin,
+        // No IIN in the intake session means the caller never gave one; the
+        // waiver is explicit so the record is flagged rather than silently blank.
+        noIinReason: session.data.iin ? undefined : 'created_without_iin',
+        clinicId: context.clinicId,
+        birthDate: session.data.birthDate ?? null,
+        gender: session.data.gender ?? null,
+      });
+    } catch (error) {
+      if (error instanceof IinValidationError) {
+        // A data problem, not a crash: say what is wrong so the operator can fix it.
+        return {
+          message: error.message,
+          intent: 'ERROR',
+          suggestions: ['Проверить ИИН', 'Найти пациента'],
+        };
+      }
+      throw error;
+    }
+
     // Create patient
     const patient = await prisma.patient.create({
       data: {
@@ -408,8 +441,9 @@ export class AdminAgent implements Agent {
         firstName: session.data.name?.split(' ')[0] || '',
         lastName: session.data.name?.split(' ').slice(1).join(' ') || '',
         phone: session.data.phone,
-        iin: session.data.iin,
-        iinHash: hmacIin(session.data.iin),
+        iin: iinFields.iin,
+        iinHash: iinFields.iinHash,
+        noIinReason: iinFields.noIinReason,
         // No dedicated column for referral source — folded into notes, same
         // as everywhere else free-text intake context is kept on Patient.
         notes: session.data.source ? `Источник: ${session.data.source}` : undefined,
