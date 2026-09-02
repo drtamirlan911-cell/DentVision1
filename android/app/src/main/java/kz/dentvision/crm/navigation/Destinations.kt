@@ -3,7 +3,9 @@ package kz.dentvision.crm.navigation
 import androidx.compose.runtime.Composable
 import kz.dentvision.crm.data.session.Session
 import kz.dentvision.crm.ui.patients.PatientsScreen
+import kz.dentvision.crm.ui.medcard.MedicalCardScreen
 import kz.dentvision.crm.ui.schedule.ScheduleScreen
+import kz.dentvision.crm.ui.visits.VisitsScreen
 
 /**
  * Экраны, которые действительно построены и работают на настоящих данных.
@@ -14,6 +16,12 @@ import kz.dentvision.crm.ui.schedule.ScheduleScreen
  *
  * Экран получает сессию: право писать проверяется по `permissions`, пришедшим с
  * сервера, а не по роли, угаданной на устройстве.
+ *
+ * Право берётся то, которое сторожит **сам маршрут**, а не то, которое кажется
+ * подходящим по смыслу. Медкарта и визиты пишутся через `patient.write`
+ * (`medical.routes.ts:82`, `patients.routes.ts:544`), хотя данные там
+ * медицинские, — спрашивать `medical.write` значило бы показать кнопку
+ * «Сохранить», после которой сервер ответит 403.
  */
 val IMPLEMENTED_PAGES: Map<String, @Composable (Session) -> Unit> = mapOf(
     "schedule" to { session ->
@@ -22,7 +30,14 @@ val IMPLEMENTED_PAGES: Map<String, @Composable (Session) -> Unit> = mapOf(
             canWrite = session.has("appointments.write"),
         )
     },
-    "patients" to { session -> PatientsScreen(canWrite = session.has("patient.write")) },
+    "patients" to { session -> PatientsScreen(canWrite = session.has("patients.write")) },
+    "visits" to { session ->
+        VisitsScreen(
+            clinicId = session.clinic?.id,
+            canWrite = session.has("patients.write"),
+        )
+    },
+    "medical-card" to { session -> MedicalCardScreen(canWrite = session.has("patients.write")) },
 )
 
 /** Домашний маршрут оболочки. */
