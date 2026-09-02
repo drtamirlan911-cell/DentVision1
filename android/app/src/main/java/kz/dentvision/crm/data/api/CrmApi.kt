@@ -4,10 +4,18 @@ import kz.dentvision.crm.data.model.Appointment
 import kz.dentvision.crm.data.model.AppointmentUpsert
 import kz.dentvision.crm.data.model.ClinicWithMembers
 import kz.dentvision.crm.data.model.ConflictCheck
+import kz.dentvision.crm.data.model.FinanceReport
 import kz.dentvision.crm.data.model.IinLookup
+import kz.dentvision.crm.data.model.InventoryAdjust
+import kz.dentvision.crm.data.model.InventoryCreate
+import kz.dentvision.crm.data.model.InventoryItem
+import kz.dentvision.crm.data.model.Invoice
+import kz.dentvision.crm.data.model.InvoiceCreate
 import kz.dentvision.crm.data.model.MedicalHistoryPatch
 import kz.dentvision.crm.data.model.Patient
 import kz.dentvision.crm.data.model.PatientUpsert
+import kz.dentvision.crm.data.model.PriceListItem
+import kz.dentvision.crm.data.model.PriceListUpsert
 import kz.dentvision.crm.data.model.Visit
 import kz.dentvision.crm.data.model.VisitCreate
 import retrofit2.http.Body
@@ -93,6 +101,50 @@ interface CrmApi {
 
     @POST("api/medical/visits")
     suspend fun createVisit(@Body body: VisitCreate): ApiEnvelope<Visit>
+
+    // ── Касса и финансы (modules/billing/billing.routes.ts) ──
+
+    @GET("api/billing/invoices")
+    suspend fun invoices(
+        @Query("limit") limit: Int = 200,
+        @Query("status") status: String? = null,
+    ): ApiEnvelope<Paged<Invoice>>
+
+    @POST("api/billing/invoices")
+    suspend fun createInvoice(@Body body: InvoiceCreate): ApiEnvelope<Invoice>
+
+    /** Отметить счёт оплаченным. Тело пустое — состояние меняет сам маршрут. */
+    @POST("api/billing/invoices/{id}/pay")
+    suspend fun payInvoice(@Path("id") id: String): ApiEnvelope<Invoice>
+
+    @GET("api/billing/reports")
+    suspend fun financeReport(
+        @Query("from") from: String? = null,
+        @Query("to") to: String? = null,
+    ): ApiEnvelope<FinanceReport>
+
+    // ── Прайс (modules/crm/ops.routes.ts) ──
+
+    @GET("api/crm/price-list")
+    suspend fun priceList(): ApiEnvelope<List<PriceListItem>>
+
+    @POST("api/crm/price-list")
+    suspend fun upsertPriceItem(@Body body: PriceListUpsert): ApiEnvelope<PriceListItem>
+
+    // ── Склад (modules/inventory/inventory.routes.ts) ──
+
+    @GET("api/inventory")
+    suspend fun inventory(@Query("q") query: String? = null): ApiEnvelope<List<InventoryItem>>
+
+    @POST("api/inventory")
+    suspend fun createInventoryItem(@Body body: InventoryCreate): ApiEnvelope<InventoryItem>
+
+    /** Движение по остатку, а не запись нового значения. */
+    @POST("api/inventory/{id}/adjust")
+    suspend fun adjustInventory(
+        @Path("id") id: String,
+        @Body body: InventoryAdjust,
+    ): ApiEnvelope<InventoryItem>
 
     // ── Персонал (modules/clinics/clinics.routes.ts) ──
 

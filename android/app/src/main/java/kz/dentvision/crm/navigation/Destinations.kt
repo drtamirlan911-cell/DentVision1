@@ -3,7 +3,10 @@ package kz.dentvision.crm.navigation
 import androidx.compose.runtime.Composable
 import kz.dentvision.crm.data.session.Session
 import kz.dentvision.crm.ui.patients.PatientsScreen
+import kz.dentvision.crm.ui.finance.FinanceHubScreen
+import kz.dentvision.crm.ui.inventory.InventoryScreen
 import kz.dentvision.crm.ui.medcard.MedicalCardScreen
+import kz.dentvision.crm.ui.pricelist.PriceListScreen
 import kz.dentvision.crm.ui.schedule.ScheduleScreen
 import kz.dentvision.crm.ui.visits.VisitsScreen
 
@@ -38,6 +41,12 @@ val IMPLEMENTED_PAGES: Map<String, @Composable (Session) -> Unit> = mapOf(
         )
     },
     "medical-card" to { session -> MedicalCardScreen(canWrite = session.has("patients.write")) },
+    // Один раздел, как в вебе: там «Касса» и «Финансы» — одна поверхность с
+    // псевдонимом finance ↔ cashier в правах, и оба маршрута сторожит
+    // finance.manage (он же billing.manage).
+    "finance" to { session -> FinanceHubScreen(canWrite = session.has("billing.manage")) },
+    "pricelist" to { session -> PriceListScreen(canWrite = session.has("patients.write")) },
+    "inventory" to { session -> InventoryScreen(canWrite = session.has("inventory.write")) },
 )
 
 /** Домашний маршрут оболочки. */

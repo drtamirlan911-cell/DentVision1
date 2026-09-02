@@ -6,11 +6,19 @@ import kz.dentvision.crm.data.model.Appointment
 import kz.dentvision.crm.data.model.AppointmentUpsert
 import kz.dentvision.crm.data.model.ConflictCheck
 import kz.dentvision.crm.data.model.Doctor
+import kz.dentvision.crm.data.model.FinanceReport
 import kz.dentvision.crm.data.model.IinLookup
+import kz.dentvision.crm.data.model.InventoryAdjust
+import kz.dentvision.crm.data.model.InventoryCreate
+import kz.dentvision.crm.data.model.InventoryItem
+import kz.dentvision.crm.data.model.Invoice
+import kz.dentvision.crm.data.model.InvoiceCreate
 import kz.dentvision.crm.data.model.MedicalHistory
 import kz.dentvision.crm.data.model.MedicalHistoryPatch
 import kz.dentvision.crm.data.model.Patient
 import kz.dentvision.crm.data.model.PatientUpsert
+import kz.dentvision.crm.data.model.PriceListItem
+import kz.dentvision.crm.data.model.PriceListUpsert
 import kz.dentvision.crm.data.model.Visit
 import kz.dentvision.crm.data.model.VisitCreate
 import kz.dentvision.crm.data.model.doctors
@@ -91,6 +99,46 @@ class CrmRepository(private val api: ApiClient = ServiceLocator.api) {
     suspend fun visits(patientId: String): List<Visit> = apiCall { api.crm.visits(patientId) }
 
     suspend fun createVisit(body: VisitCreate): Visit = apiCall { api.crm.createVisit(body) }
+
+    // ── Касса ──
+
+    suspend fun invoices(): List<Invoice> = apiCall { api.crm.invoices() }.data
+
+    /**
+     * Счёт и, если его сразу оплатили, отметка об оплате.
+     *
+     * Двумя запросами, потому что так устроен бэкенд: создание всегда рождает
+     * счёт в статусе `pending`, а оплата — отдельный маршрут. Веб делает ровно
+     * то же самое (`upsertReceipt`, `src/utils/api.ts:739`).
+     */
+    suspend fun createInvoice(body: InvoiceCreate, markPaid: Boolean): Invoice {
+        val created = apiCall { api.crm.createInvoice(body) }
+        if (!markPaid) return created
+        return runCatching { apiCall { api.crm.payInvoice(created.id) } }.getOrDefault(created)
+    }
+
+    // ── Финансы ──
+
+    suspend fun financeReport(from: String?, to: String?): FinanceReport =
+        apiCall { api.crm.financeReport(from = from, to = to) }
+
+    // ── Прайс ──
+
+    suspend fun priceList(): List<PriceListItem> = apiCall { api.crm.priceList() }
+
+    suspend fun savePriceItem(body: PriceListUpsert): PriceListItem =
+        apiCall { api.crm.upsertPriceItem(body) }
+
+    // ── Склад ──
+
+    suspend fun inventory(query: String? = null): List<InventoryItem> =
+        apiCall { api.crm.inventory(query) }
+
+    suspend fun createInventoryItem(body: InventoryCreate): InventoryItem =
+        apiCall { api.crm.createInventoryItem(body) }
+
+    suspend fun adjustInventory(id: String, delta: Int, note: String? = null): InventoryItem =
+        apiCall { api.crm.adjustInventory(id, InventoryAdjust(delta = delta, note = note)) }
 
     // ── Персонал ──
 
