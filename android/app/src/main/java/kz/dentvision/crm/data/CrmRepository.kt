@@ -6,19 +6,26 @@ import kz.dentvision.crm.data.model.Appointment
 import kz.dentvision.crm.data.model.AppointmentUpsert
 import kz.dentvision.crm.data.model.ConflictCheck
 import kz.dentvision.crm.data.model.Doctor
+import kz.dentvision.crm.data.model.Document
 import kz.dentvision.crm.data.model.FinanceReport
+import kz.dentvision.crm.data.model.Icd10Code
 import kz.dentvision.crm.data.model.IinLookup
 import kz.dentvision.crm.data.model.InventoryAdjust
 import kz.dentvision.crm.data.model.InventoryCreate
 import kz.dentvision.crm.data.model.InventoryItem
 import kz.dentvision.crm.data.model.Invoice
 import kz.dentvision.crm.data.model.InvoiceCreate
+import kz.dentvision.crm.data.model.LabOrder
+import kz.dentvision.crm.data.model.LabOrderCreate
+import kz.dentvision.crm.data.model.LabStatusUpdate
 import kz.dentvision.crm.data.model.MedicalHistory
 import kz.dentvision.crm.data.model.MedicalHistoryPatch
 import kz.dentvision.crm.data.model.Patient
 import kz.dentvision.crm.data.model.PatientUpsert
 import kz.dentvision.crm.data.model.PriceListItem
 import kz.dentvision.crm.data.model.PriceListUpsert
+import kz.dentvision.crm.data.model.Promotion
+import kz.dentvision.crm.data.model.TreatmentPlan
 import kz.dentvision.crm.data.model.Visit
 import kz.dentvision.crm.data.model.VisitCreate
 import kz.dentvision.crm.data.model.doctors
@@ -139,6 +146,31 @@ class CrmRepository(private val api: ApiClient = ServiceLocator.api) {
 
     suspend fun adjustInventory(id: String, delta: Int, note: String? = null): InventoryItem =
         apiCall { api.crm.adjustInventory(id, InventoryAdjust(delta = delta, note = note)) }
+
+    // ── Лаборатория ──
+
+    suspend fun labOrders(): List<LabOrder> = apiCall { api.crm.labOrders() }
+
+    suspend fun saveLabOrder(body: LabOrderCreate): LabOrder =
+        apiCall { api.crm.upsertLabOrder(body) }
+
+    suspend fun setLabStatus(id: String, status: String): LabOrder =
+        apiCall { api.crm.updateLabStatus(id, LabStatusUpdate(status)) }
+
+    // ── Справочники и документы ──
+
+    suspend fun icd10(query: String?): List<Icd10Code> = apiCall { api.crm.icd10(query) }
+
+    suspend fun documents(patientId: String?): List<Document> =
+        apiCall { api.crm.documents(patientId) }
+
+    suspend fun treatmentPlans(clinicId: String, patientId: String? = null): List<TreatmentPlan> =
+        apiCall { api.crm.treatmentPlans(clinicId, patientId) }
+
+    suspend fun promotions(): List<Promotion> = apiCall { api.crm.promotions() }
+
+    /** Весь состав клиники, не только врачи — для экрана «Сотрудники». */
+    suspend fun members(clinicId: String) = apiCall { api.crm.clinic(clinicId) }.members
 
     // ── Персонал ──
 

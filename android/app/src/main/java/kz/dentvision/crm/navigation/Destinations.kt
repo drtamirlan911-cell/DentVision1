@@ -3,7 +3,13 @@ package kz.dentvision.crm.navigation
 import androidx.compose.runtime.Composable
 import kz.dentvision.crm.data.session.Session
 import kz.dentvision.crm.ui.patients.PatientsScreen
+import kz.dentvision.crm.ui.documents.DocumentsScreen
 import kz.dentvision.crm.ui.finance.FinanceHubScreen
+import kz.dentvision.crm.ui.icd10.Icd10Screen
+import kz.dentvision.crm.ui.lab.LabScreen
+import kz.dentvision.crm.ui.plans.TreatmentPlansScreen
+import kz.dentvision.crm.ui.promotions.PromotionsScreen
+import kz.dentvision.crm.ui.staff.StaffScreen
 import kz.dentvision.crm.ui.inventory.InventoryScreen
 import kz.dentvision.crm.ui.medcard.MedicalCardScreen
 import kz.dentvision.crm.ui.pricelist.PriceListScreen
@@ -47,6 +53,14 @@ val IMPLEMENTED_PAGES: Map<String, @Composable (Session) -> Unit> = mapOf(
     "finance" to { session -> FinanceHubScreen(canWrite = session.has("billing.manage")) },
     "pricelist" to { session -> PriceListScreen(canWrite = session.has("patients.write")) },
     "inventory" to { session -> InventoryScreen(canWrite = session.has("inventory.write")) },
+    // Заказы лаборатории сторожит appointments.write, а не lab.write:
+    // так объявлены сами маршруты (`lab.routes.ts:184`).
+    "lab" to { session -> LabScreen(canWrite = session.has("appointments.write")) },
+    "treatment-plans" to { session -> TreatmentPlansScreen(clinicId = session.clinic?.id) },
+    "documents" to { DocumentsScreen() },
+    "icd10" to { Icd10Screen() },
+    "promotions" to { PromotionsScreen() },
+    "staff" to { session -> StaffScreen(clinicId = session.clinic?.id) },
 )
 
 /** Домашний маршрут оболочки. */

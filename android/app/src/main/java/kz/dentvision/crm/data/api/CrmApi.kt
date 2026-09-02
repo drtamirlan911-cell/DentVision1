@@ -4,18 +4,25 @@ import kz.dentvision.crm.data.model.Appointment
 import kz.dentvision.crm.data.model.AppointmentUpsert
 import kz.dentvision.crm.data.model.ClinicWithMembers
 import kz.dentvision.crm.data.model.ConflictCheck
+import kz.dentvision.crm.data.model.Document
 import kz.dentvision.crm.data.model.FinanceReport
+import kz.dentvision.crm.data.model.Icd10Code
 import kz.dentvision.crm.data.model.IinLookup
 import kz.dentvision.crm.data.model.InventoryAdjust
 import kz.dentvision.crm.data.model.InventoryCreate
 import kz.dentvision.crm.data.model.InventoryItem
 import kz.dentvision.crm.data.model.Invoice
 import kz.dentvision.crm.data.model.InvoiceCreate
+import kz.dentvision.crm.data.model.LabOrder
+import kz.dentvision.crm.data.model.LabOrderCreate
+import kz.dentvision.crm.data.model.LabStatusUpdate
 import kz.dentvision.crm.data.model.MedicalHistoryPatch
 import kz.dentvision.crm.data.model.Patient
 import kz.dentvision.crm.data.model.PatientUpsert
 import kz.dentvision.crm.data.model.PriceListItem
 import kz.dentvision.crm.data.model.PriceListUpsert
+import kz.dentvision.crm.data.model.Promotion
+import kz.dentvision.crm.data.model.TreatmentPlan
 import kz.dentvision.crm.data.model.Visit
 import kz.dentvision.crm.data.model.VisitCreate
 import retrofit2.http.Body
@@ -145,6 +152,40 @@ interface CrmApi {
         @Path("id") id: String,
         @Body body: InventoryAdjust,
     ): ApiEnvelope<InventoryItem>
+
+    // ── Лаборатория (modules/lab/lab.routes.ts) ──
+
+    @GET("api/lab-orders")
+    suspend fun labOrders(): ApiEnvelope<List<LabOrder>>
+
+    @POST("api/lab-orders")
+    suspend fun upsertLabOrder(@Body body: LabOrderCreate): ApiEnvelope<LabOrder>
+
+    @PATCH("api/lab-orders/{id}/status")
+    suspend fun updateLabStatus(
+        @Path("id") id: String,
+        @Body body: LabStatusUpdate,
+    ): ApiEnvelope<LabOrder>
+
+    // ── Справочники и документы ──
+
+    /** МКБ-10. Пустой запрос отдаёт первые 300 кодов, с запросом — до 50. */
+    @GET("api/medical/icd10")
+    suspend fun icd10(@Query("q") query: String? = null): ApiEnvelope<List<Icd10Code>>
+
+    @GET("api/files")
+    suspend fun documents(@Query("patientId") patientId: String? = null): ApiEnvelope<List<Document>>
+
+    /** Планы лечения: клиника в пути, как этого требует маршрут. */
+    @GET("api/crm/{clinicId}/treatment-plans")
+    suspend fun treatmentPlans(
+        @Path("clinicId") clinicId: String,
+        @Query("patientId") patientId: String? = null,
+        @Query("status") status: String? = null,
+    ): ApiEnvelope<List<TreatmentPlan>>
+
+    @GET("api/crm/promotions")
+    suspend fun promotions(): ApiEnvelope<List<Promotion>>
 
     // ── Персонал (modules/clinics/clinics.routes.ts) ──
 
