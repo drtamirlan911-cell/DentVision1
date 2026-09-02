@@ -184,7 +184,7 @@ private fun ShellNavHost(
         // имеет на него право — иначе его в графе просто нет.
         visiblePages(session.pages, implemented).forEach { page ->
             val screen = IMPLEMENTED_PAGES.getValue(page.id)
-            composable(page.route) { screen() }
+            composable(page.route) { screen(session) }
         }
     }
 }
