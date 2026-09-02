@@ -30,6 +30,12 @@ data class Patient(
     val category: String = "regular",
     val allergies: String = "",
     val medicalHistory: MedicalHistory? = null,
+    /**
+     * Зубная формула: ключ — номер зуба по FDI («11», «46»), значение — его
+     * состояние. Бэкенд уже слил сюда и колонку `teeth`, и то, что лежит в
+     * `medicalHistory.teeth`, поэтому разбирать два источника клиенту не нужно.
+     */
+    val teeth: Map<String, ToothState> = emptyMap(),
     val createdAt: String? = null,
     val updatedAt: String? = null,
 )
@@ -54,4 +60,29 @@ data class PatientUpsert(
     val notes: String? = null,
     val iin: String? = null,
     val noIinReason: String? = null,
+)
+
+/** Состояние одного зуба, как его отдаёт `serializePatient`. */
+@Serializable
+data class ToothState(
+    val status: String? = null,
+    val diagnosis: String? = null,
+    val notes: String? = null,
+)
+
+/**
+ * Состояния зуба и их цветовые роли — те же, что показывает зубная карта в
+ * вебе. Незнакомое состояние показывается как есть, а не прячется: если
+ * бэкенд начнёт присылать новое, врач это увидит.
+ */
+val TOOTH_STATUS_LABELS: Map<String, String> = mapOf(
+    "healthy" to "Здоров",
+    "caries" to "Кариес",
+    "filled" to "Пломба",
+    "crown" to "Коронка",
+    "implant" to "Имплант",
+    "missing" to "Отсутствует",
+    "root" to "Корень",
+    "bridge" to "Мост",
+    "treatment" to "В лечении",
 )

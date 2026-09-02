@@ -3,13 +3,17 @@ package kz.dentvision.crm.navigation
 import androidx.compose.runtime.Composable
 import kz.dentvision.crm.data.session.Session
 import kz.dentvision.crm.ui.patients.PatientsScreen
+import kz.dentvision.crm.ui.billing.ClinicBillingScreen
+import kz.dentvision.crm.ui.dentalchart.DentalChartScreen
 import kz.dentvision.crm.ui.documents.DocumentsScreen
 import kz.dentvision.crm.ui.finance.FinanceHubScreen
 import kz.dentvision.crm.ui.icd10.Icd10Screen
 import kz.dentvision.crm.ui.lab.LabScreen
 import kz.dentvision.crm.ui.plans.TreatmentPlansScreen
 import kz.dentvision.crm.ui.promotions.PromotionsScreen
+import kz.dentvision.crm.ui.settings.ClinicSettingsScreen
 import kz.dentvision.crm.ui.staff.StaffScreen
+import kz.dentvision.crm.ui.workflow.WorkflowScreen
 import kz.dentvision.crm.ui.inventory.InventoryScreen
 import kz.dentvision.crm.ui.medcard.MedicalCardScreen
 import kz.dentvision.crm.ui.pricelist.PriceListScreen
@@ -61,6 +65,10 @@ val IMPLEMENTED_PAGES: Map<String, @Composable (Session) -> Unit> = mapOf(
     "icd10" to { Icd10Screen() },
     "promotions" to { PromotionsScreen() },
     "staff" to { session -> StaffScreen(clinicId = session.clinic?.id) },
+    "dental-chart" to { DentalChartScreen() },
+    "clinic-settings" to { session -> ClinicSettingsScreen(clinicId = session.clinic?.id) },
+    "billing" to { ClinicBillingScreen() },
+    "workflow" to { WorkflowScreen() },
 )
 
 /** Домашний маршрут оболочки. */

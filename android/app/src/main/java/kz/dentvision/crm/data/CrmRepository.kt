@@ -5,6 +5,8 @@ import kz.dentvision.crm.data.api.apiCall
 import kz.dentvision.crm.data.model.Appointment
 import kz.dentvision.crm.data.model.AppointmentUpsert
 import kz.dentvision.crm.data.model.ConflictCheck
+import kz.dentvision.crm.data.model.ClinicBilling
+import kz.dentvision.crm.data.model.ClinicSettings
 import kz.dentvision.crm.data.model.Doctor
 import kz.dentvision.crm.data.model.Document
 import kz.dentvision.crm.data.model.FinanceReport
@@ -28,6 +30,7 @@ import kz.dentvision.crm.data.model.Promotion
 import kz.dentvision.crm.data.model.TreatmentPlan
 import kz.dentvision.crm.data.model.Visit
 import kz.dentvision.crm.data.model.VisitCreate
+import kz.dentvision.crm.data.model.Workflow
 import kz.dentvision.crm.data.model.doctors
 
 /**
@@ -171,6 +174,18 @@ class CrmRepository(private val api: ApiClient = ServiceLocator.api) {
 
     /** Весь состав клиники, не только врачи — для экрана «Сотрудники». */
     suspend fun members(clinicId: String) = apiCall { api.crm.clinic(clinicId) }.members
+
+    // ── Настройки, тариф, автоматизация ──
+
+    suspend fun clinicSettings(clinicId: String): ClinicSettings =
+        apiCall { api.crm.clinicSettings(clinicId) }.settings
+
+    suspend fun saveClinicSettings(clinicId: String, settings: ClinicSettings): ClinicSettings =
+        apiCall { api.crm.saveClinicSettings(clinicId, settings) }.settings
+
+    suspend fun clinicBilling(): ClinicBilling = apiCall { api.crm.clinicBilling() }
+
+    suspend fun workflows(): List<Workflow> = apiCall { api.crm.workflows() }
 
     // ── Персонал ──
 

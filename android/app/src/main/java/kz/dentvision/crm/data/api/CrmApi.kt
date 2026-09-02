@@ -2,6 +2,9 @@ package kz.dentvision.crm.data.api
 
 import kz.dentvision.crm.data.model.Appointment
 import kz.dentvision.crm.data.model.AppointmentUpsert
+import kz.dentvision.crm.data.model.ClinicBilling
+import kz.dentvision.crm.data.model.ClinicSettings
+import kz.dentvision.crm.data.model.ClinicSettingsResponse
 import kz.dentvision.crm.data.model.ClinicWithMembers
 import kz.dentvision.crm.data.model.ConflictCheck
 import kz.dentvision.crm.data.model.Document
@@ -25,11 +28,13 @@ import kz.dentvision.crm.data.model.Promotion
 import kz.dentvision.crm.data.model.TreatmentPlan
 import kz.dentvision.crm.data.model.Visit
 import kz.dentvision.crm.data.model.VisitCreate
+import kz.dentvision.crm.data.model.Workflow
 import retrofit2.http.Body
 import retrofit2.http.DELETE
 import retrofit2.http.GET
 import retrofit2.http.PATCH
 import retrofit2.http.POST
+import retrofit2.http.PUT
 import retrofit2.http.Path
 import retrofit2.http.Query
 
@@ -192,4 +197,20 @@ interface CrmApi {
     /** Отдельного списка персонала нет — сотрудники вложены в клинику. */
     @GET("api/clinics/{id}")
     suspend fun clinic(@Path("id") id: String): ApiEnvelope<ClinicWithMembers>
+
+    @GET("api/clinics/{id}/settings")
+    suspend fun clinicSettings(@Path("id") id: String): ApiEnvelope<ClinicSettingsResponse>
+
+    /** PUT сливает присланное с лежащим, поэтому частичная отправка безопасна. */
+    @PUT("api/clinics/{id}/settings")
+    suspend fun saveClinicSettings(
+        @Path("id") id: String,
+        @Body body: ClinicSettings,
+    ): ApiEnvelope<ClinicSettingsResponse>
+
+    @GET("api/clinic-billing/me")
+    suspend fun clinicBilling(): ApiEnvelope<ClinicBilling>
+
+    @GET("api/workflows")
+    suspend fun workflows(): ApiEnvelope<List<Workflow>>
 }
