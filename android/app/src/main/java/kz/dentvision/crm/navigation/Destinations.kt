@@ -3,6 +3,7 @@ package kz.dentvision.crm.navigation
 import androidx.compose.runtime.Composable
 import kz.dentvision.crm.data.session.Session
 import kz.dentvision.crm.ui.patients.PatientsScreen
+import kz.dentvision.crm.ui.schedule.ScheduleScreen
 
 /**
  * Экраны, которые действительно построены и работают на настоящих данных.
@@ -15,6 +16,12 @@ import kz.dentvision.crm.ui.patients.PatientsScreen
  * сервера, а не по роли, угаданной на устройстве.
  */
 val IMPLEMENTED_PAGES: Map<String, @Composable (Session) -> Unit> = mapOf(
+    "schedule" to { session ->
+        ScheduleScreen(
+            clinicId = session.clinic?.id,
+            canWrite = session.has("appointments.write"),
+        )
+    },
     "patients" to { session -> PatientsScreen(canWrite = session.has("patient.write")) },
 )
 

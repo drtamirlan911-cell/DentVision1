@@ -25,7 +25,33 @@ data class Session(
     val memberships: List<Membership> = emptyList(),
     val activeMembership: Membership? = null,
 ) {
-    fun has(permission: String): Boolean = permissions.contains(permission)
+    /**
+     * Удовлетворяет ли набор прав требуемому ключу.
+     *
+     * Перенос `permissionsSatisfy` из `dentvision-backend/src/lib/permissions.ts`
+     * вместе с лестницей действий и подстановкой устаревших имён. Наивная
+     * проверка «есть ли такая строка в списке» здесь не годится по двум
+     * причинам, и обе стоили бы человеку рабочих кнопок:
+     *
+     *  - у SUPERADMIN весь набор прав — это одна звёздочка `*`;
+     *  - матрица не выводит младшие действия из старших, поэтому владелец с
+     *    `shop.manage` не имеет `shop.read` буквально, но должен проходить.
+     *
+     * Клиент решает этим только одно — показывать ли кнопку. Настоящая проверка
+     * всё равно на сервере: расхождение здесь может спрятать действие, но не
+     * может его разрешить.
+     */
+    fun has(permission: String): Boolean {
+        if (permissions.contains("*")) return true
+        val required = LEGACY_KEY_MAP[permission] ?: permission
+        if (permissions.contains(required)) return true
+
+        val parts = required.split(".")
+        if (parts.size != 2) return false
+        val (module, action) = parts
+        val satisfying = ACTION_SATISFIED_BY[action] ?: listOf(action)
+        return satisfying.any { permissions.contains("$module.$it") }
+    }
 
     companion object {
         fun from(response: LoginResponse): Session = Session(
@@ -45,3 +71,30 @@ data class Session(
         )
     }
 }
+
+/**
+ * Лестница действий: чем правее в списке, тем шире право. Копия
+ * `ACTION_SATISFIED_BY` с бэкенда.
+ */
+private val ACTION_SATISFIED_BY: Map<String, List<String>> = mapOf(
+    "read" to listOf("read", "write", "delete", "manage"),
+    "write" to listOf("write", "delete", "manage"),
+    "delete" to listOf("delete", "manage"),
+    "manage" to listOf("manage"),
+)
+
+/**
+ * Устаревшие имена прав в единственном числе → канонические. Копия
+ * `LEGACY_KEY_MAP` с бэкенда: сервер присылает канонические (`patients.write`),
+ * но часть кода исторически спрашивает про `patient.write`.
+ */
+private val LEGACY_KEY_MAP: Map<String, String> = mapOf(
+    "patient.read" to "patients.read",
+    "patient.write" to "patients.write",
+    "patient.delete" to "patients.delete",
+    "appointment.read" to "appointments.read",
+    "appointment.write" to "appointments.write",
+    "appointment.delete" to "appointments.delete",
+    "finance.manage" to "billing.manage",
+    "finance.read" to "billing.read",
+)
