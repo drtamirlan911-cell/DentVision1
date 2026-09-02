@@ -25,7 +25,9 @@ import kz.dentvision.crm.data.model.MedicalHistoryPatch
 import kz.dentvision.crm.data.model.Patient
 import kz.dentvision.crm.data.model.PatientUpsert
 import kz.dentvision.crm.data.model.PriceListItem
+import kz.dentvision.crm.data.model.MarkReminderSent
 import kz.dentvision.crm.data.model.PriceListUpsert
+import kz.dentvision.crm.data.model.SentReminder
 import kz.dentvision.crm.data.model.Promotion
 import kz.dentvision.crm.data.model.TreatmentPlan
 import kz.dentvision.crm.data.model.Visit
@@ -80,6 +82,16 @@ class CrmRepository(private val api: ApiClient = ServiceLocator.api) {
     /** Один день: бэкенд принимает `from`/`to` как границы по дате. */
     suspend fun appointmentsOn(date: String): List<Appointment> =
         apiCall { api.crm.appointments(from = date, to = date) }.data
+
+    /** Диапазон дней — напоминание на завтра пересекает границу суток. */
+    suspend fun appointmentsBetween(from: String, to: String): List<Appointment> =
+        apiCall { api.crm.appointments(from = from, to = to) }.data
+
+    suspend fun sentReminders(): List<SentReminder> = apiCall { api.crm.sentReminders() }
+
+    suspend fun markReminderSent(key: String) {
+        apiCall { api.crm.markReminderSent(MarkReminderSent(reminderKey = key)) }
+    }
 
     suspend fun checkConflicts(
         date: String,

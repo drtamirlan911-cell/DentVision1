@@ -11,6 +11,7 @@ import kz.dentvision.crm.ui.icd10.Icd10Screen
 import kz.dentvision.crm.ui.lab.LabScreen
 import kz.dentvision.crm.ui.plans.TreatmentPlansScreen
 import kz.dentvision.crm.ui.promotions.PromotionsScreen
+import kz.dentvision.crm.ui.reminders.RemindersScreen
 import kz.dentvision.crm.ui.settings.ClinicSettingsScreen
 import kz.dentvision.crm.ui.staff.StaffScreen
 import kz.dentvision.crm.ui.workflow.WorkflowScreen
@@ -69,6 +70,12 @@ val IMPLEMENTED_PAGES: Map<String, @Composable (Session) -> Unit> = mapOf(
     "clinic-settings" to { session -> ClinicSettingsScreen(clinicId = session.clinic?.id) },
     "billing" to { ClinicBillingScreen() },
     "workflow" to { WorkflowScreen() },
+    "reminders" to { session ->
+        RemindersScreen(
+            clinicId = session.clinic?.id,
+            canWrite = session.has("appointments.write"),
+        )
+    },
 )
 
 /** Домашний маршрут оболочки. */

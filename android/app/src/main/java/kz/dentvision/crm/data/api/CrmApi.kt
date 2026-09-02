@@ -20,10 +20,12 @@ import kz.dentvision.crm.data.model.LabOrder
 import kz.dentvision.crm.data.model.LabOrderCreate
 import kz.dentvision.crm.data.model.LabStatusUpdate
 import kz.dentvision.crm.data.model.MedicalHistoryPatch
+import kz.dentvision.crm.data.model.MarkReminderSent
 import kz.dentvision.crm.data.model.Patient
 import kz.dentvision.crm.data.model.PatientUpsert
 import kz.dentvision.crm.data.model.PriceListItem
 import kz.dentvision.crm.data.model.PriceListUpsert
+import kz.dentvision.crm.data.model.SentReminder
 import kz.dentvision.crm.data.model.Promotion
 import kz.dentvision.crm.data.model.TreatmentPlan
 import kz.dentvision.crm.data.model.Visit
@@ -99,6 +101,13 @@ interface CrmApi {
         @Query("patientId") patientId: String? = null,
         @Query("excludeId") excludeId: String? = null,
     ): ApiEnvelope<ConflictCheck>
+
+    /** Журнал отправленных напоминаний: `reminderKey` — ключ, а не текст. */
+    @GET("api/crm/reminders/sent")
+    suspend fun sentReminders(): ApiEnvelope<List<SentReminder>>
+
+    @POST("api/crm/reminders/sent")
+    suspend fun markReminderSent(@Body body: MarkReminderSent): ApiEnvelope<SentReminder>
 
     @POST("api/appointments")
     suspend fun upsertAppointment(@Body body: AppointmentUpsert): ApiEnvelope<Appointment>
