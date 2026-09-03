@@ -32,6 +32,7 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.rememberDrawerState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -53,6 +54,7 @@ import kz.dentvision.crm.data.session.Session
 import kz.dentvision.crm.navigation.CrmPage
 import kz.dentvision.crm.navigation.CrmSection
 import kz.dentvision.crm.navigation.IMPLEMENTED_PAGES
+import kz.dentvision.crm.navigation.LocalAssistantNavigate
 import kz.dentvision.crm.navigation.ROUTE_ACTIVITY
 import kz.dentvision.crm.navigation.ROUTE_APPROVALS
 import kz.dentvision.crm.navigation.ROUTE_WORKSPACE
@@ -233,21 +235,23 @@ private fun ShellNavHost(
     padding: PaddingValues,
     onNavigate: (String) -> Unit,
 ) {
-    NavHost(
-        navController = navController,
-        startDestination = ROUTE_WORKSPACE,
-        modifier = Modifier.fillMaxSize().padding(padding),
-    ) {
-        composable(ROUTE_WORKSPACE) {
-            WorkspaceScreen(session = session, implemented = implemented, onNavigate = onNavigate)
-        }
-        composable(ROUTE_APPROVALS) { ApprovalsScreen() }
-        composable(ROUTE_ACTIVITY) { ActivityScreen() }
-        // Маршрут заводится только под построенный экран и только если роль
-        // имеет на него право — иначе его в графе просто нет.
-        visiblePages(session.pages, implemented).forEach { page ->
-            val screen = IMPLEMENTED_PAGES.getValue(page.id)
-            composable(page.route) { screen(session) }
+    CompositionLocalProvider(LocalAssistantNavigate provides onNavigate) {
+        NavHost(
+            navController = navController,
+            startDestination = ROUTE_WORKSPACE,
+            modifier = Modifier.fillMaxSize().padding(padding),
+        ) {
+            composable(ROUTE_WORKSPACE) {
+                WorkspaceScreen(session = session, implemented = implemented, onNavigate = onNavigate)
+            }
+            composable(ROUTE_APPROVALS) { ApprovalsScreen() }
+            composable(ROUTE_ACTIVITY) { ActivityScreen() }
+            // Маршрут заводится только под построенный экран и только если роль
+            // имеет на него право — иначе его в графе просто нет.
+            visiblePages(session.pages, implemented).forEach { page ->
+                val screen = IMPLEMENTED_PAGES.getValue(page.id)
+                composable(page.route) { screen(session) }
+            }
         }
     }
 }

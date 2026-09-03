@@ -212,6 +212,10 @@ data class AiInsightAction(
     val requiresApproval: Boolean = false,
 )
 
+/** `POST /api/ai/insights/{id}/dismiss` — сервер отвечает `{dismissed: true}`, не пустым телом. */
+@Serializable
+data class AiDismissResult(val dismissed: Boolean = false)
+
 // ── Очередь подтверждений (governance-ядро) ────────────────────────────
 
 /**

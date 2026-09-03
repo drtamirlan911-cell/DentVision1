@@ -25,11 +25,14 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import kz.dentvision.crm.data.model.MedicalHistory
+import kz.dentvision.crm.navigation.IMPLEMENTED_PAGES
+import kz.dentvision.crm.navigation.LocalAssistantNavigate
 import kz.dentvision.crm.ui.common.EmptyStateView
 import kz.dentvision.crm.ui.common.ErrorState
 import kz.dentvision.crm.ui.common.LoadingSkeleton
 import kz.dentvision.crm.ui.common.PatientPickerSheet
 import kz.dentvision.crm.ui.common.UiState
+import kz.dentvision.crm.ui.insights.AiInsightSection
 import kz.dentvision.crm.ui.theme.DvTheme
 
 /**
@@ -58,6 +61,12 @@ fun MedicalCardScreen(
         OutlinedButton(onClick = { picking = true }, modifier = Modifier.fillMaxWidth()) {
             Text(state.patient?.name?.ifBlank { "Без имени" } ?: "Выбрать пациента")
         }
+
+        AiInsightSection(
+            entityId = state.patient?.id,
+            implemented = IMPLEMENTED_PAGES.keys,
+            onNavigate = LocalAssistantNavigate.current,
+        )
 
         when (val card = state.card) {
             is UiState.Loading -> LoadingSkeleton(rows = 5, contentPadding = androidx.compose.foundation.layout.PaddingValues(0.dp))

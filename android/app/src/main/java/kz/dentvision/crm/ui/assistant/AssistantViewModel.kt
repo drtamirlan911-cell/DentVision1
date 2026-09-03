@@ -138,14 +138,13 @@ class AssistantViewModel(
         viewModelScope.launch {
             runCatching { repository.action(type, params ?: JsonObject(emptyMap())) }
                 .onSuccess { result ->
-                    when (result.type) {
-                        "navigate" -> if (result.path != null) {
-                            _state.update { it.copy(pendingNavigatePath = result.path) }
-                        } else {
-                            appendNote(result.message ?: "Раздел пока доступен только в браузере")
-                        }
-                        "error" -> _state.update { it.copy(error = result.message ?: "Не удалось выполнить действие") }
-                        else -> appendNote(result.label ?: result.message ?: "Готово")
+                    // `type` не значит «навигация или нет» — настоящий вызов
+                    // инструмента с найденным путём приходит как `type:'created'`
+                    // (см. HomeViewModel.performAction), поэтому решает `path`.
+                    when {
+                        result.type == "error" -> _state.update { it.copy(error = result.message ?: "Не удалось выполнить действие") }
+                        result.path != null -> _state.update { it.copy(pendingNavigatePath = result.path) }
+                        else -> appendNote(result.message ?: result.label ?: "Готово")
                     }
                 }
                 .onFailure { e -> _state.update { it.copy(error = e.message ?: "Не удалось выполнить действие") } }

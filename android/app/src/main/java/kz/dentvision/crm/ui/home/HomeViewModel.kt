@@ -67,19 +67,21 @@ class HomeViewModel(
      * (`OpenSchedule`, `OpenCashier`, …). Путь резолвит сервер тем же
      * `/api/ai/action`, которым исполняются кнопки ассистента: одна точка
      * входа для «нажал» вместо двух параллельных.
+     *
+     * `type` в ответе — не «навигация или нет»: маршрут `/action` шлёт
+     * `type:'navigate'` только для короткого списка алиасов (`OpenSchedule`
+     * и т.п.), а для настоящего вызова инструмента с найденным путём —
+     * `type:'created'` (см. `ai.routes.ts`: `type: result.navigate ? 'created' : 'data'`).
+     * Поэтому решает не `type`, а сам факт, что `path` пришёл.
      */
     fun performAction(type: String) {
         viewModelScope.launch {
             runCatching { repository.action(type) }
                 .onSuccess { result ->
-                    when (result.type) {
-                        "navigate" -> if (result.path != null) {
-                            _state.update { it.copy(pendingNavigatePath = result.path) }
-                        } else {
-                            _state.update { it.copy(message = result.message ?: "Раздел пока доступен только в браузере") }
-                        }
-                        "error" -> _state.update { it.copy(message = result.message ?: "Не удалось выполнить действие") }
-                        else -> _state.update { it.copy(message = result.label ?: result.message ?: "Готово") }
+                    when {
+                        result.type == "error" -> _state.update { it.copy(message = result.message ?: "Не удалось выполнить действие") }
+                        result.path != null -> _state.update { it.copy(pendingNavigatePath = result.path) }
+                        else -> _state.update { it.copy(message = result.message ?: result.label ?: "Раздел пока доступен только в браузере") }
                     }
                 }
                 .onFailure { e -> _state.update { it.copy(message = e.message ?: "Не удалось выполнить действие") } }

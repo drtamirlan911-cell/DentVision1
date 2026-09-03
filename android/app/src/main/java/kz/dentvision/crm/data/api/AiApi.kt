@@ -7,6 +7,7 @@ import kz.dentvision.crm.data.model.AiApprovalItem
 import kz.dentvision.crm.data.model.AiBriefing
 import kz.dentvision.crm.data.model.AiConfirmRequest
 import kz.dentvision.crm.data.model.AiConfirmResult
+import kz.dentvision.crm.data.model.AiDismissResult
 import kz.dentvision.crm.data.model.AiInsight
 import kz.dentvision.crm.data.model.AiProactiveResponse
 import kz.dentvision.crm.data.model.AiQueryRequest
@@ -60,7 +61,7 @@ interface AiApi {
     ): ApiEnvelope<List<AiInsight>>
 
     @POST("api/ai/insights/{id}/dismiss")
-    suspend fun dismissInsight(@Path("id") id: String): ApiEnvelope<Unit>
+    suspend fun dismissInsight(@Path("id") id: String): ApiEnvelope<AiDismissResult>
 
     // ── Очередь подтверждений (os/approvals.routes.ts) ──
 
