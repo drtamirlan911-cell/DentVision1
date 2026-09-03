@@ -152,6 +152,7 @@ private fun ProductRow(product: ShopProduct) {
     Card(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(containerColor = DvTheme.colors.surface1),
+        border = androidx.compose.foundation.BorderStroke(1.dp, DvTheme.colors.borderSubtle),
     ) {
         Row(
             modifier = Modifier.fillMaxWidth().padding(14.dp),
@@ -225,6 +226,7 @@ private fun CourseRow(course: SchoolCourse) {
     Card(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(containerColor = DvTheme.colors.surface1),
+        border = androidx.compose.foundation.BorderStroke(1.dp, DvTheme.colors.borderSubtle),
     ) {
         Column(modifier = Modifier.padding(14.dp)) {
             Row(

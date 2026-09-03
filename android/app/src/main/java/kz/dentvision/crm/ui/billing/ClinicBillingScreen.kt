@@ -75,6 +75,7 @@ fun ClinicBillingScreen(viewModel: ClinicBillingViewModel = viewModel()) {
                 Card(
                     modifier = Modifier.fillMaxWidth(),
                     colors = CardDefaults.cardColors(containerColor = DvTheme.colors.surface1),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, DvTheme.colors.borderSubtle),
                 ) {
                     Column(modifier = Modifier.padding(16.dp)) {
                         Text(

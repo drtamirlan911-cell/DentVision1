@@ -83,6 +83,7 @@ fun WorkflowScreen(viewModel: WorkflowViewModel = viewModel()) {
                         Card(
                             modifier = Modifier.fillMaxWidth(),
                             colors = CardDefaults.cardColors(containerColor = DvTheme.colors.surface1),
+                            border = androidx.compose.foundation.BorderStroke(1.dp, DvTheme.colors.borderSubtle),
                         ) {
                             Row(
                                 modifier = Modifier.fillMaxWidth().padding(14.dp),

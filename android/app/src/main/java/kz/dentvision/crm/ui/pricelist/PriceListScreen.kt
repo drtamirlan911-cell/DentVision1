@@ -143,6 +143,7 @@ private fun PriceRow(item: PriceListItem, onClick: (() -> Unit)?) {
             .fillMaxWidth()
             .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier),
         colors = CardDefaults.cardColors(containerColor = DvTheme.colors.surface1),
+        border = androidx.compose.foundation.BorderStroke(1.dp, DvTheme.colors.borderSubtle),
     ) {
         Row(
             modifier = Modifier.fillMaxWidth().padding(14.dp),

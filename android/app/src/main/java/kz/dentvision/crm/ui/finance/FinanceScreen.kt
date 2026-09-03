@@ -116,6 +116,7 @@ private fun Metric(label: String, value: String, color: Color, modifier: Modifie
     Card(
         modifier = modifier,
         colors = CardDefaults.cardColors(containerColor = DvTheme.colors.surface1),
+        border = androidx.compose.foundation.BorderStroke(1.dp, DvTheme.colors.borderSubtle),
     ) {
         Column(modifier = Modifier.padding(14.dp)) {
             Text(text = value, style = MaterialTheme.typography.titleLarge, color = color)
@@ -134,6 +135,7 @@ private fun Breakdown(title: String, rows: List<Pair<String, String>>) {
     Card(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(containerColor = DvTheme.colors.surface1),
+        border = androidx.compose.foundation.BorderStroke(1.dp, DvTheme.colors.borderSubtle),
     ) {
         Column(modifier = Modifier.padding(14.dp)) {
             Text(

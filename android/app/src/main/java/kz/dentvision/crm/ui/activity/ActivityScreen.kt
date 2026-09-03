@@ -82,6 +82,7 @@ private fun StatCell(label: String, value: String, modifier: Modifier = Modifier
     Card(
         modifier = modifier,
         colors = CardDefaults.cardColors(containerColor = DvTheme.colors.surface1),
+        border = androidx.compose.foundation.BorderStroke(1.dp, DvTheme.colors.borderSubtle),
     ) {
         Column(modifier = Modifier.padding(12.dp)) {
             Text(value, style = MaterialTheme.typography.titleLarge, color = DvTheme.colors.textPrimary)
@@ -100,6 +101,7 @@ private fun ActivityRow(event: AiTimelineEvent) {
     Card(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(containerColor = DvTheme.colors.surface1),
+        border = androidx.compose.foundation.BorderStroke(1.dp, DvTheme.colors.borderSubtle),
     ) {
         Column(modifier = Modifier.padding(14.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
