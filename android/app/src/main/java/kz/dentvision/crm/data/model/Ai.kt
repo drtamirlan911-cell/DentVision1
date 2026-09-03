@@ -17,14 +17,50 @@ import kotlinx.serialization.json.JsonObject
 
 // ── Брифинг и тревоги: то, чем встречает дом ──────────────────────────────
 
-/** `GET /api/ai/briefing` — «что важно сегодня», требует вошедшего сотрудника клиники. */
+/**
+ * `GET /api/ai/briefing` — «что важно сегодня», требует вошедшего сотрудника
+ * клиники. `action.payload` (см. `core/jarvisBriefing.ts`) несёт готовые
+ * числа для карточек, а `message`/`suggestions` — тот же брифинг человеческим
+ * текстом на случай, если карточку для роли ещё не построили.
+ */
 @Serializable
 data class AiBriefing(
     val reply: String = "",
     val message: String = "",
     val suggestions: List<String> = emptyList(),
+    val skill: String? = null,
+    val intent: String? = null,
+    val action: AiBriefingAction? = null,
     val role: String? = null,
     val timeZone: String? = null,
+)
+
+@Serializable
+data class AiBriefingAction(
+    val type: String = "",
+    val payload: AiBriefingPayload? = null,
+)
+
+/** Гость получает только `mode`/`timeZone`; вошедший сотрудник — полный набор. */
+@Serializable
+data class AiBriefingPayload(
+    val mode: String? = null,
+    val timeZone: String? = null,
+    val apptsToday: Int = 0,
+    val myApptsToday: Int = 0,
+    val upcomingSoon: Int = 0,
+    val pendingConfirm: Int = 0,
+    val inChair: Int = 0,
+    val debtors: Int = 0,
+    val debtTotal: Double = 0.0,
+    val revenueYesterday: Double = 0.0,
+    val lowStock: Int = 0,
+    val unreadNotifs: Int = 0,
+    val courses: Int = 0,
+    val dentCash: Double = 0.0,
+    // Форма определяется `clinicLoadPlan.ts` и не нужна для карточек брифинга —
+    // остаётся непрозрачной, а не придумывается заново.
+    val clinicLoad: JsonElement? = null,
 )
 
 /** `GET /api/ai/proactive` — работает и для гостя (`optionalAuth`). */
@@ -38,14 +74,14 @@ data class AiAlert(
     val text: String = "",
     val message: String = "",
     val priority: Int = 0,
-    val action: AiActionRef? = null,
+    val action: AiAlertAction? = null,
 )
 
-/** Ссылка на быстрое действие внутри тревоги или брифинга (`{ type, payload? }`). */
+/** `{ type, path? }` — на путь тревога переходит напрямую, без карты действий. */
 @Serializable
-data class AiActionRef(
+data class AiAlertAction(
     val type: String = "",
-    val payload: JsonObject? = null,
+    val path: String? = null,
 )
 
 // ── Разговор ────────────────────────────────────────────────────────────
@@ -187,6 +223,7 @@ data class AiInsightAction(
 data class AiApprovalItem(
     val id: String,
     val clinicId: String? = null,
+    val organizationId: String? = null,
     val requestedByUserId: String = "",
     val surface: String = "",
     val agentId: String? = null,
@@ -199,6 +236,7 @@ data class AiApprovalItem(
     val decidedByUserId: String? = null,
     val decidedAt: String? = null,
     val decisionNote: String? = null,
+    val resultActivityId: String? = null,
     val expiresAt: String? = null,
     val createdAt: String? = null,
 )
@@ -231,11 +269,16 @@ data class AiTimelineEvent(
     val timestamp: String = "",
     val clinicId: String? = null,
     val userId: String? = null,
+    val payload: JsonElement? = null,
     val status: String = "",
+    val result: AiTimelineResult? = null,
     val error: String? = null,
     val durationMs: Int? = null,
     val evidence: List<AiTimelineEvidence> = emptyList(),
 )
+
+@Serializable
+data class AiTimelineResult(val summary: String = "")
 
 /**
  * `sourceId` приходит пустым, когда вызывающий не удовлетворяет
@@ -249,6 +292,7 @@ data class AiTimelineEvidence(
     val sourceType: String = "",
     val sourceId: String = "",
     val access: String? = null,
+    val snapshot: JsonElement? = null,
 )
 
 @Serializable

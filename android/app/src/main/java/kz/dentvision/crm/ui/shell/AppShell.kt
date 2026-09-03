@@ -9,10 +9,12 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Logout
+import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Dashboard
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material3.DrawerValue
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -28,8 +30,12 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.rememberDrawerState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
@@ -39,12 +45,15 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import kotlinx.coroutines.launch
+import kz.dentvision.crm.data.session.FocusHolder
+import kz.dentvision.crm.data.session.ScreenFocus
 import kz.dentvision.crm.data.session.Session
 import kz.dentvision.crm.navigation.CrmPage
 import kz.dentvision.crm.navigation.CrmSection
 import kz.dentvision.crm.navigation.IMPLEMENTED_PAGES
 import kz.dentvision.crm.navigation.ROUTE_WORKSPACE
 import kz.dentvision.crm.navigation.visiblePages
+import kz.dentvision.crm.ui.assistant.AssistantSheet
 import kz.dentvision.crm.ui.common.DvLogo
 import kz.dentvision.crm.ui.home.WorkspaceScreen
 import kz.dentvision.crm.ui.theme.DvTheme
@@ -73,6 +82,15 @@ fun AppShell(
     val scope = rememberCoroutineScope()
     val backStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = backStackEntry?.destination?.route ?: ROUTE_WORKSPACE
+    var assistantOpen by remember { mutableStateOf(false) }
+
+    // Контекст-движок бэкенда принимает pathname текущего экрана
+    // (`querySchema` в `ai.routes.ts`) и не переспрашивает то, что уже видно.
+    // Экраны с сущностью внутри (карточка пациента и т.п.) уточнят фокус
+    // сами через FocusHolder.set — здесь только базовый уровень маршрута.
+    LaunchedEffect(currentRoute) {
+        FocusHolder.set(ScreenFocus(pathname = currentRoute))
+    }
 
     fun open(route: String) {
         if (route == currentRoute) return
@@ -138,6 +156,15 @@ fun AppShell(
                     ),
                 )
             },
+            floatingActionButton = {
+                FloatingActionButton(
+                    onClick = { assistantOpen = true },
+                    containerColor = DvTheme.colors.gold,
+                    contentColor = DvTheme.colors.goldOn,
+                ) {
+                    Icon(Icons.Filled.AutoAwesome, contentDescription = "Спросить ассистента")
+                }
+            },
             bottomBar = {
                 // Нижняя панель появляется, только когда разделов больше одного:
                 // панель с единственной кнопкой — это не навигация, а украшение.
@@ -166,8 +193,20 @@ fun AppShell(
                 session = session,
                 implemented = implemented,
                 padding = padding,
+                onNavigate = ::open,
             )
         }
+    }
+
+    if (assistantOpen) {
+        AssistantSheet(
+            onDismiss = { assistantOpen = false },
+            onNavigate = { route ->
+                scope.launch { drawerState.close() }
+                open(route)
+            },
+            implemented = implemented,
+        )
     }
 }
 
@@ -177,6 +216,7 @@ private fun ShellNavHost(
     session: Session,
     implemented: Set<String>,
     padding: PaddingValues,
+    onNavigate: (String) -> Unit,
 ) {
     NavHost(
         navController = navController,
@@ -184,7 +224,7 @@ private fun ShellNavHost(
         modifier = Modifier.fillMaxSize().padding(padding),
     ) {
         composable(ROUTE_WORKSPACE) {
-            WorkspaceScreen(session = session, implemented = implemented)
+            WorkspaceScreen(session = session, implemented = implemented, onNavigate = onNavigate)
         }
         // Маршрут заводится только под построенный экран и только если роль
         // имеет на него право — иначе его в графе просто нет.
