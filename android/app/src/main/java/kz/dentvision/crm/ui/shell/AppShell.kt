@@ -11,7 +11,9 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Logout
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Dashboard
+import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Menu
+import androidx.compose.material.icons.filled.TaskAlt
 import androidx.compose.material3.DrawerValue
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
@@ -51,8 +53,12 @@ import kz.dentvision.crm.data.session.Session
 import kz.dentvision.crm.navigation.CrmPage
 import kz.dentvision.crm.navigation.CrmSection
 import kz.dentvision.crm.navigation.IMPLEMENTED_PAGES
+import kz.dentvision.crm.navigation.ROUTE_ACTIVITY
+import kz.dentvision.crm.navigation.ROUTE_APPROVALS
 import kz.dentvision.crm.navigation.ROUTE_WORKSPACE
 import kz.dentvision.crm.navigation.visiblePages
+import kz.dentvision.crm.ui.activity.ActivityScreen
+import kz.dentvision.crm.ui.approvals.ApprovalsScreen
 import kz.dentvision.crm.ui.assistant.AssistantSheet
 import kz.dentvision.crm.ui.common.DvLogo
 import kz.dentvision.crm.ui.home.WorkspaceScreen
@@ -128,7 +134,9 @@ fun AppShell(
                         DvLogo(size = 28.dp, modifier = Modifier.padding(end = 10.dp))
                         Column {
                             Text(
-                                text = pages.firstOrNull { it.route == currentRoute }?.label ?: "Кабинет клиники",
+                                text = pages.firstOrNull { it.route == currentRoute }?.label
+                                    ?: fixedRouteTitle(currentRoute)
+                                    ?: "Кабинет клиники",
                                 style = MaterialTheme.typography.titleMedium,
                                 color = DvTheme.colors.textPrimary,
                             )
@@ -210,6 +218,13 @@ fun AppShell(
     }
 }
 
+/** Заголовки фиксированных экранов ядра ИИ — их нет в `pages`, поэтому нет и в списке разделов. */
+private fun fixedRouteTitle(route: String): String? = when (route) {
+    ROUTE_APPROVALS -> "Подтверждения ИИ"
+    ROUTE_ACTIVITY -> "Активность ИИ"
+    else -> null
+}
+
 @Composable
 private fun ShellNavHost(
     navController: NavHostController,
@@ -226,6 +241,8 @@ private fun ShellNavHost(
         composable(ROUTE_WORKSPACE) {
             WorkspaceScreen(session = session, implemented = implemented, onNavigate = onNavigate)
         }
+        composable(ROUTE_APPROVALS) { ApprovalsScreen() }
+        composable(ROUTE_ACTIVITY) { ActivityScreen() }
         // Маршрут заводится только под построенный экран и только если роль
         // имеет на него право — иначе его в графе просто нет.
         visiblePages(session.pages, implemented).forEach { page ->
@@ -271,6 +288,22 @@ private fun DrawerContent(
             icon = { Icon(Icons.Filled.Dashboard, contentDescription = null) },
             selected = currentRoute == ROUTE_WORKSPACE,
             onClick = { onOpen(ROUTE_WORKSPACE) },
+            modifier = Modifier.padding(horizontal = 12.dp),
+        )
+        // Сквозные поверхности governance-ядра — одинаковые для всех вошедших,
+        // поэтому фиксированные пункты рядом с «Кабинетом», а не часть [pages].
+        NavigationDrawerItem(
+            label = { Text("Подтверждения ИИ") },
+            icon = { Icon(Icons.Filled.TaskAlt, contentDescription = null) },
+            selected = currentRoute == ROUTE_APPROVALS,
+            onClick = { onOpen(ROUTE_APPROVALS) },
+            modifier = Modifier.padding(horizontal = 12.dp),
+        )
+        NavigationDrawerItem(
+            label = { Text("Активность ИИ") },
+            icon = { Icon(Icons.Filled.History, contentDescription = null) },
+            selected = currentRoute == ROUTE_ACTIVITY,
+            onClick = { onOpen(ROUTE_ACTIVITY) },
             modifier = Modifier.padding(horizontal = 12.dp),
         )
 

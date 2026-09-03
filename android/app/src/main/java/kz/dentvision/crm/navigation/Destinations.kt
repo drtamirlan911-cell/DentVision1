@@ -80,3 +80,12 @@ val IMPLEMENTED_PAGES: Map<String, @Composable (Session) -> Unit> = mapOf(
 
 /** Домашний маршрут оболочки. */
 const val ROUTE_WORKSPACE = "workspace"
+
+/**
+ * Поверхности governance-ядра ИИ (`AiApproval`, `AgentActivity`) — не часть
+ * `pages` с сервера: это не раздел клиники, доступный по роли, а сквозной
+ * инструмент, одинаковый для всех вошедших. Поэтому маршрут заводится в
+ * оболочке напрямую, а не через [IMPLEMENTED_PAGES]/[CRM_PAGES].
+ */
+const val ROUTE_APPROVALS = "ai/approvals"
+const val ROUTE_ACTIVITY = "ai/activity"
