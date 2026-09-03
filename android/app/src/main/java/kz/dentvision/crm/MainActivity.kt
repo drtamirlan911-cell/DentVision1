@@ -10,7 +10,10 @@ import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import kotlinx.coroutines.launch
@@ -18,6 +21,7 @@ import kz.dentvision.crm.data.AuthRepository
 import kz.dentvision.crm.data.ServiceLocator
 import kz.dentvision.crm.ui.auth.LoginScreen
 import kz.dentvision.crm.ui.common.LoadingSkeleton
+import kz.dentvision.crm.ui.public.PublicScreen
 import kz.dentvision.crm.ui.shell.AppShell
 import kz.dentvision.crm.ui.theme.DentVisionTheme
 import kz.dentvision.crm.ui.theme.DvTheme
@@ -58,9 +62,15 @@ private fun DentVisionRoot() {
         ServiceLocator.api.sessionLost.collect { store.clear() }
     }
 
+    // Публичная витрина — не «состояние входа», а отдельное место, куда можно
+    // зайти и вернуться. Поэтому обычный флаг, а не третий вид сессии: сессии
+    // тут нет вовсе, и делать вид, что есть, было бы враньём в модели.
+    var browsingPublic by rememberSaveable { mutableStateOf(false) }
+
     when {
         !restored -> Box(modifier = Modifier.fillMaxSize()) { LoadingSkeleton(rows = 3) }
-        session == null -> LoginScreen()
+        session == null && browsingPublic -> PublicScreen(onSignIn = { browsingPublic = false })
+        session == null -> LoginScreen(onBrowsePublic = { browsingPublic = true })
         else -> AppShell(
             session = session!!,
             onLogout = {

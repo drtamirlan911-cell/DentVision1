@@ -4,6 +4,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -13,11 +14,13 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import kz.dentvision.crm.data.session.Session
 import kz.dentvision.crm.navigation.CRM_PAGES
 import kz.dentvision.crm.navigation.canAccessPage
+import kz.dentvision.crm.ui.common.DvLogo
 import kz.dentvision.crm.ui.theme.DvTheme
 
 /**
@@ -49,11 +52,14 @@ fun WorkspaceScreen(
             colors = CardDefaults.cardColors(containerColor = DvTheme.colors.surface1),
         ) {
             Column(modifier = Modifier.padding(16.dp)) {
-                Text(
-                    text = session.clinic?.name ?: "Клиника не выбрана",
-                    style = MaterialTheme.typography.titleLarge,
-                    color = DvTheme.colors.textPrimary,
-                )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    DvLogo(size = 40.dp, modifier = Modifier.padding(end = 12.dp))
+                    Text(
+                        text = session.clinic?.name ?: "Клиника не выбрана",
+                        style = MaterialTheme.typography.titleLarge,
+                        color = DvTheme.colors.textPrimary,
+                    )
+                }
                 Text(
                     text = session.user.name.ifBlank { session.user.login },
                     style = MaterialTheme.typography.bodyMedium,

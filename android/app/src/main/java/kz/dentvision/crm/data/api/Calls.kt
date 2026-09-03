@@ -5,6 +5,7 @@ import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
 import retrofit2.HttpException
 import java.io.IOException
+import java.net.SocketTimeoutException
 
 private val errorJson = Json { ignoreUnknownKeys = true }
 
@@ -21,6 +22,16 @@ suspend fun <T> apiCall(block: suspend () -> ApiEnvelope<T>): T = withContext(Di
         block()
     } catch (e: HttpException) {
         throw e.toApiException()
+    } catch (e: SocketTimeoutException) {
+        // Таймаут и отсутствие сети — разные беды, и лечатся по-разному.
+        // Сервер на Render засыпает без нагрузки, поэтому первый запрос после
+        // долгого перерыва может не уложиться в минуту. Сказать здесь «нет
+        // связи» значит отправить человека проверять телефон, когда проверять
+        // нечего: надо просто повторить.
+        throw ApiException(
+            status = 0,
+            message = "Сервер не ответил вовремя. Если им давно не пользовались, ему нужно до минуты, чтобы проснуться — повторите попытку.",
+        )
     } catch (e: IOException) {
         throw ApiException(status = 0, message = "Нет связи с сервером. Проверьте подключение.")
     }

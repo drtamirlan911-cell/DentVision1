@@ -2,7 +2,7 @@ package kz.dentvision.crm.data.session
 
 import kotlinx.serialization.Serializable
 import kz.dentvision.crm.data.model.Capabilities
-import kz.dentvision.crm.data.model.Clinic
+import kz.dentvision.crm.data.model.ClinicBrief
 import kz.dentvision.crm.data.model.LoginResponse
 import kz.dentvision.crm.data.model.Membership
 import kz.dentvision.crm.data.model.User
@@ -15,7 +15,7 @@ import kz.dentvision.crm.data.model.User
 @Serializable
 data class Session(
     val user: User,
-    val clinic: Clinic? = null,
+    val clinic: ClinicBrief? = null,
     val accessToken: String,
     val refreshToken: String,
     val pages: List<String> = emptyList(),
@@ -54,11 +54,19 @@ data class Session(
     }
 
     companion object {
-        fun from(response: LoginResponse): Session = Session(
+        fun from(response: LoginResponse): Session {
+            val active = response.activeMembership ?: response.memberships.firstOrNull()
+            return Session(
             user = response.user,
-            clinic = response.clinic,
-            accessToken = response.tokens.accessToken,
-            refreshToken = response.tokens.refreshToken,
+            // Отдельного поля `clinic` в ответе нет — клиника лежит внутри
+            // членства, и веб достаёт её оттуда же (`buildClinicFromMembership`).
+            // Если у членства клиника не пришла, но есть её идентификатор,
+            // подставляем заглушку с ним: экраны, которым нужен только
+            // clinicId, должны работать, а не считать, что клиники нет.
+            clinic = active?.clinic
+                ?: active?.clinicId?.let { ClinicBrief(id = it, name = "Клиника") },
+            accessToken = response.accessToken,
+            refreshToken = response.refreshToken,
             // Веб объединяет `pages` из ответа входа и из `roleInfo`
             // (`src/iam/resolver.ts:118`) — здесь то же объединение, чтобы меню
             // на Android совпадало с сайдбаром в браузере.
@@ -67,8 +75,9 @@ data class Session(
             capabilities = response.capabilities,
             effectiveRole = response.effectiveRole ?: response.user.role,
             memberships = response.memberships,
-            activeMembership = response.activeMembership ?: response.memberships.firstOrNull(),
-        )
+            activeMembership = active,
+            )
+        }
     }
 }
 

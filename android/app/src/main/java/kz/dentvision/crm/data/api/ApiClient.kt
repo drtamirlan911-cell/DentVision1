@@ -45,8 +45,13 @@ class ApiClient(
                 onSessionLost = { sessionLost.tryEmit(Unit) },
             ),
         )
-        .connectTimeout(20, TimeUnit.SECONDS)
-        .readTimeout(30, TimeUnit.SECONDS)
+        // Щедрые таймауты — не роскошь, а следствие того, где живёт бэкенд.
+        // На бесплатном тарифе Render сервис засыпает без нагрузки, и первый
+        // запрос будит его: холодный старт занимает до минуты. С прежними
+        // 20/30 секундами первый вход с телефона обрывался и показывал
+        // «нет связи с сервером» на живом сервере — что и произошло.
+        .connectTimeout(60, TimeUnit.SECONDS)
+        .readTimeout(60, TimeUnit.SECONDS)
         .build()
 
     private val retrofit: Retrofit = Retrofit.Builder()
@@ -57,4 +62,5 @@ class ApiClient(
 
     val auth: AuthApi = retrofit.create(AuthApi::class.java)
     val crm: CrmApi = retrofit.create(CrmApi::class.java)
+    val public: PublicApi = retrofit.create(PublicApi::class.java)
 }

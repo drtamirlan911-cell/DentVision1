@@ -2,6 +2,7 @@ package kz.dentvision.crm.ui.shell
 
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
@@ -29,6 +30,7 @@ import androidx.compose.material3.rememberDrawerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavHostController
@@ -43,6 +45,7 @@ import kz.dentvision.crm.navigation.CrmSection
 import kz.dentvision.crm.navigation.IMPLEMENTED_PAGES
 import kz.dentvision.crm.navigation.ROUTE_WORKSPACE
 import kz.dentvision.crm.navigation.visiblePages
+import kz.dentvision.crm.ui.common.DvLogo
 import kz.dentvision.crm.ui.home.WorkspaceScreen
 import kz.dentvision.crm.ui.theme.DvTheme
 
@@ -103,6 +106,8 @@ fun AppShell(
             topBar = {
                 TopAppBar(
                     title = {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                        DvLogo(size = 28.dp, modifier = Modifier.padding(end = 10.dp))
                         Column {
                             Text(
                                 text = pages.firstOrNull { it.route == currentRoute }?.label ?: "Кабинет клиники",
@@ -116,6 +121,7 @@ fun AppShell(
                                     color = DvTheme.colors.textMuted,
                                 )
                             }
+                        }
                         }
                     },
                     navigationIcon = {
@@ -198,12 +204,17 @@ private fun DrawerContent(
     onLogout: () -> Unit,
 ) {
     Column(modifier = Modifier.verticalScroll(rememberScrollState()).padding(vertical = 12.dp)) {
-        Text(
-            text = session.clinic?.name ?: "DentVision",
-            style = MaterialTheme.typography.titleMedium,
-            color = DvTheme.colors.gold,
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp),
-        )
+        ) {
+            DvLogo(size = 32.dp, modifier = Modifier.padding(end = 10.dp))
+            Text(
+                text = session.clinic?.name ?: "DentVision",
+                style = MaterialTheme.typography.titleMedium,
+                color = DvTheme.colors.gold,
+            )
+        }
         Text(
             text = session.user.name.ifBlank { session.user.login },
             style = MaterialTheme.typography.bodySmall,

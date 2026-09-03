@@ -3,17 +3,29 @@ package kz.dentvision.crm.data.model
 import kotlinx.serialization.Serializable
 
 /**
- * Ответ `POST /api/auth/login` — списан с `LoginResponse` в `src/types.ts:516`.
+ * Ответ `POST /api/auth/login`.
  *
- * Ключевое: сервер отдаёт не только токены, но и `pages`, `permissions`,
- * `capabilities`, `effectiveRole`. Матрица прав живёт на бэкенде, клиент её не
- * повторяет и не додумывает — он показывает ровно то, что ему разрешили.
+ * **Списан с самого сервера (`buildSignInPayload`, `auth.routes.ts:104`), а не
+ * с `LoginResponse` в `src/types.ts`.** Тот тип обещает вложенный объект
+ * `tokens` и поле `clinic` — на проводе нет ни того, ни другого, и первая же
+ * попытка входа с настоящего телефона это доказала:
+ *
+ *     Field 'tokens' is required ... but it was missing at path: $.data
+ *
+ * Сервер делает `...tokens` — раскладывает `accessToken` и `refreshToken`
+ * плоско рядом с остальными полями. Клиника отдельным полем не приходит вовсе:
+ * она лежит внутри `activeMembership.clinic`, и веб собирает её оттуда
+ * (`buildClinicFromMembership`, `src/store/auth.store.ts:287`).
+ *
+ * Урок записан здесь, чтобы не повторился: источник правды о форме ответа —
+ * код, который этот ответ строит, а не тип, который его описывает. Тип может
+ * отстать, сериализатор — нет.
  */
 @Serializable
 data class LoginResponse(
     val user: User,
-    val clinic: Clinic? = null,
-    val tokens: AuthTokens,
+    val accessToken: String,
+    val refreshToken: String,
     val roleInfo: RoleInfo? = null,
     val memberships: List<Membership> = emptyList(),
     val activeMembership: Membership? = null,
@@ -23,17 +35,27 @@ data class LoginResponse(
     val capabilities: Capabilities? = null,
 )
 
-@Serializable
-data class AuthTokens(
-    val accessToken: String,
-    val refreshToken: String,
-)
-
+/**
+ * Членство в клинике. `clinic` приходит выборкой
+ * `{ id, name, city, plan, logo }` — ровно эти поля и объявлены.
+ */
 @Serializable
 data class Membership(
     val id: String,
     val clinicId: String,
     val role: String,
+    val joinedAt: String? = null,
+    val clinic: ClinicBrief? = null,
+)
+
+/** Клиника в том объёме, в каком её отдаёт вход. */
+@Serializable
+data class ClinicBrief(
+    val id: String,
+    val name: String = "",
+    val city: String? = null,
+    val plan: String? = null,
+    val logo: String? = null,
 )
 
 @Serializable
@@ -83,6 +105,7 @@ data class RefreshRequest(
     val refreshToken: String,
 )
 
+/** Ответ обновления — токены тоже плоско. */
 @Serializable
 data class RefreshResponse(
     val accessToken: String,

@@ -22,6 +22,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -37,6 +38,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import kz.dentvision.crm.ui.common.DvBrandMark
 import kz.dentvision.crm.ui.theme.DvTheme
 
 /**
@@ -49,7 +51,10 @@ import kz.dentvision.crm.ui.theme.DvTheme
  * маршрута. Ставить кнопку, ведущую в никуда, задание запрещает.
  */
 @Composable
-fun LoginScreen(viewModel: LoginViewModel = viewModel()) {
+fun LoginScreen(
+    onBrowsePublic: () -> Unit,
+    viewModel: LoginViewModel = viewModel(),
+) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     var showPassword by remember { mutableStateOf(false) }
 
@@ -62,16 +67,9 @@ fun LoginScreen(viewModel: LoginViewModel = viewModel()) {
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center,
     ) {
-        Text(
-            text = "DentVision",
-            style = MaterialTheme.typography.headlineMedium,
-            color = DvTheme.colors.gold,
-        )
-        Text(
-            text = "Кабинет клиники",
-            style = MaterialTheme.typography.bodyMedium,
-            color = DvTheme.colors.textSecondary,
-            modifier = Modifier.padding(top = 4.dp, bottom = 28.dp),
+        DvBrandMark(
+            subtitle = "Кабинет клиники",
+            modifier = Modifier.padding(bottom = 28.dp),
         )
 
         OutlinedTextField(
@@ -136,6 +134,17 @@ fun LoginScreen(viewModel: LoginViewModel = viewModel()) {
             } else {
                 Text("Войти в систему")
             }
+        }
+
+        // Витрина и курсы открыты на бэкенде без входа — значит, и здесь им
+        // незачем прятаться за логином. Кабинет клиники за ним остаётся: там
+        // чужие медицинские данные.
+        TextButton(
+            onClick = onBrowsePublic,
+            enabled = !state.submitting,
+            modifier = Modifier.padding(top = 8.dp),
+        ) {
+            Text("Магазин и курсы — без входа")
         }
     }
 }
