@@ -63,4 +63,5 @@ class ApiClient(
     val auth: AuthApi = retrofit.create(AuthApi::class.java)
     val crm: CrmApi = retrofit.create(CrmApi::class.java)
     val public: PublicApi = retrofit.create(PublicApi::class.java)
+    val ai: AiApi = retrofit.create(AiApi::class.java)
 }
