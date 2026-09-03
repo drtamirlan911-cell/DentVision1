@@ -78,7 +78,14 @@ val IMPLEMENTED_PAGES: Map<String, @Composable (Session) -> Unit> = mapOf(
     },
 )
 
-/** Домашний маршрут оболочки. */
+/**
+ * Дом оболочки — как `/` на вебе (`IntelligenceLayout.tsx`): диалог с ИИ, а
+ * не список разделов CRM. `ROUTE_WORKSPACE` (кабинет клиники) остаётся, но
+ * открывается уже из этого экрана или из бокового меню, а не наоборот.
+ */
+const val ROUTE_INTELLIGENCE = "intelligence"
+
+/** Кабинет клиники — разделы CRM. */
 const val ROUTE_WORKSPACE = "workspace"
 
 /**

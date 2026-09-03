@@ -15,7 +15,6 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
-import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -39,6 +38,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import kz.dentvision.crm.ui.common.DvBrandMark
+import kz.dentvision.crm.ui.theme.DvPrimaryButton
 import kz.dentvision.crm.ui.theme.DvTheme
 
 /**
@@ -120,7 +120,7 @@ fun LoginScreen(
             )
         }
 
-        Button(
+        DvPrimaryButton(
             onClick = viewModel::submit,
             enabled = state.canSubmit,
             modifier = Modifier.fillMaxWidth().widthIn(max = 420.dp).padding(top = 20.dp),

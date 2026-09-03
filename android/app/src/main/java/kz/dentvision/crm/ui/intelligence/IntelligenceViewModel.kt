@@ -1,4 +1,4 @@
-package kz.dentvision.crm.ui.assistant
+package kz.dentvision.crm.ui.intelligence
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -11,14 +11,16 @@ import kotlinx.coroutines.launch
 import kotlinx.serialization.json.JsonObject
 import kz.dentvision.crm.data.AiRepository
 import kz.dentvision.crm.data.model.AiAction
+import kz.dentvision.crm.data.model.AiAlert
 import kz.dentvision.crm.data.model.AiMessage
 import kz.dentvision.crm.data.session.FocusHolder
 
-data class AssistantUiState(
+data class IntelligenceUiState(
     val messages: List<AiMessage> = emptyList(),
     val suggestions: List<String> = emptyList(),
     /** Кнопки под последним ответом ассистента — гаснут с новым сообщением. */
     val actions: List<AiAction> = emptyList(),
+    val alerts: List<AiAlert> = emptyList(),
     val input: String = "",
     val sending: Boolean = false,
     val loadingThread: Boolean = true,
@@ -29,23 +31,24 @@ data class AssistantUiState(
 )
 
 /**
- * Один живой диалог с ассистентом на весь процесс — держится на уровне
- * оболочки (см. `AppShell`), а не отдельного экрана, потому что открыть
- * ассистента можно с любого экрана и разговор должен пережить переход между
- * ними.
+ * Дом приложения — как `/` на вебе (`AIWorkspaceIndex.tsx`): один живой
+ * диалог, а не отдельная страница со статистикой и отдельный виджет чата.
+ * Брифинг по роли (`/api/ai/briefing`) заходит в тот же тред первым
+ * сообщением ассистента, а не отдельной карточкой — ровно так это делает
+ * `pushDailyJarvisBriefing` в вебе. Проактивные тревоги (`/api/ai/proactive`)
+ * остаются отдельным списком: их можно скрыть по одной, не трогая переписку.
  */
-class AssistantViewModel(
+class IntelligenceViewModel(
     private val repository: AiRepository = AiRepository(),
 ) : ViewModel() {
 
-    private val _state = MutableStateFlow(AssistantUiState())
-    val state: StateFlow<AssistantUiState> = _state
+    private val _state = MutableStateFlow(IntelligenceUiState())
+    val state: StateFlow<IntelligenceUiState> = _state
 
     private var sessionId: String? = null
     private var threadLoaded = false
 
-    /** Тред грузится один раз при первом открытии листа, не при каждой пересборке. */
-    fun ensureThreadLoaded() {
+    fun ensureLoaded() {
         if (threadLoaded) return
         threadLoaded = true
         viewModelScope.launch {
@@ -53,10 +56,30 @@ class AssistantViewModel(
                 .onSuccess { thread ->
                     sessionId = thread.sessionId ?: thread.threadId
                     _state.update { it.copy(messages = thread.messages, loadingThread = false) }
+                    if (thread.messages.isEmpty()) injectBriefing()
                 }
                 .onFailure { e ->
                     _state.update { it.copy(loadingThread = false, error = e.message ?: "Не удалось загрузить диалог") }
                 }
+        }
+        viewModelScope.launch {
+            runCatching { repository.proactive() }
+                .onSuccess { alerts -> _state.update { it.copy(alerts = alerts) } }
+                .onFailure { /* Тревоги необязательны для полезности экрана — диалог важнее. */ }
+        }
+    }
+
+    /** Первое, чем встречает пустой тред, — брифинг по роли, тем же голосом, что и любой другой ответ. */
+    private fun injectBriefing() {
+        viewModelScope.launch {
+            runCatching { repository.briefing() }
+                .onSuccess { briefing ->
+                    val text = briefing.message.ifBlank { briefing.reply }
+                    if (text.isBlank()) return@onSuccess
+                    val note = AiMessage(id = UUID.randomUUID().toString(), role = "assistant", content = text)
+                    _state.update { it.copy(messages = it.messages + note, suggestions = briefing.suggestions) }
+                }
+                .onFailure { /* Гость или клиника ещё не выбрана — брифинг недоступен, это не ошибка экрана. */ }
         }
     }
 
@@ -117,6 +140,17 @@ class AssistantViewModel(
         }
     }
 
+    /** Тревога устроена иначе, чем кнопка ответа: несёт только имя действия, путь резолвит сервер. */
+    fun tapAlert(alert: AiAlert) {
+        val type = alert.action?.type ?: return
+        dismissAlert(alert)
+        executeAction(type, null)
+    }
+
+    fun dismissAlert(alert: AiAlert) {
+        _state.update { it.copy(alerts = it.alerts.filterNot { a -> a === alert }) }
+    }
+
     fun confirmPending(confirmed: Boolean) {
         val action = _state.value.pendingConfirmation ?: return
         _state.update { it.copy(pendingConfirmation = null) }
@@ -138,9 +172,10 @@ class AssistantViewModel(
         viewModelScope.launch {
             runCatching { repository.action(type, params ?: JsonObject(emptyMap())) }
                 .onSuccess { result ->
-                    // `type` не значит «навигация или нет» — настоящий вызов
-                    // инструмента с найденным путём приходит как `type:'created'`
-                    // (см. HomeViewModel.performAction), поэтому решает `path`.
+                    // `type` в ответе не значит «навигация или нет» — настоящий
+                    // вызов инструмента с найденным путём приходит как
+                    // `type:'created'` (`ai.routes.ts`: `result.navigate ?
+                    // 'created' : 'data'`), решает наличие `path`.
                     when {
                         result.type == "error" -> _state.update { it.copy(error = result.message ?: "Не удалось выполнить действие") }
                         result.path != null -> _state.update { it.copy(pendingNavigatePath = result.path) }
@@ -162,6 +197,7 @@ class AssistantViewModel(
                 .onSuccess { ref ->
                     sessionId = ref.sessionId
                     _state.update { it.copy(messages = emptyList(), suggestions = emptyList(), actions = emptyList()) }
+                    injectBriefing()
                 }
                 .onFailure { e -> _state.update { it.copy(error = e.message ?: "Не удалось начать новый диалог") } }
         }

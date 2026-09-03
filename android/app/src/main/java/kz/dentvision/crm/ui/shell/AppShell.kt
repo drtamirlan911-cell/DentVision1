@@ -1,11 +1,18 @@
 package kz.dentvision.crm.ui.shell
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Logout
@@ -13,10 +20,10 @@ import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Dashboard
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Menu
+import androidx.compose.material.icons.filled.SmartToy
 import androidx.compose.material.icons.filled.TaskAlt
 import androidx.compose.material3.DrawerValue
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -25,7 +32,6 @@ import androidx.compose.material3.ModalDrawerSheet
 import androidx.compose.material3.ModalNavigationDrawer
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
-import androidx.compose.material3.NavigationDrawerItem
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
@@ -35,12 +41,12 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
@@ -57,25 +63,25 @@ import kz.dentvision.crm.navigation.IMPLEMENTED_PAGES
 import kz.dentvision.crm.navigation.LocalAssistantNavigate
 import kz.dentvision.crm.navigation.ROUTE_ACTIVITY
 import kz.dentvision.crm.navigation.ROUTE_APPROVALS
+import kz.dentvision.crm.navigation.ROUTE_INTELLIGENCE
 import kz.dentvision.crm.navigation.ROUTE_WORKSPACE
 import kz.dentvision.crm.navigation.visiblePages
 import kz.dentvision.crm.ui.activity.ActivityScreen
 import kz.dentvision.crm.ui.approvals.ApprovalsScreen
-import kz.dentvision.crm.ui.assistant.AssistantSheet
 import kz.dentvision.crm.ui.common.DvLogo
 import kz.dentvision.crm.ui.home.WorkspaceScreen
+import kz.dentvision.crm.ui.intelligence.IntelligenceScreen
 import kz.dentvision.crm.ui.theme.DvTheme
 
 /**
- * Оболочка кабинета.
+ * Оболочка приложения. Дом — Intelligence (диалог с ИИ), как `/` на вебе;
+ * кабинет клиники (CRM) — один из пунктов меню, а не наоборот. В браузере
+ * разделы CRM живут в развёрнутом боковом меню — в телефон оно не помещается,
+ * поэтому подача адаптирована (выдвижное меню вместо постоянного), но состав
+ * и порядок разделов внутри CRM не меняются — меняется только то, что стоит
+ * перед ним.
  *
- * В браузере разделы живут в боковом меню на два десятка пунктов — в телефон
- * оно не помещается. Информационная архитектура при этом сохраняется целиком:
- * те же разделы, те же группы, тот же порядок; меняется только подача — четыре
- * частых раздела внизу, остальное в выдвижном меню. Это единственная
- * адаптация формы, и она не добавляет и не убирает ни одного пункта.
- *
- * Что вообще попадает в меню, решает сервер: `pages` из ответа на вход.
+ * Что попадает в меню CRM, решает сервер: `pages` из ответа на вход.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -89,8 +95,7 @@ fun AppShell(
     val drawerState = rememberDrawerState(DrawerValue.Closed)
     val scope = rememberCoroutineScope()
     val backStackEntry by navController.currentBackStackEntryAsState()
-    val currentRoute = backStackEntry?.destination?.route ?: ROUTE_WORKSPACE
-    var assistantOpen by remember { mutableStateOf(false) }
+    val currentRoute = backStackEntry?.destination?.route ?: ROUTE_INTELLIGENCE
 
     // Контекст-движок бэкенда принимает pathname текущего экрана
     // (`querySchema` в `ai.routes.ts`) и не переспрашивает то, что уже видно.
@@ -103,7 +108,7 @@ fun AppShell(
     fun open(route: String) {
         if (route == currentRoute) return
         navController.navigate(route) {
-            popUpTo(ROUTE_WORKSPACE) { saveState = true }
+            popUpTo(ROUTE_INTELLIGENCE) { saveState = true }
             launchSingleTop = true
             restoreState = true
         }
@@ -111,7 +116,6 @@ fun AppShell(
 
     ModalNavigationDrawer(
         drawerState = drawerState,
-        gesturesEnabled = pages.isNotEmpty(),
         drawerContent = {
             ModalDrawerSheet(drawerContainerColor = DvTheme.colors.surface1) {
                 DrawerContent(
@@ -166,34 +170,27 @@ fun AppShell(
                     ),
                 )
             },
-            floatingActionButton = {
-                FloatingActionButton(
-                    onClick = { assistantOpen = true },
-                    containerColor = DvTheme.colors.gold,
-                    contentColor = DvTheme.colors.goldOn,
-                ) {
-                    Icon(Icons.Filled.AutoAwesome, contentDescription = "Спросить ассистента")
-                }
-            },
             bottomBar = {
-                // Нижняя панель появляется, только когда разделов больше одного:
-                // панель с единственной кнопкой — это не навигация, а украшение.
-                if (pages.size > 1) {
-                    NavigationBar(containerColor = DvTheme.colors.surface1) {
+                NavigationBar(containerColor = DvTheme.colors.surface1) {
+                    NavigationBarItem(
+                        selected = currentRoute == ROUTE_INTELLIGENCE,
+                        onClick = { open(ROUTE_INTELLIGENCE) },
+                        icon = { Icon(Icons.Filled.AutoAwesome, contentDescription = null) },
+                        label = { Text("Intelligence", style = MaterialTheme.typography.labelSmall) },
+                    )
+                    NavigationBarItem(
+                        selected = currentRoute == ROUTE_WORKSPACE,
+                        onClick = { open(ROUTE_WORKSPACE) },
+                        icon = { Icon(Icons.Filled.Dashboard, contentDescription = null) },
+                        label = { Text("Кабинет", style = MaterialTheme.typography.labelSmall) },
+                    )
+                    pages.take(3).forEach { page ->
                         NavigationBarItem(
-                            selected = currentRoute == ROUTE_WORKSPACE,
-                            onClick = { open(ROUTE_WORKSPACE) },
-                            icon = { Icon(Icons.Filled.Dashboard, contentDescription = null) },
-                            label = { Text("Кабинет") },
+                            selected = currentRoute == page.route,
+                            onClick = { open(page.route) },
+                            icon = { Icon(page.icon, contentDescription = null) },
+                            label = { Text(page.label, style = MaterialTheme.typography.labelSmall) },
                         )
-                        pages.take(4).forEach { page ->
-                            NavigationBarItem(
-                                selected = currentRoute == page.route,
-                                onClick = { open(page.route) },
-                                icon = { Icon(page.icon, contentDescription = null) },
-                                label = { Text(page.label, style = MaterialTheme.typography.labelSmall) },
-                            )
-                        }
                     }
                 }
             },
@@ -207,21 +204,11 @@ fun AppShell(
             )
         }
     }
-
-    if (assistantOpen) {
-        AssistantSheet(
-            onDismiss = { assistantOpen = false },
-            onNavigate = { route ->
-                scope.launch { drawerState.close() }
-                open(route)
-            },
-            implemented = implemented,
-        )
-    }
 }
 
 /** Заголовки фиксированных экранов ядра ИИ — их нет в `pages`, поэтому нет и в списке разделов. */
 private fun fixedRouteTitle(route: String): String? = when (route) {
+    ROUTE_INTELLIGENCE -> "Intelligence"
     ROUTE_APPROVALS -> "Подтверждения ИИ"
     ROUTE_ACTIVITY -> "Активность ИИ"
     else -> null
@@ -238,11 +225,14 @@ private fun ShellNavHost(
     CompositionLocalProvider(LocalAssistantNavigate provides onNavigate) {
         NavHost(
             navController = navController,
-            startDestination = ROUTE_WORKSPACE,
+            startDestination = ROUTE_INTELLIGENCE,
             modifier = Modifier.fillMaxSize().padding(padding),
         ) {
+            composable(ROUTE_INTELLIGENCE) {
+                IntelligenceScreen(implemented = implemented, onNavigate = onNavigate)
+            }
             composable(ROUTE_WORKSPACE) {
-                WorkspaceScreen(session = session, implemented = implemented, onNavigate = onNavigate)
+                WorkspaceScreen(session = session, implemented = implemented)
             }
             composable(ROUTE_APPROVALS) { ApprovalsScreen() }
             composable(ROUTE_ACTIVITY) { ActivityScreen() }
@@ -287,28 +277,38 @@ private fun DrawerContent(
             modifier = Modifier.padding(vertical = 12.dp),
         )
 
-        NavigationDrawerItem(
-            label = { Text("Кабинет") },
-            icon = { Icon(Icons.Filled.Dashboard, contentDescription = null) },
-            selected = currentRoute == ROUTE_WORKSPACE,
+        // Intelligence — всегда первым, крупнее и золотистее остальных пунктов:
+        // это дом приложения, а не ещё один раздел меню (см. `Sidebar.tsx`,
+        // где Intelligence — единственный пункт вне общего списка навигации).
+        IntelligenceDrawerItem(
+            active = currentRoute == ROUTE_INTELLIGENCE,
+            onClick = { onOpen(ROUTE_INTELLIGENCE) },
+        )
+
+        HorizontalDivider(
+            color = DvTheme.colors.borderSubtle,
+            modifier = Modifier.padding(vertical = 10.dp, horizontal = 20.dp),
+        )
+
+        PillarDrawerItem(
+            label = "Кабинет",
+            icon = Icons.Filled.Dashboard,
+            active = currentRoute == ROUTE_WORKSPACE,
             onClick = { onOpen(ROUTE_WORKSPACE) },
-            modifier = Modifier.padding(horizontal = 12.dp),
         )
         // Сквозные поверхности governance-ядра — одинаковые для всех вошедших,
         // поэтому фиксированные пункты рядом с «Кабинетом», а не часть [pages].
-        NavigationDrawerItem(
-            label = { Text("Подтверждения ИИ") },
-            icon = { Icon(Icons.Filled.TaskAlt, contentDescription = null) },
-            selected = currentRoute == ROUTE_APPROVALS,
+        PillarDrawerItem(
+            label = "Подтверждения ИИ",
+            icon = Icons.Filled.TaskAlt,
+            active = currentRoute == ROUTE_APPROVALS,
             onClick = { onOpen(ROUTE_APPROVALS) },
-            modifier = Modifier.padding(horizontal = 12.dp),
         )
-        NavigationDrawerItem(
-            label = { Text("Активность ИИ") },
-            icon = { Icon(Icons.Filled.History, contentDescription = null) },
-            selected = currentRoute == ROUTE_ACTIVITY,
+        PillarDrawerItem(
+            label = "Активность ИИ",
+            icon = Icons.Filled.History,
+            active = currentRoute == ROUTE_ACTIVITY,
             onClick = { onOpen(ROUTE_ACTIVITY) },
-            modifier = Modifier.padding(horizontal = 12.dp),
         )
 
         CrmSection.entries.forEach { section ->
@@ -321,12 +321,11 @@ private fun DrawerContent(
                 modifier = Modifier.padding(start = 20.dp, top = 14.dp, bottom = 6.dp),
             )
             inSection.forEach { page ->
-                NavigationDrawerItem(
-                    label = { Text(page.label) },
-                    icon = { Icon(page.icon, contentDescription = null) },
-                    selected = currentRoute == page.route,
+                PillarDrawerItem(
+                    label = page.label,
+                    icon = page.icon,
+                    active = currentRoute == page.route,
                     onClick = { onOpen(page.route) },
-                    modifier = Modifier.padding(horizontal = 12.dp),
                 )
             }
         }
@@ -335,12 +334,98 @@ private fun DrawerContent(
             color = DvTheme.colors.borderSubtle,
             modifier = Modifier.padding(vertical = 12.dp),
         )
-        NavigationDrawerItem(
-            label = { Text("Выйти") },
-            icon = { Icon(Icons.AutoMirrored.Filled.Logout, contentDescription = null) },
-            selected = false,
+        PillarDrawerItem(
+            label = "Выйти",
+            icon = Icons.AutoMirrored.Filled.Logout,
+            active = false,
             onClick = onLogout,
-            modifier = Modifier.padding(horizontal = 12.dp),
+            tint = DvTheme.colors.error,
         )
+    }
+}
+
+/**
+ * Обычный пункт меню — скруглённая иконка-чип на фирменном золоте, а не
+ * системная иконка Material на пустом месте (см. `NavIconChip` в
+ * `Sidebar.tsx`). Один тон на всё меню, потому что на Android построен пока
+ * только один раздел-«пилар» (CRM) — красить каждый пункт в свой цвет, как на
+ * вебе (диагностика, магазин, Academy…), нечем: тех разделов здесь нет.
+ */
+@Composable
+private fun PillarDrawerItem(
+    label: String,
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    active: Boolean,
+    onClick: () -> Unit,
+    tint: androidx.compose.ui.graphics.Color? = null,
+) {
+    val colors = DvTheme.colors
+    val accent = tint ?: colors.gold
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+            .background(if (active) colors.gold.copy(alpha = 0.08f) else androidx.compose.ui.graphics.Color.Transparent)
+            .padding(horizontal = 20.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Box(
+            modifier = Modifier
+                .size(32.dp)
+                .clip(RoundedCornerShape(9.dp))
+                .background(accent.copy(alpha = if (active) 0.22f else 0.12f)),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(icon, contentDescription = null, tint = accent, modifier = Modifier.size(16.dp))
+        }
+        Text(
+            text = label,
+            style = MaterialTheme.typography.bodyMedium,
+            fontWeight = if (active) FontWeight.SemiBold else FontWeight.Normal,
+            color = if (active) colors.textPrimary else colors.textSecondary,
+            modifier = Modifier.padding(start = 12.dp),
+        )
+    }
+}
+
+/** Особый, самый заметный пункт меню — вход в дом приложения. */
+@Composable
+private fun IntelligenceDrawerItem(active: Boolean, onClick: () -> Unit) {
+    val colors = DvTheme.colors
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+            .background(if (active) colors.gold.copy(alpha = 0.12f) else androidx.compose.ui.graphics.Color.Transparent)
+            .padding(horizontal = 20.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Box(
+            modifier = Modifier
+                .size(40.dp)
+                .clip(RoundedCornerShape(13.dp))
+                .background(
+                    Brush.linearGradient(
+                        listOf(colors.gold.copy(alpha = if (active) 0.4f else 0.22f), colors.gold.copy(alpha = 0.06f)),
+                    ),
+                )
+                .border(1.dp, colors.gold.copy(alpha = 0.25f), RoundedCornerShape(13.dp)),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(Icons.Filled.SmartToy, contentDescription = null, tint = colors.gold, modifier = Modifier.size(19.dp))
+        }
+        Column(modifier = Modifier.padding(start = 12.dp)) {
+            Text(
+                text = "Intelligence",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.SemiBold,
+                color = if (active) colors.gold else colors.textPrimary,
+            )
+            Text(
+                text = "Цифровой ассистент",
+                style = MaterialTheme.typography.labelSmall,
+                color = colors.textMuted,
+            )
+        }
     }
 }
