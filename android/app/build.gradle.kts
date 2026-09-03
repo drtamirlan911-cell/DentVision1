@@ -31,6 +31,32 @@ android {
             isMinifyEnabled = false
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
         }
+
+        /**
+         * Сборка, которую можно поставить на настоящий телефон.
+         *
+         * Без неё такой сборки не было вовсе, и это дефект, а не недосмотр в
+         * мелочи: `debug` ставится, но ходит на 10.0.2.2 — адрес, которым
+         * эмулятор видит localhost машины, и на телефоне не значащий ничего;
+         * `release` ходит куда надо, но `signingConfig` у него не задан, а
+         * неподписанный APK Android установить откажется. Одна сборка ставится
+         * и никуда не ходит, вторая ходит и не ставится.
+         *
+         * Подпись — отладочным ключом. Он есть у любого Android SDK, не требует
+         * держать секреты в репозитории и достаточен, чтобы телефон разрешил
+         * установку. Для магазина и для раздачи сотрудникам такая подпись не
+         * годится и не предназначена — потому это отдельный тип сборки, а не
+         * подпись, приделанная к `release`: граница между «поставить себе» и
+         * «выпустить» должна остаться видимой.
+         *
+         * Открытый трафик сюда не протекает: `usesCleartextTraffic` объявлен в
+         * `app/src/debug/AndroidManifest.xml` и действует только на `debug`.
+         */
+        create("preview") {
+            initWith(getByName("release"))
+            signingConfig = signingConfigs.getByName("debug")
+            buildConfigField("String", "API_BASE_URL", "\"https://dentvision-api.onrender.com\"")
+        }
     }
 
     compileOptions {
