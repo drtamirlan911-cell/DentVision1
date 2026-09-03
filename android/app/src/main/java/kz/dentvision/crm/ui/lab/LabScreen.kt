@@ -16,7 +16,6 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -25,7 +24,6 @@ import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
@@ -48,6 +46,8 @@ import kz.dentvision.crm.ui.common.ErrorState
 import kz.dentvision.crm.ui.common.LoadingSkeleton
 import kz.dentvision.crm.ui.common.PatientPickerSheet
 import kz.dentvision.crm.ui.common.UiState
+import kz.dentvision.crm.ui.theme.DvOutlineButton
+import kz.dentvision.crm.ui.theme.DvPrimaryButton
 import kz.dentvision.crm.ui.theme.DvTheme
 
 /** Заказы лаборатории: что заказано, для кого и на какой стадии. */
@@ -210,7 +210,7 @@ private fun LabForm(viewModel: LabViewModel, onSaved: () -> Unit) {
             style = MaterialTheme.typography.titleLarge,
             color = DvTheme.colors.textPrimary,
         )
-        OutlinedButton(onClick = { picking = true }, modifier = Modifier.fillMaxWidth()) {
+        DvOutlineButton(onClick = { picking = true }, modifier = Modifier.fillMaxWidth()) {
             Text(form.patient?.name?.ifBlank { "Без имени" } ?: "Выбрать пациента")
         }
         LabField("Что заказано", form.labType) { v -> viewModel.updateForm { it.copy(labType = v) } }
@@ -244,7 +244,7 @@ private fun LabForm(viewModel: LabViewModel, onSaved: () -> Unit) {
             Text(text = it, style = MaterialTheme.typography.bodySmall, color = DvTheme.colors.error)
         }
 
-        Button(
+        DvPrimaryButton(
             onClick = { viewModel.save(onSaved) },
             enabled = form.canSave,
             modifier = Modifier.fillMaxWidth().padding(top = 6.dp),

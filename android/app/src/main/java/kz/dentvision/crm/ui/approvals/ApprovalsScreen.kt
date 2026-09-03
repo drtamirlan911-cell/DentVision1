@@ -13,7 +13,6 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Snackbar
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
@@ -34,6 +33,7 @@ import kz.dentvision.crm.ui.common.EmptyStateView
 import kz.dentvision.crm.ui.common.ErrorState
 import kz.dentvision.crm.ui.common.LoadingSkeleton
 import kz.dentvision.crm.ui.common.UiState
+import kz.dentvision.crm.ui.theme.DvOutlineButton
 import kz.dentvision.crm.ui.theme.DvTheme
 import java.util.Locale
 import androidx.compose.foundation.layout.Box
@@ -119,7 +119,7 @@ private fun ApprovalRow(
                     CircularProgressIndicator(modifier = Modifier.padding(8.dp), strokeWidth = 2.dp)
                 } else {
                     TextButton(onClick = onReject) { Text("Отклонить", color = DvTheme.colors.error) }
-                    OutlinedButton(onClick = onApprove, modifier = Modifier.padding(start = 8.dp)) {
+                    DvOutlineButton(onClick = onApprove, modifier = Modifier.padding(start = 8.dp)) {
                         Text("Подтвердить")
                     }
                 }

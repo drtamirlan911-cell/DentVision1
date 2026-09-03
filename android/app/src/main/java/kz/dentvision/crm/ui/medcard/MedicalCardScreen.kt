@@ -9,10 +9,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -33,6 +31,8 @@ import kz.dentvision.crm.ui.common.LoadingSkeleton
 import kz.dentvision.crm.ui.common.PatientPickerSheet
 import kz.dentvision.crm.ui.common.UiState
 import kz.dentvision.crm.ui.insights.AiInsightSection
+import kz.dentvision.crm.ui.theme.DvOutlineButton
+import kz.dentvision.crm.ui.theme.DvPrimaryButton
 import kz.dentvision.crm.ui.theme.DvTheme
 
 /**
@@ -58,7 +58,7 @@ fun MedicalCardScreen(
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(10.dp),
     ) {
-        OutlinedButton(onClick = { picking = true }, modifier = Modifier.fillMaxWidth()) {
+        DvOutlineButton(onClick = { picking = true }, modifier = Modifier.fillMaxWidth()) {
             Text(state.patient?.name?.ifBlank { "Без имени" } ?: "Выбрать пациента")
         }
 
@@ -99,7 +99,7 @@ fun MedicalCardScreen(
                 }
 
                 if (canWrite) {
-                    Button(
+                    DvPrimaryButton(
                         onClick = viewModel::save,
                         enabled = !state.saving,
                         modifier = Modifier.fillMaxWidth().padding(top = 6.dp),

@@ -15,7 +15,6 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -25,7 +24,6 @@ import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
@@ -46,6 +44,8 @@ import kz.dentvision.crm.ui.common.ErrorState
 import kz.dentvision.crm.ui.common.LoadingSkeleton
 import kz.dentvision.crm.ui.common.PatientPickerSheet
 import kz.dentvision.crm.ui.common.UiState
+import kz.dentvision.crm.ui.theme.DvOutlineButton
+import kz.dentvision.crm.ui.theme.DvPrimaryButton
 import kz.dentvision.crm.ui.theme.DvTheme
 
 /** Визиты выбранного пациента: история приёмов и запись нового. */
@@ -81,7 +81,7 @@ fun VisitsScreen(
         },
     ) { padding ->
         Column(modifier = Modifier.fillMaxSize().padding(padding)) {
-            OutlinedButton(
+            DvOutlineButton(
                 onClick = { picking = true },
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
             ) {
@@ -258,7 +258,7 @@ private fun VisitForm(viewModel: VisitsViewModel, onSaved: () -> Unit) {
             )
         }
 
-        Button(
+        DvPrimaryButton(
             onClick = { viewModel.save(onSaved) },
             enabled = form.canSave,
             modifier = Modifier.fillMaxWidth().padding(top = 6.dp),

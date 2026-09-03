@@ -19,7 +19,6 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Search
-import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -49,6 +48,7 @@ import kz.dentvision.crm.ui.common.EmptyStateView
 import kz.dentvision.crm.ui.common.ErrorState
 import kz.dentvision.crm.ui.common.LoadingSkeleton
 import kz.dentvision.crm.ui.common.UiState
+import kz.dentvision.crm.ui.theme.DvPrimaryButton
 import kz.dentvision.crm.ui.theme.DvTheme
 
 /** Прайс клиники: код услуги, цена и себестоимость материалов. */
@@ -233,7 +233,7 @@ private fun PriceForm(viewModel: PriceListViewModel, onSaved: () -> Unit) {
             Text(text = it, style = MaterialTheme.typography.bodySmall, color = DvTheme.colors.error)
         }
 
-        Button(
+        DvPrimaryButton(
             onClick = { viewModel.save(onSaved) },
             enabled = form.canSave,
             modifier = Modifier.fillMaxWidth().padding(top = 6.dp),

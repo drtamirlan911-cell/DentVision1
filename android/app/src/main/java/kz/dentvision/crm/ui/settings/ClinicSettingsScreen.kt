@@ -11,7 +11,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
@@ -37,6 +36,7 @@ import kz.dentvision.crm.data.model.ClinicSettings
 import kz.dentvision.crm.ui.common.ErrorState
 import kz.dentvision.crm.ui.common.LoadingSkeleton
 import kz.dentvision.crm.ui.common.UiState
+import kz.dentvision.crm.ui.theme.DvPrimaryButton
 import kz.dentvision.crm.ui.theme.DvTheme
 
 private val WEEKDAYS = listOf(
@@ -237,7 +237,7 @@ fun ClinicSettingsScreen(
                 )
             }
 
-            Button(
+            DvPrimaryButton(
                 onClick = viewModel::save,
                 enabled = !state.saving,
                 modifier = Modifier.fillMaxWidth().padding(top = 6.dp),

@@ -13,11 +13,9 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.AssistChipDefaults
-import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -29,6 +27,8 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import kz.dentvision.crm.data.model.NO_IIN_REASONS
 import kz.dentvision.crm.lib.normalizeIin
+import kz.dentvision.crm.ui.theme.DvOutlineButton
+import kz.dentvision.crm.ui.theme.DvPrimaryButton
 import kz.dentvision.crm.ui.theme.DvTheme
 
 /**
@@ -83,7 +83,7 @@ fun PatientForm(viewModel: PatientsViewModel, onSaved: () -> Unit) {
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                 modifier = Modifier.weight(1f),
             )
-            OutlinedButton(
+            DvOutlineButton(
                 onClick = viewModel::checkIin,
                 enabled = form.iinDigits.length == 12 && !form.checking,
             ) {
@@ -199,7 +199,7 @@ fun PatientForm(viewModel: PatientsViewModel, onSaved: () -> Unit) {
             )
         }
 
-        Button(
+        DvPrimaryButton(
             onClick = { viewModel.save(onSaved) },
             enabled = form.canSave,
             modifier = Modifier.fillMaxWidth().padding(top = 6.dp),

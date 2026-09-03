@@ -16,7 +16,6 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -45,6 +44,7 @@ import kz.dentvision.crm.ui.common.ErrorState
 import kz.dentvision.crm.ui.common.LoadingSkeleton
 import kz.dentvision.crm.ui.common.PatientPickerSheet
 import kz.dentvision.crm.ui.common.UiState
+import kz.dentvision.crm.ui.theme.DvOutlineButton
 import kz.dentvision.crm.ui.theme.DvTheme
 
 /**
@@ -98,7 +98,7 @@ fun DentalChartScreen(viewModel: DentalChartViewModel = viewModel()) {
         modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        OutlinedButton(onClick = { picking = true }, modifier = Modifier.fillMaxWidth()) {
+        DvOutlineButton(onClick = { picking = true }, modifier = Modifier.fillMaxWidth()) {
             val patient = (state as? UiState.Data)?.value
             Text(patient?.name?.ifBlank { "Без имени" } ?: "Выбрать пациента")
         }

@@ -15,7 +15,6 @@ import androidx.compose.material.icons.filled.ErrorOutline
 import androidx.compose.material.icons.filled.Inbox
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -31,6 +30,7 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import kz.dentvision.crm.ui.theme.DvOutlineButton
 import kz.dentvision.crm.ui.theme.DvTheme
 
 /**
@@ -100,7 +100,7 @@ fun ErrorState(
             modifier = Modifier.padding(top = 12.dp),
         )
         if (onRetry != null) {
-            OutlinedButton(onClick = onRetry, modifier = Modifier.padding(top = 16.dp)) {
+            DvOutlineButton(onClick = onRetry, modifier = Modifier.padding(top = 16.dp)) {
                 Text("Повторить")
             }
         }

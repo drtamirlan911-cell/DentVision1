@@ -17,7 +17,6 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -27,7 +26,6 @@ import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Switch
@@ -52,6 +50,8 @@ import kz.dentvision.crm.ui.common.ErrorState
 import kz.dentvision.crm.ui.common.LoadingSkeleton
 import kz.dentvision.crm.ui.common.PatientPickerSheet
 import kz.dentvision.crm.ui.common.UiState
+import kz.dentvision.crm.ui.theme.DvOutlineButton
+import kz.dentvision.crm.ui.theme.DvPrimaryButton
 import kz.dentvision.crm.ui.theme.DvTheme
 
 /** Касса: счета клиники и выставление нового. */
@@ -168,7 +168,7 @@ private fun InvoiceForm(viewModel: CashierViewModel, onSaved: () -> Unit) {
             color = DvTheme.colors.textPrimary,
         )
 
-        OutlinedButton(onClick = { picking = true }, modifier = Modifier.fillMaxWidth()) {
+        DvOutlineButton(onClick = { picking = true }, modifier = Modifier.fillMaxWidth()) {
             Text(form.patient?.name?.ifBlank { "Без имени" } ?: "Выбрать пациента")
         }
 
@@ -241,7 +241,7 @@ private fun InvoiceForm(viewModel: CashierViewModel, onSaved: () -> Unit) {
             Text(text = it, style = MaterialTheme.typography.bodySmall, color = DvTheme.colors.error)
         }
 
-        Button(
+        DvPrimaryButton(
             onClick = { viewModel.save(onSaved) },
             enabled = form.canSave,
             modifier = Modifier.fillMaxWidth().padding(top = 6.dp),
