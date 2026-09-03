@@ -10,12 +10,15 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.serialization.json.JsonObject
 import kz.dentvision.crm.data.AiRepository
+import kz.dentvision.crm.data.ServiceLocator
 import kz.dentvision.crm.data.model.AiAction
 import kz.dentvision.crm.data.model.AiAlert
 import kz.dentvision.crm.data.model.AiMessage
 import kz.dentvision.crm.data.session.FocusHolder
+import kz.dentvision.crm.navigation.AI_NAV_ACTIONS
 
 data class IntelligenceUiState(
+    val isGuest: Boolean = false,
     val messages: List<AiMessage> = emptyList(),
     val suggestions: List<String> = emptyList(),
     /** Кнопки под последним ответом ассистента — гаснут с новым сообщением. */
@@ -48,19 +51,33 @@ class IntelligenceViewModel(
     private var sessionId: String? = null
     private var threadLoaded = false
 
+    /**
+     * Гость и вошедший видят один и тот же экран, но не один и тот же набор
+     * вызовов: `/threads/active` и `/briefing` требуют `authenticate`
+     * (`ai.routes.ts`), а `/proactive` и `/query` — нет (`optionalAuth`,
+     * гостевая квота). Это тот самый Kaspi-принцип: приложением можно
+     * пользоваться без входа, вход просят не на пороге, а там, где он
+     * реально нужен.
+     */
     fun ensureLoaded() {
         if (threadLoaded) return
         threadLoaded = true
-        viewModelScope.launch {
-            runCatching { repository.activeThread() }
-                .onSuccess { thread ->
-                    sessionId = thread.sessionId ?: thread.threadId
-                    _state.update { it.copy(messages = thread.messages, loadingThread = false) }
-                    if (thread.messages.isEmpty()) injectBriefing()
-                }
-                .onFailure { e ->
-                    _state.update { it.copy(loadingThread = false, error = e.message ?: "Не удалось загрузить диалог") }
-                }
+        val isGuest = ServiceLocator.session.session.value == null
+        _state.update { it.copy(isGuest = isGuest) }
+        if (isGuest) {
+            _state.update { it.copy(loadingThread = false) }
+        } else {
+            viewModelScope.launch {
+                runCatching { repository.activeThread() }
+                    .onSuccess { thread ->
+                        sessionId = thread.sessionId ?: thread.threadId
+                        _state.update { it.copy(messages = thread.messages, loadingThread = false) }
+                        if (thread.messages.isEmpty()) injectBriefing()
+                    }
+                    .onFailure { e ->
+                        _state.update { it.copy(loadingThread = false, error = e.message ?: "Не удалось загрузить диалог") }
+                    }
+            }
         }
         viewModelScope.launch {
             runCatching { repository.proactive() }
@@ -131,8 +148,20 @@ class IntelligenceViewModel(
         }
     }
 
-    /** Обычная кнопка выполняется сразу; кнопка с подтверждением сперва спрашивает человека. */
+    /**
+     * Обычная кнопка выполняется сразу; кнопка с подтверждением сперва
+     * спрашивает человека. Известный алиас навигации (`AI_NAV_ACTIONS`,
+     * перенос `AI_NAV_ACTIONS` из `aiPlatformMap.ts`) резолвится прямо на
+     * клиенте — так же, как в `AIWorkspaceIndex.tsx:651-653` — а не через
+     * `POST /api/ai/action`: этот маршрут требует входа, а часть алиасов
+     * (`OpenShop`, `OpenSchool`, `OpenDemo`) приходит именно в гостевых
+     * тревогах, где похода на сервер за ними и не предполагалось.
+     */
     fun tapAction(action: AiAction) {
+        AI_NAV_ACTIONS[action.type]?.let { path ->
+            _state.update { it.copy(pendingNavigatePath = path) }
+            return
+        }
         if (action.requiresConfirmation) {
             _state.update { it.copy(pendingConfirmation = action) }
         } else {
@@ -140,10 +169,14 @@ class IntelligenceViewModel(
         }
     }
 
-    /** Тревога устроена иначе, чем кнопка ответа: несёт только имя действия, путь резолвит сервер. */
+    /** Тревога устроена так же — сперва алиас на клиенте, иначе поход на сервер. */
     fun tapAlert(alert: AiAlert) {
         val type = alert.action?.type ?: return
         dismissAlert(alert)
+        AI_NAV_ACTIONS[type]?.let { path ->
+            _state.update { it.copy(pendingNavigatePath = path) }
+            return
+        }
         executeAction(type, null)
     }
 

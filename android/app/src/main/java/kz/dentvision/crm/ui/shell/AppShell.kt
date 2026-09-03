@@ -65,6 +65,7 @@ import kz.dentvision.crm.navigation.ROUTE_ACTIVITY
 import kz.dentvision.crm.navigation.ROUTE_APPROVALS
 import kz.dentvision.crm.navigation.ROUTE_INTELLIGENCE
 import kz.dentvision.crm.navigation.ROUTE_WORKSPACE
+import kz.dentvision.crm.navigation.resolveAssistantPath
 import kz.dentvision.crm.navigation.visiblePages
 import kz.dentvision.crm.ui.activity.ActivityScreen
 import kz.dentvision.crm.ui.approvals.ApprovalsScreen
@@ -229,7 +230,9 @@ private fun ShellNavHost(
             modifier = Modifier.fillMaxSize().padding(padding),
         ) {
             composable(ROUTE_INTELLIGENCE) {
-                IntelligenceScreen(implemented = implemented, onNavigate = onNavigate)
+                IntelligenceScreen(
+                    onNavigate = { path -> resolveAssistantPath(path, implemented)?.let(onNavigate) },
+                )
             }
             composable(ROUTE_WORKSPACE) {
                 WorkspaceScreen(session = session, implemented = implemented)

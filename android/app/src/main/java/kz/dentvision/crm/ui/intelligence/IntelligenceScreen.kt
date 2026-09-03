@@ -64,7 +64,6 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import kz.dentvision.crm.data.model.AiAction
 import kz.dentvision.crm.data.model.AiAlert
 import kz.dentvision.crm.data.model.AiMessage
-import kz.dentvision.crm.navigation.resolveAssistantPath
 import kz.dentvision.crm.ui.common.LoadingSkeleton
 import kz.dentvision.crm.ui.theme.DvTheme
 
@@ -77,7 +76,6 @@ import kz.dentvision.crm.ui.theme.DvTheme
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun IntelligenceScreen(
-    implemented: Set<String>,
     onNavigate: (String) -> Unit,
     modifier: Modifier = Modifier,
     viewModel: IntelligenceViewModel = viewModel(),
@@ -91,7 +89,7 @@ fun IntelligenceScreen(
     }
     LaunchedEffect(state.pendingNavigatePath) {
         val path = state.pendingNavigatePath ?: return@LaunchedEffect
-        resolveAssistantPath(path, implemented)?.let(onNavigate)
+        onNavigate(path)
         viewModel.consumeNavigate()
     }
 
@@ -99,7 +97,7 @@ fun IntelligenceScreen(
         Box(modifier = Modifier.weight(1f)) {
             when {
                 state.loadingThread -> LoadingSkeleton(rows = 4, contentPadding = PaddingValues(20.dp))
-                state.messages.isEmpty() -> EmptyHero()
+                state.messages.isEmpty() -> EmptyHero(isGuest = state.isGuest)
                 else -> LazyColumn(
                     state = listState,
                     contentPadding = PaddingValues(horizontal = 16.dp, vertical = 16.dp),
@@ -133,6 +131,7 @@ fun IntelligenceScreen(
             onChange = viewModel::setInput,
             onSend = { viewModel.send() },
             sending = state.sending,
+            isGuest = state.isGuest,
         )
     }
 
@@ -168,7 +167,7 @@ private fun BotChip(size: androidx.compose.ui.unit.Dp, iconSize: androidx.compos
 }
 
 @Composable
-private fun EmptyHero() {
+private fun EmptyHero(isGuest: Boolean) {
     val colors = DvTheme.colors
     val transition = rememberInfiniteTransition(label = "hero-pulse")
     val scale by transition.animateFloat(
@@ -205,7 +204,14 @@ private fun EmptyHero() {
             modifier = Modifier.padding(top = 20.dp),
         )
         Text(
-            text = "Спросите что угодно о клинике — я держу руку на пульсе расписания, кассы и склада.",
+            // Перенос `ai.guest_empty`/`ai.auth_empty` (`src/locales/ru.json`) —
+            // гость и вошедший видят один экран, но не один и тот же текст:
+            // у гостя ещё нет данных клиники, которые эта фраза обещала бы.
+            text = if (isGuest) {
+                "Jarvis покажет платформу..."
+            } else {
+                "AI-операционка клиники. Спросите о расписании..."
+            },
             style = MaterialTheme.typography.bodyMedium,
             color = colors.textMuted,
             textAlign = TextAlign.Center,
@@ -416,7 +422,13 @@ private fun GoldPillChip(label: String, onClick: () -> Unit) {
 }
 
 @Composable
-private fun Composer(value: String, onChange: (String) -> Unit, onSend: () -> Unit, sending: Boolean) {
+private fun Composer(
+    value: String,
+    onChange: (String) -> Unit,
+    onSend: () -> Unit,
+    sending: Boolean,
+    isGuest: Boolean,
+) {
     val colors = DvTheme.colors
     Row(
         modifier = Modifier
@@ -430,7 +442,16 @@ private fun Composer(value: String, onChange: (String) -> Unit, onSend: () -> Un
             value = value,
             onValueChange = onChange,
             modifier = Modifier.weight(1f),
-            placeholder = { Text("Спросите ассистента…") },
+            // Перенос `ai.guest_placeholder`/`ai.auth_placeholder`.
+            placeholder = {
+                Text(
+                    if (isGuest) {
+                        "Спросите о DentVision, демо, Academy или маркетплейсе…"
+                    } else {
+                        "Спросите: что важно сегодня, покажи выручку, проверь долги…"
+                    },
+                )
+            },
             maxLines = 4,
             shape = RoundedCornerShape(20.dp),
             colors = OutlinedTextFieldDefaults.colors(

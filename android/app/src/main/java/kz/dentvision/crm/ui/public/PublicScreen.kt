@@ -63,7 +63,7 @@ import kz.dentvision.crm.ui.theme.DvTheme
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun PublicScreen(onSignIn: () -> Unit) {
+fun PublicScreen(onBack: () -> Unit, onSignIn: () -> Unit) {
     var tab by remember { mutableIntStateOf(0) }
 
     Scaffold(
@@ -81,10 +81,10 @@ fun PublicScreen(onSignIn: () -> Unit) {
                     }
                 },
                 navigationIcon = {
-                    IconButton(onClick = onSignIn) {
+                    IconButton(onClick = onBack) {
                         Icon(
                             Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = "Вернуться ко входу",
+                            contentDescription = "Назад",
                             tint = DvTheme.colors.textSecondary,
                         )
                     }

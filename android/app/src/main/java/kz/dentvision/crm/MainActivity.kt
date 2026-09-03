@@ -21,6 +21,7 @@ import kz.dentvision.crm.data.AuthRepository
 import kz.dentvision.crm.data.ServiceLocator
 import kz.dentvision.crm.ui.auth.LoginScreen
 import kz.dentvision.crm.ui.common.LoadingSkeleton
+import kz.dentvision.crm.ui.intelligence.GuestHomeScreen
 import kz.dentvision.crm.ui.public.PublicScreen
 import kz.dentvision.crm.ui.shell.AppShell
 import kz.dentvision.crm.ui.theme.DentVisionTheme
@@ -43,11 +44,20 @@ class MainActivity : ComponentActivity() {
     }
 }
 
+/** Куда попадает гость (`session == null`) — вход не входит по умолчанию. */
+private enum class GuestDestination { HOME, PUBLIC, LOGIN }
+
 /**
- * Одна развилка на всё приложение: есть живая сессия — кабинет, нет — вход.
+ * Одна развилка на всё приложение: есть живая сессия — кабинет, нет — гость.
  *
- * Пока сессия читается с диска, не показывается ни то ни другое: мелькнувший
- * экран входа у вошедшего человека выглядит как разлогин, которого не было.
+ * Гость — не «экран входа по умолчанию»: дом гостя тот же Intelligence, что
+ * и у вошедшего (`GuestHomeScreen`, тот же принцип, что у Kaspi — без входа
+ * можно пользоваться, войти просят не на пороге, а там, где это реально
+ * нужно). Форма входа — один из трёх гостевых экранов, а не единственный.
+ *
+ * Пока сессия читается с диска, не показывается ни один из вариантов:
+ * мелькнувший экран у вошедшего человека выглядит как разлогин, которого
+ * не было.
  */
 @Composable
 private fun DentVisionRoot() {
@@ -62,15 +72,23 @@ private fun DentVisionRoot() {
         ServiceLocator.api.sessionLost.collect { store.clear() }
     }
 
-    // Публичная витрина — не «состояние входа», а отдельное место, куда можно
-    // зайти и вернуться. Поэтому обычный флаг, а не третий вид сессии: сессии
-    // тут нет вовсе, и делать вид, что есть, было бы враньём в модели.
-    var browsingPublic by rememberSaveable { mutableStateOf(false) }
+    var guestDestination by rememberSaveable { mutableStateOf(GuestDestination.HOME) }
 
     when {
         !restored -> Box(modifier = Modifier.fillMaxSize()) { LoadingSkeleton(rows = 3) }
-        session == null && browsingPublic -> PublicScreen(onSignIn = { browsingPublic = false })
-        session == null -> LoginScreen(onBrowsePublic = { browsingPublic = true })
+        session == null -> when (guestDestination) {
+            GuestDestination.HOME -> GuestHomeScreen(
+                onOpenPublic = { guestDestination = GuestDestination.PUBLIC },
+                onLogin = { guestDestination = GuestDestination.LOGIN },
+            )
+            GuestDestination.PUBLIC -> PublicScreen(
+                onBack = { guestDestination = GuestDestination.HOME },
+                onSignIn = { guestDestination = GuestDestination.LOGIN },
+            )
+            GuestDestination.LOGIN -> LoginScreen(
+                onBrowsePublic = { guestDestination = GuestDestination.HOME },
+            )
+        }
         else -> AppShell(
             session = session!!,
             onLogout = {
