@@ -2,6 +2,8 @@ package kz.dentvision.crm.data
 
 import kz.dentvision.crm.data.api.ApiClient
 import kz.dentvision.crm.data.api.apiCall
+import kz.dentvision.crm.data.model.CreateInvitationRequest
+import kz.dentvision.crm.data.model.OrganizationInvitation
 import kz.dentvision.crm.data.model.SwitchContextRequest
 import kz.dentvision.crm.data.model.WorkspaceContext
 import kz.dentvision.crm.data.session.Session
@@ -35,4 +37,11 @@ class WorkspaceRepository(
         session.save(refreshed)
         return refreshed
     }
+
+    /** 403 — «недостаточно прав», не ошибка загрузки; вызывающая сторона решает, как показать. */
+    suspend fun invitations(organizationId: String): List<OrganizationInvitation> =
+        apiCall { api.iam.invitations(organizationId) }
+
+    suspend fun createInvitation(organizationId: String, role: String, email: String?): OrganizationInvitation =
+        apiCall { api.iam.createInvitation(CreateInvitationRequest(organizationId = organizationId, role = role, email = email?.ifBlank { null })) }
 }

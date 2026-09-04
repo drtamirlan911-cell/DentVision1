@@ -68,6 +68,7 @@ import kz.dentvision.crm.navigation.ROUTE_OPERATOR_CASHIER
 import kz.dentvision.crm.navigation.ROUTE_OPERATOR_FINANCE
 import kz.dentvision.crm.navigation.ROUTE_OPERATOR_PAYMENTS
 import kz.dentvision.crm.navigation.ROUTE_OPERATOR_SERVICES
+import kz.dentvision.crm.navigation.ROUTE_OPERATOR_TEAM
 import kz.dentvision.crm.ui.common.ErrorState
 import kz.dentvision.crm.ui.common.LoadingSkeleton
 import kz.dentvision.crm.ui.common.UiState
@@ -336,6 +337,7 @@ fun OperatorWorkspaceScreen(session: Session, viewModel: OperatorWorkspaceViewMo
             onOpenFinance = { onNavigate(ROUTE_OPERATOR_FINANCE) },
             onOpenServices = { onNavigate(ROUTE_OPERATOR_SERVICES) },
             onOpenPayments = { onNavigate(ROUTE_OPERATOR_PAYMENTS) },
+            onOpenTeam = { onNavigate(ROUTE_OPERATOR_TEAM) },
         )
     }
 }
@@ -351,6 +353,7 @@ private fun OperatorWorkspaceContent(
     onOpenFinance: () -> Unit,
     onOpenServices: () -> Unit,
     onOpenPayments: () -> Unit,
+    onOpenTeam: () -> Unit,
 ) {
     val counts = referrals.groupingBy { referralPhase(it.status) }.eachCount()
     val awaiting = (counts[ReferralPhase.AWAITING] ?: 0) + (counts[ReferralPhase.ACCEPTED] ?: 0)
@@ -402,6 +405,9 @@ private fun OperatorWorkspaceContent(
             }
             DvOutlineButton(onClick = onOpenPayments, modifier = Modifier.weight(1f)) {
                 Text("Оплаты")
+            }
+            DvOutlineButton(onClick = onOpenTeam, modifier = Modifier.weight(1f)) {
+                Text("Сотрудники")
             }
         }
 

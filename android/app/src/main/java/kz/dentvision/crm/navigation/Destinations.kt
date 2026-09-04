@@ -164,3 +164,6 @@ const val ROUTE_OPERATOR_SERVICES = "operator-workspace/services"
 
 /** Оплаты кабинета приёма — история + итоги, только чтение. */
 const val ROUTE_OPERATOR_PAYMENTS = "operator-workspace/payments"
+
+/** Сотрудники кабинета приёма — коды приглашений. */
+const val ROUTE_OPERATOR_TEAM = "operator-workspace/team"

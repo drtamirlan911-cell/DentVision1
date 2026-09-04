@@ -47,6 +47,30 @@ data class SwitchContextResponse(
  * объявлен как `ApiEnvelope<User>` и падал бы на обязательном `User.id`,
  * которого на верхнем уровне `data` нет.
  */
+/**
+ * Приглашение в организацию — `POST/GET /api/iam/invitations`
+ * (`iam.routes.ts`). `role` — в словаре самой организации (для диагностики:
+ * admin/manager/radiologist/operator), сервер его не проверяет по списку.
+ */
+@Serializable
+data class OrganizationInvitation(
+    val id: String,
+    val organizationId: String = "",
+    val email: String? = null,
+    val role: String = "",
+    val code: String = "",
+    val expiresAt: String? = null,
+    val createdAt: String? = null,
+)
+
+/** Тело `POST /api/iam/invitations`. */
+@Serializable
+data class CreateInvitationRequest(
+    val organizationId: String,
+    val role: String,
+    val email: String? = null,
+)
+
 @Serializable
 data class MeResponse(
     val user: User,

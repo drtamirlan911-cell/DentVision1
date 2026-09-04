@@ -86,6 +86,7 @@ import kz.dentvision.crm.navigation.ROUTE_OPERATOR_CASHIER
 import kz.dentvision.crm.navigation.ROUTE_OPERATOR_FINANCE
 import kz.dentvision.crm.navigation.ROUTE_OPERATOR_PAYMENTS
 import kz.dentvision.crm.navigation.ROUTE_OPERATOR_SERVICES
+import kz.dentvision.crm.navigation.ROUTE_OPERATOR_TEAM
 import kz.dentvision.crm.navigation.ROUTE_DIAGNOSTICS_RESULTS
 import kz.dentvision.crm.navigation.ROUTE_DIAGNOSTICS_REFERRALS
 import kz.dentvision.crm.navigation.ROUTE_DIAGNOSTICS_REFERRAL_NEW
@@ -113,6 +114,7 @@ import kz.dentvision.crm.ui.diagnostics.CashierScreen
 import kz.dentvision.crm.ui.diagnostics.FinanceScreen
 import kz.dentvision.crm.ui.diagnostics.PaymentsScreen
 import kz.dentvision.crm.ui.diagnostics.ServicesScreen
+import kz.dentvision.crm.ui.diagnostics.TeamScreen
 import kz.dentvision.crm.ui.diagnostics.ResultsScreen
 import kz.dentvision.crm.ui.home.WorkspaceScreen
 import kz.dentvision.crm.ui.intelligence.IntelligenceScreen
@@ -326,6 +328,7 @@ private fun fixedRouteTitle(route: String): String? = when (route) {
     ROUTE_OPERATOR_FINANCE -> "Финансы"
     ROUTE_OPERATOR_SERVICES -> "Услуги и цены"
     ROUTE_OPERATOR_PAYMENTS -> "Оплаты"
+    ROUTE_OPERATOR_TEAM -> "Сотрудники"
     else -> null
 }
 
@@ -380,6 +383,7 @@ private fun ShellNavHost(
             composable(ROUTE_OPERATOR_FINANCE) { FinanceScreen(session = session) }
             composable(ROUTE_OPERATOR_SERVICES) { ServicesScreen(session = session) }
             composable(ROUTE_OPERATOR_PAYMENTS) { PaymentsScreen(session = session) }
+            composable(ROUTE_OPERATOR_TEAM) { TeamScreen(session = session) }
             // Маршрут заводится только под построенный экран и только если роль
             // имеет на него право — иначе его в графе просто нет.
             visiblePages(session.pages, implemented).forEach { page ->
