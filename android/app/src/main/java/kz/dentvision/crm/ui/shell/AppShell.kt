@@ -75,6 +75,7 @@ import kz.dentvision.crm.navigation.ROUTE_ACTIVITY
 import kz.dentvision.crm.navigation.ROUTE_APPROVALS
 import kz.dentvision.crm.navigation.ROUTE_DIAGNOSTICS
 import kz.dentvision.crm.navigation.ROUTE_DIAGNOSTICS_REFERRALS
+import kz.dentvision.crm.navigation.ROUTE_DIAGNOSTICS_REFERRAL_NEW
 import kz.dentvision.crm.navigation.ROUTE_INTELLIGENCE
 import kz.dentvision.crm.navigation.ROUTE_WORKSPACE
 import kz.dentvision.crm.navigation.resolveAssistantPath
@@ -85,6 +86,7 @@ import kz.dentvision.crm.ui.common.DvLogo
 import kz.dentvision.crm.ui.common.UiState
 import kz.dentvision.crm.ui.diagnostics.DiagnosticsHomeScreen
 import kz.dentvision.crm.ui.diagnostics.ReferralDetailScreen
+import kz.dentvision.crm.ui.diagnostics.ReferralFormScreen
 import kz.dentvision.crm.ui.diagnostics.ReferralListScreen
 import kz.dentvision.crm.ui.home.WorkspaceScreen
 import kz.dentvision.crm.ui.intelligence.IntelligenceScreen
@@ -280,6 +282,7 @@ private fun fixedRouteTitle(route: String): String? = when (route) {
     ROUTE_ACTIVITY -> "Активность ИИ"
     ROUTE_DIAGNOSTICS -> "Диагностика"
     ROUTE_DIAGNOSTICS_REFERRALS -> "Направления"
+    ROUTE_DIAGNOSTICS_REFERRAL_NEW -> "Новое направление"
     "$ROUTE_DIAGNOSTICS_REFERRALS/{id}" -> "Направление"
     else -> null
 }
@@ -310,6 +313,14 @@ private fun ShellNavHost(
             composable(ROUTE_ACTIVITY) { ActivityScreen() }
             composable(ROUTE_DIAGNOSTICS) { DiagnosticsHomeScreen() }
             composable(ROUTE_DIAGNOSTICS_REFERRALS) { ReferralListScreen() }
+            // Буквальный .../new регистрируется раньше параметризованного
+            // .../{id} — иначе Navigation-Compose матчит "new" как значение id.
+            composable(ROUTE_DIAGNOSTICS_REFERRAL_NEW) {
+                ReferralFormScreen(
+                    session = session,
+                    onSaved = { id -> onNavigate("$ROUTE_DIAGNOSTICS_REFERRALS/$id") },
+                )
+            }
             composable("$ROUTE_DIAGNOSTICS_REFERRALS/{id}") { backStackEntry ->
                 val id = backStackEntry.arguments?.getString("id")
                 if (id != null) ReferralDetailScreen(referralId = id)

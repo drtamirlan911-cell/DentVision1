@@ -108,3 +108,11 @@ const val ROUTE_ACTIVITY = "ai/activity"
  */
 const val ROUTE_DIAGNOSTICS = "diagnostics"
 const val ROUTE_DIAGNOSTICS_REFERRALS = "diagnostics/referrals"
+
+/**
+ * Форма создания направления. Регистрируется в `AppShell.kt` **раньше**
+ * `"$ROUTE_DIAGNOSTICS_REFERRALS/{id}"` — у Navigation-Compose порядок
+ * объявления решает, какой маршрут матчится первым, а буквальный `.../new`
+ * и параметризованный `.../{id}` иначе конфликтуют.
+ */
+const val ROUTE_DIAGNOSTICS_REFERRAL_NEW = "$ROUTE_DIAGNOSTICS_REFERRALS/new"

@@ -7,7 +7,12 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material3.FloatingActionButton
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -25,6 +30,7 @@ import kz.dentvision.crm.data.DiagnosticsRepository
 import kz.dentvision.crm.data.model.Referral
 import kz.dentvision.crm.navigation.LocalAssistantNavigate
 import kz.dentvision.crm.navigation.ROUTE_DIAGNOSTICS_REFERRALS
+import kz.dentvision.crm.navigation.ROUTE_DIAGNOSTICS_REFERRAL_NEW
 import kz.dentvision.crm.ui.common.EmptyStateView
 import kz.dentvision.crm.ui.common.ErrorState
 import kz.dentvision.crm.ui.common.LoadingSkeleton
@@ -63,7 +69,19 @@ fun ReferralListScreen(viewModel: ReferralListViewModel = viewModel()) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val onNavigate = LocalAssistantNavigate.current
 
-    Column(modifier = Modifier.fillMaxSize()) {
+    Scaffold(
+        containerColor = DvTheme.colors.surface0,
+        floatingActionButton = {
+            FloatingActionButton(
+                onClick = { onNavigate(ROUTE_DIAGNOSTICS_REFERRAL_NEW) },
+                containerColor = DvTheme.colors.gold,
+                contentColor = DvTheme.colors.goldOn,
+            ) {
+                Icon(Icons.Filled.Add, contentDescription = "Новое направление")
+            }
+        },
+    ) { padding ->
+    Column(modifier = Modifier.fillMaxSize().padding(padding)) {
         when (val items = state.items) {
             is UiState.Loading -> LoadingSkeleton()
             is UiState.Error -> ErrorState(message = items.message, onRetry = viewModel::load)
@@ -96,5 +114,6 @@ fun ReferralListScreen(viewModel: ReferralListViewModel = viewModel()) {
                 }
             }
         }
+    }
     }
 }

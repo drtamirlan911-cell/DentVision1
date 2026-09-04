@@ -141,3 +141,88 @@ data class ReferralListEnvelope(
     val total: Int = 0,
     val error: String? = null,
 )
+
+/**
+ * Строка `GET /centers` / `GET /laboratories` — одна форма для обоих,
+ * поля совпадают (`svc.listCenters`/`svc.listLaboratories`). `_count` не
+ * переношу — на пикере не нужен.
+ */
+@Serializable
+data class DiagnosticOrg(
+    val id: String,
+    val name: String = "",
+    val city: String? = null,
+    val address: String? = null,
+    val phone: String? = null,
+    val rating: Float? = null,
+    val accredited: Boolean = false,
+)
+
+/**
+ * Строка прайса учреждения — `DiagnosticStudy`/`LaboratoryTest`, обе через
+ * один и тот же `select: {id, name, category, price, active}`. `price` —
+ * `Decimal?` в Prisma, на проводе строка (`Decimal.js.toJSON()`), не число.
+ */
+@Serializable
+data class PricingItem(
+    val id: String,
+    val name: String = "",
+    val category: String = "",
+    val price: String? = null,
+    val active: Boolean = true,
+)
+
+/**
+ * `anatomicalSites` в теле создания — плоский `{teeth: number[]}`, НЕ
+ * массив `[{region, teeth[]}]`, как обещает комментарий к полю в
+ * `prisma/schema.prisma` — реальный отправитель, `ReferralForm.tsx`,
+ * шлёт именно эту плоскую форму.
+ */
+@Serializable
+data class AnatomicalSites(
+    val teeth: List<Int> = emptyList(),
+)
+
+/**
+ * Тело `POST /api/diagnostics/referrals` — только то, что реально
+ * принимает явный whitelist в `createReferral`
+ * (`diagnostics.service.ts:463`); `doctorId` сервер подставляет сам, его
+ * здесь нет намеренно.
+ */
+@Serializable
+data class CreateReferralRequest(
+    val patientName: String,
+    val patientIin: String? = null,
+    val patientBirth: String? = null,
+    val patientGender: String? = null,
+    val patientPhone: String? = null,
+    val patientEmail: String? = null,
+    val pregnancy: Boolean? = null,
+    val allergies: String? = null,
+    val specialNotes: String? = null,
+    val clinicId: String,
+    val category: String,
+    val studyType: String,
+    val anatomicalSites: AnatomicalSites? = null,
+    val complaints: String? = null,
+    val preliminaryDx: String? = null,
+    val studyGoal: String? = null,
+    val commentForLab: String? = null,
+    val priority: String = "NORMAL",
+    val centerId: String? = null,
+    val labId: String? = null,
+)
+
+/**
+ * Тело `POST /api/diagnostics/files/upload`. `fileData` — полный
+ * `data:<mime>;base64,...` URI (`svc.uploadReferralFile` кладёт его в
+ * `fileUrl` дословно), не голый base64.
+ */
+@Serializable
+data class UploadFileRequest(
+    val referralId: String,
+    val fileName: String,
+    val fileData: String,
+    val fileType: String,
+    val fileSize: Long? = null,
+)
