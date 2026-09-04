@@ -3,6 +3,7 @@ package kz.dentvision.crm.data.api
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.serialization.json.Json
 import kz.dentvision.crm.BuildConfig
+import kz.dentvision.crm.data.session.GuestSessionStore
 import kz.dentvision.crm.data.session.SessionStore
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
@@ -19,6 +20,7 @@ import java.util.concurrent.TimeUnit
 class ApiClient(
     baseUrl: String,
     session: SessionStore,
+    guestSession: GuestSessionStore,
 ) {
     /** Сигнал «сессия умерла»: оболочка на него уводит на экран входа. */
     val sessionLost = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
@@ -30,7 +32,7 @@ class ApiClient(
     }
 
     private val client: OkHttpClient = OkHttpClient.Builder()
-        .addInterceptor(AuthInterceptor(session))
+        .addInterceptor(AuthInterceptor(session, guestSession))
         .apply {
             if (BuildConfig.DEBUG) {
                 addInterceptor(
@@ -67,4 +69,5 @@ class ApiClient(
     val iam: IamApi = retrofit.create(IamApi::class.java)
     val diagnostics: DiagnosticsApi = retrofit.create(DiagnosticsApi::class.java)
     val patientInbox: PatientInboxApi = retrofit.create(PatientInboxApi::class.java)
+    val guest: GuestApi = retrofit.create(GuestApi::class.java)
 }

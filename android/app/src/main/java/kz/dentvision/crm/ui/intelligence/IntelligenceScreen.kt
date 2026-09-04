@@ -118,6 +118,16 @@ fun IntelligenceScreen(
         if (state.suggestions.isNotEmpty() && !state.sending) {
             SuggestionRow(suggestions = state.suggestions, onTap = viewModel::send)
         }
+        if (state.isGuest) {
+            state.aiRequestsLeft?.let { left ->
+                Text(
+                    text = if (left > 0) "Бесплатных вопросов осталось: $left" else "Бесплатные вопросы закончились — зарегистрируйтесь, чтобы продолжить",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = if (left > 0) DvTheme.colors.textMuted else DvTheme.colors.warning,
+                    modifier = Modifier.padding(horizontal = 20.dp, vertical = 2.dp),
+                )
+            }
+        }
         state.error?.let { message ->
             Text(
                 text = message,

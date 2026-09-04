@@ -10,6 +10,7 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.serialization.json.JsonObject
 import kz.dentvision.crm.data.AiRepository
+import kz.dentvision.crm.data.GuestRepository
 import kz.dentvision.crm.data.ServiceLocator
 import kz.dentvision.crm.data.model.AiAction
 import kz.dentvision.crm.data.model.AiAlert
@@ -43,6 +44,7 @@ data class IntelligenceUiState(
  */
 class IntelligenceViewModel(
     private val repository: AiRepository = AiRepository(),
+    private val guestRepository: GuestRepository = GuestRepository(),
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(IntelligenceUiState())
@@ -66,6 +68,15 @@ class IntelligenceViewModel(
         _state.update { it.copy(isGuest = isGuest) }
         if (isGuest) {
             _state.update { it.copy(loadingThread = false) }
+            // Гостевой JWT нужен для /api/ai/query (enforceGuestAiQuota,
+            // ai.routes.ts:30-55) — без него первый же вопрос падает 401
+            // GUEST_SESSION_REQUIRED. Заводим сессию заранее, тем же
+            // приёмом, что initGuest() в useEffect на вебе, а не по факту
+            // ошибки: пусть токен уже будет готов к моменту отправки.
+            viewModelScope.launch {
+                runCatching { guestRepository.ensureSession() }
+                    .onSuccess { identity -> _state.update { it.copy(aiRequestsLeft = identity.aiRequestsLeft) } }
+            }
         } else {
             viewModelScope.launch {
                 runCatching { repository.activeThread() }
@@ -133,13 +144,14 @@ class IntelligenceViewModel(
                     role = "assistant",
                     content = response.reply,
                 )
+                response.aiRequestsLeft?.let { ServiceLocator.guest.setAiRequestsLeft(it) }
                 _state.update {
                     it.copy(
                         messages = it.messages + botMessage,
                         suggestions = response.suggestions,
                         actions = response.actions,
                         sending = false,
-                        aiRequestsLeft = response.aiRequestsLeft,
+                        aiRequestsLeft = response.aiRequestsLeft ?: it.aiRequestsLeft,
                     )
                 }
             }.onFailure { e ->
