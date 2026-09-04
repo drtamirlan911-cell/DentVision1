@@ -74,6 +74,8 @@ import kz.dentvision.crm.navigation.LocalAssistantNavigate
 import kz.dentvision.crm.navigation.ROUTE_ACTIVITY
 import kz.dentvision.crm.navigation.ROUTE_APPROVALS
 import kz.dentvision.crm.navigation.ROUTE_DIAGNOSTICS
+import kz.dentvision.crm.navigation.ROUTE_DIAGNOSTICS_CENTERS
+import kz.dentvision.crm.navigation.ROUTE_DIAGNOSTICS_LABS
 import kz.dentvision.crm.navigation.ROUTE_DIAGNOSTICS_REFERRALS
 import kz.dentvision.crm.navigation.ROUTE_DIAGNOSTICS_REFERRAL_NEW
 import kz.dentvision.crm.navigation.ROUTE_INTELLIGENCE
@@ -84,7 +86,9 @@ import kz.dentvision.crm.ui.activity.ActivityScreen
 import kz.dentvision.crm.ui.approvals.ApprovalsScreen
 import kz.dentvision.crm.ui.common.DvLogo
 import kz.dentvision.crm.ui.common.UiState
+import kz.dentvision.crm.ui.diagnostics.DiagnosticOrgKind
 import kz.dentvision.crm.ui.diagnostics.DiagnosticsHomeScreen
+import kz.dentvision.crm.ui.diagnostics.DirectoryScreen
 import kz.dentvision.crm.ui.diagnostics.ReferralDetailScreen
 import kz.dentvision.crm.ui.diagnostics.ReferralFormScreen
 import kz.dentvision.crm.ui.diagnostics.ReferralListScreen
@@ -284,6 +288,8 @@ private fun fixedRouteTitle(route: String): String? = when (route) {
     ROUTE_DIAGNOSTICS_REFERRALS -> "Направления"
     ROUTE_DIAGNOSTICS_REFERRAL_NEW -> "Новое направление"
     "$ROUTE_DIAGNOSTICS_REFERRALS/{id}" -> "Направление"
+    ROUTE_DIAGNOSTICS_CENTERS -> "Диагностические центры"
+    ROUTE_DIAGNOSTICS_LABS -> "Лаборатории"
     else -> null
 }
 
@@ -325,6 +331,8 @@ private fun ShellNavHost(
                 val id = backStackEntry.arguments?.getString("id")
                 if (id != null) ReferralDetailScreen(referralId = id)
             }
+            composable(ROUTE_DIAGNOSTICS_CENTERS) { DirectoryScreen(kind = DiagnosticOrgKind.CENTER) }
+            composable(ROUTE_DIAGNOSTICS_LABS) { DirectoryScreen(kind = DiagnosticOrgKind.LABORATORY) }
             // Маршрут заводится только под построенный экран и только если роль
             // имеет на него право — иначе его в графе просто нет.
             visiblePages(session.pages, implemented).forEach { page ->

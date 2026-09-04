@@ -31,6 +31,8 @@ import kz.dentvision.crm.data.DiagnosticsRepository
 import kz.dentvision.crm.data.model.DiagnosticsDashboardStats
 import kz.dentvision.crm.data.model.Referral
 import kz.dentvision.crm.navigation.LocalAssistantNavigate
+import kz.dentvision.crm.navigation.ROUTE_DIAGNOSTICS_CENTERS
+import kz.dentvision.crm.navigation.ROUTE_DIAGNOSTICS_LABS
 import kz.dentvision.crm.navigation.ROUTE_DIAGNOSTICS_REFERRALS
 import kz.dentvision.crm.ui.common.ErrorState
 import kz.dentvision.crm.ui.common.LoadingSkeleton
@@ -77,6 +79,8 @@ fun DiagnosticsHomeScreen(viewModel: DiagnosticsHomeViewModel = viewModel()) {
             stats = s.value,
             onOpenReferrals = { onNavigate(ROUTE_DIAGNOSTICS_REFERRALS) },
             onOpenReferral = { id -> onNavigate("$ROUTE_DIAGNOSTICS_REFERRALS/$id") },
+            onOpenCenters = { onNavigate(ROUTE_DIAGNOSTICS_CENTERS) },
+            onOpenLabs = { onNavigate(ROUTE_DIAGNOSTICS_LABS) },
         )
     }
 }
@@ -86,6 +90,8 @@ private fun DiagnosticsHomeContent(
     stats: DiagnosticsDashboardStats,
     onOpenReferrals: () -> Unit,
     onOpenReferral: (String) -> Unit,
+    onOpenCenters: () -> Unit,
+    onOpenLabs: () -> Unit,
 ) {
     Column(modifier = Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
         LazyRow(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -102,6 +108,14 @@ private fun DiagnosticsHomeContent(
 
         DvOutlineButton(onClick = onOpenReferrals, modifier = Modifier.fillMaxWidth()) {
             Text("Все направления")
+        }
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            DvOutlineButton(onClick = onOpenCenters, modifier = Modifier.weight(1f)) {
+                Text("Центры", style = MaterialTheme.typography.labelMedium)
+            }
+            DvOutlineButton(onClick = onOpenLabs, modifier = Modifier.weight(1f)) {
+                Text("Лаборатории", style = MaterialTheme.typography.labelMedium)
+            }
         }
 
         Text(
