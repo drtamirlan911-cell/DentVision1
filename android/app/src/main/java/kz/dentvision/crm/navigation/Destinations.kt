@@ -129,3 +129,6 @@ const val ROUTE_DIAGNOSTICS_PATIENTS = "diagnostics/patients"
 
 /** Календарь диагностики — тот же список направлений, разложенный по датам. */
 const val ROUTE_DIAGNOSTICS_CALENDAR = "diagnostics/calendar"
+
+/** Статистика диагностики — тот же список направлений, посчитанный на клиенте. */
+const val ROUTE_DIAGNOSTICS_STATISTICS = "diagnostics/statistics"
