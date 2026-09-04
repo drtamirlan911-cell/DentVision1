@@ -66,4 +66,5 @@ class ApiClient(
     val ai: AiApi = retrofit.create(AiApi::class.java)
     val iam: IamApi = retrofit.create(IamApi::class.java)
     val diagnostics: DiagnosticsApi = retrofit.create(DiagnosticsApi::class.java)
+    val patientInbox: PatientInboxApi = retrofit.create(PatientInboxApi::class.java)
 }

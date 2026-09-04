@@ -8,6 +8,7 @@ import kz.dentvision.crm.ui.dentalchart.DentalChartScreen
 import kz.dentvision.crm.ui.documents.DocumentsScreen
 import kz.dentvision.crm.ui.finance.FinanceHubScreen
 import kz.dentvision.crm.ui.icd10.Icd10Screen
+import kz.dentvision.crm.ui.inbox.PatientInboxScreen
 import kz.dentvision.crm.ui.lab.LabScreen
 import kz.dentvision.crm.ui.plans.TreatmentPlansScreen
 import kz.dentvision.crm.ui.promotions.PromotionsScreen
@@ -76,6 +77,7 @@ val IMPLEMENTED_PAGES: Map<String, @Composable (Session) -> Unit> = mapOf(
             canWrite = session.has("appointments.write"),
         )
     },
+    "patient-inbox" to { session -> PatientInboxScreen(clinicId = session.clinic?.id) },
 )
 
 /**
