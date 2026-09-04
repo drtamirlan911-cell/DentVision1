@@ -1,11 +1,30 @@
 package kz.dentvision.crm.navigation
 
 /**
+ * Пути сквозных разделов — вакансии/сообщество/магазин/школа — видны
+ * любому вошедшему безусловно, не через `pages`/[CRM_PAGES] (см.
+ * `ROUTE_JOBS`/`ROUTE_COMMUNITY`/`ROUTE_SHOP_SCHOOL` в `Destinations.kt`).
+ * Без этой карты нажатие на подсказку/тревогу ассистента «Открыть
+ * вакансии»/«Открыть сообщество»/«Открыть магазин»/«Открыть школу» у
+ * вошедшего пользователя не делало ничего: [resolveAssistantPath] искал
+ * путь только среди `CRM_PAGES`, которые этих разделов не содержат
+ * (найдено при аудите — `GuestShell.kt`'s `resolveGuestPath` эти же пути
+ * уже обрабатывал для гостя, а у вошедшего разрыв остался).
+ */
+private val PILLAR_PATHS: Map<String, String> = mapOf(
+    "/jobs" to ROUTE_JOBS,
+    "/community" to ROUTE_COMMUNITY,
+    "/shop" to ROUTE_SHOP_SCHOOL,
+    "/school" to ROUTE_SHOP_SCHOOL,
+)
+
+/**
  * Действия ассистента и тревоги брифинга возвращают веб-пути
  * (`NAVIGATION_ACTION_PATHS` в `ai.routes.ts`: `/crm/schedule`, `/shop`, …).
  * Android понимает только те, для которых уже есть построенный экран —
- * сопоставляем через тот же каталог [CRM_PAGES], которым живёт меню, а не
- * через отдельно придуманный список.
+ * сквозные разделы резолвятся через [PILLAR_PATHS], разделы CRM — через
+ * тот же каталог [CRM_PAGES], которым живёт меню, а не через отдельно
+ * придуманный список.
  *
  * Путь без готового экрана — не ошибка, а честная граница: раздел открыт
  * пока только в браузере, и ассистент должен сказать это, а не притвориться,
@@ -13,7 +32,9 @@ package kz.dentvision.crm.navigation
  */
 fun resolveAssistantPath(path: String?, implemented: Set<String>): String? {
     if (path.isNullOrBlank()) return null
-    val clean = path.substringBefore('?').removePrefix("/")
+    val cleanWithSlash = path.substringBefore('?')
+    PILLAR_PATHS[cleanWithSlash]?.let { return it }
+    val clean = cleanWithSlash.removePrefix("/")
     val page = CRM_PAGES.firstOrNull { it.route == clean } ?: return null
     return if (page.id in implemented) page.route else null
 }

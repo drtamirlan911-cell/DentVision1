@@ -426,8 +426,20 @@ private fun ShellNavHost(
             // Вошедший — всегда настоящий аккаунт (гость живёт в GuestShell,
             // у AppShell непустая Session), поэтому onRequireLogin сюда не
             // попадёт: isAuthenticated = true снимает саму проверку.
-            composable(ROUTE_JOBS) { JobsScreen(isAuthenticated = true, onRequireLogin = {}) }
-            composable(ROUTE_COMMUNITY) { CommunityScreen(isAuthenticated = true, onRequireLogin = {}) }
+            composable(ROUTE_JOBS) {
+                JobsScreen(
+                    isAuthenticated = true,
+                    onRequireLogin = {},
+                    onAskAi = { onNavigate(ROUTE_INTELLIGENCE) },
+                )
+            }
+            composable(ROUTE_COMMUNITY) {
+                CommunityScreen(
+                    isAuthenticated = true,
+                    onRequireLogin = {},
+                    onOpenSchool = { onNavigate(ROUTE_SHOP_SCHOOL) },
+                )
+            }
             composable(ROUTE_SHOP_SCHOOL) { PublicScreen(embedded = true) }
             // Маршрут заводится только под построенный экран и только если роль
             // имеет на него право — иначе его в графе просто нет.

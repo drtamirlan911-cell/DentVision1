@@ -6,6 +6,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.serialization.json.JsonObject
 import kz.dentvision.crm.data.AiRepository
 import kz.dentvision.crm.data.model.AiInsight
 import kz.dentvision.crm.data.model.AiInsightAction
@@ -15,6 +16,7 @@ data class InsightsUiState(
     val items: UiState<List<AiInsight>> = UiState.Loading,
     val pendingNavigatePath: String? = null,
     val message: String? = null,
+    val pendingConfirmation: AiInsightAction? = null,
 )
 
 /**
@@ -73,9 +75,40 @@ class InsightsViewModel(
         }
     }
 
+    /**
+     * `requiresApproval` раньше игнорировался — действие уходило сразу,
+     * без подтверждения, хотя карточка её обещала (найдено при аудите
+     * бизнес-логики: та же схема, что `AiAction.requiresConfirmation` в
+     * `IntelligenceViewModel.tapAction`, но здесь её не проверяли).
+     */
     fun performAction(action: AiInsightAction) {
+        if (action.requiresApproval) {
+            _state.update { it.copy(pendingConfirmation = action) }
+            return
+        }
+        runAction(action.tool, action.params)
+    }
+
+    fun confirmPending(confirmed: Boolean) {
+        val action = _state.value.pendingConfirmation ?: return
+        _state.update { it.copy(pendingConfirmation = null) }
+        if (!confirmed) return
         viewModelScope.launch {
-            runCatching { repository.action(action.tool, action.params) }
+            runCatching { repository.confirm(action = action.tool, confirmed = true, params = action.params) }
+                .onSuccess { result ->
+                    if (result.path != null) {
+                        _state.update { it.copy(pendingNavigatePath = result.path) }
+                    } else {
+                        _state.update { it.copy(message = if (result.confirmed) "Готово." else "Отменено.") }
+                    }
+                }
+                .onFailure { e -> _state.update { it.copy(message = e.message ?: "Не удалось подтвердить действие") } }
+        }
+    }
+
+    private fun runAction(tool: String, params: JsonObject) {
+        viewModelScope.launch {
+            runCatching { repository.action(tool, params) }
                 .onSuccess { result ->
                     // Как и в HomeViewModel.performAction: решает наличие `path`,
                     // а не строка `type` — настоящий вызов инструмента (в том

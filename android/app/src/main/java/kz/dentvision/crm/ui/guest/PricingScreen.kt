@@ -14,6 +14,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Business
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.Card
@@ -81,7 +82,7 @@ private val PLANS = listOf(
 )
 
 @Composable
-fun PricingScreen(onRegister: () -> Unit) {
+fun PricingScreen(onRegister: () -> Unit, onContactUs: () -> Unit) {
     Column(
         modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp),
@@ -93,6 +94,30 @@ fun PricingScreen(onRegister: () -> Unit) {
             color = DvTheme.colors.textSecondary,
         )
         PLANS.forEach { plan -> PlanCard(plan = plan, onRegister = onRegister) }
+
+        // Перенос блока внизу `Pricing.tsx:158-167` — «свяжитесь с нами» ведёт в Сообщество.
+        Card(
+            colors = CardDefaults.cardColors(containerColor = DvTheme.colors.surface1),
+            border = BorderStroke(1.dp, DvTheme.colors.borderSubtle),
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            Column(modifier = Modifier.padding(20.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                Icon(Icons.Filled.Business, contentDescription = null, tint = DvTheme.colors.textMuted)
+                Row(modifier = Modifier.padding(top = 8.dp)) {
+                    Text(
+                        text = "Для клиник с особыми требованиями — ",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = DvTheme.colors.textSecondary,
+                    )
+                    Text(
+                        text = "свяжитесь с нами",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = DvTheme.colors.gold,
+                        modifier = Modifier.clickable(onClick = onContactUs),
+                    )
+                }
+            }
+        }
     }
 }
 

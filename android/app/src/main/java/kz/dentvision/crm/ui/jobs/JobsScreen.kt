@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
@@ -17,6 +18,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -44,6 +46,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import kz.dentvision.crm.data.model.CreateJobRequest
 import kz.dentvision.crm.data.model.JobVacancy
+import kz.dentvision.crm.data.session.PendingAiQuery
 import kz.dentvision.crm.ui.common.EmptyStateView
 import kz.dentvision.crm.ui.common.ErrorState
 import kz.dentvision.crm.ui.common.LoadingSkeleton
@@ -70,6 +73,7 @@ private val POPULAR_CITIES = listOf(
 fun JobsScreen(
     isAuthenticated: Boolean,
     onRequireLogin: () -> Unit,
+    onAskAi: () -> Unit,
     viewModel: JobsViewModel = viewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
@@ -93,6 +97,25 @@ fun JobsScreen(
         },
     ) { padding ->
         Column(modifier = Modifier.fillMaxSize().padding(padding)) {
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
+                horizontalArrangement = Arrangement.End,
+            ) {
+                // Перенос кнопки «Спросить AI» из `Jobs.tsx:157-158` — ведёт
+                // на домашний экран Intelligence с уже заданным вопросом,
+                // тем же приёмом, что и `navigate('/', { state: { aiQuery } })`
+                // на вебе, только через общий держатель [PendingAiQuery]
+                // вместо React Router state.
+                DvOutlineButton(
+                    onClick = {
+                        PendingAiQuery.set("Найди вакансии ортодонта")
+                        onAskAi()
+                    },
+                ) {
+                    Icon(Icons.Filled.AutoAwesome, contentDescription = null, modifier = Modifier.size(16.dp))
+                    Text(text = "Спросить AI", modifier = Modifier.padding(start = 6.dp))
+                }
+            }
             OutlinedTextField(
                 value = filters.query,
                 onValueChange = viewModel::onQueryChange,

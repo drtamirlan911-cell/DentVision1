@@ -20,6 +20,8 @@ data class PatientsUiState(
     val query: String = "",
     /** Ищем на сервере: набран полный ИИН, локального списка недостаточно. */
     val serverSearching: Boolean = false,
+    val deletingId: String? = null,
+    val deleteError: String? = null,
 )
 
 /**
@@ -230,5 +232,34 @@ class PatientsViewModel(
                     )
                 }
         }
+    }
+
+    /**
+     * `DELETE /api/patients/:id` уже был на бэкенде и в `CrmRepository`, но
+     * ничто в UI его не вызывало — на экране не было ни одной кнопки
+     * удаления (найдено при аудите бизнес-логики).
+     */
+    fun delete(id: String) {
+        _state.value = _state.value.copy(deletingId = id)
+        viewModelScope.launch {
+            runCatching { repository.deletePatient(id) }
+                .onSuccess {
+                    allPatients = allPatients.filterNot { it.id == id }
+                    _state.value = _state.value.copy(
+                        list = UiState.Data(applyFilter(allPatients, _state.value.query)),
+                        deletingId = null,
+                    )
+                }
+                .onFailure {
+                    _state.value = _state.value.copy(
+                        deletingId = null,
+                        deleteError = it.message ?: "Не удалось удалить пациента",
+                    )
+                }
+        }
+    }
+
+    fun consumeDeleteError() {
+        _state.value = _state.value.copy(deleteError = null)
     }
 }

@@ -154,14 +154,17 @@ fun GuestShell() {
                     )
                     GuestDestination.PRICING -> PricingScreen(
                         onRegister = { open(GuestDestination.REGISTER) },
+                        onContactUs = { open(GuestDestination.COMMUNITY) },
                     )
                     GuestDestination.JOBS -> JobsScreen(
                         isAuthenticated = false,
                         onRequireLogin = { open(GuestDestination.LOGIN) },
+                        onAskAi = { open(GuestDestination.HOME) },
                     )
                     GuestDestination.COMMUNITY -> CommunityScreen(
                         isAuthenticated = false,
                         onRequireLogin = { open(GuestDestination.LOGIN) },
+                        onOpenSchool = { open(GuestDestination.PUBLIC) },
                     )
                     GuestDestination.DEMO -> GuestDemoScreen(
                         onBack = { open(GuestDestination.HOME) },

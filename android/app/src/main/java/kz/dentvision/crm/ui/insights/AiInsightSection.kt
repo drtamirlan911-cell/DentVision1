@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -15,6 +16,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -23,6 +25,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import kotlinx.coroutines.delay
 import kz.dentvision.crm.data.model.AiInsight
 import kz.dentvision.crm.data.model.AiInsightAction
 import kz.dentvision.crm.navigation.resolveAssistantPath
@@ -51,25 +54,43 @@ fun AiInsightSection(
         resolveAssistantPath(path, implemented)?.let(onNavigate)
         viewModel.consumeNavigate()
     }
+    // Раньше сообщение не гасло само и оставалось на экране навсегда
+    // (найдено при аудите бизнес-логики — `consumeMessage()` существовал,
+    // но никто его не вызывал).
+    LaunchedEffect(state.message) {
+        if (state.message == null) return@LaunchedEffect
+        delay(4000)
+        viewModel.consumeMessage()
+    }
 
     val insights = (state.items as? UiState.Data)?.value.orEmpty()
-    if (insights.isEmpty()) return
+    if (insights.isNotEmpty()) {
+        Column(modifier = modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            insights.forEach { insight ->
+                InsightCard(
+                    insight = insight,
+                    onDismiss = { viewModel.dismiss(insight.id) },
+                    onAction = { viewModel.performAction(it) },
+                )
+            }
+            state.message?.let { message ->
+                Text(
+                    text = message,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = DvTheme.colors.error,
+                )
+            }
+        }
+    }
 
-    Column(modifier = modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        insights.forEach { insight ->
-            InsightCard(
-                insight = insight,
-                onDismiss = { viewModel.dismiss(insight.id) },
-                onAction = { viewModel.performAction(it) },
-            )
-        }
-        state.message?.let { message ->
-            Text(
-                text = message,
-                style = MaterialTheme.typography.bodySmall,
-                color = DvTheme.colors.error,
-            )
-        }
+    state.pendingConfirmation?.let { action ->
+        AlertDialog(
+            onDismissRequest = { viewModel.confirmPending(false) },
+            title = { Text("Подтвердите действие") },
+            text = { Text(action.label.ifBlank { "Выполнить это действие?" }) },
+            confirmButton = { TextButton(onClick = { viewModel.confirmPending(true) }) { Text("Подтвердить") } },
+            dismissButton = { TextButton(onClick = { viewModel.confirmPending(false) }) { Text("Отмена") } },
+        )
     }
 }
 

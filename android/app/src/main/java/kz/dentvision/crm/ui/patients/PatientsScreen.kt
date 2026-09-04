@@ -13,20 +13,28 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Snackbar
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -57,10 +65,21 @@ fun PatientsScreen(
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     var showForm by remember { mutableStateOf(false) }
+    var pendingDelete by remember { mutableStateOf<Patient?>(null) }
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val snackbarHostState = remember { SnackbarHostState() }
+
+    LaunchedEffect(state.deleteError) {
+        val message = state.deleteError ?: return@LaunchedEffect
+        snackbarHostState.showSnackbar(message)
+        viewModel.consumeDeleteError()
+    }
 
     Scaffold(
         containerColor = DvTheme.colors.surface0,
+        snackbarHost = {
+            SnackbarHost(snackbarHostState) { data -> Snackbar(snackbarData = data, containerColor = DvTheme.colors.surface3) }
+        },
         floatingActionButton = {
             if (canWrite) {
                 FloatingActionButton(
@@ -112,7 +131,14 @@ fun PatientsScreen(
                         contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
                         verticalArrangement = Arrangement.spacedBy(8.dp),
                     ) {
-                        items(list.value, key = { it.id }) { PatientRow(it) }
+                        items(list.value, key = { it.id }) { patient ->
+                            PatientRow(
+                                patient = patient,
+                                canDelete = canWrite,
+                                deleting = state.deletingId == patient.id,
+                                onDelete = { pendingDelete = patient },
+                            )
+                        }
                     }
                 }
             }
@@ -128,10 +154,33 @@ fun PatientsScreen(
             PatientForm(viewModel = viewModel, onSaved = { showForm = false })
         }
     }
+
+    pendingDelete?.let { patient ->
+        AlertDialog(
+            onDismissRequest = { pendingDelete = null },
+            title = { Text("Удалить пациента?") },
+            text = { Text("«${patient.name.ifBlank { "Без имени" }}» и его карта будут удалены безвозвратно.") },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        viewModel.delete(patient.id)
+                        pendingDelete = null
+                    },
+                ) { Text("Удалить", color = DvTheme.colors.error) }
+            },
+            dismissButton = { TextButton(onClick = { pendingDelete = null }) { Text("Отмена") } },
+        )
+    }
 }
 
 @Composable
-private fun PatientRow(patient: Patient, onClick: (() -> Unit)? = null) {
+private fun PatientRow(
+    patient: Patient,
+    onClick: (() -> Unit)? = null,
+    canDelete: Boolean = false,
+    deleting: Boolean = false,
+    onDelete: (() -> Unit)? = null,
+) {
     Card(
         modifier = Modifier
             .fillMaxWidth()
@@ -149,6 +198,7 @@ private fun PatientRow(patient: Patient, onClick: (() -> Unit)? = null) {
                     text = patient.name.ifBlank { "Без имени" },
                     style = MaterialTheme.typography.titleMedium,
                     color = DvTheme.colors.textPrimary,
+                    modifier = Modifier.weight(1f),
                 )
                 if (patient.iin.isBlank()) {
                     // Не упрёк регистратуре: карта могла быть заведена до того,
@@ -159,6 +209,24 @@ private fun PatientRow(patient: Patient, onClick: (() -> Unit)? = null) {
                         style = MaterialTheme.typography.labelSmall,
                         color = DvTheme.colors.warning,
                     )
+                }
+                if (canDelete) {
+                    if (deleting) {
+                        CircularProgressIndicator(
+                            strokeWidth = 2.dp,
+                            color = DvTheme.colors.error,
+                            modifier = Modifier.size(18.dp).padding(start = 8.dp),
+                        )
+                    } else {
+                        IconButton(onClick = { onDelete?.invoke() }, modifier = Modifier.size(28.dp)) {
+                            Icon(
+                                Icons.Filled.Delete,
+                                contentDescription = "Удалить пациента",
+                                tint = DvTheme.colors.textGhost,
+                                modifier = Modifier.size(18.dp),
+                            )
+                        }
+                    }
                 }
             }
             val details = listOfNotNull(

@@ -30,6 +30,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Bolt
 import androidx.compose.material.icons.filled.Close
@@ -63,9 +64,11 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import kotlinx.coroutines.delay
 import kz.dentvision.crm.data.model.AiAction
 import kz.dentvision.crm.data.model.AiAlert
 import kz.dentvision.crm.data.model.AiMessage
+import kz.dentvision.crm.data.session.PendingAiQuery
 import kz.dentvision.crm.ui.common.LoadingSkeleton
 import kz.dentvision.crm.ui.theme.DvTheme
 
@@ -84,6 +87,7 @@ fun IntelligenceScreen(
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val listState = rememberLazyListState()
+    val pendingQuery by PendingAiQuery.value.collectAsStateWithLifecycle()
 
     LaunchedEffect(Unit) { viewModel.ensureLoaded() }
     LaunchedEffect(state.messages.size) {
@@ -94,8 +98,32 @@ fun IntelligenceScreen(
         onNavigate(path)
         viewModel.consumeNavigate()
     }
+    // Другой экран (например, «Спросить AI» на Вакансиях) поставил вопрос
+    // и привёл сюда — отправляем его сразу, тем же жестом, что веб делает
+    // в `AIWorkspaceIndex.tsx:274-281` (`handleSend(q)` по приходу).
+    LaunchedEffect(pendingQuery) {
+        val query = pendingQuery ?: return@LaunchedEffect
+        PendingAiQuery.consume()
+        viewModel.send(query)
+    }
+    // Сообщение об ошибке раньше не гасло само — оставалось на экране даже
+    // после следующей успешной отправки. Не блокирующая ошибка, поэтому
+    // не модалка, а как временная плашка, тем же приёмом, что и обычный
+    // toast на вебе.
+    LaunchedEffect(state.error) {
+        if (state.error == null) return@LaunchedEffect
+        delay(4000)
+        viewModel.consumeError()
+    }
 
     Column(modifier = modifier.fillMaxSize().background(DvTheme.colors.surface0)) {
+        if (!state.isGuest && state.messages.isNotEmpty()) {
+            Row(modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 4.dp), horizontalArrangement = Arrangement.End) {
+                IconButton(onClick = viewModel::startNewThread) {
+                    Icon(Icons.Filled.Add, contentDescription = "Новый диалог", tint = DvTheme.colors.textSecondary)
+                }
+            }
+        }
         Box(modifier = Modifier.weight(1f)) {
             when {
                 state.loadingThread -> LoadingSkeleton(rows = 4, contentPadding = PaddingValues(20.dp))

@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
@@ -22,6 +23,7 @@ import androidx.compose.material.icons.filled.BookmarkBorder
 import androidx.compose.material.icons.filled.ChatBubbleOutline
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.FavoriteBorder
+import androidx.compose.material.icons.filled.School
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -35,6 +37,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Tab
 import androidx.compose.material3.TabRow
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -69,6 +72,7 @@ import kz.dentvision.crm.ui.theme.DvTheme
 fun CommunityScreen(
     isAuthenticated: Boolean,
     onRequireLogin: () -> Unit,
+    onOpenSchool: () -> Unit,
     viewModel: CommunityViewModel = viewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
@@ -78,6 +82,14 @@ fun CommunityScreen(
 
     Scaffold(containerColor = DvTheme.colors.surface0) { padding ->
         Column(modifier = Modifier.fillMaxSize().padding(padding)) {
+            // Перенос кнопки «Курсы» из `Community.tsx:246-247` — ведёт в
+            // Academy (здесь: витрину «Магазин и школа» на вкладке «Школа»).
+            Row(modifier = Modifier.fillMaxWidth().padding(start = 16.dp, top = 8.dp, end = 16.dp), horizontalArrangement = Arrangement.End) {
+                TextButton(onClick = onOpenSchool) {
+                    Icon(Icons.Filled.School, contentDescription = null, modifier = Modifier.size(16.dp))
+                    Text(text = "Курсы", modifier = Modifier.padding(start = 6.dp))
+                }
+            }
             if (isAuthenticated) {
                 TabRow(
                     selectedTabIndex = if (state.tab == CommunityTab.FEED) 0 else 1,

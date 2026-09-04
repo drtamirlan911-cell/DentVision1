@@ -19,6 +19,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -32,6 +34,7 @@ import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -73,6 +76,7 @@ fun ScheduleScreen(
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     var showForm by remember { mutableStateOf(false) }
+    var pendingDelete by remember { mutableStateOf<Appointment?>(null) }
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
     LaunchedEffect(clinicId) { viewModel.start(clinicId) }
@@ -134,7 +138,13 @@ fun ScheduleScreen(
                         contentPadding = androidx.compose.foundation.layout.PaddingValues(16.dp),
                         verticalArrangement = Arrangement.spacedBy(8.dp),
                     ) {
-                        items(list.value, key = { it.id }) { AppointmentRow(it) }
+                        items(list.value, key = { it.id }) { appointment ->
+                            AppointmentRow(
+                                appointment = appointment,
+                                canDelete = canWrite,
+                                onDelete = { pendingDelete = appointment },
+                            )
+                        }
                     }
                 }
             }
@@ -150,10 +160,27 @@ fun ScheduleScreen(
             AppointmentForm(viewModel = viewModel, onSaved = { showForm = false })
         }
     }
+
+    pendingDelete?.let { appointment ->
+        AlertDialog(
+            onDismissRequest = { pendingDelete = null },
+            title = { Text("Отменить запись?") },
+            text = { Text("Приём ${appointment.time}${appointment.patientName?.let { " — $it" } ?: ""} будет удалён из расписания.") },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        viewModel.delete(appointment.id)
+                        pendingDelete = null
+                    },
+                ) { Text("Отменить приём", color = DvTheme.colors.error) }
+            },
+            dismissButton = { TextButton(onClick = { pendingDelete = null }) { Text("Назад") } },
+        )
+    }
 }
 
 @Composable
-private fun AppointmentRow(appointment: Appointment) {
+private fun AppointmentRow(appointment: Appointment, canDelete: Boolean = false, onDelete: (() -> Unit)? = null) {
     Card(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(containerColor = DvTheme.colors.surface1),
@@ -172,7 +199,7 @@ private fun AppointmentRow(appointment: Appointment) {
                     color = DvTheme.colors.textGhost,
                 )
             }
-            Column(modifier = Modifier.fillMaxWidth()) {
+            Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = appointment.patientName ?: "Пациент",
                     style = MaterialTheme.typography.titleMedium,
@@ -198,6 +225,16 @@ private fun AppointmentRow(appointment: Appointment) {
                     color = DvTheme.colors.textMuted,
                     modifier = Modifier.padding(top = 4.dp),
                 )
+            }
+            if (canDelete) {
+                IconButton(onClick = { onDelete?.invoke() }, modifier = Modifier.size(28.dp)) {
+                    Icon(
+                        Icons.Filled.Delete,
+                        contentDescription = "Отменить запись",
+                        tint = DvTheme.colors.textGhost,
+                        modifier = Modifier.size(18.dp),
+                    )
+                }
             }
         }
     }
