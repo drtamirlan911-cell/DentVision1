@@ -255,3 +255,22 @@ data class RegistrationRequest(
 data class RejectRegistrationRequest(
     val reason: String? = null,
 )
+
+/**
+ * Тело `POST /api/diagnostics/register` — публичная заявка на подключение
+ * центра/лаборатории (маршрут заведён до `authenticate`, `optionalAuth`
+ * только опознаёт заявителя, если он уже вошёл). Whitelist ровно как в
+ * `createRegistrationRequest` (`diagnostics.service.ts:193`) — `userId`
+ * сервер подставляет сам, здесь его нет.
+ */
+@Serializable
+data class SubmitRegistrationRequest(
+    /** `"center"` или `"laboratory"`. */
+    val type: String,
+    val name: String,
+    val city: String? = null,
+    val address: String? = null,
+    val phone: String? = null,
+    val email: String? = null,
+    val comment: String? = null,
+)

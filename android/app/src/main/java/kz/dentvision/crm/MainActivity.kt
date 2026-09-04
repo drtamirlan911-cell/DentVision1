@@ -22,6 +22,7 @@ import kz.dentvision.crm.data.ServiceLocator
 import kz.dentvision.crm.ui.auth.LoginScreen
 import kz.dentvision.crm.ui.common.LoadingSkeleton
 import kz.dentvision.crm.ui.intelligence.GuestHomeScreen
+import kz.dentvision.crm.ui.public.DiagnosticsRegisterScreen
 import kz.dentvision.crm.ui.public.PublicScreen
 import kz.dentvision.crm.ui.shell.AppShell
 import kz.dentvision.crm.ui.theme.DentVisionTheme
@@ -45,7 +46,7 @@ class MainActivity : ComponentActivity() {
 }
 
 /** Куда попадает гость (`session == null`) — вход не входит по умолчанию. */
-private enum class GuestDestination { HOME, PUBLIC, LOGIN }
+private enum class GuestDestination { HOME, PUBLIC, REGISTER_DIAGNOSTICS, LOGIN }
 
 /**
  * Одна развилка на всё приложение: есть живая сессия — кабинет, нет — гость.
@@ -79,11 +80,16 @@ private fun DentVisionRoot() {
         session == null -> when (guestDestination) {
             GuestDestination.HOME -> GuestHomeScreen(
                 onOpenPublic = { guestDestination = GuestDestination.PUBLIC },
+                onRegisterDiagnostics = { guestDestination = GuestDestination.REGISTER_DIAGNOSTICS },
                 onLogin = { guestDestination = GuestDestination.LOGIN },
             )
             GuestDestination.PUBLIC -> PublicScreen(
                 onBack = { guestDestination = GuestDestination.HOME },
                 onSignIn = { guestDestination = GuestDestination.LOGIN },
+                onRegisterDiagnostics = { guestDestination = GuestDestination.REGISTER_DIAGNOSTICS },
+            )
+            GuestDestination.REGISTER_DIAGNOSTICS -> DiagnosticsRegisterScreen(
+                onBack = { guestDestination = GuestDestination.HOME },
             )
             GuestDestination.LOGIN -> LoginScreen(
                 onBrowsePublic = { guestDestination = GuestDestination.HOME },

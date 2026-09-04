@@ -1,5 +1,7 @@
 package kz.dentvision.crm.ui.public
 
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -11,6 +13,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -60,10 +63,13 @@ import kz.dentvision.crm.ui.theme.DvTheme
  * конкретной клиники (`/book/:clinicId`), а публичного перечня клиник у
  * платформы нет — все списки клиник за входом. Собрать экран «выберите
  * клинику» не из чего, а выдумывать для этого маршрут я не стал.
+ *
+ * Баннер «Подключить центр или лабораторию» — из того же списка: `POST
+ * /api/diagnostics/register` тоже заведён до `authenticate`.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun PublicScreen(onBack: () -> Unit, onSignIn: () -> Unit) {
+fun PublicScreen(onBack: () -> Unit, onSignIn: () -> Unit, onRegisterDiagnostics: () -> Unit) {
     var tab by remember { mutableIntStateOf(0) }
 
     Scaffold(
@@ -99,6 +105,7 @@ fun PublicScreen(onBack: () -> Unit, onSignIn: () -> Unit) {
         },
     ) { padding ->
         Column(modifier = Modifier.fillMaxSize().padding(padding)) {
+            RegisterDiagnosticsBanner(onClick = onRegisterDiagnostics)
             TabRow(
                 selectedTabIndex = tab,
                 containerColor = DvTheme.colors.surface1,
@@ -119,6 +126,38 @@ fun PublicScreen(onBack: () -> Unit, onSignIn: () -> Unit) {
                 0 -> ShopCatalog()
                 else -> SchoolCatalog()
             }
+        }
+    }
+}
+
+@Composable
+private fun RegisterDiagnosticsBanner(onClick: () -> Unit) {
+    Card(
+        modifier = Modifier.fillMaxWidth().padding(16.dp, 12.dp, 16.dp, 0.dp).clickable(onClick = onClick),
+        colors = CardDefaults.cardColors(containerColor = DvTheme.colors.surface1),
+        border = BorderStroke(1.dp, DvTheme.colors.borderSubtle),
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(14.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+        ) {
+            Column(modifier = Modifier.weight(1f).padding(end = 8.dp)) {
+                Text(
+                    text = "Диагностический центр или лаборатория?",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = DvTheme.colors.textPrimary,
+                )
+                Text(
+                    text = "Подключитесь к платформе",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = DvTheme.colors.textMuted,
+                )
+            }
+            Icon(
+                Icons.AutoMirrored.Filled.ArrowForward,
+                contentDescription = null,
+                tint = DvTheme.colors.gold,
+            )
         }
     }
 }

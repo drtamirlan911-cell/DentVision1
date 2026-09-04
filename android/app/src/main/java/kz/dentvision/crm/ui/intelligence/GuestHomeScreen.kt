@@ -20,8 +20,9 @@ import kz.dentvision.crm.ui.theme.DvTheme
 /**
  * Дом гостя — тот же Intelligence, что и у вошедшего (веб не делит `/` на
  * гостевую и авторизованную версии, только текст и квоту), но без оболочки
- * кабинета: гостю нечего переключать в drawer, у него есть только эти два
- * места — витрина (`PublicScreen`) и форма входа.
+ * кабинета: гостю нечего переключать в drawer, у него есть только эти три
+ * места — витрина (`PublicScreen`), заявка на подключение диагностики
+ * (`DiagnosticsRegisterScreen`) и форма входа.
  *
  * Кнопка «Войти» всегда на виду и никогда не блокирует — это и есть отличие
  * от прежнего поведения (жёсткий `LoginScreen` первым экраном): войти можно
@@ -30,6 +31,7 @@ import kz.dentvision.crm.ui.theme.DvTheme
 @Composable
 fun GuestHomeScreen(
     onOpenPublic: () -> Unit,
+    onRegisterDiagnostics: () -> Unit,
     onLogin: () -> Unit,
 ) {
     Column(modifier = Modifier.fillMaxSize()) {
@@ -60,6 +62,8 @@ fun GuestHomeScreen(
                     // `school.routes.ts` без `authenticate`) — та же витрина,
                     // что уже построена для гостя.
                     "/shop", "/school" -> onOpenPublic()
+                    // Тоже открыт без входа (`optionalAuth`, не `authenticate`).
+                    "/register-diagnostics" -> onRegisterDiagnostics()
                     // Всё остальное, включая `/crm/*` (демо тоже): своей
                     // анонимной инфраструктуры для кабинета клиники на
                     // Android нет — честная граница, а не выдуманная.
