@@ -18,6 +18,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Logout
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Dashboard
+import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.SmartToy
@@ -33,6 +34,9 @@ import androidx.compose.material3.ModalNavigationDrawer
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Snackbar
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
@@ -41,13 +45,18 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -70,6 +79,7 @@ import kz.dentvision.crm.navigation.visiblePages
 import kz.dentvision.crm.ui.activity.ActivityScreen
 import kz.dentvision.crm.ui.approvals.ApprovalsScreen
 import kz.dentvision.crm.ui.common.DvLogo
+import kz.dentvision.crm.ui.common.UiState
 import kz.dentvision.crm.ui.home.WorkspaceScreen
 import kz.dentvision.crm.ui.intelligence.IntelligenceScreen
 import kz.dentvision.crm.ui.theme.DvTheme
@@ -97,6 +107,15 @@ fun AppShell(
     val scope = rememberCoroutineScope()
     val backStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = backStackEntry?.destination?.route ?: ROUTE_INTELLIGENCE
+
+    // Один и тот же ViewModel для чипа в шапке и для самой шторки: список
+    // рабочих пространств грузится один раз на весь кабинет, а не заново при
+    // каждом открытии переключателя.
+    val workspaceSwitcherViewModel: WorkspaceSwitcherViewModel = viewModel()
+    val workspaceSwitcherState by workspaceSwitcherViewModel.state.collectAsStateWithLifecycle()
+    val workspaceCount = (workspaceSwitcherState.items as? UiState.Data)?.value?.size ?: 0
+    var workspaceSwitcherOpen by remember { mutableStateOf(false) }
+    val snackbarHostState = remember { SnackbarHostState() }
 
     // Контекст-движок бэкенда принимает pathname текущего экрана
     // (`querySchema` в `ai.routes.ts`) и не переспрашивает то, что уже видно.
@@ -147,12 +166,31 @@ fun AppShell(
                                 style = MaterialTheme.typography.titleMedium,
                                 color = DvTheme.colors.textPrimary,
                             )
-                            session.clinic?.name?.let {
-                                Text(
-                                    text = it,
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = DvTheme.colors.textMuted,
-                                )
+                            if (workspaceCount > 1) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    modifier = Modifier.clickable { workspaceSwitcherOpen = true },
+                                ) {
+                                    Text(
+                                        text = session.clinic?.name ?: "Рабочее пространство",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = DvTheme.colors.textMuted,
+                                    )
+                                    Icon(
+                                        imageVector = Icons.Filled.ExpandMore,
+                                        contentDescription = "Сменить рабочее пространство",
+                                        tint = DvTheme.colors.textMuted,
+                                        modifier = Modifier.size(14.dp).padding(start = 2.dp),
+                                    )
+                                }
+                            } else {
+                                session.clinic?.name?.let {
+                                    Text(
+                                        text = it,
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = DvTheme.colors.textMuted,
+                                    )
+                                }
                             }
                         }
                         }
@@ -170,6 +208,11 @@ fun AppShell(
                         containerColor = DvTheme.colors.surface1,
                     ),
                 )
+            },
+            snackbarHost = {
+                SnackbarHost(snackbarHostState) { data ->
+                    Snackbar(snackbarData = data, containerColor = DvTheme.colors.surface3)
+                }
             },
             bottomBar = {
                 NavigationBar(containerColor = DvTheme.colors.surface1) {
@@ -204,6 +247,23 @@ fun AppShell(
                 onNavigate = ::open,
             )
         }
+    }
+
+    if (workspaceSwitcherOpen) {
+        WorkspaceSwitcherSheet(
+            session = session,
+            onDismiss = { workspaceSwitcherOpen = false },
+            onSwitched = { context ->
+                workspaceSwitcherOpen = false
+                scope.launch { snackbarHostState.showSnackbar("Активно: ${context.name}") }
+                // Кабинет клиники — единственный тип пространства, у которого
+                // на Android есть построенный экран (см. тело PR #233); для
+                // остальных типов остаёмся на месте, а `session.pages` сами
+                // честно покажут в меню только то, что реализовано.
+                if (context.scopeType == "CLINIC") open(ROUTE_WORKSPACE)
+            },
+            viewModel = workspaceSwitcherViewModel,
+        )
     }
 }
 

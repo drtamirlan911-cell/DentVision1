@@ -4,6 +4,7 @@ import kotlinx.serialization.Serializable
 import kz.dentvision.crm.data.model.Capabilities
 import kz.dentvision.crm.data.model.ClinicBrief
 import kz.dentvision.crm.data.model.LoginResponse
+import kz.dentvision.crm.data.model.MeResponse
 import kz.dentvision.crm.data.model.Membership
 import kz.dentvision.crm.data.model.User
 
@@ -76,6 +77,31 @@ data class Session(
             effectiveRole = response.effectiveRole ?: response.user.role,
             memberships = response.memberships,
             activeMembership = active,
+            )
+        }
+
+        /**
+         * Пересборка после переключения пространства: `switch-context`
+         * отдаёт только новые токены, а права/страницы/членства для них
+         * заново читает `/me` — тот же приём, что `restoreSession()` веба
+         * (`api.setTokens()` + перечитывание `/me`) в один вызов. В отличие
+         * от `from(LoginResponse)`, объединять `pages` с `roleInfo` не с
+         * чем — `/me` его не присылает.
+         */
+        fun from(response: MeResponse, accessToken: String, refreshToken: String): Session {
+            val active = response.activeMembership ?: response.memberships.firstOrNull()
+            return Session(
+                user = response.user,
+                clinic = active?.clinic
+                    ?: active?.clinicId?.let { ClinicBrief(id = it, name = "Клиника") },
+                accessToken = accessToken,
+                refreshToken = refreshToken,
+                pages = response.pages,
+                permissions = response.permissions,
+                capabilities = response.capabilities,
+                effectiveRole = response.effectiveRole ?: response.user.role,
+                memberships = response.memberships,
+                activeMembership = active,
             )
         }
     }
