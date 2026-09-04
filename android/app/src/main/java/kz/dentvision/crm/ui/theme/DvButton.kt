@@ -1,14 +1,20 @@
 package kz.dentvision.crm.ui.theme
 
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
@@ -24,6 +30,21 @@ import androidx.compose.ui.unit.dp
  */
 private val DvButtonShape = RoundedCornerShape(8.dp)
 
+/**
+ * `whileTap={{ scale: 0.97 }}` с вебовской `Button.tsx:140-151` — там это
+ * настроено один раз в общем компоненте и работает на каждой кнопке
+ * приложения; здесь так же: и `DvPrimaryButton`, и `DvOutlineButton` — общие
+ * компоненты, поэтому эффект нажатия достаточно завести один раз тут, а не
+ * на каждом экране отдельно (найдено при аудите: раньше ни у одной кнопки
+ * не было отклика на нажатие, только стоковый ripple).
+ */
+@Composable
+private fun rememberPressScale(interactionSource: MutableInteractionSource): Float {
+    val pressed by interactionSource.collectIsPressedAsState()
+    val scale by animateFloatAsState(targetValue = if (pressed) 0.97f else 1f, label = "dvButtonPressScale")
+    return scale
+}
+
 @Composable
 fun DvPrimaryButton(
     onClick: () -> Unit,
@@ -32,6 +53,8 @@ fun DvPrimaryButton(
     content: @Composable RowScope.() -> Unit,
 ) {
     val colors = DvTheme.colors
+    val interactionSource = remember { MutableInteractionSource() }
+    val scale = rememberPressScale(interactionSource)
     val background = if (enabled) {
         Modifier.background(
             brush = Brush.horizontalGradient(listOf(colors.goldFrom, colors.goldTo)),
@@ -42,9 +65,10 @@ fun DvPrimaryButton(
     }
     Button(
         onClick = onClick,
-        modifier = modifier.then(background),
+        modifier = modifier.scale(scale).then(background),
         enabled = enabled,
         shape = DvButtonShape,
+        interactionSource = interactionSource,
         colors = ButtonDefaults.buttonColors(
             containerColor = Color.Transparent,
             contentColor = colors.goldOn,
@@ -65,11 +89,14 @@ fun DvOutlineButton(
     content: @Composable RowScope.() -> Unit,
 ) {
     val colors = DvTheme.colors
+    val interactionSource = remember { MutableInteractionSource() }
+    val scale = rememberPressScale(interactionSource)
     OutlinedButton(
         onClick = onClick,
-        modifier = modifier,
+        modifier = modifier.scale(scale),
         enabled = enabled,
         shape = DvButtonShape,
+        interactionSource = interactionSource,
         border = BorderStroke(1.dp, if (enabled) colors.gold.copy(alpha = 0.5f) else colors.borderSubtle),
         colors = ButtonDefaults.outlinedButtonColors(
             contentColor = colors.gold,

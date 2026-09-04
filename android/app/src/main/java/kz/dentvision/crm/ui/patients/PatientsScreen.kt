@@ -15,7 +15,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Search
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -31,7 +30,6 @@ import androidx.compose.material3.Snackbar
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -49,6 +47,7 @@ import kz.dentvision.crm.ui.common.EmptyStateView
 import kz.dentvision.crm.ui.common.ErrorState
 import kz.dentvision.crm.ui.common.LoadingSkeleton
 import kz.dentvision.crm.ui.common.UiState
+import kz.dentvision.crm.ui.theme.DvConfirmDialog
 import kz.dentvision.crm.ui.theme.DvTheme
 
 /**
@@ -156,19 +155,15 @@ fun PatientsScreen(
     }
 
     pendingDelete?.let { patient ->
-        AlertDialog(
-            onDismissRequest = { pendingDelete = null },
-            title = { Text("Удалить пациента?") },
-            text = { Text("«${patient.name.ifBlank { "Без имени" }}» и его карта будут удалены безвозвратно.") },
-            confirmButton = {
-                TextButton(
-                    onClick = {
-                        viewModel.delete(patient.id)
-                        pendingDelete = null
-                    },
-                ) { Text("Удалить", color = DvTheme.colors.error) }
+        DvConfirmDialog(
+            title = "Удалить пациента?",
+            message = "«${patient.name.ifBlank { "Без имени" }}» и его карта будут удалены безвозвратно.",
+            confirmLabel = "Удалить",
+            onConfirm = {
+                viewModel.delete(patient.id)
+                pendingDelete = null
             },
-            dismissButton = { TextButton(onClick = { pendingDelete = null }) { Text("Отмена") } },
+            onDismiss = { pendingDelete = null },
         )
     }
 }

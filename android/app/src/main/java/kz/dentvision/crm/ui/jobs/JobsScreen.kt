@@ -10,7 +10,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
@@ -51,6 +50,8 @@ import kz.dentvision.crm.ui.common.EmptyStateView
 import kz.dentvision.crm.ui.common.ErrorState
 import kz.dentvision.crm.ui.common.LoadingSkeleton
 import kz.dentvision.crm.ui.common.UiState
+import kz.dentvision.crm.ui.theme.DvBadge
+import kz.dentvision.crm.ui.theme.DvBadgeVariant
 import kz.dentvision.crm.ui.theme.DvOutlineButton
 import kz.dentvision.crm.ui.theme.DvPrimaryButton
 import kz.dentvision.crm.ui.theme.DvTheme
@@ -223,9 +224,9 @@ private fun VacancyCard(vacancy: JobVacancy, applied: Boolean, onApply: () -> Un
                     color = DvTheme.colors.textPrimary,
                     modifier = Modifier.weight(1f).padding(end = 8.dp),
                 )
-                Tag(
+                DvBadge(
                     text = if (vacancy.kind == "resume") "Ищу работу" else vacancy.employmentType.ifBlank { "Вакансия" },
-                    color = DvTheme.colors.textSecondary,
+                    variant = DvBadgeVariant.DEFAULT,
                 )
             }
             val meta = listOfNotNull(
@@ -255,7 +256,7 @@ private fun VacancyCard(vacancy: JobVacancy, applied: Boolean, onApply: () -> Un
                     horizontalArrangement = Arrangement.spacedBy(6.dp),
                     modifier = Modifier.padding(top = 8.dp),
                 ) {
-                    vacancy.tags.take(4).forEach { Tag(text = it, color = DvTheme.colors.gold) }
+                    vacancy.tags.take(4).forEach { DvBadge(text = it, variant = DvBadgeVariant.GOLD) }
                 }
             }
             if (vacancy.kind != "resume") {
@@ -269,18 +270,6 @@ private fun VacancyCard(vacancy: JobVacancy, applied: Boolean, onApply: () -> Un
             }
         }
     }
-}
-
-@Composable
-private fun Tag(text: String, color: androidx.compose.ui.graphics.Color) {
-    Text(
-        text = text,
-        style = MaterialTheme.typography.labelSmall,
-        color = color,
-        modifier = Modifier
-            .wrapContentWidth()
-            .padding(horizontal = 0.dp),
-    )
 }
 
 private val EMPLOYMENT_TYPES = listOf("Полная занятость", "Частичная занятость", "Подработка", "Ищу работу")

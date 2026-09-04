@@ -21,7 +21,6 @@ import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Person
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -38,7 +37,6 @@ import androidx.compose.material3.Snackbar
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -60,6 +58,7 @@ import kz.dentvision.crm.ui.common.ErrorState
 import kz.dentvision.crm.ui.common.LoadingSkeleton
 import kz.dentvision.crm.ui.common.PatientPickerSheet
 import kz.dentvision.crm.ui.common.UiState
+import kz.dentvision.crm.ui.theme.DvConfirmDialog
 import kz.dentvision.crm.ui.theme.DvOutlineButton
 import kz.dentvision.crm.ui.theme.DvPrimaryButton
 import kz.dentvision.crm.ui.theme.DvTheme
@@ -188,19 +187,15 @@ fun ScheduleScreen(
     }
 
     pendingDelete?.let { appointment ->
-        AlertDialog(
-            onDismissRequest = { pendingDelete = null },
-            title = { Text("Отменить запись?") },
-            text = { Text("Приём ${appointment.time}${appointment.patientName?.let { " — $it" } ?: ""} будет удалён из расписания.") },
-            confirmButton = {
-                TextButton(
-                    onClick = {
-                        viewModel.delete(appointment.id)
-                        pendingDelete = null
-                    },
-                ) { Text("Отменить приём", color = DvTheme.colors.error) }
+        DvConfirmDialog(
+            title = "Отменить запись?",
+            message = "Приём ${appointment.time}${appointment.patientName?.let { " — $it" } ?: ""} будет удалён из расписания.",
+            confirmLabel = "Отменить приём",
+            onConfirm = {
+                viewModel.delete(appointment.id)
+                pendingDelete = null
             },
-            dismissButton = { TextButton(onClick = { pendingDelete = null }) { Text("Отмена") } },
+            onDismiss = { pendingDelete = null },
         )
     }
 }
