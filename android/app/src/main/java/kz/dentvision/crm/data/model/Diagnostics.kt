@@ -402,3 +402,33 @@ data class OperatorDashboard(
     val paymentStats: PaymentStats = PaymentStats(),
     val byStatus: Map<String, Int> = emptyMap(),
 )
+
+/**
+ * Одна строка массового обновления цены (`PATCH .../pricing`). Веб не
+ * даёт переключать `active` из этого экрана (ни для центра, ни для
+ * лаборатории — а LAB-ручка это поле и не приняла бы), поэтому здесь
+ * только `price`.
+ */
+@Serializable
+data class PricingUpdateItem(
+    val id: String,
+    val price: Double,
+)
+
+@Serializable
+data class UpdateCenterPricingRequest(val studies: List<PricingUpdateItem>)
+
+@Serializable
+data class UpdateLabPricingRequest(val tests: List<PricingUpdateItem>)
+
+/**
+ * Тело `POST .../pricing` (создание услуги) — центр принимает ещё
+ * `description`/`durationMin`, но экран `ServicesTab.tsx` их не
+ * отправляет ни для одного из видов, поэтому одна форма на оба.
+ */
+@Serializable
+data class CreateServiceRequest(
+    val name: String,
+    val category: String,
+    val price: Double? = null,
+)

@@ -7,6 +7,7 @@ import kz.dentvision.crm.data.model.ChangeReferralStatusRequest
 import kz.dentvision.crm.data.model.CollectPaymentRequest
 import kz.dentvision.crm.data.model.CollectPaymentResult
 import kz.dentvision.crm.data.model.CreateReferralRequest
+import kz.dentvision.crm.data.model.CreateServiceRequest
 import kz.dentvision.crm.data.model.DiagnosticOrg
 import kz.dentvision.crm.data.model.DiagnosticsDashboardStats
 import kz.dentvision.crm.data.model.OperatorDashboard
@@ -18,9 +19,12 @@ import kz.dentvision.crm.data.model.ReferralListEnvelope
 import kz.dentvision.crm.data.model.RegistrationRequest
 import kz.dentvision.crm.data.model.RejectRegistrationRequest
 import kz.dentvision.crm.data.model.SignResultRequest
+import kz.dentvision.crm.data.model.UpdateCenterPricingRequest
+import kz.dentvision.crm.data.model.UpdateLabPricingRequest
 import kz.dentvision.crm.data.model.UploadFileRequest
 import retrofit2.http.Body
 import retrofit2.http.GET
+import retrofit2.http.PATCH
 import retrofit2.http.POST
 import retrofit2.http.Path
 import retrofit2.http.Query
@@ -111,4 +115,16 @@ interface DiagnosticsApi {
 
     @GET("api/diagnostics/laboratories/{id}/dashboard")
     suspend fun labDashboard(@Path("id") id: String): ApiEnvelope<OperatorDashboard>
+
+    @PATCH("api/diagnostics/centers/{id}/pricing")
+    suspend fun updateCenterPricing(@Path("id") id: String, @Body body: UpdateCenterPricingRequest): ApiEnvelope<List<PricingItem>>
+
+    @PATCH("api/diagnostics/laboratories/{id}/pricing")
+    suspend fun updateLabPricing(@Path("id") id: String, @Body body: UpdateLabPricingRequest): ApiEnvelope<List<PricingItem>>
+
+    @POST("api/diagnostics/centers/{id}/pricing")
+    suspend fun createCenterService(@Path("id") id: String, @Body body: CreateServiceRequest): ApiEnvelope<PricingItem>
+
+    @POST("api/diagnostics/laboratories/{id}/pricing")
+    suspend fun createLabService(@Path("id") id: String, @Body body: CreateServiceRequest): ApiEnvelope<PricingItem>
 }

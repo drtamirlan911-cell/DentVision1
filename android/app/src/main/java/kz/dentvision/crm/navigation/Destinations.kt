@@ -158,3 +158,6 @@ const val ROUTE_OPERATOR_CASHIER = "operator-workspace/cashier"
 
 /** Финансы кабинета приёма — доход/комиссия/статусы, только чтение. */
 const val ROUTE_OPERATOR_FINANCE = "operator-workspace/finance"
+
+/** Услуги и цены кабинета приёма — прайс-лист центра/лаборатории. */
+const val ROUTE_OPERATOR_SERVICES = "operator-workspace/services"
