@@ -21,6 +21,7 @@ import androidx.compose.material.icons.filled.Dashboard
 import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Menu
+import androidx.compose.material.icons.filled.MoreHoriz
 import androidx.compose.material.icons.filled.Science
 import androidx.compose.material.icons.filled.Groups
 import androidx.compose.material.icons.filled.School
@@ -270,12 +271,24 @@ fun AppShell(
                 }
             },
             bottomBar = {
+                // Ровно 4 пункта, у каждого — своя иконка и подпись только у
+                // выбранного (`alwaysShowLabel = false`), как в свёрнутом
+                // состоянии веб-сайдбара: там тоже показываются одни иконки,
+                // а не подпись на каждом пункте разом. Раньше здесь было 5
+                // пунктов с постоянными подписями — на узком экране текст
+                // обрезался и наезжал друг на друга.
+                //
+                // Состав — топ-левел пилары, а не CRM-подстраницы: в вебе
+                // `Sidebar.tsx` эти два уровня никогда не смешиваются на
+                // одной панели (подстраницы CRM живут только внутри
+                // развёрнутого пункта «CRM»).
                 NavigationBar(containerColor = DvTheme.colors.surface1) {
                     NavigationBarItem(
                         selected = currentRoute == ROUTE_INTELLIGENCE,
                         onClick = { open(ROUTE_INTELLIGENCE) },
                         icon = { Icon(Icons.Filled.AutoAwesome, contentDescription = null) },
                         label = { Text("Intelligence", style = MaterialTheme.typography.labelSmall) },
+                        alwaysShowLabel = false,
                     )
                     NavigationBarItem(
                         selected = currentRoute == ROUTE_WORKSPACE || currentRoute == ROUTE_OPERATOR_WORKSPACE,
@@ -289,15 +302,22 @@ fun AppShell(
                         },
                         icon = { Icon(Icons.Filled.Dashboard, contentDescription = null) },
                         label = { Text("Кабинет", style = MaterialTheme.typography.labelSmall) },
+                        alwaysShowLabel = false,
                     )
-                    pages.take(3).forEach { page ->
-                        NavigationBarItem(
-                            selected = currentRoute == page.route,
-                            onClick = { open(page.route) },
-                            icon = { Icon(page.icon, contentDescription = null) },
-                            label = { Text(page.label, style = MaterialTheme.typography.labelSmall) },
-                        )
-                    }
+                    NavigationBarItem(
+                        selected = currentRoute.startsWith(ROUTE_DIAGNOSTICS),
+                        onClick = { open(ROUTE_DIAGNOSTICS) },
+                        icon = { Icon(Icons.Filled.Science, contentDescription = null) },
+                        label = { Text("Диагностика", style = MaterialTheme.typography.labelSmall) },
+                        alwaysShowLabel = false,
+                    )
+                    NavigationBarItem(
+                        selected = false,
+                        onClick = { scope.launch { drawerState.open() } },
+                        icon = { Icon(Icons.Filled.MoreHoriz, contentDescription = null) },
+                        label = { Text("Ещё", style = MaterialTheme.typography.labelSmall) },
+                        alwaysShowLabel = false,
+                    )
                 }
             },
         ) { padding ->
@@ -391,7 +411,11 @@ private fun ShellNavHost(
                 )
             }
             composable(ROUTE_WORKSPACE) {
-                WorkspaceScreen(session = session, implemented = implemented)
+                WorkspaceScreen(
+                    session = session,
+                    implemented = implemented,
+                    onOpenPage = { page -> onNavigate(page.route) },
+                )
             }
             composable(ROUTE_APPROVALS) { ApprovalsScreen() }
             composable(ROUTE_ACTIVITY) { ActivityScreen() }
