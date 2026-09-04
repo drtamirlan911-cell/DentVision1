@@ -21,8 +21,8 @@ class DiagnosticsRepository(
 ) {
     suspend fun dashboard(): DiagnosticsDashboardStats = apiCall { api.diagnostics.dashboard() }
 
-    suspend fun referrals(): Pair<List<Referral>, Int> {
-        val envelope = api.diagnostics.referrals()
+    suspend fun referrals(status: String? = null, search: String? = null): Pair<List<Referral>, Int> {
+        val envelope = api.diagnostics.referrals(status, search)
         if (!envelope.ok) {
             throw ApiException(status = 200, message = envelope.error ?: "Не удалось получить список направлений")
         }

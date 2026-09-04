@@ -26,7 +26,10 @@ interface DiagnosticsApi {
     suspend fun dashboard(): ApiEnvelope<DiagnosticsDashboardStats>
 
     @GET("api/diagnostics/referrals")
-    suspend fun referrals(): ReferralListEnvelope
+    suspend fun referrals(
+        @Query("status") status: String? = null,
+        @Query("search") search: String? = null,
+    ): ReferralListEnvelope
 
     @GET("api/diagnostics/referrals/{id}")
     suspend fun referral(@Path("id") id: String): ApiEnvelope<ReferralDetail>

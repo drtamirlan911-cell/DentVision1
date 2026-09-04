@@ -34,6 +34,7 @@ import kz.dentvision.crm.navigation.LocalAssistantNavigate
 import kz.dentvision.crm.navigation.ROUTE_DIAGNOSTICS_CENTERS
 import kz.dentvision.crm.navigation.ROUTE_DIAGNOSTICS_LABS
 import kz.dentvision.crm.navigation.ROUTE_DIAGNOSTICS_REFERRALS
+import kz.dentvision.crm.navigation.ROUTE_DIAGNOSTICS_RESULTS
 import kz.dentvision.crm.ui.common.ErrorState
 import kz.dentvision.crm.ui.common.LoadingSkeleton
 import kz.dentvision.crm.ui.common.UiState
@@ -81,6 +82,7 @@ fun DiagnosticsHomeScreen(viewModel: DiagnosticsHomeViewModel = viewModel()) {
             onOpenReferral = { id -> onNavigate("$ROUTE_DIAGNOSTICS_REFERRALS/$id") },
             onOpenCenters = { onNavigate(ROUTE_DIAGNOSTICS_CENTERS) },
             onOpenLabs = { onNavigate(ROUTE_DIAGNOSTICS_LABS) },
+            onOpenResults = { onNavigate(ROUTE_DIAGNOSTICS_RESULTS) },
         )
     }
 }
@@ -92,6 +94,7 @@ private fun DiagnosticsHomeContent(
     onOpenReferral: (String) -> Unit,
     onOpenCenters: () -> Unit,
     onOpenLabs: () -> Unit,
+    onOpenResults: () -> Unit,
 ) {
     Column(modifier = Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
         LazyRow(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -108,6 +111,9 @@ private fun DiagnosticsHomeContent(
 
         DvOutlineButton(onClick = onOpenReferrals, modifier = Modifier.fillMaxWidth()) {
             Text("Все направления")
+        }
+        DvOutlineButton(onClick = onOpenResults, modifier = Modifier.fillMaxWidth()) {
+            Text("Результаты исследований")
         }
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             DvOutlineButton(onClick = onOpenCenters, modifier = Modifier.weight(1f)) {

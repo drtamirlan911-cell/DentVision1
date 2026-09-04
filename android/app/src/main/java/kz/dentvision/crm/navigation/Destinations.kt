@@ -120,3 +120,6 @@ const val ROUTE_DIAGNOSTICS_REFERRAL_NEW = "$ROUTE_DIAGNOSTICS_REFERRALS/new"
 /** Справочники — те же данные, что уже строит пикер учреждения в форме направления. */
 const val ROUTE_DIAGNOSTICS_CENTERS = "diagnostics/centers"
 const val ROUTE_DIAGNOSTICS_LABS = "diagnostics/laboratories"
+
+/** Завершённые/просмотренные направления — фильтр того же `/referrals`. */
+const val ROUTE_DIAGNOSTICS_RESULTS = "diagnostics/results"
