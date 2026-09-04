@@ -12,6 +12,7 @@ import kz.dentvision.crm.data.model.CollectPaymentResult
 import kz.dentvision.crm.data.model.CreateReferralRequest
 import kz.dentvision.crm.data.model.DiagnosticOrg
 import kz.dentvision.crm.data.model.DiagnosticsDashboardStats
+import kz.dentvision.crm.data.model.OperatorDashboard
 import kz.dentvision.crm.data.model.PaymentsSummary
 import kz.dentvision.crm.data.model.PricingItem
 import kz.dentvision.crm.data.model.Referral
@@ -88,5 +89,9 @@ class DiagnosticsRepository(
 
     suspend fun collectPayment(body: CollectPaymentRequest, centerId: String? = null, labId: String? = null): CollectPaymentResult = apiCall {
         if (centerId != null) api.diagnostics.collectCenterPayment(centerId, body) else api.diagnostics.collectLabPayment(labId!!, body)
+    }
+
+    suspend fun operatorDashboard(centerId: String? = null, labId: String? = null): OperatorDashboard = apiCall {
+        if (centerId != null) api.diagnostics.centerDashboard(centerId) else api.diagnostics.labDashboard(labId!!)
     }
 }

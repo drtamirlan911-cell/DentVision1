@@ -369,3 +369,36 @@ data class CollectPaymentResult(
     val platformFee: Double = 0.0,
     val net: Double = 0.0,
 )
+
+/**
+ * `GET /api/diagnostics/{centers,laboratories}/:id/dashboard` — суммы
+ * посчитаны на сервере через `Number(r.cost) || 0`, не сырой `Decimal`,
+ * поэтому `Double` без `JsonElement`-обёртки (в отличие от полей самого
+ * `Referral`).
+ */
+@Serializable
+data class RevenueBreakdown(
+    val today: Double = 0.0,
+    val week: Double = 0.0,
+    val month: Double = 0.0,
+    val year: Double = 0.0,
+    val total: Double = 0.0,
+)
+
+@Serializable
+data class PaymentStats(
+    val paid: Int = 0,
+    val unpaid: Int = 0,
+)
+
+@Serializable
+data class OperatorDashboard(
+    val name: String = "",
+    val referralCount: Int = 0,
+    val completedCount: Int = 0,
+    val revenue: RevenueBreakdown = RevenueBreakdown(),
+    val commissions: RevenueBreakdown = RevenueBreakdown(),
+    val netRevenue: RevenueBreakdown = RevenueBreakdown(),
+    val paymentStats: PaymentStats = PaymentStats(),
+    val byStatus: Map<String, Int> = emptyMap(),
+)

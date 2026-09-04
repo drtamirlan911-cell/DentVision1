@@ -155,3 +155,6 @@ const val ROUTE_OPERATOR_WORKSPACE = "operator-workspace"
 
 /** Касса кабинета приёма — приём оплаты за уже принятое направление. */
 const val ROUTE_OPERATOR_CASHIER = "operator-workspace/cashier"
+
+/** Финансы кабинета приёма — доход/комиссия/статусы, только чтение. */
+const val ROUTE_OPERATOR_FINANCE = "operator-workspace/finance"

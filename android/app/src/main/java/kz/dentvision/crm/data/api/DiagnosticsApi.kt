@@ -9,6 +9,7 @@ import kz.dentvision.crm.data.model.CollectPaymentResult
 import kz.dentvision.crm.data.model.CreateReferralRequest
 import kz.dentvision.crm.data.model.DiagnosticOrg
 import kz.dentvision.crm.data.model.DiagnosticsDashboardStats
+import kz.dentvision.crm.data.model.OperatorDashboard
 import kz.dentvision.crm.data.model.PricingItem
 import kz.dentvision.crm.data.model.PaymentsSummary
 import kz.dentvision.crm.data.model.Referral
@@ -104,4 +105,10 @@ interface DiagnosticsApi {
 
     @POST("api/diagnostics/laboratories/{id}/cashier/collect")
     suspend fun collectLabPayment(@Path("id") id: String, @Body body: CollectPaymentRequest): ApiEnvelope<CollectPaymentResult>
+
+    @GET("api/diagnostics/centers/{id}/dashboard")
+    suspend fun centerDashboard(@Path("id") id: String): ApiEnvelope<OperatorDashboard>
+
+    @GET("api/diagnostics/laboratories/{id}/dashboard")
+    suspend fun labDashboard(@Path("id") id: String): ApiEnvelope<OperatorDashboard>
 }
