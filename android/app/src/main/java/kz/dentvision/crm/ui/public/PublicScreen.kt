@@ -67,11 +67,17 @@ import kz.dentvision.crm.ui.theme.DvTheme
  * Баннер «Подключить центр или лабораторию» — из того же списка: `POST
  * /api/diagnostics/register` тоже заведён до `authenticate`.
  *
- * `embedded = true` — для вошедшего пользователя внутри `AppShell`: своя
- * шапка (лого/«Войти»/стрелка назад) там не нужна и не открывать до входа
- * баннер регистрации центра/лаборатории — своя же оболочка уже даёт
- * заголовок, меню и, при желании подключить центр, отдельный путь через
- * переключатель пространств.
+ * `embedded = true` — экран уже открыт внутри чужой оболочки (`AppShell`
+ * для вошедшего, `GuestShell` для гостя), у которой уже есть своя шапка
+ * (лого/меню/«Войти») — своя шапка здесь была бы второй такой же под
+ * первой, поэтому при `embedded = true` `PublicScreen` не строит `Scaffold`
+ * с `TopAppBar` вообще, а `onBack`/`onSignIn` не используются.
+ *
+ * Баннер регистрации центра/лаборатории от этого не зависит напрямую —
+ * `showRegisterBanner` (по умолчанию `!embedded`) решает его отдельно:
+ * гостю баннер нужен даже в `embedded`-режиме (у `GuestShell` для этого
+ * нет отдельного пункта меню), а вошедшему внутри `AppShell` — нет (там
+ * подключение центра идёт через переключатель пространств).
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -80,12 +86,13 @@ fun PublicScreen(
     onSignIn: () -> Unit = {},
     onRegisterDiagnostics: () -> Unit = {},
     embedded: Boolean = false,
+    showRegisterBanner: Boolean = !embedded,
 ) {
     var tab by remember { mutableIntStateOf(0) }
 
     val body = @Composable {
         Column(modifier = Modifier.fillMaxSize()) {
-            if (!embedded) RegisterDiagnosticsBanner(onClick = onRegisterDiagnostics)
+            if (showRegisterBanner) RegisterDiagnosticsBanner(onClick = onRegisterDiagnostics)
             TabRow(
                 selectedTabIndex = tab,
                 containerColor = DvTheme.colors.surface1,

@@ -34,6 +34,7 @@ import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Bolt
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.Psychology
 import androidx.compose.material.icons.filled.SmartToy
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
@@ -53,6 +54,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -176,35 +178,88 @@ private fun BotChip(size: androidx.compose.ui.unit.Dp, iconSize: androidx.compos
     }
 }
 
+/**
+ * Заглавный экран Intelligence — первое, что видит и гость, и вошедший.
+ * Раньше здесь была статичная плоская иконка робота; теперь — многослойная
+ * анимация вокруг мозга (`Icons.Filled.Psychology`): дышащее внешнее
+ * свечение, медленно вращающееся золотое кольцо и пульсирующее ядро —
+ * тот самый «вау»-момент при первом открытии, а не просто иконка.
+ */
 @Composable
 private fun EmptyHero(isGuest: Boolean) {
     val colors = DvTheme.colors
-    val transition = rememberInfiniteTransition(label = "hero-pulse")
-    val scale by transition.animateFloat(
-        initialValue = 1f,
-        targetValue = 1.04f,
-        animationSpec = infiniteRepeatable(tween(2600, easing = LinearEasing), RepeatMode.Reverse),
-        label = "hero-scale",
+    val transition = rememberInfiniteTransition(label = "hero")
+    val pulse by transition.animateFloat(
+        initialValue = 0.94f,
+        targetValue = 1.08f,
+        animationSpec = infiniteRepeatable(tween(2200, easing = LinearEasing), RepeatMode.Reverse),
+        label = "hero-pulse",
+    )
+    val glowAlpha by transition.animateFloat(
+        initialValue = 0.18f,
+        targetValue = 0.45f,
+        animationSpec = infiniteRepeatable(tween(1800, easing = LinearEasing), RepeatMode.Reverse),
+        label = "hero-glow",
+    )
+    val ringRotation by transition.animateFloat(
+        initialValue = 0f,
+        targetValue = 360f,
+        animationSpec = infiniteRepeatable(tween(7000, easing = LinearEasing)),
+        label = "hero-ring",
     )
     Column(
         modifier = Modifier.fillMaxSize().padding(32.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center,
     ) {
-        Box(
-            modifier = Modifier
-                .size(72.dp)
-                .scale(scale)
-                .clip(RoundedCornerShape(22.dp))
-                .background(
-                    Brush.linearGradient(
-                        listOf(colors.gold.copy(alpha = 0.25f), colors.gold.copy(alpha = 0.02f)),
+        Box(modifier = Modifier.size(112.dp), contentAlignment = Alignment.Center) {
+            // Дышащее свечение вокруг всей композиции.
+            Box(
+                modifier = Modifier
+                    .size(112.dp)
+                    .scale(pulse)
+                    .clip(CircleShape)
+                    .background(
+                        Brush.radialGradient(
+                            listOf(colors.gold.copy(alpha = glowAlpha), Color.Transparent),
+                        ),
                     ),
-                )
-                .border(1.dp, colors.gold.copy(alpha = 0.2f), RoundedCornerShape(22.dp)),
-            contentAlignment = Alignment.Center,
-        ) {
-            Icon(Icons.Filled.SmartToy, contentDescription = null, tint = colors.gold, modifier = Modifier.size(30.dp))
+            )
+            // Вращающееся кольцо — единственный источник «энергии» вокруг ядра.
+            Box(
+                modifier = Modifier
+                    .size(84.dp)
+                    .rotate(ringRotation)
+                    .clip(CircleShape)
+                    .border(
+                        width = 2.dp,
+                        brush = Brush.sweepGradient(
+                            listOf(
+                                Color.Transparent,
+                                colors.gold.copy(alpha = 0.9f),
+                                Color.Transparent,
+                                Color.Transparent,
+                            ),
+                        ),
+                        shape = CircleShape,
+                    ),
+            )
+            // Ядро — сам мозг, пульсирует чуть мягче кольца.
+            Box(
+                modifier = Modifier
+                    .size(72.dp)
+                    .scale(0.96f + (pulse - 0.94f) * 0.4f)
+                    .clip(RoundedCornerShape(22.dp))
+                    .background(
+                        Brush.linearGradient(
+                            listOf(colors.gold.copy(alpha = 0.28f), colors.gold.copy(alpha = 0.04f)),
+                        ),
+                    )
+                    .border(1.dp, colors.gold.copy(alpha = 0.25f), RoundedCornerShape(22.dp)),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(Icons.Filled.Psychology, contentDescription = null, tint = colors.gold, modifier = Modifier.size(34.dp))
+            }
         }
         Text(
             text = "Intelligence",

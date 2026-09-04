@@ -142,8 +142,11 @@ fun GuestShell() {
                         onNavigate = { path -> resolveGuestPath(path, ::open) },
                     )
                     GuestDestination.PUBLIC -> PublicScreen(
-                        onBack = { open(GuestDestination.HOME) },
-                        onSignIn = { open(GuestDestination.LOGIN) },
+                        // embedded = true — GuestShell уже даёт свою шапку
+                        // (меню/гид/«Войти»); без этого здесь рисовалась
+                        // вторая, своя шапка PublicScreen поверх первой.
+                        embedded = true,
+                        showRegisterBanner = true,
                         onRegisterDiagnostics = { open(GuestDestination.REGISTER_DIAGNOSTICS) },
                     )
                     GuestDestination.REGISTER_DIAGNOSTICS -> DiagnosticsRegisterScreen(
