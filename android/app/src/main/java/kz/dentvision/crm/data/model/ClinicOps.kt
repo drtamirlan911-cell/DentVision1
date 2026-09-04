@@ -31,6 +31,23 @@ data class ClinicSettings(
     val onlineBookingEnabled: Boolean? = null,
     /** `warn` или `block` — что делать при пересечении в расписании. */
     val scheduleConflictMode: String? = null,
+    val diagnostics: DiagnosticsSettings? = null,
+)
+
+/**
+ * Значения по умолчанию для новых направлений диагностики — подобъект
+ * `ClinicSettingsPayload.diagnostics` (`clinicSettings.ts:83`). Сервер
+ * сливает верхнеуровневые ключи целиком (`Object.assign`, не глубоко), так
+ * что сохранение шлёт все четыре поля разом, а не частично — частичный
+ * объект здесь стёр бы остальные значения этого подобъекта.
+ */
+@Serializable
+data class DiagnosticsSettings(
+    /** `"3D"` или `"LABORATORY"`. */
+    val defaultCategory: String? = null,
+    val notifyOnStatusChange: Boolean? = null,
+    val autoAssignCenter: Boolean? = null,
+    val requirePriority: Boolean? = null,
 )
 
 @Serializable
