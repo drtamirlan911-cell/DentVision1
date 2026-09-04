@@ -59,8 +59,10 @@ data class ReferralResultBrief(
 @Serializable
 data class Referral(
     val id: String,
+    val patientId: String? = null,
     val patientName: String = "",
     val patientIin: String? = null,
+    val patientPhone: String? = null,
     val category: String = "",
     val studyType: String = "",
     val priority: String = "NORMAL",

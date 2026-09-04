@@ -123,3 +123,6 @@ const val ROUTE_DIAGNOSTICS_LABS = "diagnostics/laboratories"
 
 /** Завершённые/просмотренные направления — фильтр того же `/referrals`. */
 const val ROUTE_DIAGNOSTICS_RESULTS = "diagnostics/results"
+
+/** Пациенты диагностики — группировка того же списка направлений, без своей ручки. */
+const val ROUTE_DIAGNOSTICS_PATIENTS = "diagnostics/patients"
