@@ -17,6 +17,7 @@ import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.PersonAdd
 import androidx.compose.material.icons.filled.School
 import androidx.compose.material.icons.filled.Science
+import androidx.compose.material.icons.filled.Sell
 import androidx.compose.material3.DrawerValue
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
@@ -55,7 +56,7 @@ import kz.dentvision.crm.ui.theme.DvTheme
  * пункты этой же оболочки, а не отдельный экран поверх всего: они не
  * блокируют, к ним просто можно перейти и вернуться.
  */
-private enum class GuestDestination { HOME, PUBLIC, REGISTER_DIAGNOSTICS, LOGIN, REGISTER }
+private enum class GuestDestination { HOME, PUBLIC, REGISTER_DIAGNOSTICS, PRICING, LOGIN, REGISTER }
 
 /**
  * Постоянная оболочка гостя — тот же принцип, что `AppShell.kt` у вошедшего:
@@ -132,6 +133,9 @@ fun GuestShell() {
                     GuestDestination.REGISTER_DIAGNOSTICS -> DiagnosticsRegisterScreen(
                         onBack = { open(GuestDestination.HOME) },
                     )
+                    GuestDestination.PRICING -> PricingScreen(
+                        onRegister = { open(GuestDestination.REGISTER) },
+                    )
                     GuestDestination.LOGIN -> LoginScreen(
                         onBrowsePublic = { open(GuestDestination.HOME) },
                     )
@@ -189,6 +193,12 @@ private fun GuestDrawerContent(destination: GuestDestination, onOpen: (GuestDest
             icon = Icons.Filled.Science,
             active = destination == GuestDestination.REGISTER_DIAGNOSTICS,
             onClick = { onOpen(GuestDestination.REGISTER_DIAGNOSTICS) },
+        )
+        GuestDrawerItem(
+            label = "Тарифы",
+            icon = Icons.Filled.Sell,
+            active = destination == GuestDestination.PRICING,
+            onClick = { onOpen(GuestDestination.PRICING) },
         )
 
         HorizontalDivider(color = DvTheme.colors.borderSubtle, modifier = Modifier.padding(vertical = 12.dp, horizontal = 20.dp))
