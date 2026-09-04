@@ -31,6 +31,22 @@ private val SUCCESS_STATUSES = setOf("COMPLETED", "REVIEWED", "DELIVERED")
 
 fun referralStatusLabel(status: String): String = STATUS_LABELS[status] ?: status
 
+/**
+ * Группировка 11 статусов в 4 стадии воронки — перенос `PHASES`/
+ * `countByPhase`/`countAwaitingAction` из `src/lib/referralStatus.ts`.
+ * `CANCELLED` вне воронки, как и на вебе.
+ */
+enum class ReferralPhase { AWAITING, ACCEPTED, IN_PROGRESS, DONE, CANCELLED }
+
+fun referralPhase(status: String): ReferralPhase = when (status) {
+    "DRAFT", "SENT" -> ReferralPhase.AWAITING
+    "ACCEPTED", "SCHEDULED", "PATIENT_ARRIVED" -> ReferralPhase.ACCEPTED
+    "IN_PROGRESS" -> ReferralPhase.IN_PROGRESS
+    "COMPLETED", "REVIEWED", "DELIVERED", "CLOSED" -> ReferralPhase.DONE
+    "CANCELLED" -> ReferralPhase.CANCELLED
+    else -> ReferralPhase.AWAITING
+}
+
 @Composable
 fun referralStatusColor(status: String): Color {
     val colors = DvTheme.colors

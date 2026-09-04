@@ -143,3 +143,12 @@ const val ROUTE_DIAGNOSTICS_SETTINGS = "diagnostics/settings"
  * другие разделы диагностики — реальная защита всё равно на бэкенде.
  */
 const val ROUTE_DIAGNOSTICS_REGISTRATIONS = "diagnostics/registrations"
+
+/**
+ * Кабинет приёма — сторона диагностического центра/лаборатории, получающая
+ * направления (`DiagnosticWorkspace` на вебе, `/center-workspace`). Виден
+ * только когда `session.user.organizationType` — `DIAGNOSTIC_CENTER` или
+ * `LABORATORY` (см. `DrawerContent` в `AppShell.kt`), в отличие от
+ * [ROUTE_DIAGNOSTICS], который виден всем безусловно.
+ */
+const val ROUTE_OPERATOR_WORKSPACE = "operator-workspace"

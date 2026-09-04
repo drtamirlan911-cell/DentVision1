@@ -1,6 +1,9 @@
 package kz.dentvision.crm.data.api
 
 import kotlinx.serialization.json.JsonElement
+import kz.dentvision.crm.data.model.AiGenerateResultRequest
+import kz.dentvision.crm.data.model.AiGeneratedResult
+import kz.dentvision.crm.data.model.ChangeReferralStatusRequest
 import kz.dentvision.crm.data.model.CreateReferralRequest
 import kz.dentvision.crm.data.model.DiagnosticOrg
 import kz.dentvision.crm.data.model.DiagnosticsDashboardStats
@@ -10,6 +13,7 @@ import kz.dentvision.crm.data.model.ReferralDetail
 import kz.dentvision.crm.data.model.ReferralListEnvelope
 import kz.dentvision.crm.data.model.RegistrationRequest
 import kz.dentvision.crm.data.model.RejectRegistrationRequest
+import kz.dentvision.crm.data.model.SignResultRequest
 import kz.dentvision.crm.data.model.UploadFileRequest
 import retrofit2.http.Body
 import retrofit2.http.GET
@@ -32,6 +36,8 @@ interface DiagnosticsApi {
         @Query("status") status: String? = null,
         @Query("search") search: String? = null,
         @Query("limit") limit: Int? = null,
+        @Query("centerId") centerId: String? = null,
+        @Query("labId") labId: String? = null,
     ): ReferralListEnvelope
 
     @GET("api/diagnostics/referrals/{id}")
@@ -70,4 +76,17 @@ interface DiagnosticsApi {
         @Path("id") id: String,
         @Body body: RejectRegistrationRequest,
     ): ApiEnvelope<RegistrationRequest>
+
+    /** Общая ручка смены статуса — «Принять» и «Начать» на приёмной стороне. */
+    @POST("api/diagnostics/referrals/{id}/status")
+    suspend fun changeReferralStatus(
+        @Path("id") id: String,
+        @Body body: ChangeReferralStatusRequest,
+    ): ApiEnvelope<Referral>
+
+    @POST("api/diagnostics/results/ai-generate")
+    suspend fun aiGenerateResult(@Body body: AiGenerateResultRequest): ApiEnvelope<AiGeneratedResult>
+
+    @POST("api/diagnostics/results/{id}/sign")
+    suspend fun signResult(@Path("id") id: String, @Body body: SignResultRequest): ApiEnvelope<JsonElement>
 }

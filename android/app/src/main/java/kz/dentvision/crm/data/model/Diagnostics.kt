@@ -73,6 +73,7 @@ data class Referral(
     val doctor: PersonBrief? = null,
     val cost: JsonElement? = null,
     val platformFee: JsonElement? = null,
+    val paid: Boolean = false,
     val scheduledDate: String? = null,
     val completedAt: String? = null,
     val createdAt: String? = null,
@@ -273,4 +274,42 @@ data class SubmitRegistrationRequest(
     val phone: String? = null,
     val email: String? = null,
     val comment: String? = null,
+)
+
+/**
+ * Тело `POST /api/diagnostics/referrals/:id/status` — общая ручка смены
+ * статуса, используется и «Принять» (SENT→ACCEPTED, требует `cost`, если
+ * сервер не подберёт его сам по прайс-листу — `changeReferralStatus`,
+ * `diagnostics.service.ts:573`), и «Начать» (ACCEPTED→IN_PROGRESS, без
+ * доп. полей). `platformFee` необязателен — сервер сам считает 10% от
+ * `cost`, если не прислан.
+ */
+@Serializable
+data class ChangeReferralStatusRequest(
+    val status: String,
+    val reason: String? = null,
+    val cost: Double? = null,
+    val platformFee: Double? = null,
+)
+
+/** Тело `POST /api/diagnostics/results/ai-generate`. */
+@Serializable
+data class AiGenerateResultRequest(
+    val referralId: String,
+)
+
+/**
+ * Ответ `POST /api/diagnostics/results/ai-generate` — из всего, что
+ * возвращает `aiGenerateResult`, экрану нужен только текст заключения.
+ */
+@Serializable
+data class AiGeneratedResult(
+    val reportText: String? = null,
+)
+
+/** Тело `POST /api/diagnostics/results/:id/sign`. */
+@Serializable
+data class SignResultRequest(
+    val reportText: String,
+    val conclusion: String? = null,
 )

@@ -1,8 +1,12 @@
 package kz.dentvision.crm.data
 
+import kotlinx.serialization.json.JsonElement
 import kz.dentvision.crm.data.api.ApiClient
 import kz.dentvision.crm.data.api.ApiException
 import kz.dentvision.crm.data.api.apiCall
+import kz.dentvision.crm.data.model.AiGenerateResultRequest
+import kz.dentvision.crm.data.model.AiGeneratedResult
+import kz.dentvision.crm.data.model.ChangeReferralStatusRequest
 import kz.dentvision.crm.data.model.CreateReferralRequest
 import kz.dentvision.crm.data.model.DiagnosticOrg
 import kz.dentvision.crm.data.model.DiagnosticsDashboardStats
@@ -11,6 +15,7 @@ import kz.dentvision.crm.data.model.Referral
 import kz.dentvision.crm.data.model.ReferralDetail
 import kz.dentvision.crm.data.model.RegistrationRequest
 import kz.dentvision.crm.data.model.RejectRegistrationRequest
+import kz.dentvision.crm.data.model.SignResultRequest
 import kz.dentvision.crm.data.model.UploadFileRequest
 
 /**
@@ -23,8 +28,14 @@ class DiagnosticsRepository(
 ) {
     suspend fun dashboard(): DiagnosticsDashboardStats = apiCall { api.diagnostics.dashboard() }
 
-    suspend fun referrals(status: String? = null, search: String? = null, limit: Int? = null): Pair<List<Referral>, Int> {
-        val envelope = api.diagnostics.referrals(status, search, limit)
+    suspend fun referrals(
+        status: String? = null,
+        search: String? = null,
+        limit: Int? = null,
+        centerId: String? = null,
+        labId: String? = null,
+    ): Pair<List<Referral>, Int> {
+        val envelope = api.diagnostics.referrals(status, search, limit, centerId, labId)
         if (!envelope.ok) {
             throw ApiException(status = 200, message = envelope.error ?: "Не удалось получить список направлений")
         }
@@ -57,4 +68,13 @@ class DiagnosticsRepository(
 
     suspend fun rejectRegistration(id: String, reason: String?): RegistrationRequest =
         apiCall { api.diagnostics.rejectRegistration(id, RejectRegistrationRequest(reason)) }
+
+    suspend fun changeReferralStatus(id: String, status: String, cost: Double? = null, platformFee: Double? = null): Referral =
+        apiCall { api.diagnostics.changeReferralStatus(id, ChangeReferralStatusRequest(status = status, cost = cost, platformFee = platformFee)) }
+
+    suspend fun aiGenerateResult(referralId: String): AiGeneratedResult =
+        apiCall { api.diagnostics.aiGenerateResult(AiGenerateResultRequest(referralId)) }
+
+    suspend fun signResult(referralId: String, reportText: String, conclusion: String?): JsonElement =
+        apiCall { api.diagnostics.signResult(referralId, SignResultRequest(reportText, conclusion)) }
 }

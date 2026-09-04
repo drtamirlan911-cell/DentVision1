@@ -81,6 +81,7 @@ import kz.dentvision.crm.navigation.ROUTE_DIAGNOSTICS_CALENDAR
 import kz.dentvision.crm.navigation.ROUTE_DIAGNOSTICS_STATISTICS
 import kz.dentvision.crm.navigation.ROUTE_DIAGNOSTICS_SETTINGS
 import kz.dentvision.crm.navigation.ROUTE_DIAGNOSTICS_REGISTRATIONS
+import kz.dentvision.crm.navigation.ROUTE_OPERATOR_WORKSPACE
 import kz.dentvision.crm.navigation.ROUTE_DIAGNOSTICS_RESULTS
 import kz.dentvision.crm.navigation.ROUTE_DIAGNOSTICS_REFERRALS
 import kz.dentvision.crm.navigation.ROUTE_DIAGNOSTICS_REFERRAL_NEW
@@ -103,6 +104,7 @@ import kz.dentvision.crm.ui.diagnostics.DiagnosticCalendarScreen
 import kz.dentvision.crm.ui.diagnostics.DiagnosticStatisticsScreen
 import kz.dentvision.crm.ui.diagnostics.DiagnosticSettingsScreen
 import kz.dentvision.crm.ui.diagnostics.RegistrationRequestsScreen
+import kz.dentvision.crm.ui.diagnostics.OperatorWorkspaceScreen
 import kz.dentvision.crm.ui.diagnostics.ResultsScreen
 import kz.dentvision.crm.ui.home.WorkspaceScreen
 import kz.dentvision.crm.ui.intelligence.IntelligenceScreen
@@ -280,11 +282,14 @@ fun AppShell(
             onSwitched = { context ->
                 workspaceSwitcherOpen = false
                 scope.launch { snackbarHostState.showSnackbar("Активно: ${context.name}") }
-                // Кабинет клиники — единственный тип пространства, у которого
-                // на Android есть построенный экран (см. тело PR #233); для
-                // остальных типов остаёмся на месте, а `session.pages` сами
-                // честно покажут в меню только то, что реализовано.
-                if (context.scopeType == "CLINIC") open(ROUTE_WORKSPACE)
+                // Кабинет клиники и кабинет приёма (центр/лаборатория) —
+                // единственные типы пространств, у которых на Android есть
+                // построенный экран (см. тело PR #233); для остальных типов
+                // остаёмся на месте.
+                when (context.scopeType) {
+                    "CLINIC" -> open(ROUTE_WORKSPACE)
+                    "DIAGNOSTIC_CENTER", "LABORATORY" -> open(ROUTE_OPERATOR_WORKSPACE)
+                }
             },
             viewModel = workspaceSwitcherViewModel,
         )
@@ -308,6 +313,7 @@ private fun fixedRouteTitle(route: String): String? = when (route) {
     ROUTE_DIAGNOSTICS_STATISTICS -> "Статистика диагностики"
     ROUTE_DIAGNOSTICS_SETTINGS -> "Настройки диагностики"
     ROUTE_DIAGNOSTICS_REGISTRATIONS -> "Заявки на регистрацию"
+    ROUTE_OPERATOR_WORKSPACE -> "Кабинет приёма"
     else -> null
 }
 
@@ -357,6 +363,7 @@ private fun ShellNavHost(
             composable(ROUTE_DIAGNOSTICS_STATISTICS) { DiagnosticStatisticsScreen() }
             composable(ROUTE_DIAGNOSTICS_SETTINGS) { DiagnosticSettingsScreen(clinicId = session.clinic?.id) }
             composable(ROUTE_DIAGNOSTICS_REGISTRATIONS) { RegistrationRequestsScreen() }
+            composable(ROUTE_OPERATOR_WORKSPACE) { OperatorWorkspaceScreen(session = session) }
             // Маршрут заводится только под построенный экран и только если роль
             // имеет на него право — иначе его в графе просто нет.
             visiblePages(session.pages, implemented).forEach { page ->
@@ -427,6 +434,20 @@ private fun DrawerContent(
             active = currentRoute.startsWith(ROUTE_DIAGNOSTICS),
             onClick = { onOpen(ROUTE_DIAGNOSTICS) },
         )
+        // Кабинет приёма — сторона центра/лаборатории, а не клиники: пункт
+        // виден только когда активное пространство и есть такая организация
+        // (`session.user.organizationType` отражает АКТИВНОЕ пространство,
+        // переиздаётся при switch-context). Без членства пункт вёл бы в
+        // тупик (регистрация организации из кабинета не построена), поэтому
+        // просто не показывается, а не показывается неработающим.
+        if (session.user.organizationType == "DIAGNOSTIC_CENTER" || session.user.organizationType == "LABORATORY") {
+            PillarDrawerItem(
+                label = "Кабинет приёма",
+                icon = Icons.Filled.Science,
+                active = currentRoute == ROUTE_OPERATOR_WORKSPACE,
+                onClick = { onOpen(ROUTE_OPERATOR_WORKSPACE) },
+            )
+        }
         // Сквозные поверхности governance-ядра — одинаковые для всех вошедших,
         // поэтому фиксированные пункты рядом с «Кабинетом», а не часть [pages].
         PillarDrawerItem(
