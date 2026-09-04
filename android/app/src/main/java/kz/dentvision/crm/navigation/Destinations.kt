@@ -161,3 +161,6 @@ const val ROUTE_OPERATOR_FINANCE = "operator-workspace/finance"
 
 /** Услуги и цены кабинета приёма — прайс-лист центра/лаборатории. */
 const val ROUTE_OPERATOR_SERVICES = "operator-workspace/services"
+
+/** Оплаты кабинета приёма — история + итоги, только чтение. */
+const val ROUTE_OPERATOR_PAYMENTS = "operator-workspace/payments"
