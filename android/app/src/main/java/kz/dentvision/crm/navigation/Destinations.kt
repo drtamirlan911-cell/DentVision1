@@ -96,3 +96,15 @@ const val ROUTE_WORKSPACE = "workspace"
  */
 const val ROUTE_APPROVALS = "ai/approvals"
 const val ROUTE_ACTIVITY = "ai/activity"
+
+/**
+ * Кабинет диагностики (исходящие направления) — как `nav.diagnostics` в
+ * `Sidebar.tsx`: доступен любому вошедшему не-гостю всегда, безусловно,
+ * независимо от активного рабочего пространства. У сервера нет для него
+ * ни списка `pages`, ни проверки прав на клиенте (реальная защита —
+ * `loadClinicAccess`/`authorizeReferralListScope` на бэкенде), поэтому
+ * маршруты заводятся напрямую, как [ROUTE_APPROVALS]/[ROUTE_ACTIVITY], а не
+ * через [IMPLEMENTED_PAGES]/`CRM_PAGES`.
+ */
+const val ROUTE_DIAGNOSTICS = "diagnostics"
+const val ROUTE_DIAGNOSTICS_REFERRALS = "diagnostics/referrals"

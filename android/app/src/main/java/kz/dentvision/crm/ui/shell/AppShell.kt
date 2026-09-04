@@ -21,6 +21,7 @@ import androidx.compose.material.icons.filled.Dashboard
 import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Menu
+import androidx.compose.material.icons.filled.Science
 import androidx.compose.material.icons.filled.SmartToy
 import androidx.compose.material.icons.filled.TaskAlt
 import androidx.compose.material3.DrawerValue
@@ -72,6 +73,8 @@ import kz.dentvision.crm.navigation.IMPLEMENTED_PAGES
 import kz.dentvision.crm.navigation.LocalAssistantNavigate
 import kz.dentvision.crm.navigation.ROUTE_ACTIVITY
 import kz.dentvision.crm.navigation.ROUTE_APPROVALS
+import kz.dentvision.crm.navigation.ROUTE_DIAGNOSTICS
+import kz.dentvision.crm.navigation.ROUTE_DIAGNOSTICS_REFERRALS
 import kz.dentvision.crm.navigation.ROUTE_INTELLIGENCE
 import kz.dentvision.crm.navigation.ROUTE_WORKSPACE
 import kz.dentvision.crm.navigation.resolveAssistantPath
@@ -80,6 +83,9 @@ import kz.dentvision.crm.ui.activity.ActivityScreen
 import kz.dentvision.crm.ui.approvals.ApprovalsScreen
 import kz.dentvision.crm.ui.common.DvLogo
 import kz.dentvision.crm.ui.common.UiState
+import kz.dentvision.crm.ui.diagnostics.DiagnosticsHomeScreen
+import kz.dentvision.crm.ui.diagnostics.ReferralDetailScreen
+import kz.dentvision.crm.ui.diagnostics.ReferralListScreen
 import kz.dentvision.crm.ui.home.WorkspaceScreen
 import kz.dentvision.crm.ui.intelligence.IntelligenceScreen
 import kz.dentvision.crm.ui.theme.DvTheme
@@ -272,6 +278,9 @@ private fun fixedRouteTitle(route: String): String? = when (route) {
     ROUTE_INTELLIGENCE -> "Intelligence"
     ROUTE_APPROVALS -> "Подтверждения ИИ"
     ROUTE_ACTIVITY -> "Активность ИИ"
+    ROUTE_DIAGNOSTICS -> "Диагностика"
+    ROUTE_DIAGNOSTICS_REFERRALS -> "Направления"
+    "$ROUTE_DIAGNOSTICS_REFERRALS/{id}" -> "Направление"
     else -> null
 }
 
@@ -299,6 +308,12 @@ private fun ShellNavHost(
             }
             composable(ROUTE_APPROVALS) { ApprovalsScreen() }
             composable(ROUTE_ACTIVITY) { ActivityScreen() }
+            composable(ROUTE_DIAGNOSTICS) { DiagnosticsHomeScreen() }
+            composable(ROUTE_DIAGNOSTICS_REFERRALS) { ReferralListScreen() }
+            composable("$ROUTE_DIAGNOSTICS_REFERRALS/{id}") { backStackEntry ->
+                val id = backStackEntry.arguments?.getString("id")
+                if (id != null) ReferralDetailScreen(referralId = id)
+            }
             // Маршрут заводится только под построенный экран и только если роль
             // имеет на него право — иначе его в графе просто нет.
             visiblePages(session.pages, implemented).forEach { page ->
@@ -358,6 +373,16 @@ private fun DrawerContent(
             icon = Icons.Filled.Dashboard,
             active = currentRoute == ROUTE_WORKSPACE,
             onClick = { onOpen(ROUTE_WORKSPACE) },
+        )
+        // Кабинет диагностики (исходящие направления) — как `nav.diagnostics`
+        // в `Sidebar.tsx`: виден всегда, безусловно, а не только в рабочем
+        // пространстве типа DIAGNOSTIC_CENTER/LABORATORY — это другой, ещё не
+        // построенный кабинет (см. ROUTE_DIAGNOSTICS в Destinations.kt).
+        PillarDrawerItem(
+            label = "Диагностика",
+            icon = Icons.Filled.Science,
+            active = currentRoute.startsWith(ROUTE_DIAGNOSTICS),
+            onClick = { onOpen(ROUTE_DIAGNOSTICS) },
         )
         // Сквозные поверхности governance-ядра — одинаковые для всех вошедших,
         // поэтому фиксированные пункты рядом с «Кабинетом», а не часть [pages].
