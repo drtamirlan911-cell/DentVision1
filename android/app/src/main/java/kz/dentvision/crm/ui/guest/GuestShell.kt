@@ -13,12 +13,14 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Login
 import androidx.compose.material.icons.filled.AutoAwesome
+import androidx.compose.material.icons.filled.Biotech
 import androidx.compose.material.icons.filled.Groups
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.PersonAdd
 import androidx.compose.material.icons.filled.School
 import androidx.compose.material.icons.filled.Science
 import androidx.compose.material.icons.filled.Sell
+import androidx.compose.material.icons.filled.TipsAndUpdates
 import androidx.compose.material.icons.filled.Work
 import androidx.compose.material3.DrawerValue
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -26,6 +28,7 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.ModalDrawerSheet
 import androidx.compose.material3.ModalNavigationDrawer
 import androidx.compose.material3.Scaffold
@@ -34,6 +37,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.rememberDrawerState
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -60,7 +64,7 @@ import kz.dentvision.crm.ui.theme.DvTheme
  * пункты этой же оболочки, а не отдельный экран поверх всего: они не
  * блокируют, к ним просто можно перейти и вернуться.
  */
-private enum class GuestDestination { HOME, PUBLIC, REGISTER_DIAGNOSTICS, JOBS, COMMUNITY, PRICING, LOGIN, REGISTER }
+private enum class GuestDestination { HOME, PUBLIC, REGISTER_DIAGNOSTICS, JOBS, COMMUNITY, PRICING, DEMO, LOGIN, REGISTER }
 
 /**
  * Постоянная оболочка гостя — тот же принцип, что `AppShell.kt` у вошедшего:
@@ -84,6 +88,7 @@ fun GuestShell() {
     var destination by rememberSaveable { mutableStateOf(GuestDestination.HOME) }
     val drawerState = rememberDrawerState(DrawerValue.Closed)
     val scope = rememberCoroutineScope()
+    var guideOpen by remember { mutableStateOf(false) }
 
     fun open(target: GuestDestination) {
         destination = target
@@ -118,6 +123,13 @@ fun GuestShell() {
                         }
                     },
                     actions = {
+                        IconButton(onClick = { guideOpen = true }) {
+                            Icon(
+                                Icons.Filled.TipsAndUpdates,
+                                contentDescription = "Гид по платформе",
+                                tint = DvTheme.colors.gold,
+                            )
+                        }
                         TextButton(onClick = { open(GuestDestination.LOGIN) }) { Text("Войти") }
                     },
                     colors = TopAppBarDefaults.topAppBarColors(containerColor = DvTheme.colors.surface1),
@@ -148,6 +160,10 @@ fun GuestShell() {
                         isAuthenticated = false,
                         onRequireLogin = { open(GuestDestination.LOGIN) },
                     )
+                    GuestDestination.DEMO -> GuestDemoScreen(
+                        onBack = { open(GuestDestination.HOME) },
+                        onSignIn = { open(GuestDestination.LOGIN) },
+                    )
                     GuestDestination.LOGIN -> LoginScreen(
                         onBrowsePublic = { open(GuestDestination.HOME) },
                     )
@@ -159,10 +175,39 @@ fun GuestShell() {
             }
         }
     }
+
+    if (guideOpen) {
+        val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+        ModalBottomSheet(
+            onDismissRequest = { guideOpen = false },
+            sheetState = sheetState,
+            containerColor = DvTheme.colors.surface1,
+        ) {
+            GuestGuideSheet(
+                onDemo = {
+                    guideOpen = false
+                    open(GuestDestination.DEMO)
+                },
+                onLogin = {
+                    guideOpen = false
+                    open(GuestDestination.LOGIN)
+                },
+            )
+        }
+    }
 }
 
-/** `/shop`,`/school` → витрина; `/register-diagnostics` → регистрация центра; всё остальное — вход, честная граница (нет анонимного кабинета клиники). */
+/**
+ * `/shop`,`/school` → витрина; `/register-diagnostics` → регистрация центра;
+ * `/crm/schedule?demo=1` (как в вебе — `Sidebar.tsx`, `ChatMessage.tsx`,
+ * `aiPlatformMap.ts` шлют именно этот путь) → демо-клиника; всё остальное —
+ * вход, честная граница (нет анонимного кабинета клиники).
+ */
 private fun resolveGuestPath(path: String, open: (GuestDestination) -> Unit) {
+    if (path.contains("demo=1")) {
+        open(GuestDestination.DEMO)
+        return
+    }
     when (path.substringBefore('?')) {
         "/shop", "/school" -> open(GuestDestination.PUBLIC)
         "/register-diagnostics" -> open(GuestDestination.REGISTER_DIAGNOSTICS)
@@ -196,6 +241,12 @@ private fun GuestDrawerContent(destination: GuestDestination, onOpen: (GuestDest
             icon = Icons.Filled.AutoAwesome,
             active = destination == GuestDestination.HOME,
             onClick = { onOpen(GuestDestination.HOME) },
+        )
+        GuestDrawerItem(
+            label = "Демо-версия CRM",
+            icon = Icons.Filled.Biotech,
+            active = destination == GuestDestination.DEMO,
+            onClick = { onOpen(GuestDestination.DEMO) },
         )
         GuestDrawerItem(
             label = "Магазин и школа",
