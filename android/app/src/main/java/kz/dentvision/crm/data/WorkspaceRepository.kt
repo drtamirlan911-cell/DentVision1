@@ -29,9 +29,13 @@ class WorkspaceRepository(
                 ),
             )
         }
-        // /me читается ещё со старым, но всё ещё рабочим токеном из
-        // SessionStore — новые подставляются вместе с остальным ответом
-        // одним save(), а не двумя шагами, как setTokens()+restoreSession() в вебе.
+        // Новые токены — в SessionStore СНАЧАЛА: AuthInterceptor берёт
+        // Authorization живьём из session.accessToken, и если вызвать /me
+        // раньше этой строки, запрос уйдёт ещё со старым токеном и ответит
+        // данными прошлого пространства (organizationType/pages/permissions
+        // от него же) — тот же порядок, что setTokens() → restoreSession()
+        // на вебе, а не наоборот.
+        session.updateTokens(tokens.accessToken, tokens.refreshToken)
         val me = apiCall { api.auth.me() }
         val refreshed = Session.from(me, tokens.accessToken, tokens.refreshToken)
         session.save(refreshed)

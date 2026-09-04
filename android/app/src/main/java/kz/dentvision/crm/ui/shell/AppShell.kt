@@ -70,6 +70,7 @@ import kz.dentvision.crm.data.session.Session
 import kz.dentvision.crm.navigation.CrmPage
 import kz.dentvision.crm.navigation.CrmSection
 import kz.dentvision.crm.navigation.IMPLEMENTED_PAGES
+import kz.dentvision.crm.navigation.cabinetRouteFor
 import kz.dentvision.crm.navigation.LocalAssistantNavigate
 import kz.dentvision.crm.navigation.ROUTE_ACTIVITY
 import kz.dentvision.crm.navigation.ROUTE_APPROVALS
@@ -182,6 +183,15 @@ fun AppShell(
                         scope.launch { drawerState.close() }
                         open(route)
                     },
+                    onOpenCabinet = {
+                        scope.launch { drawerState.close() }
+                        val target = cabinetRouteFor(session)
+                        if (target != null) {
+                            open(target)
+                        } else {
+                            scope.launch { snackbarHostState.showSnackbar("Для этого рабочего пространства кабинет пока не построен") }
+                        }
+                    },
                     onLogout = onLogout,
                 )
             }
@@ -259,8 +269,15 @@ fun AppShell(
                         label = { Text("Intelligence", style = MaterialTheme.typography.labelSmall) },
                     )
                     NavigationBarItem(
-                        selected = currentRoute == ROUTE_WORKSPACE,
-                        onClick = { open(ROUTE_WORKSPACE) },
+                        selected = currentRoute == ROUTE_WORKSPACE || currentRoute == ROUTE_OPERATOR_WORKSPACE,
+                        onClick = {
+                            val target = cabinetRouteFor(session)
+                            if (target != null) {
+                                open(target)
+                            } else {
+                                scope.launch { snackbarHostState.showSnackbar("Для этого рабочего пространства кабинет пока не построен") }
+                            }
+                        },
                         icon = { Icon(Icons.Filled.Dashboard, contentDescription = null) },
                         label = { Text("Кабинет", style = MaterialTheme.typography.labelSmall) },
                     )
@@ -291,14 +308,24 @@ fun AppShell(
             onDismiss = { workspaceSwitcherOpen = false },
             onSwitched = { context ->
                 workspaceSwitcherOpen = false
-                scope.launch { snackbarHostState.showSnackbar("Активно: ${context.name}") }
                 // Кабинет клиники и кабинет приёма (центр/лаборатория) —
                 // единственные типы пространств, у которых на Android есть
-                // построенный экран (см. тело PR #233); для остальных типов
-                // остаёмся на месте.
+                // построенный экран; для остальных типов — честный снекбар,
+                // а не молчаливое «остаёмся на месте» (при котором открытый
+                // сейчас экран продолжил бы работать с id уже переключённого
+                // пространства чужого типа).
                 when (context.scopeType) {
-                    "CLINIC" -> open(ROUTE_WORKSPACE)
-                    "DIAGNOSTIC_CENTER", "LABORATORY" -> open(ROUTE_OPERATOR_WORKSPACE)
+                    "CLINIC" -> {
+                        scope.launch { snackbarHostState.showSnackbar("Активно: ${context.name}") }
+                        open(ROUTE_WORKSPACE)
+                    }
+                    "DIAGNOSTIC_CENTER", "LABORATORY" -> {
+                        scope.launch { snackbarHostState.showSnackbar("Активно: ${context.name}") }
+                        open(ROUTE_OPERATOR_WORKSPACE)
+                    }
+                    else -> scope.launch {
+                        snackbarHostState.showSnackbar("Активно: ${context.name} — кабинет для этого пространства пока не построен")
+                    }
                 }
             },
             viewModel = workspaceSwitcherViewModel,
@@ -400,6 +427,7 @@ private fun DrawerContent(
     pages: List<CrmPage>,
     currentRoute: String,
     onOpen: (String) -> Unit,
+    onOpenCabinet: () -> Unit,
     onLogout: () -> Unit,
 ) {
     Column(modifier = Modifier.verticalScroll(rememberScrollState()).padding(vertical = 12.dp)) {
@@ -441,8 +469,8 @@ private fun DrawerContent(
         PillarDrawerItem(
             label = "Кабинет",
             icon = Icons.Filled.Dashboard,
-            active = currentRoute == ROUTE_WORKSPACE,
-            onClick = { onOpen(ROUTE_WORKSPACE) },
+            active = currentRoute == ROUTE_WORKSPACE || currentRoute == ROUTE_OPERATOR_WORKSPACE,
+            onClick = onOpenCabinet,
         )
         // Кабинет диагностики (исходящие направления) — как `nav.diagnostics`
         // в `Sidebar.tsx`: виден всегда, безусловно, а не только в рабочем

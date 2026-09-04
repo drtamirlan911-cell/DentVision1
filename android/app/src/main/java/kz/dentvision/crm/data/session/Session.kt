@@ -132,4 +132,13 @@ private val LEGACY_KEY_MAP: Map<String, String> = mapOf(
     "appointment.delete" to "appointments.delete",
     "finance.manage" to "billing.manage",
     "finance.read" to "billing.read",
+    "bi.clinic" to "bi.read",
+    "bi.network" to "admin.read",
+    "bi.platform" to "admin.read",
+    "bi.finance" to "billing.manage",
+    "platform.analytics" to "admin.read",
+    "compliance.manage" to "audit.read",
+    "partner.manage" to "shop.manage",
+    "supplier.manage" to "shop.manage",
+    "workflow.manage" to "settings.manage",
 )

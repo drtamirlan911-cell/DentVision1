@@ -167,10 +167,10 @@ class ServicesViewModel(
 
 @Composable
 fun ServicesScreen(session: Session, viewModel: ServicesViewModel = viewModel()) {
-    val kind = if (session.user.organizationType == "LABORATORY") OperatorKind.LAB else OperatorKind.CENTER
+    val kind = operatorKindFor(session.user.organizationType)
     val orgId = session.user.organizationId
 
-    if (orgId == null) {
+    if (kind == null || orgId == null) {
         Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
             Text(
                 text = "Не удалось определить организацию текущего рабочего пространства.",

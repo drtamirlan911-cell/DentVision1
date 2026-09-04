@@ -79,6 +79,21 @@ import java.util.UUID
 
 enum class OperatorKind { CENTER, LAB }
 
+/**
+ * `organizationType` активного пространства → вид кабинета приёма, или
+ * `null`, если пространство не диагностическое вообще (SUPPLIER/ACADEMY/
+ * PARTNER/CLINIC — сюда попадать не должны через обычную навигацию после
+ * починки маршрутизации в `AppShell.kt`, но экран не должен угадывать).
+ * `internal`, единственная копия на пакет `ui.diagnostics` — переиспользуется
+ * во всех шести экранах кабинета приёма, чтобы не повторять одну и ту же
+ * проверку и не заваливаться в CENTER по умолчанию для любого «не LABORATORY».
+ */
+internal fun operatorKindFor(organizationType: String?): OperatorKind? = when (organizationType) {
+    "LABORATORY" -> OperatorKind.LAB
+    "DIAGNOSTIC_CENTER" -> OperatorKind.CENTER
+    else -> null
+}
+
 private data class OperatorConfig(val title: String, val referralsLabel: String)
 
 private val OPERATOR_CONFIGS = mapOf(
@@ -305,11 +320,11 @@ internal fun JsonElement?.asTengeOrNull(): Int? =
 
 @Composable
 fun OperatorWorkspaceScreen(session: Session, viewModel: OperatorWorkspaceViewModel = viewModel()) {
-    val kind = if (session.user.organizationType == "LABORATORY") OperatorKind.LAB else OperatorKind.CENTER
+    val kind = operatorKindFor(session.user.organizationType)
     val orgId = session.user.organizationId
     val onNavigate = LocalAssistantNavigate.current
 
-    if (orgId == null) {
+    if (kind == null || orgId == null) {
         Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
             Text(
                 text = "Не удалось определить организацию текущего рабочего пространства.",

@@ -61,6 +61,37 @@ class SessionPermissionsTest {
     }
 
     @Test
+    fun `все устаревшие ключи из permissions_ts находят право`() {
+        // LEGACY_KEY_MAP — копия с бэкенда (dentvision-backend/src/lib/
+        // permissions.ts:257-275); неполная копия однажды уже была реальным
+        // багом (workflow.manage отсутствовал) — проверяем все 17 пар разом,
+        // чтобы следующий пропуск ловился тестом, а не в проде.
+        val s = session(
+            "patients.read", "patients.write", "patients.delete",
+            "appointments.read", "appointments.write", "appointments.delete",
+            "billing.manage", "billing.read",
+            "bi.read", "admin.read", "audit.read", "shop.manage", "settings.manage",
+        )
+        assertTrue(s.has("patient.read"))
+        assertTrue(s.has("patient.write"))
+        assertTrue(s.has("patient.delete"))
+        assertTrue(s.has("appointment.read"))
+        assertTrue(s.has("appointment.write"))
+        assertTrue(s.has("appointment.delete"))
+        assertTrue(s.has("finance.manage"))
+        assertTrue(s.has("finance.read"))
+        assertTrue(s.has("bi.clinic"))
+        assertTrue(s.has("bi.network"))
+        assertTrue(s.has("bi.platform"))
+        assertTrue(s.has("bi.finance"))
+        assertTrue(s.has("platform.analytics"))
+        assertTrue(s.has("compliance.manage"))
+        assertTrue(s.has("partner.manage"))
+        assertTrue(s.has("supplier.manage"))
+        assertTrue(s.has("workflow.manage"))
+    }
+
+    @Test
     fun `пустой набор ничего не открывает`() {
         val s = session()
         assertFalse(s.has("patients.read"))

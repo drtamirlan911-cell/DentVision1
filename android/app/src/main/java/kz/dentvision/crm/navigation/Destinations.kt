@@ -169,3 +169,17 @@ const val ROUTE_OPERATOR_PAYMENTS = "operator-workspace/payments"
 
 /** Сотрудники кабинета приёма — коды приглашений. */
 const val ROUTE_OPERATOR_TEAM = "operator-workspace/team"
+
+/**
+ * Куда ведёт пункт «Кабинет» для активного пространства — общая развилка
+ * для нижней навигации и пункта в drawer (`AppShell.kt`), чтобы не
+ * дублировать одну и ту же проверку в двух местах. `null`, если под тип
+ * активного пространства (`SUPPLIER`/`ACADEMY`/`LECTURER`/`PARTNER`) в
+ * приложении ещё нет экрана — вызывающая сторона решает, как честно об
+ * этом сказать, а не ведёт в чужой кабинет по умолчанию.
+ */
+fun cabinetRouteFor(session: Session): String? = when (session.user.organizationType) {
+    null, "CLINIC" -> ROUTE_WORKSPACE
+    "DIAGNOSTIC_CENTER", "LABORATORY" -> ROUTE_OPERATOR_WORKSPACE
+    else -> null
+}
