@@ -34,6 +34,9 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Snackbar
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Tab
 import androidx.compose.material3.TabRow
 import androidx.compose.material3.Text
@@ -77,10 +80,22 @@ fun CommunityScreen(
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     var openCommentsFor by remember { mutableStateOf<String?>(null) }
+    val snackbarHostState = remember { SnackbarHostState() }
 
     LaunchedEffect(Unit) { viewModel.start() }
 
-    Scaffold(containerColor = DvTheme.colors.surface0) { padding ->
+    LaunchedEffect(state.error) {
+        val message = state.error ?: return@LaunchedEffect
+        snackbarHostState.showSnackbar(message)
+        viewModel.consumeError()
+    }
+
+    Scaffold(
+        containerColor = DvTheme.colors.surface0,
+        snackbarHost = {
+            SnackbarHost(snackbarHostState) { data -> Snackbar(snackbarData = data, containerColor = DvTheme.colors.surface3) }
+        },
+    ) { padding ->
         Column(modifier = Modifier.fillMaxSize().padding(padding)) {
             // Перенос кнопки «Курсы» из `Community.tsx:246-247` — ведёт в
             // Academy (здесь: витрину «Магазин и школа» на вкладке «Школа»).
@@ -115,7 +130,7 @@ fun CommunityScreen(
                         draft = state.draft,
                         publishing = state.publishing,
                         onDraftChange = viewModel::onDraftChange,
-                        onPublish = { viewModel.publish { _, _ -> } },
+                        onPublish = viewModel::publish,
                     )
                 } else {
                     Card(

@@ -20,6 +20,7 @@ data class CommunityUiState(
     val draft: String = "",
     val publishing: Boolean = false,
     val posts: UiState<List<CommunityPost>> = UiState.Loading,
+    val error: String? = null,
 )
 
 /** Перенос `Community.tsx`, урезанный до ленты/лайков/сохранений/комментариев — личные сообщения (`MessagesPanel`) не входят, это отдельная подсистема. */
@@ -60,10 +61,10 @@ class CommunityViewModel(
         _state.value = _state.value.copy(draft = value)
     }
 
-    fun publish(onResult: (success: Boolean, error: String?) -> Unit) {
+    fun publish() {
         val content = _state.value.draft.trim()
         if (content.isBlank()) return
-        _state.value = _state.value.copy(publishing = true)
+        _state.value = _state.value.copy(publishing = true, error = null)
         val tags = if (_state.value.topic != "Все") listOf(_state.value.topic) else listOf("Тред")
         viewModelScope.launch {
             runCatching { repository.create(content, tags) }
@@ -74,11 +75,16 @@ class CommunityViewModel(
                         draft = "",
                         publishing = false,
                     )
-                    onResult(true, null)
                 }
                 .onFailure {
-                    _state.value = _state.value.copy(publishing = false)
-                    onResult(false, it.message ?: "Не удалось опубликовать")
+                    // Раньше вызывающий (`{ _, _ -> }` в CommunityScreen)
+                    // отбрасывал и успех, и ошибку — при сбое публикации
+                    // черновик оставался как был, кнопка просто переставала
+                    // крутиться, и пользователь не понимал, ушёл пост или нет.
+                    _state.value = _state.value.copy(
+                        publishing = false,
+                        error = it.message ?: "Не удалось опубликовать",
+                    )
                 }
         }
     }
@@ -87,6 +93,7 @@ class CommunityViewModel(
         viewModelScope.launch {
             runCatching { repository.like(postId) }
                 .onSuccess { updated -> updatePost(postId) { it.copy(likesCount = updated.likesCount, liked = updated.liked) } }
+                .onFailure { _state.value = _state.value.copy(error = it.message ?: "Не удалось отметить") }
         }
     }
 
@@ -102,6 +109,7 @@ class CommunityViewModel(
                         }
                     }
                 }
+                .onFailure { _state.value = _state.value.copy(error = it.message ?: "Не удалось сохранить") }
         }
     }
 
@@ -127,8 +135,15 @@ class CommunityViewModel(
                     updatePost(postId) { it.copy(commentsCount = it.commentsCount + 1) }
                     onResult(true)
                 }
-                .onFailure { onResult(false) }
+                .onFailure {
+                    _state.value = _state.value.copy(error = it.message ?: "Не удалось отправить комментарий")
+                    onResult(false)
+                }
         }
+    }
+
+    fun consumeError() {
+        _state.value = _state.value.copy(error = null)
     }
 
     private fun updatePost(id: String, transform: (CommunityPost) -> CommunityPost) {

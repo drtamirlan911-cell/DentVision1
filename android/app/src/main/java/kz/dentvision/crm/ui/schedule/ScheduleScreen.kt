@@ -20,6 +20,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Person
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -33,6 +34,9 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Snackbar
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
@@ -44,6 +48,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -78,11 +83,26 @@ fun ScheduleScreen(
     var showForm by remember { mutableStateOf(false) }
     var pendingDelete by remember { mutableStateOf<Appointment?>(null) }
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val snackbarHostState = remember { SnackbarHostState() }
 
     LaunchedEffect(clinicId) { viewModel.start(clinicId) }
 
+    LaunchedEffect(state.message) {
+        val message = state.message ?: return@LaunchedEffect
+        snackbarHostState.showSnackbar(message)
+        viewModel.consumeMessage()
+    }
+    LaunchedEffect(state.deleteError) {
+        val message = state.deleteError ?: return@LaunchedEffect
+        snackbarHostState.showSnackbar(message)
+        viewModel.consumeDeleteError()
+    }
+
     Scaffold(
         containerColor = DvTheme.colors.surface0,
+        snackbarHost = {
+            SnackbarHost(snackbarHostState) { data -> Snackbar(snackbarData = data, containerColor = DvTheme.colors.surface3) }
+        },
         floatingActionButton = {
             if (canWrite) {
                 FloatingActionButton(
@@ -134,6 +154,11 @@ fun ScheduleScreen(
                         description = "Пустой день — это тоже ответ: приёмы не потерялись, их просто нет.",
                     )
                 } else {
+                    // Раньше карточка приёма нигде не показывала врача — при
+                    // нескольких докторах в клинике администратор не мог
+                    // понять по расписанию, к кому записан пациент, и не видел
+                    // при создании новой записи, чьи слоты уже заняты.
+                    val doctorsById = state.doctors.associateBy { it.id }
                     LazyColumn(
                         contentPadding = androidx.compose.foundation.layout.PaddingValues(16.dp),
                         verticalArrangement = Arrangement.spacedBy(8.dp),
@@ -141,6 +166,7 @@ fun ScheduleScreen(
                         items(list.value, key = { it.id }) { appointment ->
                             AppointmentRow(
                                 appointment = appointment,
+                                doctorName = doctorsById[appointment.doctorId]?.name,
                                 canDelete = canWrite,
                                 onDelete = { pendingDelete = appointment },
                             )
@@ -174,13 +200,18 @@ fun ScheduleScreen(
                     },
                 ) { Text("Отменить приём", color = DvTheme.colors.error) }
             },
-            dismissButton = { TextButton(onClick = { pendingDelete = null }) { Text("Назад") } },
+            dismissButton = { TextButton(onClick = { pendingDelete = null }) { Text("Отмена") } },
         )
     }
 }
 
 @Composable
-private fun AppointmentRow(appointment: Appointment, canDelete: Boolean = false, onDelete: (() -> Unit)? = null) {
+private fun AppointmentRow(
+    appointment: Appointment,
+    doctorName: String?,
+    canDelete: Boolean = false,
+    onDelete: (() -> Unit)? = null,
+) {
     Card(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(containerColor = DvTheme.colors.surface1),
@@ -205,13 +236,35 @@ private fun AppointmentRow(appointment: Appointment, canDelete: Boolean = false,
                     style = MaterialTheme.typography.titleMedium,
                     color = DvTheme.colors.textPrimary,
                 )
+                // Врач — отдельной, заметной строкой сразу под пациентом: в
+                // клинике с несколькими докторами это первое, что нужно
+                // администратору, чтобы понять, чей это приём и не занят ли
+                // нужный врач, когда он записывает следующего пациента.
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.padding(top = 3.dp),
+                ) {
+                    Icon(
+                        imageVector = Icons.Filled.Person,
+                        contentDescription = null,
+                        tint = DvTheme.colors.gold,
+                        modifier = Modifier.size(13.dp),
+                    )
+                    Text(
+                        text = doctorName ?: "Врач не назначен",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = if (doctorName != null) DvTheme.colors.gold else DvTheme.colors.warning,
+                        fontWeight = FontWeight.Medium,
+                        modifier = Modifier.padding(start = 4.dp),
+                    )
+                }
                 val service = appointment.serviceName.ifBlank { appointment.reason }
                 if (service.isNotBlank()) {
                     Text(
                         text = service,
                         style = MaterialTheme.typography.bodySmall,
                         color = DvTheme.colors.textSecondary,
-                        modifier = Modifier.padding(top = 2.dp),
+                        modifier = Modifier.padding(top = 3.dp),
                     )
                 }
                 val meta = listOfNotNull(

@@ -17,6 +17,8 @@ data class ScheduleUiState(
     val date: LocalDate = LocalDate.now(),
     val list: UiState<List<Appointment>> = UiState.Loading,
     val doctors: List<Doctor> = emptyList(),
+    val message: String? = null,
+    val deleteError: String? = null,
 )
 
 data class AppointmentFormState(
@@ -141,6 +143,7 @@ class ScheduleViewModel(
             runCatching { repository.saveAppointment(body) }
                 .onSuccess {
                     _form.value = AppointmentFormState()
+                    _state.value = _state.value.copy(message = "Запись создана")
                     load()
                     onSaved()
                 }
@@ -164,12 +167,27 @@ class ScheduleViewModel(
     fun delete(id: String) {
         viewModelScope.launch {
             runCatching { repository.deleteAppointment(id) }
-                .onSuccess { load() }
+                .onSuccess {
+                    _state.value = _state.value.copy(message = "Запись отменена")
+                    load()
+                }
                 .onFailure {
+                    // Раньше ошибка удаления одной записи заменяла Error-ом весь
+                    // список дня — пользователь терял из вида все остальные
+                    // приёмы из-за сбоя на одном. Теперь это отдельное,
+                    // проходящее сообщение, а список остаётся как был.
                     _state.value = _state.value.copy(
-                        list = UiState.Error(it.message ?: "Не удалось удалить запись"),
+                        deleteError = it.message ?: "Не удалось удалить запись",
                     )
                 }
         }
+    }
+
+    fun consumeMessage() {
+        _state.value = _state.value.copy(message = null)
+    }
+
+    fun consumeDeleteError() {
+        _state.value = _state.value.copy(deleteError = null)
     }
 }

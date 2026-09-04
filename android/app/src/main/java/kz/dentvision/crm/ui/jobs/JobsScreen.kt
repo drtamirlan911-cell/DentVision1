@@ -156,9 +156,14 @@ fun JobsScreen(
                 is UiState.Loading -> LoadingSkeleton(modifier = Modifier.padding(top = 8.dp))
                 is UiState.Error -> ErrorState(message = list.message, onRetry = viewModel::retry)
                 is UiState.Data -> if (list.value.isEmpty()) {
+                    val filtered = filters.query.isNotBlank() || filters.city.isNotBlank()
                     EmptyStateView(
-                        title = "Вакансии не найдены",
-                        description = "Измените фильтр или разместите своё объявление.",
+                        title = if (filtered) "По вашему запросу ничего нет" else "Вакансий пока нет",
+                        description = if (filtered) {
+                            "Попробуйте другой город или снимите поиск."
+                        } else {
+                            "Будьте первым — разместите объявление."
+                        },
                     )
                 } else {
                     LazyColumn(
