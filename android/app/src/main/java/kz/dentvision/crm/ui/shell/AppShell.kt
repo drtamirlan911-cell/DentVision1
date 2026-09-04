@@ -24,6 +24,7 @@ import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.Science
 import androidx.compose.material.icons.filled.SmartToy
 import androidx.compose.material.icons.filled.TaskAlt
+import androidx.compose.material.icons.filled.Work
 import androidx.compose.material3.DrawerValue
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
@@ -92,6 +93,7 @@ import kz.dentvision.crm.navigation.ROUTE_DIAGNOSTICS_RESULTS
 import kz.dentvision.crm.navigation.ROUTE_DIAGNOSTICS_REFERRALS
 import kz.dentvision.crm.navigation.ROUTE_DIAGNOSTICS_REFERRAL_NEW
 import kz.dentvision.crm.navigation.ROUTE_INTELLIGENCE
+import kz.dentvision.crm.navigation.ROUTE_JOBS
 import kz.dentvision.crm.navigation.ROUTE_WORKSPACE
 import kz.dentvision.crm.navigation.resolveAssistantPath
 import kz.dentvision.crm.navigation.visiblePages
@@ -119,6 +121,7 @@ import kz.dentvision.crm.ui.diagnostics.TeamScreen
 import kz.dentvision.crm.ui.diagnostics.ResultsScreen
 import kz.dentvision.crm.ui.home.WorkspaceScreen
 import kz.dentvision.crm.ui.intelligence.IntelligenceScreen
+import kz.dentvision.crm.ui.jobs.JobsScreen
 import kz.dentvision.crm.ui.theme.DvTheme
 
 /**
@@ -356,6 +359,7 @@ private fun fixedRouteTitle(route: String): String? = when (route) {
     ROUTE_OPERATOR_SERVICES -> "Услуги и цены"
     ROUTE_OPERATOR_PAYMENTS -> "Оплаты"
     ROUTE_OPERATOR_TEAM -> "Сотрудники"
+    ROUTE_JOBS -> "Вакансии"
     else -> null
 }
 
@@ -411,6 +415,10 @@ private fun ShellNavHost(
             composable(ROUTE_OPERATOR_SERVICES) { ServicesScreen(session = session) }
             composable(ROUTE_OPERATOR_PAYMENTS) { PaymentsScreen(session = session) }
             composable(ROUTE_OPERATOR_TEAM) { TeamScreen(session = session) }
+            // Вошедший — всегда настоящий аккаунт (гость живёт в GuestShell,
+            // у AppShell непустая Session), поэтому onRequireLogin сюда не
+            // попадёт: isAuthenticated = true снимает саму проверку.
+            composable(ROUTE_JOBS) { JobsScreen(isAuthenticated = true, onRequireLogin = {}) }
             // Маршрут заводится только под построенный экран и только если роль
             // имеет на него право — иначе его в графе просто нет.
             visiblePages(session.pages, implemented).forEach { page ->
@@ -496,6 +504,14 @@ private fun DrawerContent(
                 onClick = { onOpen(ROUTE_OPERATOR_WORKSPACE) },
             )
         }
+        // Вакансии — как `nav.jobs` в `Sidebar.tsx`: видны любому вошедшему
+        // безусловно, не через `pages` (см. ROUTE_JOBS в Destinations.kt).
+        PillarDrawerItem(
+            label = "Вакансии",
+            icon = Icons.Filled.Work,
+            active = currentRoute == ROUTE_JOBS,
+            onClick = { onOpen(ROUTE_JOBS) },
+        )
         // Сквозные поверхности governance-ядра — одинаковые для всех вошедших,
         // поэтому фиксированные пункты рядом с «Кабинетом», а не часть [pages].
         PillarDrawerItem(

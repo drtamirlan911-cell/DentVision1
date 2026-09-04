@@ -183,3 +183,14 @@ fun cabinetRouteFor(session: Session): String? = when (session.user.organization
     "DIAGNOSTIC_CENTER", "LABORATORY" -> ROUTE_OPERATOR_WORKSPACE
     else -> null
 }
+
+/**
+ * Вакансии — как `nav.jobs` в `Sidebar.tsx`: виден любому вошедшему
+ * пользователю безусловно, независимо от роли и активного рабочего
+ * пространства (в отличие от разделов CRM, идущих через `pages` с сервера).
+ * У сервера нет для него собственного списка прав — реальная защита
+ * действий записи (`POST /api/jobs`, `POST /api/jobs/:id/apply`) на
+ * бэкенде (`authenticate`), поэтому маршрут заводится напрямую, как
+ * [ROUTE_DIAGNOSTICS], а не через [IMPLEMENTED_PAGES]/`CRM_PAGES`.
+ */
+const val ROUTE_JOBS = "jobs"
