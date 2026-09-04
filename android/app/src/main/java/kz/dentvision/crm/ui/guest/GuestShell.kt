@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Login
 import androidx.compose.material.icons.filled.AutoAwesome
+import androidx.compose.material.icons.filled.Groups
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.PersonAdd
 import androidx.compose.material.icons.filled.School
@@ -47,6 +48,7 @@ import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.launch
 import kz.dentvision.crm.ui.auth.LoginScreen
 import kz.dentvision.crm.ui.common.DvLogo
+import kz.dentvision.crm.ui.community.CommunityScreen
 import kz.dentvision.crm.ui.intelligence.IntelligenceScreen
 import kz.dentvision.crm.ui.jobs.JobsScreen
 import kz.dentvision.crm.ui.public.DiagnosticsRegisterScreen
@@ -58,7 +60,7 @@ import kz.dentvision.crm.ui.theme.DvTheme
  * пункты этой же оболочки, а не отдельный экран поверх всего: они не
  * блокируют, к ним просто можно перейти и вернуться.
  */
-private enum class GuestDestination { HOME, PUBLIC, REGISTER_DIAGNOSTICS, JOBS, PRICING, LOGIN, REGISTER }
+private enum class GuestDestination { HOME, PUBLIC, REGISTER_DIAGNOSTICS, JOBS, COMMUNITY, PRICING, LOGIN, REGISTER }
 
 /**
  * Постоянная оболочка гостя — тот же принцип, что `AppShell.kt` у вошедшего:
@@ -142,6 +144,10 @@ fun GuestShell() {
                         isAuthenticated = false,
                         onRequireLogin = { open(GuestDestination.LOGIN) },
                     )
+                    GuestDestination.COMMUNITY -> CommunityScreen(
+                        isAuthenticated = false,
+                        onRequireLogin = { open(GuestDestination.LOGIN) },
+                    )
                     GuestDestination.LOGIN -> LoginScreen(
                         onBrowsePublic = { open(GuestDestination.HOME) },
                     )
@@ -161,6 +167,7 @@ private fun resolveGuestPath(path: String, open: (GuestDestination) -> Unit) {
         "/shop", "/school" -> open(GuestDestination.PUBLIC)
         "/register-diagnostics" -> open(GuestDestination.REGISTER_DIAGNOSTICS)
         "/jobs" -> open(GuestDestination.JOBS)
+        "/community" -> open(GuestDestination.COMMUNITY)
         "/pricing" -> open(GuestDestination.PRICING)
         else -> open(GuestDestination.LOGIN)
     }
@@ -207,6 +214,12 @@ private fun GuestDrawerContent(destination: GuestDestination, onOpen: (GuestDest
             icon = Icons.Filled.Work,
             active = destination == GuestDestination.JOBS,
             onClick = { onOpen(GuestDestination.JOBS) },
+        )
+        GuestDrawerItem(
+            label = "Сообщество",
+            icon = Icons.Filled.Groups,
+            active = destination == GuestDestination.COMMUNITY,
+            onClick = { onOpen(GuestDestination.COMMUNITY) },
         )
         GuestDrawerItem(
             label = "Тарифы",

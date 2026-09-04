@@ -22,6 +22,7 @@ import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.Science
+import androidx.compose.material.icons.filled.Groups
 import androidx.compose.material.icons.filled.SmartToy
 import androidx.compose.material.icons.filled.TaskAlt
 import androidx.compose.material.icons.filled.Work
@@ -92,6 +93,7 @@ import kz.dentvision.crm.navigation.ROUTE_OPERATOR_TEAM
 import kz.dentvision.crm.navigation.ROUTE_DIAGNOSTICS_RESULTS
 import kz.dentvision.crm.navigation.ROUTE_DIAGNOSTICS_REFERRALS
 import kz.dentvision.crm.navigation.ROUTE_DIAGNOSTICS_REFERRAL_NEW
+import kz.dentvision.crm.navigation.ROUTE_COMMUNITY
 import kz.dentvision.crm.navigation.ROUTE_INTELLIGENCE
 import kz.dentvision.crm.navigation.ROUTE_JOBS
 import kz.dentvision.crm.navigation.ROUTE_WORKSPACE
@@ -119,6 +121,7 @@ import kz.dentvision.crm.ui.diagnostics.PaymentsScreen
 import kz.dentvision.crm.ui.diagnostics.ServicesScreen
 import kz.dentvision.crm.ui.diagnostics.TeamScreen
 import kz.dentvision.crm.ui.diagnostics.ResultsScreen
+import kz.dentvision.crm.ui.community.CommunityScreen
 import kz.dentvision.crm.ui.home.WorkspaceScreen
 import kz.dentvision.crm.ui.intelligence.IntelligenceScreen
 import kz.dentvision.crm.ui.jobs.JobsScreen
@@ -360,6 +363,7 @@ private fun fixedRouteTitle(route: String): String? = when (route) {
     ROUTE_OPERATOR_PAYMENTS -> "Оплаты"
     ROUTE_OPERATOR_TEAM -> "Сотрудники"
     ROUTE_JOBS -> "Вакансии"
+    ROUTE_COMMUNITY -> "Сообщество"
     else -> null
 }
 
@@ -419,6 +423,7 @@ private fun ShellNavHost(
             // у AppShell непустая Session), поэтому onRequireLogin сюда не
             // попадёт: isAuthenticated = true снимает саму проверку.
             composable(ROUTE_JOBS) { JobsScreen(isAuthenticated = true, onRequireLogin = {}) }
+            composable(ROUTE_COMMUNITY) { CommunityScreen(isAuthenticated = true, onRequireLogin = {}) }
             // Маршрут заводится только под построенный экран и только если роль
             // имеет на него право — иначе его в графе просто нет.
             visiblePages(session.pages, implemented).forEach { page ->
@@ -511,6 +516,13 @@ private fun DrawerContent(
             icon = Icons.Filled.Work,
             active = currentRoute == ROUTE_JOBS,
             onClick = { onOpen(ROUTE_JOBS) },
+        )
+        // Сообщество — тем же принципом, что «Вакансии» выше.
+        PillarDrawerItem(
+            label = "Сообщество",
+            icon = Icons.Filled.Groups,
+            active = currentRoute == ROUTE_COMMUNITY,
+            onClick = { onOpen(ROUTE_COMMUNITY) },
         )
         // Сквозные поверхности governance-ядра — одинаковые для всех вошедших,
         // поэтому фиксированные пункты рядом с «Кабинетом», а не часть [pages].

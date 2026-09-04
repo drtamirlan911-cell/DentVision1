@@ -71,4 +71,5 @@ class ApiClient(
     val patientInbox: PatientInboxApi = retrofit.create(PatientInboxApi::class.java)
     val guest: GuestApi = retrofit.create(GuestApi::class.java)
     val jobs: JobsApi = retrofit.create(JobsApi::class.java)
+    val community: CommunityApi = retrofit.create(CommunityApi::class.java)
 }

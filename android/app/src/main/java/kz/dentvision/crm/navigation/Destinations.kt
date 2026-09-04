@@ -194,3 +194,11 @@ fun cabinetRouteFor(session: Session): String? = when (session.user.organization
  * [ROUTE_DIAGNOSTICS], а не через [IMPLEMENTED_PAGES]/`CRM_PAGES`.
  */
 const val ROUTE_JOBS = "jobs"
+
+/**
+ * Сообщество — как `nav.community` в `Sidebar.tsx`: тот же принцип, что
+ * [ROUTE_JOBS] — виден любому вошедшему безусловно, не через `pages`.
+ * Личные сообщения (`/community?tab=messages`) не входят — см. докстринг
+ * `CommunityScreen.kt`.
+ */
+const val ROUTE_COMMUNITY = "community"
