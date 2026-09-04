@@ -30,6 +30,7 @@ import kotlinx.coroutines.launch
 import kz.dentvision.crm.data.DiagnosticsRepository
 import kz.dentvision.crm.data.model.DiagnosticsDashboardStats
 import kz.dentvision.crm.data.model.Referral
+import kz.dentvision.crm.data.session.Session
 import kz.dentvision.crm.navigation.LocalAssistantNavigate
 import kz.dentvision.crm.navigation.ROUTE_DIAGNOSTICS_CENTERS
 import kz.dentvision.crm.navigation.ROUTE_DIAGNOSTICS_LABS
@@ -38,6 +39,7 @@ import kz.dentvision.crm.navigation.ROUTE_DIAGNOSTICS_PATIENTS
 import kz.dentvision.crm.navigation.ROUTE_DIAGNOSTICS_CALENDAR
 import kz.dentvision.crm.navigation.ROUTE_DIAGNOSTICS_STATISTICS
 import kz.dentvision.crm.navigation.ROUTE_DIAGNOSTICS_SETTINGS
+import kz.dentvision.crm.navigation.ROUTE_DIAGNOSTICS_REGISTRATIONS
 import kz.dentvision.crm.navigation.ROUTE_DIAGNOSTICS_RESULTS
 import kz.dentvision.crm.ui.common.ErrorState
 import kz.dentvision.crm.ui.common.LoadingSkeleton
@@ -73,7 +75,7 @@ class DiagnosticsHomeViewModel(
 }
 
 @Composable
-fun DiagnosticsHomeScreen(viewModel: DiagnosticsHomeViewModel = viewModel()) {
+fun DiagnosticsHomeScreen(session: Session, viewModel: DiagnosticsHomeViewModel = viewModel()) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val onNavigate = LocalAssistantNavigate.current
 
@@ -82,6 +84,7 @@ fun DiagnosticsHomeScreen(viewModel: DiagnosticsHomeViewModel = viewModel()) {
         is UiState.Error -> ErrorState(message = s.message, onRetry = viewModel::load)
         is UiState.Data -> DiagnosticsHomeContent(
             stats = s.value,
+            isSuperadmin = session.effectiveRole == "SUPERADMIN",
             onOpenReferrals = { onNavigate(ROUTE_DIAGNOSTICS_REFERRALS) },
             onOpenReferral = { id -> onNavigate("$ROUTE_DIAGNOSTICS_REFERRALS/$id") },
             onOpenCenters = { onNavigate(ROUTE_DIAGNOSTICS_CENTERS) },
@@ -91,6 +94,7 @@ fun DiagnosticsHomeScreen(viewModel: DiagnosticsHomeViewModel = viewModel()) {
             onOpenCalendar = { onNavigate(ROUTE_DIAGNOSTICS_CALENDAR) },
             onOpenStatistics = { onNavigate(ROUTE_DIAGNOSTICS_STATISTICS) },
             onOpenSettings = { onNavigate(ROUTE_DIAGNOSTICS_SETTINGS) },
+            onOpenRegistrations = { onNavigate(ROUTE_DIAGNOSTICS_REGISTRATIONS) },
         )
     }
 }
@@ -98,6 +102,7 @@ fun DiagnosticsHomeScreen(viewModel: DiagnosticsHomeViewModel = viewModel()) {
 @Composable
 private fun DiagnosticsHomeContent(
     stats: DiagnosticsDashboardStats,
+    isSuperadmin: Boolean,
     onOpenReferrals: () -> Unit,
     onOpenReferral: (String) -> Unit,
     onOpenCenters: () -> Unit,
@@ -107,6 +112,7 @@ private fun DiagnosticsHomeContent(
     onOpenCalendar: () -> Unit,
     onOpenStatistics: () -> Unit,
     onOpenSettings: () -> Unit,
+    onOpenRegistrations: () -> Unit,
 ) {
     Column(modifier = Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
         LazyRow(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -138,6 +144,11 @@ private fun DiagnosticsHomeContent(
         }
         DvOutlineButton(onClick = onOpenSettings, modifier = Modifier.fillMaxWidth()) {
             Text("Настройки диагностики")
+        }
+        if (isSuperadmin) {
+            DvOutlineButton(onClick = onOpenRegistrations, modifier = Modifier.fillMaxWidth()) {
+                Text("Заявки на регистрацию")
+            }
         }
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             DvOutlineButton(onClick = onOpenCenters, modifier = Modifier.weight(1f)) {

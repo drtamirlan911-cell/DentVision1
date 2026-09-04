@@ -8,6 +8,8 @@ import kz.dentvision.crm.data.model.PricingItem
 import kz.dentvision.crm.data.model.Referral
 import kz.dentvision.crm.data.model.ReferralDetail
 import kz.dentvision.crm.data.model.ReferralListEnvelope
+import kz.dentvision.crm.data.model.RegistrationRequest
+import kz.dentvision.crm.data.model.RejectRegistrationRequest
 import kz.dentvision.crm.data.model.UploadFileRequest
 import retrofit2.http.Body
 import retrofit2.http.GET
@@ -55,4 +57,17 @@ interface DiagnosticsApi {
 
     @POST("api/diagnostics/files/upload")
     suspend fun uploadFile(@Body body: UploadFileRequest): ApiEnvelope<JsonElement>
+
+    /** Только SUPERADMIN — сервер отвечает 403 всем остальным. */
+    @GET("api/diagnostics/registrations")
+    suspend fun registrations(@Query("status") status: String? = null): ApiEnvelope<List<RegistrationRequest>>
+
+    @POST("api/diagnostics/registrations/{id}/approve")
+    suspend fun approveRegistration(@Path("id") id: String): ApiEnvelope<RegistrationRequest>
+
+    @POST("api/diagnostics/registrations/{id}/reject")
+    suspend fun rejectRegistration(
+        @Path("id") id: String,
+        @Body body: RejectRegistrationRequest,
+    ): ApiEnvelope<RegistrationRequest>
 }

@@ -9,6 +9,8 @@ import kz.dentvision.crm.data.model.DiagnosticsDashboardStats
 import kz.dentvision.crm.data.model.PricingItem
 import kz.dentvision.crm.data.model.Referral
 import kz.dentvision.crm.data.model.ReferralDetail
+import kz.dentvision.crm.data.model.RegistrationRequest
+import kz.dentvision.crm.data.model.RejectRegistrationRequest
 import kz.dentvision.crm.data.model.UploadFileRequest
 
 /**
@@ -46,4 +48,13 @@ class DiagnosticsRepository(
     suspend fun uploadFile(body: UploadFileRequest) {
         apiCall { api.diagnostics.uploadFile(body) }
     }
+
+    suspend fun registrations(status: String? = null): List<RegistrationRequest> =
+        apiCall { api.diagnostics.registrations(status) }
+
+    suspend fun approveRegistration(id: String): RegistrationRequest =
+        apiCall { api.diagnostics.approveRegistration(id) }
+
+    suspend fun rejectRegistration(id: String, reason: String?): RegistrationRequest =
+        apiCall { api.diagnostics.rejectRegistration(id, RejectRegistrationRequest(reason)) }
 }

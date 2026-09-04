@@ -228,3 +228,30 @@ data class UploadFileRequest(
     val fileType: String,
     val fileSize: Long? = null,
 )
+
+/**
+ * `GET /api/diagnostics/registrations` (только SUPERADMIN) — сырые строки
+ * `model RegistrationRequest` без `select` (`diagnostics.service.ts:326`),
+ * поэтому поля списаны прямо со схемы, не с ответа. `type` — `"center"`
+ * или `"laboratory"` (строка, не enum на сервере).
+ */
+@Serializable
+data class RegistrationRequest(
+    val id: String,
+    val type: String = "",
+    val name: String = "",
+    val city: String? = null,
+    val address: String? = null,
+    val phone: String? = null,
+    val email: String? = null,
+    val comment: String? = null,
+    val status: String = "PENDING",
+    val reviewNote: String? = null,
+    val createdAt: String? = null,
+)
+
+/** Тело `POST /api/diagnostics/registrations/:id/reject`. */
+@Serializable
+data class RejectRegistrationRequest(
+    val reason: String? = null,
+)

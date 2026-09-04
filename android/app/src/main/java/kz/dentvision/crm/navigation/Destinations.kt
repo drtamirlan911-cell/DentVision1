@@ -135,3 +135,11 @@ const val ROUTE_DIAGNOSTICS_STATISTICS = "diagnostics/statistics"
 
 /** Настройки диагностики — подобъект `diagnostics` общих настроек клиники. */
 const val ROUTE_DIAGNOSTICS_SETTINGS = "diagnostics/settings"
+
+/**
+ * Заявки на регистрацию центров/лабораторий — только SUPERADMIN
+ * (`requireSuperadmin` на сервере). Кнопка входа на [ROUTE_DIAGNOSTICS]
+ * скрыта для остальных ролей, но сам маршрут заводится безусловно, как и
+ * другие разделы диагностики — реальная защита всё равно на бэкенде.
+ */
+const val ROUTE_DIAGNOSTICS_REGISTRATIONS = "diagnostics/registrations"
