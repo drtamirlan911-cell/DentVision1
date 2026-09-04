@@ -202,3 +202,14 @@ const val ROUTE_JOBS = "jobs"
  * `CommunityScreen.kt`.
  */
 const val ROUTE_COMMUNITY = "community"
+
+/**
+ * Магазин и школа — тем же принципом, что [ROUTE_JOBS]/[ROUTE_COMMUNITY]:
+ * виден любому вошедшему безусловно. У гостя тот же экран уже собран
+ * (`PublicScreen`, вкладки «Магазин»/«Школа») и подключён в `GuestShell.kt`
+ * — здесь тот же композабл, просто `embedded = true` (без своей шапки и
+ * баннера регистрации центра: у `AppShell` уже есть заголовок и меню).
+ * До этого раздела вошедший пользователь вообще не мог попасть — экран
+ * существовал, но был подключён только к `GuestShell`.
+ */
+const val ROUTE_SHOP_SCHOOL = "shop-school"

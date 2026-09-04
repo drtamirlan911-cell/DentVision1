@@ -66,11 +66,53 @@ import kz.dentvision.crm.ui.theme.DvTheme
  *
  * Баннер «Подключить центр или лабораторию» — из того же списка: `POST
  * /api/diagnostics/register` тоже заведён до `authenticate`.
+ *
+ * `embedded = true` — для вошедшего пользователя внутри `AppShell`: своя
+ * шапка (лого/«Войти»/стрелка назад) там не нужна и не открывать до входа
+ * баннер регистрации центра/лаборатории — своя же оболочка уже даёт
+ * заголовок, меню и, при желании подключить центр, отдельный путь через
+ * переключатель пространств.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun PublicScreen(onBack: () -> Unit, onSignIn: () -> Unit, onRegisterDiagnostics: () -> Unit) {
+fun PublicScreen(
+    onBack: () -> Unit = {},
+    onSignIn: () -> Unit = {},
+    onRegisterDiagnostics: () -> Unit = {},
+    embedded: Boolean = false,
+) {
     var tab by remember { mutableIntStateOf(0) }
+
+    val body = @Composable {
+        Column(modifier = Modifier.fillMaxSize()) {
+            if (!embedded) RegisterDiagnosticsBanner(onClick = onRegisterDiagnostics)
+            TabRow(
+                selectedTabIndex = tab,
+                containerColor = DvTheme.colors.surface1,
+                contentColor = DvTheme.colors.gold,
+            ) {
+                Tab(
+                    selected = tab == 0,
+                    onClick = { tab = 0 },
+                    text = { Text("Магазин", style = MaterialTheme.typography.labelLarge) },
+                )
+                Tab(
+                    selected = tab == 1,
+                    onClick = { tab = 1 },
+                    text = { Text("Школа", style = MaterialTheme.typography.labelLarge) },
+                )
+            }
+            when (tab) {
+                0 -> ShopCatalog()
+                else -> SchoolCatalog()
+            }
+        }
+    }
+
+    if (embedded) {
+        body()
+        return
+    }
 
     Scaffold(
         containerColor = DvTheme.colors.surface0,
@@ -105,27 +147,7 @@ fun PublicScreen(onBack: () -> Unit, onSignIn: () -> Unit, onRegisterDiagnostics
         },
     ) { padding ->
         Column(modifier = Modifier.fillMaxSize().padding(padding)) {
-            RegisterDiagnosticsBanner(onClick = onRegisterDiagnostics)
-            TabRow(
-                selectedTabIndex = tab,
-                containerColor = DvTheme.colors.surface1,
-                contentColor = DvTheme.colors.gold,
-            ) {
-                Tab(
-                    selected = tab == 0,
-                    onClick = { tab = 0 },
-                    text = { Text("Магазин", style = MaterialTheme.typography.labelLarge) },
-                )
-                Tab(
-                    selected = tab == 1,
-                    onClick = { tab = 1 },
-                    text = { Text("Школа", style = MaterialTheme.typography.labelLarge) },
-                )
-            }
-            when (tab) {
-                0 -> ShopCatalog()
-                else -> SchoolCatalog()
-            }
+            body()
         }
     }
 }

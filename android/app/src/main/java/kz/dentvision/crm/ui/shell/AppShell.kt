@@ -23,6 +23,7 @@ import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.Science
 import androidx.compose.material.icons.filled.Groups
+import androidx.compose.material.icons.filled.School
 import androidx.compose.material.icons.filled.SmartToy
 import androidx.compose.material.icons.filled.TaskAlt
 import androidx.compose.material.icons.filled.Work
@@ -96,6 +97,7 @@ import kz.dentvision.crm.navigation.ROUTE_DIAGNOSTICS_REFERRAL_NEW
 import kz.dentvision.crm.navigation.ROUTE_COMMUNITY
 import kz.dentvision.crm.navigation.ROUTE_INTELLIGENCE
 import kz.dentvision.crm.navigation.ROUTE_JOBS
+import kz.dentvision.crm.navigation.ROUTE_SHOP_SCHOOL
 import kz.dentvision.crm.navigation.ROUTE_WORKSPACE
 import kz.dentvision.crm.navigation.resolveAssistantPath
 import kz.dentvision.crm.navigation.visiblePages
@@ -125,6 +127,7 @@ import kz.dentvision.crm.ui.community.CommunityScreen
 import kz.dentvision.crm.ui.home.WorkspaceScreen
 import kz.dentvision.crm.ui.intelligence.IntelligenceScreen
 import kz.dentvision.crm.ui.jobs.JobsScreen
+import kz.dentvision.crm.ui.public.PublicScreen
 import kz.dentvision.crm.ui.theme.DvTheme
 
 /**
@@ -364,6 +367,7 @@ private fun fixedRouteTitle(route: String): String? = when (route) {
     ROUTE_OPERATOR_TEAM -> "Сотрудники"
     ROUTE_JOBS -> "Вакансии"
     ROUTE_COMMUNITY -> "Сообщество"
+    ROUTE_SHOP_SCHOOL -> "Магазин и школа"
     else -> null
 }
 
@@ -424,6 +428,7 @@ private fun ShellNavHost(
             // попадёт: isAuthenticated = true снимает саму проверку.
             composable(ROUTE_JOBS) { JobsScreen(isAuthenticated = true, onRequireLogin = {}) }
             composable(ROUTE_COMMUNITY) { CommunityScreen(isAuthenticated = true, onRequireLogin = {}) }
+            composable(ROUTE_SHOP_SCHOOL) { PublicScreen(embedded = true) }
             // Маршрут заводится только под построенный экран и только если роль
             // имеет на него право — иначе его в графе просто нет.
             visiblePages(session.pages, implemented).forEach { page ->
@@ -523,6 +528,15 @@ private fun DrawerContent(
             icon = Icons.Filled.Groups,
             active = currentRoute == ROUTE_COMMUNITY,
             onClick = { onOpen(ROUTE_COMMUNITY) },
+        )
+        // Магазин и школа — тот же экран, что уже есть у гостя (`PublicScreen`,
+        // `embedded = true`), просто подключённый и для вошедших: раньше сюда
+        // нельзя было попасть вообще ни при каком состоянии сессии.
+        PillarDrawerItem(
+            label = "Магазин и школа",
+            icon = Icons.Filled.School,
+            active = currentRoute == ROUTE_SHOP_SCHOOL,
+            onClick = { onOpen(ROUTE_SHOP_SCHOOL) },
         )
         // Сквозные поверхности governance-ядра — одинаковые для всех вошедших,
         // поэтому фиксированные пункты рядом с «Кабинетом», а не часть [pages].
