@@ -77,6 +77,7 @@ import kz.dentvision.crm.navigation.ROUTE_DIAGNOSTICS
 import kz.dentvision.crm.navigation.ROUTE_DIAGNOSTICS_CENTERS
 import kz.dentvision.crm.navigation.ROUTE_DIAGNOSTICS_LABS
 import kz.dentvision.crm.navigation.ROUTE_DIAGNOSTICS_PATIENTS
+import kz.dentvision.crm.navigation.ROUTE_DIAGNOSTICS_CALENDAR
 import kz.dentvision.crm.navigation.ROUTE_DIAGNOSTICS_RESULTS
 import kz.dentvision.crm.navigation.ROUTE_DIAGNOSTICS_REFERRALS
 import kz.dentvision.crm.navigation.ROUTE_DIAGNOSTICS_REFERRAL_NEW
@@ -95,6 +96,7 @@ import kz.dentvision.crm.ui.diagnostics.ReferralDetailScreen
 import kz.dentvision.crm.ui.diagnostics.ReferralFormScreen
 import kz.dentvision.crm.ui.diagnostics.ReferralListScreen
 import kz.dentvision.crm.ui.diagnostics.DiagnosticPatientsScreen
+import kz.dentvision.crm.ui.diagnostics.DiagnosticCalendarScreen
 import kz.dentvision.crm.ui.diagnostics.ResultsScreen
 import kz.dentvision.crm.ui.home.WorkspaceScreen
 import kz.dentvision.crm.ui.intelligence.IntelligenceScreen
@@ -296,6 +298,7 @@ private fun fixedRouteTitle(route: String): String? = when (route) {
     ROUTE_DIAGNOSTICS_LABS -> "Лаборатории"
     ROUTE_DIAGNOSTICS_RESULTS -> "Результаты исследований"
     ROUTE_DIAGNOSTICS_PATIENTS -> "Пациенты диагностики"
+    ROUTE_DIAGNOSTICS_CALENDAR -> "Календарь диагностики"
     else -> null
 }
 
@@ -341,6 +344,7 @@ private fun ShellNavHost(
             composable(ROUTE_DIAGNOSTICS_LABS) { DirectoryScreen(kind = DiagnosticOrgKind.LABORATORY) }
             composable(ROUTE_DIAGNOSTICS_RESULTS) { ResultsScreen() }
             composable(ROUTE_DIAGNOSTICS_PATIENTS) { DiagnosticPatientsScreen() }
+            composable(ROUTE_DIAGNOSTICS_CALENDAR) { DiagnosticCalendarScreen() }
             // Маршрут заводится только под построенный экран и только если роль
             // имеет на него право — иначе его в графе просто нет.
             visiblePages(session.pages, implemented).forEach { page ->

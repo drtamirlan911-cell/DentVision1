@@ -126,3 +126,6 @@ const val ROUTE_DIAGNOSTICS_RESULTS = "diagnostics/results"
 
 /** Пациенты диагностики — группировка того же списка направлений, без своей ручки. */
 const val ROUTE_DIAGNOSTICS_PATIENTS = "diagnostics/patients"
+
+/** Календарь диагностики — тот же список направлений, разложенный по датам. */
+const val ROUTE_DIAGNOSTICS_CALENDAR = "diagnostics/calendar"

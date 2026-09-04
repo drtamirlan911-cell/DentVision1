@@ -29,6 +29,7 @@ interface DiagnosticsApi {
     suspend fun referrals(
         @Query("status") status: String? = null,
         @Query("search") search: String? = null,
+        @Query("limit") limit: Int? = null,
     ): ReferralListEnvelope
 
     @GET("api/diagnostics/referrals/{id}")
