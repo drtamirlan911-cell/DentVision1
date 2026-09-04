@@ -25,8 +25,6 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
-import kotlinx.serialization.json.JsonElement
-import kotlinx.serialization.json.JsonPrimitive
 import kz.dentvision.crm.data.DiagnosticsRepository
 import kz.dentvision.crm.data.model.ReferralDetail
 import kz.dentvision.crm.lib.formatTenge
@@ -60,10 +58,6 @@ class ReferralDetailViewModel(
         }
     }
 }
-
-/** `Decimal?` с провода: число или строка — приводим в месте показа, не в модели. */
-private fun JsonElement?.asTengeOrNull(): Int? =
-    (this as? JsonPrimitive)?.content?.toDoubleOrNull()?.toInt()
 
 @Composable
 fun ReferralDetailScreen(referralId: String, viewModel: ReferralDetailViewModel = viewModel()) {

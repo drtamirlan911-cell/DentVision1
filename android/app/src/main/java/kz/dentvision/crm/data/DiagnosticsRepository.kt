@@ -7,9 +7,12 @@ import kz.dentvision.crm.data.api.apiCall
 import kz.dentvision.crm.data.model.AiGenerateResultRequest
 import kz.dentvision.crm.data.model.AiGeneratedResult
 import kz.dentvision.crm.data.model.ChangeReferralStatusRequest
+import kz.dentvision.crm.data.model.CollectPaymentRequest
+import kz.dentvision.crm.data.model.CollectPaymentResult
 import kz.dentvision.crm.data.model.CreateReferralRequest
 import kz.dentvision.crm.data.model.DiagnosticOrg
 import kz.dentvision.crm.data.model.DiagnosticsDashboardStats
+import kz.dentvision.crm.data.model.PaymentsSummary
 import kz.dentvision.crm.data.model.PricingItem
 import kz.dentvision.crm.data.model.Referral
 import kz.dentvision.crm.data.model.ReferralDetail
@@ -77,4 +80,13 @@ class DiagnosticsRepository(
 
     suspend fun signResult(referralId: String, reportText: String, conclusion: String?): JsonElement =
         apiCall { api.diagnostics.signResult(referralId, SignResultRequest(reportText, conclusion)) }
+
+    /** Ровно один из `centerId`/`labId` — тот же приём, что уже принят у [referrals]. */
+    suspend fun payments(centerId: String? = null, labId: String? = null): PaymentsSummary = apiCall {
+        if (centerId != null) api.diagnostics.centerPayments(centerId) else api.diagnostics.labPayments(labId!!)
+    }
+
+    suspend fun collectPayment(body: CollectPaymentRequest, centerId: String? = null, labId: String? = null): CollectPaymentResult = apiCall {
+        if (centerId != null) api.diagnostics.collectCenterPayment(centerId, body) else api.diagnostics.collectLabPayment(labId!!, body)
+    }
 }

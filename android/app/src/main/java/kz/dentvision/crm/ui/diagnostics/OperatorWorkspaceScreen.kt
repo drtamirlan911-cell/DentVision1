@@ -64,6 +64,7 @@ import kz.dentvision.crm.data.session.Session
 import kz.dentvision.crm.lib.formatTenge
 import kz.dentvision.crm.navigation.LocalAssistantNavigate
 import kz.dentvision.crm.navigation.ROUTE_DIAGNOSTICS_REFERRALS
+import kz.dentvision.crm.navigation.ROUTE_OPERATOR_CASHIER
 import kz.dentvision.crm.ui.common.ErrorState
 import kz.dentvision.crm.ui.common.LoadingSkeleton
 import kz.dentvision.crm.ui.common.UiState
@@ -290,8 +291,12 @@ class OperatorWorkspaceViewModel(
     }
 }
 
-/** `Decimal?` с провода: число или строка — приводим в месте показа, не в модели. */
-private fun JsonElement?.asTengeOrNull(): Int? =
+/**
+ * `Decimal?` с провода: число или строка — приводим в месте показа, не в
+ * модели. `internal`, единственная копия на пакет `ui.diagnostics` —
+ * переиспользуется из `ReferralDetailScreen.kt` и `CashierScreen.kt`.
+ */
+internal fun JsonElement?.asTengeOrNull(): Int? =
     (this as? JsonPrimitive)?.content?.toDoubleOrNull()?.toInt()
 
 @Composable
@@ -324,6 +329,7 @@ fun OperatorWorkspaceScreen(session: Session, viewModel: OperatorWorkspaceViewMo
             referrals = loaded.value,
             viewModel = viewModel,
             onOpenDetail = { id -> onNavigate("$ROUTE_DIAGNOSTICS_REFERRALS/$id") },
+            onOpenCashier = { onNavigate(ROUTE_OPERATOR_CASHIER) },
         )
     }
 }
@@ -335,6 +341,7 @@ private fun OperatorWorkspaceContent(
     referrals: List<Referral>,
     viewModel: OperatorWorkspaceViewModel,
     onOpenDetail: (String) -> Unit,
+    onOpenCashier: () -> Unit,
 ) {
     val counts = referrals.groupingBy { referralPhase(it.status) }.eachCount()
     val awaiting = (counts[ReferralPhase.AWAITING] ?: 0) + (counts[ReferralPhase.ACCEPTED] ?: 0)
@@ -369,6 +376,10 @@ private fun OperatorWorkspaceContent(
                     color = DvTheme.colors.textMuted,
                 )
             }
+        }
+
+        DvOutlineButton(onClick = onOpenCashier, modifier = Modifier.fillMaxWidth()) {
+            Text("Касса")
         }
 
         Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {

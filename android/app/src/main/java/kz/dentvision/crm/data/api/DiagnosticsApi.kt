@@ -4,10 +4,13 @@ import kotlinx.serialization.json.JsonElement
 import kz.dentvision.crm.data.model.AiGenerateResultRequest
 import kz.dentvision.crm.data.model.AiGeneratedResult
 import kz.dentvision.crm.data.model.ChangeReferralStatusRequest
+import kz.dentvision.crm.data.model.CollectPaymentRequest
+import kz.dentvision.crm.data.model.CollectPaymentResult
 import kz.dentvision.crm.data.model.CreateReferralRequest
 import kz.dentvision.crm.data.model.DiagnosticOrg
 import kz.dentvision.crm.data.model.DiagnosticsDashboardStats
 import kz.dentvision.crm.data.model.PricingItem
+import kz.dentvision.crm.data.model.PaymentsSummary
 import kz.dentvision.crm.data.model.Referral
 import kz.dentvision.crm.data.model.ReferralDetail
 import kz.dentvision.crm.data.model.ReferralListEnvelope
@@ -89,4 +92,16 @@ interface DiagnosticsApi {
 
     @POST("api/diagnostics/results/{id}/sign")
     suspend fun signResult(@Path("id") id: String, @Body body: SignResultRequest): ApiEnvelope<JsonElement>
+
+    @GET("api/diagnostics/centers/{id}/payments")
+    suspend fun centerPayments(@Path("id") id: String): ApiEnvelope<PaymentsSummary>
+
+    @GET("api/diagnostics/laboratories/{id}/payments")
+    suspend fun labPayments(@Path("id") id: String): ApiEnvelope<PaymentsSummary>
+
+    @POST("api/diagnostics/centers/{id}/cashier/collect")
+    suspend fun collectCenterPayment(@Path("id") id: String, @Body body: CollectPaymentRequest): ApiEnvelope<CollectPaymentResult>
+
+    @POST("api/diagnostics/laboratories/{id}/cashier/collect")
+    suspend fun collectLabPayment(@Path("id") id: String, @Body body: CollectPaymentRequest): ApiEnvelope<CollectPaymentResult>
 }

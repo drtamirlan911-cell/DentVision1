@@ -313,3 +313,59 @@ data class SignResultRequest(
     val reportText: String,
     val conclusion: String? = null,
 )
+
+/**
+ * Строка `GET /api/diagnostics/{centers,laboratories}/:id/payments` —
+ * `select` прямо из Prisma (не через сервис), максимум 100 последних
+ * не отменённых направлений. `cost`/`platformFee` — `Decimal?` с провода.
+ */
+@Serializable
+data class PaymentReferral(
+    val id: String,
+    val patientName: String = "",
+    val studyType: String = "",
+    val cost: JsonElement? = null,
+    val platformFee: JsonElement? = null,
+    val paid: Boolean = false,
+    val paidAt: String? = null,
+    val createdAt: String? = null,
+    val status: String = "",
+)
+
+@Serializable
+data class PaymentTotals(
+    val totalRevenue: Double = 0.0,
+    val totalFees: Double = 0.0,
+    val paidCount: Int = 0,
+    val unpaidCount: Int = 0,
+)
+
+@Serializable
+data class PaymentsSummary(
+    val referrals: List<PaymentReferral> = emptyList(),
+    val totals: PaymentTotals = PaymentTotals(),
+)
+
+/**
+ * Тело `POST /api/diagnostics/{centers,laboratories}/:id/cashier/collect`
+ * — сервер деструктурирует из тела только `referralId`/`cost`,
+ * `platformFee` он не читает вовсе (комиссию всегда считает сам через
+ * `resolveCommissionBps`), поэтому здесь его нет.
+ */
+@Serializable
+data class CollectPaymentRequest(
+    val referralId: String,
+    val cost: Double,
+)
+
+/**
+ * Ответ приёма оплаты — не `Decimal` с провода, а посчитанные на лету
+ * JS-числа (`Number`/`Math.round`), поэтому просто `Double`, без
+ * `JsonElement`-обёртки.
+ */
+@Serializable
+data class CollectPaymentResult(
+    val cost: Double = 0.0,
+    val platformFee: Double = 0.0,
+    val net: Double = 0.0,
+)

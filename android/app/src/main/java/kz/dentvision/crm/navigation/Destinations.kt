@@ -152,3 +152,6 @@ const val ROUTE_DIAGNOSTICS_REGISTRATIONS = "diagnostics/registrations"
  * [ROUTE_DIAGNOSTICS], который виден всем безусловно.
  */
 const val ROUTE_OPERATOR_WORKSPACE = "operator-workspace"
+
+/** Касса кабинета приёма — приём оплаты за уже принятое направление. */
+const val ROUTE_OPERATOR_CASHIER = "operator-workspace/cashier"
