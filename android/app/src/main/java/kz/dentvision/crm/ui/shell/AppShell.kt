@@ -100,6 +100,8 @@ import kz.dentvision.crm.navigation.ROUTE_COMMUNITY
 import kz.dentvision.crm.navigation.ROUTE_INTELLIGENCE
 import kz.dentvision.crm.navigation.ROUTE_JOBS
 import kz.dentvision.crm.navigation.ROUTE_PATIENT_DETAIL
+import kz.dentvision.crm.navigation.ROUTE_STOCK_RULES
+import kz.dentvision.crm.ui.inventory.StockRulesScreen
 import kz.dentvision.crm.navigation.ROUTE_SHOP_SCHOOL
 import kz.dentvision.crm.navigation.ROUTE_WORKSPACE
 import kz.dentvision.crm.navigation.resolveAssistantPath
@@ -369,6 +371,7 @@ fun AppShell(
 /** Заголовки фиксированных экранов ядра ИИ — их нет в `pages`, поэтому нет и в списке разделов. */
 private fun fixedRouteTitle(route: String): String? = when (route) {
     ROUTE_INTELLIGENCE -> "Intelligence"
+    ROUTE_STOCK_RULES -> "Списание после приёма"
     ROUTE_APPROVALS -> "Подтверждения ИИ"
     ROUTE_ACTIVITY -> "Активность ИИ"
     ROUTE_DIAGNOSTICS -> "Диагностика"
@@ -441,6 +444,9 @@ private fun ShellNavHost(
                         description = "Откройте карточку из списка пациентов.",
                     )
                 }
+            }
+            composable(ROUTE_STOCK_RULES) {
+                StockRulesScreen(canWrite = session.has("inventory.write"))
             }
             composable(ROUTE_APPROVALS) { ApprovalsScreen() }
             composable(ROUTE_ACTIVITY) { ActivityScreen() }

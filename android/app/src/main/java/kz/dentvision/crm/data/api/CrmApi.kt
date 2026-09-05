@@ -29,6 +29,9 @@ import kz.dentvision.crm.data.model.PriceListItem
 import kz.dentvision.crm.data.model.PriceListUpsert
 import kz.dentvision.crm.data.model.SentReminder
 import kz.dentvision.crm.data.model.Promotion
+import kz.dentvision.crm.data.model.StockDeductionPreviewLine
+import kz.dentvision.crm.data.model.StockRule
+import kz.dentvision.crm.data.model.StockRuleUpsert
 import kz.dentvision.crm.data.model.TreatmentPlan
 import kz.dentvision.crm.data.model.TreatmentPlanUpsert
 import kz.dentvision.crm.data.model.Visit
@@ -168,6 +171,24 @@ interface CrmApi {
 
     @DELETE("api/crm/expenses/{id}")
     suspend fun deleteExpense(@Path("id") id: String): ApiEnvelope<Unit>
+
+    // ── Списание расходников (modules/inventory/deductionRules.routes.ts) ──
+
+    @GET("api/stock-rules")
+    suspend fun stockRules(): ApiEnvelope<List<StockRule>>
+
+    /** Тот же маршрут создаёт и обновляет: сервер сам решает по (scope, matchKey). */
+    @POST("api/stock-rules")
+    suspend fun saveStockRule(@Body body: StockRuleUpsert): ApiEnvelope<StockRule>
+
+    @DELETE("api/stock-rules/{id}")
+    suspend fun deleteStockRule(@Path("id") id: String): ApiEnvelope<Unit>
+
+    @GET("api/stock-rules/preview")
+    suspend fun previewStockDeduction(
+        @Query("services") services: String? = null,
+        @Query("diagnosis") diagnosis: String? = null,
+    ): ApiEnvelope<List<StockDeductionPreviewLine>>
 
     // ── Склад (modules/inventory/inventory.routes.ts) ──
 

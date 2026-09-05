@@ -31,6 +31,9 @@ import kz.dentvision.crm.data.model.MarkReminderSent
 import kz.dentvision.crm.data.model.PriceListUpsert
 import kz.dentvision.crm.data.model.SentReminder
 import kz.dentvision.crm.data.model.Promotion
+import kz.dentvision.crm.data.model.StockDeductionPreviewLine
+import kz.dentvision.crm.data.model.StockRule
+import kz.dentvision.crm.data.model.StockRuleUpsert
 import kz.dentvision.crm.data.model.TreatmentPlan
 import kz.dentvision.crm.data.model.TreatmentPlanUpsert
 import kz.dentvision.crm.data.model.Visit
@@ -169,6 +172,25 @@ class CrmRepository(private val api: ApiClient = ServiceLocator.api) {
     suspend fun deleteExpense(id: String) {
         apiCall { api.crm.deleteExpense(id) }
     }
+
+    // ── Списание расходников ──
+
+    suspend fun stockRules(): List<StockRule> = apiCall { api.crm.stockRules() }
+
+    suspend fun saveStockRule(body: StockRuleUpsert): StockRule =
+        apiCall { api.crm.saveStockRule(body) }
+
+    suspend fun deleteStockRule(id: String) {
+        apiCall { api.crm.deleteStockRule(id) }
+    }
+
+    suspend fun previewStockDeduction(serviceCodes: List<String>, diagnosis: String?): List<StockDeductionPreviewLine> =
+        apiCall {
+            api.crm.previewStockDeduction(
+                services = serviceCodes.takeIf { it.isNotEmpty() }?.joinToString(","),
+                diagnosis = diagnosis,
+            )
+        }
 
     // ── Склад ──
 

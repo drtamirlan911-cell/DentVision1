@@ -226,3 +226,12 @@ const val ROUTE_SHOP_SCHOOL = "shop-school"
  * `SelectedPatient` (см. её докстринг), поэтому здесь только префикс.
  */
 const val ROUTE_PATIENT_DETAIL = "crm/patients/detail"
+
+/**
+ * Списание расходников после приёма — как `/crm/stock-rules` в вебе: не
+ * своя строка в `pages`, а под-маршрут «Склада» (обе стороны сторожит
+ * `guarded('inventory', ...)`, `src/index.tsx:189`). Поэтому заводится
+ * напрямую, а не через [IMPLEMENTED_PAGES], и открывается кнопкой внутри
+ * `InventoryScreen`, как на вебе — кнопкой внутри `Inventory.tsx`.
+ */
+const val ROUTE_STOCK_RULES = "crm/inventory/stock-rules"
