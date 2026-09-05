@@ -78,8 +78,6 @@ import kz.dentvision.crm.data.session.NotificationBadge
 import kz.dentvision.crm.data.session.ScreenFocus
 import kz.dentvision.crm.data.session.SelectedPatient
 import kz.dentvision.crm.data.session.Session
-import kz.dentvision.crm.navigation.CrmPage
-import kz.dentvision.crm.navigation.CrmSection
 import kz.dentvision.crm.navigation.IMPLEMENTED_PAGES
 import kz.dentvision.crm.navigation.cabinetRouteFor
 import kz.dentvision.crm.navigation.LocalAssistantNavigate
@@ -218,7 +216,6 @@ fun AppShell(
             ModalDrawerSheet(drawerContainerColor = DvTheme.colors.surface1) {
                 DrawerContent(
                     session = session,
-                    pages = pages,
                     currentRoute = currentRoute,
                     onOpen = { route ->
                         scope.launch { drawerState.close() }
@@ -577,7 +574,6 @@ private fun ShellNavHost(
 @Composable
 private fun DrawerContent(
     session: Session,
-    pages: List<CrmPage>,
     currentRoute: String,
     onOpen: (String) -> Unit,
     onOpenCabinet: () -> Unit,
@@ -681,6 +677,11 @@ private fun DrawerContent(
             active = currentRoute == ROUTE_SHOP_SCHOOL,
             onClick = { onOpen(ROUTE_SHOP_SCHOOL) },
         )
+        HorizontalDivider(
+            color = DvTheme.colors.borderSubtle,
+            modifier = Modifier.padding(vertical = 10.dp, horizontal = 20.dp),
+        )
+
         // Сквозные поверхности governance-ядра — одинаковые для всех вошедших,
         // поэтому фиксированные пункты рядом с «Кабинетом», а не часть [pages].
         PillarDrawerItem(
@@ -704,24 +705,11 @@ private fun DrawerContent(
             onClick = { onOpen(ROUTE_NOTIFICATIONS) },
         )
 
-        CrmSection.entries.forEach { section ->
-            val inSection = pages.filter { it.section == section }
-            if (inSection.isEmpty()) return@forEach
-            Text(
-                text = section.title,
-                style = MaterialTheme.typography.labelMedium,
-                color = DvTheme.colors.textGhost,
-                modifier = Modifier.padding(start = 20.dp, top = 14.dp, bottom = 6.dp),
-            )
-            inSection.forEach { page ->
-                PillarDrawerItem(
-                    label = page.label,
-                    icon = page.icon,
-                    active = currentRoute == page.route,
-                    onClick = { onOpen(page.route) },
-                )
-            }
-        }
+        // Разделы CRM (Пациенты, Расписание, Финансы, Склад — до 19 пунктов)
+        // здесь намеренно не повторяются вторым списком: пункт «Кабинет» выше
+        // уже открывает их, сгруппированными по разделам (`WorkspaceScreen`).
+        // Раньше оба списка стояли рядом в одном выдвижном меню — тот же набор
+        // страниц дважды, только тут без группировки, одним длинным столбцом.
 
         HorizontalDivider(
             color = DvTheme.colors.borderSubtle,
