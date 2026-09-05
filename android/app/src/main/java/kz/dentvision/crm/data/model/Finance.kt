@@ -62,6 +62,29 @@ data class FinanceReport(
     val byService: List<ServiceRevenue> = emptyList(),
     val byMethod: List<MethodRevenue> = emptyList(),
     val expensesByCategory: List<ExpenseCategoryRow> = emptyList(),
+    val payroll: List<FinancePayrollRow> = emptyList(),
+)
+
+/**
+ * Начисление одному врачу — `PayrollSummary` без `visitDetails`
+ * (`modules/crm/payroll.ts:32-48`); список визитов сервер срезает перед
+ * отправкой в отчёт, здесь его тоже нет.
+ */
+@Serializable
+data class FinancePayrollRow(
+    val userId: String,
+    val name: String,
+    val role: String = "",
+    val percent: Int = 0,
+    val payType: String = "commission",
+    val baseSalary: Int = 0,
+    val salaryPart: Int = 0,
+    val commissionPart: Int = 0,
+    val visits: Int = 0,
+    val gross: Int = 0,
+    val matCost: Int = 0,
+    val net: Int = 0,
+    val earned: Int = 0,
 )
 
 @Serializable
@@ -106,4 +129,26 @@ data class PriceListUpsert(
     val name: String? = null,
     val matCost: Int? = null,
     val active: Boolean? = null,
+)
+
+/** Расход клиники (`GET /api/crm/expenses`, `ops.routes.ts:124-152`). */
+@Serializable
+data class Expense(
+    val id: String,
+    val clinicId: String? = null,
+    val category: String = "Прочее",
+    val amount: Int = 0,
+    val notes: String? = null,
+    val date: String = "",
+    val createdAt: String? = null,
+)
+
+/** Тело `POST /api/crm/expenses` (`ops.routes.ts:158-183`) — `id` есть только при правке. */
+@Serializable
+data class ExpenseUpsert(
+    val id: String? = null,
+    val category: String,
+    val amount: Int,
+    val notes: String? = null,
+    val date: String? = null,
 )

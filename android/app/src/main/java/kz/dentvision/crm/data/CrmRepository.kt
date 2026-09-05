@@ -9,6 +9,8 @@ import kz.dentvision.crm.data.model.ClinicBilling
 import kz.dentvision.crm.data.model.ClinicSettings
 import kz.dentvision.crm.data.model.Doctor
 import kz.dentvision.crm.data.model.Document
+import kz.dentvision.crm.data.model.Expense
+import kz.dentvision.crm.data.model.ExpenseUpsert
 import kz.dentvision.crm.data.model.FinanceReport
 import kz.dentvision.crm.data.model.Icd10Code
 import kz.dentvision.crm.data.model.IinLookup
@@ -156,6 +158,17 @@ class CrmRepository(private val api: ApiClient = ServiceLocator.api) {
 
     suspend fun savePriceItem(body: PriceListUpsert): PriceListItem =
         apiCall { api.crm.upsertPriceItem(body) }
+
+    // ── Расходы ──
+
+    suspend fun expenses(from: String? = null, to: String? = null): List<Expense> =
+        apiCall { api.crm.expenses(from = from, to = to) }
+
+    suspend fun saveExpense(body: ExpenseUpsert): Expense = apiCall { api.crm.upsertExpense(body) }
+
+    suspend fun deleteExpense(id: String) {
+        apiCall { api.crm.deleteExpense(id) }
+    }
 
     // ── Склад ──
 

@@ -109,6 +109,60 @@ private fun ReportBody(report: FinanceReport) {
             rows = report.expensesByCategory.map { it.category to formatTenge(it.amount) },
         )
     }
+    if (report.payroll.isNotEmpty()) {
+        PayrollBreakdown(report.payroll)
+    }
+}
+
+/**
+ * Зарплата по врачам — перенос `payrollRows` (`Cashier.tsx:390-403`): раньше
+ * на Android была только общая сумма (`totals.payroll`), хотя отчёт уже
+ * присылает разбивку по каждому врачу (`billing.routes.ts:442-452`), она
+ * просто не читалась моделью.
+ */
+@Composable
+private fun PayrollBreakdown(rows: List<kz.dentvision.crm.data.model.FinancePayrollRow>) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = DvTheme.colors.surface1),
+        border = androidx.compose.foundation.BorderStroke(1.dp, DvTheme.colors.borderSubtle),
+    ) {
+        Column(modifier = Modifier.padding(14.dp)) {
+            Text(
+                text = "Зарплата по врачам",
+                style = MaterialTheme.typography.labelLarge,
+                color = DvTheme.colors.gold,
+            )
+            HorizontalDivider(
+                color = DvTheme.colors.borderSubtle,
+                modifier = Modifier.padding(vertical = 8.dp),
+            )
+            rows.forEach { row ->
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                ) {
+                    Column {
+                        Text(
+                            text = row.name,
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = DvTheme.colors.textPrimary,
+                        )
+                        Text(
+                            text = "${row.visits} " + if (row.visits % 10 == 1 && row.visits % 100 != 11) "визит" else "визитов",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = DvTheme.colors.textMuted,
+                        )
+                    }
+                    Text(
+                        text = formatTenge(row.earned),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = DvTheme.colors.textPrimary,
+                    )
+                }
+            }
+        }
+    }
 }
 
 @Composable

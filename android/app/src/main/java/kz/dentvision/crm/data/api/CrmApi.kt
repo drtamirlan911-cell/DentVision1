@@ -8,6 +8,8 @@ import kz.dentvision.crm.data.model.ClinicSettingsResponse
 import kz.dentvision.crm.data.model.ClinicWithMembers
 import kz.dentvision.crm.data.model.ConflictCheck
 import kz.dentvision.crm.data.model.Document
+import kz.dentvision.crm.data.model.Expense
+import kz.dentvision.crm.data.model.ExpenseUpsert
 import kz.dentvision.crm.data.model.FinanceReport
 import kz.dentvision.crm.data.model.Icd10Code
 import kz.dentvision.crm.data.model.IinLookup
@@ -152,6 +154,20 @@ interface CrmApi {
 
     @POST("api/crm/price-list")
     suspend fun upsertPriceItem(@Body body: PriceListUpsert): ApiEnvelope<PriceListItem>
+
+    // ── Расходы (modules/crm/ops.routes.ts) ──
+
+    @GET("api/crm/expenses")
+    suspend fun expenses(
+        @Query("from") from: String? = null,
+        @Query("to") to: String? = null,
+    ): ApiEnvelope<List<Expense>>
+
+    @POST("api/crm/expenses")
+    suspend fun upsertExpense(@Body body: ExpenseUpsert): ApiEnvelope<Expense>
+
+    @DELETE("api/crm/expenses/{id}")
+    suspend fun deleteExpense(@Path("id") id: String): ApiEnvelope<Unit>
 
     // ── Склад (modules/inventory/inventory.routes.ts) ──
 
