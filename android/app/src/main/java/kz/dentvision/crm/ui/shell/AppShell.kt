@@ -435,7 +435,7 @@ private fun fixedRouteTitle(route: String): String? = when (route) {
     ROUTE_DIAGNOSTICS_STATISTICS -> "Статистика диагностики"
     ROUTE_DIAGNOSTICS_SETTINGS -> "Настройки диагностики"
     ROUTE_DIAGNOSTICS_REGISTRATIONS -> "Заявки на регистрацию"
-    ROUTE_OPERATOR_WORKSPACE -> "Кабинет приёма"
+    ROUTE_OPERATOR_WORKSPACE -> "Кабинет диагностики"
     ROUTE_OPERATOR_CASHIER -> "Касса"
     ROUTE_OPERATOR_FINANCE -> "Финансы"
     ROUTE_OPERATOR_SERVICES -> "Услуги и цены"
@@ -443,7 +443,7 @@ private fun fixedRouteTitle(route: String): String? = when (route) {
     ROUTE_OPERATOR_TEAM -> "Сотрудники"
     ROUTE_JOBS -> "Вакансии"
     ROUTE_COMMUNITY -> "Сообщество"
-    ROUTE_SHOP_SCHOOL -> "Магазин и школа"
+    ROUTE_SHOP_SCHOOL -> "Маркетплейс и Academy OS"
     else -> null
 }
 
@@ -647,7 +647,7 @@ private fun DrawerContent(
         // просто не показывается, а не показывается неработающим.
         if (session.user.organizationType == "DIAGNOSTIC_CENTER" || session.user.organizationType == "LABORATORY") {
             PillarDrawerItem(
-                label = "Кабинет приёма",
+                label = "Кабинет диагностики",
                 icon = Icons.Filled.Science,
                 active = currentRoute == ROUTE_OPERATOR_WORKSPACE,
                 onClick = { onOpen(ROUTE_OPERATOR_WORKSPACE) },
@@ -672,7 +672,7 @@ private fun DrawerContent(
         // `embedded = true`), просто подключённый и для вошедших: раньше сюда
         // нельзя было попасть вообще ни при каком состоянии сессии.
         PillarDrawerItem(
-            label = "Магазин и школа",
+            label = "Маркетплейс и Academy OS",
             icon = Icons.Filled.School,
             active = currentRoute == ROUTE_SHOP_SCHOOL,
             onClick = { onOpen(ROUTE_SHOP_SCHOOL) },

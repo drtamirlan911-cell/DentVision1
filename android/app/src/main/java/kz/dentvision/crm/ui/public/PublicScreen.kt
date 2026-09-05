@@ -101,12 +101,17 @@ fun PublicScreen(
                 Tab(
                     selected = tab == 0,
                     onClick = { tab = 0 },
-                    text = { Text("Магазин", style = MaterialTheme.typography.labelLarge) },
+                    // "Маркетплейс" — так этот раздел называется везде на
+                    // вебе (`nav.shop` в `ru.json`, хлебные крошки товара,
+                    // вкладка контекста ИИ), а не «Магазин».
+                    text = { Text("Маркетплейс", style = MaterialTheme.typography.labelLarge) },
                 )
                 Tab(
                     selected = tab == 1,
                     onClick = { tab = 1 },
-                    text = { Text("Школа", style = MaterialTheme.typography.labelLarge) },
+                    // "Academy OS" — фирменное название, не переводится даже
+                    // в русской локали (`Sidebar.tsx`, `School.tsx`).
+                    text = { Text("Academy OS", style = MaterialTheme.typography.labelLarge) },
                 )
             }
             when (tab) {

@@ -144,7 +144,7 @@ fun LoginScreen(
             enabled = !state.submitting,
             modifier = Modifier.padding(top = 8.dp),
         ) {
-            Text("Магазин и курсы — без входа")
+            Text("Маркетплейс и курсы — без входа")
         }
     }
 }

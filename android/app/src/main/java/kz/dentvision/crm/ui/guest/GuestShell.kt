@@ -249,13 +249,13 @@ private fun GuestDrawerContent(destination: GuestDestination, onOpen: (GuestDest
             onClick = { onOpen(GuestDestination.HOME) },
         )
         GuestDrawerItem(
-            label = "Демо-версия CRM",
+            label = "Демо клиника",
             icon = Icons.Filled.Biotech,
             active = destination == GuestDestination.DEMO,
             onClick = { onOpen(GuestDestination.DEMO) },
         )
         GuestDrawerItem(
-            label = "Магазин и школа",
+            label = "Маркетплейс и Academy OS",
             icon = Icons.Filled.School,
             active = destination == GuestDestination.PUBLIC,
             onClick = { onOpen(GuestDestination.PUBLIC) },
