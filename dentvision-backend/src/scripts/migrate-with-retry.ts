@@ -8,11 +8,11 @@ async function sleep(ms: number) {
 }
 
 async function wakeDatabase(maxRetries = 5, baseDelay = 3000) {
-  console.log('Waking database...');
+  console.error('Waking database...');
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
     try {
       await prisma.$queryRaw`SELECT 1`;
-      console.log(`Database awake (attempt ${attempt})`);
+      console.error(`Database awake (attempt ${attempt})`);
       return;
     } catch (e) {
       if (attempt === maxRetries) throw e;
