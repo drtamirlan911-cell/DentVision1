@@ -9,10 +9,13 @@ import kz.dentvision.crm.data.model.AiBriefing
 import kz.dentvision.crm.data.model.AiConfirmRequest
 import kz.dentvision.crm.data.model.AiConfirmResult
 import kz.dentvision.crm.data.model.AiDismissResult
+import kz.dentvision.crm.data.model.AiGreeting
+import kz.dentvision.crm.data.model.AiGreetingRequest
 import kz.dentvision.crm.data.model.AiInsight
 import kz.dentvision.crm.data.model.AiProactiveResponse
 import kz.dentvision.crm.data.model.AiQueryRequest
 import kz.dentvision.crm.data.model.AiQueryResponse
+import kz.dentvision.crm.data.model.AiSkill
 import kz.dentvision.crm.data.model.AiThread
 import kz.dentvision.crm.data.model.AiThreadRef
 import kz.dentvision.crm.data.model.AiTimelineResponse
@@ -39,6 +42,17 @@ interface AiApi {
     /** Работает и для гостя, поэтому используется на публичном входе тоже. */
     @GET("api/ai/proactive")
     suspend fun proactive(): ApiEnvelope<AiProactiveResponse>
+
+    /**
+     * Что ассистент умеет именно для этого пользователя. Список уже сужен
+     * сервером по правам — показывать можно всё, что пришло.
+     */
+    @GET("api/ai/skills")
+    suspend fun skills(): ApiEnvelope<List<AiSkill>>
+
+    /** Приветствие по времени суток и имени; работает и для гостя. */
+    @POST("api/ai/greeting")
+    suspend fun greeting(@Body body: AiGreetingRequest): ApiEnvelope<AiGreeting>
 
     @POST("api/ai/query")
     suspend fun query(@Body body: AiQueryRequest): ApiEnvelope<AiQueryResponse>

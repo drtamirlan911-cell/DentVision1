@@ -33,6 +33,21 @@ class AiRepository(private val api: ApiClient = ServiceLocator.api) {
     suspend fun proactive(): List<kz.dentvision.crm.data.model.AiAlert> =
         apiCall { api.ai.proactive() }.alerts
 
+    /** Возможности ассистента для текущей роли — сервер уже сузил список по правам. */
+    suspend fun skills(): List<kz.dentvision.crm.data.model.AiSkill> = apiCall { api.ai.skills() }
+
+    /**
+     * Приветствие по времени суток и имени. Часовой пояс берём с устройства:
+     * сотрудник в поездке иначе получил бы «доброе утро» под вечер, потому
+     * что сервер посчитал бы по часовому поясу клиники.
+     */
+    suspend fun greeting(): String =
+        apiCall {
+            api.ai.greeting(
+                kz.dentvision.crm.data.model.AiGreetingRequest(java.util.TimeZone.getDefault().id),
+            )
+        }.greeting
+
     /**
      * Разговор. `focus` — фокус экрана в момент отправки, а не в момент
      * открытия ассистента: человек мог полистать карточку, пока писал вопрос,

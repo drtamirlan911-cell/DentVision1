@@ -1,6 +1,5 @@
 package kz.dentvision.crm.ui.intelligence
 
-import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
@@ -26,7 +25,9 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
@@ -35,9 +36,7 @@ import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Bolt
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Person
-import androidx.compose.material.icons.filled.Psychology
 import androidx.compose.material.icons.filled.SmartToy
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -47,7 +46,6 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -55,10 +53,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.rotate
-import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -68,8 +63,12 @@ import kotlinx.coroutines.delay
 import kz.dentvision.crm.data.model.AiAction
 import kz.dentvision.crm.data.model.AiAlert
 import kz.dentvision.crm.data.model.AiMessage
+import kz.dentvision.crm.data.model.AiSkill
 import kz.dentvision.crm.data.session.PendingAiQuery
 import kz.dentvision.crm.ui.common.LoadingSkeleton
+import kz.dentvision.crm.ui.theme.DvConfirmDialog
+import kz.dentvision.crm.ui.theme.DvConfirmVariant
+import kz.dentvision.crm.ui.theme.DvSpacing
 import kz.dentvision.crm.ui.theme.DvTheme
 
 /**
@@ -118,7 +117,7 @@ fun IntelligenceScreen(
 
     Column(modifier = modifier.fillMaxSize().background(DvTheme.colors.surface0)) {
         if (!state.isGuest && state.messages.isNotEmpty()) {
-            Row(modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 4.dp), horizontalArrangement = Arrangement.End) {
+            Row(modifier = Modifier.fillMaxWidth().padding(horizontal = DvSpacing.sm, vertical = DvSpacing.xs), horizontalArrangement = Arrangement.End) {
                 IconButton(onClick = viewModel::startNewThread) {
                     Icon(Icons.Filled.Add, contentDescription = "Новый диалог", tint = DvTheme.colors.textSecondary)
                 }
@@ -126,12 +125,20 @@ fun IntelligenceScreen(
         }
         Box(modifier = Modifier.weight(1f)) {
             when {
-                state.loadingThread -> LoadingSkeleton(rows = 4, contentPadding = PaddingValues(20.dp))
-                state.messages.isEmpty() -> EmptyHero(isGuest = state.isGuest)
+                state.loadingThread -> LoadingSkeleton(rows = 4, contentPadding = PaddingValues(DvSpacing.xl))
+                state.messages.isEmpty() -> Column(
+                    modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()),
+                ) {
+                    EmptyHero(isGuest = state.isGuest, greeting = state.greeting)
+                    if (state.skills.isNotEmpty()) {
+                        SkillGrid(skills = state.skills, onPick = { viewModel.send(it.prompt) })
+                        Spacer(modifier = Modifier.padding(bottom = DvSpacing.xxl))
+                    }
+                }
                 else -> LazyColumn(
                     state = listState,
-                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 16.dp),
-                    verticalArrangement = Arrangement.spacedBy(14.dp),
+                    contentPadding = PaddingValues(DvSpacing.lg),
+                    verticalArrangement = Arrangement.spacedBy(DvSpacing.md),
                 ) {
                     items(state.messages, key = { it.id }) { message -> MessageBubble(message) }
                     if (state.sending) item { TypingRow() }
@@ -154,7 +161,7 @@ fun IntelligenceScreen(
                     text = if (left > 0) "Бесплатных вопросов осталось: $left" else "Бесплатные вопросы закончились — зарегистрируйтесь, чтобы продолжить",
                     style = MaterialTheme.typography.labelSmall,
                     color = if (left > 0) DvTheme.colors.textMuted else DvTheme.colors.warning,
-                    modifier = Modifier.padding(horizontal = 20.dp, vertical = 2.dp),
+                    modifier = Modifier.padding(horizontal = DvSpacing.xl, vertical = DvSpacing.xs),
                 )
             }
         }
@@ -163,7 +170,7 @@ fun IntelligenceScreen(
                 text = message,
                 style = MaterialTheme.typography.bodySmall,
                 color = DvTheme.colors.error,
-                modifier = Modifier.padding(horizontal = 20.dp, vertical = 4.dp),
+                modifier = Modifier.padding(horizontal = DvSpacing.xl, vertical = DvSpacing.xs),
             )
         }
         Composer(
@@ -176,14 +183,47 @@ fun IntelligenceScreen(
     }
 
     state.pendingConfirmation?.let { action ->
-        AlertDialog(
-            onDismissRequest = { viewModel.confirmPending(false) },
-            title = { Text("Подтвердите действие") },
-            text = { Text(action.label.ifBlank { "Выполнить «${action.type}»?" }) },
-            confirmButton = { TextButton(onClick = { viewModel.confirmPending(true) }) { Text("Подтвердить") } },
-            dismissButton = { TextButton(onClick = { viewModel.confirmPending(false) }) { Text("Отмена") } },
+        DvConfirmDialog(
+            title = "Выполнить действие?",
+            message = buildString {
+                append(action.label.ifBlank { humanAction(action.type) })
+                val params = action.params?.entries?.take(4).orEmpty()
+                if (params.isNotEmpty()) {
+                    append("\n")
+                    params.forEach { (key, value) ->
+                        append("\n• $key: ${value.toString().trim('"')}")
+                    }
+                }
+            },
+            confirmLabel = "Выполнить",
+            variant = DvConfirmVariant.WARNING,
+            onConfirm = { viewModel.confirmPending(true) },
+            onDismiss = { viewModel.confirmPending(false) },
         )
     }
+}
+
+/**
+ * Машинное имя инструмента — в человеческую фразу, когда сервер не прислал
+ * `label`. Подтверждать «createInvoice» человек не может: непонятно, что
+ * произойдёт и на какую сумму.
+ *
+ * Список повторяет мутирующие инструменты из `os/tools.ts` (`mutating: true`)
+ * — только они и доходят до подтверждения. Незнакомое имя показываем как
+ * есть: лучше честное «выполнить „foo“», чем выдуманный перевод.
+ */
+private fun humanAction(type: String): String = when (type) {
+    "createAppointment" -> "Записать пациента на приём"
+    "updateAppointmentStatus" -> "Изменить статус приёма"
+    "cancelAppointment" -> "Отменить приём"
+    "rescheduleAppointment" -> "Перенести приём"
+    "createTreatmentPlan" -> "Создать план лечения"
+    "createInvoice" -> "Выставить счёт"
+    "createDiagnosticReferral" -> "Оформить направление на диагностику"
+    "createLabOrder" -> "Создать заказ в лабораторию"
+    "updateLabOrderStatus" -> "Изменить статус заказа лаборатории"
+    "applyToothFindings" -> "Внести изменения в зубную формулу"
+    else -> "Выполнить «$type»"
 }
 
 /** Аватар-чип ассистента: золотой градиентный фон, скруглённый квадрат — переносит `Bot`-иконку веба. */
@@ -207,109 +247,111 @@ private fun BotChip(size: androidx.compose.ui.unit.Dp, iconSize: androidx.compos
 }
 
 /**
- * Заглавный экран Intelligence — первое, что видит и гость, и вошедший.
- * Раньше здесь была статичная плоская иконка робота; теперь — многослойная
- * анимация вокруг мозга (`Icons.Filled.Psychology`): дышащее внешнее
- * свечение, медленно вращающееся золотое кольцо и пульсирующее ядро —
- * тот самый «вау»-момент при первом открытии, а не просто иконка.
+ * Шапка пустого экрана. Раньше здесь крутилось трёхслойное представление —
+ * дышащее свечение, вращающееся кольцо, пульсирующее ядро — и подпись
+ * «AI-операционка клиники». Смотреть было на что, но человек всё равно не
+ * знал, что спросить, а анимация ничего не сообщала: она шла одинаково и
+ * когда всё в порядке, и когда ассистенту нечего предложить.
+ *
+ * Теперь тут только приветствие и один спокойный знак, а место занимает то,
+ * ради чего экран открыли, — список возможностей ниже.
  */
 @Composable
-private fun EmptyHero(isGuest: Boolean) {
+private fun EmptyHero(isGuest: Boolean, greeting: String?) {
     val colors = DvTheme.colors
-    val transition = rememberInfiniteTransition(label = "hero")
-    val pulse by transition.animateFloat(
-        initialValue = 0.94f,
-        targetValue = 1.08f,
-        animationSpec = infiniteRepeatable(tween(2200, easing = LinearEasing), RepeatMode.Reverse),
-        label = "hero-pulse",
-    )
-    val glowAlpha by transition.animateFloat(
-        initialValue = 0.18f,
-        targetValue = 0.45f,
-        animationSpec = infiniteRepeatable(tween(1800, easing = LinearEasing), RepeatMode.Reverse),
-        label = "hero-glow",
-    )
-    val ringRotation by transition.animateFloat(
-        initialValue = 0f,
-        targetValue = 360f,
-        animationSpec = infiniteRepeatable(tween(7000, easing = LinearEasing)),
-        label = "hero-ring",
-    )
     Column(
-        modifier = Modifier.fillMaxSize().padding(32.dp),
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = DvSpacing.xxxl)
+            .padding(top = DvSpacing.xxxl, bottom = DvSpacing.xxl),
         horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center,
     ) {
-        Box(modifier = Modifier.size(112.dp), contentAlignment = Alignment.Center) {
-            // Дышащее свечение вокруг всей композиции.
-            Box(
-                modifier = Modifier
-                    .size(112.dp)
-                    .scale(pulse)
-                    .clip(CircleShape)
-                    .background(
-                        Brush.radialGradient(
-                            listOf(colors.gold.copy(alpha = glowAlpha), Color.Transparent),
-                        ),
-                    ),
+        Box(
+            modifier = Modifier
+                .size(56.dp)
+                .clip(RoundedCornerShape(16.dp))
+                .background(colors.surface2)
+                .border(1.dp, colors.borderSubtle, RoundedCornerShape(16.dp)),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(
+                Icons.Filled.AutoAwesome,
+                contentDescription = null,
+                tint = colors.gold,
+                modifier = Modifier.size(24.dp),
             )
-            // Вращающееся кольцо — единственный источник «энергии» вокруг ядра.
-            Box(
-                modifier = Modifier
-                    .size(84.dp)
-                    .rotate(ringRotation)
-                    .clip(CircleShape)
-                    .border(
-                        width = 2.dp,
-                        brush = Brush.sweepGradient(
-                            listOf(
-                                Color.Transparent,
-                                colors.gold.copy(alpha = 0.9f),
-                                Color.Transparent,
-                                Color.Transparent,
-                            ),
-                        ),
-                        shape = CircleShape,
-                    ),
-            )
-            // Ядро — сам мозг, пульсирует чуть мягче кольца.
-            Box(
-                modifier = Modifier
-                    .size(72.dp)
-                    .scale(0.96f + (pulse - 0.94f) * 0.4f)
-                    .clip(RoundedCornerShape(22.dp))
-                    .background(
-                        Brush.linearGradient(
-                            listOf(colors.gold.copy(alpha = 0.28f), colors.gold.copy(alpha = 0.04f)),
-                        ),
-                    )
-                    .border(1.dp, colors.gold.copy(alpha = 0.25f), RoundedCornerShape(22.dp)),
-                contentAlignment = Alignment.Center,
-            ) {
-                Icon(Icons.Filled.Psychology, contentDescription = null, tint = colors.gold, modifier = Modifier.size(34.dp))
-            }
         }
         Text(
-            text = "Intelligence",
-            style = MaterialTheme.typography.headlineMedium,
+            text = greeting ?: if (isGuest) "Чем помочь?" else "Чем помочь сегодня?",
+            style = MaterialTheme.typography.titleMedium,
             fontWeight = FontWeight.SemiBold,
             color = colors.textPrimary,
-            modifier = Modifier.padding(top = 20.dp),
+            textAlign = TextAlign.Center,
+            modifier = Modifier.padding(top = DvSpacing.lg),
         )
         Text(
-            // Перенос `ai.guest_empty`/`ai.auth_empty` (`src/locales/ru.json`) —
-            // гость и вошедший видят один экран, но не один и тот же текст:
-            // у гостя ещё нет данных клиники, которые эта фраза обещала бы.
             text = if (isGuest) {
-                "Jarvis покажет платформу..."
+                "Расскажу о платформе, покажу демо и Academy."
             } else {
-                "AI-операционка клиники. Спросите о расписании..."
+                "Выберите, с чего начать — или просто спросите."
             },
             style = MaterialTheme.typography.bodyMedium,
             color = colors.textMuted,
             textAlign = TextAlign.Center,
-            modifier = Modifier.padding(top = 8.dp).widthIn(max = 300.dp),
+            modifier = Modifier.padding(top = DvSpacing.sm).widthIn(max = 300.dp),
         )
+    }
+}
+
+/**
+ * Каталог возможностей роли. Не «подсказки модели», а список навыков,
+ * которые сервер уже разрешил этому пользователю (`GET /api/ai/skills`) —
+ * ровно то, что отличает ассистента-сотрудника от пустого поля ввода: видно,
+ * что он умеет, ещё до первого вопроса, и врач с кассиром видят разное.
+ *
+ * Нажатие отправляет готовую формулировку из `prompt`, чтобы человеку не
+ * пришлось угадывать, какими словами просить.
+ */
+@Composable
+private fun SkillGrid(skills: List<AiSkill>, onPick: (AiSkill) -> Unit) {
+    val colors = DvTheme.colors
+    Column(
+        modifier = Modifier.fillMaxWidth().padding(horizontal = DvSpacing.lg),
+        verticalArrangement = Arrangement.spacedBy(DvSpacing.sm),
+    ) {
+        Text(
+            text = "Чем могу помочь",
+            style = MaterialTheme.typography.labelSmall,
+            color = colors.textMuted,
+            modifier = Modifier.padding(bottom = DvSpacing.xs),
+        )
+        skills.take(6).forEach { skill ->
+            Surface(
+                color = colors.surface1,
+                shape = RoundedCornerShape(12.dp),
+                border = androidx.compose.foundation.BorderStroke(1.dp, colors.borderSubtle),
+                onClick = { onPick(skill) },
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Row(
+                    modifier = Modifier.padding(DvSpacing.lg),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(
+                        text = skill.title,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = colors.textPrimary,
+                        modifier = Modifier.weight(1f),
+                    )
+                    Icon(
+                        Icons.AutoMirrored.Filled.ArrowForward,
+                        contentDescription = null,
+                        tint = colors.textGhost,
+                        modifier = Modifier.size(16.dp),
+                    )
+                }
+            }
+        }
     }
 }
 
@@ -326,9 +368,9 @@ private fun MessageBubble(message: AiMessage) {
             Spacer(modifier = Modifier.width(8.dp))
         }
         val shape = if (isUser) {
-            RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp, bottomStart = 20.dp, bottomEnd = 6.dp)
+            RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp, bottomStart = 16.dp, bottomEnd = 4.dp)
         } else {
-            RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp, bottomStart = 6.dp, bottomEnd = 20.dp)
+            RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp, bottomStart = 4.dp, bottomEnd = 16.dp)
         }
         Box(
             modifier = Modifier
@@ -343,7 +385,7 @@ private fun MessageBubble(message: AiMessage) {
                             .border(1.dp, colors.borderSubtle, shape)
                     },
                 )
-                .padding(horizontal = 16.dp, vertical = 11.dp),
+                .padding(horizontal = DvSpacing.lg, vertical = DvSpacing.md),
         ) {
             Text(
                 text = renderPlain(message.content),
@@ -357,7 +399,7 @@ private fun MessageBubble(message: AiMessage) {
             Box(
                 modifier = Modifier
                     .size(32.dp)
-                    .clip(RoundedCornerShape(14.dp))
+                    .clip(RoundedCornerShape(12.dp))
                     .background(colors.surface3),
                 contentAlignment = Alignment.Center,
             ) {
@@ -377,10 +419,10 @@ private fun TypingRow() {
         BotChip(size = 32.dp, iconSize = 16.dp)
         Box(
             modifier = Modifier
-                .padding(start = 8.dp)
-                .clip(RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp, bottomStart = 6.dp, bottomEnd = 20.dp))
+                .padding(start = DvSpacing.sm)
+                .clip(RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp, bottomStart = 4.dp, bottomEnd = 16.dp))
                 .background(colors.surface2)
-                .padding(horizontal = 16.dp, vertical = 14.dp),
+                .padding(horizontal = DvSpacing.lg, vertical = DvSpacing.md),
         ) {
             Row(horizontalArrangement = Arrangement.spacedBy(5.dp)) {
                 repeat(3) { i ->
@@ -424,11 +466,13 @@ private fun AlertChip(alert: AiAlert, onTap: () -> Unit, onDismiss: () -> Unit) 
     val accent = if (alert.priority >= 8) colors.error else if (alert.priority >= 5) colors.warning else colors.gold
     Surface(
         color = accent.copy(alpha = 0.1f),
-        shape = RoundedCornerShape(14.dp),
+        // Чип — пилюля (П4). Цвет здесь несёт смысл (приоритет тревоги),
+        // а не украшает, поэтому он остаётся, в отличие от прочего золота.
+        shape = RoundedCornerShape(50),
         border = androidx.compose.foundation.BorderStroke(1.dp, accent.copy(alpha = 0.25f)),
         onClick = onTap,
     ) {
-        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(start = 12.dp, end = 4.dp, top = 6.dp, bottom = 6.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(start = DvSpacing.md, end = DvSpacing.xs, top = DvSpacing.sm, bottom = DvSpacing.sm)) {
             Text(
                 text = alert.text.ifBlank { alert.message },
                 style = MaterialTheme.typography.labelMedium,
@@ -436,7 +480,7 @@ private fun AlertChip(alert: AiAlert, onTap: () -> Unit, onDismiss: () -> Unit) 
                 modifier = Modifier.widthIn(max = 220.dp),
             )
             IconButton(onClick = onDismiss, modifier = Modifier.size(24.dp).padding(start = 4.dp)) {
-                Icon(Icons.Filled.Close, contentDescription = "Скрыть", tint = accent.copy(alpha = 0.7f), modifier = Modifier.size(14.dp))
+                Icon(Icons.Filled.Close, contentDescription = "Скрыть", tint = accent.copy(alpha = 0.7f), modifier = Modifier.size(12.dp))
             }
         }
     }
@@ -469,7 +513,7 @@ private fun SuggestionRow(suggestions: List<String>, onTap: (String) -> Unit) {
             ) {
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp),
+                    modifier = Modifier.padding(horizontal = DvSpacing.md, vertical = DvSpacing.sm),
                 ) {
                     Icon(
                         Icons.Filled.AutoAwesome,
@@ -494,13 +538,13 @@ private fun GoldPillChip(label: String, onClick: () -> Unit) {
     val colors = DvTheme.colors
     Surface(
         color = colors.gold.copy(alpha = 0.1f),
-        shape = RoundedCornerShape(12.dp),
+        shape = RoundedCornerShape(50),
         border = androidx.compose.foundation.BorderStroke(1.dp, colors.gold.copy(alpha = 0.25f)),
         onClick = onClick,
     ) {
         Row(
             verticalAlignment = Alignment.CenterVertically,
-            modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp),
+            modifier = Modifier.padding(horizontal = DvSpacing.md, vertical = DvSpacing.sm),
         ) {
             Icon(Icons.Filled.Bolt, contentDescription = null, tint = colors.gold, modifier = Modifier.size(12.dp))
             Text(
@@ -546,7 +590,7 @@ private fun Composer(
                 )
             },
             maxLines = 4,
-            shape = RoundedCornerShape(20.dp),
+            shape = RoundedCornerShape(24.dp),
             colors = OutlinedTextFieldDefaults.colors(
                 focusedContainerColor = colors.surface1,
                 unfocusedContainerColor = colors.surface1,
@@ -562,7 +606,7 @@ private fun Composer(
         }
         Box(
             modifier = Modifier
-                .padding(start = 8.dp, bottom = 4.dp)
+                .padding(start = DvSpacing.sm, bottom = DvSpacing.xs)
                 .size(40.dp)
                 .clip(CircleShape)
                 .background(sendBrush),

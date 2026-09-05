@@ -15,6 +15,7 @@ import kz.dentvision.crm.data.ServiceLocator
 import kz.dentvision.crm.data.model.AiAction
 import kz.dentvision.crm.data.model.AiAlert
 import kz.dentvision.crm.data.model.AiMessage
+import kz.dentvision.crm.data.model.AiSkill
 import kz.dentvision.crm.data.session.FocusHolder
 import kz.dentvision.crm.navigation.AI_NAV_ACTIONS
 
@@ -32,6 +33,14 @@ data class IntelligenceUiState(
     val pendingConfirmation: AiAction? = null,
     val pendingNavigatePath: String? = null,
     val aiRequestsLeft: Int? = null,
+    /**
+     * Что ассистент умеет для этой роли (`GET /api/ai/skills`). Показывается
+     * на пустом экране вместо предложения угадать вопрос: сервер уже сузил
+     * список по правам, так что здесь лежит ровно то, что человеку доступно.
+     */
+    val skills: List<AiSkill> = emptyList(),
+    /** Приветствие по роли с сервера; null — пока не пришло или не удалось. */
+    val greeting: String? = null,
 )
 
 /**
@@ -94,6 +103,16 @@ class IntelligenceViewModel(
             runCatching { repository.proactive() }
                 .onSuccess { alerts -> _state.update { it.copy(alerts = alerts) } }
                 .onFailure { /* Тревоги необязательны для полезности экрана — диалог важнее. */ }
+        }
+        viewModelScope.launch {
+            runCatching { repository.skills() }
+                .onSuccess { list -> _state.update { it.copy(skills = list) } }
+                .onFailure { /* Каталог возможностей украшает пустой экран — из-за него нельзя ронять чат. */ }
+        }
+        viewModelScope.launch {
+            runCatching { repository.greeting() }
+                .onSuccess { text -> _state.update { it.copy(greeting = text.ifBlank { null }) } }
+                .onFailure { /* Без приветствия экран остаётся с нейтральным заголовком. */ }
         }
     }
 
