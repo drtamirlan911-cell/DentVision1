@@ -46,7 +46,7 @@ class GuestSessionStore(private val context: Context) {
     init {
         scope.launch {
             val stored = context.guestDataStore.data.first()[KEY_GUEST]
-            _identity.value = stored?.let {
+            _identity.value = stored?.let { SecureCipher.decrypt(it) }?.let {
                 runCatching { json.decodeFromString<GuestIdentity>(it) }.getOrNull()
             }
             _restored.value = true
@@ -76,7 +76,7 @@ class GuestSessionStore(private val context: Context) {
 
     private suspend fun persist(identity: GuestIdentity) {
         context.guestDataStore.edit { prefs ->
-            prefs[KEY_GUEST] = json.encodeToString(GuestIdentity.serializer(), identity)
+            prefs[KEY_GUEST] = SecureCipher.encrypt(json.encodeToString(GuestIdentity.serializer(), identity))
         }
     }
 

@@ -46,6 +46,7 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kz.dentvision.crm.data.CrmRepository
 import kz.dentvision.crm.lib.buildWaLink
+import kz.dentvision.crm.lib.formatDate
 import kz.dentvision.crm.lib.formatTenge
 import kz.dentvision.crm.ui.common.EmptyStateView
 import kz.dentvision.crm.ui.common.ErrorState
@@ -106,7 +107,7 @@ class DebtsViewModel(
                             patientName = patient?.name?.ifBlank { null } ?: "Пациент не указан",
                             phone = patient?.phone.orEmpty(),
                             amount = invoice.amount,
-                            date = (invoice.createdAt ?: "").take(10),
+                            date = formatDate(invoice.createdAt) ?: "",
                         )
                     }
                     _state.update { it.copy(list = UiState.Data(rows)) }

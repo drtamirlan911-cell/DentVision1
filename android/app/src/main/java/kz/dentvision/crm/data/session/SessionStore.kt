@@ -43,7 +43,7 @@ class SessionStore(private val context: Context) {
     init {
         scope.launch {
             val stored = context.sessionDataStore.data.first()[KEY_SESSION]
-            _session.value = stored?.let {
+            _session.value = stored?.let { SecureCipher.decrypt(it) }?.let {
                 runCatching { json.decodeFromString<Session>(it) }.getOrNull()
             }
             _restored.value = true
@@ -82,7 +82,7 @@ class SessionStore(private val context: Context) {
 
     private suspend fun persist(session: Session) {
         context.sessionDataStore.edit { prefs ->
-            prefs[KEY_SESSION] = json.encodeToString(Session.serializer(), session)
+            prefs[KEY_SESSION] = SecureCipher.encrypt(json.encodeToString(Session.serializer(), session))
         }
     }
 

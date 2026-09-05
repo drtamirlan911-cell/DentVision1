@@ -33,6 +33,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kz.dentvision.crm.lib.formatDate
 import kz.dentvision.crm.data.WorkspaceRepository
 import kz.dentvision.crm.data.api.ApiException
 import kz.dentvision.crm.data.model.OrganizationInvitation
@@ -243,7 +244,7 @@ private fun InvitationRow(inv: OrganizationInvitation) {
             }
             inv.email?.let { Text(text = it, style = MaterialTheme.typography.bodySmall, color = DvTheme.colors.textMuted) }
             inv.expiresAt?.let {
-                Text(text = "до ${it.take(10)}", style = MaterialTheme.typography.labelSmall, color = DvTheme.colors.textMuted)
+                Text(text = "до ${formatDate(it)}", style = MaterialTheme.typography.labelSmall, color = DvTheme.colors.textMuted)
             }
             DvOutlineButton(onClick = { clipboard.setText(AnnotatedString(inv.code)) }, modifier = Modifier.fillMaxWidth()) {
                 Text("Копировать")

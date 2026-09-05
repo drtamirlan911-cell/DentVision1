@@ -49,6 +49,7 @@ import kotlinx.coroutines.launch
 import kz.dentvision.crm.data.WorkspaceRepository
 import kz.dentvision.crm.data.model.WorkspaceContext
 import kz.dentvision.crm.data.session.Session
+import kz.dentvision.crm.ui.common.EmptyStateView
 import kz.dentvision.crm.ui.common.ErrorState
 import kz.dentvision.crm.ui.common.LoadingSkeleton
 import kz.dentvision.crm.ui.common.UiState
@@ -189,28 +190,36 @@ fun WorkspaceSwitcherSheet(
                 is UiState.Data -> {
                     val grouped = GROUPS.map { g -> g to items.value.filter { it.scopeType in g.types } }
                         .filter { (_, list) -> list.isNotEmpty() }
-                    LazyColumn(
-                        modifier = Modifier.heightIn(max = 420.dp),
-                        contentPadding = PaddingValues(vertical = 8.dp),
-                    ) {
-                        grouped.forEach { (group, list) ->
-                            if (grouped.size > 1) {
-                                item {
-                                    Text(
-                                        text = group.label,
-                                        style = MaterialTheme.typography.labelSmall,
-                                        color = DvTheme.colors.textGhost,
-                                        modifier = Modifier.padding(top = 10.dp, bottom = 4.dp),
+                    if (grouped.isEmpty()) {
+                        EmptyStateView(
+                            title = "Рабочих пространств нет",
+                            description = "Создайте клинику или присоединитесь к существующей.",
+                            modifier = Modifier.padding(vertical = 16.dp),
+                        )
+                    } else {
+                        LazyColumn(
+                            modifier = Modifier.heightIn(max = 420.dp),
+                            contentPadding = PaddingValues(vertical = 8.dp),
+                        ) {
+                            grouped.forEach { (group, list) ->
+                                if (grouped.size > 1) {
+                                    item {
+                                        Text(
+                                            text = group.label,
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = DvTheme.colors.textGhost,
+                                            modifier = Modifier.padding(top = 10.dp, bottom = 4.dp),
+                                        )
+                                    }
+                                }
+                                items(list, key = { it.id }) { ws ->
+                                    WorkspaceRow(
+                                        workspace = ws,
+                                        active = isActive(ws, session),
+                                        busy = state.busyId == ws.id,
+                                        onClick = { viewModel.switchTo(ws) },
                                     )
                                 }
-                            }
-                            items(list, key = { it.id }) { ws ->
-                                WorkspaceRow(
-                                    workspace = ws,
-                                    active = isActive(ws, session),
-                                    busy = state.busyId == ws.id,
-                                    onClick = { viewModel.switchTo(ws) },
-                                )
                             }
                         }
                     }

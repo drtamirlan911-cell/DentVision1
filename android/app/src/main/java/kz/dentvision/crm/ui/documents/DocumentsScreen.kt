@@ -23,6 +23,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
+import kz.dentvision.crm.lib.formatDate
 import kz.dentvision.crm.data.CrmRepository
 import kz.dentvision.crm.data.model.Document
 import kz.dentvision.crm.ui.common.EmptyStateView
@@ -94,7 +95,7 @@ fun DocumentsScreen(viewModel: DocumentsViewModel = viewModel()) {
                                 val sub = listOfNotNull(
                                     doc.patientName.takeIf { it.isNotBlank() },
                                     doc.docType ?: doc.type,
-                                    doc.createdAt?.take(10),
+                                    formatDate(doc.createdAt),
                                 ).joinToString(" · ")
                                 if (sub.isNotBlank()) {
                                     Text(

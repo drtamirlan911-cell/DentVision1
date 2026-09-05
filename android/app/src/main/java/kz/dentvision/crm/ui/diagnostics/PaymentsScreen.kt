@@ -30,6 +30,7 @@ import kz.dentvision.crm.data.DiagnosticsRepository
 import kz.dentvision.crm.data.model.PaymentReferral
 import kz.dentvision.crm.data.model.PaymentsSummary
 import kz.dentvision.crm.data.session.Session
+import kz.dentvision.crm.lib.formatDate
 import kz.dentvision.crm.lib.formatTenge
 import kz.dentvision.crm.ui.common.ErrorState
 import kz.dentvision.crm.ui.common.LoadingSkeleton
@@ -167,7 +168,7 @@ private fun PaymentRow(referral: PaymentReferral) {
             }
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                 Text(text = "К выплате: ${formatTenge(net)}", style = MaterialTheme.typography.bodySmall, color = DvTheme.colors.success)
-                Text(text = referral.createdAt?.take(10) ?: "—", style = MaterialTheme.typography.labelSmall, color = DvTheme.colors.textMuted)
+                Text(text = formatDate(referral.createdAt) ?: "—", style = MaterialTheme.typography.labelSmall, color = DvTheme.colors.textMuted)
             }
         }
     }

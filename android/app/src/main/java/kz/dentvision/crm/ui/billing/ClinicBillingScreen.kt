@@ -20,6 +20,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
+import kz.dentvision.crm.lib.formatDate
 import kz.dentvision.crm.data.CrmRepository
 import kz.dentvision.crm.data.model.BILLING_STATUS_LABELS
 import kz.dentvision.crm.data.model.ClinicBilling
@@ -91,7 +92,7 @@ fun ClinicBillingScreen(viewModel: ClinicBillingViewModel = viewModel()) {
                         )
                         billing.periodEnd?.takeIf { it.isNotBlank() }?.let {
                             Text(
-                                text = "Действует до ${it.take(10)}",
+                                text = "Действует до ${formatDate(it)}",
                                 style = MaterialTheme.typography.bodySmall,
                                 color = DvTheme.colors.textMuted,
                                 modifier = Modifier.padding(top = 6.dp),

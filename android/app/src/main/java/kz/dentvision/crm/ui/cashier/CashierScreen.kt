@@ -44,6 +44,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import kz.dentvision.crm.data.model.INVOICE_STATUS_LABELS
 import kz.dentvision.crm.data.model.Invoice
+import kz.dentvision.crm.lib.formatDate
 import kz.dentvision.crm.lib.formatTenge
 import kz.dentvision.crm.ui.common.EmptyStateView
 import kz.dentvision.crm.ui.common.ErrorState
@@ -133,7 +134,7 @@ private fun InvoiceRow(invoice: Invoice) {
                     color = DvTheme.colors.textPrimary,
                 )
                 Text(
-                    text = (invoice.paidAt ?: invoice.createdAt)?.take(10) ?: "",
+                    text = formatDate(invoice.paidAt ?: invoice.createdAt) ?: "",
                     style = MaterialTheme.typography.labelSmall,
                     color = DvTheme.colors.textGhost,
                 )

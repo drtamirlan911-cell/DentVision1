@@ -38,6 +38,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import kotlinx.coroutines.delay
+import kz.dentvision.crm.lib.formatDate
 import kz.dentvision.crm.data.model.MarketingContext
 import kz.dentvision.crm.data.model.PlanSummary
 import kz.dentvision.crm.ui.common.EmptyStateView
@@ -202,7 +203,7 @@ private fun PlanRow(plan: PlanSummary, onClick: () -> Unit, onDelete: () -> Unit
             Column(modifier = Modifier.weight(1f)) {
                 Text(plan.title, style = MaterialTheme.typography.bodyMedium, color = DvTheme.colors.textPrimary)
                 Text(
-                    plan.createdAt.replace('T', ' ').take(10) + " · идей: ${plan.ideaCount}" + (if (plan.deterministic) " · без модели" else ""),
+                    "${formatDate(plan.createdAt)} · идей: ${plan.ideaCount}" + (if (plan.deterministic) " · без модели" else ""),
                     style = MaterialTheme.typography.labelSmall,
                     color = DvTheme.colors.textMuted,
                 )

@@ -38,6 +38,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import kz.dentvision.crm.lib.formatDate
 import kz.dentvision.crm.data.model.Patient
 import kz.dentvision.crm.data.model.Visit
 import kz.dentvision.crm.ui.common.EmptyStateView
@@ -156,7 +157,7 @@ private fun VisitRow(visit: Visit) {
     ) {
         Column(modifier = Modifier.padding(14.dp)) {
             Text(
-                text = visit.date?.take(10) ?: "Дата не указана",
+                text = formatDate(visit.date) ?: "Дата не указана",
                 style = MaterialTheme.typography.labelMedium,
                 color = DvTheme.colors.gold,
             )

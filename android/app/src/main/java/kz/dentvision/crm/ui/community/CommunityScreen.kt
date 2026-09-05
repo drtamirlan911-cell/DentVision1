@@ -55,6 +55,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import kz.dentvision.crm.lib.formatDate
 import kz.dentvision.crm.data.model.CommunityComment
 import kz.dentvision.crm.data.model.CommunityPost
 import kz.dentvision.crm.ui.common.EmptyStateView
@@ -257,7 +258,7 @@ private fun PostCard(post: CommunityPost, onLike: () -> Unit, onSave: () -> Unit
                 style = MaterialTheme.typography.titleSmall,
                 color = DvTheme.colors.textPrimary,
             )
-            val meta = listOfNotNull(post.authorRole.ifBlank { null }, post.createdAt?.take(10)).joinToString(" · ")
+            val meta = listOfNotNull(post.authorRole.ifBlank { null }, formatDate(post.createdAt)).joinToString(" · ")
             if (meta.isNotBlank()) {
                 Text(text = meta, style = MaterialTheme.typography.labelSmall, color = DvTheme.colors.textMuted)
             }

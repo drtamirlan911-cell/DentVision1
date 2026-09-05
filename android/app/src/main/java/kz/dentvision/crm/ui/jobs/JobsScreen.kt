@@ -44,6 +44,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import kz.dentvision.crm.lib.formatDate
 import kz.dentvision.crm.data.model.CreateJobRequest
 import kz.dentvision.crm.data.model.JobVacancy
 import kz.dentvision.crm.data.session.PendingAiQuery
@@ -236,7 +237,7 @@ private fun VacancyCard(vacancy: JobVacancy, applied: Boolean, onApply: () -> Un
                 vacancy.clinicName.ifBlank { null },
                 vacancy.city.ifBlank { null },
                 vacancy.salary.ifBlank { null },
-                vacancy.createdAt?.take(10),
+                formatDate(vacancy.createdAt),
             ).joinToString(" · ")
             if (meta.isNotBlank()) {
                 Text(

@@ -39,6 +39,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import kz.dentvision.crm.lib.formatDate
 import kz.dentvision.crm.data.model.LAB_STATUS_LABELS
 import kz.dentvision.crm.data.model.LabOrder
 import kz.dentvision.crm.ui.common.EmptyStateView
@@ -166,7 +167,7 @@ private fun LabRow(order: LabOrder, canWrite: Boolean, busy: Boolean, onAdvance:
             }
             order.dueDate?.takeIf { it.isNotBlank() }?.let {
                 Text(
-                    text = "Срок: ${it.take(10)}",
+                    text = "Срок: ${formatDate(it)}",
                     style = MaterialTheme.typography.labelSmall,
                     color = DvTheme.colors.textMuted,
                     modifier = Modifier.padding(top = 2.dp),
