@@ -213,3 +213,11 @@ const val ROUTE_COMMUNITY = "community"
  * существовал, но был подключён только к `GuestShell`.
  */
 const val ROUTE_SHOP_SCHOOL = "shop-school"
+
+/**
+ * Карточка пациента — единственный маршрут CRM с параметром (id) вне
+ * [IMPLEMENTED_PAGES]/`CRM_PAGES`, как [ROUTE_DIAGNOSTICS_REFERRALS]`/{id}`:
+ * сам объект `Patient` идёт не через строку маршрута, а через
+ * `SelectedPatient` (см. её докстринг), поэтому здесь только префикс.
+ */
+const val ROUTE_PATIENT_DETAIL = "crm/patients/detail"

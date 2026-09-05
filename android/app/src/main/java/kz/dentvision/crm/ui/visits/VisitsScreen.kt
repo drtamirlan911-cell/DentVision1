@@ -38,6 +38,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import kz.dentvision.crm.data.model.Patient
 import kz.dentvision.crm.data.model.Visit
 import kz.dentvision.crm.ui.common.EmptyStateView
 import kz.dentvision.crm.ui.common.ErrorState
@@ -54,6 +55,8 @@ import kz.dentvision.crm.ui.theme.DvTheme
 fun VisitsScreen(
     clinicId: String?,
     canWrite: Boolean,
+    /** Как в [kz.dentvision.crm.ui.medcard.MedicalCardScreen] — пикер лишний, когда пациент уже выбран извне. */
+    initialPatient: Patient? = null,
     viewModel: VisitsViewModel = viewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
@@ -62,6 +65,11 @@ fun VisitsScreen(
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
     LaunchedEffect(clinicId) { viewModel.loadDoctors(clinicId) }
+    LaunchedEffect(initialPatient?.id) {
+        if (initialPatient != null && state.patient?.id != initialPatient.id) {
+            viewModel.selectPatient(initialPatient)
+        }
+    }
 
     Scaffold(
         containerColor = DvTheme.colors.surface0,
@@ -81,11 +89,13 @@ fun VisitsScreen(
         },
     ) { padding ->
         Column(modifier = Modifier.fillMaxSize().padding(padding)) {
-            DvOutlineButton(
-                onClick = { picking = true },
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
-            ) {
-                Text(state.patient?.name?.ifBlank { "Без имени" } ?: "Выбрать пациента")
+            if (initialPatient == null) {
+                DvOutlineButton(
+                    onClick = { picking = true },
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
+                ) {
+                    Text(state.patient?.name?.ifBlank { "Без имени" } ?: "Выбрать пациента")
+                }
             }
 
             if (state.patient == null) {

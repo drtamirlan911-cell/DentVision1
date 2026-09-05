@@ -43,6 +43,9 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import kz.dentvision.crm.data.model.Patient
+import kz.dentvision.crm.data.session.SelectedPatient
+import kz.dentvision.crm.navigation.LocalAssistantNavigate
+import kz.dentvision.crm.navigation.ROUTE_PATIENT_DETAIL
 import kz.dentvision.crm.ui.common.EmptyStateView
 import kz.dentvision.crm.ui.common.ErrorState
 import kz.dentvision.crm.ui.common.LoadingSkeleton
@@ -67,6 +70,7 @@ fun PatientsScreen(
     var pendingDelete by remember { mutableStateOf<Patient?>(null) }
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val snackbarHostState = remember { SnackbarHostState() }
+    val navigate = LocalAssistantNavigate.current
 
     LaunchedEffect(state.deleteError) {
         val message = state.deleteError ?: return@LaunchedEffect
@@ -133,6 +137,10 @@ fun PatientsScreen(
                         items(list.value, key = { it.id }) { patient ->
                             PatientRow(
                                 patient = patient,
+                                onClick = {
+                                    SelectedPatient.set(patient)
+                                    navigate("$ROUTE_PATIENT_DETAIL/${patient.id}")
+                                },
                                 canDelete = canWrite,
                                 deleting = state.deletingId == patient.id,
                                 onDelete = { pendingDelete = patient },

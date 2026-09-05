@@ -14,6 +14,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -23,6 +24,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import kz.dentvision.crm.data.model.MedicalHistory
+import kz.dentvision.crm.data.model.Patient
 import kz.dentvision.crm.navigation.IMPLEMENTED_PAGES
 import kz.dentvision.crm.navigation.LocalAssistantNavigate
 import kz.dentvision.crm.ui.common.EmptyStateView
@@ -45,10 +47,22 @@ import kz.dentvision.crm.ui.theme.DvTheme
 @Composable
 fun MedicalCardScreen(
     canWrite: Boolean,
+    /**
+     * Пациент уже известен (открыто из карточки пациента, а не отдельным
+     * разделом меню) — тогда пикер не нужен: он был бы лишним шагом для
+     * того, что уже выбрано.
+     */
+    initialPatient: Patient? = null,
     viewModel: MedicalCardViewModel = viewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     var picking by remember { mutableStateOf(false) }
+
+    LaunchedEffect(initialPatient?.id) {
+        if (initialPatient != null && state.patient?.id != initialPatient.id) {
+            viewModel.selectPatient(initialPatient)
+        }
+    }
 
     Column(
         modifier = Modifier
@@ -58,8 +72,10 @@ fun MedicalCardScreen(
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(10.dp),
     ) {
-        DvOutlineButton(onClick = { picking = true }, modifier = Modifier.fillMaxWidth()) {
-            Text(state.patient?.name?.ifBlank { "Без имени" } ?: "Выбрать пациента")
+        if (initialPatient == null) {
+            DvOutlineButton(onClick = { picking = true }, modifier = Modifier.fillMaxWidth()) {
+                Text(state.patient?.name?.ifBlank { "Без имени" } ?: "Выбрать пациента")
+            }
         }
 
         AiInsightSection(

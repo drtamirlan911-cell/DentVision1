@@ -70,6 +70,7 @@ import androidx.navigation.compose.rememberNavController
 import kotlinx.coroutines.launch
 import kz.dentvision.crm.data.session.FocusHolder
 import kz.dentvision.crm.data.session.ScreenFocus
+import kz.dentvision.crm.data.session.SelectedPatient
 import kz.dentvision.crm.data.session.Session
 import kz.dentvision.crm.navigation.CrmPage
 import kz.dentvision.crm.navigation.CrmSection
@@ -98,6 +99,7 @@ import kz.dentvision.crm.navigation.ROUTE_DIAGNOSTICS_REFERRAL_NEW
 import kz.dentvision.crm.navigation.ROUTE_COMMUNITY
 import kz.dentvision.crm.navigation.ROUTE_INTELLIGENCE
 import kz.dentvision.crm.navigation.ROUTE_JOBS
+import kz.dentvision.crm.navigation.ROUTE_PATIENT_DETAIL
 import kz.dentvision.crm.navigation.ROUTE_SHOP_SCHOOL
 import kz.dentvision.crm.navigation.ROUTE_WORKSPACE
 import kz.dentvision.crm.navigation.resolveAssistantPath
@@ -105,6 +107,7 @@ import kz.dentvision.crm.navigation.visiblePages
 import kz.dentvision.crm.ui.activity.ActivityScreen
 import kz.dentvision.crm.ui.approvals.ApprovalsScreen
 import kz.dentvision.crm.ui.common.DvLogo
+import kz.dentvision.crm.ui.common.EmptyStateView
 import kz.dentvision.crm.ui.common.UiState
 import kz.dentvision.crm.ui.diagnostics.DiagnosticOrgKind
 import kz.dentvision.crm.ui.diagnostics.DiagnosticsHomeScreen
@@ -128,6 +131,7 @@ import kz.dentvision.crm.ui.community.CommunityScreen
 import kz.dentvision.crm.ui.home.WorkspaceScreen
 import kz.dentvision.crm.ui.intelligence.IntelligenceScreen
 import kz.dentvision.crm.ui.jobs.JobsScreen
+import kz.dentvision.crm.ui.patients.PatientDetailScreen
 import kz.dentvision.crm.ui.public.PublicScreen
 import kz.dentvision.crm.ui.theme.DvTheme
 
@@ -416,6 +420,27 @@ private fun ShellNavHost(
                     implemented = implemented,
                     onOpenPage = { page -> onNavigate(page.route) },
                 )
+            }
+            composable("$ROUTE_PATIENT_DETAIL/{id}") { backStackEntry ->
+                val id = backStackEntry.arguments?.getString("id")
+                val patient by SelectedPatient.value.collectAsStateWithLifecycle()
+                val current = patient?.takeIf { it.id == id }
+                if (current != null) {
+                    PatientDetailScreen(
+                        patient = current,
+                        clinicId = session.clinic?.id,
+                        canWrite = session.has("patients.write"),
+                    )
+                } else {
+                    // Держатель пуст — процесс пересоздан или маршрут открыт
+                    // напрямую (диплинк). Честное сообщение вместо пустого
+                    // экрана: у карточки пациента нет собственной ручки
+                    // «получить по id», только то, что уже пришло списком.
+                    EmptyStateView(
+                        title = "Пациент не выбран",
+                        description = "Откройте карточку из списка пациентов.",
+                    )
+                }
             }
             composable(ROUTE_APPROVALS) { ApprovalsScreen() }
             composable(ROUTE_ACTIVITY) { ActivityScreen() }
