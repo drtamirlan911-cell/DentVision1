@@ -22,12 +22,15 @@ import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.MoreHoriz
+import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Science
 import androidx.compose.material.icons.filled.Groups
 import androidx.compose.material.icons.filled.School
 import androidx.compose.material.icons.filled.SmartToy
 import androidx.compose.material.icons.filled.TaskAlt
 import androidx.compose.material.icons.filled.Work
+import androidx.compose.material3.Badge
+import androidx.compose.material3.BadgedBox
 import androidx.compose.material3.DrawerValue
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
@@ -68,7 +71,9 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import kotlinx.coroutines.launch
+import kz.dentvision.crm.data.NotificationsRepository
 import kz.dentvision.crm.data.session.FocusHolder
+import kz.dentvision.crm.data.session.NotificationBadge
 import kz.dentvision.crm.data.session.ScreenFocus
 import kz.dentvision.crm.data.session.SelectedPatient
 import kz.dentvision.crm.data.session.Session
@@ -99,9 +104,13 @@ import kz.dentvision.crm.navigation.ROUTE_DIAGNOSTICS_REFERRAL_NEW
 import kz.dentvision.crm.navigation.ROUTE_COMMUNITY
 import kz.dentvision.crm.navigation.ROUTE_INTELLIGENCE
 import kz.dentvision.crm.navigation.ROUTE_JOBS
+import kz.dentvision.crm.navigation.ROUTE_NOTIFICATIONS
+import kz.dentvision.crm.navigation.ROUTE_NOTIFICATION_PREFERENCES
 import kz.dentvision.crm.navigation.ROUTE_PATIENT_DETAIL
 import kz.dentvision.crm.navigation.ROUTE_STOCK_RULES
 import kz.dentvision.crm.ui.inventory.StockRulesScreen
+import kz.dentvision.crm.ui.notifications.NotificationPreferencesScreen
+import kz.dentvision.crm.ui.notifications.NotificationsScreen
 import kz.dentvision.crm.navigation.ROUTE_SHOP_SCHOOL
 import kz.dentvision.crm.navigation.ROUTE_WORKSPACE
 import kz.dentvision.crm.navigation.resolveAssistantPath
@@ -176,6 +185,13 @@ fun AppShell(
     // сами через FocusHolder.set — здесь только базовый уровень маршрута.
     LaunchedEffect(currentRoute) {
         FocusHolder.set(ScreenFocus(pathname = currentRoute))
+    }
+
+    // Разово при входе в кабинет: колокольчик должен показывать верное число
+    // ещё до того, как пользователь хоть раз открыл саму ленту (там же
+    // счётчик держится в актуальном виде через NotificationBadge.set).
+    LaunchedEffect(Unit) {
+        runCatching { NotificationsRepository().unreadCount() }.onSuccess(NotificationBadge::set)
     }
 
     fun open(route: String) {
@@ -264,6 +280,26 @@ fun AppShell(
                                 contentDescription = "Меню разделов",
                                 tint = DvTheme.colors.textSecondary,
                             )
+                        }
+                    },
+                    actions = {
+                        val unread by NotificationBadge.count.collectAsStateWithLifecycle()
+                        IconButton(onClick = { open(ROUTE_NOTIFICATIONS) }) {
+                            if (unread > 0) {
+                                BadgedBox(badge = { Badge(containerColor = DvTheme.colors.gold) { Text("$unread") } }) {
+                                    Icon(
+                                        imageVector = Icons.Filled.Notifications,
+                                        contentDescription = "Уведомления",
+                                        tint = DvTheme.colors.textSecondary,
+                                    )
+                                }
+                            } else {
+                                Icon(
+                                    imageVector = Icons.Filled.Notifications,
+                                    contentDescription = "Уведомления",
+                                    tint = DvTheme.colors.textSecondary,
+                                )
+                            }
                         }
                     },
                     colors = TopAppBarDefaults.topAppBarColors(
@@ -372,6 +408,8 @@ fun AppShell(
 private fun fixedRouteTitle(route: String): String? = when (route) {
     ROUTE_INTELLIGENCE -> "Intelligence"
     ROUTE_STOCK_RULES -> "Списание после приёма"
+    ROUTE_NOTIFICATIONS -> "Уведомления"
+    ROUTE_NOTIFICATION_PREFERENCES -> "Настройки уведомлений"
     ROUTE_APPROVALS -> "Подтверждения ИИ"
     ROUTE_ACTIVITY -> "Активность ИИ"
     ROUTE_DIAGNOSTICS -> "Диагностика"
@@ -448,6 +486,10 @@ private fun ShellNavHost(
             composable(ROUTE_STOCK_RULES) {
                 StockRulesScreen(canWrite = session.has("inventory.write"))
             }
+            composable(ROUTE_NOTIFICATIONS) {
+                NotificationsScreen(onOpenPreferences = { onNavigate(ROUTE_NOTIFICATION_PREFERENCES) })
+            }
+            composable(ROUTE_NOTIFICATION_PREFERENCES) { NotificationPreferencesScreen() }
             composable(ROUTE_APPROVALS) { ApprovalsScreen() }
             composable(ROUTE_ACTIVITY) { ActivityScreen() }
             composable(ROUTE_DIAGNOSTICS) { DiagnosticsHomeScreen(session = session) }
@@ -618,6 +660,14 @@ private fun DrawerContent(
             icon = Icons.Filled.History,
             active = currentRoute == ROUTE_ACTIVITY,
             onClick = { onOpen(ROUTE_ACTIVITY) },
+        )
+        // Уведомления — тем же принципом: колокольчик в шапке уже открывает
+        // тот же маршрут, пункт здесь — для того, кто ищет его в «Ещё».
+        PillarDrawerItem(
+            label = "Уведомления",
+            icon = Icons.Filled.Notifications,
+            active = currentRoute == ROUTE_NOTIFICATIONS || currentRoute == ROUTE_NOTIFICATION_PREFERENCES,
+            onClick = { onOpen(ROUTE_NOTIFICATIONS) },
         )
 
         CrmSection.entries.forEach { section ->

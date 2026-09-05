@@ -235,3 +235,14 @@ const val ROUTE_PATIENT_DETAIL = "crm/patients/detail"
  * `InventoryScreen`, как на вебе — кнопкой внутри `Inventory.tsx`.
  */
 const val ROUTE_STOCK_RULES = "crm/inventory/stock-rules"
+
+/**
+ * Уведомления — как колокольчик в шапке веба: видны любому вошедшему
+ * безусловно, лента не привязана к клинике (`notifications.routes.ts`
+ * фильтрует только по `userId`). Поэтому заводится напрямую, тем же
+ * приёмом, что [ROUTE_JOBS]/[ROUTE_COMMUNITY], а не через [IMPLEMENTED_PAGES].
+ */
+const val ROUTE_NOTIFICATIONS = "notifications"
+
+/** Настройки — какие типы уведомлений присылать; под-экран [ROUTE_NOTIFICATIONS]. */
+const val ROUTE_NOTIFICATION_PREFERENCES = "notifications/preferences"
