@@ -74,4 +74,5 @@ class ApiClient(
     val community: CommunityApi = retrofit.create(CommunityApi::class.java)
     val notifications: NotificationsApi = retrofit.create(NotificationsApi::class.java)
     val profile: ProfileApi = retrofit.create(ProfileApi::class.java)
+    val marketing: MarketingApi = retrofit.create(MarketingApi::class.java)
 }

@@ -254,3 +254,14 @@ const val ROUTE_NOTIFICATION_PREFERENCES = "notifications/preferences"
  * не у клиники.
  */
 const val ROUTE_PROFILE = "profile"
+
+/**
+ * Контент и продвижение — `Marketing.tsx`. Как [ROUTE_STOCK_RULES]: не своя
+ * строка в `pages`, а под-раздел «Акций» (обе стороны сторожит `patients.*`,
+ * `marketing.routes.ts`), поэтому заводится напрямую и открывается кнопкой
+ * внутри `PromotionsScreen`.
+ */
+const val ROUTE_MARKETING = "crm/promotions/marketing"
+
+/** Открытый план — идеи, правка, генерация картинок. */
+const val ROUTE_MARKETING_PLAN = "crm/promotions/marketing/plan"

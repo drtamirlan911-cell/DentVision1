@@ -9,10 +9,14 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
@@ -27,6 +31,8 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 import kz.dentvision.crm.data.CrmRepository
 import kz.dentvision.crm.data.model.Promotion
+import kz.dentvision.crm.navigation.LocalAssistantNavigate
+import kz.dentvision.crm.navigation.ROUTE_MARKETING
 import kz.dentvision.crm.ui.common.EmptyStateView
 import kz.dentvision.crm.ui.common.ErrorState
 import kz.dentvision.crm.ui.common.LoadingSkeleton
@@ -58,8 +64,15 @@ class PromotionsViewModel(
 @Composable
 fun PromotionsScreen(viewModel: PromotionsViewModel = viewModel()) {
     val state by viewModel.state.collectAsStateWithLifecycle()
+    val navigate = LocalAssistantNavigate.current
 
     Column(modifier = Modifier.fillMaxSize()) {
+        Row(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp)) {
+            TextButton(onClick = { navigate(ROUTE_MARKETING) }) {
+                Icon(Icons.Filled.AutoAwesome, contentDescription = null, modifier = Modifier.padding(end = 4.dp))
+                Text("Контент и продвижение")
+            }
+        }
         when (val list = state) {
             is UiState.Loading -> LoadingSkeleton()
             is UiState.Error -> ErrorState(message = list.message, onRetry = viewModel::load)

@@ -107,10 +107,14 @@ import kz.dentvision.crm.navigation.ROUTE_INTELLIGENCE
 import kz.dentvision.crm.navigation.ROUTE_JOBS
 import kz.dentvision.crm.navigation.ROUTE_NOTIFICATIONS
 import kz.dentvision.crm.navigation.ROUTE_NOTIFICATION_PREFERENCES
+import kz.dentvision.crm.navigation.ROUTE_MARKETING
+import kz.dentvision.crm.navigation.ROUTE_MARKETING_PLAN
 import kz.dentvision.crm.navigation.ROUTE_PATIENT_DETAIL
 import kz.dentvision.crm.navigation.ROUTE_PROFILE
 import kz.dentvision.crm.navigation.ROUTE_STOCK_RULES
 import kz.dentvision.crm.ui.inventory.StockRulesScreen
+import kz.dentvision.crm.ui.marketing.MarketingPlanScreen
+import kz.dentvision.crm.ui.marketing.MarketingScreen
 import kz.dentvision.crm.ui.notifications.NotificationPreferencesScreen
 import kz.dentvision.crm.ui.notifications.NotificationsScreen
 import kz.dentvision.crm.ui.profile.ProfileScreen
@@ -414,6 +418,8 @@ private fun fixedRouteTitle(route: String): String? = when (route) {
     ROUTE_NOTIFICATIONS -> "Уведомления"
     ROUTE_NOTIFICATION_PREFERENCES -> "Настройки уведомлений"
     ROUTE_PROFILE -> "Мой профиль"
+    ROUTE_MARKETING -> "Контент и продвижение"
+    "$ROUTE_MARKETING_PLAN/{id}" -> "План"
     ROUTE_APPROVALS -> "Подтверждения ИИ"
     ROUTE_ACTIVITY -> "Активность ИИ"
     ROUTE_DIAGNOSTICS -> "Диагностика"
@@ -495,6 +501,13 @@ private fun ShellNavHost(
             }
             composable(ROUTE_NOTIFICATION_PREFERENCES) { NotificationPreferencesScreen() }
             composable(ROUTE_PROFILE) { ProfileScreen() }
+            composable(ROUTE_MARKETING) {
+                MarketingScreen(onOpenPlan = { id -> onNavigate("$ROUTE_MARKETING_PLAN/$id") })
+            }
+            composable("$ROUTE_MARKETING_PLAN/{id}") { backStackEntry ->
+                val id = backStackEntry.arguments?.getString("id")
+                if (id != null) MarketingPlanScreen(planId = id)
+            }
             composable(ROUTE_APPROVALS) { ApprovalsScreen() }
             composable(ROUTE_ACTIVITY) { ActivityScreen() }
             composable(ROUTE_DIAGNOSTICS) { DiagnosticsHomeScreen(session = session) }
