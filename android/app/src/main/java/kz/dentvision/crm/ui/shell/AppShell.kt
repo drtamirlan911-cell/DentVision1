@@ -27,6 +27,7 @@ import androidx.compose.material.icons.filled.Today
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Science
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Groups
 import androidx.compose.material.icons.filled.School
 import androidx.compose.material.icons.filled.SmartToy
@@ -80,6 +81,7 @@ import kz.dentvision.crm.data.session.NotificationBadge
 import kz.dentvision.crm.data.session.ScreenFocus
 import kz.dentvision.crm.data.session.SelectedPatient
 import kz.dentvision.crm.ui.today.TodayScreen
+import kz.dentvision.crm.ui.search.SearchScreen
 import kz.dentvision.crm.data.session.Session
 import kz.dentvision.crm.navigation.IMPLEMENTED_PAGES
 import kz.dentvision.crm.navigation.cabinetRouteFor
@@ -106,6 +108,7 @@ import kz.dentvision.crm.navigation.ROUTE_DIAGNOSTICS_REFERRAL_NEW
 import kz.dentvision.crm.navigation.ROUTE_COMMUNITY
 import kz.dentvision.crm.navigation.ROUTE_INTELLIGENCE
 import kz.dentvision.crm.navigation.ROUTE_TODAY
+import kz.dentvision.crm.navigation.ROUTE_SEARCH
 import kz.dentvision.crm.navigation.ROUTE_JOBS
 import kz.dentvision.crm.navigation.ROUTE_NOTIFICATIONS
 import kz.dentvision.crm.navigation.ROUTE_NOTIFICATION_PREFERENCES
@@ -291,6 +294,19 @@ fun AppShell(
                         }
                     },
                     actions = {
+                        // Поиск пациента — самое частое обращение к данным за
+                        // смену, поэтому он в шапке на каждом экране, а не
+                        // внутри раздела «Пациенты». Показываем только тем,
+                        // кто может читать пациентов.
+                        if (session.has("patients.read")) {
+                            IconButton(onClick = { open(ROUTE_SEARCH) }) {
+                                Icon(
+                                    imageVector = Icons.Filled.Search,
+                                    contentDescription = "Найти пациента",
+                                    tint = DvTheme.colors.textSecondary,
+                                )
+                            }
+                        }
                         val unread by NotificationBadge.count.collectAsStateWithLifecycle()
                         IconButton(onClick = { open(ROUTE_NOTIFICATIONS) }) {
                             if (unread > 0) {
@@ -440,6 +456,7 @@ fun AppShell(
 /** Заголовки фиксированных экранов ядра ИИ — их нет в `pages`, поэтому нет и в списке разделов. */
 private fun fixedRouteTitle(route: String): String? = when (route) {
     ROUTE_TODAY -> "Сегодня"
+    ROUTE_SEARCH -> "Поиск пациента"
     ROUTE_INTELLIGENCE -> "Ассистент"
     ROUTE_STOCK_RULES -> "Списание после приёма"
     ROUTE_NOTIFICATIONS -> "Уведомления"
@@ -494,6 +511,9 @@ private fun ShellNavHost(
                     onOpenPatient = { id -> onNavigate("$ROUTE_PATIENT_DETAIL/$id") },
                     onNavigate = onNavigate,
                 )
+            }
+            composable(ROUTE_SEARCH) {
+                SearchScreen(onOpenPatient = { id -> onNavigate("$ROUTE_PATIENT_DETAIL/$id") })
             }
             composable(ROUTE_INTELLIGENCE) {
                 IntelligenceScreen(
