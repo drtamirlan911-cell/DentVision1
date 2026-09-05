@@ -22,7 +22,9 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
@@ -33,6 +35,8 @@ import kz.dentvision.crm.ui.common.EmptyStateView
 import kz.dentvision.crm.ui.common.ErrorState
 import kz.dentvision.crm.ui.common.LoadingSkeleton
 import kz.dentvision.crm.ui.common.UiState
+import kz.dentvision.crm.ui.theme.DvConfirmDialog
+import kz.dentvision.crm.ui.theme.DvConfirmVariant
 import kz.dentvision.crm.ui.theme.DvOutlineButton
 import kz.dentvision.crm.ui.theme.DvTheme
 import java.util.Locale
@@ -47,6 +51,7 @@ import androidx.compose.foundation.layout.Box
 fun ApprovalsScreen(viewModel: ApprovalsViewModel = viewModel()) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val snackbarHostState = remember { SnackbarHostState() }
+    var pendingApprove by remember { mutableStateOf<AiApprovalItem?>(null) }
 
     LaunchedEffect(state.message) {
         val message = state.message ?: return@LaunchedEffect
@@ -72,7 +77,16 @@ fun ApprovalsScreen(viewModel: ApprovalsViewModel = viewModel()) {
                         ApprovalRow(
                             approval = approval,
                             deciding = state.decidingId == approval.id,
-                            onApprove = { viewModel.approve(approval.id) },
+                            onApprove = {
+                                // Высокий риск — лишний шаг подтверждения нужен именно
+                                // здесь: это действие ИИ реально исполнится, а не просто
+                                // уйдёт из списка, как при отклонении.
+                                if (approval.riskLevel == "high") {
+                                    pendingApprove = approval
+                                } else {
+                                    viewModel.approve(approval.id)
+                                }
+                            },
                             onReject = { viewModel.reject(approval.id) },
                         )
                     }
@@ -83,6 +97,20 @@ fun ApprovalsScreen(viewModel: ApprovalsViewModel = viewModel()) {
             hostState = snackbarHostState,
             modifier = Modifier.align(Alignment.BottomCenter).padding(16.dp),
         ) { data -> Snackbar(snackbarData = data, containerColor = DvTheme.colors.surface3) }
+    }
+
+    pendingApprove?.let { approval ->
+        DvConfirmDialog(
+            title = "Подтвердить действие высокого риска?",
+            message = approval.summary.ifBlank { "Действие «${approval.tool}» будет выполнено немедленно." },
+            confirmLabel = "Подтвердить",
+            variant = DvConfirmVariant.WARNING,
+            onConfirm = {
+                viewModel.approve(approval.id)
+                pendingApprove = null
+            },
+            onDismiss = { pendingApprove = null },
+        )
     }
 }
 

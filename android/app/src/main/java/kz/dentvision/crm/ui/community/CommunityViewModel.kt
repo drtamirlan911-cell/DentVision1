@@ -19,6 +19,7 @@ data class CommunityUiState(
     val topic: String = "Все",
     val draft: String = "",
     val publishing: Boolean = false,
+    val sendingComment: Boolean = false,
     val posts: UiState<List<CommunityPost>> = UiState.Loading,
     val error: String? = null,
 )
@@ -124,19 +125,25 @@ class CommunityViewModel(
     }
 
     fun sendComment(text: String, onResult: (Boolean) -> Unit) {
+        // Без этой проверки двойной тап по кнопке отправки успевал уйти двумя
+        // одинаковыми POST-запросами до того, как первый ответ вернётся и
+        // очистит черновик — в ленте появлялся дублирующийся комментарий.
+        if (_state.value.sendingComment) return
         val postId = commentsPostId ?: return
         val trimmed = text.trim()
         if (trimmed.isBlank()) return
+        _state.value = _state.value.copy(sendingComment = true)
         viewModelScope.launch {
             runCatching { repository.addComment(postId, trimmed) }
                 .onSuccess { comment ->
                     val current = (_comments.value as? UiState.Data)?.value.orEmpty()
                     _comments.value = UiState.Data(current + comment)
                     updatePost(postId) { it.copy(commentsCount = it.commentsCount + 1) }
+                    _state.value = _state.value.copy(sendingComment = false)
                     onResult(true)
                 }
                 .onFailure {
-                    _state.value = _state.value.copy(error = it.message ?: "Не удалось отправить комментарий")
+                    _state.value = _state.value.copy(sendingComment = false, error = it.message ?: "Не удалось отправить комментарий")
                     onResult(false)
                 }
         }

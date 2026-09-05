@@ -27,6 +27,7 @@ import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material.icons.filled.School
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
@@ -322,6 +323,7 @@ private fun PostCard(post: CommunityPost, onLike: () -> Unit, onSave: () -> Unit
 @Composable
 private fun CommentsSheet(viewModel: CommunityViewModel, isAuthenticated: Boolean, onRequireLogin: () -> Unit) {
     val comments by viewModel.comments.collectAsStateWithLifecycle()
+    val state by viewModel.state.collectAsStateWithLifecycle()
     var draft by remember { mutableStateOf("") }
 
     Column(modifier = Modifier.fillMaxWidth().heightIn(min = 240.dp, max = 480.dp).imePadding().padding(16.dp)) {
@@ -353,6 +355,7 @@ private fun CommentsSheet(viewModel: CommunityViewModel, isAuthenticated: Boolea
                 modifier = Modifier.weight(1f),
             )
             IconButton(
+                enabled = !state.sendingComment,
                 onClick = {
                     if (!isAuthenticated) {
                         onRequireLogin()
@@ -361,7 +364,11 @@ private fun CommentsSheet(viewModel: CommunityViewModel, isAuthenticated: Boolea
                     }
                 },
             ) {
-                Icon(Icons.AutoMirrored.Filled.Send, contentDescription = "Отправить", tint = DvTheme.colors.gold)
+                if (state.sendingComment) {
+                    CircularProgressIndicator(strokeWidth = 2.dp, modifier = Modifier.size(20.dp), color = DvTheme.colors.gold)
+                } else {
+                    Icon(Icons.AutoMirrored.Filled.Send, contentDescription = "Отправить", tint = DvTheme.colors.gold)
+                }
             }
         }
     }

@@ -22,6 +22,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.CameraAlt
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.EmojiEvents
@@ -319,13 +320,22 @@ private fun SkillsSection(skills: List<Skill>, onAdd: (String, String?) -> Unit,
                         modifier = Modifier
                             .background(DvTheme.colors.surface2, CircleShape)
                             .clickable { onDelete(skill.id) }
-                            .padding(horizontal = 12.dp, vertical = 6.dp),
+                            .padding(start = 12.dp, end = 6.dp, top = 6.dp, bottom = 6.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         Text(
                             skill.name + (skill.level?.takeIf { it.isNotBlank() }?.let { " · $it" } ?: ""),
                             style = MaterialTheme.typography.bodySmall,
                             color = DvTheme.colors.textSecondary,
+                        )
+                        // Явная иконка «×» — без неё чип выглядел как обычная
+                        // нередактируемая метка, и тап по нему удалял навык
+                        // без единого визуального намёка, что так можно.
+                        Icon(
+                            imageVector = Icons.Filled.Close,
+                            contentDescription = "Удалить навык",
+                            tint = DvTheme.colors.textMuted,
+                            modifier = Modifier.padding(start = 4.dp).size(14.dp),
                         )
                     }
                 }

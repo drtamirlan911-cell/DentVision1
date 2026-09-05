@@ -25,11 +25,15 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import kz.dentvision.crm.ui.theme.DvConfirmDialog
+import kz.dentvision.crm.ui.theme.DvConfirmVariant
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
@@ -145,6 +149,7 @@ fun DebtsScreen(canWrite: Boolean, viewModel: DebtsViewModel = viewModel()) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val context = LocalContext.current
     val snackbarHostState = remember { SnackbarHostState() }
+    var pendingPay by remember { mutableStateOf<DebtRow?>(null) }
 
     LaunchedEffect(Unit) { viewModel.load() }
     LaunchedEffect(state.message) {
@@ -178,7 +183,7 @@ fun DebtsScreen(canWrite: Boolean, viewModel: DebtsViewModel = viewModel()) {
                                 debt = debt,
                                 canWrite = canWrite,
                                 paying = state.payingId == debt.invoiceId,
-                                onPay = { viewModel.pay(debt.invoiceId) },
+                                onPay = { pendingPay = debt },
                                 onRemind = {
                                     if (debt.phone.isBlank()) {
                                         viewModel.reportNoPhone()
@@ -201,6 +206,20 @@ fun DebtsScreen(canWrite: Boolean, viewModel: DebtsViewModel = viewModel()) {
                 }
             }
         }
+    }
+
+    pendingPay?.let { debt ->
+        DvConfirmDialog(
+            title = "Отметить оплаченным?",
+            message = "«${debt.patientName}»: ${formatTenge(debt.amount)} будет отмечено как оплаченное. Действие необратимо.",
+            confirmLabel = "Оплачено",
+            variant = DvConfirmVariant.WARNING,
+            onConfirm = {
+                viewModel.pay(debt.invoiceId)
+                pendingPay = null
+            },
+            onDismiss = { pendingPay = null },
+        )
     }
 }
 
