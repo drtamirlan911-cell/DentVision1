@@ -15,7 +15,7 @@
 import type { AgentDomain } from './registry.js';
 import type { AiSurface } from './kernel.types.js';
 import { TOOL_PERMISSIONS } from './toolPermissions.js';
-import { listAgents, type AgentDefinition } from './registry.js';
+import { listAgents, agentsForRole, type AgentDefinition } from './registry.js';
 import type { AiToolAccess } from './access.js';
 
 export interface SkillDefinition {
@@ -23,6 +23,12 @@ export interface SkillDefinition {
   id: string;
   domain: AgentDomain;
   title: string;
+  /**
+   * The skill phrased as the user would say it, so a client can offer it as a
+   * ready question instead of leaving an empty input box. `title` names the
+   * capability for a list; this is what gets sent when someone taps it.
+   */
+  examplePrompt: string;
   /** Subset of some agent's `allowedTools` this skill composes. */
   tools: readonly string[];
   /** '' = no permission beyond what each tool's own gate already requires. */
@@ -37,6 +43,7 @@ export const SKILLS: Record<string, SkillDefinition> = {
     id: 'skill.clinical.patient-summary',
     domain: 'clinical',
     title: 'Карта пациента',
+    examplePrompt: 'Покажи карту пациента',
     tools: ['getPatientCard', 'getVisits'],
     requiredPermission: 'medical.read',
     instruction: 'Собери карту пациента: анамнез, одонтограмма, история визитов. Только чтение.',
@@ -46,6 +53,7 @@ export const SKILLS: Record<string, SkillDefinition> = {
     id: 'skill.clinical.visit-summary',
     domain: 'clinical',
     title: 'История визитов',
+    examplePrompt: 'Покажи историю визитов пациента',
     tools: ['getVisits'],
     requiredPermission: 'medical.read',
     instruction: 'Покажи историю визитов пациента — диагнозы, жалобы, лечение по датам.',
@@ -55,6 +63,7 @@ export const SKILLS: Record<string, SkillDefinition> = {
     id: 'skill.clinical.treatment-plan-review',
     domain: 'clinical',
     title: 'Обзор планов лечения',
+    examplePrompt: 'Покажи планы лечения пациента',
     tools: ['getTreatmentPlans'],
     requiredPermission: 'medical.read',
     instruction: 'Покажи текущие и прошлые планы лечения пациента: этапы, статусы, бюджет.',
@@ -64,6 +73,7 @@ export const SKILLS: Record<string, SkillDefinition> = {
     id: 'skill.clinical.appointment-search',
     domain: 'clinical',
     title: 'Поиск в расписании',
+    examplePrompt: 'Что у меня в расписании сегодня?',
     tools: ['getSchedule'],
     requiredPermission: 'appointments.read',
     instruction: 'Найди в расписании свободные и занятые слоты по дате, врачу или пациенту.',
@@ -73,6 +83,7 @@ export const SKILLS: Record<string, SkillDefinition> = {
     id: 'skill.clinical.appointment-booking',
     domain: 'clinical',
     title: 'Запись на приём',
+    examplePrompt: 'Запиши пациента на приём',
     tools: ['getSchedule', 'createAppointment'],
     requiredPermission: 'appointments.write',
     instruction: 'Найди слот и запиши пациента. createAppointment всегда сначала как черновик (confirmed=false).',
@@ -82,6 +93,7 @@ export const SKILLS: Record<string, SkillDefinition> = {
     id: 'skill.business.patient-follow-up',
     domain: 'business',
     title: 'Реактивация пациентов',
+    examplePrompt: 'Кого давно не было — покажи для обзвона',
     tools: ['getRecallList'],
     requiredPermission: 'patients.read',
     instruction: 'Найди пациентов, давно не приходивших, для реактивации.',
@@ -91,6 +103,7 @@ export const SKILLS: Record<string, SkillDefinition> = {
     id: 'skill.business.payment-monitoring',
     domain: 'business',
     title: 'Контроль оплат',
+    examplePrompt: 'Покажи должников',
     tools: ['getDebtors', 'getRevenue'],
     requiredPermission: 'billing.read',
     instruction: 'Покажи должников и выручку клиники — только чтение, без создания счетов.',
@@ -100,6 +113,7 @@ export const SKILLS: Record<string, SkillDefinition> = {
     id: 'skill.clinical.deadline-monitoring',
     domain: 'clinical',
     title: 'Контроль сроков лаборатории',
+    examplePrompt: 'Какие заказы лаборатории просрочены?',
     tools: ['getLabOrders'],
     requiredPermission: 'lab.read',
     instruction: 'Найди просроченные и приближающиеся сроки заказов лаборатории.',
@@ -109,6 +123,7 @@ export const SKILLS: Record<string, SkillDefinition> = {
     id: 'skill.education.learning-recommendation',
     domain: 'education',
     title: 'Подбор обучения',
+    examplePrompt: 'Подбери мне курс по специализации',
     tools: ['searchCourses'],
     requiredPermission: '',
     instruction: 'Подбери курсы Academy OS по специализации и уровню.',
@@ -118,6 +133,7 @@ export const SKILLS: Record<string, SkillDefinition> = {
     id: 'skill.clinical.create-referral',
     domain: 'clinical',
     title: 'Направление на диагностику',
+    examplePrompt: 'Оформи направление на КТ',
     tools: ['createDiagnosticReferral'],
     requiredPermission: '',
     instruction: 'Оформи направление на диагностику (КТ, ОПТГ, гистология и т.д.). Всегда сначала черновик (confirmed=false).',
@@ -127,6 +143,7 @@ export const SKILLS: Record<string, SkillDefinition> = {
     id: 'skill.clinical.lab-order-management',
     domain: 'clinical',
     title: 'Заказы лаборатории',
+    examplePrompt: 'Создай заказ в лабораторию',
     tools: ['createLabOrder', 'updateLabOrderStatus'],
     requiredPermission: 'appointment.write',
     instruction: 'Создай заказ-наряд в лабораторию или обнови его статус. Новый заказ — сначала черновик (confirmed=false).',
@@ -159,4 +176,39 @@ export function skillsFor(agentId: string, access: AiToolAccess): SkillDefinitio
   return Object.values(SKILLS).filter((skill) =>
     skill.tools.every((tool) => agent.allowedTools.includes(tool) && access.allowed.has(tool)),
   );
+}
+
+/** One entry of the capability catalogue a client shows the user. */
+export interface SkillCatalogueEntry {
+  id: string;
+  domain: AgentDomain;
+  title: string;
+  /** The skill phrased as a question to send when the user picks it. */
+  prompt: string;
+}
+
+/**
+ * Everything the assistant can do for one caller on one surface, deduplicated.
+ *
+ * `skillsFor` answers per agent, and the same skill is often reachable through
+ * several agents a role may use — a union keyed by skill id is what a person
+ * actually wants to see: each capability once.
+ *
+ * Grants nothing on its own. Both filters are the ones the kernel would apply
+ * anyway: `agentsForRole` for the clinic role, and `skillsFor` for the tools
+ * `resolveAiToolAccess` already proved this caller may invoke.
+ */
+export function skillCatalogueFor(access: AiToolAccess, surface: AiSurface): SkillCatalogueEntry[] {
+  const byId = new Map<string, SkillDefinition>();
+  for (const agent of agentsForRole(access.role)) {
+    for (const skill of skillsFor(agent.id, access)) {
+      if (skill.surfaces.includes(surface)) byId.set(skill.id, skill);
+    }
+  }
+  return [...byId.values()].map((s) => ({
+    id: s.id,
+    domain: s.domain,
+    title: s.title,
+    prompt: s.examplePrompt,
+  }));
 }
