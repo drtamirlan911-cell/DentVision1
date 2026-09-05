@@ -246,3 +246,11 @@ const val ROUTE_NOTIFICATIONS = "notifications"
 
 /** Настройки — какие типы уведомлений присылать; под-экран [ROUTE_NOTIFICATIONS]. */
 const val ROUTE_NOTIFICATION_PREFERENCES = "notifications/preferences"
+
+/**
+ * Мой профиль — визитка специалиста (`Profile.tsx`). Виден любому вошедшему
+ * безусловно, не через `pages`: тем же принципом, что [ROUTE_JOBS]/
+ * [ROUTE_COMMUNITY]/[ROUTE_NOTIFICATIONS] — профиль есть у пользователя, а
+ * не у клиники.
+ */
+const val ROUTE_PROFILE = "profile"

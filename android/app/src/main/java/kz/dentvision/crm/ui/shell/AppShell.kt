@@ -23,6 +23,7 @@ import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.MoreHoriz
 import androidx.compose.material.icons.filled.Notifications
+import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Science
 import androidx.compose.material.icons.filled.Groups
 import androidx.compose.material.icons.filled.School
@@ -107,10 +108,12 @@ import kz.dentvision.crm.navigation.ROUTE_JOBS
 import kz.dentvision.crm.navigation.ROUTE_NOTIFICATIONS
 import kz.dentvision.crm.navigation.ROUTE_NOTIFICATION_PREFERENCES
 import kz.dentvision.crm.navigation.ROUTE_PATIENT_DETAIL
+import kz.dentvision.crm.navigation.ROUTE_PROFILE
 import kz.dentvision.crm.navigation.ROUTE_STOCK_RULES
 import kz.dentvision.crm.ui.inventory.StockRulesScreen
 import kz.dentvision.crm.ui.notifications.NotificationPreferencesScreen
 import kz.dentvision.crm.ui.notifications.NotificationsScreen
+import kz.dentvision.crm.ui.profile.ProfileScreen
 import kz.dentvision.crm.navigation.ROUTE_SHOP_SCHOOL
 import kz.dentvision.crm.navigation.ROUTE_WORKSPACE
 import kz.dentvision.crm.navigation.resolveAssistantPath
@@ -410,6 +413,7 @@ private fun fixedRouteTitle(route: String): String? = when (route) {
     ROUTE_STOCK_RULES -> "Списание после приёма"
     ROUTE_NOTIFICATIONS -> "Уведомления"
     ROUTE_NOTIFICATION_PREFERENCES -> "Настройки уведомлений"
+    ROUTE_PROFILE -> "Мой профиль"
     ROUTE_APPROVALS -> "Подтверждения ИИ"
     ROUTE_ACTIVITY -> "Активность ИИ"
     ROUTE_DIAGNOSTICS -> "Диагностика"
@@ -490,6 +494,7 @@ private fun ShellNavHost(
                 NotificationsScreen(onOpenPreferences = { onNavigate(ROUTE_NOTIFICATION_PREFERENCES) })
             }
             composable(ROUTE_NOTIFICATION_PREFERENCES) { NotificationPreferencesScreen() }
+            composable(ROUTE_PROFILE) { ProfileScreen() }
             composable(ROUTE_APPROVALS) { ApprovalsScreen() }
             composable(ROUTE_ACTIVITY) { ActivityScreen() }
             composable(ROUTE_DIAGNOSTICS) { DiagnosticsHomeScreen(session = session) }
@@ -593,6 +598,14 @@ private fun DrawerContent(
             modifier = Modifier.padding(vertical = 10.dp, horizontal = 20.dp),
         )
 
+        // Мой профиль — визитка специалиста, видна любому вошедшему
+        // безусловно, тем же принципом, что «Вакансии»/«Сообщество» ниже.
+        PillarDrawerItem(
+            label = "Мой профиль",
+            icon = Icons.Filled.Person,
+            active = currentRoute == ROUTE_PROFILE,
+            onClick = { onOpen(ROUTE_PROFILE) },
+        )
         PillarDrawerItem(
             label = "Кабинет",
             icon = Icons.Filled.Dashboard,
