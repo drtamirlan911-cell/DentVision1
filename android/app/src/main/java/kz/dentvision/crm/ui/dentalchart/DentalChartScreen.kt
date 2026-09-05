@@ -51,6 +51,8 @@ import kz.dentvision.crm.ui.common.UiState
 import kz.dentvision.crm.ui.theme.DvOutlineButton
 import kz.dentvision.crm.ui.theme.DvTheme
 import androidx.compose.runtime.LaunchedEffect
+import kz.dentvision.crm.data.model.TreatmentPlan
+import androidx.compose.material3.HorizontalDivider
 
 /**
  * Ряды по системе FDI, как их рисует зубная карта в вебе: верхняя челюсть
@@ -66,10 +68,21 @@ class DentalChartViewModel(
     private val _state = MutableStateFlow<UiState<Patient>?>(null)
     val state: StateFlow<UiState<Patient>?> = _state
 
-    private var patientId: String? = null
+    /**
+     * Планы лечения этого пациента — чтобы по выбранному зубу было видно, что
+     * с ним уже собираются делать. Без этой связи формула отвечала только на
+     * вопрос «что с зубом», но не «что дальше», и врач шёл искать ответ в
+     * отдельный раздел планов.
+     */
+    private val _plans = MutableStateFlow<List<TreatmentPlan>>(emptyList())
+    val plans: StateFlow<List<TreatmentPlan>> = _plans
 
-    fun selectPatient(patient: Patient) {
+    private var patientId: String? = null
+    private var clinicId: String? = null
+
+    fun selectPatient(patient: Patient, clinicId: String?) {
         patientId = patient.id
+        this.clinicId = clinicId
         load()
     }
 
@@ -82,6 +95,13 @@ class DentalChartViewModel(
             runCatching { repository.patient(id) }
                 .onSuccess { _state.value = UiState.Data(it) }
                 .onFailure { _state.value = UiState.Error(it.message ?: "Не удалось загрузить карту") }
+        }
+        // Планы грузятся отдельно и падают молча: без них формула остаётся
+        // полезной, а красная плашка поверх неё — нет.
+        val clinic = clinicId ?: return
+        viewModelScope.launch {
+            runCatching { repository.treatmentPlans(clinic, id) }
+                .onSuccess { _plans.value = it }
         }
     }
 }
@@ -103,14 +123,17 @@ fun DentalChartScreen(
      * шаг, на котором легко ошибиться пациентом.
      */
     initialPatient: Patient? = null,
+    /** Нужен, чтобы подтянуть планы лечения: маршрут планов требует клинику. */
+    clinicId: String? = null,
     viewModel: DentalChartViewModel = viewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
+    val plans by viewModel.plans.collectAsStateWithLifecycle()
     var picking by remember { mutableStateOf(false) }
     var selected by remember { mutableStateOf<Pair<String, ToothState>?>(null) }
 
-    LaunchedEffect(initialPatient?.id) {
-        initialPatient?.let { viewModel.selectPatient(it) }
+    LaunchedEffect(initialPatient?.id, clinicId) {
+        initialPatient?.let { viewModel.selectPatient(it, clinicId) }
     }
 
     Column(
@@ -177,6 +200,43 @@ fun DentalChartScreen(
                                     modifier = Modifier.padding(top = 2.dp),
                                 )
                             }
+
+                            // Что с этим зубом собираются делать. Формула
+                            // отвечала только «что сейчас»; чтобы узнать
+                            // «что дальше», врач уходил в раздел планов и
+                            // искал там нужного пациента заново.
+                            val toothNumber = number.toIntOrNull()
+                            val related = if (toothNumber == null) {
+                                emptyList()
+                            } else {
+                                plans.filter { toothNumber in it.teeth }
+                            }
+                            if (related.isNotEmpty()) {
+                                HorizontalDivider(
+                                    color = DvTheme.colors.borderSubtle,
+                                    modifier = Modifier.padding(vertical = 12.dp),
+                                )
+                                Text(
+                                    text = "В планах лечения",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = DvTheme.colors.textMuted,
+                                )
+                                related.forEach { plan ->
+                                    Text(
+                                        text = plan.title.ifBlank { "План лечения" },
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = DvTheme.colors.textPrimary,
+                                        modifier = Modifier.padding(top = 4.dp),
+                                    )
+                                    plan.diagnosis?.takeIf { it.isNotBlank() }?.let { diagnosis ->
+                                        Text(
+                                            text = diagnosis,
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = DvTheme.colors.textMuted,
+                                        )
+                                    }
+                                }
+                            }
                         }
                     }
                 }
@@ -197,7 +257,7 @@ fun DentalChartScreen(
             onDismiss = { picking = false },
             onSelect = { patient ->
                 selected = null
-                viewModel.selectPatient(patient)
+                viewModel.selectPatient(patient, clinicId)
                 picking = false
             },
         )

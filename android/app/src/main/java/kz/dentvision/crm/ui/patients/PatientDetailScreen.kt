@@ -128,7 +128,7 @@ fun PatientDetailScreen(
         when (tab) {
             PatientDetailTab.CARD -> MedicalCardScreen(canWrite = canWrite, initialPatient = patient)
             PatientDetailTab.VISITS -> VisitsScreen(clinicId = clinicId, canWrite = canWrite, initialPatient = patient)
-            PatientDetailTab.CHART -> DentalChartScreen(initialPatient = patient)
+            PatientDetailTab.CHART -> DentalChartScreen(initialPatient = patient, clinicId = clinicId)
             PatientDetailTab.PLANS -> TreatmentPlansScreen(
                 clinicId = clinicId,
                 canWrite = canWrite,
