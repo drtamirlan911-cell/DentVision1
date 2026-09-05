@@ -148,6 +148,14 @@ export async function resolveConversation(clinicId: string, conversationId: stri
   return prisma.patientConversation.update({
     where: { id: conversationId },
     data: { status: 'RESOLVED', resolvedAt: new Date() },
+    // Same include as listForClinic — the Android client's row model
+    // requires patientUser (no default), and a bare update() without it
+    // used to come back missing the field entirely, crashing the decode
+    // on every resolve tap.
+    include: {
+      patientUser: { select: { id: true, firstName: true, lastName: true, phone: true } },
+      assignedTo: { select: { id: true, firstName: true, lastName: true } },
+    },
   });
 }
 
@@ -160,5 +168,9 @@ export async function claimConversation(clinicId: string, conversationId: string
   return prisma.patientConversation.update({
     where: { id: conversationId },
     data: { status: 'LIVE', assignedToUserId: staffUserId },
+    include: {
+      patientUser: { select: { id: true, firstName: true, lastName: true, phone: true } },
+      assignedTo: { select: { id: true, firstName: true, lastName: true } },
+    },
   });
 }

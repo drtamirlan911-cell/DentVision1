@@ -13,7 +13,6 @@ import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -278,7 +277,7 @@ private fun VacancyCard(vacancy: JobVacancy, applied: Boolean, onApply: () -> Un
 
 private val EMPLOYMENT_TYPES = listOf("Полная занятость", "Частичная занятость", "Подработка", "Ищу работу")
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 private fun PostJobForm(defaultCity: String, onSubmit: (CreateJobRequest, (Boolean, String?) -> Unit) -> Unit) {
     var isResume by remember { mutableStateOf(false) }
@@ -329,8 +328,12 @@ private fun PostJobForm(defaultCity: String, onSubmit: (CreateJobRequest, (Boole
             singleLine = true,
             modifier = Modifier.fillMaxWidth().padding(top = 12.dp),
         )
-        LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(top = 8.dp)) {
-            items(POPULAR_CITIES) { c ->
+        FlowRow(
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+            modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+        ) {
+            POPULAR_CITIES.forEach { c ->
                 FilterChip(selected = city == c, onClick = { city = c }, label = { Text(c) })
             }
         }
@@ -343,8 +346,12 @@ private fun PostJobForm(defaultCity: String, onSubmit: (CreateJobRequest, (Boole
             modifier = Modifier.fillMaxWidth().padding(top = 12.dp),
         )
         if (!isResume) {
-            LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(top = 8.dp)) {
-                items(EMPLOYMENT_TYPES) { type ->
+            FlowRow(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+                modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+            ) {
+                EMPLOYMENT_TYPES.forEach { type ->
                     FilterChip(selected = employmentType == type, onClick = { employmentType = type }, label = { Text(type) })
                 }
             }
