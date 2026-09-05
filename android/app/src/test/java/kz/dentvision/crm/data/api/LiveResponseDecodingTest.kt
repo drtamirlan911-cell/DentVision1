@@ -1,6 +1,7 @@
 package kz.dentvision.crm.data.api
 
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonObject
 import kz.dentvision.crm.data.model.InboxConversationSummary
 import kz.dentvision.crm.data.model.InboxThread
 import kz.dentvision.crm.data.model.NotificationPreference
@@ -19,6 +20,16 @@ import org.junit.Test
 class LiveResponseDecodingTest {
 
     private val json = Json { ignoreUnknownKeys = true }
+
+    @Test
+    fun `подтверждение действия ИИ декодируется — это буквально bug 3 из скриншотов`() {
+        // Снято curl'ом с настоящего POST /api/ai/approvals/{id}/approve: сервер
+        // отдаёт KernelResult (status/data/activityId), а не строку AiApprovalItem
+        // с id — старый тип на это падал ровно так, как в отчёте пользователя.
+        val body = """{"ok":true,"data":{"status":"ok","data":{"ok":true,"data":[]},"activityId":"c1665344-0b04-4732-b7a2-eb1dfff7099c"}}"""
+        val envelope = json.decodeFromString(ApiEnvelope.serializer(JsonObject.serializer()), body)
+        assertEquals("ok", envelope.data?.get("status")?.toString()?.trim('"'))
+    }
 
     @Test
     fun `открытие треда инбокса декодируется — раньше падало без include patientUser`() {
