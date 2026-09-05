@@ -62,7 +62,12 @@ val IMPLEMENTED_PAGES: Map<String, @Composable (Session) -> Unit> = mapOf(
     // Заказы лаборатории сторожит appointments.write, а не lab.write:
     // так объявлены сами маршруты (`lab.routes.ts:184`).
     "lab" to { session -> LabScreen(canWrite = session.has("appointments.write")) },
-    "treatment-plans" to { session -> TreatmentPlansScreen(clinicId = session.clinic?.id) },
+    "treatment-plans" to { session ->
+        TreatmentPlansScreen(
+            clinicId = session.clinic?.id,
+            canWrite = session.has("patients.write"),
+        )
+    },
     "documents" to { DocumentsScreen() },
     "icd10" to { Icd10Screen() },
     "promotions" to { PromotionsScreen() },

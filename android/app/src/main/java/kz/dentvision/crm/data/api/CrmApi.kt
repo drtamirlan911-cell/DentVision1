@@ -28,6 +28,7 @@ import kz.dentvision.crm.data.model.PriceListUpsert
 import kz.dentvision.crm.data.model.SentReminder
 import kz.dentvision.crm.data.model.Promotion
 import kz.dentvision.crm.data.model.TreatmentPlan
+import kz.dentvision.crm.data.model.TreatmentPlanUpsert
 import kz.dentvision.crm.data.model.Visit
 import kz.dentvision.crm.data.model.VisitCreate
 import kz.dentvision.crm.data.model.Workflow
@@ -197,6 +198,12 @@ interface CrmApi {
         @Query("patientId") patientId: String? = null,
         @Query("status") status: String? = null,
     ): ApiEnvelope<List<TreatmentPlan>>
+
+    @POST("api/crm/treatment-plans")
+    suspend fun saveTreatmentPlan(@Body body: TreatmentPlanUpsert): ApiEnvelope<TreatmentPlan>
+
+    @DELETE("api/crm/treatment-plans/{id}")
+    suspend fun deleteTreatmentPlan(@Path("id") id: String): ApiEnvelope<Unit>
 
     @GET("api/crm/promotions")
     suspend fun promotions(): ApiEnvelope<List<Promotion>>

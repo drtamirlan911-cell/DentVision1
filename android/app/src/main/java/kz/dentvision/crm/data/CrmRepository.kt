@@ -30,6 +30,7 @@ import kz.dentvision.crm.data.model.PriceListUpsert
 import kz.dentvision.crm.data.model.SentReminder
 import kz.dentvision.crm.data.model.Promotion
 import kz.dentvision.crm.data.model.TreatmentPlan
+import kz.dentvision.crm.data.model.TreatmentPlanUpsert
 import kz.dentvision.crm.data.model.Visit
 import kz.dentvision.crm.data.model.VisitCreate
 import kz.dentvision.crm.data.model.Workflow
@@ -181,6 +182,13 @@ class CrmRepository(private val api: ApiClient = ServiceLocator.api) {
 
     suspend fun treatmentPlans(clinicId: String, patientId: String? = null): List<TreatmentPlan> =
         apiCall { api.crm.treatmentPlans(clinicId, patientId) }
+
+    suspend fun saveTreatmentPlan(body: TreatmentPlanUpsert): TreatmentPlan =
+        apiCall { api.crm.saveTreatmentPlan(body) }
+
+    suspend fun deleteTreatmentPlan(id: String) {
+        apiCall { api.crm.deleteTreatmentPlan(id) }
+    }
 
     suspend fun promotions(): List<Promotion> = apiCall { api.crm.promotions() }
 

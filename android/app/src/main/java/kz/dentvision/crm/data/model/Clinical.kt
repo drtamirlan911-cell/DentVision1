@@ -74,7 +74,50 @@ data class TreatmentPlan(
     val notes: String? = null,
     val totalBudget: Int? = null,
     val teeth: List<String> = emptyList(),
+    val stages: List<TreatmentPlanStage> = emptyList(),
     val createdAt: String? = null,
+)
+
+/**
+ * Этап плана — `TreatmentPlanStage` (`lib/treatmentPlanShape.ts:93`). `cost`
+ * при отправке не нужен: сервер сам считает его из `items`
+ * (`enrichStages`/`stageTotal`) и не читает присланное значение.
+ */
+@Serializable
+data class TreatmentPlanStage(
+    val id: String? = null,
+    val title: String = "",
+    val status: String? = null,
+    val cost: Int? = null,
+    val items: List<TreatmentPlanLineItem> = emptyList(),
+)
+
+/**
+ * Услуга внутри этапа — подмножество `TreatmentPlanLineItem`
+ * (`lib/treatmentPlanShape.ts:63`): только то, что заполняет ручное
+ * редактирование (услуга из прайса, количество, цена). Поля вроде `finding`/
+ * `alternatives`/`teeth` заполняет только ИИ-сборка плана по одонтограмме —
+ * ручной редактор их не пишет и намеренно не притворяется, что умеет.
+ */
+@Serializable
+data class TreatmentPlanLineItem(
+    val id: String? = null,
+    val serviceId: String? = null,
+    val serviceName: String? = null,
+    val price: Int = 0,
+    val qty: Int = 1,
+)
+
+/** Тело `POST /api/crm/treatment-plans` — `id` есть только при редактировании. */
+@Serializable
+data class TreatmentPlanUpsert(
+    val id: String? = null,
+    val patientId: String,
+    val title: String? = null,
+    val diagnosis: String? = null,
+    val status: String? = null,
+    val stages: List<TreatmentPlanStage> = emptyList(),
+    val notes: String? = null,
 )
 
 /** Документ пациента (`GET /api/files`). */
