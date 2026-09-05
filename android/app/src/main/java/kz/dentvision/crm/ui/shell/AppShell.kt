@@ -22,6 +22,8 @@ import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.MoreHoriz
+import androidx.compose.material.icons.filled.People
+import androidx.compose.material.icons.filled.Today
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Science
@@ -77,6 +79,7 @@ import kz.dentvision.crm.data.session.FocusHolder
 import kz.dentvision.crm.data.session.NotificationBadge
 import kz.dentvision.crm.data.session.ScreenFocus
 import kz.dentvision.crm.data.session.SelectedPatient
+import kz.dentvision.crm.ui.today.TodayScreen
 import kz.dentvision.crm.data.session.Session
 import kz.dentvision.crm.navigation.IMPLEMENTED_PAGES
 import kz.dentvision.crm.navigation.cabinetRouteFor
@@ -102,6 +105,7 @@ import kz.dentvision.crm.navigation.ROUTE_DIAGNOSTICS_REFERRALS
 import kz.dentvision.crm.navigation.ROUTE_DIAGNOSTICS_REFERRAL_NEW
 import kz.dentvision.crm.navigation.ROUTE_COMMUNITY
 import kz.dentvision.crm.navigation.ROUTE_INTELLIGENCE
+import kz.dentvision.crm.navigation.ROUTE_TODAY
 import kz.dentvision.crm.navigation.ROUTE_JOBS
 import kz.dentvision.crm.navigation.ROUTE_NOTIFICATIONS
 import kz.dentvision.crm.navigation.ROUTE_NOTIFICATION_PREFERENCES
@@ -176,7 +180,7 @@ fun AppShell(
     val drawerState = rememberDrawerState(DrawerValue.Closed)
     val scope = rememberCoroutineScope()
     val backStackEntry by navController.currentBackStackEntryAsState()
-    val currentRoute = backStackEntry?.destination?.route ?: ROUTE_INTELLIGENCE
+    val currentRoute = backStackEntry?.destination?.route ?: ROUTE_TODAY
 
     // Один и тот же ViewModel для чипа в шапке и для самой шторки: список
     // рабочих пространств грузится один раз на весь кабинет, а не заново при
@@ -205,7 +209,7 @@ fun AppShell(
     fun open(route: String) {
         if (route == currentRoute) return
         navController.navigate(route) {
-            popUpTo(ROUTE_INTELLIGENCE) { saveState = true }
+            popUpTo(ROUTE_TODAY) { saveState = true }
             launchSingleTop = true
             restoreState = true
         }
@@ -328,12 +332,40 @@ fun AppShell(
                 // `Sidebar.tsx` эти два уровня никогда не смешиваются на
                 // одной панели (подстраницы CRM живут только внутри
                 // развёрнутого пункта «CRM»).
+                // Состав — по частоте использования за смену, а не по
+                // структуре меню. Раньше здесь стояли «Intelligence»,
+                // «Кабинет» и «Диагностика»: расписание и пациенты — то, что
+                // открывают десятки раз в день, — лежали на два касания
+                // глубже, внутри кабинета, а направление на КТ, действие
+                // нечастое, занимало постоянное место у всех ролей.
+                //
+                // Диагностика никуда не убрана: она осталась в боковом меню
+                // и в кабинете, просто не держит слот, который нужен работе
+                // у кресла.
                 NavigationBar(containerColor = DvTheme.colors.surface1) {
+                    NavigationBarItem(
+                        selected = currentRoute == ROUTE_TODAY,
+                        onClick = { open(ROUTE_TODAY) },
+                        icon = { Icon(Icons.Filled.Today, contentDescription = null) },
+                        label = { Text("Сегодня", style = MaterialTheme.typography.labelSmall) },
+                        alwaysShowLabel = false,
+                    )
+                    // Пациенты — только тем, кто может их читать. Кнопка,
+                    // ведущая в 403, хуже отсутствующей.
+                    if (session.has("patients.read")) {
+                        NavigationBarItem(
+                            selected = currentRoute == "crm/patients" || currentRoute.startsWith(ROUTE_PATIENT_DETAIL),
+                            onClick = { open("crm/patients") },
+                            icon = { Icon(Icons.Filled.People, contentDescription = null) },
+                            label = { Text("Пациенты", style = MaterialTheme.typography.labelSmall) },
+                            alwaysShowLabel = false,
+                        )
+                    }
                     NavigationBarItem(
                         selected = currentRoute == ROUTE_INTELLIGENCE,
                         onClick = { open(ROUTE_INTELLIGENCE) },
                         icon = { Icon(Icons.Filled.AutoAwesome, contentDescription = null) },
-                        label = { Text("Intelligence", style = MaterialTheme.typography.labelSmall) },
+                        label = { Text("Ассистент", style = MaterialTheme.typography.labelSmall) },
                         alwaysShowLabel = false,
                     )
                     NavigationBarItem(
@@ -348,13 +380,6 @@ fun AppShell(
                         },
                         icon = { Icon(Icons.Filled.Dashboard, contentDescription = null) },
                         label = { Text("Кабинет", style = MaterialTheme.typography.labelSmall) },
-                        alwaysShowLabel = false,
-                    )
-                    NavigationBarItem(
-                        selected = currentRoute.startsWith(ROUTE_DIAGNOSTICS),
-                        onClick = { open(ROUTE_DIAGNOSTICS) },
-                        icon = { Icon(Icons.Filled.Science, contentDescription = null) },
-                        label = { Text("Диагностика", style = MaterialTheme.typography.labelSmall) },
                         alwaysShowLabel = false,
                     )
                     NavigationBarItem(
@@ -414,7 +439,8 @@ fun AppShell(
 
 /** Заголовки фиксированных экранов ядра ИИ — их нет в `pages`, поэтому нет и в списке разделов. */
 private fun fixedRouteTitle(route: String): String? = when (route) {
-    ROUTE_INTELLIGENCE -> "Intelligence"
+    ROUTE_TODAY -> "Сегодня"
+    ROUTE_INTELLIGENCE -> "Ассистент"
     ROUTE_STOCK_RULES -> "Списание после приёма"
     ROUTE_NOTIFICATIONS -> "Уведомления"
     ROUTE_NOTIFICATION_PREFERENCES -> "Настройки уведомлений"
@@ -459,9 +485,16 @@ private fun ShellNavHost(
     CompositionLocalProvider(LocalAssistantNavigate provides onNavigate) {
         NavHost(
             navController = navController,
-            startDestination = ROUTE_INTELLIGENCE,
+            startDestination = ROUTE_TODAY,
             modifier = Modifier.fillMaxSize().padding(padding),
         ) {
+            composable(ROUTE_TODAY) {
+                TodayScreen(
+                    session = session,
+                    onOpenPatient = { id -> onNavigate("$ROUTE_PATIENT_DETAIL/$id") },
+                    onNavigate = onNavigate,
+                )
+            }
             composable(ROUTE_INTELLIGENCE) {
                 IntelligenceScreen(
                     onNavigate = { path -> resolveAssistantPath(path, implemented)?.let(onNavigate) },
