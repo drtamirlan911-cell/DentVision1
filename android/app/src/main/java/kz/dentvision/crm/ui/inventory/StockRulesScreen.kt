@@ -83,6 +83,8 @@ data class StockRulesUiState(
     val priceList: List<PriceListItem> = emptyList(),
     val message: String? = null,
     val deleteError: String? = null,
+    val savingRuleId: String? = null,
+    val creatingRule: Boolean = false,
 )
 
 class StockRulesViewModel(
@@ -111,7 +113,13 @@ class StockRulesViewModel(
         }
     }
 
-    fun save(scope: String, matchKey: String, label: String?, active: Boolean, items: List<RuleLine>, onDone: (() -> Unit)? = null) {
+    fun save(scope: String, matchKey: String, label: String?, active: Boolean, items: List<RuleLine>, ruleId: String? = null, onDone: (() -> Unit)? = null) {
+        if (ruleId != null) {
+            if (_state.value.savingRuleId == ruleId) return
+        } else if (_state.value.creatingRule) {
+            return
+        }
+        _state.update { if (ruleId != null) it.copy(savingRuleId = ruleId) else it.copy(creatingRule = true) }
         viewModelScope.launch {
             runCatching {
                 repository.saveStockRule(
@@ -126,10 +134,18 @@ class StockRulesViewModel(
             }
                 .onSuccess {
                     load()
-                    _state.update { s -> s.copy(message = "Правило сохранено") }
+                    _state.update { s ->
+                        if (ruleId != null) s.copy(message = "Правило сохранено", savingRuleId = null)
+                        else s.copy(message = "Правило сохранено", creatingRule = false)
+                    }
                     onDone?.invoke()
                 }
-                .onFailure { _state.update { s -> s.copy(message = it.message ?: "Не удалось сохранить правило") } }
+                .onFailure { e ->
+                    _state.update { s ->
+                        val msg = e.message ?: "Не удалось сохранить правило"
+                        if (ruleId != null) s.copy(message = msg, savingRuleId = null) else s.copy(message = msg, creatingRule = false)
+                    }
+                }
         }
     }
 
@@ -253,7 +269,8 @@ fun StockRulesScreen(canWrite: Boolean, viewModel: StockRulesViewModel = viewMod
                                         title = targetLabel(rule, state.priceList),
                                         inventory = state.inventory,
                                         canWrite = canWrite,
-                                        onSave = { lines, active -> viewModel.save(rule.scope, rule.matchKey, rule.label, active, lines) },
+                                        saving = state.savingRuleId == rule.id,
+                                        onSave = { lines, active -> viewModel.save(rule.scope, rule.matchKey, rule.label, active, lines, ruleId = rule.id) },
                                         onDelete = { toDelete = rule },
                                     )
                                 }
@@ -272,6 +289,7 @@ fun StockRulesScreen(canWrite: Boolean, viewModel: StockRulesViewModel = viewMod
             inventory = state.inventory,
             priceList = state.priceList,
             searchIcd10 = viewModel::searchIcd10,
+            creating = state.creatingRule,
             onDismiss = { addScope = null },
             onSave = { matchKey, label, lines ->
                 viewModel.save(section.value, matchKey, label, true, lines) { addScope = null }
@@ -316,6 +334,7 @@ private fun RuleCard(
     title: String,
     inventory: List<InventoryItem>,
     canWrite: Boolean,
+    saving: Boolean,
     onSave: (List<RuleLine>, Boolean) -> Unit,
     onDelete: () -> Unit,
 ) {
@@ -403,7 +422,12 @@ private fun RuleCard(
                         Text("Добавить позицию")
                     }
                     if (dirty) {
-                        DvPrimaryButton(onClick = { onSave(lines, active) }) { Text("Сохранить") }
+                        DvPrimaryButton(onClick = { onSave(lines, active) }, enabled = !saving) {
+                            if (saving) {
+                                CircularProgressIndicator(strokeWidth = 2.dp, color = DvTheme.colors.goldOn, modifier = Modifier.padding(end = 8.dp))
+                            }
+                            Text("Сохранить")
+                        }
                     }
                 }
             }
@@ -571,6 +595,7 @@ private fun AddRuleSheet(
     inventory: List<InventoryItem>,
     priceList: List<PriceListItem>,
     searchIcd10: suspend (String) -> List<Icd10Code>,
+    creating: Boolean,
     onDismiss: () -> Unit,
     onSave: (matchKey: String, label: String?, items: List<RuleLine>) -> Unit,
 ) {
@@ -580,7 +605,7 @@ private fun AddRuleSheet(
     var pickerOpen by remember { mutableStateOf(false) }
     var targetPickerOpen by remember { mutableStateOf(false) }
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
-    val ready = (section == RuleScope.ALWAYS || matchKey.isNotBlank()) && lines.isNotEmpty()
+    val ready = (section == RuleScope.ALWAYS || matchKey.isNotBlank()) && lines.isNotEmpty() && !creating
 
     ModalBottomSheet(onDismissRequest = onDismiss, sheetState = sheetState, containerColor = DvTheme.colors.surface1) {
         Column(
@@ -656,8 +681,13 @@ private fun AddRuleSheet(
                     onClick = { onSave(if (section == RuleScope.ALWAYS) "" else matchKey, matchLabel.ifBlank { null }, lines) },
                     enabled = ready,
                     modifier = Modifier.weight(1f),
-                ) { Text("Создать правило") }
-                TextButton(onClick = onDismiss) { Text("Отмена") }
+                ) {
+                    if (creating) {
+                        CircularProgressIndicator(strokeWidth = 2.dp, color = DvTheme.colors.goldOn, modifier = Modifier.padding(end = 8.dp))
+                    }
+                    Text("Создать правило")
+                }
+                TextButton(onClick = onDismiss, enabled = !creating) { Text("Отмена") }
             }
         }
     }

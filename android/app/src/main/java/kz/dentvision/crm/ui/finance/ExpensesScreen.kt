@@ -2,6 +2,8 @@ package kz.dentvision.crm.ui.finance
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
@@ -282,6 +284,7 @@ private fun ExpenseRow(expense: Expense, canDelete: Boolean, onDelete: () -> Uni
     }
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun ExpenseForm(viewModel: ExpensesViewModel, onSaved: () -> Unit) {
     val form by viewModel.form.collectAsStateWithLifecycle()
@@ -303,7 +306,7 @@ private fun ExpenseForm(viewModel: ExpensesViewModel, onSaved: () -> Unit) {
         )
 
         Text("Категория", style = MaterialTheme.typography.labelMedium, color = DvTheme.colors.textGhost)
-        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             EXPENSE_CATEGORIES.forEach { category ->
                 androidx.compose.material3.FilterChip(
                     selected = form.category == category,

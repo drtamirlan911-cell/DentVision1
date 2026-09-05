@@ -10,6 +10,8 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -318,6 +320,7 @@ class OperatorWorkspaceViewModel(
 internal fun JsonElement?.asTengeOrNull(): Int? =
     (this as? JsonPrimitive)?.content?.toDoubleOrNull()?.toInt()
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun OperatorWorkspaceScreen(session: Session, viewModel: OperatorWorkspaceViewModel = viewModel()) {
     val kind = operatorKindFor(session.user.organizationType)
@@ -357,6 +360,7 @@ fun OperatorWorkspaceScreen(session: Session, viewModel: OperatorWorkspaceViewMo
     }
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun OperatorWorkspaceContent(
     config: OperatorConfig,
@@ -426,7 +430,7 @@ private fun OperatorWorkspaceContent(
             }
         }
 
-        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             PHASE_LABELS.forEach { (phase, label) ->
                 FilterChip(
                     selected = state.phaseFilter == phase,

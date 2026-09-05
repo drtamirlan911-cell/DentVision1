@@ -4,6 +4,8 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
@@ -52,6 +54,7 @@ import kz.dentvision.crm.ui.theme.DvTheme
  * на сервере (эндпоинты уже сами делают всю ИИ-часть), клиент здесь — только
  * обычный REST-клиент над готовым контрактом.
  */
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun MarketingScreen(
     onOpenPlan: (String) -> Unit,
@@ -78,7 +81,7 @@ fun MarketingScreen(
         ) {
             Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 Text("Тональность", style = MaterialTheme.typography.labelSmall, color = DvTheme.colors.textMuted)
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     MARKETING_TONES.forEach { (value, label) ->
                         FilterChip(selected = state.tone == value, onClick = { viewModel.updateTone(value) }, label = { Text(label) })
                     }
