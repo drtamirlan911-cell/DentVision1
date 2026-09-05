@@ -2,6 +2,7 @@ package kz.dentvision.crm.data
 
 import kz.dentvision.crm.data.api.ApiClient
 import kz.dentvision.crm.data.api.apiCall
+import kz.dentvision.crm.data.api.apiCallUnit
 import kz.dentvision.crm.data.model.Appointment
 import kz.dentvision.crm.data.model.AppointmentUpsert
 import kz.dentvision.crm.data.model.ConflictCheck
@@ -181,7 +182,9 @@ class CrmRepository(private val api: ApiClient = ServiceLocator.api) {
         apiCall { api.crm.saveStockRule(body) }
 
     suspend fun deleteStockRule(id: String) {
-        apiCall { api.crm.deleteStockRule(id) }
+        // `data: null` при успехе (`deductionRules.routes.ts`) — apiCall() принял
+        // бы это за пустой ответ и бросил ошибку на успешном удалении.
+        apiCallUnit { api.crm.deleteStockRule(id) }
     }
 
     suspend fun previewStockDeduction(serviceCodes: List<String>, diagnosis: String?): List<StockDeductionPreviewLine> =

@@ -2,6 +2,7 @@ package kz.dentvision.crm.data
 
 import kz.dentvision.crm.data.api.ApiClient
 import kz.dentvision.crm.data.api.apiCall
+import kz.dentvision.crm.data.api.apiCallUnit
 import kz.dentvision.crm.data.model.CarouselRequest
 import kz.dentvision.crm.data.model.ContentIdeaPatch
 import kz.dentvision.crm.data.model.ContentPlanRequest
@@ -24,7 +25,9 @@ class MarketingRepository(private val api: ApiClient = ServiceLocator.api) {
     suspend fun plan(id: String): StoredPlan = apiCall { api.marketing.plan(id) }
 
     suspend fun deletePlan(id: String) {
-        apiCall { api.marketing.deletePlan(id) }
+        // `data: null` при успехе (`marketing.routes.ts`) — apiCall() принял бы
+        // это за пустой ответ и бросил ошибку на успешном удалении.
+        apiCallUnit { api.marketing.deletePlan(id) }
     }
 
     suspend fun updateIdea(

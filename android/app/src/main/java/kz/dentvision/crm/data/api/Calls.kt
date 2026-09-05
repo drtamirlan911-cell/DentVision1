@@ -41,6 +41,30 @@ suspend fun <T> apiCall(block: suspend () -> ApiEnvelope<T>): T = withContext(Di
     envelope.data ?: throw ApiException(status = 200, message = envelope.error ?: "Сервер вернул пустой ответ")
 }
 
+/**
+ * Как [apiCall], но для маршрутов, что при успехе честно шлют `data: null`
+ * (`stock-rules`/`marketing content-plans` delete отвечают именно так) —
+ * там нечего возвращать, и требовать непустой `data`, как это делает
+ * [apiCall], значило бы принимать успешное удаление за ошибку сервера.
+ */
+suspend fun apiCallUnit(block: suspend () -> ApiEnvelope<*>): Unit = withContext(Dispatchers.IO) {
+    val envelope = try {
+        block()
+    } catch (e: HttpException) {
+        throw e.toApiException()
+    } catch (e: SocketTimeoutException) {
+        throw ApiException(
+            status = 0,
+            message = "Сервер не ответил вовремя. Если им давно не пользовались, ему нужно до минуты, чтобы проснуться — повторите попытку.",
+        )
+    } catch (e: IOException) {
+        throw ApiException(status = 0, message = "Нет связи с сервером. Проверьте подключение.")
+    }
+    if (!envelope.ok) {
+        throw ApiException(status = 200, message = envelope.error ?: "Неизвестная ошибка", code = envelope.code)
+    }
+}
+
 private fun HttpException.toApiException(): ApiException {
     val raw = runCatching { response()?.errorBody()?.string() }.getOrNull()
     val parsed = raw?.let {
