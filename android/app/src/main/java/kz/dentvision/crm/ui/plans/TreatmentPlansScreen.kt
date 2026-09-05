@@ -479,7 +479,7 @@ private fun PlanRow(plan: TreatmentPlan, canWrite: Boolean, onClick: () -> Unit,
                     )
                 }
                 if (canWrite) {
-                    IconButton(onClick = onDelete, modifier = Modifier.size(28.dp)) {
+                    IconButton(onClick = onDelete, modifier = Modifier.size(48.dp)) {
                         Icon(
                             Icons.Filled.Delete,
                             contentDescription = "Удалить план",
@@ -693,7 +693,7 @@ private fun StageCard(
                     modifier = Modifier.weight(1f),
                 )
                 if (canWrite && canRemove) {
-                    IconButton(onClick = onRemoveStage, modifier = Modifier.size(28.dp).padding(start = 4.dp)) {
+                    IconButton(onClick = onRemoveStage, modifier = Modifier.size(48.dp).padding(start = 4.dp)) {
                         Icon(
                             Icons.Filled.Close,
                             contentDescription = "Удалить этап",

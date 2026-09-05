@@ -327,7 +327,7 @@ private fun AppointmentRow(
             }
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                 if (onAcceptPayment != null) {
-                    IconButton(onClick = onAcceptPayment, modifier = Modifier.size(28.dp)) {
+                    IconButton(onClick = onAcceptPayment, modifier = Modifier.size(48.dp)) {
                         Icon(
                             Icons.Filled.Payments,
                             contentDescription = "Принять оплату",

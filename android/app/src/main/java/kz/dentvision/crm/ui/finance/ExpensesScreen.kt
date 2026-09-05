@@ -271,7 +271,7 @@ private fun ExpenseRow(expense: Expense, canDelete: Boolean, onDelete: () -> Uni
                 color = DvTheme.colors.textSecondary,
             )
             if (canDelete) {
-                IconButton(onClick = onDelete, modifier = Modifier.size(28.dp)) {
+                IconButton(onClick = onDelete, modifier = Modifier.size(48.dp)) {
                     Icon(
                         Icons.Filled.Delete,
                         contentDescription = "Удалить расход",

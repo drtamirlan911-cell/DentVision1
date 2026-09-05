@@ -479,7 +479,7 @@ private fun AlertChip(alert: AiAlert, onTap: () -> Unit, onDismiss: () -> Unit) 
                 color = accent,
                 modifier = Modifier.widthIn(max = 220.dp),
             )
-            IconButton(onClick = onDismiss, modifier = Modifier.size(24.dp).padding(start = 4.dp)) {
+            IconButton(onClick = onDismiss, modifier = Modifier.size(48.dp).padding(start = 4.dp)) {
                 Icon(Icons.Filled.Close, contentDescription = "Скрыть", tint = accent.copy(alpha = 0.7f), modifier = Modifier.size(12.dp))
             }
         }
