@@ -127,7 +127,10 @@ class CrmRepository(private val api: ApiClient = ServiceLocator.api) {
 
     // ── Касса ──
 
-    suspend fun invoices(): List<Invoice> = apiCall { api.crm.invoices() }.data
+    suspend fun invoices(status: String? = null): List<Invoice> = apiCall { api.crm.invoices(status = status) }.data
+
+    /** Отметить уже выставленный счёт оплаченным — долг, погашенный отдельно от его создания. */
+    suspend fun payInvoice(id: String): Invoice = apiCall { api.crm.payInvoice(id) }
 
     /**
      * Счёт и, если его сразу оплатили, отметка об оплате.

@@ -42,11 +42,17 @@ fun FinanceHubScreen(canWrite: Boolean) {
             Tab(
                 selected = tab == 1,
                 onClick = { tab = 1 },
+                text = { Text("Долги", style = MaterialTheme.typography.labelLarge) },
+            )
+            Tab(
+                selected = tab == 2,
+                onClick = { tab = 2 },
                 text = { Text("Итоги", style = MaterialTheme.typography.labelLarge) },
             )
         }
         when (tab) {
             0 -> CashierScreen(canWrite = canWrite)
+            1 -> DebtsScreen(canWrite = canWrite)
             else -> FinanceScreen()
         }
     }
