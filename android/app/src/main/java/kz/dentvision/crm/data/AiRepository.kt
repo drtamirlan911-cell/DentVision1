@@ -78,11 +78,13 @@ class AiRepository(private val api: ApiClient = ServiceLocator.api) {
     suspend fun approvals(status: String? = "pending"): List<AiApprovalItem> =
         apiCall { api.ai.approvals(status) }
 
-    suspend fun approve(id: String, note: String? = null): AiApprovalItem =
+    suspend fun approve(id: String, note: String? = null) {
         apiCall { api.ai.approveApproval(id, AiApprovalDecision(note)) }
+    }
 
-    suspend fun reject(id: String, note: String? = null): AiApprovalItem =
+    suspend fun reject(id: String, note: String? = null) {
         apiCall { api.ai.rejectApproval(id, AiApprovalDecision(note)) }
+    }
 
     // ── Центр активности ──
 

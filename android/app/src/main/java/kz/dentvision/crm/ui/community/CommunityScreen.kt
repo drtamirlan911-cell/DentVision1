@@ -4,6 +4,8 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
@@ -14,7 +16,6 @@ import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Send
@@ -70,7 +71,7 @@ import kz.dentvision.crm.ui.theme.DvTheme
  * (`optionalAuth` на сервере), публикация/лайк/сохранение/комментарий —
  * только вошедшим по-настоящему, как в `Jobs.tsx`.
  */
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 fun CommunityScreen(
     isAuthenticated: Boolean,
@@ -153,11 +154,15 @@ fun CommunityScreen(
                         }
                     }
                 }
-                LazyRow(
-                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
+                // FlowRow, а не горизонтальный скролл: на телефоне обрезанный
+                // край без явного намёка на свайп выглядит как поломка, а все
+                // 7 тем на 2 строках видно сразу.
+                FlowRow(
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
-                    items(COMMUNITY_TOPICS) { topic ->
+                    COMMUNITY_TOPICS.forEach { topic ->
                         FilterChip(
                             selected = state.topic == topic,
                             onClick = { viewModel.setTopic(topic) },

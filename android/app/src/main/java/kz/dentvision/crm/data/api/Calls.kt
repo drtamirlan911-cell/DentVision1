@@ -2,6 +2,7 @@ package kz.dentvision.crm.data.api
 
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import kotlinx.serialization.SerializationException
 import kotlinx.serialization.json.Json
 import retrofit2.HttpException
 import java.io.IOException
@@ -34,6 +35,12 @@ suspend fun <T> apiCall(block: suspend () -> ApiEnvelope<T>): T = withContext(Di
         )
     } catch (e: IOException) {
         throw ApiException(status = 0, message = "Нет связи с сервером. Проверьте подключение.")
+    } catch (e: SerializationException) {
+        // Конверт разобрался, а форма `data` — нет: несовпадение модели с
+        // бэкендом. Сырое сообщение kotlinx (английское, с путём в JSON)
+        // человеку не показываем — оно не про то, что случилось, а про то,
+        // как это устроено внутри.
+        throw ApiException(status = 200, message = "Сервер вернул данные в неожиданном формате. Мы уже знаем об этом.")
     }
     if (!envelope.ok) {
         throw ApiException(status = 200, message = envelope.error ?: "Неизвестная ошибка", code = envelope.code)
@@ -59,6 +66,8 @@ suspend fun apiCallUnit(block: suspend () -> ApiEnvelope<*>): Unit = withContext
         )
     } catch (e: IOException) {
         throw ApiException(status = 0, message = "Нет связи с сервером. Проверьте подключение.")
+    } catch (e: SerializationException) {
+        throw ApiException(status = 200, message = "Сервер вернул данные в неожиданном формате. Мы уже знаем об этом.")
     }
     if (!envelope.ok) {
         throw ApiException(status = 200, message = envelope.error ?: "Неизвестная ошибка", code = envelope.code)

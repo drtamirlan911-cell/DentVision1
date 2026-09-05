@@ -1,5 +1,6 @@
 package kz.dentvision.crm.data.api
 
+import kotlinx.serialization.json.JsonObject
 import kz.dentvision.crm.data.model.AiActionRequest
 import kz.dentvision.crm.data.model.AiActionResult
 import kz.dentvision.crm.data.model.AiApprovalDecision
@@ -68,17 +69,25 @@ interface AiApi {
     @GET("api/ai/approvals")
     suspend fun approvals(@Query("status") status: String? = null): ApiEnvelope<List<AiApprovalItem>>
 
+    /**
+     * Ответ approve — не строка `AiApprovalItem` (`approvals.routes.ts`
+     * шлёт туда результат самого действия, `KernelResult`: `status`, `data`,
+     * `activityId`, без `id`) — экран всё равно смотрит только на успех/
+     * неуспех вызова и убирает строку из списка сам, поэтому форма ответа
+     * ему не нужна.
+     */
     @POST("api/ai/approvals/{id}/approve")
     suspend fun approveApproval(
         @Path("id") id: String,
         @Body body: AiApprovalDecision = AiApprovalDecision(),
-    ): ApiEnvelope<AiApprovalItem>
+    ): ApiEnvelope<JsonObject>
 
+    /** Ответ reject — `{id, status}`, тоже не `AiApprovalItem`. */
     @POST("api/ai/approvals/{id}/reject")
     suspend fun rejectApproval(
         @Path("id") id: String,
         @Body body: AiApprovalDecision = AiApprovalDecision(),
-    ): ApiEnvelope<AiApprovalItem>
+    ): ApiEnvelope<JsonObject>
 
     // ── Центр активности (ai.timeline.routes.ts) ──
 

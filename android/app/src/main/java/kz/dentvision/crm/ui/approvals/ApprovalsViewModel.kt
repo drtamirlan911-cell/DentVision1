@@ -51,7 +51,7 @@ class ApprovalsViewModel(
 
     fun reject(id: String, note: String? = null) = decide(id) { repository.reject(id, note) }
 
-    private fun decide(id: String, call: suspend () -> AiApprovalItem) {
+    private fun decide(id: String, call: suspend () -> Unit) {
         _state.update { it.copy(decidingId = id) }
         viewModelScope.launch {
             runCatching { call() }

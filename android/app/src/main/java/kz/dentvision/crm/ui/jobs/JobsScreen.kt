@@ -3,6 +3,8 @@ package kz.dentvision.crm.ui.jobs
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
@@ -69,7 +71,7 @@ private val POPULAR_CITIES = listOf(
  * намеренно не считается — та же граница, что и на вебе, `isAuthenticated`
  * там означает вход по логину/паролю, а не гостевую сессию).
  */
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 fun JobsScreen(
     isAuthenticated: Boolean,
@@ -125,22 +127,24 @@ fun JobsScreen(
                 leadingIcon = { Icon(Icons.Filled.Search, contentDescription = null) },
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
             )
-            LazyRow(
-                contentPadding = PaddingValues(horizontal = 16.dp),
+            // FlowRow вместо LazyRow — на вебе `CityFilter` тоже `flex flex-wrap`
+            // (`src/components/ui/CityFilter.tsx:43`): все города видны сразу,
+            // а не обрезаны за краем экрана в ожидании свайпа.
+            FlowRow(
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                item {
-                    FilterChip(
-                        selected = filters.city.isBlank(),
-                        onClick = { viewModel.onCityChange("") },
-                        label = { Text("Весь Казахстан") },
-                        colors = FilterChipDefaults.filterChipColors(
-                            selectedContainerColor = DvTheme.colors.gold.copy(alpha = 0.18f),
-                            selectedLabelColor = DvTheme.colors.gold,
-                        ),
-                    )
-                }
-                items(POPULAR_CITIES) { city ->
+                FilterChip(
+                    selected = filters.city.isBlank(),
+                    onClick = { viewModel.onCityChange("") },
+                    label = { Text("Весь Казахстан") },
+                    colors = FilterChipDefaults.filterChipColors(
+                        selectedContainerColor = DvTheme.colors.gold.copy(alpha = 0.18f),
+                        selectedLabelColor = DvTheme.colors.gold,
+                    ),
+                )
+                POPULAR_CITIES.forEach { city ->
                     FilterChip(
                         selected = filters.city == city,
                         onClick = { viewModel.onCityChange(if (filters.city == city) "" else city) },

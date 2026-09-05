@@ -73,7 +73,7 @@ data class TreatmentPlan(
     val diagnosis: String? = null,
     val notes: String? = null,
     val totalBudget: Int? = null,
-    val teeth: List<String> = emptyList(),
+    val teeth: List<Int> = emptyList(),
     val stages: List<TreatmentPlanStage> = emptyList(),
     val createdAt: String? = null,
 )

@@ -6,12 +6,15 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -26,6 +29,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.ViewModel
@@ -88,6 +92,7 @@ class DentalChartViewModel(
  * поверхностям зуба, и упрощённая правка «одним касанием» затёрла бы более
  * подробную запись, сделанную у кресла. Показать — можно и нужно.
  */
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun DentalChartScreen(viewModel: DentalChartViewModel = viewModel()) {
     val state by viewModel.state.collectAsStateWithLifecycle()
@@ -115,6 +120,10 @@ fun DentalChartScreen(viewModel: DentalChartViewModel = viewModel()) {
             is UiState.Error -> ErrorState(message = current.message, onRetry = viewModel::load)
             is UiState.Data -> {
                 val teeth = current.value.teeth
+                // Раньше цвет заливки был единственной подсказкой к статусу —
+                // без расшифровки он ничего не говорит. Легенда переносит на
+                // Android то, что на вебе видно из подписи под каждым зубом.
+                ToothLegend()
                 ToothRow(numbers = UPPER, teeth = teeth, onPick = { selected = it })
                 ToothRow(numbers = LOWER, teeth = teeth, onPick = { selected = it })
 
@@ -179,6 +188,33 @@ fun DentalChartScreen(viewModel: DentalChartViewModel = viewModel()) {
     }
 }
 
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun ToothLegend() {
+    FlowRow(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+        verticalArrangement = Arrangement.spacedBy(4.dp),
+    ) {
+        TOOTH_STATUS_LABELS.forEach { (status, label) ->
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Box(
+                    modifier = Modifier
+                        .size(8.dp)
+                        .clip(androidx.compose.foundation.shape.CircleShape)
+                        .background(statusColor(status)),
+                )
+                Text(
+                    text = label,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = DvTheme.colors.textMuted,
+                    modifier = Modifier.padding(start = 4.dp),
+                )
+            }
+        }
+    }
+}
+
 @Composable
 private fun ToothRow(
     numbers: List<String>,
@@ -207,6 +243,20 @@ private fun ToothRow(
     }
 }
 
+/**
+ * Скруглённая коронка сверху и заметно более узкий корень снизу — силуэт
+ * зуба, а не безликий квадрат с номером. Полноценная 3D-одонтограмма
+ * (`Odontogram3D.tsx`) сюда не переносится — это отдельный движок, а не
+ * форма ячейки, но и голый номер в рамке был ровно тем «неестественно»,
+ * на которое пожаловались.
+ */
+private val ToothShape: Shape = RoundedCornerShape(
+    topStart = 10.dp,
+    topEnd = 10.dp,
+    bottomStart = 3.dp,
+    bottomEnd = 3.dp,
+)
+
 @Composable
 private fun ToothCell(
     number: String,
@@ -215,20 +265,31 @@ private fun ToothCell(
     onClick: () -> Unit,
 ) {
     val color = statusColor(tooth?.status)
-    Box(
-        modifier = modifier
-            .size(38.dp)
-            .clip(MaterialTheme.shapes.small)
-            .background(color.copy(alpha = 0.18f))
-            .border(1.dp, color.copy(alpha = 0.5f), MaterialTheme.shapes.small)
-            .clickable(onClick = onClick),
-        contentAlignment = Alignment.Center,
+    Column(
+        modifier = modifier.clickable(onClick = onClick),
+        horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        Text(
-            text = number,
-            style = MaterialTheme.typography.labelSmall,
-            color = DvTheme.colors.textPrimary,
-            textAlign = TextAlign.Center,
+        Box(
+            modifier = Modifier
+                .size(width = 30.dp, height = 34.dp)
+                .clip(ToothShape)
+                .background(color.copy(alpha = 0.18f))
+                .border(1.dp, color.copy(alpha = 0.5f), ToothShape),
+            contentAlignment = Alignment.Center,
+        ) {
+            Text(
+                text = number,
+                style = MaterialTheme.typography.labelSmall,
+                color = DvTheme.colors.textPrimary,
+                textAlign = TextAlign.Center,
+            )
+        }
+        Box(
+            modifier = Modifier
+                .padding(top = 2.dp)
+                .size(5.dp)
+                .clip(androidx.compose.foundation.shape.CircleShape)
+                .background(color),
         )
     }
 }
