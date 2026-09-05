@@ -43,6 +43,7 @@ import kz.dentvision.crm.ui.common.UiState
 import kz.dentvision.crm.ui.theme.DvOutlineButton
 import kz.dentvision.crm.ui.theme.DvPrimaryButton
 import kz.dentvision.crm.ui.theme.DvTheme
+import kz.dentvision.crm.lib.formatPhone
 
 private val STATUS_LABELS = mapOf(
     "" to "Все",
@@ -185,7 +186,7 @@ private fun RegistrationRequestRow(
 
             val sub = listOfNotNull(
                 listOfNotNull(request.city, request.address).joinToString(", ").takeIf { it.isNotBlank() },
-                request.phone?.takeIf { it.isNotBlank() },
+                formatPhone(request.phone?.takeIf { it.isNotBlank() }),
             ).joinToString(" · ")
             if (sub.isNotBlank()) {
                 Text(text = sub, style = MaterialTheme.typography.bodySmall, color = DvTheme.colors.textMuted)

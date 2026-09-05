@@ -47,6 +47,7 @@ import kz.dentvision.crm.ui.common.ErrorState
 import kz.dentvision.crm.ui.common.LoadingSkeleton
 import kz.dentvision.crm.ui.common.UiState
 import kz.dentvision.crm.ui.theme.DvTheme
+import kz.dentvision.crm.lib.formatPhone
 
 data class DiagnosticPatient(
     val key: String,
@@ -184,7 +185,7 @@ private fun PatientRow(patient: DiagnosticPatient, onClick: () -> Unit) {
                 Column(modifier = Modifier.weight(1f).padding(start = 12.dp)) {
                     Text(text = patient.name, style = MaterialTheme.typography.bodyMedium, color = DvTheme.colors.textPrimary)
                     val sub = listOfNotNull(
-                        patient.phone?.takeIf { it.isNotBlank() },
+                        formatPhone(patient.phone?.takeIf { it.isNotBlank() }),
                         patient.iin?.takeIf { it.isNotBlank() },
                         "${patient.referrals.size} направлений",
                     ).joinToString(" · ")

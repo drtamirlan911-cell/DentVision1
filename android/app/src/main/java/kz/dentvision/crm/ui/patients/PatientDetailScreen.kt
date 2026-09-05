@@ -21,6 +21,8 @@ import kz.dentvision.crm.data.model.Patient
 import kz.dentvision.crm.ui.medcard.MedicalCardScreen
 import kz.dentvision.crm.ui.theme.DvTheme
 import kz.dentvision.crm.ui.visits.VisitsScreen
+import kz.dentvision.crm.lib.formatPhone
+import kz.dentvision.crm.lib.formatDate
 
 private enum class PatientDetailTab(val label: String) {
     CARD("Карта"),
@@ -53,8 +55,8 @@ fun PatientDetailScreen(
                 color = DvTheme.colors.textPrimary,
             )
             val meta = listOfNotNull(
-                patient.phone.ifBlank { null },
-                patient.dob.ifBlank { null },
+                formatPhone(patient.phone.ifBlank { null }),
+                formatDate(patient.dob.ifBlank { null }),
             ).joinToString(" · ")
             if (meta.isNotBlank()) {
                 Row(verticalAlignment = Alignment.CenterVertically) {

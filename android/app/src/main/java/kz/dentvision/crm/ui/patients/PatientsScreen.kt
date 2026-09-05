@@ -52,6 +52,8 @@ import kz.dentvision.crm.ui.common.LoadingSkeleton
 import kz.dentvision.crm.ui.common.UiState
 import kz.dentvision.crm.ui.theme.DvConfirmDialog
 import kz.dentvision.crm.ui.theme.DvTheme
+import kz.dentvision.crm.lib.formatPhone
+import kz.dentvision.crm.lib.formatDate
 
 /**
  * Пациенты: список, поиск и заведение новой карты.
@@ -233,8 +235,8 @@ private fun PatientRow(
                 }
             }
             val details = listOfNotNull(
-                patient.phone.ifBlank { null },
-                patient.dob.ifBlank { null },
+                formatPhone(patient.phone.ifBlank { null }),
+                formatDate(patient.dob.ifBlank { null }),
             ).joinToString(" · ")
             if (details.isNotBlank()) {
                 Text(

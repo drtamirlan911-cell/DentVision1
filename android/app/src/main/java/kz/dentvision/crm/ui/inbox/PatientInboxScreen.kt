@@ -50,6 +50,7 @@ import kz.dentvision.crm.ui.common.UiState
 import kz.dentvision.crm.ui.theme.DvOutlineButton
 import kz.dentvision.crm.ui.theme.DvPrimaryButton
 import kz.dentvision.crm.ui.theme.DvTheme
+import kz.dentvision.crm.lib.formatPhone
 import java.time.Instant
 import java.time.temporal.ChronoUnit
 
@@ -295,7 +296,7 @@ private fun ThreadContent(thread: InboxThread, state: PatientInboxState, viewMod
                     Text(text = patientName(conversation), style = MaterialTheme.typography.titleMedium, color = DvTheme.colors.textPrimary)
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         StatusChip(conversation.status)
-                        conversation.patientUser.phone?.let { Text(text = it, style = MaterialTheme.typography.labelSmall, color = DvTheme.colors.textMuted) }
+                        conversation.patientUser.phone?.let { formatPhone(it) }?.let { Text(text = it, style = MaterialTheme.typography.labelSmall, color = DvTheme.colors.textMuted) }
                     }
                 }
             }

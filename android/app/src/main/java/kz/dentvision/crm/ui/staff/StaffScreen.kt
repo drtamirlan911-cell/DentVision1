@@ -31,6 +31,7 @@ import kz.dentvision.crm.ui.common.ErrorState
 import kz.dentvision.crm.ui.common.LoadingSkeleton
 import kz.dentvision.crm.ui.common.UiState
 import kz.dentvision.crm.ui.theme.DvTheme
+import kz.dentvision.crm.lib.formatPhone
 
 /** Роли состава клиники по-русски. Значения — из `normalizeStaffRole` на бэкенде. */
 private val ROLE_LABELS = mapOf(
@@ -119,7 +120,7 @@ fun StaffScreen(
                                 val sub = listOfNotNull(
                                     ROLE_LABELS[member.role.lowercase()] ?: member.role,
                                     user.spec?.takeIf { it.isNotBlank() },
-                                    user.phone?.takeIf { it.isNotBlank() },
+                                    formatPhone(user.phone?.takeIf { it.isNotBlank() }),
                                 ).joinToString(" · ")
                                 Text(
                                     text = sub,
