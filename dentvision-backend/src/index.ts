@@ -2158,6 +2158,39 @@ async function main() {
     }
   });
 
+  // Зеркалит prisma/migrations/20260809_add_notification_preferences/migration.sql
+  // — та миграция без этого блока никогда не выполнялась на боевой БД (файл
+  // существовал, но `runOnceMigration` для него не было), поэтому
+  // `GET /api/notifications/preferences` падал с "Failed to load preferences":
+  // таблицы `notification_preferences` просто не было.
+  await runOnceMigration('notification_preferences', 'NotificationPreference table', async (tx) => {
+    await tx.$executeRawUnsafe(`
+      CREATE TABLE IF NOT EXISTS "notification_preferences" (
+        "id" TEXT NOT NULL,
+        "userId" TEXT NOT NULL,
+        "type" TEXT NOT NULL,
+        "enabled" BOOLEAN NOT NULL DEFAULT true,
+        CONSTRAINT "notification_preferences_pkey" PRIMARY KEY ("id")
+      )
+    `);
+    await tx.$executeRawUnsafe(`CREATE UNIQUE INDEX IF NOT EXISTS "notification_preferences_userId_type_key" ON "notification_preferences"("userId", "type")`);
+    await tx.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "notification_preferences_userId_idx" ON "notification_preferences"("userId")`);
+    await tx.$executeRawUnsafe(`
+      DO $$
+      BEGIN
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.table_constraints
+          WHERE table_schema = 'public'
+            AND constraint_name = 'notification_preferences_userId_fkey'
+        ) THEN
+          ALTER TABLE "notification_preferences"
+            ADD CONSTRAINT "notification_preferences_userId_fkey"
+            FOREIGN KEY ("userId") REFERENCES "users"("id") ON DELETE CASCADE;
+        END IF;
+      END $$
+    `);
+  });
+
   // Initialize Event Bus
   try {
     await eventBus.connect();

@@ -1,0 +1,434 @@
+package kz.dentvision.crm.data.model
+
+import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.JsonElement
+
+/** `clinic`/`center`/`lab` в `referralInclude` — везде выборка `{id, name}`. */
+@Serializable
+data class OrgBrief(
+    val id: String,
+    val name: String = "",
+)
+
+/** `doctor`/`author` — выборка `{id, firstName, lastName}`. */
+@Serializable
+data class PersonBrief(
+    val id: String,
+    val firstName: String? = null,
+    val lastName: String? = null,
+) {
+    val fullName: String
+        get() = listOfNotNull(firstName, lastName).joinToString(" ").ifBlank { "—" }
+}
+
+/** `files` в `referralInclude` — `{id, fileName, fileType, createdAt}`. */
+@Serializable
+data class ReferralFile(
+    val id: String,
+    val fileName: String = "",
+    val fileType: String = "",
+    val createdAt: String? = null,
+)
+
+/**
+ * `result` на списке/детали направления — сервер выбирает только эти три
+ * поля (`referralInclude.result`, `dentvision-backend/src/modules/
+ * diagnostics/diagnostics.service.ts:408`), не `reportText`/`conclusion`/
+ * `signedBy`: модель `DiagnosticResult` их несёт, но этот `select` их не
+ * запрашивает. Веб уже наступает на это (использует поля, которых иногда
+ * нет в ответе) — здесь их сознательно не объявляю, чтобы не повторить ту
+ * же тихую порчу данных.
+ */
+@Serializable
+data class ReferralResultBrief(
+    val id: String,
+    val aiGenerated: Boolean = false,
+    val createdAt: String? = null,
+)
+
+/**
+ * Строка списка/дашборда направлений. Поля списаны с реального
+ * `model Referral` (`dentvision-backend/prisma/schema.prisma:2956`) и
+ * `referralInclude` (`diagnostics.service.ts:399`), не с фронтенд-типов.
+ *
+ * `cost`/`platformFee` в Prisma — `Decimal?`; форма на проводе (число или
+ * строка, в зависимости от сериализации `Decimal.js`) не гарантирована —
+ * `JsonElement?`, тот же приём, что у `clinicLoad` в `Ai.kt`, приведение к
+ * читаемому виду делает экран, а не модель.
+ */
+@Serializable
+data class Referral(
+    val id: String,
+    val patientId: String? = null,
+    val patientName: String = "",
+    val patientIin: String? = null,
+    val patientPhone: String? = null,
+    val category: String = "",
+    val studyType: String = "",
+    val priority: String = "NORMAL",
+    val status: String = "DRAFT",
+    val clinic: OrgBrief? = null,
+    val center: OrgBrief? = null,
+    val lab: OrgBrief? = null,
+    val doctor: PersonBrief? = null,
+    val cost: JsonElement? = null,
+    val platformFee: JsonElement? = null,
+    val paid: Boolean = false,
+    val scheduledDate: String? = null,
+    val completedAt: String? = null,
+    val createdAt: String? = null,
+    val files: List<ReferralFile> = emptyList(),
+    val result: ReferralResultBrief? = null,
+)
+
+/** `comments` — только на детали направления. */
+@Serializable
+data class ReferralComment(
+    val id: String,
+    val text: String = "",
+    val author: PersonBrief? = null,
+    val createdAt: String? = null,
+)
+
+/** `GET /api/diagnostics/referrals/:id` — то же плюс клинические поля и комментарии. */
+@Serializable
+data class ReferralDetail(
+    val id: String,
+    val patientName: String = "",
+    val patientIin: String? = null,
+    val patientPhone: String? = null,
+    val category: String = "",
+    val studyType: String = "",
+    val priority: String = "NORMAL",
+    val status: String = "DRAFT",
+    val complaints: String? = null,
+    val preliminaryDx: String? = null,
+    val commentForLab: String? = null,
+    val clinic: OrgBrief? = null,
+    val center: OrgBrief? = null,
+    val lab: OrgBrief? = null,
+    val doctor: PersonBrief? = null,
+    val cost: JsonElement? = null,
+    val platformFee: JsonElement? = null,
+    val scheduledDate: String? = null,
+    val completedAt: String? = null,
+    val createdAt: String? = null,
+    val files: List<ReferralFile> = emptyList(),
+    val result: ReferralResultBrief? = null,
+    val comments: List<ReferralComment> = emptyList(),
+)
+
+/** `GET /api/diagnostics/dashboard` — обычный `{ok,data}`-конверт. */
+@Serializable
+data class DiagnosticsDashboardStats(
+    val total: Int = 0,
+    val todayCount: Int = 0,
+    val pending: Int = 0,
+    val completed: Int = 0,
+    val overdue: Int = 0,
+    val recent: List<Referral> = emptyList(),
+)
+
+/**
+ * `GET /api/diagnostics/referrals` — единственная ручка этого модуля, где
+ * `items`/`total` лежат рядом с `ok`, а не под `data`
+ * (`diagnosticsRouter.get('/referrals', ...)`: `res.json({ ok: true,
+ * ...data })` — спред объекта `{items, total}`, не вложенность). Обычный
+ * `ApiEnvelope<T>` эту форму не разберёт: `data` в ответе просто нет. Своя
+ * форма ответа вместо общего конверта.
+ */
+@Serializable
+data class ReferralListEnvelope(
+    val ok: Boolean = true,
+    val items: List<Referral> = emptyList(),
+    val total: Int = 0,
+    val error: String? = null,
+)
+
+/**
+ * Строка `GET /centers` / `GET /laboratories` — одна форма для обоих,
+ * поля совпадают (`svc.listCenters`/`svc.listLaboratories`). `_count` не
+ * переношу — на пикере не нужен.
+ */
+@Serializable
+data class DiagnosticOrg(
+    val id: String,
+    val name: String = "",
+    val city: String? = null,
+    val address: String? = null,
+    val phone: String? = null,
+    val rating: Float? = null,
+    val accredited: Boolean = false,
+)
+
+/**
+ * Строка прайса учреждения — `DiagnosticStudy`/`LaboratoryTest`, обе через
+ * один и тот же `select: {id, name, category, price, active}`. `price` —
+ * `Decimal?` в Prisma, на проводе строка (`Decimal.js.toJSON()`), не число.
+ */
+@Serializable
+data class PricingItem(
+    val id: String,
+    val name: String = "",
+    val category: String = "",
+    val price: String? = null,
+    val active: Boolean = true,
+)
+
+/**
+ * `anatomicalSites` в теле создания — плоский `{teeth: number[]}`, НЕ
+ * массив `[{region, teeth[]}]`, как обещает комментарий к полю в
+ * `prisma/schema.prisma` — реальный отправитель, `ReferralForm.tsx`,
+ * шлёт именно эту плоскую форму.
+ */
+@Serializable
+data class AnatomicalSites(
+    val teeth: List<Int> = emptyList(),
+)
+
+/**
+ * Тело `POST /api/diagnostics/referrals` — только то, что реально
+ * принимает явный whitelist в `createReferral`
+ * (`diagnostics.service.ts:463`); `doctorId` сервер подставляет сам, его
+ * здесь нет намеренно.
+ */
+@Serializable
+data class CreateReferralRequest(
+    val patientName: String,
+    val patientIin: String? = null,
+    val patientBirth: String? = null,
+    val patientGender: String? = null,
+    val patientPhone: String? = null,
+    val patientEmail: String? = null,
+    val pregnancy: Boolean? = null,
+    val allergies: String? = null,
+    val specialNotes: String? = null,
+    val clinicId: String,
+    val category: String,
+    val studyType: String,
+    val anatomicalSites: AnatomicalSites? = null,
+    val complaints: String? = null,
+    val preliminaryDx: String? = null,
+    val studyGoal: String? = null,
+    val commentForLab: String? = null,
+    val priority: String = "NORMAL",
+    val centerId: String? = null,
+    val labId: String? = null,
+)
+
+/**
+ * Тело `POST /api/diagnostics/files/upload`. `fileData` — полный
+ * `data:<mime>;base64,...` URI (`svc.uploadReferralFile` кладёт его в
+ * `fileUrl` дословно), не голый base64.
+ */
+@Serializable
+data class UploadFileRequest(
+    val referralId: String,
+    val fileName: String,
+    val fileData: String,
+    val fileType: String,
+    val fileSize: Long? = null,
+)
+
+/**
+ * `GET /api/diagnostics/registrations` (только SUPERADMIN) — сырые строки
+ * `model RegistrationRequest` без `select` (`diagnostics.service.ts:326`),
+ * поэтому поля списаны прямо со схемы, не с ответа. `type` — `"center"`
+ * или `"laboratory"` (строка, не enum на сервере).
+ */
+@Serializable
+data class RegistrationRequest(
+    val id: String,
+    val type: String = "",
+    val name: String = "",
+    val city: String? = null,
+    val address: String? = null,
+    val phone: String? = null,
+    val email: String? = null,
+    val comment: String? = null,
+    val status: String = "PENDING",
+    val reviewNote: String? = null,
+    val createdAt: String? = null,
+)
+
+/** Тело `POST /api/diagnostics/registrations/:id/reject`. */
+@Serializable
+data class RejectRegistrationRequest(
+    val reason: String? = null,
+)
+
+/**
+ * Тело `POST /api/diagnostics/register` — публичная заявка на подключение
+ * центра/лаборатории (маршрут заведён до `authenticate`, `optionalAuth`
+ * только опознаёт заявителя, если он уже вошёл). Whitelist ровно как в
+ * `createRegistrationRequest` (`diagnostics.service.ts:193`) — `userId`
+ * сервер подставляет сам, здесь его нет.
+ */
+@Serializable
+data class SubmitRegistrationRequest(
+    /** `"center"` или `"laboratory"`. */
+    val type: String,
+    val name: String,
+    val city: String? = null,
+    val address: String? = null,
+    val phone: String? = null,
+    val email: String? = null,
+    val comment: String? = null,
+)
+
+/**
+ * Тело `POST /api/diagnostics/referrals/:id/status` — общая ручка смены
+ * статуса, используется и «Принять» (SENT→ACCEPTED, требует `cost`, если
+ * сервер не подберёт его сам по прайс-листу — `changeReferralStatus`,
+ * `diagnostics.service.ts:573`), и «Начать» (ACCEPTED→IN_PROGRESS, без
+ * доп. полей). `platformFee` необязателен — сервер сам считает 10% от
+ * `cost`, если не прислан.
+ */
+@Serializable
+data class ChangeReferralStatusRequest(
+    val status: String,
+    val reason: String? = null,
+    val cost: Double? = null,
+    val platformFee: Double? = null,
+)
+
+/** Тело `POST /api/diagnostics/results/ai-generate`. */
+@Serializable
+data class AiGenerateResultRequest(
+    val referralId: String,
+)
+
+/**
+ * Ответ `POST /api/diagnostics/results/ai-generate` — из всего, что
+ * возвращает `aiGenerateResult`, экрану нужен только текст заключения.
+ */
+@Serializable
+data class AiGeneratedResult(
+    val reportText: String? = null,
+)
+
+/** Тело `POST /api/diagnostics/results/:id/sign`. */
+@Serializable
+data class SignResultRequest(
+    val reportText: String,
+    val conclusion: String? = null,
+)
+
+/**
+ * Строка `GET /api/diagnostics/{centers,laboratories}/:id/payments` —
+ * `select` прямо из Prisma (не через сервис), максимум 100 последних
+ * не отменённых направлений. `cost`/`platformFee` — `Decimal?` с провода.
+ */
+@Serializable
+data class PaymentReferral(
+    val id: String,
+    val patientName: String = "",
+    val studyType: String = "",
+    val cost: JsonElement? = null,
+    val platformFee: JsonElement? = null,
+    val paid: Boolean = false,
+    val paidAt: String? = null,
+    val createdAt: String? = null,
+    val status: String = "",
+)
+
+@Serializable
+data class PaymentTotals(
+    val totalRevenue: Double = 0.0,
+    val totalFees: Double = 0.0,
+    val paidCount: Int = 0,
+    val unpaidCount: Int = 0,
+)
+
+@Serializable
+data class PaymentsSummary(
+    val referrals: List<PaymentReferral> = emptyList(),
+    val totals: PaymentTotals = PaymentTotals(),
+)
+
+/**
+ * Тело `POST /api/diagnostics/{centers,laboratories}/:id/cashier/collect`
+ * — сервер деструктурирует из тела только `referralId`/`cost`,
+ * `platformFee` он не читает вовсе (комиссию всегда считает сам через
+ * `resolveCommissionBps`), поэтому здесь его нет.
+ */
+@Serializable
+data class CollectPaymentRequest(
+    val referralId: String,
+    val cost: Double,
+)
+
+/**
+ * Ответ приёма оплаты — не `Decimal` с провода, а посчитанные на лету
+ * JS-числа (`Number`/`Math.round`), поэтому просто `Double`, без
+ * `JsonElement`-обёртки.
+ */
+@Serializable
+data class CollectPaymentResult(
+    val cost: Double = 0.0,
+    val platformFee: Double = 0.0,
+    val net: Double = 0.0,
+)
+
+/**
+ * `GET /api/diagnostics/{centers,laboratories}/:id/dashboard` — суммы
+ * посчитаны на сервере через `Number(r.cost) || 0`, не сырой `Decimal`,
+ * поэтому `Double` без `JsonElement`-обёртки (в отличие от полей самого
+ * `Referral`).
+ */
+@Serializable
+data class RevenueBreakdown(
+    val today: Double = 0.0,
+    val week: Double = 0.0,
+    val month: Double = 0.0,
+    val year: Double = 0.0,
+    val total: Double = 0.0,
+)
+
+@Serializable
+data class PaymentStats(
+    val paid: Int = 0,
+    val unpaid: Int = 0,
+)
+
+@Serializable
+data class OperatorDashboard(
+    val name: String = "",
+    val referralCount: Int = 0,
+    val completedCount: Int = 0,
+    val revenue: RevenueBreakdown = RevenueBreakdown(),
+    val commissions: RevenueBreakdown = RevenueBreakdown(),
+    val netRevenue: RevenueBreakdown = RevenueBreakdown(),
+    val paymentStats: PaymentStats = PaymentStats(),
+    val byStatus: Map<String, Int> = emptyMap(),
+)
+
+/**
+ * Одна строка массового обновления цены (`PATCH .../pricing`). Веб не
+ * даёт переключать `active` из этого экрана (ни для центра, ни для
+ * лаборатории — а LAB-ручка это поле и не приняла бы), поэтому здесь
+ * только `price`.
+ */
+@Serializable
+data class PricingUpdateItem(
+    val id: String,
+    val price: Double,
+)
+
+@Serializable
+data class UpdateCenterPricingRequest(val studies: List<PricingUpdateItem>)
+
+@Serializable
+data class UpdateLabPricingRequest(val tests: List<PricingUpdateItem>)
+
+/**
+ * Тело `POST .../pricing` (создание услуги) — центр принимает ещё
+ * `description`/`durationMin`, но экран `ServicesTab.tsx` их не
+ * отправляет ни для одного из видов, поэтому одна форма на оба.
+ */
+@Serializable
+data class CreateServiceRequest(
+    val name: String,
+    val category: String,
+    val price: Double? = null,
+)

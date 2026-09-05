@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Иконка приложения. Раньше её не было вовсе: `android:icon` в манифесте не
+  задавали, и Android рисовал свою заглушку — на телефоне это выглядело так,
+  будто у продукта нет лица.
+
+  Только adaptive-icon, без растровых запасных вариантов: minSdk 26, а
+  adaptive-icon появился ровно в 26. Держать mipmap-mdpi..xxxhdpi «на всякий
+  случай» здесь не для кого.
+
+  Передний план — maskable-512.png из бренд-пакета: он для того и нарисован,
+  чтобы выдерживать обрезку системной маской (круг, квадрат со скруглением,
+  капля — форму выбирает прошивка).
+-->
+<adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
+    <background android:drawable="@color/dv_brand_navy" />
+    <foreground android:drawable="@mipmap/ic_launcher_foreground" />
+    <monochrome android:drawable="@mipmap/ic_launcher_foreground" />
+</adaptive-icon>

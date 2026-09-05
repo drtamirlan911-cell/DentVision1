@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import { createHash } from 'crypto';
 import prisma from '../../lib/prisma.js';
 import { authenticate } from '../../middleware/auth.js';
 import { requirePermission } from '../../middleware/rbac.js';
@@ -10,6 +11,7 @@ import { resolveClinicAccess } from '../../lib/orgContext.js';
 import { listClinicStaff } from '../../lib/clinicStaff.js';
 import { resolveStaffCompensation } from '../../lib/staffCompensation.js';
 import { auditFromReq } from '../compliance/audit.service.js';
+import { reserveIdempotencyKey, completeIdempotencyKey, deleteIdempotencyKey } from '../../lib/idempotency.js';
 
 const billingRouter = Router();
 
@@ -56,6 +58,8 @@ billingRouter.get('/invoices', requirePermission('finance.manage'), async (req: 
 });
 
 billingRouter.post('/invoices', requirePermission('finance.manage'), async (req: AuthRequest, res) => {
+  let idempotencyKey: string | undefined;
+  let idempotencyKeyCompleted = false;
   try {
     const user = req.user;
     const { patientId, amount, total, items, notes } = req.body;
@@ -70,6 +74,32 @@ billingRouter.post('/invoices', requirePermission('finance.manage'), async (req:
     if (!patientId || !Number.isFinite(amountValue)) {
       res.status(400).json({ ok: false, error: 'patientId and amount are required' });
       return;
+    }
+
+    // Same idempotency guard as `patients.routes.ts` POST /: a client-supplied
+    // `Idempotency-Key`, or a deterministic hash of the request when none is
+    // sent, reserved via the unique index on `IdempotencyRecord.key` before
+    // the row is written — a double-click or retried request must not create
+    // two invoices for the same patient/amount.
+    idempotencyKey = req.headers['idempotency-key'] as string | undefined;
+    if (!idempotencyKey) {
+      const hash = createHash('sha256')
+        .update(`${req.user!.id}:${clinicId}:${JSON.stringify(req.body)}`)
+        .digest('hex');
+      idempotencyKey = `server-${hash.slice(0, 32)}`;
+    }
+    const reserved = await reserveIdempotencyKey(idempotencyKey);
+    if (reserved.status === 'in_flight') {
+      res.status(409).json({ ok: false, error: 'Счёт уже создаётся, повторите позже' });
+      return;
+    }
+    if (reserved.status === 'exists') {
+      const prior = await prisma.invoice.findUnique({ where: { id: reserved.resultId } });
+      if (prior) {
+        res.status(200).json({ ok: true, data: prior });
+        return;
+      }
+      await deleteIdempotencyKey(idempotencyKey);
     }
 
     const invoice = await prisma.invoice.create({
@@ -91,6 +121,9 @@ billingRouter.post('/invoices', requirePermission('finance.manage'), async (req:
       },
     });
 
+    await completeIdempotencyKey(idempotencyKey, invoice.id);
+    idempotencyKeyCompleted = true;
+
     await auditFromReq(req, {
       action: 'invoice.created',
       entity: 'invoice',
@@ -100,6 +133,9 @@ billingRouter.post('/invoices', requirePermission('finance.manage'), async (req:
 
     res.status(201).json({ ok: true, data: invoice });
   } catch (error) {
+    if (idempotencyKey && !idempotencyKeyCompleted) {
+      await deleteIdempotencyKey(idempotencyKey);
+    }
     console.error('[billing] create invoice', error);
     res.status(500).json({ ok: false, error: 'Failed to create invoice' });
   }

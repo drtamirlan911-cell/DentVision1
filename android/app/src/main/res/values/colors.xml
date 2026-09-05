@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Значения из src/styles/global.css (тёмная тема). -->
+    <color name="dv_surface_0">#FF080F1A</color>
+    <color name="dv_gold">#FFC9A96E</color>
+    <!-- Фон иконки приложения: тёмный конец фирменного градиента знака
+         (токен brand-navy в src/styles/global.css). Знак нарисован тем же
+         градиентом, поэтому подложка того же семейства с ним не спорит. -->
+    <color name="dv_brand_navy">#FF1C3E6B</color>
+</resources>

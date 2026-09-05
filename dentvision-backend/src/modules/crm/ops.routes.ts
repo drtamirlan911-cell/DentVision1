@@ -3,11 +3,13 @@
  * Spec §05 mandatory finance/schedule/inventory adjacent flows.
  */
 import { Router } from 'express';
+import { createHash } from 'crypto';
 import prisma from '../../lib/prisma.js';
 import { authenticate } from '../../middleware/auth.js';
 import { requirePermission } from '../../middleware/rbac.js';
 import { uid } from '../../lib/helpers.js';
 import { publish } from '../../lib/events.js';
+import { reserveIdempotencyKey, completeIdempotencyKey, deleteIdempotencyKey } from '../../lib/idempotency.js';
 import type { AuthRequest, ApiResponse } from '../../types/index.js';
 
 import { splitPatientName } from '../public/bookingSlots.js';
@@ -156,6 +158,8 @@ crmOpsRouter.get('/expenses', requirePermission('finance.manage'), async (req: A
 });
 
 crmOpsRouter.post('/expenses', requirePermission('finance.manage'), async (req: AuthRequest, res) => {
+  let idempotencyKey: string | undefined;
+  let idempotencyKeyCompleted = false;
   try {
     const clinicId = requireClinic(req, res);
     if (!clinicId) return;
@@ -164,6 +168,32 @@ crmOpsRouter.post('/expenses', requirePermission('finance.manage'), async (req: 
     if (!Number.isFinite(amount)) {
       return res.status(400).json({ ok: false, error: 'Сумма обязательна' } satisfies ApiResponse);
     }
+
+    // Guard the create path only, same as `billing.routes.ts` invoices:
+    // `b.id` already makes an edit idempotent (upsert by id), but a *new*
+    // expense's id is generated fresh per request, so a double-tap on
+    // "Сохранить" had nothing stopping it from creating two expense rows.
+    if (!b.id) {
+      idempotencyKey = req.headers['idempotency-key'] as string | undefined;
+      if (!idempotencyKey) {
+        const hash = createHash('sha256')
+          .update(`${req.user!.id}:${clinicId}:${JSON.stringify(b)}`)
+          .digest('hex');
+        idempotencyKey = `server-${hash.slice(0, 32)}`;
+      }
+      const reserved = await reserveIdempotencyKey(idempotencyKey);
+      if (reserved.status === 'in_flight') {
+        return res.status(409).json({ ok: false, error: 'Расход уже сохраняется, повторите позже' } satisfies ApiResponse);
+      }
+      if (reserved.status === 'exists') {
+        const prior = await prisma.expense.findFirst({ where: { id: reserved.resultId, clinicId } });
+        if (prior) {
+          return res.status(200).json({ ok: true, data: prior } satisfies ApiResponse);
+        }
+        await deleteIdempotencyKey(idempotencyKey);
+      }
+    }
+
     const id = b.id || uid();
     const data = {
       clinicId,
@@ -177,8 +207,17 @@ crmOpsRouter.post('/expenses', requirePermission('finance.manage'), async (req: 
     const row = existing
       ? await prisma.expense.update({ where: { id }, data })
       : await prisma.expense.create({ data: { id, ...data } });
+
+    if (idempotencyKey) {
+      await completeIdempotencyKey(idempotencyKey, row.id);
+      idempotencyKeyCompleted = true;
+    }
+
     return res.status(existing ? 200 : 201).json({ ok: true, data: row } satisfies ApiResponse);
   } catch (error) {
+    if (idempotencyKey && !idempotencyKeyCompleted) {
+      await deleteIdempotencyKey(idempotencyKey);
+    }
     console.error('[CRM ops] expenses upsert', error);
     return res.status(500).json({ ok: false, error: 'Не удалось сохранить расход' } satisfies ApiResponse);
   }

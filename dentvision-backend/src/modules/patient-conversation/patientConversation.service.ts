@@ -115,9 +115,24 @@ export async function listForClinic(clinicId: string, status?: PatientConversati
   });
 }
 
-/** Clinic-scoped fetch — the 404 either means it doesn't exist or belongs to someone else, deliberately indistinguishable. */
+/**
+ * Clinic-scoped fetch — the 404 either means it doesn't exist or belongs to
+ * someone else, deliberately indistinguishable.
+ *
+ * Includes patientUser/assignedTo like listForClinic: getThreadForClinic
+ * below hands this row straight back as `conversation` in the thread
+ * response, and the Android client's InboxConversationSummary requires
+ * patientUser (no default) — a bare findUnique() without it crashed the
+ * decode every time a conversation thread was opened.
+ */
 async function requireClinicConversation(clinicId: string, conversationId: string) {
-  const conversation = await prisma.patientConversation.findUnique({ where: { id: conversationId } });
+  const conversation = await prisma.patientConversation.findUnique({
+    where: { id: conversationId },
+    include: {
+      patientUser: { select: { id: true, firstName: true, lastName: true, phone: true } },
+      assignedTo: { select: { id: true, firstName: true, lastName: true } },
+    },
+  });
   if (!conversation || conversation.clinicId !== clinicId) {
     throw new ConversationError('Диалог не найден', 'NOT_FOUND');
   }
@@ -148,6 +163,14 @@ export async function resolveConversation(clinicId: string, conversationId: stri
   return prisma.patientConversation.update({
     where: { id: conversationId },
     data: { status: 'RESOLVED', resolvedAt: new Date() },
+    // Same include as listForClinic — the Android client's row model
+    // requires patientUser (no default), and a bare update() without it
+    // used to come back missing the field entirely, crashing the decode
+    // on every resolve tap.
+    include: {
+      patientUser: { select: { id: true, firstName: true, lastName: true, phone: true } },
+      assignedTo: { select: { id: true, firstName: true, lastName: true } },
+    },
   });
 }
 
@@ -160,5 +183,9 @@ export async function claimConversation(clinicId: string, conversationId: string
   return prisma.patientConversation.update({
     where: { id: conversationId },
     data: { status: 'LIVE', assignedToUserId: staffUserId },
+    include: {
+      patientUser: { select: { id: true, firstName: true, lastName: true, phone: true } },
+      assignedTo: { select: { id: true, firstName: true, lastName: true } },
+    },
   });
 }
