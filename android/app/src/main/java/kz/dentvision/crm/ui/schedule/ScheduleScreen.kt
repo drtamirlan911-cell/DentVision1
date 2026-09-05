@@ -1,5 +1,6 @@
 package kz.dentvision.crm.ui.schedule
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -166,6 +167,12 @@ fun ScheduleScreen(
                             AppointmentRow(
                                 appointment = appointment,
                                 doctorName = doctorsById[appointment.doctorId]?.name,
+                                onClick = if (canWrite) {
+                                    {
+                                        viewModel.openEdit(appointment)
+                                        showForm = true
+                                    }
+                                } else null,
                                 canDelete = canWrite,
                                 onDelete = { pendingDelete = appointment },
                             )
@@ -204,11 +211,14 @@ fun ScheduleScreen(
 private fun AppointmentRow(
     appointment: Appointment,
     doctorName: String?,
+    onClick: (() -> Unit)? = null,
     canDelete: Boolean = false,
     onDelete: (() -> Unit)? = null,
 ) {
     Card(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier),
         colors = CardDefaults.cardColors(containerColor = DvTheme.colors.surface1),
         border = androidx.compose.foundation.BorderStroke(1.dp, DvTheme.colors.borderSubtle),
     ) {
@@ -305,16 +315,38 @@ private fun AppointmentForm(viewModel: ScheduleViewModel, onSaved: () -> Unit) {
         verticalArrangement = Arrangement.spacedBy(10.dp),
     ) {
         Text(
-            text = "Новая запись на ${state.date}",
+            text = if (form.id != null) "Приём ${form.time}" else "Новая запись на ${state.date}",
             style = MaterialTheme.typography.titleLarge,
             color = DvTheme.colors.textPrimary,
         )
 
         DvOutlineButton(
             onClick = { pickingPatient = true },
+            // Пациента существующего приёма не переназначаем — это была бы
+            // не правка записи, а перенос чужой истории на другого человека.
+            enabled = form.id == null,
             modifier = Modifier.fillMaxWidth(),
         ) {
             Text(form.patient?.name?.ifBlank { "Без имени" } ?: "Выбрать пациента")
+        }
+
+        if (form.id != null) {
+            Text(
+                text = "Статус",
+                style = MaterialTheme.typography.labelMedium,
+                color = DvTheme.colors.textGhost,
+            )
+            APPOINTMENT_STATUS_LABELS.entries.chunked(2).forEach { row ->
+                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    row.forEach { (key, label) ->
+                        FilterChip(
+                            selected = form.status == key,
+                            onClick = { viewModel.updateForm { it.copy(status = key) } },
+                            label = { Text(label, style = MaterialTheme.typography.labelMedium) },
+                        )
+                    }
+                }
+            }
         }
 
         if (state.doctors.isNotEmpty()) {
@@ -402,7 +434,13 @@ private fun AppointmentForm(viewModel: ScheduleViewModel, onSaved: () -> Unit) {
                     modifier = Modifier.size(18.dp),
                 )
             } else {
-                Text(if (form.conflict != null) "Записать всё равно" else "Записать")
+                Text(
+                    when {
+                        form.conflict != null -> "Записать всё равно"
+                        form.id != null -> "Сохранить"
+                        else -> "Записать"
+                    },
+                )
             }
         }
     }

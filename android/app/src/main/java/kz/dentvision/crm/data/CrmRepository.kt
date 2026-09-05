@@ -100,6 +100,7 @@ class CrmRepository(private val api: ApiClient = ServiceLocator.api) {
         doctorId: String?,
         duration: Int?,
         patientId: String?,
+        excludeId: String? = null,
     ): ConflictCheck = apiCall {
         api.crm.appointmentConflicts(
             date = date,
@@ -107,6 +108,7 @@ class CrmRepository(private val api: ApiClient = ServiceLocator.api) {
             doctorId = doctorId,
             duration = duration,
             patientId = patientId,
+            excludeId = excludeId,
         )
     }
 

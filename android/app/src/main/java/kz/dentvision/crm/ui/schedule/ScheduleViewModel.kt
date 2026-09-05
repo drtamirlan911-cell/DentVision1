@@ -22,12 +22,15 @@ data class ScheduleUiState(
 )
 
 data class AppointmentFormState(
+    /** Не null — редактирование существующего приёма, а не новая запись. */
+    val id: String? = null,
     val patient: Patient? = null,
     val doctorId: String = "",
     val time: String = "09:00",
     val duration: String = "30",
     val serviceName: String = "",
     val notes: String = "",
+    val status: String = "scheduled",
     val saving: Boolean = false,
     val error: String? = null,
     /**
@@ -92,6 +95,29 @@ class ScheduleViewModel(
         )
     }
 
+    /**
+     * Раньше тап по приёму не открывал вообще ничего — форма умела только
+     * создавать новую запись (найдено при аудите расхождений с вебом, где
+     * `openEdit` в `Schedule.tsx` — обычный сценарий). Тот же `AppointmentUpsert`
+     * с `id` уже умеет и создание, и правку — новой ручки не потребовалось.
+     */
+    fun openEdit(appointment: Appointment) {
+        _form.value = AppointmentFormState(
+            id = appointment.id,
+            patient = Patient(
+                id = appointment.patientId,
+                name = appointment.patientName.orEmpty(),
+                phone = appointment.patientPhone.orEmpty(),
+            ),
+            doctorId = appointment.doctorId,
+            time = appointment.time,
+            duration = appointment.duration.toString(),
+            serviceName = appointment.serviceName,
+            notes = appointment.notes,
+            status = appointment.status,
+        )
+    }
+
     fun updateForm(transform: (AppointmentFormState) -> AppointmentFormState) {
         _form.value = transform(_form.value).copy(error = null)
     }
@@ -110,6 +136,8 @@ class ScheduleViewModel(
         val date = _state.value.date.toString()
         val duration = form.duration.toIntOrNull()
 
+        val isEdit = form.id != null
+
         viewModelScope.launch {
             if (form.conflict == null) {
                 val check = runCatching {
@@ -119,6 +147,7 @@ class ScheduleViewModel(
                         doctorId = form.doctorId,
                         duration = duration,
                         patientId = patient.id,
+                        excludeId = form.id,
                     )
                 }.getOrNull()
                 if (check != null && check.hasConflict) {
@@ -131,11 +160,13 @@ class ScheduleViewModel(
             }
 
             val body = AppointmentUpsert(
+                id = form.id,
                 patientId = patient.id,
                 doctorId = form.doctorId,
                 date = date,
                 time = form.time,
                 duration = duration,
+                status = if (isEdit) form.status else null,
                 serviceName = form.serviceName.trim().ifBlank { null },
                 notes = form.notes.trim().ifBlank { null },
                 force = if (form.conflict != null) true else null,
@@ -143,7 +174,7 @@ class ScheduleViewModel(
             runCatching { repository.saveAppointment(body) }
                 .onSuccess {
                     _form.value = AppointmentFormState()
-                    _state.value = _state.value.copy(message = "Запись создана")
+                    _state.value = _state.value.copy(message = if (isEdit) "Запись обновлена" else "Запись создана")
                     load()
                     onSaved()
                 }
