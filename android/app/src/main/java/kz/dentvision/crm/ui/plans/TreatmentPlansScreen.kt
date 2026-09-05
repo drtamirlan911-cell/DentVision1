@@ -333,6 +333,12 @@ class TreatmentPlansViewModel(
 fun TreatmentPlansScreen(
     clinicId: String?,
     canWrite: Boolean = false,
+    /**
+     * Открыто из карточки пациента — показываем только его планы. Общий
+     * список клиники здесь заставлял бы искать нужного человека заново,
+     * хотя его карточка и так открыта.
+     */
+    patientFilter: Patient? = null,
     viewModel: TreatmentPlansViewModel = viewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
@@ -386,13 +392,17 @@ fun TreatmentPlansScreen(
             when (val list = state.list) {
                 is UiState.Loading -> LoadingSkeleton()
                 is UiState.Error -> ErrorState(message = list.message, onRetry = viewModel::load)
-                is UiState.Data -> if (list.value.isEmpty()) {
+                is UiState.Data -> {
+                val shown = patientFilter
+                    ?.let { patient -> list.value.filter { it.patientId == patient.id } }
+                    ?: list.value
+                if (shown.isEmpty()) {
                     EmptyStateView(
                         title = if (state.query.isBlank()) "Планов лечения нет" else "Ничего не найдено",
-                        description = if (state.query.isBlank()) {
-                            "План собирается из услуг прайса и показывается пациенту."
-                        } else {
-                            "Измените запрос поиска."
+                        description = when {
+                            state.query.isNotBlank() -> "Измените запрос поиска."
+                            patientFilter != null -> "У этого пациента пока нет планов лечения."
+                            else -> "План собирается из услуг прайса и показывается пациенту."
                         },
                     )
                 } else {
@@ -400,7 +410,7 @@ fun TreatmentPlansScreen(
                         contentPadding = PaddingValues(16.dp),
                         verticalArrangement = Arrangement.spacedBy(8.dp),
                     ) {
-                        items(list.value, key = { it.id }) { plan ->
+                        items(shown, key = { it.id }) { plan ->
                             PlanRow(
                                 plan = plan,
                                 canWrite = canWrite,
@@ -412,6 +422,7 @@ fun TreatmentPlansScreen(
                             )
                         }
                     }
+                }
                 }
             }
         }

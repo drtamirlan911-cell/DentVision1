@@ -31,6 +31,7 @@ import kz.dentvision.crm.ui.common.ErrorState
 import kz.dentvision.crm.ui.common.LoadingSkeleton
 import kz.dentvision.crm.ui.common.UiState
 import kz.dentvision.crm.ui.theme.DvTheme
+import kz.dentvision.crm.data.model.Patient
 
 class DocumentsViewModel(
     private val repository: CrmRepository = CrmRepository(),
@@ -63,24 +64,40 @@ class DocumentsViewModel(
  * её не иметь.
  */
 @Composable
-fun DocumentsScreen(viewModel: DocumentsViewModel = viewModel()) {
+fun DocumentsScreen(
+    /**
+     * Открыто из карточки пациента — тогда показываем только его документы.
+     * Общий список клиники здесь был бы не ответом, а новой задачей: найти
+     * среди всех договоров те, что относятся к этому человеку.
+     */
+    patientFilter: Patient? = null,
+    viewModel: DocumentsViewModel = viewModel(),
+) {
     val state by viewModel.state.collectAsStateWithLifecycle()
 
     Column(modifier = Modifier.fillMaxSize()) {
         when (val list = state) {
             is UiState.Loading -> LoadingSkeleton()
             is UiState.Error -> ErrorState(message = list.message, onRetry = viewModel::load)
-            is UiState.Data -> if (list.value.isEmpty()) {
+            is UiState.Data -> {
+                val shown = patientFilter
+                    ?.let { patient -> list.value.filter { it.patientId == patient.id } }
+                    ?: list.value
+                if (shown.isEmpty()) {
                 EmptyStateView(
                     title = "Документов нет",
-                    description = "Договоры и согласия появятся здесь, как только их создадут.",
+                    description = if (patientFilter != null) {
+                        "У этого пациента пока нет договоров и согласий."
+                    } else {
+                        "Договоры и согласия появятся здесь, как только их создадут."
+                    },
                 )
             } else {
                 LazyColumn(
                     contentPadding = PaddingValues(16.dp),
                     verticalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
-                    items(list.value, key = { it.id }) { doc ->
+                    items(shown, key = { it.id }) { doc ->
                         Card(
                             modifier = Modifier.fillMaxWidth(),
                             colors = CardDefaults.cardColors(containerColor = DvTheme.colors.surface1),
@@ -109,6 +126,7 @@ fun DocumentsScreen(viewModel: DocumentsViewModel = viewModel()) {
                         }
                     }
                 }
+            }
             }
         }
     }

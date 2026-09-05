@@ -50,6 +50,7 @@ import kz.dentvision.crm.ui.common.PatientPickerSheet
 import kz.dentvision.crm.ui.common.UiState
 import kz.dentvision.crm.ui.theme.DvOutlineButton
 import kz.dentvision.crm.ui.theme.DvTheme
+import androidx.compose.runtime.LaunchedEffect
 
 /**
  * Ряды по системе FDI, как их рисует зубная карта в вебе: верхняя челюсть
@@ -94,18 +95,33 @@ class DentalChartViewModel(
  */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-fun DentalChartScreen(viewModel: DentalChartViewModel = viewModel()) {
+fun DentalChartScreen(
+    /**
+     * Пациент уже известен — карта открыта из его карточки, а не отдельным
+     * разделом меню. Тогда ни пикер, ни кнопка выбора не нужны: заставлять
+     * человека выбирать того, чью карточку он и держит открытой, — лишний
+     * шаг, на котором легко ошибиться пациентом.
+     */
+    initialPatient: Patient? = null,
+    viewModel: DentalChartViewModel = viewModel(),
+) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     var picking by remember { mutableStateOf(false) }
     var selected by remember { mutableStateOf<Pair<String, ToothState>?>(null) }
+
+    LaunchedEffect(initialPatient?.id) {
+        initialPatient?.let { viewModel.selectPatient(it) }
+    }
 
     Column(
         modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        DvOutlineButton(onClick = { picking = true }, modifier = Modifier.fillMaxWidth()) {
-            val patient = (state as? UiState.Data)?.value
-            Text(patient?.name?.ifBlank { "Без имени" } ?: "Выбрать пациента")
+        if (initialPatient == null) {
+            DvOutlineButton(onClick = { picking = true }, modifier = Modifier.fillMaxWidth()) {
+                val patient = (state as? UiState.Data)?.value
+                Text(patient?.name?.ifBlank { "Без имени" } ?: "Выбрать пациента")
+            }
         }
 
         when (val current = state) {
