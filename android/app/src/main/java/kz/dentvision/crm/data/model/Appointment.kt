@@ -86,6 +86,8 @@ data class AppointmentUpsert(
     val status: String? = null,
     val serviceName: String? = null,
     val notes: String? = null,
+    /** `unpaid`/`partial`/`paid` — то же поле, что уже читает GET, здесь пишется отдельно от `status`. */
+    val paymentStatus: String? = null,
     /** Занятость увидена человеком и принята сознательно. */
     val force: Boolean? = null,
 )

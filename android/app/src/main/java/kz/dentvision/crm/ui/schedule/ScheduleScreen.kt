@@ -21,6 +21,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Payments
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -59,6 +60,8 @@ import kz.dentvision.crm.ui.common.ErrorState
 import kz.dentvision.crm.ui.common.LoadingSkeleton
 import kz.dentvision.crm.ui.common.PatientPickerSheet
 import kz.dentvision.crm.ui.common.UiState
+import kz.dentvision.crm.ui.theme.DvBadge
+import kz.dentvision.crm.ui.theme.DvBadgeVariant
 import kz.dentvision.crm.ui.theme.DvConfirmDialog
 import kz.dentvision.crm.ui.theme.DvOutlineButton
 import kz.dentvision.crm.ui.theme.DvPrimaryButton
@@ -67,6 +70,11 @@ import java.time.format.DateTimeFormatter
 import java.util.Locale
 
 private val DAY_FORMAT = DateTimeFormatter.ofPattern("d MMMM, EEEE", Locale("ru"))
+
+private val PAYMENT_STATUS_LABELS = mapOf(
+    "paid" to "Оплачено",
+    "partial" to "Частично оплачено",
+)
 
 /**
  * Расписание одного дня. День, а не неделя: на телефоне сетка недели
@@ -80,9 +88,11 @@ fun ScheduleScreen(
     viewModel: ScheduleViewModel = viewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
+    val paymentForm by viewModel.paymentForm.collectAsStateWithLifecycle()
     var showForm by remember { mutableStateOf(false) }
     var pendingDelete by remember { mutableStateOf<Appointment?>(null) }
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val paymentSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val snackbarHostState = remember { SnackbarHostState() }
 
     LaunchedEffect(clinicId) { viewModel.start(clinicId) }
@@ -175,6 +185,9 @@ fun ScheduleScreen(
                                 } else null,
                                 canDelete = canWrite,
                                 onDelete = { pendingDelete = appointment },
+                                onAcceptPayment = if (canWrite && appointment.paymentStatus != "paid") {
+                                    { viewModel.openPayment(appointment) }
+                                } else null,
                             )
                         }
                     }
@@ -190,6 +203,16 @@ fun ScheduleScreen(
             containerColor = DvTheme.colors.surface1,
         ) {
             AppointmentForm(viewModel = viewModel, onSaved = { showForm = false })
+        }
+    }
+
+    if (paymentForm != null) {
+        ModalBottomSheet(
+            onDismissRequest = viewModel::dismissPayment,
+            sheetState = paymentSheetState,
+            containerColor = DvTheme.colors.surface1,
+        ) {
+            AcceptPaymentSheet(viewModel = viewModel)
         }
     }
 
@@ -214,6 +237,7 @@ private fun AppointmentRow(
     onClick: (() -> Unit)? = null,
     canDelete: Boolean = false,
     onDelete: (() -> Unit)? = null,
+    onAcceptPayment: (() -> Unit)? = null,
 ) {
     Card(
         modifier = Modifier
@@ -283,15 +307,38 @@ private fun AppointmentRow(
                     color = DvTheme.colors.textMuted,
                     modifier = Modifier.padding(top = 4.dp),
                 )
-            }
-            if (canDelete) {
-                IconButton(onClick = { onDelete?.invoke() }, modifier = Modifier.size(28.dp)) {
-                    Icon(
-                        Icons.Filled.Delete,
-                        contentDescription = "Отменить запись",
-                        tint = DvTheme.colors.textGhost,
-                        modifier = Modifier.size(18.dp),
+                // Отметка про оплату — только когда есть что показать помимо
+                // «не оплачено», это ожидаемое состояние большинства приёмов
+                // и не заслуживает бейджа на каждой карточке.
+                PAYMENT_STATUS_LABELS[appointment.paymentStatus]?.let { label ->
+                    DvBadge(
+                        text = label,
+                        variant = if (appointment.paymentStatus == "paid") DvBadgeVariant.SUCCESS else DvBadgeVariant.WARNING,
+                        size = kz.dentvision.crm.ui.theme.DvBadgeSize.XS,
+                        modifier = Modifier.padding(top = 5.dp),
                     )
+                }
+            }
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                if (onAcceptPayment != null) {
+                    IconButton(onClick = onAcceptPayment, modifier = Modifier.size(28.dp)) {
+                        Icon(
+                            Icons.Filled.Payments,
+                            contentDescription = "Принять оплату",
+                            tint = DvTheme.colors.gold,
+                            modifier = Modifier.size(18.dp),
+                        )
+                    }
+                }
+                if (canDelete) {
+                    IconButton(onClick = { onDelete?.invoke() }, modifier = Modifier.size(28.dp)) {
+                        Icon(
+                            Icons.Filled.Delete,
+                            contentDescription = "Отменить запись",
+                            tint = DvTheme.colors.textGhost,
+                            modifier = Modifier.size(18.dp),
+                        )
+                    }
                 }
             }
         }
@@ -453,5 +500,108 @@ private fun AppointmentForm(viewModel: ScheduleViewModel, onSaved: () -> Unit) {
                 pickingPatient = false
             },
         )
+    }
+}
+
+/**
+ * Приём оплаты — усечённый перенос `AcceptPaymentModal.tsx`: сумма, способ,
+ * тип (полностью/предоплата/в долг), заметка. Онлайн QR-оплата (создание и
+ * подтверждение платежа через отдельный эндпоинт) не перенесена — список
+ * способов сознательно не включает «QR-оплата» (см. докстринг
+ * [ACCEPT_PAYMENT_METHODS]), закрытие визита при оплате — тоже отдельная
+ * функция, здесь её нет.
+ */
+@Composable
+private fun AcceptPaymentSheet(viewModel: ScheduleViewModel) {
+    val form by viewModel.paymentForm.collectAsStateWithLifecycle()
+    val current = form ?: return
+
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .verticalScroll(rememberScrollState())
+            .imePadding()
+            .navigationBarsPadding()
+            .padding(horizontal = 20.dp)
+            .padding(bottom = 24.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        Text(
+            text = "Приём оплаты",
+            style = MaterialTheme.typography.titleLarge,
+            color = DvTheme.colors.textPrimary,
+        )
+        Text(
+            text = current.appointment.patientName ?: "Пациент",
+            style = MaterialTheme.typography.bodyMedium,
+            color = DvTheme.colors.textSecondary,
+        )
+
+        OutlinedTextField(
+            value = current.amount,
+            onValueChange = { value ->
+                viewModel.updatePaymentForm { it.copy(amount = value.filter { c -> c.isDigit() }) }
+            },
+            label = { Text("Сумма, ₸") },
+            singleLine = true,
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+            modifier = Modifier.fillMaxWidth(),
+        )
+
+        Text("Способ оплаты", style = MaterialTheme.typography.labelMedium, color = DvTheme.colors.textGhost)
+        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            ACCEPT_PAYMENT_METHODS.forEach { method ->
+                FilterChip(
+                    selected = current.method == method,
+                    onClick = { viewModel.updatePaymentForm { it.copy(method = method) } },
+                    label = { Text(method, style = MaterialTheme.typography.labelSmall) },
+                )
+            }
+        }
+
+        Text("Тип оплаты", style = MaterialTheme.typography.labelMedium, color = DvTheme.colors.textGhost)
+        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            PAY_KIND_LABELS.forEach { (key, label) ->
+                FilterChip(
+                    selected = current.payKind == key,
+                    onClick = { viewModel.updatePaymentForm { it.copy(payKind = key) } },
+                    label = { Text(label, style = MaterialTheme.typography.labelMedium) },
+                )
+            }
+        }
+
+        OutlinedTextField(
+            value = current.notes,
+            onValueChange = { value -> viewModel.updatePaymentForm { it.copy(notes = value) } },
+            label = { Text("Комментарий") },
+            singleLine = true,
+            modifier = Modifier.fillMaxWidth(),
+        )
+
+        current.error?.let {
+            Text(text = it, style = MaterialTheme.typography.bodySmall, color = DvTheme.colors.error)
+        }
+
+        DvPrimaryButton(
+            onClick = { viewModel.submitPayment {} },
+            enabled = current.canSubmit,
+            modifier = Modifier.fillMaxWidth().padding(top = 6.dp),
+        ) {
+            if (current.saving) {
+                CircularProgressIndicator(
+                    strokeWidth = 2.dp,
+                    color = DvTheme.colors.goldOn,
+                    modifier = Modifier.size(18.dp),
+                )
+            } else {
+                Text(
+                    when (current.payKind) {
+                        "credit" -> "Оформить в долг"
+                        "prepayment" -> "Принять предоплату"
+                        else -> "Принять оплату"
+                    },
+                )
+            }
+        }
     }
 }
