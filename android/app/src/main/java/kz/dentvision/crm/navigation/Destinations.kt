@@ -265,3 +265,12 @@ const val ROUTE_MARKETING = "crm/promotions/marketing"
 
 /** Открытый план — идеи, правка, генерация картинок. */
 const val ROUTE_MARKETING_PLAN = "crm/promotions/marketing/plan"
+
+/**
+ * Мои клиники — создать, присоединиться по коду, попробовать демо
+ * (`MyClinics.tsx`). Виден любому вошедшему безусловно, тем же принципом,
+ * что [ROUTE_PROFILE]/[ROUTE_JOBS] — рабочее пространство здесь при чём, но
+ * маршрут не идёт через `pages`: у пользователя без единой клиники их
+ * попросту нет.
+ */
+const val ROUTE_MY_CLINICS = "my-clinics"

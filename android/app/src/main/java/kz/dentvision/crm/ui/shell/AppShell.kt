@@ -109,12 +109,14 @@ import kz.dentvision.crm.navigation.ROUTE_NOTIFICATIONS
 import kz.dentvision.crm.navigation.ROUTE_NOTIFICATION_PREFERENCES
 import kz.dentvision.crm.navigation.ROUTE_MARKETING
 import kz.dentvision.crm.navigation.ROUTE_MARKETING_PLAN
+import kz.dentvision.crm.navigation.ROUTE_MY_CLINICS
 import kz.dentvision.crm.navigation.ROUTE_PATIENT_DETAIL
 import kz.dentvision.crm.navigation.ROUTE_PROFILE
 import kz.dentvision.crm.navigation.ROUTE_STOCK_RULES
 import kz.dentvision.crm.ui.inventory.StockRulesScreen
 import kz.dentvision.crm.ui.marketing.MarketingPlanScreen
 import kz.dentvision.crm.ui.marketing.MarketingScreen
+import kz.dentvision.crm.ui.myclinics.MyClinicsScreen
 import kz.dentvision.crm.ui.notifications.NotificationPreferencesScreen
 import kz.dentvision.crm.ui.notifications.NotificationsScreen
 import kz.dentvision.crm.ui.profile.ProfileScreen
@@ -251,31 +253,28 @@ fun AppShell(
                                 style = MaterialTheme.typography.titleMedium,
                                 color = DvTheme.colors.textPrimary,
                             )
-                            if (workspaceCount > 1) {
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    modifier = Modifier.clickable { workspaceSwitcherOpen = true },
-                                ) {
-                                    Text(
-                                        text = session.clinic?.name ?: "Рабочее пространство",
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = DvTheme.colors.textMuted,
-                                    )
-                                    Icon(
-                                        imageVector = Icons.Filled.ExpandMore,
-                                        contentDescription = "Сменить рабочее пространство",
-                                        tint = DvTheme.colors.textMuted,
-                                        modifier = Modifier.size(14.dp).padding(start = 2.dp),
-                                    )
-                                }
-                            } else {
-                                session.clinic?.name?.let {
-                                    Text(
-                                        text = it,
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = DvTheme.colors.textMuted,
-                                    )
-                                }
+                            // Кликабельно всегда — как `WorkspaceSwitcher.tsx`
+                            // (`multi ? open() : navigate('/my-clinics')`):
+                            // при одном пространстве или его отсутствии сюда
+                            // ведёт не список для переключения (там нечего
+                            // выбирать), а «Мои клиники» — создать/присоединиться.
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier.clickable {
+                                    if (workspaceCount > 1) workspaceSwitcherOpen = true else open(ROUTE_MY_CLINICS)
+                                },
+                            ) {
+                                Text(
+                                    text = session.clinic?.name ?: "Выбрать рабочее пространство",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = DvTheme.colors.textMuted,
+                                )
+                                Icon(
+                                    imageVector = Icons.Filled.ExpandMore,
+                                    contentDescription = "Сменить рабочее пространство",
+                                    tint = DvTheme.colors.textMuted,
+                                    modifier = Modifier.size(14.dp).padding(start = 2.dp),
+                                )
                             }
                         }
                         }
@@ -406,6 +405,10 @@ fun AppShell(
                     }
                 }
             },
+            onOpenMyClinics = {
+                workspaceSwitcherOpen = false
+                open(ROUTE_MY_CLINICS)
+            },
             viewModel = workspaceSwitcherViewModel,
         )
     }
@@ -420,6 +423,7 @@ private fun fixedRouteTitle(route: String): String? = when (route) {
     ROUTE_PROFILE -> "Мой профиль"
     ROUTE_MARKETING -> "Контент и продвижение"
     "$ROUTE_MARKETING_PLAN/{id}" -> "План"
+    ROUTE_MY_CLINICS -> "Мои клиники"
     ROUTE_APPROVALS -> "Подтверждения ИИ"
     ROUTE_ACTIVITY -> "Активность ИИ"
     ROUTE_DIAGNOSTICS -> "Диагностика"
@@ -470,7 +474,11 @@ private fun ShellNavHost(
                     session = session,
                     implemented = implemented,
                     onOpenPage = { page -> onNavigate(page.route) },
+                    onOpenMyClinics = { onNavigate(ROUTE_MY_CLINICS) },
                 )
+            }
+            composable(ROUTE_MY_CLINICS) {
+                MyClinicsScreen(onEntered = { onNavigate(ROUTE_WORKSPACE) })
             }
             composable("$ROUTE_PATIENT_DETAIL/{id}") { backStackEntry ->
                 val id = backStackEntry.arguments?.getString("id")

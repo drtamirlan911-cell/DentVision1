@@ -14,6 +14,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Business
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.School
@@ -21,10 +22,12 @@ import androidx.compose.material.icons.filled.Science
 import androidx.compose.material.icons.filled.Store
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -147,6 +150,7 @@ fun WorkspaceSwitcherSheet(
     session: Session,
     onDismiss: () -> Unit,
     onSwitched: (WorkspaceContext) -> Unit,
+    onOpenMyClinics: () -> Unit,
     viewModel: WorkspaceSwitcherViewModel = viewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
@@ -211,6 +215,12 @@ fun WorkspaceSwitcherSheet(
                         }
                     }
                 }
+            }
+
+            HorizontalDivider(color = DvTheme.colors.borderSubtle, modifier = Modifier.padding(vertical = 8.dp))
+            TextButton(onClick = onOpenMyClinics, modifier = Modifier.fillMaxWidth()) {
+                Icon(Icons.Filled.Add, contentDescription = null, modifier = Modifier.padding(end = 6.dp))
+                Text("Создать клинику или присоединиться")
             }
         }
     }

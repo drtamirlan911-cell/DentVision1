@@ -32,6 +32,7 @@ import kz.dentvision.crm.navigation.CrmPage
 import kz.dentvision.crm.navigation.CrmSection
 import kz.dentvision.crm.navigation.canAccessPage
 import kz.dentvision.crm.ui.common.DvLogo
+import kz.dentvision.crm.ui.theme.DvPrimaryButton
 import kz.dentvision.crm.ui.theme.DvTheme
 
 /**
@@ -49,6 +50,7 @@ fun WorkspaceScreen(
     session: Session,
     implemented: Set<String>,
     onOpenPage: (CrmPage) -> Unit,
+    onOpenMyClinics: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val allowed = CRM_PAGES.filter { canAccessPage(session.pages, it.id) }
@@ -66,6 +68,30 @@ fun WorkspaceScreen(
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
+        if (session.clinic == null) {
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(containerColor = DvTheme.colors.surface1),
+                border = androidx.compose.foundation.BorderStroke(1.dp, DvTheme.colors.gold.copy(alpha = 0.3f)),
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Text(
+                        text = "Рабочее пространство не выбрано",
+                        style = MaterialTheme.typography.titleMedium,
+                        color = DvTheme.colors.textPrimary,
+                    )
+                    Text(
+                        text = "Создайте клинику, присоединитесь по коду приглашения или попробуйте демо — это единственное, что мешает открыть кабинет.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = DvTheme.colors.textMuted,
+                        modifier = Modifier.padding(top = 4.dp, bottom = 12.dp),
+                    )
+                    DvPrimaryButton(onClick = onOpenMyClinics, modifier = Modifier.fillMaxWidth()) {
+                        Text("Выбрать рабочее пространство")
+                    }
+                }
+            }
+        }
         Card(
             modifier = Modifier.fillMaxWidth(),
             colors = CardDefaults.cardColors(containerColor = DvTheme.colors.surface1),
