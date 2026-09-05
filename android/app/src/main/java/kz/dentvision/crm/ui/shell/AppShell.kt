@@ -152,6 +152,7 @@ import kz.dentvision.crm.ui.jobs.JobsScreen
 import kz.dentvision.crm.ui.patients.PatientDetailScreen
 import kz.dentvision.crm.ui.public.PublicScreen
 import kz.dentvision.crm.ui.theme.DvTheme
+import kz.dentvision.crm.ui.theme.DvSpacing
 
 /**
  * Оболочка приложения. Дом — Intelligence (диалог с ИИ), как `/` на вебе;
@@ -241,7 +242,7 @@ fun AppShell(
                 TopAppBar(
                     title = {
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                        DvLogo(size = 28.dp, modifier = Modifier.padding(end = 10.dp))
+                        DvLogo(size = 28.dp, modifier = Modifier.padding(end = DvSpacing.md))
                         Column {
                             Text(
                                 text = pages.firstOrNull { it.route == currentRoute }?.label
@@ -270,7 +271,7 @@ fun AppShell(
                                     imageVector = Icons.Filled.ExpandMore,
                                     contentDescription = "Сменить рабочее пространство",
                                     tint = DvTheme.colors.textMuted,
-                                    modifier = Modifier.size(14.dp).padding(start = 2.dp),
+                                    modifier = Modifier.size(14.dp).padding(start = DvSpacing.xs),
                                 )
                             }
                         }
@@ -579,12 +580,12 @@ private fun DrawerContent(
     onOpenCabinet: () -> Unit,
     onLogout: () -> Unit,
 ) {
-    Column(modifier = Modifier.verticalScroll(rememberScrollState()).padding(vertical = 12.dp)) {
+    Column(modifier = Modifier.verticalScroll(rememberScrollState()).padding(vertical = DvSpacing.md)) {
         Row(
             verticalAlignment = Alignment.CenterVertically,
-            modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp),
+            modifier = Modifier.padding(horizontal = DvSpacing.xl, vertical = DvSpacing.sm),
         ) {
-            DvLogo(size = 32.dp, modifier = Modifier.padding(end = 10.dp))
+            DvLogo(size = 32.dp, modifier = Modifier.padding(end = DvSpacing.md))
             Text(
                 text = session.clinic?.name ?: "DentVision",
                 style = MaterialTheme.typography.titleMedium,
@@ -595,11 +596,11 @@ private fun DrawerContent(
             text = session.user.name.ifBlank { session.user.login },
             style = MaterialTheme.typography.bodySmall,
             color = DvTheme.colors.textMuted,
-            modifier = Modifier.padding(horizontal = 20.dp),
+            modifier = Modifier.padding(horizontal = DvSpacing.xl),
         )
         HorizontalDivider(
             color = DvTheme.colors.borderSubtle,
-            modifier = Modifier.padding(vertical = 12.dp),
+            modifier = Modifier.padding(vertical = DvSpacing.md),
         )
 
         // Intelligence — всегда первым, крупнее и золотистее остальных пунктов:
@@ -612,7 +613,7 @@ private fun DrawerContent(
 
         HorizontalDivider(
             color = DvTheme.colors.borderSubtle,
-            modifier = Modifier.padding(vertical = 10.dp, horizontal = 20.dp),
+            modifier = Modifier.padding(vertical = DvSpacing.md, horizontal = DvSpacing.xl),
         )
 
         // Мой профиль — визитка специалиста, видна любому вошедшему
@@ -679,7 +680,7 @@ private fun DrawerContent(
         )
         HorizontalDivider(
             color = DvTheme.colors.borderSubtle,
-            modifier = Modifier.padding(vertical = 10.dp, horizontal = 20.dp),
+            modifier = Modifier.padding(vertical = DvSpacing.md, horizontal = DvSpacing.xl),
         )
 
         // Сквозные поверхности governance-ядра — одинаковые для всех вошедших,
@@ -713,7 +714,7 @@ private fun DrawerContent(
 
         HorizontalDivider(
             color = DvTheme.colors.borderSubtle,
-            modifier = Modifier.padding(vertical = 12.dp),
+            modifier = Modifier.padding(vertical = DvSpacing.md),
         )
         PillarDrawerItem(
             label = "Выйти",
@@ -747,13 +748,13 @@ private fun PillarDrawerItem(
             .fillMaxWidth()
             .clickable(onClick = onClick)
             .background(if (active) colors.gold.copy(alpha = 0.08f) else androidx.compose.ui.graphics.Color.Transparent)
-            .padding(horizontal = 20.dp, vertical = 8.dp),
+            .padding(horizontal = DvSpacing.xl, vertical = DvSpacing.sm),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Box(
             modifier = Modifier
                 .size(32.dp)
-                .clip(RoundedCornerShape(9.dp))
+                .clip(RoundedCornerShape(8.dp))
                 .background(accent.copy(alpha = if (active) 0.22f else 0.12f)),
             contentAlignment = Alignment.Center,
         ) {
@@ -764,7 +765,7 @@ private fun PillarDrawerItem(
             style = MaterialTheme.typography.bodyMedium,
             fontWeight = if (active) FontWeight.SemiBold else FontWeight.Normal,
             color = if (active) colors.textPrimary else colors.textSecondary,
-            modifier = Modifier.padding(start = 12.dp),
+            modifier = Modifier.padding(start = DvSpacing.md),
         )
     }
 }
@@ -778,24 +779,24 @@ private fun IntelligenceDrawerItem(active: Boolean, onClick: () -> Unit) {
             .fillMaxWidth()
             .clickable(onClick = onClick)
             .background(if (active) colors.gold.copy(alpha = 0.12f) else androidx.compose.ui.graphics.Color.Transparent)
-            .padding(horizontal = 20.dp, vertical = 10.dp),
+            .padding(horizontal = DvSpacing.xl, vertical = DvSpacing.md),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Box(
             modifier = Modifier
                 .size(40.dp)
-                .clip(RoundedCornerShape(13.dp))
+                .clip(RoundedCornerShape(12.dp))
                 .background(
                     Brush.linearGradient(
                         listOf(colors.gold.copy(alpha = if (active) 0.4f else 0.22f), colors.gold.copy(alpha = 0.06f)),
                     ),
                 )
-                .border(1.dp, colors.gold.copy(alpha = 0.25f), RoundedCornerShape(13.dp)),
+                .border(1.dp, colors.gold.copy(alpha = 0.25f), RoundedCornerShape(12.dp)),
             contentAlignment = Alignment.Center,
         ) {
             Icon(Icons.Filled.SmartToy, contentDescription = null, tint = colors.gold, modifier = Modifier.size(19.dp))
         }
-        Column(modifier = Modifier.padding(start = 12.dp)) {
+        Column(modifier = Modifier.padding(start = DvSpacing.md)) {
             Text(
                 text = "Intelligence",
                 style = MaterialTheme.typography.titleMedium,

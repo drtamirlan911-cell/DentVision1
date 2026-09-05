@@ -66,6 +66,8 @@ import kz.dentvision.crm.ui.theme.DvConfirmDialog
 import kz.dentvision.crm.ui.theme.DvOutlineButton
 import kz.dentvision.crm.ui.theme.DvPrimaryButton
 import kz.dentvision.crm.ui.theme.DvTheme
+import kz.dentvision.crm.ui.theme.DvSpacing
+import kz.dentvision.crm.lib.formatPhone
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 
@@ -130,7 +132,7 @@ fun ScheduleScreen(
     ) { padding ->
         Column(modifier = Modifier.fillMaxSize().padding(padding)) {
             Row(
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp),
+                modifier = Modifier.fillMaxWidth().padding(horizontal = DvSpacing.sm),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween,
             ) {
@@ -170,8 +172,8 @@ fun ScheduleScreen(
                     // при создании новой записи, чьи слоты уже заняты.
                     val doctorsById = state.doctors.associateBy { it.id }
                     LazyColumn(
-                        contentPadding = androidx.compose.foundation.layout.PaddingValues(16.dp),
-                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                        contentPadding = androidx.compose.foundation.layout.PaddingValues(DvSpacing.lg),
+                        verticalArrangement = Arrangement.spacedBy(DvSpacing.sm),
                     ) {
                         items(list.value, key = { it.id }) { appointment ->
                             AppointmentRow(
@@ -246,12 +248,14 @@ private fun AppointmentRow(
         colors = CardDefaults.cardColors(containerColor = DvTheme.colors.surface1),
         border = androidx.compose.foundation.BorderStroke(1.dp, DvTheme.colors.borderSubtle),
     ) {
-        Row(modifier = Modifier.padding(14.dp), verticalAlignment = Alignment.Top) {
+        Row(modifier = Modifier.padding(DvSpacing.lg), verticalAlignment = Alignment.Top) {
             Column(modifier = Modifier.width(64.dp)) {
+                // Время — данные, а не действие: его выделяет размер, а не
+                // цвет. Золото на экране остаётся за тем, что можно нажать.
                 Text(
                     text = appointment.time,
                     style = MaterialTheme.typography.titleMedium,
-                    color = DvTheme.colors.gold,
+                    color = DvTheme.colors.textPrimary,
                 )
                 Text(
                     text = "${appointment.duration} мин",
@@ -271,20 +275,22 @@ private fun AppointmentRow(
                 // нужный врач, когда он записывает следующего пациента.
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier.padding(top = 3.dp),
+                    modifier = Modifier.padding(top = DvSpacing.xs),
                 ) {
                     Icon(
                         imageVector = Icons.Filled.Person,
                         contentDescription = null,
-                        tint = DvTheme.colors.gold,
-                        modifier = Modifier.size(13.dp),
+                        tint = DvTheme.colors.textMuted,
+                        modifier = Modifier.size(12.dp),
                     )
                     Text(
                         text = doctorName ?: "Врач не назначен",
                         style = MaterialTheme.typography.bodySmall,
-                        color = if (doctorName != null) DvTheme.colors.gold else DvTheme.colors.warning,
+                        // Назначенный врач — обычные данные; жёлтым остаётся
+                        // только его отсутствие, потому что это требует action.
+                        color = if (doctorName != null) DvTheme.colors.textSecondary else DvTheme.colors.warning,
                         fontWeight = FontWeight.Medium,
-                        modifier = Modifier.padding(start = 4.dp),
+                        modifier = Modifier.padding(start = DvSpacing.xs),
                     )
                 }
                 val service = appointment.serviceName.ifBlank { appointment.reason }
@@ -293,19 +299,19 @@ private fun AppointmentRow(
                         text = service,
                         style = MaterialTheme.typography.bodySmall,
                         color = DvTheme.colors.textSecondary,
-                        modifier = Modifier.padding(top = 3.dp),
+                        modifier = Modifier.padding(top = DvSpacing.xs),
                     )
                 }
                 val meta = listOfNotNull(
                     APPOINTMENT_STATUS_LABELS[appointment.status] ?: appointment.status,
                     appointment.chairName.ifBlank { null },
-                    appointment.patientPhone,
+                    formatPhone(appointment.patientPhone),
                 ).joinToString(" · ")
                 Text(
                     text = meta,
                     style = MaterialTheme.typography.labelSmall,
                     color = DvTheme.colors.textMuted,
-                    modifier = Modifier.padding(top = 4.dp),
+                    modifier = Modifier.padding(top = DvSpacing.xs),
                 )
                 // Отметка про оплату — только когда есть что показать помимо
                 // «не оплачено», это ожидаемое состояние большинства приёмов
@@ -315,7 +321,7 @@ private fun AppointmentRow(
                         text = label,
                         variant = if (appointment.paymentStatus == "paid") DvBadgeVariant.SUCCESS else DvBadgeVariant.WARNING,
                         size = kz.dentvision.crm.ui.theme.DvBadgeSize.XS,
-                        modifier = Modifier.padding(top = 5.dp),
+                        modifier = Modifier.padding(top = DvSpacing.xs),
                     )
                 }
             }
@@ -357,9 +363,9 @@ private fun AppointmentForm(viewModel: ScheduleViewModel, onSaved: () -> Unit) {
             .verticalScroll(rememberScrollState())
             .imePadding()
             .navigationBarsPadding()
-            .padding(horizontal = 20.dp)
-            .padding(bottom = 24.dp),
-        verticalArrangement = Arrangement.spacedBy(10.dp),
+            .padding(horizontal = DvSpacing.xl)
+            .padding(bottom = DvSpacing.xxl),
+        verticalArrangement = Arrangement.spacedBy(DvSpacing.md),
     ) {
         Text(
             text = if (form.id != null) "Приём ${form.time}" else "Новая запись на ${state.date}",
@@ -384,7 +390,7 @@ private fun AppointmentForm(viewModel: ScheduleViewModel, onSaved: () -> Unit) {
                 color = DvTheme.colors.textGhost,
             )
             APPOINTMENT_STATUS_LABELS.entries.chunked(2).forEach { row ->
-                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                Row(horizontalArrangement = Arrangement.spacedBy(DvSpacing.sm)) {
                     row.forEach { (key, label) ->
                         FilterChip(
                             selected = form.status == key,
@@ -402,7 +408,7 @@ private fun AppointmentForm(viewModel: ScheduleViewModel, onSaved: () -> Unit) {
                 style = MaterialTheme.typography.labelMedium,
                 color = DvTheme.colors.textGhost,
             )
-            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Column(verticalArrangement = Arrangement.spacedBy(DvSpacing.sm)) {
                 state.doctors.forEach { doctor ->
                     FilterChip(
                         selected = form.doctorId == doctor.id,
@@ -418,7 +424,7 @@ private fun AppointmentForm(viewModel: ScheduleViewModel, onSaved: () -> Unit) {
             }
         }
 
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        Row(horizontalArrangement = Arrangement.spacedBy(DvSpacing.sm)) {
             OutlinedTextField(
                 value = form.time,
                 onValueChange = { value -> viewModel.updateForm { it.copy(time = value) } },
@@ -472,7 +478,7 @@ private fun AppointmentForm(viewModel: ScheduleViewModel, onSaved: () -> Unit) {
         DvPrimaryButton(
             onClick = { viewModel.save(onSaved) },
             enabled = form.canSave,
-            modifier = Modifier.fillMaxWidth().padding(top = 6.dp),
+            modifier = Modifier.fillMaxWidth().padding(top = DvSpacing.sm),
         ) {
             if (form.saving) {
                 CircularProgressIndicator(
@@ -522,9 +528,9 @@ private fun AcceptPaymentSheet(viewModel: ScheduleViewModel) {
             .verticalScroll(rememberScrollState())
             .imePadding()
             .navigationBarsPadding()
-            .padding(horizontal = 20.dp)
-            .padding(bottom = 24.dp),
-        verticalArrangement = Arrangement.spacedBy(10.dp),
+            .padding(horizontal = DvSpacing.xl)
+            .padding(bottom = DvSpacing.xxl),
+        verticalArrangement = Arrangement.spacedBy(DvSpacing.md),
     ) {
         Text(
             text = "Приём оплаты",
@@ -549,7 +555,7 @@ private fun AcceptPaymentSheet(viewModel: ScheduleViewModel) {
         )
 
         Text("Способ оплаты", style = MaterialTheme.typography.labelMedium, color = DvTheme.colors.textGhost)
-        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+        Row(horizontalArrangement = Arrangement.spacedBy(DvSpacing.sm)) {
             ACCEPT_PAYMENT_METHODS.forEach { method ->
                 FilterChip(
                     selected = current.method == method,
@@ -560,7 +566,7 @@ private fun AcceptPaymentSheet(viewModel: ScheduleViewModel) {
         }
 
         Text("Тип оплаты", style = MaterialTheme.typography.labelMedium, color = DvTheme.colors.textGhost)
-        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+        Row(horizontalArrangement = Arrangement.spacedBy(DvSpacing.sm)) {
             PAY_KIND_LABELS.forEach { (key, label) ->
                 FilterChip(
                     selected = current.payKind == key,
@@ -585,7 +591,7 @@ private fun AcceptPaymentSheet(viewModel: ScheduleViewModel) {
         DvPrimaryButton(
             onClick = { viewModel.submitPayment {} },
             enabled = current.canSubmit,
-            modifier = Modifier.fillMaxWidth().padding(top = 6.dp),
+            modifier = Modifier.fillMaxWidth().padding(top = DvSpacing.sm),
         ) {
             if (current.saving) {
                 CircularProgressIndicator(

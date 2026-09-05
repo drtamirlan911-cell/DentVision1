@@ -34,6 +34,7 @@ import kz.dentvision.crm.navigation.canAccessPage
 import kz.dentvision.crm.ui.common.DvLogo
 import kz.dentvision.crm.ui.theme.DvPrimaryButton
 import kz.dentvision.crm.ui.theme.DvTheme
+import kz.dentvision.crm.ui.theme.DvSpacing
 
 /**
  * Кабинет клиники — разделы CRM. Дом приложения теперь не здесь: им стал
@@ -65,8 +66,8 @@ fun WorkspaceScreen(
         modifier = modifier
             .fillMaxSize()
             .verticalScroll(rememberScrollState())
-            .padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp),
+            .padding(DvSpacing.lg),
+        verticalArrangement = Arrangement.spacedBy(DvSpacing.md),
     ) {
         if (session.clinic == null) {
             Card(
@@ -74,7 +75,7 @@ fun WorkspaceScreen(
                 colors = CardDefaults.cardColors(containerColor = DvTheme.colors.surface1),
                 border = androidx.compose.foundation.BorderStroke(1.dp, DvTheme.colors.gold.copy(alpha = 0.3f)),
             ) {
-                Column(modifier = Modifier.padding(16.dp)) {
+                Column(modifier = Modifier.padding(DvSpacing.lg)) {
                     Text(
                         text = "Рабочее пространство не выбрано",
                         style = MaterialTheme.typography.titleMedium,
@@ -84,7 +85,7 @@ fun WorkspaceScreen(
                         text = "Создайте клинику, присоединитесь по коду приглашения или попробуйте демо — это единственное, что мешает открыть кабинет.",
                         style = MaterialTheme.typography.bodySmall,
                         color = DvTheme.colors.textMuted,
-                        modifier = Modifier.padding(top = 4.dp, bottom = 12.dp),
+                        modifier = Modifier.padding(top = DvSpacing.xs, bottom = DvSpacing.md),
                     )
                     DvPrimaryButton(onClick = onOpenMyClinics, modifier = Modifier.fillMaxWidth()) {
                         Text("Выбрать рабочее пространство")
@@ -97,9 +98,9 @@ fun WorkspaceScreen(
             colors = CardDefaults.cardColors(containerColor = DvTheme.colors.surface1),
             border = androidx.compose.foundation.BorderStroke(1.dp, DvTheme.colors.borderSubtle),
         ) {
-            Column(modifier = Modifier.padding(16.dp)) {
+            Column(modifier = Modifier.padding(DvSpacing.lg)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    DvLogo(size = 40.dp, modifier = Modifier.padding(end = 12.dp))
+                    DvLogo(size = 40.dp, modifier = Modifier.padding(end = DvSpacing.md))
                     Text(
                         text = session.clinic?.name ?: "Клиника не выбрана",
                         style = MaterialTheme.typography.titleLarge,
@@ -110,14 +111,14 @@ fun WorkspaceScreen(
                     text = session.user.name.ifBlank { session.user.login },
                     style = MaterialTheme.typography.bodyMedium,
                     color = DvTheme.colors.textSecondary,
-                    modifier = Modifier.padding(top = 4.dp),
+                    modifier = Modifier.padding(top = DvSpacing.xs),
                 )
                 session.effectiveRole?.let { role ->
                     Text(
                         text = "Роль: $role",
                         style = MaterialTheme.typography.bodySmall,
                         color = DvTheme.colors.textMuted,
-                        modifier = Modifier.padding(top = 2.dp),
+                        modifier = Modifier.padding(top = DvSpacing.xs),
                     )
                 }
                 if (session.capabilities?.readOnly == true) {
@@ -125,7 +126,7 @@ fun WorkspaceScreen(
                         text = "Доступ только на чтение",
                         style = MaterialTheme.typography.labelMedium,
                         color = DvTheme.colors.warning,
-                        modifier = Modifier.padding(top = 8.dp),
+                        modifier = Modifier.padding(top = DvSpacing.sm),
                     )
                 }
             }
@@ -154,40 +155,44 @@ private fun PageSectionCard(title: String, pages: List<CrmPage>, onOpenPage: (Cr
         colors = CardDefaults.cardColors(containerColor = DvTheme.colors.surface1),
         border = androidx.compose.foundation.BorderStroke(1.dp, DvTheme.colors.borderSubtle),
     ) {
-        Column(modifier = Modifier.padding(vertical = 8.dp)) {
+        Column(modifier = Modifier.padding(vertical = DvSpacing.sm)) {
+            // Заголовок раздела — подпись, а не действие. Золотым он спорил
+            // за внимание с единственной кнопкой на экране (П1).
             Text(
                 text = title,
                 style = MaterialTheme.typography.labelLarge,
-                color = DvTheme.colors.gold,
-                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                color = DvTheme.colors.textMuted,
+                modifier = Modifier.padding(horizontal = DvSpacing.lg, vertical = DvSpacing.sm),
             )
             pages.forEach { page ->
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
                         .clickable { onOpenPage(page) }
-                        .padding(horizontal = 16.dp, vertical = 10.dp),
+                        .padding(horizontal = DvSpacing.lg, vertical = DvSpacing.md),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Box(
                         modifier = Modifier
                             .size(28.dp)
                             .clip(RoundedCornerShape(8.dp))
-                            .background(DvTheme.colors.gold.copy(alpha = 0.14f)),
+                            // Иконок в списке десятки — золото на каждой
+                            // делало акцентом весь экран, то есть ничего.
+                            .background(DvTheme.colors.surface2),
                         contentAlignment = Alignment.Center,
                     ) {
                         Icon(
                             imageVector = page.icon,
                             contentDescription = null,
-                            tint = DvTheme.colors.gold,
-                            modifier = Modifier.size(15.dp),
+                            tint = DvTheme.colors.textSecondary,
+                            modifier = Modifier.size(16.dp),
                         )
                     }
                     Text(
                         text = page.label,
                         style = MaterialTheme.typography.bodyMedium,
                         color = DvTheme.colors.textPrimary,
-                        modifier = Modifier.weight(1f).padding(start = 12.dp),
+                        modifier = Modifier.weight(1f).padding(start = DvSpacing.md),
                     )
                     Icon(
                         imageVector = Icons.Filled.ChevronRight,
@@ -208,7 +213,7 @@ private fun NotYetSectionCard(pages: List<CrmPage>) {
         colors = CardDefaults.cardColors(containerColor = DvTheme.colors.surface1),
         border = androidx.compose.foundation.BorderStroke(1.dp, DvTheme.colors.borderSubtle),
     ) {
-        Column(modifier = Modifier.padding(16.dp)) {
+        Column(modifier = Modifier.padding(DvSpacing.lg)) {
             Text(
                 text = "Пока только в браузере",
                 style = MaterialTheme.typography.labelLarge,
@@ -218,15 +223,15 @@ private fun NotYetSectionCard(pages: List<CrmPage>) {
                 text = "Эти разделы открыты вашей роли, но их экран на Android ещё не построен.",
                 style = MaterialTheme.typography.bodySmall,
                 color = DvTheme.colors.textMuted,
-                modifier = Modifier.padding(top = 4.dp),
+                modifier = Modifier.padding(top = DvSpacing.xs),
             )
             HorizontalDivider(
                 color = DvTheme.colors.borderSubtle,
-                modifier = Modifier.padding(vertical = 10.dp),
+                modifier = Modifier.padding(vertical = DvSpacing.md),
             )
             pages.forEach { page ->
                 Row(
-                    modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                    modifier = Modifier.fillMaxWidth().padding(vertical = DvSpacing.xs),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Icon(
@@ -239,7 +244,7 @@ private fun NotYetSectionCard(pages: List<CrmPage>) {
                         text = page.label,
                         style = MaterialTheme.typography.bodyMedium,
                         color = DvTheme.colors.textSecondary,
-                        modifier = Modifier.padding(start = 10.dp),
+                        modifier = Modifier.padding(start = DvSpacing.md),
                     )
                 }
             }
