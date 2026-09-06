@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import {
   StatCard, Card, Button, Badge, Skeleton, EmptyState,
 } from '../../components/ui/ds';
+import { QueryError } from '../../components/ui/ds/QueryError';
 import { apiRequest } from '../../utils/api';
 import {
   FileText, FileSignature, Users, BookOpen, Clock, AlertTriangle,
@@ -50,6 +51,9 @@ export default function LegalDashboard() {
 
   return (
     <div className="space-y-6 max-w-full overflow-x-hidden">
+      {/* Все шесть плиток берут `?? 0`, поэтому упавший запрос рисует сводку
+          из нулей, неотличимую от настоящей. */}
+      {stats.isError && <QueryError what="сводку" onRetry={() => stats.refetch()} />}
       {stats.isLoading ? (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
           {Array.from({ length: 6 }).map((_, i) => <Skeleton key={i} className="h-24 rounded-xl" />)}

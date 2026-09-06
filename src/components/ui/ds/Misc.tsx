@@ -55,14 +55,14 @@ function Tabs({ tabs, active, onChange, className, size = 'md', variant = 'pill'
               aria-selected={isActive}
               onClick={() => onChange(tab.id)}
               className={cn(
-                'relative flex shrink-0 items-center gap-1.5 whitespace-nowrap font-medium transition-all duration-200',
+                'relative flex shrink-0 items-center gap-1.5 whitespace-nowrap font-medium transition-all duration-base ease-dv',
                 'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-dv-gold/40',
                 size === 'sm' ? 'px-3 py-1.5 text-xs' : 'px-3 py-2 text-xs sm:px-4 sm:text-sm',
                 underline
                   ? cn(
                       // The active bar overlaps the container's own hairline, so
                       // the two read as one line rather than a stack of two.
-                      'rounded-t-lg after:absolute after:inset-x-2 after:-bottom-px after:h-px after:transition-colors after:duration-200',
+                      'rounded-t-lg after:absolute after:inset-x-2 after:-bottom-px after:h-px after:transition-colors after:duration-[180ms]',
                       isActive
                         ? 'text-txt-primary after:bg-dv-gold'
                         : 'text-txt-muted after:bg-transparent hover:text-txt-secondary'
@@ -71,7 +71,7 @@ function Tabs({ tabs, active, onChange, className, size = 'md', variant = 'pill'
                       'rounded-lg',
                       isActive
                         ? 'bg-surface-raised text-dv-gold shadow-sm'
-                        : 'text-txt-muted hover:bg-white/[0.03] hover:text-txt-secondary'
+                        : 'text-txt-muted hover:bg-surface-raised hover:text-txt-secondary'
                     )
               )}
             >
@@ -81,7 +81,7 @@ function Tabs({ tabs, active, onChange, className, size = 'md', variant = 'pill'
                 <span
                   className={cn(
                     'rounded-full px-1.5 py-0.5 text-2xs font-bold',
-                    isActive ? 'bg-dv-gold/20 text-dv-gold' : 'bg-white/5 text-txt-muted'
+                    isActive ? 'bg-dv-gold/20 text-dv-gold' : 'bg-surface-raised text-txt-muted'
                   )}
                 >
                   {tab.count}
@@ -130,13 +130,13 @@ function Switch({
         disabled={disabled}
         onClick={() => onCheckedChange(!checked)}
         className={cn(
-          'relative inline-flex h-5 w-9 shrink-0 cursor-pointer items-center rounded-full transition-colors duration-200',
+          'relative inline-flex h-5 w-9 shrink-0 cursor-pointer items-center rounded-full transition-colors duration-base ease-dv',
           checked ? 'bg-dv-gold' : 'bg-surface-3 border border-bdr-subtle'
         )}
       >
         <span
           className={cn(
-            'inline-block h-3.5 w-3.5 rounded-full bg-white shadow-sm transition-transform duration-200',
+            'inline-block h-3.5 w-3.5 rounded-full bg-white shadow-sm transition-transform duration-base ease-dv',
             checked ? 'translate-x-[18px]' : 'translate-x-[3px]'
           )}
         />

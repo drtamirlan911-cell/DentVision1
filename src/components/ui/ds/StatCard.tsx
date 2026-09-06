@@ -36,7 +36,7 @@ function StatCard({ label, value, icon, change, tone = 'gold', hint, className, 
     <div
       onClick={onClick}
       className={cn(
-        'rounded-xl border border-bdr-subtle bg-surface-raised p-4 transition-all duration-200',
+        'rounded-xl border border-bdr-subtle bg-surface-raised p-4 transition-all duration-base ease-dv',
         onClick && 'hover:bg-surface-raised-hover hover:border-bdr/50 cursor-pointer',
         className
       )}

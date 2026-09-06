@@ -7,6 +7,7 @@ import { Card } from '@/components/ui/ds/Card';
 import { Button } from '@/components/ui/ds/Button';
 import { Badge } from '@/components/ui/ds/Badge';
 import { Skeleton } from '@/components/ui/ds/Skeleton';
+import { QueryError } from '@/components/ui/ds/QueryError';
 import { useEventStream } from '@/hooks/useEventStream';
 import * as api from '@/utils/api';
 import { cn } from '@/lib/utils';
@@ -141,6 +142,13 @@ export function Assistant() {
 
   if (statusQuery.isLoading) {
     return <Skeleton variant="card" height={220} />;
+  }
+
+  // Обе развилки ниже требуют непустой `statusQuery.data`, поэтому упавший
+  // запрос проваливался мимо них прямо в чат — пациент видел пустую переписку
+  // вместо объяснения, привязана ли его карта и дано ли согласие.
+  if (statusQuery.isError) {
+    return <QueryError what="состояние ассистента" onRetry={() => statusQuery.refetch()} />;
   }
 
   // No card in any clinic yet — the assistant has nothing to read, and saying

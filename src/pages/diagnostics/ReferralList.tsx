@@ -11,6 +11,7 @@ import { Card } from '@/components/ui/ds/Card';
 import { Badge } from '@/components/ui/ds/Badge';
 import { PageHeader } from '@/components/ui/ds/StatCard';
 import { PageLoader } from '@/components/ui/PageLoader';
+import { QueryError } from '@/components/ui/ds/QueryError';
 import * as api from '@/utils/api';
 import { queryKeys } from '@/queries/keys';
 
@@ -86,7 +87,7 @@ export default function ReferralList() {
   params.limit = String(pageSize);
   params.offset = String((page - 1) * pageSize);
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isError, refetch } = useQuery({
     queryKey: queryKeys.diagnostics.referrals(params),
     queryFn: () => api.getDiagnosticReferrals(params),
     staleTime: 15_000,
@@ -154,6 +155,10 @@ export default function ReferralList() {
 
       {isLoading ? (
         <PageLoader />
+      ) : isError ? (
+        // Иначе упавший список предлагал «Создать первое направление» — там,
+        // где направления есть, просто не доехали.
+        <QueryError what="направления" onRetry={() => refetch()} />
       ) : items.length === 0 ? (
         <Card padding="lg" className="text-center py-16">
           <FileText size={40} className="mx-auto text-txt-muted mb-3" />

@@ -34,7 +34,7 @@ export function Pagination({ page, totalPages, onPageChange, siblingCount = 1, c
       <button
         onClick={() => onPageChange(Math.max(1, page - 1))}
         disabled={page <= 1}
-        className="flex h-8 w-8 items-center justify-center rounded-lg text-txt-muted hover:bg-white/5 hover:text-txt-primary disabled:opacity-30 disabled:pointer-events-none transition-colors"
+        className="flex h-8 w-8 items-center justify-center rounded-lg text-txt-muted hover:bg-surface-raised-hover hover:text-txt-primary disabled:opacity-30 disabled:pointer-events-none transition-colors"
         aria-label="Предыдущая"
       >
         <ChevronLeft size={14} />
@@ -53,7 +53,7 @@ export function Pagination({ page, totalPages, onPageChange, siblingCount = 1, c
               'flex h-8 min-w-[32px] items-center justify-center rounded-lg text-xs font-medium transition-colors',
               p === page
                 ? 'bg-dv-gold/15 text-dv-gold border border-dv-gold/30'
-                : 'text-txt-secondary hover:bg-white/5 hover:text-txt-primary'
+                : 'text-txt-secondary hover:bg-surface-raised-hover hover:text-txt-primary'
             )}
             aria-current={p === page ? 'page' : undefined}
           >
@@ -65,7 +65,7 @@ export function Pagination({ page, totalPages, onPageChange, siblingCount = 1, c
       <button
         onClick={() => onPageChange(Math.min(totalPages, page + 1))}
         disabled={page >= totalPages}
-        className="flex h-8 w-8 items-center justify-center rounded-lg text-txt-muted hover:bg-white/5 hover:text-txt-primary disabled:opacity-30 disabled:pointer-events-none transition-colors"
+        className="flex h-8 w-8 items-center justify-center rounded-lg text-txt-muted hover:bg-surface-raised-hover hover:text-txt-primary disabled:opacity-30 disabled:pointer-events-none transition-colors"
         aria-label="Следующая"
       >
         <ChevronRight size={14} />

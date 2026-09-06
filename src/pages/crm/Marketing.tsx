@@ -10,6 +10,7 @@ import { Badge } from '@/components/ui/ds/Badge'
 import { Select } from '@/components/ui/ds/Input'
 import { Skeleton, ListSkeleton } from '@/components/ui/ds/Skeleton'
 import { EmptyState } from '@/components/ui/ds/EmptyState'
+import { QueryError } from '@/components/ui/ds/QueryError'
 import { PageHeader, StatCard } from '@/components/ui/ds/StatCard'
 import { ConfirmModal } from '@/components/ui/ds/Modal'
 import { useToast } from '@/components/ui/ds/Toast'
@@ -231,6 +232,8 @@ export default function Marketing() {
         <h2 className="text-sm font-bold text-txt-primary mb-2">Сохранённые планы</h2>
         {plansQ.isLoading ? (
           <ListSkeleton count={3} />
+        ) : plansQ.isError ? (
+          <QueryError what="сохранённые планы" onRetry={() => plansQ.refetch()} />
         ) : plans.length === 0 ? (
           <EmptyState
             icon={<History size={28} />}

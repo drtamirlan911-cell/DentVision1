@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/ds/Button';
 import { Badge } from '@/components/ui/ds/Badge';
 import { Skeleton } from '@/components/ui/ds/Skeleton';
 import { EmptyState } from '@/components/ui/ds/EmptyState';
+import { QueryError } from '@/components/ui/ds/QueryError';
 import { Tabs } from '@/components/ui/ds/Misc';
 import { PageHeader } from '@/components/ui/ds/StatCard';
 import { useToast } from '@/components/ui/ds/Toast';
@@ -271,6 +272,10 @@ export default function PatientInbox() {
               <Skeleton variant="card" height={72} />
               <Skeleton variant="card" height={72} />
             </>
+          ) : listQuery.isError ? (
+            // «Пусто» здесь читается как «ассистент ничего не передавал», то
+            // есть пациент, ждущий ответа администратора, просто не появится.
+            <QueryError what="обращения" onRetry={() => listQuery.refetch()} />
           ) : conversations.length === 0 ? (
             <EmptyState
               icon={<Clock size={26} className="text-dv-gold" />}

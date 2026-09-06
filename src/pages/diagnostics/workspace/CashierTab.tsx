@@ -6,6 +6,7 @@ import { GlassCard } from '@/components/ui/ds/GlassCard';
 import { Button } from '@/components/ui/ds/Button';
 import { Badge } from '@/components/ui/ds/Badge';
 import { Skeleton } from '@/components/ui/ds/Skeleton';
+import { QueryError } from '@/components/ui/ds/QueryError';
 import { useToast } from '@/components/ui/ds/Toast';
 import { queryKeys } from '@/queries/keys';
 import * as api from '@/utils/api';
@@ -15,17 +16,19 @@ export function CashierTab({ config, orgId }: TabProps) {
   const queryClient = useQueryClient();
   const toast = useToast();
 
-  const { data: paymentsData, isLoading: paymentsLoading } = useQuery({
+  const paymentsQuery = useQuery({
     queryKey: ['diagnostics', 'payments', config.kind, orgId],
     queryFn: () => config.getPayments(orgId),
     enabled: !!orgId,
   });
+  const { data: paymentsData, isLoading: paymentsLoading } = paymentsQuery;
 
-  const { data: studiesData, isLoading: studiesLoading } = useQuery({
+  const studiesQuery = useQuery({
     queryKey: ['diagnostics', 'pricing', config.kind, orgId],
     queryFn: () => config.getPricing(orgId),
     enabled: !!orgId,
   });
+  const { data: studiesData, isLoading: studiesLoading } = studiesQuery;
 
   const referrals = (paymentsData?.data?.referrals || []).filter((r: any) => !r.paid);
   const studies = Array.isArray(studiesData?.data) ? studiesData.data.filter((s: any) => s.active) : [];
@@ -71,6 +74,17 @@ export function CashierTab({ config, orgId }: TabProps) {
   });
 
   if (paymentsLoading || studiesLoading) return <Skeleton className="h-64" />;
+
+  // Упавший запрос очереди раньше был неотличим от пустой очереди: кассир
+  // видел «Нет неоплаченных направлений» и делал вывод, что все рассчитались.
+  if (paymentsQuery.isError || studiesQuery.isError) {
+    return (
+      <QueryError
+        what={paymentsQuery.isError ? 'очередь оплаты' : 'прайс исследований'}
+        onRetry={() => { paymentsQuery.refetch(); studiesQuery.refetch(); }}
+      />
+    );
+  }
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-5 gap-4">

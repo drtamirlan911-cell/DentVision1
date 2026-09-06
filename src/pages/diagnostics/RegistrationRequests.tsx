@@ -7,6 +7,7 @@ import { Card } from '@/components/ui/ds/Card';
 import { Button } from '@/components/ui/ds/Button';
 import { Badge } from '@/components/ui/ds/Badge';
 import { Skeleton } from '@/components/ui/ds/Skeleton';
+import { QueryError } from '@/components/ui/ds/QueryError';
 import { PageHeader } from '@/components/ui/ds/StatCard';
 import * as api from '@/utils/api';
 
@@ -22,7 +23,7 @@ export default function RegistrationRequests() {
   const [rejectModal, setRejectModal] = useState<{ id: string; name: string } | null>(null);
   const [rejectReason, setRejectReason] = useState('');
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ['registrations', statusFilter],
     queryFn: () => api.getDiagnosticsRegistrations(statusFilter || undefined),
   });
@@ -64,6 +65,8 @@ export default function RegistrationRequests() {
 
       {isLoading ? (
         <div className="space-y-3">{[1, 2, 3].map(i => <Skeleton key={i} className="h-20" />)}</div>
+      ) : isError ? (
+        <QueryError what="заявки" onRetry={() => refetch()} />
       ) : requests.length === 0 ? (
         <GlassCard padding="md">
           <div className="flex items-center justify-center h-40 text-txt-muted text-sm flex-col gap-2">

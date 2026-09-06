@@ -5,6 +5,7 @@ import { Building2, DollarSign, FileText, FlaskConical, TrendingUp, Users, Walle
 
 import { Card } from '@/components/ui/ds/Card'
 import { HeroStat, PageHeader } from '@/components/ui/ds/StatCard'
+import { QueryError } from '@/components/ui/ds/QueryError'
 import { Badge } from '@/components/ui/ds/Badge'
 import { Tabs } from '@/components/ui/ds/Misc'
 import { countAwaitingAction, countByPhase, type PhaseId } from '@/lib/referralStatus'
@@ -60,11 +61,12 @@ export function DiagnosticWorkspace({ kind: pinnedKind }: { kind?: OrgKind }) {
   // have no access to; the server answers 403 for all of them.
   // `/me/contexts` is the membership question, already deduplicated, and it
   // covers staff who exist only in the unified model.
-  const { data: contextsData, isLoading: contextsLoading } = useQuery({
+  const contextsQuery = useQuery({
     queryKey: ['iam', 'me', 'contexts'],
     queryFn: () => api.getMyContexts(),
     enabled: !claimedKind,
   })
+  const { data: contextsData, isLoading: contextsLoading, isError: contextsError } = contextsQuery
 
   const diagnosticContexts = useMemo(
     () => (contextsData?.contexts || []).filter(
@@ -108,7 +110,11 @@ export function DiagnosticWorkspace({ kind: pinnedKind }: { kind?: OrgKind }) {
     if (!orgId && !isSuperadmin && myOrgs.length === 1) setOrgId(myOrgs[0].scopeId)
   }, [isOwnOrg, ownOrgId, orgId, isSuperadmin, myOrgs])
 
-  const needsOnboarding = !isOwnOrg && !isSuperadmin && !contextsLoading && myOrgs.length === 0
+  // `!contextsError` — иначе неудачный запрос членств неотличим от «членств
+  // нет»: оператор действующего центра попадал на экран регистрации и получал
+  // предложение завести свою же организацию заново. Пустой список должен
+  // означать пустой список, а не оборванную связь.
+  const needsOnboarding = !isOwnOrg && !isSuperadmin && !contextsLoading && !contextsError && myOrgs.length === 0
 
   // The header summary reads the same list the referrals tab does, so the hero
   // figure and the table can never disagree.
@@ -147,6 +153,10 @@ export function DiagnosticWorkspace({ kind: pinnedKind }: { kind?: OrgKind }) {
         icon={<FlaskConical size={22} />}
         actions={<Badge variant="outline">{kind === 'CENTER' ? 'Центр' : 'Лаборатория'}</Badge>}
       />
+
+      {contextsError && !isOwnOrg && !isSuperadmin && (
+        <QueryError what="список ваших организаций" onRetry={() => contextsQuery.refetch()} />
+      )}
 
       {needsOnboarding && (
         <OrganizationOnboarding kind={kind} onComplete={() => window.location.reload()} />

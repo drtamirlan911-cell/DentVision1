@@ -4,16 +4,21 @@ import { Card } from '@/components/ui/ds/Card';
 import { GlassCard } from '@/components/ui/ds/GlassCard';
 import { Badge } from '@/components/ui/ds/Badge';
 import { Skeleton } from '@/components/ui/ds/Skeleton';
+import { QueryError } from '@/components/ui/ds/QueryError';
 import type { TabProps } from './types';
 
 export function PaymentsTab({ config, orgId }: TabProps) {
-  const { data: paymentsData, isLoading } = useQuery({
+  const query = useQuery({
     queryKey: ['diagnostics', 'payments', config.kind, orgId],
     queryFn: () => config.getPayments(orgId),
     enabled: !!orgId,
   });
+  const { data: paymentsData, isLoading } = query;
 
   if (isLoading) return <Skeleton className="h-48" />;
+  // Итоги (выручка, комиссии, счётчики оплат) на упавшем запросе схлопывались
+  // в нули и выглядели как правдивая сводка за день.
+  if (query.isError) return <QueryError what="оплаты" onRetry={() => query.refetch()} />;
 
   const referrals = paymentsData?.data?.referrals || [];
   const totals = paymentsData?.data?.totals || { totalRevenue: 0, totalFees: 0, paidCount: 0, unpaidCount: 0 };

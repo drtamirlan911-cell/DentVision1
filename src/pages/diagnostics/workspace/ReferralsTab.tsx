@@ -6,6 +6,7 @@ import { Card } from '@/components/ui/ds/Card';
 import { Button } from '@/components/ui/ds/Button';
 import { Badge } from '@/components/ui/ds/Badge';
 import { Skeleton } from '@/components/ui/ds/Skeleton';
+import { QueryError } from '@/components/ui/ds/QueryError';
 import { Textarea } from '@/components/ui/ds/Input';
 import { useToast } from '@/components/ui/ds/Toast';
 import { queryKeys } from '@/queries/keys';
@@ -31,7 +32,7 @@ export function ReferralsTab({ config, orgId, phaseFilter, onClearPhase }: TabPr
   const [resultFiles, setResultFiles] = useState<File[]>([]);
   const toast = useToast();
 
-  const { data: referralsData, isLoading, refetch } = useQuery({
+  const { data: referralsData, isLoading, refetch, isError } = useQuery({
     queryKey: queryKeys.diagnostics.referrals({ ...config.referralScope(orgId), status: statusFilter, search, limit: '100' }),
     queryFn: () => api.getDiagnosticReferrals({ ...config.referralScope(orgId), status: statusFilter, search, limit: '100' }),
     enabled: !!orgId,
@@ -99,7 +100,11 @@ export function ReferralsTab({ config, orgId, phaseFilter, onClearPhase }: TabPr
       {/* Referrals table */}
       <Card padding="md">
         <h3 className="text-sm font-semibold text-txt-primary mb-3">Направления ({total})</h3>
-        {isLoading ? <Skeleton className="h-64" /> : referrals.length === 0 ? (
+        {isLoading ? <Skeleton className="h-64" /> : isError ? (
+          // «Нет направлений» на упавшем запросе читается как «работы нет» —
+          // в кабинете приёма это значит пропущенного пациента.
+          <QueryError what="направления" onRetry={() => refetch()} />
+        ) : referrals.length === 0 ? (
           <div className="flex items-center justify-center h-40 text-txt-muted text-sm flex-col gap-2">
             <FileText size={32} className="opacity-20" />Нет направлений
           </div>

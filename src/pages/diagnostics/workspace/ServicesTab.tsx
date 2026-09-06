@@ -5,6 +5,7 @@ import { Card } from '@/components/ui/ds/Card';
 import { Button } from '@/components/ui/ds/Button';
 import { Badge } from '@/components/ui/ds/Badge';
 import { Skeleton } from '@/components/ui/ds/Skeleton';
+import { QueryError } from '@/components/ui/ds/QueryError';
 import { useToast } from '@/components/ui/ds/Toast';
 import type { TabProps } from './types';
 
@@ -14,11 +15,12 @@ export function ServicesTab({ config, orgId }: TabProps) {
   const queryClient = useQueryClient();
   const toast = useToast();
 
-  const { data: studiesData, isLoading } = useQuery({
+  const studiesQuery = useQuery({
     queryKey: ['diagnostics', 'pricing', config.kind, orgId],
     queryFn: () => config.getPricing(orgId),
     enabled: !!orgId,
   });
+  const { data: studiesData, isLoading } = studiesQuery;
 
   const studies = Array.isArray(studiesData?.data) ? studiesData.data : [];
   const [prices, setPrices] = useState<Record<string, string>>({});
@@ -70,7 +72,11 @@ export function ServicesTab({ config, orgId }: TabProps) {
           <Button variant="primary" size="sm" className="min-h-11" icon={<Save size={14} />} onClick={handleSave} loading={saveMutation.isPending}>Сохранить</Button>
         </div>
       </div>
-      {isLoading ? <Skeleton className="h-48" /> : (
+      {isLoading ? <Skeleton className="h-48" /> : studiesQuery.isError ? (
+        // Пустой прайс и упавший прайс выглядели одинаково, а разница тут
+        // дорогая: по пустому впору заводить услуги заново поверх существующих.
+        <QueryError what="прайс" onRetry={() => studiesQuery.refetch()} />
+      ) : (
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>

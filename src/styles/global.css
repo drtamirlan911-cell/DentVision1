@@ -44,6 +44,34 @@
     --dv-border-focus: rgba(201, 169, 110, 0.5);
     --dv-glass: rgba(255, 255, 255, 0.03);
     --dv-glass-strong: rgba(255, 255, 255, 0.06);
+    /* Elevation.
+     *
+     * Two layers per step, always: a tight contact shadow that pins the edge
+     * to the surface, and a wider ambient one that gives the object its
+     * volume. One layer alone reads as a drop shadow from a slide deck; the
+     * pair is what makes a card look like it is resting on something.
+     *
+     * On a dark ground the shade is near-black, because the surface under it
+     * is already dark and anything lighter turns into haze. */
+    --dv-elev-1: 0 1px 2px rgba(0, 0, 0, 0.28), 0 1px 3px rgba(0, 0, 0, 0.20);
+    --dv-elev-2: 0 2px 4px rgba(0, 0, 0, 0.30), 0 6px 16px rgba(0, 0, 0, 0.26);
+    --dv-elev-3: 0 6px 12px rgba(0, 0, 0, 0.34), 0 18px 40px rgba(0, 0, 0, 0.32);
+    /* Motion.
+     *
+     * One curve and three durations for the whole product, theme-independent.
+     * The curve is a decelerate: fast at the start, settling at the end, and
+     * it never overshoots — a spring that bounces draws the eye to the
+     * animation instead of to the thing that moved, which on a clinical
+     * record is always the wrong trade.
+     *
+     * The durations are short on purpose. Anything past ~200ms on a hover or
+     * a state change stops reading as responsiveness and starts reading as
+     * lag; the long step is reserved for things that actually travel, like a
+     * sheet arriving. */
+    --dv-ease: cubic-bezier(0.16, 1, 0.3, 1);
+    --dv-duration-fast: 120ms;
+    --dv-duration-base: 180ms;
+    --dv-duration-slow: 320ms;
     --dv-radius: 0.75rem;
     --dv-sidebar-width: 15rem;
     --dv-sidebar-collapsed: 4.75rem;
@@ -88,8 +116,20 @@
   }
 
   html.light {
-    /* Premium clinical: warm porcelain / platinum surfaces, graphite text,
-       champagne-gold accent, soft neutral borders. */
+    /* Clinical, not boutique.
+     *
+     * These surfaces were warm porcelain — ivory paper, beige tints, borders
+     * mixed from brown ink (rgba(35,31,22,…)). Warm neutrals read as spa or
+     * hospitality; a medical record wants the other end of the axis. Every
+     * surface, border and text token below is now mixed from a cool slate ink
+     * (rgba(15,26,40,…)) instead, which is what makes white read as clean
+     * rather than as cream.
+     *
+     * The accent stays bronze — it is the brand, and it is the one warm thing
+     * on the page, so it reads as deliberate rather than as a tint that got
+     * everywhere. Every value here was checked against the AA guard below
+     * before it landed (gold 5.77 on the page, 6.25 on a card, 5.45 on its own
+     * 10% wash; the text ladder 16.16 / 7.42 / 4.76 on the page). */
     /* Gold has to invert with the theme, not merely soften: on porcelain a
        champagne accent cannot be read. #B8924A — the value that lived here —
        measures 2.63:1 as text, still far under the 4.5:1 AA floor, so it was
@@ -104,12 +144,22 @@
     --dv-gold: #785C26;
     --dv-gold-light: #A8823C;
     --dv-gold-dim: #6B5322;
-    /* The fill is deep bronze here, so its foreground flips to white — 5.02:1. */
+    /* The fill is deep bronze here, so its foreground flips to white. */
     --dv-gold-on: #FFFFFF;
-    /* Descending, not ascending: running toward #A8823C would leave white at
-       3.55:1 on the far end of the primary button. White clears 6.25 and 7.28. */
-    --dv-gold-from: #785C26;
-    --dv-gold-to: #6B5322;
+    /* The fill gets its own, more saturated value rather than reusing
+       `--dv-gold`.
+     *
+     * `--dv-gold` is darkened until it clears AA as *text* on the page, and a
+     * value chosen for that job is desaturated: as a large fill it came out
+     * olive-drab, which is the specific way a gold accent looks cheap. The
+     * constraint on a fill is different — only white sitting on it has to
+     * clear AA — so the same luminance range buys considerably more chroma
+     * (122 and 107 here against 82 before). White clears 5.37 and 7.16.
+     *
+     * Still descending, not ascending: climbing toward the light end would
+     * leave white at 3.55:1 on the far side of the primary button. */
+    --dv-gold-from: #8A6410;
+    --dv-gold-to: #70530F;
     /* Darkened until each clears AA against both light surfaces — a white card
        and the ivory page (4.90/4.96/4.95/4.94 on white, ≥4.50 on ivory). The
        ratio is symmetric, so white on these as a fill clears AA too and
@@ -118,33 +168,46 @@
     --dv-error: #C74134;
     --dv-warning: #9C640C;
     --dv-info: #2676AA;
-    --dv-ink: #14181F;
-    --dv-surface-0: #F5F4F0;
+    --dv-ink: #141A21;
+    /* Cool neutrals. The page is a faint slate wash so that a white card lifts
+       off it without needing a border; the steps below it stay close together,
+       because a clinical surface ladder that jumps reads as banding. */
+    --dv-surface-0: #F4F6F8;
     --dv-surface-1: #FFFFFF;
-    --dv-surface-2: #EDEAE3;
-    --dv-surface-3: #E4E0D7;
-    --dv-surface-4: #D8D3C8;
-    --dv-surface-raised: rgba(40, 34, 22, 0.035);
-    --dv-surface-raised-hover: rgba(40, 34, 22, 0.06);
-    --dv-overlay: rgba(28, 24, 16, 0.42);
-    --dv-text-primary: #1A1D23;
-    --dv-text-secondary: #4D525B;
-    /* #7C818A measured 3.56:1 on the page and 3.91:1 on a white card — under
-       the 4.5:1 AA floor, and the only text token in either theme that missed
-       it. This clears 4.52 / 4.98 and still sits well below secondary (7.14),
-       so the emphasis ladder is unchanged. */
-    --dv-text-muted: #6B7079;
-    --dv-text-ghost: #AEA99E;
-    --dv-border: rgba(35, 31, 22, 0.10);
-    --dv-border-subtle: rgba(35, 31, 22, 0.07);
-    --dv-border-focus: rgba(138, 106, 46, 0.55);
-    --dv-glass: rgba(40, 34, 22, 0.035);
-    --dv-glass-strong: rgba(40, 34, 22, 0.06);
-    --dv-sidebar-bg: #EEEBE4;
-    --dv-sidebar-bg-end: #E2DDD3;
-    --dv-sidebar-brand-bg: rgba(138,106,46,0.16);
-    --dv-sidebar-brand-border: rgba(138,106,46,0.24);
-    --dv-sidebar-glow-gold: rgba(138,106,46,0.18);
+    --dv-surface-2: #E9EDF2;
+    --dv-surface-3: #DDE3EA;
+    --dv-surface-4: #CFD7E0;
+    --dv-surface-raised: rgba(15, 26, 40, 0.035);
+    --dv-surface-raised-hover: rgba(15, 26, 40, 0.06);
+    --dv-overlay: rgba(12, 20, 31, 0.40);
+    --dv-text-primary: #141A21;
+    --dv-text-secondary: #49515B;
+    /* Muted is the token that decides whether small print looks grey or looks
+       broken: 4.76 on the page, 5.16 on a card, still well below secondary
+       (7.42), so the emphasis ladder keeps its order. */
+    --dv-text-muted: #666E79;
+    --dv-text-ghost: #A3ACB6;
+    --dv-border: rgba(15, 26, 40, 0.10);
+    --dv-border-subtle: rgba(15, 26, 40, 0.07);
+    --dv-border-focus: rgba(120, 92, 38, 0.55);
+    --dv-glass: rgba(15, 26, 40, 0.035);
+    --dv-glass-strong: rgba(15, 26, 40, 0.06);
+    /* The same two-layer construction, rebuilt for a light ground.
+     *
+     * Not the dark values at lower opacity: pure black over a light surface
+     * greys it, and grey is exactly what makes a light UI look cheap. The
+     * shade is mixed from the same cool slate as the borders, so a shadow
+     * reads as the surface receding rather than as dirt on the page. Opacity
+     * stays low and the blur wide — on white, depth comes from the softness
+     * of the falloff, not from the darkness of the shadow. */
+    --dv-elev-1: 0 1px 2px rgba(15, 26, 40, 0.06), 0 1px 3px rgba(15, 26, 40, 0.04);
+    --dv-elev-2: 0 2px 4px rgba(15, 26, 40, 0.06), 0 8px 20px rgba(15, 26, 40, 0.07);
+    --dv-elev-3: 0 6px 12px rgba(15, 26, 40, 0.08), 0 20px 44px rgba(15, 26, 40, 0.10);
+    --dv-sidebar-bg: #EDF1F5;
+    --dv-sidebar-bg-end: #E2E8EF;
+    --dv-sidebar-brand-bg: rgba(120,92,38,0.14);
+    --dv-sidebar-brand-border: rgba(120,92,38,0.22);
+    --dv-sidebar-glow-gold: rgba(120,92,38,0.16);
     --dv-sidebar-glow-blue: rgba(56,160,180,0.12);
     /* Brand / logo tokens on light surfaces: navy -> teal, dark ink */
     --logo-from: #1C3E6B;
@@ -155,8 +218,28 @@
   }
 
   * {
-    border-color: rgba(201, 169, 110, 0.15);
+    /* The default border colour for every element that sets `border` without
+       naming one. This was the gold literal, so on the light theme every such
+       edge picked up a warm champagne tint — the single thing that most made
+       the light UI read as beige. It now follows the theme's own border
+       token, which is cool slate on light and gold-tinted on dark. */
+    border-color: var(--dv-border);
     box-sizing: border-box;
+  }
+
+  /* One global honouring of the OS setting, so a component that forgets
+     `useReducedMotion` still cannot spin, slide or pulse on a machine that
+     asked it not to. Framer writes inline styles and is unaffected by this,
+     which is why the primitives check the hook as well. */
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
   }
 
   html {

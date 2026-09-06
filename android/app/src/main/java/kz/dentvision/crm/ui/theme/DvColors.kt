@@ -69,8 +69,12 @@ val LightDvColors = DvColors(
     goldLight = LightGoldLight,
     goldDim = LightGoldDim,
     goldOn = LightGoldOn,
-    goldFrom = LightGold,
-    goldTo = LightGoldDim,
+    // Заливка берёт собственные, более насыщенные значения, а не `gold`:
+    // `gold` затемнён до порога AA как ТЕКСТ, и такой цвет на большой площади
+    // выглядит болотным — ровно то, из-за чего золотой акцент читается дёшево.
+    // К заливке требование другое: AA должен брать только белый поверх неё.
+    goldFrom = LightGoldFrom,
+    goldTo = LightGoldTo,
     success = LightSuccess,
     error = LightError,
     warning = LightWarning,

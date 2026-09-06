@@ -7,6 +7,7 @@ import { GlassCard } from '@/components/ui/ds/GlassCard';
 import { Card } from '@/components/ui/ds/Card';
 import { Badge } from '@/components/ui/ds/Badge';
 import { Skeleton } from '@/components/ui/ds/Skeleton';
+import { QueryError } from '@/components/ui/ds/QueryError';
 import { PageHeader } from '@/components/ui/ds/StatCard';
 import { queryKeys } from '@/queries/keys';
 import * as api from '@/utils/api';
@@ -17,7 +18,7 @@ export default function DiagnosticPatients() {
   const navigate = useNavigate();
   const [search, setSearch] = useState('');
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isError, refetch } = useQuery({
     queryKey: queryKeys.diagnostics.referrals({ limit: '500' }),
     queryFn: () => api.getDiagnosticReferrals({ limit: '500' }),
   });
@@ -56,6 +57,8 @@ export default function DiagnosticPatients() {
 
       {isLoading ? (
         <div className="space-y-3">{[1, 2, 3].map(i => <Skeleton key={i} className="h-20" />)}</div>
+      ) : isError ? (
+        <QueryError what="список пациентов" onRetry={() => refetch()} />
       ) : filtered.length === 0 ? (
         <GlassCard padding="md">
           <div className="flex items-center justify-center h-40 text-txt-muted text-sm flex-col gap-2">

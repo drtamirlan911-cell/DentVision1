@@ -97,7 +97,7 @@ export function Tooltip({ children, content, side = 'top', delay = 300, classNam
             transition={{ duration: 0.15 }}
             className={cn(
               'fixed z-[9999] px-2.5 py-1.5 rounded-lg text-xs font-medium',
-              'bg-surface-raised border border-bdr-subtle text-txt-primary shadow-lg pointer-events-none',
+              'bg-surface-raised border border-bdr-subtle text-txt-primary shadow-elev-2 pointer-events-none',
               className
             )}
             style={{ top: pos.top, left: pos.left, transform: getTransform(side) }}

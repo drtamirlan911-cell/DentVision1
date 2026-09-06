@@ -371,34 +371,48 @@ opsHubRouter.post('/automations/advance-supplier-reviews', async (req: AuthReque
       include: { _count: { select: { documents: true } } },
     });
     const toReview = pending.filter((s) => s._count.documents > 0);
-    let advanced = 0;
-    for (const s of toReview) {
-      await prisma.supplier.update({ where: { id: s.id }, data: { status: 'documents_review' } });
-      publish('supplier.status_changed', {
-        supplierId: s.id,
-        status: 'documents_review',
-        from: 'pending',
-        to: 'documents_review',
-        userId: req.user?.id,
+    // One statement per batch, not one per supplier: this is a one-click queue
+    // over every pending supplier on the platform, and the per-row loop meant
+    // as many round-trips as there are suppliers. Events stay per-supplier —
+    // they carry the id — but they are published from rows already in memory,
+    // so they cost nothing extra.
+    if (toReview.length) {
+      await prisma.supplier.updateMany({
+        where: { id: { in: toReview.map((s) => s.id) } },
+        data: { status: 'documents_review' },
       });
-      advanced += 1;
+      for (const s of toReview) {
+        publish('supplier.status_changed', {
+          supplierId: s.id,
+          status: 'documents_review',
+          from: 'pending',
+          to: 'documents_review',
+          userId: req.user?.id,
+        });
+      }
     }
+    const advanced = toReview.length;
 
     const autoVerify = req.body?.verify === true || req.body?.verifyReviewed === true;
     let verified = 0;
     if (autoVerify) {
       const reviewed = await prisma.supplier.findMany({ where: { status: 'documents_review' } });
-      for (const s of reviewed) {
-        await prisma.supplier.update({ where: { id: s.id }, data: { status: 'verified' } });
-        publish('supplier.status_changed', {
-          supplierId: s.id,
-          status: 'verified',
-          from: 'documents_review',
-          to: 'verified',
-          userId: req.user?.id,
+      if (reviewed.length) {
+        await prisma.supplier.updateMany({
+          where: { id: { in: reviewed.map((s) => s.id) } },
+          data: { status: 'verified' },
         });
-        verified += 1;
+        for (const s of reviewed) {
+          publish('supplier.status_changed', {
+            supplierId: s.id,
+            status: 'verified',
+            from: 'documents_review',
+            to: 'verified',
+            userId: req.user?.id,
+          });
+        }
       }
+      verified = reviewed.length;
     }
 
     return res.json({
@@ -419,18 +433,24 @@ opsHubRouter.post('/automations/verify-new-lecturers', async (req: AuthRequest, 
       include: { _count: { select: { verifications: true } } },
     });
     const ready = news.filter((l) => l._count.verifications > 0);
-    let verified = 0;
-    for (const l of ready) {
-      await prisma.lecturer.update({ where: { id: l.id }, data: { level: 'verified' } });
-      publish('lecturer.level_changed', {
-        lecturerId: l.id,
-        level: 'verified',
-        from: 'new',
-        to: 'verified',
-        userId: req.user?.id,
+    // Тот же приём, что в очереди поставщиков выше: один запрос на пачку,
+    // события — из уже прочитанных строк.
+    if (ready.length) {
+      await prisma.lecturer.updateMany({
+        where: { id: { in: ready.map((l) => l.id) } },
+        data: { level: 'verified' },
       });
-      verified += 1;
+      for (const l of ready) {
+        publish('lecturer.level_changed', {
+          lecturerId: l.id,
+          level: 'verified',
+          from: 'new',
+          to: 'verified',
+          userId: req.user?.id,
+        });
+      }
     }
+    const verified = ready.length;
     return res.json({
       ok: true,
       data: { verified, skippedNoDocs: news.length - ready.length },
@@ -450,7 +470,10 @@ opsHubRouter.post('/automations/extend-expiring-clinics', async (req: AuthReques
     const expiring = await prisma.subscription.findMany({
       where: { ownerType: 'CLINIC', status: 'active', periodEnd: { gte: now, lte: cutoff } },
     });
-    let extended = 0;
+    // Новый `periodEnd` считается от собственной даты каждой подписки, поэтому
+    // одним `updateMany` подписки не обновить. А вот реактивация клиник —
+    // одинаковая для всех (`active: true`), и внутри цикла она давала второй
+    // запрос на каждую строку: выносим её из цикла одной пачкой.
     for (const s of expiring) {
       const base = s.periodEnd && s.periodEnd > now ? s.periodEnd : now;
       const periodEnd = new Date(base);
@@ -459,9 +482,12 @@ opsHubRouter.post('/automations/extend-expiring-clinics', async (req: AuthReques
         where: { id: s.id },
         data: { periodEnd, status: 'active' },
       });
-      await prisma.clinic.updateMany({ where: { id: s.ownerId }, data: { active: true } });
-      extended += 1;
     }
+    const clinicIds = [...new Set(expiring.map((s) => s.ownerId).filter(Boolean))];
+    if (clinicIds.length) {
+      await prisma.clinic.updateMany({ where: { id: { in: clinicIds } }, data: { active: true } });
+    }
+    const extended = expiring.length;
     return res.json({ ok: true, data: { extended, months, daysAhead } } satisfies ApiResponse);
   } catch (error) {
     console.error('[ops/automations extend]', error);

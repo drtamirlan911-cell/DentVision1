@@ -49,11 +49,29 @@ export async function aiSupplierSuggest(supplierId: string) {
   if (supplier.status === 'verified') suggestions.push('Наращивайте продажи и рейтинг для статуса Official Partner.');
 
   // Naive price comparison per product vs its category average.
+  //
+  // One grouped query, not one per product: this used to run a separate
+  // `aggregate` inside the loop, so a supplier with 200 products issued 200
+  // round-trips — and products sharing a category re-ran the identical
+  // aggregate every time. The averages do not depend on the product, only on
+  // its category, so the distinct categories are enough.
+  const categories = [...new Set(supplier.products.map((p) => p.category).filter((c): c is string => !!c))];
+  const categoryAverages = new Map<string, number | null>();
+  if (categories.length) {
+    const grouped = await prisma.product.groupBy({
+      by: ['category'],
+      where: { category: { in: categories } },
+      _avg: { price: true },
+    });
+    for (const g of grouped) {
+      if (g.category) categoryAverages.set(g.category, g._avg.price);
+    }
+  }
+
   const priceInsights: Array<{ product: string; price: number; categoryAvg: number; deltaPct: number }> = [];
   for (const p of supplier.products) {
     if (!p.category) continue;
-    const agg = await prisma.product.aggregate({ where: { category: p.category }, _avg: { price: true } });
-    const avg = agg._avg.price || p.price;
+    const avg = categoryAverages.get(p.category) || p.price;
     const deltaPct = avg ? Math.round(((p.price - avg) / avg) * 100) : 0;
     priceInsights.push({ product: p.name, price: p.price, categoryAvg: Math.round(avg), deltaPct });
     if (deltaPct > 15) {

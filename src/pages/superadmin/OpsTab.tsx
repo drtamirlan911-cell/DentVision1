@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { StatCard, PageHeader, GlassCard, Card, CardContent, Button, Badge, Modal, ConfirmModal, Input, Select, EmptyState, Skeleton } from '../../components/ui/ds';
+import { QueryError } from '../../components/ui/ds/QueryError';
 import { useToast } from '../../components/ui/ds/Toast';
 import * as api from '../../utils/api';
 import { Activity, Building2, Users, ShoppingCart, GraduationCap, AlertTriangle, Check, X, RefreshCw, Zap, Settings, Shield, Clock, Power, PowerOff, Calendar, TrendingUp, DollarSign } from 'lucide-react';
@@ -99,6 +100,13 @@ export default function OpsTab() {
 
       {loading ? (
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">{Array.from({ length: 6 }).map((_, i) => <Skeleton key={i} className="h-24" />)}</div>
+      ) : overview.isError || clinics.isError ? (
+        // Плитки берут `?? 0`, а список клиник — `|| []`: упавший запрос давал
+        // платформу без пользователей, пациентов и клиник.
+        <QueryError
+          what={overview.isError ? 'сводку платформы' : 'список клиник'}
+          onRetry={() => { overview.refetch(); clinics.refetch(); }}
+        />
       ) : (
         <>
           {subTab === 'overview' && (

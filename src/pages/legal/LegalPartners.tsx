@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   Card, Button, Badge, Modal, Input, Select, EmptyState, Skeleton,
 } from '../../components/ui/ds';
+import { QueryError } from '../../components/ui/ds/QueryError';
 import { useToast } from '../../components/ui/ds/Toast';
 import { apiRequest } from '../../utils/api';
 import {
@@ -127,6 +128,8 @@ export default function LegalPartners() {
 
       {partners.isLoading ? (
         <Skeleton className="h-64 rounded-xl" />
+      ) : partners.isError ? (
+        <QueryError what="партнёров" onRetry={() => partners.refetch()} />
       ) : filteredList.length === 0 ? (
         <EmptyState
           icon={<Users size={40} />}

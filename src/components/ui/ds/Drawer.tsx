@@ -81,7 +81,7 @@ function Drawer({ open, onClose, title, children, side = 'right', width = 320, c
                 <button
                   onClick={onClose}
                   aria-label="Закрыть"
-                  className="rounded-lg p-1.5 text-txt-muted hover:text-txt-primary hover:bg-white/5 transition-colors"
+                  className="rounded-lg p-1.5 text-txt-muted hover:text-txt-primary hover:bg-surface-raised-hover transition-colors"
                 >
                   <X size={18} />
                 </button>

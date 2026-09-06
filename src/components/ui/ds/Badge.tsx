@@ -11,7 +11,7 @@ interface BadgeProps extends React.HTMLAttributes<HTMLSpanElement> {
 }
 
 const variantStyles: Record<BadgeVariant, string> = {
-  default: 'bg-white/5 text-txt-secondary border-bdr-subtle',
+  default: 'bg-surface-raised text-txt-secondary border-bdr-subtle',
   success: 'bg-success/10 text-success border-success/20',
   warning: 'bg-warning/10 text-warning border-warning/20',
   error: 'bg-error/10 text-error border-error/20',
@@ -19,7 +19,7 @@ const variantStyles: Record<BadgeVariant, string> = {
   gold: 'bg-dv-gold/10 text-dv-gold border-dv-gold/20',
   outline: 'bg-transparent text-txt-secondary border-bdr',
   // Neutral filled base — callers supply their own bg/text via className.
-  filled: 'bg-white/5 text-txt-primary border-transparent',
+  filled: 'bg-surface-raised text-txt-primary border-transparent',
 }
 
 const sizeStyles: Record<BadgeSize, string> = {

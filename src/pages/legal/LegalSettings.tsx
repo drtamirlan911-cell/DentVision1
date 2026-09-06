@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { GlassCard, Button, Skeleton } from '../../components/ui/ds';
+import { QueryError } from '../../components/ui/ds/QueryError';
 import { useToast } from '../../components/ui/ds';
 import { apiRequest } from '../../utils/api';
 import { Scale, Save } from 'lucide-react';
@@ -23,7 +24,7 @@ export default function LegalSettings() {
   const qc = useQueryClient();
   const [form, setForm] = useState<Record<string, string>>({});
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ['legal-platform-settings'],
     queryFn: () => apiRequest('/api/legal/platform-settings'),
   });
@@ -48,6 +49,7 @@ export default function LegalSettings() {
   });
 
   if (isLoading) return <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">{Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-24" />)}</div>;
+  if (isError) return <QueryError what="настройки" onRetry={() => refetch()} />;
 
   return (
     <div className="space-y-6 max-w-full overflow-x-hidden">

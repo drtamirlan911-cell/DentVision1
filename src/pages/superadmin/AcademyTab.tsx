@@ -4,6 +4,7 @@ import {
   StatCard, PageHeader, GlassCard, Card, CardContent, Button, Badge, Modal,
   Input, Select, Textarea, EmptyState, Skeleton, ConfirmModal,
 } from '../../components/ui/ds';
+import { QueryError } from '../../components/ui/ds/QueryError';
 import { useToast } from '../../components/ui/ds/Toast';
 import { apiRequest } from '../../utils/api';
 import {
@@ -247,6 +248,10 @@ export default function AcademyTab() {
   };
 
   const isLoading = academiesQuery.isLoading || lecturersQuery.isLoading;
+  // Плитки считаются по длине списков, поэтому упавший запрос показывал
+  // «Академии 0 / Лекторы 0 / Курсы 0» — правдоподобную сводку из ничего.
+  const isError = academiesQuery.isError || lecturersQuery.isError;
+  const retryAll = () => { academiesQuery.refetch(); lecturersQuery.refetch(); };
 
   return (
     <div className="space-y-6 max-w-full overflow-x-hidden">
@@ -274,6 +279,8 @@ export default function AcademyTab() {
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
               {Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-24 rounded-xl" />)}
             </div>
+          ) : isError ? (
+            <QueryError what="данные академий" onRetry={retryAll} />
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
               <StatCard label="Академии" value={academyList.length} icon={<GraduationCap size={18} />} />

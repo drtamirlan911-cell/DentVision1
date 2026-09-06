@@ -6,6 +6,7 @@ import { GlassCard } from '@/components/ui/ds/GlassCard';
 import { Card } from '@/components/ui/ds/Card';
 import { Button } from '@/components/ui/ds/Button';
 import { Skeleton } from '@/components/ui/ds/Skeleton';
+import { QueryError } from '@/components/ui/ds/QueryError';
 import { PageHeader } from '@/components/ui/ds/StatCard';
 import { useAuth } from '@/store/auth.store';
 import { queryKeys } from '@/queries/keys';
@@ -21,7 +22,7 @@ export default function CenterList() {
 
   const isSuperAdmin = role === 'superadmin';
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isError, refetch } = useQuery({
     queryKey: queryKeys.diagnostics.centers(search),
     queryFn: () => api.getDiagnosticCenters(search),
   });
@@ -81,6 +82,8 @@ export default function CenterList() {
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
           {[1, 2, 3].map(i => <Skeleton key={i} className="h-40" />)}
         </div>
+      ) : isError ? (
+        <QueryError what="список центров" onRetry={() => refetch()} />
       ) : centers.length === 0 ? (
         <GlassCard padding="md">
           <div className="flex items-center justify-center h-40 text-txt-muted text-sm flex-col gap-2">

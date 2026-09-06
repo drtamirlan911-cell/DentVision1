@@ -17,6 +17,8 @@ import { PageHeader } from '@/components/ui/ds/StatCard'
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/ds/Card'
 import { Button } from '@/components/ui/ds/Button'
 import { Input, Select } from '@/components/ui/ds/Input'
+import { Skeleton } from '@/components/ui/ds/Skeleton'
+import { QueryError } from '@/components/ui/ds/QueryError'
 import { Switch } from '@/components/ui/ds/Misc'
 import { Badge } from '@/components/ui/ds/Badge'
 import { queryKeys } from '@/queries/keys'
@@ -160,6 +162,26 @@ export default function ClinicSettingsPage() {
 
   if (!clinicId) {
     return <p className="text-sm text-txt-muted p-6">Выберите клинику</p>
+  }
+
+  // Форма заполняется эффектом из `clinicQ.data`. Если запрос не дошёл,
+  // эффект не срабатывает, и раньше страница всё равно рисовала форму — но
+  // с пустыми полями и `DEFAULT_SETTINGS`. «Сохранить» на таком экране
+  // записывает эти пустые значения поверх настоящих: город, адрес, телефон,
+  // логотип и весь блок оплаты (режим сбрасывается в `unconfigured`,
+  // реквизиты Kaspi — в пустые строки). То есть неудачный GET молча
+  // превращался в стирание настроек клиники. Пока настройки не загрузились,
+  // формы быть не должно.
+  if (clinicQ.isLoading) {
+    return <div className="p-6 space-y-4"><Skeleton className="h-40" /><Skeleton className="h-40" /></div>
+  }
+
+  if (clinicQ.isError) {
+    return (
+      <div className="p-6">
+        <QueryError what="настройки клиники" onRetry={() => clinicQ.refetch()} />
+      </div>
+    )
   }
 
   const toggleWorkDay = (day: number) => {

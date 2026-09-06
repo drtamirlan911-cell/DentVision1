@@ -70,7 +70,7 @@ function AccordionTrigger({ id, children, className }: AccordionTriggerProps) {
     <button
       onClick={() => ctx.toggle(id)}
       className={cn(
-        'flex w-full items-center justify-between px-4 py-3 text-sm font-medium text-txt-primary transition-colors hover:bg-white/[0.03]',
+        'flex w-full items-center justify-between px-4 py-3 text-sm font-medium text-txt-primary transition-colors hover:bg-surface-raised',
         className
       )}
     >

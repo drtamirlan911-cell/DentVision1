@@ -4,6 +4,7 @@ import {
   StatCard, PageHeader, GlassCard, Card, CardContent, Button, Badge, Modal,
   Input, Select, EmptyState, Skeleton, Pagination,
 } from '../../components/ui/ds';
+import { QueryError } from '../../components/ui/ds/QueryError';
 import { useToast } from '../../components/ui/ds/Toast';
 import * as api from '../../utils/api';
 import { queryKeys } from '../../queries/keys';
@@ -221,6 +222,8 @@ export default function DiagnosticsTab() {
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-4">
               {Array.from({ length: 6 }).map((_, i) => <Skeleton key={i} className="h-24 rounded-xl" />)}
             </div>
+          ) : stats.isError ? (
+            <QueryError what="сводку диагностики" onRetry={() => stats.refetch()} />
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-4">
               <StatCard label="Всего направлений" value={sData.total ?? 0} icon={<FileCheck size={18} />} />
@@ -303,6 +306,8 @@ export default function DiagnosticsTab() {
 
           {referrals.isLoading ? (
             <Skeleton className="h-64 rounded-xl" />
+          ) : referrals.isError ? (
+            <QueryError what="направления" onRetry={() => referrals.refetch()} />
           ) : refList.length === 0 ? (
             <EmptyState icon={<FileCheck size={40} />} title="Нет направлений" description="Направления появятся здесь после создания" />
           ) : (
@@ -362,6 +367,8 @@ export default function DiagnosticsTab() {
 
           {centers.isLoading ? (
             <Skeleton className="h-48 rounded-xl" />
+          ) : centers.isError ? (
+            <QueryError what="список центров" onRetry={() => centers.refetch()} />
           ) : (
             <>
               {filterBySearch(centerList, ['name', 'city']).length === 0 ? (
@@ -425,6 +432,8 @@ export default function DiagnosticsTab() {
 
           {labs.isLoading ? (
             <Skeleton className="h-48 rounded-xl" />
+          ) : labs.isError ? (
+            <QueryError what="список лабораторий" onRetry={() => labs.refetch()} />
           ) : (
             <>
               {filterBySearch(labList, ['name', 'city']).length === 0 ? (
@@ -473,6 +482,8 @@ export default function DiagnosticsTab() {
         <div className="space-y-4">
           {registrations.isLoading ? (
             <Skeleton className="h-48 rounded-xl" />
+          ) : registrations.isError ? (
+            <QueryError what="заявки" onRetry={() => registrations.refetch()} />
           ) : regList.length === 0 ? (
             <EmptyState icon={<Users size={40} />} title="Нет заявок" description="Заявки на регистрацию появятся здесь" />
           ) : (
@@ -559,6 +570,8 @@ export default function DiagnosticsTab() {
 
           {commissionRules.isLoading ? (
             <Skeleton className="h-48 rounded-xl" />
+          ) : commissionRules.isError ? (
+            <QueryError what="правила комиссий" onRetry={() => commissionRules.refetch()} />
           ) : commList.length === 0 ? (
             <EmptyState icon={<DollarSign size={40} />} title="Нет правил комиссий" description="Создайте первое правило комиссии выше" />
           ) : (

@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Card, Badge, Input, Select, EmptyState, Skeleton } from '../../components/ui/ds';
+import { QueryError } from '../../components/ui/ds/QueryError';
 import { apiRequest } from '../../utils/api';
 import { ScrollText, Search } from 'lucide-react';
 
@@ -22,7 +23,7 @@ export default function LegalAudit() {
   const [actionFilter, setActionFilter] = useState('');
   const [search, setSearch] = useState('');
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ['legal-audit'],
     queryFn: () => apiRequest('/api/legal/audit'),
   });
@@ -37,6 +38,9 @@ export default function LegalAudit() {
   const actions = [...new Set(logs.map((l: any) => l.action))] as string[];
 
   if (isLoading) return <div className="space-y-4">{Array.from({ length: 6 }).map((_, i) => <Skeleton key={i} className="h-12" />)}</div>;
+  // Журнал аудита — то место, где пустота обязана быть правдой: «Нет записей»
+  // на упавшем запросе читается как «никто ничего не делал».
+  if (isError) return <QueryError what="журнал аудита" onRetry={() => refetch()} />;
 
   return (
     <div className="space-y-4 max-w-full overflow-x-hidden">

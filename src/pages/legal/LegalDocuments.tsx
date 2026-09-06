@@ -4,6 +4,7 @@ import DOMPurify from 'dompurify';
 import {
   Card, Button, Badge, Modal, Input, Select, EmptyState, Skeleton,
 } from '../../components/ui/ds';
+import { QueryError } from '../../components/ui/ds/QueryError';
 import { useToast } from '../../components/ui/ds/Toast';
 import { apiRequest } from '../../utils/api';
 import {
@@ -173,6 +174,10 @@ export default function LegalDocuments() {
 
       {docs.isLoading ? (
         <Skeleton className="h-64 rounded-xl" />
+      ) : docs.isError ? (
+        // «Нет документов» + «Создайте первый» на упавшем запросе — приглашение
+        // завести договор заново поверх уже существующего.
+        <QueryError what="документы" onRetry={() => docs.refetch()} />
       ) : docList.length === 0 ? (
         <EmptyState
           icon={<FileText size={40} />}

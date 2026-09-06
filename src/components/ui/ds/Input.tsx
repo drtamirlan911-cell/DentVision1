@@ -5,7 +5,7 @@ import { ChevronDown, X } from 'lucide-react'
 import { AnimatePresence, motion } from 'framer-motion'
 
 const inputVariants = cva(
-  'flex w-full rounded-lg border bg-white/[0.03] text-sm text-txt-primary border-bdr-subtle placeholder:text-txt-muted transition-all duration-200 focus-visible:outline-none focus-visible:border-dv-gold/50 focus-visible:ring-1 focus-visible:ring-dv-gold/20 disabled:cursor-not-allowed disabled:opacity-50',
+  'flex w-full rounded-lg border bg-surface-raised text-sm text-txt-primary border-bdr-subtle placeholder:text-txt-muted transition-all duration-base ease-dv focus-visible:outline-none focus-visible:border-dv-gold/50 focus-visible:ring-1 focus-visible:ring-dv-gold/20 disabled:cursor-not-allowed disabled:opacity-50',
   {
     variants: {
       size: {
@@ -19,7 +19,7 @@ const inputVariants = cva(
 )
 
 const textareaVariants = cva(
-  'flex min-h-[80px] w-full rounded-lg border bg-white/[0.03] text-sm text-txt-primary border-bdr-subtle placeholder:text-txt-muted transition-all duration-200 resize-none focus-visible:outline-none focus-visible:border-dv-gold/50 focus-visible:ring-1 focus-visible:ring-dv-gold/20 disabled:cursor-not-allowed disabled:opacity-50',
+  'flex min-h-[80px] w-full rounded-lg border bg-surface-raised text-sm text-txt-primary border-bdr-subtle placeholder:text-txt-muted transition-all duration-base ease-dv resize-none focus-visible:outline-none focus-visible:border-dv-gold/50 focus-visible:ring-1 focus-visible:ring-dv-gold/20 disabled:cursor-not-allowed disabled:opacity-50',
   {
     variants: {
       size: {
@@ -33,7 +33,7 @@ const textareaVariants = cva(
 )
 
 const selectVariants = cva(
-  'flex w-full rounded-lg border bg-white/[0.03] text-sm text-txt-primary border-bdr-subtle transition-all duration-200 appearance-none focus-visible:outline-none focus-visible:border-dv-gold/50 focus-visible:ring-1 focus-visible:ring-dv-gold/20 disabled:cursor-not-allowed disabled:opacity-50',
+  'flex w-full rounded-lg border bg-surface-raised text-sm text-txt-primary border-bdr-subtle transition-all duration-base ease-dv appearance-none focus-visible:outline-none focus-visible:border-dv-gold/50 focus-visible:ring-1 focus-visible:ring-dv-gold/20 disabled:cursor-not-allowed disabled:opacity-50',
   {
     variants: {
       size: {
@@ -110,7 +110,7 @@ const Input = React.forwardRef<HTMLInputElement, InputProps>(
             {label}
           </label>
         )}
-        <div className="relative rounded-lg transition-shadow duration-200 focus-within:shadow-glow-sm">
+        <div className="relative rounded-lg transition-shadow duration-base ease-dv focus-within:shadow-glow-sm">
           {icon && (
             <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-txt-muted">
               {icon}
@@ -124,7 +124,7 @@ const Input = React.forwardRef<HTMLInputElement, InputProps>(
               error && 'border-error/50 focus:border-error focus:ring-error/20',
               icon && 'pl-9',
               rightPad,
-              props.readOnly && 'bg-white/[0.015] cursor-default',
+              props.readOnly && 'bg-surface-raised/50 cursor-default',
               className
             )}
             onChange={handleChange}
@@ -133,7 +133,7 @@ const Input = React.forwardRef<HTMLInputElement, InputProps>(
           {showSuffix && (
             <span
               className={cn(
-                'absolute top-1/2 -translate-y-1/2 text-txt-muted pointer-events-none transition-all duration-200',
+                'absolute top-1/2 -translate-y-1/2 text-txt-muted pointer-events-none transition-all duration-base ease-dv',
                 showClear ? 'right-9' : 'right-3'
               )}
             >
@@ -214,14 +214,14 @@ const Textarea = React.forwardRef<HTMLTextAreaElement, TextareaProps>(
             {label}
           </label>
         )}
-        <div className="relative rounded-lg transition-shadow duration-200 focus-within:shadow-glow-sm">
+        <div className="relative rounded-lg transition-shadow duration-base ease-dv focus-within:shadow-glow-sm">
           <textarea
             ref={ref}
             id={textareaId}
             className={cn(
               textareaVariants({ size }),
               error && 'border-error/50 focus:border-error focus:ring-error/20',
-              props.readOnly && 'bg-white/[0.015] cursor-default',
+              props.readOnly && 'bg-surface-raised/50 cursor-default',
               showCount && props.maxLength && 'pb-7',
               className
             )}
@@ -309,7 +309,7 @@ const Select = React.forwardRef<HTMLSelectElement, SelectProps>(
             {label}
           </label>
         )}
-        <div className="relative rounded-lg transition-shadow duration-200 focus-within:shadow-glow-sm">
+        <div className="relative rounded-lg transition-shadow duration-base ease-dv focus-within:shadow-glow-sm">
           <select
             ref={ref}
             id={selectId}

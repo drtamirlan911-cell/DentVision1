@@ -3,17 +3,22 @@ import { ArrowDown, DollarSign, TrendingUp, Wallet } from 'lucide-react';
 import { Card } from '@/components/ui/ds/Card';
 import { GlassCard } from '@/components/ui/ds/GlassCard';
 import { Skeleton } from '@/components/ui/ds/Skeleton';
+import { QueryError } from '@/components/ui/ds/QueryError';
 import type { TabProps } from './types';
 import { StatusPill } from './Pipeline';
 
 export function FinanceTab({ config, orgId }: TabProps) {
-  const { data, isLoading } = useQuery({
+  const query = useQuery({
     queryKey: ['diagnostics', 'center-dashboard', orgId],
     queryFn: () => config.getDashboard(orgId),
     enabled: !!orgId,
   });
+  const { data, isLoading } = query;
 
   if (isLoading) return <Skeleton className="h-64" />;
+  // Иначе доход, комиссия и остаток показались бы нулями — на финансовой
+  // вкладке ноль от обрыва связи неотличим от честно пустого дня.
+  if (query.isError) return <QueryError what="финансы" onRetry={() => query.refetch()} />;
   const d = data?.data || data || {};
 
   const fmt = (n: number) => Number(n || 0).toLocaleString('ru-RU') + ' ₸';
