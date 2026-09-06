@@ -5,6 +5,7 @@ import { BarChart3, TrendingUp, Users, DollarSign, Calendar, Sparkles } from 'lu
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/ds/Card'
 import { PageHeader, StatCard } from '@/components/ui/ds/StatCard'
 import { EmptyState } from '@/components/ui/ds/EmptyState'
+import { QueryError } from '@/components/ui/ds/QueryError'
 import { Skeleton } from '@/components/ui/ds/Skeleton'
 import { useAuth } from '@/store/auth.store'
 import { useDataQuery } from '@/queries/useDataQuery'
@@ -137,6 +138,10 @@ export default function Analytics() {
           <CardContent>
             {funnelQuery.isLoading ? (
               <div className="space-y-2"><Skeleton className="h-8" /><Skeleton className="h-8" /></div>
+            ) : funnelQuery.isError ? (
+              // «Пока нет утверждённых планов» на упавшем запросе — вывод
+              // о работе клиники, сделанный из ошибки сети.
+              <QueryError what="воронку" onRetry={() => funnelQuery.refetch()} />
             ) : funnelStages.length === 0 || funnelStages.every((s) => s.count === 0) ? (
               <p className="text-xs text-txt-muted">Пока нет утверждённых планов лечения.</p>
             ) : (

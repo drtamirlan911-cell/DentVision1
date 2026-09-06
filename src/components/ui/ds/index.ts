@@ -18,6 +18,8 @@ export { Skeleton, CardSkeleton, ListSkeleton } from './Skeleton'
 
 export { EmptyState } from './EmptyState'
 
+export { QueryError } from './QueryError'
+
 export { StatCard, PageHeader, HeroStat } from './StatCard'
 
 export { Tabs, Separator, Switch } from './Misc'

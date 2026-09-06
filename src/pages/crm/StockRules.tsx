@@ -8,6 +8,7 @@ import { Badge } from '@/components/ui/ds/Badge'
 import { Input, Select } from '@/components/ui/ds/Input'
 import { Modal } from '@/components/ui/ds/Modal'
 import { EmptyState } from '@/components/ui/ds/EmptyState'
+import { QueryError } from '@/components/ui/ds/QueryError'
 import { PageHeader } from '@/components/ui/ds/StatCard'
 import { Skeleton } from '@/components/ui/ds/Skeleton'
 import { useToast } from '@/components/ui/ds/Toast'
@@ -131,6 +132,10 @@ export default function StockRules() {
           <Skeleton className="h-40" />
           <Skeleton className="h-40" />
         </div>
+      ) : rulesQ.isError ? (
+        // Пустые секции на упавшем запросе выглядят как «правил списания нет»
+        // — и приглашают завести их заново поверх уже существующих.
+        <QueryError what="правила списания" onRetry={() => rulesQ.refetch()} />
       ) : (
         <div className="space-y-6">
           {SECTIONS.map(section => {

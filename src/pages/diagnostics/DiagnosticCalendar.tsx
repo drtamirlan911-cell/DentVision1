@@ -5,6 +5,7 @@ import { useQuery } from '@tanstack/react-query';
 import { ChevronLeft, ChevronRight, CalendarDays } from 'lucide-react';
 import { Card } from '@/components/ui/ds/Card';
 import { Skeleton } from '@/components/ui/ds/Skeleton';
+import { QueryError } from '@/components/ui/ds/QueryError';
 import { PageHeader } from '@/components/ui/ds/StatCard';
 import { queryKeys } from '@/queries/keys';
 import * as api from '@/utils/api';
@@ -40,7 +41,7 @@ export default function DiagnosticCalendar() {
 
   const scopeParams: Record<string, string> = orgKind === 'LAB' ? { labId: orgId } : orgKind === 'CENTER' ? { centerId: orgId } : { clinicId };
   const scopeReady = orgKind ? !!orgId : !!clinicId;
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isError, refetch } = useQuery({
     queryKey: queryKeys.diagnostics.referrals({ ...scopeParams, limit: '200' }),
     queryFn: () => api.getDiagnosticReferrals({ ...scopeParams, limit: '200' }),
     enabled: scopeReady,
@@ -67,6 +68,12 @@ export default function DiagnosticCalendar() {
         subtitle="Исследования по датам"
         icon={<CalendarDays size={22} />}
       />
+
+      {/* `isLoading` и `Skeleton` были заведены, но не дошли до разметки: и
+          пока месяц грузится, и когда запрос упал, сетка рисовалась пустой —
+          то есть «в этом месяце исследований нет». */}
+      {isLoading && <Skeleton className="h-8 rounded-xl" />}
+      {isError && <QueryError what="исследования месяца" onRetry={() => refetch()} />}
 
       <Card padding="md">
         <div className="flex flex-wrap items-center justify-between mb-4 gap-2">

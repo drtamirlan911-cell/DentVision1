@@ -4,6 +4,7 @@ import { useQuery } from '@tanstack/react-query';
 import { BarChart3, TrendingUp, Clock, CheckCircle } from 'lucide-react';
 import { Card } from '@/components/ui/ds/Card';
 import { Skeleton } from '@/components/ui/ds/Skeleton';
+import { QueryError } from '@/components/ui/ds/QueryError';
 import { PageHeader, StatCard } from '@/components/ui/ds/StatCard';
 import { statusInfo, toneClasses } from '@/lib/referralStatus';
 import { cn } from '@/lib/utils';
@@ -18,7 +19,7 @@ export default function DiagnosticStatistics() {
   const scopeParams: Record<string, string> = orgKind === 'LAB' ? { labId: orgId } : orgKind === 'CENTER' ? { centerId: orgId } : { clinicId };
   const scopeReady = orgKind ? !!orgId : !!clinicId;
 
-  const { data: listData, isLoading } = useQuery({
+  const { data: listData, isLoading, isError, refetch } = useQuery({
     queryKey: queryKeys.diagnostics.referrals({ ...scopeParams, limit: '500' }),
     queryFn: () => api.getDiagnosticReferrals({ ...scopeParams, limit: '500' }),
     enabled: scopeReady,
@@ -57,6 +58,11 @@ export default function DiagnosticStatistics() {
         subtitle="Объём и структура направлений"
         icon={<BarChart3 size={22} />}
       />
+
+      {/* Все четыре плитки берут `?? 0`, поэтому упавший запрос показывал
+          «Всего 0 / За сегодня 0 / В работе 0 / Готово 0» — статистику,
+          которую невозможно отличить от настоящей. */}
+      {isError && <QueryError what="статистику" onRetry={() => refetch()} />}
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {isLoading

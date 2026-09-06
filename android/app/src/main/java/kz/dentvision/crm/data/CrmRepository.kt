@@ -1,6 +1,7 @@
 package kz.dentvision.crm.data
 
 import kz.dentvision.crm.data.api.ApiClient
+import kz.dentvision.crm.data.api.ApiException
 import kz.dentvision.crm.data.api.apiCall
 import kz.dentvision.crm.data.api.apiCallUnit
 import kz.dentvision.crm.data.model.Appointment
@@ -157,11 +158,33 @@ class CrmRepository(private val api: ApiClient = ServiceLocator.api) {
      * Двумя запросами, потому что так устроен бэкенд: создание всегда рождает
      * счёт в статусе `pending`, а оплата — отдельный маршрут. Веб делает ровно
      * то же самое (`upsertReceipt`, `src/utils/api.ts:739`).
+     *
+     * Провал второго запроса раньше проглатывался (`getOrDefault(created)`), и
+     * оба вызывающих экрана — касса и приём оплаты в расписании — сообщали
+     * человеку об успехе: форма очищалась, тост говорил «оплата принята». На
+     * сервере счёт при этом оставался `pending`. То есть деньги у стойки взяты,
+     * а система считает их невзятыми — расхождение, которое всплывёт при сверке
+     * кассы, когда вспомнить конкретный приём уже нельзя. Теперь ошибка
+     * доходит до человека и прямо говорит, что делать: счёт создан, отметить
+     * оплату можно из списка счетов (тот же `payInvoice` отдельным действием).
      */
     suspend fun createInvoice(body: InvoiceCreate, markPaid: Boolean): Invoice {
         val created = apiCall { api.crm.createInvoice(body) }
         if (!markPaid) return created
-        return runCatching { apiCall { api.crm.payInvoice(created.id) } }.getOrDefault(created)
+        return try {
+            apiCall { api.crm.payInvoice(created.id) }
+        } catch (e: ApiException) {
+            // `apiCall` сводит к `ApiException` все виды отказа — HTTP, таймаут,
+            // обрыв связи, `ok: false` — поэтому этой ветки достаточно.
+            // `SessionExpiredException` намеренно не ловим: её сообщение
+            // («войдите заново») точнее любого, что можно написать здесь.
+            throw ApiException(
+                status = e.status,
+                message = "Счёт создан, но отметить оплату не удалось: ${e.message} " +
+                    "Отметьте оплату в списке счетов, чтобы касса сошлась.",
+                code = e.code,
+            )
+        }
     }
 
     // ── Финансы ──

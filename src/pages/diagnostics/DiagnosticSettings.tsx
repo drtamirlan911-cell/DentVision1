@@ -7,6 +7,7 @@ import { Input, Select } from '@/components/ui/ds/Input';
 import { Button } from '@/components/ui/ds/Button';
 import { PageHeader } from '@/components/ui/ds/StatCard';
 import { useToast } from '@/components/ui/ds/Toast';
+import { QueryError } from '@/components/ui/ds/QueryError';
 import { useAuth } from '@/store/auth.store';
 import * as api from '@/utils/api';
 
@@ -22,11 +23,12 @@ export default function DiagnosticSettings() {
   const toast = useToast();
   const [form, setForm] = useState(DEFAULT_FORM);
 
-  const { data, isLoading } = useQuery({
+  const settingsQuery = useQuery({
     queryKey: ['clinic-settings', clinic?.id],
     queryFn: () => api.getClinicSettings(clinic!.id),
     enabled: !!clinic?.id,
   });
+  const { data, isLoading } = settingsQuery;
 
   useEffect(() => {
     if (data?.settings?.diagnostics) setForm({ ...DEFAULT_FORM, ...data.settings.diagnostics });
@@ -37,6 +39,21 @@ export default function DiagnosticSettings() {
     onSuccess: () => toast.success('Настройки сохранены'),
     onError: (e: Error) => toast.error(e.message),
   });
+
+  // Сохранение подмешивает диагностику в остальные настройки клиники:
+  // `{ ...(data?.settings || {}), diagnostics: form }`. Если запрос не дошёл,
+  // `data` пустой, и вместо подмешивания получается замена — все прочие
+  // настройки клиники (часы работы, оплата, онлайн-запись) просто исчезают.
+  // Кнопка при этом была отключена только на `isLoading`, то есть на ошибке
+  // оставалась нажимаемой. Пока настройки не прочитаны, сохранять нечего.
+  if (clinic?.id && settingsQuery.isError) {
+    return (
+      <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className="max-w-full overflow-x-hidden px-4 py-4 sm:px-6 sm:py-6 lg:px-8 space-y-6">
+        <PageHeader title="Настройки диагностики" subtitle="Значения по умолчанию для новых направлений" icon={<Settings size={22} />} />
+        <QueryError what="настройки клиники" onRetry={() => settingsQuery.refetch()} />
+      </motion.div>
+    );
+  }
 
   if (!clinic?.id) {
     return (

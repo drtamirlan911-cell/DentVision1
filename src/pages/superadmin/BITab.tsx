@@ -32,6 +32,7 @@ import {
   DonutChartComponent, 
   AreaChartComponent 
 } from '../../components/charts';
+import { QueryError } from '../../components/ui/ds/QueryError';
 import * as api from '../../utils/api';
 
 type SubTab = 'overview' | 'aifinance' | 'scenarios';
@@ -63,53 +64,74 @@ export default function BITab() {
   const [chatInput, setChatInput] = useState('');
   const chatEndRef = useRef<HTMLDivElement>(null);
 
-  const { data: dashboardData, isLoading: dashboardLoading } = useQuery({
+  const dashboardQuery = useQuery({
     queryKey: ['bi-dashboard'],
     queryFn: () => api.biDashboard(),
   });
+  const { data: dashboardData, isLoading: dashboardLoading } = dashboardQuery;
 
-  const { data: mrrData, isLoading: mrrLoading } = useQuery({
+  const mrrQuery = useQuery({
     queryKey: ['bi-mrr'],
     queryFn: () => api.biMRR(),
   });
+  const { data: mrrData, isLoading: mrrLoading } = mrrQuery;
 
-  const { data: churnData, isLoading: churnLoading } = useQuery({
+  const churnQuery = useQuery({
     queryKey: ['bi-churn'],
     queryFn: () => api.biChurn(),
   });
+  const { data: churnData, isLoading: churnLoading } = churnQuery;
 
-  const { data: ltvData, isLoading: ltvLoading } = useQuery({
+  const ltvQuery = useQuery({
     queryKey: ['bi-ltv'],
     queryFn: () => api.biLTV(),
   });
+  const { data: ltvData, isLoading: ltvLoading } = ltvQuery;
 
-  const { data: cacData, isLoading: cacLoading } = useQuery({
+  const cacQuery = useQuery({
     queryKey: ['bi-cac'],
     queryFn: () => api.biCAC(),
   });
+  const { data: cacData, isLoading: cacLoading } = cacQuery;
 
-  const { data: unitEconomicsData, isLoading: unitEconomicsLoading } = useQuery({
+  const unitEconomicsQuery = useQuery({
     queryKey: ['bi-unit-economics'],
     queryFn: () => api.biUnitEconomics(),
   });
+  const { data: unitEconomicsData, isLoading: unitEconomicsLoading } = unitEconomicsQuery;
 
   // How complete the platform's IIN directory is. The IIN became required
   // when a patient is created, so coverage climbs as clinics use the product —
   // this is the number that shows whether that is actually happening.
-  const { data: iinCoverageData, isLoading: iinCoverageLoading } = useQuery({
+  const iinCoverageQuery = useQuery({
     queryKey: ['bi-iin-coverage'],
     queryFn: () => api.biIinCoverage(),
   });
+  const { data: iinCoverageData, isLoading: iinCoverageLoading } = iinCoverageQuery;
 
-  const { data: cashflowData, isLoading: cashflowLoading } = useQuery({
+  const cashflowQuery = useQuery({
     queryKey: ['bi-cashflow'],
     queryFn: () => api.biCashFlow(),
   });
+  const { data: cashflowData, isLoading: cashflowLoading } = cashflowQuery;
 
-  const { data: scenariosData, isLoading: scenariosLoading } = useQuery({
+  const scenariosQuery = useQuery({
     queryKey: ['bi-scenarios'],
     queryFn: () => api.biScenarios(),
   });
+  const { data: scenariosData, isLoading: scenariosLoading } = scenariosQuery;
+
+  // Девять независимых запросов рисуют метрики платформы, и каждая из них
+  // при отказе показывает не «нет данных», а ноль или прочерк — то есть
+  // выглядит как настоящее значение. Решения по ним принимают денежные
+  // (тариф, скидки, найм), поэтому неполноту нужно назвать вслух. Разбирать
+  // девять секций по отдельности здесь ни к чему: важно одно — сказать, что
+  // на экране не всё.
+  const biQueries = [
+    dashboardQuery, mrrQuery, churnQuery, ltvQuery, cacQuery,
+    unitEconomicsQuery, iinCoverageQuery, cashflowQuery, scenariosQuery,
+  ];
+  const failedCount = biQueries.filter((q) => q.isError).length;
 
   const cfoChatMutation = useMutation({
     mutationFn: (title: string) => api.biCfoChat(title),
@@ -246,6 +268,13 @@ export default function BITab() {
         subtitle="Платформенная аналитика и AI CFO"
         icon={<BarChart3 className="text-dv-gold" size={24} />}
       />
+
+      {failedCount > 0 && (
+        <QueryError
+          what={failedCount === biQueries.length ? 'метрики' : `часть метрик (${failedCount} из ${biQueries.length})`}
+          onRetry={() => biQueries.forEach((q) => { if (q.isError) q.refetch(); })}
+        />
+      )}
 
       <div className="flex flex-wrap gap-2 p-1 bg-surface-2/50 rounded-xl w-full sm:w-fit">
         {subTabs.map((tab) => (
