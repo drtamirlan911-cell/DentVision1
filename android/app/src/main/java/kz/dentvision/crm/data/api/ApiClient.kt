@@ -77,4 +77,5 @@ class ApiClient(
     val marketing: MarketingApi = retrofit.create(MarketingApi::class.java)
     val analytics: AnalyticsApi = retrofit.create(AnalyticsApi::class.java)
     val commerce: CommerceApi = retrofit.create(CommerceApi::class.java)
+    val supplier: SupplierApi = retrofit.create(SupplierApi::class.java)
 }

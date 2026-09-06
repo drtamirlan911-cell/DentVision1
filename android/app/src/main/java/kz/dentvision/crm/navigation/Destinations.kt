@@ -203,16 +203,34 @@ const val ROUTE_OPERATOR_PAYMENTS = "operator-workspace/payments"
 const val ROUTE_OPERATOR_TEAM = "operator-workspace/team"
 
 /**
+ * Кабинет продавца — перенос `SupplierWorkspace.tsx`, все 8 вкладок в одном
+ * экране (`SupplierWorkspaceScreen.kt`), а не россыпью подмаршрутов, как у
+ * кабинета приёма — там разделы достаточно самостоятельны для отдельных
+ * экранов (касса, финансы…), здесь ровно то же разбиение, что и на вебе:
+ * внутренние вкладки одной страницы.
+ */
+const val ROUTE_SUPPLIER_WORKSPACE = "supplier-workspace"
+
+/**
  * Куда ведёт пункт «Кабинет» для активного пространства — общая развилка
  * для нижней навигации и пункта в drawer (`AppShell.kt`), чтобы не
  * дублировать одну и ту же проверку в двух местах. `null`, если под тип
- * активного пространства (`SUPPLIER`/`ACADEMY`/`LECTURER`/`PARTNER`) в
- * приложении ещё нет экрана — вызывающая сторона решает, как честно об
- * этом сказать, а не ведёт в чужой кабинет по умолчанию.
+ * активного пространства (`ACADEMY`/`LECTURER`/`PARTNER`) в приложении ещё
+ * нет экрана — вызывающая сторона решает, как честно об этом сказать, а не
+ * ведёт в чужой кабинет по умолчанию.
+ *
+ * `organizationType` здесь — значение из `/me` (`session.user.organizationType`),
+ * а НЕ `WorkspaceContext.scopeType`: у поставщика они расходятся —
+ * `switch-context`/`/me/contexts` говорят `SUPPLIER`, а `/me` (тот же путь,
+ * что реально приходит после переключения) — `SUPPLIER_COMPANY` (см.
+ * `iam/contexts.ts` — комментарий там же зафиксировал это расхождение
+ * словарей REST/unified). Спутать здесь — значит пункт меню никогда не
+ * появится ни для одного продавца.
  */
 fun cabinetRouteFor(session: Session): String? = when (session.user.organizationType) {
     null, "CLINIC" -> ROUTE_WORKSPACE
     "DIAGNOSTIC_CENTER", "LABORATORY" -> ROUTE_OPERATOR_WORKSPACE
+    "SUPPLIER_COMPANY" -> ROUTE_SUPPLIER_WORKSPACE
     else -> null
 }
 

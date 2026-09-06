@@ -28,6 +28,7 @@ import androidx.compose.material.icons.filled.Today
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Science
+import androidx.compose.material.icons.filled.Store
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Groups
 import androidx.compose.material.icons.filled.School
@@ -105,6 +106,8 @@ import kz.dentvision.crm.navigation.ROUTE_OPERATOR_FINANCE
 import kz.dentvision.crm.navigation.ROUTE_OPERATOR_PAYMENTS
 import kz.dentvision.crm.navigation.ROUTE_OPERATOR_SERVICES
 import kz.dentvision.crm.navigation.ROUTE_OPERATOR_TEAM
+import kz.dentvision.crm.navigation.ROUTE_SUPPLIER_WORKSPACE
+import kz.dentvision.crm.ui.supplier.SupplierWorkspaceScreen
 import kz.dentvision.crm.navigation.ROUTE_DIAGNOSTICS_RESULTS
 import kz.dentvision.crm.navigation.ROUTE_DIAGNOSTICS_REFERRALS
 import kz.dentvision.crm.navigation.ROUTE_DIAGNOSTICS_REFERRAL_NEW
@@ -393,7 +396,7 @@ fun AppShell(
                         alwaysShowLabel = false,
                     )
                     NavigationBarItem(
-                        selected = currentRoute == ROUTE_WORKSPACE || currentRoute == ROUTE_OPERATOR_WORKSPACE,
+                        selected = currentRoute == ROUTE_WORKSPACE || currentRoute == ROUTE_OPERATOR_WORKSPACE || currentRoute == ROUTE_SUPPLIER_WORKSPACE,
                         onClick = {
                             val target = cabinetRouteFor(session)
                             if (target != null) {
@@ -447,6 +450,10 @@ fun AppShell(
                         scope.launch { snackbarHostState.showSnackbar("Активно: ${context.name}") }
                         open(ROUTE_OPERATOR_WORKSPACE)
                     }
+                    "SUPPLIER" -> {
+                        scope.launch { snackbarHostState.showSnackbar("Активно: ${context.name}") }
+                        open(ROUTE_SUPPLIER_WORKSPACE)
+                    }
                     else -> scope.launch {
                         snackbarHostState.showSnackbar("Активно: ${context.name} — кабинет для этого пространства пока не построен")
                     }
@@ -494,6 +501,7 @@ private fun fixedRouteTitle(route: String): String? = when (route) {
     ROUTE_OPERATOR_SERVICES -> "Услуги и цены"
     ROUTE_OPERATOR_PAYMENTS -> "Оплаты"
     ROUTE_OPERATOR_TEAM -> "Сотрудники"
+    ROUTE_SUPPLIER_WORKSPACE -> "Кабинет продавца"
     ROUTE_JOBS -> "Вакансии"
     ROUTE_COMMUNITY -> "Сообщество"
     ROUTE_SHOP_SCHOOL -> "Маркетплейс и Academy OS"
@@ -608,6 +616,7 @@ private fun ShellNavHost(
             composable(ROUTE_OPERATOR_SERVICES) { ServicesScreen(session = session) }
             composable(ROUTE_OPERATOR_PAYMENTS) { PaymentsScreen(session = session) }
             composable(ROUTE_OPERATOR_TEAM) { TeamScreen(session = session) }
+            composable(ROUTE_SUPPLIER_WORKSPACE) { SupplierWorkspaceScreen() }
             // Вошедший — всегда настоящий аккаунт (гость живёт в GuestShell,
             // у AppShell непустая Session), поэтому onRequireLogin сюда не
             // попадёт: isAuthenticated = true снимает саму проверку.
@@ -718,6 +727,17 @@ private fun DrawerContent(
                 icon = Icons.Filled.Science,
                 active = currentRoute == ROUTE_OPERATOR_WORKSPACE,
                 onClick = { onOpen(ROUTE_OPERATOR_WORKSPACE) },
+            )
+        }
+        // Кабинет продавца — тем же правилом, что и кабинет приёма выше:
+        // `organizationType` здесь — `SUPPLIER_COMPANY`, а не `SUPPLIER`
+        // (см. докстринг `cabinetRouteFor` в `Destinations.kt`).
+        if (session.user.organizationType == "SUPPLIER_COMPANY") {
+            PillarDrawerItem(
+                label = "Кабинет продавца",
+                icon = Icons.Filled.Store,
+                active = currentRoute == ROUTE_SUPPLIER_WORKSPACE,
+                onClick = { onOpen(ROUTE_SUPPLIER_WORKSPACE) },
             )
         }
         // Аналитика — единственный пункт здесь, сторожимый правом: сервер
