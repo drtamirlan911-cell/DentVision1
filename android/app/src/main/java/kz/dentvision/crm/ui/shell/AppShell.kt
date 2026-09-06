@@ -625,7 +625,9 @@ private fun ShellNavHost(
                     onOpenSchool = { onNavigate(ROUTE_SHOP_SCHOOL) },
                 )
             }
-            composable(ROUTE_SHOP_SCHOOL) { PublicScreen(embedded = true) }
+            composable(ROUTE_SHOP_SCHOOL) {
+                PublicScreen(embedded = true, isAuthenticated = true, clinicId = session.clinic?.id)
+            }
             // Маршрут заводится только под построенный экран и только если роль
             // имеет на него право — иначе его в графе просто нет.
             visiblePages(session.pages, implemented).forEach { page ->
