@@ -31,3 +31,29 @@ data class JoinClinicRequest(val code: String)
  */
 @Serializable
 data class JoinClinicResponse(val clinicId: String)
+
+/**
+ * Тело `POST /api/auth/invitations` (`auth.routes.ts:1137`) — код
+ * приглашения в клинику, обратная сторона [JoinClinicRequest]. Отдельный
+ * маршрут от `/api/iam/invitations`, которым пользуются кабинеты центра/
+ * лаборатории/поставщика: те приглашают в единую Organization, а клиника —
+ * в легаси `ClinicMember`/`ClinicInvitation`, и сервер не понимает
+ * `clinicId` в `organizationId`.
+ */
+@Serializable
+data class CreateClinicInvitationRequest(
+    val clinicId: String,
+    val email: String? = null,
+    val role: String? = null,
+    val expiresInDays: Int? = null,
+)
+
+/** `data` ответа `POST /api/auth/invitations` — приглашение с готовым кодом. */
+@Serializable
+data class ClinicInvitation(
+    val id: String,
+    val email: String? = null,
+    val role: String = "",
+    val code: String = "",
+    val expiresAt: String? = null,
+)

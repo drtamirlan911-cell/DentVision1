@@ -108,6 +108,8 @@ import kz.dentvision.crm.navigation.ROUTE_OPERATOR_SERVICES
 import kz.dentvision.crm.navigation.ROUTE_OPERATOR_TEAM
 import kz.dentvision.crm.navigation.ROUTE_SUPPLIER_WORKSPACE
 import kz.dentvision.crm.ui.supplier.SupplierWorkspaceScreen
+import kz.dentvision.crm.navigation.ROUTE_LECTURER_WORKSPACE
+import kz.dentvision.crm.ui.lecturer.LecturerWorkspaceScreen
 import kz.dentvision.crm.navigation.ROUTE_DIAGNOSTICS_RESULTS
 import kz.dentvision.crm.navigation.ROUTE_DIAGNOSTICS_REFERRALS
 import kz.dentvision.crm.navigation.ROUTE_DIAGNOSTICS_REFERRAL_NEW
@@ -396,7 +398,7 @@ fun AppShell(
                         alwaysShowLabel = false,
                     )
                     NavigationBarItem(
-                        selected = currentRoute == ROUTE_WORKSPACE || currentRoute == ROUTE_OPERATOR_WORKSPACE || currentRoute == ROUTE_SUPPLIER_WORKSPACE,
+                        selected = currentRoute == ROUTE_WORKSPACE || currentRoute == ROUTE_OPERATOR_WORKSPACE || currentRoute == ROUTE_SUPPLIER_WORKSPACE || currentRoute == ROUTE_LECTURER_WORKSPACE,
                         onClick = {
                             val target = cabinetRouteFor(session)
                             if (target != null) {
@@ -454,6 +456,10 @@ fun AppShell(
                         scope.launch { snackbarHostState.showSnackbar("Активно: ${context.name}") }
                         open(ROUTE_SUPPLIER_WORKSPACE)
                     }
+                    "LECTURER" -> {
+                        scope.launch { snackbarHostState.showSnackbar("Активно: ${context.name}") }
+                        open(ROUTE_LECTURER_WORKSPACE)
+                    }
                     else -> scope.launch {
                         snackbarHostState.showSnackbar("Активно: ${context.name} — кабинет для этого пространства пока не построен")
                     }
@@ -502,6 +508,7 @@ private fun fixedRouteTitle(route: String): String? = when (route) {
     ROUTE_OPERATOR_PAYMENTS -> "Оплаты"
     ROUTE_OPERATOR_TEAM -> "Сотрудники"
     ROUTE_SUPPLIER_WORKSPACE -> "Кабинет продавца"
+    ROUTE_LECTURER_WORKSPACE -> "Кабинет лектора"
     ROUTE_JOBS -> "Вакансии"
     ROUTE_COMMUNITY -> "Сообщество"
     ROUTE_SHOP_SCHOOL -> "Маркетплейс и Academy OS"
@@ -617,6 +624,7 @@ private fun ShellNavHost(
             composable(ROUTE_OPERATOR_PAYMENTS) { PaymentsScreen(session = session) }
             composable(ROUTE_OPERATOR_TEAM) { TeamScreen(session = session) }
             composable(ROUTE_SUPPLIER_WORKSPACE) { SupplierWorkspaceScreen() }
+            composable(ROUTE_LECTURER_WORKSPACE) { LecturerWorkspaceScreen() }
             // Вошедший — всегда настоящий аккаунт (гость живёт в GuestShell,
             // у AppShell непустая Session), поэтому onRequireLogin сюда не
             // попадёт: isAuthenticated = true снимает саму проверку.
@@ -738,6 +746,17 @@ private fun DrawerContent(
                 icon = Icons.Filled.Store,
                 active = currentRoute == ROUTE_SUPPLIER_WORKSPACE,
                 onClick = { onOpen(ROUTE_SUPPLIER_WORKSPACE) },
+            )
+        }
+        // Кабинет лектора — не `organizationType` (см. докстринг `cabinetRouteFor`
+        // в `Destinations.kt`: самостоятельная регистрация без академии не
+        // заводит Organization вовсе), а `lecturerId` прямо с `/me`.
+        if (session.user.lecturerId != null) {
+            PillarDrawerItem(
+                label = "Кабинет лектора",
+                icon = Icons.Filled.School,
+                active = currentRoute == ROUTE_LECTURER_WORKSPACE,
+                onClick = { onOpen(ROUTE_LECTURER_WORKSPACE) },
             )
         }
         // Аналитика — единственный пункт здесь, сторожимый правом: сервер

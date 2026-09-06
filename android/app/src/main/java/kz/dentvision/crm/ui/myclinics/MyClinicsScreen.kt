@@ -20,6 +20,7 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Business
 import androidx.compose.material.icons.automirrored.filled.Login
 import androidx.compose.material.icons.filled.ChevronRight
+import androidx.compose.material.icons.filled.School
 import androidx.compose.material.icons.filled.Science
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -64,6 +65,7 @@ data class MyClinicsUiState(
     val creating: Boolean = false,
     val joining: Boolean = false,
     val demoLoading: Boolean = false,
+    val lecturerLoading: Boolean = false,
     val error: String? = null,
 )
 
@@ -140,6 +142,16 @@ class MyClinicsViewModel(
         }
     }
 
+    fun becomeLecturer(onDone: () -> Unit) {
+        _state.update { it.copy(lecturerLoading = true) }
+        viewModelScope.launch {
+            runCatching { repository.becomeLecturer() }
+                .onSuccess { onDone() }
+                .onFailure { e -> _state.update { it.copy(error = e.message ?: "Не удалось создать профиль лектора") } }
+            _state.update { it.copy(lecturerLoading = false) }
+        }
+    }
+
     fun consumeError() = _state.update { it.copy(error = null) }
 }
 
@@ -199,6 +211,13 @@ fun MyClinicsScreen(onEntered: () -> Unit, viewModel: MyClinicsViewModel = viewM
                     desc = "Клиника с готовыми данными, временный доступ",
                     loading = state.demoLoading,
                     onClick = { viewModel.createDemo(onEntered) },
+                )
+                ActionRow(
+                    icon = Icons.Filled.School,
+                    title = "Стать лектором",
+                    desc = "Продавайте курсы и вебинары в Academy OS",
+                    loading = state.lecturerLoading,
+                    onClick = { viewModel.becomeLecturer(onEntered) },
                 )
             }
         }

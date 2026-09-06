@@ -1,5 +1,7 @@
 package kz.dentvision.crm.data.api
 
+import kz.dentvision.crm.data.model.ClinicInvitation
+import kz.dentvision.crm.data.model.CreateClinicInvitationRequest
 import kz.dentvision.crm.data.model.CreateClinicRequest
 import kz.dentvision.crm.data.model.CreateClinicResponse
 import kz.dentvision.crm.data.model.DemoClinicRequest
@@ -35,4 +37,8 @@ interface AuthApi {
     /** Присоединение по коду приглашения — маршрут сам ищет клинику и роль по коду. */
     @POST("api/auth/join-clinic")
     suspend fun joinClinic(@Body body: JoinClinicRequest): ApiEnvelope<JoinClinicResponse>
+
+    /** Код приглашения в клинику — только OWNER/ADMIN (`auth.routes.ts:1152`), сервер сам это проверяет. */
+    @POST("api/auth/invitations")
+    suspend fun createInvitation(@Body body: CreateClinicInvitationRequest): ApiEnvelope<ClinicInvitation>
 }

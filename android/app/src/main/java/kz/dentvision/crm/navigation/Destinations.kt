@@ -79,7 +79,15 @@ val IMPLEMENTED_PAGES: Map<String, @Composable (Session) -> Unit> = mapOf(
     "documents" to { DocumentsScreen() },
     "icd10" to { Icd10Screen() },
     "promotions" to { PromotionsScreen() },
-    "staff" to { session -> StaffScreen(clinicId = session.clinic?.id) },
+    // Приглашать может только владелец/администратор — тот же гейт, что
+    // сам маршрут `POST /api/auth/invitations` (`auth.routes.ts:1152`),
+    // здесь только чтобы не показывать кнопку с гарантированным 403.
+    "staff" to { session ->
+        StaffScreen(
+            clinicId = session.clinic?.id,
+            canInvite = session.effectiveRole?.uppercase() in setOf("OWNER", "ADMIN"),
+        )
+    },
     // `medical.write`, а не `patients.write` — та же ручка, что сторожит
     // `POST /api/medical/teeth/findings`.
     "dental-chart" to { session -> DentalChartScreen(canWrite = session.has("medical.write")) },
@@ -212,12 +220,18 @@ const val ROUTE_OPERATOR_TEAM = "operator-workspace/team"
 const val ROUTE_SUPPLIER_WORKSPACE = "supplier-workspace"
 
 /**
+ * Кабинет лектора — перенос `lecturer.routes.ts`, три вкладки в одном экране
+ * (`LecturerWorkspaceScreen.kt`), тем же приёмом, что и у продавца.
+ */
+const val ROUTE_LECTURER_WORKSPACE = "lecturer-workspace"
+
+/**
  * Куда ведёт пункт «Кабинет» для активного пространства — общая развилка
  * для нижней навигации и пункта в drawer (`AppShell.kt`), чтобы не
  * дублировать одну и ту же проверку в двух местах. `null`, если под тип
- * активного пространства (`ACADEMY`/`LECTURER`/`PARTNER`) в приложении ещё
- * нет экрана — вызывающая сторона решает, как честно об этом сказать, а не
- * ведёт в чужой кабинет по умолчанию.
+ * активного пространства (`ACADEMY`/`PARTNER`) в приложении ещё нет экрана —
+ * вызывающая сторона решает, как честно об этом сказать, а не ведёт в чужой
+ * кабинет по умолчанию.
  *
  * `organizationType` здесь — значение из `/me` (`session.user.organizationType`),
  * а НЕ `WorkspaceContext.scopeType`: у поставщика они расходятся —
@@ -226,12 +240,21 @@ const val ROUTE_SUPPLIER_WORKSPACE = "supplier-workspace"
  * `iam/contexts.ts` — комментарий там же зафиксировал это расхождение
  * словарей REST/unified). Спутать здесь — значит пункт меню никогда не
  * появится ни для одного продавца.
+ *
+ * Лектор проверяется первым и отдельно от `organizationType`: самостоятельная
+ * регистрация без академии (обычный путь, см. докстринг `User.lecturerId`)
+ * не создаёt Organization вовсе, и `organizationType` у такой сессии — `null`,
+ * тот же самый `null`, что и у пользователя без единой клиники. Проверять
+ * `organizationType` первым значило бы увести лектора в кабинет клиники.
  */
-fun cabinetRouteFor(session: Session): String? = when (session.user.organizationType) {
-    null, "CLINIC" -> ROUTE_WORKSPACE
-    "DIAGNOSTIC_CENTER", "LABORATORY" -> ROUTE_OPERATOR_WORKSPACE
-    "SUPPLIER_COMPANY" -> ROUTE_SUPPLIER_WORKSPACE
-    else -> null
+fun cabinetRouteFor(session: Session): String? {
+    if (session.user.lecturerId != null) return ROUTE_LECTURER_WORKSPACE
+    return when (session.user.organizationType) {
+        null, "CLINIC" -> ROUTE_WORKSPACE
+        "DIAGNOSTIC_CENTER", "LABORATORY" -> ROUTE_OPERATOR_WORKSPACE
+        "SUPPLIER_COMPANY" -> ROUTE_SUPPLIER_WORKSPACE
+        else -> null
+    }
 }
 
 /**
