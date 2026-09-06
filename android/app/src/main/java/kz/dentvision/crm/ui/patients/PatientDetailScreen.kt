@@ -69,6 +69,8 @@ fun PatientDetailScreen(
     patient: Patient,
     clinicId: String?,
     canWrite: Boolean,
+    /** `medical.write` — своя ручка у одонтограммы, отдельная от `patients.write`. */
+    canEditChart: Boolean = false,
 ) {
     var tab by remember { mutableStateOf(PatientDetailTab.CARD) }
 
@@ -128,7 +130,7 @@ fun PatientDetailScreen(
         when (tab) {
             PatientDetailTab.CARD -> MedicalCardScreen(canWrite = canWrite, initialPatient = patient)
             PatientDetailTab.VISITS -> VisitsScreen(clinicId = clinicId, canWrite = canWrite, initialPatient = patient)
-            PatientDetailTab.CHART -> DentalChartScreen(initialPatient = patient, clinicId = clinicId)
+            PatientDetailTab.CHART -> DentalChartScreen(initialPatient = patient, clinicId = clinicId, canWrite = canEditChart)
             PatientDetailTab.PLANS -> TreatmentPlansScreen(
                 clinicId = clinicId,
                 canWrite = canWrite,

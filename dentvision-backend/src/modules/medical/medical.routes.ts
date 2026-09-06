@@ -15,6 +15,7 @@ import {
   normalizePlanItems,
   planTotal,
 } from '../../lib/treatmentPlanShape.js';
+import { applyToothFindings, normalizeSurfaceFindings } from '../patients/teethStore.js';
 
 const medicalRouter = Router();
 
@@ -362,6 +363,48 @@ medicalRouter.get('/teeth/:patientId', requirePermission('patient.read'), async 
     res.json({ ok: true, data: teeth });
   } catch (error) {
     res.status(500).json({ ok: false, error: 'Failed to fetch dental chart' });
+  }
+});
+
+/**
+ * Правка одонтограммы по поверхностям (M/O/D/B/L) с телефона.
+ *
+ * Раньше пишущей ручки под это не было вовсе — единственный путь записи по
+ * поверхностям на вебе шёл через `PATCH /patients/:id` с целиком
+ * пересобранной картой зубов на клиенте, а на телефоне полной карты в сыром
+ * виде нет. Здесь та же логика слияния, что уже держит `applyToothFindings`
+ * для находок ИИ: сервер сам читает текущие поверхности зуба и добавляет к
+ * ним только тронутые — остальные и другие зубы не трогает, поэтому правка
+ * одним касанием не может затереть запись, сделанную у кресла.
+ */
+medicalRouter.post('/teeth/findings', requirePermission('medical.write'), async (req: AuthRequest, res) => {
+  try {
+    const { patientId } = req.body as { patientId?: string };
+    if (!patientId) {
+      res.status(400).json({ ok: false, error: 'patientId is required' });
+      return;
+    }
+    if (!(await requirePatientAccess(req, res, patientId))) return;
+
+    const findings = normalizeSurfaceFindings((req.body as { findings?: unknown }).findings);
+    if (findings.length === 0) {
+      res.status(400).json({ ok: false, error: 'Нет пригодных находок: проверьте номер зуба, поверхность и статус' });
+      return;
+    }
+
+    const clinicId = req.user!.clinicId!;
+    const changes = await applyToothFindings(patientId, clinicId, findings);
+
+    await auditFromReq(req, {
+      action: 'tooth.surface_findings_applied',
+      entity: 'tooth',
+      entityId: patientId,
+      details: { patientId, changes },
+    });
+
+    res.json({ ok: true, data: changes });
+  } catch (error) {
+    res.status(500).json({ ok: false, error: 'Failed to apply tooth findings' });
   }
 });
 

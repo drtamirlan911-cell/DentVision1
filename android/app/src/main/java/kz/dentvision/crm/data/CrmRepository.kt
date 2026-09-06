@@ -35,6 +35,9 @@ import kz.dentvision.crm.data.model.Promotion
 import kz.dentvision.crm.data.model.StockDeductionPreviewLine
 import kz.dentvision.crm.data.model.StockRule
 import kz.dentvision.crm.data.model.StockRuleUpsert
+import kz.dentvision.crm.data.model.ToothFindingChange
+import kz.dentvision.crm.data.model.ToothFindingRequestItem
+import kz.dentvision.crm.data.model.ToothFindingsRequest
 import kz.dentvision.crm.data.model.TreatmentPlan
 import kz.dentvision.crm.data.model.TreatmentPlanUpsert
 import kz.dentvision.crm.data.model.Visit
@@ -130,6 +133,14 @@ class CrmRepository(private val api: ApiClient = ServiceLocator.api) {
     suspend fun visits(patientId: String): List<Visit> = apiCall { api.crm.visits(patientId) }
 
     suspend fun createVisit(body: VisitCreate): Visit = apiCall { api.crm.createVisit(body) }
+
+    /** Одна поверхность одного зуба — сервер сам сливает её с уже сохранёнными. */
+    suspend fun applyToothFinding(patientId: String, tooth: Int, surface: String, status: String): List<ToothFindingChange> =
+        apiCall {
+            api.crm.applyToothFindings(
+                ToothFindingsRequest(patientId, listOf(ToothFindingRequestItem(tooth, status, listOf(surface)))),
+            )
+        }
 
     // ── Касса ──
 

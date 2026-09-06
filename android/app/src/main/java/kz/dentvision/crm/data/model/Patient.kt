@@ -82,6 +82,34 @@ data class ToothState(
 )
 
 /**
+ * Правка одной поверхности — тело `POST /api/medical/teeth/findings`
+ * (`normalizeSurfaceFindings` в `teethStore.ts`). Статус ограничен тем же
+ * подмножеством, что и на сервере: `caries`/`filled`/`healthy` — правка по
+ * одной поверхности не может выставить общий статус зуба вроде `missing`,
+ * который стёр бы остальные четыре поверхности разом.
+ */
+@Serializable
+data class ToothFindingRequestItem(
+    val tooth: Int,
+    val status: String,
+    val surfaces: List<String>,
+)
+
+@Serializable
+data class ToothFindingsRequest(
+    val patientId: String,
+    val findings: List<ToothFindingRequestItem>,
+)
+
+/** Что изменилось — для подтверждения на экране, а не для показа истории. */
+@Serializable
+data class ToothFindingChange(
+    val tooth: Int,
+    val before: String,
+    val after: String,
+)
+
+/**
  * Стороны зуба в порядке, в котором их принято называть. Ключи — те же буквы,
  * что и в вебе (`SURFACE_KEYS` в `src/lib/odontogram.ts`).
  */

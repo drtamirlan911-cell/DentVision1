@@ -550,6 +550,7 @@ private fun ShellNavHost(
                         patient = current,
                         clinicId = session.clinic?.id,
                         canWrite = session.has("patients.write"),
+                        canEditChart = session.has("medical.write"),
                     )
                 } else {
                     // Держатель пуст — процесс пересоздан или маршрут открыт

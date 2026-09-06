@@ -72,7 +72,9 @@ val IMPLEMENTED_PAGES: Map<String, @Composable (Session) -> Unit> = mapOf(
     "icd10" to { Icd10Screen() },
     "promotions" to { PromotionsScreen() },
     "staff" to { session -> StaffScreen(clinicId = session.clinic?.id) },
-    "dental-chart" to { DentalChartScreen() },
+    // `medical.write`, а не `patients.write` — та же ручка, что сторожит
+    // `POST /api/medical/teeth/findings`.
+    "dental-chart" to { session -> DentalChartScreen(canWrite = session.has("medical.write")) },
     "clinic-settings" to { session -> ClinicSettingsScreen(clinicId = session.clinic?.id) },
     "billing" to { ClinicBillingScreen() },
     "workflow" to { WorkflowScreen() },
