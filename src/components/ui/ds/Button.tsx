@@ -5,7 +5,7 @@ import { Slot } from '@radix-ui/react-slot'
 import { motion } from 'framer-motion'
 
 const buttonVariants = cva(
-  'group inline-flex items-center justify-center gap-2 rounded-lg font-medium transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-dv-gold/40 focus-visible:ring-offset-2 focus-visible:ring-offset-surface-0 disabled:pointer-events-none disabled:opacity-50 select-none whitespace-nowrap',
+  'group inline-flex items-center justify-center gap-2 rounded-lg font-medium transition-all duration-base ease-dv focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-dv-gold/40 focus-visible:ring-offset-2 focus-visible:ring-offset-surface-0 disabled:pointer-events-none disabled:opacity-50 select-none whitespace-nowrap',
   {
     variants: {
       variant: {
@@ -18,7 +18,7 @@ const buttonVariants = cva(
         secondary:
           'bg-surface-raised border border-bdr-subtle text-txt-primary hover:bg-surface-raised-hover hover:border-bdr/50',
         ghost:
-          'text-txt-secondary hover:bg-white/5 hover:text-txt-primary',
+          'text-txt-secondary hover:bg-surface-raised-hover hover:text-txt-primary',
         outline:
           'border border-bdr text-txt-primary hover:bg-dv-gold/10 hover:border-dv-gold/50 hover:text-dv-gold',
         danger:
@@ -113,7 +113,7 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
             </span>
           </>
         ) : icon ? (
-          <span className="shrink-0 transition-transform duration-300 group-hover:rotate-12">
+          <span className="shrink-0 transition-transform duration-base ease-dv group-hover:rotate-6">
             {icon}
           </span>
         ) : null}

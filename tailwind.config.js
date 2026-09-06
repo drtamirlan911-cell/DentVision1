@@ -70,6 +70,13 @@ export default {
           'raised-hover': themed('--dv-surface-raised-hover'),
           overlay: themed('--dv-overlay'),
         },
+        // The frosted fill. `--dv-glass` existed in both themes but had no
+        // utility, so every frosted panel hardcoded `bg-white/[0.06]` — a
+        // dark-theme construction that vanishes on a light ground.
+        glass: {
+          DEFAULT: themed('--dv-glass'),
+          strong: themed('--dv-glass-strong'),
+        },
         // Semantic — themed for the same reason the gold family is (#186): a
         // literal cannot follow the theme, and these are read as *text* far more
         // often than they are used as a fill. Measured on white: success 2.87,
@@ -151,9 +158,26 @@ export default {
         'glow': '0 0 20px rgba(201, 169, 110, 0.15)',
         'glow-sm': '0 0 10px rgba(201, 169, 110, 0.1)',
         'glow-lg': '0 0 40px rgba(201, 169, 110, 0.2)',
-        'card': '0 1px 3px rgba(0, 0, 0, 0.2)',
-        'card-hover': '0 4px 12px rgba(0, 0, 0, 0.3)',
-        'modal': '0 8px 32px rgba(0, 0, 0, 0.4)',
+        // Elevation follows the theme. These were fixed black at 20–40%,
+        // which is right on a dark ground and muddy on a light one — the
+        // reason cards had no usable depth in the light theme. The values now
+        // live in `global.css` per theme; see `--dv-elev-*` there.
+        'elev-1': 'var(--dv-elev-1)',
+        'elev-2': 'var(--dv-elev-2)',
+        'elev-3': 'var(--dv-elev-3)',
+        // Kept as aliases so existing `shadow-card` / `shadow-modal` usages
+        // pick up the theme-aware values instead of the black literals.
+        'card': 'var(--dv-elev-1)',
+        'card-hover': 'var(--dv-elev-2)',
+        'modal': 'var(--dv-elev-3)',
+      },
+      transitionTimingFunction: {
+        'dv': 'var(--dv-ease)',
+      },
+      transitionDuration: {
+        'fast': 'var(--dv-duration-fast)',
+        'base': 'var(--dv-duration-base)',
+        'slow': 'var(--dv-duration-slow)',
       },
       backdropBlur: {
         'xs': '2px',

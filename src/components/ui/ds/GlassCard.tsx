@@ -19,18 +19,24 @@ const paddingStyles = {
   lg: 'p-6',
 }
 
+// Theme tokens, not white overlays. `border-white/[0.06]` is a dark-theme
+// construction: on a light ground it is white on near-white, so every glass
+// card lost its edge and the surface stopped reading as a card at all.
 const borderStyles = {
-  subtle: 'border border-white/[0.06]',
-  medium: 'border border-white/[0.12]',
-  strong: 'border border-white/[0.20]',
+  subtle: 'border border-bdr-subtle',
+  medium: 'border border-bdr',
+  strong: 'border border-bdr-focus/40',
 }
 
+// The elevation ramp follows the theme (see `--dv-elev-*`): near-black on a
+// dark ground, cool slate at low opacity on a light one. `shadow-black/20`
+// over white is what made light-theme cards look smudged rather than raised.
 const shadowStyles = {
   none: '',
-  sm: 'shadow-sm',
-  md: 'shadow-md',
-  lg: 'shadow-lg shadow-black/10',
-  xl: 'shadow-xl shadow-black/20',
+  sm: 'shadow-elev-1',
+  md: 'shadow-elev-1',
+  lg: 'shadow-elev-2',
+  xl: 'shadow-elev-3',
 }
 
 const backdropStyles = {
@@ -58,14 +64,22 @@ function GlassCard({
     borderStyles[border],
     shadowStyles[shadow],
     backdropStyles[backdrop],
-    'bg-gradient-to-br from-white/[0.06] via-white/[0.02] to-transparent',
+    // The frosted fill itself is a token now, for the same reason as the
+    // border above; the white sheen is kept for dark only, where there is
+    // something for it to catch.
+    'bg-glass',
     className
   )
 
+  // `transition-all` animates every property that happens to change,
+  // including layout ones, and 300ms on a pointer is past the point where a
+  // hover still feels like a response. Only the two properties that actually
+  // move are transitioned, on the product's own curve; `hover` additionally
+  // lifts the card by a single pixel — enough to feel, not enough to notice.
   const interactiveStyles = interactive
     ? cn(
-        'transition-all duration-300',
-        hover && 'group',
+        'transition-[box-shadow,transform] duration-base ease-dv',
+        hover && 'group hover:-translate-y-px hover:shadow-elev-2',
         'cursor-pointer select-none'
       )
     : ''
@@ -78,7 +92,7 @@ function GlassCard({
       {...(props as any)}
       className={cn(baseStyles, interactiveStyles)}
     >
-      <div className="absolute inset-0 bg-gradient-to-br from-white/[0.04] to-transparent pointer-events-none" />
+      <div className="pointer-events-none absolute inset-0 hidden bg-gradient-to-br from-white/[0.04] to-transparent dark:block" />
       <div className="relative z-10">{children}</div>
     </Content>
   )

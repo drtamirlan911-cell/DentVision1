@@ -2,6 +2,27 @@ import React from 'react'
 import { motion, useReducedMotion, type HTMLMotionProps, type Variants } from 'framer-motion'
 import { cn } from '@/lib/utils'
 
+/**
+ * The product's one motion curve, mirroring `--dv-ease` in `global.css`.
+ *
+ * Framer writes inline styles and cannot read a CSS variable, so the value is
+ * duplicated here rather than referenced — the guard test in
+ * `motion.test.ts` asserts the two stay equal, because a curve that drifts
+ * between CSS and JS is exactly the kind of inconsistency nobody sees
+ * directly but everybody feels.
+ *
+ * A decelerate that never overshoots: fast at the start so the interface feels
+ * answerable, settling at the end so nothing bounces.
+ */
+export const DV_EASE = [0.16, 1, 0.3, 1] as const
+
+/** Mirrors `--dv-duration-*`. Seconds, because that is Framer's unit. */
+export const DV_DURATION = {
+  fast: 0.12,
+  base: 0.18,
+  slow: 0.32,
+} as const
+
 interface PageTransitionProps extends HTMLMotionProps<'div'> {
   mode?: 'wait' | 'sync' | 'popLayout'
   className?: string
@@ -25,7 +46,9 @@ export function PageTransition({
       initial={reduceMotion ? false : { opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
       exit={reduceMotion ? undefined : { opacity: 0, y: -8 }}
-      transition={reduceMotion ? { duration: 0 } : { duration: 0.2, ease: 'easeOut' }}
+      // `base`, not `slow`: a page that takes a third of a second to arrive
+      // reads as the app thinking, not as the app moving.
+      transition={reduceMotion ? { duration: 0 } : { duration: DV_DURATION.base, ease: DV_EASE }}
       className={cn('w-full h-full', className)}
       {...props}
     >
@@ -102,7 +125,7 @@ export function StaggerItem({
     show: {
       opacity: 1,
       y: 0,
-      transition: reduceMotion ? { duration: 0 } : { duration: 0.35, ease: [0.16, 1, 0.3, 1] },
+      transition: reduceMotion ? { duration: 0 } : { duration: DV_DURATION.slow, ease: DV_EASE },
     },
   } as Variants
 
@@ -253,6 +276,17 @@ interface GlassMorphProps extends HTMLMotionProps<'div'> {
   children: React.ReactNode
 }
 
+/**
+ * Frosted panel that works in both themes.
+ *
+ * Every surface here used to be a white overlay (`bg-white/[0.06]`,
+ * `border-white/[0.12]`) with a black shadow. That is a dark-theme
+ * construction: on a light ground white-on-white is invisible, so the panel
+ * lost its fill, its border and its edge all at once and became a floating
+ * block of text. The tokens below carry the theme's own glass and border
+ * values, so the same component reads as frosted on either ground, and the
+ * highlight is dropped in light where a white sheen has nothing to catch.
+ */
 export function GlassMorph({
   intensity = 'medium',
   className,
@@ -260,17 +294,17 @@ export function GlassMorph({
   ...props
 }: GlassMorphProps) {
   const intensityStyles = {
-    subtle: 'bg-white/[0.02] border border-white/[0.04] backdrop-blur-xl',
-    medium: 'bg-gradient-to-br from-white/[0.06] to-white/[0.02] border border-white/[0.06] backdrop-blur-2xl',
-    strong: 'bg-gradient-to-br from-white/[0.10] to-white/[0.04] border border-white/[0.12] backdrop-blur-2xl shadow-xl shadow-black/20',
+    subtle: 'bg-glass border border-bdr-subtle backdrop-blur-xl',
+    medium: 'bg-glass border border-bdr-subtle backdrop-blur-2xl shadow-elev-1',
+    strong: 'bg-glass-strong border border-bdr backdrop-blur-2xl shadow-elev-2',
   }
 
   return (
     <motion.div
-      className={cn('rounded-2xl overflow-hidden', intensityStyles[intensity], className)}
+      className={cn('relative rounded-2xl overflow-hidden', intensityStyles[intensity], className)}
       {...props}
     >
-      <div className="absolute inset-0 bg-gradient-to-br from-white/[0.03] to-transparent pointer-events-none" />
+      <div className="pointer-events-none absolute inset-0 hidden bg-gradient-to-br from-white/[0.03] to-transparent dark:block" />
       <div className="relative z-10">{children}</div>
     </motion.div>
   )
@@ -282,17 +316,28 @@ interface TransformCardProps extends HTMLMotionProps<'div'> {
   children: React.ReactNode
 }
 
+/**
+ * A card that keeps its identity across layouts.
+ *
+ * The transition was a spring (stiffness 180, damping 22), which overshoots
+ * and settles back — the one behaviour `StaggerItem` above exists to avoid.
+ * A shared-layout move is the most conspicuous animation in the product, so
+ * it is the last place that should bounce; it now travels on the same
+ * decelerate curve as everything else and simply arrives.
+ */
 export function TransformCard({
   layoutId,
   className,
   children,
   ...props
 }: TransformCardProps) {
+  const reduceMotion = useReducedMotion()
+
   return (
     <motion.div
       layoutId={layoutId}
       className={cn('relative z-10', className)}
-      transition={{ type: 'spring', stiffness: 180, damping: 22 }}
+      transition={reduceMotion ? { duration: 0 } : { duration: DV_DURATION.slow, ease: DV_EASE }}
       {...props}
     >
       {children}

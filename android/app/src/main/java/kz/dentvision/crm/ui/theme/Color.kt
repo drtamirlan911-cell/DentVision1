@@ -36,23 +36,36 @@ val DarkBorderSubtle = Color(0x0FFFFFFF) // rgba(255, 255, 255, 0.06)
 val DarkOverlay = Color(0x99000000) // rgba(0, 0, 0, 0.6)
 
 // ── Светлая тема (`html.light`) ────────────────────────────────────────────
+//
+// Клиническая, а не бутиковая — те же значения, что и в `global.css`, и по той
+// же причине: поверхности были тёплым фарфором (бежевые тона, границы,
+// замешанные на коричневых чернилах). Тёплый нейтральный читается как спа;
+// медицинской карте нужен другой конец оси, поэтому всё ниже замешано на
+// холодных сланцевых чернилах. Акцент остаётся бронзовым — это бренд и
+// единственное тёплое пятно на странице, так что он выглядит намеренным.
+//
+// Расхождение между платформами здесь недопустимо: это один продукт, и если
+// телефон бежевый, а браузер холодный, виноватым выглядит телефон.
 val LightGold = Color(0xFF785C26)
 val LightGoldLight = Color(0xFFA8823C)
 val LightGoldDim = Color(0xFF6B5322)
 val LightGoldOn = Color(0xFFFFFFFF)
+/** Заливка кнопки — своё, более насыщенное значение: см. `--dv-gold-from/to`. */
+val LightGoldFrom = Color(0xFF8A6410)
+val LightGoldTo = Color(0xFF70530F)
 val LightSuccess = Color(0xFF1D8147)
 val LightError = Color(0xFFC74134)
 val LightWarning = Color(0xFF9C640C)
 val LightInfo = Color(0xFF2676AA)
-val LightSurface0 = Color(0xFFF5F4F0)
+val LightSurface0 = Color(0xFFF4F6F8)
 val LightSurface1 = Color(0xFFFFFFFF)
-val LightSurface2 = Color(0xFFEDEAE3)
-val LightSurface3 = Color(0xFFE4E0D7)
-val LightSurface4 = Color(0xFFD8D3C8)
-val LightTextPrimary = Color(0xFF1A1D23)
-val LightTextSecondary = Color(0xFF4D525B)
-val LightTextMuted = Color(0xFF6B7079)
-val LightTextGhost = Color(0xFFAEA99E)
-val LightBorder = Color(0x1A231F16) // rgba(35, 31, 22, 0.10)
-val LightBorderSubtle = Color(0x12231F16) // rgba(35, 31, 22, 0.07)
-val LightOverlay = Color(0x6B1C1810) // rgba(28, 24, 16, 0.42)
+val LightSurface2 = Color(0xFFE9EDF2)
+val LightSurface3 = Color(0xFFDDE3EA)
+val LightSurface4 = Color(0xFFCFD7E0)
+val LightTextPrimary = Color(0xFF141A21)
+val LightTextSecondary = Color(0xFF49515B)
+val LightTextMuted = Color(0xFF666E79)
+val LightTextGhost = Color(0xFFA3ACB6)
+val LightBorder = Color(0x1A0F1A28) // rgba(15, 26, 40, 0.10)
+val LightBorderSubtle = Color(0x120F1A28) // rgba(15, 26, 40, 0.07)
+val LightOverlay = Color(0x660C141F) // rgba(12, 20, 31, 0.40)

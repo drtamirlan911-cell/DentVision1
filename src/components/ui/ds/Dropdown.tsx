@@ -84,7 +84,7 @@ function Content({ children, align = 'end', className, width }: ContentProps) {
           transition={{ duration: 0.15, ease: 'easeOut' }}
           className={cn(
             'absolute top-full mt-1.5 z-50 min-w-[180px] rounded-xl border border-bdr-subtle',
-            'bg-surface-raised backdrop-blur-xl shadow-xl overflow-hidden',
+            'bg-surface-raised backdrop-blur-xl shadow-elev-3 overflow-hidden',
             alignClass,
             className
           )}
@@ -117,7 +117,7 @@ function Item({ children, onClick, danger, disabled, icon, className }: ItemProp
         'flex items-center gap-2 w-full px-3 py-2 text-sm transition-colors text-left',
         danger
           ? 'text-red-400 hover:bg-red-500/10'
-          : 'text-txt-primary hover:bg-white/5',
+          : 'text-txt-primary hover:bg-surface-raised-hover',
         disabled && 'opacity-40 cursor-not-allowed',
         className
       )}
