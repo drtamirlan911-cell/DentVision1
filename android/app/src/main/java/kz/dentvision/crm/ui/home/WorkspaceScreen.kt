@@ -24,6 +24,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.unit.dp
 import kz.dentvision.crm.data.session.Session
@@ -145,6 +146,21 @@ fun WorkspaceScreen(
                 color = DvTheme.colors.textMuted,
             )
         }
+
+        // Приложение работает с медицинскими данными пациентов — ссылка на
+        // политику конфиденциальности должна быть доступна из самого
+        // приложения, а не только на сайте, независимо от роли и того, какие
+        // разделы кабинета ей открыты.
+        val uriHandler = LocalUriHandler.current
+        Text(
+            text = "Политика конфиденциальности",
+            style = MaterialTheme.typography.bodySmall,
+            color = DvTheme.colors.textMuted,
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(top = DvSpacing.sm)
+                .clickable { uriHandler.openUri("https://dent-vision1.vercel.app/privacy") },
+        )
     }
 }
 

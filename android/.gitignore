@@ -1,6 +1,11 @@
 # Локальные пути к SDK — у каждого свои.
 local.properties
 
+# Ключ подписи релиза и пароли к нему — см. keystore.properties.example.
+keystore.properties
+*.jks
+*.keystore
+
 # Продукты сборки.
 .gradle/
 build/

@@ -1,9 +1,31 @@
+import java.util.Properties
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.kotlin.serialization)
 }
+
+// Ключ подписи релиза не хранится в репозитории. `keystore.properties`
+// (в .gitignore, см. keystore.properties.example) — путь для локальной
+// сборки; RELEASE_STORE_FILE/RELEASE_STORE_PASSWORD/RELEASE_KEY_ALIAS/
+// RELEASE_KEY_PASSWORD — тот же контракт для CI. Ни того ни другого нет —
+// `release` остаётся неподписанным, как и было: `assembleRelease` не
+// падает, а `preview` (ниже) по-прежнему собирается на отладочном ключе.
+val keystorePropsFile = rootProject.file("keystore.properties")
+val keystoreProps = Properties().apply {
+    if (keystorePropsFile.exists()) keystorePropsFile.inputStream().use { load(it) }
+}
+fun releaseSigningValue(propKey: String, envKey: String): String? =
+    keystoreProps.getProperty(propKey) ?: System.getenv(envKey)
+
+val releaseStoreFile = releaseSigningValue("storeFile", "RELEASE_STORE_FILE")
+val releaseStorePassword = releaseSigningValue("storePassword", "RELEASE_STORE_PASSWORD")
+val releaseKeyAlias = releaseSigningValue("keyAlias", "RELEASE_KEY_ALIAS")
+val releaseKeyPassword = releaseSigningValue("keyPassword", "RELEASE_KEY_PASSWORD")
+val hasReleaseSigningConfig = listOf(releaseStoreFile, releaseStorePassword, releaseKeyAlias, releaseKeyPassword)
+    .all { !it.isNullOrBlank() }
 
 android {
     namespace = "kz.dentvision.crm"
@@ -18,6 +40,17 @@ android {
         versionName = "2.0.0"
     }
 
+    signingConfigs {
+        if (hasReleaseSigningConfig) {
+            create("release") {
+                storeFile = file(releaseStoreFile!!)
+                storePassword = releaseStorePassword
+                keyAlias = releaseKeyAlias
+                keyPassword = releaseKeyPassword
+            }
+        }
+    }
+
     buildTypes {
         debug {
             // Тот же адрес, что и локальная разработка веба (localhost:3001);
@@ -30,6 +63,9 @@ android {
             buildConfigField("String", "API_BASE_URL", "\"https://dentvision-api.onrender.com\"")
             isMinifyEnabled = false
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
+            if (hasReleaseSigningConfig) {
+                signingConfig = signingConfigs.getByName("release")
+            }
         }
 
         /**
