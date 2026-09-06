@@ -68,6 +68,29 @@ data class ToothState(
     val status: String? = null,
     val diagnosis: String? = null,
     val notes: String? = null,
+    /**
+     * Находки по поверхностям: `M`/`O`/`D`/`B`/`L` → состояние этой стороны
+     * зуба (`caries`, `filled`, `healthy`).
+     *
+     * Сервер их присылает всегда — `serializePatient` специально собирает
+     * полную одонтограмму из `medicalHistory` и достаёт поверхности даже из
+     * заметок таблицы `teeth`. Здесь поля не было, поэтому клиент их молча
+     * терял: кариес на жевательной поверхности не показывался вовсе, и врач у
+     * кресла видел про зуб меньше, чем тот же врач видит в браузере.
+     */
+    val surfaces: Map<String, String> = emptyMap(),
+)
+
+/**
+ * Стороны зуба в порядке, в котором их принято называть. Ключи — те же буквы,
+ * что и в вебе (`SURFACE_KEYS` в `src/lib/odontogram.ts`).
+ */
+val TOOTH_SURFACE_LABELS: Map<String, String> = mapOf(
+    "M" to "Медиальная",
+    "O" to "Жевательная",
+    "D" to "Дистальная",
+    "B" to "Вестибулярная",
+    "L" to "Язычная",
 )
 
 /**

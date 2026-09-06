@@ -42,6 +42,7 @@ import kotlinx.coroutines.launch
 import kz.dentvision.crm.data.CrmRepository
 import kz.dentvision.crm.data.model.Patient
 import kz.dentvision.crm.data.model.TOOTH_STATUS_LABELS
+import kz.dentvision.crm.data.model.TOOTH_SURFACE_LABELS
 import kz.dentvision.crm.data.model.ToothState
 import kz.dentvision.crm.ui.common.EmptyStateView
 import kz.dentvision.crm.ui.common.ErrorState
@@ -109,9 +110,14 @@ class DentalChartViewModel(
 /**
  * Зубная карта выбранного пациента — только чтение.
  *
- * Менять состояние зуба отсюда нельзя намеренно: в вебе это делается по
- * поверхностям зуба, и упрощённая правка «одним касанием» затёрла бы более
- * подробную запись, сделанную у кресла. Показать — можно и нужно.
+ * Менять состояние зуба отсюда нельзя намеренно. Веб пишет запись по пяти
+ * поверхностям (`SURFACE_KEYS` в `src/lib/odontogram.ts`), и правка «одним
+ * касанием» на телефоне затёрла бы её целиком: зуб с кариесом на жевательной
+ * поверхности стал бы просто «кариозным», и то, какая сторона поражена,
+ * потерялось бы безвозвратно.
+ *
+ * Показывать — можно и нужно, и до этого не показывалось: поля `surfaces` в
+ * клиентской модели не было, хотя сервер шлёт его всегда.
  */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
@@ -201,6 +207,36 @@ fun DentalChartScreen(
                                 )
                             }
 
+                            // Находки по сторонам зуба. Показываем только
+                            // отмеченные: перечислять пять поверхностей, из
+                            // которых четыре «здорова», — это шум, за которым
+                            // теряется единственная важная строка.
+                            val marked = TOOTH_SURFACE_LABELS.entries
+                                .mapNotNull { (key, label) ->
+                                    tooth.surfaces[key]
+                                        ?.takeIf { it.isNotBlank() && it != "healthy" }
+                                        ?.let { status -> label to status }
+                                }
+                            if (marked.isNotEmpty()) {
+                                Text(
+                                    text = "Поверхности",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = DvTheme.colors.textMuted,
+                                    modifier = Modifier.padding(top = 12.dp),
+                                )
+                                marked.forEach { (label, status) ->
+                                    Text(
+                                        // Состояние написано словом, а не
+                                        // передано цветом: по одному цвету
+                                        // «кариес» от «пломбы» не отличить.
+                                        text = "$label — ${TOOTH_STATUS_LABELS[status] ?: status}",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = statusColor(status),
+                                        modifier = Modifier.padding(top = 4.dp),
+                                    )
+                                }
+                            }
+
                             // Что с этим зубом собираются делать. Формула
                             // отвечала только «что сейчас»; чтобы узнать
                             // «что дальше», врач уходил в раздел планов и
@@ -272,6 +308,22 @@ private fun ToothLegend() {
         horizontalArrangement = Arrangement.spacedBy(10.dp),
         verticalArrangement = Arrangement.spacedBy(4.dp),
     ) {
+        // Точка объясняется здесь же: метка без расшифровки — загадка, а не
+        // подсказка.
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Box(
+                modifier = Modifier
+                    .size(8.dp)
+                    .clip(RoundedCornerShape(4.dp))
+                    .background(DvTheme.colors.warning),
+            )
+            Text(
+                text = "есть находка по поверхности",
+                style = MaterialTheme.typography.labelSmall,
+                color = DvTheme.colors.textMuted,
+                modifier = Modifier.padding(start = 4.dp),
+            )
+        }
         TOOTH_STATUS_LABELS.forEach { (status, label) ->
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Box(
@@ -341,6 +393,12 @@ private fun ToothCell(
     onClick: () -> Unit,
 ) {
     val color = statusColor(tooth?.status)
+    // Зуб может быть отмечен здоровым в целом и при этом нести кариес на
+    // отдельной поверхности. По заливке такой зуб неотличим от здорового,
+    // поэтому находка по стороне помечается точкой: иначе её нашёл бы только
+    // тот, кто наугад нажал именно на этот зуб.
+    val hasSurfaceFinding = tooth?.surfaces
+        ?.any { (_, status) -> status.isNotBlank() && status != "healthy" } == true
     Column(
         modifier = modifier.clickable(onClick = onClick),
         horizontalAlignment = Alignment.CenterHorizontally,
@@ -359,6 +417,16 @@ private fun ToothCell(
                 color = DvTheme.colors.textPrimary,
                 textAlign = TextAlign.Center,
             )
+            if (hasSurfaceFinding) {
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .padding(2.dp)
+                        .size(6.dp)
+                        .clip(RoundedCornerShape(3.dp))
+                        .background(DvTheme.colors.warning),
+                )
+            }
         }
         Box(
             modifier = Modifier
