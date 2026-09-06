@@ -11,6 +11,7 @@ import kz.dentvision.crm.data.CommerceRepository
 import kz.dentvision.crm.data.PublicRepository
 import kz.dentvision.crm.data.model.PurchaseResult
 import kz.dentvision.crm.data.model.SchoolCourse
+import kz.dentvision.crm.data.model.ShopCategory
 import kz.dentvision.crm.data.model.ShopProduct
 import kz.dentvision.crm.ui.common.UiState
 
@@ -25,6 +26,12 @@ class ShopCatalogViewModel(
     private val _query = MutableStateFlow("")
     val query: StateFlow<String> = _query
 
+    private val _categories = MutableStateFlow<List<ShopCategory>>(emptyList())
+    val categories: StateFlow<List<ShopCategory>> = _categories
+
+    private val _category = MutableStateFlow<String?>(null)
+    val category: StateFlow<String?> = _category
+
     private val _selected = MutableStateFlow<ShopProduct?>(null)
     val selected: StateFlow<ShopProduct?> = _selected
 
@@ -35,6 +42,11 @@ class ShopCatalogViewModel(
 
     init {
         load("")
+        viewModelScope.launch {
+            // Список категорий короткий и общий для всей платформы — грузится
+            // один раз, отдельно от каждой перезагрузки товаров.
+            runCatching { repository.categories() }.onSuccess { _categories.value = it }
+        }
     }
 
     fun onQueryChange(value: String) {
@@ -46,6 +58,11 @@ class ShopCatalogViewModel(
             delay(350)
             load(value)
         }
+    }
+
+    fun onCategoryChange(slug: String?) {
+        _category.value = slug
+        load(_query.value)
     }
 
     fun retry() = load(_query.value)
@@ -76,7 +93,7 @@ class ShopCatalogViewModel(
     private fun load(search: String) {
         _state.value = UiState.Loading
         viewModelScope.launch {
-            runCatching { repository.products(search) }
+            runCatching { repository.products(search, _category.value) }
                 .onSuccess { _state.value = UiState.Data(it) }
                 .onFailure { _state.value = UiState.Error(it.message ?: "Каталог недоступен") }
         }
@@ -93,6 +110,12 @@ class SchoolCatalogViewModel(
 
     private val _query = MutableStateFlow("")
     val query: StateFlow<String> = _query
+
+    // В отличие от товаров, у курсов нет отдельной ручки списка категорий —
+    // категория здесь свободная строка на самом курсе (`SchoolCourse.category`).
+    // Фильтруем на клиенте по уже загруженному списку, а не заводим лишний запрос.
+    private val _category = MutableStateFlow<String?>(null)
+    val category: StateFlow<String?> = _category
 
     private val _selected = MutableStateFlow<SchoolCourse?>(null)
     val selected: StateFlow<SchoolCourse?> = _selected
@@ -116,6 +139,10 @@ class SchoolCatalogViewModel(
     }
 
     fun retry() = load(_query.value)
+
+    fun onCategoryChange(category: String?) {
+        _category.value = category
+    }
 
     fun openDetails(course: SchoolCourse) {
         _selected.value = course
