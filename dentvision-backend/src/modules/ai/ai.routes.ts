@@ -1106,6 +1106,40 @@ aiRouter.delete('/memory', authenticate, async (req: AuthRequest, res) => {
 
 // ─── AI Insights (Stage 11) — deterministic, no-LLM contextual hints ───
 import { computePatientInsights, listDismissedInsightIds, dismissInsight } from './os/insights.js';
+import { skillCatalogueFor } from './os/skills.js';
+import { resolveAiToolAccess } from './os/access.js';
+
+/**
+ * What the assistant can do *for this caller* — the per-role capability
+ * catalogue.
+ *
+ * The `SKILLS` registry and `skillsFor()` have existed since the skills layer
+ * landed, but nothing ever called them outside their own test, so no client
+ * could show a user their own list and the assistant opened as a blank input
+ * box. That is the whole reason it reads as mute: a cashier and a doctor saw
+ * the same empty screen and had to guess what to ask.
+ *
+ * Double-filtered, and both filters already existed:
+ *   - `agentsForRole` drops agents this clinic role may not invoke at all;
+ *   - `skillsFor` drops any skill whose tools are not in the caller's
+ *     `access.allowed`, which `resolveAiToolAccess` built from the database
+ *     permission graph — not from the JWT's role claim.
+ *
+ * So this route grants nothing. A skill listed here is one the kernel would
+ * have permitted anyway; a skill withheld is one it would have refused.
+ */
+aiRouter.get('/skills', authenticate, async (req: AuthRequest, res) => {
+  try {
+    const access = await resolveAiToolAccess({
+      userId: req.user!.id,
+      clinicId: req.user?.clinicId ?? null,
+    });
+    return res.json({ ok: true, data: skillCatalogueFor(access, 'staff') });
+  } catch (error) {
+    console.error('[AI Skills] list failed:', error);
+    return res.status(500).json({ ok: false, error: 'Не удалось получить список возможностей' });
+  }
+});
 
 aiRouter.get('/insights', authenticate, requirePermission('medical.read'), async (req: AuthRequest, res) => {
   try {

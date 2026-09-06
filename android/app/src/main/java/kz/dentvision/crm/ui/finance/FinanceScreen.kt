@@ -33,6 +33,7 @@ import kz.dentvision.crm.ui.common.ErrorState
 import kz.dentvision.crm.ui.common.LoadingSkeleton
 import kz.dentvision.crm.ui.common.UiState
 import kz.dentvision.crm.ui.theme.DvTheme
+import kz.dentvision.crm.ui.theme.DvSpacing
 
 /**
  * Финансы: выручка, долг, расходы, зарплата и прибыль за период.
@@ -50,14 +51,14 @@ fun FinanceScreen(viewModel: FinanceViewModel = viewModel()) {
         modifier = Modifier
             .fillMaxSize()
             .verticalScroll(rememberScrollState())
-            .padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp),
+            .padding(DvSpacing.lg),
+        verticalArrangement = Arrangement.spacedBy(DvSpacing.md),
     ) {
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
         ) {
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Row(horizontalArrangement = Arrangement.spacedBy(DvSpacing.sm)) {
                 FinancePeriod.entries.forEach { period ->
                     FilterChip(
                         selected = state.period == period,
@@ -110,7 +111,7 @@ fun FinanceScreen(viewModel: FinanceViewModel = viewModel()) {
 private fun ReportBody(report: FinanceReport) {
     val totals = report.totals
 
-    Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+    Row(horizontalArrangement = Arrangement.spacedBy(DvSpacing.sm), modifier = Modifier.fillMaxWidth()) {
         Metric("Выручка", formatTenge(totals.revenue), DvTheme.colors.success, Modifier.weight(1f))
         Metric(
             label = "Прибыль",
@@ -121,11 +122,11 @@ private fun ReportBody(report: FinanceReport) {
             modifier = Modifier.weight(1f),
         )
     }
-    Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+    Row(horizontalArrangement = Arrangement.spacedBy(DvSpacing.sm), modifier = Modifier.fillMaxWidth()) {
         Metric("Долг", formatTenge(totals.unpaid), DvTheme.colors.warning, Modifier.weight(1f))
         Metric("Расходы", formatTenge(totals.expenses), DvTheme.colors.textSecondary, Modifier.weight(1f))
     }
-    Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+    Row(horizontalArrangement = Arrangement.spacedBy(DvSpacing.sm), modifier = Modifier.fillMaxWidth()) {
         Metric("Зарплата", formatTenge(totals.payroll), DvTheme.colors.textSecondary, Modifier.weight(1f))
         Metric("Оплачено счетов", totals.paidCount.toString(), DvTheme.colors.textSecondary, Modifier.weight(1f))
     }
@@ -166,7 +167,7 @@ private fun PayrollBreakdown(rows: List<kz.dentvision.crm.data.model.FinancePayr
         colors = CardDefaults.cardColors(containerColor = DvTheme.colors.surface1),
         border = androidx.compose.foundation.BorderStroke(1.dp, DvTheme.colors.borderSubtle),
     ) {
-        Column(modifier = Modifier.padding(14.dp)) {
+        Column(modifier = Modifier.padding(DvSpacing.lg)) {
             Text(
                 text = "Зарплата по врачам",
                 style = MaterialTheme.typography.labelLarge,
@@ -174,11 +175,11 @@ private fun PayrollBreakdown(rows: List<kz.dentvision.crm.data.model.FinancePayr
             )
             HorizontalDivider(
                 color = DvTheme.colors.borderSubtle,
-                modifier = Modifier.padding(vertical = 8.dp),
+                modifier = Modifier.padding(vertical = DvSpacing.sm),
             )
             rows.forEach { row ->
                 Row(
-                    modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                    modifier = Modifier.fillMaxWidth().padding(vertical = DvSpacing.xs),
                     horizontalArrangement = Arrangement.SpaceBetween,
                 ) {
                     Column {
@@ -211,13 +212,13 @@ private fun Metric(label: String, value: String, color: Color, modifier: Modifie
         colors = CardDefaults.cardColors(containerColor = DvTheme.colors.surface1),
         border = androidx.compose.foundation.BorderStroke(1.dp, DvTheme.colors.borderSubtle),
     ) {
-        Column(modifier = Modifier.padding(14.dp)) {
+        Column(modifier = Modifier.padding(DvSpacing.lg)) {
             Text(text = value, style = MaterialTheme.typography.titleLarge, color = color)
             Text(
                 text = label,
                 style = MaterialTheme.typography.labelSmall,
                 color = DvTheme.colors.textMuted,
-                modifier = Modifier.padding(top = 2.dp),
+                modifier = Modifier.padding(top = DvSpacing.xs),
             )
         }
     }
@@ -230,7 +231,7 @@ private fun Breakdown(title: String, rows: List<Pair<String, String>>) {
         colors = CardDefaults.cardColors(containerColor = DvTheme.colors.surface1),
         border = androidx.compose.foundation.BorderStroke(1.dp, DvTheme.colors.borderSubtle),
     ) {
-        Column(modifier = Modifier.padding(14.dp)) {
+        Column(modifier = Modifier.padding(DvSpacing.lg)) {
             Text(
                 text = title,
                 style = MaterialTheme.typography.labelLarge,
@@ -238,11 +239,11 @@ private fun Breakdown(title: String, rows: List<Pair<String, String>>) {
             )
             HorizontalDivider(
                 color = DvTheme.colors.borderSubtle,
-                modifier = Modifier.padding(vertical = 8.dp),
+                modifier = Modifier.padding(vertical = DvSpacing.sm),
             )
             rows.forEach { (name, value) ->
                 Row(
-                    modifier = Modifier.fillMaxWidth().padding(vertical = 3.dp),
+                    modifier = Modifier.fillMaxWidth().padding(vertical = DvSpacing.xs),
                     horizontalArrangement = Arrangement.SpaceBetween,
                 ) {
                     Text(

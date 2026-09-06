@@ -148,6 +148,8 @@ fun GuestShell() {
                         embedded = true,
                         showRegisterBanner = true,
                         onRegisterDiagnostics = { open(GuestDestination.REGISTER_DIAGNOSTICS) },
+                        isAuthenticated = false,
+                        onRequireLogin = { open(GuestDestination.LOGIN) },
                     )
                     GuestDestination.REGISTER_DIAGNOSTICS -> DiagnosticsRegisterScreen(
                         onBack = { open(GuestDestination.HOME) },

@@ -85,6 +85,13 @@ data class AppointmentUpsert(
     val duration: Int? = null,
     val status: String? = null,
     val serviceName: String? = null,
+    val servicePrice: Double? = null,
+    /**
+     * Номер зуба по FDI. Диагноз/зуб относятся к самому визиту, а не к
+     * бронированию слота — на вебе (`Schedule.tsx`) поле показывается только
+     * при правке уже существующего приёма, не при создании новой записи.
+     */
+    val toothNumber: String? = null,
     val notes: String? = null,
     /** `unpaid`/`partial`/`paid` — то же поле, что уже читает GET, здесь пишется отдельно от `status`. */
     val paymentStatus: String? = null,

@@ -13,7 +13,7 @@ vi.mock('../../lib/prisma.js', () => ({
   },
 }));
 
-const { applyToothFindings, isValidFdi, syncTeeth } = await import('./teethStore.js');
+const { applyToothFindings, isValidFdi, normalizeSurfaceFindings, syncTeeth } = await import('./teethStore.js');
 
 /** What `patient.update` was asked to write. */
 function writtenTeeth(): Record<string, any> {
@@ -137,6 +137,44 @@ describe('applyToothFindings', () => {
     await expect(applyToothFindings('p1', 'c1', [{ tooth: 16, status: 'caries' }])).resolves.toEqual([
       { tooth: 16, before: 'healthy', after: 'caries' },
     ]);
+  });
+});
+
+describe('normalizeSurfaceFindings', () => {
+  it('keeps a well-formed surface finding', () => {
+    expect(normalizeSurfaceFindings([{ tooth: 16, status: 'caries', surfaces: ['O'] }])).toEqual([
+      { tooth: 16, status: 'caries', surfaces: ['O'] },
+    ]);
+  });
+
+  it('drops a whole-tooth-only status — a per-surface edit cannot blank the other four surfaces', () => {
+    expect(normalizeSurfaceFindings([{ tooth: 16, status: 'missing', surfaces: ['O'] }])).toEqual([]);
+  });
+
+  it('drops a finding with no surfaces — that is a whole-tooth edit, not this route', () => {
+    expect(normalizeSurfaceFindings([{ tooth: 16, status: 'caries', surfaces: [] }])).toEqual([]);
+  });
+
+  it('drops an invalid FDI number', () => {
+    expect(normalizeSurfaceFindings([{ tooth: 99, status: 'caries', surfaces: ['O'] }])).toEqual([]);
+  });
+
+  it('drops an unknown status instead of writing it verbatim', () => {
+    expect(normalizeSurfaceFindings([{ tooth: 16, status: 'sparkly', surfaces: ['O'] }])).toEqual([]);
+  });
+
+  it('is not fooled by a non-array body', () => {
+    expect(normalizeSurfaceFindings('not an array')).toEqual([]);
+    expect(normalizeSurfaceFindings(undefined)).toEqual([]);
+  });
+
+  it('keeps the valid entries out of a mixed batch', () => {
+    const findings = normalizeSurfaceFindings([
+      { tooth: 16, status: 'caries', surfaces: ['O'] },
+      { tooth: 99, status: 'caries', surfaces: ['O'] },
+      { tooth: 26, status: 'healthy', surfaces: ['M', 'D'] },
+    ]);
+    expect(findings.map((f) => f.tooth)).toEqual([16, 26]);
   });
 });
 

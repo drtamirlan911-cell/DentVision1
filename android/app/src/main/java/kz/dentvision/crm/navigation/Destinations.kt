@@ -43,6 +43,14 @@ val IMPLEMENTED_PAGES: Map<String, @Composable (Session) -> Unit> = mapOf(
         ScheduleScreen(
             clinicId = session.clinic?.id,
             canWrite = session.has("appointments.write"),
+            // Владелец и администратор видят полную сетку по всем врачам;
+            // роль с `ownDataOnly` (врач, ассистент) — только свою колонку.
+            ownDoctorId = if (session.ownDataOnly) session.user.id else null,
+            // `billing.manage`, не `appointments.write` — так размечен сам
+            // маршрут `POST /api/billing/invoices`. У врача есть только
+            // appointments.write, и без этой развязки кнопка «Принять
+            // оплату» вела бы его прямиком в 403.
+            canAcceptPayment = session.has("billing.manage"),
         )
     },
     "patients" to { session -> PatientsScreen(canWrite = session.has("patients.write")) },
@@ -71,8 +79,18 @@ val IMPLEMENTED_PAGES: Map<String, @Composable (Session) -> Unit> = mapOf(
     "documents" to { DocumentsScreen() },
     "icd10" to { Icd10Screen() },
     "promotions" to { PromotionsScreen() },
-    "staff" to { session -> StaffScreen(clinicId = session.clinic?.id) },
-    "dental-chart" to { DentalChartScreen() },
+    // Приглашать может только владелец/администратор — тот же гейт, что
+    // сам маршрут `POST /api/auth/invitations` (`auth.routes.ts:1152`),
+    // здесь только чтобы не показывать кнопку с гарантированным 403.
+    "staff" to { session ->
+        StaffScreen(
+            clinicId = session.clinic?.id,
+            canInvite = session.effectiveRole?.uppercase() in setOf("OWNER", "ADMIN"),
+        )
+    },
+    // `medical.write`, а не `patients.write` — та же ручка, что сторожит
+    // `POST /api/medical/teeth/findings`.
+    "dental-chart" to { session -> DentalChartScreen(canWrite = session.has("medical.write")) },
     "clinic-settings" to { session -> ClinicSettingsScreen(clinicId = session.clinic?.id) },
     "billing" to { ClinicBillingScreen() },
     "workflow" to { WorkflowScreen() },
@@ -86,11 +104,28 @@ val IMPLEMENTED_PAGES: Map<String, @Composable (Session) -> Unit> = mapOf(
 )
 
 /**
- * Дом оболочки — как `/` на вебе (`IntelligenceLayout.tsx`): диалог с ИИ, а
- * не список разделов CRM. `ROUTE_WORKSPACE` (кабинет клиники) остаётся, но
- * открывается уже из этого экрана или из бокового меню, а не наоборот.
+ * Дом оболочки — рабочий день: кто следующий, кто ещё сегодня, что горит.
+ *
+ * Раньше домом был чат с ассистентом ([ROUTE_INTELLIGENCE]), как первый
+ * маршрут веба. На телефоне это не сработало: смена начинается не с вопроса
+ * ассистенту, а с вопроса «кто у меня сегодня», и ответ на него приходилось
+ * собирать вручную — открыть кабинет, найти расписание, пролистать до
+ * текущего часа. Чат остался отдельной вкладкой, он просто больше не первый.
  */
+const val ROUTE_TODAY = "today"
+
+/** Ассистент — тот же экран, что был домом; теперь отдельная вкладка. */
 const val ROUTE_INTELLIGENCE = "intelligence"
+
+/**
+ * Поиск пациента из шапки — доступен с любого экрана.
+ *
+ * Назван по тому, что реально делает: своей ручки сквозного поиска по
+ * документам, планам и платежам у сервера нет, есть серверный поиск
+ * пациентов (`GET /api/patients?search=`, включая ИИН целиком). Обещать
+ * большее пунктом меню значило бы имитировать функцию.
+ */
+const val ROUTE_SEARCH = "search"
 
 /** Кабинет клиники — разделы CRM. */
 const val ROUTE_WORKSPACE = "workspace"
@@ -176,17 +211,50 @@ const val ROUTE_OPERATOR_PAYMENTS = "operator-workspace/payments"
 const val ROUTE_OPERATOR_TEAM = "operator-workspace/team"
 
 /**
+ * Кабинет продавца — перенос `SupplierWorkspace.tsx`, все 8 вкладок в одном
+ * экране (`SupplierWorkspaceScreen.kt`), а не россыпью подмаршрутов, как у
+ * кабинета приёма — там разделы достаточно самостоятельны для отдельных
+ * экранов (касса, финансы…), здесь ровно то же разбиение, что и на вебе:
+ * внутренние вкладки одной страницы.
+ */
+const val ROUTE_SUPPLIER_WORKSPACE = "supplier-workspace"
+
+/**
+ * Кабинет лектора — перенос `lecturer.routes.ts`, три вкладки в одном экране
+ * (`LecturerWorkspaceScreen.kt`), тем же приёмом, что и у продавца.
+ */
+const val ROUTE_LECTURER_WORKSPACE = "lecturer-workspace"
+
+/**
  * Куда ведёт пункт «Кабинет» для активного пространства — общая развилка
  * для нижней навигации и пункта в drawer (`AppShell.kt`), чтобы не
  * дублировать одну и ту же проверку в двух местах. `null`, если под тип
- * активного пространства (`SUPPLIER`/`ACADEMY`/`LECTURER`/`PARTNER`) в
- * приложении ещё нет экрана — вызывающая сторона решает, как честно об
- * этом сказать, а не ведёт в чужой кабинет по умолчанию.
+ * активного пространства (`ACADEMY`/`PARTNER`) в приложении ещё нет экрана —
+ * вызывающая сторона решает, как честно об этом сказать, а не ведёт в чужой
+ * кабинет по умолчанию.
+ *
+ * `organizationType` здесь — значение из `/me` (`session.user.organizationType`),
+ * а НЕ `WorkspaceContext.scopeType`: у поставщика они расходятся —
+ * `switch-context`/`/me/contexts` говорят `SUPPLIER`, а `/me` (тот же путь,
+ * что реально приходит после переключения) — `SUPPLIER_COMPANY` (см.
+ * `iam/contexts.ts` — комментарий там же зафиксировал это расхождение
+ * словарей REST/unified). Спутать здесь — значит пункт меню никогда не
+ * появится ни для одного продавца.
+ *
+ * Лектор проверяется первым и отдельно от `organizationType`: самостоятельная
+ * регистрация без академии (обычный путь, см. докстринг `User.lecturerId`)
+ * не создаёt Organization вовсе, и `organizationType` у такой сессии — `null`,
+ * тот же самый `null`, что и у пользователя без единой клиники. Проверять
+ * `organizationType` первым значило бы увести лектора в кабинет клиники.
  */
-fun cabinetRouteFor(session: Session): String? = when (session.user.organizationType) {
-    null, "CLINIC" -> ROUTE_WORKSPACE
-    "DIAGNOSTIC_CENTER", "LABORATORY" -> ROUTE_OPERATOR_WORKSPACE
-    else -> null
+fun cabinetRouteFor(session: Session): String? {
+    if (session.user.lecturerId != null) return ROUTE_LECTURER_WORKSPACE
+    return when (session.user.organizationType) {
+        null, "CLINIC" -> ROUTE_WORKSPACE
+        "DIAGNOSTIC_CENTER", "LABORATORY" -> ROUTE_OPERATOR_WORKSPACE
+        "SUPPLIER_COMPANY" -> ROUTE_SUPPLIER_WORKSPACE
+        else -> null
+    }
 }
 
 /**
@@ -274,3 +342,13 @@ const val ROUTE_MARKETING_PLAN = "crm/promotions/marketing/plan"
  * попросту нет.
  */
 const val ROUTE_MY_CLINICS = "my-clinics"
+
+/**
+ * Аналитика клиники — сводка, выручка и новые пациенты по месяцам, загрузка
+ * врачей.
+ *
+ * Не идёт через `pages`: у сервера свой гейт (`requirePermission('bi.clinic')`
+ * плюс тарифная проверка `guardAnalytics`), а не строка в списке страниц.
+ * Поэтому маршрут заводится напрямую, тем же приёмом, что [ROUTE_JOBS].
+ */
+const val ROUTE_ANALYTICS = "analytics"

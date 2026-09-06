@@ -2,11 +2,13 @@ package kz.dentvision.crm.ui.schedule
 
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -66,15 +68,16 @@ import kz.dentvision.crm.ui.theme.DvConfirmDialog
 import kz.dentvision.crm.ui.theme.DvOutlineButton
 import kz.dentvision.crm.ui.theme.DvPrimaryButton
 import kz.dentvision.crm.ui.theme.DvTheme
+import kz.dentvision.crm.ui.theme.DvSpacing
+import kz.dentvision.crm.lib.formatPhone
+import kz.dentvision.crm.lib.formatTenge
+import kz.dentvision.crm.lib.TOOTH_NAMES
+import kz.dentvision.crm.lib.TOOTH_QUADRANTS
+import kz.dentvision.crm.data.model.PriceListItem
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 
 private val DAY_FORMAT = DateTimeFormatter.ofPattern("d MMMM, EEEE", Locale("ru"))
-
-private val PAYMENT_STATUS_LABELS = mapOf(
-    "paid" to "Оплачено",
-    "partial" to "Частично оплачено",
-)
 
 /**
  * Расписание одного дня. День, а не неделя: на телефоне сетка недели
@@ -85,6 +88,14 @@ private val PAYMENT_STATUS_LABELS = mapOf(
 fun ScheduleScreen(
     clinicId: String?,
     canWrite: Boolean,
+    /**
+     * Не null — сетка показывает только эту колонку врача, а не всех
+     * коллег. Роль с `ownDataOnly` (врач, ассистент) видит только себя;
+     * администратор и владелец передают null и получают полную сетку.
+     */
+    ownDoctorId: String? = null,
+    /** `billing.manage` — ручка `POST /api/billing/invoices` требует именно его, а не `appointments.write`. */
+    canAcceptPayment: Boolean = canWrite,
     viewModel: ScheduleViewModel = viewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
@@ -130,7 +141,7 @@ fun ScheduleScreen(
     ) { padding ->
         Column(modifier = Modifier.fillMaxSize().padding(padding)) {
             Row(
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp),
+                modifier = Modifier.fillMaxWidth().padding(horizontal = DvSpacing.sm),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween,
             ) {
@@ -158,38 +169,35 @@ fun ScheduleScreen(
             when (val list = state.list) {
                 is UiState.Loading -> LoadingSkeleton()
                 is UiState.Error -> ErrorState(message = list.message, onRetry = viewModel::load)
-                is UiState.Data -> if (list.value.isEmpty()) {
-                    EmptyStateView(
-                        title = "На этот день записей нет",
-                        description = "Пустой день — это тоже ответ: приёмы не потерялись, их просто нет.",
-                    )
-                } else {
-                    // Раньше карточка приёма нигде не показывала врача — при
-                    // нескольких докторах в клинике администратор не мог
-                    // понять по расписанию, к кому записан пациент, и не видел
-                    // при создании новой записи, чьи слоты уже заняты.
-                    val doctorsById = state.doctors.associateBy { it.id }
-                    LazyColumn(
-                        contentPadding = androidx.compose.foundation.layout.PaddingValues(16.dp),
-                        verticalArrangement = Arrangement.spacedBy(8.dp),
-                    ) {
-                        items(list.value, key = { it.id }) { appointment ->
-                            AppointmentRow(
-                                appointment = appointment,
-                                doctorName = doctorsById[appointment.doctorId]?.name,
-                                onClick = if (canWrite) {
-                                    {
-                                        viewModel.openEdit(appointment)
-                                        showForm = true
-                                    }
-                                } else null,
-                                canDelete = canWrite,
-                                onDelete = { pendingDelete = appointment },
-                                onAcceptPayment = if (canWrite && appointment.paymentStatus != "paid") {
-                                    { viewModel.openPayment(appointment) }
-                                } else null,
-                            )
-                        }
+                is UiState.Data -> {
+                    // Своя колонка у роли с ownDataOnly — коллеги не заведены
+                    // в сетку вовсе, а не показаны пустыми: `doctorId` не
+                    // приходит null для настоящего врача, поэтому сравнение
+                    // здесь безопасно и не прячет чужую колонку по ошибке.
+                    val visibleDoctors = if (ownDoctorId != null) {
+                        state.doctors.filter { it.id == ownDoctorId }
+                    } else {
+                        state.doctors
+                    }
+                    Box(modifier = Modifier.padding(horizontal = DvSpacing.sm, vertical = DvSpacing.sm)) {
+                        ScheduleGrid(
+                            doctors = visibleDoctors,
+                            appointments = list.value,
+                            canWrite = canWrite,
+                            onSlotClick = { doctorId, time ->
+                                viewModel.openForm(doctorId = doctorId, time = time)
+                                showForm = true
+                            },
+                            onAppointmentClick = { appointment ->
+                                if (canWrite) {
+                                    viewModel.openEdit(appointment)
+                                    showForm = true
+                                }
+                            },
+                            onReschedule = { appointment, newDoctorId, newTime ->
+                                viewModel.rescheduleAppointment(appointment, newDoctorId, newTime)
+                            },
+                        )
                     }
                 }
             }
@@ -202,7 +210,19 @@ fun ScheduleScreen(
             sheetState = sheetState,
             containerColor = DvTheme.colors.surface1,
         ) {
-            AppointmentForm(viewModel = viewModel, onSaved = { showForm = false })
+            AppointmentForm(
+                viewModel = viewModel,
+                canAcceptPayment = canAcceptPayment,
+                onSaved = { showForm = false },
+                onDelete = { id ->
+                    (state.list as? UiState.Data)?.value?.firstOrNull { it.id == id }?.let { pendingDelete = it }
+                    showForm = false
+                },
+                onAcceptPayment = { id ->
+                    (state.list as? UiState.Data)?.value?.firstOrNull { it.id == id }?.let { viewModel.openPayment(it) }
+                    showForm = false
+                },
+            )
         }
     }
 
@@ -228,128 +248,32 @@ fun ScheduleScreen(
             onDismiss = { pendingDelete = null },
         )
     }
-}
 
-@Composable
-private fun AppointmentRow(
-    appointment: Appointment,
-    doctorName: String?,
-    onClick: (() -> Unit)? = null,
-    canDelete: Boolean = false,
-    onDelete: (() -> Unit)? = null,
-    onAcceptPayment: (() -> Unit)? = null,
-) {
-    Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier),
-        colors = CardDefaults.cardColors(containerColor = DvTheme.colors.surface1),
-        border = androidx.compose.foundation.BorderStroke(1.dp, DvTheme.colors.borderSubtle),
-    ) {
-        Row(modifier = Modifier.padding(14.dp), verticalAlignment = Alignment.Top) {
-            Column(modifier = Modifier.width(64.dp)) {
-                Text(
-                    text = appointment.time,
-                    style = MaterialTheme.typography.titleMedium,
-                    color = DvTheme.colors.gold,
-                )
-                Text(
-                    text = "${appointment.duration} мин",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = DvTheme.colors.textGhost,
-                )
-            }
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = appointment.patientName ?: "Пациент",
-                    style = MaterialTheme.typography.titleMedium,
-                    color = DvTheme.colors.textPrimary,
-                )
-                // Врач — отдельной, заметной строкой сразу под пациентом: в
-                // клинике с несколькими докторами это первое, что нужно
-                // администратору, чтобы понять, чей это приём и не занят ли
-                // нужный врач, когда он записывает следующего пациента.
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier.padding(top = 3.dp),
-                ) {
-                    Icon(
-                        imageVector = Icons.Filled.Person,
-                        contentDescription = null,
-                        tint = DvTheme.colors.gold,
-                        modifier = Modifier.size(13.dp),
-                    )
-                    Text(
-                        text = doctorName ?: "Врач не назначен",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = if (doctorName != null) DvTheme.colors.gold else DvTheme.colors.warning,
-                        fontWeight = FontWeight.Medium,
-                        modifier = Modifier.padding(start = 4.dp),
-                    )
-                }
-                val service = appointment.serviceName.ifBlank { appointment.reason }
-                if (service.isNotBlank()) {
-                    Text(
-                        text = service,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = DvTheme.colors.textSecondary,
-                        modifier = Modifier.padding(top = 3.dp),
-                    )
-                }
-                val meta = listOfNotNull(
-                    APPOINTMENT_STATUS_LABELS[appointment.status] ?: appointment.status,
-                    appointment.chairName.ifBlank { null },
-                    appointment.patientPhone,
-                ).joinToString(" · ")
-                Text(
-                    text = meta,
-                    style = MaterialTheme.typography.labelSmall,
-                    color = DvTheme.colors.textMuted,
-                    modifier = Modifier.padding(top = 4.dp),
-                )
-                // Отметка про оплату — только когда есть что показать помимо
-                // «не оплачено», это ожидаемое состояние большинства приёмов
-                // и не заслуживает бейджа на каждой карточке.
-                PAYMENT_STATUS_LABELS[appointment.paymentStatus]?.let { label ->
-                    DvBadge(
-                        text = label,
-                        variant = if (appointment.paymentStatus == "paid") DvBadgeVariant.SUCCESS else DvBadgeVariant.WARNING,
-                        size = kz.dentvision.crm.ui.theme.DvBadgeSize.XS,
-                        modifier = Modifier.padding(top = 5.dp),
-                    )
-                }
-            }
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                if (onAcceptPayment != null) {
-                    IconButton(onClick = onAcceptPayment, modifier = Modifier.size(28.dp)) {
-                        Icon(
-                            Icons.Filled.Payments,
-                            contentDescription = "Принять оплату",
-                            tint = DvTheme.colors.gold,
-                            modifier = Modifier.size(18.dp),
-                        )
-                    }
-                }
-                if (canDelete) {
-                    IconButton(onClick = { onDelete?.invoke() }, modifier = Modifier.size(28.dp)) {
-                        Icon(
-                            Icons.Filled.Delete,
-                            contentDescription = "Отменить запись",
-                            tint = DvTheme.colors.textGhost,
-                            modifier = Modifier.size(18.dp),
-                        )
-                    }
-                }
-            }
-        }
+    state.rescheduleConflict?.let { conflict ->
+        DvConfirmDialog(
+            title = "Время уже занято",
+            message = "${conflict.message}\n\nПеренести на ${conflict.newTime} всё равно?",
+            confirmLabel = "Перенести всё равно",
+            onConfirm = viewModel::confirmRescheduleAnyway,
+            onDismiss = viewModel::dismissRescheduleConflict,
+        )
     }
 }
 
 @Composable
-private fun AppointmentForm(viewModel: ScheduleViewModel, onSaved: () -> Unit) {
+private fun AppointmentForm(
+    viewModel: ScheduleViewModel,
+    canAcceptPayment: Boolean,
+    onSaved: () -> Unit,
+    onDelete: (String) -> Unit,
+    onAcceptPayment: (String) -> Unit,
+) {
     val form by viewModel.form.collectAsStateWithLifecycle()
     val state by viewModel.state.collectAsStateWithLifecycle()
+    val priceList by viewModel.priceList.collectAsStateWithLifecycle()
     var pickingPatient by remember { mutableStateOf(false) }
+    var pickingService by remember { mutableStateOf(false) }
+    var pickingTooth by remember { mutableStateOf(false) }
 
     Column(
         modifier = Modifier
@@ -357,15 +281,45 @@ private fun AppointmentForm(viewModel: ScheduleViewModel, onSaved: () -> Unit) {
             .verticalScroll(rememberScrollState())
             .imePadding()
             .navigationBarsPadding()
-            .padding(horizontal = 20.dp)
-            .padding(bottom = 24.dp),
-        verticalArrangement = Arrangement.spacedBy(10.dp),
+            .padding(horizontal = DvSpacing.xl)
+            .padding(bottom = DvSpacing.xxl),
+        verticalArrangement = Arrangement.spacedBy(DvSpacing.md),
     ) {
-        Text(
-            text = if (form.id != null) "Приём ${form.time}" else "Новая запись на ${state.date}",
-            style = MaterialTheme.typography.titleLarge,
-            color = DvTheme.colors.textPrimary,
-        )
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                text = if (form.id != null) "Приём ${form.time}" else "Новая запись на ${state.date}",
+                style = MaterialTheme.typography.titleLarge,
+                color = DvTheme.colors.textPrimary,
+            )
+            // Отменить/принять оплату — раньше это было доступно только из
+            // плоского списка (`AppointmentRow`), которого сетка не рисует;
+            // без этой строки правка приёма из сетки лишилась бы обеих
+            // возможностей.
+            form.id?.let { id ->
+                Row {
+                    if (canAcceptPayment && form.paymentStatus != "paid") {
+                        IconButton(onClick = { onAcceptPayment(id) }) {
+                            Icon(
+                                Icons.Filled.Payments,
+                                contentDescription = "Принять оплату",
+                                tint = DvTheme.colors.gold,
+                            )
+                        }
+                    }
+                    IconButton(onClick = { onDelete(id) }) {
+                        Icon(
+                            Icons.Filled.Delete,
+                            contentDescription = "Отменить приём",
+                            tint = DvTheme.colors.textGhost,
+                        )
+                    }
+                }
+            }
+        }
 
         DvOutlineButton(
             onClick = { pickingPatient = true },
@@ -384,7 +338,7 @@ private fun AppointmentForm(viewModel: ScheduleViewModel, onSaved: () -> Unit) {
                 color = DvTheme.colors.textGhost,
             )
             APPOINTMENT_STATUS_LABELS.entries.chunked(2).forEach { row ->
-                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                Row(horizontalArrangement = Arrangement.spacedBy(DvSpacing.sm)) {
                     row.forEach { (key, label) ->
                         FilterChip(
                             selected = form.status == key,
@@ -402,7 +356,7 @@ private fun AppointmentForm(viewModel: ScheduleViewModel, onSaved: () -> Unit) {
                 style = MaterialTheme.typography.labelMedium,
                 color = DvTheme.colors.textGhost,
             )
-            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Column(verticalArrangement = Arrangement.spacedBy(DvSpacing.sm)) {
                 state.doctors.forEach { doctor ->
                     FilterChip(
                         selected = form.doctorId == doctor.id,
@@ -418,7 +372,7 @@ private fun AppointmentForm(viewModel: ScheduleViewModel, onSaved: () -> Unit) {
             }
         }
 
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        Row(horizontalArrangement = Arrangement.spacedBy(DvSpacing.sm)) {
             OutlinedTextField(
                 value = form.time,
                 onValueChange = { value -> viewModel.updateForm { it.copy(time = value) } },
@@ -439,13 +393,41 @@ private fun AppointmentForm(viewModel: ScheduleViewModel, onSaved: () -> Unit) {
             )
         }
 
-        OutlinedTextField(
-            value = form.serviceName,
-            onValueChange = { value -> viewModel.updateForm { it.copy(serviceName = value) } },
-            label = { Text("Услуга") },
-            singleLine = true,
-            modifier = Modifier.fillMaxWidth(),
+        Text(
+            text = "Услуга из прайса",
+            style = MaterialTheme.typography.labelMedium,
+            color = DvTheme.colors.textGhost,
         )
+        DvOutlineButton(onClick = { pickingService = true }, modifier = Modifier.fillMaxWidth()) {
+            Text(
+                if (form.serviceName.isBlank()) {
+                    "Выбрать услугу"
+                } else if (form.servicePrice > 0) {
+                    "${form.serviceName} · ${formatTenge(form.servicePrice.toLong())}"
+                } else {
+                    form.serviceName
+                },
+            )
+        }
+
+        // Диагноз/зуб относятся к самому визиту, а не к бронированию слота —
+        // показываем только при правке уже существующего приёма, тем же
+        // приёмом, что `Schedule.tsx`: просить указать зуб раньше, чем
+        // пациента вообще осмотрели, значило бы гадать.
+        if (form.id != null) {
+            Text(
+                text = "Зуб (по FDI)",
+                style = MaterialTheme.typography.labelMedium,
+                color = DvTheme.colors.textGhost,
+            )
+            DvOutlineButton(onClick = { pickingTooth = true }, modifier = Modifier.fillMaxWidth()) {
+                Text(
+                    form.toothNumber.toIntOrNull()?.let { n -> "$n — ${TOOTH_NAMES[n] ?: ""}" }
+                        ?: "Без указания зуба",
+                )
+            }
+        }
+
         OutlinedTextField(
             value = form.notes,
             onValueChange = { value -> viewModel.updateForm { it.copy(notes = value) } },
@@ -472,7 +454,7 @@ private fun AppointmentForm(viewModel: ScheduleViewModel, onSaved: () -> Unit) {
         DvPrimaryButton(
             onClick = { viewModel.save(onSaved) },
             enabled = form.canSave,
-            modifier = Modifier.fillMaxWidth().padding(top = 6.dp),
+            modifier = Modifier.fillMaxWidth().padding(top = DvSpacing.sm),
         ) {
             if (form.saving) {
                 CircularProgressIndicator(
@@ -501,6 +483,116 @@ private fun AppointmentForm(viewModel: ScheduleViewModel, onSaved: () -> Unit) {
             },
         )
     }
+
+    if (pickingService) {
+        ServicePickerSheet(
+            services = priceList,
+            onDismiss = { pickingService = false },
+            onSelect = { item ->
+                viewModel.selectService(item)
+                pickingService = false
+            },
+        )
+    }
+
+    if (pickingTooth) {
+        ToothPickerSheet(
+            selected = form.toothNumber.toIntOrNull(),
+            onDismiss = { pickingTooth = false },
+            onSelect = { number ->
+                viewModel.updateForm { it.copy(toothNumber = number?.toString().orEmpty()) }
+                pickingTooth = false
+            },
+        )
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun ServicePickerSheet(
+    services: List<PriceListItem>,
+    onDismiss: () -> Unit,
+    onSelect: (PriceListItem) -> Unit,
+) {
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    ModalBottomSheet(onDismissRequest = onDismiss, sheetState = sheetState, containerColor = DvTheme.colors.surface1) {
+        if (services.isEmpty()) {
+            Text(
+                text = "Прайс пуст — добавьте услуги в разделе «Прайс».",
+                style = MaterialTheme.typography.bodyMedium,
+                color = DvTheme.colors.textMuted,
+                modifier = Modifier.fillMaxWidth().padding(DvSpacing.xl),
+            )
+        } else {
+            LazyColumn(contentPadding = PaddingValues(bottom = DvSpacing.xxl)) {
+                items(services, key = { it.id }) { item ->
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { onSelect(item) }
+                            .padding(horizontal = DvSpacing.xl, vertical = DvSpacing.md),
+                    ) {
+                        Text(
+                            item.name?.ifBlank { null } ?: item.serviceCode,
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = DvTheme.colors.textPrimary,
+                        )
+                        Text(
+                            formatTenge(item.price),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = DvTheme.colors.textMuted,
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun ToothPickerSheet(
+    selected: Int?,
+    onDismiss: () -> Unit,
+    onSelect: (Int?) -> Unit,
+) {
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    ModalBottomSheet(onDismissRequest = onDismiss, sheetState = sheetState, containerColor = DvTheme.colors.surface1) {
+        LazyColumn(contentPadding = PaddingValues(bottom = DvSpacing.xxl)) {
+            item {
+                Text(
+                    text = "Без указания зуба",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = if (selected == null) DvTheme.colors.gold else DvTheme.colors.textPrimary,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { onSelect(null) }
+                        .padding(horizontal = DvSpacing.xl, vertical = DvSpacing.md),
+                )
+            }
+            TOOTH_QUADRANTS.forEach { (label, numbers) ->
+                item {
+                    Text(
+                        text = label,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = DvTheme.colors.textGhost,
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = DvSpacing.xl, vertical = DvSpacing.sm),
+                    )
+                }
+                items(numbers) { number ->
+                    Text(
+                        text = "$number — ${TOOTH_NAMES[number] ?: ""}",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = if (selected == number) DvTheme.colors.gold else DvTheme.colors.textPrimary,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { onSelect(number) }
+                            .padding(horizontal = DvSpacing.xl, vertical = DvSpacing.sm),
+                    )
+                }
+            }
+        }
+    }
 }
 
 /**
@@ -522,9 +614,9 @@ private fun AcceptPaymentSheet(viewModel: ScheduleViewModel) {
             .verticalScroll(rememberScrollState())
             .imePadding()
             .navigationBarsPadding()
-            .padding(horizontal = 20.dp)
-            .padding(bottom = 24.dp),
-        verticalArrangement = Arrangement.spacedBy(10.dp),
+            .padding(horizontal = DvSpacing.xl)
+            .padding(bottom = DvSpacing.xxl),
+        verticalArrangement = Arrangement.spacedBy(DvSpacing.md),
     ) {
         Text(
             text = "Приём оплаты",
@@ -549,7 +641,7 @@ private fun AcceptPaymentSheet(viewModel: ScheduleViewModel) {
         )
 
         Text("Способ оплаты", style = MaterialTheme.typography.labelMedium, color = DvTheme.colors.textGhost)
-        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+        Row(horizontalArrangement = Arrangement.spacedBy(DvSpacing.sm)) {
             ACCEPT_PAYMENT_METHODS.forEach { method ->
                 FilterChip(
                     selected = current.method == method,
@@ -560,7 +652,7 @@ private fun AcceptPaymentSheet(viewModel: ScheduleViewModel) {
         }
 
         Text("Тип оплаты", style = MaterialTheme.typography.labelMedium, color = DvTheme.colors.textGhost)
-        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+        Row(horizontalArrangement = Arrangement.spacedBy(DvSpacing.sm)) {
             PAY_KIND_LABELS.forEach { (key, label) ->
                 FilterChip(
                     selected = current.payKind == key,
@@ -585,7 +677,7 @@ private fun AcceptPaymentSheet(viewModel: ScheduleViewModel) {
         DvPrimaryButton(
             onClick = { viewModel.submitPayment {} },
             enabled = current.canSubmit,
-            modifier = Modifier.fillMaxWidth().padding(top = 6.dp),
+            modifier = Modifier.fillMaxWidth().padding(top = DvSpacing.sm),
         ) {
             if (current.saving) {
                 CircularProgressIndicator(

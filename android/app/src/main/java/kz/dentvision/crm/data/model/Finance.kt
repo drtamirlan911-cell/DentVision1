@@ -21,6 +21,8 @@ data class Invoice(
     val notes: String? = null,
     val paidAt: String? = null,
     val createdAt: String? = null,
+    /** Что именно выставлено — чтобы принимающий счёт видел, за что платит, а не голую сумму. */
+    val items: List<InvoiceItem> = emptyList(),
 )
 
 val INVOICE_STATUS_LABELS: Map<String, String> = mapOf(
@@ -37,6 +39,16 @@ data class InvoiceItem(
     val name: String,
     val price: Int,
     val qty: Int = 1,
+    /**
+     * Номер зуба по FDI, если счёт выставлен за работу по конкретному зубу.
+     * Живёт внутри свободной JSON-колонки `items`, а не отдельным полем счёта
+     * — на бэкенде (`billing.routes.ts`) у `Invoice` нет колонки `toothNumber`
+     * вообще, и класть номер зуба рядом с `items`, а не внутрь него, значило
+     * бы повторить существующий баг веба: `Cashier.tsx` шлёт `toothNumber`
+     * отдельным полем тела запроса, маршрут его не читает и молча роняет —
+     * зуб никогда не долетает до сохранённого счёта.
+     */
+    val tooth: Int? = null,
 )
 
 @Serializable

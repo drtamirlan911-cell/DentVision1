@@ -52,6 +52,9 @@ import kz.dentvision.crm.ui.common.LoadingSkeleton
 import kz.dentvision.crm.ui.common.UiState
 import kz.dentvision.crm.ui.theme.DvConfirmDialog
 import kz.dentvision.crm.ui.theme.DvTheme
+import kz.dentvision.crm.lib.formatPhone
+import kz.dentvision.crm.lib.formatDate
+import kz.dentvision.crm.ui.theme.DvSpacing
 
 /**
  * Пациенты: список, поиск и заведение новой карты.
@@ -114,7 +117,7 @@ fun PatientsScreen(
                         )
                     }
                 },
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
+                modifier = Modifier.fillMaxWidth().padding(horizontal = DvSpacing.lg, vertical = DvSpacing.sm),
             )
 
             when (val list = state.list) {
@@ -131,8 +134,8 @@ fun PatientsScreen(
                     )
                 } else {
                     LazyColumn(
-                        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
-                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                        contentPadding = PaddingValues(horizontal = DvSpacing.lg, vertical = DvSpacing.sm),
+                        verticalArrangement = Arrangement.spacedBy(DvSpacing.sm),
                     ) {
                         items(list.value, key = { it.id }) { patient ->
                             PatientRow(
@@ -191,7 +194,7 @@ private fun PatientRow(
         colors = CardDefaults.cardColors(containerColor = DvTheme.colors.surface1),
         border = androidx.compose.foundation.BorderStroke(1.dp, DvTheme.colors.borderSubtle),
     ) {
-        Column(modifier = Modifier.padding(14.dp)) {
+        Column(modifier = Modifier.padding(DvSpacing.lg)) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -218,7 +221,7 @@ private fun PatientRow(
                         CircularProgressIndicator(
                             strokeWidth = 2.dp,
                             color = DvTheme.colors.error,
-                            modifier = Modifier.size(18.dp).padding(start = 8.dp),
+                            modifier = Modifier.size(18.dp).padding(start = DvSpacing.sm),
                         )
                     } else {
                         IconButton(onClick = { onDelete?.invoke() }, modifier = Modifier.size(28.dp)) {
@@ -233,15 +236,15 @@ private fun PatientRow(
                 }
             }
             val details = listOfNotNull(
-                patient.phone.ifBlank { null },
-                patient.dob.ifBlank { null },
+                formatPhone(patient.phone.ifBlank { null }),
+                formatDate(patient.dob.ifBlank { null }),
             ).joinToString(" · ")
             if (details.isNotBlank()) {
                 Text(
                     text = details,
                     style = MaterialTheme.typography.bodySmall,
                     color = DvTheme.colors.textMuted,
-                    modifier = Modifier.padding(top = 4.dp),
+                    modifier = Modifier.padding(top = DvSpacing.xs),
                 )
             }
             if (patient.iin.isNotBlank()) {
@@ -249,7 +252,7 @@ private fun PatientRow(
                     text = "ИИН ${patient.iin}",
                     style = MaterialTheme.typography.bodySmall,
                     color = DvTheme.colors.textGhost,
-                    modifier = Modifier.padding(top = 2.dp),
+                    modifier = Modifier.padding(top = DvSpacing.xs),
                 )
             }
         }

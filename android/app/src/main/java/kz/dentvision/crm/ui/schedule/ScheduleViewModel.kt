@@ -12,6 +12,7 @@ import kz.dentvision.crm.data.model.Doctor
 import kz.dentvision.crm.data.model.InvoiceCreate
 import kz.dentvision.crm.data.model.InvoiceItem
 import kz.dentvision.crm.data.model.Patient
+import kz.dentvision.crm.data.model.PriceListItem
 import kz.dentvision.crm.ui.common.UiState
 import java.time.LocalDate
 
@@ -33,6 +34,15 @@ data class ScheduleUiState(
     val doctors: List<Doctor> = emptyList(),
     val message: String? = null,
     val deleteError: String? = null,
+    val rescheduleConflict: RescheduleConflict? = null,
+)
+
+/** Занятость увидена при переносе перетаскиванием — тот же `overbookConfirm`, что на вебе. */
+data class RescheduleConflict(
+    val appointment: Appointment,
+    val newDoctorId: String,
+    val newTime: String,
+    val message: String,
 )
 
 data class AppointmentFormState(
@@ -43,8 +53,18 @@ data class AppointmentFormState(
     val time: String = "09:00",
     val duration: String = "30",
     val serviceName: String = "",
+    val servicePrice: Double = 0.0,
+    /**
+     * Номер зуба по FDI. Показывается в форме только при правке уже
+     * существующего приёма (`id != null`) — тем же приёмом, что на вебе
+     * (`Schedule.tsx`): просить указать зуб при бронировании слота значило
+     * бы гадать раньше, чем пациента вообще осмотрели.
+     */
+    val toothNumber: String = "",
     val notes: String = "",
     val status: String = "scheduled",
+    /** Только для правки: показать ли «Принять оплату» — то, что уже принято, второй раз не принимают. */
+    val paymentStatus: String = "unpaid",
     val saving: Boolean = false,
     val error: String? = null,
     /**
@@ -82,6 +102,10 @@ class ScheduleViewModel(
     private val _paymentForm = MutableStateFlow<AcceptPaymentFormState?>(null)
     val paymentForm: StateFlow<AcceptPaymentFormState?> = _paymentForm
 
+    /** Прайс — вспомогательный список для выбора услуги в форме приёма, как `pricedServices` на вебе. */
+    private val _priceList = MutableStateFlow<List<PriceListItem>>(emptyList())
+    val priceList: StateFlow<List<PriceListItem>> = _priceList
+
     fun start(clinicId: String?) {
         load()
         if (clinicId != null && _state.value.doctors.isEmpty()) {
@@ -93,6 +117,17 @@ class ScheduleViewModel(
                     .onSuccess { _state.value = _state.value.copy(doctors = it) }
             }
         }
+        if (_priceList.value.isEmpty()) {
+            viewModelScope.launch {
+                runCatching { repository.priceList() }
+                    .onSuccess { _priceList.value = it.filter { item -> item.active } }
+            }
+        }
+    }
+
+    /** Выбор услуги из прайса подставляет и название, и цену — тем же приёмом, что `Schedule.tsx`. */
+    fun selectService(item: PriceListItem) {
+        updateForm { it.copy(serviceName = item.name?.ifBlank { null } ?: item.serviceCode, servicePrice = item.price.toDouble()) }
     }
 
     fun shiftDay(days: Long) {
@@ -118,9 +153,11 @@ class ScheduleViewModel(
         }
     }
 
-    fun openForm() {
+    /** Пустой слот в сетке передаёт врача и время сразу — то же самое, что `openSlotBooking` на вебе. */
+    fun openForm(doctorId: String? = null, time: String? = null) {
         _form.value = AppointmentFormState(
-            doctorId = _state.value.doctors.firstOrNull()?.id.orEmpty(),
+            doctorId = doctorId ?: _state.value.doctors.firstOrNull()?.id.orEmpty(),
+            time = time ?: AppointmentFormState().time,
         )
     }
 
@@ -142,8 +179,11 @@ class ScheduleViewModel(
             time = appointment.time,
             duration = appointment.duration.toString(),
             serviceName = appointment.serviceName,
+            servicePrice = appointment.servicePrice,
+            toothNumber = appointment.toothNumber,
             notes = appointment.notes,
             status = appointment.status,
+            paymentStatus = appointment.paymentStatus,
         )
     }
 
@@ -195,7 +235,7 @@ class ScheduleViewModel(
                     body = InvoiceCreate(
                         patientId = appointment.patientId,
                         amount = amount,
-                        items = listOf(InvoiceItem(name = serviceName, price = amount)),
+                        items = listOf(InvoiceItem(name = serviceName, price = amount, tooth = appointment.toothNumber.toIntOrNull())),
                         notes = form.notes.trim().ifBlank { null },
                         payMethod = form.method,
                     ),
@@ -285,6 +325,8 @@ class ScheduleViewModel(
                 duration = duration,
                 status = if (isEdit) form.status else null,
                 serviceName = form.serviceName.trim().ifBlank { null },
+                servicePrice = form.servicePrice.takeIf { it > 0 },
+                toothNumber = if (isEdit) form.toothNumber.ifBlank { null } else null,
                 notes = form.notes.trim().ifBlank { null },
                 force = if (form.conflict != null) true else null,
             )
@@ -337,5 +379,73 @@ class ScheduleViewModel(
 
     fun consumeDeleteError() {
         _state.value = _state.value.copy(deleteError = null)
+    }
+
+    /**
+     * Перенос приёма перетаскиванием в сетке — тот же `handleDrop`, что на
+     * вебе: сначала проверяем занятость нового слота, и только если она уже
+     * принята (`force`) или её нет, пишем перенос. Дата/длительность не
+     * меняются — перетаскивание внутри одного дня двигает только время и
+     * врача.
+     */
+    fun rescheduleAppointment(appointment: Appointment, newDoctorId: String, newTime: String, force: Boolean = false) {
+        if (newDoctorId == appointment.doctorId && newTime == appointment.time) return
+        viewModelScope.launch {
+            if (!force) {
+                val check = runCatching {
+                    repository.checkConflicts(
+                        date = appointment.date,
+                        time = newTime,
+                        doctorId = newDoctorId,
+                        duration = appointment.duration,
+                        patientId = appointment.patientId,
+                        excludeId = appointment.id,
+                    )
+                }.getOrNull()
+                if (check != null && check.hasConflict) {
+                    _state.value = _state.value.copy(
+                        rescheduleConflict = RescheduleConflict(
+                            appointment = appointment,
+                            newDoctorId = newDoctorId,
+                            newTime = newTime,
+                            message = describeConflicts(check.conflicts),
+                        ),
+                    )
+                    return@launch
+                }
+            }
+            runCatching {
+                repository.saveAppointment(
+                    AppointmentUpsert(
+                        id = appointment.id,
+                        patientId = appointment.patientId,
+                        doctorId = newDoctorId,
+                        date = appointment.date,
+                        time = newTime,
+                        duration = appointment.duration,
+                        force = if (force) true else null,
+                    ),
+                )
+            }
+                .onSuccess {
+                    _state.value = _state.value.copy(message = "Приём перенесён", rescheduleConflict = null)
+                    load()
+                }
+                .onFailure { e ->
+                    _state.value = _state.value.copy(
+                        message = e.message ?: "Не удалось перенести приём",
+                        rescheduleConflict = null,
+                    )
+                }
+        }
+    }
+
+    fun confirmRescheduleAnyway() {
+        val conflict = _state.value.rescheduleConflict ?: return
+        rescheduleAppointment(conflict.appointment, conflict.newDoctorId, conflict.newTime, force = true)
+    }
+
+    fun dismissRescheduleConflict() {
+        _state.value = _state.value.copy(rescheduleConflict = null)
     }
 }

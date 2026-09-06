@@ -7,7 +7,9 @@ import kz.dentvision.crm.data.model.Appointment
 import kz.dentvision.crm.data.model.AppointmentUpsert
 import kz.dentvision.crm.data.model.ConflictCheck
 import kz.dentvision.crm.data.model.ClinicBilling
+import kz.dentvision.crm.data.model.ClinicInvitation
 import kz.dentvision.crm.data.model.ClinicSettings
+import kz.dentvision.crm.data.model.CreateClinicInvitationRequest
 import kz.dentvision.crm.data.model.Doctor
 import kz.dentvision.crm.data.model.Document
 import kz.dentvision.crm.data.model.Expense
@@ -35,6 +37,9 @@ import kz.dentvision.crm.data.model.Promotion
 import kz.dentvision.crm.data.model.StockDeductionPreviewLine
 import kz.dentvision.crm.data.model.StockRule
 import kz.dentvision.crm.data.model.StockRuleUpsert
+import kz.dentvision.crm.data.model.ToothFindingChange
+import kz.dentvision.crm.data.model.ToothFindingRequestItem
+import kz.dentvision.crm.data.model.ToothFindingsRequest
 import kz.dentvision.crm.data.model.TreatmentPlan
 import kz.dentvision.crm.data.model.TreatmentPlanUpsert
 import kz.dentvision.crm.data.model.Visit
@@ -130,6 +135,14 @@ class CrmRepository(private val api: ApiClient = ServiceLocator.api) {
     suspend fun visits(patientId: String): List<Visit> = apiCall { api.crm.visits(patientId) }
 
     suspend fun createVisit(body: VisitCreate): Visit = apiCall { api.crm.createVisit(body) }
+
+    /** Одна поверхность одного зуба — сервер сам сливает её с уже сохранёнными. */
+    suspend fun applyToothFinding(patientId: String, tooth: Int, surface: String, status: String): List<ToothFindingChange> =
+        apiCall {
+            api.crm.applyToothFindings(
+                ToothFindingsRequest(patientId, listOf(ToothFindingRequestItem(tooth, status, listOf(surface)))),
+            )
+        }
 
     // ── Касса ──
 
@@ -254,4 +267,13 @@ class CrmRepository(private val api: ApiClient = ServiceLocator.api) {
 
     suspend fun doctors(clinicId: String): List<Doctor> =
         apiCall { api.crm.clinic(clinicId) }.doctors()
+
+    /**
+     * Код приглашения в клинику — легаси-маршрут `POST /api/auth/invitations`,
+     * не тот же, что у центра/лаборатории/поставщика (`api.iam.createInvitation`,
+     * `WorkspaceRepository`): у клиники нет строки в едином графе Organization,
+     * только `ClinicMember`/`ClinicInvitation`.
+     */
+    suspend fun createInvitation(clinicId: String, email: String?, role: String, expiresInDays: Int): ClinicInvitation =
+        apiCall { api.auth.createInvitation(CreateClinicInvitationRequest(clinicId, email, role, expiresInDays)) }
 }

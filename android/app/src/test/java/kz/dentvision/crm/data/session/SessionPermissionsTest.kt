@@ -104,4 +104,30 @@ class SessionPermissionsTest {
         assertFalse(s.has("безточки"))
         assertFalse(s.has(""))
     }
+
+    private fun sessionWithRole(role: String?) = Session(
+        user = User(id = "u1"),
+        accessToken = "a",
+        refreshToken = "r",
+        effectiveRole = role,
+    )
+
+    @Test
+    fun `врач ассистент и студент видят только свои записи`() {
+        assertTrue(sessionWithRole("DOCTOR").ownDataOnly)
+        assertTrue(sessionWithRole("ASSISTANT").ownDataOnly)
+        assertTrue(sessionWithRole("STUDENT").ownDataOnly)
+        // Регистр роли с сервера не гарантирован буква в букву — сравнение
+        // должно быть нечувствительным к регистру, а не только к точному "DOCTOR".
+        assertTrue(sessionWithRole("doctor").ownDataOnly)
+    }
+
+    @Test
+    fun `владелец администратор и менеджер видят всю клинику`() {
+        assertFalse(sessionWithRole("OWNER").ownDataOnly)
+        assertFalse(sessionWithRole("ADMIN").ownDataOnly)
+        assertFalse(sessionWithRole("MANAGER").ownDataOnly)
+        assertFalse(sessionWithRole("SUPERADMIN").ownDataOnly)
+        assertFalse(sessionWithRole(null).ownDataOnly)
+    }
 }

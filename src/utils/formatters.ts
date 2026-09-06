@@ -75,9 +75,26 @@ export function calculateAge(dob: string): string | number {
   return age;
 }
 
+/**
+ * Телефон для показа: «+7 (777) 123-45-67».
+ *
+ * Приводит к виду те же номера, что платформа уже считает одним и тем же
+ * номером при отправке напоминаний (`normalizePhone` в
+ * `dentvision-backend/src/modules/crm/reminderEligibility.ts`): ведущая
+ * восьмёрка — это внутригородской префикс того же номера, а десять цифр —
+ * он же без кода страны. Раньше формат применялся только к «7…»,
+ * и один и тот же пациент, записанный как «8 777…», показывался слитной
+ * строкой цифр, хотя напоминание ему уходило нормально.
+ *
+ * Нераспознанный формат возвращается как есть: лучше показать сырую
+ * строку, чем потерять номер.
+ */
 export function formatPhone(phone: string | undefined | null): string {
   if (!phone) return "";
-  const cleaned = phone.replace(/\D/g, "");
+  const digits = phone.replace(/\D/g, "");
+  let cleaned = digits;
+  if (cleaned.length === 11 && cleaned.startsWith("8")) cleaned = "7" + cleaned.slice(1);
+  if (cleaned.length === 10) cleaned = "7" + cleaned;
   if (cleaned.length === 11 && cleaned.startsWith("7")) {
     return `+7 (${cleaned.slice(1,4)}) ${cleaned.slice(4,7)}-${cleaned.slice(7,9)}-${cleaned.slice(9)}`;
   }

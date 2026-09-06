@@ -571,6 +571,14 @@ authRouter.get('/me', authenticate, async (req: AuthRequest, res) => {
           organizationType: (req.user as any)?.organizationType,
           organizationId: (req.user as any)?.organizationId,
           personType: (req.user as any)?.personType,
+          // A lecturer who registered without picking an academy (the normal
+          // self-serve path — academyId is optional on POST /api/lecturer/register)
+          // has no mirrored Organization row, so switch-context's unified branch
+          // never matches and falls through to the legacy one, which sets
+          // lecturerId on the token but neither organizationType nor
+          // organizationId. Without this field a lecturer-scoped session is
+          // indistinguishable here from a plain organization-less one.
+          lecturerId: (req.user as any)?.lecturerId,
         },
         memberships: user.memberships.map(m => ({ id: m.id, role: m.role, clinicId: m.clinicId, joinedAt: m.joinedAt, clinic: m.clinic })),
         activeMembership: user.memberships[0] ? { id: user.memberships[0].id, role: user.memberships[0].role, clinicId: user.memberships[0].clinicId, clinic: user.memberships[0].clinic } : null,

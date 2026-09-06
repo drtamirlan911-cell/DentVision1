@@ -188,6 +188,36 @@ data class AiConfirmResult(
  * `GET /api/ai/insights?entityType=…&entityId=…` — детерминированные
  * подсказки, без обращения к модели: не стоят ничего и не галлюцинируют.
  */
+/** Тело `POST /api/ai/greeting` — часовой пояс устройства, чтобы «доброе утро» было настоящим. */
+@Serializable
+data class AiGreetingRequest(val timezone: String)
+
+/**
+ * Ответ `POST /api/ai/greeting`: приветствие по времени суток и имени.
+ * `alerts` здесь тоже приходят, но экран берёт их из `/api/ai/proactive`
+ * отдельным запросом, поэтому в модели их нет — лишнее поле только
+ * создавало бы впечатление, что оно куда-то используется.
+ */
+@Serializable
+data class AiGreeting(val greeting: String = "")
+
+/**
+ * Одна возможность ассистента для текущей роли — приходит из
+ * `GET /api/ai/skills`, где сервер уже отфильтровал реестр `SKILLS` по
+ * правам вызывающего. Клиент ничего не решает: что пришло, то и показывает.
+ *
+ * `prompt` — та же возможность, сформулированная как вопрос пользователя.
+ * Именно он уходит в чат при нажатии, чтобы человеку не пришлось
+ * придумывать формулировку самому.
+ */
+@Serializable
+data class AiSkill(
+    val id: String,
+    val domain: String = "",
+    val title: String,
+    val prompt: String = "",
+)
+
 @Serializable
 data class AiInsight(
     val id: String,

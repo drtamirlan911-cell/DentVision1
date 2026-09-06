@@ -18,6 +18,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -42,6 +43,7 @@ import kotlinx.coroutines.launch
 import kz.dentvision.crm.data.CrmRepository
 import kz.dentvision.crm.data.model.Patient
 import kz.dentvision.crm.data.model.TOOTH_STATUS_LABELS
+import kz.dentvision.crm.data.model.TOOTH_SURFACE_LABELS
 import kz.dentvision.crm.data.model.ToothState
 import kz.dentvision.crm.ui.common.EmptyStateView
 import kz.dentvision.crm.ui.common.ErrorState
@@ -50,6 +52,9 @@ import kz.dentvision.crm.ui.common.PatientPickerSheet
 import kz.dentvision.crm.ui.common.UiState
 import kz.dentvision.crm.ui.theme.DvOutlineButton
 import kz.dentvision.crm.ui.theme.DvTheme
+import androidx.compose.runtime.LaunchedEffect
+import kz.dentvision.crm.data.model.TreatmentPlan
+import androidx.compose.material3.HorizontalDivider
 
 /**
  * Ряды по системе FDI, как их рисует зубная карта в вебе: верхняя челюсть
@@ -65,10 +70,21 @@ class DentalChartViewModel(
     private val _state = MutableStateFlow<UiState<Patient>?>(null)
     val state: StateFlow<UiState<Patient>?> = _state
 
-    private var patientId: String? = null
+    /**
+     * Планы лечения этого пациента — чтобы по выбранному зубу было видно, что
+     * с ним уже собираются делать. Без этой связи формула отвечала только на
+     * вопрос «что с зубом», но не «что дальше», и врач шёл искать ответ в
+     * отдельный раздел планов.
+     */
+    private val _plans = MutableStateFlow<List<TreatmentPlan>>(emptyList())
+    val plans: StateFlow<List<TreatmentPlan>> = _plans
 
-    fun selectPatient(patient: Patient) {
+    private var patientId: String? = null
+    private var clinicId: String? = null
+
+    fun selectPatient(patient: Patient, clinicId: String?) {
         patientId = patient.id
+        this.clinicId = clinicId
         load()
     }
 
@@ -82,30 +98,117 @@ class DentalChartViewModel(
                 .onSuccess { _state.value = UiState.Data(it) }
                 .onFailure { _state.value = UiState.Error(it.message ?: "Не удалось загрузить карту") }
         }
+        // Планы грузятся отдельно и падают молча: без них формула остаётся
+        // полезной, а красная плашка поверх неё — нет.
+        val clinic = clinicId ?: return
+        viewModelScope.launch {
+            runCatching { repository.treatmentPlans(clinic, id) }
+                .onSuccess { _plans.value = it }
+        }
+    }
+
+    /** Ключ `"<зуб>:<поверхность>"` той правки, что сейчас в полёте — чтобы не отправить вторую поверх первой. */
+    private val _savingSurface = MutableStateFlow<String?>(null)
+    val savingSurface: StateFlow<String?> = _savingSurface
+
+    private val _editError = MutableStateFlow<String?>(null)
+    val editError: StateFlow<String?> = _editError
+
+    fun clearEditError() {
+        _editError.value = null
+    }
+
+    /**
+     * Правит одну поверхность одного зуба. Сервер сам сливает её с уже
+     * сохранёнными для этого зуба (`applyToothFindings` в `teethStore.ts`),
+     * поэтому здесь достаточно обновить локально только тронутую пару
+     * зуб/поверхность — без перезагрузки всей карты и без риска переписать
+     * тем, что клиент не знает, то, что знает сервер.
+     */
+    fun editSurface(tooth: String, surface: String, status: String) {
+        val patient = (_state.value as? UiState.Data)?.value ?: return
+        val toothNumber = tooth.toIntOrNull() ?: return
+        val key = "$tooth:$surface"
+        if (_savingSurface.value != null) return
+        _savingSurface.value = key
+        viewModelScope.launch {
+            runCatching { repository.applyToothFinding(patient.id, toothNumber, surface, status) }
+                .onSuccess {
+                    val current = (_state.value as? UiState.Data)?.value ?: patient
+                    _state.value = UiState.Data(current.copy(teeth = mergeSurfaceEdit(current.teeth, tooth, surface, status)))
+                    _editError.value = null
+                }
+                .onFailure { e -> _editError.value = e.message ?: "Не удалось сохранить" }
+            _savingSurface.value = null
+        }
     }
 }
 
 /**
- * Зубная карта выбранного пациента — только чтение.
+ * Тот же приём, что сервер применяет в `applyToothFindings` (`teethStore.ts`):
+ * трогает ровно пару зуб/поверхность, остальные поверхности этого зуба и все
+ * прочие зубы копирует как есть.
+ */
+internal fun mergeSurfaceEdit(
+    teeth: Map<String, ToothState>,
+    tooth: String,
+    surface: String,
+    status: String,
+): Map<String, ToothState> {
+    val current = teeth[tooth] ?: ToothState()
+    return teeth + (tooth to current.copy(surfaces = current.surfaces + (surface to status)))
+}
+
+/**
+ * Зубная карта выбранного пациента.
  *
- * Менять состояние зуба отсюда нельзя намеренно: в вебе это делается по
- * поверхностям зуба, и упрощённая правка «одним касанием» затёрла бы более
- * подробную запись, сделанную у кресла. Показать — можно и нужно.
+ * Правка идёт по одной поверхности за раз через `POST /api/medical/teeth/
+ * findings` (`applyToothFindings` в `teethStore.ts`): сервер сам сливает
+ * присланную поверхность с уже сохранёнными для этого зуба, поэтому правка
+ * одним касанием не может затереть запись, сделанную у кресла — трогает
+ * ровно ту сторону зуба, что тронул врач, и ничего больше. Раньше здесь не
+ * было пишущей ручки вовсе: единственный путь записи на вебе — пересборка
+ * всей карты на клиенте и отправка её целиком, а телефон полной карты в
+ * сыром виде не хранит, так что тот же приём был бы опасен именно здесь.
+ *
+ * `canWrite` — `medical.write`, а не `patients.write`: тем же правом сторожит
+ * сама ручка (`requirePermission('medical.write')`, `medical.routes.ts`).
  */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-fun DentalChartScreen(viewModel: DentalChartViewModel = viewModel()) {
+fun DentalChartScreen(
+    /**
+     * Пациент уже известен — карта открыта из его карточки, а не отдельным
+     * разделом меню. Тогда ни пикер, ни кнопка выбора не нужны: заставлять
+     * человека выбирать того, чью карточку он и держит открытой, — лишний
+     * шаг, на котором легко ошибиться пациентом.
+     */
+    initialPatient: Patient? = null,
+    /** Нужен, чтобы подтянуть планы лечения: маршрут планов требует клинику. */
+    clinicId: String? = null,
+    canWrite: Boolean = false,
+    viewModel: DentalChartViewModel = viewModel(),
+) {
     val state by viewModel.state.collectAsStateWithLifecycle()
+    val plans by viewModel.plans.collectAsStateWithLifecycle()
+    val savingSurface by viewModel.savingSurface.collectAsStateWithLifecycle()
+    val editError by viewModel.editError.collectAsStateWithLifecycle()
     var picking by remember { mutableStateOf(false) }
-    var selected by remember { mutableStateOf<Pair<String, ToothState>?>(null) }
+    var selectedNumber by remember { mutableStateOf<String?>(null) }
+
+    LaunchedEffect(initialPatient?.id, clinicId) {
+        initialPatient?.let { viewModel.selectPatient(it, clinicId) }
+    }
 
     Column(
         modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        DvOutlineButton(onClick = { picking = true }, modifier = Modifier.fillMaxWidth()) {
-            val patient = (state as? UiState.Data)?.value
-            Text(patient?.name?.ifBlank { "Без имени" } ?: "Выбрать пациента")
+        if (initialPatient == null) {
+            DvOutlineButton(onClick = { picking = true }, modifier = Modifier.fillMaxWidth()) {
+                val patient = (state as? UiState.Data)?.value
+                Text(patient?.name?.ifBlank { "Без имени" } ?: "Выбрать пациента")
+            }
         }
 
         when (val current = state) {
@@ -124,10 +227,11 @@ fun DentalChartScreen(viewModel: DentalChartViewModel = viewModel()) {
                 // без расшифровки он ничего не говорит. Легенда переносит на
                 // Android то, что на вебе видно из подписи под каждым зубом.
                 ToothLegend()
-                ToothRow(numbers = UPPER, teeth = teeth, onPick = { selected = it })
-                ToothRow(numbers = LOWER, teeth = teeth, onPick = { selected = it })
+                ToothRow(numbers = UPPER, teeth = teeth, onPick = { number -> selectedNumber = number })
+                ToothRow(numbers = LOWER, teeth = teeth, onPick = { number -> selectedNumber = number })
 
-                selected?.let { (number, tooth) ->
+                selectedNumber?.let { number ->
+                    val tooth = teeth[number] ?: ToothState()
                     Card(
                         modifier = Modifier.fillMaxWidth(),
                         colors = CardDefaults.cardColors(containerColor = DvTheme.colors.surface1),
@@ -161,6 +265,102 @@ fun DentalChartScreen(viewModel: DentalChartViewModel = viewModel()) {
                                     modifier = Modifier.padding(top = 2.dp),
                                 )
                             }
+
+                            if (canWrite) {
+                                // Полный ряд поверхностей, а не только
+                                // отмеченные: правку нужно предложить и там,
+                                // где сейчас «здорова» — иначе на здоровую
+                                // сторону нельзя было бы поставить кариес.
+                                Text(
+                                    text = "Поверхности",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = DvTheme.colors.textMuted,
+                                    modifier = Modifier.padding(top = 12.dp),
+                                )
+                                TOOTH_SURFACE_LABELS.forEach { (key, label) ->
+                                    SurfaceEditRow(
+                                        label = label,
+                                        status = tooth.surfaces[key]?.takeIf { it.isNotBlank() } ?: "healthy",
+                                        saving = savingSurface == "$number:$key",
+                                        onSetStatus = { status -> viewModel.editSurface(number, key, status) },
+                                    )
+                                }
+                                editError?.let {
+                                    Text(
+                                        text = it,
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = DvTheme.colors.error,
+                                        modifier = Modifier.padding(top = 6.dp),
+                                    )
+                                }
+                            } else {
+                                // Находки по сторонам зуба. Показываем только
+                                // отмеченные: перечислять пять поверхностей, из
+                                // которых четыре «здорова», — это шум, за которым
+                                // теряется единственная важная строка.
+                                val marked = TOOTH_SURFACE_LABELS.entries
+                                    .mapNotNull { (key, label) ->
+                                        tooth.surfaces[key]
+                                            ?.takeIf { it.isNotBlank() && it != "healthy" }
+                                            ?.let { status -> label to status }
+                                    }
+                                if (marked.isNotEmpty()) {
+                                    Text(
+                                        text = "Поверхности",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = DvTheme.colors.textMuted,
+                                        modifier = Modifier.padding(top = 12.dp),
+                                    )
+                                    marked.forEach { (label, status) ->
+                                        Text(
+                                            // Состояние написано словом, а не
+                                            // передано цветом: по одному цвету
+                                            // «кариес» от «пломбы» не отличить.
+                                            text = "$label — ${TOOTH_STATUS_LABELS[status] ?: status}",
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = statusColor(status),
+                                            modifier = Modifier.padding(top = 4.dp),
+                                        )
+                                    }
+                                }
+                            }
+
+                            // Что с этим зубом собираются делать. Формула
+                            // отвечала только «что сейчас»; чтобы узнать
+                            // «что дальше», врач уходил в раздел планов и
+                            // искал там нужного пациента заново.
+                            val toothNumber = number.toIntOrNull()
+                            val related = if (toothNumber == null) {
+                                emptyList()
+                            } else {
+                                plans.filter { toothNumber in it.teeth }
+                            }
+                            if (related.isNotEmpty()) {
+                                HorizontalDivider(
+                                    color = DvTheme.colors.borderSubtle,
+                                    modifier = Modifier.padding(vertical = 12.dp),
+                                )
+                                Text(
+                                    text = "В планах лечения",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = DvTheme.colors.textMuted,
+                                )
+                                related.forEach { plan ->
+                                    Text(
+                                        text = plan.title.ifBlank { "План лечения" },
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = DvTheme.colors.textPrimary,
+                                        modifier = Modifier.padding(top = 4.dp),
+                                    )
+                                    plan.diagnosis?.takeIf { it.isNotBlank() }?.let { diagnosis ->
+                                        Text(
+                                            text = diagnosis,
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = DvTheme.colors.textMuted,
+                                        )
+                                    }
+                                }
+                            }
                         }
                     }
                 }
@@ -180,8 +380,8 @@ fun DentalChartScreen(viewModel: DentalChartViewModel = viewModel()) {
         PatientPickerSheet(
             onDismiss = { picking = false },
             onSelect = { patient ->
-                selected = null
-                viewModel.selectPatient(patient)
+                selectedNumber = null
+                viewModel.selectPatient(patient, clinicId)
                 picking = false
             },
         )
@@ -196,6 +396,22 @@ private fun ToothLegend() {
         horizontalArrangement = Arrangement.spacedBy(10.dp),
         verticalArrangement = Arrangement.spacedBy(4.dp),
     ) {
+        // Точка объясняется здесь же: метка без расшифровки — загадка, а не
+        // подсказка.
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Box(
+                modifier = Modifier
+                    .size(8.dp)
+                    .clip(RoundedCornerShape(4.dp))
+                    .background(DvTheme.colors.warning),
+            )
+            Text(
+                text = "есть находка по поверхности",
+                style = MaterialTheme.typography.labelSmall,
+                color = DvTheme.colors.textMuted,
+                modifier = Modifier.padding(start = 4.dp),
+            )
+        }
         TOOTH_STATUS_LABELS.forEach { (status, label) ->
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Box(
@@ -215,11 +431,45 @@ private fun ToothLegend() {
     }
 }
 
+/**
+ * Статусы, которые может выставить правка по одной поверхности — то же
+ * подмножество, что сервер принимает в `normalizeSurfaceFindings`
+ * (`teethStore.ts`). Остальной словарь состояний зуба (`crown`, `missing`, …)
+ * относится к зубу целиком и здесь не показывается: у него нет своей
+ * поверхности, которую можно было бы тронуть этим экраном.
+ */
+private val SURFACE_EDIT_STATUSES = listOf("healthy" to "Здоров", "caries" to "Кариес", "filled" to "Пломба")
+
+@Composable
+private fun SurfaceEditRow(
+    label: String,
+    status: String,
+    saving: Boolean,
+    onSetStatus: (String) -> Unit,
+) {
+    Column(modifier = Modifier.padding(top = 8.dp)) {
+        Text(label, style = MaterialTheme.typography.labelSmall, color = DvTheme.colors.textMuted)
+        Row(
+            modifier = Modifier.padding(top = 2.dp),
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            SURFACE_EDIT_STATUSES.forEach { (value, chipLabel) ->
+                FilterChip(
+                    selected = status == value,
+                    enabled = !saving,
+                    onClick = { onSetStatus(value) },
+                    label = { Text(chipLabel, style = MaterialTheme.typography.labelSmall) },
+                )
+            }
+        }
+    }
+}
+
 @Composable
 private fun ToothRow(
     numbers: List<String>,
     teeth: Map<String, ToothState>,
-    onPick: (Pair<String, ToothState>) -> Unit,
+    onPick: (String) -> Unit,
 ) {
     // Шестнадцать зубов в ряд на телефон не влезают читаемо, поэтому ряд
     // разбит пополам — по челюстной половине, как их и нумеруют.
@@ -235,7 +485,7 @@ private fun ToothRow(
                         number = number,
                         tooth = tooth,
                         modifier = Modifier.weight(1f),
-                        onClick = { onPick(number to (tooth ?: ToothState())) },
+                        onClick = { onPick(number) },
                     )
                 }
             }
@@ -265,6 +515,12 @@ private fun ToothCell(
     onClick: () -> Unit,
 ) {
     val color = statusColor(tooth?.status)
+    // Зуб может быть отмечен здоровым в целом и при этом нести кариес на
+    // отдельной поверхности. По заливке такой зуб неотличим от здорового,
+    // поэтому находка по стороне помечается точкой: иначе её нашёл бы только
+    // тот, кто наугад нажал именно на этот зуб.
+    val hasSurfaceFinding = tooth?.surfaces
+        ?.any { (_, status) -> status.isNotBlank() && status != "healthy" } == true
     Column(
         modifier = modifier.clickable(onClick = onClick),
         horizontalAlignment = Alignment.CenterHorizontally,
@@ -283,6 +539,16 @@ private fun ToothCell(
                 color = DvTheme.colors.textPrimary,
                 textAlign = TextAlign.Center,
             )
+            if (hasSurfaceFinding) {
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .padding(2.dp)
+                        .size(6.dp)
+                        .clip(RoundedCornerShape(3.dp))
+                        .background(DvTheme.colors.warning),
+                )
+            }
         }
         Box(
             modifier = Modifier

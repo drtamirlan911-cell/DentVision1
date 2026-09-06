@@ -1,6 +1,7 @@
 package kz.dentvision.crm.ui.jobs
 
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
@@ -19,12 +20,13 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.AutoAwesome
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
-import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -83,6 +85,7 @@ fun JobsScreen(
     val filters by viewModel.filters.collectAsStateWithLifecycle()
     val appliedIds by viewModel.appliedIds.collectAsStateWithLifecycle()
     var showForm by remember { mutableStateOf(false) }
+    var pickingCity by remember { mutableStateOf(false) }
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
     LaunchedEffect(Unit) { viewModel.start(isAuthenticated) }
@@ -127,34 +130,16 @@ fun JobsScreen(
                 leadingIcon = { Icon(Icons.Filled.Search, contentDescription = null) },
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
             )
-            // FlowRow вместо LazyRow — на вебе `CityFilter` тоже `flex flex-wrap`
-            // (`src/components/ui/CityFilter.tsx:43`): все города видны сразу,
-            // а не обрезаны за краем экрана в ожидании свайпа.
-            FlowRow(
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
+            // Раньше это была развёрнутая `FlowRow` на все десять городов —
+            // пять строк чипов раньше первой вакансии. Свёрнуто в одну
+            // строку-кнопку с листом выбора, тем же приёмом, что уже принят
+            // для услуги и зуба в форме приёма (`ScheduleScreen.kt`).
+            DvOutlineButton(
+                onClick = { pickingCity = true },
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
             ) {
-                FilterChip(
-                    selected = filters.city.isBlank(),
-                    onClick = { viewModel.onCityChange("") },
-                    label = { Text("Весь Казахстан") },
-                    colors = FilterChipDefaults.filterChipColors(
-                        selectedContainerColor = DvTheme.colors.gold.copy(alpha = 0.18f),
-                        selectedLabelColor = DvTheme.colors.gold,
-                    ),
-                )
-                POPULAR_CITIES.forEach { city ->
-                    FilterChip(
-                        selected = filters.city == city,
-                        onClick = { viewModel.onCityChange(if (filters.city == city) "" else city) },
-                        label = { Text(city) },
-                        colors = FilterChipDefaults.filterChipColors(
-                            selectedContainerColor = DvTheme.colors.gold.copy(alpha = 0.18f),
-                            selectedLabelColor = DvTheme.colors.gold,
-                        ),
-                    )
-                }
+                Icon(Icons.Filled.LocationOn, contentDescription = null, modifier = Modifier.size(16.dp))
+                Text(filters.city.ifBlank { "Весь Казахстан" }, modifier = Modifier.padding(start = 6.dp))
             }
 
             when (val list = state) {
@@ -209,6 +194,52 @@ fun JobsScreen(
                     }
                 },
             )
+        }
+    }
+
+    if (pickingCity) {
+        CityPickerSheet(
+            selected = filters.city,
+            onDismiss = { pickingCity = false },
+            onSelect = { city ->
+                viewModel.onCityChange(city)
+                pickingCity = false
+            },
+        )
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun CityPickerSheet(selected: String, onDismiss: () -> Unit, onSelect: (String) -> Unit) {
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    ModalBottomSheet(onDismissRequest = onDismiss, sheetState = sheetState, containerColor = DvTheme.colors.surface1) {
+        LazyColumn(contentPadding = PaddingValues(bottom = 24.dp)) {
+            item { CityRow(label = "Весь Казахстан", selected = selected.isBlank(), onClick = { onSelect("") }) }
+            items(POPULAR_CITIES) { city ->
+                CityRow(label = city, selected = selected == city, onClick = { onSelect(city) })
+            }
+        }
+    }
+}
+
+@Composable
+private fun CityRow(label: String, selected: Boolean, onClick: () -> Unit) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+            .padding(horizontal = 20.dp, vertical = 14.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            text = label,
+            style = MaterialTheme.typography.bodyMedium,
+            color = if (selected) DvTheme.colors.gold else DvTheme.colors.textPrimary,
+            modifier = Modifier.weight(1f),
+        )
+        if (selected) {
+            Icon(Icons.Filled.Check, contentDescription = null, tint = DvTheme.colors.gold, modifier = Modifier.size(18.dp))
         }
     }
 }

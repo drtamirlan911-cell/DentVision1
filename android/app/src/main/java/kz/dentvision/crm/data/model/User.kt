@@ -19,6 +19,15 @@ data class User(
     val organizationType: String? = null,
     val organizationId: String? = null,
     val personType: String? = null,
+    /**
+     * Есть только у сессии, переключённой в контекст лектора БЕЗ академии
+     * (обычный самостоятельный путь — `academyId` необязателен при
+     * регистрации). Для такой сессии `switch-context` не находит
+     * Organization и идёт по легаси-ветке, которая кладёт в токен только
+     * `lecturerId`, не трогая `organizationType`/`organizationId` — без
+     * этого поля такую сессию было бы не отличить от обычной, без клиники.
+     */
+    val lecturerId: String? = null,
     val memberships: List<Membership> = emptyList(),
     val activeMembership: Membership? = null,
     val createdAt: String? = null,

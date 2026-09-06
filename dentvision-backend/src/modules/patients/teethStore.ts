@@ -49,6 +49,37 @@ const SURFACE_KEYS = new Set(['M', 'O', 'D', 'B', 'L']);
 /** A tooth that is gone cannot keep surface paint from when it was there. */
 const WHOLE_TOOTH_ONLY = new Set(['missing', 'extracted', 'implant']);
 
+/**
+ * Statuses a surface-level edit may set. Deliberately a subset of the AI
+ * tool's whole-chart vocabulary (`CHART_STATUSES` in `ai/os/tools.ts`):
+ * a human editing one surface by hand should not be able to set a
+ * whole-tooth-only status (`missing`, `crown`, …) through a per-surface
+ * route — that would silently blank the other four surfaces via
+ * `WHOLE_TOOTH_ONLY` without the caller ever choosing that.
+ */
+export const SURFACE_EDIT_STATUSES = new Set(['caries', 'filled', 'healthy']);
+
+/**
+ * Validates and normalizes findings from an untyped request body before they
+ * reach [applyToothFindings]. Anything that does not survive — a bad FDI
+ * number, an unknown status, an empty surface list — is dropped rather than
+ * written, the same "skip, don't guess" rule `applyToothFindings` itself
+ * applies to FDI numbers.
+ */
+export function normalizeSurfaceFindings(raw: unknown): ToothFinding[] {
+  if (!Array.isArray(raw)) return [];
+  return raw
+    .map((f) => {
+      const entry = f as Record<string, unknown>;
+      return {
+        tooth: Number(entry?.tooth),
+        status: String(entry?.status ?? ''),
+        surfaces: Array.isArray(entry?.surfaces) ? entry.surfaces.map(String) : [],
+      };
+    })
+    .filter((f) => isValidFdi(f.tooth) && SURFACE_EDIT_STATUSES.has(f.status) && f.surfaces.length > 0);
+}
+
 export function isValidFdi(n: number): boolean {
   const quadrant = Math.floor(n / 10);
   const position = n % 10;

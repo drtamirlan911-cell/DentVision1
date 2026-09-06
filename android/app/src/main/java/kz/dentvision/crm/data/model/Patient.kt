@@ -68,6 +68,57 @@ data class ToothState(
     val status: String? = null,
     val diagnosis: String? = null,
     val notes: String? = null,
+    /**
+     * Находки по поверхностям: `M`/`O`/`D`/`B`/`L` → состояние этой стороны
+     * зуба (`caries`, `filled`, `healthy`).
+     *
+     * Сервер их присылает всегда — `serializePatient` специально собирает
+     * полную одонтограмму из `medicalHistory` и достаёт поверхности даже из
+     * заметок таблицы `teeth`. Здесь поля не было, поэтому клиент их молча
+     * терял: кариес на жевательной поверхности не показывался вовсе, и врач у
+     * кресла видел про зуб меньше, чем тот же врач видит в браузере.
+     */
+    val surfaces: Map<String, String> = emptyMap(),
+)
+
+/**
+ * Правка одной поверхности — тело `POST /api/medical/teeth/findings`
+ * (`normalizeSurfaceFindings` в `teethStore.ts`). Статус ограничен тем же
+ * подмножеством, что и на сервере: `caries`/`filled`/`healthy` — правка по
+ * одной поверхности не может выставить общий статус зуба вроде `missing`,
+ * который стёр бы остальные четыре поверхности разом.
+ */
+@Serializable
+data class ToothFindingRequestItem(
+    val tooth: Int,
+    val status: String,
+    val surfaces: List<String>,
+)
+
+@Serializable
+data class ToothFindingsRequest(
+    val patientId: String,
+    val findings: List<ToothFindingRequestItem>,
+)
+
+/** Что изменилось — для подтверждения на экране, а не для показа истории. */
+@Serializable
+data class ToothFindingChange(
+    val tooth: Int,
+    val before: String,
+    val after: String,
+)
+
+/**
+ * Стороны зуба в порядке, в котором их принято называть. Ключи — те же буквы,
+ * что и в вебе (`SURFACE_KEYS` в `src/lib/odontogram.ts`).
+ */
+val TOOTH_SURFACE_LABELS: Map<String, String> = mapOf(
+    "M" to "Медиальная",
+    "O" to "Жевательная",
+    "D" to "Дистальная",
+    "B" to "Вестибулярная",
+    "L" to "Язычная",
 )
 
 /**

@@ -23,6 +23,7 @@ import { cn, getGreeting, formatMoney } from '@/lib/utils'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/ds/Card'
 import { PageHeader, StatCard } from '@/components/ui/ds/StatCard'
 import { Badge } from '@/components/ui/ds/Badge'
+import { Button } from '@/components/ui/ds/Button'
 
 import { useAuth } from '@/store/auth.store'
 import { useDataQuery } from '@/queries/useDataQuery'
@@ -307,6 +308,13 @@ export default function Dashboard() {
           }
         />
       </motion.div>
+
+      {data.isError && !data.isLoading && (
+        <motion.div variants={item} className="rounded-xl border border-error/30 bg-error/10 px-4 py-3 text-sm text-txt-primary flex flex-wrap items-center gap-3">
+          <span className="flex-1">Не удалось загрузить данные клиники. Показанные цифры могут быть неполными.</span>
+          <Button size="sm" variant="secondary" onClick={() => data.refetchCore()}>Повторить</Button>
+        </motion.div>
+      )}
 
       {/* Quick Stats */}
       <motion.div variants={item}>

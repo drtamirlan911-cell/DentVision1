@@ -47,6 +47,7 @@ import kz.dentvision.crm.ui.common.ErrorState
 import kz.dentvision.crm.ui.common.LoadingSkeleton
 import kz.dentvision.crm.ui.common.UiState
 import kz.dentvision.crm.ui.theme.DvTheme
+import kz.dentvision.crm.lib.formatPhone
 
 data class DiagnosticPatient(
     val key: String,
@@ -76,7 +77,15 @@ class DiagnosticPatientsViewModel(
     fun load() {
         _state.value = UiState.Loading
         viewModelScope.launch {
-            runCatching { repository.referrals() }
+            // Без `limit` сервер отдаёт первую полусотню направлений, и
+            // группировка молча теряла пациентов старше неё — тот же класс
+            // усечения, что уже учтён в соседних `DiagnosticCalendarScreen`
+            // (200) и `DiagnosticStatisticsScreen` (500). У этого экрана
+            // своей ручки «пациенты» нет и постраничной подгрузки тоже —
+            // фиксированный высокий предел снижает частоту усечения, не
+            // убирая его: на клинике с сотнями направлений граница всё
+            // равно есть, просто дальше.
+            runCatching { repository.referrals(limit = 300) }
                 .onSuccess { (items, _) ->
                     all = group(items)
                     _state.value = UiState.Data(all)
@@ -184,7 +193,7 @@ private fun PatientRow(patient: DiagnosticPatient, onClick: () -> Unit) {
                 Column(modifier = Modifier.weight(1f).padding(start = 12.dp)) {
                     Text(text = patient.name, style = MaterialTheme.typography.bodyMedium, color = DvTheme.colors.textPrimary)
                     val sub = listOfNotNull(
-                        patient.phone?.takeIf { it.isNotBlank() },
+                        formatPhone(patient.phone?.takeIf { it.isNotBlank() }),
                         patient.iin?.takeIf { it.isNotBlank() },
                         "${patient.referrals.size} направлений",
                     ).joinToString(" · ")

@@ -42,10 +42,15 @@ export function setRememberMe(remember: boolean): void {
 
 export function getRememberMe(): boolean {
   try {
-    const v = localStorage.getItem(REMEMBER_KEY);
-    if (v === '0') return false;
-  } catch { /* ignore */ }
-  return true;
+    // Флаг пишет только форма входа (сама по умолчанию не отмечена), но
+    // токены сохраняет и OAuth, и переключение клиники, и обновление
+    // токена — ни один из них его не выставляет. Раньше отсутствие ключа
+    // читалось как "да", поэтому первый вход не через форму (например,
+    // через Google) молча клал токен в localStorage вместо sessionStorage.
+    return localStorage.getItem(REMEMBER_KEY) === '1';
+  } catch {
+    return false;
+  }
 }
 
 function tokenStorage(): Storage {
@@ -506,6 +511,12 @@ function mapReceipt(raw: any): Receipt {
     service: raw.service,
     appointmentId: raw.appointmentId,
     items: Array.isArray(raw.items) ? raw.items : [],
+    // `toothNumber` never lived on the Invoice row itself (`billing.routes.ts`
+    // only persists patientId/amount/items/notes) — Cashier.tsx's own write
+    // path sent it as a sibling body field that the route silently dropped.
+    // The tooth now travels inside `items[].tooth`, which is stored verbatim,
+    // so reading it back from there is what actually round-trips.
+    toothNumber: raw.toothNumber ?? raw.items?.[0]?.tooth,
     createdAt: raw.createdAt,
   };
 }

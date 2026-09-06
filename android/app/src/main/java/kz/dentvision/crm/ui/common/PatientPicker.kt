@@ -35,6 +35,7 @@ import kz.dentvision.crm.data.CrmRepository
 import kz.dentvision.crm.data.model.Patient
 import kz.dentvision.crm.lib.normalizeIin
 import kz.dentvision.crm.ui.theme.DvTheme
+import kz.dentvision.crm.lib.formatPhone
 
 /**
  * Выбор пациента — один и тот же жест в расписании, медкарте и визитах.
@@ -159,7 +160,7 @@ fun PatientPickerSheet(
                                     color = DvTheme.colors.textPrimary,
                                 )
                                 val sub = listOfNotNull(
-                                    patient.phone.ifBlank { null },
+                                    formatPhone(patient.phone.ifBlank { null }),
                                     patient.iin.ifBlank { null }?.let { "ИИН $it" },
                                 ).joinToString(" · ")
                                 if (sub.isNotBlank()) {

@@ -60,6 +60,21 @@ jobs:
       - run: npx eslint src/ --max-warnings 72
         working-directory: dentvision-backend
 
+  frontend-lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      # Locks in the current warning count (react-hooks/exhaustive-deps and
+      # unused-eslint-disable) so it can't grow silently — package.json's own
+      # `lint` script ceiling (10000) was never actually enforced anywhere in
+      # CI, which is the same gap backend-lint above closed for the backend.
+      - run: npx eslint src/ --max-warnings 13
+
   e2e:
     runs-on: ubuntu-latest
     # This suite went from never-run to 165/165 passing (docs/SYSTEM_AUDIT.md,

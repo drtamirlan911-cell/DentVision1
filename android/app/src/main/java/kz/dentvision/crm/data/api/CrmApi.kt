@@ -32,6 +32,8 @@ import kz.dentvision.crm.data.model.Promotion
 import kz.dentvision.crm.data.model.StockDeductionPreviewLine
 import kz.dentvision.crm.data.model.StockRule
 import kz.dentvision.crm.data.model.StockRuleUpsert
+import kz.dentvision.crm.data.model.ToothFindingChange
+import kz.dentvision.crm.data.model.ToothFindingsRequest
 import kz.dentvision.crm.data.model.TreatmentPlan
 import kz.dentvision.crm.data.model.TreatmentPlanUpsert
 import kz.dentvision.crm.data.model.Visit
@@ -128,6 +130,14 @@ interface CrmApi {
 
     @POST("api/medical/visits")
     suspend fun createVisit(@Body body: VisitCreate): ApiEnvelope<Visit>
+
+    /**
+     * Правка одонтограммы по поверхностям. Сервер сам сливает переданные
+     * поверхности с уже сохранёнными для этого зуба — тело содержит только
+     * тронутое, а не всю карту.
+     */
+    @POST("api/medical/teeth/findings")
+    suspend fun applyToothFindings(@Body body: ToothFindingsRequest): ApiEnvelope<List<ToothFindingChange>>
 
     // ── Касса и финансы (modules/billing/billing.routes.ts) ──
 

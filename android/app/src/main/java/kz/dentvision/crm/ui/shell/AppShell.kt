@@ -20,11 +20,16 @@ import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Dashboard
 import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.History
+import androidx.compose.material.icons.filled.Insights
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.MoreHoriz
+import androidx.compose.material.icons.filled.People
+import androidx.compose.material.icons.filled.Today
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Science
+import androidx.compose.material.icons.filled.Store
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Groups
 import androidx.compose.material.icons.filled.School
 import androidx.compose.material.icons.filled.SmartToy
@@ -77,8 +82,12 @@ import kz.dentvision.crm.data.session.FocusHolder
 import kz.dentvision.crm.data.session.NotificationBadge
 import kz.dentvision.crm.data.session.ScreenFocus
 import kz.dentvision.crm.data.session.SelectedPatient
+import kz.dentvision.crm.ui.today.TodayScreen
+import kz.dentvision.crm.ui.search.SearchScreen
+import kz.dentvision.crm.ui.analytics.AnalyticsScreen
 import kz.dentvision.crm.data.session.Session
 import kz.dentvision.crm.navigation.IMPLEMENTED_PAGES
+import kz.dentvision.crm.navigation.canAccessPage
 import kz.dentvision.crm.navigation.cabinetRouteFor
 import kz.dentvision.crm.navigation.LocalAssistantNavigate
 import kz.dentvision.crm.navigation.ROUTE_ACTIVITY
@@ -97,11 +106,18 @@ import kz.dentvision.crm.navigation.ROUTE_OPERATOR_FINANCE
 import kz.dentvision.crm.navigation.ROUTE_OPERATOR_PAYMENTS
 import kz.dentvision.crm.navigation.ROUTE_OPERATOR_SERVICES
 import kz.dentvision.crm.navigation.ROUTE_OPERATOR_TEAM
+import kz.dentvision.crm.navigation.ROUTE_SUPPLIER_WORKSPACE
+import kz.dentvision.crm.ui.supplier.SupplierWorkspaceScreen
+import kz.dentvision.crm.navigation.ROUTE_LECTURER_WORKSPACE
+import kz.dentvision.crm.ui.lecturer.LecturerWorkspaceScreen
 import kz.dentvision.crm.navigation.ROUTE_DIAGNOSTICS_RESULTS
 import kz.dentvision.crm.navigation.ROUTE_DIAGNOSTICS_REFERRALS
 import kz.dentvision.crm.navigation.ROUTE_DIAGNOSTICS_REFERRAL_NEW
 import kz.dentvision.crm.navigation.ROUTE_COMMUNITY
 import kz.dentvision.crm.navigation.ROUTE_INTELLIGENCE
+import kz.dentvision.crm.navigation.ROUTE_TODAY
+import kz.dentvision.crm.navigation.ROUTE_SEARCH
+import kz.dentvision.crm.navigation.ROUTE_ANALYTICS
 import kz.dentvision.crm.navigation.ROUTE_JOBS
 import kz.dentvision.crm.navigation.ROUTE_NOTIFICATIONS
 import kz.dentvision.crm.navigation.ROUTE_NOTIFICATION_PREFERENCES
@@ -152,6 +168,7 @@ import kz.dentvision.crm.ui.jobs.JobsScreen
 import kz.dentvision.crm.ui.patients.PatientDetailScreen
 import kz.dentvision.crm.ui.public.PublicScreen
 import kz.dentvision.crm.ui.theme.DvTheme
+import kz.dentvision.crm.ui.theme.DvSpacing
 
 /**
  * Оболочка приложения. Дом — Intelligence (диалог с ИИ), как `/` на вебе;
@@ -175,7 +192,7 @@ fun AppShell(
     val drawerState = rememberDrawerState(DrawerValue.Closed)
     val scope = rememberCoroutineScope()
     val backStackEntry by navController.currentBackStackEntryAsState()
-    val currentRoute = backStackEntry?.destination?.route ?: ROUTE_INTELLIGENCE
+    val currentRoute = backStackEntry?.destination?.route ?: ROUTE_TODAY
 
     // Один и тот же ViewModel для чипа в шапке и для самой шторки: список
     // рабочих пространств грузится один раз на весь кабинет, а не заново при
@@ -204,7 +221,7 @@ fun AppShell(
     fun open(route: String) {
         if (route == currentRoute) return
         navController.navigate(route) {
-            popUpTo(ROUTE_INTELLIGENCE) { saveState = true }
+            popUpTo(ROUTE_TODAY) { saveState = true }
             launchSingleTop = true
             restoreState = true
         }
@@ -241,7 +258,7 @@ fun AppShell(
                 TopAppBar(
                     title = {
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                        DvLogo(size = 28.dp, modifier = Modifier.padding(end = 10.dp))
+                        DvLogo(size = 28.dp, modifier = Modifier.padding(end = DvSpacing.md))
                         Column {
                             Text(
                                 text = pages.firstOrNull { it.route == currentRoute }?.label
@@ -270,7 +287,7 @@ fun AppShell(
                                     imageVector = Icons.Filled.ExpandMore,
                                     contentDescription = "Сменить рабочее пространство",
                                     tint = DvTheme.colors.textMuted,
-                                    modifier = Modifier.size(14.dp).padding(start = 2.dp),
+                                    modifier = Modifier.size(14.dp).padding(start = DvSpacing.xs),
                                 )
                             }
                         }
@@ -286,6 +303,19 @@ fun AppShell(
                         }
                     },
                     actions = {
+                        // Поиск пациента — самое частое обращение к данным за
+                        // смену, поэтому он в шапке на каждом экране, а не
+                        // внутри раздела «Пациенты». Показываем только тем,
+                        // кто может читать пациентов.
+                        if (session.has("patients.read")) {
+                            IconButton(onClick = { open(ROUTE_SEARCH) }) {
+                                Icon(
+                                    imageVector = Icons.Filled.Search,
+                                    contentDescription = "Найти пациента",
+                                    tint = DvTheme.colors.textSecondary,
+                                )
+                            }
+                        }
                         val unread by NotificationBadge.count.collectAsStateWithLifecycle()
                         IconButton(onClick = { open(ROUTE_NOTIFICATIONS) }) {
                             if (unread > 0) {
@@ -327,16 +357,48 @@ fun AppShell(
                 // `Sidebar.tsx` эти два уровня никогда не смешиваются на
                 // одной панели (подстраницы CRM живут только внутри
                 // развёрнутого пункта «CRM»).
+                // Состав — по частоте использования за смену, а не по
+                // структуре меню. Раньше здесь стояли «Intelligence»,
+                // «Кабинет» и «Диагностика»: расписание и пациенты — то, что
+                // открывают десятки раз в день, — лежали на два касания
+                // глубже, внутри кабинета, а направление на КТ, действие
+                // нечастое, занимало постоянное место у всех ролей.
+                //
+                // Диагностика никуда не убрана: она осталась в боковом меню
+                // и в кабинете, просто не держит слот, который нужен работе
+                // у кресла.
                 NavigationBar(containerColor = DvTheme.colors.surface1) {
+                    NavigationBarItem(
+                        selected = currentRoute == ROUTE_TODAY,
+                        onClick = { open(ROUTE_TODAY) },
+                        icon = { Icon(Icons.Filled.Today, contentDescription = null) },
+                        label = { Text("Сегодня", style = MaterialTheme.typography.labelSmall) },
+                        alwaysShowLabel = false,
+                    )
+                    // Пациенты — только тем, у кого раздел вообще есть в
+                    // меню: `patients.read` сам по себе не годится в проверку
+                    // — у лаборатории и поддержки оно есть для своих ручек, а
+                    // раздела «Пациенты» в их `pages` нет, и вкладка вела бы
+                    // на маршрут, которого нет в графе навигации, — падение,
+                    // а не «в 403».
+                    if (canAccessPage(session.pages, "patients")) {
+                        NavigationBarItem(
+                            selected = currentRoute == "crm/patients" || currentRoute.startsWith(ROUTE_PATIENT_DETAIL),
+                            onClick = { open("crm/patients") },
+                            icon = { Icon(Icons.Filled.People, contentDescription = null) },
+                            label = { Text("Пациенты", style = MaterialTheme.typography.labelSmall) },
+                            alwaysShowLabel = false,
+                        )
+                    }
                     NavigationBarItem(
                         selected = currentRoute == ROUTE_INTELLIGENCE,
                         onClick = { open(ROUTE_INTELLIGENCE) },
                         icon = { Icon(Icons.Filled.AutoAwesome, contentDescription = null) },
-                        label = { Text("Intelligence", style = MaterialTheme.typography.labelSmall) },
+                        label = { Text("Ассистент", style = MaterialTheme.typography.labelSmall) },
                         alwaysShowLabel = false,
                     )
                     NavigationBarItem(
-                        selected = currentRoute == ROUTE_WORKSPACE || currentRoute == ROUTE_OPERATOR_WORKSPACE,
+                        selected = currentRoute == ROUTE_WORKSPACE || currentRoute == ROUTE_OPERATOR_WORKSPACE || currentRoute == ROUTE_SUPPLIER_WORKSPACE || currentRoute == ROUTE_LECTURER_WORKSPACE,
                         onClick = {
                             val target = cabinetRouteFor(session)
                             if (target != null) {
@@ -347,13 +409,6 @@ fun AppShell(
                         },
                         icon = { Icon(Icons.Filled.Dashboard, contentDescription = null) },
                         label = { Text("Кабинет", style = MaterialTheme.typography.labelSmall) },
-                        alwaysShowLabel = false,
-                    )
-                    NavigationBarItem(
-                        selected = currentRoute.startsWith(ROUTE_DIAGNOSTICS),
-                        onClick = { open(ROUTE_DIAGNOSTICS) },
-                        icon = { Icon(Icons.Filled.Science, contentDescription = null) },
-                        label = { Text("Диагностика", style = MaterialTheme.typography.labelSmall) },
                         alwaysShowLabel = false,
                     )
                     NavigationBarItem(
@@ -397,6 +452,14 @@ fun AppShell(
                         scope.launch { snackbarHostState.showSnackbar("Активно: ${context.name}") }
                         open(ROUTE_OPERATOR_WORKSPACE)
                     }
+                    "SUPPLIER" -> {
+                        scope.launch { snackbarHostState.showSnackbar("Активно: ${context.name}") }
+                        open(ROUTE_SUPPLIER_WORKSPACE)
+                    }
+                    "LECTURER" -> {
+                        scope.launch { snackbarHostState.showSnackbar("Активно: ${context.name}") }
+                        open(ROUTE_LECTURER_WORKSPACE)
+                    }
                     else -> scope.launch {
                         snackbarHostState.showSnackbar("Активно: ${context.name} — кабинет для этого пространства пока не построен")
                     }
@@ -413,7 +476,10 @@ fun AppShell(
 
 /** Заголовки фиксированных экранов ядра ИИ — их нет в `pages`, поэтому нет и в списке разделов. */
 private fun fixedRouteTitle(route: String): String? = when (route) {
-    ROUTE_INTELLIGENCE -> "Intelligence"
+    ROUTE_TODAY -> "Сегодня"
+    ROUTE_SEARCH -> "Поиск пациента"
+    ROUTE_ANALYTICS -> "Аналитика"
+    ROUTE_INTELLIGENCE -> "Ассистент"
     ROUTE_STOCK_RULES -> "Списание после приёма"
     ROUTE_NOTIFICATIONS -> "Уведомления"
     ROUTE_NOTIFICATION_PREFERENCES -> "Настройки уведомлений"
@@ -441,6 +507,8 @@ private fun fixedRouteTitle(route: String): String? = when (route) {
     ROUTE_OPERATOR_SERVICES -> "Услуги и цены"
     ROUTE_OPERATOR_PAYMENTS -> "Оплаты"
     ROUTE_OPERATOR_TEAM -> "Сотрудники"
+    ROUTE_SUPPLIER_WORKSPACE -> "Кабинет продавца"
+    ROUTE_LECTURER_WORKSPACE -> "Кабинет лектора"
     ROUTE_JOBS -> "Вакансии"
     ROUTE_COMMUNITY -> "Сообщество"
     ROUTE_SHOP_SCHOOL -> "Маркетплейс и Academy OS"
@@ -458,9 +526,20 @@ private fun ShellNavHost(
     CompositionLocalProvider(LocalAssistantNavigate provides onNavigate) {
         NavHost(
             navController = navController,
-            startDestination = ROUTE_INTELLIGENCE,
+            startDestination = ROUTE_TODAY,
             modifier = Modifier.fillMaxSize().padding(padding),
         ) {
+            composable(ROUTE_TODAY) {
+                TodayScreen(
+                    session = session,
+                    onOpenPatient = { id -> onNavigate("$ROUTE_PATIENT_DETAIL/$id") },
+                    onNavigate = onNavigate,
+                )
+            }
+            composable(ROUTE_ANALYTICS) { AnalyticsScreen() }
+            composable(ROUTE_SEARCH) {
+                SearchScreen(onOpenPatient = { id -> onNavigate("$ROUTE_PATIENT_DETAIL/$id") })
+            }
             composable(ROUTE_INTELLIGENCE) {
                 IntelligenceScreen(
                     onNavigate = { path -> resolveAssistantPath(path, implemented)?.let(onNavigate) },
@@ -486,6 +565,7 @@ private fun ShellNavHost(
                         patient = current,
                         clinicId = session.clinic?.id,
                         canWrite = session.has("patients.write"),
+                        canEditChart = session.has("medical.write"),
                     )
                 } else {
                     // Держатель пуст — процесс пересоздан или маршрут открыт
@@ -543,6 +623,8 @@ private fun ShellNavHost(
             composable(ROUTE_OPERATOR_SERVICES) { ServicesScreen(session = session) }
             composable(ROUTE_OPERATOR_PAYMENTS) { PaymentsScreen(session = session) }
             composable(ROUTE_OPERATOR_TEAM) { TeamScreen(session = session) }
+            composable(ROUTE_SUPPLIER_WORKSPACE) { SupplierWorkspaceScreen() }
+            composable(ROUTE_LECTURER_WORKSPACE) { LecturerWorkspaceScreen() }
             // Вошедший — всегда настоящий аккаунт (гость живёт в GuestShell,
             // у AppShell непустая Session), поэтому onRequireLogin сюда не
             // попадёт: isAuthenticated = true снимает саму проверку.
@@ -560,7 +642,9 @@ private fun ShellNavHost(
                     onOpenSchool = { onNavigate(ROUTE_SHOP_SCHOOL) },
                 )
             }
-            composable(ROUTE_SHOP_SCHOOL) { PublicScreen(embedded = true) }
+            composable(ROUTE_SHOP_SCHOOL) {
+                PublicScreen(embedded = true, isAuthenticated = true, clinicId = session.clinic?.id)
+            }
             // Маршрут заводится только под построенный экран и только если роль
             // имеет на него право — иначе его в графе просто нет.
             visiblePages(session.pages, implemented).forEach { page ->
@@ -579,12 +663,12 @@ private fun DrawerContent(
     onOpenCabinet: () -> Unit,
     onLogout: () -> Unit,
 ) {
-    Column(modifier = Modifier.verticalScroll(rememberScrollState()).padding(vertical = 12.dp)) {
+    Column(modifier = Modifier.verticalScroll(rememberScrollState()).padding(vertical = DvSpacing.md)) {
         Row(
             verticalAlignment = Alignment.CenterVertically,
-            modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp),
+            modifier = Modifier.padding(horizontal = DvSpacing.xl, vertical = DvSpacing.sm),
         ) {
-            DvLogo(size = 32.dp, modifier = Modifier.padding(end = 10.dp))
+            DvLogo(size = 32.dp, modifier = Modifier.padding(end = DvSpacing.md))
             Text(
                 text = session.clinic?.name ?: "DentVision",
                 style = MaterialTheme.typography.titleMedium,
@@ -595,11 +679,11 @@ private fun DrawerContent(
             text = session.user.name.ifBlank { session.user.login },
             style = MaterialTheme.typography.bodySmall,
             color = DvTheme.colors.textMuted,
-            modifier = Modifier.padding(horizontal = 20.dp),
+            modifier = Modifier.padding(horizontal = DvSpacing.xl),
         )
         HorizontalDivider(
             color = DvTheme.colors.borderSubtle,
-            modifier = Modifier.padding(vertical = 12.dp),
+            modifier = Modifier.padding(vertical = DvSpacing.md),
         )
 
         // Intelligence — всегда первым, крупнее и золотистее остальных пунктов:
@@ -612,7 +696,7 @@ private fun DrawerContent(
 
         HorizontalDivider(
             color = DvTheme.colors.borderSubtle,
-            modifier = Modifier.padding(vertical = 10.dp, horizontal = 20.dp),
+            modifier = Modifier.padding(vertical = DvSpacing.md, horizontal = DvSpacing.xl),
         )
 
         // Мой профиль — визитка специалиста, видна любому вошедшему
@@ -653,6 +737,39 @@ private fun DrawerContent(
                 onClick = { onOpen(ROUTE_OPERATOR_WORKSPACE) },
             )
         }
+        // Кабинет продавца — тем же правилом, что и кабинет приёма выше:
+        // `organizationType` здесь — `SUPPLIER_COMPANY`, а не `SUPPLIER`
+        // (см. докстринг `cabinetRouteFor` в `Destinations.kt`).
+        if (session.user.organizationType == "SUPPLIER_COMPANY") {
+            PillarDrawerItem(
+                label = "Кабинет продавца",
+                icon = Icons.Filled.Store,
+                active = currentRoute == ROUTE_SUPPLIER_WORKSPACE,
+                onClick = { onOpen(ROUTE_SUPPLIER_WORKSPACE) },
+            )
+        }
+        // Кабинет лектора — не `organizationType` (см. докстринг `cabinetRouteFor`
+        // в `Destinations.kt`: самостоятельная регистрация без академии не
+        // заводит Organization вовсе), а `lecturerId` прямо с `/me`.
+        if (session.user.lecturerId != null) {
+            PillarDrawerItem(
+                label = "Кабинет лектора",
+                icon = Icons.Filled.School,
+                active = currentRoute == ROUTE_LECTURER_WORKSPACE,
+                onClick = { onOpen(ROUTE_LECTURER_WORKSPACE) },
+            )
+        }
+        // Аналитика — единственный пункт здесь, сторожимый правом: сервер
+        // требует `bi.clinic` и ещё тариф. Показываем по праву, отказ по
+        // тарифу приходит ответом сервера и показывается его словами.
+        if (session.has("bi.clinic")) {
+            PillarDrawerItem(
+                label = "Аналитика",
+                icon = Icons.Filled.Insights,
+                active = currentRoute == ROUTE_ANALYTICS,
+                onClick = { onOpen(ROUTE_ANALYTICS) },
+            )
+        }
         // Вакансии — как `nav.jobs` в `Sidebar.tsx`: видны любому вошедшему
         // безусловно, не через `pages` (см. ROUTE_JOBS в Destinations.kt).
         PillarDrawerItem(
@@ -679,7 +796,7 @@ private fun DrawerContent(
         )
         HorizontalDivider(
             color = DvTheme.colors.borderSubtle,
-            modifier = Modifier.padding(vertical = 10.dp, horizontal = 20.dp),
+            modifier = Modifier.padding(vertical = DvSpacing.md, horizontal = DvSpacing.xl),
         )
 
         // Сквозные поверхности governance-ядра — одинаковые для всех вошедших,
@@ -713,7 +830,7 @@ private fun DrawerContent(
 
         HorizontalDivider(
             color = DvTheme.colors.borderSubtle,
-            modifier = Modifier.padding(vertical = 12.dp),
+            modifier = Modifier.padding(vertical = DvSpacing.md),
         )
         PillarDrawerItem(
             label = "Выйти",
@@ -747,13 +864,13 @@ private fun PillarDrawerItem(
             .fillMaxWidth()
             .clickable(onClick = onClick)
             .background(if (active) colors.gold.copy(alpha = 0.08f) else androidx.compose.ui.graphics.Color.Transparent)
-            .padding(horizontal = 20.dp, vertical = 8.dp),
+            .padding(horizontal = DvSpacing.xl, vertical = DvSpacing.sm),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Box(
             modifier = Modifier
                 .size(32.dp)
-                .clip(RoundedCornerShape(9.dp))
+                .clip(RoundedCornerShape(8.dp))
                 .background(accent.copy(alpha = if (active) 0.22f else 0.12f)),
             contentAlignment = Alignment.Center,
         ) {
@@ -764,7 +881,7 @@ private fun PillarDrawerItem(
             style = MaterialTheme.typography.bodyMedium,
             fontWeight = if (active) FontWeight.SemiBold else FontWeight.Normal,
             color = if (active) colors.textPrimary else colors.textSecondary,
-            modifier = Modifier.padding(start = 12.dp),
+            modifier = Modifier.padding(start = DvSpacing.md),
         )
     }
 }
@@ -778,24 +895,24 @@ private fun IntelligenceDrawerItem(active: Boolean, onClick: () -> Unit) {
             .fillMaxWidth()
             .clickable(onClick = onClick)
             .background(if (active) colors.gold.copy(alpha = 0.12f) else androidx.compose.ui.graphics.Color.Transparent)
-            .padding(horizontal = 20.dp, vertical = 10.dp),
+            .padding(horizontal = DvSpacing.xl, vertical = DvSpacing.md),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Box(
             modifier = Modifier
                 .size(40.dp)
-                .clip(RoundedCornerShape(13.dp))
+                .clip(RoundedCornerShape(12.dp))
                 .background(
                     Brush.linearGradient(
                         listOf(colors.gold.copy(alpha = if (active) 0.4f else 0.22f), colors.gold.copy(alpha = 0.06f)),
                     ),
                 )
-                .border(1.dp, colors.gold.copy(alpha = 0.25f), RoundedCornerShape(13.dp)),
+                .border(1.dp, colors.gold.copy(alpha = 0.25f), RoundedCornerShape(12.dp)),
             contentAlignment = Alignment.Center,
         ) {
             Icon(Icons.Filled.SmartToy, contentDescription = null, tint = colors.gold, modifier = Modifier.size(19.dp))
         }
-        Column(modifier = Modifier.padding(start = 12.dp)) {
+        Column(modifier = Modifier.padding(start = DvSpacing.md)) {
             Text(
                 text = "Intelligence",
                 style = MaterialTheme.typography.titleMedium,

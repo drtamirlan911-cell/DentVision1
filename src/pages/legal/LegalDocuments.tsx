@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import DOMPurify from 'dompurify';
 import {
   Card, Button, Badge, Modal, Input, Select, EmptyState, Skeleton,
 } from '../../components/ui/ds';
@@ -227,7 +228,7 @@ export default function LegalDocuments() {
                               <div>
                                 <h4 className="text-xs font-bold text-txt-muted uppercase tracking-wider mb-2">Содержимое</h4>
                                 <div className="p-3 rounded-lg bg-surface-1 border border-bdr-subtle text-sm text-txt-primary"
-                                  dangerouslySetInnerHTML={{ __html: d.content }} />
+                                  dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(d.content) }} />
                               </div>
                             )}
                             <div>

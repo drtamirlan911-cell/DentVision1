@@ -23,7 +23,7 @@ export default function DiagnosticsDashboard() {
   const scope = orgKind === 'LAB' ? { labId: orgId } : orgKind === 'CENTER' ? { centerId: orgId } : { clinicId };
   const scopeReady = orgKind ? !!orgId : !!clinicId;
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isError, refetch } = useQuery({
     queryKey: queryKeys.diagnostics.dashboard(orgId || clinicId),
     queryFn: () => api.getDiagnosticsDashboard(scope),
     enabled: scopeReady,
@@ -65,6 +65,13 @@ export default function DiagnosticsDashboard() {
           </>
         }
       />
+
+      {isError && !isLoading && (
+        <div className="rounded-xl border border-error/30 bg-error/10 px-4 py-3 text-sm text-txt-primary flex flex-wrap items-center gap-3">
+          <span className="flex-1">Не удалось загрузить данные диагностики. Показанные цифры могут быть неполными.</span>
+          <Button size="sm" variant="secondary" onClick={() => refetch()}>Повторить</Button>
+        </div>
+      )}
 
       <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-4">
         {isLoading

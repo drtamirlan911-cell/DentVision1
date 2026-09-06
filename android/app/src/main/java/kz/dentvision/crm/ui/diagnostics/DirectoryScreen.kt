@@ -35,6 +35,7 @@ import kz.dentvision.crm.ui.common.ErrorState
 import kz.dentvision.crm.ui.common.LoadingSkeleton
 import kz.dentvision.crm.ui.common.UiState
 import kz.dentvision.crm.ui.theme.DvTheme
+import kz.dentvision.crm.lib.formatPhone
 
 /**
  * Справочник — перенос `CenterList.tsx`/`LabList.tsx`, урезанный до чтения:
@@ -116,7 +117,7 @@ private fun OrgRow(org: DiagnosticOrg) {
                 )
             }
             Row(modifier = Modifier.padding(top = 6.dp), verticalAlignment = Alignment.CenterVertically) {
-                org.phone?.takeIf { it.isNotBlank() }?.let {
+                org.phone?.takeIf { it.isNotBlank() }?.let { formatPhone(it) }?.let {
                     Text(text = it, style = MaterialTheme.typography.bodySmall, color = DvTheme.colors.textSecondary)
                 }
                 org.rating?.takeIf { it > 0 }?.let { rating ->

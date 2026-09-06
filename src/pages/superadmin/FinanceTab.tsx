@@ -19,6 +19,19 @@ const fd = (d: string) => {
 
 const fmtKzt = (n: number) => (Number(n) || 0).toLocaleString('ru-RU') + ' ₸';
 
+// Каждая из 8 секций вкладки раньше показывала неудачную загрузку как
+// EmptyState ("нет транзакций", "нет кошельков"...) — на финансовой вкладке
+// это может стоить дороже, чем просто сбить с толку: реальный ноль и
+// упавший запрос выглядят одинаково.
+function FinanceQueryError({ onRetry }: { onRetry: () => void }) {
+  return (
+    <div className="rounded-xl border border-error/30 bg-error/10 px-4 py-3 text-sm text-txt-primary flex flex-wrap items-center gap-3">
+      <span className="flex-1">Не удалось загрузить данные. Показанное может быть неполным.</span>
+      <Button size="sm" variant="secondary" onClick={onRetry}>Повторить</Button>
+    </div>
+  );
+}
+
 const TX_PAGE_SIZE = 20;
 
 const TX_TYPE_OPTIONS = [
@@ -337,6 +350,8 @@ export default function FinanceTab() {
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
               {Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-24 rounded-xl" />)}
             </div>
+          ) : report.isError ? (
+            <FinanceQueryError onRetry={() => report.refetch()} />
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
               <StatCard label="Транзакции" value={totalTransactions} icon={<ArrowUpDown size={18} />} />
@@ -402,6 +417,8 @@ export default function FinanceTab() {
             </div>
             {revenueSources.isLoading ? (
               <Skeleton className="h-32 rounded-xl" />
+            ) : revenueSources.isError ? (
+              <FinanceQueryError onRetry={() => revenueSources.refetch()} />
             ) : (revenueSources.data?.rows.length ?? 0) === 0 ? (
               <EmptyState
                 icon={<DollarSign size={40} />}
@@ -448,6 +465,8 @@ export default function FinanceTab() {
 
           {transactions.isLoading ? (
             <Skeleton className="h-64 rounded-xl" />
+          ) : transactions.isError ? (
+            <FinanceQueryError onRetry={() => transactions.refetch()} />
           ) : txList.length === 0 ? (
             <EmptyState icon={<ArrowUpDown size={40} />} title="Нет транзакций" description="Транзакции появятся здесь после создания" />
           ) : (
@@ -508,6 +527,8 @@ export default function FinanceTab() {
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               {Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-32 rounded-xl" />)}
             </div>
+          ) : wallets.isError ? (
+            <FinanceQueryError onRetry={() => wallets.refetch()} />
           ) : walletList.length === 0 ? (
             <EmptyState icon={<Wallet size={40} />} title="Нет кошельков" description="Кошельки появятся после создания транзакций" />
           ) : (
@@ -583,6 +604,8 @@ export default function FinanceTab() {
 
           {commissionRules.isLoading ? (
             <Skeleton className="h-48 rounded-xl" />
+          ) : commissionRules.isError ? (
+            <FinanceQueryError onRetry={() => commissionRules.refetch()} />
           ) : commList.length === 0 ? (
             <EmptyState icon={<TrendingUp size={40} />} title="Нет правил комиссий" description="Создайте первое правило комиссии" action={<Button icon={<Plus size={16} />} onClick={() => { setCommEdit(null); setCommForm({ domain: '', scopeId: '', percent: '' }); setCommModal(true); }}>Создать правило</Button>} />
           ) : (
@@ -637,6 +660,8 @@ export default function FinanceTab() {
         <div className="space-y-4">
           {disputes.isLoading ? (
             <Skeleton className="h-64 rounded-xl" />
+          ) : disputes.isError ? (
+            <FinanceQueryError onRetry={() => disputes.refetch()} />
           ) : disputeList.length === 0 ? (
             <EmptyState icon={<AlertTriangle size={40} />} title="Нет споров" description="Споры появятся здесь после обращений пользователей" />
           ) : (
@@ -712,6 +737,8 @@ export default function FinanceTab() {
           </div>
           {payouts.isLoading ? (
             <Skeleton className="h-64 rounded-xl" />
+          ) : payouts.isError ? (
+            <FinanceQueryError onRetry={() => payouts.refetch()} />
           ) : payoutList.length === 0 ? (
             <EmptyState icon={<Send size={40} />} title="Заявок нет" description="Заявки на выплату от лекторов и поставщиков появятся здесь" />
           ) : (
@@ -780,6 +807,8 @@ export default function FinanceTab() {
         <div className="space-y-4">
           {ledgerHealth.isLoading ? (
             <Skeleton className="h-48 rounded-xl" />
+          ) : ledgerHealth.isError ? (
+            <FinanceQueryError onRetry={() => ledgerHealth.refetch()} />
           ) : (
             <>
               <GlassCard padding="md">

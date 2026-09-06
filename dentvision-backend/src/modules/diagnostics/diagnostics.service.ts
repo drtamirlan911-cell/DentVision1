@@ -405,7 +405,25 @@ const referralInclude = {
   operator: { select: { id: true, user: { select: { firstName: true, lastName: true } } } },
   radiologist: { select: { id: true, user: { select: { firstName: true, lastName: true } } } },
   files: { select: { id: true, fileName: true, fileType: true, createdAt: true } },
-  result: { select: { id: true, aiGenerated: true, createdAt: true } },
+  // Was id/aiGenerated/createdAt only — the referring doctor could see
+  // "заключение готово" but never the finding itself through any GET route,
+  // on web or mobile: `ReferralDetail.tsx` and `Patients.tsx` both already
+  // read `result.reportText`, they just always got `undefined` back. Signing
+  // (`POST /results/:id/sign`) is the only write path for these fields, and
+  // this list is read-only, so extending it can't let a caller edit a result
+  // they couldn't already sign.
+  result: {
+    select: {
+      id: true,
+      aiGenerated: true,
+      createdAt: true,
+      reportText: true,
+      conclusion: true,
+      pdfUrl: true,
+      signedBy: true,
+      signedAt: true,
+    },
+  },
   _count: { select: { comments: true } },
 };
 

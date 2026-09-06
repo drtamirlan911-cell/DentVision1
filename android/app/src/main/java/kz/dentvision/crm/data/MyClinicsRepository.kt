@@ -6,6 +6,7 @@ import kz.dentvision.crm.data.api.apiCall
 import kz.dentvision.crm.data.model.CreateClinicRequest
 import kz.dentvision.crm.data.model.DemoClinicRequest
 import kz.dentvision.crm.data.model.JoinClinicRequest
+import kz.dentvision.crm.data.model.RegisterLecturerRequest
 import kz.dentvision.crm.data.session.Session
 import kz.dentvision.crm.data.session.SessionStore
 
@@ -45,6 +46,27 @@ class MyClinicsRepository(
             ?: throw ApiException(
                 status = 200,
                 message = "Присоединились, но рабочее пространство ещё не появилось в списке — попробуйте выйти и войти снова",
+            )
+        return workspaceRepository.switchTo(target)
+    }
+
+    /**
+     * Стать лектором — единственное из четырёх действий этого экрана, где
+     * регистрация не требует предпосылок (`POST /api/lecturer/register` без
+     * `academyId`, см. докстринг `RegisterLecturerRequest`): в отличие от
+     * продавца/центра/лаборатории, где кабинет строится только для уже
+     * существующего членства, здесь ровно тот случай, когда завести с нуля
+     * оправданно. Токенов эндпоинт не выдаёт (в отличие от create/demo-clinic),
+     * поэтому после регистрации — обычный `switch-context`, тем же приёмом,
+     * что и `joinByCode`.
+     */
+    suspend fun becomeLecturer(): Session {
+        apiCall { api.lecturer.register(RegisterLecturerRequest()) }
+        val contexts = workspaceRepository.contexts()
+        val target = contexts.find { it.scopeType == "LECTURER" }
+            ?: throw ApiException(
+                status = 200,
+                message = "Профиль создан, но рабочее пространство ещё не появилось в списке — попробуйте выйти и войти снова",
             )
         return workspaceRepository.switchTo(target)
     }
