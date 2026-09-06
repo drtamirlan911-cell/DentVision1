@@ -12,6 +12,7 @@ import kz.dentvision.crm.data.model.Doctor
 import kz.dentvision.crm.data.model.InvoiceCreate
 import kz.dentvision.crm.data.model.InvoiceItem
 import kz.dentvision.crm.data.model.Patient
+import kz.dentvision.crm.data.model.PriceListItem
 import kz.dentvision.crm.ui.common.UiState
 import java.time.LocalDate
 
@@ -43,6 +44,14 @@ data class AppointmentFormState(
     val time: String = "09:00",
     val duration: String = "30",
     val serviceName: String = "",
+    val servicePrice: Double = 0.0,
+    /**
+     * Номер зуба по FDI. Показывается в форме только при правке уже
+     * существующего приёма (`id != null`) — тем же приёмом, что на вебе
+     * (`Schedule.tsx`): просить указать зуб при бронировании слота значило
+     * бы гадать раньше, чем пациента вообще осмотрели.
+     */
+    val toothNumber: String = "",
     val notes: String = "",
     val status: String = "scheduled",
     val saving: Boolean = false,
@@ -82,6 +91,10 @@ class ScheduleViewModel(
     private val _paymentForm = MutableStateFlow<AcceptPaymentFormState?>(null)
     val paymentForm: StateFlow<AcceptPaymentFormState?> = _paymentForm
 
+    /** Прайс — вспомогательный список для выбора услуги в форме приёма, как `pricedServices` на вебе. */
+    private val _priceList = MutableStateFlow<List<PriceListItem>>(emptyList())
+    val priceList: StateFlow<List<PriceListItem>> = _priceList
+
     fun start(clinicId: String?) {
         load()
         if (clinicId != null && _state.value.doctors.isEmpty()) {
@@ -93,6 +106,17 @@ class ScheduleViewModel(
                     .onSuccess { _state.value = _state.value.copy(doctors = it) }
             }
         }
+        if (_priceList.value.isEmpty()) {
+            viewModelScope.launch {
+                runCatching { repository.priceList() }
+                    .onSuccess { _priceList.value = it.filter { item -> item.active } }
+            }
+        }
+    }
+
+    /** Выбор услуги из прайса подставляет и название, и цену — тем же приёмом, что `Schedule.tsx`. */
+    fun selectService(item: PriceListItem) {
+        updateForm { it.copy(serviceName = item.name?.ifBlank { null } ?: item.serviceCode, servicePrice = item.price.toDouble()) }
     }
 
     fun shiftDay(days: Long) {
@@ -142,6 +166,8 @@ class ScheduleViewModel(
             time = appointment.time,
             duration = appointment.duration.toString(),
             serviceName = appointment.serviceName,
+            servicePrice = appointment.servicePrice,
+            toothNumber = appointment.toothNumber,
             notes = appointment.notes,
             status = appointment.status,
         )
@@ -195,7 +221,7 @@ class ScheduleViewModel(
                     body = InvoiceCreate(
                         patientId = appointment.patientId,
                         amount = amount,
-                        items = listOf(InvoiceItem(name = serviceName, price = amount)),
+                        items = listOf(InvoiceItem(name = serviceName, price = amount, tooth = appointment.toothNumber.toIntOrNull())),
                         notes = form.notes.trim().ifBlank { null },
                         payMethod = form.method,
                     ),
@@ -285,6 +311,8 @@ class ScheduleViewModel(
                 duration = duration,
                 status = if (isEdit) form.status else null,
                 serviceName = form.serviceName.trim().ifBlank { null },
+                servicePrice = form.servicePrice.takeIf { it > 0 },
+                toothNumber = if (isEdit) form.toothNumber.ifBlank { null } else null,
                 notes = form.notes.trim().ifBlank { null },
                 force = if (form.conflict != null) true else null,
             )

@@ -209,6 +209,8 @@ export interface ReceiptItem {
   name: string
   price: number
   qty: number
+  /** FDI-номер зуба, если позиция привязана к конкретному зубу. */
+  tooth?: number
 }
 
 export interface Receipt {

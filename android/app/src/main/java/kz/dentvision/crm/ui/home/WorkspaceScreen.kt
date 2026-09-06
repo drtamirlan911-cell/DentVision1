@@ -115,7 +115,7 @@ fun WorkspaceScreen(
                 )
                 session.effectiveRole?.let { role ->
                     Text(
-                        text = "Роль: $role",
+                        text = "Роль: ${EFFECTIVE_ROLE_LABELS[role.uppercase()] ?: role}",
                         style = MaterialTheme.typography.bodySmall,
                         color = DvTheme.colors.textMuted,
                         modifier = Modifier.padding(top = DvSpacing.xs),
@@ -147,6 +147,27 @@ fun WorkspaceScreen(
         }
     }
 }
+
+/**
+ * `effectiveRole` приходит значением Prisma-перечисления `UserRole`
+ * (`OWNER`, `DOCTOR`, …) — тем же словарём, что `ORG_ROLES` на вебе
+ * (`src/store/auth.store.ts`) и `roleLabelFor` на бэкенде
+ * (`iam/contexts.ts`), только без английского в самом отображении: там роль
+ * читают из `label`/`roleLabel`, здесь до этой правки — из значения как есть.
+ */
+private val EFFECTIVE_ROLE_LABELS = mapOf(
+    "OWNER" to "Владелец",
+    "DIRECTOR" to "Директор",
+    "ADMIN" to "Администратор",
+    "MANAGER" to "Менеджер",
+    "DOCTOR" to "Врач",
+    "ASSISTANT" to "Ассистент",
+    "CASHIER" to "Кассир",
+    "LAB" to "Лаборант",
+    "STUDENT" to "Студент",
+    "SUPPORT" to "Поддержка",
+    "SUPERADMIN" to "Суперадмин",
+)
 
 @Composable
 private fun PageSectionCard(title: String, pages: List<CrmPage>, onOpenPage: (CrmPage) -> Unit) {

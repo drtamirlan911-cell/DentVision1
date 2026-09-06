@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -68,6 +69,10 @@ import kz.dentvision.crm.ui.theme.DvPrimaryButton
 import kz.dentvision.crm.ui.theme.DvTheme
 import kz.dentvision.crm.ui.theme.DvSpacing
 import kz.dentvision.crm.lib.formatPhone
+import kz.dentvision.crm.lib.formatTenge
+import kz.dentvision.crm.lib.TOOTH_NAMES
+import kz.dentvision.crm.lib.TOOTH_QUADRANTS
+import kz.dentvision.crm.data.model.PriceListItem
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 
@@ -355,7 +360,10 @@ private fun AppointmentRow(
 private fun AppointmentForm(viewModel: ScheduleViewModel, onSaved: () -> Unit) {
     val form by viewModel.form.collectAsStateWithLifecycle()
     val state by viewModel.state.collectAsStateWithLifecycle()
+    val priceList by viewModel.priceList.collectAsStateWithLifecycle()
     var pickingPatient by remember { mutableStateOf(false) }
+    var pickingService by remember { mutableStateOf(false) }
+    var pickingTooth by remember { mutableStateOf(false) }
 
     Column(
         modifier = Modifier
@@ -445,13 +453,41 @@ private fun AppointmentForm(viewModel: ScheduleViewModel, onSaved: () -> Unit) {
             )
         }
 
-        OutlinedTextField(
-            value = form.serviceName,
-            onValueChange = { value -> viewModel.updateForm { it.copy(serviceName = value) } },
-            label = { Text("Услуга") },
-            singleLine = true,
-            modifier = Modifier.fillMaxWidth(),
+        Text(
+            text = "Услуга из прайса",
+            style = MaterialTheme.typography.labelMedium,
+            color = DvTheme.colors.textGhost,
         )
+        DvOutlineButton(onClick = { pickingService = true }, modifier = Modifier.fillMaxWidth()) {
+            Text(
+                if (form.serviceName.isBlank()) {
+                    "Выбрать услугу"
+                } else if (form.servicePrice > 0) {
+                    "${form.serviceName} · ${formatTenge(form.servicePrice.toLong())}"
+                } else {
+                    form.serviceName
+                },
+            )
+        }
+
+        // Диагноз/зуб относятся к самому визиту, а не к бронированию слота —
+        // показываем только при правке уже существующего приёма, тем же
+        // приёмом, что `Schedule.tsx`: просить указать зуб раньше, чем
+        // пациента вообще осмотрели, значило бы гадать.
+        if (form.id != null) {
+            Text(
+                text = "Зуб (по FDI)",
+                style = MaterialTheme.typography.labelMedium,
+                color = DvTheme.colors.textGhost,
+            )
+            DvOutlineButton(onClick = { pickingTooth = true }, modifier = Modifier.fillMaxWidth()) {
+                Text(
+                    form.toothNumber.toIntOrNull()?.let { n -> "$n — ${TOOTH_NAMES[n] ?: ""}" }
+                        ?: "Без указания зуба",
+                )
+            }
+        }
+
         OutlinedTextField(
             value = form.notes,
             onValueChange = { value -> viewModel.updateForm { it.copy(notes = value) } },
@@ -506,6 +542,116 @@ private fun AppointmentForm(viewModel: ScheduleViewModel, onSaved: () -> Unit) {
                 pickingPatient = false
             },
         )
+    }
+
+    if (pickingService) {
+        ServicePickerSheet(
+            services = priceList,
+            onDismiss = { pickingService = false },
+            onSelect = { item ->
+                viewModel.selectService(item)
+                pickingService = false
+            },
+        )
+    }
+
+    if (pickingTooth) {
+        ToothPickerSheet(
+            selected = form.toothNumber.toIntOrNull(),
+            onDismiss = { pickingTooth = false },
+            onSelect = { number ->
+                viewModel.updateForm { it.copy(toothNumber = number?.toString().orEmpty()) }
+                pickingTooth = false
+            },
+        )
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun ServicePickerSheet(
+    services: List<PriceListItem>,
+    onDismiss: () -> Unit,
+    onSelect: (PriceListItem) -> Unit,
+) {
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    ModalBottomSheet(onDismissRequest = onDismiss, sheetState = sheetState, containerColor = DvTheme.colors.surface1) {
+        if (services.isEmpty()) {
+            Text(
+                text = "Прайс пуст — добавьте услуги в разделе «Прайс».",
+                style = MaterialTheme.typography.bodyMedium,
+                color = DvTheme.colors.textMuted,
+                modifier = Modifier.fillMaxWidth().padding(DvSpacing.xl),
+            )
+        } else {
+            LazyColumn(contentPadding = PaddingValues(bottom = DvSpacing.xxl)) {
+                items(services, key = { it.id }) { item ->
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { onSelect(item) }
+                            .padding(horizontal = DvSpacing.xl, vertical = DvSpacing.md),
+                    ) {
+                        Text(
+                            item.name?.ifBlank { null } ?: item.serviceCode,
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = DvTheme.colors.textPrimary,
+                        )
+                        Text(
+                            formatTenge(item.price),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = DvTheme.colors.textMuted,
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun ToothPickerSheet(
+    selected: Int?,
+    onDismiss: () -> Unit,
+    onSelect: (Int?) -> Unit,
+) {
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    ModalBottomSheet(onDismissRequest = onDismiss, sheetState = sheetState, containerColor = DvTheme.colors.surface1) {
+        LazyColumn(contentPadding = PaddingValues(bottom = DvSpacing.xxl)) {
+            item {
+                Text(
+                    text = "Без указания зуба",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = if (selected == null) DvTheme.colors.gold else DvTheme.colors.textPrimary,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { onSelect(null) }
+                        .padding(horizontal = DvSpacing.xl, vertical = DvSpacing.md),
+                )
+            }
+            TOOTH_QUADRANTS.forEach { (label, numbers) ->
+                item {
+                    Text(
+                        text = label,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = DvTheme.colors.textGhost,
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = DvSpacing.xl, vertical = DvSpacing.sm),
+                    )
+                }
+                items(numbers) { number ->
+                    Text(
+                        text = "$number — ${TOOTH_NAMES[number] ?: ""}",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = if (selected == number) DvTheme.colors.gold else DvTheme.colors.textPrimary,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { onSelect(number) }
+                            .padding(horizontal = DvSpacing.xl, vertical = DvSpacing.sm),
+                    )
+                }
+            }
+        }
     }
 }
 

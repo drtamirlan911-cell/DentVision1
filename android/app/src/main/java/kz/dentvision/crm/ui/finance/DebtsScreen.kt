@@ -62,6 +62,9 @@ data class DebtRow(
     val phone: String,
     val amount: Int,
     val date: String,
+    /** Что выставлено и по какому зубу — без этого администратор принимает голую сумму, не зная, за что. */
+    val service: String? = null,
+    val tooth: Int? = null,
 )
 
 data class DebtsUiState(
@@ -102,12 +105,15 @@ class DebtsViewModel(
                     val byId = patients.associateBy { it.id }
                     val rows = invoices.map { invoice ->
                         val patient = invoice.patientId?.let { byId[it] }
+                        val item = invoice.items.firstOrNull()
                         DebtRow(
                             invoiceId = invoice.id,
                             patientName = patient?.name?.ifBlank { null } ?: "Пациент не указан",
                             phone = patient?.phone.orEmpty(),
                             amount = invoice.amount,
                             date = formatDate(invoice.createdAt) ?: "",
+                            service = item?.name?.takeIf { it.isNotBlank() },
+                            tooth = item?.tooth,
                         )
                     }
                     _state.update { it.copy(list = UiState.Data(rows)) }
@@ -254,6 +260,17 @@ private fun DebtRowCard(
                             text = "от ${debt.date}",
                             style = MaterialTheme.typography.labelSmall,
                             color = DvTheme.colors.textMuted,
+                        )
+                    }
+                    val meta = listOfNotNull(
+                        debt.service,
+                        debt.tooth?.let { "зуб $it" },
+                    ).joinToString(" · ")
+                    if (meta.isNotBlank()) {
+                        Text(
+                            text = meta,
+                            style = MaterialTheme.typography.labelSmall,
+                            color = DvTheme.colors.textSecondary,
                         )
                     }
                 }
