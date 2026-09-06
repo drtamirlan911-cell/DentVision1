@@ -56,6 +56,9 @@ class TodayLogicTest {
 
     private val today = LocalDate.of(2026, 9, 5)
 
+    /** Директор/админ — все три раздела, к которым ведут карточки, разрешены. */
+    private val fullAccess = listOf("schedule", "finance", "lab")
+
     @Test
     fun `пустых строк не бывает — блок появляется только когда есть что делать`() {
         val items = buildAttention(
@@ -63,6 +66,7 @@ class TodayLogicTest {
             invoices = listOf(Invoice(id = "i1", status = "paid")),
             labOrders = emptyList(),
             today = today,
+            pages = fullAccess,
         )
         assertTrue(items.isEmpty())
     }
@@ -74,6 +78,7 @@ class TodayLogicTest {
             invoices = emptyList(),
             labOrders = emptyList(),
             today = today,
+            pages = fullAccess,
         )
         assertEquals(1, items.size)
         assertEquals("unassigned", items[0].id)
@@ -87,6 +92,7 @@ class TodayLogicTest {
             invoices = emptyList(),
             labOrders = emptyList(),
             today = today,
+            pages = fullAccess,
         )
         assertTrue(items.isEmpty())
     }
@@ -98,6 +104,7 @@ class TodayLogicTest {
             invoices = listOf(Invoice(id = "i1", status = "unpaid")),
             labOrders = emptyList(),
             today = today,
+            pages = fullAccess,
         ).single()
         assertEquals(1, onlyUnpaid.count)
         assertTrue(!onlyUnpaid.urgent)
@@ -107,6 +114,7 @@ class TodayLogicTest {
             invoices = listOf(Invoice(id = "i1", status = "unpaid"), Invoice(id = "i2", status = "overdue")),
             labOrders = emptyList(),
             today = today,
+            pages = fullAccess,
         ).single()
         assertEquals(2, withOverdue.count)
         assertTrue(withOverdue.urgent)
@@ -123,6 +131,7 @@ class TodayLogicTest {
                 LabOrder(id = "l3", dueDate = "2026-09-30", status = "in_progress"),
             ),
             today = today,
+            pages = fullAccess,
         )
         val lab = items.single { it.id == "lab" }
         assertEquals(1, lab.count)
@@ -135,6 +144,7 @@ class TodayLogicTest {
             invoices = emptyList(),
             labOrders = listOf(LabOrder(id = "l1", dueDate = null, status = "in_progress")),
             today = today,
+            pages = fullAccess,
         )
         assertTrue(items.isEmpty())
     }
@@ -146,11 +156,43 @@ class TodayLogicTest {
             invoices = listOf(Invoice(id = "i1", status = "overdue")),
             labOrders = listOf(LabOrder(id = "l1", dueDate = "2026-09-01", status = "in_progress")),
             today = today,
+            pages = fullAccess,
         )
         assertEquals(3, items.size)
         for (item in items) {
             assertTrue("у «${item.title}» пустой маршрут", item.route.isNotBlank())
             assertTrue("у «${item.title}» нулевой счётчик", item.count > 0)
         }
+    }
+
+    /**
+     * Регрессия: у лаборатории и менеджера есть `lab.read`/`billing.read` для
+     * своих экранов, но разделов «Лаборатория»/«Финансы» в их меню нет — до
+     * фильтра по [canAccessPage] карточка вела бы `navigate()` на маршрут,
+     * которого нет в графе, и это падает с IllegalArgumentException, а не
+     * отказывает мягко.
+     */
+    @Test
+    fun `карточка не заводится на раздел, которого нет в меню роли`() {
+        val items = buildAttention(
+            appointments = listOf(appointment("a", "09:00", doctorId = "")),
+            invoices = listOf(Invoice(id = "i1", status = "overdue")),
+            labOrders = listOf(LabOrder(id = "l1", dueDate = "2026-09-01", status = "in_progress")),
+            today = today,
+            pages = emptyList(),
+        )
+        assertTrue(items.isEmpty())
+    }
+
+    @Test
+    fun `каждая карточка проверяется своим разделом, а не чужим`() {
+        val items = buildAttention(
+            appointments = listOf(appointment("a", "09:00", doctorId = "")),
+            invoices = listOf(Invoice(id = "i1", status = "overdue")),
+            labOrders = listOf(LabOrder(id = "l1", dueDate = "2026-09-01", status = "in_progress")),
+            today = today,
+            pages = listOf("schedule"),
+        )
+        assertEquals(listOf("unassigned"), items.map { it.id })
     }
 }

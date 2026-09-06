@@ -86,6 +86,7 @@ import kz.dentvision.crm.ui.search.SearchScreen
 import kz.dentvision.crm.ui.analytics.AnalyticsScreen
 import kz.dentvision.crm.data.session.Session
 import kz.dentvision.crm.navigation.IMPLEMENTED_PAGES
+import kz.dentvision.crm.navigation.canAccessPage
 import kz.dentvision.crm.navigation.cabinetRouteFor
 import kz.dentvision.crm.navigation.LocalAssistantNavigate
 import kz.dentvision.crm.navigation.ROUTE_ACTIVITY
@@ -369,9 +370,13 @@ fun AppShell(
                         label = { Text("Сегодня", style = MaterialTheme.typography.labelSmall) },
                         alwaysShowLabel = false,
                     )
-                    // Пациенты — только тем, кто может их читать. Кнопка,
-                    // ведущая в 403, хуже отсутствующей.
-                    if (session.has("patients.read")) {
+                    // Пациенты — только тем, у кого раздел вообще есть в
+                    // меню: `patients.read` сам по себе не годится в проверку
+                    // — у лаборатории и поддержки оно есть для своих ручек, а
+                    // раздела «Пациенты» в их `pages` нет, и вкладка вела бы
+                    // на маршрут, которого нет в графе навигации, — падение,
+                    // а не «в 403».
+                    if (canAccessPage(session.pages, "patients")) {
                         NavigationBarItem(
                             selected = currentRoute == "crm/patients" || currentRoute.startsWith(ROUTE_PATIENT_DETAIL),
                             onClick = { open("crm/patients") },

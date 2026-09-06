@@ -37,6 +37,7 @@ import kz.dentvision.crm.data.model.APPOINTMENT_STATUS_LABELS
 import kz.dentvision.crm.data.model.Appointment
 import kz.dentvision.crm.data.session.Session
 import kz.dentvision.crm.lib.formatPhone
+import kz.dentvision.crm.navigation.canAccessPage
 import kz.dentvision.crm.ui.common.ErrorState
 import kz.dentvision.crm.ui.common.LoadingSkeleton
 import kz.dentvision.crm.ui.theme.DvSpacing
@@ -128,8 +129,14 @@ fun TodayScreen(
         item { SectionLabel("Быстрые действия") }
         item {
             QuickActions(
-                canWriteAppointments = session.has("appointments.write"),
-                canReadPatients = session.has("patients.read"),
+                // `patients.read`/`appointments.write` — те же права, что и
+                // у профильных экранов, но не то же самое, что «раздел открыт
+                // этой роли»: у лаборатории и поддержки есть `patients.read`
+                // для своих ручек, а раздела «Пациенты» в меню нет вовсе — без
+                // `canAccessPage` кнопка вела бы на маршрут, которого нет в
+                // графе навигации, и `navigate()` падал бы с исключением.
+                canWriteAppointments = canAccessPage(session.pages, "schedule") && session.has("appointments.write"),
+                canReadPatients = canAccessPage(session.pages, "patients") && session.has("patients.read"),
                 onNavigate = onNavigate,
             )
         }

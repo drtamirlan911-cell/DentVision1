@@ -13,6 +13,7 @@ import kz.dentvision.crm.data.model.Invoice
 import kz.dentvision.crm.data.model.LabOrder
 import kz.dentvision.crm.data.session.SelectedPatient
 import kz.dentvision.crm.data.session.Session
+import kz.dentvision.crm.navigation.canAccessPage
 import java.time.LocalDate
 import java.time.LocalTime
 import java.time.format.DateTimeFormatter
@@ -61,8 +62,8 @@ data class TodayUiState(
  * Новых ручек не заводит: расписание, счета и заказы лаборатории уже отдаются
  * теми же маршрутами, которыми пользуются соответствующие экраны. Каждый блок
  * запрашивается только если у роли есть право его видеть — кассиру незачем
- * грузить заказы лаборатории, а врачу без `billing.read` не показывают долги,
- * которых он всё равно не откроет.
+ * грузить заказы лаборатории, а роли без `billing.manage` не показывают
+ * долги, которых он всё равно не откроет.
  */
 class TodayViewModel(
     private val repository: CrmRepository = CrmRepository(),
@@ -117,10 +118,10 @@ class TodayViewModel(
             // которого экран и открывают.
             val appointmentsJob = async { runCatching { repository.appointmentsOn(iso) } }
             val invoicesJob = async {
-                if (session.has("billing.read")) runCatching { repository.invoices() } else null
+                if (canAccessPage(session.pages, "finance")) runCatching { repository.invoices() } else null
             }
             val labJob = async {
-                if (session.has("lab.read")) runCatching { repository.labOrders() } else null
+                if (canAccessPage(session.pages, "lab")) runCatching { repository.labOrders() } else null
             }
 
             val appointmentsResult = appointmentsJob.await()
@@ -140,7 +141,7 @@ class TodayViewModel(
                     date = today,
                     appointments = appointments,
                     next = nextAppointment(appointments),
-                    attention = buildAttention(appointments, invoices, labOrders, today),
+                    attention = buildAttention(appointments, invoices, labOrders, today, session.pages),
                 )
             }
         }
@@ -164,15 +165,25 @@ internal fun nextAppointment(
 /**
  * Что требует внимания — только то, по чему есть что сделать, и только
  * непустое: строка «Долгов: 0» занимает место и ничего не сообщает.
+ *
+ * Каждая карточка ведёт на раздел CRM, а раздел заводится в графе навигации
+ * только под роли, которым он разрешён (`visiblePages` в AppShell.kt) —
+ * `NavController.navigate()` на маршрут, которого нет в графе, не отказывает
+ * мягко, а падает с IllegalArgumentException. У лаборатории и менеджера,
+ * например, есть право `lab.read` (нужно другим их ручкам), но раздела
+ * «Лаборатория» в меню нет — карточка для них была бы прямым крашем. Поэтому
+ * `pages` проверяется тем же [canAccessPage], что решает, попадёт ли маршрут
+ * в граф вообще, а не правом, которое лишь исторически с ним совпадает.
  */
 internal fun buildAttention(
     appointments: List<Appointment>,
     invoices: List<Invoice>,
     labOrders: List<LabOrder>,
     today: LocalDate,
+    pages: List<String>,
 ): List<AttentionItem> = buildList {
     val unassigned = appointments.count { it.doctorId.isBlank() && it.status != "cancelled" }
-    if (unassigned > 0) {
+    if (unassigned > 0 && canAccessPage(pages, "schedule")) {
         add(
             AttentionItem(
                 id = "unassigned",
@@ -185,7 +196,7 @@ internal fun buildAttention(
     }
 
     val unpaid = invoices.count { it.status == "unpaid" || it.status == "overdue" }
-    if (unpaid > 0) {
+    if (unpaid > 0 && canAccessPage(pages, "finance")) {
         add(
             AttentionItem(
                 id = "debts",
@@ -202,7 +213,7 @@ internal fun buildAttention(
         val due = order.dueDate?.substringBefore('T')?.let { runCatching { LocalDate.parse(it) }.getOrNull() }
         due != null && due.isBefore(today)
     }
-    if (overdueLab > 0) {
+    if (overdueLab > 0 && canAccessPage(pages, "lab")) {
         add(
             AttentionItem(
                 id = "lab",
