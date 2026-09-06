@@ -20,6 +20,7 @@ import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Dashboard
 import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.History
+import androidx.compose.material.icons.filled.Insights
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.MoreHoriz
 import androidx.compose.material.icons.filled.People
@@ -82,6 +83,7 @@ import kz.dentvision.crm.data.session.ScreenFocus
 import kz.dentvision.crm.data.session.SelectedPatient
 import kz.dentvision.crm.ui.today.TodayScreen
 import kz.dentvision.crm.ui.search.SearchScreen
+import kz.dentvision.crm.ui.analytics.AnalyticsScreen
 import kz.dentvision.crm.data.session.Session
 import kz.dentvision.crm.navigation.IMPLEMENTED_PAGES
 import kz.dentvision.crm.navigation.cabinetRouteFor
@@ -109,6 +111,7 @@ import kz.dentvision.crm.navigation.ROUTE_COMMUNITY
 import kz.dentvision.crm.navigation.ROUTE_INTELLIGENCE
 import kz.dentvision.crm.navigation.ROUTE_TODAY
 import kz.dentvision.crm.navigation.ROUTE_SEARCH
+import kz.dentvision.crm.navigation.ROUTE_ANALYTICS
 import kz.dentvision.crm.navigation.ROUTE_JOBS
 import kz.dentvision.crm.navigation.ROUTE_NOTIFICATIONS
 import kz.dentvision.crm.navigation.ROUTE_NOTIFICATION_PREFERENCES
@@ -457,6 +460,7 @@ fun AppShell(
 private fun fixedRouteTitle(route: String): String? = when (route) {
     ROUTE_TODAY -> "Сегодня"
     ROUTE_SEARCH -> "Поиск пациента"
+    ROUTE_ANALYTICS -> "Аналитика"
     ROUTE_INTELLIGENCE -> "Ассистент"
     ROUTE_STOCK_RULES -> "Списание после приёма"
     ROUTE_NOTIFICATIONS -> "Уведомления"
@@ -512,6 +516,7 @@ private fun ShellNavHost(
                     onNavigate = onNavigate,
                 )
             }
+            composable(ROUTE_ANALYTICS) { AnalyticsScreen() }
             composable(ROUTE_SEARCH) {
                 SearchScreen(onOpenPatient = { id -> onNavigate("$ROUTE_PATIENT_DETAIL/$id") })
             }
@@ -705,6 +710,17 @@ private fun DrawerContent(
                 icon = Icons.Filled.Science,
                 active = currentRoute == ROUTE_OPERATOR_WORKSPACE,
                 onClick = { onOpen(ROUTE_OPERATOR_WORKSPACE) },
+            )
+        }
+        // Аналитика — единственный пункт здесь, сторожимый правом: сервер
+        // требует `bi.clinic` и ещё тариф. Показываем по праву, отказ по
+        // тарифу приходит ответом сервера и показывается его словами.
+        if (session.has("bi.clinic")) {
+            PillarDrawerItem(
+                label = "Аналитика",
+                icon = Icons.Filled.Insights,
+                active = currentRoute == ROUTE_ANALYTICS,
+                onClick = { onOpen(ROUTE_ANALYTICS) },
             )
         }
         // Вакансии — как `nav.jobs` в `Sidebar.tsx`: видны любому вошедшему

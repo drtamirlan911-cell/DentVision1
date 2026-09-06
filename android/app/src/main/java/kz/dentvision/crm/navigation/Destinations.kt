@@ -291,3 +291,13 @@ const val ROUTE_MARKETING_PLAN = "crm/promotions/marketing/plan"
  * попросту нет.
  */
 const val ROUTE_MY_CLINICS = "my-clinics"
+
+/**
+ * Аналитика клиники — сводка, выручка и новые пациенты по месяцам, загрузка
+ * врачей.
+ *
+ * Не идёт через `pages`: у сервера свой гейт (`requirePermission('bi.clinic')`
+ * плюс тарифная проверка `guardAnalytics`), а не строка в списке страниц.
+ * Поэтому маршрут заводится напрямую, тем же приёмом, что [ROUTE_JOBS].
+ */
+const val ROUTE_ANALYTICS = "analytics"

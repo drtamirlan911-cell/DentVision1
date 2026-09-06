@@ -20,3 +20,12 @@ private val TENGE_FORMAT = DecimalFormat(
 fun formatTenge(amount: Int): String = "${TENGE_FORMAT.format(amount)} ₸"
 
 fun formatTenge(amount: Int?): String = formatTenge(amount ?: 0)
+
+/**
+ * Отдельная перегрузка для сумм-агрегатов (выручка за месяц и год).
+ *
+ * `Int` кончается на 2,1 млрд тенге — для одного счёта запас огромный, для
+ * годовой выручки сети уже нет, а переполнение здесь было бы тихим: число
+ * просто стало бы отрицательным.
+ */
+fun formatTenge(amount: Long): String = "${TENGE_FORMAT.format(amount)} ₸"
