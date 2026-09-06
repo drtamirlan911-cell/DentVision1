@@ -24,6 +24,7 @@ import { useCompactShell } from '@/hooks/useCompactShell';
 import { useQuery } from '@tanstack/react-query';
 import * as api from '@/utils/api';
 import LanguageSwitcher from '@/components/LanguageSwitcher';
+import { ErrorBoundary } from '@/components/ErrorBoundary';
 
 const FIRST_RUN_COLLAPSE_MS = 15_000;
 const UUID_SEG_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -529,7 +530,13 @@ export const IntelligenceLayout: React.FC = () => {
               isAIHome ? 'flex-1 min-h-0 h-full' : 'h-full',
             )}
           >
-            <Outlet context={{ user, clinic, roleInfo, billingSnap }} />
+            {/* Scoped, not the app-root one in index.tsx: a crash on one page
+                should reset to a compact fallback in the content pane, not
+                blank out the sidebar/nav along with it. The remount key above
+                (route + clinic) also clears a tripped boundary on navigation. */}
+            <ErrorBoundary fullPage={false}>
+              <Outlet context={{ user, clinic, roleInfo, billingSnap }} />
+            </ErrorBoundary>
           </motion.div>
         </div>
       </div>

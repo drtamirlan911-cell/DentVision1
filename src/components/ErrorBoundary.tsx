@@ -6,6 +6,12 @@ import { isSentryEnabled } from '@/lib/sentry';
 
 interface ErrorBoundaryProps extends WithTranslation {
   children: React.ReactNode;
+  /**
+   * false renders a boundary meant to sit inside the app shell (e.g. wrapping
+   * a layout's <Outlet>) rather than replacing the whole viewport, so a crash
+   * on one page doesn't also take the sidebar/nav down with it.
+   */
+  fullPage?: boolean;
 }
 
 interface ErrorBoundaryState {
@@ -47,9 +53,10 @@ class ErrorBoundaryInner extends React.Component<ErrorBoundaryProps, ErrorBounda
   render() {
     if (this.state.hasError) {
       const chunk = this.state.chunkError;
+      const fullPage = this.props.fullPage !== false;
       return (
         <div style={{
-          minHeight: '100vh',
+          minHeight: fullPage ? '100vh' : '320px',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',

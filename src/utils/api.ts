@@ -42,10 +42,15 @@ export function setRememberMe(remember: boolean): void {
 
 export function getRememberMe(): boolean {
   try {
-    const v = localStorage.getItem(REMEMBER_KEY);
-    if (v === '0') return false;
-  } catch { /* ignore */ }
-  return true;
+    // Флаг пишет только форма входа (сама по умолчанию не отмечена), но
+    // токены сохраняет и OAuth, и переключение клиники, и обновление
+    // токена — ни один из них его не выставляет. Раньше отсутствие ключа
+    // читалось как "да", поэтому первый вход не через форму (например,
+    // через Google) молча клал токен в localStorage вместо sessionStorage.
+    return localStorage.getItem(REMEMBER_KEY) === '1';
+  } catch {
+    return false;
+  }
 }
 
 function tokenStorage(): Storage {

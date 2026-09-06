@@ -774,6 +774,7 @@ export default function Patients() {
               value={search}
               onChange={e => setSearch(e.target.value)}
               placeholder="ИИН целиком, ФИО, телефон, email..."
+              aria-label="Поиск пациентов"
               icon={<Search size={16} />}
             />
           </div>
