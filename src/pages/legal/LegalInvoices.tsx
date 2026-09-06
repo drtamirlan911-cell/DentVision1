@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Card, CardContent, Button, Badge, Modal, Input, Select, EmptyState, Skeleton } from '../../components/ui/ds';
+import { QueryError } from '../../components/ui/ds/QueryError';
 import { useToast, ConfirmModal } from '../../components/ui/ds';
 import { apiRequest } from '../../utils/api';
 import { Receipt, Plus, Search } from 'lucide-react';
@@ -25,7 +26,7 @@ export default function LegalInvoices() {
   const [createModal, setCreateModal] = useState(false);
   const [form, setForm] = useState({ partnerId: '', amountKzt: '', dueAt: '', description: '' });
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ['legal-invoices'],
     queryFn: () => apiRequest('/api/legal/invoices'),
   });
@@ -52,6 +53,7 @@ export default function LegalInvoices() {
   });
 
   if (isLoading) return <div className="space-y-4">{Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-16" />)}</div>;
+  if (isError) return <QueryError what="инвойсы" onRetry={() => refetch()} />;
 
   return (
     <div className="space-y-4 max-w-full overflow-x-hidden">

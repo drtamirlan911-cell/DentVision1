@@ -4,6 +4,7 @@ import {
   PageHeader, Card, CardContent, Button, Badge, Modal,
   Input, Select, Textarea, EmptyState,
 } from '../../components/ui/ds';
+import { QueryError } from '../../components/ui/ds/QueryError';
 import { useToast } from '../../components/ui/ds/Toast';
 import { ConfirmModal } from '../../components/ui/ds/Modal';
 import { getOrganizations, createOrganization, updateOrganization, deleteOrganization, getOrganizationTypes } from '../../utils/api';
@@ -53,7 +54,7 @@ export default function OrganizationsPage() {
   const [toDelete, setToDelete] = useState<{ id: string; name: string } | null>(null);
   const [form, setForm] = useState({ name: '', type: 'ACADEMY', taxId: '', address: '', phone: '', email: '' });
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ['organizations', typeFilter, search, page],
     queryFn: () => getOrganizations({ type: typeFilter || undefined, search: search || undefined, page, limit: 20 }),
   });
@@ -140,6 +141,8 @@ export default function OrganizationsPage() {
 
           {isLoading ? (
             <div className="text-center py-8 text-txt-muted">Загрузка...</div>
+          ) : isError ? (
+            <QueryError what="организации" onRetry={() => refetch()} />
           ) : orgs.length === 0 ? (
             <EmptyState icon={<Building2 size={48} />} title="Нет организаций" description="Создайте первую организацию" />
           ) : (

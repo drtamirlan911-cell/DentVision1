@@ -4,6 +4,7 @@ import {
   PageHeader, Card, CardContent, Button, Badge, Modal,
   Input, Select, EmptyState,
 } from '../../components/ui/ds';
+import { QueryError } from '../../components/ui/ds/QueryError';
 import { useToast } from '../../components/ui/ds/Toast';
 import { ConfirmModal } from '../../components/ui/ds/Modal';
 import { getPersons, createPerson, updatePerson, deletePerson, getOrganizations } from '../../utils/api';
@@ -48,7 +49,7 @@ export default function PersonsPage() {
   const [toDelete, setToDelete] = useState<{ id: string; fullName: string } | null>(null);
   const [form, setForm] = useState({ fullName: '', personType: 'DOCTOR', organizationId: '', phone: '', email: '', specialization: '', bio: '' });
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ['persons', typeFilter, orgFilter, search, page],
     queryFn: () => getPersons({ personType: typeFilter || undefined, organizationId: orgFilter || undefined, search: search || undefined, page, limit: 20 }),
   });
@@ -131,6 +132,8 @@ export default function PersonsPage() {
 
           {isLoading ? (
             <div className="text-center py-8 text-txt-muted">Загрузка...</div>
+          ) : isError ? (
+            <QueryError what="персоны" onRetry={() => refetch()} />
           ) : persons.length === 0 ? (
             <EmptyState icon={<Users size={48} />} title="Нет персон" description="Создайте первую запись" />
           ) : (

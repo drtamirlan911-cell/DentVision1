@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   Card, Button, Badge, Modal, Input, Select, EmptyState, Skeleton,
 } from '../../components/ui/ds';
+import { QueryError } from '../../components/ui/ds/QueryError';
 import { useToast } from '../../components/ui/ds/Toast';
 import { ConfirmModal } from '../../components/ui/ds/Modal';
 import { apiRequest } from '../../utils/api';
@@ -142,6 +143,8 @@ export default function LegalTemplates() {
 
       {templates.isLoading ? (
         <Skeleton className="h-64 rounded-xl" />
+      ) : templates.isError ? (
+        <QueryError what="шаблоны" onRetry={() => templates.refetch()} />
       ) : filteredList.length === 0 ? (
         <EmptyState
           icon={<FileText size={40} />}
