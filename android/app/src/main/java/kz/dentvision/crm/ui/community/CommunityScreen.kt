@@ -103,7 +103,15 @@ fun CommunityScreen(
         Column(modifier = Modifier.fillMaxSize().padding(padding)) {
             // Перенос кнопки «Курсы» из `Community.tsx:246-247` — ведёт в
             // Academy (здесь: витрину «Магазин и школа» на вкладке «Школа»).
-            Row(modifier = Modifier.fillMaxWidth().padding(start = 16.dp, top = 8.dp, end = 16.dp), horizontalArrangement = Arrangement.End) {
+            // В одной строке с заголовком, а не отдельной плавающей строкой
+            // над всем экраном — так она выглядит частью шапки, а не забытой
+            // где-то сбоку кнопкой без контекста.
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(start = 16.dp, top = 8.dp, end = 8.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(text = "Сообщество", style = MaterialTheme.typography.titleMedium, color = DvTheme.colors.textPrimary)
                 TextButton(onClick = onOpenSchool) {
                     Icon(Icons.Filled.School, contentDescription = null, modifier = Modifier.size(16.dp))
                     Text(text = "Курсы", modifier = Modifier.padding(start = 6.dp))
