@@ -17,6 +17,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -31,6 +32,7 @@ import kz.dentvision.crm.lib.formatTenge
 import kz.dentvision.crm.ui.common.ErrorState
 import kz.dentvision.crm.ui.common.LoadingSkeleton
 import kz.dentvision.crm.ui.common.UiState
+import kz.dentvision.crm.ui.theme.DvSpacing
 import kz.dentvision.crm.ui.theme.DvTheme
 
 /** Перенос `ReferralDetail.tsx`, урезанный до чтения. */
@@ -128,13 +130,40 @@ private fun ReferralDetailContent(referral: ReferralDetail) {
             }
         }
 
-        referral.result?.let {
+        referral.result?.let { result ->
             InfoCard(title = "Результат") {
                 Text(
-                    text = if (it.aiGenerated) "Заключение подготовлено с помощью ИИ" else "Заключение готово",
-                    style = MaterialTheme.typography.bodyMedium,
+                    text = if (result.aiGenerated) "Заключение подготовлено с помощью ИИ" else "Заключение готово",
+                    style = MaterialTheme.typography.labelSmall,
                     color = DvTheme.colors.success,
                 )
+                // reportText приходит не всегда: старые записи или запись,
+                // ещё не подписанная врачом (`POST /results/:id/sign`),
+                // могут иметь только служебные поля результата. Тогда честно
+                // показываем «готово», а не пустой текст под ним.
+                result.conclusion?.takeIf { it.isNotBlank() }?.let {
+                    Text(
+                        text = it,
+                        style = MaterialTheme.typography.bodyMedium,
+                        fontWeight = FontWeight.SemiBold,
+                        color = DvTheme.colors.textPrimary,
+                        modifier = Modifier.padding(top = DvSpacing.sm),
+                    )
+                }
+                // Модель поля называет `reportText` «Rich text / HTML», но
+                // обе точки записи кладут туда обычный текст: ручная правка —
+                // это `<Textarea>` на вебе, а AI-заключение — сырой ответ
+                // `simpleChat`. Сам веб показывает его как есть, через
+                // `whitespace-pre-wrap`, без разбора HTML — здесь то же:
+                // перенос строки в `Text` уже работает без обёртки.
+                result.reportText?.takeIf { it.isNotBlank() }?.let {
+                    Text(
+                        text = it,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = DvTheme.colors.textSecondary,
+                        modifier = Modifier.padding(top = DvSpacing.xs),
+                    )
+                }
             }
         }
 

@@ -46,6 +46,7 @@ interface DiagnosticsApi {
         @Query("limit") limit: Int? = null,
         @Query("centerId") centerId: String? = null,
         @Query("labId") labId: String? = null,
+        @Query("offset") offset: Int? = null,
     ): ReferralListEnvelope
 
     @GET("api/diagnostics/referrals/{id}")

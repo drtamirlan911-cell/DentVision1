@@ -31,19 +31,27 @@ data class ReferralFile(
 )
 
 /**
- * `result` на списке/детали направления — сервер выбирает только эти три
- * поля (`referralInclude.result`, `dentvision-backend/src/modules/
- * diagnostics/diagnostics.service.ts:408`), не `reportText`/`conclusion`/
- * `signedBy`: модель `DiagnosticResult` их несёт, но этот `select` их не
- * запрашивает. Веб уже наступает на это (использует поля, которых иногда
- * нет в ответе) — здесь их сознательно не объявляю, чтобы не повторить ту
- * же тихую порчу данных.
+ * `result` на списке/детали направления (`referralInclude.result`,
+ * `diagnostics.service.ts`).
+ *
+ * До этого сервер выбирал только `id`/`aiGenerated`/`createdAt`: направивший
+ * врач видел «заключение готово» и не мог прочитать само заключение ни на
+ * вебе, ни на телефоне — `ReferralDetail.tsx` и `Patients.tsx` уже читали
+ * `result.reportText`, просто им всегда приходил `undefined`. `select`
+ * расширен вместе с этой моделью.
+ *
+ * `signedBy` — `doctorId` подписавшего, не имя; отдельного поиска по нему нет,
+ * поэтому на экране не показывается как читаемое имя.
  */
 @Serializable
 data class ReferralResultBrief(
     val id: String,
     val aiGenerated: Boolean = false,
     val createdAt: String? = null,
+    val reportText: String? = null,
+    val conclusion: String? = null,
+    val pdfUrl: String? = null,
+    val signedAt: String? = null,
 )
 
 /**

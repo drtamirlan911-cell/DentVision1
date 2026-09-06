@@ -42,8 +42,9 @@ class DiagnosticsRepository(
         limit: Int? = null,
         centerId: String? = null,
         labId: String? = null,
+        offset: Int? = null,
     ): Pair<List<Referral>, Int> {
-        val envelope = api.diagnostics.referrals(status, search, limit, centerId, labId)
+        val envelope = api.diagnostics.referrals(status, search, limit, centerId, labId, offset)
         if (!envelope.ok) {
             throw ApiException(status = 200, message = envelope.error ?: "Не удалось получить список направлений")
         }
