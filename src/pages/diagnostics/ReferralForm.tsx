@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/ds/Button';
 import { Input, Select, Textarea } from '@/components/ui/ds/Input';
 import { Card } from '@/components/ui/ds/Card';
 import { PageHeader } from '@/components/ui/ds/StatCard';
+import { QueryError } from '@/components/ui/ds/QueryError';
 import * as api from '@/utils/api';
 import { queryKeys } from '@/queries/keys';
 import FileUploader from '@/components/diagnostics/FileUploader';
@@ -128,18 +129,20 @@ export default function ReferralForm() {
   }, [files]);
 
   // Filter centers by clinic city when the clinic has one; otherwise show all.
-  const { data: centersData } = useQuery({
+  const centersQuery = useQuery({
     queryKey: queryKeys.diagnostics.centers(clinicCity || undefined),
     queryFn: () => api.getDiagnosticCenters(undefined, clinicCity || undefined),
     staleTime: 60_000,
   });
+  const { data: centersData } = centersQuery;
   const centers = useMemo(() => (centersData?.data || []).map((c: any) => ({ value: c.id, label: c.city ? `${c.name} (${c.city})` : c.name })), [centersData]);
 
-  const { data: labsData } = useQuery({
+  const labsQuery = useQuery({
     queryKey: queryKeys.diagnostics.labs(),
     queryFn: () => api.getDiagnosticLaboratories(),
     staleTime: 60_000,
   });
+  const { data: labsData } = labsQuery;
   const labs = useMemo(() => (labsData?.data || []).map((l: any) => ({ value: l.id, label: l.city ? `${l.name} (${l.city})` : l.name })), [labsData]);
 
   const { data: centerStudiesData } = useQuery({
@@ -238,6 +241,16 @@ export default function ReferralForm() {
           </Button>
         }
       />
+
+      {/* Списки центров и лабораторий питают выпадающие списки формы. Пустой
+          список от упавшего запроса читается как «поблизости никого нет», и
+          врач бросает направление, вместо того чтобы повторить. */}
+      {(centersQuery.isError || labsQuery.isError) && (
+        <QueryError
+          what={centersQuery.isError ? 'список центров' : 'список лабораторий'}
+          onRetry={() => { centersQuery.refetch(); labsQuery.refetch(); }}
+        />
+      )}
 
       <Card padding="md">
         <label className="text-xs font-bold text-txt-muted uppercase tracking-wider mb-3 block">Тип диагностики</label>

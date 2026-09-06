@@ -8,6 +8,7 @@ import { Card } from '@/components/ui/ds/Card';
 import { Badge } from '@/components/ui/ds/Badge';
 import { Textarea } from '@/components/ui/ds/Input';
 import { Skeleton } from '@/components/ui/ds/Skeleton';
+import { QueryError } from '@/components/ui/ds/QueryError';
 import { PageHeader } from '@/components/ui/ds/StatCard';
 import { useToast } from '@/components/ui/ds/Toast';
 import { queryKeys } from '@/queries/keys';
@@ -21,7 +22,7 @@ export default function ReferralDetail() {
   const toast = useToast();
   const queryClient = useQueryClient();
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isError, refetch } = useQuery({
     queryKey: queryKeys.diagnostics.referral(id!),
     queryFn: () => api.getDiagnosticReferral(id!),
     enabled: !!id,
@@ -61,6 +62,9 @@ export default function ReferralDetail() {
   });
 
   if (isLoading) return <div className="p-6"><Skeleton className="h-64" /></div>;
+  // Раньше упавший запрос попадал в ветку ниже и утверждал, что направления
+  // не существует, — хотя оно есть, просто не доехало.
+  if (isError) return <div className="p-6"><QueryError what="направление" onRetry={() => refetch()} /></div>;
   if (!referral) return <div className="p-6 text-txt-muted">Направление не найдено</div>;
 
 

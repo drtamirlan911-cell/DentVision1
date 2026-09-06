@@ -16,6 +16,7 @@ import { Badge } from '../components/ui/ds/Badge';
 import { Modal, ConfirmModal } from '../components/ui/ds/Modal';
 import { StatCard, PageHeader } from '../components/ui/ds/StatCard';
 import { GlassCard } from '../components/ui/ds/GlassCard';
+import { QueryError } from '../components/ui/ds/QueryError';
 import { Skeleton } from '../components/ui/ds/Skeleton';
 import { tg, fd } from '../utils/constants';
 import * as api from '@/utils/api';
@@ -500,6 +501,16 @@ export default function SuperAdmin() {
         icon={<Shield size={20} />}
                 actions={<Button icon={<RefreshCw size={16} />} variant="ghost" className="min-h-11" onClick={() => qc.invalidateQueries()}>Обновить</Button>}
       />
+
+      {/* Сводка платформы читает `stats.data`, а списки клиник, пользователей
+          и обращений — `|| []`. На упавшем запросе это давало пустую, но
+          совершенно правдоподобную платформу. */}
+      {(stats.isError || clinics.isError || users.isError || support.isError) && (
+        <QueryError
+          what="данные платформы"
+          onRetry={() => { stats.refetch(); clinics.refetch(); users.refetch(); support.refetch(); }}
+        />
+      )}
 
       {(() => {
         const activeGroup = TAB_GROUPS.find((g) => g.tabs.includes(tab)) || TAB_GROUPS[0];
