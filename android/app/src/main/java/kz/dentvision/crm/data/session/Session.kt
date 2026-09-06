@@ -54,6 +54,17 @@ data class Session(
         return satisfying.any { permissions.contains("$module.$it") }
     }
 
+    /**
+     * Роль видит только свои собственные записи, а не всю клинику — тот же
+     * `ownDataOnly` в `ORG_ROLES` веба (`src/store/auth.store.ts`), сужен до
+     * значений настоящего перечисления `UserRole` на бэкенде: у веба есть
+     * добавочные ключи (`reception`, `intern`, `accountant`, …), которых в
+     * `effectiveRole` никогда не будет — это не роли Prisma, а более
+     * дробные ярлыки той же клиентской карты.
+     */
+    val ownDataOnly: Boolean
+        get() = effectiveRole?.uppercase() in setOf("DOCTOR", "ASSISTANT", "STUDENT")
+
     companion object {
         fun from(response: LoginResponse): Session {
             val active = response.activeMembership ?: response.memberships.firstOrNull()

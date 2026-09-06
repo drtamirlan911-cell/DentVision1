@@ -43,6 +43,14 @@ val IMPLEMENTED_PAGES: Map<String, @Composable (Session) -> Unit> = mapOf(
         ScheduleScreen(
             clinicId = session.clinic?.id,
             canWrite = session.has("appointments.write"),
+            // Владелец и администратор видят полную сетку по всем врачам;
+            // роль с `ownDataOnly` (врач, ассистент) — только свою колонку.
+            ownDoctorId = if (session.ownDataOnly) session.user.id else null,
+            // `billing.manage`, не `appointments.write` — так размечен сам
+            // маршрут `POST /api/billing/invoices`. У врача есть только
+            // appointments.write, и без этой развязки кнопка «Принять
+            // оплату» вела бы его прямиком в 403.
+            canAcceptPayment = session.has("billing.manage"),
         )
     },
     "patients" to { session -> PatientsScreen(canWrite = session.has("patients.write")) },

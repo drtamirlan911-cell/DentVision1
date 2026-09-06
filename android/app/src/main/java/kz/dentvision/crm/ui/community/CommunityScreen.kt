@@ -30,6 +30,7 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -169,6 +170,10 @@ fun CommunityScreen(
                             selected = state.topic == topic,
                             onClick = { viewModel.setTopic(topic) },
                             label = { Text(topic) },
+                            colors = FilterChipDefaults.filterChipColors(
+                                selectedContainerColor = DvTheme.colors.gold.copy(alpha = 0.18f),
+                                selectedLabelColor = DvTheme.colors.gold,
+                            ),
                         )
                     }
                 }

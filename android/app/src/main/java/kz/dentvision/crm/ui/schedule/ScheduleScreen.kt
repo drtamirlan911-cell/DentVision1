@@ -2,6 +2,7 @@ package kz.dentvision.crm.ui.schedule
 
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
@@ -78,11 +79,6 @@ import java.util.Locale
 
 private val DAY_FORMAT = DateTimeFormatter.ofPattern("d MMMM, EEEE", Locale("ru"))
 
-private val PAYMENT_STATUS_LABELS = mapOf(
-    "paid" to "Оплачено",
-    "partial" to "Частично оплачено",
-)
-
 /**
  * Расписание одного дня. День, а не неделя: на телефоне сетка недели
  * нечитаема, а у кресла нужен именно сегодняшний список по времени.
@@ -92,6 +88,14 @@ private val PAYMENT_STATUS_LABELS = mapOf(
 fun ScheduleScreen(
     clinicId: String?,
     canWrite: Boolean,
+    /**
+     * Не null — сетка показывает только эту колонку врача, а не всех
+     * коллег. Роль с `ownDataOnly` (врач, ассистент) видит только себя;
+     * администратор и владелец передают null и получают полную сетку.
+     */
+    ownDoctorId: String? = null,
+    /** `billing.manage` — ручка `POST /api/billing/invoices` требует именно его, а не `appointments.write`. */
+    canAcceptPayment: Boolean = canWrite,
     viewModel: ScheduleViewModel = viewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
@@ -165,38 +169,35 @@ fun ScheduleScreen(
             when (val list = state.list) {
                 is UiState.Loading -> LoadingSkeleton()
                 is UiState.Error -> ErrorState(message = list.message, onRetry = viewModel::load)
-                is UiState.Data -> if (list.value.isEmpty()) {
-                    EmptyStateView(
-                        title = "На этот день записей нет",
-                        description = "Пустой день — это тоже ответ: приёмы не потерялись, их просто нет.",
-                    )
-                } else {
-                    // Раньше карточка приёма нигде не показывала врача — при
-                    // нескольких докторах в клинике администратор не мог
-                    // понять по расписанию, к кому записан пациент, и не видел
-                    // при создании новой записи, чьи слоты уже заняты.
-                    val doctorsById = state.doctors.associateBy { it.id }
-                    LazyColumn(
-                        contentPadding = androidx.compose.foundation.layout.PaddingValues(DvSpacing.lg),
-                        verticalArrangement = Arrangement.spacedBy(DvSpacing.sm),
-                    ) {
-                        items(list.value, key = { it.id }) { appointment ->
-                            AppointmentRow(
-                                appointment = appointment,
-                                doctorName = doctorsById[appointment.doctorId]?.name,
-                                onClick = if (canWrite) {
-                                    {
-                                        viewModel.openEdit(appointment)
-                                        showForm = true
-                                    }
-                                } else null,
-                                canDelete = canWrite,
-                                onDelete = { pendingDelete = appointment },
-                                onAcceptPayment = if (canWrite && appointment.paymentStatus != "paid") {
-                                    { viewModel.openPayment(appointment) }
-                                } else null,
-                            )
-                        }
+                is UiState.Data -> {
+                    // Своя колонка у роли с ownDataOnly — коллеги не заведены
+                    // в сетку вовсе, а не показаны пустыми: `doctorId` не
+                    // приходит null для настоящего врача, поэтому сравнение
+                    // здесь безопасно и не прячет чужую колонку по ошибке.
+                    val visibleDoctors = if (ownDoctorId != null) {
+                        state.doctors.filter { it.id == ownDoctorId }
+                    } else {
+                        state.doctors
+                    }
+                    Box(modifier = Modifier.padding(horizontal = DvSpacing.sm, vertical = DvSpacing.sm)) {
+                        ScheduleGrid(
+                            doctors = visibleDoctors,
+                            appointments = list.value,
+                            canWrite = canWrite,
+                            onSlotClick = { doctorId, time ->
+                                viewModel.openForm(doctorId = doctorId, time = time)
+                                showForm = true
+                            },
+                            onAppointmentClick = { appointment ->
+                                if (canWrite) {
+                                    viewModel.openEdit(appointment)
+                                    showForm = true
+                                }
+                            },
+                            onReschedule = { appointment, newDoctorId, newTime ->
+                                viewModel.rescheduleAppointment(appointment, newDoctorId, newTime)
+                            },
+                        )
                     }
                 }
             }
@@ -209,7 +210,19 @@ fun ScheduleScreen(
             sheetState = sheetState,
             containerColor = DvTheme.colors.surface1,
         ) {
-            AppointmentForm(viewModel = viewModel, onSaved = { showForm = false })
+            AppointmentForm(
+                viewModel = viewModel,
+                canAcceptPayment = canAcceptPayment,
+                onSaved = { showForm = false },
+                onDelete = { id ->
+                    (state.list as? UiState.Data)?.value?.firstOrNull { it.id == id }?.let { pendingDelete = it }
+                    showForm = false
+                },
+                onAcceptPayment = { id ->
+                    (state.list as? UiState.Data)?.value?.firstOrNull { it.id == id }?.let { viewModel.openPayment(it) }
+                    showForm = false
+                },
+            )
         }
     }
 
@@ -235,129 +248,26 @@ fun ScheduleScreen(
             onDismiss = { pendingDelete = null },
         )
     }
-}
 
-@Composable
-private fun AppointmentRow(
-    appointment: Appointment,
-    doctorName: String?,
-    onClick: (() -> Unit)? = null,
-    canDelete: Boolean = false,
-    onDelete: (() -> Unit)? = null,
-    onAcceptPayment: (() -> Unit)? = null,
-) {
-    Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier),
-        colors = CardDefaults.cardColors(containerColor = DvTheme.colors.surface1),
-        border = androidx.compose.foundation.BorderStroke(1.dp, DvTheme.colors.borderSubtle),
-    ) {
-        Row(modifier = Modifier.padding(DvSpacing.lg), verticalAlignment = Alignment.Top) {
-            Column(modifier = Modifier.width(64.dp)) {
-                // Время — данные, а не действие: его выделяет размер, а не
-                // цвет. Золото на экране остаётся за тем, что можно нажать.
-                Text(
-                    text = appointment.time,
-                    style = MaterialTheme.typography.titleMedium,
-                    color = DvTheme.colors.textPrimary,
-                )
-                Text(
-                    text = "${appointment.duration} мин",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = DvTheme.colors.textGhost,
-                )
-            }
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = appointment.patientName ?: "Пациент",
-                    style = MaterialTheme.typography.titleMedium,
-                    color = DvTheme.colors.textPrimary,
-                )
-                // Врач — отдельной, заметной строкой сразу под пациентом: в
-                // клинике с несколькими докторами это первое, что нужно
-                // администратору, чтобы понять, чей это приём и не занят ли
-                // нужный врач, когда он записывает следующего пациента.
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier.padding(top = DvSpacing.xs),
-                ) {
-                    Icon(
-                        imageVector = Icons.Filled.Person,
-                        contentDescription = null,
-                        tint = DvTheme.colors.textMuted,
-                        modifier = Modifier.size(12.dp),
-                    )
-                    Text(
-                        text = doctorName ?: "Врач не назначен",
-                        style = MaterialTheme.typography.bodySmall,
-                        // Назначенный врач — обычные данные; жёлтым остаётся
-                        // только его отсутствие, потому что это требует action.
-                        color = if (doctorName != null) DvTheme.colors.textSecondary else DvTheme.colors.warning,
-                        fontWeight = FontWeight.Medium,
-                        modifier = Modifier.padding(start = DvSpacing.xs),
-                    )
-                }
-                val service = appointment.serviceName.ifBlank { appointment.reason }
-                if (service.isNotBlank()) {
-                    Text(
-                        text = service,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = DvTheme.colors.textSecondary,
-                        modifier = Modifier.padding(top = DvSpacing.xs),
-                    )
-                }
-                val meta = listOfNotNull(
-                    APPOINTMENT_STATUS_LABELS[appointment.status] ?: appointment.status,
-                    appointment.chairName.ifBlank { null },
-                    formatPhone(appointment.patientPhone),
-                ).joinToString(" · ")
-                Text(
-                    text = meta,
-                    style = MaterialTheme.typography.labelSmall,
-                    color = DvTheme.colors.textMuted,
-                    modifier = Modifier.padding(top = DvSpacing.xs),
-                )
-                // Отметка про оплату — только когда есть что показать помимо
-                // «не оплачено», это ожидаемое состояние большинства приёмов
-                // и не заслуживает бейджа на каждой карточке.
-                PAYMENT_STATUS_LABELS[appointment.paymentStatus]?.let { label ->
-                    DvBadge(
-                        text = label,
-                        variant = if (appointment.paymentStatus == "paid") DvBadgeVariant.SUCCESS else DvBadgeVariant.WARNING,
-                        size = kz.dentvision.crm.ui.theme.DvBadgeSize.XS,
-                        modifier = Modifier.padding(top = DvSpacing.xs),
-                    )
-                }
-            }
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                if (onAcceptPayment != null) {
-                    IconButton(onClick = onAcceptPayment, modifier = Modifier.size(48.dp)) {
-                        Icon(
-                            Icons.Filled.Payments,
-                            contentDescription = "Принять оплату",
-                            tint = DvTheme.colors.gold,
-                            modifier = Modifier.size(18.dp),
-                        )
-                    }
-                }
-                if (canDelete) {
-                    IconButton(onClick = { onDelete?.invoke() }, modifier = Modifier.size(28.dp)) {
-                        Icon(
-                            Icons.Filled.Delete,
-                            contentDescription = "Отменить запись",
-                            tint = DvTheme.colors.textGhost,
-                            modifier = Modifier.size(18.dp),
-                        )
-                    }
-                }
-            }
-        }
+    state.rescheduleConflict?.let { conflict ->
+        DvConfirmDialog(
+            title = "Время уже занято",
+            message = "${conflict.message}\n\nПеренести на ${conflict.newTime} всё равно?",
+            confirmLabel = "Перенести всё равно",
+            onConfirm = viewModel::confirmRescheduleAnyway,
+            onDismiss = viewModel::dismissRescheduleConflict,
+        )
     }
 }
 
 @Composable
-private fun AppointmentForm(viewModel: ScheduleViewModel, onSaved: () -> Unit) {
+private fun AppointmentForm(
+    viewModel: ScheduleViewModel,
+    canAcceptPayment: Boolean,
+    onSaved: () -> Unit,
+    onDelete: (String) -> Unit,
+    onAcceptPayment: (String) -> Unit,
+) {
     val form by viewModel.form.collectAsStateWithLifecycle()
     val state by viewModel.state.collectAsStateWithLifecycle()
     val priceList by viewModel.priceList.collectAsStateWithLifecycle()
@@ -375,11 +285,41 @@ private fun AppointmentForm(viewModel: ScheduleViewModel, onSaved: () -> Unit) {
             .padding(bottom = DvSpacing.xxl),
         verticalArrangement = Arrangement.spacedBy(DvSpacing.md),
     ) {
-        Text(
-            text = if (form.id != null) "Приём ${form.time}" else "Новая запись на ${state.date}",
-            style = MaterialTheme.typography.titleLarge,
-            color = DvTheme.colors.textPrimary,
-        )
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                text = if (form.id != null) "Приём ${form.time}" else "Новая запись на ${state.date}",
+                style = MaterialTheme.typography.titleLarge,
+                color = DvTheme.colors.textPrimary,
+            )
+            // Отменить/принять оплату — раньше это было доступно только из
+            // плоского списка (`AppointmentRow`), которого сетка не рисует;
+            // без этой строки правка приёма из сетки лишилась бы обеих
+            // возможностей.
+            form.id?.let { id ->
+                Row {
+                    if (canAcceptPayment && form.paymentStatus != "paid") {
+                        IconButton(onClick = { onAcceptPayment(id) }) {
+                            Icon(
+                                Icons.Filled.Payments,
+                                contentDescription = "Принять оплату",
+                                tint = DvTheme.colors.gold,
+                            )
+                        }
+                    }
+                    IconButton(onClick = { onDelete(id) }) {
+                        Icon(
+                            Icons.Filled.Delete,
+                            contentDescription = "Отменить приём",
+                            tint = DvTheme.colors.textGhost,
+                        )
+                    }
+                }
+            }
+        }
 
         DvOutlineButton(
             onClick = { pickingPatient = true },
