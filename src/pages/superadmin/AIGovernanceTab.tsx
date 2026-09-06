@@ -4,6 +4,7 @@ import {
   StatCard, PageHeader, GlassCard, Card, CardContent, Button, Badge, Modal,
   Input, Select, EmptyState, Skeleton,
 } from '../../components/ui/ds';
+import { QueryError } from '../../components/ui/ds/QueryError';
 import { useToast } from '../../components/ui/ds/Toast';
 import { apiRequest } from '../../utils/api';
 import {
@@ -181,6 +182,11 @@ export default function AIGovernanceTab() {
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
               {Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-24 rounded-xl" />)}
             </div>
+          ) : stats.isError || aiActions.isError ? (
+            <QueryError
+              what="сводку по действиям ИИ"
+              onRetry={() => { stats.refetch(); aiActions.refetch(); }}
+            />
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
               <StatCard label="Всего AI-действий" value={totalActions} icon={<Brain size={18} />} />

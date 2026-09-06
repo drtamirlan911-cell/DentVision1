@@ -4,6 +4,7 @@ import {
   StatCard, PageHeader, GlassCard, Card, CardContent, Button, Badge, Modal,
   Input, Select, EmptyState, Skeleton, Pagination,
 } from '../../components/ui/ds';
+import { QueryError } from '../../components/ui/ds/QueryError';
 import { useToast } from '../../components/ui/ds/Toast';
 import * as api from '../../utils/api';
 import {
@@ -186,6 +187,8 @@ export default function MarketplaceTab() {
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           {Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-24 rounded-xl" />)}
         </div>
+      ) : suppliersForStats.isError ? (
+        <QueryError what="сводку по поставщикам" onRetry={() => suppliersForStats.refetch()} />
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           <StatCard label="Всего поставщиков" value={totalCount} icon={<Store size={18} />} />
