@@ -4,8 +4,6 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.ExperimentalLayoutApi
-import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
@@ -22,6 +20,7 @@ import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.Bookmark
 import androidx.compose.material.icons.filled.BookmarkBorder
 import androidx.compose.material.icons.filled.ChatBubbleOutline
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material.icons.filled.School
@@ -29,8 +28,6 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FilterChip
-import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -63,6 +60,7 @@ import kz.dentvision.crm.ui.common.EmptyStateView
 import kz.dentvision.crm.ui.common.ErrorState
 import kz.dentvision.crm.ui.common.LoadingSkeleton
 import kz.dentvision.crm.ui.common.UiState
+import kz.dentvision.crm.ui.theme.DvOutlineButton
 import kz.dentvision.crm.ui.theme.DvPrimaryButton
 import kz.dentvision.crm.ui.theme.DvTheme
 
@@ -74,7 +72,7 @@ import kz.dentvision.crm.ui.theme.DvTheme
  * (`optionalAuth` на сервере), публикация/лайк/сохранение/комментарий —
  * только вошедшим по-настоящему, как в `Jobs.tsx`.
  */
-@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun CommunityScreen(
     isAuthenticated: Boolean,
@@ -165,25 +163,23 @@ fun CommunityScreen(
                         }
                     }
                 }
-                // FlowRow, а не горизонтальный скролл: на телефоне обрезанный
-                // край без явного намёка на свайп выглядит как поломка, а все
-                // 7 тем на 2 строках видно сразу.
-                FlowRow(
+                // Раньше здесь был FlowRow из всех 7 тем — на телефоне это
+                // 3-4 строки чипов, которые сталкивали саму ленту за нижний
+                // край экрана. Одна кнопка + лист выбора занимает одну строку,
+                // как уже сделано для города в Jobs и для зуба/услуги в записи.
+                var pickingTopic by remember { mutableStateOf(false) }
+                DvOutlineButton(
+                    onClick = { pickingTopic = true },
                     modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
-                    COMMUNITY_TOPICS.forEach { topic ->
-                        FilterChip(
-                            selected = state.topic == topic,
-                            onClick = { viewModel.setTopic(topic) },
-                            label = { Text(topic) },
-                            colors = FilterChipDefaults.filterChipColors(
-                                selectedContainerColor = DvTheme.colors.gold.copy(alpha = 0.18f),
-                                selectedLabelColor = DvTheme.colors.gold,
-                            ),
-                        )
-                    }
+                    Text(text = "Тема: ${state.topic}")
+                }
+                if (pickingTopic) {
+                    TopicPickerSheet(
+                        selected = state.topic,
+                        onDismiss = { pickingTopic = false },
+                        onSelect = { topic -> viewModel.setTopic(topic); pickingTopic = false },
+                    )
                 }
             }
 
@@ -230,6 +226,32 @@ fun CommunityScreen(
                 isAuthenticated = isAuthenticated,
                 onRequireLogin = onRequireLogin,
             )
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun TopicPickerSheet(selected: String, onDismiss: () -> Unit, onSelect: (String) -> Unit) {
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    ModalBottomSheet(onDismissRequest = onDismiss, sheetState = sheetState, containerColor = DvTheme.colors.surface1) {
+        LazyColumn(contentPadding = PaddingValues(bottom = 24.dp)) {
+            items(COMMUNITY_TOPICS) { topic ->
+                Row(
+                    modifier = Modifier.fillMaxWidth().clickable { onSelect(topic) }.padding(horizontal = 20.dp, vertical = 14.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(
+                        text = topic,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = if (selected == topic) DvTheme.colors.gold else DvTheme.colors.textPrimary,
+                        modifier = Modifier.weight(1f),
+                    )
+                    if (selected == topic) {
+                        Icon(Icons.Filled.Check, contentDescription = null, tint = DvTheme.colors.gold, modifier = Modifier.size(18.dp))
+                    }
+                }
+            }
         }
     }
 }
