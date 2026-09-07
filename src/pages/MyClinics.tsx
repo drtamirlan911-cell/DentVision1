@@ -78,9 +78,18 @@ export default function MyClinics() {
     <div className="dv-page py-6"><ListSkeleton count={3} /></div>
   );
 
-  const enterClinic = async (clinicId: string) => {
-    await switchClinic(clinicId);
-    navigate('/crm/schedule');
+  const enterClinic = async (m: any) => {
+    const id = m?.clinicId || m?.clinic?.id || m?.id;
+    if (!id) {
+      toast.error('Идентификатор клиники не найден');
+      return;
+    }
+    try {
+      await switchClinic(id);
+      navigate('/crm/schedule');
+    } catch (e: any) {
+      toast.error(e?.message || 'Не удалось войти в клинику');
+    }
   };
 
   return (
@@ -104,7 +113,7 @@ export default function MyClinics() {
                   key={m.id}
                   custom={i}
                   initial="hidden" animate="visible" variants={fadeUp}
-                  onClick={() => enterClinic(m.clinicId)}
+                  onClick={() => enterClinic(m)}
                   className="w-full flex items-center gap-4 p-4 min-h-11 bg-surface-1 border border-bdr-subtle rounded-[14px] hover:border-dv-gold/40 transition-all text-left cursor-pointer"
                 >
                   {/* The clinic picks its own accent, so this one is data, not

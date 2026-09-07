@@ -123,7 +123,15 @@ export function WorkspaceSwitcher({ className }: { className?: string }) {
   const Icon = TYPE_ICON[current?.scopeType || 'CLINIC'] || Building2
 
   const pick = async (ws: WorkspaceContext) => {
-    if (busyId || isActive(ws)) { setOpen(false); return }
+    if (busyId) return
+    if (isActive(ws)) {
+      setOpen(false)
+      if (ws.scopeType === 'CLINIC' && !location.pathname.startsWith('/crm')) navigate('/crm/schedule')
+      if (ws.scopeType === 'DIAGNOSTIC_CENTER') navigate('/diagnostics/center-dashboard')
+      if (ws.scopeType === 'LABORATORY') navigate('/diagnostics/lab-dashboard')
+      if (ws.scopeType === 'SUPPLIER') navigate('/supplier')
+      return
+    }
     setBusyId(ws.id)
     try {
       // One endpoint for every type. It resolves the unified Person path when
