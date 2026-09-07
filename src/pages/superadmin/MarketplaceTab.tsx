@@ -321,7 +321,7 @@ export default function MarketplaceTab() {
                         </td>
                         <td className="px-4 py-3 text-xs text-txt-muted">{fd(s.createdAt)}</td>
                         <td className="px-4 py-3">
-                          <Button size="icon-sm" variant="ghost" onClick={() => setDetail(s)} title="Подробнее">
+                          <Button aria-label="Подробнее" size="icon-sm" variant="ghost" onClick={() => setDetail(s)} title="Подробнее">
                             <Eye size={14} />
                           </Button>
                         </td>

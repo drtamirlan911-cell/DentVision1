@@ -505,7 +505,7 @@ export default function FinanceTab() {
                           <td className="px-4 py-3 text-sm text-txt-secondary max-w-[200px] truncate">{tx.description || '—'}</td>
                           <td className="px-4 py-3 text-xs text-txt-muted">{fd(tx.createdAt)}</td>
                           <td className="px-4 py-3">
-                            <Button size="icon-sm" variant="ghost" onClick={() => setDisputeDetail(tx)} title="Подробнее"><Eye size={14} /></Button>
+                            <Button aria-label="Подробнее" size="icon-sm" variant="ghost" onClick={() => setDisputeDetail(tx)} title="Подробнее"><Eye size={14} /></Button>
                           </td>
                         </tr>
                       ))}
@@ -640,7 +640,7 @@ export default function FinanceTab() {
                         </td>
                         <td className="px-4 py-3 text-xs text-txt-muted">{fd(rule.updatedAt)}</td>
                         <td className="px-4 py-3">
-                          <Button size="icon-sm" variant="ghost" onClick={() => {
+                          <Button aria-label="Редактировать" size="icon-sm" variant="ghost" onClick={() => {
                             setCommEdit(rule);
                             setCommForm({ domain: rule.domain || '', scopeId: rule.scopeId || '', percent: String((rule.percentBps ?? 0) / 100) });
                             setCommModal(true);
@@ -694,18 +694,18 @@ export default function FinanceTab() {
                         <td className="px-4 py-3 text-xs text-txt-muted">{fd(d.createdAt)}</td>
                         <td className="px-4 py-3">
                           <div className="flex gap-1">
-                            <Button size="icon-sm" variant="ghost" onClick={() => setDisputeDetail(d)} title="Подробнее"><Eye size={14} /></Button>
+                            <Button aria-label="Подробнее" size="icon-sm" variant="ghost" onClick={() => setDisputeDetail(d)} title="Подробнее"><Eye size={14} /></Button>
                             {d.status === 'open' && (
-                              <Button size="icon-sm" variant="outline" onClick={() => updateDispute.mutate({ id: d.id, status: 'review' })} title="На рассмотрение" loading={updateDispute.isPending}>
+                              <Button aria-label="На рассмотрение" size="icon-sm" variant="outline" onClick={() => updateDispute.mutate({ id: d.id, status: 'review' })} title="На рассмотрение" loading={updateDispute.isPending}>
                                 <RefreshCw size={14} />
                               </Button>
                             )}
                             {d.status === 'review' && (
                               <>
-                                <Button size="icon-sm" variant="success" onClick={() => updateDispute.mutate({ id: d.id, status: 'resolved' })} title="Решить" loading={updateDispute.isPending}>
+                                <Button aria-label="Решить" size="icon-sm" variant="success" onClick={() => updateDispute.mutate({ id: d.id, status: 'resolved' })} title="Решить" loading={updateDispute.isPending}>
                                   <Check size={14} />
                                 </Button>
-                                <Button size="icon-sm" variant="danger" onClick={() => updateDispute.mutate({ id: d.id, status: 'rejected' })} title="Отклонить" loading={updateDispute.isPending}>
+                                <Button aria-label="Отклонить" size="icon-sm" variant="danger" onClick={() => updateDispute.mutate({ id: d.id, status: 'rejected' })} title="Отклонить" loading={updateDispute.isPending}>
                                   <X size={14} />
                                 </Button>
                               </>
@@ -731,7 +731,7 @@ export default function FinanceTab() {
               onChange={(e) => setPayoutStatusFilter(e.target.value)}
               className="max-w-xs"
             />
-            <Button size="icon-sm" variant="ghost" onClick={() => payouts.refetch()} title="Обновить">
+            <Button aria-label="Обновить" size="icon-sm" variant="ghost" onClick={() => payouts.refetch()} title="Обновить">
               <RefreshCw size={14} />
             </Button>
           </div>
@@ -773,20 +773,20 @@ export default function FinanceTab() {
                           <div className="flex gap-1">
                             {p.status === 'requested' && (
                               <>
-                                <Button size="icon-sm" variant="success" onClick={() => updatePayout.mutate({ id: p.id, status: 'approved' })} title="Одобрить" loading={updatePayout.isPending}>
+                                <Button aria-label="Одобрить" size="icon-sm" variant="success" onClick={() => updatePayout.mutate({ id: p.id, status: 'approved' })} title="Одобрить" loading={updatePayout.isPending}>
                                   <Check size={14} />
                                 </Button>
-                                <Button size="icon-sm" variant="danger" onClick={() => updatePayout.mutate({ id: p.id, status: 'rejected' })} title="Отклонить" loading={updatePayout.isPending}>
+                                <Button aria-label="Отклонить" size="icon-sm" variant="danger" onClick={() => updatePayout.mutate({ id: p.id, status: 'rejected' })} title="Отклонить" loading={updatePayout.isPending}>
                                   <X size={14} />
                                 </Button>
                               </>
                             )}
                             {p.status === 'approved' && (
                               <>
-                                <Button size="icon-sm" variant="success" onClick={() => updatePayout.mutate({ id: p.id, status: 'paid' })} title="Отметить выплаченным" loading={updatePayout.isPending}>
+                                <Button aria-label="Отметить выплаченным" size="icon-sm" variant="success" onClick={() => updatePayout.mutate({ id: p.id, status: 'paid' })} title="Отметить выплаченным" loading={updatePayout.isPending}>
                                   <DollarSign size={14} />
                                 </Button>
-                                <Button size="icon-sm" variant="danger" onClick={() => updatePayout.mutate({ id: p.id, status: 'rejected' })} title="Отклонить" loading={updatePayout.isPending}>
+                                <Button aria-label="Отклонить" size="icon-sm" variant="danger" onClick={() => updatePayout.mutate({ id: p.id, status: 'rejected' })} title="Отклонить" loading={updatePayout.isPending}>
                                   <X size={14} />
                                 </Button>
                               </>

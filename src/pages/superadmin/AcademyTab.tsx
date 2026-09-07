@@ -417,13 +417,13 @@ export default function AcademyTab() {
                         <td className="px-4 py-3 text-xs text-txt-muted">{fd(a.createdAt)}</td>
                         <td className="px-4 py-3">
                           <div className="flex gap-1">
-                            <Button size="icon-sm" variant="ghost" onClick={() => { setEditingAcademy(a); setAcademyForm({ name: a.name || '', description: a.description || '' }); setAcademyModal(true); }} title="Редактировать">
+                            <Button aria-label="Редактировать" size="icon-sm" variant="ghost" onClick={() => { setEditingAcademy(a); setAcademyForm({ name: a.name || '', description: a.description || '' }); setAcademyModal(true); }} title="Редактировать">
                               <Pencil size={14} />
                             </Button>
-                            <Button size="icon-sm" variant="ghost" onClick={() => setToDeleteAcademy(a)} title="Удалить">
+                            <Button aria-label="Удалить" size="icon-sm" variant="ghost" onClick={() => setToDeleteAcademy(a)} title="Удалить">
                               <Trash2 size={14} className="text-danger" />
                             </Button>
-                            <Button size="icon-sm" variant="ghost" onClick={() => setSelectedAcademy(a)} title="Подробнее">
+                            <Button aria-label="Подробнее" size="icon-sm" variant="ghost" onClick={() => setSelectedAcademy(a)} title="Подробнее">
                               <ChevronRight size={14} />
                             </Button>
                           </div>
@@ -541,7 +541,7 @@ export default function AcademyTab() {
                         <td className="px-4 py-3 text-xs text-txt-muted">{fd(l.createdAt)}</td>
                         <td className="px-4 py-3">
                           <div className="flex gap-1">
-                            <Button size="icon-sm" variant="ghost" onClick={() => setSelectedLecturerId(l.id)} title="Подробнее">
+                            <Button aria-label="Подробнее" size="icon-sm" variant="ghost" onClick={() => setSelectedLecturerId(l.id)} title="Подробнее">
                               <ChevronRight size={14} />
                             </Button>
                           </div>
@@ -717,7 +717,7 @@ export default function AcademyTab() {
                             </td>
                             <td className="px-4 py-3 text-xs text-txt-muted">{fd(l.createdAt)}</td>
                             <td className="px-4 py-3">
-                              <Button size="icon-sm" variant="ghost" onClick={() => setVerifyDetailId(l.id)} title="Просмотреть документы">
+                              <Button aria-label="Просмотреть документы" size="icon-sm" variant="ghost" onClick={() => setVerifyDetailId(l.id)} title="Просмотреть документы">
                                 <FileText size={14} />
                               </Button>
                             </td>
@@ -772,11 +772,11 @@ export default function AcademyTab() {
                             <Badge variant="success" size="sm">Одобрен</Badge>
                           ) : (
                             <div className="flex gap-1 shrink-0">
-                              <Button size="icon-sm" variant="success" title="Одобрить" loading={verifyDocument.isPending}
+                              <Button aria-label="Одобрить" size="icon-sm" variant="success" title="Одобрить" loading={verifyDocument.isPending}
                                 onClick={() => verifyDocument.mutate({ lecturerId: verifyDetail.id, verificationId: doc.id, verified: true })}>
                                 <CheckCircle size={14} />
                               </Button>
-                              <Button size="icon-sm" variant="danger" title="Отклонить" loading={verifyDocument.isPending}
+                              <Button aria-label="Отклонить" size="icon-sm" variant="danger" title="Отклонить" loading={verifyDocument.isPending}
                                 onClick={() => verifyDocument.mutate({ lecturerId: verifyDetail.id, verificationId: doc.id, verified: false })}>
                                 <XCircle size={14} />
                               </Button>

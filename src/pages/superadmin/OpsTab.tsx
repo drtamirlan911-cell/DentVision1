@@ -179,12 +179,12 @@ export default function OpsTab() {
                           <td className="px-4 py-3 text-sm text-txt-secondary">{c.memberCount ?? c._count?.members ?? 0}</td>
                           <td className="px-4 py-3">
                             <div className="flex gap-1">
-                              <Button size="icon-sm" variant="ghost" title="Изменить тариф" onClick={() => { setPlanModal(c); setNewPlan(c.subscription?.plan || 'starter'); }}><Settings size={14} /></Button>
-                              <Button size="icon-sm" variant="ghost" title="Продлить" onClick={() => { setExtendModal(c); setExtendMonths(3); }}><Calendar size={14} /></Button>
+                              <Button aria-label="Изменить тариф" size="icon-sm" variant="ghost" title="Изменить тариф" onClick={() => { setPlanModal(c); setNewPlan(c.subscription?.plan || 'starter'); }}><Settings size={14} /></Button>
+                              <Button aria-label="Продлить" size="icon-sm" variant="ghost" title="Продлить" onClick={() => { setExtendModal(c); setExtendMonths(3); }}><Calendar size={14} /></Button>
                               {c.subscription?.status === 'suspended' ? (
-                                <Button size="icon-sm" variant="ghost" title="Активировать" onClick={() => activateClinic.mutate(c.id)} className="text-green-400 hover:text-green-300"><Power size={14} /></Button>
+                                <Button aria-label="Активировать" size="icon-sm" variant="ghost" title="Активировать" onClick={() => activateClinic.mutate(c.id)} className="text-green-400 hover:text-green-300"><Power size={14} /></Button>
                               ) : (
-                                <Button size="icon-sm" variant="ghost" title="Заморозить" onClick={() => setToSuspend(c)} className="text-red-400 hover:text-red-300"><PowerOff size={14} /></Button>
+                                <Button aria-label="Заморозить" size="icon-sm" variant="ghost" title="Заморозить" onClick={() => setToSuspend(c)} className="text-red-400 hover:text-red-300"><PowerOff size={14} /></Button>
                               )}
                             </div>
                           </td>

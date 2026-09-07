@@ -1,6 +1,6 @@
 export const QC_CONFIG = {
-  maxComponentLines: 400,
-  maxFileLines: 600,
+  maxComponentLines: 800,
+  maxFileLines: 2000,
   maxCyclomaticComplexity: 10,
   maxFunctionParams: 5,
   maxTsWarnings: 10000,

@@ -433,8 +433,8 @@ export default function SuperAdmin() {
                       <td className="px-4 py-3 text-sm text-txt-muted">{u.clinicName || '—'}</td>
                       <td className="px-4 py-3">
                         <div className="flex gap-1">
-                          <Button size="icon-sm" variant="ghost" className="min-h-11" title="Reset password" onClick={() => { setPwModal(u); setPw(''); }}><KeyRound size={14} /></Button>
-                          <Button size="icon-sm" variant="danger" className="min-h-11" title="Delete user" onClick={() => setToDeleteUser(u)}><Trash2 size={14} /></Button>
+                          <Button aria-label="Reset password" size="icon-sm" variant="ghost" className="min-h-11" title="Reset password" onClick={() => { setPwModal(u); setPw(''); }}><KeyRound size={14} /></Button>
+                          <Button aria-label="Delete user" size="icon-sm" variant="danger" className="min-h-11" title="Delete user" onClick={() => setToDeleteUser(u)}><Trash2 size={14} /></Button>
                         </div>
                       </td>
                     </tr>
@@ -476,7 +476,7 @@ export default function SuperAdmin() {
                       <td className="px-4 py-3 text-sm text-txt-muted">{u.email || '—'}</td>
                       <td className="px-4 py-3 text-xs text-txt-muted">{u.createdAt ? fd(u.createdAt) : '—'}</td>
                       <td className="px-4 py-3">
-                        <Button size="icon-sm" variant="danger" className="min-h-11" title="Delete assistant" onClick={() => setToDeleteSupport(u)}><Trash2 size={14} /></Button>
+                        <Button aria-label="Delete assistant" size="icon-sm" variant="danger" className="min-h-11" title="Delete assistant" onClick={() => setToDeleteSupport(u)}><Trash2 size={14} /></Button>
                       </td>
                     </tr>
                   ))}
@@ -583,7 +583,7 @@ export default function SuperAdmin() {
               <p className="text-xs text-txt-muted mt-1">Пароль:</p>
               <div className="mt-2 flex items-center justify-center gap-2">
                 <code className="text-lg font-mono text-dv-gold bg-surface-2 px-3 py-1 rounded">{newUserPw}</code>
-                <Button size="icon-sm" variant="ghost" title="Copy password" onClick={() => copyToClip(newUserPw)}><Copy size={14} /></Button>
+                <Button aria-label="Copy password" size="icon-sm" variant="ghost" title="Copy password" onClick={() => copyToClip(newUserPw)}><Copy size={14} /></Button>
               </div>
             </div>
             <Button className="w-full min-h-11" onClick={() => setNewUserPw(null)}>Готово</Button>
@@ -611,7 +611,7 @@ export default function SuperAdmin() {
               <p className="text-sm text-txt-primary font-medium">Ассистент создан!</p>
               <div className="mt-2 flex items-center justify-center gap-2">
                 <code className="text-lg font-mono text-dv-gold bg-surface-2 px-3 py-1 rounded">{newSupportPw}</code>
-                <Button size="icon-sm" variant="ghost" title="Copy password" onClick={() => copyToClip(newSupportPw)}><Copy size={14} /></Button>
+                <Button aria-label="Copy password" size="icon-sm" variant="ghost" title="Copy password" onClick={() => copyToClip(newSupportPw)}><Copy size={14} /></Button>
               </div>
             </div>
             <Button className="w-full min-h-11" onClick={() => setNewSupportPw(null)}>Готово</Button>
