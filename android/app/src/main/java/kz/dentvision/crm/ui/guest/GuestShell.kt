@@ -1,27 +1,37 @@
 package kz.dentvision.crm.ui.guest
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.foundation.layout.Column
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Login
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Biotech
+import androidx.compose.material.icons.filled.Business
 import androidx.compose.material.icons.filled.Groups
 import androidx.compose.material.icons.filled.Menu
+import androidx.compose.material.icons.filled.MedicalServices
 import androidx.compose.material.icons.filled.PersonAdd
 import androidx.compose.material.icons.filled.School
 import androidx.compose.material.icons.filled.Science
 import androidx.compose.material.icons.filled.Sell
+import androidx.compose.material.icons.filled.ShoppingCart
+import androidx.compose.material.icons.filled.SmartToy
+import androidx.compose.material.icons.filled.Store
 import androidx.compose.material.icons.filled.TipsAndUpdates
 import androidx.compose.material.icons.filled.Work
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.DrawerValue
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
@@ -31,6 +41,10 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.ModalDrawerSheet
 import androidx.compose.material3.ModalNavigationDrawer
+import androidx.compose.material3.NavigationBar
+import androidx.compose.material3.NavigationBarItem
+import androidx.compose.material3.NavigationBarItemDefaults
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -48,6 +62,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.launch
 import kz.dentvision.crm.ui.auth.LoginScreen
@@ -60,28 +77,10 @@ import kz.dentvision.crm.ui.public.PublicScreen
 import kz.dentvision.crm.ui.theme.DvTheme
 
 /**
- * Куда попадает гость внутри постоянной оболочки. Вход и регистрация — тоже
- * пункты этой же оболочки, а не отдельный экран поверх всего: они не
- * блокируют, к ним просто можно перейти и вернуться.
+ * Куда попадает гость внутри постоянной оболочки.
  */
-private enum class GuestDestination { HOME, PUBLIC, REGISTER_DIAGNOSTICS, JOBS, COMMUNITY, PRICING, DEMO, LOGIN, REGISTER }
+private enum class GuestDestination { HOME, PUBLIC_MARKET, PUBLIC_ACADEMY, REGISTER_DIAGNOSTICS, JOBS, COMMUNITY, PRICING, DEMO, LOGIN, REGISTER }
 
-/**
- * Постоянная оболочка гостя — тот же принцип, что `AppShell.kt` у вошедшего:
- * выдвижное меню + верхняя панель, а не самодельная 4-состояная развилка без
- * навигации, которая была здесь раньше. Отдельная от `AppShell`, а не его
- * вариант с пустой сессией: тот завязан на непустую `Session` в сотнях мест
- * (клиника, права, разделы CRM) — переделывать его под гостя рискованнее,
- * чем держать маленькую параллельную оболочку с другим, куда более коротким
- * набором разделов.
- *
- * На вебе гость получает тот же список пунктов, что и вошедший, только
- * урезанный (`GUEST_NAV_ITEMS` в `Sidebar.tsx`: Демо/Магазин/Школа/Вакансии/
- * Сообщество/Тарифы) — здесь только то, что уже реально построено и работает
- * (Ассистент, Магазин и Школа, регистрация диагностического центра/
- * лаборатории): Демо-режим CRM и Вакансии/Сообщество/Тарифы — отдельная,
- * пока не построенная работа (см. план), а не пункт в никуда.
- */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun GuestShell() {
@@ -135,16 +134,92 @@ fun GuestShell() {
                     colors = TopAppBarDefaults.topAppBarColors(containerColor = DvTheme.colors.surface1),
                 )
             },
+            bottomBar = {
+                NavigationBar(
+                    containerColor = DvTheme.colors.surface1,
+                    contentColor = DvTheme.colors.textSecondary,
+                ) {
+                    NavigationBarItem(
+                        selected = destination == GuestDestination.DEMO,
+                        onClick = { open(GuestDestination.DEMO) },
+                        icon = { Icon(Icons.Filled.MedicalServices, contentDescription = null) },
+                        label = { Text("CRM", style = MaterialTheme.typography.labelSmall) },
+                        colors = NavigationBarItemDefaults.colors(
+                            selectedIconColor = DvTheme.colors.gold,
+                            selectedTextColor = DvTheme.colors.gold,
+                            indicatorColor = DvTheme.colors.gold.copy(alpha = 0.15f),
+                            unselectedIconColor = DvTheme.colors.textSecondary,
+                            unselectedTextColor = DvTheme.colors.textSecondary,
+                        )
+                    )
+                    NavigationBarItem(
+                        selected = destination == GuestDestination.PUBLIC_MARKET,
+                        onClick = { open(GuestDestination.PUBLIC_MARKET) },
+                        icon = { Icon(Icons.Filled.ShoppingCart, contentDescription = null) },
+                        label = { Text("Маркет", style = MaterialTheme.typography.labelSmall) },
+                        colors = NavigationBarItemDefaults.colors(
+                            selectedIconColor = DvTheme.colors.gold,
+                            selectedTextColor = DvTheme.colors.gold,
+                            indicatorColor = DvTheme.colors.gold.copy(alpha = 0.15f),
+                            unselectedIconColor = DvTheme.colors.textSecondary,
+                            unselectedTextColor = DvTheme.colors.textSecondary,
+                        )
+                    )
+                    NavigationBarItem(
+                        selected = destination == GuestDestination.HOME,
+                        onClick = { open(GuestDestination.HOME) },
+                        icon = { Icon(Icons.Filled.SmartToy, contentDescription = null) },
+                        label = { Text("AI", style = MaterialTheme.typography.labelSmall) },
+                        colors = NavigationBarItemDefaults.colors(
+                            selectedIconColor = DvTheme.colors.gold,
+                            selectedTextColor = DvTheme.colors.gold,
+                            indicatorColor = DvTheme.colors.gold.copy(alpha = 0.15f),
+                            unselectedIconColor = DvTheme.colors.textSecondary,
+                            unselectedTextColor = DvTheme.colors.textSecondary,
+                        )
+                    )
+                    NavigationBarItem(
+                        selected = destination == GuestDestination.PUBLIC_ACADEMY,
+                        onClick = { open(GuestDestination.PUBLIC_ACADEMY) },
+                        icon = { Icon(Icons.Filled.School, contentDescription = null) },
+                        label = { Text("Academy", style = MaterialTheme.typography.labelSmall) },
+                        colors = NavigationBarItemDefaults.colors(
+                            selectedIconColor = DvTheme.colors.gold,
+                            selectedTextColor = DvTheme.colors.gold,
+                            indicatorColor = DvTheme.colors.gold.copy(alpha = 0.15f),
+                            unselectedIconColor = DvTheme.colors.textSecondary,
+                            unselectedTextColor = DvTheme.colors.textSecondary,
+                        )
+                    )
+                    NavigationBarItem(
+                        selected = destination == GuestDestination.COMMUNITY,
+                        onClick = { open(GuestDestination.COMMUNITY) },
+                        icon = { Icon(Icons.Filled.Groups, contentDescription = null) },
+                        label = { Text("Сеть", style = MaterialTheme.typography.labelSmall) },
+                        colors = NavigationBarItemDefaults.colors(
+                            selectedIconColor = DvTheme.colors.gold,
+                            selectedTextColor = DvTheme.colors.gold,
+                            indicatorColor = DvTheme.colors.gold.copy(alpha = 0.15f),
+                            unselectedIconColor = DvTheme.colors.textSecondary,
+                            unselectedTextColor = DvTheme.colors.textSecondary,
+                        )
+                    )
+                }
+            }
         ) { padding ->
             Column(modifier = Modifier.padding(padding)) {
                 when (destination) {
                     GuestDestination.HOME -> IntelligenceScreen(
                         onNavigate = { path -> resolveGuestPath(path, ::open) },
                     )
-                    GuestDestination.PUBLIC -> PublicScreen(
-                        // embedded = true — GuestShell уже даёт свою шапку
-                        // (меню/гид/«Войти»); без этого здесь рисовалась
-                        // вторая, своя шапка PublicScreen поверх первой.
+                    GuestDestination.PUBLIC_MARKET -> PublicScreen(
+                        embedded = true,
+                        showRegisterBanner = true,
+                        onRegisterDiagnostics = { open(GuestDestination.REGISTER_DIAGNOSTICS) },
+                        isAuthenticated = false,
+                        onRequireLogin = { open(GuestDestination.LOGIN) },
+                    )
+                    GuestDestination.PUBLIC_ACADEMY -> PublicScreen(
                         embedded = true,
                         showRegisterBanner = true,
                         onRegisterDiagnostics = { open(GuestDestination.REGISTER_DIAGNOSTICS) },
@@ -166,7 +241,7 @@ fun GuestShell() {
                     GuestDestination.COMMUNITY -> CommunityScreen(
                         isAuthenticated = false,
                         onRequireLogin = { open(GuestDestination.LOGIN) },
-                        onOpenSchool = { open(GuestDestination.PUBLIC) },
+                        onOpenSchool = { open(GuestDestination.PUBLIC_ACADEMY) },
                     )
                     GuestDestination.DEMO -> GuestDemoScreen(
                         onBack = { open(GuestDestination.HOME) },
@@ -207,9 +282,7 @@ fun GuestShell() {
 
 /**
  * `/shop`,`/school` → витрина; `/register-diagnostics` → регистрация центра;
- * `/crm/schedule?demo=1` (как в вебе — `Sidebar.tsx`, `ChatMessage.tsx`,
- * `aiPlatformMap.ts` шлют именно этот путь) → демо-клиника; всё остальное —
- * вход, честная граница (нет анонимного кабинета клиники).
+ * `/crm/schedule?demo=1` → демо-клиника; всё остальное — вход.
  */
 private fun resolveGuestPath(path: String, open: (GuestDestination) -> Unit) {
     if (path.contains("demo=1")) {
@@ -217,7 +290,8 @@ private fun resolveGuestPath(path: String, open: (GuestDestination) -> Unit) {
         return
     }
     when (path.substringBefore('?')) {
-        "/shop", "/school" -> open(GuestDestination.PUBLIC)
+        "/shop" -> open(GuestDestination.PUBLIC_MARKET)
+        "/school" -> open(GuestDestination.PUBLIC_ACADEMY)
         "/register-diagnostics" -> open(GuestDestination.REGISTER_DIAGNOSTICS)
         "/jobs" -> open(GuestDestination.JOBS)
         "/community" -> open(GuestDestination.COMMUNITY)
@@ -229,44 +303,131 @@ private fun resolveGuestPath(path: String, open: (GuestDestination) -> Unit) {
 @Composable
 private fun GuestDrawerContent(destination: GuestDestination, onOpen: (GuestDestination) -> Unit) {
     Column(modifier = Modifier.verticalScroll(rememberScrollState()).padding(vertical = 12.dp)) {
+        // Logo & Title
         Row(
             verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp),
         ) {
             DvLogo(size = 32.dp, modifier = Modifier.padding(end = 10.dp))
-            Text(text = "DentVision", style = MaterialTheme.typography.titleMedium, color = DvTheme.colors.gold)
+            Text(text = "DentVision", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = DvTheme.colors.textPrimary)
         }
+
+        // Guest Card Block
+        Box(
+            modifier = Modifier
+                .padding(horizontal = 20.dp, vertical = 6.dp)
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(12.dp))
+                .background(DvTheme.colors.surface2)
+                .padding(12.dp)
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Box(
+                    modifier = Modifier
+                        .size(36.dp)
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(DvTheme.colors.surface3),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(text = "Г", style = MaterialTheme.typography.titleMedium, color = DvTheme.colors.textPrimary, fontWeight = FontWeight.Bold)
+                }
+                Column(modifier = Modifier.padding(start = 12.dp)) {
+                    Text(text = "Гость", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold, color = DvTheme.colors.textPrimary)
+                    Text(text = "Анонимный доступ", style = MaterialTheme.typography.bodySmall, color = DvTheme.colors.textMuted)
+                }
+            }
+        }
+
+        // Intelligence Block
+        Box(
+            modifier = Modifier
+                .padding(horizontal = 20.dp, vertical = 6.dp)
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(12.dp))
+                .clickable { onOpen(GuestDestination.HOME) }
+                .padding(8.dp)
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Box(
+                    modifier = Modifier
+                        .size(36.dp)
+                        .clip(RoundedCornerShape(18.dp))
+                        .background(DvTheme.colors.gold.copy(alpha = 0.2f)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(Icons.Filled.SmartToy, contentDescription = null, tint = DvTheme.colors.gold, modifier = Modifier.size(20.dp))
+                }
+                Column(modifier = Modifier.padding(start = 12.dp)) {
+                    Text(text = "Intelligence", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = DvTheme.colors.gold)
+                    Text(text = "Цифровой ассистент", style = MaterialTheme.typography.bodySmall, color = DvTheme.colors.textMuted)
+                }
+            }
+        }
+
+        // Hero Intro Card
+        Box(
+            modifier = Modifier
+                .padding(horizontal = 20.dp, vertical = 8.dp)
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(16.dp))
+                .border(1.dp, DvTheme.colors.borderSubtle, RoundedCornerShape(16.dp))
+                .background(DvTheme.colors.surface1)
+                .padding(16.dp)
+        ) {
+            Column {
+                Text(
+                    text = "Знакомство с DentVision",
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.Bold,
+                    color = DvTheme.colors.textPrimary
+                )
+                Spacer(modifier = Modifier.height(6.dp))
+                Text(
+                    text = "CRM, маркетплейс и Academy в одной SuperApp. Откройте демо или спросите ИИ.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = DvTheme.colors.textSecondary
+                )
+                Spacer(modifier = Modifier.height(12.dp))
+                OutlinedButton(
+                    onClick = { onOpen(GuestDestination.DEMO) },
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(8.dp),
+                    colors = ButtonDefaults.outlinedButtonColors(
+                        containerColor = DvTheme.colors.gold.copy(alpha = 0.65f),
+                        contentColor = DvTheme.colors.surface0,
+                    ),
+                    border = null,
+                ) {
+                    Text("Открыть демо", fontWeight = FontWeight.Bold)
+                }
+            }
+        }
+
         Text(
-            text = "Гость",
-            style = MaterialTheme.typography.bodySmall,
+            text = "ОТКРЫТЬ",
+            style = MaterialTheme.typography.labelSmall,
+            fontWeight = FontWeight.Bold,
             color = DvTheme.colors.textMuted,
-            modifier = Modifier.padding(horizontal = 20.dp),
+            modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp)
         )
-        HorizontalDivider(color = DvTheme.colors.borderSubtle, modifier = Modifier.padding(vertical = 12.dp))
 
         GuestDrawerItem(
-            label = "Ассистент",
-            icon = Icons.Filled.AutoAwesome,
-            active = destination == GuestDestination.HOME,
-            onClick = { onOpen(GuestDestination.HOME) },
-        )
-        GuestDrawerItem(
             label = "Демо клиника",
-            icon = Icons.Filled.Biotech,
+            icon = Icons.Filled.Business,
             active = destination == GuestDestination.DEMO,
             onClick = { onOpen(GuestDestination.DEMO) },
         )
         GuestDrawerItem(
-            label = "Маркетплейс и Academy OS",
-            icon = Icons.Filled.School,
-            active = destination == GuestDestination.PUBLIC,
-            onClick = { onOpen(GuestDestination.PUBLIC) },
+            label = "Маркетплейс",
+            icon = Icons.Filled.ShoppingCart,
+            active = destination == GuestDestination.PUBLIC_MARKET,
+            onClick = { onOpen(GuestDestination.PUBLIC_MARKET) },
         )
         GuestDrawerItem(
-            label = "Диагностический центр или лаборатория",
-            icon = Icons.Filled.Science,
-            active = destination == GuestDestination.REGISTER_DIAGNOSTICS,
-            onClick = { onOpen(GuestDestination.REGISTER_DIAGNOSTICS) },
+            label = "Academy OS",
+            icon = Icons.Filled.School,
+            active = destination == GuestDestination.PUBLIC_ACADEMY,
+            onClick = { onOpen(GuestDestination.PUBLIC_ACADEMY) },
         )
         GuestDrawerItem(
             label = "Вакансии",
@@ -279,12 +440,6 @@ private fun GuestDrawerContent(destination: GuestDestination, onOpen: (GuestDest
             icon = Icons.Filled.Groups,
             active = destination == GuestDestination.COMMUNITY,
             onClick = { onOpen(GuestDestination.COMMUNITY) },
-        )
-        GuestDrawerItem(
-            label = "Тарифы",
-            icon = Icons.Filled.Sell,
-            active = destination == GuestDestination.PRICING,
-            onClick = { onOpen(GuestDestination.PRICING) },
         )
 
         HorizontalDivider(color = DvTheme.colors.borderSubtle, modifier = Modifier.padding(vertical = 12.dp, horizontal = 20.dp))
@@ -323,7 +478,7 @@ private fun GuestDrawerItem(
             .padding(horizontal = 20.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        androidx.compose.foundation.layout.Box(
+        Box(
             modifier = Modifier
                 .size(32.dp)
                 .clip(RoundedCornerShape(9.dp))
