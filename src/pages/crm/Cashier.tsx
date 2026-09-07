@@ -661,10 +661,10 @@ export default function Cashier() {
                               <Button
                                 variant="ghost"
                                 size="icon-sm"
+                                aria-label="Удалить операцию"
                                 icon={<Trash2 size={14} />}
                                 className="min-h-11 min-w-11 sm:min-h-0 sm:min-w-0 text-error/60 hover:text-error"
                                 onClick={() => setVoidReceiptId(r.id)}
-                                aria-label="Удалить операцию"
                               />
                             </td>
                           </tr>

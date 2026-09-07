@@ -336,7 +336,7 @@ export default function DiagnosticsTab() {
                           </td>
                           <td className="px-4 py-3 text-xs text-txt-muted">{fd(r.createdAt)}</td>
                           <td className="px-4 py-3">
-                            <Button size="icon-sm" variant="ghost" onClick={() => setRefDetail(r)} title="Подробнее"><Eye size={14} /></Button>
+                            <Button aria-label="Подробнее" size="icon-sm" variant="ghost" onClick={() => setRefDetail(r)} title="Подробнее"><Eye size={14} /></Button>
                           </td>
                         </tr>
                       ))}
@@ -401,8 +401,8 @@ export default function DiagnosticsTab() {
                             </td>
                             <td className="px-4 py-3">
                               <div className="flex gap-1">
-                                <Button size="icon-sm" variant="ghost" onClick={() => { setEditCenter(c); setCenterForm({ name: c.name || '', city: c.city || '', phone: c.phone || '', email: c.email || '', address: c.address || '' }); setCenterModal('edit'); }} title="Редактировать"><Settings size={14} /></Button>
-                                <Button size="icon-sm" variant="ghost" onClick={() => setPricingModal(c)} title="Цены"><DollarSign size={14} /></Button>
+                                <Button aria-label="Редактировать" size="icon-sm" variant="ghost" onClick={() => { setEditCenter(c); setCenterForm({ name: c.name || '', city: c.city || '', phone: c.phone || '', email: c.email || '', address: c.address || '' }); setCenterModal('edit'); }} title="Редактировать"><Settings size={14} /></Button>
+                                <Button aria-label="Цены" size="icon-sm" variant="ghost" onClick={() => setPricingModal(c)} title="Цены"><DollarSign size={14} /></Button>
                               </div>
                             </td>
                           </tr>
@@ -464,7 +464,7 @@ export default function DiagnosticsTab() {
                               <div className="text-xs text-txt-muted">{l.email || '—'}</div>
                             </td>
                             <td className="px-4 py-3">
-                              <Button size="icon-sm" variant="ghost" onClick={() => { setEditLab(l); setLabForm({ name: l.name || '', city: l.city || '', phone: l.phone || '', email: l.email || '' }); setLabModal('edit'); }} title="Редактировать"><Settings size={14} /></Button>
+                              <Button aria-label="Редактировать" size="icon-sm" variant="ghost" onClick={() => { setEditLab(l); setLabForm({ name: l.name || '', city: l.city || '', phone: l.phone || '', email: l.email || '' }); setLabModal('edit'); }} title="Редактировать"><Settings size={14} /></Button>
                             </td>
                           </tr>
                         ))}
@@ -524,8 +524,8 @@ export default function DiagnosticsTab() {
                         <td className="px-4 py-3">
                           {r.status === 'PENDING' && (
                             <div className="flex gap-1">
-                              <Button size="icon-sm" variant="success" onClick={() => approveReg.mutate(r.id)} title="Одобрить" loading={approveReg.isPending}><Check size={14} /></Button>
-                              <Button size="icon-sm" variant="danger" onClick={() => rejectReg.mutate({ id: r.id })} title="Отклонить" loading={rejectReg.isPending}><X size={14} /></Button>
+                              <Button aria-label="Одобрить" size="icon-sm" variant="success" onClick={() => approveReg.mutate(r.id)} title="Одобрить" loading={approveReg.isPending}><Check size={14} /></Button>
+                              <Button aria-label="Отклонить" size="icon-sm" variant="danger" onClick={() => rejectReg.mutate({ id: r.id })} title="Отклонить" loading={rejectReg.isPending}><X size={14} /></Button>
                             </div>
                           )}
                         </td>

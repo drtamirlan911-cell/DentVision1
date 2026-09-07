@@ -172,10 +172,10 @@ export default function OrganizationsPage() {
                       <td className="py-3 px-2 text-txt-muted">{fd(org.createdAt)}</td>
                       <td className="py-3 px-2 text-right">
                         <div className="flex gap-1 justify-end">
-                          <Button size="icon-sm" variant="ghost" onClick={() => openEdit(org)} title="Редактировать" className="min-h-11">
+                          <Button aria-label="Редактировать" size="icon-sm" variant="ghost" onClick={() => openEdit(org)} title="Редактировать" className="min-h-11">
                             <Pencil size={14} />
                           </Button>
-                          <Button size="icon-sm" variant="ghost" onClick={() => setToDelete({ id: org.id, name: org.name })} title="Удалить" className="min-h-11">
+                          <Button aria-label="Удалить" size="icon-sm" variant="ghost" onClick={() => setToDelete({ id: org.id, name: org.name })} title="Удалить" className="min-h-11">
                             <Trash2 size={14} />
                           </Button>
                         </div>

@@ -314,7 +314,7 @@ export default function AIGovernanceTab() {
                         </td>
                         <td className="px-4 py-3 text-xs text-txt-muted">{fd(a.createdAt || a.timestamp)}</td>
                         <td className="px-4 py-3">
-                          <Button size="icon-sm" variant="ghost" onClick={() => setSelectedAction(a)} title="Подробнее">
+                          <Button aria-label="Подробнее" size="icon-sm" variant="ghost" onClick={() => setSelectedAction(a)} title="Подробнее">
                             <Eye size={14} />
                           </Button>
                         </td>

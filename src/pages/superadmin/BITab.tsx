@@ -569,6 +569,7 @@ export default function BITab() {
                   disabled={!chatInput.trim()}
                   loading={cfoChatMutation.isPending}
                   size="icon"
+                  aria-label="Отправить сообщение"
                   className="min-h-11 min-w-11"
                 >
                   <Send size={16} />
