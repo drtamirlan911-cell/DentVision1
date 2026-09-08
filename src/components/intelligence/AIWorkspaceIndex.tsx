@@ -1,7 +1,7 @@
-﻿import React, { useEffect, useCallback, useRef, useState } from 'react'
+import React, { useEffect, useCallback, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Sparkles, Bot, X, MessageSquare, Volume2, VolumeX } from 'lucide-react'
+import { Sparkles, Bot, X, MessageSquare, Volume2, VolumeX, Grid } from 'lucide-react'
 import { isVoiceRepliesEnabled, setVoiceRepliesEnabled, speak, stopSpeaking, voiceOutputSupported } from '@/utils/voice'
 import { useAuth } from '@/store/auth.store'
 import { aiChat, aiChatStream, aiProactive, aiDigitalTwin, aiBriefing, getActiveAiThread, getAiSessionId, aiFeedback, aiSessionStorageKey, aiThreadStorageKey } from '@/utils/api'
@@ -18,6 +18,8 @@ import { ActionConfirm } from '@/components/intelligence/ActionConfirm'
 import { IntakeWizard } from '@/components/intelligence/IntakeWizard'
 import { DoctorPrepPanel } from '@/components/intelligence/DoctorPrepPanel'
 import { FollowUpWizard } from '@/components/intelligence/FollowUpWizard'
+import { KaspiServiceHub } from '@/components/superapp/KaspiServiceHub'
+import { KaspiAllServicesModal } from '@/components/superapp/KaspiAllServicesModal'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { trackProductEvent } from '@/utils/analytics'
 import { detectUserTimeZone, timeGreetingInTz } from '@/lib/clinic-timezone'
@@ -71,8 +73,6 @@ export function AIWorkspaceIndex({ onNavigate }: AIWorkspaceIndexProps) {
   const navigate = useNavigate()
   const location = useLocation()
   const { user, clinic, isAuthenticated } = useAuth()
-  // Anonymous / guest: no signed-in user. Don't wait for guest-store hydrate
-  // (that race previously showed a clinic "коллега" greeting to guests).
   const isGuest = !user || !isAuthenticated
   const aiRequestsLeft = useGuestStore((s) => s.aiRequestsLeft)
   const setAiRequestsLeft = useGuestStore((s) => s.setAiRequestsLeft)
@@ -83,6 +83,7 @@ export function AIWorkspaceIndex({ onNavigate }: AIWorkspaceIndexProps) {
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const firstMessageTracked = useRef(false)
   const [showContextPanel, setShowContextPanel] = useState(false)
+  const [showAllServicesModal, setShowAllServicesModal] = useState(false)
   const [pendingConfirm, setPendingConfirm] = useState<Action | null>(null)
   const [voiceReplies, setVoiceReplies] = useState(() => isVoiceRepliesEnabled())
   const [voiceResumeToken, setVoiceResumeToken] = useState(0)
@@ -181,7 +182,6 @@ export function AIWorkspaceIndex({ onNavigate }: AIWorkspaceIndexProps) {
     firstMessageTracked.current = false
     historyRef.current = []
     resetAI()
-    // Ensure a stable per-user+clinic session id exists before first query.
     getAiSessionId(user?.id, clinicId)
 
     ;(async () => {
@@ -205,9 +205,8 @@ export function AIWorkspaceIndex({ onNavigate }: AIWorkspaceIndexProps) {
               timestamp: new Date(m.timestamp || Date.now()),
               skill: m.skill,
             }))
-            // Never keep a guest concierge thread under a signed-in clinic session.
             if (looksLikeGuestThread(restored)) {
-              /* fall through to fresh clinic workspace */
+              /* fall through */
             } else {
               if (!stillCurrent()) return
               setMessages(restored)
@@ -222,13 +221,12 @@ export function AIWorkspaceIndex({ onNavigate }: AIWorkspaceIndexProps) {
             }
           }
         }
-      } catch { /* fall through to local */ }
+      } catch { /* fall through */ }
 
       if (!stillCurrent()) return
 
       const restored = restoreThread(user?.id, clinicId)
       if (restored?.length) {
-        // Guests must never reopen stale CRM briefings/chips from a previous session.
         const looksLikeClinicCrm = isGuest && restored.some((m) =>
           m.role === 'assistant' &&
           (/расписан|выручк|долг|запис(и|ей)|briefing|важн(о|ые) сегодня|CRM|Системы на связи|На радаре|планы лечения|коллега/i.test(m.content) ||
@@ -264,7 +262,6 @@ export function AIWorkspaceIndex({ onNavigate }: AIWorkspaceIndexProps) {
   }, [user?.id, clinicId, isGuest])
 
   useEffect(() => {
-    // Only persist for the user+clinic who currently owns the in-memory thread.
     const key = user?.id ? `user:${user.id}:clinic:${clinicId || 'none'}` : 'guest'
     if (messages.length > 0 && initializedForUser.current === key) {
       persistThread(user?.id, clinicId, messages)
@@ -299,7 +296,6 @@ export function AIWorkspaceIndex({ onNavigate }: AIWorkspaceIndexProps) {
     const stillCurrent = () =>
       initGeneration.current === gen && initializedForUser.current === expectedKey
     try {
-      // Guests / anonymous: product guide only — never clinic Jarvis briefing.
       if (isGuest || !user?.id) {
         const reply = buildGuestGreeting(t)
         if (!stillCurrent()) return
@@ -317,7 +313,6 @@ export function AIWorkspaceIndex({ onNavigate }: AIWorkspaceIndexProps) {
           data_complete: true,
         })
         setSuggestionsFromStrings(getSmartSuggestions({ guest: true, pathname: location.pathname }).slice(0, 4))
-        // Prefetch platform twin + guest tips into context (non-blocking).
         void Promise.all([
           aiDigitalTwin().catch(() => null),
           aiProactive().catch(() => ({ alerts: [] })),
@@ -332,7 +327,6 @@ export function AIWorkspaceIndex({ onNavigate }: AIWorkspaceIndexProps) {
         return
       }
 
-      // Jarvis entry: live role briefing first; CRM client snapshot as fallback (never static fluff).
       const [briefRes, proactiveData, twinData] = await Promise.all([
         aiBriefing().catch(() => null),
         aiProactive().catch(() => ({ alerts: [] })),
@@ -411,7 +405,7 @@ export function AIWorkspaceIndex({ onNavigate }: AIWorkspaceIndexProps) {
           fallback = buildGreeting(t, user, clinic, [])
         }
       }
-      if (!fallback)           fallback = buildGuestGreeting(t)
+      if (!fallback) fallback = buildGuestGreeting(t)
       setMessages([{ id: 'greeting', role: 'assistant', content: fallback, timestamp: new Date() }])
       historyRef.current = [{ role: 'assistant', content: fallback }]
       setSuggestionsFromStrings(catchSuggestions)
@@ -423,7 +417,7 @@ export function AIWorkspaceIndex({ onNavigate }: AIWorkspaceIndexProps) {
     }
   }
 
-const handleSend = useCallback(async (text: string) => {
+  const handleSend = useCallback(async (text: string) => {
     if (!text.trim() || isProcessing) return
 
     stopSpeaking()
@@ -471,11 +465,8 @@ const handleSend = useCallback(async (text: string) => {
     }
 
     try {
-      // Platform jobs search — works without paid AI (starter has features.ai=false).
       const jobsRes = await answerJobsSearchQuery(text).catch(() => null)
       const res = jobsRes || await aiChatStream(text, historyRef.current.slice(-20), (partial, done) => {
-        // Create the assistant bubble only when the first non-empty token arrives —
-        // otherwise the UI shows an empty grey bubble + thumbs/copy while thinking.
         if (!partial?.trim() && !done) return
         upsertAssistant({
           content: partial,
@@ -508,7 +499,6 @@ const handleSend = useCallback(async (text: string) => {
         historyRef.current.push({ role: 'assistant', content: jobsRes.reply })
         setAIStatus('idle')
         setProgress(100)
-        // Auto-offer navigation chip; user can click OpenJobs
         return
       }
 
@@ -543,7 +533,6 @@ const handleSend = useCallback(async (text: string) => {
           recommendations: res.recommendations,
         })
       } else if (assistantCreated) {
-        // Drop placeholder if the model returned nothing usable
         useAIStore.setState((state) => ({
           messages: state.messages.filter((m) => m.id !== assistantId),
         }))
@@ -574,7 +563,6 @@ const handleSend = useCallback(async (text: string) => {
       if (voiceReplies && res.reply) {
         speak(res.reply, {
           onEnd: () => {
-            // Hands-free loop: after the assistant finishes speaking, open the mic again.
             if (isVoiceRepliesEnabled()) setVoiceResumeToken((n) => n + 1)
           },
         })
@@ -714,19 +702,19 @@ const handleSend = useCallback(async (text: string) => {
     setAIStatus('executing')
     setProgress(0)
     try {
-const result = await executeAction(
-      { ...action, requiresConfirmation: false } as AIAction,
-      {
-        onNavigate: (path) => { navigate(path); onNavigate?.(path) },
-        addMessage: (msg: any) => addMessage({
-          id: `act-${Date.now()}`,
-          role: msg.role || 'assistant',
-          content: msg.content,
-          timestamp: msg.timestamp || new Date(),
-          data: msg.data,
-        }),
-      }
-    )
+      const result = await executeAction(
+        { ...action, requiresConfirmation: false } as AIAction,
+        {
+          onNavigate: (path) => { navigate(path); onNavigate?.(path) },
+          addMessage: (msg: any) => addMessage({
+            id: `act-${Date.now()}`,
+            role: msg.role || 'assistant',
+            content: msg.content,
+            timestamp: msg.timestamp || new Date(),
+            data: msg.data,
+          }),
+        }
+      )
       setProgress(100)
       setAIStatus('result')
       setTimeout(() => setAIStatus('idle'), 1500)
@@ -743,10 +731,9 @@ const result = await executeAction(
     }
   }, [pendingConfirm, executeAction, navigate, onNavigate, setAIStatus, setProgress, setErrorMessage, setCurrentAction, addMessage])
 
-  const showEmpty = messages.length === 0
-
   return (
     <div className="flex flex-col h-full min-h-0 bg-surface-0">
+      {/* SuperApp Top Header */}
       <motion.div
         initial={{ opacity: 0, y: -8 }}
         animate={{ opacity: 1, y: 0 }}
@@ -758,7 +745,7 @@ const result = await executeAction(
             <Bot size={18} className="text-dv-gold" />
           </div>
           <div className="min-w-0">
-            <h1 className="font-serif text-base sm:text-lg font-semibold text-txt-primary tracking-tight truncate">{t('ai.intelligence_subtitle')}</h1>
+            <h1 className="font-serif text-base sm:text-lg font-semibold text-txt-primary tracking-tight truncate">DentVision Intelligence OS</h1>
             <p className="dv-ai-header-meta text-[11px] text-txt-muted truncate">
               {status === 'idle' ? (
                 activePersonaLabel
@@ -774,6 +761,15 @@ const result = await executeAction(
         </div>
 
         <div className="flex items-center gap-2">
+          {/* Quick Kaspi All Services Trigger Button */}
+          <button
+            onClick={() => setShowAllServicesModal(true)}
+            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-dv-gold/10 border border-dv-gold/25 text-dv-gold hover:bg-dv-gold/20 transition-all text-xs font-semibold"
+          >
+            <Grid size={15} />
+            <span className="hidden sm:inline">Все сервисы</span>
+          </button>
+
           {activePersonaLabel && !isGuest && (
             <span
               className="hidden sm:inline-flex items-center px-2 py-1 rounded-lg text-[10px] font-semibold text-dv-gold bg-dv-gold/10 border border-dv-gold/20"
@@ -837,40 +833,14 @@ const result = await executeAction(
         </div>
       </motion.div>
 
+      {/* Main Workspace Body */}
       <div className="flex-1 overflow-y-auto min-h-0">
-        <div className="max-w-3xl mx-auto px-4 md:px-6 py-6 space-y-5">
-          {showEmpty && (
-            <motion.div
-              initial={{ opacity: 0, scale: 0.96 }}
-              animate={{ opacity: 1, scale: 1 }}
-              transition={{ duration: 0.55, ease: [0.23, 1, 0.32, 1] }}
-              className="relative flex flex-col items-center justify-center py-10 sm:py-16 md:py-20 text-center overflow-hidden dv-ai-empty"
-            >
-              <div
-                aria-hidden
-                className="pointer-events-none absolute inset-0 -z-0"
-                style={{
-                  background:
-                    'radial-gradient(ellipse 70% 55% at 50% 35%, rgba(201,169,110,0.14), transparent 70%)',
-                }}
-              />
-              <motion.div
-                animate={{ scale: [1, 1.04, 1], opacity: [0.9, 1, 0.9] }}
-                transition={{ duration: 5, repeat: Infinity, ease: 'easeInOut' }}
-                className="dv-ai-empty-icon relative flex h-[4.5rem] w-[4.5rem] items-center justify-center rounded-[1.35rem] bg-gradient-to-br from-dv-gold/25 via-dv-gold/10 to-transparent border border-dv-gold/20 mb-6 shadow-[0_0_48px_rgba(201,169,110,0.18)]"
-              >
-                <Bot size={30} className="text-dv-gold" />
-              </motion.div>
-              <h2 className="relative font-serif text-xl sm:text-2xl md:text-[1.75rem] font-semibold tracking-tight text-txt-primary mb-2">
-                {t('ai.intelligence_subtitle')}
-              </h2>
-              <p className="relative text-sm text-txt-muted max-w-sm leading-relaxed px-2">
-                {isGuest
-                  ? t('ai.guest_empty')
-                  : t('ai.auth_empty')}
-              </p>
-            </motion.div>
-          )}
+        <div className="max-w-4xl mx-auto px-4 md:px-6 py-6 space-y-6">
+          {/* Kaspi-style SuperApp Services Hub Header Widget */}
+          <KaspiServiceHub
+            onAIQuery={(q: string) => void handleSend(q)}
+            className="mb-6"
+          />
 
           <AnimatePresence>
             {messages.map((msg) => (
@@ -955,8 +925,9 @@ const result = await executeAction(
         />
       )}
 
+      {/* Input Area */}
       <div className="flex-shrink-0 border-t border-white/[0.04] bg-surface-0/50 backdrop-blur-xl">
-        <div className="max-w-3xl mx-auto">
+        <div className="max-w-4xl mx-auto">
           {suggestions.length > 0 && !isProcessing && (
             <motion.div
               initial={{ opacity: 0, y: 8 }}
@@ -996,11 +967,13 @@ const result = await executeAction(
             suggestions={suggestions.map(s => s.label)}
             placeholder={isGuest
               ? t('ai.guest_placeholder')
-              : t('ai.auth_placeholder')}            voiceResumeToken={voiceReplies ? voiceResumeToken : 0}
+              : t('ai.auth_placeholder')}
+            voiceResumeToken={voiceReplies ? voiceResumeToken : 0}
           />
         </div>
       </div>
 
+      {/* Confirmation Modal */}
       <AnimatePresence>
         {pendingConfirm && (
           <ActionConfirm
@@ -1016,6 +989,14 @@ const result = await executeAction(
         )}
       </AnimatePresence>
 
+      {/* All Services Modal */}
+      <KaspiAllServicesModal
+        open={showAllServicesModal}
+        onClose={() => setShowAllServicesModal(false)}
+        onAIQuery={(q) => void handleSend(q)}
+      />
+
+      {/* Context Panel Drawer */}
       <AnimatePresence>
         {showContextPanel && (
           <motion.aside
@@ -1073,7 +1054,7 @@ const result = await executeAction(
             timestamp: new Date(),
           })
         }}
-        />
+      />
 
       <DoctorPrepPanel
         open={!!doctorPrepData}
