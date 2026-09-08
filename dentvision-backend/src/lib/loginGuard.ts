@@ -24,7 +24,10 @@ async function getOrCreate(email: string, ip: string) {
       email.toLowerCase(),
       ip,
     );
-  } catch { /* table might not exist yet — fail-open */ }
+  } catch {
+    // The caller must not bypass brute-force protection when persistence fails.
+    return null;
+  }
 }
 
 export async function checkLoginAttempts(
@@ -32,7 +35,11 @@ export async function checkLoginAttempts(
   ip: string,
 ): Promise<{ allowed: boolean; remainingAttempts: number; lockoutMinutes: number | null }> {
   try {
-    await getOrCreate(email, ip);
+    const created = await getOrCreate(email, ip);
+    if (created === null) {
+      return { allowed: false, remainingAttempts: 0, lockoutMinutes: 1 };
+    }
+
     const rows = await prisma.$queryRawUnsafe<Array<{ count: number; locked_until: Date | null }>>(
       `SELECT "count", "locked_until" FROM "login_attempts" WHERE "email" = $1 AND "ip" = $2`,
       email.toLowerCase(),
@@ -58,14 +65,17 @@ export async function checkLoginAttempts(
     const remaining = SOFT_LOCK_ATTEMPTS - row.count;
     return { allowed: true, remainingAttempts: Math.max(0, remaining), lockoutMinutes: null };
   } catch {
-    // DB down → fail-open (don't lock users out because of infrastructure).
-    return { allowed: true, remainingAttempts: SOFT_LOCK_ATTEMPTS, lockoutMinutes: null };
+    // DB availability is a prerequisite for authentication. Never bypass the
+    // brute-force gate when its state cannot be read reliably.
+    return { allowed: false, remainingAttempts: 0, lockoutMinutes: 1 };
   }
 }
 
 export async function recordFailedAttempt(email: string, ip: string): Promise<void> {
   try {
-    await getOrCreate(email, ip);
+    const created = await getOrCreate(email, ip);
+    if (created === null) return;
+
     const rows = await prisma.$queryRawUnsafe<Array<{ count: number }>>(
       `SELECT "count" FROM "login_attempts" WHERE "email" = $1 AND "ip" = $2`,
       email.toLowerCase(),
@@ -90,7 +100,7 @@ export async function recordFailedAttempt(email: string, ip: string): Promise<vo
       nextCount,
       lockedUntil,
     );
-  } catch { /* fail-open */ }
+  } catch { /* persistence failure is handled by the next login check */ }
 }
 
 export async function resetAttempts(email: string, ip: string): Promise<void> {
@@ -100,5 +110,5 @@ export async function resetAttempts(email: string, ip: string): Promise<void> {
       email.toLowerCase(),
       ip,
     );
-  } catch { /* fail-open */ }
+  } catch { /* persistence failure is handled by the next login check */ }
 }
