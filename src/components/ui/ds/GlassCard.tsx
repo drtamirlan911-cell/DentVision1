@@ -64,18 +64,10 @@ function GlassCard({
     borderStyles[border],
     shadowStyles[shadow],
     backdropStyles[backdrop],
-    // The frosted fill itself is a token now, for the same reason as the
-    // border above; the white sheen is kept for dark only, where there is
-    // something for it to catch.
     'bg-glass',
     className
   )
 
-  // `transition-all` animates every property that happens to change,
-  // including layout ones, and 300ms on a pointer is past the point where a
-  // hover still feels like a response. Only the two properties that actually
-  // move are transitioned, on the product's own curve; `hover` additionally
-  // lifts the card by a single pixel — enough to feel, not enough to notice.
   const interactiveStyles = interactive
     ? cn(
         'transition-[box-shadow,transform] duration-base ease-dv',
@@ -92,7 +84,6 @@ function GlassCard({
       {...(props as any)}
       className={cn(baseStyles, interactiveStyles)}
     >
-      <div className="pointer-events-none absolute inset-0 hidden bg-gradient-to-br from-white/[0.04] to-transparent dark:block" />
       <div className="relative z-10">{children}</div>
     </Content>
   )
