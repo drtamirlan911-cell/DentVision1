@@ -1,6 +1,9 @@
 -- The live-human channel a patient's assistant conversation escalates into.
 --
--- CreateEnum
+-- Keep this migration executable on legacy installations where the users/clinics
+-- tables may not exist yet. The conversation tables can be created first; FKs
+-- are attached only when their referenced tables exist.
+
 DO $$
 BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'PatientConversationStatus') THEN
@@ -11,7 +14,6 @@ BEGIN
   END IF;
 END $$;
 
--- CreateTable
 CREATE TABLE IF NOT EXISTS "patient_conversations" (
   "id" TEXT NOT NULL,
   "patientUserId" TEXT NOT NULL,
@@ -35,18 +37,21 @@ CREATE INDEX IF NOT EXISTS "patient_conversations_patientUserId_clinicId_idx"
 
 DO $$
 BEGIN
-  IF NOT EXISTS (SELECT 1 FROM information_schema.table_constraints WHERE constraint_name = 'patient_conversations_patientUserId_fkey') THEN
-    ALTER TABLE "patient_conversations" ADD CONSTRAINT "patient_conversations_patientUserId_fkey" FOREIGN KEY ("patientUserId") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+  IF to_regclass('public.users') IS NOT NULL THEN
+    IF NOT EXISTS (SELECT 1 FROM information_schema.table_constraints WHERE constraint_name = 'patient_conversations_patientUserId_fkey') THEN
+      ALTER TABLE "patient_conversations" ADD CONSTRAINT "patient_conversations_patientUserId_fkey" FOREIGN KEY ("patientUserId") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM information_schema.table_constraints WHERE constraint_name = 'patient_conversations_assignedToUserId_fkey') THEN
+      ALTER TABLE "patient_conversations" ADD CONSTRAINT "patient_conversations_assignedToUserId_fkey" FOREIGN KEY ("assignedToUserId") REFERENCES "users"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+    END IF;
   END IF;
-  IF NOT EXISTS (SELECT 1 FROM information_schema.table_constraints WHERE constraint_name = 'patient_conversations_clinicId_fkey') THEN
-    ALTER TABLE "patient_conversations" ADD CONSTRAINT "patient_conversations_clinicId_fkey" FOREIGN KEY ("clinicId") REFERENCES "clinics"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-  END IF;
-  IF NOT EXISTS (SELECT 1 FROM information_schema.table_constraints WHERE constraint_name = 'patient_conversations_assignedToUserId_fkey') THEN
-    ALTER TABLE "patient_conversations" ADD CONSTRAINT "patient_conversations_assignedToUserId_fkey" FOREIGN KEY ("assignedToUserId") REFERENCES "users"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+  IF to_regclass('public.clinics') IS NOT NULL THEN
+    IF NOT EXISTS (SELECT 1 FROM information_schema.table_constraints WHERE constraint_name = 'patient_conversations_clinicId_fkey') THEN
+      ALTER TABLE "patient_conversations" ADD CONSTRAINT "patient_conversations_clinicId_fkey" FOREIGN KEY ("clinicId") REFERENCES "clinics"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+    END IF;
   END IF;
 END $$;
 
--- CreateTable
 CREATE TABLE IF NOT EXISTS "patient_conversation_messages" (
   "id" TEXT NOT NULL,
   "conversationId" TEXT NOT NULL,
@@ -66,7 +71,9 @@ BEGIN
   IF NOT EXISTS (SELECT 1 FROM information_schema.table_constraints WHERE constraint_name = 'patient_conversation_messages_conversationId_fkey') THEN
     ALTER TABLE "patient_conversation_messages" ADD CONSTRAINT "patient_conversation_messages_conversationId_fkey" FOREIGN KEY ("conversationId") REFERENCES "patient_conversations"("id") ON DELETE CASCADE ON UPDATE CASCADE;
   END IF;
-  IF NOT EXISTS (SELECT 1 FROM information_schema.table_constraints WHERE constraint_name = 'patient_conversation_messages_authorUserId_fkey') THEN
-    ALTER TABLE "patient_conversation_messages" ADD CONSTRAINT "patient_conversation_messages_authorUserId_fkey" FOREIGN KEY ("authorUserId") REFERENCES "users"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+  IF to_regclass('public.users') IS NOT NULL THEN
+    IF NOT EXISTS (SELECT 1 FROM information_schema.table_constraints WHERE constraint_name = 'patient_conversation_messages_authorUserId_fkey') THEN
+      ALTER TABLE "patient_conversation_messages" ADD CONSTRAINT "patient_conversation_messages_authorUserId_fkey" FOREIGN KEY ("authorUserId") REFERENCES "users"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+    END IF;
   END IF;
 END $$;
