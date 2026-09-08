@@ -1,0 +1,43 @@
+name: Audit Fast Gate
+
+on:
+  push:
+    branches: [main, develop, 'audit/**']
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: audit-fast-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  schema-and-seed:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: dentvision
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U postgres -d dentvision"
+          --health-interval 5s --health-timeout 5s --health-retries 20
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/dentvision
+    defaults:
+      run:
+        working-directory: dentvision-backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: dentvision-backend/package-lock.json
+      - run: npm ci
+      - run: npx prisma generate
+      - run: npx prisma migrate deploy
+      - run: npm run db:seed:e2e
