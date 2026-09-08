@@ -1,37 +1,23 @@
 -- Склад: журнал движений, правила списания, связь позиции с маркетплейсом.
--- Зеркалит блок runOnceMigration('inventory_deduction_rules') в src/index.ts.
---
--- Важно: init_full_schema предшествует текущей модели InventoryItem и на
--- чистой БД не создавал таблицу inventory. Поэтому эта миграция не должна
--- предполагать, что таблица уже существует: она сначала безопасно
--- bootstrap-ит базовую структуру склада, затем добавляет новые поля.
+-- Эта миграция не создаёт базовую таблицу inventory: init_full_schema
+-- является источником базовой структуры на чистой БД. Если inventory уже
+-- существует (например, на старой установке), новые поля и индексы
+-- применяются здесь. Полная финализация выполняется после init_full_schema.
 
-CREATE TABLE IF NOT EXISTS "inventory" (
-  "id" TEXT NOT NULL DEFAULT gen_random_uuid()::text,
-  "clinicId" TEXT NOT NULL,
-  "name" TEXT NOT NULL,
-  "category" TEXT,
-  "quantity" INTEGER NOT NULL DEFAULT 0,
-  "minimum" INTEGER NOT NULL DEFAULT 0,
-  "price" INTEGER,
-  "unit" TEXT,
-  "supplier" TEXT,
-  "sku" TEXT,
-  "productId" TEXT,
-  "expiryDate" TIMESTAMP(3),
-  "autoRestock" BOOLEAN NOT NULL DEFAULT true,
-  "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  "updatedAt" TIMESTAMP(3),
-  CONSTRAINT "inventory_pkey" PRIMARY KEY ("id")
-);
+DO $$
+BEGIN
+  IF to_regclass('public.inventory') IS NOT NULL THEN
+    ALTER TABLE "inventory" ADD COLUMN IF NOT EXISTS "sku" TEXT;
+    ALTER TABLE "inventory" ADD COLUMN IF NOT EXISTS "productId" TEXT;
+    ALTER TABLE "inventory" ADD COLUMN IF NOT EXISTS "expiryDate" TIMESTAMP(3);
+    ALTER TABLE "inventory" ADD COLUMN IF NOT EXISTS "autoRestock" BOOLEAN NOT NULL DEFAULT true;
 
-ALTER TABLE "inventory" ADD COLUMN IF NOT EXISTS "sku" TEXT;
-ALTER TABLE "inventory" ADD COLUMN IF NOT EXISTS "productId" TEXT;
-ALTER TABLE "inventory" ADD COLUMN IF NOT EXISTS "expiryDate" TIMESTAMP(3);
-ALTER TABLE "inventory" ADD COLUMN IF NOT EXISTS "autoRestock" BOOLEAN NOT NULL DEFAULT true;
-
-CREATE INDEX IF NOT EXISTS "inventory_clinicId_productId_idx" ON "inventory"("clinicId", "productId");
-CREATE INDEX IF NOT EXISTS "inventory_clinicId_idx" ON "inventory"("clinicId");
+    CREATE INDEX IF NOT EXISTS "inventory_clinicId_productId_idx"
+      ON "inventory"("clinicId", "productId");
+    CREATE INDEX IF NOT EXISTS "inventory_clinicId_idx"
+      ON "inventory"("clinicId");
+  END IF;
+END $$;
 
 CREATE TABLE IF NOT EXISTS "inventory_movements" (
   "id" TEXT NOT NULL,
@@ -86,7 +72,8 @@ CREATE INDEX IF NOT EXISTS "stock_deduction_rule_items_itemId_idx"
 
 DO $$
 BEGIN
-  IF to_regclass('public.clinics') IS NOT NULL
+  IF to_regclass('public.inventory') IS NOT NULL
+     AND to_regclass('public.clinics') IS NOT NULL
      AND NOT EXISTS (
        SELECT 1 FROM pg_constraint WHERE conname = 'inventory_clinicId_fkey'
      ) THEN
@@ -122,9 +109,10 @@ BEGIN
       ON DELETE CASCADE ON UPDATE CASCADE;
   END IF;
 
-  IF NOT EXISTS (
-    SELECT 1 FROM pg_constraint WHERE conname = 'stock_deduction_rule_items_ruleId_fkey'
-  ) THEN
+  IF to_regclass('public.stock_deduction_rules') IS NOT NULL
+     AND NOT EXISTS (
+       SELECT 1 FROM pg_constraint WHERE conname = 'stock_deduction_rule_items_ruleId_fkey'
+     ) THEN
     ALTER TABLE "stock_deduction_rule_items" ADD CONSTRAINT "stock_deduction_rule_items_ruleId_fkey"
       FOREIGN KEY ("ruleId") REFERENCES "stock_deduction_rules"("id")
       ON DELETE CASCADE ON UPDATE CASCADE;
