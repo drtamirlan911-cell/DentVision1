@@ -60,12 +60,13 @@ export async function listActiveSessions(userId: string): Promise<SessionInfo[]>
   });
 }
 
-/** Expire a session (logout) */
-export async function expireSession(sessionId: string): Promise<void> {
-  await prisma.userSession.update({
-    where: { id: sessionId },
+/** Expire one session only when it belongs to the authenticated user. */
+export async function expireSession(sessionId: string, userId: string): Promise<boolean> {
+  const result = await prisma.userSession.updateMany({
+    where: { id: sessionId, userId, expiredAt: { gt: new Date() } },
     data: { expiredAt: new Date() },
   });
+  return result.count === 1;
 }
 
 /** Expire all sessions for a user (logout everywhere) */
