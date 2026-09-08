@@ -68,3 +68,55 @@ main,
 img {
   max-width: 100%;
 }
+
+/* AI composer: premium clinical surface, no glass/glow dependency. */
+.dv-composer-pad > div > div[class*="rounded-[1.35rem]"] {
+  box-shadow: var(--dv-shadow-sm, 0 1px 2px rgba(0,0,0,.04)) !important;
+  border-radius: var(--dv-radius-lg, 14px) !important;
+  background: var(--dv-surface, #fff) !important;
+  border: 1px solid var(--dv-border, rgba(23,25,24,.08)) !important;
+  backdrop-filter: none !important;
+}
+
+.dv-composer-pad > div > div[class*="rounded-[1.35rem"] > div[class*="backdrop-blur"] {
+  background: var(--dv-surface, #fff) !important;
+  border-color: transparent !important;
+  border-radius: inherit !important;
+  backdrop-filter: none !important;
+}
+
+.dv-composer-pad textarea {
+  color: var(--dv-text, #171918) !important;
+}
+
+.dv-composer-pad textarea::placeholder {
+  color: var(--dv-muted-2, #a0a6a3) !important;
+}
+
+.dv-composer-pad [class*="shadow-lg"] {
+  box-shadow: var(--dv-shadow-sm, 0 1px 2px rgba(0,0,0,.04)) !important;
+}
+
+.dv-composer-pad [class*="bg-white/[0.05]"],
+.dv-composer-pad [class*="bg-white/[0.03]"] {
+  background: var(--dv-surface-2, #f6f7f7) !important;
+}
+
+/* Processing state uses the same surface hierarchy as the input. */
+.dv-composer-pad [class*="backdrop-blur-xl"] {
+  backdrop-filter: none !important;
+}
+
+/* Keep compact AI controls tactile and visually quiet. */
+@media (max-width: 767px) {
+  .dv-composer-pad button {
+    min-width: 40px;
+    min-height: 40px;
+  }
+
+  .dv-composer-pad textarea {
+    padding-left: 14px !important;
+    padding-top: 12px !important;
+    padding-bottom: 12px !important;
+  }
+}
