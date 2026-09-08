@@ -37,17 +37,11 @@ export function PageTransition({
 }: PageTransitionProps) {
   const reduceMotion = useReducedMotion()
 
-  // One layer, not two. This wrapped a second motion.div that faded on its own
-  // timing, so every page arrived through two overlapping fades — the reason
-  // navigation felt soft rather than crisp. That inner layer also keyed off
-  // `props.key`, which React never puts in props, so it was a constant.
   return (
     <motion.div
       initial={reduceMotion ? false : { opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
       exit={reduceMotion ? undefined : { opacity: 0, y: -8 }}
-      // `base`, not `slow`: a page that takes a third of a second to arrive
-      // reads as the app thinking, not as the app moving.
       transition={reduceMotion ? { duration: 0 } : { duration: DV_DURATION.base, ease: DV_EASE }}
       className={cn('w-full h-full', className)}
       {...props}
@@ -104,15 +98,6 @@ interface StaggerItemProps extends HTMLMotionProps<'div'> {
   children: React.ReactNode
 }
 
-/**
- * Deliberately undramatic: an 8px rise and a fade, on an ease-out curve.
- *
- * This used to travel 16px and scale from 0.95 on a stiff spring, so a list
- * arrived by springing and overshooting — the single loudest thing separating
- * these screens from a considered product. Content that is simply *there*,
- * settling rather than bouncing, is what reads as expensive. Anything a user
- * notices as an animation on a clinical record is already too much.
- */
 export function StaggerItem({
   className,
   children,
@@ -276,17 +261,6 @@ interface GlassMorphProps extends HTMLMotionProps<'div'> {
   children: React.ReactNode
 }
 
-/**
- * Frosted panel that works in both themes.
- *
- * Every surface here used to be a white overlay (`bg-white/[0.06]`,
- * `border-white/[0.12]`) with a black shadow. That is a dark-theme
- * construction: on a light ground white-on-white is invisible, so the panel
- * lost its fill, its border and its edge all at once and became a floating
- * block of text. The tokens below carry the theme's own glass and border
- * values, so the same component reads as frosted on either ground, and the
- * highlight is dropped in light where a white sheen has nothing to catch.
- */
 export function GlassMorph({
   intensity = 'medium',
   className,
@@ -304,7 +278,6 @@ export function GlassMorph({
       className={cn('relative rounded-2xl overflow-hidden', intensityStyles[intensity], className)}
       {...props}
     >
-      <div className="pointer-events-none absolute inset-0 hidden bg-gradient-to-br from-white/[0.03] to-transparent dark:block" />
       <div className="relative z-10">{children}</div>
     </motion.div>
   )
@@ -316,15 +289,6 @@ interface TransformCardProps extends HTMLMotionProps<'div'> {
   children: React.ReactNode
 }
 
-/**
- * A card that keeps its identity across layouts.
- *
- * The transition was a spring (stiffness 180, damping 22), which overshoots
- * and settles back — the one behaviour `StaggerItem` above exists to avoid.
- * A shared-layout move is the most conspicuous animation in the product, so
- * it is the last place that should bounce; it now travels on the same
- * decelerate curve as everything else and simply arrives.
- */
 export function TransformCard({
   layoutId,
   className,
