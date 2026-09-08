@@ -4,6 +4,7 @@ import type { User as UserType, RoleInfo } from '@/types';
 import { usePendingApprovalCount } from '@/queries/ai.query';
 import { useIam } from '@/iam';
 import '../styles/dentvision-superapp.css';
+import '../styles/dentvision-polish.css';
 
 interface SidebarProps {
   collapsed: boolean;
