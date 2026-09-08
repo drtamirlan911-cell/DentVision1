@@ -61,11 +61,19 @@ CREATE UNIQUE INDEX IF NOT EXISTS "marketing_assets_cacheKey_key"
 
 DO $$
 BEGIN
-  IF NOT EXISTS (SELECT 1 FROM information_schema.table_constraints WHERE constraint_name = 'content_plans_clinicId_fkey') THEN
+  IF to_regclass('public.clinics') IS NOT NULL
+     AND NOT EXISTS (
+       SELECT 1 FROM information_schema.table_constraints
+       WHERE constraint_name = 'content_plans_clinicId_fkey'
+     ) THEN
     ALTER TABLE "content_plans" ADD CONSTRAINT "content_plans_clinicId_fkey"
       FOREIGN KEY ("clinicId") REFERENCES "clinics"("id") ON DELETE CASCADE ON UPDATE CASCADE;
   END IF;
-  IF NOT EXISTS (SELECT 1 FROM information_schema.table_constraints WHERE constraint_name = 'content_ideas_planId_fkey') THEN
+
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.table_constraints
+    WHERE constraint_name = 'content_ideas_planId_fkey'
+  ) THEN
     ALTER TABLE "content_ideas" ADD CONSTRAINT "content_ideas_planId_fkey"
       FOREIGN KEY ("planId") REFERENCES "content_plans"("id") ON DELETE CASCADE ON UPDATE CASCADE;
   END IF;
