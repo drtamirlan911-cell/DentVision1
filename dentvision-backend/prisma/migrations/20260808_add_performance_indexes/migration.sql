@@ -14,7 +14,7 @@ BEGIN
   END IF;
 
   IF to_regclass('public.documents') IS NOT NULL THEN
-    CREATE INDEX IF NOT EXISTS "documents_clinicId_createdAt_idx" ON "documents"("documents"."clinicId", "createdAt");
+    CREATE INDEX IF NOT EXISTS "documents_clinicId_createdAt_idx" ON "documents"("clinicId", "createdAt");
   END IF;
 
   IF to_regclass('public.lab_orders') IS NOT NULL THEN
@@ -42,7 +42,7 @@ BEGIN
   IF to_regclass('public.products') IS NOT NULL THEN
     CREATE INDEX IF NOT EXISTS "products_name_trgm_idx" ON "products" USING gin ("name" gin_trgm_ops);
     IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'products' AND column_name = 'brand') THEN
-      CREATE INDEX IF NOT EXISTS "products_brand_trgm_idx" ON "products" USING gin ("brand" gin_trgm_ops);
+      CREATE INDEX IF NOT EXISTS "products_brand_trgm_idx" ON "products" USING gin ("products"."brand") USING gin;
     END IF;
     IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'products' AND column_name = 'description') THEN
       CREATE INDEX IF NOT EXISTS "products_description_trgm_idx" ON "products" USING gin ("description" gin_trgm_ops);
