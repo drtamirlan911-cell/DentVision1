@@ -50,11 +50,8 @@ function Modal({ open, onClose, title, description, children, size = 'md', class
     const first = focusable[0]
     const last = focusable[focusable.length - 1]
 
-    if (first) {
-      first.focus()
-    } else {
-      content.focus()
-    }
+    if (first) first.focus()
+    else content.focus()
 
     const handleTab = (e: KeyboardEvent) => {
       if (e.key !== 'Tab' || !first || !last) return
@@ -63,11 +60,9 @@ function Modal({ open, onClose, title, description, children, size = 'md', class
           e.preventDefault()
           last.focus()
         }
-      } else {
-        if (document.activeElement === last) {
-          e.preventDefault()
-          first.focus()
-        }
+      } else if (document.activeElement === last) {
+        e.preventDefault()
+        first.focus()
       }
     }
 
@@ -83,7 +78,7 @@ function Modal({ open, onClose, title, description, children, size = 'md', class
           role="dialog"
           aria-modal="true"
           aria-label={title || 'Диалог'}
-          className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center p-0 sm:p-4"
+          className="fixed inset-0 z-[100] flex items-end justify-center p-0 sm:items-center sm:p-4"
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
@@ -92,48 +87,48 @@ function Modal({ open, onClose, title, description, children, size = 'md', class
             if (e.target === overlayRef.current) onClose()
           }}
         >
-          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
+          <div className="absolute inset-0 bg-black/55 backdrop-blur-[2px]" />
 
           <motion.div
             ref={contentRef}
             tabIndex={-1}
             className={cn(
-              'relative w-full rounded-t-2xl sm:rounded-2xl border border-bdr-subtle bg-surface-1 shadow-modal outline-none',
+              'relative w-full rounded-t-xl sm:rounded-xl border border-bdr-subtle bg-surface-1 shadow-modal outline-none',
               'max-h-[92dvh] sm:max-h-[90vh] flex flex-col',
               'max-w-full sm:mx-auto',
               sizeMap[size],
               className
             )}
-            initial={{ opacity: 0, scale: 0.98, y: 24 }}
+            initial={{ opacity: 0, scale: 0.99, y: 18 }}
             animate={{
               opacity: 1,
               scale: 1,
               y: 0,
-              transition: { type: 'spring', damping: 28, stiffness: 320 },
+              transition: { type: 'spring', damping: 30, stiffness: 340 },
             }}
-            exit={{ opacity: 0, scale: 0.98, y: 24, transition: { duration: 0.15 } }}
+            exit={{ opacity: 0, scale: 0.99, y: 12, transition: { duration: 0.15 } }}
           >
             {(title || description) && (
-              <div className="flex items-start justify-between px-4 sm:px-6 pt-4 sm:pt-6 pb-2 flex-shrink-0">
+              <div className="flex items-start justify-between border-b border-bdr-subtle px-4 py-3.5 sm:px-6 sm:py-4 flex-shrink-0">
                 <div className="min-w-0 pr-2">
                   {title && (
-                    <h2 className="text-base sm:text-lg font-semibold text-txt-primary">{title}</h2>
+                    <h2 className="text-base sm:text-lg font-semibold tracking-tight text-txt-primary">{title}</h2>
                   )}
                   {description && (
-                    <p className="text-sm text-txt-secondary mt-1">{description}</p>
+                    <p className="text-sm text-txt-secondary mt-1 leading-snug">{description}</p>
                   )}
                 </div>
                 <button
                   onClick={onClose}
                   aria-label="Закрыть"
-                  className="rounded-lg p-1.5 text-txt-muted hover:text-txt-primary hover:bg-surface-raised-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-dv-gold/40 transition-colors shrink-0"
+                  className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-txt-muted hover:bg-surface-raised-hover hover:text-txt-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-dv-gold/40 transition-colors"
                 >
                   <X size={18} />
                 </button>
               </div>
             )}
 
-            <div className="px-4 sm:px-6 py-4 overflow-y-auto overscroll-contain flex-1 min-h-0">
+            <div className="px-4 py-4 overflow-y-auto overscroll-contain flex-1 min-h-0 sm:px-6 sm:py-5">
               {children}
             </div>
           </motion.div>
@@ -176,14 +171,8 @@ function ConfirmModal({
   return (
     <Modal open={open} onClose={onClose} title={title} size="sm">
       <div onKeyDown={handleKeyDown}>
-        <p className="text-sm text-txt-secondary mb-6">{body}</p>
+        <p className="text-sm text-txt-secondary mb-6 leading-relaxed">{body}</p>
         <div className="flex justify-end gap-2">
-          {/*
-            min-h-11 — сенсорная цель, которую держит вся остальная система.
-            Здесь её не было, а диалог расходится по десяткам мест: на
-            телефоне кнопка «Отмена» высотой 36px промахивается ровно там,
-            где цена промаха выше всего — рядом с необратимым действием.
-          */}
           <button
             onClick={onClose}
             className="px-4 py-2 min-h-11 text-sm font-medium text-txt-secondary hover:text-txt-primary rounded-lg hover:bg-surface-raised-hover transition-colors"
