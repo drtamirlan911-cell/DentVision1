@@ -2,50 +2,21 @@ import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { motion } from 'framer-motion';
 import {
-  Stethoscope,
-  Activity,
-  ShoppingCart,
-  GraduationCap,
-  CreditCard,
-  BarChart3,
-  Briefcase,
-  Users,
-  Grid,
-  Zap,
-  Plus,
-  ArrowRight,
-  Sparkles,
+  Stethoscope, Activity, ShoppingCart, GraduationCap, CreditCard,
+  BarChart3, Briefcase, Users, Grid, Zap, Plus, ArrowRight, Sparkles,
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/store/auth.store';
 import { cn } from '@/lib/utils';
 import { KaspiAllServicesModal } from './KaspiAllServicesModal';
-
-interface QuickAction {
-  id: string;
-  label: string;
-  icon: React.ReactNode;
-  color: string;
-  action: () => void;
-}
+import { SuperAppQuickActions } from './SuperAppQuickActions';
 
 interface ServiceTile {
-  id: string;
-  title: string;
-  subtitle: string;
-  icon: React.ReactNode;
-  path: string;
-  gradient: string;
-  borderColor: string;
-  textColor: string;
-  badge?: string;
-  badgeColor?: string;
+  id: string; title: string; subtitle: string; icon: React.ReactNode;
+  path: string; badge?: string; tone: string;
 }
 
-interface KaspiServiceHubProps {
-  onAIQuery?: (query: string) => void;
-  className?: string;
-}
+interface KaspiServiceHubProps { onAIQuery?: (query: string) => void; className?: string; }
 
 export const KaspiServiceHub: React.FC<KaspiServiceHubProps> = ({ onAIQuery, className }) => {
   const { t } = useTranslation();
@@ -53,245 +24,76 @@ export const KaspiServiceHub: React.FC<KaspiServiceHubProps> = ({ onAIQuery, cla
   const { clinic } = useAuth();
   const [allServicesOpen, setAllServicesOpen] = useState(false);
 
-  const quickActions: QuickAction[] = [
-    {
-      id: 'appointment',
-      label: 'Записать пациента',
-      icon: <Plus size={16} className="text-amber-400" />,
-      color: 'bg-amber-500/10 border-amber-500/20 text-amber-300 hover:bg-amber-500/20',
-      action: () => navigate('/crm/schedule?action=new'),
-    },
-    {
-      id: 'receipt',
-      label: 'Принять оплату',
-      icon: <CreditCard size={16} className="text-emerald-400" />,
-      color: 'bg-emerald-500/10 border-emerald-500/20 text-emerald-300 hover:bg-emerald-500/20',
-      action: () => navigate('/crm/cashier'),
-    },
-    {
-      id: 'diagnostics',
-      label: 'Направить на КТ',
-      icon: <Activity size={16} className="text-teal-400" />,
-      color: 'bg-teal-500/10 border-teal-500/20 text-teal-300 hover:bg-teal-500/20',
-      action: () => navigate('/diagnostics/referrals/new'),
-    },
-    {
-      id: 'market',
-      label: 'Быстрый заказ',
-      icon: <ShoppingCart size={16} className="text-purple-400" />,
-      color: 'bg-purple-500/10 border-purple-500/20 text-purple-300 hover:bg-purple-500/20',
-      action: () => navigate('/shop'),
-    },
-    {
-      id: 'ai',
-      label: 'Спросить AI',
-      icon: <Sparkles size={16} className="text-dv-gold" />,
-      color: 'bg-dv-gold/10 border-dv-gold/20 text-dv-gold hover:bg-dv-gold/20',
-      action: () => onAIQuery?.('Что важно сегодня?'),
-    },
+  const serviceTiles: ServiceTile[] = [
+    { id: 'crm', title: 'Клиника', subtitle: 'Пациенты · записи · лечение', icon: <Stethoscope size={21} />, path: '/crm/schedule', badge: '18 записей', tone: 'amber' },
+    { id: 'diagnostics', title: 'Диагностика', subtitle: 'КТ · 3D · исследования', icon: <Activity size={21} />, path: '/diagnostics', badge: '2 скана', tone: 'emerald' },
+    { id: 'shop', title: 'DentMarket', subtitle: 'Материалы · оборудование', icon: <ShoppingCart size={21} />, path: '/shop', badge: 'Скидки', tone: 'violet' },
+    { id: 'school', title: 'Academy', subtitle: 'Курсы · навыки · развитие', icon: <GraduationCap size={21} />, path: '/school', badge: 'PRO', tone: 'teal' },
+    { id: 'finance', title: 'Финансы', subtitle: 'Касса · оплаты · баланс', icon: <CreditCard size={21} />, path: '/crm/finance', tone: 'sky' },
+    { id: 'analytics', title: 'Аналитика', subtitle: 'Выручка · загрузка · KPI', icon: <BarChart3 size={21} />, path: '/analytics', tone: 'yellow' },
+    { id: 'jobs', title: 'Jobs', subtitle: 'Врачи · ассистенты · найм', icon: <Briefcase size={21} />, path: '/jobs', tone: 'orange' },
+    { id: 'community', title: 'Community', subtitle: 'Профессиональная сеть', icon: <Users size={21} />, path: '/community', tone: 'blue' },
   ];
 
-  const serviceTiles: ServiceTile[] = [
-    {
-      id: 'crm',
-      title: 'CRM Клиника',
-      subtitle: 'Записи, карты и расписание',
-      icon: <Stethoscope size={24} className="text-amber-400" />,
-      path: '/crm/schedule',
-      gradient: 'from-amber-500/15 via-amber-500/5 to-transparent',
-      borderColor: 'border-amber-500/25',
-      textColor: 'text-amber-400',
-      badge: '18 записей',
-      badgeColor: 'bg-amber-500/20 text-amber-300 border-amber-500/30',
-    },
-    {
-      id: 'diagnostics',
-      title: '3D Диагностика',
-      subtitle: 'КТ, сканы и лаборатории',
-      icon: <Activity size={24} className="text-emerald-400" />,
-      path: '/diagnostics',
-      gradient: 'from-emerald-500/15 via-emerald-500/5 to-transparent',
-      borderColor: 'border-emerald-500/25',
-      textColor: 'text-emerald-400',
-      badge: '2 скана',
-      badgeColor: 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30',
-    },
-    {
-      id: 'shop',
-      title: 'DentMarket',
-      subtitle: 'Расходники и материалы',
-      icon: <ShoppingCart size={24} className="text-purple-400" />,
-      path: '/shop',
-      gradient: 'from-purple-500/15 via-purple-500/5 to-transparent',
-      borderColor: 'border-purple-500/25',
-      textColor: 'text-purple-400',
-      badge: 'Скидки',
-      badgeColor: 'bg-purple-500/20 text-purple-300 border-purple-500/30',
-    },
-    {
-      id: 'school',
-      title: 'Academy OS',
-      subtitle: 'Курсы и мастер-классы',
-      icon: <GraduationCap size={24} className="text-teal-400" />,
-      path: '/school',
-      gradient: 'from-teal-500/15 via-teal-500/5 to-transparent',
-      borderColor: 'border-teal-500/25',
-      textColor: 'text-teal-400',
-      badge: 'PRO',
-      badgeColor: 'bg-teal-500/20 text-teal-300 border-teal-500/30',
-    },
-    {
-      id: 'finance',
-      title: 'Касса & Чеки',
-      subtitle: 'Оплаты и баланс DentCash',
-      icon: <CreditCard size={24} className="text-sky-400" />,
-      path: '/crm/finance',
-      gradient: 'from-sky-500/15 via-sky-500/5 to-transparent',
-      borderColor: 'border-sky-500/25',
-      textColor: 'text-sky-400',
-    },
-    {
-      id: 'analytics',
-      title: 'Аналитика',
-      subtitle: 'Выручка и загрузка врачей',
-      icon: <BarChart3 size={24} className="text-yellow-400" />,
-      path: '/analytics',
-      gradient: 'from-yellow-500/15 via-yellow-500/5 to-transparent',
-      borderColor: 'border-yellow-500/25',
-      textColor: 'text-yellow-400',
-    },
-    {
-      id: 'jobs',
-      title: 'Вакансии',
-      subtitle: 'Поиск врачей и ассистентов',
-      icon: <Briefcase size={24} className="text-orange-400" />,
-      path: '/jobs',
-      gradient: 'from-orange-500/15 via-orange-500/5 to-transparent',
-      borderColor: 'border-orange-500/25',
-      textColor: 'text-orange-400',
-    },
-    {
-      id: 'community',
-      title: 'Сообщество',
-      subtitle: 'Опыт и профессиональный чат',
-      icon: <Users size={24} className="text-blue-400" />,
-      path: '/community',
-      gradient: 'from-blue-500/15 via-blue-500/5 to-transparent',
-      borderColor: 'border-blue-500/25',
-      textColor: 'text-blue-400',
-    },
-  ];
+  const toneClasses: Record<string, string> = {
+    amber: 'text-amber-300 bg-amber-500/10 border-amber-500/20',
+    emerald: 'text-emerald-300 bg-emerald-500/10 border-emerald-500/20',
+    violet: 'text-violet-300 bg-violet-500/10 border-violet-500/20',
+    teal: 'text-teal-300 bg-teal-500/10 border-teal-500/20',
+    sky: 'text-sky-300 bg-sky-500/10 border-sky-500/20',
+    yellow: 'text-yellow-300 bg-yellow-500/10 border-yellow-500/20',
+    orange: 'text-orange-300 bg-orange-500/10 border-orange-500/20',
+    blue: 'text-blue-300 bg-blue-500/10 border-blue-500/20',
+  };
 
   return (
-    <div className={cn('space-y-4 w-full', className)}>
-      {/* Quick Header & Wallet Bar */}
-      <div className="flex flex-wrap items-center justify-between gap-3 p-3.5 sm:p-4 rounded-2xl bg-gradient-to-r from-surface-1 via-surface-2 to-surface-1 border border-white/[0.08] shadow-lg">
-        <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-dv-gold/15 border border-dv-gold/30 text-dv-gold shrink-0">
-            <Zap size={20} />
-          </div>
-          <div>
-            <div className="flex items-center gap-2">
-              <h3 className="text-sm sm:text-base font-semibold text-txt-primary">
-                SuperApp DentVision
-              </h3>
-              {clinic?.name && (
-                <span className="text-[11px] px-2 py-0.5 rounded-full bg-white/5 border border-white/10 text-txt-secondary font-medium">
-                  {clinic.name}
-                </span>
-              )}
+    <div className={cn('w-full space-y-4', className)}>
+      <section className="relative overflow-hidden rounded-2xl border border-white/[0.08] bg-surface-1/70 p-4 sm:p-5">
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_75%_20%,rgba(212,175,55,0.10),transparent_34%)] pointer-events-none" />
+        <div className="relative flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+          <div className="min-w-0">
+            <div className="mb-1 flex items-center gap-2">
+              <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-dv-gold/25 bg-dv-gold/10 text-dv-gold"><Zap size={16} /></span>
+              <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-txt-ghost">DentVision Command Center</span>
             </div>
-            <p className="text-xs text-txt-muted">Все сервисы клиники в одном месте как в Kaspi</p>
+            <h3 className="text-base font-semibold text-txt-primary sm:text-lg">Всё необходимое — в одном рабочем контексте</h3>
+            <p className="mt-1 max-w-2xl text-xs text-txt-muted">{clinic?.name ? `${clinic.name} · ` : ''}AI соединяет клинику, диагностику, финансы, обучение и рынок.</p>
           </div>
-        </div>
-
-        <div className="flex items-center gap-2">
-          <button
-            onClick={() => setAllServicesOpen(true)}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white/5 border border-white/10 text-xs font-semibold text-txt-primary hover:bg-white/10 hover:border-dv-gold/30 transition-all"
-          >
-            <Grid size={15} className="text-dv-gold" />
-            <span>Все сервисы</span>
+          <button type="button" onClick={() => setAllServicesOpen(true)} className="flex shrink-0 items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2 text-xs font-semibold text-txt-primary transition-colors hover:border-dv-gold/30 hover:bg-white/[0.07]">
+            <Grid size={15} className="text-dv-gold" /> Все сервисы
           </button>
         </div>
-      </div>
+      </section>
 
-      {/* Quick Action Chips Bar */}
-      <div className="flex items-center gap-2 overflow-x-auto no-scrollbar pb-1">
-        <span className="text-xs font-semibold text-txt-ghost uppercase tracking-wider shrink-0 px-1">
-          Быстро:
-        </span>
-        {quickActions.map((qa) => (
-          <motion.button
-            key={qa.id}
-            whileHover={{ scale: 1.02 }}
-            whileTap={{ scale: 0.97 }}
-            onClick={qa.action}
-            className={cn(
-              'flex items-center gap-2 px-3 py-1.5 rounded-xl border text-xs font-medium shrink-0 transition-all shadow-sm',
-              qa.color
-            )}
-          >
-            {qa.icon}
-            <span>{qa.label}</span>
-          </motion.button>
-        ))}
-      </div>
+      <SuperAppQuickActions onAIQuery={onAIQuery} />
 
-      {/* Main Service Tiles Grid */}
-      <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
-        {serviceTiles.map((tile) => (
-          <motion.button
-            key={tile.id}
-            whileHover={{ y: -3, scale: 1.01 }}
-            whileTap={{ scale: 0.98 }}
-            onClick={() => navigate(tile.path)}
-            className={cn(
-              'group relative flex flex-col justify-between p-4 rounded-2xl border text-left transition-all duration-200 overflow-hidden shadow-md',
-              'bg-gradient-to-br',
-              tile.gradient,
-              tile.borderColor,
-              'hover:shadow-lg hover:border-white/20'
-            )}
-          >
-            <div className="flex items-start justify-between gap-2 mb-3">
-              <div className="p-2.5 rounded-xl bg-surface-1/80 border border-white/10 group-hover:scale-105 transition-transform">
-                {tile.icon}
+      <section>
+        <div className="mb-2 flex items-center justify-between px-1">
+          <div><h4 className="text-sm font-semibold text-txt-primary">Сервисы</h4><p className="text-[11px] text-txt-muted">Открывайте нужный рабочий контекст без перегруженного меню.</p></div>
+          <button type="button" onClick={() => setAllServicesOpen(true)} className="hidden items-center gap-1 text-xs font-medium text-dv-gold sm:flex">Все <ArrowRight size={13} /></button>
+        </div>
+        <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-4 lg:gap-3">
+          {serviceTiles.map((tile) => (
+            <motion.button key={tile.id} whileTap={{ scale: 0.98 }} onClick={() => navigate(tile.path)} className="group min-h-[104px] rounded-xl border border-white/[0.07] bg-surface-1/55 p-3 text-left transition-all hover:-translate-y-0.5 hover:border-white/15 hover:bg-surface-2/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-dv-gold/50">
+              <div className="mb-3 flex items-start justify-between gap-2">
+                <span className={cn('flex h-8 w-8 items-center justify-center rounded-lg border', toneClasses[tile.tone])}>{tile.icon}</span>
+                {tile.badge && <span className="max-w-[74px] truncate rounded-full border border-white/10 bg-white/[0.04] px-1.5 py-0.5 text-[9px] font-medium text-txt-muted">{tile.badge}</span>}
               </div>
-              {tile.badge && (
-                <span
-                  className={cn(
-                    'text-[10px] font-semibold px-2 py-0.5 rounded-full border',
-                    tile.badgeColor
-                  )}
-                >
-                  {tile.badge}
-                </span>
-              )}
-            </div>
+              <div className="flex items-center justify-between gap-1"><span className="truncate text-sm font-semibold text-txt-primary">{tile.title}</span><ArrowRight size={13} className="shrink-0 text-txt-ghost opacity-0 transition-opacity group-hover:opacity-100" /></div>
+              <p className="mt-0.5 truncate text-[10px] text-txt-muted">{tile.subtitle}</p>
+            </motion.button>
+          ))}
+        </div>
+      </section>
 
-            <div>
-              <div className="flex items-center justify-between gap-1">
-                <h4 className="text-sm sm:text-base font-semibold text-txt-primary group-hover:text-txt-primary transition-colors">
-                  {tile.title}
-                </h4>
-                <ArrowRight
-                  size={15}
-                  className="text-txt-muted opacity-0 -translate-x-2 group-hover:opacity-100 group-hover:translate-x-0 transition-all text-dv-gold"
-                />
-              </div>
-              <p className="text-xs text-txt-muted mt-0.5 line-clamp-1">{tile.subtitle}</p>
-            </div>
-          </motion.button>
-        ))}
-      </div>
+      <section className="rounded-2xl border border-dv-gold/15 bg-dv-gold/[0.04] p-3.5 sm:p-4">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-center gap-2"><Sparkles size={16} className="text-dv-gold" /><span className="text-xs font-semibold text-txt-primary">AI может связать эти сервисы в одно действие</span></div>
+          <button type="button" onClick={() => onAIQuery?.('Покажи, что требует моего внимания сегодня, и предложи следующие действия')} className="inline-flex items-center gap-1.5 self-start rounded-lg bg-dv-gold/10 px-2.5 py-1.5 text-[11px] font-semibold text-dv-gold hover:bg-dv-gold/15 sm:self-auto">Спросить DentVision AI <ArrowRight size={12} /></button>
+        </div>
+      </section>
 
-      {/* All Services Modal */}
-      <KaspiAllServicesModal
-        open={allServicesOpen}
-        onClose={() => setAllServicesOpen(false)}
-        onAIQuery={onAIQuery}
-      />
+      <KaspiAllServicesModal open={allServicesOpen} onClose={() => setAllServicesOpen(false)} onAIQuery={onAIQuery} />
     </div>
   );
 };
