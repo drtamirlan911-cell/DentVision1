@@ -16,6 +16,8 @@ export const AI_NAV_ACTIONS: Record<string, string> = {
   OPEN_FINANCE: '/crm/cashier',
   OpenLab: '/crm/lab',
   OPEN_LABORATORY: '/crm/lab',
+  OpenDiagnostics: '/diagnostics',
+  OPEN_DIAGNOSTICS: '/diagnostics',
   OpenInventory: '/crm/inventory',
   OPEN_INVENTORY: '/crm/inventory',
   OpenStaff: '/crm/staff',
@@ -70,6 +72,7 @@ export function stageFromPath(pathname?: string | null): string {
   if (p.includes('/crm/treatment-plans')) return 'treatment-plans'
   if (p.includes('/crm/visits') || p.includes('/crm/medical-card')) return 'clinical'
   if (p.includes('/crm/documents')) return 'documents'
+  if (p.includes('/diagnostics')) return 'diagnostics'
   if (p.includes('/shop')) return 'shop'
   if (p.includes('/school-workspace')) return 'school'
   if (p.includes('/school')) return 'school'
@@ -118,16 +121,8 @@ export function getSmartSuggestions(opts: {
     role === 'doctor' || role === 'assistant'
       ? ['Показать расписание', 'Подготовка к приёму', 'Открыть зубную карту', 'Создать план лечения']
       : role === 'owner' || role === 'director' || role === 'manager' || role === 'руководитель'
-        ? ['Что важно сегодня?', 'Показать выручку', 'Проверить долги', 'Сводка клиники', 'Аналитика склада']
-        : role === 'admin' || role === 'администратор' || role === 'reception'
-          ? ['Показать расписание', 'Записать пациента', 'Открыть кассу', 'Запись нового']
-          : role === 'buyer'
-            ? ['Что на складе', 'Открыть маркетплейс']
-            : role === 'supplier'
-              ? ['Кабинет продавца', 'Открыть маркетплейс']
-              : role === 'lecturer'
-                ? ['Кабинет лектора', 'Открыть Academy OS']
-                : ['Что важно сегодня?', 'Показать расписание', 'Карта сервисов']
+        ? ['Что важно сегодня?', 'Показать выручку', 'Проверить долги', 'Показать расписание']
+        : ['Что важно сегодня?', 'Показать расписание', 'Открыть пациентов']
 
-  return [...new Set([...(byStage[stage] || []), ...roleChips])].slice(0, 4)
+  return (byStage[stage] || roleChips).slice(0, 4)
 }
