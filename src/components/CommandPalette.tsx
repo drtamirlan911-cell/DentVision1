@@ -1,6 +1,10 @@
 import React, { useEffect, useState, useCallback, useRef, useMemo } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Search, ArrowRight, Calendar, Users, ShoppingCart, GraduationCap, BarChart3, Bot, FileText, Settings, Stethoscope, Package, CreditCard, ArrowUpRight } from 'lucide-react'
+import {
+  Search, ArrowRight, Calendar, Users, ShoppingCart, GraduationCap,
+  BarChart3, Bot, FileText, Settings, Stethoscope, Package, CreditCard,
+  Activity, Sparkles, Tag
+} from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useNavigate } from 'react-router-dom'
 import { useIam } from '@/iam'
@@ -26,44 +30,77 @@ export function CommandPalette({ open, onClose, onAIQuery }: CommandPaletteProps
   const { t } = useTranslation()
   const [query, setQuery] = useState('')
   const [selectedIndex, setSelectedIndex] = useState(0)
+  const [activeCategory, setActiveCategory] = useState<string>('all')
   const inputRef = useRef<HTMLInputElement>(null)
   const navigate = useNavigate()
   const iam = useIam()
 
+  const categories = [
+    { id: 'all', label: 'Все' },
+    { id: 'crm', label: 'Клиника' },
+    { id: 'diagnostics', label: 'Диагностика' },
+    { id: 'shop', label: 'Маркетплейс' },
+    { id: 'school', label: 'Academy' },
+    { id: 'finance', label: 'Финансы' },
+  ]
+
   const commands: CommandItem[] = useMemo(() => {
     const all: CommandItem[] = [
-      { id: 'schedule', label: t('platform.command_schedule'), description: 'Открыть календарь записей', icon: <Calendar size={16} />, action: () => { navigate('/crm/schedule'); onClose() }, section: t('platform.command_crm'), keywords: ['расписание', 'календарь', 'записи', 'appointment'] },
-      { id: 'patients', label: t('platform.command_patients'), description: 'Список пациентов', icon: <Users size={16} />, action: () => { navigate('/crm/patients'); onClose() }, section: t('platform.command_crm'), keywords: ['пациенты', 'список', 'patient'] },
-      { id: 'cashier', label: t('platform.command_cashier'), description: 'Финансы и счета', icon: <CreditCard size={16} />, action: () => { navigate('/crm/cashier'); onClose() }, section: t('platform.command_crm'), keywords: ['касса', 'оплата', 'счёт', 'cashier', 'finance'] },
-      { id: 'inventory', label: t('platform.command_inventory'), description: 'Учёт материалов', icon: <Package size={16} />, action: () => { navigate('/crm/inventory'); onClose() }, section: t('platform.command_crm'), keywords: ['склад', 'материалы', 'inventory', 'stock'] },
-      { id: 'lab', label: t('platform.command_lab'), description: 'Лабораторные заказы', icon: <Stethoscope size={16} />, action: () => { navigate('/crm/lab'); onClose() }, section: t('platform.command_crm'), keywords: ['лаборатория', 'lab', 'заказ'] },
-      { id: 'documents', label: t('platform.command_documents'), description: 'Файлы и подписи', icon: <FileText size={16} />, action: () => { navigate('/crm/documents'); onClose() }, section: t('platform.command_crm'), keywords: ['документы', 'файлы', 'documents'] },
-      { id: 'promotions', label: t('platform.command_promotions'), description: 'Скидки и спецпредложения', icon: <Stethoscope size={16} />, action: () => { navigate('/crm/promotions'); onClose() }, section: t('platform.command_crm'), keywords: ['акции', 'скидки', 'promotions'] },
-      { id: 'icd10', label: t('platform.command_icd10'), description: 'Справочник диагнозов', icon: <FileText size={16} />, action: () => { navigate('/crm/icd10'); onClose() }, section: t('platform.command_crm'), keywords: ['мкб', 'icd10', 'диагноз'] },
-      { id: 'staff', label: t('platform.command_staff'), description: 'Команда клиники', icon: <Users size={16} />, action: () => { navigate('/crm/staff'); onClose() }, section: t('platform.command_crm'), keywords: ['сотрудники', 'staff', 'врачи'] },
-      { id: 'reminders', label: t('platform.command_reminders'), description: 'SMS и WhatsApp', icon: <Calendar size={16} />, action: () => { navigate('/crm/reminders'); onClose() }, section: t('platform.command_crm'), keywords: ['напоминания', 'reminders'] },
-      { id: 'shop', label: t('platform.command_marketplace'), description: 'Товары и закупки', icon: <ShoppingCart size={16} />, action: () => { navigate('/shop'); onClose() }, section: t('platform.command_services'), keywords: ['магазин', 'товары', 'shop', 'marketplace'] },
-      { id: 'school', label: t('platform.command_academy'), description: 'Курсы и обучение', icon: <GraduationCap size={16} />, action: () => { navigate('/school'); onClose() }, section: t('platform.command_services'), keywords: ['школа', 'курсы', 'school', 'academy'] },
-      { id: 'analytics', label: t('platform.command_analytics'), description: 'Отчёты и метрики', icon: <BarChart3 size={16} />, action: () => { navigate('/analytics'); onClose() }, section: t('platform.command_services'), keywords: ['аналитика', 'отчёты', 'analytics'] },
-      { id: 'settings', label: t('platform.command_settings'), description: 'Параметры системы', icon: <Settings size={16} />, action: () => { navigate('/settings'); onClose() }, section: t('platform.command_platform'), keywords: ['настройки', 'settings'] },
-      { id: 'ai-chat', label: t('platform.command_ai'), description: 'Начать диалог с AI', icon: <Bot size={16} />, action: () => { navigate('/'); onClose() }, section: t('platform.command_platform'), keywords: ['ai', 'ассистент', 'помощь', 'умный'] },
+      // CRM
+      { id: 'schedule', label: t('platform.command_schedule'), description: 'Открыть календарь записей', icon: <Calendar size={16} />, action: () => { navigate('/crm/schedule'); onClose() }, section: 'Клиника & CRM', keywords: ['расписание', 'календарь', 'записи', 'appointment', 'прием'] },
+      { id: 'patients', label: t('platform.command_patients'), description: 'Список пациентов и поиск', icon: <Users size={16} />, action: () => { navigate('/crm/patients'); onClose() }, section: 'Клиника & CRM', keywords: ['пациенты', 'список', 'patient', 'клиенты'] },
+      { id: 'medical-card', label: 'Медицинские карты', description: 'Анамнез и протоколы', icon: <FileText size={16} />, action: () => { navigate('/crm/medical-card'); onClose() }, section: 'Клиника & CRM', keywords: ['медкарта', 'история', 'протокол'] },
+      { id: 'dental-chart', label: 'Зубная формула', description: 'Интерактивная карта зубов', icon: <Stethoscope size={16} />, action: () => { navigate('/crm/dental-chart'); onClose() }, section: 'Клиника & CRM', keywords: ['зубная формула', 'карта зубов'] },
+
+      // Diagnostics
+      { id: 'diagnostics', label: '3D Диагностика & КТ', description: 'КТ снимки, исследования и центры', icon: <Activity size={16} />, action: () => { navigate('/diagnostics'); onClose() }, section: '3D Диагностика', keywords: ['диагностика', 'кт', 'снимки', '3d', 'скан'] },
+      { id: 'referral-new', label: 'Новое направление на КТ', description: 'Направить пациента на исследование', icon: <Activity size={16} />, action: () => { navigate('/diagnostics/referrals/new'); onClose() }, section: '3D Диагностика', keywords: ['направление', 'кт', 'обследование'] },
+
+      // Marketplace
+      { id: 'shop', label: t('platform.command_marketplace'), description: 'DentMarket — расходники и инструменты', icon: <ShoppingCart size={16} />, action: () => { navigate('/shop'); onClose() }, section: 'Маркетплейс', keywords: ['магазин', 'товары', 'shop', 'marketplace', 'закупка'] },
+      { id: 'shop-orders', label: 'Заказы и доставки', description: 'Статусы покупок', icon: <Package size={16} />, action: () => { navigate('/shop/orders'); onClose() }, section: 'Маркетплейс', keywords: ['заказы', 'доставка', 'покупки'] },
+
+      // School
+      { id: 'school', label: t('platform.command_academy'), description: 'Academy OS — курсы и вебинары', icon: <GraduationCap size={16} />, action: () => { navigate('/school'); onClose() }, section: 'Academy OS', keywords: ['школа', 'курсы', 'school', 'academy', 'обучение'] },
+
+      // Finance & Cashier
+      { id: 'cashier', label: t('platform.command_cashier'), description: 'Касса, оплаты и чеки', icon: <CreditCard size={16} />, action: () => { navigate('/crm/cashier'); onClose() }, section: 'Финансы & Касса', keywords: ['касса', 'оплата', 'счёт', 'cashier', 'finance', 'чеки'] },
+      { id: 'pricelist', label: 'Прейскурант услуг', description: 'Цены на услуги клиники', icon: <Tag size={16} />, action: () => { navigate('/crm/pricelist'); onClose() }, section: 'Финансы & Касса', keywords: ['прейскурант', 'прайс', 'цены'] },
+      { id: 'inventory', label: t('platform.command_inventory'), description: 'Учёт материалов и остатков', icon: <Package size={16} />, action: () => { navigate('/crm/inventory'); onClose() }, section: 'Финансы & Касса', keywords: ['склад', 'материалы', 'inventory', 'stock'] },
+      { id: 'analytics', label: t('platform.command_analytics'), description: 'Финансовые отчёты и метрики', icon: <BarChart3 size={16} />, action: () => { navigate('/analytics'); onClose() }, section: 'Финансы & Касса', keywords: ['аналитика', 'отчёты', 'analytics', 'выручка'] },
+
+      // Platform
+      { id: 'settings', label: t('platform.command_settings'), description: 'Параметры системы', icon: <Settings size={16} />, action: () => { navigate('/settings'); onClose() }, section: 'Платформа', keywords: ['настройки', 'settings'] },
+      { id: 'ai-chat', label: 'Jarvis AI Интеллект', description: 'Запустить ИИ-помощника', icon: <Bot size={16} />, action: () => { navigate('/'); onClose() }, section: 'Платформа', keywords: ['ai', 'ассистент', 'помощь', 'умный', 'жарвис'] },
     ]
-    // Always allow settings + AI home; filter the rest by role pages.
     return all.filter((cmd) => {
       if (cmd.id === 'settings' || cmd.id === 'ai-chat') return true
-      return iam.canAccessPage(cmd.id)
+      return iam.canAccessPage(cmd.id) || cmd.id.startsWith('referral') || cmd.id.startsWith('shop')
     })
   }, [navigate, onClose, t, iam])
 
   const filtered = useMemo(() => {
-    if (!query.trim()) return commands
-    const q = query.toLowerCase()
-    return commands.filter((cmd) =>
-      cmd.label.toLowerCase().includes(q) ||
-      cmd.description?.toLowerCase().includes(q) ||
-      cmd.keywords.some((k) => k.includes(q))
-    )
-  }, [query, commands])
+    return commands.filter((cmd) => {
+      if (activeCategory !== 'all') {
+        const catMap: Record<string, string> = {
+          crm: 'Клиника & CRM',
+          diagnostics: '3D Диагностика',
+          shop: 'Маркетплейс',
+          school: 'Academy OS',
+          finance: 'Финансы & Касса',
+        }
+        if (cmd.section !== catMap[activeCategory]) return false
+      }
+
+      if (!query.trim()) return true
+      const q = query.toLowerCase()
+      return (
+        cmd.label.toLowerCase().includes(q) ||
+        cmd.description?.toLowerCase().includes(q) ||
+        cmd.keywords.some((k) => k.includes(q))
+      )
+    })
+  }, [commands, query, activeCategory])
 
   const sections = useMemo(() => {
     const map = new Map<string, CommandItem[]>()
@@ -78,13 +115,14 @@ export function CommandPalette({ open, onClose, onAIQuery }: CommandPaletteProps
     if (open) {
       setQuery('')
       setSelectedIndex(0)
+      setActiveCategory('all')
       setTimeout(() => inputRef.current?.focus(), 50)
     }
   }, [open])
 
   useEffect(() => {
     setSelectedIndex(0)
-  }, [query])
+  }, [query, activeCategory])
 
   const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
     if (e.key === 'ArrowDown') {
@@ -96,12 +134,7 @@ export function CommandPalette({ open, onClose, onAIQuery }: CommandPaletteProps
     } else if (e.key === 'Enter') {
       e.preventDefault()
       if (filtered[selectedIndex]) {
-        if (query.trim() && filtered.length === 0) {
-          onAIQuery?.(query)
-          onClose()
-        } else {
-          filtered[selectedIndex].action()
-        }
+        filtered[selectedIndex].action()
       } else if (query.trim()) {
         onAIQuery?.(query)
         onClose()
@@ -110,19 +143,6 @@ export function CommandPalette({ open, onClose, onAIQuery }: CommandPaletteProps
       onClose()
     }
   }, [filtered, selectedIndex, query, onAIQuery, onClose])
-
-  useEffect(() => {
-    const handler = (e: KeyboardEvent) => {
-      if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
-        e.preventDefault()
-        if (open) onClose()
-      }
-    }
-    window.addEventListener('keydown', handler)
-    return () => window.removeEventListener('keydown', handler)
-  }, [open, onClose])
-
-  const flatIndex = 0
 
   return (
     <AnimatePresence>
@@ -135,22 +155,23 @@ export function CommandPalette({ open, onClose, onAIQuery }: CommandPaletteProps
             className="fixed inset-0 z-[100] bg-black/60 backdrop-blur-sm"
             onClick={onClose}
           />
-          <div className="fixed inset-0 z-[101] flex items-start justify-center pt-[15vh]">
+          <div className="fixed inset-0 z-[101] flex items-start justify-center pt-[10vh] px-3">
             <motion.div
               initial={{ opacity: 0, scale: 0.95, y: -10 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: -10 }}
               transition={{ type: 'spring', stiffness: 400, damping: 30 }}
-              className="w-full max-w-lg mx-4 bg-surface-1 border border-bdr-subtle rounded-2xl shadow-2xl overflow-hidden"
+              className="w-full max-w-xl bg-surface-1 border border-bdr-subtle rounded-2xl shadow-2xl overflow-hidden"
             >
-              <div className="flex items-center gap-3 px-4 py-3 border-b border-bdr-subtle">
-                <Search size={18} className="text-txt-muted shrink-0" />
+              {/* Search Bar Input */}
+              <div className="flex items-center gap-3 px-4 py-3 border-b border-bdr-subtle bg-surface-2/40">
+                <Search size={18} className="text-dv-gold shrink-0" />
                 <input
                   ref={inputRef}
                   value={query}
                   onChange={(e) => setQuery(e.target.value)}
                   onKeyDown={handleKeyDown}
-                  placeholder={t('platform.command_palette')}
+                  placeholder="Быстрый поиск по всей платформе (Kaspi SuperApp Search)..."
                   className="flex-1 bg-transparent text-sm text-txt-primary placeholder:text-txt-muted outline-none"
                 />
                 <kbd className="hidden sm:inline-flex px-1.5 py-0.5 text-[10px] font-mono text-txt-muted bg-surface-3 rounded border border-bdr-subtle">
@@ -158,11 +179,41 @@ export function CommandPalette({ open, onClose, onAIQuery }: CommandPaletteProps
                 </kbd>
               </div>
 
-              <div className="max-h-[50vh] overflow-y-auto py-2">
+              {/* Category Filter Chips */}
+              <div className="flex items-center gap-1 px-4 py-2 border-b border-bdr-subtle bg-surface-1/60 overflow-x-auto no-scrollbar">
+                {categories.map((cat) => (
+                  <button
+                    key={cat.id}
+                    onClick={() => setActiveCategory(cat.id)}
+                    className={cn(
+                      'px-2.5 py-1 rounded-lg text-xs font-semibold shrink-0 transition-colors',
+                      activeCategory === cat.id
+                        ? 'bg-dv-gold/20 text-dv-gold border border-dv-gold/30'
+                        : 'text-txt-muted hover:text-txt-primary hover:bg-white/5'
+                    )}
+                  >
+                    {cat.label}
+                  </button>
+                ))}
+              </div>
+
+              {/* Results List */}
+              <div className="max-h-[55vh] overflow-y-auto py-2">
                 {filtered.length === 0 && (
-                  <div className="px-4 py-6 text-center">
+                  <div className="px-4 py-8 text-center space-y-2">
                     <p className="text-sm text-txt-muted">{t('platform.command_empty')}</p>
-                    <p className="text-xs text-txt-ghost mt-1">{t('platform.command_hint')}</p>
+                    {query.trim() && (
+                      <button
+                        onClick={() => {
+                          onAIQuery?.(query)
+                          onClose()
+                        }}
+                        className="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl bg-dv-gold/15 text-dv-gold text-xs font-semibold hover:bg-dv-gold/25 transition-colors"
+                      >
+                        <Sparkles size={14} />
+                        <span>Спросить у Jarvis AI: "{query}"</span>
+                      </button>
+                    )}
                   </div>
                 )}
 
@@ -197,10 +248,13 @@ export function CommandPalette({ open, onClose, onAIQuery }: CommandPaletteProps
                 ))}
               </div>
 
-              <div className="flex items-center gap-4 px-4 py-2.5 border-t border-bdr-subtle text-[10px] text-txt-ghost">
-                <span className="flex items-center gap-1"><kbd className="px-1 py-0.5 bg-surface-3 rounded border border-bdr-subtle">↑↓</kbd> {t('platform.command_nav')}</span>
-                <span className="flex items-center gap-1"><kbd className="px-1 py-0.5 bg-surface-3 rounded border border-bdr-subtle">↵</kbd> {t('platform.command_select')}</span>
-                <span className="flex items-center gap-1"><kbd className="px-1 py-0.5 bg-surface-3 rounded border border-bdr-subtle">ESC</kbd> {t('platform.command_close')}</span>
+              {/* Navigation Hints Footer */}
+              <div className="flex items-center justify-between px-4 py-2.5 border-t border-bdr-subtle text-[10px] text-txt-ghost bg-surface-2/30">
+                <div className="flex items-center gap-3">
+                  <span className="flex items-center gap-1"><kbd className="px-1 py-0.5 bg-surface-3 rounded border border-bdr-subtle">↑↓</kbd> Навигация</span>
+                  <span className="flex items-center gap-1"><kbd className="px-1 py-0.5 bg-surface-3 rounded border border-bdr-subtle">↵</kbd> Выбор</span>
+                </div>
+                <span>SuperApp DentVision</span>
               </div>
             </motion.div>
           </div>
