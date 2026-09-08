@@ -162,8 +162,8 @@ export default function SettingsPage() {
               <motion.div variants={item}>
                 <LinkCard
                   icon={<CreditCard size={16} />}
-                  title="Kaspi кассы"
-                  desc="QR на кассе идёт на ваш Kaspi/банк, не на DentVision"
+                  title="Платёжные кассы"
+                  desc="QR на кассе идёт напрямую на ваш банк, не на DentVision"
                   btn="Подключить"
                   onClick={() => navigate('/crm/settings')}
                 />

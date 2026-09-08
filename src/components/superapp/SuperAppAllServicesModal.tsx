@@ -45,13 +45,13 @@ interface ServiceItem {
   keywords: string[];
 }
 
-interface KaspiAllServicesModalProps {
+interface SuperAppAllServicesModalProps {
   open: boolean;
   onClose: () => void;
   onAIQuery?: (query: string) => void;
 }
 
-export const KaspiAllServicesModal: React.FC<KaspiAllServicesModalProps> = ({
+export const SuperAppAllServicesModal: React.FC<SuperAppAllServicesModalProps> = ({
   open,
   onClose,
   onAIQuery,

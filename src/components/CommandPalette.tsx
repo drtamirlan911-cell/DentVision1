@@ -171,7 +171,7 @@ export function CommandPalette({ open, onClose, onAIQuery }: CommandPaletteProps
                   value={query}
                   onChange={(e) => setQuery(e.target.value)}
                   onKeyDown={handleKeyDown}
-                  placeholder="Быстрый поиск по всей платформе (Kaspi SuperApp Search)..."
+                  placeholder="Быстрый поиск по всей платформе (Поиск по всем сервисам SuperApp)..."
                   className="flex-1 bg-transparent text-sm text-txt-primary placeholder:text-txt-muted outline-none"
                 />
                 <kbd className="hidden sm:inline-flex px-1.5 py-0.5 text-[10px] font-mono text-txt-muted bg-surface-3 rounded border border-bdr-subtle">

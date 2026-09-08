@@ -342,7 +342,7 @@ export default function ClinicSettingsPage() {
           { id: 'profile', label: 'Профиль', icon: <Building2 size={14} /> },
           { id: 'schedule', label: 'Расписание', icon: <Clock size={14} /> },
           { id: 'alerts', label: 'Оповещения', icon: <Bell size={14} /> },
-          { id: 'kaspi', label: 'Kaspi', icon: <QrCode size={14} /> },
+          { id: 'kaspi', label: 'QR-оплата', icon: <QrCode size={14} /> },
           { id: 'pricelist', label: 'Прайс', icon: <DollarSign size={14} /> },
           { id: 'staff', label: 'Персонал', icon: <Users size={14} /> },
           { id: 'chairs', label: 'Кабинеты', icon: <Armchair size={14} /> },
@@ -610,7 +610,7 @@ export default function ClinicSettingsPage() {
             <CardTitle className="flex items-center justify-between gap-2 flex-wrap">
               <span className="flex items-center gap-2">
                 <QrCode size={16} className="text-dv-gold" />
-                Оплата на кассе (Kaspi клиники)
+                Оплата на кассе (QR-оплата клиники)
               </span>
               <Badge variant={settings.payments?.configured || settings.payments?.mode === 'static' || settings.payments?.mode === 'api' ? 'success' : 'outline'} size="xs">
                 {settings.payments?.configured
@@ -627,7 +627,7 @@ export default function ClinicSettingsPage() {
                 Деньги с кассы, расписания и карточки пациента идут на <span className="text-dv-gold">счёт вашей клиники</span>, не на DentVision.
               </p>
               <p className="text-xs text-txt-muted m-0">
-                Academy, Магазин и тариф SaaS оплачиваются отдельно через Kaspi платформы.
+                Academy, Магазин и тариф SaaS оплачиваются отдельно через платёжный шлюз платформы.
               </p>
               <button
                 type="button"
@@ -640,10 +640,10 @@ export default function ClinicSettingsPage() {
               {showPayHelp && (
                 <ol className="m-0 pl-4 space-y-1.5 text-xs text-txt-secondary list-decimal">
                   <li>
-                    <b>Вариант A (быстро):</b> режим «Телефон / ссылка Kaspi» → укажите телефон Kaspi клиники или готовую ссылку оплаты → Сохранить.
+                    <b>Вариант A (быстро):</b> режим «Телефон / ссылка QR» → укажите телефон клиники или готовую ссылку оплаты → Сохранить.
                   </li>
                   <li>
-                    В <b>Кассе</b> или <b>Расписании</b> выберите «QR-оплата» → «Создать QR» → пациент сканирует → перевод на ваш Kaspi → «Проверить оплату».
+                    В <b>Кассе</b> или <b>Расписании</b> выберите «QR-оплата» → «Создать QR» → пациент сканирует → перевод на ваш счет → «Проверить оплату».
                   </li>
                   <li>
                     <b>Вариант B (API):</b> режим «API-шлюз» → Base URL + API Key + Webhook secret из кабинета шлюза → скопируйте Webhook URL ниже в кабинет шлюза.
@@ -664,7 +664,7 @@ export default function ClinicSettingsPage() {
               })}
               options={[
                 { value: 'unconfigured', label: 'Не подключено' },
-                { value: 'static', label: 'Телефон / ссылка Kaspi (рекомендуется для старта)' },
+                { value: 'static', label: 'Телефон / ссылка QR-оплаты (рекомендуется для старта)' },
                 { value: 'api', label: 'API-шлюз (ApiPay / PayBot / свой)' },
               ]}
             />
@@ -682,7 +682,7 @@ export default function ClinicSettingsPage() {
             {(settings.payments?.mode === 'static' || settings.payments?.mode === 'unconfigured') && (
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                 <Input
-                  label="Телефон Kaspi клиники"
+                  label="Телефон QR-оплаты клиники"
                   value={settings.payments?.kaspiPhone || ''}
                   onChange={(e) => setSettings({
                     ...settings,
@@ -691,7 +691,7 @@ export default function ClinicSettingsPage() {
                   placeholder="+7 7XX XXX XX XX"
                 />
                 <Input
-                  label="Или ссылка / QR-пейлоад Kaspi"
+                  label="Или ссылка / QR-пейлоад оплаты"
                   value={settings.payments?.staticQrUrl || ''}
                   onChange={(e) => setSettings({
                     ...settings,
@@ -761,7 +761,7 @@ export default function ClinicSettingsPage() {
 
             <p className="text-[11px] text-txt-muted m-0 flex items-start gap-1.5">
               <ExternalLink size={12} className="mt-0.5 shrink-0" />
-              После сохранения проверьте: Касса → QR-оплата → Создать QR. Деньги должны прийти на Kaspi клиники.
+              После сохранения проверьте: Касса → QR-оплата → Создать QR. Деньги должны прийти на счёт клиники.
             </p>
           </CardContent>
         </Card>

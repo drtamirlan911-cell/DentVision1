@@ -305,7 +305,7 @@ export default function ShopCheckout() {
                 <div>
                   <label className="text-xs text-txt-muted mb-1 block">Оплата</label>
                   <select className="dv-select min-h-11" value={form.payment_method} onChange={set('payment_method')}>
-                    <option value="qr">Kaspi QR</option>
+                    <option value="qr">QR-оплата</option>
                     <option value="card">Картой онлайн</option>
                     <option value="cash">Наличными при получении</option>
                   </select>

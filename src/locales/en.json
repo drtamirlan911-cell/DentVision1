@@ -900,7 +900,7 @@
     "payment_title": "Payment",
     "payment_generic": "Payment · {{name}}",
     "qr_show_hint": "Show this QR to the patient",
-    "scan_qr_hint": "Scan QR in Kaspi or another banking app",
+    "scan_qr_hint": "Scan QR in banking app",
     "or_open_link": "Or tap \"Open Payment\" on your phone / computer",
     "return_check": "Return here and tap \"Check Payment\"",
     "qr_alt": "Payment QR Code",

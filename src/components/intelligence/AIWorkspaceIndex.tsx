@@ -18,8 +18,8 @@ import { ActionConfirm } from '@/components/intelligence/ActionConfirm'
 import { IntakeWizard } from '@/components/intelligence/IntakeWizard'
 import { DoctorPrepPanel } from '@/components/intelligence/DoctorPrepPanel'
 import { FollowUpWizard } from '@/components/intelligence/FollowUpWizard'
-import { KaspiServiceHub } from '@/components/superapp/KaspiServiceHub'
-import { KaspiAllServicesModal } from '@/components/superapp/KaspiAllServicesModal'
+import { SuperAppServiceHub } from '@/components/superapp/SuperAppServiceHub'
+import { SuperAppAllServicesModal } from '@/components/superapp/SuperAppAllServicesModal'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { trackProductEvent } from '@/utils/analytics'
 import { detectUserTimeZone, timeGreetingInTz } from '@/lib/clinic-timezone'
@@ -761,7 +761,7 @@ export function AIWorkspaceIndex({ onNavigate }: AIWorkspaceIndexProps) {
         </div>
 
         <div className="flex items-center gap-2">
-          {/* Quick Kaspi All Services Trigger Button */}
+          {/* Quick SuperApp All Services Trigger Button */}
           <button
             onClick={() => setShowAllServicesModal(true)}
             className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-dv-gold/10 border border-dv-gold/25 text-dv-gold hover:bg-dv-gold/20 transition-all text-xs font-semibold"
@@ -833,14 +833,19 @@ export function AIWorkspaceIndex({ onNavigate }: AIWorkspaceIndexProps) {
         </div>
       </motion.div>
 
+      {/* Pinned SuperApp SuperApp Service Hub Dock (Always reachable at top) */}
+      <div className="px-3 sm:px-4 md:px-6 py-2 border-b border-white/[0.04] bg-surface-0/80 backdrop-blur-md shrink-0">
+        <div className="max-w-4xl mx-auto">
+          <SuperAppServiceHub
+            onAIQuery={(q: string) => void handleSend(q)}
+            defaultExpanded={false}
+          />
+        </div>
+      </div>
+
       {/* Main Workspace Body */}
       <div className="flex-1 overflow-y-auto min-h-0">
         <div className="max-w-4xl mx-auto px-4 md:px-6 py-6 space-y-6">
-          {/* Kaspi-style SuperApp Services Hub Header Widget */}
-          <KaspiServiceHub
-            onAIQuery={(q: string) => void handleSend(q)}
-            className="mb-6"
-          />
 
           <AnimatePresence>
             {messages.map((msg) => (
@@ -990,7 +995,7 @@ export function AIWorkspaceIndex({ onNavigate }: AIWorkspaceIndexProps) {
       </AnimatePresence>
 
       {/* All Services Modal */}
-      <KaspiAllServicesModal
+      <SuperAppAllServicesModal
         open={showAllServicesModal}
         onClose={() => setShowAllServicesModal(false)}
         onAIQuery={(q) => void handleSend(q)}

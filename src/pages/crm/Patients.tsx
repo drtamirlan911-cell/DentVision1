@@ -1279,7 +1279,7 @@ export default function Patients() {
                         value={payment.payMethod}
                         onChange={e => setPayment({ ...payment, payMethod: e.target.value })}
                         options={[
-                          { value: 'QR-оплата', label: 'QR / Kaspi' },
+                          { value: 'QR-оплата', label: 'QR-оплата / Банк' },
                           { value: 'cash', label: 'Наличные' },
                           { value: 'card', label: 'Карта' },
                           { value: 'transfer', label: 'Перевод' },
