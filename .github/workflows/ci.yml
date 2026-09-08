@@ -124,9 +124,13 @@ jobs:
           echo "Frontend did not become healthy in time" >&2
           cat /tmp/frontend.log >&2 || true
           exit 1
-      # Run the complete Playwright suite, including browser-driven coverage.
-      - name: Run complete E2E suite
-        run: PLAYWRIGHT_BASE_URL=http://localhost:4173 npx playwright test
+      # API-oriented specs intentionally target the backend directly.
+      # The browser-driven spec must target the Vite preview, so run it as a
+      # separate pass instead of making API tests send /api calls to port 4173.
+      - name: Run API E2E suite
+        run: PLAYWRIGHT_BASE_URL=http://localhost:3001 npx playwright test --grep-invert "Browser E2E Tests"
+      - name: Run browser E2E suite
+        run: PLAYWRIGHT_BASE_URL=http://localhost:4173 npx playwright test e2e/tests/browser-e2e.spec.ts
       - name: Backend log (on failure)
         if: failure()
         run: cat /tmp/backend.log || true
