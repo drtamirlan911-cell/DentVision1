@@ -2,13 +2,14 @@ import { useEffect } from 'react'
 import { useLocation } from 'react-router-dom'
 import { usePatientStore } from '@/store/patient.store'
 import { useWorkspaceStore } from '@/store/workspace.store'
+import { useAIStore } from '@/store/ai.store'
 import { buildClinicalCaseContext } from '@/lib/clinicalCaseContext'
 
+const PATIENT_SUGGESTIONS = ['История лечения', 'План лечения', 'Зубная карта', 'Записать на приём']
+
 /**
- * Keeps the selected clinical patient and the current treatment-case envelope
- * synchronized with the global AI context.
- * patient.store remains the source of truth for patient data; route parameters
- * only identify an already-existing plan/stage/visit.
+ * Keeps the selected clinical patient and treatment-case envelope synchronized
+ * with the global AI context and prioritizes patient-aware AI commands.
  */
 export function ClinicalAIContextBridge() {
   const location = useLocation()
@@ -16,6 +17,7 @@ export function ClinicalAIContextBridge() {
   const selectedPatient = usePatientStore((s) => s.selectedPatient)
   const setContextFocus = useWorkspaceStore((s) => s.setContextFocus)
   const clearContext = useWorkspaceStore((s) => s.clearContext)
+  const setSuggestionsFromStrings = useAIStore((s) => s.setSuggestionsFromStrings)
 
   useEffect(() => {
     if (!selectedPatient || !patient) {
@@ -51,7 +53,9 @@ export function ClinicalAIContextBridge() {
       clinicalCase,
       source: 'patient-store',
     })
-  }, [selectedPatient, patient, location.pathname, location.search, setContextFocus, clearContext])
+
+    setSuggestionsFromStrings(PATIENT_SUGGESTIONS)
+  }, [selectedPatient, patient, location.pathname, location.search, setContextFocus, clearContext, setSuggestionsFromStrings])
 
   return null
 }
