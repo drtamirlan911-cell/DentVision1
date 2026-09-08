@@ -87,41 +87,41 @@ function Modal({ open, onClose, title, description, children, size = 'md', class
             if (e.target === overlayRef.current) onClose()
           }}
         >
-          <div className="absolute inset-0 bg-black/55 backdrop-blur-[2px]" />
+          <div className="absolute inset-0 bg-black/60 backdrop-blur-[3px]" />
 
           <motion.div
             ref={contentRef}
             tabIndex={-1}
             className={cn(
-              'relative w-full rounded-t-xl sm:rounded-xl border border-bdr-subtle bg-surface-1 shadow-modal outline-none',
-              'max-h-[92dvh] sm:max-h-[90vh] flex flex-col',
-              'max-w-full sm:mx-auto',
+              'relative w-full rounded-t-2xl sm:rounded-2xl border border-bdr-subtle bg-surface-1 shadow-modal outline-none',
+              'max-h-[94dvh] sm:max-h-[90vh] flex flex-col',
+              'max-w-full sm:mx-auto overflow-hidden',
               sizeMap[size],
               className
             )}
-            initial={{ opacity: 0, scale: 0.99, y: 18 }}
+            initial={{ opacity: 0, scale: 0.985, y: 18 }}
             animate={{
               opacity: 1,
               scale: 1,
               y: 0,
               transition: { type: 'spring', damping: 30, stiffness: 340 },
             }}
-            exit={{ opacity: 0, scale: 0.99, y: 12, transition: { duration: 0.15 } }}
+            exit={{ opacity: 0, scale: 0.985, y: 12, transition: { duration: 0.15 } }}
           >
             {(title || description) && (
-              <div className="flex items-start justify-between border-b border-bdr-subtle px-4 py-3.5 sm:px-6 sm:py-4 flex-shrink-0">
+              <div className="flex items-start justify-between gap-3 border-b border-bdr-subtle bg-surface-1 px-4 py-3.5 sm:px-6 sm:py-4 flex-shrink-0">
                 <div className="min-w-0 pr-2">
                   {title && (
-                    <h2 className="text-base sm:text-lg font-semibold tracking-tight text-txt-primary">{title}</h2>
+                    <h2 className="text-base sm:text-lg font-semibold tracking-tight text-txt-primary break-words">{title}</h2>
                   )}
                   {description && (
-                    <p className="text-sm text-txt-secondary mt-1 leading-snug">{description}</p>
+                    <p className="text-sm text-txt-secondary mt-1 leading-snug break-words">{description}</p>
                   )}
                 </div>
                 <button
                   onClick={onClose}
                   aria-label="Закрыть"
-                  className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-txt-muted hover:bg-surface-raised-hover hover:text-txt-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-dv-gold/40 transition-colors"
+                  className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-txt-muted hover:bg-surface-raised-hover hover:text-txt-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-dv-gold/40 transition-colors"
                 >
                   <X size={18} />
                 </button>
@@ -175,14 +175,14 @@ function ConfirmModal({
         <div className="flex justify-end gap-2">
           <button
             onClick={onClose}
-            className="px-4 py-2 min-h-11 text-sm font-medium text-txt-secondary hover:text-txt-primary rounded-lg hover:bg-surface-raised-hover transition-colors"
+            className="px-4 py-2 min-h-11 text-sm font-medium text-txt-secondary hover:text-txt-primary rounded-xl hover:bg-surface-raised-hover transition-colors"
           >
             Отмена
           </button>
           <button
             onClick={() => { onConfirm(); onClose() }}
             className={cn(
-              'px-4 py-2 min-h-11 text-sm font-medium rounded-lg transition-colors',
+              'px-4 py-2 min-h-11 text-sm font-medium rounded-xl transition-colors',
               variant === 'danger'
                 ? 'bg-error text-white hover:bg-error/90'
                 : 'bg-warning text-surface-0 hover:bg-warning/90'
