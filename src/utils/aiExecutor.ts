@@ -44,6 +44,31 @@ const NAVIGATION_ACTIONS: Record<string, string> = {
   NAVIGATE: '', // path comes from params.path
 };
 
+/**
+ * Mutating AI intents must never execute silently. The backend may omit the
+ * flag, and some legacy callers may set it to false, so the executor is the
+ * final safety boundary before a write reaches the API.
+ */
+const MUTATING_ACTIONS = new Set([
+  'CreateAppointment',
+  'UpdateAppointmentStatus',
+  'CreatePatient',
+  'CreateLabOrder',
+  'GenerateDailyReport',
+  'CreateTreatmentPlan',
+  'UpdateTreatmentPlan',
+  'UpdateMedicalCard',
+  'UpdateDentalChart',
+  'CreateInvoice',
+  'CreatePayment',
+  'UpdatePatient',
+  'DeletePatient',
+]);
+
+export function isMutatingAction(action: Pick<AIAction, 'type'>): boolean {
+  return MUTATING_ACTIONS.has(action.type);
+}
+
 export function resolveNavigationPath(
   type: string,
   params?: Record<string, unknown>,
@@ -68,8 +93,19 @@ export function useAIExecutor() {
     callbacks: ExecutorCallbacks = {}
   ): Promise<ActionResult | null> => {
     const { onConfirm, addMessage } = callbacks;
+    const mutation = isMutatingAction(action);
 
-    if (action.requiresConfirmation) {
+    // Navigation is read-only. Every known mutation requires an explicit
+    // confirmation callback, regardless of the model-provided flag.
+    if (mutation) {
+      if (!onConfirm) {
+        const message = t('ai.confirm_required', 'Требуется подтверждение действия');
+        callbacks.onError?.(message);
+        return { type: 'error', message };
+      }
+      const confirmed = await onConfirm({ ...action, requiresConfirmation: true });
+      if (!confirmed) return null;
+    } else if (action.requiresConfirmation) {
       const confirmed = await onConfirm?.(action);
       if (!confirmed) return null;
     }
@@ -209,5 +245,5 @@ export function isDataAction(action: AIAction): boolean {
 }
 
 export function isCreationAction(action: AIAction): boolean {
-  return ['CreateAppointment', 'UpdateAppointmentStatus', 'CreatePatient', 'CreateLabOrder', 'GenerateDailyReport'].includes(action.type);
+  return isMutatingAction(action);
 }
