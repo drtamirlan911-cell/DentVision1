@@ -36,13 +36,13 @@ function StatCard({ label, value, icon, change, tone = 'gold', hint, className, 
     <div
       onClick={onClick}
       className={cn(
-        'rounded-xl border border-bdr-subtle bg-surface-raised p-4 transition-all duration-base ease-dv',
+        'rounded-xl border border-bdr-subtle bg-surface-raised p-3.5 sm:p-4 transition-[background-color,border-color,box-shadow] duration-base ease-dv',
         onClick && 'hover:bg-surface-raised-hover hover:border-bdr/50 cursor-pointer',
         className
       )}
     >
-      <div className="flex items-start justify-between mb-3">
-        <div className={cn('flex h-9 w-9 items-center justify-center rounded-lg', TONE_RING[tone])}>
+      <div className="flex items-start justify-between mb-2.5">
+        <div className={cn('flex h-8 w-8 items-center justify-center rounded-lg sm:h-9 sm:w-9', TONE_RING[tone])}>
           {icon}
         </div>
         {change && (
@@ -56,8 +56,8 @@ function StatCard({ label, value, icon, change, tone = 'gold', hint, className, 
           </span>
         )}
       </div>
-      <p className="text-3xl font-semibold text-txt-primary tracking-tight">{value}</p>
-      <p className="text-sm text-txt-muted mt-1">{label}</p>
+      <p className="text-2xl sm:text-3xl font-semibold text-txt-primary tracking-tight tabular-nums">{value}</p>
+      <p className="text-sm text-txt-muted mt-0.5">{label}</p>
       {hint && <p className="text-xs text-txt-ghost mt-0.5">{hint}</p>}
     </div>
   )
@@ -86,7 +86,7 @@ function PageHeader({
     <div className={cn('flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between mb-5 sm:mb-6', className)}>
       <div className="flex items-start gap-3 min-w-0">
         {icon && (
-          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-dv-gold/10 text-dv-gold sm:h-12 sm:w-12">
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-dv-gold/10 text-dv-gold sm:h-12 sm:w-12">
             {icon}
           </div>
         )}
@@ -148,7 +148,7 @@ function HeroStat({
         </div>
       )}
       <div className="min-w-0">
-        <p className="text-6xl font-semibold leading-none tracking-tight text-txt-primary sm:text-7xl">
+        <p className="text-6xl font-semibold leading-none tracking-tight text-txt-primary sm:text-7xl tabular-nums">
           {value}
         </p>
         <p className="mt-2 text-base font-medium text-txt-primary">{label}</p>
