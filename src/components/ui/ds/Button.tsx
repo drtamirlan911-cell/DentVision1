@@ -9,7 +9,7 @@ const buttonVariants = cva(
   {
     variants: {
       variant: {
-        primary: 'bg-gradient-to-r from-dv-gold-from to-dv-gold-to text-dv-gold-on hover:shadow-glow-sm',
+        primary: 'bg-dv-gold text-dv-gold-on hover:bg-dv-gold/90 hover:shadow-sm',
         secondary: 'bg-surface-raised border border-bdr-subtle text-txt-primary hover:bg-surface-raised-hover hover:border-bdr/50',
         ghost: 'text-txt-secondary hover:bg-surface-raised-hover hover:text-txt-primary',
         outline: 'border border-bdr text-txt-primary hover:bg-dv-gold/10 hover:border-dv-gold/50 hover:text-dv-gold',
