@@ -1,54 +1,27 @@
-/**
- * Single source of truth for client-side AI action safety.
- *
- * Backend tools remain authoritative: mutating tools are confirmation-gated
- * server-side. This policy makes the UI fail closed as well, so a malformed
- * or incomplete model response cannot silently execute a mutation.
- */
+/** Centralized client-side AI action safety policy. Backend remains authoritative. */
 
 const MUTATING_ACTIONS = new Set([
-  'CreateAppointment',
-  'UpdateAppointment',
-  'UpdateAppointmentStatus',
-  'CancelAppointment',
-  'CreatePatient',
-  'UpdatePatient',
-  'DeletePatient',
-  'CreateLabOrder',
-  'UpdateLabOrder',
-  'CancelLabOrder',
-  'CreateInvoice',
-  'UpdateInvoice',
-  'CancelInvoice',
-  'CreateTreatmentPlan',
-  'UpdateTreatmentPlan',
-  'DeleteTreatmentPlan',
-  'CreateDiagnosticReferral',
-  'UpdateDiagnosticReferral',
-  'CancelDiagnosticReferral',
-  'ApplyToothFindings',
-  'UpdateTooth',
-  'UpdateDentalChart',
-  'GenerateDailyReport',
+  'CreateAppointment','UpdateAppointment','UpdateAppointmentStatus','CancelAppointment',
+  'CreatePatient','UpdatePatient','DeletePatient','CreateLabOrder','UpdateLabOrder','CancelLabOrder',
+  'CreateInvoice','UpdateInvoice','CancelInvoice','CreateTreatmentPlan','UpdateTreatmentPlan','DeleteTreatmentPlan',
+  'CreateDiagnosticReferral','UpdateDiagnosticReferral','CancelDiagnosticReferral','ApplyToothFindings',
+  'UpdateTooth','UpdateDentalChart','GenerateDailyReport',
 ]);
 
-const MUTATION_VERBS = /^(create|update|delete|remove|cancel|book|reschedule|assign|unassign|add|apply|write|record|pay|charge|refund|issue|send|submit|approve|reject|archive|restore|complete|close|openinvoice|createinvoice)/i;
+// Fail closed for write-like model action names, while deliberately excluding Open*/Navigate navigation actions.
+const MUTATION_VERBS = /^(create|update|delete|remove|cancel|book|reschedule|assign|unassign|add|apply|write|record|pay|charge|refund|issue|send|submit|approve|reject|archive|restore|complete|close)/i;
 
 export function isMutatingActionType(type: string): boolean {
   const normalized = String(type || '').trim();
-  if (!normalized) return false;
-  return MUTATING_ACTIONS.has(normalized) || MUTATION_VERBS.test(normalized);
+  return Boolean(normalized) && (MUTATING_ACTIONS.has(normalized) || MUTATION_VERBS.test(normalized));
 }
 
 export function isNavigationActionType(type: string): boolean {
-  return /^open_|^navigate$/i.test(String(type || '').trim()) || /^Open[A-Z]/.test(String(type || '').trim());
+  const normalized = String(type || '').trim();
+  return /^open_/i.test(normalized) || /^navigate$/i.test(normalized) || /^Open[A-Z]/.test(normalized);
 }
 
-export function requiresExplicitConfirmation(params: {
-  type: string;
-  requiresConfirmation?: boolean;
-  confidence?: number;
-}): boolean {
+export function requiresExplicitConfirmation(params: { type: string; requiresConfirmation?: boolean; confidence?: number }): boolean {
   if (isMutatingActionType(params.type)) return true;
   if (params.requiresConfirmation === true) return true;
   return (params.confidence ?? 1) <= 0.85;
