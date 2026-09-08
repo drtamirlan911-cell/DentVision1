@@ -1,15 +1,7 @@
 package kz.dentvision.crm.navigation
 
 /**
- * Пути сквозных разделов — вакансии/сообщество/магазин/школа — видны
- * любому вошедшему безусловно, не через `pages`/[CRM_PAGES] (см.
- * `ROUTE_JOBS`/`ROUTE_COMMUNITY`/`ROUTE_SHOP_SCHOOL` в `Destinations.kt`).
- * Без этой карты нажатие на подсказку/тревогу ассистента «Открыть
- * вакансии»/«Открыть сообщество»/«Открыть магазин»/«Открыть школу» у
- * вошедшего пользователя не делало ничего: [resolveAssistantPath] искал
- * путь только среди `CRM_PAGES`, которые этих разделов не содержат
- * (найдено при аудите — `GuestShell.kt`'s `resolveGuestPath` эти же пути
- * уже обрабатывал для гостя, а у вошедшего разрыв остался).
+ * Сквозные разделы Super App. Пути синхронизированы с web AI platform map.
  */
 private val PILLAR_PATHS: Map<String, String> = mapOf(
     "/jobs" to ROUTE_JOBS,
@@ -18,18 +10,6 @@ private val PILLAR_PATHS: Map<String, String> = mapOf(
     "/school" to ROUTE_SHOP_SCHOOL,
 )
 
-/**
- * Действия ассистента и тревоги брифинга возвращают веб-пути
- * (`NAVIGATION_ACTION_PATHS` в `ai.routes.ts`: `/crm/schedule`, `/shop`, …).
- * Android понимает только те, для которых уже есть построенный экран —
- * сквозные разделы резолвятся через [PILLAR_PATHS], разделы CRM — через
- * тот же каталог [CRM_PAGES], которым живёт меню, а не через отдельно
- * придуманный список.
- *
- * Путь без готового экрана — не ошибка, а честная граница: раздел открыт
- * пока только в браузере, и ассистент должен сказать это, а не притвориться,
- * что нажатие сработало.
- */
 fun resolveAssistantPath(path: String?, implemented: Set<String>): String? {
     if (path.isNullOrBlank()) return null
     val cleanWithSlash = path.substringBefore('?')
@@ -40,12 +20,8 @@ fun resolveAssistantPath(path: String?, implemented: Set<String>): String? {
 }
 
 /**
- * Перенос `AI_NAV_ACTIONS` (`src/lib/aiPlatformMap.ts`) — известные алиасы
- * («OpenSchedule», «OpenShop», …) резолвятся в путь на клиенте, а не через
- * `POST /api/ai/action`. Это не оптимизация: маршрут `/action` требует входа
- * (`authenticate`), а именно эти алиасы приходят в тревогах для гостя
- * (`buildProactiveAlerts`: `OpenDemo`, `OpenShop`, `OpenSchool`) — без этой
- * карты нажатие на них у гостя падало бы 403.
+ * Mirror of web `AI_NAV_ACTIONS`. Keep aliases identical so the same AI
+ * response produces the same destination on web and Android.
  */
 val AI_NAV_ACTIONS: Map<String, String> = mapOf(
     "OpenSchedule" to "/crm/schedule",
@@ -55,9 +31,9 @@ val AI_NAV_ACTIONS: Map<String, String> = mapOf(
     "OpenPatient" to "/crm/patients",
     "OpenMedicalCard" to "/crm/medical-card",
     "OPEN_MEDICAL_CARD" to "/crm/medical-card",
-    "OpenCashier" to "/crm/finance",
-    "OpenFinance" to "/crm/finance",
-    "OPEN_FINANCE" to "/crm/finance",
+    "OpenCashier" to "/crm/cashier",
+    "OpenFinance" to "/crm/cashier",
+    "OPEN_FINANCE" to "/crm/cashier",
     "OpenLab" to "/crm/lab",
     "OPEN_LABORATORY" to "/crm/lab",
     "OpenInventory" to "/crm/inventory",
@@ -75,8 +51,8 @@ val AI_NAV_ACTIONS: Map<String, String> = mapOf(
     "OpenClinicSettings" to "/crm/clinic-settings",
     "OpenBilling" to "/crm/billing",
     "OPEN_BILLING" to "/crm/billing",
-    "OPEN_INVOICE" to "/crm/finance",
-    "OpenInvoice" to "/crm/finance",
+    "OPEN_INVOICE" to "/crm/cashier",
+    "OpenInvoice" to "/crm/cashier",
     "OpenShop" to "/shop",
     "OPEN_SHOP" to "/shop",
     "OpenSchool" to "/school",
