@@ -15,15 +15,10 @@ describe('clinicalTreatmentOrchestrator', () => {
   it('builds a complete deterministic clinical sequence', () => {
     const steps = buildClinicalTreatmentWorkflow(base)
     expect(steps.map((step) => step.id)).toEqual([
-      'review-diagnosis',
-      'treatment-plan',
-      'schedule',
-      'laboratory',
-      'payment',
-      'follow-up',
+      'review-diagnosis', 'treatment-plan', 'schedule', 'laboratory', 'payment', 'follow-up',
     ])
-    expect(steps.find((step) => step.id === 'treatment-plan')?.requiresConfirmation).toBe(true)
-    expect(steps.find((step) => step.id === 'schedule')?.requiresConfirmation).toBe(true)
+    expect(steps.find((step) => step.id === 'treatment-plan')?.requiresConfirmation).toBe(false)
+    expect(steps.find((step) => step.id === 'schedule')?.requiresConfirmation).toBe(false)
   })
 
   it('recognizes existing plan and visit without forcing confirmation', () => {
@@ -32,10 +27,10 @@ describe('clinicalTreatmentOrchestrator', () => {
     expect(steps.find((step) => step.id === 'schedule')?.requiresConfirmation).toBe(false)
   })
 
-  it('never auto-confirms an open financial balance', () => {
+  it('keeps financial navigation read-only even when balance is open', () => {
     const steps = buildClinicalTreatmentWorkflow({ ...base, debt: 25000 })
     const payment = steps.find((step) => step.id === 'payment')
-    expect(payment?.requiresConfirmation).toBe(true)
+    expect(payment?.requiresConfirmation).toBe(false)
     expect(payment?.status).toBe('available')
   })
 
@@ -44,5 +39,6 @@ describe('clinicalTreatmentOrchestrator', () => {
     const step = steps.find((item) => item.id === 'treatment-plan')!
     const action = workflowStepToAction(step, { patientId: 'p1', planId: 'plan-1' })
     expect(action?.params?.path).toBe('/crm/treatment-plans?patient=p1&plan=plan-1')
+    expect(action?.requiresConfirmation).toBe(false)
   })
 })
