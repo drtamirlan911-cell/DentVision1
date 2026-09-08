@@ -25,6 +25,11 @@ const toneClass: Record<string, string> = {
 
 export const SuperAppQuickActions: React.FC<SuperAppQuickActionsProps> = ({ onAIQuery, className }) => {
   const navigate = useNavigate();
+
+  const openSearch = () => {
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', code: 'KeyK', metaKey: true, ctrlKey: false, bubbles: true }));
+  };
+
   return (
     <div className={cn('flex w-full items-center gap-2 overflow-x-auto pb-1 no-scrollbar', className)}>
       <span className="mr-1 shrink-0 text-[10px] font-semibold uppercase tracking-[0.14em] text-txt-ghost">Быстро</span>
@@ -48,7 +53,8 @@ export const SuperAppQuickActions: React.FC<SuperAppQuickActionsProps> = ({ onAI
         AI помощник
       </motion.button>
       <button
-        onClick={() => window.dispatchEvent(new CustomEvent('dentvision:open-command-palette'))}
+        type="button"
+        onClick={openSearch}
         className="flex min-h-10 shrink-0 items-center gap-2 rounded-xl border border-bdr-subtle bg-surface-1/60 px-3 text-xs font-medium text-txt-secondary transition-colors hover:text-txt-primary"
       >
         <Search size={15} />
