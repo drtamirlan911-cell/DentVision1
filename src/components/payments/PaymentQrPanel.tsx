@@ -40,7 +40,7 @@ export function PaymentQrPanel({ payment, title, amount, currency = 'KZT', busy 
 
   return (
     <motion.div ref={rootRef} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.28 }} className={className}>
-      <Card className="border-dv-gold/25 bg-surface-raised overflow-hidden">
+      <Card className="border-bdr-subtle bg-surface-raised overflow-hidden">
         <CardContent className="p-4 md:p-5 space-y-4">
           <div className="flex items-start justify-between gap-3 flex-wrap">
             <div className="space-y-1 min-w-0">
@@ -60,8 +60,8 @@ export function PaymentQrPanel({ payment, title, amount, currency = 'KZT', busy 
           </ol>
 
           {qrUrl ? (
-            <div className="flex flex-col sm:flex-row items-center gap-4">
-              <motion.div initial={{ scale: 0.92, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} transition={{ delay: 0.08, duration: 0.25 }} className="shrink-0 rounded-xl bg-white p-3 shadow-sm">
+            <div className="grid grid-cols-1 sm:grid-cols-[auto_1fr] items-center gap-4 rounded-xl border border-bdr-subtle bg-surface-2 p-3 sm:p-4">
+              <motion.div initial={{ scale: 0.92, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} transition={{ delay: 0.08, duration: 0.25 }} className="shrink-0 rounded-lg bg-white p-3 shadow-sm mx-auto sm:mx-0">
                 <img src={paymentQrImageSrc(qrUrl, 200)} alt={t('payment.qr_code_alt')} width={200} height={200} className="block w-[180px] h-[180px] md:w-[200px] md:h-[200px]" />
               </motion.div>
               <div className="flex-1 space-y-3 w-full min-w-0">
