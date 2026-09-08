@@ -496,7 +496,7 @@ export function AIWorkspaceIndex({ onNavigate }: AIWorkspaceIndexProps) {
           data: jobsRes.data,
         })
         setSuggestionsFromStrings((jobsRes.suggestions || []).slice(0, 3))
-        historyRef.current.push({ role: 'assistant', content: jobsRes.reply })
+        historyRef.current = [...historyRef.current, { role: 'assistant', content: jobsRes.reply }]
         setAIStatus('idle')
         setProgress(100)
         return
@@ -676,7 +676,7 @@ export function AIWorkspaceIndex({ onNavigate }: AIWorkspaceIndexProps) {
     } finally {
       setProgress(0)
     }
-  }, [isProcessing, onNavigate, addMessage, setAIStatus, setSuggestionsFromStrings, setCurrentIntent, setCurrentAction, setContextFocus, addProactiveAlert, setProgress, setErrorMessage, executeAction, navigate, voiceReplies, isGuest, setAiRequestsLeft, location.pathname, contextFocus.focusType, contextFocus.focusId, user?.id, clinicId])
+  }, [isProcessing, onNavigate, addMessage, setAIStatus, setSuggestionsFromStrings, setCurrentIntent, setCurrentAction, setContextFocus, addProactiveAlert, setProgress, setErrorMessage, executeAction, navigate, voiceReplies, isGuest, setAiRequestsLeft, location.pathname, contextFocus.focusType, contextFocus.focusId, user?.id, clinicId, t])
 
   const handleActionConfirm = useCallback(async (confirmed: boolean) => {
     const action = pendingConfirm
@@ -729,7 +729,7 @@ export function AIWorkspaceIndex({ onNavigate }: AIWorkspaceIndexProps) {
       setErrorMessage(e?.message || t('ai.error_execution'))
       setTimeout(() => setAIStatus('idle'), 3000)
     }
-  }, [pendingConfirm, executeAction, navigate, onNavigate, setAIStatus, setProgress, setErrorMessage, setCurrentAction, addMessage])
+  }, [pendingConfirm, executeAction, navigate, onNavigate, setAIStatus, setProgress, setErrorMessage, setCurrentAction, addMessage, t])
 
   return (
     <div className="flex flex-col h-full min-h-0 bg-surface-0">
