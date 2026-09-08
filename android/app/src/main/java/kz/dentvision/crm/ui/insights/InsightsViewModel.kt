@@ -95,13 +95,9 @@ class InsightsViewModel(
                 )
             }.onSuccess { result ->
                 when {
-                    result.type == "error" -> _state.update {
-                        it.copy(message = result.message ?: "Не удалось выполнить действие")
-                    }
                     result.path != null -> _state.update { it.copy(pendingNavigatePath = result.path) }
-                    else -> _state.update {
-                        it.copy(message = if (result.confirmed) "Готово." else "Отменено.")
-                    }
+                    result.confirmed -> _state.update { it.copy(message = "Готово.") }
+                    else -> _state.update { it.copy(message = "Действие не подтверждено сервером") }
                 }
             }.onFailure { e ->
                 _state.update { it.copy(message = e.message ?: "Не удалось подтвердить действие") }
