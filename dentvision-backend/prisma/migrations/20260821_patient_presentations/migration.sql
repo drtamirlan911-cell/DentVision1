@@ -38,10 +38,19 @@ CREATE INDEX IF NOT EXISTS "patient_presentations_clinicId_status_idx" ON "patie
 
 DO $$
 BEGIN
-  IF NOT EXISTS (SELECT 1 FROM information_schema.table_constraints WHERE constraint_name = 'patient_presentations_releaseId_fkey') THEN
-    ALTER TABLE "patient_presentations" ADD CONSTRAINT "patient_presentations_releaseId_fkey" FOREIGN KEY ("releaseId") REFERENCES "treatment_plan_releases"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+  IF to_regclass('public.treatment_plan_releases') IS NOT NULL
+     AND NOT EXISTS (SELECT 1 FROM information_schema.table_constraints WHERE constraint_name = 'patient_presentations_releaseId_fkey') THEN
+    ALTER TABLE "patient_presentations"
+      ADD CONSTRAINT "patient_presentations_releaseId_fkey"
+      FOREIGN KEY ("releaseId") REFERENCES "treatment_plan_releases"("id")
+      ON DELETE CASCADE ON UPDATE CASCADE;
   END IF;
-  IF NOT EXISTS (SELECT 1 FROM information_schema.table_constraints WHERE constraint_name = 'patient_presentations_clinicId_fkey') THEN
-    ALTER TABLE "patient_presentations" ADD CONSTRAINT "patient_presentations_clinicId_fkey" FOREIGN KEY ("clinicId") REFERENCES "clinics"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+  IF to_regclass('public.clinics') IS NOT NULL
+     AND NOT EXISTS (SELECT 1 FROM information_schema.table_constraints WHERE constraint_name = 'patient_presentations_clinicId_fkey') THEN
+    ALTER TABLE "patient_presentations"
+      ADD CONSTRAINT "patient_presentations_clinicId_fkey"
+      FOREIGN KEY ("clinicId") REFERENCES "clinics"("id")
+      ON DELETE CASCADE ON UPDATE CASCADE;
   END IF;
 END $$;
