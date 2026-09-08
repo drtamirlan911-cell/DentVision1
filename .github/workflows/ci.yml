@@ -2,7 +2,7 @@ name: CI
 
 on:
   push:
-    branches: [main, develop]
+    branches: [main, develop, 'audit/**']
   pull_request:
     branches: [main]
 
@@ -88,9 +88,6 @@ jobs:
         working-directory: dentvision-backend
       - run: npx prisma generate
         working-directory: dentvision-backend
-      # Use the committed migration history instead of silently mutating the
-      # test schema with --accept-data-loss. A release candidate must prove
-      # that its migration path is executable, not merely that db push works.
       - run: npx prisma migrate deploy
         working-directory: dentvision-backend
       - run: npm run db:seed:e2e
@@ -124,9 +121,6 @@ jobs:
           echo "Frontend did not become healthy in time" >&2
           cat /tmp/frontend.log >&2 || true
           exit 1
-      # API-oriented specs intentionally target the backend directly.
-      # The browser-driven spec must target the Vite preview, so run it as a
-      # separate pass instead of making API tests send /api calls to port 4173.
       - name: Run API E2E suite
         run: PLAYWRIGHT_BASE_URL=http://localhost:3001 npx playwright test --grep-invert "Browser E2E Tests"
       - name: Run browser E2E suite
