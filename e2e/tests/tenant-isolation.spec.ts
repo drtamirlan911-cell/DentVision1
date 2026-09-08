@@ -33,29 +33,6 @@ async function createPatient(ctx: APIRequestContext, token: string): Promise<str
   return (body.data || body).id;
 }
 
-async function createAppointment(ctx: APIRequestContext, token: string, patientId: string): Promise<string> {
-  const doctorsRes = await ctx.get('/api/patients', {
-    headers: await headers(token),
-    params: { limit: '1' },
-  });
-  const patients = (await doctorsRes.json()).data;
-  const patient = Array.isArray(patients) ? patients[0] : patients?.rows?.[0];
-
-  const res = await ctx.post('/api/appointments', {
-    headers: await headers(token),
-    data: {
-      patientId,
-      doctorId: patient?.doctorId || patientId,
-      date: new Date().toISOString().slice(0, 10),
-      time: '10:00',
-      duration: 30,
-    },
-  });
-  expect(res.ok()).toBeTruthy();
-  const body = await res.json();
-  return (body.data || body).id;
-}
-
 async function createInvoice(ctx: APIRequestContext, token: string, patientId: string): Promise<string> {
   const res = await ctx.post('/api/billing/invoices', {
     headers: await headers(token),
@@ -133,28 +110,35 @@ test.describe('Tenant Isolation', () => {
 
   test('TENANT-002: Clinic A appointment not visible to Clinic B user', async ({ request }) => {
     const patientIdA = await createPatient(request, tokenA);
-
-    const listRes = await request.get('/api/patients', {
+    const doctorsRes = await request.get('/api/users', {
       headers: await headers(tokenA),
-      params: { limit: '1' },
+      params: { role: 'DOCTOR', limit: '10' },
     });
-    const patients = (await listRes.json()).data;
-    const patient = Array.isArray(patients) ? patients[0] : patients?.rows?.[0];
+    expect(doctorsRes.ok()).toBeTruthy();
+    const doctorsBody = await doctorsRes.json();
+    const doctors = Array.isArray(doctorsBody.data) ? doctorsBody.data : doctorsBody.data?.rows || [];
+    const doctorId = doctors.find((d: any) => d.role === 'DOCTOR')?.id;
+    expect(doctorId).toBeTruthy();
 
     const apptRes = await request.post('/api/appointments', {
       headers: await headers(tokenA),
       data: {
         patientId: patientIdA,
-        doctorId: patient?.doctorId || patientIdA,
+        doctorId,
         date: new Date().toISOString().slice(0, 10),
         time: '11:00',
         duration: 30,
       },
     });
-
-    if (!apptRes.ok()) return;
+    expect(apptRes.ok()).toBeTruthy();
     const apptBody = await apptRes.json();
     const apptId = (apptBody.data || apptBody).id;
+    expect(apptId).toBeTruthy();
+
+    const getB = await request.get(`/api/appointments/${apptId}`, {
+      headers: await headers(tokenB),
+    });
+    expect([403, 404]).toContain(getB.status());
 
     const listB = await request.get('/api/appointments', {
       headers: await headers(tokenB),
@@ -210,7 +194,7 @@ test.describe('Tenant Isolation', () => {
     expect([403, 404]).toContain(res.status());
   });
 
-  test('TENANT-006: Clinic A document not downloadable by Clinic B user', async ({ request }) => {
+  test('TENANT-006: Clinic A document not downloadable by Clinic B', async ({ request }) => {
     const docId = await createDocument(request, tokenA);
 
     const getRes = await request.get(`/api/files/${docId}`, {
@@ -280,30 +264,44 @@ test.describe('Tenant Isolation', () => {
     expect([403, 404]).toContain(deleteRes.status());
   });
 
-  test('TENANT-010: Cross-clinic patient creation blocked', async ({ request }) => {
-    const getBefore = await request.get('/api/patients', {
+  test('TENANT-010: Clinic B cannot force patient creation into Clinic A', async ({ request }) => {
+    const meA = await request.get('/api/auth/me', { headers: await headers(tokenA) });
+    const meB = await request.get('/api/auth/me', { headers: await headers(tokenB) });
+    expect(meA.ok()).toBeTruthy();
+    expect(meB.ok()).toBeTruthy();
+
+    const dataA = (await meA.json()).data || {};
+    const dataB = (await meB.json()).data || {};
+    const clinicAId = dataA.clinicId || dataA.user?.clinicId;
+    const clinicBId = dataB.clinicId || dataB.user?.clinicId;
+    expect(clinicAId).toBeTruthy();
+    expect(clinicBId).toBeTruthy();
+    expect(clinicAId).not.toBe(clinicBId);
+
+    const forgedIin = makeIin();
+    const createRes = await request.post('/api/patients', {
       headers: await headers(tokenB),
-      params: { limit: '500' },
+      data: {
+        clinicId: clinicAId,
+        iin: forgedIin,
+        firstName: 'ForgedTenant',
+        lastName: 'Patient',
+        phone: '+77000000003',
+      },
     });
-    const bodyBefore = await getBefore.json();
-    const countBefore = (Array.isArray(bodyBefore.data) ? bodyBefore.data : bodyBefore.data?.rows || []).length;
 
-    const getAfter = await request.get('/api/patients', {
-      headers: await headers(tokenB),
-      params: { limit: '500' },
-    });
-    const bodyAfter = await getAfter.json();
-    const countAfter = (Array.isArray(bodyAfter.data) ? bodyAfter.data : bodyAfter.data?.rows || []).length;
+    // The authenticated tenant must come from the server-side identity, not
+    // from a caller-controlled clinicId in the request body.
+    expect(createRes.ok()).toBeFalsy();
 
-    const patientIdA = await createPatient(request, tokenA);
-
-    const getAfterCreate = await request.get('/api/patients', {
-      headers: await headers(tokenB),
-      params: { limit: '500' },
-    });
-    const bodyAfterCreate = await getAfterCreate.json();
-    const countAfterCreate = (Array.isArray(bodyAfterCreate.data) ? bodyAfterCreate.data : bodyAfterCreate.data?.rows || []).length;
-
-    expect(countAfterCreate).toBe(countAfter);
+    if (createRes.ok()) {
+      const body = await createRes.json();
+      const forgedPatientId = (body.data || body).id;
+      expect(forgedPatientId).toBeTruthy();
+      const crossClinicRead = await request.get(`/api/patients/${forgedPatientId}`, {
+        headers: await headers(tokenA),
+      });
+      expect([403, 404]).toContain(crossClinicRead.status());
+    }
   });
 });
