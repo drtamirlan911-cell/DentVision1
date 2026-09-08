@@ -1,6 +1,8 @@
 -- Patient-consented, cross-clinic access to medical history.
 --
--- CreateEnum
+-- Keep deployment safe on installations whose legacy patient table has not yet
+-- been created. The cross-clinic tables can still be installed; patient-specific
+-- columns/FKs are attached only when the patients table exists.
 DO $$
 BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'CrossClinicAccessStatus') THEN
@@ -8,12 +10,14 @@ BEGIN
   END IF;
 END $$;
 
--- AlterTable: patients.iinHash (deterministic blind index — iin itself is
--- encrypted with a random IV, so it can never be looked up by equality).
-ALTER TABLE "patients" ADD COLUMN IF NOT EXISTS "iinHash" VARCHAR(64);
-CREATE INDEX IF NOT EXISTS "patients_iinHash_idx" ON "patients"("iinHash");
+DO $$
+BEGIN
+  IF to_regclass('public.patients') IS NOT NULL THEN
+    ALTER TABLE "patients" ADD COLUMN IF NOT EXISTS "iinHash" VARCHAR(64);
+    CREATE INDEX IF NOT EXISTS "patients_iinHash_idx" ON "patients"("iinHash");
+  END IF;
+END $$;
 
--- CreateTable
 CREATE TABLE IF NOT EXISTS "cross_clinic_access_grants" (
   "id" TEXT NOT NULL,
   "patientUserId" TEXT NOT NULL,
@@ -45,27 +49,32 @@ CREATE INDEX IF NOT EXISTS "cross_clinic_access_grants_sourceClinicId_idx"
 
 DO $$
 BEGIN
-  IF NOT EXISTS (SELECT 1 FROM information_schema.table_constraints WHERE constraint_name = 'cross_clinic_access_grants_patientUserId_fkey') THEN
+  IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'users')
+     AND NOT EXISTS (SELECT 1 FROM information_schema.table_constraints WHERE constraint_name = 'cross_clinic_access_grants_patientUserId_fkey') THEN
     ALTER TABLE "cross_clinic_access_grants" ADD CONSTRAINT "cross_clinic_access_grants_patientUserId_fkey" FOREIGN KEY ("patientUserId") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
   END IF;
-  IF NOT EXISTS (SELECT 1 FROM information_schema.table_constraints WHERE constraint_name = 'cross_clinic_access_grants_sourceClinicId_fkey') THEN
+  IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'clinics')
+     AND NOT EXISTS (SELECT 1 FROM information_schema.table_constraints WHERE constraint_name = 'cross_clinic_access_grants_sourceClinicId_fkey') THEN
     ALTER TABLE "cross_clinic_access_grants" ADD CONSTRAINT "cross_clinic_access_grants_sourceClinicId_fkey" FOREIGN KEY ("sourceClinicId") REFERENCES "clinics"("id") ON DELETE CASCADE ON UPDATE CASCADE;
   END IF;
-  IF NOT EXISTS (SELECT 1 FROM information_schema.table_constraints WHERE constraint_name = 'cross_clinic_access_grants_sourcePatientId_fkey') THEN
+  IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'patients')
+     AND NOT EXISTS (SELECT 1 FROM information_schema.table_constraints WHERE constraint_name = 'cross_clinic_access_grants_sourcePatientId_fkey') THEN
     ALTER TABLE "cross_clinic_access_grants" ADD CONSTRAINT "cross_clinic_access_grants_sourcePatientId_fkey" FOREIGN KEY ("sourcePatientId") REFERENCES "patients"("id") ON DELETE CASCADE ON UPDATE CASCADE;
   END IF;
-  IF NOT EXISTS (SELECT 1 FROM information_schema.table_constraints WHERE constraint_name = 'cross_clinic_access_grants_receivingClinicId_fkey') THEN
+  IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'clinics')
+     AND NOT EXISTS (SELECT 1 FROM information_schema.table_constraints WHERE constraint_name = 'cross_clinic_access_grants_receivingClinicId_fkey') THEN
     ALTER TABLE "cross_clinic_access_grants" ADD CONSTRAINT "cross_clinic_access_grants_receivingClinicId_fkey" FOREIGN KEY ("receivingClinicId") REFERENCES "clinics"("id") ON DELETE CASCADE ON UPDATE CASCADE;
   END IF;
-  IF NOT EXISTS (SELECT 1 FROM information_schema.table_constraints WHERE constraint_name = 'cross_clinic_access_grants_receivingPatientId_fkey') THEN
+  IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'patients')
+     AND NOT EXISTS (SELECT 1 FROM information_schema.table_constraints WHERE constraint_name = 'cross_clinic_access_grants_receivingPatientId_fkey') THEN
     ALTER TABLE "cross_clinic_access_grants" ADD CONSTRAINT "cross_clinic_access_grants_receivingPatientId_fkey" FOREIGN KEY ("receivingPatientId") REFERENCES "patients"("id") ON DELETE CASCADE ON UPDATE CASCADE;
   END IF;
-  IF NOT EXISTS (SELECT 1 FROM information_schema.table_constraints WHERE constraint_name = 'cross_clinic_access_grants_requestedByUserId_fkey') THEN
+  IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'users')
+     AND NOT EXISTS (SELECT 1 FROM information_schema.table_constraints WHERE constraint_name = 'cross_clinic_access_grants_requestedByUserId_fkey') THEN
     ALTER TABLE "cross_clinic_access_grants" ADD CONSTRAINT "cross_clinic_access_grants_requestedByUserId_fkey" FOREIGN KEY ("requestedByUserId") REFERENCES "users"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
   END IF;
 END $$;
 
--- CreateTable
 CREATE TABLE IF NOT EXISTS "cross_clinic_access_logs" (
   "id" TEXT NOT NULL,
   "grantId" TEXT NOT NULL,
@@ -87,7 +96,8 @@ BEGIN
   IF NOT EXISTS (SELECT 1 FROM information_schema.table_constraints WHERE constraint_name = 'cross_clinic_access_logs_grantId_fkey') THEN
     ALTER TABLE "cross_clinic_access_logs" ADD CONSTRAINT "cross_clinic_access_logs_grantId_fkey" FOREIGN KEY ("grantId") REFERENCES "cross_clinic_access_grants"("id") ON DELETE CASCADE ON UPDATE CASCADE;
   END IF;
-  IF NOT EXISTS (SELECT 1 FROM information_schema.table_constraints WHERE constraint_name = 'cross_clinic_access_logs_accessedByUserId_fkey') THEN
+  IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'users')
+     AND NOT EXISTS (SELECT 1 FROM information_schema.table_constraints WHERE constraint_name = 'cross_clinic_access_logs_accessedByUserId_fkey') THEN
     ALTER TABLE "cross_clinic_access_logs" ADD CONSTRAINT "cross_clinic_access_logs_accessedByUserId_fkey" FOREIGN KEY ("accessedByUserId") REFERENCES "users"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
   END IF;
 END $$;
