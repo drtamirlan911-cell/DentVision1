@@ -18,7 +18,6 @@ const variantStyles: Record<BadgeVariant, string> = {
   info: 'bg-info/10 text-info border-info/20',
   gold: 'bg-dv-gold/10 text-dv-gold border-dv-gold/20',
   outline: 'bg-transparent text-txt-secondary border-bdr',
-  // Neutral filled base — callers supply their own bg/text via className.
   filled: 'bg-surface-raised text-txt-primary border-transparent',
 }
 
@@ -32,7 +31,7 @@ function Badge({ className, variant = 'default', size = 'sm', dot, children, ...
   return (
     <span
       className={cn(
-        'inline-flex items-center gap-1.5 rounded-full border font-medium transition-colors',
+        'inline-flex items-center gap-1.5 rounded-md border font-medium leading-none transition-colors',
         variantStyles[variant],
         sizeStyles[size],
         className
@@ -42,7 +41,7 @@ function Badge({ className, variant = 'default', size = 'sm', dot, children, ...
       {dot && (
         <span
           className={cn(
-            'h-1.5 w-1.5 rounded-full',
+            'h-1.5 w-1.5 shrink-0 rounded-full',
             variant === 'success' && 'bg-success',
             variant === 'warning' && 'bg-warning',
             variant === 'error' && 'bg-error',
