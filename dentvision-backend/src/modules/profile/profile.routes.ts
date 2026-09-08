@@ -7,18 +7,13 @@ import type { AuthRequest, ApiResponse } from '../../types/index.js';
 // Professional profile (LinkedIn-style). Core user fields live on User;
 // extended fields + collections live in User.profileMeta (JSON).
 export const profileRouter = Router();
-
 profileRouter.use(authenticate);
 
 type ProfileMeta = {
-  username?: string;
-  headline?: string;
-  bio?: string;
-  city?: string;
-  country?: string;
-  experienceYears?: number;
-  photoUrl?: string;
-  visibility?: 'public' | 'private';
+  username?: string; headline?: string; bio?: string; city?: string; country?: string;
+  experienceYears?: number; photoUrl?: string; visibility?: 'public' | 'private';
+  homeQuickServices?: string[];
+  homeAiAutoCollapse?: boolean;
   skills?: Array<{ id: string; name: string; level?: string | null }>;
   certificates?: Array<{ id: string; title: string; issuer?: string | null; year?: number | null; fileUrl?: string | null }>;
   achievements?: Array<{ id: string; title: string; description?: string | null; date?: string | null }>;
@@ -28,51 +23,25 @@ type ProfileMeta = {
   activities?: Array<{ id: string; title: string; createdAt: string }>;
 };
 
-function asMeta(raw: unknown): ProfileMeta {
-  return raw && typeof raw === 'object' ? (raw as ProfileMeta) : {};
-}
+function asMeta(raw: unknown): ProfileMeta { return raw && typeof raw === 'object' ? (raw as ProfileMeta) : {}; }
 
-function shapeUser(user: {
-  id: string;
-  email: string;
-  firstName: string;
-  lastName: string;
-  phone: string | null;
-  spec: string | null;
-  avatar: string | null;
-  role: string;
-  profileMeta: unknown;
-}) {
+function shapeUser(user: { id: string; email: string; firstName: string; lastName: string; phone: string | null; spec: string | null; avatar: string | null; role: string; profileMeta: unknown }) {
   const meta = asMeta(user.profileMeta);
   return {
-    id: user.id,
-    email: user.email,
-    firstName: user.firstName,
-    lastName: user.lastName,
-    phone: user.phone,
-    spec: user.spec,
-    avatar: user.avatar,
-    role: user.role,
-    photoUrl: meta.photoUrl || user.avatar || '',
-    username: meta.username || '',
-    headline: meta.headline || '',
-    bio: meta.bio || '',
-    city: meta.city || '',
-    country: meta.country || '',
-    experienceYears: meta.experienceYears || 0,
-    visibility: meta.visibility || 'public',
+    id: user.id, email: user.email, firstName: user.firstName, lastName: user.lastName,
+    phone: user.phone, spec: user.spec, avatar: user.avatar, role: user.role,
+    photoUrl: meta.photoUrl || user.avatar || '', username: meta.username || '',
+    headline: meta.headline || '', bio: meta.bio || '', city: meta.city || '', country: meta.country || '',
+    experienceYears: meta.experienceYears || 0, visibility: meta.visibility || 'public',
+    homeQuickServices: meta.homeQuickServices || [], homeAiAutoCollapse: meta.homeAiAutoCollapse !== false,
     name: [user.firstName, user.lastName].filter(Boolean).join(' '),
   };
 }
 
 async function loadUser(userId: string) {
-  return prisma.user.findUnique({
-    where: { id: userId },
-    select: {
-      id: true, email: true, firstName: true, lastName: true,
-      phone: true, spec: true, avatar: true, role: true, profileMeta: true,
-    },
-  });
+  return prisma.user.findUnique({ where: { id: userId }, select: {
+    id: true, email: true, firstName: true, lastName: true, phone: true, spec: true, avatar: true, role: true, profileMeta: true,
+  }});
 }
 
 profileRouter.get('/', async (req: AuthRequest, res) => {
@@ -80,19 +49,11 @@ profileRouter.get('/', async (req: AuthRequest, res) => {
     const user = await loadUser(req.user!.id);
     if (!user) return res.status(404).json({ ok: false, error: 'Пользователь не найден' } satisfies ApiResponse);
     const meta = asMeta(user.profileMeta);
-    return res.json({
-      ok: true,
-      data: {
-        user: shapeUser(user),
-        skills: meta.skills || [],
-        certificates: meta.certificates || [],
-        achievements: meta.achievements || [],
-        portfolio: meta.portfolio || [],
-        cases: meta.cases || [],
-        reviews: meta.reviews || [],
-        activities: meta.activities || [],
-      },
-    } satisfies ApiResponse);
+    return res.json({ ok: true, data: {
+      user: shapeUser(user), skills: meta.skills || [], certificates: meta.certificates || [], achievements: meta.achievements || [],
+      portfolio: meta.portfolio || [], cases: meta.cases || [], reviews: meta.reviews || [], activities: meta.activities || [],
+      homeQuickServices: meta.homeQuickServices || [], homeAiAutoCollapse: meta.homeAiAutoCollapse !== false,
+    }} satisfies ApiResponse);
   } catch (error) {
     console.error('Get profile error:', error);
     return res.status(500).json({ ok: false, error: 'Не удалось загрузить профиль' } satisfies ApiResponse);
@@ -104,7 +65,6 @@ profileRouter.put('/', async (req: AuthRequest, res) => {
     const body = req.body || {};
     const user = await loadUser(req.user!.id);
     if (!user) return res.status(404).json({ ok: false, error: 'Пользователь не найден' } satisfies ApiResponse);
-
     const meta = asMeta(user.profileMeta);
     const nextMeta: ProfileMeta = {
       ...meta,
@@ -116,25 +76,18 @@ profileRouter.put('/', async (req: AuthRequest, res) => {
       experienceYears: body.experienceYears !== undefined ? Number(body.experienceYears) || 0 : meta.experienceYears,
       photoUrl: body.photoUrl !== undefined ? String(body.photoUrl) : meta.photoUrl,
       visibility: body.visibility === 'private' ? 'private' : (body.visibility === 'public' ? 'public' : meta.visibility),
+      homeQuickServices: Array.isArray(body.homeQuickServices) ? body.homeQuickServices.map(String).slice(0, 8) : meta.homeQuickServices,
+      homeAiAutoCollapse: body.homeAiAutoCollapse !== undefined ? Boolean(body.homeAiAutoCollapse) : meta.homeAiAutoCollapse,
     };
-
-    const updated = await prisma.user.update({
-      where: { id: user.id },
-      data: {
-        firstName: body.firstName !== undefined ? String(body.firstName) : undefined,
-        lastName: body.lastName !== undefined ? String(body.lastName) : undefined,
-        phone: body.phone !== undefined ? String(body.phone) : undefined,
-        spec: body.spec !== undefined ? String(body.spec) : undefined,
-        email: body.email !== undefined ? String(body.email) : undefined,
-        avatar: body.photoUrl !== undefined ? String(body.photoUrl) || null : undefined,
-        profileMeta: nextMeta as object,
-      },
-      select: {
-        id: true, email: true, firstName: true, lastName: true,
-        phone: true, spec: true, avatar: true, role: true, profileMeta: true,
-      },
-    });
-
+    const updated = await prisma.user.update({ where: { id: user.id }, data: {
+      firstName: body.firstName !== undefined ? String(body.firstName) : undefined,
+      lastName: body.lastName !== undefined ? String(body.lastName) : undefined,
+      phone: body.phone !== undefined ? String(body.phone) : undefined,
+      spec: body.spec !== undefined ? String(body.spec) : undefined,
+      email: body.email !== undefined ? String(body.email) : undefined,
+      avatar: body.photoUrl !== undefined ? String(body.photoUrl) || null : undefined,
+      profileMeta: nextMeta as object,
+    }, select: { id: true, email: true, firstName: true, lastName: true, phone: true, spec: true, avatar: true, role: true, profileMeta: true }});
     return res.json({ ok: true, data: shapeUser(updated) } satisfies ApiResponse);
   } catch (error) {
     console.error('Update profile error:', error);
@@ -142,96 +95,29 @@ profileRouter.put('/', async (req: AuthRequest, res) => {
   }
 });
 
-async function mutateCollection(
-  req: AuthRequest,
-  res: any,
-  key: keyof ProfileMeta,
-  item: Record<string, unknown>,
-) {
+async function mutateCollection(req: AuthRequest, res: any, key: keyof ProfileMeta, item: Record<string, unknown>) {
   const user = await loadUser(req.user!.id);
   if (!user) return res.status(404).json({ ok: false, error: 'Пользователь не найден' } satisfies ApiResponse);
-  const meta = asMeta(user.profileMeta);
-  const list = Array.isArray(meta[key]) ? [...(meta[key] as any[])] : [];
-  const row = { id: uid(), ...item };
-  list.push(row);
-  const nextMeta = { ...meta, [key]: list };
-  await prisma.user.update({ where: { id: user.id }, data: { profileMeta: nextMeta as object } });
+  const meta = asMeta(user.profileMeta); const list = Array.isArray(meta[key]) ? [...(meta[key] as any[])] : [];
+  const row = { id: uid(), ...item }; list.push(row);
+  await prisma.user.update({ where: { id: user.id }, data: { profileMeta: { ...meta, [key]: list } as object } });
   return res.status(201).json({ ok: true, data: row } satisfies ApiResponse);
 }
-
 async function deleteFromCollection(req: AuthRequest, res: any, key: keyof ProfileMeta) {
-  const user = await loadUser(req.user!.id);
-  if (!user) return res.status(404).json({ ok: false, error: 'Пользователь не найден' } satisfies ApiResponse);
-  const meta = asMeta(user.profileMeta);
-  const id = req.params.id as string;
-  const list = (Array.isArray(meta[key]) ? (meta[key] as any[]) : []).filter((x) => x.id !== id);
+  const user = await loadUser(req.user!.id); if (!user) return res.status(404).json({ ok: false, error: 'Пользователь не найден' } satisfies ApiResponse);
+  const meta = asMeta(user.profileMeta); const id = req.params.id as string;
+  const list = (Array.isArray(meta[key]) ? (meta[key] as any[]) : []).filter(x => x.id !== id);
   await prisma.user.update({ where: { id: user.id }, data: { profileMeta: { ...meta, [key]: list } as object } });
   return res.json({ ok: true, data: { id } } satisfies ApiResponse);
 }
-
-profileRouter.post('/skills', async (req: AuthRequest, res) => {
-  try {
-    return await mutateCollection(req, res, 'skills', { name: req.body?.name, level: req.body?.level || null });
-  } catch (e) {
-    console.error(e);
-    return res.status(500).json({ ok: false, error: 'Ошибка' } satisfies ApiResponse);
-  }
-});
-profileRouter.delete('/skills/:id', async (req: AuthRequest, res) => {
-  try { return await deleteFromCollection(req, res, 'skills'); }
-  catch (e) { return res.status(500).json({ ok: false, error: 'Ошибка' } satisfies ApiResponse); }
-});
-
-profileRouter.post('/certificates', async (req: AuthRequest, res) => {
-  try {
-    return await mutateCollection(req, res, 'certificates', {
-      title: req.body?.title, issuer: req.body?.issuer || null,
-      year: req.body?.year ? Number(req.body.year) : null, fileUrl: req.body?.fileUrl || null,
-    });
-  } catch (e) { return res.status(500).json({ ok: false, error: 'Ошибка' } satisfies ApiResponse); }
-});
-profileRouter.delete('/certificates/:id', async (req: AuthRequest, res) => {
-  try { return await deleteFromCollection(req, res, 'certificates'); }
-  catch (e) { return res.status(500).json({ ok: false, error: 'Ошибка' } satisfies ApiResponse); }
-});
-
-profileRouter.post('/achievements', async (req: AuthRequest, res) => {
-  try {
-    return await mutateCollection(req, res, 'achievements', {
-      title: req.body?.title, description: req.body?.description || null, date: req.body?.date || null,
-    });
-  } catch (e) { return res.status(500).json({ ok: false, error: 'Ошибка' } satisfies ApiResponse); }
-});
-profileRouter.delete('/achievements/:id', async (req: AuthRequest, res) => {
-  try { return await deleteFromCollection(req, res, 'achievements'); }
-  catch (e) { return res.status(500).json({ ok: false, error: 'Ошибка' } satisfies ApiResponse); }
-});
-
-profileRouter.post('/portfolio', async (req: AuthRequest, res) => {
-  try {
-    return await mutateCollection(req, res, 'portfolio', {
-      title: req.body?.title, description: req.body?.description || null,
-      imageUrl: req.body?.imageUrl || null, link: req.body?.link || null,
-    });
-  } catch (e) { return res.status(500).json({ ok: false, error: 'Ошибка' } satisfies ApiResponse); }
-});
-profileRouter.delete('/portfolio/:id', async (req: AuthRequest, res) => {
-  try { return await deleteFromCollection(req, res, 'portfolio'); }
-  catch (e) { return res.status(500).json({ ok: false, error: 'Ошибка' } satisfies ApiResponse); }
-});
-
-profileRouter.post('/cases', async (req: AuthRequest, res) => {
-  try {
-    return await mutateCollection(req, res, 'cases', {
-      title: req.body?.title, description: req.body?.description || null,
-      beforeImage: req.body?.beforeImage || null, afterImage: req.body?.afterImage || null,
-      tags: Array.isArray(req.body?.tags) ? req.body.tags : [],
-    });
-  } catch (e) { return res.status(500).json({ ok: false, error: 'Ошибка' } satisfies ApiResponse); }
-});
-profileRouter.delete('/cases/:id', async (req: AuthRequest, res) => {
-  try { return await deleteFromCollection(req, res, 'cases'); }
-  catch (e) { return res.status(500).json({ ok: false, error: 'Ошибка' } satisfies ApiResponse); }
-});
-
+profileRouter.post('/skills', async (req, res) => { try { return await mutateCollection(req as AuthRequest, res, 'skills', { name: req.body?.name, level: req.body?.level || null }); } catch { return res.status(500).json({ ok:false,error:'Ошибка' }); } });
+profileRouter.delete('/skills/:id', async (req, res) => { try { return await deleteFromCollection(req as AuthRequest, res, 'skills'); } catch { return res.status(500).json({ ok:false,error:'Ошибка' }); } });
+profileRouter.post('/certificates', async (req, res) => { try { return await mutateCollection(req as AuthRequest, res, 'certificates', { title:req.body?.title, issuer:req.body?.issuer||null, year:req.body?.year?Number(req.body.year):null, fileUrl:req.body?.fileUrl||null }); } catch { return res.status(500).json({ok:false,error:'Ошибка'}); } });
+profileRouter.delete('/certificates/:id', async (req,res)=>{try{return await deleteFromCollection(req as AuthRequest,res,'certificates')}catch{return res.status(500).json({ok:false,error:'Ошибка'})}});
+profileRouter.post('/achievements', async(req,res)=>{try{return await mutateCollection(req as AuthRequest,res,'achievements',{title:req.body?.title,description:req.body?.description||null,date:req.body?.date||null})}catch{return res.status(500).json({ok:false,error:'Ошибка'})}});
+profileRouter.delete('/achievements/:id',async(req,res)=>{try{return await deleteFromCollection(req as AuthRequest,res,'achievements')}catch{return res.status(500).json({ok:false,error:'Ошибка'})}});
+profileRouter.post('/portfolio',async(req,res)=>{try{return await mutateCollection(req as AuthRequest,res,'portfolio',{title:req.body?.title,description:req.body?.description||null,imageUrl:req.body?.imageUrl||null,link:req.body?.link||null})}catch{return res.status(500).json({ok:false,error:'Ошибка'})}});
+profileRouter.delete('/portfolio/:id',async(req,res)=>{try{return await deleteFromCollection(req as AuthRequest,res,'portfolio')}catch{return res.status(500).json({ok:false,error:'Ошибка'})}});
+profileRouter.post('/cases',async(req,res)=>{try{return await mutateCollection(req as AuthRequest,res,'cases',{title:req.body?.title,description:req.body?.description||null,beforeImage:req.body?.beforeImage||null,afterImage:req.body?.afterImage||null,tags:Array.isArray(req.body?.tags)?req.body.tags:[]})}catch{return res.status(500).json({ok:false,error:'Ошибка'})}});
+profileRouter.delete('/cases/:id',async(req,res)=>{try{return await deleteFromCollection(req as AuthRequest,res,'cases')}catch{return res.status(500).json({ok:false,error:'Ошибка'})}});
 export default profileRouter;
