@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { motion } from 'framer-motion';
 import {
   Stethoscope, Activity, ShoppingCart, GraduationCap, CreditCard,
-  BarChart3, Briefcase, Users, Grid, Zap, Plus, ArrowRight, Sparkles,
+  BarChart3, Briefcase, Users, Grid, Zap, ArrowRight, Sparkles,
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/store/auth.store';
@@ -25,11 +25,11 @@ export const KaspiServiceHub: React.FC<KaspiServiceHubProps> = ({ onAIQuery, cla
   const [allServicesOpen, setAllServicesOpen] = useState(false);
 
   const serviceTiles: ServiceTile[] = [
-    { id: 'crm', title: 'Клиника', subtitle: 'Пациенты · записи · лечение', icon: <Stethoscope size={21} />, path: '/crm/schedule', badge: '18 записей', tone: 'amber' },
-    { id: 'diagnostics', title: 'Диагностика', subtitle: 'КТ · 3D · исследования', icon: <Activity size={21} />, path: '/diagnostics', badge: '2 скана', tone: 'emerald' },
-    { id: 'shop', title: 'DentMarket', subtitle: 'Материалы · оборудование', icon: <ShoppingCart size={21} />, path: '/shop', badge: 'Скидки', tone: 'violet' },
-    { id: 'school', title: 'Academy', subtitle: 'Курсы · навыки · развитие', icon: <GraduationCap size={21} />, path: '/school', badge: 'PRO', tone: 'teal' },
-    { id: 'finance', title: 'Финансы', subtitle: 'Касса · оплаты · баланс', icon: <CreditCard size={21} />, path: '/crm/finance', tone: 'sky' },
+    { id: 'crm', title: 'Клиника', subtitle: 'Пациенты · записи · лечение', icon: <Stethoscope size={21} />, path: '/crm/schedule', badge: 'Сегодня', tone: 'amber' },
+    { id: 'diagnostics', title: 'Диагностика', subtitle: 'КТ · 3D · исследования', icon: <Activity size={21} />, path: '/diagnostics', tone: 'emerald' },
+    { id: 'shop', title: 'DentMarket', subtitle: 'Материалы · оборудование', icon: <ShoppingCart size={21} />, path: '/shop', tone: 'violet' },
+    { id: 'school', title: 'Academy', subtitle: 'Курсы · навыки · развитие', icon: <GraduationCap size={21} />, path: '/school', tone: 'teal' },
+    { id: 'finance', title: 'Финансы', subtitle: 'Касса · оплаты · баланс', icon: <CreditCard size={21} />, path: '/crm/cashier', tone: 'sky' },
     { id: 'analytics', title: 'Аналитика', subtitle: 'Выручка · загрузка · KPI', icon: <BarChart3 size={21} />, path: '/analytics', tone: 'yellow' },
     { id: 'jobs', title: 'Jobs', subtitle: 'Врачи · ассистенты · найм', icon: <Briefcase size={21} />, path: '/jobs', tone: 'orange' },
     { id: 'community', title: 'Community', subtitle: 'Профессиональная сеть', icon: <Users size={21} />, path: '/community', tone: 'blue' },
