@@ -1,6 +1,6 @@
 /**
- * Frontend mirror of AI platform service map — navigation actions + stage chips.
- * Keep in sync with dentvision-backend/src/modules/ai/lib/platformMap.ts
+ * Frontend mirror of the AI platform service map — navigation actions + stage chips.
+ * Keep this map aligned with the real application routes and the Android mirror.
  */
 
 export const AI_NAV_ACTIONS: Record<string, string> = {
@@ -11,9 +11,9 @@ export const AI_NAV_ACTIONS: Record<string, string> = {
   OpenPatient: '/crm/patients',
   OpenMedicalCard: '/crm/medical-card',
   OPEN_MEDICAL_CARD: '/crm/medical-card',
-  OpenCashier: '/crm/finance',
-  OpenFinance: '/crm/finance',
-  OPEN_FINANCE: '/crm/finance',
+  OpenCashier: '/crm/cashier',
+  OpenFinance: '/crm/cashier',
+  OPEN_FINANCE: '/crm/cashier',
   OpenLab: '/crm/lab',
   OPEN_LABORATORY: '/crm/lab',
   OpenInventory: '/crm/inventory',
@@ -31,8 +31,8 @@ export const AI_NAV_ACTIONS: Record<string, string> = {
   OpenClinicSettings: '/crm/clinic-settings',
   OpenBilling: '/crm/billing',
   OPEN_BILLING: '/crm/billing',
-  OPEN_INVOICE: '/crm/finance',
-  OpenInvoice: '/crm/finance',
+  OPEN_INVOICE: '/crm/cashier',
+  OpenInvoice: '/crm/cashier',
   OpenShop: '/shop',
   OPEN_SHOP: '/shop',
   OpenSchool: '/school',
@@ -61,7 +61,7 @@ export function stageFromPath(pathname?: string | null): string {
   if (!p || p === '/' || p.startsWith('/ai') || p.includes('intelligence')) return 'workspace'
   if (p.includes('/crm/patients')) return 'patients'
   if (p.includes('/crm/schedule')) return 'schedule'
-  if (p.includes('/crm/finance') || p.includes('/crm/billing')) return 'finance'
+  if (p.includes('/crm/cashier') || p.includes('/crm/billing')) return 'finance'
   if (p.includes('/crm/inventory')) return 'inventory'
   if (p.includes('/crm/lab')) return 'lab'
   if (p.includes('/crm/dental-chart')) return 'dental-chart'
