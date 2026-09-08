@@ -27,19 +27,13 @@ const Card = React.forwardRef<HTMLDivElement, CardProps>(
       <div
         ref={ref}
         className={cn(
-          // A resting card carries the first elevation step, so it sits *on*
-          // the page rather than being cut out of it — on the light theme,
-          // where the page is only a shade off white, that shadow is most of
-          // what separates the two.
-          //
-          // `transition-all` was animating every property that happened to
-          // change; only the three that actually move are transitioned now,
-          // on the product's own curve.
-          'rounded-xl border border-bdr-subtle bg-surface-raised shadow-elev-1',
+          // Resting cards stay quiet: the surface hierarchy does the work,
+          // while the border and first elevation step keep adjacent cards
+          // visually separated on both themes.
+          'min-w-0 overflow-hidden rounded-xl border border-bdr-subtle bg-surface-raised shadow-elev-1',
           'transition-[background-color,border-color,box-shadow,transform] duration-base ease-dv',
           // The lift is one pixel. It is meant to be felt on the way to a
-          // click, not seen — a card that jumps under the pointer reads as a
-          // toy, and this one holds a patient record.
+          // click, not seen as a large floating animation.
           hover && 'hover:bg-surface-raised-hover hover:border-bdr/50 hover:shadow-elev-2 hover:-translate-y-px cursor-pointer focus-visible:ring-2 focus-visible:ring-dv-gold/40 focus-visible:ring-offset-2 focus-visible:ring-offset-surface-0',
           active && 'border-dv-gold/30 bg-dv-gold/5',
           paddingMap[padding],
