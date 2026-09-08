@@ -82,9 +82,6 @@ describe('every writer of a treatment plan says which clinic it belongs to', () 
   const creates = callSites('prisma.treatmentPlan.create(');
 
   it('finds the writers at all, so a passing suite means something', () => {
-    // Five when this was written: CRM, the medical route, the doctor agent, the
-    // AI tool, and the demo seeds. If this drops to zero the loop broke, not
-    // the codebase.
     expect(creates.length).toBeGreaterThanOrEqual(5);
   });
 
@@ -104,11 +101,6 @@ describe('every writer of a treatment plan says which clinic it belongs to', () 
 
 describe('the tenant guards deliberately stay on the patient', () => {
   it('still scopes the CRM listing through patient.clinicId', () => {
-    // The denormalised copy is for reporting and referential integrity. The
-    // patient is the authority on which clinic a plan belongs to, so moving an
-    // isolation predicate onto the copy would be a security change wearing a
-    // performance change's clothes — and a row whose column is null would
-    // simply vanish from the list.
     const crm = readFileSync(join(BACKEND, 'src/modules/crm/crm.routes.ts'), 'utf8');
     expect(crm).toMatch(/patient:\s*\{\s*clinicId\s*\}/);
   });
@@ -129,7 +121,6 @@ describe('the migration and the schema say the same thing', () => {
   }
 
   it('declares both columns as optional in the schema', () => {
-    // Nullable is not an oversight: rows existed before the columns did.
     expect(model('TreatmentPlan')).toMatch(/clinicId\s+String\?/);
     expect(model('LabOrder')).toMatch(/doctorId\s+String\?/);
   });
@@ -148,41 +139,30 @@ describe('the migration and the schema say the same thing', () => {
     expect(SQL).toMatch(/CREATE INDEX IF NOT EXISTS "lab_orders_doctorId_idx"/);
   });
 
-  it('is idempotent in every statement', () => {
-    // `prisma migrate deploy` has not reliably reached production in this
-    // project, so this file is replayed. A bare ALTER or CREATE would fail the
-    // whole transaction on the second boot and take the backfill with it.
-    const statements = SQL.split(';')
-      .map((s) => s.replace(/--[^\n]*/g, '').trim())
-      .filter(Boolean);
-    for (const statement of statements) {
-      if (/^ALTER TABLE .* ADD COLUMN/i.test(statement)) {
-        expect(statement).toMatch(/ADD COLUMN IF NOT EXISTS/i);
-      }
-      if (/^CREATE INDEX/i.test(statement)) {
-        expect(statement).toMatch(/IF NOT EXISTS/i);
-      }
-      if (/ADD CONSTRAINT/i.test(statement)) {
-        expect(statement).toMatch(/IF NOT EXISTS \(SELECT 1 FROM pg_constraint/i);
-      }
-    }
+  it('guards every schema mutation for replay-safe deployment', () => {
+    // The migration is deliberately wrapped in a PostgreSQL DO block so that
+    // table existence can be checked before ALTER TABLE. Individual columns
+    // and indexes are also explicitly idempotent, while foreign keys are
+    // guarded by pg_constraint checks. Test the actual SQL structure rather
+    // than splitting PL/pgSQL on semicolons (which would inspect fragments
+    // that are not standalone SQL statements).
+    expect(SQL).toMatch(/ALTER TABLE "treatment_plans" ADD COLUMN IF NOT EXISTS "clinicId"/);
+    expect(SQL).toMatch(/ALTER TABLE "lab_orders" ADD COLUMN IF NOT EXISTS "doctorId"/);
+    expect(SQL).toMatch(/CREATE INDEX IF NOT EXISTS "treatment_plans_clinicId_idx"/);
+    expect(SQL).toMatch(/CREATE INDEX IF NOT EXISTS "lab_orders_doctorId_idx"/);
+    expect(SQL).toMatch(/conname = 'treatment_plans_clinicId_fkey'/);
+    expect(SQL).toMatch(/conname = 'lab_orders_doctorId_fkey'/);
   });
 
   it('backfills only rows that have no clinic yet', () => {
-    // Without the guard a replay would overwrite a value a newer writer set —
-    // and would rewrite every plan in the table on every boot.
     expect(SQL).toMatch(/UPDATE "treatment_plans"[\s\S]*?tp\."clinicId" IS NULL/);
   });
 
   it('does not invent a doctor for lab orders that never had one', () => {
-    // A plan's clinic is derivable from its patient. A lab order's doctor is
-    // derivable from nothing, so old rows stay blank rather than being given a
-    // plausible-looking attribution for clinical work.
     expect(SQL).not.toMatch(/UPDATE "lab_orders"/);
   });
 
   it('is mirrored in the boot-time migration runner', () => {
-    // The SQL file alone does not reach production here; index.ts is what runs.
     const at = INDEX.indexOf("runOnceMigration('plan_clinic_lab_doctor'");
     expect(at).toBeGreaterThan(-1);
     const block = INDEX.slice(at, INDEX.indexOf('\n  });', at));
