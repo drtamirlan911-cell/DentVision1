@@ -44,7 +44,10 @@ complianceRouter.get('/sessions', async (req: AuthRequest, res) => {
 
 complianceRouter.post('/sessions/:id/expire', async (req: AuthRequest, res) => {
   try {
-    await expireSession(String(req.params.id));
+    const expired = await expireSession(String(req.params.id), req.user!.id);
+    if (!expired) {
+      return res.status(404).json({ ok: false, error: 'Сессия не найдена' } satisfies ApiResponse);
+    }
     await auditFromReq(req, { action: 'SESSION_EXPIRED', entity: 'session', entityId: String(req.params.id) });
     return res.json({ ok: true } satisfies ApiResponse);
   } catch (error) {
@@ -75,7 +78,6 @@ complianceRouter.get('/consents', async (req: AuthRequest, res) => {
   }
 });
 
-// Click-wrap: what this party must still accept (missing / stale by version).
 complianceRouter.get('/consents/required', async (req: AuthRequest, res) => {
   try {
     const explicit = req.query.audience as ConsentAudience | undefined;
@@ -97,7 +99,6 @@ complianceRouter.post('/consents', async (req: AuthRequest, res) => {
     if (!type || typeof accepted !== 'boolean') {
       return res.status(400).json({ ok: false, error: 'type и accepted обязательны' } satisfies ApiResponse);
     }
-    // Record against the current catalog version (so acceptance clears "stale").
     const resolvedVersion = version || requiredVersionFor(type) || '1.0';
     const consent = await upsertConsent(req.user!.id, type, accepted, req.ip, resolvedVersion);
     await auditFromReq(req, {
@@ -118,7 +119,6 @@ complianceRouter.post('/consents', async (req: AuthRequest, res) => {
 complianceRouter.get('/medical/:patientId', requirePermission('patient.read'), async (req: AuthRequest, res) => {
   try {
     const patientId = String(req.params.patientId);
-    // Verify the patient belongs to the caller's clinic.
     const clinicId = req.user?.clinicId;
     if (clinicId) {
       const patient = await prisma.patient.findUnique({ where: { id: patientId }, select: { clinicId: true } });
@@ -135,10 +135,9 @@ complianceRouter.get('/medical/:patientId', requirePermission('patient.read'), a
 
 complianceRouter.post('/medical/log', requirePermission('patient.read'), async (req: AuthRequest, res) => {
   try {
-    const { patientId, fileType, storagePath, action, viewerId } = req.body as {
-      patientId: string; fileType: string; storagePath: string; action: 'UPLOAD' | 'VIEW' | 'DOWNLOAD'; viewerId?: string;
+    const { patientId, fileType, storagePath, action } = req.body as {
+      patientId: string; fileType: string; storagePath: string; action: 'UPLOAD' | 'VIEW' | 'DOWNLOAD';
     };
-    // Verify the patient belongs to the caller's clinic.
     const clinicId = req.user?.clinicId;
     if (clinicId) {
       const patient = await prisma.patient.findUnique({ where: { id: patientId }, select: { clinicId: true } });
@@ -146,7 +145,9 @@ complianceRouter.post('/medical/log', requirePermission('patient.read'), async (
         return res.status(403).json({ ok: false, error: 'Forbidden' } satisfies ApiResponse);
       }
     }
-    const log = await logMedicalFileAccess(patientId, fileType, storagePath, req.user!.id, action, viewerId || req.user!.id);
+    // The authenticated actor is the only valid viewer identity. A caller-supplied
+    // viewerId could otherwise forge another user's audit trail.
+    const log = await logMedicalFileAccess(patientId, fileType, storagePath, req.user!.id, action, req.user!.id);
     return res.json({ ok: true, data: log } satisfies ApiResponse);
   } catch (error) {
     return res.status(500).json({ ok: false, error: 'Ошибка' } satisfies ApiResponse);
@@ -191,9 +192,6 @@ complianceRouter.post('/ai/:id/confirm', requirePermission('medical.write'), asy
 complianceRouter.get('/ai/stats', async (req: AuthRequest, res) => {
   try {
     const isSuper = req.user!.role === 'SUPERADMIN';
-    // AIActionLog carries no clinicId of its own — scope through the patient
-    // it's about, or (for patient-less logs) through the acting user's clinic
-    // membership. Same OR-filter shape as getAIActions() in compliance.service.ts.
     const clinicId = isSuper ? undefined : req.user!.clinicId || undefined;
     const scope = clinicId
       ? {
@@ -215,7 +213,7 @@ complianceRouter.get('/ai/stats', async (req: AuthRequest, res) => {
 });
 
 // ═══════════════════════════════════════════════════════════════
-// COMPLIANCE CHECKS (product/course/supplier rules)
+// COMPLIANCE CHECKS
 // ═══════════════════════════════════════════════════════════════
 
 const ENTITY_TYPES = ['product', 'course', 'supplier'];
@@ -244,7 +242,7 @@ complianceRouter.get('/checks', requirePermission('compliance.manage'), async (r
 });
 
 // ═══════════════════════════════════════════════════════════════
-// SECURITY DASHBOARD (aggregated)
+// SECURITY DASHBOARD
 // ═══════════════════════════════════════════════════════════════
 
 complianceRouter.get('/dashboard', async (req: AuthRequest, res) => {
