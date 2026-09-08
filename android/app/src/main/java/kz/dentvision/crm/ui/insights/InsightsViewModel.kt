@@ -69,7 +69,8 @@ class InsightsViewModel(
                     _state.update { s ->
                         val restored = (s.items as? UiState.Data)?.value ?: before
                         if (restored.any { it.id == id }) return@update s
-                        s.copy(items = UiState.Data(restored + before.first { it.id == id }))
+                        val original = before.firstOrNull { it.id == id } ?: return@update s
+                        s.copy(items = UiState.Data(restored + original))
                     }
                 }
         }
@@ -77,9 +78,8 @@ class InsightsViewModel(
 
     /**
      * `requiresApproval` раньше игнорировался — действие уходило сразу,
-     * без подтверждения, хотя карточка её обещала (найдено при аудите
-     * бизнес-логики: та же схема, что `AiAction.requiresConfirmation` в
-     * `IntelligenceViewModel.tapAction`, но здесь её не проверяли).
+     * без подтверждения, хотя карточка её обещала. Теперь такие действия
+     * сначала попадают в состояние подтверждения.
      */
     fun performAction(action: AiInsightAction) {
         if (action.requiresApproval) {
@@ -110,14 +110,13 @@ class InsightsViewModel(
         viewModelScope.launch {
             runCatching { repository.action(tool, params) }
                 .onSuccess { result ->
-                    // Как и в HomeViewModel.performAction: решает наличие `path`,
-                    // а не строка `type` — настоящий вызов инструмента (в том
-                    // числе tool:'navigate' из os/insights.ts) приходит с
-                    // type:'created', не type:'navigate'.
+                    // `apiCall` уже превращает `ok:false`/HTTP-ошибки в исключение.
+                    // Поэтому здесь обрабатываем только успешный AiActionResult:
+                    // навигацию, серверную подпись результата или запасной текст.
                     when {
-                        result.type == "error" -> _state.update { it.copy(message = result.message ?: "Не удалось выполнить действие") }
                         result.path != null -> _state.update { it.copy(pendingNavigatePath = result.path) }
-                        else -> _state.update { it.copy(message = result.message ?: result.label ?: "Готово") }
+                        result.label != null -> _state.update { it.copy(message = result.label) }
+                        else -> _state.update { it.copy(message = "Готово") }
                     }
                 }
                 .onFailure { e -> _state.update { it.copy(message = e.message ?: "Не удалось выполнить действие") } }
