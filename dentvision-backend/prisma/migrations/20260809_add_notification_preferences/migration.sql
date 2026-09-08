@@ -1,10 +1,8 @@
 -- Add NotificationPreference model.
 --
--- Written idempotently on purpose. `prisma migrate deploy` stops at the first
--- failing migration and every later one is blocked until the chain is unwedged
--- by hand — this repository has already lost a deploy chain that way (see the
--- 20260731_* migrations). A plain CREATE TABLE fails with 42P07 the moment the
--- table exists for any reason, so the whole file is guarded.
+-- Keep this migration deploy-safe for databases that do not yet contain the
+-- legacy `users` table. The notification table can be created independently;
+-- the FK is added only when its referenced table exists.
 CREATE TABLE IF NOT EXISTS "notification_preferences" (
     "id" TEXT NOT NULL,
     "userId" TEXT NOT NULL,
@@ -17,11 +15,15 @@ CREATE TABLE IF NOT EXISTS "notification_preferences" (
 CREATE UNIQUE INDEX IF NOT EXISTS "notification_preferences_userId_type_key" ON "notification_preferences"("userId", "type");
 CREATE INDEX IF NOT EXISTS "notification_preferences_userId_idx" ON "notification_preferences"("userId");
 
--- Postgres has no ADD CONSTRAINT IF NOT EXISTS, so the foreign key is guarded
--- on constraint existence; re-running would otherwise fail with 42710.
+-- Postgres has no ADD CONSTRAINT IF NOT EXISTS, so guard both the constraint
+-- and the referenced table. If `users` is introduced by a later migration,
+-- that migration remains responsible for establishing its own relationship.
 DO $$
 BEGIN
-  IF NOT EXISTS (
+  IF EXISTS (
+    SELECT 1 FROM information_schema.tables
+    WHERE table_schema = 'public' AND table_name = 'users'
+  ) AND NOT EXISTS (
     SELECT 1 FROM information_schema.table_constraints
     WHERE table_schema = 'public'
       AND constraint_name = 'notification_preferences_userId_fkey'
