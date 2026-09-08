@@ -24,3 +24,13 @@ html{-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}.dv-ap
 .dv-page .grid.grid-cols-2.sm\:grid-cols-4>button[class*="rounded-2xl"] h4{letter-spacing:-.01em}
 .dv-page .grid.grid-cols-2.sm\:grid-cols-4>button[class*="rounded-2xl"] p{line-height:1.3}
 .dv-page [class*="bg-gradient-to-br"][class*="from-dv-gold"]{isolation:isolate}
+/* Digital Twin / AI surfaces: keep intelligence prominent, not decorative */
+.dv-page .relative.overflow-hidden.rounded-2xl.border-dv-gold\/25{box-shadow:var(--dv-shadow-sm)}
+.dv-page .relative.overflow-hidden.rounded-2xl.border-dv-gold\/25 .bg-dv-gold\/20{box-shadow:none}
+.dv-page .relative.overflow-hidden.rounded-2xl.border-dv-gold\/25 .bg-gradient-to-r{background-image:none!important;background-color:var(--dv-accent)!important}
+.dv-page .relative.overflow-hidden.rounded-2xl.border-dv-gold\/25 .blur-2xl,.dv-page .relative.overflow-hidden.rounded-2xl.border-dv-gold\/25 .blur-3xl{display:none!important}
+.dv-page .relative.overflow-hidden.rounded-2xl.border-dv-gold\/25 button{min-height:40px}
+/* Consistent interactive density */
+.dv-page button[class*="rounded-xl"],.dv-page a[class*="rounded-xl"]{transition-property:background-color,border-color,box-shadow,color,transform;transition-duration:.18s;transition-timing-function:cubic-bezier(.2,.8,.2,1)}
+.dv-page button[class*="rounded-xl"]:focus-visible,.dv-page a[class*="rounded-xl"]:focus-visible{outline:2px solid var(--dv-accent);outline-offset:2px}
+@media(max-width:767px){.dv-page .relative.overflow-hidden.rounded-2xl.border-dv-gold\/25{border-radius:var(--dv-radius-md)}.dv-page .relative.overflow-hidden.rounded-2xl.border-dv-gold\/25 button{min-height:44px}}
