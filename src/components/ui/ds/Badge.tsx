@@ -23,15 +23,15 @@ const variantStyles: Record<BadgeVariant, string> = {
 
 const sizeStyles: Record<BadgeSize, string> = {
   xs: 'text-2xs px-1.5 py-0.5',
-  sm: 'text-xs px-2 py-0.5',
-  md: 'text-xs px-2.5 py-1',
+  sm: 'text-xs px-2 py-1',
+  md: 'text-xs px-2.5 py-1.5',
 }
 
 function Badge({ className, variant = 'default', size = 'sm', dot, children, ...props }: BadgeProps) {
   return (
     <span
       className={cn(
-        'inline-flex items-center gap-1.5 rounded-md border font-medium leading-none transition-colors',
+        'inline-flex max-w-full items-center gap-1.5 rounded-lg border font-medium leading-none whitespace-nowrap transition-[background-color,border-color,color] duration-base',
         variantStyles[variant],
         sizeStyles[size],
         className
