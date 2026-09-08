@@ -1,21 +1,23 @@
--- lab.routes.ts's VALID_STATUSES has, since it was written, accepted
--- 'sent', 'try_in', 'adjustment', 'ready', 'remake', 'delayed' as legal
--- input for PATCH /:id/status — the real dental-lab workflow (sent to lab,
--- fabrication, try-in with the patient, adjustment, ready for pickup,
--- remake, delayed). The LabOrderStatus enum was never updated to match, so
--- every one of those six passed the route's own validation and then
--- crashed the Prisma write with a 500 (PrismaClientValidationError:
--- Invalid value for argument `status`. Expected LabOrderStatus).
+-- lab.routes.ts accepts these six statuses, but the Prisma enum migration
+-- must also remain deploy-safe when the V2 bootstrap is supplied separately.
+-- The enum itself is created by init_full_schema; this migration only extends it.
 --
--- Purely additive: existing rows and the existing values (pending,
--- in_progress, completed, cancelled, delivered) are untouched.
---
--- Idempotent; mirrored as a runOnceMigration block in src/index.ts, because
--- `prisma migrate deploy` has not reliably reached production here.
+-- Purely additive and idempotent: existing values and rows are untouched.
 
-ALTER TYPE "LabOrderStatus" ADD VALUE IF NOT EXISTS 'sent';
-ALTER TYPE "LabOrderStatus" ADD VALUE IF NOT EXISTS 'try_in';
-ALTER TYPE "LabOrderStatus" ADD VALUE IF NOT EXISTS 'adjustment';
-ALTER TYPE "LabOrderStatus" ADD VALUE IF NOT EXISTS 'ready';
-ALTER TYPE "LabOrderStatus" ADD VALUE IF NOT EXISTS 'remake';
-ALTER TYPE "LabOrderStatus" ADD VALUE IF NOT EXISTS 'delayed';
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1
+    FROM pg_type t
+    JOIN pg_namespace n ON n.oid = t.typnamespace
+    WHERE t.typname = 'LabOrderStatus'
+      AND n.nspname = 'public'
+  ) THEN
+    ALTER TYPE "LabOrderStatus" ADD VALUE IF NOT EXISTS 'sent';
+    ALTER TYPE "LabOrderStatus" ADD VALUE IF NOT EXISTS 'try_in';
+    ALTER TYPE "LabOrderStatus" ADD VALUE IF NOT EXISTS 'adjustment';
+    ALTER TYPE "LabOrderStatus" ADD VALUE IF NOT EXISTS 'ready';
+    ALTER TYPE "LabOrderStatus" ADD VALUE IF NOT EXISTS 'remake';
+    ALTER TYPE "LabOrderStatus" ADD VALUE IF NOT EXISTS 'delayed';
+  END IF;
+END $$;
