@@ -15,29 +15,11 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.scale
-import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 
-/**
- * Кнопки веб-репозитория (`src/components/ui/ds/Button.tsx`): `rounded-lg`
- * (8dp), не стадион, которым Material3 рисует кнопку по умолчанию
- * (`ButtonDefaults.shape` = `shapes.full`), и первичная — золотой градиент
- * (`from-dv-gold-from to-dv-gold-to`), а не плоская заливка. Переопределить
- * форму кнопки глобально через `MaterialTheme.shapes` нельзя — M3 всегда
- * читает именно `full` для кнопок, поэтому форма и градиент задаются здесь,
- * на самом компоненте, а не в теме.
- */
+/** Shared Android button treatment: restrained radius, flat brand surface, clear secondary action. */
 private val DvButtonShape = RoundedCornerShape(8.dp)
 
-/**
- * `whileTap={{ scale: 0.97 }}` с вебовской `Button.tsx:140-151` — там это
- * настроено один раз в общем компоненте и работает на каждой кнопке
- * приложения; здесь так же: и `DvPrimaryButton`, и `DvOutlineButton` — общие
- * компоненты, поэтому эффект нажатия достаточно завести один раз тут, а не
- * на каждом экране отдельно (найдено при аудите: раньше ни у одной кнопки
- * не было отклика на нажатие, только стоковый ripple).
- */
 @Composable
 private fun rememberPressScale(interactionSource: MutableInteractionSource): Float {
     val pressed by interactionSource.collectIsPressedAsState()
@@ -55,14 +37,10 @@ fun DvPrimaryButton(
     val colors = DvTheme.colors
     val interactionSource = remember { MutableInteractionSource() }
     val scale = rememberPressScale(interactionSource)
-    val background = if (enabled) {
-        Modifier.background(
-            brush = Brush.horizontalGradient(listOf(colors.goldFrom, colors.goldTo)),
-            shape = DvButtonShape,
-        )
-    } else {
-        Modifier.background(color = colors.surface3, shape = DvButtonShape)
-    }
+    val background = Modifier.background(
+        color = if (enabled) colors.gold else colors.surface3,
+        shape = DvButtonShape,
+    )
     Button(
         onClick = onClick,
         modifier = modifier.scale(scale).then(background),
@@ -70,9 +48,9 @@ fun DvPrimaryButton(
         shape = DvButtonShape,
         interactionSource = interactionSource,
         colors = ButtonDefaults.buttonColors(
-            containerColor = Color.Transparent,
+            containerColor = androidx.compose.ui.graphics.Color.Transparent,
             contentColor = colors.goldOn,
-            disabledContainerColor = Color.Transparent,
+            disabledContainerColor = androidx.compose.ui.graphics.Color.Transparent,
             disabledContentColor = colors.textGhost,
         ),
         elevation = ButtonDefaults.buttonElevation(defaultElevation = 0.dp, disabledElevation = 0.dp),
@@ -80,7 +58,7 @@ fun DvPrimaryButton(
     )
 }
 
-/** `outline`-вариант: рамка и золотой текст, без заливки — вторичное действие рядом с первичным. */
+/** Secondary action: outline and brand text, no decorative fill. */
 @Composable
 fun DvOutlineButton(
     onClick: () -> Unit,
