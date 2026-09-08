@@ -44,6 +44,7 @@ function sendTreatmentPlanReferenceError(req: AuthRequest, res: Response, error:
 }
 
 async function guardTreatmentPlanReferences(req: AuthRequest, res: Response): Promise<boolean> {
+  if (req.user?.role === 'SUPERADMIN') return true;
   const clinicId = effectiveClinicId(req.user);
   if (!clinicId) return true;
   const path = String(req.path || '');
@@ -63,7 +64,14 @@ async function guardTreatmentPlanReferences(req: AuthRequest, res: Response): Pr
       sendTreatmentPlanReferenceError(req, res, error);
       return false;
     }
-    throw error;
+    console.error('[planGate] treatment plan reference validation failed', error);
+    applyCorsHeaders(req, res);
+    res.status(503).json({
+      ok: false,
+      error: 'Не удалось проверить принадлежность объекта клинике. Повторите запрос.',
+      code: 'CLINIC_REFERENCE_VALIDATION_UNAVAILABLE',
+    });
+    return false;
   }
 }
 
