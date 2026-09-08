@@ -2,7 +2,9 @@
 
 /* Remove decorative gold gradients outside .dv-page as well. */
 [class*="bg-gradient-to-br"][class*="from-dv-gold"],
-[class*="bg-gradient-to-r"][class*="from-dv-gold"] {
+[class*="bg-gradient-to-r"][class*="from-dv-gold"],
+[class*="bg-gradient-to-br"][class*="from-dv-gold-from"],
+[class*="bg-gradient-to-r"][class*="from-dv-gold-from"] {
   background-image: none !important;
   background-color: color-mix(in srgb, var(--dv-surface, #fff) 94%, var(--dv-accent, #a47b35) 6%) !important;
 }
@@ -10,7 +12,9 @@
 [class*="bg-gradient-to-br"][class*="from-dv-gold"] [class*="blur-3xl"],
 [class*="bg-gradient-to-br"][class*="from-dv-gold"] [class*="blur-2xl"],
 [class*="bg-gradient-to-r"][class*="from-dv-gold"] [class*="blur-3xl"],
-[class*="bg-gradient-to-r"][class*="from-dv-gold"] [class*="blur-2xl"] {
+[class*="bg-gradient-to-r"][class*="from-dv-gold"] [class*="blur-2xl"],
+[class*="bg-gradient-to-br"][class*="from-dv-gold-from"] [class*="blur-3xl"],
+[class*="bg-gradient-to-br"][class*="from-dv-gold-from"] [class*="blur-2xl"] {
   display: none !important;
 }
 
@@ -42,7 +46,8 @@
 /* Course/AI content: reduce decorative noise while retaining hierarchy. */
 [class*="from-dv-gold\/10"],
 [class*="from-dv-gold\/15"],
-[class*="from-dv-gold\/20"] {
+[class*="from-dv-gold\/20"],
+[class*="from-dv-gold\/25"] {
   box-shadow: none !important;
 }
 
