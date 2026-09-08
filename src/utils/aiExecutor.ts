@@ -4,6 +4,7 @@ import { aiAction } from '@/utils/api';
 import { useAuth } from '@/store/auth.store';
 import type { Message } from '@/store/ai.store';
 import { AI_NAV_ACTIONS } from '@/lib/aiPlatformMap';
+import { isMutatingAIAction, requiresExplicitAIConfirmation } from '@/lib/aiActionPolicy';
 import i18n from '@/lib/i18n';
 
 const t = (key: string, fallback: string) => {
@@ -69,7 +70,12 @@ export function useAIExecutor() {
   ): Promise<ActionResult | null> => {
     const { onConfirm, addMessage } = callbacks;
 
-    if (action.requiresConfirmation) {
+    // Safety invariant: mutating actions are never allowed to bypass the
+    // confirmation layer merely because an upstream response omitted the flag.
+    if (requiresExplicitAIConfirmation(action) && isMutatingAIAction(action)) {
+      const confirmed = await onConfirm?.(action);
+      if (!confirmed) return null;
+    } else if (action.requiresConfirmation) {
       const confirmed = await onConfirm?.(action);
       if (!confirmed) return null;
     }
@@ -209,5 +215,5 @@ export function isDataAction(action: AIAction): boolean {
 }
 
 export function isCreationAction(action: AIAction): boolean {
-  return ['CreateAppointment', 'UpdateAppointmentStatus', 'CreatePatient', 'CreateLabOrder', 'GenerateDailyReport'].includes(action.type);
+  return isMutatingAIAction(action);
 }
