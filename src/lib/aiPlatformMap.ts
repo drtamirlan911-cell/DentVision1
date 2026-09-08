@@ -24,7 +24,9 @@ export const AI_NAV_ACTIONS: Record<string, string> = {
   OPEN_DOCUMENTS: '/crm/documents',
   OpenReminders: '/crm/reminders',
   OpenDentalChart: '/crm/dental-chart',
+  OPEN_DENTAL_CHART: '/crm/dental-chart',
   OpenTreatmentPlans: '/crm/treatment-plans',
+  OPEN_TREATMENT_PLAN: '/crm/treatment-plans',
   OpenPriceList: '/crm/pricelist',
   OpenPromotions: '/crm/promotions',
   OpenICD10: '/crm/icd10',
@@ -61,7 +63,7 @@ export function stageFromPath(pathname?: string | null): string {
   if (!p || p === '/' || p.startsWith('/ai') || p.includes('intelligence')) return 'workspace'
   if (p.includes('/crm/patients')) return 'patients'
   if (p.includes('/crm/schedule')) return 'schedule'
-  if (p.includes('/crm/cashier') || p.includes('/crm/billing')) return 'finance'
+  if (p.includes('/crm/cashier') || p.includes('/crm/finance') || p.includes('/crm/billing')) return 'finance'
   if (p.includes('/crm/inventory')) return 'inventory'
   if (p.includes('/crm/lab')) return 'lab'
   if (p.includes('/crm/dental-chart')) return 'dental-chart'
