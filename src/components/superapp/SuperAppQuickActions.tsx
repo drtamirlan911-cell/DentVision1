@@ -1,6 +1,6 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Activity, CalendarPlus, CreditCard, Search, Sparkles, UserPlus } from 'lucide-react';
+import { Activity, CalendarPlus, CreditCard, Search, Sparkles, UserPlus, ClipboardCheck, ListTodo } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { cn } from '@/lib/utils';
 
@@ -36,26 +36,46 @@ export const SuperAppQuickActions: React.FC<SuperAppQuickActionsProps> = ({ onAI
       {actions.map(({ id, label, icon: Icon, path, tone }) => (
         <motion.button
           key={id}
+          type="button"
           whileTap={{ scale: 0.97 }}
           onClick={() => navigate(path)}
-          className={cn('flex min-h-10 shrink-0 items-center gap-2 rounded-xl border px-3 text-xs font-medium transition-colors hover:bg-white/[0.06]', toneClass[tone])}
+          className={cn('flex min-h-10 shrink-0 items-center gap-2 rounded-xl border px-3 text-xs font-medium transition-colors hover:bg-white/[0.06] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-dv-gold/50', toneClass[tone])}
         >
           <Icon size={15} />
           {label}
         </motion.button>
       ))}
       <motion.button
+        type="button"
         whileTap={{ scale: 0.97 }}
-        onClick={() => onAIQuery?.('Что важно сегодня?')}
-        className="flex min-h-10 shrink-0 items-center gap-2 rounded-xl border border-dv-gold/20 bg-dv-gold/10 px-3 text-xs font-semibold text-dv-gold transition-colors hover:bg-dv-gold/15"
+        onClick={() => onAIQuery?.('Что важно сегодня? Составь приоритеты по клинике, пациентам, диагностике и финансам.')}
+        className="flex min-h-10 shrink-0 items-center gap-2 rounded-xl border border-dv-gold/20 bg-dv-gold/10 px-3 text-xs font-semibold text-dv-gold transition-colors hover:bg-dv-gold/15 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-dv-gold/50"
       >
         <Sparkles size={15} />
-        AI помощник
+        Мой день
+      </motion.button>
+      <motion.button
+        type="button"
+        whileTap={{ scale: 0.97 }}
+        onClick={() => onAIQuery?.('Подготовь меня к следующему приёму: найди ближайшего пациента и покажи ключевой контекст, открытые планы лечения и важные сигналы.')}
+        className="flex min-h-10 shrink-0 items-center gap-2 rounded-xl border border-sky-500/20 bg-sky-500/10 px-3 text-xs font-medium text-sky-300 transition-colors hover:bg-sky-500/15 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400/50"
+      >
+        <ClipboardCheck size={15} />
+        Подготовить приём
+      </motion.button>
+      <motion.button
+        type="button"
+        whileTap={{ scale: 0.97 }}
+        onClick={() => onAIQuery?.('Покажи мои задачи и предложи следующие действия по самым важным пациентам.')}
+        className="flex min-h-10 shrink-0 items-center gap-2 rounded-xl border border-white/10 bg-white/[0.04] px-3 text-xs font-medium text-txt-secondary transition-colors hover:bg-white/[0.07] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/20"
+      >
+        <ListTodo size={15} />
+        Задачи
       </motion.button>
       <button
         type="button"
         onClick={openSearch}
-        className="flex min-h-10 shrink-0 items-center gap-2 rounded-xl border border-bdr-subtle bg-surface-1/60 px-3 text-xs font-medium text-txt-secondary transition-colors hover:text-txt-primary"
+        className="flex min-h-10 shrink-0 items-center gap-2 rounded-xl border border-bdr-subtle bg-surface-1/60 px-3 text-xs font-medium text-txt-secondary transition-colors hover:text-txt-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-dv-gold/50"
       >
         <Search size={15} />
         Поиск
