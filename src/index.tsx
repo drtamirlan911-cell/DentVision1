@@ -38,6 +38,7 @@ const NotificationPreferences = lazyWithRetry(() => import('./pages/Notification
 const Profile = lazyWithRetry(() => import('./pages/Profile'));
 const Jobs = lazyWithRetry(() => import('./pages/Jobs'));
 const Community = lazyWithRetry(() => import('./pages/Community'));
+const Help = lazyWithRetry(() => import('./pages/Help'));
 const Demo = lazyWithRetry(() => import('./pages/Demo'));
 const Pricing = lazyWithRetry(() => import('./pages/Pricing'));
 const Terms = lazyWithRetry(() => import('./pages/legal-public/Terms'));
@@ -143,13 +144,9 @@ if (container) {
                 <Route path="/forgot-password" element={<Suspense fallback={<PageLoader />}><ForgotPassword /></Suspense>} />
                 <Route path="/book/:clinicId" element={<Suspense fallback={<PageLoader />}><PublicBooking /></Suspense>} />
                 <Route path="/sign/:token" element={<Suspense fallback={<PageLoader />}><DocumentSign /></Suspense>} />
-                {/* Stands on its own like /sign — no sidebar, no app chrome: the
-                    patient should see one story about themselves, not a CRM. */}
                 <Route path="/plan/:releaseId" element={<Suspense fallback={<PageLoader />}><TreatmentPresentation /></Suspense>} />
                 <Route path="/register-diagnostics" element={<Suspense fallback={<PageLoader />}><DiagnosticsRegister /></Suspense>} />
                 <Route path="/patient-portal" element={<Suspense fallback={<PageLoader />}><PatientPortal /></Suspense>} />
-
-                {/* Workspace selection (no active clinic) */}
                 <Route path="/my-clinics" element={<Suspense fallback={<PageLoader />}><MyClinics /></Suspense>} />
 
                 {/* AI-First Intelligence Layout — Main entry point after login */}
@@ -157,11 +154,10 @@ if (container) {
                   <Route index element={<Suspense fallback={<PageLoader />}><AIWorkspaceIndex /></Suspense>} />
                   <Route path="dashboard" element={guarded('dashboard', <Dashboard />)} />
                   <Route path="intelligence" element={<Navigate to="/" replace />} />
-
-                  {/* Platform pages */}
                   <Route path="ai" element={<Navigate to="/" replace />} />
                   <Route path="analytics" element={guarded('analytics', <Analytics />)} />
                   <Route path="settings" element={guarded('settings', <SettingsPage />)} />
+                  <Route path="help" element={<Suspense fallback={<PageLoader />}><Help /></Suspense>} />
                   <Route path="notifications" element={guarded('settings', <NotificationPreferences />)} />
                   <Route path="admin" element={guarded('admin', <SuperAdmin />)} />
                   <Route path="bi" element={guarded('bi', <BIWorkspace />)} />
@@ -213,59 +209,46 @@ if (container) {
                   <Route path="shop/favorites" element={<Suspense fallback={<PageLoader />}><ShopFavorites /></Suspense>} />
                   <Route path="shop/suppliers" element={<Suspense fallback={<PageLoader />}><ShopSuppliers /></Suspense>} />
 
-                  {/* School sub-app — under IntelligenceLayout sidebar */}
-                  <Route path="school" element={<Suspense fallback={<PageLoader />}><School /></Suspense>} />
-                  <Route path="school/:id" element={<Suspense fallback={<PageLoader />}><SchoolCourse /></Suspense>} />
-                  <Route path="school-workspace" element={<Suspense fallback={<PageLoader />}><SchoolWorkspace /></Suspense>} />
-                  <Route path="center-workspace" element={<Suspense fallback={<PageLoader />}><WorkspaceEntry /></Suspense>} />
-
-                  {/* Diagnostics sub-app — under IntelligenceLayout sidebar */}
+                  {/* Diagnostics */}
                   <Route path="diagnostics" element={<Suspense fallback={<PageLoader />}><DiagnosticsLayout /></Suspense>}>
                     <Route index element={<Suspense fallback={<PageLoader />}><DiagnosticsDashboard /></Suspense>} />
                     <Route path="referrals" element={<Suspense fallback={<PageLoader />}><ReferralList /></Suspense>} />
                     <Route path="referrals/new" element={<Suspense fallback={<PageLoader />}><ReferralForm /></Suspense>} />
                     <Route path="referrals/:id" element={<Suspense fallback={<PageLoader />}><ReferralDetail /></Suspense>} />
                     <Route path="centers" element={<Suspense fallback={<PageLoader />}><CenterList /></Suspense>} />
-                    <Route path="center-dashboard" element={<Suspense fallback={<PageLoader />}><CenterDashboard /></Suspense>} />
-                    <Route path="laboratories" element={<Suspense fallback={<PageLoader />}><LabList /></Suspense>} />
-                    <Route path="lab-dashboard" element={<Suspense fallback={<PageLoader />}><LabDashboard /></Suspense>} />
+                    <Route path="labs" element={<Suspense fallback={<PageLoader />}><LabList /></Suspense>} />
                     <Route path="patients" element={<Suspense fallback={<PageLoader />}><DiagnosticPatients /></Suspense>} />
                     <Route path="results" element={<Suspense fallback={<PageLoader />}><ResultList /></Suspense>} />
                     <Route path="calendar" element={<Suspense fallback={<PageLoader />}><DiagnosticCalendar /></Suspense>} />
                     <Route path="statistics" element={<Suspense fallback={<PageLoader />}><DiagnosticStatistics /></Suspense>} />
                     <Route path="settings" element={<Suspense fallback={<PageLoader />}><DiagnosticSettings /></Suspense>} />
-                    <Route path="registrations" element={<Suspense fallback={<PageLoader />}><RegistrationRequests /></Suspense>} />
+                    <Route path="center" element={<Suspense fallback={<PageLoader />}><CenterDashboard /></Suspense>} />
+                    <Route path="lab" element={<Suspense fallback={<PageLoader />}><LabDashboard /></Suspense>} />
+                    <Route path="workspace" element={<Suspense fallback={<PageLoader />}><WorkspaceEntry /></Suspense>} />
+                    <Route path="registration-requests" element={<Suspense fallback={<PageLoader />}><RegistrationRequests /></Suspense>} />
                   </Route>
 
-                  {/* Superadmin content management */}
-                  <Route path="shop/admin" element={guarded('admin', <ShopAdmin />)} />
-                  <Route path="school/admin" element={guarded('admin', <SchoolAdmin />)} />
-                  {/* Legal Engine */}
-                  <Route path="legal" element={guarded('admin', <LegalLayout />)} />
-                  <Route path="partner-legal" element={<Suspense fallback={<PageLoader />}><PartnerLegal /></Suspense>} />
-                </Route>
+                  {/* School */}
+                  <Route path="school" element={<Suspense fallback={<PageLoader />}><School /></Suspense>} />
+                  <Route path="school/course/:id" element={<Suspense fallback={<PageLoader />}><SchoolCourse /></Suspense>} />
+                  <Route path="school/workspace" element={<Suspense fallback={<PageLoader />}><SchoolWorkspace /></Suspense>} />
 
-                <Route path="*" element={<Suspense fallback={<PageLoader />}><NotFound /></Suspense>} />
-              </Routes>
+                  {/* Platform administration */}
+                  <Route path="admin/shop" element={guarded('admin', <ShopAdmin />)} />
+                  <Route path="admin/school" element={guarded('admin', <SchoolAdmin />)} />
+
+                  {/* Legal / partner */}
+                  <Route path="legal" element={<Suspense fallback={<PageLoader />}><LegalLayout /></Suspense>} />
+                  <Route path="partner/legal" element={<Suspense fallback={<PageLoader />}><PartnerLegal /></Suspense>} />
+
+                  <Route path="*" element={<Suspense fallback={<PageLoader />}><NotFound /></Suspense>} />
+                </Route>
+            </Routes>
           </Providers>
         </ToastProvider>
       </ErrorBoundary>
     </React.StrictMode>
   );
-  reportWebVitals();
-
-  // PWA service worker — only register in production; unregister in dev to avoid stale caches
-  if ('serviceWorker' in navigator) {
-    if (import.meta.env.DEV) {
-      navigator.serviceWorker.getRegistrations().then((regs) => regs.forEach((r) => r.unregister()));
-      caches.keys().then((keys) => keys.forEach((k) => caches.delete(k)));
-    } else {
-      window.addEventListener('load', () => {
-        navigator.serviceWorker.register('/sw.js?v=3').catch(() => {});
-        navigator.serviceWorker.addEventListener('controllerchange', () => {
-          window.location.reload();
-        });
-      });
-    }
-  }
 }
+
+reportWebVitals();
