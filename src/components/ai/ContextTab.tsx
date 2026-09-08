@@ -12,6 +12,7 @@ import { Button } from '@/components/ui/ds/Button'
 import { usePatientStore } from '@/store/patient.store'
 import { useAuth } from '@/store/auth.store'
 import { useGuestStore } from '@/store/guest.store'
+import { AI_NAV_ACTIONS } from '@/lib/aiPlatformMap'
 
 const TREATMENT_STAGES = [
   { id: 'diagnosis', label: 'Диагностика', icon: Search, color: 'text-blue-400' },
@@ -120,10 +121,10 @@ export function ContextTab() {
   const stageIndex = TREATMENT_STAGES.findIndex((s) => s.id === currentStage.id)
 
   const quickActions = [
-    { label: 'Карта', path: '/crm/medical-card' },
-    { label: 'План', path: '/crm/treatment-plans' },
-    { label: 'Оплата', path: '/crm/finance' },
-    { label: 'Запись', path: '/crm/schedule' },
+    { label: 'Карта', path: AI_NAV_ACTIONS.OpenMedicalCard },
+    { label: 'План', path: AI_NAV_ACTIONS.OpenTreatmentPlans },
+    { label: 'Оплата', path: AI_NAV_ACTIONS.OpenCashier },
+    { label: 'Запись', path: AI_NAV_ACTIONS.OpenSchedule },
   ]
 
   return (
