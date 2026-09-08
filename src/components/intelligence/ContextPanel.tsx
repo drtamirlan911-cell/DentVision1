@@ -6,7 +6,7 @@ import { ContextTab } from '@/components/ai/ContextTab'
 import { DigitalTwin } from '@/components/ai/DigitalTwin'
 import { AlertsTab } from '@/components/ai/AlertsTab'
 import { AgentActivityTab } from '@/components/ai/AgentActivityTab'
-import { ClinicalCaseContextCard } from '@/components/superapp/ClinicalCaseContextCard'
+import { PatientCommandCenter } from '@/components/superapp/PatientCommandCenter'
 import { ClinicalCaseCopilot } from '@/components/superapp/ClinicalCaseCopilot'
 import { useAIStore } from '@/store/ai.store'
 import { useAuth } from '@/store/auth.store'
@@ -55,8 +55,8 @@ export function ContextPanel({ onClose }: ContextPanelProps) {
       </div>
 
       <div className="flex-1 overflow-y-auto">
-        {!isGuest && <ClinicalCaseContextCard />}
-        {!isGuest && <ClinicalCaseCopilot />}
+        {!isGuest && activeTab === 'context' && <PatientCommandCenter />}
+        {!isGuest && activeTab === 'context' && <ClinicalCaseCopilot />}
         {activeTab === 'context' && <ContextTab />}
         {activeTab === 'digital-twin' && <DigitalTwin />}
         {activeTab === 'alerts' && <AlertsTab />}
