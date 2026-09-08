@@ -39,7 +39,7 @@ export function DentWalletCard({ className }: { className?: string }) {
   }, [])
 
   return (
-    <Card className={cn('border-dv-gold/25 bg-gradient-to-br from-dv-gold/10 via-white/[0.02] to-transparent overflow-hidden', className)}>
+    <Card className={cn('border-dv-gold/20 bg-surface-raised overflow-hidden', className)}>
       <CardContent className="p-3 sm:p-4 space-y-4">
         <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2">
           <div className="min-w-0 flex-1">
@@ -73,15 +73,15 @@ export function DentWalletCard({ className }: { className?: string }) {
               )}
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-              <div className="rounded-xl bg-white/[0.03] border border-bdr-subtle p-2.5">
+              <div className="rounded-xl bg-surface-2 border border-bdr-subtle p-2.5">
                 <p className="text-[10px] text-txt-muted flex items-center gap-1"><Clock size={10} /> {t('wallet.pending')}</p>
                 <p className="text-sm font-semibold text-txt-primary mt-1">{fmt(wallet.pendingTenge)}</p>
               </div>
-              <div className="rounded-xl bg-white/[0.03] border border-bdr-subtle p-2.5">
+              <div className="rounded-xl bg-surface-2 border border-bdr-subtle p-2.5">
                 <p className="text-[10px] text-txt-muted flex items-center gap-1"><ArrowDownLeft size={10} /> {t('wallet.monthly')}</p>
                 <p className="text-sm font-semibold text-emerald-300 mt-1">+{fmt(wallet.earnedThisMonthTenge)}</p>
               </div>
-              <div className="rounded-xl bg-white/[0.03] border border-bdr-subtle p-2.5">
+              <div className="rounded-xl bg-surface-2 border border-bdr-subtle p-2.5">
                 <p className="text-[10px] text-txt-muted flex items-center gap-1"><ArrowUpRight size={10} /> {t('wallet.spent')}</p>
                 <p className="text-sm font-semibold text-amber-200 mt-1">−{fmt(wallet.spentThisMonthTenge)}</p>
               </div>
