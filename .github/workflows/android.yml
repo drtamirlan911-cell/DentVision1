@@ -1,28 +1,20 @@
 name: Android
 
-# Android собирается отдельно от веба намеренно.
-#
-# Он живёт в своём каталоге и ничего в вебе не трогает, поэтому валить общий
-# пайплайн из-за него нечем — и наоборот: падение веб-тестов не должно мешать
-# получить APK. По той же причине фильтр по путям: на правку React-страницы
-# пятиминутную сборку Gradle запускать незачем.
-#
-# Ветки в фильтрах — не украшение. Без них push в ветку с открытым PR и сам PR
-# запускают сборку дважды: пять с половиной минут Actions уходят на второй
-# точно такой же APK. Ровно так уже устроен ci.yml, и здесь повторено то же
-# правило, а не изобретено своё.
 on:
   push:
     branches: [main, develop]
     paths:
       - 'android/**'
+      - 'dentvision-backend/**'
+      - 'src/types.ts'
       - '.github/workflows/android.yml'
   pull_request:
     branches: [main]
     paths:
       - 'android/**'
+      - 'dentvision-backend/**'
+      - 'src/types.ts'
       - '.github/workflows/android.yml'
-  # Позволяет собрать APK кнопкой, не дожидаясь коммита.
   workflow_dispatch:
 
 jobs:
@@ -56,9 +48,9 @@ jobs:
       - name: Юнит-тесты
         run: ./gradlew --no-daemon testDebugUnitTest
 
-      # Сборка, которую можно поставить на телефон: подписана отладочным
-      # ключом, ходит на боевой API. Подробности — в комментарии к типу
-      # `preview` в app/build.gradle.kts.
+      - name: Сборка debug
+        run: ./gradlew --no-daemon assembleDebug
+
       - name: Сборка preview
         run: ./gradlew --no-daemon assemblePreview
 
@@ -67,6 +59,13 @@ jobs:
         with:
           name: dentvision-preview-apk
           path: android/app/build/outputs/apk/preview/app-preview.apk
+          if-no-files-found: error
+
+      - name: Выложить debug APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: dentvision-debug-apk
+          path: android/app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
 
       - name: Отчёты тестов, если что-то упало
