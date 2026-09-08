@@ -1,0 +1,57 @@
+/* DentVision final visual polish. Presentation only: no layout logic, API or navigation behavior. */
+
+/* Remove decorative gold gradients outside .dv-page as well. */
+[class*="bg-gradient-to-br"][class*="from-dv-gold"],
+[class*="bg-gradient-to-r"][class*="from-dv-gold"] {
+  background-image: none !important;
+  background-color: color-mix(in srgb, var(--dv-surface, #fff) 94%, var(--dv-accent, #a47b35) 6%) !important;
+}
+
+[class*="bg-gradient-to-br"][class*="from-dv-gold"] [class*="blur-3xl"],
+[class*="bg-gradient-to-br"][class*="from-dv-gold"] [class*="blur-2xl"],
+[class*="bg-gradient-to-r"][class*="from-dv-gold"] [class*="blur-3xl"],
+[class*="bg-gradient-to-r"][class*="from-dv-gold"] [class*="blur-2xl"] {
+  display: none !important;
+}
+
+[class*="shadow-glow"],
+[class*="shadow-[0_0_40px_rgba(212,175,55"] {
+  box-shadow: var(--dv-shadow-sm, 0 1px 2px rgba(0,0,0,.04)) !important;
+}
+
+/* Keep primary gold as a functional accent, not a surface treatment. */
+[class*="border-dv-gold\/20"],
+[class*="border-dv-gold\/25"] {
+  border-color: color-mix(in srgb, var(--dv-accent, #a47b35) 18%, var(--dv-border, rgba(23,25,24,.08))) !important;
+}
+
+/* Premium surfaces for common cards that sit outside .dv-page. */
+[class*="rounded-2xl"].border,
+[class*="rounded-xl"].border {
+  border-color: var(--dv-border, rgba(23,25,24,.08));
+}
+
+/* Touch-friendly controls without making desktop UI oversized. */
+@media (max-width: 767px) {
+  button[class*="rounded-xl"],
+  a[class*="rounded-xl"] {
+    touch-action: manipulation;
+  }
+}
+
+/* Course/AI content: reduce decorative noise while retaining hierarchy. */
+[class*="from-dv-gold\/10"],
+[class*="from-dv-gold\/15"],
+[class*="from-dv-gold\/20"] {
+  box-shadow: none !important;
+}
+
+/* Avoid accidental horizontal overflow in dense workspaces. */
+main,
+[role="main"] {
+  min-width: 0;
+}
+
+img {
+  max-width: 100%;
+}
