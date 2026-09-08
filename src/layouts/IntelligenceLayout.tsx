@@ -1,9 +1,10 @@
 ﻿import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { useTranslation } from 'react-i18next';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Outlet, useNavigate, useLocation, Navigate } from 'react-router-dom';
-import { ChevronRight, Menu, User } from 'lucide-react';
+import { ChevronRight, Menu, Building2, User, Stethoscope } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { useAuth } from '@/store/auth.store';
+import { useAuth, useAuthStore } from '@/store/auth.store';
 import { useUIStore } from '@/store/ui.store';
 import { useGuestStore } from '@/store/guest.store';
 import { useWorkspaceStore } from '@/store/workspace.store';
@@ -11,7 +12,7 @@ import { ContextPanel } from '@/components/intelligence/ContextPanel';
 import { CommandPalette, useCommandPalette } from '@/components/CommandPalette';
 import { useAIStore } from '@/store/ai.store';
 import { trackProductEvent } from '@/utils/analytics';
-import { SuperAppSidebar } from './SuperAppSidebar';
+import { Sidebar } from './Sidebar';
 import { AlertDropdown } from './AlertDropdown';
 import { BottomNav } from './BottomNav';
 import RegistrationModal from '@/components/guest/RegistrationModal';
@@ -33,11 +34,30 @@ export const IntelligenceLayout: React.FC = () => {
   const location = useLocation();
   const { user, clinic, isAuthenticated, roleInfo, logout } = useAuth();
   const { isGuest, isGuestRoute, requiresAuth, initGuest, retryGuest, initError, showRegistrationModal, setRegistrationModal } = useGuestStore();
-  const { sidebarOpen, toggleSidebar, contextSheetOpen, setContextSheetOpen, sidebarCollapsed, setSidebarCollapsed, sidebarVisible, setSidebarVisible, sidebarHovering, setSidebarHovering, firstRunPhase, setFirstRunPhase, completeFirstRun, toggleSidebarCollapsed, crumbTailLabel } = useUIStore();
+  const {
+    sidebarOpen,
+    toggleSidebar,
+    contextSheetOpen,
+    setContextSheetOpen,
+    sidebarCollapsed,
+    setSidebarCollapsed,
+    sidebarPinned,
+    sidebarVisible,
+    setSidebarVisible,
+    sidebarHovering,
+    setSidebarHovering,
+    firstRunPhase,
+    setFirstRunPhase,
+    completeFirstRun,
+    toggleSidebarCollapsed,
+    crumbTailLabel,
+  } = useUIStore();
   const setOnboardingComplete = useWorkspaceStore((s) => s.setOnboardingComplete);
+
   const isPublicRoute = isGuestRoute(location.pathname);
   const needsAuth = requiresAuth(location.pathname) && !isAuthenticated;
   const isAIHome = location.pathname === '/';
+
   const proactiveAlerts = useAIStore((s) => s.proactiveAlerts);
   const loadProactiveAlerts = useAIStore((s) => s.loadProactiveAlerts);
   const isMobile = useCompactShell();
@@ -47,9 +67,41 @@ export const IntelligenceLayout: React.FC = () => {
   const collapseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const firstRunBooted = useRef(false);
   const openTs = useRef(Date.now());
+  const { t } = useTranslation();
 
   const BREADCRUMB_LABELS: Record<string, string> = {
-    crm: 'Practice', schedule: 'Schedule', patients: 'Patients', 'medical-card': 'Medical Card', finance: 'Finance', cashier: 'Cashier', inventory: 'Inventory', documents: 'Documents', 'dental-chart': 'Odontogram', 'treatment-plans': 'Treatment Plans', lab: 'Laboratory', pricelist: 'Price List', staff: 'Team', reminders: 'Reminders', promotions: 'Promotions', icd10: 'ICD-10', visits: 'Visits', supplier: 'Supplier', shop: 'Shop', school: 'Academy', 'school-workspace': 'Academy Workspace', 'center-workspace': 'Diagnostics', analytics: 'Analytics', bi: 'Business Intelligence', jobs: 'Jobs', community: 'Community', profile: 'Profile', 'clinic-settings': 'Clinic Settings', billing: 'Billing', settings: 'Settings', admin: 'Administration', audit: 'Audit & Security', backup: 'Backup', 'ai-approvals': 'AI Approvals', 'agent-activity': 'AI Agents', diagnostics: 'Diagnostics',
+    crm: 'CRM',
+    schedule: t('nav.schedule'),
+    patients: t('nav.patients'),
+    'medical-card': t('nav.medical_card'),
+    finance: t('nav.finance'),
+    cashier: t('nav.cashier'),
+    inventory: t('nav.inventory'),
+    documents: t('nav.documents'),
+    'dental-chart': t('nav.dental_chart'),
+    'treatment-plans': t('nav.treatment_plans'),
+    lab: t('nav.lab'),
+    pricelist: t('nav.pricelist'),
+    staff: t('nav.staff'),
+    reminders: t('nav.reminders'),
+    promotions: t('nav.promotions'),
+    icd10: t('nav.icd10'),
+    visits: t('nav.visits'),
+    supplier: t('nav.supplier_cabinet'),
+    shop: t('nav.shop'),
+    school: 'Academy OS',
+    'school-workspace': t('nav.school_workspace'),
+    'center-workspace': t('nav.center_workspace'),
+    analytics: t('nav.analytics'),
+    jobs: t('nav.jobs'),
+    community: t('nav.community'),
+    profile: t('nav.profile'),
+    'clinic-settings': t('nav.clinic_settings'),
+    billing: t('nav.billing'),
+    settings: t('nav.settings'),
+    admin: t('nav.administration'),
+    audit: t('nav.audit'),
+    backup: t('nav.backup'),
   };
 
   const clinicId = user?.clinicId || clinic?.id || null;
@@ -61,7 +113,9 @@ export const IntelligenceLayout: React.FC = () => {
     retry: 1,
   });
 
-  const handleAIQuery = useCallback((query: string) => { navigate('/', { state: { aiQuery: query } }); }, [navigate]);
+  const handleAIQuery = useCallback((query: string) => {
+    navigate('/', { state: { aiQuery: query } });
+  }, [navigate]);
 
   const getBreadcrumbs = useCallback(() => {
     const segments = location.pathname.split('/').filter(Boolean);
@@ -69,47 +123,171 @@ export const IntelligenceLayout: React.FC = () => {
     const crumbs: { label: string; path: string }[] = [];
     let accumulated = '';
     for (let i = 0; i < segments.length; i++) {
-      const seg = segments[i]; accumulated += '/' + seg; const isLast = i === segments.length - 1;
+      const seg = segments[i];
+      accumulated += '/' + seg;
+      const isLast = i === segments.length - 1;
       let label = BREADCRUMB_LABELS[seg] || seg;
-      if (UUID_SEG_RE.test(seg)) label = (isLast && crumbTailLabel) || 'Record'; else if (isLast && crumbTailLabel && !BREADCRUMB_LABELS[seg]) label = crumbTailLabel;
+      if (UUID_SEG_RE.test(seg)) {
+        label = (isLast && crumbTailLabel) || t('nav.breadcrumb_product');
+      } else if (isLast && crumbTailLabel && !BREADCRUMB_LABELS[seg]) {
+        label = crumbTailLabel;
+      }
       crumbs.push({ label, path: accumulated });
     }
     return crumbs;
-  }, [location.pathname, crumbTailLabel]);
+  }, [location.pathname, crumbTailLabel, t]);
 
-  useEffect(() => { if (!isMobile) setContextSheetOpen(false); }, [isMobile, setContextSheetOpen]);
-  useEffect(() => { const timer = setTimeout(() => { void loadProactiveAlerts(); }, 500); return () => clearTimeout(timer); }, [loadProactiveAlerts]);
+  useEffect(() => {
+    if (!isMobile) setContextSheetOpen(false);
+  }, [isMobile, setContextSheetOpen]);
+
+  useEffect(() => {
+    const timer = setTimeout(() => { void loadProactiveAlerts(); }, 500);
+    return () => clearTimeout(timer);
+  }, [loadProactiveAlerts]);
 
   useEffect(() => {
     if (!isGuest) return;
-    setSidebarVisible(true); setSidebarCollapsed(false); setFirstRunPhase('done'); completeFirstRun(); setOnboardingComplete(true); firstRunBooted.current = true;
+    setSidebarVisible(true);
+    setSidebarCollapsed(false);
+    setFirstRunPhase('done');
+    completeFirstRun();
+    setOnboardingComplete(true);
+    firstRunBooted.current = true;
     if (!isMobile) setContextSheetOpen(true);
   }, [isGuest, isMobile, setSidebarVisible, setSidebarCollapsed, setFirstRunPhase, completeFirstRun, setOnboardingComplete, setContextSheetOpen]);
 
   useEffect(() => {
-    if (isGuest || firstRunBooted.current) return;
-    if (firstRunPhase === 'done') { setSidebarVisible(true); firstRunBooted.current = true; return; }
-    firstRunBooted.current = true; setSidebarVisible(true); setSidebarCollapsed(false); setFirstRunPhase('dock');
-    collapseTimerRef.current = setTimeout(() => { setSidebarCollapsed(true); setFirstRunPhase('done'); completeFirstRun(); }, FIRST_RUN_COLLAPSE_MS);
-    return () => { if (collapseTimerRef.current) clearTimeout(collapseTimerRef.current); };
-  }, [isGuest, firstRunPhase, setSidebarVisible, setSidebarCollapsed, setFirstRunPhase, completeFirstRun]);
+    if (isGuest) return;
+    if (firstRunBooted.current) return;
+    if (firstRunPhase === 'done') {
+      setSidebarVisible(true);
+      return;
+    }
+    if (!isAIHome) {
+      setSidebarVisible(true);
+      setFirstRunPhase('done');
+      completeFirstRun();
+      setOnboardingComplete(true);
+      return;
+    }
 
-  useEffect(() => { if (isAIHome) trackProductEvent('ai_workspace_opened'); }, [isAIHome]);
-  useEffect(() => () => { void openTs.current; }, []);
+    firstRunBooted.current = true;
+    trackProductEvent('first_run_started', { role: user?.role || 'guest' });
+    setFirstRunPhase('greeting');
+    setSidebarVisible(false);
+    setSidebarCollapsed(false);
+
+    const dockTimer = setTimeout(() => {
+      setFirstRunPhase('docking');
+      setSidebarVisible(true);
+      setFirstRunPhase('docked');
+      trackProductEvent('sidebar_docked', { t_ms: Date.now() - openTs.current });
+    }, 700);
+
+    return () => clearTimeout(dockTimer);
+  }, [isGuest, firstRunPhase, isAIHome, setSidebarVisible, setSidebarCollapsed, setFirstRunPhase, completeFirstRun, setOnboardingComplete, user?.role]);
+
+  useEffect(() => {
+    if (isGuest) return;
+    if (firstRunPhase !== 'docked' || sidebarPinned || isMobile) return;
+
+    const clear = () => {
+      if (collapseTimerRef.current) {
+        clearTimeout(collapseTimerRef.current);
+        collapseTimerRef.current = null;
+      }
+    };
+
+    if (sidebarHovering) {
+      clear();
+      return clear;
+    }
+
+    collapseTimerRef.current = setTimeout(() => {
+      setSidebarCollapsed(true);
+      setFirstRunPhase('collapsed');
+      completeFirstRun();
+      setOnboardingComplete(true);
+      trackProductEvent('sidebar_auto_collapsed', { after_ms: FIRST_RUN_COLLAPSE_MS });
+    }, FIRST_RUN_COLLAPSE_MS);
+
+    return clear;
+  }, [isGuest, firstRunPhase, sidebarPinned, sidebarHovering, isMobile, setSidebarCollapsed, setFirstRunPhase, completeFirstRun, setOnboardingComplete]);
+
+  useEffect(() => {
+    if (location.pathname !== '/' && firstRunPhase !== 'done') {
+      completeFirstRun();
+      setOnboardingComplete(true);
+      setFirstRunPhase('done');
+      setSidebarVisible(true);
+      trackProductEvent('first_navigation', { target: location.pathname, t_ms: Date.now() - openTs.current });
+    }
+  }, [location.pathname, firstRunPhase, completeFirstRun, setOnboardingComplete, setFirstRunPhase, setSidebarVisible]);
+
+  useEffect(() => {
+    const isClinicPage = location.pathname.startsWith('/crm') || location.pathname === '/analytics' || location.pathname === '/bi';
+    if (!isClinicPage) return;
+    if (!isAuthenticated || isGuest) return;
+    const orgType = user?.organizationType;
+    if (!orgType || orgType === 'CLINIC') return;
+    try {
+      const raw = localStorage.getItem('dv_clinic_backup');
+      if (!raw) return;
+      const { accessToken, refreshToken } = JSON.parse(raw);
+      api.setTokens(accessToken, refreshToken || null);
+      void useAuthStore.getState().restoreSession();
+    } catch { /* ignore */ }
+  }, [location.pathname, isAuthenticated, isGuest, user?.organizationType]);
+
+  useEffect(() => {
+    if (!isAuthenticated && !isGuest && !isPublicRoute) {
+      void initGuest();
+    }
+  }, [isAuthenticated, isGuest, isPublicRoute, initGuest]);
+
+  const isCRMRoute = location.pathname.startsWith('/crm');
+  const autoDemo = new URLSearchParams(location.search).get('demo') === '1';
+
+  useEffect(() => {
+    if (!needsAuth || !isGuest) return;
+    if (isCRMRoute) {
+      setGuestCRMOpen(true);
+      return;
+    }
+    if (!showRegistrationModal) {
+      const pendingPath = location.pathname;
+      setRegistrationModal(true, () => navigate(pendingPath));
+    }
+  }, [needsAuth, isGuest, isCRMRoute, showRegistrationModal, location.pathname, setRegistrationModal, navigate]);
 
   if (needsAuth) {
-    if (isPublicRoute) {
-      if (location.pathname.startsWith('/crm/schedule') && location.search.includes('demo=1')) {
-        return <GuestCRMModal open={guestCRMOpen} onClose={() => { setGuestCRMOpen(false); navigate('/'); }} />;
+    if (isGuest) {
+      if (isCRMRoute) {
+        return (
+          <div className="fixed inset-0 z-50 bg-surface-0 overflow-hidden flex items-center justify-center">
+            <div className="text-center space-y-4">
+              <div className="mx-auto w-16 h-16 rounded-2xl bg-dv-gold/15 flex items-center justify-center">
+                <Stethoscope size={24} className="text-dv-gold" />
+              </div>
+              <h2 className="text-lg font-semibold text-txt-primary">{t('crm.crm_title')}</h2>
+              <p className="text-sm text-txt-secondary max-w-xs">{t('crm.crm_subtitle')}</p>
+            </div>
+            <GuestCRMModal open={guestCRMOpen} autoStartDemo={autoDemo} onClose={() => { setGuestCRMOpen(false); navigate('/'); }} />
+          </div>
+        );
       }
       return (
         <div className="fixed inset-0 z-50 bg-surface-0 overflow-hidden flex items-center justify-center">
           <div className="text-center space-y-4">
-            <div className="mx-auto w-16 h-16 rounded-2xl bg-dv-gold/15 flex items-center justify-center"><User size={24} className="text-dv-gold" /></div>
-            <h2 className="text-lg font-semibold text-txt-primary">Authentication required</h2>
-            <p className="text-sm text-txt-secondary max-w-xs">Sign in to continue.</p>
-            <button type="button" className="text-sm text-dv-gold hover:underline" onClick={() => setRegistrationModal(true, () => navigate(location.pathname))}>Open login</button>
-          </div><RegistrationModal />
+            <div className="mx-auto w-16 h-16 rounded-2xl bg-dv-gold/15 flex items-center justify-center">
+              <User size={24} className="text-dv-gold" />
+            </div>
+            <h2 className="text-lg font-semibold text-txt-primary">{t('auth.requires_auth')}</h2>
+            <p className="text-sm text-txt-secondary max-w-xs">{t('auth.requires_auth_hint')}</p>
+            <button type="button" className="text-sm text-dv-gold hover:underline" onClick={() => setRegistrationModal(true, () => navigate(location.pathname))}>{t('auth.open_login')}</button>
+          </div>
+          <RegistrationModal />
         </div>
       );
     }
@@ -117,44 +295,97 @@ export const IntelligenceLayout: React.FC = () => {
   }
 
   return (
-    <div className="fixed inset-0 z-50 bg-surface-0 overflow-hidden flex dv-app-surface">
+    <div className="fixed inset-0 z-50 bg-surface-0 overflow-hidden flex">
       <AnimatePresence>
-        {isMobile && sidebarOpen && <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-40 bg-black/60 backdrop-blur-sm" onClick={toggleSidebar} />}
+        {isMobile && sidebarOpen && (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-40 bg-black/60 backdrop-blur-sm" onClick={toggleSidebar} />
+        )}
       </AnimatePresence>
 
       <div onMouseEnter={() => setSidebarHovering(true)} onMouseLeave={() => setSidebarHovering(false)} className="contents">
-        <SuperAppSidebar
+        <Sidebar
           collapsed={sidebarCollapsed}
           setCollapsed={(v) => { setSidebarCollapsed(v); if (!v) trackProductEvent('sidebar_user_expanded'); }}
           sidebarVisible={sidebarVisible}
           isMobile={isMobile}
           sidebarOpen={sidebarOpen}
-          user={isGuest ? { id: 'guest', name: 'Guest', login: 'guest', role: 'guest', platformRole: 'guest' } as any : user}
+          user={isGuest ? { id: 'guest', name: t('nav.guest'), login: 'guest', role: 'guest', platformRole: 'guest' } as any : user}
+          roleInfo={isGuest ? { label: t('nav.guest'), icon: '👤', pages: ['shop', 'school', 'jobs', 'community', 'demo'] } as any : roleInfo}
           logout={isGuest ? () => {} : logout}
           toggleSidebar={toggleSidebar}
           isGuest={isGuest}
-          pendingApprovals={0}
-          isAdmin={Boolean(roleInfo?.pages?.includes('admin'))}
+          onToggleCollapsed={toggleSidebarCollapsed}
         />
       </div>
 
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
         <header className="dv-safe-header sticky top-0 z-30 flex items-center justify-between gap-2 min-h-[calc(var(--dv-topbar-height)+var(--dv-safe-top))] px-2.5 sm:px-4 md:px-6 bg-surface-0/60 backdrop-blur-xl border-b border-bdr-subtle flex-shrink-0 min-w-0 overflow-visible">
           <div className="flex items-center gap-1.5 sm:gap-2.5 min-w-0 flex-1 overflow-hidden">
-            <button onClick={toggleSidebar} className={cn('flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-txt-muted hover:text-txt-primary hover:bg-surface-2 transition-colors', !isMobile && 'hidden')} aria-label="Menu"><Menu size={18} /></button>
+            <button onClick={toggleSidebar} className={cn('flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-txt-muted hover:text-txt-primary hover:bg-surface-2 transition-colors', !isMobile && 'hidden')} aria-label={t('nav.menu')}><Menu size={18} /></button>
             {!isGuest && <WorkspaceSwitcher className="shrink-0" />}
-            {isGuest && <motion.button whileTap={{ scale: 0.98 }} onClick={() => useGuestStore.getState().setRegistrationModal(true)} className="flex shrink-0 items-center gap-1.5 px-2.5 py-1 rounded-full bg-dv-gold/10 border border-dv-gold/20 text-dv-gold hover:bg-dv-gold/15 transition-colors"><User size={12} /><span className="text-[10px] font-semibold">Guest</span></motion.button>}
+            {isGuest && (
+              <motion.button whileTap={{ scale: 0.98 }} onClick={() => useGuestStore.getState().setRegistrationModal(true)} className="flex shrink-0 items-center gap-1.5 px-2.5 py-1 rounded-full bg-dv-gold/10 border border-dv-gold/20 text-dv-gold hover:bg-dv-gold/15 transition-colors"><User size={12} /><span className="text-[10px] font-semibold">{t('nav.guest')}</span></motion.button>
+            )}
             <div className="hidden sm:block h-4 w-px bg-bdr-subtle shrink-0" />
-            <div className="min-w-0 overflow-hidden flex-1"><div className="flex items-center gap-1.5 text-sm text-txt-muted overflow-hidden whitespace-nowrap">{getBreadcrumbs().map((crumb, idx, crumbs) => <span key={crumb.path} className="flex items-center gap-1.5 min-w-0 max-w-full">{idx > 0 && <ChevronRight size={12} className="text-txt-ghost shrink-0" />}<span className={cn('truncate', idx === crumbs.length - 1 ? 'text-txt-primary font-semibold' : 'hidden md:inline')}>{crumb.label}</span></span>)}</div></div>
+            <div className="min-w-0 overflow-hidden flex-1">
+              <div className="flex items-center gap-1.5 text-sm text-txt-muted overflow-hidden whitespace-nowrap">
+                {getBreadcrumbs().map((crumb, idx, crumbs) => (
+                  <span key={crumb.path} className="flex items-center gap-1.5 min-w-0 max-w-full">
+                    {idx > 0 && <ChevronRight size={12} className="text-txt-ghost shrink-0" />}
+                    <span className={cn('truncate', idx === crumbs.length - 1 ? 'text-txt-primary font-semibold' : 'hidden md:inline')}>{crumb.label}</span>
+                  </span>
+                ))}
+              </div>
+            </div>
           </div>
-          <div className="flex items-center gap-2 shrink-0"><LanguageSwitcher /><DentCashHeaderChip /><AlertDropdown open={alertDropdownOpen} onOpenChange={setAlertDropdownOpen} alerts={proactiveAlerts} /></div>
+          <div className="flex items-center gap-1 sm:gap-1.5 shrink-0 max-w-[48%] sm:max-w-none">
+            <button onClick={() => setCmdOpen(true)} className={cn('items-center gap-2 px-3 py-1.5 rounded-lg bg-surface-2 border border-bdr-subtle text-txt-muted hover:text-txt-primary hover:border-dv-gold/30 transition-colors text-xs', isMobile ? 'hidden' : 'flex')}><span>{t('common.search')}...</span><kbd className="px-1 py-0.5 text-[10px] font-mono bg-surface-3 rounded border border-bdr-subtle">⌘K</kbd></button>
+            <AlertDropdown alerts={proactiveAlerts} isOpen={alertDropdownOpen} setIsOpen={setAlertDropdownOpen} />
+            <button onClick={() => setContextSheetOpen(!contextSheetOpen)} className={cn('hidden lg:flex h-8 w-8 items-center justify-center rounded-lg transition-colors', contextSheetOpen ? 'text-dv-gold bg-dv-gold/10' : 'text-txt-muted hover:text-txt-primary hover:bg-surface-2')} aria-label={t('nav.context_panel')}><Building2 size={16} /></button>
+            <LanguageSwitcher compact />
+            <div className="hidden sm:block h-4 w-px bg-bdr-subtle shrink-0" />
+            <DentCashHeaderChip />
+            <div className="hidden lg:flex items-center gap-1 px-2 py-0.5 rounded-full bg-dv-gold/10 border border-dv-gold/20"><span className="w-1.5 h-1.5 rounded-full bg-success" /><span className="text-[10px] font-medium text-dv-gold">AI</span></div>
+          </div>
         </header>
-        {billingSnap && <PlanAccessBanner snapshot={billingSnap} />}
-        <main className="flex-1 min-h-0 overflow-auto dv-page"><ErrorBoundary><Outlet /></ErrorBoundary></main>
+
+        <div className={cn('flex-1 bg-surface-0 relative min-h-0', isAIHome ? 'overflow-hidden flex flex-col' : 'overflow-y-auto overflow-x-hidden dv-content-pad-bottom')}>
+          {billingSnap ? <div className="px-3 pt-3 md:px-4 md:pt-4 shrink-0"><PlanAccessBanner snap={billingSnap} /></div> : null}
+          {!isAuthenticated && initError ? (
+            <div className="px-3 pt-3 md:px-4 md:pt-4 shrink-0"><div className="rounded-xl border border-amber-500/30 bg-amber-500/10 px-3 py-2.5 flex flex-wrap items-center gap-2 sm:gap-3"><p className="text-xs sm:text-sm text-txt-primary m-0 flex-1">{t('auth.guest_session_error')}</p><button type="button" onClick={() => { void retryGuest(); }} className="px-3 py-1.5 rounded-lg bg-dv-gold/15 text-dv-gold text-xs font-semibold hover:bg-dv-gold/25">{t('common.retry')}</button><button type="button" onClick={() => navigate('/login')} className="px-3 py-1.5 rounded-lg border border-bdr-subtle text-txt-secondary text-xs hover:text-txt-primary">{t('auth.login')}</button></div></div>
+          ) : null}
+          <motion.div key={`${location.pathname}:${clinic?.id || 'none'}`} initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.12 }} className={cn('min-w-0 w-full max-w-full overflow-x-hidden', isAIHome ? 'flex-1 min-h-0 h-full' : 'h-full')}>
+            <ErrorBoundary fullPage={false}>
+              <Outlet context={{ user, clinic, roleInfo, billingSnap }} />
+            </ErrorBoundary>
+          </motion.div>
+        </div>
       </div>
-      {!isMobile && contextSheetOpen && <ContextPanel open={contextSheetOpen} onClose={() => setContextSheetOpen(false)} />}
-      <BottomNav />
-      <CommandPalette open={cmdOpen} onOpenChange={setCmdOpen} onAIQuery={handleAIQuery} />
+
+      {!isMobile && (
+        <AnimatePresence>
+          {contextSheetOpen && (
+            <motion.aside initial={{ width: 0, opacity: 0 }} animate={{ width: 320, opacity: 1 }} exit={{ width: 0, opacity: 0 }} transition={{ type: 'spring', stiffness: 350, damping: 30 }} className="hidden lg:flex flex-col border-l border-bdr-subtle bg-surface-1 overflow-hidden flex-shrink-0 h-full">
+              <ContextPanel onClose={() => setContextSheetOpen(false)} clinic={clinic} user={user} role={roleInfo} />
+            </motion.aside>
+          )}
+        </AnimatePresence>
+      )}
+
+      <AnimatePresence>
+        {isMobile && contextSheetOpen && (
+          <>
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-40 bg-black/50 backdrop-blur-sm" onClick={() => setContextSheetOpen(false)} />
+            <motion.div initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }} transition={{ type: 'spring', stiffness: 300, damping: 30 }} drag="y" dragConstraints={{ top: 0, bottom: 0 }} dragElastic={0.3} onDragEnd={(_, info) => { if (info.offset.y > 100) setContextSheetOpen(false); }} className="fixed bottom-0 left-0 right-0 z-50 max-h-[min(85vh,85dvh)] bg-surface-1 border-t border-bdr-subtle rounded-t-2xl shadow-2xl flex flex-col" style={{ paddingBottom: 'var(--dv-safe-bottom)' }}>
+              <div className="flex h-12 items-center justify-center border-b border-bdr-subtle cursor-grab active:cursor-grabbing touch-pan-y" onClick={() => setContextSheetOpen(false)}><div className="h-1 w-10 rounded-full bg-txt-muted" /></div>
+              <div className="flex-1 overflow-y-auto"><ContextPanel onClose={() => setContextSheetOpen(false)} clinic={clinic} user={user} role={roleInfo} /></div>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
+
+      <CommandPalette open={cmdOpen} onClose={() => setCmdOpen(false)} onAIQuery={handleAIQuery} />
+      {isMobile && <BottomNav />}
       <RegistrationModal />
     </div>
   );
