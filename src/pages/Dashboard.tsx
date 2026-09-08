@@ -1,7 +1,11 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { motion, type Variants } from 'framer-motion'
-import { Calendar, Users, DollarSign, Stethoscope, ShoppingCart, GraduationCap, Bot, BarChart3, FlaskConical, Settings, ArrowRight, Clock, Activity, Sparkles, CreditCard, FileText, SlidersHorizontal, X, ChevronDown, ChevronUp } from 'lucide-react'
+import {
+  Calendar, Users, DollarSign, Stethoscope, ShoppingCart, GraduationCap, Bot,
+  BarChart3, FlaskConical, Settings, ArrowRight, Clock, Activity, Sparkles,
+  CreditCard, FileText, SlidersHorizontal, X, ChevronDown, ChevronUp,
+} from 'lucide-react'
 import { cn, getGreeting, formatMoney } from '@/lib/utils'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/ds/Card'
 import { PageHeader, StatCard } from '@/components/ui/ds/StatCard'
@@ -13,49 +17,269 @@ import { getMyProfile, updateMyProfile } from '@/utils/api'
 
 const container: Variants = { hidden: { opacity: 0 }, show: { opacity: 1, transition: { staggerChildren: 0.05 } } }
 const item: Variants = { hidden: { opacity: 0, y: 10 }, show: { opacity: 1, y: 0, transition: { duration: 0.28, ease: 'easeOut' } } }
+
 const SERVICE_TILES = [
-  { id:'crm', title:'CRM', subtitle:'Пациенты и расписание', icon:Stethoscope, path:'/crm/schedule', category:'Клиника' },
-  { id:'shop', title:'Shop', subtitle:'Товары и закупки', icon:ShoppingCart, path:'/shop', category:'Операции' },
-  { id:'school', title:'School', subtitle:'Обучение и курсы', icon:GraduationCap, path:'/school', category:'Обучение' },
-  { id:'ai', title:'AI Assistant', subtitle:'ИИ-помощник врача', icon:Bot, path:'/', category:'ИИ' },
-  { id:'analytics', title:'Аналитика', subtitle:'Отчёты и метрики', icon:BarChart3, path:'/analytics', category:'Операции' },
-  { id:'lab', title:'Лаборатория', subtitle:'Заказы и статусы', icon:FlaskConical, path:'/crm/lab', category:'Клиника' },
-  { id:'cashier', title:'Финансы', subtitle:'Доходы и расходы', icon:CreditCard, path:'/crm/cashier', category:'Операции' },
-  { id:'settings', title:'Настройки', subtitle:'Рабочее пространство', icon:Settings, path:'/settings', category:'Система' },
+  { id: 'crm', title: 'CRM', subtitle: 'Пациенты и расписание', icon: Stethoscope, path: '/crm/schedule', category: 'Клиника' },
+  { id: 'shop', title: 'Shop', subtitle: 'Товары и закупки', icon: ShoppingCart, path: '/shop', category: 'Операции' },
+  { id: 'school', title: 'School', subtitle: 'Обучение и курсы', icon: GraduationCap, path: '/school', category: 'Обучение' },
+  { id: 'ai', title: 'AI Assistant', subtitle: 'ИИ-помощник врача', icon: Bot, path: '/', category: 'ИИ' },
+  { id: 'analytics', title: 'Аналитика', subtitle: 'Отчёты и метрики', icon: BarChart3, path: '/analytics', category: 'Операции' },
+  { id: 'lab', title: 'Лаборатория', subtitle: 'Заказы и статусы', icon: FlaskConical, path: '/crm/lab', category: 'Клиника' },
+  { id: 'cashier', title: 'Финансы', subtitle: 'Доходы и расходы', icon: CreditCard, path: '/crm/cashier', category: 'Операции' },
+  { id: 'settings', title: 'Настройки', subtitle: 'Рабочее пространство', icon: Settings, path: '/settings', category: 'Система' },
 ]
+
 const DEFAULT_QUICK = SERVICE_TILES.map(s => s.id)
-const PREF_KEY = 'dentvision.home.quick-services.v1'
+const PREF_KEY = 'dentvision.home.quick-services.v2'
+
+type ProfilePrefs = { homeQuickServices?: string[]; homeAiAutoCollapse?: boolean }
 
 function QuickStats({ data }: { data: ReturnType<typeof useDataQuery> }) {
-  const stats = useMemo(() => { const today=new Date().toISOString().split('T')[0]; const todayAppts=(data.appointments||[]).filter(a=>a.date===today); const todayRevenue=(data.receipts||[]).filter(r=>String((r as {date?:string}).date||'').slice(0,10)===today).reduce((s,r)=>s+(Number(r.amount)||0),0); return {todayCount:todayAppts.length,todayRevenue,activePatients:(data.patients||[]).length} }, [data])
-  return <div className="grid grid-cols-2 lg:grid-cols-4 gap-3"><StatCard label="Записей сегодня" value={stats.todayCount} icon={<Calendar size={18}/>} /><StatCard label="Пациентов" value={stats.activePatients} icon={<Users size={18}/>} /><StatCard label="Доход сегодня" value={formatMoney(stats.todayRevenue)} icon={<DollarSign size={18}/>} /><StatCard label="Загрузка (оц.)" value={`${Math.min(100,Math.round((stats.todayCount/8)*100))}%`} icon={<Activity size={18}/>} /></div>
+  const stats = useMemo(() => {
+    const today = new Date().toISOString().split('T')[0]
+    const todayAppts = (data.appointments || []).filter(a => a.date === today)
+    const todayRevenue = (data.receipts || [])
+      .filter(r => String((r as { date?: string }).date || '').slice(0, 10) === today)
+      .reduce((s, r) => s + (Number(r.amount) || 0), 0)
+    return { todayCount: todayAppts.length, todayRevenue, activePatients: (data.patients || []).length }
+  }, [data])
+
+  return (
+    <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+      <StatCard label="Записей сегодня" value={stats.todayCount} icon={<Calendar size={18} />} />
+      <StatCard label="Пациентов" value={stats.activePatients} icon={<Users size={18} />} />
+      <StatCard label="Доход сегодня" value={formatMoney(stats.todayRevenue)} icon={<DollarSign size={18} />} />
+      <StatCard label="Загрузка (оц.)" value={`${Math.min(100, Math.round((stats.todayCount / 8) * 100))}%`} icon={<Activity size={18} />} />
+    </div>
+  )
 }
 
-function AiSmartBanner({ collapsed, onToggle }: { collapsed:boolean; onToggle:()=>void }) {
-  const [autoCollapse,setAutoCollapse]=useState(true)
-  useEffect(()=>{ if(!autoCollapse||collapsed)return; const t=window.setTimeout(onToggle,5000); return()=>window.clearTimeout(t) },[autoCollapse,collapsed,onToggle])
-  if(collapsed)return <motion.button initial={{opacity:0,y:-8}} animate={{opacity:1,y:0}} onClick={onToggle} className="w-full flex items-center gap-3 rounded-2xl border border-dv-gold/20 bg-dv-gold/5 px-4 py-3 text-left hover:bg-dv-gold/10 transition-colors"><span className="flex h-9 w-9 items-center justify-center rounded-xl bg-dv-gold/15 text-dv-gold"><Bot size={18}/></span><span className="min-w-0 flex-1"><span className="block text-sm font-semibold text-txt-primary">AI Smart Bar</span><span className="block text-2xs text-txt-muted truncate">3 новых инсайта готовы к просмотру</span></span><Badge variant="warning" size="xs">3</Badge><ArrowRight size={15} className="text-dv-gold"/></motion.button>
-  return <motion.div layout className="relative overflow-hidden rounded-2xl border border-dv-gold/25 bg-gradient-to-br from-dv-gold/15 via-surface-1 to-transparent p-4 md:p-5 shadow-[0_0_40px_rgba(212,175,55,0.08)]"><div className="absolute -right-10 -top-10 h-32 w-32 rounded-full bg-dv-gold/15 blur-3xl"/><div className="relative flex gap-3"><div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-dv-gold/15 text-dv-gold"><Sparkles size={19}/></div><div className="min-w-0 flex-1"><div className="flex flex-wrap items-center gap-2"><span className="text-sm font-semibold text-txt-primary">AI сегодня</span><Badge variant="warning" size="xs">3 новых инсайта</Badge></div><p className="mt-1 text-sm text-txt-secondary">Обнаружены 3 записи, требующие внимания. Есть рекомендации по расписанию и подготовке к приёмам.</p><div className="mt-3 flex flex-wrap gap-2"><Button size="sm" variant="primary">Открыть инсайты</Button><Button size="sm" variant="secondary">Спросить AI</Button><button onClick={onToggle} className="px-3 text-xs text-txt-muted hover:text-txt-primary">Свернуть</button></div></div><button onClick={onToggle} aria-label="Свернуть AI" className="h-8 w-8 rounded-lg text-txt-muted hover:bg-surface-2"><X size={16}/></button></div><label className="relative mt-3 flex items-center gap-2 text-2xs text-txt-muted cursor-pointer"><input type="checkbox" checked={autoCollapse} onChange={e=>setAutoCollapse(e.target.checked)}/> Автоматически сворачивать</label></motion.div>
+function AiSmartBanner({
+  collapsed,
+  onToggle,
+  autoCollapse,
+  onAutoCollapseChange,
+}: {
+  collapsed: boolean
+  onToggle: () => void
+  autoCollapse: boolean
+  onAutoCollapseChange: (value: boolean) => void
+}) {
+  useEffect(() => {
+    if (!autoCollapse || collapsed) return
+    const timer = window.setTimeout(onToggle, 5000)
+    return () => window.clearTimeout(timer)
+  }, [autoCollapse, collapsed, onToggle])
+
+  if (collapsed) {
+    return (
+      <motion.button
+        initial={{ opacity: 0, y: -8 }}
+        animate={{ opacity: 1, y: 0 }}
+        onClick={onToggle}
+        className="w-full flex items-center gap-3 rounded-2xl border border-dv-gold/20 bg-dv-gold/5 px-4 py-3 text-left hover:bg-dv-gold/10 transition-colors"
+      >
+        <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-dv-gold/15 text-dv-gold"><Bot size={18} /></span>
+        <span className="min-w-0 flex-1">
+          <span className="block text-sm font-semibold text-txt-primary">AI Smart Bar</span>
+          <span className="block text-2xs text-txt-muted truncate">3 новых инсайта готовы к просмотру</span>
+        </span>
+        <Badge variant="warning" size="xs">3</Badge>
+        <ArrowRight size={15} className="text-dv-gold" />
+      </motion.button>
+    )
+  }
+
+  return (
+    <motion.div layout className="relative overflow-hidden rounded-2xl border border-dv-gold/25 bg-gradient-to-br from-dv-gold/15 via-surface-1 to-transparent p-4 md:p-5 shadow-[0_0_40px_rgba(212,175,55,0.08)]">
+      <div className="absolute -right-10 -top-10 h-32 w-32 rounded-full bg-dv-gold/15 blur-3xl" />
+      <div className="relative flex gap-3">
+        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-dv-gold/15 text-dv-gold"><Sparkles size={19} /></div>
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-sm font-semibold text-txt-primary">AI сегодня</span>
+            <Badge variant="warning" size="xs">3 новых инсайта</Badge>
+          </div>
+          <p className="mt-1 text-sm text-txt-secondary">Обнаружены 3 записи, требующие внимания. Есть рекомендации по расписанию и подготовке к приёмам.</p>
+          <div className="mt-3 flex flex-wrap gap-2">
+            <Button size="sm" variant="primary">Открыть инсайты</Button>
+            <Button size="sm" variant="secondary">Спросить AI</Button>
+            <button onClick={onToggle} className="px-3 text-xs text-txt-muted hover:text-txt-primary">Свернуть</button>
+          </div>
+        </div>
+        <button onClick={onToggle} aria-label="Свернуть AI" className="h-8 w-8 rounded-lg text-txt-muted hover:bg-surface-2 hover:text-txt-primary"><X size={16} /></button>
+      </div>
+      <label className="relative mt-3 flex items-center gap-2 text-2xs text-txt-muted cursor-pointer">
+        <input type="checkbox" checked={autoCollapse} onChange={e => onAutoCollapseChange(e.target.checked)} />
+        Автоматически сворачивать
+      </label>
+    </motion.div>
+  )
 }
 
-function ServiceSettings({ visible,onClose,onSave }:{visible:string[];onClose:()=>void;onSave:(ids:string[])=>void}) {
-  const [draft,setDraft]=useState(visible)
-  const toggle=(id:string)=>setDraft(v=>v.includes(id)?v.filter(x=>x!==id):v.length<8?[...v,id]:v)
-  const move=(index:number,direction:-1|1)=>setDraft(v=>{const n=[...v],target=index+direction;if(target<0||target>=n.length)return v;[n[index],n[target]]=[n[target],n[index]];return n})
-  return <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/50 p-0 sm:p-4" onMouseDown={onClose}><div className="w-full sm:max-w-lg max-h-[85vh] overflow-y-auto rounded-t-2xl sm:rounded-2xl border border-bdr-subtle bg-surface-1 p-5 shadow-2xl" onMouseDown={e=>e.stopPropagation()}><div className="flex items-center justify-between"><div><h2 className="text-lg font-semibold text-txt-primary">Настройки Главного экрана</h2><p className="text-xs text-txt-muted mt-1">Выберите до 8 сервисов и задайте порядок.</p></div><button onClick={onClose} className="h-9 w-9 rounded-lg hover:bg-surface-2 text-txt-muted"><X size={18}/></button></div><div className="mt-5 space-y-2">{SERVICE_TILES.map(s=>{const checked=draft.includes(s.id),index=draft.indexOf(s.id),Icon=s.icon;return <div key={s.id} className={cn('flex items-center gap-3 rounded-xl border p-3',checked?'border-dv-gold/30 bg-dv-gold/5':'border-bdr-subtle')}><input type="checkbox" checked={checked} onChange={()=>toggle(s.id)} className="h-4 w-4"/><span className="flex h-9 w-9 items-center justify-center rounded-lg bg-surface-2 text-dv-gold"><Icon size={17}/></span><div className="min-w-0 flex-1"><div className="text-sm font-medium text-txt-primary">{s.title}</div><div className="text-2xs text-txt-muted">{s.subtitle}</div></div>{checked&&<div className="flex gap-1"><button disabled={index===0} onClick={()=>move(index,-1)} className="h-8 w-8 rounded-lg hover:bg-surface-2 disabled:opacity-30">↑</button><button disabled={index===draft.length-1} onClick={()=>move(index,1)} className="h-8 w-8 rounded-lg hover:bg-surface-2 disabled:opacity-30">↓</button></div>}</div>})}</div><div className="mt-5 flex gap-2"><Button className="flex-1" onClick={()=>onSave(draft)}>Сохранить</Button><Button variant="secondary" onClick={onClose}>Отмена</Button></div></div></div>
+function ServiceSettings({ visible, onClose, onSave }: { visible: string[]; onClose: () => void; onSave: (ids: string[]) => void }) {
+  const [draft, setDraft] = useState(visible)
+  const toggle = (id: string) => setDraft(v => v.includes(id) ? v.filter(x => x !== id) : v.length < 8 ? [...v, id] : v)
+  const move = (index: number, direction: -1 | 1) => setDraft(v => {
+    const next = [...v]
+    const target = index + direction
+    if (target < 0 || target >= next.length) return v
+    ;[next[index], next[target]] = [next[target], next[index]]
+    return next
+  })
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/50 p-0 sm:p-4" onMouseDown={onClose}>
+      <div className="w-full sm:max-w-lg max-h-[85vh] overflow-y-auto rounded-t-2xl sm:rounded-2xl border border-bdr-subtle bg-surface-1 p-5 shadow-2xl" onMouseDown={e => e.stopPropagation()}>
+        <div className="flex items-center justify-between">
+          <div>
+            <h2 className="text-lg font-semibold text-txt-primary">Настройки Главного экрана</h2>
+            <p className="text-xs text-txt-muted mt-1">Выберите до 8 сервисов и задайте порядок.</p>
+          </div>
+          <button onClick={onClose} className="h-9 w-9 rounded-lg hover:bg-surface-2 text-txt-muted"><X size={18} /></button>
+        </div>
+        <div className="mt-5 space-y-2">
+          {SERVICE_TILES.map(s => {
+            const checked = draft.includes(s.id)
+            const index = draft.indexOf(s.id)
+            const Icon = s.icon
+            return (
+              <div key={s.id} className={cn('flex items-center gap-3 rounded-xl border p-3 transition-colors', checked ? 'border-dv-gold/30 bg-dv-gold/5' : 'border-bdr-subtle')}>
+                <input type="checkbox" checked={checked} onChange={() => toggle(s.id)} className="h-4 w-4" />
+                <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-surface-2 text-dv-gold"><Icon size={17} /></span>
+                <div className="min-w-0 flex-1"><div className="text-sm font-medium text-txt-primary">{s.title}</div><div className="text-2xs text-txt-muted">{s.subtitle}</div></div>
+                {checked && <div className="flex gap-1"><button disabled={index === 0} onClick={() => move(index, -1)} className="h-8 w-8 rounded-lg hover:bg-surface-2 disabled:opacity-30">↑</button><button disabled={index === draft.length - 1} onClick={() => move(index, 1)} className="h-8 w-8 rounded-lg hover:bg-surface-2 disabled:opacity-30">↓</button></div>}
+              </div>
+            )
+          })}
+        </div>
+        <div className="mt-5 flex gap-2"><Button className="flex-1" onClick={() => onSave(draft)}>Сохранить</Button><Button variant="secondary" onClick={onClose}>Отмена</Button></div>
+      </div>
+    </div>
+  )
 }
 
-function ServiceGrid({quickIds,onConfigure}:{quickIds:string[];onConfigure:()=>void}) {
-  const navigate=useNavigate(); const [openCategory,setOpenCategory]=useState<string|null>(null); const quick=quickIds.map(id=>SERVICE_TILES.find(s=>s.id===id)).filter(Boolean) as typeof SERVICE_TILES; const categories=Array.from(new Set(SERVICE_TILES.map(s=>s.category)))
-  return <div><div className="flex items-center justify-between mb-3 px-1"><div><h3 className="text-sm font-semibold text-txt-secondary">Быстрый доступ</h3><p className="text-2xs text-txt-muted mt-0.5">Ваши основные инструменты</p></div><button onClick={onConfigure} className="flex items-center gap-1.5 rounded-lg px-2.5 py-2 text-xs text-txt-muted hover:bg-surface-2 hover:text-txt-primary"><SlidersHorizontal size={14}/> Настроить</button></div><div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">{quick.map(tile=>{const Icon=tile.icon;return <motion.button key={tile.id} variants={item} whileHover={{y:-2}} whileTap={{scale:.98}} onClick={()=>navigate(tile.path)} className="group relative min-w-0 overflow-hidden rounded-2xl border border-bdr-subtle bg-gradient-to-br from-dv-gold/8 to-transparent p-3.5 text-left hover:border-dv-gold/25 transition-all"><span className="flex h-9 w-9 items-center justify-center rounded-xl bg-dv-gold/10 text-dv-gold"><Icon size={18}/></span><h4 className="mt-2.5 truncate text-sm font-semibold text-txt-primary">{tile.title}</h4><p className="mt-0.5 line-clamp-1 text-2xs text-txt-muted">{tile.subtitle}</p><ArrowRight size={13} className="absolute right-3 top-3 text-dv-gold opacity-0 group-hover:opacity-100"/></motion.button>})}</div><div className="mt-4 space-y-2">{categories.map(category=>{const expanded=openCategory===category,items=SERVICE_TILES.filter(s=>s.category===category&&!quickIds.includes(s.id));return <div key={category} className="rounded-xl border border-bdr-subtle overflow-hidden"><button onClick={()=>setOpenCategory(expanded?null:category)} className="flex w-full items-center justify-between px-3.5 py-3 text-left hover:bg-surface-2/50"><span className="text-xs font-medium text-txt-secondary">{category}<span className="ml-2 text-2xs text-txt-muted">{items.length}</span></span>{expanded?<ChevronUp size={15}/>:<ChevronDown size={15}/>}</button>{expanded&&items.length>0&&<div className="grid grid-cols-2 md:grid-cols-4 gap-2 px-2.5 pb-2.5">{items.map(tile=>{const Icon=tile.icon;return <button key={tile.id} onClick={()=>navigate(tile.path)} className="flex items-center gap-2 rounded-lg p-2.5 text-left hover:bg-surface-2"><span className="text-dv-gold"><Icon size={15}/></span><span className="min-w-0 truncate text-xs text-txt-secondary">{tile.title}</span></button>})}</div>}</div>})}</div></div>
+function ServiceGrid({ quickIds, onConfigure }: { quickIds: string[]; onConfigure: () => void }) {
+  const navigate = useNavigate()
+  const [openCategory, setOpenCategory] = useState<string | null>(null)
+  const quick = quickIds.map(id => SERVICE_TILES.find(s => s.id === id)).filter(Boolean) as typeof SERVICE_TILES
+  const categories = Array.from(new Set(SERVICE_TILES.map(s => s.category)))
+
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-3 px-1">
+        <div><h3 className="text-sm font-semibold text-txt-secondary">Быстрый доступ</h3><p className="text-2xs text-txt-muted mt-0.5">Ваши основные инструменты</p></div>
+        <button onClick={onConfigure} className="flex items-center gap-1.5 rounded-lg px-2.5 py-2 text-xs text-txt-muted hover:bg-surface-2 hover:text-txt-primary"><SlidersHorizontal size={14} /> Настроить</button>
+      </div>
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+        {quick.map(tile => {
+          const Icon = tile.icon
+          return <motion.button key={tile.id} variants={item} whileHover={{ y: -2 }} whileTap={{ scale: .98 }} onClick={() => navigate(tile.path)} className="group relative min-w-0 overflow-hidden rounded-2xl border border-bdr-subtle bg-gradient-to-br from-dv-gold/8 to-transparent p-3.5 text-left hover:border-dv-gold/25 transition-all"><span className="flex h-9 w-9 items-center justify-center rounded-xl bg-dv-gold/10 text-dv-gold"><Icon size={18} /></span><h4 className="mt-2.5 truncate text-sm font-semibold text-txt-primary">{tile.title}</h4><p className="mt-0.5 line-clamp-1 text-2xs text-txt-muted">{tile.subtitle}</p><ArrowRight size={13} className="absolute right-3 top-3 text-dv-gold opacity-0 group-hover:opacity-100 transition-opacity" /></motion.button>
+        })}
+      </div>
+      <div className="mt-4 space-y-2">
+        {categories.map(category => {
+          const expanded = openCategory === category
+          const items = SERVICE_TILES.filter(s => s.category === category && !quickIds.includes(s.id))
+          return <div key={category} className="rounded-xl border border-bdr-subtle overflow-hidden"><button onClick={() => setOpenCategory(expanded ? null : category)} className="flex w-full items-center justify-between px-3.5 py-3 text-left hover:bg-surface-2/50"><span className="text-xs font-medium text-txt-secondary">{category}<span className="ml-2 text-2xs text-txt-muted">{items.length}</span></span>{expanded ? <ChevronUp size={15} /> : <ChevronDown size={15} />}</button>{expanded && items.length > 0 && <div className="grid grid-cols-2 md:grid-cols-4 gap-2 px-2.5 pb-2.5">{items.map(tile => { const Icon = tile.icon; return <button key={tile.id} onClick={() => navigate(tile.path)} className="flex items-center gap-2 rounded-lg p-2.5 text-left hover:bg-surface-2"><span className="text-dv-gold"><Icon size={15} /></span><span className="min-w-0 truncate text-xs text-txt-secondary">{tile.title}</span></button> })}</div>}</div>
+        })}
+      </div>
+    </div>
+  )
 }
 
-function UpcomingAppointments({data}:{data:ReturnType<typeof useDataQuery>}){const navigate=useNavigate();const today=new Date().toISOString().split('T')[0];const appointments=(data.appointments||[]).filter(a=>a.date>=today).sort((a,b)=>(a.date+(a.time||'')).localeCompare(b.date+(b.time||''))).slice(0,5);const patients=data.patients||[];if(!appointments.length)return null;return <Card><CardHeader className="flex-wrap"><CardTitle className="flex items-center gap-2"><Clock size={16} className="text-dv-gold"/> Ближайшие записи</CardTitle><button onClick={()=>navigate('/crm/schedule')} className="text-xs text-dv-gold min-h-11">Все записи</button></CardHeader><CardContent><div className="space-y-2">{appointments.map(appt=>{const patient=patients.find(p=>p.id===appt.patientId);return <div key={appt.id} className="flex items-center gap-3 rounded-lg px-3 py-2.5 bg-surface-2/50"><div className="flex h-8 w-8 items-center justify-center rounded-lg bg-dv-gold/10 text-dv-gold text-xs font-bold shrink-0">{appt.time?.slice(0,5)||'--:--'}</div><div className="min-w-0 flex-1"><p className="text-sm font-medium text-txt-primary truncate">{patient?.name||appt.patientName||'Пациент'}</p><p className="text-2xs text-txt-muted truncate">{appt.service||'Приём'}</p></div><Badge variant={appt.status==='confirmed'?'success':appt.status==='cancelled'?'error':'warning'} size="xs">{appt.status==='confirmed'?'Подтверждена':appt.status==='cancelled'?'Отменена':'Ожидание'}</Badge></div>})}</div></CardContent></Card>}
-function QuickActions(){const navigate=useNavigate();const actions=[{label:'Новый пациент',icon:<Users size={16}/>,path:'/crm/patients'},{label:'Запись',icon:<Calendar size={16}/>,path:'/crm/schedule'},{label:'Документ',icon:<FileText size={16}/>,path:'/crm/documents'},{label:'Аналитика',icon:<BarChart3 size={16}/>,path:'/analytics'}];return <div><h3 className="text-sm font-semibold text-txt-secondary mb-3 px-1">Быстрые действия</h3><div className="flex flex-wrap gap-2">{actions.map(a=><motion.button key={a.label} whileHover={{scale:1.02}} whileTap={{scale:.98}} onClick={()=>navigate(a.path)} className="flex items-center gap-2 px-3 py-2 rounded-lg bg-surface-raised border border-bdr-subtle text-txt-secondary text-sm hover:bg-surface-raised-hover transition-all min-h-11">{a.icon}{a.label}</motion.button>)}</div></div>}
+function UpcomingAppointments({ data }: { data: ReturnType<typeof useDataQuery> }) {
+  const navigate = useNavigate()
+  const today = new Date().toISOString().split('T')[0]
+  const appointments = (data.appointments || []).filter(a => a.date >= today).sort((a, b) => (a.date + (a.time || '')).localeCompare(b.date + (b.time || ''))).slice(0, 5)
+  const patients = data.patients || []
+  if (!appointments.length) return null
+  return <Card><CardHeader className="flex-wrap"><CardTitle className="flex items-center gap-2"><Clock size={16} className="text-dv-gold" /> Ближайшие записи</CardTitle><button onClick={() => navigate('/crm/schedule')} className="text-xs text-dv-gold min-h-11">Все записи</button></CardHeader><CardContent><div className="space-y-2">{appointments.map(appt => { const patient = patients.find(p => p.id === appt.patientId); return <div key={appt.id} className="flex items-center gap-3 rounded-lg px-3 py-2.5 bg-surface-2/50"><div className="flex h-8 w-8 items-center justify-center rounded-lg bg-dv-gold/10 text-dv-gold text-xs font-bold shrink-0">{appt.time?.slice(0, 5) || '--:--'}</div><div className="min-w-0 flex-1"><p className="text-sm font-medium text-txt-primary truncate">{patient?.name || appt.patientName || 'Пациент'}</p><p className="text-2xs text-txt-muted truncate">{appt.service || 'Приём'}</p></div><Badge variant={appt.status === 'confirmed' ? 'success' : appt.status === 'cancelled' ? 'error' : 'warning'} size="xs">{appt.status === 'confirmed' ? 'Подтверждена' : appt.status === 'cancelled' ? 'Отменена' : 'Ожидание'}</Badge></div> })}</div></CardContent></Card>
+}
 
-export default function Dashboard(){
-  const {user}=useAuth(); const data=useDataQuery(user?.clinicId); const [quickIds,setQuickIds]=useState<string[]>(DEFAULT_QUICK); const [settingsOpen,setSettingsOpen]=useState(false); const [aiCollapsed,setAiCollapsed]=useState(false); const [profileLoaded,setProfileLoaded]=useState(false)
-  useEffect(()=>{ let alive=true; (async()=>{try{const profile=await getMyProfile(); const serverIds=Array.isArray(profile?.user?.homeQuickServices)?profile.user.homeQuickServices:[]; if(alive&&serverIds.length) setQuickIds(serverIds.filter((id:string)=>SERVICE_TILES.some(s=>s.id===id)).slice(0,8)); else {try{const raw=localStorage.getItem(PREF_KEY);if(raw){const parsed=JSON.parse(raw);if(Array.isArray(parsed)&&parsed.length) setQuickIds(parsed.filter((id:string)=>SERVICE_TILES.some(s=>s.id===id)).slice(0,8))}}catch{}} }catch{try{const raw=localStorage.getItem(PREF_KEY);if(raw){const parsed=JSON.parse(raw);if(Array.isArray(parsed)&&parsed.length&&alive)setQuickIds(parsed.filter((id:string)=>SERVICE_TILES.some(s=>s.id===id)).slice(0,8))}}catch{}} finally{if(alive)setProfileLoaded(true)}})(); return()=>{alive=false} },[])
-  const saveQuick=async(ids:string[])=>{const next=ids.slice(0,8);setQuickIds(next);setSettingsOpen(false);try{localStorage.setItem(PREF_KEY,JSON.stringify(next))}catch{};try{await updateMyProfile({homeQuickServices:next})}catch{/* local fallback remains available */}}
-  return <motion.div variants={container} initial="hidden" animate="show" className="max-w-full overflow-x-hidden mx-auto space-y-5"><motion.div variants={item}><PageHeader title={`${getGreeting()}, ${user?.name||user?.login}`} subtitle={new Date().toLocaleDateString('ru-RU',{weekday:'long',day:'numeric',month:'long',year:'numeric'})} actions={<div className="hidden md:flex items-center gap-2 px-3 py-1.5 rounded-lg bg-dv-gold/10 border border-dv-gold/20"><Sparkles size={14} className="text-dv-gold"/><span className="text-xs font-medium text-dv-gold">AI включён</span></div>}/></motion.div><motion.div variants={item}><AiSmartBanner collapsed={aiCollapsed} onToggle={()=>setAiCollapsed(v=>!v)}/></motion.div>{data.isError&&!data.isLoading&&<motion.div variants={item} className="rounded-xl border border-error/30 bg-error/10 px-4 py-3 text-sm text-txt-primary flex flex-wrap items-center gap-3"><span className="flex-1">Не удалось загрузить данные клиники. Показанные цифры могут быть неполными.</span><Button size="sm" variant="secondary" onClick={()=>data.refetchCore()}>Повторить</Button></motion.div>}<motion.div variants={item}><QuickStats data={data}/></motion.div><motion.div variants={item}>{profileLoaded&&<ServiceGrid quickIds={quickIds} onConfigure={()=>setSettingsOpen(true)}/>}</motion.div><motion.div variants={item}><UpcomingAppointments data={data}/></motion.div><motion.div variants={item}><QuickActions/></motion.div>{settingsOpen&&<ServiceSettings visible={quickIds} onClose={()=>setSettingsOpen(false)} onSave={saveQuick}/>}</motion.div>
+function QuickActions() {
+  const navigate = useNavigate()
+  const actions = [{ label: 'Новый пациент', icon: <Users size={16} />, path: '/crm/patients' }, { label: 'Запись', icon: <Calendar size={16} />, path: '/crm/schedule' }, { label: 'Документ', icon: <FileText size={16} />, path: '/crm/documents' }, { label: 'Аналитика', icon: <BarChart3 size={16} />, path: '/analytics' }]
+  return <div><h3 className="text-sm font-semibold text-txt-secondary mb-3 px-1">Быстрые действия</h3><div className="flex flex-wrap gap-2">{actions.map(a => <motion.button key={a.label} whileHover={{ scale: 1.02 }} whileTap={{ scale: .98 }} onClick={() => navigate(a.path)} className="flex items-center gap-2 px-3 py-2 rounded-lg bg-surface-raised border border-bdr-subtle text-txt-secondary text-sm hover:bg-surface-raised-hover transition-all min-h-11">{a.icon}{a.label}</motion.button>)}</div></div>
+}
+
+export default function Dashboard() {
+  const { user } = useAuth()
+  const data = useDataQuery(user?.clinicId)
+  const [quickIds, setQuickIds] = useState<string[]>(DEFAULT_QUICK)
+  const [settingsOpen, setSettingsOpen] = useState(false)
+  const [aiCollapsed, setAiCollapsed] = useState(false)
+  const [aiAutoCollapse, setAiAutoCollapse] = useState(true)
+
+  useEffect(() => {
+    let cancelled = false
+    const load = async () => {
+      try {
+        const profile = await getMyProfile()
+        if (cancelled) return
+        const prefs = (profile?.user || profile) as ProfilePrefs
+        const serverIds = Array.isArray(prefs?.homeQuickServices) ? prefs.homeQuickServices.filter(id => SERVICE_TILES.some(s => s.id === id)).slice(0, 8) : []
+        if (serverIds.length > 0) setQuickIds(serverIds)
+        else {
+          try {
+            const raw = localStorage.getItem(PREF_KEY)
+            if (raw) {
+              const parsed = JSON.parse(raw)
+              if (Array.isArray(parsed)) setQuickIds(parsed.filter(id => SERVICE_TILES.some(s => s.id === id)).slice(0, 8))
+            }
+          } catch (error) {
+            console.warn('Unable to restore dashboard preferences from local storage', error)
+          }
+        }
+        setAiAutoCollapse(prefs?.homeAiAutoCollapse !== false)
+      } catch (error) {
+        console.warn('Unable to load dashboard preferences from server', error)
+        try {
+          const raw = localStorage.getItem(PREF_KEY)
+          if (raw) {
+            const parsed = JSON.parse(raw)
+            if (Array.isArray(parsed)) setQuickIds(parsed.filter(id => SERVICE_TILES.some(s => s.id === id)).slice(0, 8))
+          }
+        } catch (storageError) {
+          console.warn('Unable to restore dashboard preferences from local storage', storageError)
+        }
+      }
+    }
+    void load()
+    return () => { cancelled = true }
+  }, [user?.id])
+
+  const persistPreferences = async (ids: string[], autoCollapse = aiAutoCollapse) => {
+    const next = ids.slice(0, 8)
+    setQuickIds(next)
+    try { localStorage.setItem(PREF_KEY, JSON.stringify(next)) } catch (error) { console.warn('Unable to cache dashboard preferences', error) }
+    try {
+      await updateMyProfile({ homeQuickServices: next, homeAiAutoCollapse: autoCollapse })
+    } catch (error) {
+      console.warn('Unable to synchronize dashboard preferences', error)
+    }
+  }
+
+  const saveQuick = async (ids: string[]) => {
+    await persistPreferences(ids)
+    setSettingsOpen(false)
+  }
+
+  const changeAutoCollapse = (value: boolean) => {
+    setAiAutoCollapse(value)
+    void persistPreferences(quickIds, value)
+  }
+
+  return (
+    <motion.div variants={container} initial="hidden" animate="show" className="max-w-full overflow-x-hidden mx-auto space-y-5">
+      <motion.div variants={item}><PageHeader title={`${getGreeting()}, ${user?.name || user?.login}`} subtitle={new Date().toLocaleDateString('ru-RU', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })} actions={<div className="hidden md:flex items-center gap-2 px-3 py-1.5 rounded-lg bg-dv-gold/10 border border-dv-gold/20"><Sparkles size={14} className="text-dv-gold" /><span className="text-xs font-medium text-dv-gold">AI включён</span></div>} /></motion.div>
+      <motion.div variants={item}><AiSmartBanner collapsed={aiCollapsed} onToggle={() => setAiCollapsed(v => !v)} autoCollapse={aiAutoCollapse} onAutoCollapseChange={changeAutoCollapse} /></motion.div>
+      {data.isError && !data.isLoading && <motion.div variants={item} className="rounded-xl border border-error/30 bg-error/10 px-4 py-3 text-sm text-txt-primary flex flex-wrap items-center gap-3"><span className="flex-1">Не удалось загрузить данные клиники. Показанные цифры могут быть неполными.</span><Button size="sm" variant="secondary" onClick={() => data.refetchCore()}>Повторить</Button></motion.div>}
+      <motion.div variants={item}><QuickStats data={data} /></motion.div>
+      <motion.div variants={item}><ServiceGrid quickIds={quickIds} onConfigure={() => setSettingsOpen(true)} /></motion.div>
+      <motion.div variants={item}><UpcomingAppointments data={data} /></motion.div>
+      <motion.div variants={item}><QuickActions /></motion.div>
+      {settingsOpen && <ServiceSettings visible={quickIds} onClose={() => setSettingsOpen(false)} onSave={saveQuick} />}
+    </motion.div>
+  )
 }
