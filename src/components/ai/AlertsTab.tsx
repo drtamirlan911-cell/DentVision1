@@ -9,6 +9,7 @@ import { GlassCard } from '@/components/ui/ds/GlassCard'
 import { Badge } from '@/components/ui/ds/Badge'
 import { Button } from '@/components/ui/ds/Button'
 import { useAIStore } from '@/store/ai.store'
+import { AI_NAV_ACTIONS } from '@/lib/aiPlatformMap'
 
 const PRIORITY_CONFIG = {
   high: {
@@ -43,17 +44,8 @@ function priorityLevel(priority: number): 'high' | 'medium' | 'low' {
 }
 
 const ACTION_PATHS: Record<string, string> = {
-  OpenSchedule: '/crm/schedule',
-  OpenCashier: '/crm/finance',
-  OpenInventory: '/crm/inventory',
-  OpenBilling: '/crm/billing',
-  OpenSchool: '/school',
-  OpenSchoolWorkspace: '/school-workspace',
-  OpenProfile: '/profile',
-  OpenPatients: '/crm/patients',
-  OpenLab: '/crm/lab',
+  ...AI_NAV_ACTIONS,
   OpenNotifications: '/crm/reminders',
-  OpenTreatmentPlans: '/crm/treatment-plans',
   GetPendingAppointments: '/crm/schedule',
 }
 
