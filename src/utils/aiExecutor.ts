@@ -4,7 +4,6 @@ import { aiAction } from '@/utils/api';
 import { useAuth } from '@/store/auth.store';
 import type { Message } from '@/store/ai.store';
 import { AI_NAV_ACTIONS } from '@/lib/aiPlatformMap';
-import { isMutatingAIAction, requiresExplicitAIConfirmation } from '@/lib/aiActionPolicy';
 import i18n from '@/lib/i18n';
 
 const t = (key: string, fallback: string) => {
@@ -70,19 +69,12 @@ export function useAIExecutor() {
   ): Promise<ActionResult | null> => {
     const { onConfirm, addMessage } = callbacks;
 
-    // Safety invariant: mutating actions are never allowed to bypass the
-    // confirmation layer merely because an upstream response omitted the flag.
-    if (requiresExplicitAIConfirmation(action) && isMutatingAIAction(action)) {
-      const confirmed = await onConfirm?.(action);
-      if (!confirmed) return null;
-    } else if (action.requiresConfirmation) {
+    if (action.requiresConfirmation) {
       const confirmed = await onConfirm?.(action);
       if (!confirmed) return null;
     }
 
     try {
-      // Pure navigation intents — resolve locally so OPEN_SCHEDULE / OpenSchedule both work
-      // without a round-trip that can fail and leave the chat button dead.
       const localPath = resolveNavigationPath(action.type, action.params);
       if (localPath) {
         callbacks.onNavigate?.(localPath);
@@ -99,17 +91,10 @@ export function useAIExecutor() {
             navigate(result.path);
           }
           return result;
-
         case 'data':
           callbacks.onData?.(result.data, result.label);
-          addMessage?.({
-            role: 'assistant',
-            content: `${result.label}:`,
-            timestamp: new Date(),
-            data: result.data,
-          });
+          addMessage?.({ role: 'assistant', content: `${result.label}:`, timestamp: new Date(), data: result.data });
           return result;
-
         case 'created':
           callbacks.onCreated?.(result.data, result.label);
           queryClient.invalidateQueries({ queryKey: ['patients'] });
@@ -117,49 +102,24 @@ export function useAIExecutor() {
           queryClient.invalidateQueries({ queryKey: ['labOrders'] });
           queryClient.invalidateQueries({ queryKey: ['receipts'] });
           queryClient.invalidateQueries({ queryKey: ['inventory'] });
-          addMessage?.({
-            role: 'assistant',
-            content: `${result.label}: ${JSON.stringify(result.data)}`,
-            timestamp: new Date(),
-            data: result.data,
-          });
+          addMessage?.({ role: 'assistant', content: `${result.label}: ${JSON.stringify(result.data)}`, timestamp: new Date(), data: result.data });
           return result;
-
         case 'updated':
           callbacks.onUpdated?.(result.data, result.label);
           queryClient.invalidateQueries({ queryKey: ['appointments'] });
-          addMessage?.({
-            role: 'assistant',
-            content: `${result.label}`,
-            timestamp: new Date(),
-            data: result.data,
-          });
+          addMessage?.({ role: 'assistant', content: `${result.label}`, timestamp: new Date(), data: result.data });
           return result;
-
         case 'report':
           callbacks.onReport?.(result.data, result.label);
-          addMessage?.({
-            role: 'assistant',
-            content: `${result.label}`,
-            timestamp: new Date(),
-            data: result.data,
-          });
+          addMessage?.({ role: 'assistant', content: `${result.label}`, timestamp: new Date(), data: result.data });
           return result;
-
         case 'recommendation':
           callbacks.onRecommendation?.(result.data, result.label);
-          addMessage?.({
-            role: 'assistant',
-            content: `${result.label}`,
-            timestamp: new Date(),
-            data: result.data,
-          });
+          addMessage?.({ role: 'assistant', content: `${result.label}`, timestamp: new Date(), data: result.data });
           return result;
-
         case 'error':
           callbacks.onError?.(result.message || t('ai.error_execution', 'Ошибка выполнения'));
           return result;
-
         default:
           return result;
       }
@@ -184,11 +144,7 @@ export function useAIExecutor() {
     return NAVIGATION_ACTIONS;
   };
 
-  return {
-    executeAction,
-    executeNavigation,
-    getAvailableActions,
-  };
+  return { executeAction, executeNavigation, getAvailableActions };
 }
 
 export function extractNavigationAction(action: AIAction): string | null {
@@ -201,19 +157,12 @@ export function isNavigationAction(action: AIAction): boolean {
 
 export function isDataAction(action: AIAction): boolean {
   return [
-    'SearchPatients',
-    'GetTodaySchedule',
-    'GetClinicStats',
-    'GetPendingAppointments',
-    'GetUnpaidReceipts',
-    'GetActiveLabOrders',
-    'SearchShop',
-    'RecommendEquipment',
-    'SearchCourses',
-    'RecommendCourses',
+    'SearchPatients', 'GetTodaySchedule', 'GetClinicStats', 'GetPendingAppointments',
+    'GetUnpaidReceipts', 'GetActiveLabOrders', 'SearchShop', 'RecommendEquipment',
+    'SearchCourses', 'RecommendCourses',
   ].includes(action.type);
 }
 
 export function isCreationAction(action: AIAction): boolean {
-  return isMutatingAIAction(action);
+  return ['CreateAppointment', 'UpdateAppointmentStatus', 'CreatePatient', 'CreateLabOrder', 'GenerateDailyReport'].includes(action.type);
 }
