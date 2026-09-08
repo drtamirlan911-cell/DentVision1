@@ -12,4 +12,9 @@
 --
 -- Idempotent; mirrored as a runOnceMigration block in src/index.ts.
 
-ALTER TABLE "patients" ADD COLUMN IF NOT EXISTS "noIinReason" TEXT;
+DO $$
+BEGIN
+  IF to_regclass('public.patients') IS NOT NULL THEN
+    ALTER TABLE "patients" ADD COLUMN IF NOT EXISTS "noIinReason" TEXT;
+  END IF;
+END $$;
