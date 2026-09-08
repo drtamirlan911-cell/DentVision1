@@ -24,11 +24,11 @@ export function BottomNav() {
   const { t } = useTranslation();
 
   const ITEMS: BottomNavItem[] = [
-    { id: 'crm', label: 'CRM', icon: <Stethoscope size={18} />, path: '/crm/schedule', color: '#C9A96E', requiresAuth: true },
-    { id: 'shop', label: t('nav.market'), icon: <ShoppingCart size={18} />, path: '/shop', color: '#8E44AD', requiresAuth: false },
-    { id: 'ai', label: 'AI', icon: <Bot size={18} />, path: '/', color: '#D4AF37', requiresAuth: false },
-    { id: 'school', label: 'Academy', icon: <GraduationCap size={18} />, path: '/school', color: '#16A085', requiresAuth: false },
-    { id: 'community', label: t('nav.network'), icon: <Users size={18} />, path: '/community', color: '#00BCD4', requiresAuth: false },
+    { id: 'crm', label: 'CRM', icon: <Stethoscope size={18} />, path: '/crm/schedule', color: '#A47B35', requiresAuth: true },
+    { id: 'shop', label: t('nav.market'), icon: <ShoppingCart size={18} />, path: '/shop', color: '#A47B35', requiresAuth: false },
+    { id: 'ai', label: 'AI', icon: <Bot size={18} />, path: '/', color: '#A47B35', requiresAuth: false },
+    { id: 'school', label: 'Academy', icon: <GraduationCap size={18} />, path: '/school', color: '#A47B35', requiresAuth: false },
+    { id: 'community', label: t('nav.network'), icon: <Users size={18} />, path: '/community', color: '#A47B35', requiresAuth: false },
   ];
 
   const handleNavClick = useCallback((item: BottomNavItem) => {
@@ -65,7 +65,7 @@ export function BottomNav() {
             <motion.button
               key={item.id}
               onClick={() => handleNavClick(item)}
-              whileTap={{ scale: 0.9 }}
+              whileTap={{ scale: 0.97 }}
               className="flex flex-col items-center justify-center gap-0.5 w-16 h-full relative"
               disabled={isDisabled}
               aria-current={isActive ? 'page' : undefined}
@@ -75,7 +75,7 @@ export function BottomNav() {
                   layoutId="bottomnav-indicator"
                   className="absolute top-0 left-1/2 -translate-x-1/2 w-8 h-0.5 rounded-full"
                   style={{ backgroundColor: item.color }}
-                  transition={{ type: 'spring', stiffness: 400, damping: 30 }}
+                  transition={{ duration: 0.18, ease: [0.16, 1, 0.3, 1] }}
                 />
               )}
               <span className={cn('transition-colors', isActive ? '' : 'text-txt-muted', isDisabled && 'opacity-40')}>
