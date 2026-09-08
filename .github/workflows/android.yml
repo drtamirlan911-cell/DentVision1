@@ -2,7 +2,7 @@ name: Android
 
 on:
   push:
-    branches: [main, develop]
+    branches: [main, develop, 'audit/**']
     paths:
       - 'android/**'
       - 'dentvision-backend/**'
