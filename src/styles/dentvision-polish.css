@@ -9,6 +9,13 @@
   background-color: color-mix(in srgb, var(--dv-surface, #fff) 94%, var(--dv-accent, #a47b35) 6%) !important;
 }
 
+/* Direct page-level primary CTAs keep the brand fill even if they still use a legacy gradient class. */
+[class*="bg-gradient-to-br"][class*="text-dv-gold-on"],
+[class*="bg-gradient-to-r"][class*="text-dv-gold-on"] {
+  background-image: none !important;
+  background-color: var(--dv-accent, #a47b35) !important;
+}
+
 [class*="bg-gradient-to-br"][class*="from-dv-gold"] [class*="blur-3xl"],
 [class*="bg-gradient-to-br"][class*="from-dv-gold"] [class*="blur-2xl"],
 [class*="bg-gradient-to-r"][class*="from-dv-gold"] [class*="blur-3xl"],
