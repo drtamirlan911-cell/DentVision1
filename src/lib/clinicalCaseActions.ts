@@ -31,8 +31,8 @@ function withContext(path: string, context?: Pick<ClinicalCaseContext, 'patientI
 }
 
 export function resolveClinicalCaseAction(type: string, context?: Pick<ClinicalCaseContext, 'patientId' | 'planId' | 'visitId'>): AIAction | null {
-  if (!(type in CLINICAL_CASE_ACTIONS)) return null
   const actionType = type as ClinicalCaseAction
+  if (!(Object.values(CLINICAL_CASE_ACTIONS) as string[]).includes(type)) return null
   const path = AI_NAV_ACTIONS[actionType] || ACTION_FALLBACKS[actionType]
   if (!path) return null
 
