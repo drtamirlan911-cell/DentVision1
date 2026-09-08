@@ -107,6 +107,29 @@ img {
   backdrop-filter: none !important;
 }
 
+/* Chat bubbles: remove the remaining AI-era glow/gradient treatment. */
+[class*="from-[#D4B57A]"][class*="to-dv-gold\/85"] {
+  background-image: none !important;
+  background-color: var(--dv-accent, #a47b35) !important;
+  box-shadow: var(--dv-shadow-sm, 0 1px 2px rgba(0,0,0,.04)) !important;
+}
+
+[class*="from-white/[0.055]"][class*="to-white/[0.025]"] {
+  background-image: none !important;
+  background: var(--dv-surface-2, #f6f7f7) !important;
+  border-color: var(--dv-border, rgba(23,25,24,.08)) !important;
+  box-shadow: var(--dv-shadow-sm, 0 1px 2px rgba(0,0,0,.04)) !important;
+  backdrop-filter: none !important;
+}
+
+/* Auth/public booking cards: keep the premium hierarchy without frosted-glass dependence. */
+[class*="backdrop-blur-2xl"][class*="border-dv-gold\/20"] {
+  background: var(--dv-surface, #fff) !important;
+  border-color: var(--dv-border-strong, rgba(23,25,24,.15)) !important;
+  backdrop-filter: none !important;
+  box-shadow: var(--dv-shadow-md, 0 8px 24px rgba(0,0,0,.06)) !important;
+}
+
 /* Keep compact AI controls tactile and visually quiet. */
 @media (max-width: 767px) {
   .dv-composer-pad button {
