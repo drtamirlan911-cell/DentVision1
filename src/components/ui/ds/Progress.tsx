@@ -20,11 +20,11 @@ const SIZE_CLASSES = {
 }
 
 const VARIANT_CLASSES = {
-  gold: 'bg-gradient-to-r from-dv-gold to-dv-gold-light',
-  emerald: 'bg-gradient-to-r from-emerald-500 to-emerald-400',
-  red: 'bg-gradient-to-r from-red-500 to-red-400',
-  sky: 'bg-gradient-to-r from-sky-500 to-sky-400',
-  purple: 'bg-gradient-to-r from-purple-500 to-purple-400',
+  gold: 'bg-dv-gold',
+  emerald: 'bg-emerald-500',
+  red: 'bg-red-500',
+  sky: 'bg-sky-500',
+  purple: 'bg-purple-500',
 }
 
 export function ProgressBar({
@@ -47,7 +47,7 @@ export function ProgressBar({
       )}
       <div className={cn('w-full rounded-full bg-surface-1 overflow-hidden', SIZE_CLASSES[size])}>
         <div
-          className={cn('h-full rounded-full transition-all duration-500 ease-out', VARIANT_CLASSES[variant])}
+          className={cn('h-full rounded-full transition-[width] duration-500 ease-out', VARIANT_CLASSES[variant])}
           style={{ width: `${percent}%` }}
         />
       </div>
@@ -106,7 +106,7 @@ export function CircularProgress({
           strokeLinecap="round"
           strokeDasharray={circumference}
           strokeDashoffset={offset}
-          className={cn('transition-all duration-500 ease-out', STROKE_COLORS[variant])}
+          className={cn('transition-[stroke-dashoffset] duration-500 ease-out', STROKE_COLORS[variant])}
         />
       </svg>
       {showLabel && (
