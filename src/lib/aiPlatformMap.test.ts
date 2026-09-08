@@ -14,11 +14,19 @@ describe('aiPlatformMap', () => {
     expect(AI_NAV_ACTIONS.OpenCashier).toBe('/crm/cashier')
     expect(AI_NAV_ACTIONS.OpenFinance).toBe('/crm/cashier')
     expect(AI_NAV_ACTIONS.OpenInvoice).toBe('/crm/cashier')
+    expect(AI_NAV_ACTIONS.OpenDentalChart).toBe('/crm/dental-chart')
+    expect(AI_NAV_ACTIONS.OPEN_DENTAL_CHART).toBe('/crm/dental-chart')
+    expect(AI_NAV_ACTIONS.OpenTreatmentPlans).toBe('/crm/treatment-plans')
+    expect(AI_NAV_ACTIONS.OPEN_TREATMENT_PLAN).toBe('/crm/treatment-plans')
+  })
+
+  it('infers finance stage from both canonical and legacy routes', () => {
+    expect(stageFromPath('/crm/cashier')).toBe('finance')
+    expect(stageFromPath('/crm/finance')).toBe('finance')
+    expect(stageFromPath('/crm/billing')).toBe('finance')
   })
 
   it('infers stage and role chips', () => {
-    expect(stageFromPath('/crm/cashier')).toBe('finance')
-    expect(stageFromPath('/crm/finance')).not.toBe('finance')
     const owner = getSmartSuggestions({ user: { role: 'owner' }, pathname: '/crm/schedule' })
     expect(owner.some((s) => /сегодня|записать|выручк|долг|карта/i.test(s))).toBe(true)
     const guest = getSmartSuggestions({ guest: true })
