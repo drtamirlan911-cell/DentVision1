@@ -18,15 +18,34 @@ export type CheckoutCompensationResult = {
  */
 export async function compensateDeterministicCheckoutFailure(orderId: string, reason: string): Promise<CheckoutCompensationResult> {
   const result = await prisma.$transaction(async (tx) => {
+    const current = await tx.order.findUnique({
+      where: { id: orderId },
+      select: { status: true, meta: true, items: true },
+    });
+
+    if (!current || !['pending', 'awaiting_payment', 'payment_processing'].includes(current.status)) {
+      return { compensated: false, stockRestored: 0 };
+    }
+
+    const meta = current.meta && typeof current.meta === 'object' && !Array.isArray(current.meta)
+      ? (current.meta as Record<string, unknown>)
+      : {};
+    const compensation = meta.compensation && typeof meta.compensation === 'object' && !Array.isArray(meta.compensation)
+      ? (meta.compensation as Record<string, unknown>)
+      : {};
+
+    if (compensation.status === 'claimed' || compensation.status === 'completed') {
+      return { compensated: false, stockRestored: 0 };
+    }
+
     const claimed = await tx.order.updateMany({
-      where: {
-        id: orderId,
-        status: { in: ['pending', 'awaiting_payment', 'payment_processing'] },
-      },
+      where: { id: orderId, status: current.status },
       data: {
         status: 'cancelled',
         meta: {
+          ...meta,
           compensation: {
+            ...compensation,
             status: 'claimed',
             reason,
             claimedAt: new Date().toISOString(),
@@ -35,14 +54,10 @@ export async function compensateDeterministicCheckoutFailure(orderId: string, re
       },
     });
 
-    if (claimed.count === 0) {
-      return { compensated: false, stockRestored: 0 };
-    }
+    if (claimed.count === 0) return { compensated: false, stockRestored: 0 };
 
-    const order = await tx.order.findUnique({ where: { id: orderId }, select: { items: true } });
-    const items = Array.isArray(order?.items) ? order.items : [];
+    const items = Array.isArray(current.items) ? current.items : [];
     let stockRestored = 0;
-
     for (const raw of items) {
       if (!raw || typeof raw !== 'object') continue;
       const item = raw as Record<string, unknown>;
@@ -50,29 +65,14 @@ export async function compensateDeterministicCheckoutFailure(orderId: string, re
       const quantity = Number(item.quantity);
       if (!productId || !Number.isInteger(quantity) || quantity <= 0) continue;
 
-      await tx.product.update({
-        where: { id: productId },
-        data: { stock: { increment: quantity } },
-      });
+      await tx.product.update({ where: { id: productId }, data: { stock: { increment: quantity } } });
       stockRestored += quantity;
     }
-
     return { compensated: true, stockRestored };
   });
 
-  if (!result.compensated) {
-    return { compensated: false, stockRestored: 0, dentCashRefundedMinor: 0n };
-  }
+  if (!result.compensated) return { compensated: false, stockRestored: 0, dentCashRefundedMinor: 0n };
 
-  const refund = await refundDentCashSpend({
-    refType: 'order',
-    refId: orderId,
-    reason,
-  });
-
-  return {
-    compensated: true,
-    stockRestored: result.stockRestored,
-    dentCashRefundedMinor: refund.refunded,
-  };
+  const refund = await refundDentCashSpend({ refType: 'order', refId: orderId, reason });
+  return { compensated: true, stockRestored: result.stockRestored, dentCashRefundedMinor: refund.refunded };
 }
