@@ -1,8 +1,14 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const clinicMemberFindFirst = vi.fn();
-const appointmentFindFirst = vi.fn();
-const invoiceFindFirst = vi.fn();
+const {
+  clinicMemberFindFirst,
+  appointmentFindFirst,
+  invoiceFindFirst,
+} = vi.hoisted(() => ({
+  clinicMemberFindFirst: vi.fn(),
+  appointmentFindFirst: vi.fn(),
+  invoiceFindFirst: vi.fn(),
+}));
 
 vi.mock('../../lib/prisma.js', () => ({ default: {
   clinicMember: { findFirst: clinicMemberFindFirst },
