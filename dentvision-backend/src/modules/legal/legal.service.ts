@@ -60,7 +60,7 @@ export async function createDocumentFromTemplate(templateId: string, partnerId: 
     data: { documentId: doc.id, version: 1, content, status: 'DRAFT', createdBy },
   });
   await writeAuditLog({ documentId: doc.id, action: 'CREATED', toStatus: 'DRAFT', toVersion: 1, performedBy: createdBy });
-    return doc;
+  return doc;
 }
 
 const FORWARD_TRANSITIONS: Record<string, string[]> = {
@@ -80,15 +80,41 @@ export async function changeDocumentStatus(documentId: string, newStatus: string
   if (!allowed.includes(newStatus)) {
     throw new Error(`Cannot transition from ${doc.status} to ${newStatus}. Allowed: ${allowed.join(', ')}`);
   }
-  const updated = await prisma.legalDocument.update({
-    where: { id: documentId },
-    data: { status: newStatus as any, approvedBy: ['APPROVED', 'PUBLISHED'].includes(newStatus) ? performedBy : undefined },
+
+  // Compare-and-set prevents two concurrent requests from both advancing the
+  // same document and writing conflicting versions/audit entries.
+  const claimed = await prisma.legalDocument.updateMany({
+    where: { id: documentId, status: doc.status as any },
+    data: {
+      status: newStatus as any,
+      approvedBy: ['APPROVED', 'PUBLISHED'].includes(newStatus) ? performedBy : undefined,
+    },
   });
+  if (claimed.count !== 1) {
+    throw new Error('Document status changed concurrently; reload and retry');
+  }
+
   await prisma.legalDocumentVersion.create({
-    data: { documentId, version: doc.version + 1, content: doc.content, status: newStatus as any, changelog, createdBy: performedBy },
+    data: {
+      documentId,
+      version: doc.version + 1,
+      content: doc.content,
+      status: newStatus as any,
+      changelog,
+      createdBy: performedBy,
+    },
   });
-  await writeAuditLog({ documentId, action: 'STATUS_CHANGED', fromStatus: doc.status, toStatus: newStatus, fromVersion: doc.version, toVersion: doc.version + 1, diff: { status: { from: doc.status, to: newStatus } }, performedBy });
-  return updated;
+  await writeAuditLog({
+    documentId,
+    action: 'STATUS_CHANGED',
+    fromStatus: doc.status,
+    toStatus: newStatus,
+    fromVersion: doc.version,
+    toVersion: doc.version + 1,
+    diff: { status: { from: doc.status, to: newStatus } },
+    performedBy,
+  });
+  return prisma.legalDocument.findUnique({ where: { id: documentId } });
 }
 
 const DOCUMENTS_PER_TYPE: Record<string, string[]> = {
