@@ -21,22 +21,14 @@ import type { AiSurface } from './kernel.types.js';
 
 const router = Router();
 
-/** GET /api/ai/approvals — visible to the caller via the same tiered ladder as the Activity Center. */
 router.get('/', authenticate, async (req: AuthRequest, res) => {
   try {
-    if (!req.user?.id) {
-      return res.status(401).json({ ok: false, error: 'Требуется авторизация' });
-    }
+    if (!req.user?.id) return res.status(401).json({ ok: false, error: 'Требуется авторизация' });
     const status = req.query.status as string | undefined;
     const clinicId = req.user.clinicId || (req.query.clinicId as string) || null;
     const { where } = await buildApprovalFilter(req.user.id, clinicId);
     const finalWhere = status ? { ...where, status } : where;
-
-    const approvals = await prisma.aiApproval.findMany({
-      where: finalWhere,
-      orderBy: { createdAt: 'desc' },
-      take: 100,
-    });
+    const approvals = await prisma.aiApproval.findMany({ where: finalWhere, orderBy: { createdAt: 'desc' }, take: 100 });
     return res.json({ ok: true, data: approvals });
   } catch (error) {
     console.error('[AI Approvals] list failed:', error);
@@ -44,51 +36,36 @@ router.get('/', authenticate, async (req: AuthRequest, res) => {
   }
 });
 
-/** POST /api/ai/approvals/:id/approve — re-enters the kernel to actually execute the action. */
+/**
+ * Approve using a compare-and-set transition. Only the request that changes
+ * pending -> approved owns execution, preventing double execution under
+ * concurrent approve requests.
+ */
 router.post('/:id/approve', authenticate, async (req: AuthRequest, res) => {
   try {
-    if (!req.user?.id) {
-      return res.status(401).json({ ok: false, error: 'Требуется авторизация' });
-    }
+    if (!req.user?.id) return res.status(401).json({ ok: false, error: 'Требуется авторизация' });
+
     const approval = await prisma.aiApproval.findUnique({ where: { id: String(req.params.id) } });
-    if (!approval) {
-      return res.status(404).json({ ok: false, error: 'Подтверждение не найдено' });
-    }
-    if (approval.status !== 'pending') {
-      return res.status(409).json({ ok: false, error: 'Уже обработано' });
-    }
-    if (approval.expiresAt && approval.expiresAt.getTime() < Date.now()) {
-      return res.status(409).json({ ok: false, error: 'Срок действия истёк' });
-    }
+    if (!approval) return res.status(404).json({ ok: false, error: 'Подтверждение не найдено' });
+    if (approval.status !== 'pending') return res.status(409).json({ ok: false, error: 'Уже обработано' });
+    if (approval.expiresAt && approval.expiresAt.getTime() < Date.now()) return res.status(409).json({ ok: false, error: 'Срок действия истёк' });
     if (!assertSameClinic(req, res, approval.clinicId)) return;
 
-    const access = await resolveAiToolAccess({
-      userId: req.user.id,
-      clinicId: req.user.clinicId,
-      isGuest: req.user.isGuest,
-    });
-    if (!access.allowed.has(approval.tool)) {
-      return res.status(403).json({ ok: false, error: 'Недостаточно прав для подтверждения этого действия' });
-    }
+    const access = await resolveAiToolAccess({ userId: req.user.id, clinicId: req.user.clinicId, isGuest: req.user.isGuest });
+    if (!access.allowed.has(approval.tool)) return res.status(403).json({ ok: false, error: 'Недостаточно прав для подтверждения этого действия' });
     if (approval.riskLevel === 'high' && approval.requestedByUserId === req.user.id) {
       return res.status(403).json({ ok: false, error: 'Нельзя самому подтвердить собственный запрос такого уровня риска' });
     }
 
     const decisionNote = typeof req.body?.note === 'string' ? req.body.note : null;
-    await prisma.aiApproval.update({
-      where: { id: approval.id },
+    const claimed = await prisma.aiApproval.updateMany({
+      where: { id: approval.id, status: 'pending' },
       data: { status: 'approved', decidedByUserId: req.user.id, decidedAt: new Date(), decisionNote },
     });
+    if (claimed.count !== 1) return res.status(409).json({ ok: false, error: 'Подтверждение уже обрабатывается' });
 
-    // Execute as the original requester — the approval authorizes *their*
-    // proposed action, it does not hand the approver's own identity to it.
     const result = await runAiAction(
-      {
-        surface: approval.surface as AiSurface,
-        userId: approval.requestedByUserId,
-        requestedClinicId: approval.clinicId,
-        agentId: approval.agentId || undefined,
-      },
+      { surface: approval.surface as AiSurface, userId: approval.requestedByUserId, requestedClinicId: approval.clinicId, agentId: approval.agentId || undefined },
       { tool: approval.tool, args: approval.params as Record<string, unknown>, approvalId: approval.id },
     );
 
@@ -98,10 +75,7 @@ router.post('/:id/approve', authenticate, async (req: AuthRequest, res) => {
     });
 
     await auditFromReq(req, { action: 'ai.approval.approved', entity: 'ai_approval', entityId: approval.id });
-
-    if (result.status !== 'ok') {
-      return res.status(500).json({ ok: false, error: result.status === 'denied' ? result.error : 'Не удалось выполнить действие' });
-    }
+    if (result.status !== 'ok') return res.status(500).json({ ok: false, error: result.status === 'denied' ? result.error : 'Не удалось выполнить действие' });
     return res.json({ ok: true, data: result });
   } catch (error) {
     console.error('[AI Approvals] approve failed:', error);
@@ -109,35 +83,23 @@ router.post('/:id/approve', authenticate, async (req: AuthRequest, res) => {
   }
 });
 
-/** POST /api/ai/approvals/:id/reject */
 router.post('/:id/reject', authenticate, async (req: AuthRequest, res) => {
   try {
-    if (!req.user?.id) {
-      return res.status(401).json({ ok: false, error: 'Требуется авторизация' });
-    }
+    if (!req.user?.id) return res.status(401).json({ ok: false, error: 'Требуется авторизация' });
     const approval = await prisma.aiApproval.findUnique({ where: { id: String(req.params.id) } });
-    if (!approval) {
-      return res.status(404).json({ ok: false, error: 'Подтверждение не найдено' });
-    }
-    if (approval.status !== 'pending') {
-      return res.status(409).json({ ok: false, error: 'Уже обработано' });
-    }
+    if (!approval) return res.status(404).json({ ok: false, error: 'Подтверждение не найдено' });
+    if (approval.status !== 'pending') return res.status(409).json({ ok: false, error: 'Уже обработано' });
     if (!assertSameClinic(req, res, approval.clinicId)) return;
 
-    const access = await resolveAiToolAccess({
-      userId: req.user.id,
-      clinicId: req.user.clinicId,
-      isGuest: req.user.isGuest,
-    });
-    if (!access.allowed.has(approval.tool)) {
-      return res.status(403).json({ ok: false, error: 'Недостаточно прав' });
-    }
+    const access = await resolveAiToolAccess({ userId: req.user.id, clinicId: req.user.clinicId, isGuest: req.user.isGuest });
+    if (!access.allowed.has(approval.tool)) return res.status(403).json({ ok: false, error: 'Недостаточно прав' });
 
     const decisionNote = typeof req.body?.note === 'string' ? req.body.note : null;
-    await prisma.aiApproval.update({
-      where: { id: approval.id },
+    const rejected = await prisma.aiApproval.updateMany({
+      where: { id: approval.id, status: 'pending' },
       data: { status: 'rejected', decidedByUserId: req.user.id, decidedAt: new Date(), decisionNote },
     });
+    if (rejected.count !== 1) return res.status(409).json({ ok: false, error: 'Подтверждение уже обрабатывается' });
 
     await auditFromReq(req, { action: 'ai.approval.rejected', entity: 'ai_approval', entityId: approval.id });
     return res.json({ ok: true, data: { id: approval.id, status: 'rejected' } });
