@@ -5,17 +5,23 @@ import { resolveUserPermissions } from '../../../lib/resolvePermissions.js';
 
 export class ContextManager {
   async loadContext(userId: string, clinicId: string): Promise<AIContext> {
-    const [user, clinic] = await Promise.all([
+    const [user, clinic, access] = await Promise.all([
       prisma.user.findUnique({ where: { id: userId }, select: { id: true, role: true } }),
       prisma.clinic.findUnique({ where: { id: clinicId }, select: { id: true, name: true } }),
+      resolveClinicAccess(userId, clinicId),
     ]);
 
-    const access = await resolveClinicAccess(userId, clinicId);
+    // The AI context is an authorization boundary, not merely presentation
+    // state. Never construct a context for a clinic the caller cannot access,
+    // and never fall back to the global user role for an unscoped request.
+    if (!user) throw new Error('USER_NOT_FOUND');
+    if (!clinic) throw new Error('CLINIC_NOT_FOUND');
+    if (!access) throw new Error('CLINIC_ACCESS_REQUIRED');
 
     return {
       userId,
-      clinicId: clinic?.id ?? clinicId,
-      role: access?.role ?? user?.role ?? 'DOCTOR',
+      clinicId: clinic.id,
+      role: access.role ?? user.role ?? 'DOCTOR',
       sessionId: crypto.randomUUID(),
       metadata: {},
     };
