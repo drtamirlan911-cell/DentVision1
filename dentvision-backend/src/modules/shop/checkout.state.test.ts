@@ -3,6 +3,7 @@ import {
   assertCheckoutTransition,
   canTransitionCheckout,
   checkoutFailureState,
+  checkoutProviderOutcomeState,
   isTerminalCheckoutState,
 } from './checkout.state.js';
 
@@ -13,10 +14,18 @@ describe('checkout state machine', () => {
     expect(canTransitionCheckout('awaiting_payment', 'paid')).toBe(true);
   });
 
-  it('allows payment retry only from payment_failed', () => {
+  it('allows payment retry only from recoverable states', () => {
     expect(canTransitionCheckout('payment_failed', 'payment_processing')).toBe(true);
+    expect(canTransitionCheckout('payment_unknown', 'payment_processing')).toBe(true);
     expect(canTransitionCheckout('paid', 'payment_processing')).toBe(false);
     expect(canTransitionCheckout('cancelled', 'payment_processing')).toBe(false);
+  });
+
+  it('models unknown provider outcomes as non-terminal', () => {
+    expect(checkoutProviderOutcomeState('confirmed_failure')).toBe('payment_failed');
+    expect(checkoutProviderOutcomeState('unknown')).toBe('payment_unknown');
+    expect(isTerminalCheckoutState('payment_unknown')).toBe(false);
+    expect(canTransitionCheckout('payment_unknown', 'paid')).toBe(true);
   });
 
   it('makes paid and cancelled terminal', () => {
