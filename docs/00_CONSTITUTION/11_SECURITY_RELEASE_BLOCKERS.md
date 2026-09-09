@@ -26,6 +26,7 @@ Required fix:
 4. Do not hold a database transaction open across external payment-provider calls.
 5. Persist provider references before/after the external call in a retry-safe state machine.
 6. Add regression tests for DentCash failure, provider failure, DB failure after provider success, retry, cancellation, and concurrent checkout.
+7. Strictly validate every requested quantity as a finite positive integer before any stock mutation; never coerce malformed quantities such as `NaN`, fractional values, or negative values into checkout quantities.
 
 ## P0 — Dispute administration authorization and state integrity — HARDENED, VERIFICATION REQUIRED
 
@@ -54,6 +55,8 @@ A dedicated integrity suite is still required for:
 - replayed checkout;
 - refund/cancellation after supplier settlement.
 
+Additional verified concern: product reads and offer aggregation are public catalogue operations, so only explicitly public catalogue fields should be exposed; supplier status and identity must not become an authorization signal for checkout without a server-side policy check.
+
 ## P1 — Finance owner-type collision — HARDENED, VERIFICATION REQUIRED
 
 Finance wallet authorization was tightened to constrain clinic and supplier ownership using typed owner predicates. The organization branch that relied on an unsupported Prisma owner type was removed rather than retaining an unsafe fallback. Transaction filtering was also moved away from a bare mixed owner-ID list.
@@ -63,6 +66,12 @@ Required verification:
 - collision regression tests for same-looking IDs across owner domains;
 - complete audit of every finance read/write route;
 - confirmation that legitimate clinic and supplier wallet operations still work.
+
+## P1 — Files / clinical attachment boundary — HARDENED, VERIFICATION REQUIRED
+
+The files module now requires authentication and patient permissions, applies clinic scoping to patient/document reads, rejects guest access, stores uploads under clinic-prefixed object keys, and returns short-lived signed URLs for stored objects. Uploads are limited to 60 MB and restricted by extension.
+
+Remaining verification requirement: confirm MIME/content validation, object-key traversal resistance, signed URL lifetime, delete-path tenant isolation, and that the production storage bucket does not allow public object reads.
 
 ## Release rule
 
