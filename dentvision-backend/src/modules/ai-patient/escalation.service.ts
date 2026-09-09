@@ -3,8 +3,8 @@
  *
  * This is the promise the assistant makes every time it says "я не знаю": that
  * saying so leads somewhere. An assistant that admits its limit and then drops
- * the question is worse than one that never offered — the patient has spent
- * their attempt and got nothing.
+ * the question is worse than one that never offered — the patient has spent its
+ * attempt and got nothing.
  *
  * OWNER and ADMIN of the clinic holding the patient's card get the question
  * in the bell they already watch, and the same escalation opens (or reuses)
@@ -52,8 +52,10 @@ export async function escalateToClinic(input: EscalationInput): Promise<Escalati
       where: { id: input.clinicId },
       select: { name: true, phone: true },
     }),
-    (prisma as any).patient.findUnique({
-      where: { id: input.patientId },
+    // Tenant boundary: the patient must belong to the clinic that receives
+    // the escalation. Never resolve a patient by global id alone here.
+    (prisma as any).patient.findFirst({
+      where: { id: input.patientId, clinicId: input.clinicId },
       select: { firstName: true, lastName: true, phone: true },
     }),
   ]);
