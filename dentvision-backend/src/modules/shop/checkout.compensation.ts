@@ -34,7 +34,12 @@ export async function compensateDeterministicCheckoutFailure(orderId: string, re
       : {};
     const stockAlreadyRestored = compensation.stockRestored === true;
 
-    if (!['pending', 'awaiting_payment', 'payment_processing', 'cancelled'].includes(current.status)) {
+    // `payment_unknown` is safe here only after the caller has converted it to
+    // a deterministic provider failure. Reconciliation does exactly that by
+    // atomically moving the order to `payment_failed` before calling us; keeping
+    // the state explicit also prevents accidental compensation of an unknown
+    // outcome from any other caller.
+    if (!['pending', 'awaiting_payment', 'payment_processing', 'payment_failed', 'cancelled'].includes(current.status)) {
       return { compensated: false, stockRestored: 0, needsDentCashRefund: false };
     }
 

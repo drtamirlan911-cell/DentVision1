@@ -11,6 +11,7 @@
 import prisma from '../lib/prisma.js';
 import { withJobLock } from '../lib/jobLock.js';
 import { retryWorkflowRun } from '../modules/workflow/workflow.engine.js';
+import { startPaymentReconciliationInterval } from './paymentReconciliation.js';
 
 export interface WorkflowRetrySweepResult {
   retried: number;
@@ -52,5 +53,6 @@ export function startWorkflowRetryInterval(ms = 15 * 60 * 1000): void {
   };
   setTimeout(tick, 30_000);
   timer = setInterval(tick, ms);
+  startPaymentReconciliationInterval();
   console.warn(`[WorkflowRetry] interval started (every ${ms / 60000} min)`);
 }
