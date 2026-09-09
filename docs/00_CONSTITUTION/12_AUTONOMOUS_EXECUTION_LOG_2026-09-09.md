@@ -5,7 +5,7 @@
 - Branch: `autonomous/superapp-foundation-2026-09-09`
 - PR: #247 — `WIP: DentVision autonomous superapp hardening`
 - Base: `main`
-- Current implementation checkpoint: `c0e5056790a6844228a6973d0f738c04a381d4a4`
+- Current implementation checkpoint: `97f2b8cc7770a6bfd2daf6c297fefd49c94bd18a`
 - PR remains **DRAFT / NOT READY FOR RELEASE** until P0 blockers are closed.
 
 ## Verified checkpoint
@@ -16,7 +16,7 @@ Commit `b3e95f3afd10bc0ad12bdb769748780e0d163801` passed all three repository wo
 
 - E2E CI database setup uses `prisma migrate deploy` instead of destructive `prisma db push --accept-data-loss`.
 - Shop checkout now has an explicit compensation service foundation with CAS-style claiming, atomic stock restoration, persisted restoration markers, and idempotent DentCash reversal.
-- Checkout state modeling now distinguishes confirmed payment failure from an unknown external-provider outcome so unknown payments can be reconciled rather than blindly refunded.
+- Checkout state modeling distinguishes confirmed payment failure from an unknown external-provider outcome so unknown payments can be reconciled rather than blindly refunded.
 
 ## Release blockers still open
 
