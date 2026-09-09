@@ -63,7 +63,14 @@ disputesRouter.post('/:id/status', requirePermission('finance.manage'), async (r
       return res.status(404).json({ ok: false, error: 'Спор не найден' } satisfies ApiResponse);
     }
 
-    const currentStatus = isDisputeStatus(existing.status) ? existing.status : 'open';
+    // Never reinterpret an unexpected persisted value as a valid state. A corrupt
+    // or legacy status must fail closed rather than gaining the permissions of "open".
+    if (!isDisputeStatus(existing.status)) {
+      console.error('Invalid persisted dispute status:', { id: existing.id, status: existing.status });
+      return res.status(500).json({ ok: false, error: 'Некорректное состояние спора в базе данных' } satisfies ApiResponse);
+    }
+
+    const currentStatus = existing.status;
     if (!ALLOWED_TRANSITIONS[currentStatus].includes(requestedStatus)) {
       return res.status(409).json({
         ok: false,
@@ -92,7 +99,6 @@ disputesRouter.post('/:id/status', requirePermission('finance.manage'), async (r
           refType: existing.refType,
           refId: existing.refId,
           reason: 'dispute_resolved',
-          callerId: req.user?.id ?? null,
         });
       } catch (error) {
         console.error('Dispute refund failed:', error);
