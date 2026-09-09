@@ -10,6 +10,9 @@ import { resolveSupplierCity } from '../../lib/kzCities.js';
 import { assertOrgAccess, resolveAnyClinicMembership } from '../../lib/orgContext.js';
 import { productCreateSchema, productUpdateSchema, productDataFromBody } from './shop.schemas.js';
 import { reserveIdempotencyKey, completeIdempotencyKey, deleteIdempotencyKey } from '../../lib/idempotency.js';
+import { normalizeCheckoutItems } from './checkout.validation.js';
+import { compensateDeterministicCheckoutFailure } from './checkout.compensation.js';
+import { assertCheckoutSupplierEligibility } from './supplierIntegrity.js';
 
 const shopRouter = Router();
 
@@ -193,6 +196,14 @@ shopRouter.post('/orders', authenticate, async (req: AuthRequest, res) => {
       return;
     }
 
+    // Normalize and validate every cart line before idempotency, stock, DentCash,
+    // or payment side effects. Malformed quantities are never coerced to 1.
+    const normalizedItems = normalizeCheckoutItems(items);
+    if (!normalizedItems) {
+      res.status(400).json({ ok: false, error: 'Некорректные товары или количество: требуется положительное целое число' });
+      return;
+    }
+
     // Idempotency guard, same pattern as `patients.routes.ts`'s POST / (itself
     // mirroring `payments.routes.ts`): nothing here stops a double-click or a
     // retried "Купить" request from creating two separate orders — decrementing
@@ -229,8 +240,11 @@ shopRouter.post('/orders', authenticate, async (req: AuthRequest, res) => {
       }
     }
 
-    const productIds = items.map((i: any) => String(i.product_id || i.productId || i.id || '')).filter(Boolean);
-    const products = await prisma.product.findMany({ where: { id: { in: productIds } } });
+    const productIds = normalizedItems.map((i) => i.productId);
+    const products = await prisma.product.findMany({
+      where: { id: { in: productIds } },
+      include: { supplier: { select: { id: true, status: true } } },
+    });
     const byId = new Map(products.map((p) => [p.id, p]));
 
     const lines: Array<{
@@ -245,12 +259,19 @@ shopRouter.post('/orders', authenticate, async (req: AuthRequest, res) => {
     }> = [];
 
     let goodsTotal = 0;
-    for (const raw of items) {
-      const pid = String(raw.product_id || raw.productId || raw.id || '');
-      const qty = Math.max(1, Number(raw.quantity || raw.qty || 1));
+    for (const line of normalizedItems) {
+      const pid = line.productId;
+      const qty = line.quantity;
       const p = byId.get(pid);
       if (!p) {
         res.status(400).json({ ok: false, error: `Товар не найден: ${pid}` });
+        return;
+      }
+      try {
+        assertCheckoutSupplierEligibility(p.supplier?.status, p.supplierId);
+      } catch (supplierError) {
+        const code = String((supplierError as Error).message || 'CHECKOUT_SUPPLIER_NOT_ELIGIBLE');
+        res.status(409).json({ ok: false, error: code });
         return;
       }
       const lineTotal = Number(p.price) * qty;
@@ -287,9 +308,9 @@ shopRouter.post('/orders', authenticate, async (req: AuthRequest, res) => {
     let finalTotal = payableBeforeCash;
 
     // Stock check: ensure all products have sufficient stock
-    for (const raw of items) {
-      const pid = String(raw.product_id || raw.productId || raw.id || '');
-      const qty = Math.max(1, Number(raw.quantity || raw.qty || 1));
+    for (const line of normalizedItems) {
+      const pid = line.productId;
+      const qty = line.quantity;
       const p = byId.get(pid);
       if (p && (p.stock ?? 0) < qty) {
         res.status(409).json({ ok: false, error: `Недостаточно товара «${p.name}» на складе (осталось ${p.stock ?? 0}, запрошено ${qty})` });
@@ -301,9 +322,9 @@ shopRouter.post('/orders', authenticate, async (req: AuthRequest, res) => {
     order = await prisma.$transaction(async (tx) => {
       void total;
       // Decrement stock atomically with guard to prevent oversell
-      for (const raw of items) {
-        const pid = String(raw.product_id || raw.productId || raw.id || '');
-        const qty = Math.max(1, Number(raw.quantity || raw.qty || 1));
+      for (const line of normalizedItems) {
+        const pid = line.productId;
+        const qty = line.quantity;
         const result = await tx.product.updateMany({
           where: { id: pid, stock: { gte: qty } },
           data: { stock: { decrement: qty } },
@@ -352,86 +373,131 @@ shopRouter.post('/orders', authenticate, async (req: AuthRequest, res) => {
       });
     } catch (err) {
       console.error('[dentcash spend order]', err);
-      await prisma.order.update({
-        where: { id: orderId },
-        data: { status: 'cancelled', meta: { ...(order.meta as object || {}), cancelReason: 'dentcash_spend_failed' } },
-      }).catch(() => null);
-      res.status(500).json({ ok: false, error: 'Не удалось списать DentCash' });
+      await compensateDeterministicCheckoutFailure(orderId, 'dentcash_spend_failed').catch((compensationError) => {
+        console.error('[checkout compensation]', compensationError);
+      });
+      if (idempotencyKey) await deleteIdempotencyKey(idempotencyKey).catch(() => {});
+      res.status(502).json({ ok: false, error: 'Не удалось списать DentCash; заказ отменён и склад восстановлен' });
       return;
     }
 
     finalTotal = Math.max(0, payableBeforeCash - Number(spent) / 100);
 
-    // Phase 3: Update order with final total + payment inside one transaction
-    await prisma.$transaction(async (tx) => {
-      order = await tx.order.update({
-        where: { id: orderId },
-        data: {
-          total: finalTotal,
-          meta: {
-            delivery_address,
-            delivery_method,
-            payment_method,
-            notes,
-            goodsTotal,
-            deliveryCost,
-            dentCashMinor: spent.toString(),
-            dentCashTenge: Number(spent) / 100,
-          },
-        },
-      });
+    // Phase 3: persist payment intent, then call the external provider OUTSIDE
+    // the database transaction. Provider/network failures are treated as unknown
+    // until reconciled; only an explicit deterministic provider rejection is
+    // eligible for stock + DentCash compensation.
+    const method = String(payment_method || 'kaspi').toLowerCase();
+    const needsOnlinePay = finalTotal > 0 && method !== 'cash';
+    let paymentUnknown = false;
 
-      const method = String(payment_method || 'kaspi').toLowerCase();
-      const needsOnlinePay = finalTotal > 0 && method !== 'cash';
-
-      if (finalTotal <= 0) {
-        const { settlePaidPayment } = await import('../payments/payments.routes.js');
-        await settlePaidPayment({
-          id: `dentcash-${order.id}`,
-          refType: 'order',
-          refId: order.id,
-          domain: 'shop',
-          sellerType: null,
-          sellerId: null,
-          amount: 0n,
-          meta: { userId: req.user!.id, coveredByDentCash: true },
-        });
-      } else if (needsOnlinePay) {
-        const { providers, withPaymentQr } = await import('../payments/kaspi.provider.js');
-        const { tengeToMinor: toMinor, serializeBigInt } = await import('../../lib/money.js');
-        const amountMinor = toMinor(finalTotal);
-        const gateway = providers.kaspi_qr;
-        const created = await gateway.createPayment({ amountMinor, refId: order.id });
-        const primarySupplier = lines.find((l) => l.supplierId)?.supplierId || null;
-        const pay = await tx.payment.create({
+    if (finalTotal <= 0) {
+      await prisma.$transaction(async (tx) => {
+        order = await tx.order.update({
+          where: { id: orderId },
           data: {
-            provider: 'kaspi_qr',
-            externalId: created.externalId,
-            amount: amountMinor,
+            total: finalTotal,
             status: 'pending',
-            refType: 'order',
-            refId: order.id,
-            domain: 'shop',
-            sellerType: primarySupplier ? 'SUPPLIER' : null,
-            sellerId: primarySupplier,
             meta: {
-              qr: created.qr,
-              userId: req.user!.id,
-              payment_method: method,
+              delivery_address, delivery_method, payment_method, notes,
+              goodsTotal, deliveryCost, dentCashMinor: spent.toString(),
+              dentCashTenge: Number(spent) / 100,
             },
           },
         });
-        payment = withPaymentQr(serializeBigInt(pay) as Record<string, unknown>, created.qr);
-        const prevMeta = (order.meta && typeof order.meta === 'object' ? order.meta : {}) as Record<string, unknown>;
-        order = await tx.order.update({
-          where: { id: order.id },
+      });
+      const { settlePaidPayment } = await import('../payments/payments.routes.js');
+      await settlePaidPayment({
+        id: `dentcash-${order.id}`, refType: 'order', refId: order.id, domain: 'shop',
+        sellerType: null, sellerId: null, amount: 0n,
+        meta: { userId: req.user!.id, coveredByDentCash: true },
+      });
+    } else if (needsOnlinePay) {
+      const { tengeToMinor: toMinor } = await import('../../lib/money.js');
+      const amountMinor = toMinor(finalTotal);
+      const primarySupplier = lines.find((l) => l.supplierId)?.supplierId || null;
+
+      // Durable intent exists before the provider call. If the provider call
+      // times out, reconciliation still has the order/payment intent to inspect.
+      const intent = await prisma.$transaction(async (tx) => {
+        const pay = await tx.payment.create({
           data: {
-            status: 'awaiting_payment',
-            meta: { ...prevMeta, paymentId: pay.id },
+            provider: 'kaspi_qr', externalId: null, amount: amountMinor, status: 'pending',
+            refType: 'order', refId: orderId, domain: 'shop',
+            sellerType: primarySupplier ? 'SUPPLIER' : null, sellerId: primarySupplier,
+            meta: { userId: req.user!.id, payment_method: method, state: 'provider_pending' },
           },
         });
+        const updated = await tx.order.update({
+          where: { id: orderId },
+          data: {
+            total: finalTotal, status: 'payment_processing',
+            meta: { delivery_address, delivery_method, payment_method, notes, goodsTotal, deliveryCost,
+              dentCashMinor: spent.toString(), dentCashTenge: Number(spent) / 100, paymentId: pay.id },
+          },
+        });
+        return { pay, order: updated };
+      });
+      order = intent.order;
+
+      try {
+        const { providers } = await import('../payments/kaspi.provider.js');
+        const created = await providers.kaspi_qr.createPayment({ amountMinor, refId: order.id });
+        const updated = await prisma.$transaction(async (tx) => {
+          const pay = await tx.payment.update({
+            where: { id: intent.pay.id },
+            data: { externalId: created.externalId, meta: { ...(intent.pay.meta as object || {}), qr: created.qr, state: 'provider_created' } },
+          });
+          const nextOrder = await tx.order.update({
+            where: { id: order.id },
+            data: { status: 'awaiting_payment', meta: { ...(order.meta as object || {}), paymentExternalId: created.externalId } },
+          });
+          return { pay, order: nextOrder };
+        });
+        order = updated.order;
+        const { withPaymentQr } = await import('../payments/kaspi.provider.js');
+        const { serializeBigInt } = await import('../../lib/money.js');
+        payment = withPaymentQr(serializeBigInt(updated.pay) as Record<string, unknown>, created.qr);
+      } catch (providerError: any) {
+        const message = String(providerError?.message || '');
+        const match = message.match(/Kaspi API error:\s*(\d{3})/i);
+        const httpStatus = match ? Number(match[1]) : null;
+        const deterministicFailure = httpStatus !== null && httpStatus >= 400 && httpStatus < 500;
+
+        if (deterministicFailure) {
+          await prisma.payment.update({
+            where: { id: intent.pay.id },
+            data: { status: 'failed', meta: { ...(intent.pay.meta as object || {}), state: 'confirmed_failure', error: message.slice(0, 500) } },
+          }).catch(() => null);
+          await compensateDeterministicCheckoutFailure(order.id, 'payment_provider_rejected').catch((e) => {
+            console.error('[checkout compensation]', e);
+          });
+          if (idempotencyKey) await deleteIdempotencyKey(idempotencyKey).catch(() => {});
+          res.status(502).json({ ok: false, error: 'Платёж отклонён провайдером; заказ отменён' });
+          return;
+        }
+
+        paymentUnknown = true;
+        order = await prisma.order.update({
+          where: { id: order.id },
+          data: { status: 'payment_unknown', meta: { ...(order.meta as object || {}), paymentOutcome: 'unknown' } },
+        });
+        await prisma.payment.update({
+          where: { id: intent.pay.id },
+          data: { meta: { ...(intent.pay.meta as object || {}), state: 'unknown', providerError: message.slice(0, 500) } },
+        }).catch(() => null);
+        console.error('[kaspi provider outcome unknown]', providerError);
       }
-    });
+    } else {
+      order = await prisma.order.update({
+        where: { id: orderId },
+        data: {
+          total: finalTotal, status: 'pending',
+          meta: { delivery_address, delivery_method, payment_method, notes, goodsTotal, deliveryCost,
+            dentCashMinor: spent.toString(), dentCashTenge: Number(spent) / 100 },
+        },
+      });
+    }
 
     // Phase 4: Cashback (external, non-critical)
     cashbackResult = await accrueShopOrderCashback({
@@ -456,7 +522,7 @@ shopRouter.post('/orders', authenticate, async (req: AuthRequest, res) => {
       idempotencyKeyCompleted = true;
     }
 
-    res.status(201).json({
+    res.status(paymentUnknown ? 202 : 201).json({
       ok: true,
       data: {
         ...order,
@@ -465,6 +531,7 @@ shopRouter.post('/orders', authenticate, async (req: AuthRequest, res) => {
         dentCashEarnSkipped: cashbackResult?.skipped ? cashbackResult.reason : null,
         payment,
         requiresPayment: !!payment,
+        paymentUnknown,
       },
     });
   } catch (error: any) {
