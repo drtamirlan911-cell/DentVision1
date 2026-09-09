@@ -24,15 +24,14 @@ export function BottomNav() {
   const { t } = useTranslation();
 
   const ITEMS: BottomNavItem[] = [
-    { id: 'crm', label: 'CRM', icon: <Stethoscope size={18} />, path: '/crm/schedule', color: '#A47B35', requiresAuth: true },
-    { id: 'shop', label: t('nav.market'), icon: <ShoppingCart size={18} />, path: '/shop', color: '#A47B35', requiresAuth: false },
-    { id: 'ai', label: 'AI', icon: <Bot size={18} />, path: '/', color: '#A47B35', requiresAuth: false },
-    { id: 'school', label: 'Academy', icon: <GraduationCap size={18} />, path: '/school', color: '#A47B35', requiresAuth: false },
-    { id: 'community', label: t('nav.network'), icon: <Users size={18} />, path: '/community', color: '#A47B35', requiresAuth: false },
+    { id: 'crm', label: t('nav.crm', 'Клиника'), icon: <Stethoscope size={18} />, path: '/crm/schedule', color: '#A47B35', requiresAuth: true },
+    { id: 'shop', label: t('nav.market', 'Маркет'), icon: <ShoppingCart size={18} />, path: '/shop', color: '#A47B35' },
+    { id: 'ai', label: t('nav.digital_assistant', 'ИИ'), icon: <Bot size={18} />, path: '/', color: '#A47B35' },
+    { id: 'school', label: t('nav.school', 'Академия'), icon: <GraduationCap size={18} />, path: '/school', color: '#A47B35' },
+    { id: 'community', label: t('nav.community', 'Сообщество'), icon: <Users size={18} />, path: '/community', color: '#A47B35' },
   ];
 
   const handleNavClick = useCallback((item: BottomNavItem) => {
-    // CRM for guests → same one-tap demo path as desktop sidebar / demo chip
     if (item.id === 'crm' && (!isAuthenticated || isGuest)) {
       navigate('/crm/schedule?demo=1');
       return;
@@ -48,7 +47,7 @@ export function BottomNav() {
 
   return (
     <nav
-      aria-label={t('nav.nav_sections')}
+      aria-label={t('nav.nav_sections', 'Главная навигация')}
       className="fixed bottom-0 left-0 right-0 z-50 bg-surface-1 border-t border-bdr-subtle"
       style={{
         paddingBottom: 'var(--dv-safe-bottom)',
@@ -60,7 +59,6 @@ export function BottomNav() {
         {ITEMS.map((item) => {
           const isActive = location.pathname === item.path || location.pathname.startsWith(item.path + '/');
           const isDisabled = item.id !== 'crm' && item.requiresAuth && !isAuthenticated && !isGuest;
-          
           return (
             <motion.button
               key={item.id}
@@ -82,7 +80,7 @@ export function BottomNav() {
                 {isDisabled ? <LogIn size={18} className="text-txt-muted" /> : item.icon}
               </span>
               <span className={cn('text-[10px] font-medium transition-colors', isActive ? '' : 'text-txt-muted', isDisabled && 'text-txt-muted')} style={isActive ? { color: item.color } : undefined}>
-                {isDisabled ? t('nav.login') : item.label}
+                {isDisabled ? t('nav.login', 'Войти') : item.label}
               </span>
             </motion.button>
           );
