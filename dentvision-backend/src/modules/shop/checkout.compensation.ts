@@ -12,9 +12,10 @@ export type CheckoutCompensationResult = {
  * outcome is deterministically failed. Unknown provider outcomes MUST NOT call
  * this function: the order needs reconciliation instead of blind rollback.
  *
- * The order state is claimed with a CAS-style update before stock is restored.
- * A second/concurrent compensation therefore becomes a no-op, preventing
- * double restoration. DentCash reversal is independently idempotent.
+ * Stock restoration is claimed and completed atomically with the order state.
+ * DentCash reversal is then performed through its own idempotent ledger guard.
+ * If the refund provider/database operation fails, a later retry sees the
+ * persisted stockRestored marker and retries only the missing refund.
  */
 export async function compensateDeterministicCheckoutFailure(orderId: string, reason: string): Promise<CheckoutCompensationResult> {
   const result = await prisma.$transaction(async (tx) => {
@@ -23,9 +24,7 @@ export async function compensateDeterministicCheckoutFailure(orderId: string, re
       select: { status: true, meta: true, items: true },
     });
 
-    if (!current || !['pending', 'awaiting_payment', 'payment_processing'].includes(current.status)) {
-      return { compensated: false, stockRestored: 0 };
-    }
+    if (!current) return { compensated: false, stockRestored: 0, needsDentCashRefund: false };
 
     const meta = current.meta && typeof current.meta === 'object' && !Array.isArray(current.meta)
       ? (current.meta as Record<string, unknown>)
@@ -33,46 +32,80 @@ export async function compensateDeterministicCheckoutFailure(orderId: string, re
     const compensation = meta.compensation && typeof meta.compensation === 'object' && !Array.isArray(meta.compensation)
       ? (meta.compensation as Record<string, unknown>)
       : {};
+    const stockAlreadyRestored = compensation.stockRestored === true;
 
-    if (compensation.status === 'claimed' || compensation.status === 'completed') {
-      return { compensated: false, stockRestored: 0 };
+    if (!['pending', 'awaiting_payment', 'payment_processing', 'cancelled'].includes(current.status)) {
+      return { compensated: false, stockRestored: 0, needsDentCashRefund: false };
     }
 
-    const claimed = await tx.order.updateMany({
-      where: { id: orderId, status: current.status },
-      data: {
-        status: 'cancelled',
-        meta: {
-          ...meta,
-          compensation: {
-            ...compensation,
-            status: 'claimed',
-            reason,
-            claimedAt: new Date().toISOString(),
+    if (current.status === 'cancelled' && !stockAlreadyRestored) {
+      return { compensated: false, stockRestored: 0, needsDentCashRefund: false };
+    }
+
+    let stockRestored = 0;
+    if (!stockAlreadyRestored) {
+      const claimed = await tx.order.updateMany({
+        where: { id: orderId, status: current.status },
+        data: {
+          status: 'cancelled',
+          meta: {
+            ...meta,
+            compensation: {
+              ...compensation,
+              status: 'restoring_stock',
+              reason,
+              claimedAt: new Date().toISOString(),
+            },
           },
         },
-      },
-    });
+      });
+      if (claimed.count === 0) return { compensated: false, stockRestored: 0, needsDentCashRefund: false };
 
-    if (claimed.count === 0) return { compensated: false, stockRestored: 0 };
+      const items = Array.isArray(current.items) ? current.items : [];
+      for (const raw of items) {
+        if (!raw || typeof raw !== 'object') continue;
+        const item = raw as Record<string, unknown>;
+        const productId = typeof item.product_id === 'string' ? item.product_id : '';
+        const quantity = Number(item.quantity);
+        if (!productId || !Number.isInteger(quantity) || quantity <= 0) continue;
+        await tx.product.update({ where: { id: productId }, data: { stock: { increment: quantity } } });
+        stockRestored += quantity;
+      }
 
-    const items = Array.isArray(current.items) ? current.items : [];
-    let stockRestored = 0;
-    for (const raw of items) {
-      if (!raw || typeof raw !== 'object') continue;
-      const item = raw as Record<string, unknown>;
-      const productId = typeof item.product_id === 'string' ? item.product_id : '';
-      const quantity = Number(item.quantity);
-      if (!productId || !Number.isInteger(quantity) || quantity <= 0) continue;
-
-      await tx.product.update({ where: { id: productId }, data: { stock: { increment: quantity } } });
-      stockRestored += quantity;
+      const latest = await tx.order.findUnique({ where: { id: orderId }, select: { meta: true } });
+      const latestMeta = latest?.meta && typeof latest.meta === 'object' && !Array.isArray(latest.meta)
+        ? (latest.meta as Record<string, unknown>)
+        : meta;
+      await tx.order.update({
+        where: { id: orderId },
+        data: {
+          status: 'cancelled',
+          meta: {
+            ...latestMeta,
+            compensation: {
+              ...compensation,
+              status: 'stock_restored',
+              reason,
+              stockRestored: true,
+              stockRestoredAt: new Date().toISOString(),
+            },
+          },
+        },
+      });
     }
-    return { compensated: true, stockRestored };
+
+    return { compensated: true, stockRestored, needsDentCashRefund: true };
   });
 
   if (!result.compensated) return { compensated: false, stockRestored: 0, dentCashRefundedMinor: 0n };
 
-  const refund = await refundDentCashSpend({ refType: 'order', refId: orderId, reason });
-  return { compensated: true, stockRestored: result.stockRestored, dentCashRefundedMinor: refund.refunded };
+  const refund = result.needsDentCashRefund
+    ? await refundDentCashSpend({ refType: 'order', refId: orderId, reason })
+    : { refunded: 0n };
+
+  return {
+    compensated: true,
+    stockRestored: result.stockRestored,
+    dentCashRefundedMinor: refund.refunded,
+  };
 }
