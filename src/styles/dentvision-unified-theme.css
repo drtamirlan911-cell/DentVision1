@@ -116,6 +116,15 @@ body {
   background-color: color-mix(in srgb, var(--dv-surface) 94%, var(--dv-accent) 6%) !important;
 }
 
+/* A service must not introduce its own blue/indigo/purple visual language. */
+[class*='bg-gradient-to-br'][class*='from-[#2980B9]'],
+[class*='bg-gradient-to-br'][class*='from-blue-'],
+[class*='bg-gradient-to-br'][class*='from-indigo-'],
+[class*='bg-gradient-to-br'][class*='from-purple-'] {
+  background-image: none !important;
+  background-color: var(--dv-surface) !important;
+}
+
 [class*='shadow-glow'],
 [class*='shadow-[0_0_40px'],
 [class*='shadow-[0_40px_80px'] {
