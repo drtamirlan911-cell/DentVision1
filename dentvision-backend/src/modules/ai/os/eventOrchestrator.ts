@@ -1,17 +1,16 @@
 /**
  * EventOrchestrator — bridges CRM Event Bus → AI Agents.
  *
- * Subscribes to all CRM events, matches them against rules,
- * executes actions, and stores results in the AI Event Store.
+ * Subscribes to all CRM events, matches them against rules, executes actions,
+ * and pushes role-aware results to the authenticated user's AI workspace.
  */
-
 import { EventEmitter } from 'node:events';
 import { eventBus } from '../../events/index.js';
 import { CRMEvent, EventType } from '../../events/EventTypes.js';
 import { matchEventRules, EventRule, EventRuleAction } from './eventRules.js';
 import { getActionHandler, EventActionResult } from './eventActions.js';
-
-// ─── Types ───
+import { sseManager } from '../ai.notifications.routes.js';
+import prisma from '../../../lib/prisma.js';
 
 export interface ProcessedEvent {
   event: CRMEvent;
@@ -26,13 +25,16 @@ export interface EventOrchestratorConfig {
   logLevel: 'silent' | 'info' | 'debug';
 }
 
-const DEFAULT_CONFIG: EventOrchestratorConfig = {
-  enabled: true,
-  concurrency: 5,
-  logLevel: 'info',
-};
+const DEFAULT_CONFIG: EventOrchestratorConfig = { enabled: true, concurrency: 5, logLevel: 'info' };
 
-// ─── EventOrchestrator ───
+const AGENT_ROLES: Record<string, string[]> = {
+  doctor: ['DOCTOR', 'ASSISTANT'],
+  reception: ['ADMIN', 'ASSISTANT'],
+  finance: ['CASHIER', 'OWNER', 'MANAGER'],
+  ceo: ['OWNER', 'SUPERADMIN'],
+  supply: ['MANAGER', 'OWNER', 'ADMIN'],
+  lab: ['LAB', 'MANAGER'],
+};
 
 export class EventOrchestrator extends EventEmitter {
   private unsubscribe: (() => void) | null = null;
@@ -40,179 +42,130 @@ export class EventOrchestrator extends EventEmitter {
   private activeCount = 0;
   private queue: Array<{ event: CRMEvent; resolve: () => void }> = [];
 
-  constructor(config?: Partial<EventOrchestratorConfig>) {
-    super();
-    this.config = { ...DEFAULT_CONFIG, ...config };
-  }
+  constructor(config?: Partial<EventOrchestratorConfig>) { super(); this.config = { ...DEFAULT_CONFIG, ...config }; }
 
-  /** Start listening to events via EventBus. */
   start(): void {
     if (this.unsubscribe) return;
-
     this.unsubscribe = eventBus.subscribe('*', this.handleEvent.bind(this));
-
-    if (this.config.logLevel !== 'silent') {
-      console.log('[EventOrchestrator] Subscribed to EventBus');
-    }
+    if (this.config.logLevel !== 'silent') console.log('[EventOrchestrator] Subscribed to EventBus');
   }
 
-  /** Stop listening to events. */
   stop(): void {
-    if (this.unsubscribe) {
-      this.unsubscribe();
-      this.unsubscribe = null;
-    }
+    if (this.unsubscribe) { this.unsubscribe(); this.unsubscribe = null; }
     this.queue = [];
-    if (this.config.logLevel !== 'silent') {
-      console.log('[EventOrchestrator] Stopped');
-    }
+    if (this.config.logLevel !== 'silent') console.log('[EventOrchestrator] Stopped');
   }
 
-  /** Process a single event manually (e.g., from test). */
-  async processEvent(event: CRMEvent): Promise<ProcessedEvent> {
-    return this.processEventInternal(event);
-  }
-
-  // ─── Internal ───
+  async processEvent(event: CRMEvent): Promise<ProcessedEvent> { return this.processEventInternal(event); }
 
   private async handleEvent(event: CRMEvent): Promise<void> {
     if (!this.config.enabled) return;
-
     if (this.activeCount >= this.config.concurrency) {
-      return new Promise<void>((resolve) => {
-        this.queue.push({ event, resolve });
-      });
+      return new Promise<void>((resolve) => this.queue.push({ event, resolve }));
     }
-
     this.activeCount++;
-    try {
-      await this.processEventInternal(event);
-    } finally {
-      this.activeCount--;
-      this.processQueue();
-    }
+    try { await this.processEventInternal(event); }
+    finally { this.activeCount--; this.processQueue(); }
   }
 
   private processQueue(): void {
     while (this.queue.length > 0 && this.activeCount < this.config.concurrency) {
       const item = this.queue.shift()!;
       this.activeCount++;
-      this.processEventInternal(item.event).finally(() => {
-        this.activeCount--;
-        item.resolve();
-        this.processQueue();
-      });
+      this.processEventInternal(item.event).finally(() => { this.activeCount--; item.resolve(); this.processQueue(); });
     }
   }
 
   private async processEventInternal(event: CRMEvent): Promise<ProcessedEvent> {
     const start = Date.now();
     const rules = matchEventRules(event.type, event.payload as Record<string, unknown>);
-
-    if (this.config.logLevel === 'debug') {
-      console.log(`[EventOrchestrator] ${event.type}: ${rules.length} rules matched`);
-    }
-
     const results: EventActionResult[] = [];
 
     for (const rule of rules) {
-      const parallelActions: EventRuleAction[] = [];
-      const sequentialActions: EventRuleAction[] = [];
-
-      for (const action of rule.actions) {
-        if (action.parallel) {
-          parallelActions.push(action);
-        } else {
-          sequentialActions.push(action);
-        }
+      const parallel = rule.actions.filter((a) => a.parallel);
+      const sequential = rule.actions.filter((a) => !a.parallel);
+      if (parallel.length) {
+        const settled = await Promise.allSettled(parallel.map((a) => this.executeAction(event, a)));
+        for (const result of settled) if (result.status === 'fulfilled') results.push(result.value);
       }
-
-      if (parallelActions.length > 0) {
-        const parallelResults = await Promise.allSettled(
-          parallelActions.map((a) => this.executeAction(event, a))
-        );
-        for (const r of parallelResults) {
-          if (r.status === 'fulfilled') results.push(r.value);
-        }
-      }
-
-      for (const action of sequentialActions) {
-        const result = await this.executeAction(event, action);
-        results.push(result);
-      }
+      for (const action of sequential) results.push(await this.executeAction(event, action));
     }
 
-    const durationMs = Date.now() - start;
-
-    this.emit('processed', { event, rules, results, durationMs } satisfies ProcessedEvent);
+    const processed = { event, rules, results, durationMs: Date.now() - start } satisfies ProcessedEvent;
+    await this.publishRealtimeResults(processed);
+    this.emit('processed', processed);
 
     if (this.config.logLevel !== 'silent') {
-      console.log(
-        `[EventOrchestrator] ${event.type} processed: ${results.length} actions, ${durationMs}ms`
-      );
+      console.log(`[EventOrchestrator] ${event.type} processed: ${results.length} actions, ${processed.durationMs}ms`);
     }
-
-    return { event, rules, results, durationMs };
+    return processed;
   }
 
-  private async executeAction(
-    event: CRMEvent,
-    action: EventRuleAction
-  ): Promise<EventActionResult> {
-    const handler = getActionHandler(action.action);
-    if (!handler) {
-      return {
-        success: false,
-        action: action.action,
-        agent: action.agent,
-        message: `Unknown action: ${action.action}`,
-      };
-    }
+  /** Resolve recipients from the action's explicit target first, otherwise by the effective clinic role. */
+  private async resolveRecipients(event: CRMEvent, action: EventRuleAction, result: EventActionResult): Promise<string[]> {
+    if (result.notifyUserIds?.length) return [...new Set(result.notifyUserIds)];
+    const roles = AGENT_ROLES[action.agent] || [];
+    if (!roles.length || !event.clinicId) return [];
+    const members = await prisma.clinicMember.findMany({
+      where: { clinicId: event.clinicId, role: { in: roles as any } },
+      select: { userId: true },
+      take: 50,
+    });
+    return [...new Set(members.map((m) => m.userId))];
+  }
 
+  private async publishRealtimeResults(processed: ProcessedEvent): Promise<void> {
+    for (let i = 0; i < processed.results.length; i++) {
+      const result = processed.results[i];
+      if (!result.success || !result.message) continue;
+      const rule = processed.rules.find((r) => r.actions.some((a) => a.action === result.action));
+      const action = rule?.actions.find((a) => a.action === result.action);
+      if (!action) continue;
+      try {
+        const targets = await this.resolveRecipients(processed.event, action, result);
+        if (!targets.length) continue;
+        sseManager.broadcast(processed.event.clinicId, {
+          id: `ai-event-${processed.event.id}-${i}`,
+          type: result.critical ? 'alert' : 'ai_event',
+          data: {
+            eventId: processed.event.id,
+            eventType: processed.event.type,
+            agent: result.agent,
+            action: result.action,
+            message: result.message,
+            critical: Boolean(result.critical),
+            data: result.data || {},
+            timelineEntry: result.timelineEntry || null,
+          },
+          timestamp: new Date().toISOString(),
+          clinicId: processed.event.clinicId,
+          targetUserIds: targets,
+        });
+      } catch (error) {
+        console.warn('[EventOrchestrator] realtime delivery failed', error);
+      }
+    }
+  }
+
+  private async executeAction(event: CRMEvent, action: EventRuleAction): Promise<EventActionResult> {
+    const handler = getActionHandler(action.action);
+    if (!handler) return { success: false, action: action.action, agent: action.agent, message: `Unknown action: ${action.action}` };
     try {
       const timeout = action.timeout || 15000;
-      const result = await Promise.race([
+      return await Promise.race([
         handler(event),
-        new Promise<EventActionResult>((_, reject) =>
-          setTimeout(() => reject(new Error(`Action ${action.action} timed out after ${timeout}ms`)), timeout)
-        ),
+        new Promise<EventActionResult>((_, reject) => setTimeout(() => reject(new Error(`Action ${action.action} timed out after ${timeout}ms`)), timeout)),
       ]);
-
-      if (this.config.logLevel === 'debug') {
-        console.log(
-          `[EventOrchestrator] Action ${action.action} completed: ${result.success ? 'OK' : 'FAIL'}`
-        );
-      }
-
-      return result;
     } catch (err) {
       console.error(`[EventOrchestrator] Action ${action.action} failed:`, err);
-      return {
-        success: false,
-        action: action.action,
-        agent: action.agent,
-        message: err instanceof Error ? err.message : String(err),
-      };
+      return { success: false, action: action.action, agent: action.agent, message: err instanceof Error ? err.message : String(err) };
     }
   }
 }
 
-// ─── Singleton ───
-
 let instance: EventOrchestrator | null = null;
-
-export function getEventOrchestrator(
-  config?: Partial<EventOrchestratorConfig>
-): EventOrchestrator {
-  if (!instance) {
-    instance = new EventOrchestrator(config);
-  }
+export function getEventOrchestrator(config?: Partial<EventOrchestratorConfig>): EventOrchestrator {
+  if (!instance) instance = new EventOrchestrator(config);
   return instance;
 }
-
-export function resetEventOrchestrator(): void {
-  if (instance) {
-    instance.stop();
-  }
-  instance = null;
-}
+export function resetEventOrchestrator(): void { if (instance) instance.stop(); instance = null; }
