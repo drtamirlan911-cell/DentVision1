@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { isValidCheckoutItem, parseCheckoutCashMinor, parseCheckoutQuantity } from './checkout.validation.js';
+import {
+  isValidCheckoutItem,
+  normalizeCheckoutItems,
+  parseCheckoutCashMinor,
+  parseCheckoutQuantity,
+} from './checkout.validation.js';
 
 describe('shop checkout validation', () => {
   it('accepts only positive safe integers for quantity', () => {
@@ -45,5 +50,26 @@ describe('shop checkout validation', () => {
     expect(isValidCheckoutItem([])).toBe(false);
     expect(isValidCheckoutItem('item')).toBe(false);
     expect(isValidCheckoutItem(1)).toBe(false);
+  });
+
+  it('normalizes valid cart items to one canonical representation', () => {
+    expect(normalizeCheckoutItems([
+      { product_id: ' p1 ', quantity: '2' },
+      { productId: 'p2', qty: 3 },
+      { id: 'p3' },
+    ])).toEqual([
+      { productId: 'p1', quantity: 2 },
+      { productId: 'p2', quantity: 3 },
+      { productId: 'p3', quantity: 1 },
+    ]);
+  });
+
+  it('rejects malformed items, missing product ids and duplicate products', () => {
+    expect(normalizeCheckoutItems([{ productId: 'p1', quantity: 0 }])).toBeNull();
+    expect(normalizeCheckoutItems([{ productId: 'p1', quantity: 1.5 }])).toBeNull();
+    expect(normalizeCheckoutItems([{ quantity: 1 }])).toBeNull();
+    expect(normalizeCheckoutItems([{ productId: 'p1', quantity: 1 }, { id: 'p1', quantity: 2 }])).toBeNull();
+    expect(normalizeCheckoutItems([null])).toBeNull();
+    expect(normalizeCheckoutItems([])).toBeNull();
   });
 });
