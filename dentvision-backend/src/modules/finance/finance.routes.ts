@@ -2,7 +2,7 @@ import { Router } from 'express';
 import type { Prisma, WalletOwnerType } from '@prisma/client';
 import prisma from '../../lib/prisma.js';
 import { authenticate } from '../../middleware/auth.js';
-import { requirePermission } from '../../middleware/rbac.js';
+import { requirePermission, requireSuperadmin } from '../../middleware/rbac.js';
 import { serializeBigInt, parseTengeToMinor } from '../../lib/money.js';
 import type { ExpenseCategory } from '@prisma/client';
 import { getOrCreateWallet, recordSale, ledgerNetBalance } from './finance.service.js';
@@ -35,23 +35,24 @@ const OWNER_TYPES = ['CLINIC', 'SUPPLIER', 'ACADEMY', 'LECTURER', 'PARTNER', 'PL
  */
 function walletOwnershipGuard(req: AuthRequest, ownerType: string, ownerId: string): boolean {
   if (req.user?.role === 'SUPERADMIN') return true;
-  return (ownerType === 'CLINIC' && req.user?.clinicId === ownerId)
-    || req.user?.supplierId === ownerId
-    || req.user?.organizationId === ownerId;
+  if (ownerType === 'CLINIC') return req.user?.clinicId === ownerId;
+  if (ownerType === 'SUPPLIER') return req.user?.supplierId === ownerId;
+  // The Prisma WalletOwnerType enum has no ORGANIZATION value. An organizationId
+  // must therefore never authorize an arbitrary wallet owner type by ID collision.
+  return false;
 }
 
 // Wallet list for current user context
 financeRouter.get('/wallets', async (req: AuthRequest, res) => {
   try {
-    const wallets = await prisma.wallet.findMany({
-      where: {
-        OR: [
-          ...(req.user?.clinicId ? [{ ownerType: 'CLINIC' as any, ownerId: req.user.clinicId }] : []),
-          ...(req.user?.supplierId ? [{ ownerType: 'SUPPLIER' as any, ownerId: req.user.supplierId }] : []),
-          ...(req.user?.organizationId ? [{ ownerType: undefined, ownerId: req.user.organizationId }] : []),
-        ].filter(Boolean),
-      },
-    });
+    const ownership: Array<{ ownerType: WalletOwnerType; ownerId: string }> = [];
+    if (req.user?.clinicId) ownership.push({ ownerType: 'CLINIC', ownerId: req.user.clinicId });
+    if (req.user?.supplierId) ownership.push({ ownerType: 'SUPPLIER', ownerId: req.user.supplierId });
+    const wallets = ownership.length === 0
+      ? []
+      : await prisma.wallet.findMany({
+          where: { OR: ownership },
+        });
     res.json({ ok: true, data: serializeBigInt(wallets) } satisfies ApiResponse);
   } catch (error) {
     res.status(500).json({ ok: false, error: 'Ошибка загрузки кошельков' } satisfies ApiResponse);
@@ -77,29 +78,27 @@ financeRouter.get('/wallets/:ownerType/:ownerId', async (req: AuthRequest, res) 
   }
 });
 
-// Transactions list (platform).
+// Transactions list. Clinic/supplier finance managers may read transactions that
+// actually touched one of their typed wallets; platform administration is SUPERADMIN-only.
 financeRouter.get('/transactions', requirePermission('finance.manage'), async (req: AuthRequest, res) => {
   try {
     const limit = Math.min(parseInt(req.query.limit as string) || 50, 200);
     const isSuper = req.user?.role === 'SUPERADMIN';
-    // Non-superadmins only see transactions tied to their own wallet(s).
-    const ownerFilter: any = {};
+    const ownerFilter: Prisma.TransactionWhereInput = {};
     if (!isSuper) {
-      const ids: string[] = [];
-      if (req.user?.clinicId) ids.push(req.user.clinicId);
-      if (req.user?.supplierId) ids.push(req.user.supplierId);
-      if (req.user?.organizationId) ids.push(req.user.organizationId);
-      if (ids.length === 0) {
+      const typedOwners: Array<{ ownerType: WalletOwnerType; ownerId: string }> = [];
+      if (req.user?.clinicId) typedOwners.push({ ownerType: 'CLINIC', ownerId: req.user.clinicId });
+      if (req.user?.supplierId) typedOwners.push({ ownerType: 'SUPPLIER', ownerId: req.user.supplierId });
+      if (typedOwners.length === 0) {
         return res.json({ ok: true, data: [] } satisfies ApiResponse);
       }
-      // A transaction has no wallet of its own — it reaches one through its
-      // ledger entries, and a transfer has two. `where: { wallet: ... }` named
-      // a field `Transaction` does not have, so Prisma rejected the query and
-      // this endpoint answered 500 for every caller who was not SUPERADMIN
-      // (a SUPERADMIN skips this branch entirely, which is why it went
-      // unnoticed). "Transactions that touched one of my wallets" is the
-      // filter that was meant.
-      ownerFilter.ledgerEntries = { some: { wallet: { ownerId: { in: [...new Set(ids)] } } } };
+      ownerFilter.ledgerEntries = {
+        some: {
+          wallet: {
+            OR: typedOwners,
+          },
+        },
+      };
     }
     const transactions = await prisma.transaction.findMany({
       where: ownerFilter,
@@ -114,14 +113,14 @@ financeRouter.get('/transactions', requirePermission('finance.manage'), async (r
   }
 });
 
-// Ledger integrity check (platform): net of all wallet balances must be 0.
-financeRouter.get('/ledger/health', requirePermission('finance.manage'), async (_req, res) => {
+// Platform finance administration is SUPERADMIN-only. Clinic billing permissions
+// must never imply access to platform-wide ledger governance.
+financeRouter.get('/ledger/health', requireSuperadmin, async (_req, res) => {
   const net = await ledgerNetBalance();
   return res.json({ ok: true, data: { netBalance: net.toString(), balanced: net === 0n } } satisfies ApiResponse);
 });
 
-// Commission rules (platform).
-financeRouter.get('/commission-rules', requirePermission('finance.manage'), async (req: AuthRequest, res) => {
+financeRouter.get('/commission-rules', requireSuperadmin, async (req: AuthRequest, res) => {
   try {
     const { domain, scopeId } = req.query as Record<string, string | undefined>;
     const where: Record<string, unknown> = {};
@@ -134,16 +133,12 @@ financeRouter.get('/commission-rules', requirePermission('finance.manage'), asyn
   }
 });
 
-financeRouter.post('/commission-rules', requirePermission('finance.manage'), async (req: AuthRequest, res) => {
+financeRouter.post('/commission-rules', requireSuperadmin, async (req: AuthRequest, res) => {
   try {
     const { domain, scopeId, percentBps, splitJson } = req.body || {};
     if (!domain || percentBps === undefined) {
       return res.status(400).json({ ok: false, error: 'domain и percentBps обязательны' } satisfies ApiResponse);
     }
-    // Prisma's compound-unique lookup (domain_scopeId) rejects `null` for the
-    // platform-wide "no scope" case — same limitation resolveCommissionBps()
-    // already works around in finance.service.ts. findFirst + create/update
-    // instead of upsert() so scopeId: null works for the default-per-domain rule.
     const normalizedScopeId = scopeId || null;
     const existing = await prisma.commissionRule.findFirst({ where: { domain, scopeId: normalizedScopeId } });
     const rule = existing
@@ -167,16 +162,11 @@ financeRouter.post('/commission-rules', requirePermission('finance.manage'), asy
   }
 });
 
-// Record a sale (platform trigger for now; later wired into shop/school checkout).
-// Body: { domain, sellerType, sellerId, amount (в тенге) | amountMinor, refId? }
-financeRouter.post('/sales', requirePermission('finance.manage'), async (req: AuthRequest, res) => {
+financeRouter.post('/sales', requireSuperadmin, async (req: AuthRequest, res) => {
   try {
     const { domain, sellerType, sellerId, amount, amountMinor, refId, refType } = req.body || {};
     if (!domain || !sellerType || !sellerId || (amount === undefined && amountMinor === undefined)) {
-      return res.status(400).json({
-        ok: false,
-        error: 'domain, sellerType, sellerId и amount обязательны',
-      } satisfies ApiResponse);
+      return res.status(400).json({ ok: false, error: 'domain, sellerType, sellerId и amount обязательны' } satisfies ApiResponse);
     }
     if (!OWNER_TYPES.includes(String(sellerType).toUpperCase())) {
       return res.status(400).json({ ok: false, error: 'Некорректный sellerType' } satisfies ApiResponse);
@@ -187,9 +177,7 @@ financeRouter.post('/sales', requirePermission('finance.manage'), async (req: Au
     } catch {
       return res.status(400).json({ ok: false, error: 'Некорректная сумма' } satisfies ApiResponse);
     }
-    if (minor <= 0n) {
-      return res.status(400).json({ ok: false, error: 'Сумма должна быть положительной' } satisfies ApiResponse);
-    }
+    if (minor <= 0n) return res.status(400).json({ ok: false, error: 'Сумма должна быть положительной' } satisfies ApiResponse);
     const transaction = await recordSale({
       domain,
       sellerType: String(sellerType).toUpperCase() as WalletOwnerType,
@@ -211,8 +199,7 @@ financeRouter.post('/sales', requirePermission('finance.manage'), async (req: Au
   }
 });
 
-// Manual transaction (superadmin: bonuses, fees, refunds).
-financeRouter.post('/transactions/manual', requirePermission('finance.manage'), async (req: AuthRequest, res) => {
+financeRouter.post('/transactions/manual', requireSuperadmin, async (req: AuthRequest, res) => {
   try {
     const { walletId, type, amount, description, refType, refId } = req.body || {};
     if (!walletId || !amount || !type || !description) {
@@ -227,44 +214,25 @@ financeRouter.post('/transactions/manual', requirePermission('finance.manage'), 
     } catch {
       return res.status(400).json({ ok: false, error: 'Некорректная сумма' } satisfies ApiResponse);
     }
-    if (minor <= 0n) {
-      return res.status(400).json({ ok: false, error: 'Сумма должна быть положительной' } satisfies ApiResponse);
-    }
+    if (minor <= 0n) return res.status(400).json({ ok: false, error: 'Сумма должна быть положительной' } satisfies ApiResponse);
     const wallet = await prisma.wallet.findUnique({ where: { id: walletId } });
-    if (!wallet) {
-      return res.status(404).json({ ok: false, error: 'Кошелёк не найден' } satisfies ApiResponse);
-    }
+    if (!wallet) return res.status(404).json({ ok: false, error: 'Кошелёк не найден' } satisfies ApiResponse);
     const transaction = await prisma.$transaction(async (tx) => {
       const txn = await tx.transaction.create({
         data: {
-          type: 'manual',
-          status: 'completed',
-          amount: minor,
-          currency: wallet.currency,
-          refType: refType || 'manual',
-          refId: refId || null,
+          type: 'manual', status: 'completed', amount: minor, currency: wallet.currency,
+          refType: refType || 'manual', refId: refId || null,
           meta: { description, direction: type } as Prisma.InputJsonValue,
-          ledgerEntries: {
-            create: [
-              { walletId: wallet.id, direction: type === 'CREDIT' ? 'credit' : 'debit', amount: minor },
-            ],
-          },
+          ledgerEntries: { create: [{ walletId: wallet.id, direction: type === 'CREDIT' ? 'credit' : 'debit', amount: minor }] },
         },
         include: { ledgerEntries: true },
       });
-
-      if (type === 'CREDIT') {
-        await tx.wallet.update({ where: { id: wallet.id }, data: { balance: { increment: minor } } });
-      } else {
-        await tx.wallet.update({ where: { id: wallet.id }, data: { balance: { decrement: minor } } });
-      }
-
+      if (type === 'CREDIT') await tx.wallet.update({ where: { id: wallet.id }, data: { balance: { increment: minor } } });
+      else await tx.wallet.update({ where: { id: wallet.id }, data: { balance: { decrement: minor } } });
       return txn;
     });
     await auditFromReq(req, {
-      action: 'finance.manual_transaction',
-      entity: 'transaction',
-      entityId: transaction.id,
+      action: 'finance.manual_transaction', entity: 'transaction', entityId: transaction.id,
       details: { walletId, type, amountMinor: String(minor), description },
     });
     return res.status(201).json({ ok: true, data: serializeBigInt(transaction) } satisfies ApiResponse);
@@ -274,49 +242,26 @@ financeRouter.post('/transactions/manual', requirePermission('finance.manage'), 
   }
 });
 
-export default financeRouter;
-
 // ─── Payout queue ───
-//
-// The read that did not exist. `Payout` rows were created by the lecturer and
-// supplier workspaces and consumed by nothing: no queue, no decision, no money
-// movement. These two endpoints are the other end of that workflow.
-
-/** The queue itself. Defaults to what is waiting on a human. */
-financeRouter.get('/payouts', requirePermission('finance.manage'), async (req: AuthRequest, res) => {
+// Payout administration is platform-only.
+financeRouter.get('/payouts', requireSuperadmin, async (req: AuthRequest, res) => {
   const status = String(req.query.status || 'requested');
   const payouts = await listPayouts({
-    status: (PAYOUT_STATUSES as readonly string[]).includes(status)
-      ? (status as PayoutStatus)
-      : undefined,
+    status: (PAYOUT_STATUSES as readonly string[]).includes(status) ? (status as PayoutStatus) : undefined,
     ownerType: req.query.ownerType ? (String(req.query.ownerType) as never) : undefined,
     take: req.query.take ? Number(req.query.take) : undefined,
   });
   return res.json({ ok: true, data: serializeBigInt(payouts) } satisfies ApiResponse);
 });
 
-/**
- * Move a payout along. The ledger entry is posted on `paid` and nowhere else —
- * the service owns that rule so a second caller cannot invent its own.
- */
-financeRouter.post('/payouts/:id/status', requirePermission('finance.manage'), async (req: AuthRequest, res) => {
+financeRouter.post('/payouts/:id/status', requireSuperadmin, async (req: AuthRequest, res) => {
   const next = String((req.body || {}).status || '');
   if (!(PAYOUT_STATUSES as readonly string[]).includes(next)) {
-    return res.status(400).json({
-      ok: false,
-      error: `Статус должен быть одним из: ${PAYOUT_STATUSES.join(', ')}`,
-    } satisfies ApiResponse);
+    return res.status(400).json({ ok: false, error: `Статус должен быть одним из: ${PAYOUT_STATUSES.join(', ')}` } satisfies ApiResponse);
   }
   try {
-    const payout = await transitionPayout(String(req.params.id), next as PayoutStatus, {
-      actorUserId: req.user?.id ?? null,
-    });
-    await auditFromReq(req, {
-      action: 'payout.status_changed',
-      entity: 'payout',
-      entityId: String(req.params.id),
-      details: { to: next },
-    });
+    const payout = await transitionPayout(String(req.params.id), next as PayoutStatus, { actorUserId: req.user?.id ?? null });
+    await auditFromReq(req, { action: 'payout.status_changed', entity: 'payout', entityId: String(req.params.id), details: { to: next } });
     return res.json({ ok: true, data: serializeBigInt(payout) } satisfies ApiResponse);
   } catch (e: any) {
     if (e instanceof PayoutError) {
@@ -327,31 +272,16 @@ financeRouter.post('/payouts/:id/status', requirePermission('finance.manage'), a
   }
 });
 
-// ─── Platform operating expenses ───
-//
-// getUnitEconomics() (bi.service.ts) needs real operating costs; before this
-// nothing ever wrote them, so it silently fell back to a `revenue * 0.3`
-// guess. These two endpoints are the write side of that gap.
-
 const EXPENSE_CATEGORIES = ['SERVER', 'AI_API', 'MARKETING', 'SALARY', 'SUPPORT', 'PAYMENT_FEES'];
 
-financeRouter.get('/expenses', requirePermission('finance.manage'), async (req: AuthRequest, res) => {
+financeRouter.get('/expenses', requireSuperadmin, async (req: AuthRequest, res) => {
   try {
     const { category, from, to } = req.query as Record<string, string | undefined>;
     const where: Record<string, unknown> = { tenantId: 'platform' };
     if (category) where.category = category;
-    if (from || to) {
-      where.date = {
-        ...(from ? { gte: new Date(from) } : {}),
-        ...(to ? { lte: new Date(to) } : {}),
-      };
-    }
+    if (from || to) where.date = { ...(from ? { gte: new Date(from) } : {}), ...(to ? { lte: new Date(to) } : {}) };
     const limit = Math.min(parseInt(String(req.query.limit || '100'), 10) || 100, 500);
-    const expenses = await prisma.platformExpense.findMany({
-      where,
-      orderBy: { date: 'desc' },
-      take: limit,
-    });
+    const expenses = await prisma.platformExpense.findMany({ where, orderBy: { date: 'desc' }, take: limit });
     return res.json({ ok: true, data: serializeBigInt(expenses) } satisfies ApiResponse);
   } catch (error) {
     console.error('List platform expenses error:', error);
@@ -359,39 +289,19 @@ financeRouter.get('/expenses', requirePermission('finance.manage'), async (req: 
   }
 });
 
-financeRouter.post('/expenses', requirePermission('finance.manage'), async (req: AuthRequest, res) => {
+financeRouter.post('/expenses', requireSuperadmin, async (req: AuthRequest, res) => {
   try {
     const { category, amount, date, meta } = req.body || {};
     if (!category || !EXPENSE_CATEGORIES.includes(String(category))) {
-      return res.status(400).json({
-        ok: false,
-        error: `category должна быть одной из: ${EXPENSE_CATEGORIES.join(', ')}`,
-      } satisfies ApiResponse);
+      return res.status(400).json({ ok: false, error: `category должна быть одной из: ${EXPENSE_CATEGORIES.join(', ')}` } satisfies ApiResponse);
     }
     let minor: bigint;
-    try {
-      minor = parseTengeToMinor(amount);
-    } catch {
-      return res.status(400).json({ ok: false, error: 'Некорректная сумма' } satisfies ApiResponse);
-    }
-    if (minor <= 0n) {
-      return res.status(400).json({ ok: false, error: 'Сумма должна быть положительной' } satisfies ApiResponse);
-    }
+    try { minor = parseTengeToMinor(amount); } catch { return res.status(400).json({ ok: false, error: 'Некорректная сумма' } satisfies ApiResponse); }
+    if (minor <= 0n) return res.status(400).json({ ok: false, error: 'Сумма должна быть положительной' } satisfies ApiResponse);
     const expense = await prisma.platformExpense.create({
-      data: {
-        tenantId: 'platform',
-        category: category as ExpenseCategory,
-        amount: minor,
-        date: date ? new Date(date) : undefined,
-        meta: meta ?? undefined,
-      },
+      data: { tenantId: 'platform', category: category as ExpenseCategory, amount: minor, date: date ? new Date(date) : undefined, meta: meta ?? undefined },
     });
-    await auditFromReq(req, {
-      action: 'platform_expense.created',
-      entity: 'platform_expense',
-      entityId: expense.id,
-      details: { category, amountMinor: String(minor) },
-    });
+    await auditFromReq(req, { action: 'platform_expense.created', entity: 'platform_expense', entityId: expense.id, details: { category, amountMinor: String(minor) } });
     return res.status(201).json({ ok: true, data: serializeBigInt(expense) } satisfies ApiResponse);
   } catch (error) {
     console.error('Create platform expense error:', error);
@@ -399,29 +309,19 @@ financeRouter.post('/expenses', requirePermission('finance.manage'), async (req:
   }
 });
 
-/**
- * Platform revenue split by source, over a date range (default: last 30 days).
- *
- * Reads the `Revenue` ledger that `writeRevenue` has been filling on every
- * marketplace/academy sale and every clinic subscription activation since the
- * finance core was built, and which nothing read until now.
- */
-financeRouter.get('/revenue-by-source', requirePermission('finance.manage'), async (req: AuthRequest, res) => {
+financeRouter.get('/revenue-by-source', requireSuperadmin, async (req: AuthRequest, res) => {
   try {
     const parseDate = (value: unknown): Date | undefined => {
       if (typeof value !== 'string' || !value) return undefined;
       const d = new Date(value);
       return Number.isNaN(d.getTime()) ? undefined : d;
     };
-
-    const report = await revenueBySource({
-      from: parseDate(req.query.from),
-      to: parseDate(req.query.to),
-    });
-
+    const report = await revenueBySource({ from: parseDate(req.query.from), to: parseDate(req.query.to) });
     return res.json({ ok: true, data: report } satisfies ApiResponse);
   } catch (error) {
     console.error('[finance] revenue-by-source', error);
     return res.status(500).json({ ok: false, error: 'Не удалось собрать выручку по источникам' } satisfies ApiResponse);
   }
 });
+
+export default financeRouter;
