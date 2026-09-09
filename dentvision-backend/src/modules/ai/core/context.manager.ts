@@ -21,16 +21,23 @@ export class ContextManager {
     };
   }
 
-  async loadPatientContext(patientId: string, clinicId: string): Promise<{
+  async loadPatientContext(userId: string, patientId: string, clinicId: string): Promise<{
     patient: any;
     appointments: any[];
     visits: any[];
     treatmentPlans: any[];
     images: any[];
   }> {
+    // Patient context is clinical data. Never resolve a caller-supplied patient
+    // id before proving that the caller belongs to the requested clinic.
+    const access = await resolveClinicAccess(userId, clinicId);
+    if (!access) {
+      throw new Error('CLINIC_ACCESS_REQUIRED');
+    }
+
     const [patient, appointments, visits, treatmentPlans, images] = await Promise.all([
-      prisma.patient.findUnique({
-        where: { id: patientId },
+      prisma.patient.findFirst({
+        where: { id: patientId, clinicId },
         include: { clinic: true },
       }),
       prisma.appointment.findMany({
@@ -54,6 +61,10 @@ export class ContextManager {
         take: 10,
       }),
     ]);
+
+    if (!patient) {
+      throw new Error('PATIENT_OUTSIDE_CLINIC');
+    }
 
     return { patient, appointments, visits, treatmentPlans, images };
   }
