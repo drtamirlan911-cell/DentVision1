@@ -18,6 +18,8 @@ jobs:
       - run: npm run db:generate
         working-directory: dentvision-backend
       - run: npx tsc --noEmit
+      # Run all deterministic regression tests, not just static checks.
+      - run: npm test -- --run
       # Locks in the current warning count (13) so it can't grow. Lower this
       # number as warnings get cleaned up over time.
       - run: npx eslint src/ --max-warnings 13
