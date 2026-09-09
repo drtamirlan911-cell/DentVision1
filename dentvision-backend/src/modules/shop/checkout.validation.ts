@@ -60,7 +60,9 @@ export function normalizeCheckoutItems(rawItems: unknown): NormalizedCheckoutIte
     if (!isValidCheckoutItem(raw)) return null;
 
     const productId = String(raw.product_id ?? raw.productId ?? raw.id ?? '').trim();
-    const quantity = parseCheckoutQuantity(raw.quantity ?? raw.qty ?? 1);
+    const hasExplicitQuantity = Object.prototype.hasOwnProperty.call(raw, 'quantity') || Object.prototype.hasOwnProperty.call(raw, 'qty');
+    const quantityRaw = raw.quantity ?? raw.qty;
+    const quantity = hasExplicitQuantity ? parseCheckoutQuantity(quantityRaw) : 1;
 
     if (!productId || quantity === null || seen.has(productId)) return null;
 
