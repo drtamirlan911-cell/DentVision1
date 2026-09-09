@@ -26,6 +26,7 @@ const {
       findUnique: vi.fn(),
       create: vi.fn(),
       update: vi.fn(),
+      updateMany: vi.fn(),
     },
     commissionRule: {
       findUnique: vi.fn(),
@@ -86,6 +87,7 @@ beforeEach(() => {
   txDelegate.commissionRule.findFirst.mockResolvedValue(null);
   globalCommissionFindUnique.mockResolvedValue(null);
   globalCommissionFindFirst.mockResolvedValue(null);
+  txDelegate.wallet.updateMany.mockResolvedValue({ count: 1 });
 });
 
 describe('recordSaleTx', () => {
@@ -110,7 +112,11 @@ describe('recordSaleTx', () => {
 
     expect(result).toEqual({ id: 'txn-1', amount: 10_000n });
     expect(txDelegate.transaction.create).toHaveBeenCalledTimes(1);
-    expect(txDelegate.wallet.update).toHaveBeenCalledTimes(3);
+    expect(txDelegate.wallet.updateMany).toHaveBeenCalledWith({
+      where: { id: 'gw', balance: { gte: 10_000n } },
+      data: { balance: { decrement: 10_000n } },
+    });
+    expect(txDelegate.wallet.update).toHaveBeenCalledTimes(2);
     expect(txDelegate.revenue.create).toHaveBeenCalledWith({
       data: {
         tenantId: 'platform',
