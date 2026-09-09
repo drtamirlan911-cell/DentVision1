@@ -18,14 +18,13 @@ jobs:
           node-version: 20
           cache: npm
       - run: npm ci
-      # Backend deps + generated Prisma client are needed because the root
-      # vitest suite also runs dentvision-backend/**/*.test.ts.
       - run: npm ci
         working-directory: dentvision-backend
       - run: npx prisma generate
         working-directory: dentvision-backend
       - run: npm run build --if-present
       - run: npx tsc --noEmit
+      - run: npx tsx quality-scripts/command-center-audit.ts
       - run: npm test
 
   backend-lint:
@@ -36,27 +35,11 @@ jobs:
         with:
           node-version: 20
           cache: npm
-      # eslint + eslint.config.js live only at the repo root (dentvision-backend
-      # has no eslint devDependency of its own) — root npm ci puts a real eslint
-      # binary on the path that dentvision-backend/'s npx invocation below can
-      # find by walking up node_modules, instead of npx silently auto-fetching
-      # a fresh, unpinned, mismatched ESLint version that can't resolve the
-      # config's own @eslint/js dependency.
       - run: npm ci
       - run: npm ci
         working-directory: dentvision-backend
       - run: npx tsc --noEmit
         working-directory: dentvision-backend
-      # Locks in the current warning count (all `no-console`) so it can't grow —
-      # not 0, since fixing the existing debt in one shot is a separate, much
-      # larger change. Lower this number as warnings get cleaned up over time.
-      # 71: jobs/biSnapshotCron.ts's boot-log line, matching every other cron
-      # job's own console.log("[xCron] started...") — the ceiling had zero
-      # headroom left, so this one in-pattern line needed the bump.
-      # 72: index.ts reports how many clinics had their legacy auto-deduct
-      # string converted into stock rules — the only signal that the
-      # conversion ran, and written exactly like the center-subscriptions
-      # backfill log a few lines below it.
       - run: npx eslint src/ --max-warnings 72
         working-directory: dentvision-backend
 
@@ -69,18 +52,10 @@ jobs:
           node-version: 20
           cache: npm
       - run: npm ci
-      # Locks in the current warning count (react-hooks/exhaustive-deps and
-      # unused-eslint-disable) so it can't grow silently — package.json's own
-      # `lint` script ceiling (10000) was never actually enforced anywhere in
-      # CI, which is the same gap backend-lint above closed for the backend.
       - run: npx eslint src/ --max-warnings 13
 
   e2e:
     runs-on: ubuntu-latest
-    # This suite went from never-run to 165/165 passing (docs/SYSTEM_AUDIT.md,
-    # "E2E-набор был декорацией") only just before this job was added — keep
-    # it here rather than folding it into lint-test, since a flaky/slow E2E
-    # run failing the build shouldn't also block the fast unit-test signal.
     services:
       postgres:
         image: postgres:16
@@ -98,19 +73,10 @@ jobs:
     env:
       NODE_ENV: development
       DATABASE_URL: postgresql://postgres:postgres@localhost:5432/dentvision
-      # Sized so a full suite run — hundreds of requests across ~180 tests —
-      # never trips express-rate-limit's in-memory counters and gets 429
-      # instead of the status each test actually means to check. See
-      # docs/SYSTEM_AUDIT.md's note on this: not a problem in CI's fresh
-      # container per run, but the values still have to be raised for the
-      # run to mean anything at all.
       RATE_LIMIT_API_MAX: '100000'
       RATE_LIMIT_AUTH_MAX: '100000'
       JWT_SECRET: e2e-ci-jwt-secret-not-for-production-use-only-000000
       JWT_REFRESH_SECRET: e2e-ci-refresh-secret-not-for-production-000000
-      # DOUBLE-005 exercises the real signed Kaspi callback path — without
-      # this it's a no-op skip, not a failure, but a value here is what
-      # makes that test mean something.
       KASPI_CALLBACK_SECRET: e2e-ci-kaspi-callback-secret-not-for-prod-0000
     steps:
       - uses: actions/checkout@v4
@@ -140,11 +106,7 @@ jobs:
           done
           echo "Backend did not become healthy in time" >&2
           exit 1
-      # browser-e2e.spec.ts needs a served frontend and its own credential
-      # fixture — a separate, larger piece of infrastructure this job does
-      # not stand up (docs/SYSTEM_AUDIT.md has the details). Every other
-      # spec here is API-level against the backend this job just started.
-      - name: Run E2E suite (excluding the browser-driven spec)
+      - name: Run E2E suite
         run: npx playwright test $(ls e2e/tests/*.spec.ts | grep -v browser-e2e)
       - name: Backend log (on failure)
         if: failure()
