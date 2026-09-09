@@ -86,10 +86,13 @@ body { background: var(--dv-surface-2) !important; color: var(--dv-text) !import
 [class*='text-dv-gold'] { color: var(--dv-accent) !important; }
 [class*='border-bdr-subtle'], [class*='border-bdr'] { border-color: var(--dv-border) !important; }
 
-/* Normalize legacy service-specific surfaces to the same clinical material system. */
+/* Legacy service surfaces become one material language. */
 [class*='bg-white/[0.03]'], [class*='bg-white/[0.05]'], [class*='bg-white/[0.06]'] { background-color: var(--dv-surface-2) !important; }
 [class*='border-white/[0.05]'], [class*='border-white/[0.06]'], [class*='border-white/[0.08]'] { border-color: var(--dv-border) !important; }
+[class*='bg-black/[0.03]'], [class*='bg-black/[0.04]'], [class*='bg-black/[0.05]'] { background-color: var(--dv-surface-3) !important; }
+[class*='border-black/[0.05]'], [class*='border-black/[0.06]'], [class*='border-black/[0.08]'] { border-color: var(--dv-border) !important; }
 
+/* No page-sized gradients; preserve only restrained semantic/accent surfaces. */
 [class*='bg-gradient-to-br'][class*='from-dv-gold'],
 [class*='bg-gradient-to-r'][class*='from-dv-gold'] {
   background-image: none !important;
@@ -98,12 +101,21 @@ body { background: var(--dv-surface-2) !important; color: var(--dv-text) !import
 [class*='bg-gradient-to-br'][class*='from-[#2980B9]'],
 [class*='bg-gradient-to-br'][class*='from-blue-'],
 [class*='bg-gradient-to-br'][class*='from-indigo-'],
-[class*='bg-gradient-to-br'][class*='from-purple-'] {
+[class*='bg-gradient-to-br'][class*='from-purple-'],
+[class*='bg-gradient-to-br'][class*='from-cyan-'] {
   background-image: none !important;
   background-color: var(--dv-surface) !important;
 }
-[class*='shadow-glow'], [class*='shadow-[0_0_40px'], [class*='shadow-[0_40px_80px'] { box-shadow: var(--dv-shadow-sm) !important; }
-[class*='backdrop-blur'] { backdrop-filter: none !important; }
+
+/* Normalize oversized visual effects without changing component behavior. */
+[class*='shadow-glow'], [class*='shadow-[0_0_40px'], [class*='shadow-[0_40px_80px'], [class*='shadow-[0_20px_60px'] { box-shadow: var(--dv-shadow-sm) !important; }
+[class*='backdrop-blur'] { backdrop-filter: none !important; -webkit-backdrop-filter: none !important; }
+
+/* Consistent interaction geometry. */
+button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--dv-accent) 72%, transparent) !important;
+  outline-offset: 2px;
+}
 
 @media (max-width: 767px) {
   .dv-page [class*='rounded-2xl'] { border-radius: var(--dv-radius-md) !important; }
