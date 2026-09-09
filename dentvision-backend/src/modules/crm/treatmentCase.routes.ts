@@ -1,6 +1,6 @@
 import { Router, Response } from 'express'
-import { AuthRequest, loadClinicAccess } from '../../middleware/permissions'
-import { prisma } from '../../lib/prisma'
+import { AuthRequest, loadClinicAccess } from '../../middleware/permissions.js'
+import { prisma } from '../../lib/prisma.js'
 
 export const treatmentCaseRouter = Router()
 
