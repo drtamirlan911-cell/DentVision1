@@ -5,6 +5,7 @@ import { usePendingApprovalCount } from '@/queries/ai.query';
 import { useIam } from '@/iam';
 import '../styles/dentvision-superapp.css';
 import '../styles/dentvision-polish.css';
+import '../styles/dentvision-unified-theme.css';
 
 interface SidebarProps {
   collapsed: boolean;
@@ -20,11 +21,6 @@ interface SidebarProps {
   onToggleCollapsed?: () => void;
 }
 
-/**
- * Stable compatibility boundary for the existing IntelligenceLayout contract.
- * Navigation UI is implemented once by SuperAppSidebar, while IAM and approval
- * state remain owned by the existing auth/query infrastructure.
- */
 export const Sidebar: React.FC<SidebarProps> = ({
   collapsed,
   setCollapsed,
