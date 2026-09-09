@@ -4,6 +4,7 @@
 - Work only through the active feature PR/branch unless explicitly instructed otherwise; never change `main` directly.
 - Preserve all existing functionality, routes, API contracts, database behavior, AI logic, permissions, workflows, and data relationships.
 - Visual/UX work must make DentVision feel like one Dental Operating System, not separate CRM/Shop/School/AI products.
+- No uncontrolled redesign from scratch.
 - No purple/blue gradients, neon, glow-heavy AI, excessive glassmorphism, giant decorative cards, or template-like SaaS styling.
 - Prefer clinical neutral surfaces, restrained gold accent, strong typography hierarchy, compact information density, subtle borders, restrained radii/shadows, and excellent mobile behavior.
 - Every new change must be checked against this document before implementation.
@@ -75,6 +76,7 @@ Do not copy branding or proprietary UI. Extract proven interaction patterns and 
 - [x] Created and maintained PR #245: `feat/unified-dentvision-visual-system`.
 - [x] Established persistent master-plan/change-control workflow.
 - [x] Normalized additional legacy translucent surfaces, black/white utility surfaces, cyan service gradients, oversized shadows, and focus states at the shared theme layer.
+- [x] Aligned legacy `design-tokens.ts` with the unified clinical neutral/gold visual foundation while retaining token names for compatibility.
 
 ## Current active pass
 - [ ] Find remaining legacy visual outliers across Dashboard, AI, Analytics, Academy, Shop, Diagnostics, Auth and shared primitives.
@@ -133,9 +135,10 @@ Do not copy branding or proprietary UI. Extract proven interaction patterns and 
 ## Change ledger
 ### 2026-09-09
 - Completed shared theme normalization for additional translucent legacy surfaces, black/white utility surfaces, cyan service gradients, oversized shadow classes, and keyboard focus states.
-- Rationale: reduce cross-service visual drift without changing application behavior.
+- Completed legacy design-token normalization so older components using `T`/`COLORS` no longer introduce a separate navy/purple/cyan/pink visual language.
+- Rationale: reduce cross-service visual drift without changing application behavior or token API names.
 - Active branch: `feat/unified-dentvision-visual-system`.
 - Active PR: #245.
-- Regression status: theme-only change; CI validation remains required.
+- Regression status: visual/token changes only; CI validation remains required.
 
 Future changes must append a dated entry describing what changed, why, what remains, regression/test status, and the active PR/branch.
