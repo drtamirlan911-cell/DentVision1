@@ -78,7 +78,7 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
               exit={{ opacity: 0, x: 80, scale: 0.95 }}
               transition={{ type: 'spring', stiffness: 400, damping: 30 }}
               className={cn(
-                'pointer-events-auto flex items-start gap-3 rounded-xl border px-4 py-3 backdrop-blur-xl shadow-elev-2',
+                'pointer-events-auto flex items-start gap-3 rounded-xl border px-4 py-3 bg-surface-raised shadow-elev-2',
                 BG_CLASSES[t.type]
               )}
             >
@@ -92,7 +92,7 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
               <button
                 aria-label="Dismiss notification"
                 onClick={() => dismiss(t.id)}
-                className="shrink-0 mt-0.5 text-txt-secondary hover:text-txt-primary transition-colors"
+                className="shrink-0 mt-0.5 min-w-9 min-h-9 -mr-1 -mt-1 flex items-center justify-center text-txt-secondary hover:text-txt-primary transition-colors"
               >
                 <X size={14} />
               </button>
