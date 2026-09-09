@@ -5,36 +5,28 @@
 - Branch: `autonomous/superapp-foundation-2026-09-09`
 - PR: #247 — `WIP: DentVision autonomous superapp hardening`
 - Base: `main`
-- Current implementation checkpoint before this log commit: `4325b1ac263470332e2a08bd85d3fa3bf6f06109`
+- Current implementation checkpoint: `c0e5056790a6844228a6973d0f738c04a381d4a4`
 - PR remains **DRAFT / NOT READY FOR RELEASE** until P0 blockers are closed.
 
 ## Verified checkpoint
 
-Commit `b3e95f3afd10bc0ad12bdb769748780e0d163801` passed all three repository workflows and Vercel. The later CI-hardening commits intentionally require a fresh verification cycle.
+Commit `b3e95f3afd10bc0ad12bdb769748780e0d163801` passed all three repository workflows and Vercel. Later CI-hardening commits intentionally require fresh verification.
 
 ## Current hardening
 
-The E2E CI database setup was changed from destructive Prisma `db push --accept-data-loss` to `prisma migrate deploy`. The E2E gate now validates the committed migration chain and exposes migration drift instead of silently changing schema state.
+- E2E CI database setup uses `prisma migrate deploy` instead of destructive `prisma db push --accept-data-loss`.
+- Shop checkout now has an explicit compensation service foundation with CAS-style claiming, atomic stock restoration, persisted restoration markers, and idempotent DentCash reversal.
+- Checkout state modeling now distinguishes confirmed payment failure from an unknown external-provider outcome so unknown payments can be reconciled rather than blindly refunded.
 
-## Active verification
+## Release blockers still open
 
-Fresh PR-triggered workflows were queued after the CI change. The final current-head result must be checked after this durable log commit as well.
-
-## Highest-risk blocker
-
-Shop checkout compensation / money-flow consistency remains P0 OPEN. The existing checkout state-machine contract is side-effect-free and tested, but the real checkout route still needs integration.
-
-Required production-safe behavior:
-
-- strict positive-integer quantity validation before any side effect;
-- atomic stock reservation/decrement with idempotent compensation;
-- no database transaction held across an external payment-provider call;
-- retry-safe DentCash spend/reversal;
-- durable payment/provider references and reconciliation state;
-- explicit distinction between deterministic provider failure and unknown payment outcome;
-- exactly-once stock restoration and DentCash refund on deterministic post-reservation failure;
-- integration coverage for failure, retry, cancellation, provider success/DB failure, and concurrency.
+1. P0 checkout compensation must still be integrated into the real checkout route and covered by integration tests.
+2. External payment creation must execute outside DB transactions, with durable reconciliation for unknown outcomes.
+3. Shop supplier/order integrity remains P1.
+4. Remaining finance authorization/typed-owner verification remains required.
+5. Remaining files/storage and AI tenant-boundary verification remains required.
+6. Full Web + Backend + Android release verification is required on the final resulting commit.
 
 ## Operating rule
 
-Do not declare production readiness from static inspection. Every material change must be verified by executable gates and recorded here or in the project-state documents before the branch can be released.
+Do not declare production readiness from static inspection. Every material change must be verified by executable gates and recorded here or in project-state documents before release.
