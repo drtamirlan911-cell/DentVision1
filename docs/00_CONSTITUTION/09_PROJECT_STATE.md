@@ -22,10 +22,11 @@
 - Durable project state established so decisions and next actions survive beyond chat context.
 - Vitest treatment-plan security test fixed for mock-hoisting semantics with `vi.hoisted()`.
 - AI approval approve/reject transitions hardened with database-level compare-and-set (`updateMany` with `status: pending`) to prevent concurrent double decisions.
+- Legal document status transitions hardened with database-level compare-and-set so concurrent requests cannot both advance the same document.
 
 ## Verification state
 
-The latest CI cycle has passed backend typecheck/build, web typecheck and lint, and the repository quality gate. The full web test/build and Android debug build were still executing at the last inspection. Release remains **NOT READY** until the complete workflow is green and security findings are resolved or formally accepted.
+The latest CI cycle before the legal hardening had passed backend typecheck/build and the full web typecheck/lint/unit/build job. Its Android job was cancelled because the workflow concurrency policy superseded the run while a newer commit was pushed. A new Quality Gate is currently executing against the legal-hardening commit. Release remains **NOT READY** until the complete workflow is green and security findings are resolved or formally accepted.
 
 ## Known release blockers / work queue
 
