@@ -21,12 +21,13 @@ interface UseAINotificationsOptions {
 export function useAINotifications(options?: UseAINotificationsOptions) {
   const { enabled = true, onEvent, onAlert, onTimelineUpdate } = options || {}
   const clinicId = useAuthStore((s) => s.user?.clinicId)
+  const callbacks = useRef({ onEvent, onAlert, onTimelineUpdate })
+  callbacks.current = { onEvent, onAlert, onTimelineUpdate }
   const eventSourceRef = useRef<EventSource | null>(null)
   const reconnectTimerRef = useRef<number | null>(null)
   const stoppedRef = useRef(false)
   const [connected, setConnected] = useState(false)
   const [lastEvent, setLastEvent] = useState<NotificationEvent | null>(null)
-
   const API_URL: string = import.meta.env.VITE_API_URL || (window.location.hostname.includes('vercel.app') ? 'https://dentvision-api.onrender.com' : 'http://localhost:3001')
 
   useEffect(() => {
@@ -36,25 +37,20 @@ export function useAINotifications(options?: UseAINotificationsOptions) {
     const connect = async () => {
       if (stoppedRef.current) return
       try {
-        // EventSource cannot attach Authorization headers. Mint a short-lived,
-        // one-use ticket through the authenticated API and put only that ticket
-        // in the stream URL.
         const ticketResponse = await apiRequest('/api/ai/notifications/ticket', { method: 'POST' })
         const ticket = String(ticketResponse?.ticket || '')
         if (!ticket || stoppedRef.current) return
-
         const url = `${API_URL}/api/ai/notifications/stream?clinicId=${encodeURIComponent(clinicId)}&ticket=${encodeURIComponent(ticket)}`
         const es = new EventSource(url)
         eventSourceRef.current = es
-
         es.onopen = () => setConnected(true)
         es.onmessage = (event) => {
           try {
             const data: NotificationEvent = JSON.parse(event.data)
             setLastEvent(data)
-            onEvent?.(data)
-            if (data.type === 'alert') onAlert?.(data)
-            if (data.type === 'timeline_update') onTimelineUpdate?.(data)
+            callbacks.current.onEvent?.(data)
+            if (data.type === 'alert') callbacks.current.onAlert?.(data)
+            if (data.type === 'timeline_update') callbacks.current.onTimelineUpdate?.(data)
           } catch { /* keepalive / malformed event */ }
         }
         es.onerror = () => {
@@ -80,7 +76,7 @@ export function useAINotifications(options?: UseAINotificationsOptions) {
       eventSourceRef.current = null
       setConnected(false)
     }
-  }, [clinicId, enabled, API_URL, onAlert, onEvent, onTimelineUpdate])
+  }, [clinicId, enabled, API_URL])
 
   const disconnect = useCallback(() => {
     stoppedRef.current = true
