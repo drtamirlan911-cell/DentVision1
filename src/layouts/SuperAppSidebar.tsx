@@ -2,15 +2,17 @@ import React from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-  Activity, BarChart3, Bell, BriefcaseBusiness, ChevronDown, ChevronRight,
-  CircleHelp, Command, Database, GraduationCap, LayoutDashboard, LogOut,
-  Menu, MessageCircle, Search, Settings, ShoppingBag, ShieldCheck, Sparkles,
-  Stethoscope, UserRound, Users, X, Zap,
+  Activity, BarChart3, BriefcaseBusiness, ChevronDown, ChevronRight,
+  CircleHelp, Command, Database, FileText, GraduationCap, LayoutDashboard,
+  LogOut, Menu, MessageCircle, Settings, ShoppingBag, ShieldCheck, Sparkles,
+  Stethoscope, UserRound, Users, X, Zap, CalendarDays, WalletCards,
+  Package, Megaphone, ClipboardList, FileCheck2, Bot, MessagesSquare,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Logo } from '@/components/brand';
 import { Avatar } from '@/components/ui/ds/Avatar';
 import type { User as UserType } from '@/types';
+import { useCommandPalette } from '@/components/CommandPalette';
 
 export interface SuperAppSidebarProps {
   collapsed: boolean;
@@ -38,6 +40,32 @@ const groups: Group[] = [
     ],
   },
   {
+    id: 'clinic', label: 'CLINIC', items: [
+      { id: 'patients', label: 'Patients', path: '/crm/patients', icon: <Users /> },
+      { id: 'schedule', label: 'Schedule', path: '/crm/schedule', icon: <CalendarDays /> },
+      { id: 'dental-chart', label: 'Dental Chart', path: '/crm/dental-chart', icon: <Stethoscope /> },
+      { id: 'treatment-plans', label: 'Treatment Plans', path: '/crm/treatment-plans', icon: <ClipboardList /> },
+      { id: 'medical-card', label: 'Medical Card', path: '/crm/medical-card', icon: <FileCheck2 /> },
+      { id: 'visits', label: 'Visits', path: '/crm/visits', icon: <LayoutDashboard /> },
+      { id: 'lab', label: 'Laboratory', path: '/crm/lab', icon: <Activity /> },
+      { id: 'patient-inbox', label: 'Patient Inbox', path: '/crm/patient-inbox', icon: <MessagesSquare /> },
+    ],
+  },
+  {
+    id: 'operations', label: 'OPERATIONS', items: [
+      { id: 'finance', label: 'Finance', path: '/crm/finance', icon: <WalletCards /> },
+      { id: 'cashier', label: 'Cashier', path: '/crm/cashier', icon: <WalletCards /> },
+      { id: 'inventory', label: 'Inventory', path: '/crm/inventory', icon: <Package /> },
+      { id: 'pricelist', label: 'Price List', path: '/crm/pricelist', icon: <FileText /> },
+      { id: 'marketing', label: 'Marketing', path: '/crm/marketing', icon: <Megaphone /> },
+      { id: 'promotions', label: 'Promotions', path: '/crm/promotions', icon: <Zap /> },
+      { id: 'reminders', label: 'Reminders', path: '/crm/reminders', icon: <MessageCircle /> },
+      { id: 'documents', label: 'Documents', path: '/crm/documents', icon: <FileText /> },
+      { id: 'staff', label: 'Staff', path: '/crm/staff', icon: <Users /> },
+      { id: 'workflow', label: 'Automation', path: '/crm/workflow', icon: <Bot /> },
+    ],
+  },
+  {
     id: 'business', label: 'BUSINESS', items: [
       { id: 'shop', label: 'Shop', path: '/shop', icon: <ShoppingBag /> },
       { id: 'academy', label: 'Academy', path: '/school', icon: <GraduationCap /> },
@@ -56,6 +84,10 @@ const moreItems: Item[] = [
   { id: 'profile', label: 'Profile', path: '/profile', icon: <UserRound /> },
   { id: 'settings', label: 'Settings', path: '/settings', icon: <Settings /> },
   { id: 'help', label: 'Help & Support', path: '/help', icon: <CircleHelp /> },
+  { id: 'clinic-settings', label: 'Clinic Settings', path: '/crm/clinic-settings', icon: <Settings /> },
+  { id: 'billing', label: 'Billing', path: '/crm/billing', icon: <WalletCards /> },
+  { id: 'integrations', label: 'Messaging Integrations', path: '/crm/integrations/messaging', icon: <MessageCircle /> },
+  { id: 'icd10', label: 'ICD-10', path: '/crm/icd10', icon: <FileCheck2 /> },
 ];
 
 const adminItems: Item[] = [
@@ -63,6 +95,8 @@ const adminItems: Item[] = [
   { id: 'approvals', label: 'AI Approvals', path: '/ai-approvals', icon: <Zap /> },
   { id: 'agents', label: 'AI Agents', path: '/agent-activity', icon: <Sparkles /> },
   { id: 'audit', label: 'Audit & Security', path: '/audit', icon: <Database /> },
+  { id: 'bi', label: 'BI Workspace', path: '/bi', icon: <BarChart3 /> },
+  { id: 'backup', label: 'Backup', path: '/backup', icon: <Database /> },
 ];
 
 function isActive(pathname: string, itemPath: string) {
@@ -100,6 +134,7 @@ export const SuperAppSidebar: React.FC<SuperAppSidebarProps> = ({
   const navigate = useNavigate();
   const location = useLocation();
   const [moreOpen, setMoreOpen] = React.useState(false);
+  const { open: openCommandPalette } = useCommandPalette();
 
   const go = (path: string) => {
     navigate(path);
@@ -135,7 +170,7 @@ export const SuperAppSidebar: React.FC<SuperAppSidebarProps> = ({
         </div>
 
         <div className="px-3 pt-3">
-          <button type="button" onClick={() => go('/')} className={cn('flex w-full items-center gap-2.5 rounded-xl border border-[var(--dv-border)] bg-[var(--dv-surface)] px-2.5 py-2 text-left transition hover:border-[var(--dv-border-strong)]', collapsed && !isMobile && 'justify-center')}>
+          <button type="button" onClick={openCommandPalette} className={cn('flex w-full items-center gap-2.5 rounded-xl border border-[var(--dv-border)] bg-[var(--dv-surface)] px-2.5 py-2 text-left transition hover:border-[var(--dv-border-strong)]', collapsed && !isMobile && 'justify-center')} aria-label="Open command palette">
             <span className="grid h-7 w-7 shrink-0 place-items-center rounded-lg bg-[var(--dv-accent-soft)] text-[var(--dv-accent)]"><Command size={14} /></span>
             {(!collapsed || isMobile) && <><span className="flex-1 text-xs font-medium text-[var(--dv-text)]">Search anything</span><kbd className="rounded-md border border-[var(--dv-border)] px-1.5 py-0.5 text-[10px] text-[var(--dv-muted)]">⌘K</kbd></>}
           </button>
