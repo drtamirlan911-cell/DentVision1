@@ -5,26 +5,13 @@ import { requirePermission } from '../../middleware/rbac.js';
 import type { AuthRequest, ApiResponse } from '../../types/index.js';
 import { reverseCashback } from '../dentcash/refund.service.js';
 import { auditFromReq } from '../compliance/audit.service.js';
+import { canTransitionDispute, isDisputeStatus } from './disputeState.js';
 
 // Disputes (Phase 5). Buyers/clinics open disputes on orders/enrollments;
 // platform resolves them. Financial resolution (refunds) plugs into Finance Core.
 export const disputesRouter = Router();
 
 disputesRouter.use(authenticate);
-
-const STATUSES = ['open', 'review', 'resolved', 'rejected'] as const;
-type DisputeStatus = (typeof STATUSES)[number];
-
-const ALLOWED_TRANSITIONS: Record<DisputeStatus, readonly DisputeStatus[]> = {
-  open: ['review', 'resolved', 'rejected'],
-  review: ['resolved', 'rejected'],
-  resolved: [],
-  rejected: [],
-};
-
-function isDisputeStatus(value: unknown): value is DisputeStatus {
-  return typeof value === 'string' && (STATUSES as readonly string[]).includes(value);
-}
 
 disputesRouter.post('/', async (req: AuthRequest, res) => {
   try {
@@ -70,11 +57,10 @@ disputesRouter.post('/:id/status', requirePermission('finance.manage'), async (r
       return res.status(500).json({ ok: false, error: 'Некорректное состояние спора в базе данных' } satisfies ApiResponse);
     }
 
-    const currentStatus = existing.status;
-    if (!ALLOWED_TRANSITIONS[currentStatus].includes(requestedStatus)) {
+    if (!canTransitionDispute(existing.status, requestedStatus)) {
       return res.status(409).json({
         ok: false,
-        error: `Недопустимый переход статуса: ${currentStatus} -> ${requestedStatus}`,
+        error: `Недопустимый переход статуса: ${existing.status} -> ${requestedStatus}`,
       } satisfies ApiResponse);
     }
 
