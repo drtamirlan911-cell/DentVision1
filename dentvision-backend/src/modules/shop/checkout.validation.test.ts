@@ -66,6 +66,8 @@ describe('shop checkout validation', () => {
 
   it('rejects malformed items, missing product ids and duplicate products', () => {
     expect(normalizeCheckoutItems([{ productId: 'p1', quantity: 0 }])).toBeNull();
+    expect(normalizeCheckoutItems([{ productId: 'p1', quantity: null }])).toBeNull();
+    expect(normalizeCheckoutItems([{ productId: 'p1', qty: null }])).toBeNull();
     expect(normalizeCheckoutItems([{ productId: 'p1', quantity: 1.5 }])).toBeNull();
     expect(normalizeCheckoutItems([{ quantity: 1 }])).toBeNull();
     expect(normalizeCheckoutItems([{ productId: 'p1', quantity: 1 }, { id: 'p1', quantity: 2 }])).toBeNull();
