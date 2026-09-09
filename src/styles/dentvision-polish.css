@@ -1,6 +1,6 @@
 /* DentVision final visual polish. Presentation only: no layout logic, API or navigation behavior. */
 
-/* Remove decorative gold gradients outside .dv-page as well. */
+/* Brand gradients are accents, never the default surface language. */
 [class*="bg-gradient-to-br"][class*="from-dv-gold"],
 [class*="bg-gradient-to-r"][class*="from-dv-gold"],
 [class*="bg-gradient-to-br"][class*="from-dv-gold-from"],
@@ -8,145 +8,113 @@
   background-image: none !important;
   background-color: color-mix(in srgb, var(--dv-surface, #fff) 94%, var(--dv-accent, #a47b35) 6%) !important;
 }
-
-/* Direct page-level primary CTAs keep the brand fill even if they still use a legacy gradient class. */
 [class*="bg-gradient-to-br"][class*="text-dv-gold-on"],
 [class*="bg-gradient-to-r"][class*="text-dv-gold-on"] {
   background-image: none !important;
   background-color: var(--dv-accent, #a47b35) !important;
 }
-
 [class*="bg-gradient-to-br"][class*="from-dv-gold"] [class*="blur-3xl"],
 [class*="bg-gradient-to-br"][class*="from-dv-gold"] [class*="blur-2xl"],
 [class*="bg-gradient-to-r"][class*="from-dv-gold"] [class*="blur-3xl"],
 [class*="bg-gradient-to-r"][class*="from-dv-gold"] [class*="blur-2xl"],
 [class*="bg-gradient-to-br"][class*="from-dv-gold-from"] [class*="blur-3xl"],
-[class*="bg-gradient-to-br"][class*="from-dv-gold-from"] [class*="blur-2xl"] {
-  display: none !important;
-}
+[class*="bg-gradient-to-br"][class*="from-dv-gold-from"] [class*="blur-2xl"] { display: none !important; }
 
-/* Replace oversized decorative glows with the same quiet elevation language used by the DS. */
+/* Restrain legacy glow/hero shadows. */
 [class*="shadow-glow"],
-[class*="shadow-[0_0_40px"] {
-  box-shadow: var(--dv-shadow-sm, 0 1px 2px rgba(0,0,0,.04)) !important;
-}
-
-/* Replace very large legacy modal/auth shadows with restrained elevation. */
+[class*="shadow-[0_0_40px"],
 [class*="shadow-[0_40px_80px"] {
   box-shadow: var(--dv-shadow-md, 0 8px 24px rgba(0,0,0,.06)) !important;
 }
-
-/* Keep primary gold as a functional accent, not a surface treatment. */
-[class*="border-dv-gold\/20"],
-[class*="border-dv-gold\/25"] {
+[class*="border-dv-gold\\/20"],
+[class*="border-dv-gold\\/25"] {
   border-color: color-mix(in srgb, var(--dv-accent, #a47b35) 18%, var(--dv-border, rgba(23,25,24,.08))) !important;
 }
-
-/* Premium surfaces for common cards that sit outside .dv-page. */
 [class*="rounded-2xl"].border,
-[class*="rounded-xl"].border {
-  border-color: var(--dv-border, rgba(23,25,24,.08));
-}
+[class*="rounded-xl"].border { border-color: var(--dv-border, rgba(23,25,24,.08)); }
 
-/* Global native controls: old pages still contain raw buttons, so give them the same
-   contrast/focus language as the shared Button component without changing their layout. */
+/* Legacy native controls inherit the DS interaction language. */
+button:not([data-dv-unstyled]),
+a[role="button"]:not([data-dv-unstyled]) { -webkit-tap-highlight-color: transparent; }
 button[class*="bg-surface-2"][class*="border-bdr-subtle"],
 a[class*="bg-surface-2"][class*="border-bdr-subtle"] {
   border-color: var(--dv-border-strong, rgba(23,25,24,.15)) !important;
   color: var(--dv-text, #171918) !important;
 }
-
 button[class*="bg-surface-2"][class*="border-bdr-subtle"]:hover,
 a[class*="bg-surface-2"][class*="border-bdr-subtle"]:hover {
   border-color: color-mix(in srgb, var(--dv-accent, #a47b35) 55%, var(--dv-border-strong, rgba(23,25,24,.15))) !important;
 }
-
 button[class*="text-txt-muted"]:focus-visible,
 a[class*="text-txt-muted"]:focus-visible,
 button[class*="text-txt-secondary"]:focus-visible,
-a[class*="text-txt-secondary"]:focus-visible {
+a[class*="text-txt-secondary"]:focus-visible,
+button:focus-visible,
+a[role="button"]:focus-visible {
   outline: 2px solid color-mix(in srgb, var(--dv-accent, #a47b35) 65%, transparent) !important;
   outline-offset: 2px;
 }
 
-/* Interactive tabs/segmented controls should visibly distinguish the active state. */
+/* Active tabs/segments must never look disabled. */
 button[aria-selected="true"],
 button[aria-pressed="true"] {
   color: var(--dv-text, #171918) !important;
   border-color: color-mix(in srgb, var(--dv-accent, #a47b35) 45%, var(--dv-border-strong, rgba(23,25,24,.15))) !important;
 }
 
-/* Touch-friendly controls without making desktop UI oversized. */
+/* Fix legacy light-theme contrast where white text was copied from the old dark UI. */
+button[class*="bg-surface-1"][class*="text-white"],
+button[class*="bg-surface-2"][class*="text-white"],
+a[class*="bg-surface-1"][class*="text-white"],
+a[class*="bg-surface-2"][class*="text-white"] { color: var(--dv-text, #171918) !important; }
+button[class*="bg-success"][class*="text-white"],
+button[class*="bg-error"][class*="text-white"],
+a[class*="bg-success"][class*="text-white"],
+a[class*="bg-error"][class*="text-white"] { color: #fff !important; }
+
+/* Normalize common legacy segmented controls. */
+button[class*="border-none"][class*="bg-surface-1"],
+button[class*="border-none"][class*="bg-surface-2"] { border: 1px solid var(--dv-border) !important; }
+button[class*="border-none"][class*="bg-surface-1"]:hover,
+button[class*="border-none"][class*="bg-surface-2"]:hover {
+  background: var(--dv-surface-raised-hover, var(--dv-surface-2)) !important;
+  border-color: var(--dv-border-strong) !important;
+}
+
+/* Normalize the remaining ad-hoc blue badge palette to the semantic info token. */
+[class*="bg-\\[#4e8cff\\]"], [class*="text-\\[#4e8cff\\]"], [class*="border-\\[#4e8cff\\]"] { color: var(--dv-info, #3b82f6) !important; }
+
+/* Touch-friendly controls without inflating desktop UI. */
 @media (max-width: 767px) {
-  button[class*="rounded-xl"],
-  a[class*="rounded-xl"] {
-    touch-action: manipulation;
-  }
-}
-
-/* Course/AI content: reduce decorative noise while retaining hierarchy. */
-[class*="from-dv-gold\/10"],
-[class*="from-dv-gold\/15"],
-[class*="from-dv-gold\/20"],
-[class*="from-dv-gold\/25"] {
-  box-shadow: none !important;
-}
-
-/* Avoid accidental horizontal overflow in dense workspaces. */
-main,
-[role="main"] {
-  min-width: 0;
-}
-
-img {
-  max-width: 100%;
+  button[class*="rounded-xl"], a[class*="rounded-xl"] { touch-action: manipulation; }
 }
 
 /* AI composer: premium clinical surface, no glass/glow dependency. */
-.dv-composer-pad > div > div[class*="rounded-[1.35rem]"] {
+.dv-composer-pad > div > div[class*="rounded-[1.35rem"]] {
   box-shadow: var(--dv-shadow-sm, 0 1px 2px rgba(0,0,0,.04)) !important;
   border-radius: var(--dv-radius-lg, 14px) !important;
   background: var(--dv-surface, #fff) !important;
   border: 1px solid var(--dv-border, rgba(23,25,24,.08)) !important;
   backdrop-filter: none !important;
 }
-
 .dv-composer-pad > div > div[class*="rounded-[1.35rem"] > div[class*="backdrop-blur"] {
   background: var(--dv-surface, #fff) !important;
   border-color: transparent !important;
   border-radius: inherit !important;
   backdrop-filter: none !important;
 }
+.dv-composer-pad textarea { color: var(--dv-text, #171918) !important; }
+.dv-composer-pad textarea::placeholder { color: var(--dv-muted-2, #a0a6a3) !important; }
+.dv-composer-pad [class*="shadow-lg"] { box-shadow: var(--dv-shadow-sm, 0 1px 2px rgba(0,0,0,.04)) !important; }
+.dv-composer-pad [class*="bg-white/[0.05]"], .dv-composer-pad [class*="bg-white/[0.03]"] { background: var(--dv-surface-2, #f6f7f7) !important; }
+.dv-composer-pad [class*="backdrop-blur-xl"] { backdrop-filter: none !important; }
 
-.dv-composer-pad textarea {
-  color: var(--dv-text, #171918) !important;
-}
-
-.dv-composer-pad textarea::placeholder {
-  color: var(--dv-muted-2, #a0a6a3) !important;
-}
-
-.dv-composer-pad [class*="shadow-lg"] {
-  box-shadow: var(--dv-shadow-sm, 0 1px 2px rgba(0,0,0,.04)) !important;
-}
-
-.dv-composer-pad [class*="bg-white/[0.05]"],
-.dv-composer-pad [class*="bg-white/[0.03]"] {
-  background: var(--dv-surface-2, #f6f7f7) !important;
-}
-
-/* Processing state uses the same surface hierarchy as the input. */
-.dv-composer-pad [class*="backdrop-blur-xl"] {
-  backdrop-filter: none !important;
-}
-
-/* Chat bubbles: remove the remaining AI-era glow/gradient treatment. */
-[class*="from-[#D4B57A]"][class*="to-dv-gold\/85"] {
+/* Chat bubbles. */
+[class*="from-[#D4B57A]"][class*="to-dv-gold\\/85"] {
   background-image: none !important;
   background-color: var(--dv-accent, #a47b35) !important;
   box-shadow: var(--dv-shadow-sm, 0 1px 2px rgba(0,0,0,.04)) !important;
 }
-
 [class*="from-white/[0.055]"][class*="to-white/[0.025]"] {
   background-image: none !important;
   background: var(--dv-surface-2, #f6f7f7) !important;
@@ -155,24 +123,18 @@ img {
   backdrop-filter: none !important;
 }
 
-/* Auth/public booking cards: keep the premium hierarchy without frosted-glass dependence. */
-[class*="backdrop-blur-2xl"][class*="border-dv-gold\/20"] {
+/* Auth/public booking cards. */
+[class*="backdrop-blur-2xl"][class*="border-dv-gold\\/20"] {
   background: var(--dv-surface, #fff) !important;
   border-color: var(--dv-border-strong, rgba(23,25,24,.15)) !important;
   backdrop-filter: none !important;
   box-shadow: var(--dv-shadow-md, 0 8px 24px rgba(0,0,0,.06)) !important;
 }
 
-/* Keep compact AI controls tactile and visually quiet. */
-@media (max-width: 767px) {
-  .dv-composer-pad button {
-    min-width: 40px;
-    min-height: 40px;
-  }
+main, [role="main"] { min-width: 0; }
+img { max-width: 100%; }
 
-  .dv-composer-pad textarea {
-    padding-left: 14px !important;
-    padding-top: 12px !important;
-    padding-bottom: 12px !important;
-  }
+@media (max-width: 767px) {
+  .dv-composer-pad button { min-width: 40px; min-height: 40px; }
+  .dv-composer-pad textarea { padding-left: 14px !important; padding-top: 12px !important; padding-bottom: 12px !important; }
 }
