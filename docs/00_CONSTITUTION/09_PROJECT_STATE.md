@@ -36,6 +36,7 @@
 - Platform-finance E2E fixtures now include a dedicated `SUPERADMIN`; platform revenue, payout administration and platform-expense tests no longer require insecure clinic-owner access.
 - Idempotency reservation now uses a PostgreSQL transaction-scoped advisory lock per key, eliminating expected concurrent `P2002`/unique-constraint error noise while retaining the database unique index as the integrity boundary.
 - Shop checkout failure/compensation matrix added as a durable release-control artifact, documenting required state transitions, money/inventory invariants and regression cases.
+- Dispute transition rules extracted into a testable guard and regression tests added for valid forward transitions, backward transitions, terminal-state immutability and unknown states.
 
 ## Verification state
 
@@ -49,7 +50,7 @@ Quality Gate run `34339054986` completed successfully: backend dependency instal
 4. P0 finance typed owner isolation: hardened; add collision regression tests and complete route audit.
 5. P0 shop checkout compensation: OPEN. Implement the state machine and compensating workflow from `docs/security/SHOP_CHECKOUT_FAILURE_MATRIX.md`.
 6. Complete shop supplier/order integrity tests for supplier ownership, price/quantity tampering, retries, refunds and cross-clinic access.
-7. Add regression tests for dispute state transitions and concurrent terminal/non-terminal races, including negative authorization for clinic finance roles.
+7. Dispute state-machine regression coverage added; next add HTTP authorization and concurrent terminal/non-terminal integration coverage.
 8. Complete authentication, RBAC, tenant isolation and IDOR audit across every API domain; prioritize finance, shop, IAM, files and patient-facing routes.
 9. Map and harden Patient 360 and core clinical workflows.
 10. Verify AI authorization, confirmation, auditability and clinical safety boundaries, including expiry and replay behavior.
