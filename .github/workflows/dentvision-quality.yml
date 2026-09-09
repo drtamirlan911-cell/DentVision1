@@ -21,6 +21,12 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
+      - name: Install backend dependencies for shared Vitest suite
+        working-directory: dentvision-backend
+        run: npm ci
+      - name: Generate backend Prisma client for shared Vitest suite
+        working-directory: dentvision-backend
+        run: npm run db:generate
       - run: npm run typecheck
       - run: npm run lint
       - run: npm test -- --run
