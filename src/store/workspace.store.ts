@@ -2,6 +2,15 @@ import { create } from 'zustand'
 
 export type ContextFocus = 'workspace' | 'patient' | 'appointment' | 'product' | 'course' | 'analytics' | 'invoice' | 'lab'
 
+export interface ActiveWorkspaceMeta {
+  id: string
+  scopeType: string
+  organizationId?: string
+  name: string
+  roleLabel: string
+  switchedAt: number
+}
+
 interface WorkspaceState {
   context: {
     focusType: ContextFocus
@@ -9,6 +18,7 @@ interface WorkspaceState {
     data: Record<string, unknown>
     lastUpdated: number
   }
+  activeWorkspace: ActiveWorkspaceMeta | null
 
   onboarding: {
     completed: boolean
@@ -19,6 +29,7 @@ interface WorkspaceState {
   setContextFocus: (focusType: ContextFocus, focusId?: string | null, data?: Record<string, unknown>) => void
   setContextData: (data: Record<string, unknown>) => void
   clearContext: () => void
+  setActiveWorkspace: (workspace: Omit<ActiveWorkspaceMeta, 'switchedAt'>) => void
 
   setOnboardingComplete: (completed: boolean) => void
   setOnboardingScreen: (screen: number) => void
@@ -32,6 +43,7 @@ export const useWorkspaceStore = create<WorkspaceState>((set) => ({
     data: {},
     lastUpdated: Date.now(),
   },
+  activeWorkspace: null,
 
   onboarding: {
     completed: (() => { try { return typeof window !== 'undefined' && !!sessionStorage.getItem('dv_welcomed') } catch { return false } })(),
@@ -49,6 +61,11 @@ export const useWorkspaceStore = create<WorkspaceState>((set) => ({
 
   clearContext: () => set({
     context: { focusType: 'workspace', focusId: null, data: {}, lastUpdated: Date.now() },
+  }),
+
+  setActiveWorkspace: (workspace) => set({
+    activeWorkspace: { ...workspace, switchedAt: Date.now() },
+    context: { focusType: 'workspace', focusId: workspace.id, data: { workspaceName: workspace.name, workspaceRole: workspace.roleLabel, workspaceType: workspace.scopeType }, lastUpdated: Date.now() },
   }),
 
   setOnboardingComplete: (completed) => {
