@@ -42,11 +42,13 @@ disputesRouter.post('/', async (req: AuthRequest, res) => {
       });
       ownsReference = !!order && (order.userId === userId || (!!req.user?.clinicId && order.clinicId === req.user.clinicId));
     } else {
+      // SchoolEnrollment is user/course scoped in the backend schema and does
+      // not expose clinicId. Ownership is therefore restricted to its user.
       const enrollment = await prisma.schoolEnrollment.findUnique({
         where: { id: refId },
-        select: { id: true, userId: true, clinicId: true },
+        select: { id: true, userId: true },
       });
-      ownsReference = !!enrollment && (enrollment.userId === userId || (!!req.user?.clinicId && enrollment.clinicId === req.user.clinicId));
+      ownsReference = !!enrollment && enrollment.userId === userId;
     }
 
     if (!ownsReference) {
