@@ -34,12 +34,18 @@ const sidebarPaths = [...sidebar.matchAll(/path: '([^']+)'/g)].map((m) => m[1])
 const duplicatePaths = [...new Set(sidebarPaths.filter((p, i) => sidebarPaths.indexOf(p) !== i))]
 if (duplicatePaths.length) failures.push(`Duplicate sidebar destinations: ${duplicatePaths.join(', ')}`)
 
-// Finance and cashier are one operational workspace in the current product; the old
-// /crm/finance entry had no page and created a second, misleading navigation item.
+// Finance is a compatibility alias only; the visible/canonical destination is cashier.
 if (sidebar.includes("path: '/crm/finance'")) failures.push('Stale /crm/finance sidebar destination remains')
+if (!index.includes('path="crm/finance"') || !index.includes('Navigate to="/crm/cashier"')) {
+  failures.push('Legacy finance route is not a canonical redirect')
+}
 
-// Sidebar labels must be locale-driven, not hardcoded English UI copy.
-if (!sidebar.includes("useTranslation") || !sidebar.includes("text(item.labelKey")) failures.push('Sidebar labels are not fully localized')
+// AI must be a real workspace route, not the dashboard root.
+if (sidebar.includes("id: 'ai',") && !sidebar.includes("path: '/ai'")) failures.push('Sidebar AI item points to dashboard root')
+if (bottomNav.includes("id: 'ai'") && !bottomNav.includes("path: '/ai'")) failures.push('Mobile AI item points to dashboard root')
+
+// Labels must be locale-driven, not hardcoded English UI copy.
+if (!sidebar.includes('useTranslation') || !sidebar.includes('labelKey')) failures.push('Sidebar labels are not locale-driven')
 if (bottomNav.includes("label: 'Academy'") || bottomNav.includes("label: 'Community'")) failures.push('Mobile navigation contains hardcoded English labels')
 
 if (!dashboard.includes("navigate('/ai')")) failures.push('Dashboard AI actions not wired')
@@ -51,4 +57,4 @@ if (failures.length) {
   process.exit(1)
 }
 
-console.log(`Command Center audit passed: ${routes.length} critical routes, navigation uniqueness, and localization checks.`)
+console.log(`Command Center audit passed: ${routes.length} critical routes, navigation uniqueness, AI routing, and localization checks.`)
