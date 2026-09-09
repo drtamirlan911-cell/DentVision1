@@ -5,7 +5,7 @@
 - Branch: `autonomous/superapp-foundation-2026-09-09`
 - PR: #247 — `WIP: DentVision autonomous superapp hardening`
 - Base: `main`
-- Current implementation checkpoint: `97f2b8cc7770a6bfd2daf6c297fefd49c94bd18a`
+- Current implementation checkpoint: `cc117781e232830de1559cdb7ab66e61f3b19988`
 - PR remains **DRAFT / NOT READY FOR RELEASE** until P0 blockers are closed.
 
 ## Verified checkpoint
@@ -17,15 +17,17 @@ Commit `b3e95f3afd10bc0ad12bdb769748780e0d163801` passed all three repository wo
 - E2E CI database setup uses `prisma migrate deploy` instead of destructive `prisma db push --accept-data-loss`.
 - Shop checkout now has an explicit compensation service foundation with CAS-style claiming, atomic stock restoration, persisted restoration markers, and idempotent DentCash reversal.
 - Checkout state modeling distinguishes confirmed payment failure from an unknown external-provider outcome so unknown payments can be reconciled rather than blindly refunded.
+- Added regression tests for deterministic checkout compensation: exact-once stock restoration, retry-only DentCash refund, and refusal to compensate paid/unknown outcomes.
 
 ## Release blockers still open
 
-1. P0 checkout compensation must still be integrated into the real checkout route and covered by integration tests.
+1. P0 checkout compensation must still be integrated into the real checkout route and covered by route-level/integration tests.
 2. External payment creation must execute outside DB transactions, with durable reconciliation for unknown outcomes.
-3. Shop supplier/order integrity remains P1.
-4. Remaining finance authorization/typed-owner verification remains required.
-5. Remaining files/storage and AI tenant-boundary verification remains required.
-6. Full Web + Backend + Android release verification is required on the final resulting commit.
+3. Strict positive-integer quantity validation must execute before any stock mutation in the real checkout route.
+4. Shop supplier/order integrity remains P1.
+5. Remaining finance authorization/typed-owner verification remains required.
+6. Remaining files/storage and AI tenant-boundary verification remains required.
+7. Full Web + Backend + Android release verification is required on the final resulting commit.
 
 ## Operating rule
 
