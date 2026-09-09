@@ -18,6 +18,8 @@ The remaining release requirement is verification on the resulting commit and a 
 
 The same checkout path creates an external Kaspi payment while inside a database transaction. A provider-side success followed by a database failure can therefore create an orphaned external payment unless the provider supports an idempotent cancellation/reconciliation operation.
 
+A side-effect-free checkout state-machine contract is now present in `dentvision-backend/src/modules/shop/checkout.state.ts`, with tests covering normal payment flow, retry, terminal states, and invalid transitions. This contract is not yet wired through the route, so the blocker remains OPEN.
+
 Required fix:
 
 1. Redesign checkout as a recoverable state machine with explicit stock reservation/compensation.
@@ -95,7 +97,9 @@ Required verification:
 
 The files module now requires authentication and patient permissions, applies clinic scoping to patient/document reads, rejects guest access, stores uploads under clinic-prefixed object keys, and returns short-lived signed URLs for stored objects. Uploads are limited to 60 MB and restricted by extension.
 
-Remaining verification requirement: confirm MIME/content validation, object-key traversal resistance, signed URL lifetime, delete-path tenant isolation, and that the production storage bucket does not allow public object reads.
+The storage layer now independently rejects unsafe object keys before upload or signed-read generation. Keys must use the `clinics/` namespace and cannot contain traversal, absolute-path, duplicate-separator, backslash, or control-character patterns. This is defense in depth; route-level clinic authorization remains mandatory.
+
+Remaining verification requirement: confirm MIME/content validation, signed URL lifetime, delete-path tenant isolation, storage cleanup on document deletion, and that the production storage bucket does not allow public object reads.
 
 ## Release rule
 
