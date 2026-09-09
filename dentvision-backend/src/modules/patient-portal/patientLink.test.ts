@@ -20,6 +20,7 @@ beforeEach(() => {
   updateMany.mockReset();
   findFirst.mockResolvedValue(null);
   queryRaw.mockResolvedValue([]);
+  updateMany.mockResolvedValue({ count: 1 });
 });
 
 describe('phone matching', () => {
@@ -52,19 +53,15 @@ describe('resolvePatientForUser', () => {
   });
 
   it('adopts a card that matches the email and writes the link once', async () => {
-    // Before, the email fallback ran again on every single request, and a clinic
-    // editing the email on the card silently revoked the patient's access.
     findFirst
-      .mockResolvedValueOnce(null)                       // by userId
-      .mockResolvedValueOnce({ id: 'p2', clinicId: 'c1' }); // by email
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce({ id: 'p2', clinicId: 'c1' });
 
     expect(await resolvePatientForUser(USER)).toMatchObject({ id: 'p2', via: 'email' });
     expect(updateMany).toHaveBeenCalledWith({ where: { id: 'p2', userId: null }, data: { userId: 'u1' } });
   });
 
   it('adopts a card that matches only the phone', async () => {
-    // The case that produced duplicate empty cards: reception enters a patient
-    // by phone, and the public booking form does not require an email at all.
     queryRaw.mockResolvedValue([{ id: 'p3', clinicId: 'c1', phone: '8 707 123 45 67' }]);
 
     expect(await resolvePatientForUser(USER)).toMatchObject({ id: 'p3', via: 'phone' });
@@ -72,7 +69,6 @@ describe('resolvePatientForUser', () => {
   });
 
   it('rejects a candidate whose digits only partially overlap', async () => {
-    // `contains` is a coarse filter; the normalised comparison decides.
     queryRaw.mockResolvedValue([{ id: 'p4', clinicId: 'c1', phone: '+7 707 123 45 60' }]);
 
     expect(await resolvePatientForUser(USER)).toBeNull();
@@ -80,19 +76,14 @@ describe('resolvePatientForUser', () => {
   });
 
   it('never claims a card that already belongs to someone', async () => {
-    // Both lookups filter on `userId: null`; asserting it because getting this
-    // wrong hands a stranger another person's medical history.
     await resolvePatientForUser(USER);
 
     const emailQuery = findFirst.mock.calls[1][0];
     expect(emailQuery.where).toMatchObject({ userId: null });
-    // The phone lookup is raw SQL; its `userId IS NULL` guard is asserted by
-    // the case above, which proves an already-claimed card is never adopted.
     expect(queryRaw).toHaveBeenCalled();
   });
 
   it('prefers the booking phone over the account phone', async () => {
-    // Someone may register with one number and have booked with another.
     queryRaw.mockResolvedValue([{ id: 'p5', clinicId: 'c1', phone: '+7 701 000 11 22' }]);
 
     const match = await resolvePatientForUser(USER, { phoneHint: '8 701 000 11 22' });
