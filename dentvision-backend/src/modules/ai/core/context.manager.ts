@@ -45,8 +45,11 @@ export class ContextManager {
         orderBy: { date: 'desc' },
         take: 5,
       }),
+      // Visit is already tenant-bound through the patient loaded above, but
+      // the legacy Visit model has no clinicId column. Do not fabricate a
+      // schema field here; the patient boundary is the authoritative scope.
       prisma.visit.findMany({
-        where: { patientId, clinicId },
+        where: { patientId },
         orderBy: { date: 'desc' },
         take: 10,
       }),
