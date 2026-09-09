@@ -10,25 +10,6 @@ import { useToast } from '@/components/ui/ds/Toast'
 import { queryKeys } from '@/queries/keys'
 import * as api from '@/utils/api'
 
-/**
- * The one place to change which workspace you are in.
- *
- * There used to be two of these in the header side by side — a clinic-only
- * switcher and a workspace switcher — showing the same building icon, the same
- * clinic name, and both labelled "workspace". They were not redundant so much
- * as contradictory: the second one listed each clinic two or three times
- * (`/me/contexts` returned the legacy and unified rows for one clinic, and the
- * component then unshifted the active clinic on top without checking), and its
- * unified rows switched with `Organization.id`, which matches no clinic. It
- * also reloaded the whole page where the other switched softly.
- *
- * This keeps the behaviour that worked — soft switch, toast, cache
- * invalidation, no reload — and widens it to every workspace type. Dedup and a
- * single vocabulary now come from the endpoint (`modules/iam/contexts.ts`),
- * which is where they belong: all six callers of `getMyContexts` were seeing
- * the duplicates.
- */
-
 type ScopeType = 'CLINIC' | 'DIAGNOSTIC_CENTER' | 'LABORATORY' | 'SUPPLIER' | 'LECTURER' | 'ACADEMY' | 'PARTNER'
 
 interface WorkspaceContext {
@@ -51,7 +32,6 @@ const TYPE_ICON: Record<ScopeType, typeof Building2> = {
   PARTNER: Building2,
 }
 
-/** Sections, in the order a dentist thinks about them. */
 const GROUPS: Array<{ label: string; types: ScopeType[] }> = [
   { label: 'Клиники', types: ['CLINIC'] },
   { label: 'Диагностика', types: ['DIAGNOSTIC_CENTER', 'LABORATORY'] },
@@ -95,9 +75,6 @@ export function WorkspaceSwitcher({ className }: { className?: string }) {
   const activeOrgType = (user as { organizationType?: string } | null)?.organizationType || null
 
   const isActive = (ws: WorkspaceContext) => {
-    // Outside a clinic the token carries the organisation; inside one the
-    // clinic id is the truth, because a clinic token keeps organizationType
-    // 'CLINIC' without necessarily naming which.
     if (activeOrgType && activeOrgType !== 'CLINIC') {
       return ws.organizationId === activeOrgId || ws.scopeId === activeOrgId
     }
@@ -111,9 +88,7 @@ export function WorkspaceSwitcher({ className }: { className?: string }) {
   )
 
   const grouped = useMemo(
-    () =>
-      GROUPS.map((g) => ({ ...g, items: workspaces.filter((w) => g.types.includes(w.scopeType)) }))
-        .filter((g) => g.items.length > 0),
+    () => GROUPS.map((g) => ({ ...g, items: workspaces.filter((w) => g.types.includes(w.scopeType)) })).filter((g) => g.items.length > 0),
     [workspaces],
   )
 
@@ -126,9 +101,6 @@ export function WorkspaceSwitcher({ className }: { className?: string }) {
     if (busyId || isActive(ws)) { setOpen(false); return }
     setBusyId(ws.id)
     try {
-      // One endpoint for every type. It resolves the unified Person path when
-      // there is one and falls back to the legacy membership when there is not,
-      // so the caller does not have to know which world a workspace lives in.
       const tokens = await api.switchContext(ws.scopeType, ws.organizationId || ws.scopeId)
       if (tokens?.accessToken) api.setTokens(tokens.accessToken, tokens.refreshToken || null)
       await useAuthStore.getState().restoreSession()
@@ -136,17 +108,33 @@ export function WorkspaceSwitcher({ className }: { className?: string }) {
       toast.success(t('platform.clinic_active', { name: ws.name }))
       setOpen(false)
 
-      // The new scope has its own data; the old scope's caches are stale.
       void queryClient.invalidateQueries({ queryKey: queryKeys.appointments })
       void queryClient.invalidateQueries({ queryKey: queryKeys.patients })
       void queryClient.invalidateQueries({ queryKey: queryKeys.receipts })
       void queryClient.invalidateQueries({ queryKey: queryKeys.waitingList })
       void queryClient.invalidateQueries({ queryKey: queryKeys.chairs })
 
-      if (ws.scopeType === 'CLINIC' && !location.pathname.startsWith('/crm')) navigate('/crm/schedule')
-      if (ws.scopeType === 'DIAGNOSTIC_CENTER') navigate('/diagnostics/center-dashboard')
-      if (ws.scopeType === 'LABORATORY') navigate('/diagnostics/lab-dashboard')
-      if (ws.scopeType === 'SUPPLIER') navigate('/supplier')
+      switch (ws.scopeType) {
+        case 'CLINIC':
+          if (!location.pathname.startsWith('/crm')) navigate('/crm/schedule')
+          break
+        case 'DIAGNOSTIC_CENTER':
+          navigate('/diagnostics/center-dashboard')
+          break
+        case 'LABORATORY':
+          navigate('/diagnostics/lab-dashboard')
+          break
+        case 'SUPPLIER':
+          navigate('/supplier')
+          break
+        case 'LECTURER':
+        case 'ACADEMY':
+          navigate('/school-workspace')
+          break
+        case 'PARTNER':
+          navigate('/shop')
+          break
+      }
     } catch (e) {
       toast.error((e as Error)?.message || t('platform.clinic_switch_error'))
     } finally {
@@ -160,28 +148,30 @@ export function WorkspaceSwitcher({ className }: { className?: string }) {
         type="button"
         onClick={() => (multi ? setOpen((v) => !v) : navigate('/my-clinics'))}
         className={cn(
-          'flex items-center gap-1.5 max-w-[7.25rem] xs:max-w-[8.5rem] sm:max-w-[14rem] min-h-8 px-2 py-1 rounded-lg',
-          'bg-surface-2 border border-bdr-subtle text-txt-secondary hover:text-txt-primary hover:border-dv-gold/30 transition-colors',
+          'group flex items-center gap-2 max-w-[8.5rem] xs:max-w-[10rem] sm:max-w-[16rem] min-h-9 px-2.5 py-1.5 rounded-xl',
+          'bg-surface-raised border border-bdr-strong text-txt-primary shadow-elev-1 hover:bg-surface-raised-hover hover:border-dv-gold/60 hover:shadow-elev-2 transition-[background-color,border-color,box-shadow] duration-150',
+          open && 'border-dv-gold/70 shadow-elev-2',
         )}
         aria-label={multi ? t('platform.clinic_switch') : t('platform.my_clinics')}
         aria-expanded={multi ? open : undefined}
       >
-        <Icon size={13} className="text-dv-gold shrink-0" />
-        <span className="text-[11px] font-medium truncate">{current?.name || t('platform.clinic_fallback')}</span>
-        {multi && <ChevronDown size={12} className={cn('shrink-0 opacity-70 transition-transform', open && 'rotate-180')} />}
+        <span className="h-6 w-6 rounded-lg bg-dv-gold/12 border border-dv-gold/25 flex items-center justify-center shrink-0">
+          <Icon size={13} className="text-dv-gold" />
+        </span>
+        <span className="text-xs font-semibold truncate">{current?.name || t('platform.clinic_fallback')}</span>
+        {multi && <ChevronDown size={13} className={cn('shrink-0 text-txt-muted transition-transform', open && 'rotate-180')} />}
       </button>
 
       {multi && open && (
-        <div className="absolute left-0 top-full mt-1.5 z-50 w-[min(17rem,calc(100vw-1.5rem))] max-w-[calc(100vw-1rem)] rounded-xl border border-bdr-subtle bg-surface-1 shadow-xl p-1.5">
+        <div className="absolute left-0 top-full mt-2 z-50 w-[min(19rem,calc(100vw-1.5rem))] max-w-[calc(100vw-1rem)] rounded-2xl border border-bdr-strong bg-surface-raised shadow-elev-3 p-1.5">
+          <div className="px-2 py-1.5 border-b border-bdr-subtle mb-1">
+            <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-txt-muted">Рабочее пространство</p>
+            <p className="text-[11px] text-txt-secondary mt-0.5">Выберите контекст DentVision</p>
+          </div>
           <div className="max-h-[min(60vh,26rem)] overflow-y-auto space-y-1">
             {grouped.map((group) => (
               <div key={group.label}>
-                {/* Sections only earn their keep once there is more than one. */}
-                {grouped.length > 1 && (
-                  <p className="px-2 py-1 text-[10px] font-semibold uppercase tracking-wider text-txt-ghost">
-                    {group.label}
-                  </p>
-                )}
+                {grouped.length > 1 && <p className="px-2 py-1.5 text-[10px] font-semibold uppercase tracking-wider text-txt-muted">{group.label}</p>}
                 <div className="space-y-0.5">
                   {group.items.map((ws) => {
                     const WsIcon = TYPE_ICON[ws.scopeType] || Building2
@@ -193,23 +183,22 @@ export function WorkspaceSwitcher({ className }: { className?: string }) {
                         type="button"
                         disabled={!!busyId}
                         onClick={() => void pick(ws)}
+                        aria-current={active ? 'true' : undefined}
                         className={cn(
-                          'w-full flex items-center gap-2 px-2 py-2 min-h-11 rounded-lg text-left transition-colors disabled:opacity-60',
-                          active ? 'bg-dv-gold/10 text-dv-gold' : 'text-txt-primary hover:bg-surface-2',
+                          'w-full flex items-center gap-2.5 px-2.5 py-2 min-h-12 rounded-xl text-left border transition-[background-color,border-color,color] duration-150 disabled:opacity-60',
+                          active
+                            ? 'border-dv-gold/50 bg-dv-gold/10 text-txt-primary'
+                            : 'border-transparent text-txt-primary hover:border-bdr-subtle hover:bg-surface-2',
                         )}
                       >
-                        <span className="h-7 w-7 rounded-md flex items-center justify-center bg-dv-gold/10 text-dv-gold shrink-0">
-                          <WsIcon size={14} />
+                        <span className={cn('h-8 w-8 rounded-lg flex items-center justify-center shrink-0 border', active ? 'bg-dv-gold/15 border-dv-gold/30 text-dv-gold' : 'bg-surface-2 border-bdr-subtle text-txt-secondary')}>
+                          <WsIcon size={15} />
                         </span>
                         <span className="min-w-0 flex-1">
                           <span className="block text-xs font-semibold truncate">{ws.name}</span>
                           <span className="block text-[10px] text-txt-muted truncate">{ws.roleLabel}</span>
                         </span>
-                        {loading ? (
-                          <Loader2 size={14} className="animate-spin shrink-0" />
-                        ) : active ? (
-                          <Check size={14} className="shrink-0" />
-                        ) : null}
+                        {loading ? <Loader2 size={15} className="animate-spin shrink-0 text-dv-gold" /> : active ? <Check size={15} className="shrink-0 text-dv-gold" /> : null}
                       </button>
                     )
                   })}
@@ -221,9 +210,9 @@ export function WorkspaceSwitcher({ className }: { className?: string }) {
           <button
             type="button"
             onClick={() => { setOpen(false); navigate('/my-clinics') }}
-            className="mt-1 w-full flex items-center gap-2 px-2 py-2 min-h-11 rounded-lg text-xs text-txt-secondary hover:text-txt-primary hover:bg-surface-2 transition-colors"
+            className="mt-1 w-full flex items-center gap-2 px-2.5 py-2 min-h-11 rounded-xl border border-transparent text-xs font-medium text-txt-secondary hover:text-txt-primary hover:bg-surface-2 hover:border-bdr-subtle transition-colors"
           >
-            <Plus size={13} />
+            <Plus size={14} />
             {t('platform.all_clinics')}
           </button>
         </div>
