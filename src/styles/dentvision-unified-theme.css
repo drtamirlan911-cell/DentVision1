@@ -1,0 +1,103 @@
+/* DentVision unified visual language. Presentation only. */
+
+:root {
+  --dv-radius-sm: 8px;
+  --dv-radius-md: 11px;
+  --dv-radius-lg: 14px;
+  --dv-radius-xl: 18px;
+}
+
+/* One palette for every workspace. Theme switching remains supported. */
+html.light {
+  --dv-sidebar: #EDF1F5;
+  --dv-surface: #FFFFFF;
+  --dv-surface-2: #F4F6F8;
+  --dv-surface-3: #E9EDF2;
+  --dv-text: #141A21;
+  --dv-muted: #666E79;
+  --dv-muted-2: #A3ACB6;
+  --dv-border: rgba(15,26,40,.10);
+  --dv-border-strong: rgba(15,26,40,.16);
+  --dv-nav-hover: rgba(15,26,40,.045);
+  --dv-nav-active: rgba(15,26,40,.07);
+  --dv-icon-bg: rgba(15,26,40,.045);
+  --dv-accent: #785C26;
+  --dv-accent-soft: rgba(120,92,38,.12);
+  --dv-success: #1D8147;
+  --dv-warning: #9C640C;
+  --dv-danger: #C74134;
+  --dv-info: #2676AA;
+  --dv-shadow-sm: 0 1px 2px rgba(15,26,40,.05);
+  --dv-shadow-md: 0 8px 24px rgba(15,26,40,.07);
+}
+
+html:not(.light), html.dark, html[data-theme='dark'] {
+  --dv-sidebar: #0E1A2C;
+  --dv-surface: #0D1B2E;
+  --dv-surface-2: #132540;
+  --dv-surface-3: #1A2F50;
+  --dv-text: #F1F5F9;
+  --dv-muted: #8EA0B8;
+  --dv-muted-2: #68798F;
+  --dv-border: rgba(255,255,255,.07);
+  --dv-border-strong: rgba(255,255,255,.14);
+  --dv-nav-hover: rgba(255,255,255,.045);
+  --dv-nav-active: rgba(255,255,255,.07);
+  --dv-icon-bg: rgba(255,255,255,.045);
+  --dv-accent: #C9A96E;
+  --dv-accent-soft: rgba(201,169,110,.12);
+  --dv-success: #63B58D;
+  --dv-warning: #D4A84F;
+  --dv-danger: #E26B6B;
+  --dv-info: #79A9D3;
+  --dv-shadow-sm: 0 1px 2px rgba(0,0,0,.20);
+  --dv-shadow-md: 0 8px 24px rgba(0,0,0,.24);
+}
+
+body {
+  background: var(--dv-surface-2) !important;
+  color: var(--dv-text) !important;
+}
+
+.dv-page,
+.dv-app-surface {
+  background: var(--dv-surface-2) !important;
+  color: var(--dv-text) !important;
+}
+
+.dv-panel,
+[class*='bg-surface-1'],
+[class*='bg-surface-raised'] {
+  background-color: var(--dv-surface) !important;
+  border-color: var(--dv-border) !important;
+}
+
+[class*='bg-surface-2'] { background-color: var(--dv-surface-2) !important; }
+[class*='bg-surface-3'] { background-color: var(--dv-surface-3) !important; }
+
+[class*='text-txt-primary'] { color: var(--dv-text) !important; }
+[class*='text-txt-secondary'] { color: color-mix(in srgb, var(--dv-text) 72%, transparent) !important; }
+[class*='text-txt-muted'] { color: var(--dv-muted) !important; }
+[class*='text-dv-gold'] { color: var(--dv-accent) !important; }
+
+[class*='border-bdr-subtle'],
+[class*='border-bdr'] { border-color: var(--dv-border) !important; }
+
+[class*='bg-gradient-to-br'][class*='from-dv-gold'],
+[class*='bg-gradient-to-r'][class*='from-dv-gold'] {
+  background-image: none !important;
+  background-color: color-mix(in srgb, var(--dv-surface) 94%, var(--dv-accent) 6%) !important;
+}
+
+[class*='shadow-glow'],
+[class*='shadow-[0_0_40px'],
+[class*='shadow-[0_40px_80px'] {
+  box-shadow: var(--dv-shadow-sm) !important;
+}
+
+[class*='backdrop-blur'] { backdrop-filter: none !important; }
+
+@media (max-width: 767px) {
+  .dv-page [class*='rounded-2xl'] { border-radius: var(--dv-radius-md) !important; }
+  button, a { -webkit-tap-highlight-color: transparent; }
+}
