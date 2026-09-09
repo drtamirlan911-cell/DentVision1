@@ -10,6 +10,7 @@
 2. `docs/00_CONSTITUTION/07_AUTONOMOUS_SUPERAPP_EXECUTION.md`
 3. this file
 4. ADRs and implementation docs
+5. `docs/00_CONSTITUTION/11_SECURITY_RELEASE_BLOCKERS.md`
 
 ## Completed in this cycle
 
@@ -27,24 +28,29 @@
 - Security audit reviewed organization/person platform-wide routes, finance ownership boundaries, patient presentation access, and AI event-action data access; no unverified tenant bypass was promoted to main.
 - Commerce dispute creation now validates the referenced order/enrollment against the authenticated user or clinic; arbitrary reference IDs are rejected.
 - Dispute terminal transitions are compare-and-set, preventing concurrent resolution/rejection from double-triggering a refund.
+- Dedicated security release-blocker register added with verified P0/P1 findings for finance platform authorization, shop checkout compensation, and typed owner isolation.
 
 ## Verification state
 
-The latest CI cycle before the dispute hardening had passed backend typecheck/build and the full web typecheck/lint/unit/build job. Its Android job was cancelled because the workflow concurrency policy superseded the run while a newer commit was pushed. A new Quality Gate must execute against the latest dispute-hardening commit. Release remains **NOT READY** until the complete workflow is green and security findings are resolved or formally accepted.
+The current branch HEAD is `f027b8088c5568c0fff5eb465a6fb3f1ab01165a`. No workflow run is currently associated with that commit through the PR-triggered workflow lookup, so a successful full Quality Gate has **not** been verified for the current HEAD. Release remains **NOT READY**.
 
 ## Known release blockers / work queue
 
-1. Run and verify the current CI cycle to completion, including Android debug build.
+1. Establish a fresh Quality Gate run for the current branch and verify Backend, Web and Android to completion.
 2. Review and remediate npm audit findings, including high-severity issues, without blind major-version upgrades.
-3. Complete authentication, RBAC, tenant isolation and IDOR audit across every API domain; prioritize finance, shop, IAM, files and patient-facing routes.
-4. Add regression tests for cross-tenant access and concurrent state transitions where coverage is missing.
-5. Map and harden Patient 360 and core clinical workflows.
-6. Verify AI authorization, confirmation, auditability and clinical safety boundaries, including expiry and replay behavior.
-7. Implement/verify document orchestration and in-app electronic signing for patient and clinician workflows.
-8. Verify Web/Android domain, API, permission and offline-sync parity.
-9. Refine Home/sidebar/service-card UX against the Master Constitution.
-10. Re-run all executable release gates.
-11. Only after all blocking gates pass: prepare merge/release to `main`.
+3. Fix P0 finance platform authorization: platform-only finance mutations/administration must not be reachable through clinic `billing.manage` alone.
+4. Fix finance typed owner isolation: authorization and transaction filters must constrain `ownerType + ownerId` rather than treating IDs from different domains as interchangeable.
+5. Fix shop checkout compensation: failed DentCash/payment stages must not leave stock permanently decremented or money irreconcilably spent without a recoverable order state.
+6. Complete shop supplier/order integrity tests for supplier ownership, price/quantity tampering, retries, refunds and cross-clinic access.
+7. Complete authentication, RBAC, tenant isolation and IDOR audit across every API domain; prioritize finance, shop, IAM, files and patient-facing routes.
+8. Add regression tests for cross-tenant access and concurrent state transitions where coverage is missing.
+9. Map and harden Patient 360 and core clinical workflows.
+10. Verify AI authorization, confirmation, auditability and clinical safety boundaries, including expiry and replay behavior.
+11. Implement/verify document orchestration and in-app electronic signing for patient and clinician workflows.
+12. Verify Web/Android domain, API, permission and offline-sync parity.
+13. Refine Home/sidebar/service-card UX against the Master Constitution.
+14. Re-run all executable release gates after security fixes.
+15. Only after all blocking gates pass: prepare merge/release to `main`.
 
 ## Operating rule
 
