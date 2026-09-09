@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import prisma from '../../lib/prisma.js';
 import { authenticate } from '../../middleware/auth.js';
-import { requirePermission } from '../../middleware/rbac.js';
+import { requireSuperadmin } from '../../middleware/rbac.js';
 import type { AuthRequest, ApiResponse } from '../../types/index.js';
 import { reverseCashback } from '../dentcash/refund.service.js';
 import { auditFromReq } from '../compliance/audit.service.js';
@@ -69,7 +69,9 @@ disputesRouter.post('/', async (req: AuthRequest, res) => {
   }
 });
 
-disputesRouter.get('/', requirePermission('finance.manage'), async (_req: AuthRequest, res) => {
+// Dispute administration is a platform operation. A clinic finance manager
+// must not be able to inspect or resolve disputes across the marketplace.
+disputesRouter.get('/', requireSuperadmin, async (_req: AuthRequest, res) => {
   try {
     const disputes = await prisma.dispute.findMany({ orderBy: { createdAt: 'desc' }, take: 100 });
     return res.json({ ok: true, data: disputes } satisfies ApiResponse);
@@ -79,7 +81,7 @@ disputesRouter.get('/', requirePermission('finance.manage'), async (_req: AuthRe
   }
 });
 
-disputesRouter.post('/:id/status', requirePermission('finance.manage'), async (req: AuthRequest, res) => {
+disputesRouter.post('/:id/status', requireSuperadmin, async (req: AuthRequest, res) => {
   try {
     const status = req.body?.status as DisputeStatus;
     if (!STATUSES.includes(status)) {
