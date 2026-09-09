@@ -41,21 +41,23 @@
 - Patient-ID audit sweep identified additional internal AI/event and context-manager paths that must prove tenant scope before resolving arbitrary client-derived patient IDs; these remain verification targets rather than being declared safe from static search alone.
 - Files route review confirms clinic scoping is present on document/patient reads and uploads; MIME/content validation and delete-path isolation remain release verification targets.
 - AI ContextManager patient loading now requires authenticated clinic access and resolves patient, visits, treatment plans and images through clinic-scoped predicates before clinical context is assembled.
-- Finance sale recording now uses a database compare-and-set balance guard on the GATEWAY wallet, preventing concurrent sale processing from overdrawing the gateway balance.
+- Finance sale recording now uses a database compare-and-set balance guard on the GATEWAY wallet, preventing concurrent sale processing from overdrawing the gateway balance; its transaction-client unit tests now model the guarded `updateMany` correctly.
 - DentCash refund authorization now validates ownership of both spend and earn ledger rows before any refund mutation; unauthorized callers cannot reach the spend-refund operation before the ownership check.
 - Shop checkout validation helpers and regression tests were added for strict positive-integer quantities, non-negative minor-unit DentCash values and malformed checkout items. The main checkout route still requires integration of these helpers before the P0 quantity requirement can be marked closed.
 - AI patient escalation lookup now enforces `patientId + clinicId` together before patient identity/contact data is used for staff notification; global patient-ID resolution was removed from this path.
 - AI patient escalation now hard-fails before conversation creation/broadcast when the patient is missing from the target clinic, with regression coverage for cross-clinic rejection and same-clinic success.
 - Shop checkout now has a side-effect-free state-machine contract (`checkout.state.ts`) and regression tests for normal payment, retry, failure mapping, terminal immutability and invalid transitions. The contract is intentionally not treated as route integration.
 - Storage now rejects unsafe S3 object keys before upload, deletion or signed-read generation; clinic-prefixed namespace, traversal, absolute-path and control-character checks are enforced in the storage boundary, with regression tests.
+- Patient portal linking now uses an atomic unclaimed-card compare-and-set, supports normalized Kazakh phone matching, prefers an explicit booking phone hint, and never adopts a card already owned by another user.
+- AI patient/appointment access resolvers now fail closed when either identifier or clinic context is absent; their tests isolate mock state between cases so tenant-boundary assertions cannot inherit prior calls.
 
 ## Verification state
 
-Quality Gate run `34339054986` completed successfully: backend dependency installation, Prisma generation, TypeScript typecheck, ESLint and repository release-gate script all passed. CI run `34339090170` passed frontend lint, backend lint/typecheck, unit/build and E2E. A newer PR-triggered cycle is active for the latest changes: CI `34346163416` is queued, Quality Gate `34346163422` is in progress at backend `npm ci`, and DentVision Quality Gate `34346163394` is pending. These runs must complete before the latest commits are considered verified. The separate Vercel deployment-rate-limit status is infrastructure-only and is not counted as an application verification result. Release remains **NOT READY**.
+Older verified runs remain valid only for the commits they tested. The latest pre-fix CI cycle failed in unit tests: 166/169 test files passed, with 7 failures caused by test doubles not yet reflecting the newly hardened finance `wallet.updateMany` and atomic patient-link `updateMany`, plus one test leaking mock calls between cases. Those test-suite mismatches have now been corrected. A fresh PR-triggered verification cycle is running for the current branch head: CI `34347014412` is in progress, Quality Gate `34347014482` is in progress, and DentVision Quality Gate `34347014694` is pending. Do not count the current cycle as green until all required jobs finish successfully. Release remains **NOT READY**.
 
 ## Known release blockers / work queue
 
-1. Verify active CI runs `34346163416`, `34346163422`, and `34346163394` to completion; do not rely on older snapshots.
+1. Verify active CI runs `34347014412`, `34347014482`, and `34347014694` to completion; do not rely on older snapshots.
 2. Review and remediate npm audit findings, including high-severity issues, without blind major-version upgrades.
 3. P0 finance platform authorization: hardened; complete route-by-route verification and retain negative clinic-role tests.
 4. P0 finance typed owner isolation: hardened; add collision regression tests and complete route audit.
