@@ -151,10 +151,10 @@ if (container) {
 
                 {/* AI-First Intelligence Layout — Main entry point after login */}
                 <Route path="/" element={<IntelligenceLayout />}>
-                  <Route index element={<Suspense fallback={<PageLoader />}><AIWorkspaceIndex /></Suspense>} />
-                  <Route path="dashboard" element={guarded('dashboard', <Dashboard />)} />
-                  <Route path="intelligence" element={<Navigate to="/" replace />} />
-                  <Route path="ai" element={<Navigate to="/" replace />} />
+                  <Route index element={guarded('dashboard', <Dashboard />)} />
+                  <Route path="dashboard" element={<Navigate to="/" replace />} />
+                  <Route path="intelligence" element={<Navigate to="/ai" replace />} />
+                  <Route path="ai" element={<Suspense fallback={<PageLoader />}><AIWorkspaceIndex /></Suspense>} />
                   <Route path="analytics" element={guarded('analytics', <Analytics />)} />
                   <Route path="settings" element={guarded('settings', <SettingsPage />)} />
                   <Route path="help" element={<Suspense fallback={<PageLoader />}><Help /></Suspense>} />

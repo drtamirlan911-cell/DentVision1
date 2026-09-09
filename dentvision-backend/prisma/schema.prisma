@@ -235,6 +235,7 @@ model Clinic {
   appointments        Appointment[]
   labOrders           LabOrder[]
   treatmentPlans      TreatmentPlan[]
+  treatmentCases      TreatmentCase[]
   invoices            Invoice[]
   inventory           InventoryItem[]
   inventoryMovements  InventoryMovement[]
@@ -383,6 +384,7 @@ model Patient {
   diagnosticReferrals          Referral[]
   crossClinicGrantsAsSource    CrossClinicAccessGrant[] @relation("CrossClinicGrantSourcePatient")
   crossClinicGrantsAsReceiving CrossClinicAccessGrant[] @relation("CrossClinicGrantReceivingPatient")
+  treatmentCases               TreatmentCase[]
   treatmentPlanReleases        TreatmentPlanRelease[]
 
   createdAt DateTime  @default(now())
@@ -3791,4 +3793,35 @@ model PatientAssignment {
   @@index([clinicId, userId, active])
   @@index([patientId, active])
   @@map("patient_assignments")
+}
+
+enum CaseStatus {
+  active
+  on_hold
+  completed
+  archived
+}
+
+model TreatmentCase {
+  id          String     @id @default(uuid())
+  clinicId    String
+  patientId   String
+  title       String
+  description String?
+  status      CaseStatus @default(active)
+  chiefComplaint String?
+  diagnosisCodes Json?   // ICD-10 codes or clinical diagnoses
+  metadata    Json?
+  deletedAt   DateTime?
+
+  clinic    Clinic   @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  patient   Patient  @relation(fields: [patientId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime? @updatedAt
+
+  @@index([clinicId])
+  @@index([patientId])
+  @@index([status])
+  @@map("treatment_cases")
 }
