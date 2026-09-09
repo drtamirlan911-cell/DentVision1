@@ -25,14 +25,16 @@
 - AI approval expiry is now part of the atomic approval claim, preventing an approval from winning a race after its expiry boundary.
 - Legal document status transitions hardened with database-level compare-and-set so concurrent requests cannot both advance the same document.
 - Security audit reviewed organization/person platform-wide routes, finance ownership boundaries, patient presentation access, and AI event-action data access; no unverified tenant bypass was promoted to main.
+- Commerce dispute creation now validates the referenced order/enrollment against the authenticated user or clinic; arbitrary reference IDs are rejected.
+- Dispute terminal transitions are compare-and-set, preventing concurrent resolution/rejection from double-triggering a refund.
 
 ## Verification state
 
-The latest CI cycle before the AI approval expiry hardening had passed backend typecheck/build and the full web typecheck/lint/unit/build job. Its Android job was cancelled because the workflow concurrency policy superseded the run while a newer commit was pushed. A new Quality Gate is executing against the latest hardening commit. Release remains **NOT READY** until the complete workflow is green and security findings are resolved or formally accepted.
+The latest CI cycle before the dispute hardening had passed backend typecheck/build and the full web typecheck/lint/unit/build job. Its Android job was cancelled because the workflow concurrency policy superseded the run while a newer commit was pushed. A new Quality Gate must execute against the latest dispute-hardening commit. Release remains **NOT READY** until the complete workflow is green and security findings are resolved or formally accepted.
 
 ## Known release blockers / work queue
 
-1. Verify the current CI cycle to completion, including Android debug build.
+1. Run and verify the current CI cycle to completion, including Android debug build.
 2. Review and remediate npm audit findings, including high-severity issues, without blind major-version upgrades.
 3. Complete authentication, RBAC, tenant isolation and IDOR audit across every API domain; prioritize finance, shop, IAM, files and patient-facing routes.
 4. Add regression tests for cross-tenant access and concurrent state transitions where coverage is missing.
