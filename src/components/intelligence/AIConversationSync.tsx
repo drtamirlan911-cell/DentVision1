@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react'
-import { apiRequest, getActiveAiThread, getAiSessionId } from '@/utils/api'
+import { apiRequest, getActiveAiThread } from '@/utils/api'
 import { useAIStore } from '@/store/ai.store'
 import { useAuth } from '@/store/auth.store'
 import { useWorkspaceStore } from '@/store/workspace.store'
@@ -39,14 +39,12 @@ function normaliseMessages(raw: unknown): StoredMessage[] {
  * Durable AI conversation synchronisation.
  *
  * The backend already persists AISession/AIMessage. The client now adds one
- * small routing layer: every workspace gets its own durable session id, while
+ * routing layer: every workspace gets its own durable session id, while
  * the canonical per-user/per-clinic AI key is switched to the active workspace.
- * This means every existing aiChat caller automatically talks to the correct
- * workspace without duplicating the API contract.
+ * This keeps existing aiChat callers workspace-safe without changing their API.
  */
 export function AIConversationSync() {
-  const { isAuthenticated } = useAuth()
-  const user = useAuth((s) => s.user)
+  const { isAuthenticated, user } = useAuth()
   const activeWorkspace = useWorkspaceStore((s) => s.activeWorkspace)
   const setMessages = useAIStore((s) => s.setMessages)
   const loadProactiveAlerts = useAIStore((s) => s.loadProactiveAlerts)
@@ -61,8 +59,7 @@ export function AIConversationSync() {
     if (hydratedWorkspace.current === workspaceId) return
 
     loadingWorkspace.current = workspaceId
-
-    const clinicId = (activeWorkspace.organizationId || (user as any)?.clinicId || null) as string | null
+    const clinicId = (user as any)?.clinicId as string | null
     const storageKey = workspaceSessionKey(user.id, workspaceId)
 
     const activate = async () => {
@@ -82,7 +79,9 @@ export function AIConversationSync() {
               workspaceRole: activeWorkspace.roleLabel,
             }),
           })
-          sessionId = String(created?.sessionId || created?.data?.sessionId || created?.threadId || created?.data?.threadId || '') || null
+          sessionId = String(
+            created?.sessionId || created?.data?.sessionId || created?.threadId || created?.data?.threadId || '',
+          ) || null
           if (sessionId) localStorage.setItem(storageKey, sessionId)
         } catch {
           // Existing AI fallback remains usable if thread creation is unavailable.
@@ -90,8 +89,8 @@ export function AIConversationSync() {
       }
 
       if (sessionId) {
-        // aiChat() already reads this stable key when no explicit sessionId is
-        // supplied. Switching it here keeps all legacy callers workspace-safe.
+        // aiChat() reads this stable key when no explicit sessionId is supplied.
+        // The clinic id comes from authenticated user state, never from workspace metadata.
         try {
           localStorage.setItem(clinicSessionKey(user.id, clinicId), sessionId)
         } catch { /* ignore */ }
@@ -116,7 +115,7 @@ export function AIConversationSync() {
       if (messages.length) {
         setMessages(messages as any)
       } else {
-        // New workspace: do not leak the previous workspace's transcript.
+        // A new workspace must never display the previous workspace transcript.
         setMessages([])
       }
 
@@ -145,10 +144,6 @@ export function AIConversationSync() {
       window.removeEventListener('dentvision:workspace-switched', refresh)
     }
   }, [isAuthenticated, loadProactiveAlerts])
-
-  // Keep the imported session helper referenced for backwards-compatible
-  // builds where the API module tree-shakes storage initialisation differently.
-  void getAiSessionId
 
   return null
 }
