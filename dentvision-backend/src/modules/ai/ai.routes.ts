@@ -776,7 +776,7 @@ aiRouter.post('/action', authenticate, async (req: AuthRequest, res) => {
   res.json({ ok: true, data: { type: 'data', data: params, label: action } });
 });
 
-aiRouter.get('/history', async (req: AuthRequest, res) => {
+aiRouter.get('/history', authenticate, async (req: AuthRequest, res) => {
   try {
     const limit = parseInt(req.query.limit as string) || 20;
     const offset = parseInt(req.query.offset as string) || 0;
@@ -802,7 +802,7 @@ aiRouter.get('/history', async (req: AuthRequest, res) => {
   }
 });
 
-aiRouter.post('/session', async (req: AuthRequest, res) => {
+aiRouter.post('/session', authenticate, async (req: AuthRequest, res) => {
   try {
     const context = {
       userId: req.user!.id,
