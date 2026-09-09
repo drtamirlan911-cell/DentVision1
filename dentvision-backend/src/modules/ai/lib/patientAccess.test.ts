@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const { patientFindFirst, appointmentFindFirst } = vi.hoisted(() => ({
   patientFindFirst: vi.fn(),
@@ -13,6 +13,13 @@ vi.mock('../../../lib/prisma.js', () => ({
 }));
 
 import { resolveAppointmentForClinic, resolvePatientForClinic } from './patientAccess.js';
+
+beforeEach(() => {
+  patientFindFirst.mockReset();
+  appointmentFindFirst.mockReset();
+  patientFindFirst.mockResolvedValue(null);
+  appointmentFindFirst.mockResolvedValue(null);
+});
 
 describe('AI clinic-scoped access resolvers', () => {
   it('adds clinicId to patient resolution', async () => {
