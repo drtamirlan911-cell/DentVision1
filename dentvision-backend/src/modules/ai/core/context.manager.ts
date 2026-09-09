@@ -46,17 +46,17 @@ export class ContextManager {
         take: 5,
       }),
       prisma.visit.findMany({
-        where: { patientId },
+        where: { patientId, clinicId },
         orderBy: { date: 'desc' },
         take: 10,
       }),
       prisma.treatmentPlan.findMany({
-        where: { patientId },
+        where: { patientId, clinicId },
         orderBy: { createdAt: 'desc' },
         take: 5,
       }),
       prisma.patientImage.findMany({
-        where: { patientId },
+        where: { patientId, patient: { clinicId } },
         orderBy: { createdAt: 'desc' },
         take: 10,
       }),
