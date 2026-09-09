@@ -1,0 +1,60 @@
+name: DentVision Quality Gate
+
+on:
+  push:
+    branches: [main, 'autonomous/**']
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: dentvision-quality-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  web:
+    name: Web typecheck / lint / unit / build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm run lint
+      - run: npm test -- --run
+      - run: npm run build
+
+  backend:
+    name: Backend typecheck / build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: dentvision-backend/package-lock.json
+      - name: Install backend dependencies
+        working-directory: dentvision-backend
+        run: npm ci
+      - name: Generate Prisma client
+        working-directory: dentvision-backend
+        run: npx prisma generate
+      - name: Build backend
+        working-directory: dentvision-backend
+        run: npm run build
+
+  release-gate:
+    name: Repository release gate
+    runs-on: ubuntu-latest
+    needs: [web, backend]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run quality:ci
