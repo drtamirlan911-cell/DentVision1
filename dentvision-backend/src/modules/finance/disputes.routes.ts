@@ -15,6 +15,15 @@ disputesRouter.use(authenticate);
 const STATUSES = ['open', 'review', 'resolved', 'rejected'] as const;
 const REF_TYPES = ['order', 'enrollment'] as const;
 
+type DisputeStatus = (typeof STATUSES)[number];
+
+const ALLOWED_TRANSITIONS: Record<DisputeStatus, readonly DisputeStatus[]> = {
+  open: ['review', 'resolved', 'rejected'],
+  review: ['resolved', 'rejected'],
+  resolved: [],
+  rejected: [],
+};
+
 disputesRouter.post('/', async (req: AuthRequest, res) => {
   try {
     const { refType, refId, reason } = req.body || {};
@@ -70,7 +79,7 @@ disputesRouter.get('/', requirePermission('finance.manage'), async (_req: AuthRe
 
 disputesRouter.post('/:id/status', requirePermission('finance.manage'), async (req: AuthRequest, res) => {
   try {
-    const status = req.body?.status;
+    const status = req.body?.status as DisputeStatus;
     if (!STATUSES.includes(status)) {
       return res.status(400).json({ ok: false, error: 'Некорректный статус' } satisfies ApiResponse);
     }
@@ -79,22 +88,27 @@ disputesRouter.post('/:id/status', requirePermission('finance.manage'), async (r
     const existing = await prisma.dispute.findUnique({ where: { id } });
     if (!existing) return res.status(404).json({ ok: false, error: 'Спор не найден' } satisfies ApiResponse);
 
-    // Only one resolver may win the terminal transition. In particular, two
-    // concurrent `resolved` requests must not both trigger a refund.
-    const terminal = status === 'resolved' || status === 'rejected';
-    let dispute;
-    if (terminal) {
-      const claimed = await prisma.dispute.updateMany({
-        where: { id, status: { notIn: ['resolved', 'rejected'] } },
-        data: { status },
-      });
-      if (claimed.count !== 1) {
-        return res.status(409).json({ ok: false, error: 'Спор уже завершён' } satisfies ApiResponse);
-      }
-      dispute = await prisma.dispute.findUnique({ where: { id } });
-    } else {
-      dispute = await prisma.dispute.update({ where: { id }, data: { status } });
+    const from = existing.status as DisputeStatus;
+    const allowed = ALLOWED_TRANSITIONS[from] || [];
+    if (!allowed.includes(status)) {
+      return res.status(409).json({
+        ok: false,
+        error: `Недопустимый переход статуса: ${from} → ${status}`,
+      } satisfies ApiResponse);
     }
+
+    // Every transition is compare-and-set. This prevents a concurrent request
+    // from changing the dispute based on a stale `existing` row and makes
+    // terminal states immutable at the database-write boundary.
+    const claimed = await prisma.dispute.updateMany({
+      where: { id, status: from },
+      data: { status },
+    });
+    if (claimed.count !== 1) {
+      return res.status(409).json({ ok: false, error: 'Статус спора уже изменён другим запросом' } satisfies ApiResponse);
+    }
+
+    const dispute = await prisma.dispute.findUnique({ where: { id } });
 
     if (status === 'resolved' && existing.refType && existing.refId) {
       try {
@@ -116,7 +130,7 @@ disputesRouter.post('/:id/status', requirePermission('finance.manage'), async (r
       action: 'dispute.status_changed',
       entity: 'dispute',
       entityId: id,
-      details: { from: existing.status, to: status },
+      details: { from, to: status },
     });
 
     return res.json({ ok: true, data: dispute } satisfies ApiResponse);
