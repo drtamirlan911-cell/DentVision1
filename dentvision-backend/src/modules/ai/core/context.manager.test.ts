@@ -1,14 +1,21 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { resolveClinicAccess, resolveOrganizationIdForClinic, resolveUserPermissions } = vi.hoisted(() => ({
+const { resolveClinicAccess, resolveOrganizationIdForClinic, resolveUserPermissions, userFindUnique, clinicFindUnique } = vi.hoisted(() => ({
   resolveClinicAccess: vi.fn(),
   resolveOrganizationIdForClinic: vi.fn(),
   resolveUserPermissions: vi.fn(),
+  userFindUnique: vi.fn(),
+  clinicFindUnique: vi.fn(),
 }));
 
 vi.mock('../../../lib/orgContext.js', () => ({ resolveClinicAccess, resolveOrganizationIdForClinic }));
 vi.mock('../../../lib/resolvePermissions.js', () => ({ resolveUserPermissions }));
-vi.mock('../../../lib/prisma.js', () => ({ prisma: {} }));
+vi.mock('../../../lib/prisma.js', () => ({
+  prisma: {
+    user: { findUnique: userFindUnique },
+    clinic: { findUnique: clinicFindUnique },
+  },
+}));
 
 import { ContextManager } from './context.manager.js';
 
@@ -16,6 +23,44 @@ beforeEach(() => {
   resolveClinicAccess.mockReset();
   resolveOrganizationIdForClinic.mockReset().mockResolvedValue('org-1');
   resolveUserPermissions.mockReset().mockResolvedValue([]);
+  userFindUnique.mockReset();
+  clinicFindUnique.mockReset();
+});
+
+describe('ContextManager.loadContext', () => {
+  it('fails closed when the caller has no clinic membership', async () => {
+    userFindUnique.mockResolvedValue({ id: 'u1', role: 'DOCTOR' });
+    clinicFindUnique.mockResolvedValue({ id: 'c1', name: 'Clinic' });
+    resolveClinicAccess.mockResolvedValue(null);
+
+    await expect(new ContextManager().loadContext('u1', 'c1')).rejects.toThrow('CLINIC_ACCESS_REQUIRED');
+  });
+
+  it('fails closed when the requested clinic does not exist', async () => {
+    userFindUnique.mockResolvedValue({ id: 'u1', role: 'DOCTOR' });
+    clinicFindUnique.mockResolvedValue(null);
+    resolveClinicAccess.mockResolvedValue({ role: 'DOCTOR' });
+
+    await expect(new ContextManager().loadContext('u1', 'c1')).rejects.toThrow('CLINIC_NOT_FOUND');
+  });
+
+  it('does not fall back to the global user role when clinic membership exists', async () => {
+    userFindUnique.mockResolvedValue({ id: 'u1', role: 'ADMIN' });
+    clinicFindUnique.mockResolvedValue({ id: 'c1', name: 'Clinic' });
+    resolveClinicAccess.mockResolvedValue({ role: 'DOCTOR' });
+
+    const result = await new ContextManager().loadContext('u1', 'c1');
+
+    expect(result).toMatchObject({ userId: 'u1', clinicId: 'c1', role: 'DOCTOR' });
+  });
+
+  it('fails closed when the user record itself is missing', async () => {
+    userFindUnique.mockResolvedValue(null);
+    clinicFindUnique.mockResolvedValue({ id: 'c1', name: 'Clinic' });
+    resolveClinicAccess.mockResolvedValue({ role: 'DOCTOR' });
+
+    await expect(new ContextManager().loadContext('u1', 'c1')).rejects.toThrow('USER_NOT_FOUND');
+  });
 });
 
 describe('ContextManager.getCurrentPermissions', () => {
@@ -29,8 +74,6 @@ describe('ContextManager.getCurrentPermissions', () => {
   });
 
   it('returns the real permission set instead of a private vocabulary', async () => {
-    // Used to answer with `['patients:*', 'appointments:*', …]` — module names
-    // that exist nowhere else in the platform.
     resolveClinicAccess.mockResolvedValueOnce({ role: 'ADMIN' });
     resolveUserPermissions.mockResolvedValueOnce(['patients.read', 'patients.write', 'appointments.write']);
 
@@ -40,8 +83,6 @@ describe('ContextManager.getCurrentPermissions', () => {
   });
 
   it('scopes the lookup by organization id, not clinic id', async () => {
-    // A clinic id matches no Person, so passing it through would silently fall
-    // back to the role matrix on every call.
     resolveClinicAccess.mockResolvedValueOnce({ role: 'DOCTOR' });
 
     await new ContextManager().getCurrentPermissions('u1', 'c1');
