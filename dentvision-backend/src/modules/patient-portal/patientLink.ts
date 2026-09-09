@@ -67,8 +67,7 @@ export async function resolvePatientForUser(
       where: { email: user.email, userId: null, ...clinicScope },
       select: { id: true, clinicId: true },
     });
-    if (byEmail) {
-      await claim(byEmail.id, user.id);
+    if (byEmail && await claim(byEmail.id, user.id)) {
       return { ...byEmail, via: 'email' };
     }
   }
@@ -91,26 +90,35 @@ export async function resolvePatientForUser(
       LIMIT 20
     `;
     // The raw filter is coarse (it ignores the country prefix); the normalised
-    // comparison is what decides.
+    // comparison is what decides. The CAS claim below is the final authority.
     const hit = rows.find((c) => phonesMatch(c.phone, wanted));
-    if (hit) {
-      await claim(hit.id, user.id);
+    if (hit && await claim(hit.id, user.id)) {
       return { id: hit.id, clinicId: hit.clinicId, via: 'phone' };
     }
   }
 
-  return null;
+  // Another concurrent login may have won the claim between our initial
+  // lookup and CAS. Resolve again by userId so the losing request returns the
+  // card actually owned by this user instead of claiming success on a row it
+  // did not modify.
+  const afterRace = await prisma.patient.findFirst({
+    where: { userId: user.id, ...clinicScope },
+    select: { id: true, clinicId: true },
+  });
+  return afterRace ? { ...afterRace, via: 'userId' } : null;
 }
 
 /**
  * Write the link, but only while the card is still unclaimed.
  *
  * `updateMany` with the guard in the filter makes this a compare-and-set: two
- * concurrent logins cannot both take the same card.
+ * concurrent logins cannot both take the same card. The boolean result is
+ * important — callers must not report a link they failed to acquire.
  */
-async function claim(patientId: string, userId: string): Promise<void> {
-  await prisma.patient.updateMany({
+async function claim(patientId: string, userId: string): Promise<boolean> {
+  const result = await prisma.patient.updateMany({
     where: { id: patientId, userId: null },
     data: { userId },
   });
+  return result.count === 1;
 }
