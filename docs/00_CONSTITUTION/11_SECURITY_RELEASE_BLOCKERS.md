@@ -67,6 +67,19 @@ Required verification:
 - complete audit of every finance read/write route;
 - confirmation that legitimate clinic and supplier wallet operations still work.
 
+## P1 — DentCash refund authorization / replay safety — HARDENED, VERIFICATION REQUIRED
+
+`reverseCashback()` now loads both spend and earn ledger rows and validates `callerId` ownership for all affected rows before invoking the spend-refund mutation. This closes the previous ordering flaw where an unauthorized caller could reach `refundDentCashSpend()` before the later earn-row ownership check.
+
+Atomic status claims remain in place for spend refunds and earn reversals, preventing the same ledger row from being refunded/reversed twice under concurrent requests.
+
+Required verification:
+
+- unauthorized caller with an existing spend cannot trigger a refund;
+- authorized owner can refund once;
+- concurrent refund attempts produce at most one wallet transfer;
+- earn reversal and insufficient-balance clawback semantics remain correct.
+
 ## P1 — Files / clinical attachment boundary — HARDENED, VERIFICATION REQUIRED
 
 The files module now requires authentication and patient permissions, applies clinic scoping to patient/document reads, rejects guest access, stores uploads under clinic-prefixed object keys, and returns short-lived signed URLs for stored objects. Uploads are limited to 60 MB and restricted by extension.
