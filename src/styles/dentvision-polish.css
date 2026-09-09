@@ -48,6 +48,34 @@
   border-color: var(--dv-border, rgba(23,25,24,.08));
 }
 
+/* Global native controls: old pages still contain raw buttons, so give them the same
+   contrast/focus language as the shared Button component without changing their layout. */
+button[class*="bg-surface-2"][class*="border-bdr-subtle"],
+a[class*="bg-surface-2"][class*="border-bdr-subtle"] {
+  border-color: var(--dv-border-strong, rgba(23,25,24,.15)) !important;
+  color: var(--dv-text, #171918) !important;
+}
+
+button[class*="bg-surface-2"][class*="border-bdr-subtle"]:hover,
+a[class*="bg-surface-2"][class*="border-bdr-subtle"]:hover {
+  border-color: color-mix(in srgb, var(--dv-accent, #a47b35) 55%, var(--dv-border-strong, rgba(23,25,24,.15))) !important;
+}
+
+button[class*="text-txt-muted"]:focus-visible,
+a[class*="text-txt-muted"]:focus-visible,
+button[class*="text-txt-secondary"]:focus-visible,
+a[class*="text-txt-secondary"]:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--dv-accent, #a47b35) 65%, transparent) !important;
+  outline-offset: 2px;
+}
+
+/* Interactive tabs/segmented controls should visibly distinguish the active state. */
+button[aria-selected="true"],
+button[aria-pressed="true"] {
+  color: var(--dv-text, #171918) !important;
+  border-color: color-mix(in srgb, var(--dv-accent, #a47b35) 45%, var(--dv-border-strong, rgba(23,25,24,.15))) !important;
+}
+
 /* Touch-friendly controls without making desktop UI oversized. */
 @media (max-width: 767px) {
   button[class*="rounded-xl"],
