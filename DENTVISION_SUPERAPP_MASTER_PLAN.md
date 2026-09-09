@@ -56,85 +56,86 @@ Study and selectively adopt the best interaction patterns from:
 - Patient engagement: NexHealth, Weave, Solutionreach/RevenueWell.
 - Productivity: Linear, Notion.
 - Commerce: Shopify-class catalog/cart/order patterns.
-- Education: modern LMS/course/progress patterns.
+- Education: modern LMS/course/progress/certification patterns.
 - Super-app: Kaspi-class service discovery and contextual shortcuts.
 - AI: context-aware copilots, approvals, explainable actions, human confirmation for consequential operations.
 
 Do not copy branding or proprietary UI. Extract proven interaction patterns and adapt them to DentVision.
 
 ## Completed in current visual program
-- Unified Super App sidebar/navigation.
-- Unified visual theme and semantic palette.
-- Unified global surface/border/text treatment.
-- Removed/neutralized major legacy gradients, glow shadows, and glass surfaces.
-- Unified buttons, inputs, badges, cards, progress, tabs, modal/popover/dropdown/toast behavior.
-- Improved mobile touch targets and bottom navigation.
-- Unified Dashboard/service hub/quick actions.
-- Polished Diagnostics result list.
-- Polished Academy, Wallet, payment QR, AI context, and other identified screens.
-- Created and maintained PR #245: `feat/unified-dentvision-visual-system`.
+- [x] Unified Super App sidebar/navigation.
+- [x] Unified visual theme and semantic palette.
+- [x] Unified global surface/border/text treatment.
+- [x] Removed/neutralized major legacy gradients, glow shadows, and glass surfaces.
+- [x] Unified buttons, inputs, badges, cards, progress, tabs, modal/popover/dropdown/toast behavior.
+- [x] Improved mobile touch targets and bottom navigation.
+- [x] Unified Dashboard/service hub/quick actions.
+- [x] Polished Diagnostics result list.
+- [x] Polished Academy, Wallet, payment QR, AI context, and other identified screens.
+- [x] Created and maintained PR #245: `feat/unified-dentvision-visual-system`.
+- [x] Established persistent master-plan/change-control workflow.
+- [x] Normalized additional legacy translucent surfaces, black/white utility surfaces, cyan service gradients, oversized shadows, and focus states at the shared theme layer.
 
 ## Current active pass
-- Find remaining legacy visual outliers across Dashboard, AI, Analytics, Academy, Shop, Diagnostics, Auth and shared primitives.
-- Remove remaining service-specific color/gradient/glass/shadow inconsistencies.
-- Normalize mobile overlays and shared interaction surfaces.
-- Verify cross-page consistency after every batch.
-- Run typecheck/lint/build/E2E and inspect test failures instead of assuming they are unrelated.
+- [ ] Find remaining legacy visual outliers across Dashboard, AI, Analytics, Academy, Shop, Diagnostics, Auth and shared primitives.
+- [ ] Normalize remaining inline gradients and hard-coded service-specific colors that cannot be safely handled by the shared theme.
+- [ ] Normalize remaining mobile overlays and shared interaction surfaces.
+- [ ] Verify cross-page consistency after every batch.
 
 ## Next product passes after visual unification
 ### Phase A — Navigation & information architecture
-- Audit every route and sidebar item.
-- Ensure service hierarchy is predictable.
-- Add contextual breadcrumbs/entity headers where useful.
-- Make command/search a true global entry point.
+- [ ] Audit every route and sidebar item.
+- [ ] Ensure service hierarchy is predictable.
+- [ ] Add contextual breadcrumbs/entity headers where useful.
+- [ ] Make command/search a true global entry point.
 
 ### Phase B — Clinical operating system
-- Patient 360 as the central longitudinal view.
-- Clinical Case workspace.
-- Treatment-plan timeline and case acceptance flow.
-- Odontogram/charting workflow.
-- Imaging/diagnostics context linking.
-- Lab/material/document/payment relationships.
+- [ ] Patient 360 as the central longitudinal view.
+- [ ] Clinical Case workspace.
+- [ ] Treatment-plan timeline and case acceptance flow.
+- [ ] Odontogram/charting workflow.
+- [ ] Imaging/diagnostics context linking.
+- [ ] Lab/material/document/payment relationships.
 
 ### Phase C — AI operating layer
-- One AI interaction model across the app.
-- Context-aware suggestions tied to patient/case.
-- Explainable findings and confidence.
-- Action previews before consequential changes.
-- Approval queue and audit trail.
-- AI-generated documentation with clinician control.
+- [ ] One AI interaction model across the app.
+- [ ] Context-aware suggestions tied to patient/case.
+- [ ] Explainable findings and confidence.
+- [ ] Action previews before consequential changes.
+- [ ] Approval queue and audit trail.
+- [ ] AI-generated documentation with clinician control.
 
 ### Phase D — Practice operations
-- Schedule optimization.
-- Recall/no-show workflow.
-- Patient communication.
-- Cashier/finance.
-- Inventory and lab operations.
-- Team/roles/multi-location.
-- Operational analytics.
+- [ ] Schedule optimization.
+- [ ] Recall/no-show workflow.
+- [ ] Patient communication.
+- [ ] Cashier/finance.
+- [ ] Inventory and lab operations.
+- [ ] Team/roles/multi-location.
+- [ ] Operational analytics.
 
 ### Phase E — Ecosystem
-- Diagnostics center workflows.
-- Shop/catalog/orders/supply chain.
-- Academy/course/progress/certification.
-- Jobs/community/network.
-- Profile/settings/help.
+- [ ] Diagnostics center workflows.
+- [ ] Shop/catalog/orders/supply chain.
+- [ ] Academy/course/progress/certification.
+- [ ] Jobs/community/network.
+- [ ] Profile/settings/help.
 
 ### Phase F — Release excellence
-- Accessibility audit.
-- Responsive audit at real phone/tablet/desktop breakpoints.
-- Performance and bundle audit.
-- Error/loading/empty-state audit.
-- Security/permissions regression audit.
-- E2E critical-path coverage.
-- Production release gate.
+- [ ] Accessibility audit.
+- [ ] Responsive audit at real phone/tablet/desktop breakpoints.
+- [ ] Performance and bundle audit.
+- [ ] Error/loading/empty-state audit.
+- [ ] Security/permissions regression audit.
+- [ ] E2E critical-path coverage.
+- [ ] Production release gate.
 
 ## Change ledger
-When making future changes, update this document with:
-- What was changed.
-- Why it was changed.
-- What remains.
-- Any regression/test status.
-- The active PR/branch.
+### 2026-09-09
+- Completed shared theme normalization for additional translucent legacy surfaces, black/white utility surfaces, cyan service gradients, oversized shadow classes, and keyboard focus states.
+- Rationale: reduce cross-service visual drift without changing application behavior.
+- Active branch: `feat/unified-dentvision-visual-system`.
+- Active PR: #245.
+- Regression status: theme-only change; CI validation remains required.
 
-This file is the persistent product-control document. Treat it as the source of truth for future DentVision super-app work.
+Future changes must append a dated entry describing what changed, why, what remains, regression/test status, and the active PR/branch.
