@@ -1,7 +1,6 @@
 import { useEffect, useRef, useCallback, useState } from 'react'
+import { apiRequest } from '@/utils/api'
 import { useAuthStore } from '@/store/auth.store'
-
-// ─── Types ───
 
 export interface NotificationEvent {
   id: string
@@ -9,6 +8,7 @@ export interface NotificationEvent {
   data: Record<string, unknown>
   timestamp: string
   clinicId: string
+  targetUserIds?: string[]
 }
 
 interface UseAINotificationsOptions {
@@ -18,72 +18,73 @@ interface UseAINotificationsOptions {
   enabled?: boolean
 }
 
-// ─── Hook ───
-
 export function useAINotifications(options?: UseAINotificationsOptions) {
   const { enabled = true, onEvent, onAlert, onTimelineUpdate } = options || {}
   const clinicId = useAuthStore((s) => s.user?.clinicId)
   const eventSourceRef = useRef<EventSource | null>(null)
+  const reconnectTimerRef = useRef<number | null>(null)
+  const stoppedRef = useRef(false)
   const [connected, setConnected] = useState(false)
   const [lastEvent, setLastEvent] = useState<NotificationEvent | null>(null)
 
-  const API_URL: string =
-    import.meta.env.VITE_API_URL ||
-    (window.location.hostname.includes('vercel.app')
-      ? 'https://dentvision-api.onrender.com'
-      : 'http://localhost:3001')
+  const API_URL: string = import.meta.env.VITE_API_URL || (window.location.hostname.includes('vercel.app') ? 'https://dentvision-api.onrender.com' : 'http://localhost:3001')
 
   useEffect(() => {
+    stoppedRef.current = false
     if (!enabled || !clinicId) return
 
-    const url = `${API_URL}/api/ai/notifications/stream?clinicId=${clinicId}`
-    const es = new EventSource(url)
-    eventSourceRef.current = es
-
-    es.onopen = () => {
-      setConnected(true)
-    }
-
-    es.onmessage = (event) => {
+    const connect = async () => {
+      if (stoppedRef.current) return
       try {
-        const data: NotificationEvent = JSON.parse(event.data)
-        setLastEvent(data)
+        // EventSource cannot attach Authorization headers. Mint a short-lived,
+        // one-use ticket through the authenticated API and put only that ticket
+        // in the stream URL.
+        const ticketResponse = await apiRequest('/api/ai/notifications/ticket', { method: 'POST' })
+        const ticket = String(ticketResponse?.ticket || '')
+        if (!ticket || stoppedRef.current) return
 
-        onEvent?.(data)
+        const url = `${API_URL}/api/ai/notifications/stream?clinicId=${encodeURIComponent(clinicId)}&ticket=${encodeURIComponent(ticket)}`
+        const es = new EventSource(url)
+        eventSourceRef.current = es
 
-        switch (data.type) {
-          case 'alert':
-            onAlert?.(data)
-            break
-          case 'timeline_update':
-            onTimelineUpdate?.(data)
-            break
+        es.onopen = () => setConnected(true)
+        es.onmessage = (event) => {
+          try {
+            const data: NotificationEvent = JSON.parse(event.data)
+            setLastEvent(data)
+            onEvent?.(data)
+            if (data.type === 'alert') onAlert?.(data)
+            if (data.type === 'timeline_update') onTimelineUpdate?.(data)
+          } catch { /* keepalive / malformed event */ }
+        }
+        es.onerror = () => {
+          es.close()
+          if (eventSourceRef.current === es) eventSourceRef.current = null
+          setConnected(false)
+          if (!stoppedRef.current) {
+            if (reconnectTimerRef.current) window.clearTimeout(reconnectTimerRef.current)
+            reconnectTimerRef.current = window.setTimeout(() => void connect(), 3000)
+          }
         }
       } catch {
-        // Ignore parse errors (keepalive messages)
+        setConnected(false)
+        if (!stoppedRef.current) reconnectTimerRef.current = window.setTimeout(() => void connect(), 5000)
       }
     }
 
-    es.onerror = () => {
-      setConnected(false)
-      es.close()
-      // Auto-reconnect after 3s
-      setTimeout(() => {
-        if (eventSourceRef.current === es) {
-          // reconnect by creating a new EventSource
-        }
-      }, 3000)
-    }
-
+    void connect()
     return () => {
-      es.close()
+      stoppedRef.current = true
+      if (reconnectTimerRef.current) window.clearTimeout(reconnectTimerRef.current)
+      eventSourceRef.current?.close()
       eventSourceRef.current = null
       setConnected(false)
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [clinicId, enabled, API_URL])
+  }, [clinicId, enabled, API_URL, onAlert, onEvent, onTimelineUpdate])
 
   const disconnect = useCallback(() => {
+    stoppedRef.current = true
+    if (reconnectTimerRef.current) window.clearTimeout(reconnectTimerRef.current)
     eventSourceRef.current?.close()
     eventSourceRef.current = null
     setConnected(false)
