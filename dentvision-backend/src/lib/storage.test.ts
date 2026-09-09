@@ -48,12 +48,24 @@ describe('storage', () => {
     expect(arg.input).toMatchObject({ Bucket: 'test-bucket', Key: 'clinics/c1/f1.jpg', ContentType: 'image/jpeg' });
   });
 
+  it('rejects unsafe upload keys before contacting S3', async () => {
+    const { uploadObject } = await import('./storage.js');
+    await expect(uploadObject('../secret.txt', Buffer.from('data'), 'text/plain')).rejects.toThrow('UNSAFE_STORAGE_KEY');
+    expect(sendMock).not.toHaveBeenCalled();
+  });
+
   it('generates a signed URL for a key', async () => {
     getSignedUrlMock.mockResolvedValueOnce('https://signed.example/clinics/c1/f1.jpg?sig=abc');
     const { signedDownloadUrl } = await import('./storage.js');
     const url = await signedDownloadUrl('clinics/c1/f1.jpg');
     expect(url).toBe('https://signed.example/clinics/c1/f1.jpg?sig=abc');
     expect(getSignedUrlMock).toHaveBeenCalled();
+  });
+
+  it('rejects unsafe keys before signing', async () => {
+    const { signedDownloadUrl } = await import('./storage.js');
+    await expect(signedDownloadUrl('clinics/c1/../private.txt')).rejects.toThrow('UNSAFE_STORAGE_KEY');
+    expect(getSignedUrlMock).not.toHaveBeenCalled();
   });
 
   it('round-trips keys through toStorageUrl/isStorageKey/keyFromStorageUrl', async () => {
