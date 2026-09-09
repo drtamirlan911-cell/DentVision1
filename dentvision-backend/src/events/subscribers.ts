@@ -1,18 +1,18 @@
 // Registers all domain-event subscribers. Called once at startup (app.ts).
-// Keeps cross-cutting side effects (audit, etc.) decoupled from route handlers.
+// Keeps cross-cutting side effects (audit, AI automation, etc.) decoupled from route handlers.
 import prisma from '../lib/prisma.js';
 import { subscribe } from '../lib/events.js';
 import { uid } from '../lib/helpers.js';
 import { ensurePatientAssignment } from '../lib/patientAssignment.js';
+import { registerAIEventBridge } from './aiEventBridge.js';
 
 let registered = false;
 
 export function registerSubscribers(): void {
   if (registered) return;
   registered = true;
+  registerAIEventBridge();
 
-  // Audit: record patient lifecycle events centrally via the event bus instead
-  // of scattering audit writes across handlers.
   subscribe('patient.created', async ({ clinicId, patientId, userId, name }) => {
     await prisma.auditLog.create({
       data: {
@@ -53,23 +53,10 @@ export function registerSubscribers(): void {
     });
   });
 
-  // Booking a patient with a doctor is what makes that doctor responsible for
-  // them. Doing it here rather than at each `prisma.appointment.create` call
-  // means the six write paths (schedule, online booking, the AI tool, the
-  // legacy admin agent, the ai-admin webhook, and whatever is added next) all
-  // record it without having to remember to. Handler errors are already
-  // isolated by `subscribe`, so a failure here cannot break booking.
   subscribe('appointment.created', async ({ clinicId, patientId, doctorId }) => {
     await ensurePatientAssignment({ clinicId, patientId, userId: doctorId });
   });
 
-  // Platform-level (not clinic-scoped) — no audit trail existed for either
-  // until now. `referral.*` / `diagnostics.result_ready` deliberately have no
-  // subscriber here: `diagnostics.service.ts` already writes its own
-  // `writeAuditLog` row and sends its own notification at the call site for
-  // each of those; a second write here would just duplicate the log entry.
-  // What those four *were* missing is `registerWorkflowEngine()` being
-  // called at all (see app.ts) — this file was never the gap for them.
   subscribe('supplier.status_changed', async ({ supplierId, from, to, userId }) => {
     await prisma.auditLog.create({
       data: {
@@ -98,8 +85,6 @@ export function registerSubscribers(): void {
     });
   });
 
-  // Unlike referral/diagnostics, lab.routes.ts never wrote its own audit row —
-  // lab order lifecycle had no audit trail at all until these two.
   subscribe('labOrder.created', async ({ clinicId, labOrderId, userId }) => {
     await prisma.auditLog.create({
       data: {
