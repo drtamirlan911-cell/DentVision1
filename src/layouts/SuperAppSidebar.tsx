@@ -1,6 +1,7 @@
 import React from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useTranslation } from 'react-i18next';
 import {
   Activity, BarChart3, BriefcaseBusiness, ChevronDown, ChevronRight,
   CircleHelp, Command, Database, FileText, GraduationCap, LayoutDashboard,
@@ -28,75 +29,75 @@ export interface SuperAppSidebarProps {
   isAdmin?: boolean;
 }
 
-type Item = { id: string; label: string; path: string; icon: React.ReactNode; badge?: string | number };
-type Group = { id: string; label: string; items: Item[] };
+type Item = { id: string; labelKey: string; fallback: string; path: string; icon: React.ReactNode; badge?: string | number };
+type Group = { id: string; labelKey: string; fallback: string; items: Item[] };
 
 const groups: Group[] = [
   {
-    id: 'core', label: 'WORKSPACE', items: [
-      { id: 'ai', label: 'AI Workspace', path: '/', icon: <Sparkles /> },
-      { id: 'practice', label: 'Practice', path: '/crm/schedule', icon: <Stethoscope /> },
-      { id: 'diagnostics', label: 'Diagnostics', path: '/diagnostics', icon: <Activity /> },
+    id: 'workspace', labelKey: 'nav.digital_assistant', fallback: 'Рабочее пространство', items: [
+      { id: 'ai', labelKey: 'nav.digital_assistant', fallback: 'ИИ-ассистент', path: '/', icon: <Sparkles /> },
+      { id: 'diagnostics', labelKey: 'nav.diagnostics', fallback: 'Диагностика', path: '/diagnostics', icon: <Activity /> },
     ],
   },
   {
-    id: 'clinic', label: 'CLINIC', items: [
-      { id: 'patients', label: 'Patients', path: '/crm/patients', icon: <Users /> },
-      { id: 'schedule', label: 'Schedule', path: '/crm/schedule', icon: <CalendarDays /> },
-      { id: 'dental-chart', label: 'Dental Chart', path: '/crm/dental-chart', icon: <Stethoscope /> },
-      { id: 'treatment-plans', label: 'Treatment Plans', path: '/crm/treatment-plans', icon: <ClipboardList /> },
-      { id: 'medical-card', label: 'Medical Card', path: '/crm/medical-card', icon: <FileCheck2 /> },
-      { id: 'visits', label: 'Visits', path: '/crm/visits', icon: <LayoutDashboard /> },
-      { id: 'lab', label: 'Laboratory', path: '/crm/lab', icon: <Activity /> },
-      { id: 'patient-inbox', label: 'Patient Inbox', path: '/crm/patient-inbox', icon: <MessagesSquare /> },
+    id: 'clinic', labelKey: 'nav.section_patients', fallback: 'Клиника', items: [
+      { id: 'patients', labelKey: 'nav.patients', fallback: 'Пациенты', path: '/crm/patients', icon: <Users /> },
+      { id: 'schedule', labelKey: 'nav.schedule', fallback: 'Расписание', path: '/crm/schedule', icon: <CalendarDays /> },
+      { id: 'dental-chart', labelKey: 'nav.dental_chart', fallback: 'Зубная карта', path: '/crm/dental-chart', icon: <Stethoscope /> },
+      { id: 'treatment-plans', labelKey: 'nav.treatment_plans', fallback: 'Планы лечения', path: '/crm/treatment-plans', icon: <ClipboardList /> },
+      { id: 'medical-card', labelKey: 'nav.medical_card', fallback: 'Медкарта', path: '/crm/medical-card', icon: <FileCheck2 /> },
+      { id: 'visits', labelKey: 'nav.visits', fallback: 'Визиты', path: '/crm/visits', icon: <LayoutDashboard /> },
+      { id: 'lab', labelKey: 'nav.lab', fallback: 'Лаборатория', path: '/crm/lab', icon: <Activity /> },
+      { id: 'patient-inbox', labelKey: 'nav.patient_inbox', fallback: 'Диалоги с пациентами', path: '/crm/patient-inbox', icon: <MessagesSquare /> },
     ],
   },
   {
-    id: 'operations', label: 'OPERATIONS', items: [
-      { id: 'finance', label: 'Finance', path: '/crm/finance', icon: <WalletCards /> },
-      { id: 'cashier', label: 'Cashier', path: '/crm/cashier', icon: <WalletCards /> },
-      { id: 'inventory', label: 'Inventory', path: '/crm/inventory', icon: <Package /> },
-      { id: 'pricelist', label: 'Price List', path: '/crm/pricelist', icon: <FileText /> },
-      { id: 'marketing', label: 'Marketing', path: '/crm/marketing', icon: <Megaphone /> },
-      { id: 'promotions', label: 'Promotions', path: '/crm/promotions', icon: <Zap /> },
-      { id: 'reminders', label: 'Reminders', path: '/crm/reminders', icon: <MessageCircle /> },
-      { id: 'documents', label: 'Documents', path: '/crm/documents', icon: <FileText /> },
-      { id: 'staff', label: 'Staff', path: '/crm/staff', icon: <Users /> },
-      { id: 'workflow', label: 'Automation', path: '/crm/workflow', icon: <Bot /> },
+    id: 'operations', labelKey: 'nav.section_finance', fallback: 'Операции', items: [
+      // Finance and Cashier currently resolve to the same operational workspace.
+      // Keep one entry so the sidebar never presents duplicate screens.
+      { id: 'finance', labelKey: 'nav.finance', fallback: 'Финансы и касса', path: '/crm/cashier', icon: <WalletCards /> },
+      { id: 'inventory', labelKey: 'nav.inventory', fallback: 'Склад', path: '/crm/inventory', icon: <Package /> },
+      { id: 'pricelist', labelKey: 'nav.pricelist', fallback: 'Прайс', path: '/crm/pricelist', icon: <FileText /> },
+      { id: 'marketing', labelKey: 'nav.marketing', fallback: 'Маркетинг', path: '/crm/marketing', icon: <Megaphone /> },
+      { id: 'promotions', labelKey: 'nav.promotions', fallback: 'Акции', path: '/crm/promotions', icon: <Zap /> },
+      { id: 'reminders', labelKey: 'nav.reminders', fallback: 'Напоминания', path: '/crm/reminders', icon: <MessageCircle /> },
+      { id: 'documents', labelKey: 'nav.documents', fallback: 'Документы', path: '/crm/documents', icon: <FileText /> },
+      { id: 'staff', labelKey: 'nav.staff', fallback: 'Сотрудники', path: '/crm/staff', icon: <Users /> },
+      { id: 'workflow', labelKey: 'nav.workflow', fallback: 'Автоматизация', path: '/crm/workflow', icon: <Bot /> },
     ],
   },
   {
-    id: 'business', label: 'BUSINESS', items: [
-      { id: 'shop', label: 'Shop', path: '/shop', icon: <ShoppingBag /> },
-      { id: 'academy', label: 'Academy', path: '/school', icon: <GraduationCap /> },
-      { id: 'analytics', label: 'Analytics', path: '/analytics', icon: <BarChart3 /> },
+    id: 'business', labelKey: 'nav.services', fallback: 'Сервисы', items: [
+      { id: 'shop', labelKey: 'nav.market', fallback: 'Маркет', path: '/shop', icon: <ShoppingBag /> },
+      { id: 'academy', labelKey: 'nav.school', fallback: 'Академия', path: '/school', icon: <GraduationCap /> },
+      { id: 'analytics', labelKey: 'nav.analytics', fallback: 'Аналитика', path: '/analytics', icon: <BarChart3 /> },
     ],
   },
   {
-    id: 'network', label: 'NETWORK', items: [
-      { id: 'jobs', label: 'Jobs', path: '/jobs', icon: <BriefcaseBusiness /> },
-      { id: 'community', label: 'Community', path: '/community', icon: <Users /> },
+    id: 'network', labelKey: 'nav.network', fallback: 'Сеть', items: [
+      { id: 'jobs', labelKey: 'nav.jobs', fallback: 'Вакансии', path: '/jobs', icon: <BriefcaseBusiness /> },
+      { id: 'community', labelKey: 'nav.community', fallback: 'Сообщество', path: '/community', icon: <Users /> },
     ],
   },
 ];
 
 const moreItems: Item[] = [
-  { id: 'profile', label: 'Profile', path: '/profile', icon: <UserRound /> },
-  { id: 'settings', label: 'Settings', path: '/settings', icon: <Settings /> },
-  { id: 'help', label: 'Help & Support', path: '/help', icon: <CircleHelp /> },
-  { id: 'clinic-settings', label: 'Clinic Settings', path: '/crm/clinic-settings', icon: <Settings /> },
-  { id: 'billing', label: 'Billing', path: '/crm/billing', icon: <WalletCards /> },
-  { id: 'integrations', label: 'Messaging Integrations', path: '/crm/integrations/messaging', icon: <MessageCircle /> },
-  { id: 'icd10', label: 'ICD-10', path: '/crm/icd10', icon: <FileCheck2 /> },
+  { id: 'profile', labelKey: 'nav.profile', fallback: 'Профиль', path: '/profile', icon: <UserRound /> },
+  { id: 'settings', labelKey: 'nav.settings', fallback: 'Настройки', path: '/settings', icon: <Settings /> },
+  { id: 'help', labelKey: 'nav.help', fallback: 'Помощь и поддержка', path: '/help', icon: <CircleHelp /> },
+  { id: 'clinic-settings', labelKey: 'nav.clinic_settings', fallback: 'Настройки клиники', path: '/crm/clinic-settings', icon: <Settings /> },
+  { id: 'billing', labelKey: 'nav.billing', fallback: 'Тариф и оплата', path: '/crm/billing', icon: <WalletCards /> },
+  { id: 'integrations', labelKey: 'nav.integrations', fallback: 'Интеграции', path: '/crm/integrations/messaging', icon: <MessageCircle /> },
+  { id: 'icd10', labelKey: 'nav.icd10', fallback: 'МКБ-10', path: '/crm/icd10', icon: <FileCheck2 /> },
 ];
 
 const adminItems: Item[] = [
-  { id: 'admin', label: 'Administration', path: '/admin', icon: <ShieldCheck /> },
-  { id: 'approvals', label: 'AI Approvals', path: '/ai-approvals', icon: <Zap /> },
-  { id: 'agents', label: 'AI Agents', path: '/agent-activity', icon: <Sparkles /> },
-  { id: 'audit', label: 'Audit & Security', path: '/audit', icon: <Database /> },
-  { id: 'bi', label: 'BI Workspace', path: '/bi', icon: <BarChart3 /> },
-  { id: 'backup', label: 'Backup', path: '/backup', icon: <Database /> },
+  { id: 'admin', labelKey: 'nav.admin', fallback: 'Администрирование', path: '/admin', icon: <ShieldCheck /> },
+  { id: 'approvals', labelKey: 'nav.ai_approvals', fallback: 'Подтверждения ИИ', path: '/ai-approvals', icon: <Zap /> },
+  { id: 'agents', labelKey: 'nav.agent_activity', fallback: 'Активность ИИ', path: '/agent-activity', icon: <Sparkles /> },
+  { id: 'audit', labelKey: 'nav.audit', fallback: 'Аудит и безопасность', path: '/audit', icon: <Database /> },
+  { id: 'bi', labelKey: 'nav.bi', fallback: 'Бизнес-аналитика', path: '/bi', icon: <BarChart3 /> },
+  { id: 'backup', labelKey: 'nav.backup', fallback: 'Резервные копии', path: '/backup', icon: <Database /> },
 ];
 
 function isActive(pathname: string, itemPath: string) {
@@ -104,12 +105,12 @@ function isActive(pathname: string, itemPath: string) {
   return pathname === itemPath || pathname.startsWith(`${itemPath}/`);
 }
 
-function NavItem({ item, collapsed, active, onNavigate }: { item: Item; collapsed: boolean; active: boolean; onNavigate: (path: string) => void }) {
+function NavItem({ item, collapsed, active, onNavigate, label }: { item: Item; collapsed: boolean; active: boolean; onNavigate: (path: string) => void; label: string }) {
   return (
     <button
       type="button"
       aria-current={active ? 'page' : undefined}
-      title={collapsed ? item.label : undefined}
+      title={collapsed ? label : undefined}
       onClick={() => onNavigate(item.path)}
       className={cn(
         'group relative flex w-full items-center gap-3 rounded-[11px] px-2.5 py-2 text-left transition-all duration-200',
@@ -121,7 +122,7 @@ function NavItem({ item, collapsed, active, onNavigate }: { item: Item; collapse
       <span className={cn('grid h-8 w-8 shrink-0 place-items-center rounded-[9px] transition-colors', active ? 'bg-[var(--dv-accent-soft)] text-[var(--dv-accent)]' : 'bg-[var(--dv-icon-bg)] text-current')}>
         {React.cloneElement(item.icon as React.ReactElement, { size: 17, strokeWidth: 1.8 })}
       </span>
-      {!collapsed && <span className="min-w-0 flex-1 truncate text-[13px] font-medium">{item.label}</span>}
+      {!collapsed && <span className="min-w-0 flex-1 truncate text-[13px] font-medium">{label}</span>}
       {!collapsed && item.badge !== undefined && <span className="rounded-full bg-[var(--dv-accent)] px-1.5 py-0.5 text-[10px] font-bold text-white">{item.badge}</span>}
     </button>
   );
@@ -133,8 +134,14 @@ export const SuperAppSidebar: React.FC<SuperAppSidebarProps> = ({
 }) => {
   const navigate = useNavigate();
   const location = useLocation();
+  const { t } = useTranslation();
   const [moreOpen, setMoreOpen] = React.useState(false);
   const { open: openCommandPalette } = useCommandPalette();
+
+  const text = React.useCallback((key: string, fallback: string) => {
+    const value = t(key);
+    return value && value !== key ? value : fallback;
+  }, [t]);
 
   const go = (path: string) => {
     navigate(path);
@@ -143,12 +150,11 @@ export const SuperAppSidebar: React.FC<SuperAppSidebarProps> = ({
 
   const width = collapsed ? 76 : 260;
   const visible = sidebarVisible || (isMobile && sidebarOpen);
-
   if (!visible) return null;
 
   return (
     <>
-      {isMobile && sidebarOpen && <button aria-label="Close navigation" className="fixed inset-0 z-40 bg-black/35 backdrop-blur-[2px]" onClick={toggleSidebar} />}
+      {isMobile && sidebarOpen && <button aria-label={text('common.close', 'Закрыть')} className="fixed inset-0 z-40 bg-black/35 backdrop-blur-[2px]" onClick={toggleSidebar} />}
       <motion.aside
         initial={false}
         animate={{ width: isMobile ? 280 : width, x: isMobile && !sidebarOpen ? -300 : 0 }}
@@ -161,57 +167,57 @@ export const SuperAppSidebar: React.FC<SuperAppSidebarProps> = ({
             {(!collapsed || isMobile) && <span className="text-[15px] font-semibold tracking-[-0.02em]">DentVision</span>}
           </button>
           {isMobile ? (
-            <button type="button" onClick={toggleSidebar} className="rounded-lg p-2 text-[var(--dv-muted)] hover:bg-[var(--dv-nav-hover)]"><X size={18} /></button>
+            <button type="button" onClick={toggleSidebar} className="rounded-lg p-2 text-[var(--dv-muted)] hover:bg-[var(--dv-nav-hover)]" aria-label={text('common.close', 'Закрыть')}><X size={18} /></button>
           ) : (
-            <button type="button" onClick={() => setCollapsed(!collapsed)} className="rounded-lg p-2 text-[var(--dv-muted)] hover:bg-[var(--dv-nav-hover)]" aria-label={collapsed ? 'Expand navigation' : 'Collapse navigation'}>
+            <button type="button" onClick={() => setCollapsed(!collapsed)} className="rounded-lg p-2 text-[var(--dv-muted)] hover:bg-[var(--dv-nav-hover)]" aria-label={collapsed ? text('nav.expand_sidebar', 'Развернуть меню') : text('nav.collapse_sidebar', 'Свернуть меню')}>
               {collapsed ? <ChevronRight size={17} /> : <ChevronRight className="rotate-180" size={17} />}
             </button>
           )}
         </div>
 
         <div className="px-3 pt-3">
-          <button type="button" onClick={openCommandPalette} className={cn('flex w-full items-center gap-2.5 rounded-xl border border-[var(--dv-border)] bg-[var(--dv-surface)] px-2.5 py-2 text-left transition hover:border-[var(--dv-border-strong)]', collapsed && !isMobile && 'justify-center')} aria-label="Open command palette">
+          <button type="button" onClick={openCommandPalette} className={cn('flex w-full items-center gap-2.5 rounded-xl border border-[var(--dv-border)] bg-[var(--dv-surface)] px-2.5 py-2 text-left transition hover:border-[var(--dv-border-strong)]', collapsed && !isMobile && 'justify-center')} aria-label={text('common.search', 'Поиск')}>
             <span className="grid h-7 w-7 shrink-0 place-items-center rounded-lg bg-[var(--dv-accent-soft)] text-[var(--dv-accent)]"><Command size={14} /></span>
-            {(!collapsed || isMobile) && <><span className="flex-1 text-xs font-medium text-[var(--dv-text)]">Search anything</span><kbd className="rounded-md border border-[var(--dv-border)] px-1.5 py-0.5 text-[10px] text-[var(--dv-muted)]">⌘K</kbd></>}
+            {(!collapsed || isMobile) && <><span className="flex-1 text-xs font-medium text-[var(--dv-text)]">{text('common.search', 'Поиск')}</span><kbd className="rounded-md border border-[var(--dv-border)] px-1.5 py-0.5 text-[10px] text-[var(--dv-muted)]">⌘K</kbd></>}
           </button>
         </div>
 
-        <nav className="min-h-0 flex-1 overflow-y-auto px-3 py-4 [scrollbar-width:none]">
+        <nav aria-label={text('nav.main_nav', 'Главная навигация')} className="min-h-0 flex-1 overflow-y-auto px-3 py-4 [scrollbar-width:none]">
           {groups.map((group) => (
             <section key={group.id} className="mb-5">
-              {(!collapsed || isMobile) && <div className="mb-1.5 px-2 text-[10px] font-semibold tracking-[0.14em] text-[var(--dv-muted-2)]">{group.label}</div>}
+              {(!collapsed || isMobile) && <div className="mb-1.5 px-2 text-[10px] font-semibold tracking-[0.14em] text-[var(--dv-muted-2)]">{text(group.labelKey, group.fallback)}</div>}
               {collapsed && !isMobile && <div className="mx-auto mb-1.5 h-px w-7 bg-[var(--dv-border)]" />}
               <div className="space-y-0.5">
-                {group.items.map((item) => <NavItem key={item.id} item={item} collapsed={collapsed && !isMobile} active={isActive(location.pathname, item.path)} onNavigate={go} />)}
+                {group.items.map((item) => <NavItem key={item.id} item={item} label={text(item.labelKey, item.fallback)} collapsed={collapsed && !isMobile} active={isActive(location.pathname, item.path)} onNavigate={go} />)}
               </div>
             </section>
           ))}
 
           <section>
-            {(!collapsed || isMobile) && <div className="mb-1.5 px-2 text-[10px] font-semibold tracking-[0.14em] text-[var(--dv-muted-2)]">MORE</div>}
-            <button type="button" onClick={() => setMoreOpen(!moreOpen)} className={cn('flex w-full items-center gap-3 rounded-[11px] px-2.5 py-2 text-left text-[13px] font-medium text-[var(--dv-muted)] hover:bg-[var(--dv-nav-hover)] hover:text-[var(--dv-text)]', collapsed && !isMobile && 'justify-center')}>
+            {(!collapsed || isMobile) && <div className="mb-1.5 px-2 text-[10px] font-semibold tracking-[0.14em] text-[var(--dv-muted-2)]">{text('nav.menu', 'Меню')}</div>}
+            <button type="button" onClick={() => setMoreOpen(!moreOpen)} className={cn('flex w-full items-center gap-3 rounded-[11px] px-2.5 py-2 text-left text-[13px] font-medium text-[var(--dv-muted)] hover:bg-[var(--dv-nav-hover)] hover:text-[var(--dv-text)]', collapsed && !isMobile && 'justify-center')} aria-expanded={moreOpen}>
               <span className="grid h-8 w-8 place-items-center rounded-[9px] bg-[var(--dv-icon-bg)]"><Menu size={17} /></span>
-              {(!collapsed || isMobile) && <><span className="flex-1">More</span>{moreOpen ? <ChevronDown size={15} /> : <ChevronRight size={15} />}</>}
+              {(!collapsed || isMobile) && <><span className="flex-1">{text('nav.menu', 'Меню')}</span>{moreOpen ? <ChevronDown size={15} /> : <ChevronRight size={15} />}</>}
             </button>
             <AnimatePresence initial={false}>
               {moreOpen && (!collapsed || isMobile) && <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="mt-0.5 overflow-hidden pl-2">
-                {moreItems.map((item) => <NavItem key={item.id} item={item} collapsed={false} active={isActive(location.pathname, item.path)} onNavigate={go} />)}
+                {moreItems.map((item) => <NavItem key={item.id} item={item} label={text(item.labelKey, item.fallback)} collapsed={false} active={isActive(location.pathname, item.path)} onNavigate={go} />)}
               </motion.div>}
             </AnimatePresence>
           </section>
 
           {isAdmin && !isGuest && <section className="mt-5 border-t border-[var(--dv-border)] pt-4">
-            {(!collapsed || isMobile) && <div className="mb-1.5 px-2 text-[10px] font-semibold tracking-[0.14em] text-[var(--dv-muted-2)]">ADMINISTRATION</div>}
-            {adminItems.map((item) => <NavItem key={item.id} item={{ ...item, badge: item.id === 'approvals' && pendingApprovals ? pendingApprovals : undefined }} collapsed={collapsed && !isMobile} active={isActive(location.pathname, item.path)} onNavigate={go} />)}
+            {(!collapsed || isMobile) && <div className="mb-1.5 px-2 text-[10px] font-semibold tracking-[0.14em] text-[var(--dv-muted-2)]">{text('nav.administration', 'Администрирование')}</div>}
+            {adminItems.map((item) => <NavItem key={item.id} item={{ ...item, badge: item.id === 'approvals' && pendingApprovals ? pendingApprovals : undefined }} label={text(item.labelKey, item.fallback)} collapsed={collapsed && !isMobile} active={isActive(location.pathname, item.path)} onNavigate={go} />)}
           </section>}
         </nav>
 
         <div className="border-t border-[var(--dv-border)] p-3">
           <button type="button" onClick={() => go('/profile')} className={cn('flex w-full items-center gap-2.5 rounded-xl p-2 text-left hover:bg-[var(--dv-nav-hover)]', collapsed && !isMobile && 'justify-center')}>
-            <Avatar src={user?.avatar} name={user?.name || 'User'} size="sm" />
-            {(!collapsed || isMobile) && <span className="min-w-0 flex-1"><span className="block truncate text-xs font-semibold text-[var(--dv-text)]">{user?.name || (isGuest ? 'Guest' : 'DentVision User')}</span><span className="block truncate text-[11px] text-[var(--dv-muted)]">{isGuest ? 'Demo mode' : 'Personal workspace'}</span></span>}
+            <Avatar src={user?.avatar} name={user?.name || text('nav.guest', 'Пользователь')} size="sm" />
+            {(!collapsed || isMobile) && <span className="min-w-0 flex-1"><span className="block truncate text-xs font-semibold text-[var(--dv-text)]">{user?.name || (isGuest ? text('nav.guest', 'Гость') : 'DentVision')}</span><span className="block truncate text-[11px] text-[var(--dv-muted)]">{isGuest ? text('nav.anonymous_access', 'Демо-режим') : text('nav.employee', 'Рабочее пространство')}</span></span>}
           </button>
-          {!isGuest && (!collapsed || isMobile) && <button type="button" onClick={logout} className="mt-1 flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-xs text-[var(--dv-muted)] hover:bg-[var(--dv-nav-hover)] hover:text-[var(--dv-danger)]"><LogOut size={14} /> Sign out</button>}
+          {!isGuest && (!collapsed || isMobile) && <button type="button" onClick={logout} className="mt-1 flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-xs text-[var(--dv-muted)] hover:bg-[var(--dv-nav-hover)] hover:text-[var(--dv-danger)]"><LogOut size={14} /> {text('auth.logout', 'Выйти')}</button>}
         </div>
       </motion.aside>
     </>
