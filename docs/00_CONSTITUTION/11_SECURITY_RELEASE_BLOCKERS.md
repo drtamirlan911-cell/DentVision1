@@ -80,6 +80,17 @@ Required verification:
 - concurrent refund attempts produce at most one wallet transfer;
 - earn reversal and insufficient-balance clawback semantics remain correct.
 
+## P1 — AI patient escalation tenant boundary — HARDENED, VERIFICATION REQUIRED
+
+`escalateToClinic()` previously resolved the patient by global `patientId` before constructing a staff notification containing patient identity and phone data. The lookup now requires both `patientId` and the target `clinicId`, preventing a mismatched patient ID from leaking contact data into another clinic's escalation notification.
+
+Required verification:
+
+- cross-clinic patient IDs resolve to no patient data;
+- same-clinic escalation still reaches the intended staff members;
+- conversation creation remains bound to the authenticated patient user and clinic;
+- all remaining internal AI/event patient-resolution paths carry equivalent authorization/tenant context.
+
 ## P1 — Files / clinical attachment boundary — HARDENED, VERIFICATION REQUIRED
 
 The files module now requires authentication and patient permissions, applies clinic scoping to patient/document reads, rejects guest access, stores uploads under clinic-prefixed object keys, and returns short-lived signed URLs for stored objects. Uploads are limited to 60 MB and restricted by extension.
