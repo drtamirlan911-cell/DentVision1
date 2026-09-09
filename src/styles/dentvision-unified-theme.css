@@ -5,8 +5,6 @@
   --dv-radius-md: 11px;
   --dv-radius-lg: 14px;
   --dv-radius-xl: 18px;
-
-  /* Neutral clinical light theme. Keep one palette across every service. */
   --dv-sidebar: #fbfbfa;
   --dv-surface: #ffffff;
   --dv-surface-2: #f6f7f7;
@@ -29,9 +27,6 @@
   --dv-shadow-md: 0 8px 24px rgba(0,0,0,.06);
 }
 
-/* The existing application treats an explicit .light class as light mode;
-   every other state is dark. Use the same neutral charcoal language instead
-   of introducing a second navy/blue product palette. */
 html.dark,
 html[data-theme='dark'],
 html:not(.light) {
@@ -80,43 +75,26 @@ html.light {
   --dv-shadow-md: 0 8px 24px rgba(0,0,0,.06);
 }
 
-body {
-  background: var(--dv-surface-2) !important;
-  color: var(--dv-text) !important;
-}
-
-.dv-page,
-.dv-app-surface {
-  background: var(--dv-surface-2) !important;
-  color: var(--dv-text) !important;
-}
-
-.dv-panel,
-[class*='bg-surface-1'],
-[class*='bg-surface-raised'] {
-  background-color: var(--dv-surface) !important;
-  border-color: var(--dv-border) !important;
-}
-
+body { background: var(--dv-surface-2) !important; color: var(--dv-text) !important; }
+.dv-page, .dv-app-surface { background: var(--dv-surface-2) !important; color: var(--dv-text) !important; }
+.dv-panel, [class*='bg-surface-1'], [class*='bg-surface-raised'] { background-color: var(--dv-surface) !important; border-color: var(--dv-border) !important; }
 [class*='bg-surface-2'] { background-color: var(--dv-surface-2) !important; }
 [class*='bg-surface-3'] { background-color: var(--dv-surface-3) !important; }
-
 [class*='text-txt-primary'] { color: var(--dv-text) !important; }
 [class*='text-txt-secondary'] { color: color-mix(in srgb, var(--dv-text) 72%, transparent) !important; }
 [class*='text-txt-muted'] { color: var(--dv-muted) !important; }
 [class*='text-dv-gold'] { color: var(--dv-accent) !important; }
+[class*='border-bdr-subtle'], [class*='border-bdr'] { border-color: var(--dv-border) !important; }
 
-[class*='border-bdr-subtle'],
-[class*='border-bdr'] { border-color: var(--dv-border) !important; }
+/* Normalize legacy service-specific surfaces to the same clinical material system. */
+[class*='bg-white/[0.03]'], [class*='bg-white/[0.05]'], [class*='bg-white/[0.06]'] { background-color: var(--dv-surface-2) !important; }
+[class*='border-white/[0.05]'], [class*='border-white/[0.06]'], [class*='border-white/[0.08]'] { border-color: var(--dv-border) !important; }
 
-/* Keep branded gold accents as restrained surfaces, never as page-sized gradients. */
 [class*='bg-gradient-to-br'][class*='from-dv-gold'],
 [class*='bg-gradient-to-r'][class*='from-dv-gold'] {
   background-image: none !important;
   background-color: color-mix(in srgb, var(--dv-surface) 94%, var(--dv-accent) 6%) !important;
 }
-
-/* A service must not introduce its own blue/indigo/purple visual language. */
 [class*='bg-gradient-to-br'][class*='from-[#2980B9]'],
 [class*='bg-gradient-to-br'][class*='from-blue-'],
 [class*='bg-gradient-to-br'][class*='from-indigo-'],
@@ -124,13 +102,7 @@ body {
   background-image: none !important;
   background-color: var(--dv-surface) !important;
 }
-
-[class*='shadow-glow'],
-[class*='shadow-[0_0_40px'],
-[class*='shadow-[0_40px_80px'] {
-  box-shadow: var(--dv-shadow-sm) !important;
-}
-
+[class*='shadow-glow'], [class*='shadow-[0_0_40px'], [class*='shadow-[0_40px_80px'] { box-shadow: var(--dv-shadow-sm) !important; }
 [class*='backdrop-blur'] { backdrop-filter: none !important; }
 
 @media (max-width: 767px) {
