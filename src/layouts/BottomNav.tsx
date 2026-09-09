@@ -26,7 +26,7 @@ export function BottomNav() {
   const ITEMS: BottomNavItem[] = [
     { id: 'crm', label: t('nav.crm', 'Клиника'), icon: <Stethoscope size={18} />, path: '/crm/schedule', color: '#A47B35', requiresAuth: true },
     { id: 'shop', label: t('nav.market', 'Маркет'), icon: <ShoppingCart size={18} />, path: '/shop', color: '#A47B35' },
-    { id: 'ai', label: t('nav.digital_assistant', 'ИИ'), icon: <Bot size={18} />, path: '/', color: '#A47B35' },
+    { id: 'ai', label: t('nav.digital_assistant', 'ИИ'), icon: <Bot size={18} />, path: '/ai', color: '#A47B35' },
     { id: 'school', label: t('nav.school', 'Академия'), icon: <GraduationCap size={18} />, path: '/school', color: '#A47B35' },
     { id: 'community', label: t('nav.community', 'Сообщество'), icon: <Users size={18} />, path: '/community', color: '#A47B35' },
   ];
