@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react'
-import { apiRequest, getActiveAiThread } from '@/utils/api'
+import { apiRequest } from '@/utils/api'
 import { useAIStore } from '@/store/ai.store'
 import { useAuth } from '@/store/auth.store'
 import { useWorkspaceStore } from '@/store/workspace.store'
@@ -38,10 +38,14 @@ function normaliseMessages(raw: unknown): StoredMessage[] {
 /**
  * Durable AI conversation synchronisation.
  *
- * The backend already persists AISession/AIMessage. The client now adds one
- * routing layer: every workspace gets its own durable session id, while
- * the canonical per-user/per-clinic AI key is switched to the active workspace.
- * This keeps existing aiChat callers workspace-safe without changing their API.
+ * AISession/AIMessage remain the server source of truth. The client keeps a
+ * durable session id per workspace and switches the legacy canonical AI key
+ * whenever the active workspace changes. This makes existing aiChat callers
+ * automatically address the correct conversation without duplicating the API.
+ *
+ * Security invariant: if the workspace transcript cannot be resolved, the
+ * client clears the visible transcript instead of falling back to another
+ * workspace's conversation.
  */
 export function AIConversationSync() {
   const { isAuthenticated, user } = useAuth()
@@ -84,7 +88,7 @@ export function AIConversationSync() {
           ) || null
           if (sessionId) localStorage.setItem(storageKey, sessionId)
         } catch {
-          // Existing AI fallback remains usable if thread creation is unavailable.
+          sessionId = null
         }
       }
 
@@ -96,29 +100,24 @@ export function AIConversationSync() {
         } catch { /* ignore */ }
       }
 
+      // Do not display an existing transcript until we have resolved this exact
+      // workspace session. This prevents a temporary API failure from leaking
+      // the previous workspace's conversation into the new workspace.
       let messages: StoredMessage[] = []
-      try {
-        const history = await apiRequest('/api/ai/history')
-        const sessions = Array.isArray(history) ? history : history?.data || []
-        const selected = Array.isArray(sessions)
-          ? sessions.find((s: any) => String(s?.id || '') === sessionId)
-          : null
-        messages = normaliseMessages(selected?.messages)
-      } catch {
-        // Backward-compatible fallback for older deployments.
+      if (sessionId) {
         try {
-          const active = await getActiveAiThread()
-          messages = normaliseMessages(active?.messages || active?.data?.messages)
-        } catch { /* keep the current store untouched */ }
+          const history = await apiRequest('/api/ai/history')
+          const sessions = Array.isArray(history) ? history : history?.data || []
+          const selected = Array.isArray(sessions)
+            ? sessions.find((s: any) => String(s?.id || '') === sessionId)
+            : null
+          messages = normaliseMessages(selected?.messages)
+        } catch {
+          messages = []
+        }
       }
 
-      if (messages.length) {
-        setMessages(messages as any)
-      } else {
-        // A new workspace must never display the previous workspace transcript.
-        setMessages([])
-      }
-
+      setMessages(messages as any)
       hydratedWorkspace.current = workspaceId
     }
 
