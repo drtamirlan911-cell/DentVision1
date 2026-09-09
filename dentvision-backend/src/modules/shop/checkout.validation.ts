@@ -39,3 +39,34 @@ export function parseCheckoutCashMinor(raw: unknown): bigint | null {
 export function isValidCheckoutItem(raw: unknown): raw is Record<string, unknown> {
   return typeof raw === 'object' && raw !== null && !Array.isArray(raw);
 }
+
+export interface NormalizedCheckoutItem {
+  productId: string;
+  quantity: number;
+}
+
+/**
+ * Canonicalize cart items once, before any product lookup or stock mutation.
+ * Duplicate product ids are rejected rather than silently creating multiple
+ * inventory mutations with ambiguous semantics.
+ */
+export function normalizeCheckoutItems(rawItems: unknown): NormalizedCheckoutItem[] | null {
+  if (!Array.isArray(rawItems) || rawItems.length === 0) return null;
+
+  const normalized: NormalizedCheckoutItem[] = [];
+  const seen = new Set<string>();
+
+  for (const raw of rawItems) {
+    if (!isValidCheckoutItem(raw)) return null;
+
+    const productId = String(raw.product_id ?? raw.productId ?? raw.id ?? '').trim();
+    const quantity = parseCheckoutQuantity(raw.quantity ?? raw.qty ?? 1);
+
+    if (!productId || quantity === null || seen.has(productId)) return null;
+
+    seen.add(productId);
+    normalized.push({ productId, quantity });
+  }
+
+  return normalized;
+}
