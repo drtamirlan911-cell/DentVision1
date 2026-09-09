@@ -95,12 +95,22 @@ export async function reconcileUnknownCheckoutPayments(
       // order out of `payment_unknown` first so compensation can safely claim
       // it; then restore stock and reverse any DentCash spend exactly once.
       await prisma.$transaction(async (tx) => {
+        const current = await tx.order.findUnique({
+          where: { id: order.id },
+          select: { meta: true },
+        });
+        const currentMeta = current?.meta && typeof current.meta === 'object' && !Array.isArray(current.meta)
+          ? (current.meta as Record<string, unknown>)
+          : {};
+
         await tx.payment.updateMany({
           where: { id: payment.id, status: 'pending' },
           data: {
             status: 'failed',
             meta: {
-              ...((payment.meta && typeof payment.meta === 'object' ? payment.meta : {}) as Record<string, unknown>),
+              ...((payment.meta && typeof payment.meta === 'object' && !Array.isArray(payment.meta))
+                ? (payment.meta as Record<string, unknown>)
+                : {}),
               state: 'confirmed_failure',
               reconciledAt: new Date().toISOString(),
               providerState: state,
@@ -112,7 +122,7 @@ export async function reconcileUnknownCheckoutPayments(
           data: {
             status: 'payment_failed',
             meta: {
-              ...(await tx.order.findUnique({ where: { id: order.id }, select: { meta: true } })).meta as object || {},
+              ...currentMeta,
               paymentOutcome: state,
               paymentReconciledAt: new Date().toISOString(),
             },
