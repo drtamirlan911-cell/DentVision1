@@ -24,7 +24,10 @@ async function getOrCreate(email: string, ip: string) {
       email.toLowerCase(),
       ip,
     );
-  } catch { /* table might not exist yet — fail-open */ }
+  } catch {
+    // The caller must not bypass brute-force protection when persistence fails.
+    return null;
+  }
 }
 
 export async function checkLoginAttempts(
@@ -32,7 +35,11 @@ export async function checkLoginAttempts(
   ip: string,
 ): Promise<{ allowed: boolean; remainingAttempts: number; lockoutMinutes: number | null }> {
   try {
-    await getOrCreate(email, ip);
+    const created = await getOrCreate(email, ip);
+    if (created === null) {
+      return { allowed: false, remainingAttempts: 0, lockoutMinutes: 1 };
+    }
+
     const rows = await prisma.$queryRawUnsafe<Array<{ count: number; locked_until: Date | null }>>(
       `SELECT "count", "locked_until" FROM "login_attempts" WHERE "email" = $1 AND "ip" = $2`,
       email.toLowerCase(),
@@ -46,7 +53,6 @@ export async function checkLoginAttempts(
       if (remaining > 0) {
         return { allowed: false, remainingAttempts: 0, lockoutMinutes: Math.ceil(remaining / 60000) };
       }
-      // Lock expired — reset the row
       await prisma.$queryRawUnsafe(
         `UPDATE "login_attempts" SET "count" = 0, "locked_until" = NULL, "updated_at" = now() WHERE "email" = $1 AND "ip" = $2`,
         email.toLowerCase(),
@@ -58,14 +64,15 @@ export async function checkLoginAttempts(
     const remaining = SOFT_LOCK_ATTEMPTS - row.count;
     return { allowed: true, remainingAttempts: Math.max(0, remaining), lockoutMinutes: null };
   } catch {
-    // DB down → fail-open (don't lock users out because of infrastructure).
-    return { allowed: true, remainingAttempts: SOFT_LOCK_ATTEMPTS, lockoutMinutes: null };
+    return { allowed: false, remainingAttempts: 0, lockoutMinutes: 1 };
   }
 }
 
 export async function recordFailedAttempt(email: string, ip: string): Promise<void> {
   try {
-    await getOrCreate(email, ip);
+    const created = await getOrCreate(email, ip);
+    if (created === null) return;
+
     const rows = await prisma.$queryRawUnsafe<Array<{ count: number }>>(
       `SELECT "count" FROM "login_attempts" WHERE "email" = $1 AND "ip" = $2`,
       email.toLowerCase(),
@@ -75,30 +82,22 @@ export async function recordFailedAttempt(email: string, ip: string): Promise<vo
 
     const nextCount = rows[0].count + 1;
     let lockedUntil: string | null = null;
-
-    if (nextCount >= HARD_LOCK_ATTEMPTS) {
-      lockedUntil = new Date(Date.now() + ONE_HOUR_MS).toISOString();
-    } else if (nextCount >= SOFT_LOCK_ATTEMPTS) {
-      lockedUntil = new Date(Date.now() + FIFTEEN_MIN_MS).toISOString();
-    }
+    if (nextCount >= HARD_LOCK_ATTEMPTS) lockedUntil = new Date(Date.now() + ONE_HOUR_MS).toISOString();
+    else if (nextCount >= SOFT_LOCK_ATTEMPTS) lockedUntil = new Date(Date.now() + FIFTEEN_MIN_MS).toISOString();
 
     await prisma.$queryRawUnsafe(
       `UPDATE "login_attempts" SET "count" = $3, "locked_until" = $4::timestamptz, "updated_at" = now()
        WHERE "email" = $1 AND "ip" = $2`,
-      email.toLowerCase(),
-      ip,
-      nextCount,
-      lockedUntil,
+      email.toLowerCase(), ip, nextCount, lockedUntil,
     );
-  } catch { /* fail-open */ }
+  } catch { /* persistence failure is handled by the next login check */ }
 }
 
 export async function resetAttempts(email: string, ip: string): Promise<void> {
   try {
     await prisma.$queryRawUnsafe(
       `DELETE FROM "login_attempts" WHERE "email" = $1 AND "ip" = $2`,
-      email.toLowerCase(),
-      ip,
+      email.toLowerCase(), ip,
     );
-  } catch { /* fail-open */ }
+  } catch { /* persistence failure is handled by the next login check */ }
 }

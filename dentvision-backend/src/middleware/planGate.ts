@@ -15,6 +15,11 @@ import {
   assertAiAllowed,
   type PlanFeature,
 } from '../modules/billing/planEntitlements.js';
+import {
+  assertTreatmentPlanDoctorInClinic,
+  assertTreatmentPlanReferencesInClinic,
+  TreatmentPlanReferenceError,
+} from '../modules/crm/treatmentPlanSecurity.js';
 
 /** Resolve clinicId from user context (organizationId when CLINIC, or legacy clinicId). */
 function effectiveClinicId(user: AuthRequest['user']): string | undefined {
@@ -24,14 +29,48 @@ function effectiveClinicId(user: AuthRequest['user']): string | undefined {
 function sendPlanError(req: AuthRequest, res: Response, err: unknown) {
   applyCorsHeaders(req, res);
   if (err instanceof PlanGateError) {
-    return res.status(err.status).json({
-      ok: false,
-      error: err.message,
-      code: err.code,
-      data: err.data,
-    });
+    return res.status(err.status).json({ ok: false, error: err.message, code: err.code, data: err.data });
   }
   throw err;
+}
+
+function sendTreatmentPlanReferenceError(req: AuthRequest, res: Response, error: TreatmentPlanReferenceError) {
+  applyCorsHeaders(req, res);
+  const messages: Record<string, string> = {
+    DOCTOR_OUTSIDE_CLINIC: 'Указанный врач не относится к выбранной клинике',
+    APPOINTMENT_OUTSIDE_CLINIC: 'Указанная запись не относится к выбранной клинике',
+    INVOICE_OUTSIDE_CLINIC: 'Указанный счёт не относится к выбранной клинике',
+  };
+  return res.status(403).json({ ok: false, error: messages[error.code] || 'Ссылка на объект другой клиники запрещена', code: error.code });
+}
+
+/** Validate JSON-stored treatment-plan references before CRM routes persist them. */
+async function guardTreatmentPlanReferences(req: AuthRequest, res: Response): Promise<boolean> {
+  if (req.user?.role === 'SUPERADMIN') return true;
+  const clinicId = effectiveClinicId(req.user);
+  if (!clinicId) return true;
+  const path = String(req.path || '');
+  try {
+    if (req.method === 'POST' && path === '/treatment-plans') {
+      const doctorId = typeof req.body?.doctorId === 'string' ? req.body.doctorId : null;
+      await assertTreatmentPlanDoctorInClinic(doctorId, clinicId);
+    }
+    if (req.method === 'PATCH' && /^\/treatment-plans\/[^/]+\/stages\/[^/]+$/.test(path)) {
+      const appointmentId = typeof req.body?.appointmentId === 'string' ? req.body.appointmentId : null;
+      const invoiceId = typeof req.body?.invoiceId === 'string' ? req.body.invoiceId : null;
+      await assertTreatmentPlanReferencesInClinic(clinicId, { appointmentId, invoiceId });
+    }
+    return true;
+  } catch (error) {
+    if (error instanceof TreatmentPlanReferenceError) {
+      sendTreatmentPlanReferenceError(req, res, error);
+      return false;
+    }
+    console.error('[planGate] treatment plan reference validation failed', error);
+    applyCorsHeaders(req, res);
+    res.status(503).json({ ok: false, error: 'Не удалось проверить принадлежность объекта клинике. Повторите запрос.', code: 'CLINIC_REFERENCE_VALIDATION_UNAVAILABLE' });
+    return false;
+  }
 }
 
 /** Attach resolved clinic access to req (SUPERADMIN bypasses write blocks). */
@@ -47,6 +86,7 @@ export async function loadClinicAccess(req: AuthRequest, _res: Response, next: N
       access.approaching = { patients: false, users: false, ai: false };
     }
     if (access) req.clinicAccess = access;
+    if (!(await guardTreatmentPlanReferences(req, _res))) return;
     next();
   } catch (e) {
     console.error('[planGate] loadClinicAccess', e);
@@ -59,16 +99,12 @@ export function requireClinicWritable(req: AuthRequest, res: Response, next: Nex
     if (req.user?.role === 'SUPERADMIN') return next();
     const access = req.clinicAccess;
     if (!access) {
-      if (!effectiveClinicId(req.user)) {
-        return res.status(400).json({ ok: false, error: 'Выберите клинику', code: 'CLINIC_REQUIRED' });
-      }
+      if (!effectiveClinicId(req.user)) return res.status(400).json({ ok: false, error: 'Выберите клинику', code: 'CLINIC_REQUIRED' });
       return next();
     }
     assertClinicWritable(access);
     next();
-  } catch (e) {
-    return sendPlanError(req, res, e);
-  }
+  } catch (e) { return sendPlanError(req, res, e); }
 }
 
 /** Block mutating HTTP methods when subscription is expired (reads stay open). */
@@ -80,15 +116,10 @@ export async function blockClinicWrites(req: AuthRequest, res: Response, next: N
     try {
       const access = await resolveClinicAccess(cid);
       if (access) {
-        if (req.user?.role === 'SUPERADMIN') {
-          access.writeBlocked = false;
-          access.expired = false;
-        }
+        if (req.user?.role === 'SUPERADMIN') { access.writeBlocked = false; access.expired = false; }
         req.clinicAccess = access;
       }
-    } catch (e) {
-      console.error('[planGate] blockClinicWrites', e);
-    }
+    } catch (e) { console.error('[planGate] blockClinicWrites', e); }
   }
   return requireClinicWritable(req, res, next);
 }
@@ -102,9 +133,7 @@ export function requirePlanFeature(feature: PlanFeature) {
       if (!access) return next();
       assertFeature(access, feature);
       next();
-    } catch (e) {
-      return sendPlanError(req, res, e);
-    }
+    } catch (e) { return sendPlanError(req, res, e); }
   };
 }
 
@@ -118,9 +147,7 @@ export async function guardPatientCreate(req: AuthRequest, res: Response, next: 
     req.clinicAccess = access;
     assertPatientSlot(access);
     next();
-  } catch (e) {
-    return sendPlanError(req, res, e);
-  }
+  } catch (e) { return sendPlanError(req, res, e); }
 }
 
 export async function guardUserCreate(req: AuthRequest, res: Response, next: NextFunction) {
@@ -133,9 +160,7 @@ export async function guardUserCreate(req: AuthRequest, res: Response, next: Nex
     req.clinicAccess = access;
     assertUserSlot(access);
     next();
-  } catch (e) {
-    return sendPlanError(req, res, e);
-  }
+  } catch (e) { return sendPlanError(req, res, e); }
 }
 
 export async function guardAiAccess(req: AuthRequest, res: Response, next: NextFunction) {
@@ -145,31 +170,19 @@ export async function guardAiAccess(req: AuthRequest, res: Response, next: NextF
     if (req.user?.isGuest || !req.user?.id) return next();
     const clinicId = effectiveClinicId(req.user);
     if (!clinicId) return next();
-    // Dedicated demo clinic always has AI for product walkthroughs.
     if (process.env.DEMO_CLINIC_ID && clinicId === process.env.DEMO_CLINIC_ID) return next();
     const access = req.clinicAccess || (await resolveClinicAccess(clinicId));
     if (!access) return next();
     req.clinicAccess = access;
-    // DEMO clinic plan → professional entitlements (see clinicPlanToSaas).
     if (String(access.clinicPlan || '').toUpperCase() === 'DEMO') return next();
     const method = req.method.toUpperCase();
     const path = String(req.path || req.url || '');
-    // Soft reads (tips / thread restore) must not hard-block the shell on starter.
-    const softRead =
-      method === 'GET' &&
-      (/proactive|threads|history|digital-twin|briefing|memory/i.test(path));
-    if (softRead) {
-      return next();
-    }
-    if (method === 'GET' || method === 'HEAD') {
-      assertFeature(access, 'ai');
-    } else {
-      assertAiAllowed(access);
-    }
+    const softRead = method === 'GET' && (/proactive|threads|history|digital-twin|briefing|memory/i.test(path));
+    if (softRead) return next();
+    if (method === 'GET' || method === 'HEAD') assertFeature(access, 'ai');
+    else assertAiAllowed(access);
     next();
-  } catch (e) {
-    return sendPlanError(req, res, e);
-  }
+  } catch (e) { return sendPlanError(req, res, e); }
 }
 
 export async function guardAnalytics(req: AuthRequest, res: Response, next: NextFunction) {
@@ -182,9 +195,7 @@ export async function guardAnalytics(req: AuthRequest, res: Response, next: Next
     req.clinicAccess = access;
     assertFeature(access, 'analytics');
     next();
-  } catch (e) {
-    return sendPlanError(req, res, e);
-  }
+  } catch (e) { return sendPlanError(req, res, e); }
 }
 
 export { sendPlanError, PlanGateError };

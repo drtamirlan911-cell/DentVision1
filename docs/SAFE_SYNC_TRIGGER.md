@@ -1,0 +1,1 @@
+Temporary trigger for the isolated safe-sync validation workflow. This file can be removed after validation.
