@@ -12,7 +12,19 @@ export const disputesRouter = Router();
 
 disputesRouter.use(authenticate);
 
-const STATUSES = ['open', 'review', 'resolved', 'rejected'];
+const STATUSES = ['open', 'review', 'resolved', 'rejected'] as const;
+type DisputeStatus = (typeof STATUSES)[number];
+
+const ALLOWED_TRANSITIONS: Record<DisputeStatus, readonly DisputeStatus[]> = {
+  open: ['review', 'resolved', 'rejected'],
+  review: ['resolved', 'rejected'],
+  resolved: [],
+  rejected: [],
+};
+
+function isDisputeStatus(value: unknown): value is DisputeStatus {
+  return typeof value === 'string' && (STATUSES as readonly string[]).includes(value);
+}
 
 disputesRouter.post('/', async (req: AuthRequest, res) => {
   try {
@@ -41,18 +53,40 @@ disputesRouter.get('/', requirePermission('finance.manage'), async (req: AuthReq
 
 disputesRouter.post('/:id/status', requirePermission('finance.manage'), async (req: AuthRequest, res) => {
   try {
-    const status = req.body?.status;
-    if (!STATUSES.includes(status)) {
+    const requestedStatus: unknown = req.body?.status;
+    if (!isDisputeStatus(requestedStatus)) {
       return res.status(400).json({ ok: false, error: 'Некорректный статус' } satisfies ApiResponse);
     }
+
     const existing = await prisma.dispute.findUnique({ where: { id: req.params.id as string } });
     if (!existing) {
       return res.status(404).json({ ok: false, error: 'Спор не найден' } satisfies ApiResponse);
     }
-    const dispute = await prisma.dispute.update({ where: { id: existing.id }, data: { status } });
 
-    // Trigger refund when dispute is resolved in favour of the buyer
-    if (status === 'resolved' && existing.refType && existing.refId) {
+    const currentStatus = isDisputeStatus(existing.status) ? existing.status : 'open';
+    if (!ALLOWED_TRANSITIONS[currentStatus].includes(requestedStatus)) {
+      return res.status(409).json({
+        ok: false,
+        error: `Недопустимый переход статуса: ${currentStatus} -> ${requestedStatus}`,
+      } satisfies ApiResponse);
+    }
+
+    // Compare-and-set prevents a stale request from overwriting a concurrent transition.
+    const updated = await prisma.dispute.updateMany({
+      where: { id: existing.id, status: existing.status },
+      data: { status: requestedStatus },
+    });
+    if (updated.count !== 1) {
+      return res.status(409).json({ ok: false, error: 'Спор уже изменён другим запросом' } satisfies ApiResponse);
+    }
+
+    const dispute = await prisma.dispute.findUnique({ where: { id: existing.id } });
+    if (!dispute) {
+      return res.status(404).json({ ok: false, error: 'Спор не найден после обновления' } satisfies ApiResponse);
+    }
+
+    // Trigger refund when dispute is resolved in favour of the buyer.
+    if (requestedStatus === 'resolved' && existing.refType && existing.refId) {
       try {
         await reverseCashback({
           refType: existing.refType,
@@ -60,8 +94,8 @@ disputesRouter.post('/:id/status', requirePermission('finance.manage'), async (r
           reason: 'dispute_resolved',
           callerId: req.user?.id ?? null,
         });
-      } catch (e) {
-        console.error('Dispute refund failed:', e);
+      } catch (error) {
+        console.error('Dispute refund failed:', error);
       }
     }
 
@@ -69,7 +103,7 @@ disputesRouter.post('/:id/status', requirePermission('finance.manage'), async (r
       action: 'dispute.status_changed',
       entity: 'dispute',
       entityId: dispute.id,
-      details: { from: existing.status, to: status },
+      details: { from: existing.status, to: requestedStatus },
     });
 
     return res.json({ ok: true, data: dispute } satisfies ApiResponse);
