@@ -16,59 +16,27 @@ export type PaymentReconciliationResult = {
 const BATCH_SIZE = 100;
 const MIN_UNKNOWN_AGE_MS = 30_000;
 
-/**
- * Durable reconciliation for checkout payments whose provider outcome was
- * uncertain. The payment row is persisted before the provider call, so a
- * process crash or network timeout does not lose the reference needed here.
- *
- * Only orders explicitly in `payment_unknown` are queried. A normal
- * `awaiting_payment` order is therefore left to the ordinary callback/confirm
- * flow. Provider state is authoritative: only `paid`, `failed`, or `expired`
- * cause a state transition.
- */
-export async function reconcileUnknownCheckoutPayments(
-  now = Date.now(),
-): Promise<PaymentReconciliationResult> {
-  const result: PaymentReconciliationResult = {
-    inspected: 0,
-    paid: 0,
-    failed: 0,
-    pending: 0,
-    skipped: 0,
-    errors: 0,
-  };
+/** Durable reconciliation for checkout payments whose provider outcome was uncertain. */
+export async function reconcileUnknownCheckoutPayments(now = Date.now()): Promise<PaymentReconciliationResult> {
+  const result: PaymentReconciliationResult = { inspected: 0, paid: 0, failed: 0, pending: 0, skipped: 0, errors: 0 };
 
   const payments = await prisma.payment.findMany({
-    where: {
-      status: 'pending',
-      refType: 'order',
-      externalId: { not: null },
-    },
+    where: { status: 'pending', refType: 'order', externalId: { not: null } },
     orderBy: { updatedAt: 'asc' },
     take: BATCH_SIZE,
   });
 
   for (const payment of payments) {
-    const ageMs = now - payment.updatedAt.getTime();
-    if (ageMs < MIN_UNKNOWN_AGE_MS) {
+    if (now - payment.updatedAt.getTime() < MIN_UNKNOWN_AGE_MS || !payment.refId || !payment.externalId) {
       result.skipped += 1;
       continue;
     }
 
-    if (!payment.refId || !payment.externalId) {
-      result.skipped += 1;
-      continue;
-    }
-
-    const order = await prisma.order.findUnique({
-      where: { id: payment.refId },
-      select: { id: true, status: true },
-    });
+    const order = await prisma.order.findUnique({ where: { id: payment.refId }, select: { id: true, status: true } });
     if (!order || order.status !== 'payment_unknown') {
       result.skipped += 1;
       continue;
     }
-
     result.inspected += 1;
 
     try {
@@ -84,26 +52,19 @@ export async function reconcileUnknownCheckoutPayments(
         const settled = await prisma.$transaction(async (tx) => {
           const claimed = await claimPaymentForSettlement(tx, payment.id);
           if (!claimed) return false;
-          return settlePaidPayment(payment, tx);
+          const didSettle = await settlePaidPayment(payment, tx);
+          if (!didSettle) throw new Error('PAYMENT_SETTLEMENT_NOT_APPLIED');
+          return true;
         });
         if (settled) result.paid += 1;
-        else result.skipped += 1;
         continue;
       }
 
-      // Provider has conclusively rejected/expired the payment. Move the
-      // order out of `payment_unknown` first so compensation can safely claim
-      // it; then restore stock and reverse any DentCash spend exactly once.
-      await prisma.$transaction(async (tx) => {
-        const current = await tx.order.findUnique({
-          where: { id: order.id },
-          select: { meta: true },
-        });
-        const currentMeta = current?.meta && typeof current.meta === 'object' && !Array.isArray(current.meta)
-          ? (current.meta as Record<string, unknown>)
-          : {};
-
-        await tx.payment.updateMany({
+      // A failed/expired provider status is conclusive. The conditional payment
+      // update is the race guard: if a callback won the same payment meanwhile,
+      // do not mutate the order or compensate stock/DentCash.
+      const markedFailed = await prisma.$transaction(async (tx) => {
+        const paymentUpdate = await tx.payment.updateMany({
           where: { id: payment.id, status: 'pending' },
           data: {
             status: 'failed',
@@ -117,27 +78,31 @@ export async function reconcileUnknownCheckoutPayments(
             },
           },
         });
-        await tx.order.updateMany({
+        if (paymentUpdate.count !== 1) return false;
+
+        const current = await tx.order.findUnique({ where: { id: order.id }, select: { meta: true } });
+        const currentMeta = current?.meta && typeof current.meta === 'object' && !Array.isArray(current.meta)
+          ? (current.meta as Record<string, unknown>)
+          : {};
+        const orderUpdate = await tx.order.updateMany({
           where: { id: order.id, status: 'payment_unknown' },
           data: {
             status: 'payment_failed',
-            meta: {
-              ...currentMeta,
-              paymentOutcome: state,
-              paymentReconciledAt: new Date().toISOString(),
-            },
+            meta: { ...currentMeta, paymentOutcome: state, paymentReconciledAt: new Date().toISOString() },
           },
         });
+        return orderUpdate.count === 1;
       });
+
+      if (!markedFailed) {
+        result.skipped += 1;
+        continue;
+      }
       await compensateDeterministicCheckoutFailure(order.id, `payment_reconciled_${state}`);
       result.failed += 1;
     } catch (error) {
       result.errors += 1;
-      console.error('[PaymentReconciliation] payment check failed', {
-        paymentId: payment.id,
-        orderId: payment.refId,
-        error,
-      });
+      console.error('[PaymentReconciliation] payment check failed', { paymentId: payment.id, orderId: payment.refId, error });
     }
   }
 
@@ -146,15 +111,12 @@ export async function reconcileUnknownCheckoutPayments(
 
 let timer: ReturnType<typeof setInterval> | null = null;
 
-/** Starts a leader-locked reconciliation loop. Safe to call more than once. */
 export function startPaymentReconciliationInterval(ms = 5 * 60 * 1000): void {
   if (timer) return;
   const tick = async () => {
     try {
       const result = await withJobLock('payment_reconciliation', reconcileUnknownCheckoutPayments);
-      if (result && (result.inspected || result.paid || result.failed || result.errors)) {
-        console.warn('[PaymentReconciliation]', result);
-      }
+      if (result && (result.inspected || result.paid || result.failed || result.errors)) console.warn('[PaymentReconciliation]', result);
     } catch (error) {
       console.error('[PaymentReconciliation] tick failed', error);
     }
