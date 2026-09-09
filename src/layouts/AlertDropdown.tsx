@@ -16,7 +16,7 @@ const priorityIcon: Record<string, React.ReactNode> = {
 
 const ACTION_PATHS: Record<string, string> = {
   OpenSchedule: '/crm/schedule',
-  OpenCashier: '/crm/finance',
+  OpenCashier: '/crm/cashier',
   OpenInventory: '/crm/inventory',
   OpenBilling: '/crm/billing',
   OpenSchool: '/school',
@@ -154,26 +154,15 @@ export const AlertDropdown: React.FC<AlertDropdownProps> = ({ alerts, isOpen, se
     const text = alert.message || alert.text || '';
     const path = resolveAlertPath(alert);
     return (
-      <button
-        key={alert.id || `${alert.type}-${i}`}
-        type="button"
-        onClick={() => {
-          if (alert.source === 'notification' && alert.id && !alert.read) void markRead(alert.id);
-          if (path) navigate(path);
-          setIsOpen(false);
-        }}
-        className={cn(
-          'w-full text-left flex items-start gap-2.5 px-3 py-3 border-b border-bdr-subtle last:border-b-0 hover:bg-surface-2 transition-colors',
-          alert.source === 'notification' && !alert.read && 'bg-dv-gold/[0.06]',
-        )}
-      >
+      <button key={alert.id || `${alert.type}-${i}`} type="button" onClick={() => {
+        if (alert.source === 'notification' && alert.id && !alert.read) void markRead(alert.id);
+        if (path) navigate(path);
+        setIsOpen(false);
+      }} className={cn('w-full text-left flex items-start gap-2.5 px-3 py-3 border-b border-bdr-subtle last:border-b-0 hover:bg-surface-2 transition-colors', alert.source === 'notification' && !alert.read && 'bg-dv-gold/[0.06]')}>
         {priorityIcon[pr]}
         <div className="min-w-0 flex-1">
           <p className="text-xs text-txt-primary leading-snug break-words">{text}</p>
-          <span className="text-2xs text-txt-ghost uppercase mt-0.5 block">
-            {alert.source === 'notification' ? t('platform.notification_source') : alert.type}
-            {path ? t('platform.notification_open') : ''}
-          </span>
+          <span className="text-2xs text-txt-ghost uppercase mt-0.5 block">{alert.source === 'notification' ? t('platform.notification_source') : alert.type}{path ? t('platform.notification_open') : ''}</span>
         </div>
       </button>
     );
@@ -181,80 +170,30 @@ export const AlertDropdown: React.FC<AlertDropdownProps> = ({ alerts, isOpen, se
 
   return (
     <div className="relative" ref={dropdownRef}>
-      <button
-        type="button"
-        onClick={(e) => {
-          e.stopPropagation();
-          setIsOpen(!isOpen);
-        }}
-        className={cn(
-          'relative flex h-10 w-10 items-center justify-center rounded-lg transition-colors',
-          isOpen ? 'text-dv-gold bg-dv-gold/10' : 'text-dv-gold hover:bg-dv-gold/10',
-        )}
-        aria-label={t('platform.notifications')}
-        aria-expanded={isOpen}
-      >
+      <button type="button" onClick={(e) => { e.stopPropagation(); setIsOpen(!isOpen); }} className={cn('relative flex h-10 w-10 items-center justify-center rounded-lg transition-colors', isOpen ? 'text-dv-gold bg-dv-gold/10' : 'text-dv-gold hover:bg-dv-gold/10')} aria-label={t('platform.notifications')} aria-expanded={isOpen}>
         <Bell size={17} className={badgeCount > 0 ? 'alert-pulse' : undefined} />
-        {badgeCount > 0 && (
-          <span className="absolute -top-0.5 -right-0.5 h-4 min-w-4 px-0.5 rounded-full bg-dv-gold text-[9px] font-bold text-dv-gold-on flex items-center justify-center">
-            {badgeCount > 9 ? '9+' : badgeCount}
-          </span>
-        )}
+        {badgeCount > 0 && <span className="absolute -top-0.5 -right-0.5 h-4 min-w-4 px-0.5 rounded-full bg-dv-gold text-[9px] font-bold text-dv-gold-on flex items-center justify-center">{badgeCount > 9 ? '9+' : badgeCount}</span>}
       </button>
       <AnimatePresence>
         {isOpen && (
           <>
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="fixed inset-0 z-[90] bg-black/40 sm:bg-transparent"
-              onClick={() => setIsOpen(false)}
-            />
-            <motion.div
-              ref={contentRef}
-              initial={{ opacity: 0, scale: 0.97, y: -4 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.97, y: -4 }}
-              transition={{ duration: 0.15, ease: 'easeOut' }}
-              className={cn(
-                'fixed z-[95] rounded-xl border border-bdr-subtle bg-surface-1 shadow-xl overflow-hidden',
-                'left-3 right-3 top-[calc(var(--dv-topbar-height)+var(--dv-safe-top)+0.35rem)]',
-                'sm:left-auto sm:right-3 sm:w-80 sm:max-w-[calc(100vw-1.5rem)]',
-              )}
-              role="dialog"
-              aria-modal="true"
-              aria-label={t('platform.notifications')}
-            >
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[90] bg-black/40 sm:bg-transparent" onClick={() => setIsOpen(false)} />
+            <motion.div ref={contentRef} initial={{ opacity: 0, scale: 0.97, y: -4 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.97, y: -4 }} transition={{ duration: 0.15, ease: 'easeOut' }} className={cn('fixed z-[95] rounded-xl border border-bdr-subtle bg-surface-1 shadow-xl overflow-hidden', 'left-3 right-3 top-[calc(var(--dv-topbar-height)+var(--dv-safe-top)+0.35rem)]', 'sm:left-auto sm:right-3 sm:w-80 sm:max-w-[calc(100vw-1.5rem)]')} role="dialog" aria-modal="true" aria-label={t('platform.notifications')}>
               <div className="flex items-center justify-between px-3 py-2.5 border-b border-bdr-subtle">
                 <span className="text-xs font-semibold text-txt-primary">{t('platform.notifications')}</span>
                 <div className="flex items-center gap-1">
-                  {unreadNotifs > 0 && (
-                    <button type="button" onClick={() => void markAll()} className="px-2 py-1 rounded text-[10px] text-txt-muted hover:text-txt-primary transition-colors">
-                      {t('platform.notification_read_all')}
-                    </button>
-                  )}
-                  <button type="button" onClick={() => setIsOpen(false)} className="p-1 rounded text-txt-muted hover:text-txt-primary transition-colors" aria-label={t('common.close')}>
-                    <X size={14} />
-                  </button>
+                  {unreadNotifs > 0 && <button type="button" onClick={() => void markAll()} className="px-2 py-1 rounded text-[10px] text-txt-muted hover:text-txt-primary transition-colors">{t('platform.notification_read_all')}</button>}
+                  <button type="button" onClick={() => setIsOpen(false)} className="p-1 rounded text-txt-muted hover:text-txt-primary transition-colors" aria-label={t('common.close')}><X size={14} /></button>
                 </div>
               </div>
               <div className="max-h-[min(60vh,360px)] overflow-y-auto overscroll-contain">
                 {notifItems.length === 0 && hintItems.length === 0 ? (
-                  <div className="px-4 py-8 text-center">
-                    <Bell size={22} className="mx-auto text-txt-ghost mb-2" />
-                    <p className="text-xs text-txt-muted m-0">{t('platform.notification_empty_short')}</p>
-                  </div>
+                  <div className="px-4 py-8 text-center"><Bell size={22} className="mx-auto text-txt-ghost mb-2" /><p className="text-xs text-txt-muted m-0">{t('platform.notification_empty_short')}</p></div>
                 ) : (
                   <>
                     {notifItems.length === 0 && <p className="px-3 py-4 text-xs text-txt-muted m-0">{t('platform.notification_empty_short')}</p>}
                     {notifItems.map(renderRow)}
-                    {hintItems.length > 0 && (
-                      <>
-                        <p className="px-3 pt-3 pb-1.5 text-2xs uppercase tracking-wider text-txt-ghost m-0">{t('platform.notification_hints')}</p>
-                        {hintItems.map(renderRow)}
-                      </>
-                    )}
+                    {hintItems.length > 0 && <><p className="px-3 pt-3 pb-1.5 text-2xs uppercase tracking-wider text-txt-ghost m-0">{t('platform.notification_hints')}</p>{hintItems.map(renderRow)}</>}
                   </>
                 )}
               </div>
