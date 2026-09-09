@@ -49,7 +49,7 @@ export function BottomNav() {
   return (
     <nav
       aria-label={t('nav.nav_sections')}
-      className="fixed bottom-0 left-0 right-0 z-50 bg-surface-1/95 backdrop-blur-xl border-t border-bdr-subtle"
+      className="fixed bottom-0 left-0 right-0 z-50 bg-surface-1 border-t border-bdr-subtle"
       style={{
         paddingBottom: 'var(--dv-safe-bottom)',
         paddingLeft: 'var(--dv-safe-left)',
@@ -66,7 +66,7 @@ export function BottomNav() {
               key={item.id}
               onClick={() => handleNavClick(item)}
               whileTap={{ scale: 0.97 }}
-              className="flex flex-col items-center justify-center gap-0.5 w-16 h-full relative"
+              className="flex flex-col items-center justify-center gap-0.5 w-16 min-w-11 min-h-11 h-full relative touch-manipulation"
               disabled={isDisabled}
               aria-current={isActive ? 'page' : undefined}
             >
