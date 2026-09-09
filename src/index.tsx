@@ -10,6 +10,8 @@ import { lazyWithRetry } from '@/utils/lazyWithRetry';
 import { RequirePage } from '@/components/auth/RequirePage';
 import { initSentry } from './lib/sentry';
 import './lib/i18n';
+import './styles/global.css';
+import { reportWebVitals } from './utils/vitals';
 
 initSentry();
 
@@ -20,8 +22,6 @@ const DocumentSign = lazyWithRetry(() => import('./pages/auth/DocumentSign'));
 const TreatmentPresentation = lazyWithRetry(() => import('./pages/patient-portal/TreatmentPresentation'));
 const DiagnosticsRegister = lazyWithRetry(() => import('./pages/DiagnosticsRegister'));
 const PatientPortal = lazyWithRetry(() => import('./pages/patient-portal/PatientPortal'));
-import './styles/global.css';
-import { reportWebVitals } from './utils/vitals';
 
 // Platform pages
 const Dashboard = lazyWithRetry(() => import('./pages/Dashboard'));
@@ -139,110 +139,108 @@ if (container) {
         <ToastProvider>
           <Providers>
             <Routes>
-                {/* Public / standalone routes */}
-                <Route path="/login" element={<Suspense fallback={<PageLoader />}><Login /></Suspense>} />
-                <Route path="/forgot-password" element={<Suspense fallback={<PageLoader />}><ForgotPassword /></Suspense>} />
-                <Route path="/book/:clinicId" element={<Suspense fallback={<PageLoader />}><PublicBooking /></Suspense>} />
-                <Route path="/sign/:token" element={<Suspense fallback={<PageLoader />}><DocumentSign /></Suspense>} />
-                <Route path="/plan/:releaseId" element={<Suspense fallback={<PageLoader />}><TreatmentPresentation /></Suspense>} />
-                <Route path="/register-diagnostics" element={<Suspense fallback={<PageLoader />}><DiagnosticsRegister /></Suspense>} />
-                <Route path="/patient-portal" element={<Suspense fallback={<PageLoader />}><PatientPortal /></Suspense>} />
-                <Route path="/my-clinics" element={<Suspense fallback={<PageLoader />}><MyClinics /></Suspense>} />
+              {/* Public / standalone routes */}
+              <Route path="/login" element={<Suspense fallback={<PageLoader />}><Login /></Suspense>} />
+              <Route path="/forgot-password" element={<Suspense fallback={<PageLoader />}><ForgotPassword /></Suspense>} />
+              <Route path="/book/:clinicId" element={<Suspense fallback={<PageLoader />}><PublicBooking /></Suspense>} />
+              <Route path="/sign/:token" element={<Suspense fallback={<PageLoader />}><DocumentSign /></Suspense>} />
+              <Route path="/plan/:releaseId" element={<Suspense fallback={<PageLoader />}><TreatmentPresentation /></Suspense>} />
+              <Route path="/register-diagnostics" element={<Suspense fallback={<PageLoader />}><DiagnosticsRegister /></Suspense>} />
+              <Route path="/patient-portal" element={<Suspense fallback={<PageLoader />}><PatientPortal /></Suspense>} />
+              <Route path="/my-clinics" element={<Suspense fallback={<PageLoader />}><MyClinics /></Suspense>} />
 
-                {/* AI-First Intelligence Layout — Main entry point after login */}
-                <Route path="/" element={<IntelligenceLayout />}>
-                  <Route index element={guarded('dashboard', <Dashboard />)} />
-                  <Route path="dashboard" element={<Navigate to="/" replace />} />
-                  <Route path="intelligence" element={<Navigate to="/ai" replace />} />
-                  <Route path="ai" element={<Suspense fallback={<PageLoader />}><AIWorkspaceIndex /></Suspense>} />
-                  <Route path="analytics" element={guarded('analytics', <Analytics />)} />
-                  <Route path="settings" element={guarded('settings', <SettingsPage />)} />
-                  <Route path="help" element={<Suspense fallback={<PageLoader />}><Help /></Suspense>} />
-                  <Route path="notifications" element={guarded('settings', <NotificationPreferences />)} />
-                  <Route path="admin" element={guarded('admin', <SuperAdmin />)} />
-                  <Route path="bi" element={guarded('bi', <BIWorkspace />)} />
-                  <Route path="security" element={guarded('security', <SecurityCompliance />)} />
-                  <Route path="audit" element={guarded('audit', <AuditLog />)} />
-                  <Route path="agent-activity" element={guarded('agent-activity', <AgentActivity />)} />
-                  <Route path="ai-approvals" element={guarded('ai-approvals', <AiApprovals />)} />
-                  <Route path="backup" element={guarded('backup', <Backup />)} />
-                  <Route path="profile" element={guarded('profile', <Profile />)} />
-                  <Route path="supplier" element={<Suspense fallback={<PageLoader />}><SupplierWorkspace /></Suspense>} />
-                  <Route path="jobs" element={<Suspense fallback={<PageLoader />}><Jobs /></Suspense>} />
-                  <Route path="community" element={<Suspense fallback={<PageLoader />}><Community /></Suspense>} />
-                  <Route path="demo" element={<Suspense fallback={<PageLoader />}><Demo /></Suspense>} />
-                  <Route path="pricing" element={<Suspense fallback={<PageLoader />}><Pricing /></Suspense>} />
-                  <Route path="terms" element={<Suspense fallback={<PageLoader />}><Terms /></Suspense>} />
-                  <Route path="privacy" element={<Suspense fallback={<PageLoader />}><Privacy /></Suspense>} />
+              {/* AI-First Intelligence Layout — Main entry point after login */}
+              <Route path="/" element={<IntelligenceLayout />}>
+                <Route index element={guarded('dashboard', <Dashboard />)} />
+                <Route path="dashboard" element={<Navigate to="/" replace />} />
+                <Route path="intelligence" element={<Navigate to="/ai" replace />} />
+                <Route path="ai" element={<Suspense fallback={<PageLoader />}><AIWorkspaceIndex /></Suspense>} />
+                <Route path="analytics" element={guarded('analytics', <Analytics />)} />
+                <Route path="settings" element={guarded('settings', <SettingsPage />)} />
+                <Route path="help" element={<Suspense fallback={<PageLoader />}><Help /></Suspense>} />
+                <Route path="notifications" element={guarded('settings', <NotificationPreferences />)} />
+                <Route path="admin" element={guarded('admin', <SuperAdmin />)} />
+                <Route path="bi" element={guarded('bi', <BIWorkspace />)} />
+                <Route path="security" element={guarded('security', <SecurityCompliance />)} />
+                <Route path="audit" element={guarded('audit', <AuditLog />)} />
+                <Route path="agent-activity" element={guarded('agent-activity', <AgentActivity />)} />
+                <Route path="ai-approvals" element={guarded('ai-approvals', <AiApprovals />)} />
+                <Route path="backup" element={guarded('backup', <Backup />)} />
+                <Route path="profile" element={guarded('profile', <Profile />)} />
+                <Route path="supplier" element={<Suspense fallback={<PageLoader />}><SupplierWorkspace /></Suspense>} />
+                <Route path="jobs" element={<Suspense fallback={<PageLoader />}><Jobs /></Suspense>} />
+                <Route path="community" element={<Suspense fallback={<PageLoader />}><Community /></Suspense>} />
+                <Route path="demo" element={<Suspense fallback={<PageLoader />}><Demo /></Suspense>} />
+                <Route path="pricing" element={<Suspense fallback={<PageLoader />}><Pricing /></Suspense>} />
+                <Route path="terms" element={<Suspense fallback={<PageLoader />}><Terms /></Suspense>} />
+                <Route path="privacy" element={<Suspense fallback={<PageLoader />}><Privacy /></Suspense>} />
 
-                  {/* CRM sub-app — under IntelligenceLayout sidebar */}
-                  <Route path="crm/schedule" element={guarded('schedule', <Schedule />)} />
-                  <Route path="crm/patients" element={guarded('patients', <Patients />)} />
-                  <Route path="crm/cashier" element={guarded('cashier', <Cashier />)} />
-                  <Route path="crm/pricelist" element={guarded('pricelist', <PriceList />)} />
-                  <Route path="crm/lab" element={guarded('lab', <Lab />)} />
-                  <Route path="crm/inventory" element={guarded('inventory', <Inventory />)} />
-                  <Route path="crm/stock-rules" element={guarded('inventory', <StockRules />)} />
-                  <Route path="crm/marketing" element={guarded('promotions', <Marketing />)} />
-                  <Route path="crm/promotions" element={guarded('promotions', <Promotions />)} />
-                  <Route path="crm/staff" element={guarded('staff', <Staff />)} />
-                  <Route path="crm/medical-card" element={guarded('medical-card', <MedicalCard />)} />
-                  <Route path="crm/icd10" element={guarded('icd10', <ICD10 />)} />
-                  <Route path="crm/visits" element={guarded('visits', <Visits />)} />
-                  <Route path="crm/documents" element={guarded('documents', <Documents />)} />
-                  <Route path="crm/reminders" element={guarded('reminders', <Reminders />)} />
-                  <Route path="crm/workflow" element={guarded('workflow', <Workflows />)} />
-                  <Route path="crm/dental-chart" element={guarded('dental-chart', <DentalChart />)} />
-                  <Route path="crm/treatment-plans" element={guarded('treatment-plans', <TreatmentPlans />)} />
-                  <Route path="crm/finance" element={guarded('finance', <Cashier />)} />
-                  <Route path="crm/clinic-settings" element={guarded('clinic-settings', <ClinicSettings />)} />
-                  <Route path="crm/billing" element={guarded('billing', <ClinicBilling />)} />
-                  <Route path="crm/patient-inbox" element={guarded('patient-inbox', <PatientInbox />)} />
-                  <Route path="crm/patient-inbox/:id" element={guarded('patient-inbox', <PatientInbox />)} />
-                  <Route path="crm/integrations/messaging" element={guarded('clinic-settings', <IntegrationsMessaging />)} />
+                {/* CRM sub-app — canonical destinations */}
+                <Route path="crm/schedule" element={guarded('schedule', <Schedule />)} />
+                <Route path="crm/patients" element={guarded('patients', <Patients />)} />
+                <Route path="crm/cashier" element={guarded('cashier', <Cashier />)} />
+                <Route path="crm/pricelist" element={guarded('pricelist', <PriceList />)} />
+                <Route path="crm/lab" element={guarded('lab', <Lab />)} />
+                <Route path="crm/inventory" element={guarded('inventory', <Inventory />)} />
+                <Route path="crm/stock-rules" element={guarded('inventory', <StockRules />)} />
+                <Route path="crm/marketing" element={guarded('promotions', <Marketing />)} />
+                <Route path="crm/promotions" element={guarded('promotions', <Promotions />)} />
+                <Route path="crm/staff" element={guarded('staff', <Staff />)} />
+                <Route path="crm/medical-card" element={guarded('medical-card', <MedicalCard />)} />
+                <Route path="crm/icd10" element={guarded('icd10', <ICD10 />)} />
+                <Route path="crm/visits" element={guarded('visits', <Visits />)} />
+                <Route path="crm/documents" element={guarded('documents', <Documents />)} />
+                <Route path="crm/reminders" element={guarded('reminders', <Reminders />)} />
+                <Route path="crm/workflow" element={guarded('workflow', <Workflows />)} />
+                <Route path="crm/dental-chart" element={guarded('dental-chart', <DentalChart />)} />
+                <Route path="crm/treatment-plans" element={guarded('treatment-plans', <TreatmentPlans />)} />
+                {/* Legacy finance URL is a compatibility redirect, not a second workspace. */}
+                <Route path="crm/finance" element={<Navigate to="/crm/cashier" replace />} />
+                <Route path="crm/clinic-settings" element={guarded('clinic-settings', <ClinicSettings />)} />
+                <Route path="crm/billing" element={guarded('billing', <ClinicBilling />)} />
+                <Route path="crm/patient-inbox" element={guarded('patient-inbox', <PatientInbox />)} />
+                <Route path="crm/patient-inbox/:id" element={guarded('patient-inbox', <PatientInbox />)} />
+                <Route path="crm/integrations/messaging" element={guarded('clinic-settings', <IntegrationsMessaging />)} />
 
-                  {/* Shop sub-app — under IntelligenceLayout sidebar */}
-                  <Route path="shop" element={<Suspense fallback={<PageLoader />}><Shop /></Suspense>} />
-                  <Route path="shop/:id" element={<Suspense fallback={<PageLoader />}><ShopProduct /></Suspense>} />
-                  <Route path="shop/checkout" element={<Suspense fallback={<PageLoader />}><ShopCheckout /></Suspense>} />
-                  <Route path="shop/orders" element={<Suspense fallback={<PageLoader />}><ShopOrders /></Suspense>} />
-                  <Route path="shop/favorites" element={<Suspense fallback={<PageLoader />}><ShopFavorites /></Suspense>} />
-                  <Route path="shop/suppliers" element={<Suspense fallback={<PageLoader />}><ShopSuppliers /></Suspense>} />
+                {/* Shop sub-app — under IntelligenceLayout sidebar */}
+                <Route path="shop" element={<Suspense fallback={<PageLoader />}><Shop /></Suspense>} />
+                <Route path="shop/:id" element={<Suspense fallback={<PageLoader />}><ShopProduct /></Suspense>} />
+                <Route path="shop/checkout" element={<Suspense fallback={<PageLoader />}><ShopCheckout /></Suspense>} />
+                <Route path="shop/orders" element={<Suspense fallback={<PageLoader />}><ShopOrders /></Suspense>} />
+                <Route path="shop/favorites" element={<Suspense fallback={<PageLoader />}><ShopFavorites /></Suspense>} />
+                <Route path="shop/suppliers" element={<Suspense fallback={<PageLoader />}><ShopSuppliers /></Suspense>} />
 
-                  {/* Diagnostics */}
-                  <Route path="diagnostics" element={<Suspense fallback={<PageLoader />}><DiagnosticsLayout /></Suspense>}>
-                    <Route index element={<Suspense fallback={<PageLoader />}><DiagnosticsDashboard /></Suspense>} />
-                    <Route path="referrals" element={<Suspense fallback={<PageLoader />}><ReferralList /></Suspense>} />
-                    <Route path="referrals/new" element={<Suspense fallback={<PageLoader />}><ReferralForm /></Suspense>} />
-                    <Route path="referrals/:id" element={<Suspense fallback={<PageLoader />}><ReferralDetail /></Suspense>} />
-                    <Route path="centers" element={<Suspense fallback={<PageLoader />}><CenterList /></Suspense>} />
-                    <Route path="labs" element={<Suspense fallback={<PageLoader />}><LabList /></Suspense>} />
-                    <Route path="patients" element={<Suspense fallback={<PageLoader />}><DiagnosticPatients /></Suspense>} />
-                    <Route path="results" element={<Suspense fallback={<PageLoader />}><ResultList /></Suspense>} />
-                    <Route path="calendar" element={<Suspense fallback={<PageLoader />}><DiagnosticCalendar /></Suspense>} />
-                    <Route path="statistics" element={<Suspense fallback={<PageLoader />}><DiagnosticStatistics /></Suspense>} />
-                    <Route path="settings" element={<Suspense fallback={<PageLoader />}><DiagnosticSettings /></Suspense>} />
-                    <Route path="center" element={<Suspense fallback={<PageLoader />}><CenterDashboard /></Suspense>} />
-                    <Route path="lab" element={<Suspense fallback={<PageLoader />}><LabDashboard /></Suspense>} />
-                    <Route path="workspace" element={<Suspense fallback={<PageLoader />}><WorkspaceEntry /></Suspense>} />
-                    <Route path="registration-requests" element={<Suspense fallback={<PageLoader />}><RegistrationRequests /></Suspense>} />
-                  </Route>
-
-                  {/* School */}
-                  <Route path="school" element={<Suspense fallback={<PageLoader />}><School /></Suspense>} />
-                  <Route path="school/course/:id" element={<Suspense fallback={<PageLoader />}><SchoolCourse /></Suspense>} />
-                  <Route path="school/workspace" element={<Suspense fallback={<PageLoader />}><SchoolWorkspace /></Suspense>} />
-
-                  {/* Platform administration */}
-                  <Route path="admin/shop" element={guarded('admin', <ShopAdmin />)} />
-                  <Route path="admin/school" element={guarded('admin', <SchoolAdmin />)} />
-
-                  {/* Legal / partner */}
-                  <Route path="legal" element={<Suspense fallback={<PageLoader />}><LegalLayout /></Suspense>} />
-                  <Route path="partner/legal" element={<Suspense fallback={<PageLoader />}><PartnerLegal /></Suspense>} />
-
-                  <Route path="*" element={<Suspense fallback={<PageLoader />}><NotFound /></Suspense>} />
+                {/* Diagnostics */}
+                <Route path="diagnostics" element={<Suspense fallback={<PageLoader />}><DiagnosticsLayout /></Suspense>}>
+                  <Route index element={<Suspense fallback={<PageLoader />}><DiagnosticsDashboard /></Suspense>} />
+                  <Route path="referrals" element={<Suspense fallback={<PageLoader />}><ReferralList /></Suspense>} />
+                  <Route path="referrals/new" element={<Suspense fallback={<PageLoader />}><ReferralForm /></Suspense>} />
+                  <Route path="referrals/:id" element={<Suspense fallback={<PageLoader />}><ReferralDetail /></Suspense>} />
+                  <Route path="centers" element={<Suspense fallback={<PageLoader />}><CenterList /></Suspense>} />
+                  <Route path="labs" element={<Suspense fallback={<PageLoader />}><LabList /></Suspense>} />
+                  <Route path="patients" element={<Suspense fallback={<PageLoader />}><DiagnosticPatients /></Suspense>} />
+                  <Route path="results" element={<Suspense fallback={<PageLoader />}><ResultList /></Suspense>} />
+                  <Route path="calendar" element={<Suspense fallback={<PageLoader />}><DiagnosticCalendar /></Suspense>} />
+                  <Route path="statistics" element={<Suspense fallback={<PageLoader />}><DiagnosticStatistics /></Suspense>} />
+                  <Route path="settings" element={<Suspense fallback={<PageLoader />}><DiagnosticSettings /></Suspense>} />
+                  <Route path="center" element={<Suspense fallback={<PageLoader />}><CenterDashboard /></Suspense>} />
+                  <Route path="lab" element={<Suspense fallback={<PageLoader />}><LabDashboard /></Suspense>} />
+                  <Route path="workspace" element={<Suspense fallback={<PageLoader />}><WorkspaceEntry /></Suspense>} />
+                  <Route path="registration-requests" element={<Suspense fallback={<PageLoader />}><RegistrationRequests /></Suspense>} />
                 </Route>
+
+                {/* School */}
+                <Route path="school" element={<Suspense fallback={<PageLoader />}><School /></Suspense>} />
+                <Route path="school/course/:id" element={<Suspense fallback={<PageLoader />}><SchoolCourse /></Suspense>} />
+                <Route path="school/workspace" element={<Suspense fallback={<PageLoader />}><SchoolWorkspace /></Suspense>} />
+
+                {/* Admin / legal */}
+                <Route path="admin/shop" element={guarded('admin', <ShopAdmin />)} />
+                <Route path="admin/school" element={guarded('admin', <SchoolAdmin />)} />
+                <Route path="legal" element={<Suspense fallback={<PageLoader />}><LegalLayout /></Suspense>} />
+                <Route path="partner/legal" element={<Suspense fallback={<PageLoader />}><PartnerLegal /></Suspense>} />
+                <Route path="*" element={<Suspense fallback={<PageLoader />}><NotFound /></Suspense>} />
+              </Route>
             </Routes>
           </Providers>
         </ToastProvider>
