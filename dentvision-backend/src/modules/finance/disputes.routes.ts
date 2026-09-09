@@ -17,12 +17,16 @@ const REF_TYPES = ['order', 'enrollment'] as const;
 
 type DisputeStatus = (typeof STATUSES)[number];
 
-const ALLOWED_TRANSITIONS: Record<DisputeStatus, readonly DisputeStatus[]> = {
+export const ALLOWED_DISPUTE_TRANSITIONS: Readonly<Record<DisputeStatus, readonly DisputeStatus[]>> = {
   open: ['review', 'resolved', 'rejected'],
   review: ['resolved', 'rejected'],
   resolved: [],
   rejected: [],
 };
+
+export function isAllowedDisputeTransition(from: string, to: string): boolean {
+  return (ALLOWED_DISPUTE_TRANSITIONS[from as DisputeStatus] || []).includes(to as DisputeStatus);
+}
 
 disputesRouter.post('/', async (req: AuthRequest, res) => {
   try {
@@ -93,8 +97,7 @@ disputesRouter.post('/:id/status', requireSuperadmin, async (req: AuthRequest, r
     if (!existing) return res.status(404).json({ ok: false, error: 'Спор не найден' } satisfies ApiResponse);
 
     const from = existing.status as DisputeStatus;
-    const allowed = ALLOWED_TRANSITIONS[from] || [];
-    if (!allowed.includes(status)) {
+    if (!isAllowedDisputeTransition(from, status)) {
       return res.status(409).json({
         ok: false,
         error: `Недопустимый переход статуса: ${from} → ${status}`,
