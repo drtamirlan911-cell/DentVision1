@@ -68,6 +68,17 @@ export async function recordSaleTx(input: SaleInput, db: Prisma.TransactionClien
   const seller = await getOrCreateWallet(input.sellerType, input.sellerId, currency, db);
   const platform = await getOrCreateWallet('PLATFORM', 'system', currency, db);
 
+  // Never allow a sale ledger entry to create a negative gateway wallet.
+  // The compare-and-set guard also closes the concurrent-spend race that a
+  // read-then-decrement sequence would leave open.
+  const gatewayDebit = await db.wallet.updateMany({
+    where: { id: gateway.id, balance: { gte: input.amountMinor } },
+    data: { balance: { decrement: input.amountMinor } },
+  });
+  if (gatewayDebit.count !== 1) {
+    throw new Error('INSUFFICIENT_GATEWAY_FUNDS');
+  }
+
   const transaction = await db.transaction.create({
     data: {
       type: 'sale',
@@ -88,7 +99,6 @@ export async function recordSaleTx(input: SaleInput, db: Prisma.TransactionClien
     include: { ledgerEntries: true },
   });
 
-  await db.wallet.update({ where: { id: gateway.id }, data: { balance: { decrement: input.amountMinor } } });
   await db.wallet.update({ where: { id: seller.id }, data: { balance: { increment: net } } });
   await db.wallet.update({ where: { id: platform.id }, data: { balance: { increment: commission } } });
 
