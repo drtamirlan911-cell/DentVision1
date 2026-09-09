@@ -22,12 +22,9 @@ export async function reverseCashback(opts: {
   /** Authenticated user requesting the refund — enforces ownership. */
   callerId?: string | null;
 }) {
-  const spendRefund = await refundDentCashSpend({
-    refType: opts.refType,
-    refId: opts.refId,
-    reason: opts.reason || 'refund',
-  });
-
+  // Authorize against the complete set of eligible earn rows before performing
+  // any wallet or ledger side effect. This prevents an unauthorized caller from
+  // triggering the spend refund before ownership validation fails.
   const earns = await prisma.dentCashLedger.findMany({
     where: {
       refType: opts.refType,
@@ -37,15 +34,21 @@ export async function reverseCashback(opts: {
       ...(opts.sellerId ? { sellerId: opts.sellerId } : {}),
     },
   });
-  if (!earns.length) return { reversed: 0n, spendRefunded: spendRefund.refunded };
 
-  // Authorization: if callerId is provided, verify ownership.
   if (opts.callerId) {
     const unauthorized = earns.some((row) => row.userId !== opts.callerId);
     if (unauthorized) {
       throw new Error(`Refund denied: caller ${opts.callerId} does not own all ledger rows for ${opts.refType}:${opts.refId}`);
     }
   }
+
+  const spendRefund = await refundDentCashSpend({
+    refType: opts.refType,
+    refId: opts.refId,
+    reason: opts.reason || 'refund',
+  });
+
+  if (!earns.length) return { reversed: 0n, spendRefunded: spendRefund.refunded };
 
   let reversed = 0n;
   for (const row of earns) {
