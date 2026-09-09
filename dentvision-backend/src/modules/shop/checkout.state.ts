@@ -10,6 +10,7 @@ export const CHECKOUT_STATES = [
   'awaiting_payment',
   'paid',
   'payment_failed',
+  'payment_unknown',
   'cancelled',
 ] as const;
 
@@ -17,10 +18,11 @@ export type CheckoutState = (typeof CHECKOUT_STATES)[number];
 
 const TRANSITIONS: Record<CheckoutState, readonly CheckoutState[]> = {
   pending: ['payment_processing', 'awaiting_payment', 'paid', 'cancelled'],
-  payment_processing: ['awaiting_payment', 'paid', 'payment_failed', 'cancelled'],
-  awaiting_payment: ['paid', 'cancelled'],
+  payment_processing: ['awaiting_payment', 'paid', 'payment_failed', 'payment_unknown', 'cancelled'],
+  awaiting_payment: ['paid', 'payment_failed', 'payment_unknown', 'cancelled'],
   paid: [],
   payment_failed: ['payment_processing', 'cancelled'],
+  payment_unknown: ['payment_processing', 'paid', 'cancelled'],
   cancelled: [],
 };
 
@@ -36,6 +38,15 @@ export function assertCheckoutTransition(from: CheckoutState, to: CheckoutState)
 
 export function checkoutFailureState(reason: 'payment' | 'external' | 'internal'): CheckoutState {
   return reason === 'payment' ? 'payment_failed' : 'cancelled';
+}
+
+/**
+ * External provider errors are not automatically failures. A timeout, network
+ * reset, or malformed response can mean the provider accepted the payment but
+ * our process did not observe the result. Such outcomes require reconciliation.
+ */
+export function checkoutProviderOutcomeState(outcome: 'confirmed_failure' | 'unknown'): CheckoutState {
+  return outcome === 'confirmed_failure' ? 'payment_failed' : 'payment_unknown';
 }
 
 export function isTerminalCheckoutState(state: CheckoutState): boolean {
