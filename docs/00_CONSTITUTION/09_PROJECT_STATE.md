@@ -26,14 +26,15 @@
 - AI approval expiry is now part of the atomic approval claim, preventing an approval from winning a race after its expiry boundary.
 - Legal document status transitions hardened with database-level compare-and-set so concurrent requests cannot both advance the same document.
 - Security audit reviewed organization/person platform-wide routes, finance ownership boundaries, patient presentation access, and AI event-action data access; no unverified tenant bypass was promoted to main.
-- Commerce dispute creation now validates the referenced order/enrollment against the authenticated user or clinic; arbitrary reference IDs are rejected.
+- Commerce dispute creation validates the referenced order/enrollment against the authenticated user or clinic; arbitrary reference IDs are rejected.
 - Dispute terminal transitions are compare-and-set, preventing concurrent resolution/rejection from double-triggering a refund.
 - Dispute status transitions are now an explicit compare-and-set state machine: `open -> review|resolved|rejected`, `review -> resolved|rejected`; terminal states are immutable.
+- CI compile failure in dispute creation fixed: backend `SchoolEnrollment` does not expose `clinicId`, so enrollment disputes now enforce authenticated `userId` ownership only rather than querying a non-existent field.
 - Dedicated security release-blocker register added with verified P0/P1 findings for finance platform authorization, shop checkout compensation, and typed owner isolation.
 
 ## Verification state
 
-The latest hardened commits are under the same autonomous branch. Quality Gate run `34337656199` is still in progress; therefore a successful full Quality Gate has **not** been verified. Release remains **NOT READY**.
+Commit `2dc207c6f1b3aa7f31ce370422e20cd92ea23233` fixes the latest verified backend TypeScript failure. A new Quality Gate run is required/expected for this commit; previous run `34337951935` failed specifically on the now-removed `SchoolEnrollment.clinicId` selection. Release remains **NOT READY** until the new full gate completes.
 
 ## Known release blockers / work queue
 
