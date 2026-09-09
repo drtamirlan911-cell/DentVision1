@@ -4,13 +4,11 @@ import { usePatientStore } from '@/store/patient.store'
 import { useWorkspaceStore } from '@/store/workspace.store'
 import { useAIStore } from '@/store/ai.store'
 import { buildClinicalCaseContext } from '@/lib/clinicalCaseContext'
+import { AIConversationSync } from '@/components/intelligence/AIConversationSync'
 
 const PATIENT_SUGGESTIONS = ['История лечения', 'План лечения', 'Зубная карта', 'Записать на приём']
 
-/**
- * Keeps the selected clinical patient and treatment-case envelope synchronized
- * with the global AI context and prioritizes patient-aware AI commands.
- */
+/** Keeps clinical focus and the durable Olga conversation synchronized. */
 export function ClinicalAIContextBridge() {
   const location = useLocation()
   const patient = usePatientStore((s) => s.patientData)
@@ -57,5 +55,5 @@ export function ClinicalAIContextBridge() {
     setSuggestionsFromStrings(PATIENT_SUGGESTIONS)
   }, [selectedPatient, patient, location.pathname, location.search, setContextFocus, clearContext, setSuggestionsFromStrings])
 
-  return null
+  return <AIConversationSync />
 }
