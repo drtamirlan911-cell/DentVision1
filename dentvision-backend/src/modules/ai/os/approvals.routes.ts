@@ -39,7 +39,9 @@ router.get('/', authenticate, async (req: AuthRequest, res) => {
 /**
  * Approve using a compare-and-set transition. Only the request that changes
  * pending -> approved owns execution, preventing double execution under
- * concurrent approve requests.
+ * concurrent approve requests. Expiry is part of the same atomic claim, so
+ * a request cannot win a race with the expiration boundary after the initial
+ * read/check.
  */
 router.post('/:id/approve', authenticate, async (req: AuthRequest, res) => {
   try {
@@ -48,7 +50,8 @@ router.post('/:id/approve', authenticate, async (req: AuthRequest, res) => {
     const approval = await prisma.aiApproval.findUnique({ where: { id: String(req.params.id) } });
     if (!approval) return res.status(404).json({ ok: false, error: 'Подтверждение не найдено' });
     if (approval.status !== 'pending') return res.status(409).json({ ok: false, error: 'Уже обработано' });
-    if (approval.expiresAt && approval.expiresAt.getTime() < Date.now()) return res.status(409).json({ ok: false, error: 'Срок действия истёк' });
+    const now = new Date();
+    if (approval.expiresAt && approval.expiresAt.getTime() < now.getTime()) return res.status(409).json({ ok: false, error: 'Срок действия истёк' });
     if (!assertSameClinic(req, res, approval.clinicId)) return;
 
     const access = await resolveAiToolAccess({ userId: req.user.id, clinicId: req.user.clinicId, isGuest: req.user.isGuest });
@@ -59,10 +62,17 @@ router.post('/:id/approve', authenticate, async (req: AuthRequest, res) => {
 
     const decisionNote = typeof req.body?.note === 'string' ? req.body.note : null;
     const claimed = await prisma.aiApproval.updateMany({
-      where: { id: approval.id, status: 'pending' },
-      data: { status: 'approved', decidedByUserId: req.user.id, decidedAt: new Date(), decisionNote },
+      where: {
+        id: approval.id,
+        status: 'pending',
+        OR: [
+          { expiresAt: null },
+          { expiresAt: { gt: now } },
+        ],
+      },
+      data: { status: 'approved', decidedByUserId: req.user.id, decidedAt: now, decisionNote },
     });
-    if (claimed.count !== 1) return res.status(409).json({ ok: false, error: 'Подтверждение уже обрабатывается' });
+    if (claimed.count !== 1) return res.status(409).json({ ok: false, error: 'Подтверждение уже обработано или истекло' });
 
     const result = await runAiAction(
       { surface: approval.surface as AiSurface, userId: approval.requestedByUserId, requestedClinicId: approval.clinicId, agentId: approval.agentId || undefined },
