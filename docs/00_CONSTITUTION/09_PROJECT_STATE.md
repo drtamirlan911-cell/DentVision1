@@ -31,14 +31,16 @@
 - Dispute status transitions are now an explicit compare-and-set state machine: `open -> review|resolved|rejected`, `review -> resolved|rejected`; terminal states are immutable.
 - CI compile failure in dispute creation fixed: backend `SchoolEnrollment` does not expose `clinicId`, so enrollment disputes now enforce authenticated `userId` ownership only rather than querying a non-existent field.
 - Dedicated security release-blocker register added with verified P0/P1 findings for finance platform authorization, shop checkout compensation, and typed owner isolation.
+- Platform-finance E2E fixtures now include a dedicated `SUPERADMIN`; platform revenue, payout administration and platform-expense tests no longer require insecure clinic-owner access.
+- Idempotency reservation now uses a PostgreSQL transaction-scoped advisory lock per key, eliminating expected concurrent `P2002`/unique-constraint error noise while retaining the database unique index as the integrity boundary.
 
 ## Verification state
 
-Commit `2dc207c6f1b3aa7f31ce370422e20cd92ea23233` fixes the latest verified backend TypeScript failure. A new Quality Gate run is required/expected for this commit; previous run `34337951935` failed specifically on the now-removed `SchoolEnrollment.clinicId` selection. Release remains **NOT READY** until the new full gate completes.
+The latest verified Quality Gate run `34338158426` reached 188/199 E2E passes and failed only because tests still expected clinic-owner access to platform-only finance endpoints after the security hardening. The code contract was intentionally not weakened. Follow-up fixes are committed and Quality Gate run `34339054986` is queued on head `27fe346f59dcf71630354dd407eab7a30a5ada51`. Release remains **NOT READY** until the active gate completes and remaining blockers are cleared.
 
 ## Known release blockers / work queue
 
-1. Verify the active Quality Gate to completion and fix any failures before proceeding.
+1. Verify active Quality Gate `34339054986` to completion and fix any failures before proceeding.
 2. Review and remediate npm audit findings, including high-severity issues, without blind major-version upgrades.
 3. Fix P0 finance platform authorization: platform-only finance mutations/administration must not be reachable through clinic `billing.manage` alone.
 4. Fix finance typed owner isolation: authorization and transaction filters must constrain `ownerType + ownerId` rather than treating IDs from different domains as interchangeable.
