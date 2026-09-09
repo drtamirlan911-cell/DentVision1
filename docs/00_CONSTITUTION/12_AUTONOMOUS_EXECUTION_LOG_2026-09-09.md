@@ -5,7 +5,7 @@
 - Branch: `autonomous/superapp-foundation-2026-09-09`
 - PR: #247 — `WIP: DentVision autonomous superapp hardening`
 - Base: `main`
-- Current implementation checkpoint: `cc117781e232830de1559cdb7ab66e61f3b19988`
+- Current implementation checkpoint: `86a418b25a376c4f855760b543e1baef605934e6`
 - PR remains **DRAFT / NOT READY FOR RELEASE** until P0 blockers are closed.
 
 ## Verified checkpoint
