@@ -46,7 +46,7 @@ export function firstAllowedCrmPath(allowedPages: string[] | null | undefined): 
   const pages = allowedPages || []
   for (const id of CRM_NAV_PAGE_IDS) {
     if (canAccessPage(pages, id)) {
-      if (id === 'finance' || id === 'cashier') return '/crm/finance'
+      if (id === 'finance' || id === 'cashier') return '/crm/cashier'
       return `/crm/${id}`
     }
   }
