@@ -46,18 +46,20 @@
 - Shop checkout validation helpers and regression tests were added for strict positive-integer quantities, non-negative minor-unit DentCash values and malformed checkout items. The main checkout route still requires integration of these helpers before the P0 quantity requirement can be marked closed.
 - AI patient escalation lookup now enforces `patientId + clinicId` together before patient identity/contact data is used for staff notification; global patient-ID resolution was removed from this path.
 - AI patient escalation now hard-fails before conversation creation/broadcast when the patient is missing from the target clinic, with regression coverage for cross-clinic rejection and same-clinic success.
+- Shop checkout now has a side-effect-free state-machine contract (`checkout.state.ts`) and regression tests for normal payment, retry, failure mapping, terminal immutability and invalid transitions. The contract is intentionally not treated as route integration.
+- Storage now rejects unsafe S3 object keys before upload, deletion or signed-read generation; clinic-prefixed namespace, traversal, absolute-path and control-character checks are enforced in the storage boundary, with regression tests.
 
 ## Verification state
 
-Quality Gate run `34339054986` completed successfully: backend dependency installation, Prisma generation, TypeScript typecheck, ESLint and repository release-gate script all passed. CI run `34339090170` passed frontend lint, backend lint/typecheck, unit/build and E2E. The latest escalation hardening commit initially produced cancelled runs, so those cancellations are not treated as verification. A subsequent PR-triggered cycle is now active: CI `34344524415` is in progress, with frontend lint already executing; backend lint and E2E have started their setup phases. DentVision Quality Gate `34344524450` is queued and Quality Gate `34344524463` is in progress. The latest changes therefore remain **not fully verified by CI** until the complete Web + Backend + Android gate passes. The separate Vercel deployment-rate-limit status is infrastructure-only and is not counted as an application verification result. Release remains **NOT READY**.
+Quality Gate run `34339054986` completed successfully: backend dependency installation, Prisma generation, TypeScript typecheck, ESLint and repository release-gate script all passed. CI run `34339090170` passed frontend lint, backend lint/typecheck, unit/build and E2E. A newer PR-triggered cycle is active for the latest changes: CI `34346163416` is queued, Quality Gate `34346163422` is in progress at backend `npm ci`, and DentVision Quality Gate `34346163394` is pending. These runs must complete before the latest commits are considered verified. The separate Vercel deployment-rate-limit status is infrastructure-only and is not counted as an application verification result. Release remains **NOT READY**.
 
 ## Known release blockers / work queue
 
-1. Verify active CI runs `34344524415`, `34344524450`, and `34344524463` to completion; do not rely on older snapshots.
+1. Verify active CI runs `34346163416`, `34346163422`, and `34346163394` to completion; do not rely on older snapshots.
 2. Review and remediate npm audit findings, including high-severity issues, without blind major-version upgrades.
 3. P0 finance platform authorization: hardened; complete route-by-route verification and retain negative clinic-role tests.
 4. P0 finance typed owner isolation: hardened; add collision regression tests and complete route audit.
-5. P0 shop checkout compensation: OPEN. Integrate strict quantity validation, then implement the state machine and compensating workflow from `docs/security/SHOP_CHECKOUT_FAILURE_MATRIX.md`.
+5. P0 shop checkout compensation: OPEN. Integrate strict quantity validation, then wire `checkout.state.ts` through the route/service and implement stock/DentCash compensation plus provider reconciliation.
 6. Complete shop supplier/order integrity tests for supplier ownership, price/quantity tampering, retries, refunds and cross-clinic access.
 7. Dispute state-machine regression coverage added; next add HTTP authorization and concurrent terminal/non-terminal integration coverage.
 8. Complete authentication, RBAC, tenant isolation and IDOR audit across every API domain; prioritize finance, shop, IAM, files and patient-facing routes.
