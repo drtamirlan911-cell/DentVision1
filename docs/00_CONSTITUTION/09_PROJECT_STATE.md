@@ -37,14 +37,17 @@
 - Idempotency reservation now uses a PostgreSQL transaction-scoped advisory lock per key, eliminating expected concurrent `P2002`/unique-constraint error noise while retaining the database unique index as the integrity boundary.
 - Shop checkout failure/compensation matrix added as a durable release-control artifact, documenting required state transitions, money/inventory invariants and regression cases.
 - Dispute transition rules extracted into a testable guard and regression tests added for valid forward transitions, backward transitions, terminal-state immutability and unknown states.
+- Security blocker register expanded with strict checkout quantity validation and explicit files/storage verification requirements.
+- Patient-ID audit sweep identified additional internal AI/event and context-manager paths that must prove tenant scope before resolving arbitrary client-derived patient IDs; these remain verification targets rather than being declared safe from static search alone.
+- Files route review confirms clinic scoping is present on document/patient reads and uploads; MIME/content validation and delete-path isolation remain release verification targets.
 
 ## Verification state
 
-Quality Gate run `34339054986` completed successfully: backend dependency installation, Prisma generation, TypeScript typecheck, ESLint and repository release-gate script all passed. CI run `34339090170` passed frontend lint, backend lint/typecheck, unit/build and E2E. DentVision Quality Gate run `34339643615` is currently in progress: Web typecheck/lint/unit/build and Backend typecheck/build have passed; Android debug build is still running. Release remains **NOT READY** until the active gate completes and all release/security blockers are cleared.
+Quality Gate run `34339054986` completed successfully: backend dependency installation, Prisma generation, TypeScript typecheck, ESLint and repository release-gate script all passed. CI run `34339090170` passed frontend lint, backend lint/typecheck, unit/build and E2E. DentVision Quality Gate run `34339643615` was last observed with Web typecheck/lint/unit/build and Backend typecheck/build passed while Android debug build was still running. A later docs-only state commit did not trigger a PR workflow according to the workflow lookup. Release remains **NOT READY** until the current code commit has a verified complete Web + Backend + Android gate and all release/security blockers are cleared.
 
 ## Known release blockers / work queue
 
-1. Verify active DentVision Quality Gate `34339643615` to completion.
+1. Verify the latest applicable DentVision Quality Gate to completion; do not rely on the older in-progress snapshot.
 2. Review and remediate npm audit findings, including high-severity issues, without blind major-version upgrades.
 3. P0 finance platform authorization: hardened; complete route-by-route verification and retain negative clinic-role tests.
 4. P0 finance typed owner isolation: hardened; add collision regression tests and complete route audit.
@@ -52,14 +55,15 @@ Quality Gate run `34339054986` completed successfully: backend dependency instal
 6. Complete shop supplier/order integrity tests for supplier ownership, price/quantity tampering, retries, refunds and cross-clinic access.
 7. Dispute state-machine regression coverage added; next add HTTP authorization and concurrent terminal/non-terminal integration coverage.
 8. Complete authentication, RBAC, tenant isolation and IDOR audit across every API domain; prioritize finance, shop, IAM, files and patient-facing routes.
-9. Map and harden Patient 360 and core clinical workflows.
-10. Verify AI authorization, confirmation, auditability and clinical safety boundaries, including expiry and replay behavior.
-11. Implement/verify document orchestration and in-app electronic signing for patient and clinician workflows.
-12. Verify Web/Android domain, API, permission and offline-sync parity.
-13. Reconcile the documented legacy/new schema discrepancy before further domain expansion.
-14. Refine Home/sidebar/service-card UX against the Master Constitution.
-15. Re-run all executable release gates after security fixes.
-16. Only after all blocking gates pass: prepare merge/release to `main`.
+9. Harden the identified internal AI/event patient-resolution paths with explicit clinic/authorization context before accepting client-derived patient IDs.
+10. Map and harden Patient 360 and core clinical workflows.
+11. Verify AI authorization, confirmation, auditability and clinical safety boundaries, including expiry and replay behavior.
+12. Implement/verify document orchestration and in-app electronic signing for patient and clinician workflows.
+13. Verify Web/Android domain, API, permission and offline-sync parity.
+14. Reconcile the documented legacy/new schema discrepancy before further domain expansion.
+15. Refine Home/sidebar/service-card UX against the Master Constitution.
+16. Re-run all executable release gates after security fixes.
+17. Only after all blocking gates pass: prepare merge/release to `main`.
 
 ## Operating rule
 
