@@ -27,8 +27,9 @@ export function RequirePage({
     return <>{children}</>
   }
 
-  if (!isAuthenticated) {
-    return <Navigate to="/login" state={{ from: location }} replace />
+  if (!isAuthenticated && !isGuest) {
+    // In SuperApp architecture, unauthenticated users explore seamless guest session rather than blocking at /login
+    return <>{children}</>
   }
 
   // Wait for auth hydration before evaluating pages — during context
