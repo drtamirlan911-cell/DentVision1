@@ -22,24 +22,27 @@
 - Durable project state established so decisions and next actions survive beyond chat context.
 - Vitest treatment-plan security test fixed for mock-hoisting semantics with `vi.hoisted()`.
 - AI approval approve/reject transitions hardened with database-level compare-and-set (`updateMany` with `status: pending`) to prevent concurrent double decisions.
+- AI approval expiry is now part of the atomic approval claim, preventing an approval from winning a race after its expiry boundary.
 - Legal document status transitions hardened with database-level compare-and-set so concurrent requests cannot both advance the same document.
+- Security audit reviewed organization/person platform-wide routes, finance ownership boundaries, patient presentation access, and AI event-action data access; no unverified tenant bypass was promoted to main.
 
 ## Verification state
 
-The latest CI cycle before the legal hardening had passed backend typecheck/build and the full web typecheck/lint/unit/build job. Its Android job was cancelled because the workflow concurrency policy superseded the run while a newer commit was pushed. A new Quality Gate is currently executing against the legal-hardening commit. Release remains **NOT READY** until the complete workflow is green and security findings are resolved or formally accepted.
+The latest CI cycle before the AI approval expiry hardening had passed backend typecheck/build and the full web typecheck/lint/unit/build job. Its Android job was cancelled because the workflow concurrency policy superseded the run while a newer commit was pushed. A new Quality Gate is executing against the latest hardening commit. Release remains **NOT READY** until the complete workflow is green and security findings are resolved or formally accepted.
 
 ## Known release blockers / work queue
 
-1. Verify the current CI cycle to completion.
+1. Verify the current CI cycle to completion, including Android debug build.
 2. Review and remediate npm audit findings, including high-severity issues, without blind major-version upgrades.
-3. Audit authentication, RBAC, tenant isolation and IDOR protection across API routes.
-4. Map and harden Patient 360 and core clinical workflows.
-5. Verify AI authorization, confirmation, auditability and clinical safety boundaries.
-6. Implement/verify document orchestration and in-app electronic signing for patient and clinician workflows.
-7. Verify Web/Android domain, API, permission and offline-sync parity.
-8. Refine Home/sidebar/service-card UX against the Master Constitution.
-9. Re-run all executable release gates.
-10. Only after all blocking gates pass: prepare merge/release to `main`.
+3. Complete authentication, RBAC, tenant isolation and IDOR audit across every API domain; prioritize finance, shop, IAM, files and patient-facing routes.
+4. Add regression tests for cross-tenant access and concurrent state transitions where coverage is missing.
+5. Map and harden Patient 360 and core clinical workflows.
+6. Verify AI authorization, confirmation, auditability and clinical safety boundaries, including expiry and replay behavior.
+7. Implement/verify document orchestration and in-app electronic signing for patient and clinician workflows.
+8. Verify Web/Android domain, API, permission and offline-sync parity.
+9. Refine Home/sidebar/service-card UX against the Master Constitution.
+10. Re-run all executable release gates.
+11. Only after all blocking gates pass: prepare merge/release to `main`.
 
 ## Operating rule
 
