@@ -84,7 +84,7 @@ function Content({ children, align = 'end', className, width }: ContentProps) {
           transition={{ duration: 0.15, ease: 'easeOut' }}
           className={cn(
             'absolute top-full mt-1.5 z-50 min-w-[180px] rounded-xl border border-bdr-subtle',
-            'bg-surface-raised backdrop-blur-xl shadow-elev-3 overflow-hidden',
+            'bg-surface-raised shadow-elev-3 overflow-hidden',
             alignClass,
             className
           )}

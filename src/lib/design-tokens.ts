@@ -1,26 +1,27 @@
 export const T = {
-  bg:       "#080F1A",
-  navy:     "#0D1B2E",
-  navyL:    "#132540",
-  card:     "rgba(255,255,255,0.035)",
-  cardHov:  "rgba(255,255,255,0.06)",
-  gold:     "#C9A96E",
-  goldL:    "#E2C898",
-  goldDim:  "#8B6F3E",
-  border:   "rgba(201,169,110,0.15)",
-  borderSub:"rgba(255,255,255,0.06)",
-  white:    "#FFFFFF",
-  slate:    "#7A8899",
-  slateL:   "#B0BEC5",
-  emerald:  "#27AE60",
-  ruby:     "#E74C3C",
-  amber:    "#F39C12",
-  sapphire: "#2980B9",
-  purple:   "#8E44AD",
-  cyan:     "#00BCD4",
-  pink:     "#E91E8C",
-  teal:     "#009688",
-  orange:   "#FF5722",
+  // Shared DentVision neutral foundation. Legacy token names are retained for compatibility.
+  bg:       "#F6F7F7",
+  navy:     "#FFFFFF",
+  navyL:    "#F0F2F1",
+  card:     "#FFFFFF",
+  cardHov:  "#F6F7F7",
+  gold:     "#A47B35",
+  goldL:    "#D3AA68",
+  goldDim:  "#8B6A2F",
+  border:   "rgba(23,25,24,0.08)",
+  borderSub:"rgba(23,25,24,0.08)",
+  white:    "#171918",
+  slate:    "#6F7673",
+  slateL:   "#A0A6A3",
+  emerald:  "#2F7D5A",
+  ruby:     "#B54747",
+  amber:    "#9A6B18",
+  sapphire: "#3D6F9E",
+  purple:   "#6F657F",
+  cyan:     "#3D7F86",
+  pink:     "#8A6170",
+  teal:     "#4F776E",
+  orange:   "#9A6A3A",
 } as const;
 
 export const COLORS = {
@@ -29,21 +30,21 @@ export const COLORS = {
   success: T.emerald,
   danger: T.ruby,
   warning: T.amber,
-  info: T.cyan,
-  patientNew: T.pink,
-  patientRegular: T.teal,
-  patientVip: T.purple,
+  info: T.sapphire,
+  patientNew: T.teal,
+  patientRegular: T.slate,
+  patientVip: T.gold,
   appointmentConfirmed: T.emerald,
   appointmentPending: T.amber,
   appointmentCancelled: T.ruby,
-  appointmentCompleted: T.cyan,
+  appointmentCompleted: T.sapphire,
 } as const;
 
 export const GLOBAL_CSS = `
   *{box-sizing:border-box;margin:0;padding:0;}
   body{font-family:'Inter',system-ui,sans-serif;background:${T.bg};color:${T.white};-webkit-font-smoothing:antialiased;}
-  input,select,textarea{font-family:inherit;background:rgba(255,255,255,0.05);border:1px solid ${T.border};color:${T.white};border-radius:8px;padding:10px 13px;font-size:13px;width:100%;outline:none;transition:border-color .2s;}
-  input:focus,select:focus,textarea:focus{border-color:${T.gold};}
+  input,select,textarea{font-family:inherit;background:${T.card};border:1px solid ${T.border};color:${T.white};border-radius:8px;padding:10px 13px;font-size:13px;width:100%;outline:none;transition:border-color .2s,box-shadow .2s;}
+  input:focus,select:focus,textarea:focus{border-color:${T.gold};box-shadow:0 0 0 2px rgba(164,123,53,.12);}
   input::placeholder,textarea::placeholder{color:${T.slate};}
   select option{background:${T.navy};color:${T.white};}
   button{cursor:pointer;font-family:inherit;}
