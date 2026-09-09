@@ -11,10 +11,10 @@ export async function resolvePatientForClinic<T extends Record<string, unknown> 
 ): Promise<T | null> {
   if (!patientId || !clinicId) return null;
 
-  return prisma.patient.findFirst({
+  return (await prisma.patient.findFirst({
     where: { id: patientId, clinicId },
     ...(select ? { select } : {}),
-  }) as Promise<T | null>;
+  })) as unknown as T | null;
 }
 
 /**
@@ -29,8 +29,8 @@ export async function resolveAppointmentForClinic<T extends Record<string, unkno
 ): Promise<T | null> {
   if (!appointmentId || !clinicId) return null;
 
-  return prisma.appointment.findFirst({
+  return (await prisma.appointment.findFirst({
     where: { id: appointmentId, clinicId },
     ...(select ? { select } : {}),
-  }) as Promise<T | null>;
+  })) as unknown as T | null;
 }
