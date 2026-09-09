@@ -44,14 +44,15 @@
 - Finance sale recording now uses a database compare-and-set balance guard on the GATEWAY wallet, preventing concurrent sale processing from overdrawing the gateway balance.
 - DentCash refund authorization now validates ownership of both spend and earn ledger rows before any refund mutation; unauthorized callers cannot reach the spend-refund operation before the ownership check.
 - Shop checkout validation helpers and regression tests were added for strict positive-integer quantities, non-negative minor-unit DentCash values and malformed checkout items. The main checkout route still requires integration of these helpers before the P0 quantity requirement can be marked closed.
+- AI patient escalation lookup now enforces `patientId + clinicId` together before patient identity/contact data is used for staff notification; global patient-ID resolution was removed from this path.
 
 ## Verification state
 
-Quality Gate run `34339054986` completed successfully: backend dependency installation, Prisma generation, TypeScript typecheck, ESLint and repository release-gate script all passed. CI run `34339090170` passed frontend lint, backend lint/typecheck, unit/build and E2E. DentVision Quality Gate run `34339643615` was last observed with Web typecheck/lint/unit/build and Backend typecheck/build passed while Android debug build was still running. The latest code commits have not yet produced a new PR workflow in the workflow lookup; therefore the latest changes are **not yet fully verified by CI**. Combined status for the previous head reported a Vercel failure caused by the Vercel build-rate-limit/upgrade gate, separate from the repository Quality Gate. Release remains **NOT READY** until the current code commit has a verified complete Web + Backend + Android gate and all release/security blockers are cleared.
+Quality Gate run `34339054986` completed successfully: backend dependency installation, Prisma generation, TypeScript typecheck, ESLint and repository release-gate script all passed. CI run `34339090170` passed frontend lint, backend lint/typecheck, unit/build and E2E. DentVision Quality Gate run `34339643615` was last observed with Web typecheck/lint/unit/build and Backend typecheck/build passed while Android debug build was still running. After the AI escalation hardening commit, new PR-triggered runs were created: CI `34343599863`, DentVision Quality Gate `34343599692`, and Quality Gate `34343599668`; all were queued at the latest observation. Therefore the latest changes are **not yet fully verified by CI**. Combined status for the previous head reported a Vercel failure caused by the Vercel build-rate-limit/upgrade gate, separate from the repository Quality Gate. Release remains **NOT READY** until the current code commit has a verified complete Web + Backend + Android gate and all release/security blockers are cleared.
 
 ## Known release blockers / work queue
 
-1. Trigger/verify the latest applicable DentVision Quality Gate to completion; do not rely on older snapshots.
+1. Verify the latest CI runs `34343599863`, `34343599692`, and `34343599668` to completion; do not rely on older snapshots.
 2. Review and remediate npm audit findings, including high-severity issues, without blind major-version upgrades.
 3. P0 finance platform authorization: hardened; complete route-by-route verification and retain negative clinic-role tests.
 4. P0 finance typed owner isolation: hardened; add collision regression tests and complete route audit.
