@@ -33,15 +33,59 @@ const E2E_PRODUCTS = [
   { name: 'E2E Перчатки нитриловые M', price: 4_200, stock: 10_000, category: 'consumables' },
 ];
 
+/**
+ * Checkout now enforces supplier verification. Keep E2E catalogue fixtures
+ * representative of a sellable marketplace state instead of relying on the
+ * old implicit "supplier-less product" path.
+ */
+async function ensureE2ESupplier() {
+  const existing = await prisma.supplier.findFirst({ where: { name: 'E2E Verified Supplier' } });
+  if (existing) {
+    if (existing.status !== 'verified') {
+      return prisma.supplier.update({ where: { id: existing.id }, data: { status: 'verified' } });
+    }
+    return existing;
+  }
+
+  return prisma.supplier.create({
+    data: {
+      id: randomUUID(),
+      name: 'E2E Verified Supplier',
+      kind: 'SUPPLIER',
+      status: 'verified',
+      commissionRate: 1000,
+      isActive: true,
+      email: 'e2e-supplier@test.dentvision',
+      city: 'Алматы',
+      description: 'Verified supplier used only by deterministic E2E fixtures',
+    },
+  });
+}
+
 async function upsertProducts() {
+  const supplier = await ensureE2ESupplier();
+
   for (const p of E2E_PRODUCTS) {
     const existing = await prisma.product.findFirst({ where: { name: p.name } });
     if (existing) {
-      await prisma.product.update({ where: { id: existing.id }, data: { stock: p.stock, price: p.price } });
+      await prisma.product.update({
+        where: { id: existing.id },
+        data: { stock: p.stock, price: p.price, supplierId: supplier.id, isActive: true },
+      });
       continue;
     }
     await prisma.product.create({
-      data: { id: randomUUID(), name: p.name, price: p.price, stock: p.stock, category: p.category, currency: 'KZT', description: 'Тестовая позиция каталога для сквозных сценариев' },
+      data: {
+        id: randomUUID(),
+        name: p.name,
+        price: p.price,
+        stock: p.stock,
+        category: p.category,
+        currency: 'KZT',
+        description: 'Тестовая позиция каталога для сквозных сценариев',
+        supplierId: supplier.id,
+        isActive: true,
+      },
     });
   }
 }
