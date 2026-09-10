@@ -7,6 +7,7 @@ import { Logo } from '@/components/brand';
 import { Avatar } from '@/components/ui/ds/Avatar';
 import type { User as UserType } from '@/types';
 import { useCommandPalette } from '@/components/CommandPalette';
+import { useTranslation } from 'react-i18next';
 
 export interface SuperAppSidebarProps {
   collapsed: boolean;
@@ -115,7 +116,7 @@ export const SuperAppSidebar: React.FC<SuperAppSidebarProps> = (props) => {
   const location = useLocation();
   const { t } = useTranslation();
   const [moreOpen, setMoreOpen] = React.useState(false);
-  const { open: openCommandPalette } = useCommandPalette();
+  const { setOpen: setCommandPaletteOpen } = useCommandPalette();
   const text = React.useCallback((key: string, fallback: string) => {
     const value = t(key);
     return value && value !== key ? value : fallback;
@@ -144,7 +145,7 @@ export const SuperAppSidebar: React.FC<SuperAppSidebarProps> = (props) => {
           )}
         </div>
         <div className="px-3 pt-3">
-          <button type="button" onClick={() => openCommandPalette()} className={cn('flex w-full items-center gap-2.5 rounded-xl border border-[var(--dv-border)] bg-[var(--dv-surface)] px-2.5 py-2 text-left transition hover:border-[var(--dv-border-strong)]', collapsed && !isMobile && 'justify-center')} aria-label={text('common.search', 'Поиск')}>
+          <button type="button" onClick={() => setCommandPaletteOpen(true)} className={cn('flex w-full items-center gap-2.5 rounded-xl border border-[var(--dv-border)] bg-[var(--dv-surface)] px-2.5 py-2 text-left transition hover:border-[var(--dv-border-strong)]', collapsed && !isMobile && 'justify-center')} aria-label={text('common.search', 'Поиск')}>
             <span className="grid h-7 w-7 shrink-0 place-items-center rounded-lg bg-[var(--dv-accent-soft)] text-[var(--dv-accent)]"><Command size={14} /></span>
             {(!collapsed || isMobile) && <><span className="flex-1 text-xs font-medium text-[var(--dv-text)]">{text('common.search', 'Поиск')}</span><kbd className="rounded-md border border-[var(--dv-border)] px-1.5 py-0.5 text-[10px] text-[var(--dv-muted)]">⌘K</kbd></>}
           </button>
