@@ -6,8 +6,7 @@ import SignaturePad from '../../components/ui/SignaturePad';
 import { Button } from '@/components/ui/ds/Button';
 import { Input } from '@/components/ui/ds/Input';
 import { Badge } from '@/components/ui/ds/Badge';
-
-const API_URL = import.meta.env.VITE_API_URL || (window.location.hostname.includes('vercel.app') ? 'https://dentvision-api.onrender.com' : 'http://localhost:3001');
+import { API_URL } from '@/utils/apiOrigin';
 
 /**
  * Literal foregrounds on purpose. The fills are fixed semantic colours that do
