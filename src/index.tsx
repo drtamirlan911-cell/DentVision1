@@ -4,7 +4,6 @@ import { Routes, Route, Navigate } from 'react-router-dom';
 import { Providers } from '@/app/providers';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { ToastProvider } from './components/ui/ds';
-import { AIWorkspaceIndex } from './components/intelligence/AIWorkspaceIndex';
 import IntelligenceLayout from './layouts/IntelligenceLayout';
 import { lazyWithRetry } from '@/utils/lazyWithRetry';
 import { RequirePage } from '@/components/auth/RequirePage';
@@ -15,6 +14,7 @@ import { reportWebVitals } from './utils/vitals';
 
 initSentry();
 
+const AIWorkspaceIndex = lazyWithRetry(() => import('./components/intelligence/AIWorkspaceIndex'));
 const Login = lazyWithRetry(() => import('./pages/auth/Login'));
 const ForgotPassword = lazyWithRetry(() => import('./pages/auth/ForgotPassword'));
 const PublicBooking = lazyWithRetry(() => import('./pages/auth/PublicBooking'));
@@ -201,7 +201,6 @@ if (container) {
                   <Route path="lab" element={<Suspense fallback={<PageLoader />}><LabDashboard /></Suspense>} />
                   <Route path="workspace" element={<Suspense fallback={<PageLoader />}><WorkspaceEntry /></Suspense>} />
                   <Route path="registration-requests" element={<Suspense fallback={<PageLoader />}><RegistrationRequests /></Suspense>} />
-                  {/* Compatibility aliases: older navigation used these names. */}
                   <Route path="center-dashboard" element={<Navigate to="/diagnostics/center" replace />} />
                   <Route path="lab-dashboard" element={<Navigate to="/diagnostics/lab" replace />} />
                 </Route>
