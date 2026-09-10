@@ -3,6 +3,11 @@
   "buildCommand": "npm install && npm run build",
   "outputDirectory": "dist",
   "installCommand": "npm install",
+  "redirects": [
+    { "source": "/academy", "destination": "/school", "permanent": false },
+    { "source": "/academy/course/:id", "destination": "/school/course/:id", "permanent": false },
+    { "source": "/academy/workspace", "destination": "/school/workspace", "permanent": false }
+  ],
   "rewrites": [
     { "source": "/((?!assets/).*)", "destination": "/index.html" }
   ]
