@@ -5,14 +5,14 @@
  * Replaces the previous `toolsForRole(req.user.role)` calls, which trusted a
  * raw role string. Three problems with that:
  *
- *   1. `req.user.role` is the *global* `User.role`. A user who is OWNER of one
+ *   1. `req.user.role` is the *global* User.role. A user who is OWNER of one
  *      clinic and DOCTOR in another got the owner tool set everywhere, and
  *      staff that exist only in the unified model (Person/PersonRole, no
  *      ClinicMember) got whatever their legacy column happened to say.
  *   2. On `/query` and `/query/stream` the router runs under `optionalAuth`,
  *      which decodes the JWT without touching the database — so both the role
- *      and the clinicId were unverified claims: stale after a role change or a
- *      revoked session, and never checked for membership.
+ *      and the clinicId were unverified claims: stale after a role change or
+ *      a revoked session, and never checked for membership.
  *   3. The tool surface was never reconciled with the permission model the REST
  *      routes enforce, so the assistant could act where the UI refuses.
  *
@@ -27,6 +27,7 @@ import { resolveClinicAccess, resolveOrganizationIdForClinic } from '../../../li
 import { resolveUserPermissions } from '../../../lib/resolvePermissions.js';
 import { toolsForRole } from './registry.js';
 import { TOOL_PERMISSIONS, permissionsSatisfy } from './toolPermissions.js';
+import { employeeContractForRole, type AiEmployeeContract } from './employeeContract.js';
 
 export interface AiToolAccess {
   /** Effective role driving agent selection and prompt wording. */
@@ -38,6 +39,8 @@ export interface AiToolAccess {
   clinicId: string | null;
   /** Tool names this caller may invoke. */
   allowed: Set<string>;
+  /** Deterministic role-bound AI employee identity and autonomy contract. */
+  employee: AiEmployeeContract;
 }
 
 export interface AiToolAccessInput {
@@ -52,7 +55,7 @@ export interface AiToolAccessInput {
  * lookup is warranted (the guest JWT carries no membership to verify).
  */
 function guestAccess(): AiToolAccess {
-  return { role: 'GUEST', clinicId: null, allowed: toolsForRole('GUEST') };
+  return { role: 'GUEST', clinicId: null, allowed: toolsForRole('GUEST'), employee: employeeContractForRole('GUEST') };
 }
 
 export async function resolveAiToolAccess(input: AiToolAccessInput): Promise<AiToolAccess> {
@@ -69,6 +72,7 @@ export async function resolveAiToolAccess(input: AiToolAccessInput): Promise<AiT
       role: 'SUPERADMIN',
       clinicId: input.clinicId || null,
       allowed: toolsForRole('SUPERADMIN'),
+      employee: employeeContractForRole('SUPERADMIN'),
     };
   }
 
@@ -100,5 +104,5 @@ export async function resolveAiToolAccess(input: AiToolAccessInput): Promise<AiT
     if (!required || permissionsSatisfy(permissions, required)) allowed.add(tool);
   }
 
-  return { role, clinicId, allowed };
+  return { role, clinicId, allowed, employee: employeeContractForRole(role) };
 }
