@@ -1,13 +1,8 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { getAccessToken } from '@/utils/api'
+import { API_URL } from '@/utils/apiOrigin'
 
 // ─── Types ───
-
-/**
- * What an action was based on. `sourceId` comes back empty on PHI-sensitive
- * rows for a caller without `medical.read` — they see that a patient record
- * was involved, not which one.
- */
 export interface TimelineEvidence {
   id: string
   sourceType: string
@@ -15,7 +10,6 @@ export interface TimelineEvidence {
   access?: string | null
   snapshot?: Record<string, unknown> | null
 }
-
 export interface TimelineEvent {
   id: string
   type: string
@@ -33,7 +27,6 @@ export interface TimelineEvent {
   processedAt: string
   evidence?: TimelineEvidence[]
 }
-
 export interface TimelineStats {
   totalEvents: number
   todayEvents: number
@@ -41,44 +34,17 @@ export interface TimelineStats {
   failedEvents: number
   successRate: number
 }
-
-interface TimelineResponse {
-  entries: TimelineEvent[]
-  total: number
-  limit: number
-  offset: number
-}
-
-const API_URL: string =
-  import.meta.env.VITE_API_URL ||
-  (window.location.hostname.includes('vercel.app')
-    ? 'https://dentvision-api.onrender.com'
-    : 'http://localhost:3001')
+interface TimelineResponse { entries: TimelineEvent[]; total: number; limit: number; offset: number }
 
 async function apiFetch<T>(path: string): Promise<T> {
   const token = getAccessToken()
-  const res = await fetch(`${API_URL}/api${path}`, {
-    headers: token ? { Authorization: `Bearer ${token}` } : {},
-  })
+  const res = await fetch(`${API_URL}/api${path}`, { headers: token ? { Authorization: `Bearer ${token}` } : {} })
   if (!res.ok) throw new Error(`API error: ${res.status}`)
   const data = await res.json()
   return data.data || data
 }
 
-// ─── Hooks ───
-
-export function useAITimeline(options?: {
-  clinicId?: string
-  limit?: number
-  offset?: number
-  eventType?: string
-  agent?: string
-  role?: string
-  user?: string
-  status?: string
-  dateFrom?: string
-  dateTo?: string
-}) {
+export function useAITimeline(options?: { clinicId?: string; limit?: number; offset?: number; eventType?: string; agent?: string; role?: string; user?: string; status?: string; dateFrom?: string; dateTo?: string }) {
   return useQuery<TimelineResponse>({
     queryKey: ['ai', 'timeline', options],
     queryFn: async () => {
@@ -93,30 +59,14 @@ export function useAITimeline(options?: {
       if (options?.status) params.set('status', options.status)
       if (options?.dateFrom) params.set('dateFrom', options.dateFrom)
       if (options?.dateTo) params.set('dateTo', options.dateTo)
-
       return apiFetch<TimelineResponse>(`/ai/timeline?${params.toString()}`)
-    },
-    refetchInterval: 30_000,
+    }, refetchInterval: 30_000,
   })
 }
-
 export function useAITimelineStats(clinicId?: string) {
-  return useQuery<TimelineStats>({
-    queryKey: ['ai', 'timeline', 'stats', clinicId],
-    queryFn: async () => {
-      const params = clinicId ? `?clinicId=${clinicId}` : ''
-      return apiFetch<TimelineStats>(`/ai/timeline/stats${params}`)
-    },
-    refetchInterval: 60_000,
-  })
+  return useQuery<TimelineStats>({ queryKey: ['ai', 'timeline', 'stats', clinicId], queryFn: async () => apiFetch<TimelineStats>(`/ai/timeline/stats${clinicId ? `?clinicId=${clinicId}` : ''}`), refetchInterval: 60_000 })
 }
-
 export function useRefreshTimeline() {
   const queryClient = useQueryClient()
-
-  return useMutation({
-    mutationFn: async () => {
-      await queryClient.invalidateQueries({ queryKey: ['ai', 'timeline'] })
-    },
-  })
+  return useMutation({ mutationFn: async () => { await queryClient.invalidateQueries({ queryKey: ['ai', 'timeline'] }) } })
 }
