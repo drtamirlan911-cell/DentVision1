@@ -30,3 +30,11 @@ Commit `b3e95f3afd10bc0ad12bdb769748780e0d163801` passed all three PR-triggered 
 Integrate the existing side-effect-free checkout state machine into the real shop checkout flow. The final design must validate quantities before side effects, reserve/decrement stock atomically, keep external payment calls outside DB transactions, make DentCash spend/reversal retry-safe, persist provider references/payment state for reconciliation, distinguish known failure from unknown payment outcome, and compensate deterministic failures exactly once.
 
 No production-readiness claim is permitted until executable gates and all P0 requirements pass on the same final commit.
+
+## 2026-09-10 continuation checkpoint
+
+- PR #261 (`autonomous/release-hardening-2026-09-10`) was validated with CI + Quality Gate green and merged to `main` as commit `79265dbbb833deb8cb849abfc5eb89365b313e44`.
+- The merged hardening includes strict Shop checkout validation, supplier eligibility, deterministic compensation, durable external-payment reconciliation, storage-key hardening, AI clinic-context boundaries, patient-link CAS, and DentCash authorization.
+- PR #263 was closed as temporary validation work and was not merged.
+- Post-merge `main` CI and Quality Gate are green. Production deployment verification remains a separate gate because the Vercel project was still reporting an older branch deployment as its latest deployment at this checkpoint.
+- Next execution focus: production browser smoke/E2E, performance/bundle reduction, Android release verification, and repository release controls.
