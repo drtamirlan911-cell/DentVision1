@@ -2,15 +2,13 @@ import React from 'react'
 import { Skeleton } from '@/components/ui/ds';
 import { Navigate, useLocation } from 'react-router-dom'
 import { useAuth } from '@/store/auth.store'
-import { useGuestStore } from '@/store/guest.store'
 import { useIam } from '@/iam'
 import { firstAllowedCrmPath, pageIdFromPath } from '@/lib/roleAccess'
 import Welcome from '@/pages/Welcome'
 
 /**
- * Blocks deep-links to CRM/platform pages outside the active role's pages list.
- * The dashboard entry is intentionally special: anonymous users receive the
- * public-first Welcome experience, while authenticated users enter AI Workspace.
+ * Application-entry and authorization gate.
+ * Authentication is deliberately separate from the public application entry.
  */
 export function RequirePage({
   page,
@@ -22,26 +20,22 @@ export function RequirePage({
 }) {
   const location = useLocation()
   const { isAuthenticated, loading } = useAuth()
-  const { isGuest } = useGuestStore()
   const iam = useIam()
 
-  // `/` is the application entry point, not an authentication screen.
-  // Keep this decision here so deep-link and refresh behavior share one gate.
+  // `/` is public application entry. Authenticated users go directly to AI Workspace.
   if (page === 'dashboard' && !loading) {
     if (isAuthenticated) return <Navigate to="/ai" replace />
     return <Welcome />
   }
 
-  if (isGuest) {
-    return <>{children}</>
-  }
-
+  // Public routes are intentionally not wrapped by this guard in index.tsx.
+  // Never bypass authorization merely because a guest session exists: a guest
+  // token grants anonymous capabilities, not access to CRM/platform data.
   if (!isAuthenticated) {
     return <Navigate to="/login" state={{ from: location }} replace />
   }
 
-  // Wait for auth hydration before evaluating pages — during context
-  // switches restoreSession() runs asynchronously and pages may be empty.
+  // Wait for auth hydration before evaluating role/page permissions.
   if (loading) {
     return (
       <div className="dv-page py-6 space-y-4">
