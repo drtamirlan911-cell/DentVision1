@@ -46,7 +46,7 @@ export default function FileUploader({ referralId, onUpload, files, onDelete, di
         setUploading(prev => prev.filter(f => f.id !== id));
       }
     }
-  }, [onUpload, toast]);
+  }, [onUpload, toast, t]);
 
   const getIcon = (type: string) => {
     if (type.startsWith('image/')) return ImageIcon;
@@ -58,50 +58,14 @@ export default function FileUploader({ referralId, onUpload, files, onDelete, di
 
   return (
     <div className="space-y-2">
-      <div
-        onClick={() => !disabled && ref.current?.click()}
-        className={`border-2 border-dashed border-bdr-subtle rounded-xl p-4 text-center cursor-pointer transition-colors hover:border-dv-gold/40 ${disabled ? 'opacity-50 cursor-not-allowed' : ''}`}
-      >
+      <div onClick={() => !disabled && ref.current?.click()} className={`border-2 border-dashed border-bdr-subtle rounded-xl p-4 text-center cursor-pointer transition-colors hover:border-dv-gold/40 ${disabled ? 'opacity-50 cursor-not-allowed' : ''}`}>
         <Upload size={20} className="mx-auto text-txt-muted mb-1" />
         <p className="text-xs text-txt-muted">{t('diagnostics.file_upload')}</p>
         <p className="text-[10px] text-txt-ghost mt-0.5">{t('diagnostics.file_upload_hint')}</p>
-        <input ref={ref} type="file" multiple accept={ALLOWED} onChange={e => { handleFiles(e.target.files); e.target.value = ''; }}
-          className="hidden" disabled={disabled} />
+        <input ref={ref} type="file" multiple accept={ALLOWED} onChange={e => { handleFiles(e.target.files); e.target.value = ''; }} className="hidden" disabled={disabled} />
       </div>
-
-      {uploading.length > 0 && (
-        <div className="space-y-1">
-          {uploading.map(f => {
-            const Icon = getIcon(f.type);
-            return (
-              <div key={f.id} className="flex items-center gap-2 p-2 bg-surface-1 rounded-lg">
-                {f.preview ? <img src={f.preview} className="w-8 h-8 rounded object-cover" alt="" /> : <Icon size={16} className="text-txt-muted" />}
-                <span className="text-xs text-txt-primary flex-1 truncate">{f.name}</span>
-                <Loader2 size={14} className="animate-spin text-dv-gold" />
-              </div>
-            );
-          })}
-        </div>
-      )}
-
-      {files && files.length > 0 && (
-        <div className="space-y-1">
-          {files.map(f => {
-            const Icon = getIcon(f.fileType);
-            return (
-              <div key={f.id} className="flex items-center gap-2 p-2 bg-surface-1 rounded-lg group">
-                <Icon size={16} className="text-txt-muted" />
-                <span className="text-xs text-txt-primary flex-1 truncate">{f.fileName}</span>
-                {onDelete && (
-                  <button aria-label="Delete file" onClick={() => onDelete(f.id)} className="opacity-0 group-hover:opacity-100 text-error transition-opacity">
-                    <X size={14} />
-                  </button>
-                )}
-              </div>
-            );
-          })}
-        </div>
-      )}
+      {uploading.length > 0 && <div className="space-y-1">{uploading.map(f => { const Icon = getIcon(f.type); return <div key={f.id} className="flex items-center gap-2 p-2 bg-surface-1 rounded-lg">{f.preview ? <img src={f.preview} className="w-8 h-8 rounded object-cover" alt="" /> : <Icon size={16} className="text-txt-muted" />}<span className="text-xs text-txt-primary flex-1 truncate">{f.name}</span><Loader2 size={14} className="animate-spin text-dv-gold" /></div>; })}</div>}
+      {files && files.length > 0 && <div className="space-y-1">{files.map(f => { const Icon = getIcon(f.fileType); return <div key={f.id} className="flex items-center gap-2 p-2 bg-surface-1 rounded-lg group"><Icon size={16} className="text-txt-muted" /><span className="text-xs text-txt-primary flex-1 truncate">{f.fileName}</span>{onDelete && <button aria-label="Delete file" onClick={() => onDelete(f.id)} className="opacity-0 group-hover:opacity-100 text-error transition-opacity"><X size={14} /></button>}</div>; })}</div>}
     </div>
   );
 }
