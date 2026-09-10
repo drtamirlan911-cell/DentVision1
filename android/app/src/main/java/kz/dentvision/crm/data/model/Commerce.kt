@@ -53,5 +53,6 @@ data class PurchaseResult(
     val status: String? = null,
     val message: String? = null,
     val requiresPayment: Boolean = false,
+    val paymentUnknown: Boolean = false,
     val payment: PurchasePayment? = null,
 )
