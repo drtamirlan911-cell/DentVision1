@@ -17,6 +17,7 @@ import { auditFromReq } from '../../compliance/audit.service.js';
 import { resolveAiToolAccess } from './access.js';
 import { runAiAction } from './kernel.js';
 import { buildApprovalFilter } from './activityQuery.js';
+import { listAiEmployeeTasks, transitionAiEmployeeTask } from './aiEmployeeTasks.js';
 import type { AiSurface } from './kernel.types.js';
 
 const router = Router();
@@ -41,6 +42,71 @@ router.get('/', authenticate, async (req: AuthRequest, res) => {
   } catch (error) {
     console.error('[AI Approvals] list failed:', error);
     return res.status(500).json({ ok: false, error: 'Не удалось получить список подтверждений' });
+  }
+});
+
+/** GET /api/ai/approvals/tasks — durable AI Employee work queue for the workspace. */
+router.get('/tasks', authenticate, async (req: AuthRequest, res) => {
+  try {
+    if (!req.user?.id || !req.user.clinicId) {
+      return res.status(401).json({ ok: false, error: 'Требуется авторизация и клиника' });
+    }
+    const rawLimit = Number(req.query.limit || 30);
+    const limit = Number.isFinite(rawLimit) ? Math.min(Math.max(Math.trunc(rawLimit), 1), 100) : 30;
+    const tasks = await listAiEmployeeTasks({
+      clinicId: req.user.clinicId,
+      userId: req.user.id,
+      role: req.user.role,
+      status: typeof req.query.taskStatus === 'string' ? req.query.taskStatus as any : null,
+      limit,
+    });
+    return res.json({ ok: true, data: tasks });
+  } catch (error) {
+    console.error('[AI Employee Tasks] list failed:', error);
+    return res.status(500).json({ ok: false, error: 'Не удалось получить рабочие задачи AI' });
+  }
+});
+
+/** POST /api/ai/approvals/tasks/:id/transition — lifecycle control for the durable task ledger. */
+router.post('/tasks/:id/transition', authenticate, async (req: AuthRequest, res) => {
+  try {
+    if (!req.user?.id || !req.user.clinicId) {
+      return res.status(401).json({ ok: false, error: 'Требуется авторизация и клиника' });
+    }
+    const status = String(req.body?.status || '');
+    const allowedStatuses = new Set(['observing', 'proposed', 'awaiting_approval', 'executing', 'verified', 'completed', 'failed', 'cancelled']);
+    if (!allowedStatuses.has(status)) {
+      return res.status(400).json({ ok: false, error: 'Недопустимый статус задачи' });
+    }
+
+    // Only workspace owners/managers/superadmins may force a lifecycle transition
+    // on behalf of an employee. Normal users may only resolve their own queue.
+    const privileged = new Set(['OWNER', 'SUPERADMIN', 'MANAGER', 'ADMIN']);
+    if (!privileged.has(String(req.user.role || '').toUpperCase())) {
+      const own = await listAiEmployeeTasks({ clinicId: req.user.clinicId, userId: req.user.id, limit: 100 });
+      if (!own.some((task) => task.id === String(req.params.id))) {
+        return res.status(403).json({ ok: false, error: 'Недостаточно прав для изменения этой задачи' });
+      }
+    }
+
+    const task = await transitionAiEmployeeTask({
+      id: String(req.params.id),
+      clinicId: req.user.clinicId,
+      status: status as any,
+      result: req.body?.result,
+      error: typeof req.body?.error === 'string' ? req.body.error : undefined,
+    });
+    if (!task) return res.status(404).json({ ok: false, error: 'Задача не найдена' });
+
+    await auditFromReq(req, {
+      action: `ai.employee_task.${status}`,
+      entity: 'ai_employee_task',
+      entityId: task.id,
+    });
+    return res.json({ ok: true, data: task });
+  } catch (error) {
+    console.error('[AI Employee Tasks] transition failed:', error);
+    return res.status(500).json({ ok: false, error: 'Не удалось изменить состояние задачи' });
   }
 });
 
@@ -80,8 +146,6 @@ router.post('/:id/approve', authenticate, async (req: AuthRequest, res) => {
       data: { status: 'approved', decidedByUserId: req.user.id, decidedAt: new Date(), decisionNote },
     });
 
-    // Execute as the original requester — the approval authorizes *their*
-    // proposed action, it does not hand the approver's own identity to it.
     const result = await runAiAction(
       {
         surface: approval.surface as AiSurface,
