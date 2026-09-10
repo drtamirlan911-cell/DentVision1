@@ -1,0 +1,8 @@
+{
+  "generated": true,
+  "generator": "quality-scripts/project-index.ts",
+  "sources": ["dentvision-backend/src", "src/lib"],
+  "backendRoutes": [],
+  "frontendApiReferences": [],
+  "note": "Run npm run project:index to populate discovered Express routes and API references."
+}
