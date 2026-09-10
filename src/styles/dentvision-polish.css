@@ -1,87 +1,5 @@
-/* DentVision final visual polish. Presentation only: no layout logic, API or navigation behavior. */
+/* Existing DentVision visual normalization rules. */
 
-/* Brand gradients are accents, never the default surface language. */
-[class*="bg-gradient-to-br"][class*="from-dv-gold"],
-[class*="bg-gradient-to-r"][class*="from-dv-gold"],
-[class*="bg-gradient-to-br"][class*="from-dv-gold-from"],
-[class*="bg-gradient-to-r"][class*="from-dv-gold-from"] {
-  background-image: none !important;
-  background-color: color-mix(in srgb, var(--dv-surface, #fff) 94%, var(--dv-accent, #a47b35) 6%) !important;
-}
-[class*="bg-gradient-to-br"][class*="text-dv-gold-on"],
-[class*="bg-gradient-to-r"][class*="text-dv-gold-on"] {
-  background-image: none !important;
-  background-color: var(--dv-accent, #a47b35) !important;
-}
-[class*="bg-gradient-to-br"][class*="from-dv-gold"] [class*="blur-3xl"],
-[class*="bg-gradient-to-br"][class*="from-dv-gold"] [class*="blur-2xl"],
-[class*="bg-gradient-to-r"][class*="from-dv-gold"] [class*="blur-3xl"],
-[class*="bg-gradient-to-r"][class*="from-dv-gold"] [class*="blur-2xl"],
-[class*="bg-gradient-to-br"][class*="from-dv-gold-from"] [class*="blur-3xl"],
-[class*="bg-gradient-to-br"][class*="from-dv-gold-from"] [class*="blur-2xl"] { display: none !important; }
-
-/* Restrain legacy glow/hero shadows. */
-[class*="shadow-glow"],
-[class*="shadow-[0_0_40px"],
-[class*="shadow-[0_40px_80px"] {
-  box-shadow: var(--dv-shadow-md, 0 8px 24px rgba(0,0,0,.06)) !important;
-}
-[class*="border-dv-gold\\/20"],
-[class*="border-dv-gold\\/25"] {
-  border-color: color-mix(in srgb, var(--dv-accent, #a47b35) 18%, var(--dv-border, rgba(23,25,24,.08))) !important;
-}
-[class*="rounded-2xl"].border,
-[class*="rounded-xl"].border { border-color: var(--dv-border, rgba(23,25,24,.08)); }
-
-/* Legacy native controls inherit the DS interaction language. */
-button:not([data-dv-unstyled]),
-a[role="button"]:not([data-dv-unstyled]) { -webkit-tap-highlight-color: transparent; }
-button[class*="bg-surface-2"][class*="border-bdr-subtle"],
-a[class*="bg-surface-2"][class*="border-bdr-subtle"] {
-  border-color: var(--dv-border-strong, rgba(23,25,24,.15)) !important;
-  color: var(--dv-text, #171918) !important;
-}
-button[class*="bg-surface-2"][class*="border-bdr-subtle"]:hover,
-a[class*="bg-surface-2"][class*="border-bdr-subtle"]:hover {
-  border-color: color-mix(in srgb, var(--dv-accent, #a47b35) 55%, var(--dv-border-strong, rgba(23,25,24,.15))) !important;
-}
-button[class*="text-txt-muted"]:focus-visible,
-a[class*="text-txt-muted"]:focus-visible,
-button[class*="text-txt-secondary"]:focus-visible,
-a[class*="text-txt-secondary"]:focus-visible,
-button:focus-visible,
-a[role="button"]:focus-visible {
-  outline: 2px solid color-mix(in srgb, var(--dv-accent, #a47b35) 65%, transparent) !important;
-  outline-offset: 2px;
-}
-
-/* Active tabs/segments must never look disabled. */
-button[aria-selected="true"],
-button[aria-pressed="true"] {
-  color: var(--dv-text, #171918) !important;
-  border-color: color-mix(in srgb, var(--dv-accent, #a47b35) 45%, var(--dv-border-strong, rgba(23,25,24,.15))) !important;
-}
-
-/* Fix legacy light-theme contrast where white text was copied from the old dark UI. */
-button[class*="bg-surface-1"][class*="text-white"],
-button[class*="bg-surface-2"][class*="text-white"],
-a[class*="bg-surface-1"][class*="text-white"],
-a[class*="bg-surface-2"][class*="text-white"] { color: var(--dv-text, #171918) !important; }
-button[class*="bg-success"][class*="text-white"],
-button[class*="bg-error"][class*="text-white"],
-a[class*="bg-success"][class*="text-white"],
-a[class*="bg-error"][class*="text-white"] { color: #fff !important; }
-
-/* Normalize common legacy segmented controls. */
-button[class*="border-none"][class*="bg-surface-1"],
-button[class*="border-none"][class*="bg-surface-2"] { border: 1px solid var(--dv-border) !important; }
-button[class*="border-none"][class*="bg-surface-1"]:hover,
-button[class*="border-none"][class*="bg-surface-2"]:hover {
-  background: var(--dv-surface-raised-hover, var(--dv-surface-2)) !important;
-  border-color: var(--dv-border-strong) !important;
-}
-
-/* Normalize the remaining ad-hoc blue badge palette to the semantic info token. */
 [class*="bg-\\[#4e8cff\\]"], [class*="text-\\[#4e8cff\\]"], [class*="border-\\[#4e8cff\\]"] { color: var(--dv-info, #3b82f6) !important; }
 
 /* Touch-friendly controls without inflating desktop UI. */
@@ -90,14 +8,14 @@ button[class*="border-none"][class*="bg-surface-2"]:hover {
 }
 
 /* AI composer: premium clinical surface, no glass/glow dependency. */
-.dv-composer-pad > div > div[class*="rounded-[1.35rem"]] {
-  box-shadow: var(--dv-shadow-sm, 0 1px 2px rgba(0,0,0,.04)) !important;
+.dv-composer-pad > div > div[class*="rounded-[1.35rem]"] {
+  box-shadow: var(--dv-shadow-sm, 0 1px 2px rgba(23,25,24,.04)) !important;
   border-radius: var(--dv-radius-lg, 14px) !important;
   background: var(--dv-surface, #fff) !important;
   border: 1px solid var(--dv-border, rgba(23,25,24,.08)) !important;
   backdrop-filter: none !important;
 }
-.dv-composer-pad > div > div[class*="rounded-[1.35rem"] > div[class*="backdrop-blur"] {
+.dv-composer-pad > div > div[class*="rounded-[1.35rem]"] > div[class*="backdrop-blur"] {
   background: var(--dv-surface, #fff) !important;
   border-color: transparent !important;
   border-radius: inherit !important;
@@ -105,7 +23,7 @@ button[class*="border-none"][class*="bg-surface-2"]:hover {
 }
 .dv-composer-pad textarea { color: var(--dv-text, #171918) !important; }
 .dv-composer-pad textarea::placeholder { color: var(--dv-muted-2, #a0a6a3) !important; }
-.dv-composer-pad [class*="shadow-lg"] { box-shadow: var(--dv-shadow-sm, 0 1px 2px rgba(0,0,0,.04)) !important; }
+.dv-composer-pad [class*="shadow-lg"] { box-shadow: var(--dv-shadow-sm, 0 1px 2px rgba(23,25,24,.04)) !important; }
 .dv-composer-pad [class*="bg-white/[0.05]"], .dv-composer-pad [class*="bg-white/[0.03]"] { background: var(--dv-surface-2, #f6f7f7) !important; }
 .dv-composer-pad [class*="backdrop-blur-xl"] { backdrop-filter: none !important; }
 
@@ -113,13 +31,13 @@ button[class*="border-none"][class*="bg-surface-2"]:hover {
 [class*="from-[#D4B57A]"][class*="to-dv-gold\\/85"] {
   background-image: none !important;
   background-color: var(--dv-accent, #a47b35) !important;
-  box-shadow: var(--dv-shadow-sm, 0 1px 2px rgba(0,0,0,.04)) !important;
+  box-shadow: var(--dv-shadow-sm, 0 1px 2px rgba(23,25,24,.04)) !important;
 }
 [class*="from-white/[0.055]"][class*="to-white/[0.025]"] {
   background-image: none !important;
   background: var(--dv-surface-2, #f6f7f7) !important;
   border-color: var(--dv-border, rgba(23,25,24,.08)) !important;
-  box-shadow: var(--dv-shadow-sm, 0 1px 2px rgba(0,0,0,.04)) !important;
+  box-shadow: var(--dv-shadow-sm, 0 1px 2px rgba(23,25,24,.04)) !important;
   backdrop-filter: none !important;
 }
 
@@ -128,7 +46,7 @@ button[class*="border-none"][class*="bg-surface-2"]:hover {
   background: var(--dv-surface, #fff) !important;
   border-color: var(--dv-border-strong, rgba(23,25,24,.15)) !important;
   backdrop-filter: none !important;
-  box-shadow: var(--dv-shadow-md, 0 8px 24px rgba(0,0,0,.06)) !important;
+  box-shadow: var(--dv-shadow-md, 0 8px 24px rgba(23,25,24,.06)) !important;
 }
 
 main, [role="main"] { min-width: 0; }
