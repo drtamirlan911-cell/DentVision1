@@ -7,13 +7,14 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '22'
           cache: 'npm'
       - run: npm ci
+      - run: npm ci
+        working-directory: dentvision-backend
+      - run: npm run db:generate
+        working-directory: dentvision-backend
       - run: npx tsc --noEmit
-      # Locks in the current warning count (13) so it can't grow — the old
-      # 10000 ceiling meant "warnings allowed" in practice. Lower this number
-      # as warnings get cleaned up over time.
+      - run: npm test -- --run
       - run: npx eslint src/ --max-warnings 13
       - run: npx tsx quality-scripts/release-gate.ts
-        continue-on-error: true
