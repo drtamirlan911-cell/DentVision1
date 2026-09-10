@@ -1,0 +1,25 @@
+{
+  "schemaVersion": 1,
+  "name": "DentVision",
+  "product": "AI Operating System for dentistry",
+  "repository": "drtamirlan911-cell/DentVision1",
+  "sourceOfTruth": "GitHub repository + generated .dentvision index",
+  "generatedBy": "quality-scripts/project-index.ts",
+  "indexCommand": "npm run project:index",
+  "lastKnownPhase": 0,
+  "principles": [
+    "Workspace and role context are mandatory for data-bearing AI operations",
+    "Database and event state are authoritative; model context is not durable state",
+    "No cross-workspace data leakage",
+    "Every executable AI action requires permission and auditability",
+    "Web and Android should converge on the same product contract"
+  ],
+  "canonicalDocuments": [
+    "DENTVISION_SUPERAPP_MASTER_PLAN.md",
+    "DENTVISION_SUPERAPP_BLUEPRINT.md",
+    "AUDIT_SUPERAPP_BLUEPRINT.md",
+    "DENTVISION_RELEASE_GATE.md",
+    "README.md",
+    "CURRENT_STATE.md"
+  ]
+}
