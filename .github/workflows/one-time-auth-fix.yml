@@ -1,13 +1,15 @@
 name: One-time auth production fix
 
 on:
-  workflow_dispatch:
+  push:
+    branches: [main]
 
 permissions:
   contents: write
 
 jobs:
   fix:
+    if: github.event.head_commit.message != 'fix: use production API during session refresh'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -28,10 +30,10 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add src/store/auth.store.ts
-          git commit -m "fix: use production API during session refresh" || exit 0
+          git commit -m "fix: use production API during session refresh"
           git push
       - name: Remove temporary workflow
-        if: always()
+        if: success()
         run: |
           git rm .github/workflows/one-time-auth-fix.yml || true
           git commit -m "chore: remove one-time auth fix workflow" || true
