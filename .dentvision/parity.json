@@ -1,0 +1,9 @@
+{
+  "generated": true,
+  "generator": "quality-scripts/project-index.ts",
+  "webScreens": [],
+  "androidScreens": [],
+  "sharedContracts": [],
+  "gaps": [],
+  "note": "Generated from web routes and Android navigation/screen sources."
+}
