@@ -25,12 +25,12 @@ DO $$
 BEGIN
   IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'referrals') THEN
     ALTER TABLE "referrals" ADD COLUMN IF NOT EXISTS "settlementId" TEXT;
+    CREATE INDEX IF NOT EXISTS "referrals_settlementId_idx" ON "referrals"("settlementId");
   ELSIF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'Referral') THEN
     ALTER TABLE "Referral" ADD COLUMN IF NOT EXISTS "settlementId" TEXT;
+    CREATE INDEX IF NOT EXISTS "referrals_settlementId_idx" ON "Referral"("settlementId");
   END IF;
 END $$;
-
-CREATE INDEX IF NOT EXISTS "referrals_settlementId_idx" ON "referrals"("settlementId");
 
 -- AddForeignKey: referrals.settlementId -> settlements.id
 DO $$
