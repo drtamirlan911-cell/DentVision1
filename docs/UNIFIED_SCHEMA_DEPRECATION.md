@@ -9,10 +9,10 @@
 4. Run `supabase-policies.sql` in Supabase SQL editor
 
 ### Phase B — Read from new, write to both (backward compat)
-1. All `clinic.create` → also upserts Organization ✅ already done
-2. All `clinicMember.create` → also upserts Person (TODO)
-3. Auth reads Person first, falls back to ClinicMember ✅ already done
-4. Switch-context tries Organization first, falls back to legacy ✅ already done
+1. All `clinic.create` → also upserts Organization ✅ done
+2. All `clinicMember.create` → also upserts Person via `syncPersonFromClinicMember()` in the clinic staff creation path ✅ done
+3. Auth reads Person first, falls back to ClinicMember ✅ done
+4. Switch-context tries Organization first, falls back to legacy ✅ done
 
 ### Phase C — Migrate each module to read from new tables
 
