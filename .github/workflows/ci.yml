@@ -18,6 +18,19 @@ jobs:
           node-version: 20
           cache: npm
       - run: npm ci
+      - name: Generate project index
+        run: npm run project:index
+      - name: Validate generated project index
+        run: |
+          test -s .dentvision/routes.json
+          test -s .dentvision/api.json
+          test -s .dentvision/roles.json
+          test -s .dentvision/workspaces.json
+          test -s .dentvision/tests.json
+          test -s .dentvision/security.json
+          test -s .dentvision/parity.json
+          test -s .dentvision/current-state.json
+          node -e "const fs=require('fs'); const x=JSON.parse(fs.readFileSync('.dentvision/current-state.json','utf8')); if(x.generated!==true || x.generator!=='quality-scripts/project-index.ts') process.exit(1); console.log(JSON.stringify(x.indexStats));"
       - run: npm ci
         working-directory: dentvision-backend
       - run: npx prisma generate
