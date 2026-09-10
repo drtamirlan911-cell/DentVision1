@@ -1,9 +1,8 @@
 import React from 'react'
 import { motion } from 'framer-motion'
-import { ArrowRight, Bot, BriefcaseBusiness, GraduationCap, HeartPulse, Search, ShoppingBag, Stethoscope, Users, Building2 } from 'lucide-react'
+import { ArrowRight, Bot, GraduationCap, HeartPulse, Search, ShoppingBag, Stethoscope, Users, Building2 } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '@/store/auth.store'
-import { useGuestStore } from '@/store/guest.store'
 
 const roles = [
   { id: 'doctor', title: 'Я врач', subtitle: 'AI, CRM, пациенты и клинический рабочий процесс', icon: Stethoscope, path: '/login?role=doctor' },
@@ -18,16 +17,10 @@ const roles = [
 export default function Welcome() {
   const navigate = useNavigate()
   const { isAuthenticated } = useAuth()
-  const { isGuest } = useGuestStore()
 
   React.useEffect(() => {
     if (isAuthenticated) navigate('/ai', { replace: true })
   }, [isAuthenticated, navigate])
-
-  const enterGuest = () => {
-    if (isGuest) navigate('/ai')
-    else navigate('/ai')
-  }
 
   return (
     <main className="min-h-screen overflow-y-auto bg-surface-0 text-txt-primary">
@@ -54,8 +47,8 @@ export default function Welcome() {
               </div>
             </div>
 
-            <button type="button" onClick={enterGuest} className="mx-auto mt-5 flex min-h-12 items-center justify-center gap-2 rounded-xl bg-dv-gold px-5 text-sm font-semibold text-surface-0 hover:opacity-90">Попробовать DentVision без регистрации <ArrowRight size={16} /></button>
-            <p className="mt-3 text-[11px] text-txt-muted">Гостевой режим: AI Demo, Academy, Shop, врачи и клиники. Аккаунт потребуется только для действий, где нужно сохранить или изменить данные.</p>
+            <button type="button" onClick={() => navigate('/ai')} className="mx-auto mt-5 flex min-h-12 items-center justify-center gap-2 rounded-xl bg-dv-gold px-5 text-sm font-semibold text-surface-0 hover:opacity-90">Спросить DentVision AI <ArrowRight size={16} /></button>
+            <p className="mt-3 text-[11px] text-txt-muted">Гостевой режим: можно изучать AI, Academy, Shop, врачей и клиники. Аккаунт потребуется только для действий, где нужно сохранить или изменить данные.</p>
           </motion.div>
         </section>
 
