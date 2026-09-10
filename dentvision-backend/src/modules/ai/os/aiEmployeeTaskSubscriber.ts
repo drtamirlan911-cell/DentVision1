@@ -23,10 +23,8 @@ function riskForAction(action: string): 'low' | 'medium' | 'high' {
   return 'medium';
 }
 
-function taskTitle(eventType: string, action: string, message?: string): string {
-  const clean = String(message || '').replace(/\s+/g, ' ').trim();
-  if (clean) return clean.slice(0, 230);
-  return `${eventType}: ${action}`;
+function taskTitle(eventType: string, action: string): string {
+  return `${eventType}: ${action}`.slice(0, 230);
 }
 
 /**
@@ -55,9 +53,9 @@ export function registerAiEmployeeTaskSubscriber(): void {
 
             const contract = employeeContractForRole(role);
             const risk = riskForAction(action.action);
-            const status = contract.autonomy === 'execute_with_approval' || risk === 'high'
-              ? 'awaiting_approval' as const
-              : 'queued' as const;
+            const status = risk === 'low'
+              ? 'queued' as const
+              : 'awaiting_approval' as const;
 
             await createAiEmployeeTask({
               clinicId: event.clinicId,
@@ -75,6 +73,7 @@ export function registerAiEmployeeTaskSubscriber(): void {
                 agent: action.agent,
                 parallel: Boolean(action.parallel),
                 employeeMission: contract.mission,
+                requiresHumanApproval: risk !== 'low',
               },
             });
           }
