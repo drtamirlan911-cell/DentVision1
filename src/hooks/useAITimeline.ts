@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { getAccessToken } from '@/utils/api'
+import { API_URL, getAccessToken } from '@/utils/api'
 
 // ─── Types ───
 
@@ -48,12 +48,6 @@ interface TimelineResponse {
   limit: number
   offset: number
 }
-
-const API_URL: string =
-  import.meta.env.VITE_API_URL ||
-  (window.location.hostname.includes('vercel.app')
-    ? 'https://dentvision-api.onrender.com'
-    : 'http://localhost:3001')
 
 async function apiFetch<T>(path: string): Promise<T> {
   const token = getAccessToken()
