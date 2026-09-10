@@ -8,9 +8,10 @@ const here = dirname(fileURLToPath(import.meta.url));
 const route = await readFile(resolve(here, 'shop.routes.ts'), 'utf8');
 
 // Input validation must be a hard boundary before idempotency or inventory work.
+const normalizeCall = 'const normalizedItems = normalizeCheckoutItems(items);';
 assert.match(route, /const normalizedItems = normalizeCheckoutItems\(items\);/);
-assert.ok(route.indexOf('const normalizedItems = normalizeCheckoutItems(items);') < route.indexOf('reserveIdempotencyKey('));
-assert.ok(route.indexOf('const normalizedItems = normalizeCheckoutItems(items);') < route.indexOf('prisma.product.findMany'));
+assert.ok(route.indexOf(normalizeCall) < route.indexOf('reserveIdempotencyKey('));
+assert.ok(route.indexOf(normalizeCall) < route.indexOf('prisma.product.findMany('));
 
 // The real route must consume canonical quantities everywhere inventory is touched.
 assert.doesNotMatch(route, /Math\.max\(1, Number\(raw\.(?:quantity|qty)/);
