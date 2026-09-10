@@ -17,6 +17,7 @@ import { withJobLock } from '../lib/jobLock.js';
 import { uid } from '../lib/helpers.js';
 import { buildClinicLoadPlan } from '../modules/ai/core/clinicLoadPlan.js';
 import { TOOL_PERMISSIONS } from '../modules/ai/os/toolPermissions.js';
+import { runAiEmployeeHeartbeat } from './aiEmployeeHeartbeat.js';
 
 const INACTIVE_DAYS = 90;
 const APPROVAL_TTL_MS = 7 * 24 * 60 * 60 * 1000;
@@ -26,12 +27,6 @@ export interface RecallSweepResult {
   proposed: number;
 }
 
-/**
- * `runAiAction`'s staff branch re-verifies `requestedByUserId` against real
- * clinic membership on approve (`resolveAiToolAccess`), so the row must name
- * an actual staffer, not a synthetic `system:` id — unlike the admin/patient
- * surfaces, staff has no pre-kernel trust boundary to inherit instead.
- */
 async function findRequester(clinicId: string): Promise<string | null> {
   const member = await prisma.clinicMember.findFirst({
     where: { clinicId, role: { in: REQUESTER_ROLES } },
@@ -53,7 +48,7 @@ async function proposeForClinic(clinicId: string): Promise<boolean> {
   if (recall.length === 0) return false;
 
   const requestedByUserId = await findRequester(clinicId);
-  if (!requestedByUserId) return false; // no eligible staffer to request on behalf of
+  if (!requestedByUserId) return false;
 
   const limit = Math.min(recall.length, 20);
   await prisma.aiApproval.create({
@@ -84,7 +79,6 @@ export async function sweepOverdueRecalls(): Promise<RecallSweepResult> {
     try {
       if (await proposeForClinic(clinicId)) proposed += 1;
     } catch (err: any) {
-      // Fresh boot, migration hasn't run yet — skip this clinic, not the whole sweep.
       if (String(err?.code) === 'P2021') continue;
       throw err;
     }
@@ -101,9 +95,12 @@ export function startRecallAgentInterval(ms = 24 * 60 * 60 * 1000): void {
   const tick = async () => {
     try {
       const r = await withJobLock('recall_agent', sweepOverdueRecalls);
-      if (r?.proposed) {
-        console.warn(`[RecallAgent] proposed=${r.proposed}`);
-      }
+      if (r?.proposed) console.warn(`[RecallAgent] proposed=${r.proposed}`);
+
+      // The recall sweep is also the durable scheduler already guaranteed to
+      // run for every active installation. Keep the AI employee heartbeat
+      // deterministic and inside the same job-locking lifecycle.
+      await runAiEmployeeHeartbeat();
     } catch (err) {
       console.error('[RecallAgent] tick failed', err);
     }
