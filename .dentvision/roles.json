@@ -1,0 +1,7 @@
+{
+  "generated": true,
+  "generator": "quality-scripts/project-index.ts",
+  "roles": [],
+  "accessRules": [],
+  "note": "Generated from role enums/access-control sources."
+}
