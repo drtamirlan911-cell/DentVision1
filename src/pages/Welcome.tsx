@@ -1,6 +1,6 @@
 import React from 'react'
 import { motion } from 'framer-motion'
-import { ArrowRight, Bot, GraduationCap, HeartPulse, Search, ShoppingBag, Stethoscope, Users, Building2 } from 'lucide-react'
+import { ArrowRight, Bot, Building2, GraduationCap, HeartPulse, Search, ShoppingBag, Stethoscope, Users } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '@/store/auth.store'
 
@@ -14,13 +14,33 @@ const roles = [
   { id: 'dentist', title: 'Я ищу стоматолога', subtitle: 'Найти врача или клинику и посмотреть возможности', icon: Search, path: '/community' },
 ] as const
 
+function Splash() {
+  return (
+    <main className="fixed inset-0 z-50 flex min-h-[100dvh] items-center justify-center bg-surface-0 text-txt-primary">
+      <motion.div initial={{ opacity: 0, scale: .96 }} animate={{ opacity: 1, scale: 1 }} transition={{ duration: .35 }} className="text-center">
+        <motion.div animate={{ opacity: [0.55, 1, .55], scale: [1, 1.04, 1] }} transition={{ duration: 1.25, ease: 'easeInOut' }} className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl border border-dv-gold/30 bg-dv-gold/10 text-dv-gold shadow-[0_0_45px_rgba(201,169,110,.12)]"><Stethoscope size={28} /></motion.div>
+        <div className="mt-5 text-xl font-semibold tracking-tight">DentVision</div>
+        <div className="mt-1 text-[10px] uppercase tracking-[.22em] text-dv-gold">by Dr.Tamirlan</div>
+      </motion.div>
+    </main>
+  )
+}
+
 export default function Welcome() {
   const navigate = useNavigate()
-  const { isAuthenticated } = useAuth()
+  const { isAuthenticated, loading } = useAuth()
+  const [splash, setSplash] = React.useState(true)
 
   React.useEffect(() => {
-    if (isAuthenticated) navigate('/ai', { replace: true })
-  }, [isAuthenticated, navigate])
+    const timer = window.setTimeout(() => setSplash(false), 1200)
+    return () => window.clearTimeout(timer)
+  }, [])
+
+  React.useEffect(() => {
+    if (!loading && isAuthenticated) navigate('/ai', { replace: true })
+  }, [isAuthenticated, loading, navigate])
+
+  if (splash) return <Splash />
 
   return (
     <main className="min-h-screen overflow-y-auto bg-surface-0 text-txt-primary">
