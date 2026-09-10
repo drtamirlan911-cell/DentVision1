@@ -8,32 +8,35 @@ const here = dirname(fileURLToPath(import.meta.url));
 const route = await readFile(resolve(here, 'shop.routes.ts'), 'utf8');
 
 // Input validation must be a hard boundary before idempotency or inventory work.
+const checkoutRouteStart = route.indexOf("shopRouter.post('/orders'");
+assert.ok(checkoutRouteStart >= 0, 'checkout order route must exist');
+const checkoutRoute = route.slice(checkoutRouteStart);
 const normalizeCall = 'const normalizedItems = normalizeCheckoutItems(items);';
-assert.match(route, /const normalizedItems = normalizeCheckoutItems\(items\);/);
-assert.ok(route.indexOf(normalizeCall) < route.indexOf('reserveIdempotencyKey('));
-assert.ok(route.indexOf(normalizeCall) < route.indexOf('prisma.product.findMany('));
+assert.match(checkoutRoute, /const normalizedItems = normalizeCheckoutItems\(items\);/);
+assert.ok(checkoutRoute.indexOf(normalizeCall) < checkoutRoute.indexOf('reserveIdempotencyKey('));
+assert.ok(checkoutRoute.indexOf(normalizeCall) < checkoutRoute.indexOf('prisma.product.findMany('));
 
 // The real route must consume canonical quantities everywhere inventory is touched.
-assert.doesNotMatch(route, /Math\.max\(1, Number\(raw\.(?:quantity|qty)/);
-assert.match(route, /for \(const line of normalizedItems\)/);
+assert.doesNotMatch(checkoutRoute, /Math\.max\(1, Number\(raw\.(?:quantity|qty)/);
+assert.match(checkoutRoute, /for \(const line of normalizedItems\)/);
 
 // Supplier status must be checked from the server-side relation, not client input.
-assert.match(route, /assertCheckoutSupplierEligibility\(p\.supplier\?\.status, p\.supplierId\)/);
+assert.match(checkoutRoute, /assertCheckoutSupplierEligibility\(p\.supplier\?\.status, p\.supplierId\)/);
 
 // External payment creation must not live inside a Prisma transaction callback.
 const providerCall = "providers.kaspi_qr.createPayment({ amountMinor, refId: order.id })";
-const providerIndex = route.indexOf(providerCall);
-const phase3Index = route.indexOf('// Phase 3: persist payment intent');
-const phase4Index = route.indexOf('// Phase 4: Cashback');
+const providerIndex = checkoutRoute.indexOf(providerCall);
+const phase3Index = checkoutRoute.indexOf('// Phase 3: persist payment intent');
+const phase4Index = checkoutRoute.indexOf('// Phase 4: Cashback');
 assert.ok(providerIndex > phase3Index && providerIndex < phase4Index);
-const providerWindow = route.slice(Math.max(0, route.lastIndexOf('prisma.$transaction', providerIndex)), providerIndex);
+const providerWindow = checkoutRoute.slice(Math.max(0, checkoutRoute.lastIndexOf('prisma.$transaction', providerIndex)), providerIndex);
 assert.doesNotMatch(providerWindow, /providers\.kaspi_qr\.createPayment/);
 
 // Known failures compensate; uncertain provider outcomes are preserved for reconciliation.
-assert.match(route, /compensateDeterministicCheckoutFailure\(orderId, 'dentcash_spend_failed'\)/);
-assert.match(route, /compensateDeterministicCheckoutFailure\(order\.id, 'payment_provider_rejected'\)/);
-assert.match(route, /status: 'payment_unknown'/);
-assert.match(route, /paymentUnknown \? 202 : 201/);
+assert.match(checkoutRoute, /compensateDeterministicCheckoutFailure\(orderId, 'dentcash_spend_failed'\)/);
+assert.match(checkoutRoute, /compensateDeterministicCheckoutFailure\(order\.id, 'payment_provider_rejected'\)/);
+assert.match(checkoutRoute, /status: 'payment_unknown'/);
+assert.match(checkoutRoute, /paymentUnknown \? 202 : 201/);
 
 // Regression matrix for malformed client quantities.
 for (const raw of [0, -1, 1.5, Number.NaN, Number.POSITIVE_INFINITY, Number.MAX_SAFE_INTEGER + 1, '1.5', '-1', 'Infinity', null, {}, []]) {
