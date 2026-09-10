@@ -102,7 +102,8 @@ jobs:
         working-directory: dentvision-backend
       - run: npx prisma generate
         working-directory: dentvision-backend
-      - run: npx prisma db push --skip-generate --accept-data-loss
+      - name: Deploy committed migrations
+        run: npx prisma migrate deploy
         working-directory: dentvision-backend
       - run: npm run db:seed:e2e
         working-directory: dentvision-backend
@@ -119,7 +120,7 @@ jobs:
           done
           echo "Backend did not become healthy in time" >&2
           exit 1
-      - name: Run E2E suite
+      - name: Run E2E suite (excluding browser-driven spec)
         run: npx playwright test $(ls e2e/tests/*.spec.ts | grep -v browser-e2e)
       - name: Backend log (on failure)
         if: failure()
