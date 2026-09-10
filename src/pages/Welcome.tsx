@@ -1,85 +1,119 @@
 import React from 'react'
 import { motion } from 'framer-motion'
-import { ArrowRight, Bot, Building2, GraduationCap, HeartPulse, Search, ShoppingBag, Stethoscope, Users } from 'lucide-react'
+import { ArrowRight, Building2, GraduationCap, HeartPulse, ShoppingBag, Stethoscope, Users } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '@/store/auth.store'
 
 const roles = [
-  { id: 'doctor', title: 'Я врач', subtitle: 'AI, CRM, пациенты и клинический рабочий процесс', icon: Stethoscope, path: '/login?role=doctor' },
-  { id: 'patient', title: 'Я пациент / покупатель', subtitle: 'Врачи, клиники, диагностика и покупки', icon: HeartPulse, path: '/login?role=patient' },
-  { id: 'owner', title: 'Я владелец клиники', subtitle: 'Команда, финансы, аналитика и управление', icon: Building2, path: '/login?role=owner' },
-  { id: 'admin', title: 'Я администратор', subtitle: 'Записи, коммуникации и операционные задачи', icon: Users, path: '/login?role=admin' },
-  { id: 'student', title: 'Я хочу учиться', subtitle: 'Academy, курсы и профессиональное развитие', icon: GraduationCap, path: '/school' },
-  { id: 'buyer', title: 'Я хочу купить', subtitle: 'Dental Shop и профессиональные товары', icon: ShoppingBag, path: '/shop' },
-  { id: 'dentist', title: 'Я ищу стоматолога', subtitle: 'Найти врача или клинику и посмотреть возможности', icon: Search, path: '/community' },
+  { id: 'doctor', title: 'Я врач', subtitle: 'AI + CRM', icon: Stethoscope, path: '/login?role=doctor' },
+  { id: 'patient', title: 'Я пациент / покупатель', subtitle: 'Личный кабинет', icon: HeartPulse, path: '/login?role=patient' },
+  { id: 'owner', title: 'Я владелец клиники', subtitle: 'Управление', icon: Building2, path: '/login?role=owner' },
+  { id: 'admin', title: 'Я администратор', subtitle: 'Операции', icon: Users, path: '/login?role=admin' },
+  { id: 'student', title: 'Я хочу учиться', subtitle: 'Academy', icon: GraduationCap, path: '/school' },
+  { id: 'buyer', title: 'Я хочу купить', subtitle: 'Marketplace', icon: ShoppingBag, path: '/shop' },
 ] as const
-
-function Splash() {
-  return (
-    <main className="fixed inset-0 z-50 flex min-h-[100dvh] items-center justify-center bg-surface-0 text-txt-primary">
-      <motion.div initial={{ opacity: 0, scale: .96 }} animate={{ opacity: 1, scale: 1 }} transition={{ duration: .35 }} className="text-center">
-        <motion.div animate={{ opacity: [0.55, 1, .55], scale: [1, 1.04, 1] }} transition={{ duration: 1.25, ease: 'easeInOut' }} className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl border border-dv-gold/30 bg-dv-gold/10 text-dv-gold shadow-[0_0_45px_rgba(201,169,110,.12)]"><Stethoscope size={28} /></motion.div>
-        <div className="mt-5 text-xl font-semibold tracking-tight">DentVision</div>
-        <div className="mt-1 text-[10px] uppercase tracking-[.22em] text-dv-gold">by Dr.Tamirlan</div>
-      </motion.div>
-    </main>
-  )
-}
 
 export default function Welcome() {
   const navigate = useNavigate()
   const { isAuthenticated, loading } = useAuth()
-  const [splash, setSplash] = React.useState(true)
-
-  React.useEffect(() => {
-    const timer = window.setTimeout(() => setSplash(false), 1200)
-    return () => window.clearTimeout(timer)
-  }, [])
 
   React.useEffect(() => {
     if (!loading && isAuthenticated) navigate('/ai', { replace: true })
   }, [isAuthenticated, loading, navigate])
 
-  if (splash) return <Splash />
-
   return (
-    <main className="min-h-screen overflow-y-auto bg-surface-0 text-txt-primary">
-      <div className="mx-auto flex min-h-screen w-full max-w-6xl flex-col px-4 py-6 sm:px-6 sm:py-10 lg:px-8">
-        <header className="flex items-center justify-between gap-4">
-          <button type="button" onClick={() => navigate('/')} className="flex items-center gap-3 text-left" aria-label="DentVision">
-            <span className="flex h-10 w-10 items-center justify-center rounded-xl border border-dv-gold/25 bg-dv-gold/10 text-dv-gold"><Stethoscope size={19} /></span>
-            <span><span className="block text-base font-semibold tracking-tight">DentVision</span><span className="block text-[10px] text-txt-muted">by Dr.Tamirlan</span></span>
+    <main
+      className="dv-welcome min-h-[100dvh] overflow-x-hidden px-4 py-6 text-left md:flex md:justify-center"
+      style={{ backgroundColor: '#090B0E', color: '#F0F2F7' }}
+    >
+      <div className="flex min-h-[calc(100dvh-3rem)] w-full max-w-[390px] flex-col md:min-h-[calc(100dvh-3rem)] md:max-w-5xl">
+        <header className="flex items-start justify-between">
+          <button
+            type="button"
+            onClick={() => navigate('/')}
+            className="min-h-11 text-left"
+            aria-label="DentVision"
+          >
+            <span className="block text-[20px] font-normal leading-6 tracking-[-0.02em]">DentVision</span>
+            <span className="block text-[10px] leading-3" style={{ color: '#C9A96E' }}>by Dr.Tamirlan</span>
           </button>
-          <button type="button" onClick={() => navigate('/login')} className="min-h-11 rounded-xl border border-bdr-subtle px-4 text-xs font-semibold text-txt-secondary hover:bg-surface-2">Войти</button>
+          <button
+            type="button"
+            onClick={() => navigate('/login')}
+            className="hidden min-h-11 rounded-xl border px-4 text-xs font-semibold md:block"
+            style={{ borderColor: '#2E333D', color: '#F0F2F7' }}
+          >
+            Войти
+          </button>
         </header>
 
-        <section className="flex flex-1 flex-col justify-center py-12 sm:py-16">
-          <motion.div initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: .45 }} className="mx-auto w-full max-w-4xl text-center">
-            <div className="mx-auto mb-5 flex h-14 w-14 items-center justify-center rounded-2xl border border-dv-gold/25 bg-dv-gold/10 text-dv-gold"><Bot size={26} /></div>
-            <p className="text-[11px] font-semibold uppercase tracking-[.24em] text-dv-gold">AI Operating System for Dentistry</p>
-            <h1 className="mt-4 text-4xl font-semibold tracking-tight sm:text-6xl">DentVision</h1>
-            <p className="mx-auto mt-4 max-w-2xl text-sm leading-6 text-txt-secondary sm:text-base">Единая экосистема для врачей, клиник, пациентов, обучения, диагностики и профессиональных покупок.</p>
-
-            <div className="mx-auto mt-9 max-w-3xl rounded-3xl border border-dv-gold/20 bg-surface-1 p-4 text-left shadow-sm sm:p-5">
-              <div className="mb-4 flex items-center gap-2"><Bot size={16} className="text-dv-gold" /><span className="text-sm font-semibold">Что вы хотите сделать?</span></div>
-              <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-                {roles.map((role) => { const Icon = role.icon; return <motion.button key={role.id} type="button" whileTap={{ scale: .985 }} onClick={() => navigate(role.path)} className="group flex min-h-[82px] items-center gap-3 rounded-2xl border border-bdr-subtle bg-surface-0 p-3 text-left transition-colors hover:border-dv-gold/30 hover:bg-surface-2"><span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-dv-gold/10 text-dv-gold"><Icon size={18} /></span><span className="min-w-0 flex-1"><span className="block text-sm font-semibold">{role.title}</span><span className="mt-0.5 block line-clamp-2 text-[11px] leading-4 text-txt-muted">{role.subtitle}</span></span><ArrowRight size={15} className="shrink-0 text-txt-ghost transition-transform group-hover:translate-x-0.5 group-hover:text-dv-gold" /></motion.button> })}
-              </div>
+        <section className="flex flex-1 flex-col pt-[28px] md:justify-center md:pt-0">
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.32 }}
+          >
+            <div
+              className="flex h-8 w-full items-center rounded-2xl border px-3.5"
+              style={{ backgroundColor: '#1C1811', borderColor: '#2E333D' }}
+            >
+              <span className="text-[9px] uppercase leading-3" style={{ color: '#C9A96E' }}>
+                AI Operating System for Dentistry
+              </span>
             </div>
 
-            <button type="button" onClick={() => navigate('/ai')} className="mx-auto mt-5 flex min-h-12 items-center justify-center gap-2 rounded-xl bg-dv-gold px-5 text-sm font-semibold text-surface-0 hover:opacity-90">Спросить DentVision AI <ArrowRight size={16} /></button>
-            <p className="mt-3 text-[11px] text-txt-muted">Гостевой режим: можно изучать AI, Academy, Shop, врачей и клиники. Аккаунт потребуется только для действий, где нужно сохранить или изменить данные.</p>
+            <h1 className="mt-6 max-w-[320px] text-[30px] font-normal leading-[1.2] tracking-[-0.025em] md:text-5xl">
+              Ваша стоматология.<br />В одной системе.
+            </h1>
+            <p className="mt-1.5 max-w-[300px] text-[12px] leading-[1.25]" style={{ color: '#949EAD' }}>
+              AI, клиника, пациенты, обучение, диагностика<br className="hidden md:block" /> и Shop — без лишней сложности.
+            </p>
+
+            <button
+              type="button"
+              onClick={() => navigate('/ai')}
+              className="mt-9 flex h-14 w-full items-center justify-between rounded-2xl px-[18px] text-sm font-medium transition-transform active:scale-[0.99]"
+              style={{ backgroundColor: '#C9A96E', color: '#090B0E' }}
+            >
+              <span>Спросить DentVision AI</span>
+              <ArrowRight size={19} strokeWidth={1.8} />
+            </button>
+
+            <div className="mt-5 grid grid-cols-2 gap-3 md:grid-cols-3">
+              {roles.map((role, index) => {
+                const Icon = role.icon
+                return (
+                  <motion.button
+                    key={role.id}
+                    type="button"
+                    initial={{ opacity: 0, y: 6 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.24, delay: index * 0.035 }}
+                    onClick={() => navigate(role.path)}
+                    className="group min-h-[58px] rounded-2xl border px-3 py-2.5 text-left transition-colors hover:border-[#C9A96E]/40 md:min-h-[82px]"
+                    style={{ backgroundColor: '#11131A', borderColor: '#2E333D' }}
+                  >
+                    <span className="flex items-start justify-between gap-2">
+                      <span className="min-w-0">
+                        <span className="block truncate text-[11px] leading-[13px]" style={{ color: '#F0F2F7' }}>
+                          {role.title}
+                        </span>
+                        <span className="mt-2 block text-[9px] leading-3" style={{ color: '#949EAD' }}>
+                          {role.subtitle}
+                        </span>
+                      </span>
+                      <Icon size={15} strokeWidth={1.6} className="hidden shrink-0 md:block" style={{ color: '#C9A96E' }} />
+                    </span>
+                  </motion.button>
+                )
+              })}
+            </div>
           </motion.div>
         </section>
 
-        <footer className="flex flex-wrap items-center justify-center gap-x-5 gap-y-2 border-t border-bdr-subtle pt-5 text-[10px] text-txt-muted">
-          <button type="button" onClick={() => navigate('/ai')}>DentVision AI</button>
-          <button type="button" onClick={() => navigate('/school')}>Academy</button>
-          <button type="button" onClick={() => navigate('/shop')}>Marketplace</button>
-          <button type="button" onClick={() => navigate('/jobs')}>Jobs</button>
-          <button type="button" onClick={() => navigate('/terms')}>Условия</button>
-          <button type="button" onClick={() => navigate('/privacy')}>Privacy</button>
-        </footer>
+        <p className="mt-5 pb-1 text-[9px] leading-3 md:pb-0" style={{ color: '#949EAD' }}>
+          Начните без аккаунта. Вход нужен только для действий с вашими данными.
+        </p>
       </div>
     </main>
   )
