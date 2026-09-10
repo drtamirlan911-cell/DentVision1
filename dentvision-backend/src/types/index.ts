@@ -30,6 +30,8 @@ export interface ApiKeyContext {
 export interface AuthRequest extends Request {
   user?: AuthUser;
   apiKey?: ApiKeyContext;
+  /** Express route params are scalar strings for the named routes used by the API. */
+  params: Record<string, string>;
   /** Resolved SaaS access for active clinic (planGate middleware). */
   clinicAccess?: import('../modules/billing/planEntitlements.js').ClinicAccessState;
 }
