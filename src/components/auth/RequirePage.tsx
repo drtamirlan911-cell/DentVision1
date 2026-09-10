@@ -5,10 +5,12 @@ import { useAuth } from '@/store/auth.store'
 import { useGuestStore } from '@/store/guest.store'
 import { useIam } from '@/iam'
 import { firstAllowedCrmPath, pageIdFromPath } from '@/lib/roleAccess'
+import Welcome from '@/pages/Welcome'
 
 /**
  * Blocks deep-links to CRM/platform pages outside the active role's pages list.
- * Guests are left to IntelligenceLayout (demo modal).
+ * The dashboard entry is intentionally special: anonymous users receive the
+ * public-first Welcome experience, while authenticated users enter AI Workspace.
  */
 export function RequirePage({
   page,
@@ -22,6 +24,13 @@ export function RequirePage({
   const { isAuthenticated, loading } = useAuth()
   const { isGuest } = useGuestStore()
   const iam = useIam()
+
+  // `/` is the application entry point, not an authentication screen.
+  // Keep this decision here so deep-link and refresh behavior share one gate.
+  if (page === 'dashboard' && !loading) {
+    if (isAuthenticated) return <Navigate to="/ai" replace />
+    return <Welcome />
+  }
 
   if (isGuest) {
     return <>{children}</>
