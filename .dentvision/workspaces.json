@@ -1,0 +1,10 @@
+{
+  "generated": true,
+  "generator": "quality-scripts/project-index.ts",
+  "workspaces": [],
+  "isolation": {
+    "required": true,
+    "identityFields": ["workspaceId", "organizationId", "clinicId", "userId", "role"]
+  },
+  "note": "Generated from workspace stores, context APIs and backend workspace/clinic references."
+}
