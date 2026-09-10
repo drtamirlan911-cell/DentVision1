@@ -36,6 +36,15 @@ Commit `b3e95f3afd10bc0ad12bdb769748780e0d163801` passed all three repository wo
 4. Full Web + Backend + Android release verification on the final commit.
 5. Production configuration/security/observability/backup/rollback review against the actual deployment environment.
 
+## 2026-09-10 continuation audit
+
+- PR #247 was temporarily closed and has been reopened for continuation; it remains Draft.
+- `main` currently points to `7a03535f7e42c6643c3c60de3f5db15bd2f10825`, which is also the PR base SHA, so the previously reported base/head divergence is no longer present at the current base.
+- The hardening branch remains the candidate implementation; no direct merge into `main` is being performed before executable release verification.
+- Production spot checks already verified the live frontend and backend health separately; these do not substitute for the remaining tenant-isolation integration gates.
+- Vercel reports a deployment `build-rate-limit` failure on the hardening commit; this is treated as infrastructure/deployment capacity, not as evidence that the application runtime is broken.
+- The remaining blockers are intentionally not marked closed without executable evidence.
+
 ## Operating rule
 
 Do not declare production readiness from static inspection. Every material change must be verified by executable gates and recorded here or in project-state documents before release.
