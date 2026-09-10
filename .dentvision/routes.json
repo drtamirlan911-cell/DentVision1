@@ -1,0 +1,7 @@
+{
+  "generated": true,
+  "generator": "quality-scripts/project-index.ts",
+  "source": "src",
+  "routes": [],
+  "note": "Run npm run project:index to populate discovered React routes."
+}
