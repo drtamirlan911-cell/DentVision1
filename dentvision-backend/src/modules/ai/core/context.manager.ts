@@ -5,32 +5,45 @@ import { resolveUserPermissions } from '../../../lib/resolvePermissions.js';
 
 export class ContextManager {
   async loadContext(userId: string, clinicId: string): Promise<AIContext> {
-    const [user, clinic] = await Promise.all([
+    const [user, clinic, access] = await Promise.all([
       prisma.user.findUnique({ where: { id: userId }, select: { id: true, role: true } }),
       prisma.clinic.findUnique({ where: { id: clinicId }, select: { id: true, name: true } }),
+      resolveClinicAccess(userId, clinicId),
     ]);
 
-    const access = await resolveClinicAccess(userId, clinicId);
+    // The AI context is an authorization boundary, not merely presentation
+    // state. Never construct a context for a clinic the caller cannot access,
+    // and never fall back to the global user role for an unscoped request.
+    if (!user) throw new Error('USER_NOT_FOUND');
+    if (!clinic) throw new Error('CLINIC_NOT_FOUND');
+    if (!access) throw new Error('CLINIC_ACCESS_REQUIRED');
 
     return {
       userId,
-      clinicId: clinic?.id ?? clinicId,
-      role: access?.role ?? user?.role ?? 'DOCTOR',
+      clinicId: clinic.id,
+      role: access.role ?? user.role ?? 'DOCTOR',
       sessionId: crypto.randomUUID(),
       metadata: {},
     };
   }
 
-  async loadPatientContext(patientId: string, clinicId: string): Promise<{
+  async loadPatientContext(userId: string, patientId: string, clinicId: string): Promise<{
     patient: any;
     appointments: any[];
     visits: any[];
     treatmentPlans: any[];
     images: any[];
   }> {
+    // Patient context is clinical data. Never resolve a caller-supplied patient
+    // id before proving that the caller belongs to the requested clinic.
+    const access = await resolveClinicAccess(userId, clinicId);
+    if (!access) {
+      throw new Error('CLINIC_ACCESS_REQUIRED');
+    }
+
     const [patient, appointments, visits, treatmentPlans, images] = await Promise.all([
-      prisma.patient.findUnique({
-        where: { id: patientId },
+      prisma.patient.findFirst({
+        where: { id: patientId, clinicId },
         include: { clinic: true },
       }),
       prisma.appointment.findMany({
@@ -38,22 +51,29 @@ export class ContextManager {
         orderBy: { date: 'desc' },
         take: 5,
       }),
+      // Visit is already tenant-bound through the patient loaded above, but
+      // the legacy Visit model has no clinicId column. Do not fabricate a
+      // schema field here; the patient boundary is the authoritative scope.
       prisma.visit.findMany({
         where: { patientId },
         orderBy: { date: 'desc' },
         take: 10,
       }),
       prisma.treatmentPlan.findMany({
-        where: { patientId },
+        where: { patientId, clinicId },
         orderBy: { createdAt: 'desc' },
         take: 5,
       }),
       prisma.patientImage.findMany({
-        where: { patientId },
+        where: { patientId, patient: { clinicId } },
         orderBy: { createdAt: 'desc' },
         take: 10,
       }),
     ]);
+
+    if (!patient) {
+      throw new Error('PATIENT_OUTSIDE_CLINIC');
+    }
 
     return { patient, appointments, visits, treatmentPlans, images };
   }

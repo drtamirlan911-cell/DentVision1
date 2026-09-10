@@ -32,17 +32,20 @@ function getClient(): S3Client {
 }
 
 export async function uploadObject(key: string, body: Buffer, contentType: string): Promise<void> {
+  if (!isSafeStorageKey(key)) throw new Error('UNSAFE_STORAGE_KEY');
   await getClient().send(
     new PutObjectCommand({ Bucket: env.S3_BUCKET!, Key: key, Body: body, ContentType: contentType }),
   );
 }
 
 export async function deleteObject(key: string): Promise<void> {
+  if (!isSafeStorageKey(key)) throw new Error('UNSAFE_STORAGE_KEY');
   await getClient().send(new DeleteObjectCommand({ Bucket: env.S3_BUCKET!, Key: key }));
 }
 
 /** Short-TTL signed GET — callers must have already checked clinic access. */
 export async function signedDownloadUrl(key: string, expiresInSeconds = 300): Promise<string> {
+  if (!isSafeStorageKey(key)) throw new Error('UNSAFE_STORAGE_KEY');
   const cmd = new GetObjectCommand({ Bucket: env.S3_BUCKET!, Key: key });
   return getSignedUrl(getClient(), cmd, { expiresIn: expiresInSeconds });
 }
@@ -52,7 +55,22 @@ export async function signedDownloadUrl(key: string, expiresInSeconds = 300): Pr
 // existing rows and new ones can be told apart without a migration.
 const STORAGE_KEY_PREFIX = 's3://';
 
+/**
+ * Storage keys are application-generated and must never contain traversal,
+ * absolute-path, control-character, or backslash segments. The clinic prefix
+ * is mandatory for DentVision medical objects so a compromised document row
+ * cannot be turned into a signed URL for an unrelated bucket object.
+ */
+export function isSafeStorageKey(key: string): boolean {
+  if (!key || key.length > 512) return false;
+  if (!key.startsWith('clinics/')) return false;
+  if (key.includes('..') || key.includes('\\') || key.includes('\0')) return false;
+  if (key.startsWith('/') || key.includes('//')) return false;
+  return /^[A-Za-z0-9._/-]+$/.test(key);
+}
+
 export function toStorageUrl(key: string): string {
+  if (!isSafeStorageKey(key)) throw new Error('UNSAFE_STORAGE_KEY');
   return `${STORAGE_KEY_PREFIX}${key}`;
 }
 
