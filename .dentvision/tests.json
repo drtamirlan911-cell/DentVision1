@@ -1,0 +1,14 @@
+{
+  "generated": true,
+  "generator": "quality-scripts/project-index.ts",
+  "commands": {
+    "lint": "npm run lint",
+    "typecheck": "npm run typecheck",
+    "unit": "npm test",
+    "e2e": "npm run test:e2e",
+    "quality": "npm run quality:ci"
+  },
+  "testFiles": [],
+  "ciWorkflows": [],
+  "lastObserved": {}
+}
