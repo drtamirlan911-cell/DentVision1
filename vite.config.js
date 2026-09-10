@@ -36,6 +36,13 @@ export default defineConfig({
           'vendor-motion': ['framer-motion'],
           'vendor-icons': ['lucide-react'],
           'vendor-state': ['zustand'],
+          // AI Workspace is the primary authenticated route, but it is not part
+          // of the anonymous Welcome critical path. Keep its dependency graph
+          // out of the initial bundle so mobile first paint stays small.
+          'workspace-ai': ['./src/components/intelligence/AIWorkspaceIndex.tsx'],
+          // Recharts is used by analytics/dashboard surfaces and should not
+          // inflate the public entry bundle.
+          'vendor-charts': ['recharts'],
         },
       },
     },
