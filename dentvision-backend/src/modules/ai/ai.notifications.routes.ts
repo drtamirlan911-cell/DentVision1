@@ -30,7 +30,7 @@ class SSEManager extends EventEmitter {
     return () => this.clients.get(clinicId)?.delete(res);
   }
 
-  /** Broadcast only to the intended users; an omitted target is clinic-wide status, not patient data. */
+  /** Broadcast only to intended users; an omitted target is clinic-wide status, not patient data. */
   broadcast(clinicId: string, event: NotificationEvent): void {
     const clients = this.clients.get(clinicId);
     if (!clients || clients.size === 0) return;
@@ -95,8 +95,16 @@ router.get('/stream', async (req: Request, res: Response) => {
   res.on('close', () => { clearInterval(keepalive); unsubscribe(); });
 });
 
-router.get('/stats', (_req: Request, res: Response) => {
-  res.json({ ok: true, data: { totalClients: sseManager.getTotalClients() } });
+// Operational telemetry must not be public: even a connection count can reveal
+// active-clinic usage. Keep the endpoint authenticated like the ticket endpoint.
+router.get('/stats', authenticate, (req: AuthRequest, res: Response) => {
+  const clinicId = req.user?.clinicId;
+  res.json({
+    ok: true,
+    data: clinicId
+      ? { clinicClients: sseManager.getClientCount(clinicId) }
+      : { totalClients: sseManager.getTotalClients() },
+  });
 });
 
 export default router;
