@@ -10,8 +10,8 @@ import { refundDentCashSpend } from './spend.service.js';
  * - spent earn: clawback note
  * - spend: refund PLATFORM → USER
  *
- * When callerId is provided, only rows belonging to that user are reversed.
- * Callers MUST pass the authenticated user's ID to prevent unauthorized refunds.
+ * When callerId is provided, every affected ledger row must belong to that user.
+ * Authorization is completed BEFORE refundDentCashSpend or any wallet mutation.
  */
 export async function reverseCashback(opts: {
   refType: string;
@@ -22,9 +22,15 @@ export async function reverseCashback(opts: {
   /** Authenticated user requesting the refund — enforces ownership. */
   callerId?: string | null;
 }) {
-  // Authorize against the complete set of eligible earn rows before performing
-  // any wallet or ledger side effect. This prevents an unauthorized caller from
-  // triggering the spend refund before ownership validation fails.
+  const spends = await prisma.dentCashLedger.findMany({
+    where: {
+      refType: opts.refType,
+      refId: opts.refId,
+      type: 'spend',
+      status: 'spent',
+    },
+  });
+
   const earns = await prisma.dentCashLedger.findMany({
     where: {
       refType: opts.refType,
@@ -35,9 +41,13 @@ export async function reverseCashback(opts: {
     },
   });
 
+  // Authorization must precede the spend refund and all other mutations.
+  // Previously, refundDentCashSpend() ran first, so an unauthorized caller
+  // could trigger a real DentCash refund before the later ownership check.
   if (opts.callerId) {
-    const unauthorized = earns.some((row) => row.userId !== opts.callerId);
-    if (unauthorized) {
+    const unauthorizedSpend = spends.some((row) => row.userId !== opts.callerId);
+    const unauthorizedEarn = earns.some((row) => row.userId !== opts.callerId);
+    if (unauthorizedSpend || unauthorizedEarn) {
       throw new Error(`Refund denied: caller ${opts.callerId} does not own all ledger rows for ${opts.refType}:${opts.refId}`);
     }
   }
@@ -108,7 +118,8 @@ export async function reverseCashback(opts: {
       });
     }
 
-    // (row already marked reversed by the atomic claim above)
+    // Record the original earn reversal independently from any outstanding
+    // clawback obligation created above.
     await prisma.dentCashLedger.create({
       data: {
         userId: row.userId,

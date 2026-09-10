@@ -1,35 +1,10 @@
-/**
- * The identities the E2E suite logs in as.
- *
- * Fourteen of the sixteen specs authenticate as `owner-a@test.com` and friends,
- * and **nothing created those users**. The suite was written, committed once,
- * and never run: `npm run test:e2e` is not referenced by any CI workflow, so
- * every spec would have failed at `beforeAll` and nobody found out.
- *
- * This seed is the missing half. It is deliberately separate from
- * `seed.ts`, which wipes the database and seeds a Russian-language demo clinic
- * for people to click around in — a different job with a different audience.
- *
- * Two clinics, because a third of the assertions are about the boundary between
- * them: `tenant-isolation.spec.ts` and `idor.spec.ts` are only meaningful if
- * clinic B's data genuinely belongs to someone else.
- *
- * Idempotent throughout, so it can be re-run against a database that already
- * has it without duplicating members or failing on unique email.
- *
- * `nonexistent@test.com` is deliberately absent: four specs assert that logging
- * in as it fails. Seeding it would turn those into false passes.
- */
-
+/** E2E identities and deterministic fixtures. Test-only. */
 import { PrismaClient, type UserRole } from '@prisma/client';
 import bcrypt from 'bcryptjs';
 import { randomUUID } from 'node:crypto';
 
 const prisma = new PrismaClient();
-
-/** Matches the literal in the specs. Test-only, and never used in any seed that could reach production. */
 export const E2E_PASSWORD = 'Test1234!';
-
 export const E2E_CLINIC_A = 'E2E Clinic A';
 export const E2E_CLINIC_B = 'E2E Clinic B';
 
@@ -38,17 +13,9 @@ interface E2EUser {
   firstName: string;
   lastName: string;
   role: UserRole;
-  /** Which clinic they are a member of, or null for a user with no clinic at all. */
   clinic: 'A' | 'B' | null;
 }
 
-/**
- * Exactly the accounts the specs name — no more.
- *
- * `regular@test.com` has no clinic on purpose: `rbac.spec.ts` uses it to check
- * that a logged-in user with no membership is refused, which is a different
- * case from an unauthenticated one.
- */
 export const E2E_USERS: E2EUser[] = [
   { email: 'owner-a@test.com', firstName: 'Owner', lastName: 'ClinicA', role: 'OWNER', clinic: 'A' },
   { email: 'admin-a@test.com', firstName: 'Admin', lastName: 'ClinicA', role: 'ADMIN', clinic: 'A' },
@@ -57,38 +24,54 @@ export const E2E_USERS: E2EUser[] = [
   { email: 'owner-b@test.com', firstName: 'Owner', lastName: 'ClinicB', role: 'OWNER', clinic: 'B' },
   { email: 'doctor-b@test.com', firstName: 'Doctor', lastName: 'ClinicB', role: 'DOCTOR', clinic: 'B' },
   { email: 'regular@test.com', firstName: 'Regular', lastName: 'User', role: 'STUDENT', clinic: null },
+  { email: 'superadmin@test.com', firstName: 'E2E', lastName: 'Superadmin', role: 'SUPERADMIN', clinic: null },
 ];
 
-/**
- * A handful of things to buy.
- *
- * `marketplace.spec.ts` and `payment.spec.ts` both open with "find any product",
- * and on an empty catalogue that assertion fails before either spec reaches its
- * subject — eighteen tests failing for want of a row. The shop is a platform
- * catalogue rather than a per-clinic one, so these belong to no clinic.
- *
- * Stock is generous on purpose. The specs share one catalogue and run in a
- * single worker, so orders placed by `marketplace.spec.ts` come out of the same
- * shelf `payment.spec.ts` reaches for a moment later — a scarce product drains
- * mid-run and every spec after it fails with 409 for reasons that have nothing
- * to do with what it was testing.
- *
- * Nothing is weakened by that: SHOP-007, the one test that needs to exceed the
- * stock, reads the current level and asks for a thousand more than it finds.
- */
 const E2E_PRODUCTS = [
   { name: 'E2E Композит Filtek Z250', price: 18_000, stock: 10_000, category: 'materials' },
   { name: 'E2E Боры алмазные, набор', price: 6_500, stock: 10_000, category: 'instruments' },
   { name: 'E2E Перчатки нитриловые M', price: 4_200, stock: 10_000, category: 'consumables' },
 ];
 
+/**
+ * Checkout now enforces supplier verification. Keep E2E catalogue fixtures
+ * representative of a sellable marketplace state instead of relying on the
+ * old implicit "supplier-less product" path.
+ */
+async function ensureE2ESupplier() {
+  const existing = await prisma.supplier.findFirst({ where: { name: 'E2E Verified Supplier' } });
+  if (existing) {
+    if (existing.status !== 'verified') {
+      return prisma.supplier.update({ where: { id: existing.id }, data: { status: 'verified' } });
+    }
+    return existing;
+  }
+
+  return prisma.supplier.create({
+    data: {
+      id: randomUUID(),
+      name: 'E2E Verified Supplier',
+      kind: 'SUPPLIER',
+      status: 'verified',
+      commissionRate: 1000,
+      isActive: true,
+      email: 'e2e-supplier@test.dentvision',
+      city: 'Алматы',
+      description: 'Verified supplier used only by deterministic E2E fixtures',
+    },
+  });
+}
+
 async function upsertProducts() {
+  const supplier = await ensureE2ESupplier();
+
   for (const p of E2E_PRODUCTS) {
     const existing = await prisma.product.findFirst({ where: { name: p.name } });
     if (existing) {
-      // Restore stock: a previous run's orders will have eaten into it, and
-      // SHOP-007 needs there to still be a ceiling to exceed.
-      await prisma.product.update({ where: { id: existing.id }, data: { stock: p.stock, price: p.price } });
+      await prisma.product.update({
+        where: { id: existing.id },
+        data: { stock: p.stock, price: p.price, supplierId: supplier.id, isActive: true },
+      });
       continue;
     }
     await prisma.product.create({
@@ -100,6 +83,8 @@ async function upsertProducts() {
         category: p.category,
         currency: 'KZT',
         description: 'Тестовая позиция каталога для сквозных сценариев',
+        supplierId: supplier.id,
+        isActive: true,
       },
     });
   }
@@ -108,15 +93,9 @@ async function upsertProducts() {
 async function upsertClinic(name: string) {
   const existing = await prisma.clinic.findFirst({ where: { name } });
   if (existing) return existing;
-  return prisma.clinic.create({
-    data: { id: randomUUID(), name, city: 'Алматы', plan: 'PRO', active: true },
-  });
+  return prisma.clinic.create({ data: { id: randomUUID(), name, city: 'Алматы', plan: 'PRO', active: true } });
 }
 
-/**
- * A clinic on a paid plan, because `planGate` blocks writes on an expired or
- * missing subscription — and almost every spec writes something.
- */
 async function ensureSubscription(clinicId: string) {
   await prisma.subscription.upsert({
     where: { ownerType_ownerId: { ownerType: 'CLINIC', ownerId: clinicId } },
@@ -127,7 +106,6 @@ async function ensureSubscription(clinicId: string) {
 
 export async function seedE2E() {
   const password = await bcrypt.hash(E2E_PASSWORD, 10);
-
   const clinicA = await upsertClinic(E2E_CLINIC_A);
   const clinicB = await upsertClinic(E2E_CLINIC_B);
   await ensureSubscription(clinicA.id);
@@ -137,29 +115,14 @@ export async function seedE2E() {
   for (const spec of E2E_USERS) {
     const user = await prisma.user.upsert({
       where: { email: spec.email },
-      create: {
-        id: randomUUID(),
-        email: spec.email,
-        password,
-        firstName: spec.firstName,
-        lastName: spec.lastName,
-        role: spec.role,
-      },
-      // Reset the password on re-run: a stale hash from an earlier convention
-      // would fail every login with an error that says nothing about why.
+      create: { id: randomUUID(), email: spec.email, password, firstName: spec.firstName, lastName: spec.lastName, role: spec.role },
       update: { password, role: spec.role },
     });
-
     if (!spec.clinic) continue;
     const clinicId = spec.clinic === 'A' ? clinicA.id : clinicB.id;
     const member = await prisma.clinicMember.findFirst({ where: { clinicId, userId: user.id } });
-    if (!member) {
-      await prisma.clinicMember.create({
-        data: { id: randomUUID(), clinicId, userId: user.id, role: spec.role },
-      });
-    }
+    if (!member) await prisma.clinicMember.create({ data: { id: randomUUID(), clinicId, userId: user.id, role: spec.role } });
   }
-
   return { clinicA, clinicB, users: E2E_USERS.length };
 }
 
@@ -171,9 +134,4 @@ async function main() {
   console.log(`[SEED:E2E] ${E2E_PRODUCTS.length} products in the catalogue`);
 }
 
-main()
-  .catch((e) => {
-    console.error('[SEED:E2E] Failed:', e);
-    process.exit(1);
-  })
-  .finally(() => prisma.$disconnect());
+main().catch((e) => { console.error('[SEED:E2E] Failed:', e); process.exit(1); }).finally(() => prisma.$disconnect());
