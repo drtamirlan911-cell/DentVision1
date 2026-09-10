@@ -36,10 +36,9 @@ export default defineConfig({
           'vendor-motion': ['framer-motion'],
           'vendor-icons': ['lucide-react'],
           'vendor-state': ['zustand'],
-          // AI Workspace is the primary authenticated route, but it is not part
-          // of the anonymous Welcome critical path. Keep its dependency graph
-          // out of the initial bundle so mobile first paint stays small.
-          'workspace-ai': ['./src/components/intelligence/AIWorkspaceIndex.tsx'],
+          // Keep the AI workspace as a normal route-level dynamic chunk.
+          // Do not list it in manualChunks: Vite would otherwise emit a
+          // modulepreload for the chunk even on the anonymous entry page.
           // Recharts is used by analytics/dashboard surfaces and should not
           // inflate the public entry bundle.
           'vendor-charts': ['recharts'],
