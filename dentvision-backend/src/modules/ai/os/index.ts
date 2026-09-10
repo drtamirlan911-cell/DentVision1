@@ -16,3 +16,17 @@ export {
   getActionHandler,
   listActions,
 } from './eventActions.js';
+
+// Load the durable AI Employee work-memory subscriber wherever the AI OS is
+// loaded (the backend startup imports this module before starting Event OS).
+import { registerAiEmployeeTaskSubscriber } from './aiEmployeeTaskSubscriber.js';
+registerAiEmployeeTaskSubscriber();
+
+export {
+  createAiEmployeeTask,
+  listAiEmployeeTasks,
+  transitionAiEmployeeTask,
+  type AiEmployeeTask,
+  type AiTaskStatus,
+  type AiTaskRisk,
+} from './aiEmployeeTasks.js';
