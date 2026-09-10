@@ -72,6 +72,9 @@ export async function createAiEmployeeTask(input: CreateAiEmployeeTaskInput): Pr
        ${input.description || null}, ${status}, ${risk}, ${contract.autonomy}, ${input.sourceEventId || null},
        ${input.sourceEventType || null}, ${input.action || null}, ${payload}::jsonb, ${metadata}::jsonb,
        ${input.dueAt || null}, NOW(), NOW())
+    ON CONFLICT (source_event_id, action, role)
+      WHERE source_event_id IS NOT NULL AND action IS NOT NULL
+      DO NOTHING
     RETURNING id, clinic_id AS "clinicId", user_id AS "userId", role, employee_title AS "employeeTitle",
       title, description, status, risk, autonomy, source_event_id AS "sourceEventId",
       source_event_type AS "sourceEventType", action, action_payload AS "actionPayload",
