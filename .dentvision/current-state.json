@@ -1,0 +1,29 @@
+{
+  "schemaVersion": 1,
+  "generated": true,
+  "generator": "quality-scripts/project-index.ts",
+  "branch": "main",
+  "lastIndexedCommit": null,
+  "currentPhase": 0,
+  "phaseName": "CI stabilization",
+  "releaseStatus": "NOT_RELEASED",
+  "qualityGate": "unknown",
+  "ci": "unknown",
+  "e2e": "unknown",
+  "openWork": [
+    "Stabilize CI",
+    "Restore and verify patients.routes.ts against original implementation",
+    "Verify backend runtime and infrastructure",
+    "Complete RBAC/workspace isolation audit",
+    "Complete AI action lifecycle and audit",
+    "Complete web and Android E2E",
+    "Run final release gates"
+  ],
+  "protectedItems": [
+    "Do not merge PR #247 before release gates pass",
+    "Do not invent routes or permissions",
+    "Do not treat model context as durable source of truth"
+  ],
+  "knownRisks": [],
+  "nextTasks": []
+}
