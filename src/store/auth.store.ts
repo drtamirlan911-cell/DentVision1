@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import { User, Clinic, UserRole, RoleCapabilities } from '@/types'
 import * as api from '@/utils/api'
+import { API_URL } from '@/utils/apiOrigin'
 import { useGuestStore } from './guest.store'
 import { useAIStore } from './ai.store'
 import { INIT_CLINICS, INIT_USERS, gid } from '@/utils/constants'
@@ -120,10 +121,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   refresh: async () => {
     try {
       const stored = api.loadTokens(); if (!stored?.refreshToken) throw new Error('No refresh token')
-      // Use the same centralized API origin as every other authenticated request.
-      // A localhost fallback here breaks refresh on custom production domains.
-      const apiOrigin = import.meta.env.VITE_API_URL || (window.location.hostname.includes('vercel.app') ? 'https://dentvision-api.onrender.com' : 'http://localhost:3001')
-      const res = await fetch(`${apiOrigin}/api/auth/refresh`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ refreshToken: stored.refreshToken }) })
+      const res = await fetch(`${API_URL}/api/auth/refresh`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ refreshToken: stored.refreshToken }) })
       if (!res.ok) throw new Error('Refresh failed')
       const raw = await res.json(); const data = raw.data || raw
       api.setTokens(data.accessToken, data.refreshToken); set({ token: data.accessToken, refreshToken: data.refreshToken })
