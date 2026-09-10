@@ -1,30 +1,21 @@
 /**
  * DentVision AI employee heartbeat.
  *
- * This is deliberately deterministic: the heartbeat does not ask the model to
- * decide whether it should wake up. It wakes on a fixed schedule, finds active
- * clinic owners, and emits a DailySummary event. The Event OS then gathers the
- * clinic facts through its tools and lets OpenAI reason over those facts.
- *
- * Keeping the scheduler outside the LLM is important: an unavailable provider
- * must never stop the CRM, and the model must never become the source of truth
- * for whether a clinic exists or who may receive an executive brief.
+ * The heartbeat is deterministic: it never asks the model whether it should
+ * wake up. It finds active clinic owners and emits a DailySummary event. The
+ * Event OS gathers clinic facts through its tools and OpenAI reasons over those
+ * facts. The scheduler itself is owned by an existing durable job loop.
  */
 import prisma from '../lib/prisma.js';
-import { withJobLock } from '../lib/jobLock.js';
 import { eventBus, EventType } from '../modules/events/index.js';
 
-let timer: ReturnType<typeof setInterval> | null = null;
-
-async function runAiEmployeeHeartbeat(): Promise<void> {
+export async function runAiEmployeeHeartbeat(): Promise<void> {
   const clinics = await prisma.clinic.findMany({
     where: { active: true },
     select: {
       id: true,
       members: {
-        where: {
-          role: { in: ['OWNER', 'SUPERADMIN'] },
-        },
+        where: { role: { in: ['OWNER', 'SUPERADMIN'] } },
         select: { userId: true },
         take: 2,
       },
@@ -48,21 +39,4 @@ async function runAiEmployeeHeartbeat(): Promise<void> {
       );
     }
   }
-}
-
-export function startAiEmployeeHeartbeatInterval(ms = 24 * 60 * 60 * 1000): void {
-  if (timer) clearInterval(timer);
-  console.log(`[aiEmployeeHeartbeat] started, interval=${ms}ms`);
-
-  setTimeout(() => {
-    withJobLock('ai_employee_heartbeat', runAiEmployeeHeartbeat).catch((error) => {
-      console.error('[aiEmployeeHeartbeat] boot run failed', error);
-    });
-  }, 60_000);
-
-  timer = setInterval(() => {
-    withJobLock('ai_employee_heartbeat', runAiEmployeeHeartbeat).catch((error) => {
-      console.error('[aiEmployeeHeartbeat] interval failed', error);
-    });
-  }, ms);
 }
