@@ -1,0 +1,18 @@
+{
+  "generated": true,
+  "generator": "quality-scripts/project-index.ts",
+  "requirements": [
+    "authentication",
+    "RBAC",
+    "workspace/tenant isolation",
+    "ownership checks",
+    "idempotency for financial and executable actions",
+    "audit trail for executable AI actions",
+    "authenticated realtime notifications",
+    "no secrets in source"
+  ],
+  "authMiddlewareReferences": [],
+  "rbacReferences": [],
+  "auditReferences": [],
+  "idempotencyReferences": []
+}
