@@ -12,6 +12,9 @@ profileRouter.use(authenticate);
 type ProfileMeta = {
   username?: string; headline?: string; bio?: string; city?: string; country?: string;
   experienceYears?: number; photoUrl?: string; visibility?: 'public' | 'private';
+  profileKind?: 'doctor' | 'ops' | 'staff' | 'platform' | string;
+  professionalStatus?: 'draft' | 'ready' | 'verified';
+  professionalSpecialties?: string[];
   homeQuickServices?: string[];
   homeAiAutoCollapse?: boolean;
   skills?: Array<{ id: string; name: string; level?: string | null }>;
@@ -33,6 +36,9 @@ function shapeUser(user: { id: string; email: string; firstName: string; lastNam
     photoUrl: meta.photoUrl || user.avatar || '', username: meta.username || '',
     headline: meta.headline || '', bio: meta.bio || '', city: meta.city || '', country: meta.country || '',
     experienceYears: meta.experienceYears || 0, visibility: meta.visibility || 'public',
+    profileKind: meta.profileKind || null,
+    professionalStatus: meta.professionalStatus || null,
+    professionalSpecialties: meta.professionalSpecialties || [],
     homeQuickServices: meta.homeQuickServices || [], homeAiAutoCollapse: meta.homeAiAutoCollapse !== false,
     name: [user.firstName, user.lastName].filter(Boolean).join(' '),
   };
@@ -76,6 +82,9 @@ profileRouter.put('/', async (req: AuthRequest, res) => {
       experienceYears: body.experienceYears !== undefined ? Number(body.experienceYears) || 0 : meta.experienceYears,
       photoUrl: body.photoUrl !== undefined ? String(body.photoUrl) : meta.photoUrl,
       visibility: body.visibility === 'private' ? 'private' : (body.visibility === 'public' ? 'public' : meta.visibility),
+      profileKind: body.profileKind !== undefined ? String(body.profileKind) : meta.profileKind,
+      professionalStatus: body.professionalStatus !== undefined ? String(body.professionalStatus) as ProfileMeta['professionalStatus'] : meta.professionalStatus,
+      professionalSpecialties: Array.isArray(body.professionalSpecialties) ? body.professionalSpecialties.map(String).filter(Boolean).slice(0, 12) : meta.professionalSpecialties,
       homeQuickServices: Array.isArray(body.homeQuickServices) ? body.homeQuickServices.map(String).slice(0, 8) : meta.homeQuickServices,
       homeAiAutoCollapse: body.homeAiAutoCollapse !== undefined ? Boolean(body.homeAiAutoCollapse) : meta.homeAiAutoCollapse,
     };
@@ -92,6 +101,49 @@ profileRouter.put('/', async (req: AuthRequest, res) => {
   } catch (error) {
     console.error('Update profile error:', error);
     return res.status(500).json({ ok: false, error: 'Не удалось сохранить профиль' } satisfies ApiResponse);
+  }
+});
+
+// Self-service professional onboarding. This prepares a doctor-facing profile
+// without granting clinical permissions. Clinical access still comes only from
+// a clinic/organization membership and its RBAC context.
+profileRouter.post('/professional/onboard', async (req: AuthRequest, res) => {
+  try {
+    const body = req.body || {};
+    const specialties = Array.isArray(body.specialties)
+      ? body.specialties.map(String).map((value: string) => value.trim()).filter(Boolean).slice(0, 12)
+      : [];
+    const experienceYears = Math.max(0, Math.min(80, Number(body.experienceYears) || 0));
+    const user = await loadUser(req.user!.id);
+    if (!user) return res.status(404).json({ ok: false, error: 'Пользователь не найден' } satisfies ApiResponse);
+    const meta = asMeta(user.profileMeta);
+    const profileMeta: ProfileMeta = {
+      ...meta,
+      profileKind: 'doctor',
+      professionalStatus: specialties.length || body.headline || body.bio ? 'ready' : 'draft',
+      professionalSpecialties: specialties,
+      headline: body.headline !== undefined ? String(body.headline).trim() : meta.headline,
+      bio: body.bio !== undefined ? String(body.bio).trim() : meta.bio,
+      city: body.city !== undefined ? String(body.city).trim() : meta.city,
+      experienceYears,
+    };
+    const updated = await prisma.user.update({
+      where: { id: user.id },
+      data: {
+        spec: specialties[0] || user.spec,
+        profileMeta: profileMeta as object,
+      },
+      select: { id: true, email: true, firstName: true, lastName: true, phone: true, spec: true, avatar: true, role: true, profileMeta: true },
+    });
+    const hasClinicMembership = await prisma.clinicMember.count({ where: { userId: user.id } }) > 0;
+    return res.status(200).json({ ok: true, data: {
+      profile: shapeUser(updated),
+      access: { clinicalEnabled: hasClinicMembership, requiresOrganizationMembership: !hasClinicMembership },
+      next: hasClinicMembership ? 'workspace' : 'join_or_create_organization',
+    }} satisfies ApiResponse);
+  } catch (error) {
+    console.error('Professional onboarding error:', error);
+    return res.status(500).json({ ok: false, error: 'Не удалось создать профессиональный профиль' } satisfies ApiResponse);
   }
 });
 
@@ -113,8 +165,8 @@ async function deleteFromCollection(req: AuthRequest, res: any, key: keyof Profi
 profileRouter.post('/skills', async (req, res) => { try { return await mutateCollection(req as AuthRequest, res, 'skills', { name: req.body?.name, level: req.body?.level || null }); } catch { return res.status(500).json({ ok:false,error:'Ошибка' }); } });
 profileRouter.delete('/skills/:id', async (req, res) => { try { return await deleteFromCollection(req as AuthRequest, res, 'skills'); } catch { return res.status(500).json({ ok:false,error:'Ошибка' }); } });
 profileRouter.post('/certificates', async (req, res) => { try { return await mutateCollection(req as AuthRequest, res, 'certificates', { title:req.body?.title, issuer:req.body?.issuer||null, year:req.body?.year?Number(req.body.year):null, fileUrl:req.body?.fileUrl||null }); } catch { return res.status(500).json({ok:false,error:'Ошибка'}); } });
-profileRouter.delete('/certificates/:id', async (req,res)=>{try{return await deleteFromCollection(req as AuthRequest,res,'certificates')}catch{return res.status(500).json({ok:false,error:'Ошибка'})}});
-profileRouter.post('/achievements', async(req,res)=>{try{return await mutateCollection(req as AuthRequest,res,'achievements',{title:req.body?.title,description:req.body?.description||null,date:req.body?.date||null})}catch{return res.status(500).json({ok:false,error:'Ошибка'})}});
+profileRouter.delete('/certificates/:id',async(req,res)=>{try{return await deleteFromCollection(req as AuthRequest,res,'certificates')}catch{return res.status(500).json({ok:false,error:'Ошибка'})}});
+profileRouter.post('/achievements',async(req,res)=>{try{return await mutateCollection(req as AuthRequest,res,'achievements',{title:req.body?.title,description:req.body?.description||null,date:req.body?.date||null})}catch{return res.status(500).json({ok:false,error:'Ошибка'})}});
 profileRouter.delete('/achievements/:id',async(req,res)=>{try{return await deleteFromCollection(req as AuthRequest,res,'achievements')}catch{return res.status(500).json({ok:false,error:'Ошибка'})}});
 profileRouter.post('/portfolio',async(req,res)=>{try{return await mutateCollection(req as AuthRequest,res,'portfolio',{title:req.body?.title,description:req.body?.description||null,imageUrl:req.body?.imageUrl||null,link:req.body?.link||null})}catch{return res.status(500).json({ok:false,error:'Ошибка'})}});
 profileRouter.delete('/portfolio/:id',async(req,res)=>{try{return await deleteFromCollection(req as AuthRequest,res,'portfolio')}catch{return res.status(500).json({ok:false,error:'Ошибка'})}});
