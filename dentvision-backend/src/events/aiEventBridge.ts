@@ -46,6 +46,20 @@ export function registerAIEventBridge(): void {
     await aiEventBus.publish(EventType.LabOrderCompleted, { labOrderId, patientId: patientId || '', doctorId: doctorId || '', status: order?.status || status, previousStatus }, { clinicId, userId: userId || doctorId || 'system', source: 'crm.labOrder.status_changed' });
   });
 
+  subscribe('diagnostics.result_ready', async ({ referralId, resultId, clinicId, centerId, doctorId, patientName, studyType, userId }) => {
+    // The domain event already enforces clinic/center/doctor ownership upstream.
+    // Only identifiers and routing metadata enter the AI Event OS; medical report
+    // text, files and conclusions stay behind the authorized referral API.
+    await aiEventBus.publish(EventType.DiagnosticResultReady, {
+      referralId,
+      resultId,
+      centerId,
+      doctorId,
+      patientName,
+      studyType,
+    }, { clinicId, userId: userId || doctorId || 'system', source: 'diagnostics.result_ready' });
+  });
+
   subscribe('diagnostics.booking.created', async ({ centerId, bookingId, studyId, patientName, date, time, status, userId }) => {
     await aiEventBus.publish(EventType.DiagnosticBookingCreated, {
       bookingId, centerId, studyId, patientName, date, time, status,
