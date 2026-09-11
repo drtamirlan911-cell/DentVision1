@@ -3,44 +3,80 @@ import { authenticate } from '../../middleware/auth.js';
 import prisma from '../../lib/prisma.js';
 import { writeAuditLog } from './legal.audit.js';
 import { onboardPartner, buildDocumentContent } from './legal.service.js';
+import { ensureLegalTrustPackage, getLegalPartnerForContext } from './legal.trust.service.js';
 import { resolveAnyClinicMembership } from '../../lib/orgContext.js';
 
 const router = Router();
 
 router.use(authenticate);
 
+async function resolveLegalOrganizationId(req: any): Promise<string | null> {
+  const requested = req.user?.organizationId as string | undefined;
+  if (requested) {
+    const organization = await prisma.organization.findUnique({ where: { id: requested }, select: { id: true } });
+    if (organization) return organization.id;
+  }
+
+  const clinicId = req.user?.clinicId as string | undefined || (await resolveAnyClinicMembership(req.user.id))?.clinicId;
+  if (!clinicId) return null;
+
+  const organization = await prisma.organization.findFirst({
+    where: { originalType: 'Clinic', originalId: clinicId },
+    select: { id: true },
+  });
+  return organization?.id || null;
+}
+
+async function resolveRequestPartner(req: any) {
+  const organizationId = await resolveLegalOrganizationId(req);
+  const scoped = await getLegalPartnerForContext(req.user.id, organizationId);
+  if (scoped) return { partner: scoped, organizationId };
+  const legacy = await getLegalPartnerForContext(req.user.id);
+  return { partner: legacy, organizationId };
+}
+
 router.post('/onboard', async (req: any, res, next) => {
   try {
-    const existing = await prisma.legalPartner.findUnique({ where: { userId: req.user.id } });
+    const { organizationId } = await resolveRequestPartner(req);
+    if (!organizationId) {
+      return res.status(400).json({ ok: false, error: 'Выберите рабочую организацию перед оформлением юридического пакета.' });
+    }
+
+    const existing = await getLegalPartnerForContext(req.user.id, organizationId);
     if (existing) return res.json({ ok: true, data: existing });
 
-    const membership = await resolveAnyClinicMembership(req.user.id);
-    if (!membership) return res.status(400).json({ ok: false, error: 'У вас нет клиники. Создайте клинику в панели управления.' });
+    const organization = await prisma.organization.findUnique({ where: { id: organizationId } });
+    if (!organization) return res.status(400).json({ ok: false, error: 'Организация не найдена' });
 
-    const clinic = await prisma.clinic.findUnique({ where: { id: membership.clinicId } });
-    const defaultName = clinic?.name || `${req.user.firstName} ${req.user.lastName}`;
-    const partner = await onboardPartner({
+    const clinic = organization.originalType === 'Clinic' && organization.originalId
+      ? await prisma.clinic.findUnique({ where: { id: organization.originalId } })
+      : null;
+    const defaultName = organization.name || clinic?.name || `${req.user.firstName} ${req.user.lastName}`;
+
+    const partner = await ensureLegalTrustPackage({
       userId: req.user.id,
-      type: 'CLINIC',
+      organizationId,
+      type: organization.type === 'CORPORATE' ? 'CORPORATE' : 'CLINIC',
       legalName: req.body.legalName || defaultName,
-      bin: req.body.bin || '',
-      director: req.body.director || '',
-      address: req.body.address || '',
+      bin: req.body.bin || organization.taxId || '',
+      director: req.body.director || `${req.user.firstName} ${req.user.lastName}`,
+      address: req.body.address || organization.address || '',
       iban: req.body.iban || '',
-      phone: req.body.phone || '',
-      email: req.body.email || req.user.email,
-    }, req.user.id);
+      phone: req.body.phone || organization.phone || '',
+      email: req.body.email || organization.email || req.user.email,
+    });
     res.json({ ok: true, data: partner });
   } catch (err) { next(err); }
 });
 
 router.use(async (req: any, res, next) => {
   try {
-    const partner = await prisma.legalPartner.findUnique({ where: { userId: req.user?.id } });
+    const { partner, organizationId } = await resolveRequestPartner(req);
     if (!partner) {
       return res.status(403).json({ ok: false, error: 'Доступ только для партнёров платформы' });
     }
     req.partner = partner;
+    req.legalOrganizationId = organizationId;
     next();
   } catch (err) { next(err); }
 });
@@ -52,7 +88,6 @@ router.get('/documents', async (req: any, res, next) => {
       include: { template: true, versions: { orderBy: { version: 'desc' }, take: 1 } },
       orderBy: { createdAt: 'desc' },
     });
-    // Auto-regenerate documents that still have raw variables
     const hasRaw = (c: string) => /\{\{\w+\}\}/.test(c);
     const partner = req.partner;
     for (const doc of docs) {
@@ -86,7 +121,6 @@ router.get('/documents', async (req: any, res, next) => {
         });
       }
     }
-    // Re-fetch after regeneration
     docs = await prisma.legalDocument.findMany({
       where: { partnerId: req.partner.id },
       include: { template: true, versions: { orderBy: { version: 'desc' }, take: 1 } },
