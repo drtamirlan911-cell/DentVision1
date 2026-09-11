@@ -36,9 +36,24 @@ This log is the durable handoff between work sessions/agents. It records complet
 - `28fdae6dd1f3b66be60b9c331a8ba4e38aef1371` — `partner-economics.service.ts` with canonical diagnostics/3D, medical-analysis and dental-lab rules, floors/caps/tiers, operating-cost and contribution-margin calculation, explicit status, durable idempotent operation ledger, and rule-version snapshots.
 - `380828ec11939c4fe1b157bd4cdad0d584fe738c` — calculator tests for floors, caps, dental-lab tiers, loss detection and rule snapshots.
 - `29eda06dad3e6f4dadc807b68a4f37eda088fb84` — Prisma JSON typing fix.
+- `af7743b655da4e406432d7aabd25f1cc19212675` — serialized economics rule initialization to prevent duplicate rule creation under concurrent workers.
+
+## 2026-09-12 — Google Sign-In connected to the actual login UI
+
+### Implemented
+- Backend already had a complete ID-token verification path in `dentvision-backend/src/modules/auth/googleAuth.ts`, including audience/issuer/signature validation through `google-auth-library`, verified-email enforcement, Google account creation/linking, normal session/JWT issuance, audit events, and shared permission hydration.
+- Frontend already had Google Identity Services loading/rendering and `loginWithGoogle` API/store support, but the production login modal was not actually rendering the Google button.
+- `6090077918b77d85c0b5c5784c0f8953f6761c8d` connected `GoogleSignInButton` to `LoginModal` for both sign-in and registration.
+- `fba72f2930aacfaab2d3d373f0f7f93959c18f87` corrected the modal to use the hook API without illegal direct store access.
+- Google remains safely feature-gated by `VITE_GOOGLE_CLIENT_ID`; when the client id is absent, the button does not render. Backend similarly returns a controlled 503 when `GOOGLE_CLIENT_ID` is not configured.
+
+### Current verification state
+- Code path is now end-to-end wired in the repository: Google GIS button → ID token → `/api/auth/google` → verified profile → account/linking → normal DentVision session/permissions.
+- Production readiness still depends on the actual `VITE_GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_ID` configuration and authorized Google origin(s), followed by CI/build and a real browser login test.
+- Phase 0 remains **NOT PASSED** until the current CI run confirms the migration chain and the frontend integration builds cleanly.
 
 ### Next action
-1. Validate the Google sign-in migration fix through CI/E2E.
-2. If green, harden economics rule initialization against concurrent creation.
-3. Wire economics into real diagnostics payment/mark-paid, medical-analysis and dental-lab settlement flows.
-4. Add partner-visible economics breakdown and Finance Hub aggregation.
+1. Check the latest CI/Quality Gate for `fba72f2930aacfaab2d3d373f0f7f93959c18f87`.
+2. If green, wire the canonical Economics Engine into real diagnostics payment/mark-paid, medical-analysis and dental-lab settlement flows.
+3. Add partner-visible economics breakdown and Finance Hub aggregation.
+4. Then continue product implementation rather than starting another broad audit cycle.
