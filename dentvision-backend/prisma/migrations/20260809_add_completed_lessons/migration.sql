@@ -1,6 +1,11 @@
 -- Add completedLessons field to SchoolEnrollment.
---
--- IF NOT EXISTS for the same reason as the notification-preferences migration:
--- a bare ADD COLUMN fails with 42701 on a re-run and a failed migration blocks
--- every migration after it in the chain.
-ALTER TABLE "school_enrollments" ADD COLUMN IF NOT EXISTS "completedLessons" JSONB;
+-- The legacy init schema may be applied later in the migration ordering, so
+-- this migration must remain safe on a fresh database where the table does
+-- not exist yet. A later compatibility migration can add the field after the
+-- base schema is present.
+DO $$
+BEGIN
+  IF to_regclass('public.school_enrollments') IS NOT NULL THEN
+    ALTER TABLE "school_enrollments" ADD COLUMN IF NOT EXISTS "completedLessons" JSONB;
+  END IF;
+END $$;
