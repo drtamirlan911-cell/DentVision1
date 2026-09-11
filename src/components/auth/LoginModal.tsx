@@ -52,7 +52,7 @@ const LoginModal: React.FC<LoginModalProps> = ({ isOpen, returnUrl, onClose }) =
     try {
       const ok = await loginWithGoogle(idToken);
       if (!ok) {
-        setError(useAuth.getState().error || 'Не удалось войти через Google');
+        setError('Не удалось войти через Google');
         return;
       }
       finishAuth();
@@ -74,7 +74,7 @@ const LoginModal: React.FC<LoginModalProps> = ({ isOpen, returnUrl, onClose }) =
     try {
       const ok = await login(loginInput, password);
       if (!ok) {
-        setError(useAuth.getState().error || t('auth.login_failed'));
+        setError(t('auth.login_failed'));
         return;
       }
       finishAuth();
@@ -112,7 +112,7 @@ const LoginModal: React.FC<LoginModalProps> = ({ isOpen, returnUrl, onClose }) =
     try {
       const ok = await register({ name, login: loginInput, password });
       if (!ok) {
-        setError(useAuth.getState().error || t('auth.register_error'));
+        setError(t('auth.register_error'));
         return;
       }
       finishAuth();
@@ -196,21 +196,11 @@ const LoginModal: React.FC<LoginModalProps> = ({ isOpen, returnUrl, onClose }) =
                 </div>
 
                 <div className="space-y-4">
-                  {!isRegister && (
-                    <GoogleSignInButton
-                      onCredential={handleGoogleCredential}
-                      text="continue_with"
-                      divider
-                    />
-                  )}
-
-                  {isRegister && (
-                    <GoogleSignInButton
-                      onCredential={handleGoogleCredential}
-                      text="signup_with"
-                      divider
-                    />
-                  )}
+                  <GoogleSignInButton
+                    onCredential={handleGoogleCredential}
+                    text={isRegister ? 'signup_with' : 'continue_with'}
+                    divider
+                  />
 
                   {isRegister && (
                     <div>
