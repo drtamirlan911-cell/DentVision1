@@ -17,6 +17,7 @@ initSentry();
 const AIWorkspaceIndex = lazyWithRetry(() => import('./components/intelligence/AIWorkspaceIndex'));
 const Login = lazyWithRetry(() => import('./pages/auth/Login'));
 const ForgotPassword = lazyWithRetry(() => import('./pages/auth/ForgotPassword'));
+const PublicBookingDiscovery = lazyWithRetry(() => import('./pages/auth/PublicBookingDiscovery'));
 const PublicBooking = lazyWithRetry(() => import('./pages/auth/PublicBooking'));
 const DocumentSign = lazyWithRetry(() => import('./pages/auth/DocumentSign'));
 const TreatmentPresentation = lazyWithRetry(() => import('./pages/patient-portal/TreatmentPresentation'));
@@ -121,6 +122,7 @@ if (container) {
             <Routes>
               <Route path="/login" element={<Suspense fallback={<PageLoader />}><Login /></Suspense>} />
               <Route path="/forgot-password" element={<Suspense fallback={<PageLoader />}><ForgotPassword /></Suspense>} />
+              <Route path="/book/discover" element={<Suspense fallback={<PageLoader />}><PublicBookingDiscovery /></Suspense>} />
               <Route path="/book/:clinicId" element={<Suspense fallback={<PageLoader />}><PublicBooking /></Suspense>} />
               <Route path="/sign/:token" element={<Suspense fallback={<PageLoader />}><DocumentSign /></Suspense>} />
               <Route path="/plan/:releaseId" element={<Suspense fallback={<PageLoader />}><TreatmentPresentation /></Suspense>} />
