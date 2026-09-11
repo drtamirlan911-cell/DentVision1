@@ -2,7 +2,7 @@ import { useState, type ReactNode } from 'react';
 import { motion } from 'framer-motion';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
-import { FileText, Clock, CheckCircle, AlertTriangle, Activity, ArrowRight, Plus, Database, Search, MapPin, Stethoscope } from 'lucide-react';
+import { FileText, Clock, CheckCircle, AlertTriangle, Activity, ArrowRight, Plus, Database, Search, MapPin } from 'lucide-react';
 import { Card } from '@/components/ui/ds/Card';
 import { Button } from '@/components/ui/ds/Button';
 import { Skeleton } from '@/components/ui/ds/Skeleton';
@@ -14,116 +14,22 @@ import { API_URL } from '@/utils/apiOrigin';
 import { useDiagnosticsOrgScope } from './orgScope';
 
 export default function DiagnosticsDashboard() {
-  const { role, isAuthenticated } = useAuth();
-  const navigate = useNavigate();
-  const queryClient = useQueryClient();
-  const { clinicId, orgKind, orgId } = useDiagnosticsOrgScope();
-  const [seeding, setSeeding] = useState(false);
-  const [city, setCity] = useState('');
-  const [category, setCategory] = useState('');
-
-  const isSuperAdmin = role === 'superadmin';
-  const scope = orgKind === 'LAB' ? { labId: orgId } : orgKind === 'CENTER' ? { centerId: orgId } : { clinicId };
-  const scopeReady = orgKind ? !!orgId : !!clinicId;
-
-  const { data, isLoading, isError, refetch } = useQuery({
-    queryKey: queryKeys.diagnostics.dashboard(orgId || clinicId),
-    queryFn: () => api.getDiagnosticsDashboard(scope),
-    enabled: isAuthenticated && scopeReady,
-  });
-
-  const discoveryQuery = useQuery({
-    queryKey: ['public-diagnostics-discovery', city, category],
-    queryFn: async () => {
-      const params = new URLSearchParams();
-      if (city.trim()) params.set('city', city.trim());
-      if (category.trim()) params.set('category', category.trim());
-      const response = await fetch(`${API_URL}/api/public/diagnostics/discover?${params.toString()}`);
-      if (!response.ok) throw new Error('Не удалось загрузить диагностические центры');
-      return response.json() as Promise<{ ok: boolean; data?: { centers?: any[] } }>;
-    },
-    enabled: !isAuthenticated,
-    staleTime: 60_000,
-  });
+  const { role, isAuthenticated } = useAuth(); const navigate = useNavigate(); const queryClient = useQueryClient();
+  const { clinicId, orgKind, orgId } = useDiagnosticsOrgScope(); const [seeding, setSeeding] = useState(false); const [city, setCity] = useState(''); const [category, setCategory] = useState('');
+  const isSuperAdmin = role === 'superadmin'; const scope = orgKind === 'LAB' ? { labId: orgId } : orgKind === 'CENTER' ? { centerId: orgId } : { clinicId }; const scopeReady = orgKind ? !!orgId : !!clinicId;
+  const { data, isLoading, isError, refetch } = useQuery({ queryKey: queryKeys.diagnostics.dashboard(orgId || clinicId), queryFn: () => api.getDiagnosticsDashboard(scope), enabled: isAuthenticated && scopeReady });
+  const discoveryQuery = useQuery({ queryKey: ['public-diagnostics-discovery', city, category], queryFn: async () => { const params = new URLSearchParams(); if (city.trim()) params.set('city', city.trim()); if (category.trim()) params.set('category', category.trim()); const response = await fetch(`${API_URL}/api/public/diagnostics/discover?${params.toString()}`); if (!response.ok) throw new Error('Не удалось загрузить диагностические центры'); return response.json() as Promise<{ ok: boolean; data?: { centers?: any[] } }>; }, enabled: !isAuthenticated, staleTime: 60_000 });
 
   if (!isAuthenticated) {
     const centers = discoveryQuery.data?.data?.centers || [];
-    return (
-      <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className="p-5 md:p-8 space-y-6 max-w-6xl mx-auto">
-        <div className="max-w-3xl">
-          <div className="flex items-center gap-3 text-xs text-primary font-medium mb-3"><Activity size={15} /> DentVision Diagnostics</div>
-          <h1 className="text-3xl md:text-4xl font-semibold tracking-tight text-txt-primary">Найдите диагностический центр</h1>
-          <p className="mt-3 text-sm md:text-base leading-6 text-txt-muted">3D-диагностика и исследования в одном каталоге. Сначала выбирайте центр и исследование — регистрация нужна только для персонального заказа и результатов.</p>
-        </div>
-
-        <Card padding="md" className="border-bdr-subtle">
-          <div className="grid grid-cols-1 md:grid-cols-[1fr_1fr_auto] gap-3">
-            <label className="relative block">
-              <MapPin size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-txt-muted" />
-              <input value={city} onChange={e => setCity(e.target.value)} placeholder="Город" className="w-full min-h-11 rounded-xl border border-bdr-subtle bg-surface-1 pl-9 pr-3 text-sm text-txt-primary outline-none focus:ring-1 focus:ring-dv-gold" />
-            </label>
-            <label className="relative block">
-              <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-txt-muted" />
-              <input value={category} onChange={e => setCategory(e.target.value)} placeholder="Исследование или категория" className="w-full min-h-11 rounded-xl border border-bdr-subtle bg-surface-1 pl-9 pr-3 text-sm text-txt-primary outline-none focus:ring-1 focus:ring-dv-gold" />
-            </label>
-            <Button variant="primary" className="min-h-11" onClick={() => void discoveryQuery.refetch()} icon={<Search size={15} />}>Найти</Button>
-          </div>
-        </Card>
-
-        {discoveryQuery.isLoading ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4"><Skeleton className="h-48 rounded-2xl" /><Skeleton className="h-48 rounded-2xl" /></div>
-        ) : discoveryQuery.isError ? (
-          <Card padding="lg"><div className="text-sm text-txt-muted">Каталог временно недоступен. Попробуйте ещё раз.</div></Card>
-        ) : centers.length === 0 ? (
-          <Card padding="lg"><div className="flex min-h-40 items-center justify-center flex-col gap-2 text-center"><Activity size={36} className="opacity-20" /><p className="text-sm text-txt-muted">Центры по вашему запросу не найдены</p><p className="text-xs text-txt-ghost">Попробуйте изменить город или исследование.</p></div></Card>
-        ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {centers.map((center: any) => (
-              <Card key={center.id} padding="md" className="transition-colors hover:border-dv-gold/30">
-                <div className="flex items-start justify-between gap-4">
-                  <div className="min-w-0">
-                    <h2 className="text-base font-semibold text-txt-primary truncate">{center.name}</h2>
-                    <p className="mt-1 flex items-center gap-1 text-xs text-txt-muted"><MapPin size={12} />{center.city || 'Город не указан'}{center.address ? ` · ${center.address}` : ''}</p>
-                  </div>
-                  {center.rating != null && <span className="text-xs text-txt-muted">Рейтинг {Number(center.rating).toFixed(1)}</span>}
-                </div>
-                <div className="mt-4 flex flex-wrap gap-2">
-                  {(center.studies || []).slice(0, 6).map((study: any) => (
-                    <span key={study.id} className="rounded-full border border-bdr-subtle bg-surface-1 px-2.5 py-1 text-xs text-txt-muted">
-                      {study.name}{study.price != null ? ` · ${Number(study.price).toLocaleString('ru-RU')} ₸` : ''}
-                    </span>
-                  ))}
-                </div>
-                <div className="mt-5 flex items-center justify-between gap-3">
-                  <span className="text-xs text-txt-ghost">{center.studies?.length || 0} доступных исследований</span>
-                  <Button variant="secondary" size="sm" onClick={() => navigate('/login?role=patient&redirect=/diagnostics')}>Войти для заказа <ArrowRight size={14} /></Button>
-                </div>
-              </Card>
-            ))}
-          </div>
-        )}
-      </motion.div>
-    );
+    return <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className="p-5 md:p-8 space-y-6 max-w-6xl mx-auto"><div className="max-w-3xl"><div className="flex items-center gap-3 text-xs text-dv-gold font-medium mb-3"><Activity size={15} /> DentVision Diagnostics</div><h1 className="text-3xl md:text-4xl font-semibold tracking-tight text-txt-primary">Найдите диагностический центр</h1><p className="mt-3 text-sm md:text-base leading-6 text-txt-muted">3D-диагностика и исследования в одном каталоге. Сначала выбирайте центр и исследование — регистрация нужна только для персонального заказа и результатов.</p></div>
+      <Card padding="md" className="border-bdr-subtle"><div className="grid grid-cols-1 md:grid-cols-[1fr_1fr_auto] gap-3"><label className="relative block"><MapPin size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-txt-muted" /><input value={city} onChange={e => setCity(e.target.value)} placeholder="Город" className="w-full min-h-11 rounded-xl border border-bdr-subtle bg-surface-1 pl-9 pr-3 text-sm text-txt-primary outline-none focus:ring-1 focus:ring-dv-gold" /></label><label className="relative block"><Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-txt-muted" /><input value={category} onChange={e => setCategory(e.target.value)} placeholder="Исследование или категория" className="w-full min-h-11 rounded-xl border border-bdr-subtle bg-surface-1 pl-9 pr-3 text-sm text-txt-primary outline-none focus:ring-1 focus:ring-dv-gold" /></label><Button variant="primary" className="min-h-11" onClick={() => void discoveryQuery.refetch()} icon={<Search size={15} />}>Найти</Button></div></Card>
+      {discoveryQuery.isLoading ? <div className="grid grid-cols-1 md:grid-cols-2 gap-4"><Skeleton className="h-48 rounded-2xl" /><Skeleton className="h-48 rounded-2xl" /></div> : discoveryQuery.isError ? <Card padding="lg"><div className="text-sm text-txt-muted">Каталог временно недоступен. Попробуйте ещё раз.</div></Card> : centers.length === 0 ? <Card padding="lg"><div className="flex min-h-40 items-center justify-center flex-col gap-2 text-center"><Activity size={36} className="opacity-20" /><p className="text-sm text-txt-muted">Центры по вашему запросу не найдены</p><p className="text-xs text-txt-ghost">Попробуйте изменить город или исследование.</p></div></Card> : <div className="grid grid-cols-1 md:grid-cols-2 gap-4">{centers.map((center: any) => <Card key={center.id} padding="md" className="transition-colors hover:border-dv-gold/30"><div className="flex items-start justify-between gap-4"><div className="min-w-0"><h2 className="text-base font-semibold text-txt-primary truncate">{center.name}</h2><p className="mt-1 flex items-center gap-1 text-xs text-txt-muted"><MapPin size={12} />{center.city || 'Город не указан'}{center.address ? ` · ${center.address}` : ''}</p></div>{center.rating != null && <span className="text-xs text-txt-muted">Рейтинг {Number(center.rating).toFixed(1)}</span>}</div><div className="mt-4 flex flex-wrap gap-2">{(center.studies || []).slice(0, 6).map((study: any) => <span key={study.id} className="rounded-full border border-bdr-subtle bg-surface-1 px-2.5 py-1 text-xs text-txt-muted">{study.name}{study.price != null ? ` · ${Number(study.price).toLocaleString('ru-RU')} ₸` : ''}</span>)}</div><div className="mt-5 flex items-center justify-between gap-3"><span className="text-xs text-txt-ghost">{center.studies?.length || 0} доступных исследований</span><Button variant="secondary" size="sm" onClick={() => navigate('/login?role=patient&redirect=/diagnostics')}>Войти для заказа <ArrowRight size={14} /></Button></div></Card>)}</div>}
+    </motion.div>;
   }
 
   const stats: Array<{ label: string; value: number; icon: ReactNode; tone?: StatTone }> = [
-    { label: 'Направлений сегодня', value: data?.todayCount ?? 0, icon: <FileText size={18} /> },
-    { label: 'В ожидании', value: data?.pending ?? 0, icon: <Clock size={18} /> },
-    { label: 'Готово', value: data?.completed ?? 0, icon: <CheckCircle size={18} />, tone: 'success' },
-    { label: 'Просрочено', value: data?.overdue ?? 0, icon: <AlertTriangle size={18} />, tone: 'error' },
-    { label: 'Всего', value: data?.total ?? 0, icon: <Activity size={18} /> },
-  ];
-  const recent = data?.recent || [];
-
-  return (
-    <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className="p-6 space-y-6 max-w-full overflow-x-hidden">
-      <PageHeader title="Диагностика" subtitle="Единый центр диагностики — 3D и лабораторные исследования" icon={<Activity size={22} />} actions={<><Button variant="primary" icon={<Plus size={16} />} onClick={() => navigate('/diagnostics/referrals/new')} className="min-h-11">Новое направление</Button>{isSuperAdmin && <Button variant="ghost" icon={<Database size={14} />} className="min-h-11" onClick={async () => { setSeeding(true); try { await api.seedDiagnosticsTestData(); queryClient.invalidateQueries(); } catch {} setSeeding(false); }} disabled={seeding}>{seeding ? 'Создание...' : 'Seed тестовые'}</Button>}</>} />
-      {isError && !isLoading && <div className="rounded-xl border border-error/30 bg-error/10 px-4 py-3 text-sm text-txt-primary flex flex-wrap items-center gap-3"><span className="flex-1">Не удалось загрузить данные диагностики.</span><Button size="sm" variant="secondary" onClick={() => refetch()}>Повторить</Button></div>}
-      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-4">{isLoading ? stats.map((_, i) => <Skeleton key={i} className="h-28 rounded-xl" />) : stats.map((s) => <StatCard key={s.label} label={s.label} value={s.value} icon={s.icon} tone={s.tone} />)}</div>
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <Card padding="md"><div className="flex flex-wrap items-center justify-between gap-2 mb-3"><h3 className="text-sm font-semibold text-txt-primary">Последние исследования</h3><Button variant="ghost" size="xs" icon={<ArrowRight size={14} />} onClick={() => navigate('/diagnostics/referrals')}>Все</Button></div>{isLoading ? <Skeleton className="h-40" /> : recent.length === 0 ? <div className="flex items-center justify-center h-40 text-txt-muted text-sm flex-col gap-2"><FileText size={32} className="opacity-20" />Нет направлений. Создайте новое направление.</div> : <div className="space-y-2">{recent.slice(0, 5).map((r: any) => <div key={r.id} className="flex items-center gap-3 p-2 min-h-11 rounded-lg hover:bg-surface-1/50 cursor-pointer transition-colors" onClick={() => navigate(`/diagnostics/referrals/${r.id}`)}><div className="w-8 h-8 rounded-lg bg-dv-gold/10 flex items-center justify-center text-dv-gold text-xs font-bold">{r.patientName?.slice(0, 1) || '?'}</div><div className="flex-1 min-w-0"><p className="text-sm font-medium text-txt-primary truncate">{r.patientName}</p><p className="text-xs text-txt-muted">{r.studyType} · {r.clinic?.name}</p></div><span className="text-xs text-txt-ghost">{new Date(r.createdAt).toLocaleDateString('ru-RU')}</span></div>)}</div>}</Card>
-        <Card padding="md"><h3 className="text-sm font-semibold text-txt-primary mb-3">Быстрые действия</h3><div className="space-y-2"><button onClick={() => navigate('/diagnostics/referrals/new')} className="w-full flex items-center gap-3 p-3 min-h-11 rounded-xl bg-dv-gold/5 border border-dv-gold/20 hover:bg-dv-gold/10 transition-colors text-left"><FileText size={18} className="text-dv-gold" /><div><p className="text-sm font-medium text-txt-primary">Создать направление</p><p className="text-xs text-txt-muted">3D или лаборатория</p></div></button><button onClick={() => navigate('/diagnostics/centers')} className="w-full flex items-center gap-3 p-3 min-h-11 rounded-xl bg-surface-1/50 border border-bdr-subtle hover:bg-surface-1 transition-colors text-left"><Activity size={18} className="text-info" /><div><p className="text-sm font-medium text-txt-primary">Найти диагностический центр</p><p className="text-xs text-txt-muted">Поиск по городу и исследованиям</p></div></button><button onClick={() => navigate('/diagnostics/results')} className="w-full flex items-center gap-3 p-3 min-h-11 rounded-xl bg-surface-1/50 border border-bdr-subtle hover:bg-surface-1 transition-colors text-left"><CheckCircle size={18} className="text-success" /><div><p className="text-sm font-medium text-txt-primary">Просмотреть результаты</p><p className="text-xs text-txt-muted">Готовые исследования</p></div></button></div></Card>
-      </div>
-    </motion.div>
-  );
+    { label: 'Направлений сегодня', value: data?.todayCount ?? 0, icon: <FileText size={18} /> }, { label: 'В ожидании', value: data?.pending ?? 0, icon: <Clock size={18} /> }, { label: 'Готово', value: data?.completed ?? 0, icon: <CheckCircle size={18} />, tone: 'success' }, { label: 'Просрочено', value: data?.overdue ?? 0, icon: <AlertTriangle size={18} />, tone: 'error' }, { label: 'Всего', value: data?.total ?? 0, icon: <Activity size={18} /> },
+  ]; const recent = data?.recent || [];
+  return <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className="p-6 space-y-6 max-w-full overflow-x-hidden"><PageHeader title="Диагностика" subtitle="Единый центр диагностики — 3D и лабораторные исследования" icon={<Activity size={22} />} actions={<><Button variant="primary" icon={<Plus size={16} />} onClick={() => navigate('/diagnostics/referrals/new')} className="min-h-11">Новое направление</Button>{isSuperAdmin && <Button variant="ghost" icon={<Database size={14} />} className="min-h-11" onClick={async () => { setSeeding(true); try { await api.seedDiagnosticsTestData(); queryClient.invalidateQueries(); } catch {} setSeeding(false); }} disabled={seeding}>{seeding ? 'Создание...' : 'Seed тестовые'}</Button>}</>} />{isError && !isLoading && <div className="rounded-xl border border-error/30 bg-error/10 px-4 py-3 text-sm text-txt-primary flex flex-wrap items-center gap-3"><span className="flex-1">Не удалось загрузить данные диагностики.</span><Button size="sm" variant="secondary" onClick={() => refetch()}>Повторить</Button></div>}<div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-4">{isLoading ? stats.map((_, i) => <Skeleton key={i} className="h-28 rounded-xl" />) : stats.map(s => <StatCard key={s.label} label={s.label} value={s.value} icon={s.icon} tone={s.tone} />)}</div><div className="grid grid-cols-1 lg:grid-cols-2 gap-4"><Card padding="md"><div className="flex flex-wrap items-center justify-between gap-2 mb-3"><h3 className="text-sm font-semibold text-txt-primary">Последние исследования</h3><Button variant="ghost" size="xs" icon={<ArrowRight size={14} />} onClick={() => navigate('/diagnostics/referrals')}>Все</Button></div>{isLoading ? <Skeleton className="h-40" /> : recent.length === 0 ? <div className="flex items-center justify-center h-40 text-txt-muted text-sm flex-col gap-2"><FileText size={32} className="opacity-20" />Нет направлений. Создайте новое направление.</div> : <div className="space-y-2">{recent.slice(0, 5).map((r: any) => <div key={r.id} className="flex items-center gap-3 p-2 min-h-11 rounded-lg hover:bg-surface-1/50 cursor-pointer transition-colors" onClick={() => navigate(`/diagnostics/referrals/${r.id}`)}><div className="w-8 h-8 rounded-lg bg-dv-gold/10 flex items-center justify-center text-dv-gold text-xs font-bold">{r.patientName?.slice(0, 1) || '?'}</div><div className="flex-1 min-w-0"><p className="text-sm font-medium text-txt-primary truncate">{r.patientName}</p><p className="text-xs text-txt-muted">{r.studyType} · {r.clinic?.name}</p></div><span className="text-xs text-txt-ghost">{new Date(r.createdAt).toLocaleDateString('ru-RU')}</span></div>)}</div>}</Card><Card padding="md"><h3 className="text-sm font-semibold text-txt-primary mb-3">Быстрые действия</h3><div className="space-y-2"><button onClick={() => navigate('/diagnostics/referrals/new')} className="w-full flex items-center gap-3 p-3 min-h-11 rounded-xl bg-dv-gold/5 border border-dv-gold/20 hover:bg-dv-gold/10 transition-colors text-left"><FileText size={18} className="text-dv-gold" /><div><p className="text-sm font-medium text-txt-primary">Создать направление</p><p className="text-xs text-txt-muted">3D или лаборатория</p></div></button><button onClick={() => navigate('/diagnostics/centers')} className="w-full flex items-center gap-3 p-3 min-h-11 rounded-xl bg-surface-1/50 border border-bdr-subtle hover:bg-surface-1 transition-colors text-left"><Activity size={18} className="text-info" /><div><p className="text-sm font-medium text-txt-primary">Найти диагностический центр</p><p className="text-xs text-txt-muted">Поиск по городу и исследованиям</p></div></button><button onClick={() => navigate('/diagnostics/results')} className="w-full flex items-center gap-3 p-3 min-h-11 rounded-xl bg-surface-1/50 border border-bdr-subtle hover:bg-surface-1 transition-colors text-left"><CheckCircle size={18} className="text-success" /><div><p className="text-sm font-medium text-txt-primary">Просмотреть результаты</p><p className="text-xs text-txt-muted">Готовые исследования</p></div></button></div></Card></div></motion.div>;
 }
