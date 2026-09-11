@@ -26,11 +26,11 @@ describe('getAvailableSlots', () => {
     clinicFindUnique.mockResolvedValueOnce({ settings: { workDays: [1, 2, 3, 4, 5] } });
     await expect(getAvailableSlots('clinic-1', '2026-08-16')).resolves.toEqual({ date: '2026-08-16', workingDay: false, slots: [] });
   });
-  it('removes appointment and pending booking holds', async () => {
+  it('removes occupied appointment/booking holds while retaining capacity for other doctors', async () => {
     clinicFindUnique.mockResolvedValueOnce(OPEN_CLINIC); clinicMemberCount.mockResolvedValueOnce(1);
     appointmentFindMany.mockResolvedValueOnce([{ time: '09:30', doctorId: 'doc-1' }]); bookingFindMany.mockResolvedValueOnce([{ time: '10:00', doctorId: 'doc-1' }]);
     const result = await getAvailableSlots('clinic-1', '2026-08-17');
-    expect(result.slots).toEqual(['09:00']);
+    expect(result.slots).toEqual(['09:00', '10:30']);
   });
   it('throws NOT_FOUND for an unknown clinic', async () => { clinicFindUnique.mockResolvedValueOnce(null); await expect(getAvailableSlots('nope', '2026-08-17')).rejects.toMatchObject({ code: 'NOT_FOUND' }); });
 });
