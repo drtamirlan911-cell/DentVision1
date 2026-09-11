@@ -51,7 +51,7 @@ END $$;
 -- must select an explicit workspace before using legal partner capabilities.
 INSERT INTO "legal_partner_contexts" ("id", "organization_id", "partner_id")
 SELECT
-  gen_random_uuid()::text,
+  md5(random()::text || clock_timestamp()::text || lp.id),
   x.organization_id,
   x.partner_id
 FROM (
@@ -65,4 +65,5 @@ FROM (
   GROUP BY lp.id
   HAVING COUNT(DISTINCT p.organization_id) = 1
 ) x
+JOIN "legal_partners" lp ON lp.id = x.partner_id
 ON CONFLICT (organization_id) DO NOTHING;
