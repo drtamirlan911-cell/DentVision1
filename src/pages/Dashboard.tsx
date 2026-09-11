@@ -25,7 +25,6 @@ const SERVICE_TILES = [
 ] as const
 const DEFAULT_QUICK = SERVICE_TILES.map(s => s.id)
 const PREF_KEY = 'dentvision.home.quick-services.v1'
-
 type ProfilePrefs = { homeQuickServices?: string[]; homeAiAutoCollapse?: boolean }
 
 function QuickStats({ data }: { data: ReturnType<typeof useDataQuery> }) {
@@ -59,7 +58,6 @@ function ServiceGrid({ quickIds, onConfigure }: { quickIds: string[]; onConfigur
 }
 
 function UpcomingAppointments({ data }: { data: ReturnType<typeof useDataQuery> }) { const navigate = useNavigate(); const today = new Date().toISOString().split('T')[0]; const appointments = (data.appointments || []).filter(a => a.date >= today).sort((a, b) => (a.date + (a.time || '')).localeCompare(b.date + (b.time || ''))).slice(0, 5); const patients = data.patients || []; if (!appointments.length) return null; return <Card><CardHeader className="flex-wrap"><CardTitle className="flex items-center gap-2"><Clock size={16} className="text-dv-gold" /> Ближайшие записи</CardTitle><button type="button" onClick={() => navigate('/crm/schedule')} className="text-xs text-dv-gold min-h-11">Все записи</button></CardHeader><CardContent><div className="space-y-2">{appointments.map(appt => { const patient = patients.find(p => p.id === appt.patientId); return <div key={appt.id} className="flex items-center gap-3 rounded-lg px-3 py-2.5 bg-surface-2/50"><div className="flex h-8 w-8 items-center justify-center rounded-lg bg-dv-gold/10 text-dv-gold text-xs font-bold shrink-0">{appt.time?.slice(0, 5) || '--:--'}</div><div className="min-w-0 flex-1"><p className="text-sm font-medium text-txt-primary truncate">{patient?.name || appt.patientName || 'Пациент'}</p><p className="text-2xs text-txt-muted truncate">{appt.service || 'Приём'}</p></div><Badge variant={appt.status === 'confirmed' ? 'success' : appt.status === 'cancelled' ? 'error' : 'warning'} size="xs">{appt.status === 'confirmed' ? 'Подтверждена' : appt.status === 'cancelled' ? 'Отменена' : 'Ожидание'}</Badge></div> })}</div></CardContent></Card> }
-function QuickActions() { const navigate = useNavigate(); const actions = [{ label: 'Новый пациент', icon: <Users size={16} />, path: '/crm/patients' }, { label: 'Запись', icon: <Calendar size={16} />, path: '/crm/schedule' }, { label: 'Документ', icon: <FileText size={16} />, path: '/crm/documents' }, { label: 'Аналитика', icon: <BarChart3 size={16} />, path: '/analytics' }]; return <div><h3 className="text-sm font-semibold text-txt-secondary mb-3 px-1">Быстрые действия</h3><div className="flex flex-wrap gap-2">{actions.map(a => <motion.button type="button" key={a.label} whileHover={{ scale: 1.02 }} whileTap={{ scale: .98 }} onClick={() => navigate(a.path)} className="flex items-center gap-2 px-3 py-2 rounded-lg bg-surface-raised border border-bdr-subtle text-txt-secondary text-sm hover:bg-surface-raised-hover transition-all min-h-11">{a.icon}{a.label}</motion.button>)}</div></div> }
 
 export default function Dashboard() {
   const { user } = useAuth(); const navigate = useNavigate(); const data = useDataQuery(user?.clinicId)
@@ -72,7 +70,7 @@ export default function Dashboard() {
     <motion.div variants={item}><AiSmartBanner collapsed={aiCollapsed} onToggle={() => setAiCollapsed(v => !v)} autoCollapse={aiAutoCollapse} onAutoCollapseChange={changeAutoCollapse} /></motion.div>
     <motion.div variants={item}><QuickStats data={data} /></motion.div>
     <motion.div variants={item}><ServiceGrid quickIds={quickIds} onConfigure={() => setSettingsOpen(true)} /></motion.div>
-    <motion.div variants={item} className="grid lg:grid-cols-2 gap-4"><UpcomingAppointments data={data} /><QuickActions /></motion.div>
+    <motion.div variants={item}><UpcomingAppointments data={data} /></motion.div>
     {settingsOpen && <ServiceSettings visible={quickIds} onClose={() => setSettingsOpen(false)} onSave={ids => { void persistPreferences(ids); setSettingsOpen(false) }} />}
     <div className="flex items-center justify-between pt-2"><p className="text-2xs text-txt-muted">DentVision · AI Operating System for dentistry</p><button type="button" onClick={() => navigate('/ai')} className="text-2xs text-dv-gold hover:underline">Открыть AI</button></div>
   </motion.div>
