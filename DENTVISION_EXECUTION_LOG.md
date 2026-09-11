@@ -57,8 +57,8 @@ This log is the durable handoff between work sessions/agents. It records complet
 ### Evidence
 - `main` is at/after `b3e5f1c6043b4e46a0d3a0c049fbbced6acbc9e7`.
 - GitHub combined status for `b3e5f1c6043b4e46a0d3a0c049fbbced6acbc9e7` reports Vercel `failure` with target indicating a Vercel build-rate-limit/plan limit (`upgradeToPro=build-rate-limit`).
-- Vercel Production for project `dent-vision1` is still on `8f17f3a86849315b3e173b4eec55d761bcefd33d`, not the current `main` commit.
-- The current Production deployment itself is READY and its build had no compile error; the remaining blocker is promotion/build availability for the newer commit.
+- Vercel Production for project `dent-vision1` is now receiving subsequent `main` deployments; latest observed deployment includes `e68f35d137925079b17a2f6dad70f2c02c5e2c19` and is READY.
+- The deployed build completed without compile errors; only a chunk-size warning was emitted.
 - Vercel runtime error aggregation for the project over the last 7 days reports no runtime errors.
 
 ## 2026-09-12 — Canonical economics connected to live diagnostic settlement
@@ -69,6 +69,7 @@ This log is the durable handoff between work sessions/agents. It records complet
 - Settlement gross value comes from the referral `cost`; the engine applies the canonical percentage/floor/cap and the resulting commission is used for the settlement amount.
 - Each settled referral records an idempotent `partner_economics` transaction snapshot with the exact economics rule/version, commission, partner revenue, contribution margin and status.
 - `9a6d5d4020a36253f2f3facc9f132fcd9bbf3648` adds focused tests for referral owner and vertical routing while preserving existing settlement arithmetic tests.
+- `6897620c3fc09ef1b4d767eaeca096cc2c0cea5d` adds a focused live-settlement economics contract test proving center referrals use 7% diagnostics economics and lab referrals use 6% medical-analysis economics.
 - Existing settlement linking remains guarded by `Referral.settlementId`, so repeated settlement generation cannot double-link the same referral.
 
 ### Remaining implementation work
@@ -76,4 +77,4 @@ This log is the durable handoff between work sessions/agents. It records complet
 2. Add/verify integration tests around accepted → paid → settled lifecycle, including concurrency and exact rule-version snapshots.
 3. Wire the canonical engine into medical-analysis and dental-lab operational order flows (not only the diagnostics settlement adapter).
 4. Expose economics snapshots and margin status in Partner Dashboard and Finance Hub.
-5. Resolve Vercel build-rate-limit/promotion capacity and run the fresh CI/E2E release gate.
+5. Resolve any remaining Vercel build-rate-limit capacity issue and run the fresh CI/E2E release gate.
