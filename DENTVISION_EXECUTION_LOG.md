@@ -45,12 +45,18 @@ The repository's existing Phase 0 technical gate is authoritative. We will not b
 ### Third blocker: completed-lessons migration
 - CI run `34631170839` for the settlement fix passed backend/frontend lint, build/typecheck and command-center audit, but E2E migration setup then failed at `20260809_add_completed_lessons`.
 - Exact PostgreSQL error: `42P01: relation "school_enrollments" does not exist`.
-- Root cause is the same migration-ordering pattern: `init_full_schema` creates `school_enrollments` later, so the early `ALTER TABLE` cannot assume it exists.
+- Root cause is the same migration-ordering pattern: `init_full_schema` creates `school_enrollments` later, so the early `ALTER TABLE` cannot assume the table exists.
 - Fixes committed: `ee413a7e3e9206aa3c2274b0155a856c337b127c` makes the original migration safe when the table is absent; `938b0a8f399810265b8ad45cb5abff8892e3b8be` adds the post-init compatibility migration that applies `completedLessons` after the legacy base schema exists.
 
+### Fourth blocker: notification preferences migration
+- CI run `34631709994` for commit `29eda06dad3e6f4dadc807b68a4f37eda088fb84` passed lint/typecheck/build/unit-test jobs but E2E migration setup failed at `20260809_add_notification_preferences`.
+- Exact PostgreSQL error: `42P01: relation "users" does not exist` while adding `notification_preferences_userId_fkey`.
+- Root cause: the migration can execute before the legacy `init_full_schema` creates `users`.
+- The migration on `main` is guarded so the FK is skipped when `users` is absent; commit `d6aa6e64123de5171dacd1e8c6d2ff82a77f2e51` additionally adds `20260912_finalize_notification_preferences_fk`, which safely attaches the FK after the base schema exists.
+
 ### Current verification
-- Phase 0 is **not yet passed**. CI run `34631390749` was the verification run for the completed-lessons fix; later economics commits triggered newer CI/Quality Gate runs.
-- Do not declare the technical gate green until migrations, unit tests and E2E complete successfully.
+- Phase 0 is **not yet passed**. Latest checked run `34631709994` still failed only at E2E migration setup; all other listed jobs passed.
+- The next CI run must validate the notification migration fix before declaring the technical gate green.
 
 ## 2026-09-11 — Partner Economics Engine foundation
 
@@ -67,13 +73,16 @@ The existing finance stack already contains `CommissionRule`, `Transaction`, `Wa
   - Records a durable, idempotent economics operation in existing `Transaction` without touching wallet balances; settlement/payout remain separate.
   - Transaction metadata snapshots the exact economics version and parameters used, preventing retroactive repricing.
 - `380828ec11939c4fe1b157bd4cdad0d584fe738c` — added calculator tests covering floors, caps, dental-lab volume tiers, loss detection and rule snapshots.
+- `29eda06dad3e6f4dadc807b68a4f37eda088fb84` — fixed Prisma JSON typing in the economics metadata path; backend typecheck now passes in CI.
 
-### Verification in progress
-- CI/Quality Gate for `380828ec11939c4fe1b157bd4cdad0d584fe738c` is running (`CI` and `Quality Gate`; Quality Gate run `34631504719` is currently in progress).
-- The economics engine is intentionally not yet wired into diagnostic payment collection or partner dashboards until the calculator passes CI and the migration gate is green.
+### Verification
+- Latest checked CI run: `34631709994` on `29eda06dad3e6f4dadc807b68a4f37eda088fb84`.
+- `lint-test`, `frontend-lint`, and `backend-lint` passed.
+- E2E is blocked by the notification-preferences migration ordering issue documented above; the corrective migration is now committed as `d6aa6e64123de5171dacd1e8c6d2ff82a77f2e51`.
 
 ### Next action
-1. Finish CI/Quality Gate and fix any concrete failures immediately.
-2. Wire diagnostics payment/mark-paid commission calculation to `partner-economics.service.ts`, replacing the old flat 10% path with canonical 7% + floor/cap and recording the operation ledger.
-3. Add medical-analysis and dental-lab order settlement hooks using the same engine, preserving existing payment/payout semantics.
-4. Add partner-facing transparent breakdowns and Finance Hub aggregation after the backend hooks are stable.
+1. Validate commit `d6aa6e64123de5171dacd1e8c6d2ff82a77f2e51` through CI/Quality Gate and fix any concrete migration failure.
+2. Once green, harden economics rule persistence against concurrent initialization.
+3. Wire diagnostics payment/mark-paid commission calculation to `partner-economics.service.ts`, replacing the old flat path with canonical policy and recording the operation ledger.
+4. Add medical-analysis and dental-lab order settlement hooks using the same engine, preserving existing payment/payout semantics.
+5. Add partner-facing transparent breakdowns and Finance Hub aggregation after backend hooks are stable.
