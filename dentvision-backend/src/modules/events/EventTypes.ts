@@ -36,6 +36,7 @@ export enum EventType {
   // Diagnostics
   DiagnosticBookingCreated = 'DiagnosticBookingCreated',
   DiagnosticBookingStatusChanged = 'DiagnosticBookingStatusChanged',
+  DiagnosticResultReady = 'DiagnosticResultReady',
 
   // AI
   AIActionCompleted = 'AIActionCompleted',
@@ -75,6 +76,16 @@ export interface DiagnosticBookingPayload {
   time: string;
   status: string;
   previousStatus?: string;
+}
+
+export interface DiagnosticResultReadyPayload {
+  referralId: string;
+  resultId: string;
+  clinicId: string;
+  centerId: string;
+  doctorId: string;
+  patientName: string;
+  studyType: string;
 }
 
 export interface DiagnosisSavedPayload {
