@@ -10,6 +10,10 @@ function diagnosticResultNotificationId(resultId: string, doctorId: string): str
   return `diag_result_${createHash('sha256').update(`${resultId}:${doctorId}`).digest('hex').slice(0, 35)}`;
 }
 
+function labOrderNotificationId(labOrderId: string, doctorId: string): string {
+  return `lab_ready_${createHash('sha256').update(`${labOrderId}:${doctorId}`).digest('hex').slice(0, 35)}`;
+}
+
 /** Bridge CRM and operational domain events into the durable AI Event OS without blocking requests. */
 export function registerAIEventBridge(): void {
   if (registered) return;
@@ -47,8 +51,48 @@ export function registerAIEventBridge(): void {
 
   subscribe('labOrder.status_changed', async ({ clinicId, labOrderId, patientId, doctorId, status, previousStatus, userId }) => {
     if (!['completed', 'delivered', 'ready'].includes(status)) return;
-    const order = await prisma.labOrder.findFirst({ where: { id: labOrderId, clinicId }, select: { status: true } });
-    await aiEventBus.publish(EventType.LabOrderCompleted, { labOrderId, patientId: patientId || '', doctorId: doctorId || '', status: order?.status || status, previousStatus }, { clinicId, userId: userId || doctorId || 'system', source: 'crm.labOrder.status_changed' });
+    const order = await prisma.labOrder.findFirst({
+      where: { id: labOrderId, clinicId },
+      select: { status: true, doctorId: true, patientId: true },
+    });
+    const targetDoctorId = doctorId || order?.doctorId || undefined;
+
+    // Deliver a durable in-app notification to the responsible doctor. The AI event
+    // itself contains only routing metadata; laboratory files/results stay protected.
+    if (targetDoctorId) {
+      const doctorMembership = await prisma.clinicMember.findFirst({
+        where: { clinicId, userId: targetDoctorId, role: 'DOCTOR' },
+        select: { userId: true },
+      });
+      if (doctorMembership) {
+        const notificationId = labOrderNotificationId(labOrderId, targetDoctorId);
+        await prisma.notification.upsert({
+          where: { id: notificationId },
+          create: {
+            id: notificationId,
+            userId: targetDoctorId,
+            type: 'workflow',
+            title: 'Лабораторный заказ готов',
+            message: 'Лабораторный заказ готов к просмотру.',
+            link: `/lab?order=${encodeURIComponent(labOrderId)}`,
+          },
+          update: {
+            title: 'Лабораторный заказ готов',
+            message: 'Лабораторный заказ готов к просмотру.',
+            link: `/lab?order=${encodeURIComponent(labOrderId)}`,
+            read: false,
+          },
+        });
+      }
+    }
+
+    await aiEventBus.publish(EventType.LabOrderCompleted, {
+      labOrderId,
+      patientId: patientId || order?.patientId || '',
+      doctorId: targetDoctorId || '',
+      status: order?.status || status,
+      previousStatus,
+    }, { clinicId, userId: userId || targetDoctorId || 'system', source: 'crm.labOrder.status_changed' });
   });
 
   subscribe('diagnostics.result_ready', async ({ referralId, resultId, clinicId, centerId, doctorId, patientName, studyType, userId }) => {
