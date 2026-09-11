@@ -17,15 +17,23 @@ This document is the persistent execution contract for DentVision. It is the sou
 
 ## Execution phases
 
-### Phase 0 — Persistent control plane
+### Phase 0 — Technical baseline / control plane
 **Status:** IN PROGRESS
+
+The repository's existing `CURRENT_STATE.md` is authoritative for the current technical gate. It currently defines **Phase 0 — CI stabilization** and explicitly requires evidence before advancing.
+
 - [x] Create this master execution plan.
 - [x] Create persistent execution log.
-- [ ] Establish current repository baseline and identify the active product source of truth.
-- [ ] Locate and read the canonical `DENTVISION_PARTNER_ECONOMICS.md` wherever it exists in the repository history/branches.
+- [x] Confirm the existing project control plane: `ARCHITECTURE.md`, `CURRENT_STATE.md`, and `.dentvision/current-state.json`.
+- [ ] Stabilize CI and record evidence.
+- [ ] Restore/verify `dentvision-backend/src/modules/patients/patients.routes.ts` against Git history as required by `CURRENT_STATE.md`.
+- [ ] Verify backend runtime/infrastructure baseline.
 - [ ] Record the exact baseline commit and active implementation branch in the execution log.
+- [ ] Locate and read the canonical `DENTVISION_PARTNER_ECONOMICS.md` wherever it exists in repository history/branches. Do not replace it with a new competing economics document.
 
-### Phase 1 — Economics Engine (priority)
+**Parallel preparation allowed:** inspect/map the existing economics, order, payment, partner, finance, and payout code without merging business-rule changes until the technical gate has evidence.
+
+### Phase 1 — Economics Engine (first business priority after the technical gate)
 **Status:** QUEUED
 - [ ] Convert canonical partner economics into deterministic executable rules.
 - [ ] Support diagnostic 3D centers, laboratory analyses, dental technical laboratories, and extensible future partner types.
@@ -99,7 +107,9 @@ A phase is complete only when:
 - no duplicate competing source of truth was introduced;
 - `DENTVISION_EXECUTION_LOG.md` records what changed, commit, verification, and next action.
 
-## Current priority
-**Priority 1: Partner Economics → Economics Engine → Ledger → Partner transparency → Finance Hub automation.**
+## Current execution priority
+**Now:** close the existing technical Phase 0 gate without starting another endless audit.
 
-The immediate next action is to locate the canonical partner-economics document in the repository/branches, read it completely, then map its rules onto the existing code before implementing anything that could duplicate current business logic.
+**Next business priority:** `DENTVISION_PARTNER_ECONOMICS.md` → Economics Engine → Ledger → Partner transparency → Finance Hub automation.
+
+The work proceeds in vertical slices: implement → verify → commit → update the persistent log → move to the next slice.
