@@ -2,6 +2,7 @@ import type { ClinicSettingsPayload } from '../clinics/clinicSettings.js';
 import { DEFAULT_CLINIC_SETTINGS } from '../clinics/clinicSettings.js';
 import { publicRouter } from './public.routes.js';
 import { publicDiagnosticsBookingRouter } from './publicDiagnosticsBooking.routes.js';
+import { diagnosticBookingReferralRouter } from './diagnosticBookingReferral.routes.js';
 
 export interface SlotOccupancy {
   time: string;
@@ -75,4 +76,5 @@ export function splitPatientName(full: string): { firstName: string; lastName: s
 // flow physically separated from the legacy clinic booking implementation.
 queueMicrotask(() => {
   publicRouter.use(publicDiagnosticsBookingRouter);
+  publicRouter.use(diagnosticBookingReferralRouter);
 });
