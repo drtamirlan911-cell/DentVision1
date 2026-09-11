@@ -31,8 +31,6 @@ export interface PatientMatch {
 /** The digits a phone can be searched by, ignoring +7 / 8 / spacing. */
 export function phoneNeedle(phone: string | null | undefined): string {
   const digits = normalizePhone(phone);
-  // Last ten digits identify the subscriber; the country prefix is what varies
-  // between "+7 707 …", "8 707 …" and "707 …" for the same person.
   return digits.length >= 10 ? digits.slice(-10) : '';
 }
 
@@ -44,15 +42,19 @@ export function phonesMatch(a: string | null | undefined, b: string | null | und
 /**
  * Find this user's patient card, linking it on first match.
  *
- * `clinicId` narrows the search when the caller knows which clinic is meant
- * (the booking flow does); without it any clinic is acceptable, which is the
- * behaviour the portal already had.
+ * When the authenticated session carries an active clinic context, that
+ * context is the default scope. Callers may still pass an explicit clinicId
+ * (for example during a deliberate clinic-link flow), but absence of an
+ * explicit option no longer means "search every clinic" for a multi-clinic
+ * user. This makes the active workspace context part of the patient identity
+ * boundary instead of relying on first-match semantics.
  */
 export async function resolvePatientForUser(
-  user: { id: string; email?: string | null; phone?: string | null },
+  user: { id: string; email?: string | null; phone?: string | null; clinicId?: string | null },
   opts: { clinicId?: string | null; phoneHint?: string | null } = {},
 ): Promise<PatientMatch | null> {
-  const clinicScope = opts.clinicId ? { clinicId: opts.clinicId } : {};
+  const effectiveClinicId = opts.clinicId ?? user.clinicId ?? null;
+  const clinicScope = effectiveClinicId ? { clinicId: effectiveClinicId } : {};
 
   const byUserId = await prisma.patient.findFirst({
     where: { userId: user.id, ...clinicScope },
@@ -60,8 +62,6 @@ export async function resolvePatientForUser(
   });
   if (byUserId) return { ...byUserId, via: 'userId' };
 
-  // Only ever adopt a card that belongs to nobody yet. Claiming one that is
-  // already linked would hand a stranger another person's medical history.
   if (user.email) {
     const byEmail = await prisma.patient.findFirst({
       where: { email: user.email, userId: null, ...clinicScope },
@@ -75,32 +75,21 @@ export async function resolvePatientForUser(
   const wanted = opts.phoneHint || user.phone;
   const needle = phoneNeedle(wanted);
   if (needle) {
-    // Compare digits, not the stored string. Prisma's `contains` runs against
-    // the raw column, and reception types "+7 707 555 33 22" — the spaces alone
-    // make a digits-only needle miss every time, which is how a phone-only
-    // patient still ended up with a duplicate card. Postgres strips the
-    // formatting on its side instead.
     const rows = await prisma.$queryRaw<Array<{ id: string; clinicId: string; phone: string | null }>>`
       SELECT id, "clinicId", phone
       FROM patients
       WHERE "userId" IS NULL
         AND phone IS NOT NULL
         AND regexp_replace(phone, '[^0-9]', '', 'g') LIKE ${'%' + needle}
-        ${opts.clinicId ? Prisma.sql`AND "clinicId" = ${opts.clinicId}` : Prisma.empty}
+        ${effectiveClinicId ? Prisma.sql`AND "clinicId" = ${effectiveClinicId}` : Prisma.empty}
       LIMIT 20
     `;
-    // The raw filter is coarse (it ignores the country prefix); the normalised
-    // comparison is what decides. The CAS claim below is the final authority.
     const hit = rows.find((c) => phonesMatch(c.phone, wanted));
     if (hit && await claim(hit.id, user.id)) {
       return { id: hit.id, clinicId: hit.clinicId, via: 'phone' };
     }
   }
 
-  // Another concurrent login may have won the claim between our initial
-  // lookup and CAS. Resolve again by userId so the losing request returns the
-  // card actually owned by this user instead of claiming success on a row it
-  // did not modify.
   const afterRace = await prisma.patient.findFirst({
     where: { userId: user.id, ...clinicScope },
     select: { id: true, clinicId: true },
@@ -108,13 +97,7 @@ export async function resolvePatientForUser(
   return afterRace ? { ...afterRace, via: 'userId' } : null;
 }
 
-/**
- * Write the link, but only while the card is still unclaimed.
- *
- * `updateMany` with the guard in the filter makes this a compare-and-set: two
- * concurrent logins cannot both take the same card. The boolean result is
- * important — callers must not report a link they failed to acquire.
- */
+/** Write the link only while the card is still unclaimed (compare-and-set). */
 async function claim(patientId: string, userId: string): Promise<boolean> {
   const result = await prisma.patient.updateMany({
     where: { id: patientId, userId: null },
