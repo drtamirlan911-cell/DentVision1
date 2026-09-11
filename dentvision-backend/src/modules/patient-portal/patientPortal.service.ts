@@ -216,18 +216,33 @@ export async function getDocuments(patientId: string) {
 }
 
 export async function getDiagnostics(patientId: string) {
-  return (prisma as any).referral.findMany({
+  const referrals = await (prisma as any).referral.findMany({
     where: { patientId },
     select: {
       id: true, studyType: true, category: true, status: true,
       cost: true, paid: true, createdAt: true,
       center: { select: { id: true, name: true } },
       lab: { select: { id: true, name: true } },
-      result: { select: { reportText: true, conclusion: true, createdAt: true } },
+      result: { select: { doctorConfirmed: true, reportText: true, conclusion: true, createdAt: true } },
     },
     orderBy: { createdAt: 'desc' },
     take: 30,
   });
+
+  // AI diagnostic output is clinical decision support, not a patient-facing
+  // result. Until a clinician confirms it, expose the referral/status only and
+  // never leak the draft report or conclusion into the patient record.
+  return referrals.map((referral: any) => ({
+    ...referral,
+    result: referral.result?.doctorConfirmed
+      ? {
+          reportText: referral.result.reportText,
+          conclusion: referral.result.conclusion,
+          createdAt: referral.result.createdAt,
+        }
+      : null,
+    resultPendingConfirmation: Boolean(referral.result && !referral.result.doctorConfirmed),
+  }));
 }
 
 /** Statuses a patient can no longer act on — already closed, one way or another. */
