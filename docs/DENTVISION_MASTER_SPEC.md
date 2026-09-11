@@ -1,7 +1,7 @@
 # DentVision — Master Product & System Specification
 
 **Status:** CANONICAL / ACTIVE  
-**Version:** 3.0  
+**Version:** 3.1  
 **Date:** 2026-09-11  
 **Owner:** DentVision by Dr.Tamirlan
 
@@ -244,8 +244,11 @@ The implementation state is evidence from repository code/tests/commits, not fro
 
 ### Current state — 2026-09-11
 
-- **P0-1 Consent/Authorization/Tenant Isolation:** IN PROGRESS. Recent commits added fail-closed consent authorization, strict clinical consent gating, patient protected-data fail-closed behavior and consent audience validation. Remaining work is endpoint-by-endpoint convergence and regression verification.
-- **P0-2 Patient booking:** FOUNDATION EXISTS. Public booking, Patient Portal and appointment infrastructure exist; end-to-end security/context/persistence verification remains after P0-1.
+- **P0-1 Consent/Authorization/Tenant Isolation:** IN PROGRESS. The repository has a fail-closed consent gate on the Patient Portal and object-scoped filters on portal reads/actions. During endpoint-level verification, a concrete tenant-boundary defect was identified in `POST /api/patient-portal/link`: a signed-in patient can submit an arbitrary `clinicId`, and when no existing patient card matches, the route creates a new patient record in that clinic. The client-supplied clinic ID therefore becomes an implicit authorization mechanism, which violates the canonical trust chain.
+- **P0-1 Patient Portal identity:** IN PROGRESS. `resolvePatientForUser()` safely claims only unowned patient cards by email/phone and uses compare-and-set linking, but the portal still resolves a single patient card without an explicit active organization/clinic context. Multi-clinic identity needs to converge on an explicit active context rather than first-match semantics.
+- **P0-1 Document boundary:** VERIFIED for object lookup. Document content is queried with both document ID and the resolved patient ID, so a foreign document ID does not match. External document URL handling remains a separate data-egress hardening item.
+- **P0-1 Diagnostics data minimization:** REMAINING. Patient diagnostics are sourced from the patient-scoped referral query, but the response currently includes `platformFee`, which is an internal platform financial field and should not be exposed to a patient. Remove internal-only financial fields from patient-facing DTOs and add a regression assertion.
+- **P0-2 Patient booking:** FOUNDATION EXISTS. Public booking, Patient Portal and appointment infrastructure exist; end-to-end security/context/persistence verification remains after the P0-1 boundary fixes.
 - **P0-3 Diagnostics:** FOUNDATION EXISTS. Self-service diagnostic-center onboarding and diagnostic infrastructure exist; complete public discovery → order → result → AI → doctor confirmation journey remains.
 - **P0-4 Laboratory:** FOUNDATION EXISTS / EXECUTION REQUIRED. Laboratory is a first-class participant; full operational lifecycle, SLA/deadline and result delivery need completion.
 - **P0-5 AI Employee:** FOUNDATION EXISTS. Role-based contract and task/event infrastructure exist; real-data briefing/tool execution/confirmation loop remains a P0 product completion target.
@@ -258,7 +261,13 @@ The implementation state is evidence from repository code/tests/commits, not fro
 
 ### Next action
 
-**Execute P0-1 to completion, then immediately P0-2. Do not restart a general audit.**
+**P0-1 immediate implementation sequence:**
+1. Remove implicit patient creation from `/patient-portal/link`; linking must require an existing authorized patient card, valid booking/invitation, or explicit cross-clinic authorization. A client-supplied `clinicId` alone is never sufficient.
+2. Add a regression test proving a patient cannot create/link a patient record into an arbitrary clinic.
+3. Remove `platformFee` and other internal-only financial fields from patient diagnostic DTOs and add a DTO-level regression test.
+4. Converge Patient Portal reads on explicit active organization/clinic context, preserving approved cross-clinic grants.
+5. Re-run the critical patient tenant/IDOR suite.
+6. Only after these pass, mark P0-1 complete and immediately execute P0-2 booking.
 
 For each discovered defect: fix in code → add/adjust regression coverage → verify → commit → update this ledger → proceed to the next P0 item.
 
