@@ -64,6 +64,7 @@ jobs:
         with:
           node-version: 20
           cache: npm
+      - run: npm ci
       - run: npx eslint src/ --max-warnings 13
 
   e2e:
