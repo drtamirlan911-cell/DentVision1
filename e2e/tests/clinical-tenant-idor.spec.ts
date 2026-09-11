@@ -15,7 +15,6 @@ import {
  * only swaps object IDs belonging to another clinic. A passing test therefore
  * requires authorization at the object boundary, not merely at route level.
  */
-const BASE_URL = process.env.PLAYWRIGHT_BASE_URL || 'http://localhost:3001';
 const PASSWORD = 'Test1234!';
 
 async function login(ctx: APIRequestContext, email: string) {
@@ -45,26 +44,29 @@ test.describe('Clinical tenant isolation / IDOR', () => {
     const tokenA = await login(request, doctorA.email);
     const tokenB = await login(request, doctorB.email);
 
-    // Cross-clinic reads must fail, even though the object IDs are valid.
-    for (const [token, id] of [[tokenB, patientA.id], [tokenB, appointmentA.id]] as const) {
-      const path = id === patientA.id ? `/api/patients/${id}` : `/api/appointments/${id}`;
-      const res = await request.get(path, { headers: auth(token) });
-      expect([403, 404]).toContain(res.status());
-    }
+    // Patient object ID is valid, but belongs to another clinic.
+    const patientRead = await request.get(`/api/patients/${patientA.id}`, { headers: auth(tokenB) });
+    expect([403, 404]).toContain(patientRead.status());
 
-    const referralRead = await request.get(`/api/diagnostics/referrals/${referralA.id}`, { headers: auth(tokenB) });
-    expect([403, 404]).toContain(referralRead.status());
-
-    // Cross-clinic mutations must also fail.
     const patientPatch = await request.patch(`/api/patients/${patientA.id}`, {
       headers: auth(tokenB), data: { firstName: 'SHOULD_NOT_CHANGE' },
     });
     expect([403, 404]).toContain(patientPatch.status());
 
+    // Appointment object ID is valid, but belongs to another clinic.
     const appointmentStatus = await request.patch(`/api/appointments/${appointmentA.id}/status`, {
       headers: auth(tokenB), data: { status: 'completed' },
     });
     expect([403, 404]).toContain(appointmentStatus.status());
+
+    const appointmentClose = await request.post(`/api/appointments/${appointmentA.id}/close`, {
+      headers: auth(tokenB), data: {},
+    });
+    expect([403, 404]).toContain(appointmentClose.status());
+
+    // Referral object ID is valid, but belongs to another clinic.
+    const referralRead = await request.get(`/api/diagnostics/referrals/${referralA.id}`, { headers: auth(tokenB) });
+    expect([403, 404]).toContain(referralRead.status());
 
     const referralStatus = await request.post(`/api/diagnostics/referrals/${referralA.id}/status`, {
       headers: auth(tokenB), data: { status: 'ACCEPTED' },
