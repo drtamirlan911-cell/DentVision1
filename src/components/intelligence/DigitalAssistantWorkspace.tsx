@@ -87,9 +87,8 @@ export function AIWorkspaceIndex({ onNavigate }: { onNavigate?: (path: string) =
             <div className="mx-auto w-full max-w-3xl px-4 py-6 md:px-8 md:py-8">
               <div className="space-y-5">
                 {displayMessages.map(message => (
-                  <ChatMessage key={message.id} message={message} onAction={(action, params) => {
-                    const path = typeof params?.path === 'string' ? params.path : action
-                    if (path?.startsWith('/')) go(path)
+                  <ChatMessage key={message.id} msg={message} onAction={(query: string) => {
+                    if (query.startsWith('/')) go(query)
                   }} />
                 ))}
               </div>
@@ -112,7 +111,7 @@ export function AIWorkspaceIndex({ onNavigate }: { onNavigate?: (path: string) =
       {showContext && (
         <aside className="absolute inset-y-0 right-0 z-20 w-[min(380px,92vw)] border-l border-border bg-background shadow-2xl md:relative md:w-[360px] md:shadow-none">
           <div className="flex h-14 items-center justify-between border-b border-border/60 px-4"><div className="text-sm font-semibold">Контекст</div><button onClick={() => setShowContext(false)} className="rounded-lg p-2 text-muted-foreground hover:bg-muted"><ChevronDown size={16} className="rotate-90" /></button></div>
-          <div className="h-[calc(100%-56px)] overflow-y-auto"><ContextPanel context={null as any} activeWorkspace="clinic" onClose={() => setShowContext(false)} /></div>
+          <div className="h-[calc(100%-56px)] overflow-y-auto"><ContextPanel onClose={() => setShowContext(false)} /></div>
         </aside>
       )}
     </div>
