@@ -3,6 +3,7 @@ import rateLimit from 'express-rate-limit';
 import prisma from '../../lib/prisma.js';
 import { uid } from '../../lib/helpers.js';
 import { authenticate } from '../../middleware/auth.js';
+import { emit } from '../../lib/events.js';
 
 type AuthRequest = any;
 
@@ -86,7 +87,6 @@ async function notifyCenterStaff(centerId: string, title: string, message: strin
       })),
     });
   } catch (error) {
-    // Notifications must never make a valid public booking fail.
     console.warn('[Diagnostics] center notification failed', error);
   }
 }
@@ -161,6 +161,17 @@ publicDiagnosticsBookingRouter.post('/diagnostics/order', limiter, async (req, r
       },
     });
 
+    await emit('diagnostics.booking.created', {
+      centerId,
+      bookingId: row.id,
+      studyId: row.studyId,
+      patientName: row.patientName,
+      date,
+      time: row.time,
+      status: row.status,
+      userId: 'system',
+    });
+
     await notifyCenterStaff(
       centerId,
       'Новая заявка на диагностику',
@@ -229,11 +240,6 @@ publicDiagnosticsBookingRouter.get('/diagnostics/order/:id', trackingLimiter, as
   }
 });
 
-/**
- * Authenticated center inbox for online diagnostic bookings.
- * Kept on the already-mounted router, but protected by the normal JWT boundary.
- * No medical data is exposed here; this is a scheduling/order surface.
- */
 publicDiagnosticsBookingRouter.get('/diagnostics/center/:centerId/bookings', authenticate, async (req: AuthRequest, res: any) => {
   try {
     const centerId = String(req.params.centerId || '').trim();
@@ -312,6 +318,18 @@ publicDiagnosticsBookingRouter.patch('/diagnostics/center/:centerId/bookings/:id
       where: { id },
       data: { status: requestedStatus },
       select: { id: true, centerId: true, studyId: true, patientName: true, patientPhone: true, date: true, time: true, durationMin: true, notes: true, status: true, createdAt: true, updatedAt: true },
+    });
+
+    await emit('diagnostics.booking.status_changed', {
+      centerId,
+      bookingId: updated.id,
+      studyId: updated.studyId,
+      patientName: updated.patientName,
+      date: updated.date.toISOString().slice(0, 10),
+      time: updated.time,
+      status: updated.status,
+      previousStatus: current.status,
+      userId: req.user?.id || 'system',
     });
 
     if (requestedStatus === 'confirmed' || requestedStatus === 'declined') {
