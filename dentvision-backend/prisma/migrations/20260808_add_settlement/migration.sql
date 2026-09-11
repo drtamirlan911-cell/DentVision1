@@ -20,26 +20,33 @@ CREATE INDEX IF NOT EXISTS "settlements_ownerType_ownerId_idx" ON "settlements"(
 CREATE INDEX IF NOT EXISTS "settlements_status_idx" ON "settlements"("status");
 CREATE INDEX IF NOT EXISTS "settlements_periodStart_periodEnd_idx" ON "settlements"("periodStart", "periodEnd");
 
--- AlterTable: referrals add settlementId (handle both @@map and PascalCase table names)
+-- AlterTable: referrals add settlementId when the referral table exists.
+-- The base schema may use either the mapped lowercase table or the Prisma default PascalCase table.
 DO $$
 BEGIN
-  IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'referrals') THEN
+  IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'referrals') THEN
     ALTER TABLE "referrals" ADD COLUMN IF NOT EXISTS "settlementId" TEXT;
-  ELSIF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'Referral') THEN
+    CREATE INDEX IF NOT EXISTS "referrals_settlementId_idx" ON "referrals"("settlementId");
+
+    IF NOT EXISTS (
+      SELECT 1 FROM information_schema.table_constraints
+      WHERE constraint_schema = 'public'
+        AND constraint_name = 'referrals_settlementId_fkey'
+    ) THEN
+      ALTER TABLE "referrals" ADD CONSTRAINT "referrals_settlementId_fkey"
+        FOREIGN KEY ("settlementId") REFERENCES "settlements"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+    END IF;
+  ELSIF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'Referral') THEN
     ALTER TABLE "Referral" ADD COLUMN IF NOT EXISTS "settlementId" TEXT;
-  END IF;
-END $$;
+    CREATE INDEX IF NOT EXISTS "Referral_settlementId_idx" ON "Referral"("settlementId");
 
-CREATE INDEX IF NOT EXISTS "referrals_settlementId_idx" ON "referrals"("settlementId");
-
--- AddForeignKey: referrals.settlementId -> settlements.id
-DO $$
-BEGIN
-  IF NOT EXISTS (
-    SELECT 1 FROM information_schema.table_constraints
-    WHERE constraint_name = 'referrals_settlementId_fkey'
-  ) AND EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'referrals') THEN
-    ALTER TABLE "referrals" ADD CONSTRAINT "referrals_settlementId_fkey"
-      FOREIGN KEY ("settlementId") REFERENCES "settlements"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+    IF NOT EXISTS (
+      SELECT 1 FROM information_schema.table_constraints
+      WHERE constraint_schema = 'public'
+        AND constraint_name = 'Referral_settlementId_fkey'
+    ) THEN
+      ALTER TABLE "Referral" ADD CONSTRAINT "Referral_settlementId_fkey"
+        FOREIGN KEY ("settlementId") REFERENCES "settlements"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+    END IF;
   END IF;
 END $$;
