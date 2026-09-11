@@ -1,0 +1,31 @@
+name: One-shot diagnostics TS fix
+on:
+  push:
+    branches: [main]
+permissions:
+  contents: write
+jobs:
+  fix:
+    if: github.event.head_commit.author.username == 'drtamirlan911-cell'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Patch diagnostics narrowing
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p = Path('dentvision-backend/src/modules/diagnostics/diagnostics.routes.ts')
+          s = p.read_text()
+          s = s.replace("if (!scope.ok) return res.status(scope.status).json({ ok: false, error: scope.error });", "if (scope.ok === false) return res.status(scope.status).json({ ok: false, error: scope.error });")
+          s = s.replace("if (!scope.ok) return res.status(scope.status).json({ ok: false, error: scope.error });", "if (scope.ok === false) return res.status(scope.status).json({ ok: false, error: scope.error });")
+          p.write_text(s)
+          PY
+      - name: Commit and remove one-shot workflow
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add dentvision-backend/src/modules/diagnostics/diagnostics.routes.ts
+          git diff --cached --quiet || git commit -m 'fix: narrow diagnostics authorization scope result'
+          git rm .github/workflows/one-shot-diagnostics-ts-fix.yml
+          git commit -m 'chore: remove one-shot diagnostics fix workflow'
+          git push
