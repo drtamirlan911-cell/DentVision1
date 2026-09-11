@@ -55,6 +55,19 @@ const VALID_STATUSES = new Set<AiTaskStatus>([
   'queued', 'observing', 'proposed', 'awaiting_approval', 'executing', 'verified', 'completed', 'failed', 'cancelled',
 ]);
 
+/** A task cannot skip approval or jump directly to a terminal state. */
+const ALLOWED_TRANSITIONS: Record<AiTaskStatus, ReadonlySet<AiTaskStatus>> = {
+  queued: new Set(['observing', 'proposed', 'awaiting_approval', 'cancelled']),
+  observing: new Set(['proposed', 'awaiting_approval', 'queued', 'failed', 'cancelled']),
+  proposed: new Set(['awaiting_approval', 'queued', 'cancelled', 'failed']),
+  awaiting_approval: new Set(['executing', 'cancelled', 'failed']),
+  executing: new Set(['verified', 'completed', 'failed', 'cancelled']),
+  verified: new Set(['completed', 'failed']),
+  completed: new Set([]),
+  failed: new Set([]),
+  cancelled: new Set([]),
+};
+
 export async function createAiEmployeeTask(input: CreateAiEmployeeTaskInput): Promise<AiEmployeeTask | null> {
   if (!input.clinicId || !input.title) return null;
   const contract = employeeContractForRole(input.role);
@@ -115,6 +128,19 @@ export async function transitionAiEmployeeTask(input: {
   error?: string | null;
 }): Promise<AiEmployeeTask | null> {
   if (!VALID_STATUSES.has(input.status)) throw new Error('Invalid AI task status');
+
+  const currentRows = await prisma.$queryRaw<Array<{ status: AiTaskStatus }>>(Prisma.sql`
+    SELECT status FROM ai_employee_tasks
+    WHERE id = ${input.id} AND clinic_id = ${input.clinicId}
+    LIMIT 1
+  `);
+  const current = currentRows[0]?.status;
+  if (!current) return null;
+  if (current === input.status) return getAiEmployeeTask(input.id, input.clinicId);
+  if (!ALLOWED_TRANSITIONS[current].has(input.status)) {
+    throw new Error(`Invalid AI task transition: ${current} -> ${input.status}`);
+  }
+
   const result = input.result == null ? null : JSON.stringify(input.result);
   const completed = ['completed', 'failed', 'cancelled'].includes(input.status);
   const rows = await prisma.$queryRaw<AiEmployeeTask[]>(Prisma.sql`
@@ -124,11 +150,22 @@ export async function transitionAiEmployeeTask(input: {
         error = CASE WHEN ${input.error || null}::text IS NULL THEN error ELSE ${input.error || null} END,
         completed_at = CASE WHEN ${completed} THEN NOW() ELSE completed_at END,
         updated_at = NOW()
-    WHERE id = ${input.id} AND clinic_id = ${input.clinicId}
+    WHERE id = ${input.id} AND clinic_id = ${input.clinicId} AND status = ${current}
     RETURNING id, clinic_id AS "clinicId", user_id AS "userId", role, employee_title AS "employeeTitle",
       title, description, status, risk, autonomy, source_event_id AS "sourceEventId",
       source_event_type AS "sourceEventType", action, action_payload AS "actionPayload",
       result, error, due_at AS "dueAt", created_at AS "createdAt", updated_at AS "updatedAt", completed_at AS "completedAt"
+  `);
+  return rows[0] || null;
+}
+
+async function getAiEmployeeTask(id: string, clinicId: string): Promise<AiEmployeeTask | null> {
+  const rows = await prisma.$queryRaw<AiEmployeeTask[]>(Prisma.sql`
+    SELECT id, clinic_id AS "clinicId", user_id AS "userId", role, employee_title AS "employeeTitle",
+      title, description, status, risk, autonomy, source_event_id AS "sourceEventId",
+      source_event_type AS "sourceEventType", action, action_payload AS "actionPayload",
+      result, error, due_at AS "dueAt", created_at AS "createdAt", updated_at AS "updatedAt", completed_at AS "completedAt"
+    FROM ai_employee_tasks WHERE id = ${id} AND clinic_id = ${clinicId} LIMIT 1
   `);
   return rows[0] || null;
 }
