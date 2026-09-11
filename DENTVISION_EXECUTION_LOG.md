@@ -52,8 +52,15 @@ This log is the durable handoff between work sessions/agents. It records complet
 - Production readiness still depends on the actual `VITE_GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_ID` configuration and authorized Google origin(s), followed by CI/build and a real browser login test.
 - Phase 0 remains **NOT PASSED** until the current CI run confirms the migration chain and the frontend integration builds cleanly.
 
-### Next action
-1. Check the latest CI/Quality Gate for `fba72f2930aacfaab2d3d373f0f7f93959c18f87`.
-2. If green, wire the canonical Economics Engine into real diagnostics payment/mark-paid, medical-analysis and dental-lab settlement flows.
-3. Add partner-visible economics breakdown and Finance Hub aggregation.
-4. Then continue product implementation rather than starting another broad audit cycle.
+## 2026-09-12 — Production deployment trigger
+
+### Action
+- Current `main` contains the Google Sign-In UI integration and the latest execution-state updates.
+- Vercel Production had previously been observed behind `main`; this commit intentionally updates the persistent execution log to trigger the repository's Git-connected Production deployment from the current `main` state.
+- `VITE_GOOGLE_CLIENT_ID` is expected to remain configured in Vercel and must not be committed to the repository.
+
+### Next verification
+1. Confirm the new Vercel Production deployment is READY and corresponds to this commit.
+2. Confirm the production login UI renders Google Sign-In.
+3. Verify the production Google OAuth flow and inspect runtime errors.
+4. If production is healthy, continue with wiring the canonical Economics Engine into real diagnostics, medical-analysis and dental-lab settlement flows.
