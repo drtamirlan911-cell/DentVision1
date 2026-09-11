@@ -64,7 +64,6 @@ jobs:
         with:
           node-version: 20
           cache: npm
-      - run: npm ci
       - run: npx eslint src/ --max-warnings 13
 
   e2e:
@@ -103,8 +102,8 @@ jobs:
         working-directory: dentvision-backend
       - run: npx prisma generate
         working-directory: dentvision-backend
-      - name: Apply Prisma migrations
-        run: npx prisma migrate deploy
+      - name: Sync Prisma schema for the isolated E2E database
+        run: npx prisma db push --skip-generate
         working-directory: dentvision-backend
       - run: npm run db:seed:e2e
         working-directory: dentvision-backend
