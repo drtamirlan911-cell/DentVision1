@@ -6,7 +6,7 @@ import { requirePermission } from '../../middleware/rbac.js';
 import { requirePlatformOps } from '../../middleware/platformOps.js';
 import { publish } from '../../lib/events.js';
 import { paginate, paginatedResponse, uid } from '../../lib/helpers.js';
-import { onboardPartner } from '../legal/legal.service.js';
+import { ensureLegalTrustPackage } from '../legal/legal.trust.service.js';
 import { syncPersonFromSupplierMember, removePersonFromSupplierMember } from '../../lib/syncMembership.js';
 import type { AuthRequest, ApiResponse } from '../../types/index.js';
 
@@ -21,7 +21,6 @@ export const suppliersRouter = Router();
 
 suppliersRouter.use(authenticate);
 
-// Allowed verification-status transitions (state machine).
 const STATUS_TRANSITIONS: Record<SupplierStatus, SupplierStatus[]> = {
   pending: ['documents_review', 'suspended'],
   documents_review: ['verified', 'pending', 'suspended'],
@@ -30,7 +29,6 @@ const STATUS_TRANSITIONS: Record<SupplierStatus, SupplierStatus[]> = {
   suspended: ['verified', 'pending'],
 };
 
-// GET /api/suppliers — list (filter by status/kind).
 suppliersRouter.get('/', async (req: AuthRequest, res) => {
   try {
     const page = parseInt(req.query.page as string) || 1;
@@ -61,17 +59,17 @@ suppliersRouter.get('/', async (req: AuthRequest, res) => {
   }
 });
 
-// Auto-create the LegalPartner (SUPPLIER) + SUPPLIER_AGREEMENT/NDA documents and
-// persist the fixed 10% marketplace commission so they land for signing right away.
+// Legal identity is scoped to the supplier organization, not globally to the user.
+// This allows one account to own or operate multiple supplier companies safely.
 async function ensureSupplierLegalPartner(
   supplier: { name: string; bin?: string | null; legalAddress?: string | null; contactPerson?: string | null; phone?: string | null; email?: string | null },
   userId: string,
+  organizationId: string,
 ) {
   try {
-    const existing = await prisma.legalPartner.findUnique({ where: { userId } });
-    if (existing) return existing;
-    const partner = await onboardPartner({
+    return await ensureLegalTrustPackage({
       userId,
+      organizationId,
       type: 'SUPPLIER',
       legalName: supplier.name || '',
       bin: supplier.bin || '',
@@ -81,8 +79,7 @@ async function ensureSupplierLegalPartner(
       phone: supplier.phone || '',
       email: supplier.email || '',
       commission: 10,
-    }, userId);
-    return partner;
+    });
   } catch (e) {
     console.warn('[SUPPLIER] Legal partner onboarding failed (non-fatal):', (e as Error).message);
     return null;
@@ -90,28 +87,35 @@ async function ensureSupplierLegalPartner(
 }
 
 // POST /api/suppliers/register — self-serve: create supplier company + owner membership.
-// Must be registered BEFORE /:id routes.
 suppliersRouter.post('/register', async (req: AuthRequest, res) => {
   try {
     const { name, kind, bin, legalAddress, contactPerson, phone, email } = req.body || {};
-    if (!name || !String(name).trim()) {
+    const supplierName = String(name || '').trim();
+    if (!supplierName) {
       return res.status(400).json({ ok: false, error: 'Название компании обязательно' } satisfies ApiResponse);
     }
 
-    const existing = await prisma.supplierMember.findFirst({ where: { userId: req.user!.id } });
+    // A user may operate multiple supplier organizations. Only prevent an exact
+    // duplicate membership for the same supplier name; do not block other orgs.
+    const existing = await prisma.supplierMember.findFirst({
+      where: { userId: req.user!.id, supplier: { name: supplierName } },
+      include: { supplier: true },
+    });
     if (existing) {
-      const existingSupplier = await prisma.supplier.findUnique({ where: { id: existing.supplierId } });
-      if (existingSupplier) await ensureSupplierLegalPartner(existingSupplier, req.user!.id);
+      const existingOrg = await prisma.organization.findUnique({
+        where: { originalType_originalId: { originalType: 'Supplier', originalId: existing.supplierId } },
+      });
+      if (existingOrg) await ensureSupplierLegalPartner(existing.supplier, req.user!.id, existingOrg.id);
       return res.status(409).json({
         ok: false,
-        error: 'Вы уже привязаны к поставщику. Откройте кабинет продавца.',
-        data: { supplierId: existing.supplierId },
+        error: 'Вы уже привязаны к этому поставщику. Откройте кабинет продавца.',
+        data: { supplierId: existing.supplierId, organizationId: existingOrg?.id },
       } satisfies ApiResponse);
     }
 
     const supplier = await prisma.supplier.create({
       data: {
-        name: String(name).trim(),
+        name: supplierName,
         kind: kind || 'SUPPLIER',
         bin: bin || null,
         legalAddress: legalAddress || null,
@@ -119,15 +123,13 @@ suppliersRouter.post('/register', async (req: AuthRequest, res) => {
         phone: phone || req.user!.email || null,
         email: email || req.user!.email || null,
         status: 'pending',
-        commissionRate: 1000, // fixed 10% marketplace commission (bps)
-        members: {
-          create: { userId: req.user!.id, role: 'owner' },
-        },
+        commissionRate: 1000,
+        members: { create: { userId: req.user!.id, role: 'owner' } },
       },
       include: { members: true },
     });
 
-    await prisma.organization.upsert({
+    const organization = await prisma.organization.upsert({
       where: { originalType_originalId: { originalType: 'Supplier', originalId: supplier.id } },
       update: { name: supplier.name, phone: supplier.phone, email: supplier.email },
       create: {
@@ -141,52 +143,25 @@ suppliersRouter.post('/register', async (req: AuthRequest, res) => {
       },
     });
 
-    // Supplier agreement + NDA land for signing immediately (fixed 10% commission).
-    await ensureSupplierLegalPartner(supplier, req.user!.id);
+    await ensureSupplierLegalPartner(supplier, req.user!.id, organization.id);
 
     const ownerMember = supplier.members[0];
     if (ownerMember) await syncPersonFromSupplierMember(ownerMember.id, supplier.id, req.user!.id);
 
-    // Starter catalog: duplicate active DentVision products so the new supplier
-    // immediately has listings in the marketplace (with stock, so they show up).
     try {
       const dvSupplier = await prisma.supplier.findFirst({ where: { name: 'DentVision' } });
-      const existingCount = dvSupplier
-        ? await prisma.product.count({ where: { supplierId: supplier.id } })
-        : 0;
+      const existingCount = dvSupplier ? await prisma.product.count({ where: { supplierId: supplier.id } }) : 0;
       if (dvSupplier && existingCount === 0) {
-        const dvProducts = await prisma.product.findMany({
-          where: { supplierId: dvSupplier.id, isActive: true },
-          take: 200,
-        });
+        const dvProducts = await prisma.product.findMany({ where: { supplierId: dvSupplier.id, isActive: true }, take: 200 });
         if (dvProducts.length > 0) {
           await prisma.product.createMany({
             data: dvProducts.map((p) => ({
-              id: uid(),
-              name: p.name,
-              brand: p.brand,
-              category: p.category,
-              categoryId: p.categoryId,
-              price: p.price,
-              oldPrice: p.oldPrice,
-              stock: p.stock,
-              minStock: p.minStock,
-              description: p.description,
-              imageUrl: p.imageUrl,
-              images: p.images,
-              rating: p.rating,
-              reviewCount: 0,
-              supplierId: supplier.id,
-              ownBrand: false,
-              sku: p.sku,
-              unit: p.unit,
-              currency: p.currency,
-              tags: p.tags,
-              specs: p.specs,
-              manufacturer: p.manufacturer,
-              country: p.country,
-              compatibility: p.compatibility,
-              isActive: true,
+              id: uid(), name: p.name, brand: p.brand, category: p.category, categoryId: p.categoryId,
+              price: p.price, oldPrice: p.oldPrice, stock: p.stock, minStock: p.minStock,
+              description: p.description, imageUrl: p.imageUrl, images: p.images, rating: p.rating,
+              reviewCount: 0, supplierId: supplier.id, ownBrand: false, sku: p.sku, unit: p.unit,
+              currency: p.currency, tags: p.tags, specs: p.specs, manufacturer: p.manufacturer,
+              country: p.country, compatibility: p.compatibility, isActive: true,
               sharedProductId: p.sharedProductId || p.id,
             })),
           });
@@ -198,30 +173,24 @@ suppliersRouter.post('/register', async (req: AuthRequest, res) => {
     }
 
     publish('supplier.status_changed', {
-      supplierId: supplier.id,
-      status: 'pending',
-      from: 'pending',
-      to: 'pending',
+      supplierId: supplier.id, status: 'pending', from: 'pending', to: 'pending',
       userId: req.user?.id,
     });
 
-    return res.status(201).json({ ok: true, data: supplier } satisfies ApiResponse);
+    return res.status(201).json({ ok: true, data: { ...supplier, organizationId: organization.id } } satisfies ApiResponse);
   } catch (error) {
     console.error('Supplier register error:', error);
     return res.status(500).json({ ok: false, error: 'Не удалось зарегистрировать поставщика' } satisfies ApiResponse);
   }
 });
 
-// GET /api/suppliers/:id — detail with documents.
 suppliersRouter.get('/:id', async (req: AuthRequest, res) => {
   try {
     const supplier = await prisma.supplier.findUnique({
       where: { id: req.params.id as string },
       include: { documents: true, _count: { select: { products: true } } },
     });
-    if (!supplier) {
-      return res.status(404).json({ ok: false, error: 'Поставщик не найден' } satisfies ApiResponse);
-    }
+    if (!supplier) return res.status(404).json({ ok: false, error: 'Поставщик не найден' } satisfies ApiResponse);
     return res.json({ ok: true, data: supplier } satisfies ApiResponse);
   } catch (error) {
     console.error('Get supplier error:', error);
@@ -229,32 +198,17 @@ suppliersRouter.get('/:id', async (req: AuthRequest, res) => {
   }
 });
 
-// POST /api/suppliers — create (platform).
 suppliersRouter.post('/', requirePermission('supplier.manage'), requirePlatformOps, async (req: AuthRequest, res) => {
   try {
     const { name, kind, bin, legalAddress, contactPerson, phone, email } = req.body || {};
-    if (!name) {
-      return res.status(400).json({ ok: false, error: 'Название обязательно' } satisfies ApiResponse);
-    }
+    if (!name) return res.status(400).json({ ok: false, error: 'Название обязательно' } satisfies ApiResponse);
     const supplier = await prisma.supplier.create({
-      data: {
-        name,
-        kind: kind || 'SUPPLIER',
-        bin: bin || null,
-        legalAddress: legalAddress || null,
-        contactPerson: contactPerson || null,
-        phone: phone || null,
-        email: email || null,
-      },
+      data: { name, kind: kind || 'SUPPLIER', bin: bin || null, legalAddress: legalAddress || null, contactPerson: contactPerson || null, phone: phone || null, email: email || null },
     });
     await prisma.organization.upsert({
       where: { originalType_originalId: { originalType: 'Supplier', originalId: supplier.id } },
       update: { name: supplier.name, phone: supplier.phone, email: supplier.email },
-      create: {
-        id: uid(), name: supplier.name, type: 'SUPPLIER_COMPANY',
-        phone: supplier.phone, email: supplier.email,
-        originalType: 'Supplier', originalId: supplier.id,
-      },
+      create: { id: uid(), name: supplier.name, type: 'SUPPLIER_COMPANY', phone: supplier.phone, email: supplier.email, originalType: 'Supplier', originalId: supplier.id },
     });
     return res.status(201).json({ ok: true, data: supplier } satisfies ApiResponse);
   } catch (error) {
@@ -263,34 +217,24 @@ suppliersRouter.post('/', requirePermission('supplier.manage'), requirePlatformO
   }
 });
 
-// PATCH /api/suppliers/:id — update profile (platform).
 suppliersRouter.patch('/:id', requirePermission('supplier.manage'), requirePlatformOps, async (req: AuthRequest, res) => {
   try {
     const existing = await prisma.supplier.findUnique({ where: { id: req.params.id as string } });
-    if (!existing) {
-      return res.status(404).json({ ok: false, error: 'Поставщик не найден' } satisfies ApiResponse);
-    }
+    if (!existing) return res.status(404).json({ ok: false, error: 'Поставщик не найден' } satisfies ApiResponse);
     const b = req.body || {};
     const supplier = await prisma.supplier.update({
       where: { id: existing.id },
       data: {
-        ...(b.name !== undefined && { name: b.name }),
-        ...(b.kind !== undefined && { kind: b.kind }),
-        ...(b.bin !== undefined && { bin: b.bin || null }),
-        ...(b.legalAddress !== undefined && { legalAddress: b.legalAddress || null }),
-        ...(b.contactPerson !== undefined && { contactPerson: b.contactPerson || null }),
-        ...(b.phone !== undefined && { phone: b.phone || null }),
+        ...(b.name !== undefined && { name: b.name }), ...(b.kind !== undefined && { kind: b.kind }),
+        ...(b.bin !== undefined && { bin: b.bin || null }), ...(b.legalAddress !== undefined && { legalAddress: b.legalAddress || null }),
+        ...(b.contactPerson !== undefined && { contactPerson: b.contactPerson || null }), ...(b.phone !== undefined && { phone: b.phone || null }),
         ...(b.email !== undefined && { email: b.email || null }),
       },
     });
     await prisma.organization.upsert({
       where: { originalType_originalId: { originalType: 'Supplier', originalId: supplier.id } },
       update: { name: supplier.name, phone: supplier.phone, email: supplier.email },
-      create: {
-        id: uid(), name: supplier.name, type: 'SUPPLIER_COMPANY',
-        phone: supplier.phone, email: supplier.email,
-        originalType: 'Supplier', originalId: supplier.id,
-      },
+      create: { id: uid(), name: supplier.name, type: 'SUPPLIER_COMPANY', phone: supplier.phone, email: supplier.email, originalType: 'Supplier', originalId: supplier.id },
     });
     return res.json({ ok: true, data: supplier } satisfies ApiResponse);
   } catch (error) {
@@ -299,38 +243,17 @@ suppliersRouter.patch('/:id', requirePermission('supplier.manage'), requirePlatf
   }
 });
 
-// POST /api/suppliers/:id/status — verification pipeline transition (platform).
 suppliersRouter.post('/:id/status', requirePermission('supplier.manage'), requirePlatformOps, async (req: AuthRequest, res) => {
   try {
     const target = req.body?.status as SupplierStatus | undefined;
-    if (!target || !(target in STATUS_TRANSITIONS)) {
-      return res.status(400).json({ ok: false, error: 'Некорректный статус' } satisfies ApiResponse);
-    }
+    if (!target || !(target in STATUS_TRANSITIONS)) return res.status(400).json({ ok: false, error: 'Некорректный статус' } satisfies ApiResponse);
     const existing = await prisma.supplier.findUnique({ where: { id: req.params.id as string } });
-    if (!existing) {
-      return res.status(404).json({ ok: false, error: 'Поставщик не найден' } satisfies ApiResponse);
-    }
-    if (existing.status === target) {
-      return res.json({ ok: true, data: existing } satisfies ApiResponse);
-    }
+    if (!existing) return res.status(404).json({ ok: false, error: 'Поставщик не найден' } satisfies ApiResponse);
+    if (existing.status === target) return res.json({ ok: true, data: existing } satisfies ApiResponse);
     const allowed = STATUS_TRANSITIONS[existing.status] || [];
-    if (!allowed.includes(target)) {
-      return res.status(409).json({
-        ok: false,
-        error: `Недопустимый переход: ${existing.status} → ${target}`,
-      } satisfies ApiResponse);
-    }
-    const supplier = await prisma.supplier.update({
-      where: { id: existing.id },
-      data: { status: target },
-    });
-    publish('supplier.status_changed', {
-      supplierId: supplier.id,
-      status: target,
-      from: existing.status,
-      to: target,
-      userId: req.user?.id,
-    });
+    if (!allowed.includes(target)) return res.status(409).json({ ok: false, error: `Недопустимый переход: ${existing.status} → ${target}` } satisfies ApiResponse);
+    const supplier = await prisma.supplier.update({ where: { id: existing.id }, data: { status: target } });
+    publish('supplier.status_changed', { supplierId: supplier.id, status: target, from: existing.status, to: target, userId: req.user?.id });
     return res.json({ ok: true, data: supplier } satisfies ApiResponse);
   } catch (error) {
     console.error('Supplier status error:', error);
@@ -338,40 +261,25 @@ suppliersRouter.post('/:id/status', requirePermission('supplier.manage'), requir
   }
 });
 
-// GET /api/suppliers/:id/members — list members (platform).
 suppliersRouter.get('/:id/members', requirePermission('supplier.manage'), requirePlatformOps, async (req: AuthRequest, res) => {
-  const members = await prisma.supplierMember.findMany({
-    where: { supplierId: req.params.id as string },
-    orderBy: { createdAt: 'asc' },
-  });
+  const members = await prisma.supplierMember.findMany({ where: { supplierId: req.params.id as string }, orderBy: { createdAt: 'asc' } });
   return res.json({ ok: true, data: members } satisfies ApiResponse);
 });
 
-// POST /api/suppliers/:id/members — link a user to the supplier (platform).
-// Body: { userId? , email?, role? } — resolve by email if userId omitted.
 suppliersRouter.post('/:id/members', requirePermission('supplier.manage'), requirePlatformOps, async (req: AuthRequest, res) => {
   try {
     const { userId, email, role } = req.body || {};
     const supplier = await prisma.supplier.findUnique({ where: { id: req.params.id as string } });
-    if (!supplier) {
-      return res.status(404).json({ ok: false, error: 'Поставщик не найден' } satisfies ApiResponse);
-    }
-
+    if (!supplier) return res.status(404).json({ ok: false, error: 'Поставщик не найден' } satisfies ApiResponse);
     let resolvedUserId = userId as string | undefined;
     if (!resolvedUserId && email) {
       const u = await prisma.user.findUnique({ where: { email: String(email).toLowerCase().trim() }, select: { id: true } });
       if (!u) return res.status(404).json({ ok: false, error: 'Пользователь с таким email не найден' } satisfies ApiResponse);
       resolvedUserId = u.id;
     }
-    if (!resolvedUserId) {
-      return res.status(400).json({ ok: false, error: 'userId или email обязателен' } satisfies ApiResponse);
-    }
-
+    if (!resolvedUserId) return res.status(400).json({ ok: false, error: 'userId или email обязателен' } satisfies ApiResponse);
     const user = await prisma.user.findUnique({ where: { id: resolvedUserId }, select: { id: true } });
-    if (!user) {
-      return res.status(404).json({ ok: false, error: 'Пользователь не найден' } satisfies ApiResponse);
-    }
-
+    if (!user) return res.status(404).json({ ok: false, error: 'Пользователь не найден' } satisfies ApiResponse);
     const member = await prisma.supplierMember.upsert({
       where: { userId_supplierId: { userId: resolvedUserId, supplierId: supplier.id } },
       create: { userId: resolvedUserId, supplierId: supplier.id, role: role || 'owner' },
@@ -385,17 +293,9 @@ suppliersRouter.post('/:id/members', requirePermission('supplier.manage'), requi
   }
 });
 
-// DELETE /api/suppliers/:id/members/:userId — unlink (platform).
 suppliersRouter.delete('/:id/members/:userId', requirePermission('supplier.manage'), requirePlatformOps, async (req: AuthRequest, res) => {
   try {
-    const deleted = await prisma.supplierMember.delete({
-      where: {
-        userId_supplierId: {
-          userId: req.params.userId as string,
-          supplierId: req.params.id as string,
-        },
-      },
-    });
+    const deleted = await prisma.supplierMember.delete({ where: { userId_supplierId: { userId: req.params.userId as string, supplierId: req.params.id as string } } });
     await removePersonFromSupplierMember(deleted.id);
     return res.json({ ok: true, data: { ok: true } } satisfies ApiResponse);
   } catch {
@@ -403,20 +303,13 @@ suppliersRouter.delete('/:id/members/:userId', requirePermission('supplier.manag
   }
 });
 
-// POST /api/suppliers/:id/documents — attach a document (platform).
 suppliersRouter.post('/:id/documents', requirePermission('supplier.manage'), requirePlatformOps, async (req: AuthRequest, res) => {
   try {
     const { type, url } = req.body || {};
-    if (!type || !url) {
-      return res.status(400).json({ ok: false, error: 'type и url обязательны' } satisfies ApiResponse);
-    }
+    if (!type || !url) return res.status(400).json({ ok: false, error: 'type и url обязательны' } satisfies ApiResponse);
     const supplier = await prisma.supplier.findUnique({ where: { id: req.params.id as string } });
-    if (!supplier) {
-      return res.status(404).json({ ok: false, error: 'Поставщик не найден' } satisfies ApiResponse);
-    }
-    const doc = await prisma.supplierDocument.create({
-      data: { supplierId: supplier.id, type, url },
-    });
+    if (!supplier) return res.status(404).json({ ok: false, error: 'Поставщик не найден' } satisfies ApiResponse);
+    const doc = await prisma.supplierDocument.create({ data: { supplierId: supplier.id, type, url } });
     return res.status(201).json({ ok: true, data: doc } satisfies ApiResponse);
   } catch (error) {
     console.error('Supplier document error:', error);
