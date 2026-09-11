@@ -42,6 +42,9 @@ export function publish<E extends DomainEventName>(event: E, payload: DomainEven
   });
 }
 
+/** Backward-compatible alias used by lightweight domain publishers. */
+export const emit = publish;
+
 /** Subscribe to a domain event. Handler errors are isolated and logged. */
 export function subscribe<E extends DomainEventName>(
   event: E,
