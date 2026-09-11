@@ -71,6 +71,10 @@ function fromStoredRule(row: { domain: string; percentBps: number; splitJson: un
 
 export async function getPartnerEconomicsRule(vertical: PartnerVertical, db: Prisma.TransactionClient | typeof prisma = prisma): Promise<PartnerEconomicsRule> {
   const canonical = CANONICAL_RULES[vertical];
+  // CommissionRule has a nullable scopeId, so a normal find-or-create is not
+  // concurrency-safe in PostgreSQL: UNIQUE constraints allow multiple NULLs.
+  // Serialize initialization per vertical without changing the existing schema.
+  await db.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`dentvision.partner-economics:${vertical}`}))`;
   const existing = await db.commissionRule.findFirst({ where: { domain: vertical, scopeId: null } });
   if (existing) return fromStoredRule(existing) || canonical;
   const created = await db.commissionRule.create({ data: { domain: vertical, scopeId: null, percentBps: canonical.percentBps, splitJson: asJson(canonical) } });
