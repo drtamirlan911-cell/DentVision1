@@ -1,5 +1,7 @@
 import type { ClinicSettingsPayload } from '../clinics/clinicSettings.js';
 import { DEFAULT_CLINIC_SETTINGS } from '../clinics/clinicSettings.js';
+import { publicRouter } from './public.routes.js';
+import { publicDiagnosticsBookingRouter } from './publicDiagnosticsBooking.routes.js';
 
 export interface SlotOccupancy {
   time: string;
@@ -66,3 +68,11 @@ export function splitPatientName(full: string): { firstName: string; lastName: s
   if (parts.length === 1) return { firstName: parts[0], lastName: '' };
   return { firstName: parts[0], lastName: parts.slice(1).join(' ') };
 }
+
+// public.routes.ts already imports this module. Register the independent public
+// diagnostics booking router after the ES module graph has finished evaluating,
+// avoiding a second permanent API mount in app.ts while keeping the booking
+// flow physically separated from the legacy clinic booking implementation.
+queueMicrotask(() => {
+  publicRouter.use(publicDiagnosticsBookingRouter);
+});
