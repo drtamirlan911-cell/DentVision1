@@ -79,6 +79,8 @@ jobsRouter.post('/employers/register', authenticate, async (req: AuthRequest, re
       } satisfies ApiResponse);
     }
 
+    const phone = req.body?.phone ? String(req.body.phone).trim() : null;
+    const email = req.body?.email ? String(req.body.email).trim().toLowerCase() : req.user!.email || null;
     const org = await prisma.organization.create({
       data: {
         id: uid(),
@@ -87,8 +89,8 @@ jobsRouter.post('/employers/register', authenticate, async (req: AuthRequest, re
         originalType: 'JobEmployer',
         originalId: uid(),
         address: req.body?.address ? String(req.body.address).trim() : null,
-        phone: req.body?.phone ? String(req.body.phone).trim() : req.user!.phone || null,
-        email: req.body?.email ? String(req.body.email).trim().toLowerCase() : req.user!.email || null,
+        phone,
+        email,
         taxId: req.body?.bin ? String(req.body.bin).trim() : null,
       },
     });
@@ -100,7 +102,7 @@ jobsRouter.post('/employers/register', authenticate, async (req: AuthRequest, re
         personType: 'STAFF',
         organizationId: org.id,
         userId: req.user!.id,
-        phone: req.user!.phone || undefined,
+        phone: phone || undefined,
         email: req.user!.email,
         originalType: 'JobEmployer',
         originalId: org.originalId!,
@@ -114,6 +116,7 @@ jobsRouter.post('/employers/register', authenticate, async (req: AuthRequest, re
 
     const legal = await ensureLegalTrustPackage({
       userId: req.user!.id,
+      organizationId: org.id,
       type: 'CORPORATE',
       legalName: name,
       bin: req.body?.bin ? String(req.body.bin).trim() : null,
