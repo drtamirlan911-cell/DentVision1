@@ -296,6 +296,9 @@ export async function getAvailableSlots(
 ): Promise<AvailableSlotsResult> {
   const clinic = await (prisma as any).clinic.findUnique({ where: { id: clinicId }, select: { settings: true } });
   if (!clinic) throw new PortalActionError('Клиника не найдена', 'NOT_FOUND');
+  if (patient.clinicId !== input.clinicId) {
+    throw new PortalActionError('Пациент не относится к выбранной клинике', 'NOT_FOUND');
+  }
 
   const settings = mergeClinicSettings(clinic.settings);
   const day = new Date(`${date}T12:00:00.000Z`);
@@ -359,7 +362,7 @@ export async function requestAppointment(input: RequestAppointmentInput) {
   const [patient, clinic] = await Promise.all([
     (prisma as any).patient.findUnique({
       where: { id: input.patientId },
-      select: { firstName: true, lastName: true, phone: true, email: true },
+      select: { firstName: true, lastName: true, phone: true, email: true, clinicId: true },
     }),
     (prisma as any).clinic.findUnique({ where: { id: input.clinicId }, select: { settings: true } }),
   ]);
