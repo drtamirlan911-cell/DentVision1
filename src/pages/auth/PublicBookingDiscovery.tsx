@@ -1,6 +1,7 @@
 import React from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { ArrowRight, MapPin, Search, Stethoscope } from 'lucide-react';
+import { API_URL } from '@/utils/apiOrigin';
 
 type Clinic = {
   id: string;
@@ -29,7 +30,7 @@ export default function PublicBookingDiscovery() {
       if (city.trim()) query.set('city', city.trim());
       if (q.trim()) query.set('q', q.trim());
       query.set('limit', '12');
-      const response = await fetch(`/api/public/clinics/discover?${query.toString()}`);
+      const response = await fetch(`${API_URL}/api/public/clinics/discover?${query.toString()}`);
       const data = await response.json();
       if (!response.ok || !data.ok) throw new Error(data.error || 'Не удалось найти клиники');
       setClinics(data.data?.clinics || []);
@@ -41,7 +42,7 @@ export default function PublicBookingDiscovery() {
     }
   }, [city, q]);
 
-  React.useEffect(() => { void search(); }, []); // initial discovery
+  React.useEffect(() => { void search(); }, [search]);
 
   return (
     <main className="min-h-[100dvh] bg-surface-0 px-4 py-6 text-txt-primary md:px-8 md:py-10">
