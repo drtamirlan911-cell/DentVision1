@@ -146,7 +146,7 @@ export const SuperAppSidebar: React.FC<SuperAppSidebarProps> = (props) => {
         <nav aria-label={text('nav.main_nav', 'Главная навигация')} className="min-h-0 flex-1 overflow-y-auto px-3 py-4 [scrollbar-width:none]">
           {groups.map(group => {
             const active = groupIsActive(location.pathname, group);
-            const open = isMobile ? true : !!expandedGroups[group.id];
+            const open = !!expandedGroups[group.id];
             return (
               <section key={group.id} className="mb-3">
                 {(!collapsed || isMobile) ? (
