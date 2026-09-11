@@ -1,9 +1,14 @@
 import prisma from '../lib/prisma.js';
+import { createHash } from 'node:crypto';
 import { subscribe } from '../lib/events.js';
 import { eventBus as aiEventBus } from '../modules/events/index.js';
 import { EventType } from '../modules/events/EventTypes.js';
 
 let registered = false;
+
+function diagnosticResultNotificationId(resultId: string, doctorId: string): string {
+  return `diag_result_${createHash('sha256').update(`${resultId}:${doctorId}`).digest('hex').slice(0, 35)}`;
+}
 
 /** Bridge CRM and operational domain events into the durable AI Event OS without blocking requests. */
 export function registerAIEventBridge(): void {
@@ -47,9 +52,35 @@ export function registerAIEventBridge(): void {
   });
 
   subscribe('diagnostics.result_ready', async ({ referralId, resultId, clinicId, centerId, doctorId, patientName, studyType, userId }) => {
-    // The domain event already enforces clinic/center/doctor ownership upstream.
-    // Only identifiers and routing metadata enter the AI Event OS; medical report
-    // text, files and conclusions stay behind the authorized referral API.
+    // Enforce the clinic boundary before delivering the proactive notification.
+    // The AI Event OS receives routing metadata only; report text/files remain in the protected referral API.
+    if (doctorId) {
+      const doctorMembership = await prisma.clinicMember.findFirst({
+        where: { clinicId, userId: doctorId, role: 'DOCTOR' },
+        select: { userId: true },
+      });
+
+      if (doctorMembership) {
+        await prisma.notification.upsert({
+          where: { id: diagnosticResultNotificationId(resultId, doctorId) },
+          create: {
+            id: diagnosticResultNotificationId(resultId, doctorId),
+            userId: doctorId,
+            type: 'workflow',
+            title: 'Результат диагностики готов',
+            message: `${studyType || 'Исследование'} по направлению готово к просмотру.`,
+            link: `/diagnostics/referrals/${referralId}`,
+          },
+          update: {
+            title: 'Результат диагностики готов',
+            message: `${studyType || 'Исследование'} по направлению готово к просмотру.`,
+            link: `/diagnostics/referrals/${referralId}`,
+            read: false,
+          },
+        });
+      }
+    }
+
     await aiEventBus.publish(EventType.DiagnosticResultReady, {
       referralId,
       resultId,
