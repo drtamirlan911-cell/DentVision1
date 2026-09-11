@@ -368,6 +368,9 @@ export async function requestAppointment(input: RequestAppointmentInput) {
   ]);
   if (!patient) throw new PortalActionError('Карта пациента не найдена', 'NOT_FOUND');
   if (!clinic) throw new PortalActionError('Клиника не найдена', 'NOT_FOUND');
+  if (patient.clinicId !== input.clinicId) {
+    throw new PortalActionError('Пациент не относится к выбранной клинике', 'NOT_FOUND');
+  }
 
   const settings = mergeClinicSettings(clinic.settings);
   if (settings.onlineBookingEnabled === false) {
