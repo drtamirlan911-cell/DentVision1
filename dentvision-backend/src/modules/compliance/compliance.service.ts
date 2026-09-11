@@ -26,17 +26,57 @@ export async function getRequiredConsents(userId: string, audience: ConsentAudie
   return computeConsentStatus(REQUIRED_CONSENTS, existing, audience);
 }
 
+/**
+ * Strict authorization primitive for protected workflows.
+ * Unlike the general click-wrap gate, this never fails open: a database error
+ * is an authorization failure, not permission to process protected data.
+ */
+export async function assertCurrentConsent(
+  userId: string,
+  audience: ConsentAudience,
+  requiredTypes?: string[],
+) {
+  const status = await getRequiredConsents(userId, audience);
+  const applicable = requiredTypes?.length
+    ? status.items.filter((item) => requiredTypes.includes(item.type))
+    : status.items.filter((item) => item.mandatory);
+
+  const pending = applicable.filter((item) => item.status !== 'accepted');
+  if (pending.length) {
+    const error = new Error('Required consent is missing or stale');
+    Object.assign(error, {
+      code: 'CONSENT_REQUIRED',
+      pending: pending.map((item) => item.type),
+      items: pending,
+    });
+    throw error;
+  }
+  return status;
+}
+
 export async function upsertConsent(
   userId: string,
   type: string,
   accepted: boolean,
   ipAddress?: string,
-  version = '1.0',
+  version?: string,
 ) {
+  const catalogItem = REQUIRED_CONSENTS.find((item) => item.type === type);
+  if (!catalogItem) {
+    throw Object.assign(new Error('Unknown consent type'), { code: 'UNKNOWN_CONSENT' });
+  }
+
+  // The client may not back-date an acceptance to an older document version.
+  // The catalog is the source of truth for the version that is actually accepted.
+  const resolvedVersion = catalogItem.version;
+  if (version && version !== resolvedVersion) {
+    throw Object.assign(new Error('Consent version is not current'), { code: 'STALE_CONSENT_VERSION' });
+  }
+
   return prisma.consent.upsert({
     where: { userId_type: { userId, type } },
-    update: { accepted, version, ipAddress: ipAddress || null },
-    create: { userId, type, accepted, version, ipAddress: ipAddress || null },
+    update: { accepted, version: resolvedVersion, ipAddress: ipAddress || null },
+    create: { userId, type, accepted, version: resolvedVersion, ipAddress: ipAddress || null },
   });
 }
 
@@ -111,9 +151,6 @@ export async function confirmAIAction(
   }
 
   if (confirmerClinicId) {
-    // `AIActionLog` carries no clinicId of its own: scope through the
-    // patient it's about, or — for patient-less logs (e.g. staff-assistant
-    // interactions) — through the acting user's clinic membership.
     const sameClinic = log.patientId
       ? log.patient?.clinicId === confirmerClinicId
       : Boolean(
@@ -182,12 +219,7 @@ export async function getSecurityDashboard(userId: string, clinicId?: string) {
     }),
   ]);
 
-  return {
-    sessions,
-    consents,
-    recentAI,
-    failedLogins24h: failedLogins,
-  };
+  return { sessions, consents, recentAI, failedLogins24h: failedLogins };
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -205,10 +237,8 @@ const FORBIDDEN_TERMS = ['гарантия 100', '100% гарантия', 'чу�
 function scanForbidden(text: string | null | undefined): Finding[] {
   if (!text) return [];
   const lower = text.toLowerCase();
-  const hits = FORBIDDEN_TERMS.filter((t) => lower.includes(t));
-  return hits.map((t) => ({
-    code: 'forbidden_claim',
-    severity: 'block' as const,
+  return FORBIDDEN_TERMS.filter((t) => lower.includes(t)).map((t) => ({
+    code: 'forbidden_claim', severity: 'block' as const,
     message: `Недопустимое рекламное заявление: «${t}»`,
   }));
 }
@@ -223,28 +253,20 @@ export async function runComplianceCheck(entityType: string, entityId: string) {
   let findings: Finding[];
   switch (entityType) {
     case 'product': {
-      const product = await prisma.product.findUnique({
-        where: { id: entityId },
-        include: { _count: { select: { favorites: true } } },
-      });
+      const product = await prisma.product.findUnique({ where: { id: entityId }, include: { _count: { select: { favorites: true } } } });
       if (!product) findings = [{ code: 'not_found', severity: 'block', message: 'Товар не найден' }];
       else {
         const f: Finding[] = [];
         f.push(...scanForbidden(product.name), ...scanForbidden(product.description));
         if (product.price <= 0) f.push({ code: 'invalid_price', severity: 'block', message: 'Цена должна быть положительной' });
         if (!product.description) f.push({ code: 'missing_description', severity: 'review', message: 'Отсутствует описание' });
-        if ((product.category || '').toLowerCase().includes('имплант') && !product.supplierId) {
-          f.push({ code: 'missing_supplier', severity: 'review', message: 'Для имплантов требуется привязка к поставщику' });
-        }
+        if ((product.category || '').toLowerCase().includes('имплант') && !product.supplierId) f.push({ code: 'missing_supplier', severity: 'review', message: 'Для имплантов требуется привязка к поставщику' });
         findings = f;
       }
       break;
     }
     case 'course': {
-      const course = await prisma.course.findUnique({
-        where: { id: entityId },
-        include: { _count: { select: { lessons: true } } },
-      });
+      const course = await prisma.course.findUnique({ where: { id: entityId }, include: { _count: { select: { lessons: true } } } });
       if (!course) findings = [{ code: 'not_found', severity: 'block', message: 'Курс не найден' }];
       else {
         const f: Finding[] = [];
@@ -255,10 +277,7 @@ export async function runComplianceCheck(entityType: string, entityId: string) {
       break;
     }
     case 'supplier': {
-      const supplier = await prisma.supplier.findUnique({
-        where: { id: entityId },
-        include: { _count: { select: { documents: true } } },
-      });
+      const supplier = await prisma.supplier.findUnique({ where: { id: entityId }, include: { _count: { select: { documents: true } } } });
       if (!supplier) findings = [{ code: 'not_found', severity: 'block', message: 'Поставщик не найден' }];
       else {
         const f: Finding[] = [];
@@ -271,7 +290,5 @@ export async function runComplianceCheck(entityType: string, entityId: string) {
     default: throw new Error('Unsupported entityType');
   }
   const status = verdict(findings);
-  return prisma.complianceCheck.create({
-    data: { entityType, entityId, status, findings: findings as unknown as object },
-  });
+  return prisma.complianceCheck.create({ data: { entityType, entityId, status, findings: findings as unknown as object } });
 }
