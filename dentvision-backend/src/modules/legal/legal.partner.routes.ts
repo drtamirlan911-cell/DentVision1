@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import { createHash, randomBytes } from 'node:crypto';
 import { authenticate } from '../../middleware/auth.js';
 import prisma from '../../lib/prisma.js';
 import { writeAuditLog } from './legal.audit.js';
@@ -198,6 +199,9 @@ router.post('/documents/:id/sign', async (req: any, res, next) => {
     if (doc.status !== 'DRAFT' && doc.status !== 'REVIEW') {
       return res.status(400).json({ ok: false, error: 'Document already signed or cancelled' });
     }
+    if (req.body?.acknowledged !== true) {
+      return res.status(400).json({ ok: false, error: 'Требуется явное подтверждение ознакомления с документом.' });
+    }
     const partner = await prisma.legalPartner.findUnique({ where: { id: req.partner.id } });
     const required = ['legalName', 'bin', 'director', 'address', 'iban'] as const;
     const missing = required.filter(k => !(partner as any)?.[k]);
@@ -205,15 +209,81 @@ router.post('/documents/:id/sign', async (req: any, res, next) => {
       const labels: Record<string, string> = { legalName: 'Наименование юрлица', bin: 'БИН/ИИН', director: 'ФИО руководителя', address: 'Юридический адрес', iban: 'IBAN счёт' };
       return res.status(400).json({ ok: false, error: `Заполните реквизиты: ${missing.map(k => labels[k] || k).join(', ')}` });
     }
+
+    // Temporary signing layer until Kazakhstan EDS/NCA is connected.
+    // This is an auditable electronic acceptance record, NOT a Kazakhstan EDS.
+    // The provider abstraction can later replace this evidence without changing
+    // the Contract/Consent workflow.
+    const signedAt = new Date();
+    const nonce = randomBytes(24).toString('hex');
+    const evidencePayload = [
+      'DentVision-Electronic-Acceptance-v1',
+      doc.id,
+      String(doc.version),
+      req.partner.id,
+      req.legalOrganizationId || '',
+      req.user?.id || '',
+      req.user?.email || '',
+      signedAt.toISOString(),
+      req.ip || '',
+      req.headers['user-agent'] || '',
+      nonce,
+      doc.content,
+    ].join('|');
+    const evidenceHash = createHash('sha256').update(evidencePayload, 'utf8').digest('hex');
+
     const updated = await prisma.legalDocument.update({
       where: { id: doc.id },
-      data: { status: 'PUBLISHED', approvedBy: req.user?.id, ecpSignedAt: new Date(), ecpStatus: 'signed' },
+      data: {
+        status: 'PUBLISHED',
+        approvedBy: req.user?.id,
+        ecpSignedAt: signedAt,
+        ecpStatus: 'signed',
+        ecpProvider: 'DentVision Electronic Acceptance',
+        ecpSignature: evidenceHash,
+      },
     });
     await prisma.legalDocumentVersion.create({
-      data: { documentId: doc.id, version: doc.version + 1, content: doc.content, status: 'PUBLISHED', changelog: 'Подписан партнёром', createdBy: req.user?.id },
+      data: { documentId: doc.id, version: doc.version + 1, content: doc.content, status: 'PUBLISHED', changelog: 'Подписан электронным подтверждением DentVision; EDS pending', createdBy: req.user?.id },
     });
-    await writeAuditLog({ documentId: doc.id, action: 'STATUS_CHANGED', fromStatus: doc.status, toStatus: 'PUBLISHED', fromVersion: doc.version, toVersion: doc.version + 1, diff: { signed: true }, performedBy: req.user?.id });
-    res.json({ ok: true, data: updated });
+    await writeAuditLog({
+      documentId: doc.id,
+      action: 'STATUS_CHANGED',
+      fromStatus: doc.status,
+      toStatus: 'PUBLISHED',
+      fromVersion: doc.version,
+      toVersion: doc.version + 1,
+      diff: {
+        signed: true,
+        signatureMethod: 'DENTVISION_ELECTRONIC_ACCEPTANCE',
+        assuranceLevel: 'L1',
+        provider: 'DentVision Electronic Acceptance',
+        evidenceHash,
+        signedAt: signedAt.toISOString(),
+        organizationId: req.legalOrganizationId || null,
+        signerUserId: req.user?.id || null,
+        signerEmail: req.user?.email || null,
+        ip: req.ip || null,
+        userAgent: req.headers['user-agent'] || null,
+        nonce,
+        edsStatus: 'PENDING_INTEGRATION',
+      },
+      performedBy: req.user?.id,
+    });
+    res.json({
+      ok: true,
+      data: {
+        ...updated,
+        signature: {
+          method: 'DENTVISION_ELECTRONIC_ACCEPTANCE',
+          assuranceLevel: 'L1',
+          evidenceHash,
+          signedAt,
+          edsStatus: 'PENDING_INTEGRATION',
+          legalNote: 'Это электронное подтверждение внутри DentVision, а не ЭЦП Казахстана.',
+        },
+      },
+    });
   } catch (err) { next(err); }
 });
 
