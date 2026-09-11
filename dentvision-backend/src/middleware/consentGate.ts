@@ -8,7 +8,12 @@
 import type { Response, NextFunction } from 'express';
 import type { AuthRequest } from '../types/index.js';
 import { assertCurrentConsent } from '../modules/compliance/compliance.service.js';
-import { audienceForRole, type ConsentAudience } from '../modules/compliance/consent.catalog.js';
+import {
+  audienceForRole,
+  audienceMatches,
+  REQUIRED_CONSENTS,
+  type ConsentAudience,
+} from '../modules/compliance/consent.catalog.js';
 
 const CONSENT_ACCEPT_PATH = '/api/compliance/consents';
 
@@ -18,6 +23,29 @@ function audienceForRequest(req: AuthRequest): ConsentAudience {
     organizationType: (req.user as any)?.organizationType,
     personType: (req.user as any)?.personType,
   });
+}
+
+function validateRequiredTypes(requiredTypes: string[] | undefined, audience: ConsentAudience) {
+  if (!requiredTypes?.length) return null;
+
+  const unknown = requiredTypes.filter((type) => !REQUIRED_CONSENTS.some((item) => item.type === type));
+  if (unknown.length) {
+    return { code: 'UNKNOWN_CONSENT', message: 'Запрошен неизвестный тип согласия', types: unknown };
+  }
+
+  const notApplicable = requiredTypes.filter((type) => {
+    const item = REQUIRED_CONSENTS.find((candidate) => candidate.type === type)!;
+    return !audienceMatches(item, audience);
+  });
+  if (notApplicable.length) {
+    return {
+      code: 'CONSENT_AUDIENCE_MISMATCH',
+      message: 'Запрошенное согласие не относится к текущему типу участника',
+      types: notApplicable,
+    };
+  }
+
+  return null;
 }
 
 /**
@@ -70,7 +98,18 @@ export function requireCurrentConsent(requiredTypes?: string[]) {
       const user = req.user;
       if (!user) return res.status(401).json({ ok: false, error: 'Требуется авторизация' });
 
-      const status = await assertCurrentConsent(user.id, audienceForRequest(req), requiredTypes);
+      const audience = audienceForRequest(req);
+      const invalid = validateRequiredTypes(requiredTypes, audience);
+      if (invalid) {
+        return res.status(400).json({
+          ok: false,
+          error: invalid.message,
+          code: invalid.code,
+          data: { types: invalid.types },
+        });
+      }
+
+      const status = await assertCurrentConsent(user.id, audience, requiredTypes);
       res.locals.consentStatus = status;
       return next();
     } catch (err) {
