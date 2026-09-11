@@ -108,8 +108,6 @@ export async function getTreatmentPlans(patientId: string) {
     const items = normalizePlanItems(r.snapshot);
     const stages = enrichStages(items.stages);
     return {
-      // The release is the thing on screen, so it is the identity here. The
-      // plan id is carried alongside because the clinic side still keys on it.
       id: r.id,
       planId: r.planId,
       version: r.version,
@@ -117,8 +115,6 @@ export async function getTreatmentPlans(patientId: string) {
       diagnosis: items.diagnosis ?? null,
       teeth: collectPlanTeeth(stages).length ? collectPlanTeeth(stages) : (items.teeth || []),
       stages,
-      // Frozen at approval, not recomputed: this is the number the patient was
-      // quoted, and it must not drift if the price list changes afterwards.
       totalBudget: r.totalAmount,
       approvedAt: r.approvedAt,
       publishedAt: r.publishedAt,
@@ -175,20 +171,12 @@ export async function getInvoices(patientId: string) {
   });
   const summary = {
     total: invoices.reduce((s: number, i: any) => s + Number(i.amount || 0), 0),
-    unpaid: invoices
-      .filter((i: any) => i.status === 'pending' || i.status === 'unpaid')
-      .reduce((s: number, i: any) => s + Number(i.amount || 0), 0),
-    paid: invoices
-      .filter((i: any) => i.status === 'paid')
-      .reduce((s: number, i: any) => s + Number(i.amount || 0), 0),
+    unpaid: invoices.filter((i: any) => i.status === 'pending' || i.status === 'unpaid').reduce((s: number, i: any) => s + Number(i.amount || 0), 0),
+    paid: invoices.filter((i: any) => i.status === 'paid').reduce((s: number, i: any) => s + Number(i.amount || 0), 0),
   };
   return { invoices, summary };
 }
 
-/**
- * The columns are `type`/`name`, not `docType`/`title`; aliased in the response
- * so the existing frontend field names keep working.
- */
 export async function getDocuments(patientId: string) {
   const docs = await (prisma as any).document.findMany({
     where: { patientId },
@@ -202,16 +190,9 @@ export async function getDocuments(patientId: string) {
     take: 30,
   });
   return docs.map((d: any) => ({
-    id: d.id,
-    docType: d.type,
-    title: d.name || d.type,
-    url: d.url,
-    signed: d.signed,
-    signedAt: d.signedAt,
-    signatureData: d.signatureData,
-    signedByName: d.signedByName,
-    createdAt: d.createdAt,
-    clinic: d.clinic,
+    id: d.id, docType: d.type, title: d.name || d.type, url: d.url,
+    signed: d.signed, signedAt: d.signedAt, signatureData: d.signatureData,
+    signedByName: d.signedByName, createdAt: d.createdAt, clinic: d.clinic,
   }));
 }
 
@@ -228,24 +209,17 @@ export async function getDiagnostics(patientId: string) {
     orderBy: { createdAt: 'desc' },
     take: 30,
   });
-
-  // AI diagnostic output is clinical decision support, not a patient-facing
-  // result. Until a clinician confirms it, expose the referral/status only and
-  // never leak the draft report or conclusion into the patient record.
   return referrals.map((referral: any) => ({
     ...referral,
-    result: referral.result?.doctorConfirmed
-      ? {
-          reportText: referral.result.reportText,
-          conclusion: referral.result.conclusion,
-          createdAt: referral.result.createdAt,
-        }
-      : null,
+    result: referral.result?.doctorConfirmed ? {
+      reportText: referral.result.reportText,
+      conclusion: referral.result.conclusion,
+      createdAt: referral.result.createdAt,
+    } : null,
     resultPendingConfirmation: Boolean(referral.result && !referral.result.doctorConfirmed),
   }));
 }
 
-/** Statuses a patient can no longer act on — already closed, one way or another. */
 const UNCANCELLABLE = ['cancelled', 'completed', 'no_show'];
 
 export class PortalActionError extends Error {
@@ -254,46 +228,19 @@ export class PortalActionError extends Error {
   }
 }
 
-/**
- * Cancel one of this patient's appointments.
- *
- * The `patientId` filter is the whole security boundary: an appointment id
- * belonging to someone else simply does not match, so the caller — a route or
- * the assistant — cannot reach another patient's schedule by passing a
- * different id. It is a filter rather than a fetch-then-compare on purpose;
- * the comparison is the step people forget.
- */
 export async function cancelAppointment(patientId: string, appointmentId: string) {
   const appt = await (prisma as any).appointment.findFirst({
     where: { id: appointmentId, patientId },
     select: { id: true, status: true, notes: true, date: true, time: true },
   });
   if (!appt) throw new PortalActionError('Запись не найдена', 'NOT_FOUND');
-  if (UNCANCELLABLE.includes(appt.status)) {
-    throw new PortalActionError('Нельзя отменить запись в этом статусе', 'BAD_STATUS');
-  }
-
-  // A confirmed slot the clinic was holding is worth marking as the patient's
-  // doing, so reception can tell it apart from their own cancellations.
-  const data =
-    appt.status === 'confirmed'
-      ? { status: 'cancelled', notes: `${appt.notes || ''}\n[Отмена пациентом через портал]`.trim() }
-      : { status: 'cancelled' };
-
+  if (UNCANCELLABLE.includes(appt.status)) throw new PortalActionError('Нельзя отменить запись в этом статусе', 'BAD_STATUS');
+  const data = appt.status === 'confirmed'
+    ? { status: 'cancelled', notes: `${appt.notes || ''}\n[Отмена пациентом через портал]`.trim() }
+    : { status: 'cancelled' };
   await (prisma as any).appointment.update({ where: { id: appointmentId }, data });
   return { cancelled: true, date: appt.date, time: appt.time };
 }
-
-// ─────────────── Booking ───────────────
-//
-// A request, not an instant appointment — the same shape the public booking
-// widget already uses (`Booking`, `status: 'pending'`). Staff confirm it into
-// an `Appointment`. Reusing that model rather than writing straight to
-// `Appointment` means the assistant cannot place a patient on the calendar
-// without a human ever looking at it, and it means slot listing, conflict
-// checking and clinic hours all come from the one place already exercised by
-// real traffic (`public.routes.ts`) instead of a second implementation that
-// could drift from it.
 
 import { mergeClinicSettings } from '../clinics/clinicSettings.js';
 import { buildTimeSlots, isWorkingDay, filterAvailableSlots } from '../public/bookingSlots.js';
@@ -304,29 +251,15 @@ export interface AvailableSlotsResult {
   slots: string[];
 }
 
-export async function getAvailableSlots(
-  clinicId: string,
-  date: string,
-  doctorId?: string | null,
-): Promise<AvailableSlotsResult> {
+export async function getAvailableSlots(clinicId: string, date: string, doctorId?: string | null): Promise<AvailableSlotsResult> {
   const clinic = await (prisma as any).clinic.findUnique({ where: { id: clinicId }, select: { settings: true } });
   if (!clinic) throw new PortalActionError('Клиника не найдена', 'NOT_FOUND');
-  if (patient.clinicId !== input.clinicId) {
-    throw new PortalActionError('Пациент не относится к выбранной клинике', 'NOT_FOUND');
-  }
-
   const settings = mergeClinicSettings(clinic.settings);
   const day = new Date(`${date}T12:00:00.000Z`);
-  if (!isWorkingDay(day, settings)) {
-    return { date, workingDay: false, slots: [] };
-  }
-
+  if (!isWorkingDay(day, settings)) return { date, workingDay: false, slots: [] };
   const dayStart = new Date(`${date}T00:00:00.000Z`);
   const dayEnd = new Date(`${date}T23:59:59.999Z`);
-  const doctorCount = doctorId
-    ? 1
-    : (await (prisma as any).clinicMember.count({ where: { clinicId, role: { in: ['DOCTOR', 'OWNER'] } } })) || 1;
-
+  const doctorCount = doctorId ? 1 : (await (prisma as any).clinicMember.count({ where: { clinicId, role: { in: ['DOCTOR', 'OWNER'] } } })) || 1;
   const [appointments, bookings] = await Promise.all([
     (prisma as any).appointment.findMany({
       where: { clinicId, date: { gte: dayStart, lte: dayEnd }, status: { notIn: ['cancelled', 'no_show'] }, ...(doctorId ? { doctorId } : {}) },
@@ -337,14 +270,11 @@ export async function getAvailableSlots(
       select: { time: true, doctorId: true },
     }),
   ]);
-
   const occupied = [
     ...appointments.filter((a: any) => a.time).map((a: any) => ({ time: a.time, doctorId: a.doctorId })),
     ...bookings.map((b: any) => ({ time: b.time, doctorId: b.doctorId })),
   ];
-
-  const allSlots = buildTimeSlots(settings);
-  return { date, workingDay: true, slots: filterAvailableSlots(allSlots, occupied, doctorId ?? null, doctorCount) };
+  return { date, workingDay: true, slots: filterAvailableSlots(buildTimeSlots(settings), occupied, doctorId ?? null, doctorCount) };
 }
 
 export interface RequestAppointmentInput {
@@ -355,24 +285,9 @@ export interface RequestAppointmentInput {
   doctorId?: string | null;
   serviceName?: string | null;
   notes?: string | null;
-  /**
-   * Set when the request was filed from the patient's presentation screen —
-   * the concierge funnel's tracked conversion. Verified against this same
-   * patient's own published releases before being trusted; a bad or
-   * someone else's id is silently dropped rather than failing the booking
-   * over it, since the request itself is what actually matters here.
-   */
   releaseId?: string | null;
 }
 
-/**
- * Files a booking request, re-checking the slot at write time.
- *
- * The list the caller saw came from `getAvailableSlots` moments earlier;
- * between that read and this write somebody else could have taken it. The
- * conflict queries here are the write-side check, same as the public form —
- * a slot is only ever trusted at the instant it is claimed.
- */
 export async function requestAppointment(input: RequestAppointmentInput) {
   const [patient, clinic] = await Promise.all([
     (prisma as any).patient.findUnique({
@@ -383,44 +298,19 @@ export async function requestAppointment(input: RequestAppointmentInput) {
   ]);
   if (!patient) throw new PortalActionError('Карта пациента не найдена', 'NOT_FOUND');
   if (!clinic) throw new PortalActionError('Клиника не найдена', 'NOT_FOUND');
-  if (patient.clinicId !== input.clinicId) {
-    throw new PortalActionError('Пациент не относится к выбранной клинике', 'NOT_FOUND');
-  }
-
+  if (patient.clinicId !== input.clinicId) throw new PortalActionError('Пациент не относится к выбранной клинике', 'NOT_FOUND');
   const settings = mergeClinicSettings(clinic.settings);
-  if (settings.onlineBookingEnabled === false) {
-    throw new PortalActionError('Онлайн-запись в этой клинике сейчас недоступна', 'BAD_STATUS');
-  }
-
+  if (settings.onlineBookingEnabled === false) throw new PortalActionError('Онлайн-запись в этой клинике сейчас недоступна', 'BAD_STATUS');
   const day = new Date(`${input.date}T12:00:00.000Z`);
-  if (!isWorkingDay(day, settings)) {
-    throw new PortalActionError('Клиника не работает в выбранный день', 'BAD_STATUS');
-  }
-  if (!buildTimeSlots(settings).includes(input.time)) {
-    throw new PortalActionError('Такого времени нет в расписании клиники', 'BAD_STATUS');
-  }
-
+  if (!isWorkingDay(day, settings)) throw new PortalActionError('Клиника не работает в выбранный день', 'BAD_STATUS');
+  if (!buildTimeSlots(settings).includes(input.time)) throw new PortalActionError('Такого времени нет в расписании клиники', 'BAD_STATUS');
   const dayStart = new Date(`${input.date}T00:00:00.000Z`);
   const dayEnd = new Date(`${input.date}T23:59:59.999Z`);
-
   const [conflictAppt, conflictBooking] = await Promise.all([
-    (prisma as any).appointment.findFirst({
-      where: {
-        clinicId: input.clinicId, date: { gte: dayStart, lte: dayEnd }, time: input.time,
-        status: { notIn: ['cancelled', 'no_show'] }, ...(input.doctorId ? { doctorId: input.doctorId } : {}),
-      },
-    }),
-    (prisma as any).booking.findFirst({
-      where: {
-        clinicId: input.clinicId, date: dayStart, time: input.time,
-        status: { in: ['pending', 'confirmed'] }, ...(input.doctorId ? { doctorId: input.doctorId } : {}),
-      },
-    }),
+    (prisma as any).appointment.findFirst({ where: { clinicId: input.clinicId, date: { gte: dayStart, lte: dayEnd }, time: input.time, status: { notIn: ['cancelled', 'no_show'] }, ...(input.doctorId ? { doctorId: input.doctorId } : {}) } }),
+    (prisma as any).booking.findFirst({ where: { clinicId: input.clinicId, date: dayStart, time: input.time, status: { in: ['pending', 'confirmed'] }, ...(input.doctorId ? { doctorId: input.doctorId } : {}) } }),
   ]);
-  if (conflictAppt || conflictBooking) {
-    throw new PortalActionError('Это время уже занято. Выберите другое.', 'BAD_STATUS');
-  }
-
+  if (conflictAppt || conflictBooking) throw new PortalActionError('Это время уже занято. Выберите другое.', 'BAD_STATUS');
   let doctorName: string | null = null;
   if (input.doctorId) {
     const member = await (prisma as any).clinicMember.findFirst({
@@ -430,37 +320,18 @@ export async function requestAppointment(input: RequestAppointmentInput) {
     if (!member) throw new PortalActionError('Врач не найден', 'NOT_FOUND');
     doctorName = [member.user.firstName, member.user.lastName].filter(Boolean).join(' ').trim();
   }
-
-  // Only trusted once confirmed to be this same patient's own published
-  // release — a stray or someone else's id is dropped silently rather than
-  // failing the booking, since the request is what actually matters here.
   let releaseId: string | null = null;
   if (input.releaseId) {
     const release = await getPublishedRelease(input.patientId, input.releaseId);
     releaseId = release?.id ?? null;
   }
-
   const patientName = [patient.firstName, patient.lastName].filter(Boolean).join(' ').trim() || 'Пациент';
   const row = await (prisma as any).booking.create({
     data: {
-      id: uid(),
-      clinicId: input.clinicId,
-      patientName,
-      phone: patient.phone || '',
-      email: patient.email || null,
-      doctorId: input.doctorId || null,
-      doctorName,
-      serviceName: input.serviceName || null,
-      date: dayStart,
-      time: input.time,
-      notes: input.notes || null,
-      status: 'pending',
-      releaseId,
-      // Distinguishes a request the assistant filed from one a patient typed
-      // into the public widget themselves — staff-facing, not shown to the patient.
-      source: 'ai-assistant',
+      id: uid(), clinicId: input.clinicId, patientName, phone: patient.phone || '', email: patient.email || null,
+      doctorId: input.doctorId || null, doctorName, serviceName: input.serviceName || null, date: dayStart,
+      time: input.time, notes: input.notes || null, status: 'pending', releaseId, source: 'ai-assistant',
     },
   });
-
   return { id: row.id, date: input.date, time: row.time, doctorName, status: row.status };
 }
