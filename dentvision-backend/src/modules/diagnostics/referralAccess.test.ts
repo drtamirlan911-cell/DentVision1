@@ -12,7 +12,7 @@ vi.mock('../../lib/orgContext.js', () => ({ assertOrgAccess }));
 
 import { authorizeReferralListScope, requireReferralAccess } from './diagnostics.routes.js';
 
-beforeEach(() => { referralFindUnique.mockReset(); assertOrgAccess.mockReset(); });
+beforeEach(() => { vi.clearAllMocks(); });
 
 function mockRes() {
   const res: any = {};
@@ -24,8 +24,8 @@ function mockRes() {
 describe('requireReferralAccess middleware', () => {
   const referral = { clinicId: 'clinic-1', doctorId: 'doc-1', centerId: 'center-1', labId: null };
 
-  it('admits SUPERADMIN unconditionally', async () => {
-    referralFindUnique.mockResolvedValueOnce(referral);
+  it('admits SUPERADMIN through the canonical organization access primitive', async () => {
+    referralFindUnique.mockResolvedValueOnce(referral); assertOrgAccess.mockResolvedValueOnce(true);
     const req: any = { params: { id: 'r1' }, user: { id: 'someone', role: 'SUPERADMIN' } };
     const res = mockRes(); const next = vi.fn();
     await requireReferralAccess()(req, res, next);
@@ -40,8 +40,8 @@ describe('requireReferralAccess middleware', () => {
   });
   it('admits a member of the referring clinic', async () => {
     referralFindUnique.mockResolvedValueOnce(referral); assertOrgAccess.mockResolvedValueOnce(true);
-    const req: any = { params: { id: 'staff-1' }, user: { id: 'staff-1', role: 'ASSISTANT' } };
-    req.params.id = 'r1'; const res = mockRes(); const next = vi.fn();
+    const req: any = { params: { id: 'r1' }, user: { id: 'staff-1', role: 'ASSISTANT' } };
+    const res = mockRes(); const next = vi.fn();
     await requireReferralAccess()(req, res, next);
     expect(next).toHaveBeenCalledOnce(); expect(assertOrgAccess).toHaveBeenCalledWith(req.user, 'clinic-1');
   });
