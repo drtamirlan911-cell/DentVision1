@@ -220,7 +220,7 @@ export async function getDiagnostics(patientId: string) {
     where: { patientId },
     select: {
       id: true, studyType: true, category: true, status: true,
-      cost: true, platformFee: true, paid: true, createdAt: true,
+      cost: true, paid: true, createdAt: true,
       center: { select: { id: true, name: true } },
       lab: { select: { id: true, name: true } },
       result: { select: { reportText: true, conclusion: true, createdAt: true } },

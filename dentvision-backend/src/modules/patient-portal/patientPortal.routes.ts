@@ -248,21 +248,15 @@ patientPortalRouter.post('/link', async (req: AuthRequest, res) => {
       });
     }
 
-    // Nothing to adopt — a genuinely new patient of this clinic.
-    const patient = await (prisma as any).patient.create({
-      data: {
-        id: uid(),
-        clinicId: clinic.id,
-        userId: user.id,
-        firstName: user.firstName || user.email?.split('@')[0] || 'Пациент',
-        lastName: user.lastName || '',
-        email: user.email || null,
-        phone: phoneHint || null,
-      },
-      select: { id: true },
+    // Fail closed: clinicId from the client is not an authorization proof.
+    // New patient records are created by the booking/onboarding workflow, not
+    // by a generic portal link endpoint. Without an existing unclaimed card
+    // (or an explicit invitation/booking path), there is nothing this endpoint
+    // is authorized to link.
+    return res.status(403).json({
+      ok: false,
+      error: 'Не найдено существующее приглашение или карточка пациента для этой клиники',
     });
-
-    return res.json({ ok: true, data: { patientId: patient.id, clinicName: clinic.name, created: true } });
   } catch (e: any) {
     return res.status(500).json({ ok: false, error: e.message });
   }
