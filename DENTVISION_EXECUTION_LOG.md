@@ -61,8 +61,19 @@ This log is the durable handoff between work sessions/agents. It records complet
 - The current Production deployment itself is READY and its build had no compile error; the remaining blocker is promotion/build availability for the newer commit.
 - Vercel runtime error aggregation for the project over the last 7 days reports no runtime errors.
 
-### Next implementation target
-1. Do not loop on generic audits. Resolve the Vercel build-rate-limit/deployment blocker through the connected Vercel project when capacity allows.
-2. Wire `partner-economics.service.ts` into the live referral/settlement flow. The current diagnostics flow still computes a legacy 10% `platformFee` during `ACCEPTED`/`IN_PROGRESS`; this must be replaced by the canonical Economics Engine so 3D diagnostics use 7% with the configured floor/cap and medical analysis uses 6% with its floor/cap. The existing settlement service currently settles the persisted `Referral.platformFee`, so this integration must preserve settlement idempotency while making the engine the authoritative commission source.
-3. Extend the same authoritative economics/ledger path to medical-analysis and dental-lab operations, then expose the resulting rule-versioned economics in Partner Dashboard and Finance Hub.
-4. Add focused integration tests proving the live flow uses the canonical rule, records the exact rule/version snapshot, and cannot double-accrue commission.
+## 2026-09-12 — Canonical economics connected to live diagnostic settlement
+
+### Implemented
+- `e68f35d137925079b17a2f6dad70f2c02c5e2c19` updates `dentvision-backend/src/modules/diagnostics/settlement.service.ts` so settlement-time commission is resolved from the canonical Partner Economics Engine instead of trusting stale `Referral.platformFee` values.
+- Diagnostic-center referrals route to `DIAGNOSTIC_3D`; laboratory referrals route to `MEDICAL_ANALYSIS`.
+- Settlement gross value comes from the referral `cost`; the engine applies the canonical percentage/floor/cap and the resulting commission is used for the settlement amount.
+- Each settled referral records an idempotent `partner_economics` transaction snapshot with the exact economics rule/version, commission, partner revenue, contribution margin and status.
+- `9a6d5d4020a36253f2f3facc9f132fcd9bbf3648` adds focused tests for referral owner and vertical routing while preserving existing settlement arithmetic tests.
+- Existing settlement linking remains guarded by `Referral.settlementId`, so repeated settlement generation cannot double-link the same referral.
+
+### Remaining implementation work
+1. Replace the legacy 10% `platformFee` calculation during referral `ACCEPTED`/`IN_PROGRESS` with the same canonical Economics Engine, so the live referral record itself is authoritative before settlement.
+2. Add/verify integration tests around accepted → paid → settled lifecycle, including concurrency and exact rule-version snapshots.
+3. Wire the canonical engine into medical-analysis and dental-lab operational order flows (not only the diagnostics settlement adapter).
+4. Expose economics snapshots and margin status in Partner Dashboard and Finance Hub.
+5. Resolve Vercel build-rate-limit/promotion capacity and run the fresh CI/E2E release gate.
