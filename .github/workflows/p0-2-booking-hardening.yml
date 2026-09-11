@@ -1,0 +1,45 @@
+name: P0-2 booking hardening
+on:
+  push:
+    branches: [main]
+permissions:
+  contents: write
+jobs:
+  harden-booking:
+    if: contains(github.event.head_commit.message, 'checkpoint P0-2')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with: { ref: main, fetch-depth: 1 }
+      - name: Enforce patient-clinic ownership in booking service
+        run: |
+          python3 <<'PY'
+          from pathlib import Path
+          p=Path('dentvision-backend/src/modules/patient-portal/patientPortal.service.ts')
+          s=p.read_text()
+          old="""      select: { firstName: true, lastName: true, phone: true, email: true },"""
+          new="""      select: { firstName: true, lastName: true, phone: true, email: true, clinicId: true },"""
+          if old in s: s=s.replace(old,new,1)
+          guard="""  if (!clinic) throw new PortalActionError('Клиника не найдена', 'NOT_FOUND');\n\n  const settings = mergeClinicSettings(clinic.settings);"""
+          guarded="""  if (!clinic) throw new PortalActionError('Клиника не найдена', 'NOT_FOUND');\n  if (patient.clinicId !== input.clinicId) {\n    throw new PortalActionError('Пациент не относится к выбранной клинике', 'NOT_FOUND');\n  }\n\n  const settings = mergeClinicSettings(clinic.settings);"""
+          if guard not in s and guarded not in s: raise SystemExit('booking guard anchor not found')
+          s=s.replace(guard,guarded,1)
+          p.write_text(s)
+          PY
+      - name: Verify booking tenant boundary
+        run: |
+          node <<'NODE'
+          const fs=require('node:fs');
+          const s=fs.readFileSync('dentvision-backend/src/modules/patient-portal/patientPortal.service.ts','utf8');
+          if(!s.includes('clinicId: true')) throw new Error('patient clinicId is not loaded');
+          if(!s.includes("patient.clinicId !== input.clinicId")) throw new Error('booking service lacks patient-clinic ownership guard');
+          console.log('Booking tenant boundary: PASS');
+          NODE
+      - name: Commit
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add dentvision-backend/src/modules/patient-portal/patientPortal.service.ts
+          git diff --cached --quiet && exit 0
+          git commit -m 'fix: enforce patient clinic ownership in booking'
+          git push origin main
