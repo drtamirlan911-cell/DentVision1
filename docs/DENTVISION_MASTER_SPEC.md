@@ -1,11 +1,11 @@
 # DentVision — Master Product & System Specification
 
 **Status:** CANONICAL / ACTIVE  
-**Version:** 3.1  
+**Version:** 3.2  
 **Date:** 2026-09-11  
 **Owner:** DentVision by Dr.Tamirlan
 
-> This is the single normative source of truth for DentVision product intent, architecture guardrails, execution order, completed work, current blockers, and next actions. Product/system documents that conflict with this file are non-normative and must not drive implementation.
+> Single normative source of truth for DentVision product intent, architecture guardrails, execution order, completed work, current blockers, and next actions. Conflicting product/system documents are non-normative.
 
 ## 1. Product identity / North Star
 
@@ -26,7 +26,6 @@ DentVision is not merely a CRM. CRM is a core clinical/business surface inside t
 - Client-supplied organization/clinic IDs are never authorization proof.
 
 Protected clinical graph:
-
 `Patient → Visit → Diagnosis → Treatment Plan → Procedure/Treatment → Lab Order → Diagnostic Referral → Files/Results → AI Context`
 
 Every hop must enforce authorization and tenant ownership.
@@ -51,255 +50,141 @@ Navigation rules:
 
 ## 4. Consent + authorization contract
 
-Do **not** create a second consent system. Use the existing consent infrastructure:
+Use the existing consent infrastructure; do not create a second consent system:
+`Consent`, `consent.catalog.ts`, `compliance.service.ts`, `consentGate.ts`, `assertCurrentConsent()` / `requireCurrentConsent()`.
 
-- `Consent`
-- `consent.catalog.ts`
-- `compliance.service.ts`
-- `consentGate.ts`
-- `assertCurrentConsent()` / `requireCurrentConsent()`
-
-For protected clinical operations the canonical chain is:
-
+Canonical chain:
 `authenticate → current consent → active organization/clinic → RBAC → tenant/object authorization → business authorization → action → audit`
 
-Sensitive reads/mutations include patient medical history, medical documents, DICOM/imaging, treatment plans, odontogram, clinical notes, prescriptions, diagnostics, lab results, AI clinical analysis/recommendations, cross-clinic records and patient profile changes.
+Sensitive operations include medical history, documents, DICOM/imaging, treatment plans, odontogram, clinical notes, prescriptions, diagnostics, lab results, AI clinical analysis/recommendations, cross-clinic records and patient profile changes.
 
-Expected authorization outcomes are deterministic:
-
+Authorization outcomes:
 `ALLOW | DENY | CONSENT_REQUIRED | ROLE_REQUIRED | ORGANIZATION_REQUIRED | CLINIC_REQUIRED | PATIENT_ACCESS_REQUIRED`
 
-The platform should converge on one reusable authorization layer/primitives:
-
-`canAccessOrganization()`  
-`canAccessClinic()`  
-`canAccessPatient()`  
-`canAccessMedicalRecord()`  
-`canAccessDiagnosticResult()`  
-`canAccessLabOrder()`  
-`canPerformClinicalMutation()`  
-`canPerformFinancialMutation()`
+Target reusable primitives:
+`canAccessOrganization()` · `canAccessClinic()` · `canAccessPatient()` · `canAccessMedicalRecord()` · `canAccessDiagnosticResult()` · `canAccessLabOrder()` · `canPerformClinicalMutation()` · `canPerformFinancialMutation()`.
 
 IDs from URL/body/query are never proof of access.
 
 ## 5. Patient Portal security
 
-The Patient Portal must resolve:
-
+Canonical resolution:
 `User → active organization/clinic context → patient identity → authorized resource`
 
-Critical surfaces to verify include:
+Critical surfaces: `/patient-portal/me`, appointments, treatments, treatment plans, visits, invoices, documents/content, diagnostics, appointment request/cancellation and cross-clinic grants.
 
-- `/patient-portal/me`
-- appointments
-- treatments
-- treatment plans
-- visits
-- invoices
-- documents and document content
-- diagnostics
-- appointment requests/cancellation
-- cross-clinic grants
-
-A foreign `clinicId`, `patientId`, appointment ID or document ID must not expose or mutate another tenant's data.
+A foreign clinic/patient/resource ID must not expose or mutate another tenant's data.
 
 ## 6. P0 execution order
 
-This is the mandatory implementation sequence. It replaces open-ended audits.
+This sequence replaces open-ended audits.
 
 ### P0-1 — Consent + Authorization + Tenant Isolation
-
-Finish the current security block across protected clinical endpoints. Reuse the existing consent engine. Expand object/tenant authorization and regression coverage. Record each completed slice in this file.
+Finish protected clinical endpoint convergence using the existing consent engine, reusable authorization and regression coverage.
 
 ### P0-2 — Patient → Doctor → Clinic booking
-
-Canonical journey:
-
-`Welcome → find doctor → clinic → service → date/time → auth → consent → booking pending → clinic confirmation → patient notification → appointment → visit → medical record`
-
-Use the existing public booking, Patient Portal, Booking model and appointment service. Do not create a second booking system.
+`Welcome → find doctor → clinic → service → date/time → auth → consent → booking pending → clinic confirmation → notification → appointment → visit → medical record`.
+Use existing public booking, Patient Portal, Booking model and appointment service. Never create a second booking system.
 
 ### P0-3 — Diagnostics
-
-`Find diagnostics → location → study type → center → price/availability → date → order → payment/confirmation → status → performed → result → authorized AI summary → doctor confirmation → patient record`
-
-Use real center registration, services, orders, status, result upload/release, patient/doctor permissions and audit.
+`Find diagnostics → location → study → center → price/availability → date → order → payment/confirmation → status → performed → result → authorized AI summary → doctor confirmation → patient record`.
 
 ### P0-4 — Laboratory
-
-`Clinic → Lab Order → Laboratory → Accept → Production → QC → Ready → Delivery → Doctor → Patient record`
-
-Canonical states:
-
-`DRAFT → SUBMITTED → ACCEPTED → IN_PRODUCTION → QC → READY → DELIVERED | CANCELLED`
-
-Include deadline/SLA and real-data AI delay alerts.
+`Clinic → Lab Order → Laboratory → Accept → Production → QC → Ready → Delivery → Doctor → Patient record`.
+States: `DRAFT → SUBMITTED → ACCEPTED → IN_PRODUCTION → QC → READY → DELIVERED | CANCELLED`.
 
 ### P0-5 — AI Employee
-
-AI is an operating layer, not decorative chat.
-
-Context:
-`currentUser, currentRole, activeOrganization, activeClinic, currentPatient, currentTask, permissions, recentEvents`
-
-Tools may include:
-`getTodaySchedule, getPatient, searchPatient, createBooking, requestDiagnostic, getLabOrders, getInventory, createTask, sendReminder, draftTreatmentPlan, analyzeDiagnostic, getFinancialSummary`
-
-Contract:
-`real data → detect → explain → recommend → confirmation when required → execute through authorized tool → audit`
-
-Clinical/irreversible actions require appropriate human confirmation. AI never bypasses RBAC, tenant isolation, consent or audit.
+AI is an operating layer, not decorative chat. Context includes current user/role, active organization/clinic, current patient/task, permissions and recent events. Contract:
+`real data → detect → explain → recommend → confirmation → authorized tool execution → audit`.
+Clinical/irreversible actions require human confirmation.
 
 ### P0-6 — Home / Command Center
-
-Home answers “What should I do now?” and is role-aware.
-
-Doctor: today, patients, appointments, tasks, labs, diagnostics, AI briefing.  
-Owner: revenue, appointments, team, utilization, expenses, AI alerts.  
-Admin: bookings, patients, payments, labs, reminders, operational problems.  
-Patient/Buyer: appointments, doctors, diagnostics, documents, payments, AI assistant.
-
-No fake metrics or decorative AI events.
+Role-aware “What should I do now?” surface using real data only.
 
 ### P0-7 — Role workspaces
-
-Finish Doctor, Owner and Admin daily loops using the same backend truth. Do not build disconnected dashboards.
+Complete Doctor, Owner and Admin daily loops against shared backend truth.
 
 ### P0-8 — Ecosystem surfaces
-
-Connect Shop, Academy, Jobs and Community to the same identity/organization architecture. Existing self-service organization onboarding is the common pattern, not separate registration systems.
+Connect Shop, Academy, Jobs and Community to the same identity/organization architecture.
 
 ### P0-9 — Finance Hub
-
-Use real Revenue, Expenses, Payroll, Supplier payments, Marketplace commission, Academy revenue, SaaS and Cashflow data. CAC/LTV/MRR/Churn/ROI/ARPU/Margin only when calculated from real data.
+Revenue, expenses, payroll, supplier payments, marketplace commission, academy revenue, SaaS and cashflow from real data. CAC/LTV/MRR/Churn/ROI/ARPU/Margin only when actually calculable.
 
 ### P0-10 — AI platform
-
-Target architecture:
-
-`AI Router → Role Context → Permission Engine → Tool Registry → LLM → Action Validator → Confirmation → Audit`
-
-Domain modules may include Dental, Radiology, Orthopedic, Orthodontic, Therapy, Endodontic, Laboratory, Finance, Reception and Marketing AI.
+`AI Router → Role Context → Permission Engine → Tool Registry → LLM → Action Validator → Confirmation → Audit`.
 
 ### P0-11 — Critical E2E and release
-
-Prioritize executable journeys rather than testing every page:
-
-Patient registration, doctor/clinic discovery, booking, cancellation, document access; doctor onboarding, clinic membership, patient access, treatment plan, AI recommendation/doctor confirmation; diagnostics registration/order/result release; lab registration/order/QC/ready; owner registration, invitation, RBAC, organization switching.
-
-Release gate:
-`TypeScript → ESLint → build → Prisma/migrations → backend tests → frontend tests → critical E2E → RBAC → tenant isolation → consent → legal/trust → AI confirmation → mobile UX → desktop UX → deployment verification`
-
-No patient, medical record, diagnostic, lab result, financial transaction or clinical mutation may be accessible merely because an attacker knows an ID.
+Critical patient, doctor, diagnostics, lab and owner journeys; release gate covers TypeScript, lint, build, Prisma, backend/frontend tests, E2E, RBAC, tenant isolation, consent, legal/trust, AI confirmation, mobile, desktop and deployment verification.
 
 ## 7. Partner onboarding architecture
 
-All organization onboarding converges on:
-
 `Account → Organization → Profile → Team → Services → Verification → Legal → Workspace`
 
-Supported organization/person types include Clinic, Diagnostic Center, Laboratory, Supplier/Seller, Academy/Lecturer, Employer and Doctor/Professional.
-
-Do not create chaotic parallel registration architectures.
+Applies to Clinic, Diagnostic Center, Laboratory, Supplier/Seller, Academy/Lecturer, Employer and Doctor/Professional. Do not create parallel registration architectures.
 
 ## 8. Legal / Trust
 
-Production trust path:
+`Registration → KYB/KYC → legal package → consent → electronic acceptance → audit → workspace`.
 
-`Registration → KYB/KYC → legal package → consent → electronic acceptance → audit → workspace`
-
-DentVision Electronic Acceptance is internal auditable electronic acceptance and must not be represented as Kazakhstan EDS. Real Kazakhstan EDS/provider integration is a later explicit integration.
+DentVision Electronic Acceptance is internal auditable acceptance, not Kazakhstan EDS. EDS integration is a separate future integration.
 
 ## 9. UX / Figma
 
-Figma is the visual design-system reference. Code remains the source of the working product.
+Figma is the visual design-system reference; code is the working-product source of truth. Use Figma for tokens, typography, spacing, controls, cards, navigation, AI surfaces, clinical components and mobile navigation, but never block functional P0 work on Figma availability.
 
-Use Figma for tokens, typography, spacing, buttons, cards, navigation, AI surfaces, patient/clinical components, tables and mobile navigation. Never block functional P0 work because Figma is unavailable/rate-limited.
+Premium rules: distinctive clinical identity, clear hierarchy, no generic AI-incubator styling, no decorative navigation theatre, no duplicate content and no emoji as primary UI icons. Important flows require loading, empty, error, permission/consent and success states.
 
-Premium UX rules: distinctive clinical identity, restrained surfaces, clear hierarchy, no generic AI-incubator styling, no decorative navigation theatre, no duplicate content, no emoji as primary product icons.
+## 10. Existing implementation baseline
 
-Every important flow needs loading, empty, error, permission/consent and success states.
-
-## 10. Existing implementation baseline — recorded 2026-09-11
-
-The repository already contains substantial work in these areas and must be reused rather than rebuilt:
-
-- Execution/North Star direction and product ecosystem architecture.
-- Self-service organization onboarding for clinics and ecosystem organizations.
-- Professional/Doctor onboarding.
-- Legal/trust and organization-scoped legal context.
-- Auditable Electronic Acceptance.
-- Existing Consent Engine and strict consent gate.
-- Patient Portal and cross-clinic access/revoke mechanisms.
-- Public booking request flow.
-- AI Employee role contract/task infrastructure.
-- Lazy-loaded charts/performance work.
-- Security hardening across multiple protected domains.
-
-The implementation state is evidence from repository code/tests/commits, not from this checklist alone.
+Repository already contains substantial working foundations: ecosystem architecture, self-service organization onboarding, professional onboarding, Legal/Trust, Electronic Acceptance, Consent Engine, Patient Portal, cross-clinic access/revoke, public booking, AI Employee infrastructure, lazy-loaded charts and security hardening across protected domains. Reuse and reconcile; do not rebuild parallel systems.
 
 ## 11. Execution ledger — mandatory session-independent state
 
-**Rule:** Every substantive implementation session MUST update this section in the same commit/PR as the code change, stating what was completed, what remains, verification performed, and the next P0 action. This prevents session loss and repeated audits.
+**Rule:** Every substantive implementation session updates this section in the same commit/PR as code, recording **Done / Verification / Remaining / Next**. The next session resumes here, not from chat history.
 
 ### Current state — 2026-09-11
 
-- **P0-1 Consent/Authorization/Tenant Isolation:** IN PROGRESS. The repository has a fail-closed consent gate on the Patient Portal and object-scoped filters on portal reads/actions. During endpoint-level verification, a concrete tenant-boundary defect was identified in `POST /api/patient-portal/link`: a signed-in patient can submit an arbitrary `clinicId`, and when no existing patient card matches, the route creates a new patient record in that clinic. The client-supplied clinic ID therefore becomes an implicit authorization mechanism, which violates the canonical trust chain.
-- **P0-1 Patient Portal identity:** IN PROGRESS. `resolvePatientForUser()` safely claims only unowned patient cards by email/phone and uses compare-and-set linking, but the portal still resolves a single patient card without an explicit active organization/clinic context. Multi-clinic identity needs to converge on an explicit active context rather than first-match semantics.
-- **P0-1 Document boundary:** VERIFIED for object lookup. Document content is queried with both document ID and the resolved patient ID, so a foreign document ID does not match. External document URL handling remains a separate data-egress hardening item.
-- **P0-1 Diagnostics data minimization:** REMAINING. Patient diagnostics are sourced from the patient-scoped referral query, but the response currently includes `platformFee`, which is an internal platform financial field and should not be exposed to a patient. Remove internal-only financial fields from patient-facing DTOs and add a regression assertion.
-- **P0-2 Patient booking:** FOUNDATION EXISTS. Public booking, Patient Portal and appointment infrastructure exist; end-to-end security/context/persistence verification remains after the P0-1 boundary fixes.
-- **P0-3 Diagnostics:** FOUNDATION EXISTS. Self-service diagnostic-center onboarding and diagnostic infrastructure exist; complete public discovery → order → result → AI → doctor confirmation journey remains.
-- **P0-4 Laboratory:** FOUNDATION EXISTS / EXECUTION REQUIRED. Laboratory is a first-class participant; full operational lifecycle, SLA/deadline and result delivery need completion.
-- **P0-5 AI Employee:** FOUNDATION EXISTS. Role-based contract and task/event infrastructure exist; real-data briefing/tool execution/confirmation loop remains a P0 product completion target.
-- **P0-6 Home:** PARTIALLY IMPLEMENTED. Existing Home/service-grid/proactive AI work exists; it must be connected to real role-aware data without duplicate navigation.
-- **P0-7 Role workspaces:** PARTIALLY IMPLEMENTED. Existing clinic/CRM surfaces exist; Doctor/Owner/Admin daily loops remain to be connected end-to-end.
-- **P0-8 Ecosystem:** PARTIALLY IMPLEMENTED. Self-service onboarding exists for multiple partner types; depth and cross-surface workflows remain.
-- **P0-9 Finance:** FOUNDATION EXISTS. Real-data completeness and ecosystem integration remain.
-- **P0-10 AI platform:** FOUNDATION EXISTS / EXECUTION REQUIRED. Existing AI authorization/tool infrastructure should be consolidated into the target router/context/permission/tool/action/audit architecture.
-- **P0-11 E2E/release:** IN PROGRESS. Security and release hardening exists in the repository; final critical-journey verification remains.
+- **P0-1 Consent/Authorization/Tenant Isolation:** FIRST SECURITY SLICE COMPLETE; overall P0-1 remains IN PROGRESS.
+- **P0-1 `/patient-portal/link`: DONE for identified tenant-boundary defect.** The endpoint no longer creates a Patient record from a client-supplied `clinicId`. Existing authorized/unclaimed matches can still be linked; otherwise the endpoint fails closed with HTTP 403. New patient creation remains in the booking/onboarding workflow.
+- **P0-1 Patient diagnostics DTO: DONE for identified data-minimization defect.** Internal `platformFee` is no longer selected or returned by patient diagnostics.
+- **P0-1 Verification: PASSED.** GitHub Actions executed a dependency-free repository regression after the fixes and passed both assertions: arbitrary `/link` cannot create a patient, and patient diagnostics do not expose `platformFee`. The earlier `npm test` attempt was also recorded as invalid because `dentvision-backend/package.json` has no `test` script; verification was corrected rather than falsely reported.
+- **P0-1 Patient identity/context: REMAINING.** `resolvePatientForUser()` safely claims only unowned cards by email/phone with compare-and-set, but Patient Portal still needs explicit active organization/clinic context for multi-clinic identity instead of first-match semantics.
+- **P0-1 Cross-clinic authorization convergence: REMAINING.** Existing grant/revoke infrastructure remains; endpoint-by-endpoint convergence on the canonical authorization primitives is required.
+- **P0-1 Document boundary: VERIFIED.** Document content lookup includes both document ID and resolved patient ID. External document URL handling remains a separate egress-hardening item.
+- **P0-2 Patient booking: FOUNDATION EXISTS.** Public booking, Patient Portal and appointment infrastructure exist; complete security/context/persistence verification follows the remaining P0-1 context/authorization work.
+- **P0-3 Diagnostics: FOUNDATION EXISTS.** Self-service diagnostic-center onboarding and referral infrastructure exist; discovery → order → result → authorized AI → doctor confirmation remains.
+- **P0-4 Laboratory: FOUNDATION EXISTS / EXECUTION REQUIRED.** Full lifecycle, SLA/deadline and result delivery remain.
+- **P0-5 AI Employee: FOUNDATION EXISTS.** Real-data briefing/tool execution/confirmation loop remains.
+- **P0-6 Home:** PARTIALLY IMPLEMENTED.
+- **P0-7 Role workspaces:** PARTIALLY IMPLEMENTED.
+- **P0-8 Ecosystem:** PARTIALLY IMPLEMENTED.
+- **P0-9 Finance:** FOUNDATION EXISTS.
+- **P0-10 AI platform:** FOUNDATION EXISTS / EXECUTION REQUIRED.
+- **P0-11 E2E/release:** IN PROGRESS.
 
-### Next action
+### Next — execute immediately
 
-**P0-1 immediate implementation sequence:**
-1. Remove implicit patient creation from `/patient-portal/link`; linking must require an existing authorized patient card, valid booking/invitation, or explicit cross-clinic authorization. A client-supplied `clinicId` alone is never sufficient.
-2. Add a regression test proving a patient cannot create/link a patient record into an arbitrary clinic.
-3. Remove `platformFee` and other internal-only financial fields from patient diagnostic DTOs and add a DTO-level regression test.
-4. Converge Patient Portal reads on explicit active organization/clinic context, preserving approved cross-clinic grants.
-5. Re-run the critical patient tenant/IDOR suite.
-6. Only after these pass, mark P0-1 complete and immediately execute P0-2 booking.
-
-For each discovered defect: fix in code → add/adjust regression coverage → verify → commit → update this ledger → proceed to the next P0 item.
+1. Converge Patient Portal on explicit active organization/clinic context while preserving approved cross-clinic grants.
+2. Finish reusable authorization primitives and endpoint convergence for clinical resources.
+3. Run the existing critical patient tenant/IDOR suite and fix any concrete failures.
+4. Mark P0-1 complete only with repository evidence.
+5. Immediately execute P0-2 Patient → Doctor → Clinic booking; do not start another broad audit.
+6. After every substantive change: code → regression → verify → commit → update this ledger → continue.
 
 ## 12. Definition of Done
 
-A workflow is DONE only when:
-
-1. discoverable entry exists;
-2. happy path reaches real backend/source of truth;
-3. persistence is visible to authorized participants;
-4. authentication occurs only where required;
-5. consent/RBAC/tenant isolation/object authorization are enforced;
-6. loading/empty/error/success/permission states exist;
-7. AI assists where appropriate;
-8. manual fallback works;
-9. clinical/financial mutations follow confirmation policy;
-10. desktop/mobile are intentionally usable;
-11. acceptance test or executable verification exists;
-12. user understands the next step without instructions.
-
-A visually complete page with fake or disconnected actions is incomplete.
+A workflow is DONE only when it has a discoverable entry, real backend/source-of-truth happy path, authorized persistence, consent/RBAC/tenant/object authorization, loading/empty/error/success/permission states, appropriate AI assistance, manual fallback, confirmation for clinical/financial mutations, usable desktop/mobile behavior and executable verification. A visually complete page with fake/disconnected actions is incomplete.
 
 ## 13. Non-negotiable execution rules
 
-1. GitHub is the source of truth for implementation.
+1. GitHub is implementation source of truth.
 2. This file is the single normative product/execution document.
 3. Do not revive obsolete PRs or competing product specs.
-4. Do not begin another broad audit when a concrete P0 task is available.
-5. Do not claim completion without repository evidence.
+4. Do not begin broad audits when a concrete P0 task exists.
+5. Never claim completion without repository evidence.
 6. Fix defects in code rather than documenting them indefinitely.
-7. Preserve existing working systems; extend/reconcile instead of duplicating.
+7. Preserve working systems; extend/reconcile instead of duplicating.
 8. Never invent data, AI events, financial metrics or clinical facts.
-9. Critical clinical/financial actions require the prescribed confirmation and audit path.
-10. After each meaningful change, record **Done / Verification / Remaining / Next** in this file.
-11. The next session must resume from this ledger rather than reconstructing context from chat history.
+9. Critical clinical/financial actions require prescribed confirmation and audit.
+10. Update this ledger after every meaningful implementation slice.
+11. Next session resumes from this ledger.
