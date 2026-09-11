@@ -2,10 +2,9 @@
  * Diagnostics platform-commission settlement.
  *
  * Patients pay the diagnostic center / lab directly; the platform accrues its
- * commission per referral (`Referral.platformFee`, in tenge). This module rolls
- * those accrued fees into periodic **Settlement** records the center/lab owes
- * the platform, and drives collection through the existing Kaspi payment
- * pipeline (a paid callback flips the settlement to `paid`).
+ * commission per referral. Commission is resolved from the canonical Partner
+ * Economics Engine at settlement time, so legacy/stale Referral.platformFee
+ * values cannot override the current versioned business rules.
  *
  * Linking (`Referral.settlementId`) is the idempotency guard: a fee is included
  * in at most one settlement, and re-running generation never double-counts.
@@ -14,6 +13,12 @@ import type { Prisma } from '@prisma/client';
 import prisma from '../../lib/prisma.js';
 import { tengeToMinor } from '../../lib/money.js';
 import { providers } from '../payments/kaspi.provider.js';
+import {
+  calculatePartnerEconomics,
+  getPartnerEconomicsRule,
+  recordPartnerEconomics,
+  PARTNER_VERTICALS,
+} from '../finance/partner-economics.service.js';
 
 export type SettlementOwnerType = 'CENTER' | 'LAB';
 
@@ -32,6 +37,13 @@ export function referralOwner(r: { centerId?: string | null; labId?: string | nu
   return null;
 }
 
+/** Resolve the canonical economics vertical for a referral. */
+export function referralPartnerVertical(r: { centerId?: string | null; labId?: string | null }) {
+  if (r.centerId) return PARTNER_VERTICALS.DIAGNOSTIC_3D;
+  if (r.labId) return PARTNER_VERTICALS.MEDICAL_ANALYSIS;
+  return null;
+}
+
 export interface GenerateOptions {
   periodStart: Date;
   periodEnd: Date;
@@ -43,6 +55,9 @@ export interface GenerateOptions {
  * Roll all paid, not-yet-settled referrals whose `paidAt` falls in the period
  * into one Settlement per center/lab. Idempotent: only referrals still
  * `settlementId = null` are linked, under a transaction guard.
+ *
+ * Commission is recalculated from `Referral.cost` through the canonical
+ * Partner Economics Engine and persisted as an immutable transaction snapshot.
  */
 export async function generateSettlements(opts: GenerateOptions) {
   const { periodStart, periodEnd } = opts;
@@ -52,7 +67,7 @@ export async function generateSettlements(opts: GenerateOptions) {
       settlementId: null,
       paidAt: { gte: periodStart, lt: periodEnd },
     },
-    select: { id: true, centerId: true, labId: true, platformFee: true },
+    select: { id: true, centerId: true, labId: true, cost: true, platformFee: true },
   });
 
   const groups = new Map<
@@ -61,7 +76,25 @@ export async function generateSettlements(opts: GenerateOptions) {
   >();
   for (const r of refs) {
     const owner = referralOwner(r);
-    if (!owner) continue;
+    const vertical = referralPartnerVertical(r);
+    if (!owner || !vertical) continue;
+
+    // `cost` is the canonical gross transaction amount. Legacy platformFee is
+    // only retained as a fallback for old rows that predate the economics engine.
+    let platformFee = r.platformFee;
+    if (r.cost != null) {
+      const grossMinor = tengeToMinor(Number(r.cost) || 0);
+      if (grossMinor > 0n) {
+        const rule = await getPartnerEconomicsRule(vertical);
+        const breakdown = calculatePartnerEconomics({
+          vertical,
+          partnerId: owner.ownerId,
+          grossMinor,
+        }, rule);
+        platformFee = Number(breakdown.commissionMinor) / 100;
+      }
+    }
+
     const key = `${owner.ownerType}:${owner.ownerId}`;
     let g = groups.get(key);
     if (!g) {
@@ -69,7 +102,7 @@ export async function generateSettlements(opts: GenerateOptions) {
       groups.set(key, g);
     }
     g.ids.push(r.id);
-    g.refs.push({ platformFee: r.platformFee });
+    g.refs.push({ platformFee });
   }
 
   const dueDate = opts.dueDays ? new Date(Date.now() + opts.dueDays * 86_400_000) : null;
@@ -106,6 +139,23 @@ export async function generateSettlements(opts: GenerateOptions) {
           where: { id: s.id },
           data: { referralCount: actual.length, commissionMinor: sumPlatformFeeMinor(actual) },
         });
+      }
+
+      // Durable economics ledger: one immutable snapshot per referral.
+      const settledRefs = await tx.referral.findMany({
+        where: { settlementId: s.id },
+        select: { id: true, centerId: true, labId: true, cost: true },
+      });
+      for (const r of settledRefs) {
+        const owner = referralOwner(r);
+        const vertical = referralPartnerVertical(r);
+        if (!owner || !vertical || r.cost == null) continue;
+        await recordPartnerEconomics({
+          vertical,
+          partnerId: owner.ownerId,
+          grossMinor: tengeToMinor(Number(r.cost) || 0),
+          operationId: r.id,
+        }, tx);
       }
       return s;
     });
