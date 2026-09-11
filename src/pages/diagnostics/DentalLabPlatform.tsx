@@ -71,8 +71,9 @@ export default function DentalLabPlatform() {
 
   if (dashboard.isLoading) return <div className="p-6"><Card padding="lg"><div className="h-32 animate-pulse rounded-xl bg-surface-2" /></Card></div>;
   if (dashboard.isError) return <div className="p-6"><QueryError what="кабинет лаборатории" onRetry={() => dashboard.refetch()} /></div>;
-
   const d = dashboard.data;
+  if (!d) return <div className="p-6"><QueryError what="данные кабинета лаборатории" onRetry={() => dashboard.refetch()} /></div>;
+
   const tabs = [
     { id: 'board', label: 'Производство', icon: <Wrench size={14} /> },
     { id: 'priority', label: 'Приоритет', icon: <AlertTriangle size={14} /> },
@@ -82,7 +83,6 @@ export default function DentalLabPlatform() {
   return (
     <div className="max-w-full space-y-6 overflow-x-hidden p-4 sm:p-6">
       <PageHeader title={d.lab.name} subtitle="Dental Lab · производство, контроль качества и выдача" icon={<FlaskConical size={22} />} actions={<Button size="sm" variant="ghost" onClick={() => { dashboard.refetch(); orders.refetch(); }}><RefreshCw size={15} /> Обновить</Button>} />
-
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         {[
           ['В работе', d.totals.active, <Wrench size={18} />],
@@ -91,16 +91,13 @@ export default function DentalLabPlatform() {
           ['Готово', d.byStatus.ready || 0, <PackageCheck size={18} />],
         ].map(([label, value, icon]) => <Card key={String(label)} padding="md"><div className="flex items-center justify-between"><span className="text-xs text-txt-muted">{label}</span>{icon}</div><div className="mt-2 text-2xl font-semibold text-txt-primary">{String(value)}</div></Card>)}
       </div>
-
       <Card padding="md" className="border-dv-gold/20 bg-surface-1">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div><p className="text-sm font-semibold">Контроль производства</p><p className="mt-1 text-xs text-txt-muted">Очередь синхронизирована с клиниками DentVision.</p></div>
           <div className="flex items-center gap-2 text-xs text-txt-muted"><CheckCircle2 size={15} /> {d.totals.all} заказов</div>
         </div>
       </Card>
-
       <Tabs tabs={tabs} active={tab} onChange={setTab} />
-
       {tab === 'board' && <>
         <div className="flex gap-2 overflow-x-auto pb-1">
           <Button size="sm" variant={!filter ? 'secondary' : 'ghost'} onClick={() => setFilter(undefined)}>Все</Button>
@@ -116,9 +113,7 @@ export default function DentalLabPlatform() {
           ))}
         </div>
       </>}
-
       {tab === 'priority' && <div className="grid gap-3 lg:grid-cols-2">{d.priority.map((order) => <OrderCard key={order.id} order={order} onStatus={(id, status) => statusMutation.mutate({ id, status })} />)}{!d.priority.length && <Card padding="lg"><p className="text-sm text-txt-muted">Критических работ сейчас нет.</p></Card>}</div>}
-
       {tab === 'team' && <Card padding="md"><div className="divide-y divide-bdr-subtle">{(team.data || []).map((member) => <div key={member.id} className="flex items-center justify-between py-3"><div><p className="text-sm font-medium">{member.firstName} {member.lastName}</p><p className="text-xs text-txt-muted">{member.email}</p></div><Badge variant="outline">{member.role || 'Сотрудник'}</Badge></div>)}{!team.data?.length && <p className="py-6 text-center text-sm text-txt-muted">Команда пока не загружена.</p>}</div></Card>}
     </div>
   );
