@@ -103,7 +103,8 @@ jobs:
         working-directory: dentvision-backend
       - run: npx prisma generate
         working-directory: dentvision-backend
-      - run: npx prisma db push --skip-generate --accept-data-loss
+      - name: Apply Prisma migrations
+        run: npx prisma migrate deploy
         working-directory: dentvision-backend
       - run: npm run db:seed:e2e
         working-directory: dentvision-backend
