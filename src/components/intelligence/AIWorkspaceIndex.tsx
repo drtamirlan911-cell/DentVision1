@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
-import { ChevronDown, MessageCircle, Plus, Sparkles, Stethoscope, CalendarDays, AlertCircle } from 'lucide-react'
+import { ChevronDown, MessageCircle, Plus, Sparkles, Stethoscope, CalendarDays, AlertCircle, ArrowRight, CheckCircle2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useAIStore } from '@/store/ai.store'
 import { useAuth } from '@/store/auth.store'
@@ -31,12 +31,14 @@ export function AIWorkspaceIndex({ onNavigate }: { onNavigate?: (path: string) =
   const [briefingLoading, setBriefingLoading] = useState(false)
   const messages = useAIStore(s => s.messages)
   const suggestions = useAIStore(s => s.suggestions)
+  const proactiveAlerts = useAIStore(s => s.proactiveAlerts)
   const status = useAIStore(s => s.status)
   const progress = useAIStore(s => s.progress)
   const executePrompt = useAIStore(s => s.executePrompt)
   const loadConversation = useAIStore(s => s.loadConversation)
   const loadProactiveAlerts = useAIStore(s => s.loadProactiveAlerts)
   const clearConversation = useAIStore(s => s.clearConversation)
+  const acknowledgeAlert = useAIStore(s => s.acknowledgeAlert)
   const errorMessage = useAIStore(s => s.errorMessage)
 
   const bookingIntent = new URLSearchParams(location.search).get('intent') === 'booking'
@@ -56,6 +58,7 @@ export function AIWorkspaceIndex({ onNavigate }: { onNavigate?: (path: string) =
   const go = (path: string) => { onNavigate?.(path); navigate(path) }
   const statusLabel = status === 'thinking' ? 'Думаю…' : status === 'executing' ? 'Выполняю…' : status === 'error' ? 'Ошибка' : 'Готов'
   const prompts = bookingIntent ? BOOKING_PROMPTS : STARTER_PROMPTS
+  const visibleAlerts = proactiveAlerts.filter(a => !a.acknowledged && !a.resolved).slice(0, 3)
 
   return (
     <div className="relative flex h-full min-h-0 overflow-hidden bg-background">
@@ -82,13 +85,38 @@ export function AIWorkspaceIndex({ onNavigate }: { onNavigate?: (path: string) =
               </div>
 
               {isAuthenticated && !bookingIntent && (briefing || briefingLoading) && (
-                <div className="mb-5 rounded-2xl border border-border bg-card p-4 shadow-sm">
+                <div className="mb-4 rounded-2xl border border-border bg-card p-4 shadow-sm">
                   <div className="flex items-center gap-2 text-xs font-semibold"><CalendarDays size={15} className="text-primary" /> Сегодня</div>
                   {briefingLoading ? <div className="mt-3 h-4 w-2/3 animate-pulse rounded bg-muted" /> : <p className="mt-3 whitespace-pre-line text-sm leading-6 text-muted-foreground">{briefing}</p>}
                 </div>
               )}
 
-              <div className="grid gap-2 sm:grid-cols-2">{prompts.map(prompt => <button key={prompt} onClick={() => send(prompt)} className="group rounded-xl border border-border bg-card px-4 py-3 text-left text-sm transition hover:border-primary/30 hover:bg-muted/40"><span className="block pr-5 text-foreground">{prompt}</span><span className="mt-1 block text-xs text-muted-foreground opacity-0 transition group-hover:opacity-100">Передать AI →</span></button>)}</div>
+              {isAuthenticated && !bookingIntent && visibleAlerts.length > 0 && (
+                <div className="mb-5 space-y-2">
+                  <div className="flex items-center justify-between px-1"><span className="text-xs font-semibold text-foreground">Что требует внимания</span><span className="text-[10px] text-muted-foreground">AI обнаружил</span></div>
+                  {visibleAlerts.map(alert => {
+                    const path = alert.action?.type?.startsWith('/') ? alert.action.type : null
+                    return (
+                      <div key={alert.id} className="flex items-center gap-3 rounded-2xl border border-border bg-card px-4 py-3 shadow-sm">
+                        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary"><AlertCircle size={15} /></div>
+                        <button onClick={() => path ? go(path) : send(alert.text)} className="min-w-0 flex-1 text-left"><span className="block text-sm leading-5 text-foreground">{alert.text}</span>{path && <span className="mt-0.5 flex items-center gap-1 text-[11px] text-primary">Открыть <ArrowRight size={11} /></span>}</button>
+                        <button onClick={() => acknowledgeAlert(alert.id)} aria-label="Скрыть уведомление" className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-muted-foreground hover:bg-muted"><CheckCircle2 size={15} /></button>
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+
+              {bookingIntent && !isAuthenticated && (
+                <div className="mb-5 rounded-2xl border border-primary/20 bg-primary/5 p-4">
+                  <div className="flex items-start gap-3">
+                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary"><Stethoscope size={16} /></div>
+                    <div className="min-w-0 flex-1"><div className="text-sm font-semibold">Поиск врача начинается без анкеты</div><p className="mt-1 text-xs leading-5 text-muted-foreground">Сначала выберем направление и клинику. Вход понадобится только перед подтверждением записи.</p><button onClick={() => go('/login?role=patient')} className="mt-3 inline-flex items-center gap-2 rounded-xl bg-primary px-4 py-2 text-xs font-semibold text-primary-foreground">Начать поиск <ArrowRight size={13} /></button></div>
+                  </div>
+                </div>
+              )}
+
+              <div className="grid gap-2 sm:grid-cols-2">{prompts.map(prompt => <button key={prompt} onClick={() => isAuthenticated || !bookingIntent ? send(prompt) : go('/login?role=patient')} className="group rounded-xl border border-border bg-card px-4 py-3 text-left text-sm transition hover:border-primary/30 hover:bg-muted/40"><span className="block pr-5 text-foreground">{prompt}</span><span className="mt-1 block text-xs text-muted-foreground opacity-0 transition group-hover:opacity-100">{bookingIntent && !isAuthenticated ? 'Начать поиск →' : 'Передать AI →'}</span></button>)}</div>
               {!isAuthenticated && !bookingIntent && <div className="mt-5 flex items-start gap-2 rounded-xl border border-border/70 bg-muted/20 px-3 py-2.5 text-xs text-muted-foreground"><AlertCircle size={14} className="mt-0.5 shrink-0" />Для персональных данных и действий в клинике потребуется вход.</div>}
             </div>
           ) : (
