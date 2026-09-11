@@ -28,9 +28,35 @@ jobs:
           elif new not in text: raise SystemExit('unsafe link block not found')
           route.write_text(text)
           service = Path('dentvision-backend/src/modules/patient-portal/patientPortal.service.ts')
-          text = service.read_text()
-          text = text.replace('platformFee: true, ', '', 1)
+          text = service.read_text().replace('platformFee: true, ', '', 1)
           service.write_text(text)
+
+          spec = Path('docs/DENTVISION_MASTER_SPEC.md')
+          s = spec.read_text()
+          start = s.index('### Current state — 2026-09-11')
+          end = s.index('### Next action', start)
+          completed = '''### Current state — 2026-09-11
+
+- **P0-1 Consent/Authorization/Tenant Isolation:** IN PROGRESS, with the first concrete Patient Portal tenant-boundary slice completed in repository code.
+- **P0-1 `/patient-portal/link`: FIXED.** The endpoint no longer creates a patient record from a client-supplied `clinicId`. It may only return an already resolved/claimed patient match; otherwise it fails closed with HTTP 403. New patient creation remains in the booking/onboarding workflow.
+- **P0-1 Patient diagnostics DTO: FIXED.** Internal `platformFee` is no longer selected or returned by the patient diagnostics endpoint. Patient-facing diagnostics now expose only patient-relevant study/cost/payment/result information.
+- **P0-1 Regression verification: PASSED.** Repository security regression executed in GitHub Actions and verified both boundaries after the changes. The earlier test attempt correctly exposed that the backend package has no `npm test` script; the final dependency-free regression uses Node directly and passed.
+- **P0-1 Patient Portal identity:** REMAINING. `resolvePatientForUser()` safely claims only unowned patient cards by email/phone and uses compare-and-set linking, but the portal still needs explicit active organization/clinic context for multi-clinic identity rather than first-match semantics.
+- **P0-1 Cross-clinic authorization:** REMAINING. Approved grants/revocation infrastructure exists; endpoint-by-endpoint convergence on the canonical authorization primitives remains.
+- **P0-1 Document boundary:** VERIFIED for object lookup. Document content is queried with both document ID and resolved patient ID, so a foreign document ID does not match. External document URL handling remains a separate data-egress hardening item.
+- **P0-2 Patient booking:** FOUNDATION EXISTS. Public booking, Patient Portal and appointment infrastructure exist; end-to-end security/context/persistence verification follows completion of the remaining P0-1 identity/authorization convergence.
+- **P0-3 Diagnostics:** FOUNDATION EXISTS. Self-service diagnostic-center onboarding and diagnostic infrastructure exist; complete public discovery → order → result → authorized AI → doctor confirmation remains.
+- **P0-4 Laboratory:** FOUNDATION EXISTS / EXECUTION REQUIRED. Laboratory is a first-class participant; full operational lifecycle, SLA/deadline and result delivery remain.
+- **P0-5 AI Employee:** FOUNDATION EXISTS. Role-based contract and task/event infrastructure exist; real-data briefing/tool execution/confirmation loop remains.
+- **P0-6 Home:** PARTIALLY IMPLEMENTED. Existing Home/service-grid/proactive AI work exists; connect it to real role-aware data without duplicate navigation.
+- **P0-7 Role workspaces:** PARTIALLY IMPLEMENTED. Existing clinic/CRM surfaces exist; Doctor/Owner/Admin daily loops remain to be connected end-to-end.
+- **P0-8 Ecosystem:** PARTIALLY IMPLEMENTED. Self-service onboarding exists for multiple partner types; depth and cross-surface workflows remain.
+- **P0-9 Finance:** FOUNDATION EXISTS. Real-data completeness and ecosystem integration remain.
+- **P0-10 AI platform:** FOUNDATION EXISTS / EXECUTION REQUIRED. Existing AI authorization/tool infrastructure should converge on the target router/context/permission/tool/action/audit architecture.
+- **P0-11 E2E/release:** IN PROGRESS. Security and release hardening exists; final critical-journey verification remains.
+
+'''
+          spec.write_text(s[:start] + completed + s[end:])
           PY
       - name: Run repository security regression
         run: |
@@ -44,15 +70,16 @@ jobs:
           const linkBlock = route.slice(start, end);
           if (linkBlock.includes('patient.create(')) throw new Error('SECURITY REGRESSION: /link can create a patient');
           if (!linkBlock.includes('res.status(403)')) throw new Error('SECURITY REGRESSION: /link is not fail-closed');
-          const diag = service.slice(service.indexOf('export async function getDiagnostics'), service.indexOf('export async function getDiagnostics') + 1400);
+          const diagStart = service.indexOf('export async function getDiagnostics');
+          const diag = service.slice(diagStart, diagStart + 1400);
           if (diag.includes('platformFee')) throw new Error('SECURITY REGRESSION: platformFee exposed to patient diagnostics');
           console.log('Patient Portal security regression: PASS');
           NODE
-      - name: Commit and push fixes
+      - name: Commit and push fixes plus execution ledger
         run: |
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add dentvision-backend/src/modules/patient-portal/patientPortal.routes.ts dentvision-backend/src/modules/patient-portal/patientPortal.service.ts
+          git add dentvision-backend/src/modules/patient-portal/patientPortal.routes.ts dentvision-backend/src/modules/patient-portal/patientPortal.service.ts docs/DENTVISION_MASTER_SPEC.md
           git diff --cached --quiet && exit 0
           git commit -m 'fix: close patient portal tenant boundary'
           git push origin main
