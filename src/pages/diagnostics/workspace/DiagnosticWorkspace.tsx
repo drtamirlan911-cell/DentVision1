@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { motion } from 'framer-motion'
 import { useQuery } from '@tanstack/react-query'
-import { Building2, DollarSign, FileText, FlaskConical, TrendingUp, Users, Wallet } from 'lucide-react'
+import { Building2, CalendarClock, DollarSign, FileText, FlaskConical, TrendingUp, Users, Wallet } from 'lucide-react'
 
 import { Card } from '@/components/ui/ds/Card'
 import { HeroStat, PageHeader } from '@/components/ui/ds/StatCard'
@@ -16,6 +16,7 @@ import * as api from '@/utils/api'
 import { WORKSPACES, type OrgKind } from './config'
 import { Pipeline } from './Pipeline'
 import { ReferralsTab } from './ReferralsTab'
+import { OnlineBookingsTab } from './OnlineBookingsTab'
 import { ServicesTab } from './ServicesTab'
 import { PaymentsTab } from './PaymentsTab'
 import { CashierTab } from './CashierTab'
@@ -32,35 +33,17 @@ import { OrganizationOnboarding } from '@/components/OrganizationOnboarding'
  */
 export function DiagnosticWorkspace({ kind: pinnedKind }: { kind?: OrgKind }) {
   const { user } = useAuth()
-  // The frontend role vocabulary is lower-case (`src/types.ts`), unlike the
-  // backend enum.
   const isSuperadmin = user?.role === 'superadmin'
 
-  // The sidebar has one entry for both, so the route no longer says which of
-  // the two this is — membership does. `/center-workspace` and
-  // `/diagnostics/lab-dashboard` still pin it explicitly, so deep links and
-  // the superadmin's own navigation keep working.
   const claimedKind: OrgKind | undefined =
     user?.organizationType === 'LABORATORY' ? 'LAB'
       : user?.organizationType === 'DIAGNOSTIC_CENTER' ? 'CENTER'
         : undefined
 
-  // Left empty on purpose: `organizationId` may be a clinic when the user is
-  // working elsewhere. The effect below fills it once the workspace knows which
-  // organisation this actually is.
   const [orgId, setOrgId] = useState<string>('')
   const [activeTab, setActiveTab] = useState('referrals')
   const [phaseFilter, setPhaseFilter] = useState<PhaseId | null>(null)
 
-  // Which organisations does the *caller* belong to?
-  //
-  // This used to ask `config.listOrganizations()` — the public catalogue of
-  // every centre on the platform — and treat an empty answer as "you are not a
-  // partner". So with a single centre registered anywhere, the onboarding never
-  // appeared and every user was instead handed a dropdown of organisations they
-  // have no access to; the server answers 403 for all of them.
-  // `/me/contexts` is the membership question, already deduplicated, and it
-  // covers staff who exist only in the unified model.
   const contextsQuery = useQuery({
     queryKey: ['iam', 'me', 'contexts'],
     queryFn: () => api.getMyContexts(),
@@ -75,8 +58,6 @@ export function DiagnosticWorkspace({ kind: pinnedKind }: { kind?: OrgKind }) {
     [contextsData],
   )
 
-  // Precedence: what the route pinned, else the active context, else the first
-  // membership, else a centre — the shape the onboarding screen defaults to.
   const kind: OrgKind =
     pinnedKind
     ?? claimedKind
@@ -91,8 +72,6 @@ export function DiagnosticWorkspace({ kind: pinnedKind }: { kind?: OrgKind }) {
     [diagnosticContexts, config.organizationType],
   )
 
-  // The platform team legitimately inspects any organisation, so they keep the
-  // catalogue picker. Nobody else is offered work the server will refuse.
   const { data: catalogueData } = useQuery({
     queryKey: ['diagnostics', 'orgs', kind],
     queryFn: () => config.listOrganizations(),
@@ -104,20 +83,13 @@ export function DiagnosticWorkspace({ kind: pinnedKind }: { kind?: OrgKind }) {
     ? catalogue.map((org: any) => ({ id: org.id, name: org.name, city: org.city }))
     : myOrgs.map((ctx: any) => ({ id: ctx.scopeId, name: ctx.name, city: undefined }))
 
-  // One membership is not a choice — open it.
   useEffect(() => {
     if (isOwnOrg && ownOrgId) { setOrgId(ownOrgId); return }
     if (!orgId && !isSuperadmin && myOrgs.length === 1) setOrgId(myOrgs[0].scopeId)
   }, [isOwnOrg, ownOrgId, orgId, isSuperadmin, myOrgs])
 
-  // `!contextsError` — иначе неудачный запрос членств неотличим от «членств
-  // нет»: оператор действующего центра попадал на экран регистрации и получал
-  // предложение завести свою же организацию заново. Пустой список должен
-  // означать пустой список, а не оборванную связь.
   const needsOnboarding = !isOwnOrg && !isSuperadmin && !contextsLoading && !contextsError && myOrgs.length === 0
 
-  // The header summary reads the same list the referrals tab does, so the hero
-  // figure and the table can never disagree.
   const scope = config.referralScope(orgId)
   const { data: referralsData } = useQuery({
     queryKey: queryKeys.diagnostics.referrals({ ...scope, limit: '100' }),
@@ -133,6 +105,7 @@ export function DiagnosticWorkspace({ kind: pinnedKind }: { kind?: OrgKind }) {
   const awaiting = useMemo(() => countAwaitingAction(referrals), [referrals])
 
   const tabs = [
+    ...(kind === 'CENTER' ? [{ id: 'online-bookings', label: 'Онлайн-запись', icon: <CalendarClock size={14} /> }] : []),
     { id: 'cashier', label: 'Касса', icon: <Wallet size={14} /> },
     { id: 'referrals', label: config.referralsLabel, icon: <FileText size={14} /> },
     { id: 'finance', label: 'Финансы', icon: <TrendingUp size={14} /> },
@@ -182,8 +155,6 @@ export function DiagnosticWorkspace({ kind: pinnedKind }: { kind?: OrgKind }) {
 
       {orgId && (
         <>
-          {/* The one number the screen leads with: what needs a human today.
-              Not the total — that is dominated by finished work. */}
           <Card padding="lg">
             <div className="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
               <HeroStat
@@ -206,6 +177,7 @@ export function DiagnosticWorkspace({ kind: pinnedKind }: { kind?: OrgKind }) {
             <Tabs tabs={tabs} active={activeTab} onChange={setActiveTab} />
           </div>
 
+          {activeTab === 'online-bookings' && kind === 'CENTER' && <OnlineBookingsTab centerId={orgId} />}
           {activeTab === 'cashier' && <CashierTab config={config} orgId={orgId} />}
           {activeTab === 'referrals' && (
             <ReferralsTab config={config} orgId={orgId} phaseFilter={phaseFilter} onClearPhase={() => setPhaseFilter(null)} />
