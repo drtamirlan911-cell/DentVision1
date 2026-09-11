@@ -49,16 +49,31 @@ The repository's existing Phase 0 technical gate is authoritative. We will not b
 - Fixes committed: `ee413a7e3e9206aa3c2274b0155a856c337b127c` makes the original migration safe when the table is absent; `938b0a8f399810265b8ad45cb5abff8892e3b8be` adds the post-init compatibility migration that applies `completedLessons` after the legacy base schema exists.
 
 ### Current verification
-- Phase 0 is **not yet passed**. A fresh CI run is already queued for `938b0a8f399810265b8ad45cb5abff8892e3b8be` (`CI` run `34631390749`, with Quality Gate `34631390830`).
+- Phase 0 is **not yet passed**. CI run `34631390749` was the verification run for the completed-lessons fix; later economics commits triggered newer CI/Quality Gate runs.
 - Do not declare the technical gate green until migrations, unit tests and E2E complete successfully.
 
-## Economics architecture mapping already confirmed
-- The backend already has a generic `CommissionRule` model and `resolveCommissionBps()` for Marketplace/Education flows.
-- The diagnostics domain already has `Referral.platformFee` plus a DB-backed `Settlement` and an idempotent settlement service. This is reusable infrastructure, not a reason to create a duplicate settlement system.
-- The canonical policy requires minimums, caps, volume tiers, transparent breakdowns and versioned pricing with no retroactive repricing. The new economics engine must therefore extend the existing finance/settlement infrastructure rather than hard-code percentages in UI or create a second commission source of truth.
+## 2026-09-11 — Partner Economics Engine foundation
+
+### Canonical source mapped
+The existing finance stack already contains `CommissionRule`, `Transaction`, `Wallet`, `Payment`, `Payout`; diagnostics already contains `Referral.platformFee` and DB-backed `Settlement`. We are reusing these primitives rather than creating a parallel commission or payout system.
+
+### Implemented
+- `28fdae6dd1f3b66be60b9c331a8ba4e38aef1371` — added `partner-economics.service.ts`.
+  - Canonical verticals: diagnostics/3D, medical analyses, dental labs.
+  - Canonical rates/floors/caps/tiers from policy v1.0.
+  - Reuses `CommissionRule` as the rule registry; extra economics metadata is stored in `splitJson`.
+  - Calculates platform commission, partner revenue, operating costs and contribution margin.
+  - Returns explicit `HEALTHY` / `LOW_MARGIN` / `LOSS` status.
+  - Records a durable, idempotent economics operation in existing `Transaction` without touching wallet balances; settlement/payout remain separate.
+  - Transaction metadata snapshots the exact economics version and parameters used, preventing retroactive repricing.
+- `380828ec11939c4fe1b157bd4cdad0d584fe738c` — added calculator tests covering floors, caps, dental-lab volume tiers, loss detection and rule snapshots.
+
+### Verification in progress
+- CI/Quality Gate for `380828ec11939c4fe1b157bd4cdad0d584fe738c` is running (`CI` and `Quality Gate`; Quality Gate run `34631504719` is currently in progress).
+- The economics engine is intentionally not yet wired into diagnostic payment collection or partner dashboards until the calculator passes CI and the migration gate is green.
 
 ### Next action
-1. Verify CI/Quality Gate run `34631390749` / `34631390830` until complete; fix the next migration blocker if any.
-2. Implement the first Partner Economics Engine vertical slice against the canonical policy: versioned rule storage + calculator + durable operation ledger + idempotency + transparent breakdown + contribution-margin status for diagnostics/3D, medical analyses and dental labs.
-3. Reuse existing `CommissionRule`, `Referral`, `Settlement`, `Wallet`, `Transaction`, `Payment` and `Payout` infrastructure where semantics already match; do not duplicate ledgers or payout systems.
-4. Add calculation/edge/concurrency tests, then wire Finance Hub / partner visibility after backend economics is stable.
+1. Finish CI/Quality Gate and fix any concrete failures immediately.
+2. Wire diagnostics payment/mark-paid commission calculation to `partner-economics.service.ts`, replacing the old flat 10% path with canonical 7% + floor/cap and recording the operation ledger.
+3. Add medical-analysis and dental-lab order settlement hooks using the same engine, preserving existing payment/payout semantics.
+4. Add partner-facing transparent breakdowns and Finance Hub aggregation after the backend hooks are stable.
