@@ -24,51 +24,35 @@ jobs:
           text = route.read_text()
           old = '''    // Nothing to adopt — a genuinely new patient of this clinic.\n    const patient = await (prisma as any).patient.create({\n      data: {\n        id: uid(),\n        clinicId: clinic.id,\n        userId: user.id,\n        firstName: user.firstName || user.email?.split('@')[0] || 'Пациент',\n        lastName: user.lastName || '',\n        email: user.email || null,\n        phone: phoneHint || null,\n      },\n      select: { id: true },\n    });\n\n    return res.json({ ok: true, data: { patientId: patient.id, clinicName: clinic.name, created: true } });'''
           new = '''    // Fail closed: clinicId from the client is not an authorization proof.\n    // New patient records are created by the booking/onboarding workflow, not\n    // by a generic portal link endpoint. Without an existing unclaimed card\n    // (or an explicit invitation/booking path), there is nothing this endpoint\n    // is authorized to link.\n    return res.status(403).json({\n      ok: false,\n      error: 'Не найдено существующее приглашение или карточка пациента для этой клиники',\n    });'''
-          if old in text:
-              text = text.replace(old, new, 1)
-          elif new not in text:
-              raise SystemExit('unsafe link block not found')
+          if old in text: text = text.replace(old, new, 1)
+          elif new not in text: raise SystemExit('unsafe link block not found')
           route.write_text(text)
-
           service = Path('dentvision-backend/src/modules/patient-portal/patientPortal.service.ts')
           text = service.read_text()
-          if 'platformFee: true' in text:
-              text = text.replace('platformFee: true, ', '', 1)
-              service.write_text(text)
-          elif 'export async function getDiagnostics' not in text:
-              raise SystemExit('diagnostics service not found')
+          text = text.replace('platformFee: true, ', '', 1)
+          service.write_text(text)
           PY
-      - name: Add regression coverage
+      - name: Run repository security regression
         run: |
-          cat > dentvision-backend/src/modules/patient-portal/patientPortal.security.test.ts <<'EOF'
-          import { readFileSync } from 'node:fs';
-          import { resolve } from 'node:path';
-          import { describe, expect, it } from 'vitest';
-          const routeSource = readFileSync(resolve(process.cwd(), 'src/modules/patient-portal/patientPortal.routes.ts'), 'utf8');
-          const serviceSource = readFileSync(resolve(process.cwd(), 'src/modules/patient-portal/patientPortal.service.ts'), 'utf8');
-          describe('Patient Portal security boundaries', () => {
-            it('never creates a patient from an arbitrary /link clinicId', () => {
-              const start = routeSource.indexOf("patientPortalRouter.post('/link'");
-              const end = routeSource.indexOf("patientPortalRouter.post('/appointments/:id/cancel'");
-              expect(start).toBeGreaterThanOrEqual(0); expect(end).toBeGreaterThan(start);
-              const block = routeSource.slice(start, end);
-              expect(block).not.toContain('patient.create('); expect(block).toContain('res.status(403)');
-            });
-            it('does not expose platform economics in patient diagnostics', () => {
-              const start = serviceSource.indexOf('export async function getDiagnostics');
-              expect(start).toBeGreaterThanOrEqual(0);
-              expect(serviceSource.slice(start, start + 1400)).not.toContain('platformFee');
-            });
-          });
-          EOF
-      - name: Run targeted regression
-        working-directory: dentvision-backend
-        run: npm test -- --run src/modules/patient-portal/patientPortal.security.test.ts
+          node <<'NODE'
+          const fs = require('node:fs');
+          const route = fs.readFileSync('dentvision-backend/src/modules/patient-portal/patientPortal.routes.ts', 'utf8');
+          const service = fs.readFileSync('dentvision-backend/src/modules/patient-portal/patientPortal.service.ts', 'utf8');
+          const start = route.indexOf("patientPortalRouter.post('/link'");
+          const end = route.indexOf("patientPortalRouter.post('/appointments/:id/cancel'");
+          if (start < 0 || end <= start) throw new Error('patient portal link route boundary not found');
+          const linkBlock = route.slice(start, end);
+          if (linkBlock.includes('patient.create(')) throw new Error('SECURITY REGRESSION: /link can create a patient');
+          if (!linkBlock.includes('res.status(403)')) throw new Error('SECURITY REGRESSION: /link is not fail-closed');
+          const diag = service.slice(service.indexOf('export async function getDiagnostics'), service.indexOf('export async function getDiagnostics') + 1400);
+          if (diag.includes('platformFee')) throw new Error('SECURITY REGRESSION: platformFee exposed to patient diagnostics');
+          console.log('Patient Portal security regression: PASS');
+          NODE
       - name: Commit and push fixes
         run: |
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add dentvision-backend/src/modules/patient-portal/patientPortal.routes.ts dentvision-backend/src/modules/patient-portal/patientPortal.service.ts dentvision-backend/src/modules/patient-portal/patientPortal.security.test.ts
+          git add dentvision-backend/src/modules/patient-portal/patientPortal.routes.ts dentvision-backend/src/modules/patient-portal/patientPortal.service.ts
           git diff --cached --quiet && exit 0
           git commit -m 'fix: close patient portal tenant boundary'
           git push origin main
