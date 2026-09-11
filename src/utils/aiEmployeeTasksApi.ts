@@ -36,7 +36,8 @@ export interface AIEmployeeTaskRecord {
 
 export async function getAIEmployeeTasks(limit = 20): Promise<AIEmployeeTaskRecord[]> {
   const response = await apiRequest(`/api/ai/approvals/tasks?limit=${Math.min(Math.max(limit, 1), 50)}`)
-  return Array.isArray(response?.data) ? response.data : []
+  // apiRequest unwraps the standard { ok, data } envelope and returns data directly.
+  return Array.isArray(response) ? response : []
 }
 
 export async function transitionAIEmployeeTask(
@@ -49,5 +50,6 @@ export async function transitionAIEmployeeTask(
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ status, result }),
   })
-  return response?.data || null
+  // apiRequest unwraps { ok, data } so the task itself is the return value.
+  return response && typeof response === 'object' ? response as AIEmployeeTaskRecord : null
 }
