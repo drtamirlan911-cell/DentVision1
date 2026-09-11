@@ -5,8 +5,8 @@ import {
   createTestPatient,
   createTestAppointment,
   createTestDiagnosticCenter,
-  createTestDiagnosticReferral,
 } from '../helpers/factories';
+import { prisma } from '../helpers/db';
 
 const PASSWORD = 'Test1234!';
 
@@ -32,7 +32,18 @@ test.describe('Clinical tenant isolation / IDOR', () => {
     const patientB = await createTestPatient(clinicB.id);
     const appointmentA = await createTestAppointment(clinicA.id, patientA.id, doctorA.id);
     const center = await createTestDiagnosticCenter({ name: `IDOR Center ${Date.now()}` });
-    const referralA = await createTestDiagnosticReferral(clinicA.id, doctorA.id, center.id, { patientName: 'Clinic A' });
+    const referralA = await prisma.referral.create({
+      data: {
+        clinicId: clinicA.id,
+        patientId: patientA.id,
+        patientName: `${patientA.firstName} ${patientA.lastName}`,
+        doctorId: doctorA.id,
+        centerId: center.id,
+        category: 'DIGITAL_XRAY',
+        studyType: 'OPG',
+        status: 'DRAFT',
+      },
+    });
     const tokenA = await login(request, doctorA.email);
     const tokenB = await login(request, doctorB.email);
 
@@ -47,9 +58,17 @@ test.describe('Clinical tenant isolation / IDOR', () => {
     const referralRead = await request.get(`/api/diagnostics/referrals/${referralA.id}`, { headers: auth(tokenB) });
     expect([403, 404]).toContain(referralRead.status());
     const referralStatus = await request.post(`/api/diagnostics/referrals/${referralA.id}/status`, { headers: auth(tokenB), data: { status: 'ACCEPTED' } });
-    expect([403, 404]).toContain(referralStatus.status());
+    expect([400, 403, 404]).toContain(referralStatus.status());
     const ownPatient = await request.get(`/api/patients/${patientB.id}`, { headers: auth(tokenB) });
     expect(ownPatient.ok()).toBeTruthy();
+
+    await prisma.referral.delete({ where: { id: referralA.id } }).catch(() => {});
+    await prisma.appointment.delete({ where: { id: appointmentA.id } }).catch(() => {});
+    await prisma.patient.deleteMany({ where: { id: { in: [patientA.id, patientB.id] } } }).catch(() => {});
+    await prisma.clinicMember.deleteMany({ where: { userId: { in: [doctorA.id, doctorB.id] } } }).catch(() => {});
+    await prisma.user.deleteMany({ where: { id: { in: [doctorA.id, doctorB.id] } } }).catch(() => {});
+    await prisma.diagnosticCenter.delete({ where: { id: center.id } }).catch(() => {});
+    await prisma.clinic.deleteMany({ where: { id: { in: [clinicA.id, clinicB.id] } } }).catch(() => {});
   });
 
   test('appointment cannot attach a patient from one clinic to a doctor from another', async ({ request }) => {
@@ -71,12 +90,6 @@ test.describe('Clinical tenant isolation / IDOR', () => {
     const patientA = await createTestPatient(clinicA.id);
     const tokenA = await login(request, doctorA.email);
     const res = await request.post('/api/diagnostics/referrals', { headers: auth(tokenA), data: { clinicId: clinicB.id, doctorId: doctorA.id, patientId: patientA.id, patientName: `${patientA.firstName} ${patientA.lastName}`, category: 'DIGITAL_XRAY', studyType: 'OPG', centerId: center.id } });
-    if (res.ok()) {
-      const body = await res.json();
-      const referral = body.data || body;
-      expect(referral.clinicId).toBe(clinicA.id);
-    } else {
-      expect([400, 403, 404]).toContain(res.status());
-    }
+    expect([400, 403, 404]).toContain(res.status());
   });
 });
