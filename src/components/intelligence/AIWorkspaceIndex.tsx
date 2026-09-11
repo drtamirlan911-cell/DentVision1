@@ -28,6 +28,7 @@ export function AIWorkspaceIndex({ onNavigate }: { onNavigate?: (path: string) =
   const { clinic, isAuthenticated } = useAuth()
   const [showContext, setShowContext] = useState(false)
   const [briefing, setBriefing] = useState<string>('')
+  const [briefingSuggestions, setBriefingSuggestions] = useState<string[]>([])
   const [briefingLoading, setBriefingLoading] = useState(false)
   const messages = useAIStore(s => s.messages)
   const suggestions = useAIStore(s => s.suggestions)
@@ -49,7 +50,20 @@ export function AIWorkspaceIndex({ onNavigate }: { onNavigate?: (path: string) =
     void loadProactiveAlerts()
     let cancelled = false
     setBriefingLoading(true)
-    void aiBriefing().then(result => { if (!cancelled) setBriefing(result.reply || '') }).catch(() => { if (!cancelled) setBriefing('') }).finally(() => { if (!cancelled) setBriefingLoading(false) })
+    void aiBriefing()
+      .then(result => {
+        if (cancelled) return
+        setBriefing(result.reply || '')
+        setBriefingSuggestions(Array.isArray(result.suggestions) ? result.suggestions.filter(Boolean).slice(0, 4) : [])
+      })
+      .catch(() => {
+        if (cancelled) return
+        setBriefing('')
+        setBriefingSuggestions([])
+      })
+      .finally(() => {
+        if (!cancelled) setBriefingLoading(false)
+      })
     return () => { cancelled = true }
   }, [isAuthenticated, loadConversation, loadProactiveAlerts])
 
@@ -87,7 +101,14 @@ export function AIWorkspaceIndex({ onNavigate }: { onNavigate?: (path: string) =
               {isAuthenticated && !bookingIntent && (briefing || briefingLoading) && (
                 <div className="mb-4 rounded-2xl border border-border bg-card p-4 shadow-sm">
                   <div className="flex items-center gap-2 text-xs font-semibold"><CalendarDays size={15} className="text-primary" /> Сегодня</div>
-                  {briefingLoading ? <div className="mt-3 h-4 w-2/3 animate-pulse rounded bg-muted" /> : <p className="mt-3 whitespace-pre-line text-sm leading-6 text-muted-foreground">{briefing}</p>}
+                  {briefingLoading ? <div className="mt-3 h-4 w-2/3 animate-pulse rounded bg-muted" /> : <>
+                    <p className="mt-3 whitespace-pre-line text-sm leading-6 text-muted-foreground">{briefing}</p>
+                    {briefingSuggestions.length > 0 && <div className="mt-4 flex flex-wrap gap-2">
+                      {briefingSuggestions.map(action => <button key={action} onClick={() => send(action)} className="inline-flex items-center gap-1.5 rounded-full border border-border bg-background px-3 py-1.5 text-xs font-medium text-foreground transition hover:border-primary/30 hover:bg-muted">
+                        {action}<ArrowRight size={12} className="text-primary" />
+                      </button>)}
+                    </div>}
+                  </>}
                 </div>
               )}
 
