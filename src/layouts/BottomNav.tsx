@@ -2,16 +2,17 @@ import React, { useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Stethoscope, ShoppingCart, GraduationCap, Users, Bot, LogIn } from 'lucide-react';
+import { Stethoscope, ShoppingCart, Bot, Activity, MoreHorizontal } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/store/auth.store';
 import { useGuestStore } from '@/store/guest.store';
+import { useUIStore } from '@/store/ui.store';
 
 interface BottomNavItem {
   id: string;
   label: string;
   icon: React.ReactNode;
-  path: string;
+  path?: string;
   color: string;
   requiresAuth?: boolean;
 }
@@ -21,17 +22,24 @@ export function BottomNav() {
   const location = useLocation();
   const { isAuthenticated } = useAuth();
   const { isGuest, setRegistrationModal } = useGuestStore();
+  const toggleSidebar = useUIStore((state) => state.toggleSidebar);
   const { t } = useTranslation();
 
+  // Keep mobile navigation task-first. Secondary destinations remain in the sidebar,
+  // so the bottom bar does not duplicate the entire information architecture.
   const ITEMS: BottomNavItem[] = [
-    { id: 'crm', label: t('nav.crm', 'Клиника'), icon: <Stethoscope size={18} />, path: '/crm/schedule', color: '#A47B35', requiresAuth: true },
-    { id: 'shop', label: t('nav.market', 'Маркет'), icon: <ShoppingCart size={18} />, path: '/shop', color: '#A47B35' },
-    { id: 'ai', label: t('nav.digital_assistant', 'ИИ'), icon: <Bot size={18} />, path: '/ai', color: '#A47B35' },
-    { id: 'school', label: t('nav.school', 'Академия'), icon: <GraduationCap size={18} />, path: '/school', color: '#A47B35' },
-    { id: 'community', label: t('nav.community', 'Сообщество'), icon: <Users size={18} />, path: '/community', color: '#A47B35' },
+    { id: 'ai', label: t('nav.digital_assistant', 'ИИ'), icon: <Bot size={19} />, path: '/ai', color: '#A47B35' },
+    { id: 'crm', label: t('nav.crm', 'Клиника'), icon: <Stethoscope size={19} />, path: '/crm/schedule', color: '#A47B35', requiresAuth: true },
+    { id: 'diagnostics', label: t('nav.diagnostics', 'Диагностика'), icon: <Activity size={19} />, path: '/diagnostics', color: '#A47B35' },
+    { id: 'shop', label: t('nav.market', 'Маркет'), icon: <ShoppingCart size={19} />, path: '/shop', color: '#A47B35' },
+    { id: 'more', label: t('nav.more', 'Ещё'), icon: <MoreHorizontal size={20} />, color: '#A47B35' },
   ];
 
   const handleNavClick = useCallback((item: BottomNavItem) => {
+    if (item.id === 'more') {
+      toggleSidebar();
+      return;
+    }
     if (item.id === 'crm' && (!isAuthenticated || isGuest)) {
       navigate('/crm/schedule?demo=1');
       return;
@@ -39,11 +47,11 @@ export function BottomNav() {
     if (item.requiresAuth && !isAuthenticated && !isGuest) {
       setRegistrationModal(true);
     } else if (item.requiresAuth && isGuest) {
-      setRegistrationModal(true, () => navigate(item.path));
-    } else {
+      setRegistrationModal(true, () => navigate(item.path!));
+    } else if (item.path) {
       navigate(item.path);
     }
-  }, [isAuthenticated, isGuest, navigate, setRegistrationModal]);
+  }, [isAuthenticated, isGuest, navigate, setRegistrationModal, toggleSidebar]);
 
   return (
     <nav
@@ -57,8 +65,7 @@ export function BottomNav() {
     >
       <div className="mx-auto flex h-[var(--dv-bottomnav-height,3.5rem)] w-full max-w-xl items-stretch justify-between px-1 sm:px-2">
         {ITEMS.map((item) => {
-          const isActive = location.pathname === item.path || location.pathname.startsWith(item.path + '/');
-          const isDisabled = item.id !== 'crm' && item.requiresAuth && !isAuthenticated && !isGuest;
+          const isActive = Boolean(item.path) && (location.pathname === item.path || location.pathname.startsWith(item.path + '/'));
           return (
             <motion.button
               key={item.id}
@@ -66,8 +73,8 @@ export function BottomNav() {
               onClick={() => handleNavClick(item)}
               whileTap={{ scale: 0.97 }}
               className="relative flex h-full min-h-11 min-w-0 flex-1 touch-manipulation flex-col items-center justify-center gap-0.5 px-0.5 py-1 text-center"
-              disabled={isDisabled}
               aria-current={isActive ? 'page' : undefined}
+              aria-label={item.label}
             >
               {isActive && (
                 <motion.div
@@ -77,18 +84,11 @@ export function BottomNav() {
                   transition={{ duration: 0.18, ease: [0.16, 1, 0.3, 1] }}
                 />
               )}
-              <span className={cn('shrink-0 transition-colors', isActive ? '' : 'text-txt-muted', isDisabled && 'opacity-40')}>
-                {isDisabled ? <LogIn size={18} className="text-txt-muted" /> : item.icon}
+              <span className={cn('shrink-0 transition-colors', isActive ? '' : 'text-txt-muted')} style={isActive ? { color: item.color } : undefined}>
+                {item.icon}
               </span>
-              <span
-                className={cn(
-                  'max-w-full truncate px-0.5 text-[clamp(9px,2.6vw,10px)] font-medium leading-tight transition-colors',
-                  isActive ? '' : 'text-txt-muted',
-                  isDisabled && 'text-txt-muted',
-                )}
-                style={isActive ? { color: item.color } : undefined}
-              >
-                {isDisabled ? t('nav.login', 'Войти') : item.label}
+              <span className={cn('max-w-full truncate px-0.5 text-[clamp(9px,2.6vw,10px)] font-medium leading-tight transition-colors', isActive ? '' : 'text-txt-muted')} style={isActive ? { color: item.color } : undefined}>
+                {item.label}
               </span>
             </motion.button>
           );
