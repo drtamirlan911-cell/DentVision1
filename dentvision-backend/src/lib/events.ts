@@ -1,12 +1,5 @@
 // ─────────────────────────────────────────────────────────────────────────────
 // Event Bus (Phase 0) — in-process, typed domain events.
-//
-// Foundation for the event-driven architecture (BLUEPRINT.md §16): domain actions
-// publish events; cross-cutting concerns (audit, notifications, analytics, and
-// later webhooks / workflow triggers) subscribe instead of being called directly.
-//
-// In-process for now (single node). When horizontal scaling is needed this can be
-// swapped for Redis Streams / a queue behind the same publish()/subscribe() API.
 // ─────────────────────────────────────────────────────────────────────────────
 import { EventEmitter } from 'node:events';
 
@@ -24,6 +17,7 @@ export interface DomainEventMap {
   'diagnostics.booking.status_changed': { centerId: string; bookingId: string; studyId: string; patientName: string; date: string; time: string; status: string; previousStatus?: string; userId?: string };
   'labOrder.created': { clinicId: string; labOrderId: string; patientId?: string; doctorId?: string; userId?: string };
   'labOrder.status_changed': { clinicId: string; labOrderId: string; patientId?: string; doctorId?: string; status: string; previousStatus?: string; userId?: string };
+  'labOrder.assigned': { clinicId: string; labOrderId: string; laboratoryId: string; laboratoryName: string; patientId?: string; doctorId?: string; userId?: string };
 }
 
 export type DomainEventName = keyof DomainEventMap;
