@@ -7,7 +7,6 @@ export const demoAIEmployeeTasks: AIEmployeeTask[] = [
     description: 'AI подготовил краткий контекст и выделил симптомы для внимания врача.',
     state: 'awaiting_approval',
     priority: 'high',
-    requiresApproval: true,
   },
   {
     id: 'reception-reminder',
@@ -15,6 +14,5 @@ export const demoAIEmployeeTasks: AIEmployeeTask[] = [
     description: 'Проверка необходимости напоминания пациенту.',
     state: 'observing',
     priority: 'normal',
-    requiresApproval: false,
   },
 ];
