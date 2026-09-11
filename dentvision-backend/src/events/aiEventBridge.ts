@@ -5,7 +5,7 @@ import { EventType } from '../modules/events/EventTypes.js';
 
 let registered = false;
 
-/** Bridge CRM domain events into the durable AI Event OS without blocking CRM requests. */
+/** Bridge CRM and operational domain events into the durable AI Event OS without blocking requests. */
 export function registerAIEventBridge(): void {
   if (registered) return;
   registered = true;
@@ -44,6 +44,18 @@ export function registerAIEventBridge(): void {
     if (!['completed', 'delivered', 'ready'].includes(status)) return;
     const order = await prisma.labOrder.findFirst({ where: { id: labOrderId, clinicId }, select: { status: true } });
     await aiEventBus.publish(EventType.LabOrderCompleted, { labOrderId, patientId: patientId || '', doctorId: doctorId || '', status: order?.status || status, previousStatus }, { clinicId, userId: userId || doctorId || 'system', source: 'crm.labOrder.status_changed' });
+  });
+
+  subscribe('diagnostics.booking.created', async ({ centerId, bookingId, studyId, patientName, date, time, status, userId }) => {
+    await aiEventBus.publish(EventType.DiagnosticBookingCreated, {
+      bookingId, centerId, studyId, patientName, date, time, status,
+    }, { clinicId: centerId, userId: userId || 'system', source: 'diagnostics.booking.created' });
+  });
+
+  subscribe('diagnostics.booking.status_changed', async ({ centerId, bookingId, studyId, patientName, date, time, status, previousStatus, userId }) => {
+    await aiEventBus.publish(EventType.DiagnosticBookingStatusChanged, {
+      bookingId, centerId, studyId, patientName, date, time, status, previousStatus,
+    }, { clinicId: centerId, userId: userId || 'system', source: 'diagnostics.booking.status_changed' });
   });
 
   console.log('[events] AI Event OS bridge registered');
