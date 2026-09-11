@@ -52,15 +52,17 @@ This log is the durable handoff between work sessions/agents. It records complet
 - Production readiness still depends on the actual `VITE_GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_ID` configuration and authorized Google origin(s), followed by CI/build and a real browser login test.
 - Phase 0 remains **NOT PASSED** until the current CI run confirms the migration chain and the frontend integration builds cleanly.
 
-## 2026-09-12 — Production deployment trigger
+## 2026-09-12 — Production deployment trigger and Vercel rate-limit blocker
 
-### Action
-- Current `main` contains the Google Sign-In UI integration and the latest execution-state updates.
-- Vercel Production had previously been observed behind `main`; this commit intentionally updates the persistent execution log to trigger the repository's Git-connected Production deployment from the current `main` state.
-- `VITE_GOOGLE_CLIENT_ID` is expected to remain configured in Vercel and must not be committed to the repository.
+### Evidence
+- `main` is at/after `b3e5f1c6043b4e46a0d3a0c049fbbced6acbc9e7`.
+- GitHub combined status for `b3e5f1c6043b4e46a0d3a0c049fbbced6acbc9e7` reports Vercel `failure` with target indicating a Vercel build-rate-limit/plan limit (`upgradeToPro=build-rate-limit`).
+- Vercel Production for project `dent-vision1` is still on `8f17f3a86849315b3e173b4eec55d761bcefd33d`, not the current `main` commit.
+- The current Production deployment itself is READY and its build had no compile error; the remaining blocker is promotion/build availability for the newer commit.
+- Vercel runtime error aggregation for the project over the last 7 days reports no runtime errors.
 
-### Next verification
-1. Confirm the new Vercel Production deployment is READY and corresponds to this commit.
-2. Confirm the production login UI renders Google Sign-In.
-3. Verify the production Google OAuth flow and inspect runtime errors.
-4. If production is healthy, continue with wiring the canonical Economics Engine into real diagnostics, medical-analysis and dental-lab settlement flows.
+### Next implementation target
+1. Do not loop on generic audits. Resolve the Vercel build-rate-limit/deployment blocker through the connected Vercel project when capacity allows.
+2. Wire `partner-economics.service.ts` into the live referral/settlement flow. The current diagnostics flow still computes a legacy 10% `platformFee` during `ACCEPTED`/`IN_PROGRESS`; this must be replaced by the canonical Economics Engine so 3D diagnostics use 7% with the configured floor/cap and medical analysis uses 6% with its floor/cap. The existing settlement service currently settles the persisted `Referral.platformFee`, so this integration must preserve settlement idempotency while making the engine the authoritative commission source.
+3. Extend the same authoritative economics/ledger path to medical-analysis and dental-lab operations, then expose the resulting rule-versioned economics in Partner Dashboard and Finance Hub.
+4. Add focused integration tests proving the live flow uses the canonical rule, records the exact rule/version snapshot, and cannot double-accrue commission.
