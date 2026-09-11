@@ -24,12 +24,12 @@ function mockRes() {
 describe('requireReferralAccess middleware', () => {
   const referral = { clinicId: 'clinic-1', doctorId: 'doc-1', centerId: 'center-1', labId: null };
 
-  it('admits SUPERADMIN through the canonical organization access primitive', async () => {
-    referralFindUnique.mockResolvedValueOnce(referral); assertOrgAccess.mockResolvedValueOnce(true);
+  it('admits SUPERADMIN unconditionally', async () => {
+    referralFindUnique.mockResolvedValueOnce(referral);
     const req: any = { params: { id: 'r1' }, user: { id: 'someone', role: 'SUPERADMIN' } };
     const res = mockRes(); const next = vi.fn();
     await requireReferralAccess()(req, res, next);
-    expect(next).toHaveBeenCalledOnce(); expect(res.status).not.toHaveBeenCalled();
+    expect(next).toHaveBeenCalledOnce(); expect(assertOrgAccess).not.toHaveBeenCalled(); expect(res.status).not.toHaveBeenCalled();
   });
   it('admits the referring doctor', async () => {
     referralFindUnique.mockResolvedValueOnce(referral);
