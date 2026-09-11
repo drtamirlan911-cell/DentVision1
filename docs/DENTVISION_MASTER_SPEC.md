@@ -1,13 +1,14 @@
 # DentVision — Master Product & System Specification
 
 **Status:** CANONICAL / ACTIVE  
-**Version:** 3.4  
+**Version:** 3.5  
 **Date:** 2026-09-11  
 **Owner:** DentVision by Dr.Tamirlan
 
 > Single normative source of truth for product intent, architecture guardrails, P0 execution order, completed work, blockers and next actions. GitHub code/tests are the evidence source.
 
 ## North Star
+
 DentVision is a Dental Super App/ecosystem, not merely a CRM. It unifies Clinic/CRM, AI, Diagnostics, Laboratory, Shop, Academy, Jobs, Community and Finance.
 
 **North Star:** understand user intent and present the next correct action instead of making the user learn the application.
@@ -120,40 +121,61 @@ Repository already contains self-service organization onboarding, professional o
 **Done**
 - Booking write path now loads the patient's `clinicId` and fails closed when the patient does not belong to the selected clinic.
 - Removed an accidental misplaced ownership check from `getAvailableSlots`; slot discovery is now a pure clinic/schedule read while ownership is enforced at booking write time.
-- Added clinical tenant IDOR E2E coverage for cross-clinic patient reads/mutations, appointments, diagnostic referrals and clinic spoofing scenarios in PR #272.
-- Closed superseded/conflicting sidebar/security test history and retained only the clean executable tenant-boundary test path.
+- Clean clinical tenant IDOR coverage was applied directly to `main` after stale PR #272 became non-mergeable; superseded #270/#271 and stale #272 history are not resurrected.
+- Existing AI booking machinery was revalidated from repository history: caller identity is backend-derived, doctor membership is checked, availability is rechecked at write time, and the assistant creates a pending Booking request rather than bypassing the clinic confirmation workflow.
 
 **Verification**
-- Booking source now contains the ownership guard only in `requestAppointment`, immediately before write-side business validation.
-- AI diagnostic output exposed through the Patient Portal is gated on `doctorConfirmed`; unconfirmed AI report/conclusion data is withheld and marked pending confirmation.
-- `aiEmployeeTasks.ts`, AI Workspace, Digital Assistant and Dental Lab workspace type-contract defects found by the Quality Gate were corrected on `main`.
-- Latest CI/Quality Gate runs are executing against the consolidated fixes; completion is not claimed until their result is green.
+- Booking source contains the ownership guard only in `requestAppointment`, immediately before write-side business validation.
+- Patient-facing diagnostic AI output is gated on `doctorConfirmed`; unconfirmed report/conclusion data is withheld and represented as pending confirmation.
+- Quality Gate contract defects in `aiEmployeeTasks.ts`, AI Workspace, Digital Assistant and Dental Lab workspace were corrected on `main`.
+- Latest Quality Gate is running against the consolidated fixes; green status is not claimed until completion.
 
 **Remaining**
-- Run the complete patient booking journey against the live E2E stack: discovery → registration → consent → pending request → clinic confirmation → notification → appointment.
-- Verify the same authorization boundary for every AI booking tool caller.
-- Merge the clean tenant IDOR E2E coverage only after CI/E2E verification is green.
-- Do not mark P0-2 complete until persistence and notification are verified end-to-end.
+- Complete the live patient booking journey: discovery → registration → consent → pending request → clinic confirmation → notification → appointment persistence.
+- Verify booking notification delivery in the live E2E stack.
+- Verify AI booking caller authorization in the current test stack rather than relying only on historical verification.
 
-### 2026-09-11 — P0-3 diagnostics safety slice
+### 2026-09-11 — P0-3 diagnostics safety + execution slice
 
 **Done**
-- Patient-facing diagnostic result serialization now exposes report/conclusion only when the diagnostic result has `doctorConfirmed = true`.
+- Patient-facing diagnostic result serialization exposes report/conclusion only when `doctorConfirmed = true`.
 - Unconfirmed AI diagnostic output remains clinical decision support and is returned only as a pending-confirmation state.
+- Added executable clinical tenant IDOR coverage for patients, appointments, diagnostic referrals and clinic spoofing directly to `main`.
+- Completed the missing diagnostics referral API surface on `main`: scoped referral listing, creation, detail, controlled update, lifecycle status transitions, draft deletion, file upload/delete, comments, dashboard scope, AI result generation and doctor result signing.
+- Referral creation now enforces authenticated clinic access, patient→clinic ownership and doctor→clinic membership; server-controlled payment, settlement and identity fields are stripped from client input.
+- Referral mutations use object-level access guards. Center/laboratory staff are admitted only for referrals assigned to their own organization.
+- AI diagnostic generation is explicitly non-signing and returns `requiresDoctorConfirmation`; doctor signing is the separate mutation that completes the referral and writes the diagnostic result into the patient visit record.
+- Existing atomic unpaid-referral claim and diagnostic organization access hardening remain in place.
 
 **Verification**
-- Repository patch gate completed successfully for the patient diagnostic result confirmation boundary.
-- The patient portal service explicitly selects `doctorConfirmed` and branches the DTO accordingly.
+- The diagnostics routes now map the service's existing referral lifecycle functions into actual HTTP workflow endpoints instead of leaving them unreachable.
+- AI image/lab interpretation requires a linked patient, valid image-analysis consent and a viewable source file before image-based output is written.
+- Doctor confirmation is the only route in this slice that marks the diagnostic result signed/completed and persists the result into the patient's clinical record.
+- New changes are under the active GitHub Quality Gate run `34611885168`; completion is pending.
 
 **Remaining**
-- Complete diagnostics ordering/payment/status/result persistence journey.
-- Verify diagnostic-center tenant/object authorization for every read and mutation endpoint.
-- Verify AI interpretation → doctor confirmation → patient record persistence end-to-end.
+- Verify the complete diagnostics journey against the live E2E stack: discovery → center → study → referral → acceptance → payment/confirmation → performed → result → AI interpretation → doctor confirmation → patient record.
+- Add/verify payment settlement HTTP integration where required by the current production payment pipeline.
+- Add explicit live tests for center/lab object-level mutations and patient result visibility after confirmation.
+
+### 2026-09-11 — P0-4 laboratory foundation checkpoint
+
+**Done**
+- Laboratory workspace already enforces authenticated laboratory membership before dashboard, order, status, technician and team operations.
+- Clinic-to-laboratory assignment is scoped to the caller's active clinic and publishes the canonical `labOrder.assigned` event.
+- Laboratory status transitions are server-validated against the existing transition graph and publish the canonical `labOrder.status_changed` event without leaking unsupported event fields.
+
+**Remaining**
+- Execute the full clinic → lab order → accept → production → QC → ready → delivery → doctor → patient record journey.
+- Align persisted laboratory states with the canonical P0-4 state vocabulary without creating a parallel order model.
+- Add end-to-end delivery/result notification coverage.
 
 ### Other P0 state
 
-- **P0-3 Diagnostics:** FOUNDATION + SAFETY GATE / EXECUTION IN PROGRESS.
-- **P0-4 Laboratory:** FOUNDATION EXISTS / EXECUTION REQUIRED.
+- **P0-1 Consent + Authorization:** FOUNDATION / HARDENING CONTINUES.
+- **P0-2 Booking:** EXECUTION IN PROGRESS; security hardening done, live persistence/notification verification remaining.
+- **P0-3 Diagnostics:** EXECUTION IN PROGRESS; API lifecycle surface now wired, live end-to-end verification remaining.
+- **P0-4 Laboratory:** FOUNDATION + EXECUTION STARTED.
 - **P0-5 AI Employee:** FOUNDATION EXISTS / EXECUTION REQUIRED.
 - **P0-6 Home:** PARTIALLY IMPLEMENTED.
 - **P0-7 Role workspaces:** PARTIALLY IMPLEMENTED.
@@ -164,8 +186,9 @@ Repository already contains self-service organization onboarding, professional o
 
 ## Immediate next actions
 
-1. Finish and verify the current CI/Quality Gate after the latest contract fixes.
-2. Finish P0-2 live patient booking persistence/confirmation/notification and AI caller authorization.
-3. Immediately continue P0-3 Diagnostics execution: order → status → result → AI interpretation → doctor confirmation → patient record.
-4. Then move directly to P0-4 Laboratory workflow execution.
-5. After every meaningful change: implement → regression → verify → commit → update this ledger → continue.
+1. Finish and verify Quality Gate for the diagnostics route execution slice.
+2. Complete live P0-3 diagnostics E2E including payment/confirmation, result, AI interpretation, doctor confirmation and patient-record persistence.
+3. Complete P0-2 live booking persistence/confirmation/notification verification in parallel where the E2E stack permits.
+4. Move directly through P0-4 laboratory execution, reusing the existing Lab Order model and event contract.
+5. Then execute P0-5 AI Employee with the same trust contract.
+6. After every meaningful change: implement → regression → verify → commit → update this ledger → continue.
