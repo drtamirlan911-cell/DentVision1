@@ -67,4 +67,6 @@ export interface ApiResponse<T = unknown> {
   message?: string;
   /** Machine-readable error code (e.g. SUBSCRIPTION_EXPIRED, PLAN_FEATURE_REQUIRED). */
   code?: string;
+  requiresDoctorConfirmation?: boolean;
+  patientRecordUpdated?: boolean;
 }
