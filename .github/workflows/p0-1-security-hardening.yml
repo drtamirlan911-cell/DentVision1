@@ -16,7 +16,6 @@ jobs:
         with:
           ref: main
           fetch-depth: 1
-
       - name: Apply fail-closed Patient Portal fixes
         run: |
           python3 <<'PY'
@@ -25,14 +24,19 @@ jobs:
           text = route.read_text()
           old = '''    // Nothing to adopt — a genuinely new patient of this clinic.\n    const patient = await (prisma as any).patient.create({\n      data: {\n        id: uid(),\n        clinicId: clinic.id,\n        userId: user.id,\n        firstName: user.firstName || user.email?.split('@')[0] || 'Пациент',\n        lastName: user.lastName || '',\n        email: user.email || null,\n        phone: phoneHint || null,\n      },\n      select: { id: true },\n    });\n\n    return res.json({ ok: true, data: { patientId: patient.id, clinicName: clinic.name, created: true } });'''
           new = '''    // Fail closed: clinicId from the client is not an authorization proof.\n    // New patient records are created by the booking/onboarding workflow, not\n    // by a generic portal link endpoint. Without an existing unclaimed card\n    // (or an explicit invitation/booking path), there is nothing this endpoint\n    // is authorized to link.\n    return res.status(403).json({\n      ok: false,\n      error: 'Не найдено существующее приглашение или карточка пациента для этой клиники',\n    });'''
-          if old not in text: raise SystemExit('unsafe link block not found')
-          route.write_text(text.replace(old, new, 1))
+          if old in text:
+              text = text.replace(old, new, 1)
+          elif new not in text:
+              raise SystemExit('unsafe link block not found')
+          route.write_text(text)
+
           service = Path('dentvision-backend/src/modules/patient-portal/patientPortal.service.ts')
           text = service.read_text()
-          old = 'id: true, studyType: true, category: true, status: true,\n        cost: true, platformFee: true, paid: true, createdAt: true,'
-          new = 'id: true, studyType: true, category: true, status: true,\n        cost: true, paid: true, createdAt: true,'
-          if old not in text: raise SystemExit('platformFee field not found')
-          service.write_text(text.replace(old, new, 1))
+          if 'platformFee: true' in text:
+              text = text.replace('platformFee: true, ', '', 1)
+              service.write_text(text)
+          elif 'export async function getDiagnostics' not in text:
+              raise SystemExit('diagnostics service not found')
           PY
       - name: Add regression coverage
         run: |
