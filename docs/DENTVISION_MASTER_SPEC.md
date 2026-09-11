@@ -1,7 +1,7 @@
 # DentVision — Master Product & System Specification
 
 **Status:** CANONICAL / ACTIVE  
-**Version:** 3.3  
+**Version:** 3.4  
 **Date:** 2026-09-11  
 **Owner:** DentVision by Dr.Tamirlan
 
@@ -115,24 +115,44 @@ Repository already contains self-service organization onboarding, professional o
 - Finish cross-clinic grant authorization convergence.
 - External document URL data-egress hardening.
 
-### 2026-09-11 — P0-2 booking slice
+### 2026-09-11 — P0-2 booking hardening + clinical IDOR coverage
 
 **Done**
-- Identified and hardened the booking service boundary so a booking request cannot use a patient from one clinic with a different clinic ID.
-- Booking write path already re-checks clinic working hours, valid schedule time, doctor membership and appointment/booking conflicts at write time; this remains the canonical booking path.
+- Booking write path now loads the patient's `clinicId` and fails closed when the patient does not belong to the selected clinic.
+- Removed an accidental misplaced ownership check from `getAvailableSlots`; slot discovery is now a pure clinic/schedule read while ownership is enforced at booking write time.
+- Added clinical tenant IDOR E2E coverage for cross-clinic patient reads/mutations, appointments, diagnostic referrals and clinic spoofing scenarios in PR #272.
+- Closed superseded/conflicting sidebar/security test history and retained only the clean executable tenant-boundary test path.
 
 **Verification**
-- Added a repository-level booking tenant-boundary regression through GitHub Actions; verification checks that patient clinic ownership is loaded and enforced before booking creation.
-- Existing booking service tests cover invalid time, conflicts and unknown doctor paths.
+- Booking source now contains the ownership guard only in `requestAppointment`, immediately before write-side business validation.
+- AI diagnostic output exposed through the Patient Portal is gated on `doctorConfirmed`; unconfirmed AI report/conclusion data is withheld and marked pending confirmation.
+- `aiEmployeeTasks.ts`, AI Workspace, Digital Assistant and Dental Lab workspace type-contract defects found by the Quality Gate were corrected on `main`.
+- Latest CI/Quality Gate runs are executing against the consolidated fixes; completion is not claimed until their result is green.
 
 **Remaining**
 - Run the complete patient booking journey against the live E2E stack: discovery → registration → consent → pending request → clinic confirmation → notification → appointment.
 - Verify the same authorization boundary for every AI booking tool caller.
+- Merge the clean tenant IDOR E2E coverage only after CI/E2E verification is green.
 - Do not mark P0-2 complete until persistence and notification are verified end-to-end.
+
+### 2026-09-11 — P0-3 diagnostics safety slice
+
+**Done**
+- Patient-facing diagnostic result serialization now exposes report/conclusion only when the diagnostic result has `doctorConfirmed = true`.
+- Unconfirmed AI diagnostic output remains clinical decision support and is returned only as a pending-confirmation state.
+
+**Verification**
+- Repository patch gate completed successfully for the patient diagnostic result confirmation boundary.
+- The patient portal service explicitly selects `doctorConfirmed` and branches the DTO accordingly.
+
+**Remaining**
+- Complete diagnostics ordering/payment/status/result persistence journey.
+- Verify diagnostic-center tenant/object authorization for every read and mutation endpoint.
+- Verify AI interpretation → doctor confirmation → patient record persistence end-to-end.
 
 ### Other P0 state
 
-- **P0-3 Diagnostics:** FOUNDATION EXISTS / EXECUTION REQUIRED.
+- **P0-3 Diagnostics:** FOUNDATION + SAFETY GATE / EXECUTION IN PROGRESS.
 - **P0-4 Laboratory:** FOUNDATION EXISTS / EXECUTION REQUIRED.
 - **P0-5 AI Employee:** FOUNDATION EXISTS / EXECUTION REQUIRED.
 - **P0-6 Home:** PARTIALLY IMPLEMENTED.
@@ -144,24 +164,8 @@ Repository already contains self-service organization onboarding, professional o
 
 ## Immediate next actions
 
-1. Finish P0-1 reusable authorization/context convergence and run the existing patient tenant/IDOR suite.
-2. Finish P0-2 live patient booking journey and confirmation/notification persistence.
-3. Immediately move to P0-3 Diagnostics; do not start another general audit.
-4. After every meaningful change: implement → regression → verify → commit → update this ledger → continue.
-
-## Definition of Done
-
-A workflow is complete only when it has a discoverable entry, real backend/source-of-truth happy path, authorized persistence, consent/RBAC/tenant/object authorization, loading/empty/error/success/permission states, appropriate AI assistance, manual fallback, confirmation for clinical/financial mutations, usable desktop/mobile behavior and executable verification.
-
-## Non-negotiable rules
-
-1. GitHub is implementation source of truth.
-2. This file is the single normative product/execution document.
-3. Do not revive obsolete PRs or competing product specs.
-4. Do not begin broad audits when a concrete P0 task exists.
-5. Never claim completion without repository evidence.
-6. Fix defects in code rather than documenting them indefinitely.
-7. Preserve working systems; extend/reconcile instead of duplicating.
-8. Never invent data, AI events, financial metrics or clinical facts.
-9. Critical clinical/financial actions require prescribed confirmation and audit.
-10. Next session resumes from this ledger, not chat history.
+1. Finish and verify the current CI/Quality Gate after the latest contract fixes.
+2. Finish P0-2 live patient booking persistence/confirmation/notification and AI caller authorization.
+3. Immediately continue P0-3 Diagnostics execution: order → status → result → AI interpretation → doctor confirmation → patient record.
+4. Then move directly to P0-4 Laboratory workflow execution.
+5. After every meaningful change: implement → regression → verify → commit → update this ledger → continue.
