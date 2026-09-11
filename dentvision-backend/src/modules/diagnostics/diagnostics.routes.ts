@@ -7,7 +7,7 @@ import type { AuthRequest, ApiResponse } from '../../types/index.js';
 import * as svc from './diagnostics.service.js';
 import { uid } from '../../lib/helpers.js';
 import prisma from '../../lib/prisma.js';
-import { assertOrgAccess } from '../../lib/orgContext.js';
+import { assertOrgAccess, hasOrgAccess } from '../../lib/orgContext.js';
 import { IinValidationError } from '../../lib/patientIin.js';
 
 // C3: Verify user has clinic membership for the referral's clinic
@@ -32,8 +32,8 @@ export function requireReferralAccess(includeCenterLab = false) {
       if (referral.doctorId === req.user!.id) return next();
       if (await assertOrgAccess(req.user!, referral.clinicId)) return next();
       if (includeCenterLab) {
-        if (referral.centerId && hasOrgAccess(req.user, 'DIAGNOSTIC_CENTER', referral.centerId)) return next();
-        if (referral.labId && hasOrgAccess(req.user, 'LABORATORY', referral.labId)) return next();
+        if (referral.centerId && await hasOrgAccess(req.user, 'DiagnosticCenter', referral.centerId)) return next();
+        if (referral.labId && await hasOrgAccess(req.user, 'Laboratory', referral.labId)) return next();
       }
       return res.status(403).json({ ok: false, error: 'Нет доступа к направлению' });
     } catch {
@@ -59,10 +59,10 @@ export async function authorizeReferralListScope(
   if (!clinicId && !centerId && !labId) {
     return { ok: false, status: 400, error: 'Укажите clinicId, centerId или labId' };
   }
-  if (centerId && !hasOrgAccess(user, 'DIAGNOSTIC_CENTER', centerId)) {
+  if (centerId && !(await hasOrgAccess(user, 'DiagnosticCenter', centerId))) {
     return { ok: false, status: 403, error: 'Нет доступа к центру' };
   }
-  if (labId && !hasOrgAccess(user, 'LABORATORY', labId)) {
+  if (labId && !(await hasOrgAccess(user, 'Laboratory', labId))) {
     return { ok: false, status: 403, error: 'Нет доступа к лаборатории' };
   }
   if (clinicId && !centerId && !labId) {
@@ -73,8 +73,6 @@ export async function authorizeReferralListScope(
 
 export const diagnosticsRouter = Router();
 
-// Public registration request (must be before authenticate middleware).
-// optionalAuth captures the logged-in applicant (so access is granted on approve).
 diagnosticsRouter.post('/register', optionalAuth, async (req: AuthRequest, res) => {
   try {
     const data = await svc.createRegistrationRequest({ ...req.body, userId: (req.user as any)?.id });
@@ -84,10 +82,7 @@ diagnosticsRouter.post('/register', optionalAuth, async (req: AuthRequest, res) 
   }
 });
 
-// All routes below require authentication
 diagnosticsRouter.use(authenticate);
-
-// ─── Centers ───
 
 diagnosticsRouter.get('/centers', async (req: AuthRequest, res) => {
   try {
@@ -109,31 +104,15 @@ diagnosticsRouter.get('/centers/:id', async (req: AuthRequest, res) => {
   }
 });
 
-// Self-service organization onboarding: an authenticated participant creates
-// their diagnostic center and becomes its owner immediately. Verification and
-// regulated-operation gates remain separate from account/org creation.
 diagnosticsRouter.post('/centers', async (req: AuthRequest, res) => {
   try {
-    const { name, city, address, phone, email } = req.body as {
-      name?: string; city?: string; address?: string; phone?: string; email?: string;
-    };
+    const { name, city, address, phone, email } = req.body as { name?: string; city?: string; address?: string; phone?: string; email?: string };
     const normalizedName = String(name || '').trim();
     if (!normalizedName) return res.status(400).json({ ok: false, error: 'Название диагностического центра обязательно' });
-
-    const data = await svc.createCenter({
-      name: normalizedName,
-      city: city ? String(city).trim() : undefined,
-      address: address ? String(address).trim() : undefined,
-      phone: phone ? String(phone).trim() : undefined,
-      email: email ? String(email).trim().toLowerCase() : undefined,
-    });
+    const data = await svc.createCenter({ name: normalizedName, city: city ? String(city).trim() : undefined, address: address ? String(address).trim() : undefined, phone: phone ? String(phone).trim() : undefined, email: email ? String(email).trim().toLowerCase() : undefined });
     const ownerGranted = await svc.grantDiagnosticsAccess('DiagnosticCenter', data.id, req.user!.id, 'owner');
     if (!ownerGranted) return res.status(500).json({ ok: false, error: 'Не удалось назначить владельца центра' });
-
-    return res.status(201).json({
-      ok: true,
-      data: { entity: data, organizationType: 'DIAGNOSTIC_CENTER', organizationId: data.id, role: 'owner', verification: 'PENDING' },
-    } satisfies ApiResponse);
+    return res.status(201).json({ ok: true, data: { entity: data, organizationType: 'DIAGNOSTIC_CENTER', organizationId: data.id, role: 'owner', verification: 'PENDING' } } satisfies ApiResponse);
   } catch (e: any) {
     return res.status(500).json({ ok: false, error: e.message } satisfies ApiResponse);
   }
@@ -147,8 +126,6 @@ diagnosticsRouter.patch('/centers/:id', requireSuperadmin, async (req: AuthReque
     return res.status(500).json({ ok: false, error: e.message } satisfies ApiResponse);
   }
 });
-
-// ─── Laboratories ───
 
 diagnosticsRouter.get('/laboratories', async (req: AuthRequest, res) => {
   try {
@@ -170,30 +147,15 @@ diagnosticsRouter.get('/laboratories/:id', async (req: AuthRequest, res) => {
   }
 });
 
-// Self-service organization onboarding for dental laboratories. The owner is
-// linked at creation time; DentVision administration is not required.
 diagnosticsRouter.post('/laboratories', async (req: AuthRequest, res) => {
   try {
-    const { name, city, address, phone, email } = req.body as {
-      name?: string; city?: string; address?: string; phone?: string; email?: string;
-    };
+    const { name, city, address, phone, email } = req.body as { name?: string; city?: string; address?: string; phone?: string; email?: string };
     const normalizedName = String(name || '').trim();
     if (!normalizedName) return res.status(400).json({ ok: false, error: 'Название лаборатории обязательно' });
-
-    const data = await svc.createLaboratory({
-      name: normalizedName,
-      city: city ? String(city).trim() : undefined,
-      address: address ? String(address).trim() : undefined,
-      phone: phone ? String(phone).trim() : undefined,
-      email: email ? String(email).trim().toLowerCase() : undefined,
-    });
+    const data = await svc.createLaboratory({ name: normalizedName, city: city ? String(city).trim() : undefined, address: address ? String(address).trim() : undefined, phone: phone ? String(phone).trim() : undefined, email: email ? String(email).trim().toLowerCase() : undefined });
     const ownerGranted = await svc.grantDiagnosticsAccess('Laboratory', data.id, req.user!.id, 'owner');
     if (!ownerGranted) return res.status(500).json({ ok: false, error: 'Не удалось назначить владельца лаборатории' });
-
-    return res.status(201).json({
-      ok: true,
-      data: { entity: data, organizationType: 'LABORATORY', organizationId: data.id, role: 'owner', verification: 'PENDING' },
-    } satisfies ApiResponse);
+    return res.status(201).json({ ok: true, data: { entity: data, organizationType: 'LABORATORY', organizationId: data.id, role: 'owner', verification: 'PENDING' } } satisfies ApiResponse);
   } catch (e: any) {
     return res.status(500).json({ ok: false, error: e.message } satisfies ApiResponse);
   }
@@ -237,8 +199,6 @@ diagnosticsRouter.post('/registrations/:id/reject', requireSuperadmin, async (re
   }
 });
 
-// ─── Seed test data (superadmin only) ───
-
 diagnosticsRouter.post('/seed-test-data', requireSuperadmin, async (_req: AuthRequest, res) => {
   try {
     const data = await svc.seedTestData();
@@ -247,8 +207,6 @@ diagnosticsRouter.post('/seed-test-data', requireSuperadmin, async (_req: AuthRe
     return res.status(500).json({ ok: false, error: e.message } satisfies ApiResponse);
   }
 });
-
-// ─── Studies ───
 
 diagnosticsRouter.get('/studies', async (req: AuthRequest, res) => {
   try {
