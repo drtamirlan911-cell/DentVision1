@@ -1,5 +1,6 @@
 ﻿import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import * as api from '@/utils/api'
+import { apiRequest } from '@/utils/api'
 import { queryKeys } from './keys'
 
 export function useAIQuery() {
@@ -48,7 +49,11 @@ export function useDismissAiInsight(entityType: string, entityId: string | null 
 export function useAiApprovals(status?: string, enabled = true) {
   return useQuery({
     queryKey: queryKeys.aiApprovals(status),
-    queryFn: () => api.listAiApprovals(status),
+    queryFn: async () => {
+      // apiRequest normalizes the backend { ok, data } envelope and returns data directly.
+      const response = await apiRequest(`/api/ai/approvals${status ? `?status=${encodeURIComponent(status)}` : ''}`)
+      return Array.isArray(response) ? response : []
+    },
     refetchInterval: 60_000,
     enabled,
   })
