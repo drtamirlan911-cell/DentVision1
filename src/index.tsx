@@ -18,6 +18,7 @@ const AIWorkspaceIndex = lazyWithRetry(() => import('./components/intelligence/A
 const Login = lazyWithRetry(() => import('./pages/auth/Login'));
 const ForgotPassword = lazyWithRetry(() => import('./pages/auth/ForgotPassword'));
 const PublicBookingDiscovery = lazyWithRetry(() => import('./pages/auth/PublicBookingDiscovery'));
+const PublicDiagnosticsDiscovery = lazyWithRetry(() => import('./pages/auth/PublicDiagnosticsDiscovery'));
 const PublicBooking = lazyWithRetry(() => import('./pages/auth/PublicBooking'));
 const DocumentSign = lazyWithRetry(() => import('./pages/auth/DocumentSign'));
 const TreatmentPresentation = lazyWithRetry(() => import('./pages/patient-portal/TreatmentPresentation'));
@@ -103,13 +104,8 @@ const MyClinics = lazyWithRetry(() => import('./pages/MyClinics'));
 const SupplierWorkspace = lazyWithRetry(() => import('./pages/supplier/SupplierWorkspace'));
 const NotFound = lazyWithRetry(() => import('./pages/NotFound'));
 
-function PageLoader() {
-  return <div className="flex min-h-[50vh] items-center justify-center"><div className="h-8 w-8 animate-spin rounded-full border-4 border-dv-gold/30 border-t-dv-gold" /></div>;
-}
-
-function guarded(page: string, node: React.ReactNode) {
-  return <RequirePage page={page}><Suspense fallback={<PageLoader />}>{node}</Suspense></RequirePage>;
-}
+function PageLoader() { return <div className="flex min-h-[50vh] items-center justify-center"><div className="h-8 w-8 animate-spin rounded-full border-4 border-dv-gold/30 border-t-dv-gold" /></div>; }
+function guarded(page: string, node: React.ReactNode) { return <RequirePage page={page}><Suspense fallback={<PageLoader />}>{node}</Suspense></RequirePage>; }
 
 const container = document.getElementById('root');
 if (container) {
@@ -123,13 +119,13 @@ if (container) {
               <Route path="/login" element={<Suspense fallback={<PageLoader />}><Login /></Suspense>} />
               <Route path="/forgot-password" element={<Suspense fallback={<PageLoader />}><ForgotPassword /></Suspense>} />
               <Route path="/book/discover" element={<Suspense fallback={<PageLoader />}><PublicBookingDiscovery /></Suspense>} />
+              <Route path="/diagnostics/discover" element={<Suspense fallback={<PageLoader />}><PublicDiagnosticsDiscovery /></Suspense>} />
               <Route path="/book/:clinicId" element={<Suspense fallback={<PageLoader />}><PublicBooking /></Suspense>} />
               <Route path="/sign/:token" element={<Suspense fallback={<PageLoader />}><DocumentSign /></Suspense>} />
               <Route path="/plan/:releaseId" element={<Suspense fallback={<PageLoader />}><TreatmentPresentation /></Suspense>} />
               <Route path="/register-diagnostics" element={<Suspense fallback={<PageLoader />}><DiagnosticsRegister /></Suspense>} />
               <Route path="/patient-portal" element={<Suspense fallback={<PageLoader />}><PatientPortal /></Suspense>} />
               <Route path="/my-clinics" element={<Suspense fallback={<PageLoader />}><MyClinics /></Suspense>} />
-
               <Route path="/" element={<IntelligenceLayout />}>
                 <Route index element={guarded('dashboard', <Dashboard />)} />
                 <Route path="dashboard" element={<Navigate to="/" replace />} />
@@ -154,7 +150,6 @@ if (container) {
                 <Route path="pricing" element={<Suspense fallback={<PageLoader />}><Pricing /></Suspense>} />
                 <Route path="terms" element={<Suspense fallback={<PageLoader />}><Terms /></Suspense>} />
                 <Route path="privacy" element={<Suspense fallback={<PageLoader />}><Privacy /></Suspense>} />
-
                 <Route path="crm/schedule" element={guarded('schedule', <Schedule />)} />
                 <Route path="crm/patients" element={guarded('patients', <Patients />)} />
                 <Route path="crm/cashier" element={guarded('cashier', <Cashier />)} />
@@ -179,14 +174,12 @@ if (container) {
                 <Route path="crm/patient-inbox" element={guarded('patient-inbox', <PatientInbox />)} />
                 <Route path="crm/patient-inbox/:id" element={guarded('patient-inbox', <PatientInbox />)} />
                 <Route path="crm/integrations/messaging" element={guarded('clinic-settings', <IntegrationsMessaging />)} />
-
                 <Route path="shop" element={<Suspense fallback={<PageLoader />}><Shop /></Suspense>} />
                 <Route path="shop/:id" element={<Suspense fallback={<PageLoader />}><ShopProduct /></Suspense>} />
                 <Route path="shop/checkout" element={<Suspense fallback={<PageLoader />}><ShopCheckout /></Suspense>} />
                 <Route path="shop/orders" element={<Suspense fallback={<PageLoader />}><ShopOrders /></Suspense>} />
                 <Route path="shop/favorites" element={<Suspense fallback={<PageLoader />}><ShopFavorites /></Suspense>} />
                 <Route path="shop/suppliers" element={<Suspense fallback={<PageLoader />}><ShopSuppliers /></Suspense>} />
-
                 <Route path="diagnostics" element={<Suspense fallback={<PageLoader />}><DiagnosticsLayout /></Suspense>}>
                   <Route index element={<Suspense fallback={<PageLoader />}><DiagnosticsDashboard /></Suspense>} />
                   <Route path="referrals" element={<Suspense fallback={<PageLoader />}><ReferralList /></Suspense>} />
@@ -206,7 +199,6 @@ if (container) {
                   <Route path="center-dashboard" element={<Navigate to="/diagnostics/center" replace />} />
                   <Route path="lab-dashboard" element={<Navigate to="/diagnostics/lab" replace />} />
                 </Route>
-
                 <Route path="school" element={<Suspense fallback={<PageLoader />}><School /></Suspense>} />
                 <Route path="school/course/:id" element={<Suspense fallback={<PageLoader />}><SchoolCourse /></Suspense>} />
                 <Route path="school/workspace" element={<Suspense fallback={<PageLoader />}><SchoolWorkspace /></Suspense>} />
@@ -223,5 +215,4 @@ if (container) {
     </React.StrictMode>
   );
 }
-
 reportWebVitals();
