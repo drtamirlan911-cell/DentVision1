@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest'
-import { sumPlatformFeeMinor, referralOwner } from './settlement.service.js'
+import { sumPlatformFeeMinor, referralOwner, referralPartnerVertical } from './settlement.service.js'
+import { PARTNER_VERTICALS } from '../finance/partner-economics.service.js'
 
 describe('sumPlatformFeeMinor', () => {
   it('sums platformFee (tenge) into minor units (тиын)', () => {
-    // 1000 + 500.50 + 0 = 1500.50 tenge → 150050 тиын
     expect(sumPlatformFeeMinor([
       { platformFee: 1000 },
       { platformFee: 500.5 },
@@ -21,7 +21,6 @@ describe('sumPlatformFeeMinor', () => {
   })
 
   it('accepts Decimal-like values via String coercion', () => {
-    // Prisma Decimal stringifies; Number('2500.75') = 2500.75 → 250075 тиын
     expect(sumPlatformFeeMinor([{ platformFee: '2500.75' }])).toBe(250075n)
   })
 
@@ -42,5 +41,19 @@ describe('referralOwner', () => {
   it('returns null when neither is set', () => {
     expect(referralOwner({ centerId: null, labId: null })).toBeNull()
     expect(referralOwner({})).toBeNull()
+  })
+})
+
+describe('referralPartnerVertical', () => {
+  it('routes diagnostic centers to the 3D diagnostics economics rule', () => {
+    expect(referralPartnerVertical({ centerId: 'c1', labId: null })).toBe(PARTNER_VERTICALS.DIAGNOSTIC_3D)
+  })
+
+  it('routes medical laboratories to the medical analysis economics rule', () => {
+    expect(referralPartnerVertical({ centerId: null, labId: 'l1' })).toBe(PARTNER_VERTICALS.MEDICAL_ANALYSIS)
+  })
+
+  it('returns null for an unowned referral', () => {
+    expect(referralPartnerVertical({ centerId: null, labId: null })).toBeNull()
   })
 })
