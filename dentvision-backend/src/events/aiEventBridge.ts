@@ -10,8 +10,8 @@ function diagnosticResultNotificationId(resultId: string, doctorId: string): str
   return `diag_result_${createHash('sha256').update(`${resultId}:${doctorId}`).digest('hex').slice(0, 35)}`;
 }
 
-function labOrderNotificationId(labOrderId: string, doctorId: string): string {
-  return `lab_ready_${createHash('sha256').update(`${labOrderId}:${doctorId}`).digest('hex').slice(0, 35)}`;
+function labOrderNotificationId(labOrderId: string, userId: string): string {
+  return `lab_ready_${createHash('sha256').update(`${labOrderId}:${userId}`).digest('hex').slice(0, 35)}`;
 }
 
 /** Bridge CRM and operational domain events into the durable AI Event OS without blocking requests. */
@@ -85,6 +85,40 @@ export function registerAIEventBridge(): void {
         });
       }
     }
+
+    // The clinical hand-off is not only a doctor's concern: reception/operations
+    // may need to receive, schedule, collect payment, or hand the work to the patient.
+    // Notify only OWNER/ADMIN members in the same clinic and keep the payload free
+    // of laboratory files or medical result text.
+    const opsMembers = await prisma.clinicMember.findMany({
+      where: {
+        clinicId,
+        role: { in: ['OWNER', 'ADMIN'] },
+        ...(targetDoctorId ? { userId: { not: targetDoctorId } } : {}),
+      },
+      select: { userId: true },
+      take: 20,
+    });
+    await Promise.all(opsMembers.map(async ({ userId: opsUserId }) => {
+      const notificationId = labOrderNotificationId(labOrderId, opsUserId);
+      await prisma.notification.upsert({
+        where: { id: notificationId },
+        create: {
+          id: notificationId,
+          userId: opsUserId,
+          type: 'workflow',
+          title: 'Лабораторный заказ готов',
+          message: 'Готовая лабораторная работа требует следующего шага.',
+          link: `/lab?order=${encodeURIComponent(labOrderId)}`,
+        },
+        update: {
+          title: 'Лабораторный заказ готов',
+          message: 'Готовая лабораторная работа требует следующего шага.',
+          link: `/lab?order=${encodeURIComponent(labOrderId)}`,
+          read: false,
+        },
+      });
+    }));
 
     await aiEventBus.publish(EventType.LabOrderCompleted, {
       labOrderId,
