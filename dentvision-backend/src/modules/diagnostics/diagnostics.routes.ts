@@ -3,49 +3,15 @@ import { authenticate, optionalAuth } from '../../middleware/auth.js';
 import { requireSuperadmin } from '../../middleware/rbac.js';
 import type { AuthRequest, ApiResponse } from '../../types/index.js';
 import * as svc from './diagnostics.service.js';
-import { uid } from '../../lib/helpers.js';
 import prisma from '../../lib/prisma.js';
 import { assertOrgAccess } from '../../lib/orgContext.js';
 import { IinValidationError } from '../../lib/patientIin.js';
 
-/** Atomically claims an unpaid referral so concurrent payment handlers cannot double-settle it. */
-export async function claimReferralPaid(referralId: string, data: { paid: boolean }): Promise<boolean> {
-  const result = await (prisma as any).referral.updateMany({
-    where: { id: referralId, paid: false },
-    data,
-  });
-  return result.count === 1;
-}
+export async function claimReferralPaid(referralId: string, data: { paid: boolean }): Promise<boolean> { const result = await (prisma as any).referral.updateMany({ where: { id: referralId, paid: false }, data }); return result.count === 1; }
+function sameOrgContext(user: AuthRequest['user'], type: 'DiagnosticCenter' | 'Laboratory', id: string): boolean { if (!user || !id) return false; if (user.role === 'SUPERADMIN') return true; const expected = type === 'DiagnosticCenter' ? 'DIAGNOSTIC_CENTER' : 'LABORATORY'; return user.organizationId === id && (user as any).organizationType === expected; }
+export function requireReferralAccess(includeCenterLab = false) { return async (req: AuthRequest, res: any, next: any) => { try { const id = req.params.id || req.body?.referralId; if (!id) return res.status(400).json({ ok: false, error: 'Referral ID required' }); const referral = await (prisma as any).referral.findUnique({ where: { id }, select: { clinicId: true, doctorId: true, centerId: true, labId: true } }); if (!referral) return res.status(404).json({ ok: false, error: 'Referral not found' }); if (referral.doctorId === req.user!.id) return next(); if (await assertOrgAccess(req.user!, referral.clinicId)) return next(); if (includeCenterLab) { if (referral.centerId && sameOrgContext(req.user, 'DiagnosticCenter', referral.centerId)) return next(); if (referral.labId && sameOrgContext(req.user, 'Laboratory', referral.labId)) return next(); } return res.status(403).json({ ok: false, error: 'Нет доступа к направлению' }); } catch { return res.status(500).json({ ok: false, error: 'Access check failed' }); } }; }
 
-function sameOrgContext(user: AuthRequest['user'], type: 'DiagnosticCenter' | 'Laboratory', id: string): boolean {
-  if (!user || !id) return false;
-  if (user.role === 'SUPERADMIN') return true;
-  const expected = type === 'DiagnosticCenter' ? 'DIAGNOSTIC_CENTER' : 'LABORATORY';
-  return user.organizationId === id && (user as any).organizationType === expected;
-}
-
-/** Referral access guard. `includeCenterLab` additionally admits executing center/lab staff. */
-export function requireReferralAccess(includeCenterLab = false) {
-  return async (req: AuthRequest, res: any, next: any) => {
-    try {
-      const id = req.params.id || req.body?.referralId;
-      if (!id) return res.status(400).json({ ok: false, error: 'Referral ID required' });
-      const referral = await (prisma as any).referral.findUnique({ where: { id }, select: { clinicId: true, doctorId: true, centerId: true, labId: true } });
-      if (!referral) return res.status(404).json({ ok: false, error: 'Referral not found' });
-      if (referral.doctorId === req.user!.id) return next();
-      if (await assertOrgAccess(req.user!, referral.clinicId)) return next();
-      if (includeCenterLab) {
-        if (referral.centerId && sameOrgContext(req.user, 'DiagnosticCenter', referral.centerId)) return next();
-        if (referral.labId && sameOrgContext(req.user, 'Laboratory', referral.labId)) return next();
-      }
-      return res.status(403).json({ ok: false, error: 'Нет доступа к направлению' });
-    } catch {
-      return res.status(500).json({ ok: false, error: 'Access check failed' });
-    }
-  };
-}
-
-export async function authorizeReferralListScope(user: AuthRequest['user'], scope: { clinicId?: string; centerId?: string; labId?: string }): Promise<{ ok: true } | { ok: false; status: number; error: string }> {
+export async function authorizeReferralListScope(user: AuthRequest['user'], scope: { clinicId?: string; centerId?: string; labId?: string }): Promise<{ ok: boolean; status?: number; error?: string }> {
   if (user?.role === 'SUPERADMIN') return { ok: true };
   const { clinicId, centerId, labId } = scope;
   if (!clinicId && !centerId && !labId) return { ok: false, status: 400, error: 'Укажите clinicId, centerId или labId' };
@@ -54,20 +20,11 @@ export async function authorizeReferralListScope(user: AuthRequest['user'], scop
   if (clinicId && !centerId && !labId && !(await assertOrgAccess(user!, clinicId))) return { ok: false, status: 403, error: 'Нет доступа к клинике' };
   return { ok: true };
 }
-
-async function patientBelongsToClinic(patientId: string | undefined, clinicId: string): Promise<boolean> {
-  if (!patientId) return true;
-  const patient = await prisma.patient.findUnique({ where: { id: patientId }, select: { clinicId: true } });
-  return !!patient && patient.clinicId === clinicId;
-}
+async function patientBelongsToClinic(patientId: string | undefined, clinicId: string): Promise<boolean> { if (!patientId) return true; const patient = await prisma.patient.findUnique({ where: { id: patientId }, select: { clinicId: true } }); return !!patient && patient.clinicId === clinicId; }
 
 export const diagnosticsRouter = Router();
-diagnosticsRouter.post('/register', optionalAuth, async (req: AuthRequest, res) => {
-  try { const data = await svc.createRegistrationRequest({ ...req.body, userId: (req.user as any)?.id }); return res.json({ ok: true, data } satisfies ApiResponse); }
-  catch (e: any) { return res.status(500).json({ ok: false, error: e.message } satisfies ApiResponse); }
-});
+diagnosticsRouter.post('/register', optionalAuth, async (req: AuthRequest, res) => { try { const data = await svc.createRegistrationRequest({ ...req.body, userId: (req.user as any)?.id }); return res.json({ ok: true, data } satisfies ApiResponse); } catch (e: any) { return res.status(500).json({ ok: false, error: e.message } satisfies ApiResponse); } });
 diagnosticsRouter.use(authenticate);
-
 diagnosticsRouter.get('/centers', async (req: AuthRequest, res) => { try { const { search, city } = req.query as any; return res.json({ ok: true, data: await svc.listCenters(search, city) } satisfies ApiResponse); } catch (e: any) { return res.status(500).json({ ok: false, error: e.message } satisfies ApiResponse); } });
 diagnosticsRouter.get('/centers/:id', async (req: AuthRequest, res) => { try { const data = await svc.getCenter(req.params.id as string); if (!data) return res.status(404).json({ ok: false, error: 'Center not found' } satisfies ApiResponse); return res.json({ ok: true, data } satisfies ApiResponse); } catch (e: any) { return res.status(500).json({ ok: false, error: e.message } satisfies ApiResponse); } });
 diagnosticsRouter.post('/centers', async (req: AuthRequest, res) => { try { const { name, city, address, phone, email } = req.body as any; const normalizedName = String(name || '').trim(); if (!normalizedName) return res.status(400).json({ ok: false, error: 'Название диагностического центра обязательно' }); const data = await svc.createCenter({ name: normalizedName, city: city ? String(city).trim() : undefined, address: address ? String(address).trim() : undefined, phone: phone ? String(phone).trim() : undefined, email: email ? String(email).trim().toLowerCase() : undefined }); const ownerGranted = await svc.grantDiagnosticsAccess('DiagnosticCenter', data.id, req.user!.id, 'owner'); if (!ownerGranted) return res.status(500).json({ ok: false, error: 'Не удалось назначить владельца центра' }); return res.status(201).json({ ok: true, data: { entity: data, organizationType: 'DIAGNOSTIC_CENTER', organizationId: data.id, role: 'owner', verification: 'PENDING' } } satisfies ApiResponse); } catch (e: any) { return res.status(500).json({ ok: false, error: e.message } satisfies ApiResponse); } });
@@ -83,123 +40,16 @@ diagnosticsRouter.post('/seed-test-data', requireSuperadmin, async (_req: AuthRe
 diagnosticsRouter.get('/studies', async (req: AuthRequest, res) => { try { const { centerId, category } = req.query as any; return res.json({ ok: true, data: await svc.listStudies(centerId, category) } satisfies ApiResponse); } catch (e: any) { return res.status(500).json({ ok: false, error: e.message } satisfies ApiResponse); } });
 diagnosticsRouter.get('/lab-tests', async (req: AuthRequest, res) => { try { const { labId, category } = req.query as any; return res.json({ ok: true, data: await svc.listLabTests(labId, category) } satisfies ApiResponse); } catch (e: any) { return res.status(500).json({ ok: false, error: e.message } satisfies ApiResponse); } });
 
-// ─── Referral workflow ───
-diagnosticsRouter.get('/referrals', async (req: AuthRequest, res) => {
-  try {
-    const q = req.query as Record<string, string | undefined>;
-    const scope = await authorizeReferralListScope(req.user, { clinicId: q.clinicId, centerId: q.centerId, labId: q.labId });
-    if (!scope.ok) return res.status(scope.status).json({ ok: false, error: scope.error });
-    const data = await svc.listReferrals({
-      clinicId: q.clinicId, doctorId: q.doctorId, centerId: q.centerId, labId: q.labId,
-      status: q.status, patientId: q.patientId, search: q.search,
-      limit: q.limit ? Math.min(Number(q.limit) || 50, 100) : 50,
-      offset: q.offset ? Math.max(Number(q.offset) || 0, 0) : 0,
-    });
-    return res.json({ ok: true, data } satisfies ApiResponse);
-  } catch (e: any) { return res.status(500).json({ ok: false, error: e.message } satisfies ApiResponse); }
-});
+diagnosticsRouter.get('/referrals', async (req: AuthRequest, res) => { try { const q = req.query as Record<string, string | undefined>; const scope = await authorizeReferralListScope(req.user, { clinicId: q.clinicId, centerId: q.centerId, labId: q.labId }); if (!scope.ok) return res.status(scope.status || 403).json({ ok: false, error: scope.error || 'Нет доступа' }); const data = await svc.listReferrals({ clinicId: q.clinicId, doctorId: q.doctorId, centerId: q.centerId, labId: q.labId, status: q.status, patientId: q.patientId, search: q.search, limit: q.limit ? Math.min(Number(q.limit) || 50, 100) : 50, offset: q.offset ? Math.max(Number(q.offset) || 0, 0) : 0 }); return res.json({ ok: true, data } satisfies ApiResponse); } catch (e: any) { return res.status(500).json({ ok: false, error: e.message } satisfies ApiResponse); } });
 
-diagnosticsRouter.post('/referrals', async (req: AuthRequest, res) => {
-  try {
-    const body = req.body as any;
-    const clinicId = String(body.clinicId || '').trim();
-    if (!clinicId) return res.status(400).json({ ok: false, error: 'clinicId обязателен' });
-    if (!(await assertOrgAccess(req.user!, clinicId))) return res.status(403).json({ ok: false, error: 'Нет доступа к клинике' });
-    if (!(await patientBelongsToClinic(body.patientId, clinicId))) return res.status(403).json({ ok: false, error: 'Пациент не относится к выбранной клинике' });
-
-    let doctorId = req.user!.id;
-    if (body.doctorId && body.doctorId !== req.user!.id) {
-      const doctor = await prisma.clinicMember.findFirst({ where: { clinicId, userId: String(body.doctorId), role: 'DOCTOR' }, select: { userId: true } });
-      if (!doctor) return res.status(403).json({ ok: false, error: 'Указанный врач не состоит в выбранной клинике' });
-      doctorId = doctor.userId;
-    }
-    const data = { ...body, clinicId, doctorId };
-    delete data.id; delete data.status; delete data.cost; delete data.platformFee; delete data.paid; delete data.paidAt; delete data.settlementId;
-    const referral = await svc.createReferral(data, req.user!.id);
-    return res.status(201).json({ ok: true, data: referral } satisfies ApiResponse);
-  } catch (e: any) {
-    if (e instanceof IinValidationError) return res.status(400).json({ ok: false, error: e.message });
-    return res.status(400).json({ ok: false, error: e.message } satisfies ApiResponse);
-  }
-});
-
-diagnosticsRouter.get('/referrals/:id', requireReferralAccess(true), async (req: AuthRequest, res) => {
-  try { const data = await svc.getReferral(req.params.id); if (!data) return res.status(404).json({ ok: false, error: 'Referral not found' }); return res.json({ ok: true, data } satisfies ApiResponse); }
-  catch (e: any) { return res.status(500).json({ ok: false, error: e.message } satisfies ApiResponse); }
-});
-
-diagnosticsRouter.patch('/referrals/:id', requireReferralAccess(), async (req: AuthRequest, res) => {
-  try {
-    const allowed = ['patientName','patientIin','patientBirth','patientGender','patientPhone','patientEmail','pregnancy','allergies','specialNotes','category','studyType','anatomicalSites','complaints','preliminaryDx','studyGoal','commentForDoctor','commentForLab','priority','centerId','labId','scheduledDate','scheduledTime'];
-    const data: Record<string, unknown> = {};
-    for (const key of allowed) if (key in req.body) data[key] = req.body[key];
-    return res.json({ ok: true, data: await svc.updateReferral(req.params.id, data, req.user!.id) } satisfies ApiResponse);
-  } catch (e: any) { return res.status(400).json({ ok: false, error: e.message } satisfies ApiResponse); }
-});
-
-diagnosticsRouter.post('/referrals/:id/status', requireReferralAccess(true), async (req: AuthRequest, res) => {
-  try {
-    const status = String(req.body?.status || '').toUpperCase() as any;
-    const allowed = ['DRAFT','SENT','ACCEPTED','SCHEDULED','PATIENT_ARRIVED','IN_PROGRESS','COMPLETED','CANCELLED'];
-    if (!allowed.includes(status)) return res.status(400).json({ ok: false, error: 'Недопустимый статус направления' });
-    const data = await svc.changeReferralStatus(req.params.id, status, req.user!.id, req.body?.reason, req.body?.cost, undefined);
-    return res.json({ ok: true, data } satisfies ApiResponse);
-  } catch (e: any) { return res.status(400).json({ ok: false, error: e.message } satisfies ApiResponse); }
-});
-
-diagnosticsRouter.delete('/referrals/:id', requireReferralAccess(), async (req: AuthRequest, res) => {
-  try { await svc.deleteReferral(req.params.id, req.user!.id); return res.json({ ok: true }); }
-  catch (e: any) { return res.status(400).json({ ok: false, error: e.message } satisfies ApiResponse); }
-});
-
-diagnosticsRouter.post('/referrals/:id/files', requireReferralAccess(true), async (req: AuthRequest, res) => {
-  try {
-    const { fileName, fileData, fileType, fileSize } = req.body || {};
-    if (!fileName || !fileData || !fileType) return res.status(400).json({ ok: false, error: 'fileName, fileData и fileType обязательны' });
-    const data = await svc.uploadReferralFile({ referralId: req.params.id, fileName: String(fileName), fileData: String(fileData), fileType: String(fileType), fileSize: fileSize ? Number(fileSize) : undefined, uploadedBy: req.user!.id });
-    return res.status(201).json({ ok: true, data } satisfies ApiResponse);
-  } catch (e: any) { return res.status(400).json({ ok: false, error: e.message } satisfies ApiResponse); }
-});
-
-diagnosticsRouter.delete('/referral-files/:id', async (req: AuthRequest, res) => {
-  try {
-    const file = await prisma.referralFile.findUnique({ where: { id: req.params.id }, select: { referralId: true } });
-    if (!file) return res.status(404).json({ ok: false, error: 'File not found' });
-    const access = await (async () => {
-      const referral = await prisma.referral.findUnique({ where: { id: file.referralId }, select: { clinicId: true, doctorId: true, centerId: true, labId: true } });
-      if (!referral) return false;
-      return referral.doctorId === req.user!.id || await assertOrgAccess(req.user!, referral.clinicId) || (referral.centerId ? sameOrgContext(req.user, 'DiagnosticCenter', referral.centerId) : false) || (referral.labId ? sameOrgContext(req.user, 'Laboratory', referral.labId) : false);
-    })();
-    if (!access) return res.status(403).json({ ok: false, error: 'Нет доступа к файлу' });
-    await svc.deleteReferralFile(req.params.id, req.user!.id);
-    return res.json({ ok: true });
-  } catch (e: any) { return res.status(400).json({ ok: false, error: e.message } satisfies ApiResponse); }
-});
-
-diagnosticsRouter.post('/referrals/:id/comments', requireReferralAccess(true), async (req: AuthRequest, res) => {
-  try { const text = String(req.body?.text || '').trim(); if (!text) return res.status(400).json({ ok: false, error: 'Комментарий не может быть пустым' }); return res.status(201).json({ ok: true, data: await svc.addComment(req.params.id, req.user!.id, text) } satisfies ApiResponse); }
-  catch (e: any) { return res.status(400).json({ ok: false, error: e.message } satisfies ApiResponse); }
-});
-
-diagnosticsRouter.get('/dashboard', async (req: AuthRequest, res) => {
-  try { const q = req.query as Record<string, string | undefined>; const scope = await authorizeReferralListScope(req.user, { clinicId: q.clinicId, centerId: q.centerId, labId: q.labId }); if (!scope.ok) return res.status(scope.status).json({ ok: false, error: scope.error }); return res.json({ ok: true, data: await svc.getDashboardStats({ clinicId: q.clinicId, centerId: q.centerId, labId: q.labId }) } satisfies ApiResponse); }
-  catch (e: any) { return res.status(500).json({ ok: false, error: e.message } satisfies ApiResponse); }
-});
-
-// AI creates decision support only. It never signs/finishes the result.
-diagnosticsRouter.post('/referrals/:id/ai-result', requireReferralAccess(), async (req: AuthRequest, res) => {
-  try { const data = await svc.aiGenerateResult(req.params.id, req.user!.id); return res.json({ ok: true, data, requiresDoctorConfirmation: true } satisfies ApiResponse); }
-  catch (e: any) { return res.status(422).json({ ok: false, error: e.message, requiresDoctorConfirmation: true } satisfies ApiResponse); }
-});
-
-diagnosticsRouter.post('/referrals/:id/results/sign', requireReferralAccess(), async (req: AuthRequest, res) => {
-  try {
-    const referral = await prisma.referral.findUnique({ where: { id: req.params.id }, select: { clinicId: true, doctorId: true } });
-    if (!referral) return res.status(404).json({ ok: false, error: 'Referral not found' });
-    if (!(await assertOrgAccess(req.user!, referral.clinicId))) return res.status(403).json({ ok: false, error: 'Нет доступа к клинике' });
-    const reportText = String(req.body?.reportText || '').trim();
-    if (!reportText) return res.status(400).json({ ok: false, error: 'reportText обязателен' });
-    const result = await svc.saveAndSignResult({ referralId: req.params.id, reportText, conclusion: req.body?.conclusion ? String(req.body.conclusion) : undefined, doctorId: req.user!.id });
-    return res.json({ ok: true, data: result, patientRecordUpdated: true } satisfies ApiResponse);
-  } catch (e: any) { return res.status(400).json({ ok: false, error: e.message } satisfies ApiResponse); }
-});
+diagnosticsRouter.post('/referrals', async (req: AuthRequest, res) => { try { const body = req.body as any; const clinicId = String(body.clinicId || '').trim(); if (!clinicId) return res.status(400).json({ ok: false, error: 'clinicId обязателен' }); if (!(await assertOrgAccess(req.user!, clinicId))) return res.status(403).json({ ok: false, error: 'Нет доступа к клинике' }); if (!(await patientBelongsToClinic(body.patientId, clinicId))) return res.status(403).json({ ok: false, error: 'Пациент не относится к выбранной клинике' }); let doctorId = req.user!.id; if (body.doctorId && body.doctorId !== req.user!.id) { const doctor = await prisma.clinicMember.findFirst({ where: { clinicId, userId: String(body.doctorId), role: 'DOCTOR' }, select: { userId: true } }); if (!doctor) return res.status(403).json({ ok: false, error: 'Указанный врач не состоит в выбранной клинике' }); doctorId = doctor.userId; } const data = { ...body, clinicId, doctorId }; delete data.id; delete data.status; delete data.cost; delete data.platformFee; delete data.paid; delete data.paidAt; delete data.settlementId; const referral = await svc.createReferral(data, req.user!.id); return res.status(201).json({ ok: true, data: referral } satisfies ApiResponse); } catch (e: any) { if (e instanceof IinValidationError) return res.status(400).json({ ok: false, error: e.message }); return res.status(400).json({ ok: false, error: e.message } satisfies ApiResponse); } });
+diagnosticsRouter.get('/referrals/:id', requireReferralAccess(true), async (req: AuthRequest, res) => { try { const data = await svc.getReferral(req.params.id); if (!data) return res.status(404).json({ ok: false, error: 'Referral not found' }); return res.json({ ok: true, data } satisfies ApiResponse); } catch (e: any) { return res.status(500).json({ ok: false, error: e.message } satisfies ApiResponse); } });
+diagnosticsRouter.patch('/referrals/:id', requireReferralAccess(), async (req: AuthRequest, res) => { try { const allowed = ['patientName','patientIin','patientBirth','patientGender','patientPhone','patientEmail','pregnancy','allergies','specialNotes','category','studyType','anatomicalSites','complaints','preliminaryDx','studyGoal','commentForDoctor','commentForLab','priority','centerId','labId','scheduledDate','scheduledTime']; const data: Record<string, unknown> = {}; for (const key of allowed) if (key in req.body) data[key] = req.body[key]; return res.json({ ok: true, data: await svc.updateReferral(req.params.id, data, req.user!.id) } satisfies ApiResponse); } catch (e: any) { return res.status(400).json({ ok: false, error: e.message } satisfies ApiResponse); } });
+diagnosticsRouter.post('/referrals/:id/status', requireReferralAccess(true), async (req: AuthRequest, res) => { try { const status = String(req.body?.status || '').toUpperCase() as any; const allowed = ['DRAFT','SENT','ACCEPTED','SCHEDULED','PATIENT_ARRIVED','IN_PROGRESS','COMPLETED','CANCELLED']; if (!allowed.includes(status)) return res.status(400).json({ ok: false, error: 'Недопустимый статус направления' }); const data = await svc.changeReferralStatus(req.params.id, status, req.user!.id, req.body?.reason, req.body?.cost, undefined); return res.json({ ok: true, data } satisfies ApiResponse); } catch (e: any) { return res.status(400).json({ ok: false, error: e.message } satisfies ApiResponse); } });
+diagnosticsRouter.delete('/referrals/:id', requireReferralAccess(), async (req: AuthRequest, res) => { try { await svc.deleteReferral(req.params.id, req.user!.id); return res.json({ ok: true }); } catch (e: any) { return res.status(400).json({ ok: false, error: e.message } satisfies ApiResponse); } });
+diagnosticsRouter.post('/referrals/:id/files', requireReferralAccess(true), async (req: AuthRequest, res) => { try { const { fileName, fileData, fileType, fileSize } = req.body || {}; if (!fileName || !fileData || !fileType) return res.status(400).json({ ok: false, error: 'fileName, fileData и fileType обязательны' }); const data = await svc.uploadReferralFile({ referralId: req.params.id, fileName: String(fileName), fileData: String(fileData), fileType: String(fileType), fileSize: fileSize ? Number(fileSize) : undefined, uploadedBy: req.user!.id }); return res.status(201).json({ ok: true, data } satisfies ApiResponse); } catch (e: any) { return res.status(400).json({ ok: false, error: e.message } satisfies ApiResponse); } });
+diagnosticsRouter.delete('/referral-files/:id', async (req: AuthRequest, res) => { try { const file = await prisma.referralFile.findUnique({ where: { id: req.params.id }, select: { referralId: true } }); if (!file) return res.status(404).json({ ok: false, error: 'File not found' }); const access = await (async () => { const referral = await prisma.referral.findUnique({ where: { id: file.referralId }, select: { clinicId: true, doctorId: true, centerId: true, labId: true } }); if (!referral) return false; return referral.doctorId === req.user!.id || await assertOrgAccess(req.user!, referral.clinicId) || (referral.centerId ? sameOrgContext(req.user, 'DiagnosticCenter', referral.centerId) : false) || (referral.labId ? sameOrgContext(req.user, 'Laboratory', referral.labId) : false); })(); if (!access) return res.status(403).json({ ok: false, error: 'Нет доступа к файлу' }); await svc.deleteReferralFile(req.params.id, req.user!.id); return res.json({ ok: true }); } catch (e: any) { return res.status(400).json({ ok: false, error: e.message } satisfies ApiResponse); } });
+diagnosticsRouter.post('/referrals/:id/comments', requireReferralAccess(true), async (req: AuthRequest, res) => { try { const text = String(req.body?.text || '').trim(); if (!text) return res.status(400).json({ ok: false, error: 'Комментарий не может быть пустым' }); return res.status(201).json({ ok: true, data: await svc.addComment(req.params.id, req.user!.id, text) } satisfies ApiResponse); } catch (e: any) { return res.status(400).json({ ok: false, error: e.message } satisfies ApiResponse); } });
+diagnosticsRouter.get('/dashboard', async (req: AuthRequest, res) => { try { const q = req.query as Record<string, string | undefined>; const scope = await authorizeReferralListScope(req.user, { clinicId: q.clinicId, centerId: q.centerId, labId: q.labId }); if (!scope.ok) return res.status(scope.status || 403).json({ ok: false, error: scope.error || 'Нет доступа' }); return res.json({ ok: true, data: await svc.getDashboardStats({ clinicId: q.clinicId, centerId: q.centerId, labId: q.labId }) } satisfies ApiResponse); } catch (e: any) { return res.status(500).json({ ok: false, error: e.message } satisfies ApiResponse); } });
+diagnosticsRouter.post('/referrals/:id/ai-result', requireReferralAccess(), async (req: AuthRequest, res) => { try { const data = await svc.aiGenerateResult(req.params.id, req.user!.id); return res.json({ ok: true, data: { result: data, requiresDoctorConfirmation: true } } satisfies ApiResponse); } catch (e: any) { return res.status(422).json({ ok: false, error: e.message, data: { requiresDoctorConfirmation: true } } satisfies ApiResponse); } });
+diagnosticsRouter.post('/referrals/:id/results/sign', requireReferralAccess(), async (req: AuthRequest, res) => { try { const referral = await prisma.referral.findUnique({ where: { id: req.params.id }, select: { clinicId: true, doctorId: true } }); if (!referral) return res.status(404).json({ ok: false, error: 'Referral not found' }); if (!(await assertOrgAccess(req.user!, referral.clinicId))) return res.status(403).json({ ok: false, error: 'Нет доступа к клинике' }); const reportText = String(req.body?.reportText || '').trim(); if (!reportText) return res.status(400).json({ ok: false, error: 'reportText обязателен' }); const result = await svc.saveAndSignResult({ referralId: req.params.id, reportText, conclusion: req.body?.conclusion ? String(req.body.conclusion) : undefined, doctorId: req.user!.id }); return res.json({ ok: true, data: { result, patientRecordUpdated: true } } satisfies ApiResponse); } catch (e: any) { return res.status(400).json({ ok: false, error: e.message } satisfies ApiResponse); } });
