@@ -23,9 +23,10 @@ This log is the durable handoff between work sessions/agents. It records complet
 ### Important sequencing decision
 The repository's existing Phase 0 technical gate is authoritative. We will not bypass it by merging financial-domain changes blindly. Economics work is the first business priority immediately after the technical gate, while code mapping and source discovery can proceed in parallel.
 
-### Canonical economics document discovery
-- Exact-path lookup on `main` and repository commit history did not resolve `DENTVISION_PARTNER_ECONOMICS.md`.
-- This is treated as a **location/discovery task**, not as evidence that the document does not exist. No competing economics specification was created.
+### Canonical economics document
+- Located and confirmed: `docs/business/DENTVISION_PARTNER_ECONOMICS.md`.
+- Commit `9a1139a8df0e915b9c1ba5064f6f5cec0892da3b` establishes it as **CANONICAL BUSINESS POLICY v1.0**.
+- Policy covers diagnostics/3D centers, medical analysis laboratories, dental laboratories, Marketplace, Academy and Finance Hub unit economics. No competing economics specification is permitted.
 
 ## 2026-09-11 — Phase 0 migration blockers
 
@@ -39,16 +40,25 @@ The repository's existing Phase 0 technical gate is authoritative. We will not b
 - CI run `34630922860` for `e4e4f33560d74e28cd77659da734fd6f9f811c43` passed frontend lint, backend lint, typecheck/build, command-center audit and unit tests, but E2E migration setup failed.
 - Exact Prisma failure: migration `20260808_add_settlement`, PostgreSQL `42P01`, `ERROR: relation "referrals" does not exist`.
 - Root cause: the migration guarded the `ALTER TABLE` and foreign-key creation for an optional referrals table, but unconditionally executed `CREATE INDEX ... ON referrals`, so a fresh database without that table still failed.
-- The failure was confirmed from the CI job log and the migration source.
+- Fix committed: `ff3b1adeafe8ad66b1af11ff8c01ef10b14f42b6`.
 
-### Fix committed to `main`
-- `ff3b1adeafe8ad66b1af11ff8c01ef10b14f42b6` — made `20260808_add_settlement` fully safe when the referrals table is absent; the column, index and FK are now created only inside the table-existence branch for either `referrals` or `Referral`.
+### Third blocker: completed-lessons migration
+- CI run `34631170839` for the settlement fix passed backend/frontend lint, build/typecheck and command-center audit, but E2E migration setup then failed at `20260809_add_completed_lessons`.
+- Exact PostgreSQL error: `42P01: relation "school_enrollments" does not exist`.
+- Root cause is the same migration-ordering pattern: `init_full_schema` creates `school_enrollments` later, so the early `ALTER TABLE` cannot assume it exists.
+- Fixes committed: `ee413a7e3e9206aa3c2274b0155a856c337b127c` makes the original migration safe when the table is absent; `938b0a8f399810265b8ad45cb5abff8892e3b8be` adds the post-init compatibility migration that applies `completedLessons` after the legacy base schema exists.
 
 ### Current verification
-- Phase 0 is **not yet passed**. The settlement migration fix must be verified by a fresh CI run before declaring the technical gate green.
+- Phase 0 is **not yet passed**. A fresh CI run is already queued for `938b0a8f399810265b8ad45cb5abff8892e3b8be` (`CI` run `34631390749`, with Quality Gate `34631390830`).
+- Do not declare the technical gate green until migrations, unit tests and E2E complete successfully.
+
+## Economics architecture mapping already confirmed
+- The backend already has a generic `CommissionRule` model and `resolveCommissionBps()` for Marketplace/Education flows.
+- The diagnostics domain already has `Referral.platformFee` plus a DB-backed `Settlement` and an idempotent settlement service. This is reusable infrastructure, not a reason to create a duplicate settlement system.
+- The canonical policy requires minimums, caps, volume tiers, transparent breakdowns and versioned pricing with no retroactive repricing. The new economics engine must therefore extend the existing finance/settlement infrastructure rather than hard-code percentages in UI or create a second commission source of truth.
 
 ### Next action
-1. Verify the CI/Quality Gate runs triggered by `ff3b1adeafe8ad66b1af11ff8c01ef10b14f42b6`.
-2. If migrations pass, let the full E2E suite run and record the final evidence.
-3. Continue locating the existing canonical economics document and map current order/payment/partner/finance/payout code in parallel; do not create duplicate economics rules.
-4. Once the technical gate is green and economics source-of-truth is located, implement the first Partner Economics Engine vertical slice with durable ledger/versioning rather than frontend-only calculations.
+1. Verify CI/Quality Gate run `34631390749` / `34631390830` until complete; fix the next migration blocker if any.
+2. Implement the first Partner Economics Engine vertical slice against the canonical policy: versioned rule storage + calculator + durable operation ledger + idempotency + transparent breakdown + contribution-margin status for diagnostics/3D, medical analyses and dental labs.
+3. Reuse existing `CommissionRule`, `Referral`, `Settlement`, `Wallet`, `Transaction`, `Payment` and `Payout` infrastructure where semantics already match; do not duplicate ledgers or payout systems.
+4. Add calculation/edge/concurrency tests, then wire Finance Hub / partner visibility after backend economics is stable.
