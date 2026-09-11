@@ -1,15 +1,10 @@
 /**
- * Transactional email.
- *
- * One configured transport is used for transactional messages. Missing mail
- * credentials are treated as a configuration failure by callers; a configured
- * transport that rejects a message throws so the HTTP layer cannot report a
- * false success.
+ * Transactional email transport.
+ * Missing configuration and provider failures are explicit failures: callers
+ * must not report that an email was sent unless the provider accepted it.
  */
-
 import nodemailer from 'nodemailer';
 import type { Transporter } from 'nodemailer';
-
 import { env } from '../config.js';
 
 export interface EmailMessage {
@@ -35,17 +30,13 @@ function sender(): string {
 }
 
 let transporter: Transporter | null = null;
-
 function smtpTransporter(): Transporter {
   if (!transporter) {
     transporter = nodemailer.createTransport({
       host: env.SMTP_HOST,
       port: env.SMTP_PORT,
       secure: env.SMTP_PORT === 465,
-      auth: {
-        user: env.SMTP_USER,
-        pass: (env.SMTP_PASSWORD || '').replace(/\s+/g, ''),
-      },
+      auth: { user: env.SMTP_USER, pass: (env.SMTP_PASSWORD || '').replace(/\s+/g, '') },
       pool: true,
       maxConnections: 2,
     });
@@ -55,10 +46,7 @@ function smtpTransporter(): Transporter {
 
 async function sendViaSmtp(msg: EmailMessage): Promise<void> {
   await smtpTransporter().sendMail({
-    from: sender(),
-    to: msg.to,
-    subject: msg.subject,
-    html: msg.html,
+    from: sender(), to: msg.to, subject: msg.subject, html: msg.html,
     text: msg.text || htmlToText(msg.html),
   });
 }
@@ -76,30 +64,19 @@ export async function verifyEmailTransport(): Promise<{ ok: boolean; transport: 
 }
 
 function htmlToText(html: string): string {
-  return html
-    .replace(/<style[\s\S]*?<\/style>/gi, '')
+  return html.replace(/<style[\s\S]*?<\/style>/gi, '')
     .replace(/<br\s*\/?>/gi, '\n')
     .replace(/<\/(p|div|h[1-6]|tr)>/gi, '\n')
     .replace(/<[^>]+>/g, '')
     .replace(/&nbsp;/g, ' ')
-    .replace(/\n{3,}/g, '\n\n')
-    .trim();
+    .replace(/\n{3,}/g, '\n\n').trim();
 }
 
 async function sendViaResend(msg: EmailMessage): Promise<void> {
   const res = await fetch('https://api.resend.com/emails', {
     method: 'POST',
-    headers: {
-      Authorization: `Bearer ${env.RESEND_API_KEY}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      from: sender(),
-      to: [msg.to],
-      subject: msg.subject,
-      html: msg.html,
-      text: msg.text || htmlToText(msg.html),
-    }),
+    headers: { Authorization: `Bearer ${env.RESEND_API_KEY}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ from: sender(), to: [msg.to], subject: msg.subject, html: msg.html, text: msg.text || htmlToText(msg.html) }),
   });
   if (!res.ok) throw new Error(`Resend ${res.status}: ${(await res.text()).slice(0, 200)}`);
 }
@@ -108,13 +85,9 @@ async function sendViaSendgrid(msg: EmailMessage): Promise<void> {
   const from = sender();
   const bare = from.match(/<([^>]+)>/)?.[1] || from;
   const name = from.includes('<') ? from.split('<')[0].trim() : undefined;
-
   const res = await fetch('https://api.sendgrid.com/v3/mail/send', {
     method: 'POST',
-    headers: {
-      Authorization: `Bearer ${env.SENDGRID_API_KEY}`,
-      'Content-Type': 'application/json',
-    },
+    headers: { Authorization: `Bearer ${env.SENDGRID_API_KEY}`, 'Content-Type': 'application/json' },
     body: JSON.stringify({
       personalizations: [{ to: [{ email: msg.to }] }],
       from: name ? { email: bare, name } : { email: bare },
@@ -130,13 +103,10 @@ async function sendViaSendgrid(msg: EmailMessage): Promise<void> {
 
 export async function sendEmail(msg: EmailMessage): Promise<{ sent: true; transport: Exclude<EmailTransport, 'none'> }> {
   if (!msg.to) throw new Error('Recipient email is empty');
-
   const transport = emailTransport();
   if (transport === 'none') throw new Error('No email transport configured');
-
   if (transport === 'smtp') await sendViaSmtp(msg);
   else if (transport === 'resend') await sendViaResend(msg);
   else await sendViaSendgrid(msg);
-
   return { sent: true, transport };
 }
