@@ -7,7 +7,7 @@ import { useAuth } from '@/store/auth.store'
 const intents = [
   { id: 'patient', title: 'Записаться к врачу', subtitle: 'Найти клинику и свободное время', icon: HeartPulse, path: '/book/discover' },
   { id: 'diagnostics', title: 'Найти диагностику', subtitle: 'Исследования и диагностические центры', icon: Search, path: '/diagnostics/discover' },
-  { id: 'lab', title: 'Найти лабораторию', subtitle: 'Зуботехнические работы и производство', icon: FlaskConical, path: '/lab' },
+  { id: 'lab', title: 'Работать с лабораторией', subtitle: 'Заказы, производство и сроки', icon: FlaskConical, path: '/login?role=lab' },
   { id: 'shop', title: 'Купить', subtitle: 'Материалы, оборудование и расходники', icon: ShoppingBag, path: '/shop' },
   { id: 'academy', title: 'Учиться', subtitle: 'Курсы и профессиональное развитие', icon: GraduationCap, path: '/school' },
   { id: 'jobs', title: 'Найти работу', subtitle: 'Вакансии в стоматологии', icon: BriefcaseBusiness, path: '/jobs' },
@@ -16,7 +16,7 @@ const intents = [
 const workRoles = [
   { id: 'doctor', title: 'Врач', subtitle: 'AI, пациенты и лечение', icon: Stethoscope, path: '/login?role=doctor' },
   { id: 'clinic', title: 'Клиника', subtitle: 'Команда, пациенты и операции', icon: Building2, path: '/login?role=owner' },
-  { id: 'lab', title: 'Лаборатория', subtitle: 'Заказы, производство и команда', icon: FlaskConical, path: '/login?role=owner' },
+  { id: 'lab', title: 'Лаборатория', subtitle: 'Заказы, производство и команда', icon: FlaskConical, path: '/login?role=lab' },
 ] as const
 
 export default function Welcome() {
