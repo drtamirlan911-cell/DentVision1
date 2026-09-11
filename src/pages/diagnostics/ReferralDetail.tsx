@@ -62,7 +62,7 @@ export default function ReferralDetail() {
     onError: (e: Error) => toast.error(e.message),
   });
 
-  const askNextStep = () => {
+  const askNextStep = async () => {
     if (!id || !reportText) return;
 
     const patient = referral?.patientName || 'пациент';
@@ -77,12 +77,13 @@ export default function ReferralDetail() {
       conclusion ? `Вывод исследования: ${conclusion}.` : '',
     ].filter(Boolean).join(' ');
 
-    void executePrompt(
+    await executePrompt(
       `${contextLines} ` +
       'Я врач и просмотрел подписанный результат. Сформируй клинический следующий шаг на основании только доступных данных. ' +
       'Сначала отдели подтверждённые факты от предположений. Затем предложи 1 приоритетный следующий шаг и необходимые уточнения/исследования. ' +
-      'Если уместно, предложи черновик этапов плана лечения, но не создавай и не изменяй медицинскую запись без явного подтверждения врача. ' +
-      'Не ставь окончательный диагноз вместо врача и не назначай лекарственную терапию как факт.'
+      'Если лечение уже достаточно обосновано, подготовь структурированный черновик плана лечения: название, этапы, соответствующие зубы/области только если они явно известны, процедуры и ориентировочную последовательность. ' +
+      'Не создавай план лечения автоматически. Покажи его как черновик и предложи врачу подтвердить создание через DentVision; только после явного подтверждения допускается создание draft-плана через защищённый workflow. ' +
+      'Не меняй медицинскую запись без явного подтверждения врача. Не ставь окончательный диагноз вместо врача и не назначай лекарственную терапию как факт.'
     );
     navigate('/ai');
   };
@@ -126,7 +127,7 @@ export default function ReferralDetail() {
           </>}
         </div>}
 
-        {result?.signedBy && reportText && !editing && <div className="mt-5 rounded-xl border border-dv-gold/20 bg-dv-gold/5 p-4"><div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"><div><p className="text-sm font-semibold text-txt-primary">Результат просмотрен</p><p className="mt-1 text-xs leading-5 text-txt-muted">AI может разобрать заключение и подготовить следующий клинический шаг. Решение остаётся за врачом.</p></div><Button variant="primary" size="sm" className="min-h-11 shrink-0" icon={<ArrowRight size={15} />} onClick={askNextStep}>Следующий шаг с AI</Button></div></div>}
+        {result?.signedBy && reportText && !editing && <div className="mt-5 rounded-xl border border-dv-gold/20 bg-dv-gold/5 p-4"><div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"><div><p className="text-sm font-semibold text-txt-primary">Результат просмотрен</p><p className="mt-1 text-xs leading-5 text-txt-muted">AI может разобрать заключение и подготовить черновик следующего клинического шага или плана лечения. Решение остаётся за врачом.</p></div><Button variant="primary" size="sm" className="min-h-11 shrink-0" icon={<ArrowRight size={15} />} onClick={askNextStep}>Следующий шаг с AI</Button></div></div>}
       </Card>
     </motion.div>
   );
