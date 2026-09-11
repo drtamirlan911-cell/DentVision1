@@ -128,11 +128,6 @@ async function sendViaSendgrid(msg: EmailMessage): Promise<void> {
   if (!res.ok) throw new Error(`SendGrid ${res.status}: ${(await res.text()).slice(0, 200)}`);
 }
 
-/**
- * Sends a message and only resolves successfully after the provider accepts it.
- * Missing configuration and provider failures are explicit failures; callers
- * must not present a successful "email sent" state in either case.
- */
 export async function sendEmail(msg: EmailMessage): Promise<{ sent: true; transport: Exclude<EmailTransport, 'none'> }> {
   if (!msg.to) throw new Error('Recipient email is empty');
 
