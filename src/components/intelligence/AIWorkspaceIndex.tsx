@@ -142,7 +142,7 @@ export function AIWorkspaceIndex({ onNavigate }: { onNavigate?: (path: string) =
             </div>
           ) : (
             <div className="mx-auto w-full max-w-3xl px-4 py-6 md:px-8 md:py-8">
-              <div className="space-y-5">{displayMessages.map(message => <ChatMessage key={message.id} message={message} onAction={(action, params) => { const path = typeof params?.path === 'string' ? params.path : action; if (path?.startsWith('/')) go(path) }} />)}</div>
+              <div className="space-y-5">{displayMessages.map(message => <ChatMessage key={message.id} message={message} onAction={(query: string) => { if (query.startsWith('/')) go(query) }} />)}</div>
               {errorMessage && <div className="mt-4 rounded-lg border border-destructive/20 bg-destructive/5 px-3 py-2 text-xs text-destructive">{errorMessage}</div>}
               {suggestions.length > 0 && status === 'idle' && <div className="mt-5 flex flex-wrap gap-2">{suggestions.slice(0, 4).map(s => <button key={s.id} onClick={() => send(s.label)} className="rounded-full border border-border px-3 py-1.5 text-xs text-muted-foreground hover:bg-muted">{s.label}</button>)}</div>}
             </div>
@@ -151,7 +151,7 @@ export function AIWorkspaceIndex({ onNavigate }: { onNavigate?: (path: string) =
 
         <div className="shrink-0 border-t border-border/50 bg-background/95 px-4 pb-[max(12px,env(safe-area-inset-bottom))] pt-3 backdrop-blur md:px-6"><div className="mx-auto w-full max-w-3xl"><AIInputArea onSend={send} disabled={status === 'thinking' || status === 'executing'} status={status === 'confirmation' ? 'executing' : status} progress={progress} placeholder={bookingIntent ? 'Например: хочу записаться на чистку зубов' : 'Спросите ассистента…'} /><div className="mt-2 text-center text-[10px] text-muted-foreground">AI помогает с навигацией и действиями. Клинические решения и данные пациента требуют проверки.</div></div></div>
       </main>
-      {showContext && <aside className="absolute inset-y-0 right-0 z-20 w-[min(380px,92vw)] border-l border-border bg-background shadow-2xl md:relative md:w-[360px] md:shadow-none"><div className="flex h-14 items-center justify-between border-b border-border/60 px-4"><div className="text-sm font-semibold">Контекст</div><button onClick={() => setShowContext(false)} className="rounded-lg p-2 text-muted-foreground hover:bg-muted"><ChevronDown size={16} className="rotate-90" /></button></div><div className="h-[calc(100%-56px)] overflow-y-auto"><ContextPanel context={null as any} activeWorkspace="clinic" onClose={() => setShowContext(false)} /></div></aside>}
+      {showContext && <aside className="absolute inset-y-0 right-0 z-20 w-[min(380px,92vw)] border-l border-border bg-background shadow-2xl md:relative md:w-[360px] md:shadow-none"><div className="flex h-14 items-center justify-between border-b border-border/60 px-4"><div className="text-sm font-semibold">Контекст</div><button onClick={() => setShowContext(false)} className="rounded-lg p-2 text-muted-foreground hover:bg-muted"><ChevronDown size={16} className="rotate-90" /></button></div><div className="h-[calc(100%-56px)] overflow-y-auto"><ContextPanel onClose={() => setShowContext(false)} /></div></aside>}
     </div>
   )
 }
