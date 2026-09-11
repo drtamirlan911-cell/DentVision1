@@ -59,6 +59,38 @@ async function canAccessCenter(user: any, centerId: string): Promise<boolean> {
   return !!person;
 }
 
+async function notifyCenterStaff(centerId: string, title: string, message: string) {
+  try {
+    const [legacy, org] = await Promise.all([
+      (prisma as any).diagnosticCenterMember.findMany({ where: { centerId }, select: { userId: true } }),
+      prisma.organization.findFirst({
+        where: { originalType: 'DiagnosticCenter', originalId: centerId },
+        select: { id: true },
+      }),
+    ]);
+
+    const unified = org
+      ? await prisma.person.findMany({ where: { organizationId: org.id }, select: { userId: true } })
+      : [];
+    const userIds = [...new Set([...legacy, ...unified].map((row: any) => row.userId).filter(Boolean))];
+    if (!userIds.length) return;
+
+    await prisma.notification.createMany({
+      data: userIds.map((userId) => ({
+        id: uid(),
+        userId,
+        type: 'system',
+        title,
+        message,
+        link: '/diagnostics',
+      })),
+    });
+  } catch (error) {
+    // Notifications must never make a valid public booking fail.
+    console.warn('[Diagnostics] center notification failed', error);
+  }
+}
+
 /** Public diagnostic order. Creates a real DiagnosticBooking; no medical data is accepted. */
 publicDiagnosticsBookingRouter.post('/diagnostics/order', limiter, async (req, res) => {
   try {
@@ -129,6 +161,12 @@ publicDiagnosticsBookingRouter.post('/diagnostics/order', limiter, async (req, r
       },
     });
 
+    await notifyCenterStaff(
+      centerId,
+      'Новая заявка на диагностику',
+      `${row.patientName} · ${study.name} · ${date} ${time}`,
+    );
+
     return res.status(201).json({
       ok: true,
       data: {
@@ -196,7 +234,7 @@ publicDiagnosticsBookingRouter.get('/diagnostics/order/:id', trackingLimiter, as
  * Kept on the already-mounted router, but protected by the normal JWT boundary.
  * No medical data is exposed here; this is a scheduling/order surface.
  */
-publicDiagnosticsBookingRouter.get('/diagnostics/center/:centerId/bookings', authenticate, async (req: AuthRequest, res) => {
+publicDiagnosticsBookingRouter.get('/diagnostics/center/:centerId/bookings', authenticate, async (req: AuthRequest, res: any) => {
   try {
     const centerId = String(req.params.centerId || '').trim();
     if (!centerId) return res.status(400).json({ ok: false, error: 'centerId required' });
@@ -242,7 +280,7 @@ publicDiagnosticsBookingRouter.get('/diagnostics/center/:centerId/bookings', aut
   }
 });
 
-publicDiagnosticsBookingRouter.patch('/diagnostics/center/:centerId/bookings/:id', authenticate, async (req: AuthRequest, res) => {
+publicDiagnosticsBookingRouter.patch('/diagnostics/center/:centerId/bookings/:id', authenticate, async (req: AuthRequest, res: any) => {
   try {
     const centerId = String(req.params.centerId || '').trim();
     const id = String(req.params.id || '').trim();
@@ -276,20 +314,12 @@ publicDiagnosticsBookingRouter.patch('/diagnostics/center/:centerId/bookings/:id
       select: { id: true, centerId: true, studyId: true, patientName: true, patientPhone: true, date: true, time: true, durationMin: true, notes: true, status: true, createdAt: true, updatedAt: true },
     });
 
-    // Keep the existing in-app notification source of truth. Staff are alerted
-    // on a new public order; status changes are visible in the live inbox.
     if (requestedStatus === 'confirmed' || requestedStatus === 'declined') {
-      const members = await (prisma as any).diagnosticCenterMember.findMany({ where: { centerId }, select: { userId: true } });
-      await Promise.all(members.map((member: any) => prisma.notification.create({
-        data: {
-          id: uid(),
-          userId: member.userId,
-          type: 'system',
-          title: requestedStatus === 'confirmed' ? 'Заявка на диагностику подтверждена' : 'Заявка на диагностику отклонена',
-          message: `${updated.patientName} · ${updated.date.toISOString().slice(0, 10)} ${updated.time}`,
-          link: '/diagnostics',
-        },
-      }).catch(() => null)));
+      await notifyCenterStaff(
+        centerId,
+        requestedStatus === 'confirmed' ? 'Заявка на диагностику подтверждена' : 'Заявка на диагностику отклонена',
+        `${updated.patientName} · ${updated.date.toISOString().slice(0, 10)} ${updated.time}`,
+      );
     }
 
     return res.json({ ok: true, data: updated });
