@@ -57,8 +57,10 @@ export function AIEmployeeTaskPanel({
     if (providedTasks) return;
     try {
       setError(null);
-      const data = await apiRequest('/api/ai/approvals/tasks?limit=12');
-      setTasks(Array.isArray(data) ? data.map(normalizeTask) : []);
+      const response = await apiRequest('/api/ai/approvals/tasks?limit=12');
+      // The API envelope is { ok, data }; keep the workspace aligned with the shared API contract.
+      const data = Array.isArray(response?.data) ? response.data : [];
+      setTasks(data.map(normalizeTask));
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Не удалось загрузить задачи AI');
     } finally {
@@ -119,7 +121,7 @@ export function AIEmployeeTaskPanel({
                   </div>
                   {task.state === 'awaiting_approval' && (
                     <button type="button" onClick={() => onApprove ? onApprove(task) : navigate('/ai-approvals')} className="shrink-0 rounded-lg border border-dv-gold/30 px-2.5 py-1.5 text-[10px] font-medium text-dv-gold hover:bg-dv-gold/10">
-                      Подтвердить
+                      Решить
                     </button>
                   )}
                 </div>
