@@ -2,9 +2,10 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
-import { Mail, Lock, ArrowRight, X, UserPlus, LogIn, Loader2 } from 'lucide-react';
+import { Mail, Lock, X, UserPlus, LogIn, Loader2 } from 'lucide-react';
 import { useAuth } from '@/store/auth.store';
 import { useTranslation } from 'react-i18next';
+import { GoogleSignInButton } from './GoogleSignInButton';
 
 interface LoginModalProps {
   isOpen: boolean;
@@ -14,7 +15,7 @@ interface LoginModalProps {
 
 const LoginModal: React.FC<LoginModalProps> = ({ isOpen, returnUrl, onClose }) => {
   const navigate = useNavigate();
-  const { login, register } = useAuth();
+  const { login, loginWithGoogle, register } = useAuth();
   const [isRegister, setIsRegister] = useState(false);
   const [name, setName] = useState('');
   const [loginInput, setLoginInput] = useState('');
@@ -24,6 +25,14 @@ const LoginModal: React.FC<LoginModalProps> = ({ isOpen, returnUrl, onClose }) =
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
   const { t } = useTranslation();
+
+  const finishAuth = () => {
+    setSuccess(true);
+    setTimeout(() => {
+      handleClose();
+      navigate(returnUrl || '/');
+    }, 500);
+  };
 
   const handleClose = () => {
     setIsRegister(false);
@@ -36,6 +45,24 @@ const LoginModal: React.FC<LoginModalProps> = ({ isOpen, returnUrl, onClose }) =
     onClose?.();
   };
 
+  const handleGoogleCredential = async (idToken: string) => {
+    if (loading) return;
+    setError('');
+    setLoading(true);
+    try {
+      const ok = await loginWithGoogle(idToken);
+      if (!ok) {
+        setError(useAuth.getState().error || 'Не удалось войти через Google');
+        return;
+      }
+      finishAuth();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Не удалось войти через Google');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleLogin = async () => {
     setError('');
     if (!loginInput.trim() || !password) {
@@ -45,12 +72,12 @@ const LoginModal: React.FC<LoginModalProps> = ({ isOpen, returnUrl, onClose }) =
 
     setLoading(true);
     try {
-      await login(loginInput, password);
-      setSuccess(true);
-      setTimeout(() => {
-        handleClose();
-        navigate(returnUrl || '/');
-      }, 500);
+      const ok = await login(loginInput, password);
+      if (!ok) {
+        setError(useAuth.getState().error || t('auth.login_failed'));
+        return;
+      }
+      finishAuth();
     } catch (err) {
       setError(err instanceof Error ? err.message : t('auth.login_failed'));
     } finally {
@@ -83,12 +110,12 @@ const LoginModal: React.FC<LoginModalProps> = ({ isOpen, returnUrl, onClose }) =
 
     setLoading(true);
     try {
-      await register({ name, login: loginInput, password });
-      setSuccess(true);
-      setTimeout(() => {
-        handleClose();
-        navigate(returnUrl || '/');
-      }, 500);
+      const ok = await register({ name, login: loginInput, password });
+      if (!ok) {
+        setError(useAuth.getState().error || t('auth.register_error'));
+        return;
+      }
+      finishAuth();
     } catch (err) {
       setError(err instanceof Error ? err.message : t('auth.register_error'));
     } finally {
@@ -149,28 +176,42 @@ const LoginModal: React.FC<LoginModalProps> = ({ isOpen, returnUrl, onClose }) =
                   <motion.button
                     whileHover={{ scale: 1.02 }}
                     whileTap={{ scale: 0.98 }}
-                    onClick={() => setIsRegister(false)}
+                    onClick={() => { setIsRegister(false); setError(''); }}
                     className={`flex-1 min-h-11 py-3 px-4 rounded-xl font-medium text-sm transition-all ${!isRegister
                       ? 'bg-dv-gold/15 text-dv-gold border border-dv-gold/30'
-                      : 'bg-surface-2 text-txt-secondary border border-white/5 hover:bg-white/5'}
-                  `}
+                      : 'bg-surface-2 text-txt-secondary border border-white/5 hover:bg-white/5'}`}
                   >
                     {t('auth.login')}
                   </motion.button>
                   <motion.button
                     whileHover={{ scale: 1.02 }}
                     whileTap={{ scale: 0.98 }}
-                    onClick={() => setIsRegister(true)}
+                    onClick={() => { setIsRegister(true); setError(''); }}
                     className={`flex-1 min-h-11 py-3 px-4 rounded-xl font-medium text-sm transition-all ${isRegister
                       ? 'bg-dv-gold/15 text-dv-gold border border-dv-gold/30'
-                      : 'bg-surface-2 text-txt-secondary border border-white/5 hover:bg-white/5'}
-                  `}
+                      : 'bg-surface-2 text-txt-secondary border border-white/5 hover:bg-white/5'}`}
                   >
                     {t('auth.register')}
                   </motion.button>
                 </div>
 
                 <div className="space-y-4">
+                  {!isRegister && (
+                    <GoogleSignInButton
+                      onCredential={handleGoogleCredential}
+                      text="continue_with"
+                      divider
+                    />
+                  )}
+
+                  {isRegister && (
+                    <GoogleSignInButton
+                      onCredential={handleGoogleCredential}
+                      text="signup_with"
+                      divider
+                    />
+                  )}
+
                   {isRegister && (
                     <div>
                       <label className="block text-sm font-medium text-txt-secondary mb-2">{t('auth.name')}</label>
