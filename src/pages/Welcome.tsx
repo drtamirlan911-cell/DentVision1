@@ -6,7 +6,7 @@ import { useAuth } from '@/store/auth.store'
 
 const intents = [
   { id: 'patient', title: 'Записаться к врачу', subtitle: 'Найти помощь и запись', icon: HeartPulse, path: '/book/discover' },
-  { id: 'diagnostics', title: 'Найти диагностику', subtitle: 'Центры и результаты', icon: Search, path: '/diagnostics' },
+  { id: 'diagnostics', title: 'Найти диагностику', subtitle: 'Центры и результаты', icon: Search, path: '/diagnostics/discover' },
   { id: 'academy', title: 'Учиться', subtitle: 'Курсы и Academy', icon: GraduationCap, path: '/school' },
   { id: 'shop', title: 'Купить', subtitle: 'Материалы и оборудование', icon: ShoppingBag, path: '/shop' },
   { id: 'jobs', title: 'Найти работу', subtitle: 'Вакансии в стоматологии', icon: BriefcaseBusiness, path: '/jobs' },
