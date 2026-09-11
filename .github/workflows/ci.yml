@@ -98,6 +98,7 @@ jobs:
           node-version: 20
           cache: npm
       - run: npm ci
+      - run: npm install --no-save --package-lock=false bcryptjs@2.4.3
       - run: npm ci
         working-directory: dentvision-backend
       - run: npx prisma generate
