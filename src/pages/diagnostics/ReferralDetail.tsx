@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { ArrowLeft, FileText, Sparkles, CheckCircle, Edit3 } from 'lucide-react';
+import { ArrowLeft, FileText, Sparkles, CheckCircle, Edit3, ArrowRight } from 'lucide-react';
 import { Button } from '@/components/ui/ds/Button';
 import { Card } from '@/components/ui/ds/Card';
 import { Badge } from '@/components/ui/ds/Badge';
@@ -13,14 +13,15 @@ import { PageHeader } from '@/components/ui/ds/StatCard';
 import { useToast } from '@/components/ui/ds/Toast';
 import { queryKeys } from '@/queries/keys';
 import * as api from '@/utils/api';
+import { useAIStore } from '@/store/ai.store';
 import { StatusPill } from './workspace/Pipeline';
-
 
 export default function ReferralDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
   const toast = useToast();
   const queryClient = useQueryClient();
+  const executePrompt = useAIStore(s => s.executePrompt);
 
   const { data, isLoading, isError, refetch } = useQuery({
     queryKey: queryKeys.diagnostics.referral(id!),
@@ -61,12 +62,21 @@ export default function ReferralDetail() {
     onError: (e: Error) => toast.error(e.message),
   });
 
+  const askNextStep = () => {
+    if (!id || !reportText) return;
+    void executePrompt(
+      `Я врач и просмотрел результат диагностики по направлению ${id}. ` +
+      `Исследование: ${referral?.studyType || 'диагностическое исследование'}. ` +
+      `Заключение: ${reportText}. ` +
+      (conclusion ? `Вывод: ${conclusion}. ` : '') +
+      'Предложи следующий клинический шаг и необходимые уточнения. Не ставь окончательный диагноз вместо врача; отдели факты результата от рекомендаций.'
+    );
+    navigate('/ai');
+  };
+
   if (isLoading) return <div className="p-6"><Skeleton className="h-64" /></div>;
-  // Раньше упавший запрос попадал в ветку ниже и утверждал, что направления
-  // не существует, — хотя оно есть, просто не доехало.
   if (isError) return <div className="p-6"><QueryError what="направление" onRetry={() => refetch()} /></div>;
   if (!referral) return <div className="p-6 text-txt-muted">Направление не найдено</div>;
-
 
   return (
     <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className="p-6 space-y-6 max-w-4xl max-w-full overflow-x-hidden">
@@ -74,153 +84,39 @@ export default function ReferralDetail() {
         title={referral.patientName}
         subtitle={`${referral.studyType} · ${referral.category}`}
         icon={<FileText size={22} />}
-        actions={
-          <>
-            <StatusPill status={referral.status} />
-            <Button variant="ghost" size="sm" className="min-h-11" icon={<ArrowLeft size={16} />} onClick={() => navigate('/diagnostics/referrals')}>
-              Назад
-            </Button>
-          </>
-        }
+        actions={<><StatusPill status={referral.status} /><Button variant="ghost" size="sm" className="min-h-11" icon={<ArrowLeft size={16} />} onClick={() => navigate('/diagnostics/referrals')}>Назад</Button></>}
       />
 
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-2 gap-4">
-        <Card padding="md">
-          <h3 className="text-sm font-semibold text-txt-primary mb-3">Информация о пациенте</h3>
-          <div className="space-y-2 text-sm">
-            <Row label="ФИО" value={referral.patientName} />
-            <Row label="ИИН" value={referral.patientIin} />
-            <Row label="Телефон" value={referral.patientPhone} />
-            <Row label="Email" value={referral.patientEmail} />
-            {referral.allergies && <Row label="Аллергии" value={referral.allergies} />}
-            {referral.specialNotes && <Row label="Особые отметки" value={referral.specialNotes} />}
-          </div>
-        </Card>
-
-        <Card padding="md">
-          <h3 className="text-sm font-semibold text-txt-primary mb-3">Исследование</h3>
-          <div className="space-y-2 text-sm">
-            <Row label="Тип" value={referral.studyType} />
-            <Row label="Категория" value={referral.category} />
-            <Row label="Приоритет" value={referral.priority} />
-            <Row label="Клиника" value={referral.clinic?.name} />
-            <Row label="Врач" value={referral.doctorName} />
-            <Row label="Создано" value={new Date(referral.createdAt).toLocaleDateString('ru-RU')} />
-          </div>
-        </Card>
-
-        {referral.complaints && (
-          <Card padding="md">
-            <h3 className="text-sm font-semibold text-txt-primary mb-3">Жалобы</h3>
-            <p className="text-sm text-txt-secondary">{referral.complaints}</p>
-          </Card>
-        )}
-
-        {referral.preliminaryDx && (
-          <Card padding="md">
-            <h3 className="text-sm font-semibold text-txt-primary mb-3">Предварительный диагноз</h3>
-            <p className="text-sm text-txt-secondary">{referral.preliminaryDx}</p>
-          </Card>
-        )}
+        <Card padding="md"><h3 className="text-sm font-semibold text-txt-primary mb-3">Информация о пациенте</h3><div className="space-y-2 text-sm"><Row label="ФИО" value={referral.patientName} /><Row label="ИИН" value={referral.patientIin} /><Row label="Телефон" value={referral.patientPhone} /><Row label="Email" value={referral.patientEmail} />{referral.allergies && <Row label="Аллергии" value={referral.allergies} />}{referral.specialNotes && <Row label="Особые отметки" value={referral.specialNotes} />}</div></Card>
+        <Card padding="md"><h3 className="text-sm font-semibold text-txt-primary mb-3">Исследование</h3><div className="space-y-2 text-sm"><Row label="Тип" value={referral.studyType} /><Row label="Категория" value={referral.category} /><Row label="Приоритет" value={referral.priority} /><Row label="Клиника" value={referral.clinic?.name} /><Row label="Врач" value={referral.doctorName} /><Row label="Создано" value={new Date(referral.createdAt).toLocaleDateString('ru-RU')} /></div></Card>
+        {referral.complaints && <Card padding="md"><h3 className="text-sm font-semibold text-txt-primary mb-3">Жалобы</h3><p className="text-sm text-txt-secondary">{referral.complaints}</p></Card>}
+        {referral.preliminaryDx && <Card padding="md"><h3 className="text-sm font-semibold text-txt-primary mb-3">Предварительный диагноз</h3><p className="text-sm text-txt-secondary">{referral.preliminaryDx}</p></Card>}
       </div>
 
-      {/* Files */}
-      {referral.files && referral.files.length > 0 && (
-        <Card padding="md">
-          <h3 className="text-sm font-semibold text-txt-primary mb-3">Файлы ({referral.files.length})</h3>
-          <div className="space-y-2">
-            {referral.files.map((f: any) => (
-              <div key={f.id} className="flex items-center gap-3 p-2 rounded-lg bg-surface-1">
-                <FileText size={16} className="text-dv-gold shrink-0" />
-                <span className="text-sm text-txt-primary flex-1 truncate">{f.fileName}</span>
-                <span className="text-xs text-txt-muted">{new Date(f.createdAt).toLocaleDateString('ru-RU')}</span>
-              </div>
-            ))}
-          </div>
-        </Card>
-      )}
+      {referral.files && referral.files.length > 0 && <Card padding="md"><h3 className="text-sm font-semibold text-txt-primary mb-3">Файлы ({referral.files.length})</h3><div className="space-y-2">{referral.files.map((f: any) => <div key={f.id} className="flex items-center gap-3 p-2 rounded-lg bg-surface-1"><FileText size={16} className="text-dv-gold shrink-0" /><span className="text-sm text-txt-primary flex-1 truncate">{f.fileName}</span><span className="text-xs text-txt-muted">{new Date(f.createdAt).toLocaleDateString('ru-RU')}</span></div>)}</div></Card>}
 
-      {/* Result section */}
       <Card padding="md">
-        <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
-          <h3 className="text-sm font-semibold text-txt-primary">Результат исследования</h3>
-          <div className="flex flex-wrap gap-2">
-            {!result && (referral.status === 'COMPLETED' || referral.status === 'IN_PROGRESS') && (
-              <Button variant="outline" size="xs" className="min-h-11" icon={<Sparkles size={14} />}
-                loading={aiMutation.isPending} onClick={() => aiMutation.mutate()}>
-                AI Заключение
-              </Button>
-            )}
-            {result && !result.signedBy && (
-              <>
-                <Button variant="ghost" size="xs" className="min-h-11" icon={<Edit3 size={14} />}
-                  onClick={() => setEditing(!editing)}>
-                  {editing ? 'Отмена' : 'Редактировать'}
-                </Button>
-                <Button variant="primary" size="xs" className="min-h-11" icon={<CheckCircle size={14} />}
-                  loading={signMutation.isPending} onClick={() => signMutation.mutate()}>
-                  Подтвердить
-                </Button>
-              </>
-            )}
-            {result?.signedBy && (
-              <Badge variant="success" size="sm">Подписано</Badge>
-            )}
-          </div>
-        </div>
+        <div className="flex flex-wrap items-center justify-between gap-2 mb-4"><h3 className="text-sm font-semibold text-txt-primary">Результат исследования</h3><div className="flex flex-wrap gap-2">
+          {!result && (referral.status === 'COMPLETED' || referral.status === 'IN_PROGRESS') && <Button variant="outline" size="xs" className="min-h-11" icon={<Sparkles size={14} />} loading={aiMutation.isPending} onClick={() => aiMutation.mutate()}>AI Заключение</Button>}
+          {result && !result.signedBy && <><Button variant="ghost" size="xs" className="min-h-11" icon={<Edit3 size={14} />} onClick={() => setEditing(!editing)}>{editing ? 'Отмена' : 'Редактировать'}</Button><Button variant="primary" size="xs" className="min-h-11" icon={<CheckCircle size={14} />} loading={signMutation.isPending} onClick={() => signMutation.mutate()}>Подтвердить</Button></>}
+          {result?.signedBy && <Badge variant="success" size="sm">Подписано</Badge>}
+        </div></div>
 
-        {!result && !aiMutation.isPending && referral.status !== 'COMPLETED' && referral.status !== 'IN_PROGRESS' && (
-          <p className="text-sm text-txt-muted text-center py-6">Результат появится после выполнения исследования</p>
-        )}
+        {!result && !aiMutation.isPending && referral.status !== 'COMPLETED' && referral.status !== 'IN_PROGRESS' && <p className="text-sm text-txt-muted text-center py-6">Результат появится после выполнения исследования</p>}
+        {aiMutation.isPending && <div className="space-y-3 py-2"><p className="text-sm text-txt-muted">ИИ готовит заключение…</p><Skeleton variant="text" lines={6} /></div>}
+        {reportText && <div className="space-y-4">
+          {editing ? <><Textarea label="Заключение" value={reportText} onChange={e => setReportText(e.target.value)} rows={10} /><Textarea label="Вывод" value={conclusion} onChange={e => setConclusion(e.target.value)} rows={3} placeholder="Краткий вывод" /></> : <>
+            {result?.aiGenerated && <Badge variant={result.aiSawSource ? 'info' : 'warning'} size="xs">{result.aiSawSource ? 'ИИ: по приложенному снимку' : 'ИИ: без снимка, по данным направления'}</Badge>}
+            <div className="text-sm text-txt-secondary whitespace-pre-wrap leading-relaxed">{reportText}</div>
+            {conclusion && <div className="p-3 rounded-lg bg-surface-1 border border-bdr-subtle"><p className="text-xs font-bold text-txt-muted mb-1">Вывод</p><p className="text-sm text-txt-primary">{conclusion}</p></div>}
+          </>}
+        </div>}
 
-        {aiMutation.isPending && (
-          <div className="space-y-3 py-2">
-            <p className="text-sm text-txt-muted">ИИ готовит заключение…</p>
-            <Skeleton variant="text" lines={6} />
-          </div>
-        )}
-
-        {reportText && (
-          <div className="space-y-4">
-            {editing ? (
-              <>
-                <Textarea label="Заключение" value={reportText} onChange={e => setReportText(e.target.value)} rows={10} />
-                <Textarea label="Вывод" value={conclusion} onChange={e => setConclusion(e.target.value)} rows={3} placeholder="Краткий вывод" />
-              </>
-            ) : (
-              <>
-                {result?.aiGenerated && (
-                  // Whether the pass looked at the study or only at the
-                  // referral's text is the difference between an observation
-                  // and a composition — the reader has to be able to tell.
-                  <Badge variant={result.aiSawSource ? 'info' : 'warning'} size="xs">
-                    {result.aiSawSource
-                      ? 'ИИ: по приложенному снимку'
-                      : 'ИИ: без снимка, по данным направления'}
-                  </Badge>
-                )}
-                <div className="text-sm text-txt-secondary whitespace-pre-wrap leading-relaxed">{reportText}</div>
-                {conclusion && (
-                  <div className="p-3 rounded-lg bg-surface-1 border border-bdr-subtle">
-                    <p className="text-xs font-bold text-txt-muted mb-1">Вывод</p>
-                    <p className="text-sm text-txt-primary">{conclusion}</p>
-                  </div>
-                )}
-              </>
-            )}
-          </div>
-        )}
+        {result?.signedBy && reportText && !editing && <div className="mt-5 rounded-xl border border-dv-gold/20 bg-dv-gold/5 p-4"><div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"><div><p className="text-sm font-semibold text-txt-primary">Результат просмотрен</p><p className="mt-1 text-xs leading-5 text-txt-muted">AI может разобрать заключение и подготовить следующий клинический шаг. Решение остаётся за врачом.</p></div><Button variant="primary" size="sm" className="min-h-11 shrink-0" icon={<ArrowRight size={15} />} onClick={askNextStep}>Следующий шаг с AI</Button></div></div>}
       </Card>
     </motion.div>
   );
 }
 
-function Row({ label, value }: { label: string; value?: string | null }) {
-  if (!value) return null;
-  return (
-    <div className="flex justify-between">
-      <span className="text-txt-muted">{label}</span>
-      <span className="text-txt-primary font-medium text-right">{value}</span>
-    </div>
-  );
-}
+function Row({ label, value }: { label: string; value?: string | null }) { if (!value) return null; return <div className="flex justify-between"><span className="text-txt-muted">{label}</span><span className="text-txt-primary font-medium text-right">{value}</span></div>; }
