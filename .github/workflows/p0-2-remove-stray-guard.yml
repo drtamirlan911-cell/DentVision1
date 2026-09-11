@@ -1,0 +1,38 @@
+name: p0-2 remove stray guard
+on:
+  push:
+    branches: [main]
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Remove misplaced booking guard
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p=Path('dentvision-backend/src/modules/patient-portal/patientPortal.service.ts')
+          s=p.read_text()
+          bad="  if (patient.clinicId !== input.clinicId) {\n    throw new PortalActionError('Пациент не относится к выбранной клинике', 'NOT_FOUND');\n  }\n\n"
+          marker="  const settings = mergeClinicSettings(clinic.settings);"
+          if s.count(bad) != 2:
+              raise SystemExit(f'expected exactly 2 guards, found {s.count(bad)}')
+          before=s.count(bad)
+          s=s.replace(bad, '', 1)
+          if s.count(bad) != 1 or before != 2:
+              raise SystemExit('did not leave exactly one booking ownership guard')
+          if s.count("if (patient.clinicId !== input.clinicId)") != 1:
+              raise SystemExit('ownership guard count invalid')
+          p.write_text(s)
+          PY
+      - name: Verify
+        run: |
+          grep -n "patient.clinicId !== input.clinicId" dentvision-backend/src/modules/patient-portal/patientPortal.service.ts
+          ! grep -B3 -A1 -n "const settings = mergeClinicSettings(clinic.settings);" dentvision-backend/src/modules/patient-portal/patientPortal.service.ts | grep -q "patient.clinicId"
+      - name: Commit
+        run: |
+          git config user.name github-actions
+          git config user.email github-actions@github.com
+          git add dentvision-backend/src/modules/patient-portal/patientPortal.service.ts
+          git commit -m "fix: remove misplaced booking ownership guard"
+          git push
