@@ -64,7 +64,9 @@ export async function generateSettlements(opts: GenerateOptions) {
     const owner = referralOwner(r);
     const vertical = referralPartnerVertical(r);
     if (!owner || !vertical) continue;
-    let platformFee = r.platformFee;
+    // Never seed settlement arithmetic from Referral.platformFee. That field is
+    // legacy mutable state; the canonical engine is the only source of truth.
+    let platformFee: Prisma.Decimal | null = null;
     if (r.cost != null) {
       const grossMinor = tengeToMinor(Number(r.cost) || 0);
       if (grossMinor > 0n) {
@@ -76,7 +78,10 @@ export async function generateSettlements(opts: GenerateOptions) {
     const key = `${owner.ownerType}:${owner.ownerId}`;
     let g = groups.get(key);
     if (!g) { g = { ownerType: owner.ownerType, ownerId: owner.ownerId, ids: [], refs: [] }; groups.set(key, g); }
-    g.ids.push(r.id); g.refs.push({ platformFee });
+    if (platformFee != null) {
+      g.ids.push(r.id);
+      g.refs.push({ platformFee });
+    }
   }
   const dueDate = opts.dueDays ? new Date(Date.now() + opts.dueDays * 86_400_000) : null;
   const created: Array<Awaited<ReturnType<typeof prisma.settlement.create>>> = [];
