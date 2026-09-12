@@ -4,6 +4,7 @@ import prisma from '../lib/prisma.js';
 import { subscribe } from '../lib/events.js';
 import { uid } from '../lib/helpers.js';
 import { ensurePatientAssignment } from '../lib/patientAssignment.js';
+import { applyCanonicalReferralEconomics } from '../modules/finance/referral-economics.service.js';
 import { registerAIEventBridge } from './aiEventBridge.js';
 
 let registered = false;
@@ -111,6 +112,18 @@ export function registerSubscribers(): void {
       },
     });
   });
+
+  const reconcileReferralEconomics = async ({ referralId }: { referralId: string }) => {
+    await applyCanonicalReferralEconomics(referralId);
+  };
+
+  // Referral handlers historically wrote a flat 10% fee. These lifecycle
+  // subscribers immediately reconcile that derived field with the canonical,
+  // versioned economics engine. The durable economics ledger remains created
+  // at settlement, so a pre-payment rule correction cannot create a duplicate
+  // historical transaction.
+  subscribe('referral.accepted', reconcileReferralEconomics);
+  subscribe('referral.in_progress', reconcileReferralEconomics);
 
   console.log('[events] subscribers registered');
 }
