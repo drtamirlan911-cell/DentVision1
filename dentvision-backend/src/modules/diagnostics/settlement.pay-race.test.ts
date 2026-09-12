@@ -6,6 +6,7 @@ const state = vi.hoisted(() => ({
   idempotencyCreate: vi.fn(),
   idempotencyUpdate: vi.fn(),
   idempotencyDelete: vi.fn(),
+  idempotencyDeleteMany: vi.fn(),
   paymentFindUnique: vi.fn(),
   paymentFindFirst: vi.fn(),
   paymentCreate: vi.fn(),
@@ -20,6 +21,7 @@ vi.mock('../../lib/prisma.js', () => ({ default: {
     create: state.idempotencyCreate,
     update: state.idempotencyUpdate,
     delete: state.idempotencyDelete,
+    deleteMany: state.idempotencyDeleteMany,
   },
   payment: { findUnique: state.paymentFindUnique, findFirst: state.paymentFindFirst, create: state.paymentCreate },
 } }));
@@ -44,6 +46,7 @@ describe('paySettlement concurrency', () => {
     state.settlementFindUnique.mockResolvedValue(settlement);
     state.idempotencyFindUnique.mockResolvedValue(null);
     state.idempotencyCreate.mockResolvedValue({ id: 'idem-1', key: 'settlement-payment:settlement-1' });
+    state.idempotencyDeleteMany.mockResolvedValue({ count: 1 });
     state.createPayment.mockResolvedValue({ externalId: 'kaspi-1', qr: 'qr-1' });
     state.paymentCreate.mockResolvedValue(payment);
     state.settlementUpdate.mockResolvedValue(settlement);
@@ -77,5 +80,20 @@ describe('paySettlement concurrency', () => {
     expect(state.createPayment).toHaveBeenCalledTimes(1);
     expect(first.payment.id).toBe('payment-1');
     expect(second.payment.id).toBe('payment-1');
+  });
+
+  it('reclaims an expired empty reservation instead of failing on the unique key', async () => {
+    state.idempotencyFindUnique.mockResolvedValue({
+      id: 'expired-1', key: 'settlement-payment:settlement-1', paymentId: null,
+      expiresAt: new Date(Date.now() - 60_000),
+    });
+
+    await paySettlement('settlement-1');
+
+    expect(state.idempotencyDeleteMany).toHaveBeenCalledWith({
+      where: { id: 'expired-1', paymentId: null },
+    });
+    expect(state.idempotencyCreate).toHaveBeenCalledTimes(1);
+    expect(state.createPayment).toHaveBeenCalledTimes(1);
   });
 });
