@@ -92,3 +92,25 @@ This log is the durable handoff between work sessions/agents. It records complet
 - Changes are committed to `main` and trigger a new CI run.
 - Phase 0 remains **NOT PASSED** pending fresh CI lint/typecheck/E2E evidence after these fixes.
 - Next action: consume the new CI result; if green, close Phase 0 and immediately start the economics ledger/Finance Hub vertical slice. If red, fix only the concrete failing gate and rerun.
+
+## 2026-09-12 — Phase 0 closed; economics execution advanced
+
+### Verification evidence
+- Baseline commit `59747e48777eb016b0d7e42cc7dbe1b3b2a9c067` is on `main` and is deployed live on Render as deployment `dep-daihb50u01pc738avlq0`.
+- Fresh CI run `34684882069` passed all jobs: frontend lint, backend lint, build/typecheck/test, command-center audit and the full Playwright E2E suite.
+- The E2E job successfully synchronized the isolated Prisma schema, bootstrapped the SQL-only AI Employee migrations, started the backend, waited for readiness and completed the suite successfully.
+- Quality Gate `34684882055` passed its release-gate checks.
+- `patients.routes.ts` is present on `main` and retains tenant-scoped access, RBAC, IIN protection, idempotency, event publication and audit behavior.
+- The canonical partner economics policy remains the sole business-rule source; no competing economics policy was introduced.
+
+### Phase status
+- **Phase 0 — COMPLETE.**
+- **Phase 1 — IN PROGRESS.**
+
+### Immediate next implementation slice
+1. Replace the legacy referral-time 10% platform-fee write with the canonical Economics Engine.
+2. Add accepted → paid → settled integration/concurrency coverage and immutable rule-version assertions.
+3. Wire canonical economics into medical-analysis and dental-lab operational flows.
+4. Complete the durable economics ledger/reconciliation surface and expose it through Finance Hub / Partner Dashboard.
+
+The next commit must implement one of these domain slices, not another broad audit.
