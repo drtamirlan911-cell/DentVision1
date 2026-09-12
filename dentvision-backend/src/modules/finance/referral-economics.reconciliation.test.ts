@@ -46,6 +46,11 @@ describe('canonical referral economics reconciliation', () => {
     state.referral.centerId = 'center-1';
     state.referral.labId = null;
     state.referral.cost = 10_000;
+    state.rule.percentBps = 700;
+    state.getPartnerEconomicsRule.mockResolvedValue(state.rule);
+    state.calculatePartnerEconomics.mockImplementation(({ grossMinor }: any) => ({
+      commissionMinor: (grossMinor * 700n) / 10_000n,
+    }));
     state.updateMany.mockResolvedValue({ count: 1 });
   });
 
