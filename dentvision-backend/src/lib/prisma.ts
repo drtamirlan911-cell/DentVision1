@@ -1,4 +1,5 @@
 import { PrismaClient } from '@prisma/client';
+import { parseTengeToMinor } from './money.js';
 
 const globalForPrisma = globalThis as unknown as { prisma: PrismaClient };
 
@@ -24,7 +25,7 @@ prismaWithReferralEconomics.$use?.(async (params, next) => {
     const nextStatus = data.status;
     const paidWrite = data.paid === true;
     if (nextStatus === 'ACCEPTED' || nextStatus === 'IN_PROGRESS' || paidWrite) {
-      const id = params.action === 'update' ? params.args?.where?.id : params.args?.where?.id;
+      const id = params.args?.where?.id;
       if (typeof id === 'string') {
         const existing = await prisma.referral.findUnique({
           where: { id },
@@ -43,7 +44,7 @@ prismaWithReferralEconomics.$use?.(async (params, next) => {
             {
               vertical,
               partnerId,
-              grossMinor: BigInt(Math.round(Number(cost) * 100)),
+              grossMinor: parseTengeToMinor(cost),
             },
             rule,
           );
