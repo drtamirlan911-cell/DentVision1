@@ -25,7 +25,19 @@ export type SettlementOwnerType = 'CENTER' | 'LAB';
 /** Pure: sum `platformFee` (Decimal tenge) across referrals into minor units (тиын). */
 export function sumPlatformFeeMinor(referrals: Array<{ platformFee?: unknown }>): bigint {
   return referrals.reduce((sum, r) => {
-    const feeTenge = new Prisma.Decimal(String(r.platformFee ?? 0));
+    const raw = r.platformFee;
+    if (raw == null) return sum;
+
+    // Legacy referral rows may contain malformed/null-ish fee values. A bad
+    // historical row must not crash an otherwise valid settlement run.
+    let feeTenge: Prisma.Decimal;
+    try {
+      feeTenge = new Prisma.Decimal(String(raw).trim());
+    } catch {
+      return sum;
+    }
+    if (!feeTenge.isFinite()) return sum;
+
     return sum + BigInt(feeTenge.mul(100).toFixed(0));
   }, 0n);
 }
