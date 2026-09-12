@@ -2,17 +2,14 @@
  * Google Identity Services — script loading and button rendering.
  *
  * We render Google's own button rather than drawing our own. Google's branding
- * terms govern the mark, the wording and the minimum size, and their button is
- * the one that stays compliant when those terms change. What we control is
- * everything around it: width, corner radius, and which of Google's themes to
- * use so it sits with the rest of the page instead of on top of it.
+ * terms govern the mark, the wording and the minimum size, while the wrapper
+ * keeps the official button aligned with the DentVision auth form.
  */
 
 const SCRIPT_SRC = 'https://accounts.google.com/gsi/client'
 
 export const GOOGLE_CLIENT_ID: string = import.meta.env.VITE_GOOGLE_CLIENT_ID || ''
 
-/** Without a client id the feature is off and every entry point hides itself. */
 export function isGoogleConfigured(): boolean {
   return GOOGLE_CLIENT_ID.length > 0
 }
@@ -53,7 +50,6 @@ declare global {
   }
 }
 
-/** One load per page, shared by every entry point that asks for it. */
 let loader: Promise<GoogleIdentity> | null = null
 
 export function loadGoogleIdentity(): Promise<GoogleIdentity> {
@@ -72,9 +68,6 @@ export function loadGoogleIdentity(): Promise<GoogleIdentity> {
 
     script.addEventListener('load', settle)
     script.addEventListener('error', () => {
-      // Let a later attempt retry rather than caching the failure forever — an
-      // ad blocker or a flaky network should not disable the button for the
-      // rest of the session.
       loader = null
       reject(new Error('Не удалось загрузить Google'))
     })
@@ -93,15 +86,19 @@ export function loadGoogleIdentity(): Promise<GoogleIdentity> {
 }
 
 /**
- * Render Google's button into `parent`.
- *
- * `theme` follows the app's theme: Google's outline button is drawn on white,
- * which would sit as a bright rectangle in the dark theme.
+ * Render Google's official button at the exact width available to the auth
+ * form. Google supports a 200–400px standard button, so callers should pass a
+ * measured width in that range whenever possible.
  */
 export async function renderGoogleButton(
   parent: HTMLElement,
   onCredential: (idToken: string) => void,
-  opts: { theme?: 'light' | 'dark'; locale?: string; text?: GoogleButtonOptions['text'] } = {},
+  opts: {
+    theme?: 'light' | 'dark'
+    locale?: string
+    text?: GoogleButtonOptions['text']
+    width?: number
+  } = {},
 ): Promise<void> {
   const google = await loadGoogleIdentity()
 
@@ -110,22 +107,25 @@ export async function renderGoogleButton(
     callback: (response) => {
       if (response?.credential) onCredential(response.credential)
     },
-    // No One Tap: an account chooser that appears unbidden over a login form is
-    // a surprise, and this button is already on the screen.
     auto_select: false,
     cancel_on_tap_outside: true,
   })
 
   parent.replaceChildren()
+
+  const measuredWidth = Number.isFinite(opts.width) ? Math.round(opts.width as number) : 400
+  const width = Math.max(200, Math.min(measuredWidth, 400))
+
   google.accounts.id.renderButton(parent, {
     type: 'standard',
-    theme: opts.theme === 'dark' ? 'filled_black' : 'outline',
+    // The official outline variant gives the cleanest contrast on both light
+    // and dark DentVision surfaces without creating a second black rectangle.
+    theme: 'outline',
     size: 'large',
     text: opts.text || 'continue_with',
     shape: 'rectangular',
     logo_alignment: 'center',
     locale: opts.locale || 'ru',
-    // Google caps this at 400; the wrapper scales it to the real width below.
-    width: 400,
+    width,
   })
 }
