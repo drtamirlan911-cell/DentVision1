@@ -146,6 +146,19 @@ export async function paySettlement(settlementId: string) {
     throw err;
   }
 
+  // An expired reservation without a durable payment is reclaimable. Do not
+  // blindly insert the same unique key: remove only the stale empty record,
+  // then claim a fresh five-minute reservation. A paymentId always wins even
+  // when the TTL elapsed, because it is durable evidence that the gateway call
+  // already completed.
+  if (existing) {
+    if (existing.paymentId) {
+      const payment = await prisma.payment.findUnique({ where: { id: existing.paymentId } });
+      if (payment) return { settlement, payment, alreadyPaid: false as const, qr: (payment.meta as any)?.qr };
+    }
+    await prisma.idempotencyRecord.deleteMany({ where: { id: existing.id, paymentId: null } });
+  }
+
   let reservation;
   try {
     reservation = await prisma.idempotencyRecord.create({
