@@ -78,3 +78,17 @@ This log is the durable handoff between work sessions/agents. It records complet
 3. Wire the canonical engine into medical-analysis and dental-lab operational order flows (not only the diagnostics settlement adapter).
 4. Expose economics snapshots and margin status in Partner Dashboard and Finance Hub.
 5. Resolve any remaining Vercel build-rate-limit capacity issue and run the fresh CI/E2E release gate.
+
+## 2026-09-12 — Fresh CI blocker fixes: settlement precision + raw AI Employee E2E schema
+
+### Evidence
+- Fresh CI run `34669278245` exposed a TypeScript failure in `settlement.service.ts`: a numeric commission amount was being assigned to Prisma `Decimal`-typed `Referral.platformFee` data. The settlement path now uses `Prisma.Decimal` end-to-end and converts commission minor units exactly, without floating-point rounding.
+- The same CI run exposed an E2E-only schema gap: the E2E database is initialized with `prisma db push`, so SQL-only AI Employee migrations are not executed. The failing scenario attempted to write `ai_employee_tasks` and received PostgreSQL `42P01`.
+- `0af98391cb3ab6455ddfecf90b66b5fff3fa0fb7` updates the clinical tenant-isolation fixture to use the canonical `DiagnosticCategory.OPG` enum instead of the removed `DIGITAL_XRAY` value.
+- `cec0f7abaddaf4b38c34fc246401d1178d95e45d` restores `settlement.service.ts` with exact `Prisma.Decimal` handling after replacing the file atomically.
+- `aeffa5bac4e8473a701fcf61a531dfd3a688381c` makes the deterministic E2E seed execute the two authoritative AI Employee SQL migrations before seeding fixtures, so the E2E environment exercises the same raw schema as production.
+
+### Verification
+- Changes are committed to `main` and trigger a new CI run.
+- Phase 0 remains **NOT PASSED** pending fresh CI lint/typecheck/E2E evidence after these fixes.
+- Next action: consume the new CI result; if green, close Phase 0 and immediately start the economics ledger/Finance Hub vertical slice. If red, fix only the concrete failing gate and rerun.
