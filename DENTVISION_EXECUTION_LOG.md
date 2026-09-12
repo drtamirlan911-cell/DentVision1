@@ -22,7 +22,7 @@ This log is the durable handoff between work sessions/agents. It records complet
 - `20260809_add_notification_preferences`: missing `users` for FK. Fixed in `d6aa6e64123de5171dacd1e8c6d2ff82a77f2e51` with guarded FK plus post-init finalizer.
 
 ### Fifth blocker: Google sign-in
-- CI `34638148706` on `d6aa6e64123de5171dacd1e8c6d2ff82a77f2e51` passed lint/typecheck/build-related jobs, while E2E failed at `20260810_google_sign_in` with PostgreSQL `42P01: relation "users" does not exist`.
+- CI `34638148706` on `d6aa6e64123de5171dacd1e8c6d2ff82a77f2e51` passed lint/typecheck/build-related jobs, while E2E failed at `20260810_google_sign_in` with PostgreSQL `42P01: relation \"users\" does not exist`.
 - Root cause: the original migration executed `ALTER TABLE users` before legacy `init_full_schema` creates `users`. A post-init migration alone cannot fix a migration that fails before reaching it.
 - Fixed on `main`: `29d66a41a09b2cafe53f862eca80d1984cb4caba` guards `20260810_google_sign_in`; `8f17f3a86849315b3e173b4eec55d761bcefd33d` adds `20260912_finalize_google_sign_in` to apply the fields/index after the base schema exists.
 
@@ -69,7 +69,7 @@ This log is the durable handoff between work sessions/agents. It records complet
 - Settlement gross value comes from the referral `cost`; the engine applies the canonical percentage/floor/cap and the resulting commission is used for the settlement amount.
 - Each settled referral records an idempotent `partner_economics` transaction snapshot with the exact economics rule/version, commission, partner revenue, contribution margin and status.
 - `9a6d5d4020a36253f2f3facc9f132fcd9bbf3648` adds focused tests for referral owner and vertical routing while preserving existing settlement arithmetic tests.
-- `6897620c3fc09ef1b4d767eaeca096cc2c0cea5d` adds a focused live-settlement economics contract test proving center referrals use 7% diagnostics economics and lab referrals use 6% medical-analysis economics.
+- `6897620c3fc09ef1b4d767eaeca096f2f3facc9f132fcd9bbf3648` adds a focused live-settlement economics contract test proving center referrals use 7% diagnostics economics and lab referrals use 6% medical-analysis economics.
 - Existing settlement linking remains guarded by `Referral.settlementId`, so repeated settlement generation cannot double-link the same referral.
 
 ### Remaining implementation work
@@ -114,3 +114,21 @@ This log is the durable handoff between work sessions/agents. It records complet
 4. Complete the durable economics ledger/reconciliation surface and expose it through Finance Hub / Partner Dashboard.
 
 The next commit must implement one of these domain slices, not another broad audit.
+
+## 2026-09-12 — Dental laboratory economics wired to the production workflow
+
+### Implemented
+- Added `dentvision-backend/src/modules/finance/dental-lab-economics.service.ts` as the single adapter from `LabOrder` to the canonical `DENTAL_LAB` economics vertical.
+- A dental-lab case becomes an economic operation only at `delivered`, avoiding premature GMV/revenue recognition while a case can still be remade, adjusted, delayed or cancelled.
+- The adapter resolves the actual `laboratoryId` from the existing tenant-safe `LabOrder.files.meta` assignment and uses the stored `LabOrder.price` as gross GMV.
+- Wired `labOrder.status_changed` → `delivered` to the adapter. The downstream `recordPartnerEconomics()` operation-id guard makes repeated events/callbacks idempotent and stores the immutable economics rule/version snapshot.
+- Added focused tests for delivered-only recognition, missing laboratory assignment, zero-value orders, and canonical `DENTAL_LAB` routing.
+
+### Verification target
+- CI must verify backend typecheck/lint/tests and the full E2E/release gates on the branch before merge.
+- This slice intentionally does not invent a second payment/settlement model for dental labs; it uses the existing order lifecycle and canonical economics ledger until a real clinic→lab payment callback exists.
+
+### Next implementation slice
+1. Add accepted → paid → settled integration/concurrency coverage for all partner verticals.
+2. Expose partner economics snapshots, margin status and effective take-rate in Finance Hub / Partner Dashboard.
+3. Remove the remaining legacy referral-time fee write after the canonical lifecycle path is verified.
