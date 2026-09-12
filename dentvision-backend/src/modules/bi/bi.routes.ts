@@ -27,6 +27,7 @@ import {
 } from './bi.service.js';
 import prisma from '../../lib/prisma.js';
 import { serializeBigInt } from '../../lib/money.js';
+import { canonicalPartnerEconomicsRules, PARTNER_VERTICALS, type PartnerVertical } from '../finance/partner-economics.service.js';
 import type { AuthRequest, ApiResponse } from '../../types/index.js';
 
 export const biRouter = Router();
@@ -128,6 +129,79 @@ biRouter.get('/partner-roi', requirePermission('bi.platform'), async (_req: Auth
   } catch (error) {
     console.error('[bi/partner-roi]', error);
     return res.status(500).json({ ok: false, error: 'Ошибка partner ROI' } satisfies ApiResponse);
+  }
+});
+
+// Canonical partner-economics ledger: immutable snapshots only. Historical
+// transactions are never recalculated with today's rules.
+biRouter.get('/partner-economics', requirePermission('bi.platform'), async (req: AuthRequest, res) => {
+  try {
+    const now = new Date();
+    const defaultFrom = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
+    const parseDate = (value: unknown, fallback: Date) => {
+      if (typeof value !== 'string' || !value) return fallback;
+      const parsed = new Date(value);
+      return Number.isNaN(parsed.getTime()) ? fallback : parsed;
+    };
+    const from = parseDate(req.query.from, defaultFrom);
+    const to = parseDate(req.query.to, now);
+    const requestedVertical = typeof req.query.vertical === 'string' ? req.query.vertical : undefined;
+    const vertical = requestedVertical && Object.values(PARTNER_VERTICALS).includes(requestedVertical as PartnerVertical)
+      ? requestedVertical as PartnerVertical
+      : undefined;
+
+    const rows = await prisma.transaction.findMany({
+      where: {
+        type: 'partner_economics',
+        createdAt: { gte: from, lte: to },
+        ...(vertical ? { refType: vertical } : {}),
+      },
+      select: { id: true, amount: true, currency: true, refType: true, refId: true, status: true, meta: true, createdAt: true },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    const sumMeta = (items: typeof rows, field: string) => items.reduce((sum, row) => {
+      const meta = (row.meta || {}) as Record<string, unknown>;
+      try { return sum + BigInt(String(meta[field] ?? '0')); } catch { return sum; }
+    }, 0n);
+
+    const byVertical = Object.values(PARTNER_VERTICALS)
+      .map((name) => {
+        const scoped = rows.filter((row) => row.refType === name);
+        const grossMinor = scoped.reduce((sum, row) => sum + row.amount, 0n);
+        const commissionMinor = sumMeta(scoped, 'commissionMinor');
+        const contributionMarginMinor = sumMeta(scoped, 'contributionMarginMinor');
+        const takeRateBps = grossMinor === 0n ? 0 : Number((commissionMinor * 10_000n) / grossMinor);
+        const marginBps = grossMinor === 0n ? 0 : Number((contributionMarginMinor * 10_000n) / grossMinor);
+        const lossCount = scoped.filter((row) => ((row.meta || {}) as Record<string, unknown>).status === 'LOSS').length;
+        const lowMarginCount = scoped.filter((row) => ((row.meta || {}) as Record<string, unknown>).status === 'LOW_MARGIN').length;
+        const status = lossCount > 0 || contributionMarginMinor < 0n
+          ? 'LOSS'
+          : lowMarginCount > 0 || contributionMarginMinor === 0n ? 'LOW_MARGIN' : 'HEALTHY';
+        return { vertical: name, operations: scoped.length, grossMinor, commissionMinor, contributionMarginMinor, takeRateBps, marginBps, lossCount, lowMarginCount, status };
+      })
+      .filter((item) => !vertical || item.vertical === vertical);
+
+    const grossMinor = rows.reduce((sum, row) => sum + row.amount, 0n);
+    const commissionMinor = sumMeta(rows, 'commissionMinor');
+    const contributionMarginMinor = sumMeta(rows, 'contributionMarginMinor');
+
+    return res.json({ ok: true, data: serializeBigInt({
+      period: { from: from.toISOString(), to: to.toISOString() },
+      totals: {
+        operations: rows.length,
+        grossMinor,
+        commissionMinor,
+        contributionMarginMinor,
+        takeRateBps: grossMinor === 0n ? 0 : Number((commissionMinor * 10_000n) / grossMinor),
+        marginBps: grossMinor === 0n ? 0 : Number((contributionMarginMinor * 10_000n) / grossMinor),
+      },
+      byVertical,
+      rules: canonicalPartnerEconomicsRules(),
+    }) } satisfies ApiResponse);
+  } catch (error) {
+    console.error('[bi/partner-economics]', error);
+    return res.status(500).json({ ok: false, error: 'Ошибка partner economics' } satisfies ApiResponse);
   }
 });
 
