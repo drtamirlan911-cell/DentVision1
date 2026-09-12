@@ -69,7 +69,7 @@ This log is the durable handoff between work sessions/agents. It records complet
 - Settlement gross value comes from the referral `cost`; the engine applies the canonical percentage/floor/cap and the resulting commission is used for the settlement amount.
 - Each settled referral records an idempotent `partner_economics` transaction snapshot with the exact economics rule/version, commission, partner revenue, contribution margin and status.
 - `9a6d5d4020a36253f2f3facc9f132fcd9bbf3648` adds focused tests for referral owner and vertical routing while preserving existing settlement arithmetic tests.
-- `6897620c3fc09ef1b4d767eaeca096f2f3facc9f132fcd9bbf3648` adds a focused live-settlement economics contract test proving center referrals use 7% diagnostics economics and lab referrals use 6% medical-analysis economics.
+- `6897620c3fc09ef1b4d767eaeca096f2f3facc9f132` adds a focused live-settlement economics contract test proving center referrals use 7% diagnostics economics and lab referrals use 6% medical-analysis economics.
 - Existing settlement linking remains guarded by `Referral.settlementId`, so repeated settlement generation cannot double-link the same referral.
 
 ### Remaining implementation work
@@ -132,3 +132,19 @@ The next commit must implement one of these domain slices, not another broad aud
 1. Add accepted → paid → settled integration/concurrency coverage for all partner verticals.
 2. Expose partner economics snapshots, margin status and effective take-rate in Finance Hub / Partner Dashboard.
 3. Remove the remaining legacy referral-time fee write after the canonical lifecycle path is verified.
+
+## 2026-09-12 — Partner economics exposed through Platform BI / Finance Hub data contract
+
+### Implemented
+- `a0e471ffa77a3d7ad009301a5bbc9512b91edfb2` extends the already-mounted `/api/bi` router with `GET /api/bi/partner-economics`.
+- The endpoint is restricted to `bi.platform`, uses the immutable `partner_economics` transaction ledger, and never recalculates historical transactions using current rules.
+- Supports `from`, `to` and `vertical` filters.
+- Returns total operations, GMV, platform commission, contribution margin, effective take-rate and margin, plus per-vertical `HEALTHY / LOW_MARGIN / LOSS` status and loss/low-margin counts.
+- Returns the current canonical rules as a read-only reference for the Finance Hub; historical transaction metadata retains its own rule/version snapshot.
+- A temporary standalone duplicate router was removed before merge so there is only one mounted economics read surface.
+
+### Next implementation slice
+1. Add accepted → paid → settled lifecycle/concurrency tests around the referral economics path.
+2. Connect the Partner Dashboard UI to `/api/bi/partner-economics` using the existing BI authorization boundary.
+3. Complete medical-analysis operational settlement and reconciliation where no referral exists.
+4. Add real payment callback reconciliation before changing dental-lab recognition from delivery to paid/settled.
