@@ -2,8 +2,6 @@
 import { PrismaClient, type UserRole } from '@prisma/client';
 import bcrypt from 'bcryptjs';
 import { randomUUID } from 'node:crypto';
-import { readFile } from 'node:fs/promises';
-import { resolve } from 'node:path';
 
 const prisma = new PrismaClient();
 export const E2E_PASSWORD = 'Test1234!';
@@ -66,18 +64,52 @@ async function ensureE2ESupplier() {
 
 /**
  * E2E uses `prisma db push`, which intentionally does not execute SQL-only
- * migrations. Bootstrap the same raw migrations that the production migration
- * chain owns so event-driven AI Employee tests run against the real schema.
+ * migrations. Bootstrap the same AI Employee schema owned by the production
+ * migrations, using one prepared statement per SQL command.
  */
 async function ensureAiEmployeeSchema() {
-  const migrationFiles = [
-    '20260910_add_ai_employee_tasks/migration.sql',
-    '20260910_ai_employee_task_idempotency/migration.sql',
-  ];
-  for (const relativePath of migrationFiles) {
-    const sql = await readFile(resolve(process.cwd(), 'prisma', 'migrations', relativePath), 'utf8');
-    await prisma.$executeRawUnsafe(sql);
-  }
+  await prisma.$executeRawUnsafe(`
+    CREATE TABLE IF NOT EXISTS ai_employee_tasks (
+      id UUID PRIMARY KEY,
+      clinic_id TEXT NOT NULL,
+      user_id TEXT,
+      role VARCHAR(32) NOT NULL,
+      employee_title VARCHAR(120) NOT NULL,
+      title VARCHAR(240) NOT NULL,
+      description TEXT,
+      status VARCHAR(32) NOT NULL DEFAULT 'queued',
+      risk VARCHAR(16) NOT NULL DEFAULT 'low',
+      autonomy VARCHAR(32) NOT NULL,
+      source_event_id TEXT,
+      source_event_type VARCHAR(80),
+      action VARCHAR(120),
+      action_payload JSONB,
+      metadata JSONB NOT NULL DEFAULT '{}'::jsonb,
+      result JSONB,
+      error TEXT,
+      due_at TIMESTAMPTZ,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      completed_at TIMESTAMPTZ
+    )
+  `);
+  await prisma.$executeRawUnsafe(`
+    CREATE INDEX IF NOT EXISTS ai_employee_tasks_clinic_status_idx
+      ON ai_employee_tasks (clinic_id, status, created_at DESC)
+  `);
+  await prisma.$executeRawUnsafe(`
+    CREATE INDEX IF NOT EXISTS ai_employee_tasks_clinic_role_idx
+      ON ai_employee_tasks (clinic_id, role, created_at DESC)
+  `);
+  await prisma.$executeRawUnsafe(`
+    CREATE INDEX IF NOT EXISTS ai_employee_tasks_source_event_idx
+      ON ai_employee_tasks (source_event_id)
+  `);
+  await prisma.$executeRawUnsafe(`
+    CREATE UNIQUE INDEX IF NOT EXISTS ai_employee_tasks_event_action_role_uidx
+      ON ai_employee_tasks (source_event_id, action, role)
+      WHERE source_event_id IS NOT NULL AND action IS NOT NULL
+  `);
 }
 
 async function upsertProducts() {
