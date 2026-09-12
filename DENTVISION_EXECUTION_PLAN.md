@@ -18,62 +18,58 @@ This document is the persistent execution contract for DentVision. It is the sou
 ## Execution phases
 
 ### Phase 0 — Technical baseline / control plane
-**Status:** IN PROGRESS
+**Status:** COMPLETE
 
-The repository's existing `CURRENT_STATE.md` is authoritative for the current technical gate. It currently defines **Phase 0 — CI stabilization** and explicitly requires evidence before advancing.
+Evidence recorded in `CURRENT_STATE.md` and `DENTVISION_EXECUTION_LOG.md`.
 
 - [x] Create this master execution plan.
 - [x] Create persistent execution log.
 - [x] Confirm the existing project control plane: `ARCHITECTURE.md`, `CURRENT_STATE.md`, and `.dentvision/current-state.json`.
-- [ ] Stabilize CI and record evidence.
-- [ ] Restore/verify `dentvision-backend/src/modules/patients/patients.routes.ts` against Git history as required by `CURRENT_STATE.md`.
-- [ ] Verify backend runtime/infrastructure baseline.
-- [ ] Record the exact baseline commit and active implementation branch in the execution log.
-- [ ] Locate and read the canonical `DENTVISION_PARTNER_ECONOMICS.md` wherever it exists in repository history/branches. Do not replace it with a new competing economics document.
+- [x] Stabilize CI and record evidence.
+- [x] Restore/verify `dentvision-backend/src/modules/patients/patients.routes.ts` against Git history as required by `CURRENT_STATE.md`.
+- [x] Verify backend runtime/infrastructure baseline.
+- [x] Record the exact baseline commit and active implementation branch in the execution log.
+- [x] Locate and read the canonical `DENTVISION_PARTNER_ECONOMICS.md`; retain it as the sole economics policy source.
 
-**Parallel preparation allowed:** inspect/map the existing economics, order, payment, partner, finance, and payout code without merging business-rule changes until the technical gate has evidence.
+### Phase 1 — Economics Engine and Ledger vertical slice
+**Status:** IN PROGRESS
 
-### Phase 1 — Economics Engine (first business priority after the technical gate)
-**Status:** QUEUED
-- [ ] Convert canonical partner economics into deterministic executable rules.
-- [ ] Support diagnostic 3D centers, laboratory analyses, dental technical laboratories, and extensible future partner types.
-- [ ] Calculate operation price, platform commission, partner payout, DentVision gross revenue, attributable costs, net contribution, and margin-floor status.
-- [ ] Version every applied economics rule and retain the rule version on financial transactions.
-- [ ] Prevent transactions that violate configured loss/margin floors unless an authorized override is recorded.
-- [ ] Make calculations idempotent and auditable.
-- [ ] Add automated tests for normal, boundary, discount, refund/cancellation, and low-margin cases.
+- [x] Convert canonical partner economics into deterministic executable rules for diagnostic 3D, medical analysis and dental laboratory partners.
+- [x] Calculate operation price, platform commission, partner payout, attributable costs, contribution margin and margin status.
+- [x] Version applied economics rules and retain snapshots on economics transactions.
+- [x] Make economics calculations idempotent and auditable.
+- [x] Add automated tests for floors, caps, dental-lab volume tiers, loss detection and rule snapshots.
+- [x] Connect diagnostic settlement calculation to the canonical engine.
+- [ ] Replace legacy referral-time platform-fee writes with the canonical engine.
+- [ ] Complete accepted → paid → settled integration/concurrency tests.
+- [ ] Wire the engine into medical-analysis and dental-lab operational order flows.
+- [ ] Complete the ledger/reconciliation surface and connect Finance Hub to the durable economics transactions.
 
-### Phase 2 — Economics Ledger & Finance Hub
-**Status:** QUEUED
-- [ ] Persist every economics event in a ledger.
-- [ ] Reconcile orders/payments/refunds/payouts against the ledger.
-- [ ] Expose platform revenue, partner payout, cost, contribution, and margin by partner/type/branch/period.
-- [ ] Add discrepancy and low-margin alerts.
-- [ ] Preserve historical calculations when economics rules change.
-
-### Phase 3 — Partner transparency
+### Phase 2 — Partner transparency and Finance Hub
 **Status:** QUEUED
 - [ ] Partner dashboard shows applicable fee/commission, gross order value, deductions, net payout, payout status, and rule/version reference.
 - [ ] Diagnostic centers see branch economics and platform deductions.
 - [ ] Analysis laboratories see per-analysis economics.
 - [ ] Dental laboratories see per-order/service economics.
-- [ ] Add clear explanations without exposing sensitive internal platform cost data where inappropriate.
+- [ ] Expose platform revenue, partner payout, cost, contribution and margin by partner/type/branch/period.
+- [ ] Add discrepancy and low-margin alerts.
+- [ ] Preserve historical calculations when economics rules change.
 
-### Phase 4 — Automated operations
+### Phase 3 — Automated operations
 **Status:** QUEUED
 - [ ] Trigger economics automatically when an eligible order/payment is created or completed.
 - [ ] Automate payout readiness and notifications.
 - [ ] Handle refunds, cancellations, partial fulfillment, discounts, taxes/fees where supported by the domain model.
 - [ ] Add scheduled reconciliation and anomaly detection.
 
-### Phase 5 — Product-wide UX and navigation
+### Phase 4 — Product-wide UX and navigation
 **Status:** QUEUED
 - [ ] Verify the first-load AI workspace flow is functional, not decorative.
 - [ ] Remove duplicate navigation/content and establish one clear information architecture.
 - [ ] Ensure role-specific navigation and permissions are consistent.
 - [ ] Align the web/mobile experience with the canonical DentVision design system/Figma direction.
 
-### Phase 6 — Core clinical workflows
+### Phase 5 — Core clinical workflows
 **Status:** QUEUED
 - [ ] Patient/visit/medical record workflow.
 - [ ] Treatment plans and odontogram history.
@@ -82,7 +78,7 @@ The repository's existing `CURRENT_STATE.md` is authoritative for the current te
 - [ ] Notifications, reminders, waitlist, debts/prepayments/installments.
 - [ ] Audit trail and medical-data safety controls.
 
-### Phase 7 — Ecosystem modules
+### Phase 6 — Ecosystem modules
 **Status:** QUEUED
 - [ ] Marketplace/shop.
 - [ ] Academy.
@@ -91,7 +87,7 @@ The repository's existing `CURRENT_STATE.md` is authoritative for the current te
 - [ ] Partner onboarding.
 - [ ] AI domain modules and orchestration.
 
-### Phase 8 — Release hardening
+### Phase 7 — Release hardening
 **Status:** QUEUED
 - [ ] Backend/frontend integration checks.
 - [ ] Critical workflow E2E verification.
@@ -108,8 +104,8 @@ A phase is complete only when:
 - `DENTVISION_EXECUTION_LOG.md` records what changed, commit, verification, and next action.
 
 ## Current execution priority
-**Now:** close the existing technical Phase 0 gate without starting another endless audit.
+**Now:** complete the Economics Engine → Ledger vertical slice, starting with referral-time canonical commission writes and lifecycle/concurrency verification.
 
-**Next business priority:** `DENTVISION_PARTNER_ECONOMICS.md` → Economics Engine → Ledger → Partner transparency → Finance Hub automation.
+**Next:** Partner transparency → Finance Hub → automated operations → product-wide UX/clinical/ecosystem hardening.
 
 The work proceeds in vertical slices: implement → verify → commit → update the persistent log → move to the next slice.
