@@ -11,6 +11,7 @@ export interface DomainEventMap {
   'lecturer.level_changed': { lecturerId: string; level: string; from?: string; to?: string; userId?: string };
   'referral.created': { referralId: string; clinicId: string; centerId: string; doctorId: string; patientName: string; studyType: string; status: string; userId?: string };
   'referral.accepted': { referralId: string; clinicId: string; centerId: string; doctorId: string; patientName: string; studyType: string; status: string; userId?: string; cost?: any; platformFee?: any };
+  'referral.in_progress': { referralId: string; clinicId: string; centerId: string; doctorId: string; patientName: string; studyType: string; status: string; userId?: string; cost?: any; platformFee?: any };
   'referral.completed': { referralId: string; clinicId: string; centerId: string; doctorId: string; patientName: string; studyType: string; status: string; userId?: string; cost?: any; platformFee?: any };
   'diagnostics.result_ready': { referralId: string; resultId: string; clinicId: string; centerId: string; doctorId: string; patientName: string; studyType: string; userId?: string };
   'diagnostics.booking.created': { centerId: string; bookingId: string; studyId: string; patientName: string; date: string; time: string; status: string; userId?: string };
