@@ -88,7 +88,7 @@ describe('partner economics ledger concurrency', () => {
       }, state.db as any),
     ]);
 
-    expect(state.transactions).toHaveLength(1);
+    expect(state.transactions.size).toBe(1);
     expect(first.id).toBe(second.id);
     expect(first.meta).toMatchObject({
       kind: 'partner_economics',
