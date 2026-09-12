@@ -148,3 +148,20 @@ The next commit must implement one of these domain slices, not another broad aud
 2. Connect the Partner Dashboard UI to `/api/bi/partner-economics` using the existing BI authorization boundary.
 3. Complete medical-analysis operational settlement and reconciliation where no referral exists.
 4. Add real payment callback reconciliation before changing dental-lab recognition from delivery to paid/settled.
+
+## 2026-09-12 — Medical-analysis referral economics coverage expanded
+
+### Implemented
+- `8ea72a6e90d41465ea01bce9f31e650ca5eec38a` extends `referral-economics.reconciliation.test.ts` beyond diagnostics-only coverage.
+- Added explicit laboratory referral routing coverage: a referral with `labId` is reconciled through `MEDICAL_ANALYSIS` and a 6% canonical rule, producing ₸600 on a ₸10,000 gross referral in the test fixture.
+- Added a zero/invalid billable-cost guard regression so no economics rule lookup or fee mutation occurs when the referral has no positive gross value.
+- Preserved the lifecycle race guard: the asynchronous reconciliation update is conditional on `ACCEPTED` / `IN_PROGRESS`, so a stale event cannot mutate a referral that has already advanced or been cancelled.
+
+### Verification target
+- Fresh CI must run the new test together with backend lint/typecheck and the full E2E/release gate.
+- No separate medical-analysis order model was introduced: the existing `Referral` + `Laboratory` + `LaboratoryTest` domain is the authoritative operational flow.
+
+### Next implementation slice
+1. Wire Partner Dashboard / Finance Hub UI to the existing `/api/bi/partner-economics` contract without weakening `bi.platform` RBAC.
+2. Verify accepted → paid → settled concurrency and immutable rule-version behavior end-to-end.
+3. Add real payment callback reconciliation before changing dental-lab economics from delivery to paid/settled.
