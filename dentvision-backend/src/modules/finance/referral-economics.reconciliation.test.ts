@@ -41,9 +41,15 @@ vi.mock('./partner-economics.service.js', () => ({
 const { applyCanonicalReferralEconomics } = await import('./referral-economics.service.js');
 
 describe('canonical referral economics reconciliation', () => {
-  beforeEach(() => vi.clearAllMocks());
+  beforeEach(() => {
+    vi.clearAllMocks();
+    state.referral.centerId = 'center-1';
+    state.referral.labId = null;
+    state.referral.cost = 10_000;
+    state.updateMany.mockResolvedValue({ count: 1 });
+  });
 
-  it('reconciles accepted referrals to the canonical commission', async () => {
+  it('reconciles accepted diagnostic referrals to the canonical commission', async () => {
     const fee = await applyCanonicalReferralEconomics('ref-1');
 
     // Referral.cost is stored in whole tenge; platformFee is also stored in
@@ -55,10 +61,36 @@ describe('canonical referral economics reconciliation', () => {
     });
   });
 
+  it('routes laboratory referrals through the medical-analysis vertical', async () => {
+    state.referral.centerId = null;
+    state.referral.labId = 'lab-1';
+    state.rule.percentBps = 600;
+    state.calculatePartnerEconomics.mockImplementation(({ grossMinor }: any) => ({
+      commissionMinor: (grossMinor * 600n) / 10_000n,
+    }));
+
+    const fee = await applyCanonicalReferralEconomics('ref-1');
+
+    expect(fee?.toString()).toBe('600');
+    expect(state.getPartnerEconomicsRule).toHaveBeenCalledWith('MEDICAL_ANALYSIS');
+    expect(state.updateMany).toHaveBeenCalledWith({
+      where: { id: 'ref-1', status: { in: ['ACCEPTED', 'IN_PROGRESS'] } },
+      data: { platformFee: expect.anything() },
+    });
+  });
+
   it('does not mutate a referral after the async event becomes stale', async () => {
     state.updateMany.mockResolvedValueOnce({ count: 0 });
 
     await expect(applyCanonicalReferralEconomics('ref-1')).resolves.toBeNull();
     expect(state.updateMany).toHaveBeenCalledTimes(1);
+  });
+
+  it('ignores referrals without a positive billable cost', async () => {
+    state.referral.cost = 0;
+
+    await expect(applyCanonicalReferralEconomics('ref-1')).resolves.toBeNull();
+    expect(state.getPartnerEconomicsRule).not.toHaveBeenCalled();
+    expect(state.updateMany).not.toHaveBeenCalled();
   });
 });
