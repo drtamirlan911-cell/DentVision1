@@ -70,7 +70,18 @@ describe('paySettlement concurrency', () => {
     state.idempotencyCreate
       .mockResolvedValueOnce({ id: 'idem-1', key: 'settlement-payment:settlement-1' })
       .mockRejectedValueOnce(new Error('unique constraint'));
-    state.idempotencyFindUnique.mockImplementation(async () => ({ id: 'idem-1', key: 'settlement-payment:settlement-1', paymentId: 'payment-1', expiresAt: new Date(Date.now() + 60_000) }));
+
+    // Both concurrent requests must observe no reservation before attempting
+    // the unique insert. Only the request that loses that insert re-reads the
+    // now durable reservation and reuses its payment.
+    let reads = 0;
+    state.idempotencyFindUnique.mockImplementation(async () => {
+      reads += 1;
+      return reads <= 2 ? null : {
+        id: 'idem-1', key: 'settlement-payment:settlement-1',
+        paymentId: 'payment-1', expiresAt: new Date(Date.now() + 60_000),
+      };
+    });
 
     const [first, second] = await Promise.all([
       paySettlement('settlement-1'),
