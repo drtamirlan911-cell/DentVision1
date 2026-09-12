@@ -47,6 +47,19 @@ export function referralPartnerVertical(r: { centerId?: string | null; labId?: s
   return null;
 }
 
+async function canonicalReferralCommissionMinor(
+  r: { centerId?: string | null; labId?: string | null; cost?: unknown },
+  db: Prisma.TransactionClient | typeof prisma = prisma,
+): Promise<bigint> {
+  const owner = referralOwner(r);
+  const vertical = referralPartnerVertical(r);
+  if (!owner || !vertical || r.cost == null) return 0n;
+  const grossMinor = tengeToMinor(Number(r.cost) || 0);
+  if (grossMinor <= 0n) return 0n;
+  const rule = await getPartnerEconomicsRule(vertical, db);
+  return calculatePartnerEconomics({ vertical, partnerId: owner.ownerId, grossMinor }, rule).commissionMinor;
+}
+
 export interface GenerateOptions {
   periodStart: Date;
   periodEnd: Date;
@@ -66,22 +79,13 @@ export async function generateSettlements(opts: GenerateOptions) {
     if (!owner || !vertical) continue;
     // Never seed settlement arithmetic from Referral.platformFee. That field is
     // legacy mutable state; the canonical engine is the only source of truth.
-    let platformFee: Prisma.Decimal | null = null;
-    if (r.cost != null) {
-      const grossMinor = tengeToMinor(Number(r.cost) || 0);
-      if (grossMinor > 0n) {
-        const rule = await getPartnerEconomicsRule(vertical);
-        const breakdown = calculatePartnerEconomics({ vertical, partnerId: owner.ownerId, grossMinor }, rule);
-        platformFee = new Prisma.Decimal(breakdown.commissionMinor.toString()).div(100);
-      }
-    }
+    const commissionMinor = await canonicalReferralCommissionMinor(r);
+    if (commissionMinor <= 0n) continue;
     const key = `${owner.ownerType}:${owner.ownerId}`;
     let g = groups.get(key);
     if (!g) { g = { ownerType: owner.ownerType, ownerId: owner.ownerId, ids: [], refs: [] }; groups.set(key, g); }
-    if (platformFee != null) {
-      g.ids.push(r.id);
-      g.refs.push({ platformFee });
-    }
+    g.ids.push(r.id);
+    g.refs.push({ platformFee: new Prisma.Decimal(commissionMinor.toString()).div(100) });
   }
   const dueDate = opts.dueDays ? new Date(Date.now() + opts.dueDays * 86_400_000) : null;
   const created: Array<Awaited<ReturnType<typeof prisma.settlement.create>>> = [];
@@ -91,9 +95,21 @@ export async function generateSettlements(opts: GenerateOptions) {
     const settlement = await prisma.$transaction(async (tx) => {
       const s = await tx.settlement.create({ data: { ownerType: g.ownerType, ownerId: g.ownerId, periodStart, periodEnd, referralCount: g.ids.length, commissionMinor, status: 'open', dueDate } });
       const linked = await tx.referral.updateMany({ where: { id: { in: g.ids }, settlementId: null }, data: { settlementId: s.id } });
+      let currentSettlement = s;
       if (linked.count !== g.ids.length) {
-        const actual = await tx.referral.findMany({ where: { settlementId: s.id }, select: { platformFee: true } });
-        await tx.settlement.update({ where: { id: s.id }, data: { referralCount: actual.length, commissionMinor: sumPlatformFeeMinor(actual) } });
+        // Another settlement may have claimed some referrals between discovery
+        // and this transaction. Rebuild the amount from the canonical engine,
+        // never from the mutable legacy platformFee field.
+        const actual = await tx.referral.findMany({
+          where: { settlementId: s.id },
+          select: { id: true, centerId: true, labId: true, cost: true },
+        });
+        let actualCommissionMinor = 0n;
+        for (const r of actual) actualCommissionMinor += await canonicalReferralCommissionMinor(r, tx);
+        currentSettlement = await tx.settlement.update({
+          where: { id: s.id },
+          data: { referralCount: actual.length, commissionMinor: actualCommissionMinor },
+        });
       }
       const settledRefs = await tx.referral.findMany({ where: { settlementId: s.id }, select: { id: true, centerId: true, labId: true, cost: true } });
       for (const r of settledRefs) {
@@ -101,7 +117,7 @@ export async function generateSettlements(opts: GenerateOptions) {
         if (!owner || !vertical || r.cost == null) continue;
         await recordPartnerEconomics({ vertical, partnerId: owner.ownerId, grossMinor: tengeToMinor(Number(r.cost) || 0), operationId: r.id }, tx);
       }
-      return s;
+      return currentSettlement;
     });
     if (settlement.referralCount === 0) { await prisma.settlement.delete({ where: { id: settlement.id } }).catch(() => undefined); continue; }
     created.push(settlement);
