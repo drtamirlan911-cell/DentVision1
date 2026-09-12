@@ -46,7 +46,9 @@ describe('canonical referral economics reconciliation', () => {
   it('reconciles accepted referrals to the canonical commission', async () => {
     const fee = await applyCanonicalReferralEconomics('ref-1');
 
-    expect(fee?.toString()).toBe('7000');
+    // Referral.cost is stored in whole tenge; platformFee is also stored in
+    // whole tenge. The canonical 7% rule therefore yields ₸700 on ₸10,000.
+    expect(fee?.toString()).toBe('700');
     expect(state.updateMany).toHaveBeenCalledWith({
       where: { id: 'ref-1', status: { in: ['ACCEPTED', 'IN_PROGRESS'] } },
       data: { platformFee: expect.anything() },
