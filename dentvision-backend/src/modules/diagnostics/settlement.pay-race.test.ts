@@ -96,4 +96,19 @@ describe('paySettlement concurrency', () => {
     expect(state.idempotencyCreate).toHaveBeenCalledTimes(1);
     expect(state.createPayment).toHaveBeenCalledTimes(1);
   });
+
+  it('reuses an expired reservation when it already contains a durable payment', async () => {
+    state.idempotencyFindUnique.mockResolvedValue({
+      id: 'expired-paid-1', key: 'settlement-payment:settlement-1', paymentId: 'payment-1',
+      expiresAt: new Date(Date.now() - 60_000),
+    });
+    state.paymentFindUnique.mockResolvedValue(payment);
+
+    const result = await paySettlement('settlement-1');
+
+    expect(result.payment.id).toBe('payment-1');
+    expect(state.createPayment).not.toHaveBeenCalled();
+    expect(state.idempotencyDeleteMany).not.toHaveBeenCalled();
+    expect(state.idempotencyCreate).not.toHaveBeenCalled();
+  });
 });
