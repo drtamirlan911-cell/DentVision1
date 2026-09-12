@@ -59,5 +59,6 @@ describe('Prisma referral economics guard', () => {
       select: { cost: true, centerId: true, labId: true },
     });
     expect(next).toHaveBeenCalledWith(params);
+    expect(params.args.data.platformFee).toBe(700);
   });
 });
