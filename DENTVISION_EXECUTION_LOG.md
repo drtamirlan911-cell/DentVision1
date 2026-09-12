@@ -22,7 +22,7 @@ This log is the durable handoff between work sessions/agents. It records complet
 - `20260809_add_notification_preferences`: missing `users` for FK. Fixed in `d6aa6e64123de5171dacd1e8c6d2ff82a77f2e51` with guarded FK plus post-init finalizer.
 
 ### Fifth blocker: Google sign-in
-- CI `34638148706` on `d6aa6e64123de5171dacd1e8c6d2ff82a77f2e51` passed lint/typecheck/build-related jobs, while E2E failed at `20260810_google_sign_in` with PostgreSQL `42P01: relation \"users\" does not exist`.
+- CI `34638148706` on `d6aa6e64123de5171dacd1e8c6d2ff82a77f2e51` passed lint/typecheck/build-related jobs, while E2E failed at `20260810_google_sign_in` with PostgreSQL `42P01: relation "users" does not exist`.
 - Root cause: the original migration executed `ALTER TABLE users` before legacy `init_full_schema` creates `users`. A post-init migration alone cannot fix a migration that fails before reaching it.
 - Fixed on `main`: `29d66a41a09b2cafe53f862eca80d1984cb4caba` guards `20260810_google_sign_in`; `8f17f3a86849315b3e173b4eec55d761bcefd33d` adds `20260912_finalize_google_sign_in` to apply the fields/index after the base schema exists.
 
@@ -134,8 +134,21 @@ This log is the durable handoff between work sessions/agents. It records complet
 - Two simultaneous canonical referral reconciliations now model the real conditional-update race: exactly one lifecycle winner receives the canonical fee and the losing stale event receives `null`.
 - The regression asserts both calls remain guarded by `status IN (ACCEPTED, IN_PROGRESS)` and therefore cannot overwrite a referral after its lifecycle has advanced.
 
+## 2026-09-12 — CI regression repair and continued ledger hardening
+
+### Implemented
+- `0eaa498e1d4ee3c9a8d68fda137e33a018c903b9` removed the referral economics fallback behavior so legacy referral-time fees cannot become the authoritative settlement source.
+- Fresh CI for that commit found two test-state/race-model defects rather than TypeScript, build, backend-lint or E2E failures: 172 test files passed and only two economics tests failed.
+- `054042404d1f516f64c91a59161243376cf529b9` resets the mocked canonical diagnostic rule/calculator state between referral reconciliation cases, preventing the medical-analysis 6% test from leaking into the later concurrency test.
+- `1c665c6b10260c136d818c75126a06789d845b8c` corrects the settlement payment concurrency fixture so both requests first observe no reservation, the unique insert race is what selects the winner, and the loser re-reads the durable payment. This directly models the production idempotency boundary rather than weakening the assertion.
+
+### Verification
+- The failed run `34696332372` was analyzed to the exact two failing tests; all other CI jobs were successful, including frontend lint, backend lint, build/typecheck, command-center audit and full Playwright E2E.
+- New commits `0540424...` and `1c665c6...` are now on `main` and trigger fresh CI verification.
+
 ### Next implementation slice
-1. Complete the Partner/Finance UI integration against `/api/bi/partner-economics` without weakening `bi.platform` authorization.
-2. Add/verify end-to-end accepted → paid → settled rule-version immutability and settlement ledger idempotency.
-3. Identify the real medical-analysis payment/settlement callback in the existing `Laboratory`/`LaboratoryTest` domain; do not create a duplicate order model.
-4. Add real payment callback reconciliation before moving dental-lab economics from `delivered` to `paid/settled`.
+1. Confirm fresh CI is green after the two regression fixes.
+2. Complete the Partner/Finance UI integration against `/api/bi/partner-economics` without weakening `bi.platform` authorization.
+3. Add/verify end-to-end accepted → paid → settled rule-version immutability and settlement ledger idempotency.
+4. Identify and wire the real medical-analysis payment/settlement lifecycle using the existing `Referral + Laboratory + LaboratoryTest + Payment` domain; do not create a duplicate order model.
+5. Keep dental-lab economics at the existing `delivered` recognition boundary until a real paid/settled callback exists.
