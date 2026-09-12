@@ -93,4 +93,26 @@ describe('canonical referral economics reconciliation', () => {
     expect(state.getPartnerEconomicsRule).not.toHaveBeenCalled();
     expect(state.updateMany).not.toHaveBeenCalled();
   });
+
+  it('allows only the lifecycle winner to mutate when concurrent events race', async () => {
+    state.updateMany
+      .mockResolvedValueOnce({ count: 1 })
+      .mockResolvedValueOnce({ count: 0 });
+
+    const [first, second] = await Promise.all([
+      applyCanonicalReferralEconomics('ref-1'),
+      applyCanonicalReferralEconomics('ref-1'),
+    ]);
+
+    expect([first?.toString() ?? null, second?.toString() ?? null].sort()).toEqual(['700', null]);
+    expect(state.updateMany).toHaveBeenCalledTimes(2);
+    expect(state.updateMany).toHaveBeenNthCalledWith(1, {
+      where: { id: 'ref-1', status: { in: ['ACCEPTED', 'IN_PROGRESS'] } },
+      data: { platformFee: expect.anything() },
+    });
+    expect(state.updateMany).toHaveBeenNthCalledWith(2, {
+      where: { id: 'ref-1', status: { in: ['ACCEPTED', 'IN_PROGRESS'] } },
+      data: { platformFee: expect.anything() },
+    });
+  });
 });
