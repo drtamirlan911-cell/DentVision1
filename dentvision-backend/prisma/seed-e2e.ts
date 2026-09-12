@@ -2,6 +2,8 @@
 import { PrismaClient, type UserRole } from '@prisma/client';
 import bcrypt from 'bcryptjs';
 import { randomUUID } from 'node:crypto';
+import { readFile } from 'node:fs/promises';
+import { resolve } from 'node:path';
 
 const prisma = new PrismaClient();
 export const E2E_PASSWORD = 'Test1234!';
@@ -62,6 +64,22 @@ async function ensureE2ESupplier() {
   });
 }
 
+/**
+ * E2E uses `prisma db push`, which intentionally does not execute SQL-only
+ * migrations. Bootstrap the same raw migrations that the production migration
+ * chain owns so event-driven AI Employee tests run against the real schema.
+ */
+async function ensureAiEmployeeSchema() {
+  const migrationFiles = [
+    '20260910_add_ai_employee_tasks/migration.sql',
+    '20260910_ai_employee_task_idempotency/migration.sql',
+  ];
+  for (const relativePath of migrationFiles) {
+    const sql = await readFile(resolve(process.cwd(), 'prisma', 'migrations', relativePath), 'utf8');
+    await prisma.$executeRawUnsafe(sql);
+  }
+}
+
 async function upsertProducts() {
   const supplier = await ensureE2ESupplier();
 
@@ -105,6 +123,7 @@ async function ensureSubscription(clinicId: string) {
 }
 
 export async function seedE2E() {
+  await ensureAiEmployeeSchema();
   const password = await bcrypt.hash(E2E_PASSWORD, 10);
   const clinicA = await upsertClinic(E2E_CLINIC_A);
   const clinicB = await upsertClinic(E2E_CLINIC_B);
