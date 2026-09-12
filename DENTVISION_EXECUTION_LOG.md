@@ -22,7 +22,7 @@ This log is the durable handoff between work sessions/agents. It records complet
 - `20260809_add_notification_preferences`: missing `users` for FK. Fixed in `d6aa6e64123de5171dacd1e8c6d2ff82a77f2e51` with guarded FK plus post-init finalizer.
 
 ### Fifth blocker: Google sign-in
-- CI `34638148706` on `d6aa6e64123de5171dacd1e8c6d2ff82a77f2e51` passed lint/typecheck/build-related jobs, while E2E failed at `20260810_google_sign_in` with PostgreSQL `42P01: relation "users" does not exist`.
+- CI `34638148706` on `d6aa6e64123de5171dacd1e8c6d2ff82a77f2e51` passed lint/typecheck/build-related jobs, while E2E failed at `20260810_google_sign_in` with PostgreSQL `42P01: relation \"users\" does not exist`.
 - Root cause: the original migration executed `ALTER TABLE users` before legacy `init_full_schema` creates `users`. A post-init migration alone cannot fix a migration that fails before reaching it.
 - Fixed on `main`: `29d66a41a09b2cafe53f862eca80d1984cb4caba` guards `20260810_google_sign_in`; `8f17f3a86849315b3e173b4eec55d761bcefd33d` adds `20260912_finalize_google_sign_in` to apply the fields/index after the base schema exists.
 
@@ -152,3 +152,22 @@ This log is the durable handoff between work sessions/agents. It records complet
 3. Add/verify end-to-end accepted → paid → settled rule-version immutability and settlement ledger idempotency.
 4. Identify and wire the real medical-analysis payment/settlement lifecycle using the existing `Referral + Laboratory + LaboratoryTest + Payment` domain; do not create a duplicate order model.
 5. Keep dental-lab economics at the existing `delivered` recognition boundary until a real paid/settled callback exists.
+
+## 2026-09-12 — Finance Hub partner economics integration
+
+### Implemented
+- `17bf22f040ce36a7e9f61f50d4051e1fd63f2052` integrates `PartnerEconomicsPanel` into the existing `BIWorkspace` Platform tab.
+- The panel consumes the canonical `GET /api/bi/partner-economics` contract using the existing authenticated API token and does not duplicate economics calculations in the frontend.
+- Visibility remains gated by the existing `bi.platform` / superadmin boundary.
+- The panel exposes total operations, GMV, commission, contribution margin, take-rate, per-vertical economics, margin status, and loss/low-margin counts with refresh/error/loading states.
+- No duplicate BI route was retained; the temporary one-shot integration workflow was removed.
+
+### Verification
+- CI `34702537605` completed successfully for the integration commit: `lint-test`, `backend-lint`, `frontend-lint`, and full Playwright `e2e` all passed.
+- E2E synchronized the isolated Prisma database, bootstrapped the raw AI Employee SQL migrations, started the backend, and completed the suite successfully.
+
+### Next implementation slice
+1. Complete accepted → paid → settled rule-version immutability and settlement ledger idempotency with real lifecycle/concurrency coverage.
+2. Trace the existing Kaspi/Payment callback to the authoritative `Referral + Laboratory + LaboratoryTest` lifecycle and wire medical-analysis settlement only through that existing domain path; do not invent a second order/payment model.
+3. Keep dental-lab economics at `delivered` until a real paid/settled callback exists.
+4. Then extend Partner/Finance transparency to partner-level payout views and discrepancy/low-margin alerts.
