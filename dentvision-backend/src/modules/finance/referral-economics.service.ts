@@ -28,6 +28,10 @@ export function calculateReferralCommissionMinor(
  * This intentionally updates only the derived fee field; the durable economics
  * transaction snapshot is created at settlement time, when the referral is
  * actually paid. Thus a later rule change cannot rewrite historical economics.
+ *
+ * The status guard is deliberate: the accepted/in-progress event is
+ * asynchronous. If a referral reaches COMPLETED/CANCELLED before that event
+ * is processed, the stale event must not mutate a later lifecycle state.
  */
 export async function applyCanonicalReferralEconomics(referralId: string): Promise<Prisma.Decimal | null> {
   const referral = await prisma.referral.findUnique({
@@ -46,9 +50,12 @@ export async function applyCanonicalReferralEconomics(referralId: string): Promi
   const commissionMinor = calculateReferralCommissionMinor(vertical, grossMinor, rule);
   const platformFee = new Prisma.Decimal(commissionMinor.toString()).div(100);
 
-  await prisma.referral.update({
-    where: { id: referral.id },
+  const updated = await prisma.referral.updateMany({
+    where: {
+      id: referral.id,
+      status: { in: ['ACCEPTED', 'IN_PROGRESS'] },
+    },
     data: { platformFee },
   });
-  return platformFee;
+  return updated.count === 1 ? platformFee : null;
 }
