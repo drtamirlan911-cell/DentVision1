@@ -166,8 +166,18 @@ This log is the durable handoff between work sessions/agents. It records complet
 - CI `34702537605` completed successfully for the integration commit: `lint-test`, `backend-lint`, `frontend-lint`, and full Playwright `e2e` all passed.
 - E2E synchronized the isolated Prisma database, bootstrapped the raw AI Employee SQL migrations, started the backend, and completed the suite successfully.
 
+### Current lifecycle finding
+- The existing payment infrastructure has authoritative Kaspi platform and clinic callbacks. Both callbacks atomically claim `Payment.status` and run `settlePaidPayment()` in the same transaction, so duplicate paid callbacks cannot double-settle a payment.
+- The existing settlement payment path maps `Payment.refType === 'settlement'` to `markSettlementPaid()`, which is conditionally idempotent.
+- The current callback path does **not** contain a `Referral` payment association: `settlePaidPayment()` has handlers for sale, subscription, order, enrollment, academy event and settlement, but no referral/diagnostic/medical-analysis branch. Therefore no real medical-analysis `Payment → Referral.paid` callback can be wired without first identifying an existing payment creation path that uses a referral refType. No duplicate payment/order model was introduced.
+- Dental-lab economics therefore remains correctly bounded at `LabOrder.status === delivered` until the real clinic→lab paid/settled callback exists.
+
+### Verification
+- Workflow run `34702537605`: `lint-test` SUCCESS, `backend-lint` SUCCESS, `frontend-lint` SUCCESS, `e2e` SUCCESS.
+- `payments.routes.ts` confirms both platform and clinic Kaspi callbacks use the same atomic payment claim/settlement transaction; `settlement.payment.test.ts` confirms settlement payment callback idempotency under concurrent redelivery.
+
 ### Next implementation slice
-1. Complete accepted → paid → settled rule-version immutability and settlement ledger idempotency with real lifecycle/concurrency coverage.
-2. Trace the existing Kaspi/Payment callback to the authoritative `Referral + Laboratory + LaboratoryTest` lifecycle and wire medical-analysis settlement only through that existing domain path; do not invent a second order/payment model.
+1. Add focused lifecycle coverage proving a paid referral cannot be re-priced by a later rule change and that the settlement ledger remains idempotent under concurrent generation.
+2. Trace payment creation for any existing `refType` that already represents diagnostic/medical-analysis referrals; if none exists, keep the lifecycle boundary explicit rather than inventing a new model.
 3. Keep dental-lab economics at `delivered` until a real paid/settled callback exists.
 4. Then extend Partner/Finance transparency to partner-level payout views and discrepancy/low-margin alerts.
