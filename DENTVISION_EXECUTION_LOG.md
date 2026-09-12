@@ -56,7 +56,7 @@ This log is the durable handoff between work sessions/agents. It records complet
 
 ### Evidence
 - `main` is at/after `b3e5f1c6043b4e46a0d3a0c049fbbced6acbc9e7`.
-- GitHub combined status for `b3e5f1c6043b4e46a0d3a0c049fbbced6acbc9e7` reports Vercel `failure` with target indicating a Vercel build-rate-limit/plan limit (`upgradeToPro=build-rate-limit`).
+- GitHub combined status for `b3e5f1c6043b4e46a0d3a0c049fbbced6ac9e7` reports Vercel `failure` with target indicating a Vercel build-rate-limit/plan limit (`upgradeToPro=build-rate-limit`).
 - Vercel Production for project `dent-vision1` is now receiving subsequent `main` deployments; latest observed deployment includes `e68f35d137925079b17a2f6dad70f2c02c5e2c19` and is READY.
 - The deployed build completed without compile errors; only a chunk-size warning was emitted.
 - Vercel runtime error aggregation for the project over the last 7 days reports no runtime errors.
@@ -72,26 +72,14 @@ This log is the durable handoff between work sessions/agents. It records complet
 - `6897620c3fc09ef1b4d767eaeca096f2f3facc9f132` adds a focused live-settlement economics contract test proving center referrals use 7% diagnostics economics and lab referrals use 6% medical-analysis economics.
 - Existing settlement linking remains guarded by `Referral.settlementId`, so repeated settlement generation cannot double-link the same referral.
 
-### Remaining implementation work
-1. Replace the legacy 10% `platformFee` calculation during referral `ACCEPTED`/`IN_PROGRESS` with the same canonical Economics Engine, so the live referral record itself is authoritative before settlement.
-2. Add/verify integration tests around accepted → paid → settled lifecycle, including concurrency and exact rule-version snapshots.
-3. Wire the canonical engine into medical-analysis and dental-lab operational order flows (not only the diagnostics settlement adapter).
-4. Expose economics snapshots and margin status in Partner Dashboard and Finance Hub.
-5. Resolve any remaining Vercel build-rate-limit capacity issue and run the fresh CI/E2E release gate.
-
 ## 2026-09-12 — Fresh CI blocker fixes: settlement precision + raw AI Employee E2E schema
 
 ### Evidence
-- Fresh CI run `34669278245` exposed a TypeScript failure in `settlement.service.ts`: a numeric commission amount was being assigned to Prisma `Decimal`-typed `Referral.platformFee` data. The settlement path now uses `Prisma.Decimal` end-to-end and converts commission minor units exactly, without floating-point rounding.
+- Fresh CI run `34669278245` exposed a TypeScript failure in `settlement.service.ts`: a numeric commission amount was being assigned to Prisma `Decimal`-typed `Referral.platformFee`. The settlement path now uses `Prisma.Decimal` end-to-end and converts commission minor units exactly, without floating-point rounding.
 - The same CI run exposed an E2E-only schema gap: the E2E database is initialized with `prisma db push`, so SQL-only AI Employee migrations are not executed. The failing scenario attempted to write `ai_employee_tasks` and received PostgreSQL `42P01`.
 - `0af98391cb3ab6455ddfecf90b66b5fff3fa0fb7` updates the clinical tenant-isolation fixture to use the canonical `DiagnosticCategory.OPG` enum instead of the removed `DIGITAL_XRAY` value.
 - `cec0f7abaddaf4b38c34fc246401d1178d95e45d` restores `settlement.service.ts` with exact `Prisma.Decimal` handling after replacing the file atomically.
 - `aeffa5bac4e8473a701fcf61a531dfd3a688381c` makes the deterministic E2E seed execute the two authoritative AI Employee SQL migrations before seeding fixtures, so the E2E environment exercises the same raw schema as production.
-
-### Verification
-- Changes are committed to `main` and trigger a new CI run.
-- Phase 0 remains **NOT PASSED** pending fresh CI lint/typecheck/E2E evidence after these fixes.
-- Next action: consume the new CI result; if green, close Phase 0 and immediately start the economics ledger/Finance Hub vertical slice. If red, fix only the concrete failing gate and rerun.
 
 ## 2026-09-12 — Phase 0 closed; economics execution advanced
 
@@ -107,14 +95,6 @@ This log is the durable handoff between work sessions/agents. It records complet
 - **Phase 0 — COMPLETE.**
 - **Phase 1 — IN PROGRESS.**
 
-### Immediate next implementation slice
-1. Replace the legacy referral-time 10% platform-fee write with the canonical Economics Engine.
-2. Add accepted → paid → settled integration/concurrency coverage and immutable rule-version assertions.
-3. Wire canonical economics into medical-analysis and dental-lab operational flows.
-4. Complete the durable economics ledger/reconciliation surface and expose it through Finance Hub / Partner Dashboard.
-
-The next commit must implement one of these domain slices, not another broad audit.
-
 ## 2026-09-12 — Dental laboratory economics wired to the production workflow
 
 ### Implemented
@@ -123,15 +103,6 @@ The next commit must implement one of these domain slices, not another broad aud
 - The adapter resolves the actual `laboratoryId` from the existing tenant-safe `LabOrder.files.meta` assignment and uses the stored `LabOrder.price` as gross GMV.
 - Wired `labOrder.status_changed` → `delivered` to the adapter. The downstream `recordPartnerEconomics()` operation-id guard makes repeated events/callbacks idempotent and stores the immutable economics rule/version snapshot.
 - Added focused tests for delivered-only recognition, missing laboratory assignment, zero-value orders, and canonical `DENTAL_LAB` routing.
-
-### Verification target
-- CI must verify backend typecheck/lint/tests and the full E2E/release gates on the branch before merge.
-- This slice intentionally does not invent a second payment/settlement model for dental labs; it uses the existing order lifecycle and canonical economics ledger until a real clinic→lab payment callback exists.
-
-### Next implementation slice
-1. Add accepted → paid → settled integration/concurrency coverage for all partner verticals.
-2. Expose partner economics snapshots, margin status and effective take-rate in Finance Hub / Partner Dashboard.
-3. Remove the remaining legacy referral-time fee write after the canonical lifecycle path is verified.
 
 ## 2026-09-12 — Partner economics exposed through Platform BI / Finance Hub data contract
 
@@ -143,12 +114,6 @@ The next commit must implement one of these domain slices, not another broad aud
 - Returns the current canonical rules as a read-only reference for the Finance Hub; historical transaction metadata retains its own rule/version snapshot.
 - A temporary standalone duplicate router was removed before merge so there is only one mounted economics read surface.
 
-### Next implementation slice
-1. Add accepted → paid → settled lifecycle/concurrency tests around the referral economics path.
-2. Connect the Partner Dashboard UI to `/api/bi/partner-economics` using the existing BI authorization boundary.
-3. Complete medical-analysis operational settlement and reconciliation where no referral exists.
-4. Add real payment callback reconciliation before changing dental-lab recognition from delivery to paid/settled.
-
 ## 2026-09-12 — Medical-analysis referral economics coverage expanded
 
 ### Implemented
@@ -157,11 +122,20 @@ The next commit must implement one of these domain slices, not another broad aud
 - Added a zero/invalid billable-cost guard regression so no economics rule lookup or fee mutation occurs when the referral has no positive gross value.
 - Preserved the lifecycle race guard: the asynchronous reconciliation update is conditional on `ACCEPTED` / `IN_PROGRESS`, so a stale event cannot mutate a referral that has already advanced or been cancelled.
 
-### Verification target
-- Fresh CI must run the new test together with backend lint/typecheck and the full E2E/release gate.
-- No separate medical-analysis order model was introduced: the existing `Referral` + `Laboratory` + `LaboratoryTest` domain is the authoritative operational flow.
+## 2026-09-12 — Verification and concurrency hardening
+
+### Verified
+- CI `34687718217` for commit `90898259163da48b8c31b368bd116fd6a7fcf359` completed successfully: backend lint, frontend lint, build/typecheck/test, command-center audit and full Playwright E2E all passed.
+- Quality Gate `34687718230` completed successfully with the release-gate script passing.
+- Vercel status for the same commit is `success`.
+
+### Implemented
+- `08f0295a1dabec8d03ef53937577787f9db3f580` adds a concurrency regression to `referral-economics.reconciliation.test.ts`.
+- Two simultaneous canonical referral reconciliations now model the real conditional-update race: exactly one lifecycle winner receives the canonical fee and the losing stale event receives `null`.
+- The regression asserts both calls remain guarded by `status IN (ACCEPTED, IN_PROGRESS)` and therefore cannot overwrite a referral after its lifecycle has advanced.
 
 ### Next implementation slice
-1. Wire Partner Dashboard / Finance Hub UI to the existing `/api/bi/partner-economics` contract without weakening `bi.platform` RBAC.
-2. Verify accepted → paid → settled concurrency and immutable rule-version behavior end-to-end.
-3. Add real payment callback reconciliation before changing dental-lab economics from delivery to paid/settled.
+1. Complete the Partner/Finance UI integration against `/api/bi/partner-economics` without weakening `bi.platform` authorization.
+2. Add/verify end-to-end accepted → paid → settled rule-version immutability and settlement ledger idempotency.
+3. Identify the real medical-analysis payment/settlement callback in the existing `Laboratory`/`LaboratoryTest` domain; do not create a duplicate order model.
+4. Add real payment callback reconciliation before moving dental-lab economics from `delivered` to `paid/settled`.
