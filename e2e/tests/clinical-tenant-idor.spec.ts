@@ -39,7 +39,7 @@ test.describe('Clinical tenant isolation / IDOR', () => {
         patientName: `${patientA.firstName} ${patientA.lastName}`,
         doctorId: doctorA.id,
         centerId: center.id,
-        category: 'DIGITAL_XRAY',
+        category: 'OPG',
         studyType: 'OPG',
         status: 'DRAFT',
       },
@@ -89,7 +89,7 @@ test.describe('Clinical tenant isolation / IDOR', () => {
     const center = await createTestDiagnosticCenter({ name: `REF Center ${Date.now()}` });
     const patientA = await createTestPatient(clinicA.id);
     const tokenA = await login(request, doctorA.email);
-    const res = await request.post('/api/diagnostics/referrals', { headers: auth(tokenA), data: { clinicId: clinicB.id, doctorId: doctorA.id, patientId: patientA.id, patientName: `${patientA.firstName} ${patientA.lastName}`, category: 'DIGITAL_XRAY', studyType: 'OPG', centerId: center.id } });
+    const res = await request.post('/api/diagnostics/referrals', { headers: auth(tokenA), data: { clinicId: clinicB.id, doctorId: doctorA.id, patientId: patientA.id, patientName: `${patientA.firstName} ${patientA.lastName}`, category: 'OPG', studyType: 'OPG', centerId: center.id } });
     expect([400, 403, 404]).toContain(res.status());
   });
 });
