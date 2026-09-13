@@ -8,21 +8,21 @@
 | TENANT ISOLATION | PENDING | |
 | BRANCH ISOLATION | PENDING | Branch scope must be verified against the real branch relation; no speculative schema added. |
 | IDOR | PENDING | |
-| PATIENT | PENDING | Active PATIENT context is now isolated from professional Academy/Marketplace audiences; full patient journey verification remains. |
+| PATIENT | PENDING | Active PATIENT context is isolated from professional Academy/Marketplace audiences; full patient journey verification remains. |
 | APPOINTMENT | PENDING | |
 | DIAGNOSIS | PENDING | |
 | TREATMENT PLAN | PENDING | |
 | FILES | PENDING | |
 | DIAGNOSTIC | PENDING | |
 | AI | PENDING | AI must consume active-context policy and never aggregate patient + professional contexts. |
-| MARKETPLACE | PENDING | Server-side audience policy added; runtime catalog/product integration verification remains. |
+| MARKETPLACE | PENDING | Real `/api/shop/products` and `/api/shop/products/:id` responses are filtered server-side; CI/E2E verification pending. |
 | PAYMENTS | PENDING | |
-| ACADEMY | PENDING | Server-side audience policy added; runtime course/catalog integration verification remains. |
-| CONTENT ISOLATION | PENDING | Patient context cannot inherit professional/doctor content; negative unit tests added. |
+| ACADEMY | PENDING | Real `/api/school/courses` and `/api/school/courses/:id` responses are filtered server-side; CI/E2E verification pending. |
+| CONTENT ISOLATION | PENDING | Patient context cannot inherit professional/doctor content; mixed audiences are fail-closed; real API E2E coverage added. |
 | SECURITY | PENDING | |
 | DATABASE | PENDING | |
 | API | PENDING | |
-| E2E | PENDING | |
+| E2E | PENDING | New context-bound Academy/Marketplace API journey added; CI run pending. |
 | BUILD | PENDING | |
 | TYPECHECK | PENDING | |
 | LINT | PENDING | |
