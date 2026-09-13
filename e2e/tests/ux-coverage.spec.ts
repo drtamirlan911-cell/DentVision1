@@ -26,7 +26,12 @@ async function login(page: Page) {
   await page.locator('input[autocomplete="username"]').fill(E2E_USER);
   await page.locator('input[autocomplete="current-password"]').fill(E2E_PASSWORD);
   await page.getByRole('button', { name: 'Войти в DentVision' }).click();
-  await page.waitForURL(/\/ai(?:$|[?#])/, { timeout: 20000 });
+  // The login page may resolve the authenticated target asynchronously. Assert that
+  // authentication actually leaves /login, then normalize the workspace to /ai.
+  await page.waitForURL((url) => url.pathname !== '/login', { timeout: 20000 });
+  if (new URL(page.url()).pathname !== '/ai') {
+    await page.goto(`${BASE_URL}/ai`, { waitUntil: 'domcontentloaded', timeout: 20000 });
+  }
 }
 
 function collectRuntimeErrors(page: Page) {
