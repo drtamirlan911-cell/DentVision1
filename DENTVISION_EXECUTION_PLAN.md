@@ -14,6 +14,8 @@ This document is the persistent execution contract for DentVision. It is the sou
 8. Historical financial records must remain reproducible even after rules change.
 9. AI may explain, recommend, and detect anomalies, but canonical financial/economic rules require deterministic domain logic and explicit governance.
 10. A release is complete only when the relevant implementation, tests, documentation, and verification evidence are present in the repository.
+11. Browser automation must use isolated test data and must never perform real production payments, messages, or destructive production actions.
+12. UX tests must verify behavior and user comprehension signals, not merely that a route renders.
 
 ## Execution phases
 
@@ -40,14 +42,22 @@ Evidence recorded in `CURRENT_STATE.md` and `DENTVISION_EXECUTION_LOG.md`.
 - [x] Make economics calculations idempotent and auditable.
 - [x] Add automated tests for floors, caps, dental-lab volume tiers, loss detection and rule snapshots.
 - [x] Connect diagnostic settlement calculation to the canonical engine.
-- [ ] Replace legacy referral-time platform-fee writes with the canonical engine.
-- [ ] Complete accepted → paid → settled integration/concurrency tests.
-- [ ] Wire the engine into medical-analysis and dental-lab operational order flows.
-- [ ] Complete the ledger/reconciliation surface and connect Finance Hub to the durable economics transactions.
+- [x] Remove the legacy referral-time economics fallback so settlement cannot use stale `Referral.platformFee` as its authoritative source.
+- [x] Add referral lifecycle/concurrency protection for canonical economics reconciliation.
+- [x] Connect Partner Economics data to the existing Finance Hub Platform view.
+- [ ] Complete accepted → paid → settled integration/concurrency tests with immutable rule/version verification at the durable ledger boundary.
+- [ ] Wire the real medical-analysis paid/settled operational lifecycle using the existing `Referral + Laboratory + LaboratoryTest + Payment` domain; do not create a duplicate order model.
+- [ ] Complete the ledger/reconciliation surface and connect Finance Hub to the durable economics transactions end-to-end.
+- [ ] Keep dental-lab recognition at the existing `delivered` boundary until a real paid/settled callback exists.
 
-### Phase 2 — Partner transparency and Finance Hub
-**Status:** QUEUED
-- [ ] Partner dashboard shows applicable fee/commission, gross order value, deductions, net payout, payout status, and rule/version reference.
+### Phase 2 — Partner onboarding, transparency and Finance Hub
+**Status:** IN PROGRESS
+
+- [x] Establish E2E coverage entry points for diagnostic-center, medical-laboratory and dental-laboratory owner onboarding.
+- [x] Establish E2E coverage entry points for employee management and invitations.
+- [ ] Complete full owner lifecycle: registration → organization profile → verification/approval state → first login → operational workspace.
+- [ ] Complete full branch lifecycle: create → edit → switch → assign employees → enforce branch permissions → archive/delete according to the existing domain model.
+- [ ] Verify partner dashboard shows applicable fee/commission, gross order value, deductions, net payout, payout status, and rule/version reference.
 - [ ] Diagnostic centers see branch economics and platform deductions.
 - [ ] Analysis laboratories see per-analysis economics.
 - [ ] Dental laboratories see per-order/service economics.
@@ -63,11 +73,17 @@ Evidence recorded in `CURRENT_STATE.md` and `DENTVISION_EXECUTION_LOG.md`.
 - [ ] Add scheduled reconciliation and anomaly detection.
 
 ### Phase 4 — Product-wide UX and navigation
-**Status:** QUEUED
+**Status:** IN PROGRESS
+- [x] Add browser-level UX coverage for the existing critical route matrix.
+- [x] Add Playwright CLI as a complementary browser-exploration/smoke layer without replacing `@playwright/test`.
+- [ ] Expand UX coverage from route reachability to real user workflows and outcomes.
 - [ ] Verify the first-load AI workspace flow is functional, not decorative.
 - [ ] Remove duplicate navigation/content and establish one clear information architecture.
 - [ ] Ensure role-specific navigation and permissions are consistent.
 - [ ] Align the web/mobile experience with the canonical DentVision design system/Figma direction.
+- [ ] Verify visible buttons/links/forms have understandable labels and produce the expected result.
+- [ ] Verify loading, empty, error and success states for critical workflows.
+- [ ] Verify responsive behavior and keyboard/accessibility basics on critical screens.
 
 ### Phase 5 — Core clinical workflows
 **Status:** QUEUED
@@ -88,12 +104,74 @@ Evidence recorded in `CURRENT_STATE.md` and `DENTVISION_EXECUTION_LOG.md`.
 - [ ] AI domain modules and orchestration.
 
 ### Phase 7 — Release hardening
-**Status:** QUEUED
-- [ ] Backend/frontend integration checks.
-- [ ] Critical workflow E2E verification.
+**Status:** IN PROGRESS
+- [x] Backend/frontend integration checks exist in CI.
+- [x] Critical workflow E2E verification exists and runs in CI.
+- [ ] Full owner/partner lifecycle E2E for every partner type.
+- [ ] Full employee/role/permission/branch matrix for Owner/Admin/Doctor/Assistant and applicable partner roles.
+- [ ] CRUD verification: create → save → refresh → reopen → edit → delete/archive where supported.
+- [ ] Negative-path verification: unauthorized access, cross-tenant access, cross-branch access and expired invitations.
+- [ ] Button/action audit: visible interactive controls must either work or be explicitly disabled with a reason.
+- [ ] Browser console/network/runtime error audit on critical workflows.
 - [ ] Android build/release verification.
 - [ ] Security/permissions/audit checks.
 - [ ] Production readiness and rollback evidence.
+
+## Business-owner lifecycle release matrix
+
+Every partner type must be tested from first contact to daily operation in an isolated E2E environment.
+
+### Diagnostic center owner
+- [ ] Register owner account.
+- [ ] Complete organization profile.
+- [ ] Submit/verify onboarding state using existing workflow.
+- [ ] Login as owner.
+- [ ] Create/edit/archive branch where supported by the canonical domain model.
+- [ ] Add, invite, edit, disable and remove staff according to existing permissions.
+- [ ] Assign staff to branch(es) and verify access boundaries.
+- [ ] Configure services/diagnostic capabilities using existing screens.
+- [ ] Receive/create diagnostic orders.
+- [ ] Process order through the actual status lifecycle.
+- [ ] Produce/attach result where supported.
+- [ ] Verify clinic-side result visibility.
+- [ ] Verify payment/settlement/economics and Finance Hub records.
+
+### Medical laboratory owner
+- [ ] Register owner account.
+- [ ] Complete organization profile.
+- [ ] Submit/verify onboarding state.
+- [ ] Login as owner.
+- [ ] Manage branches and staff.
+- [ ] Configure analyses/services using existing domain screens.
+- [ ] Receive/process analysis workflow.
+- [ ] Publish/attach results using the existing workflow.
+- [ ] Verify referral and clinic visibility.
+- [ ] Verify medical-analysis economics and settlement lifecycle.
+
+### Dental laboratory owner
+- [ ] Register owner account.
+- [ ] Complete organization profile.
+- [ ] Submit/verify onboarding state.
+- [ ] Login as owner.
+- [ ] Manage branches and technicians/staff.
+- [ ] Receive lab order.
+- [ ] Process order through existing statuses.
+- [ ] Verify `delivered` economics recognition.
+- [ ] Verify remake/cancel/delay behavior does not create premature economics.
+- [ ] Verify clinic-side visibility and financial records.
+
+## Role and security matrix
+
+- [ ] Owner: organization-wide management, branch management, staff management, finance visibility according to existing permissions.
+- [ ] Admin/manager: only permitted operational/administrative scopes.
+- [ ] Doctor/clinical user: only permitted clinical and assigned-organization/branch scopes.
+- [ ] Assistant: only permitted assistant workflows.
+- [ ] Partner operational roles: only their organization/branch data.
+- [ ] Cross-tenant reads/writes denied.
+- [ ] Cross-branch reads/writes denied where the domain model requires branch isolation.
+- [ ] Expired/revoked invitations denied.
+- [ ] Disabled staff denied access without deleting required audit history.
+- [ ] Every privileged mutation remains auditable and idempotent where applicable.
 
 ## Definition of done
 A phase is complete only when:
@@ -104,8 +182,8 @@ A phase is complete only when:
 - `DENTVISION_EXECUTION_LOG.md` records what changed, commit, verification, and next action.
 
 ## Current execution priority
-**Now:** complete the Economics Engine → Ledger vertical slice, starting with referral-time canonical commission writes and lifecycle/concurrency verification.
+**Now:** run the business-owner lifecycle vertical slice in parallel with the remaining Economics Engine → Ledger work. Start at registration for each partner type, then organization, branches, staff, permissions, operational workflows and economics. Convert every discovered real defect into an implementation fix plus regression test.
 
-**Next:** Partner transparency → Finance Hub → automated operations → product-wide UX/clinical/ecosystem hardening.
+**Next:** complete partner transparency/Finance Hub, then automated operations, then product-wide UX/clinical/ecosystem hardening.
 
 The work proceeds in vertical slices: implement → verify → commit → update the persistent log → move to the next slice.
