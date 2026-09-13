@@ -28,9 +28,10 @@ export const E2E_USERS: E2EUser[] = [
 ];
 
 const E2E_PRODUCTS = [
-  { name: 'E2E Композит Filtek Z250', price: 18_000, stock: 10_000, category: 'materials' },
-  { name: 'E2E Боры алмазные, набор', price: 6_500, stock: 10_000, category: 'instruments' },
-  { name: 'E2E Перчатки нитриловые M', price: 4_200, stock: 10_000, category: 'consumables' },
+  { name: 'E2E Oral Care Starter Kit', price: 5_900, stock: 10_000, category: 'consumables', audiences: ['GENERAL'] },
+  { name: 'E2E Композит Filtek Z250', price: 18_000, stock: 10_000, category: 'materials', audiences: ['PROFESSIONAL'] },
+  { name: 'E2E Боры алмазные, набор', price: 6_500, stock: 10_000, category: 'instruments', audiences: ['PROFESSIONAL'] },
+  { name: 'E2E Перчатки нитриловые M', price: 4_200, stock: 10_000, category: 'consumables', audiences: ['PROFESSIONAL'] },
 ];
 
 async function ensureE2ESupplier() {
@@ -62,10 +63,11 @@ async function upsertProducts() {
 
   for (const p of E2E_PRODUCTS) {
     const existing = await prisma.product.findFirst({ where: { name: p.name } });
+    const tags = p.audiences.map((audience) => `audience:${audience}`);
     if (existing) {
       await prisma.product.update({
         where: { id: existing.id },
-        data: { stock: p.stock, price: p.price, supplierId: supplier.id, isActive: true, tags: ['audience:PROFESSIONAL'] },
+        data: { stock: p.stock, price: p.price, supplierId: supplier.id, isActive: true, tags },
       });
       continue;
     }
@@ -80,7 +82,7 @@ async function upsertProducts() {
         description: 'Тестовая позиция каталога для сквозных сценариев',
         supplierId: supplier.id,
         isActive: true,
-        tags: ['audience:PROFESSIONAL'],
+        tags,
       },
     });
   }
@@ -206,7 +208,7 @@ async function main() {
   console.log(`[SEED:E2E] ${users} users, password ${E2E_PASSWORD}`);
   console.log(`[SEED:E2E] ${E2E_CLINIC_A} = ${clinicA.id}`);
   console.log(`[SEED:E2E] ${E2E_CLINIC_B} = ${clinicB.id}`);
-  console.log(`[SEED:E2E] ${E2E_PRODUCTS.length} professional products and 2 audience-scoped courses in the catalogue`);
+  console.log(`[SEED:E2E] ${E2E_PRODUCTS.filter((p) => p.audiences.includes('PROFESSIONAL')).length} professional + 1 general product and 2 audience-scoped courses in the catalogue`);
 }
 
 main().catch((e) => { console.error('[SEED:E2E] Failed:', e); process.exit(1); }).finally(() => prisma.$disconnect());
