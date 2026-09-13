@@ -21,7 +21,7 @@
     "postinstall": "prisma generate",
     "cron:reminders": "tsx -e \"import { runReminderCron } from './src/jobs/reminderCron.ts'; runReminderCron().then(r => { console.log(JSON.stringify(r,null,2)); process.exit(0); }).catch(e => { console.error(e); process.exit(1); })\"",
     "system-map": "tsx src/scripts/system-map.ts",
-    "db:seed:e2e": "tsx prisma/seed-e2e.ts"
+    "db:seed:e2e": "tsx prisma/seed-e2e.ts && tsx prisma/normalize-e2e-catalog.ts"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"
@@ -34,11 +34,10 @@
     "@sentry/node": "^10.69.0",
     "@types/nodemailer": "^8.0.1",
     "bcryptjs": "^2.4.3",
-    "bullmq": "^5.81.2",
+    "bullmq": "^5.81.0",
     "cookie-parser": "^1.4.7",
     "cors": "^2.8.5",
     "date-fns": "^4.4.0",
-    "dotenv": "^16.4.7",
     "express": "^4.21.2",
     "express-rate-limit": "^7.5.0",
     "google-auth-library": "^11.0.0",
