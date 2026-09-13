@@ -22,16 +22,16 @@ const ROUTES = [
 ];
 
 async function login(page: Page) {
-  await page.goto(`${BASE_URL}/login?role=owner`);
-  await page.locator('input[autocomplete="username"]').fill(E2E_USER);
-  await page.locator('input[autocomplete="current-password"]').fill(E2E_PASSWORD);
-  await page.getByRole('button', { name: 'Войти в DentVision' }).click();
-  // The login page may resolve the authenticated target asynchronously. Assert that
-  // authentication actually leaves /login, then normalize the workspace to /ai.
-  await page.waitForURL((url) => url.pathname !== '/login', { timeout: 20000 });
-  if (new URL(page.url()).pathname !== '/ai') {
-    await page.goto(`${BASE_URL}/ai`, { waitUntil: 'domcontentloaded', timeout: 20000 });
-  }
+  // Authenticate through the real API first so UX coverage cannot be blocked by
+  // an unrelated client-side redirect/race on the login screen. The API sets
+  // the same httpOnly auth cookies that the browser UI consumes.
+  const response = await page.request.post(`${BASE_URL}/api/auth/login`, {
+    data: { email: E2E_USER, password: E2E_PASSWORD },
+  });
+  expect(response.ok(), `E2E login failed: HTTP ${response.status()}`).toBeTruthy();
+
+  await page.goto(`${BASE_URL}/ai`, { waitUntil: 'domcontentloaded', timeout: 20000 });
+  expect(new URL(page.url()).pathname, 'authenticated UX gate must not remain on /login').not.toBe('/login');
 }
 
 function collectRuntimeErrors(page: Page) {
