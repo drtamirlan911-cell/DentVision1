@@ -1,6 +1,7 @@
 import { test, expect, type Page } from '@playwright/test';
 
 const BASE_URL = process.env.PLAYWRIGHT_UI_URL || 'http://localhost:3000';
+const API_BASE_URL = process.env.PLAYWRIGHT_API_URL || 'http://localhost:3001';
 const E2E_USER = 'owner-a@test.com';
 const E2E_PASSWORD = 'Test1234!';
 
@@ -22,10 +23,10 @@ const ROUTES = [
 ];
 
 async function login(page: Page) {
-  // Authenticate through the real API first so UX coverage cannot be blocked by
-  // an unrelated client-side redirect/race on the login screen. The API sets
-  // the same httpOnly auth cookies that the browser UI consumes.
-  const response = await page.request.post(`${BASE_URL}/api/auth/login`, {
+  // The UI runs on :3000 while the real auth API runs on :3001 in CI.
+  // Authenticate against the backend so UX coverage receives the same httpOnly
+  // cookies as the production browser flow instead of probing the Vite server.
+  const response = await page.request.post(`${API_BASE_URL}/api/auth/login`, {
     data: { email: E2E_USER, password: E2E_PASSWORD },
   });
   expect(response.ok(), `E2E login failed: HTTP ${response.status()}`).toBeTruthy();
