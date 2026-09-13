@@ -1,3 +1,7 @@
+import { installContentCatalogJsonGuard } from '../../iam/contentCatalogMiddleware.js';
+
+installContentCatalogJsonGuard();
+
 /**
  * One row per workspace the user actually belongs to.
  *
