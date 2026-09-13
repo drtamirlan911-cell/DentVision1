@@ -125,7 +125,7 @@ jobs:
           cat /tmp/frontend.log >&2 || true
           exit 1
       - name: Run E2E suite
-        run: npx playwright test $(ls e2e/tests/*.spec.ts | grep -v browser-e2e | grep -v ux-coverage | grep -v business-owner-journeys)
+        run: npx playwright test $(ls e2e/tests/*.spec.ts | grep -v browser-e2e | grep -v ux-coverage | grep -v business-owner-journeys | grep -v organization-owner-lifecycle)
       - name: Run browser UX coverage
         env:
           PLAYWRIGHT_UI_URL: http://localhost:3000
@@ -134,6 +134,10 @@ jobs:
         env:
           PLAYWRIGHT_UI_URL: http://localhost:3000
         run: npx playwright test e2e/tests/business-owner-journeys.spec.ts
+      - name: Run organization owner lifecycle release gate
+        env:
+          PLAYWRIGHT_UI_URL: http://localhost:3000
+        run: npx playwright test e2e/tests/organization-owner-lifecycle.spec.ts
       - name: Install official Playwright CLI
         run: npm install --no-save --package-lock=false @playwright/cli@latest
       - name: Install Playwright agent skills
