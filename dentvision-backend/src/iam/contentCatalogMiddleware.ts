@@ -7,6 +7,11 @@ import {
   resolveActiveContentContext,
 } from './contentCatalogAccess.js';
 
+function requestPath(req: Request): string {
+  const raw = req.originalUrl || req.url || req.path;
+  return raw.split('?')[0];
+}
+
 function isCatalogPath(path: string): 'ACADEMY' | 'MARKETPLACE' | null {
   if (path.startsWith('/api/school')) return 'ACADEMY';
   if (path.startsWith('/api/shop')) return 'MARKETPLACE';
@@ -61,16 +66,17 @@ function filterMarketplacePayload(data: any, context: ReturnType<typeof resolveA
 }
 
 function guardCatalogResponse(req: Request, res: Response, body: any) {
-  const surface = isCatalogPath(req.path);
-  if (!surface || !body || body.ok !== true) return body;
+  const path = requestPath(req);
+  const surface = isCatalogPath(path);
+  if (!surface || !body) return body;
 
   const context = resolveActiveContentContext(req);
   const isAcademy = surface === 'ACADEMY';
-  const isHub = isAcademy && req.path === '/api/school/hub';
-  const isCourseList = isAcademy && req.path === '/api/school/courses';
-  const isCourseDetail = isAcademy && /^\/api\/school\/courses\/[^/]+$/.test(req.path);
-  const isProductList = !isAcademy && req.path === '/api/shop/products';
-  const isProductDetail = !isAcademy && /^\/api\/shop\/products\/[^/]+$/.test(req.path);
+  const isHub = isAcademy && path === '/api/school/hub';
+  const isCourseList = isAcademy && path === '/api/school/courses';
+  const isCourseDetail = isAcademy && /^\/api\/school\/courses\/[^/]+$/.test(path);
+  const isProductList = !isAcademy && path === '/api/shop/products';
+  const isProductDetail = !isAcademy && /^\/api\/shop\/products\/[^/]+$/.test(path);
 
   if (isHub) {
     body = { ...body, data: filterAcademyHub(body.data || {}, context) };
