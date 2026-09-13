@@ -56,6 +56,9 @@ jobs:
       - run: npm run build --if-present
       - run: npx tsc --noEmit
       - run: npx tsx quality-scripts/command-center-audit.ts
+      - name: Install backend dependencies for backend unit tests
+        run: npm ci
+        working-directory: dentvision-backend
       - run: npm test
 
   e2e:
