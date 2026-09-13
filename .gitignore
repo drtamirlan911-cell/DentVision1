@@ -56,3 +56,4 @@ scratchpad_brand/
 e2e/test-results/
 test-results/
 playwright-report/
+.playwright-cli/
