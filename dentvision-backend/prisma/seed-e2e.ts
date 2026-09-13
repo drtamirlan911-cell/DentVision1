@@ -33,11 +33,6 @@ const E2E_PRODUCTS = [
   { name: 'E2E Перчатки нитриловые M', price: 4_200, stock: 10_000, category: 'consumables' },
 ];
 
-/**
- * Checkout now enforces supplier verification. Keep E2E catalogue fixtures
- * representative of a sellable marketplace state instead of relying on the
- * old implicit "supplier-less product" path.
- */
 async function ensureE2ESupplier() {
   const existing = await prisma.supplier.findFirst({ where: { name: 'E2E Verified Supplier' } });
   if (existing) {
@@ -62,11 +57,94 @@ async function ensureE2ESupplier() {
   });
 }
 
-/**
- * E2E uses `prisma db push`, which intentionally does not execute SQL-only
- * migrations. Bootstrap the same AI Employee schema owned by the production
- * migrations, using one prepared statement per SQL command.
- */
+async function upsertProducts() {
+  const supplier = await ensureE2ESupplier();
+
+  for (const p of E2E_PRODUCTS) {
+    const existing = await prisma.product.findFirst({ where: { name: p.name } });
+    if (existing) {
+      await prisma.product.update({
+        where: { id: existing.id },
+        data: { stock: p.stock, price: p.price, supplierId: supplier.id, isActive: true, tags: ['audience:PROFESSIONAL'] },
+      });
+      continue;
+    }
+    await prisma.product.create({
+      data: {
+        id: randomUUID(),
+        name: p.name,
+        price: p.price,
+        stock: p.stock,
+        category: p.category,
+        currency: 'KZT',
+        description: 'Тестовая позиция каталога для сквозных сценариев',
+        supplierId: supplier.id,
+        isActive: true,
+        tags: ['audience:PROFESSIONAL'],
+      },
+    });
+  }
+}
+
+async function upsertAcademyFixtures() {
+  const fixtures = [
+    {
+      title: 'E2E Professional Dentistry Course',
+      audience: 'PROFESSIONAL',
+      description: 'Professional-only deterministic E2E Academy fixture',
+    },
+    {
+      title: 'E2E Patient Oral Health Course',
+      audience: 'PATIENT',
+      description: 'Patient-safe deterministic E2E Academy fixture',
+    },
+  ];
+
+  for (const fixture of fixtures) {
+    const existing = await prisma.course.findFirst({ where: { title: fixture.title } });
+    if (existing) {
+      await prisma.course.update({
+        where: { id: existing.id },
+        data: {
+          description: fixture.description,
+          format: 'course',
+          price: 0,
+          meta: { audiences: [fixture.audience], tags: ['e2e'] },
+        },
+      });
+      continue;
+    }
+
+    await prisma.course.create({
+      data: {
+        id: randomUUID(),
+        title: fixture.title,
+        description: fixture.description,
+        author: 'DentVision E2E',
+        price: 0,
+        category: 'e2e',
+        duration: '1 ч',
+        format: 'course',
+        meta: { audiences: [fixture.audience], tags: ['e2e'] },
+      },
+    });
+  }
+}
+
+async function upsertClinic(name: string) {
+  const existing = await prisma.clinic.findFirst({ where: { name } });
+  if (existing) return existing;
+  return prisma.clinic.create({ data: { id: randomUUID(), name, city: 'Алматы', plan: 'PRO', active: true } });
+}
+
+async function ensureSubscription(clinicId: string) {
+  await prisma.subscription.upsert({
+    where: { ownerType_ownerId: { ownerType: 'CLINIC', ownerId: clinicId } },
+    create: { ownerType: 'CLINIC', ownerId: clinicId, plan: 'professional', status: 'active', periodEnd: null },
+    update: { plan: 'professional', status: 'active', periodEnd: null },
+  });
+}
+
 async function ensureAiEmployeeSchema() {
   await prisma.$executeRawUnsafe(`
     CREATE TABLE IF NOT EXISTS ai_employee_tasks (
@@ -93,65 +171,10 @@ async function ensureAiEmployeeSchema() {
       completed_at TIMESTAMPTZ
     )
   `);
-  await prisma.$executeRawUnsafe(`
-    CREATE INDEX IF NOT EXISTS ai_employee_tasks_clinic_status_idx
-      ON ai_employee_tasks (clinic_id, status, created_at DESC)
-  `);
-  await prisma.$executeRawUnsafe(`
-    CREATE INDEX IF NOT EXISTS ai_employee_tasks_clinic_role_idx
-      ON ai_employee_tasks (clinic_id, role, created_at DESC)
-  `);
-  await prisma.$executeRawUnsafe(`
-    CREATE INDEX IF NOT EXISTS ai_employee_tasks_source_event_idx
-      ON ai_employee_tasks (source_event_id)
-  `);
-  await prisma.$executeRawUnsafe(`
-    CREATE UNIQUE INDEX IF NOT EXISTS ai_employee_tasks_event_action_role_uidx
-      ON ai_employee_tasks (source_event_id, action, role)
-      WHERE source_event_id IS NOT NULL AND action IS NOT NULL
-  `);
-}
-
-async function upsertProducts() {
-  const supplier = await ensureE2ESupplier();
-
-  for (const p of E2E_PRODUCTS) {
-    const existing = await prisma.product.findFirst({ where: { name: p.name } });
-    if (existing) {
-      await prisma.product.update({
-        where: { id: existing.id },
-        data: { stock: p.stock, price: p.price, supplierId: supplier.id, isActive: true },
-      });
-      continue;
-    }
-    await prisma.product.create({
-      data: {
-        id: randomUUID(),
-        name: p.name,
-        price: p.price,
-        stock: p.stock,
-        category: p.category,
-        currency: 'KZT',
-        description: 'Тестовая позиция каталога для сквозных сценариев',
-        supplierId: supplier.id,
-        isActive: true,
-      },
-    });
-  }
-}
-
-async function upsertClinic(name: string) {
-  const existing = await prisma.clinic.findFirst({ where: { name } });
-  if (existing) return existing;
-  return prisma.clinic.create({ data: { id: randomUUID(), name, city: 'Алматы', plan: 'PRO', active: true } });
-}
-
-async function ensureSubscription(clinicId: string) {
-  await prisma.subscription.upsert({
-    where: { ownerType_ownerId: { ownerType: 'CLINIC', ownerId: clinicId } },
-    create: { ownerType: 'CLINIC', ownerId: clinicId, plan: 'professional', status: 'active', periodEnd: null },
-    update: { plan: 'professional', status: 'active', periodEnd: null },
-  });
+  await prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS ai_employee_tasks_clinic_status_idx ON ai_employee_tasks (clinic_id, status, created_at DESC)`);
+  await prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS ai_employee_tasks_clinic_role_idx ON ai_employee_tasks (clinic_id, role, created_at DESC)`);
+  await prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS ai_employee_tasks_source_event_idx ON ai_employee_tasks (source_event_id)`);
+  await prisma.$executeRawUnsafe(`CREATE UNIQUE INDEX IF NOT EXISTS ai_employee_tasks_event_action_role_uidx ON ai_employee_tasks (source_event_id, action, role) WHERE source_event_id IS NOT NULL AND action IS NOT NULL`);
 }
 
 export async function seedE2E() {
@@ -162,6 +185,7 @@ export async function seedE2E() {
   await ensureSubscription(clinicA.id);
   await ensureSubscription(clinicB.id);
   await upsertProducts();
+  await upsertAcademyFixtures();
 
   for (const spec of E2E_USERS) {
     const user = await prisma.user.upsert({
@@ -182,7 +206,7 @@ async function main() {
   console.log(`[SEED:E2E] ${users} users, password ${E2E_PASSWORD}`);
   console.log(`[SEED:E2E] ${E2E_CLINIC_A} = ${clinicA.id}`);
   console.log(`[SEED:E2E] ${E2E_CLINIC_B} = ${clinicB.id}`);
-  console.log(`[SEED:E2E] ${E2E_PRODUCTS.length} products in the catalogue`);
+  console.log(`[SEED:E2E] ${E2E_PRODUCTS.length} professional products and 2 audience-scoped courses in the catalogue`);
 }
 
 main().catch((e) => { console.error('[SEED:E2E] Failed:', e); process.exit(1); }).finally(() => prisma.$disconnect());
