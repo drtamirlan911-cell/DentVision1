@@ -1,5 +1,6 @@
 import { PrismaClient } from '@prisma/client';
 import { PERMISSIONS, ROLE_PERMISSIONS } from '../src/lib/permissions.js';
+import { PARTNER_ROLE_DEFINITIONS } from '../src/lib/roleAccessRegistry.js';
 
 const prisma = new PrismaClient();
 
@@ -23,10 +24,6 @@ const LEGACY_ROLES: { key: string; name: string; description: string; permission
     key: 'seller',
     name: 'Продавец (поставщик)',
     description: 'Supplier management access',
-    // `supplier.manage` is a legacy alias that LEGACY_KEY_MAP resolves to
-    // `shop.manage`; seeded verbatim it belongs to a "supplier" module that
-    // MODULE_PAGES knows nothing about, so it contributed no page at all and a
-    // seller's page list came out as inventory-only.
     permissionKeys: ['supplier.manage', 'shop.manage', 'shop.read', 'inventory.read'],
   },
   {
@@ -37,17 +34,22 @@ const LEGACY_ROLES: { key: string; name: string; description: string; permission
   },
 ];
 
+const PARTNER_ROLES = PARTNER_ROLE_DEFINITIONS.map((definition) => ({
+  key: definition.key.toLowerCase(),
+  name: definition.label,
+  description: definition.description,
+  permissionKeys: [...definition.permissions],
+}));
+
 // Unified permission catalog (domain.action) — single source of truth is
-// src/lib/permissions.ts. Domain is derived from the key prefix.
-// IMPORTANT: PERMISSIONS (legacy compat) is NOT exhaustive — many role-matrix
-// keys like medical.read or lab.write only exist in ROLE_PERMISSIONS.  The
-// catalog MUST include every key the matrix produces so that `findMany` in
-// the role-linking loop below actually finds Permission rows for each key.
+// src/lib/permissions.ts for clinic/platform roles and roleAccessRegistry.ts
+// for specialized partner roles. Domain is derived from the key prefix.
 const ALL_PERMISSIONS: string[] = [
   ...new Set([
     ...Object.values(PERMISSIONS),
     ...Object.values(ROLE_PERMISSIONS).flat(),
-    ...LEGACY_ROLES.flatMap(r => r.permissionKeys),
+    ...LEGACY_ROLES.flatMap((r) => r.permissionKeys),
+    ...PARTNER_ROLES.flatMap((r) => r.permissionKeys),
   ]),
 ];
 const permissionDomain = (key: string) => key.split('.')[0];
@@ -80,22 +82,21 @@ export async function seedPermissions() {
       create: { key, name: key, domain: permissionDomain(key) },
     });
   }
-  console.log(`  ✓ ${ALL_PERMISSIONS.length} permissions (${permissionDomain(ALL_PERMISSIONS[0])}.* …)`);
+  console.log(`  ✓ ${ALL_PERMISSIONS.length} permissions`);
 
   console.log('[SEED] Seeding roles...');
-  for (const r of [...CANONICAL_ROLES, SUPERADMIN_ROLE, ...LEGACY_ROLES]) {
+  for (const r of [...CANONICAL_ROLES, SUPERADMIN_ROLE, ...LEGACY_ROLES, ...PARTNER_ROLES]) {
     const role = await prisma.role.upsert({
       where: { key: r.key },
       update: { name: r.name, description: r.description, isSystem: true },
       create: { key: r.key, name: r.name, description: r.description, isSystem: true },
     });
 
-    // Remove stale links (old vocabulary) so the role converges to the catalog.
+    // Remove stale links so each system role converges to its canonical catalog.
     await prisma.rolePermission.deleteMany({
       where: { roleId: role.id, permission: { key: { notIn: r.permissionKeys } } },
     });
 
-    // Link permissions (idempotent).
     const perms = await prisma.permission.findMany({
       where: { key: { in: r.permissionKeys } },
     });
