@@ -15,8 +15,10 @@ export type ClinicBranch = {
   updatedAt?: string;
 };
 
+const BRANCH_API = '/api/organizations/branches';
+
 export async function getClinicBranches(clinicId: string): Promise<ClinicBranch[]> {
-  return apiRequest(`/api/branches?clinicId=${encodeURIComponent(clinicId)}`);
+  return apiRequest(`${BRANCH_API}?clinicId=${encodeURIComponent(clinicId)}`);
 }
 
 export async function createClinicBranch(input: {
@@ -27,21 +29,13 @@ export async function createClinicBranch(input: {
   address?: string;
   phone?: string;
 }): Promise<ClinicBranch> {
-  return apiRequest('/api/branches', {
-    method: 'POST',
-    body: JSON.stringify(input),
-  });
+  return apiRequest(BRANCH_API, { method: 'POST', body: JSON.stringify(input) });
 }
 
 export async function updateClinicBranch(id: string, input: Partial<Omit<ClinicBranch, 'id' | 'clinicId' | 'createdAt' | 'updatedAt'>>): Promise<ClinicBranch> {
-  return apiRequest(`/api/branches/${encodeURIComponent(id)}`, {
-    method: 'PATCH',
-    body: JSON.stringify(input),
-  });
+  return apiRequest(`${BRANCH_API}/${encodeURIComponent(id)}`, { method: 'PATCH', body: JSON.stringify(input) });
 }
 
 export async function assignClinicMemberToBranch(branchId: string, userId: string): Promise<{ userId: string; branchId: string }> {
-  return apiRequest(`/api/branches/${encodeURIComponent(branchId)}/members/${encodeURIComponent(userId)}`, {
-    method: 'POST',
-  });
+  return apiRequest(`${BRANCH_API}/${encodeURIComponent(branchId)}/members/${encodeURIComponent(userId)}`, { method: 'POST' });
 }
