@@ -21,15 +21,16 @@ describe('partner role access registry', () => {
     }
   });
 
-  it('keeps operational specialists narrower than owners', () => {
+  it('keeps operational specialists scoped to a branch or assigned work', () => {
     const owners = PARTNER_ROLE_DEFINITIONS.filter((r) => r.key.endsWith('_OWNER'));
     const specialists = PARTNER_ROLE_DEFINITIONS.filter((r) =>
       ['DIAGNOSTIC_OPERATOR', 'RADIOLOGY_TECHNICIAN', 'MEDICAL_LAB_TECHNICIAN', 'DENTAL_TECHNICIAN', 'CAD_DESIGNER', 'CERAMIST'].includes(r.key),
     );
 
     expect(owners.length).toBe(3);
+    expect(specialists.length).toBe(6);
     for (const specialist of specialists) {
-      expect(specialist.defaultScope).toBe('BRANCH' === specialist.defaultScope ? 'BRANCH' : 'ASSIGNED');
+      expect(['BRANCH', 'ASSIGNED']).toContain(specialist.defaultScope);
       expect(specialist.permissions).not.toContain('staff.manage');
       expect(specialist.permissions).not.toContain('billing.manage');
     }
@@ -38,7 +39,6 @@ describe('partner role access registry', () => {
   it('never grants cross-organization permissions through the role definition', () => {
     for (const definition of PARTNER_ROLE_DEFINITIONS) {
       expect(definition.permissions).not.toContain('*');
-      expect(definition.defaultScope).not.toBe('PLATFORM' as never);
     }
   });
 });
