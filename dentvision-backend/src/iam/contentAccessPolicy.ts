@@ -19,9 +19,28 @@ const CONTEXT_AUDIENCES: Readonly<Record<ActiveContentContext, readonly ContentA
   LECTURER: ['GENERAL', 'PROFESSIONAL'],
 };
 
-/** Backend policy: active context, not any other role held by the Person, controls content access. */
+const PROFESSIONAL_AUDIENCES: ReadonlySet<ContentAudience> = new Set([
+  'PROFESSIONAL',
+  'DOCTOR',
+  'DENTAL_STUDENT',
+  'ASSISTANT',
+  'LAB',
+  'DIAGNOSTIC',
+  'SELLER',
+]);
+
+/**
+ * Backend policy: active context, not any other role held by the Person,
+ * controls access. A content item carrying both patient and professional
+ * audiences is deliberately denied to patients; mixed audience content must
+ * be split into separate catalog entries instead of weakening the boundary.
+ */
 export function canAccessContent(request: ContentAccessRequest): boolean {
-  return request.audiences.some((audience) => CONTEXT_AUDIENCES[request.activeContext].includes(audience));
+  const audiences = request.audiences;
+  if (request.activeContext === 'PATIENT' && audiences.some((audience) => PROFESSIONAL_AUDIENCES.has(audience))) {
+    return false;
+  }
+  return audiences.some((audience) => CONTEXT_AUDIENCES[request.activeContext].includes(audience));
 }
 
 /** Apply this allow-list to Academy catalog and Marketplace product queries before returning data. */
@@ -30,5 +49,5 @@ export function getAllowedAudiences(activeContext: ActiveContentContext): readon
 }
 
 export function isProfessionalAudience(audience: ContentAudience): boolean {
-  return audience === 'PROFESSIONAL' || audience === 'DOCTOR' || audience === 'DENTAL_STUDENT' || audience === 'ASSISTANT' || audience === 'LAB' || audience === 'DIAGNOSTIC' || audience === 'SELLER';
+  return PROFESSIONAL_AUDIENCES.has(audience);
 }
