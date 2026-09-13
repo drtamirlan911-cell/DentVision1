@@ -1,6 +1,6 @@
 export type ContentSurface = 'ACADEMY' | 'MARKETPLACE';
 export type ContentAudience = 'GENERAL' | 'PATIENT' | 'PROFESSIONAL' | 'DOCTOR' | 'DENTAL_STUDENT' | 'ASSISTANT' | 'LAB' | 'DIAGNOSTIC' | 'SELLER';
-export type ActiveContentContext = 'PATIENT' | 'DOCTOR' | 'DENTAL_STUDENT' | 'ASSISTANT' | 'LAB' | 'DIAGNOSTIC' | 'SELLER' | 'LECTURER';
+export type ActiveContentContext = 'PUBLIC' | 'PATIENT' | 'DOCTOR' | 'DENTAL_STUDENT' | 'ASSISTANT' | 'LAB' | 'DIAGNOSTIC' | 'SELLER' | 'LECTURER';
 
 export interface ContentAccessRequest {
   surface: ContentSurface;
@@ -9,6 +9,7 @@ export interface ContentAccessRequest {
 }
 
 const CONTEXT_AUDIENCES: Readonly<Record<ActiveContentContext, readonly ContentAudience[]>> = {
+  PUBLIC: ['GENERAL'],
   PATIENT: ['GENERAL', 'PATIENT'],
   DOCTOR: ['GENERAL', 'PROFESSIONAL', 'DOCTOR'],
   DENTAL_STUDENT: ['GENERAL', 'PROFESSIONAL', 'DENTAL_STUDENT'],
@@ -37,7 +38,7 @@ const PROFESSIONAL_AUDIENCES: ReadonlySet<ContentAudience> = new Set([
  */
 export function canAccessContent(request: ContentAccessRequest): boolean {
   const audiences = request.audiences;
-  if (request.activeContext === 'PATIENT' && audiences.some((audience) => PROFESSIONAL_AUDIENCES.has(audience))) {
+  if ((request.activeContext === 'PATIENT' || request.activeContext === 'PUBLIC') && audiences.some((audience) => PROFESSIONAL_AUDIENCES.has(audience))) {
     return false;
   }
   return audiences.some((audience) => CONTEXT_AUDIENCES[request.activeContext].includes(audience));
