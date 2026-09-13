@@ -1,5 +1,12 @@
 import { PrismaClient } from '@prisma/client';
 import { parseTengeToMinor } from './money.js';
+import { installContentCatalogJsonGuard } from '../iam/contentCatalogMiddleware.js';
+
+// The application imports Prisma during startup before mounting route modules.
+// Install the catalog guard from this already-global dependency so Academy and
+// Marketplace responses are protected even when compatibility routes bypass
+// their dedicated middleware. The installer is idempotent.
+installContentCatalogJsonGuard();
 
 const globalForPrisma = globalThis as unknown as { prisma: PrismaClient };
 
