@@ -35,7 +35,15 @@ describe('clinic workspace role matrix', () => {
     expect(CLINIC_ROLE_BY_KEY.ASSISTANT.defaultScope).toBe('ASSIGNED');
   });
 
-  it('never uses a wildcard permission in a clinic role', () => {
-    for (const role of CLINIC_ROLE_DEFINITIONS) expect(role.permissions).not.toContain('*');
+  it('keeps each role within the clinic permission vocabulary', () => {
+    const allowedPrefixes = [
+      'patients.', 'appointments.', 'medical.', 'billing.', 'inventory.', 'lab.',
+      'staff.', 'settings.', 'analytics.', 'diagnostics.', 'shop.', 'academy.',
+      'community.', 'audit.', 'bi.', 'backup.', 'dashboard.',
+    ];
+    for (const role of CLINIC_ROLE_DEFINITIONS) {
+      expect(role.permissions).not.toContain('*');
+      expect(role.permissions.every((permission) => allowedPrefixes.some((prefix) => permission.startsWith(prefix)))).toBe(true);
+    }
   });
 });
