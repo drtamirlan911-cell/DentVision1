@@ -3,8 +3,10 @@
 | Check | Status | Details |
 |-------|--------|---------|
 | AUTH | PENDING | |
-| RBAC | PENDING | |
+| RBAC | PENDING | Specialized partner role catalog added; full runtime matrix verification still required. |
+| ROLE MATRIX | PENDING | Diagnostic center, medical laboratory and dental laboratory roles are registered; E2E permission/scope verification remains. |
 | TENANT ISOLATION | PENDING | |
+| BRANCH ISOLATION | PENDING | Branch scope must be verified against the real branch relation; no speculative schema added. |
 | IDOR | PENDING | |
 | PATIENT | PENDING | |
 | APPOINTMENT | PENDING | |
