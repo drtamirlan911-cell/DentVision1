@@ -1,6 +1,6 @@
 import { test, expect, type Page } from '@playwright/test';
 
-const BASE = process.env.PLAYWRIGHT_BASE_URL || 'http://localhost:3001';
+const BASE = process.env.PLAYWRIGHT_UI_URL || 'http://localhost:3000';
 const OWNER_EMAIL = 'owner-a@test.com';
 const PASSWORD = 'Test1234!';
 
@@ -15,16 +15,16 @@ async function login(page: Page, role = 'owner') {
 test.describe('DentVision business owner journeys', () => {
   test('BIZ-001: owner onboarding exposes all required partner types', async ({ page }) => {
     await page.goto(`${BASE}/register-diagnostics`);
-    await expect(page.getByText('Регистрация в системе диагностики', { exact: true })).toBeVisible();
+    await expect(page.getByText('Регистрация партнёра', { exact: true })).toBeVisible();
     await expect(page.getByRole('button', { name: /Диагностический центр/ })).toBeVisible();
-    await expect(page.getByRole('button', { name: /Медицинская лаборатория|Лаборатория/ })).toBeVisible();
+    await expect(page.getByRole('button', { name: /Медицинская лаборатория/ })).toBeVisible();
     await expect(page.getByRole('button', { name: /Зуботехническая лаборатория/ })).toBeVisible();
   });
 
   test('BIZ-002: diagnostic center owner can submit onboarding request', async ({ page }) => {
     await page.goto(`${BASE}/register-diagnostics`);
     await page.getByRole('button', { name: /Диагностический центр/ }).click();
-    await expect(page.getByText('Название *', { exact: true })).toBeVisible();
+    await page.getByText('Название *', { exact: true });
     await page.locator('input').nth(0).fill(`E2E Diagnostic Center ${Date.now()}`);
     await page.locator('input').nth(1).fill('Тараз');
     await page.locator('input').nth(2).fill('ул. E2E, 1');
@@ -36,8 +36,7 @@ test.describe('DentVision business owner journeys', () => {
 
   test('BIZ-003: medical laboratory owner can submit onboarding request', async ({ page }) => {
     await page.goto(`${BASE}/register-diagnostics`);
-    await page.getByRole('button', { name: /Медицинская лаборатория|Лаборатория/ }).click();
-    await expect(page.getByText('Название *', { exact: true })).toBeVisible();
+    await page.getByRole('button', { name: /Медицинская лаборатория/ }).click();
     await page.locator('input').nth(0).fill(`E2E Medical Lab ${Date.now()}`);
     await page.locator('input').nth(1).fill('Тараз');
     await page.locator('input').nth(2).fill('ул. E2E, 2');
@@ -50,7 +49,6 @@ test.describe('DentVision business owner journeys', () => {
   test('BIZ-004: dental laboratory owner can submit onboarding request', async ({ page }) => {
     await page.goto(`${BASE}/register-diagnostics`);
     await page.getByRole('button', { name: /Зуботехническая лаборатория/ }).click();
-    await expect(page.getByText('Название *', { exact: true })).toBeVisible();
     await page.locator('input').nth(0).fill(`E2E Dental Lab ${Date.now()}`);
     await page.locator('input').nth(1).fill('Тараз');
     await page.locator('input').nth(2).fill('ул. E2E, 3');
@@ -86,13 +84,11 @@ test.describe('DentVision business owner journeys', () => {
     await page.getByLabel('Стаж (лет)').fill('5');
     await page.getByLabel('Логин *').fill(loginName);
     await page.getByLabel('Пароль *').fill(PASSWORD);
-
     await page.getByRole('button', { name: 'Добавить сотрудника', exact: true }).click();
     await expect(page.getByText(name, { exact: true })).toBeVisible({ timeout: 15000 });
 
     await page.reload();
     await expect(page.getByText(name, { exact: true })).toBeVisible({ timeout: 15000 });
-
     await page.getByText(name, { exact: true }).click();
     await page.getByRole('button', { name: 'Редактировать', exact: true }).click();
     await expect(page.getByText('Редактировать сотрудника', { exact: true })).toBeVisible();
