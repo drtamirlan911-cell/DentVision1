@@ -1,12 +1,73 @@
 # DentVision IAM — Role, Scope and Configuration Model
 
-## Why this model
+## Core access model
 
-DentVision must not treat a role as a global label. Access is evaluated in the active workspace and is composed from:
+DentVision does not treat a role as a global label. Access is evaluated in the active workspace/context and is composed from:
 
-`User → Organization → Role → Permission → Scope → Ownership → Resource state → Audit`
+`Person → Active Context → Membership/Role → Permission → Audience → Scope → Ownership → Resource state → Audit`
 
-The existing unified `Person → PersonRole → Role → Permission` graph remains the enforcement source. This document defines the product policy that graph implements.
+The existing unified `Person → PersonRole → Role → Permission` graph remains the enforcement source.
+
+A single Person may simultaneously be a patient, doctor, academy student, buyer, seller, lecturer, or member of another organization. These contexts are independent. Holding a professional role elsewhere must never expand the permissions or content visible in the current consumer context.
+
+### Hard isolation rules
+
+- `PATIENT` is a consumer context, not an organization employee role.
+- `STUDENT` is an Academy membership/context, not a clinic employee role.
+- `BUYER` is a Marketplace consumer context, not an organization employee role.
+- The active context controls the visible workspace and content audience.
+- Frontend hiding is not security; backend catalog/resource queries must enforce the same policy.
+- AI receives only the data permitted by the active context.
+
+Example:
+
+`Person → PATIENT → My Health → Patient Academy + Patient Marketplace`
+
+and the same person may separately have:
+
+`Person → DOCTOR → Clinic A → Professional Academy + Professional Marketplace`
+
+Switching to `PATIENT` must not expose doctor content simply because the Person also has `DOCTOR` elsewhere.
+
+## Consumer and professional content policy
+
+Academy courses, lessons, webinars, files, assessments and learning programs, and Marketplace products/catalog items must carry an explicit audience classification.
+
+Supported audience classes include:
+
+- `GENERAL`
+- `PATIENT`
+- `PROFESSIONAL`
+- `DOCTOR`
+- `DENTAL_STUDENT`
+- `ASSISTANT`
+- `LAB`
+- `DIAGNOSTIC`
+- `SELLER`
+
+### Patient context
+
+Allowed audiences:
+
+`GENERAL`, `PATIENT`
+
+A patient must not receive `PROFESSIONAL`, `DOCTOR`, `DENTAL_STUDENT`, `ASSISTANT`, `LAB`, `DIAGNOSTIC`, or `SELLER` content in either Academy or Marketplace.
+
+This restriction applies even when the same Person has a professional role in another workspace.
+
+### Professional contexts
+
+A professional active context may receive `GENERAL`, `PROFESSIONAL`, and its specific professional audience. For example, `DOCTOR` may receive doctor and professional content; `DENTAL_STUDENT` may receive student and professional educational content.
+
+### Backend enforcement contract
+
+Before returning an Academy course/lesson or Marketplace product, the backend must evaluate:
+
+`Identity → Active Context → Allowed Audience → Resource Scope → Resource State`
+
+The query must be narrowed server-side. Returning a full catalog and filtering it in React/Android is prohibited as an access-control strategy.
+
+A direct request for a professional item while the active context is `PATIENT` must return the same security outcome as an unavailable resource; it must not disclose the professional item's existence or metadata.
 
 ## Configuration surfaces
 
@@ -24,6 +85,19 @@ It must contain:
 
 System roles are not edited destructively by organization users. An organization may narrow access through scope, but must not silently redefine a system role for every organization.
 
+### Patient workspace
+
+**Profile → Privacy & Access** controls:
+
+- consents;
+- data sharing with clinics, diagnostic centers and laboratories;
+- AI consent;
+- notifications;
+- marketing consent;
+- connected organizations and access history.
+
+Patient navigation must not contain clinic staff management, organization finance, inventory administration, professional IAM controls, or other employee-only surfaces.
+
 ### Platform control center
 
 **Platform → IAM / Security → Roles & Permissions** is reserved for SUPERADMIN/platform governance.
@@ -35,6 +109,7 @@ It controls:
 - organization/person types;
 - default role templates;
 - role availability by organization type;
+- content audience policy;
 - audit and emergency access policy.
 
 Any future custom-role editor must create a new organization-scoped role/template rather than mutate a canonical system role.
@@ -179,10 +254,15 @@ Examples:
 6. Keep historical audit records when a member is disabled or a role is changed.
 7. Do not give external partners a clinic-wide patient permission merely because they can process a referral.
 8. Frontend and Android should consume effective permissions from IAM rather than maintain independent role matrices.
+9. Academy and Marketplace content must be audience-scoped server-side.
+10. Active `PATIENT` context must never inherit professional Academy or Marketplace access from another role held by the same Person.
+11. AI must use the active context and the same audience/data policy; it must not aggregate all Person contexts into one unrestricted prompt.
 
 ## Implementation status
 
 - Specialized diagnostic/medical-lab/dental-lab roles are registered in `dentvision-backend/src/lib/roleAccessRegistry.ts`.
-- The existing permission seeder now creates those roles in the unified DB Role/Permission graph.
+- The existing permission seeder creates those roles in the unified DB Role/Permission graph.
 - Workspace role labels expose these roles consistently.
+- `dentvision-backend/src/iam/contentAccessPolicy.ts` now defines the canonical active-context audience boundary for Academy and Marketplace.
+- `contentAccessPolicy.test.ts` locks the patient-vs-professional negative boundary for both surfaces.
 - Branch/assignment scope is represented as policy metadata first; it must only be enforced against a real branch/assignment relation already present in the domain model. No speculative branch database model is introduced by this change.
