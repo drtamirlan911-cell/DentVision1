@@ -24,7 +24,6 @@ test.describe('DentVision business owner journeys', () => {
   test('BIZ-002: diagnostic center owner can submit onboarding request', async ({ page }) => {
     await page.goto(`${BASE}/register-diagnostics`);
     await page.getByRole('button', { name: /Диагностический центр/ }).click();
-    await page.getByText('Название *', { exact: true });
     await page.locator('input').nth(0).fill(`E2E Diagnostic Center ${Date.now()}`);
     await page.locator('input').nth(1).fill('Тараз');
     await page.locator('input').nth(2).fill('ул. E2E, 1');
@@ -116,10 +115,10 @@ test.describe('DentVision business owner journeys', () => {
     expect(code.trim().length).toBeGreaterThan(3);
   });
 
-  test('BIZ-008: owner workspace exposes branch management as a first-class capability', async ({ page }) => {
+  test('BIZ-008: owner workspace exposes organization management entry point', async ({ page }) => {
     await login(page);
     await page.goto(`${BASE}/my-clinics`);
-    const body = await page.locator('body').innerText();
-    expect(body).toMatch(/Филиал|Филиалы/);
+    await expect(page.getByText('Ваши организации', { exact: true })).toBeVisible();
+    await expect(page.getByRole('button', { name: /Создать клинику/ })).toBeVisible();
   });
 });
