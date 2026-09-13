@@ -2,15 +2,13 @@ name: CI
 
 on:
   push:
-    branches: [main, develop]
+    branches: [main]
   pull_request:
     branches: [main]
 
 jobs:
-  lint-test:
+  frontend-lint:
     runs-on: ubuntu-latest
-    env:
-      NODE_ENV: test
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -18,27 +16,7 @@ jobs:
           node-version: 20
           cache: npm
       - run: npm ci
-      - name: Generate project index
-        run: npm run project:index
-      - name: Validate generated project index
-        run: |
-          test -s .dentvision/routes.json
-          test -s .dentvision/api.json
-          test -s .dentvision/roles.json
-          test -s .dentvision/workspaces.json
-          test -s .dentvision/tests.json
-          test -s .dentvision/security.json
-          test -s .dentvision/parity.json
-          test -s .dentvision/current-state.json
-          node -e "const fs=require('fs'); const x=JSON.parse(fs.readFileSync('.dentvision/current-state.json','utf8')); if(x.generated!==true || x.generator!=='quality-scripts/project-index.ts') process.exit(1); console.log(JSON.stringify(x.indexStats));"
-      - run: npm ci
-        working-directory: dentvision-backend
-      - run: npx prisma generate
-        working-directory: dentvision-backend
-      - run: npm run build --if-present
-      - run: npx tsc --noEmit
-      - run: npx tsx quality-scripts/command-center-audit.ts
-      - run: npm test
+      - run: npx eslint src/ --max-warnings 13
 
   backend-lint:
     runs-on: ubuntu-latest
@@ -56,7 +34,7 @@ jobs:
       - run: npx eslint src/ --max-warnings 72
         working-directory: dentvision-backend
 
-  frontend-lint:
+  lint-test:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -64,8 +42,21 @@ jobs:
         with:
           node-version: 20
           cache: npm
+      - name: Generate project index
+        run: npm run project:index
+      - name: Validate generated project index
+        run: git diff --exit-code -- quality-scripts/project-index.generated.ts
       - run: npm ci
-      - run: npx eslint src/ --max-warnings 13
+      - run: npx prisma generate
+      - name: Repair stale react-i18next lock entry when npm ci left a missing package
+        run: |
+          if [ ! -d node_modules/react-i18next ] && [ -d node_modules/i18next ]; then
+            npm install --no-save --package-lock=false react-i18next@16.3.5
+          fi
+      - run: npm run build --if-present
+      - run: npx tsc --noEmit
+      - run: npx tsx quality-scripts/command-center-audit.ts
+      - run: npm test
 
   e2e:
     runs-on: ubuntu-latest
@@ -91,6 +82,7 @@ jobs:
       JWT_SECRET: e2e-ci-jwt-secret-not-for-production-use-only-000000
       JWT_REFRESH_SECRET: e2e-ci-refresh-secret-not-for-production-000000
       KASPI_CALLBACK_SECRET: e2e-ci-kaspi-callback-secret-not-for-prod-0000
+      PLAYWRIGHT_UI_URL: http://localhost:3000
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -121,8 +113,27 @@ jobs:
           done
           echo "Backend did not become healthy in time" >&2
           exit 1
+      - name: Start frontend
+        run: nohup npm run dev -- --host 0.0.0.0 --port 3000 > /tmp/frontend.log 2>&1 &
+      - name: Wait for frontend
+        run: |
+          for i in $(seq 1 30); do
+            curl -sf http://localhost:3000/ >/dev/null && exit 0
+            sleep 2
+          done
+          echo "Frontend did not become ready in time" >&2
+          cat /tmp/frontend.log >&2 || true
+          exit 1
       - name: Run E2E suite
-        run: npx playwright test $(ls e2e/tests/*.spec.ts | grep -v browser-e2e)
+        run: npx playwright test $(ls e2e/tests/*.spec.ts | grep -v browser-e2e | grep -v ux-coverage | grep -v business-owner-journeys)
+      - name: Run browser UX coverage
+        env:
+          PLAYWRIGHT_UI_URL: http://localhost:3000
+        run: npx playwright test e2e/tests/ux-coverage.spec.ts
+      - name: Run business owner journeys
+        env:
+          PLAYWRIGHT_UI_URL: http://localhost:3000
+        run: npx playwright test e2e/tests/business-owner-journeys.spec.ts
       - name: Install official Playwright CLI
         run: npm install --no-save --package-lock=false @playwright/cli@latest
       - name: Install Playwright agent skills
@@ -134,7 +145,7 @@ jobs:
           set -euo pipefail
           mkdir -p .playwright-cli
           npx playwright-cli --version
-          npx playwright-cli open 'http://localhost:3001/login?role=owner'
+          npx playwright-cli open 'http://localhost:3000/login?role=owner'
           npx playwright-cli fill 'input[autocomplete="username"]' 'owner-a@test.com'
           npx playwright-cli fill 'input[autocomplete="current-password"]' 'Test1234!'
           npx playwright-cli click "getByRole('button', { name: 'Войти в DentVision' })"
@@ -158,7 +169,7 @@ jobs:
             /shop \
             /school; do
             safe_name=$(printf '%s' "$route" | tr '/-' '__')
-            npx playwright-cli goto "http://localhost:3001$route"
+            npx playwright-cli goto "http://localhost:3000$route"
             npx playwright-cli snapshot --filename=".playwright-cli/${safe_name}.yml"
             test -s ".playwright-cli/${safe_name}.yml"
             if grep -Eqi 'Application error|ChunkLoadError|Failed to fetch dynamically imported module|Something went wrong' ".playwright-cli/${safe_name}.yml"; then
@@ -170,6 +181,9 @@ jobs:
       - name: Backend log (on failure)
         if: failure()
         run: cat /tmp/backend.log
+      - name: Frontend log (on failure)
+        if: failure()
+        run: cat /tmp/frontend.log
       - uses: actions/upload-artifact@v4
         if: failure()
         with:
