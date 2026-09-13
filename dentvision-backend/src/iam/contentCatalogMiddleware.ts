@@ -13,7 +13,12 @@ function isCatalogPath(path: string): 'ACADEMY' | 'MARKETPLACE' | null {
   return null;
 }
 
-function filterItems<T>(items: unknown, surface: 'ACADEMY' | 'MARKETPLACE', context: ReturnType<typeof resolveActiveContentContext>, getAudiences: (item: T) => readonly any[]): T[] {
+function filterItems<T>(
+  items: unknown,
+  surface: 'ACADEMY' | 'MARKETPLACE',
+  context: ReturnType<typeof resolveActiveContentContext>,
+  getAudiences: (item: T) => readonly any[],
+): T[] {
   if (!Array.isArray(items)) return [];
   return items.filter((item) => canExposeCatalogItem(surface, context, getAudiences(item as T)));
 }
@@ -22,13 +27,20 @@ function filterAcademyCourseList(items: unknown, context: ReturnType<typeof reso
   return filterItems(items, 'ACADEMY', context, (item: any) => audiencesFromCourseMeta(item?.meta));
 }
 
+function filterAcademyCoursePayload(data: any, context: ReturnType<typeof resolveActiveContentContext>) {
+  if (Array.isArray(data)) return filterAcademyCourseList(data, context);
+  if (!data || typeof data !== 'object') return data;
+  const out = { ...data };
+  if (Array.isArray(out.courses)) out.courses = filterAcademyCourseList(out.courses, context);
+  if (Array.isArray(out.items)) out.items = filterAcademyCourseList(out.items, context);
+  return out;
+}
+
 function filterAcademyHub(data: any, context: ReturnType<typeof resolveActiveContentContext>) {
   const out = { ...data };
   for (const key of ['webinars', 'officeCourses', 'textbooks', 'courses', 'live']) {
     if (Array.isArray(out[key])) out[key] = filterAcademyCourseList(out[key], context);
   }
-  // Clinical cases and the library are professional-only until they carry
-  // explicit audience metadata of their own.
   if (Array.isArray(out.cases) && !canExposeCatalogItem('ACADEMY', context, ['PROFESSIONAL'])) out.cases = [];
   if (Array.isArray(out.library) && !canExposeCatalogItem('ACADEMY', context, ['PROFESSIONAL'])) out.library = [];
   if (Array.isArray(out.certificates)) out.certificates = filterAcademyCourseList(out.certificates, context);
@@ -39,101 +51,69 @@ function filterMarketplaceList(items: unknown, context: ReturnType<typeof resolv
   return filterItems(items, 'MARKETPLACE', context, (item: any) => audiencesFromProductTags(item?.tags));
 }
 
-/**
- * Final server-side enforcement for the real Academy/Marketplace HTTP APIs.
- * Routes remain unchanged for compatibility; this middleware wraps res.json
- * before route execution and filters the exact catalog payloads that leave the
- * process. A denied detail item becomes 404, preventing existence probing.
- */
-export function contentCatalogMiddleware(req: Request, res: Response, next: NextFunction) {
+function filterMarketplacePayload(data: any, context: ReturnType<typeof resolveActiveContentContext>) {
+  if (Array.isArray(data)) return filterMarketplaceList(data, context);
+  if (!data || typeof data !== 'object') return data;
+  const out = { ...data };
+  if (Array.isArray(out.products)) out.products = filterMarketplaceList(out.products, context);
+  if (Array.isArray(out.items)) out.items = filterMarketplaceList(out.items, context);
+  return out;
+}
+
+function guardCatalogResponse(req: Request, res: Response, body: any) {
   const surface = isCatalogPath(req.path);
-  if (!surface) return next();
+  if (!surface || !body || body.ok !== true) return body;
 
   const context = resolveActiveContentContext(req);
-  const originalJson = res.json.bind(res);
+  const isAcademy = surface === 'ACADEMY';
+  const isHub = isAcademy && req.path === '/api/school/hub';
+  const isCourseList = isAcademy && req.path === '/api/school/courses';
+  const isCourseDetail = isAcademy && /^\/api\/school\/courses\/[^/]+$/.test(req.path);
+  const isProductList = !isAcademy && req.path === '/api/shop/products';
+  const isProductDetail = !isAcademy && /^\/api\/shop\/products\/[^/]+$/.test(req.path);
 
-  res.json = ((body: any) => {
-    if (!body || body.ok !== true) return originalJson(body);
-
-    const isAcademy = surface === 'ACADEMY';
-    const isHub = isAcademy && req.path === '/api/school/hub';
-    const isCourseList = isAcademy && req.path === '/api/school/courses';
-    const isCourseDetail = isAcademy && /^\/api\/school\/courses\/[^/]+$/.test(req.path);
-    const isProductList = !isAcademy && req.path === '/api/shop/products';
-    const isProductDetail = !isAcademy && /^\/api\/shop\/products\/[^/]+$/.test(req.path);
-
-    if (isHub) {
-      body = { ...body, data: filterAcademyHub(body.data || {}, context) };
-    } else if (isCourseList) {
-      body = { ...body, data: filterAcademyCourseList(body.data, context) };
-    } else if (isCourseDetail) {
-      const course = body.data;
-      if (!course || !canExposeCatalogItem('ACADEMY', context, audiencesFromCourseMeta(course.meta))) {
-        res.status(404);
-        body = { ok: false, error: 'Course not found' };
-      }
-    } else if (isProductList) {
-      body = { ...body, data: filterMarketplaceList(body.data, context) };
-    } else if (isProductDetail) {
-      const product = body.data;
-      if (!product || !canExposeCatalogItem('MARKETPLACE', context, audiencesFromProductTags(product.tags))) {
-        res.status(404);
-        body = { ok: false, error: 'Product not found' };
-      }
+  if (isHub) {
+    body = { ...body, data: filterAcademyHub(body.data || {}, context) };
+  } else if (isCourseList) {
+    body = { ...body, data: filterAcademyCoursePayload(body.data, context) };
+  } else if (isCourseDetail) {
+    const course = body.data;
+    if (!course || !canExposeCatalogItem('ACADEMY', context, audiencesFromCourseMeta(course.meta))) {
+      res.status(404);
+      body = { ok: false, error: 'Course not found' };
     }
+  } else if (isProductList) {
+    body = { ...body, data: filterMarketplacePayload(body.data, context) };
+  } else if (isProductDetail) {
+    const product = body.data;
+    if (!product || !canExposeCatalogItem('MARKETPLACE', context, audiencesFromProductTags(product.tags))) {
+      res.status(404);
+      body = { ok: false, error: 'Product not found' };
+    }
+  }
 
-    return originalJson(body);
-  }) as Response['json'];
-
-  return next();
+  return body;
 }
 
 /**
- * app.ts is intentionally kept free of catalog-specific wiring. The IAM
- * contexts module is loaded during application startup, so install the same
- * guard on Express' response prototype once. This guarantees that every real
- * /api/school and /api/shop endpoint is protected, including routes mounted
- * by compatibility modules, without duplicating route logic.
+ * Route middleware variant retained for compatibility with callers that mount
+ * it explicitly. The application-wide response guard below is the canonical
+ * enforcement point so mounted/compatibility catalog routes cannot bypass it.
  */
+export function contentCatalogMiddleware(req: Request, res: Response, next: NextFunction) {
+  const originalJson = res.json.bind(res);
+  res.json = ((body: any) => originalJson(guardCatalogResponse(req, res, body))) as Response['json'];
+  return next();
+}
+
+/** Install the server-side catalog policy exactly once for every Express response. */
 export function installContentCatalogJsonGuard(): void {
   const response = express.response as Response & { __dentvisionCatalogGuard?: boolean };
   if (response.__dentvisionCatalogGuard) return;
 
   const originalJson = response.json;
   response.json = function guardedJson(this: Response, body: any) {
-    const req = this.req as Request;
-    const surface = isCatalogPath(req.path);
-    if (!surface || !body || body.ok !== true) return originalJson.call(this, body);
-
-    const context = resolveActiveContentContext(req);
-    const isAcademy = surface === 'ACADEMY';
-    const isHub = isAcademy && req.path === '/api/school/hub';
-    const isCourseList = isAcademy && req.path === '/api/school/courses';
-    const isCourseDetail = isAcademy && /^\/api\/school\/courses\/[^/]+$/.test(req.path);
-    const isProductList = !isAcademy && req.path === '/api/shop/products';
-    const isProductDetail = !isAcademy && /^\/api\/shop\/products\/[^/]+$/.test(req.path);
-
-    if (isHub) {
-      body = { ...body, data: filterAcademyHub(body.data || {}, context) };
-    } else if (isCourseList) {
-      body = { ...body, data: filterAcademyCourseList(body.data, context) };
-    } else if (isCourseDetail) {
-      const course = body.data;
-      if (!course || !canExposeCatalogItem('ACADEMY', context, audiencesFromCourseMeta(course.meta))) {
-        this.status(404);
-        body = { ok: false, error: 'Course not found' };
-      }
-    } else if (isProductList) {
-      body = { ...body, data: filterMarketplaceList(body.data, context) };
-    } else if (isProductDetail) {
-      const product = body.data;
-      if (!product || !canExposeCatalogItem('MARKETPLACE', context, audiencesFromProductTags(product.tags))) {
-        this.status(404);
-        body = { ok: false, error: 'Product not found' };
-      }
-    }
-
-    return originalJson.call(this, body);
+    return originalJson.call(this, guardCatalogResponse(this.req as Request, this, body));
   } as Response['json'];
   response.__dentvisionCatalogGuard = true;
 }
