@@ -8,11 +8,11 @@ import {
 describe('partner role access registry', () => {
   it('contains the complete diagnostic, medical-lab and dental-lab role families', () => {
     expect(new Set(PARTNER_ROLE_KEYS).size).toBe(PARTNER_ROLE_KEYS.length);
-    expect(PARTNER_ROLE_DEFINITIONS.length).toBe(27);
+    expect(PARTNER_ROLE_DEFINITIONS.length).toBe(28);
 
     expect(PARTNER_ROLE_DEFINITIONS.filter((r) => r.family === 'DIAGNOSTIC_CENTER')).toHaveLength(9);
     expect(PARTNER_ROLE_DEFINITIONS.filter((r) => r.family === 'MEDICAL_LAB')).toHaveLength(9);
-    expect(PARTNER_ROLE_DEFINITIONS.filter((r) => r.family === 'DENTAL_LAB')).toHaveLength(9);
+    expect(PARTNER_ROLE_DEFINITIONS.filter((r) => r.family === 'DENTAL_LAB')).toHaveLength(10);
   });
 
   it('keeps privileged owner roles organization-scoped', () => {
@@ -56,10 +56,20 @@ describe('partner role access registry', () => {
     for (const definition of PARTNER_ROLE_DEFINITIONS) {
       expect(definition.permissions).not.toContain('*');
       if (definition.family === 'DIAGNOSTIC_CENTER') {
-        expect(definition.permissions.every((permission) => permission.startsWith('diagnostics.') || permission.startsWith('files.') || permission.startsWith('medical.') || permission.startsWith('staff.') || permission.startsWith('billing.') || permission.startsWith('analytics.') || permission.startsWith('audit.'))).toBe(true);
+        expect(definition.permissions.every((permission) =>
+          permission.startsWith('diagnostics.') || permission.startsWith('files.') ||
+          permission.startsWith('medical.') || permission.startsWith('staff.') ||
+          permission.startsWith('billing.') || permission.startsWith('analytics.') ||
+          permission.startsWith('audit.'),
+        )).toBe(true);
       }
       if (definition.family === 'MEDICAL_LAB' || definition.family === 'DENTAL_LAB') {
-        expect(definition.permissions.every((permission) => permission.startsWith('lab.') || permission.startsWith('files.') || permission.startsWith('medical.') || permission.startsWith('staff.') || permission.startsWith('billing.') || permission.startsWith('analytics.') || permission.startsWith('audit.'))).toBe(true);
+        expect(definition.permissions.every((permission) =>
+          permission.startsWith('lab.') || permission.startsWith('files.') ||
+          permission.startsWith('medical.') || permission.startsWith('staff.') ||
+          permission.startsWith('billing.') || permission.startsWith('analytics.') ||
+          permission.startsWith('audit.'),
+        )).toBe(true);
       }
     }
   });
