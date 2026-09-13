@@ -1,15 +1,23 @@
 import { useState } from 'react';
-import { Building2, FlaskConical, CheckCircle, ArrowLeft } from 'lucide-react';
+import { Building2, FlaskConical, CheckCircle, ArrowLeft, Factory } from 'lucide-react';
 import { GlassCard } from '@/components/ui/ds/GlassCard';
 import { Button } from '@/components/ui/ds/Button';
 import { useNavigate } from 'react-router-dom';
 import { DIAGNOSTICS_BENEFITS, PartnerBenefits } from '@/components/PartnerBenefits';
 import * as api from '@/utils/api';
 
+type PartnerType = 'center' | 'laboratory' | 'dental_laboratory';
+
+const PARTNER_LABELS: Record<PartnerType, string> = {
+  center: 'диагностический центр',
+  laboratory: 'медицинскую лабораторию',
+  dental_laboratory: 'зуботехническую лабораторию',
+};
+
 export default function DiagnosticsRegister() {
   const navigate = useNavigate();
   const [step, setStep] = useState<'type' | 'form' | 'done'>('type');
-  const [type, setType] = useState<'center' | 'laboratory' | null>(null);
+  const [type, setType] = useState<PartnerType | null>(null);
   const [form, setForm] = useState({ name: '', city: '', address: '', phone: '', email: '', comment: '' });
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
@@ -35,7 +43,7 @@ export default function DiagnosticsRegister() {
           <div className="flex justify-center mb-4"><CheckCircle size={48} className="text-success" /></div>
           <h2 className="text-lg font-bold text-txt-primary mb-2">Заявка отправлена!</h2>
           <p className="text-sm text-txt-muted mb-6">
-            Администратор проверит вашу заявку и активирует {type === 'center' ? 'центр' : 'лабораторию'} в ближайшее время.
+            Администратор проверит вашу заявку и активирует {type ? PARTNER_LABELS[type] : 'организацию'} в ближайшее время.
           </p>
           <Button variant="primary" onClick={() => navigate('/')}>На главную</Button>
         </GlassCard>
@@ -50,8 +58,8 @@ export default function DiagnosticsRegister() {
           <ArrowLeft size={14} /> Назад
         </button>
 
-        <h2 className="text-lg font-bold text-txt-primary mb-1">Регистрация в системе диагностики</h2>
-        <p className="text-sm text-txt-muted mb-6">Подключите ваш диагностический центр или лабораторию к платформе</p>
+        <h2 className="text-lg font-bold text-txt-primary mb-1">Регистрация партнёра</h2>
+        <p className="text-sm text-txt-muted mb-6">Подключите вашу организацию к экосистеме DentVision</p>
 
         {step === 'type' && (
           <div className="space-y-3">
@@ -63,7 +71,12 @@ export default function DiagnosticsRegister() {
             <button onClick={() => { setType('laboratory'); setStep('form'); }}
               className="w-full flex items-center gap-4 p-4 rounded-xl border border-bdr-subtle hover:border-dv-gold/40 hover:bg-dv-gold/5 transition-all text-left min-h-11">
               <div className="w-12 h-12 rounded-xl bg-purple-500/10 flex items-center justify-center"><FlaskConical size={24} className="text-purple-500" /></div>
-              <div><p className="text-sm font-semibold text-txt-primary">Лаборатория</p><p className="text-xs text-txt-muted">Анализы, гистология, биопсия</p></div>
+              <div><p className="text-sm font-semibold text-txt-primary">Медицинская лаборатория</p><p className="text-xs text-txt-muted">Анализы, гистология, биопсия</p></div>
+            </button>
+            <button onClick={() => { setType('dental_laboratory'); setStep('form'); }}
+              className="w-full flex items-center gap-4 p-4 rounded-xl border border-bdr-subtle hover:border-dv-gold/40 hover:bg-dv-gold/5 transition-all text-left min-h-11">
+              <div className="w-12 h-12 rounded-xl bg-info/10 flex items-center justify-center"><Factory size={24} className="text-info" /></div>
+              <div><p className="text-sm font-semibold text-txt-primary">Зуботехническая лаборатория</p><p className="text-xs text-txt-muted">Короны, виниры, протезы, CAD/CAM</p></div>
             </button>
           </div>
         )}
