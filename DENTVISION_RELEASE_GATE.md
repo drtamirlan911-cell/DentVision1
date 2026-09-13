@@ -8,16 +8,17 @@
 | TENANT ISOLATION | PENDING | |
 | BRANCH ISOLATION | PENDING | Branch scope must be verified against the real branch relation; no speculative schema added. |
 | IDOR | PENDING | |
-| PATIENT | PENDING | |
+| PATIENT | PENDING | Active PATIENT context is now isolated from professional Academy/Marketplace audiences; full patient journey verification remains. |
 | APPOINTMENT | PENDING | |
 | DIAGNOSIS | PENDING | |
 | TREATMENT PLAN | PENDING | |
 | FILES | PENDING | |
 | DIAGNOSTIC | PENDING | |
-| AI | PENDING | |
-| MARKETPLACE | PENDING | |
+| AI | PENDING | AI must consume active-context policy and never aggregate patient + professional contexts. |
+| MARKETPLACE | PENDING | Server-side audience policy added; runtime catalog/product integration verification remains. |
 | PAYMENTS | PENDING | |
-| ACADEMY | PENDING | |
+| ACADEMY | PENDING | Server-side audience policy added; runtime course/catalog integration verification remains. |
+| CONTENT ISOLATION | PENDING | Patient context cannot inherit professional/doctor content; negative unit tests added. |
 | SECURITY | PENDING | |
 | DATABASE | PENDING | |
 | API | PENDING | |
