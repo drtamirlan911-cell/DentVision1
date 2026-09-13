@@ -23,9 +23,6 @@ const ROUTES = [
 ];
 
 async function login(page: Page) {
-  // The frontend auth store is token-backed. APIRequestContext cookies alone do not
-  // hydrate its Zustand state, so persist the returned JWTs exactly as the real
-  // browser login does before opening protected routes.
   const response = await page.request.post(`${API_BASE_URL}/api/auth/login`, {
     data: { email: E2E_USER, password: E2E_PASSWORD },
   });
@@ -37,14 +34,18 @@ async function login(page: Page) {
   expect(accessToken, 'E2E login did not return accessToken').toBeTruthy();
   expect(refreshToken, 'E2E login did not return refreshToken').toBeTruthy();
 
-  // Establish the UI origin before touching sessionStorage/localStorage.
   await page.goto(BASE_URL, { waitUntil: 'domcontentloaded', timeout: 20000 });
   await page.evaluate(({ access, refresh }) => {
     sessionStorage.setItem('dv_tokens', JSON.stringify({ access, refresh }));
     localStorage.setItem('dv_refresh', refresh);
   }, { access: accessToken, refresh: refreshToken });
 
+  // Force a fresh application bootstrap so the Zustand auth store restores the
+  // persisted JWTs before protected-route guards run.
+  await page.reload({ waitUntil: 'domcontentloaded', timeout: 20000 });
+  await page.waitForTimeout(750);
   await page.goto(`${BASE_URL}/ai`, { waitUntil: 'domcontentloaded', timeout: 20000 });
+  await page.waitForTimeout(750);
   expect(new URL(page.url()).pathname, 'authenticated UX gate must not remain on /login').not.toBe('/login');
 }
 
@@ -69,7 +70,7 @@ test.describe('DentVision browser UX coverage', () => {
       const errors = collectRuntimeErrors(page);
       try {
         await page.goto(`${BASE_URL}${route}`, { waitUntil: 'domcontentloaded', timeout: 20000 });
-        await page.waitForTimeout(250);
+        await page.waitForTimeout(500);
         const url = new URL(page.url());
         if (url.pathname === '/login') {
           failures.push(`${route}: redirected to login`);
