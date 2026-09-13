@@ -1,12 +1,9 @@
 import { test, expect, type Page } from '@playwright/test';
 
-const BASE_URL = process.env.PLAYWRIGHT_BASE_URL || 'http://localhost:3001';
+const BASE_URL = process.env.PLAYWRIGHT_UI_URL || 'http://localhost:3000';
 const E2E_USER = 'owner-a@test.com';
 const E2E_PASSWORD = 'Test1234!';
 
-// These are concrete routes declared by src/index.tsx. Dynamic detail routes are
-// exercised separately by domain E2E tests; this matrix verifies every static
-// workspace can actually render in a real browser session.
 const ROUTES = [
   '/', '/ai', '/analytics', '/settings', '/help', '/notifications', '/admin', '/bi',
   '/security', '/audit', '/agent-activity', '/ai-approvals', '/backup', '/profile',
@@ -92,8 +89,6 @@ test.describe('DentVision browser UX coverage', () => {
         if (sampled.has(key)) continue;
         sampled.add(key);
         if (!name) failures.push(`${route}: visible button has no accessible name`);
-        // Disabled buttons are valid only when the UI explains why; empty disabled
-        // controls are especially confusing on mobile, so flag them for review.
         if (button.disabled && !name) failures.push(`${route}: unnamed disabled button`);
       }
     }
@@ -112,7 +107,8 @@ test.describe('DentVision browser UX coverage', () => {
         .filter((href) => href.startsWith(window.location.origin)));
 
       for (const href of hrefs) {
-        const target = new URL(href).pathname + new URL(href).search;
+        const targetUrl = new URL(href);
+        const target = targetUrl.pathname + targetUrl.search;
         if (visited.has(target) || /\/sign\/|\/plan\/|\/book\//.test(target)) continue;
         visited.add(target);
         const response = await page.request.get(`${BASE_URL}${target}`, { failOnStatusCode: false });
