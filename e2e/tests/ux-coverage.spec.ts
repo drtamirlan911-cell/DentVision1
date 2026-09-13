@@ -23,13 +23,26 @@ const ROUTES = [
 ];
 
 async function login(page: Page) {
-  // The UI runs on :3000 while the real auth API runs on :3001 in CI.
-  // Authenticate against the backend so UX coverage receives the same httpOnly
-  // cookies as the production browser flow instead of probing the Vite server.
+  // The frontend auth store is token-backed. APIRequestContext cookies alone do not
+  // hydrate its Zustand state, so persist the returned JWTs exactly as the real
+  // browser login does before opening protected routes.
   const response = await page.request.post(`${API_BASE_URL}/api/auth/login`, {
     data: { email: E2E_USER, password: E2E_PASSWORD },
   });
   expect(response.ok(), `E2E login failed: HTTP ${response.status()}`).toBeTruthy();
+  const payload = await response.json();
+  const auth = payload?.data || payload;
+  const accessToken = auth?.tokens?.accessToken || auth?.accessToken;
+  const refreshToken = auth?.tokens?.refreshToken || auth?.refreshToken;
+  expect(accessToken, 'E2E login did not return accessToken').toBeTruthy();
+  expect(refreshToken, 'E2E login did not return refreshToken').toBeTruthy();
+
+  // Establish the UI origin before touching sessionStorage/localStorage.
+  await page.goto(BASE_URL, { waitUntil: 'domcontentloaded', timeout: 20000 });
+  await page.evaluate(({ access, refresh }) => {
+    sessionStorage.setItem('dv_tokens', JSON.stringify({ access, refresh }));
+    localStorage.setItem('dv_refresh', refresh);
+  }, { access: accessToken, refresh: refreshToken });
 
   await page.goto(`${BASE_URL}/ai`, { waitUntil: 'domcontentloaded', timeout: 20000 });
   expect(new URL(page.url()).pathname, 'authenticated UX gate must not remain on /login').not.toBe('/login');
