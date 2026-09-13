@@ -48,11 +48,13 @@
     "react-router-dom": "^6.30.4",
     "recharts": "^3.10.1",
     "tailwind-merge": "^3.6.0",
+    "web-vitals": "^5.3.0",
     "zustand": "^5.0.14"
   },
   "devDependencies": {
     "@babel/core": "^7.29.7",
     "@babel/eslint-parser": "^7.29.7",
+    "@babel/preset-react": "^4.2.1",
     "@babel/preset-react": "^7.29.7",
     "@eslint/js": "^9.39.5",
     "@playwright/test": "^1.62.1",
