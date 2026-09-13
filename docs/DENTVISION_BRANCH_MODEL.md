@@ -28,11 +28,11 @@ The branch foundation provides:
 
 The API must fail closed: a user without membership in the clinic cannot read or mutate its branches.
 
-## Database migration
+## Database and Prisma model
 
 `dentvision-backend/prisma/migrations/20260914010000_add_branches/migration.sql` creates `branches`, adds `clinic_members.branch_id`, creates the required indexes/foreign key, and backfills one `MAIN` branch per existing clinic.
 
-The application currently uses the migration-backed branch table through parameterized Prisma SQL queries while the legacy Prisma schema is being consolidated. This avoids introducing a second competing organization/clinic model during the IAM v2 transition.
+The repository uses a single large legacy Prisma schema. `prisma/ensure-branch-model.ts` is an idempotent schema bootstrap that adds the `Branch` model, `Clinic.branches`, and `ClinicMember.branchId/branch` before `prisma generate`, migrations, `db push`, or Studio. This makes Branch a real generated Prisma model without copying the entire legacy schema into a second competing schema file.
 
 ## API
 
