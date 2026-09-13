@@ -7,10 +7,11 @@ describe('context-bound content access', () => {
     expect(canAccessContent({ surface: 'ACADEMY', activeContext: 'PATIENT', audiences: ['GENERAL'] })).toBe(true);
   });
 
-  it('blocks professional Academy content in patient context', () => {
+  it('blocks professional Academy content in patient context, including mixed audience records', () => {
     expect(canAccessContent({ surface: 'ACADEMY', activeContext: 'PATIENT', audiences: ['PROFESSIONAL'] })).toBe(false);
     expect(canAccessContent({ surface: 'ACADEMY', activeContext: 'PATIENT', audiences: ['DOCTOR'] })).toBe(false);
-    expect(canAccessContent({ surface: 'ACADEMY', activeContext: 'PATIENT', audiences: ['PROFESSIONAL', 'PATIENT'] })).toBe(true);
+    expect(canAccessContent({ surface: 'ACADEMY', activeContext: 'PATIENT', audiences: ['PROFESSIONAL', 'PATIENT'] })).toBe(false);
+    expect(canAccessContent({ surface: 'ACADEMY', activeContext: 'PATIENT', audiences: ['GENERAL', 'DOCTOR'] })).toBe(false);
   });
 
   it('does not inherit doctor access when the same Person is in patient context', () => {
@@ -22,6 +23,7 @@ describe('context-bound content access', () => {
   it('applies the same audience boundary to Marketplace products', () => {
     expect(canAccessContent({ surface: 'MARKETPLACE', activeContext: 'PATIENT', audiences: ['PATIENT'] })).toBe(true);
     expect(canAccessContent({ surface: 'MARKETPLACE', activeContext: 'PATIENT', audiences: ['PROFESSIONAL'] })).toBe(false);
+    expect(canAccessContent({ surface: 'MARKETPLACE', activeContext: 'PATIENT', audiences: ['PROFESSIONAL', 'PATIENT'] })).toBe(false);
     expect(canAccessContent({ surface: 'MARKETPLACE', activeContext: 'DOCTOR', audiences: ['PROFESSIONAL'] })).toBe(true);
   });
 });
