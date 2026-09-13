@@ -42,11 +42,11 @@ jobs:
         with:
           node-version: 20
           cache: npm
+      - run: npm ci
       - name: Generate project index
         run: npm run project:index
       - name: Validate generated project index
         run: git diff --exit-code -- quality-scripts/project-index.generated.ts
-      - run: npm ci
       - run: npx prisma generate
       - name: Repair stale react-i18next lock entry when npm ci left a missing package
         run: |
