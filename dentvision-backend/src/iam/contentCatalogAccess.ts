@@ -29,11 +29,6 @@ const PROFESSIONAL_USER_ROLES = new Set([
   'SUPERADMIN',
 ]);
 
-/**
- * Resolve the active content workspace from the explicit client context.
- * The explicit header/query wins over the user's other roles, so a Person who
- * is both a doctor and a patient stays in the selected PATIENT boundary.
- */
 export function resolveActiveContentContext(req: Request): ActiveContentContext {
   const raw = String(req.get('x-dentvision-context') || req.query.context || '').trim().toUpperCase();
   if (raw === 'PATIENT' || raw === 'DOCTOR' || raw === 'DENTAL_STUDENT' || raw === 'ASSISTANT' || raw === 'LAB' || raw === 'DIAGNOSTIC' || raw === 'SELLER' || raw === 'LECTURER') {
@@ -46,33 +41,42 @@ export function resolveActiveContentContext(req: Request): ActiveContentContext 
   return 'PUBLIC';
 }
 
-/**
- * Academy audience metadata lives in Course.meta to avoid a duplicate content
- * table. Existing courses without an explicit audience are treated as
- * PROFESSIONAL by default: an unclassified clinical course must never become
- * visible to a patient merely because old data predates the policy.
- */
-export function audiencesFromCourseMeta(meta: unknown): readonly ContentAudience[] {
-  const audiences = meta && typeof meta === 'object' && Array.isArray((meta as { audiences?: unknown }).audiences)
-    ? (meta as { audiences: unknown[] }).audiences.filter((v): v is string => typeof v === 'string').map((v) => v.toUpperCase()).filter((v) => VALID_AUDIENCES.has(v)) as ContentAudience[]
-    : [];
-  return audiences.length ? audiences : ['PROFESSIONAL'];
-}
-
-/**
- * Marketplace Product already has a tags[] field. Audience tags are explicit
- * `audience:<value>` entries. Existing unclassified dental products are
- * treated as PROFESSIONAL by default, preventing patient leakage until a
- * seller/platform operator deliberately marks an item GENERAL/PATIENT.
- */
-export function audiencesFromProductTags(tags: unknown): readonly ContentAudience[] {
-  if (!Array.isArray(tags)) return ['PROFESSIONAL'];
-  const audiences = tags
+function normalizeAudienceTags(tags: unknown): ContentAudience[] {
+  if (!Array.isArray(tags)) return [];
+  return tags
     .filter((v): v is string => typeof v === 'string')
     .map((v) => v.trim().toUpperCase())
     .filter((v) => v.startsWith('AUDIENCE:'))
     .map((v) => v.slice('AUDIENCE:'.length))
     .filter((v) => VALID_AUDIENCES.has(v)) as ContentAudience[];
+}
+
+/**
+ * Course audience is stored in Course.meta. Both `audiences: [...]` and the
+ * existing Academy `tags: ['audience:...']` authoring path are accepted so the
+ * current course CRUD API can classify content without a schema migration.
+ * Missing metadata is PROFESSIONAL by default (fail closed for patients).
+ */
+export function audiencesFromCourseMeta(meta: unknown): readonly ContentAudience[] {
+  if (!meta || typeof meta !== 'object') return ['PROFESSIONAL'];
+  const record = meta as { audiences?: unknown; tags?: unknown };
+  const explicit = Array.isArray(record.audiences)
+    ? record.audiences.filter((v): v is string => typeof v === 'string').map((v) => v.toUpperCase()).filter((v) => VALID_AUDIENCES.has(v)) as ContentAudience[]
+    : [];
+  if (explicit.length) return explicit;
+
+  const tagged = normalizeAudienceTags(record.tags);
+  return tagged.length ? tagged : ['PROFESSIONAL'];
+}
+
+/**
+ * Product audience uses the existing Product.tags JSON field with explicit
+ * `audience:<value>` entries. Existing unclassified dental products are
+ * PROFESSIONAL by default, preventing patient leakage until deliberately
+ * marked GENERAL/PATIENT.
+ */
+export function audiencesFromProductTags(tags: unknown): readonly ContentAudience[] {
+  const audiences = normalizeAudienceTags(tags);
   return audiences.length ? audiences : ['PROFESSIONAL'];
 }
 
