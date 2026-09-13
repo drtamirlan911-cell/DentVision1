@@ -267,6 +267,8 @@ export function AIInputArea({
                   whileTap={{ scale: 0.92 }}
                   onClick={() => { if (text.trim() && !disabled) { onSend(text.trim()); setText(''); setHeight(52) } }}
                   disabled={disabled || !text.trim()}
+                  aria-label="Отправить сообщение"
+                  title="Отправить сообщение"
                   className={cn(
                     'flex h-8 w-8 items-center justify-center rounded-xl transition-all',
                     text.trim()
