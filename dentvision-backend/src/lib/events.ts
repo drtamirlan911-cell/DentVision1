@@ -73,7 +73,7 @@ export function publish<E extends DomainEventName>(event: E, payload: DomainEven
     try {
       emitter.emit(event, payload);
     } catch (err) {
-      console.error(`[events] emit failed for \"${event}\":`, err);
+      console.error(`[events] emit failed for "${event}":`, err);
     }
   });
 }
@@ -97,7 +97,7 @@ export function subscribe<E extends DomainEventName>(
   emitter.on(event, (payload: DomainEventMap[E]) => {
     Promise.resolve()
       .then(() => handler(payload))
-      .catch((err) => console.error(`[events] handler failed for \"${event}\":`, err));
+      .catch((err) => console.error(`[events] handler failed for "${event}":`, err));
   });
 }
 
