@@ -27,7 +27,7 @@ BEGIN
     WHERE b.id = NEW.branch_id
       AND b.active = true;
 
-    IF branch_clinic_id IS NULL OR branch_clinic_id <> NEW.clinic_id THEN
+    IF branch_clinic_id IS NULL OR branch_clinic_id IS DISTINCT FROM NEW.clinic_id THEN
       RAISE EXCEPTION 'finance record branch does not belong to clinic';
     END IF;
   END IF;
