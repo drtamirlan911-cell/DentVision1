@@ -24,8 +24,24 @@ The complete pre-2026-09-14 execution history is preserved in the parent Git his
 ### Release status
 - Not release-ready until fresh CI is green for the current HEAD and the full E2E/partner gates pass.
 
-### Next implementation slice
-1. Verify fresh CI for current `main` after the auth-file restoration.
-2. Continue the canonical business-owner vertical slice: registration → organization/verification → owner login/workspace → branches → staff/permissions → operational workflow → economics.
-3. Fix partner registration/approval so Diagnostic Center, Medical Laboratory and Dental Laboratory remain distinct domain verticals without duplicate models.
-4. Continue accepted → paid → settled economics/ledger immutability work where the existing domain supports it.
+## 2026-09-14 — Appointments E2E contract correction
+
+### Investigation
+- The canonical `appointments.routes.ts` exposes list, POST upsert, `PATCH /:id/status`, `POST /:id/close`, and `DELETE /:id`; there is intentionally no `GET /appointments/:id` route.
+- The list response is the standard API envelope whose `data` value is itself the paginated response: `{ data: Appointment[], pagination: ... }`.
+- `e2e/helpers/api.ts` removes only the outer `{ ok, data }` envelope. Therefore an appointment list returned to an E2E spec is `{ data: [...], pagination: ... }`, not the array itself.
+- `APPT-002` incorrectly treated the unwrapped list payload as the array in its `Array.isArray()` lookup. This was a test/API-contract mismatch, not evidence that the appointment create/update implementation was broken.
+
+### Implemented
+- `f4db585fba4b15467b4ae963ab5579dc7a75e96d` corrected `e2e/tests/appointment.spec.ts` so `APPT-002` reads the paginated `data` array after the outer envelope is removed.
+- No production endpoint, permission, status mapping, or security check was weakened or bypassed.
+
+### Verification status
+- GitHub does not currently expose a workflow run for the new commit through the connected workflow-run endpoint, so this change is **UNVERIFIED** until the actual Appointments E2E and release gates execute against `f4db585fba4b15467b4ae963ab5579dc7a75e96d`.
+- Release remains **NOT READY**.
+
+### Next action
+1. Execute/obtain Appointments E2E against the exact commit `f4db585fba4b15467b4ae963ab5579dc7a75e96d`.
+2. If it passes, run the full release-gate and inspect every failing job against the current HEAD only.
+3. If another appointment failure appears, fix the actual production/test contract at its root without weakening assertions.
+4. Continue the canonical P0 queue: auth fail-closed/session enforcement, IAM negative matrix, diagnostics confirmation contract, then P1 economics/partner lifecycle.
