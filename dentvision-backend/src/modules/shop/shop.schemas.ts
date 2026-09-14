@@ -1,14 +1,8 @@
 import { z } from 'zod';
 
 /**
- * Whitelist for supplier-writable Product fields. Deliberately excludes `id`,
- * `supplierId`, `sharedProductId`, `rating`, `reviewCount`, `createdAt`,
- * `updatedAt` — those are either server-assigned or derived, never supplied
- * by the request body. The route previously spread `...req.body` straight
- * into `prisma.product.create`/`update`, which let any of those be set (or
- * overridden) by whoever's making the request — including `supplierId`
- * itself, since the spread came *after* the trusted value in the object
- * literal and later keys win.
+ * Whitelist for supplier-writable Product fields. Server-assigned and derived
+ * fields are intentionally excluded.
  */
 export const productBodySchema = z.object({
   name: z.string().min(1).max(200),
@@ -27,7 +21,7 @@ export const productBodySchema = z.object({
   unit: z.string().max(50).optional(),
   currency: z.string().max(10).optional(),
   tags: z.array(z.string()).optional(),
-  specs: z.record(z.union([z.string(), z.number(), z.boolean()])).optional(),
+  specs: z.record(z.string(), z.union([z.string(), z.number(), z.boolean()])).optional(),
   seoTitle: z.string().max(200).optional(),
   seoDescription: z.string().max(500).optional(),
   videoUrl: z.string().max(2000).optional(),
@@ -42,10 +36,8 @@ export const productBodySchema = z.object({
 
 export const productCreateSchema = productBodySchema;
 export const productUpdateSchema = productBodySchema.partial();
-
 export type ProductBody = z.infer<typeof productBodySchema>;
 
-/** Build a Prisma-safe data object from a validated body — never a raw spread. */
 export function productDataFromBody(body: Partial<ProductBody>) {
   return {
     name: body.name,
