@@ -98,18 +98,11 @@ test.describe('Appointment Workflow', () => {
     });
     const created = await apiPayload(createRes);
 
-    // There is no GET /appointments/:id — the router only exposes a filtered
-    // list (from/to/doctorId/status), POST as an upsert-by-id, PATCH
-    // /:id/status, POST /:id/close and DELETE /:id. Reading a single
-    // appointment back means listing and finding it, the same way
-    // treatment-plan.spec.ts already had to for treatment plans.
     const listRes = await request.get(`${BASE}/api/appointments?from=${futureDate(0)}&to=${futureDate(30)}`, {
       headers: { Authorization: `Bearer ${ownerToken}` },
     });
     expect(listRes.status()).toBe(200);
     const listBody = await apiPayload(listRes);
-    // payload() unwraps the { ok, data } envelope, while the appointments
-    // list itself is paginated as { data: Appointment[], pagination: ... }.
     const rows = listBody.data || listBody;
     const found = Array.isArray(rows) ? rows.find((a: any) => a.id === created.id) : null;
     expect(found).toBeTruthy();
@@ -125,9 +118,6 @@ test.describe('Appointment Workflow', () => {
     });
     const created = await apiPayload(createRes);
 
-    // No PUT /:id — updates go through the same POST the create above used,
-    // with `id` in the body (an upsert, same pattern as /patients and
-    // /crm/treatment-plans).
     const updateRes = await request.post(`${BASE}/api/appointments`, {
       headers: { Authorization: `Bearer ${ownerToken}` },
       data: { id: created.id, patientId, doctorId, date: futureDate(9), time: '09:00', notes: 'Updated notes', duration: 60 },
@@ -191,11 +181,6 @@ test.describe('Appointment Workflow', () => {
     });
     expect(completeRes.status()).toBe(200);
     const completed = await apiPayload(completeRes);
-    // The API accepts 'completed' as an input alias (appointmentMeta.ts's
-    // TO_DB map) but always reports the terminal state back as 'done' — the
-    // only value used anywhere on the frontend (Schedule.tsx's advanceStatus
-    // chain, the AppointmentStatus type). Round-tripping 'completed' back out
-    // would break that chain's `indexOf` lookup.
     expect(completed.status).toBe('done');
 
     await cleanupAppointment(request, ownerToken, created.id);
@@ -242,26 +227,30 @@ test.describe('Appointment Workflow', () => {
   });
 
   test('APPT-009: List appointments for date range → 200', async ({ request }) => {
+    const from = futureDate(20);
+    const to = futureDate(21);
     const a1 = await request.post(`${BASE}/api/appointments`, {
       headers: { Authorization: `Bearer ${ownerToken}` },
-      data: { patientId, doctorId, date: futureDate(20), time: '09:00' },
+      data: { patientId, doctorId, date: from, time: '09:00' },
     });
     const appt1 = await apiPayload(a1);
 
     const a2 = await request.post(`${BASE}/api/appointments`, {
       headers: { Authorization: `Bearer ${ownerToken}` },
-      data: { patientId, doctorId, date: futureDate(21), time: '10:00' },
+      data: { patientId, doctorId, date: to, time: '10:00' },
     });
     const appt2 = await apiPayload(a2);
 
     const listRes = await request.get(
-      `${BASE}/api/appointments?date=${futureDate(20)}`,
-      { headers: { Authorization: `Bearer ${ownerToken}` },
+      `${BASE}/api/appointments?from=${from}&to=${to}`,
+      { headers: { Authorization: `Bearer ${ownerToken}` } },
     );
     expect(listRes.status()).toBe(200);
     const body = await apiPayload(listRes);
     const list = body.data || body.appointments || body;
     expect(Array.isArray(list)).toBeTruthy();
+    expect(list.some((appointment: any) => appointment.id === appt1.id)).toBeTruthy();
+    expect(list.some((appointment: any) => appointment.id === appt2.id)).toBeTruthy();
 
     await cleanupAppointment(request, ownerToken, appt1.id);
     await cleanupAppointment(request, ownerToken, appt2.id);
