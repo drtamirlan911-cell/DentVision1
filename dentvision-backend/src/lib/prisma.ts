@@ -2,6 +2,7 @@ import { PrismaClient } from '@prisma/client';
 import { ZodError } from 'zod';
 import { parseTengeToMinor } from './money.js';
 import { installContentCatalogJsonGuard } from '../iam/contentCatalogMiddleware.js';
+import { assertDiagnosticSignerIsDoctor } from './diagnosticClinicalAuth.js';
 
 // Zod 4 renamed the public issue collection from `errors` to `issues`.
 // Several legacy route handlers still consume `.errors`; keep that contract
@@ -25,6 +26,17 @@ const prismaWithReferralEconomics = prisma as PrismaClient & {
 };
 
 prismaWithReferralEconomics.$use?.(async (params, next) => {
+  if (params.model === 'DiagnosticResult' && ['create', 'update', 'upsert', 'updateMany'].includes(params.action) && params.args?.data) {
+    const data = params.args.data;
+    const signedBy = data.signedBy;
+    if (typeof signedBy === 'string' && signedBy.trim()) {
+      const referralId = data.referralId || params.args?.where?.referralId || params.args?.where?.id;
+      if (typeof referralId === 'string') {
+        await assertDiagnosticSignerIsDoctor(prisma, referralId, signedBy);
+      }
+    }
+  }
+
   if (params.model === 'Referral' && (params.action === 'update' || params.action === 'updateMany') && params.args?.data) {
     const data = params.args.data;
     const nextStatus = data.status;
