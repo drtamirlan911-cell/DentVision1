@@ -19,8 +19,8 @@ Complete IAM, branch isolation and release-gate work without weakening tests or 
 9. Appointment — database branch consistency is enforced; operational route filtering remains part of release E2E hardening.
 10. Inventory — `inventory_items.branch_id` migration/backfill and route branch scoping are implemented.
 11. Inventory deduction — appointment close performs an additional clinic + branch check before any stock movement.
-12. Finance — branch foundation and fail-closed policy are present; route/service wiring is still required before release completion.
-13. Diagnostics — referral branch foundation and fail-closed policy are present; route/service wiring is still required before release completion.
+12. Finance — branch foundation and fail-closed policy are present; database integrity is now hardened for invoices/expenses, while route/service wiring is still required before release completion.
+13. Diagnostics — referral branch foundation and fail-closed policy are present; database integrity is now hardened for referrals, while route/service wiring is still required before release completion.
 14. Medical Lab / Dental Lab — preserve existing partner membership models and apply branch scope progressively.
 15. E2E cross-branch and cross-organization denial — required release batch.
 
@@ -37,6 +37,13 @@ Additional release policy:
 - `dentvision-backend/src/lib/financeBranchBoundary.test.ts`
 - `dentvision-backend/src/lib/financeWalletBoundary.ts`
 - `dentvision-backend/src/lib/financeWalletBoundary.test.ts`
+
+Database hardening added:
+- `20260914141000_enforce_finance_branch_consistency/migration.sql`
+- invoices and expenses inherit the active clinic default branch when appropriate;
+- a branch attached to a finance row must be active and belong to the same clinic;
+- platform-only finance rows remain branchless when `clinic_id` is absent;
+- migration contract tests lock these invariants.
 
 Hardening added:
 - finance branch resolution requires an actual `clinic_members` row;
@@ -63,6 +70,14 @@ Additional reusable enforcement:
 - `dentvision-backend/src/lib/diagnosticReferralBranchPolicy.ts`
 - `dentvision-backend/src/lib/diagnosticReferralBranchPolicy.test.ts`
 
+Database hardening added:
+- `20260914140000_enforce_referral_branch_consistency/migration.sql`
+- referrals inherit the patient's branch when the referral has no explicit branch;
+- a referral branch must be active and belong to the referral clinic;
+- a referral branch cannot differ from the patient's branch;
+- referrals follow the patient when the patient moves branches;
+- migration contract tests lock these invariants.
+
 Hardening added:
 - diagnostic branch resolution requires an actual `clinic_members` row;
 - missing membership returns an empty branch set and `organizationWide: false`;
@@ -71,6 +86,8 @@ Hardening added:
 - diagnostic-center/laboratory partner organization access remains a separate boundary.
 
 The source clinic branch remains distinct from the external diagnostic-center/laboratory organization boundary. Existing center/lab membership models are preserved.
+
+The actual diagnostics routes still need to consume `diagnosticReferralBranchPolicy` for resource-level request authorization. Database integrity does not replace route authorization.
 
 ## Role matrix release contract
 Added:
