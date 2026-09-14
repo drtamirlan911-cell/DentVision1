@@ -3,10 +3,10 @@
 Updated: 2026-09-14
 Branch: `feat/iam-role-matrix-v2`
 PR: #275
-Latest known head before this state commit: `f238e5f08ec86c59437dfc46ee1d12c7ffb8e0b0`
+Current implementation head: `00ae0c1b4867b466cfb932e4fbad35372da19c95`
 
 ## Current objective
-Complete the IAM/release-gate work without weakening tests or faking product functionality. The next major architectural task is **real branch management and branch isolation**.
+Complete IAM, branch isolation and release-gate work without weakening tests or faking product functionality.
 
 ## Product role matrix
 Clinic roles:
@@ -25,94 +25,77 @@ Specialized partner families:
 - Dental Lab: 10 roles
 - Total specialized partner roles: 28
 
-## Branch architecture decision
+## Branch architecture
 Target model:
 `Organization → Branch → Clinic / operational data → Members`
 
-`Organization` already exists and is the IAM/business ownership layer. `Clinic` remains the operational clinic entity for backward compatibility. A real `Branch` entity must be introduced; do not simulate branches only in UI/tests.
+`Clinic` remains the operational entity for backward compatibility. `Branch` is persisted in `branches` and is organization-aware while retaining nullable `clinic_id` during the migration period.
 
-Minimum Branch fields:
-- id
-- organizationId
-- name
-- code
-- address
-- phone
-- city
-- active
-- createdAt
-- updatedAt
+Branch bootstrap: `dentvision-backend/prisma/ensure-branch-model.ts`
 
-Recommended constraints:
-- unique `(organizationId, code)`
-- index `(organizationId, active)`
+Branch authorization core: `dentvision-backend/src/lib/branchAuthorization.ts`
+- ORGANIZATION
+- BRANCH
+- ASSIGNED
+- OWN
+- fail-closed organization/branch checks
 
-Membership direction:
-- Existing `ClinicMember` should gain nullable branch assignment initially for backward compatibility.
-- Do not casually replace existing `[userId, clinicId]` uniqueness.
-- If multi-branch membership is required, prefer a dedicated assignment model rather than forcing one branch into a membership that must remain unique.
+Branch routes: `dentvision-backend/src/modules/branches/branches.routes.ts`
+- authenticated access
+- Owner/Admin branch management
+- Manager/assigned-member branch visibility restrictions
+- staff-to-branch assignment
+- organization-aware branch persistence fields
+- shared branch authorization used for mutations
 
-Authorization requirements:
-- Owner/Admin: manage and see all organization branches.
-- Manager: only assigned branch(es).
-- Doctor/Assistant: only assigned operational data.
-- Cross-branch access: deny.
-- Cross-organization access: deny.
-- Audit branch-sensitive access and mutations.
+Branch route contract test: `dentvision-backend/src/modules/branches/branches.routes.test.ts`
 
 ## Migration strategy
 Do NOT add `branchId` to 30+ operational tables in one risky migration.
 
-Implement in this order:
-1. Branch Prisma entity.
-2. Branch assignment/membership model.
-3. Branch authorization service/middleware.
-4. Branch-aware clinic/organization context.
-5. Owner/Admin branch CRUD.
-6. Manager branch restriction.
-7. Doctor/Assistant assignment restriction.
-8. Audit logging.
-9. E2E tests for cross-branch and cross-organization denial.
-10. Progressively migrate operational domains: Patient → Appointment → Inventory → Finance → Diagnostics → Labs.
+Implement progressively:
+1. Branch entity/bootstrap — implemented.
+2. Branch assignment on ClinicMember — implemented through transitional schema bootstrap.
+3. Shared branch authorization — implemented.
+4. Branch-aware clinic/organization context — in progress.
+5. Owner/Admin branch CRUD — implemented.
+6. Manager branch restriction — implemented at branch route level.
+7. Doctor/Assistant assignment restriction — implemented at branch route level; operational-data enforcement follows as each domain gains branchId.
+8. Audit branch-sensitive access and mutations — next hardening batch.
+9. E2E cross-branch and cross-organization denial — next release batch.
+10. Progressive operational migration: Patient → Appointment → Inventory → Finance → Diagnostics → Labs.
 
 Existing diagnostic/lab membership models must be preserved and migrated gradually.
 
+## Important compatibility rule
+Legacy clinic-linked branch rows remain supported while organization ownership is introduced. New branch writes may carry `organizationId`; the branch table keeps `clinic_id` until operational data is migrated.
+
+Do not silently treat a test-only branch fixture as product functionality.
+
 ## Current known CI/release state
-Previously confirmed:
-- Quality Gate passed.
-- Frontend lint passed.
-- Backend lint passed.
-- TypeScript/build/unit tests had passed except for the current design-token blocker when last inspected.
-- Main E2E: 200/205 passed, 5 expected skipped.
-- UX-001, UX-003, UX-004 passed.
-- UX-002 was fixed for Shop accessibility.
+Latest meaningful branch commits triggered:
+- Quality Gate
+- CI
 
-Known current blocker:
-`designTokens.test.ts` has stale `ALLOWED_LITERAL_COLOR_LINES` exceptions for `Shop.tsx`. Shop itself was already fixed in commit `39e3a2759bd250ccff396d01fe401922c999fcd9`. Fix the stale test contract; do not weaken the design-token guard by adding arbitrary literal colors.
+Do not wait indefinitely for CI. After a meaningful batch, inspect the result once; fix concrete failures and continue implementation.
 
-Business Owner journey previously failed because tests expected `Добавить сотрудника` while UI uses `Добавить вручную`, had conflicting `Пригласить` controls, and expected branch management that does not yet exist as a real Branch entity. Do not fake branch management just to satisfy E2E.
+Known earlier blocker:
+`designTokens.test.ts` had stale `ALLOWED_LITERAL_COLOR_LINES` exceptions for `Shop.tsx`. Shop itself was already fixed in commit `39e3a2759bd250ccff396d01fe401922c999fcd9`. Fix the stale test contract rather than weakening the design-token guard.
 
-## Existing canonical registries
+Business Owner journey previously failed because tests expected `Добавить сотрудника` while UI uses `Добавить вручную`, had conflicting `Пригласить` controls, and expected branch management before real branch management existed. The branch layer is now real; E2E expectations must be aligned with actual UI behavior rather than mocked state.
+
+## Canonical registries
 `dentvision-backend/src/lib/clinicRoleAccessRegistry.ts`
-- Canonical clinic role scopes and permissions.
+- canonical clinic role scopes and permissions.
 
 `dentvision-backend/src/lib/roleAccessRegistry.ts`
-- Canonical Diagnostic Center / Medical Lab / Dental Lab role families and scopes.
+- canonical Diagnostic Center / Medical Lab / Dental Lab role families and scopes.
 
 Tests:
 - `dentvision-backend/src/lib/clinicRoleAccessRegistry.test.ts`
 - `dentvision-backend/src/lib/roleAccessRegistry.test.ts`
-
-Latest IAM registry commit: `f238e5f08ec86c59437dfc46ee1d12c7ffb8e0b0`.
-
-## Important Prisma facts
-`Clinic` currently has direct relations to patients, appointments, lab orders, treatment plans/cases, invoices, inventory, bookings, documents, AI messages, referrals, etc.
-
-`ClinicMember` currently contains `userId`, `clinicId`, `role`, compensation fields, and unique `(userId, clinicId)`.
-
-`Organization`, `Person`, `PersonRole`, and `OrganizationInvitation` already exist.
-
-There is currently **no separate Branch entity** in Prisma at the point this state was recorded.
+- `dentvision-backend/src/lib/branchAuthorization.test.ts`
+- `dentvision-backend/src/modules/branches/branches.routes.test.ts`
 
 ## Release rule
 PR #275 must not be merged until the complete release gate is green, including:
@@ -126,7 +109,7 @@ PR #275 must not be merged until the complete release gate is green, including:
 - Organization Owner Lifecycle
 - Playwright smoke
 
-After every meaningful commit, inspect workflow runs for the new head and investigate failures instead of waiting blindly.
+After meaningful commits, inspect workflow status and investigate concrete failures. Do not use CI as a reason to stop implementation.
 
 ## Working principle
 Use the repository as the source of truth. Never claim a feature is implemented merely because a test was changed. Product behavior, authorization, data model, UI and E2E must agree.
