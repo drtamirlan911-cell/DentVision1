@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { readFile } from 'node:fs/promises';
 
-const root = new URL('../prisma/migrations/', import.meta.url);
+const root = new URL('../../prisma/migrations/', import.meta.url);
 
 describe('branch consistency migration contracts', () => {
   it('uses PostgreSQL null-safe comparison for finance clinic boundaries', async () => {
