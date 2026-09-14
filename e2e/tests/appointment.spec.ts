@@ -108,6 +108,8 @@ test.describe('Appointment Workflow', () => {
     });
     expect(listRes.status()).toBe(200);
     const listBody = await apiPayload(listRes);
+    // payload() unwraps the { ok, data } envelope, while the appointments
+    // list itself is paginated as { data: Appointment[], pagination: ... }.
     const rows = listBody.data || listBody;
     const found = Array.isArray(rows) ? rows.find((a: any) => a.id === created.id) : null;
     expect(found).toBeTruthy();
@@ -254,7 +256,7 @@ test.describe('Appointment Workflow', () => {
 
     const listRes = await request.get(
       `${BASE}/api/appointments?date=${futureDate(20)}`,
-      { headers: { Authorization: `Bearer ${ownerToken}` } },
+      { headers: { Authorization: `Bearer ${ownerToken}` },
     );
     expect(listRes.status()).toBe(200);
     const body = await apiPayload(listRes);
