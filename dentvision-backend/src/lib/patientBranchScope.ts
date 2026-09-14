@@ -49,8 +49,6 @@ export async function resolvePatientBranchContext(
     return { clinicId, userId, role, branchId: memberBranchId, scope: { kind: 'assigned', branchIds: memberBranchId ? [memberBranchId] : [] } };
   }
 
-  // Unknown roles deliberately fail closed. SUPERADMIN is handled by the
-  // existing clinic/org access layer and is not a normal clinic member role.
   return { clinicId, userId, role, branchId: memberBranchId, scope: { kind: 'assigned', branchIds: [] } };
 }
 
@@ -96,4 +94,12 @@ export async function assertPatientBranchBelongsToClinic(branchId: string, clini
     LIMIT 1
   `;
   return rows.length > 0;
+}
+
+export async function setPatientBranch(patientId: string, clinicId: string, branchId: string): Promise<void> {
+  await prisma.$executeRaw`
+    UPDATE patients
+    SET branch_id = ${branchId}, updated_at = NOW()
+    WHERE id = ${patientId} AND clinic_id = ${clinicId}
+  `;
 }
