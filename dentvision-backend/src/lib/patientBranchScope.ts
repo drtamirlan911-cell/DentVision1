@@ -26,7 +26,7 @@ export async function resolvePatientBranchContext(
   const membership = await prisma.$queryRaw<Array<{ branch_id: string | null }>>`
     SELECT branch_id
     FROM clinic_members
-    WHERE user_id = ${userId} AND clinic_id = ${clinicId}
+    WHERE "userId" = ${userId} AND clinic_id = ${clinicId}
     LIMIT 1
   `;
   const memberBranchId = membership[0]?.branch_id ?? null;
@@ -96,22 +96,4 @@ export async function assertPatientBranchBelongsToClinic(branchId: string, clini
     LIMIT 1
   `;
   return rows.length > 0;
-}
-
-export async function setPatientBranch(patientId: string, clinicId: string, branchId: string): Promise<void> {
-  await prisma.$executeRaw`
-    UPDATE patients
-    SET branch_id = ${branchId}, updated_at = NOW()
-    WHERE id = ${patientId} AND clinic_id = ${clinicId}
-  `;
-}
-
-export async function getPatientWhereForBranchScope(
-  clinicId: string,
-  branchIds: readonly string[],
-  extra: Prisma.PatientWhereInput = {},
-): Promise<Prisma.PatientWhereInput> {
-  if (!branchIds.length) return { ...extra, clinicId, id: '__NO_BRANCH_ACCESS__' };
-  const ids = await getPatientIdsForBranchScope(clinicId, branchIds);
-  return { ...extra, clinicId, id: { in: ids } };
 }
