@@ -7,7 +7,7 @@ const prisma = new PrismaClient();
 async function ensureBranch(clinicId: string, code: string, name: string) {
   const existing = await prisma.$queryRaw<Array<{ id: string }>>`
     SELECT id FROM branches
-    WHERE "clinicId" = ${clinicId} AND code = ${code}
+    WHERE clinic_id = ${clinicId} AND code = ${code}
     LIMIT 1
   `;
 
@@ -15,7 +15,7 @@ async function ensureBranch(clinicId: string, code: string, name: string) {
   if (!existing[0]) {
     await prisma.$executeRaw`
       INSERT INTO branches
-        (id, "clinicId", code, name, active, "updatedAt")
+        (id, clinic_id, code, name, active, "updatedAt")
       VALUES
         (${branchId}, ${clinicId}, ${code}, ${name}, true, NOW())
     `;
