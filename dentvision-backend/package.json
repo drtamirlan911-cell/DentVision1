@@ -21,7 +21,7 @@
     "postinstall": "tsx prisma/ensure-branch-model.ts && prisma generate",
     "cron:reminders": "tsx -e \"import { runReminderCron } from './src/jobs/reminderCron.ts'; runReminderCron().then(r => { console.log(JSON.stringify(r,null,2)); process.exit(0); }).catch(e => { console.error(e); process.exit(1); })\"",
     "system-map": "tsx src/scripts/system-map.ts",
-    "db:seed:e2e": "tsx prisma/seed-e2e.ts && tsx prisma/normalize-e2e-catalog.ts"
+    "db:seed:e2e": "tsx prisma/seed-e2e.ts && tsx prisma/seed-e2e-branches.ts && tsx prisma/normalize-e2e-catalog.ts"
   },
   "prisma": { "seed": "tsx prisma/seed.ts" },
   "dependencies": {
