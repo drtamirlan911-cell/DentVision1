@@ -2,7 +2,7 @@ import { Router } from 'express';
 import prisma from '../../lib/prisma.js';
 import { authenticate } from '../../middleware/auth.js';
 import { requirePermission } from '../../middleware/rbac.js';
-import { publish } from '../../lib/events.js';
+import { publish, publishGrowthEvent } from '../../lib/events.js';
 import { ensurePatientAssignment } from '../../lib/patientAssignment.js';
 import { auditFromReq } from '../compliance/audit.service.js';
 import { uid, paginate, paginatedResponse } from '../../lib/helpers.js';
@@ -267,6 +267,16 @@ appointmentsRouter.post('/', requirePermission('appointment.write'), requireClin
         doctorId: appointment.doctorId,
         userId: req.user?.id,
       });
+      const appointmentCount = await prisma.appointment.count({ where: { clinicId } });
+      if (appointmentCount === 1) {
+        publishGrowthEvent({
+          event: 'FIRST_APPOINTMENT_CREATED',
+          userId: req.user?.id,
+          clinicId,
+          entityId: appointment.id,
+          source: 'appointments.create',
+        });
+      }
     } else {
       // Moving an existing appointment to another doctor makes that doctor
       // responsible for the patient just as booking a new one does. There is
