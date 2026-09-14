@@ -32,9 +32,14 @@ Foundation already present in the branch:
 - `dentvision-backend/src/lib/financeBranchScope.ts`
 - `dentvision-backend/src/lib/financeBranchScope.test.ts`
 
-Additional release policy added:
+Additional release policy:
 - `dentvision-backend/src/lib/financeBranchBoundary.ts`
 - `dentvision-backend/src/lib/financeBranchBoundary.test.ts`
+
+Hardening added:
+- finance branch resolution now requires an actual `clinic_members` row;
+- missing membership returns an empty branch set and `organizationWide: false`;
+- organization roles cannot obtain finance visibility from a role string alone.
 
 Policy:
 - OWNER / ADMIN / ACCOUNTANT are organization-wide within their organization.
@@ -49,6 +54,10 @@ Foundation already present in the branch:
 - `referrals.branch_id`
 - `dentvision-backend/src/lib/diagnosticBranchScope.ts`
 - `dentvision-backend/src/lib/diagnosticBranchScope.test.ts`
+
+Hardening added:
+- diagnostic branch resolution now requires an actual `clinic_members` row;
+- missing membership returns an empty branch set and `organizationWide: false`.
 
 The source clinic branch remains distinct from the external diagnostic-center/laboratory organization boundary. Existing center/lab membership models are preserved.
 
@@ -78,7 +87,7 @@ Route enforcement:
 Static policy tests are not a substitute for route-level E2E. Before merge, verify both read and mutation denial for cross-branch and cross-organization cases.
 
 ## Current CI/release state
-New commits require fresh CI. No claim of release-green status is made until the complete gate is green.
+Fresh CI is required after the latest commits. No claim of release-green status is made until the complete gate is green.
 
 PR #275 remains blocked from merge until:
 - Quality Gate
