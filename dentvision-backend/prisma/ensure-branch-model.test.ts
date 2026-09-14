@@ -22,6 +22,13 @@ describe('ensure-branch-model bootstrap contract', () => {
     expect(source).toContain('branch Branch? @relation(fields: [branchId]');
   });
 
+  it('introduces nullable branch scope for Patient and Appointment', () => {
+    expect(source).toContain("ensureScalarField('Patient'");
+    expect(source).toContain("ensureScalarField('Appointment'");
+    expect(source).toContain('branchId       String?');
+    expect(source).toContain('branchId        String?');
+  });
+
   it('enforces organization/code uniqueness and branch indexes', () => {
     expect(source).toContain('@@unique([organizationId, code])');
     expect(source).toContain('@@index([organizationId, active])');
