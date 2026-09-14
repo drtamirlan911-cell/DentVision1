@@ -16,4 +16,3 @@ jobs:
       # as warnings get cleaned up over time.
       - run: npx eslint src/ --max-warnings 13
       - run: npx tsx quality-scripts/release-gate.ts
-        continue-on-error: true
