@@ -39,6 +39,24 @@ if (schema.includes(memberRelationMarker) && !schema.includes('  branch Branch? 
   );
 }
 
+// Patient branch scope is intentionally introduced as a scalar first. The
+// operational migration keeps the existing clinicId contract intact and
+// allows branch-aware SQL filtering before a full relational rollout.
+const patientClinicMarker = '  clinicId       String\n';
+if (schema.includes('model Patient {') && schema.includes(patientClinicMarker)) {
+  const patientStart = schema.indexOf('model Patient {');
+  const patientEnd = schema.indexOf('\n}\n', patientStart);
+  const patientBlock = patientEnd > patientStart ? schema.slice(patientStart, patientEnd) : '';
+  if (patientBlock && !patientBlock.includes('  branchId')) {
+    const patientClinicIndex = schema.indexOf(patientClinicMarker, patientStart);
+    if (patientClinicIndex >= 0 && patientClinicIndex < patientEnd) {
+      schema = schema.slice(0, patientClinicIndex + patientClinicMarker.length)
+        + '  branchId       String?\n'
+        + schema.slice(patientClinicIndex + patientClinicMarker.length);
+    }
+  }
+}
+
 if (!schema.includes('model Branch {')) {
   const insertBeforeBooking = 'model Booking {\n';
   if (!schema.includes(insertBeforeBooking)) throw new Error('Booking marker not found in schema.prisma');
@@ -82,4 +100,4 @@ if (!schema.includes('model Branch {')) {
 }
 
 writeFileSync(schemaPath, schema);
-console.log('[prisma] organization-scoped branch model ensured');
+console.log('[prisma] organization-scoped branch model and patient branch scope ensured');
