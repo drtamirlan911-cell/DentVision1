@@ -33,10 +33,10 @@ if (schema.includes(memberRoleMarker) && !schema.includes('  branchId           
 
 const memberRelationMarker = '  clinic Clinic @relation(fields: [clinicId], references: [id], onDelete: Cascade)\n';
 if (schema.includes(memberRelationMarker) && !schema.includes('  branch Branch? @relation(fields: [branchId,')) {
-  const branchRelation = '  branch Branch? @relation(fields: [branchId], references: [id], onDelete: SetNull)\n';
-  if (!schema.includes(branchRelation)) {
-    schema = schema.replace(memberRelationMarker, `${memberRelationMarker}${branchRelation}`);
-  }
+  schema = schema.replace(
+    memberRelationMarker,
+    `${memberRelationMarker}  branch Branch? @relation(fields: [branchId], references: [id], onDelete: SetNull)\n`,
+  );
 }
 
 if (!schema.includes('model Branch {')) {
@@ -53,6 +53,15 @@ if (!schema.includes('model Branch {')) {
       'model Branch {\n  id             String       @id @default(uuid())\n  organizationId  String?      @map("organization_id")\n',
     );
   }
+
+  // A legacy Branch used a required clinicId. Keep it nullable while the
+  // organization migration is phased; existing rows can therefore survive.
+  schema = schema.replace(
+    'model Branch {\n  id             String       @id @default(uuid())\n  organizationId  String?      @map("organization_id")\n  clinicId       String\n',
+    'model Branch {\n  id             String       @id @default(uuid())\n  organizationId  String?      @map("organization_id")\n  clinicId       String?      @map("clinic_id")\n',
+  );
+  schema = schema.replace('  clinicId   String\n', '  clinicId       String?      @map("clinic_id")\n');
+
   if (!schema.includes('organization Organization? @relation(fields: [organizationId], references: [id], onDelete: Cascade)')) {
     const clinicRelation = '  clinic  Clinic         @relation(fields: [clinicId], references: [id], onDelete: Cascade)\n';
     if (schema.includes(clinicRelation)) {
