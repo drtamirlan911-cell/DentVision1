@@ -27,13 +27,21 @@ function ensureScalarField(modelName: string, marker: string, field: string) {
   if (end < 0) throw new Error(`${modelName} model boundary not found`);
   const block = schema.slice(start, end);
   if (block.includes('  branchId')) {
-    schema = schema.replace('  branchId       String?\n', '  branchId       String?   @map("branch_id")\n');
-    schema = schema.replace('  branchId        String?\n', '  branchId        String?   @map("branch_id")\n');
+    schema = schema.replace(/  branchId\s+String\?(?:\s+@map\("branch_id"\))?/g, '  branchId        String?   @map("branch_id")');
     return;
   }
   const markerIndex = schema.indexOf(marker, start);
-  if (markerIndex < 0 || markerIndex > end) throw new Error(`${modelName} marker not found`);
-  schema = schema.slice(0, markerIndex + marker.length) + field + schema.slice(markerIndex + marker.length);
+  if (markerIndex >= start && markerIndex < end) {
+    schema = schema.slice(0, markerIndex + marker.length) + field + schema.slice(markerIndex + marker.length);
+    return;
+  }
+  const clinicField = /(^|\n)\s*clinicId\s+String(?:\s+[^\n]*)?\n/.exec(block);
+  if (clinicField && clinicField.index !== undefined) {
+    const absoluteClinicEnd = start + clinicField.index + clinicField[0].length;
+    schema = schema.slice(0, absoluteClinicEnd) + field + schema.slice(absoluteClinicEnd);
+    return;
+  }
+  throw new Error(`${modelName} clinicId marker not found`);
 }
 
 ensureScalarField('Patient', '  clinicId       String\n', '  branchId       String?   @map("branch_id")\n');
