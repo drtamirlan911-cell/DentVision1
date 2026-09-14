@@ -26,14 +26,14 @@ async function ensureBranch(clinicId: string, code: string, name: string) {
   if (!existing[0]) {
     await prisma.$executeRaw`
       INSERT INTO branches
-        (id, clinic_id, code, name, active, is_default, created_at, updated_at)
+        (id, clinic_id, code, name, active, created_at, updated_at)
       VALUES
-        (${branchId}, ${clinicId}, ${code}, ${name}, true, true, NOW(), NOW())
+        (${branchId}, ${clinicId}, ${code}, ${name}, true, NOW(), NOW())
     `;
   } else {
     await prisma.$executeRaw`
       UPDATE branches
-      SET name = ${name}, active = true, is_default = true, updated_at = NOW()
+      SET name = ${name}, active = true, updated_at = NOW()
       WHERE id = ${branchId}
     `;
   }
