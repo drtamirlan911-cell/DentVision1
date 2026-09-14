@@ -18,7 +18,8 @@ if (!schema.includes('  branches            Branch[]')) {
   schema = schema.replace(clinicRelationMarker, `${clinicRelationMarker}  branches            Branch[]\n`);
 }
 const memberRoleMarker = '  role              UserRole @default(DOCTOR)\n';
-if (schema.includes(memberRoleMarker) && !schema.includes('  branchId           String?\n')) schema = schema.replace(memberRoleMarker, `${memberRoleMarker}  branchId           String?\n`);
+if (schema.includes(memberRoleMarker) && !schema.includes('  branchId           String?')) schema = schema.replace(memberRoleMarker, `${memberRoleMarker}  branchId           String?   @map("branch_id")\n`);
+else if (schema.includes('  branchId           String?\n')) schema = schema.replace('  branchId           String?\n', '  branchId           String?   @map("branch_id")\n');
 const memberRelationMarker = '  clinic Clinic @relation(fields: [clinicId], references: [id], onDelete: Cascade)\n';
 if (schema.includes(memberRelationMarker) && !schema.includes('  branch Branch? @relation(fields: [branchId,')) schema = schema.replace(memberRelationMarker, `${memberRelationMarker}  branch Branch? @relation(fields: [branchId], references: [id], onDelete: SetNull)\n`);
 
@@ -28,7 +29,11 @@ function ensureScalarField(modelName: string, marker: string, field: string) {
   const end = schema.indexOf('\n}\n', start);
   if (end < 0) throw new Error(`${modelName} model boundary not found`);
   const block = schema.slice(start, end);
-  if (block.includes(field)) return;
+  if (block.includes('  branchId')) {
+    schema = schema.replace('  branchId       String?\n', '  branchId       String?   @map("branch_id")\n');
+    schema = schema.replace('  branchId        String?\n', '  branchId        String?   @map("branch_id")\n');
+    return;
+  }
   const markerIndex = schema.indexOf(marker, start);
   if (markerIndex < 0 || markerIndex > end) throw new Error(`${modelName} marker not found`);
   schema = schema.slice(0, markerIndex + marker.length) + field + schema.slice(markerIndex + marker.length);
@@ -37,13 +42,13 @@ function ensureScalarField(modelName: string, marker: string, field: string) {
 // Operational scope is introduced incrementally. Nullable branchId keeps
 // legacy records readable for organization-scoped roles while branch-scoped
 // roles are fail-closed until their records are assigned/backfilled.
-ensureScalarField('Patient', '  clinicId       String\n', '  branchId       String?\n');
-ensureScalarField('Appointment', '  clinicId        String\n', '  branchId        String?\n');
+ensureScalarField('Patient', '  clinicId       String\n', '  branchId       String?   @map("branch_id")\n');
+ensureScalarField('Appointment', '  clinicId        String\n', '  branchId        String?   @map("branch_id")\n');
 
 if (!schema.includes('model Branch {')) {
   const insertBeforeBooking = 'model Booking {\n';
   if (!schema.includes(insertBeforeBooking)) throw new Error('Booking marker not found in schema.prisma');
-  const branchModel = `model Branch {\n  id             String       @id @default(uuid())\n  organizationId  String?      @map("organization_id")\n  // Transitional clinic linkage; remove after operational data is branch-scoped.\n  clinicId       String?      @map("clinic_id")\n  code           String\n  name           String\n  city           String?\n  address        String?\n  phone          String?\n  active         Boolean      @default(true)\n  isDefault      Boolean      @default(false)\n  settings       Json?\n  createdAt      DateTime     @default(now())\n  updatedAt      DateTime     @updatedAt\n\n  organization Organization? @relation(fields: [organizationId], references: [id], onDelete: Cascade)\n  clinic       Clinic?       @relation(fields: [clinicId], references: [id], onDelete: SetNull)\n  members      ClinicMember[]\n\n  @@unique([organizationId, code])\n  @@index([organizationId])\n  @@index([organizationId, active])\n  @@index([clinicId])\n  @@map("branches")\n}\n\n`;
+  const branchModel = `model Branch {\n  id             String       @id @default(uuid())\n  organizationId  String?      @map("organization_id")\n  clinicId       String?      @map("clinic_id")\n  code           String\n  name           String\n  city           String?\n  address        String?\n  phone          String?\n  active         Boolean      @default(true)\n  isDefault      Boolean      @default(false)\n  settings       Json?\n  createdAt      DateTime     @default(now())\n  updatedAt      DateTime     @updatedAt\n\n  organization Organization? @relation(fields: [organizationId], references: [id], onDelete: Cascade)\n  clinic       Clinic?       @relation(fields: [clinicId], references: [id], onDelete: SetNull)\n  members      ClinicMember[]\n\n  @@unique([organizationId, code])\n  @@index([organizationId])\n  @@index([organizationId, active])\n  @@index([clinicId])\n  @@map("branches")\n}\n\n`;
   schema = schema.replace(insertBeforeBooking, branchModel + insertBeforeBooking);
 } else {
   if (!schema.includes('organizationId  String?      @map("organization_id")')) schema = schema.replace('model Branch {\n  id         String   @id @default(uuid())\n', 'model Branch {\n  id             String       @id @default(uuid())\n  organizationId  String?      @map("organization_id")\n');
