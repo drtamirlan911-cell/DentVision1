@@ -29,6 +29,18 @@ describe('ensure-branch-model bootstrap contract', () => {
     expect(source).toContain('branchId        String?');
   });
 
+  it('covers operational models with tolerant clinicId insertion', () => {
+    expect(source).toContain("ensureScalarField('InventoryItem'");
+    expect(source).toContain("ensureScalarField('Invoice'");
+    expect(source).toContain("ensureScalarField('Expense'");
+    expect(source).toContain("ensureScalarField('Referral'");
+    expect(source).toContain('const clinicField = /(^|\\n)\\s*clinicId\\s+String');
+  });
+
+  it('fails clearly when a model has no usable clinicId field', () => {
+    expect(source).toContain('clinicId marker not found');
+  });
+
   it('enforces organization/code uniqueness and branch indexes', () => {
     expect(source).toContain('@@unique([organizationId, code])');
     expect(source).toContain('@@index([organizationId, active])');
