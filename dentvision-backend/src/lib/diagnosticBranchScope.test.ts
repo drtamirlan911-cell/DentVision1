@@ -5,6 +5,9 @@ describe('diagnostic branch scope contract', () => {
     const fs = await import('node:fs/promises');
     const source = await fs.readFile(new URL('./diagnosticBranchScope.ts', import.meta.url), 'utf8');
     expect(source).toContain("new Set(['OWNER', 'ADMIN', 'ACCOUNTANT'])");
+    expect(source).toContain('if (!membership[0])');
+    expect(source).toContain('organizationWide: false');
+    expect(source).toContain('branchIds: []');
     expect(source).toContain('if (!ctx.branchIds.length) return { clinicId: ctx.clinicId, branchId: null }');
     expect(source).toContain('if (!branchId) return false');
   });
