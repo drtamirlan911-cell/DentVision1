@@ -11,73 +11,43 @@ export const branchesRouter = Router();
 branchesRouter.use(authenticate);
 
 type BranchRow = {
-  id: string;
-  organization_id: string | null;
-  clinic_id: string | null;
-  code: string;
-  name: string;
-  city: string | null;
-  address: string | null;
-  phone: string | null;
-  active: boolean;
-  is_default: boolean;
-  settings: unknown;
-  created_at: Date;
-  updated_at: Date;
+  id: string; organization_id: string | null; clinic_id: string | null; code: string; name: string;
+  city: string | null; address: string | null; phone: string | null; active: boolean; is_default: boolean;
+  settings: unknown; created_at: Date; updated_at: Date;
 };
-
 type MemberScopeRow = { role: string; branch_id: string | null };
 
 function serialize(row: BranchRow) {
   return { id: row.id, organizationId: row.organization_id, clinicId: row.clinic_id, code: row.code, name: row.name, city: row.city, address: row.address, phone: row.phone, active: row.active, isDefault: row.is_default, settings: row.settings, createdAt: row.created_at, updatedAt: row.updated_at };
 }
-
 function roleScope(role: string): RoleScope {
   switch (role) {
-    case 'OWNER':
-    case 'ADMIN': return 'ORGANIZATION';
+    case 'OWNER': case 'ADMIN': return 'ORGANIZATION';
     case 'MANAGER': return 'BRANCH';
-    case 'DOCTOR':
-    case 'ASSISTANT':
-    case 'RECEPTIONIST':
-    case 'CASHIER': return 'ASSIGNED';
+    case 'DOCTOR': case 'ASSISTANT': case 'RECEPTIONIST': case 'CASHIER': return 'ASSIGNED';
     default: return 'OWN';
   }
 }
-
-async function membership(userId: string, clinicId: string): Promise<MemberScopeRow | { role: 'OWNER'; branchId: null } | null> {
+async function membership(userId: string, clinicId: string): Promise<MemberScopeRow | null> {
   const user = await prisma.user.findUnique({ where: { id: userId }, select: { role: true } });
-  if (user?.role === 'SUPERADMIN') return { role: 'OWNER', branchId: null };
+  if (user?.role === 'SUPERADMIN') return { role: 'OWNER', branch_id: null };
   const rows = await prisma.$queryRaw<MemberScopeRow[]>`
     SELECT "role", "branch_id" FROM "clinic_members" WHERE "userId" = ${userId} AND "clinicId" = ${clinicId} LIMIT 1
   `;
   return rows[0] ?? null;
 }
-
 async function authorizeMemberBranch(userId: string, clinicId: string, branch: BranchRow, mutation = false) {
   const member = await membership(userId, clinicId);
   if (!member) return { allowed: false as const, status: 403, error: 'Вы не являетесь участником этой клиники' };
-
   const clinicOrganizationId = await resolveOrganizationIdForClinic(clinicId);
   const expectedOrganizationId = clinicOrganizationId ?? `legacy:${clinicId}`;
-  if (branch.organization_id && branch.organization_id !== expectedOrganizationId) {
-    return { allowed: false as const, status: 403, error: 'Филиал принадлежит другой организации' };
-  }
-
+  if (branch.organization_id && branch.organization_id !== expectedOrganizationId) return { allowed: false as const, status: 403, error: 'Филиал принадлежит другой организации' };
   const result = authorizeBranchScope(
-    {
-      organizationId: expectedOrganizationId,
-      roleScope: roleScope(member.role),
-      branchIds: member.branchId ? [member.branchId] : [],
-      assignedBranchId: member.branchId,
-      userId,
-    },
+    { organizationId: expectedOrganizationId, roleScope: roleScope(member.role), branchIds: member.branch_id ? [member.branch_id] : [], assignedBranchId: member.branch_id, userId },
     { organizationId: branch.organization_id ?? expectedOrganizationId, branchId: branch.id },
   );
   if (!result.allowed) return { allowed: false as const, status: 403, error: 'Доступ к этому филиалу запрещён' };
-  if (mutation && !['OWNER', 'ADMIN'].includes(member.role)) {
-    return { allowed: false as const, status: 403, error: 'Только Руководитель или Администратор может изменять филиалы' };
-  }
+  if (mutation && !['OWNER', 'ADMIN'].includes(member.role)) return { allowed: false as const, status: 403, error: 'Только Руководитель или Администратор может изменять филиалы' };
   return { allowed: true as const, member };
 }
 
@@ -89,17 +59,13 @@ branchesRouter.get('/', async (req: AuthRequest, res) => {
     if (!member) return res.status(403).json({ ok: false, error: 'Вы не являетесь участником этой клиники' });
     const organizationId = await resolveOrganizationIdForClinic(clinicId);
     const rows = await prisma.$queryRaw<BranchRow[]>`
-      SELECT * FROM "branches"
-      WHERE "clinic_id" = ${clinicId}
-        AND (${member.role} IN ('OWNER', 'ADMIN') OR "id" = ${member.branchId ?? ''})
+      SELECT * FROM "branches" WHERE "clinic_id" = ${clinicId}
+        AND (${member.role} IN ('OWNER', 'ADMIN') OR "id" = ${member.branch_id ?? ''})
         AND (${organizationId ?? `legacy:${clinicId}`} = COALESCE("organization_id", ${organizationId ?? `legacy:${clinicId}`}))
       ORDER BY "is_default" DESC, "name" ASC
     `;
     return res.json({ ok: true, data: rows.map(serialize) });
-  } catch (error) {
-    console.error('[branches] list', error);
-    return res.status(500).json({ ok: false, error: 'Не удалось получить филиалы' });
-  }
+  } catch (error) { console.error('[branches] list', error); return res.status(500).json({ ok: false, error: 'Не удалось получить филиалы' }); }
 });
 
 branchesRouter.post('/', async (req: AuthRequest, res) => {
@@ -122,8 +88,7 @@ branchesRouter.post('/', async (req: AuthRequest, res) => {
     return res.status(201).json({ ok: true, data: serialize(rows[0]) });
   } catch (error: any) {
     if (String(error?.message || '').includes('branches_clinic_id_code_key') || String(error?.message || '').includes('branches_organization_id_code_key')) return res.status(409).json({ ok: false, error: 'Филиал с таким кодом уже существует' });
-    console.error('[branches] create', error);
-    return res.status(500).json({ ok: false, error: 'Не удалось создать филиал' });
+    console.error('[branches] create', error); return res.status(500).json({ ok: false, error: 'Не удалось создать филиал' });
   }
 });
 
@@ -147,10 +112,7 @@ branchesRouter.patch('/:id', async (req: AuthRequest, res) => {
       WHERE "id" = ${branchId} RETURNING *
     `;
     return res.json({ ok: true, data: serialize(updated[0]) });
-  } catch (error) {
-    console.error('[branches] update', error);
-    return res.status(500).json({ ok: false, error: 'Не удалось обновить филиал' });
-  }
+  } catch (error) { console.error('[branches] update', error); return res.status(500).json({ ok: false, error: 'Не удалось обновить филиал' }); }
 });
 
 branchesRouter.post('/:id/members/:userId', async (req: AuthRequest, res) => {
@@ -167,10 +129,7 @@ branchesRouter.post('/:id/members/:userId', async (req: AuthRequest, res) => {
     if (!target) return res.status(404).json({ ok: false, error: 'Сотрудник не является участником клиники' });
     await prisma.$executeRaw`UPDATE "clinic_members" SET "branch_id" = ${branchId}, "updatedAt" = CURRENT_TIMESTAMP WHERE "userId" = ${userId} AND "clinicId" = ${branch.clinic_id}`;
     return res.json({ ok: true, data: { userId, branchId } });
-  } catch (error) {
-    console.error('[branches] assign member', error);
-    return res.status(500).json({ ok: false, error: 'Не удалось назначить сотрудника' });
-  }
+  } catch (error) { console.error('[branches] assign member', error); return res.status(500).json({ ok: false, error: 'Не удалось назначить сотрудника' }); }
 });
 
 export default branchesRouter;
