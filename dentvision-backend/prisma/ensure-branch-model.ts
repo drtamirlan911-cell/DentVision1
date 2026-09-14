@@ -2,35 +2,75 @@ import { readFileSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 
 const schemaPath = resolve(process.cwd(), 'prisma/schema.prisma');
-const schema = readFileSync(schemaPath, 'utf8');
+let schema = readFileSync(schemaPath, 'utf8');
 
-// The repository currently keeps a single large Prisma schema. This small
-// idempotent bootstrap keeps the branch model in the generated Prisma schema
-// during the IAM v2 transition without duplicating the whole schema file.
-if (schema.includes('model Branch {')) process.exit(0);
+// Transitional bootstrap for the single-file Prisma schema. Branches are an
+// IAM/business boundary owned by Organization. Clinic linkage is retained as
+// an optional compatibility field until operational data is migrated fully.
+const organizationRelationMarker = '  invitations OrganizationInvitation[]\n';
+if (!schema.includes('  branches Branch[]') && !schema.includes('  branches            Branch[]')) {
+  if (!schema.includes(organizationRelationMarker)) {
+    throw new Error('Organization relation marker not found in schema.prisma');
+  }
+  schema = schema.replace(
+    organizationRelationMarker,
+    `${organizationRelationMarker}  branches     Branch[]\n`,
+  );
+}
 
-let next = schema;
-
-const clinicMarker = '  members             ClinicMember[]\n';
-if (!next.includes(clinicMarker)) throw new Error('Clinic relation marker not found in schema.prisma');
-next = next.replace(clinicMarker, `${clinicMarker}  branches            Branch[]\n`);
+const clinicRelationMarker = '  members             ClinicMember[]\n';
+if (!schema.includes('  branches            Branch[]')) {
+  if (!schema.includes(clinicRelationMarker)) {
+    throw new Error('Clinic relation marker not found in schema.prisma');
+  }
+  schema = schema.replace(clinicRelationMarker, `${clinicRelationMarker}  branches            Branch[]\n`);
+}
 
 const memberRoleMarker = '  role              UserRole @default(DOCTOR)\n';
-if (!next.includes(memberRoleMarker)) throw new Error('ClinicMember role marker not found in schema.prisma');
-next = next.replace(memberRoleMarker, `${memberRoleMarker}  branchId           String?\n`);
+if (schema.includes(memberRoleMarker) && !schema.includes('  branchId           String?\n')) {
+  schema = schema.replace(memberRoleMarker, `${memberRoleMarker}  branchId           String?\n`);
+}
 
 const memberRelationMarker = '  clinic Clinic @relation(fields: [clinicId], references: [id], onDelete: Cascade)\n';
-if (!next.includes(memberRelationMarker)) throw new Error('ClinicMember relation marker not found in schema.prisma');
-next = next.replace(
-  memberRelationMarker,
-  `${memberRelationMarker}  branch Branch? @relation(fields: [branchId], references: [id], onDelete: SetNull)\n`,
-);
+if (schema.includes(memberRelationMarker) && !schema.includes('  branch Branch? @relation(fields: [branchId,')) {
+  const branchRelation = '  branch Branch? @relation(fields: [branchId], references: [id], onDelete: SetNull)\n';
+  if (!schema.includes(branchRelation)) {
+    schema = schema.replace(memberRelationMarker, `${memberRelationMarker}${branchRelation}`);
+  }
+}
 
-const insertBeforeBooking = 'model Booking {\n';
-if (!next.includes(insertBeforeBooking)) throw new Error('Booking marker not found in schema.prisma');
+if (!schema.includes('model Branch {')) {
+  const insertBeforeBooking = 'model Booking {\n';
+  if (!schema.includes(insertBeforeBooking)) throw new Error('Booking marker not found in schema.prisma');
 
-const branchModel = `model Branch {\n  id         String   @id @default(uuid())\n  clinicId   String\n  code       String\n  name       String\n  city       String?\n  address    String?\n  phone      String?\n  active     Boolean  @default(true)\n  isDefault  Boolean  @default(false)\n  settings   Json?\n  createdAt  DateTime @default(now())\n  updatedAt  DateTime @updatedAt\n\n  clinic  Clinic         @relation(fields: [clinicId], references: [id], onDelete: Cascade)\n  members ClinicMember[]\n\n  @@unique([clinicId, code])\n  @@index([clinicId])\n  @@index([clinicId, active])\n  @@map("branches")\n}\n\n`;
+  const branchModel = `model Branch {\n  id             String       @id @default(uuid())\n  organizationId  String?      @map("organization_id")\n  // Transitional clinic linkage; remove after operational data is branch-scoped.\n  clinicId       String?      @map("clinic_id")\n  code           String\n  name           String\n  city           String?\n  address        String?\n  phone          String?\n  active         Boolean      @default(true)\n  isDefault      Boolean      @default(false)\n  settings       Json?\n  createdAt      DateTime     @default(now())\n  updatedAt      DateTime     @updatedAt\n\n  organization Organization? @relation(fields: [organizationId], references: [id], onDelete: Cascade)\n  clinic       Clinic?       @relation(fields: [clinicId], references: [id], onDelete: SetNull)\n  members      ClinicMember[]\n\n  @@unique([organizationId, code])\n  @@index([organizationId])\n  @@index([organizationId, active])\n  @@index([clinicId])\n  @@map("branches")\n}\n\n`;
+  schema = schema.replace(insertBeforeBooking, branchModel + insertBeforeBooking);
+} else {
+  // Upgrade the earlier clinic-owned bootstrap to organization-owned Branch.
+  if (!schema.includes('organizationId  String?      @map("organization_id")')) {
+    schema = schema.replace(
+      'model Branch {\n  id         String   @id @default(uuid())\n',
+      'model Branch {\n  id             String       @id @default(uuid())\n  organizationId  String?      @map("organization_id")\n',
+    );
+  }
+  if (!schema.includes('organization Organization? @relation(fields: [organizationId], references: [id], onDelete: Cascade)')) {
+    const clinicRelation = '  clinic  Clinic         @relation(fields: [clinicId], references: [id], onDelete: Cascade)\n';
+    if (schema.includes(clinicRelation)) {
+      schema = schema.replace(
+        clinicRelation,
+        '  organization Organization? @relation(fields: [organizationId], references: [id], onDelete: Cascade)\n' +
+          '  clinic       Clinic?       @relation(fields: [clinicId], references: [id], onDelete: SetNull)\n',
+      );
+    }
+  }
+  schema = schema.replace('  @@unique([clinicId, code])\n', '  @@unique([organizationId, code])\n');
+  if (!schema.includes('  @@index([organizationId])\n')) {
+    schema = schema.replace('  @@index([clinicId])\n', '  @@index([organizationId])\n  @@index([clinicId])\n');
+  }
+  if (!schema.includes('  @@index([organizationId, active])\n')) {
+    schema = schema.replace('  @@index([organizationId])\n', '  @@index([organizationId])\n  @@index([organizationId, active])\n');
+  }
+}
 
-next = next.replace(insertBeforeBooking, branchModel + insertBeforeBooking);
-writeFileSync(schemaPath, next);
-console.log('[prisma] branch model ensured');
+writeFileSync(schemaPath, schema);
+console.log('[prisma] organization-scoped branch model ensured');
