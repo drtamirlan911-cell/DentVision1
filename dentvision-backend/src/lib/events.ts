@@ -14,11 +14,12 @@ export interface DomainEventMap {
   'referral.in_progress': { referralId: string; clinicId: string; centerId: string; doctorId: string; patientName: string; studyType: string; status: string; userId?: string; cost?: any; platformFee?: any };
   'referral.completed': { referralId: string; clinicId: string; centerId: string; doctorId: string; patientName: string; studyType: string; status: string; userId?: string; cost?: any; platformFee?: any };
   'diagnostics.result_ready': { referralId: string; resultId: string; clinicId: string; centerId: string; doctorId: string; patientName: string; studyType: string; userId?: string };
-  'diagnostics.result_confirmed': { referralId: string; resultId: string; clinicId: string; centerId: string; doctorId: string; userId?: string; confirmedBy: string; confirmedAt: string };
+  // Backward-compatible during publisher migration: legacy confirmations do not yet carry the optional metadata.
+  'diagnostics.result_confirmed': { referralId: string; resultId: string; clinicId: string; centerId?: string; doctorId: string; userId?: string; confirmedBy?: string; confirmedAt?: string };
   'diagnostics.booking.created': { centerId: string; bookingId: string; studyId: string; patientName: string; date: string; time: string; status: string; userId?: string };
   'diagnostics.booking.status_changed': { centerId: string; bookingId: string; studyId: string; patientName: string; date: string; time: string; status: string; previousStatus?: string; userId?: string };
   'labOrder.created': { clinicId: string; labOrderId: string; patientId?: string; doctorId?: string; userId?: string };
-  'labOrder.status_changed': { clinicId: string; labOrderId: string; patientId?: string; doctorId?: string; status: string; previousStatus?: string; userId?: string };
+  'labOrder.status_changed': { clinicId: string; labOrderId: string; patientId?: string; doctorId?: string; status: string; previousStatus?: string; userId?: string; };
   'labOrder.assigned': { clinicId: string; labOrderId: string; laboratoryId: string; laboratoryName: string; patientId?: string; doctorId?: string; userId?: string };
 }
 
