@@ -42,14 +42,16 @@ AI action lifecycle:
 
 Core workspaces: Home/Today, Practice/CRM, Diagnostics, AI, Shop, Academy, Analytics and Network, with role-based administration and mobile navigation.
 
-## 5. Verified repository state after PR #275
-- PR #275 was merged into `main` as commit `b1daa27c0e0b4c446a9350186107b438ac8ba342`.
-- The previous context/reconciliation documents claiming PR #275 was still open are stale and must not be used as release evidence.
-- No post-merge workflow run is currently returned for that merge commit by the available GitHub workflow lookup; therefore post-merge release status is **UNVERIFIED**, not green by assumption.
-- Vercel preview availability remains an external deployment concern and is not proof of code correctness.
+## 5. Verified repository state — 2026-09-14
+- PR #275 was merged into `main` as `b1daa27c0e0b4c446a9350186107b438ac8ba342`; older branch documents describing it as open are stale.
+- `main` has since advanced to `83259a9a8424f6c4796ebaa64850b6d218ae1489` with the latest auth/release-gate hardening changes.
+- GitHub workflow lookup currently returns no workflow run for `83259a9a...`; combined status currently exposes only Vercel, which is **PENDING**. Therefore post-change CI/release status is **UNVERIFIED**, not green by assumption.
+- Vercel availability/status is an external deployment signal and is not proof of code correctness.
 
-### Product status (implementation-oriented)
-- IAM / role matrix / tenant and branch isolation: PARTIAL; negative-path matrix still required.
+### Product status
+- Clinical RBAC boundary: **IMPLEMENTED + unit coverage** for clinical writes/signing; fresh CI evidence still required.
+- IAM / role matrix / tenant and branch isolation: **PARTIAL**; negative-path matrix still required.
+- Active-session enforcement: **IMPLEMENTED + E2E regression added**; revoked session must return 401.
 - Partner onboarding: PARTIAL.
 - Economics engine/ledger: PARTIAL; deterministic engine and rule snapshots exist, durable paid→settled medical-analysis and full reconciliation remain open.
 - Clinical OS / Treatment Case: PARTIAL.
@@ -68,8 +70,9 @@ Core workspaces: Home/Today, Practice/CRM, Diagnostics, AI, Shop, Academy, Analy
 - `TreatmentCaseWorkspace` exists; full case lifecycle remains unverified/partial.
 - Root `/` currently maps to Dashboard; older audits claiming AI workspace at `/` are historical.
 - Diagnostics has real referrals, center/lab access checks, studies, files and AI-result flows.
-- Auth middleware now requires an active session for protected users; auth issuance/session-creation failure paths still require explicit verification to ensure no protected token can be issued without a session.
+- Auth middleware requires an active `UserSession` for protected users; the new E2E regression explicitly revokes the session row and verifies `/api/auth/me` returns 401.
 - Branch-scoped IAM foundations exist across clinic, finance, diagnostics and inventory domains.
+- `quality-gate.yml` is now blocking: the release-gate script is no longer `continue-on-error`, so a failed release gate cannot silently produce a green workflow.
 
 ## 7. Canonical economics
 Use `docs/business/DENTVISION_PARTNER_ECONOMICS.md` only:
@@ -112,7 +115,7 @@ The product should continuously answer: **What should I do now? Why does it matt
 2. Verify diagnostics route/service contract around `confirmAiResult`.
 3. Verify auth session creation/issuance fails closed.
 4. Run full CI/E2E/browser gates.
-5. Complete IAM negative matrix.
+5. Complete IAM negative matrix: clinic roles, partner operational roles, cross-tenant, cross-branch, invitation revocation/expiry, revoked sessions, and privileged mutation denial.
 
 ### P1 — Economics / partner operations
 6. Complete accepted→paid→settled durable lifecycle and immutable rule/version verification.
