@@ -14,7 +14,7 @@ describe('branch route authorization contract', () => {
   it('routes mutations through the shared branch authorization layer', () => {
     expect(source).toContain("from '../../lib/branchAuthorization.js'");
     expect(source).toContain('authorizeMemberBranch');
-    expect(source).toContain("mutation = false");
+    expect(source).toContain('mutation = false');
   });
 
   it('keeps manager/assigned roles fail-closed for branch mutations', () => {
@@ -25,7 +25,7 @@ describe('branch route authorization contract', () => {
   });
 
   it('does not silently expose every branch to scoped members', () => {
-    expect(source).toContain("OR 'ADMIN'");
+    expect(source).toContain("member.role} IN ('OWNER', 'ADMIN')");
     expect(source).toContain('"id" = ${member.branchId ?? \'\'}');
   });
 });
