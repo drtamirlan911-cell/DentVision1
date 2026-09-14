@@ -4,16 +4,13 @@ import { randomUUID } from 'node:crypto';
 const prisma = new PrismaClient();
 
 /**
- * E2E clinic branches.
+ * E2E clinic branches. Patient/appointment flows enforce branch scope for
+ * clinic staff. The deterministic E2E identities are clinic members, but the
+ * original fixture created no branch assignment.
  *
- * Patient/appointment flows enforce branch scope for clinic staff. The
- * deterministic E2E identities are clinic members, but the original fixture
- * created no branch assignment, so the first patient POST failed and the
- * appointment tests cascaded with undefined patient IDs.
- *
- * The legacy `branches` table used by the current E2E database contains only
- * id/clinic_id/code/name/active, so this fixture deliberately writes only that
- * canonical subset and assigns the branch through clinic_members.branch_id.
+ * The current branches table requires updatedAt, while other legacy/default
+ * fields are database-managed. Write only the columns proven by the live E2E
+ * schema and assign the branch through clinic_members.branch_id.
  */
 async function ensureBranch(clinicId: string, code: string, name: string) {
   const existing = await prisma.$queryRaw<Array<{ id: string }>>`
@@ -26,14 +23,14 @@ async function ensureBranch(clinicId: string, code: string, name: string) {
   if (!existing[0]) {
     await prisma.$executeRaw`
       INSERT INTO branches
-        (id, clinic_id, code, name, active)
+        (id, clinic_id, code, name, active, "updatedAt")
       VALUES
-        (${branchId}, ${clinicId}, ${code}, ${name}, true)
+        (${branchId}, ${clinicId}, ${code}, ${name}, true, NOW())
     `;
   } else {
     await prisma.$executeRaw`
       UPDATE branches
-      SET name = ${name}, active = true
+      SET name = ${name}, active = true, "updatedAt" = NOW()
       WHERE id = ${branchId}
     `;
   }
