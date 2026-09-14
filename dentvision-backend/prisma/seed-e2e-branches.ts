@@ -6,14 +6,14 @@ const prisma = new PrismaClient();
 /**
  * E2E clinic branches.
  *
- * The patient/appointment flows now enforce branch scope for clinic staff.
- * The deterministic E2E identities are clinic members, but the original
- * fixture only created clinics and memberships, leaving every member without
- * a branch. That made the first patient POST fail with the legitimate
- * `Сотруднику не назначен филиал` guard and caused appointment tests to
- * cascade with undefined patient IDs.
+ * Patient/appointment flows enforce branch scope for clinic staff. The
+ * deterministic E2E identities are clinic members, but the original fixture
+ * created no branch assignment, so the first patient POST failed and the
+ * appointment tests cascaded with undefined patient IDs.
  *
- * Keep this fixture deterministic and scoped to the two E2E clinics only.
+ * The legacy `branches` table used by the current E2E database contains only
+ * id/clinic_id/code/name/active, so this fixture deliberately writes only that
+ * canonical subset and assigns the branch through clinic_members.branch_id.
  */
 async function ensureBranch(clinicId: string, code: string, name: string) {
   const existing = await prisma.$queryRaw<Array<{ id: string }>>`
@@ -26,21 +26,21 @@ async function ensureBranch(clinicId: string, code: string, name: string) {
   if (!existing[0]) {
     await prisma.$executeRaw`
       INSERT INTO branches
-        (id, clinic_id, code, name, active, created_at, updated_at)
+        (id, clinic_id, code, name, active)
       VALUES
-        (${branchId}, ${clinicId}, ${code}, ${name}, true, NOW(), NOW())
+        (${branchId}, ${clinicId}, ${code}, ${name}, true)
     `;
   } else {
     await prisma.$executeRaw`
       UPDATE branches
-      SET name = ${name}, active = true, updated_at = NOW()
+      SET name = ${name}, active = true
       WHERE id = ${branchId}
     `;
   }
 
   await prisma.$executeRaw`
     UPDATE clinic_members
-    SET branch_id = ${branchId}, updated_at = NOW()
+    SET branch_id = ${branchId}
     WHERE clinic_id = ${clinicId}
       AND branch_id IS NULL
   `;
