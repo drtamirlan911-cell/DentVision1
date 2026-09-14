@@ -3,7 +3,7 @@
 Updated: 2026-09-14
 Branch: `feat/iam-role-matrix-v2`
 PR: #275
-Current implementation head: `b1156879cf40fdfb1f5399c6f5cba785fa233706`
+Current implementation head: `d61acb34d7073ed969de1d780c37e4f37ef00df5`
 
 ## Current objective
 Complete IAM, branch isolation and release-gate work without weakening tests or faking product functionality.
@@ -19,12 +19,33 @@ Complete IAM, branch isolation and release-gate work without weakening tests or 
 8. Patient — branch-scoped read/write access is implemented in `patients.routes.ts` and `patientBranchScope.ts`.
 9. Appointment — database branch consistency is enforced; operational route filtering remains part of the release E2E hardening batch.
 10. Inventory — `inventory_items.branch_id` migration/backfill and route branch scoping are implemented.
-11. Inventory deduction — appointment close now performs a second clinic + branch check before any stock movement, preventing cross-branch material deduction even through legacy rules/direct calls.
-12. Finance — next operational boundary.
-13. Diagnostics / Medical Lab / Dental Lab — next specialized partner boundary.
-14. E2E cross-branch and cross-organization denial — required release batch.
+11. Inventory deduction — appointment close performs an additional clinic + branch check before any stock movement.
+12. Finance — branch fields/migration and fail-closed authorization context are now implemented as the next operational boundary; billing routes still require route-level wiring before this item is considered complete.
+13. Diagnostics — clinic-originated referral branch fields/migration and fail-closed authorization context are now implemented; diagnostics routes still require route-level wiring before this item is considered complete.
+14. Medical Lab / Dental Lab — preserve existing partner membership models and apply branch scope progressively.
+15. E2E cross-branch and cross-organization denial — required release batch.
 
 Do NOT add `branchId` to 30+ operational tables in one risky migration. Existing diagnostic/lab membership models must be preserved and migrated gradually.
+
+## Finance branch boundary
+Foundation added:
+- `dentvision-backend/prisma/migrations/20260914130000_add_finance_diagnostics_branch_scope/migration.sql`
+- `dentvision-backend/src/lib/financeBranchScope.ts`
+- `dentvision-backend/src/lib/financeBranchScope.test.ts`
+
+Finance rows receiving branch scope:
+- `invoices.branch_id`
+- `expenses.branch_id`
+
+Existing data is assigned to each clinic's active default branch where one exists. The helper treats OWNER/ADMIN/ACCOUNTANT as organization-wide and all other roles as assigned-branch scoped; missing assignment fails closed.
+
+## Diagnostics branch boundary
+Foundation added:
+- `referrals.branch_id`
+- `dentvision-backend/src/lib/diagnosticBranchScope.ts`
+- `dentvision-backend/src/lib/diagnosticBranchScope.test.ts`
+
+The source clinic branch is kept independently from the external diagnostic-center/laboratory organization boundary. Center/lab memberships remain intact.
 
 ## Inventory branch isolation
 Foundation:
@@ -36,12 +57,8 @@ Route enforcement:
 - inventory branch-scoped operations are implemented in `inventory.routes.ts`;
 - appointment-driven deductions are additionally protected in `deductionRules.ts`.
 
-Rules:
-- organization roles: OWNER / ADMIN / ACCOUNTANT see all active branches in the clinic;
-- branch/assigned roles see only their assigned branch;
-- missing branch assignment fails closed;
-- inventory movement during appointment close requires the inventory item clinic and branch to match the appointment;
-- cross-branch mismatch is returned as a shortage and no movement is posted.
+## Cross-domain release contract
+`dentvision-backend/src/lib/branchIsolationReleaseContract.test.ts` requires explicit branch-scope contexts for inventory, finance and diagnostics and verifies fail-closed behavior. This is a release guard, not a substitute for route-level enforcement.
 
 ## Product role matrix
 Clinic roles: OWNER, ADMIN, MANAGER, DOCTOR, ASSISTANT, RECEPTIONIST, CASHIER, ACCOUNTANT.
@@ -52,9 +69,7 @@ Specialized partner families:
 - Dental Lab: 10 roles
 
 ## Current CI/release state
-Latest implementation batch `b1156879cf40fdfb1f5399c6f5cba785fa233706` triggered:
-- Quality Gate #2220 — in progress
-- CI #1907 — in progress
+The latest implementation batch is still awaiting CI results; do not treat the new branch foundation as release-green until CI exercises it.
 
 PR #275 is not release-ready until the complete gate is green.
 
