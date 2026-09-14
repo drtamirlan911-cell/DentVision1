@@ -26,7 +26,7 @@ export async function resolvePatientBranchContext(
   const membership = await prisma.$queryRaw<Array<{ branch_id: string | null }>>`
     SELECT branch_id
     FROM clinic_members
-    WHERE "userId" = ${userId} AND clinic_id = ${clinicId}
+    WHERE "userId" = ${userId} AND "clinicId" = ${clinicId}
     LIMIT 1
   `;
   const memberBranchId = membership[0]?.branch_id ?? null;
@@ -36,7 +36,7 @@ export async function resolvePatientBranchContext(
       SELECT id
       FROM branches
       WHERE clinic_id = ${clinicId} AND active = true
-      ORDER BY is_default DESC, created_at ASC
+      ORDER BY "isDefault" DESC, "createdAt" ASC
     `;
     return { clinicId, userId, role, branchId: memberBranchId, scope: { kind: 'organization', branchIds: branches.map((b) => b.id) } };
   }
@@ -66,7 +66,7 @@ export async function getPatientBranchId(patientId: string, clinicId: string): P
   const rows = await prisma.$queryRaw<Array<{ branch_id: string | null }>>`
     SELECT branch_id
     FROM patients
-    WHERE id = ${patientId} AND clinic_id = ${clinicId}
+    WHERE id = ${patientId} AND "clinicId" = ${clinicId}
     LIMIT 1
   `;
   return rows[0]?.branch_id ?? null;
@@ -77,9 +77,9 @@ export async function getPatientIdsForBranchScope(clinicId: string, branchIds: r
   const rows = await prisma.$queryRaw<Array<{ id: string }>>`
     SELECT id
     FROM patients
-    WHERE clinic_id = ${clinicId}
+    WHERE "clinicId" = ${clinicId}
       AND branch_id = ANY(${branchIds}::text[])
-      AND deleted_at IS NULL
+      AND "deletedAt" IS NULL
   `;
   return rows.map((row) => row.id);
 }
@@ -99,7 +99,7 @@ export async function assertPatientBranchBelongsToClinic(branchId: string, clini
 export async function setPatientBranch(patientId: string, clinicId: string, branchId: string): Promise<void> {
   await prisma.$executeRaw`
     UPDATE patients
-    SET branch_id = ${branchId}, updated_at = NOW()
-    WHERE id = ${patientId} AND clinic_id = ${clinicId}
+    SET branch_id = ${branchId}, "updatedAt" = NOW()
+    WHERE id = ${patientId} AND "clinicId" = ${clinicId}
   `;
 }
