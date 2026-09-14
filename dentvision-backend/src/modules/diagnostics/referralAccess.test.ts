@@ -1,18 +1,19 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { referralFindUnique, assertOrgAccess } = vi.hoisted(() => ({
+const { referralFindUnique, assertOrgAccess, queryRaw } = vi.hoisted(() => ({
   referralFindUnique: vi.fn(),
   assertOrgAccess: vi.fn(),
+  queryRaw: vi.fn(),
 }));
 
 vi.mock('../../lib/prisma.js', () => ({
-  default: { referral: { findUnique: referralFindUnique } },
+  default: { referral: { findUnique: referralFindUnique }, $queryRaw: queryRaw },
 }));
 vi.mock('../../lib/orgContext.js', () => ({ assertOrgAccess }));
 
 import { authorizeReferralListScope, requireReferralAccess } from './diagnostics.routes.js';
 
-beforeEach(() => { vi.clearAllMocks(); });
+beforeEach(() => { vi.clearAllMocks(); queryRaw.mockResolvedValue([{ branch_id: 'branch-1' }]); });
 
 function mockRes() {
   const res: any = {};
