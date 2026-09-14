@@ -5,6 +5,8 @@ describe('finance branch scope contract', () => {
     const fs = await import('node:fs/promises');
     const source = await fs.readFile(new URL('./financeBranchScope.ts', import.meta.url), 'utf8');
     expect(source).toContain("new Set(['OWNER', 'ADMIN', 'ACCOUNTANT'])");
+    expect(source).toContain('if (!membership[0])');
+    expect(source).toContain('organizationWide: false, branchId: null, branchIds: []');
     expect(source).toContain('if (!ctx.branchIds.length) return { clinicId: ctx.clinicId, branchId: null }');
     expect(source).toContain('if (!branchId) return false');
   });
