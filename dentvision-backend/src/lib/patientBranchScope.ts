@@ -1,4 +1,5 @@
 import prisma from './prisma.js';
+import type { Prisma } from '@prisma/client';
 
 export type PatientBranchScope =
   | { kind: 'organization'; branchIds: string[] }
@@ -17,10 +18,6 @@ const ORGANIZATION_ROLES = new Set(['OWNER', 'ADMIN']);
 const BRANCH_ROLES = new Set(['MANAGER']);
 const ASSIGNED_ROLES = new Set(['DOCTOR', 'ASSISTANT', 'RECEPTIONIST', 'CASHIER']);
 
-/**
- * Resolves the branch boundary for Patient CRM without widening the existing
- * clinicId contract. Scoped roles fail closed when they have no branch.
- */
 export async function resolvePatientBranchContext(
   userId: string,
   clinicId: string,
@@ -41,45 +38,20 @@ export async function resolvePatientBranchContext(
       WHERE clinic_id = ${clinicId} AND active = true
       ORDER BY is_default DESC, created_at ASC
     `;
-    return {
-      clinicId,
-      userId,
-      role,
-      branchId: memberBranchId,
-      scope: { kind: 'organization', branchIds: branches.map((b) => b.id) },
-    };
+    return { clinicId, userId, role, branchId: memberBranchId, scope: { kind: 'organization', branchIds: branches.map((b) => b.id) } };
   }
 
   if (BRANCH_ROLES.has(role)) {
-    return {
-      clinicId,
-      userId,
-      role,
-      branchId: memberBranchId,
-      scope: { kind: 'branch', branchIds: memberBranchId ? [memberBranchId] : [] },
-    };
+    return { clinicId, userId, role, branchId: memberBranchId, scope: { kind: 'branch', branchIds: memberBranchId ? [memberBranchId] : [] } };
   }
 
   if (ASSIGNED_ROLES.has(role)) {
-    return {
-      clinicId,
-      userId,
-      role,
-      branchId: memberBranchId,
-      scope: { kind: 'assigned', branchIds: memberBranchId ? [memberBranchId] : [] },
-    };
+    return { clinicId, userId, role, branchId: memberBranchId, scope: { kind: 'assigned', branchIds: memberBranchId ? [memberBranchId] : [] } };
   }
 
-  // Unknown roles are deliberately denied instead of inheriting organization
-  // access. SUPERADMIN is handled by the existing clinic/org access layer and
-  // is not a normal clinic member role.
-  return {
-    clinicId,
-    userId,
-    role,
-    branchId: memberBranchId,
-    scope: { kind: 'assigned', branchIds: [] },
-  };
+  // Unknown roles deliberately fail closed. SUPERADMIN is handled by the
+  // existing clinic/org access layer and is not a normal clinic member role.
+  return { clinicId, userId, role, branchId: memberBranchId, scope: { kind: 'assigned', branchIds: [] } };
 }
 
 export function canAccessPatientBranch(context: PatientBranchContext, branchId: string | null): boolean {
@@ -102,10 +74,7 @@ export async function getPatientBranchId(patientId: string, clinicId: string): P
   return rows[0]?.branch_id ?? null;
 }
 
-export async function getPatientIdsForBranchScope(
-  clinicId: string,
-  branchIds: readonly string[],
-): Promise<string[]> {
+export async function getPatientIdsForBranchScope(clinicId: string, branchIds: readonly string[]): Promise<string[]> {
   if (!branchIds.length) return [];
   const rows = await prisma.$queryRaw<Array<{ id: string }>>`
     SELECT id
@@ -117,10 +86,7 @@ export async function getPatientIdsForBranchScope(
   return rows.map((row) => row.id);
 }
 
-export async function assertPatientBranchBelongsToClinic(
-  branchId: string,
-  clinicId: string,
-): Promise<boolean> {
+export async function assertPatientBranchBelongsToClinic(branchId: string, clinicId: string): Promise<boolean> {
   const rows = await prisma.$queryRaw<Array<{ id: string }>>`
     SELECT id
     FROM branches
@@ -138,4 +104,14 @@ export async function setPatientBranch(patientId: string, clinicId: string, bran
     SET branch_id = ${branchId}, updated_at = NOW()
     WHERE id = ${patientId} AND clinic_id = ${clinicId}
   `;
+}
+
+export async function getPatientWhereForBranchScope(
+  clinicId: string,
+  branchIds: readonly string[],
+  extra: Prisma.PatientWhereInput = {},
+): Promise<Prisma.PatientWhereInput> {
+  if (!branchIds.length) return { ...extra, clinicId, id: '__NO_BRANCH_ACCESS__' };
+  const ids = await getPatientIdsForBranchScope(clinicId, branchIds);
+  return { ...extra, clinicId, id: { in: ids } };
 }
