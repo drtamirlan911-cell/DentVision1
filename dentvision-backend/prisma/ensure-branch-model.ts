@@ -4,9 +4,6 @@ import { resolve } from 'node:path';
 const schemaPath = resolve(process.cwd(), 'prisma/schema.prisma');
 let schema = readFileSync(schemaPath, 'utf8');
 
-// Transitional bootstrap for the single-file Prisma schema. Branches are an
-// IAM/business boundary owned by Organization. Clinic linkage is retained as
-// an optional compatibility field until operational data is migrated fully.
 const organizationRelationMarker = '  invitations OrganizationInvitation[]\n';
 if (!schema.includes('  branches Branch[]') && !schema.includes('  branches            Branch[]')) {
   if (!schema.includes(organizationRelationMarker)) throw new Error('Organization relation marker not found in schema.prisma');
@@ -39,11 +36,9 @@ function ensureScalarField(modelName: string, marker: string, field: string) {
   schema = schema.slice(0, markerIndex + marker.length) + field + schema.slice(markerIndex + marker.length);
 }
 
-// Operational scope is introduced incrementally. Nullable branchId keeps
-// legacy records readable for organization-scoped roles while branch-scoped
-// roles are fail-closed until their records are assigned/backfilled.
 ensureScalarField('Patient', '  clinicId       String\n', '  branchId       String?   @map("branch_id")\n');
 ensureScalarField('Appointment', '  clinicId        String\n', '  branchId        String?   @map("branch_id")\n');
+ensureScalarField('InventoryItem', '  clinicId        String\n', '  branchId        String?   @map("branch_id")\n');
 
 if (!schema.includes('model Branch {')) {
   const insertBeforeBooking = 'model Booking {\n';
@@ -64,4 +59,4 @@ if (!schema.includes('model Branch {')) {
 }
 
 writeFileSync(schemaPath, schema);
-console.log('[prisma] organization-scoped branch model and patient/appointment branch scope ensured');
+console.log('[prisma] organization-scoped branch model and patient/appointment/inventory branch scope ensured');
