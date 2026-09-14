@@ -42,6 +42,38 @@ export function requireMinRole(minRole: UserRole) {
 }
 
 /**
+ * Clinical write boundary for legacy medical routes.
+ *
+ * `patient.write` is intentionally broad because administrators need it for
+ * operational patient management. It must not, however, become an implicit
+ * clinical sign-off permission. Treatment plans, odontogram writes and
+ * AI/diagnostic surface findings are clinical decisions and therefore require
+ * the dedicated `medical.manage` permission.
+ *
+ * Visit creation/update remains available for administrative documentation,
+ * but a non-clinical role cannot submit diagnosis or treatment content through
+ * that route. Doctor/Owner retain the existing clinical workflow.
+ */
+function requiresClinicalMedicalManage(req: AuthRequest, keys: string[]): boolean {
+  if (req.user?.role === 'SUPERADMIN') return false;
+
+  const path = req.path || '';
+  const treatmentPlanWrite = /^\/treatment-plan(?:\/|$)/.test(path);
+  const odontogramWrite = /^\/teeth(?:\/|$)/.test(path);
+  const visitWrite = /^\/visits(?:\/|$)/.test(path) && ['POST', 'PATCH', 'PUT'].includes(req.method);
+
+  if (treatmentPlanWrite || odontogramWrite) return true;
+
+  if (visitWrite) {
+    const body = req.body && typeof req.body === 'object' ? req.body as Record<string, unknown> : {};
+    return body.diagnosis !== undefined || body.treatment !== undefined;
+  }
+
+  // Existing callers of the explicit clinical permission keep its semantics.
+  return keys.includes('medical.manage');
+}
+
+/**
  * Requires the authenticated user's permissions to grant ALL of the given keys.
  * Source of truth: the DB Person → PersonRole → Role → Permission graph (backfilled
  * by migrate-unified-schema.ts), with a hardcoded fallback to the shared role
@@ -57,6 +89,10 @@ export function requirePermission(...keys: (PermissionKey | string)[]) {
 
       // SUPERADMIN bypass
       if (req.user.role === 'SUPERADMIN') return next();
+
+      const effectiveKeys = requiresClinicalMedicalManage(req, keys)
+        ? [...keys.filter((key) => key !== 'patient.write' && key !== 'medical.write'), 'medical.manage']
+        : keys;
 
       // DB-based check via Person → PersonRole → Role → Permission.
       const scopeId = req.user.organizationId || req.user.clinicId;
@@ -77,7 +113,7 @@ export function requirePermission(...keys: (PermissionKey | string)[]) {
           // Map legacy route keys (e.g. 'patient.read') to DB vocabulary (e.g. 'patients.read')
           // so the Person→Role→Permission graph is actually used instead of always
           // falling through to the matrix fallback.
-          const resolved = keys.map((k) => (LEGACY_KEY_MAP as Record<string, string>)[k] || k);
+          const resolved = effectiveKeys.map((k) => (LEGACY_KEY_MAP as Record<string, string>)[k] || k);
           if (resolved.every((k) => userPerms.has(k))) return next();
           // A Person record with roles makes the DB permission graph authoritative.
           // Falling through to the matrix here would re-grant permissions that were
@@ -91,7 +127,7 @@ export function requirePermission(...keys: (PermissionKey | string)[]) {
       }
 
       // Fallback to the hardcoded role matrix.
-      const allowed = keys.every((k) => roleHasPermission(req.user!.role, k));
+      const allowed = effectiveKeys.every((k) => roleHasPermission(req.user!.role, k));
       if (!allowed) {
         return res.status(403).json({ ok: false, error: 'Недостаточно прав' });
       }
