@@ -1,9 +1,10 @@
 import { describe, expect, it } from 'vitest';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 
 describe('finance branch scope contract', () => {
-  it('keeps organization roles explicit and fail-closed', async () => {
-    const fs = await import('node:fs/promises');
-    const source = await fs.readFile(new URL('./financeBranchScope.ts', import.meta.url), 'utf8');
+  it('keeps organization roles explicit and fail-closed', () => {
+    const source = readFileSync(resolve(process.cwd(), 'dentvision-backend/src/lib/financeBranchScope.ts'), 'utf8');
     expect(source).toContain("new Set(['OWNER', 'ADMIN', 'ACCOUNTANT'])");
     expect(source).toContain('if (!membership[0])');
     expect(source).toContain('organizationWide: false, branchId: null, branchIds: []');
