@@ -3,7 +3,6 @@
 Updated: 2026-09-14
 Branch: `feat/iam-role-matrix-v2`
 PR: #275
-Current implementation head: `d61acb34d7073ed969de1d780c37e4f37ef00df5`
 
 ## Current objective
 Complete IAM, branch isolation and release-gate work without weakening tests or faking product functionality.
@@ -17,35 +16,53 @@ Complete IAM, branch isolation and release-gate work without weakening tests or 
 6. Manager branch restriction — implemented at branch route level.
 7. Doctor/Assistant assignment restriction — implemented at branch route level; operational-data enforcement follows as each domain gains branchId.
 8. Patient — branch-scoped read/write access is implemented in `patients.routes.ts` and `patientBranchScope.ts`.
-9. Appointment — database branch consistency is enforced; operational route filtering remains part of the release E2E hardening batch.
+9. Appointment — database branch consistency is enforced; operational route filtering remains part of release E2E hardening.
 10. Inventory — `inventory_items.branch_id` migration/backfill and route branch scoping are implemented.
 11. Inventory deduction — appointment close performs an additional clinic + branch check before any stock movement.
-12. Finance — branch fields/migration and fail-closed authorization context are now implemented as the next operational boundary; billing routes still require route-level wiring before this item is considered complete.
-13. Diagnostics — clinic-originated referral branch fields/migration and fail-closed authorization context are now implemented; diagnostics routes still require route-level wiring before this item is considered complete.
+12. Finance — branch foundation and fail-closed policy are present; route/service wiring is still required before release completion.
+13. Diagnostics — referral branch foundation and fail-closed policy are present; route/service wiring is still required before release completion.
 14. Medical Lab / Dental Lab — preserve existing partner membership models and apply branch scope progressively.
 15. E2E cross-branch and cross-organization denial — required release batch.
 
 Do NOT add `branchId` to 30+ operational tables in one risky migration. Existing diagnostic/lab membership models must be preserved and migrated gradually.
 
 ## Finance branch boundary
-Foundation added:
+Foundation already present in the branch:
 - `dentvision-backend/prisma/migrations/20260914130000_add_finance_diagnostics_branch_scope/migration.sql`
 - `dentvision-backend/src/lib/financeBranchScope.ts`
 - `dentvision-backend/src/lib/financeBranchScope.test.ts`
 
-Finance rows receiving branch scope:
-- `invoices.branch_id`
-- `expenses.branch_id`
+Additional release policy added:
+- `dentvision-backend/src/lib/financeBranchBoundary.ts`
+- `dentvision-backend/src/lib/financeBranchBoundary.test.ts`
 
-Existing data is assigned to each clinic's active default branch where one exists. The helper treats OWNER/ADMIN/ACCOUNTANT as organization-wide and all other roles as assigned-branch scoped; missing assignment fails closed.
+Policy:
+- OWNER / ADMIN / ACCOUNTANT are organization-wide within their organization.
+- Other roles require an explicit assigned branch.
+- Cross-organization access always fails.
+- Missing branch context fails closed.
+
+The existing finance routes still need to consume this policy for resource-level enforcement.
 
 ## Diagnostics branch boundary
-Foundation added:
+Foundation already present in the branch:
 - `referrals.branch_id`
 - `dentvision-backend/src/lib/diagnosticBranchScope.ts`
 - `dentvision-backend/src/lib/diagnosticBranchScope.test.ts`
 
-The source clinic branch is kept independently from the external diagnostic-center/laboratory organization boundary. Center/lab memberships remain intact.
+The source clinic branch remains distinct from the external diagnostic-center/laboratory organization boundary. Existing center/lab membership models are preserved.
+
+## Role matrix release contract
+Added:
+- `docs/RELEASE_ROLE_BOUNDARY_MATRIX.md`
+- `dentvision-backend/src/lib/partnerRoleMatrix.test.ts`
+
+Locked specialized partner matrix:
+- Diagnostic Center: 9 roles
+- Medical Lab: 9 roles
+- Dental Lab: 10 roles
+
+Required invariants include cross-org denial, fail-closed branch context, financial/clinical separation and no wildcard permissions.
 
 ## Inventory branch isolation
 Foundation:
@@ -57,24 +74,13 @@ Route enforcement:
 - inventory branch-scoped operations are implemented in `inventory.routes.ts`;
 - appointment-driven deductions are additionally protected in `deductionRules.ts`.
 
-## Cross-domain release contract
-`dentvision-backend/src/lib/branchIsolationReleaseContract.test.ts` requires explicit branch-scope contexts for inventory, finance and diagnostics and verifies fail-closed behavior. This is a release guard, not a substitute for route-level enforcement.
-
-## Product role matrix
-Clinic roles: OWNER, ADMIN, MANAGER, DOCTOR, ASSISTANT, RECEPTIONIST, CASHIER, ACCOUNTANT.
-
-Specialized partner families:
-- Diagnostic Center: 9 roles
-- Medical Lab: 9 roles
-- Dental Lab: 10 roles
+## Release contract
+Static policy tests are not a substitute for route-level E2E. Before merge, verify both read and mutation denial for cross-branch and cross-organization cases.
 
 ## Current CI/release state
-The latest implementation batch is still awaiting CI results; do not treat the new branch foundation as release-green until CI exercises it.
+New commits require fresh CI. No claim of release-green status is made until the complete gate is green.
 
-PR #275 is not release-ready until the complete gate is green.
-
-## Release rule
-Required before merge:
+PR #275 remains blocked from merge until:
 - Quality Gate
 - frontend/backend lint
 - TypeScript/build/unit
