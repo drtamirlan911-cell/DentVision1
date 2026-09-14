@@ -17,13 +17,13 @@ BEGIN
     FROM patients p
     WHERE p.id = NEW.patient_id;
 
-    IF patient_clinic_id IS NULL OR patient_clinic_id <> NEW.clinic_id THEN
+    IF patient_clinic_id IS NULL OR patient_clinic_id IS DISTINCT FROM NEW.clinic_id THEN
       RAISE EXCEPTION 'referral patient belongs to another clinic';
     END IF;
 
     IF NEW.branch_id IS NULL THEN
       NEW.branch_id := patient_branch_id;
-    ELSIF patient_branch_id IS NOT NULL AND NEW.branch_id <> patient_branch_id THEN
+    ELSIF patient_branch_id IS NOT NULL AND NEW.branch_id IS DISTINCT FROM patient_branch_id THEN
       RAISE EXCEPTION 'referral branch does not match patient branch';
     END IF;
   END IF;
@@ -35,7 +35,7 @@ BEGIN
     WHERE b.id = NEW.branch_id
       AND b.active = true;
 
-    IF branch_clinic_id IS NULL OR branch_clinic_id <> NEW.clinic_id THEN
+    IF branch_clinic_id IS NULL OR branch_clinic_id IS DISTINCT FROM NEW.clinic_id THEN
       RAISE EXCEPTION 'referral branch does not belong to clinic';
     END IF;
   END IF;
