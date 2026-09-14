@@ -16,13 +16,20 @@ export async function resolveFinanceBranchContext(
   clinicId: string,
   role: string,
 ): Promise<FinanceBranchContext> {
-  const membership = await prisma.$queryRaw<Array<{ branch_id: string | null }>>`
-    SELECT branch_id
+  const membership = await prisma.$queryRaw<Array<{ branch_id: string | null; role: string | null }>>`
+    SELECT branch_id, role
     FROM clinic_members
     WHERE user_id = ${userId} AND clinic_id = ${clinicId}
     LIMIT 1
   `;
-  const branchId = membership[0]?.branch_id ?? null;
+
+  // Never grant an organization-wide finance view merely because a caller
+  // supplied an organization-scoped role. A real clinic membership is required.
+  if (!membership[0]) {
+    return { clinicId, role, organizationWide: false, branchId: null, branchIds: [] };
+  }
+
+  const branchId = membership[0].branch_id ?? null;
 
   if (ORGANIZATION_ROLES.has(role)) {
     const branches = await prisma.$queryRaw<Array<{ id: string }>>`
