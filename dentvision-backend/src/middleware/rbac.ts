@@ -54,13 +54,17 @@ export function requireMinRole(minRole: UserRole) {
  * but a non-clinical role cannot submit diagnosis or treatment content through
  * that route. Doctor/Owner retain the existing clinical workflow.
  */
-function requiresClinicalMedicalManage(req: AuthRequest, keys: string[]): boolean {
+export function requiresClinicalMedicalManage(req: AuthRequest, keys: string[]): boolean {
   if (req.user?.role === 'SUPERADMIN') return false;
+
+  const method = req.method.toUpperCase();
+  const isWrite = ['POST', 'PATCH', 'PUT', 'DELETE'].includes(method);
+  if (!isWrite) return keys.includes('medical.manage');
 
   const path = req.path || '';
   const treatmentPlanWrite = /^\/treatment-plan(?:\/|$)/.test(path);
   const odontogramWrite = /^\/teeth(?:\/|$)/.test(path);
-  const visitWrite = /^\/visits(?:\/|$)/.test(path) && ['POST', 'PATCH', 'PUT'].includes(req.method);
+  const visitWrite = /^\/visits(?:\/|$)/.test(path);
 
   if (treatmentPlanWrite || odontogramWrite) return true;
 
