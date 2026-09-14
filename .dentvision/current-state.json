@@ -1,29 +1,39 @@
 {
-  "schemaVersion": 1,
-  "generated": true,
-  "generator": "quality-scripts/project-index.ts",
-  "branch": "main",
-  "lastIndexedCommit": null,
-  "currentPhase": 0,
-  "phaseName": "CI stabilization",
-  "releaseStatus": "NOT_RELEASED",
-  "qualityGate": "unknown",
-  "ci": "unknown",
-  "e2e": "unknown",
+  "schemaVersion": 2,
+  "generated": false,
+  "source": "DENTVISION_CONTEXT.md",
+  "lastVerifiedMergeCommit": "b1daa27c0e0b4c446a9350186107b438ac8ba342",
+  "releaseStatus": "UNVERIFIED",
+  "qualityGate": "unverified_post_merge",
+  "ci": "unverified_post_merge",
+  "e2e": "unverified_post_merge",
+  "currentPriority": "P0 release correctness",
   "openWork": [
-    "Stabilize CI",
-    "Restore and verify patients.routes.ts against original implementation",
-    "Verify backend runtime and infrastructure",
-    "Complete RBAC/workspace isolation audit",
-    "Complete AI action lifecycle and audit",
-    "Complete web and Android E2E",
-    "Run final release gates"
+    "Verify post-merge CI and browser gates",
+    "Verify diagnostics confirmation route/service contract",
+    "Verify fail-closed auth session issuance",
+    "Complete IAM negative matrix",
+    "Complete accepted-paid-settled economics and medical-analysis settlement",
+    "Complete partner lifecycle and Finance Hub reconciliation",
+    "Verify Clinical/Treatment Case lifecycle",
+    "Implement persistent product-led growth directive",
+    "Verify Android build/install/runtime",
+    "Implement real 32-tooth WebGL/3D odontogram"
   ],
-  "protectedItems": [
-    "Do not merge PR #247 before release gates pass",
-    "Do not invent routes or permissions",
-    "Do not treat model context as durable source of truth"
+  "authoritativeDocuments": [
+    "DENTVISION_CONTEXT.md",
+    "DENTVISION_OPERATING_DIRECTIVE.md",
+    "DENTVISION_EXECUTION_PLAN.md",
+    "DENTVISION_EXECUTION_LOG.md",
+    "DENTVISION_SUPERAPP_BLUEPRINT.md",
+    "DENTVISION_SUPERAPP_MASTER_PLAN.md",
+    "docs/business/DENTVISION_PARTNER_ECONOMICS.md"
   ],
-  "knownRisks": [],
-  "nextTasks": []
+  "protectedRules": [
+    "Do not invent routes, models, permissions or business rules",
+    "Do not treat old audits or old CI runs as current release evidence",
+    "Do not issue protected JWTs without an active session",
+    "Do not silently reprice historical economics",
+    "Do not create competing source-of-truth documents"
+  ]
 }
