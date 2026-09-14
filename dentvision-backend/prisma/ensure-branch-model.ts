@@ -39,6 +39,9 @@ function ensureScalarField(modelName: string, marker: string, field: string) {
 ensureScalarField('Patient', '  clinicId       String\n', '  branchId       String?   @map("branch_id")\n');
 ensureScalarField('Appointment', '  clinicId        String\n', '  branchId        String?   @map("branch_id")\n');
 ensureScalarField('InventoryItem', '  clinicId        String\n', '  branchId        String?   @map("branch_id")\n');
+ensureScalarField('Invoice', '  clinicId        String\n', '  branchId        String?   @map("branch_id")\n');
+ensureScalarField('Expense', '  clinicId    String\n', '  branchId    String?   @map("branch_id")\n');
+ensureScalarField('Referral', '  clinicId         String\n', '  branchId         String?            @map("branch_id")\n');
 
 if (!schema.includes('model Branch {')) {
   const insertBeforeBooking = 'model Booking {\n';
@@ -59,4 +62,4 @@ if (!schema.includes('model Branch {')) {
 }
 
 writeFileSync(schemaPath, schema);
-console.log('[prisma] organization-scoped branch model and patient/appointment/inventory branch scope ensured');
+console.log('[prisma] organization-scoped branch model and patient/appointment/inventory/finance/diagnostics branch scope ensured');
