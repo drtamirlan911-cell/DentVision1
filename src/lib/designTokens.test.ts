@@ -129,7 +129,7 @@ describe('design tokens in page markup', () => {
 })
 
 describe('theme colour resolvers', () => {
-  const load = async () => ((await import('../../tailwind.config.js')) as any).default as any
+  const load = async () => ((await import('../../tailwind.config.js' as any)) as any).default as any
 
   async function varBackedTokens(): Promise<Array<[string, (arg: { opacityValue?: string | number }) => string]>> {
     const config = await load()
