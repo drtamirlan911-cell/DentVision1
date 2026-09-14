@@ -3,6 +3,44 @@
 // ─────────────────────────────────────────────────────────────────────────────
 import { EventEmitter } from 'node:events';
 
+export type GrowthEventName =
+  | 'USER_SIGNED_UP'
+  | 'PROFILE_COMPLETED'
+  | 'ORGANIZATION_CREATED'
+  | 'CLINIC_CREATED'
+  | 'FIRST_PATIENT_CREATED'
+  | 'FIRST_CASE_CREATED'
+  | 'FIRST_AI_ACTION'
+  | 'FIRST_TREATMENT_PLAN_CREATED'
+  | 'FIRST_APPOINTMENT_CREATED'
+  | 'FIRST_DIAGNOSTIC_ORDER'
+  | 'FIRST_LAB_ORDER'
+  | 'FIRST_PAYMENT'
+  | 'STAFF_INVITED'
+  | 'PATIENT_PORTAL_SHARED'
+  | 'TREATMENT_PLAN_SHARED'
+  | 'TRIAL_STARTED'
+  | 'PAYMENT_STARTED'
+  | 'SUBSCRIPTION_STARTED'
+  | 'PLAN_UPGRADED'
+  | 'REFERRAL_CREATED'
+  | 'REFERRAL_CONVERTED'
+  | 'FEATURE_LIMIT_REACHED'
+  | 'NEXT_BEST_ACTION_SHOWN'
+  | 'NEXT_BEST_ACTION_COMPLETED';
+
+export interface GrowthEventPayload {
+  event: GrowthEventName;
+  userId?: string;
+  clinicId?: string;
+  organizationId?: string;
+  branchId?: string;
+  entityId?: string;
+  source?: string;
+  metadata?: Record<string, unknown>;
+  occurredAt?: string;
+}
+
 export interface DomainEventMap {
   'patient.created': { clinicId: string; patientId: string; userId?: string; name?: string };
   'patient.deleted': { clinicId: string; patientId: string; userId?: string };
@@ -21,6 +59,7 @@ export interface DomainEventMap {
   'labOrder.created': { clinicId: string; labOrderId: string; patientId?: string; doctorId?: string; userId?: string };
   'labOrder.status_changed': { clinicId: string; labOrderId: string; patientId?: string; doctorId?: string; status: string; previousStatus?: string; userId?: string; };
   'labOrder.assigned': { clinicId: string; labOrderId: string; laboratoryId: string; laboratoryName: string; patientId?: string; doctorId?: string; userId?: string };
+  'growth.event': GrowthEventPayload;
 }
 
 export type DomainEventName = keyof DomainEventMap;
@@ -34,8 +73,16 @@ export function publish<E extends DomainEventName>(event: E, payload: DomainEven
     try {
       emitter.emit(event, payload);
     } catch (err) {
-      console.error(`[events] emit failed for "${event}":`, err);
+      console.error(`[events] emit failed for \"${event}\":`, err);
     }
+  });
+}
+
+/** Publish a canonical Product-Led Growth event without coupling callers to the event-bus shape. */
+export function publishGrowthEvent(payload: GrowthEventPayload): void {
+  publish('growth.event', {
+    ...payload,
+    occurredAt: payload.occurredAt ?? new Date().toISOString(),
   });
 }
 
@@ -50,8 +97,8 @@ export function subscribe<E extends DomainEventName>(
   emitter.on(event, (payload: DomainEventMap[E]) => {
     Promise.resolve()
       .then(() => handler(payload))
-      .catch((err) => console.error(`[events] handler failed for "${event}":`, err));
+      .catch((err) => console.error(`[events] handler failed for \"${event}\":`, err));
   });
 }
 
-export const eventBus = { publish, subscribe };
+export const eventBus = { publish, publishGrowthEvent, subscribe };
