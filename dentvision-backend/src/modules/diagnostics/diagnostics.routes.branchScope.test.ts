@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 
-const source = readFileSync(resolve(process.cwd(), 'src/modules/diagnostics/diagnostics.routes.ts'), 'utf8');
+const source = readFileSync(resolve(process.cwd(), 'dentvision-backend/src/modules/diagnostics/diagnostics.routes.ts'), 'utf8');
 
 describe('diagnostics referral branch enforcement', () => {
   it('loads and applies the shared branch policy to direct referral access', () => {
