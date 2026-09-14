@@ -1,19 +1,22 @@
 # Start Here — DentVision
 
-If you are a new AI/session working on this repository, do not ask the user which document to read first.
+This is the navigation page for a new AI/engineering session. Do not ask the user which document to read first.
 
-## First read
-1. `DENTVISION_CONTEXT.md` — project bootstrap, authoritative sources, current state, rules and immediate queue.
-2. `docs/DENTVISION_RECONCILIATION_2026-09-14.md` — detailed implementation-vs-requirement reconciliation.
+## Read in this order
+1. `DENTVISION_CONTEXT.md` — current verified project state, authority hierarchy and immediate queue.
+2. `DENTVISION_OPERATING_DIRECTIVE.md` — persistent engineering + product-growth directive.
+3. `DENTVISION_EXECUTION_PLAN.md` — implementation sequence and Definition of Done.
+4. `DENTVISION_EXECUTION_LOG.md` — durable implementation evidence/history.
+5. `DENTVISION_SUPERAPP_BLUEPRINT.md` + `DENTVISION_SUPERAPP_MASTER_PLAN.md` — product requirements/north star.
+6. `docs/business/DENTVISION_PARTNER_ECONOMICS.md` — sole canonical pricing/commission/accounting policy.
 
-## Then use the appropriate authority
-- Product north star / UX / architecture: `DENTVISION_SUPERAPP_BLUEPRINT.md`
-- Master implementation requirements: `DENTVISION_SUPERAPP_MASTER_PLAN.md`
-- Execution order: `DENTVISION_EXECUTION_PLAN.md`
-- Execution evidence/history: `DENTVISION_EXECUTION_LOG.md`
-- Business/economics: `docs/business/DENTVISION_PARTNER_ECONOMICS.md`
+## Rules
+- Current code and fresh CI/runtime evidence beat old documentation.
+- Requirements documents are not proof of implementation.
+- Preserve previous unfinished work when starting a new task.
+- Fix blockers before adding breadth.
+- Do not invent routes, models, permissions, business rules or fake fixtures to satisfy tests.
+- Do not create competing roadmaps/current-state/release-gate documents.
+- For every material slice: implement → test → fix → verify → document.
 
-## Important
-Documents are not automatically proof that a feature is implemented. Verify code, API, DB, UI and tests. If sources disagree, record `CONFLICT` and use current verified evidence for release status.
-
-Never merge a PR merely because documentation says `[x]`. Never invent routes, permissions, models, or business rules just to satisfy tests.
+If a document conflicts with `DENTVISION_CONTEXT.md`, treat the conflict as stale state and update the current context from verified evidence rather than creating another source of truth.
