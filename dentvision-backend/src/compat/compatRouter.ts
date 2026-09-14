@@ -1,7 +1,13 @@
 import { Router, Request, Response } from 'express';
 import prisma from '../lib/prisma.js';
+import { authMeRouter } from '../modules/auth/me.routes.js';
 
 const compatRouter = Router();
+
+// Auth compatibility endpoints kept under the legacy /api mount. The canonical
+// auth router remains responsible for login/register/session issuance; these
+// read-only session-context endpoints restore the long-standing API contract.
+compatRouter.use('/auth', authMeRouter);
 
 // Public service-access endpoint (no auth, used by public booking widget)
 compatRouter.get('/service-access/public/:clinicId', async (req: Request, res: Response) => {
