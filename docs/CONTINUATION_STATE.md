@@ -35,11 +35,15 @@ Foundation already present in the branch:
 Additional release policy:
 - `dentvision-backend/src/lib/financeBranchBoundary.ts`
 - `dentvision-backend/src/lib/financeBranchBoundary.test.ts`
+- `dentvision-backend/src/lib/financeWalletBoundary.ts`
+- `dentvision-backend/src/lib/financeWalletBoundary.test.ts`
 
 Hardening added:
-- finance branch resolution now requires an actual `clinic_members` row;
+- finance branch resolution requires an actual `clinic_members` row;
 - missing membership returns an empty branch set and `organizationWide: false`;
-- organization roles cannot obtain finance visibility from a role string alone.
+- organization roles cannot obtain finance visibility from a role string alone;
+- wallet access is explicitly separated from the generic `finance.manage` permission;
+- PLATFORM/GATEWAY wallets are denied to non-SUPERADMIN users.
 
 Policy:
 - OWNER / ADMIN / ACCOUNTANT are organization-wide within their organization.
@@ -47,7 +51,7 @@ Policy:
 - Cross-organization access always fails.
 - Missing branch context fails closed.
 
-The existing finance routes still need to consume this policy for resource-level enforcement.
+The existing finance routes still need to consume these policies for resource-level enforcement.
 
 ## Diagnostics branch boundary
 Foundation already present in the branch:
@@ -55,9 +59,16 @@ Foundation already present in the branch:
 - `dentvision-backend/src/lib/diagnosticBranchScope.ts`
 - `dentvision-backend/src/lib/diagnosticBranchScope.test.ts`
 
+Additional reusable enforcement:
+- `dentvision-backend/src/lib/diagnosticReferralBranchPolicy.ts`
+- `dentvision-backend/src/lib/diagnosticReferralBranchPolicy.test.ts`
+
 Hardening added:
-- diagnostic branch resolution now requires an actual `clinic_members` row;
-- missing membership returns an empty branch set and `organizationWide: false`.
+- diagnostic branch resolution requires an actual `clinic_members` row;
+- missing membership returns an empty branch set and `organizationWide: false`;
+- referral access requires the same clinic and an active branch;
+- SUPERADMIN is the only unconditional clinic-boundary bypass;
+- diagnostic-center/laboratory partner organization access remains a separate boundary.
 
 The source clinic branch remains distinct from the external diagnostic-center/laboratory organization boundary. Existing center/lab membership models are preserved.
 
