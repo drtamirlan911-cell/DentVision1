@@ -1,5 +1,4 @@
 import prisma from './prisma.js';
-import type { Prisma } from '@prisma/client';
 
 export type PatientBranchScope =
   | { kind: 'organization'; branchIds: string[] }
