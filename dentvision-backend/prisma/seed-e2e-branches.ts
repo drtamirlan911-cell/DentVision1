@@ -3,19 +3,11 @@ import { randomUUID } from 'node:crypto';
 
 const prisma = new PrismaClient();
 
-/**
- * E2E clinic branches. Patient/appointment flows enforce branch scope for
- * clinic staff. The deterministic E2E identities are clinic members, but the
- * original fixture created no branch assignment.
- *
- * The current branches table requires updatedAt, while other legacy/default
- * fields are database-managed. Write only the columns proven by the live E2E
- * schema and assign the branch through clinic_members.branch_id.
- */
+/** E2E clinic branches required by branch-scoped CRM fixtures. */
 async function ensureBranch(clinicId: string, code: string, name: string) {
   const existing = await prisma.$queryRaw<Array<{ id: string }>>`
     SELECT id FROM branches
-    WHERE clinic_id = ${clinicId} AND code = ${code}
+    WHERE "clinicId" = ${clinicId} AND code = ${code}
     LIMIT 1
   `;
 
@@ -23,7 +15,7 @@ async function ensureBranch(clinicId: string, code: string, name: string) {
   if (!existing[0]) {
     await prisma.$executeRaw`
       INSERT INTO branches
-        (id, clinic_id, code, name, active, "updatedAt")
+        (id, "clinicId", code, name, active, "updatedAt")
       VALUES
         (${branchId}, ${clinicId}, ${code}, ${name}, true, NOW())
     `;
@@ -38,7 +30,7 @@ async function ensureBranch(clinicId: string, code: string, name: string) {
   await prisma.$executeRaw`
     UPDATE clinic_members
     SET branch_id = ${branchId}
-    WHERE clinic_id = ${clinicId}
+    WHERE "clinicId" = ${clinicId}
       AND branch_id IS NULL
   `;
 
