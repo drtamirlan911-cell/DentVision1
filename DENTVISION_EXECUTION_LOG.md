@@ -24,24 +24,32 @@ The complete pre-2026-09-14 execution history is preserved in the parent Git his
 ### Release status
 - Not release-ready until fresh CI is green for the current HEAD and the full E2E/partner gates pass.
 
-## 2026-09-14 — Appointments E2E contract correction
+## 2026-09-14 — Appointments E2E syntax blocker found and corrected
 
 ### Investigation
 - The canonical `appointments.routes.ts` exposes list, POST upsert, `PATCH /:id/status`, `POST /:id/close`, and `DELETE /:id`; there is intentionally no `GET /appointments/:id` route.
 - The list response is the standard API envelope whose `data` value is itself the paginated response: `{ data: Appointment[], pagination: ... }`.
 - `e2e/helpers/api.ts` removes only the outer `{ ok, data }` envelope. Therefore an appointment list returned to an E2E spec is `{ data: [...], pagination: ... }`, not the array itself.
-- `APPT-002` incorrectly treated the unwrapped list payload as the array in its `Array.isArray()` lookup. This was a test/API-contract mismatch, not evidence that the appointment create/update implementation was broken.
+- The prior assumption that `APPT-002` was still the active blocker was incorrect: the test already contained the paginated `listBody.data` lookup in commit `f4db585fba4b15467b4ae963ab5579dc7a75e96d`.
+
+### CI evidence
+- Workflow run `34844649917` executed against exact HEAD `cb9d420fa758977f007bfadb0e640efec194c5c3`.
+- E2E job `103977529587` failed in the `Run E2E suite` step before any test executed.
+- Exact failure: `SyntaxError: e2e/tests/appointment.spec.ts: Unexpected token (260:4)`. The malformed APPT-009 request had `{ headers: { Authorization: \\`*** },` instead of a valid closing template literal/object structure.
+- Backend, frontend, database sync, seed, TypeScript, build, unit tests, backend lint and frontend lint all completed successfully in the same workflow run; the failure was isolated to the E2E test source syntax.
 
 ### Implemented
-- `f4db585fba4b15467b4ae963ab5579dc7a75e96d` corrected `e2e/tests/appointment.spec.ts` so `APPT-002` reads the paginated `data` array after the outer envelope is removed.
+- `97e725f97f800aafd12d690d6ce80e7a95da9de1` repaired `e2e/tests/appointment.spec.ts`.
+- The fix restores valid TypeScript syntax and aligns APPT-009 with the actual appointment list contract by using `from`/`to` instead of the unsupported `date` query parameter.
+- APPT-009 now also asserts that both created appointments are present in the returned range, making the test verify the filtering contract rather than only HTTP 200.
 - No production endpoint, permission, status mapping, or security check was weakened or bypassed.
 
 ### Verification status
-- GitHub does not currently expose a workflow run for the new commit through the connected workflow-run endpoint, so this change is **UNVERIFIED** until the actual Appointments E2E and release gates execute against `f4db585fba4b15467b4ae963ab5579dc7a75e96d`.
+- The correction is **UNVERIFIED** until a fresh GitHub Actions run executes against `97e725f97f800aafd12d690d6ce80e7a95da9de1`.
 - Release remains **NOT READY**.
 
 ### Next action
-1. Execute/obtain Appointments E2E against the exact commit `f4db585fba4b15467b4ae963ab5579dc7a75e96d`.
-2. If it passes, run the full release-gate and inspect every failing job against the current HEAD only.
-3. If another appointment failure appears, fix the actual production/test contract at its root without weakening assertions.
+1. Obtain the fresh workflow run for `97e725f97f800aafd12d690d6ce80e7a95da9de1` and inspect the E2E result.
+2. If E2E passes, inspect browser UX, Business Owner, Organization Owner and quality/release gates.
+3. If E2E fails, fix the exact failing contract without weakening assertions.
 4. Continue the canonical P0 queue: auth fail-closed/session enforcement, IAM negative matrix, diagnostics confirmation contract, then P1 economics/partner lifecycle.
