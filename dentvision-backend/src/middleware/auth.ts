@@ -25,7 +25,8 @@ export async function authenticate(req: AuthRequest, res: Response, next: NextFu
 
     setCsrfCookie(res);
     const guestByEmail = isGuestEmail(user.email);
-    if (!guestByEmail && payload.sessionId) {
+    if (!guestByEmail) {
+      if (!payload.sessionId) return res.status(401).json({ ok: false, error: 'Сессия отсутствует или недействительна' });
       try {
         const activeSession = await prisma.userSession.findFirst({
           where: { id: payload.sessionId, userId: user.id, expiredAt: { gt: new Date() } },
