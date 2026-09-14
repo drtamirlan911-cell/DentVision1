@@ -14,12 +14,13 @@ export type BranchScope = {
   assignedBranchIds?: readonly string[];
 };
 
+export type BranchVisibility =
+  | { mode: 'ORGANIZATION'; organizationId: string }
+  | { mode: 'ASSIGNED'; organizationId: string; branchIds: readonly string[] };
+
 /**
  * Returns whether a role may access a branch inside an organization.
- *
- * This is deliberately a pure policy function. Route handlers should resolve
- * the authenticated user's organization and branch assignments first, then
- * pass those facts here. Missing organization or branch context fails closed.
+ * Missing organization or branch context fails closed.
  */
 export function canAccessBranch(
   role: BranchScopeRole,
@@ -30,9 +31,7 @@ export function canAccessBranch(
     return false;
   }
 
-  if (!target.branchId) {
-    return false;
-  }
+  if (!target.branchId) return false;
 
   switch (role) {
     case 'OWNER':
@@ -42,7 +41,6 @@ export function canAccessBranch(
     case 'MANAGER':
     case 'RECEPTIONIST':
     case 'CASHIER':
-      return context.assignedBranchIds?.includes(target.branchId) ?? false;
     case 'DOCTOR':
     case 'ASSISTANT':
       return context.assignedBranchIds?.includes(target.branchId) ?? false;
@@ -52,21 +50,23 @@ export function canAccessBranch(
 }
 
 /**
- * Branch IDs visible to the current role. Returning an empty list instead of
- * null makes it safe for callers to translate this directly into an IN
- * predicate. Organization-wide roles receive the explicit sentinel '*';
- * callers must translate it to an organization-scoped predicate, never to an
- * unrestricted query.
+ * Produces a query-safe visibility contract. Organization-wide roles are
+ * represented structurally; there is no wildcard that could accidentally
+ * become an unrestricted SQL/API predicate.
  */
-export function visibleBranchIds(
+export function visibleBranches(
   role: BranchScopeRole,
   context: BranchScope,
-): readonly string[] | '*' {
-  if (!context.organizationId) return [];
+): BranchVisibility | null {
+  if (!context.organizationId) return null;
 
   if (role === 'OWNER' || role === 'ADMIN' || role === 'ACCOUNTANT') {
-    return '*';
+    return { mode: 'ORGANIZATION', organizationId: context.organizationId };
   }
 
-  return context.assignedBranchIds ?? [];
+  return {
+    mode: 'ASSIGNED',
+    organizationId: context.organizationId,
+    branchIds: context.assignedBranchIds ?? [],
+  };
 }
