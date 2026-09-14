@@ -9,7 +9,7 @@ The complete pre-2026-09-14 execution history is preserved in the parent Git his
 
 ### Implemented
 - `0778c61203528024e95634cfffe2555ac9c619c8` restored `setPatientBranch()` after the tenant-scope SQL correction had removed the exported helper required by `patients.routes.ts`.
-- `455cbc66b446ff0410ad83b85d07721c61702978` corrected the remaining Prisma/raw-SQL identifier mismatch in `dentvision-backend/src/lib/patientBranchScope.ts`.
+- `d38104980d54173eb8341e9737d38461ef632cc3` corrected the remaining Prisma/raw-SQL identifier mismatch in `dentvision-backend/src/lib/patientBranchScope.ts`.
 - `clinic_members` now uses the actual quoted `"userId"` and `"clinicId"` columns.
 - `patients` now uses quoted `"clinicId"` and `"deletedAt"`, and updates `"updatedAt"`.
 - `branches` keeps its explicit SQL-mapped snake_case fields (`clinic_id`, `active`), while unmapped Prisma fields are quoted as `"isDefault"` and `"createdAt"`.
@@ -24,7 +24,7 @@ The complete pre-2026-09-14 execution history is preserved in the parent Git his
 - Not release-ready until fresh CI is green.
 
 ### Next implementation slice
-1. Verify fresh CI after `455cbc66b446ff0410ad83b85d07721c61702978`.
+1. Verify fresh CI after `d38104980d54173eb8341e9737d38461ef632cc3`.
 2. Continue the canonical business-owner vertical slice: registration → organization/verification → owner login/workspace → branches → staff/permissions → operational workflow → economics.
 3. Fix partner registration/approval so Diagnostic Center, Medical Laboratory and Dental Laboratory remain distinct domain verticals without duplicate models.
 4. Continue accepted → paid → settled economics/ledger immutability work where the existing domain supports it.
