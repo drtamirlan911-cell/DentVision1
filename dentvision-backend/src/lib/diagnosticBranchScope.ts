@@ -15,13 +15,19 @@ export async function resolveDiagnosticBranchContext(
   clinicId: string,
   role: string,
 ): Promise<DiagnosticBranchContext> {
-  const membership = await prisma.$queryRaw<Array<{ branch_id: string | null }>>`
-    SELECT branch_id
+  const membership = await prisma.$queryRaw<Array<{ branch_id: string | null; role: string | null }>>`
+    SELECT branch_id, role
     FROM clinic_members
     WHERE user_id = ${userId} AND clinic_id = ${clinicId}
     LIMIT 1
   `;
-  const branchId = membership[0]?.branch_id ?? null;
+
+  // A role string alone must never create access to a clinic's diagnostic data.
+  if (!membership[0]) {
+    return { clinicId, branchId: null, branchIds: [], organizationWide: false };
+  }
+
+  const branchId = membership[0].branch_id ?? null;
 
   if (ORGANIZATION_ROLES.has(role)) {
     const branches = await prisma.$queryRaw<Array<{ id: string }>>`
