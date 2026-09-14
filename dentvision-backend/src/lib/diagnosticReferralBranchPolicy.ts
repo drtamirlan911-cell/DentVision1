@@ -31,7 +31,10 @@ export async function canAccessReferralBranch(
       .filter((id): id is string => Boolean(id)),
   );
 
-  if (user.role === 'OWNER' || user.role === 'ADMIN' || user.role === 'ACCOUNTANT') {
+  // AuthUser intentionally contains the consumer/clinic role union only.
+  // ACCOUNTANT is a registry-level role, not an AuthUser role, so it must not
+  // be referenced here: TypeScript correctly rejects that comparison.
+  if (user.role === 'OWNER' || user.role === 'ADMIN') {
     return resource.branchId !== null && assigned.has(resource.branchId)
       ? true
       : await branchBelongsToClinic(resource.branchId, resource.clinicId);
