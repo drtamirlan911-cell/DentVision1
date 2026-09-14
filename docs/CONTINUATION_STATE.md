@@ -3,7 +3,7 @@
 Updated: 2026-09-14
 Branch: `feat/iam-role-matrix-v2`
 PR: #275
-Current implementation head: `00ae0c1b4867b466cfb932e4fbad35372da19c95`
+Current implementation head: `cf79210842d145047b417bdd1f72d86c9c6d3fff`
 
 ## Current objective
 Complete IAM, branch isolation and release-gate work without weakening tests or faking product functionality.
@@ -50,10 +50,7 @@ Branch routes: `dentvision-backend/src/modules/branches/branches.routes.ts`
 
 Branch route contract test: `dentvision-backend/src/modules/branches/branches.routes.test.ts`
 
-## Migration strategy
-Do NOT add `branchId` to 30+ operational tables in one risky migration.
-
-Implement progressively:
+## Progressive operational isolation
 1. Branch entity/bootstrap — implemented.
 2. Branch assignment on ClinicMember — implemented through transitional schema bootstrap.
 3. Shared branch authorization — implemented.
@@ -61,21 +58,41 @@ Implement progressively:
 5. Owner/Admin branch CRUD — implemented.
 6. Manager branch restriction — implemented at branch route level.
 7. Doctor/Assistant assignment restriction — implemented at branch route level; operational-data enforcement follows as each domain gains branchId.
-8. Audit branch-sensitive access and mutations — next hardening batch.
-9. E2E cross-branch and cross-organization denial — next release batch.
-10. Progressive operational migration: Patient → Appointment → Inventory → Finance → Diagnostics → Labs.
+8. Patient — branch-scoped read/write access is implemented in `patients.routes.ts` and `patientBranchScope.ts`.
+9. Appointment — branch consistency/filtering is implemented through the appointment branch work; keep cross-branch denial in release E2E.
+10. Inventory — `inventory_items.branch_id` migration/backfill is implemented; `inventory.routes.ts` now scopes list/suggest/create/update/adjust/movements/delete/low-stock by authorized branches. Owner/Admin/Accountant remain organization-wide; other roles fail closed without an assigned branch.
+11. Finance — next operational boundary.
+12. Diagnostics / Medical Lab / Dental Lab — next specialized partner boundary.
+13. E2E cross-branch and cross-organization denial — required release batch.
 
-Existing diagnostic/lab membership models must be preserved and migrated gradually.
+Do NOT add `branchId` to 30+ operational tables in one risky migration. Existing diagnostic/lab membership models must be preserved and migrated gradually.
+
+## Inventory branch isolation
+Foundation:
+- `dentvision-backend/prisma/migrations/20260914110000_add_inventory_branch_scope/migration.sql`
+- `dentvision-backend/src/lib/inventoryBranchScope.ts`
+- `dentvision-backend/prisma/ensure-branch-model.ts`
+
+Route enforcement commit:
+- `cf79210842d145047b417bdd1f72d86c9c6d3fff`
+
+Rules:
+- organization roles: OWNER / ADMIN / ACCOUNTANT see all active branches in the clinic;
+- branch/assigned roles see only their assigned branch;
+- missing branch assignment fails closed;
+- create accepts a branch only when it is active and inside the caller's authorized branch set;
+- item mutation and movement operations first resolve the item through the branch-scoped query;
+- low-stock and suggestions use the same branch visibility.
 
 ## Important compatibility rule
 Legacy clinic-linked branch rows remain supported while organization ownership is introduced. New branch writes may carry `organizationId`; the branch table keeps `clinic_id` until operational data is migrated.
 
 Do not silently treat a test-only branch fixture as product functionality.
 
-## Current known CI/release state
-Latest meaningful branch commits triggered:
-- Quality Gate
-- CI
+## Current CI/release state
+Latest implementation commit `cf79210842d145047b417bdd1f72d86c9c6d3fff` triggered:
+- Quality Gate #2214 — in progress
+- CI #1904 — in progress
 
 Do not wait indefinitely for CI. After a meaningful batch, inspect the result once; fix concrete failures and continue implementation.
 
@@ -96,6 +113,7 @@ Tests:
 - `dentvision-backend/src/lib/roleAccessRegistry.test.ts`
 - `dentvision-backend/src/lib/branchAuthorization.test.ts`
 - `dentvision-backend/src/modules/branches/branches.routes.test.ts`
+- `dentvision-backend/src/lib/inventoryBranchScope.test.ts`
 
 ## Release rule
 PR #275 must not be merged until the complete release gate is green, including:
