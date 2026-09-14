@@ -1,6 +1,7 @@
 import { test, expect, type Page } from '@playwright/test';
 
 const BASE_URL = process.env.PLAYWRIGHT_UI_URL || 'http://localhost:3000';
+const API_BASE_URL = process.env.PLAYWRIGHT_API_URL || 'http://localhost:3001';
 const E2E_USER = 'owner-a@test.com';
 const E2E_PASSWORD = 'Test1234!';
 
@@ -22,11 +23,30 @@ const ROUTES = [
 ];
 
 async function login(page: Page) {
-  await page.goto(`${BASE_URL}/login?role=owner`);
-  await page.locator('input[autocomplete="username"]').fill(E2E_USER);
-  await page.locator('input[autocomplete="current-password"]').fill(E2E_PASSWORD);
-  await page.getByRole('button', { name: 'Войти в DentVision' }).click();
-  await page.waitForURL(/\/ai(?:$|[?#])/, { timeout: 20000 });
+  const response = await page.request.post(`${API_BASE_URL}/api/auth/login`, {
+    data: { email: E2E_USER, password: E2E_PASSWORD },
+  });
+  expect(response.ok(), `E2E login failed: HTTP ${response.status()}`).toBeTruthy();
+  const payload = await response.json();
+  const auth = payload?.data || payload;
+  const accessToken = auth?.tokens?.accessToken || auth?.accessToken;
+  const refreshToken = auth?.tokens?.refreshToken || auth?.refreshToken;
+  expect(accessToken, 'E2E login did not return accessToken').toBeTruthy();
+  expect(refreshToken, 'E2E login did not return refreshToken').toBeTruthy();
+
+  await page.goto(BASE_URL, { waitUntil: 'domcontentloaded', timeout: 20000 });
+  await page.evaluate(({ access, refresh }) => {
+    sessionStorage.setItem('dv_tokens', JSON.stringify({ access, refresh }));
+    localStorage.setItem('dv_refresh', refresh);
+  }, { access: accessToken, refresh: refreshToken });
+
+  // Force a fresh application bootstrap so the Zustand auth store restores the
+  // persisted JWTs before protected-route guards run.
+  await page.reload({ waitUntil: 'domcontentloaded', timeout: 20000 });
+  await page.waitForTimeout(750);
+  await page.goto(`${BASE_URL}/ai`, { waitUntil: 'domcontentloaded', timeout: 20000 });
+  await page.waitForTimeout(750);
+  expect(new URL(page.url()).pathname, 'authenticated UX gate must not remain on /login').not.toBe('/login');
 }
 
 function collectRuntimeErrors(page: Page) {
@@ -50,7 +70,7 @@ test.describe('DentVision browser UX coverage', () => {
       const errors = collectRuntimeErrors(page);
       try {
         await page.goto(`${BASE_URL}${route}`, { waitUntil: 'domcontentloaded', timeout: 20000 });
-        await page.waitForTimeout(250);
+        await page.waitForTimeout(500);
         const url = new URL(page.url());
         if (url.pathname === '/login') {
           failures.push(`${route}: redirected to login`);

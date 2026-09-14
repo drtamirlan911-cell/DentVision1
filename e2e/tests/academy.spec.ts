@@ -46,7 +46,7 @@ test.describe('Academy / Course Workflow', () => {
       await prisma.schoolEnrollment.deleteMany({ where: { id: testEnrollmentId } }).catch(() => {});
     }
     if (testCourseId) {
-      await prisma.schoolCourse.deleteMany({ where: { id: testCourseId } }).catch(() => {});
+      await prisma.course.deleteMany({ where: { id: testCourseId } }).catch(() => {});
     }
   });
 

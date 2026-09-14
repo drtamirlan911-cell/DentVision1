@@ -9,12 +9,18 @@ export function validate(schema: z.ZodSchema) {
       params: req.params,
     });
     if (!result.success) {
-      const errors = result.error.errors.map(e => `${e.path.join('.')}: ${e.message}`);
+      const errors = result.error.issues.map((e) => `${e.path.join('.')}: ${e.message}`);
       return res.status(400).json({ ok: false, error: errors.join(', ') });
     }
-    req.body = result.data.body;
-    req.query = result.data.query;
-    req.params = result.data.params;
+
+    const data = result.data as {
+      body?: Request['body'];
+      query?: Request['query'];
+      params?: Request['params'];
+    };
+    if (data.body !== undefined) req.body = data.body;
+    if (data.query !== undefined) req.query = data.query;
+    if (data.params !== undefined) req.params = data.params;
     next();
   };
 }

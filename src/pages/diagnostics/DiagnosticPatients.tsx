@@ -2,7 +2,7 @@ import { useState, useMemo } from 'react';
 import { motion } from 'framer-motion';
 import { useQuery } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
-import { Users, FileText, Search, ChevronRight, Calendar, Activity } from 'lucide-react';
+import { Users, Search, ChevronRight } from 'lucide-react';
 import { GlassCard } from '@/components/ui/ds/GlassCard';
 import { Card } from '@/components/ui/ds/Card';
 import { Badge } from '@/components/ui/ds/Badge';
@@ -11,16 +11,18 @@ import { QueryError } from '@/components/ui/ds/QueryError';
 import { PageHeader } from '@/components/ui/ds/StatCard';
 import { queryKeys } from '@/queries/keys';
 import * as api from '@/utils/api';
+import { useAuthStore } from '@/store/auth.store';
 import { StatusPill } from './workspace/Pipeline';
-
 
 export default function DiagnosticPatients() {
   const navigate = useNavigate();
+  const activeClinicId = useAuthStore((state) => state.activeClinic?.id);
   const [search, setSearch] = useState('');
 
   const { data, isLoading, isError, refetch } = useQuery({
-    queryKey: queryKeys.diagnostics.referrals({ limit: '500' }),
-    queryFn: () => api.getDiagnosticReferrals({ limit: '500' }),
+    queryKey: queryKeys.diagnostics.referrals({ clinicId: activeClinicId || '', limit: '500' }),
+    queryFn: () => api.getDiagnosticReferrals({ clinicId: activeClinicId!, limit: '500' }),
+    enabled: Boolean(activeClinicId),
   });
 
   const patients = useMemo(() => {
@@ -43,29 +45,20 @@ export default function DiagnosticPatients() {
 
   return (
     <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className="p-6 space-y-6 max-w-full overflow-x-hidden">
-      <PageHeader
-        title="Пациенты диагностики"
-        subtitle="Все пациенты, которым назначались исследования"
-        icon={<Users size={22} />}
-      />
-
+      <PageHeader title="Пациенты диагностики" subtitle="Все пациенты, которым назначались исследования" icon={<Users size={22} />} />
       <div className="relative flex flex-wrap w-full sm:max-w-xs">
         <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-txt-muted" />
         <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Поиск по имени или телефону..."
           className="w-full min-h-11 bg-surface-1 border border-bdr-subtle rounded-lg pl-9 pr-3 py-2 text-sm text-txt-primary placeholder:text-txt-ghost focus:outline-none focus:ring-1 focus:ring-dv-gold" />
       </div>
-
-      {isLoading ? (
+      {!activeClinicId ? (
+        <GlassCard padding="md"><div className="flex items-center justify-center h-40 text-txt-muted text-sm">Выберите клинику, чтобы открыть пациентов диагностики</div></GlassCard>
+      ) : isLoading ? (
         <div className="space-y-3">{[1, 2, 3].map(i => <Skeleton key={i} className="h-20" />)}</div>
       ) : isError ? (
         <QueryError what="список пациентов" onRetry={() => refetch()} />
       ) : filtered.length === 0 ? (
-        <GlassCard padding="md">
-          <div className="flex items-center justify-center h-40 text-txt-muted text-sm flex-col gap-2">
-            <Users size={48} className="opacity-20" />
-            {search ? 'Ничего не найдено' : 'Нет пациентов'}
-          </div>
-        </GlassCard>
+        <GlassCard padding="md"><div className="flex items-center justify-center h-40 text-txt-muted text-sm flex-col gap-2"><Users size={48} className="opacity-20" />{search ? 'Ничего не найдено' : 'Нет пациентов'}</div></GlassCard>
       ) : (
         <div className="space-y-2">
           {filtered.map((p: any) => {
@@ -74,33 +67,11 @@ export default function DiagnosticPatients() {
             return (
               <Card key={p.id || p.name} padding="md" hover className="cursor-pointer min-h-11" onClick={() => navigate(`/diagnostics/referrals/${lastRef?.id}`)}>
                 <div className="flex items-center gap-4">
-                  <div className="w-10 h-10 rounded-full bg-dv-gold/10 flex items-center justify-center text-dv-gold text-sm font-bold shrink-0">
-                    {p.name.charAt(0)}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-semibold text-txt-primary">{p.name}</p>
-                    <p className="text-xs text-txt-muted">
-                      {p.phone && `${p.phone}`}{p.iin ? ` · ${p.iin}` : ''} · {p.referrals.length} направлений
-                    </p>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    {activeCount > 0 && (
-                      <Badge variant="outline" className="border-warning text-warning">
-                        {activeCount} активн.
-                      </Badge>
-                    )}
-                    <ChevronRight size={16} className="text-txt-muted" />
-                  </div>
+                  <div className="w-10 h-10 rounded-full bg-dv-gold/10 flex items-center justify-center text-dv-gold text-sm font-bold shrink-0">{p.name.charAt(0)}</div>
+                  <div className="flex-1 min-w-0"><p className="text-sm font-semibold text-txt-primary">{p.name}</p><p className="text-xs text-txt-muted">{p.phone && `${p.phone}`}{p.iin ? ` · ${p.iin}` : ''} · {p.referrals.length} направлений</p></div>
+                  <div className="flex items-center gap-2">{activeCount > 0 && <Badge variant="outline" className="border-warning text-warning">{activeCount} активн.</Badge>}<ChevronRight size={16} className="text-txt-muted" /></div>
                 </div>
-                {p.referrals.length > 0 && (
-                  <div className="mt-2 flex flex-wrap gap-1.5">
-                    {p.referrals.slice(-3).map((r: any) => {
-                      return (
-                        <StatusPill key={r.id} status={r.status} className="text-[10px]" />
-                      );
-                    })}
-                  </div>
-                )}
+                {p.referrals.length > 0 && <div className="mt-2 flex flex-wrap gap-1.5">{p.referrals.slice(-3).map((r: any) => <StatusPill key={r.id} status={r.status} className="text-[10px]" />)}</div>}
               </Card>
             );
           })}

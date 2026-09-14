@@ -350,6 +350,7 @@ export default function CommunityPage() {
                           variant="ghost"
                           className="shrink-0 min-h-11"
                           icon={<MessageCircle size={14} />}
+                          aria-label="Написать автору"
                           onClick={() => void messageAuthor(post.authorId)}
                         >
                           <span className="hidden sm:inline">Написать</span>
@@ -365,6 +366,8 @@ export default function CommunityPage() {
                     <div className="flex items-center gap-3 sm:gap-4 pt-1 text-txt-muted">
                       <button
                         type="button"
+                        aria-label={`Нравится: ${post.likesCount || 0}`}
+                        title="Нравится"
                         className={cn('inline-flex items-center gap-1.5 text-xs min-h-11', post.liked ? 'text-error' : 'hover:text-txt-primary')}
                         onClick={() => void toggleLike(post.id)}
                       >
@@ -373,6 +376,8 @@ export default function CommunityPage() {
                       </button>
                       <button
                         type="button"
+                        aria-label={`Комментарии: ${post.commentsCount || 0}`}
+                        title="Комментарии"
                         className="inline-flex items-center gap-1.5 text-xs hover:text-txt-primary min-h-11"
                         onClick={() => void openComments(post.id)}
                       >
@@ -381,6 +386,8 @@ export default function CommunityPage() {
                       </button>
                       <button
                         type="button"
+                        aria-label={post.saved ? 'Убрать из сохранённых' : 'Сохранить пост'}
+                        title={post.saved ? 'Убрать из сохранённых' : 'Сохранить пост'}
                         className={cn('inline-flex items-center gap-1.5 text-xs min-h-11', post.saved ? 'text-dv-gold' : 'hover:text-txt-primary')}
                         onClick={() => void toggleSave(post.id)}
                       >
@@ -388,6 +395,8 @@ export default function CommunityPage() {
                       </button>
                       <button
                         type="button"
+                        aria-label="Поделиться постом"
+                        title="Поделиться постом"
                         className="inline-flex items-center gap-1.5 text-xs hover:text-txt-primary ml-auto min-h-11"
                         onClick={() => void sharePost(post)}
                       >

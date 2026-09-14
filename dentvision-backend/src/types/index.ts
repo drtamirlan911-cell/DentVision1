@@ -16,6 +16,10 @@ export interface AuthUser {
   organizationId?: string;
   organizationType?: string;
   personType?: string;
+  /** Branches assigned to the authenticated clinic membership. */
+  branchIds?: string[];
+  /** Primary branch for ASSIGNED-scope roles such as Doctor/Assistant. */
+  assignedBranchId?: string;
   /** Session this request authenticated with — carried into re-issued tokens. */
   sessionId?: string;
   isGuest?: boolean;

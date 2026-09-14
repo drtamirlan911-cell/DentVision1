@@ -8,11 +8,28 @@ import * as api from '@/utils/api';
 
 type PartnerType = 'center' | 'laboratory' | 'dental_laboratory';
 
+type DiagnosticsRegistrationPayload = {
+  type: PartnerType;
+  name: string;
+  city?: string;
+  address?: string;
+  phone?: string;
+  email?: string;
+  comment?: string;
+};
+
 const PARTNER_LABELS: Record<PartnerType, string> = {
   center: 'диагностический центр',
   laboratory: 'медицинскую лабораторию',
   dental_laboratory: 'зуботехническую лабораторию',
 };
+
+// The shared API client still exposes the legacy center/laboratory type union.
+// Keep the runtime value intact so the dedicated dental-laboratory registration
+// reaches the backend unchanged; the API type can be widened independently.
+async function submitPartnerRegistration(data: DiagnosticsRegistrationPayload): Promise<any> {
+  return api.submitDiagnosticsRegistration(data as Parameters<typeof api.submitDiagnosticsRegistration>[0]);
+}
 
 export default function DiagnosticsRegister() {
   const navigate = useNavigate();
@@ -27,7 +44,7 @@ export default function DiagnosticsRegister() {
     setSubmitting(true);
     setError('');
     try {
-      await api.submitDiagnosticsRegistration({ ...form, type });
+      await submitPartnerRegistration({ ...form, type });
       setStep('done');
     } catch (e: any) {
       setError(e.message || 'Ошибка отправки');

@@ -1,18 +1,19 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { referralFindUnique, assertOrgAccess } = vi.hoisted(() => ({
+const { referralFindUnique, assertOrgAccess, queryRaw } = vi.hoisted(() => ({
   referralFindUnique: vi.fn(),
   assertOrgAccess: vi.fn(),
+  queryRaw: vi.fn(),
 }));
 
 vi.mock('../../lib/prisma.js', () => ({
-  default: { referral: { findUnique: referralFindUnique } },
+  default: { referral: { findUnique: referralFindUnique }, $queryRaw: queryRaw },
 }));
 vi.mock('../../lib/orgContext.js', () => ({ assertOrgAccess }));
 
 import { authorizeReferralListScope, requireReferralAccess } from './diagnostics.routes.js';
 
-beforeEach(() => { vi.clearAllMocks(); });
+beforeEach(() => { vi.clearAllMocks(); queryRaw.mockResolvedValue([{ branch_id: 'branch-1' }]); });
 
 function mockRes() {
   const res: any = {};
@@ -22,7 +23,7 @@ function mockRes() {
 }
 
 describe('requireReferralAccess middleware', () => {
-  const referral = { clinicId: 'clinic-1', doctorId: 'doc-1', centerId: 'center-1', labId: null };
+  const referral = { clinicId: 'clinic-1', branchId: 'branch-1', doctorId: 'doc-1', centerId: 'center-1', labId: null };
 
   it('admits SUPERADMIN unconditionally', async () => {
     referralFindUnique.mockResolvedValueOnce(referral);
@@ -31,16 +32,16 @@ describe('requireReferralAccess middleware', () => {
     await requireReferralAccess()(req, res, next);
     expect(next).toHaveBeenCalledOnce(); expect(assertOrgAccess).not.toHaveBeenCalled(); expect(res.status).not.toHaveBeenCalled();
   });
-  it('admits the referring doctor', async () => {
+  it('admits the referring doctor within the assigned branch', async () => {
     referralFindUnique.mockResolvedValueOnce(referral);
-    const req: any = { params: { id: 'r1' }, user: { id: 'doc-1', role: 'DOCTOR' } };
+    const req: any = { params: { id: 'r1' }, user: { id: 'doc-1', role: 'DOCTOR', clinicId: 'clinic-1', branchIds: ['branch-1'], assignedBranchId: 'branch-1' } };
     const res = mockRes(); const next = vi.fn();
     await requireReferralAccess()(req, res, next);
     expect(next).toHaveBeenCalledOnce(); expect(assertOrgAccess).not.toHaveBeenCalled();
   });
-  it('admits a member of the referring clinic', async () => {
+  it('admits a member of the referring clinic within the assigned branch', async () => {
     referralFindUnique.mockResolvedValueOnce(referral); assertOrgAccess.mockResolvedValueOnce(true);
-    const req: any = { params: { id: 'r1' }, user: { id: 'staff-1', role: 'ASSISTANT' } };
+    const req: any = { params: { id: 'r1' }, user: { id: 'staff-1', role: 'ASSISTANT', clinicId: 'clinic-1', branchIds: ['branch-1'], assignedBranchId: 'branch-1' } };
     const res = mockRes(); const next = vi.fn();
     await requireReferralAccess()(req, res, next);
     expect(next).toHaveBeenCalledOnce(); expect(assertOrgAccess).toHaveBeenCalledWith(req.user, 'clinic-1');

@@ -31,14 +31,6 @@ export function isRuleScope(v: unknown): v is RuleScope {
   return typeof v === 'string' && (RULE_SCOPES as string[]).includes(v);
 }
 
-/**
- * Коды МКБ-10 из свободного текста диагноза.
- *
- * Диагноз хранится как «K02.1 — Кариес дентина»: код и русское название в
- * одном поле. Класс `[A-Z]` латинский, поэтому в кириллицу он не попадает,
- * а левую границу проверяем явной группой, а не `\b` — `\w` в JavaScript
- * это `[A-Za-z0-9_]`, и с русским текстом он ведёт себя не так, как кажется.
- */
 export function parseIcdCodes(raw: string | null | undefined): string[] {
   const text = String(raw || '');
   const out: string[] = [];
@@ -51,29 +43,17 @@ export function parseIcdCodes(raw: string | null | undefined): string[] {
   return out;
 }
 
-/**
- * Подходит ли правило к диагнозу приёма.
- *
- * `matchKey` — либо полный код («K02.1»), либо корень рубрики («K02»).
- * Корень цепляет всю рубрику, полный код — только себя. Клиника выбирает
- * точность сама: на весь кариес нужен один набор, а на пульпит и
- * периодонтит внутри K04 — разные.
- */
 export function matchesDiagnosis(matchKey: string, code: string): boolean {
   const key = String(matchKey || '').trim().toUpperCase();
   const dx = String(code || '').trim().toUpperCase();
   if (!key || !dx) return false;
   if (key === dx) return true;
-  // Корень рубрики раскрывается только вниз: «K02» ловит «K02.1»,
-  // но «K02.1» не должен ловить «K02».
   return !key.includes('.') && dx.startsWith(`${key}.`);
 }
 
 export interface DeductionContext {
   clinicId: string;
-  /** Коды услуг из закрытого приёма. */
   serviceCodes?: string[];
-  /** Свободный текст диагноза и/или готовые коды МКБ-10. */
   diagnosisText?: string | null;
   diagnosisCodes?: string[];
 }
@@ -82,11 +62,8 @@ export interface DeductionLine {
   itemId: string;
   itemName: string;
   unit: string | null;
-  /** Сколько списать суммарно по всем сработавшим правилам. */
   quantity: number;
-  /** Остаток на складе до списания — из него видно, хватит ли. */
   available: number;
-  /** Названия правил, которые дали эту позицию, — для объяснения в интерфейсе. */
   sources: string[];
 }
 
@@ -99,12 +76,6 @@ function ruleTitle(rule: { scope: string; matchKey: string; label: string | null
   return `Диагноз ${rule.matchKey}`;
 }
 
-/**
- * Что списать за этот приём — до того, как что-либо списано.
- *
- * Отдельно от применения: тем же расчётом интерфейс показывает врачу
- * предпросмотр «спишется вот это», не трогая склад.
- */
 export async function resolveDeductionPlan(
   db: Db,
   ctx: DeductionContext,
@@ -122,7 +93,7 @@ export async function resolveDeductionPlan(
     include: {
       items: {
         include: {
-          item: { select: { id: true, name: true, unit: true, quantity: true } },
+          item: { select: { id: true, name: true, unit: true, quantity: true, branchId: true } },
         },
       },
     },
@@ -162,19 +133,10 @@ export async function resolveDeductionPlan(
 }
 
 export interface DeductionResult {
-  /** Что реально ушло со склада. */
   deducted: Array<{ itemId: string; name: string; quantity: number; unit: string | null }>;
-  /** Чего не хватило: правило просило больше, чем было на остатке. */
   short: Array<{ itemId: string; name: string; requested: number; taken: number }>;
 }
 
-/**
- * Провести списание по плану.
- *
- * Ссылка движения — сам приём, поэтому повторный вызов (двойной клик,
- * ретрай сети) ничего не спишет второй раз: уникальный ключ журнала
- * (refType, refId, itemId) отклонит вставку.
- */
 export async function applyDeductionPlan(
   tx: Db,
   args: {
@@ -187,7 +149,36 @@ export async function applyDeductionPlan(
   const deducted: DeductionResult['deducted'] = [];
   const short: DeductionResult['short'] = [];
 
+  // Appointment branch is the authoritative operational scope. Even if a
+  // legacy rule accidentally references an item from another branch, the
+  // deduction must fail closed rather than silently moving stock across
+  // branches.
+  const appointmentRows = await tx.$queryRaw<Array<{ branch_id: string | null; clinic_id: string }>>`
+    SELECT branch_id, clinic_id
+    FROM appointments
+    WHERE id = ${args.appointmentId} AND clinic_id = ${args.clinicId}
+    LIMIT 1
+  `;
+  const appointmentBranchId = appointmentRows[0]?.branch_id ?? null;
+  const appointmentClinicId = appointmentRows[0]?.clinic_id ?? null;
+
   for (const line of args.plan) {
+    const itemRows = await tx.$queryRaw<Array<{ branch_id: string | null; clinic_id: string }>>`
+      SELECT branch_id, clinic_id
+      FROM inventory_items
+      WHERE id = ${line.itemId} AND clinic_id = ${args.clinicId}
+      LIMIT 1
+    `;
+    const item = itemRows[0];
+    if (!item || appointmentClinicId !== args.clinicId || item.clinic_id !== args.clinicId) {
+      short.push({ itemId: line.itemId, name: line.itemName, requested: line.quantity, taken: 0 });
+      continue;
+    }
+    if (appointmentBranchId && item.branch_id !== appointmentBranchId) {
+      short.push({ itemId: line.itemId, name: line.itemName, requested: line.quantity, taken: 0 });
+      continue;
+    }
+
     const outcome = await recordMovement(tx, {
       clinicId: args.clinicId,
       itemId: line.itemId,
@@ -223,7 +214,6 @@ export async function applyDeductionPlan(
   return { deducted, short };
 }
 
-/** Разбор старой строки настроек: «Перчатки:1, Маска:2» и просто «Перчатки». */
 export function parseLegacyAutoDeduct(raw: string | null | undefined): Array<{ name: string; quantity: number }> {
   return String(raw || '')
     .split(',')
@@ -242,14 +232,6 @@ export function parseLegacyAutoDeduct(raw: string | null | undefined): Array<{ n
     .filter((v): v is { name: string; quantity: number } => v !== null && v.name.length > 0);
 }
 
-/**
- * Перенести старую строку клиники в правило «каждый приём».
- *
- * Не разово и не по флагу: функция сама сходится к бездействию — она берёт
- * только клиники, у которых строка ещё не пуста, и очищает её после переноса.
- * Поэтому её безопасно звать на каждом старте, и она подхватит клинику,
- * заведённую между выкатками.
- */
 export async function migrateLegacyAutoDeduct(): Promise<{ migrated: number; skipped: string[] }> {
   const clinics = await prisma.clinic.findMany({ select: { id: true, settings: true } });
   let migrated = 0;
@@ -261,8 +243,6 @@ export async function migrateLegacyAutoDeduct(): Promise<{ migrated: number; ski
       : {}) as Record<string, unknown>;
     const legacy = parseLegacyAutoDeduct(settings.autoDeductItems as string);
     if (legacy.length === 0) {
-      // Строки нет — но, возможно, лежит пустая; чистим, чтобы поле не
-      // мозолило глаза в настройках.
       if (settings.autoDeductItems) {
         await prisma.clinic.update({
           where: { id: clinic.id },

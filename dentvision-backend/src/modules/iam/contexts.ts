@@ -1,26 +1,14 @@
+import { installContentCatalogJsonGuard } from '../../iam/contentCatalogMiddleware.js';
+
+installContentCatalogJsonGuard();
+
 /**
  * One row per workspace the user actually belongs to.
  *
  * `GET /me/contexts` used to concatenate two lists and return both: the legacy
- * membership tables (`ClinicMember`, `SupplierMember`, `Lecturer`) and the
- * unified `Person → Organization` graph. Since the #174/#175 backfill mirrors
- * every legacy membership into a `Person`, that meant **the same clinic came
- * back twice** — once keyed by `clinicId`, once by `Organization.id`, which is
- * a separate uuid (`schema.prisma`: `id @default(uuid())`, with the real
- * entity id in `originalId`). Anything rendering the list showed the user two
- * or three copies of one workspace, and half of them carried an id that no
- * clinic-scoped query could resolve.
- *
- * The two halves also spoke different vocabularies for the same thing — legacy
- * said `SUPPLIER`/`LECTURER`, unified said `SUPPLIER_COMPANY`/`ACADEMY` — so
- * every consumer that filtered by the legacy names silently ignored the
- * unified rows.
- *
- * This merges both halves onto the identity of the real entity, and emits one
- * vocabulary. Each row carries both ids on purpose: `scopeId` is the entity id
- * that legacy callers already use, `organizationId` is the unified handle when
- * one exists, so `switch-context` can take its richer Person path and fall
- * back to the legacy branch when it cannot.
+ * membership tables and the unified Person → Organization graph. The merge
+ * below keeps one workspace identity while preserving both legacy and unified
+ * ids for compatibility.
  */
 
 export type ScopeType =
@@ -33,21 +21,16 @@ export type ScopeType =
   | 'PARTNER';
 
 export interface WorkspaceContext {
-  /** Stable key: type plus the real entity id. */
   id: string;
   scopeType: ScopeType;
-  /** The entity's own id — clinicId, supplierId, lecturerId. */
   scopeId: string;
-  /** Unified handle, when the entity has been mirrored into an Organization. */
   organizationId?: string;
   name: string;
   roleKey: string;
-  /** Human-readable — never a raw enum or a dotted key. */
   roleLabel: string;
   personType?: string;
   logo?: string | null;
   joinedAt?: Date;
-  /** Legacy passthroughs kept so existing callers keep working unchanged. */
   role?: string;
   clinic?: unknown;
   supplier?: unknown;
@@ -55,7 +38,6 @@ export interface WorkspaceContext {
   level?: string;
 }
 
-/** `Organization.type` is its own vocabulary; this is the one clients see. */
 const ORG_TYPE_TO_SCOPE: Record<string, ScopeType> = {
   CLINIC: 'CLINIC',
   DIAGNOSTIC_CENTER: 'DIAGNOSTIC_CENTER',
@@ -66,12 +48,6 @@ const ORG_TYPE_TO_SCOPE: Record<string, ScopeType> = {
   PARTNER: 'PARTNER',
 };
 
-/**
- * A lecturer's Person hangs off the *academy* organisation, so going by
- * organisation type alone would file it as `ACADEMY` and leave it sitting next
- * to the legacy `LECTURER` row as a second copy of the same membership.
- * `personType` is the more specific fact, so it wins.
- */
 const PERSON_TYPE_TO_SCOPE: Record<string, ScopeType> = {
   LECTURER: 'LECTURER',
   SUPPLIER_REP: 'SUPPLIER',
@@ -82,11 +58,37 @@ const ROLE_LABELS: Record<string, string> = {
   director: 'Руководитель',
   admin: 'Администратор',
   org_admin: 'Администратор',
+  manager: 'Управляющий',
   doctor: 'Врач',
   assistant: 'Ассистент',
-  manager: 'Менеджер',
   radiologist: 'Рентгенолог',
-  operator: 'Оператор',
+  radiology_technician: 'Рентген-лаборант',
+  diagnostic_owner: 'Владелец диагностического центра',
+  diagnostic_admin: 'Администратор диагностического центра',
+  diagnostic_manager: 'Управляющий диагностического центра',
+  diagnostic_operator: 'Оператор диагностического центра',
+  diagnostic_reception: 'Регистратура диагностического центра',
+  diagnostic_finance: 'Финансы диагностического центра',
+  diagnostic_quality: 'Контроль качества диагностики',
+  medical_lab_owner: 'Владелец медицинской лаборатории',
+  medical_lab_admin: 'Администратор медицинской лаборатории',
+  medical_lab_manager: 'Управляющий медицинской лаборатории',
+  medical_lab_reception: 'Регистратура медицинской лаборатории',
+  medical_lab_technician: 'Лаборант',
+  medical_lab_validator: 'Валидатор результатов',
+  medical_lab_doctor: 'Врач лаборатории',
+  medical_lab_finance: 'Финансы медицинской лаборатории',
+  medical_lab_quality: 'Контроль качества лаборатории',
+  dental_lab_owner: 'Владелец зуботехнической лаборатории',
+  dental_lab_admin: 'Администратор зуботехнической лаборатории',
+  dental_lab_manager: 'Управляющий зуботехнической лаборатории',
+  lab_coordinator: 'Координатор лаборатории',
+  dental_technician: 'Зубной техник',
+  cad_designer: 'CAD-дизайнер',
+  ceramist: 'Керамист',
+  orthodontic_technician: 'Ортодонтический техник',
+  qc_specialist: 'Контроль качества лаборатории',
+  lab_finance: 'Финансы лаборатории',
   cashier: 'Кассир',
   seller: 'Продавец',
   supplier: 'Поставщик',
@@ -97,11 +99,8 @@ const ROLE_LABELS: Record<string, string> = {
   member: 'Участник',
 };
 
-/** `clinic.owner`, `supplier.seller`, `OWNER` and `owner` all mean one thing. */
 export function roleLabelFor(roleKey: string | null | undefined): string {
   if (!roleKey) return ROLE_LABELS.member;
-  // A key may be dotted (`clinic.owner`) or comma-joined when a Person holds
-  // several roles; the first segment is the one worth showing.
   const first = String(roleKey).split(',')[0].trim();
   const last = first.includes('.') ? first.slice(first.lastIndexOf('.') + 1) : first;
   return ROLE_LABELS[last.toLowerCase()] || ROLE_LABELS.member;
@@ -150,10 +149,6 @@ export interface ContextSources {
   persons: UnifiedPersonRow[];
 }
 
-/**
- * Merges the legacy and unified halves. Pure — the route does the querying, so
- * the collapsing rules are testable without a database.
- */
 export function buildWorkspaceContexts(sources: ContextSources): WorkspaceContext[] {
   const byIdentity = new Map<string, WorkspaceContext>();
 
@@ -163,13 +158,9 @@ export function buildWorkspaceContexts(sources: ContextSources): WorkspaceContex
       byIdentity.set(entry.id, entry);
       return;
     }
-    // Same workspace reached from both halves. Keep every field either half
-    // knows: the legacy row has the display name and joinedAt, the unified row
-    // has the organizationId that unlocks the Person path in switch-context.
     byIdentity.set(entry.id, {
       ...existing,
       ...Object.fromEntries(Object.entries(entry).filter(([, v]) => v !== undefined && v !== null)),
-      // A real name beats the "Workspace" placeholder either side may carry.
       name: existing.name || entry.name,
       roleLabel: existing.roleLabel !== ROLE_LABELS.member ? existing.roleLabel : entry.roleLabel,
     });
@@ -226,8 +217,6 @@ export function buildWorkspaceContexts(sources: ContextSources): WorkspaceContex
     const scopeType = PERSON_TYPE_TO_SCOPE[p.personType] || ORG_TYPE_TO_SCOPE[org.type];
     if (!scopeType) continue;
 
-    // The entity id, not `Organization.id` — the latter is a fresh uuid that
-    // matches no row in the mirrored table.
     const entityId =
       scopeType === 'LECTURER'
         ? p.originalId || org.originalId || org.id

@@ -42,11 +42,11 @@ jobs:
         with:
           node-version: 20
           cache: npm
+      - run: npm ci
       - name: Generate project index
         run: npm run project:index
       - name: Validate generated project index
         run: git diff --exit-code -- quality-scripts/project-index.generated.ts
-      - run: npm ci
       - run: npx prisma generate
       - name: Repair stale react-i18next lock entry when npm ci left a missing package
         run: |
@@ -56,6 +56,9 @@ jobs:
       - run: npm run build --if-present
       - run: npx tsc --noEmit
       - run: npx tsx quality-scripts/command-center-audit.ts
+      - name: Install backend dependencies for backend unit tests
+        run: npm ci
+        working-directory: dentvision-backend
       - run: npm test
 
   e2e:
@@ -83,6 +86,7 @@ jobs:
       JWT_REFRESH_SECRET: e2e-ci-refresh-secret-not-for-production-000000
       KASPI_CALLBACK_SECRET: e2e-ci-kaspi-callback-secret-not-for-prod-0000
       PLAYWRIGHT_UI_URL: http://localhost:3000
+      VITE_API_URL: http://localhost:3001
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
