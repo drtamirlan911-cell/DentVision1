@@ -53,3 +53,24 @@ The complete pre-2026-09-14 execution history is preserved in the parent Git his
 2. If E2E passes, inspect browser UX, Business Owner, Organization Owner and quality/release gates.
 3. If E2E fails, fix the exact failing contract without weakening assertions.
 4. Continue the canonical P0 queue: auth fail-closed/session enforcement, IAM negative matrix, diagnostics confirmation contract, then P1 economics/partner lifecycle.
+
+## 2026-09-15 — Appointment cascade root cause: patient branch SQL mismatch
+
+### Investigation
+- Playwright artifact from the failing appointment run showed `POST /api/patients` returning HTTP 500 before any appointment was created; APPT-001 through APPT-010 were downstream failures from the missing patient id.
+- Current `Branch` schema/migration uses physical `branches.clinic_id`, `"isDefault"`, and `"createdAt"` columns.
+- `patients.routes.ts` still used legacy `is_default` and `created_at` in the organization-owner fallback branch lookup. PostgreSQL therefore failed before patient creation and returned the generic patient-save error.
+
+### Implemented
+- `8a010c8922c5512c10eb7f5688f287d8c5d2d98c` changes only that raw SQL ordering to canonical `"isDefault"` / `"createdAt"` identifiers.
+- Compare against the previous verified HEAD `d896537228850144c61dbdb63334396472c1d4e5` confirms exactly **1 file, 1 addition, 1 deletion**; no appointment, RBAC, or branch-isolation rule was weakened.
+
+### Verification
+- Fresh Quality Gate run: `34945380674` (run 2429), started against exact HEAD `8a010c8922c5512c10eb7f5688f287d8c5d2d98c`.
+- Fresh CI run: `34945380673`, same HEAD.
+- At log update time both runs were still in progress; release remains **NOT READY** until the complete fresh gates finish green.
+
+### Next action
+1. Inspect the fresh E2E appointment result first.
+2. If patient creation succeeds, follow the first new failing assertion rather than changing appointment endpoints speculatively.
+3. Continue P0 release hardening from the canonical execution plan/directive.
