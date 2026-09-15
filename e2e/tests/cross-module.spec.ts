@@ -19,6 +19,11 @@ async function login(ctx: APIRequestContext, email: string, password: string): P
 }
 
 test.describe('Cross-Module Workflow: referral → center → result → lab → timeline', () => {
+  // These tests intentionally form one stateful workflow. Serial mode makes a retry
+  // restart the complete workflow instead of retrying a later step with undefined
+  // state created by an earlier test.
+  test.describe.configure({ mode: 'serial' });
+
   let api: APIRequestContext;
   let doctorToken: string;
   let ownerToken: string;
