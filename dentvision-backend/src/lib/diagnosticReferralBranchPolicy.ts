@@ -19,9 +19,9 @@ export async function canAccessReferralBranch(
   if (user.role === 'SUPERADMIN') return true;
 
   const membership = await prisma.$queryRaw<Array<{ branch_id: string | null }>>`
-    SELECT branch_id
-    FROM clinic_members
-    WHERE user_id = ${user.id} AND clinic_id = ${resource.clinicId}
+    SELECT "branch_id"
+    FROM "clinic_members"
+    WHERE "userId" = ${user.id} AND "clinicId" = ${resource.clinicId}
     LIMIT 1
   `;
   if (!membership[0]) return false;
@@ -31,9 +31,6 @@ export async function canAccessReferralBranch(
       .filter((id): id is string => Boolean(id)),
   );
 
-  // AuthUser intentionally contains the consumer/clinic role union only.
-  // ACCOUNTANT is a registry-level role, not an AuthUser role, so it must not
-  // be referenced here: TypeScript correctly rejects that comparison.
   if (user.role === 'OWNER' || user.role === 'ADMIN') {
     return resource.branchId !== null && assigned.has(resource.branchId)
       ? true
