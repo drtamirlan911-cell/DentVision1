@@ -179,6 +179,39 @@ async function ensureAiEmployeeSchema() {
   await prisma.$executeRawUnsafe(`CREATE UNIQUE INDEX IF NOT EXISTS ai_employee_tasks_event_action_role_uidx ON ai_employee_tasks (source_event_id, action, role) WHERE source_event_id IS NOT NULL AND action IS NOT NULL`);
 }
 
+async function ensureE2EBranchContext(clinicId: string, code: string, name: string) {
+  const existing = await prisma.$queryRaw<Array<{ id: string }>>`
+    SELECT id
+    FROM branches
+    WHERE clinic_id = ${clinicId} AND code = ${code}
+    LIMIT 1
+  `;
+  const branchId = existing[0]?.id ?? randomUUID();
+
+  if (!existing[0]) {
+    await prisma.$executeRaw`
+      INSERT INTO branches
+        (id, clinic_id, code, name, active, "isDefault", "createdAt", "updatedAt")
+      VALUES
+        (${branchId}, ${clinicId}, ${code}, ${name}, true, true, NOW(), NOW())
+    `;
+  } else {
+    await prisma.$executeRaw`
+      UPDATE branches
+      SET name = ${name}, active = true, "isDefault" = true, "updatedAt" = NOW()
+      WHERE id = ${branchId}
+    `;
+  }
+
+  await prisma.$executeRaw`
+    UPDATE clinic_members
+    SET branch_id = ${branchId}
+    WHERE "clinicId" = ${clinicId} AND branch_id IS NULL
+  `;
+
+  return branchId;
+}
+
 export async function seedE2E() {
   await ensureAiEmployeeSchema();
   const password = await bcrypt.hash(E2E_PASSWORD, 10);
@@ -200,6 +233,10 @@ export async function seedE2E() {
     const member = await prisma.clinicMember.findFirst({ where: { clinicId, userId: user.id } });
     if (!member) await prisma.clinicMember.create({ data: { id: randomUUID(), clinicId, userId: user.id, role: spec.role } });
   }
+
+  await ensureE2EBranchContext(clinicA.id, 'E2E-A-MAIN', `${E2E_CLINIC_A} — Main`);
+  await ensureE2EBranchContext(clinicB.id, 'E2E-B-MAIN', `${E2E_CLINIC_B} — Main`);
+
   return { clinicA, clinicB, users: E2E_USERS.length };
 }
 
@@ -208,6 +245,7 @@ async function main() {
   console.log(`[SEED:E2E] ${users} users, password ${E2E_PASSWORD}`);
   console.log(`[SEED:E2E] ${E2E_CLINIC_A} = ${clinicA.id}`);
   console.log(`[SEED:E2E] ${E2E_CLINIC_B} = ${clinicB.id}`);
+  console.log(`[SEED:E2E] branch context ensured for both clinics`);
   console.log(`[SEED:E2E] ${E2E_PRODUCTS.filter((p) => p.audiences.includes('PROFESSIONAL')).length} professional + 1 general product and 2 audience-scoped courses in the catalogue`);
 }
 
