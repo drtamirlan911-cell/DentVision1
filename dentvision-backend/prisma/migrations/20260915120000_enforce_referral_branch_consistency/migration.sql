@@ -12,31 +12,31 @@ DECLARE
   patient_clinic_id TEXT;
   branch_clinic_id TEXT;
 BEGIN
-  IF NEW.patient_id IS NOT NULL THEN
-    SELECT p.branch_id, p.clinic_id
+  IF NEW."patientId" IS NOT NULL THEN
+    SELECT p.branch_id, p."clinicId"
       INTO patient_branch_id, patient_clinic_id
     FROM patients p
-    WHERE p.id = NEW.patient_id;
+    WHERE p.id = NEW."patientId";
 
-    IF patient_clinic_id IS NULL OR patient_clinic_id <> NEW.clinic_id THEN
+    IF patient_clinic_id IS NULL OR patient_clinic_id <> NEW."clinicId" THEN
       RAISE EXCEPTION 'referral patient belongs to another clinic';
     END IF;
 
-    IF NEW.branch_id IS NULL THEN
-      NEW.branch_id := patient_branch_id;
-    ELSIF patient_branch_id IS NOT NULL AND NEW.branch_id <> patient_branch_id THEN
+    IF NEW."branch_id" IS NULL THEN
+      NEW."branch_id" := patient_branch_id;
+    ELSIF patient_branch_id IS NOT NULL AND NEW."branch_id" <> patient_branch_id THEN
       RAISE EXCEPTION 'referral branch does not match patient branch';
     END IF;
   END IF;
 
-  IF NEW.branch_id IS NOT NULL THEN
+  IF NEW."branch_id" IS NOT NULL THEN
     SELECT b.clinic_id
       INTO branch_clinic_id
     FROM branches b
-    WHERE b.id = NEW.branch_id
+    WHERE b.id = NEW."branch_id"
       AND b.active = true;
 
-    IF branch_clinic_id IS NULL OR branch_clinic_id <> NEW.clinic_id THEN
+    IF branch_clinic_id IS NULL OR branch_clinic_id <> NEW."clinicId" THEN
       RAISE EXCEPTION 'referral branch does not belong to clinic';
     END IF;
   END IF;
@@ -48,7 +48,7 @@ $$;
 DROP TRIGGER IF EXISTS referrals_branch_consistency ON referrals;
 
 CREATE TRIGGER referrals_branch_consistency
-BEFORE INSERT OR UPDATE OF patient_id, clinic_id, branch_id
+BEFORE INSERT OR UPDATE OF "patientId", "clinicId", "branch_id"
 ON referrals
 FOR EACH ROW
 EXECUTE FUNCTION enforce_referral_branch_consistency();
