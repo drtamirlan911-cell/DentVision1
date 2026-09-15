@@ -70,7 +70,22 @@ The complete pre-2026-09-14 execution history is preserved in the parent Git his
 - Fresh CI run: `34945380673`, same HEAD.
 - At log update time both runs were still in progress; release remains **NOT READY** until the complete fresh gates finish green.
 
+### 2026-09-15 systemic branch-schema audit
+- CI run `34999249118` confirmed database seed, backend startup, frontend startup, unit tests, TypeScript and both lint jobs all succeeded; only the E2E suite remained failing.
+- Audit found a second latent production migration defect in `20260914090000_backfill_default_branch_scope/migration.sql`: it used legacy `is_default`, `created_at`, `patients.clinic_id`, `appointments.clinic_id`, and `clinic_members.clinic_id`. The physical schema uses `branches."isDefault"`, `branches."createdAt"`, `patients."clinicId"`, `appointments."clinicId"`, and `clinic_members."clinicId"` for those fields.
+- `20260914100000_enforce_branch_consistency/migration.sql` contained the same class of mismatch for appointment trigger columns (`patient_id`, `clinic_id`), corrected to physical `"patientId"` and `"clinicId"` while retaining `branch_id`.
+- Both migrations were corrected without changing the branch-isolation policy.
+- The diagnostics service was audited against the route contract: the route already resolves and passes `branchId`, while the service create payload must persist that context. This remains the next targeted application-layer fix after preserving the last known-good source state.
+
+### Implemented
+- `6b0d0e435819d8e03853166ad0790b183998b693` — `fix(db): align branch backfill migration with physical columns`.
+- `2c2525e6b69782e904d2ff0821cfc275bc08b607` — `fix(db): align appointment branch trigger with physical columns`.
+
+### Release status
+- **NOT READY.** The latest known E2E run predates these two migration corrections. No claim of green release is made until a fresh complete CI run verifies them.
+
 ### Next action
-1. Inspect the fresh E2E appointment result first.
-2. If patient creation succeeds, follow the first new failing assertion rather than changing appointment endpoints speculatively.
-3. Continue P0 release hardening from the canonical execution plan/directive.
+1. Run/obtain a fresh CI execution against the corrected HEAD.
+2. Inspect the first failing E2E assertion and fix the underlying domain contract, not the assertion.
+3. Continue repository-wide raw-SQL/schema audit across migrations, branch-scope helpers, triggers and seeds before declaring the release gate green.
+4. After CI is green, run the partner-owner lifecycle and browser UX gates required by `DENTVISION_EXECUTION_PLAN.md`.
