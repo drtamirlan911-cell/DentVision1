@@ -19,7 +19,7 @@ export async function resolveFinanceBranchContext(
   const membership = await prisma.$queryRaw<Array<{ branch_id: string | null; role: string | null }>>`
     SELECT branch_id, role
     FROM clinic_members
-    WHERE user_id = ${userId} AND clinic_id = ${clinicId}
+    WHERE "userId" = ${userId} AND "clinicId" = ${clinicId}
     LIMIT 1
   `;
 
@@ -35,7 +35,7 @@ export async function resolveFinanceBranchContext(
     const branches = await prisma.$queryRaw<Array<{ id: string }>>`
       SELECT id FROM branches
       WHERE clinic_id = ${clinicId} AND active = true
-      ORDER BY is_default DESC, created_at ASC
+      ORDER BY "isDefault" DESC, "createdAt" ASC
     `;
     return {
       clinicId,
