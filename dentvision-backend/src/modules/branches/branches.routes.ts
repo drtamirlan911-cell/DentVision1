@@ -51,11 +51,6 @@ async function authorizeMemberBranch(userId: string, clinicId: string, branch: B
   return { allowed: true as const, member };
 }
 
-// The legacy/new branch schema is mixed: clinic_id is snake_case while the
-// timestamp/default columns were introduced as quoted Prisma camelCase names.
-// Keep the application-facing row shape stable and alias the physical columns.
-const branchSelect = prisma.$queryRaw<BranchRow[]>;
-
 branchesRouter.get('/', async (req: AuthRequest, res) => {
   const clinicId = String(req.query.clinicId || '');
   if (!clinicId) return res.status(400).json({ ok: false, error: 'clinicId обязателен' });
