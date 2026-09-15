@@ -63,7 +63,7 @@ test.describe('DentVision business owner journeys', () => {
     await expect(page).toHaveURL(/\/crm\/staff/);
     await expect(page.getByText('Сотрудники', { exact: true }).first()).toBeVisible({ timeout: 10000 });
     await expect(page.getByRole('button', { name: /Добавить вручную/ })).toBeVisible();
-    await expect(page.getByRole('button', { name: /^Пригласить$/ })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Пригласить', exact: true }).first()).toBeVisible();
   });
 
   test('BIZ-006: owner creates a staff member, refreshes, edits, then removes it', async ({ page }) => {
@@ -77,7 +77,7 @@ test.describe('DentVision business owner journeys', () => {
     const email = `${loginName}@test.com`;
 
     await page.getByLabel('ФИО *').fill(name);
-    await page.getByLabel('Роль *').selectOption('doctor');
+    await page.getByLabel('Роль *', { exact: true }).selectOption('doctor');
     await page.getByLabel('Телефон').fill('+77000000010');
     await page.getByLabel('Email').fill(email);
     await page.getByLabel('Стаж (лет)').fill('5');
@@ -105,9 +105,9 @@ test.describe('DentVision business owner journeys', () => {
   test('BIZ-007: owner can create an employee invitation', async ({ page }) => {
     await login(page);
     await page.goto(`${BASE}/crm/staff`);
-    await page.getByRole('button', { name: /^Пригласить$/ }).click();
+    await page.getByRole('button', { name: 'Пригласить', exact: true }).first().click();
     await page.getByLabel('Email (необязательно)').fill(`invite-${Date.now()}@test.com`);
-    await page.getByLabel('Роль *').selectOption('doctor');
+    await page.getByLabel('Роль *', { exact: true }).selectOption('doctor');
     await page.getByLabel('Срок действия (дней)').fill('7');
     await page.getByRole('button', { name: 'Создать приглашение' }).click();
     await expect(page.getByText('Код приглашения', { exact: true })).toBeVisible({ timeout: 10000 });
