@@ -18,7 +18,7 @@ export async function resolveInventoryBranchContext(
   const membership = await prisma.$queryRaw<Array<{ branch_id: string | null }>>`
     SELECT branch_id
     FROM clinic_members
-    WHERE user_id = ${userId} AND clinic_id = ${clinicId}
+    WHERE "userId" = ${userId} AND "clinicId" = ${clinicId}
     LIMIT 1
   `;
   const branchId = membership[0]?.branch_id ?? null;
@@ -27,7 +27,7 @@ export async function resolveInventoryBranchContext(
     const branches = await prisma.$queryRaw<Array<{ id: string }>>`
       SELECT id FROM branches
       WHERE clinic_id = ${clinicId} AND active = true
-      ORDER BY is_default DESC, created_at ASC
+      ORDER BY "isDefault" DESC, "createdAt" ASC
     `;
     return {
       clinicId,
