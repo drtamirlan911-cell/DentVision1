@@ -7,6 +7,13 @@ export const authMeRouter = Router();
 
 authMeRouter.get('/me', authenticate, async (req: AuthRequest, res) => {
   const user = req.user!;
+  const memberships = await prisma.clinicMember.findMany({
+    where: { userId: user.id },
+    include: { clinic: { select: { id: true, name: true, city: true, plan: true, logo: true } } },
+    orderBy: { joinedAt: 'asc' },
+  });
+  const activeMembership = memberships[0] || null;
+
   return res.json({
     ok: true,
     data: {
@@ -17,6 +24,24 @@ authMeRouter.get('/me', authenticate, async (req: AuthRequest, res) => {
         lastName: user.lastName,
         role: user.role,
       },
+      memberships: memberships.map((membership) => ({
+        id: membership.id,
+        role: membership.role,
+        clinicId: membership.clinicId,
+        branchId: membership.branchId,
+        joinedAt: membership.joinedAt,
+        clinic: membership.clinic,
+      })),
+      activeMembership: activeMembership
+        ? {
+            id: activeMembership.id,
+            role: activeMembership.role,
+            clinicId: activeMembership.clinicId,
+            branchId: activeMembership.branchId,
+            joinedAt: activeMembership.joinedAt,
+            clinic: activeMembership.clinic,
+          }
+        : null,
     },
   } satisfies ApiResponse);
 });
