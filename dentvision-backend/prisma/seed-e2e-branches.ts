@@ -27,11 +27,13 @@ async function ensureBranch(clinicId: string, code: string, name: string) {
     `;
   }
 
+  // E2E identities are deterministic: every clinic member must be assigned to
+  // the clinic's deterministic branch, not only members that happen to have a
+  // NULL assignment from an earlier fixture.
   await prisma.$executeRaw`
     UPDATE clinic_members
     SET branch_id = ${branchId}
     WHERE "clinicId" = ${clinicId}
-      AND branch_id IS NULL
   `;
 
   return branchId;
