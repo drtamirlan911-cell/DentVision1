@@ -51,6 +51,22 @@ ensureScalarField('Invoice', '  clinicId        String\n', '  branchId        St
 ensureScalarField('Expense', '  clinicId    String\n', '  branchId    String?   @map("branch_id")\n');
 ensureScalarField('Referral', '  clinicId         String\n', '  branchId         String?            @map("branch_id")\n');
 
+// Appointment creation is intentionally idempotent for the same patient/slot.
+// The route performs the normal conflict check, but that check alone is racy:
+// two concurrent POSTs can both observe an empty slot and then INSERT. Prisma's
+// unique constraint gives PostgreSQL the final atomic guarantee.
+const appointmentStart = schema.indexOf('model Appointment {');
+if (appointmentStart >= 0) {
+  const appointmentEnd = schema.indexOf('\n}\n', appointmentStart);
+  if (appointmentEnd < 0) throw new Error('Appointment model boundary not found');
+  const appointmentBlock = schema.slice(appointmentStart, appointmentEnd);
+  if (!appointmentBlock.includes('@@unique([clinicId, patientId, date, time])')) {
+    const mapIndex = schema.indexOf('  @@map("appointments")', appointmentStart);
+    if (mapIndex < appointmentStart || mapIndex > appointmentEnd) throw new Error('Appointment map marker not found');
+    schema = schema.slice(0, mapIndex) + '  @@unique([clinicId, patientId, date, time])\n' + schema.slice(mapIndex);
+  }
+}
+
 if (!schema.includes('model Branch {')) {
   const insertBeforeBooking = 'model Booking {\n';
   if (!schema.includes(insertBeforeBooking)) throw new Error('Booking marker not found in schema.prisma');
