@@ -45,9 +45,13 @@ async function main() {
       RETURN NEW;
     END;
     $$;
+  `);
 
+  await prisma.$executeRawUnsafe(`
     DROP TRIGGER IF EXISTS referrals_branch_consistency ON referrals;
+  `);
 
+  await prisma.$executeRawUnsafe(`
     CREATE TRIGGER referrals_branch_consistency
     BEFORE INSERT OR UPDATE OF patient_id, clinic_id, branch_id
     ON referrals
