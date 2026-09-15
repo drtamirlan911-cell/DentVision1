@@ -23,18 +23,18 @@ async function main() {
           RAISE EXCEPTION 'referral patient belongs to another clinic';
         END IF;
 
-        IF NEW."branchId" IS NULL THEN
-          NEW."branchId" := patient_branch_id;
-        ELSIF patient_branch_id IS NOT NULL AND NEW."branchId" <> patient_branch_id THEN
+        IF NEW."branch_id" IS NULL THEN
+          NEW."branch_id" := patient_branch_id;
+        ELSIF patient_branch_id IS NOT NULL AND NEW."branch_id" <> patient_branch_id THEN
           RAISE EXCEPTION 'referral branch does not match patient branch';
         END IF;
       END IF;
 
-      IF NEW."branchId" IS NOT NULL THEN
+      IF NEW."branch_id" IS NOT NULL THEN
         SELECT b.clinic_id
           INTO branch_clinic_id
         FROM branches b
-        WHERE b.id = NEW."branchId"
+        WHERE b.id = NEW."branch_id"
           AND b.active = true;
 
         IF branch_clinic_id IS NULL OR branch_clinic_id <> NEW."clinicId" THEN
@@ -53,7 +53,7 @@ async function main() {
 
   await prisma.$executeRawUnsafe(`
     CREATE TRIGGER referrals_branch_consistency
-    BEFORE INSERT OR UPDATE OF "patientId", "clinicId", "branchId"
+    BEFORE INSERT OR UPDATE OF "patientId", "clinicId", "branch_id"
     ON referrals
     FOR EACH ROW
     EXECUTE FUNCTION enforce_referral_branch_consistency();
