@@ -15,9 +15,13 @@ export async function canAccessReferralBranch(
   user: Pick<AuthUser, 'id' | 'role' | 'organizationId' | 'assignedBranchId' | 'branchIds' | 'clinicId'>,
   resource: ReferralBranchResource,
 ): Promise<boolean> {
-  if (!resource.clinicId || !user.clinicId || user.clinicId !== resource.clinicId) return false;
+  if (!resource.clinicId) return false;
   if (user.role === 'SUPERADMIN') return true;
 
+  // The clinic membership is the authoritative tenant boundary. Do not require
+  // a JWT clinicId to be populated as a second, independent prerequisite: tokens
+  // created before active-clinic context restoration can legitimately omit it,
+  // while the membership row still proves the caller belongs to this clinic.
   const membership = await prisma.$queryRaw<Array<{ branch_id: string | null }>>`
     SELECT "branch_id"
     FROM "clinic_members"
