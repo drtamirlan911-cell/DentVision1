@@ -93,7 +93,7 @@ export async function createTestPatient(
   })
   const branchId = await ensureTestBranch(clinicId)
   await prisma.$executeRaw`
-    UPDATE "patients" SET "branchId" = ${branchId}
+    UPDATE "patients" SET "branch_id" = ${branchId}
     WHERE "id" = ${patient.id} AND "clinicId" = ${clinicId}
   `
   return patient
@@ -145,7 +145,7 @@ export async function createTestAdmin(clinicId: string, opts?: Partial<{ email: 
 
 export async function createTestAppointment(clinicId: string, patientId: string, doctorId: string, opts?: Partial<{ date: Date; time: string; status: AppointmentStatus; duration: number }>) {
   const patientBranch = await prisma.$queryRaw<Array<{ branchId: string | null }>>`
-    SELECT "branchId" FROM "patients" WHERE "id" = ${patientId} AND "clinicId" = ${clinicId} LIMIT 1
+    SELECT "branch_id" AS "branchId" FROM "patients" WHERE "id" = ${patientId} AND "clinicId" = ${clinicId} LIMIT 1
   `
   return prisma.appointment.create({
     data: {
@@ -165,7 +165,7 @@ export async function createTestDiagnosis(patientId: string, doctorId: string, o
 // ─── Treatment Plan ──────────────────────────────────────────────────────────
 
 export async function createTestTreatmentPlan(patientId: string, opts?: Partial<{ title: string; status: PlanStatus; price: number }>) {
-  return prisma.treatmentPlan.create({ data: { patientId, title: opts?.title ?? `Plan ${randomSuffix()}`, status: (opts?.status as PlanStatus) ?? PlanStatus.draft, price: opts?.price ?? 150000, items: [{ tooth: 16, procedure: 'Crown', price: 50000 }, { tooth: 26, procedure: 'Filling', price: 30000 }] } })
+  return prisma.treatmentPlan.create({ data: { patientId, title: opts?.title ?? `Plan ${randomSuffix()}`, status: (opts?.status as PlanStatus) ?? PlanStatus.draft, price: opts?.price ?? 150000, items: [{ tooth: 16, procedure: 'Crown', price: 50000 }, { tooth: 26, procedure: 'Filling', price: 30000 }] })
 }
 
 // ─── Invoice ─────────────────────────────────────────────────────────────────
@@ -301,33 +301,41 @@ function mergeClinicUsers(fixture: typeof CLINIC_A, clinic: Awaited<ReturnType<t
   fixture.support = users.support
 }
 
-async function createClinicWithAllRoles(label: string) {
-  const clinic = await createTestClinic({ name: `Clinic ${label}` })
-  const owner = await createTestUser({ email: uniqueEmail(`${label}_owner`), firstName: `${label}Owner`, role: UserRole.OWNER })
+export async function createClinicWithAllRoles(fixture: typeof CLINIC_A | typeof CLINIC_B, name: string) {
+  const clinic = await createTestClinic({ name })
+  const owner = await createTestUser({ email: uniqueEmail('owner'), firstName: 'Owner', role: UserRole.OWNER })
   await prisma.clinicMember.create({ data: { userId: owner.id, clinicId: clinic.id, role: UserRole.OWNER } })
-  const doctor = await createTestDoctor(clinic.id, { email: uniqueEmail(`${label}_doctor`), firstName: `${label}Doctor` })
-  const assistant = await createTestAssistant(clinic.id, { email: uniqueEmail(`${label}_assistant`) })
-  const admin = await createTestAdmin(clinic.id, { email: uniqueEmail(`${label}_admin`) })
-  const cashier = await createTestUser({ email: uniqueEmail(`${label}_cashier`), firstName: `${label}Cashier`, role: UserRole.CASHIER })
-  await prisma.clinicMember.create({ data: { userId: cashier.id, clinicId: clinic.id, role: UserRole.CASHIER } })
-  const lab = await createTestUser({ email: uniqueEmail(`${label}_lab`), firstName: `${label}Lab`, role: UserRole.LAB })
-  await prisma.clinicMember.create({ data: { userId: lab.id, clinicId: clinic.id, role: UserRole.LAB } })
-  const manager = await createTestUser({ email: uniqueEmail(`${label}_manager`), firstName: `${label}Manager`, role: UserRole.MANAGER })
-  await prisma.clinicMember.create({ data: { userId: manager.id, clinicId: clinic.id, role: UserRole.MANAGER } })
-  const support = await createTestUser({ email: uniqueEmail(`${label}_support`), firstName: `${label}Support`, role: UserRole.SUPPORT })
-  await prisma.clinicMember.create({ data: { userId: support.id, clinicId: clinic.id, role: UserRole.SUPPORT } })
-  return { clinic, owner, doctor, assistant, admin, cashier, lab, manager, support }
+  const doctor = await createTestDoctor(clinic.id)
+  const assistant = await createTestAssistant(clinic.id)
+  const admin = await createTestAdmin(clinic.id)
+  const cashier = await createTestUser({ email: uniqueEmail('cashier'), firstName: 'Cashier', role: UserRole.CASHIER })
+  const lab = await createTestUser({ email: uniqueEmail('lab'), firstName: 'Lab', role: UserRole.LAB })
+  const manager = await createTestUser({ email: uniqueEmail('manager'), firstName: 'Manager', role: UserRole.MANAGER })
+  const support = await createTestUser({ email: uniqueEmail('support'), firstName: 'Support', role: UserRole.SUPPORT })
+  await prisma.clinicMember.createMany({ data: [
+    { userId: cashier.id, clinicId: clinic.id, role: UserRole.CASHIER },
+    { userId: lab.id, clinicId: clinic.id, role: UserRole.LAB },
+    { userId: manager.id, clinicId: clinic.id, role: UserRole.MANAGER },
+    { userId: support.id, clinicId: clinic.id, role: UserRole.SUPPORT },
+  ] })
+  const branchId = await ensureTestBranch(clinic.id)
+  await prisma.$executeRaw`
+    UPDATE "clinic_members" SET "branch_id" = ${branchId}
+    WHERE "clinicId" = ${clinic.id} AND "branch_id" IS NULL
+  `
+  mergeClinicUsers(fixture, clinic, { owner, doctor, assistant, admin, cashier, lab, manager, support })
+  return fixture
 }
 
-export async function setupFixtures() {
-  const a = await createClinicWithAllRoles('A')
-  const b = await createClinicWithAllRoles('B')
-  mergeClinicUsers(CLINIC_A, a.clinic, a)
-  mergeClinicUsers(CLINIC_B, b.clinic, b)
+export async function setupClinicFixtures() {
+  await createClinicWithAllRoles(CLINIC_A, `Fixture Clinic A ${randomSuffix()}`)
+  await createClinicWithAllRoles(CLINIC_B, `Fixture Clinic B ${randomSuffix()}`)
+  return { A: CLINIC_A, B: CLINIC_B }
 }
 
-export async function teardownFixtures() {
-  await cleanupAllTestData()
-  CLINIC_A.clinic = null; CLINIC_A.owner = null; CLINIC_A.doctor = null; CLINIC_A.assistant = null; CLINIC_A.admin = null; CLINIC_A.cashier = null; CLINIC_A.lab = null; CLINIC_A.manager = null; CLINIC_A.support = null
-  CLINIC_B.clinic = null; CLINIC_B.owner = null; CLINIC_B.doctor = null; CLINIC_B.assistant = null; CLINIC_B.admin = null; CLINIC_B.cashier = null; CLINIC_B.lab = null; CLINIC_B.manager = null; CLINIC_B.support = null
+export async function teardownClinicFixtures() {
+  if (CLINIC_A.clinic) await cleanupTestClinic(CLINIC_A.clinic.name)
+  if (CLINIC_B.clinic) await cleanupTestClinic(CLINIC_B.clinic.name)
 }
+
+export { prisma }
