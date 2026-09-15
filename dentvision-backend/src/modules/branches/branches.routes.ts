@@ -51,6 +51,11 @@ async function authorizeMemberBranch(userId: string, clinicId: string, branch: B
   return { allowed: true as const, member };
 }
 
+// The legacy/new branch schema is mixed: clinic_id is snake_case while the
+// timestamp/default columns were introduced as quoted Prisma camelCase names.
+// Keep the application-facing row shape stable and alias the physical columns.
+const branchSelect = prisma.$queryRaw<BranchRow[]>;
+
 branchesRouter.get('/', async (req: AuthRequest, res) => {
   const clinicId = String(req.query.clinicId || '');
   if (!clinicId) return res.status(400).json({ ok: false, error: 'clinicId обязателен' });
@@ -59,10 +64,15 @@ branchesRouter.get('/', async (req: AuthRequest, res) => {
     if (!member) return res.status(403).json({ ok: false, error: 'Вы не являетесь участником этой клиники' });
     const organizationId = await resolveOrganizationIdForClinic(clinicId);
     const rows = await prisma.$queryRaw<BranchRow[]>`
-      SELECT * FROM "branches" WHERE "clinic_id" = ${clinicId}
+      SELECT
+        "id", "organization_id", "clinic_id", "code", "name", "city", "address", "phone", "active",
+        "isDefault" AS is_default, "settings",
+        "createdAt" AS created_at, "updatedAt" AS updated_at
+      FROM "branches"
+      WHERE "clinic_id" = ${clinicId}
         AND (${member.role} IN ('OWNER', 'ADMIN') OR "id" = ${member.branch_id ?? ''})
         AND (${organizationId ?? `legacy:${clinicId}`} = COALESCE("organization_id", ${organizationId ?? `legacy:${clinicId}`}))
-      ORDER BY "is_default" DESC, "name" ASC
+      ORDER BY "isDefault" DESC, "createdAt" ASC
     `;
     return res.json({ ok: true, data: rows.map(serialize) });
   } catch (error) { console.error('[branches] list', error); return res.status(500).json({ ok: false, error: 'Не удалось получить филиалы' }); }
@@ -80,10 +90,14 @@ branchesRouter.post('/', async (req: AuthRequest, res) => {
     const branchCode = String(code || name).trim().toUpperCase().replace(/[^A-ZА-Я0-9]+/gi, '-').replace(/^-|-$/g, '').slice(0, 32) || `BRANCH-${Date.now()}`;
     const branchId = uid();
     const rows = await prisma.$queryRaw<BranchRow[]>`
-      INSERT INTO "branches" ("id", "organization_id", "clinic_id", "code", "name", "city", "address", "phone", "active", "is_default", "settings")
-      VALUES (${branchId}, ${effectiveOrganizationId}, ${clinicId}, ${branchCode}, ${name.trim()}, ${city || null}, ${address || null}, ${phone || null}, true,
-        NOT EXISTS (SELECT 1 FROM "branches" WHERE "clinic_id" = ${clinicId}), ${settings ?? null})
-      RETURNING *
+      INSERT INTO "branches"
+        ("id", "organization_id", "clinic_id", "code", "name", "city", "address", "phone", "active", "isDefault", "createdAt", "updatedAt", "settings")
+      VALUES
+        (${branchId}, ${effectiveOrganizationId}, ${clinicId}, ${branchCode}, ${name.trim()}, ${city || null}, ${address || null}, ${phone || null}, true,
+          NOT EXISTS (SELECT 1 FROM "branches" WHERE "clinic_id" = ${clinicId}), CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, ${settings ?? null})
+      RETURNING
+        "id", "organization_id", "clinic_id", "code", "name", "city", "address", "phone", "active",
+        "isDefault" AS is_default, "settings", "createdAt" AS created_at, "updatedAt" AS updated_at
     `;
     return res.status(201).json({ ok: true, data: serialize(rows[0]) });
   } catch (error: any) {
@@ -96,7 +110,11 @@ branchesRouter.patch('/:id', async (req: AuthRequest, res) => {
   const branchId = String(req.params.id);
   const { name, code, city, address, phone, active, settings } = req.body as { name?: string; code?: string; city?: string; address?: string; phone?: string; active?: boolean; settings?: unknown };
   try {
-    const rows = await prisma.$queryRaw<BranchRow[]>`SELECT * FROM "branches" WHERE "id" = ${branchId} LIMIT 1`;
+    const rows = await prisma.$queryRaw<BranchRow[]>`
+      SELECT "id", "organization_id", "clinic_id", "code", "name", "city", "address", "phone", "active",
+        "isDefault" AS is_default, "settings", "createdAt" AS created_at, "updatedAt" AS updated_at
+      FROM "branches" WHERE "id" = ${branchId} LIMIT 1
+    `;
     const branch = rows[0];
     if (!branch) return res.status(404).json({ ok: false, error: 'Филиал не найден' });
     if (!branch.clinic_id) return res.status(409).json({ ok: false, error: 'Филиал ещё не связан с клиникой' });
@@ -108,18 +126,23 @@ branchesRouter.patch('/:id', async (req: AuthRequest, res) => {
     }
     const nextCode = code === undefined ? branch.code : String(code).trim().toUpperCase().replace(/[^A-ZА-Я0-9]+/gi, '-').replace(/^-|-$/g, '').slice(0, 32);
     const updated = await prisma.$queryRaw<BranchRow[]>`
-      UPDATE "branches" SET "code" = ${nextCode}, "name" = COALESCE(${name ?? null}, "name"), "city" = ${city === undefined ? branch.city : city || null}, "address" = ${address === undefined ? branch.address : address || null}, "phone" = ${phone === undefined ? branch.phone : phone || null}, "active" = COALESCE(${active ?? null}, "active"), "settings" = ${settings === undefined ? branch.settings : settings}, "updated_at" = CURRENT_TIMESTAMP
-      WHERE "id" = ${branchId} RETURNING *
+      UPDATE "branches" SET "code" = ${nextCode}, "name" = COALESCE(${name ?? null}, "name"), "city" = ${city === undefined ? branch.city : city || null}, "address" = ${address === undefined ? branch.address : address || null}, "phone" = ${phone === undefined ? branch.phone : phone || null}, "active" = COALESCE(${active ?? null}, "active"), "settings" = ${settings === undefined ? branch.settings : settings}, "updatedAt" = CURRENT_TIMESTAMP
+      WHERE "id" = ${branchId}
+      RETURNING "id", "organization_id", "clinic_id", "code", "name", "city", "address", "phone", "active", "isDefault" AS is_default, "settings", "createdAt" AS created_at, "updatedAt" AS updated_at
     `;
     return res.json({ ok: true, data: serialize(updated[0]) });
-  } catch (error) { console.error('[branches] update', error); return res.status(500).json({ ok: false, error: 'Не удалось обновить филиал' }); }
+  } catch (error) { console.error('[branches] update', error); return res.status(500).json({ ok: false, error: 'Не удалось изменить статус филиала' }); }
 });
 
 branchesRouter.post('/:id/members/:userId', async (req: AuthRequest, res) => {
   const branchId = String(req.params.id);
   const userId = String(req.params.userId);
   try {
-    const rows = await prisma.$queryRaw<BranchRow[]>`SELECT * FROM "branches" WHERE "id" = ${branchId} LIMIT 1`;
+    const rows = await prisma.$queryRaw<BranchRow[]>`
+      SELECT "id", "organization_id", "clinic_id", "code", "name", "city", "address", "phone", "active",
+        "isDefault" AS is_default, "settings", "createdAt" AS created_at, "updatedAt" AS updated_at
+      FROM "branches" WHERE "id" = ${branchId} LIMIT 1
+    `;
     const branch = rows[0];
     if (!branch || !branch.clinic_id) return res.status(404).json({ ok: false, error: 'Филиал не найден' });
     const authz = await authorizeMemberBranch(req.user!.id, branch.clinic_id, branch, true);
