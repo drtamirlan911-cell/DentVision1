@@ -21,17 +21,6 @@ import {
   verifyGoogleIdToken,
 } from './googleAuth.js';
 import { auditFromReq, writeAuditLog } from '../compliance/audit.service.js';
-
-async function ensureOrgAndPerson(clinicId: string, userId: string, role: string) {
-  const clinic = await prisma.clinic.findUnique({ where: { id: clinicId }, select: { name: true, city: true } });
-  if (!clinic) return;
-  await prisma.organization.upsert({
-    where: { originalType_originalId: { originalType: 'Clinic', originalId: clinicId } },
-    update: { name: clinic.name },
-    create: { id: uid(), name: clinic.name, type: 'CLINIC', originalType: 'Clinic', originalId: clinicId, contacts: clinic.city ? { city: clinic.city } : undefined },
-  });
-  await syncPersonFromClinicMember(clinicId, userId, role);
-}
 import { createSession } from '../compliance/session.service.js';
 import { expireAllSessions } from '../compliance/session.service.js';
 import { checkLoginAttempts, recordFailedAttempt, resetAttempts } from '../../lib/loginGuard.js';
@@ -39,20 +28,8 @@ import crypto from 'node:crypto';
 import { setCsrfCookie } from '../../middleware/csrf.js';
 
 function setAuthCookies(res: any, accessToken: string, refreshToken: string) {
-  res.cookie('accessToken', accessToken, {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
-    sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
-    maxAge: 24 * 60 * 60 * 1000,
-    path: '/',
-  });
-  res.cookie('refreshToken', refreshToken, {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
-    sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
-    maxAge: 7 * 24 * 60 * 60 * 1000,
-    path: '/',
-  });
+  res.cookie('accessToken', accessToken, { httpOnly: true, secure: process.env.NODE_ENV === 'production', sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax', maxAge: 24 * 60 * 60 * 1000, path: '/' });
+  res.cookie('refreshToken', refreshToken, { httpOnly: true, secure: process.env.NODE_ENV === 'production', sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax', maxAge: 7 * 24 * 60 * 60 * 1000, path: '/' });
   setCsrfCookie(res);
 }
 
@@ -64,8 +41,7 @@ function clearAuthCookies(res: any) {
 function isMissingColumnError(err: unknown, column: string): boolean {
   const msg = (err as any)?.message ?? '';
   const code = (err as any)?.code;
-  return typeof msg === 'string' && msg.toLowerCase().includes(String(column).toLowerCase()) &&
-    (/(column|does not exist|missing|undefined)/i.test(msg) || code === 'P2025' || code === 'P2000');
+  return typeof msg === 'string' && msg.toLowerCase().includes(String(column).toLowerCase()) && (/(column|does not exist|missing|undefined)/i.test(msg) || code === 'P2025' || code === 'P2000');
 }
 
 interface SignInUser {
@@ -75,127 +51,42 @@ interface SignInUser {
   lastName: string;
   role: UserRole;
   password?: string | null;
-  memberships: Array<{
-    id: string;
-    role: string;
-    clinicId: string;
-    joinedAt: Date;
-    clinic: unknown;
-  }>;
+  memberships: Array<{ id: string; role: string; clinicId: string; joinedAt: Date; clinic: unknown }>;
 }
 
 async function buildSignInPayload(user: SignInUser, req: any, res: any) {
   const authContext = await resolveAuthContext(user.id, { clinicId: user.memberships[0]?.clinicId });
   const clinicId = authContext.clinicId;
-  const activeMembership = user.memberships[0]
-    ? {
-        id: user.memberships[0].id,
-        role: user.memberships[0].role,
-        clinicId: user.memberships[0].clinicId,
-        joinedAt: user.memberships[0].joinedAt,
-        clinic: user.memberships[0].clinic,
-      }
-    : null;
-
-  // Authentication is fail-closed: a protected JWT must never be issued when
-  // the server could not persist the corresponding session. Previously this
-  // failure was swallowed and `sessionId` became undefined in the JWT.
+  const activeMembership = user.memberships[0] ? { id: user.memberships[0].id, role: user.memberships[0].role, clinicId: user.memberships[0].clinicId, joinedAt: user.memberships[0].joinedAt, clinic: user.memberships[0].clinic } : null;
   const session = await createSession(user.id, req.ip, req.headers['user-agent']);
-
-  const tokens = generateTokens({
-    sub: user.id,
-    email: user.email,
-    role: user.role,
-    ...authContext,
-    sessionId: session.id,
-  });
-
+  const tokens = generateTokens({ sub: user.id, email: user.email, role: user.role, ...authContext, sessionId: session.id });
   const { password: _password, memberships, ...userWithoutPassword } = user;
   setAuthCookies(res, tokens.accessToken, tokens.refreshToken);
-
   const effectivePermissions = await resolveUserPermissions(user.id, authContext.organizationId);
-  const scopedRole = clinicId
-    ? (await resolveClinicAccess(user.id, clinicId))?.role || user.role
-    : user.role;
-
-  return {
-    user: { ...userWithoutPassword, clinicId, name: `${user.firstName} ${user.lastName}`.trim() },
-    memberships: memberships.map((m) => ({
-      id: m.id,
-      role: m.role,
-      clinicId: m.clinicId,
-      joinedAt: m.joinedAt,
-      clinic: m.clinic,
-    })),
-    activeMembership,
-    permissions: effectivePermissions,
-    pages: pagesForCaller(effectivePermissions, scopedRole),
-    capabilities: capabilitiesForPermissions(effectivePermissions, scopedRole),
-    effectiveRole: scopedRole,
-    ...tokens,
-  };
+  const scopedRole = clinicId ? (await resolveClinicAccess(user.id, clinicId))?.role || user.role : user.role;
+  return { user: { ...userWithoutPassword, clinicId, name: `${user.firstName} ${user.lastName}`.trim() }, memberships: memberships.map((m) => ({ id: m.id, role: m.role, clinicId: m.clinicId, joinedAt: m.joinedAt, clinic: m.clinic })), activeMembership, permissions: effectivePermissions, pages: pagesForCaller(effectivePermissions, scopedRole), capabilities: capabilitiesForPermissions(effectivePermissions, scopedRole), effectiveRole: scopedRole, ...tokens };
 }
 
 export const authRouter = Router();
 
 authRouter.post('/register', async (req, res) => {
   try {
-    const { email, password, firstName, lastName, phone } = req.body as {
-      email: string;
-      password: string;
-      firstName: string;
-      lastName: string;
-      phone?: string;
-    };
-
-    if (!email || !password || !firstName || !lastName) {
-      return res.status(400).json({ ok: false, error: 'Все обязательные поля должны быть заполнены' });
-    }
-
-    const passwordError = assertPasswordPolicy(password);
-    if (passwordError) return res.status(400).json({ ok: false, error: passwordError });
-
+    const { email, password, firstName, lastName, phone } = req.body as { email: string; password: string; firstName: string; lastName: string; phone?: string };
+    if (!email || !password || !firstName || !lastName) return res.status(400).json({ ok: false, error: 'Все обязательные поля должны быть заполнены' });
+    const passwordError = assertPasswordPolicy(password); if (passwordError) return res.status(400).json({ ok: false, error: passwordError });
     const normalizedEmail = String(email).trim().toLowerCase();
-    if (!normalizedEmail.includes('@') || normalizedEmail.endsWith('@guest.local')) {
-      return res.status(400).json({ ok: false, error: 'Некорректный email' });
-    }
-
+    if (!normalizedEmail.includes('@') || normalizedEmail.endsWith('@guest.local')) return res.status(400).json({ ok: false, error: 'Некорректный email' });
     const existing = await prisma.user.findUnique({ where: { email: normalizedEmail } });
     if (existing) return res.status(409).json({ ok: false, error: 'Если указанный email зарегистрирован, вы получите письмо' });
-
     const hashedPassword = await hashPassword(password);
-    const user = await prisma.user.create({
-      data: {
-        id: uid(),
-        email: normalizedEmail,
-        password: hashedPassword,
-        firstName: String(firstName).trim(),
-        lastName: String(lastName).trim(),
-        phone: phone || null,
-        role: 'STUDENT',
-      },
-      select: { id: true, email: true, firstName: true, lastName: true, role: true },
-    });
-
-    // Registration is also authentication; require durable session creation
-    // before returning any protected tokens.
+    const user = await prisma.user.create({ data: { id: uid(), email: normalizedEmail, password: hashedPassword, firstName: String(firstName).trim(), lastName: String(lastName).trim(), phone: phone || null, role: 'STUDENT' }, select: { id: true, email: true, firstName: true, lastName: true, role: true } });
     const session = await createSession(user.id, req.ip, req.headers['user-agent']);
-    const tokens = generateTokens({
-      sub: user.id,
-      email: user.email,
-      role: user.role,
-      sessionId: session.id,
-    });
+    const tokens = generateTokens({ sub: user.id, email: user.email, role: user.role, sessionId: session.id });
     setAuthCookies(res, tokens.accessToken, tokens.refreshToken);
-
-    const response: ApiResponse = { ok: true, data: { user, ...tokens } };
-    res.status(201).json(response);
+    const response: ApiResponse = { ok: true, data: { user, ...tokens } }; res.status(201).json(response);
   } catch (error) {
-    if ((error as { code?: string })?.code === 'P2002') {
-      return res.status(409).json({ ok: false, error: 'Если указанный email зарегистрирован, вы получите письмо' });
-    }
-    clearAuthCookies(res);
-    res.status(500).json({ ok: false, error: 'Ошибка при регистрации' });
+    if ((error as { code?: string })?.code === 'P2002') return res.status(409).json({ ok: false, error: 'Если указанный email зарегистрирован, вы получите письмо' });
+    clearAuthCookies(res); res.status(500).json({ ok: false, error: 'Ошибка при регистрации' });
   }
 });
 
@@ -206,44 +97,17 @@ authRouter.post('/login', async (req, res) => {
     const ip = req.ip || req.socket.remoteAddress || 'unknown';
     const { allowed, remainingAttempts, lockoutMinutes } = await checkLoginAttempts(email, ip);
     if (!allowed) return res.status(429).json({ ok: false, error: `Слишком много попыток входа. Повторите через ${lockoutMinutes} мин.`, remainingAttempts: 0, lockoutMinutes });
-
-    const user = await prisma.user.findUnique({
-      where: { email },
-      select: {
-        id: true, email: true, firstName: true, lastName: true, role: true, password: true,
-        memberships: { select: { id: true, role: true, clinicId: true, joinedAt: true, clinic: { select: { id: true, name: true, city: true, plan: true, logo: true } } } },
-      },
-    });
-    if (!user) {
-      await recordFailedAttempt(email, ip);
-      return res.status(401).json({ ok: false, error: 'Неверный email или пароль' });
-    }
-    if (!user.password) {
-      await recordFailedAttempt(email, ip);
-      return res.status(401).json({ ok: false, error: 'Этот аккаунт создан через Google. Войдите через Google или задайте пароль через «Забыли пароль?»' });
-    }
+    const user = await prisma.user.findUnique({ where: { email }, select: { id: true, email: true, firstName: true, lastName: true, role: true, password: true, memberships: { select: { id: true, role: true, clinicId: true, joinedAt: true, clinic: { select: { id: true, name: true, city: true, plan: true, logo: true } } } } } });
+    if (!user) { await recordFailedAttempt(email, ip); return res.status(401).json({ ok: false, error: 'Неверный email или пароль' }); }
+    if (!user.password) { await recordFailedAttempt(email, ip); return res.status(401).json({ ok: false, error: 'Этот аккаунт создан через Google. Войдите через Google или задайте пароль через «Забыли пароль?»' }); }
     const isPasswordValid = await comparePassword(password, user.password);
-    if (!isPasswordValid) {
-      await recordFailedAttempt(email, ip);
-      const { remainingAttempts: remaining } = await checkLoginAttempts(email, ip);
-      return res.status(401).json({ ok: false, error: 'Неверный email или пароль', remainingAttempts: remaining });
-    }
+    if (!isPasswordValid) { await recordFailedAttempt(email, ip); const { remainingAttempts: remaining } = await checkLoginAttempts(email, ip); return res.status(401).json({ ok: false, error: 'Неверный email или пароль', remainingAttempts: remaining }); }
     await resetAttempts(email, ip);
     const response: ApiResponse = { ok: true, data: await buildSignInPayload(user, req, res) };
-    await writeAuditLog({ userId: user.id, action: 'auth.login', entity: 'user', entityId: user.id, ip: String(ip) });
-    res.json(response);
-  } catch (error) {
-    clearAuthCookies(res);
-    res.status(500).json({ ok: false, error: 'Ошибка при входе' });
-  }
+    await writeAuditLog({ userId: user.id, action: 'auth.login', entity: 'user', entityId: user.id, ip: String(ip) }); res.json(response);
+  } catch (error) { clearAuthCookies(res); res.status(500).json({ ok: false, error: 'Ошибка при входе' }); }
 });
 
-/**
- * Google sign-in.
- *
- * The browser proves the identity with an ID token; we verify it and then issue
- * exactly the session a password login would have issued.
- */
 authRouter.post('/google', async (req, res) => {
   try {
     if (!googleSignInEnabled()) return res.status(503).json({ ok: false, error: 'Вход через Google не настроен' });
@@ -251,55 +115,58 @@ authRouter.post('/google', async (req, res) => {
     const profile = await verifyGoogleIdToken(idToken);
     if (!profile.emailVerified) return res.status(403).json({ ok: false, error: 'Google не подтвердил этот адрес электронной почты' });
     if (profile.email.endsWith('@guest.local')) return res.status(400).json({ ok: false, error: 'Некорректный email' });
-
-    const membershipSelect = {
-      id: true, email: true, firstName: true, lastName: true, role: true, password: true,
-      memberships: { select: { id: true, role: true, clinicId: true, joinedAt: true, clinic: { select: { id: true, name: true, city: true, plan: true, logo: true } } } },
-    } as const;
+    const membershipSelect = { id: true, email: true, firstName: true, lastName: true, role: true, password: true, memberships: { select: { id: true, role: true, clinicId: true, joinedAt: true, clinic: { select: { id: true, name: true, city: true, plan: true, logo: true } } } } } as const;
     let user = await prisma.user.findUnique({ where: { email: profile.email }, select: membershipSelect });
     const isNewAccount = !user;
-
     if (user) {
-      await prisma.user.update({ where: { id: user.id }, data: { googleId: profile.googleId } })
-        .catch((e) => console.warn('[auth/google] could not record googleId:', isMissingColumnError(e, 'googleId') ? 'column missing in live DB (run `prisma migrate deploy`)' : e?.message));
+      await prisma.user.update({ where: { id: user.id }, data: { googleId: profile.googleId } }).catch((e) => console.warn('[auth/google] could not record googleId:', isMissingColumnError(e, 'googleId') ? 'column missing in live DB (run `prisma migrate deploy`)' : e?.message));
     } else {
       const { firstName, lastName } = namesFromProfile(profile);
-      try {
-        await prisma.user.create({ data: { id: uid(), email: profile.email, firstName, lastName, avatar: profile.picture || null, googleId: profile.googleId, role: 'STUDENT' } });
-      } catch (createErr: any) {
-        if (isMissingColumnError(createErr, 'googleId')) {
-          console.warn('[auth/google] googleId column missing; creating user without it');
-          await prisma.user.create({ data: { id: uid(), email: profile.email, firstName, lastName, avatar: profile.picture || null, role: 'STUDENT' } });
-        } else throw createErr;
-      }
+      try { await prisma.user.create({ data: { id: uid(), email: profile.email, firstName, lastName, avatar: profile.picture || null, googleId: profile.googleId, role: 'STUDENT' } }); }
+      catch (createErr: any) { if (isMissingColumnError(createErr, 'googleId')) { console.warn('[auth/google] googleId column missing; creating user without it'); await prisma.user.create({ data: { id: uid(), email: profile.email, firstName, lastName, avatar: profile.picture || null, role: 'STUDENT' } }); } else throw createErr; }
       user = await prisma.user.findUnique({ where: { email: profile.email }, select: membershipSelect });
     }
     if (!user) return res.status(500).json({ ok: false, error: 'Не удалось создать аккаунт' });
-
     await writeAuditLog({ userId: user.id, action: isNewAccount ? 'auth.google_signup' : 'auth.google_login', entity: 'user', entityId: user.id, ip: req.ip || req.socket?.remoteAddress });
     return res.json({ ok: true, data: await buildSignInPayload(user, req, res) });
+  } catch (error) { clearAuthCookies(res); const status = (error as GoogleAuthError)?.status; if (status) return res.status(status).json({ ok: false, error: (error as Error).message }); console.error('[auth/google]', error); return res.status(500).json({ ok: false, error: 'Ошибка входа через Google' }); }
+});
+
+/**
+ * Password reset requests intentionally return the same response for existing
+ * and unknown addresses. The reset token is random and is only ever placed in
+ * the email link; delivery failures are logged but do not disclose account
+ * existence to the caller.
+ */
+authRouter.post('/forgot-password', async (req, res) => {
+  try {
+    const normalizedEmail = String(req.body?.email || '').trim().toLowerCase();
+    if (normalizedEmail.includes('@') && !normalizedEmail.endsWith('@guest.local')) {
+      const user = await prisma.user.findUnique({ where: { email: normalizedEmail }, select: { id: true, email: true, firstName: true, password: true } });
+      if (user?.password) {
+        const token = crypto.randomBytes(32).toString('hex');
+        try {
+          await sendEmail({ to: user.email, ...buildPasswordResetEmail({ token, firstName: user.firstName }) });
+        } catch (error) {
+          console.warn('[auth/forgot-password] email delivery unavailable:', (error as Error)?.message || error);
+        }
+      }
+    }
+    return res.status(200).json({ ok: true, data: { message: 'Если указанный email зарегистрирован, вы получите письмо с инструкциями.' } });
   } catch (error) {
-    clearAuthCookies(res);
-    const status = (error as GoogleAuthError)?.status;
-    if (status) return res.status(status).json({ ok: false, error: (error as Error).message });
-    console.error('[auth/google]', error);
-    return res.status(500).json({ ok: false, error: 'Ошибка входа через Google' });
+    console.error('[auth/forgot-password]', error);
+    return res.status(200).json({ ok: true, data: { message: 'Если указанный email зарегистрирован, вы получите письмо с инструкциями.' } });
   }
 });
 
 authRouter.post('/logout', authenticate, async (req: AuthRequest, res) => {
   try {
-    await prisma.userSession.updateMany({ where: { userId: req.user!.id, expiredAt: { gt: new Date() } }, data: { expiredAt: new Date() } }).catch(() => { /* table may not exist */ });
+    await prisma.userSession.updateMany({ where: { userId: req.user!.id, expiredAt: { gt: new Date() } }, data: { expiredAt: new Date() } }).catch(() => {});
     await auditFromReq(req, { action: 'auth.logout', entity: 'user', entityId: req.user!.id });
-    clearAuthCookies(res);
-    res.json({ ok: true, data: { message: 'Logged out' } });
-  } catch {
-    clearAuthCookies(res);
-    res.json({ ok: true, data: { message: 'Logged out' } });
-  }
+    clearAuthCookies(res); res.json({ ok: true, data: { message: 'Logged out' } });
+  } catch { clearAuthCookies(res); res.json({ ok: true, data: { message: 'Logged out' } }); }
 });
 
-// H2: Refresh token rotation — expire old session, create new one
 authRouter.post('/refresh', async (req, res) => {
   try {
     const { refreshToken } = req.body as { refreshToken: string };
@@ -310,16 +177,11 @@ authRouter.post('/refresh', async (req, res) => {
     const sessionId = (payload as any).sessionId as string | undefined;
     if (!sessionId) return res.status(401).json({ ok: false, error: 'Сессия токена отсутствует' });
     const session = await prisma.userSession.findUnique({ where: { id: sessionId }, select: { id: true, userId: true, expiredAt: true } });
-    if (!session || session.userId !== user.id || (session.expiredAt && session.expiredAt <= new Date())) {
-      return res.status(401).json({ ok: false, error: 'Сессия недействительна' });
-    }
+    if (!session || session.userId !== user.id || (session.expiredAt && session.expiredAt <= new Date())) return res.status(401).json({ ok: false, error: 'Сессия недействительна' });
     await expireAllSessions(user.id);
     const newSession = await createSession(user.id, req.ip, req.headers['user-agent']);
     const tokens = generateTokens({ sub: user.id, email: user.email, role: user.role, sessionId: newSession.id });
     setAuthCookies(res, tokens.accessToken, tokens.refreshToken);
     res.json({ ok: true, data: tokens });
-  } catch {
-    clearAuthCookies(res);
-    res.status(401).json({ ok: false, error: 'Недействительный refresh токен' });
-  }
+  } catch { clearAuthCookies(res); res.status(401).json({ ok: false, error: 'Недействительный refresh токен' }); }
 });
