@@ -59,20 +59,29 @@ async function main() {
     EXECUTE FUNCTION enforce_referral_branch_consistency();
   `);
 
-  const triggerCheck = await prisma.$queryRawUnsafe<Array<{ exists: boolean }>>(`
+  const triggerCheck = await prisma.$queryRawUnsafe<Array<{ exists: boolean; definition: string }>>(`
     SELECT EXISTS (
       SELECT 1
       FROM pg_trigger
       WHERE tgname = 'referrals_branch_consistency'
         AND NOT tgisinternal
-    ) AS exists
+    ) AS exists,
+    pg_get_functiondef('enforce_referral_branch_consistency()'::regprocedure) AS definition
   `);
 
   if (!triggerCheck[0]?.exists) {
     throw new Error('Referral branch consistency trigger was not installed');
   }
 
-  console.log('[SEED:E2E:REFERRALS] referral branch consistency trigger ensured and verified');
+  const definition = triggerCheck[0]?.definition || '';
+  if (!definition.includes('p."clinicId"') || definition.includes('p.clinic_id')) {
+    throw new Error('Referral branch trigger has an invalid patient clinic column contract');
+  }
+  if (!definition.includes('NEW."branch_id"')) {
+    throw new Error('Referral branch trigger does not enforce branch_id');
+  }
+
+  console.log('[SEED:E2E:REFERRALS] referral branch consistency trigger ensured, verified, and contract-checked');
 }
 
 main()
