@@ -15,12 +15,12 @@ DECLARE
   patient_clinic_id TEXT;
   branch_clinic_id TEXT;
 BEGIN
-  SELECT p.branch_id, p.clinic_id
+  SELECT p.branch_id, p."clinicId"
     INTO patient_branch_id, patient_clinic_id
   FROM patients p
-  WHERE p.id = NEW.patient_id;
+  WHERE p.id = NEW."patientId";
 
-  IF patient_clinic_id IS NULL OR patient_clinic_id <> NEW.clinic_id THEN
+  IF patient_clinic_id IS NULL OR patient_clinic_id <> NEW."clinicId" THEN
     RAISE EXCEPTION 'appointment patient belongs to another clinic';
   END IF;
 
@@ -37,7 +37,7 @@ BEGIN
     WHERE b.id = NEW.branch_id
       AND b.active = true;
 
-    IF branch_clinic_id IS NULL OR branch_clinic_id <> NEW.clinic_id THEN
+    IF branch_clinic_id IS NULL OR branch_clinic_id <> NEW."clinicId" THEN
       RAISE EXCEPTION 'appointment branch does not belong to clinic';
     END IF;
   END IF;
@@ -49,7 +49,7 @@ $$;
 DROP TRIGGER IF EXISTS appointments_branch_consistency ON appointments;
 
 CREATE TRIGGER appointments_branch_consistency
-BEFORE INSERT OR UPDATE OF patient_id, clinic_id, branch_id
+BEFORE INSERT OR UPDATE OF "patientId", "clinicId", branch_id
 ON appointments
 FOR EACH ROW
 EXECUTE FUNCTION enforce_appointment_branch_consistency();
