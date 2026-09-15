@@ -165,7 +165,18 @@ export async function createTestDiagnosis(patientId: string, doctorId: string, o
 // ─── Treatment Plan ──────────────────────────────────────────────────────────
 
 export async function createTestTreatmentPlan(patientId: string, opts?: Partial<{ title: string; status: PlanStatus; price: number }>) {
-  return prisma.treatmentPlan.create({ data: { patientId, title: opts?.title ?? `Plan ${randomSuffix()}`, status: (opts?.status as PlanStatus) ?? PlanStatus.draft, price: opts?.price ?? 150000, items: [{ tooth: 16, procedure: 'Crown', price: 50000 }, { tooth: 26, procedure: 'Filling', price: 30000 }] })
+  return prisma.treatmentPlan.create({
+    data: {
+      patientId,
+      title: opts?.title ?? `Plan ${randomSuffix()}`,
+      status: (opts?.status as PlanStatus) ?? PlanStatus.draft,
+      price: opts?.price ?? 150000,
+      items: [
+        { tooth: 16, procedure: 'Crown', price: 50000 },
+        { tooth: 26, procedure: 'Filling', price: 30000 },
+      ],
+    },
+  })
 }
 
 // ─── Invoice ─────────────────────────────────────────────────────────────────
