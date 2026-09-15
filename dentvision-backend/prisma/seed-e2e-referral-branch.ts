@@ -14,7 +14,7 @@ async function main() {
       branch_clinic_id TEXT;
     BEGIN
       IF NEW."patientId" IS NOT NULL THEN
-        SELECT p.branch_id, p.clinic_id
+        SELECT p.branch_id, p."clinicId"
           INTO patient_branch_id, patient_clinic_id
         FROM patients p
         WHERE p.id = NEW."patientId";
