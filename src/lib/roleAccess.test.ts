@@ -6,9 +6,11 @@ import {
 } from './roleAccess'
 
 describe('roleAccess', () => {
-  it('maps CRM paths to page ids', () => {
+  it('maps CRM and secondary workspace paths to page ids', () => {
     expect(pageIdFromPath('/crm/finance')).toBe('finance')
     expect(pageIdFromPath('/crm/medical-card')).toBe('medical-card')
+    expect(pageIdFromPath('/crm/integrations/messaging')).toBe('clinic-settings')
+    expect(pageIdFromPath('/supplier')).toBe('supplier')
     expect(pageIdFromPath('/shop/orders')).toBe('shop')
   })
 
