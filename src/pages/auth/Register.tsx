@@ -7,21 +7,32 @@ import { Loader2, UserPlus, AlertTriangle } from 'lucide-react';
 interface RegisterProps { onBack: () => void; }
 interface RegisterForm { name: string; firstName: string; lastName: string; login: string; email: string; phone: string; spec: string; city: string; clinicName: string; password: string; confirmPassword: string; }
 
-const ROLE_COPY: Record<string, { title: string; subtitle: string }> = {
+const ROLE_COPY: Record<string, { title: string; subtitle: string; organization?: string }> = {
   doctor: { title: 'Создать аккаунт врача', subtitle: 'AI Workspace, клинический контекст и инструменты DentVision.' },
   patient: { title: 'Создать аккаунт пациента', subtitle: 'Врачи, клиники, диагностика, покупки и личный кабинет.' },
-  owner: { title: 'Создать аккаунт владельца', subtitle: 'Создайте аккаунт и клинику сразу. После регистрации владелец получает реальное членство OWNER.' },
-  admin: { title: 'Подключить администратора', subtitle: 'Администратор подключается к клинике по приглашению владельца или другого уполномоченного сотрудника.' },
-  lab: { title: 'Создать аккаунт лаборатории', subtitle: 'Заказы клиник, производство, сроки и контроль готовности.' },
-  laboratory: { title: 'Создать аккаунт лаборатории', subtitle: 'Заказы клиник, производство, сроки и контроль готовности.' },
-  diagnostic_center: { title: 'Создать аккаунт диагностического центра', subtitle: 'Создание учётной записи выполняется сейчас; подключение центра к партнёрскому контуру проходит отдельным workflow.' },
+  owner: { title: 'Создать аккаунт владельца', subtitle: 'Создайте аккаунт и рабочую организацию сразу.', organization: 'Название клиники' },
+  lab: { title: 'Создать аккаунт зуботехнической лаборатории', subtitle: 'Заказы клиник, производство, сроки и контроль готовности.', organization: 'Название зуботехнической лаборатории' },
+  dental_lab: { title: 'Создать аккаунт зуботехнической лаборатории', subtitle: 'Заказы клиник, производство, сроки и контроль готовности.', organization: 'Название зуботехнической лаборатории' },
+  medical_lab: { title: 'Создать аккаунт медицинской лаборатории', subtitle: 'Исследования, результаты и взаимодействие с клиниками.', organization: 'Название медицинской лаборатории' },
+  laboratory: { title: 'Создать аккаунт лаборатории', subtitle: 'Выберите профиль лаборатории и сразу получите рабочее пространство.', organization: 'Название лаборатории' },
+  diagnostic_center: { title: 'Создать аккаунт диагностического центра', subtitle: 'Приём направлений, исследования, результаты и кабинет центра.', organization: 'Название диагностического центра' },
+  supplier: { title: 'Создать аккаунт поставщика', subtitle: 'Товары, остатки, заказы и кабинет поставщика Marketplace.', organization: 'Название компании-поставщика' },
+  academy: { title: 'Создать аккаунт академии', subtitle: 'Курсы, преподаватели, слушатели и Academy OS.', organization: 'Название академии' },
+  lecturer: { title: 'Создать аккаунт лектора', subtitle: 'Профиль эксперта, курсы, вебинары и выплаты.' },
   student: { title: 'Создать аккаунт студента', subtitle: 'Академия, обучение и личный прогресс.' },
+  admin: { title: 'Подключить администратора', subtitle: 'Администратор подключается к клинике по приглашению владельца или другого уполномоченного сотрудника.' },
+};
+
+const ORGANIZATION_ROLE_TO_TYPE: Record<string, string> = {
+  owner: 'clinic', lab: 'dental_lab', dental_lab: 'dental_lab', medical_lab: 'medical_lab', laboratory: 'dental_lab',
+  diagnostic_center: 'diagnostic_center', supplier: 'supplier', academy: 'academy',
 };
 
 export default function Register({ onBack }: RegisterProps) {
   const [params] = useSearchParams();
   const role = params.get('role') || '';
   const copy = ROLE_COPY[role] || { title: 'Создать аккаунт DentVision', subtitle: 'Один аккаунт для экосистемы DentVision.' };
+  const organizationType = ORGANIZATION_ROLE_TO_TYPE[role];
   const [form, setForm] = useState<RegisterForm>({ name: '', firstName: '', lastName: '', login: '', email: '', phone: '', spec: '', city: '', clinicName: '', password: '', confirmPassword: '' });
   const [localError, setLocalError] = useState('');
   const [loading, setLoading] = useState(false);
@@ -34,7 +45,7 @@ export default function Register({ onBack }: RegisterProps) {
     if (!form.name.trim()) { setLocalError('Введите имя'); return; }
     if (!form.login.trim() || form.login.length < 4) { setLocalError('Логин должен быть не менее 4 символов'); return; }
     if (!form.email.trim()) { setLocalError('Введите email'); return; }
-    if (role === 'owner' && !form.clinicName.trim()) { setLocalError('Введите название клиники'); return; }
+    if (organizationType && !form.clinicName.trim()) { setLocalError(`Введите ${copy.organization?.toLowerCase() || 'название организации'}`); return; }
     if (form.password.length < 8) { setLocalError('Пароль должен быть не менее 8 символов'); return; }
     if (!/[A-Za-zА-Яа-я]/.test(form.password) || !/\d/.test(form.password)) { setLocalError('Пароль должен содержать буквы и цифры'); return; }
     if (form.password !== form.confirmPassword) { setLocalError('Пароли не совпадают'); return; }
@@ -56,13 +67,15 @@ export default function Register({ onBack }: RegisterProps) {
       if (!result?.accessToken) throw new Error('Сервер не вернул токен авторизации');
       setTokens(result.accessToken, result.refreshToken || null);
 
-      if (role === 'owner') {
-        await apiRequest('/api/clinics', {
+      if (organizationType) {
+        await apiRequest('/api/organizations/self-service', {
           method: 'POST',
           body: JSON.stringify({
+            type: organizationType,
             name: form.clinicName.trim(),
             city: form.city.trim() || undefined,
             phone: form.phone.trim() || undefined,
+            email: form.email.trim().toLowerCase(),
           }),
         });
       }
@@ -90,13 +103,13 @@ export default function Register({ onBack }: RegisterProps) {
           <label className="text-xs"><span className="mb-1.5 block text-txt-secondary">Логин</span><input value={form.login} onChange={e => set('login', e.target.value)} className="w-full rounded-xl border border-bdr-subtle bg-surface-0 px-3 py-3 outline-none focus:border-dv-gold/50" /></label>
           <label className="text-xs"><span className="mb-1.5 block text-txt-secondary">Email</span><input type="email" value={form.email} onChange={e => set('email', e.target.value)} className="w-full rounded-xl border border-bdr-subtle bg-surface-0 px-3 py-3 outline-none focus:border-dv-gold/50" /></label>
           <label className="text-xs"><span className="mb-1.5 block text-txt-secondary">Телефон</span><input value={form.phone} onChange={e => set('phone', e.target.value)} className="w-full rounded-xl border border-bdr-subtle bg-surface-0 px-3 py-3 outline-none focus:border-dv-gold/50" /></label>
-          {role === 'owner' && <label className="text-xs sm:col-span-2"><span className="mb-1.5 block text-txt-secondary">Название клиники</span><input value={form.clinicName} onChange={e => set('clinicName', e.target.value)} placeholder="Например, DentVision Clinic" className="w-full rounded-xl border border-bdr-subtle bg-surface-0 px-3 py-3 outline-none focus:border-dv-gold/50" /></label>}
-          {role === 'owner' && <label className="text-xs"><span className="mb-1.5 block text-txt-secondary">Город</span><input value={form.city} onChange={e => set('city', e.target.value)} placeholder="Астана" className="w-full rounded-xl border border-bdr-subtle bg-surface-0 px-3 py-3 outline-none focus:border-dv-gold/50" /></label>}
+          {organizationType && <label className="text-xs sm:col-span-2"><span className="mb-1.5 block text-txt-secondary">{copy.organization}</span><input value={form.clinicName} onChange={e => set('clinicName', e.target.value)} placeholder={copy.organization} className="w-full rounded-xl border border-bdr-subtle bg-surface-0 px-3 py-3 outline-none focus:border-dv-gold/50" /></label>}
+          {organizationType && <label className="text-xs"><span className="mb-1.5 block text-txt-secondary">Город</span><input value={form.city} onChange={e => set('city', e.target.value)} placeholder="Астана" className="w-full rounded-xl border border-bdr-subtle bg-surface-0 px-3 py-3 outline-none focus:border-dv-gold/50" /></label>}
           <label className="text-xs"><span className="mb-1.5 block text-txt-secondary">Пароль</span><input type="password" value={form.password} onChange={e => set('password', e.target.value)} className="w-full rounded-xl border border-bdr-subtle bg-surface-0 px-3 py-3 outline-none focus:border-dv-gold/50" /></label>
           <label className="text-xs"><span className="mb-1.5 block text-txt-secondary">Повторите пароль</span><input type="password" value={form.confirmPassword} onChange={e => set('confirmPassword', e.target.value)} className="w-full rounded-xl border border-bdr-subtle bg-surface-0 px-3 py-3 outline-none focus:border-dv-gold/50" /></label>
         </div>
         <label className="mt-5 flex gap-3 text-xs text-txt-secondary"><input type="checkbox" checked={agreed} onChange={e => setAgreed(e.target.checked)} className="mt-0.5" />Я принимаю условия использования и политику конфиденциальности.</label>
-        <button type="button" onClick={() => void handleSubmit()} disabled={loading} className="mt-5 flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-dv-gold px-4 text-sm font-semibold text-surface-0 disabled:opacity-60">{loading && <Loader2 size={16} className="animate-spin" />} {role === 'owner' ? 'Создать аккаунт и клинику' : 'Создать аккаунт'}</button>
+        <button type="button" onClick={() => void handleSubmit()} disabled={loading} className="mt-5 flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-dv-gold px-4 text-sm font-semibold text-surface-0 disabled:opacity-60">{loading && <Loader2 size={16} className="animate-spin" />} {organizationType ? 'Создать аккаунт и рабочее пространство' : 'Создать аккаунт'}</button>
         <div className="mt-4"><GoogleSignInButton text="signup_with" onCredential={() => setLocalError('Регистрация через Google сейчас создаёт стандартный аккаунт. Для выбора рабочей роли используйте регистрацию по email.')} /></div>
       </section>
     </main>
