@@ -10,6 +10,10 @@ vi.mock('../../lib/prisma.js', () => ({
   default: { patient: { findFirst, updateMany }, $queryRaw: queryRaw },
 }));
 
+vi.mock('../../lib/phi.js', () => ({
+  hmacIin: (value: string | null | undefined) => value ? `hash:${String(value).replace(/\D/g, '')}` : null,
+}));
+
 import { phoneNeedle, phonesMatch, resolvePatientForUser } from './patientLink.js';
 
 const USER = { id: 'u1', email: 'patient@example.kz', phone: '+7 707 123 45 67' };
@@ -45,37 +49,38 @@ describe('phone matching', () => {
 describe('resolvePatientForUser', () => {
   it('returns the already-linked card without touching anything', async () => {
     findFirst.mockResolvedValueOnce({ id: 'p1', clinicId: 'c1' });
-
     expect(await resolvePatientForUser(USER)).toEqual({ id: 'p1', clinicId: 'c1', via: 'userId' });
     expect(updateMany).not.toHaveBeenCalled();
   });
 
-  it('adopts a card that matches the email and writes the link once', async () => {
-    findFirst
-      .mockResolvedValueOnce(null)
-      .mockResolvedValueOnce({ id: 'p2', clinicId: 'c1' });
+  it('adopts a card by IIN before email or phone', async () => {
+    findFirst.mockResolvedValueOnce(null).mockResolvedValueOnce({ id: 'pIin', clinicId: 'c1' });
+    const match = await resolvePatientForUser({ ...USER, iin: '123456789012' });
+    expect(match).toEqual({ id: 'pIin', clinicId: 'c1', via: 'iin' });
+    expect(findFirst.mock.calls[1][0].where).toMatchObject({ iinHash: 'hash:123456789012', userId: null });
+    expect(updateMany).toHaveBeenCalledWith({ where: { id: 'pIin', userId: null }, data: { userId: 'u1' } });
+  });
 
+  it('adopts a card that matches the email and writes the link once', async () => {
+    findFirst.mockResolvedValueOnce(null).mockResolvedValueOnce(null).mockResolvedValueOnce({ id: 'p2', clinicId: 'c1' });
     expect(await resolvePatientForUser(USER)).toMatchObject({ id: 'p2', via: 'email' });
     expect(updateMany).toHaveBeenCalledWith({ where: { id: 'p2', userId: null }, data: { userId: 'u1' } });
   });
 
   it('adopts a card that matches only the phone', async () => {
     queryRaw.mockResolvedValue([{ id: 'p3', clinicId: 'c1', phone: '8 707 123 45 67' }]);
-
     expect(await resolvePatientForUser(USER)).toMatchObject({ id: 'p3', via: 'phone' });
     expect(updateMany).toHaveBeenCalledWith({ where: { id: 'p3', userId: null }, data: { userId: 'u1' } });
   });
 
   it('rejects a candidate whose digits only partially overlap', async () => {
     queryRaw.mockResolvedValue([{ id: 'p4', clinicId: 'c1', phone: '+7 707 123 45 60' }]);
-
     expect(await resolvePatientForUser(USER)).toBeNull();
     expect(updateMany).not.toHaveBeenCalled();
   });
 
   it('never claims a card that already belongs to someone', async () => {
     await resolvePatientForUser(USER);
-
     const emailQuery = findFirst.mock.calls[1][0];
     expect(emailQuery.where).toMatchObject({ userId: null });
     expect(queryRaw).toHaveBeenCalled();
@@ -83,14 +88,12 @@ describe('resolvePatientForUser', () => {
 
   it('prefers the booking phone over the account phone', async () => {
     queryRaw.mockResolvedValue([{ id: 'p5', clinicId: 'c1', phone: '+7 701 000 11 22' }]);
-
     const match = await resolvePatientForUser(USER, { phoneHint: '8 701 000 11 22' });
     expect(match).toMatchObject({ id: 'p5', via: 'phone' });
   });
 
   it('scopes every lookup to the clinic when one is given', async () => {
     await resolvePatientForUser(USER, { clinicId: 'c9' });
-
     expect(findFirst.mock.calls[0][0].where).toMatchObject({ clinicId: 'c9' });
     expect(findFirst.mock.calls[1][0].where).toMatchObject({ clinicId: 'c9' });
     expect(queryRaw).toHaveBeenCalled();
