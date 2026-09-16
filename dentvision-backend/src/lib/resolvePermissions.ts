@@ -5,22 +5,24 @@ import { permissionsForRole } from './permissions.js';
  * Effective permissions for a user in a given org scope.
  *
  * Source of truth: the DB Person → PersonRole → Role → Permission graph
- * (backfilled by migrate-unified-schema.ts). Falls back to the shared role
- * matrix when no Person/PersonRole exists yet, so the response is always a
- * complete, usable permission set.
+ * (backfilled by migrate-unified-schema.ts). The shared role matrix is the
+ * baseline for the resolved scoped role; DB grants are additive to it.
  *
  * Note: for SUPERADMIN the role matrix is already a wildcard (all keys).
  *
  * `fallbackRole` lets a caller that has already resolved the *scoped* role
- * (e.g. via resolveClinicAccess) drive the matrix fallback with it instead of
- * the user's global User.role — a user can be OWNER of one clinic and DOCTOR
- * in another, and the fallback must not hand them the wider set.
+ * (e.g. via resolveClinicAccess) drive the matrix with it instead of the
+ * user's global User.role — a user can be OWNER of one clinic and DOCTOR
+ * in another, and the baseline must follow the scoped role.
  */
 export async function resolveUserPermissions(
   userId: string,
   scopeId?: string | null,
   fallbackRole?: string | null,
 ): Promise<string[]> {
+  const scopedRole = fallbackRole ? String(fallbackRole).toUpperCase() : null;
+  const roleBaseline = scopedRole ? permissionsForRole(scopedRole) : null;
+
   try {
     const person = await prisma.person.findFirst({
       where: scopeId ? { userId, organizationId: scopeId } : { userId },
@@ -34,8 +36,9 @@ export async function resolveUserPermissions(
       // pin it to the oldest membership.
       orderBy: { createdAt: 'asc' },
     });
+
     if (person) {
-      const perms = new Set<string>();
+      const perms = new Set<string>(roleBaseline || []);
       for (const pr of person.personRoles) {
         for (const rp of pr.role.permissions) perms.add(rp.permission.key);
       }
@@ -45,8 +48,8 @@ export async function resolveUserPermissions(
     // Fall through to the role matrix.
   }
 
-  if (fallbackRole) return permissionsForRole(fallbackRole);
+  if (roleBaseline) return roleBaseline;
 
   const user = await prisma.user.findUnique({ where: { id: userId }, select: { role: true } });
-  return permissionsForRole(user?.role);
+  return permissionsForRole(user?.role ? String(user.role).toUpperCase() : user?.role);
 }
