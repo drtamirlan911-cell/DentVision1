@@ -109,7 +109,57 @@ Implement growth by extending existing systems, not by creating a parallel produ
 
 The product should continuously answer: **What should I do now? Why does it matter? What can DentVision do for me? What is the next useful action?**
 
-## 10. Immediate execution queue
+## 10. Canonical branch management contract
+Branch management is part of the existing Organization/Workspace model. Do not create a separate branch product or parallel organization model. A branch is an operational scope inside an organization and must use the existing identity, membership, permissions, audit, events and AI context primitives.
+
+Owner entry point:
+`Owner → Settings / Organization → Branches`
+
+Canonical branch management capabilities:
+- list active and archived branches;
+- create, persist and edit branches;
+- open/switch branch workspace within authorized scope;
+- assign, change, disable and revoke staff branch access;
+- configure supported branch settings;
+- inspect branch operational and financial status;
+- archive/deactivate without destroying required historical/audit records.
+
+Baseline branch data:
+- name;
+- unique organization-scoped code;
+- city/address/phone;
+- active/default state;
+- optional `Branch.settings` for supported operational configuration.
+
+Branch workspace domains, exposed according to role and actual implementation:
+`Overview/Today, Schedule, Patients, Cases/Clinical, Diagnostics, Laboratory, Team, Services & Prices, Rooms/Chairs/Equipment, Inventory, Finance, Documents, Communication, Analytics, Settings`.
+
+Branch settings domains:
+1. General.
+2. Working time and holidays.
+3. Team and access.
+4. Rooms/equipment.
+5. Services/prices.
+6. Inventory.
+7. Finance/payments.
+8. CRM/communication.
+9. Diagnostics/laboratory.
+10. Documents.
+11. AI/notifications.
+12. Security/audit.
+
+Only implement a settings control when a real domain model/workflow backs it; otherwise keep it as an explicit backlog item.
+
+Data scope must remain organization-safe and branch-safe. At minimum, branch-aware patient, appointment, inventory, invoice, expense and referral/diagnostic data must obey backend branch authorization. Organization owners may aggregate across authorized branches; branch-scoped users must not gain access by changing IDs or URLs.
+
+Branch deactivation must account for staff assignments, future appointments, unresolved cases, open lab/diagnostic orders, inventory/financial records and default-branch constraints. Prefer archive/inactive semantics over destructive deletion.
+
+Branch-aware AI must include active organization + branch context but must never bypass authorization. Mutations continue to follow the canonical AI action lifecycle.
+
+Release proof required for the branch slice:
+`Owner entry → create → persist/refresh → edit → open/switch → assign employee → enforce scope → cross-branch denial → organization aggregate → archive/deactivate → audit/history preserved`.
+
+## 11. Immediate execution queue
 ### P0 — Release correctness
 1. Verify current `main` CI from the newest relevant commit/run; do not infer green status.
 2. Verify diagnostics route/service contract around `confirmAiResult`.
@@ -122,7 +172,7 @@ The product should continuously answer: **What should I do now? Why does it matt
 7. Complete medical-analysis operational economics/settlement.
 8. Preserve dental-lab recognition at `delivered` until a real paid/settled callback exists.
 9. Complete ledger/reconciliation and Finance Hub transparency.
-10. Complete partner owner/branch/staff operational lifecycle.
+10. Complete partner owner/branch/staff operational lifecycle, using the canonical branch contract above.
 
 ### P2 — Clinical vertical slice
 11. Verify Patient→Case→Diagnosis/Imaging→AI Findings→Plan→Appointment→Lab/Materials→Payment→Follow-up.
@@ -142,5 +192,5 @@ The product should continuously answer: **What should I do now? Why does it matt
 21. Android build/install/runtime verification.
 22. Real 32-tooth WebGL/3D odontogram.
 
-## 11. Working rule
+## 12. Working rule
 For each slice: **inspect → implement → test → fix → verify → document → continue**. Do not repeat an audit when implementation can resolve the issue. If a document becomes stale, update/remove it rather than creating another competing source of truth.
