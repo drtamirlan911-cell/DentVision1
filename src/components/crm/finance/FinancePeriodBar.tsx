@@ -1,5 +1,5 @@
 import React from 'react'
-import { Calendar } from 'lucide-react'
+import { Calendar, Link2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import {
   PERIOD_CHIPS,
@@ -9,6 +9,9 @@ import {
 } from '@/lib/financePeriod'
 import { useTranslation } from 'react-i18next'
 import { DatePicker } from '@/components/ui/ds/DatePicker'
+import { useEcosystemUrlContext } from '@/hooks/useEcosystemUrlContext'
+import { withEcosystemContext } from '@/config/ecosystemContextLink'
+import { useNavigate } from 'react-router-dom'
 
 interface Props {
   period: FinancePeriod
@@ -18,6 +21,9 @@ interface Props {
 
 export function FinancePeriodBar({ period, onChange, className }: Props) {
   const { t } = useTranslation()
+  const navigate = useNavigate()
+  const context = useEcosystemUrlContext()
+  const hasClinicalContext = Boolean(context.patientId || context.caseId)
   const setPreset = (preset: FinancePeriodPreset) => {
     if (preset === 'custom') {
       onChange({ ...period, preset: 'custom' })
@@ -32,6 +38,17 @@ export function FinancePeriodBar({ period, onChange, className }: Props) {
         <Calendar size={13} />
         {t('finance.period')}
       </span>
+      {hasClinicalContext && (
+        <button
+          type="button"
+          onClick={() => navigate(withEcosystemContext('/crm/cases', context))}
+          className="inline-flex items-center gap-1.5 rounded-lg border border-dv-gold/25 bg-dv-gold/8 px-2.5 py-1 text-xs font-medium text-dv-gold transition-colors hover:border-dv-gold/45 hover:bg-dv-gold/12"
+          title="Вернуться к клиническому кейсу"
+        >
+          <Link2 size={12} />
+          {context.caseId ? 'Клинический кейс' : 'Пациент'}
+        </button>
+      )}
       {PERIOD_CHIPS.map((chip) => (
         <button
           key={chip.id}
