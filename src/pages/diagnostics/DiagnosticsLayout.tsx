@@ -5,6 +5,7 @@ import { cn } from '@/lib/utils';
 import { useAuth } from '@/store/auth.store';
 import { useIam } from '@/iam';
 import * as api from '@/utils/api';
+import EcosystemContextBridge from '@/components/ecosystem/EcosystemContextBridge';
 
 const CLINIC_ONLY_ITEMS = new Set(['referrals', 'centers', 'laboratories', 'register']);
 
@@ -140,7 +141,10 @@ export default function DiagnosticsLayout() {
       </header>
 
       <main className="min-h-0 flex-1 overflow-y-auto">
-        <Outlet />
+        <div className="mx-auto w-full max-w-[1600px] px-3 pb-3 pt-3 sm:px-5 sm:pt-4">
+          <EcosystemContextBridge className="mb-4" />
+          <Outlet />
+        </div>
       </main>
     </div>
   );
