@@ -160,6 +160,70 @@ Every partner type must be tested from first contact to daily operation in an is
 - [ ] Verify remake/cancel/delay behavior does not create premature economics.
 - [ ] Verify clinic-side visibility and financial records.
 
+## Branch Management Control Plane
+
+A branch is a first-class operational scope inside an organization, not merely an address field. Existing Branch/branchId foundations must be extended rather than duplicated.
+
+### Owner entry point
+- [ ] Provide a clear Owner/organization-admin entry point: **Settings → Organization → Branches**.
+- [ ] Provide a global branch switcher in the workspace shell when the user has access to more than one branch.
+- [ ] Preserve the organization-level context separately from the selected branch context.
+- [ ] Make the selected branch visible in page/entity context where branch scope affects data.
+
+### Branch lifecycle
+- [ ] Create branch: name, unique organization-scoped code, city, address, phone, optional settings, active/default state.
+- [ ] Validate duplicate code and required organization ownership server-side.
+- [ ] Edit branch details without changing historical ownership of existing records.
+- [ ] Activate/suspend/archive using explicit state transitions; avoid destructive hard-delete for operational history.
+- [ ] Prevent invalid states such as having no active default branch when the domain requires a default.
+- [ ] Keep an immutable/auditable record of privileged branch mutations.
+
+### Branch workspace / management tabs
+- [ ] Overview: operational status, team count, rooms, appointments, patients, revenue and unresolved alerts according to available domain data.
+- [ ] Team: invite/add, assign, transfer, disable/remove according to role permissions; preserve audit history.
+- [ ] Rooms/Cabinets: rooms/chairs, equipment and operational status, linked to scheduling where supported.
+- [ ] Schedule: working days/hours, breaks, holidays, shifts and capacity; integrate with the canonical appointment/schedule model.
+- [ ] Services & prices: branch-specific availability, duration, pricing/discount rules only where supported by the canonical economics/business model.
+- [ ] Inventory: branch stock, minimum levels, receipts, write-offs and inter-branch transfers using the existing inventory domain.
+- [ ] Finance: branch-scoped revenue/expenses/payments and organization-wide aggregation without changing the canonical economics policy.
+- [ ] Diagnostics/Lab: branch referrals/orders/results and operational status using existing domain workflows.
+- [ ] Documents: branch-specific templates/requisites/consents where the existing document model supports them.
+- [ ] Notifications: branch operational alerts and recipients using the existing notification system.
+- [ ] AI: branch context available to AI; every AI action must still pass Intent → Context → Permission → Plan → Preview → Confirmation when required → Execute → Verify → Audit.
+- [ ] Settings: identity, contacts, business hours, operational defaults, integrations and branch status.
+
+### Branch data boundary
+- [ ] Patient, appointment, inventory, invoice, expense, referral and other branch-aware records must carry/resolve the correct branch scope where the domain model supports it.
+- [ ] Owner can aggregate across branches; branch-scoped users must not silently receive another branch's records.
+- [ ] Organization-scoped data remains organization-scoped; do not force every object into branch scope when the domain does not require it.
+- [ ] Cross-branch transfer must be an explicit operation with validation and audit, not a silent `branchId` overwrite.
+- [ ] Historical clinical/financial records must remain attributable to their original branch unless the domain explicitly defines a transfer model.
+
+### Branch permissions
+- [ ] Owner: organization-wide branch creation, configuration, staff assignment and permitted aggregate visibility.
+- [ ] Admin/manager: only branch/organization actions granted by the existing permission matrix.
+- [ ] Doctor/assistant/operational roles: selected-branch access only unless explicitly assigned to multiple branches.
+- [ ] Partner owners/managers/operators: same organization/branch isolation principles for their partner domain.
+- [ ] Deny cross-tenant and unauthorized cross-branch reads/writes server-side; frontend hiding is not sufficient.
+- [ ] Branch selection must never elevate permissions; scope narrows data access independently from role permissions.
+
+### Branch-aware command/AI actions
+- [ ] Commands such as "открой филиал", "переведи сотрудника", "покажи выручку филиала" must resolve organization + selected branch context before execution.
+- [ ] AI must preview branch-affecting mutations and require confirmation according to action risk.
+- [ ] AI must never infer a branch from a free-text name when multiple branches match; require explicit disambiguation.
+- [ ] Every branch mutation/action must be auditable with actor, organization, branch, target, action and result.
+
+### Branch release gate
+- [ ] Owner can create a branch and see it after refresh/re-login.
+- [ ] Owner can edit and suspend/archive it according to domain rules.
+- [ ] Owner can switch between two branches without stale data leaking between contexts.
+- [ ] Owner can invite/assign an employee to Branch A and verify access to Branch A only.
+- [ ] Employee cannot read/write Branch B by changing a route parameter, request body, query parameter or stored branch selection.
+- [ ] Organization-wide owner views aggregate both branches correctly.
+- [ ] Patient/appointment/inventory/finance records created in Branch A remain correctly scoped and visible only to authorized contexts.
+- [ ] Branch transfer preserves audit/history and does not duplicate or orphan records.
+- [ ] Browser E2E covers the full create → configure → assign → switch → operate → archive lifecycle.
+
 ## Role and security matrix
 
 - [ ] Owner: organization-wide management, branch management, staff management, finance visibility according to existing permissions.
