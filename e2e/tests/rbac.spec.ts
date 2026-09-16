@@ -119,10 +119,11 @@ test.describe('RBAC - Role-Based Access Control', () => {
   test('RBAC-014: Cross-clinic branch mutation denied → 403/404', async () => {
     const ownerA = tokens['owner-a'];
     const ownerB = tokens['owner-b'];
-    const authRes = await api.post(`${BASE_URL}/api/auth/login`, { data: USERS['owner-a'] });
-    expect(authRes.ok()).toBeTruthy();
-    const authBody = await authRes.json();
-    const clinicId = authBody.data?.memberships?.[0]?.clinicId;
+    const clinicsRes = await api.get(`${BASE_URL}/api/auth/my-clinics`, { headers: authHeaders(ownerA) });
+    expect(clinicsRes.status()).toBe(200);
+    const clinicsBody = await clinicsRes.json();
+    const clinics = clinicsBody.data || clinicsBody;
+    const clinicId = Array.isArray(clinics) ? clinics[0]?.id : clinics?.id;
     expect(clinicId).toBeTruthy();
 
     const listRes = await api.get(`${BASE_URL}/api/branches?clinicId=${encodeURIComponent(clinicId)}`, { headers: authHeaders(ownerA) });
