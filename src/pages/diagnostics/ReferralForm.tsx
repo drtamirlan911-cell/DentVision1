@@ -15,6 +15,8 @@ import { queryKeys } from '@/queries/keys';
 import FileUploader from '@/components/diagnostics/FileUploader';
 import ToothSelector from '@/components/diagnostics/ToothSelector';
 import { fileToDataUrl } from '@/lib/image-upload';
+import { withEcosystemContext } from '@/config/ecosystemContextLink';
+import type { EcosystemUrlContext } from '@/hooks/useEcosystemUrlContext';
 
 type DiagCategory = '3D' | 'LABORATORY';
 const CATEGORIES: { value: DiagCategory; label: string; icon: React.ReactNode }[] = [
@@ -66,7 +68,13 @@ export default function ReferralForm() {
 
   const initialPatientName = searchParams.get('patientName') || '';
   const initialPatientPhone = searchParams.get('patientPhone') || '';
-  const initialPatientId = searchParams.get('patientId') || '';
+  const initialPatientId = searchParams.get('patientId') || searchParams.get('patient') || '';
+  const ecosystemContext: EcosystemUrlContext = {
+    patientId: initialPatientId || undefined,
+    caseId: searchParams.get('caseId') || undefined,
+    branchId: searchParams.get('branchId') || undefined,
+    organizationId: searchParams.get('organizationId') || undefined,
+  };
 
   const [category, setCategory] = useState<DiagCategory>('3D');
   const [form, setForm] = useState({
@@ -187,7 +195,7 @@ export default function ReferralForm() {
         }
       }
       toast.success('Направление создано');
-      navigate('/diagnostics/referrals');
+      navigate(withEcosystemContext('/diagnostics/referrals', ecosystemContext));
     },
     onError: (e: Error) => toast.error(e.message),
   });
@@ -236,15 +244,12 @@ export default function ReferralForm() {
         subtitle="Заполните информацию для направления на диагностику"
         icon={<Send size={22} />}
         actions={
-          <Button variant="ghost" size="sm" className="min-h-11" icon={<ArrowLeft size={16} />} onClick={() => navigate('/diagnostics')}>
+          <Button variant="ghost" size="sm" className="min-h-11" icon={<ArrowLeft size={16} />} onClick={() => navigate(withEcosystemContext('/diagnostics', ecosystemContext))}>
             Назад
           </Button>
         }
       />
 
-      {/* Списки центров и лабораторий питают выпадающие списки формы. Пустой
-          список от упавшего запроса читается как «поблизости никого нет», и
-          врач бросает направление, вместо того чтобы повторить. */}
       {(centersQuery.isError || labsQuery.isError) && (
         <QueryError
           what={centersQuery.isError ? 'список центров' : 'список лабораторий'}
@@ -347,7 +352,6 @@ export default function ReferralForm() {
         )}
       </Card>
 
-      {/* Tooth selector for 3D */}
       {category === '3D' && (
         <Card padding="md">
           <div className="flex items-center gap-2 mb-4">
@@ -394,7 +398,7 @@ export default function ReferralForm() {
           {selectedClinicId ? 'Направление от клиники — без ограничений' : 'Личный режим — до 5 направлений в день'}
         </div>
         <div className="flex gap-2">
-          <Button type="button" variant="ghost" className="min-h-11" onClick={() => navigate('/diagnostics')}>Отмена</Button>
+          <Button type="button" variant="ghost" className="min-h-11" onClick={() => navigate(withEcosystemContext('/diagnostics', ecosystemContext))}>Отмена</Button>
           <Button type="submit" variant="primary" className="min-h-11" loading={createMutation.isPending} icon={<Send size={16} />}>
             Отправить направление
           </Button>
