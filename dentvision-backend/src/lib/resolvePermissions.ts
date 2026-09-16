@@ -18,12 +18,22 @@ export async function resolveUserPermissions(
   scopeId?: string | null,
   fallbackRole?: string | null,
 ): Promise<string[]> {
-  // When a caller does not provide a scoped role, still establish the global
-  // User.role baseline before reading the DB graph. Returning only whatever
-  // PersonRole rows happen to be seeded would make a valid OWNER/DOCTOR/etc.
-  // appear to have a narrower permission set than the role contract.
-  const user = await prisma.user.findUnique({ where: { id: userId }, select: { role: true } });
-  const baselineRole = fallbackRole || user?.role || null;
+  // For an explicitly scoped lookup, the Person → PersonRole graph remains
+  // authoritative unless the caller already supplied the scoped role. An
+  // unscoped lookup has no role context, so use User.role as its baseline to
+  // prevent sparse PersonRole data from narrowing the global role contract.
+  let baselineRole = fallbackRole || null;
+  if (!baselineRole && !scopeId) {
+    try {
+      const user = await prisma.user.findUnique({
+        where: { id: userId },
+        select: { role: true },
+      });
+      baselineRole = user?.role || null;
+    } catch {
+      // Fall through to the DB graph / empty baseline below.
+    }
+  }
   const roleBaseline = baselineRole
     ? permissionsForRole(String(baselineRole).toUpperCase())
     : [];
