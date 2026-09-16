@@ -3,6 +3,13 @@
 -- branch (or earliest active branch) deterministically. New writes are then
 -- required to carry an explicit branch context by the route layer.
 
+-- These columns are canonicalized as branch_id. Keeping the migration
+-- self-provisioning makes it safe when an older database was created before
+-- the branch-scope columns were introduced by Prisma schema synchronization.
+ALTER TABLE patients ADD COLUMN IF NOT EXISTS branch_id TEXT;
+ALTER TABLE appointments ADD COLUMN IF NOT EXISTS branch_id TEXT;
+ALTER TABLE clinic_members ADD COLUMN IF NOT EXISTS branch_id TEXT;
+
 WITH chosen_branch AS (
   SELECT DISTINCT ON (clinic_id)
     clinic_id,
