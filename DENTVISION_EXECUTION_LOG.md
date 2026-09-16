@@ -179,3 +179,21 @@ The complete pre-2026-09-14 execution history is preserved in the parent Git his
 2. Continue targeted legacy visual-outlier scan without broad redesign.
 3. Add only deterministic E2E coverage for high-value gaps; do not weaken existing assertions.
 4. Run the branch's Quality Gate and inspect every resulting job before merging.
+
+## 2026-09-16 — Ecosystem clinical-case continuity pass
+
+### Implemented
+- `48beaea9bc127944b27ec90df16d6ba26590802b` — Diagnostics workspace now reads the shared ecosystem URL context and renders the compact clinical-case flow whenever a patient/case context is present. Existing diagnostic navigation, partner-cabinet switching and authorization behavior were preserved.
+- `e61f10d69222cbfcc723720e1bf0db2c32ff762b` — the main Intelligence shell now exposes the same compact clinical-case flow across non-Diagnostics workspaces when `patient`, `caseId`, `branchId` or `organizationId` context is present. This makes the case a persistent cross-module workspace instead of a one-time navigation destination.
+- Confirmed `src/pages/crm/ClinicalCaseWorkspace.tsx` exists and the canonical `/crm/cases` route is already mounted in `src/index.tsx`; no duplicate case implementation was created.
+
+### Product effect
+- Clinical context now remains visible while moving through CRM, Treatment Plans, Finance, Laboratory, Market and AI, while Diagnostics retains its own domain shell.
+- The intended ecosystem chain is now represented as a persistent navigation model: **Patient → Clinical Case → Diagnostics → Treatment → Laboratory → Market → Appointment → Finance → AI**.
+- No CI/E2E verification was run in this build-first pass by design; these changes are therefore **UNVERIFIED** until the next release-gate run.
+
+### Next action
+1. Continue the same vertical slice into diagnostic referral/result context, medical-lab analysis and dental-lab order context.
+2. Wire supplier/Market selection and finance records back to the clinical case without duplicating domain logic.
+3. Perform the premium visual pass after the functional ecosystem chain is complete.
+4. Then run the complete release gates and fix only evidence-backed failures.
