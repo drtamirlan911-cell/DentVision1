@@ -3,6 +3,8 @@ import crypto from 'node:crypto';
 import prisma from '../../lib/prisma.js';
 import { authenticate } from '../../middleware/auth.js';
 import type { AuthRequest, ApiResponse } from '../../types/index.js';
+import { resolveUserPermissions } from '../../lib/resolvePermissions.js';
+import { pagesForCaller, capabilitiesForPermissions } from '../../lib/permissions.js';
 
 export const authMeRouter = Router();
 
@@ -14,6 +16,21 @@ authMeRouter.get('/me', authenticate, async (req: AuthRequest, res) => {
     orderBy: { joinedAt: 'asc' },
   });
   const activeMembership = memberships[0] || null;
+
+  // `/me` is also the session-hydration contract used by the frontend. It must
+  // return the same effective IAM policy as login, otherwise a successful login
+  // can be immediately overwritten by an empty `pages` array and every guarded
+  // CRM route redirects to the AI workspace. The authenticated request already
+  // carries the effective scoped role, so use it as the resolver baseline even
+  // for legacy clinic contexts whose organizationId is the clinic id.
+  const effectiveRole = String(user.role || 'USER').toUpperCase();
+  const effectivePermissions = await resolveUserPermissions(
+    user.id,
+    user.organizationId || user.clinicId || null,
+    effectiveRole,
+  );
+  const pages = pagesForCaller(effectivePermissions, effectiveRole);
+  const capabilities = capabilitiesForPermissions(effectivePermissions, effectiveRole);
 
   return res.json({
     ok: true,
@@ -43,6 +60,10 @@ authMeRouter.get('/me', authenticate, async (req: AuthRequest, res) => {
             clinic: activeMembership.clinic,
           }
         : null,
+      permissions: effectivePermissions,
+      pages,
+      capabilities,
+      effectiveRole,
     },
   } satisfies ApiResponse);
 });
