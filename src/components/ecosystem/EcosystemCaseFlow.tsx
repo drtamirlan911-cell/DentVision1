@@ -4,6 +4,9 @@ import { useNavigate } from 'react-router-dom';
 import { cn } from '@/lib/utils';
 import EcosystemContextBridge from './EcosystemContextBridge';
 import EcosystemRelationRail from './EcosystemRelationRail';
+import { withEcosystemContext } from '@/config/ecosystemContextLink';
+import { resolveEcosystemRoute } from '@/config/ecosystemRouteResolver';
+import type { EcosystemUrlContext } from '@/hooks/useEcosystemUrlContext';
 
 export interface EcosystemCaseFlowProps {
   patientId?: string;
@@ -26,12 +29,7 @@ const FLOW = [
 
 export default function EcosystemCaseFlow({ patientId, caseId, branchId, organizationId, className, compact = false }: EcosystemCaseFlowProps) {
   const navigate = useNavigate();
-  const query = new URLSearchParams();
-  if (patientId) query.set('patient', patientId);
-  if (caseId) query.set('caseId', caseId);
-  if (branchId) query.set('branchId', branchId);
-  if (organizationId) query.set('organizationId', organizationId);
-  const suffix = query.toString() ? `?${query.toString()}` : '';
+  const context: EcosystemUrlContext = { patientId, caseId, branchId, organizationId };
 
   return (
     <section className={cn('space-y-3', className)} aria-label="Связанный рабочий процесс DentVision">
@@ -50,7 +48,7 @@ export default function EcosystemCaseFlow({ patientId, caseId, branchId, organiz
               <React.Fragment key={label}>
                 <button
                   type="button"
-                  onClick={() => navigate(`${target}${suffix}`)}
+                  onClick={() => navigate(withEcosystemContext(resolveEcosystemRoute(target), context))}
                   className="inline-flex min-h-9 shrink-0 items-center gap-1.5 rounded-lg border border-bdr-subtle bg-surface-2 px-2.5 text-[11px] font-medium text-txt-secondary transition hover:border-bdr-focus hover:bg-surface-3 hover:text-txt-primary"
                 >
                   <Icon size={13} className={index === 0 ? 'text-dv-gold' : undefined} />
