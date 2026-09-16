@@ -30,32 +30,36 @@ test.describe('Authentication API', () => {
     const user = body.data?.user || body.user;
     expect(user).toBeDefined();
     expect(user.email).toBe(freshEmail);
+    expect(user.role).toBe('STUDENT');
 
     await cleanupTestUser(freshEmail);
   });
 
-  test('AUTH-012: Self-registration role is persisted and returned by the backend', async () => {
+  test('AUTH-012: Public registration cannot grant privileged organization roles', async () => {
     const ownerEmail = `auth-owner-${Date.now()}@test.com`;
     const doctorEmail = `auth-doctor-${Date.now()}@test.com`;
+    const labEmail = `auth-lab-${Date.now()}@test.com`;
 
-    const ownerRes = await api.post(`${BASE_URL}/api/auth/register`, {
-      data: { email: ownerEmail, password: testPassword, firstName: 'Owner', lastName: 'Test', role: 'owner' },
-    });
-    expect(ownerRes.status()).toBe(201);
-    const ownerBody = await ownerRes.json();
-    expect(ownerBody.data?.user?.role).toBe('OWNER');
-    expect(ownerBody.data?.accessToken).toBeDefined();
+    for (const [email, role] of [
+      [ownerEmail, 'owner'],
+      [doctorEmail, 'doctor'],
+      [labEmail, 'lab'],
+    ] as const) {
+      const res = await api.post(`${BASE_URL}/api/auth/register`, {
+        data: { email, password: testPassword, firstName: 'Role', lastName: 'Test', role },
+      });
+      expect(res.status()).toBe(201);
+      const body = await res.json();
+      expect(body.data?.user?.role).toBe('STUDENT');
+      expect(body.data?.accessToken).toBeDefined();
 
-    const doctorRes = await api.post(`${BASE_URL}/api/auth/register`, {
-      data: { email: doctorEmail, password: testPassword, firstName: 'Doctor', lastName: 'Test', role: 'doctor' },
-    });
-    expect(doctorRes.status()).toBe(201);
-    const doctorBody = await doctorRes.json();
-    expect(doctorBody.data?.user?.role).toBe('DOCTOR');
-    expect(doctorBody.data?.accessToken).toBeDefined();
+      const dbUser = await prisma.user.findUnique({ where: { email }, select: { role: true } });
+      expect(dbUser?.role).toBe('STUDENT');
+    }
 
     await cleanupTestUser(ownerEmail);
     await cleanupTestUser(doctorEmail);
+    await cleanupTestUser(labEmail);
   });
 
   test('AUTH-005: Register with existing email → 409', async () => {
