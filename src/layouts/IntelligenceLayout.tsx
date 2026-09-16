@@ -37,12 +37,7 @@ export const IntelligenceLayout: React.FC = () => {
   const location = useLocation();
   const { user, clinic, isAuthenticated, roleInfo, logout } = useAuth();
   const { isGuest, isGuestRoute, requiresAuth, initGuest, retryGuest, initError, showRegistrationModal, setRegistrationModal } = useGuestStore();
-  const {
-    sidebarOpen, toggleSidebar, contextSheetOpen, setContextSheetOpen, sidebarCollapsed,
-    setSidebarCollapsed, sidebarPinned, sidebarVisible, setSidebarVisible, sidebarHovering,
-    setSidebarHovering, firstRunPhase, setFirstRunPhase, completeFirstRun,
-    toggleSidebarCollapsed, crumbTailLabel,
-  } = useUIStore();
+  const { sidebarOpen, toggleSidebar, contextSheetOpen, setContextSheetOpen, sidebarCollapsed, setSidebarCollapsed, sidebarPinned, sidebarVisible, setSidebarVisible, sidebarHovering, setSidebarHovering, firstRunPhase, setFirstRunPhase, completeFirstRun, toggleSidebarCollapsed, crumbTailLabel } = useUIStore();
   const setOnboardingComplete = useWorkspaceStore((s) => s.setOnboardingComplete);
   const isPublicRoute = isGuestRoute(location.pathname);
   const needsAuth = requiresAuth(location.pathname) && !isAuthenticated;
@@ -59,41 +54,22 @@ export const IntelligenceLayout: React.FC = () => {
   const openTs = useRef(Date.now());
   const { t } = useTranslation();
   const BREADCRUMB_LABELS: Record<string, string> = {
-    crm: 'CRM', schedule: t('nav.schedule'), patients: t('nav.patients'), 'medical-card': t('nav.medical_card'),
-    finance: t('nav.finance'), cashier: t('nav.cashier'), inventory: t('nav.inventory'), documents: t('nav.documents'),
-    'dental-chart': t('nav.dental_chart'), 'treatment-plans': t('nav.treatment_plans'), lab: t('nav.lab'),
-    pricelist: t('nav.pricelist'), staff: t('nav.staff'), reminders: t('nav.reminders'), promotions: t('nav.promotions'),
-    icd10: t('nav.icd10'), visits: t('nav.visits'), profile: t('nav.profile'), 'clinic-settings': t('nav.clinic_settings'),
-    billing: t('nav.billing'), settings: t('nav.settings'), admin: t('nav.administration'), audit: t('nav.audit'), backup: t('nav.backup'),
-    supplier: t('nav.supplier_cabinet'), shop: t('nav.shop'), school: 'Academy OS', 'school-workspace': t('nav.school_workspace'),
-    'center-workspace': t('nav.center_workspace'), analytics: t('nav.analytics'), jobs: t('nav.jobs'), community: t('nav.community'),
+    crm: 'CRM', schedule: t('nav.schedule'), patients: t('nav.patients'), 'medical-card': t('nav.medical_card'), finance: t('nav.finance'), cashier: t('nav.cashier'), inventory: t('nav.inventory'), documents: t('nav.documents'), 'dental-chart': t('nav.dental_chart'), 'treatment-plans': t('nav.treatment_plans'), lab: t('nav.lab'), pricelist: t('nav.pricelist'), staff: t('nav.staff'), reminders: t('nav.reminders'), promotions: t('nav.promotions'), icd10: t('nav.icd10'), visits: t('nav.visits'), profile: t('nav.profile'), 'clinic-settings': t('nav.clinic_settings'), billing: t('nav.billing'), settings: t('nav.settings'), admin: t('nav.administration'), audit: t('nav.audit'), backup: t('nav.backup'), supplier: t('nav.supplier_cabinet'), shop: t('nav.shop'), school: 'Academy OS', 'school-workspace': t('nav.school_workspace'), 'center-workspace': t('nav.center_workspace'), analytics: t('nav.analytics'), jobs: t('nav.jobs'), community: t('nav.community'),
   };
   const clinicId = user?.clinicId || clinic?.id || null;
-  const { data: billingSnap } = useQuery({
-    queryKey: ['clinic-billing-access', clinicId], queryFn: () => api.getClinicBilling(),
-    enabled: Boolean(clinicId) && isAuthenticated && !isGuest && Boolean(roleInfo?.canManageFinance), staleTime: 60_000, retry: 1,
-  });
+  const { data: billingSnap } = useQuery({ queryKey: ['clinic-billing-access', clinicId], queryFn: () => api.getClinicBilling(), enabled: Boolean(clinicId) && isAuthenticated && !isGuest && Boolean(roleInfo?.canManageFinance), staleTime: 60_000, retry: 1 });
   const handleAIQuery = useCallback((query: string) => navigate('/', { state: { aiQuery: query } }), [navigate]);
   const getBreadcrumbs = useCallback(() => {
     const segments = location.pathname.split('/').filter(Boolean);
     if (segments.length === 0) return [{ label: 'AI Workspace', path: '/' }];
     const crumbs: { label: string; path: string }[] = [];
     let accumulated = '';
-    for (let i = 0; i < segments.length; i++) {
-      const seg = segments[i]; accumulated += '/' + seg; const isLast = i === segments.length - 1;
-      let label = BREADCRUMB_LABELS[seg] || seg;
-      if (UUID_SEG_RE.test(seg)) label = (isLast && crumbTailLabel) || t('nav.breadcrumb_product');
-      else if (isLast && crumbTailLabel && !BREADCRUMB_LABELS[seg]) label = crumbTailLabel;
-      crumbs.push({ label, path: accumulated });
-    }
+    for (let i = 0; i < segments.length; i += 1) { const seg = segments[i]; accumulated += '/' + seg; const isLast = i === segments.length - 1; let label = BREADCRUMB_LABELS[seg] || seg; if (UUID_SEG_RE.test(seg)) label = (isLast && crumbTailLabel) || t('nav.breadcrumb_product'); else if (isLast && crumbTailLabel && !BREADCRUMB_LABELS[seg]) label = crumbTailLabel; crumbs.push({ label, path: accumulated }); }
     return crumbs;
   }, [location.pathname, crumbTailLabel, t]);
   useEffect(() => { if (!isMobile) setContextSheetOpen(false); }, [isMobile, setContextSheetOpen]);
   useEffect(() => { const timer = setTimeout(() => { void loadProactiveAlerts(); }, 500); return () => clearTimeout(timer); }, [loadProactiveAlerts]);
-  useEffect(() => {
-    if (!isGuest) return; setSidebarVisible(true); setSidebarCollapsed(false); setFirstRunPhase('done'); completeFirstRun();
-    setOnboardingComplete(true); firstRunBooted.current = true; if (!isMobile) setContextSheetOpen(true);
-  }, [isGuest, isMobile, setSidebarVisible, setSidebarCollapsed, setFirstRunPhase, completeFirstRun, setOnboardingComplete, setContextSheetOpen]);
+  useEffect(() => { if (!isGuest) return; setSidebarVisible(true); setSidebarCollapsed(false); setFirstRunPhase('done'); completeFirstRun(); setOnboardingComplete(true); firstRunBooted.current = true; if (!isMobile) setContextSheetOpen(true); }, [isGuest, isMobile, setSidebarVisible, setSidebarCollapsed, setFirstRunPhase, completeFirstRun, setOnboardingComplete, setContextSheetOpen]);
   useEffect(() => {
     if (isGuest || firstRunBooted.current) return;
     if (firstRunPhase === 'done') { setSidebarVisible(true); return; }
@@ -109,9 +85,7 @@ export const IntelligenceLayout: React.FC = () => {
     collapseTimerRef.current = setTimeout(() => { setSidebarCollapsed(true); setFirstRunPhase('collapsed'); completeFirstRun(); setOnboardingComplete(true); trackProductEvent('sidebar_auto_collapsed', { after_ms: FIRST_RUN_COLLAPSE_MS }); }, FIRST_RUN_COLLAPSE_MS);
     return clear;
   }, [isGuest, firstRunPhase, sidebarPinned, sidebarHovering, isMobile, setSidebarCollapsed, setFirstRunPhase, completeFirstRun, setOnboardingComplete]);
-  useEffect(() => {
-    if (location.pathname !== '/' && firstRunPhase !== 'done') { completeFirstRun(); setOnboardingComplete(true); setFirstRunPhase('done'); setSidebarVisible(true); trackProductEvent('first_navigation', { target: location.pathname, t_ms: Date.now() - openTs.current }); }
-  }, [location.pathname, firstRunPhase, completeFirstRun, setOnboardingComplete, setFirstRunPhase, setSidebarVisible]);
+  useEffect(() => { if (location.pathname !== '/' && firstRunPhase !== 'done') { completeFirstRun(); setOnboardingComplete(true); setFirstRunPhase('done'); setSidebarVisible(true); trackProductEvent('first_navigation', { target: location.pathname, t_ms: Date.now() - openTs.current }); } }, [location.pathname, firstRunPhase, completeFirstRun, setOnboardingComplete, setFirstRunPhase, setSidebarVisible]);
   useEffect(() => {
     const isClinicPage = location.pathname.startsWith('/crm') || location.pathname === '/analytics' || location.pathname === '/bi';
     if (!isClinicPage || !isAuthenticated || isGuest) return;
@@ -121,11 +95,7 @@ export const IntelligenceLayout: React.FC = () => {
   useEffect(() => { if (!isAuthenticated && !isGuest && !isPublicRoute) void initGuest(); }, [isAuthenticated, isGuest, isPublicRoute, initGuest]);
   const isCRMRoute = location.pathname.startsWith('/crm');
   const autoDemo = new URLSearchParams(location.search).get('demo') === '1';
-  useEffect(() => {
-    if (!needsAuth || !isGuest) return;
-    if (isCRMRoute) { setGuestCRMOpen(true); return; }
-    if (!showRegistrationModal) { const pendingPath = location.pathname; setRegistrationModal(true, () => navigate(pendingPath)); }
-  }, [needsAuth, isGuest, isCRMRoute, showRegistrationModal, location.pathname, setRegistrationModal, navigate]);
+  useEffect(() => { if (!needsAuth || !isGuest) return; if (isCRMRoute) { setGuestCRMOpen(true); return; } if (!showRegistrationModal) { const pendingPath = location.pathname; setRegistrationModal(true, () => navigate(pendingPath)); } }, [needsAuth, isGuest, isCRMRoute, showRegistrationModal, location.pathname, setRegistrationModal, navigate]);
   if (needsAuth) {
     if (isGuest) {
       if (isCRMRoute) return <div className="fixed inset-0 z-50 bg-surface-0 overflow-hidden flex items-center justify-center"><div className="text-center space-y-4"><div className="mx-auto w-16 h-16 rounded-2xl bg-dv-gold/15 flex items-center justify-center"><Stethoscope size={24} className="text-dv-gold" /></div><h2 className="text-lg font-semibold text-txt-primary">{t('crm.crm_title')}</h2><p className="text-sm text-txt-secondary max-w-xs">{t('crm.crm_subtitle')}</p></div><GuestCRMModal open={guestCRMOpen} autoStartDemo={autoDemo} onClose={() => { setGuestCRMOpen(false); navigate('/'); }} /></div>;
@@ -151,10 +121,9 @@ export const IntelligenceLayout: React.FC = () => {
           <motion.div key={`${location.pathname}:${clinic?.id || 'none'}`} initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.12 }} className={cn('min-w-0 w-full max-w-full overflow-x-hidden', isAIHome ? 'flex-1 min-h-0 h-full' : 'h-full')}><ErrorBoundary fullPage={false}><Outlet context={{ user, clinic, roleInfo, billingSnap }} /></ErrorBoundary></motion.div>
         </div>
       </div>
-      {!isMobile && <AnimatePresence>{contextSheetOpen && <motion.aside initial={{ width: 0, opacity: 0 }} animate={{ width: 320, opacity: 1 }} exit={{ width: 0, opacity: 0 }} transition={{ type: 'spring', stiffness: 350, damping: 30 }} className="hidden lg:flex flex-col border-l border-bdr-subtle bg-surface-1 overflow-hidden flex-shrink-0 h-full"><ContextPanel onClose={() => setContextSheetOpen(false)} clinic={clinic} user={user} role={roleInfo} /></motion.aside></AnimatePresence>}
+      {!isMobile && <AnimatePresence>{contextSheetOpen && <motion.aside initial={{ width: 0, opacity: 1 }} animate={{ width: 320, opacity: 1 }} exit={{ width: 0, opacity: 0 }} transition={{ type: 'spring', stiffness: 350, damping: 30 }} className="hidden lg:flex flex-col border-l border-bdr-subtle bg-surface-1 overflow-hidden flex-shrink-0 h-full"><ContextPanel onClose={() => setContextSheetOpen(false)} clinic={clinic} user={user} role={roleInfo} /></motion.aside></AnimatePresence>}
       <AnimatePresence>{isMobile && contextSheetOpen && <><motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-40 bg-black/50 backdrop-blur-sm" onClick={() => setContextSheetOpen(false)} /><motion.div initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }} transition={{ type: 'spring', stiffness: 300, damping: 30 }} drag="y" dragConstraints={{ top: 0, bottom: 0 }} dragElastic={0.3} onDragEnd={(_, info) => { if (info.offset.y > 100) setContextSheetOpen(false); }} className="fixed bottom-0 left-0 right-0 z-50 max-h-[min(85vh,85dvh)] bg-surface-1 border-t border-bdr-subtle rounded-t-2xl shadow-2xl flex flex-col" style={{ paddingBottom: 'var(--dv-safe-bottom)' }}><div className="flex h-12 items-center justify-center border-b border-bdr-subtle cursor-grab active:cursor-grabbing touch-pan-y" onClick={() => setContextSheetOpen(false)}><div className="h-1 w-10 rounded-full bg-txt-muted" /></div><div className="flex-1 overflow-y-auto"><ContextPanel onClose={() => setContextSheetOpen(false)} clinic={clinic} user={user} role={roleInfo} /></div></motion.div></>}</AnimatePresence>
       <CommandPalette open={cmdOpen} onClose={() => setCmdOpen(false)} onAIQuery={handleAIQuery} />{isMobile && <BottomNav />}<RegistrationModal />
     </div>
   );
 };
-export default IntelligenceLayout;
