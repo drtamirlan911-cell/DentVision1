@@ -26,6 +26,8 @@ import * as api from '@/utils/api';
 import LanguageSwitcher from '@/components/LanguageSwitcher';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { ClinicalAIContextBridge } from '@/components/superapp/ClinicalAIContextBridge';
+import EcosystemCaseFlow from '@/components/ecosystem/EcosystemCaseFlow';
+import { useEcosystemUrlContext } from '@/hooks/useEcosystemUrlContext';
 
 const FIRST_RUN_COLLAPSE_MS = 15_000;
 const UUID_SEG_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -48,6 +50,7 @@ export const IntelligenceLayout: React.FC = () => {
   const proactiveAlerts = useAIStore((s) => s.proactiveAlerts);
   const loadProactiveAlerts = useAIStore((s) => s.loadProactiveAlerts);
   const isMobile = useCompactShell();
+  const { patientId, caseId, branchId, organizationId } = useEcosystemUrlContext();
   const [alertDropdownOpen, setAlertDropdownOpen] = useState(false);
   const [guestCRMOpen, setGuestCRMOpen] = useState(false);
   const { open: cmdOpen, setOpen: setCmdOpen } = useCommandPalette();
@@ -60,10 +63,10 @@ export const IntelligenceLayout: React.FC = () => {
     finance: t('nav.finance'), cashier: t('nav.cashier'), inventory: t('nav.inventory'), documents: t('nav.documents'),
     'dental-chart': t('nav.dental_chart'), 'treatment-plans': t('nav.treatment_plans'), lab: t('nav.lab'),
     pricelist: t('nav.pricelist'), staff: t('nav.staff'), reminders: t('nav.reminders'), promotions: t('nav.promotions'),
-    icd10: t('nav.icd10'), visits: t('nav.visits'), supplier: t('nav.supplier_cabinet'), shop: t('nav.shop'), school: 'Academy OS',
-    'school-workspace': t('nav.school_workspace'), 'center-workspace': t('nav.center_workspace'), analytics: t('nav.analytics'),
-    jobs: t('nav.jobs'), community: t('nav.community'), profile: t('nav.profile'), 'clinic-settings': t('nav.clinic_settings'),
+    icd10: t('nav.icd10'), visits: t('nav.visits'), profile: t('nav.profile'), 'clinic-settings': t('nav.clinic_settings'),
     billing: t('nav.billing'), settings: t('nav.settings'), admin: t('nav.administration'), audit: t('nav.audit'), backup: t('nav.backup'),
+    supplier: t('nav.supplier_cabinet'), shop: t('nav.shop'), school: 'Academy OS', 'school-workspace': t('nav.school_workspace'),
+    'center-workspace': t('nav.center_workspace'), analytics: t('nav.analytics'), jobs: t('nav.jobs'), community: t('nav.community'),
   };
   const clinicId = user?.clinicId || clinic?.id || null;
   const { data: billingSnap } = useQuery({
@@ -130,6 +133,7 @@ export const IntelligenceLayout: React.FC = () => {
     }
     return <Navigate to="/login" replace state={{ from: location.pathname }} />;
   }
+  const showCaseFlow = Boolean(patientId || caseId) && !location.pathname.startsWith('/diagnostics');
   return (
     <div className="fixed inset-0 z-50 bg-surface-0 overflow-hidden flex">
       <ClinicalAIContextBridge />
@@ -143,10 +147,11 @@ export const IntelligenceLayout: React.FC = () => {
         <div className={cn('flex-1 bg-surface-0 relative min-h-0', isAIHome ? 'overflow-hidden flex flex-col' : 'overflow-y-auto overflow-x-hidden dv-content-pad-bottom')}>
           {billingSnap ? <div className="px-3 pt-3 md:px-4 md:pt-4 shrink-0"><PlanAccessBanner snap={billingSnap} /></div> : null}
           {!isAuthenticated && initError ? <div className="px-3 pt-3 md:px-4 md:pt-4 shrink-0"><div className="rounded-xl border border-amber-500/30 bg-amber-500/10 px-3 py-2.5 flex flex-wrap items-center gap-2 sm:gap-3"><p className="text-xs sm:text-sm text-txt-primary m-0 flex-1">{t('auth.guest_session_error')}</p><button type="button" onClick={() => { void retryGuest(); }} className="px-3 py-1.5 rounded-lg bg-dv-gold/15 text-dv-gold text-xs font-semibold hover:bg-dv-gold/25">{t('common.retry')}</button><button type="button" onClick={() => navigate('/login')} className="px-3 py-1.5 rounded-lg border border-bdr-subtle text-txt-secondary text-xs hover:text-txt-primary">{t('auth.login')}</button></div></div> : null}
+          {showCaseFlow && <div className="px-3 pt-3 md:px-4 md:pt-4 shrink-0"><EcosystemCaseFlow patientId={patientId} caseId={caseId} branchId={branchId} organizationId={organizationId} compact /></div>}
           <motion.div key={`${location.pathname}:${clinic?.id || 'none'}`} initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.12 }} className={cn('min-w-0 w-full max-w-full overflow-x-hidden', isAIHome ? 'flex-1 min-h-0 h-full' : 'h-full')}><ErrorBoundary fullPage={false}><Outlet context={{ user, clinic, roleInfo, billingSnap }} /></ErrorBoundary></motion.div>
         </div>
       </div>
-      {!isMobile && <AnimatePresence>{contextSheetOpen && <motion.aside initial={{ width: 0, opacity: 0 }} animate={{ width: 320, opacity: 1 }} exit={{ width: 0, opacity: 0 }} transition={{ type: 'spring', stiffness: 350, damping: 30 }} className="hidden lg:flex flex-col border-l border-bdr-subtle bg-surface-1 overflow-hidden flex-shrink-0 h-full"><ContextPanel onClose={() => setContextSheetOpen(false)} clinic={clinic} user={user} role={roleInfo} /></motion.aside>}</AnimatePresence>}
+      {!isMobile && <AnimatePresence>{contextSheetOpen && <motion.aside initial={{ width: 0, opacity: 0 }} animate={{ width: 320, opacity: 1 }} exit={{ width: 0, opacity: 0 }} transition={{ type: 'spring', stiffness: 350, damping: 30 }} className="hidden lg:flex flex-col border-l border-bdr-subtle bg-surface-1 overflow-hidden flex-shrink-0 h-full"><ContextPanel onClose={() => setContextSheetOpen(false)} clinic={clinic} user={user} role={roleInfo} /></motion.aside></AnimatePresence>}
       <AnimatePresence>{isMobile && contextSheetOpen && <><motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-40 bg-black/50 backdrop-blur-sm" onClick={() => setContextSheetOpen(false)} /><motion.div initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }} transition={{ type: 'spring', stiffness: 300, damping: 30 }} drag="y" dragConstraints={{ top: 0, bottom: 0 }} dragElastic={0.3} onDragEnd={(_, info) => { if (info.offset.y > 100) setContextSheetOpen(false); }} className="fixed bottom-0 left-0 right-0 z-50 max-h-[min(85vh,85dvh)] bg-surface-1 border-t border-bdr-subtle rounded-t-2xl shadow-2xl flex flex-col" style={{ paddingBottom: 'var(--dv-safe-bottom)' }}><div className="flex h-12 items-center justify-center border-b border-bdr-subtle cursor-grab active:cursor-grabbing touch-pan-y" onClick={() => setContextSheetOpen(false)}><div className="h-1 w-10 rounded-full bg-txt-muted" /></div><div className="flex-1 overflow-y-auto"><ContextPanel onClose={() => setContextSheetOpen(false)} clinic={clinic} user={user} role={roleInfo} /></div></motion.div></>}</AnimatePresence>
       <CommandPalette open={cmdOpen} onClose={() => setCmdOpen(false)} onAIQuery={handleAIQuery} />{isMobile && <BottomNav />}<RegistrationModal />
     </div>
