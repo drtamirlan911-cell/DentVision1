@@ -21,6 +21,7 @@ export const E2E_USERS: E2EUser[] = [
   { email: 'admin-a@test.com', firstName: 'Admin', lastName: 'ClinicA', role: 'ADMIN', clinic: 'A' },
   { email: 'doctor-a@test.com', firstName: 'Doctor', lastName: 'ClinicA', role: 'DOCTOR', clinic: 'A' },
   { email: 'assistant-a@test.com', firstName: 'Assistant', lastName: 'ClinicA', role: 'ASSISTANT', clinic: 'A' },
+  { email: 'manager-a@test.com', firstName: 'Manager', lastName: 'ClinicA', role: 'MANAGER', clinic: 'A' },
   { email: 'owner-b@test.com', firstName: 'Owner', lastName: 'ClinicB', role: 'OWNER', clinic: 'B' },
   { email: 'doctor-b@test.com', firstName: 'Doctor', lastName: 'ClinicB', role: 'DOCTOR', clinic: 'B' },
   { email: 'regular@test.com', firstName: 'Regular', lastName: 'User', role: 'STUDENT', clinic: null },
