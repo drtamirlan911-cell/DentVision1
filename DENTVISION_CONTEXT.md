@@ -8,7 +8,9 @@
 - Persistent execution directive: `DENTVISION_OPERATING_DIRECTIVE.md`.
 - Execution plan: `DENTVISION_EXECUTION_PLAN.md`.
 - Execution evidence/history: `DENTVISION_EXECUTION_LOG.md`.
-- Product north star/requirements: `DENTVISION_SUPERAPP_BLUEPRINT.md` and `DENTVISION_SUPERAPP_MASTER_PLAN.md`.
+- Product/system source of truth: `docs/DENTVISION_MASTER_SPEC.md`.
+- Product quality law: `docs/00_CONSTITUTION/02_PRODUCT_DNA.md`.
+- Retained reference blueprint: `DENTVISION_SUPERAPP_BLUEPRINT.md`.
 - Canonical economics: `docs/business/DENTVISION_PARTNER_ECONOMICS.md`.
 
 ## 2. Authority and anti-confusion rules
@@ -17,11 +19,13 @@
 3. The Operating Directive is the persistent implementation/growth contract and must survive chat/session changes.
 4. The Execution Plan controls sequencing and Definition of Done.
 5. The Execution Log records material changes and evidence.
-6. Blueprint/master plan define requirements, not proof of implementation.
-7. Economics policy is the only canonical pricing/commission/accounting source.
-8. Never mark DONE because a route, screen, model, or document exists.
-9. Never create a competing roadmap, current-state file, release gate or economics policy without a clearly different purpose.
-10. Preserve all unfinished previous work while adding new priorities.
+6. `docs/DENTVISION_MASTER_SPEC.md` is the single normative Product/System source of truth.
+7. Product DNA is the constitutional quality law.
+8. `DENTVISION_SUPERAPP_BLUEPRINT.md` is a retained reference blueprint and must not compete with the Master Spec.
+9. Economics policy is the only canonical pricing/commission/accounting source.
+10. Never mark DONE because a route, screen, model, or document exists.
+11. Never create a competing roadmap, current-state file, release gate or product specification without a clearly different bounded purpose.
+12. Preserve all unfinished previous work while adding new priorities.
 
 ## 3. Status vocabulary
 - DONE = implementation + workflow + verification evidence agree.
@@ -32,26 +36,30 @@
 - CONFLICT = sources disagree; resolve from current evidence.
 
 ## 4. Product north star
-DentVision is one Dental Operating System, not separate CRM/Shop/Academy/AI products. The central connector is the Clinical/Treatment Case.
+DentVision is one Dental Operating System and ecosystem for the whole dental industry, not a clinic-first CRM.
 
-Canonical graph:
+Clinics, professionals, patients/buyers, diagnostic centers, radiologists, medical laboratories, dental laboratories, suppliers, academies, lecturers, students, employers, job seekers and platform roles are first-class participants according to the implemented identity, organization, workspace and permission model.
+
+Clinical graph:
 `Patient → Diagnosis → Imaging → AI Findings → Treatment Plan → Appointments → Procedures → Lab → Materials → Documents → Payments → Communication → Follow-up → Outcome`
+
+Cross-ecosystem graph:
+`Professional / Organization ↔ Network ↔ Practice ↔ Diagnostics ↔ Laboratory ↔ Shop/Suppliers ↔ Academy ↔ Jobs ↔ Finance ↔ AI`
+
+The UI uses progressive disclosure: the underlying ecosystem remains complete, while each user sees the context and next useful action relevant to their role and task.
 
 AI action lifecycle:
 `Intent → Context → Permission → Plan → Preview → Confirmation when required → Execute → Verify → Audit`
 
-Core workspaces: Home/Today, Practice/CRM, Diagnostics, AI, Shop, Academy, Analytics and Network, with role-based administration and mobile navigation.
-
-## 5. Verified repository state — 2026-09-14
-- PR #275 was merged into `main` as `b1daa27c0e0b4c446a9350186107b438ac8ba342`; older branch documents describing it as open are stale.
-- `main` has since advanced to `83259a9a8424f6c4796ebaa64850b6d218ae1489` with the latest auth/release-gate hardening changes.
-- GitHub workflow lookup currently returns no workflow run for `83259a9a...`; combined status currently exposes only Vercel, which is **PENDING**. Therefore post-change CI/release status is **UNVERIFIED**, not green by assumption.
-- Vercel availability/status is an external deployment signal and is not proof of code correctness.
+## 5. Verified repository state — 2026-09-16
+- `main` contains the latest security/release-gate hardening and the current documentation consolidation.
+- Latest verified fully green core CI evidence recorded in the execution log is run `35066089223` on exact HEAD `844b469e084dd5acec6fb45f26d28757c27a3568`: frontend lint, build/typecheck/unit, backend lint, full E2E, browser UX, Business Owner journeys, Organization Owner lifecycle release gate and Playwright CLI smoke passed.
+- A later branch-deactivation test hardening commit exists after that run; therefore the latest main state still requires a fresh CI verification before it can be treated as green.
 
 ### Product status
-- Clinical RBAC boundary: **IMPLEMENTED + unit coverage** for clinical writes/signing; fresh CI evidence still required.
-- IAM / role matrix / tenant and branch isolation: **PARTIAL**; negative-path matrix still required.
-- Active-session enforcement: **IMPLEMENTED + E2E regression added**; revoked session must return 401.
+- Clinical RBAC boundary: IMPLEMENTED + unit coverage; fresh CI required after later main changes.
+- IAM / role matrix / tenant and branch isolation: PARTIAL; negative-path matrix continues.
+- Active-session enforcement: IMPLEMENTED + E2E regression.
 - Partner onboarding: PARTIAL.
 - Economics engine/ledger: PARTIAL; deterministic engine and rule snapshots exist, durable paid→settled medical-analysis and full reconciliation remain open.
 - Clinical OS / Treatment Case: PARTIAL.
@@ -61,136 +69,79 @@ Core workspaces: Home/Today, Practice/CRM, Diagnostics, AI, Shop, Academy, Analy
 - AI control plane: PARTIAL.
 - Marketplace / Academy / Jobs / Community: PARTIAL.
 - Finance Hub: PARTIAL.
-- UX/design system: PARTIAL.
+- UX/design system: PARTIAL; documentation now establishes ecosystem-first progressive-disclosure direction.
 - Web release: NOT READY until fresh gates prove the target commit.
 - True natural interactive 32-tooth WebGL/3D odontogram: NOT IMPLEMENTED; current dental chart is not evidence of a WebGL renderer.
 - Android release: UNVERIFIED until fresh build/install/runtime evidence exists.
 
-## 6. Known recent implementation facts
+## 6. Known implementation facts
 - `TreatmentCaseWorkspace` exists; full case lifecycle remains unverified/partial.
-- Root `/` currently maps to Dashboard; older audits claiming AI workspace at `/` are historical.
+- Root `/` has a public-first Welcome path for anonymous users; authenticated entry must be evaluated against the current contextual Home/AI behavior rather than assuming a clinic dashboard.
 - Diagnostics has real referrals, center/lab access checks, studies, files and AI-result flows.
-- Auth middleware requires an active `UserSession` for protected users; the new E2E regression explicitly revokes the session row and verifies `/api/auth/me` returns 401.
+- Auth middleware requires an active `UserSession` for protected users; the E2E regression verifies revoked sessions return 401.
 - Branch-scoped IAM foundations exist across clinic, finance, diagnostics and inventory domains.
-- `quality-gate.yml` is now blocking: the release-gate script is no longer `continue-on-error`, so a failed release gate cannot silently produce a green workflow.
+- `quality-gate.yml` is blocking; a failed release gate cannot silently produce a green workflow.
+- `docs/SYSTEM_MAP.md` is generated from source and must be regenerated with `npm run system-map`/the repository's configured generator rather than manually edited.
 
 ## 7. Canonical economics
-Use `docs/business/DENTVISION_PARTNER_ECONOMICS.md` only:
-- Clinic SaaS: START ₸19,900; PRO ₸39,900; BUSINESS ₸79,900; NETWORK from ₸149,900/branch.
-- Diagnostic/3D center: ₸49,900/branch/month; 7% DentVision-originated orders; min ₸500/study; max ₸3,000/study.
-- Medical analysis lab: ₸19,900/branch/month; 6%; min ₸150/analysis; max ₸2,500/analysis.
-- Dental lab: ₸29,900/month; preserve canonical 8% default + volume tiers/min/max policy until explicitly revised.
-- Marketplace: 8% standard, 6% high-volume, 4–5% strategic.
-- Academy: lecturer-originated 10/90; DentVision-originated 25/75; full marketing+sales 30/70.
-- Finance must distinguish GMV, platform revenue, processing, AI inference, storage/data, support/ops, refunds/chargebacks, tax/VAT, contribution margin and net platform revenue.
-- Pricing changes require version/effective date/migration/impact/audit; historical records remain reproducible.
+Use `docs/business/DENTVISION_PARTNER_ECONOMICS.md` only for pricing, commissions and settlement rules. Historical calculations must remain reproducible.
 
 ## 8. Required role/security matrix
 Clinic: Owner, Administrator, Manager, Doctor, Assistant.
-Partners: Diagnostic Center Owner/Manager/Operator/Radiologist as applicable; Medical Laboratory Owner/Manager/Operator; Dental Laboratory Owner/Manager/Technician/Operator as applicable; Superadmin where applicable.
+Partners: Diagnostic Center Owner/Manager/Operator/Radiologist as applicable; Medical Laboratory Owner/Manager/Operator; Dental Laboratory Owner/Manager/Technician/Operator as applicable; suppliers/academies and other supported partner roles according to current IAM.
 
 For every role verify: allowed/denied actions, tenant isolation, branch isolation, invitations, disabled/revoked access, active-session enforcement, audit trail and privileged mutation safety.
 
 ## 9. Product-led growth directive
-The product must reduce explanation and increase self-demonstration/value:
-`Visitor → Interactive Demo → Signup → Role/Goal → First Value → Trial → Payment → Upgrade → Expansion → Referral`
+The product should reduce explanation and increase self-demonstration/value:
+`Visitor → Interactive Discovery/Demo → Signup → Role/Goal → First Value → Trial → Payment → Upgrade → Expansion → Referral`
 
-Implement growth by extending existing systems, not by creating a parallel product. Priority capabilities:
-- central privacy-aware growth event vocabulary;
-- role/goal onboarding using real IAM/org/branch state;
-- First Value Engine targeting meaningful value in <10 minutes;
+Priority capabilities:
+- privacy-aware growth event vocabulary;
+- role/goal onboarding using real IAM/org/branch/workspace state;
+- First Value Engine targeting meaningful value in under 10 minutes;
 - contextual Next Best Action;
-- AI product-operator behavior within the existing permission/risk/audit model;
+- AI product-operator behavior within permission/risk/audit rules;
 - contextual trial/upsell based on real entitlement and usage;
 - transparent ROI/value explanations;
-- patient/treatment-plan sharing loop with privacy safeguards;
+- privacy-safe patient/treatment-plan sharing loop;
 - clinical-context links to Shop, Diagnostics, Dental Lab and Academy;
-- CEO Growth Dashboard using existing Analytics/Finance truth.
-
-The product should continuously answer: **What should I do now? Why does it matter? What can DentVision do for me? What is the next useful action?**
+- management growth analytics using existing Finance/Analytics truth.
 
 ## 10. Canonical branch management contract
-Branch management is part of the existing Organization/Workspace model. Do not create a separate branch product or parallel organization model. A branch is an operational scope inside an organization and must use the existing identity, membership, permissions, audit, events and AI context primitives.
+Branch management is part of the existing Organization/Workspace model. Do not create a separate branch product or organization model.
 
 Owner entry point:
 `Owner → Settings / Organization → Branches`
 
-Canonical branch management capabilities:
-- list active and archived branches;
+Capabilities:
+- list active/archived branches;
 - create, persist and edit branches;
-- open/switch branch workspace within authorized scope;
-- assign, change, disable and revoke staff branch access;
+- open/switch authorized branch workspace;
+- assign/change/disable/revoke staff access;
 - configure supported branch settings;
 - inspect branch operational and financial status;
-- archive/deactivate without destroying required historical/audit records.
+- archive/deactivate without destroying required history/audit records.
 
-Baseline branch data:
-- name;
-- unique organization-scoped code;
-- city/address/phone;
-- active/default state;
-- optional `Branch.settings` for supported operational configuration.
+At minimum, branch-aware patient, appointment, inventory, invoice, expense and referral/diagnostic data must obey backend scope authorization where the domain supports branch scope.
 
-Branch workspace domains, exposed according to role and actual implementation:
-`Overview/Today, Schedule, Patients, Cases/Clinical, Diagnostics, Laboratory, Team, Services & Prices, Rooms/Chairs/Equipment, Inventory, Finance, Documents, Communication, Analytics, Settings`.
+Branch-aware AI includes active organization + branch context but never bypasses authorization.
 
-Branch settings domains:
-1. General.
-2. Working time and holidays.
-3. Team and access.
-4. Rooms/equipment.
-5. Services/prices.
-6. Inventory.
-7. Finance/payments.
-8. CRM/communication.
-9. Diagnostics/laboratory.
-10. Documents.
-11. AI/notifications.
-12. Security/audit.
+## 11. Documentation consolidation rule
+The canonical documentation set is intentionally small:
 
-Only implement a settings control when a real domain model/workflow backs it; otherwise keep it as an explicit backlog item.
+- Product DNA = quality law.
+- Master Spec = product/system truth.
+- Execution Plan = sequencing and Definition of Done.
+- Context = verified current state.
+- Execution Log = evidence/history.
+- Partner Economics = financial policy.
+- Specialized domain documents = bounded technical/legal/security contracts.
+- Generated system maps = code facts.
 
-Data scope must remain organization-safe and branch-safe. At minimum, branch-aware patient, appointment, inventory, invoice, expense and referral/diagnostic data must obey backend branch authorization. Organization owners may aggregate across authorized branches; branch-scoped users must not gain access by changing IDs or URLs.
-
-Branch deactivation must account for staff assignments, future appointments, unresolved cases, open lab/diagnostic orders, inventory/financial records and default-branch constraints. Prefer archive/inactive semantics over destructive deletion.
-
-Branch-aware AI must include active organization + branch context but must never bypass authorization. Mutations continue to follow the canonical AI action lifecycle.
-
-Release proof required for the branch slice:
-`Owner entry → create → persist/refresh → edit → open/switch → assign employee → enforce scope → cross-branch denial → organization aggregate → archive/deactivate → audit/history preserved`.
-
-## 11. Immediate execution queue
-### P0 — Release correctness
-1. Verify current `main` CI from the newest relevant commit/run; do not infer green status.
-2. Verify diagnostics route/service contract around `confirmAiResult`.
-3. Verify auth session creation/issuance fails closed.
-4. Run full CI/E2E/browser gates.
-5. Complete IAM negative matrix: clinic roles, partner operational roles, cross-tenant, cross-branch, invitation revocation/expiry, revoked sessions, and privileged mutation denial.
-
-### P1 — Economics / partner operations
-6. Complete accepted→paid→settled durable lifecycle and immutable rule/version verification.
-7. Complete medical-analysis operational economics/settlement.
-8. Preserve dental-lab recognition at `delivered` until a real paid/settled callback exists.
-9. Complete ledger/reconciliation and Finance Hub transparency.
-10. Complete partner owner/branch/staff operational lifecycle, using the canonical branch contract above.
-
-### P2 — Clinical vertical slice
-11. Verify Patient→Case→Diagnosis/Imaging→AI Findings→Plan→Appointment→Lab/Materials→Payment→Follow-up.
-
-### P3 — Self-selling product
-12. Implement central growth events.
-13. Implement role/goal onboarding + First Value.
-14. Implement Demo + Next Best Action.
-15. Implement contextual trial/upsell + ROI.
-16. Implement patient/treatment-plan referral loop.
-17. Implement cross-module clinical recommendations.
-18. Implement CEO Growth Dashboard.
-
-### P4 — Final hardening
-19. Accessibility/responsive/performance/error-state/browser runtime audit.
-20. Security/audit/release hardening.
-21. Android build/install/runtime verification.
-22. Real 32-tooth WebGL/3D odontogram.
+Superseded product roadmaps, stale status snapshots and duplicate North Star/addendum documents must not compete with the Master Spec. They may be removed after repository-reference checks; useful requirements must first be incorporated into the canonical document.
 
 ## 12. Working rule
-For each slice: **inspect → implement → test → fix → verify → document → continue**. Do not repeat an audit when implementation can resolve the issue. If a document becomes stale, update/remove it rather than creating another competing source of truth.
+For each slice: **inspect → implement → test → fix → verify → document → continue**.
+
+Do not repeat an audit when implementation can resolve the issue. Do not weaken tests. Do not invent a parallel architecture. Preserve the whole ecosystem and make complexity progressively discoverable.
