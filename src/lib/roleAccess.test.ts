@@ -14,6 +14,15 @@ describe('roleAccess', () => {
     expect(pageIdFromPath('/shop/orders')).toBe('shop')
   })
 
+  it('maps real diagnostics routes to their IAM page ids', () => {
+    expect(pageIdFromPath('/diagnostics/labs')).toBe('diagnostics-labs')
+    expect(pageIdFromPath('/diagnostics/registration-requests')).toBe('admin')
+    expect(pageIdFromPath('/diagnostics/center')).toBe('diagnostics')
+    expect(pageIdFromPath('/diagnostics/lab')).toBe('diagnostics')
+    expect(pageIdFromPath('/diagnostics/center-dashboard')).toBe('diagnostics')
+    expect(pageIdFromPath('/diagnostics/lab-dashboard')).toBe('diagnostics')
+  })
+
   it('allows doctor clinical pages only', () => {
     const doctor = ['schedule', 'patients', 'medical-card', 'visits', 'icd10', 'documents', 'lab', 'reminders', 'school', 'treatment-plans', 'dental-chart']
     expect(canAccessPage(doctor, 'schedule')).toBe(true)
