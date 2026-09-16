@@ -28,7 +28,11 @@ const PATHS: Record<EcosystemDeepLinkTarget, string> = {
   case: '/crm/cases',
   appointment: '/crm/schedule',
   diagnostics: '/diagnostics',
-  'medical-lab': '/diagnostics/lab',
+  // `/diagnostics/lab` is the existing shared lab entry route. The explicit
+  // workspace query keeps medical laboratory and dental laboratory semantics
+  // separate without inventing a second backend domain or breaking existing
+  // deep links/bookmarks.
+  'medical-lab': '/diagnostics/lab?workspace=medical-lab',
   'dental-lab': '/crm/lab',
   market: '/shop',
   finance: '/crm/cashier',
@@ -39,13 +43,14 @@ const PATHS: Record<EcosystemDeepLinkTarget, string> = {
 
 export function ecosystemPath(target: EcosystemDeepLinkTarget, selection?: Partial<EcosystemContextSelection>) {
   const base = PATHS[target];
-  const params = new URLSearchParams();
+  const [pathname, existingQuery] = base.split('?');
+  const params = new URLSearchParams(existingQuery || '');
   if (selection?.organizationId) params.set('organizationId', selection.organizationId);
   if (selection?.branchId) params.set('branchId', selection.branchId);
   if (selection?.patientId) params.set('patient', selection.patientId);
   if (selection?.caseId) params.set('caseId', selection.caseId);
   const query = params.toString();
-  return query ? `${base}?${query}` : base;
+  return query ? `${pathname}?${query}` : pathname;
 }
 
 export function caseContext(selection: Partial<EcosystemContextSelection>) {
