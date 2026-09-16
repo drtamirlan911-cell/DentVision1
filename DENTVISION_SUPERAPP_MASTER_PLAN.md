@@ -84,12 +84,61 @@ Do not copy branding or proprietary UI. Extract proven interaction patterns and 
 - [ ] Normalize remaining mobile overlays and shared interaction surfaces.
 - [ ] Verify cross-page consistency after every batch.
 
+## Canonical multi-branch operating model
+
+A Branch is a first-class operating unit of an Organization/Clinic and must be represented consistently in product architecture, navigation, authorization and analytics. It is not merely a location string.
+
+### Owner flow
+
+`Settings/Organization → Branches → Create Branch → Configure → Staff & Access → Operations → Analytics → Archive/Suspend`
+
+The owner must be able to discover this flow from normal navigation and must not need to know internal API/model names.
+
+### Branch workspace
+
+When a branch is opened, the workspace should expose, according to real permissions and implemented domain capabilities:
+
+- Overview / operational status;
+- Staff and branch assignments;
+- Schedule, rooms/chairs and equipment where supported;
+- Patients and Clinical Cases;
+- Services and branch-specific price overrides;
+- Inventory/warehouse and inter-branch transfers;
+- Diagnostics and laboratory routing;
+- Finance, payments and cash operations;
+- Analytics and branch performance;
+- Documents/templates;
+- Notifications, reminders and patient communication;
+- AI context, alerts and automation preferences;
+- Branch Settings.
+
+### Branch configuration
+
+Minimum branch identity: unique organization-scoped code, name, city, address, phone, active/default state and settings. Operational configuration should progressively cover working hours/holidays, staff/access, rooms/chairs/equipment, services/pricing, inventory, diagnostics/labs, finance/payment, documents, notifications and AI preferences using existing domain models.
+
+Shared organization policies/services remain canonical. Branch-specific overrides must be explicit and must not create duplicate domain definitions.
+
+### Branch switching and data scope
+
+The active organization context and active branch context are separate but related. Organization-scoped owners may switch branches and may aggregate branch data where authorized. Branch-scoped users must be constrained to their assigned/permitted branch set. Cross-tenant access remains denied.
+
+Applicable branch-aware resources include patients, appointments, staff memberships, inventory, invoices/expenses, referrals/diagnostics and future clinical/operational entities. UI, API, AI and background actions must use the same scope rules.
+
+### Branch lifecycle safety
+
+Branch creation must persist and survive refresh. Edit must persist. Staff assignment must affect effective access. Archive/suspend must be reversible where supported, preserve history/audit records, avoid silent orphaning and block inappropriate new operations. Historical patients, appointments, invoices, expenses, inventory and referrals must not disappear because a branch is archived.
+
+### Product requirement vs implementation status
+
+This section defines the canonical product requirement. It is not evidence that every branch screen, route, API or workflow is already implemented. Implementation status is determined only from current repository code and current CI/runtime evidence.
+
 ## Next product passes after visual unification
 ### Phase A — Navigation & information architecture
 - [ ] Audit every route and sidebar item.
 - [ ] Ensure service hierarchy is predictable.
 - [ ] Add contextual breadcrumbs/entity headers where useful.
 - [ ] Make command/search a true global entry point.
+- [ ] Add and verify the owner `Settings/Organization → Branches` entry point without creating duplicate navigation.
 
 ### Phase B — Clinical operating system
 - [ ] Patient 360 as the central longitudinal view.
@@ -113,7 +162,7 @@ Do not copy branding or proprietary UI. Extract proven interaction patterns and 
 - [ ] Patient communication.
 - [ ] Cashier/finance.
 - [ ] Inventory and lab operations.
-- [ ] Team/roles/multi-location.
+- [ ] Team/roles/multi-location, including the canonical branch lifecycle above.
 - [ ] Operational analytics.
 
 ### Phase E — Ecosystem
@@ -140,5 +189,10 @@ Do not copy branding or proprietary UI. Extract proven interaction patterns and 
 - Active branch: `feat/unified-dentvision-visual-system`.
 - Active PR: #245.
 - Regression status: visual/token changes only; CI validation remains required.
+
+### 2026-09-16
+- Added the canonical multi-branch operating model to the Super App master plan.
+- Defined owner discovery/creation/configuration/staff/operations/analytics/archive flow, branch workspace scope, branch-aware resources, switching, isolation and lifecycle safety.
+- This is a product requirement; implementation status remains determined by repository code and fresh CI/runtime evidence.
 
 Future changes must append a dated entry describing what changed, why, what remains, regression/test status, and the active PR/branch.

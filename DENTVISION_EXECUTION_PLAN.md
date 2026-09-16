@@ -56,7 +56,12 @@ Evidence recorded in `CURRENT_STATE.md` and `DENTVISION_EXECUTION_LOG.md`.
 - [x] Establish E2E coverage entry points for diagnostic-center, medical-laboratory and dental-laboratory owner onboarding.
 - [x] Establish E2E coverage entry points for employee management and invitations.
 - [ ] Complete full owner lifecycle: registration → organization profile → verification/approval state → first login → operational workspace.
-- [ ] Complete full branch lifecycle: create → edit → switch → assign employees → enforce branch permissions → archive/delete according to the existing domain model.
+- [ ] Complete full branch lifecycle: discover branch management → create → save/reload → edit → configure → switch → assign employees → enforce branch permissions → operate branch → archive/suspend without orphaning records.
+- [ ] Make branch management discoverable from the owner workspace through the canonical Settings/Organization → Branches entry point; do not require knowledge of internal API/model names.
+- [ ] Branch configuration must cover, where supported by existing domain models: identity/code/address/phone, active/default state, working hours/holidays, staff/access, rooms/chairs/equipment, services and branch price overrides, inventory/warehouse, diagnostics/labs, finance/payment settings, documents/templates, notifications and AI preferences.
+- [ ] Preserve one organization-level source of truth for shared services and policies; branch overrides must be explicit and must not create duplicate definitions.
+- [ ] Support organization-level aggregate reporting for authorized owners while enforcing branch scope for operational users.
+- [ ] Define safe archive/suspend semantics: preserve historical records/audit trail, block inappropriate new operations, and explicitly handle staff/resources before deactivation.
 - [ ] Verify partner dashboard shows applicable fee/commission, gross order value, deductions, net payout, payout status, and rule/version reference.
 - [ ] Diagnostic centers see branch economics and platform deductions.
 - [ ] Analysis laboratories see per-analysis economics.
@@ -84,6 +89,7 @@ Evidence recorded in `CURRENT_STATE.md` and `DENTVISION_EXECUTION_LOG.md`.
 - [ ] Verify visible buttons/links/forms have understandable labels and produce the expected result.
 - [ ] Verify loading, empty, error and success states for critical workflows.
 - [ ] Verify responsive behavior and keyboard/accessibility basics on critical screens.
+- [ ] Add the owner Branches entry point and branch workspace to the canonical information architecture once the real domain/API path is verified.
 
 ### Phase 5 — Core clinical workflows
 **Status:** QUEUED
@@ -160,6 +166,42 @@ Every partner type must be tested from first contact to daily operation in an is
 - [ ] Verify remake/cancel/delay behavior does not create premature economics.
 - [ ] Verify clinic-side visibility and financial records.
 
+## Canonical branch-management release matrix
+
+This matrix applies to clinic owners and applicable partner owners. It is the required vertical slice for branch management.
+
+### Discovery and creation
+- [ ] Owner can find `Settings/Organization → Branches` from the normal navigation.
+- [ ] Branch list shows existing branches, status, default marker and useful operational summary.
+- [ ] `Add branch` opens a real form backed by the branch domain/API, not local-only state.
+- [ ] Create validates organization scope and organization-scoped unique branch code.
+- [ ] Create supports name, code, city, address, phone and initial active/default state.
+- [ ] Successful creation persists across refresh and becomes selectable in the active organization context.
+
+### Configuration and operations
+- [ ] Branch overview exposes only capabilities actually supported by the current domain.
+- [ ] Owner can edit branch identity/contact/settings.
+- [ ] Owner can manage branch staff and assignments according to IAM.
+- [ ] Owner can configure branch schedule/rooms/equipment where supported.
+- [ ] Owner can configure services/pricing overrides without duplicating global definitions.
+- [ ] Owner can inspect/manage inventory and transfers where supported.
+- [ ] Owner can inspect branch finance, diagnostics/lab and analytics according to permissions.
+- [ ] AI context and actions carry organization + branch scope.
+
+### Switching and isolation
+- [ ] Owner can switch between branches without losing organization context.
+- [ ] Organization-wide owner views aggregate branch data only when authorized.
+- [ ] Branch-scoped users cannot read/write resources belonging to another branch.
+- [ ] Cross-tenant access remains denied.
+- [ ] Changing a user's branch assignment immediately affects effective scope after the existing session/policy refresh semantics.
+
+### Archive/suspend
+- [ ] Branch can be suspended/archived using a reversible status where the domain supports it.
+- [ ] Historical patients, appointments, invoices, expenses, inventory and referrals remain auditable.
+- [ ] The system does not silently orphan staff or operational records.
+- [ ] New operations against an archived/suspended branch are blocked or explicitly handled according to domain rules.
+- [ ] Default/only-active-branch safeguards are enforced if required by the existing model.
+
 ## Role and security matrix
 
 - [ ] Owner: organization-wide management, branch management, staff management, finance visibility according to existing permissions.
@@ -182,7 +224,7 @@ A phase is complete only when:
 - `DENTVISION_EXECUTION_LOG.md` records what changed, commit, verification, and next action.
 
 ## Current execution priority
-**Now:** run the business-owner lifecycle vertical slice in parallel with the remaining Economics Engine → Ledger work. Start at registration for each partner type, then organization, branches, staff, permissions, operational workflows and economics. Convert every discovered real defect into an implementation fix plus regression test.
+**Now:** run the business-owner lifecycle vertical slice in parallel with the remaining Economics Engine → Ledger work. For branch management, start by locating the canonical owner entry point and verifying the existing branch model/API before creating anything new; then implement only the missing links for create → configure → staff → switch → scoped operations → archive. Convert every discovered real defect into an implementation fix plus regression test.
 
 **Next:** complete partner transparency/Finance Hub, then automated operations, then product-wide UX/clinical/ecosystem hardening.
 
