@@ -8,9 +8,10 @@ import { aiBriefing } from '@/utils/api'
 import { AIInputArea } from './AIInputArea'
 import { ChatMessage, type ChatMsg } from './ChatMessage'
 import { ContextPanel } from './ContextPanel'
+import { ECOSYSTEM_SERVICES } from '@/config/ecosystem'
 
 const STARTER_PROMPTS = ['Что мне нужно сделать сегодня?','Покажи пациентов, которым нужен контроль','Найди материал или оборудование для моей задачи','Найди курс для моего профессионального развития']
-const ECOSYSTEM_PROMPTS = ['Найди стоматологическую лабораторию','Найди диагностический центр и варианты записи','Найди медицинскую лабораторию для нужного анализа','Найди вакансию или специалиста']
+const ECOSYSTEM_PROMPTS = ECOSYSTEM_SERVICES.filter(service => !['ai','administration'].includes(service.id)).slice(0, 6).map(service => `Открой ${service.label.toLowerCase()}`)
 const BOOKING_PROMPTS = ['Найди стоматолога рядом со мной и покажи варианты записи','Мне нужна запись к стоматологу. Помоги выбрать клинику и время','Какие стоматологические услуги доступны для записи?']
 
 export function AIWorkspaceIndex({ onNavigate }: { onNavigate?: (path: string) => void }) {
