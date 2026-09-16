@@ -17,3 +17,8 @@ export const ECOSYSTEM_PROMPTS: readonly EcosystemPrompt[] = [
 export function promptsForParticipant(participant: EcosystemParticipant) {
   return ECOSYSTEM_PROMPTS.filter(item => item.participants.includes(participant));
 }
+
+export function promptById(id?: string | null) {
+  if (!id) return null;
+  return ECOSYSTEM_PROMPTS.find(item => item.id === id) ?? null;
+}
