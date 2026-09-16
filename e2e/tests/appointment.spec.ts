@@ -173,15 +173,39 @@ test.describe('Appointment Workflow', () => {
       headers: { Authorization: `Bearer ${ownerToken}` },
       data: { patientId, doctorId, date: futureDate(12), time: '11:00' },
     });
-    const created = await apiPayload(createRes);
+    const createBody = await createRes.text();
+    expect(createRes.status(), `APPT-006 appointment creation response: ${createBody}`).toBe(201);
+
+    const parsedCreate = JSON.parse(createBody);
+    const created = parsedCreate?.data;
+    expect(created, `APPT-006 appointment creation payload: ${createBody}`).toBeTruthy();
+    expect(created?.id, `APPT-006 missing created.id in: ${createBody}`).toEqual(expect.any(String));
+    expect(created.id.length, `APPT-006 empty created.id in: ${createBody}`).toBeGreaterThan(0);
+
+    const listRes = await request.get(
+      `${BASE}/api/appointments?from=${futureDate(12)}&to=${futureDate(12)}`,
+      { headers: { Authorization: `Bearer ${ownerToken}` } },
+    );
+    const listBodyText = await listRes.text();
+    expect(listRes.status(), `APPT-006 precondition list response: ${listBodyText}`).toBe(200);
+    const listParsed = JSON.parse(listBodyText);
+    const rows = Array.isArray(listParsed?.data?.data)
+      ? listParsed.data.data
+      : Array.isArray(listParsed?.data)
+        ? listParsed.data
+        : [];
+    expect(rows.some((appointment: any) => appointment.id === created.id),
+      `APPT-006 created.id ${created.id} was not returned by the appointment list: ${listBodyText}`,
+    ).toBeTruthy();
 
     const completeRes = await request.patch(`${BASE}/api/appointments/${created.id}/status`, {
       headers: { Authorization: `Bearer ${ownerToken}` },
       data: { status: 'completed' },
     });
-    expect(completeRes.status()).toBe(200);
-    const completed = await apiPayload(completeRes);
-    expect(completed.status).toBe('done');
+    const completeBody = await completeRes.text();
+    expect(completeRes.status(), `APPT-006 status mutation response: ${completeBody}`).toBe(200);
+    const completed = JSON.parse(completeBody)?.data;
+    expect(completed?.status).toBe('done');
 
     await cleanupAppointment(request, ownerToken, created.id);
   });
