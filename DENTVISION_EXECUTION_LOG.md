@@ -154,16 +154,16 @@ The complete pre-2026-09-14 execution history is preserved in the parent Git his
 ## 2026-09-16 — UI functional/parity audit started
 
 ### Control documents
-- `DENTVISION_SUPERAPP_BLUEPRINT.md` defines the product north star as a Dental Operating System and explicitly states that a collection of routes is not sufficient evidence of Super App behavior. fileciteturn158file0
-- `DENTVISION_SUPERAPP_MASTER_PLAN.md` requires preserving functionality and completing route/IA, clinical OS, AI, operations, ecosystem and release-excellence phases; it also requires visual consistency and PR/feature-branch workflow. fileciteturn159file0
+- `DENTVISION_SUPERAPP_BLUEPRINT.md` defines the product north star as a Dental Operating System and explicitly states that a collection of routes is not sufficient evidence of Super App behavior.
+- `DENTVISION_SUPERAPP_MASTER_PLAN.md` requires preserving functionality and completing route/IA, clinical OS, AI, operations, ecosystem and release-excellence phases; it also requires visual consistency and PR/feature-branch workflow.
 
 ### Repository evidence
-- `src/pages` contains both top-level pages and substantial domain subtrees including `crm`, `diagnostics`, `school`, `shop`, `partner`, `patient-portal`, `superadmin`, `settings`, `ops`, `clinic`, `bi`, `auth`, and `legal`. fileciteturn160file0
-- CRM already has substantial clinical/operational pages including Cashier, Billing, Clinic Settings, Dental Chart, Documents, ICD-10, Inventory, Lab, Marketing, Medical Card, Patient Inbox, Patients and Price List. fileciteturn173file0
-- `package.json` contains the project index command `npm run project:index`, plus build/typecheck/unit/E2E/quality scripts. fileciteturn163file0
+- `src/pages` contains both top-level pages and substantial domain subtrees including `crm`, `diagnostics`, `school`, `shop`, `partner`, `patient-portal`, `superadmin`, `settings`, `ops`, `clinic`, `bi`, `auth`, and `legal`.
+- CRM already has substantial clinical/operational pages including Cashier, Billing, Clinic Settings, Dental Chart, Documents, ICD-10, Inventory, Lab, Marketing, Medical Card, Patient Inbox, Patients and Price List.
+- `package.json` contains the project index command `npm run project:index`, plus build/typecheck/unit/E2E/quality scripts.
 
 ### Concrete finding
-- `src/pages/DiagnosticsRegister.tsx` is a real interactive partner-registration workflow: type selection → form → API submission → success/error state. The source uses the shared API client rather than a static success-only mock. fileciteturn171file0
+- `src/pages/DiagnosticsRegister.tsx` is a real interactive partner-registration workflow: type selection → form → API submission → success/error state. The source uses the shared API client rather than a static success-only mock.
 - The same page contained a legacy purple accent for the medical-laboratory option, which conflicts with the master plan's single clinical-neutral/gold visual language.
 
 ### Implemented
