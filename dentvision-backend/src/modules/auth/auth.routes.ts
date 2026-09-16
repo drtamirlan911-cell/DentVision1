@@ -69,20 +69,46 @@ async function buildSignInPayload(user: SignInUser, req: any, res: any) {
 
 export const authRouter = Router();
 
+/**
+ * Public self-registration may select only a non-privileged product role.
+ * Clinic-scoped staff roles (ADMIN/ASSISTANT/RECEPTION/ACCOUNTANT/MANAGER)
+ * must still arrive through an authenticated clinic invitation; accepting them
+ * from a public form would create an account with an elevated role without a
+ * clinic membership.
+ */
+function publicRegistrationRole(raw: unknown): UserRole {
+  const role = String(raw || 'student').trim().toLowerCase();
+  const roles: Record<string, UserRole> = {
+    owner: 'OWNER' as UserRole,
+    doctor: 'DOCTOR' as UserRole,
+    lab: 'LAB' as UserRole,
+    laboratory: 'LAB' as UserRole,
+    diagnostic_center: 'DIAGNOSTIC_CENTER' as UserRole,
+    'diagnostic-center': 'DIAGNOSTIC_CENTER' as UserRole,
+    patient: 'USER' as UserRole,
+    buyer: 'USER' as UserRole,
+    user: 'USER' as UserRole,
+    student: 'STUDENT' as UserRole,
+  };
+  return roles[role] || 'STUDENT' as UserRole;
+}
+
 authRouter.post('/register', async (req, res) => {
   try {
-    const { email, password, firstName, lastName, phone } = req.body as { email: string; password: string; firstName: string; lastName: string; phone?: string };
+    const { email, password, firstName, lastName, phone, role } = req.body as { email: string; password: string; firstName: string; lastName: string; phone?: string; role?: string };
     if (!email || !password || !firstName || !lastName) return res.status(400).json({ ok: false, error: 'Все обязательные поля должны быть заполнены' });
     const passwordError = assertPasswordPolicy(password); if (passwordError) return res.status(400).json({ ok: false, error: passwordError });
     const normalizedEmail = String(email).trim().toLowerCase();
     if (!normalizedEmail.includes('@') || normalizedEmail.endsWith('@guest.local')) return res.status(400).json({ ok: false, error: 'Некорректный email' });
     const existing = await prisma.user.findUnique({ where: { email: normalizedEmail } });
     if (existing) return res.status(409).json({ ok: false, error: 'Если указанный email зарегистрирован, вы получите письмо' });
+    const requestedRole = publicRegistrationRole(role);
     const hashedPassword = await hashPassword(password);
-    const user = await prisma.user.create({ data: { id: uid(), email: normalizedEmail, password: hashedPassword, firstName: String(firstName).trim(), lastName: String(lastName).trim(), phone: phone || null, role: 'STUDENT' }, select: { id: true, email: true, firstName: true, lastName: true, role: true } });
+    const user = await prisma.user.create({ data: { id: uid(), email: normalizedEmail, password: hashedPassword, firstName: String(firstName).trim(), lastName: String(lastName).trim(), phone: phone || null, role: requestedRole }, select: { id: true, email: true, firstName: true, lastName: true, role: true } });
     const session = await createSession(user.id, req.ip, req.headers['user-agent']);
     const tokens = generateTokens({ sub: user.id, email: user.email, role: user.role, sessionId: session.id });
     setAuthCookies(res, tokens.accessToken, tokens.refreshToken);
+    await writeAuditLog({ userId: user.id, action: 'auth.register', entity: 'user', entityId: user.id, ip: req.ip || req.socket?.remoteAddress });
     const response: ApiResponse = { ok: true, data: { user, ...tokens } }; res.status(201).json(response);
   } catch (error) {
     if ((error as { code?: string })?.code === 'P2002') return res.status(409).json({ ok: false, error: 'Если указанный email зарегистрирован, вы получите письмо' });
