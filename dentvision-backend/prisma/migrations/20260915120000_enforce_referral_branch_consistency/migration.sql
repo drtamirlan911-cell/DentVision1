@@ -3,6 +3,9 @@
 -- This trigger guarantees that a referral cannot silently lose or cross its
 -- clinic/patient branch context when a caller omits branch_id.
 
+-- Referral.branchId is mapped to the canonical physical branch_id column.
+ALTER TABLE referrals ADD COLUMN IF NOT EXISTS branch_id TEXT;
+
 CREATE OR REPLACE FUNCTION enforce_referral_branch_consistency()
 RETURNS TRIGGER
 LANGUAGE plpgsql
