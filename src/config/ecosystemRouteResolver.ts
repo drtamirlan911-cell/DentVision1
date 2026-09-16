@@ -12,7 +12,6 @@ const ROUTE_ALIASES: Record<string, string> = {
   '/dashboard': '/',
   '/appointments': '/crm/schedule',
   '/crm/team': '/crm/staff',
-  '/crm/cases': '/crm/treatment-plans',
   '/settings/branches': '/my-clinics',
   '/analytics': '/analytics',
 };
