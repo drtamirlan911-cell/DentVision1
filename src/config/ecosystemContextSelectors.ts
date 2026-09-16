@@ -23,12 +23,12 @@ export type EcosystemDeepLinkTarget =
 const PATHS: Record<EcosystemDeepLinkTarget, string> = {
   ai: '/ai',
   patient: '/crm/patients',
-  case: '/crm/cases',
+  case: '/crm/treatment-plans',
   diagnostics: '/diagnostics',
   'medical-lab': '/diagnostics/lab',
   'dental-lab': '/crm/lab',
   market: '/shop',
-  finance: '/analytics',
+  finance: '/crm/cashier',
   academy: '/school',
   jobs: '/jobs',
 };
@@ -36,10 +36,14 @@ const PATHS: Record<EcosystemDeepLinkTarget, string> = {
 export function ecosystemPath(target: EcosystemDeepLinkTarget, selection?: Partial<EcosystemContextSelection>) {
   const base = PATHS[target];
   const params = new URLSearchParams();
-  if (selection?.organizationId) params.set('organizationId', selection.organizationId);
-  if (selection?.branchId) params.set('branchId', selection.branchId);
-  if (selection?.patientId) params.set('patientId', selection.patientId);
-  if (selection?.caseId) params.set('caseId', selection.caseId);
+
+  if (selection?.patientId && (target === 'patient' || target === 'case' || target === 'diagnostics' || target === 'medical-lab' || target === 'dental-lab' || target === 'finance')) {
+    params.set('patient', selection.patientId);
+  }
+  if (selection?.caseId && target === 'ai') params.set('caseId', selection.caseId);
+  if (selection?.organizationId && target === 'ai') params.set('organizationId', selection.organizationId);
+  if (selection?.branchId && target === 'ai') params.set('branchId', selection.branchId);
+
   const query = params.toString();
   return query ? `${base}?${query}` : base;
 }
