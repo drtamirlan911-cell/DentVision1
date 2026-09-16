@@ -62,7 +62,7 @@ describe('resolvePatientForUser', () => {
   });
 
   it('adopts a card that matches the email and writes the link once', async () => {
-    findFirst.mockResolvedValueOnce(null).mockResolvedValueOnce(null).mockResolvedValueOnce({ id: 'p2', clinicId: 'c1' });
+    findFirst.mockResolvedValueOnce(null).mockResolvedValueOnce({ id: 'p2', clinicId: 'c1' });
     expect(await resolvePatientForUser(USER)).toMatchObject({ id: 'p2', via: 'email' });
     expect(updateMany).toHaveBeenCalledWith({ where: { id: 'p2', userId: null }, data: { userId: 'u1' } });
   });
