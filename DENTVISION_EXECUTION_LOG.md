@@ -79,3 +79,22 @@ The complete pre-2026-09-14 execution history is preserved in the parent Git his
 - CI/E2E were intentionally not run in this build-first pass.
 - The new commits are therefore UNVERIFIED until the later full release-gate pass.
 - The next functional block is to connect clinical-case identity more deeply into invoices/payments, then complete medical-analysis and dental-lab production transitions, followed by the premium visual/Figma pass.
+
+## 2026-09-16 — Live Clinical Case cockpit pass
+
+### Implemented
+- `ce51af6c6e9e3167f7fc25b4331aadf3a8b8b518` — `ClinicalCaseWorkspace` was upgraded from a navigation-only shell into a live ecosystem cockpit.
+- The case workspace now derives real patient-scoped counts from existing CRM data: visits, appointments, dental-lab orders and outstanding finance records.
+- The workspace surfaces next appointment, active laboratory work and open financial balance while preserving the existing ecosystem navigation and URL context.
+- No new clinical entity or duplicate database model was introduced; this pass composes existing authoritative CRM records.
+
+### Architectural observation
+- `ClinicalCaseWorkspace` currently acts as an ecosystem context/cockpit rather than a persisted standalone `TreatmentCase` editor. This is deliberate until the deployed TreatmentCase API/model contract is confirmed; inventing a second case persistence layer would violate the one-ecosystem rule.
+- `Invoice` already has a persisted `treatmentPlanId`, while `LabOrder` currently anchors to patient/doctor rather than a persisted clinical-case identifier. The next backend pass should extend case identity only after the canonical TreatmentCase contract is located, not by overloading notes or URL parameters.
+
+### Verification status
+- CI/E2E were intentionally not run.
+- The new cockpit is UNVERIFIED until the later full release-gate pass.
+
+### Next action
+- Locate and connect the authoritative TreatmentCase/clinical-case backend contract; then propagate the same case identity through dental-lab orders and finance where the schema supports it. After that, complete the medical-analysis workflow and premium visual/Figma pass.
