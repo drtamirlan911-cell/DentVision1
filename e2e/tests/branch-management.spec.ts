@@ -42,11 +42,11 @@ test.describe('Clinic branch management', () => {
     const branchName = `E2E Deactivation ${Date.now()}`;
     await createBranch(page, branchName);
 
-    const branchRow = page.getByText(branchName, { exact: true }).locator('..');
+    const branchRow = page.getByText(branchName, { exact: true }).locator('../..').locator('..');
     await expect(branchRow).toContainText('Активен');
     await expect(branchRow).not.toContainText('Основной');
 
-    const toggle = branchRow.getByRole('button', { name: 'Отключить филиал', exact: true });
+    const toggle = branchRow.getByRole('button', { name: /Отключить филиал/, exact: false });
     await expect(toggle).toHaveCount(1);
     await toggle.click();
     await expect(branchRow.getByText('Отключён', { exact: true })).toBeVisible({ timeout: 10000 });
