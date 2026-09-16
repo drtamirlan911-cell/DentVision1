@@ -29,18 +29,23 @@ function selfServiceType(value: unknown): SelfServiceType | null {
   return key in SELF_SERVICE_TYPES ? key : null;
 }
 
-async function ensurePersonRole(userId: string, organizationId: string, roleKey: string) {
-  const user = await prisma.user.findUnique({ where: { id: userId }, select: { id: true, firstName: true, lastName: true, email: true } });
+async function ensurePersonRole(
+  tx: Prisma.TransactionClient,
+  userId: string,
+  organizationId: string,
+  roleKey: string,
+) {
+  const user = await tx.user.findUnique({ where: { id: userId }, select: { id: true, firstName: true, lastName: true, email: true } });
   if (!user) throw new Error('Пользователь не найден');
-  const organization = await prisma.organization.findUnique({ where: { id: organizationId }, select: { id: true, name: true } });
+  const organization = await tx.organization.findUnique({ where: { id: organizationId }, select: { id: true, name: true } });
   if (!organization) throw new Error('Организация не найдена');
-  const person = await prisma.person.upsert({
+  const person = await tx.person.upsert({
     where: { originalType_originalId: { originalType: 'SelfServiceOwner', originalId: `${organizationId}:${userId}` } },
     update: { fullName: `${user.firstName} ${user.lastName}`.trim() || organization.name, organizationId, userId: user.id, email: user.email },
     create: { id: uid(), fullName: `${user.firstName} ${user.lastName}`.trim() || organization.name, personType: 'STAFF', organizationId, userId: user.id, email: user.email, originalType: 'SelfServiceOwner', originalId: `${organizationId}:${userId}` },
   });
-  const role = await prisma.role.findUnique({ where: { key: roleKey } });
-  if (role) await prisma.personRole.upsert({
+  const role = await tx.role.findUnique({ where: { key: roleKey } });
+  if (role) await tx.personRole.upsert({
     where: { personId_roleId: { personId: person.id, roleId: role.id } },
     update: { scopeType: 'organization', scopeId: organizationId },
     create: { personId: person.id, roleId: role.id, scopeType: 'organization', scopeId: organizationId },
@@ -61,43 +66,47 @@ organizationsRouter.post('/self-service', async (req: AuthRequest, res) => {
     const email = req.body?.email ? String(req.body.email).trim().toLowerCase() : req.user?.email || null;
     const taxId = req.body?.taxId ? String(req.body.taxId).trim() : null;
 
-    let entityId: string;
-    let organizationId: string;
-    let entity: unknown;
+    const result = await prisma.$transaction(async (tx) => {
+      let entityId: string;
+      let organizationId: string;
+      let entity: unknown;
 
-    if (type === 'clinic') {
-      entityId = uid();
-      entity = await prisma.clinic.create({ data: { id: entityId, name, city, address, phone, plan: 'DEMO', active: true } });
-      organizationId = uid();
-      await prisma.organization.create({ data: { id: organizationId, name, type: 'CLINIC' as any, taxId, address, phone, email, originalType: 'Clinic', originalId: entityId, settings: { verification: 'PENDING' } as any } });
-      await prisma.clinicMember.create({ data: { userId: req.user!.id, clinicId: entityId, role: 'OWNER' } });
-    } else if (type === 'diagnostic_center') {
-      entityId = uid();
-      entity = await prisma.diagnosticCenter.create({ data: { id: entityId, name, city: city || undefined, address: address || undefined, phone: phone || undefined, email: email || undefined, active: true } });
-      organizationId = entityId;
-      await prisma.organization.upsert({ where: { originalType_originalId: { originalType: 'DiagnosticCenter', originalId: entityId } }, update: { name, address, phone, email, taxId, settings: { verification: 'PENDING' } as any }, create: { id: entityId, name, type: 'DIAGNOSTIC_CENTER' as any, address, phone, email, taxId, contacts: city ? { city } : undefined, originalType: 'DiagnosticCenter', originalId: entityId, settings: { verification: 'PENDING' } as any } });
-      await prisma.diagnosticCenterMember.create({ data: { id: uid(), centerId: entityId, userId: req.user!.id, role: 'owner' } });
-    } else if (type === 'dental_lab' || type === 'medical_lab') {
-      entityId = uid();
-      entity = await prisma.laboratory.create({ data: { id: entityId, name, city: city || undefined, address: address || undefined, phone: phone || undefined, email: email || undefined, active: true } });
-      organizationId = entityId;
-      await prisma.organization.upsert({ where: { originalType_originalId: { originalType: 'Laboratory', originalId: entityId } }, update: { name, address, phone, email, taxId, settings: { verification: 'PENDING', laboratoryType: type === 'dental_lab' ? 'DENTAL_LAB' : 'MEDICAL_LAB' } as any }, create: { id: entityId, name, type: 'LABORATORY' as any, address, phone, email, taxId, originalType: 'Laboratory', originalId: entityId, settings: { verification: 'PENDING', laboratoryType: type === 'dental_lab' ? 'DENTAL_LAB' : 'MEDICAL_LAB' } as any } });
-      await prisma.laboratoryMember.create({ data: { id: uid(), labId: entityId, userId: req.user!.id, role: 'owner' } });
-    } else if (type === 'supplier') {
-      entityId = uid();
-      entity = await prisma.supplier.create({ data: { id: entityId, name, kind: 'SUPPLIER', bin: taxId, legalAddress: address, contactPerson: `${req.user!.firstName} ${req.user!.lastName}`.trim() || null, phone, email, status: 'pending', commissionRate: 1000, members: { create: { userId: req.user!.id, role: 'owner' } } } });
-      organizationId = uid();
-      await prisma.organization.create({ data: { id: organizationId, name, type: 'SUPPLIER_COMPANY' as any, taxId, address, phone, email, originalType: 'Supplier', originalId: entityId, settings: { verification: 'PENDING' } as any } });
-    } else {
-      entityId = uid();
-      entity = await prisma.academy.create({ data: { id: entityId, name, city: city || null, ownerId: req.user!.id } });
-      organizationId = uid();
-      await prisma.organization.create({ data: { id: organizationId, name, type: 'ACADEMY' as any, taxId, address, phone, email, originalType: 'Academy', originalId: entityId, settings: { verification: 'PENDING' } as any } });
-    }
+      if (type === 'clinic') {
+        entityId = uid();
+        entity = await tx.clinic.create({ data: { id: entityId, name, city, address, phone, plan: 'DEMO', active: true } });
+        organizationId = uid();
+        await tx.organization.create({ data: { id: organizationId, name, type: 'CLINIC' as any, taxId, address, phone, email, originalType: 'Clinic', originalId: entityId, settings: { verification: 'PENDING' } as any } });
+        await tx.clinicMember.create({ data: { userId: req.user!.id, clinicId: entityId, role: 'OWNER' } });
+      } else if (type === 'diagnostic_center') {
+        entityId = uid();
+        entity = await tx.diagnosticCenter.create({ data: { id: entityId, name, city: city || undefined, address: address || undefined, phone: phone || undefined, email: email || undefined, active: true } });
+        organizationId = entityId;
+        await tx.organization.upsert({ where: { originalType_originalId: { originalType: 'DiagnosticCenter', originalId: entityId } }, update: { name, address, phone, email, taxId, settings: { verification: 'PENDING' } as any }, create: { id: entityId, name, type: 'DIAGNOSTIC_CENTER' as any, address, phone, email, taxId, contacts: city ? { city } : undefined, originalType: 'DiagnosticCenter', originalId: entityId, settings: { verification: 'PENDING' } as any } });
+        await tx.diagnosticCenterMember.create({ data: { id: uid(), centerId: entityId, userId: req.user!.id, role: 'owner' } });
+      } else if (type === 'dental_lab' || type === 'medical_lab') {
+        entityId = uid();
+        entity = await tx.laboratory.create({ data: { id: entityId, name, city: city || undefined, address: address || undefined, phone: phone || undefined, email: email || undefined, active: true } });
+        organizationId = entityId;
+        await tx.organization.upsert({ where: { originalType_originalId: { originalType: 'Laboratory', originalId: entityId } }, update: { name, address, phone, email, taxId, settings: { verification: 'PENDING', laboratoryType: type === 'dental_lab' ? 'DENTAL_LAB' : 'MEDICAL_LAB' } as any }, create: { id: entityId, name, type: 'LABORATORY' as any, address, phone, email, taxId, originalType: 'Laboratory', originalId: entityId, settings: { verification: 'PENDING', laboratoryType: type === 'dental_lab' ? 'DENTAL_LAB' : 'MEDICAL_LAB' } as any } });
+        await tx.laboratoryMember.create({ data: { id: uid(), labId: entityId, userId: req.user!.id, role: 'owner' } });
+      } else if (type === 'supplier') {
+        entityId = uid();
+        entity = await tx.supplier.create({ data: { id: entityId, name, kind: 'SUPPLIER', bin: taxId, legalAddress: address, contactPerson: `${req.user!.firstName} ${req.user!.lastName}`.trim() || null, phone, email, status: 'pending', commissionRate: 1000, members: { create: { userId: req.user!.id, role: 'owner' } } } });
+        organizationId = uid();
+        await tx.organization.create({ data: { id: organizationId, name, type: 'SUPPLIER_COMPANY' as any, taxId, address, phone, email, originalType: 'Supplier', originalId: entityId, settings: { verification: 'PENDING' } as any } });
+      } else {
+        entityId = uid();
+        entity = await tx.academy.create({ data: { id: entityId, name, city: city || null, ownerId: req.user!.id } });
+        organizationId = uid();
+        await tx.organization.create({ data: { id: organizationId, name, type: 'ACADEMY' as any, taxId, address, phone, email, originalType: 'Academy', originalId: entityId, settings: { verification: 'PENDING' } as any } });
+      }
 
-    await prisma.user.update({ where: { id: req.user!.id }, data: { role: 'OWNER' } });
-    const personId = await ensurePersonRole(req.user!.id, organizationId, type === 'supplier' ? 'seller' : 'owner');
-    return res.status(201).json({ ok: true, data: { entityId, organizationId, entity, personId, type, verification: 'PENDING', nextPath: SELF_SERVICE_TYPES[type].nextPath } } satisfies ApiResponse);
+      const personId = await ensurePersonRole(tx, req.user!.id, organizationId, type === 'supplier' ? 'seller' : 'owner');
+      await tx.user.update({ where: { id: req.user!.id }, data: { role: 'OWNER' } });
+      return { entityId, organizationId, entity, personId };
+    });
+
+    return res.status(201).json({ ok: true, data: { ...result, type, verification: 'PENDING', nextPath: SELF_SERVICE_TYPES[type].nextPath } } satisfies ApiResponse);
   } catch (error) {
     console.error('[organizations] self-service onboarding error:', error);
     return res.status(400).json({ ok: false, error: error instanceof Error ? error.message : 'Не удалось создать организацию' } satisfies ApiResponse);
