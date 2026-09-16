@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Sparkles, Send, Pencil, Check, X as XIcon, RefreshCw, ShieldCheck } from 'lucide-react';
+import { Sparkles, Send, Pencil, Check, X as XIcon, RefreshCw, ShieldCheck, MessageCircle, Link as LinkIcon } from 'lucide-react';
 import { Drawer, Button, Badge, EmptyState, Skeleton } from '@/components/ui/ds';
 import { Textarea } from '@/components/ui/ds/Input';
 import { useToast } from '@/components/ui/ds/Toast';
@@ -23,10 +23,14 @@ function fd(d: string | null | undefined): string {
   try { return new Date(d).toLocaleDateString('ru-RU'); } catch { return d; }
 }
 
+function publicPlanUrl(releaseId: string): string {
+  return `${window.location.origin}/plan/${encodeURIComponent(releaseId)}`;
+}
+
 /**
- * Takes a doctor through "approve (if needed) → generate → review/edit →
- * publish" for one plan's presentation — a self-contained drawer rather
- * than a separate release-history screen, since none exists yet.
+ * Doctor flow: approve → generate/review → publish → send the published
+ * bearer link to a patient. The last step does not require the patient to have
+ * a DentVision account: WhatsApp opens with the secure plan URL ready to send.
  */
 export function PresentationPreview({ open, onClose, planId }: PresentationPreviewProps) {
   const toast = useToast();
@@ -102,6 +106,24 @@ export function PresentationPreview({ open, onClose, planId }: PresentationPrevi
     }
   };
 
+  const handleWhatsApp = () => {
+    if (!releaseId || !approvedRelease?.publishedAt) return;
+    const url = publicPlanUrl(releaseId);
+    const text = `Ваш электронный план лечения опубликован в DentVision. Откройте план по ссылке:\n${url}\n\nPowered by DentVision`;
+    window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank', 'noopener,noreferrer');
+  };
+
+  const handleCopyLink = async () => {
+    if (!releaseId || !approvedRelease?.publishedAt) return;
+    const url = publicPlanUrl(releaseId);
+    try {
+      await navigator.clipboard.writeText(url);
+      toast.success('Ссылка на план скопирована');
+    } catch {
+      toast.error('Не удалось скопировать ссылку');
+    }
+  };
+
   return (
     <Drawer open={open} onClose={onClose} title="Презентация плана" width={480}>
       <div className="space-y-4">
@@ -120,16 +142,28 @@ export function PresentationPreview({ open, onClose, planId }: PresentationPrevi
           />
         ) : (
           <>
-            <div className="rounded-xl border border-bdr-subtle p-3 flex items-center justify-between gap-2">
-              <div className="text-xs text-txt-muted">
-                Релиз v{approvedRelease.version} · утверждён {fd(approvedRelease.approvedAt)}
+            <div className="rounded-xl border border-bdr-subtle p-3 space-y-3">
+              <div className="flex items-center justify-between gap-2">
+                <div className="text-xs text-txt-muted">
+                  Релиз v{approvedRelease.version} · утверждён {fd(approvedRelease.approvedAt)}
+                </div>
+                {approvedRelease.publishedAt ? (
+                  <Badge variant="success" size="xs">Релиз опубликован</Badge>
+                ) : (
+                  <Button size="xs" variant="ghost" loading={publishReleaseMutation.isPending} onClick={handlePublishWithoutAi}>
+                    Опубликовать без ИИ
+                  </Button>
+                )}
               </div>
-              {approvedRelease.publishedAt ? (
-                <Badge variant="success" size="xs">Релиз опубликован</Badge>
-              ) : (
-                <Button size="xs" variant="ghost" loading={publishReleaseMutation.isPending} onClick={handlePublishWithoutAi}>
-                  Опубликовать без ИИ
-                </Button>
+              {approvedRelease.publishedAt && releaseId && (
+                <div className="flex flex-wrap gap-2">
+                  <Button size="xs" icon={<MessageCircle size={13} />} onClick={handleWhatsApp}>
+                    Отправить в WhatsApp
+                  </Button>
+                  <Button size="xs" variant="ghost" icon={<LinkIcon size={13} />} onClick={handleCopyLink}>
+                    Копировать ссылку
+                  </Button>
+                </div>
               )}
             </div>
 

@@ -30,8 +30,22 @@ test.describe('Authentication API', () => {
     const user = body.data?.user || body.user;
     expect(user).toBeDefined();
     expect(user.email).toBe(freshEmail);
-
     await cleanupTestUser(freshEmail);
+  });
+
+  test('AUTH-012: Public self-registration cannot grant a privileged role', async () => {
+    const requestedRoles = ['owner', 'doctor', 'lab', 'admin', 'manager'];
+    for (const role of requestedRoles) {
+      const email = `auth-role-${role}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}@test.com`;
+      const res = await api.post(`${BASE_URL}/api/auth/register`, {
+        data: { email, password: testPassword, firstName: 'Role', lastName: 'Test', role },
+      });
+      expect(res.status(), role).toBe(201);
+      const body = await res.json();
+      expect(body.data?.user?.role, role).toBe('STUDENT');
+      expect(body.data?.accessToken, role).toBeDefined();
+      await cleanupTestUser(email);
+    }
   });
 
   test('AUTH-005: Register with existing email → 409', async () => {
@@ -39,17 +53,13 @@ test.describe('Authentication API', () => {
     const dupUser = { email: dupEmail, password: testPassword, firstName: 'Auth', lastName: 'Dup' };
     const first = await api.post(`${BASE_URL}/api/auth/register`, { data: dupUser });
     expect(first.status()).toBe(201);
-
     const res = await api.post(`${BASE_URL}/api/auth/register`, { data: dupUser });
     expect(res.status()).toBe(409);
-
     await cleanupTestUser(dupEmail);
   });
 
   test('AUTH-001: Valid login with correct credentials → 200 + user object', async () => {
-    const res = await api.post(`${BASE_URL}/api/auth/login`, {
-      data: { email: testUser.email, password: testUser.password },
-    });
+    const res = await api.post(`${BASE_URL}/api/auth/login`, { data: { email: testUser.email, password: testUser.password } });
     expect(res.status()).toBe(200);
     const body = await res.json();
     const user = body.data?.user || body.user;
@@ -58,30 +68,21 @@ test.describe('Authentication API', () => {
   });
 
   test('AUTH-002: Login with wrong password → 401', async () => {
-    const res = await api.post(`${BASE_URL}/api/auth/login`, {
-      data: { email: testUser.email, password: 'WrongPassword!' },
-    });
+    const res = await api.post(`${BASE_URL}/api/auth/login`, { data: { email: testUser.email, password: 'WrongPassword!' } });
     expect(res.status()).toBe(401);
   });
 
   test('AUTH-003: Login with non-existent email → 401', async () => {
-    const res = await api.post(`${BASE_URL}/api/auth/login`, {
-      data: { email: 'nonexistent@test.com', password: 'Test1234!' },
-    });
+    const res = await api.post(`${BASE_URL}/api/auth/login`, { data: { email: 'nonexistent@test.com', password: 'Test1234!' } });
     expect(res.status()).toBe(401);
   });
 
   test('AUTH-006: Logout → 200 + cookies cleared', async () => {
-    const loginRes = await api.post(`${BASE_URL}/api/auth/login`, {
-      data: { email: testUser.email, password: testUser.password },
-    });
+    const loginRes = await api.post(`${BASE_URL}/api/auth/login`, { data: { email: testUser.email, password: testUser.password } });
     expect(loginRes.status()).toBe(200);
     const loginBody = await loginRes.json();
     const accessToken = loginBody.data?.accessToken || loginBody.accessToken;
-
-    const logoutRes = await api.post(`${BASE_URL}/api/auth/logout`, {
-      headers: { Authorization: `Bearer ${accessToken}` },
-    });
+    const logoutRes = await api.post(`${BASE_URL}/api/auth/logout`, { headers: { Authorization: `Bearer ${accessToken}` } });
     expect(logoutRes.status()).toBe(200);
   });
 
@@ -90,66 +91,44 @@ test.describe('Authentication API', () => {
     try {
       const res = await anonymous.get(`${BASE_URL}/api/auth/me`);
       expect(res.status()).toBe(401);
-    } finally {
-      await anonymous.dispose();
-    }
+    } finally { await anonymous.dispose(); }
   });
 
   test('AUTH-008: Access /me with expired token → 401', async () => {
     const expiredToken = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOiJ0ZXN0LWlkIiwiZXhwIjoxNjAwMDAwMDAwfQ.invalid';
-    const res = await api.get(`${BASE_URL}/api/auth/me`, {
-      headers: { Authorization: `Bearer ${expiredToken}` },
-    });
+    const res = await api.get(`${BASE_URL}/api/auth/me`, { headers: { Authorization: `Bearer ${expiredToken}` } });
     expect(res.status()).toBe(401);
   });
 
   test('AUTH-011: Revoked session cannot use an otherwise-valid access token → 401', async () => {
-    const loginRes = await api.post(`${BASE_URL}/api/auth/login`, {
-      data: { email: testUser.email, password: testUser.password },
-    });
+    const loginRes = await api.post(`${BASE_URL}/api/auth/login`, { data: { email: testUser.email, password: testPassword } });
     expect(loginRes.status()).toBe(200);
     const body = await loginRes.json();
     const accessToken = body.data?.accessToken || body.accessToken;
     expect(accessToken).toBeDefined();
-
     const payload = JSON.parse(Buffer.from(accessToken.split('.')[1], 'base64url').toString('utf8')) as { sessionId?: string };
     expect(payload.sessionId).toBeDefined();
-
     await prisma.userSession.delete({ where: { id: payload.sessionId! } });
-
-    const res = await api.get(`${BASE_URL}/api/auth/me`, {
-      headers: { Authorization: `Bearer ${accessToken}` },
-    });
+    const res = await api.get(`${BASE_URL}/api/auth/me`, { headers: { Authorization: `Bearer ${accessToken}` } });
     expect(res.status()).toBe(401);
   });
 
   test('AUTH-009: Refresh token rotation → 200 + new tokens', async () => {
-    const loginRes = await api.post(`${BASE_URL}/api/auth/login`, {
-      data: { email: testUser.email, password: testUser.password },
-    });
+    const loginRes = await api.post(`${BASE_URL}/api/auth/login`, { data: { email: testUser.email, password: testPassword } });
     expect(loginRes.status()).toBe(200);
-
     const state = await api.storageState();
     const refreshCookie = state.cookies.find((c) => c.name === 'refreshToken');
     expect(refreshCookie).toBeDefined();
-
-    const refreshRes = await api.post(`${BASE_URL}/api/auth/refresh`, {
-      data: { refreshToken: refreshCookie!.value },
-    });
+    const refreshRes = await api.post(`${BASE_URL}/api/auth/refresh`, { data: { refreshToken: refreshCookie!.value } });
     expect(refreshRes.status()).toBe(200);
     const body = await refreshRes.json();
     expect(body.data?.accessToken || body.accessToken).toBeDefined();
   });
 
   test('AUTH-010: Forgot password → 200 (always returns 200 for security)', async () => {
-    const res = await api.post(`${BASE_URL}/api/auth/forgot-password`, {
-      data: { email: testUser.email },
-    });
+    const res = await api.post(`${BASE_URL}/api/auth/forgot-password`, { data: { email: testUser.email } });
     expect(res.status()).toBe(200);
-
-    const nonExistentRes = await api.post(`${BASE_URL}/api/auth/forgot-password`, {
-      data: { email: 'nonexistent@test.com' },
-    });
+    const nonExistentRes = await api.post(`${BASE_URL}/api/auth/forgot-password`, { data: { email: 'nonexistent@test.com' } });
     expect(nonExistentRes.status()).toBe(200);
   });
 });

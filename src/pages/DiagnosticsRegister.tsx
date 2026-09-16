@@ -18,18 +18,18 @@ type DiagnosticsRegistrationPayload = {
   comment?: string;
 };
 
-const PARTNER_LABELS: Record<PartnerType, string> = {
-  center: 'диагностический центр',
-  laboratory: 'медицинскую лабораторию',
-  dental_laboratory: 'зуботехническую лабораторию',
-};
-
 // The shared API client still exposes the legacy center/laboratory type union.
 // Keep the runtime value intact so the dedicated dental-laboratory registration
 // reaches the backend unchanged; the API type can be widened independently.
 async function submitPartnerRegistration(data: DiagnosticsRegistrationPayload): Promise<any> {
   return api.submitDiagnosticsRegistration(data as Parameters<typeof api.submitDiagnosticsRegistration>[0]);
 }
+
+const PARTNER_LABELS: Record<PartnerType, string> = {
+  center: 'диагностический центр',
+  laboratory: 'медицинскую лабораторию',
+  dental_laboratory: 'зуботехническую лабораторию',
+};
 
 export default function DiagnosticsRegister() {
   const navigate = useNavigate();
@@ -87,7 +87,7 @@ export default function DiagnosticsRegister() {
             </button>
             <button onClick={() => { setType('laboratory'); setStep('form'); }}
               className="w-full flex items-center gap-4 p-4 rounded-xl border border-bdr-subtle hover:border-dv-gold/40 hover:bg-dv-gold/5 transition-all text-left min-h-11">
-              <div className="w-12 h-12 rounded-xl bg-purple-500/10 flex items-center justify-center"><FlaskConical size={24} className="text-purple-500" /></div>
+              <div className="w-12 h-12 rounded-xl bg-dv-gold/10 flex items-center justify-center"><FlaskConical size={24} className="text-dv-gold" /></div>
               <div><p className="text-sm font-semibold text-txt-primary">Медицинская лаборатория</p><p className="text-xs text-txt-muted">Анализы, гистология, биопсия</p></div>
             </button>
             <button onClick={() => { setType('dental_laboratory'); setStep('form'); }}

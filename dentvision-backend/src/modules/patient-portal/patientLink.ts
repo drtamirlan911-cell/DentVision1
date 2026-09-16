@@ -1,31 +1,22 @@
 /**
  * Matching a signed-in user to the patient card a clinic already holds.
  *
- * The portal used to bridge the two by email alone, and never wrote the link
- * down: `/me`, `ensurePatient` and `/link` each redid the same email lookup on
- * every request. Two consequences, both routine rather than exotic:
- *
- *  - reception commonly enters a patient by phone with no email, and the public
- *    booking form makes email optional while requiring the phone. Those patients
- *    matched nothing, so registering gave them a second, empty card — no visits,
- *    no invoices, no images — while their real one sat in the same clinic;
- *  - because the match was never persisted, changing the email on the card
- *    silently revoked the patient's access to their own history.
- *
- * Phone is the identifier this product actually always has, so it is matched
- * too, and a match by either identifier writes `userId` once.
+ * Matching is deliberately deterministic and clinic-scoped when context is
+ * available. IIN is the strongest patient identifier in Kazakhstan; email and
+ * phone remain fallback contact identifiers.
  */
 
 import { Prisma } from '@prisma/client';
 
 import prisma from '../../lib/prisma.js';
 import { normalizePhone } from '../crm/reminderEligibility.js';
+import { hmacIin } from '../../lib/phi.js';
 
 export interface PatientMatch {
   id: string;
   clinicId: string;
   /** How the card was found — worth logging when a link is created. */
-  via: 'userId' | 'email' | 'phone';
+  via: 'userId' | 'iin' | 'email' | 'phone';
 }
 
 /** The digits a phone can be searched by, ignoring +7 / 8 / spacing. */
@@ -42,16 +33,13 @@ export function phonesMatch(a: string | null | undefined, b: string | null | und
 /**
  * Find this user's patient card, linking it on first match.
  *
- * When the authenticated session carries an active clinic context, that
- * context is the default scope. Callers may still pass an explicit clinicId
- * (for example during a deliberate clinic-link flow), but absence of an
- * explicit option no longer means "search every clinic" for a multi-clinic
- * user. This makes the active workspace context part of the patient identity
- * boundary instead of relying on first-match semantics.
+ * IIN is checked first, then email and phone. The caller should only provide
+ * an IIN collected from the authenticated patient; the stored IIN itself is
+ * encrypted and is never used as a plaintext SQL lookup.
  */
 export async function resolvePatientForUser(
-  user: { id: string; email?: string | null; phone?: string | null; clinicId?: string | null },
-  opts: { clinicId?: string | null; phoneHint?: string | null } = {},
+  user: { id: string; email?: string | null; phone?: string | null; iin?: string | null; clinicId?: string | null },
+  opts: { clinicId?: string | null; phoneHint?: string | null; iinHint?: string | null } = {},
 ): Promise<PatientMatch | null> {
   const effectiveClinicId = opts.clinicId ?? user.clinicId ?? null;
   const clinicScope = effectiveClinicId ? { clinicId: effectiveClinicId } : {};
@@ -61,6 +49,18 @@ export async function resolvePatientForUser(
     select: { id: true, clinicId: true },
   });
   if (byUserId) return { ...byUserId, via: 'userId' };
+
+  const wantedIin = opts.iinHint ?? user.iin;
+  const iinHash = hmacIin(wantedIin);
+  if (iinHash) {
+    const byIin = await prisma.patient.findFirst({
+      where: { iinHash, userId: null, ...clinicScope },
+      select: { id: true, clinicId: true },
+    });
+    if (byIin && await claim(byIin.id, user.id)) {
+      return { ...byIin, via: 'iin' };
+    }
+  }
 
   if (user.email) {
     const byEmail = await prisma.patient.findFirst({
