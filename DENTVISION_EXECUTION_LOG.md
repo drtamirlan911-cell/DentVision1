@@ -38,162 +38,25 @@ The complete pre-2026-09-14 execution history is preserved in the parent Git his
 - Exact failure: `SyntaxError: e2e/tests/appointment.spec.ts: Unexpected token (260:4)`. The malformed APPT-009 request had `{ headers: { Authorization: \\`*** },` instead of a valid closing template literal/object structure.
 - Backend, frontend, database sync, seed, TypeScript, build, unit tests, backend lint and frontend lint all completed successfully in the same workflow run; the failure was isolated to the E2E test source syntax.
 
+## 2026-09-16 — Ecosystem clinical-case continuity and Market pass
+
 ### Implemented
-- `97e725f97f800aafd12d690d6ce80e7a95da9de1` repaired `e2e/tests/appointment.spec.ts`.
-- The fix restores valid TypeScript syntax and aligns APPT-009 with the actual appointment list contract by using `from`/`to` instead of the unsupported `date` query parameter.
-- APPT-009 now also asserts that both created appointments are present in the returned range, making the test verify the filtering contract rather than only HTTP 200.
-- No production endpoint, permission, status mapping, or security check was weakened or bypassed.
+- `48beaea9bc127944b27ec90df16d6ba26590802b` — Diagnostics workspace now reads shared ecosystem URL context and renders the compact clinical-case flow when patient/case context exists.
+- `e61f10d69222cbfcc723720e1bf0db2c32ff762b` — Main Intelligence shell exposes the same compact clinical-case flow across non-Diagnostics workspaces when patient/case context exists.
+- `5420fbe7dfb771f5bef0fe7995198affd41228ff` — Shop checkout preserves `patient`, `caseId`, `branchId`, and `organizationId` through checkout, payment completion, and return to order history; contextual bridge is shown when ecosystem context exists.
+- `ed6fd91537301dd550f197ad829e767bd6a74475` — Shop order history preserves the same ecosystem context and provides contextual navigation back to Market/catalog.
+- `a52db377ac7aeb9cf42af3ce7b4cda4525944d92` — Shop product detail preserves ecosystem context across catalog/category/product/checkout navigation and exposes the active context bridge.
+- `ClinicalCaseWorkspace` remains the canonical `/crm/cases` route; ecosystem relations continue to connect clinical case → diagnostics → medical laboratory → dental laboratory → materials/Market → finance.
+
+### Product intent
+- Market is treated as a first-class ecosystem participant rather than a disconnected commerce screen.
+- A clinician entering Market from a patient/case workflow keeps that context through product selection, checkout, payment, and order history.
+- No new competing product flow was introduced; existing Shop APIs, cart, DentCash and payment behavior were preserved.
 
 ### Verification status
-- The correction is **UNVERIFIED** until a fresh GitHub Actions run executes against `97e725f97f800aafd12d690d6ce80e7a95da9de1`.
-- Release remains **NOT READY**.
+- These changes were made during the build-first phase by explicit instruction; CI/E2E were intentionally not run.
+- The current functional state is therefore UNVERIFIED until the later full release-gate pass.
+- The Vercel syntax blocker in `IntelligenceLayout.tsx` was separately corrected in `00d46709b604fcabb248cba84de70a96c5405958`.
 
 ### Next action
-1. Obtain the fresh workflow run for `97e725f97f800aafd12d690d6ce80e7a95da9de1` and inspect the E2E result.
-2. If E2E passes, inspect browser UX, Business Owner, Organization Owner and quality/release gates.
-3. If E2E fails, fix the exact failing contract without weakening assertions.
-4. Continue the canonical P0 queue: auth fail-closed/session enforcement, IAM negative matrix, diagnostics confirmation contract, then P1 economics/partner lifecycle.
-
-## 2026-09-15 — Appointment cascade root cause: patient branch SQL mismatch
-
-### Investigation
-- Playwright artifact from the failing appointment run showed `POST /api/patients` returning HTTP 500 before any appointment was created; APPT-001 through APPT-010 were downstream failures from the missing patient id.
-- Current `Branch` schema/migration uses physical `branches.clinic_id`, `"isDefault"`, and `"createdAt"` columns.
-- `patients.routes.ts` still used legacy `is_default` and `created_at` in the organization-owner fallback branch lookup. PostgreSQL therefore failed before patient creation and returned the generic patient-save error.
-
-### Implemented
-- `8a010c8922c5512c10eb7f5688f287d8c5d2d98c` changes only that raw SQL ordering to canonical `"isDefault"` / `"createdAt"` identifiers.
-- Compare against the previous verified HEAD `d896537228850144c61dbdb63334396472c1d4e5` confirms exactly **1 file, 1 addition, 1 deletion**; no appointment, RBAC, or branch-isolation rule was weakened.
-
-### Verification
-- Fresh Quality Gate run: `34945380674` (run 2429), started against exact HEAD `8a010c8922c5512c10eb7f5688f287d8c5d2d98c`.
-- Fresh CI run: `34945380673`, same HEAD.
-- At log update time both runs were still in progress; release remains **NOT READY** until the complete fresh gates finish green.
-
-### 2026-09-15 systemic branch-schema audit
-- CI run `34999249118` confirmed database seed, backend startup, frontend startup, unit tests, TypeScript and both lint jobs all succeeded; only the E2E suite remained failing.
-- Audit found a second latent production migration defect in `20260914090000_backfill_default_branch_scope/migration.sql`: it used legacy `is_default`, `created_at`, `patients.clinic_id`, `appointments.clinic_id`, and `clinic_members.clinic_id`. The physical schema uses `branches."isDefault"`, `branches."createdAt"`, `patients."clinicId"`, `appointments."clinicId"`, and `clinic_members."clinicId"` for those fields.
-- `20260914100000_enforce_branch_consistency/migration.sql` contained the same class of mismatch for appointment trigger columns (`patient_id`, `clinic_id`), corrected to physical `"patientId"` and `"clinicId"` while retaining `branch_id`.
-- Both migrations were corrected without changing the branch-isolation policy.
-- The diagnostics service was audited against the route contract: the route already resolves and passes `branchId`, while the service create payload must persist that context. This remains the next targeted application-layer fix after preserving the last known-good source state.
-
-### Implemented
-- `6b0d0e435819d8e03853166ad0790b183998b693` — `fix(db): align branch backfill migration with physical columns`.
-- `2c2525e6b69782e904d2ff0821cfc275bc08b607` — `fix(db): align appointment branch trigger with physical columns`.
-
-### Release status
-- **NOT READY.** The latest known E2E run predates these two migration corrections. No claim of green release is made until a fresh complete CI run verifies them.
-
-## 2026-09-16 — Business-owner E2E and production migration audit
-
-### CI evidence
-- CI run `35012064060` on HEAD `5e650942b4f51ae11e0061102117ee269a1f7e0e` reached the complete core E2E suite: **204 passed, 4 skipped**.
-- All core Academy, AI, API contract, appointments, auth, branch, clinical IDOR, diagnostics cross-module, diagnosis, double-submit, error-injection, inventory/tenant, lab, marketplace, payment, payout, finance, RBAC, patient and treatment-plan suites passed.
-- The only failures were in the separate Business Owner journey gate: BIZ-006 and BIZ-007.
-- BIZ-006 was a Playwright selector defect: the page had six `Редактировать` buttons and the intended one was inside `dialog[aria-label="Профиль сотрудника"]`. The production UI itself rendered the intended action.
-- BIZ-007 exposed a real frontend/backend API contract mismatch: the frontend `createInvitation()` called `/api/auth/invitations`, while the canonical backend endpoint is `/api/clinics/:id/invite`.
-
-### Implemented
-- `e34fd165b0c54f86b37e197d72b5e1273e3f2f8` — scoped BIZ-006 profile actions to the employee profile dialog.
-- `6fe493bc7d36d82d0b2662ccfb1556648aca7cb4` — added a fail-closed authenticated `/api/auth/invitations` compatibility endpoint with the same OWNER/ADMIN clinic authorization semantics as the canonical clinic invite endpoint.
-- `97712d7a035810560f661e9349c29a37a10a9722` — corrected `20260914080000_organization_scoped_branches/migration.sql` to provision `clinic_members.branch_id`, matching Prisma `@map("branch_id")`, indexes and FK.
-- `4741becb85bed432ede1049349c29a37a10a9722` — made `20260914090000_backfill_default_branch_scope/migration.sql` self-provision `patients.branch_id`, `appointments.branch_id`, and `clinic_members.branch_id` before backfill.
-- `2174ac9257f3ae10beb4f8df92cb8d693cdf660d` — made referral branch migration self-provision `referrals.branch_id` before installing the consistency trigger.
-
-### Additional audit findings
-- Appointment and idempotency duplicate-key errors visible in the CI backend log are expected contention signals from the race-condition tests, not unhandled test failures; the E2E assertions passed.
-- `npm ci` reports dependency vulnerabilities and a deprecated Multer 1.x package; this is recorded as a separate dependency-security workstream and is not being hidden by changing audit thresholds.
-- PostgreSQL health-check logs show repeated `role "root" does not exist` probes from the runner/container health path; application health itself returned healthy and E2E proceeded normally.
-- The branch schema has intentionally mixed physical naming: `branches.clinic_id` plus quoted camelCase `"isDefault"`/`"createdAt"`; operational records use quoted Prisma camelCase clinic/patient fields plus mapped `branch_id`. Raw SQL must continue using these physical identifiers explicitly.
-
-### Verification
-- New CI run `35052027294` was automatically triggered by the invitation compatibility fix and is currently executing against its resulting main HEAD. Its E2E seed path has already completed successfully on the new code path when this log section was recorded.
-- Release remains **NOT READY** until this fresh run completes, including BIZ, organization-owner lifecycle, Playwright CLI smoke and Quality Gate.
-
-### Next action
-1. Inspect run `35052027294` to completion.
-2. If BIZ passes, audit organization-owner lifecycle and release-gate failures next.
-3. Keep production branch migrations and Prisma `@map("branch_id")` aligned.
-4. Address dependency vulnerabilities/deprecations as a separate controlled upgrade after functional release gates are green.
-
-## 2026-09-16 — RBAC-010 correction and full CI verification
-
-### Implemented
-- `844b469e084dd5acec6fb45f26d28757c27a3568` — corrected `RBAC-010` to assert that MANAGER is denied access to the superadmin `/api/admin/users` route with HTTP 403. The backend authorization contract was not weakened.
-
-### Verification
-- CI run `35066089223` executed against exact HEAD `844b469e084dd5acec6fb45f26d28757c27a3568`.
-- `frontend-lint`: passed.
-- `lint-test`: passed, including build, TypeScript, command-center audit and backend unit tests.
-- `backend-lint`: passed.
-- `e2e`: passed completely: E2E suite, browser UX coverage, Business Owner journeys, Organization Owner lifecycle release gate and official Playwright CLI browser smoke all completed successfully.
-
-### Release status
-- This CI run is fully green. The release gate is still not declared complete solely from this CI run because the master plan also requires the remaining lifecycle/security/economics work and a separate Quality Gate evidence where applicable.
-
-### Next action
-1. Continue the canonical Phase 2 security/lifecycle queue: full branch lifecycle and negative-path checks for cross-branch access, expired/revoked invitations and disabled staff.
-2. Then continue the accepted → paid → settled economics/ledger integration and medical-analysis lifecycle.
-3. Keep all fixes accompanied by regression tests and persistent execution-log evidence.
-
-## 2026-09-16 — Branch deactivation test hardening
-
-### Implemented
-- `0591fadc13e0fb69066a070a2bfb15de30a0ad91` — made `BRANCH-002` deterministic by creating its own non-default branch, asserting it is active/non-default, and requiring the explicit `Отключить филиал` action to succeed.
-- Removed the prior conditional path that silently accepted absence of a non-default branch, so the test now fails when the expected branch lifecycle is not available.
-- No production branch authorization or deactivation rule was changed.
-
-### Verification
-- A fresh CI run is expected from the `main` push of `0591fadc13e0fb69066a070a2bfb15de30a0ad91`; verification remains pending until that run completes.
-
-### Next action
-1. Inspect the fresh CI run for `0591fadc13e0fb69066a070a2bfb15de30a0ad91`.
-2. If green, add direct cross-tenant/cross-branch negative-path coverage and then continue invitation/session security.
-3. Preserve the release gate as incomplete until all required lifecycle/security/economics evidence is green.
-
-## 2026-09-16 — UI functional/parity audit started
-
-### Control documents
-- `DENTVISION_SUPERAPP_BLUEPRINT.md` defines the product north star as a Dental Operating System and explicitly states that a collection of routes is not sufficient evidence of Super App behavior.
-- `DENTVISION_SUPERAPP_MASTER_PLAN.md` requires preserving functionality and completing route/IA, clinical OS, AI, operations, ecosystem and release-excellence phases; it also requires visual consistency and PR/feature-branch workflow.
-
-### Repository evidence
-- `src/pages` contains both top-level pages and substantial domain subtrees including `crm`, `diagnostics`, `school`, `shop`, `partner`, `patient-portal`, `superadmin`, `settings`, `ops`, `clinic`, `bi`, `auth`, and `legal`.
-- CRM already has substantial clinical/operational pages including Cashier, Billing, Clinic Settings, Dental Chart, Documents, ICD-10, Inventory, Lab, Marketing, Medical Card, Patient Inbox, Patients and Price List.
-- `package.json` contains the project index command `npm run project:index`, plus build/typecheck/unit/E2E/quality scripts.
-
-### Concrete finding
-- `src/pages/DiagnosticsRegister.tsx` is a real interactive partner-registration workflow: type selection → form → API submission → success/error state. The source uses the shared API client rather than a static success-only mock.
-- The same page contained a legacy purple accent for the medical-laboratory option, which conflicts with the master plan's single clinical-neutral/gold visual language.
-
-### Implemented
-- `6a15e06783e365b1926d02b350dc01a4485cb671` — replaced the legacy purple medical-laboratory accent with the shared DentVision gold accent. No workflow, API payload, role, or permission behavior changed.
-- Created isolated working branch `audit/ui-functional-parity-20260916` from exact main HEAD `3eebb0c5b00a36c61a4248e57b3d03560fcf28f3`; work is not being written directly to `main`.
-
-### Verification status
-- Quality Gate run `35068366667` was triggered by the latest main HEAD before the audit branch was created and was still **in progress** when this section was recorded; fresh verification of the audit branch is still required.
-- Release remains **NOT READY**.
-
-### Next action
-1. Complete route/page functional audit across Practice/CRM, Diagnostics, AI, Shop, Academy, Analytics and Network: distinguish implemented workflows from shells/placeholders and verify backend actions where visible in source.
-2. Continue targeted legacy visual-outlier scan without broad redesign.
-3. Add only deterministic E2E coverage for high-value gaps; do not weaken existing assertions.
-4. Run the branch's Quality Gate and inspect every resulting job before merging.
-
-## 2026-09-16 — Ecosystem clinical-case continuity pass
-
-### Implemented
-- `48beaea9bc127944b27ec90df16d6ba26590802b` — Diagnostics workspace now reads the shared ecosystem URL context and renders the compact clinical-case flow whenever a patient/case context is present. Existing diagnostic navigation, partner-cabinet switching and authorization behavior were preserved.
-- `e61f10d69222cbfcc723720e1bf0db2c32ff762b` — the main Intelligence shell now exposes the same compact clinical-case flow across non-Diagnostics workspaces when `patient`, `caseId`, `branchId` or `organizationId` context is present. This makes the case a persistent cross-module workspace instead of a one-time navigation destination.
-- Confirmed `src/pages/crm/ClinicalCaseWorkspace.tsx` exists and the canonical `/crm/cases` route is already mounted in `src/index.tsx`; no duplicate case implementation was created.
-
-### Product effect
-- Clinical context now remains visible while moving through CRM, Treatment Plans, Finance, Laboratory, Market and AI, while Diagnostics retains its own domain shell.
-- The intended ecosystem chain is now represented as a persistent navigation model: **Patient → Clinical Case → Diagnostics → Treatment → Laboratory → Market → Appointment → Finance → AI**.
-- No CI/E2E verification was run in this build-first pass by design; these changes are therefore **UNVERIFIED** until the next release-gate run.
-
-### Next action
-1. Continue the same vertical slice into diagnostic referral/result context, medical-lab analysis and dental-lab order context.
-2. Wire supplier/Market selection and finance records back to the clinical case without duplicating domain logic.
-3. Perform the premium visual pass after the functional ecosystem chain is complete.
-4. Then run the complete release gates and fix only evidence-backed failures.
+- Continue the ecosystem continuity pass through Finance and Medical Laboratory where existing routes support it, then perform the premium visual/Figma pass. Only after the product-wide build pass is complete: run the full CI/E2E/release gates and repair all real failures without weakening tests.
