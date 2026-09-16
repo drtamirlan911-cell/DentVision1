@@ -1,5 +1,5 @@
 import React, { useMemo } from 'react';
-import { ArrowRight, BrainCircuit, CalendarDays, ClipboardList, CreditCard, FlaskConical, Image, PackageSearch, UserRound } from 'lucide-react';
+import { ArrowRight, BrainCircuit, CalendarDays, ClipboardList, CreditCard, FlaskConical, Image, PackageSearch, UserRound, Activity, Clock3, CircleDollarSign } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { PageHeader } from '@/components/ui/ds/StatCard';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/ds/Card';
@@ -27,12 +27,41 @@ export default function ClinicalCaseWorkspace() {
   const { user, clinic } = useAuth();
   const context = useEcosystemUrlContext();
   const clinicId = clinic?.id || user?.clinicId || '';
-  const { patients } = useDataQuery(clinicId || undefined);
+  const { patients, appointments, labOrders, visits, receipts } = useDataQuery(clinicId || undefined);
 
   const patient = useMemo(() => {
     if (!context.patientId || !Array.isArray(patients)) return null;
     return patients.find((item: any) => item.id === context.patientId) || null;
   }, [context.patientId, patients]);
+
+  const caseAppointments = useMemo(
+    () => context.patientId ? appointments.filter((item: any) => item.patientId === context.patientId) : [],
+    [appointments, context.patientId],
+  );
+  const caseLabs = useMemo(
+    () => context.patientId ? labOrders.filter((item: any) => item.patientId === context.patientId) : [],
+    [labOrders, context.patientId],
+  );
+  const caseVisits = useMemo(
+    () => context.patientId ? visits.filter((item: any) => item.patientId === context.patientId) : [],
+    [visits, context.patientId],
+  );
+  const caseReceipts = useMemo(
+    () => context.patientId ? receipts.filter((item: any) => item.patientId === context.patientId) : [],
+    [receipts, context.patientId],
+  );
+
+  const nextAppointment = useMemo(() => {
+    const now = Date.now();
+    return caseAppointments
+      .filter((item: any) => item.status !== 'cancelled' && new Date(item.date).getTime() >= now - 86400000)
+      .sort((a: any, b: any) => new Date(a.date).getTime() - new Date(b.date).getTime())[0] || null;
+  }, [caseAppointments]);
+
+  const openLabs = caseLabs.filter((item: any) => !['delivered', 'cancelled'].includes(item.status));
+  const outstanding = caseReceipts
+    .filter((item: any) => ['debt', 'partial', 'pending', 'unpaid', 'overdue'].includes(String(item.status).toLowerCase()))
+    .reduce((sum: number, item: any) => sum + Number(item.total || item.amount || 0), 0);
 
   const go = (route: string) => navigate(withEcosystemContext(resolveEcosystemRoute(route), context));
 
@@ -69,6 +98,28 @@ export default function ClinicalCaseWorkspace() {
         </CardContent>
       </Card>
 
+      {context.patientId && (
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+          <CaseMetric icon={<Activity size={16} />} label="Визиты" value={caseVisits.length} />
+          <CaseMetric icon={<CalendarDays size={16} />} label="Записи" value={caseAppointments.length} />
+          <CaseMetric icon={<FlaskConical size={16} />} label="Лаб. заказы" value={caseLabs.length} hint={openLabs.length ? `${openLabs.length} в работе` : 'нет открытых'} />
+          <CaseMetric icon={<CircleDollarSign size={16} />} label="К оплате" value={outstanding > 0 ? `${outstanding.toLocaleString('ru-RU')} ₸` : '0 ₸'} />
+        </div>
+      )}
+
+      {context.patientId && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Текущий статус кейса</CardTitle>
+          </CardHeader>
+          <CardContent className="grid grid-cols-1 md:grid-cols-3 gap-3">
+            <StatusItem icon={<Clock3 size={16} />} label="Следующая запись" value={nextAppointment ? `${nextAppointment.date}${nextAppointment.time ? ` · ${nextAppointment.time}` : ''}` : 'Не назначена'} />
+            <StatusItem icon={<FlaskConical size={16} />} label="Лаборатория" value={openLabs[0]?.status ? `В работе: ${openLabs[0].status}` : 'Нет активного заказа'} />
+            <StatusItem icon={<CreditCard size={16} />} label="Финансы" value={outstanding > 0 ? 'Есть задолженность / незакрытая оплата' : 'Нет открытой задолженности'} />
+          </CardContent>
+        </Card>
+      )}
+
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
         {FLOW.map((item) => {
           const Icon = item.icon;
@@ -102,6 +153,25 @@ export default function ClinicalCaseWorkspace() {
           <ContextValue label="Филиал" value={context.branchId || 'текущий'} />
         </CardContent>
       </Card>
+    </div>
+  );
+}
+
+function CaseMetric({ icon, label, value, hint }: { icon: React.ReactNode; label: string; value: React.ReactNode; hint?: string }) {
+  return (
+    <Card padding="md" className="border-bdr-subtle bg-surface-1">
+      <div className="flex items-center gap-2 text-txt-muted">{icon}<span className="text-[11px] uppercase tracking-wider">{label}</span></div>
+      <div className="mt-2 text-lg font-semibold text-txt-primary">{value}</div>
+      {hint && <div className="mt-0.5 text-[11px] text-txt-muted">{hint}</div>}
+    </Card>
+  );
+}
+
+function StatusItem({ icon, label, value }: { icon: React.ReactNode; label: string; value: string }) {
+  return (
+    <div className="rounded-xl border border-bdr-subtle bg-surface-2/60 px-3 py-3">
+      <div className="flex items-center gap-2 text-[11px] text-txt-muted">{icon}{label}</div>
+      <div className="mt-1.5 text-sm text-txt-secondary">{value}</div>
     </div>
   );
 }
