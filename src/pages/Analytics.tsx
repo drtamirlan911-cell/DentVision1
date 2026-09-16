@@ -139,8 +139,6 @@ export default function Analytics() {
             {funnelQuery.isLoading ? (
               <div className="space-y-2"><Skeleton className="h-8" /><Skeleton className="h-8" /></div>
             ) : funnelQuery.isError ? (
-              // «Пока нет утверждённых планов» на упавшем запросе — вывод
-              // о работе клиники, сделанный из ошибки сети.
               <QueryError what="воронку" onRetry={() => funnelQuery.refetch()} />
             ) : funnelStages.length === 0 || funnelStages.every((s) => s.count === 0) ? (
               <p className="text-xs text-txt-muted">Пока нет утверждённых планов лечения.</p>
@@ -149,7 +147,7 @@ export default function Analytics() {
                 {funnelStages.map((s) => (
                   <div key={s.stage} className="flex items-center gap-3">
                     <span className="w-40 shrink-0 text-xs text-txt-muted">{s.label}</span>
-                    <div className="flex-1 h-6 rounded-md bg-white/[0.03] overflow-hidden">
+                    <div className="flex-1 h-6 rounded-md bg-surface-2 overflow-hidden">
                       <div
                         className="h-full rounded-md bg-dv-gold/30 border-r border-dv-gold/50 transition-all duration-500"
                         style={{ width: `${(s.count / funnelMax) * 100}%` }}
