@@ -14,6 +14,21 @@ export interface EcosystemContextBridgeProps {
   compact?: boolean;
 }
 
+const ACTION_TARGETS: Record<string, Parameters<ReturnType<typeof useEcosystemDeepLinks>['open']>[0]> = {
+  'find-provider': 'diagnostics',
+  'create-diagnostic-referral': 'diagnostics',
+  'review-diagnostic-result': 'diagnostics',
+  'create-lab-order': 'dental-lab',
+  'find-material': 'market',
+  'open-clinical-case': 'case',
+  'create-treatment-plan': 'case',
+  'schedule-appointment': 'case',
+  'review-finance': 'finance',
+  'open-academy': 'academy',
+  'find-job': 'jobs',
+  'manage-branch': 'settings',
+};
+
 export default function EcosystemContextBridge({ patientId, caseId, branchId, organizationId, className, compact = false }: EcosystemContextBridgeProps) {
   const { participant, organizationName, role, hasOrganization, hasClinic } = useEcosystemContext();
   const { open } = useEcosystemDeepLinks({ patientId, caseId, branchId, organizationId });
@@ -39,11 +54,12 @@ export default function EcosystemContextBridge({ patientId, caseId, branchId, or
       </div>
       {actions.length > 0 && !compact && (
         <div className="mt-2.5 flex gap-1.5 overflow-x-auto border-t border-bdr-subtle pt-2.5">
-          {actions.map(action => (
-            <button key={action.id} type="button" onClick={() => open(action.id === 'find-provider' ? 'diagnostics' : action.id === 'find-material' ? 'market' : 'ai')} className="inline-flex shrink-0 items-center gap-1.5 rounded-lg bg-surface-2 px-2.5 py-1.5 text-[10px] text-txt-secondary hover:text-txt-primary">
+          {actions.map(action => {
+            const target = ACTION_TARGETS[action.id] || 'ai';
+            return <button key={action.id} type="button" onClick={() => open(target)} className="inline-flex shrink-0 items-center gap-1.5 rounded-lg bg-surface-2 px-2.5 py-1.5 text-[10px] text-txt-secondary hover:text-txt-primary">
               <GitBranch size={11} className="text-dv-gold" /> {action.label}
-            </button>
-          ))}
+            </button>;
+          })}
         </div>
       )}
     </section>
