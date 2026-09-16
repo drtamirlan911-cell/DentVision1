@@ -1,7 +1,7 @@
 // See helpers/db.ts for why this isn't the bare `@prisma/client` specifier —
 // it would resolve to a dead legacy schema at the repo root, not this backend.
 import { PrismaClient, UserRole, ClinicPlan, AppointmentStatus, PlanStatus, InvoiceStatus, PaymentStatus, PaymentProvider, SupplierKind, ReferralStatus } from '../../dentvision-backend/node_modules/@prisma/client/index.js'
-import bcrypt from 'bcryptjs'
+import bcrypt from '../../dentvision-backend/node_modules/bcryptjs/index.js'
 import { randomUUID } from 'node:crypto'
 
 const prisma = new PrismaClient()
