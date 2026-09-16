@@ -4,9 +4,11 @@
 
 ## Mission
 
-Build DentVision as one coherent Dental Operating System that is easier to operate, easier to adopt, easier to understand and able to demonstrate and sell its own value through the product itself.
+Build DentVision as one coherent Dental Operating System and ecosystem that is easier to operate, easier to adopt, easier to understand and able to demonstrate and sell its own value through the product itself.
 
-Do not build a collection of disconnected modules. Reuse the existing CRM, Clinical/Treatment Case, Diagnostics, Medical Laboratory, Dental Laboratory, Shop, Academy, Finance Hub, AI, Network, IAM and notification foundations and connect them through shared domain context.
+Do not build a collection of disconnected modules. Reuse the existing CRM/Clinical Case, Diagnostics, Medical Laboratory, Dental Laboratory, Shop, Academy, Finance Hub, AI, Network, IAM and notification foundations and connect them through shared domain context.
+
+Clinics are one first-class participant type, not the default center of the platform. Partner organizations and other supported participants must receive equivalent product consideration when their domain provides a distinct workspace, workflow, economics or role model.
 
 ## Non-negotiable operating loop
 
@@ -27,16 +29,20 @@ Do not build a collection of disconnected modules. Reuse the existing CRM, Clini
 2. `DENTVISION_CONTEXT.md` — current bootstrap and verified state.
 3. `DENTVISION_EXECUTION_PLAN.md` — execution order and definition of done.
 4. `DENTVISION_EXECUTION_LOG.md` — durable history/evidence.
-5. `DENTVISION_SUPERAPP_BLUEPRINT.md` + `DENTVISION_SUPERAPP_MASTER_PLAN.md` — product requirements and north star.
-6. `docs/business/DENTVISION_PARTNER_ECONOMICS.md` — sole canonical economics policy.
+5. `docs/00_CONSTITUTION/02_PRODUCT_DNA.md` — constitutional product/design quality law.
+6. `docs/DENTVISION_MASTER_SPEC.md` — single normative Product/System source of truth.
+7. `DENTVISION_SUPERAPP_BLUEPRINT.md` — retained reference blueprint; it must not compete with the Master Spec.
+8. `docs/business/DENTVISION_PARTNER_ECONOMICS.md` — sole canonical economics policy.
 
 Historical audits and stale state snapshots are not release evidence.
 
 ## Product model
 
-Central object: **Clinical/Treatment Case**.
+Central clinical object: **Clinical/Treatment Case**.
 
 `Patient → Diagnosis → Imaging → AI Findings → Treatment Plan → Appointments → Procedures → Lab → Materials → Documents → Payments → Communication → Follow-up → Outcome`
+
+The overall product is broader than the clinical graph. Professional, partner, commerce, education, network and business contexts remain first-class and connect through authorized shared context.
 
 AI action lifecycle:
 
@@ -53,31 +59,37 @@ The product should continuously answer four questions for the current user:
 
 ### Activation funnel
 
-`Visitor → Interactive Demo → Signup → Role/Goal → First Value → Trial → Payment → Upgrade → Expansion → Referral`
+`Visitor → Interactive Demo/Discovery → Signup → Role/Goal → First Value → Trial → Payment → Upgrade → Expansion → Referral`
 
 Target: first meaningful value in under 10 minutes for a new professional user, without requiring a training session.
 
 ### Role-first onboarding
 
-Support the real role matrix already defined in the repository:
-
-- Clinic: Owner, Administrator, Manager, Doctor, Assistant.
-- Diagnostic center: Owner/Manager/Operator/Radiologist as applicable.
-- Medical laboratory: Owner/Manager/Operator.
-- Dental laboratory: Owner/Manager/Technician/Operator as applicable.
-- Superadmin where applicable.
+Support the real role matrix already defined in the repository, including clinic roles and partner roles for diagnostic centers, medical laboratories, dental laboratories, suppliers, academies and platform governance.
 
 Onboarding must use real organization/branch/IAM state and must never create a parallel fake onboarding identity model.
 
 ### First Value Engine
 
-After signup, identify role + organization/branch state + goal and guide the user to the first useful outcome using existing workflows. Examples:
+After signup, identify role + organization/workspace/branch state + goal and guide the user to the first useful outcome using existing workflows.
 
-- Doctor → create/open patient → clinical case → AI-assisted plan → appointment.
-- Owner → create clinic/branch → invite staff → see operational/financial value.
-- Diagnostic center → configure service → receive/process first referral → result → economics.
-- Medical laboratory → configure analysis → process referral → result → settlement.
-- Dental laboratory → receive order → process → delivered → economics recognition.
+Examples include:
+
+- Doctor → patient/case → AI-assisted plan → appointment.
+- Clinic owner → organization/branch → staff → operational/financial value.
+- Diagnostic center → service → first referral → result → economics.
+- Medical laboratory → analysis → referral → result → settlement.
+- Dental laboratory → order → production → delivered → economics recognition.
+- Supplier → catalog → legitimate order → fulfillment.
+- Academy/lecturer → course → enrollment → learning/certificate/revenue.
+- Student → course/case → first completed learning action.
+- Job seeker → profile → relevant vacancy → application.
+
+### Progressive disclosure
+
+The platform may contain many modules, but the first screen must not expose the entire architecture at once. Show a small, role/context-aware set of meaningful actions and reveal deeper controls only when needed.
+
+Do not remove a real capability merely because it makes the underlying product complex.
 
 ### Next Best Action
 
@@ -91,24 +103,33 @@ AI may explain, summarize, recommend, detect anomalies and prepare actions. For 
 
 Use product value, not aggressive advertising:
 
-- Interactive demo uses real UI/components where possible.
+- Interactive discovery/demo uses real UI/components where possible.
 - ROI/value explanations use transparent assumptions.
 - Upsell appears when an actual entitlement or usage boundary is reached.
-- Show what a higher plan unlocks and the expected operational value.
-- Patient-facing treatment-plan sharing can create a privacy-safe referral/brand loop.
+- Show what a higher plan unlocks and the operational value.
+- Patient-facing treatment-plan sharing may create a privacy-safe referral/brand loop.
 - Clinical workflows may recommend relevant Diagnostics, Dental Lab, Shop materials or Academy content from real case context.
-- Referral rewards, if implemented, must use canonical billing/economics and be auditable.
 - Never mix promotional content into clinical decision surfaces in a way that can influence care.
 
-### Product analytics
+## Partner parity
 
-Create one reusable growth/event vocabulary rather than scattered analytics calls. At minimum support events for signup, profile completion, organization/clinic creation, first patient/case/AI/treatment plan/appointment/diagnostic/lab/payment, staff invite, patient/treatment-plan share, trial/payment/subscription/upgrade, referral conversion, feature-limit reached, next-best-action shown/completed.
+Partner organizations are product participants, not back-office extensions of clinics.
 
-Events must be privacy-aware, tenant-aware, idempotent where needed and useful for funnel analysis.
+At minimum, design and execution must preserve first-class workflows for:
 
-### CEO Growth Dashboard
+- diagnostic centers and radiologists;
+- medical-analysis laboratories;
+- dental laboratories and technicians;
+- suppliers/manufacturers/distributors;
+- academies and lecturers;
+- employers and job seekers;
+- other organization types actually supported by the repository.
 
-The management layer should eventually expose acquisition, activation, time-to-value, retention, conversion, expansion, referral, usage, partner economics and contribution margin using existing Finance/Analytics foundations. Do not duplicate financial truth in a growth table.
+Each partner workspace uses the same Identity, IAM, audit, AI, events, design system and Finance foundations while exposing only its own authorized operational context.
+
+## Product analytics
+
+Create one reusable growth/event vocabulary rather than scattered analytics calls. Events must be privacy-aware, tenant-aware and idempotent where needed. Do not duplicate financial truth in growth tables.
 
 ## Economics rules
 
@@ -130,9 +151,13 @@ Release verification must cover tenant isolation, branch isolation, invitations,
 
 DentVision should feel premium, clinical and purpose-built.
 
-Avoid generic AI-template appearance, purple/blue gradients, neon/glow-heavy AI, excessive glassmorphism, giant decorative cards and decorative complexity that slows clinical work.
+Avoid generic AI-template appearance, purple/blue gradients, neon/glow-heavy AI, excessive glassmorphism, giant decorative cards and decorative complexity that slows professional work.
 
-Prefer clear hierarchy, fast actions, meaningful empty/error/success states, keyboard accessibility, responsive layouts and contextual information. Every visible action must work or clearly explain why it is unavailable.
+Prefer clear hierarchy, fast actions, meaningful empty/error/success states, keyboard accessibility, responsive layouts and contextual information.
+
+The UI must use progressive disclosure: do not force users to understand the full ecosystem before they can perform their current task.
+
+Every visible action must work or clearly explain why it is unavailable.
 
 True natural 32-tooth interactive WebGL/3D odontogram remains a separate explicit engineering requirement; do not call the current SVG dental chart true 3D.
 
@@ -175,12 +200,12 @@ Never use an old green run to declare a newer commit releasable.
 - Central event layer.
 - Role/goal onboarding.
 - First Value Engine.
-- Interactive Demo.
+- Interactive Demo/Discovery.
 - Next Best Action.
 - Contextual trial/upsell.
 - Patient/treatment-plan sharing loop.
 - Clinical-context Shop/Diagnostics/Dental Lab/Academy recommendations.
-- CEO Growth Dashboard.
+- Growth dashboard using existing Analytics/Finance truth.
 
 ### P4 — Product-wide hardening
 - Accessibility/responsive/performance/error states.
@@ -191,6 +216,8 @@ Never use an old green run to declare a newer commit releasable.
 
 ## Anti-confusion rule
 
-Do not create another roadmap, release gate, current-state snapshot or audit document unless it has a clearly different purpose. If a document becomes historical, mark it historical or remove it after checking repository references.
+Do not create another roadmap, product specification, release gate, current-state snapshot or audit document unless it has a clearly different bounded purpose.
 
-When the repository contains conflicting state, update `DENTVISION_CONTEXT.md` from verified evidence rather than creating another competing status file.
+The Master Spec is the sole normative Product/System source. Product DNA is the constitutional quality law. Specialized documents are retained only for bounded technical/legal/security/economic requirements or durable evidence.
+
+If a document becomes historical or redundant, mark/remove it after checking repository references. When sources conflict, resolve the contradiction in the canonical layer rather than creating another competing document.
