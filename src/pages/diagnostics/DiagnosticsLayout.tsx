@@ -1,8 +1,9 @@
 import { useState, useMemo, useEffect, useCallback } from 'react';
-import { Outlet, useNavigate, useLocation } from 'react-router-dom';
+import { Outlet, useNavigate, useLocation, Navigate } from 'react-router-dom';
 import { MoreHorizontal, LogIn, LayoutDashboard, FileText, ClipboardList, Calendar, Building2, FlaskConical, Users, BarChart3, Settings, PenLine, Shield } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/store/auth.store';
+import { useIam } from '@/iam';
 import * as api from '@/utils/api';
 
 const CLINIC_ONLY_ITEMS = new Set(['referrals', 'centers', 'laboratories', 'register']);
@@ -27,6 +28,7 @@ export default function DiagnosticsLayout() {
   const navigate = useNavigate();
   const location = useLocation();
   const { user, role } = useAuth();
+  const iam = useIam();
   const platformRole = user?.platformRole || role;
   const orgType = user?.organizationType || '';
   const [orgContexts, setOrgContexts] = useState<any[]>([]);
@@ -62,6 +64,10 @@ export default function DiagnosticsLayout() {
     }
   }, [switching]);
 
+  if (!iam.canAccessPage('diagnostics')) {
+    return <Navigate to={iam.pages.length > 0 ? '/' : '/login'} replace />;
+  }
+
   const inCenter = orgType === 'DIAGNOSTIC_CENTER';
   const inLab = orgType === 'LABORATORY';
   const centerCtx = orgContexts.find((c: any) => c.scopeType === 'DIAGNOSTIC_CENTER');
@@ -82,9 +88,6 @@ export default function DiagnosticsLayout() {
     return true;
   }), [platformRole, orgType, isReceivingOrg]);
 
-  // Diagnostics is one workspace, not a second application inside DentVision.
-  // Keep only the few actions users need repeatedly in a compact contextual bar;
-  // everything else is behind "Ещё" rather than a second permanent sidebar.
   const primaryIds = inCenter ? ['center-dashboard', 'results', 'calendar'] : inLab ? ['lab-dashboard', 'results', 'calendar'] : ['dashboard', 'referrals', 'results'];
   const primaryItems = primaryIds.map(id => visibleItems.find(item => item.id === id)).filter(Boolean) as typeof visibleItems;
   const secondaryItems = visibleItems.filter(item => !primaryIds.includes(item.id));
