@@ -1,5 +1,5 @@
 import React, { useMemo } from 'react';
-import { ArrowRight, BrainCircuit, CalendarDays, ClipboardList, CreditCard, FlaskConical, Image, PackageSearch, UserRound, Activity, Clock3, CircleDollarSign } from 'lucide-react';
+import { ArrowRight, BrainCircuit, CalendarDays, ClipboardList, CreditCard, FlaskConical, Image, PackageSearch, UserRound, Activity, Clock3, CircleDollarSign, FileText, Stethoscope } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { PageHeader } from '@/components/ui/ds/StatCard';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/ds/Card';
@@ -7,6 +7,7 @@ import { Badge } from '@/components/ui/ds/Badge';
 import { Button } from '@/components/ui/ds/Button';
 import { useAuth } from '@/store/auth.store';
 import { useDataQuery } from '@/queries/useDataQuery';
+import { useTreatmentCase } from '@/hooks/useTreatmentCase';
 import { useEcosystemUrlContext } from '@/hooks/useEcosystemUrlContext';
 import { withEcosystemContext } from '@/config/ecosystemContextLink';
 import { resolveEcosystemRoute } from '@/config/ecosystemRouteResolver';
@@ -22,33 +23,43 @@ const FLOW = [
   { id: 'ai', label: 'DentVision AI', description: 'Анализ и следующий шаг', icon: BrainCircuit, route: '/ai' },
 ] as const;
 
+const STATUS_LABELS: Record<string, string> = {
+  active: 'Активен',
+  on_hold: 'На паузе',
+  completed: 'Завершён',
+  archived: 'Архив',
+};
+
 export default function ClinicalCaseWorkspace() {
   const navigate = useNavigate();
   const { user, clinic } = useAuth();
   const context = useEcosystemUrlContext();
   const clinicId = clinic?.id || user?.clinicId || '';
   const { patients, appointments, labOrders, visits, receipts } = useDataQuery(clinicId || undefined);
+  const { caseData, isLoading: isCaseLoading } = useTreatmentCase(context.caseId);
 
   const patient = useMemo(() => {
+    if (caseData?.patient) return caseData.patient;
     if (!context.patientId || !Array.isArray(patients)) return null;
     return patients.find((item: any) => item.id === context.patientId) || null;
-  }, [context.patientId, patients]);
+  }, [caseData?.patient, context.patientId, patients]);
 
+  const graph = caseData?.graph;
   const caseAppointments = useMemo(
-    () => context.patientId ? appointments.filter((item: any) => item.patientId === context.patientId) : [],
-    [appointments, context.patientId],
+    () => graph?.appointments || (context.patientId ? appointments.filter((item: any) => item.patientId === context.patientId) : []),
+    [appointments, context.patientId, graph?.appointments],
   );
   const caseLabs = useMemo(
-    () => context.patientId ? labOrders.filter((item: any) => item.patientId === context.patientId) : [],
-    [labOrders, context.patientId],
+    () => graph?.labOrders || (context.patientId ? labOrders.filter((item: any) => item.patientId === context.patientId) : []),
+    [labOrders, context.patientId, graph?.labOrders],
   );
   const caseVisits = useMemo(
-    () => context.patientId ? visits.filter((item: any) => item.patientId === context.patientId) : [],
-    [visits, context.patientId],
+    () => graph?.visits || (context.patientId ? visits.filter((item: any) => item.patientId === context.patientId) : []),
+    [context.patientId, graph?.visits, visits],
   );
   const caseReceipts = useMemo(
-    () => context.patientId ? receipts.filter((item: any) => item.patientId === context.patientId) : [],
-    [receipts, context.patientId],
+    () => graph?.invoices || (context.patientId ? receipts.filter((item: any) => item.patientId === context.patientId) : []),
+    [context.patientId, graph?.invoices, receipts],
   );
 
   const nextAppointment = useMemo(() => {
@@ -64,6 +75,8 @@ export default function ClinicalCaseWorkspace() {
     .reduce((sum: number, item: any) => sum + Number(item.total || item.amount || 0), 0);
 
   const go = (route: string) => navigate(withEcosystemContext(resolveEcosystemRoute(route), context));
+  const hasCase = Boolean(context.caseId);
+  const caseStatus = caseData?.status ? STATUS_LABELS[caseData.status] || caseData.status : 'Контекст пациента';
 
   return (
     <div className="dv-page max-w-6xl mx-auto space-y-6 py-4 md:py-6">
@@ -79,14 +92,15 @@ export default function ClinicalCaseWorkspace() {
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
             <div className="min-w-0">
               <div className="flex items-center gap-2 flex-wrap">
-                <Badge variant="gold" size="xs">Клинический контекст</Badge>
+                <Badge variant="gold" size="xs">{hasCase ? caseStatus : 'Клинический контекст'}</Badge>
                 {context.caseId && <span className="text-[11px] text-txt-muted">Кейс {context.caseId.slice(0, 8)}</span>}
+                {isCaseLoading && <span className="text-[11px] text-txt-muted">Загрузка контекста…</span>}
               </div>
               <h2 className="mt-2 text-xl font-semibold text-txt-primary truncate">
-                {patient?.name || (context.patientId ? 'Пациент загружается' : 'Выберите пациента')}
+                {caseData?.title || patient?.name || (context.patientId ? 'Пациент загружается' : 'Выберите пациента')}
               </h2>
               <p className="mt-1 text-sm text-txt-secondary">
-                {patient?.phone || 'Контекст кейса сохраняется при переходе между рабочими модулями.'}
+                {caseData?.chiefComplaint || patient?.phone || 'Контекст кейса сохраняется при переходе между рабочими модулями.'}
               </p>
             </div>
             {context.patientId && (
@@ -105,6 +119,22 @@ export default function ClinicalCaseWorkspace() {
           <CaseMetric icon={<FlaskConical size={16} />} label="Лаб. заказы" value={caseLabs.length} hint={openLabs.length ? `${openLabs.length} в работе` : 'нет открытых'} />
           <CaseMetric icon={<CircleDollarSign size={16} />} label="К оплате" value={outstanding > 0 ? `${outstanding.toLocaleString('ru-RU')} ₸` : '0 ₸'} />
         </div>
+      )}
+
+      {hasCase && caseData?.counts && (
+        <Card className="border-bdr-subtle bg-surface-1">
+          <CardHeader>
+            <CardTitle>Связанный клинический граф</CardTitle>
+          </CardHeader>
+          <CardContent className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-2">
+            <GraphCount icon={<CalendarDays size={14} />} label="Записи" value={caseData.counts.appointments || 0} />
+            <GraphCount icon={<Stethoscope size={14} />} label="Визиты" value={caseData.counts.visits || 0} />
+            <GraphCount icon={<ClipboardList size={14} />} label="Планы" value={caseData.counts.treatmentPlans || 0} />
+            <GraphCount icon={<FlaskConical size={14} />} label="Лаборатория" value={caseData.counts.labOrders || 0} />
+            <GraphCount icon={<Image size={14} />} label="Направления" value={caseData.counts.referrals || 0} />
+            <GraphCount icon={<FileText size={14} />} label="Счета" value={caseData.counts.invoices || 0} />
+          </CardContent>
+        </Card>
       )}
 
       {context.patientId && (
@@ -164,6 +194,15 @@ function CaseMetric({ icon, label, value, hint }: { icon: React.ReactNode; label
       <div className="mt-2 text-lg font-semibold text-txt-primary">{value}</div>
       {hint && <div className="mt-0.5 text-[11px] text-txt-muted">{hint}</div>}
     </Card>
+  );
+}
+
+function GraphCount({ icon, label, value }: { icon: React.ReactNode; label: string; value: number }) {
+  return (
+    <div className="rounded-xl border border-bdr-subtle bg-surface-2/60 px-3 py-3">
+      <div className="flex items-center gap-1.5 text-[11px] text-txt-muted">{icon}{label}</div>
+      <div className="mt-1 text-base font-semibold text-txt-primary">{value}</div>
+    </div>
   );
 }
 
