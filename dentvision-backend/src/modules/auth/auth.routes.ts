@@ -194,9 +194,32 @@ authRouter.post('/refresh', async (req, res) => {
     if (!sessionId) return res.status(401).json({ ok: false, error: 'Сессия токена отсутствует' });
     const session = await prisma.userSession.findUnique({ where: { id: sessionId }, select: { id: true, userId: true, expiredAt: true } });
     if (!session || session.userId !== user.id || (session.expiredAt && session.expiredAt <= new Date())) return res.status(401).json({ ok: false, error: 'Сессия недействительна' });
+
+    // A refresh token may carry a workspace context, but that context is only
+    // a claim. Re-resolve it against the current Person/organization or legacy
+    // ClinicMember link before rotating the session. If a scoped token points
+    // at a revoked/deleted context, fail closed instead of silently falling
+    // back to the global User.role or another workspace.
+    const requestedOrganizationId = typeof payload.organizationId === 'string' ? payload.organizationId : undefined;
+    const requestedClinicId = typeof payload.clinicId === 'string' ? payload.clinicId : undefined;
+    const hadScopedContext = Boolean(requestedOrganizationId || requestedClinicId);
+    const authContext = await resolveAuthContext(user.id, {
+      organizationId: requestedOrganizationId,
+      clinicId: requestedClinicId,
+    });
+    if (hadScopedContext && !authContext.organizationId && !authContext.clinicId) {
+      return res.status(401).json({ ok: false, error: 'Контекст организации больше недействителен' });
+    }
+
     await expireAllSessions(user.id);
     const newSession = await createSession(user.id, req.ip, req.headers['user-agent']);
-    const tokens = generateTokens({ sub: user.id, email: user.email, role: user.role, sessionId: newSession.id });
+    const tokens = generateTokens({
+      sub: user.id,
+      email: user.email,
+      role: user.role,
+      ...authContext,
+      sessionId: newSession.id,
+    });
     setAuthCookies(res, tokens.accessToken, tokens.refreshToken);
     res.json({ ok: true, data: tokens });
   } catch { clearAuthCookies(res); res.status(401).json({ ok: false, error: 'Недействительный refresh токен' }); }
