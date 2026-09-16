@@ -8,11 +8,15 @@ import { loadClinicAccess, blockClinicWrites } from '../../middleware/planGate.j
 import { isClinicMember } from '../../lib/orgContext.js';
 import { publish } from '../../lib/events.js';
 import { labPlatformRouter } from './labPlatform.routes.js';
+import { medicalLabLifecycleRouter } from './medicalLab.routes.js';
 
 export const labRouter = Router();
 
 // Dental laboratory tenant workspace. Mounted before clinic-only middleware below.
 labRouter.use('/platform', labPlatformRouter);
+// Medical laboratory lifecycle is a first-class ecosystem workflow, while remaining
+// under the existing lab router so the public API mount stays backwards compatible.
+labRouter.use('/medical-laboratory', medicalLabLifecycleRouter);
 
 labRouter.use(authenticate);
 labRouter.use(requirePermission('patient.read'));
