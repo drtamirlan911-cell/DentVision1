@@ -69,27 +69,18 @@ async function buildSignInPayload(user: SignInUser, req: any, res: any) {
 
 export const authRouter = Router();
 
-/** Public registration may select only roles that exist in the current Prisma enum and do not grant clinic-staff access without membership. */
-function publicRegistrationRole(raw: unknown): UserRole {
-  const role = String(raw || 'student').trim().toLowerCase();
-  const roles: Record<string, UserRole> = {
-    owner: 'OWNER',
-    doctor: 'DOCTOR',
-    lab: 'LAB',
-    laboratory: 'LAB',
-    patient: 'STUDENT',
-    buyer: 'STUDENT',
-    user: 'STUDENT',
-    diagnostic_center: 'STUDENT',
-    'diagnostic-center': 'STUDENT',
-    student: 'STUDENT',
-    admin: 'STUDENT',
-    assistant: 'STUDENT',
-    reception: 'STUDENT',
-    cashier: 'STUDENT',
-    manager: 'STUDENT',
-  };
-  return roles[role] || 'STUDENT';
+/**
+ * Public registration creates an unscoped account only. Clinic/partner roles
+ * are granted later through organization onboarding or an explicit invitation,
+ * where the role is attached to a verified organization/person scope.
+ *
+ * The requested role is intentionally ignored here: accepting OWNER/DOCTOR/LAB
+ * would let an anonymous caller receive a privileged global User.role before
+ * any organization membership exists. This is prohibited by the canonical IAM
+ * model (Person → organization → role → permission → scope).
+ */
+function publicRegistrationRole(_raw: unknown): UserRole {
+  return 'STUDENT';
 }
 
 authRouter.post('/register', async (req, res) => {
