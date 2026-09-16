@@ -150,3 +150,32 @@ The complete pre-2026-09-14 execution history is preserved in the parent Git his
 1. Inspect the fresh CI run for `0591fadc13e0fb69066a070a2bfb15de30a0ad91`.
 2. If green, add direct cross-tenant/cross-branch negative-path coverage and then continue invitation/session security.
 3. Preserve the release gate as incomplete until all required lifecycle/security/economics evidence is green.
+
+## 2026-09-16 — UI functional/parity audit started
+
+### Control documents
+- `DENTVISION_SUPERAPP_BLUEPRINT.md` defines the product north star as a Dental Operating System and explicitly states that a collection of routes is not sufficient evidence of Super App behavior.
+- `DENTVISION_SUPERAPP_MASTER_PLAN.md` requires preserving functionality and completing route/IA, clinical OS, AI, operations, ecosystem and release-excellence phases; it also requires visual consistency and PR/feature-branch workflow.
+
+### Repository evidence
+- `src/pages` contains both top-level pages and substantial domain subtrees including `crm`, `diagnostics`, `school`, `shop`, `partner`, `patient-portal`, `superadmin`, `settings`, `ops`, `clinic`, `bi`, `auth`, and `legal`.
+- CRM already has substantial clinical/operational pages including Cashier, Billing, Clinic Settings, Dental Chart, Documents, ICD-10, Inventory, Lab, Marketing, Medical Card, Patient Inbox, Patients and Price List.
+- `package.json` contains the project index command `npm run project:index`, plus build/typecheck/unit/E2E/quality scripts.
+
+### Concrete finding
+- `src/pages/DiagnosticsRegister.tsx` is a real interactive partner-registration workflow: type selection → form → API submission → success/error state. The source uses the shared API client rather than a static success-only mock.
+- The same page contained a legacy purple accent for the medical-laboratory option, which conflicts with the master plan's single clinical-neutral/gold visual language.
+
+### Implemented
+- `6a15e06783e365b1926d02b350dc01a4485cb671` — replaced the legacy purple medical-laboratory accent with the shared DentVision gold accent. No workflow, API payload, role, or permission behavior changed.
+- Created isolated working branch `audit/ui-functional-parity-20260916` from exact main HEAD `3eebb0c5b00a36c61a4248e57b3d03560fcf28f3`; work is not being written directly to `main`.
+
+### Verification status
+- Quality Gate run `35068366667` was triggered by the latest main HEAD before the audit branch was created and was still **in progress** when this section was recorded; fresh verification of the audit branch is still required.
+- Release remains **NOT READY**.
+
+### Next action
+1. Complete route/page functional audit across Practice/CRM, Diagnostics, AI, Shop, Academy, Analytics and Network: distinguish implemented workflows from shells/placeholders and verify backend actions where visible in source.
+2. Continue targeted legacy visual-outlier scan without broad redesign.
+3. Add only deterministic E2E coverage for high-value gaps; do not weaken existing assertions.
+4. Run the branch's Quality Gate and inspect every resulting job before merging.

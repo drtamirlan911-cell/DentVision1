@@ -109,6 +109,7 @@ export function buildTreatmentPlanPrintHtml(ctx: TreatmentPlanPrintContext): str
     .notes { margin: 8px 0 0; font-size: 12px; color: #666; }
     .total { margin-top: 24px; padding-top: 16px; border-top: 2px solid #c9a96e; display: flex; justify-content: space-between; font-size: 18px; font-weight: 700; }
     .footer { margin-top: 40px; display: flex; justify-content: space-between; font-size: 12px; color: #777; }
+    .brand { font-weight: 600; letter-spacing: .04em; }
     .sign { margin-top: 48px; display: grid; grid-template-columns: 1fr 1fr; gap: 40px; }
     .sign div { border-top: 1px solid #999; padding-top: 8px; font-size: 12px; color: #555; }
     @media print {
@@ -150,7 +151,7 @@ export function buildTreatmentPlanPrintHtml(ctx: TreatmentPlanPrintContext): str
   </div>
 
   <div class="footer">
-    <span>Сформировано в DentVision</span>
+    <span class="brand">Powered by DentVision</span>
     <span>${new Date().toLocaleString('ru-RU')}</span>
   </div>
 
