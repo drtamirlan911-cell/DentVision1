@@ -12,6 +12,9 @@ import { countAwaitingAction, countByPhase, type PhaseId } from '@/lib/referralS
 import { queryKeys } from '@/queries/keys'
 import { useAuth } from '@/store/auth.store'
 import * as api from '@/utils/api'
+import { useEcosystemUrlContext } from '@/hooks/useEcosystemUrlContext'
+import EcosystemContextBridge from '@/components/ecosystem/EcosystemContextBridge'
+import EcosystemCaseFlow from '@/components/ecosystem/EcosystemCaseFlow'
 
 import { WORKSPACES, type OrgKind } from './config'
 import { Pipeline } from './Pipeline'
@@ -33,6 +36,7 @@ import { OrganizationOnboarding } from '@/components/OrganizationOnboarding'
  */
 export function DiagnosticWorkspace({ kind: pinnedKind }: { kind?: OrgKind }) {
   const { user } = useAuth()
+  const ecosystem = useEcosystemUrlContext()
   const isSuperadmin = user?.role === 'superadmin'
 
   const claimedKind: OrgKind | undefined =
@@ -72,21 +76,19 @@ export function DiagnosticWorkspace({ kind: pinnedKind }: { kind?: OrgKind }) {
     [diagnosticContexts, config.organizationType],
   )
 
-  const { data: catalogueData } = useQuery({
-    queryKey: ['diagnostics', 'orgs', kind],
-    queryFn: () => config.listOrganizations(),
-    enabled: !isOwnOrg && isSuperadmin,
-  })
-  const catalogue = catalogueData?.data || catalogueData || []
-
   const pickable = isSuperadmin
     ? catalogue.map((org: any) => ({ id: org.id, name: org.name, city: org.city }))
     : myOrgs.map((ctx: any) => ({ id: ctx.scopeId, name: ctx.name, city: undefined }))
 
   useEffect(() => {
+    const contextualOrgId = ecosystem.organizationId
+    if (contextualOrgId && (!orgId || orgId !== contextualOrgId)) {
+      setOrgId(contextualOrgId)
+      return
+    }
     if (isOwnOrg && ownOrgId) { setOrgId(ownOrgId); return }
     if (!orgId && !isSuperadmin && myOrgs.length === 1) setOrgId(myOrgs[0].scopeId)
-  }, [isOwnOrg, ownOrgId, orgId, isSuperadmin, myOrgs])
+  }, [ecosystem.organizationId, isOwnOrg, ownOrgId, orgId, isSuperadmin, myOrgs])
 
   const needsOnboarding = !isOwnOrg && !isSuperadmin && !contextsLoading && !contextsError && myOrgs.length === 0
 
@@ -126,6 +128,11 @@ export function DiagnosticWorkspace({ kind: pinnedKind }: { kind?: OrgKind }) {
         icon={<FlaskConical size={22} />}
         actions={<Badge variant="outline">{kind === 'CENTER' ? 'Центр' : 'Лаборатория'}</Badge>}
       />
+
+      <EcosystemContextBridge />
+      {(ecosystem.patientId || ecosystem.caseId) && (
+        <EcosystemCaseFlow context={ecosystem} compact />
+      )}
 
       {contextsError && !isOwnOrg && !isSuperadmin && (
         <QueryError what="список ваших организаций" onRetry={() => contextsQuery.refetch()} />
