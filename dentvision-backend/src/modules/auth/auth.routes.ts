@@ -69,28 +69,27 @@ async function buildSignInPayload(user: SignInUser, req: any, res: any) {
 
 export const authRouter = Router();
 
-/**
- * Public self-registration may select only a non-privileged product role.
- * Clinic-scoped staff roles (ADMIN/ASSISTANT/RECEPTION/ACCOUNTANT/MANAGER)
- * must still arrive through an authenticated clinic invitation; accepting them
- * from a public form would create an account with an elevated role without a
- * clinic membership.
- */
+/** Public registration may select only roles that exist in the current Prisma enum and do not grant clinic-staff access without membership. */
 function publicRegistrationRole(raw: unknown): UserRole {
   const role = String(raw || 'student').trim().toLowerCase();
   const roles: Record<string, UserRole> = {
-    owner: 'OWNER' as UserRole,
-    doctor: 'DOCTOR' as UserRole,
-    lab: 'LAB' as UserRole,
-    laboratory: 'LAB' as UserRole,
-    diagnostic_center: 'DIAGNOSTIC_CENTER' as UserRole,
-    'diagnostic-center': 'DIAGNOSTIC_CENTER' as UserRole,
-    patient: 'USER' as UserRole,
-    buyer: 'USER' as UserRole,
-    user: 'USER' as UserRole,
-    student: 'STUDENT' as UserRole,
+    owner: 'OWNER',
+    doctor: 'DOCTOR',
+    lab: 'LAB',
+    laboratory: 'LAB',
+    patient: 'STUDENT',
+    buyer: 'STUDENT',
+    user: 'STUDENT',
+    diagnostic_center: 'STUDENT',
+    'diagnostic-center': 'STUDENT',
+    student: 'STUDENT',
+    admin: 'STUDENT',
+    assistant: 'STUDENT',
+    reception: 'STUDENT',
+    cashier: 'STUDENT',
+    manager: 'STUDENT',
   };
-  return roles[role] || 'STUDENT' as UserRole;
+  return roles[role] || 'STUDENT';
 }
 
 authRouter.post('/register', async (req, res) => {
