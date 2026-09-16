@@ -7,23 +7,23 @@ export interface EcosystemUrlContext {
   caseId?: string;
 }
 
-export function useEcosystemUrlContext(): EcosystemUrlContext {
-  const { search } = useLocation();
+function parse(search: string): EcosystemUrlContext {
   const params = new URLSearchParams(search);
   return {
     organizationId: params.get('organizationId') || undefined,
     branchId: params.get('branchId') || undefined,
-    patientId: params.get('patientId') || undefined,
+    // `patient` is the canonical ecosystem deep-link key. Keep `patientId`
+    // as a backwards-compatible alias for existing external links.
+    patientId: params.get('patient') || params.get('patientId') || undefined,
     caseId: params.get('caseId') || undefined,
   };
 }
 
+export function useEcosystemUrlContext(): EcosystemUrlContext {
+  const { search } = useLocation();
+  return parse(search);
+}
+
 export function ecosystemUrlContextFromSearch(search: string): EcosystemUrlContext {
-  const params = new URLSearchParams(search);
-  return {
-    organizationId: params.get('organizationId') || undefined,
-    branchId: params.get('branchId') || undefined,
-    patientId: params.get('patientId') || undefined,
-    caseId: params.get('caseId') || undefined,
-  };
+  return parse(search);
 }
