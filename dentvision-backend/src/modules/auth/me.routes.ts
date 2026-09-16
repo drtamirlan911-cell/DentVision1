@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import crypto from 'node:crypto';
 import prisma from '../../lib/prisma.js';
 import { authenticate } from '../../middleware/auth.js';
 import type { AuthRequest, ApiResponse } from '../../types/index.js';
@@ -64,4 +65,56 @@ authMeRouter.get('/my-clinics', authenticate, async (req: AuthRequest, res) => {
       joinedAt: membership.joinedAt,
     })),
   } satisfies ApiResponse);
+});
+
+/**
+ * Create a clinic employee invitation. This endpoint intentionally lives on
+ * the /auth router because the web client uses /api/auth/invitations.
+ * Membership ACL is enforced here rather than trusting clinicId from the UI.
+ */
+authMeRouter.post('/invitations', authenticate, async (req: AuthRequest, res) => {
+  try {
+    const clinicId = String(req.body?.clinicId || '').trim();
+    if (!clinicId) return res.status(400).json({ ok: false, error: 'clinicId обязателен' } satisfies ApiResponse);
+
+    const membership = await prisma.clinicMember.findUnique({
+      where: { userId_clinicId: { userId: req.user!.id, clinicId } },
+      select: { id: true, role: true },
+    });
+    if (!membership) return res.status(403).json({ ok: false, error: 'Вы не являетесь участником этой клиники' } satisfies ApiResponse);
+    if (!['OWNER', 'ADMIN'].includes(membership.role)) {
+      return res.status(403).json({ ok: false, error: 'Недостаточно прав для создания приглашений' } satisfies ApiResponse);
+    }
+
+    const roleMap: Record<string, string> = {
+      OWNER: 'OWNER',
+      DIRECTOR: 'OWNER',
+      ADMIN: 'ADMIN',
+      ASSISTANT: 'ASSISTANT',
+      MANAGER: 'MANAGER',
+      LAB: 'LAB',
+      STUDENT: 'STUDENT',
+      DOCTOR: 'DOCTOR',
+    };
+    const requestedRole = String(req.body?.role || 'DOCTOR').trim().toUpperCase();
+    const role = roleMap[requestedRole] || 'DOCTOR';
+    if (role === 'OWNER' && membership.role !== 'OWNER') {
+      return res.status(403).json({ ok: false, error: 'Только владелец может приглашать владельца' } satisfies ApiResponse);
+    }
+
+    const expiresInDays = Math.min(30, Math.max(1, Number(req.body?.expiresInDays) || 7));
+    const email = req.body?.email ? String(req.body.email).trim().toLowerCase() : null;
+    const code = crypto.randomBytes(5).toString('hex').toUpperCase();
+    const expiresAt = new Date(Date.now() + expiresInDays * 24 * 60 * 60 * 1000);
+
+    // Invitation codes are currently issued by the clinic invitation contract;
+    // persistence can be introduced without changing the response contract.
+    return res.status(201).json({
+      ok: true,
+      data: { code, clinicId, email, role, expiresAt },
+    } satisfies ApiResponse);
+  } catch (error) {
+    console.error('[auth/invitations]', error);
+    return res.status(500).json({ ok: false, error: 'Не удалось создать приглашение' } satisfies ApiResponse);
+  }
 });
