@@ -13,7 +13,7 @@ describe('branch consistency migrations', () => {
     expect(sql).toContain('appointment patient belongs to another clinic');
     expect(sql).toContain('appointment branch does not match patient branch');
     expect(sql).toContain('appointment branch does not belong to clinic');
-    expect(sql).toContain('BEFORE INSERT OR UPDATE OF patient_id, clinic_id, branch_id');
+    expect(sql).toContain('BEFORE INSERT OR UPDATE OF "patientId", "clinicId", branch_id');
   });
   it('keeps appointments aligned after an authorized patient branch move', () => {
     const sql = migration('20260914101000_sync_appointment_branch_on_patient_move');
