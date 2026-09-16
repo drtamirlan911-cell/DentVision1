@@ -179,3 +179,27 @@ The complete pre-2026-09-14 execution history is preserved in the parent Git his
 2. Continue targeted legacy visual-outlier scan without broad redesign.
 3. Add only deterministic E2E coverage for high-value gaps; do not weaken existing assertions.
 4. Run the branch's Quality Gate and inspect every resulting job before merging.
+
+## 2026-09-16 — Ecosystem clinical context and AI intent pass
+
+### Control alignment
+- The work follows `docs/DENTVISION_MASTER_SPEC.md`: the Clinical/Treatment Case remains the longitudinal clinical object, while non-clinical participants retain first-class workflows and authorized context can travel across ecosystem boundaries.
+- The Execution Plan's P2 clinical vertical slice remains the target: `Patient → Case → Diagnosis/Imaging → AI Findings → Plan → Appointment → Lab/Materials → Payment → Follow-up`.
+- No new domain model, booking system, laboratory order model, economics rule or permission system was introduced.
+
+### Implemented
+- `0512e74271929dc499f70bcba584853cc32adc63` — added `src/components/ecosystem/EcosystemClinicalContext.tsx`, a route-aware contextual clinical surface that reuses the existing patient store, URL context and `EcosystemCaseFlow`. It appears only on supported clinical/ecosystem routes when patient/case context exists and does not replace the underlying domain page.
+- `2aa42dc8f20f3e71d77dee0021adbb525bad4201` — extended `EcosystemWorkspaceShell` with an optional `showClinicalContext` surface, enabled by default, so workspace shells can expose the clinical graph without duplicating CRM functionality.
+- `961ce5982406c180671a5ea0e59105295ad2943b` — added `src/components/ecosystem/EcosystemAIIntentStrip.tsx`, a role-aware AI intent strip driven by canonical `ecosystemPrompts.ts`; prompts route into the existing `/ai` workspace and remain contextual rather than creating a parallel AI UI.
+- `d59d12f02146d7565d840fbc3544646aa710f862` — integrated the AI intent strip into `EcosystemWorkspaceShell` with an opt-out flag for specialized shells.
+- The audit branch had fallen 92 commits behind `main` with no unique commits; it was fast-forwarded to main at `df7763712afbc7e974b7adfe6173995385c8db83` before continuing, preserving the current canonical implementation instead of building on stale code.
+
+### Verification status
+- Per current execution instruction, CI/E2E was not rerun during this implementation pass. The new branch state is therefore **UNVERIFIED**.
+- Existing release evidence remains historical; it does not certify the new commits.
+
+### Next action
+1. Continue the P2 clinical vertical slice by wiring context continuity into the existing Case, Diagnostics, Treatment Plans, Dental Lab and Finance workflows without creating parallel domains.
+2. Reconcile deep-link/query parameter contracts against the actual route implementations.
+3. Continue the ecosystem/partner workspace pass, then run the full branch release gates only after the implementation batch is complete.
+4. Preserve the Figma/design-system direction; actual Figma visual verification remains pending until the canonical Figma file key/URL is available.
