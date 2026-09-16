@@ -26,6 +26,7 @@ export const ECOSYSTEM_RELATIONS: readonly EcosystemRelationDefinition[] = [
   { from: 'lab-order', to: 'clinical-case', label: 'Клинический кейс', group: 'clinical', path: '/crm/cases' },
   { from: 'material', to: 'supplier-order', label: 'Заказ поставщику', group: 'operations', path: '/shop' },
   { from: 'material', to: 'clinical-case', label: 'Использовать в кейсе', group: 'clinical', path: '/crm/cases' },
+  { from: 'supplier-order', to: 'clinical-case', label: 'Клинический кейс', group: 'clinical', path: '/crm/cases' },
   { from: 'invoice', to: 'clinical-case', label: 'Клинический кейс', group: 'operations', path: '/crm/cases' },
   { from: 'course', to: 'clinical-case', label: 'Обучение → практика', group: 'growth', path: '/school' },
   { from: 'job', to: 'organization', label: 'Карьера → работа', group: 'growth', path: '/jobs' },
