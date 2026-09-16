@@ -74,7 +74,52 @@ Core workspaces: Home/Today, Practice/CRM, Diagnostics, AI, Shop, Academy, Analy
 - Branch-scoped IAM foundations exist across clinic, finance, diagnostics and inventory domains.
 - `quality-gate.yml` is now blocking: the release-gate script is no longer `continue-on-error`, so a failed release gate cannot silently produce a green workflow.
 
-## 7. Canonical economics
+## 7. Canonical branch management model
+A branch is a first-class operating unit inside an Organization/Clinic. It is not merely an address field.
+
+The owner/organization manager must have one canonical management flow:
+`Owner → Settings/Organization → Branches → Create → Configure → Staff/Access → Operations → Analytics → Archive`
+
+### Branch lifecycle requirements
+- Create branch with unique organization-scoped code and human-readable name.
+- Configure city, address, phone, active/default state and branch settings.
+- Set working hours/holidays and operational preferences.
+- Assign/invite staff and define branch-scoped roles/access.
+- Configure rooms/chairs/equipment where the existing domain supports them.
+- Configure services and branch-specific price overrides without duplicating global service definitions.
+- Configure inventory/warehouse behavior and inter-branch transfer rules where supported.
+- Connect diagnostics, medical/dental laboratory workflows and branch routing.
+- Expose branch-level finance, cash/payment and operational analytics while preserving organization-level aggregation for authorized owners.
+- Configure branch documents/templates, notifications, reminders, patient communication and AI notification preferences.
+- Allow safe edit and archive/suspend; do not hard-delete historical operational data.
+- Archiving must preserve audit history and must not silently orphan staff, appointments, patients, invoices, inventory or referrals.
+
+### Branch permissions and isolation
+- Owner: organization-wide branch create/edit/archive, staff assignment, branch configuration and aggregate visibility according to canonical IAM permissions.
+- Admin/manager: only explicitly granted operational branch actions.
+- Doctor/assistant/partner operator: only assigned/permitted branch data.
+- Cross-tenant and unauthorized cross-branch reads/writes must fail closed.
+- Organization-wide reporting may aggregate branch data only for roles with organization scope.
+- AI actions must use the same organization/branch scope and permission model as direct UI actions.
+
+### Branch-aware data
+Branch scope must be preserved consistently for applicable resources, including patients, appointments, staff memberships, inventory, invoices/expenses, referrals/diagnostics and future branch-aware clinical/operational entities.
+
+### Required owner UX
+The owner must be able to discover branch management without knowing an API or internal model name. The branch list should show status and operational summary, and opening a branch should expose a branch workspace with Overview, Staff, Schedule/Rooms, Patients/Cases, Services & Prices, Inventory, Finance, Diagnostics/Lab, Analytics and Settings according to available permissions.
+
+### Required release scenarios
+- Owner creates branch → saves → refreshes → branch persists and appears in organization context.
+- Owner edits branch → changes persist after reload.
+- Owner assigns staff → staff can access only permitted branch scope.
+- Unauthorized user cannot read/write another branch.
+- Archiving/suspension preserves historical records and blocks inappropriate new operations.
+- Organization owner can switch between branches and view organization-level aggregate data where authorized.
+- Branch-scoped patients/appointments/invoices/inventory/referrals remain correctly isolated.
+
+This model is a product requirement. It is **not evidence that the complete branch workflow is already implemented**.
+
+## 8. Canonical economics
 Use `docs/business/DENTVISION_PARTNER_ECONOMICS.md` only:
 - Clinic SaaS: START ₸19,900; PRO ₸39,900; BUSINESS ₸79,900; NETWORK from ₸149,900/branch.
 - Diagnostic/3D center: ₸49,900/branch/month; 7% DentVision-originated orders; min ₸500/study; max ₸3,000/study.
@@ -85,13 +130,13 @@ Use `docs/business/DENTVISION_PARTNER_ECONOMICS.md` only:
 - Finance must distinguish GMV, platform revenue, processing, AI inference, storage/data, support/ops, refunds/chargebacks, tax/VAT, contribution margin and net platform revenue.
 - Pricing changes require version/effective date/migration/impact/audit; historical records remain reproducible.
 
-## 8. Required role/security matrix
+## 9. Required role/security matrix
 Clinic: Owner, Administrator, Manager, Doctor, Assistant.
 Partners: Diagnostic Center Owner/Manager/Operator/Radiologist as applicable; Medical Laboratory Owner/Manager/Operator; Dental Laboratory Owner/Manager/Technician/Operator as applicable; Superadmin where applicable.
 
 For every role verify: allowed/denied actions, tenant isolation, branch isolation, invitations, disabled/revoked access, active-session enforcement, audit trail and privileged mutation safety.
 
-## 9. Product-led growth directive
+## 10. Product-led growth directive
 The product must reduce explanation and increase self-demonstration/value:
 `Visitor → Interactive Demo → Signup → Role/Goal → First Value → Trial → Payment → Upgrade → Expansion → Referral`
 
@@ -109,7 +154,7 @@ Implement growth by extending existing systems, not by creating a parallel produ
 
 The product should continuously answer: **What should I do now? Why does it matter? What can DentVision do for me? What is the next useful action?**
 
-## 10. Immediate execution queue
+## 11. Immediate execution queue
 ### P0 — Release correctness
 1. Verify current `main` CI from the newest relevant commit/run; do not infer green status.
 2. Verify diagnostics route/service contract around `confirmAiResult`.
@@ -122,7 +167,7 @@ The product should continuously answer: **What should I do now? Why does it matt
 7. Complete medical-analysis operational economics/settlement.
 8. Preserve dental-lab recognition at `delivered` until a real paid/settled callback exists.
 9. Complete ledger/reconciliation and Finance Hub transparency.
-10. Complete partner owner/branch/staff operational lifecycle.
+10. Complete partner owner/branch/staff operational lifecycle, including the canonical branch management flow above.
 
 ### P2 — Clinical vertical slice
 11. Verify Patient→Case→Diagnosis/Imaging→AI Findings→Plan→Appointment→Lab/Materials→Payment→Follow-up.
@@ -142,5 +187,5 @@ The product should continuously answer: **What should I do now? Why does it matt
 21. Android build/install/runtime verification.
 22. Real 32-tooth WebGL/3D odontogram.
 
-## 11. Working rule
+## 12. Working rule
 For each slice: **inspect → implement → test → fix → verify → document → continue**. Do not repeat an audit when implementation can resolve the issue. If a document becomes stale, update/remove it rather than creating another competing source of truth.
