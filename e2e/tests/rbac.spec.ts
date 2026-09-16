@@ -17,16 +17,9 @@ const tokens: Record<string, string> = {};
 
 async function loginAs(api: APIRequestContext, role: keyof typeof USERS): Promise<string> {
   if (tokens[role]) return tokens[role];
-
   const user = USERS[role];
-  const res = await api.post(`${BASE_URL}/api/auth/login`, {
-    data: { email: user.email, password: user.password },
-  });
-
-  if (!res.ok()) {
-    throw new Error(`Login failed for ${role}: ${res.status()}`);
-  }
-
+  const res = await api.post(`${BASE_URL}/api/auth/login`, { data: { email: user.email, password: user.password } });
+  if (!res.ok()) throw new Error(`Login failed for ${role}: ${res.status()}`);
   const body = await res.json();
   const token = body.data?.accessToken || body.accessToken;
   if (!token) throw new Error(`No access token for ${role}`);
@@ -43,154 +36,102 @@ test.describe('RBAC - Role-Based Access Control', () => {
 
   test.beforeAll(async () => {
     api = await apiRequest.newContext();
-    for (const role of Object.keys(USERS) as (keyof typeof USERS)[]) {
-      await loginAs(api, role);
-    }
+    for (const role of Object.keys(USERS) as (keyof typeof USERS)[]) await loginAs(api, role);
   });
 
-  test.afterAll(async () => {
-    await api.dispose();
-  });
+  test.afterAll(async () => { await api.dispose(); });
 
   test('RBAC-001: OWNER can access patients → 200', async () => {
-    const token = tokens['owner-a'];
-    const res = await api.get(`${BASE_URL}/api/patients`, { headers: authHeaders(token) });
+    const res = await api.get(`${BASE_URL}/api/patients`, { headers: authHeaders(tokens['owner-a']) });
     expect(res.status()).toBe(200);
   });
 
   test('RBAC-002: ASSISTANT can access patients → 200', async () => {
-    const token = tokens['assistant-a'];
-    const res = await api.get(`${BASE_URL}/api/patients`, { headers: authHeaders(token) });
+    const res = await api.get(`${BASE_URL}/api/patients`, { headers: authHeaders(tokens['assistant-a']) });
     expect(res.status()).toBe(200);
   });
 
   test('RBAC-003: DOCTOR can access patients → 200', async () => {
-    const token = tokens['doctor-a'];
-    const res = await api.get(`${BASE_URL}/api/patients`, { headers: authHeaders(token) });
+    const res = await api.get(`${BASE_URL}/api/patients`, { headers: authHeaders(tokens['doctor-a']) });
     expect(res.status()).toBe(200);
   });
 
   test('RBAC-004: Unauthenticated access to patients → 401', async () => {
     const anonymous = await apiRequest.newContext();
-    try {
-      const res = await anonymous.get(`${BASE_URL}/api/patients`);
-      expect(res.status()).toBe(401);
-    } finally {
-      await anonymous.dispose();
-    }
+    try { const res = await anonymous.get(`${BASE_URL}/api/patients`); expect(res.status()).toBe(401); }
+    finally { await anonymous.dispose(); }
   });
 
   test('RBAC-005: OWNER can create invoices → 200/201', async () => {
     const token = tokens['owner-a'];
-    const patientRes = await api.post(`${BASE_URL}/api/patients`, {
-      headers: authHeaders(token),
-      data: { iin: makeIin(), firstName: 'RBAC', lastName: 'InvoiceTarget', phone: '+77000000005' },
-    });
+    const patientRes = await api.post(`${BASE_URL}/api/patients`, { headers: authHeaders(token), data: { iin: makeIin(), firstName: 'RBAC', lastName: 'InvoiceTarget', phone: '+77000000005' } });
     const patientBody = await patientRes.json();
     const patientId = (patientBody.data || patientBody).id;
-
-    const res = await api.post(`${BASE_URL}/api/billing/invoices`, {
-      headers: authHeaders(token),
-      data: { patientId, amount: 10000, description: 'Test invoice' },
-    });
+    const res = await api.post(`${BASE_URL}/api/billing/invoices`, { headers: authHeaders(token), data: { patientId, amount: 10000, description: 'Test invoice' } });
     expect([200, 201]).toContain(res.status());
   });
 
   test('RBAC-006: ASSISTANT cannot create invoices → 403', async () => {
-    const token = tokens['assistant-a'];
-    const res = await api.post(`${BASE_URL}/api/billing/invoices`, {
-      headers: authHeaders(token),
-      data: { amount: 10000, description: 'Test invoice' },
-    });
+    const res = await api.post(`${BASE_URL}/api/billing/invoices`, { headers: authHeaders(tokens['assistant-a']), data: { amount: 10000, description: 'Test invoice' } });
     expect(res.status()).toBe(403);
   });
 
   test('RBAC-007: DOCTOR can read inventory → 200', async () => {
-    const token = tokens['doctor-a'];
-    const res = await api.get(`${BASE_URL}/api/inventory`, { headers: authHeaders(token) });
+    const res = await api.get(`${BASE_URL}/api/inventory`, { headers: authHeaders(tokens['doctor-a']) });
     expect(res.status()).toBe(200);
   });
 
   test('RBAC-008: STUDENT cannot delete users → 403', async () => {
-    const token = tokens['regular'];
-    const res = await api.delete(`${BASE_URL}/api/admin/users/some-user-id`, {
-      headers: authHeaders(token),
-    });
+    const res = await api.delete(`${BASE_URL}/api/admin/users/some-user-id`, { headers: authHeaders(tokens['regular']) });
     expect(res.status()).toBe(403);
   });
 
   test('RBAC-009: ADMIN cannot access superadmin routes → 403', async () => {
-    const token = tokens['admin-a'];
-    const res = await api.get(`${BASE_URL}/api/admin/users`, { headers: authHeaders(token) });
+    const res = await api.get(`${BASE_URL}/api/admin/users`, { headers: authHeaders(tokens['admin-a']) });
     expect(res.status()).toBe(403);
   });
 
   test('RBAC-010: MANAGER cannot access superadmin routes → 403', async () => {
-    const token = tokens['manager-a'];
-    const res = await api.get(`${BASE_URL}/api/admin/users`, { headers: authHeaders(token) });
+    const res = await api.get(`${BASE_URL}/api/admin/users`, { headers: authHeaders(tokens['manager-a']) });
     expect(res.status()).toBe(403);
   });
 
   test('RBAC-011: DOCTOR cannot access admin routes → 403', async () => {
-    const token = tokens['doctor-a'];
-    const res = await api.get(`${BASE_URL}/api/admin/users`, { headers: authHeaders(token) });
+    const res = await api.get(`${BASE_URL}/api/admin/users`, { headers: authHeaders(tokens['doctor-a']) });
     expect(res.status()).toBe(403);
   });
 
   test('RBAC-012: ASSISTANT cannot access admin routes → 403', async () => {
-    const token = tokens['assistant-a'];
-    const res = await api.get(`${BASE_URL}/api/admin/users`, { headers: authHeaders(token) });
+    const res = await api.get(`${BASE_URL}/api/admin/users`, { headers: authHeaders(tokens['assistant-a']) });
     expect(res.status()).toBe(403);
   });
 
   test('RBAC-013: Cross-clinic patient access denied → 403/404', async () => {
-    const ownerA = tokens['owner-a'];
-    const ownerB = tokens['owner-b'];
-
-    const patientRes = await api.post(`${BASE_URL}/api/patients`, {
-      headers: authHeaders(ownerA),
-      data: { iin: makeIin(), firstName: 'RBAC', lastName: 'CrossClinicTarget', phone: '+77000000006' },
-    });
+    const patientRes = await api.post(`${BASE_URL}/api/patients`, { headers: authHeaders(tokens['owner-a']), data: { iin: makeIin(), firstName: 'RBAC', lastName: 'CrossClinicTarget', phone: '+77000000006' } });
     expect([200, 201]).toContain(patientRes.status());
     const patientBody = await patientRes.json();
     const patientId = (patientBody.data || patientBody).id;
     expect(patientId).toBeTruthy();
-
-    const res = await api.get(`${BASE_URL}/api/patients/${patientId}`, {
-      headers: authHeaders(ownerB),
-    });
+    const res = await api.get(`${BASE_URL}/api/patients/${patientId}`, { headers: authHeaders(tokens['owner-b']) });
     expect([403, 404]).toContain(res.status());
   });
 
   test('RBAC-014: Cross-clinic branch mutation denied → 403/404', async () => {
     const ownerA = tokens['owner-a'];
     const ownerB = tokens['owner-b'];
-
-    const authRes = await api.post(`${BASE_URL}/api/auth/login`, {
-      data: USERS['owner-a'],
-    });
+    const authRes = await api.post(`${BASE_URL}/api/auth/login`, { data: USERS['owner-a'] });
     expect(authRes.ok()).toBeTruthy();
     const authBody = await authRes.json();
     const clinicId = authBody.data?.memberships?.[0]?.clinicId;
     expect(clinicId).toBeTruthy();
 
-    const createRes = await api.post(`${BASE_URL}/api/branches`, {
-      headers: authHeaders(ownerA),
-      data: {
-        clinicId,
-        name: `RBAC Cross Clinic ${Date.now()}`,
-        code: `RBAC-${Date.now()}`,
-      },
-    });
-    expect([200, 201]).toContain(createRes.status());
-    const createBody = await createRes.json();
-    const branchId = (createBody.data || createBody).id;
+    const listRes = await api.get(`${BASE_URL}/api/branches?clinicId=${encodeURIComponent(clinicId)}`, { headers: authHeaders(ownerA) });
+    expect(listRes.status()).toBe(200);
+    const listBody = await listRes.json();
+    const branchId = (listBody.data || []).find((branch: { clinicId?: string; id?: string }) => branch.clinicId === clinicId)?.id;
     expect(branchId).toBeTruthy();
 
-    const res = await api.patch(`${BASE_URL}/api/branches/${branchId}`, {
-      headers: authHeaders(ownerB),
-      data: { name: 'SHOULD-NOT-BE-UPDATED' },
-    });
+    const res = await api.patch(`${BASE_URL}/api/branches/${branchId}`, { headers: authHeaders(ownerB), data: { name: 'SHOULD-NOT-BE-UPDATED' } });
     expect([403, 404]).toContain(res.status());
   });
 });
