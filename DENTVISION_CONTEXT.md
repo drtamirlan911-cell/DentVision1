@@ -72,6 +72,7 @@ Core workspaces: Home/Today, Practice/CRM, Diagnostics, AI, Shop, Academy, Analy
 - Diagnostics has real referrals, center/lab access checks, studies, files and AI-result flows.
 - Auth middleware requires an active `UserSession` for protected users; the new E2E regression explicitly revokes the session row and verifies `/api/auth/me` returns 401.
 - Branch-scoped IAM foundations exist across clinic, finance, diagnostics and inventory domains.
+- A canonical Branch model/foundation exists with organization/clinic scope, branch-aware members and branchId on several operational records. Full owner-facing branch management remains **PARTIAL** until the end-to-end lifecycle is implemented and release-proven.
 - `quality-gate.yml` is now blocking: the release-gate script is no longer `continue-on-error`, so a failed release gate cannot silently produce a green workflow.
 
 ## 7. Canonical economics
@@ -141,6 +142,15 @@ The product should continuously answer: **What should I do now? Why does it matt
 20. Security/audit/release hardening.
 21. Android build/install/runtime verification.
 22. Real 32-tooth WebGL/3D odontogram.
+
+### Branch Management Control Plane — newly canonicalized
+23. Implement Owner entry point **Settings → Organization → Branches** and a global branch switcher for multi-branch users.
+24. Complete branch lifecycle: create → validate → configure → activate/suspend/archive → reopen/edit, with organization-scoped uniqueness and audit.
+25. Complete branch management workspace: Overview, Team, Rooms/Cabinets, Schedule, Services & Prices, Inventory, Finance, Diagnostics/Lab, Documents, Notifications, AI and Settings, using existing domain models rather than duplicates.
+26. Complete explicit employee assignment/transfer between branches and enforce branch scope independently from role permissions.
+27. Verify branch-aware Patient/Appointment/Inventory/Invoice/Expense/Referral and other supported records; transfers must be explicit and auditable.
+28. Add branch-aware AI/command actions with context resolution, preview/confirmation for consequential mutations and no permission elevation through branch selection.
+29. Add release-gate E2E: Owner create → refresh → edit → assign employee → switch Branch A/B → verify isolation → operate → archive; include route/query/body tampering and cross-tenant/cross-branch negative paths.
 
 ## 11. Working rule
 For each slice: **inspect → implement → test → fix → verify → document → continue**. Do not repeat an audit when implementation can resolve the issue. If a document becomes stale, update/remove it rather than creating another competing source of truth.
