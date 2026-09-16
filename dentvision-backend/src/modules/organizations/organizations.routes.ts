@@ -30,14 +30,14 @@ function selfServiceType(value: unknown): SelfServiceType | null {
 }
 
 async function ensurePersonRole(userId: string, organizationId: string, roleKey: string) {
-  const user = await prisma.user.findUnique({ where: { id: userId }, select: { id: true, firstName: true, lastName: true, email: true, phone: true } });
+  const user = await prisma.user.findUnique({ where: { id: userId }, select: { id: true, firstName: true, lastName: true, email: true } });
   if (!user) throw new Error('Пользователь не найден');
   const organization = await prisma.organization.findUnique({ where: { id: organizationId }, select: { id: true, name: true } });
   if (!organization) throw new Error('Организация не найдена');
   const person = await prisma.person.upsert({
     where: { originalType_originalId: { originalType: 'SelfServiceOwner', originalId: `${organizationId}:${userId}` } },
-    update: { fullName: `${user.firstName} ${user.lastName}`.trim() || organization.name, organizationId, userId: user.id, email: user.email, phone: user.phone || undefined },
-    create: { id: uid(), fullName: `${user.firstName} ${user.lastName}`.trim() || organization.name, personType: 'STAFF', organizationId, userId: user.id, email: user.email, phone: user.phone || undefined, originalType: 'SelfServiceOwner', originalId: `${organizationId}:${userId}` },
+    update: { fullName: `${user.firstName} ${user.lastName}`.trim() || organization.name, organizationId, userId: user.id, email: user.email },
+    create: { id: uid(), fullName: `${user.firstName} ${user.lastName}`.trim() || organization.name, personType: 'STAFF', organizationId, userId: user.id, email: user.email, originalType: 'SelfServiceOwner', originalId: `${organizationId}:${userId}` },
   });
   const role = await prisma.role.findUnique({ where: { key: roleKey } });
   if (role) await prisma.personRole.upsert({
@@ -48,8 +48,6 @@ async function ensurePersonRole(userId: string, organizationId: string, roleKey:
   return person.id;
 }
 
-// POST /api/organizations/self-service
-// Creates the real domain entity plus its canonical Organization record and owner membership.
 organizationsRouter.post('/self-service', async (req: AuthRequest, res) => {
   try {
     const type = selfServiceType(req.body?.type);
@@ -59,7 +57,7 @@ organizationsRouter.post('/self-service', async (req: AuthRequest, res) => {
 
     const city = req.body?.city ? String(req.body.city).trim() : null;
     const address = req.body?.address ? String(req.body.address).trim() : null;
-    const phone = req.body?.phone ? String(req.body.phone).trim() : req.user?.phone || null;
+    const phone = req.body?.phone ? String(req.body.phone).trim() : null;
     const email = req.body?.email ? String(req.body.email).trim().toLowerCase() : req.user?.email || null;
     const taxId = req.body?.taxId ? String(req.body.taxId).trim() : null;
 
@@ -87,7 +85,7 @@ organizationsRouter.post('/self-service', async (req: AuthRequest, res) => {
       await prisma.laboratoryMember.create({ data: { id: uid(), labId: entityId, userId: req.user!.id, role: 'owner' } });
     } else if (type === 'supplier') {
       entityId = uid();
-      entity = await prisma.supplier.create({ data: { id: entityId, name, kind: 'SUPPLIER', bin: taxId, legalAddress: address, contactPerson: `${req.user!.firstName} ${req.user!.lastName}`.trim() || null, phone, email, status: 'pending', commissionRate: 1000, members: { create: { userId: req.user!.id, role: 'owner' } } } });
+      entity = await prisma.supplier.create({ data: { id: entityId, name, kind: 'SUPPLIER', bin: taxId, legalAddress: address, contactPerson: `${req.user!.firstName} ${req.user!.lastName}`.trim() || null, phone, email, status: 'pending', commissionRate: 1000, members: { create: { userId: req.user!.id, role: 'owner' } } });
       organizationId = uid();
       await prisma.organization.create({ data: { id: organizationId, name, type: 'SUPPLIER_COMPANY' as any, taxId, address, phone, email, originalType: 'Supplier', originalId: entityId, settings: { verification: 'PENDING' } as any } });
     } else {
@@ -106,7 +104,6 @@ organizationsRouter.post('/self-service', async (req: AuthRequest, res) => {
   }
 });
 
-// Platform-wide entity CRUD spans every clinic/supplier/academy/center/lab — only superadmin.
 organizationsRouter.use(requireSuperadmin);
 
 organizationsRouter.get('/', async (req: AuthRequest, res) => {
