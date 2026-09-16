@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const { personFindFirst, userFindUnique } = vi.hoisted(() => ({
   personFindFirst: vi.fn(),
@@ -27,6 +27,11 @@ function makePerson(keys: string[]) {
 }
 
 describe('resolveUserPermissions', () => {
+  beforeEach(() => {
+    personFindFirst.mockReset();
+    userFindUnique.mockReset();
+  });
+
   it('returns DB-granted permissions for a scoped person', async () => {
     personFindFirst.mockResolvedValueOnce(makePerson(['patients.read', 'billing.manage']));
     const result = await resolveUserPermissions('user-1', 'org-1');
@@ -52,6 +57,15 @@ describe('resolveUserPermissions', () => {
     expect(result).toContain('billing.manage');
     expect(result).toContain('patients.read');
     expect(result).not.toContain('admin.read');
+  });
+
+  it('uses the global role baseline for an unscoped person with sparse DB grants', async () => {
+    userFindUnique.mockResolvedValueOnce({ role: 'OWNER' });
+    personFindFirst.mockResolvedValueOnce(makePerson(['patients.read']));
+    const result = await resolveUserPermissions('user-1');
+    expect(result).toContain('patients.read');
+    expect(result).toContain('billing.manage');
+    expect(result).toContain('staff.manage');
   });
 
   it('falls back to role matrix for SUPERADMIN (wildcard)', async () => {
