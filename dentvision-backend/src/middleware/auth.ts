@@ -17,6 +17,11 @@ const ROLE_KEY_MAP: Record<string, UserRole> = {
   LAB: 'LAB', lab: 'LAB',
   STUDENT: 'STUDENT', student: 'STUDENT',
   SUPPORT: 'SUPPORT', support: 'SUPPORT',
+  // Partner-only roles live in the unified Role table but have no UserRole enum
+  // equivalent. STUDENT is the least-privileged compatibility identity; the
+  // actual seller/lecturer permissions remain authoritative in PersonRole.
+  SELLER: 'STUDENT', seller: 'STUDENT',
+  LECTURER: 'STUDENT', lecturer: 'STUDENT',
 };
 
 const ROLE_PRIORITY: Record<UserRole, number> = {
