@@ -11,11 +11,7 @@ import { labPlatformRouter } from './labPlatform.routes.js';
 import { medicalLabLifecycleRouter } from './medicalLab.routes.js';
 
 export const labRouter = Router();
-
-// Dental laboratory tenant workspace. Mounted before clinic-only middleware below.
 labRouter.use('/platform', labPlatformRouter);
-// Medical laboratory lifecycle is a first-class ecosystem workflow, while remaining
-// under the existing lab router so the public API mount stays backwards compatible.
 labRouter.use('/medical-laboratory', medicalLabLifecycleRouter);
 
 labRouter.use(authenticate);
@@ -34,6 +30,7 @@ interface LabOrderMeta {
   laboratoryId?: string;
   technicianId?: string;
   doctorId?: string;
+  treatmentCaseId?: string;
 }
 
 export const VALID_STATUSES = [
@@ -49,26 +46,14 @@ function serializeLabOrder(order: {
 }) {
   const meta = (order.files as { meta?: LabOrderMeta } | null)?.meta || {};
   return {
-    id: order.id,
-    clinicId: order.clinicId,
-    patientId: order.patientId,
-    patientName: meta.patientName || order.labName || '',
-    labType: order.type,
-    material: meta.material || '',
-    toothNumber: meta.toothNumber || '',
-    shade: meta.shade || '',
-    laboratoryId: meta.laboratoryId || null,
-    technicianId: meta.technicianId || null,
-    remakeOfId: meta.remakeOfId || null,
-    appointmentId: meta.appointmentId || null,
-    tryInDate: meta.tryInDate || null,
-    doctorId: order.doctorId ?? meta.doctorId ?? null,
-    dueDate: order.deadline,
-    notes: order.notes,
-    status: order.status,
-    price: order.price,
-    createdAt: order.createdAt,
-    updatedAt: order.updatedAt,
+    id: order.id, clinicId: order.clinicId, patientId: order.patientId,
+    patientName: meta.patientName || order.labName || '', labType: order.type,
+    material: meta.material || '', toothNumber: meta.toothNumber || '', shade: meta.shade || '',
+    laboratoryId: meta.laboratoryId || null, technicianId: meta.technicianId || null,
+    remakeOfId: meta.remakeOfId || null, appointmentId: meta.appointmentId || null,
+    treatmentCaseId: meta.treatmentCaseId || null, doctorId: order.doctorId ?? meta.doctorId ?? null,
+    dueDate: order.deadline, notes: order.notes, status: order.status, price: order.price,
+    createdAt: order.createdAt, updatedAt: order.updatedAt,
   };
 }
 
@@ -84,6 +69,7 @@ function buildMeta(body: Partial<LabOrderMeta>, existing: LabOrderMeta = {}): La
     ...(body.tryInDate !== undefined ? { tryInDate: body.tryInDate } : {}),
     ...(body.laboratoryId !== undefined ? { laboratoryId: body.laboratoryId } : {}),
     ...(body.technicianId !== undefined ? { technicianId: body.technicianId } : {}),
+    ...(body.treatmentCaseId !== undefined ? { treatmentCaseId: body.treatmentCaseId } : {}),
   };
 }
 
@@ -97,9 +83,7 @@ labRouter.get('/', requirePermission('appointment.read'), async (req: AuthReques
   } catch (error: any) {
     console.error('[Lab] list error:', error);
     const code = error?.code || error?.meta?.code;
-    if (code === 'P2021' || code === 'P2022' || /does not exist|column|relation/i.test(String(error?.message || ''))) {
-      return res.json({ ok: true, data: [], warning: 'Таблица lab_orders не готова — примените миграцию 20260720_community_lab_fix' } as any);
-    }
+    if (code === 'P2021' || code === 'P2022' || /does not exist|column|relation/i.test(String(error?.message || ''))) return res.json({ ok: true, data: [], warning: 'Таблица lab_orders не готова — примените миграцию 20260720_community_lab_fix' } as any);
     return res.status(500).json({ ok: false, error: 'Не удалось получить заказы лаборатории' } satisfies ApiResponse);
   }
 });
@@ -108,51 +92,27 @@ export interface LabOrderBody {
   patientId?: string; patientName?: string; labType?: string; material?: string;
   toothNumber?: string | number; shade?: string; dueDate?: string; notes?: string; status?: string;
   price?: number; remakeOfId?: string; appointmentId?: string; tryInDate?: string; doctorId?: string;
-  laboratoryId?: string; technicianId?: string;
+  laboratoryId?: string; technicianId?: string; treatmentCaseId?: string;
 }
-
 export interface PreparedLabOrder { error?: string; data?: Record<string, unknown>; }
 
-export async function prepareLabOrderWrite(
-  clinicId: string,
-  body: LabOrderBody,
-  existingMeta: LabOrderMeta = {},
-): Promise<PreparedLabOrder> {
-  const {
-    patientId, patientName, labType, material, toothNumber, shade,
-    dueDate, notes, status, price, remakeOfId, appointmentId, tryInDate, doctorId,
-    laboratoryId, technicianId,
-  } = body;
-
+export async function prepareLabOrderWrite(clinicId: string, body: LabOrderBody, existingMeta: LabOrderMeta = {}): Promise<PreparedLabOrder> {
+  const { patientId, patientName, labType, material, toothNumber, shade, dueDate, notes, status, price, remakeOfId, appointmentId, tryInDate, doctorId, laboratoryId, technicianId, treatmentCaseId } = body;
   if (doctorId && !(await isClinicMember(doctorId, clinicId))) return { error: 'Указанный врач не найден в этой клинике' };
-
   if (laboratoryId) {
     const lab = await prisma.laboratory.findUnique({ where: { id: laboratoryId }, select: { id: true, name: true } });
     if (!lab) return { error: 'Указанная лаборатория не найдена' };
   }
-
   if (technicianId && laboratoryId) {
     const member = await prisma.laboratoryMember.findFirst({ where: { labId: laboratoryId, userId: technicianId } });
     if (!member) return { error: 'Указанный техник не состоит в выбранной лаборатории' };
   }
-
-  const meta = buildMeta(
-    { patientName, material, toothNumber, shade, remakeOfId, appointmentId, tryInDate, laboratoryId, technicianId },
-    existingMeta,
-  );
-
-  return {
-    data: {
-      patientId: patientId || null,
-      ...(doctorId ? { doctorId } : {}),
-      type: labType || null,
-      notes: notes || null,
-      status: status || 'pending',
-      deadline: dueDate ? new Date(dueDate) : null,
-      price: price ?? null,
-      files: { meta },
-    },
-  };
+  if (treatmentCaseId) {
+    const rows = await prisma.$queryRawUnsafe<{ id: string; clinicId: string; patientId: string }[]>(`SELECT "id","clinicId","patientId" FROM "treatment_cases" WHERE "id"=$1 LIMIT 1`, treatmentCaseId);
+    if (!rows[0] || rows[0].clinicId !== clinicId || (patientId && rows[0].patientId !== patientId)) return { error: 'Клинический кейс не принадлежит пациенту или клинике' };
+  }
+  const meta = buildMeta({ patientName, material, toothNumber, shade, remakeOfId, appointmentId, tryInDate, laboratoryId, technicianId, treatmentCaseId }, existingMeta);
+  return { data: { patientId: patientId || null, ...(doctorId ? { doctorId } : {}), type: labType || null, notes: notes || null, status: status || 'pending', deadline: dueDate ? new Date(dueDate) : null, price: price ?? null, files: { meta } } };
 }
 
 labRouter.post('/', requirePermission('appointment.write'), async (req: AuthRequest, res) => {
@@ -164,20 +124,16 @@ labRouter.post('/', requirePermission('appointment.write'), async (req: AuthRequ
     if (id) {
       const existing = await prisma.labOrder.findFirst({ where: { id, clinicId } });
       if (!existing) return res.status(404).json({ ok: false, error: 'Заказ лаборатории не найден' } satisfies ApiResponse);
-      existingMeta = (existing?.files as { meta?: LabOrderMeta } | null)?.meta || {};
+      existingMeta = (existing.files as { meta?: LabOrderMeta } | null)?.meta || {};
     }
     const prepared = await prepareLabOrderWrite(clinicId, body, existingMeta);
     if (prepared.error) return res.status(400).json({ ok: false, error: prepared.error } satisfies ApiResponse);
     const data = prepared.data as any;
-    const order = id
-      ? await prisma.labOrder.update({ where: { id }, data })
-      : await prisma.labOrder.create({ data: { id: uid(), clinicId, ...data } });
-    if (!id) publish('labOrder.created', { clinicId, labOrderId: order.id, patientId: order.patientId || undefined, doctorId: order.doctorId || undefined, userId: req.user?.id });
+    const order = id ? await prisma.labOrder.update({ where: { id }, data }) : await prisma.labOrder.create({ data: { id: uid(), clinicId, ...data } });
+    if (body.treatmentCaseId) await prisma.$executeRawUnsafe(`UPDATE "lab_orders" SET "treatmentCaseId"=$1 WHERE "id"=$2`, body.treatmentCaseId, order.id);
+    if (!id) publish('labOrder.created', { clinicId, labOrderId: order.id, patientId: order.patientId || undefined, doctorId: order.doctorId || undefined, treatmentCaseId: body.treatmentCaseId || undefined, userId: req.user?.id });
     return res.status(201).json({ ok: true, data: serializeLabOrder(order) } satisfies ApiResponse);
-  } catch (error) {
-    console.error('[Lab] upsert error:', error);
-    return res.status(500).json({ ok: false, error: 'Не удалось сохранить заказ лаборатории' } satisfies ApiResponse);
-  }
+  } catch (error) { console.error('[Lab] upsert error:', error); return res.status(500).json({ ok: false, error: 'Не удалось сохранить заказ лаборатории' } satisfies ApiResponse); }
 });
 
 labRouter.patch('/:id/status', requirePermission('appointment.write'), async (req: AuthRequest, res) => {
@@ -189,12 +145,10 @@ labRouter.patch('/:id/status', requirePermission('appointment.write'), async (re
     const owned = await prisma.labOrder.findFirst({ where: { id: req.params.id as string, clinicId }, select: { id: true, status: true, patientId: true, doctorId: true } });
     if (!owned) return res.status(404).json({ ok: false, error: 'Заказ лаборатории не найден' } satisfies ApiResponse);
     const order = await prisma.labOrder.update({ where: { id: req.params.id as string }, data: { status: status as any } });
+    await prisma.$executeRawUnsafe(`INSERT INTO "dental_lab_order_events" ("id","labOrderId","clinicId","fromStatus","toStatus","actorUserId","createdAt") VALUES ($1,$2,$3,$4,$5,$6,CURRENT_TIMESTAMP)`, uid(), order.id, clinicId, owned.status, order.status, req.user!.id);
     publish('labOrder.status_changed', { clinicId, labOrderId: order.id, patientId: owned.patientId || undefined, doctorId: owned.doctorId || undefined, status: order.status, previousStatus: owned.status, userId: req.user?.id });
     return res.json({ ok: true, data: serializeLabOrder(order) } satisfies ApiResponse);
-  } catch (error) {
-    console.error('[Lab] status update error:', error);
-    return res.status(500).json({ ok: false, error: 'Не удалось обновить статус заказа' } satisfies ApiResponse);
-  }
+  } catch (error) { console.error('[Lab] status update error:', error); return res.status(500).json({ ok: false, error: 'Не удалось обновить статус заказа' } satisfies ApiResponse); }
 });
 
 labRouter.delete('/:id', requirePermission('appointment.write'), async (req: AuthRequest, res) => {
@@ -204,8 +158,5 @@ labRouter.delete('/:id', requirePermission('appointment.write'), async (req: Aut
     const result = await prisma.labOrder.deleteMany({ where: { id: req.params.id as string, clinicId } });
     if (result.count === 0) return res.status(404).json({ ok: false, error: 'Заказ лаборатории не найден' } satisfies ApiResponse);
     return res.json({ ok: true, data: { deleted: true } } satisfies ApiResponse);
-  } catch (error) {
-    console.error('[Lab] delete error:', error);
-    return res.status(500).json({ ok: false, error: 'Не удалось удалить заказ лаборатории' } satisfies ApiResponse);
-  }
+  } catch (error) { console.error('[Lab] delete error:', error); return res.status(500).json({ ok: false, error: 'Не удалось удалить заказ лаборатории' } satisfies ApiResponse); }
 });
