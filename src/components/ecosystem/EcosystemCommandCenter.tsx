@@ -3,6 +3,7 @@ import { ArrowRight, BrainCircuit, LockKeyhole, ShieldCheck } from 'lucide-react
 import { useNavigate } from 'react-router-dom';
 import { useEcosystemContext } from '@/hooks/useEcosystemContext';
 import { useEcosystemActionRegistry } from '@/hooks/useEcosystemActionRegistry';
+import { resolveEcosystemRoute } from '@/config/ecosystemRouteResolver';
 import { cn } from '@/lib/utils';
 
 interface Props { compact?: boolean; className?: string }
@@ -25,7 +26,7 @@ export const EcosystemCommandCenter: React.FC<Props> = ({ compact = false, class
       <span className="hidden shrink-0 items-center gap-1 rounded-full border border-bdr-subtle px-2 py-1 text-[10px] text-txt-muted sm:inline-flex"><LockKeyhole size={11} /> Permission-aware</span>
     </div>
     <div className="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-      {actions.map(action => <button key={action.id} type="button" onClick={() => navigate(action.path)} className="group flex min-h-16 items-center justify-between gap-3 rounded-2xl border border-bdr-subtle bg-surface-2/50 px-3 py-2.5 text-left transition hover:border-dv-gold/30 hover:bg-surface-2">
+      {actions.map(action => <button key={action.id} type="button" onClick={() => navigate(resolveEcosystemRoute(action.path))} className="group flex min-h-16 items-center justify-between gap-3 rounded-2xl border border-bdr-subtle bg-surface-2/50 px-3 py-2.5 text-left transition hover:border-dv-gold/30 hover:bg-surface-2">
         <span className="min-w-0"><span className="block truncate text-xs font-semibold text-txt-primary">{action.label}</span><span className="mt-0.5 block line-clamp-2 text-[10px] leading-4 text-txt-muted">{action.description}</span></span>
         <ArrowRight size={15} className="shrink-0 text-txt-muted transition group-hover:translate-x-0.5 group-hover:text-dv-gold" />
       </button>)}
