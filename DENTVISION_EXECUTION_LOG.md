@@ -102,21 +102,24 @@ The complete pre-2026-09-14 execution history is preserved in the parent Git his
 ## 2026-09-17 — Canonical TreatmentCase graph foundation
 
 ### Implemented
-- `bdd243074031784c56b8563acea59779bbc9c311` — the new clinical migration now materializes the canonical `treatment_cases` table and `CaseStatus` enum, then adds nullable foreign-key links from appointments, dental-lab orders, invoices, treatment plans, diagnostic referrals and visits. Existing historical records remain unlinked rather than being guessed into a case.
-- `2d7b50c778189eb4d98bdc2d5a2acffc3de971dc` — `/api/crm/cases` was expanded from list/create into a real case API: detail graph, update, archive, and explicit record link/unlink operations. The graph is clinic-scoped and patient-scoped before a record can be attached.
-- `b069dc7f860302202f6704679f2b08be61ed5f12` — added `useTreatmentCase`, a frontend query/mutation layer for canonical case detail and ecosystem record linking.
-- `0c8da63c6813658358a5df6aea426a6b3f82e7ba` — `ClinicalCaseWorkspace` now consumes the persisted case contract when `caseId` is present and surfaces graph counts for appointments, visits, treatment plans, laboratory orders, diagnostic referrals and invoices. Patient-scoped CRM fallback remains for legacy/no-case context.
+- `bdd243074031784c56b8563acea59779bbc9c311` — the new clinical migration materializes the canonical `treatment_cases` links for appointments, dental-lab orders, invoices, treatment plans, diagnostic referrals and visits. Existing historical records remain unlinked rather than being guessed into cases.
+- The authoritative `treatmentCase.routes.ts` now exposes the canonical case graph, scoped detail, update/archive, and explicit safe link/unlink operations. The graph reads the new nullable columns through clinic-scoped raw SQL.
+- `useTreatmentCase.ts` provides the frontend query/mutation layer for canonical case detail and record linking.
+- `ClinicalCaseWorkspace` consumes the persisted case graph when `caseId` is present while retaining patient-scoped fallback for legacy/no-case context.
 
-### Architectural decision
-- The canonical `TreatmentCase` model was confirmed in `schema.prisma`; no competing case model was introduced.
-- The migration intentionally does not backfill old appointments/lab orders/invoices/referrals/visits because historical attribution to a specific case is not reliable.
-- The first integration uses raw SQL for the new graph columns because the existing Prisma schema already defines `TreatmentCase` but does not yet expose the new cross-model relation fields. The next schema synchronization pass must add those relation fields to Prisma so the database contract and generated client are fully aligned.
-- Diagnostic referrals remain the bridge into radiology/medical-laboratory results; the existing `DiagnosticResult` lifecycle is not duplicated.
+### Vercel evidence and repair
+- User-supplied Vercel deployment against `ce51af6` failed during `vite build` before application compilation completed.
+- Exact error: `src/layouts/IntelligenceLayout.tsx:124:487 — Unterminated regular expression`.
+- The root cause was the desktop context-panel JSX expression: `contextSheetOpen && <motion.aside>...</motion.aside>` was closed directly with `</AnimatePresence>}` instead of closing the inner JSX expression first.
+- `343a10b7787e4dbf011f7beb370998b73e3e2f85` rewrote that section into explicit nested JSX blocks, removing the parser ambiguity. The guest role also no longer uses an emoji icon; it uses the existing Lucide `User` component.
+- The same Vercel log reported 12 npm audit vulnerabilities (7 moderate, 5 high) and pending install scripts for Prisma/esbuild. Those remain a separate dependency/security workstream and were not blindly changed with `npm audit fix --force`.
 
 ### Verification status
-- CI/E2E were intentionally not run during the build-first phase.
-- The new migration/API/graph work is UNVERIFIED until the later full release gate.
-- Do not mark release-ready from these commits alone.
+- The supplied Vercel build is a confirmed source failure and has been repaired in `343a10b7787e4dbf011f7beb370998b73e3e2f85`.
+- No fresh CI/E2E was started during this build-first pass.
 
 ### Next action
-- Synchronize the new `treatmentCaseId` relations into `schema.prisma` and generated Prisma relations; then wire case identity into creation/update paths for appointments, dental-lab orders, treatment plans, invoices and diagnostic referrals so new records created from a case context are linked automatically. After that, continue the medical-analysis and dental-lab production slices, then perform the premium visual/Figma pass.
+- Synchronize the new `treatmentCaseId` relations into `schema.prisma` and the generated Prisma client.
+- Then wire case identity into creation/update paths so records created from a Case inherit the case automatically rather than requiring manual linking.
+- Continue Medical Laboratory result lifecycle and Dental Laboratory production lifecycle.
+- Finish premium visual/Figma pass, then run the complete release gates.
