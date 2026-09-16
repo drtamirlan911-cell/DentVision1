@@ -48,11 +48,6 @@ jobs:
       - name: Validate generated project index
         run: git diff --exit-code -- quality-scripts/project-index.generated.ts
       - run: npx prisma generate
-      - name: Repair stale react-i18next lock entry when npm ci left a missing package
-        run: |
-          if [ ! -d node_modules/react-i18next ] && [ -d node_modules/i18next ]; then
-            npm install --no-save --package-lock=false react-i18next@16.3.5
-          fi
       - run: npm run build --if-present
       - run: npx tsc --noEmit
       - run: npx tsx quality-scripts/command-center-audit.ts
@@ -94,7 +89,6 @@ jobs:
           node-version: 20
           cache: npm
       - run: npm ci
-      - run: npm install --no-save --package-lock=false bcryptjs@2.4.3
       - run: npm ci
         working-directory: dentvision-backend
       - run: npx prisma generate
