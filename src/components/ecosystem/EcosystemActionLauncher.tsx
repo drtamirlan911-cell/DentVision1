@@ -8,12 +8,10 @@ interface Props { actionId: EcosystemActionId; className?: string; showDescripti
 
 export const EcosystemActionLauncher: React.FC<Props> = ({ actionId, className, showDescription = true }) => {
   const navigate = useNavigate();
-  const { canOffer } = useEcosystemActionRegistry();
-  const { availableActions } = useEcosystemActionRegistry();
+  const { canOffer, availableActions } = useEcosystemActionRegistry();
   const action = availableActions.find(item => item.id === actionId);
-  const permitted = canOffer(actionId);
 
-  if (!action || !permitted) return null;
+  if (!action || !canOffer(actionId)) return null;
 
   return <button type="button" onClick={() => navigate(action.path)} className={cn('group flex w-full items-center justify-between gap-3 rounded-2xl border border-bdr-subtle bg-surface-1 px-3 py-3 text-left transition hover:border-dv-gold/30 hover:bg-surface-2', className)}>
     <span className="flex min-w-0 items-start gap-2.5">
