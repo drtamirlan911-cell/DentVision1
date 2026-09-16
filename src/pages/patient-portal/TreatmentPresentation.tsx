@@ -23,26 +23,12 @@ import {
 } from '@/lib/presentation/director'
 import { AudioPersona } from '@/lib/presentation/audioPersona'
 
-/**
- * The patient's treatment plan, told rather than tabulated.
- *
- * Everything on this screen comes from a release a named doctor approved and
- * published — the route cannot reach an editable plan at all. The wording is
- * generated deterministically from the frozen snapshot, so nothing here can
- * state a price or a tooth the doctor did not.
- *
- * Deliberately *not* a medical interface: no tables, no field labels, no status
- * chips. One thing at a time, said out loud, shown on the patient's own teeth.
- */
-
 function formatTenge(amount: number): string {
   return `${Math.round(amount).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ' ')} ₸`
 }
 
 function formatDate(iso: string | null | undefined): string | null {
   if (!iso) return null
-  // String-based on purpose: `new Date('2026-01-01')` is UTC midnight and
-  // renders as the previous day west of Greenwich.
   const match = String(iso).match(/^(\d{4})-(\d{2})-(\d{2})/)
   return match ? `${match[3]}.${match[2]}.${match[1]}` : null
 }
@@ -60,7 +46,6 @@ export default function TreatmentPresentation() {
 
   const script: PresentationScript | null = data?.script ?? null
   const release = data?.release ?? null
-
   const directorRef = useRef<PresentationDirector | null>(null)
   const personaRef = useRef<AudioPersona | null>(null)
   const fetchedActs = useRef(new Set<string>())
@@ -71,7 +56,6 @@ export default function TreatmentPresentation() {
     surfaceRef.current = surface
   }, [])
 
-  /** Fetch one act's narration once, and hand the URLs to the persona. */
   const fetchAct = useCallback(
     async (actId: string | undefined, persona: AudioPersona | null) => {
       if (!releaseId || !actId || !persona || fetchedActs.current.has(actId)) return
@@ -80,7 +64,7 @@ export default function TreatmentPresentation() {
         const data = await api.getPresentationVoice(String(releaseId), actId, i18n.language)
         persona.setUrls(data?.lines ?? [])
       } catch {
-        // Silent is a supported outcome; nothing to tell the patient.
+        // Silent is a supported outcome.
       }
     },
     [releaseId, i18n.language],
@@ -88,11 +72,9 @@ export default function TreatmentPresentation() {
 
   useEffect(() => {
     if (!script || !surfaceRef.current) return
-
     const persona = new AudioPersona()
     personaRef.current = persona
     fetchedActs.current.clear()
-
     const director = new PresentationDirector(
       script,
       persona,
@@ -101,60 +83,34 @@ export default function TreatmentPresentation() {
       { onState: setState },
     )
     directorRef.current = director
-
-    // Load the first act's narration *before* starting. Fetching on entering an
-    // act would leave the opening line silent every single time — and that is
-    // the one line the whole screen exists to deliver.
     let cancelled = false
     void fetchAct(script.acts[0]?.id, persona).finally(() => {
       if (!cancelled) void director.play()
     })
-
     return () => {
       cancelled = true
       director.stop()
       directorRef.current = null
       personaRef.current = null
     }
-    // `script`, and `fetchAct` with it, change identity only when the release or
-    // the locale does — which is exactly when the presentation should start over.
   }, [script, prefersReducedMotion, fetchAct])
 
   const acts = script?.acts ?? []
   const beat = state?.beat ?? null
   const snapshot = data?.snapshot ?? null
-
-  /**
-   * The levels were computed and frozen at approval; this only reads them. An
-   * empty list means nothing differs from the doctor's plan, and the screen
-   * shows one price rather than three identical cards.
-   */
   const options = useMemo(() => readPresentedOptions(snapshot), [snapshot])
   const showingOptions = beat?.stage.scene === 'options' && options.length > 0
-  // The closing act is where the way out belongs — and once the story is over
-  // it stays on screen rather than vanishing with the last line.
   const atNextStep = beat?.actId === 'next_step' || state?.status === 'finished'
 
-  /**
-   * Prefetch the *next* act while the current one plays, so the seam between
-   * acts is not silent either. Per act rather than all six up front: most
-   * patients open the first, and synthesising the rest bills for audio nobody
-   * hears. Failures are swallowed on purpose — the persona already falls back
-   * to reading time, so a silent presentation is the worst case, never a
-   * broken one.
-   */
   useEffect(() => {
     const nextActId = script?.acts[(state?.actIndex ?? 0) + 1]?.id
     if (!nextActId) return
     void fetchAct(nextActId, personaRef.current)
   }, [script, state?.actIndex, fetchAct])
+
   const playing = state?.status === 'playing'
   const finished = state?.status === 'finished'
 
-  // The funnel's two touchpoints: opened it, watched it through. Both are
-  // fire-and-forget and first-touch only — the backend itself is idempotent
-  // (`recordPresentationMilestone`), but tracking here as well avoids firing
-  // the request on every re-render.
   const trackedViewed = useRef(false)
   const trackedFinished = useRef(false)
   useEffect(() => {
@@ -195,23 +151,7 @@ export default function TreatmentPresentation() {
   return (
     <PatientSurface width="wide">
       <div className="flex min-h-[85vh] flex-col justify-center gap-8 py-6">
-        {/* Act rail — where the patient is in their own story. */}
-        {/*
-          Six act titles are wider than a phone. Left as one un-wrapping row they
-          overflowed in both directions: the first act was cut off the left edge
-          and the last off the right, so a patient on a phone could neither see
-          which act was playing nor reach any other — the rail was unusable at
-          exactly the size most patients open the link on.
-
-          Below `sm` the titles give way to their marks, which still show
-          position and still take a tap; the name stays on `aria-label`, so
-          nothing is lost to assistive technology. Above `sm` the titles return
-          and are allowed to wrap, because some locales are much longer.
-        */}
-        <nav
-          className="flex flex-wrap items-end justify-center gap-x-2 gap-y-2"
-          aria-label={t('presentation.acts')}
-        >
+        <nav className="flex flex-wrap items-end justify-center gap-x-2 gap-y-2" aria-label={t('presentation.acts')}>
           {acts.map((act, index) => {
             const active = index === (state?.actIndex ?? 0)
             return (
@@ -227,24 +167,12 @@ export default function TreatmentPresentation() {
                 )}
               >
                 <span className="hidden sm:inline">{act.title}</span>
-                <span
-                  className="h-px w-8 transition-opacity sm:w-10"
-                  style={{
-                    background: active
-                      ? 'var(--dv-gold)'
-                      : 'color-mix(in srgb, var(--dv-gold) 20%, transparent)',
-                  }}
-                />
+                <span className="h-px w-8 transition-opacity sm:w-10" style={{ background: active ? 'var(--dv-gold)' : 'color-mix(in srgb, var(--dv-gold) 20%, transparent)' }} />
               </button>
             )
           })}
         </nav>
 
-        {/*
-          The arches stay mounted through the options act rather than being
-          swapped out: unmounting them would drop the surface handle the
-          director is holding, and the next act would play to nothing.
-        */}
         <div className="relative">
           <div className={cn('transition-opacity duration-500', showingOptions && 'pointer-events-none opacity-0')}>
             <CinematicArches2D onReady={handleSurfaceReady} />
@@ -264,7 +192,6 @@ export default function TreatmentPresentation() {
           </AnimatePresence>
         </div>
 
-        {/* The line being said. One thing at a time. */}
         <div className="min-h-[8rem] px-2 text-center">
           <AnimatePresence mode="wait">
             {beat && (
@@ -278,12 +205,7 @@ export default function TreatmentPresentation() {
               >
                 <p className="font-serif text-lg leading-relaxed text-txt-primary sm:text-xl">{beat.say}</p>
                 {beat.caption && (
-                  <p
-                    className={cn(
-                      'text-2xs uppercase tracking-[0.18em]',
-                      beat.caption.kind === 'price' ? 'text-dv-gold' : 'text-txt-muted',
-                    )}
-                  >
+                  <p className={cn('text-2xs uppercase tracking-[0.18em]', beat.caption.kind === 'price' ? 'text-dv-gold' : 'text-txt-muted')}>
                     {beat.caption.text}
                   </p>
                 )}
@@ -293,67 +215,36 @@ export default function TreatmentPresentation() {
         </div>
 
         <div className="space-y-4">
-          {/* Progress across the whole story, not per act. */}
           <div className="mx-auto h-px w-full max-w-md bg-bdr-subtle">
             <motion.div
               className="h-px"
               style={{ background: 'var(--dv-gold)' }}
-              animate={{
-                width: `${((state?.progress.current ?? 0) / Math.max(1, state?.progress.total ?? 1)) * 100}%`,
-              }}
+              animate={{ width: `${((state?.progress.current ?? 0) / Math.max(1, state?.progress.total ?? 1)) * 100}%` }}
               transition={{ duration: prefersReducedMotion ? 0 : 0.5, ease: [0.16, 1, 0.3, 1] }}
             />
           </div>
 
           <div className="flex flex-wrap items-center justify-center gap-3">
             {finished ? (
-              <Button
-                size="sm"
-                variant="secondary"
-                icon={<RotateCcw size={14} />}
-                onClick={() => directorRef.current?.seekToAct(0)}
-              >
+              <Button size="sm" variant="secondary" icon={<RotateCcw size={14} />} onClick={() => directorRef.current?.seekToAct(0)}>
                 {t('presentation.replay')}
               </Button>
             ) : (
-              <Button
-                size="sm"
-                variant="secondary"
-                icon={playing ? <Pause size={14} /> : <Play size={14} />}
-                onClick={() =>
-                  playing ? directorRef.current?.pause() : directorRef.current?.resume()
-                }
-              >
+              <Button size="sm" variant="secondary" icon={playing ? <Pause size={14} /> : <Play size={14} />} onClick={() => playing ? directorRef.current?.pause() : directorRef.current?.resume()}>
                 {playing ? t('presentation.pause') : t('presentation.resume')}
               </Button>
             )}
           </div>
 
           <div className="space-y-1 text-center">
-            {release?.totalAmount != null && (
-              <p className="font-mono text-sm tabular-nums text-txt-secondary">
-                {formatTenge(release.totalAmount)}
-              </p>
-            )}
-            {expiry && (
-              // A quoted price is an offer; the patient is entitled to know how
-              // long it stands.
-              <p className="text-2xs text-txt-muted">{t('presentation.valid_until', { date: expiry })}</p>
-            )}
+            {release?.totalAmount != null && <p className="font-mono text-sm tabular-nums text-txt-secondary">{formatTenge(release.totalAmount)}</p>}
+            {expiry && <p className="text-2xs text-txt-muted">{t('presentation.valid_until', { date: expiry })}</p>}
             <p className="text-2xs text-txt-muted">{t('presentation.not_a_consent')}</p>
+            <p className="pt-3 text-[11px] tracking-[0.12em] text-txt-muted">Powered by DentVision</p>
           </div>
 
-          {/* Always available, never narrated: a patient who accepts the number
-              should not have to walk a table to get past it. */}
-          {snapshot && release?.totalAmount != null && (
-            <CostBreakdown snapshot={snapshot} total={release.totalAmount} />
-          )}
+          {snapshot && release?.totalAmount != null && <CostBreakdown snapshot={snapshot} total={release.totalAmount} />}
 
-          {/*
-            The doctor's own plan title, not an act title: this lands in the
-            clinic's booking list, where "Ваш план лечения" — a line written to
-            address the patient — tells whoever picks it up nothing.
-          */}
           {atNextStep && (
             <NextStepActions
               serviceName={(snapshot as { title?: string } | null)?.title ?? null}
