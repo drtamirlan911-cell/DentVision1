@@ -1,4 +1,4 @@
-import React, { useCallback } from 'react';
+import React, { useCallback, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { motion } from 'framer-motion';
@@ -7,6 +7,7 @@ import { cn } from '@/lib/utils';
 import { useAuth } from '@/store/auth.store';
 import { useGuestStore } from '@/store/guest.store';
 import { useUIStore } from '@/store/ui.store';
+import { useIam } from '@/iam';
 
 interface BottomNavItem {
   id: string;
@@ -24,16 +25,32 @@ export function BottomNav() {
   const { isGuest, setRegistrationModal } = useGuestStore();
   const toggleSidebar = useUIStore((state) => state.toggleSidebar);
   const { t } = useTranslation();
+  const iam = useIam();
 
-  // Keep mobile navigation task-first. Secondary destinations remain in the sidebar,
-  // so the bottom bar does not duplicate the entire information architecture.
-  const ITEMS: BottomNavItem[] = [
-    { id: 'ai', label: t('nav.digital_assistant', 'ИИ'), icon: <Bot size={19} />, path: '/ai', color: '#A47B35' },
-    { id: 'crm', label: t('nav.crm', 'Клиника'), icon: <Stethoscope size={19} />, path: '/crm/schedule', color: '#A47B35', requiresAuth: true },
-    { id: 'diagnostics', label: t('nav.diagnostics', 'Диагностика'), icon: <Activity size={19} />, path: '/diagnostics', color: '#A47B35' },
-    { id: 'shop', label: t('nav.market', 'Маркет'), icon: <ShoppingCart size={19} />, path: '/shop', color: '#A47B35' },
-    { id: 'more', label: t('nav.more', 'Ещё'), icon: <MoreHorizontal size={20} />, color: '#A47B35' },
-  ];
+  const ITEMS: BottomNavItem[] = useMemo(() => {
+    const items: BottomNavItem[] = [
+      { id: 'ai', label: t('nav.digital_assistant', 'ИИ'), icon: <Bot size={19} />, path: '/ai', color: '#A47B35' },
+      { id: 'crm', label: t('nav.crm', 'Клиника'), icon: <Stethoscope size={19} />, path: '/crm/schedule', color: '#A47B35', requiresAuth: true },
+      { id: 'shop', label: t('nav.market', 'Маркет'), icon: <ShoppingCart size={19} />, path: '/shop', color: '#A47B35' },
+      { id: 'more', label: t('nav.more', 'Ещё'), icon: <MoreHorizontal size={20} />, color: '#A47B35' },
+    ];
+
+    // `/diagnostics` is the authenticated workspace. Guests have a separate
+    // public discovery route at `/diagnostics/discover`; do not expose a tab
+    // that immediately redirects guests into login.
+    if (isAuthenticated && !isGuest && iam.canAccessPage('diagnostics')) {
+      items.splice(2, 0, {
+        id: 'diagnostics',
+        label: t('nav.diagnostics', 'Диагностика'),
+        icon: <Activity size={19} />,
+        path: '/diagnostics',
+        color: '#A47B35',
+        requiresAuth: true,
+      });
+    }
+
+    return items;
+  }, [iam, isAuthenticated, isGuest, t]);
 
   const handleNavClick = useCallback((item: BottomNavItem) => {
     if (item.id === 'more') {
