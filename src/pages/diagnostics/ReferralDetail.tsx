@@ -17,6 +17,8 @@ import { useAIStore } from '@/store/ai.store';
 import { StatusPill } from './workspace/Pipeline';
 import EcosystemContextBridge from '@/components/ecosystem/EcosystemContextBridge';
 import EcosystemRelationRail from '@/components/ecosystem/EcosystemRelationRail';
+import { useEcosystemUrlContext } from '@/hooks/useEcosystemUrlContext';
+import { withEcosystemContext } from '@/config/ecosystemContextLink';
 
 export default function ReferralDetail() {
   const { id } = useParams();
@@ -24,6 +26,7 @@ export default function ReferralDetail() {
   const toast = useToast();
   const queryClient = useQueryClient();
   const executePrompt = useAIStore(s => s.executePrompt);
+  const urlContext = useEcosystemUrlContext();
 
   const { data, isLoading, isError, refetch } = useQuery({
     queryKey: queryKeys.diagnostics.referral(id!),
@@ -87,25 +90,30 @@ export default function ReferralDetail() {
       'Не создавай план лечения автоматически. Покажи его как черновик и предложи врачу подтвердить создание через DentVision; только после явного подтверждения допускается создание draft-плана через защищённый workflow. ' +
       'Не меняй медицинскую запись без явного подтверждения врача. Не ставь окончательный диагноз вместо врача и не назначай лекарственную терапию как факт.'
     );
-    navigate('/ai');
+    navigate(withEcosystemContext('/ai', urlContext));
   };
 
   if (isLoading) return <div className="p-6"><Skeleton className="h-64" /></div>;
   if (isError) return <div className="p-6"><QueryError what="направление" onRetry={() => refetch()} /></div>;
   if (!referral) return <div className="p-6 text-txt-muted">Направление не найдено</div>;
 
-  const patientId = referral.patientId || referral.patient?.id;
+  const patientId = referral.patientId || referral.patient?.id || urlContext.patientId;
+  const context = {
+    ...urlContext,
+    patientId: patientId || undefined,
+    organizationId: urlContext.organizationId || referral.clinic?.organizationId || undefined,
+  };
 
   return (
     <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className="space-y-4 p-3 sm:p-5 lg:p-6 max-w-6xl max-w-full overflow-x-hidden">
-      <EcosystemContextBridge patientId={patientId} organizationId={referral.clinic?.organizationId} />
-      <EcosystemRelationRail node="diagnostic-referral" title="Связанный рабочий контекст" patientId={patientId} organizationId={referral.clinic?.organizationId} />
+      <EcosystemContextBridge patientId={patientId} caseId={context.caseId} branchId={context.branchId} organizationId={context.organizationId} />
+      <EcosystemRelationRail node="diagnostic-referral" title="Связанный рабочий контекст" patientId={patientId} caseId={context.caseId} branchId={context.branchId} organizationId={context.organizationId} />
 
       <PageHeader
         title={referral.patientName}
         subtitle={`${referral.studyType} · ${referral.category}`}
         icon={<FileText size={22} />}
-        actions={<><StatusPill status={referral.status} /><Button variant="ghost" size="sm" className="min-h-11" icon={<ArrowLeft size={16} />} onClick={() => navigate('/diagnostics/referrals')}>Назад</Button></>}
+        actions={<><StatusPill status={referral.status} /><Button variant="ghost" size="sm" className="min-h-11" icon={<ArrowLeft size={16} />} onClick={() => navigate(withEcosystemContext('/diagnostics/referrals', context))}>Назад</Button></>}
       />
 
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-2 gap-4">
