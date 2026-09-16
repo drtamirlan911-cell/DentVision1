@@ -166,28 +166,27 @@ test.describe('RBAC - Role-Based Access Control', () => {
     const ownerA = tokens['owner-a'];
     const ownerB = tokens['owner-b'];
 
-    const authRes = await api.post(`${BASE_URL}/api/auth/login`, {
-      data: USERS['owner-a'],
+    const clinicsRes = await api.get(`${BASE_URL}/api/auth/my-clinics`, {
+      headers: authHeaders(ownerA),
     });
-    expect(authRes.ok()).toBeTruthy();
-    const authBody = await authRes.json();
-    const clinicId = authBody.data?.memberships?.[0]?.clinicId;
+    expect(clinicsRes.status()).toBe(200);
+    const clinicsBody = await clinicsRes.json();
+    const clinics = clinicsBody.data || clinicsBody;
+    const clinicId = Array.isArray(clinics) ? clinics[0]?.id : clinics?.id;
     expect(clinicId).toBeTruthy();
 
-    const createRes = await api.post(`${BASE_URL}/api/branches`, {
-      headers: authHeaders(ownerA),
-      data: {
-        clinicId,
-        name: `RBAC Cross Clinic ${Date.now()}`,
-        code: `RBAC-${Date.now()}`,
-      },
-    });
-    expect([200, 201]).toContain(createRes.status());
-    const createBody = await createRes.json();
-    const branchId = (createBody.data || createBody).id;
+    const listRes = await api.get(
+      `${BASE_URL}/api/organizations/branches?clinicId=${encodeURIComponent(clinicId)}`,
+      { headers: authHeaders(ownerA) },
+    );
+    expect(listRes.status()).toBe(200);
+    const listBody = await listRes.json();
+    const branchId = (listBody.data || []).find(
+      (branch: { clinicId?: string; id?: string }) => branch.clinicId === clinicId,
+    )?.id;
     expect(branchId).toBeTruthy();
 
-    const res = await api.patch(`${BASE_URL}/api/branches/${branchId}`, {
+    const res = await api.patch(`${BASE_URL}/api/organizations/branches/${branchId}`, {
       headers: authHeaders(ownerB),
       data: { name: 'SHOULD-NOT-BE-UPDATED' },
     });

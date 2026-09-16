@@ -9,7 +9,10 @@
  * downgrading the session back to legacy on the next token rotation.
  *
  * Membership is verified here, so a context is only ever embedded once the
- * Person or ClinicMember link behind it exists.
+ * Person or ClinicMember link behind it exists. Unified organization contexts
+ * additionally require an active canonical PersonRole; a revoked role must not
+ * be resurrected through login/context fallback while a legacy ClinicMember row
+ * still exists.
  *
  * Note on ids: `Organization.id` is NOT the id of the entity it mirrors — the
  * backfill and every creation site mint a fresh id and record the source in
@@ -18,6 +21,7 @@
  */
 
 import prisma from './prisma.js';
+import { resolveActivePersonRole } from '../middleware/auth.js';
 
 export interface AuthTokenContext {
   clinicId?: string;
@@ -26,12 +30,17 @@ export interface AuthTokenContext {
   personType?: string;
 }
 
-async function contextForOrganization(userId: string, organizationId: string): Promise<AuthTokenContext | null> {
-  const person = await prisma.person.findFirst({
-    where: { userId, organizationId },
-    include: { organization: { select: { id: true, type: true, originalId: true } } },
-  });
-  if (!person?.organization) return null;
+type PersonWithContextRole = {
+  userId: string;
+  organizationId: string | null;
+  personType: string;
+  organization: { id: string; type: string; originalId: string | null } | null;
+  personRoles: Array<{ scopeType: string | null; scopeId: string | null; role: { key: string } }>;
+};
+
+function contextFromPerson(person: PersonWithContextRole, organizationId: string): AuthTokenContext | null {
+  if (!person.organization) return null;
+  if (!resolveActivePersonRole(person.personRoles, organizationId)) return null;
 
   const org = person.organization;
   return {
@@ -42,6 +51,18 @@ async function contextForOrganization(userId: string, organizationId: string): P
   };
 }
 
+async function contextForOrganization(userId: string, organizationId: string): Promise<AuthTokenContext | null> {
+  const person = await prisma.person.findFirst({
+    where: { userId, organizationId },
+    include: {
+      organization: { select: { id: true, type: true, originalId: true } },
+      personRoles: { select: { scopeType: true, scopeId: true, role: { select: { key: true } } } },
+    },
+  });
+  if (!person) return null;
+  return contextFromPerson(person, organizationId);
+}
+
 async function contextForClinic(userId: string, clinicId: string): Promise<AuthTokenContext | null> {
   const org = await prisma.organization.findFirst({
     where: { originalType: 'Clinic', originalId: clinicId },
@@ -50,6 +71,11 @@ async function contextForClinic(userId: string, clinicId: string): Promise<AuthT
   if (org) {
     const viaOrg = await contextForOrganization(userId, org.id);
     if (viaOrg) return viaOrg;
+
+    // A unified Person exists but no active scoped role. Do not fall through to
+    // the legacy ClinicMember row, or a revoked IAM role could be resurrected.
+    const unifiedPerson = await prisma.person.findFirst({ where: { userId, organizationId: org.id }, select: { id: true } });
+    if (unifiedPerson) return null;
   }
 
   const member = await prisma.clinicMember.findUnique({
@@ -65,7 +91,9 @@ async function contextForClinic(userId: string, clinicId: string): Promise<AuthT
  * `preferred` carries what the caller is asking for — the scope from the token
  * being refreshed, or the clinic just joined. It is treated as a request, not a
  * fact: an unverifiable preference falls through to the user's default scope
- * rather than being trusted.
+ * rather than being trusted. A known unified organization with a revoked role
+ * is a hard denial for that requested organization, not a reason to resurrect
+ * the same scope through a legacy membership row.
  */
 export async function resolveAuthContext(
   userId: string,
@@ -74,27 +102,39 @@ export async function resolveAuthContext(
   if (preferred?.organizationId) {
     const ctx = await contextForOrganization(userId, preferred.organizationId);
     if (ctx) return ctx;
+
+    // Do not reinterpret a known unified organization as a legacy/default
+    // context after its PersonRole has been revoked.
+    const unifiedPerson = await prisma.person.findFirst({ where: { userId, organizationId: preferred.organizationId }, select: { id: true } });
+    if (unifiedPerson) return {};
   }
 
   if (preferred?.clinicId) {
     const ctx = await contextForClinic(userId, preferred.clinicId);
     if (ctx) return ctx;
+
+    // If the clinic is represented by a unified Person without an active role,
+    // do not continue into an unrelated default organization.
+    const clinicOrg = await prisma.organization.findFirst({ where: { originalType: 'Clinic', originalId: preferred.clinicId }, select: { id: true } });
+    if (clinicOrg) {
+      const unifiedPerson = await prisma.person.findFirst({ where: { userId, organizationId: clinicOrg.id }, select: { id: true } });
+      if (unifiedPerson) return {};
+    }
   }
 
   // Default scope — a clinic the user belongs to takes precedence over other
   // organization types, matching the legacy "first membership" behaviour.
-  const clinicPerson = await prisma.person.findFirst({
+  const clinicPeople = await prisma.person.findMany({
     where: { userId, organization: { type: 'CLINIC' } },
-    include: { organization: { select: { id: true, type: true, originalId: true } } },
+    include: {
+      organization: { select: { id: true, type: true, originalId: true } },
+      personRoles: { select: { scopeType: true, scopeId: true, role: { select: { key: true } } } },
+    },
     orderBy: { createdAt: 'asc' },
   });
-  if (clinicPerson?.organization) {
-    return {
-      organizationId: clinicPerson.organization.id,
-      organizationType: 'CLINIC',
-      personType: clinicPerson.personType || undefined,
-      clinicId: clinicPerson.organization.originalId || undefined,
-    };
+  for (const clinicPerson of clinicPeople) {
+    const ctx = contextFromPerson(clinicPerson, clinicPerson.organizationId || clinicPerson.organization?.id || '');
+    if (ctx) return ctx;
   }
 
   const member = await prisma.clinicMember.findFirst({
@@ -107,17 +147,19 @@ export async function resolveAuthContext(
     if (ctx) return ctx;
   }
 
-  const anyPerson = await prisma.person.findFirst({
+  const people = await prisma.person.findMany({
     where: { userId },
-    include: { organization: { select: { id: true, type: true, originalId: true } } },
+    include: {
+      organization: { select: { id: true, type: true, originalId: true } },
+      personRoles: { select: { scopeType: true, scopeId: true, role: { select: { key: true } } } },
+    },
     orderBy: { createdAt: 'asc' },
   });
-  if (anyPerson?.organization) {
-    return {
-      organizationId: anyPerson.organization.id,
-      organizationType: anyPerson.organization.type,
-      personType: anyPerson.personType || undefined,
-    };
+  for (const person of people) {
+    const orgId = person.organizationId || person.organization?.id;
+    if (!orgId) continue;
+    const ctx = contextFromPerson(person, orgId);
+    if (ctx) return ctx;
   }
 
   return {};

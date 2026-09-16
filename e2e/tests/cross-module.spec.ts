@@ -70,13 +70,27 @@ test.describe('Cross-Module Workflow: referral → center → result → lab →
       },
     });
     centerUserId = centerUser.id;
-    await prisma.person.create({
+    const centerPerson = await prisma.person.create({
       data: {
         id: randomUUID(),
         fullName: `${centerUser.firstName} ${centerUser.lastName}`,
         personType: 'OPERATOR',
         organizationId: centerId,
         userId: centerUserId,
+      },
+    });
+    const centerRole = await prisma.role.upsert({
+      where: { key: 'org_admin' },
+      update: {},
+      create: { id: randomUUID(), key: 'org_admin', name: 'Organization Admin', isSystem: true },
+    });
+    await prisma.personRole.create({
+      data: {
+        id: randomUUID(),
+        personId: centerPerson.id,
+        roleId: centerRole.id,
+        scopeType: 'organization',
+        scopeId: centerId,
       },
     });
     centerToken = await login(api, centerUser.email, E2E_PASSWORD);
@@ -96,6 +110,7 @@ test.describe('Cross-Module Workflow: referral → center → result → lab →
     await prisma.referral.deleteMany({ where: { id: referralId } }).catch(() => {});
     await prisma.labOrder.deleteMany({ where: { id: labOrderId } }).catch(() => {});
     await prisma.visit.deleteMany({ where: { patientId } }).catch(() => {});
+    await prisma.personRole.deleteMany({ where: { person: { userId: centerUserId } } }).catch(() => {});
     await prisma.person.deleteMany({ where: { organizationId: centerId } }).catch(() => {});
     await prisma.user.delete({ where: { id: centerUserId } }).catch(() => {});
     await prisma.organization.delete({ where: { id: centerId } }).catch(() => {});
