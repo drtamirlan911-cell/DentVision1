@@ -96,7 +96,7 @@ The complete pre-2026-09-14 execution history is preserved in the parent Git his
 ### Implemented
 - `e34fd165b0c54f86b37e197d72b5e1273e3f2f8` — scoped BIZ-006 profile actions to the employee profile dialog.
 - `6fe493bc7d36d82d0b2662ccfb1556648aca7cb4` — added a fail-closed authenticated `/api/auth/invitations` compatibility endpoint with the same OWNER/ADMIN clinic authorization semantics as the canonical clinic invite endpoint.
-- `97712d7a035810560f661d0aa96ac2ea0a863913` — corrected `20260914080000_organization_scoped_branches/migration.sql` to provision `clinic_members.branch_id`, matching Prisma `@map("branch_id")`, indexes and FK.
+- `97712d7a035810560f661e9349c29a37a10a9722` — corrected `20260914080000_organization_scoped_branches/migration.sql` to provision `clinic_members.branch_id`, matching Prisma `@map("branch_id")`, indexes and FK.
 - `4741becb85bed432ede1049349c29a37a10a9722` — made `20260914090000_backfill_default_branch_scope/migration.sql` self-provision `patients.branch_id`, `appointments.branch_id`, and `clinic_members.branch_id` before backfill.
 - `2174ac9257f3ae10beb4f8df92cb8d693cdf660d` — made referral branch migration self-provision `referrals.branch_id` before installing the consistency trigger.
 
@@ -135,3 +135,18 @@ The complete pre-2026-09-14 execution history is preserved in the parent Git his
 1. Continue the canonical Phase 2 security/lifecycle queue: full branch lifecycle and negative-path checks for cross-branch access, expired/revoked invitations and disabled staff.
 2. Then continue the accepted → paid → settled economics/ledger integration and medical-analysis lifecycle.
 3. Keep all fixes accompanied by regression tests and persistent execution-log evidence.
+
+## 2026-09-16 — Branch deactivation test hardening
+
+### Implemented
+- `0591fadc13e0fb69066a070a2bfb15de30a0ad91` — made `BRANCH-002` deterministic by creating its own non-default branch, asserting it is active/non-default, and requiring the explicit `Отключить филиал` action to succeed.
+- Removed the prior conditional path that silently accepted absence of a non-default branch, so the test now fails when the expected branch lifecycle is not available.
+- No production branch authorization or deactivation rule was changed.
+
+### Verification
+- A fresh CI run is expected from the `main` push of `0591fadc13e0fb69066a070a2bfb15de30a0ad91`; verification remains pending until that run completes.
+
+### Next action
+1. Inspect the fresh CI run for `0591fadc13e0fb69066a070a2bfb15de30a0ad91`.
+2. If green, add direct cross-tenant/cross-branch negative-path coverage and then continue invitation/session security.
+3. Preserve the release gate as incomplete until all required lifecycle/security/economics evidence is green.
