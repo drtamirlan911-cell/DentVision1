@@ -40,15 +40,6 @@ function authHeaders(token: string) {
 test.describe('RBAC - Role-Based Access Control', () => {
   let api: APIRequestContext;
 
-  /**
-   * `api` is a context this file owns, created here and disposed in `afterAll`.
-   *
-   * It used to be Playwright's `request` fixture, captured in `beforeAll` and
-   * reused from the tests — which Playwright refuses outright:
-   * "Fixture { request } from beforeAll cannot be reused in a test." Every test
-   * in this file threw that at its first call. Nothing noticed, because the suite
-   * was never run: `test:e2e` is in package.json and in no CI workflow.
-   */
   test.beforeAll(async () => {
     api = await apiRequest.newContext();
     for (const role of Object.keys(USERS) as (keyof typeof USERS)[]) {
@@ -86,11 +77,6 @@ test.describe('RBAC - Role-Based Access Control', () => {
   });
 
   test('RBAC-004: Unauthenticated access to patients → 401', async () => {
-    // Not the shared `api` context: `beforeAll` logged in as every role in
-    // turn on it, so it's carrying whichever login ran last as a session
-    // cookie. `authenticate` accepts that cookie exactly as validly as a
-    // Bearer token, so "unauthenticated" on the shared context would
-    // silently authenticate anyway. A fresh context has no cookies at all.
     const anonymous = await apiRequest.newContext();
     try {
       const res = await anonymous.get(`${BASE_URL}/api/patients`);
@@ -103,9 +89,6 @@ test.describe('RBAC - Role-Based Access Control', () => {
   test('RBAC-005: OWNER can create invoices → 200/201', async () => {
     const token = tokens['owner-a'];
     if (!token) return test.skip();
-    // patientId is required (billing.routes.ts rejects a body without one) —
-    // this test only cares whether OWNER's role is allowed through, so a
-    // fresh patient just to satisfy that requirement is enough.
     const patientRes = await api.post(`${BASE_URL}/api/patients`, {
       headers: authHeaders(token),
       data: { iin: makeIin(), firstName: 'RBAC', lastName: 'InvoiceTarget', phone: '+77000000005' },
@@ -147,11 +130,6 @@ test.describe('RBAC - Role-Based Access Control', () => {
   });
 
   test('RBAC-009: ADMIN cannot access superadmin routes → 403', async () => {
-    // /api/admin/* is gated by requireSuperadmin, not by clinic role — the
-    // "ADMIN" here is clinic staff, not the platform superadmin who
-    // administers every clinic. The two are deliberately separate; this is
-    // the same privilege-separation check RBAC-008/011/012 already make for
-    // other clinic roles.
     const token = tokens['admin-a'];
     if (!token) return test.skip();
     const res = await api.get(`${BASE_URL}/api/admin/users`, { headers: authHeaders(token) });
@@ -179,10 +157,23 @@ test.describe('RBAC - Role-Based Access Control', () => {
     expect(res.status()).toBe(403);
   });
 
-  test('RBAC-013: Cross-clinic access denied → 403/404', async () => {
-    const token = tokens['owner-b'];
-    if (!token) return test.skip();
-    const res = await api.get(`${BASE_URL}/api/patients`, { headers: authHeaders(token) });
-    expect([200, 403, 404]).toContain(res.status());
+  test('RBAC-013: Cross-clinic patient access denied → 403/404', async () => {
+    const ownerA = tokens['owner-a'];
+    const ownerB = tokens['owner-b'];
+    if (!ownerA || !ownerB) return test.skip();
+
+    const patientRes = await api.post(`${BASE_URL}/api/patients`, {
+      headers: authHeaders(ownerA),
+      data: { iin: makeIin(), firstName: 'RBAC', lastName: 'CrossClinicTarget', phone: '+77000000006' },
+    });
+    expect([200, 201]).toContain(patientRes.status());
+    const patientBody = await patientRes.json();
+    const patientId = (patientBody.data || patientBody).id;
+    expect(patientId).toBeTruthy();
+
+    const res = await api.get(`${BASE_URL}/api/patients/${patientId}`, {
+      headers: authHeaders(ownerB),
+    });
+    expect([403, 404]).toContain(res.status());
   });
 });
