@@ -8,6 +8,7 @@ const USERS = {
   'admin-a': { email: 'admin-a@test.com', password: 'Test1234!' },
   'doctor-a': { email: 'doctor-a@test.com', password: 'Test1234!' },
   'assistant-a': { email: 'assistant-a@test.com', password: 'Test1234!' },
+  'manager-a': { email: 'manager-a@test.com', password: 'Test1234!' },
   'owner-b': { email: 'owner-b@test.com', password: 'Test1234!' },
   'regular': { email: 'regular@test.com', password: 'Test1234!' },
 };
@@ -43,11 +44,7 @@ test.describe('RBAC - Role-Based Access Control', () => {
   test.beforeAll(async () => {
     api = await apiRequest.newContext();
     for (const role of Object.keys(USERS) as (keyof typeof USERS)[]) {
-      try {
-        await loginAs(api, role);
-      } catch {
-        // Pre-seeded user may not exist in all environments
-      }
+      await loginAs(api, role);
     }
   });
 
@@ -57,21 +54,18 @@ test.describe('RBAC - Role-Based Access Control', () => {
 
   test('RBAC-001: OWNER can access patients → 200', async () => {
     const token = tokens['owner-a'];
-    if (!token) return test.skip();
     const res = await api.get(`${BASE_URL}/api/patients`, { headers: authHeaders(token) });
     expect(res.status()).toBe(200);
   });
 
   test('RBAC-002: ASSISTANT can access patients → 200', async () => {
     const token = tokens['assistant-a'];
-    if (!token) return test.skip();
     const res = await api.get(`${BASE_URL}/api/patients`, { headers: authHeaders(token) });
     expect(res.status()).toBe(200);
   });
 
   test('RBAC-003: DOCTOR can access patients → 200', async () => {
     const token = tokens['doctor-a'];
-    if (!token) return test.skip();
     const res = await api.get(`${BASE_URL}/api/patients`, { headers: authHeaders(token) });
     expect(res.status()).toBe(200);
   });
@@ -88,7 +82,6 @@ test.describe('RBAC - Role-Based Access Control', () => {
 
   test('RBAC-005: OWNER can create invoices → 200/201', async () => {
     const token = tokens['owner-a'];
-    if (!token) return test.skip();
     const patientRes = await api.post(`${BASE_URL}/api/patients`, {
       headers: authHeaders(token),
       data: { iin: makeIin(), firstName: 'RBAC', lastName: 'InvoiceTarget', phone: '+77000000005' },
@@ -105,7 +98,6 @@ test.describe('RBAC - Role-Based Access Control', () => {
 
   test('RBAC-006: ASSISTANT cannot create invoices → 403', async () => {
     const token = tokens['assistant-a'];
-    if (!token) return test.skip();
     const res = await api.post(`${BASE_URL}/api/billing/invoices`, {
       headers: authHeaders(token),
       data: { amount: 10000, description: 'Test invoice' },
@@ -115,14 +107,12 @@ test.describe('RBAC - Role-Based Access Control', () => {
 
   test('RBAC-007: DOCTOR can read inventory → 200', async () => {
     const token = tokens['doctor-a'];
-    if (!token) return test.skip();
     const res = await api.get(`${BASE_URL}/api/inventory`, { headers: authHeaders(token) });
     expect(res.status()).toBe(200);
   });
 
   test('RBAC-008: STUDENT cannot delete users → 403', async () => {
     const token = tokens['regular'];
-    if (!token) return test.skip();
     const res = await api.delete(`${BASE_URL}/api/admin/users/some-user-id`, {
       headers: authHeaders(token),
     });
@@ -131,28 +121,24 @@ test.describe('RBAC - Role-Based Access Control', () => {
 
   test('RBAC-009: ADMIN cannot access superadmin routes → 403', async () => {
     const token = tokens['admin-a'];
-    if (!token) return test.skip();
     const res = await api.get(`${BASE_URL}/api/admin/users`, { headers: authHeaders(token) });
     expect(res.status()).toBe(403);
   });
 
   test('RBAC-010: MANAGER can access admin routes → 200', async () => {
     const token = tokens['manager-a'];
-    if (!token) return test.skip();
     const res = await api.get(`${BASE_URL}/api/admin/users`, { headers: authHeaders(token) });
     expect(res.status()).toBe(200);
   });
 
   test('RBAC-011: DOCTOR cannot access admin routes → 403', async () => {
     const token = tokens['doctor-a'];
-    if (!token) return test.skip();
     const res = await api.get(`${BASE_URL}/api/admin/users`, { headers: authHeaders(token) });
     expect(res.status()).toBe(403);
   });
 
   test('RBAC-012: ASSISTANT cannot access admin routes → 403', async () => {
     const token = tokens['assistant-a'];
-    if (!token) return test.skip();
     const res = await api.get(`${BASE_URL}/api/admin/users`, { headers: authHeaders(token) });
     expect(res.status()).toBe(403);
   });
@@ -160,7 +146,6 @@ test.describe('RBAC - Role-Based Access Control', () => {
   test('RBAC-013: Cross-clinic patient access denied → 403/404', async () => {
     const ownerA = tokens['owner-a'];
     const ownerB = tokens['owner-b'];
-    if (!ownerA || !ownerB) return test.skip();
 
     const patientRes = await api.post(`${BASE_URL}/api/patients`, {
       headers: authHeaders(ownerA),
