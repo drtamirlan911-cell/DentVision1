@@ -1,6 +1,26 @@
 # Changelog
 
-All notable changes to DentVision V2 are documented in this file.
+All notable changes to DentVision are documented in this file.
+
+## [Unreleased] — 2026-09-16
+
+### Documentation / Product Direction
+
+- Consolidated the active Product/System direction into `docs/DENTVISION_MASTER_SPEC.md` version 4.0.
+- Merged the current North Star, progressive-disclosure UX rules, public Welcome direction, first-class partner model and Dental Laboratory requirements into the Master Spec.
+- Established `docs/DENTVISION_MASTER_SPEC.md` as the single normative Product/System source of truth; Product DNA remains the constitutional quality law, while execution/state/evidence/economics remain separate bounded sources.
+- Explicitly preserved ecosystem parity: clinics, diagnostic centers, medical laboratories, dental laboratories, suppliers, academies, professionals, patients/buyers, jobs and community are first-class participant types according to the implemented domain model.
+- Updated `README.md`, `ARCHITECTURE.md`, `DENTVISION_CONTEXT.md` and `DENTVISION_OPERATING_DIRECTIVE.md` to use the consolidated hierarchy and ecosystem-first model.
+
+### Removed as superseded/redundant
+
+- `docs/DENTVISION_V2_INTEGRATION_PLAN.md` — obsolete implementation baseline superseded by current IAM/economics/partner work.
+- `docs/MODULE_STATUS.md` — stale 2026-07-17 status snapshot; current state belongs in `DENTVISION_CONTEXT.md` and generated system facts.
+- `DENTVISION_SUPERAPP_MASTER_PLAN.md` — duplicated visual/product planning now incorporated into Product DNA + Master Spec.
+- `docs/DENTVISION_EXECUTION_NORTH_STAR.md` — merged into Master Spec.
+- `docs/DENTVISION_EXECUTION_NORTH_STAR_ADDENDUM_LAB_AND_WELCOME.md` — merged into Master Spec.
+- `docs/DENTVISION_EXECUTION_NORTH_STAR_LABORATORY.md` — merged into Master Spec.
+- `docs/DENTVISION_EXECUTION_NORTH_STAR_LAB_WELCOME_ADDENDUM_2026-09-11.md` — superseded after consolidation.
 
 ## [2.0.0] — 2026-07-21
 
