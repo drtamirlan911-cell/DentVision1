@@ -5,86 +5,43 @@ import { Activity, BarChart3, BriefcaseBusiness, CalendarDays, ChevronRight, Cir
 import { cn } from '@/lib/utils';
 import { Logo } from '@/components/brand';
 import { Avatar } from '@/components/ui/ds/Avatar';
+import { EcosystemContextCard } from '@/components/ecosystem/EcosystemContextCard';
 import type { User as UserType } from '@/types';
 import { useCommandPalette } from '@/components/CommandPalette';
 import { useTranslation } from 'react-i18next';
 import { useIam } from '@/iam';
 import { pageIdFromPath } from '@/lib/roleAccess';
 
-export interface EcosystemSidebarProps {
-  collapsed: boolean; setCollapsed: (value: boolean) => void; sidebarVisible: boolean; isMobile: boolean; sidebarOpen: boolean;
-  user: UserType | null; logout: () => void; toggleSidebar: () => void; isGuest?: boolean; pendingApprovals?: number; isAdmin?: boolean;
-}
+export interface EcosystemSidebarProps { collapsed: boolean; setCollapsed: (value: boolean) => void; sidebarVisible: boolean; isMobile: boolean; sidebarOpen: boolean; user: UserType | null; logout: () => void; toggleSidebar: () => void; isGuest?: boolean; pendingApprovals?: number; isAdmin?: boolean; }
 type Item = { id: string; label: string; path: string; icon: React.ReactNode; page?: string; guest?: boolean };
 type Group = { id: string; label: string; items: Item[] };
-
 const groups: Group[] = [
-  { id: 'core', label: 'Рабочее пространство', items: [
-    { id: 'ai', label: 'DentVision AI', path: '/ai', icon: <Sparkles />, guest: true },
-    { id: 'home', label: 'Главная', path: '/', icon: <LayoutDashboard />, guest: true },
-  ] },
-  { id: 'care', label: 'Практика', items: [
-    { id: 'patients', label: 'Пациенты', path: '/crm/patients', icon: <Users /> }, { id: 'schedule', label: 'Расписание', path: '/crm/schedule', icon: <CalendarDays /> },
-    { id: 'dental-chart', label: 'Зубная карта', path: '/crm/dental-chart', icon: <Stethoscope /> }, { id: 'treatment-plans', label: 'Планы лечения', path: '/crm/treatment-plans', icon: <ClipboardList /> },
-    { id: 'medical-card', label: 'Медкарта', path: '/crm/medical-card', icon: <FileCheck2 /> }, { id: 'visits', label: 'Визиты', path: '/crm/visits', icon: <LayoutDashboard /> },
-    { id: 'patient-inbox', label: 'Диалоги с пациентами', path: '/crm/patient-inbox', icon: <MessageCircle /> }, { id: 'lab', label: 'Лабораторные заказы', path: '/crm/lab', icon: <Activity /> },
-  ] },
-  { id: 'partners', label: 'Партнёры', items: [
-    { id: 'diagnostics', label: 'Диагностика', path: '/diagnostics', icon: <FlaskConical />, guest: true },
-    { id: 'diagnostic-centers', label: 'Диагностические центры', path: '/diagnostics/centers', icon: <Building2 /> },
-    { id: 'medical-labs', label: 'Медицинские лаборатории', path: '/diagnostics/lab', icon: <HeartPulse /> },
-    { id: 'dental-labs', label: 'Зуботехнические лаборатории', path: '/crm/lab', icon: <Package /> },
-    { id: 'supplier', label: 'Поставщики', path: '/supplier', icon: <ShoppingBag />, guest: true },
-  ] },
-  { id: 'market', label: 'Рынок и развитие', items: [
-    { id: 'shop', label: 'DentVision Market', path: '/shop', icon: <ShoppingBag />, guest: true }, { id: 'academy', label: 'Academy', path: '/school', icon: <GraduationCap />, guest: true },
-    { id: 'jobs', label: 'Jobs', path: '/jobs', icon: <BriefcaseBusiness />, guest: true }, { id: 'community', label: 'Network / Community', path: '/community', icon: <Users />, guest: true },
-  ] },
-  { id: 'business', label: 'Бизнес', items: [
-    { id: 'finance', label: 'Финансы', path: '/crm/cashier', icon: <WalletCards /> }, { id: 'inventory', label: 'Склад', path: '/crm/inventory', icon: <Package /> },
-    { id: 'pricelist', label: 'Прайс', path: '/crm/pricelist', icon: <FileText /> }, { id: 'staff', label: 'Команда', path: '/crm/staff', icon: <Users /> },
-    { id: 'marketing', label: 'Маркетинг', path: '/crm/marketing', icon: <BarChart3 /> }, { id: 'documents', label: 'Документы', path: '/crm/documents', icon: <FileText /> },
-    { id: 'analytics', label: 'Аналитика', path: '/analytics', icon: <BarChart3 /> },
-  ] },
+  { id: 'core', label: 'Рабочее пространство', items: [{ id: 'ai', label: 'DentVision AI', path: '/ai', icon: <Sparkles />, guest: true }, { id: 'home', label: 'Главная', path: '/', icon: <LayoutDashboard />, guest: true }] },
+  { id: 'care', label: 'Практика', items: [{ id: 'patients', label: 'Пациенты', path: '/crm/patients', icon: <Users /> }, { id: 'schedule', label: 'Расписание', path: '/crm/schedule', icon: <CalendarDays /> }, { id: 'dental-chart', label: 'Зубная карта', path: '/crm/dental-chart', icon: <Stethoscope /> }, { id: 'treatment-plans', label: 'Планы лечения', path: '/crm/treatment-plans', icon: <ClipboardList /> }, { id: 'medical-card', label: 'Медкарта', path: '/crm/medical-card', icon: <FileCheck2 /> }, { id: 'visits', label: 'Визиты', path: '/crm/visits', icon: <LayoutDashboard /> }, { id: 'patient-inbox', label: 'Диалоги с пациентами', path: '/crm/patient-inbox', icon: <MessageCircle /> }, { id: 'lab', label: 'Лабораторные заказы', path: '/crm/lab', icon: <Activity /> }] },
+  { id: 'partners', label: 'Партнёры', items: [{ id: 'diagnostics', label: 'Диагностика', path: '/diagnostics', icon: <FlaskConical />, guest: true }, { id: 'diagnostic-centers', label: 'Диагностические центры', path: '/diagnostics/centers', icon: <Building2 /> }, { id: 'medical-labs', label: 'Медицинские лаборатории', path: '/diagnostics/lab', icon: <HeartPulse /> }, { id: 'dental-labs', label: 'Зуботехнические лаборатории', path: '/crm/lab', icon: <Package /> }, { id: 'supplier', label: 'Поставщики', path: '/supplier', icon: <ShoppingBag />, guest: true }] },
+  { id: 'market', label: 'Рынок и развитие', items: [{ id: 'shop', label: 'DentVision Market', path: '/shop', icon: <ShoppingBag />, guest: true }, { id: 'academy', label: 'Academy', path: '/school', icon: <GraduationCap />, guest: true }, { id: 'jobs', label: 'Jobs', path: '/jobs', icon: <BriefcaseBusiness />, guest: true }, { id: 'community', label: 'Network / Community', path: '/community', icon: <Users />, guest: true }] },
+  { id: 'business', label: 'Бизнес', items: [{ id: 'finance', label: 'Финансы', path: '/crm/cashier', icon: <WalletCards /> }, { id: 'inventory', label: 'Склад', path: '/crm/inventory', icon: <Package /> }, { id: 'pricelist', label: 'Прайс', path: '/crm/pricelist', icon: <FileText /> }, { id: 'staff', label: 'Команда', path: '/crm/staff', icon: <Users /> }, { id: 'marketing', label: 'Маркетинг', path: '/crm/marketing', icon: <BarChart3 /> }, { id: 'documents', label: 'Документы', path: '/crm/documents', icon: <FileText /> }, { id: 'analytics', label: 'Аналитика', path: '/analytics', icon: <BarChart3 /> }] },
 ];
-const moreItems: Item[] = [
-  { id: 'profile', label: 'Профиль', path: '/profile', icon: <UserRound /> }, { id: 'settings', label: 'Настройки', path: '/settings', icon: <Settings /> },
-  { id: 'help', label: 'Помощь', path: '/help', icon: <CircleHelp />, guest: true }, { id: 'clinic-settings', label: 'Настройки клиники', path: '/crm/clinic-settings', icon: <Settings /> },
-  { id: 'billing', label: 'Тариф и оплата', path: '/crm/billing', icon: <WalletCards /> }, { id: 'integrations', label: 'Интеграции', path: '/crm/integrations/messaging', icon: <MessageCircle /> },
-  { id: 'icd10', label: 'МКБ-10', path: '/crm/icd10', icon: <FileCheck2 /> },
-];
-const adminItems: Item[] = [
-  { id: 'admin', label: 'Администрирование', path: '/admin', icon: <ShieldCheck /> }, { id: 'approvals', label: 'Подтверждения AI', path: '/ai-approvals', icon: <Bot /> },
-  { id: 'agents', label: 'Активность AI', path: '/agent-activity', icon: <Sparkles /> }, { id: 'audit', label: 'Аудит и безопасность', path: '/audit', icon: <Database /> },
-  { id: 'bi', label: 'Business Intelligence', path: '/bi', icon: <BarChart3 /> }, { id: 'backup', label: 'Резервные копии', path: '/backup', icon: <Database /> },
-];
-
+const moreItems: Item[] = [{ id: 'profile', label: 'Профиль', path: '/profile', icon: <UserRound /> }, { id: 'settings', label: 'Настройки', path: '/settings', icon: <Settings /> }, { id: 'help', label: 'Помощь', path: '/help', icon: <CircleHelp />, guest: true }, { id: 'clinic-settings', label: 'Настройки клиники', path: '/crm/clinic-settings', icon: <Settings /> }, { id: 'billing', label: 'Тариф и оплата', path: '/crm/billing', icon: <WalletCards /> }, { id: 'integrations', label: 'Интеграции', path: '/crm/integrations/messaging', icon: <MessageCircle /> }, { id: 'icd10', label: 'МКБ-10', path: '/crm/icd10', icon: <FileCheck2 /> }];
+const adminItems: Item[] = [{ id: 'admin', label: 'Администрирование', path: '/admin', icon: <ShieldCheck /> }, { id: 'approvals', label: 'Подтверждения AI', path: '/ai-approvals', icon: <Bot /> }, { id: 'agents', label: 'Активность AI', path: '/agent-activity', icon: <Sparkles /> }, { id: 'audit', label: 'Аудит и безопасность', path: '/audit', icon: <Database /> }, { id: 'bi', label: 'Business Intelligence', path: '/bi', icon: <BarChart3 /> }, { id: 'backup', label: 'Резервные копии', path: '/backup', icon: <Database /> }];
 function activePath(pathname: string, path: string) { return path === '/' ? pathname === '/' : pathname === path || pathname.startsWith(`${path}/`); }
 function EcosystemSidebar({ collapsed, setCollapsed, sidebarVisible, isMobile, sidebarOpen, user, logout, toggleSidebar, isGuest = false, pendingApprovals = 0, isAdmin = false }: EcosystemSidebarProps) {
   const navigate = useNavigate(); const location = useLocation(); const { t } = useTranslation(); const iam = useIam(); const { setOpen } = useCommandPalette();
   const [openGroups, setOpenGroups] = React.useState<Record<string, boolean>>({ core: true, care: true, partners: true, market: true, business: false });
   const text = (key: string, fallback: string) => { const v = t(key); return v && v !== key ? v : fallback; };
   const canSee = (item: Item) => { if (isGuest) return Boolean(item.guest); if (item.id === 'home' || item.id === 'ai' || item.id === 'help') return true; return iam.canAccessPage(item.page || pageIdFromPath(item.path)); };
-  const visibleGroups = groups.map(g => ({ ...g, items: g.items.filter(canSee) })).filter(g => g.items.length);
-  const visibleMore = moreItems.filter(canSee); const visibleAdmin = isAdmin ? adminItems.filter(canSee) : [];
+  const visibleGroups = groups.map(g => ({ ...g, items: g.items.filter(canSee) })).filter(g => g.items.length); const visibleMore = moreItems.filter(canSee); const visibleAdmin = isAdmin ? adminItems.filter(canSee) : [];
   const go = (path: string) => { navigate(path); if (isMobile) toggleSidebar(); };
   if (!sidebarVisible && !(isMobile && sidebarOpen)) return null;
   const width = collapsed && !isMobile ? 76 : 272;
   return <>
     {isMobile && sidebarOpen && <button type="button" aria-label={text('common.close','Закрыть')} className="fixed inset-0 z-40 bg-black/40" onClick={toggleSidebar} />}
     <motion.aside initial={false} animate={{ width, x: isMobile && !sidebarOpen ? -300 : 0 }} transition={{ type: 'spring', stiffness: 360, damping: 34 }} className="fixed inset-y-0 left-0 z-50 flex flex-col overflow-hidden border-r border-[var(--dv-border)] bg-[var(--dv-sidebar)]">
-      <div className={cn('flex h-16 shrink-0 items-center border-b border-[var(--dv-border)] px-3', collapsed && !isMobile ? 'justify-center' : 'justify-between')}>
-        <button type="button" onClick={() => go('/')} className="flex min-w-0 items-center gap-2.5"><Logo />{(!collapsed || isMobile) && <span className="text-[15px] font-semibold">DentVision</span>}</button>
-        {isMobile ? <button type="button" onClick={toggleSidebar} className="rounded-lg p-2 text-[var(--dv-muted)]" aria-label={text('common.close','Закрыть')}><X size={18}/></button> : <button type="button" onClick={() => setCollapsed(!collapsed)} className="rounded-lg p-2 text-[var(--dv-muted)]" aria-label="Свернуть меню"><ChevronRight className={cn('transition-transform', !collapsed && 'rotate-180')} size={17}/></button>}
-      </div>
+      <div className={cn('flex h-16 shrink-0 items-center border-b border-[var(--dv-border)] px-3', collapsed && !isMobile ? 'justify-center' : 'justify-between')}><button type="button" onClick={() => go('/')} className="flex min-w-0 items-center gap-2.5"><Logo />{(!collapsed || isMobile) && <span className="text-[15px] font-semibold">DentVision</span>}</button>{isMobile ? <button type="button" onClick={toggleSidebar} className="rounded-lg p-2 text-[var(--dv-muted)]" aria-label={text('common.close','Закрыть')}><X size={18}/></button> : <button type="button" onClick={() => setCollapsed(!collapsed)} className="rounded-lg p-2 text-[var(--dv-muted)]" aria-label="Свернуть меню"><ChevronRight className={cn('transition-transform', !collapsed && 'rotate-180')} size={17}/></button>}</div>
       <div className="px-3 pt-3"><button type="button" onClick={() => setOpen(true)} className={cn('flex w-full items-center gap-2.5 rounded-xl border border-[var(--dv-border)] bg-[var(--dv-surface)] px-2.5 py-2 text-left', collapsed && !isMobile && 'justify-center')}><span className="grid h-7 w-7 shrink-0 place-items-center rounded-lg bg-[var(--dv-accent-soft)] text-[var(--dv-accent)]"><Command size={14}/></span>{(!collapsed || isMobile) && <><span className="flex-1 text-xs font-medium">Поиск</span><kbd className="rounded-md border px-1.5 py-0.5 text-[10px]">⌘K</kbd></>}</button></div>
+      {(!collapsed || isMobile) && <div className="pt-3"><EcosystemContextCard user={user} isGuest={isGuest} /></div>}
       <nav className="min-h-0 flex-1 overflow-y-auto px-3 py-4 [scrollbar-width:none]">
-        {visibleGroups.map(group => { const expanded = isMobile || !!openGroups[group.id] || group.items.some(i => activePath(location.pathname,i.path)); return <section key={group.id} className="mb-3">
-          {(!collapsed || isMobile) && <button type="button" onClick={() => setOpenGroups(v => ({...v,[group.id]:!v[group.id]}))} className="mb-1 flex w-full items-center justify-between px-2 py-1 text-[10px] font-semibold uppercase tracking-[.12em] text-[var(--dv-muted)]"><span>{group.label}</span><ChevronRight size={12} className={cn(expanded && 'rotate-90')}/></button>}
-          {(expanded || collapsed) && <div className="space-y-0.5">{group.items.map(item => { const active = activePath(location.pathname,item.path); return <button key={item.id} type="button" aria-current={active?'page':undefined} title={collapsed?item.label:undefined} onClick={() => go(item.path)} className={cn('group relative flex w-full items-center gap-3 rounded-[11px] px-2.5 py-2 text-left transition', collapsed?'justify-center px-2':'', active?'bg-[var(--dv-nav-active)] text-[var(--dv-text)]':'text-[var(--dv-muted)] hover:bg-[var(--dv-nav-hover)] hover:text-[var(--dv-text)]')}>
-            {active && <span className="absolute left-0 top-1/2 h-5 w-[3px] -translate-y-1/2 rounded-full bg-[var(--dv-accent)]"/>}<span className={cn('grid h-8 w-8 shrink-0 place-items-center rounded-[9px]',active?'bg-[var(--dv-accent-soft)] text-[var(--dv-accent)]':'bg-[var(--dv-icon-bg)]')}>{React.cloneElement(item.icon as React.ReactElement,{size:17,strokeWidth:1.8})}</span>{(!collapsed||isMobile)&&<span className="min-w-0 flex-1 truncate text-[13px] font-medium">{item.label}</span>}
-          </button>})}</div>}
-        </section>})}
+        {visibleGroups.map(group => { const expanded = isMobile || !!openGroups[group.id] || group.items.some(i => activePath(location.pathname,i.path)); return <section key={group.id} className="mb-3">{(!collapsed || isMobile) && <button type="button" onClick={() => setOpenGroups(v => ({...v,[group.id]:!v[group.id]}))} className="mb-1 flex w-full items-center justify-between px-2 py-1 text-[10px] font-semibold uppercase tracking-[.12em] text-[var(--dv-muted)]"><span>{group.label}</span><ChevronRight size={12} className={cn(expanded && 'rotate-90')}/></button>}{(expanded || collapsed) && <div className="space-y-0.5">{group.items.map(item => { const active = activePath(location.pathname,item.path); return <button key={item.id} type="button" aria-current={active?'page':undefined} title={collapsed?item.label:undefined} onClick={() => go(item.path)} className={cn('group relative flex w-full items-center gap-3 rounded-[11px] px-2.5 py-2 text-left transition', collapsed?'justify-center px-2':'', active?'bg-[var(--dv-nav-active)] text-[var(--dv-text)]':'text-[var(--dv-muted)] hover:bg-[var(--dv-nav-hover)] hover:text-[var(--dv-text)]')}>{active && <span className="absolute left-0 top-1/2 h-5 w-[3px] -translate-y-1/2 rounded-full bg-[var(--dv-accent)]"/>}<span className={cn('grid h-8 w-8 shrink-0 place-items-center rounded-[9px]',active?'bg-[var(--dv-accent-soft)] text-[var(--dv-accent)]':'bg-[var(--dv-icon-bg)]')}>{React.cloneElement(item.icon as React.ReactElement,{size:17,strokeWidth:1.8})}</span>{(!collapsed||isMobile)&&<span className="min-w-0 flex-1 truncate text-[13px] font-medium">{item.label}</span>}</button>})}</div>}</section>})}
         {visibleMore.length > 0 && <section className="mb-3"><button type="button" onClick={() => setOpenGroups(v=>({...v,more:!v.more}))} className={cn('mb-1 flex w-full items-center justify-between px-2 py-1 text-[10px] font-semibold uppercase tracking-[.12em] text-[var(--dv-muted)]',collapsed&&'justify-center')}><span>{collapsed?'···':'Дополнительно'}</span>{!collapsed&&<ChevronRight size={12} className={cn(openGroups.more&&'rotate-90')}/>}</button>{openGroups.more&&!collapsed&&<div className="space-y-0.5">{visibleMore.map(item=><button key={item.id} type="button" onClick={()=>go(item.path)} className="flex w-full items-center gap-3 rounded-[11px] px-2.5 py-2 text-left text-[13px] text-[var(--dv-muted)] hover:bg-[var(--dv-nav-hover)]"><span className="grid h-8 w-8 place-items-center rounded-[9px] bg-[var(--dv-icon-bg)]">{React.cloneElement(item.icon as React.ReactElement,{size:17})}</span><span>{item.label}</span></button>)}</div>}</section>}
         {visibleAdmin.length > 0 && <section className="border-t border-[var(--dv-border)] pt-3"><div className="mb-1 px-2 py-1 text-[10px] font-semibold uppercase tracking-[.12em] text-[var(--dv-muted)]">Администрирование</div>{visibleAdmin.map(item=><button key={item.id} type="button" onClick={()=>go(item.path)} className="flex w-full items-center gap-3 rounded-[11px] px-2.5 py-2 text-left text-[13px] text-[var(--dv-muted)] hover:bg-[var(--dv-nav-hover)]"><span className="grid h-8 w-8 place-items-center rounded-[9px] bg-[var(--dv-icon-bg)]">{React.cloneElement(item.icon as React.ReactElement,{size:17})}</span><span className="min-w-0 flex-1 truncate">{item.label}</span>{item.id==='approvals'&&pendingApprovals>0&&<span className="rounded-full bg-[var(--dv-accent)] px-1.5 py-0.5 text-[10px] font-bold text-white">{pendingApprovals}</span>}</button>)}</section>}
       </nav>
