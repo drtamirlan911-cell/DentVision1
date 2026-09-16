@@ -15,6 +15,8 @@ import { queryKeys } from '@/queries/keys';
 import * as api from '@/utils/api';
 import { useAIStore } from '@/store/ai.store';
 import { StatusPill } from './workspace/Pipeline';
+import EcosystemContextBridge from '@/components/ecosystem/EcosystemContextBridge';
+import EcosystemRelationRail from '@/components/ecosystem/EcosystemRelationRail';
 
 export default function ReferralDetail() {
   const { id } = useParams();
@@ -92,8 +94,13 @@ export default function ReferralDetail() {
   if (isError) return <div className="p-6"><QueryError what="направление" onRetry={() => refetch()} /></div>;
   if (!referral) return <div className="p-6 text-txt-muted">Направление не найдено</div>;
 
+  const patientId = referral.patientId || referral.patient?.id;
+
   return (
-    <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className="p-6 space-y-6 max-w-4xl max-w-full overflow-x-hidden">
+    <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className="space-y-4 p-3 sm:p-5 lg:p-6 max-w-6xl max-w-full overflow-x-hidden">
+      <EcosystemContextBridge patientId={patientId} organizationId={referral.clinic?.organizationId} />
+      <EcosystemRelationRail node="diagnostic-referral" title="Связанный рабочий контекст" patientId={patientId} organizationId={referral.clinic?.organizationId} />
+
       <PageHeader
         title={referral.patientName}
         subtitle={`${referral.studyType} · ${referral.category}`}
