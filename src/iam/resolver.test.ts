@@ -4,7 +4,7 @@ import { createIamResolver } from './resolver'
 
 const LEGACY_PAGES = ['shop', 'school', 'diagnostics', 'diagnostics-centers', 'diagnostics-labs', 'profile']
 
-function resolver(pages: string[] | null, legacyPages: string[] = LEGACY_PAGES) {
+function resolver(pages: string[] | null | undefined, legacyPages: string[] = LEGACY_PAGES) {
   return createIamResolver({
     role: 'user',
     roleInfo: { pages: legacyPages } as never,
