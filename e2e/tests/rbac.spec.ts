@@ -125,10 +125,10 @@ test.describe('RBAC - Role-Based Access Control', () => {
     expect(res.status()).toBe(403);
   });
 
-  test('RBAC-010: MANAGER can access admin routes → 200', async () => {
+  test('RBAC-010: MANAGER cannot access superadmin routes → 403', async () => {
     const token = tokens['manager-a'];
     const res = await api.get(`${BASE_URL}/api/admin/users`, { headers: authHeaders(token) });
-    expect(res.status()).toBe(200);
+    expect(res.status()).toBe(403);
   });
 
   test('RBAC-011: DOCTOR cannot access admin routes → 403', async () => {
