@@ -14,7 +14,7 @@ import { reportWebVitals } from './utils/vitals';
 
 initSentry();
 
-const AIWorkspaceIndex = lazyWithRetry(() => import('./components/intelligence/AIWorkspaceIndex'));
+const AIWorkspaceIndex = lazyWithRetry(() => import('./components/intelligence/AIWorkspaceRoute'));
 const Login = lazyWithRetry(() => import('./pages/auth/Login'));
 const ForgotPassword = lazyWithRetry(() => import('./pages/auth/ForgotPassword'));
 const PublicBookingDiscovery = lazyWithRetry(() => import('./pages/auth/PublicBookingDiscovery'));
