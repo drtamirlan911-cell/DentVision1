@@ -14,6 +14,8 @@ import { REFERRAL_STATUS, statusInfo, type PhaseId } from '@/lib/referralStatus'
 import * as api from '@/utils/api';
 import type { TabProps } from './types';
 import { StatusPill } from './Pipeline';
+import { useEcosystemUrlContext } from '@/hooks/useEcosystemUrlContext';
+import { withEcosystemContext } from '@/config/ecosystemContextLink';
 
 export function ReferralsTab({ config, orgId, phaseFilter, onClearPhase }: TabProps & {
   phaseFilter?: PhaseId | null
@@ -21,6 +23,7 @@ export function ReferralsTab({ config, orgId, phaseFilter, onClearPhase }: TabPr
 }) {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const ecosystemContext = useEcosystemUrlContext();
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
   const [costModal, setCostModal] = useState<string | null>(null);
@@ -43,6 +46,7 @@ export function ReferralsTab({ config, orgId, phaseFilter, onClearPhase }: TabPr
     ? allReferrals.filter((r: any) => statusInfo(r.status).phase === phaseFilter)
     : allReferrals;
   const total = referralsData?.total || referrals.length;
+  const openReferral = (id: string) => navigate(withEcosystemContext(`/diagnostics/referrals/${id}`, ecosystemContext));
 
   const statusMutation = useMutation({
     mutationFn: ({ id, status, cost, platformFee }: { id: string; status: string; cost?: number; platformFee?: number }) =>
@@ -84,7 +88,6 @@ export function ReferralsTab({ config, orgId, phaseFilter, onClearPhase }: TabPr
 
   return (
     <div className="space-y-4">
-      {/* Filters */}
       <div className="flex items-center gap-3 flex-wrap">
         <div className="relative flex-1 max-w-xs">
           <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-txt-muted" />
@@ -97,12 +100,9 @@ export function ReferralsTab({ config, orgId, phaseFilter, onClearPhase }: TabPr
         <Button variant="ghost" size="sm" className="min-h-11" icon={<RefreshCw size={14} />} onClick={() => refetch()}>Обновить</Button>
       </div>
 
-      {/* Referrals table */}
       <Card padding="md">
         <h3 className="text-sm font-semibold text-txt-primary mb-3">Направления ({total})</h3>
         {isLoading ? <Skeleton className="h-64" /> : isError ? (
-          // «Нет направлений» на упавшем запросе читается как «работы нет» —
-          // в кабинете приёма это значит пропущенного пациента.
           <QueryError what="направления" onRetry={() => refetch()} />
         ) : referrals.length === 0 ? (
           <div className="flex items-center justify-center h-40 text-txt-muted text-sm flex-col gap-2">
@@ -127,14 +127,12 @@ export function ReferralsTab({ config, orgId, phaseFilter, onClearPhase }: TabPr
                   return (
                     <tr key={r.id} className="border-b border-bdr-subtle/50 hover:bg-surface-1/30 transition-colors">
                       <td className="py-2.5 pr-3">
-                        <button onClick={() => navigate(`/diagnostics/referrals/${r.id}`)} className="min-h-11 flex items-center font-medium text-txt-primary hover:text-dv-gold transition-colors">{r.patientName || 'Неизвестно'}</button>
+                        <button onClick={() => openReferral(r.id)} className="min-h-11 flex items-center font-medium text-txt-primary hover:text-dv-gold transition-colors">{r.patientName || 'Неизвестно'}</button>
                       </td>
                       <td className="py-2.5 pr-3 text-txt-muted">{r.studyType || '—'}</td>
                       <td className="py-2.5 pr-3 text-txt-muted">{r.clinic?.name || r.clinicName || '—'}</td>
                       <td className="py-2.5 pr-3">
-                        {r.cost ? (
-                          <span className="text-txt-primary">{Number(r.cost).toLocaleString()} ₸</span>
-                        ) : <span className="text-txt-ghost">—</span>}
+                        {r.cost ? <span className="text-txt-primary">{Number(r.cost).toLocaleString()} ₸</span> : <span className="text-txt-ghost">—</span>}
                       </td>
                       <td className="py-2.5 pr-3">
                         <StatusPill status={r.status} />
@@ -143,16 +141,10 @@ export function ReferralsTab({ config, orgId, phaseFilter, onClearPhase }: TabPr
                       <td className="py-2.5 pr-3 text-txt-muted">{new Date(r.createdAt).toLocaleDateString()}</td>
                       <td className="py-2.5 pr-3">
                         <div className="flex items-center gap-1">
-                          {r.status === 'SENT' && (
-                            <Button size="xs" variant="primary" className="min-h-11" onClick={() => setCostModal(r.id)}>Принять</Button>
-                          )}
-                          {r.status === 'ACCEPTED' && (
-                            <Button size="xs" variant="primary" className="min-h-11" onClick={() => statusMutation.mutate({ id: r.id, status: 'IN_PROGRESS' })}>Начать</Button>
-                          )}
-                          {r.status === 'IN_PROGRESS' && (
-                            <Button size="xs" variant="primary" className="min-h-11" onClick={() => { setResultModal(r.id); setReportText(''); setConclusion(''); setResultFiles([]); }}>Результат</Button>
-                          )}
-                          <Button size="xs" variant="ghost" className="min-h-11" icon={<Eye size={14} />} aria-label="View" onClick={() => navigate(`/diagnostics/referrals/${r.id}`)} />
+                          {r.status === 'SENT' && <Button size="xs" variant="primary" className="min-h-11" onClick={() => setCostModal(r.id)}>Принять</Button>}
+                          {r.status === 'ACCEPTED' && <Button size="xs" variant="primary" className="min-h-11" onClick={() => statusMutation.mutate({ id: r.id, status: 'IN_PROGRESS' })}>Начать</Button>}
+                          {r.status === 'IN_PROGRESS' && <Button size="xs" variant="primary" className="min-h-11" onClick={() => { setResultModal(r.id); setReportText(''); setConclusion(''); setResultFiles([]); }}>Результат</Button>}
+                          <Button size="xs" variant="ghost" className="min-h-11" icon={<Eye size={14} />} aria-label="View" onClick={() => openReferral(r.id)} />
                         </div>
                       </td>
                     </tr>
@@ -164,7 +156,6 @@ export function ReferralsTab({ config, orgId, phaseFilter, onClearPhase }: TabPr
         )}
       </Card>
 
-      {/* Cost modal */}
       {costModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={() => setCostModal(null)}>
           <Card padding="lg" className="max-w-sm w-full mx-4" onClick={(e: any) => e.stopPropagation()}>
@@ -187,7 +178,6 @@ export function ReferralsTab({ config, orgId, phaseFilter, onClearPhase }: TabPr
         </div>
       )}
 
-      {/* Result modal */}
       {resultModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={() => setResultModal(null)}>
           <Card padding="lg" className="max-w-lg w-full mx-4 max-h-[90vh] overflow-y-auto" onClick={(e: any) => e.stopPropagation()}>
@@ -212,11 +202,7 @@ export function ReferralsTab({ config, orgId, phaseFilter, onClearPhase }: TabPr
                     <Upload size={24} className="opacity-40" />
                     <span className="text-xs">Нажмите для загрузки файлов</span>
                   </label>
-                  {resultFiles.length > 0 && (
-                    <div className="mt-2 flex flex-wrap gap-1">
-                      {resultFiles.map((f, i) => <Badge key={i} variant="outline" size="sm">{f.name}</Badge>)}
-                    </div>
-                  )}
+                  {resultFiles.length > 0 && <div className="mt-2 flex flex-wrap gap-1">{resultFiles.map((f, i) => <Badge key={i} variant="outline" size="sm">{f.name}</Badge>)}</div>}
                 </div>
               </div>
               <div className="flex justify-end gap-2 pt-2">
