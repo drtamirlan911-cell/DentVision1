@@ -18,10 +18,10 @@ export async function resolveUserPermissions(
   scopeId?: string | null,
   fallbackRole?: string | null,
 ): Promise<string[]> {
-  // For an explicitly scoped lookup, the Person → PersonRole graph remains
-  // authoritative unless the caller already supplied the scoped role. An
-  // unscoped lookup has no role context, so use User.role as its baseline to
-  // prevent sparse PersonRole data from narrowing the global role contract.
+  // An explicitly scoped lookup must preserve the existing PersonRole contract
+  // unless the caller supplies the already-resolved scoped role. Only an
+  // unscoped lookup lacks role context, so it may safely use User.role as its
+  // baseline to avoid sparse PersonRole data narrowing the global contract.
   let baselineRole = fallbackRole || null;
   if (!baselineRole && !scopeId) {
     try {
@@ -61,6 +61,20 @@ export async function resolveUserPermissions(
     }
   } catch {
     // Fall through to the role matrix.
+  }
+
+  // For scoped calls without a fallback role, preserve the historical DB-first
+  // behavior; role lookup is only a fallback when no Person grants are usable.
+  if (!baselineRole) {
+    try {
+      const user = await prisma.user.findUnique({
+        where: { id: userId },
+        select: { role: true },
+      });
+      return permissionsForRole(user?.role ? String(user.role).toUpperCase() : user?.role);
+    } catch {
+      return roleBaseline;
+    }
   }
 
   return roleBaseline;
