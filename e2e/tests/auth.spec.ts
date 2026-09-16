@@ -34,6 +34,30 @@ test.describe('Authentication API', () => {
     await cleanupTestUser(freshEmail);
   });
 
+  test('AUTH-012: Self-registration role is persisted and returned by the backend', async () => {
+    const ownerEmail = `auth-owner-${Date.now()}@test.com`;
+    const doctorEmail = `auth-doctor-${Date.now()}@test.com`;
+
+    const ownerRes = await api.post(`${BASE_URL}/api/auth/register`, {
+      data: { email: ownerEmail, password: testPassword, firstName: 'Owner', lastName: 'Test', role: 'owner' },
+    });
+    expect(ownerRes.status()).toBe(201);
+    const ownerBody = await ownerRes.json();
+    expect(ownerBody.data?.user?.role).toBe('OWNER');
+    expect(ownerBody.data?.accessToken).toBeDefined();
+
+    const doctorRes = await api.post(`${BASE_URL}/api/auth/register`, {
+      data: { email: doctorEmail, password: testPassword, firstName: 'Doctor', lastName: 'Test', role: 'doctor' },
+    });
+    expect(doctorRes.status()).toBe(201);
+    const doctorBody = await doctorRes.json();
+    expect(doctorBody.data?.user?.role).toBe('DOCTOR');
+    expect(doctorBody.data?.accessToken).toBeDefined();
+
+    await cleanupTestUser(ownerEmail);
+    await cleanupTestUser(doctorEmail);
+  });
+
   test('AUTH-005: Register with existing email → 409', async () => {
     const dupEmail = `auth-dup-${Date.now()}@test.com`;
     const dupUser = { email: dupEmail, password: testPassword, firstName: 'Auth', lastName: 'Dup' };
