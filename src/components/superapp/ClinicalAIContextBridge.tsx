@@ -5,10 +5,11 @@ import { useWorkspaceStore } from '@/store/workspace.store'
 import { useAIStore } from '@/store/ai.store'
 import { buildClinicalCaseContext } from '@/lib/clinicalCaseContext'
 import { AIConversationSync } from '@/components/intelligence/AIConversationSync'
+import EcosystemContextDock from '@/components/ecosystem/EcosystemContextDock'
 
 const PATIENT_SUGGESTIONS = ['История лечения', 'План лечения', 'Зубная карта', 'Записать на приём']
 
-/** Keeps clinical focus and the durable Olga conversation synchronized. */
+/** Keeps clinical focus and the durable AI conversation synchronized. */
 export function ClinicalAIContextBridge() {
   const location = useLocation()
   const patient = usePatientStore((s) => s.patientData)
@@ -16,6 +17,12 @@ export function ClinicalAIContextBridge() {
   const setContextFocus = useWorkspaceStore((s) => s.setContextFocus)
   const clearContext = useWorkspaceStore((s) => s.clearContext)
   const setSuggestionsFromStrings = useAIStore((s) => s.setSuggestionsFromStrings)
+
+  const query = new URLSearchParams(location.search)
+  const patientId = query.get('patient') || patient?.id || undefined
+  const caseId = query.get('caseId') || undefined
+  const branchId = query.get('branchId') || undefined
+  const organizationId = query.get('organizationId') || undefined
 
   useEffect(() => {
     if (!selectedPatient || !patient) {
@@ -55,5 +62,15 @@ export function ClinicalAIContextBridge() {
     setSuggestionsFromStrings(PATIENT_SUGGESTIONS)
   }, [selectedPatient, patient, location.pathname, location.search, setContextFocus, clearContext, setSuggestionsFromStrings])
 
-  return <AIConversationSync />
+  return (
+    <>
+      <AIConversationSync />
+      <EcosystemContextDock
+        patientId={patientId}
+        caseId={caseId}
+        branchId={branchId}
+        organizationId={organizationId}
+      />
+    </>
+  )
 }
