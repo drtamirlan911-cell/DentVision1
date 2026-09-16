@@ -105,6 +105,76 @@ export async function recordSaleTx(input: SaleInput, db: Prisma.TransactionClien
   return transaction;
 }
 
+/**
+ * Clinical treatment revenue is not a DentVision marketplace sale. The
+ * canonical economics policy explicitly says the clinic's total treatment
+ * revenue must not receive a default DentVision percentage commission.
+ *
+ * We therefore still put the payment into the same balanced Finance Core, but
+ * with a direct GATEWAY → CLINIC transfer and no PLATFORM credit/revenue row.
+ * `paymentMethod` is metadata only; the ledger remains the financial source of
+ * truth while the CRM invoice remains the patient-facing document.
+ *
+ * Idempotency is keyed by (refType, refId): a payment/invoice can never create
+ * two clinical ledger transactions when the pay endpoint is retried.
+ */
+export async function recordClinicalPaymentTx(input: {
+  clinicId: string;
+  amountMinor: bigint;
+  refId: string;
+  paymentMethod?: string | null;
+  currency?: string;
+  db: Prisma.TransactionClient;
+}) {
+  if (!input.clinicId || !input.refId || input.amountMinor <= 0n) {
+    throw new Error('Invalid clinical payment');
+  }
+
+  const currency = input.currency || 'KZT';
+  const refType = 'clinical_payment';
+  const existing = await input.db.transaction.findFirst({
+    where: { refType, refId: input.refId, type: 'clinical_payment' },
+  });
+  if (existing) return existing;
+
+  const gateway = await getOrCreateWallet('GATEWAY', 'system', currency, input.db);
+  const clinic = await getOrCreateWallet('CLINIC', input.clinicId, currency, input.db);
+
+  const transaction = await input.db.transaction.create({
+    data: {
+      type: 'clinical_payment',
+      status: 'completed',
+      amount: input.amountMinor,
+      currency,
+      refType,
+      refId: input.refId,
+      meta: {
+        commissionBps: 0,
+        paymentMethod: input.paymentMethod || null,
+        clinicId: input.clinicId,
+      } as Prisma.InputJsonValue,
+      ledgerEntries: {
+        create: [
+          { walletId: gateway.id, direction: 'debit', amount: input.amountMinor },
+          { walletId: clinic.id, direction: 'credit', amount: input.amountMinor },
+        ],
+      },
+    },
+    include: { ledgerEntries: true },
+  });
+
+  await input.db.wallet.update({
+    where: { id: gateway.id },
+    data: { balance: { decrement: input.amountMinor } },
+  });
+  await input.db.wallet.update({
+    where: { id: clinic.id },
+    data: { balance: { increment: input.amountMinor } },
+  });
+
+  return transaction;
+}
+
 /** Standalone convenience wrapper: opens its own transaction around `recordSaleTx`. */
 export async function recordSale(input: SaleInput) {
   return prisma.$transaction((tx) => recordSaleTx(input, tx));
