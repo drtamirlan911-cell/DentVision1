@@ -20,9 +20,10 @@ authMeRouter.get('/me', authenticate, async (req: AuthRequest, res) => {
   // `/me` is also the session-hydration contract used by the frontend. It must
   // return the same effective IAM policy as login, otherwise a successful login
   // can be immediately overwritten by an empty `pages` array and every guarded
-  // CRM route redirects to the AI workspace. The authenticated request already
-  // carries the effective scoped role, so use it as the resolver baseline even
-  // for legacy clinic contexts whose organizationId is the clinic id.
+  // CRM route redirects to the AI workspace. `authenticate` has already resolved
+  // the active organization/person role into req.user.role; using the persisted
+  // global User.role here would over-grant a user who is an OWNER globally but a
+  // DOCTOR/ADMIN in the currently selected organization.
   const effectiveRole = String(user.role || 'USER').toUpperCase();
   const effectivePermissions = await resolveUserPermissions(
     user.id,
