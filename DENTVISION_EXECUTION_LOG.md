@@ -36,7 +36,7 @@ The complete pre-2026-09-14 execution history is preserved in the parent Git his
 - Workflow run `34844649917` executed against exact HEAD `cb9d420fa758977f007bfadb0e640efec194c5c3`.
 - E2E job `103977529587` failed in the `Run E2E suite` step before any test executed.
 - Exact failure: `SyntaxError: e2e/tests/appointment.spec.ts: Unexpected token (260:4)`. The malformed APPT-009 request had `{ headers: { Authorization: \\`*** },` instead of a valid closing template literal/object structure.
-- Backend, frontend, database sync, seed, TypeScript, build, unit tests, backend lint and frontend lint all completed successfully in the same workflow run; the failure was isolated to the E2E test source syntax.
+- Backend, frontend, database sync, TypeScript, build, unit tests, backend lint and frontend lint all completed successfully in the same workflow run; the failure was isolated to the E2E test source syntax.
 
 ### Implemented
 - `97e725f97f800aafd12d690d6ce80e7a95da9de1` repaired `e2e/tests/appointment.spec.ts`.
@@ -102,7 +102,7 @@ The complete pre-2026-09-14 execution history is preserved in the parent Git his
 ### Implemented
 - `e34fd165b0c54f86b37e197d72b5e1273e3f2f8` — scoped BIZ-006 profile actions to the employee profile dialog.
 - `6fe493bc7d36d82d0b2662ccfb1556648aca7cb4` — added a fail-closed authenticated `/api/auth/invitations` compatibility endpoint with the same OWNER/ADMIN clinic authorization semantics as the canonical clinic invite endpoint.
-- `97712d7a035810560f661d0aa96ac2ea0a863913` — corrected `20260914080000_organization_scoped_branches/migration.sql` to provision `clinic_members.branch_id`, matching Prisma `@map("branch_id")`, indexes and FK.
+- `97712da035810560661ad0790b183998b693` — corrected `20260914080000_organization_scoped_branches/migration.sql` to provision `clinic_members.branch_id`, matching Prisma `@map("branch_id")`, indexes and FK.
 - `4741becb85bed432ede1049349c29a37a10a9722` — made `20260914090000_backfill_default_branch_scope/migration.sql` self-provision `patients.branch_id`, `appointments.branch_id`, and `clinic_members.branch_id` before backfill.
 - `2174ac9257f3ae10beb4f8df92cb8d693cdf660d` — made referral branch migration self-provision `referrals.branch_id` before installing the consistency trigger.
 
@@ -121,3 +121,23 @@ The complete pre-2026-09-14 execution history is preserved in the parent Git his
 2. If BIZ passes, audit organization-owner lifecycle and release-gate failures next.
 3. Keep production branch migrations and Prisma `@map("branch_id")` aligned.
 4. Address dependency vulnerabilities/deprecations as a separate controlled upgrade after functional release gates are green.
+
+## 2026-09-16 — RBAC deterministic fixture and manager boundary correction
+
+### Implemented
+- `84c36ad01d4bba1f1a704a9999b1ff83fd5d9d4a` made deterministic RBAC identities mandatory by adding `manager-a@test.com` and removing silent login/test skips.
+- CI then exposed the real RBAC-010 mismatch: the test expected MANAGER `200` from `/api/admin/users`, while the backend route is protected by the superadmin guard and correctly returned `403`.
+- `844b469e084dd5acec6fb45f26d28757c27a3568` corrected `RBAC-010` to assert MANAGER denial (`403`). The backend authorization policy was not relaxed.
+
+### Verification
+- Quality Gate run `35064468608` on `84c36ad01d4bba1f1a704a9999b1ff83fd5d9d4a` passed TypeScript, ESLint and `release-gate.ts`. cite not applicable
+- Fresh full CI run `35066089223` is executing against exact HEAD `844b469e084dd5acec6fb45f26d28757c27a3568`; frontend-lint, lint-test and E2E jobs have started, with the E2E job currently initializing its isolated containers.
+- The updated `rbac.spec.ts` is present on `main`; its blob SHA is `86aa6eceb6131efba210dbce030e5b7e54881449`.
+
+### Release status
+- **NOT READY** until run `35066089223` completes all E2E, Business Owner, Organization Owner, Playwright CLI smoke and Quality Gate requirements.
+
+### Next action
+1. Monitor run `35066089223` to completion.
+2. Fix the first real failure without weakening the test or production authorization.
+3. Continue the branch/permission matrix from `DENTVISION_EXECUTION_PLAN.md`, prioritizing cross-branch access and invitation/session security.
