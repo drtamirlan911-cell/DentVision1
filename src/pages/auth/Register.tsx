@@ -39,13 +39,61 @@ export default function Register({ onBack }: RegisterProps) {
   const [agreed, setAgreed] = useState(false);
   const set = (k: keyof RegisterForm, v: string) => setForm(f => ({ ...f, [k]: v }));
 
+  const validateOrganization = () => {
+    if (!organizationType) return true;
+    if (!form.clinicName.trim()) {
+      setLocalError(`Введите ${copy.organization?.toLowerCase() || 'название организации'}`);
+      return false;
+    }
+    return true;
+  };
+
+  const finishGoogleSignup = async (idToken: string) => {
+    setLocalError('');
+    if (role === 'admin') { setLocalError('Администратор подключается к существующей клинике по приглашению владельца.'); return; }
+    if (!validateOrganization()) return;
+    setLoading(true);
+    try {
+      const result = await apiRequest('/api/auth/google', {
+        method: 'POST',
+        body: JSON.stringify({ idToken }),
+      });
+      if (!result?.accessToken) throw new Error('Сервер не вернул токен авторизации');
+      setTokens(result.accessToken, result.refreshToken || null);
+
+      if (organizationType) {
+        await apiRequest('/api/organizations/self-service', {
+          method: 'POST',
+          body: JSON.stringify({
+            type: organizationType,
+            name: form.clinicName.trim(),
+            city: form.city.trim() || undefined,
+            phone: form.phone.trim() || undefined,
+            email: result?.user?.email || undefined,
+          }),
+        });
+      } else if (role === 'lecturer') {
+        await apiRequest('/api/lecturer/register', {
+          method: 'POST',
+          body: JSON.stringify({ bio: '', academyId: undefined }),
+        });
+      }
+
+      window.location.assign('/ai');
+    } catch (err) {
+      setLocalError((err as Error)?.message || 'Не удалось завершить регистрацию через Google');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleSubmit = async () => {
     setLocalError('');
     if (role === 'admin') { setLocalError('Администратор подключается к существующей клинике по приглашению владельца.'); return; }
     if (!form.name.trim()) { setLocalError('Введите имя'); return; }
     if (!form.login.trim() || form.login.length < 4) { setLocalError('Логин должен быть не менее 4 символов'); return; }
     if (!form.email.trim()) { setLocalError('Введите email'); return; }
-    if (organizationType && !form.clinicName.trim()) { setLocalError(`Введите ${copy.organization?.toLowerCase() || 'название организации'}`); return; }
+    if (!validateOrganization()) return;
     if (form.password.length < 8) { setLocalError('Пароль должен быть не менее 8 символов'); return; }
     if (!/[A-Za-zА-Яа-я]/.test(form.password) || !/\d/.test(form.password)) { setLocalError('Пароль должен содержать буквы и цифры'); return; }
     if (form.password !== form.confirmPassword) { setLocalError('Пароли не совпадают'); return; }
@@ -115,7 +163,7 @@ export default function Register({ onBack }: RegisterProps) {
         </div>
         <label className="mt-5 flex gap-3 text-xs text-txt-secondary"><input type="checkbox" checked={agreed} onChange={e => setAgreed(e.target.checked)} className="mt-0.5" />Я принимаю условия использования и политику конфиденциальности.</label>
         <button type="button" onClick={() => void handleSubmit()} disabled={loading} className="mt-5 flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-dv-gold px-4 text-sm font-semibold text-surface-0 disabled:opacity-60">{loading && <Loader2 size={16} className="animate-spin" />} {organizationType ? 'Создать аккаунт и рабочее пространство' : role === 'lecturer' ? 'Создать профиль лектора' : 'Создать аккаунт'}</button>
-        <div className="mt-4"><GoogleSignInButton text="signup_with" onCredential={() => setLocalError('Регистрация через Google сейчас создаёт стандартный аккаунт. Для выбора рабочей роли используйте регистрацию по email.')} /></div>
+        <div className="mt-4"><GoogleSignInButton text="signup_with" onCredential={(idToken) => void finishGoogleSignup(idToken)} /></div>
       </section>
     </main>
   );
