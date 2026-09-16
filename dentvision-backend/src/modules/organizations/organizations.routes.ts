@@ -6,6 +6,8 @@ import { requireSuperadmin } from '../../middleware/rbac.js';
 import type { AuthRequest, ApiResponse } from '../../types/index.js';
 import { uid, paginate, paginatedResponse } from '../../lib/helpers.js';
 import branchesRouter from '../branches/branches.routes.js';
+import { generateTokens } from '../../lib/jwt.js';
+import { resolveAuthContext } from '../../lib/authContext.js';
 
 export const organizationsRouter = Router();
 
@@ -45,12 +47,18 @@ async function ensurePersonRole(
     create: { id: uid(), fullName: `${user.firstName} ${user.lastName}`.trim() || organization.name, personType: 'STAFF', organizationId, userId: user.id, email: user.email, originalType: 'SelfServiceOwner', originalId: `${organizationId}:${userId}` },
   });
   const role = await tx.role.findUnique({ where: { key: roleKey } });
-  if (role) await tx.personRole.upsert({
+  if (!role) throw new Error(`Роль ${roleKey} не найдена`);
+  await tx.personRole.upsert({
     where: { personId_roleId: { personId: person.id, roleId: role.id } },
     update: { scopeType: 'organization', scopeId: organizationId },
     create: { personId: person.id, roleId: role.id, scopeType: 'organization', scopeId: organizationId },
   });
   return person.id;
+}
+
+function setAuthCookies(res: any, accessToken: string, refreshToken: string) {
+  res.cookie('accessToken', accessToken, { httpOnly: true, secure: process.env.NODE_ENV === 'production', sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax', maxAge: 24 * 60 * 60 * 1000, path: '/' });
+  res.cookie('refreshToken', refreshToken, { httpOnly: true, secure: process.env.NODE_ENV === 'production', sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax', maxAge: 7 * 24 * 60 * 60 * 1000, path: '/' });
 }
 
 organizationsRouter.post('/self-service', async (req: AuthRequest, res) => {
@@ -106,7 +114,23 @@ organizationsRouter.post('/self-service', async (req: AuthRequest, res) => {
       return { entityId, organizationId, entity, personId };
     });
 
-    return res.status(201).json({ ok: true, data: { ...result, type, verification: 'PENDING', nextPath: SELF_SERVICE_TYPES[type].nextPath } } satisfies ApiResponse);
+    // The database role is now OWNER, but authorization is organization-scoped.
+    // Issue a fresh context-bound token immediately so the client does not spend
+    // the remainder of the old session in an unscoped OWNER fallback context.
+    const authContext = await resolveAuthContext(req.user!.id, { organizationId: result.organizationId });
+    if (authContext.organizationId !== result.organizationId) {
+      throw new Error('Не удалось установить контекст созданной организации');
+    }
+    const tokens = generateTokens({
+      sub: req.user!.id,
+      email: req.user!.email,
+      role: 'OWNER',
+      ...authContext,
+      sessionId: req.user!.sessionId,
+    });
+    setAuthCookies(res, tokens.accessToken, tokens.refreshToken);
+
+    return res.status(201).json({ ok: true, data: { ...result, type, verification: 'PENDING', nextPath: SELF_SERVICE_TYPES[type].nextPath, ...tokens } } satisfies ApiResponse);
   } catch (error) {
     console.error('[organizations] self-service onboarding error:', error);
     return res.status(400).json({ ok: false, error: error instanceof Error ? error.message : 'Не удалось создать организацию' } satisfies ApiResponse);
@@ -175,17 +199,5 @@ organizationsRouter.patch('/:id', async (req: AuthRequest, res) => {
   } catch (error) {
     console.error('[organizations] update error:', error);
     return res.status(500).json({ ok: false, error: 'Не удалось обновить организацию' } satisfies ApiResponse);
-  }
-});
-
-organizationsRouter.delete('/:id', async (req: AuthRequest, res) => {
-  try {
-    const existing = await prisma.organization.findUnique({ where: { id: String(req.params.id) } });
-    if (!existing) return res.status(404).json({ ok: false, error: 'Организация не найдена' } satisfies ApiResponse);
-    await prisma.organization.delete({ where: { id: String(req.params.id) } });
-    return res.json({ ok: true, data: null } satisfies ApiResponse);
-  } catch (error) {
-    console.error('[organizations] delete error:', error);
-    return res.status(500).json({ ok: false, error: 'Не удалось удалить организацию' } satisfies ApiResponse);
   }
 });
