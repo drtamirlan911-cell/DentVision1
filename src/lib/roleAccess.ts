@@ -14,10 +14,12 @@ export const PATH_PAGE_ID: Record<string, string> = {
   '/ai-approvals': 'ai-approvals', '/backup': 'backup', '/shop': 'shop', '/school': 'school',
   '/settings': 'settings', '/bi': 'bi', '/diagnostics': 'diagnostics', '/supplier': 'supplier',
   '/diagnostics/referrals': 'diagnostics-referrals', '/diagnostics/centers': 'diagnostics-centers',
-  '/diagnostics/laboratories': 'diagnostics-labs', '/diagnostics/results': 'diagnostics-results',
-  '/diagnostics/calendar': 'diagnostics-calendar', '/diagnostics/statistics': 'diagnostics-statistics',
-  '/diagnostics/settings': 'diagnostics-settings', '/diagnostics/center-dashboard': 'diagnostics',
-  '/diagnostics/lab-dashboard': 'diagnostics', '/diagnostics/registrations': 'admin',
+  '/diagnostics/laboratories': 'diagnostics-labs', '/diagnostics/labs': 'diagnostics-labs',
+  '/diagnostics/results': 'diagnostics-results', '/diagnostics/calendar': 'diagnostics-calendar',
+  '/diagnostics/statistics': 'diagnostics-statistics', '/diagnostics/settings': 'diagnostics-settings',
+  '/diagnostics/center': 'diagnostics', '/diagnostics/lab': 'diagnostics',
+  '/diagnostics/center-dashboard': 'diagnostics', '/diagnostics/lab-dashboard': 'diagnostics',
+  '/diagnostics/registrations': 'admin', '/diagnostics/registration-requests': 'admin',
 }
 
 export const CRM_NAV_PAGE_IDS = [
