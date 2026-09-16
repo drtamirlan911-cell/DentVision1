@@ -32,8 +32,11 @@ export const EcosystemRelationRail: React.FC<Props> = ({
     if (relationTo === 'material') return 'market' as const;
     if (relationTo === 'invoice') return 'finance' as const;
     if (relationTo === 'appointment') return 'appointment' as const;
+    if (relationTo === 'treatment-plan') return 'case' as const;
     if (relationTo === 'clinical-case') return 'case' as const;
     if (relationTo === 'organization') return 'settings' as const;
+    if (relationTo === 'course') return 'academy' as const;
+    if (relationTo === 'job') return 'jobs' as const;
     return undefined;
   };
 
