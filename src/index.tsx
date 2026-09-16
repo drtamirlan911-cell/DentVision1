@@ -64,6 +64,7 @@ const RegistrationRequests = lazyWithRetry(() => import('./pages/diagnostics/Reg
 
 const Schedule = lazyWithRetry(() => import('./pages/crm/Schedule'));
 const Patients = lazyWithRetry(() => import('./pages/crm/Patients'));
+const ClinicalCaseWorkspace = lazyWithRetry(() => import('./pages/crm/ClinicalCaseWorkspace'));
 const Cashier = lazyWithRetry(() => import('./pages/crm/Cashier'));
 const Lab = lazyWithRetry(() => import('./pages/crm/Lab'));
 const Staff = lazyWithRetry(() => import('./pages/crm/Staff'));
@@ -152,6 +153,7 @@ if (container) {
                 <Route path="privacy" element={<Suspense fallback={<PageLoader />}><Privacy /></Suspense>} />
                 <Route path="crm/schedule" element={guarded('schedule', <Schedule />)} />
                 <Route path="crm/patients" element={guarded('patients', <Patients />)} />
+                <Route path="crm/cases" element={guarded('treatment-plans', <ClinicalCaseWorkspace />)} />
                 <Route path="crm/cashier" element={guarded('cashier', <Cashier />)} />
                 <Route path="crm/pricelist" element={guarded('pricelist', <PriceList />)} />
                 <Route path="crm/lab" element={guarded('lab', <Lab />)} />
