@@ -12,10 +12,10 @@ describe('finance branch consistency migration', () => {
   it('never accepts an active branch from another clinic', () => {
     expect(source).toContain("RAISE EXCEPTION 'finance record branch does not belong to clinic'");
     expect(source).toContain('AND b.active = true');
-    expect(source).toContain('branch_clinic_id IS DISTINCT FROM NEW.clinic_id');
+    expect(source).toContain('branch_clinic_id IS DISTINCT FROM NEW."clinicId"');
   });
   it('does not invent a branch for platform-only finance rows', () => {
-    expect(source).toContain('WHERE b.clinic_id = NEW.clinic_id');
-    expect(source).toContain('IF NEW.branch_id IS NULL THEN');
+    expect(source).toContain('WHERE b.clinic_id = NEW."clinicId"');
+    expect(source).toContain('IF NEW."branch_id" IS NULL THEN');
   });
 });
