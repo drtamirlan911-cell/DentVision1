@@ -1,5 +1,5 @@
 import React from 'react';
-import { ArrowRight, Building2, GitBranch, Sparkles, UserRound } from 'lucide-react';
+import { ArrowRight, Building2, CalendarDays, GitBranch, Sparkles, UserRound } from 'lucide-react';
 import { useEcosystemContext } from '@/hooks/useEcosystemContext';
 import { useEcosystemDeepLinks } from '@/hooks/useEcosystemDeepLinks';
 import { useEcosystemActionRegistry } from '@/hooks/useEcosystemActionRegistry';
@@ -22,11 +22,15 @@ const ACTION_TARGETS: Record<string, Parameters<ReturnType<typeof useEcosystemDe
   'find-material': 'market',
   'open-clinical-case': 'case',
   'create-treatment-plan': 'case',
-  'schedule-appointment': 'case',
+  'schedule-appointment': 'appointment',
   'review-finance': 'finance',
   'open-academy': 'academy',
   'find-job': 'jobs',
   'manage-branch': 'settings',
+};
+
+const ACTION_ICONS: Record<string, React.ElementType> = {
+  'schedule-appointment': CalendarDays,
 };
 
 export default function EcosystemContextBridge({ patientId, caseId, branchId, organizationId, className, compact = false }: EcosystemContextBridgeProps) {
@@ -56,8 +60,9 @@ export default function EcosystemContextBridge({ patientId, caseId, branchId, or
         <div className="mt-2.5 flex gap-1.5 overflow-x-auto border-t border-bdr-subtle pt-2.5">
           {actions.map(action => {
             const target = ACTION_TARGETS[action.id] || 'ai';
+            const Icon = ACTION_ICONS[action.id] || GitBranch;
             return <button key={action.id} type="button" onClick={() => open(target)} className="inline-flex shrink-0 items-center gap-1.5 rounded-lg bg-surface-2 px-2.5 py-1.5 text-[10px] text-txt-secondary hover:text-txt-primary">
-              <GitBranch size={11} className="text-dv-gold" /> {action.label}
+              <Icon size={11} className="text-dv-gold" /> {action.label}
             </button>;
           })}
         </div>
