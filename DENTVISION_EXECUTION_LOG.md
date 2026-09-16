@@ -89,3 +89,35 @@ The complete pre-2026-09-14 execution history is preserved in the parent Git his
 2. Inspect the first failing E2E assertion and fix the underlying domain contract, not the assertion.
 3. Continue repository-wide raw-SQL/schema audit across migrations, branch-scope helpers, triggers and seeds before declaring the release gate green.
 4. After CI is green, run the partner-owner lifecycle and browser UX gates required by `DENTVISION_EXECUTION_PLAN.md`.
+
+## 2026-09-16 — Business-owner E2E and production migration audit
+
+### CI evidence
+- CI run `35012064060` on HEAD `5e650942b4f51ae11e0061102117ee269a1f7e0e` reached the complete core E2E suite: **204 passed, 4 skipped**.
+- All core Academy, AI, API contract, appointments, auth, branch, clinical IDOR, diagnostics cross-module, diagnosis, double-submit, error-injection, inventory/tenant, lab, marketplace, payment, payout, finance, RBAC, patient and treatment-plan suites passed.
+- The only failures were in the separate Business Owner journey gate: BIZ-006 and BIZ-007.
+- BIZ-006 was a Playwright selector defect: the page had six `Редактировать` buttons and the intended one was inside `dialog[aria-label="Профиль сотрудника"]`. The production UI itself rendered the intended action.
+- BIZ-007 exposed a real frontend/backend API contract mismatch: the frontend `createInvitation()` called `/api/auth/invitations`, while the canonical backend endpoint is `/api/clinics/:id/invite`.
+
+### Implemented
+- `e34fd165b0c54f86b37e197d72b5e1273e3f2f8` — scoped BIZ-006 profile actions to the employee profile dialog.
+- `6fe493bc7d36d82d0b2662ccfb1556648aca7cb4` — added a fail-closed authenticated `/api/auth/invitations` compatibility endpoint with the same OWNER/ADMIN clinic authorization semantics as the canonical clinic invite endpoint.
+- `97712d7a035810560f661d0aa96ac2ea0a863913` — corrected `20260914080000_organization_scoped_branches/migration.sql` to provision `clinic_members.branch_id`, matching Prisma `@map("branch_id")`, indexes and FK.
+- `4741becb85bed432ede1049349c29a37a10a9722` — made `20260914090000_backfill_default_branch_scope/migration.sql` self-provision `patients.branch_id`, `appointments.branch_id`, and `clinic_members.branch_id` before backfill.
+- `2174ac9257f3ae10beb4f8df92cb8d693cdf660d` — made referral branch migration self-provision `referrals.branch_id` before installing the consistency trigger.
+
+### Additional audit findings
+- Appointment and idempotency duplicate-key errors visible in the CI backend log are expected contention signals from the race-condition tests, not unhandled test failures; the E2E assertions passed.
+- `npm ci` reports dependency vulnerabilities and a deprecated Multer 1.x package; this is recorded as a separate dependency-security workstream and is not being hidden by changing audit thresholds.
+- PostgreSQL health-check logs show repeated `role "root" does not exist` probes from the runner/container health path; application health itself returned healthy and E2E proceeded normally.
+- The branch schema has intentionally mixed physical naming: `branches.clinic_id` plus quoted camelCase `"isDefault"`/`"createdAt"`; operational records use quoted Prisma camelCase clinic/patient fields plus mapped `branch_id`. Raw SQL must continue using these physical identifiers explicitly.
+
+### Verification
+- New CI run `35052027294` was automatically triggered by the invitation compatibility fix and is currently executing against its resulting main HEAD. Its E2E seed path has already completed successfully on the new code path when this log section was recorded.
+- Release remains **NOT READY** until this fresh run completes, including BIZ, organization-owner lifecycle, Playwright CLI smoke and Quality Gate.
+
+### Next action
+1. Inspect run `35052027294` to completion.
+2. If BIZ passes, audit organization-owner lifecycle and release-gate failures next.
+3. Keep production branch migrations and Prisma `@map("branch_id")` aligned.
+4. Address dependency vulnerabilities/deprecations as a separate controlled upgrade after functional release gates are green.
