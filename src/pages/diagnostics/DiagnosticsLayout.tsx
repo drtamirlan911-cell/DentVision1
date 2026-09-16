@@ -6,6 +6,8 @@ import { useAuth } from '@/store/auth.store';
 import { useIam } from '@/iam';
 import * as api from '@/utils/api';
 import EcosystemContextBridge from '@/components/ecosystem/EcosystemContextBridge';
+import EcosystemCaseFlow from '@/components/ecosystem/EcosystemCaseFlow';
+import { useEcosystemUrlContext } from '@/hooks/useEcosystemUrlContext';
 
 const CLINIC_ONLY_ITEMS = new Set(['referrals', 'centers', 'laboratories', 'register']);
 
@@ -30,6 +32,7 @@ export default function DiagnosticsLayout() {
   const location = useLocation();
   const { user, role } = useAuth();
   const iam = useIam();
+  const { patientId, caseId, branchId, organizationId } = useEcosystemUrlContext();
   const platformRole = user?.platformRole || role;
   const orgType = user?.organizationType || '';
   const [orgContexts, setOrgContexts] = useState<any[]>([]);
@@ -94,6 +97,8 @@ export default function DiagnosticsLayout() {
   const primaryItems = primaryIds.map(id => visibleItems.find(item => item.id === id)).filter(Boolean) as typeof visibleItems;
   const secondaryItems = visibleItems.filter(item => !primaryIds.includes(item.id));
 
+  const hasClinicalContext = Boolean(patientId || caseId);
+
   return (
     <div className="flex h-full min-w-0 flex-col overflow-hidden">
       <header className="shrink-0 border-b border-bdr-subtle bg-surface-1/95 backdrop-blur-xl">
@@ -143,6 +148,16 @@ export default function DiagnosticsLayout() {
       <main className="min-h-0 flex-1 overflow-y-auto">
         <div className="mx-auto w-full max-w-[1600px] px-3 pb-3 pt-3 sm:px-5 sm:pt-4">
           <EcosystemContextBridge className="mb-4" />
+          {hasClinicalContext && (
+            <EcosystemCaseFlow
+              className="mb-4"
+              patientId={patientId}
+              caseId={caseId}
+              branchId={branchId}
+              organizationId={organizationId}
+              compact
+            />
+          )}
           <Outlet />
         </div>
       </main>
