@@ -80,9 +80,9 @@ test.describe('Cross-Module Workflow: referral → center → result → lab →
       },
     });
     const centerRole = await prisma.role.upsert({
-      where: { key: 'admin' },
+      where: { key: 'org_admin' },
       update: {},
-      create: { id: randomUUID(), key: 'admin', name: 'Admin', isSystem: true },
+      create: { id: randomUUID(), key: 'org_admin', name: 'Organization Admin', isSystem: true },
     });
     await prisma.personRole.create({
       data: {
