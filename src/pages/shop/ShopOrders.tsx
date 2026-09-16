@@ -14,196 +14,29 @@ import { PageHeader } from '../../components/ui/ds/StatCard';
 import { EmptyState } from '../../components/ui/ds/EmptyState';
 import { PaymentQrPanel } from '@/components/payments/PaymentQrPanel';
 import { extractPaymentQrUrl } from '@/utils/paymentQr';
+import EcosystemContextBridge from '@/components/ecosystem/EcosystemContextBridge';
+import { useEcosystemUrlContext } from '@/hooks/useEcosystemUrlContext';
+import { withEcosystemContext } from '@/config/ecosystemContextLink';
 
-const STATUS: Record<string, { label: string; variant: 'success' | 'warning' | 'info' | 'error' }> = {
-  pending: { label: 'Ожидает', variant: 'warning' },
-  awaiting_payment: { label: 'Ждёт оплаты', variant: 'warning' },
-  confirmed: { label: 'Подтверждён', variant: 'info' },
-  packing: { label: 'Собирается', variant: 'info' },
-  paid: { label: 'Оплачен', variant: 'success' },
-  shipped: { label: 'Отправлен', variant: 'info' },
-  delivered: { label: 'Доставлен', variant: 'success' },
-  cancelled: { label: 'Отменён', variant: 'error' },
-};
-
+const STATUS: Record<string, { label: string; variant: 'success' | 'warning' | 'info' | 'error' }> = { pending: { label: 'Ожидает', variant: 'warning' }, awaiting_payment: { label: 'Ждёт оплаты', variant: 'warning' }, confirmed: { label: 'Подтверждён', variant: 'info' }, packing: { label: 'Собирается', variant: 'info' }, paid: { label: 'Оплачен', variant: 'success' }, shipped: { label: 'Отправлен', variant: 'info' }, delivered: { label: 'Доставлен', variant: 'success' }, cancelled: { label: 'Отменён', variant: 'error' } };
 interface OrderItem { id: string; productName: string; quantity: number; price: number; }
-interface Order {
-  id: string;
-  total: number;
-  status: string;
-  createdAt: string;
-  deliveryMethod?: string;
-  paymentMethod?: string;
-  items: OrderItem[];
-  meta?: { paymentId?: string; [k: string]: unknown };
-}
+interface Order { id: string; total: number; status: string; createdAt: string; deliveryMethod?: string; paymentMethod?: string; items: OrderItem[]; meta?: { paymentId?: string; [k: string]: unknown }; }
 
 export default function ShopOrders() {
-  const navigate = useNavigate();
-  const location = useLocation();
-  const { user, activeClinic } = useAuth();
-  const toast = useToast();
-  const [orders, setOrders] = useState<Order[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [payingOrderId, setPayingOrderId] = useState<string | null>(null);
-  const [pendingPay, setPendingPay] = useState<any>(null);
-  const [payBusy, setPayBusy] = useState(false);
-
-  const loadOrders = async () => {
-    if (!user) { setLoading(false); return; }
-    setLoading(true);
-    try {
-      const clinicId = activeClinic?.id || '';
-      const list = await api.getShopOrders(activeClinic ? clinicId : 'personal');
-      setOrders(Array.isArray(list) ? list : []);
-    } catch {
-      setOrders([]);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    const st = (location.state as any)?.successOrderId;
-    if (st) toast.success('Заказ успешно оформлен');
-    void loadOrders();
-    // loadOrders is defined inline, recreates every render
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+  const navigate = useNavigate(); const location = useLocation(); const context = useEcosystemUrlContext();
+  const { user, activeClinic } = useAuth(); const toast = useToast();
+  const [orders, setOrders] = useState<Order[]>([]); const [loading, setLoading] = useState(true); const [payingOrderId, setPayingOrderId] = useState<string | null>(null); const [pendingPay, setPendingPay] = useState<any>(null); const [payBusy, setPayBusy] = useState(false);
+  const ordersPath = withEcosystemContext('/shop/orders', context); const shopPath = withEcosystemContext('/shop', context);
+  const loadOrders = async () => { if (!user) { setLoading(false); return; } setLoading(true); try { const clinicId = activeClinic?.id || ''; const list = await api.getShopOrders(activeClinic ? clinicId : 'personal'); setOrders(Array.isArray(list) ? list : []); } catch { setOrders([]); } finally { setLoading(false); } };
+  useEffect(() => { const st = (location.state as any)?.successOrderId; if (st) toast.success('Заказ успешно оформлен'); void loadOrders(); // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user, activeClinic]);
-
-  const resumePay = async (order: Order) => {
-    const paymentId = order.meta?.paymentId;
-    if (!paymentId) {
-      toast.error('Ссылка на оплату не найдена — оформите заказ заново');
-      return;
-    }
-    setPayingOrderId(order.id);
-    setPayBusy(true);
-    try {
-      const payment = await api.getPayment(paymentId);
-      if (payment?.status === 'paid') {
-        toast.success('Заказ уже оплачен');
-        await loadOrders();
-        setPayingOrderId(null);
-        return;
-      }
-      const qr = extractPaymentQrUrl(payment);
-      setPendingPay({
-        payment: { ...payment, qr: qr || payment?.qr },
-        orderId: order.id,
-        total: order.total,
-      });
-    } catch (e: any) {
-      toast.error(e?.message || 'Не удалось открыть оплату');
-      setPayingOrderId(null);
-    } finally {
-      setPayBusy(false);
-    }
-  };
-
-  const confirmOrderPay = async () => {
-    if (!pendingPay?.payment?.id) return;
-    setPayBusy(true);
-    try {
-      const res = await api.confirmPayment(pendingPay.payment.id);
-      if (res?.status === 'paid' || res?.settled || res?.alreadyPaid) {
-        toast.success('Оплата подтверждена');
-        setPendingPay(null);
-        setPayingOrderId(null);
-        await loadOrders();
-      } else {
-        toast.info('Оплата ещё не подтверждена');
-      }
-    } catch (e: any) {
-      toast.error(e?.message || 'Оплата не подтверждена');
-    } finally {
-      setPayBusy(false);
-    }
-  };
-
-  if (loading) return (
-    <ListSkeleton count={5} />
-  );
-
-  return (
-    <div className="p-6 w-full max-w-full overflow-x-hidden mx-auto sm:max-w-[900px]">
-      <PageHeader title="Мои заказы" subtitle="История покупок в Магазине" icon={<Package size={22} />} />
-
-      {pendingPay?.payment && (
-        <PaymentQrPanel
-          className="mt-5"
-          payment={pendingPay.payment}
-          title={`Заказ #${String(pendingPay.orderId || '').slice(0, 8)}`}
-          amount={Number(pendingPay.total || 0)}
-          busy={payBusy}
-          onConfirm={confirmOrderPay}
-          onCancel={() => { setPendingPay(null); setPayingOrderId(null); }}
-          hint="Отсканируйте QR или откройте оплату, затем нажмите «Проверить оплату»."
-        />
-      )}
-
-      {orders.length === 0 ? (
-        <EmptyState
-          icon={<Package size={36} />}
-          title="Заказов пока нет"
-          description="Оформите первый заказ в каталоге Магазина"
-          action={<button onClick={() => navigate('/shop')} className="text-dv-gold bg-transparent border-none cursor-pointer font-inherit text-sm">В каталог →</button>}
-        />
-      ) : (
-        <div className="space-y-3 mt-5">
-          {orders.map((o, i) => {
-            const st = STATUS[o.status] || STATUS.pending;
-            const needsPay = o.status === 'awaiting_payment' || (o.status === 'pending' && !!o.meta?.paymentId);
-            return (
-              <motion.div key={o.id} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: Math.min(i * 0.04, 0.4) }}>
-                <Card hover={false} className={payingOrderId === o.id ? 'ring-1 ring-dv-gold/40' : undefined}>
-                  <CardContent>
-                    <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
-                      <div className="flex items-center gap-2">
-                        <span className="text-sm font-bold text-txt-primary">Заказ #{o.id.slice(0, 8)}</span>
-                        <Badge variant={st.variant} size="xs">{st.label}</Badge>
-                      </div>
-                      <span className="text-xs text-txt-muted">{new Date(o.createdAt).toLocaleString('ru-RU')}</span>
-                    </div>
-                    <div className="space-y-1.5 mb-3">
-                      {(o.items || []).map((it: any, idx: number) => {
-                        const name = it.productName || it.name || 'Товар';
-                        const qty = Number(it.quantity || it.qty || 1);
-                        const price = Number(it.price || 0);
-                        return (
-                          <div key={it.id || `${o.id}-${idx}`} className="flex justify-between text-xs">
-                            <span className="text-txt-secondary break-words min-w-0">{name} <span className="text-txt-muted">×{qty}</span></span>
-                            <span className="text-txt-primary">{tg(price * qty)}</span>
-                          </div>
-                        );
-                      })}
-                    </div>
-                    <div className="flex items-center justify-between border-t border-bdr-subtle pt-2.5 gap-3 flex-wrap">
-                      <div className="flex items-center gap-3 text-[11px] text-txt-muted">
-                        {o.deliveryMethod && <span className="flex items-center gap-1"><Truck size={11} /> {o.deliveryMethod}</span>}
-                        {o.paymentMethod && <span className="flex items-center gap-1"><Clock size={11} /> {o.paymentMethod}</span>}
-                      </div>
-                      <div className="flex items-center gap-2 ml-auto">
-                        {needsPay && (
-                          <Button
-                            size="sm"
-                            icon={<QrCode size={14} />}
-                            loading={payBusy && payingOrderId === o.id}
-                            onClick={() => void resumePay(o)}
-                          >
-                            Оплатить по QR
-                          </Button>
-                        )}
-                        <span className="text-base font-extrabold text-txt-primary">{tg(Number(o.total))}</span>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              </motion.div>
-            );
-          })}
-        </div>
-      )}
-    </div>
-  );
+  const resumePay = async (order: Order) => { const paymentId = order.meta?.paymentId; if (!paymentId) { toast.error('Ссылка на оплату не найдена — оформите заказ заново'); return; } setPayingOrderId(order.id); setPayBusy(true); try { const payment = await api.getPayment(paymentId); if (payment?.status === 'paid') { toast.success('Заказ уже оплачен'); await loadOrders(); setPayingOrderId(null); return; } const qr = extractPaymentQrUrl(payment); setPendingPay({ payment: { ...payment, qr: qr || payment?.qr }, orderId: order.id, total: order.total }); } catch (e: any) { toast.error(e?.message || 'Не удалось открыть оплату'); setPayingOrderId(null); } finally { setPayBusy(false); } };
+  const confirmOrderPay = async () => { if (!pendingPay?.payment?.id) return; setPayBusy(true); try { const res = await api.confirmPayment(pendingPay.payment.id); if (res?.status === 'paid' || res?.settled || res?.alreadyPaid) { toast.success('Оплата подтверждена'); setPendingPay(null); setPayingOrderId(null); await loadOrders(); } else toast.info('Оплата ещё не подтверждена'); } catch (e: any) { toast.error(e?.message || 'Оплата не подтверждена'); } finally { setPayBusy(false); } };
+  if (loading) return <ListSkeleton count={5} />;
+  return <div className="p-6 w-full max-w-full overflow-x-hidden mx-auto sm:max-w-[900px]">
+    <PageHeader title="Мои заказы" subtitle="История покупок в Магазине" icon={<Package size={22} />} />
+    {(context.patientId || context.caseId || context.branchId || context.organizationId) && <div className="mt-4"><EcosystemContextBridge patientId={context.patientId} caseId={context.caseId} branchId={context.branchId} organizationId={context.organizationId} /></div>}
+    {pendingPay?.payment && <PaymentQrPanel className="mt-5" payment={pendingPay.payment} title={`Заказ #${String(pendingPay.orderId || '').slice(0, 8)}`} amount={Number(pendingPay.total || 0)} busy={payBusy} onConfirm={confirmOrderPay} onCancel={() => { setPendingPay(null); setPayingOrderId(null); }} hint="Отсканируйте QR или откройте оплату, затем нажмите «Проверить оплату»." />}
+    {orders.length === 0 ? <EmptyState icon={<Package size={36} />} title="Заказов пока нет" description="Оформите первый заказ в каталоге Магазина" action={<button onClick={() => navigate(shopPath)} className="text-dv-gold bg-transparent border-none cursor-pointer font-inherit text-sm">В каталог →</button>} /> : <div className="space-y-3 mt-5">{orders.map((o, i) => { const st = STATUS[o.status] || STATUS.pending; const needsPay = o.status === 'awaiting_payment' || (o.status === 'pending' && !!o.meta?.paymentId); return <motion.div key={o.id} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: Math.min(i * 0.04, 0.4) }}><Card hover={false} className={payingOrderId === o.id ? 'ring-1 ring-dv-gold/40' : undefined}><CardContent><div className="flex items-center justify-between mb-3 flex-wrap gap-2"><div className="flex items-center gap-2"><span className="text-sm font-bold text-txt-primary">Заказ #{o.id.slice(0, 8)}</span><Badge variant={st.variant} size="xs">{st.label}</Badge></div><span className="text-xs text-txt-muted">{new Date(o.createdAt).toLocaleString('ru-RU')}</span></div><div className="space-y-1.5 mb-3">{(o.items || []).map((it: any, idx: number) => { const name = it.productName || it.name || 'Товар'; const qty = Number(it.quantity || it.qty || 1); const price = Number(it.price || 0); return <div key={it.id || `${o.id}-${idx}`} className="flex justify-between text-xs"><span className="text-txt-secondary break-words min-w-0">{name} <span className="text-txt-muted">×{qty}</span></span><span className="text-txt-primary">{tg(price * qty)}</span></div>; })}</div><div className="flex items-center justify-between border-t border-bdr-subtle pt-2.5 gap-3 flex-wrap"><div className="flex items-center gap-3 text-[11px] text-txt-muted">{o.deliveryMethod && <span className="flex items-center gap-1"><Truck size={11} /> {o.deliveryMethod}</span>}{o.paymentMethod && <span className="flex items-center gap-1"><Clock size={11} /> {o.paymentMethod}</span>}</div><div className="flex items-center gap-2 ml-auto">{needsPay && <Button size="sm" icon={<QrCode size={14} />} loading={payBusy && payingOrderId === o.id} onClick={() => void resumePay(o)}>Оплатить по QR</Button>}<span className="text-base font-extrabold text-txt-primary">{tg(Number(o.total))}</span></div></div></CardContent></Card></motion.div>; })}</div>}
+  </div>;
 }
