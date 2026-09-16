@@ -35,8 +35,10 @@ WHERE b."organization_id" IS NULL
   AND o."originalId" = b."clinic_id"
   AND o."originalType" = 'CLINIC';
 
+-- branch_id is the canonical physical column. The Prisma model maps
+-- ClinicMember.branchId to it with @map("branch_id").
 ALTER TABLE "clinic_members"
-  ADD COLUMN IF NOT EXISTS "branchId" TEXT;
+  ADD COLUMN IF NOT EXISTS "branch_id" TEXT;
 
 CREATE INDEX IF NOT EXISTS "branches_organization_id_idx"
   ON "branches" ("organization_id");
@@ -50,8 +52,8 @@ CREATE INDEX IF NOT EXISTS "branches_clinic_id_idx"
 CREATE UNIQUE INDEX IF NOT EXISTS "branches_organization_id_code_key"
   ON "branches" ("organization_id", "code");
 
-CREATE INDEX IF NOT EXISTS "clinic_members_branchId_idx"
-  ON "clinic_members" ("branchId");
+CREATE INDEX IF NOT EXISTS "clinic_members_branch_id_idx"
+  ON "clinic_members" ("branch_id");
 
 DO $$
 BEGIN
@@ -74,11 +76,11 @@ BEGIN
   END IF;
 
   IF NOT EXISTS (
-    SELECT 1 FROM pg_constraint WHERE conname = 'clinic_members_branchId_fkey'
+    SELECT 1 FROM pg_constraint WHERE conname = 'clinic_members_branch_id_fkey'
   ) THEN
     ALTER TABLE "clinic_members"
-      ADD CONSTRAINT "clinic_members_branchId_fkey"
-      FOREIGN KEY ("branchId") REFERENCES "branches"("id")
+      ADD CONSTRAINT "clinic_members_branch_id_fkey"
+      FOREIGN KEY ("branch_id") REFERENCES "branches"("id")
       ON DELETE SET NULL ON UPDATE CASCADE;
   END IF;
 END $$;
