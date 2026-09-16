@@ -89,14 +89,16 @@ test.describe('DentVision business owner journeys', () => {
     await page.reload();
     await expect(page.getByText(name, { exact: true })).toBeVisible({ timeout: 15000 });
     await page.getByText(name, { exact: true }).click();
-    await page.getByRole('button', { name: 'Редактировать', exact: true }).click();
+    const profile = page.getByRole('dialog', { name: 'Профиль сотрудника' });
+    await expect(profile).toBeVisible();
+    await profile.getByRole('button', { name: 'Редактировать', exact: true }).click();
     await expect(page.getByText('Редактировать сотрудника', { exact: true })).toBeVisible();
     await page.getByLabel('Телефон').fill('+77000000011');
     await page.getByRole('button', { name: 'Сохранить', exact: true }).click();
     await expect(page.getByText('Сотрудник обновлён', { exact: true })).toBeVisible({ timeout: 10000 });
 
     await page.getByText(name, { exact: true }).click();
-    await page.getByRole('button', { name: 'Удалить', exact: true }).click();
+    await page.getByRole('dialog', { name: 'Профиль сотрудника' }).getByRole('button', { name: 'Удалить', exact: true }).click();
     await page.getByRole('button', { name: 'Удалить', exact: true }).last().click();
     await expect(page.getByText('Сотрудник удалён из клиники', { exact: true })).toBeVisible({ timeout: 10000 });
     await expect(page.getByText(name, { exact: true })).toHaveCount(0);
