@@ -65,6 +65,155 @@ Evidence recorded in `CURRENT_STATE.md` and `DENTVISION_EXECUTION_LOG.md`.
 - [ ] Add discrepancy and low-margin alerts.
 - [ ] Preserve historical calculations when economics rules change.
 
+## Canonical Branch Management Contract
+
+Branch management is part of the existing Organization/Workspace model. Do not create a separate branch product or parallel organization model. A branch is an operational scope inside an organization and must use the existing identity, membership, permissions, audit, events and AI context primitives.
+
+### Owner entry point
+The organization owner must have one discoverable management path:
+
+`Owner → Settings / Organization → Branches`
+
+The branch list is the canonical place to:
+- see all active and archived branches;
+- create a branch;
+- open a branch workspace;
+- edit branch configuration;
+- activate/archive a branch;
+- manage branch staff and assignments;
+- inspect branch operational and financial status;
+- enter branch-specific settings.
+
+If the existing navigation has an organization/settings surface, extend it rather than creating a duplicate route or dashboard.
+
+### Branch creation
+Creation must be a real persisted workflow, not a modal-only UI.
+
+Required baseline fields:
+- name;
+- unique organization-scoped code;
+- city;
+- address;
+- phone;
+- active state;
+- default-branch semantics where applicable.
+
+Optional settings may contain branding, working hours, holidays, communication and operational configuration, but these must remain compatible with the existing `Branch.settings` domain field rather than creating a duplicate settings model.
+
+Creation requirements:
+- authorize against the actor's organization scope;
+- allow only roles with branch-management permission;
+- validate organization-scoped code uniqueness;
+- create audit/event records;
+- return the persisted branch and make it immediately discoverable after refresh;
+- never create a branch outside the current organization/tenant.
+
+### Branch workspace
+Opening a branch must provide an operational workspace with the current branch context visible and switchable only within the actor's authorized organization/branch scope.
+
+The branch workspace should expose, according to role and existing domain support:
+- Overview / Today;
+- Schedule;
+- Patients;
+- Cases / Clinical;
+- Diagnostics;
+- Laboratory;
+- Team;
+- Services & Prices;
+- Rooms / Chairs / Equipment;
+- Inventory / Warehouse;
+- Finance / Cash / Payments;
+- Documents / Templates;
+- Notifications / Communication;
+- Analytics;
+- Settings.
+
+Do not expose a screen merely because the label exists. Each item must resolve to an implemented workflow or be explicitly unavailable with a reason.
+
+### Branch settings contract
+Branch settings should be organized into practical domains:
+
+1. **General** — name, code, contacts, address, status, default state.
+2. **Working time** — schedule, holidays, exceptions and appointment availability.
+3. **Team** — invite/add staff, role assignment, branch assignment, enable/disable access.
+4. **Rooms & equipment** — rooms, dental chairs and operational resources where supported.
+5. **Services & prices** — branch availability and branch-specific price overrides where the domain model supports them.
+6. **Inventory** — stock scope, responsible users, low-stock rules and future inter-branch transfer workflows.
+7. **Finance** — branch revenue/expense visibility, cash/payment configuration and finance permissions.
+8. **CRM & communication** — reminders, confirmations, waitlist, patient communication settings.
+9. **Diagnostics & laboratory** — referral routing, deadlines, result visibility and operational contacts.
+10. **Documents** — templates, consent/document configuration and responsible roles.
+11. **AI & notifications** — branch-scoped AI context, alerts, approvals and notification rules.
+12. **Security & audit** — access history, privileged changes and branch-level audit visibility according to role.
+
+Only settings supported by the current domain should be implemented immediately; unsupported areas remain explicit backlog items rather than fake controls.
+
+### Staff and branch scope
+The branch lifecycle must support:
+
+`Invite/Add → Assign → Change assignment → Disable/Revoke → Audit`
+
+Branch assignment must use the existing `ClinicMember.branchId`/membership model where applicable. A user may have access to one or more branches only when the permission model allows it. The backend remains authoritative for scope enforcement.
+
+### Data isolation
+Branch-aware resources must respect branch scope wherever the existing domain model provides it, including at minimum:
+- patients;
+- appointments;
+- inventory items;
+- invoices;
+- expenses;
+- referrals/diagnostics.
+
+Organization owners may aggregate across authorized branches. Branch-scoped users must not read or mutate another branch's data merely by changing a URL, ID or request payload.
+
+### Archive / deactivate semantics
+Branches must not be hard-deleted when doing so would destroy operational or audit history. Prefer inactive/archive semantics already represented by the domain model.
+
+Before deactivation, the workflow must account for:
+- active staff assignments;
+- future appointments;
+- unresolved cases;
+- open lab/diagnostic orders;
+- inventory/financial records;
+- default-branch constraints.
+
+Historical records remain readable according to permission policy. The only active/default branch must not be silently disabled.
+
+### Branch-aware AI
+AI context must include the active organization and branch scope. Example supported intents:
+- “Покажи показатели филиала за месяц.”
+- “Какие записи и лабораторные заказы требуют внимания в этом филиале?”
+- “Кто из сотрудников закреплён за филиалом?”
+- “Подготовь список низких остатков по филиалу.”
+
+AI must never use branch context to bypass authorization. Any mutation follows `Intent → Context → Permission → Plan → Preview → Confirmation when required → Execute → Verify → Audit`.
+
+### Required release tests
+The branch vertical slice is not complete until an isolated E2E workflow proves:
+1. Owner opens the canonical organization/settings branch-management entry point.
+2. Owner creates a branch.
+3. Branch persists and survives refresh/re-login.
+4. Owner edits branch configuration.
+5. Owner opens/switches to the branch workspace.
+6. Owner assigns an employee to the branch.
+7. Assigned employee sees only permitted branch data.
+8. Cross-branch read/write attempts are denied.
+9. Owner can view organization-wide aggregates across branches.
+10. Owner can archive/deactivate a branch under the domain constraints.
+11. Historical branch-linked records remain intact and auditable.
+12. Visible branch actions are real and produce expected success/error states.
+
+### Implementation order
+1. Verify existing branch model and existing branch routes/services before adding code.
+2. Wire any missing backend route mounting into the existing application router.
+3. Reuse existing organization/settings/team screens for discoverability.
+4. Complete branch CRUD + assignment + authorization.
+5. Complete branch workspace/switching.
+6. Add settings domains only where backed by real data models.
+7. Add E2E and negative cross-branch tests.
+8. Verify CI/release gates.
+9. Record evidence in `DENTVISION_EXECUTION_LOG.md` and update status here.
+
 ### Phase 3 — Automated operations
 **Status:** QUEUED
 - [ ] Trigger economics automatically when an eligible order/payment is created or completed.
@@ -182,7 +331,7 @@ A phase is complete only when:
 - `DENTVISION_EXECUTION_LOG.md` records what changed, commit, verification, and next action.
 
 ## Current execution priority
-**Now:** run the business-owner lifecycle vertical slice in parallel with the remaining Economics Engine → Ledger work. Start at registration for each partner type, then organization, branches, staff, permissions, operational workflows and economics. Convert every discovered real defect into an implementation fix plus regression test.
+**Now:** run the business-owner lifecycle vertical slice in parallel with the remaining Economics Engine → Ledger work. Start at registration for each partner type, then organization, branches, staff, permissions, operational workflows and economics. The canonical branch contract above is part of this slice: locate the real owner entry point, implement the missing branch management path, verify scope boundaries, and convert every discovered real defect into an implementation fix plus regression test.
 
 **Next:** complete partner transparency/Finance Hub, then automated operations, then product-wide UX/clinical/ecosystem hardening.
 
