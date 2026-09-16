@@ -42,6 +42,49 @@ AI action lifecycle:
 
 `Intent → Context → Permission → Plan → Preview → Confirmation when required → Execute → Verify → Audit`
 
+## Canonical branch operating model
+
+A branch is a first-class operating unit inside an Organization/Clinic. It is not only an address or display label. The owner/organization manager must be able to operate the full lifecycle through the product:
+
+`Settings/Organization → Branches → Create → Configure → Staff/Access → Operations → Analytics → Archive/Suspend`
+
+Branch requirements:
+
+- organization-scoped unique code and human-readable name;
+- city, address, phone, active/default state and branch settings;
+- working hours/holidays and operational preferences;
+- staff invitation/assignment and branch-scoped permissions;
+- rooms/chairs/equipment where supported by the existing domain;
+- shared services with explicit branch-specific price overrides, without duplicate service definitions;
+- inventory/warehouse and inter-branch transfer controls where supported;
+- diagnostics, medical/dental laboratory routing;
+- branch finance/payment and operational analytics;
+- documents/templates, notifications, reminders, patient communication and AI preferences;
+- reversible archive/suspend semantics that preserve history and auditability.
+
+Owner capabilities must be discoverable from normal navigation. The owner should see a branch list, open a branch workspace, edit configuration, assign staff, switch branch context and inspect branch-level operations without knowing internal APIs/models. Authorized owners may also see organization-level aggregates across branches.
+
+Branch-aware resources must retain scope consistently where supported: patients, appointments, staff memberships, inventory, invoices/expenses, referrals/diagnostics and future branch-aware clinical/operational entities.
+
+Security rule:
+
+`Person → active context → Organization/Branch → Role → Permission → Scope → Ownership → Resource state → Audit`
+
+No AI action, UI action or API action may bypass branch scope. Cross-tenant and unauthorized cross-branch access must fail closed. Archive/suspend must not silently orphan historical records, staff, appointments, patients, invoices, inventory or referrals.
+
+Required branch release scenarios:
+
+1. Owner discovers Branches from Settings/Organization.
+2. Owner creates a branch and the branch persists after refresh.
+3. Owner edits and reopens the branch; changes persist.
+4. Owner assigns staff and effective branch scope is enforced.
+5. Owner switches branches without losing organization context.
+6. Organization-level owner reporting aggregates branch data only when authorized.
+7. Unauthorized users cannot read/write another branch.
+8. Archive/suspend preserves history and blocks inappropriate new operations.
+
+This is a product/engineering requirement, not evidence that the workflow is already implemented.
+
 ## Product-led operating model
 
 The product should continuously answer four questions for the current user:
@@ -165,7 +208,7 @@ Never use an old green run to declare a newer commit releasable.
 - Medical-analysis economics/settlement.
 - Dental-lab delivered recognition until real paid/settled callback exists.
 - Ledger/reconciliation and Finance Hub transparency.
-- Partner owner/branch/staff operational lifecycles.
+- Partner owner/branch/staff operational lifecycles, including the canonical branch lifecycle above.
 
 ### P2 — Clinical vertical slice
 - Patient → Case → Diagnosis/Imaging → AI Findings → Plan → Appointment → Lab/Materials → Payment → Follow-up.
