@@ -7,50 +7,31 @@ import type { AuthRequest, AuthUser } from '../types/index.js';
 import type { UserRole } from '@prisma/client';
 
 const ROLE_KEY_MAP: Record<string, UserRole> = {
-  SUPERADMIN: 'SUPERADMIN',
-  superadmin: 'SUPERADMIN',
-  OWNER: 'OWNER',
-  owner: 'OWNER',
-  org_owner: 'OWNER',
-  DIRECTOR: 'OWNER',
-  director: 'OWNER',
-  ADMIN: 'ADMIN',
-  admin: 'ADMIN',
-  org_admin: 'ADMIN',
-  MANAGER: 'MANAGER',
-  manager: 'MANAGER',
-  DOCTOR: 'DOCTOR',
-  doctor: 'DOCTOR',
-  ASSISTANT: 'ASSISTANT',
-  assistant: 'ASSISTANT',
-  CASHIER: 'CASHIER',
-  cashier: 'CASHIER',
-  LAB: 'LAB',
-  lab: 'LAB',
-  STUDENT: 'STUDENT',
-  student: 'STUDENT',
-  SUPPORT: 'SUPPORT',
-  support: 'SUPPORT',
+  SUPERADMIN: 'SUPERADMIN', superadmin: 'SUPERADMIN',
+  OWNER: 'OWNER', owner: 'OWNER', org_owner: 'OWNER', DIRECTOR: 'OWNER', director: 'OWNER',
+  ADMIN: 'ADMIN', admin: 'ADMIN', org_admin: 'ADMIN',
+  MANAGER: 'MANAGER', manager: 'MANAGER',
+  DOCTOR: 'DOCTOR', doctor: 'DOCTOR',
+  ASSISTANT: 'ASSISTANT', assistant: 'ASSISTANT',
+  CASHIER: 'CASHIER', cashier: 'CASHIER',
+  LAB: 'LAB', lab: 'LAB',
+  STUDENT: 'STUDENT', student: 'STUDENT',
+  SUPPORT: 'SUPPORT', support: 'SUPPORT',
 };
 
 const ROLE_PRIORITY: Record<UserRole, number> = {
-  SUPERADMIN: 100,
-  OWNER: 90,
-  ADMIN: 80,
-  MANAGER: 70,
-  DOCTOR: 60,
-  LAB: 50,
-  ASSISTANT: 40,
-  CASHIER: 30,
-  STUDENT: 20,
-  SUPPORT: 10,
+  SUPERADMIN: 100, OWNER: 90, ADMIN: 80, MANAGER: 70, DOCTOR: 60,
+  LAB: 50, ASSISTANT: 40, CASHIER: 30, STUDENT: 20, SUPPORT: 10,
 };
 
 function normalizeScopedRole(roleKey: string): UserRole | undefined {
   return ROLE_KEY_MAP[roleKey] || ROLE_KEY_MAP[roleKey.toUpperCase()];
 }
 
-function resolveActivePersonRole(personRoles: Array<{ scopeType: string | null; scopeId: string | null; role: { key: string } }>, organizationId: string): UserRole | undefined {
+export function resolveActivePersonRole(
+  personRoles: Array<{ scopeType: string | null; scopeId: string | null; role: { key: string } }>,
+  organizationId: string,
+): UserRole | undefined {
   const activeRoles = personRoles
     .filter((pr) => {
       if (pr.scopeType === 'organization' && pr.scopeId && pr.scopeId !== organizationId) return false;
