@@ -69,20 +69,36 @@ async function buildSignInPayload(user: SignInUser, req: any, res: any) {
 
 export const authRouter = Router();
 
+/**
+ * Public registration creates an unscoped account only. Clinic/partner roles
+ * are granted later through organization onboarding or an explicit invitation,
+ * where the role is attached to a verified organization/person scope.
+ *
+ * The requested role is intentionally ignored here: accepting OWNER/DOCTOR/LAB
+ * would let an anonymous caller receive a privileged global User.role before
+ * any organization membership exists. This is prohibited by the canonical IAM
+ * model (Person → organization → role → permission → scope).
+ */
+function publicRegistrationRole(_raw: unknown): UserRole {
+  return 'STUDENT';
+}
+
 authRouter.post('/register', async (req, res) => {
   try {
-    const { email, password, firstName, lastName, phone } = req.body as { email: string; password: string; firstName: string; lastName: string; phone?: string };
+    const { email, password, firstName, lastName, phone, role } = req.body as { email: string; password: string; firstName: string; lastName: string; phone?: string; role?: string };
     if (!email || !password || !firstName || !lastName) return res.status(400).json({ ok: false, error: 'Все обязательные поля должны быть заполнены' });
     const passwordError = assertPasswordPolicy(password); if (passwordError) return res.status(400).json({ ok: false, error: passwordError });
     const normalizedEmail = String(email).trim().toLowerCase();
     if (!normalizedEmail.includes('@') || normalizedEmail.endsWith('@guest.local')) return res.status(400).json({ ok: false, error: 'Некорректный email' });
     const existing = await prisma.user.findUnique({ where: { email: normalizedEmail } });
     if (existing) return res.status(409).json({ ok: false, error: 'Если указанный email зарегистрирован, вы получите письмо' });
+    const requestedRole = publicRegistrationRole(role);
     const hashedPassword = await hashPassword(password);
-    const user = await prisma.user.create({ data: { id: uid(), email: normalizedEmail, password: hashedPassword, firstName: String(firstName).trim(), lastName: String(lastName).trim(), phone: phone || null, role: 'STUDENT' }, select: { id: true, email: true, firstName: true, lastName: true, role: true } });
+    const user = await prisma.user.create({ data: { id: uid(), email: normalizedEmail, password: hashedPassword, firstName: String(firstName).trim(), lastName: String(lastName).trim(), phone: phone || null, role: requestedRole }, select: { id: true, email: true, firstName: true, lastName: true, role: true } });
     const session = await createSession(user.id, req.ip, req.headers['user-agent']);
     const tokens = generateTokens({ sub: user.id, email: user.email, role: user.role, sessionId: session.id });
     setAuthCookies(res, tokens.accessToken, tokens.refreshToken);
+    await writeAuditLog({ userId: user.id, action: 'auth.register', entity: 'user', entityId: user.id, ip: req.ip || req.socket?.remoteAddress });
     const response: ApiResponse = { ok: true, data: { user, ...tokens } }; res.status(201).json(response);
   } catch (error) {
     if ((error as { code?: string })?.code === 'P2002') return res.status(409).json({ ok: false, error: 'Если указанный email зарегистрирован, вы получите письмо' });
@@ -178,9 +194,32 @@ authRouter.post('/refresh', async (req, res) => {
     if (!sessionId) return res.status(401).json({ ok: false, error: 'Сессия токена отсутствует' });
     const session = await prisma.userSession.findUnique({ where: { id: sessionId }, select: { id: true, userId: true, expiredAt: true } });
     if (!session || session.userId !== user.id || (session.expiredAt && session.expiredAt <= new Date())) return res.status(401).json({ ok: false, error: 'Сессия недействительна' });
+
+    // A refresh token may carry a workspace context, but that context is only
+    // a claim. Re-resolve it against the current Person/organization or legacy
+    // ClinicMember link before rotating the session. If a scoped token points
+    // at a revoked/deleted context, fail closed instead of silently falling
+    // back to the global User.role or another workspace.
+    const requestedOrganizationId = typeof payload.organizationId === 'string' ? payload.organizationId : undefined;
+    const requestedClinicId = typeof payload.clinicId === 'string' ? payload.clinicId : undefined;
+    const hadScopedContext = Boolean(requestedOrganizationId || requestedClinicId);
+    const authContext = await resolveAuthContext(user.id, {
+      organizationId: requestedOrganizationId,
+      clinicId: requestedClinicId,
+    });
+    if (hadScopedContext && !authContext.organizationId && !authContext.clinicId) {
+      return res.status(401).json({ ok: false, error: 'Контекст организации больше недействителен' });
+    }
+
     await expireAllSessions(user.id);
     const newSession = await createSession(user.id, req.ip, req.headers['user-agent']);
-    const tokens = generateTokens({ sub: user.id, email: user.email, role: user.role, sessionId: newSession.id });
+    const tokens = generateTokens({
+      sub: user.id,
+      email: user.email,
+      role: user.role,
+      ...authContext,
+      sessionId: newSession.id,
+    });
     setAuthCookies(res, tokens.accessToken, tokens.refreshToken);
     res.json({ ok: true, data: tokens });
   } catch { clearAuthCookies(res); res.status(401).json({ ok: false, error: 'Недействительный refresh токен' }); }
