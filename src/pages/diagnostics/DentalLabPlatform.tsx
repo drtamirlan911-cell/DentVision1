@@ -8,6 +8,9 @@ import { PageHeader } from '@/components/ui/ds/StatCard';
 import { QueryError } from '@/components/ui/ds/QueryError';
 import { Tabs } from '@/components/ui/ds/Misc';
 import { getLabPlatformDashboard, getLabPlatformOrders, getLabPlatformTeam, updateLabPlatformOrderStatus, type LabPlatformOrder } from '@/utils/labPlatformApi';
+import { useEcosystemUrlContext } from '@/hooks/useEcosystemUrlContext';
+import EcosystemContextBridge from '@/components/ecosystem/EcosystemContextBridge';
+import EcosystemRelationRail from '@/components/ecosystem/EcosystemRelationRail';
 
 const STAGES = [
   { id: 'pending', label: 'Новые' },
@@ -57,6 +60,7 @@ export default function DentalLabPlatform() {
   const [tab, setTab] = useState('board');
   const [filter, setFilter] = useState<string | undefined>();
   const qc = useQueryClient();
+  const context = useEcosystemUrlContext();
   const dashboard = useQuery({ queryKey: ['lab-platform', 'dashboard'], queryFn: getLabPlatformDashboard, refetchInterval: 30_000 });
   const orders = useQuery({ queryKey: ['lab-platform', 'orders', filter], queryFn: () => getLabPlatformOrders(filter), refetchInterval: 30_000 });
   const team = useQuery({ queryKey: ['lab-platform', 'team'], queryFn: getLabPlatformTeam, enabled: tab === 'team' });
@@ -82,6 +86,8 @@ export default function DentalLabPlatform() {
 
   return (
     <div className="max-w-full space-y-6 overflow-x-hidden p-4 sm:p-6">
+      <EcosystemContextBridge patientId={context.patientId} caseId={context.caseId} branchId={context.branchId} organizationId={context.organizationId} />
+      {context.patientId || context.caseId ? <EcosystemRelationRail node="lab-order" title="Клинический контекст заказа" patientId={context.patientId} caseId={context.caseId} branchId={context.branchId} organizationId={context.organizationId} /> : null}
       <PageHeader title={d.lab.name} subtitle="Dental Lab · производство, контроль качества и выдача" icon={<FlaskConical size={22} />} actions={<Button size="sm" variant="ghost" onClick={() => { dashboard.refetch(); orders.refetch(); }}><RefreshCw size={15} /> Обновить</Button>} />
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         {[
