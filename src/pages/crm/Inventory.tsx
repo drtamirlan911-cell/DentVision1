@@ -19,6 +19,7 @@ import { StatCard, PageHeader } from '../../components/ui/ds/StatCard'
 import { INVENTORY_CATEGORIES, INVENTORY_UNITS } from '../../utils/constants'
 import { cn, formatMoney } from '../../lib/utils'
 import { buildClinicRestockSuggestions, findShopMatches } from '@/lib/inventory-shop-match'
+import { useIam } from '@/iam'
 import type { InventoryItem, Clinic, User as UserType, RoleInfo } from '../../types'
 
 const EMPTY_FORM = {
@@ -58,6 +59,8 @@ export default function Inventory() {
   const [searchParams, setSearchParams] = useSearchParams()
   const { showToast, toast, clearToast } = useToast()
   const { inventory, upsertInventoryItem } = useDataQuery(clinic?.id)
+  const { hasPermission } = useIam()
+  const canWrite = hasPermission('inventory.write')
   const queryClient = useQueryClient()
   const [modalOpen, setModalOpen] = useState(false)
   const [form, setForm] = useState<InventoryForm>(EMPTY_FORM)
@@ -122,6 +125,10 @@ export default function Inventory() {
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
+    if (!canWrite) {
+      showToast('Недостаточно прав для изменения склада', 'error')
+      return
+    }
     if (submitting) return
     if (!form.name.trim()) { showToast('Введите название', 'warning'); return }
     setSubmitting(true)
@@ -149,6 +156,7 @@ export default function Inventory() {
   }
 
   const openEdit = (item: InventoryItem) => {
+    if (!canWrite) return
     setEditing(item)
     setForm({
       name: item.name || '', quantity: item.quantity || 0, unit: item.unit || 'шт',
@@ -170,6 +178,10 @@ export default function Inventory() {
    * значения затёр бы их. Плюс движение попадает в историю позиции.
    */
   const quickAdjust = async (item: InventoryItem, delta: number) => {
+    if (!canWrite) {
+      showToast('Недостаточно прав для изменения остатка', 'error')
+      return
+    }
     try {
       await api.adjustInventoryItem(item.id, delta)
       await queryClient.invalidateQueries({ queryKey: [...queryKeys.inventory, clinic?.id || ''] })
@@ -203,13 +215,17 @@ export default function Inventory() {
         icon={<Package size={20} />}
         actions={
           <div className="flex flex-wrap gap-2">
-            <Button className="min-h-11" icon={<Plus size={16} />} onClick={() => { setForm(EMPTY_FORM); setEditing(null); setModalOpen(true) }}>
-              Добавить товар
-            </Button>
-            <Button variant="secondary" className="min-h-11" icon={<PackageMinus size={16} />}
-              onClick={() => navigate('/crm/stock-rules')}>
-              Списание после приёма
-            </Button>
+            {canWrite && (
+              <Button className="min-h-11" icon={<Plus size={16} />} onClick={() => { setForm(EMPTY_FORM); setEditing(null); setModalOpen(true) }}>
+                Добавить товар
+              </Button>
+            )}
+            {canWrite && (
+              <Button variant="secondary" className="min-h-11" icon={<PackageMinus size={16} />}
+                onClick={() => navigate('/crm/stock-rules')}>
+                Списание после приёма
+              </Button>
+            )}
           </div>
         }
       />
@@ -321,7 +337,7 @@ export default function Inventory() {
             const shopMatch = isLow ? findShopMatches(item, shopProducts, 1)[0] : undefined
             return (
               <motion.div key={item.id} variants={fadeUp}>
-                <Card hover padding="none" className="overflow-hidden cursor-pointer group" onClick={() => openEdit(item)}>
+                <Card hover padding="none" className={cn('overflow-hidden group', canWrite && 'cursor-pointer')} onClick={canWrite ? () => openEdit(item) : undefined}>
                   <div className="p-4">
                     <div className="flex items-start justify-between mb-2.5">
                       <div className="flex-1 min-w-0">
@@ -353,9 +369,11 @@ export default function Inventory() {
                     )}
 
                     <div className="flex gap-1.5 flex-wrap" onClick={e => e.stopPropagation()}>
-                      <Button variant="danger" size="icon-xs" className="min-h-11 min-w-11" icon={<Minus size={12} />} onClick={() => quickAdjust(item, -1)} aria-label="Уменьшить на 1" />
-                      <Button variant="primary" size="icon-xs" className="min-h-11 min-w-11" icon={<Plus size={12} />} onClick={() => quickAdjust(item, 1)} aria-label="Увеличить на 1" />
-                      <Button variant="primary" size="icon-xs" className="min-h-11 min-w-11" onClick={() => quickAdjust(item, 10)}>+10</Button>
+                      {canWrite && <>
+                        <Button variant="danger" size="icon-xs" className="min-h-11 min-w-11" icon={<Minus size={12} />} onClick={() => quickAdjust(item, -1)} aria-label="Уменьшить на 1" />
+                        <Button variant="primary" size="icon-xs" className="min-h-11 min-w-11" icon={<Plus size={12} />} onClick={() => quickAdjust(item, 1)} aria-label="Увеличить на 1" />
+                        <Button variant="primary" size="icon-xs" className="min-h-11 min-w-11" onClick={() => quickAdjust(item, 10)}>+10</Button>
+                      </>}
                       <Button
                         variant="ghost"
                         size="icon-xs"
@@ -397,7 +415,7 @@ export default function Inventory() {
       )}
 
       <Modal
-        open={modalOpen}
+        open={modalOpen && canWrite}
         onClose={() => setModalOpen(false)}
         title={editing ? 'Редактировать товар' : 'Добавить товар'}
         size="md"
