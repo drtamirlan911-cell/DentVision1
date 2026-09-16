@@ -1,8 +1,9 @@
 import { useState, useMemo, useEffect, useCallback } from 'react';
-import { Outlet, useNavigate, useLocation } from 'react-router-dom';
+import { Outlet, useNavigate, useLocation, Navigate } from 'react-router-dom';
 import { MoreHorizontal, LogIn, LayoutDashboard, FileText, ClipboardList, Calendar, Building2, FlaskConical, Users, BarChart3, Settings, PenLine, Shield } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/store/auth.store';
+import { useIam } from '@/iam';
 import * as api from '@/utils/api';
 
 const CLINIC_ONLY_ITEMS = new Set(['referrals', 'centers', 'laboratories', 'register']);
@@ -13,20 +14,21 @@ const DIAG_SUBNAV = [
   { id: 'center-dashboard', label: 'Центр', path: '/diagnostics/center-dashboard', icon: Building2, orgType: 'DIAGNOSTIC_CENTER' },
   { id: 'lab-dashboard', label: 'Лаборатория', path: '/diagnostics/lab-dashboard', icon: FlaskConical, orgType: 'LABORATORY' },
   { id: 'centers', label: 'Центры', path: '/diagnostics/centers', icon: Building2 },
-  { id: 'laboratories', label: 'Лаборатории', path: '/diagnostics/laboratories', icon: FlaskConical },
+  { id: 'laboratories', label: 'Лаборатории', path: '/diagnostics/labs', icon: FlaskConical },
   { id: 'patients', label: 'Пациенты', path: '/diagnostics/patients', icon: Users },
   { id: 'results', label: 'Результаты', path: '/diagnostics/results', icon: ClipboardList },
   { id: 'calendar', label: 'Календарь', path: '/diagnostics/calendar', icon: Calendar },
   { id: 'statistics', label: 'Статистика', path: '/diagnostics/statistics', icon: BarChart3 },
   { id: 'settings', label: 'Настройки', path: '/diagnostics/settings', icon: Settings },
   { id: 'register', label: 'Регистрация', path: '/register-diagnostics', icon: PenLine },
-  { id: 'registrations', label: 'Заявки', path: '/diagnostics/registrations', icon: Shield, platformRole: 'superadmin' },
+  { id: 'registrations', label: 'Заявки', path: '/diagnostics/registration-requests', icon: Shield, platformRole: 'superadmin' },
 ];
 
 export default function DiagnosticsLayout() {
   const navigate = useNavigate();
   const location = useLocation();
   const { user, role } = useAuth();
+  const iam = useIam();
   const platformRole = user?.platformRole || role;
   const orgType = user?.organizationType || '';
   const [orgContexts, setOrgContexts] = useState<any[]>([]);
@@ -62,6 +64,18 @@ export default function DiagnosticsLayout() {
     }
   }, [switching]);
 
+  const isReceivingOrg = orgType === 'DIAGNOSTIC_CENTER' || orgType === 'LABORATORY';
+  const visibleItems = useMemo(() => DIAG_SUBNAV.filter(item => {
+    if (item.platformRole) return item.platformRole === platformRole;
+    if (item.orgType) return item.orgType === orgType;
+    if (isReceivingOrg && CLINIC_ONLY_ITEMS.has(item.id)) return false;
+    return true;
+  }), [platformRole, orgType, isReceivingOrg]);
+
+  if (!iam.canAccessPage('diagnostics')) {
+    return <Navigate to={iam.pages.length > 0 ? '/' : '/login'} replace />;
+  }
+
   const inCenter = orgType === 'DIAGNOSTIC_CENTER';
   const inLab = orgType === 'LABORATORY';
   const centerCtx = orgContexts.find((c: any) => c.scopeType === 'DIAGNOSTIC_CENTER');
@@ -74,17 +88,7 @@ export default function DiagnosticsLayout() {
   if ((inCenter || inLab) && clinicCtx) cabinetButtons.push({ key: 'exit', label: 'Вернуться в клинику', scopeType: 'CLINIC', scopeId: clinicCtx.scopeId, organizationId: clinicCtx.organizationId });
 
   const isActive = (path: string) => path === '/diagnostics' ? location.pathname === '/diagnostics' : location.pathname.startsWith(path);
-  const isReceivingOrg = orgType === 'DIAGNOSTIC_CENTER' || orgType === 'LABORATORY';
-  const visibleItems = useMemo(() => DIAG_SUBNAV.filter(item => {
-    if (item.platformRole) return item.platformRole === platformRole;
-    if (item.orgType) return item.orgType === orgType;
-    if (isReceivingOrg && CLINIC_ONLY_ITEMS.has(item.id)) return false;
-    return true;
-  }), [platformRole, orgType, isReceivingOrg]);
 
-  // Diagnostics is one workspace, not a second application inside DentVision.
-  // Keep only the few actions users need repeatedly in a compact contextual bar;
-  // everything else is behind "Ещё" rather than a second permanent sidebar.
   const primaryIds = inCenter ? ['center-dashboard', 'results', 'calendar'] : inLab ? ['lab-dashboard', 'results', 'calendar'] : ['dashboard', 'referrals', 'results'];
   const primaryItems = primaryIds.map(id => visibleItems.find(item => item.id === id)).filter(Boolean) as typeof visibleItems;
   const secondaryItems = visibleItems.filter(item => !primaryIds.includes(item.id));

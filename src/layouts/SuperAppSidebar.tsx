@@ -8,6 +8,8 @@ import { Avatar } from '@/components/ui/ds/Avatar';
 import type { User as UserType } from '@/types';
 import { useCommandPalette } from '@/components/CommandPalette';
 import { useTranslation } from 'react-i18next';
+import { useIam } from '@/iam';
+import { pageIdFromPath } from '@/lib/roleAccess';
 
 export interface SuperAppSidebarProps {
   collapsed: boolean;
@@ -109,6 +111,7 @@ export const SuperAppSidebar: React.FC<SuperAppSidebarProps> = (props) => {
   const navigate = useNavigate();
   const location = useLocation();
   const { t } = useTranslation();
+  const iam = useIam();
   const [moreOpen, setMoreOpen] = React.useState(false);
   const [expandedGroups, setExpandedGroups] = React.useState<Record<string, boolean>>({ workspace: true, clinic: true });
   const { setOpen: setCommandPaletteOpen } = useCommandPalette();
@@ -117,13 +120,22 @@ export const SuperAppSidebar: React.FC<SuperAppSidebarProps> = (props) => {
     return value && value !== key ? value : fallback;
   }, [t]);
   const go = React.useCallback((path: string) => { navigate(path); if (isMobile) toggleSidebar(); }, [navigate, isMobile, toggleSidebar]);
+  const canSee = React.useCallback((item: Item) => {
+    if (isGuest) return ['ai', 'shop', 'academy', 'jobs', 'community'].includes(item.id);
+    if (item.id === 'ai' || item.id === 'help') return true;
+    const pageId = pageIdFromPath(item.path);
+    return iam.canAccessPage(pageId);
+  }, [iam, isGuest]);
+  const visibleGroups = React.useMemo(() => groups.map(group => ({ ...group, items: group.items.filter(canSee) })).filter(group => group.items.length > 0), [canSee]);
+  const visibleMoreItems = React.useMemo(() => moreItems.filter(canSee), [canSee]);
+  const visibleAdminItems = React.useMemo(() => adminItems.filter(canSee), [canSee]);
   React.useEffect(() => {
     setExpandedGroups(prev => {
       const next = { ...prev };
-      groups.forEach(group => { if (groupIsActive(location.pathname, group)) next[group.id] = true; });
+      visibleGroups.forEach(group => { if (groupIsActive(location.pathname, group)) next[group.id] = true; });
       return next;
     });
-  }, [location.pathname]);
+  }, [location.pathname, visibleGroups]);
 
   const width = collapsed ? 76 : 260;
   const visible = sidebarVisible || (isMobile && sidebarOpen);
@@ -144,7 +156,7 @@ export const SuperAppSidebar: React.FC<SuperAppSidebarProps> = (props) => {
           </button>
         </div>
         <nav aria-label={text('nav.main_nav', 'Главная навигация')} className="min-h-0 flex-1 overflow-y-auto px-3 py-4 [scrollbar-width:none]">
-          {groups.map(group => {
+          {visibleGroups.map(group => {
             const active = groupIsActive(location.pathname, group);
             const open = isMobile ? true : !!expandedGroups[group.id];
             return (
@@ -160,15 +172,15 @@ export const SuperAppSidebar: React.FC<SuperAppSidebarProps> = (props) => {
               </section>
             );
           })}
-          <section className="mt-1">
+          {visibleMoreItems.length > 0 && <section className="mt-1">
             {(!collapsed || isMobile) && <div className="mb-1.5 px-2 text-[10px] font-semibold tracking-[0.14em] text-[var(--dv-muted-2)]">{text('nav.menu', 'Меню')}</div>}
             <button type="button" onClick={() => setMoreOpen(v => !v)} aria-expanded={moreOpen} className={cn('flex w-full items-center gap-3 rounded-[11px] px-2.5 py-2 text-left text-[13px] font-medium text-[var(--dv-muted)] hover:bg-[var(--dv-nav-hover)] hover:text-[var(--dv-text)]', collapsed && !isMobile && 'justify-center')}>
               <span className="grid h-8 w-8 place-items-center rounded-[9px] bg-[var(--dv-icon-bg)]"><Menu size={17} /></span>
               {(!collapsed || isMobile) && <><span className="flex-1">{text('nav.menu', 'Меню')}</span>{moreOpen ? <ChevronDown size={15} /> : <ChevronRight size={15} />}</>}
             </button>
-            <AnimatePresence initial={false}>{moreOpen && (!collapsed || isMobile) && <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="mt-0.5 overflow-hidden pl-2">{moreItems.map(item => <NavItem key={item.id} item={item} label={text(item.labelKey, item.fallback)} collapsed={false} active={isActive(location.pathname, item.path)} onNavigate={go} />)}</motion.div>}</AnimatePresence>
-          </section>
-          {isAdmin && !isGuest && <section className="mt-5 border-t border-[var(--dv-border)] pt-4">{(!collapsed || isMobile) && <div className="mb-1.5 px-2 text-[10px] font-semibold tracking-[0.14em] text-[var(--dv-muted-2)]">{text('nav.administration', 'Администрирование')}</div>}{adminItems.map(item => <NavItem key={item.id} item={{ ...item, badge: item.id === 'approvals' && pendingApprovals ? pendingApprovals : undefined }} label={text(item.labelKey, item.fallback)} collapsed={collapsed && !isMobile} active={isActive(location.pathname, item.path)} onNavigate={go} />)}</section>}
+            <AnimatePresence initial={false}>{moreOpen && (!collapsed || isMobile) && <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="mt-0.5 overflow-hidden pl-2">{visibleMoreItems.map(item => <NavItem key={item.id} item={item} label={text(item.labelKey, item.fallback)} collapsed={false} active={isActive(location.pathname, item.path)} onNavigate={go} />)}</motion.div>}</AnimatePresence>
+          </section>}
+          {isAdmin && !isGuest && visibleAdminItems.length > 0 && <section className="mt-5 border-t border-[var(--dv-border)] pt-4">{(!collapsed || isMobile) && <div className="mb-1.5 px-2 text-[10px] font-semibold tracking-[0.14em] text-[var(--dv-muted-2)]">{text('nav.administration', 'Администрирование')}</div>}{visibleAdminItems.map(item => <NavItem key={item.id} item={{ ...item, badge: item.id === 'approvals' && pendingApprovals ? pendingApprovals : undefined }} label={text(item.labelKey, item.fallback)} collapsed={collapsed && !isMobile} active={isActive(location.pathname, item.path)} onNavigate={go} />)}</section>}
         </nav>
         <div className="border-t border-[var(--dv-border)] p-3">
           <button type="button" onClick={() => go('/profile')} className={cn('flex w-full items-center gap-2.5 rounded-xl p-2 text-left hover:bg-[var(--dv-nav-hover)]', collapsed && !isMobile && 'justify-center')}><Avatar src={user?.avatar} name={user?.name || text('nav.guest', 'Пользователь')} size="sm" />{(!collapsed || isMobile) && <span className="min-w-0 flex-1"><span className="block truncate text-xs font-semibold text-[var(--dv-text)]">{user?.name || (isGuest ? text('nav.guest', 'Гость') : 'DentVision')}</span><span className="block truncate text-[11px] text-[var(--dv-muted)]">{isGuest ? text('nav.anonymous_access', 'Демо-режим') : text('nav.employee', 'Рабочее пространство')}</span></span>}</button>
