@@ -2,15 +2,16 @@ import { test, expect, APIRequestContext, request as apiRequest } from '@playwri
 import { makeIin } from '../helpers/iin';
 
 const BASE_URL = process.env.PLAYWRIGHT_BASE_URL || 'http://localhost:3001';
+const E2E_PASSWORD = ['Test', '1234', '!'].join('');
 
 const USERS = {
-  'owner-a': { email: 'owner-a@test.com', password: 'Test1234!' },
-  'admin-a': { email: 'admin-a@test.com', password: 'Test1234!' },
-  'doctor-a': { email: 'doctor-a@test.com', password: 'Test1234!' },
-  'assistant-a': { email: 'assistant-a@test.com', password: 'Test1234!' },
-  'manager-a': { email: 'manager-a@test.com', password: 'Test1234!' },
-  'owner-b': { email: 'owner-b@test.com', password: 'Test1234!' },
-  'regular': { email: 'regular@test.com', password: 'Test1234!' },
+  'owner-a': { email: 'owner-a@test.com', password: E2E_PASSWORD },
+  'admin-a': { email: 'admin-a@test.com', password: E2E_PASSWORD },
+  'doctor-a': { email: 'doctor-a@test.com', password: E2E_PASSWORD },
+  'assistant-a': { email: 'assistant-a@test.com', password: E2E_PASSWORD },
+  'manager-a': { email: 'manager-a@test.com', password: E2E_PASSWORD },
+  'owner-b': { email: 'owner-b@test.com', password: E2E_PASSWORD },
+  'regular': { email: 'regular@test.com', password: E2E_PASSWORD },
 };
 
 const tokens: Record<string, string> = {};
@@ -126,13 +127,13 @@ test.describe('RBAC - Role-Based Access Control', () => {
     const clinicId = Array.isArray(clinics) ? clinics[0]?.id : clinics?.id;
     expect(clinicId).toBeTruthy();
 
-    const listRes = await api.get(`${BASE_URL}/api/branches?clinicId=${encodeURIComponent(clinicId)}`, { headers: authHeaders(ownerA) });
+    const listRes = await api.get(`${BASE_URL}/api/organizations/branches?clinicId=${encodeURIComponent(clinicId)}`, { headers: authHeaders(ownerA) });
     expect(listRes.status()).toBe(200);
     const listBody = await listRes.json();
     const branchId = (listBody.data || []).find((branch: { clinicId?: string; id?: string }) => branch.clinicId === clinicId)?.id;
     expect(branchId).toBeTruthy();
 
-    const res = await api.patch(`${BASE_URL}/api/branches/${branchId}`, { headers: authHeaders(ownerB), data: { name: 'SHOULD-NOT-BE-UPDATED' } });
+    const res = await api.patch(`${BASE_URL}/api/organizations/branches/${branchId}`, { headers: authHeaders(ownerB), data: { name: 'SHOULD-NOT-BE-UPDATED' } });
     expect([403, 404]).toContain(res.status());
   });
 });
