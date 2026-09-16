@@ -14,14 +14,14 @@ const DIAG_SUBNAV = [
   { id: 'center-dashboard', label: 'Центр', path: '/diagnostics/center-dashboard', icon: Building2, orgType: 'DIAGNOSTIC_CENTER' },
   { id: 'lab-dashboard', label: 'Лаборатория', path: '/diagnostics/lab-dashboard', icon: FlaskConical, orgType: 'LABORATORY' },
   { id: 'centers', label: 'Центры', path: '/diagnostics/centers', icon: Building2 },
-  { id: 'laboratories', label: 'Лаборатории', path: '/diagnostics/laboratories', icon: FlaskConical },
+  { id: 'laboratories', label: 'Лаборатории', path: '/diagnostics/labs', icon: FlaskConical },
   { id: 'patients', label: 'Пациенты', path: '/diagnostics/patients', icon: Users },
   { id: 'results', label: 'Результаты', path: '/diagnostics/results', icon: ClipboardList },
   { id: 'calendar', label: 'Календарь', path: '/diagnostics/calendar', icon: Calendar },
   { id: 'statistics', label: 'Статистика', path: '/diagnostics/statistics', icon: BarChart3 },
   { id: 'settings', label: 'Настройки', path: '/diagnostics/settings', icon: Settings },
   { id: 'register', label: 'Регистрация', path: '/register-diagnostics', icon: PenLine },
-  { id: 'registrations', label: 'Заявки', path: '/diagnostics/registrations', icon: Shield, platformRole: 'superadmin' },
+  { id: 'registrations', label: 'Заявки', path: '/diagnostics/registration-requests', icon: Shield, platformRole: 'superadmin' },
 ];
 
 export default function DiagnosticsLayout() {
