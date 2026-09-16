@@ -161,4 +161,36 @@ test.describe('RBAC - Role-Based Access Control', () => {
     });
     expect([403, 404]).toContain(res.status());
   });
+
+  test('RBAC-014: Cross-clinic branch mutation denied → 403/404', async () => {
+    const ownerA = tokens['owner-a'];
+    const ownerB = tokens['owner-b'];
+
+    const authRes = await api.post(`${BASE_URL}/api/auth/login`, {
+      data: USERS['owner-a'],
+    });
+    expect(authRes.ok()).toBeTruthy();
+    const authBody = await authRes.json();
+    const clinicId = authBody.data?.memberships?.[0]?.clinicId;
+    expect(clinicId).toBeTruthy();
+
+    const createRes = await api.post(`${BASE_URL}/api/branches`, {
+      headers: authHeaders(ownerA),
+      data: {
+        clinicId,
+        name: `RBAC Cross Clinic ${Date.now()}`,
+        code: `RBAC-${Date.now()}`,
+      },
+    });
+    expect([200, 201]).toContain(createRes.status());
+    const createBody = await createRes.json();
+    const branchId = (createBody.data || createBody).id;
+    expect(branchId).toBeTruthy();
+
+    const res = await api.patch(`${BASE_URL}/api/branches/${branchId}`, {
+      headers: authHeaders(ownerB),
+      data: { name: 'SHOULD-NOT-BE-UPDATED' },
+    });
+    expect([403, 404]).toContain(res.status());
+  });
 });
