@@ -13,10 +13,13 @@ import { queryKeys } from '@/queries/keys';
 import * as api from '@/utils/api';
 import { useAuthStore } from '@/store/auth.store';
 import { StatusPill } from './workspace/Pipeline';
+import { useEcosystemUrlContext } from '@/hooks/useEcosystemUrlContext';
+import { withEcosystemContext } from '@/config/ecosystemContextLink';
 
 export default function ResultList() {
   const navigate = useNavigate();
   const activeClinicId = useAuthStore((state) => state.activeClinic?.id);
+  const context = useEcosystemUrlContext();
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
 
@@ -27,6 +30,7 @@ export default function ResultList() {
   });
 
   const items = data?.items || data?.data || data?.referrals || [];
+  const openReferral = (id: string) => navigate(withEcosystemContext(`/diagnostics/referrals/${id}`, context));
 
   return (
     <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className="dv-page space-y-6 max-w-full overflow-x-hidden">
@@ -46,7 +50,7 @@ export default function ResultList() {
       ) : items.length === 0 ? (
         <GlassCard padding="md"><div className="flex items-center justify-center min-h-40 text-txt-muted text-sm flex-col gap-2"><ClipboardList size={48} className="opacity-20" />Нет завершённых исследований</div></GlassCard>
       ) : (
-        <div className="space-y-2">{items.map((r: any) => <Card key={r.id} padding="md" hover className="cursor-pointer" onClick={() => navigate(`/diagnostics/referrals/${r.id}`)}><div className="flex flex-col sm:flex-row items-start sm:items-center gap-4"><div className="w-10 h-10 rounded-xl bg-success/10 flex items-center justify-center shrink-0"><CheckCircle size={20} className="text-success" /></div><div className="flex-1 min-w-0 w-full"><div className="flex flex-wrap items-center gap-2"><p className="text-sm font-semibold text-txt-primary">{r.patientName || 'Неизвестно'}</p><StatusPill status={r.status} /></div><p className="text-xs text-txt-muted mt-0.5">{r.studyType || r.labTestType || 'Исследование'}{r.clinic?.name && ` · ${r.clinic.name}`}{r.center?.name && ` · ${r.center.name}`}{r.lab?.name && ` · ${r.lab.name}`}</p><p className="text-xs text-txt-muted mt-0.5"><Clock size={10} className="inline mr-1" />{new Date(r.updatedAt || r.createdAt).toLocaleString()}</p></div><Button size="xs" variant="ghost" icon={<Eye size={14} />} className="min-h-11 w-full sm:w-auto" onClick={(e: any) => { e.stopPropagation(); navigate(`/diagnostics/referrals/${r.id}`); }}>Открыть</Button></div></Card>)}</div>
+        <div className="space-y-2">{items.map((r: any) => <Card key={r.id} padding="md" hover className="cursor-pointer" onClick={() => openReferral(r.id)}><div className="flex flex-col sm:flex-row items-start sm:items-center gap-4"><div className="w-10 h-10 rounded-xl bg-success/10 flex items-center justify-center shrink-0"><CheckCircle size={20} className="text-success" /></div><div className="flex-1 min-w-0 w-full"><div className="flex flex-wrap items-center gap-2"><p className="text-sm font-semibold text-txt-primary">{r.patientName || 'Неизвестно'}</p><StatusPill status={r.status} /></div><p className="text-xs text-txt-muted mt-0.5">{r.studyType || r.labTestType || 'Исследование'}{r.clinic?.name && ` · ${r.clinic.name}`}{r.center?.name && ` · ${r.center.name}`}{r.lab?.name && ` · ${r.lab.name}`}</p><p className="text-xs text-txt-muted mt-0.5"><Clock size={10} className="inline mr-1" />{new Date(r.updatedAt || r.createdAt).toLocaleString()}</p></div><Button size="xs" variant="ghost" icon={<Eye size={14} />} className="min-h-11 w-full sm:w-auto" onClick={(e: any) => { e.stopPropagation(); openReferral(r.id); }}>Открыть</Button></div></Card>)}</div>
       )}
     </motion.div>
   );
