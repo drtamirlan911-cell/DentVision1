@@ -21,6 +21,7 @@ const MODULE_LABELS: Record<string, string> = {
   '/crm/schedule': 'Расписание',
   '/crm/visits': 'Визиты',
   '/crm/medical-card': 'Медицинская карта',
+  '/diagnostics/lab': 'Медицинская лаборатория',
   '/diagnostics': 'Диагностика',
   '/shop': 'DentVision Market',
   '/ai': 'DentVision AI',
