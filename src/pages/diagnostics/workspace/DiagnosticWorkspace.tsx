@@ -76,6 +76,13 @@ export function DiagnosticWorkspace({ kind: pinnedKind }: { kind?: OrgKind }) {
     [diagnosticContexts, config.organizationType],
   )
 
+  const { data: catalogueData } = useQuery({
+    queryKey: ['diagnostics', 'orgs', kind],
+    queryFn: () => config.listOrganizations(),
+    enabled: !isOwnOrg && isSuperadmin,
+  })
+  const catalogue = catalogueData?.data || catalogueData || []
+
   const pickable = isSuperadmin
     ? catalogue.map((org: any) => ({ id: org.id, name: org.name, city: org.city }))
     : myOrgs.map((ctx: any) => ({ id: ctx.scopeId, name: ctx.name, city: undefined }))
