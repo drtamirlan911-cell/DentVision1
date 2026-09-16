@@ -78,6 +78,11 @@ export default function Register({ onBack }: RegisterProps) {
             email: form.email.trim().toLowerCase(),
           }),
         });
+      } else if (role === 'lecturer') {
+        await apiRequest('/api/lecturer/register', {
+          method: 'POST',
+          body: JSON.stringify({ bio: '', academyId: undefined }),
+        });
       }
 
       window.location.assign('/ai');
@@ -109,7 +114,7 @@ export default function Register({ onBack }: RegisterProps) {
           <label className="text-xs"><span className="mb-1.5 block text-txt-secondary">Повторите пароль</span><input type="password" value={form.confirmPassword} onChange={e => set('confirmPassword', e.target.value)} className="w-full rounded-xl border border-bdr-subtle bg-surface-0 px-3 py-3 outline-none focus:border-dv-gold/50" /></label>
         </div>
         <label className="mt-5 flex gap-3 text-xs text-txt-secondary"><input type="checkbox" checked={agreed} onChange={e => setAgreed(e.target.checked)} className="mt-0.5" />Я принимаю условия использования и политику конфиденциальности.</label>
-        <button type="button" onClick={() => void handleSubmit()} disabled={loading} className="mt-5 flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-dv-gold px-4 text-sm font-semibold text-surface-0 disabled:opacity-60">{loading && <Loader2 size={16} className="animate-spin" />} {organizationType ? 'Создать аккаунт и рабочее пространство' : 'Создать аккаунт'}</button>
+        <button type="button" onClick={() => void handleSubmit()} disabled={loading} className="mt-5 flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-dv-gold px-4 text-sm font-semibold text-surface-0 disabled:opacity-60">{loading && <Loader2 size={16} className="animate-spin" />} {organizationType ? 'Создать аккаунт и рабочее пространство' : role === 'lecturer' ? 'Создать профиль лектора' : 'Создать аккаунт'}</button>
         <div className="mt-4"><GoogleSignInButton text="signup_with" onCredential={() => setLocalError('Регистрация через Google сейчас создаёт стандартный аккаунт. Для выбора рабочей роли используйте регистрацию по email.')} /></div>
       </section>
     </main>
