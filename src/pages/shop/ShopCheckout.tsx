@@ -1,7 +1,7 @@
 ﻿import React, { useEffect, useState, useCallback, useRef, useMemo } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { ShoppingBag, Truck, CreditCard, ArrowLeft, Building2, Wallet, MapPin } from 'lucide-react';
+import { ShoppingBag, Truck, CreditCard, ArrowLeft, Building2, Wallet } from 'lucide-react';
 import { tg } from '../../utils/constants';
 import * as api from '../../utils/api';
 import { useCart } from '@/store/cart.store';
@@ -14,381 +14,63 @@ import { PageHeader } from '../../components/ui/ds/StatCard';
 import { EmptyState } from '../../components/ui/ds/EmptyState';
 import { PaymentQrPanel } from '@/components/payments/PaymentQrPanel';
 import { extractPaymentQrUrl } from '@/utils/paymentQr';
+import EcosystemContextBridge from '@/components/ecosystem/EcosystemContextBridge';
+import { useEcosystemUrlContext } from '@/hooks/useEcosystemUrlContext';
+import { withEcosystemContext } from '@/config/ecosystemContextLink';
 
 const DELIVERY_FREE_FROM = 50000;
 const DELIVERY_COST = 2500;
 
 function money(n: number) {
-  try {
-    return tg(n, 'KZT');
-  } catch {
-    return `${Math.round(n).toLocaleString('ru-RU')} ₸`;
-  }
+  try { return tg(n, 'KZT'); } catch { return `${Math.round(n).toLocaleString('ru-RU')} ₸`; }
 }
 
 export default function ShopCheckout() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const context = useEcosystemUrlContext();
   const { cart, cartTotal, clearCart } = useCart();
   const { user, activeClinic } = useAuth();
   const toast = useToast();
   const [submitting, setSubmitting] = useState(false);
   const [useDentCash, setUseDentCash] = useState(false);
   const [quote, setQuote] = useState<any>(null);
-  const [quoteFailed, setQuoteFailed] = useState(false);
   const [pendingPay, setPendingPay] = useState<any>(null);
   const [payStatus, setPayStatus] = useState<'pending' | 'paid'>('pending');
   const [confirming, setConfirming] = useState(false);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const [form, setForm] = useState({
-    contactName: user?.name || '',
-    phone: user?.phone || '',
-    delivery_address: '',
-    delivery_method: 'courier',
-    delivery_zone_id: '',
-    payment_method: 'qr',
-    buyFor: 'self' as 'self' | 'clinic',
-    notes: '',
-  });
+  const [form, setForm] = useState({ contactName: user?.name || '', phone: user?.phone || '', delivery_address: '', delivery_method: 'courier', delivery_zone_id: '', payment_method: 'qr', buyFor: 'self' as 'self' | 'clinic', notes: '' });
   const [deliveryZones, setDeliveryZones] = useState<any[]>([]);
+  const ordersPath = withEcosystemContext('/shop/orders', context);
+  const shopPath = withEcosystemContext('/shop', context);
 
-  // Load delivery zones
-  useEffect(() => {
-    api.getDeliveryZones().then(setDeliveryZones).catch(() => {});
-  }, []);
-
-  const stopPoll = useCallback(() => {
-    if (pollRef.current) {
-      clearInterval(pollRef.current);
-      pollRef.current = null;
-    }
-  }, []);
-
-  const finishPaid = useCallback((orderId?: string, orderTotal?: number, earn?: number) => {
-    stopPoll();
-    clearCart();
-    setPendingPay(null);
-    toast.success(
-      earn
-        ? `Оплата прошла! Кэшбэк ~${Math.round(earn).toLocaleString('ru-RU')} ₸ после доставки`
-        : 'Оплата прошла, заказ оформлен!',
-    );
-    navigate('/shop/orders', { state: { successOrderId: orderId, total: orderTotal } });
-  }, [clearCart, navigate, stopPoll, toast]);
-
-  const checkPayment = useCallback(async (paymentId: string, silent = false) => {
-    try {
-      const status = await api.getPayment(paymentId);
-      if (status?.status === 'paid') {
-        setPayStatus('paid');
-        finishPaid(pendingPay?.orderId, pendingPay?.total, pendingPay?.earn);
-        return;
-      }
-      if (!silent) toast.info('Оплата ещё не подтверждена');
-    } catch {
-      if (!silent) toast.error('Не удалось проверить оплату');
-    }
-  }, [finishPaid, pendingPay?.earn, pendingPay?.orderId, pendingPay?.total, toast]);
-
-  useEffect(() => {
-    if (!pendingPay?.payment?.id || payStatus === 'paid') return;
-    pollRef.current = setInterval(() => {
-      void checkPayment(pendingPay.payment.id, true);
-    }, 5000);
-    return stopPoll;
-  }, [pendingPay?.payment?.id, payStatus, checkPayment, stopPoll]);
-
-  useEffect(() => {
-    if (!user || cart.length === 0) return;
-    let cancelled = false;
-    (async () => {
-      try {
-        const data = await api.quoteDentCash({
-          lines: cart.map((i) => ({
-            productId: i.id,
-            name: i.name,
-            priceTenge: i.price,
-            qty: i.qty,
-            supplierId: i.supplierId || undefined,
-            category: i.category || undefined,
-            ownBrand: i.ownBrand,
-          })),
-        });
-        if (!cancelled) setQuote(data);
-      } catch {
-        if (!cancelled) setQuote(null);
-      }
-    })();
-    return () => { cancelled = true; };
-  }, [user, cart]);
-
-  const selectedZone = useMemo(
-    () => deliveryZones.find(z => z.id === form.delivery_zone_id),
-    [deliveryZones, form.delivery_zone_id]
-  );
-
-  const deliveryCost = selectedZone
-    ? (selectedZone.freeFrom && cartTotal >= selectedZone.freeFrom ? 0 : selectedZone.cost)
-    : cartTotal >= DELIVERY_FREE_FROM ? 0 : DELIVERY_COST;
+  useEffect(() => { api.getDeliveryZones().then(setDeliveryZones).catch(() => {}); }, []);
+  useEffect(() => { if (!user || cart.length === 0) return; let cancelled = false; (async () => { try { const data = await api.quoteDentCash({ lines: cart.map((i) => ({ productId: i.id, name: i.name, priceTenge: i.price, qty: i.qty, supplierId: i.supplierId || undefined, category: i.category || undefined, ownBrand: i.ownBrand })) }); if (!cancelled) setQuote(data); } catch { if (!cancelled) setQuote(null); } })(); return () => { cancelled = true; }; }, [user, cart]);
+  const stopPoll = useCallback(() => { if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null; } }, []);
+  const finishPaid = useCallback((orderId?: string, orderTotal?: number, earn?: number) => { stopPoll(); clearCart(); setPendingPay(null); toast.success(earn ? `Оплата прошла! Кэшбэк ~${Math.round(earn).toLocaleString('ru-RU')} ₸ после доставки` : 'Оплата прошла, заказ оформлен!'); navigate(ordersPath, { state: { successOrderId: orderId, total: orderTotal } }); }, [clearCart, navigate, ordersPath, stopPoll, toast]);
+  const checkPayment = useCallback(async (paymentId: string, silent = false) => { try { const status = await api.getPayment(paymentId); if (status?.status === 'paid') { setPayStatus('paid'); finishPaid(pendingPay?.orderId, pendingPay?.total, pendingPay?.earn); return; } if (!silent) toast.info('Оплата ещё не подтверждена'); } catch { if (!silent) toast.error('Не удалось проверить оплату'); } }, [finishPaid, pendingPay?.earn, pendingPay?.orderId, pendingPay?.total, toast]);
+  useEffect(() => { if (!pendingPay?.payment?.id || payStatus === 'paid') return; pollRef.current = setInterval(() => { void checkPayment(pendingPay.payment.id, true); }, 5000); return stopPoll; }, [pendingPay?.payment?.id, payStatus, checkPayment, stopPoll]);
+  const selectedZone = useMemo(() => deliveryZones.find(z => z.id === form.delivery_zone_id), [deliveryZones, form.delivery_zone_id]);
+  const deliveryCost = selectedZone ? (selectedZone.freeFrom && cartTotal >= selectedZone.freeFrom ? 0 : selectedZone.cost) : cartTotal >= DELIVERY_FREE_FROM ? 0 : DELIVERY_COST;
   const payable = cartTotal + deliveryCost;
   const maxSpend = Math.min(Number(quote?.balanceTenge || 0), payable);
   const spendTenge = useDentCash ? maxSpend : 0;
   const total = Math.max(0, payable - spendTenge);
-  const canBuyForClinic = !!activeClinic;
   const earnPreview = Number(quote?.earnTenge || 0);
+  const canBuyForClinic = !!activeClinic;
 
-  if (cart.length === 0 && !pendingPay) {
-    return (
-      <div className="p-6">
-        <EmptyState
-          icon={<ShoppingBag size={36} />}
-          title="Корзина пуста"
-          description="Добавьте товары из каталога, чтобы оформить заказ"
-          action={<Button variant="primary" className="min-h-11" onClick={() => navigate('/shop')}>В каталог</Button>}
-        />
-      </div>
-    );
-  }
-
-  const set = (k: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) =>
-    setForm(prev => ({ ...prev, [k]: e.target.value }));
-
-  const handleSubmit = async () => {
-    if (!user) { toast.error('Необходимо войти в систему'); return; }
-    if (!form.delivery_address.trim()) { toast.error('Укажите адрес доставки'); return; }
-    if (!activeClinic?.id && form.buyFor === 'clinic') {
-      toast.error('Выберите клинику для заказа');
-      return;
-    }
-    setSubmitting(true);
-    try {
-      const res = await api.createShopOrder({
-        clinic_id: activeClinic?.id || null,
-        items: cart.map(i => ({ product_id: i.id, quantity: i.qty })),
-        delivery_address: form.delivery_address,
-        delivery_method: form.delivery_method,
-        delivery_method_id: form.delivery_zone_id || undefined,
-        payment_method: form.payment_method,
-        notes: form.notes,
-        recipient_name: form.contactName,
-        recipient_phone: form.phone,
-        dentCashTenge: spendTenge > 0 ? spendTenge : undefined,
-        total,
-      });
-      const earn = res?.dentCashEarnPendingTenge;
-      if (res?.requiresPayment && res?.payment?.id) {
-        const qr = extractPaymentQrUrl(res.payment);
-        setPendingPay({
-          payment: { ...res.payment, qr: qr || res.payment.qr },
-          orderId: res.id,
-          total: res.total,
-          earn,
-        });
-        setPayStatus('pending');
-        toast.success(qr ? 'Заказ создан — отсканируйте QR ниже' : 'Заказ создан — завершите оплату ниже');
-        return;
-      }
-      clearCart();
-      toast.success(
-        earn
-          ? `Заказ оформлен! Кэшбэк ~${Math.round(earn).toLocaleString('ru-RU')} ₸ после доставки`
-          : 'Заказ оформлен!',
-      );
-      navigate('/shop/orders', { state: { successOrderId: res.id, total: res.total } });
-    } catch (e: any) {
-      toast.error(e?.message || 'Не удалось оформить заказ');
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
-  const confirmPay = async () => {
-    if (!pendingPay?.payment?.id) return;
-    setConfirming(true);
-    try {
-      const res = await api.confirmPayment(pendingPay.payment.id);
-      if (res?.status === 'paid' || res?.settled || res?.alreadyPaid) {
-        setPayStatus('paid');
-        finishPaid(pendingPay.orderId, pendingPay.total, pendingPay.earn);
-      } else {
-        toast.info('Оплата ещё не подтверждена');
-      }
-    } catch (e: any) {
-      toast.error(e?.message || 'Оплата не подтверждена');
-    } finally {
-      setConfirming(false);
-    }
-  };
-
-  return (
-    <div className="p-6 w-full max-w-full overflow-x-hidden mx-auto sm:max-w-[900px]">
-      <button
-        onClick={() => navigate('/shop')}
-        className="flex items-center gap-1 bg-transparent border-none text-dv-gold cursor-pointer font-inherit text-xs mb-3"
-      >
-        <ArrowLeft size={14} /> Назад в каталог
-      </button>
-
-      <PageHeader title="Оформление заказа" subtitle="Проверьте данные и подтвердите заказ" icon={<ShoppingBag size={22} />} />
-
-      {pendingPay?.payment && (
-        <PaymentQrPanel
-          className="mt-5"
-          payment={pendingPay.payment}
-          title="Оплата заказа"
-          amount={Number(pendingPay.total || 0)}
-          busy={confirming}
-          onConfirm={confirmPay}
-          onCancel={() => { stopPoll(); setPendingPay(null); }}
-          hint="Откройте оплату по QR, оплатите, затем нажмите «Проверить оплату». В демо-среде кнопка завершает оплату сразу."
-        />
-      )}
-
-      <div className="grid grid-cols-1 md:grid-cols-5 gap-5 mt-5">
-        <div className="md:col-span-3 space-y-4">
-          <Card>
-            <CardContent>
-              <h3 className="text-sm font-bold text-txt-primary m-0 mb-3 flex items-center gap-2">
-                <Truck size={16} className="text-dv-gold" /> Данные доставки
-              </h3>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                <Input label="Контактное лицо" value={form.contactName} onChange={set('contactName')} placeholder="Имя" className="min-h-11" />
-                <Input label="Телефон" value={form.phone} onChange={set('phone')} placeholder="+7..." className="min-h-11" />
-              </div>
-              <div className="mt-2.5">
-                <Input label="Адрес доставки" value={form.delivery_address} onChange={set('delivery_address')} placeholder="Город, улица, дом" className="min-h-11" />
-              </div>
-              <div className="mt-3">
-                <label className="text-xs text-txt-muted mb-1.5 block">Купить для</label>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setForm(f => ({ ...f, buyFor: 'self' }))}
-                    className={`flex items-center gap-2 px-3 py-2.5 rounded-lg border text-sm transition-all min-h-11 ${
-                      form.buyFor === 'self' ? 'border-dv-gold/60 bg-dv-gold/10 text-dv-gold' : 'border-bdr-subtle bg-surface-1 text-txt-muted'
-                    }`}
-                  >
-                    <ShoppingBag size={15} /> Для себя
-                  </button>
-                  <button
-                    type="button"
-                    disabled={!canBuyForClinic}
-                    onClick={() => setForm(f => ({ ...f, buyFor: 'clinic' }))}
-                    className={`flex items-center gap-2 px-3 py-2.5 rounded-lg border text-sm transition-all disabled:opacity-40 disabled:cursor-not-allowed min-h-11 ${
-                      form.buyFor === 'clinic' ? 'border-dv-gold/60 bg-dv-gold/10 text-dv-gold' : 'border-bdr-subtle bg-surface-1 text-txt-muted'
-                    }`}
-                  >
-                    <Building2 size={15} /> {activeClinic ? activeClinic.name : 'Для клиники'}
-                  </button>
-                </div>
-              </div>
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 mt-2.5">
-                <div>
-                  <label className="text-xs text-txt-muted mb-1 block">Способ доставки</label>
-                  <select className="dv-select min-h-11" value={form.delivery_method} onChange={set('delivery_method')}>
-                    <option value="courier">Курьер</option>
-                    <option value="self">Самовывоз</option>
-                    <option value="post">Почта</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="text-xs text-txt-muted mb-1 block">Зона доставки</label>
-                  <select className="dv-select min-h-11" value={form.delivery_zone_id} onChange={set('delivery_zone_id')}>
-                    <option value="">По умолчанию (2500 ₸)</option>
-                    {deliveryZones.map((z: any) => (
-                      <option key={z.id} value={z.id}>
-                        {z.name} — {z.freeFrom && cartTotal >= z.freeFrom ? 'Бесплатно' : `${z.cost.toLocaleString()} ₸`}
-                        {z.estimatedDays ? ` (${z.estimatedDays} дн.)` : ''}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <label className="text-xs text-txt-muted mb-1 block">Оплата</label>
-                  <select className="dv-select min-h-11" value={form.payment_method} onChange={set('payment_method')}>
-                    <option value="qr">Kaspi QR</option>
-                    <option value="card">Картой онлайн</option>
-                    <option value="cash">Наличными при получении</option>
-                  </select>
-                </div>
-              </div>
-              <div className="mt-2.5">
-                <label className="text-xs text-txt-muted mb-1 block">Комментарий</label>
-                <textarea value={form.notes} onChange={set('notes')} rows={2} placeholder="Примечание к заказу" className="!rounded-lg min-h-11" />
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-
-        <div className="md:col-span-2">
-          <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}>
-            <Card>
-              <CardContent>
-                <h3 className="text-sm font-bold text-txt-primary m-0 mb-3">Ваш заказ</h3>
-                <div className="space-y-2.5 max-h-[260px] overflow-y-auto">
-                  {cart.map(i => (
-                    <div key={i.id} className="flex justify-between gap-2 text-xs">
-                      <span className="text-txt-secondary truncate">{i.name} <span className="text-txt-muted">×{i.qty}</span></span>
-                      <span className="text-txt-primary font-semibold shrink-0">{money(i.price * i.qty)}</span>
-                    </div>
-                  ))}
-                </div>
-                <div className="border-t border-bdr-subtle mt-3 pt-3 space-y-1.5 text-xs">
-                  <div className="flex justify-between"><span className="text-txt-muted">Товары:</span><span className="text-txt-primary">{money(cartTotal)}</span></div>
-                  <div className="flex justify-between"><span className="text-txt-muted">Доставка:</span><span className="text-txt-primary">{deliveryCost === 0 ? 'Бесплатно' : money(deliveryCost)}</span></div>
-                  <div className="rounded-lg border border-emerald-400/20 bg-emerald-400/10 px-2.5 py-2 space-y-1">
-                    {!user ? (
-                      <p className="text-emerald-200/90">Войдите, чтобы копить и списывать кэшбэк DentCash</p>
-                    ) : quote ? (
-                      <>
-                        <div className="flex justify-between text-emerald-300">
-                          <span>Кэшбэк после доставки:</span>
-                          <span>+{money(earnPreview)}</span>
-                        </div>
-                        <div className="flex justify-between text-txt-secondary">
-                          <span>Баланс DentCash:</span>
-                          <span>{money(Number(quote.balanceTenge || 0))}</span>
-                        </div>
-                        {maxSpend > 0 ? (
-                          <label className="flex items-center justify-between gap-2 pt-1 cursor-pointer">
-                            <span className="text-txt-muted flex items-center gap-1.5">
-                              <Wallet size={12} className="text-dv-gold" />
-                              Списать DentCash ({money(maxSpend)})
-                            </span>
-                            <input
-                              type="checkbox"
-                              checked={useDentCash}
-                              onChange={(e) => setUseDentCash(e.target.checked)}
-                              className="accent-dv-gold"
-                            />
-                          </label>
-                        ) : (
-                          <p className="text-[10px] text-txt-muted">
-                            Баланс 0 — кэшбэк появится после первой доставки.
-                          </p>
-                        )}
-                      </>
-                    ) : (
-                      <p className="text-txt-muted">Считаем кэшбэк…</p>
-                    )}
-                  </div>
-                  {useDentCash && spendTenge > 0 && (
-                    <div className="flex justify-between text-dv-gold">
-                      <span>DentCash:</span>
-                      <span>−{money(spendTenge)}</span>
-                    </div>
-                  )}
-                  <div className="flex justify-between text-sm font-bold pt-1.5 border-t border-bdr-subtle">
-                    <span className="text-txt-primary">Итого:</span><span className="text-dv-gold">{money(total)}</span>
-                  </div>
-                </div>
-                <Button variant="primary" size="lg" className="w-full mt-4 flex items-center justify-center gap-2 min-h-11" disabled={submitting} onClick={handleSubmit}>
-                  {submitting ? 'Оформляем...' : <><CreditCard size={16} /> Подтвердить заказ</>}
-                </Button>
-              </CardContent>
-            </Card>
-          </motion.div>
-        </div>
-      </div>
+  if (cart.length === 0 && !pendingPay) return <div className="p-6"><EmptyState icon={<ShoppingBag size={36} />} title="Корзина пуста" description="Добавьте товары из каталога, чтобы оформить заказ" action={<Button variant="primary" className="min-h-11" onClick={() => navigate(shopPath)}>В каталог</Button>} /></div>;
+  const set = (k: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => setForm(prev => ({ ...prev, [k]: e.target.value }));
+  const handleSubmit = async () => { if (!user) { toast.error('Необходимо войти в систему'); return; } if (!form.delivery_address.trim()) { toast.error('Укажите адрес доставки'); return; } if (!activeClinic?.id && form.buyFor === 'clinic') { toast.error('Выберите клинику для заказа'); return; } setSubmitting(true); try { const res = await api.createShopOrder({ clinic_id: activeClinic?.id || null, items: cart.map(i => ({ product_id: i.id, quantity: i.qty })), delivery_address: form.delivery_address, delivery_method: form.delivery_method, delivery_method_id: form.delivery_zone_id || undefined, payment_method: form.payment_method, notes: form.notes, recipient_name: form.contactName, recipient_phone: form.phone, dentCashTenge: spendTenge > 0 ? spendTenge : undefined, total }); const earn = res?.dentCashEarnPendingTenge; if (res?.requiresPayment && res?.payment?.id) { const qr = extractPaymentQrUrl(res.payment); setPendingPay({ payment: { ...res.payment, qr: qr || res.payment.qr }, orderId: res.id, total: res.total, earn }); setPayStatus('pending'); toast.success(qr ? 'Заказ создан — отсканируйте QR ниже' : 'Заказ создан — завершите оплату ниже'); return; } clearCart(); toast.success(earn ? `Заказ оформлен! Кэшбэк ~${Math.round(earn).toLocaleString('ru-RU')} ₸ после доставки` : 'Заказ оформлен!'); navigate(ordersPath, { state: { successOrderId: res.id, total: res.total } }); } catch (e: any) { toast.error(e?.message || 'Не удалось оформить заказ'); } finally { setSubmitting(false); } };
+  const confirmPay = async () => { if (!pendingPay?.payment?.id) return; setConfirming(true); try { const res = await api.confirmPayment(pendingPay.payment.id); if (res?.status === 'paid' || res?.settled || res?.alreadyPaid) { setPayStatus('paid'); finishPaid(pendingPay.orderId, pendingPay.total, pendingPay.earn); } else toast.info('Оплата ещё не подтверждена'); } catch (e: any) { toast.error(e?.message || 'Оплата не подтверждена'); } finally { setConfirming(false); } };
+  return <div className="p-6 w-full max-w-full overflow-x-hidden mx-auto sm:max-w-[900px]">
+    <button onClick={() => navigate(shopPath)} className="flex items-center gap-1 bg-transparent border-none text-dv-gold cursor-pointer font-inherit text-xs mb-3"><ArrowLeft size={14} /> Назад в каталог</button>
+    <PageHeader title="Оформление заказа" subtitle="Проверьте данные и подтвердите заказ" icon={<ShoppingBag size={22} />} />
+    {(context.patientId || context.caseId || context.branchId || context.organizationId) && <div className="mt-4"><EcosystemContextBridge patientId={context.patientId} caseId={context.caseId} branchId={context.branchId} organizationId={context.organizationId} /></div>}
+    {pendingPay?.payment && <PaymentQrPanel className="mt-5" payment={pendingPay.payment} title="Оплата заказа" amount={Number(pendingPay.total || 0)} busy={confirming} onConfirm={confirmPay} onCancel={() => { stopPoll(); setPendingPay(null); }} hint="Откройте оплату по QR, оплатите, затем нажмите «Проверить оплату». В демо-среде кнопка завершает оплату сразу." />}
+    <div className="grid grid-cols-1 md:grid-cols-5 gap-5 mt-5">
+      <div className="md:col-span-3 space-y-4"><Card><CardContent><h3 className="text-sm font-bold text-txt-primary m-0 mb-3 flex items-center gap-2"><Truck size={16} className="text-dv-gold" /> Данные доставки</h3><div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5"><Input label="Контактное лицо" value={form.contactName} onChange={set('contactName')} placeholder="Имя" className="min-h-11" /><Input label="Телефон" value={form.phone} onChange={set('phone')} placeholder="+7..." className="min-h-11" /></div><div className="mt-2.5"><Input label="Адрес доставки" value={form.delivery_address} onChange={set('delivery_address')} placeholder="Город, улица, дом" className="min-h-11" /></div><div className="mt-3"><label className="text-xs text-txt-muted mb-1.5 block">Купить для</label><div className="grid grid-cols-1 sm:grid-cols-2 gap-2"><button type="button" onClick={() => setForm(f => ({ ...f, buyFor: 'self' }))} className={`flex items-center gap-2 px-3 py-2.5 rounded-lg border text-sm transition-all min-h-11 ${form.buyFor === 'self' ? 'border-dv-gold/60 bg-dv-gold/10 text-dv-gold' : 'border-bdr-subtle bg-surface-1 text-txt-muted'}`}><ShoppingBag size={15} /> Для себя</button><button type="button" disabled={!canBuyForClinic} onClick={() => setForm(f => ({ ...f, buyFor: 'clinic' }))} className={`flex items-center gap-2 px-3 py-2.5 rounded-lg border text-sm transition-all disabled:opacity-40 disabled:cursor-not-allowed min-h-11 ${form.buyFor === 'clinic' ? 'border-dv-gold/60 bg-dv-gold/10 text-dv-gold' : 'border-bdr-subtle bg-surface-1 text-txt-muted'}`}><Building2 size={15} /> {activeClinic ? activeClinic.name : 'Для клиники'}</button></div></div><div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 mt-2.5"><div><label className="text-xs text-txt-muted mb-1 block">Способ доставки</label><select className="dv-select min-h-11" value={form.delivery_method} onChange={set('delivery_method')}><option value="courier">Курьер</option><option value="self">Самовывоз</option><option value="post">Почта</option></select></div><div><label className="text-xs text-txt-muted mb-1 block">Зона доставки</label><select className="dv-select min-h-11" value={form.delivery_zone_id} onChange={set('delivery_zone_id')}><option value="">По умолчанию (2500 ₸)</option>{deliveryZones.map((z: any) => <option key={z.id} value={z.id}>{z.name} — {z.freeFrom && cartTotal >= z.freeFrom ? 'Бесплатно' : `${z.cost.toLocaleString()} ₸`}{z.estimatedDays ? ` (${z.estimatedDays} дн.)` : ''}</option>)}</select></div><div><label className="text-xs text-txt-muted mb-1 block">Оплата</label><select className="dv-select min-h-11" value={form.payment_method} onChange={set('payment_method')}><option value="qr">Kaspi QR</option><option value="card">Картой онлайн</option><option value="cash">Наличными при получении</option></select></div></div><div className="mt-2.5"><label className="text-xs text-txt-muted mb-1 block">Комментарий</label><textarea value={form.notes} onChange={set('notes')} rows={2} placeholder="Примечание к заказу" className="!rounded-lg min-h-11" /></div></CardContent></Card></div>
+      <div className="md:col-span-2"><motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}><Card><CardContent><h3 className="text-sm font-bold text-txt-primary m-0 mb-3">Ваш заказ</h3><div className="space-y-2.5 max-h-[260px] overflow-y-auto">{cart.map(i => <div key={i.id} className="flex justify-between gap-2 text-xs"><span className="text-txt-secondary truncate">{i.name} <span className="text-txt-muted">×{i.qty}</span></span><span className="text-txt-primary font-semibold shrink-0">{money(i.price * i.qty)}</span></div>)}</div><div className="border-t border-bdr-subtle mt-3 pt-3 space-y-1.5 text-xs"><div className="flex justify-between"><span className="text-txt-muted">Товары:</span><span className="text-txt-primary">{money(cartTotal)}</span></div><div className="flex justify-between"><span className="text-txt-muted">Доставка:</span><span className="text-txt-primary">{deliveryCost === 0 ? 'Бесплатно' : money(deliveryCost)}</span></div><div className="rounded-lg border border-emerald-400/20 bg-emerald-400/10 px-2.5 py-2 space-y-1">{!user ? <p className="text-emerald-200/90">Войдите, чтобы копить и списывать кэшбэк DentCash</p> : quote ? <><div className="flex justify-between text-emerald-300"><span>Кэшбэк после доставки:</span><span>+{money(earnPreview)}</span></div><div className="flex justify-between text-txt-secondary"><span>Баланс DentCash:</span><span>{money(Number(quote.balanceTenge || 0))}</span></div>{maxSpend > 0 ? <label className="flex items-center justify-between gap-2 pt-1 cursor-pointer"><span className="text-txt-muted flex items-center gap-1.5"><Wallet size={12} className="text-dv-gold" /> Списать DentCash ({money(maxSpend)})</span><input type="checkbox" checked={useDentCash} onChange={(e) => setUseDentCash(e.target.checked)} className="accent-dv-gold" /></label> : <p className="text-[10px] text-txt-muted">Баланс 0 — кэшбэк появится после первой доставки.</p>}</> : <p className="text-txt-muted">Считаем кэшбэк…</p>}</div>{useDentCash && spendTenge > 0 && <div className="flex justify-between text-dv-gold"><span>DentCash:</span><span>−{money(spendTenge)}</span></div>}<div className="flex justify-between text-sm font-bold pt-1.5 border-t border-bdr-subtle"><span className="text-txt-primary">Итого:</span><span className="text-dv-gold">{money(total)}</span></div></div><Button variant="primary" size="lg" className="w-full mt-4 flex items-center justify-center gap-2 min-h-11" disabled={submitting} onClick={handleSubmit}>{submitting ? 'Оформляем...' : <><CreditCard size={16} /> Подтвердить заказ</>}</Button></CardContent></Card></motion.div></div>
     </div>
-  );
+  </div>;
 }
