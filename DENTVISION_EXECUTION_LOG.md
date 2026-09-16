@@ -60,3 +60,22 @@ The complete pre-2026-09-14 execution history is preserved in the parent Git his
 
 ### Next action
 - Continue the ecosystem continuity pass through Finance and Medical Laboratory where existing routes support it, then perform the premium visual/Figma pass. Only after the product-wide build pass is complete: run the full CI/E2E/release gates and repair all real failures without weakening tests.
+
+## 2026-09-16 — Finance Core and Medical Laboratory semantic separation pass
+
+### Implemented
+- `a149c603dcdc0a418a3b5b8fb346212af84a317a` — Finance period controls retain patient/clinical-case context and provide a direct return to `/crm/cases` without dropping ecosystem URL state.
+- `02bb7d55d187452b2c1fe4c8b790f41d3522efcc` — `medical-lab` deep links now explicitly target the existing lab entry with `workspace=medical-lab`; query construction preserves organization, branch, patient and case context.
+- `ceda4a18aa4549a85928d7aa0e731eb2e78d1b87` — `/diagnostics/lab` now distinguishes the medical-laboratory workspace from dental-laboratory production instead of silently conflating the two domains. Existing dental-lab behavior remains the default route behavior.
+- `3c6247bbda20cc8617655e0cdf4a0eee110293a0` — Finance Core now has a dedicated zero-commission clinical payment primitive. It records a balanced GATEWAY → CLINIC ledger transfer, preserves payment-method metadata, and is idempotent by clinical payment reference.
+- `c513c454eaceef47caf288ea5ee802cad2712927` — CRM invoice payment now settles the same clinical payment into Finance Core inside the same database transaction as the invoice status update. This prevents a paid invoice from existing without its corresponding ledger entry and keeps clinical revenue outside DentVision marketplace commission logic.
+
+### Architectural decision
+- Clinical treatment revenue is not implemented as a marketplace sale. The canonical economics policy states that DentVision must not take a default percentage of a clinic's total clinical revenue.
+- The existing Finance Core remains the accounting foundation; no duplicate ledger subsystem was introduced.
+- The patient-facing CRM invoice remains the operational document, while the Finance Core transaction becomes the reproducible financial record for the payment.
+
+### Verification status
+- CI/E2E were intentionally not run in this build-first pass.
+- The new commits are therefore UNVERIFIED until the later full release-gate pass.
+- The next functional block is to connect clinical-case identity more deeply into invoices/payments, then complete medical-analysis and dental-lab production transitions, followed by the premium visual/Figma pass.
