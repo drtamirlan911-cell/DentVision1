@@ -64,6 +64,14 @@ export default function DiagnosticsLayout() {
     }
   }, [switching]);
 
+  const isReceivingOrg = orgType === 'DIAGNOSTIC_CENTER' || orgType === 'LABORATORY';
+  const visibleItems = useMemo(() => DIAG_SUBNAV.filter(item => {
+    if (item.platformRole) return item.platformRole === platformRole;
+    if (item.orgType) return item.orgType === orgType;
+    if (isReceivingOrg && CLINIC_ONLY_ITEMS.has(item.id)) return false;
+    return true;
+  }), [platformRole, orgType, isReceivingOrg]);
+
   if (!iam.canAccessPage('diagnostics')) {
     return <Navigate to={iam.pages.length > 0 ? '/' : '/login'} replace />;
   }
@@ -80,13 +88,6 @@ export default function DiagnosticsLayout() {
   if ((inCenter || inLab) && clinicCtx) cabinetButtons.push({ key: 'exit', label: 'Вернуться в клинику', scopeType: 'CLINIC', scopeId: clinicCtx.scopeId, organizationId: clinicCtx.organizationId });
 
   const isActive = (path: string) => path === '/diagnostics' ? location.pathname === '/diagnostics' : location.pathname.startsWith(path);
-  const isReceivingOrg = orgType === 'DIAGNOSTIC_CENTER' || orgType === 'LABORATORY';
-  const visibleItems = useMemo(() => DIAG_SUBNAV.filter(item => {
-    if (item.platformRole) return item.platformRole === platformRole;
-    if (item.orgType) return item.orgType === orgType;
-    if (isReceivingOrg && CLINIC_ONLY_ITEMS.has(item.id)) return false;
-    return true;
-  }), [platformRole, orgType, isReceivingOrg]);
 
   const primaryIds = inCenter ? ['center-dashboard', 'results', 'calendar'] : inLab ? ['lab-dashboard', 'results', 'calendar'] : ['dashboard', 'referrals', 'results'];
   const primaryItems = primaryIds.map(id => visibleItems.find(item => item.id === id)).filter(Boolean) as typeof visibleItems;
