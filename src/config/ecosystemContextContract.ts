@@ -20,7 +20,7 @@ export interface EcosystemActionContext extends EcosystemContextRef {
 }
 
 export const EMPTY_ECOSYSTEM_CONTEXT: EcosystemContextRef = {
-  participant: 'user',
+  participant: 'patient',
 };
 
 export function withCaseContext(context: EcosystemContextRef, caseId: string, patientId?: string): EcosystemContextRef {
