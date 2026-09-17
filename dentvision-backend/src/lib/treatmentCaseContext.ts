@@ -6,17 +6,14 @@ export type TreatmentCaseContext = {
   treatmentCaseId?: string | null;
 };
 
+type CaseLinkedTable = 'appointments' | 'lab_orders' | 'invoices' | 'treatment_plans' | 'referrals' | 'visits';
+
 /**
  * Resolve the canonical clinical case for a write.
  *
- * Rules:
- * 1. An explicit caseId is authoritative, but must belong to the same clinic
- *    and patient when a patient is supplied.
- * 2. Without an explicit caseId, inherit the only active case for the patient.
- * 3. Never guess when the patient has multiple active cases.
- *
- * The helper intentionally uses SQL for the new nullable case columns while
- * Prisma schema/client generation catches up with the production migration.
+ * Explicit caseId is authoritative and is always checked against clinic and
+ * patient. Without one, inheritance is automatic only when the patient has
+ * exactly one active/on-hold case; concurrent cases are never guessed.
  */
 export async function resolveTreatmentCaseId(context: TreatmentCaseContext): Promise<string | null> {
   const clinicId = String(context.clinicId || '').trim();
@@ -24,13 +21,12 @@ export async function resolveTreatmentCaseId(context: TreatmentCaseContext): Pro
   const requested = context.treatmentCaseId ? String(context.treatmentCaseId).trim() : '';
 
   if (!clinicId) throw new Error('Clinic context is required');
+
   if (requested) {
     const rows = await prisma.$queryRaw<Array<{ id: string; clinicId: string; patientId: string; status: string }>>`
       SELECT "id", "clinicId", "patientId", "status"
       FROM "treatment_cases"
-      WHERE "id" = ${requested}
-        AND "clinicId" = ${clinicId}
-        AND "deletedAt" IS NULL
+      WHERE "id" = ${requested} AND "clinicId" = ${clinicId} AND "deletedAt" IS NULL
       LIMIT 1
     `;
     const row = rows[0];
@@ -52,25 +48,34 @@ export async function resolveTreatmentCaseId(context: TreatmentCaseContext): Pro
     LIMIT 2
   `;
 
-  // A patient may legitimately have multiple concurrent treatment cases.
-  // Automatic inheritance is therefore only safe when there is exactly one.
   return rows.length === 1 ? rows[0].id : null;
 }
 
-export async function attachTreatmentCase(
-  table: 'appointments' | 'lab_orders' | 'invoices' | 'treatment_plans' | 'referrals' | 'visits',
-  recordId: string,
-  treatmentCaseId: string | null,
-): Promise<void> {
-  await prisma.$executeRaw`
-    UPDATE ${prisma.raw(table)}
-    SET "treatmentCaseId" = ${treatmentCaseId}
-    WHERE "id" = ${recordId}
-  `;
+export async function attachTreatmentCase(table: CaseLinkedTable, recordId: string, treatmentCaseId: string | null): Promise<void> {
+  switch (table) {
+    case 'appointments':
+      await prisma.$executeRaw`UPDATE "appointments" SET "treatmentCaseId" = ${treatmentCaseId} WHERE "id" = ${recordId}`;
+      return;
+    case 'lab_orders':
+      await prisma.$executeRaw`UPDATE "lab_orders" SET "treatmentCaseId" = ${treatmentCaseId} WHERE "id" = ${recordId}`;
+      return;
+    case 'invoices':
+      await prisma.$executeRaw`UPDATE "invoices" SET "treatmentCaseId" = ${treatmentCaseId} WHERE "id" = ${recordId}`;
+      return;
+    case 'treatment_plans':
+      await prisma.$executeRaw`UPDATE "treatment_plans" SET "treatmentCaseId" = ${treatmentCaseId} WHERE "id" = ${recordId}`;
+      return;
+    case 'referrals':
+      await prisma.$executeRaw`UPDATE "referrals" SET "treatmentCaseId" = ${treatmentCaseId} WHERE "id" = ${recordId}`;
+      return;
+    case 'visits':
+      await prisma.$executeRaw`UPDATE "visits" SET "treatmentCaseId" = ${treatmentCaseId} WHERE "id" = ${recordId}`;
+      return;
+  }
 }
 
 export async function inheritTreatmentCaseForRecord(
-  table: 'appointments' | 'lab_orders' | 'invoices' | 'treatment_plans' | 'referrals' | 'visits',
+  table: CaseLinkedTable,
   recordId: string,
   context: TreatmentCaseContext,
 ): Promise<string | null> {
