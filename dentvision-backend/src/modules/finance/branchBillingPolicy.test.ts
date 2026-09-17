@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import {
   BRANCH_BILLING_POLICIES,
+  canCreateClinicBranch,
   isBranchBillingOrganizationType,
+  isClinicNetworkPlan,
   quoteBranchSubscription,
 } from './branchBillingPolicy.js';
 
@@ -43,9 +45,26 @@ describe('branch billing policy', () => {
     });
   });
 
+  it('keeps the existing ENTERPRISE subscription alias compatible with NETWORK economics', () => {
+    expect(isClinicNetworkPlan('enterprise')).toBe(true);
+    expect(quoteBranchSubscription('CLINIC', 2, 'enterprise')).toMatchObject({
+      enabled: true,
+      billableBranches: 2,
+      monthlyAmountTenge: 299_800,
+    });
+  });
+
+  it('allows the first clinic branch but requires NETWORK economics for additional branches', () => {
+    expect(canCreateClinicBranch(0, 'PRO')).toBe(true);
+    expect(canCreateClinicBranch(1, 'PRO')).toBe(false);
+    expect(canCreateClinicBranch(1, 'NETWORK')).toBe(true);
+    expect(canCreateClinicBranch(2, 'enterprise')).toBe(true);
+  });
+
   it('rejects invalid branch counts', () => {
     expect(() => quoteBranchSubscription('DENTAL_LAB', -1)).toThrow();
     expect(() => quoteBranchSubscription('DENTAL_LAB', 1.5)).toThrow();
+    expect(() => canCreateClinicBranch(-1, 'NETWORK')).toThrow();
   });
 
   it('does not silently treat unsupported organization types as billable branches', () => {
