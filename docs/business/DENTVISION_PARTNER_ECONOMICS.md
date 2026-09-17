@@ -1,7 +1,7 @@
 # DentVision Partner Economics
 
 **Status:** CANONICAL BUSINESS POLICY  
-**Version:** 1.1  
+**Version:** 1.2  
 **Date:** 2026-09-17  
 **Authority:** Business / Monetization foundation
 
@@ -11,24 +11,111 @@ This document establishes the default unit economics, commissions, minimum fees,
 
 The goal is **positive contribution margin for DentVision without destroying partner economics**. DentVision must monetize the ecosystem, not extract unsustainable fees from participants.
 
+A critical distinction applies: DentVision can control its own fees and platform costs, but cannot mathematically guarantee that an independent partner is profitable because partner costs, taxes, staffing, equipment and other operating expenses are not fully observable by the platform. Therefore the product must provide **economic safeguards, transparency and release gates** rather than claim a false profitability guarantee.
+
 This policy complements the canonical Product Mission and Marketplace specification. DentVision remains an AI Operating System for Digital Dentistry; CRM, Marketplace and School are ecosystem modules, not isolated products.
 
 ## 1. Universal economic rules
 
 1. Never take a percentage of a clinic's entire clinical revenue as the default SaaS model.
 2. Transaction commissions apply to transactions generated or processed through DentVision.
-3. Payment-processing costs, refunds, chargebacks and taxes must be tracked separately from DentVision commission revenue.
-4. Every transactional vertical must have a minimum fee where a pure percentage would make the transaction unprofitable to operate.
-5. Every transactional vertical should have a reasonable cap for unusually large transactions where a percentage becomes economically punitive.
-6. Volume tiers reward partners who move more business through DentVision.
-7. Pricing must be transparent to partners and buyers.
-8. Finance Hub must calculate gross platform revenue, payment cost, AI cost, storage, support, refunds/chargebacks, tax/VAT and contribution margin separately.
-9. Any new commission must pass a unit-economics gate before release.
-10. Pricing can be overridden for strategic enterprise contracts, but the exception must be recorded and auditable.
-11. **A branch is not itself a transaction and does not create a percentage commission.** Where a vertical is branch-priced, the branch is monetized through a subscription/add-on.
-12. **Branch subscription and transaction commission are separate economic layers** and must appear separately in Finance Hub.
+3. A commission is earned only on a commercial settlement event, not merely because an order, referral, lab case or diagnostic workflow exists.
+4. Payment-processing costs, refunds, chargebacks and taxes must be tracked separately from DentVision commission revenue.
+5. Every transactional vertical must have a minimum fee where a pure percentage would make the transaction unprofitable to operate.
+6. Every transactional vertical should have a reasonable cap for unusually large transactions where a percentage becomes economically punitive.
+7. Volume tiers reward partners who move more business through DentVision.
+8. Pricing must be transparent to partners and buyers before confirmation.
+9. Finance Hub must calculate gross platform revenue, payment cost, AI cost, storage, support, refunds/chargebacks, tax/VAT and contribution margin separately.
+10. Any new commission must pass a bilateral unit-economics gate before release: the rule must be viable for DentVision and must be commercially explainable and sustainable for the partner.
+11. Pricing can be overridden for strategic enterprise contracts, but the exception must be recorded and auditable.
+12. A branch is not itself a transaction and does not create a percentage commission. Where a vertical is branch-priced, the branch is monetized through a subscription/add-on.
+13. Branch subscription and transaction commission are separate economic layers and must appear separately in Finance Hub.
+14. DentVision must never hide payment fees, platform commission, branch subscription or other deductions inside an unexplained single amount.
+15. The partner must be able to preview the expected gross amount, DentVision fee, payment cost where known, other deductions, partner net and effective take-rate before a commercial transaction is confirmed.
 
-## 2. Clinics
+## 2. Bilateral unit-economics safety gate
+
+The platform must protect **both sides of the economic equation**.
+
+### DentVision side
+
+For every commissionable transaction, Finance must be able to calculate:
+
+```text
+commission
+- payment processing cost
+- AI cost
+- storage/data cost
+- support/operations cost
+- expected refund/chargeback reserve
+- attributable tax/VAT
+= contribution margin
+```
+
+A new rule must not be released when it creates structurally negative contribution margin under its expected operating scenario. Minimum fees, caps, subscription pricing, service consumption or volume tiers must be adjusted before launch.
+
+### Partner side
+
+The partner must see:
+
+```text
+sale price
+- DentVision commission
+- payment/provider deductions
+- applicable tax/deductions
+= expected partner net
+```
+
+Where partner cost data is available, the pricing simulator may additionally calculate:
+
+```text
+partner net
+- partner operating cost
+= partner contribution
+```
+
+If the configured partner cost basis or target margin indicates that a proposed platform fee would make the transaction commercially unsustainable, the system must warn and require an authorized pricing/contract decision before activation. It must not silently apply the fee.
+
+Partner profitability is not inferred from DentVision revenue alone. Partner cost data is private to the partner/authorized commercial roles and is never exposed to unrelated organizations.
+
+### No hidden subsidy
+
+DentVision must not create a business rule that appears profitable only because payment, AI, storage, support, refunds or taxes are omitted from the calculation. Likewise, DentVision must not rely on a partner absorbing undisclosed platform costs.
+
+## 3. Settlement-first commission rule
+
+The economic lifecycle is:
+
+```text
+quote
+→ order
+→ payment authorization
+→ successful settlement
+→ commission snapshot
+→ partner payout
+```
+
+Commission must not be permanently recognized as earned merely because an order was created.
+
+The settlement record must snapshot at minimum:
+
+- organization;
+- branch;
+- transaction domain;
+- gross settled amount;
+- commission rate;
+- minimum/cap applied;
+- volume tier;
+- economics/policy version;
+- payment cost where known;
+- partner net;
+- settlement timestamp.
+
+A later pricing-policy change must never rewrite this snapshot.
+
+Refunds, cancellations, remakes and chargebacks create compensating financial events. They must not mutate the original settled transaction.
+
+## 4. Clinics
 
 ### Standard SaaS
 
@@ -45,7 +132,7 @@ START/PRO/BUSINESS are organization SaaS plans. The NETWORK plan is the branch-p
 
 Additional monetization may come from diagnostics, laboratories, dental labs, Shop, Academy, premium AI, communications, payments and advanced analytics.
 
-## 3. Diagnostic / 3D centers
+## 5. Diagnostic / 3D centers
 
 **Branch subscription:** ₸49,900 / active billable branch / month  
 **Transaction commission:** 7% of orders originating through DentVision  
@@ -65,7 +152,7 @@ Examples:
 
 The economic value must include digital referral, booking, payment, DICOM/result exchange, notification and workflow integration—not merely listing the center.
 
-## 4. Medical analysis laboratories
+## 6. Medical analysis laboratories
 
 **Branch subscription:** ₸19,900 / active billable branch / month  
 **Transaction commission:** 6% per analysis/order through DentVision  
@@ -87,7 +174,7 @@ Examples:
 
 The minimum fee prevents low-ticket laboratory transactions from producing negative contribution margin.
 
-## 5. Dental laboratories
+## 7. Dental laboratories
 
 **Laboratory / branch subscription:** ₸29,900 / active billable branch / month  
 **Default transaction commission:** 8% per case  
@@ -106,7 +193,7 @@ The minimum fee prevents low-ticket laboratory transactions from producing negat
 
 For very large complex cases, enterprise contracts may use a negotiated cap. The objective is to preserve laboratory margin while making DentVision the digital case-routing, communication and workflow layer.
 
-## 6. Marketplace suppliers / sellers
+## 8. Marketplace suppliers / sellers
 
 DentVision Marketplace is seller-driven. Sellers are suppliers, consistent with the Marketplace specification.
 
@@ -117,14 +204,14 @@ DentVision Marketplace is seller-driven. Sellers are suppliers, consistent with 
 Suggested volume progression:
 
 | Monthly GMV | Commission |
-|---:|---:|
+|---|---:|
 | standard | 8% |
 | high volume | 6% |
 | strategic / very high volume | 5% or negotiated 4–5% |
 
 Payment processing is accounted for separately and must not be confused with DentVision take-rate.
 
-## 7. Academy / lecturers
+## 9. Academy / lecturers
 
 The commission depends on customer acquisition source.
 
@@ -136,7 +223,7 @@ The commission depends on customer acquisition source.
 
 This creates a strong incentive for lecturers to bring their own audience while compensating DentVision when it supplies demand, distribution and sales infrastructure.
 
-## 8. Universal branch billing
+## 10. Universal branch billing
 
 Branch support is an organization capability, not a clinic-only feature.
 
@@ -193,44 +280,21 @@ Additional clinic branches require the NETWORK plan or an approved enterprise ov
 
 The branch price is a subscription/capacity charge. It is not deducted from each transaction.
 
-## 9. Branch lifecycle and finance
+## 11. Organization types without a fixed branch price
 
-Every branch has an auditable lifecycle:
+Not every organization type should automatically receive a new charge.
 
-```text
-requested → active → suspended → inactive
-```
+Supplier/Manufacturer, Academy and other organization families may support branches operationally, but until a branch price is approved they use their existing organization/subscription economics and **no invented branch fee**.
 
-Billing semantics:
+This is deliberate: branch capability and branch monetization are separate configuration decisions.
 
-- requested: no charge until activated;
-- active: billable;
-- suspended: billing follows the explicit subscription/contract state;
-- inactive: not billable after the effective boundary.
-
-Historical transactions keep their original organization and branch context. Branch deactivation never rewrites financial history.
-
-Finance Hub must separate:
-
-```text
-Branch subscription revenue
-Transaction commission revenue
-Payment processing cost
-Refunds / chargebacks
-AI cost
-Storage cost
-Support cost
-Tax / VAT fields
-Partner payout
-Contribution margin
-```
-
-## 10. Transaction commission resolution
+## 12. Transaction commission resolution
 
 Commission remains transaction-based and is resolved in this order:
 
 ```text
-specific organization rule
+specific branch rule
+→ specific organization rule
 → organization/domain rule
 → global domain rule
 → default policy
@@ -250,51 +314,74 @@ organization GMV across eligible branches
 
 This prevents a partner from losing a volume discount simply by distributing its activity among branches.
 
-## 11. Organization types without a fixed branch price
+## 13. Partner price protection and simulation
 
-Not every organization type should automatically receive a new charge.
-
-Supplier/Manufacturer, Academy and other organization families may support branches operationally, but until a branch price is approved they use their existing organization/subscription economics and **no invented branch fee**.
-
-This is deliberate: branch capability and branch monetization are separate configuration decisions.
-
-## 12. Partner unit-economics gate
-
-Every partner vertical must expose at least:
+Before activating a commercial service, the partner-facing pricing surface should provide a deterministic simulation:
 
 ```text
-GMV
-→ Gross platform revenue
-→ Subscription revenue
-→ Transaction commission revenue
-→ Payment processing cost
-→ AI inference cost
-→ Storage / data cost
-→ Support / operations cost
-→ Refund / chargeback reserve
-→ Tax / VAT
-→ Contribution margin
-→ Net platform revenue
+partner list price
+→ DentVision commission
+→ known payment/provider fees
+→ estimated applicable deductions
+→ expected partner net
 ```
 
-A partner should not be launched at a price that creates structurally negative contribution margin. If margin deteriorates below the approved operating threshold, Finance/Product must adjust minimum fee, cap, subscription, volume tier or service consumption.
+For partners that configure internal cost data:
 
-## 13. Example target economics
+```text
+expected partner net
+→ partner cost basis
+→ partner contribution
+→ target margin comparison
+```
 
-Illustrative mature monthly cluster:
+The system must not silently change the partner's public price to compensate for a commission. Any repricing requires explicit partner action or an authorized contract change.
 
-- 100 clinics × average ₸39,900 SaaS = ₸3.99M
-- 20 diagnostic branches × average ₸200K platform revenue = ₸4.0M
-- 20 medical laboratories × average ₸250K = ₸5.0M
-- 30 dental laboratories × average ₸300K = ₸9.0M
-- Shop GMV ₸100M × average 7% = ₸7.0M
-- Academy GMV ₸20M × average 20% = ₸4.0M
+For low-ticket services, the platform should show the effective take-rate because a minimum fee can represent a higher percentage than the headline rate. Example: a ₸1,000 medical analysis with a ₸150 minimum has a 15% effective fee, even though the headline rate is 6%.
 
-Illustrative platform revenue: **~₸32.99M/month**, before additional Jobs, Community, Finance Hub, premium AI, advertising, sponsored placements, logistics or hardware revenue.
+This transparency is required to prevent partners from discovering the economics only after settlement.
 
-These figures are planning scenarios, not guaranteed forecasts.
+## 14. Platform margin protection
 
-## 14. Finance Hub implementation requirements
+DentVision must monitor unit economics by vertical, organization and transaction class.
+
+At minimum:
+
+```text
+gross commission
+- payment cost
+- AI cost
+- storage cost
+- support cost
+- refund/chargeback reserve
+- attributable tax/VAT
+= contribution margin
+```
+
+A rule that is persistently negative must be flagged for commercial review. The correction hierarchy is:
+
+1. reduce avoidable platform consumption;
+2. adjust minimum/cap where commercially justified;
+3. adjust subscription/add-on price;
+4. adjust volume tiers;
+5. negotiate an enterprise contract;
+6. disable the loss-making transaction configuration.
+
+DentVision must not solve negative unit economics by silently increasing an unrelated partner fee.
+
+## 15. Refunds, remakes and disputes
+
+Refund economics must be proportional and ledger-based.
+
+A successful transaction followed by a full refund must produce a compensating commission reversal consistent with the original commission snapshot.
+
+Partial refunds must reverse the corresponding economic portion.
+
+Dental-lab remakes caused by a quality workflow must not automatically create a second commission on the same economic value. The case workflow and commercial settlement must distinguish a genuine new sale from a remake/rework event.
+
+Chargebacks and disputes must preserve the original transaction and create separate financial events.
+
+## 16. Finance Hub implementation requirements
 
 Finance Hub should expose, by organization and by branch where permitted:
 
@@ -316,11 +403,12 @@ Finance Hub should expose, by organization and by branch where permitted:
 - partner payout;
 - DentVision net revenue;
 - effective take-rate;
-- partner retention.
+- partner retention;
+- partner economic warnings.
 
 The organization owner sees its own organization and branch economics. A branch manager sees branch operational economics only to the extent permitted by role.
 
-## 15. Governance
+## 17. Governance
 
 This document is the canonical starting point for pricing implementation. Product, Finance and Engineering must not create conflicting commission or branch-price constants in individual screens or services.
 
@@ -331,12 +419,13 @@ Any pricing change requires:
 1. updated version / effective date;
 2. migration or compatibility plan where required;
 3. impact calculation;
-4. auditability;
-5. no silent retroactive repricing of completed transactions.
+4. partner-facing simulation;
+5. auditability;
+6. no silent retroactive repricing of completed transactions.
 
 Enterprise overrides must record organization, scope, previous rule, new rule, effective date, expiry where applicable, approver and audit event.
 
-## 16. Release gates
+## 18. Release gates
 
 Branch economics is not considered implemented until E2E proves:
 
@@ -353,14 +442,22 @@ Branch economics is not considered implemented until E2E proves:
 11. billing permissions remain organization-scoped;
 12. Finance Hub separates subscription revenue from commission revenue;
 13. enterprise overrides are auditable;
-14. unsupported organization types do not receive an invented branch fee.
+14. unsupported organization types do not receive an invented branch fee;
+15. commission is recognized from settled commercial transactions rather than order creation alone;
+16. refunds/chargebacks create compensating events without mutating original history;
+17. partner-facing simulations show gross, fees and expected net before confirmation;
+18. minimum-fee transactions expose their effective take-rate;
+19. a structurally negative DentVision contribution-margin rule is blocked or requires explicit commercial override;
+20. configured partner cost/target-margin warnings are surfaced before activating an economically unsustainable rule.
 
-## 17. Non-goals
+## 19. Non-goals
 
 This document does not establish legal tax advice, final payment-provider pricing, or country-specific medical-service regulation. Those must be validated before production contracts and payment flows.
 
-## 18. Decision
+## 20. Decision
 
-**Adopted as DentVision default partner-economics policy v1.1.**
+**Adopted as DentVision default partner-economics policy v1.2.**
 
 **Core decision:** subscription monetizes the operational capacity of a billable branch; commission monetizes DentVision-generated transactions. There is no separate "branch commission" merely for having multiple locations.
+
+**Economic safety decision:** DentVision must maintain positive contribution economics for the platform while providing transparent net-payout simulation, minimum/cap/volume protections, settlement snapshots and partner-margin warnings so that platform fees do not knowingly create structurally unsustainable partner economics.
