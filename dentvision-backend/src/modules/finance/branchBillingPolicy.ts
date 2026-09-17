@@ -61,6 +61,23 @@ export interface BranchSubscriptionQuote {
   reason?: string;
 }
 
+/** Existing subscription data uses ENTERPRISE for the clinic tier that maps
+ * to the canonical NETWORK branch model. Keep this compatibility mapping
+ * centralized so individual routes do not invent plan aliases. */
+export function isClinicNetworkPlan(plan?: string | null): boolean {
+  const normalized = String(plan || '').trim().toUpperCase();
+  return normalized === 'NETWORK' || normalized === 'ENTERPRISE';
+}
+
+/** A clinic may keep its first/default branch on its organization SaaS plan.
+ * A second active branch requires NETWORK/enterprise-equivalent economics. */
+export function canCreateClinicBranch(activeBranches: number, plan?: string | null): boolean {
+  if (!Number.isInteger(activeBranches) || activeBranches < 0) {
+    throw new Error('activeBranches must be a non-negative integer');
+  }
+  return activeBranches === 0 || isClinicNetworkPlan(plan);
+}
+
 export function isBranchBillingOrganizationType(value: string): value is BranchBillingOrganizationType {
   return Object.prototype.hasOwnProperty.call(BRANCH_BILLING_POLICIES, value);
 }
@@ -74,7 +91,7 @@ export function quoteBranchSubscription(
     throw new Error('activeBranches must be a non-negative integer');
   }
 
-  if (organizationType === 'CLINIC' && String(plan || '').toUpperCase() !== 'NETWORK') {
+  if (organizationType === 'CLINIC' && !isClinicNetworkPlan(plan)) {
     return {
       organizationType,
       plan: plan || undefined,
