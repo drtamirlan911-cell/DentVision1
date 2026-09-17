@@ -106,7 +106,12 @@ export function quoteBranchSubscription(
   }
 
   const policy = BRANCH_BILLING_POLICIES[organizationType];
-  const billableBranches = Math.max(activeBranches, policy.minBillableBranches);
+  // No active branch means no branch capacity is being consumed and therefore
+  // no branch subscription may be charged. This also keeps billing idempotent
+  // when the last branch is deactivated.
+  const billableBranches = activeBranches === 0
+    ? 0
+    : Math.max(activeBranches, policy.minBillableBranches);
 
   return {
     organizationType,
@@ -116,6 +121,7 @@ export function quoteBranchSubscription(
     unitPriceTenge: policy.priceTenge,
     monthlyAmountTenge: billableBranches * policy.priceTenge,
     billingUnit: policy.billingUnit,
-    enabled: true,
+    enabled: billableBranches > 0,
+    ...(billableBranches === 0 ? { reason: 'Нет активных филиалов для биллинга' } : {}),
   };
 }
