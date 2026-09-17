@@ -1,0 +1,62 @@
+name: Sync TreatmentCase Prisma relations
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  sync:
+    if: ${{ !contains(github.event.head_commit.message, 'chore(case): sync Prisma TreatmentCase relations') }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Patch canonical Prisma schema
+        shell: python
+        run: |
+          from pathlib import Path
+          p = Path('dentvision-backend/prisma/schema.prisma')
+          s = p.read_text()
+          if '// TREATMENT_CASE_RELATIONS_SYNC' in s:
+              print('TreatmentCase relations already synchronized')
+              raise SystemExit(0)
+          replacements = [
+            ('''  treatmentPlanId String?\n\n  clinic        Clinic         @relation(fields: [clinicId], references: [id], onDelete: Cascade)\n  patient       Patient        @relation(fields: [patientId], references: [id], onDelete: Cascade)\n  doctor        User           @relation(fields: [doctorId], references: [id], onDelete: Restrict)\n  treatmentPlan TreatmentPlan? @relation(fields: [treatmentPlanId], references: [id], onDelete: SetNull)''', '''  treatmentPlanId String?\n  treatmentCaseId String?\n\n  clinic        Clinic         @relation(fields: [clinicId], references: [id], onDelete: Cascade)\n  patient       Patient        @relation(fields: [patientId], references: [id], onDelete: Cascade)\n  doctor        User           @relation(fields: [doctorId], references: [id], onDelete: Restrict)\n  treatmentPlan TreatmentPlan? @relation(fields: [treatmentPlanId], references: [id], onDelete: SetNull)\n  treatmentCase TreatmentCase? @relation(fields: [treatmentCaseId], references: [id], onDelete: SetNull)'''),
+            ('''  @@index([treatmentPlanId])\n  @@map("appointments")''', '''  @@index([treatmentPlanId])\n  @@index([treatmentCaseId])\n  @@map("appointments")'''),
+            ('''  deletedAt  DateTime?\n\n  patient Patient @relation(fields: [patientId], references: [id], onDelete: Cascade)''', '''  deletedAt  DateTime?\n  treatmentCaseId String?\n\n  patient Patient @relation(fields: [patientId], references: [id], onDelete: Cascade)\n  treatmentCase TreatmentCase? @relation(fields: [treatmentCaseId], references: [id], onDelete: SetNull)'''),
+            ('''  @@index([doctorId])\n  @@map("visits")''', '''  @@index([doctorId])\n  @@index([treatmentCaseId])\n  @@map("visits")'''),
+            ('''  clinicId  String?\n  title     String''', '''  clinicId  String?\n  treatmentCaseId String?\n  title     String'''),
+            ('''  clinic       Clinic?                @relation(fields: [clinicId], references: [id], onDelete: SetNull)\n  releases     TreatmentPlanRelease[]''', '''  clinic       Clinic?                @relation(fields: [clinicId], references: [id], onDelete: SetNull)\n  treatmentCase TreatmentCase?         @relation(fields: [treatmentCaseId], references: [id], onDelete: SetNull)\n  releases     TreatmentPlanRelease[]'''),
+            ('''  @@index([clinicId])\n  @@map("treatment_plans")''', '''  @@index([clinicId])\n  @@index([treatmentCaseId])\n  @@map("treatment_plans")'''),
+            ('''  doctorId String?\n\n  clinic  Clinic''', '''  doctorId String?\n  treatmentCaseId String?\n\n  clinic  Clinic'''),
+            ('''  doctor  User?    @relation("LabOrderDoctor", fields: [doctorId], references: [id], onDelete: SetNull)''', '''  doctor  User?    @relation("LabOrderDoctor", fields: [doctorId], references: [id], onDelete: SetNull)\n  treatmentCase TreatmentCase? @relation(fields: [treatmentCaseId], references: [id], onDelete: SetNull)'''),
+            ('''  @@index([doctorId])\n  @@map("lab_orders")''', '''  @@index([doctorId])\n  @@index([treatmentCaseId])\n  @@map("lab_orders")'''),
+            ('''  treatmentPlanId String?\n\n  clinic        Clinic''', '''  treatmentPlanId String?\n  treatmentCaseId String?\n\n  clinic        Clinic'''),
+            ('''  treatmentPlan TreatmentPlan? @relation(fields: [treatmentPlanId], references: [id], onDelete: SetNull)''', '''  treatmentPlan TreatmentPlan? @relation(fields: [treatmentPlanId], references: [id], onDelete: SetNull)\n  treatmentCase TreatmentCase? @relation(fields: [treatmentCaseId], references: [id], onDelete: SetNull)'''),
+            ('''  @@index([treatmentPlanId])\n  @@map("invoices")''', '''  @@index([treatmentPlanId])\n  @@index([treatmentCaseId])\n  @@map("invoices")'''),
+            ('''  settlementId     String?\n  // Audit''', '''  settlementId     String?\n  treatmentCaseId  String?\n  // Audit'''),
+            ('''  settlement  Settlement?       @relation("SettlementReferrals", fields: [settlementId], references: [id], onDelete: SetNull)''', '''  settlement  Settlement?       @relation("SettlementReferrals", fields: [settlementId], references: [id], onDelete: SetNull)\n  treatmentCase TreatmentCase?  @relation(fields: [treatmentCaseId], references: [id], onDelete: SetNull)'''),
+            ('''  @@index([settlementId])\n  @@map("referrals")''', '''  @@index([settlementId])\n  @@index([treatmentCaseId])\n  @@map("referrals")'''),
+            ('''  clinic    Clinic   @relation(fields: [clinicId], references: [id], onDelete: Cascade)\n  patient   Patient  @relation(fields: [patientId], references: [id], onDelete: Cascade)\n\n  createdAt''', '''  clinic    Clinic   @relation(fields: [clinicId], references: [id], onDelete: Cascade)\n  patient   Patient  @relation(fields: [patientId], references: [id], onDelete: Cascade)\n  appointments Appointment[]\n  labOrders    LabOrder[]\n  invoices     Invoice[]\n  treatmentPlans TreatmentPlan[]\n  referrals    Referral[]\n  visits       Visit[]\n\n  createdAt'''),
+          ]
+          for old, new in replacements:
+              if old not in s:
+                  raise SystemExit(f'Missing expected schema fragment: {old[:100]!r}')
+              s = s.replace(old, new, 1)
+          s = s.replace('model TreatmentCase {', '// TREATMENT_CASE_RELATIONS_SYNC\nmodel TreatmentCase {', 1)
+          p.write_text(s)
+      - name: Format Prisma schema
+        run: npx prisma format --schema dentvision-backend/prisma/schema.prisma
+      - name: Commit synchronized schema and remove one-time workflow
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add dentvision-backend/prisma/schema.prisma .github/workflows/sync-treatment-case-schema.yml
+          git rm .github/workflows/sync-treatment-case-schema.yml
+          git commit -m 'chore(case): sync Prisma TreatmentCase relations'
+          git push
