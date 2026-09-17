@@ -51,6 +51,7 @@ function serializeLabOrder(order: {
     material: meta.material || '', toothNumber: meta.toothNumber || '', shade: meta.shade || '',
     laboratoryId: meta.laboratoryId || null, technicianId: meta.technicianId || null,
     remakeOfId: meta.remakeOfId || null, appointmentId: meta.appointmentId || null,
+    tryInDate: meta.tryInDate || null,
     treatmentCaseId: meta.treatmentCaseId || null, doctorId: order.doctorId ?? meta.doctorId ?? null,
     dueDate: order.deadline, notes: order.notes, status: order.status, price: order.price,
     createdAt: order.createdAt, updatedAt: order.updatedAt,
