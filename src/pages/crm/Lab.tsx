@@ -1,4 +1,4 @@
-﻿import React, { useEffect, useState } from 'react'
+import React, { useEffect, useState } from 'react'
 import { useOutletContext, Link, useSearchParams } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import {
@@ -72,7 +72,7 @@ const TABS = [
   { id: 'completed', label: 'Завершённые', icon: <Package size={14} /> }, { id: 'waxup', label: 'Wax-Up / Smile Design', icon: <FlaskConical size={14} /> },
 ]
 interface OutletContext { clinic: Clinic & { id: string }; user: UserType; roleInfo?: RoleInfo }
-function escapeHtml(str: string): string { if (!str) return ''; return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\"/g, '&quot;').replace(/'/g, '&#039;') }
+function escapeHtml(str: string): string { if (!str) return ''; return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#039;') }
 function isWaxUpOrder(order: LabOrder & { labType?: string }): boolean { const type = (order.labType || '').toLowerCase(); const notes = order.notes || ''; return type.includes('wax') || /wax-up/i.test(notes) }
 function printWorkOrder(order: Partial<LabOrder>): void {
   const labType = order.labType || order.type; const labTypeLabel = LAB_TYPES.find(t => t.value === labType)?.label || labType; const materialLabel = MATERIALS.find(m => m.value === order.material)?.label || order.material
