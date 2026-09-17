@@ -36,7 +36,7 @@ The complete pre-2026-09-14 execution history is preserved in the parent Git his
 - Workflow run `34844649917` executed against exact HEAD `cb9d420fa758977f007bfadb0e640efec194c5c3`.
 - E2E job `103977529587` failed in the `Run E2E suite` step before any test executed.
 - Exact failure: `SyntaxError: e2e/tests/appointment.spec.ts: Unexpected token (260:4)`. The malformed APPT-009 request had `{ headers: { Authorization: \\`*** },` instead of a valid closing template literal/object structure.
-- Backend, frontend, database sync, seed, TypeScript, build, unit tests, backend lint and frontend lint all completed successfully in the same workflow run; the failure was isolated to the E2E test source syntax.
+- Backend, frontend, database sync, TypeScript, build, unit tests, backend lint and frontend lint all completed successfully in the same workflow run; the failure was isolated to the E2E test source syntax.
 
 ## 2026-09-16 — Ecosystem clinical-case continuity and Market pass
 
@@ -103,7 +103,7 @@ The complete pre-2026-09-14 execution history is preserved in the parent Git his
 
 ### Implemented
 - `bdd243074031784c56b8563acea59779bbc9c311` — the new clinical migration materializes the canonical `treatment_cases` links for appointments, dental-lab orders, invoices, treatment plans, diagnostic referrals and visits. Existing historical records remain unlinked rather than being guessed into cases.
-- The authoritative `treatmentCase.routes.ts` now exposes the canonical case graph, scoped detail, update/archive, and explicit safe link/unlink operations. The graph reads the new nullable columns through clinic-scoped raw SQL.
+- The authoritative `treatmentCase.routes.ts` exposes the canonical case graph, scoped detail, update/archive, and explicit safe link/unlink operations. The graph reads the new nullable columns through clinic-scoped raw SQL.
 - `useTreatmentCase.ts` provides the frontend query/mutation layer for canonical case detail and record linking.
 - `ClinicalCaseWorkspace` consumes the persisted case graph when `caseId` is present while retaining patient-scoped fallback for legacy/no-case context.
 
@@ -123,3 +123,35 @@ The complete pre-2026-09-14 execution history is preserved in the parent Git his
 - Then wire case identity into creation/update paths so records created from a Case inherit the case automatically rather than requiring manual linking.
 - Continue Medical Laboratory result lifecycle and Dental Laboratory production lifecycle.
 - Finish premium visual/Figma pass, then run the complete release gates.
+
+## 2026-09-17 — Prisma Case relations + automatic Case inheritance
+
+### Implemented
+- `17afeef5ace66fbfc14378f9ad7a190caa462079` — added the shared `treatmentCaseContext.ts` resolver. Explicit case IDs are clinic/patient checked; when no case is supplied, automatic inheritance is allowed only when the patient has exactly one active/on-hold case. Multiple concurrent cases are never guessed.
+- `18daf5fc18da70cdac065f453a2ac83cb02e32a8` — added the canonical relational migration layer: indexes and foreign keys from appointments, dental-lab orders, invoices, treatment plans, diagnostic referrals and visits to `treatment_cases`.
+- The same migration installs a database-level create trigger. This makes automatic case inheritance writer-independent: Prisma, legacy REST, partner flows, jobs and future services all receive the same deterministic behavior.
+- Explicit case links are validated against the patient and clinic; historical rows remain untouched unless explicitly linked/backfilled.
+- `df6425bec054dbc08c6bd1acc7d31c04af185721` — added a one-time repository synchronizer that updates the canonical `schema.prisma` with `treatmentCaseId` scalar fields, Prisma relations and reverse `TreatmentCase` collections, runs `prisma format`, commits the synchronized schema, and removes itself. This was introduced because the connected GitHub file API only permits whole-file replacement and the large schema could not safely be reconstructed in-session without an automated exact-text transformation.
+
+### Coverage
+- CRM appointments: create-time inheritance via database trigger.
+- CRM visits: create-time inheritance via database trigger.
+- CRM treatment plans: create-time inheritance via database trigger.
+- Diagnostics referrals: create-time inheritance via database trigger.
+- Dental Laboratory orders: create-time inheritance via database trigger; existing order meta continues to expose `treatmentCaseId`.
+- Finance invoices: create-time inheritance via database trigger; clinical payment continues to settle through the invoice's canonical Finance Core record.
+
+### Safety model
+- Explicit `treatmentCaseId` is never accepted merely because the UUID exists: the trigger verifies the case belongs to the same patient and clinic.
+- With no explicit case, exactly one active/on-hold case is required for automatic inheritance.
+- Two or more active cases leave the link null rather than silently attaching clinical data to the wrong case.
+- Updating a record to explicitly unlink a case remains possible because the automatic trigger is INSERT-only.
+
+### Verification status
+- CI/E2E were intentionally not run, per build-first instruction.
+- The schema synchronizer is also not yet independently verified by CI; the resulting `main` state must be treated as UNVERIFIED until the later Prisma generate/build/release-gate pass.
+
+### Next action
+- Confirm the synchronizer's resulting `schema.prisma` state and generated Prisma client contract.
+- Replace any remaining route-local case metadata propagation with the canonical Prisma relation where the generated client supports it.
+- Then continue the full Case → Diagnostics → Medical Lab → Dental Lab → Finance → Market → AI vertical lifecycle and premium visual/Figma pass before one final release-gate run.
