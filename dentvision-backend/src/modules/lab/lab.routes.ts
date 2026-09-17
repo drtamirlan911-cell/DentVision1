@@ -38,6 +38,31 @@ export const VALID_STATUSES = [
   'ready', 'delivered', 'remake', 'delayed', 'cancelled',
 ] as const;
 
+let dentalLabOrderEventsReady: Promise<void> | null = null;
+function ensureDentalLabOrderEventsTable(): Promise<void> {
+  if (dentalLabOrderEventsReady) return dentalLabOrderEventsReady;
+  dentalLabOrderEventsReady = prisma.$executeRawUnsafe(`
+    CREATE TABLE IF NOT EXISTS "dental_lab_order_events" (
+      "id" TEXT NOT NULL,
+      "labOrderId" TEXT NOT NULL,
+      "clinicId" TEXT NOT NULL,
+      "fromStatus" TEXT NOT NULL,
+      "toStatus" TEXT NOT NULL,
+      "actorUserId" TEXT NOT NULL,
+      "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      CONSTRAINT "dental_lab_order_events_pkey" PRIMARY KEY ("id")
+    )
+  `).then(async () => {
+    await prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "dental_lab_order_events_labOrderId_createdAt_idx" ON "dental_lab_order_events"("labOrderId", "createdAt")`);
+    await prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "dental_lab_order_events_clinicId_createdAt_idx" ON "dental_lab_order_events"("clinicId", "createdAt")`);
+    await prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "dental_lab_order_events_actorUserId_createdAt_idx" ON "dental_lab_order_events"("actorUserId", "createdAt")`);
+  }).catch((error) => {
+    dentalLabOrderEventsReady = null;
+    throw error;
+  });
+  return dentalLabOrderEventsReady;
+}
+
 function serializeLabOrder(order: {
   id: string; clinicId: string; patientId: string | null; labName: string | null;
   status: string; type: string | null; notes: string | null; files: unknown;
@@ -145,6 +170,7 @@ labRouter.patch('/:id/status', requirePermission('appointment.write'), async (re
     if (!status || !VALID_STATUSES.includes(status as typeof VALID_STATUSES[number])) return res.status(400).json({ ok: false, error: `Недопустимый статус. Допустимые: ${VALID_STATUSES.join(', ')}` } satisfies ApiResponse);
     const owned = await prisma.labOrder.findFirst({ where: { id: req.params.id as string, clinicId }, select: { id: true, status: true, patientId: true, doctorId: true } });
     if (!owned) return res.status(404).json({ ok: false, error: 'Заказ лаборатории не найден' } satisfies ApiResponse);
+    await ensureDentalLabOrderEventsTable();
     const order = await prisma.labOrder.update({ where: { id: req.params.id as string }, data: { status: status as any } });
     await prisma.$executeRawUnsafe(`INSERT INTO "dental_lab_order_events" ("id","labOrderId","clinicId","fromStatus","toStatus","actorUserId","createdAt") VALUES ($1,$2,$3,$4,$5,$6,CURRENT_TIMESTAMP)`, uid(), order.id, clinicId, owned.status, order.status, req.user!.id);
     publish('labOrder.status_changed', { clinicId, labOrderId: order.id, patientId: owned.patientId || undefined, doctorId: owned.doctorId || undefined, status: order.status, previousStatus: owned.status, userId: req.user?.id });
