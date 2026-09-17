@@ -2,7 +2,8 @@ import type { Response, NextFunction } from 'express';
 import prisma from '../lib/prisma.js';
 import type { AuthRequest } from '../types/index.js';
 import type { UserRole } from '@prisma/client';
-import { roleHasPermission, LEGACY_KEY_MAP, type PermissionKey } from '../lib/permissions.js';
+import { permissionsSatisfy, roleHasPermission, LEGACY_KEY_MAP, type PermissionKey } from '../lib/permissions.js';
+import { resolveUserPermissions } from '../lib/resolvePermissions.js';
 
 const ROLE_HIERARCHY: Record<string, number> = {
   SUPERADMIN: 5,
@@ -79,10 +80,16 @@ export function requiresClinicalMedicalManage(req: AuthRequest, keys: string[]):
 
 /**
  * Requires the authenticated user's permissions to grant ALL of the given keys.
- * Source of truth: the DB Person → PersonRole → Role → Permission graph (backfilled
- * by migrate-unified-schema.ts), with a hardcoded fallback to the shared role
- * matrix for users/personas not yet present in the unified tables.
- * Deny-by-default: unknown roles/permissions are rejected.
+ * Source of truth: the DB Person → PersonRole → Role → Permission graph, merged
+ * with the canonical scoped role baseline. This is important for compound
+ * clinic roles: one person may be OWNER and DOCTOR in the same organization.
+ *
+ * The resolver is deliberately used here instead of duplicating a direct
+ * PersonRole query. The old implementation treated the DB role graph as an
+ * exclusive replacement for the canonical role matrix. A stale/incomplete
+ * PersonRole assignment could therefore remove `medical.manage` from an OWNER,
+ * while the rest of the IAM stack correctly resolved that permission. That made
+ * the treatment-plan approval button appear usable but return 403.
  */
 export function requirePermission(...keys: (PermissionKey | string)[]) {
   return async (req: AuthRequest, res: Response, next: NextFunction) => {
@@ -91,51 +98,32 @@ export function requirePermission(...keys: (PermissionKey | string)[]) {
         return res.status(401).json({ ok: false, error: 'Требуется авторизация' });
       }
 
-      // SUPERADMIN bypass
       if (req.user.role === 'SUPERADMIN') return next();
 
       const effectiveKeys = requiresClinicalMedicalManage(req, keys)
         ? [...keys.filter((key) => key !== 'patient.write' && key !== 'medical.write'), 'medical.manage']
         : keys;
 
-      // DB-based check via Person → PersonRole → Role → Permission.
       const scopeId = req.user.organizationId || req.user.clinicId;
-      if (scopeId) {
-        const person = await prisma.person.findFirst({
-          where: { userId: req.user.id, organizationId: scopeId },
-          include: {
-            personRoles: {
-              include: { role: { include: { permissions: { include: { permission: true } } } } },
-            },
-          },
-        });
-        if (person) {
-          const userPerms = new Set<string>();
-          for (const pr of person.personRoles) {
-            for (const rp of pr.role.permissions) userPerms.add(rp.permission.key);
-          }
-          // Map legacy route keys (e.g. 'patient.read') to DB vocabulary (e.g. 'patients.read')
-          // so the Person→Role→Permission graph is actually used instead of always
-          // falling through to the matrix fallback.
-          const resolved = effectiveKeys.map((k) => (LEGACY_KEY_MAP as Record<string, string>)[k] || k);
-          if (resolved.every((k) => userPerms.has(k))) return next();
-          // A Person record with roles makes the DB permission graph authoritative.
-          // Falling through to the matrix here would re-grant permissions that were
-          // deliberately removed from a DB role (additive-only flaw, audit R-1).
-          // Persons created without any role (radiologist/operator) still fall
-          // through to the narrower legacy check below.
-          if (person.personRoles.length > 0) {
-            return res.status(403).json({ ok: false, error: 'Недостаточно прав' });
-          }
-        }
+      const permissions = await resolveUserPermissions(
+        req.user.id,
+        scopeId,
+        req.user.role,
+      );
+      const granted = new Set(permissions);
+      const resolved = effectiveKeys.map((key) => (LEGACY_KEY_MAP as Record<string, string>)[key] || key);
+
+      if (resolved.every((key) => permissionsSatisfy(granted, key))) return next();
+
+      // Preserve the legacy fallback only when the unified resolver has no
+      // usable grants at all. This keeps legacy-only users operational without
+      // allowing an empty scoped policy to manufacture new permissions.
+      if (permissions.length === 0) {
+        const allowed = effectiveKeys.every((key) => roleHasPermission(req.user!.role, key));
+        if (allowed) return next();
       }
 
-      // Fallback to the hardcoded role matrix.
-      const allowed = effectiveKeys.every((k) => roleHasPermission(req.user!.role, k));
-      if (!allowed) {
-        return res.status(403).json({ ok: false, error: 'Недостаточно прав' });
-      }
-      next();
+      return res.status(403).json({ ok: false, error: 'Недостаточно прав' });
     } catch (error) {
       console.error('[requirePermission] error:', error);
       return res.status(500).json({ ok: false, error: 'Ошибка проверки прав' });
