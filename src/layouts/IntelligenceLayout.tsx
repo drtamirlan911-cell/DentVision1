@@ -1,13 +1,11 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { useTranslation } from 'react-i18next';
+import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Outlet, useNavigate, useLocation, Navigate } from 'react-router-dom';
-import { ChevronRight, Menu, Building2, User, Stethoscope } from 'lucide-react';
+import { Menu, User } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { useAuth, useAuthStore } from '@/store/auth.store';
+import { useAuth } from '@/store/auth.store';
 import { useUIStore } from '@/store/ui.store';
 import { useGuestStore } from '@/store/guest.store';
-import { useWorkspaceStore } from '@/store/workspace.store';
 import { ContextPanel } from '@/components/intelligence/ContextPanel';
 import { CommandPalette, useCommandPalette } from '@/components/CommandPalette';
 import { useAIStore } from '@/store/ai.store';
@@ -18,11 +16,8 @@ import { BottomNav } from './BottomNav';
 import RegistrationModal from '@/components/guest/RegistrationModal';
 import GuestCRMModal from '@/components/guest/GuestCRMModal';
 import { WorkspaceSwitcher } from '@/components/WorkspaceSwitcher';
-import { PlanAccessBanner } from '@/components/billing/PlanAccessBanner';
 import { DentCashHeaderChip } from '@/components/wallet/DentCashHeaderChip';
 import { useCompactShell } from '@/hooks/useCompactShell';
-import { useQuery } from '@tanstack/react-query';
-import * as api from '@/utils/api';
 import LanguageSwitcher from '@/components/LanguageSwitcher';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { ClinicalAIContextBridge } from '@/components/superapp/ClinicalAIContextBridge';
@@ -30,59 +25,51 @@ import EcosystemCaseFlow from '@/components/ecosystem/EcosystemCaseFlow';
 import { useEcosystemUrlContext } from '@/hooks/useEcosystemUrlContext';
 
 const FIRST_RUN_COLLAPSE_MS = 15_000;
-const UUID_SEG_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 export const IntelligenceLayout: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  const { user, clinic, isAuthenticated, roleInfo, logout } = useAuth();
-  const { isGuest, isGuestRoute, requiresAuth, initGuest, retryGuest, initError, showRegistrationModal, setRegistrationModal } = useGuestStore();
-  const { isMobile } = useCompactShell();
-  const { sidebarCollapsed, setSidebarCollapsed, sidebarVisible, setSidebarVisible, sidebarOpen, setSidebarOpen, completeFirstRun, onboardingComplete, setOnboardingComplete, firstRunPhase, setFirstRunPhase } = useUIStore();
-  const { currentWorkspace } = useWorkspaceStore();
-  const { t } = useTranslation();
+  const { user, isAuthenticated, roleInfo, logout } = useAuth();
+  const { isGuest, isGuestRoute, requiresAuth, initGuest, showRegistrationModal, setRegistrationModal } = useGuestStore();
+  const isMobile = useCompactShell();
+  const {
+    sidebarCollapsed,
+    setSidebarCollapsed,
+    sidebarVisible,
+    setSidebarVisible,
+    sidebarOpen,
+    setSidebarOpen,
+    completeFirstRun,
+    firstRunPhase,
+    setFirstRunPhase,
+  } = useUIStore();
   const { open: cmdOpen, setOpen: setCmdOpen } = useCommandPalette();
   const [contextSheetOpen, setContextSheetOpen] = useState(false);
   const [guestCRMOpen, setGuestCRMOpen] = useState(false);
+  const [alertOpen, setAlertOpen] = useState(false);
   const openTs = useRef(Date.now());
   const caseContext = useEcosystemUrlContext();
-  const aiQuery = useAIStore(s => s.query);
   const setAiQuery = useAIStore(s => s.setQuery);
-  const isPublicRoute = isGuestRoute(location.pathname) || location.pathname === '/' || location.pathname === '/ai';
+
   const isLoginRoute = ['/login', '/register', '/forgot-password', '/booking'].some(p => location.pathname.startsWith(p));
   const isCRMRoute = location.pathname.startsWith('/crm');
   const needsAuth = requiresAuth(location.pathname) && !isAuthenticated;
-  const autoDemo = new URLSearchParams(location.search).get('demo') === '1';
 
-  const { data: alerts = [] } = useQuery({
-    queryKey: ['alerts', user?.id],
-    queryFn: () => api.getAlerts(),
-    enabled: Boolean(isAuthenticated && user?.id),
-  });
+  const handleAIQuery = useCallback((query: string) => {
+    setAiQuery(query);
+    navigate('/ai');
+  }, [navigate, setAiQuery]);
 
   useEffect(() => {
-    if (firstRunPhase === 'opening' && !onboardingComplete) {
-      const timer = window.setTimeout(() => {
-        completeFirstRun(); setOnboardingComplete(true); setFirstRunPhase('done'); setSidebarVisible(true);
-        trackProductEvent('first_navigation', { target: location.pathname, t_ms: Date.now() - openTs.current });
-      }, FIRST_RUN_COLLAPSE_MS);
-      return () => window.clearTimeout(timer);
-    }
-  }, [location.pathname, firstRunPhase, completeFirstRun, setOnboardingComplete, setFirstRunPhase, setSidebarVisible, onboardingComplete]);
-
-  useEffect(() => {
-    const isClinicPage = location.pathname.startsWith('/crm') || location.pathname === '/analytics' || location.pathname === '/bi';
-    if (!isClinicPage || !isAuthenticated || isGuest) return;
-    const orgType = user?.organizationType;
-    if (!orgType || orgType === 'CLINIC') return;
-    try {
-      const raw = localStorage.getItem('dv_clinic_backup');
-      if (!raw) return;
-      const { accessToken, refreshToken } = JSON.parse(raw);
-      api.setTokens(accessToken, refreshToken || null);
-      void useAuthStore.getState().restoreSession();
-    } catch { /* ignore */ }
-  }, [location.pathname, isAuthenticated, isGuest, user?.organizationType]);
+    if (firstRunPhase !== 'greeting') return;
+    const timer = window.setTimeout(() => {
+      completeFirstRun();
+      setFirstRunPhase('done');
+      setSidebarVisible(true);
+      trackProductEvent('first_navigation', { target: location.pathname, t_ms: Date.now() - openTs.current });
+    }, FIRST_RUN_COLLAPSE_MS);
+    return () => window.clearTimeout(timer);
+  }, [location.pathname, firstRunPhase, completeFirstRun, setFirstRunPhase, setSidebarVisible]);
 
   useEffect(() => {
     if (!isAuthenticated && !isGuest && !isLoginRoute) void initGuest();
@@ -90,7 +77,10 @@ export const IntelligenceLayout: React.FC = () => {
 
   useEffect(() => {
     if (!needsAuth || !isGuest) return;
-    if (isCRMRoute) { setGuestCRMOpen(true); return; }
+    if (isCRMRoute) {
+      setGuestCRMOpen(true);
+      return;
+    }
     if (!showRegistrationModal) {
       const pendingPath = location.pathname;
       setRegistrationModal(true, () => navigate(pendingPath));
@@ -117,11 +107,6 @@ export const IntelligenceLayout: React.FC = () => {
     return <div className="fixed inset-0 z-50 grid place-items-center bg-surface-0"><div className="h-8 w-8 animate-spin rounded-full border-4 border-dv-gold/30 border-t-dv-gold" aria-label="Загрузка" /></div>;
   }
 
-  const handleAIQuery = useCallback((query: string) => {
-    setAiQuery(query);
-    navigate('/ai');
-  }, [navigate, setAiQuery]);
-
   return (
     <div className="min-h-screen bg-surface-0 text-foreground">
       <Sidebar collapsed={sidebarCollapsed} setCollapsed={setSidebarCollapsed} sidebarVisible={sidebarVisible} isMobile={isMobile} sidebarOpen={sidebarOpen} user={user} roleInfo={roleInfo} logout={logout} toggleSidebar={() => setSidebarOpen(!sidebarOpen)} isGuest={isGuest} />
@@ -129,7 +114,7 @@ export const IntelligenceLayout: React.FC = () => {
         <header className="sticky top-0 z-30 flex h-16 items-center gap-3 border-b border-[var(--dv-border)] bg-[var(--dv-sidebar)]/95 px-4 backdrop-blur-xl">
           {isMobile && <button type="button" aria-label="Открыть меню" onClick={() => setSidebarOpen(true)} className="rounded-xl p-2 text-[var(--dv-muted)] hover:bg-[var(--dv-nav-hover)]"><Menu size={19} /></button>}
           <WorkspaceSwitcher />
-          <div className="ml-auto flex items-center gap-2"><LanguageSwitcher /><AlertDropdown alerts={alerts as any} /><DentCashHeaderChip /></div>
+          <div className="ml-auto flex items-center gap-2"><LanguageSwitcher /><AlertDropdown alerts={[]} isOpen={alertOpen} setIsOpen={setAlertOpen} /><DentCashHeaderChip /></div>
         </header>
         <main className="relative min-h-[calc(100vh-4rem)]">
           <ErrorBoundary><Outlet /></ErrorBoundary>
