@@ -67,11 +67,19 @@ export function createIamResolver(ctx: IamContext): IamResolver {
     ? (Array.from(new Set(ctx.permissions.filter(isIamPermission))) as IamPermission[])
     : permissionsForRole(role)
 
-  // When the backend sends pages, they are authoritative. Legacy pages are used
-  // only when the server has not supplied a page policy at all.
-  const pages = Array.isArray(ctx.pages)
-    ? Array.from(new Set(ctx.pages))
-    : Array.from(new Set(roleInfo.pages || []))
+  // A non-empty server page policy is authoritative. An empty/missing page list
+  // is treated as an unavailable policy and falls back to the active role matrix;
+  // this prevents a transient/legacy /me response from locking the entire app.
+  const serverPages = Array.isArray(ctx.pages) ? ctx.pages.filter(Boolean) : []
+  const fallbackPages = Array.isArray(roleInfo.pages) && roleInfo.pages.length > 0
+    ? roleInfo.pages
+    : []
+  const roleMatrixPages = permissionsForRole(role).length > 0
+    ? fallbackPages
+    : fallbackPages
+  const pages = Array.from(new Set(
+    serverPages.length > 0 ? serverPages : roleMatrixPages,
+  ))
 
   const capabilities = ctx.capabilities || {
     canSeeSalary: !!roleInfo.canSeeSalary,
