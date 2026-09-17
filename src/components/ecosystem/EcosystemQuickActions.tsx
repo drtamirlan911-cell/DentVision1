@@ -18,5 +18,5 @@ function ActionCard({ item, onNavigate }: { item: WorkspaceAction; onNavigate: (
 
 export default function EcosystemQuickActions({ limit = 6 }: { limit?: number }) {
   const navigate = useNavigate(); const { participant } = useEcosystemContext(); const workspace = workspaceForParticipant(participant);
-  return <section><div className="mb-3 flex items-end justify-between gap-3"><div><h3 className="text-base font-semibold text-txt-primary">Быстрые действия</h3><p className="mt-1 text-sm text-txt-muted">Следующие действия для вашего рабочего контекста.</p></div></div><div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">{workspace.actions.slice(0, limit).map(item => <ActionCard key={item.id} item={item} onNavigate={navigate} />)}</div></div></section>;
+  return <section><div className="mb-3 flex items-end justify-between gap-3"><div><h3 className="text-base font-semibold text-txt-primary">Быстрые действия</h3><p className="mt-1 text-sm text-txt-muted">Следующие действия для вашего рабочего контекста.</p></div></div><div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">{workspace.actions.slice(0, limit).map(item => <ActionCard key={item.id} item={item} onNavigate={navigate} />)}</div></section>;
 }
