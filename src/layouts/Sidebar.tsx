@@ -1,5 +1,5 @@
 import React from 'react';
-import { EcosystemSidebar } from './EcosystemSidebar';
+import EcosystemSidebar from './EcosystemSidebar';
 import type { User as UserType } from '@/types';
 import { usePendingApprovalCount } from '@/queries/ai.query';
 import { useIam } from '@/iam';
@@ -25,7 +25,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ collapsed, setCollapsed, sideb
   const iam = useIam();
   const canSeeApprovals = !isGuest && iam.canAccessPage('ai-approvals');
   const pendingApprovals = usePendingApprovalCount(canSeeApprovals);
-  const isAdmin = !isGuest && (iam.pages.includes('admin'));
+  const isAdmin = !isGuest && iam.pages.includes('admin');
   return <EcosystemSidebar collapsed={collapsed} setCollapsed={setCollapsed} sidebarVisible={sidebarVisible} isMobile={isMobile} sidebarOpen={sidebarOpen} user={user} logout={logout} toggleSidebar={toggleSidebar} isGuest={isGuest} pendingApprovals={pendingApprovals || 0} isAdmin={isAdmin} />;
 };
 export default Sidebar;
