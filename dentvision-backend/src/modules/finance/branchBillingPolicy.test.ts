@@ -8,6 +8,15 @@ import {
 } from './branchBillingPolicy.js';
 
 describe('branch billing policy', () => {
+  it('does not charge when an organization has no active branches', () => {
+    expect(quoteBranchSubscription('DIAGNOSTIC_CENTER', 0)).toMatchObject({
+      activeBranches: 0,
+      billableBranches: 0,
+      monthlyAmountTenge: 0,
+      enabled: false,
+    });
+  });
+
   it('uses one billable branch for a single-location diagnostic organization', () => {
     expect(quoteBranchSubscription('DIAGNOSTIC_CENTER', 1)).toMatchObject({
       activeBranches: 1,
