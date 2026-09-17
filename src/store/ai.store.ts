@@ -12,7 +12,7 @@ export interface SuggestionChip { id: string; label: string; action?: string }
 export interface ProactiveAlert { id: string; type: string; category: string; text: string; priority: number; action?: { type: string }; acknowledged?: boolean; resolved?: boolean }
 
 interface AIState {
-  status: AIStatus; currentIntent: string | null; currentAction: string | null
+  status: AIStatus; currentIntent: string | null; currentAction: string | null; query: string
   conversationContext: { role: 'user' | 'assistant' | 'system'; content: string; intent?: string; action?: { type: string; payload: any } }[]
   messages: Message[]; suggestions: SuggestionChip[]; proactiveAlerts: ProactiveAlert[]; progress: number; sessionId: string | null; errorMessage: string | null
   executePrompt: (text: string) => Promise<void>; sendConfirmation: (confirmed: boolean, data?: any) => Promise<void>
@@ -20,12 +20,12 @@ interface AIState {
   clearConversation: () => void; setSuggestions: (suggestions: SuggestionChip[]) => void; setSuggestionsFromStrings: (labels: string[]) => void
   addMessage: (msg: Message) => void; setMessages: (msgs: Message[]) => void; addProactiveAlert: (alert: ProactiveAlert) => void; setProactiveAlerts: (alerts: ProactiveAlert[]) => void
   acknowledgeAlert: (id: string) => void; resolveAlert: (id: string) => void; setProgress: (progress: number) => void; setErrorMessage: (msg: string | null) => void
-  setAIStatus: (status: AIStatus) => void; setCurrentIntent: (intent: string | null) => void; setCurrentAction: (action: string | null) => void; resetAI: () => void
+  setAIStatus: (status: AIStatus) => void; setCurrentIntent: (intent: string | null) => void; setCurrentAction: (action: string | null) => void; setQuery: (query: string) => void; resetAI: () => void
 }
 
 export const useAIStore = create<AIState>((set, get) => ({
-  status: 'idle', currentIntent: null, currentAction: null, conversationContext: [], messages: [], suggestions: [], proactiveAlerts: [], progress: 0, sessionId: null, errorMessage: null,
-  setAIStatus: status => set({ status }), setCurrentIntent: currentIntent => set({ currentIntent }), setCurrentAction: currentAction => set({ currentAction }),
+  status: 'idle', currentIntent: null, currentAction: null, query: '', conversationContext: [], messages: [], suggestions: [], proactiveAlerts: [], progress: 0, sessionId: null, errorMessage: null,
+  setAIStatus: status => set({ status }), setCurrentIntent: currentIntent => set({ currentIntent }), setCurrentAction: currentAction => set({ currentAction }), setQuery: query => set({ query }),
   addMessage: msg => set(state => ({ messages: [...state.messages, msg] })), setMessages: messages => set({ messages }),
   setSuggestions: suggestions => set({ suggestions }), setSuggestionsFromStrings: labels => set({ suggestions: labels.map((label, i) => ({ id: `s-${i}`, label })) }),
   addProactiveAlert: alert => set(state => ({ proactiveAlerts: [...state.proactiveAlerts, alert].sort((a,b) => b.priority-a.priority).slice(0,8) })),
@@ -47,7 +47,7 @@ export const useAIStore = create<AIState>((set, get) => ({
   },
 
   executePrompt: async text => {
-    const { sessionId, conversationContext } = get(); set({ status: 'thinking', errorMessage: null })
+    const { sessionId, conversationContext } = get(); set({ status: 'thinking', errorMessage: null, query: text })
     const history = conversationContext.map(m => ({ role: m.role, content: m.content }))
     const userMsg: Message = { id: crypto.randomUUID(), role: 'user', content: text, timestamp: new Date() }
     try {
@@ -76,8 +76,8 @@ export const useAIStore = create<AIState>((set, get) => ({
     } catch { /* proactive AI must never block the workspace */ }
   },
 
-  clearConversation: () => set({messages:[],conversationContext:[],currentIntent:null,currentAction:null,status:'idle',errorMessage:null}),
-  resetAI: () => set({status:'idle',currentIntent:null,currentAction:null,messages:[],conversationContext:[],suggestions:[],proactiveAlerts:[],progress:0,errorMessage:null}),
+  clearConversation: () => set({messages:[],conversationContext:[],currentIntent:null,currentAction:null,status:'idle',errorMessage:null,query:''}),
+  resetAI: () => set({status:'idle',currentIntent:null,currentAction:null,messages:[],conversationContext:[],suggestions:[],proactiveAlerts:[],progress:0,errorMessage:null,query:''}),
 }))
 
 export const useAiStore = useAIStore
