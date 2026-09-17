@@ -48,9 +48,10 @@ export const IntelligenceLayout: React.FC = () => {
   const caseContext = useEcosystemUrlContext();
   const aiQuery = useAIStore(s => s.query);
   const setAiQuery = useAIStore(s => s.setQuery);
-  const isPublicRoute = ['/login', '/register', '/forgot-password', '/booking'].some(p => location.pathname.startsWith(p));
+  const isPublicRoute = isGuestRoute(location.pathname) || location.pathname === '/' || location.pathname === '/ai';
+  const isLoginRoute = ['/login', '/register', '/forgot-password', '/booking'].some(p => location.pathname.startsWith(p));
   const isCRMRoute = location.pathname.startsWith('/crm');
-  const needsAuth = requiresAuth || (!isAuthenticated && !isGuestRoute && !isPublicRoute);
+  const needsAuth = requiresAuth(location.pathname) && !isAuthenticated;
   const autoDemo = new URLSearchParams(location.search).get('demo') === '1';
 
   const { data: alerts = [] } = useQuery({
@@ -84,8 +85,8 @@ export const IntelligenceLayout: React.FC = () => {
   }, [location.pathname, isAuthenticated, isGuest, user?.organizationType]);
 
   useEffect(() => {
-    if (!isAuthenticated && !isGuest && !isPublicRoute) void initGuest();
-  }, [isAuthenticated, isGuest, isPublicRoute, initGuest]);
+    if (!isAuthenticated && !isGuest && !isLoginRoute) void initGuest();
+  }, [isAuthenticated, isGuest, isLoginRoute, initGuest]);
 
   useEffect(() => {
     if (!needsAuth || !isGuest) return;
@@ -113,7 +114,7 @@ export const IntelligenceLayout: React.FC = () => {
       }
       return <Navigate to="/login" replace state={{ from: location.pathname }} />;
     }
-    return null;
+    return <div className="fixed inset-0 z-50 grid place-items-center bg-surface-0"><div className="h-8 w-8 animate-spin rounded-full border-4 border-dv-gold/30 border-t-dv-gold" aria-label="Загрузка" /></div>;
   }
 
   const handleAIQuery = useCallback((query: string) => {
