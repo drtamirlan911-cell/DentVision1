@@ -2,7 +2,6 @@ import prisma from './prisma.js';
 
 /**
  * Resolves the canonical TreatmentCase for a CRM write.
- *
  * A case is never inferred from free-form notes. The caller may provide
  * treatmentCaseId explicitly, or we can resolve one from the patient when
  * exactly one active case exists. Ambiguous patients intentionally remain
@@ -32,7 +31,7 @@ export async function resolveTreatmentCaseId(input: {
     where: {
       patientId: input.patientId,
       clinicId: input.clinicId,
-      status: { notIn: ['completed', 'cancelled'] },
+      status: { not: 'completed' },
     },
     select: { id: true },
     orderBy: { updatedAt: 'desc' },
