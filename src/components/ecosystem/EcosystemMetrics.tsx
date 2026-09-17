@@ -28,21 +28,21 @@ export default function EcosystemMetrics({ values = {} }: Props) {
   return (
     <section>
       <div className="mb-3">
-        <h3 className="text-base font-semibold text-foreground">Контур рабочего пространства</h3>
-        <p className="mt-1 text-sm text-muted-foreground">Метрики показываются только при наличии реальных данных.</p>
+        <h3 className="text-base font-semibold text-txt-primary">Контур рабочего пространства</h3>
+        <p className="mt-1 text-sm text-txt-muted">Метрики показываются только при наличии реальных данных.</p>
       </div>
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         {workspace.metrics.map((item) => {
           const Icon = icons[item.id] || Activity;
           const value = values[item.id];
           return (
-            <div key={item.id} className="rounded-2xl border border-border bg-surface p-4">
+            <div key={item.id} className="rounded-2xl border border-bdr-subtle bg-surface-1 p-4">
               <div className="flex items-center justify-between gap-2">
-                <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{item.label}</span>
-                <Icon size={16} className="text-muted-foreground" />
+                <span className="text-xs font-medium uppercase tracking-wide text-txt-muted">{item.label}</span>
+                <Icon size={16} className="text-txt-muted" />
               </div>
-              <div className="mt-3 text-2xl font-semibold text-foreground">{value ?? '—'}</div>
-              <p className="mt-1 text-xs text-muted-foreground">{item.description}</p>
+              <div className="mt-3 text-2xl font-semibold text-txt-primary">{value ?? '—'}</div>
+              <p className="mt-1 text-xs text-txt-muted">{item.description}</p>
             </div>
           );
         })}
