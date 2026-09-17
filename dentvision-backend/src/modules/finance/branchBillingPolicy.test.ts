@@ -6,12 +6,13 @@ import {
 } from './branchBillingPolicy.js';
 
 describe('branch billing policy', () => {
-  it('uses one billable branch for a single-location organization', () => {
+  it('uses one billable branch for a single-location diagnostic organization', () => {
     expect(quoteBranchSubscription('DIAGNOSTIC_CENTER', 1)).toMatchObject({
       activeBranches: 1,
       billableBranches: 1,
       unitPriceTenge: 49_900,
       monthlyAmountTenge: 49_900,
+      enabled: true,
     });
   });
 
@@ -29,8 +30,17 @@ describe('branch billing policy', () => {
     expect(quoteBranchSubscription('DENTAL_LAB', 2).monthlyAmountTenge).toBe(59_800);
   });
 
-  it('supports the clinic network branch price', () => {
-    expect(quoteBranchSubscription('CLINIC', 2).monthlyAmountTenge).toBe(299_800);
+  it('allows branch pricing for a clinic only on NETWORK', () => {
+    expect(quoteBranchSubscription('CLINIC', 2, 'NETWORK')).toMatchObject({
+      enabled: true,
+      billableBranches: 2,
+      monthlyAmountTenge: 299_800,
+    });
+    expect(quoteBranchSubscription('CLINIC', 2, 'PRO')).toMatchObject({
+      enabled: false,
+      billableBranches: 0,
+      monthlyAmountTenge: 0,
+    });
   });
 
   it('rejects invalid branch counts', () => {
