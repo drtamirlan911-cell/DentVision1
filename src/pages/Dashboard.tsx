@@ -13,7 +13,7 @@ import { getMyProfile, updateMyProfile } from '@/utils/api'
 import EcosystemContextBridge from '@/components/ecosystem/EcosystemContextBridge'
 
 const container = { hidden: { opacity: 0 }, show: { opacity: 1, transition: { staggerChildren: 0.045 } } }
-const item = { hidden: { opacity: 0, y: 8 }, show: { opacity: 1, y: 0, transition: { duration: 0.24, ease: 'easeOut' } } }
+const item = { hidden: { opacity: 0, y: 8 }, show: { opacity: 1, y: 0, transition: { duration: 0.24, ease: [0.22, 1, 0.36, 1] as const } } }
 
 type ServiceId = 'clinic' | 'diagnostics' | 'medical-lab' | 'dental-lab' | 'shop' | 'academy' | 'jobs' | 'network' | 'ai' | 'analytics' | 'finance' | 'settings'
 type ServiceTile = { id: ServiceId; title: string; subtitle: string; icon: React.ElementType; path: string }
