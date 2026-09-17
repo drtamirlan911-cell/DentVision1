@@ -81,24 +81,17 @@ import { patientPresentationRouter } from './modules/patient-presentation/patien
 import { patientConversationRouter } from './modules/patient-conversation/patientConversation.routes.js';
 import { patientInboxRouter } from './modules/patient-conversation/patientInbox.routes.js';
 import { crossClinicRouter } from './modules/cross-clinic/cross-clinic.routes.js';
+import { branchesRouter } from './modules/branches/branches.routes.js';
 import compatRouter from './compat/compatRouter.js';
 import { registerSubscribers } from './events/subscribers.js';
 import { registerWorkflowEngine } from './modules/workflow/workflow.engine.js';
 
-// Wire up domain-event subscribers (audit, etc.) once at import time.
 registerSubscribers();
-// Wire up clinic Workflow Studio automations to the same event bus.
 registerWorkflowEngine();
 
 const app = express();
-
-// ─── Global Middleware ───
 app.set('trust proxy', 1);
-
-// Always set CORS first — including on 4xx/5xx/429 — so browsers show real errors.
 app.use(corsGuard);
-
-// Helmet: keep security headers, but allow cross-origin browser fetches from Vercel.
 app.use(helmet({
   contentSecurityPolicy: {
     directives: {
@@ -118,7 +111,6 @@ app.use(helmet({
   hsts: { maxAge: 31536000, includeSubDomains: true, preload: true },
   referrerPolicy: { policy: 'strict-origin-when-cross-origin' },
 }));
-
 app.use(cors({
   origin(origin, cb) {
     if (isOriginAllowed(origin)) return cb(null, true);
@@ -130,34 +122,14 @@ app.use(cors({
   optionsSuccessStatus: 204,
   maxAge: 86400,
 }));
-
 app.use(cookieParser());
-
-// Capture raw body for webhook signature verification (before JSON parse)
 app.use(express.json({
   limit: '10mb',
   verify: (req: any, _res, buf) => { req.rawBody = buf },
 }));
-
 app.use(express.urlencoded({ extended: false }));
 app.use(csrfProtection);
 
-// Rate limiting — never throttle CORS preflight; always keep CORS headers on 429
-
-/**
- * A ceiling that can be raised for a test stack, but never lowered by accident.
- *
- * The defaults below *are* the production values: with no environment variable
- * set nothing changes. The end-to-end suite is the reason this exists — it logs
- * in dozens of times from one address within a couple of minutes and trips a
- * limiter sized for a human being, so every spec after the first fails with 429
- * and says nothing about the code under test.
- *
- * Only the general and auth ceilings are configurable. The AI limiter
- * deliberately is not: `ai.spec.ts` asserts that it returns 429, and a knob
- * that could switch that off would let the one rate-limit test in the suite be
- * disabled from the outside.
- */
 function limitFromEnv(name: string, fallback: number): number {
   const raw = Number(process.env[name]);
   return Number.isFinite(raw) && raw > 0 ? raw : fallback;
@@ -171,11 +143,7 @@ const apiLimiter = rateLimit({
   skip: (req) => req.method === 'OPTIONS',
   handler: (req, res, _next, options) => {
     applyCorsHeaders(req, res);
-    res.status(options.statusCode).json({
-      ok: false,
-      error: 'Слишком много запросов. Подождите немного.',
-      code: 'RATE_LIMIT',
-    });
+    res.status(options.statusCode).json({ ok: false, error: 'Слишком много запросов. Подождите немного.', code: 'RATE_LIMIT' });
   },
 });
 const authLimiter = rateLimit({
@@ -186,11 +154,7 @@ const authLimiter = rateLimit({
   skip: (req) => req.method === 'OPTIONS',
   handler: (req, res, _next, options) => {
     applyCorsHeaders(req, res);
-    res.status(options.statusCode).json({
-      ok: false,
-      error: 'Слишком много попыток входа. Подождите 15 минут.',
-      code: 'AUTH_RATE_LIMIT',
-    });
+    res.status(options.statusCode).json({ ok: false, error: 'Слишком много попыток входа. Подождите 15 минут.', code: 'AUTH_RATE_LIMIT' });
   },
 });
 const aiLimiter = rateLimit({
@@ -201,15 +165,6 @@ const aiLimiter = rateLimit({
   skip: (req) => req.method === 'OPTIONS',
   message: { ok: false, error: 'Слишком много AI-запросов. Подождите немного.', code: 'AI_RATE_LIMIT' },
 });
-/**
- * `GET /api/patients/lookup` answers "who is this IIN" with a name, phone and
- * email drawn from any clinic on the platform — by design, so a patient never
- * dictates their contact details twice. That also makes it the one route where
- * a valid session could be walked through a list of national IDs to harvest
- * contact data, so it gets a tighter budget than the rest of the API. A busy
- * front desk checks a few dozen people a day; this leaves room for that and
- * none for a sweep.
- */
 const iinLookupLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 120,
@@ -239,7 +194,6 @@ app.use('/api/guest/session', guestSessionLimiter);
 app.use('/api/guest/convert', authLimiter);
 app.use('/api/audit/backup', apiLimiter);
 
-// Webhook callbacks — tight limit (genuine callbacks are infrequent).
 const webhookLimiter = rateLimit({
   windowMs: 60 * 1000,
   max: 10,
@@ -252,7 +206,6 @@ const webhookLimiter = rateLimit({
 });
 app.use('/api/payments/callbacks', webhookLimiter);
 
-// ─── Health ───
 app.get('/api/health', async (_req, res) => {
   const database = await (async () => {
     const start = Date.now();
@@ -263,7 +216,6 @@ app.get('/api/health', async (_req, res) => {
       return { status: 'error' as const, error: err instanceof Error ? err.message : 'Query failed' };
     }
   })();
-
   const redis = await (async () => {
     const client = getRedis();
     if (!client) return { status: 'not_configured' as const };
@@ -275,22 +227,11 @@ app.get('/api/health', async (_req, res) => {
       return { status: 'error' as const, error: err instanceof Error ? err.message : 'Ping failed' };
     }
   })();
-
   const realtime = { status: 'ok' as const, activeConnections: sseManager.getTotalClients() };
-
-  res.json({
-    ok: true,
-    service: 'dentvision-backend',
-    version: '2.0.0',
-    timestamp: new Date().toISOString(),
-    checks: { database, redis, realtime },
-  });
+  res.json({ ok: true, service: 'dentvision-backend', version: '2.0.0', timestamp: new Date().toISOString(), checks: { database, redis, realtime } });
 });
 
-// ─── Legacy Compatibility (service-access/public) ───
 app.use('/api', compatRouter);
-
-// ─── Routes ───
 app.use('/api/auth', authRouter);
 app.use('/api/iam', iamRouter);
 app.use('/api/clinics', clinicsRouter);
@@ -332,7 +273,6 @@ app.use('/api/community', communityRouter);
 app.use('/api/public', publicRouter);
 app.use('/api/profile', profileRouter);
 app.use('/api/jobs', jobsRouter);
-// Hidden platform ops (no UI nav). SUPERADMIN role required (requirePlatformOps); else 404.
 app.use('/api/ops/suppliers', opsSuppliersRouter);
 app.use('/api/ops', opsHubRouter);
 app.use('/api/quality', qualityRouter);
@@ -345,48 +285,22 @@ app.use('/api/disputes', disputesRouter);
 app.use('/api/ai-admin/webhook', webhookGatewayRouter);
 app.use('/api/ai-governance', aiGovernanceRouter);
 app.use('/api/meta', metaRouter);
-
-// ─── Universal Organization / Person API (Phase 2) ───
 app.use('/api/organizations', organizationsRouter);
 app.use('/api/persons', personsRouter);
-// Mounted before the portal router so the assistant is not behind the
-// portal's blanket `requireConsent()` — a patient who has not yet accepted the
-// AI agreement still needs `/ai/status` to tell the UI to ask for it.
+app.use('/api/branches', branchesRouter);
 app.use('/api/patient-portal/ai', aiPatientRouter);
-// Beside the assistant, not under /api/ai: a patient's access to their own
-// approved plan must not depend on their clinic's billing plan.
 app.use('/api/patient-portal/presentation', patientPresentationRouter);
-// Same reasoning: a live thread the assistant already escalated into must
-// stay reachable even if the patient's AI consent lapses — this is a human
-// conversation, not the assistant.
 app.use('/api/patient-portal/conversation', patientConversationRouter);
 app.use('/api/patient-portal', patientPortalRouter);
 app.use('/api/cross-clinic', crossClinicRouter);
 app.use('/api/patient-inbox', patientInboxRouter);
 
-// ─── Restored after a silent regression in v2.0.0 ───
-//
-// These five were imported and mounted until `1d95e8ec`, a release-prep commit
-// whose own message says it was *restoring* routes so the deploy could boot. In
-// rewriting this file it dropped their `app.use` lines and left the imports, so
-// the Developer Platform, Workflow Studio, Data Intelligence and Partner
-// Program — and the public API-key surface — quietly 404'd for months. Nothing
-// failed: the imports kept it compiling and no test asked.
-//
-// Prefixes are the originals from that diff. Every one of these routers applies
-// `authenticate` at the router level and `requirePermission` on its mutating
-// routes (`v1Router` uses `authenticateApiKey`), so this restores guarded
-// functionality rather than opening a surface.
-//
-// `appMounts.test.ts` now fails if an imported router is ever left unmounted
-// again.
 app.use('/api/developer', developerRouter);
 app.use('/api/v1', v1Router);
 app.use('/api/partners', partnersRouter);
 app.use('/api/workflows', workflowRouter);
 app.use('/api/data', dataRouter);
 
-// ─── Error Handling ───
 app.use(notFound);
 app.use(errorHandler);
 
