@@ -4,54 +4,97 @@ import path from 'node:path';
 const schemaPath = path.resolve(process.cwd(), 'prisma/schema.prisma');
 let schema = fs.readFileSync(schemaPath, 'utf8');
 
-function insertOnce(anchor: string, addition: string) {
-  if (schema.includes(addition.trim())) return;
-  const index = schema.indexOf(anchor);
-  if (index < 0) throw new Error(`TreatmentCase schema anchor not found: ${anchor}`);
-  schema = `${schema.slice(0, index + anchor.length)}${addition}${schema.slice(index + anchor.length)}`;
+function patchModel(
+  modelName: string,
+  fieldAnchor: string,
+  field: string,
+  relationAnchor: string,
+  relation: string,
+) {
+  const start = schema.indexOf(`model ${modelName} {`);
+  if (start < 0) throw new Error(`TreatmentCase model anchor not found: ${modelName}`);
+  const end = schema.indexOf('\n}\n', start);
+  if (end < 0) throw new Error(`TreatmentCase model end not found: ${modelName}`);
+
+  let block = schema.slice(start, end + 3);
+  if (!block.includes(field.trim())) {
+    const fieldIndex = block.indexOf(fieldAnchor);
+    if (fieldIndex < 0) throw new Error(`TreatmentCase field anchor not found: ${modelName}: ${fieldAnchor}`);
+    block = `${block.slice(0, fieldIndex + fieldAnchor.length)}${field}${block.slice(fieldIndex + fieldAnchor.length)}`;
+  }
+  if (!block.includes(relation.trim())) {
+    const relationIndex = block.indexOf(relationAnchor);
+    if (relationIndex < 0) throw new Error(`TreatmentCase relation anchor not found: ${modelName}: ${relationAnchor}`);
+    block = `${block.slice(0, relationIndex + relationAnchor.length)}${relation}${block.slice(relationIndex + relationAnchor.length)}`;
+  }
+  schema = `${schema.slice(0, start)}${block}${schema.slice(end + 3)}`;
 }
 
-// Scalar FK fields.
-insertOnce('  treatmentPlanId String?\n', '  treatmentCaseId String?\n');
-insertOnce('  doctorId   String\n', '  treatmentCaseId String?\n');
-insertOnce('  clinicId  String?\n  title', '  treatmentCaseId String?\n');
-insertOnce('  labId            String?\n', '  treatmentCaseId String?\n');
-insertOnce('  treatmentPlanId String?\n', '  treatmentCaseId String?\n');
+patchModel(
+  'Appointment',
+  '  treatmentPlanId String?\n',
+  '  treatmentCaseId String?\n',
+  '  treatmentPlan TreatmentPlan? @relation(fields: [treatmentPlanId], references: [id], onDelete: SetNull)\n',
+  '  treatmentCase TreatmentCase? @relation(fields: [treatmentCaseId], references: [id], onDelete: SetNull)\n',
+);
+patchModel(
+  'Visit',
+  '  doctorId   String\n',
+  '  treatmentCaseId String?\n',
+  '  patient Patient @relation(fields: [patientId], references: [id], onDelete: Cascade)\n',
+  '  treatmentCase TreatmentCase? @relation(fields: [treatmentCaseId], references: [id], onDelete: SetNull)\n',
+);
+patchModel(
+  'TreatmentPlan',
+  '  clinicId  String?\n',
+  '  treatmentCaseId String?\n',
+  '  clinic       Clinic?                @relation(fields: [clinicId], references: [id], onDelete: SetNull)\n',
+  '  treatmentCase TreatmentCase? @relation(fields: [treatmentCaseId], references: [id], onDelete: SetNull)\n',
+);
+patchModel(
+  'Referral',
+  '  labId            String?\n',
+  '  treatmentCaseId String?\n',
+  '  settlement  Settlement?       @relation("SettlementReferrals", fields: [settlementId], references: [id], onDelete: SetNull)\n',
+  '  treatmentCase TreatmentCase? @relation(fields: [treatmentCaseId], references: [id], onDelete: SetNull)\n',
+);
+patchModel(
+  'LabOrder',
+  '  doctorId String?\n',
+  '  treatmentCaseId String?\n',
+  '  doctor  User?    @relation("LabOrderDoctor", fields: [doctorId], references: [id], onDelete: SetNull)\n',
+  '  treatmentCase TreatmentCase? @relation(fields: [treatmentCaseId], references: [id], onDelete: SetNull)\n',
+);
+patchModel(
+  'Invoice',
+  '  treatmentPlanId String?\n',
+  '  treatmentCaseId String?\n',
+  '  treatmentPlan TreatmentPlan? @relation(fields: [treatmentPlanId], references: [id], onDelete: SetNull)\n',
+  '  treatmentCase TreatmentCase? @relation(fields: [treatmentCaseId], references: [id], onDelete: SetNull)\n',
+);
 
-// Relations in each case-bearing model. Relation names are explicit so Prisma
-// has no ambiguity if a model later gains another case-related relation.
-const relationBlocks: Array<[string, string]> = [
-  ['  treatmentPlan TreatmentPlan? @relation(fields: [treatmentPlanId], references: [id], onDelete: SetNull)\n', '  treatmentCase TreatmentCase? @relation(fields: [treatmentCaseId], references: [id], onDelete: SetNull)\n'],
-  ['  patient Patient @relation(fields: [patientId], references: [id], onDelete: Cascade)\n', '  treatmentCase TreatmentCase? @relation(fields: [treatmentCaseId], references: [id], onDelete: SetNull)\n'],
-  ['  clinic       Clinic?                @relation(fields: [clinicId], references: [id], onDelete: SetNull)\n', '  treatmentCase TreatmentCase? @relation(fields: [treatmentCaseId], references: [id], onDelete: SetNull)\n'],
-  ['  settlement  Settlement?       @relation("SettlementReferrals", fields: [settlementId], references: [id], onDelete: SetNull)\n', '  treatmentCase TreatmentCase? @relation(fields: [treatmentCaseId], references: [id], onDelete: SetNull)\n'],
-  ['  doctor  User?    @relation("LabOrderDoctor", fields: [doctorId], references: [id], onDelete: SetNull)\n', '  treatmentCase TreatmentCase? @relation(fields: [treatmentCaseId], references: [id], onDelete: SetNull)\n'],
-  ['  treatmentPlan TreatmentPlan? @relation(fields: [treatmentPlanId], references: [id], onDelete: SetNull)\n', '  treatmentCase TreatmentCase? @relation(fields: [treatmentCaseId], references: [id], onDelete: SetNull)\n'],
-];
-for (const [anchor, addition] of relationBlocks) {
-  if (schema.includes(anchor) && !schema.includes(addition.trim())) insertOnce(anchor, addition);
-}
-
-// Reverse collections.
-insertOnce('  treatmentCases      TreatmentCase[]\n', '');
-insertOnce('  treatmentCases               TreatmentCase[]\n', '');
-insertOnce('  invoices     Invoice[]\n', '  treatmentCases TreatmentCase[]\n');
-insertOnce('  invoices     Invoice[]\n', '');
-insertOnce('  treatmentPlans               TreatmentPlan[]\n', '');
-
-// The canonical TreatmentCase model is already present. Add reverse links
-// immediately after its existing patient relation block.
-const casePatientAnchor = '  patient   Patient  @relation(fields: [patientId], references: [id], onDelete: Cascade)\n';
-if (schema.includes(casePatientAnchor) && !schema.includes('  appointments Appointment[]\n')) {
-  insertOnce(casePatientAnchor, [
-    '  appointments   Appointment[]\n',
-    '  visits         Visit[]\n',
-    '  treatmentPlans TreatmentPlan[]\n',
-    '  referrals      Referral[]\n',
-    '  labOrders      LabOrder[]\n',
-    '  invoices       Invoice[]\n',
-  ].join(''));
+// Reverse collections on the canonical case. Clinic and Patient already have
+// TreatmentCase[] relations in the current schema.
+const caseStart = schema.indexOf('model TreatmentCase {');
+if (caseStart < 0) throw new Error('Canonical TreatmentCase model not found');
+const caseEnd = schema.indexOf('\n}\n', caseStart);
+if (caseEnd < 0) throw new Error('Canonical TreatmentCase model end not found');
+let caseBlock = schema.slice(caseStart, caseEnd + 3);
+const reverseAnchor = '  patient   Patient  @relation(fields: [patientId], references: [id], onDelete: Cascade)\n';
+const reverseRelations = [
+  '  appointments   Appointment[]\n',
+  '  visits         Visit[]\n',
+  '  treatmentPlans TreatmentPlan[]\n',
+  '  referrals      Referral[]\n',
+  '  labOrders      LabOrder[]\n',
+  '  invoices       Invoice[]\n',
+].join('');
+if (!caseBlock.includes('  appointments   Appointment[]')) {
+  const index = caseBlock.indexOf(reverseAnchor);
+  if (index < 0) throw new Error('TreatmentCase patient relation not found');
+  caseBlock = `${caseBlock.slice(0, index + reverseAnchor.length)}${reverseRelations}${caseBlock.slice(index + reverseAnchor.length)}`;
+  schema = `${schema.slice(0, caseStart)}${caseBlock}${schema.slice(caseEnd + 3)}`;
 }
 
 fs.writeFileSync(schemaPath, schema);
-console.log('[prisma] TreatmentCase relations synchronized:', schemaPath);
+console.log(`[prisma] synchronized TreatmentCase relations in ${schemaPath}`);
