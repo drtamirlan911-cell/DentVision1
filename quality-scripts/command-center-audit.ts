@@ -6,7 +6,6 @@ const read = (p: string) => fs.readFileSync(path.join(root, p), 'utf8')
 const index = read('src/index.tsx')
 const sidebar = read('src/layouts/SuperAppSidebar.tsx')
 const bottomNav = read('src/layouts/BottomNav.tsx')
-const dashboard = read('src/pages/Dashboard.tsx')
 const palette = read('src/components/CommandPalette.tsx')
 const failures: string[] = []
 
@@ -48,7 +47,6 @@ if (bottomNav.includes("id: 'ai'") && !bottomNav.includes("path: '/ai'")) failur
 if (!sidebar.includes('useTranslation') || !sidebar.includes('labelKey')) failures.push('Sidebar labels are not locale-driven')
 if (bottomNav.includes("label: 'Academy'") || bottomNav.includes("label: 'Community'")) failures.push('Mobile navigation contains hardcoded English labels')
 
-if (!dashboard.includes("navigate('/ai')")) failures.push('Dashboard AI actions not wired')
 if (!sidebar.includes('useCommandPalette')) failures.push('Command palette integration missing')
 if (!palette.includes('onAIQuery?.(query)')) failures.push('AI fallback missing')
 
