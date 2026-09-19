@@ -55,6 +55,10 @@ export async function resolveUserPermissions(
     if (person) {
       const perms = new Set<string>(roleBaseline);
       for (const pr of person.personRoles) {
+        // PersonRole is scoped: never leak permissions from another organization
+        // into the active access context. Global/unscoped roles remain applicable;
+        // organization-scoped roles must match the requested organization.
+        if (scopeId && pr.scopeId && pr.scopeId !== scopeId) continue;
         for (const rp of pr.role.permissions) perms.add(rp.permission.key);
       }
       if (perms.size > 0) return Array.from(perms);
