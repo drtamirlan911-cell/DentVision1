@@ -6,7 +6,7 @@ import { uid } from '../../lib/helpers.js';
 import { authorizeBranchScope } from '../../lib/branchAuthorization.js';
 import type { RoleScope } from '../../lib/roleAccessRegistry.js';
 import { resolveOrganizationIdForClinic } from '../../lib/orgContext.js';
-import { isBranchBillingOrganizationType, quoteBranchSubscription } from '../finance/branchBillingPolicy.js';
+import { canCreateClinicBranch, isBranchBillingOrganizationType, quoteBranchSubscription } from '../finance/branchBillingPolicy.js';
 
 export const branchesRouter = Router();
 branchesRouter.use(authenticate);
@@ -166,6 +166,39 @@ branchesRouter.post('/', async (req: AuthRequest, res) => {
     if (organizationId) {
       const authz = await authorizeOrganizationBranch(req.user!.id, organizationId, { id: '', organization_id: organizationId, clinic_id: clinicId ?? null, code: '', name: '', city: null, address: null, phone: null, active: true, is_default: false, settings: null, created_at: new Date(), updated_at: new Date() }, true);
       if (!authz.allowed) return res.status(authz.status).json({ ok: false, error: authz.error });
+      const organizationType = String(req.user?.organizationType || '').toUpperCase();
+      if (organizationType === 'CLINIC') {
+        const activeRows = await prisma.$queryRaw<Array<{ count: bigint }>>`
+          SELECT COUNT(*)::bigint AS count FROM "branches"
+          WHERE "organization_id" = ${organizationId} AND "active" = true
+        `;
+        const activeBranches = Number(activeRows[0]?.count ?? 0);
+        let plan: string | undefined;
+        if (clinicId) {
+          const subscription = await prisma.subscription.findUnique({
+            where: { ownerType_ownerId: { ownerType: 'CLINIC', ownerId: clinicId } },
+            select: { plan: true },
+          });
+          plan = subscription?.plan;
+        }
+        if (!canCreateClinicBranch(activeBranches, plan)) {
+          return res.status(409).json({
+            ok: false,
+            error: 'Для создания дополнительного филиала клиники требуется тариф NETWORK',
+            code: 'BRANCH_PLAN_REQUIRED',
+            data: { organizationId, organizationType, activeBranches, plan: plan || null, requiredPlan: 'NETWORK' },
+          });
+        }
+      } else if (isBranchBillingOrganizationType(organizationType)) {
+        const activeRows = await prisma.$queryRaw<Array<{ count: bigint }>>`
+          SELECT COUNT(*)::bigint AS count FROM "branches"
+          WHERE "organization_id" = ${organizationId} AND "active" = true
+        `;
+        const activeBranches = Number(activeRows[0]?.count ?? 0);
+        if (activeBranches < 0) {
+          return res.status(409).json({ ok: false, error: 'Некорректное состояние филиалов', code: 'BRANCH_STATE_INVALID' });
+        }
+      }
       const branchCode = String(code || name).trim().toUpperCase().replace(/[^A-ZА-Я0-9]+/gi, '-').replace(/^-|-$/g, '').slice(0, 32) || `BRANCH-${Date.now()}`;
       const branchId = uid();
       const rows = await prisma.$queryRaw<BranchRow[]>`
@@ -182,6 +215,23 @@ branchesRouter.post('/', async (req: AuthRequest, res) => {
     const member = await membership(req.user!.id, clinicId);
     if (!member || !['OWNER', 'ADMIN'].includes(member.role)) return res.status(403).json({ ok: false, error: 'Только Руководитель или Администратор может управлять филиалами' });
     const clinicOrganizationId = await resolveOrganizationIdForClinic(clinicId);
+    const activeRows = await prisma.$queryRaw<Array<{ count: bigint }>>`
+      SELECT COUNT(*)::bigint AS count FROM "branches"
+      WHERE "clinic_id" = ${clinicId} AND "active" = true
+    `;
+    const activeBranches = Number(activeRows[0]?.count ?? 0);
+    const subscription = await prisma.subscription.findUnique({
+      where: { ownerType_ownerId: { ownerType: 'CLINIC', ownerId: clinicId } },
+      select: { plan: true },
+    });
+    if (!canCreateClinicBranch(activeBranches, subscription?.plan)) {
+      return res.status(409).json({
+        ok: false,
+        error: 'Для создания дополнительного филиала клиники требуется тариф NETWORK',
+        code: 'BRANCH_PLAN_REQUIRED',
+        data: { clinicId, activeBranches, plan: subscription?.plan || null, requiredPlan: 'NETWORK' },
+      });
+    }
     const branchCode = String(code || name).trim().toUpperCase().replace(/[^A-ZА-Я0-9]+/gi, '-').replace(/^-|-$/g, '').slice(0, 32) || `BRANCH-${Date.now()}`;
     const branchId = uid();
     const rows = await prisma.$queryRaw<BranchRow[]>`
