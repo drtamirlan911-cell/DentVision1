@@ -76,6 +76,9 @@ async function authorizeOrganizationBranch(userId: string, organizationId: strin
   }
   return { allowed: true as const, member };
 }
+async function organizationPerson(userId: string, organizationId: string) {
+  return prisma.person.findFirst({ where: { userId, organizationId }, select: { id: true } });
+}
 async function authorizeMemberBranch(userId: string, clinicId: string, branch: BranchRow, mutation = false) {
   const member = await membership(userId, clinicId);
   if (!member) return { allowed: false as const, status: 403, error: 'Вы не являетесь участником этой клиники' };
@@ -282,47 +285,71 @@ branchesRouter.get('/:id/members', async (req: AuthRequest, res) => {
   const branchId = String(req.params.id);
   try {
     const branch = await loadBranch(branchId);
-    if (!branch || !branch.clinic_id) return res.status(404).json({ ok: false, error: 'Филиал не найден' });
-    const authz = await authorizeMemberBranch(req.user!.id, branch.clinic_id, branch);
-    if (!authz.allowed) return res.status(authz.status).json({ ok: false, error: authz.error });
-    const rows = await prisma.$queryRaw<Array<{ id: string; first_name: string | null; last_name: string | null; email: string | null; role: string; branch_id: string | null }>>`
-      SELECT u."id", u."firstName" AS first_name, u."lastName" AS last_name, u."email", cm."role", cm."branch_id"
-      FROM "clinic_members" cm
-      JOIN "users" u ON u."id" = cm."userId"
-      WHERE cm."clinicId" = ${branch.clinic_id} AND cm."branch_id" = ${branchId}
-      ORDER BY u."firstName" ASC, u."lastName" ASC
-    `;
-    return res.json({ ok: true, data: rows.map(row => ({ id: row.id, name: [row.first_name, row.last_name].filter(Boolean).join(' ') || row.email || 'Сотрудник', email: row.email, role: row.role, branchId: row.branch_id })) });
-  } catch (error) { console.error('[branches] members list', error); return res.status(500).json({ ok: false, error: 'Не удалось получить сотрудников филиала' }); }
+    if (!branch) return res.status(404).json({ ok: false, error: 'Филиал не найден' });
+    if (branch.clinic_id) {
+      const authz = await authorizeMemberBranch(req.user!.id, branch.clinic_id, branch);
+      if (!authz.allowed) return res.status(authz.status).json({ ok: false, error: authz.error });
+      const rows = await prisma.$queryRaw<Array<{ id:string; first_name:string|null; last_name:string|null; email:string|null; role:string; branch_id:string|null }>>`
+        SELECT u."id", u."firstName" AS first_name, u."lastName" AS last_name, u."email", cm."role", cm."branch_id"
+        FROM "clinic_members" cm JOIN "users" u ON u."id"=cm."userId"
+        WHERE cm."clinicId"=${branch.clinic_id} AND cm."branch_id"=${branchId}
+        ORDER BY u."firstName", u."lastName"`;
+      return res.json({ok:true,data:rows.map(r=>({id:r.id,name:[r.first_name,r.last_name].filter(Boolean).join(' ')||r.email||'Сотрудник',email:r.email,role:r.role,branchId:r.branch_id}))});
+    }
+    if (!branch.organization_id) return res.status(404).json({ok:false,error:'Филиал не найден'});
+    const authz = await authorizeOrganizationBranch(req.user!.id, branch.organization_id, branch);
+    if (!authz.allowed) return res.status(authz.status).json({ok:false,error:authz.error});
+    const rows = await prisma.$queryRaw<Array<{id:string;full_name:string;email:string|null;person_type:string}>>`
+      SELECT p."id", p."fullName" AS full_name, COALESCE(u."email",p."email") AS email, p."personType" AS person_type
+      FROM "branch_members" bm JOIN "persons" p ON p."id"=bm."personId"
+      LEFT JOIN "users" u ON u."id"=p."userId"
+      WHERE bm."branchId"=${branchId} ORDER BY p."fullName"`;
+    return res.json({ok:true,data:rows.map(r=>({id:r.id,name:r.full_name,email:r.email,role:r.person_type,branchId}))});
+  } catch(error){console.error('[branches] members list',error);return res.status(500).json({ok:false,error:'Не удалось получить сотрудников филиала'});}
 });
 
 branchesRouter.post('/:id/members/:userId', async (req: AuthRequest, res) => {
-  const branchId = String(req.params.id);
-  const userId = String(req.params.userId);
+  const branchId=String(req.params.id), userId=String(req.params.userId);
   try {
-    const branch = await loadBranch(branchId);
-    if (!branch || !branch.clinic_id) return res.status(404).json({ ok: false, error: 'Филиал не найден' });
-    const authz = await authorizeMemberBranch(req.user!.id, branch.clinic_id, branch, true);
-    if (!authz.allowed) return res.status(authz.status).json({ ok: false, error: authz.error });
-    if (!branch.active) return res.status(409).json({ ok: false, error: 'Нельзя назначить сотрудника в неактивный филиал' });
-    const target = await prisma.clinicMember.findUnique({ where: { userId_clinicId: { userId, clinicId: branch.clinic_id } } });
-    if (!target) return res.status(404).json({ ok: false, error: 'Сотрудник не является участником клиники' });
-    await prisma.$executeRaw`UPDATE "clinic_members" SET "branch_id" = ${branchId}, "updatedAt" = CURRENT_TIMESTAMP WHERE "userId" = ${userId} AND "clinicId" = ${branch.clinic_id}`;
-    return res.json({ ok: true, data: { userId, branchId } });
-  } catch (error) { console.error('[branches] assign member', error); return res.status(500).json({ ok: false, error: 'Не удалось назначить сотрудника' }); }
+    const branch=await loadBranch(branchId);
+    if(!branch)return res.status(404).json({ok:false,error:'Филиал не найден'});
+    if(branch.clinic_id){
+      const authz=await authorizeMemberBranch(req.user!.id,branch.clinic_id,branch,true);
+      if(!authz.allowed)return res.status(authz.status).json({ok:false,error:authz.error});
+      const target=await prisma.clinicMember.findUnique({where:{userId_clinicId:{userId,clinicId:branch.clinic_id}}});
+      if(!target)return res.status(404).json({ok:false,error:'Сотрудник не является участником клиники'});
+      await prisma.$executeRaw`UPDATE "clinic_members" SET "branch_id"=${branchId},"updatedAt"=CURRENT_TIMESTAMP WHERE "userId"=${userId} AND "clinicId"=${branch.clinic_id}`;
+      return res.json({ok:true,data:{userId,branchId}});
+    }
+    if(!branch.organization_id)return res.status(404).json({ok:false,error:'Филиал не найден'});
+    const authz=await authorizeOrganizationBranch(req.user!.id,branch.organization_id,branch,true);
+    if(!authz.allowed)return res.status(authz.status).json({ok:false,error:authz.error});
+    const person=await organizationPerson(userId,branch.organization_id);
+    if(!person)return res.status(404).json({ok:false,error:'Пользователь не является участником этой организации'});
+    await prisma.branchMember.upsert({where:{personId_branchId:{personId:person.id,branchId}},create:{personId:person.id,branchId},update:{}});
+    return res.json({ok:true,data:{userId,branchId}});
+  }catch(error){console.error('[branches] assign member',error);return res.status(500).json({ok:false,error:'Не удалось назначить сотрудника'});}
 });
 
 branchesRouter.delete('/:id/members/:userId', async (req: AuthRequest, res) => {
-  const branchId = String(req.params.id);
-  const userId = String(req.params.userId);
+  const branchId=String(req.params.id), userId=String(req.params.userId);
   try {
-    const branch = await loadBranch(branchId);
-    if (!branch || !branch.clinic_id) return res.status(404).json({ ok: false, error: 'Филиал не найден' });
-    const authz = await authorizeMemberBranch(req.user!.id, branch.clinic_id, branch, true);
-    if (!authz.allowed) return res.status(authz.status).json({ ok: false, error: authz.error });
-    await prisma.$executeRaw`UPDATE "clinic_members" SET "branch_id" = NULL, "updatedAt" = CURRENT_TIMESTAMP WHERE "userId" = ${userId} AND "clinicId" = ${branch.clinic_id} AND "branch_id" = ${branchId}`;
-    return res.json({ ok: true, data: { userId, branchId: null } });
-  } catch (error) { console.error('[branches] unassign member', error); return res.status(500).json({ ok: false, error: 'Не удалось убрать сотрудника из филиала' }); }
+    const branch=await loadBranch(branchId);
+    if(!branch)return res.status(404).json({ok:false,error:'Филиал не найден'});
+    if(branch.clinic_id){
+      const authz=await authorizeMemberBranch(req.user!.id,branch.clinic_id,branch,true);
+      if(!authz.allowed)return res.status(authz.status).json({ok:false,error:authz.error});
+      await prisma.$executeRaw`UPDATE "clinic_members" SET "branch_id"=NULL,"updatedAt"=CURRENT_TIMESTAMP WHERE "userId"=${userId} AND "clinicId"=${branch.clinic_id} AND "branch_id"=${branchId}`;
+      return res.json({ok:true,data:{userId,branchId:null}});
+    }
+    if(!branch.organization_id)return res.status(404).json({ok:false,error:'Филиал не найден'});
+    const authz=await authorizeOrganizationBranch(req.user!.id,branch.organization_id,branch,true);
+    if(!authz.allowed)return res.status(authz.status).json({ok:false,error:authz.error});
+    const person=await organizationPerson(userId,branch.organization_id);
+    if(!person)return res.status(404).json({ok:false,error:'Пользователь не является участником этой организации'});
+    await prisma.branchMember.deleteMany({where:{personId:person.id,branchId}});
+    return res.json({ok:true,data:{userId,branchId:null}});
+  }catch(error){console.error('[branches] unassign member',error);return res.status(500).json({ok:false,error:'Не удалось убрать сотрудника из филиала'});}
 });
 
 branchesRouter.post('/:id/default', async (req: AuthRequest, res) => {
