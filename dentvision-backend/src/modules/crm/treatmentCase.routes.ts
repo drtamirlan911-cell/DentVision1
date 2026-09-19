@@ -7,6 +7,16 @@ import { CaseStatus } from '@prisma/client'
 
 export const treatmentCaseRouter = Router()
 
+
+function branchScopedPatientFilter(req: AuthRequest): { clinicId: string; patient?: { branchId: { in: string[] } } } {
+  const clinicId = effectiveClinicId(req)
+  const role = String(req.user?.role || '').toUpperCase()
+  if (!clinicId) return { clinicId: '' }
+  if (['SUPERADMIN', 'OWNER', 'ADMIN', 'ACCOUNTANT'].includes(role)) return { clinicId }
+  const branchIds = (req.user?.branchIds ?? []).filter(Boolean)
+  return branchIds.length > 0 ? { clinicId, patient: { branchId: { in: branchIds } } } : { clinicId, patient: { branchId: { in: ['__NO_BRANCH_ACCESS__'] } } }
+}
+
 function effectiveClinicId(req: AuthRequest): string | undefined {
   return getClinicId(req.user!)
 }
@@ -25,7 +35,8 @@ treatmentCaseRouter.get('/', loadClinicAccess, async (req: AuthRequest, res: Res
     if (!clinicId) return res.status(403).json({ ok: false, error: 'Clinic context is required' })
 
     const patientId = typeof req.query.patientId === 'string' ? req.query.patientId : undefined
-    const whereClause: { deletedAt: null; clinicId: string; patientId?: string } = { deletedAt: null, clinicId }
+    const branchFilter = branchScopedPatientFilter(req)
+    const whereClause: { deletedAt: null; clinicId: string; patientId?: string; patient?: { branchId: { in: string[] } } } = { deletedAt: null, ...branchFilter }
     if (patientId) whereClause.patientId = patientId
 
     const cases = await prisma.treatmentCase.findMany({
