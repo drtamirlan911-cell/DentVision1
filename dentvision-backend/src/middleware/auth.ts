@@ -33,6 +33,11 @@ function normalizeScopedRole(roleKey: string): UserRole | undefined {
   return ROLE_KEY_MAP[roleKey] || ROLE_KEY_MAP[roleKey.toUpperCase()];
 }
 
+/** Merge canonical BranchMember assignments with legacy clinic memberships. */
+export function mergeBranchIds(unifiedBranchIds: readonly string[], legacyBranchIds: readonly string[]): string[] {
+  return Array.from(new Set([...unifiedBranchIds, ...legacyBranchIds].filter(Boolean)));
+}
+
 export function resolveActivePersonRole(
   personRoles: Array<{ scopeType: string | null; scopeId: string | null; role: { key: string } }>,
   organizationId: string,
@@ -133,7 +138,7 @@ export async function authenticate(req: AuthRequest, res: Response, next: NextFu
     const legacyBranchIds = user.memberships
       ?.filter((membership) => membership.clinicId === effectiveClinicId && membership.branchId)
       .map((membership) => membership.branchId as string) || [];
-    const branchIds = Array.from(new Set([...unifiedBranchIds, ...legacyBranchIds]));
+    const branchIds = mergeBranchIds(unifiedBranchIds, legacyBranchIds);
     const assignedBranchId = unifiedBranchIds[0] || activeMembership?.branchId || undefined;
 
     req.user = {
