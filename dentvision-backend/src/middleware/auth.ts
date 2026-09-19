@@ -88,6 +88,7 @@ export async function authenticate(req: AuthRequest, res: Response, next: NextFu
     let effectivePersonType: string | undefined;
     let effectiveClinicId: string | undefined;
     let effectiveSupplierId: string | undefined;
+    let unifiedBranchIds: string[] = [];
     let effectiveRole = user.role;
 
     if (!isGuest) {
@@ -97,6 +98,7 @@ export async function authenticate(req: AuthRequest, res: Response, next: NextFu
           include: {
             organization: { select: { type: true, originalId: true } },
             personRoles: { select: { scopeType: true, scopeId: true, role: { select: { key: true } } } },
+            branchMemberships: { select: { branchId: true } },
           },
         });
         if (person?.organization) {
@@ -108,6 +110,7 @@ export async function authenticate(req: AuthRequest, res: Response, next: NextFu
           effectiveOrgType = person.organization.type;
           effectivePersonType = person.personType;
           effectiveRole = scopedRole;
+          unifiedBranchIds = person.branchMemberships.map((membership) => membership.branchId);
           if (person.organization.type === 'CLINIC') effectiveClinicId = person.organization.originalId || undefined;
         }
       }
@@ -127,8 +130,11 @@ export async function authenticate(req: AuthRequest, res: Response, next: NextFu
     const activeMembership = effectiveClinicId
       ? user.memberships?.find((m) => m.clinicId === effectiveClinicId)
       : undefined;
-    const branchIds = activeMembership?.branchId ? [activeMembership.branchId] : [];
-    const assignedBranchId = activeMembership?.branchId || undefined;
+    const legacyBranchIds = user.memberships
+      ?.filter((membership) => membership.clinicId === effectiveClinicId && membership.branchId)
+      .map((membership) => membership.branchId as string) || [];
+    const branchIds = Array.from(new Set([...unifiedBranchIds, ...legacyBranchIds]));
+    const assignedBranchId = unifiedBranchIds[0] || activeMembership?.branchId || undefined;
 
     req.user = {
       id: user.id, email: user.email, firstName: user.firstName, lastName: user.lastName,
