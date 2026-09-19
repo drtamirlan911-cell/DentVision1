@@ -71,7 +71,7 @@ export function CommandPalette({ open, onClose, onAIQuery }: CommandPaletteProps
 
       // Platform
       { id: 'settings', label: t('platform.command_settings'), description: 'Параметры системы', icon: <Settings size={16} />, action: () => { navigate('/settings'); onClose() }, section: 'Платформа', keywords: ['настройки', 'settings'] },
-      { id: 'ai-chat', label: 'Jarvis AI Интеллект', description: 'Запустить ИИ-помощника', icon: <Bot size={16} />, action: () => { navigate('/'); onClose() }, section: 'Платформа', keywords: ['ai', 'ассистент', 'помощь', 'умный', 'жарвис'] },
+      { id: 'ai-chat', label: 'Jarvis AI Интеллект', description: 'Запустить ИИ-помощника', icon: <Bot size={16} />, action: () => { navigate('/ai'); onClose() }, section: 'Платформа', keywords: ['ai', 'ассистент', 'помощь', 'умный', 'жарвис'] },
     ]
     return all.filter((cmd) => {
       if (cmd.id === 'settings' || cmd.id === 'ai-chat') return true
