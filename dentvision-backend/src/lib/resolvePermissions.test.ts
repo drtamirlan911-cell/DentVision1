@@ -14,7 +14,7 @@ vi.mock('./prisma.js', () => ({
 
 import { resolveUserPermissions } from './resolvePermissions.js';
 
-function makePerson(keys: string[]) {
+function makePerson(keys: string[], scopedRoles: Array<{ scopeId?: string | null; keys: string[] }> = []) {
   return {
     personRoles: [
       {
@@ -22,6 +22,10 @@ function makePerson(keys: string[]) {
           permissions: keys.map((key) => ({ permission: { key } })),
         },
       },
+      ...scopedRoles.map(({ scopeId = null, keys: roleKeys }) => ({
+        scopeId,
+        role: { permissions: roleKeys.map((key) => ({ permission: { key } })) },
+      })),
     ],
   };
 }
@@ -90,5 +94,21 @@ describe('resolveUserPermissions', () => {
     const result = await resolveUserPermissions('user-1', 'org-1');
     expect(result).toContain('billing.manage');
     expect(result).toContain('patients.read');
+  });
+});
+
+
+describe('organization scope isolation', () => {
+  it('does not import permissions from another organization', async () => {
+    personFindFirst.mockResolvedValueOnce(
+      makePerson([], [
+        { scopeId: 'org-1', keys: ['patients.read'] },
+        { scopeId: 'org-2', keys: ['billing.manage'] },
+      ])
+    );
+    const result = await resolveUserPermissions('user-1', 'org-1', 'DOCTOR');
+    expect(result).toContain('patients.read');
+    expect(result).not.toContain('billing.manage');
+    expect(result).toContain('medical.manage');
   });
 });
