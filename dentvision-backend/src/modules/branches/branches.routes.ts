@@ -140,7 +140,7 @@ branchesRouter.get('/', async (req: AuthRequest, res) => {
           "isDefault" AS is_default, "settings", "createdAt" AS created_at, "updatedAt" AS updated_at
         FROM "branches"
         WHERE "organization_id" = ${organizationId}
-          AND (LOWER(${String(member.role_key)}) IN ('owner','org_owner','admin','org_admin') OR "id" = COALESCE(${req.user?.branchId || ''}, ''))
+          AND (LOWER(${String(member.role_key)}) IN ('owner','org_owner','admin','org_admin') OR "id" = COALESCE(${(req.user?.branchIds ?? [])[0] || ''}, ''))
         ORDER BY "isDefault" DESC, "createdAt" ASC
       `;
       return res.json({ ok: true, data: rows.map(serialize) });
