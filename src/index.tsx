@@ -25,7 +25,6 @@ const TreatmentPresentation = lazyWithRetry(() => import('./pages/patient-portal
 const DiagnosticsRegister = lazyWithRetry(() => import('./pages/DiagnosticsRegister'));
 const PatientPortal = lazyWithRetry(() => import('./pages/patient-portal/PatientPortal'));
 
-const Dashboard = lazyWithRetry(() => import('./pages/Dashboard'));
 const SuperAdmin = lazyWithRetry(() => import('./pages/SuperAdmin'));
 const BIWorkspace = lazyWithRetry(() => import('./pages/bi/BIWorkspace'));
 const SecurityCompliance = lazyWithRetry(() => import('./pages/SecurityCompliance'));
@@ -128,7 +127,7 @@ if (container) {
               <Route path="/patient-portal" element={<Suspense fallback={<PageLoader />}><PatientPortal /></Suspense>} />
               <Route path="/my-clinics" element={<Suspense fallback={<PageLoader />}><MyClinics /></Suspense>} />
               <Route path="/" element={<IntelligenceLayout />}>
-                <Route index element={guarded('dashboard', <Dashboard />)} />
+                <Route index element={<Navigate to="/ai" replace />} />
                 <Route path="dashboard" element={<Navigate to="/" replace />} />
                 <Route path="intelligence" element={<Navigate to="/ai" replace />} />
                 <Route path="ai" element={<Suspense fallback={<PageLoader />}><AIWorkspaceIndex /></Suspense>} />
