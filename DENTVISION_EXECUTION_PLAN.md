@@ -241,7 +241,7 @@ The branch vertical slice is not complete until an isolated E2E workflow proves:
 - [x] Treatment plans and odontogram persistence/history contract: treatment-plan CRUD/status/tenant tests plus tooth 16 status/surface round-trip through the canonical patient write/read model.
 - [x] Diagnostics ordering/results workflow is covered by the partner lifecycle and referral/result E2E/API journeys.
 - [x] Laboratory and dental-lab lifecycle workflows are covered by canonical transition and delivery/remake/delay tests.
-- [x] Notifications/reminders: preference-aware in-app/channel dispatch, reminder cron/manual endpoint and reminder idempotency are implemented; waitlist is persisted in the canonical WaitingList model. Invoice partial payments/installments and patient prepayment consumption are now implemented and covered by E2E contracts. [ ] Final debt/prepayment/installment release execution evidence remains.
+- [x] Notifications/reminders: preference-aware in-app/channel dispatch, reminder cron/manual endpoint and reminder idempotency are implemented; waitlist is persisted in the canonical WaitingList model. Invoice partial payments/installments and patient prepayment consumption are now implemented and covered by E2E contracts. [ ] Final debt/prepayment/installment release execution evidence remains; implementation now includes durable partial refunds and idempotent Finance Core reversals.
 - [x] Audit trail and medical-data safety controls: compliance routes, medical-file access logging, consent/version enforcement, AI action confirmation and security dashboard are implemented. [ ] Final browser/security execution evidence remains.
 
 ### Phase 6 — Ecosystem modules
