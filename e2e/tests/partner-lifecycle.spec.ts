@@ -16,6 +16,7 @@ test.describe('Partner operational lifecycle', () => {
   let api: APIRequestContext;
   let ownerToken = '';
   let superadminToken = '';
+  let doctorToken = '';
   let patientId = '';
   let doctorId = '';
 
@@ -23,8 +24,9 @@ test.describe('Partner operational lifecycle', () => {
     api = await playwright.request.newContext();
     ownerToken = await login(api, 'owner-a@test.com');
     superadminToken = await login(api, 'superadmin@test.com');
+    doctorToken = await login(api, 'doctor-a@test.com');
 
-    const me = await api.get(`${BASE}/api/auth/me`, { headers: auth(ownerToken) });
+    const me = await api.get(`${BASE}/api/auth/me`, { headers: auth(doctorToken) });
     const body = await me.json();
     const user = body.data?.user || body.data || body.user || body;
     doctorId = user.id;
