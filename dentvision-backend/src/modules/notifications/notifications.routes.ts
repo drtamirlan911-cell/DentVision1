@@ -5,6 +5,7 @@ import type { AuthRequest } from '../../types/index.js';
 import type { ApiResponse } from '../../types/index.js';
 import { uid } from '../../lib/helpers.js';
 import { NOTIFICATION_TYPES } from '../../services/notification.service.js';
+import { auditFromReq } from '../compliance/audit.service.js';
 
 const notificationsRouter = Router();
 
@@ -54,6 +55,9 @@ notificationsRouter.get('/unread-count', async (req: AuthRequest, res) => {
 });
 
 notificationsRouter.post('/', async (req: AuthRequest, res) => {
+  // Notifications are server-generated operational records. Clients may not
+  // impersonate another user by posting an arbitrary userId.
+
   try {
     const { type, title, message, link } = req.body as {
       type?: string;
@@ -77,6 +81,7 @@ notificationsRouter.post('/', async (req: AuthRequest, res) => {
       },
     });
 
+    await auditFromReq(req, { action: 'notification.created', entity: 'notification', entityId: notification.id, details: { type } });
     return res.status(201).json({ ok: true, data: notification });
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Внутренняя ошибка сервера';
