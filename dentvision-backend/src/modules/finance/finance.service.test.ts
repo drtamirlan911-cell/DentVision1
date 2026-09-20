@@ -81,7 +81,13 @@ function wallet(id: string, ownerType: string, ownerId: string) {
 
 beforeEach(() => {
   vi.clearAllMocks();
-  // No commission rule configured — falls back to the 10% default.
+  // Clear queued mock implementations as well as call history: the rule-order
+  // test intentionally queues two branch/org responses, and those must not
+  // leak into the following default-fallback test.
+  txDelegate.commissionRule.findUnique.mockReset();
+  txDelegate.commissionRule.findFirst.mockReset();
+  globalCommissionFindUnique.mockReset();
+  globalCommissionFindFirst.mockReset();
   txDelegate.commissionRule.findUnique.mockResolvedValue(null);
   txDelegate.commissionRule.findFirst.mockResolvedValue(null);
   globalCommissionFindUnique.mockResolvedValue(null);
