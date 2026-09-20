@@ -477,3 +477,29 @@ Current connected GitHub status has not produced a CI workflow run for these dir
 - Android release verification;
 - full role/security/audit matrix;
 - production readiness and rollback evidence.
+
+
+## 2026-09-20 — Durable payment refunds: full and partial reversal
+
+### Implemented
+- `3cf71a78a8de54d61555a137fdb6cc1aa67a23e2` — added the Finance Core-backed payment refund service.
+- `6f752ff57f78d81724b7d3bbdcf22f80669a6861` / `de481664ac49c72796a6ff8871691255ef3eba61` — added authenticated `POST /api/payments/:id/refund` with ownership checks, mandatory idempotency key, full/partial amount validation and audit event.
+- `33013b858c22bb765eef2448d9ff2272372e4a95` / `ae380b1ca68ddb8ce20d1f5135e22891b1947d14` — hardened exact ledger reversal, currency preservation and idempotency error classification.
+- `959fa3c2af02e2d6ad1be71b3d38c1bfcfff19e4` — added service-level regression coverage for opposite ledger directions, partial refunds, idempotency replay, over-refund rejection, lock ordering and fail-closed unsupported domains.
+- `795f67db813a796a8eeb0d9c10d45a01b5911e8e` — updated payment E2E coverage from the previous expected 404 to real full/partial refund behavior.
+
+### Financial contract
+- Refunds are transaction-scoped and protected by a PostgreSQL advisory lock per payment.
+- A refund creates a durable `refund` transaction with the opposite ledger directions of the original Finance Core sale.
+- Full refund changes payment status to `refunded`; partial refund keeps it `paid` until the full original payment amount has been refunded.
+- Replaying the same `Idempotency-Key` returns the existing reversal instead of creating a second one.
+- If a payment has no supported durable Finance Core transaction, the operation fails closed with no wallet mutation.
+- Cancellation/partial fulfillment/discount/tax-specific reversal rules remain separate backlog items because the current domain models do not provide a single authoritative financial reversal contract for all of them.
+
+### Verification
+- Unit and E2E regression contracts are committed.
+- Current GitHub workflow surface for the latest direct-main commit has not exposed a CI run; combined status reports Vercel `build-rate-limit` failure. Therefore this block is **UNVERIFIED**. No CI pass is claimed.
+
+### Next action
+- Execute the three partner business-owner E2E journeys against an isolated environment and repair actual failures.
+- Then verify Finance Hub rows against the same settled operations and close the remaining partner dashboard visibility gaps.
