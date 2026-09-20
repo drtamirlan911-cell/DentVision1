@@ -784,3 +784,11 @@ Run the exact current main-tip CI role/device matrix. Treat every failed role/de
 - Main tip: `c569642745edfca058c4c83640f6041727237548`.
 - Launch requested for the complete CI matrix: core E2E, browser UX, responsive design, role/context design across declared roles and viewports, business-owner journeys, organization-owner lifecycle, and Playwright CLI smoke.
 - PASS is not recorded until GitHub Actions returns fresh evidence for this main-tip run.
+
+
+## 2026-09-20 — Full role/responsive design gate launched
+- `c569642745edfca058c4c83640f6041727237548` is the current main tip.
+- The CI workflow contains the full role/context responsive matrix: 1280, 1440, 1920, 768 tablet, 820 tablet, 390 Android, 412 Android and iPhone/WebKit.
+- The role gate is intended to exercise every declared and discovered route for each supported identity, including patient and diagnostic/medical/dental laboratory contexts, plus modal/menu semantics, visual hierarchy, accessible naming, geometry, runtime/network/5xx failures, authorization and tenant isolation.
+- A fresh workflow run is required; no PASS is claimed until GitHub Actions reports the exact current-tip result.
+- Next action: execute the current main-tip CI gate and repair every real failure without weakening assertions.
