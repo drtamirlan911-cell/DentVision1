@@ -112,7 +112,7 @@ test.describe('Partner operational lifecycle', () => {
     const clinic = await prisma.clinic.findFirst({ where: { name: 'E2E Clinic A' }, select: { id: true } });
     const clinicId = clinic?.id;
 
-    const orderRes = await api.post(`${BASE}/api/lab/medical-laboratory/orders`, {
+    const orderRes = await api.post(`${BASE}/api/lab-orders/medical-laboratory/orders`, {
       headers: auth(ownerToken),
       data: { clinicId, patientId, labId: lab.id, priority: 'routine', specimenType: 'blood' },
     });
