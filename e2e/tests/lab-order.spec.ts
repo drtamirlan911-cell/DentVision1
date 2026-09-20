@@ -203,6 +203,31 @@ test.describe('Lab Order Workflow', () => {
     expect(res.status()).toBe(200);
   });
 
+  test('LAB-010: delayed and remake lifecycle do not skip canonical states', async () => {
+    const created = await (await createLabOrder(api, ownerToken)).json();
+    const orderId = (created.data || created).id;
+
+    const sent = await api.patch(`${BASE_URL}/api/lab-orders/${orderId}/status`, {
+      headers: auth(ownerToken), data: { status: 'sent' },
+    });
+    expect(sent.status()).toBe(200);
+
+    const delayed = await api.patch(`${BASE_URL}/api/lab-orders/${orderId}/status`, {
+      headers: auth(ownerToken), data: { status: 'delayed' },
+    });
+    expect(delayed.status()).toBe(200);
+
+    const remake = await api.patch(`${BASE_URL}/api/lab-orders/${orderId}/status`, {
+      headers: auth(ownerToken), data: { status: 'in_progress' },
+    });
+    expect(remake.status()).toBe(200);
+
+    const premature = await api.patch(`${BASE_URL}/api/lab-orders/${orderId}/status`, {
+      headers: auth(ownerToken), data: { status: 'delivered' },
+    });
+    expect(premature.status()).toBe(400);
+  });
+
   test('LAB-010: remakeOfId/appointmentId/tryInDate round-trip through files.meta', async () => {
     const created = await (await createLabOrder(api, ownerToken)).json();
     const firstOrderId = (created.data || created).id;
