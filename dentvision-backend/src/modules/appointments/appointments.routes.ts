@@ -97,7 +97,7 @@ appointmentsRouter.post('/', requirePermission('appointment.write'), requireClin
     const slotChanged = Boolean(bodyPatientId || bodyDoctorId || bodyDate || time !== undefined || duration !== undefined || chairId !== undefined);
     let scheduleWarnings: ReturnType<typeof serializeAppointment>[] = [];
     if (!force && slotChanged) {
-      const candidates = await prisma.appointment.findMany({ where: { clinicId, date: { gte: dayStart, lte: dayEnd }, status: { notIn: ['cancelled', 'no_show'] }, ...(id ? { id: { not: id } } : {}) } });
+      const candidates = await prisma.appointment.findMany({ where: { clinicId, ...branchScope(req), date: { gte: dayStart, lte: dayEnd }, status: { notIn: ['cancelled', 'no_show'] }, ...(id ? { id: { not: id } } : {}) } });
       const conflicts = findScheduleConflicts({ candidates, doctorId, patientId, chairId: chairId || body.chairId, time: apptTime, duration: apptDuration, excludeId: id });
       if (conflicts.length > 0) {
         const clinicSettings = await prisma.clinic.findUnique({ where: { id: clinicId }, select: { settings: true } });
@@ -182,7 +182,7 @@ appointmentsRouter.delete('/:id', requirePermission('appointment.write'), requir
   try {
     const clinicId = req.user?.clinicId;
     if (!clinicId) return res.status(400).json({ ok: false, error: 'Клиника не указана' } satisfies ApiResponse);
-    const existing = await prisma.appointment.findFirst({ where: { id: req.params.id as string, clinicId } });
+    const existing = await prisma.appointment.findFirst({ where: { id: req.params.id as string, clinicId, ...branchScope(req) } });
     if (!existing) return res.status(404).json({ ok: false, error: 'Запись не найдена' } satisfies ApiResponse);
     const appointment = await prisma.appointment.update({ where: { id: existing.id }, data: { status: 'cancelled' }, include: { patient: { select: patientSelect } } });
     await auditFromReq(req, { action: 'appointment.cancelled', entity: 'appointment', entityId: appointment.id });
