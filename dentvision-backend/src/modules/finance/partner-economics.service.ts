@@ -169,6 +169,7 @@ export interface PartnerEconomicsReconciliationRow {
   ledgerCreditMinor: bigint;
   balanced: boolean;
   amountsMatchSnapshot: boolean;
+  ruleSnapshotIntact: boolean;
 }
 
 export async function reconcilePartnerEconomics(
@@ -189,9 +190,19 @@ export async function reconcilePartnerEconomics(
     const ledgerCreditMinor = transaction.ledgerEntries.filter((e) => e.direction === 'credit').reduce((s, e) => s + BigInt(e.amount), 0n);
     const balanced = ledgerDebitMinor === ledgerCreditMinor && ledgerDebitMinor === grossMinor;
     const amountsMatchSnapshot = ledgerCreditMinor === partnerRevenueMinor + commissionMinor;
-    return { transactionId: transaction.id, vertical: transaction.refType as PartnerVertical, operationId: transaction.refId || '', partnerId: String(meta.partnerId || ''), grossMinor, commissionMinor, partnerRevenueMinor, ledgerDebitMinor, ledgerCreditMinor, balanced, amountsMatchSnapshot };
+    const storedRule = (meta.rule || {}) as Record<string, unknown>;
+    const ruleSnapshotIntact =
+      Number.isInteger(Number(meta.economicsVersion)) &&
+      Number(meta.economicsVersion) > 0 &&
+      Number.isInteger(Number(meta.economicsVersion)) &&
+      Number.isFinite(Number(storedRule.percentBps)) &&
+      typeof storedRule.effectiveFrom === 'string' &&
+      storedRule.effectiveFrom.length > 0 &&
+      storedRule.minFeeMinor !== undefined &&
+      storedRule.subscriptionMinor !== undefined;
+    return { transactionId: transaction.id, vertical: transaction.refType as PartnerVertical, operationId: transaction.refId || '', partnerId: String(meta.partnerId || ''), grossMinor, commissionMinor, partnerRevenueMinor, ledgerDebitMinor, ledgerCreditMinor, balanced, amountsMatchSnapshot, ruleSnapshotIntact };
   });
-  return { rows, discrepancies: rows.filter((row) => !row.balanced || !row.amountsMatchSnapshot).length };
+  return { rows, discrepancies: rows.filter((row) => !row.balanced || !row.amountsMatchSnapshot || !row.ruleSnapshotIntact).length };
 }
 
 export function canonicalPartnerEconomicsRules(): PartnerEconomicsRule[] {
