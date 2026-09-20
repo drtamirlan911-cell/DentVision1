@@ -217,3 +217,26 @@ The complete pre-2026-09-14 execution history is preserved in the parent Git his
 ### Next action
 - Continue the planned dental-lab delivered/remake/cancel/delay recognition boundary and reconciliation/Finance Hub durable surface.
 - Then execute the owner/partner lifecycle, branch/role negative matrix, browser/runtime/mobile and production rollback gates.
+
+
+## 2026-09-20 — Dental-lab delivered boundary connected to durable economics
+
+### Implemented
+- `5e97e46b5f7089f3fe59f08f1fd3fa633990ae7a` — dental-lab status handling now recognizes the existing `delivered` boundary and invokes the canonical `DENTAL_LAB` Partner Economics engine using the laboratory stored in the order metadata.
+- `1a61b1898e02c52095ddf5c77e621110dcc59195` — status mutation, audit event and delivered economics recognition are executed inside one Prisma transaction.
+- `747237e8a3d4bfa5f8021cd8e12c59f5af0e563a` — cleaned the transactional implementation so no unused state remains.
+- `remake`, `cancelled` and `delayed` remain non-recognition statuses; idempotency is protected by the existing operation ID equal to the lab-order ID.
+
+### Safety
+- Economics is not recognized on arbitrary intermediate statuses.
+- Re-entering `delivered` from `delivered` does not create a second economics transaction.
+- If economics settlement fails, the status/event transaction rolls back rather than leaving a falsely delivered financial state.
+- Branch/clinic ownership remains enforced before mutation.
+
+### Verification status
+- Implementation is committed.
+- Fresh CI/E2E evidence for this exact HEAD is not available yet; this remains **UNVERIFIED**.
+
+### Next action
+- Complete the durable reconciliation / Finance Hub economics read model and discrepancy detection.
+- Then execute owner/partner lifecycle and branch/role negative matrix.
