@@ -65,7 +65,7 @@ test.describe('Core clinical workflow', () => {
       data: { diagnosis: 'K02.9', notes: 'E2E completed visit' },
     });
     expect(closed.status()).toBe(200);
-    expect((await closed.json()).data.appointment.status).toBe('completed');
+    expect((await closed.json()).data.appointment.status).toBe('done');
 
     const summary = await request.get(`${BASE}/api/patients/${patientId}/summary`, { headers: headers(owner) });
     expect(summary.status()).toBe(200);
