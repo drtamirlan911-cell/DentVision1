@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { calculatePartnerEconomics, buildPartnerEconomicsDashboard, canonicalPartnerEconomicsRules, getPartnerEconomicsTransparency } from './partner-economics.service.js';
+import { calculatePartnerEconomics, buildPartnerEconomicsDashboard, canonicalPartnerEconomicsRules, getPartnerEconomicsTransparency, reconcilePartnerEconomics } from './partner-economics.service.js';
 
 const [diagnostic, analysis, dentalLab] = canonicalPartnerEconomicsRules();
 
@@ -78,6 +78,72 @@ describe('partner economics calculator', () => {
 
 });
 
+
+describe('partner economics reconciliation', () => {
+  it('flags a durable ledger transaction when its immutable economics rule snapshot is missing or malformed', async () => {
+    const db = {
+      transaction: {
+        findMany: async () => [{
+          id: 'tx-rule-missing',
+          amount: 100_000n,
+          refType: 'DIAGNOSTIC_3D',
+          refId: 'operation-rule-missing',
+          meta: {
+            partnerId: 'center-1',
+            economicsVersion: 1,
+            commissionMinor: '7_000',
+            partnerRevenueMinor: '93_000',
+          },
+          ledgerEntries: [
+            { direction: 'debit', amount: 100_000n, wallet: { ownerType: 'GATEWAY', ownerId: 'system' } },
+            { direction: 'credit', amount: 93_000n, wallet: { ownerType: 'PARTNER', ownerId: 'center-1' } },
+            { direction: 'credit', amount: 7_000n, wallet: { ownerType: 'PLATFORM', ownerId: 'system' } },
+          ],
+        }],
+      },
+    } as any;
+    const result = await reconcilePartnerEconomics({}, db);
+    expect(result.rows[0].balanced).toBe(true);
+    expect(result.rows[0].amountsMatchSnapshot).toBe(true);
+    expect(result.rows[0].ruleSnapshotIntact).toBe(false);
+    expect(result.discrepancies).toBe(1);
+  });
+
+  it('accepts a complete immutable economics rule snapshot at the ledger boundary', async () => {
+    const db = {
+      transaction: {
+        findMany: async () => [{
+          id: 'tx-rule-ok',
+          amount: 100_000n,
+          refType: 'DIAGNOSTIC_3D',
+          refId: 'operation-rule-ok',
+          meta: {
+            partnerId: 'center-1',
+            economicsVersion: 1,
+            commissionMinor: '7_000',
+            partnerRevenueMinor: '93_000',
+            rule: {
+              percentBps: 700,
+              minFeeMinor: '50000',
+              maxFeeMinor: '300000',
+              subscriptionMinor: '4990000',
+              effectiveFrom: '2026-09-11T00:00:00.000Z',
+            },
+          },
+          ledgerEntries: [
+            { direction: 'debit', amount: 100_000n, wallet: { ownerType: 'GATEWAY', ownerId: 'system' } },
+            { direction: 'credit', amount: 93_000n, wallet: { ownerType: 'PARTNER', ownerId: 'center-1' } },
+            { direction: 'credit', amount: 7_000n, wallet: { ownerType: 'PLATFORM', ownerId: 'system' } },
+          ],
+        }],
+      },
+    } as any;
+    const result = await reconcilePartnerEconomics({}, db);
+    expect(result.rows[0].ruleSnapshotIntact).toBe(true);
+    expect(result.discrepancies).toBe(0);
+  });
+
+});
 
 describe('partner economics transparency read model', () => {
   it('aggregates durable payout, costs and contribution by partner', async () => {
