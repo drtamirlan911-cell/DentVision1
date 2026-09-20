@@ -41,6 +41,7 @@ export const ORG_ROLES: Record<string, RoleConfig> = {
   student: { label: 'Студент', icon: '🎓', pages: ['school', 'profile'], ownDataOnly: true, readOnly: true },
   diagnostic_center: { label: 'Диагностический центр', icon: '🔬', pages: ['diagnostics', 'diagnostics-referrals', 'diagnostics-centers', 'diagnostics-results', 'diagnostics-calendar', 'diagnostics-statistics', 'diagnostics-settings', 'profile'] },
   lab_diagnostic: { label: 'Лаборатория', icon: '🔬', pages: ['diagnostics', 'diagnostics-referrals', 'diagnostics-laboratories', 'diagnostics-results', 'diagnostics-calendar', 'diagnostics-statistics', 'diagnostics-settings', 'profile'] },
+  patient: { label: 'Пациент', icon: 'patient', pages: ['profile', 'shop', 'school', 'diagnostics'] },
 }
 
 export const PLATFORM_ROLES: Record<string, RoleConfig> = {
