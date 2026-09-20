@@ -200,6 +200,8 @@ billingRouter.post('/invoices/:id/refund', requirePermission('finance.manage'), 
     const invoice = await prisma.$transaction(async (tx) => {
       const current = await tx.invoice.findUnique({ where: { id } });
       if (!current || current.clinicId !== clinicId) throw new Error('Invoice not found');
+      const existingReversal = await tx.transaction.findFirst({ where: { type: 'clinical_payment_reversal', refType: 'clinical_payment_reversal', refId: `invoice:${id}:refund:${idempotencyKey}` } });
+      if (existingReversal) return current;
       if (current.paidAmount <= 0) throw new Error('Invoice has no paid amount');
       const amount = Math.min(requested ?? current.paidAmount, current.paidAmount);
       if (!Number.isFinite(amount) || amount <= 0) throw new Error('Invalid refund amount');
@@ -285,6 +287,8 @@ billingRouter.post('/patients/:patientId/prepayment/refund', requirePermission('
     const patient = await prisma.$transaction(async (tx) => {
       const current = await tx.patient.findFirst({ where: { id: patientId, clinicId, deletedAt: null } });
       if (!current) throw new Error('Patient not found');
+      const existingReversal = await tx.transaction.findFirst({ where: { type: 'clinical_payment_reversal', refType: 'clinical_payment_reversal', refId: `prepayment:${patientId}:refund:${idempotencyKey}` } });
+      if (existingReversal) return current;
       if (current.prepaidBalance < amount) throw new Error('Недостаточно предоплаты для возврата');
       const updated = await tx.patient.update({
         where: { id: patientId },
