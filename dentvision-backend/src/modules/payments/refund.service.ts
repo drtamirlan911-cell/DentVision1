@@ -15,6 +15,7 @@ type PaymentForRefund = {
   id: string;
   amount: bigint;
   status: string;
+  currency: string;
   refType: string | null;
   refId: string | null;
   meta: unknown;
@@ -99,15 +100,17 @@ export async function refundPayment(
     if (refundEntries.some((entry) => entry.amount <= 0n)) {
       throw new PaymentRefundError('INVALID_AMOUNT', 'Сумма возврата слишком мала для пропорционального ledger reversal');
     }
+    const reversedTotal = refundEntries.reduce((sum, entry) => sum + entry.amount, 0n);
+    if (reversedTotal !== requested) {
+      throw new PaymentRefundError('INVALID_AMOUNT', 'Сумма возврата не может быть пропорционально отражена в исходном ledger');
+    }
 
     const refund = await tx.transaction.create({
       data: {
         type: 'refund',
         status: 'completed',
         amount: requested,
-        currency: payment.meta && typeof payment.meta === 'object' && typeof (payment.meta as any).currency === 'string'
-          ? (payment.meta as any).currency
-          : 'KZT',
+        currency: payment.currency,
         refType: 'payment',
         refId: payment.id,
         meta: {
