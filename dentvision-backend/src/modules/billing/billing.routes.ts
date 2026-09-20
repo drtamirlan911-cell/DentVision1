@@ -124,20 +124,36 @@ billingRouter.post('/invoices/:id/pay', requirePermission('finance.manage'), asy
     const { id } = req.params as { id: string };
     const clinicId = req.user?.clinicId;
     if (!clinicId) return res.status(400).json({ ok: false, error: 'Выберите клинику' });
-    const existing = await prisma.invoice.findFirst({ where: { id, clinicId } });
-    if (!existing) return res.status(404).json({ ok: false, error: 'Invoice not found' });
-    if (existing.status === 'paid') return res.status(400).json({ ok: false, error: 'Invoice is already paid' });
-
     const paymentMethod = String(req.body?.payMethod || req.body?.paymentMethod || 'unknown');
+    const requestedAmount = req.body?.amount !== undefined
+      ? Number(req.body.amount)
+      : req.body?.amountMinor !== undefined
+        ? Number(req.body.amountMinor) / 100
+        : undefined;
+    if (requestedAmount !== undefined && (!Number.isFinite(requestedAmount) || requestedAmount <= 0)) {
+      return res.status(400).json({ ok: false, error: 'Сумма платежа должна быть положительной' });
+    }
+
     const invoice = await prisma.$transaction(async (tx) => {
       const current = await tx.invoice.findUnique({ where: { id } });
       if (!current || current.clinicId !== clinicId) throw new Error('Invoice not found');
-      if (current.status === 'paid') throw new Error('Invoice is already paid');
-      const updated = await tx.invoice.update({ where: { id }, data: { status: 'paid', paidAt: new Date() } });
+      const outstanding = Math.max(0, current.amount - current.paidAmount);
+      if (outstanding <= 0 || current.status === 'paid') throw new Error('Invoice is already paid');
+      const paymentAmount = Math.min(requestedAmount ?? outstanding, outstanding);
+      const newPaidAmount = current.paidAmount + paymentAmount;
+      const nextStatus = newPaidAmount >= current.amount ? 'paid' : 'partial';
+      const updated = await tx.invoice.update({
+        where: { id },
+        data: {
+          paidAmount: newPaidAmount,
+          status: nextStatus,
+          paidAt: nextStatus === 'paid' ? new Date() : null,
+        },
+      });
       await recordClinicalPaymentTx({
         clinicId,
-        amountMinor: tengeToMinor(updated.amount),
-        refId: updated.id,
+        amountMinor: tengeToMinor(paymentAmount),
+        refId: `invoice:${updated.id}:payment:${uid()}`,
         paymentMethod,
         db: tx,
       });
@@ -145,20 +161,61 @@ billingRouter.post('/invoices/:id/pay', requirePermission('finance.manage'), asy
     });
 
     await auditFromReq(req, {
-      action: 'invoice.paid',
+      action: invoice.status === 'partial' ? 'invoice.payment_partial' : 'invoice.paid',
       entity: 'invoice',
       entityId: invoice.id,
-      details: { amount: invoice.amount, paymentMethod, ledger: 'clinical_payment' },
+      details: { amount: invoice.amount, paidAmount: invoice.paidAmount, paymentMethod, ledger: 'clinical_payment' },
     });
-    res.json({ ok: true, data: invoice });
+    return res.json({ ok: true, data: invoice });
   } catch (error: any) {
     const message = error?.message || '';
     if (message === 'Invoice not found') return res.status(404).json({ ok: false, error: message });
     if (message === 'Invoice is already paid') return res.status(400).json({ ok: false, error: message });
     console.error('[billing] pay invoice', error);
-    res.status(500).json({ ok: false, error: 'Failed to mark invoice as paid' });
+    return res.status(500).json({ ok: false, error: 'Failed to mark invoice as paid' });
   }
 });
+
+billingRouter.post('/patients/:patientId/prepayment', requirePermission('finance.manage'), async (req: AuthRequest, res) => {
+  try {
+    const clinicId = req.user?.clinicId;
+    const patientId = String(req.params.patientId);
+    const amount = Number(req.body?.amount);
+    const paymentMethod = String(req.body?.payMethod || req.body?.paymentMethod || 'unknown');
+    if (!clinicId) return res.status(400).json({ ok: false, error: 'Выберите клинику' });
+    if (!Number.isFinite(amount) || amount <= 0) return res.status(400).json({ ok: false, error: 'Сумма предоплаты должна быть положительной' });
+
+    const result = await prisma.$transaction(async (tx) => {
+      const patient = await tx.patient.findFirst({ where: { id: patientId, clinicId, deletedAt: null } });
+      if (!patient) throw new Error('Patient not found');
+      const updated = await tx.patient.update({
+        where: { id: patientId },
+        data: { prepaidBalance: { increment: amount } },
+      });
+      await recordClinicalPaymentTx({
+        clinicId,
+        amountMinor: tengeToMinor(amount),
+        refId: `prepayment:${patientId}:${uid()}`,
+        paymentMethod,
+        db: tx,
+      });
+      return updated;
+    });
+
+    await auditFromReq(req, {
+      action: 'patient.prepayment_received',
+      entity: 'patient',
+      entityId: patientId,
+      details: { amount, prepaidBalance: result.prepaidBalance, paymentMethod, ledger: 'clinical_payment' },
+    });
+    return res.status(201).json({ ok: true, data: { patientId, prepaidBalance: result.prepaidBalance } });
+  } catch (error: any) {
+    if (error?.message === 'Patient not found') return res.status(404).json({ ok: false, error: 'Пациент не найден' });
+    console.error('[billing] prepayment', error);
+    return res.status(500).json({ ok: false, error: 'Не удалось зачислить предоплату' });
+  }
+});
+
 
 billingRouter.delete('/invoices/:id', requirePermission('finance.manage'), async (req: AuthRequest, res) => {
   try {
