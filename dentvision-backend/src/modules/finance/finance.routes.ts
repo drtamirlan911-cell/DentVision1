@@ -6,7 +6,7 @@ import { requirePermission } from '../../middleware/rbac.js';
 import { serializeBigInt, parseTengeToMinor } from '../../lib/money.js';
 import type { ExpenseCategory } from '@prisma/client';
 import { getOrCreateWallet, recordSale, ledgerNetBalance } from './finance.service.js';
-import { reconcilePartnerEconomics, getPartnerEconomicsTransparency, PARTNER_VERTICALS, type PartnerVertical } from './partner-economics.service.js';
+import { reconcilePartnerEconomics, getPartnerEconomicsTransparency, buildPartnerEconomicsDashboard, PARTNER_VERTICALS, type PartnerVertical } from './partner-economics.service.js';
 import { revenueBySource } from './revenue.service.js';
 import {
   PAYOUT_STATUSES,
@@ -112,6 +112,33 @@ financeRouter.get('/transactions', requirePermission('finance.manage'), async (r
   } catch (error) {
     console.error('List transactions error:', error);
     return res.status(500).json({ ok: false, error: 'Ошибка при получении транзакций' } satisfies ApiResponse);
+  }
+});
+
+financeRouter.get('/partner-economics/dashboard', requirePermission('finance.manage'), async (req: AuthRequest, res) => {
+  try {
+    const parseDate = (value: unknown): Date | undefined => {
+      if (typeof value !== 'string' || !value) return undefined;
+      const d = new Date(value);
+      if (Number.isNaN(d.getTime())) throw new Error('Некорректная дата');
+      return d;
+    };
+    const from = parseDate(req.query.from);
+    const to = parseDate(req.query.to);
+    const requestedVertical = typeof req.query.vertical === 'string' ? req.query.vertical : undefined;
+    if (requestedVertical && !Object.values(PARTNER_VERTICALS).includes(requestedVertical as PartnerVertical)) {
+      return res.status(400).json({ ok: false, error: 'Некорректный vertical' } satisfies ApiResponse);
+    }
+    const data = await getPartnerEconomicsTransparency({
+      from, to,
+      vertical: requestedVertical as PartnerVertical | undefined,
+      partnerId: typeof req.query.partnerId === 'string' ? req.query.partnerId : undefined,
+      branchId: typeof req.query.branchId === 'string' ? req.query.branchId : undefined,
+    });
+    return res.json({ ok: true, data: serializeBigInt(buildPartnerEconomicsDashboard(data.rows, data.period)) } satisfies ApiResponse);
+  } catch (error: any) {
+    const badDate = error?.message === 'Некорректная дата';
+    return res.status(badDate ? 400 : 500).json({ ok: false, error: badDate ? error.message : 'Не удалось собрать dashboard экономики партнёров' } satisfies ApiResponse);
   }
 });
 
