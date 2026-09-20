@@ -454,3 +454,26 @@ Verification remains UNVERIFIED until the current HEAD passes the actual CI/E2E 
 - Android release verification;
 - security/permissions/audit matrix completion;
 - production readiness and rollback evidence.
+
+
+## 2026-09-20 — Payout readiness and concurrency hardening
+
+### Implemented
+- `6cc2c839f308381e5d9b25c921ebc1be8915ca67` — payout requests and payout transitions now use PostgreSQL transaction-scoped advisory locks. Concurrent requests for the same wallet cannot reserve the same available balance, and concurrent `approved → paid` transitions cannot post the payout ledger twice.
+- `4cebbea08710d41dc5d2d96414034dc0271c725a` — regression coverage verifies both payout lock boundaries.
+- `3efd139d234d767d1745b143669b4bba4b3147ac` — added automated payout-readiness scanning for lecturer/supplier wallets.
+- `2fdf0d5d7056538ebc5374a41d78956e24be6292` — readiness notifications are deduplicated to at most one per user per 24 hours.
+- `38538f6a3776b724a825bfdc0d44d8710e4e650` — starts payout-readiness automation with the existing backend job infrastructure.
+- `e737408964807cb326a06ce3c97417c10ffdcd26` — execution plan marks automated payout readiness/notifications complete.
+
+### Verification
+Current connected GitHub status has not produced a CI workflow run for these direct main commits. Release verification remains **UNVERIFIED**; no test pass is claimed until actual CI/E2E evidence is available.
+
+### Remaining
+- refund/cancellation/partial-fulfillment behavior where the domain model supports a real reversal;
+- full partner-type business-owner lifecycle E2E;
+- Finance Hub end-to-end outcome verification;
+- broader UI/browser workflow audit;
+- Android release verification;
+- full role/security/audit matrix;
+- production readiness and rollback evidence.
