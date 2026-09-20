@@ -134,7 +134,7 @@ async function settleOrderPayment(
             refId: order.id,
           }, db);
         }
-      });
+      }
     }
     const residual = payment.amount - allocated;
     if (residual > 0n) {
