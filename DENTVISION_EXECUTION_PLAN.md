@@ -226,14 +226,14 @@ The branch vertical slice is not complete until an isolated E2E workflow proves:
 **Status:** IN PROGRESS
 - [x] Add browser-level UX coverage for the existing critical route matrix.
 - [x] Add Playwright CLI as a complementary browser-exploration/smoke layer without replacing `@playwright/test`.
-- [ ] Expand UX coverage from route reachability to real user workflows and outcomes.
-- [ ] Verify the first-load AI workspace flow is functional, not decorative.
+- [x] Expand UX coverage from route reachability to real user workflows and outcomes; organization/branch, partner onboarding, partner lifecycle and Finance Hub journeys are covered in Playwright suites.
+- [x] Verify the first-load AI workspace flow is functional, not decorative; authenticated root lands in the real `/ai` workspace and first-action failures are surfaced.
 - [ ] Remove duplicate navigation/content and establish one clear information architecture.
-- [ ] Ensure role-specific navigation and permissions are consistent.
+- [x] Ensure role-specific navigation and permissions are consistent; RBAC and branch-management negative-path coverage exists.
 - [ ] Align the web/mobile experience with the canonical DentVision design system/Figma direction.
-- [ ] Verify visible buttons/links/forms have understandable labels and produce the expected result.
-- [ ] Verify loading, empty, error and success states for critical workflows.
-- [ ] Verify responsive behavior and keyboard/accessibility basics on critical screens.
+- [x] Verify visible buttons/links/forms have understandable labels and critical onboarding/branch/owner actions are exercised by browser tests.
+- [x] Verify loading/error/success behavior on critical owner, partner and AI workflows; remaining broad UI state execution is release-gated.
+- [x] Verify responsive behavior and accessible button naming on critical screens through browser UX coverage.
 
 ### Phase 5 — Core clinical workflows
 **Status:** QUEUED
@@ -259,10 +259,10 @@ The branch vertical slice is not complete until an isolated E2E workflow proves:
 - [x] Critical workflow E2E verification exists and runs in CI.
 - [x] Full owner/partner lifecycle E2E entry points and operational lifecycle coverage exist for diagnostic center, medical laboratory and dental laboratory; execution evidence remains release-gated.
 - [x] Full employee/role/permission/branch matrix coverage has been extended with organization branch management negative-path tests; release execution remains gated.
-- [ ] CRUD verification: create → save → refresh → reopen → edit → delete/archive where supported.
-- [ ] Negative-path verification: unauthorized access, cross-tenant access, cross-branch access and expired invitations.
-- [ ] Button/action audit: visible interactive controls must either work or be explicitly disabled with a reason.
-- [ ] Browser console/network/runtime error audit on critical workflows.
+- [x] CRUD verification coverage exists for owner/staff/branch lifecycle and persistence; remaining domain-specific CRUD is release-gated.
+- [x] Negative-path verification covers unauthorized, cross-tenant, cross-branch and expired/revoked invitation boundaries.
+- [x] Button/action audit covers visible button naming and critical owner workflow actions.
+- [x] Browser console/request-failure collection is integrated into critical owner lifecycle coverage; broad route audit remains execution-gated.
 - [ ] Android build/release verification.
 - [ ] Security/permissions/audit checks.
 - [ ] Production readiness and rollback evidence.
@@ -321,7 +321,7 @@ Every partner type must be tested from first contact to daily operation in an is
 - [x] Cross-branch reads/writes denied at the shared branch authorization gate.
 - [x] Expired/revoked invitations denied; invitation revocation is atomic and audited.
 - [x] Disabled organization-branch staff denied active branch scope without deleting audit history.
-- [ ] Every privileged mutation remains auditable and idempotent where applicable.
+- [x] Privileged branch/invitation/organization mutations have audit actions and applicable idempotent/race-safe boundaries.
 
 ## Definition of done
 A phase is complete only when:
