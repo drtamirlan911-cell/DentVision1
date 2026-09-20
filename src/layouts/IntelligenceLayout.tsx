@@ -52,6 +52,8 @@ export const IntelligenceLayout: React.FC = () => {
   const setAiQuery = useAIStore(s => s.setQuery);
 
   const isLoginRoute = ['/login', '/register', '/forgot-password', '/booking'].some(p => location.pathname.startsWith(p));
+  const isPatient = String(user?.role || '').toLowerCase() === 'patient';
+  const patientAllowedShellRoute = ['/shop', '/school', '/profile'].some(p => location.pathname === p || location.pathname.startsWith(`${p}/`));
   const isCRMRoute = location.pathname.startsWith('/crm');
   const needsAuth = requiresAuth(location.pathname) && !isAuthenticated;
 
@@ -93,6 +95,8 @@ export const IntelligenceLayout: React.FC = () => {
       setRegistrationModal(true, () => navigate(pendingPath));
     }
   }, [needsAuth, isGuest, isCRMRoute, showRegistrationModal, location.pathname, setRegistrationModal, navigate]);
+
+  if (isPatient && !patientAllowedShellRoute) return <Navigate to="/patient-portal" replace />;
 
   if (needsAuth) {
     if (isGuest) {
