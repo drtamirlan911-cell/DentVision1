@@ -6,6 +6,7 @@ import { uid } from '../../lib/helpers.js';
 import { env } from '../../config.js';
 import type { AuthRequest, ApiResponse } from '../../types/index.js';
 import { runReminderCron } from '../../jobs/reminderCron.js';
+import { resolvePatientBranchContext, canAccessPatientBranch } from '../../lib/patientBranchScope.js';
 
 export const remindersRouter = Router();
 
@@ -23,8 +24,13 @@ remindersRouter.get('/waitlist', authenticate, requirePermission('appointment.re
     const clinicId = requireClinic(req, res);
     if (!clinicId) return;
     const status = typeof req.query.status === 'string' ? req.query.status : undefined;
+    const context = await resolvePatientBranchContext(req.user!.id, clinicId, req.user!.role);
     const rows = await prisma.waitingList.findMany({
-      where: { clinicId, ...(status ? { status: status as any } : {}) },
+      where: {
+        clinicId,
+        ...(status ? { status: status as any } : {}),
+        ...(context.scope.branchIds.length ? { patient: { branchId: { in: context.scope.branchIds } } } : {}),
+      },
       orderBy: [{ preferredDate: 'asc' }, { createdAt: 'asc' }],
       take: 200,
     });
@@ -42,6 +48,12 @@ remindersRouter.post('/waitlist', authenticate, requirePermission('appointment.w
     const body = req.body || {};
     if (!body.patientId && !body.patientName) {
       return res.status(400).json({ ok: false, error: 'Укажите пациента' } satisfies ApiResponse);
+    }
+    let branchId: string | null = null;
+    if (body.patientId) {
+      branchId = await prisma.$queryRaw<Array<{ branch_id: string | null }>>`SELECT branch_id FROM patients WHERE id = ${body.patientId} AND "clinicId" = ${clinicId} LIMIT 1`.then(r => r[0]?.branch_id ?? null);
+      const context = await resolvePatientBranchContext(req.user!.id, clinicId, req.user!.role);
+      if (!canAccessPatientBranch(context, branchId)) return res.status(403).json({ ok: false, error: 'Недостаточно прав для филиала пациента' } satisfies ApiResponse);
     }
     const row = await prisma.waitingList.create({
       data: {
