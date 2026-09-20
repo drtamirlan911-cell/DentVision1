@@ -36,6 +36,7 @@ export async function seedDemoClinic(
   const owner = byRole('OWNER');
   const doctor = byRole('DOCTOR');
   const surgeon = users.find((u) => u.email === 'surgeon@dentvision.kz');
+  const patientUser = users.find((u) => u.email === 'patient@dentvision.kz');
 
   const memberSpecs: { userId: string; role: UserRole }[] = [];
   for (const role of CLINIC_ROLES) {
@@ -84,6 +85,10 @@ export async function seedDemoClinic(
       },
     });
     patients.push(patient);
+  }
+
+  if (patientUser && patients[0]) {
+    await prisma.patient.update({ where: { id: patients[0].id }, data: { userId: patientUser.id, email: patientUser.email } });
   }
 
   const doctorId = doctor?.id || owner?.id;
