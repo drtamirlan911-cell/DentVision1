@@ -4,6 +4,7 @@ import prisma from '../../lib/prisma.js';
 import { authenticate } from '../../middleware/auth.js';
 import type { AuthRequest, ApiResponse } from '../../types/index.js';
 import { resolveUserPermissions } from '../../lib/resolvePermissions.js';
+import { resolveOrganizationRoleKey } from '../../lib/authContext.js';
 import { pagesForCaller, capabilitiesForPermissions } from '../../lib/permissions.js';
 
 export const authMeRouter = Router();
@@ -24,7 +25,9 @@ authMeRouter.get('/me', authenticate, async (req: AuthRequest, res) => {
   // the active organization/person role into req.user.role; using the persisted
   // global User.role here would over-grant a user who is an OWNER globally but a
   // DOCTOR/ADMIN in the currently selected organization.
-  const effectiveRole = String(user.role || 'USER').toUpperCase();
+  const effectiveRole = user.organizationId
+    ? (await resolveOrganizationRoleKey(user.id, user.organizationId) || String(user.role || 'USER').toUpperCase())
+    : String(user.role || 'USER').toUpperCase();
   const effectivePermissions = await resolveUserPermissions(
     user.id,
     user.organizationId || user.clinicId || null,
