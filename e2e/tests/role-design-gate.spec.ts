@@ -7,7 +7,7 @@ const PUBLIC_ROUTES = ['/', '/login', '/register', '/forgot-password', '/booking
 const AUTH_COMMON_ROUTES = ['/', '/help', '/notifications', '/profile'];
 const ROUTES = [
   '/ai','/analytics','/settings','/help','/notifications','/admin','/bi','/security','/audit','/agent-activity','/ai-approvals','/backup','/profile',
-  '/supplier','/jobs','/community',
+  '/supplier','/jobs','/community','/quality','/platform-finance','/ai-governance','/support',
   '/crm/schedule','/crm/patients','/crm/cashier','/crm/pricelist','/crm/lab','/crm/inventory','/crm/stock-rules','/crm/marketing','/crm/promotions','/crm/staff',
   '/crm/medical-card','/crm/icd10','/crm/visits','/crm/documents','/crm/reminders','/crm/workflow','/crm/dental-chart','/crm/treatment-plans','/crm/clinic-settings','/crm/billing','/crm/patient-inbox','/crm/integrations/messaging','/crm/finance',
   '/shop','/shop/checkout','/shop/orders','/shop/favorites','/shop/suppliers',
