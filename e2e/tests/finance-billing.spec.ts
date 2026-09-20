@@ -19,14 +19,16 @@ test.describe('Clinical billing — deposits and installments', () => {
       data: { firstName: 'Billing', lastName: `E2E ${Date.now()}`, phone: '+77000000041' },
     });
     expect(patient.status()).toBe(201);
-    const patientId = ((await patient.json()).data || (await patient.json())).id;
+    const patientBody = await patient.json();
+    const patientId = (patientBody.data || patientBody).id;
 
     const invoice = await request.post(`${BASE}/api/billing/invoices`, {
       headers,
       data: { patientId, amount: 100000, items: [{ name: 'Treatment', price: 100000 }] },
     });
     expect(invoice.status()).toBe(201);
-    const invoiceId = ((await invoice.json()).data || (await invoice.json())).id;
+    const invoiceBody = await invoice.json();
+    const invoiceId = (invoiceBody.data || invoiceBody).id;
 
     const first = await request.post(`${BASE}/api/billing/invoices/${invoiceId}/pay`, {
       headers,
@@ -55,7 +57,8 @@ test.describe('Clinical billing — deposits and installments', () => {
       data: { firstName: 'Prepay', lastName: `E2E ${Date.now()}`, phone: '+77000000042' },
     });
     expect(patient.status()).toBe(201);
-    const patientId = ((await patient.json()).data || (await patient.json())).id;
+    const patientBody = await patient.json();
+    const patientId = (patientBody.data || patientBody).id;
 
     const res = await request.post(`${BASE}/api/billing/patients/${patientId}/prepayment`, {
       headers,
