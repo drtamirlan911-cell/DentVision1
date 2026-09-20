@@ -16,7 +16,7 @@ function auth(token: string) { return { Authorization: `Bearer ${token}`, 'Conte
 test.describe('Partner operational lifecycle', () => {
   let api: APIRequestContext;
   let ownerToken = '';
-  let superadminToken = await login(api, 'superadmin@test.com');
+  let superadminToken = '';
   let doctorToken = '';
   let patientId = '';
   let doctorId = '';
@@ -27,7 +27,7 @@ test.describe('Partner operational lifecycle', () => {
   test.beforeAll(async ({ playwright }) => {
     api = await playwright.request.newContext();
     ownerToken = await login(api, 'owner-a@test.com');
-    superadminToken = '';
+    superadminToken = await login(api, 'superadmin@test.com');
     doctorToken = await login(api, 'doctor-a@test.com');
 
     const me = await api.get(`${BASE}/api/auth/me`, { headers: auth(doctorToken) });
