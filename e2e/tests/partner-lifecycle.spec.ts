@@ -130,7 +130,7 @@ test.describe('Partner operational lifecycle', () => {
       expect((await res.json()).data.status).toBe(status);
     }
 
-    const read = await api.get(`${BASE}/api/lab/medical-laboratory/orders/${order.id}`, { headers: auth(ownerToken) });
+    const read = await api.get(`${BASE}/api/lab-orders/medical-laboratory/orders/${order.id}`, { headers: auth(ownerToken) });
     expect(read.status()).toBe(200);
     expect((await read.json()).data.order.status).toBe('verified');
   });
