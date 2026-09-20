@@ -104,7 +104,7 @@ export async function authenticate(req: AuthRequest, res: Response, next: NextFu
           include: {
             organization: { select: { type: true, originalId: true } },
             personRoles: { select: { scopeType: true, scopeId: true, role: { select: { key: true } } } },
-            branchMemberships: { select: { branchId: true } },
+            branchMemberships: { where: { active: true }, select: { branchId: true } },
           },
         });
         if (person?.organization) {
