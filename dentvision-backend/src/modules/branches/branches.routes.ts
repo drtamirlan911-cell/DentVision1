@@ -294,6 +294,24 @@ branchesRouter.patch('/:id', async (req: AuthRequest, res) => {
   } catch (error) { console.error('[branches] update', error); return res.status(500).json({ ok: false, error: 'Не удалось изменить филиал' }); }
 });
 
+branchesRouter.post('/:id/workspace', async (req: AuthRequest, res) => {
+  const branchId = String(req.params.id);
+  try {
+    const branch = await loadBranch(branchId);
+    if (!branch) return res.status(404).json({ ok: false, error: 'Филиал не найден' });
+    const authz = branch.organization_id && !branch.clinic_id
+      ? await authorizeOrganizationBranch(req.user!.id, branch.organization_id, branch)
+      : branch.clinic_id
+        ? await authorizeMemberBranch(req.user!.id, branch.clinic_id, branch)
+        : { allowed: false, status: 404, error: 'Филиал не связан с организацией' };
+    if (!authz.allowed) return res.status(authz.status).json({ ok: false, error: authz.error });
+    return res.json({ ok: true, data: { branch: serialize(branch), context: { organizationId: branch.organization_id, clinicId: branch.clinic_id, branchId: branch.id } } });
+  } catch (error) {
+    console.error('[branches] workspace', error);
+    return res.status(500).json({ ok: false, error: 'Не удалось открыть рабочее пространство филиала' });
+  }
+});
+
 branchesRouter.get('/:id/members', async (req: AuthRequest, res) => {
   const branchId = String(req.params.id);
   try {
