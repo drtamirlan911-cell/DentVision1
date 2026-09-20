@@ -102,7 +102,7 @@ jobs:
       - run: npm run db:seed:e2e
         working-directory: dentvision-backend
       - name: Install Playwright browsers
-        run: npx playwright install --with-deps chromium
+        run: npx playwright install --with-deps chromium webkit
       - name: Start backend
         run: nohup npx tsx src/index.ts > /tmp/backend.log 2>&1 &
         working-directory: dentvision-backend
@@ -126,11 +126,15 @@ jobs:
           cat /tmp/frontend.log >&2 || true
           exit 1
       - name: Run E2E suite
-        run: npx playwright test $(ls e2e/tests/*.spec.ts | grep -v browser-e2e | grep -v ux-coverage | grep -v business-owner-journeys | grep -v organization-owner-lifecycle)
+        run: npx playwright test $(ls e2e/tests/*.spec.ts | grep -v browser-e2e | grep -v ux-coverage | grep -v business-owner-journeys | grep -v organization-owner-lifecycle | grep -v mobile-design-gate)
       - name: Run browser UX coverage
         env:
           PLAYWRIGHT_UI_URL: http://localhost:3000
         run: npx playwright test e2e/tests/ux-coverage.spec.ts
+      - name: Run mobile design release gate
+        env:
+          PLAYWRIGHT_UI_URL: http://localhost:3000
+        run: npx playwright test e2e/tests/mobile-design-gate.spec.ts --project=mobile-chrome --project=mobile-safari
       - name: Run business owner journeys
         env:
           PLAYWRIGHT_UI_URL: http://localhost:3000
@@ -196,4 +200,5 @@ jobs:
           path: |
             playwright-report/
             .playwright-cli/
+            e2e/test-results/
           retention-days: 7
