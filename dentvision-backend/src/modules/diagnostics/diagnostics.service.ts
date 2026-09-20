@@ -277,7 +277,7 @@ const referralInclude = {
   _count: { select: { comments: true } },
 };
 
-export async function listReferrals(opts: { clinicId?: string; doctorId?: string; centerId?: string; labId?: string; status?: string; patientId?: string; search?: string; limit?: number; offset?: number; }) {
+export async function listReferrals(opts: { clinicId?: string; doctorId?: string; centerId?: string; labId?: string; status?: string; patientId?: string; search?: string; branchIds?: string[]; limit?: number; offset?: number; }) {
   const where: any = {};
   if (opts.clinicId) where.clinicId = opts.clinicId;
   if (opts.doctorId) where.doctorId = opts.doctorId;
@@ -285,6 +285,7 @@ export async function listReferrals(opts: { clinicId?: string; doctorId?: string
   if (opts.labId) where.labId = opts.labId;
   if (opts.status) where.status = opts.status;
   if (opts.patientId) where.patientId = opts.patientId;
+  if (opts.branchIds) where.branchId = { in: opts.branchIds };
   if (opts.search) where.OR = [{ patientName: { contains: opts.search, mode: 'insensitive' } }, { patientIin: { contains: opts.search } }];
   const [items, total] = await Promise.all([
     prisma.referral.findMany({ where, include: referralInclude, orderBy: { createdAt: 'desc' }, take: opts.limit || 50, skip: opts.offset || 0 }),
