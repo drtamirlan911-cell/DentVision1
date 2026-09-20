@@ -7,6 +7,7 @@ import { authorizeBranchScope } from '../../lib/branchAuthorization.js';
 import type { RoleScope } from '../../lib/roleAccessRegistry.js';
 import { resolveOrganizationIdForClinic } from '../../lib/orgContext.js';
 import { canCreateClinicBranch, isBranchBillingOrganizationType, quoteBranchSubscription } from '../finance/branchBillingPolicy.js';
+import { auditFromReq } from '../compliance/audit.service.js';
 
 export const branchesRouter = Router();
 branchesRouter.use(authenticate);
@@ -222,6 +223,7 @@ branchesRouter.post('/', async (req: AuthRequest, res) => {
             NOT EXISTS (SELECT 1 FROM "branches" WHERE "organization_id" = ${organizationId}), CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, ${settings ?? null})
         RETURNING "id", "organization_id", "clinic_id", "code", "name", "city", "address", "phone", "active", "isDefault" AS is_default, "settings", "createdAt" AS created_at, "updatedAt" AS updated_at
       `;
+      await auditFromReq(req, { action: 'branch.created', entity: 'branch', entityId: branchId, details: { organizationId, code: branchCode } });
       return res.status(201).json({ ok: true, data: serialize(rows[0]) });
     }
     if (!clinicId) return res.status(400).json({ ok: false, error: 'organizationId или clinicId обязателен' });
@@ -287,6 +289,7 @@ branchesRouter.patch('/:id', async (req: AuthRequest, res) => {
       WHERE "id" = ${branchId}
       RETURNING "id", "organization_id", "clinic_id", "code", "name", "city", "address", "phone", "active", "isDefault" AS is_default, "settings", "createdAt" AS created_at, "updatedAt" AS updated_at
     `;
+    await auditFromReq(req, { action: active === false ? 'branch.archived' : 'branch.updated', entity: 'branch', entityId: branchId, details: { active, code: nextCode } });
     return res.json({ ok: true, data: serialize(updated[0]) });
   } catch (error) { console.error('[branches] update', error); return res.status(500).json({ ok: false, error: 'Не удалось изменить филиал' }); }
 });
@@ -329,7 +332,8 @@ branchesRouter.post('/:id/members/:userId', async (req: AuthRequest, res) => {
       const target=await prisma.clinicMember.findUnique({where:{userId_clinicId:{userId,clinicId:branch.clinic_id}}});
       if(!target)return res.status(404).json({ok:false,error:'Сотрудник не является участником клиники'});
       await prisma.$executeRaw`UPDATE "clinic_members" SET "branch_id"=${branchId},"updatedAt"=CURRENT_TIMESTAMP WHERE "userId"=${userId} AND "clinicId"=${branch.clinic_id}`;
-      return res.json({ok:true,data:{userId,branchId}});
+      await auditFromReq(req, { action: 'branch.member_assigned', entity: 'branch', entityId: branchId, details: { userId } });
+    return res.json({ok:true,data:{userId,branchId}});
     }
     if(!branch.organization_id)return res.status(404).json({ok:false,error:'Филиал не найден'});
     const authz=await authorizeOrganizationBranch(req.user!.id,branch.organization_id,branch,true);
@@ -350,7 +354,8 @@ branchesRouter.delete('/:id/members/:userId', async (req: AuthRequest, res) => {
       const authz=await authorizeMemberBranch(req.user!.id,branch.clinic_id,branch,true);
       if(!authz.allowed)return res.status(authz.status).json({ok:false,error:authz.error});
       await prisma.$executeRaw`UPDATE "clinic_members" SET "branch_id"=NULL,"updatedAt"=CURRENT_TIMESTAMP WHERE "userId"=${userId} AND "clinicId"=${branch.clinic_id} AND "branch_id"=${branchId}`;
-      return res.json({ok:true,data:{userId,branchId:null}});
+      await auditFromReq(req, { action: 'branch.member_unassigned', entity: 'branch', entityId: branchId, details: { userId } });
+    return res.json({ok:true,data:{userId,branchId:null}});
     }
     if(!branch.organization_id)return res.status(404).json({ok:false,error:'Филиал не найден'});
     const authz=await authorizeOrganizationBranch(req.user!.id,branch.organization_id,branch,true);
