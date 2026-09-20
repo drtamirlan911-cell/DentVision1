@@ -72,6 +72,13 @@ export const IntelligenceLayout: React.FC = () => {
   }, [location.pathname, firstRunPhase, completeFirstRun, setFirstRunPhase, setSidebarVisible]);
 
   useEffect(() => {
+    if (firstRunPhase !== 'greeting' || !isAuthenticated || isLoginRoute) return;
+    // The first-run shell must be an actual workspace, not a decorative timeout.
+    // Keep the greeting/intro animation while ensuring the AI workspace is reachable immediately.
+    if (location.pathname === '/') navigate('/ai', { replace: true });
+  }, [firstRunPhase, isAuthenticated, isLoginRoute, location.pathname, navigate]);
+
+  useEffect(() => {
     if (!isAuthenticated && !isGuest && !isLoginRoute) void initGuest();
   }, [isAuthenticated, isGuest, isLoginRoute, initGuest]);
 
