@@ -164,11 +164,33 @@ iamRouter.get('/invitations', async (req: AuthRequest, res) => {
     if (!org) return res.status(404).json({ ok: false, error: 'Организация не найдена' } satisfies ApiResponse);
     const allowed = await canManageMembers(req.user!.id, org, req.user!.role === 'SUPERADMIN');
     if (!allowed) return res.status(403).json({ ok: false, error: 'Недостаточно прав' } satisfies ApiResponse);
-    const invitations = await prisma.organizationInvitation.findMany({ where: { organizationId: org.id, usedAt: null }, orderBy: { createdAt: 'desc' }, take: 50 });
+    const invitations = await prisma.organizationInvitation.findMany({ where: { organizationId: org.id, usedAt: null, revokedAt: null }, orderBy: { createdAt: 'desc' }, take: 50 });
     return res.json({ ok: true, data: invitations } satisfies ApiResponse);
   } catch (error) {
     console.error('IAM list invitations error:', error);
     return res.status(500).json({ ok: false, error: 'Не удалось получить приглашения' } satisfies ApiResponse);
+  }
+});
+
+iamRouter.post('/invitations/:id/revoke', async (req: AuthRequest, res) => {
+  try {
+    const invitationId = String(req.params.id);
+    const invitation = await prisma.organizationInvitation.findUnique({ where: { id: invitationId }, include: { organization: true } });
+    if (!invitation) return res.status(404).json({ ok: false, error: 'Приглашение не найдено' } satisfies ApiResponse);
+    const allowed = await canManageMembers(req.user!.id, invitation.organization, req.user!.role === 'SUPERADMIN');
+    if (!allowed) return res.status(403).json({ ok: false, error: 'Недостаточно прав' } satisfies ApiResponse);
+    if (invitation.usedAt) return res.status(409).json({ ok: false, error: 'Приглашение уже использовано' } satisfies ApiResponse);
+    if (invitation.revokedAt) return res.status(409).json({ ok: false, error: 'Приглашение уже отозвано' } satisfies ApiResponse);
+    const revoked = await prisma.organizationInvitation.updateMany({
+      where: { id: invitationId, usedAt: null, revokedAt: null },
+      data: { revokedAt: new Date(), revokedBy: req.user!.id },
+    });
+    if (revoked.count !== 1) return res.status(409).json({ ok: false, error: 'Приглашение уже изменено' } satisfies ApiResponse);
+    await auditFromReq(req, { action: 'organization.invitation_revoked', entity: 'organization_invitation', entityId: invitationId, details: { organizationId: invitation.organizationId } });
+    return res.json({ ok: true, data: { id: invitationId, revoked: true } } satisfies ApiResponse);
+  } catch (error) {
+    console.error('IAM revoke invitation error:', error);
+    return res.status(500).json({ ok: false, error: 'Не удалось отозвать приглашение' } satisfies ApiResponse);
   }
 });
 
