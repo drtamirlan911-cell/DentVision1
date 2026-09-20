@@ -871,6 +871,8 @@ model Invoice {
   items           Json
   notes           String?
   paidAt          DateTime?
+  /// Cumulative amount actually received for this invoice; supports partial payments/installments.
+  paidAmount      Int              @default(0)
   deletedAt       DateTime?
   /// The plan this invoice bills, if any. Same rationale as
   /// `Appointment.treatmentPlanId` — the per-stage JSON link
