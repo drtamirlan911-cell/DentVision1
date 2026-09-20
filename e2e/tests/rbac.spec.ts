@@ -192,4 +192,41 @@ test.describe('RBAC - Role-Based Access Control', () => {
     });
     expect([403, 404]).toContain(res.status());
   });
+
+  test('RBAC-015: only organization management roles can list organization settings branches', async () => {
+    const clinicsRes = await api.get(`${BASE_URL}/api/auth/my-clinics`, { headers: authHeaders(tokens['owner-a']) });
+    expect(clinicsRes.status()).toBe(200);
+    const clinics = (await clinicsRes.json()).data;
+    const clinicId = Array.isArray(clinics) ? clinics[0]?.id : clinics?.id;
+    expect(clinicId).toBeTruthy();
+
+    const ownerRes = await api.get(`${BASE_URL}/api/organizations/branches?clinicId=${encodeURIComponent(clinicId)}`, {
+      headers: authHeaders(tokens['owner-a']),
+    });
+    expect(ownerRes.status()).toBe(200);
+
+    const doctorRes = await api.get(`${BASE_URL}/api/organizations/branches?clinicId=${encodeURIComponent(clinicId)}`, {
+      headers: authHeaders(tokens['doctor-a']),
+    });
+    expect([403, 404]).toContain(doctorRes.status());
+  });
+
+  test('RBAC-016: assistant cannot mutate organization branch configuration', async () => {
+    const clinicsRes = await api.get(`${BASE_URL}/api/auth/my-clinics`, { headers: authHeaders(tokens['owner-a']) });
+    const clinics = (await clinicsRes.json()).data;
+    const clinicId = Array.isArray(clinics) ? clinics[0]?.id : clinics?.id;
+    const listRes = await api.get(`${BASE_URL}/api/organizations/branches?clinicId=${encodeURIComponent(clinicId)}`, {
+      headers: authHeaders(tokens['owner-a']),
+    });
+    const branches = (await listRes.json()).data || [];
+    const branchId = branches[0]?.id;
+    expect(branchId).toBeTruthy();
+
+    const res = await api.patch(`${BASE_URL}/api/organizations/branches/${branchId}`, {
+      headers: authHeaders(tokens['assistant-a']),
+      data: { name: 'SHOULD-NOT-BE-SAVED' },
+    });
+    expect([403, 404]).toContain(res.status());
+  });
+
 });
