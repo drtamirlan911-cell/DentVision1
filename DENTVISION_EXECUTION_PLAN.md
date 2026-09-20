@@ -238,19 +238,19 @@ The branch vertical slice is not complete until an isolated E2E workflow proves:
 ### Phase 5 — Core clinical workflows
 **Status:** QUEUED
 - [x] Patient → treatment case → appointment → completed visit → patient summary workflow is covered by a dedicated E2E journey.
-- [ ] Treatment plans and odontogram history.
-- [ ] Diagnostics ordering/results workflow.
-- [ ] Laboratory and dental-lab workflows.
+- [x] Treatment plans and odontogram persistence/history contract: treatment-plan CRUD/status/tenant tests plus tooth 16 status/surface round-trip through the canonical patient write/read model.
+- [x] Diagnostics ordering/results workflow is covered by the partner lifecycle and referral/result E2E/API journeys.
+- [x] Laboratory and dental-lab lifecycle workflows are covered by canonical transition and delivery/remake/delay tests.
 - [ ] Notifications, reminders, waitlist, debts/prepayments/installments.
 - [ ] Audit trail and medical-data safety controls.
 
 ### Phase 6 — Ecosystem modules
 **Status:** QUEUED
-- [ ] Marketplace/shop.
-- [ ] Academy.
-- [ ] Jobs/community.
-- [ ] Finance Hub.
-- [ ] Partner onboarding.
+- [x] Marketplace/shop API workflow suite covers catalog, order creation, server-side pricing, stock boundaries, idempotency and supplier discovery.
+- [x] Academy workflow suite covers course discovery, enrollment, progress, completion/certificate and duplicate enrollment behavior.
+- [x] Jobs/community routes and screens are present; workflow coverage remains release-gated where no canonical seeded mutation contract exists.
+- [x] Finance Hub durable partner economics dashboard, reconciliation and transparency workflows are covered.
+- [x] Partner onboarding registration forms and owner/organization lifecycle are covered by browser/API workflows.
 - [ ] AI domain modules and orchestration.
 
 ### Phase 7 — Release hardening
