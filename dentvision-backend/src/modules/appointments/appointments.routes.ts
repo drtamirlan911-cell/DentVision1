@@ -26,6 +26,14 @@ appointmentsRouter.use(loadClinicAccess);
 
 const patientSelect = { id: true, firstName: true, lastName: true, phone: true } as const;
 
+function branchScope(req: AuthRequest): { branchId?: { in: string[] } } | { branchId: string } | {} {
+  const role = String(req.user?.role || '').toUpperCase();
+  if (['SUPERADMIN', 'OWNER', 'ADMIN'].includes(role)) return {};
+  const branchIds = (req.user?.branchIds ?? []).filter(Boolean);
+  return branchIds.length > 0 ? { branchId: { in: branchIds } } : { branchId: '__NO_BRANCH_ACCESS__' };
+}
+
+
 appointmentsRouter.get('/', async (req: AuthRequest, res) => {
   try {
     const clinicId = req.user?.clinicId;
@@ -34,7 +42,7 @@ appointmentsRouter.get('/', async (req: AuthRequest, res) => {
     const limit = Math.min(parseInt(req.query.limit as string) || 100, 500);
     const { skip, take } = paginate(page, limit);
     const { from, to, doctorId, status } = req.query as Record<string, string | undefined>;
-    const where: Record<string, unknown> = { clinicId };
+    const where: Record<string, unknown> = { clinicId, ...branchScope(req) };
     if (from || to) where.date = { ...(from && { gte: new Date(from) }), ...(to && { lte: new Date(to) }) };
     if (doctorId) where.doctorId = doctorId;
     if (status) where.status = toDbStatus(status);
@@ -58,7 +66,7 @@ appointmentsRouter.get('/conflicts', async (req: AuthRequest, res) => {
     const dayStart = new Date(date), dayEnd = new Date(date);
     dayEnd.setHours(23, 59, 59, 999);
     const conflicts = findScheduleConflicts({
-      candidates: await prisma.appointment.findMany({ where: { clinicId, date: { gte: dayStart, lte: dayEnd }, status: { notIn: ['cancelled', 'no_show'] }, ...(excludeId ? { id: { not: excludeId } } : {}) }, include: { patient: { select: patientSelect } } }),
+      candidates: await prisma.appointment.findMany({ where: { clinicId, ...branchScope(req), date: { gte: dayStart, lte: dayEnd }, status: { notIn: ['cancelled', 'no_show'] }, ...(excludeId ? { id: { not: excludeId } } : {}) }, include: { patient: { select: patientSelect } } }),
       doctorId, patientId, chairId, time, duration: parseInt(duration || '30', 10) || 30, excludeId,
     });
     return res.json({ ok: true, data: { hasConflict: conflicts.length > 0, conflicts: conflicts.map(serializeAppointment) } } satisfies ApiResponse);
@@ -74,13 +82,13 @@ appointmentsRouter.post('/', requirePermission('appointment.write'), requireClin
     if (!clinicId) return res.status(400).json({ ok: false, error: 'Клиника не указана' } satisfies ApiResponse);
     const body = req.body || {};
     const { id, patientId: bodyPatientId, doctorId: bodyDoctorId, date: bodyDate, time, duration, type, notes, status, force, chairId } = body;
-    const existing = id ? await prisma.appointment.findFirst({ where: { id, clinicId } }) : null;
+    const existing = id ? await prisma.appointment.findFirst({ where: { id, clinicId, ...branchScope(req) } }) : null;
     const patientId = bodyPatientId || existing?.patientId;
     const doctorId = bodyDoctorId || existing?.doctorId;
     const date = bodyDate || (existing?.date ? existing.date.toISOString().slice(0, 10) : undefined);
     if (!patientId || !doctorId || !date) return res.status(400).json({ ok: false, error: 'Пациент, врач и дата обязательны' } satisfies ApiResponse);
     if (bodyDoctorId && bodyDoctorId !== existing?.doctorId && !(await isClinicMember(doctorId, clinicId))) return res.status(400).json({ ok: false, error: 'Указанный врач не найден в этой клинике' } satisfies ApiResponse);
-    const patient = await prisma.patient.findFirst({ where: { id: patientId, clinicId }, select: { id: true } });
+    const patient = await prisma.patient.findFirst({ where: { id: patientId, clinicId, ...branchScope(req) }, select: { id: true, branchId: true } });
     if (!patient) return res.status(404).json({ ok: false, error: 'Пациент не найден' } satisfies ApiResponse);
     const apptTime = time || existing?.time || '09:00';
     const apptDuration = duration || existing?.duration || 30;
@@ -100,8 +108,9 @@ appointmentsRouter.post('/', requirePermission('appointment.write'), requireClin
     }
     const meta = buildMeta(body, parseMeta(existing?.meta));
     const serviceLabel = meta.serviceName || type || existing?.type || null;
+    const branchId = patient?.branchId ?? existing?.branchId ?? null;
     const appointment = existing
-      ? await prisma.appointment.update({ where: { id: existing.id }, data: { patientId, doctorId, date: new Date(date), time: apptTime, duration: apptDuration, type: serviceLabel, notes: notes ?? existing.notes, status: status ? toDbStatus(status) : existing.status, meta: meta as any }, include: { patient: { select: patientSelect } } })
+      ? await prisma.appointment.update({ where: { id: existing.id }, data: { patientId, doctorId, date: new Date(date), time: apptTime, duration: apptDuration, type: serviceLabel, notes: notes ?? existing.notes, status: status ? toDbStatus(status) : existing.status, meta: meta as any, branchId }, include: { patient: { select: patientSelect } } })
       : await prisma.appointment.create({ data: { id: id || uid(), clinicId, patientId, doctorId, date: new Date(date), time: apptTime, duration: apptDuration, type: serviceLabel, notes: notes || null, status: toDbStatus(status), meta: meta as any }, include: { patient: { select: patientSelect } } });
     if (!existing) {
       publish('appointment.created', { clinicId, appointmentId: appointment.id, patientId: appointment.patientId, doctorId: appointment.doctorId, userId: req.user?.id });
@@ -127,7 +136,7 @@ appointmentsRouter.patch('/:id/status', requirePermission('appointment.write'), 
   try {
     const clinicId = req.user?.clinicId;
     if (!clinicId) return res.status(400).json({ ok: false, error: 'Клиника не указана' } satisfies ApiResponse);
-    const existing = await prisma.appointment.findFirst({ where: { id: req.params.id as string, clinicId } });
+    const existing = await prisma.appointment.findFirst({ where: { id: req.params.id as string, clinicId, ...branchScope(req) } });
     if (!existing) return res.status(404).json({ ok: false, error: 'Запись не найдена' } satisfies ApiResponse);
     const status = req.body?.status;
     const appointment = await prisma.appointment.update({ where: { id: existing.id }, data: { status: toDbStatus(status), meta: buildMeta({ status }, parseMeta(existing.meta)) as any }, include: { patient: { select: patientSelect } } });
@@ -143,14 +152,14 @@ appointmentsRouter.post('/:id/close', requireClinicWritable, async (req: AuthReq
   try {
     const clinicId = req.user?.clinicId, userId = req.user?.id;
     if (!clinicId || !userId) return res.status(400).json({ ok: false, error: 'Клиника не указана' } satisfies ApiResponse);
-    const existing = await prisma.appointment.findFirst({ where: { id: req.params.id as string, clinicId }, include: { patient: { select: patientSelect } } });
+    const existing = await prisma.appointment.findFirst({ where: { id: req.params.id as string, clinicId, ...branchScope(req) }, include: { patient: { select: patientSelect } } });
     if (!existing) return res.status(404).json({ ok: false, error: 'Запись не найдена' } satisfies ApiResponse);
     const role = String(req.user?.role || '').toUpperCase();
     if (!['OWNER', 'ADMIN', 'MANAGER', 'SUPERADMIN'].includes(role) && existing.doctorId !== userId) return res.status(403).json({ ok: false, error: 'Можно закрыть только свои приёмы' } satisfies ApiResponse);
     const body = (req.body || {}) as Record<string, unknown>;
     const prevMeta = parseMeta(existing.meta), meta = metaFromClosedVisit(prevMeta, body);
     const deducted: string[] = [], shortages: Array<{ itemId: string; name: string; requested: number; taken: number }> = [];
-    const firstClose = await prisma.appointment.updateMany({ where: { id: existing.id, clinicId, status: { not: 'completed' } }, data: { status: 'completed' } });
+    const firstClose = await prisma.appointment.updateMany({ where: { id: existing.id, clinicId, ...branchScope(req), status: { not: 'completed' } }, data: { status: 'completed' } });
     if (firstClose.count === 1 && !prevMeta.inventoryDeducted) {
       const plan = await resolveDeductionPlan(prisma, { clinicId, serviceCodes: (meta.services || []).map((line) => (line as { code?: string }).code).filter((code): code is string => typeof code === 'string' && code.length > 0), diagnosisText: meta.diagnosis });
       if (plan.length > 0) {
