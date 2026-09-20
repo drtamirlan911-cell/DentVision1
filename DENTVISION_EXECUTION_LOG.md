@@ -779,3 +779,8 @@ Run the exact current main-tip CI role/device matrix. Treat every failed role/de
 - `4e9783bbb84170b96082e24c9b3ebec81462f050` — every audited screen now requires meaningful visible content and information hierarchy; unexplained icon-only interactive controls are rejected.
 - `4a7b194bb790f8b75431b8d4b9a67cc62894b073` — duplicate control-label detection was added as an additional UI ambiguity signal.
 - This complements geometry/accessibility/runtime/security checks; visual screenshots remain evidence for human review, while deterministic assertions catch objective layout and interaction defects.
+
+### 2026-09-20 — Full design/role release gate launch
+- Main tip: `c569642745edfca058c4c83640f6041727237548`.
+- Launch requested for the complete CI matrix: core E2E, browser UX, responsive design, role/context design across declared roles and viewports, business-owner journeys, organization-owner lifecycle, and Playwright CLI smoke.
+- PASS is not recorded until GitHub Actions returns fresh evidence for this main-tip run.
