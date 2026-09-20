@@ -27,7 +27,7 @@ import {
 } from './bi.service.js';
 import prisma from '../../lib/prisma.js';
 import { serializeBigInt } from '../../lib/money.js';
-import { canonicalPartnerEconomicsRules, PARTNER_VERTICALS, type PartnerVertical } from '../finance/partner-economics.service.js';
+import { canonicalPartnerEconomicsRules, getPartnerEconomicsTransparency, PARTNER_VERTICALS, type PartnerVertical } from '../finance/partner-economics.service.js';
 import type { AuthRequest, ApiResponse } from '../../types/index.js';
 
 export const biRouter = Router();
@@ -182,6 +182,11 @@ biRouter.get('/partner-economics', requirePermission('bi.platform'), async (req:
       })
       .filter((item) => !vertical || item.vertical === vertical);
 
+    const transparency = await getPartnerEconomicsTransparency({
+      from,
+      to,
+      vertical,
+    });
     const grossMinor = rows.reduce((sum, row) => sum + row.amount, 0n);
     const commissionMinor = sumMeta(rows, 'commissionMinor');
     const contributionMarginMinor = sumMeta(rows, 'contributionMarginMinor');
@@ -197,6 +202,8 @@ biRouter.get('/partner-economics', requirePermission('bi.platform'), async (req:
         marginBps: grossMinor === 0n ? 0 : Number((contributionMarginMinor * 10_000n) / grossMinor),
       },
       byVertical,
+      partnerRows: transparency.rows,
+      discrepancies: transparency.discrepancies,
       rules: canonicalPartnerEconomicsRules(),
     }) } satisfies ApiResponse);
   } catch (error) {
