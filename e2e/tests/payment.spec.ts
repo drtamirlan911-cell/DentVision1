@@ -48,7 +48,7 @@ async function createTestOrder(api: APIRequestContext, token: string): Promise<{
   const res = await api.post(`${BASE_URL}/api/shop/orders`, {
     headers: { ...authHeaders(token), 'Idempotency-Key': `test-order-${Date.now()}-${Math.random().toString(36).slice(2)}` },
     data: {
-      items: [{ product_id: product.id, quantity: 1 }],
+      items: [{ product_id: product.id, quantity: 2 }],
     },
   });
   expect(res.status()).toBe(201);
