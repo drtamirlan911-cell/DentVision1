@@ -26,7 +26,7 @@ appointmentsRouter.use(loadClinicAccess);
 
 const patientSelect = { id: true, firstName: true, lastName: true, phone: true } as const;
 
-function branchScope(req: AuthRequest): { branchId?: { in: string[] } } | { branchId: string } | {} {
+function branchScope(req: AuthRequest): Record<string, unknown> {
   const role = String(req.user?.role || '').toUpperCase();
   if (['SUPERADMIN', 'OWNER', 'ADMIN'].includes(role)) return {};
   const branchIds = (req.user?.branchIds ?? []).filter(Boolean);
