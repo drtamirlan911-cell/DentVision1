@@ -86,7 +86,17 @@ test.describe('Partner operational lifecycle', () => {
       headers: auth(ownerToken),
       data: { reportText: 'E2E diagnostic report', conclusion: 'No acute findings' },
     });
-    expect([200, 400]).toContain(result.status());
+    expect(result.status()).toBe(200);
+    const signed = (await result.json()).data;
+    expect(signed.patientRecordUpdated).toBe(true);
+
+    const clinicRead = await api.get(`${BASE}/api/diagnostics/referrals/${referral.id}`, {
+      headers: auth(ownerToken),
+    });
+    expect(clinicRead.status()).toBe(200);
+    const clinicReferral = (await clinicRead.json()).data;
+    expect(clinicReferral.id).toBe(referral.id);
+    expect(clinicReferral.result || clinicReferral.results || clinicReferral.reportText).toBeTruthy();
   });
 
   test('PARTNER-002: medical laboratory order → full lifecycle → result → verified', async () => {
