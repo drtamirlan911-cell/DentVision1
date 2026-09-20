@@ -327,3 +327,15 @@ Next action: add/verify the owner lifecycle release tests for registration → o
 Commit: 1e27ee04b46833b3519b9c8841b1d128344f1306
 
 Verification: **UNVERIFIED** — no CI result is exposed for this direct main commit by the available GitHub status connector.
+
+## 2026-09-20 — Branch management hardening
+
+- Verified the existing canonical `branches` router already provides organization-scoped create/list/update, default-branch switching, staff assignment/unassignment and archive via `active=false`; no parallel branch model was introduced.
+- Added audit events for branch creation, update/archive and unified branch staff assignment/unassignment.
+- Preserved existing `Branch`, `BranchMember` and legacy `ClinicMember.branchId` paths rather than replacing them.
+- Existing authorization checks reject cross-organization branch access and restrict branch mutation to organization Owner/Admin (or clinic Owner/Admin on legacy clinic branches).
+- The implementation remains **UNVERIFIED** until isolated E2E proves refresh persistence, branch switching, assignment, cross-branch denial and archive constraints.
+
+Commits: e77170dcc86536810a00f962640c168ba4a7a7dd, 396655ffc49acccf14927c9b98e25fd3aade8882
+
+Next action: wire the existing branch-management API into the canonical Owner Settings/Organization entry point if missing, then add the required isolated E2E and negative matrix for all three partner types.
