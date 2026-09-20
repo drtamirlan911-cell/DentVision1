@@ -24,6 +24,7 @@ const { tx, prismaMock } = vi.hoisted(() => {
     lecturer: { findUnique: vi.fn() },
     supplierMember: { findMany: vi.fn() },
     notification: { create: vi.fn() },
+    $executeRaw: vi.fn(),
   });
   const tx = delegate();
   const prismaMock = {
@@ -117,6 +118,31 @@ describe('the same money cannot be requested twice', () => {
       requestPayout({ ownerType: 'LECTURER', ownerId: 'lect-1', amountMinor: amount }),
     ).rejects.toMatchObject({ code: 'INVALID_AMOUNT' });
   });
+});
+
+describe('concurrent payout protection', () => {
+  it('locks the wallet before calculating available balance', async () => {
+    walletHolding(100_000n);
+    await requestPayout({ ownerType: 'LECTURER', ownerId: 'lect-1', amountMinor: 50_000n });
+    expect(tx.$executeRaw).toHaveBeenCalledTimes(1);
+  });
+
+  it('locks the payout before reading its current status', async () => {
+    payoutAtForConcurrency('approved');
+    await transitionPayout('p1', 'paid');
+    expect(tx.$executeRaw).toHaveBeenCalledTimes(1);
+  });
+
+  function payoutAtForConcurrency(status: string) {
+    tx.payout.findUnique.mockResolvedValue({
+      id: 'p1',
+      walletId: 'w1',
+      amount: 50_000n,
+      status,
+      wallet: { id: 'w1', balance: 100_000n, currency: 'KZT', ownerType: 'LECTURER', ownerId: 'lect-1' },
+    });
+    tx.wallet.findUnique.mockResolvedValue({ id: 'gw', balance: 0n, currency: 'KZT' });
+  }
 });
 
 describe('the state machine', () => {
