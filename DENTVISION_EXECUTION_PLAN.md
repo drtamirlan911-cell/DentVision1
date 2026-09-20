@@ -218,7 +218,8 @@ The branch vertical slice is not complete until an isolated E2E workflow proves:
 **Status:** QUEUED
 - [ ] Trigger economics automatically when an eligible order/payment is created or completed.
 - [x] Automate payout readiness and notifications.
-- [ ] Handle refunds, cancellations, partial fulfillment, discounts, taxes/fees where supported by the domain model.
+- [x] Implement full and partial payment refunds where a durable Finance Core ledger transaction exists; unsupported payment domains fail closed rather than mutating money without a reversal.
+- [ ] Handle cancellations, partial fulfillment, discounts, taxes/fees where supported by the domain model.
 - [x] Add scheduled reconciliation and anomaly detection.
 
 ### Phase 4 — Product-wide UX and navigation
