@@ -299,8 +299,8 @@ test.describe('Payment API', () => {
     expect(res.status()).toBe(404);
   });
 
-  // ─── PAY-009: Refund → route not implemented (404) ───────────────────────
-  test('PAY-009: Refund → route not implemented (404)', async () => {
+  // ─── PAY-009: Full refund → refunded + durable ledger reversal ──────────
+  test('PAY-009: Full refund → refunded + durable ledger reversal', async () => {
     const order = await createTestOrder(api, ownerToken);
 
     const payRes = await api.post(`${BASE_URL}/api/payments`, {
@@ -316,51 +316,85 @@ test.describe('Payment API', () => {
       },
     });
     expect(payRes.status()).toBe(201);
-    const payBody = await payRes.json();
-    const paymentId = payBody.data.id;
+    const paymentId = (await payRes.json()).data.id;
 
-    // Confirm first
     await api.post(`${BASE_URL}/api/payments/${paymentId}/confirm`, {
       headers: authHeaders(ownerToken),
     });
 
-    // Attempt refund — route does not exist
-    const res = await api.post(`${BASE_URL}/api/payments/${paymentId}/refund`, {
-      headers: authHeaders(ownerToken),
-      data: { reason: 'test refund' },
+    const before = await prisma.transaction.findFirst({
+      where: { type: 'sale', refType: 'order', refId: order.id },
+      include: { ledgerEntries: true },
     });
-    expect(res.status()).toBe(404);
+    expect(before).toBeTruthy();
+
+    const refundRes = await api.post(`${BASE_URL}/api/payments/${paymentId}/refund`, {
+      headers: { ...authHeaders(ownerToken), 'Idempotency-Key': `refund-009-${Date.now()}` },
+      data: { reason: 'E2E refund' },
+    });
+    expect(refundRes.status()).toBe(201);
+    const refundBody = await refundRes.json();
+    expect(refundBody.data.payment.status).toBe('refunded');
+    expect(refundBody.data.refund.amount).toBe(String(order.total * 100));
+
+    const refundTx = await prisma.transaction.findUnique({
+      where: { id: refundBody.data.refund.id },
+      include: { ledgerEntries: true },
+    });
+    expect(refundTx?.type).toBe('refund');
+    expect(refundTx?.refType).toBe('payment');
+    expect(refundTx?.refId).toBe(paymentId);
+    expect(refundTx?.ledgerEntries).toHaveLength(before!.ledgerEntries.length);
+
+    const debit = before!.ledgerEntries.filter((e) => e.direction === 'debit').reduce((s, e) => s + e.amount, 0n);
+    const credit = before!.ledgerEntries.filter((e) => e.direction === 'credit').reduce((s, e) => s + e.amount, 0n);
+    const refundDebit = refundTx!.ledgerEntries.filter((e) => e.direction === 'debit').reduce((s, e) => s + e.amount, 0n);
+    const refundCredit = refundTx!.ledgerEntries.filter((e) => e.direction === 'credit').reduce((s, e) => s + e.amount, 0n);
+    expect(refundDebit).toBe(credit);
+    expect(refundCredit).toBe(debit);
   });
 
-  // ─── PAY-010: Duplicate refund → 404 (no refund route) ────────────────────
-  test('PAY-010: Duplicate refund → 404 (no refund route)', async () => {
+  // ─── PAY-010: Partial refund + idempotency + over-refund protection ───────
+  test('PAY-010: Partial refund is durable and idempotent', async () => {
     const order = await createTestOrder(api, ownerToken);
 
     const payRes = await api.post(`${BASE_URL}/api/payments`, {
-      headers: {
-        ...authHeaders(ownerToken),
-        'Idempotency-Key': `pay-010-${Date.now()}`,
-      },
-      data: {
-        amount: order.total,
-        provider: 'kaspi_qr',
-        refType: 'order',
-        refId: order.id,
-      },
+      headers: { ...authHeaders(ownerToken), 'Idempotency-Key': `pay-010-${Date.now()}` },
+      data: { amount: order.total, provider: 'kaspi_qr', refType: 'order', refId: order.id },
     });
     expect(payRes.status()).toBe(201);
-    const payBody = await payRes.json();
-    const paymentId = payBody.data.id;
+    const paymentId = (await payRes.json()).data.id;
+    await api.post(`${BASE_URL}/api/payments/${paymentId}/confirm`, { headers: authHeaders(ownerToken) });
 
-    const res1 = await api.post(`${BASE_URL}/api/payments/${paymentId}/refund`, {
-      headers: authHeaders(ownerToken),
-    });
-    expect(res1.status()).toBe(404);
+    const totalMinor = BigInt(Math.round(order.total * 100));
+    const partialMinor = totalMinor / 2n;
 
-    const res2 = await api.post(`${BASE_URL}/api/payments/${paymentId}/refund`, {
-      headers: authHeaders(ownerToken),
+    const first = await api.post(`${BASE_URL}/api/payments/${paymentId}/refund`, {
+      headers: { ...authHeaders(ownerToken), 'Idempotency-Key': `refund-010-a-${Date.now()}` },
+      data: { amountMinor: partialMinor.toString(), reason: 'E2E partial refund' },
     });
-    expect(res2.status()).toBe(404);
+    expect(first.status()).toBe(201);
+    expect((await first.json()).data.payment.status).toBe('paid');
+
+    const key = `refund-010-idempotent-${Date.now()}`;
+    const idem1 = await api.post(`${BASE_URL}/api/payments/${paymentId}/refund`, {
+      headers: { ...authHeaders(ownerToken), 'Idempotency-Key': key },
+      data: { amountMinor: partialMinor.toString() },
+    });
+    expect(idem1.status()).toBe(201);
+    const idem2 = await api.post(`${BASE_URL}/api/payments/${paymentId}/refund`, {
+      headers: { ...authHeaders(ownerToken), 'Idempotency-Key': key },
+      data: { amountMinor: partialMinor.toString() },
+    });
+    expect(idem2.status()).toBe(200);
+    expect((await idem2.json()).data.alreadyProcessed).toBe(true);
+    expect((await idem2.json()).data.payment.status).toBe('refunded');
+
+    const over = await api.post(`${BASE_URL}/api/payments/${paymentId}/refund`, {
+      headers: { ...authHeaders(ownerToken), 'Idempotency-Key': `refund-010-over-${Date.now()}` },
+      data: { amountMinor: '1' },
+    });
+    expect(over.status()).toBe(409);
   });
 
   // ─── PAY-011: Payment count verification after operations → correct count ──
