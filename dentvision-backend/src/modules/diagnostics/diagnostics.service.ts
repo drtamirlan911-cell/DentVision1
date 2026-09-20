@@ -1,4 +1,5 @@
 import prisma from '../../lib/prisma.js';
+import { recordPartnerEconomics } from '../finance/partner-economics.service.js';
 import { uid } from '../../lib/helpers.js';
 import { writeAuditLog } from '../compliance/audit.service.js';
 import { simpleChat } from '../ai/llm/client.js';
@@ -359,6 +360,15 @@ export async function changeReferralStatus(id: string, status: ReferralStatus, u
   if (status === 'COMPLETED' && cost !== undefined) { update.cost = cost; update.paid = false; }
   if (status === 'CANCELLED') { update.cancelledAt = new Date(); update.cancelReason = reason; }
   const updatedReferral = await prisma.referral.update({ where: { id }, data: update });
+  if (status === 'COMPLETED' && updatedReferral.centerId && updatedReferral.cost != null) {
+    await recordPartnerEconomics({
+      vertical: 'DIAGNOSTIC_3D',
+      partnerId: updatedReferral.centerId,
+      grossMinor: BigInt(Math.round(Number(updatedReferral.cost) * 100)),
+      operationId: updatedReferral.id,
+      branchId: updatedReferral.branchId ?? null,
+    });
+  }
   if (status === 'SENT' && updatedReferral.centerId) await createNotificationForCenter(updatedReferral.centerId, { type: NOTIFICATION_TYPES.REFERRAL_SENT, title: 'Новое направление', message: `${updatedReferral.patientName || 'Пациент'} — ${updatedReferral.studyType || 'исследование'}`, link: `/center-workspace?tab=referrals` });
   if (status === 'ACCEPTED' && updatedReferral.doctorId) await createNotification({ userId: updatedReferral.doctorId, type: NOTIFICATION_TYPES.REFERRAL_ACCEPTED, title: 'Направление принято', message: `#${id.slice(0, 8)}: ${updatedReferral.patientName} — ${updatedReferral.studyType}. Стоимость: ${Number(updatedReferral.cost || 0).toLocaleString()} ₸`, link: `/diagnostics/referrals/${id}` });
   if (status === 'COMPLETED' && updatedReferral.doctorId) await createNotification({ userId: updatedReferral.doctorId, type: NOTIFICATION_TYPES.REFERRAL_RESULT, title: 'Результат диагностики готов', message: `Направление #${id.slice(0, 8)}: ${updatedReferral.patientName} — ${updatedReferral.studyType}. Результат готов к просмотру.`, link: `/diagnostics/referrals/${id}` });
