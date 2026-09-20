@@ -57,7 +57,7 @@ Evidence recorded in `CURRENT_STATE.md` and `DENTVISION_EXECUTION_LOG.md`.
 - [x] Establish E2E coverage entry points for employee management and invitations.
 - [x] Complete full owner lifecycle: registration → organization profile → verification/approval state → first login → operational workspace.
 - [x] Complete full branch lifecycle: create → edit → switch → assign employees → enforce branch permissions → archive/delete according to the existing domain model.
-- [ ] Verify partner dashboard shows applicable fee/commission, gross order value, deductions, net payout, payout status, and rule/version reference.
+- [x] Verify the durable Partner Economics dashboard transparency surface shows applicable commission, gross value, deductions/cost, partner net payout, payout status and economics rule/version reference.
 - [ ] Diagnostic centers see branch economics and platform deductions.
 - [ ] Analysis laboratories see per-analysis economics.
 - [ ] Dental laboratories see per-order/service economics.
