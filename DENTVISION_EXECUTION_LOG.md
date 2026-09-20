@@ -256,3 +256,31 @@ The complete pre-2026-09-14 execution history is preserved in the parent Git his
 ### Next action
 - Continue Finance Hub presentation/partner transparency from this durable read model.
 - Then execute the owner/partner lifecycle and full role/branch/cross-tenant negative matrix.
+
+
+## 2026-09-20 — Durable Finance Hub partner transparency pass
+
+### Implemented
+- `3f0b8a72e0a77ee69e17962e4ef85bad3784e015` — Partner Economics transaction snapshots now retain optional branch scope without creating a second financial model.
+- `06989e7b4965e185ebdfe45126e5899ff8c01c1f` — diagnostic settlements propagate referral branch into durable economics.
+- `6896223a3750dfd819a70499fcc7f03767fc6b0f` — medical-analysis settlement derives branch from the order's patient and persists it with the immutable economics transaction.
+- `c5e384d047307603fb36a698767798d6b23b2bd3` — dental-lab delivered recognition persists patient branch scope.
+- `158d30a1a8a05cb2b60410d05c035d3bc091d45d` — added the durable Partner Economics transparency read model: gross, platform commission, partner payout, attributable costs, contribution margin, status, rule version, partner, branch and operation.
+- `e46392940af1be16215cb54c5c3d89858c6b80f3` — exposed Finance Core `GET /finance/partner-economics/transparency` with period/vertical/partner/branch filters and finance authorization.
+- `c42cacb8131d8b150bf17454c732f7c97d139675` — regression tests cover durable aggregation and branch filtering.
+- `befa9cef9b53aa71103ea3d91e26a88a8a2c9f61` — BI Partner Economics now consumes the same durable transparency read model and exposes discrepancy count.
+- `a5de3254963c641085a9776a6b16ef69c2061cb7f` and `4b2a6c471392787e4df049184ac859177555cae7` — Finance Hub UI exposes partner/branch rows, payout, contribution, cost and economics version.
+
+### Architectural result
+- Finance Hub now reads immutable Partner Economics transactions rather than recomputing historical economics from current rules.
+- Branch is persisted as transaction context where the originating workflow has an authoritative branch.
+- Reconciliation remains explicit: discrepancies are surfaced, not silently corrected.
+- No duplicate ledger or economics model was introduced.
+
+### Verification status
+- Implementation and regression tests are committed.
+- Fresh full CI/E2E evidence for the new HEAD is not yet available through the connected GitHub status surface; this block remains **UNVERIFIED** until release gates run.
+
+### Next action
+- Complete the owner/partner lifecycle vertical slice: registration → organization verification state → first login → branch lifecycle → staff/invitations → operational workspace for diagnostic center, medical laboratory and dental laboratory.
+- Then execute the complete role/branch/cross-tenant negative matrix and release-gate verification.
