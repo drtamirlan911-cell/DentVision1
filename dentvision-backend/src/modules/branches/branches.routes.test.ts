@@ -30,4 +30,14 @@ describe('branch route authorization contract', () => {
     expect(source).toContain("member.role} IN ('OWNER', 'ADMIN')");
     expect(source).toContain('member.branch_id ??');
   });
+  it('returns userId for organization branch members so unassignment can target the same membership', () => {
+    expect(source).toContain('p."userId" AS user_id');
+    expect(source).toContain('userId:r.user_id');
+  });
+
+  it('prevents archiving the only active default branch', () => {
+    expect(source).toContain("if (active === false && branch.is_default)");
+    expect(source).toContain('Нельзя отключить единственный активный филиал');
+  });
+
 });
