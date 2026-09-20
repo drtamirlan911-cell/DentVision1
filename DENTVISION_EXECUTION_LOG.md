@@ -761,3 +761,11 @@ Run the exact current main-tip CI role/device matrix. Treat every failed role/de
 - `b546c0110a078af55ebe015f4b2cca42807673ba` / `49598ebeaca53ef957f63a6570743d98bbcad022` — scoped auth context now carries the partner organization name.
 - `e52bc2eb56c300bad99f2e9dd4f4fd90b2c90737` / `adedafaf29b76ae046c5c43af1348be0e1822097` / `97cbbdd0a9b90dedf972440eac870fd242518114` — login/session hydration and frontend user typing preserve the organization name so partner greetings/context cards cannot fall back to a generic personal context.
 - Latest verification remains pending fresh CI execution; no new role/device result is marked PASS before the gate runs.
+
+
+### 2026-09-20 — Exhaustive route/security gate expansion
+- `9ad49e051356ee6b88747592a96bfdf436e64625` — role gate replaced sampled critical-route coverage with a declared application route inventory for every represented E2E role; unauthorized routes are asserted to leave the requested URL rather than merely rendering a generic page.
+- `cdb79b8f103b6e9439442c379562d6a63e84c616` — removed the discovered-route sampling cap and added HTTP 5xx collection, so every same-origin route discovered from each allowed screen is also audited.
+- `8b6c6c500a6facbcaaf1b98e2a6360b140c97266` — dynamic CRM/diagnostic route IDs are normalized to their parent permission domain; allowed screens are additionally checked after reload and browser history back/forward navigation.
+- The gate now checks role identity, context contamination, application/chunk errors, horizontal overflow, clipped text, interactive target size, accessible names, form-control identification, runtime console/page errors, failed requests, HTTP 5xx responses, protected-route behavior for anonymous users, cross-tenant Clinic A/B isolation, storage token/password leakage, discovered internal links, and post-login entry workspace.
+- Fresh CI execution is still required; no new exhaustive matrix is marked PASS until GitHub Actions provides evidence.
