@@ -17,7 +17,7 @@ type BranchRow = {
   city: string | null; address: string | null; phone: string | null; active: boolean; is_default: boolean;
   settings: unknown; created_at: Date; updated_at: Date;
 };
-type MemberScopeRow = { role: string; branch_id: string | null };
+type MemberScopeRow = { role: string; branch_id: string | null; branch_active?: boolean };
 type OrganizationRoleRow = { role_key: string };
 
 function serialize(row: BranchRow) {
@@ -35,7 +35,10 @@ async function membership(userId: string, clinicId: string): Promise<MemberScope
   const user = await prisma.user.findUnique({ where: { id: userId }, select: { role: true } });
   if (user?.role === 'SUPERADMIN') return { role: 'OWNER', branch_id: null };
   const rows = await prisma.$queryRaw<MemberScopeRow[]>`
-    SELECT "role", "branch_id" FROM "clinic_members" WHERE "userId" = ${userId} AND "clinicId" = ${clinicId} LIMIT 1
+    SELECT cm."role", cm."branch_id", COALESCE(b."active", true) AS branch_active
+    FROM "clinic_members" cm
+    LEFT JOIN "branches" b ON b."id" = cm."branch_id"
+    WHERE cm."userId" = ${userId} AND cm."clinicId" = ${clinicId} LIMIT 1
   `;
   return rows[0] ?? null;
 }
@@ -83,6 +86,7 @@ async function organizationPerson(userId: string, organizationId: string) {
 async function authorizeMemberBranch(userId: string, clinicId: string, branch: BranchRow, mutation = false) {
   const member = await membership(userId, clinicId);
   if (!member) return { allowed: false as const, status: 403, error: 'Вы не являетесь участником этой клиники' };
+  if (member.branch_id && member.branch_active === false) return { allowed: false as const, status: 403, error: 'Доступ сотрудника к филиалу отключён' };
   const clinicOrganizationId = await resolveOrganizationIdForClinic(clinicId);
   const expectedOrganizationId = clinicOrganizationId ?? `legacy:${clinicId}`;
   if (branch.organization_id && branch.organization_id !== expectedOrganizationId) return { allowed: false as const, status: 403, error: 'Филиал принадлежит другой организации' };
@@ -334,7 +338,7 @@ branchesRouter.get('/:id/members', async (req: AuthRequest, res) => {
       SELECT p."id", p."userId" AS user_id, p."fullName" AS full_name, COALESCE(u."email",p."email") AS email, p."personType" AS person_type
       FROM "branch_members" bm JOIN "persons" p ON p."id"=bm."personId"
       LEFT JOIN "users" u ON u."id"=p."userId"
-      WHERE bm."branchId"=${branchId} ORDER BY p."fullName"`;
+      WHERE bm."branchId"=${branchId} AND bm."active" = true ORDER BY p."fullName"`;
     return res.json({ok:true,data:rows.map(r=>({id:r.id,userId:r.user_id,name:r.full_name,email:r.email,role:r.person_type,branchId}))});
   } catch(error){console.error('[branches] members list',error);return res.status(500).json({ok:false,error:'Не удалось получить сотрудников филиала'});}
 });
@@ -358,12 +362,40 @@ branchesRouter.post('/:id/members/:userId', async (req: AuthRequest, res) => {
     if(!authz.allowed)return res.status(authz.status).json({ok:false,error:authz.error});
     const person=await organizationPerson(userId,branch.organization_id);
     if(!person)return res.status(404).json({ok:false,error:'Пользователь не является участником этой организации'});
-    await prisma.branchMember.upsert({where:{personId_branchId:{personId:person.id,branchId}},create:{id:uid(),personId,branchId},update:{}});
+    await prisma.branchMember.upsert({where:{personId_branchId:{personId:person.id,branchId}},create:{id:uid(),personId,branchId,active:true},update:{active:true}});
     await auditFromReq(req, { action: 'branch.member_assigned', entity: 'branch', entityId: branchId, details: { userId } });
     return res.json({ok:true,data:{userId,branchId}});
   }catch(error){console.error('[branches] assign member',error);return res.status(500).json({ok:false,error:'Не удалось назначить сотрудника'});}
 });
 
+branchesRouter.patch('/:id/members/:userId/status', async (req: AuthRequest, res) => {
+  const branchId=String(req.params.id), userId=String(req.params.userId);
+  const body = req.body as { active?: boolean };
+  if (typeof body.active !== 'boolean') return res.status(400).json({ok:false,error:'active обязателен'});
+  const active = body.active;
+  try {
+    const branch=await loadBranch(branchId);
+    if(!branch)return res.status(404).json({ok:false,error:'Филиал не найден'});
+    if(branch.clinic_id){
+      const authz=await authorizeMemberBranch(req.user!.id,branch.clinic_id,branch,true);
+      if(!authz.allowed)return res.status(authz.status).json({ok:false,error:authz.error});
+      const target=await prisma.clinicMember.findUnique({where:{userId_clinicId:{userId,clinicId:branch.clinic_id}}});
+      if(!target || target.branchId !== branchId) return res.status(404).json({ok:false,error:'Сотрудник не закреплён за этим филиалом'});
+      if(!active) await prisma.$executeRaw`UPDATE "clinic_members" SET "branch_id"=NULL,"updatedAt"=CURRENT_TIMESTAMP WHERE "userId"=${userId} AND "clinicId"=${branch.clinic_id} AND "branch_id"=${branchId}`;
+      await auditFromReq(req,{action:active?'branch.member_enabled':'branch.member_disabled',entity:'branch',entityId:branchId,details:{userId,active}});
+      return res.json({ok:true,data:{userId,branchId,active}});
+    }
+    if(!branch.organization_id)return res.status(404).json({ok:false,error:'Филиал не найден'});
+    const authz=await authorizeOrganizationBranch(req.user!.id,branch.organization_id,branch,true);
+    if(!authz.allowed)return res.status(authz.status).json({ok:false,error:authz.error});
+    const person=await organizationPerson(userId,branch.organization_id);
+    if(!person)return res.status(404).json({ok:false,error:'Пользователь не является участником этой организации'});
+    const changed=await prisma.branchMember.updateMany({where:{personId:person.id,branchId},data:{active}});
+    if(!changed.count)return res.status(404).json({ok:false,error:'Сотрудник не закреплён за этим филиалом'});
+    await auditFromReq(req,{action:active?'branch.member_enabled':'branch.member_disabled',entity:'branch',entityId:branchId,details:{userId,active}});
+    return res.json({ok:true,data:{userId,branchId,active}});
+  }catch(error){console.error('[branches] member status',error);return res.status(500).json({ok:false,error:'Не удалось изменить доступ сотрудника'});}
+});
 branchesRouter.delete('/:id/members/:userId', async (req: AuthRequest, res) => {
   const branchId=String(req.params.id), userId=String(req.params.userId);
   try {
