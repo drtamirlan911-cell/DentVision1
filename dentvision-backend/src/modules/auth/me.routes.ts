@@ -17,6 +17,9 @@ authMeRouter.get('/me', authenticate, async (req: AuthRequest, res) => {
     orderBy: { joinedAt: 'asc' },
   });
   const activeMembership = memberships[0] || null;
+  const activeOrganization = user.organizationId
+    ? await prisma.organization.findUnique({ where: { id: user.organizationId }, select: { name: true } })
+    : null;
 
   // `/me` is also the session-hydration contract used by the frontend. It must
   // return the same effective IAM policy as login, otherwise a successful login
@@ -47,7 +50,7 @@ authMeRouter.get('/me', authenticate, async (req: AuthRequest, res) => {
         role: user.role,
         organizationId: user.organizationId,
         organizationType: user.organizationType,
-        organizationName: user.organizationName,
+        organizationName: activeOrganization?.name,
         personType: user.personType,
         effectiveRole,
       },
