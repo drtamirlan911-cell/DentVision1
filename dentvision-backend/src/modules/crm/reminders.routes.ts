@@ -18,6 +18,77 @@ function requireClinic(req: AuthRequest, res: any): string | null {
   return clinicId;
 }
 
+remindersRouter.get('/waitlist', authenticate, requirePermission('appointment.read'), async (req: AuthRequest, res) => {
+  try {
+    const clinicId = requireClinic(req, res);
+    if (!clinicId) return;
+    const status = typeof req.query.status === 'string' ? req.query.status : undefined;
+    const rows = await prisma.waitingList.findMany({
+      where: { clinicId, ...(status ? { status: status as any } : {}) },
+      orderBy: [{ preferredDate: 'asc' }, { createdAt: 'asc' }],
+      take: 200,
+    });
+    return res.json({ ok: true, data: rows } satisfies ApiResponse);
+  } catch (error) {
+    console.error('[Waitlist] list error:', error);
+    return res.status(500).json({ ok: false, error: 'Не удалось получить лист ожидания' } satisfies ApiResponse);
+  }
+});
+
+remindersRouter.post('/waitlist', authenticate, requirePermission('appointment.write'), async (req: AuthRequest, res) => {
+  try {
+    const clinicId = requireClinic(req, res);
+    if (!clinicId) return;
+    const body = req.body || {};
+    if (!body.patientId && !body.patientName) {
+      return res.status(400).json({ ok: false, error: 'Укажите пациента' } satisfies ApiResponse);
+    }
+    const row = await prisma.waitingList.create({
+      data: {
+        id: uid(),
+        clinicId,
+        patientId: body.patientId || null,
+        patientName: body.patientName || null,
+        patientPhone: body.patientPhone || null,
+        doctorId: body.doctorId || null,
+        doctorName: body.doctorName || null,
+        preferredDate: body.preferredDate ? new Date(body.preferredDate) : null,
+        preferredTime: body.preferredTime || null,
+        preferredService: body.preferredService || null,
+        notes: body.notes || null,
+      },
+    });
+    return res.status(201).json({ ok: true, data: row } satisfies ApiResponse);
+  } catch (error) {
+    console.error('[Waitlist] create error:', error);
+    return res.status(500).json({ ok: false, error: 'Не удалось добавить в лист ожидания' } satisfies ApiResponse);
+  }
+});
+
+remindersRouter.patch('/waitlist/:id', authenticate, requirePermission('appointment.write'), async (req: AuthRequest, res) => {
+  try {
+    const clinicId = requireClinic(req, res);
+    if (!clinicId) return;
+    const existing = await prisma.waitingList.findFirst({ where: { id: req.params.id, clinicId } });
+    if (!existing) return res.status(404).json({ ok: false, error: 'Запись листа ожидания не найдена' } satisfies ApiResponse);
+    const body = req.body || {};
+    const row = await prisma.waitingList.update({
+      where: { id: existing.id },
+      data: {
+        ...(body.status !== undefined ? { status: body.status } : {}),
+        ...(body.preferredDate !== undefined ? { preferredDate: body.preferredDate ? new Date(body.preferredDate) : null } : {}),
+        ...(body.preferredTime !== undefined ? { preferredTime: body.preferredTime || null } : {}),
+        ...(body.preferredService !== undefined ? { preferredService: body.preferredService || null } : {}),
+        ...(body.notes !== undefined ? { notes: body.notes || null } : {}),
+      },
+    });
+    return res.json({ ok: true, data: row } satisfies ApiResponse);
+  } catch (error) {
+    console.error('[Waitlist] update error:', error);
+    return res.status(500).json({ ok: false, error: 'Не удалось обновить лист ожидания' } satisfies ApiResponse);
+  }
+});
+
 remindersRouter.get('/reminders/sent', authenticate, requirePermission('appointment.read'), async (req: AuthRequest, res) => {
   try {
     const clinicId = requireClinic(req, res);
