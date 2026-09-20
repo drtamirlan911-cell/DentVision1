@@ -172,3 +172,20 @@ The complete pre-2026-09-14 execution history is preserved in the parent Git his
 - Verify the fresh CI/E2E result for the exact latest HEAD.
 - Continue the planned branch-isolation/security matrix across diagnostics, medical laboratory, inventory, finance and files.
 - Then complete accepted → paid → settled durable economics verification, cross-organization workflows, browser/mobile release gates, and update the verified context only from fresh evidence.
+
+
+## 2026-09-20 — Partner economics connected to Finance Core ledger
+
+### Implemented
+- `8844bb59f587153eebacdded0ec10e5fc18102a1` — partner economics now creates balanced double-entry ledger entries instead of only an unbalanced `Transaction` snapshot.
+- `616485ce1353153822b4a5e81b5f901511212c3b` — partner wallet uses the schema-supported `PARTNER` owner type.
+- `271683c72b31203dd219623f2575fb8459614653` — idempotency test fixture updated for the ledger wallets.
+- Flow is now: GATEWAY debit gross → PARTNER credit net → PLATFORM credit commission, while the immutable economics transaction retains the rule/version/cost snapshot.
+
+### Verification status
+- Code and regression fixture committed.
+- Fresh CI status for this exact HEAD is not yet exposed by the connected GitHub status surface; this remains **UNVERIFIED** until CI/E2E evidence is available.
+
+### Next action
+- Continue the remaining durable economics lifecycle checks: paid/settled medical-analysis flow, dental-lab delivered/remake/cancel/delay semantics, reconciliation and Finance Hub visibility.
+- Then complete owner/partner lifecycle matrix, role/branch negative matrix, browser/runtime audit, Android verification and production rollback evidence.
