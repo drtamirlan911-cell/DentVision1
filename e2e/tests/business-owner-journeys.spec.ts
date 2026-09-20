@@ -57,6 +57,31 @@ test.describe('DentVision business owner journeys', () => {
     await expect(page.getByText('Заявка отправлена!', { exact: true })).toBeVisible({ timeout: 15000 });
   });
 
+
+  test('BIZ-009: partner onboarding forms are connected to real registration endpoints', async ({ page }) => {
+    for (const [buttonName, emailPrefix] of [
+      [/Диагностический центр/, 'diag-full'],
+      [/Медицинская лаборатория/, 'medlab-full'],
+      [/Зуботехническая лаборатория/, 'dental-full'],
+    ] as const) {
+      await page.goto(`${BASE}/register-diagnostics`);
+      await page.getByRole('button', { name: buttonName }).click();
+      const unique = Date.now();
+      await page.locator('input').nth(0).fill(`E2E lifecycle ${emailPrefix} ${unique}`);
+      await page.locator('input').nth(1).fill('Тараз');
+      await page.locator('input').nth(2).fill(`ул. E2E lifecycle ${unique}`);
+      await page.locator('input').nth(3).fill('+77000000020');
+      await page.locator('input').nth(4).fill(`${emailPrefix}-${unique}@test.com`);
+      const responsePromise = page.waitForResponse((response) =>
+        response.url().includes('/api/diagnostics/register') && response.request().method() === 'POST'
+      );
+      await page.getByRole('button', { name: 'Отправить заявку' }).click();
+      const response = await responsePromise;
+      expect(response.ok()).toBeTruthy();
+      await expect(page.getByText('Заявка отправлена!', { exact: true })).toBeVisible({ timeout: 15000 });
+    }
+  });
+
   test('BIZ-005: owner can open clinic workspace and staff administration', async ({ page }) => {
     await login(page);
     await page.goto(`${BASE}/crm/staff`);
