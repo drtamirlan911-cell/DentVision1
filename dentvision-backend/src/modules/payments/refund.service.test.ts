@@ -114,7 +114,7 @@ describe('refundPayment', () => {
 
   it('fails closed when no financial transaction exists', async () => {
     paidPayment();
-    tx.transaction.findMany.mockResolvedValueOnce([]).mockResolvedValueOnce([]);
+    tx.transaction.findMany.mockReset().mockResolvedValueOnce([]).mockResolvedValueOnce([]);
 
     await expect(refundPayment('p1', 10_000n, 'unsupported')).rejects.toMatchObject({
       code: 'NOT_REFUNDABLE',
