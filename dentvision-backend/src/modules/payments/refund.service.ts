@@ -1,5 +1,5 @@
+import prisma from '../../lib/prisma.js';
 import type { Prisma } from '@prisma/client';
-import prisma, { Prisma } from '../../lib/prisma.js';
 
 export class PaymentRefundError extends Error {
   constructor(
