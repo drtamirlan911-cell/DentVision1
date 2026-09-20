@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 const { tx, prismaMock } = vi.hoisted(() => {
   const tx = {
     $executeRaw: vi.fn(),
-    payment: { findUnique: vi.fn(), update: vi.fn() },
+    payment: { findUnique: vi.fn(), findUniqueOrThrow: vi.fn(), update: vi.fn() },
     transaction: { findMany: vi.fn(), findFirst: vi.fn(), create: vi.fn() },
     wallet: { update: vi.fn() },
   };
@@ -22,6 +22,7 @@ const { refundPayment, PaymentRefundError } = await import('./refund.service.js'
 beforeEach(() => {
   vi.clearAllMocks();
   tx.payment.update.mockImplementation(async ({ data }: any) => ({ id: 'p1', amount: 10_000n, status: data.status }));
+  tx.payment.findUniqueOrThrow.mockResolvedValue({ id: 'p1', amount: 10_000n, status: 'paid' });
   tx.transaction.create.mockImplementation(async ({ data }: any) => ({ id: 'r1', amount: data.amount, ...data }));
 });
 
