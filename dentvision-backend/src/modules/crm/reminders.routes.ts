@@ -87,6 +87,11 @@ remindersRouter.patch('/waitlist/:id', authenticate, requirePermission('appointm
     const existing = await prisma.waitingList.findFirst({ where: { id: req.params.id, clinicId } });
     if (!existing) return res.status(404).json({ ok: false, error: 'Запись листа ожидания не найдена' } satisfies ApiResponse);
     const body = req.body || {};
+    const context = await resolvePatientBranchContext(req.user!.id, clinicId, req.user!.role);
+    if (existing.patientId) {
+      const patientBranch = await prisma.$queryRaw<Array<{ branch_id: string | null }>>`SELECT branch_id FROM patients WHERE id = ${existing.patientId} AND "clinicId" = ${clinicId} LIMIT 1`.then(r => r[0]?.branch_id ?? null);
+      if (!canAccessPatientBranch(context, patientBranch)) return res.status(403).json({ ok: false, error: 'Недостаточно прав для филиала пациента' } satisfies ApiResponse);
+    }
     const row = await prisma.waitingList.update({
       where: { id: existing.id },
       data: {
