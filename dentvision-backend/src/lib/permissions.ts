@@ -363,11 +363,35 @@ export function pagesForPermissions(permissions: readonly string[]): string[] {
  * couple of narrow keys must not silently revoke the pages their role has
  * always had.
  */
+const PARTNER_ROLE_PAGES: Record<string, string[]> = {
+  DIAGNOSTIC: ['diagnostics', 'diagnostics-referrals', 'diagnostics-centers', 'diagnostics-results', 'diagnostics-calendar', 'diagnostics-statistics', 'diagnostics-settings', 'profile'],
+  MEDICAL_LAB: ['diagnostics', 'diagnostics-laboratories', 'diagnostics-results', 'diagnostics-calendar', 'diagnostics-statistics', 'diagnostics-settings', 'profile'],
+  DENTAL_LAB: ['diagnostics', 'diagnostics-laboratories', 'diagnostics-results', 'diagnostics-settings', 'profile'],
+};
+
+function partnerPageFamily(role: string): string | undefined {
+  const r = String(role || '').toUpperCase();
+  if (r.startsWith('DIAGNOSTIC_') || r === 'RADIOLOGIST' || r === 'RADIOLOGY_TECHNICIAN') return 'DIAGNOSTIC';
+  if (r.startsWith('MEDICAL_LAB_')) return 'MEDICAL_LAB';
+  if (r.startsWith('DENTAL_LAB_') || ['LAB_COORDINATOR', 'DENTAL_TECHNICIAN', 'CAD_DESIGNER', 'CERAMIST', 'ORTHODONTIC_TECHNICIAN', 'QC_SPECIALIST', 'LAB_FINANCE'].includes(r)) return 'DENTAL_LAB';
+  return undefined;
+}
+
 export function pagesForCaller(permissions: readonly string[], role: string | null | undefined): string[] {
+  const resolvedRole = String(role || '').toUpperCase();
+  if (resolvedRole === 'PATIENT') {
+    return ['profile', 'shop', 'school'];
+  }
+
+  const partnerFamily = partnerPageFamily(resolvedRole);
+  if (partnerFamily) {
+    return PARTNER_ROLE_PAGES[partnerFamily];
+  }
+
   return Array.from(new Set([
     ...BASE_PAGES,
     ...pagesForPermissions(permissions),
-    ...(role ? pagesForRole(role) : []),
+    ...(role ? pagesForRole(resolvedRole) : []),
   ]));
 }
 
