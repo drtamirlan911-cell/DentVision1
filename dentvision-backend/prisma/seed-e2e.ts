@@ -33,6 +33,9 @@ export const E2E_USERS: E2EUser[] = [
   { email: 'dental-lab-owner@test.com', firstName: 'Зуботехническая', lastName: 'Лаборатория', role: 'STUDENT', clinic: null },
   { email: 'dental-technician@test.com', firstName: 'Зубной', lastName: 'Техник', role: 'STUDENT', clinic: null },
   { email: 'superadmin@test.com', firstName: 'E2E', lastName: 'Superadmin', role: 'SUPERADMIN', clinic: null },
+  { email: 'support@test.com', firstName: 'E2E', lastName: 'Support', role: 'SUPPORT', clinic: null },
+  { email: 'cashier-a@test.com', firstName: 'Cashier', lastName: 'ClinicA', role: 'CASHIER', clinic: 'A' },
+  { email: 'lab-a@test.com', firstName: 'Lab', lastName: 'ClinicA', role: 'LAB', clinic: 'A' },
 ];
 
 const E2E_PRODUCTS = [
