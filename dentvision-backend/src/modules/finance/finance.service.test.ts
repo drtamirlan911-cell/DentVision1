@@ -194,6 +194,20 @@ describe('getOrCreateWallet / resolveCommissionBps db threading', () => {
     expect(globalWalletCreate).not.toHaveBeenCalled();
   });
 
+  it('resolves branch rule before organization and seller scope', async () => {
+    txDelegate.commissionRule.findUnique
+      .mockResolvedValueOnce({ percentBps: 400 })
+      .mockResolvedValueOnce({ percentBps: 600 });
+    const bps = await resolveCommissionBps('shop', 'seller-1', txDelegate as never, {
+      branchId: 'branch-1',
+      organizationId: 'org-1',
+    });
+    expect(bps).toBe(400);
+    expect(txDelegate.commissionRule.findUnique).toHaveBeenNthCalledWith(1, {
+      where: { domain_scopeId: { domain: 'shop', scopeId: 'branch-1' } },
+    });
+  });
+
   it('resolveCommissionBps falls back to the default when no rule exists on the passed db', async () => {
     txDelegate.commissionRule.findUnique.mockResolvedValueOnce(null);
     txDelegate.commissionRule.findFirst.mockResolvedValueOnce(null);
