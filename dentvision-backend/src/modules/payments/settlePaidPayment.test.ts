@@ -10,9 +10,10 @@ import { describe, expect, it, vi, beforeEach } from 'vitest';
  * every branch's callee — not the global prisma client, not a new default.
  */
 
-const { recordSaleTx, activateClinicSubscriptionFromPayment, isSaasPlanId, accrueSaasCashback, markSettlementPaid, writeRevenue } =
+const { recordSaleTx, recordPartnerEconomics, activateClinicSubscriptionFromPayment, isSaasPlanId, accrueSaasCashback, markSettlementPaid, writeRevenue } =
   vi.hoisted(() => ({
     recordSaleTx: vi.fn(),
+    recordPartnerEconomics: vi.fn(),
     activateClinicSubscriptionFromPayment: vi.fn(),
     isSaasPlanId: vi.fn(() => true),
     accrueSaasCashback: vi.fn(),
@@ -22,6 +23,7 @@ const { recordSaleTx, activateClinicSubscriptionFromPayment, isSaasPlanId, accru
 
 vi.mock('../../lib/prisma.js', () => ({ default: {} }));
 vi.mock('../finance/finance.service.js', () => ({ recordSaleTx }));
+vi.mock('../finance/partner-economics.service.js', () => ({ recordPartnerEconomics }));
 vi.mock('../finance/revenue.service.js', () => ({ writeRevenue }));
 vi.mock('../billing/clinicSubscription.service.js', () => ({
   activateClinicSubscriptionFromPayment,
@@ -35,6 +37,7 @@ import { settlePaidPayment, claimPaymentForSettlement } from './payments.routes.
 beforeEach(() => {
   vi.clearAllMocks();
   recordSaleTx.mockResolvedValue({ id: 'txn' });
+  recordPartnerEconomics.mockResolvedValue({ id: 'economics-txn' });
   activateClinicSubscriptionFromPayment.mockResolvedValue({});
   accrueSaasCashback.mockResolvedValue(undefined);
   markSettlementPaid.mockResolvedValue(true);
@@ -45,7 +48,14 @@ beforeEach(() => {
 // than anything settlePaidPayment could conjure up itself (e.g. the default
 // parameter), so `toHaveBeenCalledWith(..., fakeTx)` proves the exact object
 // was threaded through, not merely "some object".
-const fakeTx = { __marker: 'fake-tx-client' } as any;
+const fakeTx = {
+  __marker: 'fake-tx-client',
+  $queryRawUnsafe: vi.fn(async (sql: string) => {
+    if (sql.includes('FROM \"medical_lab_orders\"')) return [{ clinicId: 'clinic-1', labId: 'lab-1' }];
+    if (sql.includes('FROM \"medical_lab_order_tests\"')) return [{ price: '12000' }, { price: '3000' }];
+    return [];
+  }),
+} as any;
 
 describe('settlePaidPayment — db threading', () => {
   it('sale branch: passes db through to recordSaleTx', async () => {
@@ -164,5 +174,26 @@ describe('claimPaymentForSettlement — double-confirm race guard', () => {
 
     const winners = [first, second].filter(Boolean);
     expect(winners).toHaveLength(1);
+  });
+
+  it('medical lab branch: derives the order amount and records canonical partner economics', async () => {
+    await settlePaidPayment(
+      { id: 'pay-med-1', refType: 'medical_lab_order', refId: 'lab-order-1', domain: 'medical', sellerType: null, sellerId: null, amount: 1_500_000n, meta: null },
+      fakeTx,
+    );
+    expect(recordPartnerEconomics).toHaveBeenCalledWith({
+      vertical: 'MEDICAL_ANALYSIS',
+      partnerId: 'lab-1',
+      grossMinor: 1_500_000n,
+      operationId: 'lab-order-1',
+    }, fakeTx);
+  });
+
+  it('medical lab branch: rejects a payment amount that differs from the priced tests', async () => {
+    await expect(settlePaidPayment(
+      { id: 'pay-med-2', refType: 'medical_lab_order', refId: 'lab-order-2', domain: 'medical', sellerType: null, sellerId: null, amount: 1_400_000n, meta: null },
+      fakeTx,
+    )).rejects.toThrow('Сумма оплаты медицинского анализа не совпадает');
+    expect(recordPartnerEconomics).not.toHaveBeenCalled();
   });
 });
