@@ -18,8 +18,7 @@ const routes = [
 
 for (const route of routes) {
   const nested = route.replace(/^\//, '')
-  if (!new RegExp(`path=["']/?${nested.replace(/[.*+?^${}()|[\]\\]/g, '\\  if (!index.includes(`path="${route.replace(/^\//, '')}"`)) failures.push(`Missing route: ${route}`)')}["']`).test(index)) failures.push(`Missing route: ${route}`)
-}
+  if (!(index.includes(`path="${nested}"`) || index.includes(`path="/${nested}"`) || index.includes(`path='${nested}'`) || index.includes(`path='/${nested}'`))) failures.push(`Missing route: ${route}`)
 
 for (const route of [
   '/crm/schedule','/crm/patients','/crm/medical-card','/crm/dental-chart','/crm/treatment-plans','/crm/visits','/crm/lab',
