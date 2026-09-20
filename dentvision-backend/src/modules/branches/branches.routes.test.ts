@@ -40,4 +40,9 @@ describe('branch route authorization contract', () => {
     expect(source).toContain('Нельзя отключить единственный активный филиал');
   });
 
+  it('exposes an authorization-gated branch workspace context endpoint', () => {
+    expect(source).toContain("branchesRouter.post('/:id/workspace'");
+    expect(source).toContain('context: { organizationId: branch.organization_id, clinicId: branch.clinic_id, branchId: branch.id }');
+  });
+
 });
