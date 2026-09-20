@@ -49,7 +49,8 @@ test.describe('Partner operational lifecycle', () => {
     const centerId = center.id;
 
     const clinicMe = await api.get(`${BASE}/api/auth/me`, { headers: auth(ownerToken) });
-    const clinicUser = (await clinicMe.json()).data?.user || (await clinicMe.json()).data || (await clinicMe.json()).user || (await clinicMe.json());
+    const clinicBody = await clinicMe.json();
+    const clinicUser = clinicBody.data?.user || clinicBody.data || clinicBody.user || clinicBody;
     const clinicId = clinicUser.clinicId;
     expect(clinicId).toBeTruthy();
 
