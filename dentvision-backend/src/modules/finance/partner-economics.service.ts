@@ -272,6 +272,9 @@ export interface PartnerEconomicsTransparencyRow {
   contributionMarginBps: number;
   status: EconomicsStatus;
   economicsVersion: number;
+  payoutId: string | null;
+  payoutStatus: string | null;
+  payoutAmountMinor: bigint | null;
 }
 
 export async function getPartnerEconomicsTransparency(
@@ -298,6 +301,28 @@ export async function getPartnerEconomicsTransparency(
     select: { id: true, amount: true, refType: true, refId: true, meta: true, ledgerEntries: { select: { direction: true, amount: true } } },
   });
 
+  const partnerIds = [...new Set(transactions.map((transaction) => {
+    const meta = (transaction.meta || {}) as Record<string, unknown>;
+    return typeof meta.partnerId === 'string' ? meta.partnerId : '';
+  }).filter(Boolean))];
+  const payoutRows = partnerIds.length
+    ? await db.payout.findMany({
+        where: { wallet: { ownerType: 'PARTNER', ownerId: { in: partnerIds } } },
+        select: { id: true, amount: true, status: true, wallet: { select: { ownerId: true } }, createdAt: true },
+        orderBy: { createdAt: 'desc' },
+      })
+    : [];
+  const latestPayoutByPartner = new Map<string, { id: string; amount: bigint; status: string }>();
+  for (const payout of payoutRows) {
+    if (!latestPayoutByPartner.has(payout.wallet.ownerId)) {
+      latestPayoutByPartner.set(payout.wallet.ownerId, {
+        id: payout.id,
+        amount: payout.amount,
+        status: payout.status,
+      });
+    }
+  }
+
   const rows = transactions.map((transaction): PartnerEconomicsTransparencyRow => {
     const meta = (transaction.meta || {}) as Record<string, unknown>;
     const cost = (meta.costs || {}) as Record<string, unknown>;
@@ -312,6 +337,7 @@ export async function getPartnerEconomicsTransparency(
     const branchId = typeof meta.branchId === 'string' ? meta.branchId : null;
     const status = meta.status === 'LOSS' || meta.status === 'LOW_MARGIN' ? meta.status : 'HEALTHY';
     const economicsVersion = Number(meta.economicsVersion) || 1;
+    const payout = latestPayoutByPartner.get(String(meta.partnerId || ''));
     return {
       transactionId: transaction.id,
       vertical: transaction.refType as PartnerVertical,
@@ -326,6 +352,9 @@ export async function getPartnerEconomicsTransparency(
       contributionMarginBps,
       status,
       economicsVersion,
+      payoutId: payout?.id ?? null,
+      payoutStatus: payout?.status ?? null,
+      payoutAmountMinor: payout?.amount ?? null,
     };
   }).filter((row) => !opts.branchId || row.branchId === opts.branchId);
 
