@@ -304,3 +304,17 @@ Commit: 5323ca69994a14e57557e1b7e638c57df8e63bec
 Verification: **UNVERIFIED** — the current GitHub status exposes only a successful Vercel check; the repository's CI workflow is not returned by the commit-workflow-run connector for this commit. No pass is claimed until backend build/E2E evidence is available.
 
 Next action: verify the owner lifecycle end-to-end for all three partner types, then complete branch edit/switch/assignment/disable negative tests and partner dashboard economics visibility.
+
+## 2026-09-20 — Explicit branch context and switching
+
+- Added branch context to the canonical auth token/request contracts.
+- `POST /api/iam/switch-context` now accepts an optional `branchId` and verifies that the branch belongs to the selected organization and that the caller is either an organization manager or an assigned BranchMember.
+- Authentication validates the selected branch against the active organization on every request; changing a URL or token claim cannot grant another organization's branch.
+- Refresh preserves the selected branch context instead of silently downgrading the session to organization-only context.
+- Self-service onboarding now issues the initial token with its persisted default branch context.
+
+Commits: 379cfb3a71b2d6aeb9aaf5bfccccc2bd19115673, 43f8f2ba77cee66d7ffcd0b0ecde19f88586bcf2, b597d86d46066fbc05d7cb0d034971d42b8367b8, 8d604563bb4b47ff0a8580afbfb5621c6147793b, 2df2e47e1358dcf34dbb7a41e3b187abf5618df1, 06647b83469a07c99b594c9773fb11dddbb21dd9
+
+Verification: **UNVERIFIED**. The available commit status currently reports only Vercel success; backend CI/build/E2E evidence has not yet been returned for these direct main commits.
+
+Next action: add/verify the owner lifecycle release tests for registration → organization → verification → first login → branch switch, then run the branch assignment and cross-branch negative matrix.
