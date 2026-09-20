@@ -669,6 +669,68 @@ paymentsRouter.post('/', authenticate, async (req: AuthRequest, res) => {
   }
 });
 
+paymentsRouter.post('/:id/refund', authenticate, async (req: AuthRequest, res) => {
+  try {
+    const payment = await prisma.payment.findUnique({ where: { id: req.params.id as string } });
+    if (!payment) return res.status(404).json({ ok: false, error: 'Платёж не найден' } satisfies ApiResponse);
+
+    if (!(await assertPaymentOwner(req, payment))) {
+      return res.status(403).json({ ok: false, error: 'Нет доступа к платежу' } satisfies ApiResponse);
+    }
+
+    const idempotencyKey = String(req.headers['idempotency-key'] || '').trim();
+    if (!idempotencyKey) {
+      return res.status(400).json({ ok: false, error: 'Idempotency-Key обязателен для возврата' } satisfies ApiResponse);
+    }
+
+    let amountMinor: bigint | null = null;
+    if (req.body?.amountMinor !== undefined && req.body?.amountMinor !== null) {
+      try { amountMinor = BigInt(req.body.amountMinor); }
+      catch { return res.status(400).json({ ok: false, error: 'Некорректная сумма возврата' } satisfies ApiResponse); }
+    }
+
+    const { refundPayment, PaymentRefundError } = await import('./refund.service.js');
+    const result = await refundPayment(
+      payment.id,
+      amountMinor,
+      idempotencyKey,
+      typeof req.body?.reason === 'string' ? req.body.reason : undefined,
+    );
+
+    await auditFromReq(req, {
+      action: 'payment.refunded',
+      entity: 'payment',
+      entityId: payment.id,
+      details: {
+        refundId: result.refund.id,
+        amountMinor: String(result.refund.amount),
+        alreadyProcessed: result.alreadyProcessed,
+      },
+    });
+
+    return res.status(result.alreadyProcessed ? 200 : 201).json({
+      ok: true,
+      data: {
+        payment: serializeBigInt(result.payment),
+        refund: serializeBigInt(result.refund),
+        alreadyProcessed: result.alreadyProcessed,
+      },
+    } satisfies ApiResponse);
+  } catch (error: any) {
+    const { PaymentRefundError } = await import('./refund.service.js');
+    if (error instanceof PaymentRefundError) {
+      const status =
+        error.code === 'NOT_FOUND' ? 404 :
+        error.code === 'FORBIDDEN' ? 403 :
+        error.code === 'ALREADY_REFUNDED' ? 409 :
+        error.code === 'INVALID_AMOUNT' ? 400 : 409;
+      return res.status(status).json({ ok: false, error: error.message } satisfies ApiResponse);
+    }
+    console.error('Refund payment error:', error);
+    return res.status(500).json({ ok: false, error: 'Ошибка возврата платежа' } satisfies ApiResponse);
+  }
+});
+
 paymentsRouter.get('/:id', authenticate, async (req: AuthRequest, res) => {
   let payment = await prisma.payment.findUnique({ where: { id: req.params.id as string } });
   if (!payment) {
