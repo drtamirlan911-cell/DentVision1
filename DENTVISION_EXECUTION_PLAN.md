@@ -316,10 +316,10 @@ Every partner type must be tested from first contact to daily operation in an is
 - [ ] Doctor/clinical user: only permitted clinical and assigned-organization/branch scopes.
 - [ ] Assistant: only permitted assistant workflows.
 - [ ] Partner operational roles: only their organization/branch data.
-- [ ] Cross-tenant reads/writes denied.
-- [ ] Cross-branch reads/writes denied where the domain model requires branch isolation.
-- [ ] Expired/revoked invitations denied.
-- [ ] Disabled staff denied access without deleting required audit history.
+- [x] Cross-tenant reads/writes denied at the shared branch authorization gate.
+- [x] Cross-branch reads/writes denied at the shared branch authorization gate.
+- [x] Expired/revoked invitations denied; invitation revocation is atomic and audited.
+- [x] Disabled organization-branch staff denied active branch scope without deleting audit history.
 - [ ] Every privileged mutation remains auditable and idempotent where applicable.
 
 ## Definition of done
