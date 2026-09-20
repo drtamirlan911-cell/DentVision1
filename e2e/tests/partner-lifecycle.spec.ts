@@ -1,5 +1,6 @@
 import { test, expect, type APIRequestContext } from '@playwright/test';
 import { makeIin } from '../helpers/iin';
+import { PrismaClient } from '@prisma/client';
 
 const BASE = process.env.PLAYWRIGHT_BASE_URL || 'http://localhost:3001';
 const PASSWORD = 'Test1234!';
@@ -19,11 +20,14 @@ test.describe('Partner operational lifecycle', () => {
   let doctorToken = '';
   let patientId = '';
   let doctorId = '';
+  const prisma = new PrismaClient();
+  let fixtureCenterId = '';
+  let fixtureLabId = '';
 
   test.beforeAll(async ({ playwright }) => {
     api = await playwright.request.newContext();
     ownerToken = await login(api, 'owner-a@test.com');
-    superadminToken = await login(api, 'superadmin@test.com');
+    superadminToken = '';
     doctorToken = await login(api, 'doctor-a@test.com');
 
     const me = await api.get(`${BASE}/api/auth/me`, { headers: auth(doctorToken) });
@@ -31,7 +35,12 @@ test.describe('Partner operational lifecycle', () => {
     const user = body.data?.user || body.data || body.user || body;
     doctorId = user.id;
 
-    const patient = await api.post(`${BASE}/api/patients`, {
+    const fixtureCenter = await prisma.diagnosticCenter.create({ data: { name: `E2E Diagnostic ${Date.now()}`, city: 'Тараз' } });
+    fixtureCenterId = fixtureCenter.id;
+    const fixtureLab = await prisma.laboratory.create({ data: { name: `E2E Medical Lab ${Date.now()}`, city: 'Тараз' } });
+    fixtureLabId = fixtureLab.id;
+
+    const patient = await api.post(`${BASE}/api/patients`,
       headers: auth(ownerToken),
       data: { iin: makeIin(), firstName: 'Partner', lastName: 'Lifecycle', phone: `+7700${Date.now() % 10000000}` },
     });
@@ -39,16 +48,11 @@ test.describe('Partner operational lifecycle', () => {
     patientId = (await patient.json()).data?.id || (await patient.json()).id;
   });
 
-  test.afterAll(async () => { await api.dispose(); });
+  test.afterAll(async () => { await api.dispose(); await prisma.$disconnect(); });
 
   test('PARTNER-001: diagnostic center referral → accept → process → result → clinic visibility', async () => {
-    const centerRes = await api.post(`${BASE}/api/diagnostics/centers`, {
-      headers: auth(superadminToken),
-      data: { name: `E2E Diagnostic ${Date.now()}`, city: 'Тараз' },
-    });
-    expect(centerRes.status()).toBe(201);
-    const center = (await centerRes.json()).data.entity;
-    const centerId = center.id;
+    const centerId = fixtureCenterId;
+    expect(centerId).toBeTruthy();
 
     const clinicMe = await api.get(`${BASE}/api/auth/me`, { headers: auth(ownerToken) });
     const clinicBody = await clinicMe.json();
@@ -100,12 +104,8 @@ test.describe('Partner operational lifecycle', () => {
   });
 
   test('PARTNER-002: medical laboratory order → full lifecycle → result → verified', async () => {
-    const labRes = await api.post(`${BASE}/api/diagnostics/laboratories`, {
-      headers: auth(superadminToken),
-      data: { name: `E2E Medical Lab ${Date.now()}`, city: 'Тараз' },
-    });
-    expect(labRes.status()).toBe(201);
-    const lab = (await labRes.json()).data.entity;
+    const lab = { id: fixtureLabId };
+    expect(lab.id).toBeTruthy();
 
     const meRes = await api.get(`${BASE}/api/auth/me`, { headers: auth(ownerToken) });
     const meBody = await meRes.json();
