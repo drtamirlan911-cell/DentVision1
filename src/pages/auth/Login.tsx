@@ -21,7 +21,7 @@ export default function Login() {
   const navigate = useNavigate()
   const location = useLocation()
   const [params] = useSearchParams()
-  const { user, login, loginWithGoogle, loading, error } = useAuth()
+  const { user, effectiveRole, login, loginWithGoogle, loading, error } = useAuth()
   const role = params.get('role') || ''
   const context = CONTEXTS[role] || { title: 'Добро пожаловать в DentVision', description: 'Войдите, чтобы продолжить в своей рабочей среде.', register: 'Создать аккаунт' }
   const [loginStr, setLoginStr] = useState('')
@@ -38,10 +38,14 @@ export default function Login() {
 
   useEffect(() => {
     if (!user) return
-    if (params.get('portal') === 'patient' || user.role === 'patient') { navigate('/patient-portal', { replace: true }); return }
+    if (params.get('portal') === 'patient' || user.role === 'patient' || String(effectiveRole || '').toLowerCase() === 'patient') { navigate('/patient-portal', { replace: true }); return }
+    const partnerRole = String(effectiveRole || '').toLowerCase()
+    if (partnerRole.startsWith('diagnostic_') || ['radiologist', 'radiology_technician'].includes(partnerRole)) { navigate('/diagnostics/center', { replace: true }); return }
+    if (partnerRole.startsWith('medical_lab_')) { navigate('/diagnostics/lab?workspace=medical-lab', { replace: true }); return }
+    if (partnerRole.startsWith('dental_lab_') || ['lab_coordinator', 'dental_technician', 'cad_designer', 'ceramist', 'orthodontic_technician', 'qc_specialist', 'lab_finance'].includes(partnerRole)) { navigate('/diagnostics/lab', { replace: true }); return }
     const target = returnUrl && !returnUrl.includes('/login') && returnUrl !== '/' ? returnUrl : '/ai'
     navigate(target, { replace: true })
-  }, [user, navigate, params, returnUrl])
+  }, [user, effectiveRole, navigate, params, returnUrl])
 
   if (showRegister) return <Register onBack={() => setShowRegister(false)} />
 
