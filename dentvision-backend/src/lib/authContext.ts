@@ -27,6 +27,7 @@ export interface AuthTokenContext {
   clinicId?: string;
   organizationId?: string;
   organizationType?: string;
+  organizationName?: string;
   personType?: string;
   branchId?: string;
 }
@@ -35,7 +36,7 @@ type PersonWithContextRole = {
   userId: string;
   organizationId: string | null;
   personType: string;
-  organization: { id: string; type: string; originalId: string | null } | null;
+  organization: { id: string; type: string; originalId: string | null; name: string } | null;
   personRoles: Array<{ scopeType: string | null; scopeId: string | null; role: { key: string } }>;
 };
 
@@ -47,6 +48,7 @@ function contextFromPerson(person: PersonWithContextRole, organizationId: string
   return {
     organizationId: org.id,
     organizationType: org.type,
+    organizationName: org.name,
     personType: person.personType || undefined,
     clinicId: org.type === 'CLINIC' ? org.originalId || undefined : undefined,
   };
