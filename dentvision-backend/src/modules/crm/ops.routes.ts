@@ -11,6 +11,7 @@ import { uid } from '../../lib/helpers.js';
 import { publish } from '../../lib/events.js';
 import { reserveIdempotencyKey, completeIdempotencyKey, deleteIdempotencyKey } from '../../lib/idempotency.js';
 import type { AuthRequest, ApiResponse } from '../../types/index.js';
+import { WaitingListStatus } from '@prisma/client';
 
 import { splitPatientName } from '../public/bookingSlots.js';
 
@@ -126,7 +127,9 @@ crmOpsRouter.patch('/waiting-list/:id', requirePermission('patient.write'), asyn
       preferredTime: b.preferredTime ?? b.preferred_time ?? existing.preferredTime,
       preferredService: b.preferredService ?? b.preferred_service ?? existing.preferredService,
       notes: b.notes ?? existing.notes,
-      status: b.status ?? existing.status,
+      status: b.status !== undefined
+        ? (Object.values(WaitingListStatus).includes(b.status) ? b.status : existing.status)
+        : existing.status,
     };
     const row = await prisma.waitingList.update({ where: { id }, data });
     return res.json({ ok: true, data: row } satisfies ApiResponse);
