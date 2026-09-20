@@ -29,7 +29,7 @@ const FIRST_RUN_COLLAPSE_MS = 15_000;
 export const IntelligenceLayout: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  const { user, isAuthenticated, roleInfo, logout } = useAuth();
+  const { user, isAuthenticated, roleInfo, logout, activeClinic, clinic } = useAuth();
   const { isGuest, isGuestRoute, requiresAuth, initGuest, showRegistrationModal, setRegistrationModal } = useGuestStore();
   const isMobile = useCompactShell();
   const {
@@ -124,7 +124,7 @@ export const IntelligenceLayout: React.FC = () => {
           <div className="ml-auto flex items-center gap-2"><LanguageSwitcher /><AlertDropdown alerts={[]} isOpen={alertOpen} setIsOpen={setAlertOpen} /><DentCashHeaderChip /></div>
         </header>
         <main className="relative min-h-[calc(100vh-4rem)]">
-          <ErrorBoundary><Outlet /></ErrorBoundary>
+          <ErrorBoundary><Outlet context={{ clinic: activeClinic || clinic, user, roleInfo }} /></ErrorBoundary>
           <ClinicalAIContextBridge />
           {caseContext.patientId || caseContext.caseId ? <div className="pointer-events-none fixed bottom-4 left-1/2 z-20 w-[min(760px,calc(100%-2rem))] -translate-x-1/2"><div className="pointer-events-auto"><EcosystemCaseFlow compact patientId={caseContext.patientId} caseId={caseContext.caseId} branchId={caseContext.branchId} organizationId={caseContext.organizationId} /></div></div> : null}
         </main>
