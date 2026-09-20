@@ -34,6 +34,45 @@ import { reserveIdempotencyKey, completeIdempotencyKey, deleteIdempotencyKey } f
 // Payments (Phase 5). Payment gateway + Kaspi QR with authenticated callback.
 export const paymentsRouter = Router();
 
+async function medicalLabOrderAmountMinor(
+  orderId: string,
+  db: Prisma.TransactionClient | typeof prisma = prisma,
+): Promise<{ clinicId: string; labId: string; amountMinor: bigint } | null> {
+  const orders = await db.$queryRawUnsafe<Array<{ clinicId: string; labId: string | null }>>(
+    `SELECT \"clinicId\", \"labId\" FROM \"medical_lab_orders\" WHERE \"id\"=$1 LIMIT 1`,
+    orderId,
+  );
+  const order = orders[0];
+  if (!order?.clinicId || !order.labId) return null;
+  const rows = await db.$queryRawUnsafe<Array<{ price: unknown }>>(
+    `SELECT lt.\"price\" AS \"price\" FROM \"medical_lab_order_tests\" ot LEFT JOIN \"laboratory_tests\" lt ON lt.\"id\"=ot.\"testId\" WHERE ot.\"orderId\"=$1`,
+    orderId,
+  );
+  let amountMinor = 0n;
+  for (const row of rows) amountMinor += tengeToMinor(Number(row.price ?? 0) || 0);
+  return { clinicId: order.clinicId, labId: order.labId, amountMinor };
+}
+
+async function settleMedicalLabOrderPayment(
+  payment: { id: string; refId: string | null; amount: bigint },
+  db: Prisma.TransactionClient,
+): Promise<boolean> {
+  if (!payment.refId) return false;
+  const order = await medicalLabOrderAmountMinor(payment.refId, db);
+  if (!order || order.amountMinor <= 0n) return false;
+  if (payment.amount !== order.amountMinor) {
+    throw new Error(`Сумма оплаты медицинского анализа не совпадает с заказом: ожидалось ${order.amountMinor}, получено ${payment.amount}`);
+  }
+  const { recordPartnerEconomics } = await import('../finance/partner-economics.service.js');
+  await recordPartnerEconomics({
+    vertical: 'MEDICAL_ANALYSIS',
+    partnerId: order.labId,
+    grossMinor: order.amountMinor,
+    operationId: payment.refId,
+  }, db);
+  return true;
+}
+
 async function settleOrderPayment(
   payment: {
     id: string;
@@ -286,6 +325,10 @@ async function settlePaidPayment(
     }
   }
 
+  if (payment.refType === 'medical_lab_order') {
+    settled = (await settleMedicalLabOrderPayment(payment, db)) || settled;
+  }
+
   if (payment.refType === 'order') {
     settled = (await settleOrderPayment(payment, db)) || settled;
   }
@@ -480,6 +523,14 @@ paymentsRouter.post('/', authenticate, async (req: AuthRequest, res) => {
           error: `Сумма не совпадает с заказом: ожидалось ${expectedMinor}, получено ${minor}`,
         } satisfies ApiResponse);
       }
+    }
+
+    if (refType === 'medical_lab_order' && refId) {
+      const medicalOrder = await medicalLabOrderAmountMinor(refId);
+      if (!medicalOrder) return res.status(404).json({ ok: false, error: 'Медицинский лабораторный заказ не найден или не назначен лаборатории' } satisfies ApiResponse);
+      if (!(await assertOrgAccess(req.user!, medicalOrder.clinicId))) return res.status(403).json({ ok: false, error: 'Нет доступа к этому медицинскому заказу' } satisfies ApiResponse);
+      if (medicalOrder.amountMinor <= 0n) return res.status(400).json({ ok: false, error: 'В медицинском заказе отсутствуют оплачиваемые анализы' } satisfies ApiResponse);
+      if (medicalOrder.amountMinor !== minor) return res.status(409).json({ ok: false, error: `Сумма не совпадает с медицинским заказом: ожидалось ${medicalOrder.amountMinor}, получено ${minor}` } satisfies ApiResponse);
     }
 
     const metaObj = meta && typeof meta === 'object' ? (meta as Record<string, unknown>) : {};
