@@ -1,5 +1,5 @@
 import type { Prisma } from '@prisma/client';
-import prisma from '../../lib/prisma.js';
+import prisma, { Prisma } from '../../lib/prisma.js';
 
 export class PaymentRefundError extends Error {
   constructor(
@@ -35,7 +35,7 @@ export async function refundPayment(
 ) {
   if (!idempotencyKey.trim()) throw new PaymentRefundError('IDEMPOTENCY_REQUIRED', 'Idempotency-Key обязателен');
 
-  return db.$transaction(async (tx) => {
+  const run = async (tx: Prisma.TransactionClient) => {
     await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${'payment-refund:' + paymentId}))`;
 
     const payment = await tx.payment.findUnique({ where: { id: paymentId } }) as PaymentForRefund | null;
@@ -176,5 +176,8 @@ export async function refundPayment(
     });
 
     return { payment: updated, refund, alreadyProcessed: false };
-  });
+  };
+
+  if ('$transaction' in db) return db.$transaction(run);
+  return run(db);
 }
