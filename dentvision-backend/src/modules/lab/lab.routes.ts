@@ -188,20 +188,18 @@ labRouter.patch('/:id/status', requirePermission('appointment.write'), async (re
     const owned = await prisma.labOrder.findFirst({ where: { id: req.params.id as string, clinicId, ...branchScopedLabOrder(req) }, select: { id: true, status: true, patientId: true, doctorId: true } });
     if (!owned) return res.status(404).json({ ok: false, error: 'Заказ лаборатории не найден' } satisfies ApiResponse);
     await ensureDentalLabOrderEventsTable();
-    const { order, partnerEconomicsRecorded } = await prisma.$transaction(async (tx) => {
+    const order = await prisma.$transaction(async (tx) => {
       const order = await tx.labOrder.update({ where: { id: req.params.id as string }, data: { status: status as any } });
       await tx.$executeRawUnsafe(`INSERT INTO "dental_lab_order_events" ("id","labOrderId","clinicId","fromStatus","toStatus","actorUserId","createdAt") VALUES ($1,$2,$3,$4,$5,$6,CURRENT_TIMESTAMP)`, uid(), order.id, clinicId, owned.status, order.status, req.user!.id);
-      let partnerEconomicsRecorded = false;
       if (order.status === 'delivered' && owned.status !== 'delivered') {
         const meta = (order.files as { meta?: LabOrderMeta } | null)?.meta || {};
         const partnerId = meta.laboratoryId || null;
         const grossMinor = order.price != null ? tengeToMinor(Number(order.price) || 0) : 0n;
         if (partnerId && grossMinor > 0n) {
           await recordPartnerEconomics({ vertical: 'DENTAL_LAB', partnerId, grossMinor, operationId: order.id }, tx);
-          partnerEconomicsRecorded = true;
         }
       }
-      return { order, partnerEconomicsRecorded };
+      return order;
     });
     publish('labOrder.status_changed', { clinicId, labOrderId: order.id, patientId: owned.patientId || undefined, doctorId: owned.doctorId || undefined, status: order.status, previousStatus: owned.status, userId: req.user?.id });
     return res.json({ ok: true, data: serializeLabOrder(order) } satisfies ApiResponse);
