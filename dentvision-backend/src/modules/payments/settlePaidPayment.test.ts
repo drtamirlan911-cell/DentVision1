@@ -51,8 +51,8 @@ beforeEach(() => {
 const fakeTx = {
   __marker: 'fake-tx-client',
   $queryRawUnsafe: vi.fn(async (sql: string) => {
-    if (sql.includes('FROM \"medical_lab_orders\"')) return [{ clinicId: 'clinic-1', labId: 'lab-1' }];
-    if (sql.includes('FROM \"medical_lab_order_tests\"')) return [{ price: '12000' }, { price: '3000' }];
+    if (sql.includes('FROM "medical_lab_orders"')) return [{ clinicId: 'clinic-1', labId: 'lab-1' }];
+    if (sql.includes('FROM "medical_lab_order_tests"')) return [{ price: '12000' }, { price: '3000' }];
     return [];
   }),
 } as any;
