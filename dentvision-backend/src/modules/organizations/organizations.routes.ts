@@ -145,6 +145,7 @@ organizationsRouter.post('/self-service', async (req: AuthRequest, res) => {
       email: req.user!.email,
       role: 'OWNER',
       ...authContext,
+      branchId: result.branchId,
       sessionId: req.user!.sessionId,
     });
     setAuthCookies(res, tokens.accessToken, tokens.refreshToken);
