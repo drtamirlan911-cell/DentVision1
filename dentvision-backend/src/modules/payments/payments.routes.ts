@@ -105,22 +105,47 @@ async function settleOrderPayment(
     where: { refType: 'order', refId: order.id, type: 'sale' },
   });
 
-  // Credit suppliers by line totals (gateway amount may be lower after DentCash).
-  if (!alreadySold) {
-    for (const [supplierId, tenge] of bySupplier) {
-      const share = tengeToMinor(tenge);
-      if (share <= 0n) continue;
-      await recordSaleTx(
-        {
-          domain: 'shop',
-          sellerType: 'SUPPLIER',
-          sellerId: supplierId,
-          amountMinor: share,
-          refType: 'order',
-          refId: order.id,
-        },
-        db,
-      );
+  // The payment itself is the financial source of truth. Allocate the paid
+  // amount across supplier lines proportionally, then keep any residual on
+  // the platform wallet. This also guarantees every paid order has a durable
+  // sale transaction even when a product has no supplierId.
+  if (!alreadySold && payment.amount > 0n) {
+    const supplierTotalMinor = Array.from(bySupplier.values()).reduce(
+      (sum, tenge) => sum + tengeToMinor(tenge),
+      0n,
+    );
+    let allocated = 0n;
+    if (supplierTotalMinor > 0n) {
+      const entries = Array.from(bySupplier.entries());
+      entries.forEach(([supplierId, tenge], index) => {
+        const raw = tengeToMinor(tenge);
+        const share =
+          index === entries.length - 1
+            ? payment.amount - allocated
+            : (payment.amount * raw) / supplierTotalMinor;
+        if (share > 0n) {
+          allocated += share;
+          void recordSaleTx({
+            domain: 'shop',
+            sellerType: 'SUPPLIER',
+            sellerId: supplierId,
+            amountMinor: share,
+            refType: 'order',
+            refId: order.id,
+          }, db);
+        }
+      });
+    }
+    const residual = payment.amount - allocated;
+    if (residual > 0n) {
+      await recordSaleTx({
+        domain: 'shop',
+        sellerType: 'PLATFORM',
+        sellerId: 'system',
+        amountMinor: residual,
+        refType: 'order',
+        refId: order.id,
+      }, db);
     }
   }
 
