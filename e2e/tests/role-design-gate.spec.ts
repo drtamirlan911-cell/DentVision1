@@ -108,6 +108,37 @@ async function shellAudit(page: Page, role: Role, route: string) {
   for(const forbidden of role.mustNotContain) expect(result.text,role.id+' '+route+': forbidden context visible').not.toMatch(forbidden);
 }
 
+async function inspectVisualSemantics(page: Page, role: Role, route: string) {
+  const result = await page.evaluate(() => {
+    const visible = (el: Element) => {
+      const h = el as HTMLElement, r = h.getBoundingClientRect(), s = getComputedStyle(h);
+      return r.width > 0 && r.height > 0 && s.display !== 'none' && s.visibility !== 'hidden' && s.opacity !== '0';
+    };
+    const text = (el: Element) => (el.textContent || '').replace(/\\s+/g, ' ').trim();
+    const interactive = Array.from(document.querySelectorAll('button,a,[role="button"],[role="tab"],[role="menuitem"],input,select,textarea')).filter(visible);
+    const headings = Array.from(document.querySelectorAll('h1,h2,h3')).filter(visible).map(text).filter(Boolean);
+    const iconOnly = interactive.filter(el => {
+      const h = el as HTMLElement;
+      const label = h.getAttribute('aria-label') || h.getAttribute('title') || '';
+      return !text(el) && !label;
+    });
+    const suspicious = Array.from(document.querySelectorAll('[class*="truncate"],[class*="line-clamp"],[class*="ellipsis"]')).filter(visible)
+      .map(el => ({text:text(el), rect:(el as HTMLElement).getBoundingClientRect().toJSON()}))
+      .filter(x => x.text.length > 0);
+    return {
+      headings,
+      iconOnly: iconOnly.length,
+      suspicious,
+      viewport: {w:innerWidth,h:innerHeight},
+      visibleTextLength: text(document.body).length,
+      fixedOverlays: Array.from(document.querySelectorAll('[class*="fixed"],[class*="sticky"]')).filter(visible).length
+    };
+  });
+  expect(result.visibleTextLength, role.id + ' ' + route + ': screen is effectively empty').toBeGreaterThan(20);
+  expect(result.iconOnly, role.id + ' ' + route + ': unexplained icon-only controls').toBe(0);
+  expect(result.headings.length, role.id + ' ' + route + ': no visible information hierarchy').toBeGreaterThan(0);
+}
+
 async function inspectDialogsAndMenus(page: Page, role: Role, route: string) {
   const dialogCount = await page.locator('[role="dialog"]:visible, [aria-modal="true"]:visible').count();
   const menuCount = await page.locator('[role="menu"]:visible, [role="listbox"]:visible').count();
@@ -176,6 +207,7 @@ async function auditRoute(page: Page, role: Role, route: string, shouldBeAllowed
   await shellAudit(page,role,route);
   await inspectForms(page,role,route);
   await inspectDialogsAndMenus(page,role,route);
+  await inspectVisualSemantics(page,role,route);
   await page.reload({waitUntil:'domcontentloaded',timeout:30000});
   await shellAudit(page,role,route);
   await page.goBack({waitUntil:'domcontentloaded',timeout:30000}).catch(()=>{});
