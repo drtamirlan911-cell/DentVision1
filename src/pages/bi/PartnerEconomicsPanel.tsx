@@ -127,15 +127,17 @@ export default function PartnerEconomicsPanel() {
                 <div className="px-3 py-2 border-b border-white/[0.06] text-[10px] uppercase tracking-wider text-txt-muted">
                   Durable partner transparency
                 </div>
-                <div className="min-w-[760px] divide-y divide-white/[0.05]">
+                <div className="min-w-[980px] divide-y divide-white/[0.05]">
                   {data!.partnerRows!.slice(0, 20).map((row) => (
-                    <div key={row.transactionId} className="grid grid-cols-[1.1fr_1.1fr_0.8fr_0.8fr_0.8fr_0.8fr] gap-3 px-3 py-2 text-[11px]">
+                    <div key={row.transactionId} className="grid grid-cols-[1fr_1fr_0.75fr_0.75fr_0.75fr_0.75fr_0.75fr_0.6fr] gap-3 px-3 py-2 text-[11px]">
                       <span className="text-txt-primary">{verticalLabel(row.vertical)}</span>
                       <span className="text-txt-muted">{row.partnerId}</span>
                       <span className="text-txt-primary">{moneyMinor(row.grossMinor)}</span>
                       <span className="text-txt-primary">{moneyMinor(row.commissionMinor)}</span>
                       <span className="text-txt-primary">{moneyMinor(row.partnerPayoutMinor)}</span>
                       <span className="text-txt-primary">{moneyMinor(row.contributionMarginMinor)}</span>
+                      <span className="text-txt-muted">{moneyMinor(row.costMinor)}</span>
+                      <span className="text-txt-muted">v{row.economicsVersion}</span>
                     </div>
                   ))}
                 </div>
