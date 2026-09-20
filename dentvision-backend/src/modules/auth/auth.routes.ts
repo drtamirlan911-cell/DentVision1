@@ -9,7 +9,7 @@ import { uid } from '../../lib/helpers.js';
 import { onboardPartner } from '../legal/legal.service.js';
 import { syncPersonFromClinicMember } from '../../lib/syncMembership.js';
 import { resolveUserPermissions } from '../../lib/resolvePermissions.js';
-import { resolveAuthContext } from '../../lib/authContext.js';
+import { resolveAuthContext, resolveOrganizationRoleKey } from '../../lib/authContext.js';
 import { pagesForCaller, capabilitiesForPermissions } from '../../lib/permissions.js';
 import { resolveClinicAccess } from '../../lib/orgContext.js';
 import { sendEmail } from '../../services/email.js';
@@ -63,7 +63,11 @@ async function buildSignInPayload(user: SignInUser, req: any, res: any) {
   const { password: _password, memberships, ...userWithoutPassword } = user;
   setAuthCookies(res, tokens.accessToken, tokens.refreshToken);
   const effectivePermissions = await resolveUserPermissions(user.id, authContext.organizationId);
-  const scopedRole = clinicId ? (await resolveClinicAccess(user.id, clinicId))?.role || user.role : user.role;
+  const scopedRole = clinicId
+    ? (await resolveClinicAccess(user.id, clinicId))?.role || user.role
+    : authContext.organizationId
+      ? await resolveOrganizationRoleKey(user.id, authContext.organizationId) || user.role
+      : user.role;
   return { user: { ...userWithoutPassword, clinicId, name: `${user.firstName} ${user.lastName}`.trim() }, memberships: memberships.map((m) => ({ id: m.id, role: m.role, clinicId: m.clinicId, joinedAt: m.joinedAt, clinic: m.clinic })), activeMembership, permissions: effectivePermissions, pages: pagesForCaller(effectivePermissions, scopedRole), capabilities: capabilitiesForPermissions(effectivePermissions, scopedRole), effectiveRole: scopedRole, ...tokens };
 }
 
