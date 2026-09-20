@@ -503,3 +503,18 @@ Current connected GitHub status has not produced a CI workflow run for these dir
 ### Next action
 - Execute the three partner business-owner E2E journeys against an isolated environment and repair actual failures.
 - Then verify Finance Hub rows against the same settled operations and close the remaining partner dashboard visibility gaps.
+
+
+## 2026-09-20 — Partner Economics dashboard payout visibility
+
+### Implemented
+- `acc73602d424de28809f752ad3c8086e8b62f23d` — durable Partner Economics transparency rows now resolve the latest PARTNER-wallet payout id/status/amount without recomputing historical economics.
+- `160b41ecf257b05785422f115e317d9b98e522f4` — regression coverage verifies payout status and amount are exposed by the transparency read model.
+- `e170323f97f779f469494c5d30e5d24e7c2fc92a` — Finance/BI Partner Economics UI now displays gross, commission, costs/deductions, partner net payout, payout status/amount and immutable economics version.
+
+### Verification
+- Source-level regression coverage is committed.
+- Current CI/release verification remains **UNVERIFIED**; the connected GitHub status surface has not produced a workflow run for the newer direct-main commits.
+
+### Next action
+- Execute/verify the isolated partner owner journeys and connect the resulting operations to Finance Hub end-to-end evidence.
