@@ -35,16 +35,17 @@ function paidPayment() {
     refId: null,
     meta: {},
   });
-  tx.transaction.findMany.mockResolvedValue([]);
-  tx.transaction.findFirst.mockResolvedValue({
-    id: 'sale-1',
-    amount: 10_000n,
-    ledgerEntries: [
-      { walletId: 'gateway', direction: 'debit', amount: 10_000n },
-      { walletId: 'seller', direction: 'credit', amount: 9_000n },
-      { walletId: 'platform', direction: 'credit', amount: 1_000n },
-    ],
-  });
+  tx.transaction.findMany
+    .mockResolvedValueOnce([])
+    .mockResolvedValueOnce([{
+      id: 'sale-1',
+      amount: 10_000n,
+      ledgerEntries: [
+        { walletId: 'gateway', direction: 'debit', amount: 10_000n },
+        { walletId: 'seller', direction: 'credit', amount: 9_000n },
+        { walletId: 'platform', direction: 'credit', amount: 1_000n },
+      ],
+    }]);
 }
 
 describe('refundPayment', () => {
@@ -62,6 +63,7 @@ describe('refundPayment', () => {
     ]);
     expect(tx.payment.update).toHaveBeenCalledWith(expect.objectContaining({ data: { status: 'refunded' } }));
     expect(tx.wallet.update).toHaveBeenCalledTimes(3);
+    expect(tx.transaction.create.mock.calls[0][0].data.meta.originalTransactionIds).toEqual(['sale-1']);
   });
 
   it('supports a partial refund without marking the payment fully refunded', async () => {
