@@ -6,6 +6,7 @@ import { requirePermission } from '../../middleware/rbac.js';
 import { serializeBigInt, parseTengeToMinor } from '../../lib/money.js';
 import type { ExpenseCategory } from '@prisma/client';
 import { getOrCreateWallet, recordSale, ledgerNetBalance } from './finance.service.js';
+import { reconcilePartnerEconomics, PARTNER_VERTICALS } from './partner-economics.service.js';
 import { revenueBySource } from './revenue.service.js';
 import {
   PAYOUT_STATUSES,
@@ -111,6 +112,21 @@ financeRouter.get('/transactions', requirePermission('finance.manage'), async (r
   } catch (error) {
     console.error('List transactions error:', error);
     return res.status(500).json({ ok: false, error: 'Ошибка при получении транзакций' } satisfies ApiResponse);
+  }
+});
+
+financeRouter.get('/partner-economics/reconciliation', requirePermission('finance.manage'), async (req: AuthRequest, res) => {
+  try {
+    const from = typeof req.query.from === 'string' ? new Date(req.query.from) : undefined;
+    const to = typeof req.query.to === 'string' ? new Date(req.query.to) : undefined;
+    if ((from && Number.isNaN(from.getTime())) || (to && Number.isNaN(to.getTime()))) return res.status(400).json({ ok: false, error: 'Некорректный период' } satisfies ApiResponse);
+    const vertical = typeof req.query.vertical === 'string' && (Object.values(PARTNER_VERTICALS) as string[]).includes(req.query.vertical) ? req.query.vertical as keyof typeof PARTNER_VERTICALS : undefined;
+    const partnerId = typeof req.query.partnerId === 'string' && req.query.partnerId ? req.query.partnerId : undefined;
+    const result = await reconcilePartnerEconomics({ from, to, vertical, partnerId });
+    return res.json({ ok: true, data: serializeBigInt(result) } satisfies ApiResponse);
+  } catch (error) {
+    console.error('Partner economics reconciliation error:', error);
+    return res.status(500).json({ ok: false, error: 'Не удалось выполнить сверку экономики партнёров' } satisfies ApiResponse);
   }
 });
 
