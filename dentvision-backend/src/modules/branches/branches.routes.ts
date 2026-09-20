@@ -312,12 +312,12 @@ branchesRouter.get('/:id/members', async (req: AuthRequest, res) => {
     if (!branch.organization_id) return res.status(404).json({ok:false,error:'Филиал не найден'});
     const authz = await authorizeOrganizationBranch(req.user!.id, branch.organization_id, branch);
     if (!authz.allowed) return res.status(authz.status).json({ok:false,error:authz.error});
-    const rows = await prisma.$queryRaw<Array<{id:string;full_name:string;email:string|null;person_type:string}>>`
-      SELECT p."id", p."fullName" AS full_name, COALESCE(u."email",p."email") AS email, p."personType" AS person_type
+    const rows = await prisma.$queryRaw<Array<{id:string;user_id:string|null;full_name:string;email:string|null;person_type:string}>>`
+      SELECT p."id", p."userId" AS user_id, p."fullName" AS full_name, COALESCE(u."email",p."email") AS email, p."personType" AS person_type
       FROM "branch_members" bm JOIN "persons" p ON p."id"=bm."personId"
       LEFT JOIN "users" u ON u."id"=p."userId"
       WHERE bm."branchId"=${branchId} ORDER BY p."fullName"`;
-    return res.json({ok:true,data:rows.map(r=>({id:r.id,name:r.full_name,email:r.email,role:r.person_type,branchId}))});
+    return res.json({ok:true,data:rows.map(r=>({id:r.id,userId:r.user_id,name:r.full_name,email:r.email,role:r.person_type,branchId}))});
   } catch(error){console.error('[branches] members list',error);return res.status(500).json({ok:false,error:'Не удалось получить сотрудников филиала'});}
 });
 
