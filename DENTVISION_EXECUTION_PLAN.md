@@ -217,7 +217,7 @@ The branch vertical slice is not complete until an isolated E2E workflow proves:
 ### Phase 3 — Automated operations
 **Status:** QUEUED
 - [ ] Trigger economics automatically when an eligible order/payment is created or completed.
-- [ ] Automate payout readiness and notifications.
+- [x] Automate payout readiness and notifications.
 - [ ] Handle refunds, cancellations, partial fulfillment, discounts, taxes/fees where supported by the domain model.
 - [x] Add scheduled reconciliation and anomaly detection.
 
