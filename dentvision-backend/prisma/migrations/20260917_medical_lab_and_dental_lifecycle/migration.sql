@@ -46,6 +46,8 @@ CREATE TABLE IF NOT EXISTS "medical_lab_order_tests" (
   "id" TEXT NOT NULL,
   "orderId" TEXT NOT NULL,
   "testId" TEXT,
+  -- Immutable price snapshot in minor currency units used for payment/economics.
+  "priceMinor" BIGINT,
   "name" TEXT NOT NULL,
   "analyteCode" TEXT,
   "result" TEXT,
