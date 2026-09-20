@@ -107,7 +107,7 @@ test.describe('DentVision organization owner lifecycle', () => {
 
   test('ORG-007: owner can navigate through core management surfaces without a dead-end', async ({ page }) => {
     await login(page);
-    const routes = ['/crm/staff', '/crm/patients', '/crm/appointments', '/crm/inventory', '/crm/lab-orders', '/crm/diagnostics', '/finance', '/my-clinics'];
+    const routes = ['/crm/staff', '/crm/patients', '/crm/schedule', '/crm/inventory', '/crm/lab', '/diagnostics', '/crm/cashier', '/bi', '/my-clinics'];
     for (const route of routes) {
       await page.goto(`${BASE}${route}`);
       await expect(page).not.toHaveURL(/\/login/);
