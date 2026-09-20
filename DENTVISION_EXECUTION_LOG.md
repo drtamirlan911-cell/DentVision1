@@ -240,3 +240,19 @@ The complete pre-2026-09-14 execution history is preserved in the parent Git his
 ### Next action
 - Complete the durable reconciliation / Finance Hub economics read model and discrepancy detection.
 - Then execute owner/partner lifecycle and branch/role negative matrix.
+
+
+## 2026-09-20 — Durable partner-economics reconciliation surface
+
+### Implemented
+- `06e9e1ecd406205d5c9ef6a76acb4c56fc826b13` — added deterministic reconciliation over durable `partner_economics` transactions and their ledger entries.
+- `31af159883f0618d8f68f06733f6985e66f4484c` — exposed the reconciliation result through Finance Core at `GET /finance/partner-economics/reconciliation`, with period, vertical and partner filters and finance authorization.
+- Each row verifies gross debit, total credits, partner payout, platform commission and the immutable economics snapshot. Discrepancies are counted explicitly rather than silently corrected.
+
+### Verification status
+- Implementation is committed.
+- Fresh CI/E2E evidence for the current HEAD is still unavailable; release verification remains **UNVERIFIED**.
+
+### Next action
+- Continue Finance Hub presentation/partner transparency from this durable read model.
+- Then execute the owner/partner lifecycle and full role/branch/cross-tenant negative matrix.
