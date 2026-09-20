@@ -203,10 +203,16 @@ export async function acceptInvitation(
 
   // Only after the grant succeeded. Marking it first would burn the code on a
   // failure and leave the invitee with no way back in.
-  await prisma.organizationInvitation.update({
-    where: { code },
+  const claimed = await prisma.organizationInvitation.updateMany({
+    where: { code, usedAt: null },
     data: { usedAt: new Date(), usedBy: user.id },
   });
+  if (claimed.count !== 1) {
+    // Another concurrent accept won the one-time claim. Membership upsert is
+    // idempotent, so no duplicate membership was created; report the invite as
+    // consumed rather than issuing a second success response.
+    throw Object.assign(new Error('Приглашение уже использовано'), { status: 409 });
+  }
 
   return {
     organizationId: org.id,
