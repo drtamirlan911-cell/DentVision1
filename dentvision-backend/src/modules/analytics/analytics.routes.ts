@@ -15,6 +15,11 @@ function branchScope(req: AuthRequest): Record<string, unknown> {
     ? { branchId: { in: branchIds } }
     : { branchId: '__NO_BRANCH_ACCESS__' };
 }
+function analyticsBranchIds(req: AuthRequest): string[] | null {
+  const role = String(req.user?.role || '').toUpperCase();
+  if (['SUPERADMIN', 'OWNER', 'ADMIN'].includes(role)) return null;
+  return (req.user?.branchIds ?? []).filter(Boolean);
+}
 
 analyticsRouter.use(authenticate);
 analyticsRouter.use(requirePermission('bi.clinic'));
@@ -90,6 +95,7 @@ analyticsRouter.get('/revenue', async (req: AuthRequest, res) => {
 
     const now = new Date();
     const twelveMonthsAgo = new Date(now.getFullYear(), now.getMonth() - 11, 1);
+    const branchIds = analyticsBranchIds(req);
 
     // SQL-level month bucketing instead of shipping every paid invoice to JS.
     const rows = await prisma.$queryRaw<Array<{ month: string; total: bigint }>>`
@@ -99,6 +105,7 @@ analyticsRouter.get('/revenue', async (req: AuthRequest, res) => {
       WHERE "clinicId" = ${clinicId}
         AND "status" = 'paid'
         AND "createdAt" >= ${twelveMonthsAgo}
+        ${branchIds === null ? prisma.Prisma.sql`` : prisma.Prisma.sql`AND EXISTS (SELECT 1 FROM "patients" p WHERE p."id" = "invoices"."patientId" AND p."branchId" = ANY(${branchIds}::text[]))`}
       GROUP BY 1
       ORDER BY 1
     `;
