@@ -106,6 +106,36 @@ crmOpsRouter.post('/waiting-list', requirePermission('patient.write'), async (re
   }
 });
 
+crmOpsRouter.patch('/waiting-list/:id', requirePermission('patient.write'), async (req: AuthRequest, res) => {
+  try {
+    const clinicId = requireClinic(req, res);
+    if (!clinicId) return;
+    const id = req.params.id as string;
+    const existing = await prisma.waitingList.findFirst({ where: { id, clinicId } });
+    if (!existing) return res.status(404).json({ ok: false, error: 'Не найдено' } satisfies ApiResponse);
+    const b = req.body || {};
+    const data = {
+      patientId: b.patientId ?? b.patient_id ?? existing.patientId,
+      patientName: b.patientName ?? b.patient_name ?? existing.patientName,
+      patientPhone: b.patientPhone ?? b.patient_phone ?? existing.patientPhone,
+      doctorId: b.doctorId ?? b.doctor_id ?? existing.doctorId,
+      doctorName: b.doctorName ?? b.doctor_name ?? existing.doctorName,
+      preferredDate: (b.preferredDate ?? b.preferred_date) !== undefined
+        ? ((b.preferredDate ?? b.preferred_date) ? new Date(b.preferredDate ?? b.preferred_date) : null)
+        : existing.preferredDate,
+      preferredTime: b.preferredTime ?? b.preferred_time ?? existing.preferredTime,
+      preferredService: b.preferredService ?? b.preferred_service ?? existing.preferredService,
+      notes: b.notes ?? existing.notes,
+      status: b.status ?? existing.status,
+    };
+    const row = await prisma.waitingList.update({ where: { id }, data });
+    return res.json({ ok: true, data: row } satisfies ApiResponse);
+  } catch (error) {
+    console.error('[CRM ops] waiting-list update', error);
+    return res.status(500).json({ ok: false, error: 'Не удалось обновить лист ожидания' } satisfies ApiResponse);
+  }
+});
+
 crmOpsRouter.delete('/waiting-list/:id', requirePermission('patient.write'), async (req: AuthRequest, res) => {
   try {
     const clinicId = requireClinic(req, res);
