@@ -78,7 +78,7 @@ describe('refundPayment', () => {
 
   it('replays the same idempotency key without creating a second reversal', async () => {
     paidPayment();
-    tx.transaction.findMany.mockResolvedValue([
+    tx.transaction.findMany.mockReset().mockResolvedValue([
       { id: 'r1', amount: 5_000n, meta: { refundKey: 'same-key' } },
     ]);
 
@@ -90,7 +90,7 @@ describe('refundPayment', () => {
 
   it('rejects an amount beyond the remaining refundable balance', async () => {
     paidPayment();
-    tx.transaction.findMany.mockResolvedValue([
+    tx.transaction.findMany.mockReset().mockResolvedValue([
       { id: 'r1', amount: 7_000n, meta: { refundKey: 'first' } },
     ]);
 
