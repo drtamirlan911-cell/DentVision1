@@ -144,7 +144,6 @@ const MATRIX: Record<string, RoleMatrixRow> = {
     profile:      ['read', 'write'],
     shop:         ['read'],
     academy:      ['read'],
-    diagnostics:  ['read'],
   },
 
   SUPPORT: {
