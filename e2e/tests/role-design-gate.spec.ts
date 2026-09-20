@@ -116,6 +116,9 @@ test.describe('DentVision role/context design release gate', () => {
       if (role.id === 'patient') {
         await expect(page).toHaveURL(/\/patient-portal(?:$|[?#])/);
         await expect(page.getByText('Пациент', { exact: true }).first()).toBeVisible();
+        const consentButtons = page.getByRole('button', { name: 'Принимаю', exact: true });
+        for (let i = 0; i < await consentButtons.count(); i++) await consentButtons.nth(0).click();
+        await expect(page.getByText('Прежде чем продолжить', { exact: true })).toHaveCount(0);
         for (const label of ['Приём', 'Лечение', 'Визиты', 'Оплата', 'Документы', 'Диагностика']) {
           await expect(page.getByText(label, { exact: false }).first()).toBeVisible();
         }
