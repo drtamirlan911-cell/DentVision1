@@ -17,12 +17,14 @@ function patchModel(
   if (end < 0) throw new Error(`TreatmentCase model end not found: ${modelName}`);
 
   let block = schema.slice(start, end + 3);
-  if (!block.includes(field.trim())) {
+  const fieldName = field.trim().split(/\s+/)[0];
+  const relationName = relation.trim().split(/\s+/)[0];
+  if (!new RegExp(`^\\s*${fieldName}\\b`, 'm').test(block)) {
     const fieldIndex = block.indexOf(fieldAnchor);
     if (fieldIndex < 0) throw new Error(`TreatmentCase field anchor not found: ${modelName}: ${fieldAnchor}`);
     block = `${block.slice(0, fieldIndex + fieldAnchor.length)}${field}${block.slice(fieldIndex + fieldAnchor.length)}`;
   }
-  if (!block.includes(relation.trim())) {
+  if (!new RegExp(`^\\s*${relationName}\\b`, 'm').test(block)) {
     const relationIndex = block.indexOf(relationAnchor);
     if (relationIndex < 0) throw new Error(`TreatmentCase relation anchor not found: ${modelName}: ${relationAnchor}`);
     block = `${block.slice(0, relationIndex + relationAnchor.length)}${relation}${block.slice(relationIndex + relationAnchor.length)}`;
