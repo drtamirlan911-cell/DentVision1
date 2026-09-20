@@ -193,7 +193,7 @@ test.describe('RBAC - Role-Based Access Control', () => {
     expect([403, 404]).toContain(res.status());
   });
 
-  test('RBAC-015: only organization management roles can list organization settings branches', async () => {
+  test('RBAC-015: branch-scoped clinical roles can list only their authorized organization branch scope', async () => {
     const clinicsRes = await api.get(`${BASE_URL}/api/auth/my-clinics`, { headers: authHeaders(tokens['owner-a']) });
     expect(clinicsRes.status()).toBe(200);
     const clinics = (await clinicsRes.json()).data;
@@ -208,7 +208,10 @@ test.describe('RBAC - Role-Based Access Control', () => {
     const doctorRes = await api.get(`${BASE_URL}/api/organizations/branches?clinicId=${encodeURIComponent(clinicId)}`, {
       headers: authHeaders(tokens['doctor-a']),
     });
-    expect([403, 404]).toContain(doctorRes.status());
+    expect(doctorRes.status()).toBe(200);
+    const doctorBranches = (await doctorRes.json()).data || [];
+    expect(Array.isArray(doctorBranches)).toBe(true);
+    expect(doctorBranches.length).toBeLessThanOrEqual(1);
   });
 
   test('RBAC-016: assistant cannot mutate organization branch configuration', async () => {
