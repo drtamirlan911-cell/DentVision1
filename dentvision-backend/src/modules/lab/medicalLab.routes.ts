@@ -67,8 +67,15 @@ medicalLabLifecycleRouter.get('/orders', async (req: AuthRequest, res) => {
     const status = typeof req.query.status === 'string' ? req.query.status : null;
     const where: string[] = [];
     const args: unknown[] = [];
-    if (clinicId) { args.push(clinicId); where.push(`o."clinicId" = $${args.length}`); }
-    else if (req.user?.organizationId && (req.user as any).organizationType === 'LABORATORY') { args.push(req.user.organizationId); where.push(`o."labId" = $${args.length}`); }
+    if (clinicId) {
+      args.push(clinicId); where.push(`o."clinicId" = ${args.length}`);
+      const role = String(req.user?.role || '').toUpperCase();
+      const branchIds = (req.user?.branchIds ?? []).filter(Boolean);
+      if (!['SUPERADMIN', 'OWNER', 'ADMIN'].includes(role)) {
+        if (branchIds.length === 0) return res.json({ ok: true, data: [] } satisfies ApiResponse);
+        args.push(branchIds); where.push(`EXISTS (SELECT 1 FROM "patients" p WHERE p."id" = o."patientId" AND p."branchId" = ANY(${args.length}::text[]))`);
+      }
+    } else if (req.user?.organizationId && (req.user as any).organizationType === 'LABORATORY') { args.push(req.user.organizationId); where.push(`o."labId" = ${args.length}`); }
     else return res.status(403).json({ ok: false, error: 'Нет рабочего контекста' } satisfies ApiResponse);
     if (patientId) { args.push(patientId); where.push(`o."patientId" = $${args.length}`); }
     if (caseId) { args.push(caseId); where.push(`o."treatmentCaseId" = $${args.length}`); }
