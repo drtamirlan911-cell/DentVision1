@@ -64,45 +64,83 @@ export async function refundPayment(
       throw new PaymentRefundError('INVALID_AMOUNT', 'Сумма возврата превышает невозвращённый остаток');
     }
 
-    let original = null;
-    if (payment.refType === 'order' && payment.refId) {
-      original = await tx.transaction.findFirst({
-        where: { type: 'sale', refType: 'order', refId: payment.refId },
-        include: { ledgerEntries: true },
-      });
-    } else if (payment.refType === 'sale') {
-      original = await tx.transaction.findFirst({
-        where: { type: 'sale', refType: 'payment', refId: payment.id },
-        include: { ledgerEntries: true },
-      });
-    }
+    const originals = payment.refType === 'order' && payment.refId
+      ? await tx.transaction.findMany({
+          where: { type: 'sale', refType: 'order', refId: payment.refId },
+          include: { ledgerEntries: true },
+          orderBy: { createdAt: 'asc' },
+        })
+      : payment.refType === 'sale'
+        ? await tx.transaction.findMany({
+            where: { type: 'sale', refType: 'payment', refId: payment.id },
+            include: { ledgerEntries: true },
+            orderBy: { createdAt: 'asc' },
+          })
+        : [];
 
-    if (!original) {
+    const financialTotal = originals.reduce((sum, row) => sum + row.amount, 0n);
+    const financialRemaining = financialTotal - refunded;
+    if (!originals.length || financialTotal <= 0n) {
       throw new PaymentRefundError(
         'NOT_REFUNDABLE',
         'Для этого платежа нет связанной двойной записи Finance Core; автоматический возврат не выполняется',
       );
     }
-
-    if (original.amount <= 0n || requested > original.amount) {
-      throw new PaymentRefundError('NOT_REFUNDABLE', 'Исходная финансовая операция не поддерживает этот возврат');
+    if (requested > financialRemaining) {
+      throw new PaymentRefundError(
+        'NOT_REFUNDABLE',
+        'Сумма возврата превышает сумму, отражённую в Finance Core',
+      );
     }
 
-    const entries = original.ledgerEntries;
-    if (!entries.length) throw new PaymentRefundError('NOT_REFUNDABLE', 'У исходной операции отсутствуют ledger entries');
+    // An order can have more than one supplier sale transaction. Allocate the
+    // requested refund across all of them in creation order, then reverse every
+    // affected ledger entry. This prevents a multi-supplier order from refunding
+    // only the first seller/platform split.
+    let left = requested;
+    const rawRefundEntries: Array<{ walletId: string; direction: string; amount: bigint }> = [];
+    for (const original of originals) {
+      if (left <= 0n) break;
+      const allocation = left < original.amount ? left : original.amount;
+      if (allocation <= 0n) continue;
+      const entries = original.ledgerEntries;
+      if (!entries.length) {
+        throw new PaymentRefundError('NOT_REFUNDABLE', 'У исходной операции отсутствуют ledger entries');
+      }
 
-    const refundEntries = entries.map((entry) => ({
-      walletId: entry.walletId,
-      direction: entry.direction === 'debit' ? 'credit' : 'debit',
-      amount: (entry.amount * requested) / original.amount,
-    }));
-
-    if (refundEntries.some((entry) => entry.amount <= 0n)) {
-      throw new PaymentRefundError('INVALID_AMOUNT', 'Сумма возврата слишком мала для пропорционального ledger reversal');
+      const mapped = entries.map((entry) => ({
+        walletId: entry.walletId,
+        direction: entry.direction === 'debit' ? 'credit' : 'debit',
+        amount: (entry.amount * allocation) / original.amount,
+      }));
+      const mappedTotal = mapped.reduce((sum, entry) => sum + entry.amount, 0n);
+      const adjustment = allocation - mappedTotal;
+      const lastPositive = [...mapped].reverse().findIndex((entry) => entry.amount > 0n);
+      if (lastPositive < 0 || adjustment < 0n) {
+        throw new PaymentRefundError('INVALID_AMOUNT', 'Сумма возврата не может быть пропорционально отражена в исходном ledger');
+      }
+      mapped[mapped.length - 1 - lastPositive].amount += adjustment;
+      rawRefundEntries.push(...mapped.filter((entry) => entry.amount > 0n));
+      left -= allocation;
     }
+
+    if (left !== 0n) {
+      throw new PaymentRefundError('NOT_REFUNDABLE', 'Не удалось распределить возврат по финансовым операциям');
+    }
+
+    const combined = new Map<string, { walletId: string; direction: string; amount: bigint }>();
+    for (const entry of rawRefundEntries) {
+      const key = entry.walletId + ':' + entry.direction;
+      const existing = combined.get(key);
+      if (existing) existing.amount += entry.amount;
+      else combined.set(key, { ...entry });
+    }
+    const refundEntries = [...combined.values()];
     const reversedTotal = refundEntries.reduce((sum, entry) => sum + entry.amount, 0n);
-    if (reversedTotal !== requested) {
-      throw new PaymentRefundError('INVALID_AMOUNT', 'Сумма возврата не может быть пропорционально отражена в исходном ledger');
+    const debitTotal = refundEntries.filter((entry) => entry.direction === 'debit').reduce((sum, entry) => sum + entry.amount, 0n);
+    const creditTotal = refundEntries.filter((entry) => entry.direction === 'credit').reduce((sum, entry) => sum + entry.amount, 0n);
+    if (reversedTotal !== requested || debitTotal !== creditTotal) {
+      throw new PaymentRefundError('INVALID_AMOUNT', 'Возврат не сохраняет баланс двойной записи');
     }
 
     const refund = await tx.transaction.create({
@@ -115,7 +153,7 @@ export async function refundPayment(
         refId: payment.id,
         meta: {
           refundKey: idempotencyKey,
-          originalTransactionId: original.id,
+          originalTransactionIds: originals.map((row) => row.id),
           reason: reason || null,
           partial: requested < remaining,
           refundedBefore: refunded.toString(),
