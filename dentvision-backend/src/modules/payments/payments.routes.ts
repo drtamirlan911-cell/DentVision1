@@ -117,7 +117,7 @@ async function settleOrderPayment(
     let allocated = 0n;
     if (supplierTotalMinor > 0n) {
       const entries = Array.from(bySupplier.entries());
-      entries.forEach(([supplierId, tenge], index) => {
+      for (const [index, [supplierId, tenge]] of entries.entries()) {
         const raw = tengeToMinor(tenge);
         const share =
           index === entries.length - 1
@@ -125,7 +125,7 @@ async function settleOrderPayment(
             : (payment.amount * raw) / supplierTotalMinor;
         if (share > 0n) {
           allocated += share;
-          void recordSaleTx({
+          await recordSaleTx({
             domain: 'shop',
             sellerType: 'SUPPLIER',
             sellerId: supplierId,
