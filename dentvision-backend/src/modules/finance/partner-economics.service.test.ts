@@ -122,8 +122,8 @@ describe('partner economics reconciliation', () => {
           meta: {
             partnerId: 'center-1',
             economicsVersion: 1,
-            commissionMinor: '7_000',
-            partnerRevenueMinor: '93_000',
+            commissionMinor: '7000',
+            partnerRevenueMinor: '93000',
             rule: {
               percentBps: 700,
               minFeeMinor: '50000',
