@@ -193,4 +193,28 @@ describe('resolveAiToolAccess — permission gate', () => {
     expect(access.allowed.has('getLabOrders')).toBe(true);
     expect(access.allowed.has('getRevenue')).toBe(false);
   });
+  it('keeps partner operational roles isolated from clinic financial and clinical tools', async () => {
+    arrange('SUPPLIER', 'SUPPLIER', ['shop.read', 'shop.manage', 'inventory.read']);
+
+    const access = await resolveAiToolAccess({ userId: USER_ID, clinicId: CLINIC_ID });
+
+    expect(access.role).toBe('SUPPLIER');
+    expect(access.allowed.has('searchProducts')).toBe(true);
+    expect(access.allowed.has('getInventory')).toBe(false);
+    expect(access.allowed.has('getRevenue')).toBe(false);
+    expect(access.allowed.has('getPatientCard')).toBe(false);
+    expect(access.allowed.has('createInvoice')).toBe(false);
+  });
+
+  it('does not expose clinic tools when partner scope cannot be resolved', async () => {
+    arrange('DOCTOR', null, PERMS.DOCTOR);
+
+    const access = await resolveAiToolAccess({ userId: USER_ID, clinicId: 'unassigned-clinic' });
+
+    expect(access.clinicId).toBeNull();
+    expect(access.allowed.has('getPatientCard')).toBe(false);
+    expect(access.allowed.has('createAppointment')).toBe(false);
+    expect(access.allowed.has('getRevenue')).toBe(false);
+  });
+
 });
