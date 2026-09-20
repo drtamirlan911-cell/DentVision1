@@ -40,7 +40,7 @@ test.describe('Partner operational lifecycle', () => {
     const fixtureLab = await prisma.laboratory.create({ data: { name: `E2E Medical Lab ${Date.now()}`, city: 'Тараз' } });
     fixtureLabId = fixtureLab.id;
 
-    const patient = await api.post(`${BASE}/api/patients`,
+    const patient = await api.post(`${BASE}/api/patients`, {
       headers: auth(ownerToken),
       data: { iin: makeIin(), firstName: 'Partner', lastName: 'Lifecycle', phone: `+7700${Date.now() % 10000000}` },
     });
