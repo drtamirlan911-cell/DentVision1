@@ -35,6 +35,7 @@ export interface InvitationLike {
   email: string | null;
   expiresAt: Date | null;
   usedAt: Date | null;
+  revokedAt?: Date | null;
 }
 
 export interface InvitationRejection {
@@ -55,6 +56,7 @@ export function rejectInvitation(
 ): InvitationRejection | null {
   if (!invitation) return { status: 404, error: 'Приглашение не найдено' };
   if (invitation.usedAt) return { status: 409, error: 'Приглашение уже использовано' };
+  if (invitation.revokedAt) return { status: 410, error: 'Приглашение отозвано' };
 
   const now = ctx.now ?? new Date();
   if (invitation.expiresAt && new Date(invitation.expiresAt) < now) {
@@ -204,7 +206,7 @@ export async function acceptInvitation(
   // Only after the grant succeeded. Marking it first would burn the code on a
   // failure and leave the invitee with no way back in.
   const claimed = await prisma.organizationInvitation.updateMany({
-    where: { code, usedAt: null },
+    where: { code, usedAt: null, revokedAt: null },
     data: { usedAt: new Date(), usedBy: user.id },
   });
   if (claimed.count !== 1) {
