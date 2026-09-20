@@ -58,7 +58,16 @@ function pageId(route: string): string | null {
   if (map[p]) return map[p];
   if (p.startsWith('/shop')) return 'shop';
   if (p.startsWith('/school')) return 'school';
-  if (p === '/profile') return 'profile';
+  if (p.startsWith('/crm/')) return p.slice('/crm/'.length).split('/')[0] || null;
+  if (p.startsWith('/diagnostics/results')) return 'diagnostics-results';
+  if (p.startsWith('/diagnostics/referrals')) return 'diagnostics-referrals';
+  if (p.startsWith('/diagnostics/centers')) return 'diagnostics-centers';
+  if (p.startsWith('/diagnostics/labs') || p.startsWith('/diagnostics/laboratories')) return 'diagnostics-labs';
+  if (p.startsWith('/diagnostics/calendar')) return 'diagnostics-calendar';
+  if (p.startsWith('/diagnostics/statistics')) return 'diagnostics-statistics';
+  if (p.startsWith('/diagnostics/settings')) return 'diagnostics-settings';
+  if (p === '/profile' || p.startsWith('/profile/')) return 'profile';
+  if (p.startsWith('/settings')) return 'settings';
   return null;
 }
 
@@ -118,6 +127,11 @@ async function auditRoute(page: Page, role: Role, route: string, shouldBeAllowed
   expect(current.pathname,role.id+' '+route+': allowed route redirected unexpectedly').not.toBe('/login');
   await shellAudit(page,role,route);
   await inspectForms(page,role,route);
+  await page.reload({waitUntil:'domcontentloaded',timeout:30000});
+  await shellAudit(page,role,route);
+  await page.goBack({waitUntil:'domcontentloaded',timeout:30000}).catch(()=>{});
+  await page.goForward({waitUntil:'domcontentloaded',timeout:30000}).catch(()=>{});
+  await shellAudit(page,role,route);
 }
 
 test.describe('DentVision exhaustive role/context/browser gate',()=>{
