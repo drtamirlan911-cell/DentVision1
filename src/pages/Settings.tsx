@@ -17,6 +17,7 @@ import { useUIStore } from '@/store/ui.store'
 import { useToast } from '@/components/ui/ds/Toast'
 
 const DeveloperTab = lazy(() => import('./settings/DeveloperTab'))
+const OrganizationBranchesTab = lazy(() => import('./settings/OrganizationBranchesTab'))
 
 const container = {
   hidden: { opacity: 0 },
@@ -31,6 +32,7 @@ interface TabDef { id: string; label: string; icon: React.ReactNode }
 
 const TABS: TabDef[] = [
   { id: 'clinic', label: 'Клиника', icon: <Building2 size={14} /> },
+  { id: 'organization', label: 'Организация', icon: <Building2 size={14} /> },
   { id: 'profile', label: 'Профиль', icon: <User size={14} /> },
   { id: 'security', label: 'Безопасность', icon: <Shield size={14} /> },
   { id: 'developer', label: 'Для разработчиков', icon: <Terminal size={14} /> },
@@ -201,6 +203,15 @@ export default function SettingsPage() {
               </CardContent>
             </Card>
           </motion.div>
+        </motion.div>
+      )}
+
+      {/* ═══ ОРГАНИЗАЦИЯ / ФИЛИАЛЫ ═══ */}
+      {tab === 'organization' && (
+        <motion.div variants={container} initial="hidden" animate="show">
+          <Suspense fallback={<div className="space-y-2"><Skeleton className="h-24" /><Skeleton className="h-24" /></div>}>
+            <OrganizationBranchesTab />
+          </Suspense>
         </motion.div>
       )}
 
