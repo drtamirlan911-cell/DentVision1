@@ -198,6 +198,54 @@ export function canonicalPartnerEconomicsRules(): PartnerEconomicsRule[] {
   return Object.values(CANONICAL_RULES).map((rule) => ({ ...rule, volumeTiers: rule.volumeTiers?.map((tier) => ({ ...tier })) }));
 }
 
+export interface PartnerEconomicsDashboard {
+  period: { from: Date | null; to: Date | null };
+  byVertical: Array<{
+    vertical: PartnerVertical;
+    operations: number;
+    grossMinor: bigint;
+    commissionMinor: bigint;
+    partnerPayoutMinor: bigint;
+    costMinor: bigint;
+    contributionMarginMinor: bigint;
+    contributionMarginBps: number;
+    discrepancyCount: number;
+    lowMarginCount: number;
+    lossCount: number;
+  }>;
+  alerts: Array<{ type: 'DISCREPANCY' | 'LOW_MARGIN' | 'LOSS'; vertical: PartnerVertical; transactionId: string; operationId: string }>;
+}
+
+export function buildPartnerEconomicsDashboard(
+  rows: PartnerEconomicsTransparencyRow[],
+  period: { from: Date | null; to: Date | null },
+): PartnerEconomicsDashboard {
+  const byVertical = (Object.values(PARTNER_VERTICALS) as PartnerVertical[]).map((vertical) => {
+    const scoped = rows.filter((row) => row.vertical === vertical);
+    const grossMinor = scoped.reduce((s, r) => s + r.grossMinor, 0n);
+    const commissionMinor = scoped.reduce((s, r) => s + r.commissionMinor, 0n);
+    const partnerPayoutMinor = scoped.reduce((s, r) => s + r.partnerPayoutMinor, 0n);
+    const costMinor = scoped.reduce((s, r) => s + r.costMinor, 0n);
+    const contributionMarginMinor = scoped.reduce((s, r) => s + r.contributionMarginMinor, 0n);
+    return {
+      vertical, operations: scoped.length, grossMinor, commissionMinor, partnerPayoutMinor, costMinor,
+      contributionMarginMinor,
+      contributionMarginBps: grossMinor === 0n ? 0 : Number((contributionMarginMinor * 10_000n) / grossMinor),
+      discrepancyCount: scoped.filter((r) => r.grossMinor !== r.commissionMinor + r.partnerPayoutMinor || r.contributionMarginMinor !== r.commissionMinor - r.costMinor).length,
+      lowMarginCount: scoped.filter((r) => r.status === 'LOW_MARGIN').length,
+      lossCount: scoped.filter((r) => r.status === 'LOSS').length,
+    };
+  });
+  const alerts = rows.flatMap((row) => {
+    const out: PartnerEconomicsDashboard['alerts'] = [];
+    if (row.grossMinor !== row.commissionMinor + row.partnerPayoutMinor || row.contributionMarginMinor !== row.commissionMinor - row.costMinor) out.push({ type: 'DISCREPANCY', vertical: row.vertical, transactionId: row.transactionId, operationId: row.operationId });
+    if (row.status === 'LOW_MARGIN') out.push({ type: 'LOW_MARGIN', vertical: row.vertical, transactionId: row.transactionId, operationId: row.operationId });
+    if (row.status === 'LOSS') out.push({ type: 'LOSS', vertical: row.vertical, transactionId: row.transactionId, operationId: row.operationId });
+    return out;
+  });
+  return { period, byVertical, alerts };
+}
+
 
 export interface PartnerEconomicsTransparencyRow {
   transactionId: string;
