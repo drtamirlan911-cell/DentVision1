@@ -418,11 +418,14 @@ model Appointment {
   /// actually join on. Nullable and backfilled from that same JSON where it
   /// was already recorded; not every appointment serves a plan.
   treatmentPlanId String?
+  treatmentCaseId String?
 
   clinic        Clinic         @relation(fields: [clinicId], references: [id], onDelete: Cascade)
   patient       Patient        @relation(fields: [patientId], references: [id], onDelete: Cascade)
   doctor        User           @relation(fields: [doctorId], references: [id], onDelete: Restrict)
   treatmentPlan TreatmentPlan? @relation(fields: [treatmentPlanId], references: [id], onDelete: SetNull)
+  treatmentCase TreatmentCase? @relation(fields: [treatmentCaseId], references: [id], onDelete: SetNull)
+  treatmentCase TreatmentCase? @relation(fields: [treatmentCaseId], references: [id], onDelete: SetNull)
 
   createdAt DateTime  @default(now())
   updatedAt DateTime? @updatedAt
@@ -430,6 +433,7 @@ model Appointment {
   @@index([clinicId, date])
   @@index([doctorId, date])
   @@index([treatmentPlanId])
+  @@index([treatmentCaseId])
   @@map("appointments")
 }
 
@@ -559,14 +563,17 @@ model Visit {
   treatment  Json?
   notes      String?
   deletedAt  DateTime?
+  treatmentCaseId String?
 
   patient Patient @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  treatmentCase TreatmentCase? @relation(fields: [treatmentCaseId], references: [id], onDelete: SetNull)
 
   createdAt DateTime  @default(now())
   updatedAt DateTime? @updatedAt
 
   @@index([patientId])
   @@index([doctorId])
+  @@index([treatmentCaseId])
   @@map("visits")
 }
 
@@ -599,6 +606,7 @@ model TreatmentPlan {
   /// Nullable because plans already existed when it was added; the migration
   /// backfills every one of them from the patient. New writers set it.
   clinicId  String?
+  treatmentCaseId String?
   title     String
   status    PlanStatus @default(draft)
   items     Json
@@ -608,6 +616,7 @@ model TreatmentPlan {
 
   patient      Patient                @relation(fields: [patientId], references: [id], onDelete: Cascade)
   clinic       Clinic?                @relation(fields: [clinicId], references: [id], onDelete: SetNull)
+  treatmentCase TreatmentCase?         @relation(fields: [treatmentCaseId], references: [id], onDelete: SetNull)
   releases     TreatmentPlanRelease[]
   appointments Appointment[]
   invoices     Invoice[]
@@ -617,6 +626,7 @@ model TreatmentPlan {
 
   @@index([patientId])
   @@index([clinicId])
+  @@index([treatmentCaseId])
   @@map("treatment_plans")
 }
 
@@ -834,10 +844,12 @@ model LabOrder {
   /// information does not exist for orders already placed, and inventing an
   /// attribution for clinical work would be worse than leaving it blank.
   doctorId String?
+  treatmentCaseId String?
 
   clinic  Clinic   @relation(fields: [clinicId], references: [id], onDelete: Cascade)
   patient Patient? @relation(fields: [patientId], references: [id], onDelete: SetNull)
   doctor  User?    @relation("LabOrderDoctor", fields: [doctorId], references: [id], onDelete: SetNull)
+  treatmentCase TreatmentCase? @relation(fields: [treatmentCaseId], references: [id], onDelete: SetNull)
 
   createdAt DateTime  @default(now())
   updatedAt DateTime? @updatedAt
@@ -845,6 +857,7 @@ model LabOrder {
   @@index([clinicId])
   @@index([patientId])
   @@index([doctorId])
+  @@index([treatmentCaseId])
   @@map("lab_orders")
 }
 
@@ -864,6 +877,7 @@ model Invoice {
   /// `Appointment.treatmentPlanId` — the per-stage JSON link
   /// (`items.stages[].invoiceId`) already existed but isn't queryable.
   treatmentPlanId String?
+  treatmentCaseId String?
 
   clinic        Clinic         @relation(fields: [clinicId], references: [id], onDelete: Cascade)
   patient       Patient?       @relation(fields: [patientId], references: [id], onDelete: SetNull)
@@ -875,6 +889,7 @@ model Invoice {
   @@index([clinicId])
   @@index([patientId])
   @@index([treatmentPlanId])
+  @@index([treatmentCaseId])
   @@map("invoices")
 }
 
@@ -3004,6 +3019,7 @@ model Referral {
   // Platform settlement: once a paid referral's platformFee is rolled into a
   // Settlement, this links it so it can never be counted twice.
   settlementId     String?
+  treatmentCaseId  String?
   // Audit
   reviewerId       String?
   reviewedAt       DateTime?
@@ -3026,6 +3042,7 @@ model Referral {
   comments    ReferralComment[]
   result      DiagnosticResult?
   settlement  Settlement?       @relation("SettlementReferrals", fields: [settlementId], references: [id], onDelete: SetNull)
+  treatmentCase TreatmentCase?  @relation(fields: [treatmentCaseId], references: [id], onDelete: SetNull)
 
   @@index([clinicId])
   @@index([centerId])
@@ -3035,6 +3052,7 @@ model Referral {
   @@index([status])
   @@index([createdAt])
   @@index([settlementId])
+  @@index([treatmentCaseId])
   @@map("referrals")
 }
 
@@ -3831,6 +3849,12 @@ model TreatmentCase {
 
   clinic    Clinic   @relation(fields: [clinicId], references: [id], onDelete: Cascade)
   patient   Patient  @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  appointments Appointment[]
+  labOrders    LabOrder[]
+  invoices     Invoice[]
+  treatmentPlans TreatmentPlan[]
+  referrals    Referral[]
+  visits       Visit[]
 
   createdAt DateTime  @default(now())
   updatedAt DateTime? @updatedAt
