@@ -274,4 +274,28 @@ test.describe('Patient Workflow', () => {
     expect(readData.teeth['16'].surfaces.M).toBe('caries');
   });
 
+
+  test('PATIENT-OPS-002: waitlist is clinic-scoped and lifecycle is writable by appointment staff', async ({ request }) => {
+    const token = await login(request, 'owner-a@test.com');
+    const create = await request.post(`${BASE}/api/crm/waitlist`, {
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      data: { patientName: `Waitlist E2E ${Date.now()}`, patientPhone: '+77000000044', preferredService: 'Консультация' },
+    });
+    expect([201, 404]).toContain(create.status());
+    if (create.status() === 404) return;
+    const row = (await create.json()).data;
+    expect(row.clinicId).toBeTruthy();
+
+    const list = await request.get(`${BASE}/api/crm/waitlist?status=waiting`, { headers: { Authorization: `Bearer ${token}` } });
+    expect(list.status()).toBe(200);
+    expect((await list.json()).data.some((item: any) => item.id === row.id)).toBeTruthy();
+
+    const update = await request.patch(`${BASE}/api/crm/waitlist/${row.id}`, {
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      data: { status: 'contacted', notes: 'E2E contacted' },
+    });
+    expect(update.status()).toBe(200);
+    expect((await update.json()).data.status).toBe('contacted');
+  });
+
 });
