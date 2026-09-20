@@ -3541,6 +3541,8 @@ model OrganizationInvitation {
   expiresAt      DateTime?
   usedAt         DateTime?
   usedBy         String?
+  revokedAt      DateTime?
+  revokedBy      String?
   createdBy      String
 
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
