@@ -131,6 +131,14 @@ export default function OrganizationBranchesTab() {
     finally { setBusy(false) }
   }
 
+  const toggleMember = async (userId: string, active: boolean) => {
+    if (!selectedBranch || !userId) return
+    setBusy(true); setError('')
+    try { await api.setBranchMemberActive(selectedBranch.id, userId, active); await loadMembers(selectedBranch.id) }
+    catch (e: any) { setError(e?.message || 'Не удалось изменить доступ сотрудника') }
+    finally { setBusy(false) }
+  }
+
   const unassign = async (userId: string) => {
     if (!selectedBranch || !userId) return
     setBusy(true); setError('')
@@ -223,7 +231,10 @@ export default function OrganizationBranchesTab() {
             {members.length ? members.map(member => (
               <div key={member.id} className="flex items-center justify-between gap-3 py-2 border-b border-bdr-subtle last:border-0">
                 <div><p className="text-sm text-txt-primary">{member.name}</p><p className="text-xs text-txt-muted">{member.email || member.role}</p></div>
-                {member.userId && <Button size="sm" variant="ghost" onClick={() => void unassign(member.userId)}>Убрать</Button>}
+                {member.userId && <div className="flex gap-1">
+                  <Button size="sm" variant="ghost" onClick={() => void toggleMember(member.userId, false)}>Отключить</Button>
+                  <Button size="sm" variant="ghost" onClick={() => void unassign(member.userId)}>Убрать</Button>
+                </div>}
               </div>
             )) : <p className="text-sm text-txt-muted">В филиале пока нет сотрудников.</p>}
             {assignable.length > 0 && (
@@ -252,7 +263,7 @@ export default function OrganizationBranchesTab() {
           {inviteCode && <div className="rounded-lg border border-dv-gold/30 bg-dv-gold/5 px-3 py-2 text-sm text-txt-primary">Код приглашения: <strong>{inviteCode}</strong></div>}
           {invitations.length > 0 && (
             <div className="space-y-1">
-              {invitations.slice(0, 10).map(inv => <div key={inv.id} className="flex justify-between gap-3 text-xs py-2 border-b border-bdr-subtle"><span className="text-txt-primary">{inv.email || 'Без ограничения email'} · {inv.role}</span><span className="text-txt-muted">{inv.expiresAt ? new Date(inv.expiresAt).toLocaleDateString() : 'без срока'}</span></div>)}
+              {invitations.slice(0, 10).map(inv => <div key={inv.id} className="flex justify-between gap-3 text-xs py-2 border-b border-bdr-subtle"><span className="text-txt-primary">{inv.email || 'Без ограничения email'} · {inv.role}</span><span className="flex items-center gap-2 text-txt-muted">{inv.expiresAt ? new Date(inv.expiresAt).toLocaleDateString() : 'без срока'}<Button size="sm" variant="ghost" onClick={async () => { try { await api.revokeOrganizationInvitation(inv.id); setInvitations(await api.getOrganizationInvitations(organization.id)) } catch (e:any) { setError(e?.message || 'Не удалось отозвать приглашение') } }}>Отозвать</Button></span></div>)}
             </div>
           )}
           <p className="text-[11px] text-txt-muted">Приглашение действительно 7 дней. Для адресного приглашения email проверяется сервером.</p>
