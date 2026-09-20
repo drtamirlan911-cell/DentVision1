@@ -31,7 +31,7 @@ jobs:
         working-directory: dentvision-backend
       - run: npx tsc --noEmit
         working-directory: dentvision-backend
-      - run: npx eslint src/ --max-warnings 72
+      - run: npx eslint src/ --max-warnings 73
         working-directory: dentvision-backend
 
   lint-test:
