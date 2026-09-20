@@ -10,6 +10,7 @@ const ROLES = [
   { id: 'assistant', email: 'assistant-a@test.com', label: 'Ассистент' },
   { id: 'manager', email: 'manager-a@test.com', label: 'Менеджер' },
   { id: 'regular', email: 'regular@test.com', label: 'Пользователь' },
+  { id: 'patient', email: 'patient@dentvision.kz', label: 'Пациент' },
 ] as const;
 
 const CONTEXT_ROUTES = [
@@ -33,7 +34,7 @@ async function login(page: Page, email: string) {
   await page.locator('input[autocomplete="username"]').fill(email);
   await page.locator('input[autocomplete="current-password"]').fill(PASSWORD);
   await page.getByRole('button', { name: 'Войти в DentVision' }).click();
-  await page.waitForURL(/\/ai(?:$|[?#])/, { timeout: 30000 });
+  await page.waitForURL(/\/(?:ai|patient-portal)(?:$|[?#])/, { timeout: 30000 });
   await page.waitForTimeout(500);
 }
 
@@ -111,6 +112,22 @@ test.describe('DentVision role/context design release gate', () => {
 
       await expect(page.getByText('DentVision', { exact: true }).first()).toBeVisible({ timeout: 10000 });
       await auditRoleShell(page, role);
+
+      if (role.id === 'patient') {
+        await expect(page).toHaveURL(/\/patient-portal(?:$|[?#])/);
+        await expect(page.getByText('Пациент', { exact: true }).first()).toBeVisible();
+        for (const label of ['Приём', 'Лечение', 'Визиты', 'Оплата', 'Документы', 'Диагностика']) {
+          await expect(page.getByText(label, { exact: false }).first()).toBeVisible();
+        }
+        for (const forbidden of ['/crm/patients', '/crm/schedule', '/crm/cashier', '/crm/inventory', '/crm/staff', '/crm/lab', '/admin', '/audit', '/bi']) {
+          await page.goto(BASE_URL + forbidden, { waitUntil: 'domcontentloaded', timeout: 30000 });
+          const path = new URL(page.url()).pathname;
+          expect(path, 'patient ' + forbidden + ': privileged route must not be exposed').not.toBe(forbidden);
+          expect(path).not.toMatch(/^\/crm(?:\/|$)|^\/(?:admin|audit|bi)(?:\/|$)/);
+        }
+        await page.goto(BASE_URL + '/patient-portal', { waitUntil: 'domcontentloaded', timeout: 30000 });
+        await expect(page).toHaveURL(/\/patient-portal/);
+      }
 
       const body = await page.locator('body').innerText();
       expect(body).toContain(role.label);
