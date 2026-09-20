@@ -130,7 +130,11 @@ branchesRouter.get('/billing-quote', async (req: AuthRequest, res) => {
 
 branchesRouter.get('/', async (req: AuthRequest, res) => {
   const clinicId = String(req.query.clinicId || '');
-  const organizationId = String(req.query.organizationId || req.user?.organizationId || '');
+  // An explicit clinicId is a legacy clinic-scope request and must not be
+  // hijacked by the caller's active organization context. Otherwise a user
+  // who has both clinic and universal organization context can receive the
+  // organization branch query instead of the requested clinic branch list.
+  const organizationId = String(req.query.organizationId || (clinicId ? '' : req.user?.organizationId || ''));
   try {
     if (organizationId) {
       const member = await organizationMembership(req.user!.id, organizationId);
