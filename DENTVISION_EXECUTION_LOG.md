@@ -695,3 +695,22 @@ Run the current main-tip release matrix against an isolated environment; then re
 
 ### Next action
 - Capture production interactive login/navigation evidence and rollback execution using an available connected browser/Vercel control surface, then update the release plan only after those actions are actually verified.
+
+## 2026-09-20 — Multi-role + responsive design release gate
+
+### Implemented
+- `7cf54b7e5061f01909556547d7754924e9495f38` — added a dedicated role/context design gate covering owner, admin, doctor, assistant, manager and regular user journeys.
+- The gate verifies role greeting/identity coherence, visible shell identity, absence of visible emoji glyphs, accessible naming, interactive target sizing, clipping, horizontal overflow, runtime/page errors and failed requests across the authenticated context routes.
+- `6516408091545d374021822eb45404d796fb5adf` — added dedicated desktop and mobile role-gate projects at 1440×900 and Pixel 7/390×844.
+- `6f3cf81855b7dac7a3f88edf8dbba0f97f9bd3b6` — CI now executes the full responsive matrix (PC, laptop, tablet, Android and iPhone/Safari) plus the multi-role design/context gate.
+
+### Release intent
+The design gate is no longer a single-role/mobile check. It treats role, identity, navigation, context continuity and responsive layout as one release surface. A role-specific failure blocks the gate rather than being treated as a cosmetic observation.
+
+### Verification status
+- Implementation committed.
+- Fresh CI execution for these commits is required before marking the gate PASS.
+- No visual/design pass is considered complete from screenshots alone; automated geometry, accessibility naming, runtime/network and role-context assertions are part of the gate.
+
+### Next action
+Run the new CI gates against the exact main tip, inspect every failed role/device case, fix real defects, and rerun until the release matrix is green. Do not weaken assertions to make the gate pass.
