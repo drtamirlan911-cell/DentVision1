@@ -769,3 +769,6 @@ Run the exact current main-tip CI role/device matrix. Treat every failed role/de
 - `8b6c6c500a6facbcaaf1b98e2a6360b140c97266` — dynamic CRM/diagnostic route IDs are normalized to their parent permission domain; allowed screens are additionally checked after reload and browser history back/forward navigation.
 - The gate now checks role identity, context contamination, application/chunk errors, horizontal overflow, clipped text, interactive target size, accessible names, form-control identification, runtime console/page errors, failed requests, HTTP 5xx responses, protected-route behavior for anonymous users, cross-tenant Clinic A/B isolation, storage token/password leakage, discovered internal links, and post-login entry workspace.
 - Fresh CI execution is still required; no new exhaustive matrix is marked PASS until GitHub Actions provides evidence.
+
+- `bb0e42d1f53817ee22172fa53271e01ebe11614d` / `9df80f2f94d1ba1e872d5dea7044a602713fc658` — platform governance/support screens (`quality`, `platform-finance`, `ai-governance`, `support`, `security`) are included in the route inventory and authorization mapping.
+- `b5b3ad21a2450dcbf8ee5b7758cbb4267326267d` / `0c7090953297201561a265c4c9a4793c7b2517b7` — deterministic E2E support and laboratory identities were added to extend role coverage beyond the initial clinic/partner set.
