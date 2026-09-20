@@ -4,7 +4,7 @@
 
 // ─── Auth & Users ───────────────────────────────────────────────
 
-export type UserRole = 'superadmin' | 'director' | 'admin' | 'doctor' | 'assistant'
+export type UserRole = 'superadmin' | 'director' | 'admin' | 'doctor' | 'assistant' | 'patient' | 'diagnostic_owner' | 'diagnostic_admin' | 'diagnostic_manager' | 'diagnostic_operator' | 'radiologist' | 'radiology_technician' | 'diagnostic_reception' | 'diagnostic_finance' | 'diagnostic_quality' | 'medical_lab_owner' | 'medical_lab_admin' | 'medical_lab_manager' | 'medical_lab_reception' | 'medical_lab_technician' | 'medical_lab_validator' | 'medical_lab_doctor' | 'medical_lab_finance' | 'medical_lab_quality' | 'dental_lab_owner' | 'dental_lab_admin' | 'dental_lab_manager' | 'lab_coordinator' | 'dental_technician' | 'cad_designer' | 'ceramist' | 'orthodontic_technician' | 'qc_specialist' | 'lab_finance'
 
 export interface User {
   id: string
