@@ -53,6 +53,11 @@ describe('rejectInvitation', () => {
     expect(rejectInvitation({ ...valid, usedAt: NOW }, { now: NOW })?.status).toBe(409);
   });
 
+  it('answers 410 when the code was explicitly revoked', () => {
+    expect(rejectInvitation({ ...valid, revokedAt: NOW }, { now: NOW })?.status).toBe(410);
+    expect(rejectInvitation({ ...valid, revokedAt: NOW }, { now: NOW })?.error).toContain('отозвано');
+  });
+
   it('answers 410 once the code has expired', () => {
     const expired = { ...valid, expiresAt: new Date('2026-08-01T00:00:00Z') };
     expect(rejectInvitation(expired, { now: NOW })?.status).toBe(410);
