@@ -143,8 +143,8 @@ async function upsertClinic(name: string) {
 async function ensureSubscription(clinicId: string) {
   await prisma.subscription.upsert({
     where: { ownerType_ownerId: { ownerType: 'CLINIC', ownerId: clinicId } },
-    create: { ownerType: 'CLINIC', ownerId: clinicId, plan: 'professional', status: 'active', periodEnd: null },
-    update: { plan: 'professional', status: 'active', periodEnd: null },
+    create: { ownerType: 'CLINIC', ownerId: clinicId, plan: 'enterprise', status: 'active', periodEnd: null },
+    update: { plan: 'enterprise', status: 'active', periodEnd: null },
   });
 }
 
