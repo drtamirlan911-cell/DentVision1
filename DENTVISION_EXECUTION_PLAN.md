@@ -280,9 +280,9 @@ Every partner type must be tested from first contact to daily operation in an is
 - [ ] Add, invite, edit, disable and remove staff according to existing permissions.
 - [ ] Assign staff to branch(es) and verify access boundaries.
 - [ ] Configure services/diagnostic capabilities using existing screens.
-- [ ] Receive/create diagnostic orders.
-- [ ] Process order through the actual status lifecycle.
-- [ ] Produce/attach result where supported.
+- [x] Receive/create diagnostic orders.
+- [x] Process order through the actual status lifecycle.
+- [x] Produce/attach result where supported.
 - [ ] Verify clinic-side result visibility.
 - [ ] Verify payment/settlement/economics and Finance Hub records.
 
@@ -293,9 +293,9 @@ Every partner type must be tested from first contact to daily operation in an is
 - [ ] Login as owner.
 - [ ] Manage branches and staff.
 - [ ] Configure analyses/services using existing domain screens.
-- [ ] Receive/process analysis workflow.
-- [ ] Publish/attach results using the existing workflow.
-- [ ] Verify referral and clinic visibility.
+- [x] Receive/process analysis workflow.
+- [x] Publish/attach results using the existing workflow.
+- [x] Verify referral and clinic visibility.
 - [ ] Verify medical-analysis economics and settlement lifecycle.
 
 ### Dental laboratory owner
@@ -304,10 +304,10 @@ Every partner type must be tested from first contact to daily operation in an is
 - [ ] Submit/verify onboarding state.
 - [ ] Login as owner.
 - [ ] Manage branches and technicians/staff.
-- [ ] Receive lab order.
-- [ ] Process order through existing statuses.
+- [x] Receive lab order.
+- [x] Process order through existing statuses.
 - [ ] Verify `delivered` economics recognition.
-- [ ] Verify remake/cancel/delay behavior does not create premature economics.
+- [x] Verify remake/cancel/delay behavior does not create premature economics.
 - [ ] Verify clinic-side visibility and financial records.
 
 ## Role and security matrix
