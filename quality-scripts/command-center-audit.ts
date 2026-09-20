@@ -4,7 +4,7 @@ import path from 'node:path'
 const root = process.cwd()
 const read = (p: string) => fs.readFileSync(path.join(root, p), 'utf8')
 const index = read('src/index.tsx')
-const sidebar = read('src/layouts/SuperAppSidebar.tsx')
+const sidebar = read('src/layouts/EcosystemSidebar.tsx')
 const bottomNav = read('src/layouts/BottomNav.tsx')
 const palette = read('src/components/CommandPalette.tsx')
 const failures: string[] = []
@@ -17,7 +17,8 @@ const routes = [
 ]
 
 for (const route of routes) {
-  if (!index.includes(`path="${route.replace(/^\//, '')}"`)) failures.push(`Missing route: ${route}`)
+  const nested = route.replace(/^\//, '')
+  if (!new RegExp(`path=["']/?${nested.replace(/[.*+?^${}()|[\]\\]/g, '\\  if (!index.includes(`path="${route.replace(/^\//, '')}"`)) failures.push(`Missing route: ${route}`)')}["']`).test(index)) failures.push(`Missing route: ${route}`)
 }
 
 for (const route of [
@@ -44,7 +45,7 @@ if (sidebar.includes("id: 'ai',") && !sidebar.includes("path: '/ai'")) failures.
 if (bottomNav.includes("id: 'ai'") && !bottomNav.includes("path: '/ai'")) failures.push('Mobile AI item points to dashboard root')
 
 // Labels must be locale-driven, not hardcoded English UI copy.
-if (!sidebar.includes('useTranslation') || !sidebar.includes('labelKey')) failures.push('Sidebar labels are not locale-driven')
+if (!sidebar.includes('useTranslation') || !sidebar.includes('const text =') || !sidebar.includes('text(\'common.close\'')) failures.push('Sidebar labels are not locale-driven')
 if (bottomNav.includes("label: 'Academy'") || bottomNav.includes("label: 'Community'")) failures.push('Mobile navigation contains hardcoded English labels')
 
 if (!sidebar.includes('useCommandPalette')) failures.push('Command palette integration missing')
