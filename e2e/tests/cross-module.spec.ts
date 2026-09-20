@@ -190,11 +190,13 @@ test.describe('Cross-Module Workflow: referral → center → result → lab →
   });
 
   test('CROSS-006: lab updates the order status → doctor sees the new status', async () => {
-    const statusRes = await api.patch(`${BASE_URL}/api/lab-orders/${labOrderId}/status`, {
-      headers: auth(doctorToken),
-      data: { status: 'ready' },
-    });
-    expect(statusRes.status()).toBe(200);
+    for (const status of ['sent', 'in_progress', 'ready']) {
+      const statusRes = await api.patch(`${BASE_URL}/api/lab-orders/${labOrderId}/status`, {
+        headers: auth(doctorToken),
+        data: { status },
+      });
+      expect(statusRes.status()).toBe(200);
+    }
     const listRes = await api.get(`${BASE_URL}/api/lab-orders`, { headers: auth(doctorToken) });
     const orders = (await listRes.json()).data;
     expect(orders.find((o: any) => o.id === labOrderId)?.status).toBe('ready');
