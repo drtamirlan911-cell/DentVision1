@@ -197,3 +197,95 @@ export async function reconcilePartnerEconomics(
 export function canonicalPartnerEconomicsRules(): PartnerEconomicsRule[] {
   return Object.values(CANONICAL_RULES).map((rule) => ({ ...rule, volumeTiers: rule.volumeTiers?.map((tier) => ({ ...tier })) }));
 }
+
+
+export interface PartnerEconomicsTransparencyRow {
+  transactionId: string;
+  vertical: PartnerVertical;
+  partnerId: string;
+  branchId: string | null;
+  operationId: string;
+  grossMinor: bigint;
+  commissionMinor: bigint;
+  partnerPayoutMinor: bigint;
+  costMinor: bigint;
+  contributionMarginMinor: bigint;
+  contributionMarginBps: number;
+  status: EconomicsStatus;
+  economicsVersion: number;
+}
+
+export async function getPartnerEconomicsTransparency(
+  opts: { from?: Date; to?: Date; vertical?: PartnerVertical; partnerId?: string; branchId?: string } = {},
+  db: Prisma.TransactionClient | typeof prisma = prisma,
+): Promise<{
+  period: { from: Date | null; to: Date | null };
+  totals: Omit<PartnerEconomicsTransparencyRow, 'transactionId' | 'vertical' | 'partnerId' | 'branchId' | 'operationId' | 'status' | 'economicsVersion'> & { operations: number; costMinor: bigint };
+  rows: PartnerEconomicsTransparencyRow[];
+  discrepancies: number;
+}> {
+  const where: Prisma.TransactionWhereInput = { type: 'partner_economics' };
+  if (opts.from || opts.to) {
+    where.createdAt = {
+      ...(opts.from ? { gte: opts.from } : {}),
+      ...(opts.to ? { lt: opts.to } : {}),
+    };
+  }
+  if (opts.vertical) where.refType = opts.vertical;
+  if (opts.partnerId) where.meta = { path: ['partnerId'], equals: opts.partnerId };
+  const transactions = await db.transaction.findMany({
+    where,
+    orderBy: { createdAt: 'desc' },
+    select: { id: true, amount: true, refType: true, refId: true, meta: true, ledgerEntries: { select: { direction: true, amount: true } } },
+  });
+
+  const rows = transactions.map((transaction): PartnerEconomicsTransparencyRow => {
+    const meta = (transaction.meta || {}) as Record<string, unknown>;
+    const cost = (meta.costs || {}) as Record<string, unknown>;
+    const costMinor = ['payment', 'ai', 'storage', 'support', 'refundReserve', 'tax'].reduce((sum, key) => {
+      try { return sum + BigInt(String(cost[key] ?? '0')); } catch { return sum; }
+    }, 0n);
+    const grossMinor = BigInt(transaction.amount);
+    const commissionMinor = BigInt(String(meta.commissionMinor ?? '0'));
+    const partnerPayoutMinor = BigInt(String(meta.partnerRevenueMinor ?? '0'));
+    const contributionMarginMinor = BigInt(String(meta.contributionMarginMinor ?? (commissionMinor - costMinor)));
+    const contributionMarginBps = grossMinor === 0n ? 0 : Number((contributionMarginMinor * 10_000n) / grossMinor);
+    const branchId = typeof meta.branchId === 'string' ? meta.branchId : null;
+    const status = meta.status === 'LOSS' || meta.status === 'LOW_MARGIN' ? meta.status : 'HEALTHY';
+    const economicsVersion = Number(meta.economicsVersion) || 1;
+    return {
+      transactionId: transaction.id,
+      vertical: transaction.refType as PartnerVertical,
+      partnerId: String(meta.partnerId || ''),
+      branchId,
+      operationId: transaction.refId || String(meta.operationId || ''),
+      grossMinor,
+      commissionMinor,
+      partnerPayoutMinor,
+      costMinor,
+      contributionMarginMinor,
+      contributionMarginBps,
+      status,
+      economicsVersion,
+    };
+  }).filter((row) => !opts.branchId || row.branchId === opts.branchId);
+
+  const totals = rows.reduce((acc, row) => ({
+    operations: acc.operations + 1,
+    grossMinor: acc.grossMinor + row.grossMinor,
+    commissionMinor: acc.commissionMinor + row.commissionMinor,
+    partnerPayoutMinor: acc.partnerPayoutMinor + row.partnerPayoutMinor,
+    costMinor: acc.costMinor + row.costMinor,
+    contributionMarginMinor: acc.contributionMarginMinor + row.contributionMarginMinor,
+    contributionMarginBps: 0,
+  }), { operations: 0, grossMinor: 0n, commissionMinor: 0n, partnerPayoutMinor: 0n, costMinor: 0n, contributionMarginMinor: 0n, contributionMarginBps: 0 });
+  totals.contributionMarginBps = totals.grossMinor === 0n ? 0 : Number((totals.contributionMarginMinor * 10_000n) / totals.grossMinor);
+
+  const discrepancies = rows.filter((row) => row.grossMinor !== row.commissionMinor + row.partnerPayoutMinor || row.contributionMarginMinor !== row.commissionMinor - row.costMinor).length;
+  return {
+    period: { from: opts.from ?? null, to: opts.to ?? null },
+    totals,
+    rows,
+    discrepancies,
+  };
+}
