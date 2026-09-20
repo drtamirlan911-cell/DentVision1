@@ -283,7 +283,7 @@ Every partner type must be tested from first contact to daily operation in an is
 - [x] Receive/create diagnostic orders.
 - [x] Process order through the actual status lifecycle.
 - [x] Produce/attach result where supported.
-- [ ] Verify clinic-side result visibility.
+- [x] Verify clinic-side diagnostic result visibility after signing through the canonical referral read contract.
 - [x] Verify payment/settlement/economics and Finance Hub records.
 
 ### Medical laboratory owner
