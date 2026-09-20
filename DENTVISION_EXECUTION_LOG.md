@@ -427,3 +427,30 @@ Next action: wire the existing branch-management API into the canonical Owner Se
 - `5dbf754ee110ae62cdbb27f32f3da4f19fa7ff9e` — execution plan updated for the durable transparency/alert aggregation controls.
 
 Verification remains UNVERIFIED until the current HEAD passes the actual CI/E2E matrix. Remaining plan items include accepted→paid→settled concurrency tests, historical-rule verification at the ledger boundary, payout automation, refunds/cancellations/partial fulfillment where supported, scheduled reconciliation, full partner-type business-owner E2E, UI workflow audit, Android release verification, and production-readiness evidence.
+
+
+## 2026-09-20 — Durable economics concurrency, history and reconciliation hardening
+
+### Implemented
+- `861d55c5cb9a95386d08657f317c19b97d84a681` — fixed the dental-lab status route so the persisted order is loaded before transition validation; invalid transition checks can no longer reference an uninitialized variable.
+- `98ab8839257f54ff9da7be730e09cb88ff6f11ce` — ledger reconciliation now verifies that every partner-economics transaction carries an intact immutable economics rule/version snapshot, in addition to balanced ledger amounts and payout/commission snapshot equality.
+- `d3daef47e8973a2c7db7f989a1f02e6ce2a96e86` — regression tests cover missing/malformed versus complete historical rule snapshots at the ledger boundary.
+- `faeb159a28b47f69a40db1a3987a85768cfdea26` — accepted → paid → settled concurrency test now couples the atomic payment claim to the settlement side effect and proves only one concurrent confirmation records partner economics.
+- `ec0eb046f33b68abc7642363ca590c3e87c610c3` — added a scheduled partner-economics reconciliation job with a durable job lock and 24-hour scan window.
+- `ab5cdb87fed3546e1d1bc71b3acf690b7e049420` — starts the reconciliation job with the existing backend cron intervals.
+
+### Verification
+- Current HEAD has no GitHub Actions workflow run exposed by the connected status surface.
+- Combined status for the latest test commit is not green; Vercel reports a `build-rate-limit` failure.
+- Local execution was not possible in this session because the runtime cannot resolve `github.com` for a repository clone.
+- Therefore these new tests and the release gates remain **UNVERIFIED** until CI executes against the current HEAD.
+
+### Remaining plan
+- payout readiness/automation and partner payout status;
+- refunds/cancellations/partial fulfillment where the domain model supports them;
+- full partner-type business-owner E2E;
+- Finance Hub partner workflow verification;
+- real browser workflow/outcome audit;
+- Android release verification;
+- security/permissions/audit matrix completion;
+- production readiness and rollback evidence.
