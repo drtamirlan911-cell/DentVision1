@@ -96,6 +96,9 @@ jobs:
       - name: Sync Prisma schema for the isolated E2E database
         run: npx prisma db push --skip-generate
         working-directory: dentvision-backend
+      - name: Apply raw lifecycle tables required by E2E
+        run: npx prisma db execute --file prisma/migrations/20260917_medical_lab_and_dental_lifecycle/migration.sql
+        working-directory: dentvision-backend
       - run: npm run db:seed:e2e
         working-directory: dentvision-backend
       - name: Install Playwright browsers
