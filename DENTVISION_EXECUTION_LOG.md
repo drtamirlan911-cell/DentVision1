@@ -732,3 +732,26 @@ Implementation is committed. Fresh CI execution is still required; no patient ro
 
 ### Next action
 Run the complete role/context matrix across responsive devices, inspect every failure, and then continue the same treatment for diagnostic-center, medical-laboratory and dental-laboratory owner/employee organization contexts using their canonical Organization/Person role model rather than inventing clinic UserRole values.
+
+
+## 2026-09-20 — Patient + partner organization role isolation hardening
+
+### Implemented
+- `362e899c1f58d96a2442279fd574d7ffc0d60ad1` — deterministic E2E patient identity `patient@dentvision.kz` is seeded as PATIENT, linked to a real Patient row in E2E Clinic A, with appointment and visit fixtures; the patient is not a ClinicMember.
+- `b25083d09a88c2e722b7118dc4a8fc35c0a33537` — patient IAM no longer grants the internal diagnostics workspace; public diagnostics discovery remains outside the authenticated clinic workspace.
+- `bc0d0fd2d2860c7a64ddbd96a52c0011505c5f7` — added scoped organization-role resolution for unified partner organizations.
+- `addfcaa0d81a930ac436df9d319fe056a10157fa` / `1032bb2fc352b76e902b26b04ce976b89a69ed74` — login and session hydration now preserve the actual partner organization role instead of degrading it to STUDENT.
+- `8ce36bdef57ca2f656770929ef2f8c3d7c1b0103` / `f90cd6a33d14d7ee9968f1d5e8282c4a52005ed2` — auth responses now expose scoped organization context and effective role to the frontend.
+- `9443371ef84bd25698e34db48da727d648818969` / `f4da2f2424f6de169ced5b1dfaad33c7b6b0a6d3` — added isolated E2E identities and Organization/PersonRole fixtures for diagnostic-center owner/operator, medical-laboratory owner/technician and dental-laboratory owner/technician.
+- `861d1b1e467a4b8dab423edc3ef6c5447f2c0e0b` — partner and patient navigation is now derived from context-specific page sets, preventing clinic medical/billing/staff pages from leaking into partner workspaces or patient sessions.
+- `080c3bcfa5ba5aeec6804ab461db53716cb59356` / `3fe676d506ddef419fdcf10edfa1dd0f37453e43` / `f6ce8423c7eb3d52247099af0c9565f3b366b3d9` — patient sessions are isolated from the clinic shell on internal routes; patient sidebar surfaces are limited to patient-safe marketplace/academy/profile contexts and clinic command search is hidden.
+- `b236ab50f66cd588e1f5675c6b426f203c73a497` — login routes diagnostic-center, medical-lab and dental-lab users directly into their operational workspace instead of the generic clinic AI entry.
+- `647ef97b2bedce3fdca2b3334742fde9da5bc5ad` — context card displays the actual scoped partner role rather than the compatibility STUDENT identity.
+- `7827c5b9e7d0504158502ddefbc11445d285bcd4` / `b566d5b5e2d00c0f37abae196b6253796a9261fe` — role/context design gate now includes partner owner/employee contexts and clinic-workspace negative paths.
+- `f8942b7bf6563a8d9ccb01f88113e7b1bf9d43e3` / `70419b0c4d2642397069c0d2c2d833a22ab98cef` — role/context design gate expanded to all eight supported responsive device classes: 1280 desktop, 1440 laptop, 1920 desktop, 768 tablet, 820 tablet, 390 Android, 412 Android and iPhone/WebKit.
+
+### Verification status
+Implementation is committed. The latest commit is awaiting GitHub Actions indexing/execution; no new role/device matrix is marked PASS yet. Existing release evidence remains valid only for the commits already executed by CI.
+
+### Next action
+Run the exact current main-tip CI role/device matrix. Treat every failed role/device/context combination as a real defect, fix it in source, and rerun until the gate is green. Then continue with the remaining partner registration → organization → branch → staff → permissions lifecycle evidence and final production/rollback gates.
