@@ -53,4 +53,22 @@ describe('branch authorization', () => {
       branchB,
     )).toThrow('Branch access denied: BRANCH_NOT_ASSIGNED');
   });
+  it('denies a branch employee from reading or writing another branch', () => {
+    const actor = { organizationId: 'org-1', roleScope: 'BRANCH' as const, branchIds: ['branch-a'] };
+    expect(authorizeBranchScope(actor, { organizationId: 'org-1', branchId: 'branch-b' }).allowed).toBe(false);
+  });
+
+  it('denies a branch employee from another tenant even when the branch id matches', () => {
+    const actor = { organizationId: 'org-1', roleScope: 'BRANCH' as const, branchIds: ['branch-a'] };
+    expect(authorizeBranchScope(actor, { organizationId: 'org-2', branchId: 'branch-a' })).toEqual({
+      allowed: false,
+      reason: 'ORGANIZATION_MISMATCH',
+    });
+  });
+
+  it('denies an assigned employee after branch membership is revoked', () => {
+    const actor = { organizationId: 'org-1', roleScope: 'ASSIGNED' as const, assignedBranchId: null };
+    expect(canAccessBranch(actor, branchA)).toBe(false);
+  });
+
 });
