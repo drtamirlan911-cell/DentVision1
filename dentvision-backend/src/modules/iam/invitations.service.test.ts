@@ -1,11 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { centerFindFirst, labFindFirst, invitationFindUnique, invitationUpdate, grantDiagnosticsAccess } =
+const { centerFindFirst, labFindFirst, invitationFindUnique, invitationUpdateMany, grantDiagnosticsAccess } =
   vi.hoisted(() => ({
     centerFindFirst: vi.fn(),
     labFindFirst: vi.fn(),
     invitationFindUnique: vi.fn(),
-    invitationUpdate: vi.fn(),
+    invitationUpdateMany: vi.fn(),
     grantDiagnosticsAccess: vi.fn(),
   }));
 
@@ -33,9 +33,9 @@ beforeEach(() => {
   centerFindFirst.mockReset();
   labFindFirst.mockReset();
   invitationFindUnique.mockReset();
-  invitationUpdate.mockReset();
+  invitationUpdateMany.mockReset();
   grantDiagnosticsAccess.mockReset();
-  grantDiagnosticsAccess.mockResolvedValue(true);
+  grantDiagnosticsAccess.mockResolvedValue(true);\n  invitationUpdateMany.mockResolvedValue({ count: 1 });
 });
 
 describe('rejectInvitation', () => {
@@ -173,7 +173,7 @@ describe('acceptInvitation', () => {
     // `originalId`, never `Organization.id` — every diagnostics query is keyed
     // on the centre's own id.
     expect(grantDiagnosticsAccess).toHaveBeenCalledWith('DiagnosticCenter', 'center-1', 'u1', 'radiologist');
-    expect(invitationUpdate).toHaveBeenCalledWith(
+    expect(invitationUpdateMany).toHaveBeenCalledWith(
       expect.objectContaining({ where: { code: 'ABCD1234' }, data: expect.objectContaining({ usedBy: 'u1' }) }),
     );
     expect(result).toMatchObject({ entityId: 'center-1', organizationType: 'DIAGNOSTIC_CENTER', role: 'radiologist' });
@@ -187,7 +187,7 @@ describe('acceptInvitation', () => {
     grantDiagnosticsAccess.mockResolvedValue(false);
 
     await expect(acceptInvitation('ABCD1234', { id: 'u1' })).rejects.toMatchObject({ status: 500 });
-    expect(invitationUpdate).not.toHaveBeenCalled();
+    expect(invitationUpdateMany).not.toHaveBeenCalled();
   });
 
   it('refuses a user who is already a member, without spending the code', async () => {
@@ -196,7 +196,7 @@ describe('acceptInvitation', () => {
 
     await expect(acceptInvitation('ABCD1234', { id: 'u1' })).rejects.toMatchObject({ status: 409 });
     expect(grantDiagnosticsAccess).not.toHaveBeenCalled();
-    expect(invitationUpdate).not.toHaveBeenCalled();
+    expect(invitationUpdateMany).not.toHaveBeenCalled();
   });
 
   it('refuses an organization type it cannot grant membership in', async () => {
