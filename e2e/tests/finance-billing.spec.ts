@@ -69,4 +69,40 @@ test.describe('Clinical billing — deposits and installments', () => {
     expect(body.data.patientId).toBe(patientId);
     expect(body.data.prepaidBalance).toBeGreaterThanOrEqual(25000);
   });
+  test('BILL-003: patient prepayment can be consumed by an invoice installment', async ({ request }) => {
+    const t = await login(request, 'owner-a@test.com');
+    const headers = { Authorization: `Bearer ${t}` };
+    const patient = await request.post(`${BASE}/api/patients`, {
+      headers, data: { firstName: 'Deposit', lastName: `E2E ${Date.now()}`, phone: '+77000000043' },
+    });
+    expect(patient.status()).toBe(201);
+    const patientBody = await patient.json();
+    const patientId = (patientBody.data || patientBody).id;
+
+    const deposit = await request.post(`${BASE}/api/billing/patients/${patientId}/prepayment`, {
+      headers, data: { amount: 30000, paymentMethod: 'cash' },
+    });
+    expect(deposit.status()).toBe(201);
+
+    const invoice = await request.post(`${BASE}/api/billing/invoices`, {
+      headers, data: { patientId, amount: 50000, items: [{ name: 'Treatment', price: 50000 }] },
+    });
+    expect(invoice.status()).toBe(201);
+    const invoiceBody = await invoice.json();
+    const invoiceId = (invoiceBody.data || invoiceBody).id;
+
+    const payment = await request.post(`${BASE}/api/billing/invoices/${invoiceId}/pay`, {
+      headers, data: { amount: 30000, paymentMethod: 'cash' },
+    });
+    expect(payment.status()).toBe(200);
+    const paymentBody = await payment.json();
+    expect(paymentBody.data.paidAmount).toBe(30000);
+
+    const patientAfter = await request.get(`${BASE}/api/patients/${patientId}`, { headers });
+    expect(patientAfter.status()).toBe(200);
+    const patientAfterBody = await patientAfter.json();
+    const after = patientAfterBody.data || patientAfterBody;
+    expect(after.prepaidBalance).toBe(0);
+  });
+
 });
