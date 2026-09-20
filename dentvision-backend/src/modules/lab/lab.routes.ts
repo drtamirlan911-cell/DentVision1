@@ -63,6 +63,15 @@ function ensureDentalLabOrderEventsTable(): Promise<void> {
   return dentalLabOrderEventsReady;
 }
 
+function branchScopedLabOrder(req: AuthRequest): Record<string, unknown> {
+  const role = String(req.user?.role || '').toUpperCase();
+  if (['SUPERADMIN', 'OWNER', 'ADMIN'].includes(role)) return {};
+  const branchIds = (req.user?.branchIds ?? []).filter(Boolean);
+  return branchIds.length > 0
+    ? { patient: { branchId: { in: branchIds } } }
+    : { patient: { branchId: '__NO_BRANCH_ACCESS__' } };
+}
+
 function serializeLabOrder(order: {
   id: string; clinicId: string; patientId: string | null; labName: string | null;
   status: string; type: string | null; notes: string | null; files: unknown;
@@ -104,7 +113,7 @@ labRouter.get('/', requirePermission('appointment.read'), async (req: AuthReques
     const clinicId = req.user!.clinicId;
     if (!clinicId) return res.status(400).json({ ok: false, error: 'Клиника не указана' } satisfies ApiResponse);
     const limit = Math.min(Math.max(parseInt(String(req.query.limit ?? '200'), 10) || 200, 1), 1000);
-    const orders = await prisma.labOrder.findMany({ where: { clinicId }, orderBy: { createdAt: 'desc' }, take: limit });
+    const orders = await prisma.labOrder.findMany({ where: { clinicId, ...branchScopedLabOrder(req) }, orderBy: { createdAt: 'desc' }, take: limit });
     return res.json({ ok: true, data: orders.map(serializeLabOrder) } satisfies ApiResponse);
   } catch (error: any) {
     console.error('[Lab] list error:', error);
@@ -122,9 +131,13 @@ export interface LabOrderBody {
 }
 export interface PreparedLabOrder { error?: string; data?: Record<string, unknown>; }
 
-export async function prepareLabOrderWrite(clinicId: string, body: LabOrderBody, existingMeta: LabOrderMeta = {}): Promise<PreparedLabOrder> {
+export async function prepareLabOrderWrite(clinicId: string, body: LabOrderBody, existingMeta: LabOrderMeta = {}, branchIds: string[] | null = null): Promise<PreparedLabOrder> {
   const { patientId, patientName, labType, material, toothNumber, shade, dueDate, notes, status, price, remakeOfId, appointmentId, tryInDate, doctorId, laboratoryId, technicianId, treatmentCaseId } = body;
   if (doctorId && !(await isClinicMember(doctorId, clinicId))) return { error: 'Указанный врач не найден в этой клинике' };
+  if (patientId && branchIds !== null) {
+    const patient = await prisma.patient.findFirst({ where: { id: patientId, clinicId, branchId: branchIds.length > 0 ? { in: branchIds } : '__NO_BRANCH_ACCESS__' }, select: { id: true } });
+    if (!patient) return { error: 'Пациент недоступен в текущем филиале' };
+  }
   if (laboratoryId) {
     const lab = await prisma.laboratory.findUnique({ where: { id: laboratoryId }, select: { id: true, name: true } });
     if (!lab) return { error: 'Указанная лаборатория не найдена' };
@@ -148,11 +161,13 @@ labRouter.post('/', requirePermission('appointment.write'), async (req: AuthRequ
     const { id, ...body } = req.body as LabOrderBody & { id?: string };
     let existingMeta: LabOrderMeta = {};
     if (id) {
-      const existing = await prisma.labOrder.findFirst({ where: { id, clinicId } });
+      const existing = await prisma.labOrder.findFirst({ where: { id, clinicId, ...branchScopedLabOrder(req) } });
       if (!existing) return res.status(404).json({ ok: false, error: 'Заказ лаборатории не найден' } satisfies ApiResponse);
       existingMeta = (existing.files as { meta?: LabOrderMeta } | null)?.meta || {};
     }
-    const prepared = await prepareLabOrderWrite(clinicId, body, existingMeta);
+    const role = String(req.user?.role || '').toUpperCase();
+    const branchIds = ['SUPERADMIN', 'OWNER', 'ADMIN'].includes(role) ? null : (req.user?.branchIds ?? []).filter(Boolean);
+    const prepared = await prepareLabOrderWrite(clinicId, body, existingMeta, branchIds);
     if (prepared.error) return res.status(400).json({ ok: false, error: prepared.error } satisfies ApiResponse);
     const data = prepared.data as any;
     const order = id ? await prisma.labOrder.update({ where: { id }, data }) : await prisma.labOrder.create({ data: { id: uid(), clinicId, ...data } });
@@ -168,7 +183,7 @@ labRouter.patch('/:id/status', requirePermission('appointment.write'), async (re
     if (!clinicId) return res.status(400).json({ ok: false, error: 'Клиника не указана' } satisfies ApiResponse);
     const { status } = req.body as { status?: string };
     if (!status || !VALID_STATUSES.includes(status as typeof VALID_STATUSES[number])) return res.status(400).json({ ok: false, error: `Недопустимый статус. Допустимые: ${VALID_STATUSES.join(', ')}` } satisfies ApiResponse);
-    const owned = await prisma.labOrder.findFirst({ where: { id: req.params.id as string, clinicId }, select: { id: true, status: true, patientId: true, doctorId: true } });
+    const owned = await prisma.labOrder.findFirst({ where: { id: req.params.id as string, clinicId, ...branchScopedLabOrder(req) }, select: { id: true, status: true, patientId: true, doctorId: true } });
     if (!owned) return res.status(404).json({ ok: false, error: 'Заказ лаборатории не найден' } satisfies ApiResponse);
     await ensureDentalLabOrderEventsTable();
     const order = await prisma.labOrder.update({ where: { id: req.params.id as string }, data: { status: status as any } });
@@ -182,7 +197,7 @@ labRouter.delete('/:id', requirePermission('appointment.write'), async (req: Aut
   try {
     const clinicId = req.user!.clinicId;
     if (!clinicId) return res.status(400).json({ ok: false, error: 'Клиника не указана' } satisfies ApiResponse);
-    const result = await prisma.labOrder.deleteMany({ where: { id: req.params.id as string, clinicId } });
+    const result = await prisma.labOrder.deleteMany({ where: { id: req.params.id as string, clinicId, ...branchScopedLabOrder(req) } });
     if (result.count === 0) return res.status(404).json({ ok: false, error: 'Заказ лаборатории не найден' } satisfies ApiResponse);
     return res.json({ ok: true, data: { deleted: true } } satisfies ApiResponse);
   } catch (error) { console.error('[Lab] delete error:', error); return res.status(500).json({ ok: false, error: 'Не удалось удалить заказ лаборатории' } satisfies ApiResponse); }
