@@ -44,12 +44,12 @@ async function medicalLabOrderAmountMinor(
   );
   const order = orders[0];
   if (!order?.clinicId || !order.labId) return null;
-  const rows = await db.$queryRawUnsafe<Array<{ price: unknown }>>(
-    `SELECT lt.\"price\" AS \"price\" FROM \"medical_lab_order_tests\" ot LEFT JOIN \"laboratory_tests\" lt ON lt.\"id\"=ot.\"testId\" WHERE ot.\"orderId\"=$1`,
+  const rows = await db.$queryRawUnsafe<Array<{ priceMinor: bigint | number | string | null; price: unknown }>>(
+    `SELECT ot.\"priceMinor\" AS \"priceMinor\", lt.\"price\" AS \"price\" FROM \"medical_lab_order_tests\" ot LEFT JOIN \"laboratory_tests\" lt ON lt.\"id\"=ot.\"testId\" WHERE ot.\"orderId\"=$1`,
     orderId,
   );
   let amountMinor = 0n;
-  for (const row of rows) amountMinor += tengeToMinor(Number(row.price ?? 0) || 0);
+  for (const row of rows) amountMinor += row.priceMinor != null ? BigInt(row.priceMinor) : tengeToMinor(Number(row.price ?? 0) || 0);
   return { clinicId: order.clinicId, labId: order.labId, amountMinor };
 }
 
