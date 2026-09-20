@@ -156,6 +156,43 @@ export async function monthlyPartnerGmv(vertical: PartnerVertical, partnerId: st
   const rows = await db.transaction.findMany({ where: { type: 'partner_economics', refType: vertical, createdAt: { gte: start } }, select: { amount: true, meta: true } });
   return rows.reduce((sum, row) => { const meta = (row.meta || {}) as Record<string, unknown>; return meta.partnerId === partnerId ? sum + row.amount : sum; }, 0n);
 }
+export interface PartnerEconomicsReconciliationRow {
+  transactionId: string;
+  vertical: PartnerVertical;
+  operationId: string;
+  partnerId: string;
+  grossMinor: bigint;
+  commissionMinor: bigint;
+  partnerRevenueMinor: bigint;
+  ledgerDebitMinor: bigint;
+  ledgerCreditMinor: bigint;
+  balanced: boolean;
+  amountsMatchSnapshot: boolean;
+}
+
+export async function reconcilePartnerEconomics(
+  opts: { from?: Date; to?: Date; partnerId?: string; vertical?: PartnerVertical } = {},
+  db: Prisma.TransactionClient | typeof prisma = prisma,
+): Promise<{ rows: PartnerEconomicsReconciliationRow[]; discrepancies: number }> {
+  const where: Prisma.TransactionWhereInput = { type: 'partner_economics' };
+  if (opts.from || opts.to) where.createdAt = { ...(opts.from ? { gte: opts.from } : {}), ...(opts.to ? { lt: opts.to } : {}) };
+  if (opts.vertical) where.refType = opts.vertical;
+  if (opts.partnerId) where.meta = { path: ['partnerId'], equals: opts.partnerId };
+  const transactions = await db.transaction.findMany({ where, include: { ledgerEntries: { include: { wallet: { select: { ownerType: true, ownerId: true } } } } }, orderBy: { createdAt: 'asc' } });
+  const rows = transactions.map((transaction) => {
+    const meta = (transaction.meta || {}) as Record<string, unknown>;
+    const grossMinor = BigInt(transaction.amount);
+    const commissionMinor = BigInt(String(meta.commissionMinor ?? '0'));
+    const partnerRevenueMinor = BigInt(String(meta.partnerRevenueMinor ?? '0'));
+    const ledgerDebitMinor = transaction.ledgerEntries.filter((e) => e.direction === 'debit').reduce((s, e) => s + BigInt(e.amount), 0n);
+    const ledgerCreditMinor = transaction.ledgerEntries.filter((e) => e.direction === 'credit').reduce((s, e) => s + BigInt(e.amount), 0n);
+    const balanced = ledgerDebitMinor === ledgerCreditMinor && ledgerDebitMinor === grossMinor;
+    const amountsMatchSnapshot = ledgerCreditMinor === partnerRevenueMinor + commissionMinor;
+    return { transactionId: transaction.id, vertical: transaction.refType as PartnerVertical, operationId: transaction.refId || '', partnerId: String(meta.partnerId || ''), grossMinor, commissionMinor, partnerRevenueMinor, ledgerDebitMinor, ledgerCreditMinor, balanced, amountsMatchSnapshot };
+  });
+  return { rows, discrepancies: rows.filter((row) => !row.balanced || !row.amountsMatchSnapshot).length };
+}
+
 export function canonicalPartnerEconomicsRules(): PartnerEconomicsRule[] {
   return Object.values(CANONICAL_RULES).map((rule) => ({ ...rule, volumeTiers: rule.volumeTiers?.map((tier) => ({ ...tier })) }));
 }
