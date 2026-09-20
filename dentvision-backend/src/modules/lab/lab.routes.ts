@@ -40,6 +40,22 @@ export const VALID_STATUSES = [
   'ready', 'delivered', 'remake', 'delayed', 'cancelled',
 ] as const;
 
+export const DENTAL_LAB_TRANSITIONS: Record<string, readonly string[]> = {
+  pending: ['sent', 'cancelled', 'delayed'],
+  sent: ['in_progress', 'cancelled', 'delayed'],
+  in_progress: ['try_in', 'adjustment', 'ready', 'remake', 'delayed', 'cancelled'],
+  try_in: ['adjustment', 'ready', 'remake', 'delayed', 'cancelled'],
+  adjustment: ['try_in', 'ready', 'remake', 'delayed', 'cancelled'],
+  ready: ['delivered', 'remake', 'delayed', 'cancelled'],
+  delivered: ['remake'],
+  remake: ['in_progress', 'ready', 'delayed', 'cancelled'],
+  delayed: ['in_progress', 'cancelled'],
+  cancelled: [],
+};
+export function isDentalLabTransitionAllowed(from: string, to: string): boolean {
+  return from === to || (DENTAL_LAB_TRANSITIONS[from] || []).includes(to);
+}
+
 let dentalLabOrderEventsReady: Promise<void> | null = null;
 function ensureDentalLabOrderEventsTable(): Promise<void> {
   if (dentalLabOrderEventsReady) return dentalLabOrderEventsReady;
@@ -185,6 +201,7 @@ labRouter.patch('/:id/status', requirePermission('appointment.write'), async (re
     if (!clinicId) return res.status(400).json({ ok: false, error: 'Клиника не указана' } satisfies ApiResponse);
     const { status } = req.body as { status?: string };
     if (!status || !VALID_STATUSES.includes(status as typeof VALID_STATUSES[number])) return res.status(400).json({ ok: false, error: `Недопустимый статус. Допустимые: ${VALID_STATUSES.join(', ')}` } satisfies ApiResponse);
+    if (owned.status !== status && !isDentalLabTransitionAllowed(owned.status, status)) return res.status(400).json({ ok: false, error: `Недопустимый переход ${owned.status} → ${status}` } satisfies ApiResponse);
     const owned = await prisma.labOrder.findFirst({ where: { id: req.params.id as string, clinicId, ...branchScopedLabOrder(req) }, select: { id: true, status: true, patientId: true, doctorId: true } });
     if (!owned) return res.status(404).json({ ok: false, error: 'Заказ лаборатории не найден' } satisfies ApiResponse);
     await ensureDentalLabOrderEventsTable();
