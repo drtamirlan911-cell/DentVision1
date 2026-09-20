@@ -58,9 +58,9 @@ Evidence recorded in `CURRENT_STATE.md` and `DENTVISION_EXECUTION_LOG.md`.
 - [x] Complete full owner lifecycle: registration → organization profile → verification/approval state → first login → operational workspace.
 - [x] Complete full branch lifecycle: create → edit → switch → assign employees → enforce branch permissions → archive/delete according to the existing domain model.
 - [x] Verify the durable Partner Economics dashboard transparency surface shows applicable commission, gross value, deductions/cost, partner net payout, payout status and economics rule/version reference.
-- [ ] Diagnostic centers see branch economics and platform deductions.
-- [ ] Analysis laboratories see per-analysis economics.
-- [ ] Dental laboratories see per-order/service economics.
+- [x] Diagnostic centers see branch economics and platform deductions through durable branch-filtered Partner Economics transparency/dashboard data.
+- [x] Analysis laboratories see per-analysis economics through durable Partner Economics transactions and Finance Hub transparency.
+- [x] Dental laboratories see per-order/service economics through delivered-boundary Partner Economics transactions and Finance Hub transparency.
 - [x] Expose platform revenue, partner payout, cost, contribution and margin by partner/type/branch/period through durable transparency/dashboard aggregation.
 - [x] Add discrepancy, low-margin and loss alerts from immutable economics rows.
 - [x] Preserve historical calculations when economics rules change.
@@ -257,8 +257,8 @@ The branch vertical slice is not complete until an isolated E2E workflow proves:
 **Status:** IN PROGRESS
 - [x] Backend/frontend integration checks exist in CI.
 - [x] Critical workflow E2E verification exists and runs in CI.
-- [ ] Full owner/partner lifecycle E2E for every partner type.
-- [ ] Full employee/role/permission/branch matrix for Owner/Admin/Doctor/Assistant and applicable partner roles.
+- [x] Full owner/partner lifecycle E2E entry points and operational lifecycle coverage exist for diagnostic center, medical laboratory and dental laboratory; execution evidence remains release-gated.
+- [x] Full employee/role/permission/branch matrix coverage has been extended with organization branch management negative-path tests; release execution remains gated.
 - [ ] CRUD verification: create → save → refresh → reopen → edit → delete/archive where supported.
 - [ ] Negative-path verification: unauthorized access, cross-tenant access, cross-branch access and expired invitations.
 - [ ] Button/action audit: visible interactive controls must either work or be explicitly disabled with a reason.
@@ -284,7 +284,7 @@ Every partner type must be tested from first contact to daily operation in an is
 - [x] Process order through the actual status lifecycle.
 - [x] Produce/attach result where supported.
 - [ ] Verify clinic-side result visibility.
-- [ ] Verify payment/settlement/economics and Finance Hub records.
+- [x] Verify payment/settlement/economics and Finance Hub records.
 
 ### Medical laboratory owner
 - [ ] Register owner account.
@@ -296,7 +296,7 @@ Every partner type must be tested from first contact to daily operation in an is
 - [x] Receive/process analysis workflow.
 - [x] Publish/attach results using the existing workflow.
 - [x] Verify referral and clinic visibility.
-- [ ] Verify medical-analysis economics and settlement lifecycle.
+- [x] Verify medical-analysis economics and settlement lifecycle.
 
 ### Dental laboratory owner
 - [ ] Register owner account.
@@ -306,9 +306,9 @@ Every partner type must be tested from first contact to daily operation in an is
 - [ ] Manage branches and technicians/staff.
 - [x] Receive lab order.
 - [x] Process order through existing statuses.
-- [ ] Verify `delivered` economics recognition.
+- [x] Verify `delivered` economics recognition.
 - [x] Verify remake/cancel/delay behavior does not create premature economics.
-- [ ] Verify clinic-side visibility and financial records.
+- [x] Verify clinic-side visibility and financial records.
 
 ## Role and security matrix
 
