@@ -25,6 +25,7 @@ export interface User {
   password?: string
   platformRole?: string
   organizationType?: string
+  organizationName?: string
   organizationId?: string
   personType?: string
   memberships?: Array<{ id: string; clinicId: string; role: string }>
