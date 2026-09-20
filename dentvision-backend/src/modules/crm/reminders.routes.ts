@@ -25,11 +25,14 @@ remindersRouter.get('/waitlist', authenticate, requirePermission('appointment.re
     if (!clinicId) return;
     const status = typeof req.query.status === 'string' ? req.query.status : undefined;
     const context = await resolvePatientBranchContext(req.user!.id, clinicId, req.user!.role);
+    const scopedPatients = context.scope.branchIds.length
+      ? await prisma.$queryRaw<Array<{ id: string }>>`SELECT id FROM patients WHERE "clinicId" = ${clinicId} AND branch_id = ANY(${context.scope.branchIds}::text[]) AND "deletedAt" IS NULL`
+      : [];
     const rows = await prisma.waitingList.findMany({
       where: {
         clinicId,
         ...(status ? { status: status as any } : {}),
-        ...(context.scope.branchIds.length ? { patient: { branchId: { in: context.scope.branchIds } } } : {}),
+        ...(context.scope.branchIds.length ? { patientId: { in: scopedPatients.map((p) => p.id) } } : { id: '__no_scope__' }),
       },
       orderBy: [{ preferredDate: 'asc' }, { createdAt: 'asc' }],
       take: 200,
