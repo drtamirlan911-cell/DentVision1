@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { makeIin } from '../helpers/iin';
 
 const BASE = process.env.PLAYWRIGHT_BASE_URL || 'http://localhost:3001';
 const PASSWORD = 'Test1234!';
@@ -16,7 +17,7 @@ test.describe('Clinical billing — deposits and installments', () => {
     const headers = { Authorization: `Bearer ${t}` };
     const patient = await request.post(`${BASE}/api/patients`, {
       headers,
-      data: { firstName: 'Billing', lastName: `E2E ${Date.now()}`, phone: '+77000000041' },
+      data: { iin: makeIin(), firstName: 'Billing', lastName: `E2E ${Date.now()}`, phone: '+77000000041' },
     });
     expect(patient.status()).toBe(201);
     const patientBody = await patient.json();
@@ -54,7 +55,7 @@ test.describe('Clinical billing — deposits and installments', () => {
     const headers = { Authorization: `Bearer ${t}` };
     const patient = await request.post(`${BASE}/api/patients`, {
       headers,
-      data: { firstName: 'Prepay', lastName: `E2E ${Date.now()}`, phone: '+77000000042' },
+      data: { iin: makeIin(), firstName: 'Prepay', lastName: `E2E ${Date.now()}`, phone: '+77000000042' },
     });
     expect(patient.status()).toBe(201);
     const patientBody = await patient.json();
@@ -73,7 +74,7 @@ test.describe('Clinical billing — deposits and installments', () => {
     const t = await login(request, 'owner-a@test.com');
     const headers = { Authorization: `Bearer ${t}` };
     const patient = await request.post(`${BASE}/api/patients`, {
-      headers, data: { firstName: 'Deposit', lastName: `E2E ${Date.now()}`, phone: '+77000000043' },
+      headers, data: { iin: makeIin(), firstName: 'Deposit', lastName: `E2E ${Date.now()}`, phone: '+77000000043' },
     });
     expect(patient.status()).toBe(201);
     const patientBody = await patient.json();
@@ -109,7 +110,7 @@ test.describe('Clinical billing — deposits and installments', () => {
     const t = await login(request, 'owner-a@test.com');
     const headers = { Authorization: `Bearer ${t}`, 'Idempotency-Key': `refund-${Date.now()}` };
     const patient = await request.post(`${BASE}/api/patients`, {
-      headers, data: { firstName: 'Refund', lastName: `E2E ${Date.now()}`, phone: '+77000000044' },
+      headers, data: { iin: makeIin(), firstName: 'Refund', lastName: `E2E ${Date.now()}`, phone: '+77000000044' },
     });
     expect(patient.status()).toBe(201);
     const patientBody = await patient.json();
@@ -137,7 +138,7 @@ test.describe('Clinical billing — deposits and installments', () => {
     const t = await login(request, 'owner-a@test.com');
     const headers = { Authorization: `Bearer ${t}`, 'Idempotency-Key': `prepay-refund-${Date.now()}` };
     const patient = await request.post(`${BASE}/api/patients`, {
-      headers, data: { firstName: 'DepositRefund', lastName: `E2E ${Date.now()}`, phone: '+77000000045' },
+      headers, data: { iin: makeIin(), firstName: 'DepositRefund', lastName: `E2E ${Date.now()}`, phone: '+77000000045' },
     });
     expect(patient.status()).toBe(201);
     const patientBody = await patient.json();
