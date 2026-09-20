@@ -10,11 +10,14 @@ const ROLE_LABELS: Record<string, string> = {
   doctor: 'Врач', owner: 'Владелец', director: 'Директор', admin: 'Администратор', assistant: 'Ассистент',
   diagnostic_center: 'Диагностический центр', lab_diagnostic: 'Медицинская лаборатория', laboratory: 'Зуботехническая лаборатория',
   lab: 'Лаборатория', supplier: 'Поставщик', lecturer: 'Преподаватель', student: 'Студент', employer: 'Работодатель',
-  job_seeker: 'Соискатель', patient: 'Пациент', user: 'Участник экосистемы', guest: 'Гость',
+  job_seeker: 'Соискатель', patient: 'Пациент',
+  diagnostic_owner: 'Владелец диагностического центра', diagnostic_admin: 'Администратор диагностического центра', diagnostic_manager: 'Управляющий диагностического центра', diagnostic_operator: 'Оператор диагностического центра', radiologist: 'Рентгенолог', radiology_technician: 'Рентген-лаборант', diagnostic_reception: 'Регистратура диагностического центра', diagnostic_finance: 'Финансы диагностического центра', diagnostic_quality: 'Контроль качества диагностики',
+  medical_lab_owner: 'Владелец медицинской лаборатории', medical_lab_admin: 'Администратор медицинской лаборатории', medical_lab_manager: 'Управляющий медицинской лаборатории', medical_lab_reception: 'Регистратура медицинской лаборатории', medical_lab_technician: 'Лаборант', medical_lab_validator: 'Валидатор результатов', medical_lab_doctor: 'Врач лаборатории', medical_lab_finance: 'Финансы медицинской лаборатории', medical_lab_quality: 'Контроль качества лаборатории',
+  dental_lab_owner: 'Владелец зуботехнической лаборатории', dental_lab_admin: 'Администратор зуботехнической лаборатории', dental_lab_manager: 'Управляющий зуботехнической лаборатории', lab_coordinator: 'Координатор лаборатории', dental_technician: 'Зубной техник', cad_designer: 'CAD-дизайнер', ceramist: 'Керамист', orthodontic_technician: 'Ортодонтический техник', qc_specialist: 'Контроль качества лаборатории', lab_finance: 'Финансы лаборатории', user: 'Участник экосистемы', guest: 'Гость',
 };
 
 function roleLabel(user: UserType | null) {
-  const raw = String((user as any)?.platformRole || (user as any)?.role || 'user').toLowerCase();
+  const raw = String((user as any)?.effectiveRole || (user as any)?.platformRole || (user as any)?.role || 'user').toLowerCase();
   return ROLE_LABELS[raw] || raw.replace(/_/g, ' ');
 }
 
