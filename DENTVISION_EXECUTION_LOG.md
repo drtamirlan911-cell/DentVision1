@@ -318,3 +318,12 @@ Commits: 379cfb3a71b2d6aeb9aaf5bfccccc2bd19115673, 43f8f2ba77cee66d7ffcd0b0ecde1
 Verification: **UNVERIFIED**. The available commit status currently reports only Vercel success; backend CI/build/E2E evidence has not yet been returned for these direct main commits.
 
 Next action: add/verify the owner lifecycle release tests for registration → organization → verification → first login → branch switch, then run the branch assignment and cross-branch negative matrix.
+
+## 2026-09-20 — Branch refresh preservation correction
+
+- Corrected auth-context precedence so a token carrying both organization and branch context validates and preserves the selected branch during refresh instead of returning organization-only context first.
+- No new data model introduced.
+
+Commit: 1e27ee04b46833b3519b9c8841b1d128344f1306
+
+Verification: **UNVERIFIED** — no CI result is exposed for this direct main commit by the available GitHub status connector.
