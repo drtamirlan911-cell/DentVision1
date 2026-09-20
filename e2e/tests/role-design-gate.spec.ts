@@ -45,9 +45,12 @@ const ROLE_CONTEXT_ROUTES: Record<string, string[]> = {
 };
 
 const ROLE_FORBIDDEN_ROUTES: Record<string, string[]> = {
-  'diagnostic-operator': ['/diagnostics/settings'],
-  'medical-lab-tech': ['/diagnostics/settings'],
-  'dental-technician': ['/diagnostics/settings'],
+  'diagnostic-owner': CLINIC_FORBIDDEN,
+  'diagnostic-operator': [...CLINIC_FORBIDDEN, '/diagnostics/settings'],
+  'medical-lab-owner': CLINIC_FORBIDDEN,
+  'medical-lab-tech': [...CLINIC_FORBIDDEN, '/diagnostics/settings'],
+  'dental-lab-owner': CLINIC_FORBIDDEN,
+  'dental-technician': [...CLINIC_FORBIDDEN, '/diagnostics/settings'],
 };
 
 async function login(page: Page, email: string) {
