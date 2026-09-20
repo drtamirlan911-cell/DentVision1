@@ -12,7 +12,7 @@ import { listClinicStaff } from '../../lib/clinicStaff.js';
 import { resolveStaffCompensation } from '../../lib/staffCompensation.js';
 import { auditFromReq } from '../compliance/audit.service.js';
 import { reserveIdempotencyKey, completeIdempotencyKey, deleteIdempotencyKey } from '../../lib/idempotency.js';
-import { recordClinicalPaymentTx } from '../finance/finance.service.js';
+import { recordClinicalPaymentTx, reverseClinicalPaymentTx } from '../finance/finance.service.js';
 import { tengeToMinor } from '../../lib/money.js';
 
 const billingRouter = Router();
@@ -186,6 +186,47 @@ billingRouter.post('/invoices/:id/pay', requirePermission('finance.manage'), asy
     if (message === 'Invoice is already paid') return res.status(400).json({ ok: false, error: message });
     console.error('[billing] pay invoice', error);
     return res.status(500).json({ ok: false, error: 'Failed to mark invoice as paid' });
+  }
+});
+
+billingRouter.post('/invoices/:id/refund', requirePermission('finance.manage'), async (req: AuthRequest, res) => {
+  try {
+    const clinicId = req.user?.clinicId;
+    const id = String(req.params.id);
+    const requested = req.body?.amount !== undefined ? Number(req.body.amount) : undefined;
+    if (!clinicId) return res.status(400).json({ ok: false, error: 'Выберите клинику' });
+    const invoice = await prisma.$transaction(async (tx) => {
+      const current = await tx.invoice.findUnique({ where: { id } });
+      if (!current || current.clinicId !== clinicId) throw new Error('Invoice not found');
+      if (current.paidAmount <= 0) throw new Error('Invoice has no paid amount');
+      const amount = Math.min(requested ?? current.paidAmount, current.paidAmount);
+      if (!Number.isFinite(amount) || amount <= 0) throw new Error('Invalid refund amount');
+      const nextPaid = current.paidAmount - amount;
+      const nextStatus = nextPaid === 0 ? 'pending' : 'partial';
+      const updated = await tx.invoice.update({
+        where: { id },
+        data: { paidAmount: nextPaid, status: nextStatus, paidAt: null },
+      });
+      await reverseClinicalPaymentTx({
+        clinicId,
+        amountMinor: tengeToMinor(amount),
+        refId: `invoice:${id}:refund:${uid()}`,
+        reason: 'invoice_refund',
+        db: tx,
+      });
+      return updated;
+    });
+    await auditFromReq(req, {
+      action: 'invoice.refunded',
+      entity: 'invoice',
+      entityId: id,
+      details: { paidAmount: invoice.paidAmount, status: invoice.status },
+    });
+    return res.json({ ok: true, data: invoice });
+  } catch (error: any) {
+    if (error?.message === 'Invoice not found') return res.status(404).json({ ok: false, error: error.message });
+    if (error?.message === 'Invoice has no paid amount') return res.status(400).json({ ok: false, error: error.message });
+    return res.status(400).json({ ok: false, error: error?.message || 'Не удалось выполнить возврат' });
   }
 });
 
