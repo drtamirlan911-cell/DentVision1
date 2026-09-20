@@ -7,6 +7,15 @@ import { guardAnalytics } from '../../middleware/planGate.js';
 
 const analyticsRouter = Router();
 
+function branchScope(req: AuthRequest): Record<string, unknown> {
+  const role = String(req.user?.role || '').toUpperCase();
+  if (['SUPERADMIN', 'OWNER', 'ADMIN'].includes(role)) return {};
+  const branchIds = (req.user?.branchIds ?? []).filter(Boolean);
+  return branchIds.length > 0
+    ? { branchId: { in: branchIds } }
+    : { branchId: '__NO_BRANCH_ACCESS__' };
+}
+
 analyticsRouter.use(authenticate);
 analyticsRouter.use(requirePermission('bi.clinic'));
 analyticsRouter.use(guardAnalytics);
@@ -27,10 +36,11 @@ analyticsRouter.get('/dashboard', async (req: AuthRequest, res) => {
     const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
 
     const [totalPatients, appointmentsToday, revenueResult, activeLabOrders] = await Promise.all([
-      prisma.patient.count({ where: { clinicId } }),
+      prisma.patient.count({ where: { clinicId, ...branchScope(req) } }),
       prisma.appointment.count({
         where: {
           clinicId,
+          ...branchScope(req),
           date: { gte: startOfToday, lt: endOfToday },
           status: { notIn: ['cancelled', 'no_show'] },
         },
@@ -38,6 +48,7 @@ analyticsRouter.get('/dashboard', async (req: AuthRequest, res) => {
       prisma.invoice.aggregate({
         where: {
           clinicId,
+          patient: { branchId: (branchScope(req) as any).branchId ?? undefined },
           status: 'paid',
           createdAt: { gte: startOfMonth, lte: endOfMonth },
         },
@@ -46,6 +57,7 @@ analyticsRouter.get('/dashboard', async (req: AuthRequest, res) => {
       prisma.labOrder.count({
         where: {
           clinicId,
+          patient: { branchId: (branchScope(req) as any).branchId ?? undefined },
           status: { notIn: ['completed', 'delivered'] },
         },
       }),
@@ -135,6 +147,7 @@ analyticsRouter.get('/doctors', async (req: AuthRequest, res) => {
       by: ['doctorId'],
       where: {
         clinicId,
+        ...branchScope(req),
         doctorId: { in: doctorIds },
         date: { gte: startOfMonth, lte: endOfMonth },
         status: { notIn: ['cancelled', 'no_show'] },
