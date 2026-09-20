@@ -56,12 +56,16 @@ test.describe('Partner operational lifecycle', () => {
 
     const clinic = await prisma.clinic.findFirst({ where: { name: 'E2E Clinic A' }, select: { id: true } });
     const clinicId = clinic?.id;
+    const branchRows = clinicId ? await prisma.$queryRaw<Array<{ id: string }>>`SELECT id FROM branches WHERE clinic_id = ${clinicId} AND "isDefault" = true LIMIT 1` : [];
+    const branchId = branchRows[0]?.id;
     expect(clinicId).toBeTruthy();
+    expect(branchId).toBeTruthy();
 
     const referralRes = await api.post(`${BASE}/api/diagnostics/referrals`, {
       headers: auth(ownerToken),
       data: {
         clinicId,
+        branchId,
         patientId,
         doctorId,
         patientName: 'Partner Lifecycle',
