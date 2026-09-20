@@ -582,3 +582,30 @@ Verification remains **UNVERIFIED** pending actual CI execution.
 ### Verification
 - Source changes are committed.
 - Browser execution against the current main tip remains required before marking the UX gate verified.
+
+
+## 2026-09-20 — Release hardening coverage expansion
+
+### Implemented
+- `a686367e4dd637d8a6ffa3e2c916eb87e5bc5ac6` — owner branch workspace persistence E2E: create branch → open workspace → reload without falling back to login.
+- `e066d0f012318b666ab42d287c0af0b9e631cfca` — execution plan synchronized with completed UX/CRUD/security coverage.
+
+### Coverage now present
+- Real owner/staff/branch CRUD persistence journeys.
+- Partner onboarding and partner operational lifecycle journeys.
+- Finance Hub durable economics read-model verification.
+- AI first-load functional routing and first-action error visibility.
+- Browser runtime/console/request-failure instrumentation on critical owner workflows.
+- Accessible naming and mobile overflow checks in the browser UX suite.
+- Cross-tenant/cross-branch/unauthorized/revoked invitation negative paths.
+- Audit/idempotency boundaries for privileged branch and invitation mutations.
+
+### Remaining release gates
+- Current main-tip CI/browser execution evidence.
+- Duplicate navigation/IA cleanup audit.
+- Broad core clinical workflow outcome verification.
+- Android build/release evidence.
+- Final security matrix execution.
+- Production readiness and rollback evidence.
+
+No unexecuted test is marked as passed.
