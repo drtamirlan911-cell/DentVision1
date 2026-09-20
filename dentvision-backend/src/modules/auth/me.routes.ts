@@ -45,6 +45,9 @@ authMeRouter.get('/me', authenticate, async (req: AuthRequest, res) => {
         firstName: user.firstName,
         lastName: user.lastName,
         role: user.role,
+        organizationId: user.organizationId,
+        organizationType: user.organizationType,
+        personType: user.personType,
       },
       memberships: memberships.map((membership) => ({
         id: membership.id,
