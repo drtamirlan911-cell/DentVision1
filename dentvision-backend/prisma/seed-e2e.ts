@@ -26,6 +26,12 @@ export const E2E_USERS: E2EUser[] = [
   { email: 'doctor-b@test.com', firstName: 'Doctor', lastName: 'ClinicB', role: 'DOCTOR', clinic: 'B' },
   { email: 'regular@test.com', firstName: 'Regular', lastName: 'User', role: 'STUDENT', clinic: null },
   { email: 'patient@dentvision.kz', firstName: 'Иван', lastName: 'Петров', role: 'PATIENT', clinic: null },
+  { email: 'diagnostic-owner@test.com', firstName: 'Диагностический', lastName: 'Владелец', role: 'STUDENT', clinic: null },
+  { email: 'diagnostic-operator@test.com', firstName: 'Диагностический', lastName: 'Оператор', role: 'STUDENT', clinic: null },
+  { email: 'medical-lab-owner@test.com', firstName: 'Медицинская', lastName: 'Лаборатория', role: 'STUDENT', clinic: null },
+  { email: 'medical-lab-tech@test.com', firstName: 'Медицинский', lastName: 'Лаборант', role: 'STUDENT', clinic: null },
+  { email: 'dental-lab-owner@test.com', firstName: 'Зуботехническая', lastName: 'Лаборатория', role: 'STUDENT', clinic: null },
+  { email: 'dental-technician@test.com', firstName: 'Зубной', lastName: 'Техник', role: 'STUDENT', clinic: null },
   { email: 'superadmin@test.com', firstName: 'E2E', lastName: 'Superadmin', role: 'SUPERADMIN', clinic: null },
 ];
 
