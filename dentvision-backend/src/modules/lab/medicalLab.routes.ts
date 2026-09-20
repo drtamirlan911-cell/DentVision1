@@ -91,7 +91,12 @@ medicalLabLifecycleRouter.post('/orders', requirePermission('patient.read'), asy
     if (!clinicId || !(await assertOrgAccess(req.user!, clinicId))) return res.status(403).json({ ok: false, error: 'Нет доступа к клинике' });
     const { patientId = null, treatmentCaseId = null, labId = null, priority = 'routine', notes = null, specimenType = null, tests = [], metadata = null } = req.body || {};
     if (patientId) {
-      const patient = await prisma.patient.findFirst({ where: { id: String(patientId), clinicId }, select: { id: true } });
+      const role = String(req.user?.role || '').toUpperCase();
+      const branchIds = (req.user?.branchIds ?? []).filter(Boolean);
+      const patient = await prisma.patient.findFirst({
+        where: { id: String(patientId), clinicId, ...(['SUPERADMIN', 'OWNER', 'ADMIN'].includes(role) ? {} : { branchId: branchIds.length > 0 ? { in: branchIds } : '__NO_BRANCH_ACCESS__' }) },
+        select: { id: true },
+      });
       if (!patient) return res.status(400).json({ ok: false, error: 'Пациент не относится к выбранной клинике' });
     }
     if (treatmentCaseId) {
