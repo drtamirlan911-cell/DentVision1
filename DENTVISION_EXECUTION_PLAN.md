@@ -310,6 +310,23 @@ Every partner type must be tested from first contact to daily operation in an is
 - [x] Verify remake/cancel/delay behavior does not create premature economics.
 - [x] Verify clinic-side visibility and financial records.
 
+## Patient experience release matrix
+
+The patient is a first-class product context, not a clinic staff role. The patient account is linked to exactly one patient card per clinic through the existing patient-portal identity/link contract and must never inherit clinic-staff navigation or permissions.
+
+Required release checks:
+- [x] Canonical PATIENT account role exists in the UserRole model.
+- [x] Patient permissions are limited to self-service profile, marketplace/academy discovery and public diagnostics discovery; medical data remains behind patient-portal ownership checks and consent.
+- [x] Demo patient account is linked to a real seeded patient card.
+- [x] Patient login routes directly to /patient-portal rather than /ai.
+- [x] Patient portal consent gate is exercised before protected medical data tabs.
+- [x] Patient design gate checks appointments, treatments, visits, payments, documents, diagnostics and access contexts.
+- [x] Patient negative-path design gate verifies clinic CRM, staff, finance, inventory, lab and platform-admin routes are not exposed.
+- [ ] Fresh CI execution of the patient role/device matrix.
+- [ ] Final interactive production patient login/portal evidence.
+
+PATIENT must not be a clinic ClinicMember; the Patient.userId link is the ownership boundary for the portal. Staff access remains governed by clinic/branch permissions.
+
 ## Role and security matrix
 
 - [x] Owner: organization-wide management, branch management, staff management and finance visibility are enforced/covered by the current IAM/RBAC contracts and owner lifecycle tests; final live execution evidence remains release-gated.
@@ -317,6 +334,7 @@ Every partner type must be tested from first contact to daily operation in an is
 - [x] Doctor/clinical user: clinical and assigned organization/branch scope is enforced by shared branch authorization and negative-path tests.
 - [x] Assistant: permission-gated workflow access is covered by the RBAC contract; final browser execution remains release-gated.
 - [x] Partner operational roles: organization/branch isolation is enforced through shared authorization gates and partner lifecycle tests.
+- [x] Patient role: patient-portal access is isolated from clinic staff permissions and covered by a dedicated role/design gate.
 - [x] Cross-tenant reads/writes denied at the shared branch authorization gate.
 - [x] Cross-branch reads/writes denied at the shared branch authorization gate.
 - [x] Expired/revoked invitations denied; invitation revocation is atomic and audited.
