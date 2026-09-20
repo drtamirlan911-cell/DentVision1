@@ -198,8 +198,14 @@ branchesRouter.post('/', async (req: AuthRequest, res) => {
           WHERE "organization_id" = ${organizationId} AND "active" = true
         `;
         const activeBranches = Number(activeRows[0]?.count ?? 0);
-        if (activeBranches < 0) {
-          return res.status(409).json({ ok: false, error: 'Некорректное состояние филиалов', code: 'BRANCH_STATE_INVALID' });
+        const quote = quoteBranchSubscription(organizationType, activeBranches + 1);
+        if (!quote.enabled) {
+          return res.status(409).json({
+            ok: false,
+            error: quote.reason || 'Филиальная подписка недоступна для этой организации',
+            code: 'BRANCH_PLAN_REQUIRED',
+            data: { organizationId, organizationType, activeBranches, prospectiveBranches: activeBranches + 1, monthlyAmountTenge: quote.monthlyAmountTenge },
+          });
         }
       }
       const branchCode = String(code || name).trim().toUpperCase().replace(/[^A-ZА-Я0-9]+/gi, '-').replace(/^-|-$/g, '').slice(0, 32) || `BRANCH-${Date.now()}`;
