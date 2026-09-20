@@ -7,7 +7,7 @@ describe('medical lab branch isolation contract', () => {
   it('checks branch membership for clinic medical-lab orders', () => {
     expect(source).toContain('user?.branchIds ?? []');
     expect(source).toContain('branchId: { in: branchIds }');
-    expect(source).toContain('p."branchId" = ANY($' + '${args.length}::text[])');
+    expect(source).toContain('p."branchId" = ANY(${args.length}::text[])');
   });
   it('blocks creation from patients outside the current branch set', () => {
     expect(source).toContain('__NO_BRANCH_ACCESS__');
