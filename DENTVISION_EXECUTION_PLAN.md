@@ -61,8 +61,8 @@ Evidence recorded in `CURRENT_STATE.md` and `DENTVISION_EXECUTION_LOG.md`.
 - [ ] Diagnostic centers see branch economics and platform deductions.
 - [ ] Analysis laboratories see per-analysis economics.
 - [ ] Dental laboratories see per-order/service economics.
-- [ ] Expose platform revenue, partner payout, cost, contribution and margin by partner/type/branch/period.
-- [ ] Add discrepancy and low-margin alerts.
+- [x] Expose platform revenue, partner payout, cost, contribution and margin by partner/type/branch/period through durable transparency/dashboard aggregation.
+- [x] Add discrepancy, low-margin and loss alerts from immutable economics rows.
 - [ ] Preserve historical calculations when economics rules change.
 
 ## Canonical Branch Management Contract
