@@ -100,6 +100,7 @@ export default function OrganizationBranchesTab() {
       const result = await api.switchContext('organization', organization.id, branch.id)
       if (result?.accessToken) api.setTokens(result.accessToken, result.refreshToken || null)
       setSelected(branch.id)
+      await api.openBranchWorkspace(branch.id)
       await loadMembers(branch.id)
     } catch (e: any) {
       setError(e?.message || 'Не удалось переключить филиал')
