@@ -26,7 +26,7 @@ async function login(page: Page) {
   await page.waitForURL(/\/ai(?:$|[?#])/, { timeout: 30000 });
 }
 
-async function auditLayout(page: Page, route: string) {
+async function auditLayout(page: Page, route: string, device: string) {
   const result = await page.evaluate(() => {
     const doc = document.documentElement;
     const visible = (el: Element) => {
@@ -41,18 +41,18 @@ async function auditLayout(page: Page, route: string) {
         const r = (el as HTMLElement).getBoundingClientRect();
         return {
           tag: el.tagName.toLowerCase(),
-          name: (el.getAttribute('aria-label') || el.textContent || el.getAttribute('placeholder') || '').replace(/\s+/g, ' ').trim(),
+          name: (el.getAttribute('aria-label') || el.textContent || el.getAttribute('placeholder') || '').replace(/\s+/g, ' ').trim().slice(0, 120),
           width: Math.round(r.width),
           height: Math.round(r.height),
         };
       });
 
-    const clippedText = Array.from(document.querySelectorAll('h1,h2,h3,h4,h5,h6,button,a,[role="button"]'))
+    const clipped = Array.from(document.querySelectorAll('h1,h2,h3,h4,h5,h6,button,a,[role="button"]'))
       .filter(visible)
       .map((el) => {
         const node = el as HTMLElement;
         return {
-          name: (node.innerText || node.textContent || '').replace(/\s+/g, ' ').trim(),
+          name: (node.innerText || node.textContent || '').replace(/\s+/g, ' ').trim().slice(0, 120),
           scrollWidth: node.scrollWidth,
           clientWidth: node.clientWidth,
         };
@@ -68,50 +68,53 @@ async function auditLayout(page: Page, route: string) {
       bodyWidth: document.body.scrollWidth,
       visibleContent: Array.from(document.querySelectorAll('body *')).some(visible),
       interactive,
-      clippedText,
+      clipped,
     };
   });
 
-  expect(result.visibleContent, `${route}: no visible page content`).toBeTruthy();
-  expect(result.scrollWidth, `${route}: horizontal document overflow ${result.scrollWidth}px > ${result.clientWidth}px`).toBeLessThanOrEqual(result.clientWidth + 2);
-  expect(result.bodyWidth, `${route}: body overflow ${result.bodyWidth}px > ${result.clientWidth}px`).toBeLessThanOrEqual(result.clientWidth + 2);
+  expect(result.visibleContent, `${device} ${route}: no visible page content`).toBeTruthy();
+  expect(result.scrollWidth, `${device} ${route}: horizontal overflow ${result.scrollWidth}px > ${result.clientWidth}px`).toBeLessThanOrEqual(result.clientWidth + 2);
+  expect(result.bodyWidth, `${device} ${route}: body overflow ${result.bodyWidth}px > ${result.clientWidth}px`).toBeLessThanOrEqual(result.clientWidth + 2);
 
-  const undersized = result.interactive.filter((x) =>
-    x.width < 36 || x.height < 36
-  );
-  expect(undersized, `${route}: interactive target(s) below 36px: ${JSON.stringify(undersized)}`).toEqual([]);
+  const undersized = result.interactive.filter((x) => x.width < 36 || x.height < 36);
+  expect(undersized, `${device} ${route}: interactive target(s) below 36px: ${JSON.stringify(undersized)}`).toEqual([]);
+  expect(result.clipped, `${device} ${route}: visible text/control clipping: ${JSON.stringify(result.clipped)}`).toEqual([]);
 
-  expect(result.clippedText, `${route}: visible text/control clipping: ${JSON.stringify(result.clippedText)}`).toEqual([]);
+  await page.screenshot({
+    path: `e2e/test-results/design-gate/${device}${route.replaceAll('/', '_') || '_home'}.png`,
+    fullPage: true,
+  });
 }
 
-test.describe('DentVision mobile design release gate', () => {
+test.describe('DentVision responsive design release gate', () => {
   test.describe.configure({ mode: 'serial' });
 
-  test('public welcome and login fit the mobile viewport', async ({ page }) => {
+  test('public welcome and login are responsive', async ({ page }, testInfo) => {
+    const device = testInfo.project.name;
     await page.goto(BASE_URL, { waitUntil: 'domcontentloaded', timeout: 30000 });
     await expect(page.getByText('DentVision', { exact: true }).first()).toBeVisible({ timeout: 10000 });
-    await auditLayout(page, '/');
-
+    await auditLayout(page, '/', device);
     await page.getByRole('button', { name: 'Я врач' }).click();
     await expect(page).toHaveURL(/\/login\?role=doctor/);
-    await auditLayout(page, '/login?role=doctor');
+    await auditLayout(page, '/login?role=doctor', device);
   });
 
-  test('authenticated critical screens pass mobile layout and interaction checks', async ({ page }) => {
+  test('critical authenticated screens are responsive', async ({ page }, testInfo) => {
+    const device = testInfo.project.name;
     await login(page);
 
     for (const route of CRITICAL_ROUTES) {
       await page.goto(`${BASE_URL}${route}`, { waitUntil: 'domcontentloaded', timeout: 30000 });
-      await page.waitForTimeout(250);
+      await page.waitForTimeout(400);
 
       if (new URL(page.url()).pathname === '/login') {
         await login(page);
         await page.goto(`${BASE_URL}${route}`, { waitUntil: 'domcontentloaded', timeout: 30000 });
-        await page.waitForTimeout(250);
+        await page.waitForTimeout(400);
       }
 
-      expect(new URL(page.url()).pathname, `${route}: unexpectedly redirected to login`).not.toBe('/login');
-      await auditLayout(page, route);
+      expect(new URL(page.url()).pathname, `${device} ${route}: unexpectedly redirected to login`).not.toBe('/login');
+      await auditLayout(page, route, device);
     }
   });
 });
