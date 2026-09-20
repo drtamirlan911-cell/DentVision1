@@ -189,6 +189,47 @@ describe('claimPaymentForSettlement — double-confirm race guard', () => {
     }, fakeTx);
   });
 
+  it('accepted → paid → settled: two concurrent confirmations produce one settlement side effect', async () => {
+    let status: 'accepted' | 'paid' = 'accepted';
+    const db = {
+      payment: {
+        updateMany: vi.fn(async () => {
+          if (status === 'paid') return { count: 0 };
+          status = 'paid';
+          return { count: 1 };
+        }),
+      },
+      $queryRawUnsafe: fakeTx.$queryRawUnsafe,
+    } as any;
+
+    const payment = {
+      id: 'pay-integrated-race',
+      refType: 'medical_lab_order',
+      refId: 'lab-order-race',
+      domain: 'medical',
+      sellerType: null,
+      sellerId: null,
+      amount: 1_500_000n,
+      meta: null,
+    };
+
+    const settleOne = async () => {
+      if (!(await claimPaymentForSettlement(db, payment.id))) return false;
+      await settlePaidPayment(payment, db);
+      return true;
+    };
+
+    const [first, second] = await Promise.all([settleOne(), settleOne()]);
+    expect([first, second].filter(Boolean)).toHaveLength(1);
+    expect(recordPartnerEconomics).toHaveBeenCalledTimes(1);
+    expect(recordPartnerEconomics).toHaveBeenCalledWith({
+      vertical: 'MEDICAL_ANALYSIS',
+      partnerId: 'lab-1',
+      grossMinor: 1_500_000n,
+      operationId: 'lab-order-race',
+    }, db);
+  });
+
   it('medical lab branch: rejects a payment amount that differs from the priced tests', async () => {
     await expect(settlePaidPayment(
       { id: 'pay-med-2', refType: 'medical_lab_order', refId: 'lab-order-2', domain: 'medical', sellerType: null, sellerId: null, amount: 1_400_000n, meta: null },
