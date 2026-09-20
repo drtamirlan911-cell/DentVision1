@@ -284,3 +284,23 @@ The complete pre-2026-09-14 execution history is preserved in the parent Git his
 ### Next action
 - Complete the owner/partner lifecycle vertical slice: registration → organization verification state → first login → branch lifecycle → staff/invitations → operational workspace for diagnostic center, medical laboratory and dental laboratory.
 - Then execute the complete role/branch/cross-tenant negative matrix and release-gate verification.
+
+
+## 2026-09-20 — Business-owner lifecycle: organization profile, verification and first branch
+
+Implemented against Master Spec 5.0 and the Phase 2 canonical owner/branch contract.
+
+- Extended self-service onboarding for clinic, diagnostic center, medical laboratory, dental laboratory, academy and supplier organizations so the owner receives a persisted **default operational branch** at creation time.
+- The first branch is created inside the same database transaction as organization/person onboarding and the owner is persisted as a BranchMember; this removes the previous gap where a newly onboarded non-clinic organization had an organization but no operational branch scope.
+- Added owner-facing `GET /api/organizations/me` for organization profile + persisted branches.
+- Added owner-facing `PATCH /api/organizations/me` for real organization profile persistence.
+- Added owner-facing `POST /api/organizations/me/verification` to submit the organization for verification with durable status/timestamps in the existing `Organization.settings` field; no competing verification model was introduced.
+- Added SuperAdmin verification queue/review endpoints using the same existing organization record and audit service.
+- Added audit events for organization profile updates and verification submission/review.
+- Reused existing `Organization`, `Person`, `PersonRole`, `Branch`, and `BranchMember` primitives; no duplicate organization/branch model was introduced.
+
+Commit: 5323ca69994a14e57557e1b7e638c57df8e63bec
+
+Verification: **UNVERIFIED** — the current GitHub status exposes only a successful Vercel check; the repository's CI workflow is not returned by the commit-workflow-run connector for this commit. No pass is claimed until backend build/E2E evidence is available.
+
+Next action: verify the owner lifecycle end-to-end for all three partner types, then complete branch edit/switch/assignment/disable negative tests and partner dashboard economics visibility.
