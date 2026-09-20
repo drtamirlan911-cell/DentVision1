@@ -554,3 +554,20 @@ Verification remains **UNVERIFIED** pending actual CI execution.
 ### Verification
 - The new suites are committed.
 - They have not yet been executed by a repository CI workflow; release status therefore remains **UNVERIFIED**.
+
+
+## 2026-09-20 — Finance Hub partner economics E2E gate
+
+### Implemented
+- `2705ea74a66ccc121ca1b630f7ed0747d86b9dee` — added isolated Finance Hub E2E coverage for durable partner economics dashboard, reconciliation and transparency endpoints, including finance authorization and invalid-period fail-closed behavior.
+- `26ae7d1a749394c24d72130eaa6575aca0059920` — synchronized the execution plan with the now-implemented durable partner economics visibility requirements and partner lifecycle evidence.
+
+### Verification status
+- The Finance Hub suite is committed but requires execution against the isolated E2E environment.
+- No new CI success is claimed for this commit.
+- Production deployment evidence previously reached READY, but repository release verification remains gated until the current main tip has a corresponding workflow/browser result.
+
+### Next
+- Execute the complete critical workflow/browser matrix.
+- Close AI first-load functional flow, navigation duplication, loading/error/accessibility states.
+- Complete Android build/release verification and final rollback/security gate.
