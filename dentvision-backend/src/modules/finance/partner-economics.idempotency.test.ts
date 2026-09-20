@@ -15,6 +15,11 @@ function makeDb() {
         splitJson: data.splitJson,
       })),
     },
+    wallet: {
+      findUnique: vi.fn(async ({ where }: any) => ({ id: `${where.ownerType_ownerId_currency.ownerType}-${where.ownerType_ownerId_currency.ownerId}`, balance: 0n })),
+      create: vi.fn(async ({ data }: any) => ({ id: `${data.ownerType}-${data.ownerId}`, ...data, balance: 0n })),
+      update: vi.fn(async ({ where, data }: any) => ({ id: where.id, ...data })),
+    },
     transaction: {
       findMany: vi.fn(async () => []),
       findFirst: vi.fn(async () => stored),
