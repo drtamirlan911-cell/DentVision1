@@ -230,9 +230,11 @@ export default function OrganizationBranchesTab() {
           <CardContent className="space-y-3">
             {members.length ? members.map(member => (
               <div key={member.id} className="flex items-center justify-between gap-3 py-2 border-b border-bdr-subtle last:border-0">
-                <div><p className="text-sm text-txt-primary">{member.name}</p><p className="text-xs text-txt-muted">{member.email || member.role}</p></div>
+                <div><p className="text-sm text-txt-primary">{member.name}</p><p className="text-xs text-txt-muted">{member.email || member.role} · {member.active === false ? 'доступ отключён' : 'активен'}</p></div>
                 {member.userId && <div className="flex gap-1">
-                  <Button size="sm" variant="ghost" onClick={() => void toggleMember(member.userId, false)}>Отключить</Button>
+                  <Button size="sm" variant="ghost" onClick={() => void toggleMember(member.userId, member.active === false)}>
+                    {member.active === false ? 'Включить' : 'Отключить'}
+                  </Button>
                   <Button size="sm" variant="ghost" onClick={() => void unassign(member.userId)}>Убрать</Button>
                 </div>}
               </div>
