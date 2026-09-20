@@ -25,6 +25,7 @@ export const E2E_USERS: E2EUser[] = [
   { email: 'owner-b@test.com', firstName: 'Owner', lastName: 'ClinicB', role: 'OWNER', clinic: 'B' },
   { email: 'doctor-b@test.com', firstName: 'Doctor', lastName: 'ClinicB', role: 'DOCTOR', clinic: 'B' },
   { email: 'regular@test.com', firstName: 'Regular', lastName: 'User', role: 'STUDENT', clinic: null },
+  { email: 'patient@dentvision.kz', firstName: 'Иван', lastName: 'Петров', role: 'PATIENT', clinic: null },
   { email: 'superadmin@test.com', firstName: 'E2E', lastName: 'Superadmin', role: 'SUPERADMIN', clinic: null },
 ];
 
@@ -180,6 +181,62 @@ async function ensureAiEmployeeSchema() {
   await prisma.$executeRawUnsafe(`CREATE UNIQUE INDEX IF NOT EXISTS ai_employee_tasks_event_action_role_uidx ON ai_employee_tasks (source_event_id, action, role) WHERE source_event_id IS NOT NULL AND action IS NOT NULL`);
 }
 
+async function ensureE2EPatientFixture(clinicId: string, patientUser: { id: string; email: string }) {
+  const existing = await prisma.patient.findFirst({ where: { clinicId, userId: patientUser.id } });
+  const patient = existing ?? await prisma.patient.create({
+    data: {
+      id: randomUUID(),
+      clinicId,
+      userId: patientUser.id,
+      firstName: 'Иван',
+      lastName: 'Петров',
+      email: patientUser.email,
+      phone: '+77001111111',
+      gender: 'male',
+      birthDate: new Date(1985, 5, 15),
+      notes: 'Детерминированный E2E пациент DentVision',
+    },
+  });
+
+  const doctor = await prisma.user.findUnique({ where: { email: 'doctor-a@test.com' }, select: { id: true } });
+  if (!doctor) return patient;
+
+  if (!await prisma.appointment.findFirst({ where: { clinicId, patientId: patient.id } })) {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    await prisma.appointment.create({
+      data: {
+        id: randomUUID(),
+        clinicId,
+        patientId: patient.id,
+        doctorId: doctor.id,
+        date: today,
+        time: '11:30',
+        duration: 45,
+        status: 'confirmed',
+        type: 'Консультация',
+        notes: 'E2E patient portal appointment',
+      },
+    });
+  }
+
+  if (!await prisma.visit.findFirst({ where: { patientId: patient.id } })) {
+    await prisma.visit.create({
+      data: {
+        id: randomUUID(),
+        patientId: patient.id,
+        doctorId: doctor.id,
+        date: new Date(Date.now() - 7 * 86400000),
+        diagnosis: 'K02.1 Кариес дентина',
+        complaints: 'E2E patient portal',
+        notes: 'Детерминированный визит для patient portal',
+      },
+    });
+  }
+
+  return patient;
+}
+
 async function ensureE2EBranchContext(clinicId: string, code: string, name: string) {
   const existing = await prisma.$queryRaw<Array<{ id: string }>>`
     SELECT id
@@ -236,6 +293,8 @@ export async function seedE2E() {
   }
 
   await ensureE2EBranchContext(clinicA.id, 'E2E-A-MAIN', `${E2E_CLINIC_A} — Main`);
+  const patientUser = await prisma.user.findUniqueOrThrow({ where: { email: 'patient@dentvision.kz' }, select: { id: true, email: true } });
+  await ensureE2EPatientFixture(clinicA.id, patientUser);
   await ensureE2EBranchContext(clinicB.id, 'E2E-B-MAIN', `${E2E_CLINIC_B} — Main`);
 
   return { clinicA, clinicB, users: E2E_USERS.length };
