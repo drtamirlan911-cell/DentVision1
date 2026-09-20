@@ -264,7 +264,7 @@ The branch vertical slice is not complete until an isolated E2E workflow proves:
 - [x] Button/action audit covers visible button naming and critical owner workflow actions.
 - [x] Browser console/request-failure collection is integrated into critical owner lifecycle coverage; broad route audit remains execution-gated.
 - [ ] Android build/release verification.
-- [ ] Security/permissions/audit checks.
+- [x] Security/permissions/audit checks: cross-tenant/cross-branch, invitation revocation and disabled-member boundaries plus audited medical-record access are implemented; final execution evidence remains release-gated.
 - [ ] Production readiness and rollback evidence.
 
 ## Business-owner lifecycle release matrix
