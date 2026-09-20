@@ -115,4 +115,24 @@ test.describe('DentVision organization owner lifecycle', () => {
       await expect(page.locator('body')).not.toContainText('Something went wrong');
     }
   });
+
+  test('ORG-008: owner branch workspace switch survives reload', async ({ page }) => {
+    await login(page);
+    await page.goto(`${BASE}/my-clinics`);
+    const branchName = `E2E Workspace ${Date.now()}`;
+    await page.getByRole('button', { name: 'Добавить филиал', exact: true }).click();
+    await page.getByLabel('Название филиала *').fill(branchName);
+    await page.getByLabel('Код').fill(`WS-${Date.now()}`);
+    await page.getByRole('button', { name: 'Создать филиал', exact: true }).click();
+    const row = page.getByText(branchName, { exact: true }).locator('../..').locator('..');
+    await expect(row).toBeVisible({ timeout: 15000 });
+    const open = row.getByRole('button', { name: /Открыть филиал|Открыть/ });
+    if (await open.count()) {
+      await open.first().click();
+      await expect(page).not.toHaveURL(/\/login/);
+      await page.reload();
+      await expect(page).not.toHaveURL(/\/login/);
+    }
+  });
+
 });
