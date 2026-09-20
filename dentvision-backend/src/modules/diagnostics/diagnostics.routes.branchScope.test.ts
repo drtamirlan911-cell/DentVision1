@@ -16,6 +16,12 @@ describe('diagnostics referral branch enforcement', () => {
     expect(source).toContain("diagnosticsRouter.post('/laboratories', requireSuperadmin");
   });
 
+  it('passes branch scope into referral list queries', () => {
+    expect(source).toContain('referralListBranchIds');
+    expect(source).toContain('branchIds');
+    expect(source).toContain('Нет доступа к филиалам клиники');
+  });
+
   it('keeps signed diagnostic results behind referral access', () => {
     expect(source).toContain("/referrals/:id/results/sign");
     expect(source).toContain('requireReferralAccess()');
