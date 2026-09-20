@@ -32,7 +32,7 @@ function paidPayment() {
     currency: 'KZT',
     status: 'paid',
     refType: 'sale',
-    refId: null,
+    refId: 'p1',
     meta: {},
   });
   tx.transaction.findMany
@@ -113,7 +113,7 @@ describe('refundPayment', () => {
 
   it('fails closed when no financial transaction exists', async () => {
     paidPayment();
-    tx.transaction.findFirst.mockResolvedValue(null);
+    tx.transaction.findMany.mockResolvedValueOnce([]).mockResolvedValueOnce([]);
 
     await expect(refundPayment('p1', 10_000n, 'unsupported')).rejects.toMatchObject({
       code: 'NOT_REFUNDABLE',
