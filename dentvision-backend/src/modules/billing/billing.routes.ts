@@ -193,6 +193,8 @@ billingRouter.post('/invoices/:id/refund', requirePermission('finance.manage'), 
   try {
     const clinicId = req.user?.clinicId;
     const id = String(req.params.id);
+    const idempotencyKey = String(req.headers['idempotency-key'] || '');
+    if (!idempotencyKey) return res.status(400).json({ ok: false, error: 'Idempotency-Key обязателен для возврата' });
     const requested = req.body?.amount !== undefined ? Number(req.body.amount) : undefined;
     if (!clinicId) return res.status(400).json({ ok: false, error: 'Выберите клинику' });
     const invoice = await prisma.$transaction(async (tx) => {
@@ -210,7 +212,7 @@ billingRouter.post('/invoices/:id/refund', requirePermission('finance.manage'), 
       await reverseClinicalPaymentTx({
         clinicId,
         amountMinor: tengeToMinor(amount),
-        refId: `invoice:${id}:refund:${uid()}`,
+        refId: `invoice:${id}:refund:${idempotencyKey}`,
         reason: 'invoice_refund',
         db: tx,
       });
@@ -270,6 +272,45 @@ billingRouter.post('/patients/:patientId/prepayment', requirePermission('finance
   }
 });
 
+
+billingRouter.post('/patients/:patientId/prepayment/refund', requirePermission('finance.manage'), async (req: AuthRequest, res) => {
+  try {
+    const clinicId = req.user?.clinicId;
+    const patientId = String(req.params.patientId);
+    const amount = Number(req.body?.amount);
+    const idempotencyKey = String(req.headers['idempotency-key'] || '');
+    if (!clinicId) return res.status(400).json({ ok: false, error: 'Выберите клинику' });
+    if (!idempotencyKey) return res.status(400).json({ ok: false, error: 'Idempotency-Key обязателен для возврата' });
+    if (!Number.isFinite(amount) || amount <= 0) return res.status(400).json({ ok: false, error: 'Некорректная сумма возврата' });
+    const patient = await prisma.$transaction(async (tx) => {
+      const current = await tx.patient.findFirst({ where: { id: patientId, clinicId, deletedAt: null } });
+      if (!current) throw new Error('Patient not found');
+      if (current.prepaidBalance < amount) throw new Error('Недостаточно предоплаты для возврата');
+      const updated = await tx.patient.update({
+        where: { id: patientId },
+        data: { prepaidBalance: { decrement: amount } },
+      });
+      await reverseClinicalPaymentTx({
+        clinicId,
+        amountMinor: tengeToMinor(amount),
+        refId: `prepayment:${patientId}:refund:${idempotencyKey}`,
+        reason: 'prepayment_refund',
+        db: tx,
+      });
+      return updated;
+    });
+    await auditFromReq(req, {
+      action: 'patient.prepayment_refunded',
+      entity: 'patient',
+      entityId: patientId,
+      details: { amount, prepaidBalance: patient.prepaidBalance },
+    });
+    return res.json({ ok: true, data: { patientId, prepaidBalance: patient.prepaidBalance } });
+  } catch (error: any) {
+    if (error?.message === 'Patient not found') return res.status(404).json({ ok: false, error: 'Пациент не найден' });
+    return res.status(400).json({ ok: false, error: error?.message || 'Не удалось выполнить возврат предоплаты' });
+  }
+});
 
 billingRouter.delete('/invoices/:id', requirePermission('finance.manage'), async (req: AuthRequest, res) => {
   try {
