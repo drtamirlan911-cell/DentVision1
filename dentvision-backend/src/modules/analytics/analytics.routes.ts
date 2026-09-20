@@ -98,17 +98,29 @@ analyticsRouter.get('/revenue', async (req: AuthRequest, res) => {
     const branchIds = analyticsBranchIds(req);
 
     // SQL-level month bucketing instead of shipping every paid invoice to JS.
-    const rows = await prisma.$queryRaw<Array<{ month: string; total: bigint }>>`
-      SELECT to_char(date_trunc('month', "createdAt"), 'YYYY-MM') AS month,
-             COALESCE(SUM("amount"), 0)::bigint AS total
-      FROM "invoices"
-      WHERE "clinicId" = ${clinicId}
-        AND "status" = 'paid'
-        AND "createdAt" >= ${twelveMonthsAgo}
-        ${branchIds === null ? prisma.Prisma.sql`` : prisma.Prisma.sql`AND EXISTS (SELECT 1 FROM "patients" p WHERE p."id" = "invoices"."patientId" AND p."branchId" = ANY(${branchIds}::text[]))`}
-      GROUP BY 1
-      ORDER BY 1
-    `;
+    const rows = branchIds === null
+      ? await prisma.$queryRaw<Array<{ month: string; total: bigint }>>`
+          SELECT to_char(date_trunc('month', "createdAt"), 'YYYY-MM') AS month,
+                 COALESCE(SUM("amount"), 0)::bigint AS total
+          FROM "invoices"
+          WHERE "clinicId" = ${clinicId}
+            AND "status" = 'paid'
+            AND "createdAt" >= ${twelveMonthsAgo}
+          GROUP BY 1
+          ORDER BY 1
+        `
+      : await prisma.$queryRaw<Array<{ month: string; total: bigint }>>`
+          SELECT to_char(date_trunc('month', i."createdAt"), 'YYYY-MM') AS month,
+                 COALESCE(SUM(i."amount"), 0)::bigint AS total
+          FROM "invoices" i
+          JOIN "patients" p ON p."id" = i."patientId"
+          WHERE i."clinicId" = ${clinicId}
+            AND i."status" = 'paid'
+            AND i."createdAt" >= ${twelveMonthsAgo}
+            AND p."branchId" = ANY(${branchIds}::text[])
+          GROUP BY 1
+          ORDER BY 1
+        `;
 
     const rowByMonth = new Map(rows.map((r) => [r.month, Number(r.total)]));
 
