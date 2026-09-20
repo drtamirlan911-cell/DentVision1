@@ -29,6 +29,8 @@ interface EconomicsData {
   }
   byVertical?: VerticalRow[]
   rules?: unknown
+  discrepancies?: number
+  partnerRows?: Array<{ transactionId: string; vertical: string; partnerId: string; branchId: string | null; operationId: string; grossMinor: string | number; commissionMinor: string | number; partnerPayoutMinor: string | number; costMinor: string | number; contributionMarginMinor: string | number; contributionMarginBps: number; status: string; economicsVersion: number }>
 }
 
 function moneyMinor(value: string | number | undefined): string {
@@ -113,6 +115,32 @@ export default function PartnerEconomicsPanel() {
               <Metric label="Вклад" value={moneyMinor(totals?.contributionMarginMinor)} />
               <Metric label="Take rate" value={pctBps(totals?.takeRateBps)} />
             </div>
+
+            {(data?.discrepancies || 0) > 0 && (
+              <div className="rounded-lg border border-yellow-500/20 bg-yellow-500/5 px-3 py-2 text-xs text-yellow-300">
+                Обнаружено расхождений ledger/economics: {data?.discrepancies}. Требуется reconciliation.
+              </div>
+            )}
+
+            {(data?.partnerRows?.length ?? 0) > 0 && (
+              <div className="rounded-lg border border-white/[0.06] overflow-x-auto">
+                <div className="px-3 py-2 border-b border-white/[0.06] text-[10px] uppercase tracking-wider text-txt-muted">
+                  Durable partner transparency
+                </div>
+                <div className="min-w-[760px] divide-y divide-white/[0.05]">
+                  {data!.partnerRows!.slice(0, 20).map((row) => (
+                    <div key={row.transactionId} className="grid grid-cols-[1.1fr_1.1fr_0.8fr_0.8fr_0.8fr_0.8fr] gap-3 px-3 py-2 text-[11px]">
+                      <span className="text-txt-primary">{verticalLabel(row.vertical)}</span>
+                      <span className="text-txt-muted">{row.partnerId}</span>
+                      <span className="text-txt-primary">{moneyMinor(row.grossMinor)}</span>
+                      <span className="text-txt-primary">{moneyMinor(row.commissionMinor)}</span>
+                      <span className="text-txt-primary">{moneyMinor(row.partnerPayoutMinor)}</span>
+                      <span className="text-txt-primary">{moneyMinor(row.contributionMarginMinor)}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
 
             {rows.length === 0 ? (
               <p className="text-xs text-txt-muted py-4">В ledger пока нет операций.</p>
