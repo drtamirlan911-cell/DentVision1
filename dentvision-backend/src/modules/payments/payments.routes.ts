@@ -723,7 +723,7 @@ paymentsRouter.post('/:id/refund', authenticate, async (req: AuthRequest, res) =
         error.code === 'NOT_FOUND' ? 404 :
         error.code === 'FORBIDDEN' ? 403 :
         error.code === 'ALREADY_REFUNDED' ? 409 :
-        error.code === 'INVALID_AMOUNT' ? 400 : 409;
+        error.code === 'INVALID_AMOUNT' || error.code === 'IDEMPOTENCY_REQUIRED' ? 400 : 409;
       return res.status(status).json({ ok: false, error: error.message } satisfies ApiResponse);
     }
     console.error('Refund payment error:', error);
