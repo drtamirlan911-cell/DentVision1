@@ -378,3 +378,25 @@ Next action: wire the existing branch-management API into the canonical Owner Se
 ### Next action
 - Continue the required negative E2E matrix: assigned employee branch scope, cross-branch read/write denial, cross-tenant denial, expired/revoked invitation denial, disabled staff denial.
 - Then complete the partner-type operational/economics lifecycle matrix and Finance Hub transparency checks.
+
+
+## 2026-09-20 — IAM negative matrix: branch scope, staff disable, invitation revocation
+
+### Implemented
+- 26cfa9ef1ab0004a3587184933abe5e2388bfac3 — BranchMember.active is now a durable persisted state with a migration.
+- 582a6ac36219c0ce9d06f570f141864eefcd25a0 — authentication derives active unified branch scope only from active branch memberships; disabled staff can no longer obtain an active branch context from a stale membership.
+- 7fb8dc9a0477cb066f35762916cd85131e96724b — branch staff can be explicitly enabled/disabled through an authorization-gated endpoint; disable/enable mutations are audited; re-assignment reactivates access.
+- 8a5ee173caaef2038a53f6c488f566db706beb7b and 1c499f773b8830ba35f31bcde20a224a4229c9f5 — regression contracts lock cross-branch, cross-tenant and revoked-assignment behavior.
+- 25d2301296fda5d2a16919443b81d4e06636816d / 521d259da3e0e66a4bae4e9ad6c3f8bd140c60d6 — OrganizationInvitation.revokedAt/revokedBy persisted.
+- 922e0f0487d459fccb59347913c43684d74d6f47 — invitation validation fails closed for revoked codes and one-time claim excludes revoked rows.
+- 89c5f7a52fa803d230ca8688e517a9329fadcbd4 — owner/admin invitation revocation endpoint is atomic and audited.
+- bb4a63213f91e4bd7d678f09585a1def3b741479 / 6d2fc0ceb741276ff3eecc1a231f8deda44801b1 — regression coverage for revoked invitations and the route contract.
+- d97bbc76637f3ac53907f45f74235ef1d7d10fe9, 2e168eaa2e6a0c9f3e5d37a0ce4605525adeb446, 26187d98e685e987a8d6c2d336d211a8cc1a4285, f98a12a257948f099cce866150101fc674e1d7d0, a7f3c5ae8bfa85ee512a3570a227714baab2e8e1 — frontend exposes invitation revoke and branch staff enable/disable controls.
+
+### Verification
+- Source-level regression contracts were added for the negative authorization matrix.
+- Full CI/E2E has not yet been run against this current HEAD; release status remains UNVERIFIED.
+- The execution plan now records the completed cross-tenant, cross-branch, expired/revoked-invitation and disabled-staff controls, while the required isolated E2E release matrix remains open.
+
+### Next action
+- Run the actual isolated business-owner lifecycle for Diagnostic Center, Medical Laboratory and Dental Laboratory, then close the remaining Finance Hub transparency/economics verification gaps. Do not mark those lifecycle items complete without test evidence.
