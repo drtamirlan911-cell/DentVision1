@@ -6,7 +6,7 @@ import { requirePermission } from '../../middleware/rbac.js';
 import { serializeBigInt, parseTengeToMinor } from '../../lib/money.js';
 import type { ExpenseCategory } from '@prisma/client';
 import { getOrCreateWallet, recordSale, ledgerNetBalance } from './finance.service.js';
-import { reconcilePartnerEconomics, PARTNER_VERTICALS } from './partner-economics.service.js';
+import { reconcilePartnerEconomics, getPartnerEconomicsTransparency, PARTNER_VERTICALS, type PartnerVertical } from './partner-economics.service.js';
 import { revenueBySource } from './revenue.service.js';
 import {
   PAYOUT_STATUSES,
@@ -127,6 +127,34 @@ financeRouter.get('/partner-economics/reconciliation', requirePermission('financ
   } catch (error) {
     console.error('Partner economics reconciliation error:', error);
     return res.status(500).json({ ok: false, error: 'Не удалось выполнить сверку экономики партнёров' } satisfies ApiResponse);
+  }
+});
+
+financeRouter.get('/partner-economics/transparency', requirePermission('finance.manage'), async (req: AuthRequest, res) => {
+  try {
+    const parseDate = (value: unknown): Date | undefined => {
+      if (typeof value !== 'string' || !value) return undefined;
+      const d = new Date(value);
+      if (Number.isNaN(d.getTime())) throw new Error('Некорректная дата');
+      return d;
+    };
+    const from = parseDate(req.query.from);
+    const to = parseDate(req.query.to);
+    const requestedVertical = typeof req.query.vertical === 'string' ? req.query.vertical : undefined;
+    if (requestedVertical && !Object.values(PARTNER_VERTICALS).includes(requestedVertical as PartnerVertical)) {
+      return res.status(400).json({ ok: false, error: 'Некорректный vertical' } satisfies ApiResponse);
+    }
+    const data = await getPartnerEconomicsTransparency({
+      from,
+      to,
+      vertical: requestedVertical as PartnerVertical | undefined,
+      partnerId: typeof req.query.partnerId === 'string' ? req.query.partnerId : undefined,
+      branchId: typeof req.query.branchId === 'string' ? req.query.branchId : undefined,
+    });
+    return res.json({ ok: true, data: serializeBigInt(data) } satisfies ApiResponse);
+  } catch (error: any) {
+    const message = error?.message === 'Некорректная дата' ? error.message : 'Не удалось загрузить прозрачность partner economics';
+    return res.status(error?.message === 'Некорректная дата' ? 400 : 500).json({ ok: false, error: message } satisfies ApiResponse);
   }
 });
 
