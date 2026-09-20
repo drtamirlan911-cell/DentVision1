@@ -13,7 +13,7 @@ vi.mock('../../lib/prisma.js', () => ({
   default: {
     diagnosticCenterMember: { findFirst: centerFindFirst },
     laboratoryMember: { findFirst: labFindFirst },
-    organizationInvitation: { findUnique: invitationFindUnique, update: invitationUpdate },
+    organizationInvitation: { findUnique: invitationFindUnique, updateMany: invitationUpdateMany },
   },
 }));
 vi.mock('../diagnostics/diagnostics.service.js', () => ({ grantDiagnosticsAccess }));
@@ -209,7 +209,7 @@ describe('acceptInvitation', () => {
     arrangeInvite({ organization: { id: 'org-9', type: 'ACADEMY', originalId: 'ac-1', name: 'Академия' } });
 
     await expect(acceptInvitation('ABCD1234', { id: 'u1' })).rejects.toMatchObject({ status: 400 });
-    expect(invitationUpdate).not.toHaveBeenCalled();
+    expect(invitationUpdateMany).not.toHaveBeenCalled();
   });
 
   it('returns conflict when the one-time claim loses a concurrent race', async () => {
