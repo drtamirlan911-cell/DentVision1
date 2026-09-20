@@ -244,10 +244,10 @@ test.describe('Patient Workflow', () => {
   });
 
   test('PATIENT-ODONTO-001: persist tooth 16 finding and expose it in patient read model', async ({ request }) => {
-    const token = await login(request, 'doctor-a@test.com');
+    const token = doctorToken;
     const patient = await request.post(`${BASE}/api/patients`, {
       headers: { Authorization: `Bearer ${token}` },
-      data: { firstName: 'Odonto', lastName: `E2E ${Date.now()}`, phone: '+77000000033' },
+      data: { iin: makeIin(), firstName: 'Odonto', lastName: `E2E ${Date.now()}`, phone: '+77000000033' },
     });
     expect(patient.status()).toBe(201);
     const patientId = (await patient.json()).data.id;
@@ -276,7 +276,7 @@ test.describe('Patient Workflow', () => {
 
 
   test('PATIENT-OPS-002: waitlist is clinic-scoped and lifecycle is writable by appointment staff', async ({ request }) => {
-    const token = await login(request, 'owner-a@test.com');
+    const token = ownerToken;
     const create = await request.post(`${BASE}/api/crm/waitlist`, {
       headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
       data: { patientName: `Waitlist E2E ${Date.now()}`, patientPhone: '+77000000044', preferredService: 'Консультация' },
