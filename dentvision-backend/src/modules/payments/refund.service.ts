@@ -3,7 +3,7 @@ import prisma from '../../lib/prisma.js';
 
 export class PaymentRefundError extends Error {
   constructor(
-    public code: 'NOT_FOUND' | 'FORBIDDEN' | 'INVALID_AMOUNT' | 'NOT_REFUNDABLE' | 'ALREADY_REFUNDED',
+    public code: 'NOT_FOUND' | 'FORBIDDEN' | 'INVALID_AMOUNT' | 'IDEMPOTENCY_REQUIRED' | 'NOT_REFUNDABLE' | 'ALREADY_REFUNDED',
     message: string,
   ) {
     super(message);
@@ -33,7 +33,7 @@ export async function refundPayment(
   reason: string | undefined,
   db: Prisma.TransactionClient | typeof prisma = prisma,
 ) {
-  if (!idempotencyKey.trim()) throw new PaymentRefundError('INVALID_AMOUNT', 'Idempotency-Key обязателен');
+  if (!idempotencyKey.trim()) throw new PaymentRefundError('IDEMPOTENCY_REQUIRED', 'Idempotency-Key обязателен');
 
   return db.$transaction(async (tx) => {
     await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${'payment-refund:' + paymentId}))`;
