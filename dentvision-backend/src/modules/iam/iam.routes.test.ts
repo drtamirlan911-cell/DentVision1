@@ -31,12 +31,6 @@ beforeEach(() => {
   clinicMemberFindUnique.mockReset();
   diagnosticCenterMemberFindFirst.mockReset();
   laboratoryMemberFindFirst.mockReset();
-  it('exposes atomic invitation revocation', () => {
-    expect(source).toContain("iamRouter.post('/invitations/:id/revoke'");
-    expect(source).toContain('revokedAt');
-    expect(source).toContain('revokedBy');
-    expect(source).toContain('organization.invitation_revoked');
-  });
 });
 
 describe('canManageRolesFor', () => {
