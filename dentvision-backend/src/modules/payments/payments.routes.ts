@@ -39,13 +39,13 @@ async function medicalLabOrderAmountMinor(
   db: Prisma.TransactionClient | typeof prisma = prisma,
 ): Promise<{ clinicId: string; labId: string; amountMinor: bigint; branchId: string | null } | null> {
   const orders = await db.$queryRawUnsafe<Array<{ clinicId: string; labId: string | null; branchId: string | null }>>(
-    `SELECT \"clinicId\", \"labId\", (SELECT \"branchId\" FROM \"patients\" p WHERE p.\"id\"=o.\"patientId\") AS \"branchId\" FROM \"medical_lab_orders\" o WHERE o.\"id\"=$1 LIMIT 1`,
+    `SELECT "clinicId", "labId", (SELECT "branchId" FROM "patients" p WHERE p."id"=o."patientId") AS "branchId" FROM "medical_lab_orders" o WHERE o."id"=$1 LIMIT 1`,
     orderId,
   );
   const order = orders[0];
   if (!order?.clinicId || !order.labId) return null;
   const rows = await db.$queryRawUnsafe<Array<{ priceMinor: bigint | number | string | null; price: unknown }>>(
-    `SELECT ot.\"priceMinor\" AS \"priceMinor\", lt.\"price\" AS \"price\" FROM \"medical_lab_order_tests\" ot LEFT JOIN \"laboratory_tests\" lt ON lt.\"id\"=ot.\"testId\" WHERE ot.\"orderId\"=$1`,
+    `SELECT ot."priceMinor" AS "priceMinor", lt."price" AS "price" FROM "medical_lab_order_tests" ot LEFT JOIN "laboratory_tests" lt ON lt."id"=ot."testId" WHERE ot."orderId"=$1`,
     orderId,
   );
   let amountMinor = 0n;
