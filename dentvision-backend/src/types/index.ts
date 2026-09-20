@@ -20,6 +20,7 @@ export interface AuthUser {
   branchIds?: string[];
   /** Primary branch for ASSIGNED-scope roles such as Doctor/Assistant. */
   assignedBranchId?: string;
+  branchId?: string;
   /** Session this request authenticated with — carried into re-issued tokens. */
   sessionId?: string;
   isGuest?: boolean;
@@ -53,6 +54,7 @@ export interface JwtPayload {
   organizationId?: string;
   organizationType?: string;
   personType?: string;
+  branchId?: string;
   isGuest?: boolean;
 }
 
