@@ -22,10 +22,12 @@ export async function resolveCommissionBps(
   domain: string,
   scopeId?: string | null,
   db: Prisma.TransactionClient | typeof prisma = prisma,
+  context?: { branchId?: string | null; organizationId?: string | null },
 ): Promise<number> {
-  if (scopeId) {
+  const candidateScopeIds = [context?.branchId, context?.organizationId, scopeId].filter((id, index, all): id is string => Boolean(id) && all.indexOf(id) === index);
+  for (const candidateScopeId of candidateScopeIds) {
     const scoped = await db.commissionRule.findUnique({
-      where: { domain_scopeId: { domain, scopeId } },
+      where: { domain_scopeId: { domain, scopeId: candidateScopeId } },
     });
     if (scoped) return scoped.percentBps;
   }
@@ -39,6 +41,8 @@ interface SaleInput {
   domain: string; // 'shop' | 'school'
   sellerType: WalletOwnerType; // SUPPLIER | LECTURER | ACADEMY
   sellerId: string;
+  organizationId?: string | null;
+  branchId?: string | null;
   amountMinor: bigint;
   refType?: string;
   refId?: string;
@@ -60,7 +64,7 @@ interface SaleInput {
  */
 export async function recordSaleTx(input: SaleInput, db: Prisma.TransactionClient) {
   const currency = input.currency || 'KZT';
-  const bps = await resolveCommissionBps(input.domain, input.sellerId, db);
+  const bps = await resolveCommissionBps(input.domain, input.sellerId, db, { branchId: input.branchId, organizationId: input.organizationId });
   const commission = commissionMinor(input.amountMinor, bps);
   const net = input.amountMinor - commission;
 
