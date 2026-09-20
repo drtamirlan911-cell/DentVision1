@@ -360,3 +360,21 @@ Next action: wire the existing branch-management API into the canonical Owner Se
 - Verify the Vercel build and backend test/build gates from the exact HEAD.
 - Add isolated E2E for owner registration → organization verification → first login → branch create/edit/switch/assignment/archive, plus cross-branch/cross-tenant denial.
 - Complete the three partner-type lifecycle matrices and durable Partner Economics dashboard verification before marking Phase 2 complete.
+
+
+## 2026-09-20 — Branch workspace vertical slice extended
+
+### Implemented
+- `16d240690bfc37d79be92de2a9239ff92d606738` — added an authorization-gated branch workspace context endpoint using the existing Organization/Clinic branch authorization layer.
+- `8c16e92d48cb84cde76b40157046ce3e0012ad2d` — exposed the branch workspace API to the frontend.
+- `fb0471376b4ed57abe6d77855b65d9071782cd0f` — Owner branch opening now switches context and opens the persisted authorized workspace instead of being a visual-only action.
+- `4ed2b836d254213e2e8fe4cf60fdf842de77ad74` — added regression coverage for the workspace authorization/context contract.
+- `8115339d63030ecb012a0f20dbdcadb8dfd5c6d6` — advanced the execution plan checklist for the implemented owner/branch vertical slice.
+
+### Verification
+- Implementation and source-contract tests are committed.
+- Full CI/E2E remains **UNVERIFIED** until the repository's actual release gates report results; no PASS is claimed.
+
+### Next action
+- Continue the required negative E2E matrix: assigned employee branch scope, cross-branch read/write denial, cross-tenant denial, expired/revoked invitation denial, disabled staff denial.
+- Then complete the partner-type operational/economics lifecycle matrix and Finance Hub transparency checks.
