@@ -114,7 +114,7 @@ test.describe('Partner operational lifecycle', () => {
     });
     expect(orderRes.status()).toBe(201);
     const order = (await orderRes.json()).data;
-    expect(order.status).toBe('ordered');
+    expect(order.status).toBe('pending');
 
     const cycle = ['sent', 'in_progress', 'ready', 'delivered'];
     for (const status of cycle) {
