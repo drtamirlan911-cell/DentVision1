@@ -11,6 +11,12 @@ const ROLES = [
   { id: 'manager', email: 'manager-a@test.com', label: 'Менеджер' },
   { id: 'regular', email: 'regular@test.com', label: 'Пользователь' },
   { id: 'patient', email: 'patient@dentvision.kz', label: 'Пациент' },
+  { id: 'diagnostic-owner', email: 'diagnostic-owner@test.com', label: 'Владелец диагностического центра' },
+  { id: 'diagnostic-operator', email: 'diagnostic-operator@test.com', label: 'Оператор диагностического центра' },
+  { id: 'medical-lab-owner', email: 'medical-lab-owner@test.com', label: 'Владелец медицинской лаборатории' },
+  { id: 'medical-lab-tech', email: 'medical-lab-tech@test.com', label: 'Лаборант' },
+  { id: 'dental-lab-owner', email: 'dental-lab-owner@test.com', label: 'Владелец зуботехнической лаборатории' },
+  { id: 'dental-technician', email: 'dental-technician@test.com', label: 'Зубной техник' },
 ] as const;
 
 const CONTEXT_ROUTES = [
@@ -28,6 +34,21 @@ const CONTEXT_ROUTES = [
   '/profile',
   '/settings',
 ];
+
+const ROLE_CONTEXT_ROUTES: Record<string, string[]> = {
+  'diagnostic-owner': ['/diagnostics/center', '/diagnostics/results', '/diagnostics/calendar', '/diagnostics/settings', '/profile'],
+  'diagnostic-operator': ['/diagnostics/center', '/diagnostics/results', '/diagnostics/calendar', '/profile'],
+  'medical-lab-owner': ['/diagnostics/lab?workspace=medical-lab', '/diagnostics/results', '/diagnostics/calendar', '/diagnostics/settings', '/profile'],
+  'medical-lab-tech': ['/diagnostics/lab?workspace=medical-lab', '/diagnostics/results', '/profile'],
+  'dental-lab-owner': ['/diagnostics/lab', '/diagnostics/results', '/diagnostics/settings', '/profile'],
+  'dental-technician': ['/diagnostics/lab', '/diagnostics/results', '/profile'],
+};
+
+const ROLE_FORBIDDEN_ROUTES: Record<string, string[]> = {
+  'diagnostic-operator': ['/diagnostics/settings'],
+  'medical-lab-tech': ['/diagnostics/settings'],
+  'dental-technician': ['/diagnostics/settings'],
+};
 
 async function login(page: Page, email: string) {
   await page.goto(`${BASE_URL}/login?role=owner`, { waitUntil: 'domcontentloaded', timeout: 30000 });
@@ -136,7 +157,8 @@ test.describe('DentVision role/context design release gate', () => {
       expect(body).toContain(role.label);
       expect(body).not.toMatch(/Application error|ChunkLoadError|Something went wrong|Failed to fetch dynamically imported module/i);
 
-      for (const route of CONTEXT_ROUTES) {
+      const roleRoutes = ROLE_CONTEXT_ROUTES[role.id] || CONTEXT_ROUTES;
+      for (const route of roleRoutes) {
         await page.goto(`${BASE_URL}${route}`, { waitUntil: 'domcontentloaded', timeout: 30000 });
         await page.waitForTimeout(300);
 
@@ -152,6 +174,15 @@ test.describe('DentVision role/context design release gate', () => {
         }));
         expect(shell.hasDentVision, `${role.id} ${route}: shell identity disappeared`).toBeTruthy();
         expect(shell.width).toBeLessThanOrEqual(shell.clientWidth + 2);
+      }
+
+      for (const route of (ROLE_FORBIDDEN_ROUTES[role.id] || [])) {
+        await page.goto(`${BASE_URL}${route}`, { waitUntil: 'domcontentloaded', timeout: 30000 });
+        await page.waitForTimeout(300);
+        const path = new URL(page.url()).pathname;
+        expect(path, `${role.id} ${route}: restricted partner setting exposed`).not.toBe(route);
+        await expect(page.locator('body')).toContainText('DentVision');
+        await expect(page.locator('body')).toContainText(role.label);
       }
 
       expect(problems.consoleErrors, `${role.id}: console errors`).toEqual([]);
