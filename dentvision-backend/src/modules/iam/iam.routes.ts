@@ -76,7 +76,7 @@ iamRouter.get('/me/contexts', async (req: AuthRequest, res) => {
 
 iamRouter.post('/switch-context', async (req: AuthRequest, res) => {
   try {
-    const { scopeType, scopeId } = req.body as { scopeType: string; scopeId?: string };
+    const { scopeType, scopeId, branchId } = req.body as { scopeType: string; scopeId?: string; branchId?: string };
     const user = req.user!;
     if (!scopeType || !scopeId) return res.status(400).json({ ok: false, error: 'scopeType и scopeId обязательны' } satisfies ApiResponse);
     const base = { sub: user.id, email: user.email, role: user.role, sessionId: user.sessionId };
@@ -94,7 +94,17 @@ iamRouter.post('/switch-context', async (req: AuthRequest, res) => {
           const member = await prisma.supplierMember.findUnique({ where: { userId_supplierId: { userId: user.id, supplierId: entityId } } });
           if (member) supplierContext = { supplierId: entityId, supplierRole: member.role };
         }
-        const tokens = generateTokens({ ...base, organizationId: org.id, organizationType: org.type, personType: person.personType, ...supplierContext, ...(org.type === 'CLINIC' && org.originalId ? { clinicId: org.originalId } : {}) });
+        let selectedBranchId: string | undefined;
+        if (branchId) {
+          const rows = await prisma.$queryRaw<Array<{ id: string; organization_id: string | null }>>`SELECT "id", "organization_id" FROM "branches" WHERE "id" = ${branchId} LIMIT 1`;
+          if (!rows[0] || rows[0].organization_id !== org.id) return res.status(403).json({ ok: false, error: 'Филиал не относится к выбранной организации' });
+          const roleRows = await prisma.personRole.findMany({ where: { personId: person.id }, include: { role: true } });
+          const orgManager = roleRows.some((pr) => ['owner', 'org_owner', 'admin', 'org_admin'].includes(pr.role.key.toLowerCase()));
+          const assigned = await prisma.branchMember.findUnique({ where: { personId_branchId: { personId: person.id, branchId } } });
+          if (!orgManager && !assigned) return res.status(403).json({ ok: false, error: 'У вас нет доступа к выбранному филиалу' });
+          selectedBranchId = branchId;
+        }
+        const tokens = generateTokens({ ...base, organizationId: org.id, organizationType: org.type, personType: person.personType, ...(selectedBranchId ? { branchId: selectedBranchId } : {}), ...supplierContext, ...(org.type === 'CLINIC' && org.originalId ? { clinicId: org.originalId } : {}) });
         await writeAuditLog({ userId: user.id, action: 'auth.switch_context', entity: 'organization', entityId: org.id, details: { scopeType: org.type } });
         return res.json({ ok: true, data: tokens } satisfies ApiResponse);
       }
