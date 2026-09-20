@@ -52,6 +52,42 @@ function contextFromPerson(person: PersonWithContextRole, organizationId: string
   };
 }
 
+const PARTNER_ROLE_PRIORITY: Record<string, number> = {
+  DIAGNOSTIC_OWNER: 100,
+  MEDICAL_LAB_OWNER: 100,
+  DENTAL_LAB_OWNER: 100,
+  DIAGNOSTIC_ADMIN: 80,
+  MEDICAL_LAB_ADMIN: 80,
+  DENTAL_LAB_ADMIN: 80,
+  DIAGNOSTIC_MANAGER: 70,
+  MEDICAL_LAB_MANAGER: 70,
+  DENTAL_LAB_MANAGER: 70,
+};
+
+export async function resolveOrganizationRoleKey(userId: string, organizationId: string): Promise<string | undefined> {
+  const person = await prisma.person.findFirst({
+    where: { userId, organizationId },
+    select: {
+      personRoles: {
+        where: {
+          OR: [
+            { scopeId: null },
+            { scopeId: organizationId },
+          ],
+        },
+        select: { scopeId: true, scopeType: true, role: { select: { key: true } } },
+      },
+    },
+  });
+  if (!person) return undefined;
+  const roles = person.personRoles.filter((pr) =>
+    (!pr.scopeId || pr.scopeId === organizationId) &&
+    (!pr.scopeType || pr.scopeType === 'organization')
+  );
+  roles.sort((a, b) => (PARTNER_ROLE_PRIORITY[b.role.key.toUpperCase()] || 10) - (PARTNER_ROLE_PRIORITY[a.role.key.toUpperCase()] || 10));
+  return roles[0]?.role.key?.toUpperCase();
+}
+
 async function contextForOrganization(userId: string, organizationId: string): Promise<AuthTokenContext | null> {
   const person = await prisma.person.findFirst({
     where: { userId, organizationId },
