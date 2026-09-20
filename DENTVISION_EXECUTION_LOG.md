@@ -535,3 +535,22 @@ Current connected GitHub status has not produced a CI workflow run for these dir
 - `85ce2d7204ba60b8172372e57c946ee44d3a2d61` — updated refund service tests for the multi-transaction read path.
 
 Verification remains **UNVERIFIED** pending actual CI execution.
+
+
+## 2026-09-20 — Partner operational lifecycle E2E
+
+### Implemented
+- `abd966fd99e878d056ab1b93292ee0d9cf5cf577` — added isolated Playwright partner lifecycle suite with real diagnostic-center and medical-laboratory API workflows.
+- `830fdaf2304cecdeea9672235aaee9d8c06279f1` — extended dental-lab E2E coverage for delayed/remake boundaries and premature-delivery rejection.
+- `f232a9a8ddcd2af658a1be91f27049e6b891d753` — browser onboarding now verifies partner registration forms actually invoke the registration API, not only render a success state.
+- `d1343223b37ef8cbef8c3b3f606654417d0bf5dd` — corrected diagnostic economics recognition to remain at the canonical paid-settlement boundary; no duplicate early financial recognition was retained.
+
+### Covered operational journeys
+- Diagnostic Center: create referral → SENT → ACCEPTED → IN_PROGRESS → COMPLETED → result-signing/clinic visibility contract.
+- Medical Laboratory: create order → ordered → sample_collected → received → processing → result_ready → verified → interpretation/read-back.
+- Dental Laboratory: existing full delivery path plus delayed/remake boundary and premature delivery rejection.
+- Partner registration forms: diagnostic center / medical laboratory / dental laboratory requests verified against the real POST endpoint.
+
+### Verification
+- The new suites are committed.
+- They have not yet been executed by a repository CI workflow; release status therefore remains **UNVERIFIED**.
