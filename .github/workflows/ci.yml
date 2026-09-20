@@ -134,7 +134,19 @@ jobs:
       - name: Run mobile design release gate
         env:
           PLAYWRIGHT_UI_URL: http://localhost:3000
-        run: npx playwright test e2e/tests/mobile-design-gate.spec.ts --project=mobile-chrome --project=mobile-safari
+        run: npx playwright test e2e/tests/mobile-design-gate.spec.ts \
+          --project=desktop-1280 \
+          --project=laptop-1440 \
+          --project=desktop-1920 \
+          --project=tablet-768 \
+          --project=tablet-820 \
+          --project=mobile-390 \
+          --project=mobile-412 \
+          --project=mobile-safari
+      - name: Run role and context design release gate
+        env:
+          PLAYWRIGHT_UI_URL: http://localhost:3000
+        run: npx playwright test e2e/tests/role-design-gate.spec.ts --project=role-desktop --project=role-mobile
       - name: Run business owner journeys
         env:
           PLAYWRIGHT_UI_URL: http://localhost:3000
