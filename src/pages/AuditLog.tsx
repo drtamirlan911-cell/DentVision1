@@ -35,7 +35,8 @@ function getActionInfo(action: string): { l: string; v: string } {
 }
 
 export default function AuditLog() {
-  const clinic = useAuth((state) => state.activeClinic || state.clinic);
+  const { activeClinic, clinic: authClinic } = useAuth();
+  const clinic = activeClinic || authClinic;
 
   const [logs, setLogs] = useState<AuditLogEntry[]>([]);
   const [loading, setLoading] = useState(true);
