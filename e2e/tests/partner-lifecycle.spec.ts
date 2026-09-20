@@ -16,7 +16,7 @@ function auth(token: string) { return { Authorization: `Bearer ${token}`, 'Conte
 test.describe('Partner operational lifecycle', () => {
   let api: APIRequestContext;
   let ownerToken = '';
-  let superadminToken = '';
+  let superadminToken = await login(api, 'superadmin@test.com');
   let doctorToken = '';
   let patientId = '';
   let doctorId = '';
