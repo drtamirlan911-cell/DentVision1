@@ -111,7 +111,7 @@ export async function generateSettlements(opts: GenerateOptions) {
           data: { referralCount: actual.length, commissionMinor: actualCommissionMinor },
         });
       }
-      const settledRefs = await tx.referral.findMany({ where: { settlementId: s.id }, select: { id: true, centerId: true, labId: true, cost: true } });
+      const settledRefs = await tx.referral.findMany({ where: { settlementId: s.id }, select: { id: true, centerId: true, labId: true, cost: true, branchId: true } });
       for (const r of settledRefs) {
         const owner = referralOwner(r); const vertical = referralPartnerVertical(r);
         if (!owner || !vertical || r.cost == null) continue;
