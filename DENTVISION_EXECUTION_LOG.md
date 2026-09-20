@@ -189,3 +189,31 @@ The complete pre-2026-09-14 execution history is preserved in the parent Git his
 ### Next action
 - Continue the remaining durable economics lifecycle checks: paid/settled medical-analysis flow, dental-lab delivered/remake/cancel/delay semantics, reconciliation and Finance Hub visibility.
 - Then complete owner/partner lifecycle matrix, role/branch negative matrix, browser/runtime audit, Android verification and production rollback evidence.
+
+
+## 2026-09-20 — Medical-analysis paid → settled lifecycle wired to Finance Core
+
+### Implemented
+- `836e1e990963e04eb21ab897aab79dbc56726afe` — payment settlement now recognizes `medical_lab_order` and routes it through the canonical `MEDICAL_ANALYSIS` partner-economics vertical.
+- `f45c06857a02590e37148078319e1a4c7c76e061` — medical-analysis settlement derives the payable amount from immutable order-test price snapshots and rejects payment amount mismatches.
+- `124275bc5d20b13b4ced332efb10fc16ff260d5d` — medical-lab order creation validates catalog test ownership and stores the price snapshot on each ordered test.
+- `f1c765b19b67368e8a88ae69fc06fc0633975c38` — added a new migration for `medical_lab_order_tests.priceMinor`; the previously applied lifecycle migration was restored rather than edited.
+- `2f25da82474c9af18d8f7080ac8e21b1b85c5541` — added regression coverage for successful medical-lab settlement and amount-tampering rejection.
+- `f9d766b10997fb91c10d1bdfd2fb96ee9b739a53` — serialized partner-economics wallet initialization with PostgreSQL advisory transaction locks to prevent first-use wallet creation races.
+
+### Lifecycle contract
+- Clinic creates a medical-lab order from existing `medical_lab_orders + medical_lab_order_tests + LaboratoryTest` data.
+- Catalog prices are snapshotted at order creation.
+- Payment creation for `medical_lab_order` is authorized against the clinic and must match the server-derived order total.
+- Atomic payment claim changes `pending → paid`; only the winner executes settlement.
+- Settlement records canonical `MEDICAL_ANALYSIS` economics using the lab as partner and the order ID as the durable operation key.
+- Existing payment transaction rollback semantics remain intact: a settlement failure rolls the payment status change back.
+
+### Verification status
+- Code and regression tests are committed.
+- Current connected GitHub status for commit `2f25da82474c9af18d8f7080ac8e21b1b85c5541` reports only Vercel = pending; no fresh full CI/E2E evidence is available yet.
+- Therefore this lifecycle remains **UNVERIFIED** until the exact HEAD receives CI/E2E evidence.
+
+### Next action
+- Continue the planned dental-lab delivered/remake/cancel/delay recognition boundary and reconciliation/Finance Hub durable surface.
+- Then execute the owner/partner lifecycle, branch/role negative matrix, browser/runtime/mobile and production rollback gates.
