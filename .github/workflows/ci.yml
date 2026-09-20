@@ -146,7 +146,7 @@ jobs:
       - name: Run role and context design release gate
         env:
           PLAYWRIGHT_UI_URL: http://localhost:3000
-        run: npx playwright test e2e/tests/role-design-gate.spec.ts --project=role-desktop --project=role-mobile
+        run: npx playwright test e2e/tests/role-design-gate.spec.ts --project=role-1280 --project=role-desktop --project=role-1920 --project=role-tablet-768 --project=role-tablet-820 --project=role-mobile --project=role-mobile-412 --project=role-mobile-safari
       - name: Run business owner journeys
         env:
           PLAYWRIGHT_UI_URL: http://localhost:3000
