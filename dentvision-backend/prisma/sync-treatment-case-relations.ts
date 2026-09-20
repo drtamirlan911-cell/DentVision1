@@ -91,10 +91,17 @@ const reverseRelations = [
   '  labOrders      LabOrder[]\n',
   '  invoices       Invoice[]\n',
 ].join('');
-if (!caseBlock.includes('  appointments   Appointment[]')) {
+const reverseNames = ['appointments', 'visits', 'treatmentPlans', 'referrals', 'labOrders', 'invoices'];
+const hasAllReverseRelations = reverseNames.every((name) => new RegExp(`^\\s*${name}\\b`, 'm').test(caseBlock));
+if (!hasAllReverseRelations) {
   const index = caseBlock.indexOf(reverseAnchor);
   if (index < 0) throw new Error('TreatmentCase patient relation not found');
-  caseBlock = `${caseBlock.slice(0, index + reverseAnchor.length)}${reverseRelations}${caseBlock.slice(index + reverseAnchor.length)}`;
+  for (const name of reverseNames) {
+    if (!new RegExp(`^\\s*${name}\\b`, 'm').test(caseBlock)) {
+      const relationLine = reverseRelations.split('\\n').find((line) => line.trim().startsWith(name + ' '));
+      if (relationLine) caseBlock = `${caseBlock.slice(0, index + reverseAnchor.length)}${relationLine}\\n${caseBlock.slice(index + reverseAnchor.length)}`;
+    }
+  }
   schema = `${schema.slice(0, caseStart)}${caseBlock}${schema.slice(caseEnd + 3)}`;
 }
 
