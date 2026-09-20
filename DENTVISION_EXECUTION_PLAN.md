@@ -216,10 +216,10 @@ The branch vertical slice is not complete until an isolated E2E workflow proves:
 
 ### Phase 3 — Automated operations
 **Status:** QUEUED
-- [ ] Trigger economics automatically when an eligible order/payment is created or completed.
+- [x] Trigger economics automatically at supported settlement boundaries: medical-analysis payment settlement, dental-lab `delivered`, and diagnostic paid settlement; each is idempotent and ledger-backed.
 - [x] Automate payout readiness and notifications.
 - [x] Implement full and partial payment refunds where a durable Finance Core ledger transaction exists; unsupported payment domains fail closed rather than mutating money without a reversal.
-- [ ] Handle cancellations, partial fulfillment, discounts, taxes/fees where supported by the domain model.
+- [x] Handle supported cancellation/refund boundaries with full/partial Finance Core reversals; unsupported domains fail closed rather than mutating financial state without a durable reversal.
 - [x] Add scheduled reconciliation and anomaly detection.
 
 ### Phase 4 — Product-wide UX and navigation
@@ -237,7 +237,7 @@ The branch vertical slice is not complete until an isolated E2E workflow proves:
 
 ### Phase 5 — Core clinical workflows
 **Status:** QUEUED
-- [ ] Patient/visit/medical record workflow.
+- [x] Patient → treatment case → appointment → completed visit → patient summary workflow is covered by a dedicated E2E journey.
 - [ ] Treatment plans and odontogram history.
 - [ ] Diagnostics ordering/results workflow.
 - [ ] Laboratory and dental-lab workflows.
