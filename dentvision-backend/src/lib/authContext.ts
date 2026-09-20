@@ -94,7 +94,7 @@ async function contextForOrganization(userId: string, organizationId: string): P
   const person = await prisma.person.findFirst({
     where: { userId, organizationId },
     include: {
-      organization: { select: { id: true, type: true, originalId: true } },
+      organization: { select: { id: true, type: true, originalId: true, name: true } },
       personRoles: { select: { scopeType: true, scopeId: true, role: { select: { key: true } } } },
     },
   });
@@ -179,7 +179,7 @@ export async function resolveAuthContext(
   const clinicPeople = await prisma.person.findMany({
     where: { userId, organization: { type: 'CLINIC' } },
     include: {
-      organization: { select: { id: true, type: true, originalId: true } },
+      organization: { select: { id: true, type: true, originalId: true, name: true } },
       personRoles: { select: { scopeType: true, scopeId: true, role: { select: { key: true } } } },
     },
     orderBy: { createdAt: 'asc' },
@@ -202,7 +202,7 @@ export async function resolveAuthContext(
   const people = await prisma.person.findMany({
     where: { userId },
     include: {
-      organization: { select: { id: true, type: true, originalId: true } },
+      organization: { select: { id: true, type: true, originalId: true, name: true } },
       personRoles: { select: { scopeType: true, scopeId: true, role: { select: { key: true } } } },
     },
     orderBy: { createdAt: 'asc' },
