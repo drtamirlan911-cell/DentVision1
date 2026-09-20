@@ -125,18 +125,22 @@ async function inspectVisualSemantics(page: Page, role: Role, route: string) {
     const suspicious = Array.from(document.querySelectorAll('[class*="truncate"],[class*="line-clamp"],[class*="ellipsis"]')).filter(visible)
       .map(el => ({text:text(el), rect:(el as HTMLElement).getBoundingClientRect().toJSON()}))
       .filter(x => x.text.length > 0);
+    const duplicateLabels = Array.from(document.querySelectorAll('button,a,[role="button"],label')).filter(visible).map(text).filter(Boolean);
+    const duplicates = duplicateLabels.filter((v,i,a)=>a.indexOf(v)!==i).slice(0,20);
     return {
       headings,
       iconOnly: iconOnly.length,
       suspicious,
       viewport: {w:innerWidth,h:innerHeight},
       visibleTextLength: text(document.body).length,
-      fixedOverlays: Array.from(document.querySelectorAll('[class*="fixed"],[class*="sticky"]')).filter(visible).length
+      fixedOverlays: Array.from(document.querySelectorAll('[class*="fixed"],[class*="sticky"]')).filter(visible).length,
+      duplicates
     };
   });
   expect(result.visibleTextLength, role.id + ' ' + route + ': screen is effectively empty').toBeGreaterThan(20);
   expect(result.iconOnly, role.id + ' ' + route + ': unexplained icon-only controls').toBe(0);
   expect(result.headings.length, role.id + ' ' + route + ': no visible information hierarchy').toBeGreaterThan(0);
+  expect(result.duplicates.filter(x => x.length > 2), role.id + ' ' + route + ': suspicious duplicate control labels').toEqual([]);
 }
 
 async function inspectDialogsAndMenus(page: Page, role: Role, route: string) {
