@@ -37,9 +37,9 @@ export const paymentsRouter = Router();
 async function medicalLabOrderAmountMinor(
   orderId: string,
   db: Prisma.TransactionClient | typeof prisma = prisma,
-): Promise<{ clinicId: string; labId: string; amountMinor: bigint } | null> {
+): Promise<{ clinicId: string; labId: string; amountMinor: bigint; branchId: string | null } | null> {
   const orders = await db.$queryRawUnsafe<Array<{ clinicId: string; labId: string | null }>>(
-    `SELECT \"clinicId\", \"labId\" FROM \"medical_lab_orders\" WHERE \"id\"=$1 LIMIT 1`,
+    `SELECT \"clinicId\", \"labId\", (SELECT \"branchId\" FROM \"patients\" p WHERE p.\"id\"=o.\"patientId\") AS \"branchId\" FROM \"medical_lab_orders\" o WHERE o.\"id\"=$1 LIMIT 1`,
     orderId,
   );
   const order = orders[0];
@@ -50,7 +50,7 @@ async function medicalLabOrderAmountMinor(
   );
   let amountMinor = 0n;
   for (const row of rows) amountMinor += row.priceMinor != null ? BigInt(row.priceMinor) : tengeToMinor(Number(row.price ?? 0) || 0);
-  return { clinicId: order.clinicId, labId: order.labId, amountMinor };
+  return { clinicId: order.clinicId, labId: order.labId, amountMinor, branchId: order.branchId };
 }
 
 async function settleMedicalLabOrderPayment(
@@ -69,6 +69,7 @@ async function settleMedicalLabOrderPayment(
     partnerId: order.labId,
     grossMinor: order.amountMinor,
     operationId: payment.refId,
+    branchId: order.branchId,
   }, db);
   return true;
 }
