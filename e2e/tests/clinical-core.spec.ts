@@ -75,7 +75,7 @@ test.describe('Core clinical workflow', () => {
 
     const caseRead = await request.get(`${BASE}/api/crm/cases/${caseId}`, { headers: headers(owner) });
     expect(caseRead.status()).toBe(200);
-    expect((await caseRead.json()).data.case.id).toBe(caseId);
+    expect((await caseRead.json()).data.id).toBe(caseId);
   });
 
   test('CLIN-002: patient medical-data audit is readable for the patient scope', async ({ request }) => {
