@@ -417,3 +417,13 @@ Next action: wire the existing branch-management API into the canonical Owner Se
 
 ### Next action
 - Execute the full business-owner E2E matrix and repair failures from actual evidence. Then verify Finance Hub reconciliation/transparency against settled Diagnostic 3D, Medical Analysis and Dental Lab operations before marking lifecycle items complete.
+
+
+## 2026-09-20 — Finance Hub durable transparency/dashboard block
+
+- `ab9ddc36f1aafd3c9c8df9ae781d9e34480bb354` — added durable partner-economics dashboard aggregation by vertical with gross, commission, partner payout, costs, contribution margin and margin bps.
+- `4f69c0c3b36fa73400d34c3dfcdb71fe6c2812fb` — exposed `GET /finance/partner-economics/dashboard`, backed by immutable transaction metadata/transparency rows and existing branch/partner/date filters.
+- `e85a3dd112acbd4e85b387b4b3e1a4859d644844` — regression coverage for discrepancy, low-margin and loss alerts.
+- `5dbf754ee110ae62cdbb27f32f3da4f19fa7ff9e` — execution plan updated for the durable transparency/alert aggregation controls.
+
+Verification remains UNVERIFIED until the current HEAD passes the actual CI/E2E matrix. Remaining plan items include accepted→paid→settled concurrency tests, historical-rule verification at the ledger boundary, payout automation, refunds/cancellations/partial fulfillment where supported, scheduled reconciliation, full partner-type business-owner E2E, UI workflow audit, Android release verification, and production-readiness evidence.
