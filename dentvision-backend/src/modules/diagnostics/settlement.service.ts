@@ -70,7 +70,7 @@ export async function generateSettlements(opts: GenerateOptions) {
   const { periodStart, periodEnd } = opts;
   const refs = await prisma.referral.findMany({
     where: { paid: true, settlementId: null, paidAt: { gte: periodStart, lt: periodEnd } },
-    select: { id: true, centerId: true, labId: true, cost: true, platformFee: true },
+    select: { id: true, centerId: true, labId: true, cost: true, platformFee: true, branchId: true },
   });
   const groups = new Map<string, { ownerType: SettlementOwnerType; ownerId: string; ids: string[]; refs: { platformFee: unknown }[] }>();
   for (const r of refs) {
@@ -102,7 +102,7 @@ export async function generateSettlements(opts: GenerateOptions) {
         // never from the mutable legacy platformFee field.
         const actual = await tx.referral.findMany({
           where: { settlementId: s.id },
-          select: { id: true, centerId: true, labId: true, cost: true },
+          select: { id: true, centerId: true, labId: true, cost: true, branchId: true },
         });
         let actualCommissionMinor = 0n;
         for (const r of actual) actualCommissionMinor += await canonicalReferralCommissionMinor(r, tx);
@@ -115,7 +115,7 @@ export async function generateSettlements(opts: GenerateOptions) {
       for (const r of settledRefs) {
         const owner = referralOwner(r); const vertical = referralPartnerVertical(r);
         if (!owner || !vertical || r.cost == null) continue;
-        await recordPartnerEconomics({ vertical, partnerId: owner.ownerId, grossMinor: tengeToMinor(Number(r.cost) || 0), operationId: r.id }, tx);
+        await recordPartnerEconomics({ vertical, partnerId: owner.ownerId, grossMinor: tengeToMinor(Number(r.cost) || 0), operationId: r.id, branchId: r.branchId }, tx);
       }
       return currentSettlement;
     });
