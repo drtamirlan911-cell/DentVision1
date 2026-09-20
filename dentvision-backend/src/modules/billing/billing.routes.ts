@@ -119,6 +119,16 @@ billingRouter.get('/invoices/:id', requirePermission('finance.manage'), async (r
   }
 });
 
+async function consumePatientPrepaymentTx(tx: Prisma.TransactionClient, clinicId: string, patientId: string, amount: number) {
+  if (!Number.isFinite(amount) || amount <= 0) return 0;
+  const patient = await tx.patient.findFirst({ where: { id: patientId, clinicId, deletedAt: null } });
+  if (!patient || patient.prepaidBalance <= 0) return 0;
+  const applied = Math.min(amount, patient.prepaidBalance);
+  if (applied <= 0) return 0;
+  await tx.patient.update({ where: { id: patientId }, data: { prepaidBalance: { decrement: applied } } });
+  return applied;
+}
+
 billingRouter.post('/invoices/:id/pay', requirePermission('finance.manage'), async (req: AuthRequest, res) => {
   try {
     const { id } = req.params as { id: string };
@@ -139,7 +149,10 @@ billingRouter.post('/invoices/:id/pay', requirePermission('finance.manage'), asy
       if (!current || current.clinicId !== clinicId) throw new Error('Invoice not found');
       const outstanding = Math.max(0, current.amount - current.paidAmount);
       if (outstanding <= 0 || current.status === 'paid') throw new Error('Invoice is already paid');
-      const paymentAmount = Math.min(requestedAmount ?? outstanding, outstanding);
+      const requestedPayment = requestedAmount ?? outstanding;
+      const prepaymentApplied = await consumePatientPrepaymentTx(tx, clinicId, current.patientId, requestedPayment);
+      const paymentAmount = Math.min(requestedPayment, outstanding);
+      const cashPaymentAmount = Math.max(0, paymentAmount - prepaymentApplied);
       const newPaidAmount = current.paidAmount + paymentAmount;
       const nextStatus = newPaidAmount >= current.amount ? 'paid' : 'partial';
       const updated = await tx.invoice.update({
@@ -150,9 +163,9 @@ billingRouter.post('/invoices/:id/pay', requirePermission('finance.manage'), asy
           paidAt: nextStatus === 'paid' ? new Date() : null,
         },
       });
-      await recordClinicalPaymentTx({
+      if (cashPaymentAmount > 0) await recordClinicalPaymentTx({
         clinicId,
-        amountMinor: tengeToMinor(paymentAmount),
+        amountMinor: tengeToMinor(cashPaymentAmount),
         refId: `invoice:${updated.id}:payment:${uid()}`,
         paymentMethod,
         db: tx,
@@ -164,7 +177,7 @@ billingRouter.post('/invoices/:id/pay', requirePermission('finance.manage'), asy
       action: invoice.status === 'partial' ? 'invoice.payment_partial' : 'invoice.paid',
       entity: 'invoice',
       entityId: invoice.id,
-      details: { amount: invoice.amount, paidAmount: invoice.paidAmount, paymentMethod, ledger: 'clinical_payment' },
+      details: { amount: invoice.amount, paidAmount: invoice.paidAmount, paymentMethod, prepaymentApplied: Math.min(requestedAmount ?? invoice.amount, invoice.paidAmount), ledger: 'clinical_payment' },
     });
     return res.json({ ok: true, data: invoice });
   } catch (error: any) {
