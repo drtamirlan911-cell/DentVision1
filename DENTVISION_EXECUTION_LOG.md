@@ -714,3 +714,21 @@ The design gate is no longer a single-role/mobile check. It treats role, identit
 
 ### Next action
 Run the new CI gates against the exact main tip, inspect every failed role/device case, fix real defects, and rerun until the release matrix is green. Do not weaken assertions to make the gate pass.
+
+
+## 2026-09-20 — Patient role/context hardening
+
+### Implemented
+- `6e5b6c81e73e32d3a58c9e1ad87ca4fd0474164c` — added PATIENT to the canonical Prisma UserRole enum.
+- `8b8905e6f2fe4c5895ced80d94501f27fdce87c1` — added a narrow patient IAM permission baseline: profile self-service plus marketplace/academy/diagnostics discovery; no clinic CRM, billing, inventory, lab or staff permissions.
+- `9fab7426ca5cf1c4a85b44af343fa75b34e52271` / `32bf2e3c852511b9d188d617cf0769d6839fb8ad` — added a deterministic demo patient account and linked it to a real seeded Patient row without making the patient a ClinicMember.
+- `1dd3b77973b7750f48b90b99e85cef0ea5919b23` — added the Пациент frontend identity/navigation context.
+- `19f96dc4948685a9684c11d3cd30a6131b40737a` — patient authentication now lands in the patient portal instead of the clinic AI workspace.
+- `94b10586d9d45edeb26561d8b9ea984b6459fcf6` / `fe92c07441c8216d1ea7d74dadb3ec31c1e32ea7` — extended the role/context design gate with patient portal, consent-gate, visible patient sections and negative privileged-route checks.
+- `e69d7ba99570737179e26e8e2a691a48bd600f83` — synchronized the master execution plan with the patient experience release matrix.
+
+### Verification status
+Implementation is committed. Fresh CI execution is still required; no patient role/device gate is marked PASS until the current main tip produces actual browser and CI evidence.
+
+### Next action
+Run the complete role/context matrix across responsive devices, inspect every failure, and then continue the same treatment for diagnostic-center, medical-laboratory and dental-laboratory owner/employee organization contexts using their canonical Organization/Person role model rather than inventing clinic UserRole values.
