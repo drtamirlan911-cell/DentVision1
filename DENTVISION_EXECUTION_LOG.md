@@ -339,3 +339,24 @@ Verification: **UNVERIFIED** — no CI result is exposed for this direct main co
 Commits: e77170dcc86536810a00f962640c168ba4a7a7dd, 396655ffc49acccf14927c9b98e25fd3aade8882
 
 Next action: wire the existing branch-management API into the canonical Owner Settings/Organization entry point if missing, then add the required isolated E2E and negative matrix for all three partner types.
+## 2026-09-20 — Owner organization/branch management entry point wired
+
+### Implemented
+- `c8f0656b8764dc6f7ed6642ed98fdaa642380a2c` — connected the frontend API client to the canonical organization profile, verification, branch CRUD/default/member assignment and organization-invitation endpoints; branch context switching now sends the selected `branchId` to the existing IAM context endpoint.
+- `5c659a80cda9f1fe6f30b23c21464a675518dcee` — added the real Owner Settings → Organization workspace using the existing Settings surface. It loads persisted organization/branch state, creates/edits/archives branches, changes the default branch, switches operational context, assigns/unassigns organization staff and creates/list invitations.
+- `a9bdab5926dbba9fccb79144505ce694827d7a09` — exposed the new workspace as the canonical Organization tab in Settings and kept it restricted to management roles.
+- `855d79d12f81bd313adf632e8aa9b0823a770627` — branch member reads now return the linked platform `userId`, allowing the existing unassignment endpoint to target the same user without a parallel membership model.
+- `059450c7f859227b298b48a2125e68c298228ce2` — added regression assertions for branch-member identity and the single-active-default archive constraint.
+- `8da73d1132f09687698ae2c556e482e047efd7d2` — made one-time organization invitation consumption race-safe with a conditional durable claim.
+- `15de91d7e4047b124d96a8a1caf0a7cfa1319ca1` and `404e07ee9048b659b5b15153e071cf6ae3db61ae` — updated invitation tests for the conditional claim and concurrent claim-loss behavior.
+
+### Verification status
+- Latest main HEAD: `404e07ee9048b659b5b15153e071cf6ae3db61ae`.
+- Connected GitHub workflow surface reports **no workflow runs** for this exact commit.
+- Combined status currently exposes **Vercel = pending** only.
+- Therefore this block is **UNVERIFIED**. No release pass is claimed.
+
+### Next action
+- Verify the Vercel build and backend test/build gates from the exact HEAD.
+- Add isolated E2E for owner registration → organization verification → first login → branch create/edit/switch/assignment/archive, plus cross-branch/cross-tenant denial.
+- Complete the three partner-type lifecycle matrices and durable Partner Economics dashboard verification before marking Phase 2 complete.
