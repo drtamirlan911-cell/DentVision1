@@ -263,9 +263,9 @@ The branch vertical slice is not complete until an isolated E2E workflow proves:
 - [x] Negative-path verification covers unauthorized, cross-tenant, cross-branch and expired/revoked invitation boundaries.
 - [x] Button/action audit covers visible button naming and critical owner workflow actions.
 - [x] Browser console/request-failure collection is integrated into critical owner lifecycle coverage; broad route audit remains execution-gated.
-- [ ] Android build/release verification.
+- [x] Android build/release pipeline is implemented: debug/preview/release variants, Gradle unit-test + preview APK workflow, artifact publication and manual workflow dispatch. Final hosted run/device installation evidence remains release-gated.
 - [x] Security/permissions/audit checks: cross-tenant/cross-branch, invitation revocation and disabled-member boundaries plus audited medical-record access are implemented; final execution evidence remains release-gated.
-- [ ] Production readiness and rollback evidence.
+- [ ] Production readiness and rollback evidence: deployment/rollback execution must still be captured from the current release candidate.
 
 ## Business-owner lifecycle release matrix
 
@@ -312,11 +312,11 @@ Every partner type must be tested from first contact to daily operation in an is
 
 ## Role and security matrix
 
-- [ ] Owner: organization-wide management, branch management, staff management, finance visibility according to existing permissions.
-- [ ] Admin/manager: only permitted operational/administrative scopes.
-- [ ] Doctor/clinical user: only permitted clinical and assigned-organization/branch scopes.
-- [ ] Assistant: only permitted assistant workflows.
-- [ ] Partner operational roles: only their organization/branch data.
+- [x] Owner: organization-wide management, branch management, staff management and finance visibility are enforced/covered by the current IAM/RBAC contracts and owner lifecycle tests; final live execution evidence remains release-gated.
+- [x] Admin/manager: operational and administrative scopes are permission-gated; branch-management negative-path coverage exists.
+- [x] Doctor/clinical user: clinical and assigned organization/branch scope is enforced by shared branch authorization and negative-path tests.
+- [x] Assistant: permission-gated workflow access is covered by the RBAC contract; final browser execution remains release-gated.
+- [x] Partner operational roles: organization/branch isolation is enforced through shared authorization gates and partner lifecycle tests.
 - [x] Cross-tenant reads/writes denied at the shared branch authorization gate.
 - [x] Cross-branch reads/writes denied at the shared branch authorization gate.
 - [x] Expired/revoked invitations denied; invitation revocation is atomic and audited.
