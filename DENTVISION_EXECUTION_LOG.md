@@ -755,3 +755,9 @@ Implementation is committed. The latest commit is awaiting GitHub Actions indexi
 
 ### Next action
 Run the exact current main-tip CI role/device matrix. Treat every failed role/device/context combination as a real defect, fix it in source, and rerun until the gate is green. Then continue with the remaining partner registration → organization → branch → staff → permissions lifecycle evidence and final production/rollback gates.
+
+
+### Follow-up context identity fix
+- `b546c0110a078af55ebe015f4b2cca42807673ba` / `49598ebeaca53ef957f63a6570743d98bbcad022` — scoped auth context now carries the partner organization name.
+- `e52bc2eb56c300bad99f2e9dd4f4fd90b2c90737` / `adedafaf29b76ae046c5c43af1348be0e1822097` / `97cbbdd0a9b90dedf972440eac870fd242518114` — login/session hydration and frontend user typing preserve the organization name so partner greetings/context cards cannot fall back to a generic personal context.
+- Latest verification remains pending fresh CI execution; no new role/device result is marked PASS before the gate runs.
