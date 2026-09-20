@@ -241,8 +241,8 @@ The branch vertical slice is not complete until an isolated E2E workflow proves:
 - [x] Treatment plans and odontogram persistence/history contract: treatment-plan CRUD/status/tenant tests plus tooth 16 status/surface round-trip through the canonical patient write/read model.
 - [x] Diagnostics ordering/results workflow is covered by the partner lifecycle and referral/result E2E/API journeys.
 - [x] Laboratory and dental-lab lifecycle workflows are covered by canonical transition and delivery/remake/delay tests.
-- [ ] Notifications, reminders, waitlist, debts/prepayments/installments.
-- [ ] Audit trail and medical-data safety controls.
+- [x] Notifications/reminders: preference-aware in-app/channel dispatch, reminder cron/manual endpoint and reminder idempotency are implemented; waitlist is persisted in the canonical WaitingList model. [ ] Debt/prepayment/installment end-to-end release evidence remains.
+- [x] Audit trail and medical-data safety controls: compliance routes, medical-file access logging, consent/version enforcement, AI action confirmation and security dashboard are implemented. [ ] Final browser/security execution evidence remains.
 
 ### Phase 6 — Ecosystem modules
 **Status:** QUEUED
@@ -251,7 +251,7 @@ The branch vertical slice is not complete until an isolated E2E workflow proves:
 - [x] Jobs/community routes and screens are present; workflow coverage remains release-gated where no canonical seeded mutation contract exists.
 - [x] Finance Hub durable partner economics dashboard, reconciliation and transparency workflows are covered.
 - [x] Partner onboarding registration forms and owner/organization lifecycle are covered by browser/API workflows.
-- [ ] AI domain modules and orchestration.
+- [x] AI domain modules and orchestration: role agents, persona routing, context/data scope, permission-gated tools, confirmation-gated mutations, verification/merge lifecycle and deterministic fallback are implemented. [ ] Final live-provider/browser execution evidence remains.
 
 ### Phase 7 — Release hardening
 **Status:** IN PROGRESS
