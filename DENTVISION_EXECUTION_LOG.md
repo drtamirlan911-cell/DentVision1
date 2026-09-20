@@ -656,3 +656,18 @@ No unexecuted test is marked as passed.
 
 ### Release gate
 Current main-tip execution is still not marked PASS until CI/browser execution produces fresh evidence.
+
+
+## 2026-09-20 — Security matrix + current release execution gate
+
+### Implemented
+- `0384cc71e2ae0fee35bf87bd25bd0c0b51fb2f5b` — AI security regression coverage for supplier isolation and unresolved clinic scope.
+- `c615a0f5a80d9cb510633bd965537fc86d99e1ce` / `20906f4900e868d974cbd7deb6e59f169b65b94a` / `37847ed385f1728ebaf8b4092b1d70115202858e` — production PHI encryption fail-closed guard and regression test.
+- `a70e9289f6eed6f0cee6c769f190014c9cde8596` / `6d4d4a4f381fbcd13e2821c085fdf4cf05d4c05f` / `eac36b5b02306d5f9ca94ab1f705dd3bbfe10990` / `a7322fbcb0e7f3961eea389b341e09e845c25c4b` — durable billing prepayment consumption and idempotent invoice/prepayment reversals.
+- `94de0df669f714afcc8c8e05dbd74498e5215d68` / `f767d9685a6e62760e53040a0a947188657c8eb7` / `a4e4ad3eca3dcf268c53e7a67c4f93a5afbb677b` — canonical navigation/design-system contract and duplicate sidebar collapse.
+
+### Verification
+The repository contains the required CI, Playwright, Android and security suites, but current direct-main changes still require fresh execution evidence. No unexecuted suite is marked PASS.
+
+### Next action
+Run the current main-tip release matrix against an isolated environment; then resolve only actual failures before production/rollback sign-off.
