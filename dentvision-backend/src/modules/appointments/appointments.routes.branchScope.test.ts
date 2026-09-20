@@ -14,6 +14,7 @@ describe('appointment branch isolation contract', () => {
   it('scopes appointment listing and conflict queries', () => {
     expect(source).toContain("const where: Record<string, unknown> = { clinicId, ...branchScope(req) }");
     expect(source).toContain("where: { clinicId, ...branchScope(req), date:");
+    expect(source).toContain("where: { id: req.params.id as string, clinicId, ...branchScope(req) }");
   });
 
   it('scopes create, update, close, status and cancel by branch', () => {
