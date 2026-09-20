@@ -31,7 +31,12 @@ const MARKER = 'ENC:';
 
 export function encryptField(plain: string | null): string | null {
   if (plain == null) return null;
-  if (!canEncrypt()) return plain;
+  if (!canEncrypt()) {
+    if (process.env.NODE_ENV === 'production') {
+      throw new Error('[phi] Encryption unavailable in production');
+    }
+    return plain;
+  }
   const cipher = rawEncrypt(plain);
   return `${MARKER}${cipher}`;
 }
