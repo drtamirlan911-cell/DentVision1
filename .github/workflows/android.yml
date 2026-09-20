@@ -78,3 +78,5 @@ jobs:
           name: android-test-reports
           path: android/app/build/reports/tests/
           if-no-files-found: ignore
+
+# Release verification trigger: keep the manual APK gate executable from main when web-only changes need hosted Android evidence.
