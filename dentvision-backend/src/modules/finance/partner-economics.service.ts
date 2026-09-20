@@ -115,6 +115,12 @@ export async function recordPartnerEconomics(input: PartnerEconomicsInput & { op
     costs: { payment: breakdown.paymentCostMinor.toString(), ai: breakdown.aiCostMinor.toString(), storage: breakdown.storageCostMinor.toString(), support: breakdown.supportCostMinor.toString(), refundReserve: breakdown.refundReserveMinor.toString(), tax: breakdown.taxMinor.toString() },
   } satisfies Prisma.InputJsonValue;
   try {
+    // Serialize wallet initialization/update for each owner. The wallet unique
+    // key is a three-column key and the read→create sequence otherwise races
+    // when the first two operations for a partner arrive concurrently.
+    await db.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${'dentvision.partner-wallet:GATEWAY:system:KZT'}))`;
+    await db.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`dentvision.partner-wallet:PARTNER:${input.partnerId}:KZT`}))`;
+    await db.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${'dentvision.partner-wallet:PLATFORM:system:KZT'}))`;
     const gateway = await db.wallet.findUnique({ where: { ownerType_ownerId_currency: { ownerType: 'GATEWAY', ownerId: 'system', currency: 'KZT' } } })
       ?? await db.wallet.create({ data: { ownerType: 'GATEWAY', ownerId: 'system', currency: 'KZT' } });
     const partner = await db.wallet.findUnique({ where: { ownerType_ownerId_currency: { ownerType: 'PARTNER', ownerId: input.partnerId, currency: 'KZT' } } })
