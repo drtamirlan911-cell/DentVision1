@@ -46,9 +46,9 @@ Evidence recorded in `CURRENT_STATE.md` and `DENTVISION_EXECUTION_LOG.md`.
 - [x] Add referral lifecycle/concurrency protection for canonical economics reconciliation.
 - [x] Connect Partner Economics data to the existing Finance Hub Platform view.
 - [ ] Complete accepted → paid → settled integration/concurrency tests with immutable rule/version verification at the durable ledger boundary.
-- [ ] Wire the real medical-analysis paid/settled operational lifecycle using the existing `Referral + Laboratory + LaboratoryTest + Payment` domain; do not create a duplicate order model.
-- [ ] Complete the ledger/reconciliation surface and connect Finance Hub to the durable economics transactions end-to-end.
-- [ ] Keep dental-lab recognition at the existing `delivered` boundary until a real paid/settled callback exists.
+- [x] Wire the real medical-analysis paid/settled operational lifecycle using the existing `Referral + Laboratory + LaboratoryTest + Payment` domain; do not create a duplicate order model.
+- [x] Complete the ledger/reconciliation surface and connect Finance Hub to the durable economics transactions end-to-end.
+- [x] Keep dental-lab recognition at the existing `delivered` boundary until a real paid/settled callback exists.
 
 ### Phase 2 — Partner onboarding, transparency and Finance Hub
 **Status:** IN PROGRESS
