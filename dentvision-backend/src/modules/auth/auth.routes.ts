@@ -202,10 +202,12 @@ authRouter.post('/refresh', async (req, res) => {
     // back to the global User.role or another workspace.
     const requestedOrganizationId = typeof payload.organizationId === 'string' ? payload.organizationId : undefined;
     const requestedClinicId = typeof payload.clinicId === 'string' ? payload.clinicId : undefined;
+    const requestedBranchId = typeof (payload as any).branchId === 'string' ? (payload as any).branchId : undefined;
     const hadScopedContext = Boolean(requestedOrganizationId || requestedClinicId);
     const authContext = await resolveAuthContext(user.id, {
       organizationId: requestedOrganizationId,
       clinicId: requestedClinicId,
+      branchId: requestedBranchId,
     });
     if (hadScopedContext && !authContext.organizationId && !authContext.clinicId) {
       return res.status(401).json({ ok: false, error: 'Контекст организации больше недействителен' });
