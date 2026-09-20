@@ -6,12 +6,12 @@ describe('branch route authorization contract', () => {
   const source = readFileSync(resolve(process.cwd(), 'dentvision-backend/src/modules/branches/branches.routes.ts'), 'utf8');
   it('uses organization-aware branch persistence fields', () => {
     expect(source).toContain('organization_id'); expect(source).toContain('clinic_id'); expect(source).toContain('organizationId');
-    it('uses every universal branch assignment instead of only the first branch', () => {
+  });
+  it('uses every universal branch assignment instead of only the first branch', () => {
     expect(source).toContain('req.user?.branchIds ?? []');
     expect(source).toContain('ANY');
     expect(source).not.toContain('branchIds ?? [])[0]');
   });
-});
   it('routes mutations through the shared branch authorization layer', () => {
     expect(source).toContain("from '../../lib/branchAuthorization.js'");
     expect(source).toContain('authorizeMemberBranch'); expect(source).toContain('mutation = false');
