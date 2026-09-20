@@ -206,6 +206,15 @@ describe('acceptInvitation', () => {
     expect(invitationUpdate).not.toHaveBeenCalled();
   });
 
+  it('returns conflict when the one-time claim loses a concurrent race', async () => {
+    arrangeInvite();
+    centerFindFirst.mockResolvedValue(null);
+    invitationUpdateMany.mockResolvedValue({ count: 0 });
+
+    await expect(acceptInvitation('ABCD1234', { id: 'u1' })).rejects.toMatchObject({ status: 409 });
+    expect(grantDiagnosticsAccess).toHaveBeenCalledTimes(1);
+  });
+
   it('surfaces the validation status for a spent code', async () => {
     arrangeInvite({ usedAt: new Date('2026-08-09T00:00:00Z') });
 
