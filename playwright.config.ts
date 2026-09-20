@@ -62,6 +62,36 @@ export default defineConfig({
       use: { ...devices['Pixel 7'], browserName: 'chromium', viewport: { width: 390, height: 844 } },
       testMatch: /role-design-gate\.spec\.ts/,
     },
+    {
+      name: 'role-1280',
+      use: { browserName: 'chromium', viewport: { width: 1280, height: 720 } },
+      testMatch: /role-design-gate\.spec\.ts/,
+    },
+    {
+      name: 'role-1920',
+      use: { browserName: 'chromium', viewport: { width: 1920, height: 1080 } },
+      testMatch: /role-design-gate\.spec\.ts/,
+    },
+    {
+      name: 'role-tablet-768',
+      use: { browserName: 'chromium', viewport: { width: 768, height: 1024 }, isMobile: true },
+      testMatch: /role-design-gate\.spec\.ts/,
+    },
+    {
+      name: 'role-tablet-820',
+      use: { browserName: 'chromium', viewport: { width: 820, height: 1180 }, isMobile: true },
+      testMatch: /role-design-gate\.spec\.ts/,
+    },
+    {
+      name: 'role-mobile-412',
+      use: { browserName: 'chromium', viewport: { width: 412, height: 915 }, isMobile: true },
+      testMatch: /role-design-gate\.spec\.ts/,
+    },
+    {
+      name: 'role-mobile-safari',
+      use: { ...devices['iPhone 14'], browserName: 'webkit' },
+      testMatch: /role-design-gate\.spec\.ts/,
+    },
   ],
   reporter: [
     ['html', { open: 'never' }],
