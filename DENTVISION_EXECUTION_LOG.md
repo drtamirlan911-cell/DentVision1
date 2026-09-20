@@ -400,3 +400,20 @@ Next action: wire the existing branch-management API into the canonical Owner Se
 
 ### Next action
 - Run the actual isolated business-owner lifecycle for Diagnostic Center, Medical Laboratory and Dental Laboratory, then close the remaining Finance Hub transparency/economics verification gaps. Do not mark those lifecycle items complete without test evidence.
+
+
+## 2026-09-20 — Partner operational lifecycle contracts and economics matrix
+
+### Implemented
+- `6fc22e8b815b0c1411ef1636c9ad8ea146fd43f9` — Dental Laboratory now enforces a canonical status transition graph; direct invalid jumps are rejected while same-status updates remain idempotent. The graph preserves remake/delay/cancel semantics and only the existing `delivered` transition can trigger settlement.
+- `691060e49ff17e2ac40d7fd17b289a9288f7fbb0` — regression coverage for the complete dental-lab production path, remake, delayed, cancelled and idempotent transitions.
+- `a85b0b3e9424076604ace70a8ce6098de927017b` — Medical Laboratory exposes the canonical lifecycle validator and rejects invalid status jumps.
+- `b3852c71d87440422412196983d866b5d3ff0ca4` — regression coverage for draft → ordered → specimen collected → received → processing → result ready → verified, cancellation boundaries and reprocessing.
+- `2325a1071d6d45689669bde4a5a6a4d5af6de582` — partner economics contract matrix covers all three operational verticals, gross/payout/commission conservation, cost-to-margin behavior and historical economics rule versions.
+
+### Verification
+- These are source-level lifecycle/economics regression contracts. They have not yet been executed in CI against the current HEAD.
+- Business-owner E2E remains open: registration → onboarding → branch/staff → operational workflow → settlement → Finance Hub must still be run for each partner type.
+
+### Next action
+- Execute the full business-owner E2E matrix and repair failures from actual evidence. Then verify Finance Hub reconciliation/transparency against settled Diagnostic 3D, Medical Analysis and Dental Lab operations before marking lifecycle items complete.
