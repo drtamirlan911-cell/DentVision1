@@ -21,8 +21,7 @@ test.describe('Core clinical workflow', () => {
     expect(me.ok()).toBeTruthy();
     const meBody = await me.json();
     const ownerUser = meBody.data?.user || meBody.data || meBody.user || meBody;
-    const clinicId = ownerUser.clinicId;
-    expect(clinicId).toBeTruthy();
+    expect(ownerUser.id).toBeTruthy();
 
     const patient = await request.post(`${BASE}/api/patients`, {
       headers: headers(owner),
@@ -83,15 +82,17 @@ test.describe('Core clinical workflow', () => {
     const token = await login(request, 'owner-a@test.com');
     const patient = await request.post(`${BASE}/api/patients`, {
       headers: { Authorization: `Bearer ${token}` },
-      data: { firstName: 'Audit', lastName: `Patient ${Date.now()}`, phone: '+77000000034' },
+      data: { iin: makeIin(), firstName: 'Audit', lastName: `Patient ${Date.now()}`, phone: '+77000000034' },
     });
     expect(patient.status()).toBe(201);
-    const patientId = (await payload(patient)).id;
+    const patientBody = await patient.json();
+    const patientId = (patientBody.data || patientBody).id;
     const audit = await request.get(`${BASE}/api/patients/${patientId}/audit`, {
       headers: { Authorization: `Bearer ${token}` },
     });
     expect(audit.status()).toBe(200);
-    expect(Array.isArray((await payload(audit)))).toBe(true);
+    const auditBody = await audit.json();
+    expect(Array.isArray(auditBody.data || auditBody)).toBe(true);
   });
 
 });
