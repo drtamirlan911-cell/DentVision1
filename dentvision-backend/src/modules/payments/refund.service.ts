@@ -113,13 +113,16 @@ export async function refundPayment(
         direction: entry.direction === 'debit' ? 'credit' : 'debit',
         amount: (entry.amount * allocation) / original.amount,
       }));
-      const mappedTotal = mapped.reduce((sum, entry) => sum + entry.amount, 0n);
-      const adjustment = allocation - mappedTotal;
-      const lastPositive = [...mapped].reverse().findIndex((entry) => entry.amount > 0n);
-      if (lastPositive < 0 || adjustment < 0n) {
-        throw new PaymentRefundError('INVALID_AMOUNT', 'Сумма возврата не может быть пропорционально отражена в исходном ledger');
+      for (const direction of ['debit', 'credit'] as const) {
+        const directionEntries = mapped.filter((entry) => entry.direction === direction);
+        const directionTotal = directionEntries.reduce((sum, entry) => sum + entry.amount, 0n);
+        const adjustment = allocation - directionTotal;
+        const lastPositive = [...mapped].reverse().findIndex((entry) => entry.direction === direction && entry.amount > 0n);
+        if (lastPositive < 0 || adjustment < 0n) {
+          throw new PaymentRefundError('INVALID_AMOUNT', 'Сумма возврата не может быть пропорционально отражена в исходном ledger');
+        }
+        mapped[mapped.length - 1 - lastPositive].amount += adjustment;
       }
-      mapped[mapped.length - 1 - lastPositive].amount += adjustment;
       rawRefundEntries.push(...mapped.filter((entry) => entry.amount > 0n));
       left -= allocation;
     }
@@ -139,7 +142,7 @@ export async function refundPayment(
     const reversedTotal = refundEntries.reduce((sum, entry) => sum + entry.amount, 0n);
     const debitTotal = refundEntries.filter((entry) => entry.direction === 'debit').reduce((sum, entry) => sum + entry.amount, 0n);
     const creditTotal = refundEntries.filter((entry) => entry.direction === 'credit').reduce((sum, entry) => sum + entry.amount, 0n);
-    if (reversedTotal !== requested || debitTotal !== creditTotal) {
+    if (debitTotal !== requested || creditTotal !== requested || debitTotal !== creditTotal) {
       throw new PaymentRefundError('INVALID_AMOUNT', 'Возврат не сохраняет баланс двойной записи');
     }
 
