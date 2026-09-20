@@ -25,14 +25,24 @@ medicalRouter.use(loadClinicAccess);
 medicalRouter.use(blockClinicWrites);
 
 /** Verifies that the patient belongs to the current user's clinic. Returns 403 if not. */
+function patientBranchScope(req: AuthRequest): Record<string, unknown> {
+  const role = String(req.user?.role || '').toUpperCase();
+  if (['SUPERADMIN', 'OWNER', 'ADMIN'].includes(role)) return {};
+  const branchIds = (req.user?.branchIds ?? []).filter(Boolean);
+  return branchIds.length > 0 ? { branchId: { in: branchIds } } : { branchId: '__NO_BRANCH_ACCESS__' };
+}
+
 async function requirePatientAccess(req: AuthRequest, res: any, patientId: string): Promise<boolean> {
   const clinicId = req.user!.clinicId;
   if (!clinicId) {
     res.status(400).json({ ok: false, error: 'Выберите клинику' });
     return false;
   }
-  const patient = await prisma.patient.findUnique({ where: { id: patientId }, select: { clinicId: true } });
-  if (!patient || patient.clinicId !== clinicId) {
+  const patient = await prisma.patient.findFirst({
+    where: { id: patientId, clinicId, ...patientBranchScope(req) },
+    select: { clinicId: true, branchId: true },
+  });
+  if (!patient) {
     res.status(403).json({ ok: false, error: 'Доступ запрещён' });
     return false;
   }
@@ -46,8 +56,10 @@ async function requireVisitAccess(req: AuthRequest, res: any, visitId: string): 
     res.status(400).json({ ok: false, error: 'Выберите клинику' });
     return false;
   }
-  const visit = await prisma.visit.findUnique({ where: { id: visitId }, include: { patient: { select: { clinicId: true } } } });
-  if (!visit || visit.patient?.clinicId !== clinicId) {
+  const visit = await prisma.visit.findUnique({ where: { id: visitId }, include: { patient: { select: { clinicId: true, branchId: true } } } });
+  const branchIds = (req.user?.branchIds ?? []).filter(Boolean);
+  const organizationWide = ['SUPERADMIN', 'OWNER', 'ADMIN'].includes(String(req.user?.role || '').toUpperCase());
+  if (!visit || visit.patient?.clinicId !== clinicId || (!organizationWide && (branchIds.length === 0 || !branchIds.includes(visit.patient?.branchId || '')))) {
     res.status(403).json({ ok: false, error: 'Доступ запрещён' });
     return false;
   }
@@ -61,8 +73,10 @@ async function requireTreatmentPlanAccess(req: AuthRequest, res: any, planId: st
     res.status(400).json({ ok: false, error: 'Выберите клинику' });
     return false;
   }
-  const plan = await prisma.treatmentPlan.findUnique({ where: { id: planId }, include: { patient: { select: { clinicId: true } } } });
-  if (!plan || plan.patient?.clinicId !== clinicId) {
+  const plan = await prisma.treatmentPlan.findUnique({ where: { id: planId }, include: { patient: { select: { clinicId: true, branchId: true } } } });
+  const branchIds = (req.user?.branchIds ?? []).filter(Boolean);
+  const organizationWide = ['SUPERADMIN', 'OWNER', 'ADMIN'].includes(String(req.user?.role || '').toUpperCase());
+  if (!plan || plan.patient?.clinicId !== clinicId || (!organizationWide && (branchIds.length === 0 || !branchIds.includes(plan.patient?.branchId || ''))) ) {
     res.status(403).json({ ok: false, error: 'Доступ запрещён' });
     return false;
   }
@@ -174,7 +188,7 @@ medicalRouter.get('/visits', requirePermission('patient.read'), async (req: Auth
       return;
     }
     const visits = await prisma.visit.findMany({
-      where: { patient: { clinicId } },
+      where: { patient: { clinicId, ...patientBranchScope(req) } },
       include: {
         patient: { select: { id: true, firstName: true, lastName: true } },
       },
