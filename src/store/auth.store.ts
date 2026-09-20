@@ -41,8 +41,39 @@ export const ORG_ROLES: Record<string, RoleConfig> = {
   student: { label: 'Студент', icon: '🎓', pages: ['school', 'profile'], ownDataOnly: true, readOnly: true },
   diagnostic_center: { label: 'Диагностический центр', icon: '🔬', pages: ['diagnostics', 'diagnostics-referrals', 'diagnostics-centers', 'diagnostics-results', 'diagnostics-calendar', 'diagnostics-statistics', 'diagnostics-settings', 'profile'] },
   lab_diagnostic: { label: 'Лаборатория', icon: '🔬', pages: ['diagnostics', 'diagnostics-referrals', 'diagnostics-laboratories', 'diagnostics-results', 'diagnostics-calendar', 'diagnostics-statistics', 'diagnostics-settings', 'profile'] },
-  patient: { label: 'Пациент', icon: 'patient', pages: ['profile', 'shop', 'school', 'diagnostics'] },
+  patient: { label: 'Пациент', icon: 'patient', pages: ['profile', 'shop', 'school'] },
 }
+
+const PARTNER_ROLE_LABELS: Record<string, string> = {
+  diagnostic_owner: 'Владелец диагностического центра',
+  diagnostic_admin: 'Администратор диагностического центра',
+  diagnostic_manager: 'Управляющий диагностического центра',
+  diagnostic_operator: 'Оператор диагностического центра',
+  radiologist: 'Рентгенолог',
+  radiology_technician: 'Рентген-лаборант',
+  diagnostic_reception: 'Регистратура диагностического центра',
+  diagnostic_finance: 'Финансы диагностического центра',
+  diagnostic_quality: 'Контроль качества диагностики',
+  medical_lab_owner: 'Владелец медицинской лаборатории',
+  medical_lab_admin: 'Администратор медицинской лаборатории',
+  medical_lab_manager: 'Управляющий медицинской лаборатории',
+  medical_lab_reception: 'Регистратура медицинской лаборатории',
+  medical_lab_technician: 'Лаборант',
+  medical_lab_validator: 'Валидатор результатов',
+  medical_lab_doctor: 'Врач лаборатории',
+  medical_lab_finance: 'Финансы медицинской лаборатории',
+  medical_lab_quality: 'Контроль качества лаборатории',
+  dental_lab_owner: 'Владелец зуботехнической лаборатории',
+  dental_lab_admin: 'Администратор зуботехнической лаборатории',
+  dental_lab_manager: 'Управляющий зуботехнической лаборатории',
+  lab_coordinator: 'Координатор лаборатории',
+  dental_technician: 'Зубной техник',
+  cad_designer: 'CAD-дизайнер',
+  ceramist: 'Керамист',
+  orthodontic_technician: 'Ортодонтический техник',
+  qc_specialist: 'Контроль качества лаборатории',
+  lab_finance: 'Финансы лаборатории',
+};
 
 export const PLATFORM_ROLES: Record<string, RoleConfig> = {
   superadmin: { label: 'Super Admin', icon: '⚙️', pages: ['admin', 'audit', 'agent-activity', 'ai-approvals', 'backup', 'analytics', 'settings', 'security', 'quality', 'diagnostics', 'diagnostics-centers', 'diagnostics-labs', 'platform-finance', 'ai-governance', 'support', 'profile', 'bi', 'supplier'], canSeeSalary: false, canSeeSuperAdmin: true, canAddStaff: false, canSeeAudit: true, canBackup: true, canManageClinicSettings: true, canManageFinance: true },
@@ -86,7 +117,14 @@ async function hydrateAuthFromMe() { const me = await api.getMe() as any; const 
 function getTokenClinicId(token: string | null | undefined): string | null { try { const payload = token?.split('.')[1]; if (!payload) return null; return JSON.parse(atob(payload.replace(/-/g, '+').replace(/_/g, '/'))).clinicId || null } catch { return null } }
 function buildClinicFromMembership(m: Membership | null): Clinic | null { if (!m) return null; if (m.clinic) return m.clinic as Clinic; if (m.clinicId) return { id: m.clinicId, name: 'Клиника' } as Clinic; return null }
 function resolveRole(activeMembership: Membership | null, user: User | null): string { return normalizeRole(activeMembership?.role || user?.platformRole || user?.role || 'user') }
-function resolveRoleInfo(activeMembership: Membership | null, user: User | null): RoleConfig { const resolvedRole = resolveRole(activeMembership, user); if (ORG_ROLES[resolvedRole]) return ORG_ROLES[resolvedRole]; if (activeMembership) return ORG_ROLES.doctor; return PLATFORM_ROLES[resolvedRole] || PLATFORM_ROLES.user }
+function resolveRoleInfo(activeMembership: Membership | null, user: User | null): RoleConfig {
+  const resolvedRole = resolveRole(activeMembership, user);
+  if (ORG_ROLES[resolvedRole]) return ORG_ROLES[resolvedRole];
+  const partnerLabel = PARTNER_ROLE_LABELS[resolvedRole];
+  if (partnerLabel) return { label: partnerLabel, icon: 'partner', pages: [] };
+  if (activeMembership) return ORG_ROLES.doctor;
+  return PLATFORM_ROLES[resolvedRole] || PLATFORM_ROLES.user;
+}
 function pickActiveMembership(active: Membership | null, memberships: Membership[]): Membership | null { if (active?.clinicId) return active; return memberships[0] || null }
 
 async function applySignIn(set: (partial: Partial<AuthState>) => void, result: any): Promise<void> {
