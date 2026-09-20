@@ -122,7 +122,7 @@ test.describe('Partner operational lifecycle', () => {
 
     const cycle = ['sample_collected', 'received', 'processing', 'result_ready', 'verified'];
     for (const status of cycle) {
-      const res = await api.post(`${BASE}/api/lab/medical-laboratory/orders/${order.id}/status`, {
+      const res = await api.post(`${BASE}/api/lab-orders/medical-laboratory/orders/${order.id}/status`, {
         headers: auth(superadminToken),
         data: { status },
       });
