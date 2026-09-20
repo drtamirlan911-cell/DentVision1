@@ -68,7 +68,7 @@ async function buildSignInPayload(user: SignInUser, req: any, res: any) {
     : authContext.organizationId
       ? await resolveOrganizationRoleKey(user.id, authContext.organizationId) || user.role
       : user.role;
-  return { user: { ...userWithoutPassword, clinicId, organizationId: authContext.organizationId, organizationType: authContext.organizationType, personType: authContext.personType, name: `${user.firstName} ${user.lastName}`.trim() }, memberships: memberships.map((m) => ({ id: m.id, role: m.role, clinicId: m.clinicId, joinedAt: m.joinedAt, clinic: m.clinic })), activeMembership, permissions: effectivePermissions, pages: pagesForCaller(effectivePermissions, scopedRole), capabilities: capabilitiesForPermissions(effectivePermissions, scopedRole), effectiveRole: scopedRole, ...tokens };
+  return { user: { ...userWithoutPassword, clinicId, organizationId: authContext.organizationId, organizationType: authContext.organizationType, personType: authContext.personType, effectiveRole: scopedRole, name: `${user.firstName} ${user.lastName}`.trim() }, memberships: memberships.map((m) => ({ id: m.id, role: m.role, clinicId: m.clinicId, joinedAt: m.joinedAt, clinic: m.clinic })), activeMembership, permissions: effectivePermissions, pages: pagesForCaller(effectivePermissions, scopedRole), capabilities: capabilitiesForPermissions(effectivePermissions, scopedRole), effectiveRole: scopedRole, ...tokens };
 }
 
 export const authRouter = Router();
