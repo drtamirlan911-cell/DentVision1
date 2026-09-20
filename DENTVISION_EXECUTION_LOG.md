@@ -155,3 +155,20 @@ The complete pre-2026-09-14 execution history is preserved in the parent Git his
 - Confirm the synchronizer's resulting `schema.prisma` state and generated Prisma client contract.
 - Replace any remaining route-local case metadata propagation with the canonical Prisma relation where the generated client supports it.
 - Then continue the full Case → Diagnostics → Medical Lab → Dental Lab → Finance → Market → AI vertical lifecycle and premium visual/Figma pass before one final release-gate run.
+
+
+## 2026-09-20 — Diagnostic referral list branch-scope hardening
+
+### Implemented
+- `57602c68b1dff7847e736166f72c95da9de2c81e` — `listReferrals` now accepts an optional authorized `branchIds` scope and applies it to the authoritative Referral query.
+- `aa1a19c461f9b8419f6a9d17026fe513a7cfbdbc` — clinic referral-list requests now resolve branch scope from the existing clinic membership/branch model before querying referrals. OWNER/ADMIN receive active organization-wide clinic branch scope; other clinic roles receive only their assigned branch scope. Partner-center/laboratory queries retain their existing organization boundary.
+- `bf4e8b06f973e5a87e0bb1a7c3e95b1d2bd89bb5` — regression test locks the referral-list branch-scope contract.
+
+### Verification status
+- Implementation is committed.
+- Fresh GitHub CI status for the latest commit is not yet reported by the connected status surface; therefore this change is **UNVERIFIED** and must not be treated as release evidence.
+
+### Next action
+- Verify the fresh CI/E2E result for the exact latest HEAD.
+- Continue the planned branch-isolation/security matrix across diagnostics, medical laboratory, inventory, finance and files.
+- Then complete accepted → paid → settled durable economics verification, cross-organization workflows, browser/mobile release gates, and update the verified context only from fresh evidence.
