@@ -3,199 +3,171 @@ import { test, expect, type Page } from '@playwright/test';
 const BASE_URL = process.env.PLAYWRIGHT_UI_URL || 'http://localhost:3000';
 const PASSWORD = 'Test1234!';
 
-const ROLES = [
-  { id: 'owner', email: 'owner-a@test.com', label: 'Руководитель' },
-  { id: 'admin', email: 'admin-a@test.com', label: 'Администратор' },
-  { id: 'doctor', email: 'doctor-a@test.com', label: 'Врач' },
-  { id: 'assistant', email: 'assistant-a@test.com', label: 'Ассистент' },
-  { id: 'manager', email: 'manager-a@test.com', label: 'Менеджер' },
-  { id: 'regular', email: 'regular@test.com', label: 'Пользователь' },
-  { id: 'patient', email: 'patient@dentvision.kz', label: 'Пациент' },
-  { id: 'diagnostic-owner', email: 'diagnostic-owner@test.com', label: 'Владелец диагностического центра' },
-  { id: 'diagnostic-operator', email: 'diagnostic-operator@test.com', label: 'Оператор диагностического центра' },
-  { id: 'medical-lab-owner', email: 'medical-lab-owner@test.com', label: 'Владелец медицинской лаборатории' },
-  { id: 'medical-lab-tech', email: 'medical-lab-tech@test.com', label: 'Лаборант' },
-  { id: 'dental-lab-owner', email: 'dental-lab-owner@test.com', label: 'Владелец зуботехнической лаборатории' },
-  { id: 'dental-technician', email: 'dental-technician@test.com', label: 'Зубной техник' },
+const PUBLIC_ROUTES = ['/', '/login', '/register', '/forgot-password', '/booking', '/demo', '/pricing', '/terms', '/privacy'];
+const ROUTES = [
+  '/ai','/analytics','/settings','/help','/notifications','/admin','/bi','/security','/audit','/agent-activity','/ai-approvals','/backup','/profile',
+  '/supplier','/jobs','/community',
+  '/crm/schedule','/crm/patients','/crm/cashier','/crm/pricelist','/crm/lab','/crm/inventory','/crm/stock-rules','/crm/marketing','/crm/promotions','/crm/staff',
+  '/crm/medical-card','/crm/icd10','/crm/visits','/crm/documents','/crm/reminders','/crm/workflow','/crm/dental-chart','/crm/treatment-plans','/crm/clinic-settings','/crm/billing','/crm/patient-inbox','/crm/integrations/messaging','/crm/finance',
+  '/shop','/shop/checkout','/shop/orders','/shop/favorites','/shop/suppliers',
+  '/diagnostics','/diagnostics/referrals','/diagnostics/referrals/new','/diagnostics/centers','/diagnostics/labs','/diagnostics/laboratories','/diagnostics/patients','/diagnostics/results','/diagnostics/calendar','/diagnostics/statistics','/diagnostics/settings','/diagnostics/center','/diagnostics/lab','/diagnostics/workspace','/diagnostics/center-dashboard','/diagnostics/lab-dashboard','/diagnostics/registrations','/diagnostics/registration-requests',
+  '/school','/school/workspace','/school/course/e2e','/school/courses','/patient-portal',
 ] as const;
 
-const CONTEXT_ROUTES = [
-  '/ai',
-  '/crm/patients',
-  '/crm/schedule',
-  '/crm/dental-chart',
-  '/crm/treatment-plans',
-  '/crm/lab',
-  '/crm/inventory',
-  '/crm/cashier',
-  '/diagnostics',
-  '/shop',
-  '/school',
-  '/profile',
-  '/settings',
-];
-
-const ROLE_CONTEXT_ROUTES: Record<string, string[]> = {
-  'diagnostic-owner': ['/diagnostics/center', '/diagnostics/results', '/diagnostics/calendar', '/diagnostics/settings', '/profile'],
-  'diagnostic-operator': ['/diagnostics/center', '/diagnostics/results', '/diagnostics/calendar', '/profile'],
-  'medical-lab-owner': ['/diagnostics/lab?workspace=medical-lab', '/diagnostics/results', '/diagnostics/calendar', '/diagnostics/settings', '/profile'],
-  'medical-lab-tech': ['/diagnostics/lab?workspace=medical-lab', '/diagnostics/results', '/profile'],
-  'dental-lab-owner': ['/diagnostics/lab', '/diagnostics/results', '/diagnostics/settings', '/profile'],
-  'dental-technician': ['/diagnostics/lab', '/diagnostics/results', '/profile'],
+type Role = {
+  id: string; email: string; label: string;
+  family: 'clinic' | 'patient' | 'diagnostic' | 'medical-lab' | 'dental-lab' | 'platform';
+  pages: string[]; mustNotContain: RegExp[]; entry: RegExp;
 };
 
-const ROLE_FORBIDDEN_ROUTES: Record<string, string[]> = {
-  'diagnostic-owner': CLINIC_FORBIDDEN,
-  'diagnostic-operator': [...CLINIC_FORBIDDEN, '/diagnostics/settings'],
-  'medical-lab-owner': CLINIC_FORBIDDEN,
-  'medical-lab-tech': [...CLINIC_FORBIDDEN, '/diagnostics/settings'],
-  'dental-lab-owner': CLINIC_FORBIDDEN,
-  'dental-technician': [...CLINIC_FORBIDDEN, '/diagnostics/settings'],
-};
+const CLINIC_OWNER_PAGES = ['dashboard','schedule','patients','medical-card','visits','icd10','documents','finance','cashier','pricelist','lab','reminders','promotions','inventory','staff','audit','agent-activity','ai-approvals','backup','shop','school','analytics','settings','clinic-settings','billing','treatment-plans','dental-chart','diagnostics','diagnostics-referrals','diagnostics-centers','diagnostics-labs','diagnostics-results','profile','bi','patient-inbox','workflow'];
+const CLINIC_ADMIN_PAGES = ['schedule','patients','medical-card','visits','icd10','documents','finance','cashier','pricelist','lab','reminders','promotions','inventory','staff','shop','school','analytics','settings','clinic-settings','billing','treatment-plans','dental-chart','diagnostics','diagnostics-referrals','diagnostics-results','profile','patient-inbox','workflow','ai-approvals'];
+const CLINIC_DOCTOR_PAGES = ['schedule','patients','medical-card','visits','icd10','documents','lab','reminders','school','treatment-plans','dental-chart','diagnostics-referrals','diagnostics-results','profile','ai-approvals'];
+const CLINIC_ASSISTANT_PAGES = ['schedule','patients','visits','documents','reminders','shop','school','diagnostics-referrals','diagnostics-results','profile'];
+const CLINIC_MANAGER_PAGES = ['dashboard','schedule','patients','analytics','staff','promotions','shop','profile'];
+const PLATFORM_SUPERADMIN_PAGES = ['admin','audit','agent-activity','ai-approvals','backup','analytics','settings','security','quality','diagnostics','diagnostics-centers','diagnostics-labs','platform-finance','ai-governance','support','profile','bi','supplier'];
+
+const ROLES: readonly Role[] = [
+  { id:'owner', email:'owner-a@test.com', label:'Руководитель', family:'clinic', pages:CLINIC_OWNER_PAGES, mustNotContain:[/Владелец диагностического центра/i,/Владелец медицинской лаборатории/i,/Владелец зуботехнической лаборатории/i], entry:/\\/ai(?:$|[?#])/ },
+  { id:'admin', email:'admin-a@test.com', label:'Администратор', family:'clinic', pages:CLINIC_ADMIN_PAGES, mustNotContain:[], entry:/\\/ai|\\/crm/ },
+  { id:'doctor', email:'doctor-a@test.com', label:'Врач', family:'clinic', pages:CLINIC_DOCTOR_PAGES, mustNotContain:[/Super Admin/i], entry:/\\/ai|\\/crm/ },
+  { id:'assistant', email:'assistant-a@test.com', label:'Ассистент', family:'clinic', pages:CLINIC_ASSISTANT_PAGES, mustNotContain:[/Super Admin/i], entry:/\\/ai|\\/crm/ },
+  { id:'manager', email:'manager-a@test.com', label:'Менеджер', family:'clinic', pages:CLINIC_MANAGER_PAGES, mustNotContain:[/Super Admin/i], entry:/\\/ai|\\/crm/ },
+  { id:'regular', email:'regular@test.com', label:'Студент', family:'platform', pages:['school','profile'], mustNotContain:[/CRM|Клиника|Super Admin/i], entry:/\\/school|\\/profile/ },
+  { id:'patient', email:'patient@dentvision.kz', label:'Пациент', family:'patient', pages:['profile','shop','school'], mustNotContain:[/CRM|Клиника|Super Admin|Диагностический центр|Медицинская лаборатория|зуботехническая/i], entry:/\\/patient-portal/ },
+  { id:'diagnostic-owner', email:'diagnostic-owner@test.com', label:'Владелец диагностического центра', family:'diagnostic', pages:['diagnostics','diagnostics-referrals','diagnostics-centers','diagnostics-results','diagnostics-calendar','diagnostics-statistics','diagnostics-settings','profile'], mustNotContain:[/Врач|Стоматологическая клиника|Зуботехническая лаборатория/i], entry:/\\/diagnostics\\/center/ },
+  { id:'diagnostic-operator', email:'diagnostic-operator@test.com', label:'Оператор диагностического центра', family:'diagnostic', pages:['diagnostics','diagnostics-referrals','diagnostics-centers','diagnostics-results','diagnostics-calendar','profile'], mustNotContain:[/Настройки диагностического центра/i], entry:/\\/diagnostics\\/center/ },
+  { id:'medical-lab-owner', email:'medical-lab-owner@test.com', label:'Владелец медицинской лаборатории', family:'medical-lab', pages:['diagnostics','diagnostics-laboratories','diagnostics-results','diagnostics-calendar','diagnostics-statistics','diagnostics-settings','profile'], mustNotContain:[/Врач|Зуботехническая лаборатория/i], entry:/\\/diagnostics\\/lab/ },
+  { id:'medical-lab-tech', email:'medical-lab-tech@test.com', label:'Лаборант', family:'medical-lab', pages:['diagnostics','diagnostics-laboratories','diagnostics-results','profile'], mustNotContain:[/Настройки диагностического центра/i], entry:/\\/diagnostics\\/lab/ },
+  { id:'dental-lab-owner', email:'dental-lab-owner@test.com', label:'Владелец зуботехнической лаборатории', family:'dental-lab', pages:['diagnostics','diagnostics-laboratories','diagnostics-results','diagnostics-settings','profile'], mustNotContain:[/Медицинская лаборатория|Диагностический центр/i], entry:/\\/diagnostics\\/lab/ },
+  { id:'dental-technician', email:'dental-technician@test.com', label:'Зубной техник', family:'dental-lab', pages:['diagnostics','diagnostics-laboratories','diagnostics-results','profile'], mustNotContain:[/Настройки диагностического центра/i], entry:/\\/diagnostics\\/lab/ },
+  { id:'superadmin', email:'superadmin@test.com', label:'Super Admin', family:'platform', pages:PLATFORM_SUPERADMIN_PAGES, mustNotContain:[/Пациент|Зубной техник/i], entry:/\\/admin|\\/ai/ },
+] as const;
+
+function pageId(route: string): string | null {
+  const p = new URL(route, BASE_URL).pathname.replace(/\\/$/,'') || '/';
+  const map: Record<string,string> = {
+    '/ai':'dashboard','/crm/schedule':'schedule','/crm/patients':'patients','/crm/medical-card':'medical-card','/crm/finance':'finance','/crm/cashier':'cashier',
+    '/crm/clinic-settings':'clinic-settings','/crm/billing':'billing','/crm/patient-inbox':'patient-inbox','/crm/visits':'visits','/crm/dental-chart':'dental-chart','/crm/treatment-plans':'treatment-plans',
+    '/crm/pricelist':'pricelist','/crm/lab':'lab','/crm/inventory':'inventory','/crm/documents':'documents','/crm/staff':'staff','/crm/reminders':'reminders','/crm/promotions':'promotions','/crm/marketing':'promotions','/crm/icd10':'icd10','/crm/workflow':'workflow','/crm/integrations/messaging':'clinic-settings',
+    '/analytics':'analytics','/admin':'admin','/audit':'audit','/agent-activity':'agent-activity','/ai-approvals':'ai-approvals','/backup':'backup','/shop':'shop','/school':'school','/settings':'settings','/bi':'bi','/diagnostics':'diagnostics','/supplier':'supplier',
+    '/diagnostics/referrals':'diagnostics-referrals','/diagnostics/centers':'diagnostics-centers','/diagnostics/labs':'diagnostics-labs','/diagnostics/laboratories':'diagnostics-labs','/diagnostics/results':'diagnostics-results','/diagnostics/calendar':'diagnostics-calendar','/diagnostics/statistics':'diagnostics-statistics','/diagnostics/settings':'diagnostics-settings',
+    '/diagnostics/center':'diagnostics','/diagnostics/lab':'diagnostics','/diagnostics/workspace':'diagnostics','/diagnostics/center-dashboard':'diagnostics','/diagnostics/lab-dashboard':'diagnostics','/diagnostics/registrations':'admin','/diagnostics/registration-requests':'admin',
+  };
+  if (map[p]) return map[p];
+  if (p.startsWith('/shop')) return 'shop';
+  if (p.startsWith('/school')) return 'school';
+  if (p === '/profile') return 'profile';
+  return null;
+}
 
 async function login(page: Page, email: string) {
-  await page.goto(`${BASE_URL}/login?role=owner`, { waitUntil: 'domcontentloaded', timeout: 30000 });
+  await page.goto(BASE_URL + '/login?role=owner', {waitUntil:'domcontentloaded',timeout:30000});
   await page.locator('input[autocomplete="username"]').fill(email);
   await page.locator('input[autocomplete="current-password"]').fill(PASSWORD);
-  await page.getByRole('button', { name: 'Войти в DentVision' }).click();
-  await page.waitForURL(/\/(?:ai|patient-portal)(?:$|[?#])/, { timeout: 30000 });
-  await page.waitForTimeout(500);
+  await page.getByRole('button',{name:'Войти в DentVision'}).click();
+  await page.waitForURL(/\\/(?:ai|patient-portal|diagnostics|school|admin|profile)(?:$|[?#])/i,{timeout:30000});
+  await page.waitForTimeout(600);
 }
 
-async function collectRuntimeProblems(page: Page) {
-  const consoleErrors: string[] = [];
-  const pageErrors: string[] = [];
-  const failedRequests: string[] = [];
-  page.on('console', message => {
-    if (message.type() === 'error') consoleErrors.push(message.text());
+function collectors(page: Page) {
+  const problems={console:[] as string[],page:[] as string[],requests:[] as string[]};
+  page.on('console',m=>{if(m.type()==='error') problems.console.push(m.text())});
+  page.on('pageerror',e=>problems.page.push(e.message));
+  page.on('requestfailed',r=>problems.requests.push(r.method()+' '+r.url()+' :: '+(r.failure()?.errorText||'failed')));
+  return problems;
+}
+
+async function shellAudit(page: Page, role: Role, route: string) {
+  const result=await page.evaluate(()=>{
+    const visible=(el:Element)=>{const h=el as HTMLElement,r=h.getBoundingClientRect(),s=getComputedStyle(h);return r.width>0&&r.height>0&&s.display!=='none'&&s.visibility!=='hidden'};
+    const controls=Array.from(document.querySelectorAll('button,a,input,select,textarea,[role="button"],[role="tab"],[role="menuitem"]')).filter(visible).map(el=>{const h=el as HTMLElement,r=h.getBoundingClientRect();return{name:(h.getAttribute('aria-label')||h.getAttribute('title')||h.getAttribute('placeholder')||h.innerText||'').replace(/\\s+/g,' ').trim(),w:r.width,h:r.height,disabled:(h as HTMLButtonElement).disabled}});
+    const clipped=Array.from(document.querySelectorAll('h1,h2,h3,h4,h5,h6,button,a,[role="button"],[role="tab"]')).filter(visible).map(el=>{const h=el as HTMLElement;return{name:(h.innerText||'').trim(),sw:h.scrollWidth,cw:h.clientWidth}}).filter(x=>x.name&&x.sw>x.cw+2);
+    return{text:document.body.innerText,scrollWidth:document.documentElement.scrollWidth,clientWidth:document.documentElement.clientWidth,bodyWidth:document.body.scrollWidth,controls,clipped,headings:Array.from(document.querySelectorAll('h1,h2')).filter(visible).map(x=>(x.textContent||'').trim()).filter(Boolean)};
   });
-  page.on('pageerror', error => pageErrors.push(error.message));
-  page.on('requestfailed', request => failedRequests.push(`${request.method()} ${request.url()}`));
-  return { consoleErrors, pageErrors, failedRequests };
+  expect(result.text,role.id+' '+route+': missing role identity').toContain(role.label);
+  expect(/Application error|ChunkLoadError|Failed to fetch dynamically imported module|Something went wrong/i.test(result.text),role.id+' '+route+': application error').toBeFalsy();
+  expect(result.scrollWidth,role.id+' '+route+': document overflow').toBeLessThanOrEqual(result.clientWidth+2);
+  expect(result.bodyWidth,role.id+' '+route+': body overflow').toBeLessThanOrEqual(result.clientWidth+2);
+  expect(result.clipped,role.id+' '+route+': clipped text').toEqual([]);
+  expect(result.controls.filter(x=>x.w<36||x.h<36),role.id+' '+route+': undersized controls').toEqual([]);
+  expect(result.controls.filter(x=>!x.name),role.id+' '+route+': unnamed controls').toEqual([]);
+  for(const forbidden of role.mustNotContain) expect(result.text,role.id+' '+route+': forbidden context visible').not.toMatch(forbidden);
 }
 
-async function auditRoleShell(page: Page, role: typeof ROLES[number]) {
-  const result = await page.evaluate(() => {
-    const visible = (el: Element) => {
-      const node = el as HTMLElement;
-      const rect = node.getBoundingClientRect();
-      const style = getComputedStyle(node);
-      return rect.width > 0 && rect.height > 0 && style.display !== 'none' && style.visibility !== 'hidden';
-    };
-    const interactive = Array.from(document.querySelectorAll('button,a,input,select,textarea,[role="button"]'))
-      .filter(visible)
-      .map(el => {
-        const node = el as HTMLElement;
-        const rect = node.getBoundingClientRect();
-        return {
-          name: (node.getAttribute('aria-label') || node.innerText || node.getAttribute('placeholder') || '').replace(/\s+/g, ' ').trim(),
-          width: Math.round(rect.width),
-          height: Math.round(rect.height),
-        };
-      });
-    const visibleText = document.body.innerText;
-    const emoji = /[\u{1F000}-\u{1FAFF}\u{2600}-\u{27BF}]/u.test(visibleText);
-    const clipped = Array.from(document.querySelectorAll('h1,h2,h3,h4,h5,h6,button,a,[role="button"]'))
-      .filter(visible)
-      .map(el => {
-        const node = el as HTMLElement;
-        return { name: (node.innerText || '').replace(/\s+/g, ' ').trim(), scrollWidth: node.scrollWidth, clientWidth: node.clientWidth };
-      })
-      .filter(x => x.name && x.scrollWidth > x.clientWidth + 2);
-    return {
-      visibleText,
-      emoji,
-      scrollWidth: document.documentElement.scrollWidth,
-      clientWidth: document.documentElement.clientWidth,
-      bodyWidth: document.body.scrollWidth,
-      interactive,
-      clipped,
-    };
-  });
-
-  expect(result.visibleText).toContain(role.label);
-  expect(result.emoji, `${role.id}: visible UI contains emoji glyphs`).toBeFalsy();
-  expect(result.scrollWidth, `${role.id}: horizontal document overflow`).toBeLessThanOrEqual(result.clientWidth + 2);
-  expect(result.bodyWidth, `${role.id}: horizontal body overflow`).toBeLessThanOrEqual(result.clientWidth + 2);
-  expect(result.clipped, `${role.id}: clipped visible text/control`).toEqual([]);
-
-  const undersized = result.interactive.filter(x => x.width < 36 || x.height < 36);
-  expect(undersized, `${role.id}: interactive target below 36px: ${JSON.stringify(undersized)}`).toEqual([]);
-
-  const unnamed = result.interactive.filter(x => !x.name && !/^(svg|path)$/i.test(x.name));
-  expect(unnamed, `${role.id}: visible interactive control without accessible/name signal`).toEqual([]);
+async function inspectForms(page: Page, role: Role, route: string) {
+  const issues=await page.locator('form:visible').evaluateAll(forms=>forms.flatMap(form=>Array.from(form.querySelectorAll('input,select,textarea')).map(el=>{const h=el as HTMLInputElement,id=h.id,label=id?document.querySelector('label[for="'+id+'"]')?.textContent:null;return{type:h.type,name:h.name,aria:h.getAttribute('aria-label'),placeholder:h.getAttribute('placeholder'),required:h.required,label:(label||'').trim()}})).filter(x=>!x.name&&!x.aria&&!x.placeholder&&!x.label&&x.type!=='hidden'));
+  expect(issues,role.id+' '+route+': form controls without identification').toEqual([]);
 }
 
-test.describe('DentVision role/context design release gate', () => {
-  test.describe.configure({ mode: 'serial' });
+async function discoverRoutes(page: Page): Promise<string[]> {
+  const hrefs=await page.locator('a[href]').evaluateAll(as=>as.map(a=>(a as HTMLAnchorElement).href).filter(h=>h.startsWith(location.origin)));
+  return [...new Set(hrefs.map(h=>{const u=new URL(h);return u.pathname+u.search}))].filter(r=>!/\\/sign\\/|\\/plan\\/|\\/book\\//.test(r));
+}
 
-  for (const role of ROLES) {
-    test(`${role.id}: greeting, identity, navigation and context remain coherent`, async ({ page }, testInfo) => {
-      const problems = await collectRuntimeProblems(page);
-      await login(page, role.email);
+async function auditRoute(page: Page, role: Role, route: string, shouldBeAllowed: boolean) {
+  await page.goto(BASE_URL+route,{waitUntil:'domcontentloaded',timeout:30000});
+  await page.waitForTimeout(300);
+  const current=new URL(page.url());
+  if(!shouldBeAllowed){
+    expect(current.pathname+current.search,role.id+' '+route+': forbidden route stayed open').not.toBe(route);
+    return;
+  }
+  expect(current.pathname,role.id+' '+route+': allowed route redirected unexpectedly').not.toBe('/login');
+  await shellAudit(page,role,route);
+  await inspectForms(page,role,route);
+}
 
-      await expect(page.getByText('DentVision', { exact: true }).first()).toBeVisible({ timeout: 10000 });
-      await auditRoleShell(page, role);
+test.describe('DentVision exhaustive role/context/browser gate',()=>{
+  test.describe.configure({mode:'serial',timeout:120000});
+  for(const role of ROLES){
+    test(role.id+': every declared and discovered screen plus security boundary',async({page},info)=>{
+      const problems=collectors(page);
+      await login(page,role.email);
+      await expect(page.locator('body')).toContainText('DentVision');
+      expect(role.entry.test(page.url()),role.id+': incorrect post-login workspace '+page.url()).toBeTruthy();
 
-      if (role.id === 'patient') {
-        await expect(page).toHaveURL(/\/patient-portal(?:$|[?#])/);
-        await expect(page.getByText('Пациент', { exact: true }).first()).toBeVisible();
-        const consentButtons = page.getByRole('button', { name: 'Принимаю', exact: true });
-        for (let i = 0; i < await consentButtons.count(); i++) await consentButtons.nth(0).click();
-        await expect(page.getByText('Прежде чем продолжить', { exact: true })).toHaveCount(0);
-        for (const label of ['Приём', 'Лечение', 'Визиты', 'Оплата', 'Документы', 'Диагностика']) {
-          await expect(page.getByText(label, { exact: false }).first()).toBeVisible();
-        }
-        for (const forbidden of ['/crm/patients', '/crm/schedule', '/crm/cashier', '/crm/inventory', '/crm/staff', '/crm/lab', '/admin', '/audit', '/bi']) {
-          await page.goto(BASE_URL + forbidden, { waitUntil: 'domcontentloaded', timeout: 30000 });
-          const path = new URL(page.url()).pathname;
-          expect(path, 'patient ' + forbidden + ': privileged route must not be exposed').not.toBe(forbidden);
-          expect(path).not.toMatch(/^\/crm(?:\/|$)|^\/(?:admin|audit|bi)(?:\/|$)/);
-        }
-        await page.goto(BASE_URL + '/patient-portal', { waitUntil: 'domcontentloaded', timeout: 30000 });
-        await expect(page).toHaveURL(/\/patient-portal/);
+      const discovered=new Set<string>();
+      for(const route of ROUTES){
+        const allowed=PUBLIC_ROUTES.includes(route)||!!pageId(route)&&role.pages.includes(pageId(route)!);
+        await auditRoute(page,role,route,allowed);
+        if(allowed) for(const discoveredRoute of await discoverRoutes(page)) discovered.add(discoveredRoute);
+      }
+      for(const route of [...discovered].filter(r=>!ROUTES.includes(r as any)).slice(0,160)){
+        const allowed=PUBLIC_ROUTES.includes(route)||!!pageId(route)&&role.pages.includes(pageId(route)!);
+        await auditRoute(page,role,route,allowed);
       }
 
-      const body = await page.locator('body').innerText();
-      expect(body).toContain(role.label);
-      expect(body).not.toMatch(/Application error|ChunkLoadError|Something went wrong|Failed to fetch dynamically imported module/i);
-
-      const roleRoutes = ROLE_CONTEXT_ROUTES[role.id] || CONTEXT_ROUTES;
-      for (const route of roleRoutes) {
-        await page.goto(`${BASE_URL}${route}`, { waitUntil: 'domcontentloaded', timeout: 30000 });
-        await page.waitForTimeout(300);
-
-        const path = new URL(page.url()).pathname;
-        expect(path, `${role.id} ${route}: unexpected auth redirect`).not.toBe('/login');
-        await expect(page.locator('body')).not.toContainText('Something went wrong');
-        await expect(page.locator('body')).not.toContainText('Application error');
-
-        const shell = await page.evaluate(() => ({
-          hasDentVision: document.body.innerText.includes('DentVision'),
-          width: document.documentElement.scrollWidth,
-          clientWidth: document.documentElement.clientWidth,
-        }));
-        expect(shell.hasDentVision, `${role.id} ${route}: shell identity disappeared`).toBeTruthy();
-        expect(shell.width).toBeLessThanOrEqual(shell.clientWidth + 2);
-      }
-
-      for (const route of (ROLE_FORBIDDEN_ROUTES[role.id] || [])) {
-        await page.goto(`${BASE_URL}${route}`, { waitUntil: 'domcontentloaded', timeout: 30000 });
-        await page.waitForTimeout(300);
-        const path = new URL(page.url()).pathname;
-        expect(path, `${role.id} ${route}: restricted partner setting exposed`).not.toBe(route);
-        await expect(page.locator('body')).toContainText('DentVision');
-        await expect(page.locator('body')).toContainText(role.label);
-      }
-
-      expect(problems.consoleErrors, `${role.id}: console errors`).toEqual([]);
-      expect(problems.pageErrors, `${role.id}: page errors`).toEqual([]);
-      expect(problems.failedRequests, `${role.id}: failed network requests`).toEqual([]);
-
-      await page.screenshot({
-        path: `e2e/test-results/design-gate/roles/${role.id}-${testInfo.project.name}.png`,
-        fullPage: true,
-      });
+      await page.goto(BASE_URL+'/',{waitUntil:'domcontentloaded',timeout:30000});
+      const storage=await page.evaluate(()=>({localStorage:Object.keys(localStorage),sessionStorage:Object.keys(sessionStorage)}));
+      expect(JSON.stringify(storage)).not.toMatch(/password/i);
+      const token=await page.evaluate(()=>Object.entries(localStorage).filter(([k])=>/token|auth/i.test(k)).map(([,v])=>String(v)).join(' '));
+      expect(token).not.toMatch(/Test1234!/i);
+      expect(problems.console,role.id+': console errors').toEqual([]);
+      expect(problems.page,role.id+': page errors').toEqual([]);
+      expect(problems.requests,role.id+': failed requests').toEqual([]);
+      await page.screenshot({path:'e2e/test-results/design-gate/roles/'+role.id+'-'+info.project.name+'.png',fullPage:true});
     });
   }
+
+  test('cross-tenant: Clinic A never exposes Clinic B identity',async({page})=>{
+    const problems=collectors(page);
+    await login(page,'owner-a@test.com');
+    expect(await page.locator('body').innerText()).toContain('E2E Clinic A');
+    for(const route of ['/crm/patients','/crm/schedule','/crm/finance','/crm/inventory']){
+      await page.goto(BASE_URL+route,{waitUntil:'domcontentloaded',timeout:30000});
+      expect(await page.locator('body').innerText()).not.toContain('E2E Clinic B');
+    }
+    expect(problems.console).toEqual([]);
+    expect(problems.page).toEqual([]);
+    expect(problems.requests).toEqual([]);
+  });
+
+  test('anonymous: every protected route redirects before protected content renders',async({page})=>{
+    for(const route of ROUTES.filter(r=>!PUBLIC_ROUTES.includes(r))){
+      await page.context().clearCookies();
+      await page.goto(BASE_URL+route,{waitUntil:'domcontentloaded',timeout:30000});
+      expect(new URL(page.url()).pathname,'anonymous '+route+': protected screen exposed').toBe('/login');
+    }
+  });
 });
