@@ -82,6 +82,7 @@ describe('partner economics calculator', () => {
 describe('partner economics reconciliation', () => {
   it('flags a durable ledger transaction when its immutable economics rule snapshot is missing or malformed', async () => {
     const db = {
+      payout: { findMany: async () => [] },
       transaction: {
         findMany: async () => [{
           id: 'tx-rule-missing',
@@ -111,6 +112,7 @@ describe('partner economics reconciliation', () => {
 
   it('accepts a complete immutable economics rule snapshot at the ledger boundary', async () => {
     const db = {
+      payout: { findMany: async () => [] },
       transaction: {
         findMany: async () => [{
           id: 'tx-rule-ok',
@@ -148,6 +150,7 @@ describe('partner economics reconciliation', () => {
 describe('partner economics transparency read model', () => {
   it('aggregates durable payout, costs and contribution by partner', async () => {
     const db = {
+      payout: { findMany: async () => [] },
       transaction: {
         findMany: async () => [{
           id: 'tx-1',
@@ -186,6 +189,7 @@ describe('partner economics transparency read model', () => {
 
   it('filters branch without recomputing historical economics', async () => {
     const db = {
+      payout: { findMany: async () => [] },
       transaction: {
         findMany: async () => [
           { id: 'a', amount: 100n, refType: 'DENTAL_LAB', refId: 'a', meta: { partnerId: 'lab', branchId: 'b1', commissionMinor: '10', partnerRevenueMinor: '90', contributionMarginMinor: '10', status: 'HEALTHY', economicsVersion: 1, costs: {} }, ledgerEntries: [] },
