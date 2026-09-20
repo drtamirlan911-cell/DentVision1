@@ -108,6 +108,52 @@ async function shellAudit(page: Page, role: Role, route: string) {
   for(const forbidden of role.mustNotContain) expect(result.text,role.id+' '+route+': forbidden context visible').not.toMatch(forbidden);
 }
 
+async function inspectDialogsAndMenus(page: Page, role: Role, route: string) {
+  const dialogCount = await page.locator('[role="dialog"]:visible, [aria-modal="true"]:visible').count();
+  const menuCount = await page.locator('[role="menu"]:visible, [role="listbox"]:visible').count();
+  const issues = await page.evaluate(() => {
+    const visible = (el: Element) => {
+      const h = el as HTMLElement, r = h.getBoundingClientRect(), s = getComputedStyle(h);
+      return r.width > 0 && r.height > 0 && s.display !== 'none' && s.visibility !== 'hidden';
+    };
+    const overlays = Array.from(document.querySelectorAll('[role="dialog"],[aria-modal="true"],[role="menu"],[role="listbox"]')).filter(visible);
+    return overlays.map(el => {
+      const h = el as HTMLElement, r = h.getBoundingClientRect();
+      const text = (h.innerText || '').trim();
+      const close = h.querySelector('button[aria-label*="закры" i],button[aria-label*="close" i],button[title*="закры" i],button[title*="close" i]');
+      const interactive = Array.from(h.querySelectorAll('button,a,input,select,textarea,[role="button"],[role="option"],[role="menuitem"]')).filter(visible);
+      return {
+        role: h.getAttribute('role'),
+        width: r.width, height: r.height, text,
+        hasHeading: !!h.querySelector('h1,h2,h3,h4,h5,h6,[role="heading"]'),
+        hasClose: !!close,
+        interactive: interactive.length,
+        unnamed: interactive.filter(x => {
+          const e=x as HTMLElement;
+          return !(e.getAttribute('aria-label') || e.getAttribute('title') || e.getAttribute('placeholder') || e.innerText || '').trim();
+        }).length,
+        overflow: h.scrollWidth > h.clientWidth + 2 || h.scrollHeight > h.clientHeight + 2
+      };
+    });
+  });
+  for (const overlay of issues) {
+    expect(overlay.text, role.id + ' ' + route + ': empty overlay').not.toBe('');
+    expect(overlay.hasHeading || overlay.role === 'listbox' || overlay.role === 'menu', role.id + ' ' + route + ': modal/menu has no semantic heading').toBeTruthy();
+    expect(overlay.unnamed, role.id + ' ' + route + ': unnamed overlay controls').toBe(0);
+    expect(overlay.overflow, role.id + ' ' + route + ': modal/menu overflow').toBeFalsy();
+    if (overlay.role === 'dialog') expect(overlay.hasClose, role.id + ' ' + route + ': dialog has no close control').toBeTruthy();
+  }
+  // Verify Escape closes an actually open overlay without navigating away.
+  if (dialogCount || menuCount) {
+    const before = page.url();
+    await page.keyboard.press('Escape');
+    await page.waitForTimeout(100);
+    const after = await page.locator('[role="dialog"]:visible,[aria-modal="true"]:visible,[role="menu"]:visible,[role="listbox"]:visible').count();
+    expect(after, role.id + ' ' + route + ': Escape did not close overlay').toBe(0);
+    expect(page.url(), role.id + ' ' + route + ': Escape unexpectedly navigated').toBe(before);
+  }
+}
+
 async function inspectForms(page: Page, role: Role, route: string) {
   const issues=await page.locator('form:visible').evaluateAll(forms=>forms.flatMap(form=>Array.from(form.querySelectorAll('input,select,textarea')).map(el=>{const h=el as HTMLInputElement,id=h.id,label=id?document.querySelector('label[for="'+id+'"]')?.textContent:null;return{type:h.type,name:h.name,aria:h.getAttribute('aria-label'),placeholder:h.getAttribute('placeholder'),required:h.required,label:(label||'').trim()}})).filter(x=>!x.name&&!x.aria&&!x.placeholder&&!x.label&&x.type!=='hidden'));
   expect(issues,role.id+' '+route+': form controls without identification').toEqual([]);
@@ -129,6 +175,7 @@ async function auditRoute(page: Page, role: Role, route: string, shouldBeAllowed
   expect(current.pathname,role.id+' '+route+': allowed route redirected unexpectedly').not.toBe('/login');
   await shellAudit(page,role,route);
   await inspectForms(page,role,route);
+  await inspectDialogsAndMenus(page,role,route);
   await page.reload({waitUntil:'domcontentloaded',timeout:30000});
   await shellAudit(page,role,route);
   await page.goBack({waitUntil:'domcontentloaded',timeout:30000}).catch(()=>{});
