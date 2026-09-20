@@ -100,7 +100,7 @@ export async function resolveAuthContext(
   userId: string,
   preferred?: { organizationId?: string | null; clinicId?: string | null; branchId?: string | null },
 ): Promise<AuthTokenContext> {
-  if (preferred?.organizationId) {
+  if (preferred?.organizationId && !preferred?.branchId) {
     const ctx = await contextForOrganization(userId, preferred.organizationId);
     if (ctx) return ctx;
 
@@ -110,7 +110,7 @@ export async function resolveAuthContext(
     if (unifiedPerson) return {};
   }
 
-  if (preferred?.clinicId) {
+  if (preferred?.clinicId && !preferred?.branchId) {
     const ctx = await contextForClinic(userId, preferred.clinicId);
     if (ctx) return ctx;
 
