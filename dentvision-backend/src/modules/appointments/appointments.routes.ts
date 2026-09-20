@@ -111,7 +111,7 @@ appointmentsRouter.post('/', requirePermission('appointment.write'), requireClin
     const branchId = patient?.branchId ?? existing?.branchId ?? null;
     const appointment = existing
       ? await prisma.appointment.update({ where: { id: existing.id }, data: { patientId, doctorId, date: new Date(date), time: apptTime, duration: apptDuration, type: serviceLabel, notes: notes ?? existing.notes, status: status ? toDbStatus(status) : existing.status, meta: meta as any, branchId }, include: { patient: { select: patientSelect } } })
-      : await prisma.appointment.create({ data: { id: id || uid(), clinicId, patientId, doctorId, date: new Date(date), time: apptTime, duration: apptDuration, type: serviceLabel, notes: notes || null, status: toDbStatus(status), meta: meta as any }, include: { patient: { select: patientSelect } } });
+      : await prisma.appointment.create({ data: { id: id || uid(), clinicId, patientId, doctorId, date: new Date(date), time: apptTime, duration: apptDuration, type: serviceLabel, notes: notes || null, status: toDbStatus(status), meta: meta as any, branchId }, include: { patient: { select: patientSelect } } });
     if (!existing) {
       publish('appointment.created', { clinicId, appointmentId: appointment.id, patientId: appointment.patientId, doctorId: appointment.doctorId, userId: req.user?.id });
       const appointmentCount = await prisma.appointment.count({ where: { clinicId } });
