@@ -1,4 +1,5 @@
 import { PrismaClient } from '@prisma/client';
+import { randomUUID } from 'node:crypto';
 import { PERMISSIONS, ROLE_PERMISSIONS } from '../src/lib/permissions.js';
 import { CLINIC_ROLE_DEFINITIONS } from '../src/lib/clinicRoleAccessRegistry.js';
 import { PARTNER_ROLE_DEFINITIONS } from '../src/lib/roleAccessRegistry.js';
@@ -51,6 +52,53 @@ const SUPERADMIN_ROLE = {
   permissionKeys: ALL_PERMISSIONS,
 };
 
+const E2E_PARTNER_FIXTURES = [
+  { email: 'diagnostic-owner@test.com', organizationType: 'DIAGNOSTIC_CENTER', organizationName: 'E2E Diagnostic Center', role: 'diagnostic_owner' },
+  { email: 'diagnostic-operator@test.com', organizationType: 'DIAGNOSTIC_CENTER', organizationName: 'E2E Diagnostic Center', role: 'diagnostic_operator' },
+  { email: 'medical-lab-owner@test.com', organizationType: 'LABORATORY', organizationName: 'E2E Medical Laboratory', role: 'medical_lab_owner' },
+  { email: 'medical-lab-tech@test.com', organizationType: 'LABORATORY', organizationName: 'E2E Medical Laboratory', role: 'medical_lab_technician' },
+  { email: 'dental-lab-owner@test.com', organizationType: 'LABORATORY', organizationName: 'E2E Dental Laboratory', role: 'dental_lab_owner' },
+  { email: 'dental-technician@test.com', organizationType: 'LABORATORY', organizationName: 'E2E Dental Laboratory', role: 'dental_technician' },
+] as const;
+
+async function seedE2EPartnerFixtures() {
+  for (const fixture of E2E_PARTNER_FIXTURES) {
+    const user = await prisma.user.findUnique({ where: { email: fixture.email }, select: { id: true } });
+    if (!user) continue;
+
+    const organization = await prisma.organization.upsert({
+      where: { id: (await prisma.organization.findFirst({ where: { type: fixture.organizationType, name: fixture.organizationName }, select: { id: true } }))?.id || randomUUID() },
+      update: { type: fixture.organizationType, name: fixture.organizationName },
+      create: {
+        id: randomUUID(),
+        name: fixture.organizationName,
+        type: fixture.organizationType,
+        originalType: 'E2E',
+      },
+    });
+
+    const person = await prisma.person.upsert({
+      where: { userId_organizationId: { userId: user.id, organizationId: organization.id } },
+      update: { fullName: fixture.email, personType: 'STAFF', email: fixture.email },
+      create: {
+        id: randomUUID(),
+        fullName: fixture.email,
+        personType: 'STAFF',
+        organizationId: organization.id,
+        userId: user.id,
+        email: fixture.email,
+      },
+    });
+
+    const role = await prisma.role.findUniqueOrThrow({ where: { key: fixture.role } });
+    await prisma.personRole.upsert({
+      where: { personId_roleId: { personId: person.id, roleId: role.id } },
+      update: { scopeType: 'organization', scopeId: organization.id },
+      create: { id: randomUUID(), personId: person.id, roleId: role.id, scopeType: 'organization', scopeId: organization.id },
+    });
+  }
+}
+
 export async function seedPermissions() {
   console.log('[SEED] Seeding permissions...');
 
@@ -87,6 +135,8 @@ export async function seedPermissions() {
     }
     console.log(`  ✓ ${r.key} — ${perms.length} permissions`);
   }
+
+  await seedE2EPartnerFixtures();
 }
 
 async function main() {
