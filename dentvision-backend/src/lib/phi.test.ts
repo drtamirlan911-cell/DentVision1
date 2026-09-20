@@ -84,3 +84,20 @@ describe('hmacIin — normalization', () => {
     expect(hmacIin('900101350125')).not.toContain('900101350125');
   });
 });
+
+describe('encryptField production safety', () => {
+  const originalNodeEnv = process.env.NODE_ENV;
+  const originalKey = process.env.ENCRYPTION_KEY;
+
+  afterEach(() => {
+    process.env.NODE_ENV = originalNodeEnv;
+    process.env.ENCRYPTION_KEY = originalKey;
+  });
+
+  it('fails closed instead of storing plaintext when production encryption is unavailable', async () => {
+    process.env.NODE_ENV = 'production';
+    delete process.env.ENCRYPTION_KEY;
+    const { encryptField } = await import('./phi.js');
+    expect(() => encryptField('sensitive medical data')).toThrow(/Encryption unavailable in production/);
+  });
+});
