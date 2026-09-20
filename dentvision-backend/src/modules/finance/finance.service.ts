@@ -179,6 +179,46 @@ export async function recordClinicalPaymentTx(input: {
   return transaction;
 }
 
+export async function reverseClinicalPaymentTx(input: {
+  clinicId: string;
+  amountMinor: bigint;
+  refId: string;
+  reason?: string | null;
+  currency?: string;
+  db: Prisma.TransactionClient;
+}) {
+  if (!input.clinicId || !input.refId || input.amountMinor <= 0n) throw new Error('Invalid clinical reversal');
+  const currency = input.currency || 'KZT';
+  const refType = 'clinical_payment_reversal';
+  const existing = await input.db.transaction.findFirst({
+    where: { refType, refId: input.refId, type: 'clinical_payment_reversal' },
+  });
+  if (existing) return existing;
+  const gateway = await getOrCreateWallet('GATEWAY', 'system', currency, input.db);
+  const clinic = await getOrCreateWallet('CLINIC', input.clinicId, currency, input.db);
+  const transaction = await input.db.transaction.create({
+    data: {
+      type: 'clinical_payment_reversal',
+      status: 'completed',
+      amount: input.amountMinor,
+      currency,
+      refType,
+      refId: input.refId,
+      meta: { reason: input.reason || null, clinicId: input.clinicId } as Prisma.InputJsonValue,
+      ledgerEntries: {
+        create: [
+          { walletId: clinic.id, direction: 'debit', amount: input.amountMinor },
+          { walletId: gateway.id, direction: 'credit', amount: input.amountMinor },
+        ],
+      },
+    },
+    include: { ledgerEntries: true },
+  });
+  await input.db.wallet.update({ where: { id: clinic.id }, data: { balance: { decrement: input.amountMinor } } });
+  await input.db.wallet.update({ where: { id: gateway.id }, data: { balance: { increment: input.amountMinor } } });
+  return transaction;
+}
+
 /** Standalone convenience wrapper: opens its own transaction around `recordSaleTx`. */
 export async function recordSale(input: SaleInput) {
   return prisma.$transaction((tx) => recordSaleTx(input, tx));
