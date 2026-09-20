@@ -21,6 +21,11 @@ describe('branch route authorization contract', () => {
     expect(source).toContain("case 'ASSISTANT':");
     expect(source).toContain("if (mutation && !['OWNER', 'ADMIN'].includes(member.role))");
   });
+  it('enforces partner branch subscription economics on organization creation', () => {
+    expect(source).toContain('quoteBranchSubscription(organizationType, activeBranches + 1)');
+    expect(source).toContain("code: 'BRANCH_PLAN_REQUIRED'");
+  });
+
   it('does not silently expose every branch to scoped members', () => {
     expect(source).toContain("member.role} IN ('OWNER', 'ADMIN')");
     expect(source).toContain('member.branch_id ??');
