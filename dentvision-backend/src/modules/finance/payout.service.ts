@@ -169,6 +169,9 @@ export async function requestPayout(input: RequestPayoutInput) {
 
   return prisma.$transaction(async (tx) => {
     const wallet = await getOrCreateWallet(input.ownerType, input.ownerId, input.currency || 'KZT', tx);
+    // Serialize requests for the same wallet so concurrent requests cannot
+    // both observe the same available balance.
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${'payout-wallet:' + wallet.id}))`;
     const available = await availableBalanceMinor(wallet.id, tx);
     if (available < input.amountMinor) {
       throw new PayoutError(
@@ -220,6 +223,11 @@ export async function transitionPayout(
   opts: { actorUserId?: string | null } = {},
 ) {
   return prisma.$transaction(async (tx) => {
+    // Serialize every transition for this payout. Without a transaction-scoped
+    // lock, two workers can both read "approved" and both post the payout ledger
+    // entry before either updates the status to "paid".
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${'payout-transition:' + payoutId}))`;
+
     const payout = await tx.payout.findUnique({
       where: { id: payoutId },
       include: { wallet: true },
