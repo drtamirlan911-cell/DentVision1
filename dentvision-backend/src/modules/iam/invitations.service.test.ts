@@ -180,7 +180,7 @@ describe('acceptInvitation', () => {
     // on the centre's own id.
     expect(grantDiagnosticsAccess).toHaveBeenCalledWith('DiagnosticCenter', 'center-1', 'u1', 'radiologist');
     expect(invitationUpdateMany).toHaveBeenCalledWith(
-      expect.objectContaining({ where: { code: 'ABCD1234' }, data: expect.objectContaining({ usedBy: 'u1' }) }),
+      expect.objectContaining({ where: expect.objectContaining({ code: 'ABCD1234' }), data: expect.objectContaining({ usedBy: 'u1' }) }),
     );
     expect(result).toMatchObject({ entityId: 'center-1', organizationType: 'DIAGNOSTIC_CENTER', role: 'radiologist' });
   });
