@@ -102,6 +102,23 @@ patientsRouter.patch('/:id',requirePermission('patient.write'),requireClinicWrit
 
 patientsRouter.delete('/:id',requirePermission('patient.delete'),requireClinicWritable,async(req:AuthRequest,res)=>{try{const clinicId=req.user?.clinicId;if(!clinicId)return res.status(400).json({ok:false,error:'Клиника не указана'} satisfies ApiResponse);const s=await loadClinicPatient(req,res);if(!s)return;const p=await prisma.patient.findFirst({where:{id:s.patientId,clinicId}});if(!p)return res.status(404).json({ok:false,error:'Пациент не найден'} satisfies ApiResponse);await prisma.patient.delete({where:{id:p.id}});publish('patient.deleted',{clinicId,patientId:p.id,userId:req.user?.id});return res.json({ok:true,data:{id:p.id}} satisfies ApiResponse)}catch(e){console.error('Delete patient error:',e);return res.status(500).json({ok:false,error:'Ошибка при удалении пациента'} satisfies ApiResponse)}});
 
+patientsRouter.get('/:id/audit',async(req:AuthRequest,res)=>{
+  try {
+    const s=await loadClinicPatient(req,res);
+    if(!s)return;
+    const limit=Math.min(100,Math.max(1,Number(req.query.limit)||50));
+    const rows=await prisma.auditLog.findMany({
+      where:{clinicId:s.clinicId,entity:'patient',entityId:s.patientId},
+      orderBy:{createdAt:'desc'},
+      take:limit,
+      select:{id: true, action:true, entity:true, entityId:true, details:true, createdAt:true, userId:true, ip:true},
+    });
+    return res.json({ok:true,data:rows} satisfies ApiResponse);
+  } catch(e) {
+    return res.status(500).json({ok:false,error:'Не удалось получить аудит медицинских данных'} satisfies ApiResponse);
+  }
+});
+
 patientsRouter.get('/:id/history',async(req:AuthRequest,res)=>{try{const s=await loadClinicPatient(req,res);if(!s)return;const page=parseInt(req.query.page as string)||1,limit=parseInt(req.query.limit as string)||20,{skip,take}=paginate(page,limit),where={patientId:s.patientId};const [rows,total]=await Promise.all([prisma.visit.findMany({where,skip,take,orderBy:{date:'desc'}}),prisma.visit.count({where})]);return res.json({ok:true,data:paginatedResponse(rows,total,page,limit)} satisfies ApiResponse)}catch(e){return res.status(500).json({ok:false,error:'Ошибка при получении истории визитов'} satisfies ApiResponse)}});
 
 patientsRouter.get('/:id/images',async(req:AuthRequest,res)=>{try{const s=await loadClinicPatient(req,res);if(!s)return;const images=await prisma.patientImage.findMany({where:{patientId:s.patientId},orderBy:{createdAt:'desc'}});return res.json({ok:true,data:images} satisfies ApiResponse)}catch(e){return res.status(500).json({ok:false,error:'Ошибка при получении изображений пациента'} satisfies ApiResponse)}});
