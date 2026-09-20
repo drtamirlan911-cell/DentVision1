@@ -527,3 +527,11 @@ Current connected GitHub status has not produced a CI workflow run for these dir
 
 ### Verification
 - Test contract is committed but has not been executed in the repository CI surface. Current release verification remains **UNVERIFIED**.
+
+
+## 2026-09-20 — Refund reversal hardened for multi-supplier orders
+
+- `b61bbf47c7cb4e1fc46d29b033b16379c1a2fcca` — refund allocation now reverses all durable Finance Core sale transactions belonging to an order, not only the first supplier transaction; allocations preserve exact double-entry balance.
+- `85ce2d7204ba60b8172372e57c946ee44d3a2d61` — updated refund service tests for the multi-transaction read path.
+
+Verification remains **UNVERIFIED** pending actual CI execution.
