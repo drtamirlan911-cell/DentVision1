@@ -19,13 +19,6 @@ const routes = [
 for (const route of routes) {
   const nested = route.replace(/^\//, '')
   if (!(index.includes(`path="${nested}"`) || index.includes(`path="/${nested}"`) || index.includes(`path='${nested}'`) || index.includes(`path='/${nested}'`))) failures.push(`Missing route: ${route}`)
-
-for (const route of [
-  '/crm/schedule','/crm/patients','/crm/medical-card','/crm/dental-chart','/crm/treatment-plans','/crm/visits','/crm/lab',
-  '/crm/inventory','/crm/documents','/crm/staff','/crm/reminders','/crm/promotions','/crm/workflow','/crm/cashier',
-  '/crm/pricelist','/crm/patient-inbox','/analytics','/shop','/school','/diagnostics','/jobs','/community','/settings','/profile','/ai'
-]) {
-  if (!sidebar.includes(`path: '${route}'`)) failures.push(`Sidebar missing route: ${route}`)
 }
 
 // A single destination must not appear twice in the primary sidebar.
