@@ -633,3 +633,26 @@ No unexecuted test is marked as passed.
 - New clinical E2E is committed.
 - Current main tip is `601b61a75f9c7f9ed321c270d319dba3a78bf959`.
 - The available GitHub Actions history currently exposes successful historical Quality Gate runs, but no corresponding current-tip run is available yet; therefore current-tip release verification remains **UNVERIFIED**.
+
+
+## 2026-09-20 — Clinical + ecosystem workflow coverage
+
+### Implemented
+- `47a3cb9c2fd40cb09c2284545d0e07a6509a231a` — extended patient workflow E2E with canonical odontogram persistence:
+  - patient creation;
+  - tooth 16 caries + M/O surface findings;
+  - canonical patient PATCH;
+  - read-back verification of status and surfaces.
+- `b4e4ea4b60eee8dfdab5aa6194f1173ec43199dc` — execution plan synchronized with the implemented clinical/ecosystem workflow coverage.
+
+### Existing coverage confirmed
+- Treatment plans: create/read/update/delete, status lifecycle, stage pricing, tenant isolation and doctor authoring.
+- Diagnostics: referral/result lifecycle.
+- Medical and dental laboratories: canonical lifecycle transitions.
+- Marketplace: catalog, orders, server-side price protection, stock/idempotency.
+- Academy: catalog, enrollment, progress, completion/certificate, duplicate enrollment.
+- Finance Hub: durable partner economics.
+- Partner onboarding: registration + organization/branch lifecycle.
+
+### Release gate
+Current main-tip execution is still not marked PASS until CI/browser execution produces fresh evidence.
