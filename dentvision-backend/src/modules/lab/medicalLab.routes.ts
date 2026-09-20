@@ -23,6 +23,10 @@ const TRANSITIONS: Record<string, readonly string[]> = {
   cancelled: [],
 };
 
+export function isMedicalLabTransitionAllowed(from: string, to: string): boolean {
+  return from === to || (TRANSITIONS[from] || []).includes(to);
+}
+
 type OrderRow = {
   id: string; clinicId: string; patientId: string | null; treatmentCaseId: string | null;
   labId: string | null; orderedByUserId: string; status: string; priority: string;
@@ -151,7 +155,7 @@ medicalLabLifecycleRouter.post('/orders/:id/status', async (req: AuthRequest, re
     if (!order) return res.status(404).json({ ok: false, error: 'Направление не найдено' });
     if (!(await canAccessOrder(req.user!, order, true))) return res.status(403).json({ ok: false, error: 'Нет доступа' });
     const next = String(req.body?.status || '');
-    if (!STATUSES.includes(next as any) || !(TRANSITIONS[order.status] || []).includes(next)) return res.status(400).json({ ok: false, error: `Недопустимый переход ${order.status} → ${next}` });
+    if (!STATUSES.includes(next as any) || !isMedicalLabTransitionAllowed(order.status, next)) return res.status(400).json({ ok: false, error: `Недопустимый переход ${order.status} → ${next}` });
     if (next === 'sample_collected') await prisma.$executeRawUnsafe(`UPDATE "medical_lab_orders" SET "status"=$1,"collectedAt"=CURRENT_TIMESTAMP,"updatedAt"=CURRENT_TIMESTAMP WHERE "id"=$2`, next, order.id);
     else if (next === 'received') await prisma.$executeRawUnsafe(`UPDATE "medical_lab_orders" SET "status"=$1,"receivedAt"=CURRENT_TIMESTAMP,"updatedAt"=CURRENT_TIMESTAMP WHERE "id"=$2`, next, order.id);
     else if (next === 'result_ready') await prisma.$executeRawUnsafe(`UPDATE "medical_lab_orders" SET "status"=$1,"resultReadyAt"=CURRENT_TIMESTAMP,"updatedAt"=CURRENT_TIMESTAMP WHERE "id"=$2`, next, order.id);
