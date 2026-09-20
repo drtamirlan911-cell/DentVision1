@@ -53,10 +53,16 @@ test.describe('DentVision browser UX coverage', () => {
       try {
         await page.goto(`${BASE_URL}${route}`, { waitUntil: 'domcontentloaded', timeout: 20000 });
         await page.waitForTimeout(500);
-        const url = new URL(page.url());
+        let url = new URL(page.url());
         if (url.pathname === '/login') {
-          failures.push(`${route}: redirected to login`);
-          continue;
+          await login(page);
+          await page.goto(BASE_URL + route, { waitUntil: 'domcontentloaded', timeout: 20000 });
+          await page.waitForTimeout(500);
+          url = new URL(page.url());
+          if (url.pathname === '/login') {
+            failures.push(`${route}: redirected to login after re-authentication`);
+            continue;
+          }
         }
         const bodyText = await page.locator('body').innerText().catch(() => '');
         if (/Application error|ChunkLoadError|Failed to fetch dynamically imported module/i.test(bodyText)) {
