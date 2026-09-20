@@ -28,14 +28,9 @@ export function RequirePage({
     return <Welcome />
   }
 
-  // Public routes are intentionally not wrapped by this guard in index.tsx.
-  // Never bypass authorization merely because a guest session exists: a guest
-  // token grants anonymous capabilities, not access to CRM/platform data.
-  if (!isAuthenticated) {
-    return <Navigate to="/login" state={{ from: location }} replace />
-  }
-
-  // Wait for auth hydration before evaluating role/page permissions.
+  // Wait for auth hydration before evaluating authentication or page permissions.
+  // A full document navigation starts with an empty auth store; redirecting before
+  // restoreSession() completes would incorrectly send authenticated users to /login.
   if (loading) {
     return (
       <div className="dv-page py-6 space-y-4">
@@ -43,6 +38,13 @@ export function RequirePage({
         <Skeleton variant="text" lines={4} />
       </div>
     )
+  }
+
+  // Public routes are intentionally not wrapped by this guard in index.tsx.
+  // Never bypass authorization merely because a guest session exists: a guest
+  // token grants anonymous capabilities, not access to CRM/platform data.
+  if (!isAuthenticated) {
+    return <Navigate to="/login" state={{ from: location }} replace />
   }
 
   const pageId = page || pageIdFromPath(location.pathname)
