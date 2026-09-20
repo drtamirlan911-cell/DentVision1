@@ -39,7 +39,17 @@ async function getOrder(id: string): Promise<OrderRow | null> {
 
 async function canAccessOrder(user: AuthRequest['user'], order: OrderRow, write = false): Promise<boolean> {
   if (user?.role === 'SUPERADMIN') return true;
-  if (order.clinicId === user?.clinicId) return true;
+  if (order.clinicId === user?.clinicId) {
+    const role = String(user?.role || '').toUpperCase();
+    if (['OWNER', 'ADMIN'].includes(role)) return true;
+    const branchIds = (user?.branchIds ?? []).filter(Boolean);
+    if (branchIds.length === 0 || !order.patientId) return false;
+    const patient = await prisma.patient.findFirst({
+      where: { id: order.patientId, clinicId: order.clinicId, branchId: { in: branchIds } },
+      select: { id: true },
+    });
+    return Boolean(patient);
+  }
   if (order.labId && user?.organizationId === order.labId && (user as any).organizationType === 'LABORATORY') return true;
   if (!write && order.clinicId) return assertOrgAccess(user!, order.clinicId);
   return false;
