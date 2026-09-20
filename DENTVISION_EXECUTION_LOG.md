@@ -571,3 +571,14 @@ Verification remains **UNVERIFIED** pending actual CI execution.
 - Execute the complete critical workflow/browser matrix.
 - Close AI first-load functional flow, navigation duplication, loading/error/accessibility states.
 - Complete Android build/release verification and final rollback/security gate.
+
+
+## 2026-09-20 — AI first-load functional gate
+
+### Implemented
+- `34881771359248232f0200c5e965a8fb4c2af98d` — AI Workspace now surfaces first-action execution failures in an explicit alert instead of silently dropping rejected AI actions.
+- `9010c2ab174f776e708aaaf7f27397d3cf5a4dfd` — authenticated first-run shell now routes the root landing state into the real `/ai` workspace immediately; the 15-second shell animation remains a navigation treatment, not the only functional outcome.
+
+### Verification
+- Source changes are committed.
+- Browser execution against the current main tip remains required before marking the UX gate verified.
