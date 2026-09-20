@@ -4,6 +4,7 @@ const BASE_URL = process.env.PLAYWRIGHT_UI_URL || 'http://localhost:3000';
 const PASSWORD = 'Test1234!';
 
 const PUBLIC_ROUTES = ['/', '/login', '/register', '/forgot-password', '/booking', '/demo', '/pricing', '/terms', '/privacy'];
+const AUTH_COMMON_ROUTES = ['/', '/help', '/notifications', '/profile'];
 const ROUTES = [
   '/ai','/analytics','/settings','/help','/notifications','/admin','/bi','/security','/audit','/agent-activity','/ai-approvals','/backup','/profile',
   '/supplier','/jobs','/community',
@@ -71,10 +72,11 @@ async function login(page: Page, email: string) {
 }
 
 function collectors(page: Page) {
-  const problems={console:[] as string[],page:[] as string[],requests:[] as string[]};
+  const problems={console:[] as string[],page:[] as string[],requests:[] as string[],server:[] as string[]};
   page.on('console',m=>{if(m.type()==='error') problems.console.push(m.text())});
   page.on('pageerror',e=>problems.page.push(e.message));
   page.on('requestfailed',r=>problems.requests.push(r.method()+' '+r.url()+' :: '+(r.failure()?.errorText||'failed')));
+  page.on('response',r=>{if(r.status()>=500) problems.server.push(r.status()+' '+r.request().method()+' '+r.url())});
   return problems;
 }
 
@@ -129,12 +131,12 @@ test.describe('DentVision exhaustive role/context/browser gate',()=>{
 
       const discovered=new Set<string>();
       for(const route of ROUTES){
-        const allowed=PUBLIC_ROUTES.includes(route)||!!pageId(route)&&role.pages.includes(pageId(route)!);
+        const allowed=PUBLIC_ROUTES.includes(route)||AUTH_COMMON_ROUTES.includes(route)||!!pageId(route)&&role.pages.includes(pageId(route)!);
         await auditRoute(page,role,route,allowed);
         if(allowed) for(const discoveredRoute of await discoverRoutes(page)) discovered.add(discoveredRoute);
       }
-      for(const route of [...discovered].filter(r=>!ROUTES.includes(r as any)).slice(0,160)){
-        const allowed=PUBLIC_ROUTES.includes(route)||!!pageId(route)&&role.pages.includes(pageId(route)!);
+      for(const route of [...discovered].filter(r=>!ROUTES.includes(r as any))){
+        const allowed=PUBLIC_ROUTES.includes(route)||AUTH_COMMON_ROUTES.includes(route)||!!pageId(route)&&role.pages.includes(pageId(route)!);
         await auditRoute(page,role,route,allowed);
       }
 
@@ -146,6 +148,7 @@ test.describe('DentVision exhaustive role/context/browser gate',()=>{
       expect(problems.console,role.id+': console errors').toEqual([]);
       expect(problems.page,role.id+': page errors').toEqual([]);
       expect(problems.requests,role.id+': failed requests').toEqual([]);
+      expect(problems.server,role.id+': HTTP 5xx responses').toEqual([]);
       await page.screenshot({path:'e2e/test-results/design-gate/roles/'+role.id+'-'+info.project.name+'.png',fullPage:true});
     });
   }
