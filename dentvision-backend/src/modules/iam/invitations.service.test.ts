@@ -35,7 +35,8 @@ beforeEach(() => {
   invitationFindUnique.mockReset();
   invitationUpdateMany.mockReset();
   grantDiagnosticsAccess.mockReset();
-  grantDiagnosticsAccess.mockResolvedValue(true);\n  invitationUpdateMany.mockResolvedValue({ count: 1 });
+  grantDiagnosticsAccess.mockResolvedValue(true);
+  invitationUpdateMany.mockResolvedValue({ count: 1 });
 });
 
 describe('rejectInvitation', () => {
