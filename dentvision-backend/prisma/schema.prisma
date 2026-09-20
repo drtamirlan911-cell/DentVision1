@@ -3600,6 +3600,7 @@ model BranchMember {
   id        String   @id @default(uuid())
   personId  String
   branchId  String
+  active    Boolean  @default(true)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
