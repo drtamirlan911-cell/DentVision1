@@ -98,8 +98,9 @@ if (!hasAllReverseRelations) {
   if (index < 0) throw new Error('TreatmentCase patient relation not found');
   for (const name of reverseNames) {
     if (!new RegExp(`^\\s*${name}\\b`, 'm').test(caseBlock)) {
-      const relationLine = reverseRelations.split('\\n').find((line) => line.trim().startsWith(name + ' '));
-      if (relationLine) caseBlock = `${caseBlock.slice(0, index + reverseAnchor.length)}${relationLine}\\n${caseBlock.slice(index + reverseAnchor.length)}`;
+      const relationLine = reverseRelations.split('\n').find((line) => line.trim().startsWith(name + ' '));
+      if (relationLine) caseBlock = `${caseBlock.slice(0, index + reverseAnchor.length)}${relationLine}
+${caseBlock.slice(index + reverseAnchor.length)}`;
     }
   }
   schema = `${schema.slice(0, caseStart)}${caseBlock}${schema.slice(caseEnd + 3)}`;
