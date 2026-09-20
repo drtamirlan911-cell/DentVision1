@@ -38,7 +38,7 @@ export default function Login() {
 
   useEffect(() => {
     if (!user) return
-    if (params.get('portal') === 'patient') { navigate('/patient-portal', { replace: true }); return }
+    if (params.get('portal') === 'patient' || user.role === 'patient') { navigate('/patient-portal', { replace: true }); return }
     const target = returnUrl && !returnUrl.includes('/login') && returnUrl !== '/' ? returnUrl : '/ai'
     navigate(target, { replace: true })
   }, [user, navigate, params, returnUrl])
