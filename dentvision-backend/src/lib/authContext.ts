@@ -28,6 +28,7 @@ export interface AuthTokenContext {
   organizationId?: string;
   organizationType?: string;
   personType?: string;
+  branchId?: string;
 }
 
 type PersonWithContextRole = {
@@ -97,7 +98,7 @@ async function contextForClinic(userId: string, clinicId: string): Promise<AuthT
  */
 export async function resolveAuthContext(
   userId: string,
-  preferred?: { organizationId?: string | null; clinicId?: string | null },
+  preferred?: { organizationId?: string | null; clinicId?: string | null; branchId?: string | null },
 ): Promise<AuthTokenContext> {
   if (preferred?.organizationId) {
     const ctx = await contextForOrganization(userId, preferred.organizationId);
@@ -122,6 +123,19 @@ export async function resolveAuthContext(
     }
   }
 
+  if (preferred?.branchId) {
+    const rows = await prisma.$queryRaw<Array<{ id: string; organization_id: string | null }>>`SELECT "id", "organization_id" FROM "branches" WHERE "id" = ${preferred.branchId} LIMIT 1`;
+    const branch = rows[0];
+    if (!branch?.organization_id) return {};
+    const ctx = await contextForOrganization(userId, preferred.organizationId || branch.organization_id);
+    if (!ctx || ctx.organizationId !== branch.organization_id) return {};
+    const person = await prisma.person.findFirst({ where: { userId, organizationId: branch.organization_id }, select: { id: true, personRoles: { select: { role: { select: { key: true } } } }, branchMemberships: { where: { branchId: preferred.branchId }, select: { branchId: true } } } });
+    const roleKeys = (person?.personRoles || []).map((r) => r.role.key.toLowerCase());
+    const orgManager = roleKeys.some((key) => ['owner', 'org_owner', 'admin', 'org_admin'].includes(key));
+    const assigned = (person?.branchMemberships?.length || 0) > 0;
+    if (!orgManager && !assigned) return {};
+    return { ...ctx, branchId: preferred.branchId };
+  }
   // Default scope — a clinic the user belongs to takes precedence over other
   // organization types, matching the legacy "first membership" behaviour.
   const clinicPeople = await prisma.person.findMany({
