@@ -7,6 +7,7 @@ import { uid } from '../../lib/helpers.js';
 import { loadClinicAccess, blockClinicWrites } from '../../middleware/planGate.js';
 import { isClinicMember } from '../../lib/orgContext.js';
 import { publish } from '../../lib/events.js';
+import { recordPartnerEconomics } from '../finance/partner-economics.service.js';
 import { labPlatformRouter } from './labPlatform.routes.js';
 import { medicalLabLifecycleRouter } from './medicalLab.routes.js';
 
@@ -188,6 +189,13 @@ labRouter.patch('/:id/status', requirePermission('appointment.write'), async (re
     await ensureDentalLabOrderEventsTable();
     const order = await prisma.labOrder.update({ where: { id: req.params.id as string }, data: { status: status as any } });
     await prisma.$executeRawUnsafe(`INSERT INTO "dental_lab_order_events" ("id","labOrderId","clinicId","fromStatus","toStatus","actorUserId","createdAt") VALUES ($1,$2,$3,$4,$5,$6,CURRENT_TIMESTAMP)`, uid(), order.id, clinicId, owned.status, order.status, req.user!.id);
+    if (order.status === 'delivered' && owned.status !== 'delivered') {
+      const fresh = await prisma.labOrder.findUnique({ where: { id: order.id }, select: { id: true, price: true, files: true } });
+      const meta = (fresh?.files as { meta?: LabOrderMeta } | null)?.meta || {};
+      const partnerId = meta.laboratoryId || null;
+      const grossMinor = fresh?.price != null ? BigInt(Math.round(Number(fresh.price) * 100)) : 0n;
+      if (partnerId && grossMinor > 0n) await recordPartnerEconomics({ vertical: 'DENTAL_LAB', partnerId, grossMinor, operationId: order.id }, prisma);
+    }
     publish('labOrder.status_changed', { clinicId, labOrderId: order.id, patientId: owned.patientId || undefined, doctorId: owned.doctorId || undefined, status: order.status, previousStatus: owned.status, userId: req.user?.id });
     return res.json({ ok: true, data: serializeLabOrder(order) } satisfies ApiResponse);
   } catch (error) { console.error('[Lab] status update error:', error); return res.status(500).json({ ok: false, error: 'Не удалось обновить статус заказа' } satisfies ApiResponse); }
