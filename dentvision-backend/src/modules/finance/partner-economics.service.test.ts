@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { calculatePartnerEconomics, canonicalPartnerEconomicsRules, getPartnerEconomicsTransparency } from './partner-economics.service.js';
+import { calculatePartnerEconomics, buildPartnerEconomicsDashboard, canonicalPartnerEconomicsRules, getPartnerEconomicsTransparency } from './partner-economics.service.js';
 
 const [diagnostic, analysis, dentalLab] = canonicalPartnerEconomicsRules();
 
@@ -61,6 +61,21 @@ describe('partner economics calculator', () => {
     expect(result.rule.minFeeMinor).toBe(50_000n);
     expect(result.rule.maxFeeMinor).toBe(300_000n);
   });
+  it('aggregates durable transparency rows and emits discrepancy/low-margin/loss alerts', () => {
+    const rows = [
+      { transactionId:'t1', vertical:'DIAGNOSTIC_3D', partnerId:'p1', branchId:'b1', operationId:'o1', grossMinor:100000n, commissionMinor:7000n, partnerPayoutMinor:93000n, costMinor:2000n, contributionMarginMinor:5000n, contributionMarginBps:500, status:'HEALTHY', economicsVersion:1 },
+      { transactionId:'t2', vertical:'MEDICAL_ANALYSIS', partnerId:'p2', branchId:'b2', operationId:'o2', grossMinor:100000n, commissionMinor:6000n, partnerPayoutMinor:94000n, costMinor:6000n, contributionMarginMinor:0n, contributionMarginBps:0, status:'LOW_MARGIN', economicsVersion:1 },
+      { transactionId:'t3', vertical:'DENTAL_LAB', partnerId:'p3', branchId:'b3', operationId:'o3', grossMinor:100000n, commissionMinor:8000n, partnerPayoutMinor:90000n, costMinor:9000n, contributionMarginMinor:-1000n, contributionMarginBps:-100, status:'LOSS', economicsVersion:1 },
+      { transactionId:'t4', vertical:'DENTAL_LAB', partnerId:'p3', branchId:'b3', operationId:'o4', grossMinor:100000n, commissionMinor:8000n, partnerPayoutMinor:91000n, costMinor:1000n, contributionMarginMinor:7000n, contributionMarginBps:700, status:'HEALTHY', economicsVersion:1 },
+    ] as any;
+    const dashboard = buildPartnerEconomicsDashboard(rows, { from:null, to:null });
+    expect(dashboard.byVertical.find(x => x.vertical === 'DENTAL_LAB')?.operations).toBe(2);
+    expect(dashboard.byVertical.find(x => x.vertical === 'DENTAL_LAB')?.discrepancyCount).toBe(1);
+    expect(dashboard.alerts.some(x => x.type === 'LOW_MARGIN')).toBe(true);
+    expect(dashboard.alerts.some(x => x.type === 'LOSS')).toBe(true);
+    expect(dashboard.alerts.some(x => x.type === 'DISCREPANCY' && x.transactionId === 't4')).toBe(true);
+  });
+
 });
 
 
