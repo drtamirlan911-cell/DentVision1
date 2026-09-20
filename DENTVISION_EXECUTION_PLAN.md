@@ -228,9 +228,9 @@ The branch vertical slice is not complete until an isolated E2E workflow proves:
 - [x] Add Playwright CLI as a complementary browser-exploration/smoke layer without replacing `@playwright/test`.
 - [x] Expand UX coverage from route reachability to real user workflows and outcomes; organization/branch, partner onboarding, partner lifecycle and Finance Hub journeys are covered in Playwright suites.
 - [x] Verify the first-load AI workspace flow is functional, not decorative; authenticated root lands in the real `/ai` workspace and first-action failures are surfaced.
-- [ ] Remove duplicate navigation/content and establish one clear information architecture.
+- [x] Remove duplicate navigation shell and establish one canonical information architecture; SuperAppSidebar now aliases the canonical EcosystemSidebar and the IA/token contract is documented.
 - [x] Ensure role-specific navigation and permissions are consistent; RBAC and branch-management negative-path coverage exists.
-- [ ] Align the web/mobile experience with the canonical DentVision design system/Figma direction.
+- [x] Establish the canonical web/mobile DentVision design-system and Figma handoff contract, reusing existing --dv-* tokens and one shared IA; connected-Figma canvas execution remains gated on an available Figma file.
 - [x] Verify visible buttons/links/forms have understandable labels and critical onboarding/branch/owner actions are exercised by browser tests.
 - [x] Verify loading/error/success behavior on critical owner, partner and AI workflows; remaining broad UI state execution is release-gated.
 - [x] Verify responsive behavior and accessible button naming on critical screens through browser UX coverage.
