@@ -39,7 +39,13 @@ export async function runPayoutReadinessCron(): Promise<PayoutReadinessCronResul
     if (pending) continue;
 
     const users = await requesterIds(wallet.ownerType, wallet.ownerId);
+    const since = new Date(Date.now() - 24 * 60 * 60 * 1000);
     for (const userId of users) {
+      const alreadyNotified = await prisma.notification.findFirst({
+        where: { userId, type: 'payout', title: 'Средства доступны к выплате', createdAt: { gte: since } },
+        select: { id: true },
+      });
+      if (alreadyNotified) continue;
       await prisma.notification.create({
         data: {
           id: uid(),
