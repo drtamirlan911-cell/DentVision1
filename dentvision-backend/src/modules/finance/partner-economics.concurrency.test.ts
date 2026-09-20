@@ -24,6 +24,7 @@ const state = vi.hoisted(() => {
       findFirst: vi.fn(async () => ruleRow),
       create: vi.fn(async () => ruleRow),
     },
+    wallet: { findUnique: vi.fn(async () => null), create: vi.fn(async ({ data }: any) => ({ id: `${data.ownerType}-${data.ownerId}`, ...data })), update: vi.fn() },
     transaction: {
       findFirst: vi.fn(async ({ where }: any) => {
         if (where.type === 'partner_economics' && findFirstBarrier) {
