@@ -609,3 +609,27 @@ Verification remains **UNVERIFIED** pending actual CI execution.
 - Production readiness and rollback evidence.
 
 No unexecuted test is marked as passed.
+
+
+## 2026-09-20 — Automated economics + core clinical workflow
+
+### Implemented
+- `601b61a75f9c7f9ed321c270d319dba3a78bf959` — added E2E core clinical journey:
+  - create patient;
+  - create treatment case;
+  - schedule appointment;
+  - close completed visit;
+  - read patient summary;
+  - reopen canonical treatment case.
+- `f42de1c22beec175ab4921dd67c681fabaffb80a` — execution plan updated for supported automated economics settlement boundaries and supported full/partial refund/cancellation behavior.
+
+### Economics boundary audit
+- Medical analysis: payment confirmation derives server-side order price snapshot and settles Partner Economics atomically.
+- Dental laboratory: economics settles only at canonical `delivered` boundary.
+- Diagnostics: economics remains at paid settlement boundary; legacy mutable platform fee is not the source of truth.
+- Refunds: full and partial refunds reverse existing Finance Core ledger entries atomically; unsupported domains fail closed.
+
+### Verification
+- New clinical E2E is committed.
+- Current main tip is `601b61a75f9c7f9ed321c270d319dba3a78bf959`.
+- The available GitHub Actions history currently exposes successful historical Quality Gate runs, but no corresponding current-tip run is available yet; therefore current-tip release verification remains **UNVERIFIED**.
