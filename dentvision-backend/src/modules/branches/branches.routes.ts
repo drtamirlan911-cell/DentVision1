@@ -340,7 +340,8 @@ branchesRouter.post('/:id/members/:userId', async (req: AuthRequest, res) => {
     if(!authz.allowed)return res.status(authz.status).json({ok:false,error:authz.error});
     const person=await organizationPerson(userId,branch.organization_id);
     if(!person)return res.status(404).json({ok:false,error:'Пользователь не является участником этой организации'});
-    await prisma.branchMember.upsert({where:{personId_branchId:{personId:person.id,branchId}},create:{personId:person.id,branchId},update:{}});
+    await prisma.branchMember.upsert({where:{personId_branchId:{personId:person.id,branchId}},create:{id:uid(),personId,branchId},update:{}});
+    await auditFromReq(req, { action: 'branch.member_assigned', entity: 'branch', entityId: branchId, details: { userId } });
     return res.json({ok:true,data:{userId,branchId}});
   }catch(error){console.error('[branches] assign member',error);return res.status(500).json({ok:false,error:'Не удалось назначить сотрудника'});}
 });
@@ -363,6 +364,7 @@ branchesRouter.delete('/:id/members/:userId', async (req: AuthRequest, res) => {
     const person=await organizationPerson(userId,branch.organization_id);
     if(!person)return res.status(404).json({ok:false,error:'Пользователь не является участником этой организации'});
     await prisma.branchMember.deleteMany({where:{personId:person.id,branchId}});
+    await auditFromReq(req, { action: 'branch.member_unassigned', entity: 'branch', entityId: branchId, details: { userId } });
     return res.json({ok:true,data:{userId,branchId:null}});
   }catch(error){console.error('[branches] unassign member',error);return res.status(500).json({ok:false,error:'Не удалось убрать сотрудника из филиала'});}
 });
