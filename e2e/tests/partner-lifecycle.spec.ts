@@ -69,7 +69,7 @@ test.describe('Partner operational lifecycle', () => {
         patientId,
         doctorId,
         patientName: 'Partner Lifecycle',
-        category: 'XRAY',
+        category: 'CBCT',
         studyType: 'Конусно-лучевая КТ (КЛКТ)',
         centerId,
         complaints: 'E2E diagnostic workflow',
@@ -118,9 +118,9 @@ test.describe('Partner operational lifecycle', () => {
     });
     expect(orderRes.status()).toBe(201);
     const order = (await orderRes.json()).data;
-    expect(order.status).toBe('pending');
+    expect(order.status).toBe('ordered');
 
-    const cycle = ['sent', 'in_progress', 'ready', 'delivered'];
+    const cycle = ['sample_collected', 'received', 'processing', 'result_ready', 'verified'];
     for (const status of cycle) {
       const res = await api.post(`${BASE}/api/lab-orders/${order.id}/status`, {
         headers: auth(superadminToken),
@@ -132,6 +132,6 @@ test.describe('Partner operational lifecycle', () => {
 
     const read = await api.get(`${BASE}/api/lab-orders/${order.id}`, { headers: auth(ownerToken) });
     expect(read.status()).toBe(200);
-    expect((await read.json()).data.status).toBe('delivered');
+    expect((await read.json()).data.order.status).toBe('verified');
   });
 });
