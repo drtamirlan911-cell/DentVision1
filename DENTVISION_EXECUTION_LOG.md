@@ -671,3 +671,27 @@ The repository contains the required CI, Playwright, Android and security suites
 
 ### Next action
 Run the current main-tip release matrix against an isolated environment; then resolve only actual failures before production/rollback sign-off.
+
+
+## 2026-09-20 — Current main release-gate execution evidence
+
+### Verified against GitHub Actions
+- Commit `e9f8f41d3a3cd0ef8cf20b58a2ca2443a2cdf906` passed CI run #2728 (all jobs green).
+- Browser UX coverage passed in the current-tip CI run.
+- Business-owner journeys passed in the current-tip CI run.
+- Organization-owner lifecycle passed after aligning ORG-007 with the canonical IA routes; all 8 organization-owner tests passed.
+- Official Playwright CLI installation, agent skills installation and CLI browser smoke all passed.
+- Quality Gate for the immediately preceding release-verification trigger commit `368781ea8756dc2aaef12e3b3903ce57e78a1277` passed.
+- Android workflow run #168 passed on `368781ea8756dc2aaef12e3b3903ce57e78a1277`; preview APK artifact `dentvision-preview-apk` was published (13,429,489 bytes). This commit changes only Android workflow documentation; application code is identical to the current web release candidate.
+- Vercel production deployment for `e9f8f41d3a3cd0ef8cf20b58a2ca2443a2cdf906` is READY: `dpl_sE2V5TQ6CoN1UcG4YTVDJjUaVkoe`. Production HTML fetch returned HTTP 200 and no runtime errors were reported for the last hour.
+
+### Defect repaired from actual release evidence
+- ORG-007 was asserting obsolete routes (`/crm/appointments`, `/crm/lab-orders`, `/crm/diagnostics`, `/finance`) that are not part of the canonical route contract. The test now exercises `/crm/schedule`, `/crm/lab`, `/diagnostics`, `/crm/cashier`, `/bi` and other canonical management surfaces.
+
+### Remaining release gates
+- Production interactive browser authentication/smoke still requires a connected browser session; Vercel HTML fetch and GitHub CI browser smoke are green, but an interactive production login has not been independently executed in this session.
+- Physical Android device installation evidence is not yet captured; hosted APK build is green.
+- Production rollback execution evidence is not yet captured; the current Vercel deployment is marked as a rollback candidate, but no rollback action has been executed.
+
+### Next action
+- Capture production interactive login/navigation evidence and rollback execution using an available connected browser/Vercel control surface, then update the release plan only after those actions are actually verified.
