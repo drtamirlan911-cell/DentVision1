@@ -105,4 +105,53 @@ test.describe('Clinical billing — deposits and installments', () => {
     expect(after.prepaidBalance).toBe(0);
   });
 
+  test('BILL-004: invoice partial refund reverses the clinical ledger', async ({ request }) => {
+    const t = await login(request, 'owner-a@test.com');
+    const headers = { Authorization: `Bearer ${t}`, 'Idempotency-Key': `refund-${Date.now()}` };
+    const patient = await request.post(`${BASE}/api/patients`, {
+      headers, data: { firstName: 'Refund', lastName: `E2E ${Date.now()}`, phone: '+77000000044' },
+    });
+    expect(patient.status()).toBe(201);
+    const patientBody = await patient.json();
+    const patientId = (patientBody.data || patientBody).id;
+    const invoice = await request.post(`${BASE}/api/billing/invoices`, {
+      headers, data: { patientId, amount: 50000, items: [{ name: 'Treatment', price: 50000 }] },
+    });
+    expect(invoice.status()).toBe(201);
+    const invoiceBody = await invoice.json();
+    const invoiceId = (invoiceBody.data || invoiceBody).id;
+    const pay = await request.post(`${BASE}/api/billing/invoices/${invoiceId}/pay`, {
+      headers, data: { amount: 50000, paymentMethod: 'cash' },
+    });
+    expect(pay.status()).toBe(200);
+    const refund = await request.post(`${BASE}/api/billing/invoices/${invoiceId}/refund`, {
+      headers, data: { amount: 20000 },
+    });
+    expect(refund.status()).toBe(200);
+    const body = await refund.json();
+    expect(body.data.paidAmount).toBe(30000);
+    expect(body.data.status).toBe('partial');
+  });
+
+  test('BILL-005: unused patient prepayment can be refunded', async ({ request }) => {
+    const t = await login(request, 'owner-a@test.com');
+    const headers = { Authorization: `Bearer ${t}`, 'Idempotency-Key': `prepay-refund-${Date.now()}` };
+    const patient = await request.post(`${BASE}/api/patients`, {
+      headers, data: { firstName: 'DepositRefund', lastName: `E2E ${Date.now()}`, phone: '+77000000045' },
+    });
+    expect(patient.status()).toBe(201);
+    const patientBody = await patient.json();
+    const patientId = (patientBody.data || patientBody).id;
+    const deposit = await request.post(`${BASE}/api/billing/patients/${patientId}/prepayment`, {
+      headers, data: { amount: 25000, paymentMethod: 'cash' },
+    });
+    expect(deposit.status()).toBe(201);
+    const refund = await request.post(`${BASE}/api/billing/patients/${patientId}/prepayment/refund`, {
+      headers, data: { amount: 10000 },
+    });
+    expect(refund.status()).toBe(200);
+    const body = await refund.json();
+    expect(body.data.prepaidBalance).toBe(15000);
+  });
+
 });
