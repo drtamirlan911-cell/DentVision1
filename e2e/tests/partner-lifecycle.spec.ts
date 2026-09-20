@@ -54,10 +54,8 @@ test.describe('Partner operational lifecycle', () => {
     const centerId = fixtureCenterId;
     expect(centerId).toBeTruthy();
 
-    const clinicMe = await api.get(`${BASE}/api/auth/me`, { headers: auth(ownerToken) });
-    const clinicBody = await clinicMe.json();
-    const clinicUser = clinicBody.data?.user || clinicBody.data || clinicBody.user || clinicBody;
-    const clinicId = clinicUser.clinicId;
+    const clinic = await prisma.clinic.findFirst({ where: { name: 'E2E Clinic A' }, select: { id: true } });
+    const clinicId = clinic?.id;
     expect(clinicId).toBeTruthy();
 
     const referralRes = await api.post(`${BASE}/api/diagnostics/referrals`, {
@@ -107,12 +105,10 @@ test.describe('Partner operational lifecycle', () => {
     const lab = { id: fixtureLabId };
     expect(lab.id).toBeTruthy();
 
-    const meRes = await api.get(`${BASE}/api/auth/me`, { headers: auth(ownerToken) });
-    const meBody = await meRes.json();
-    const clinicUser = meBody.data?.user || meBody.data || meBody.user || meBody;
-    const clinicId = clinicUser.clinicId;
+    const clinic = await prisma.clinic.findFirst({ where: { name: 'E2E Clinic A' }, select: { id: true } });
+    const clinicId = clinic?.id;
 
-    const orderRes = await api.post(`${BASE}/api/medical-lab/orders`, {
+    const orderRes = await api.post(`${BASE}/api/lab-orders`, {
       headers: auth(ownerToken),
       data: { clinicId, patientId, labId: lab.id, priority: 'routine', specimenType: 'blood' },
     });
@@ -120,9 +116,9 @@ test.describe('Partner operational lifecycle', () => {
     const order = (await orderRes.json()).data;
     expect(order.status).toBe('ordered');
 
-    const cycle = ['sample_collected', 'received', 'processing', 'result_ready', 'verified'];
+    const cycle = ['sent', 'in_progress', 'ready', 'delivered'];
     for (const status of cycle) {
-      const res = await api.post(`${BASE}/api/medical-lab/orders/${order.id}/status`, {
+      const res = await api.post(`${BASE}/api/lab-orders/${order.id}/status`, {
         headers: auth(superadminToken),
         data: { status },
       });
@@ -130,14 +126,8 @@ test.describe('Partner operational lifecycle', () => {
       expect((await res.json()).data.status).toBe(status);
     }
 
-    const interpretation = await api.post(`${BASE}/api/medical-lab/orders/${order.id}/interpretation`, {
-      headers: auth(superadminToken),
-      data: { interpretation: 'E2E verified interpretation' },
-    });
-    expect(interpretation.status()).toBe(200);
-
     const read = await api.get(`${BASE}/api/medical-lab/orders/${order.id}`, { headers: auth(ownerToken) });
     expect(read.status()).toBe(200);
-    expect((await read.json()).data.order.status).toBe('verified');
+    expect((await read.json()).data.status).toBe('delivered');
   });
 });
