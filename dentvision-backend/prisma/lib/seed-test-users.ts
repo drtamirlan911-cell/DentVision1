@@ -31,6 +31,7 @@ export const TEST_USERS: TestUserSpec[] = [
   { email: 'admin@dentvision.kz', firstName: 'Мария', lastName: 'Петрова', role: 'ADMIN', spec: 'Администратор (касса)' },
   { email: 'lab@dentvision.kz', firstName: 'Сергей', lastName: 'Козлов', role: 'LAB' },
   { email: 'student@dentvision.kz', firstName: 'Жанель', lastName: 'Абдраимова', role: 'STUDENT' },
+  { email: 'patient@dentvision.kz', firstName: 'Иван', lastName: 'Петров', role: 'PATIENT' },
   { email: 'super@dentvision.kz', firstName: 'Super', lastName: 'Admin', role: 'SUPERADMIN' },
 ];
 
