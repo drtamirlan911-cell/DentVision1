@@ -50,6 +50,11 @@ function verticalLabel(value: string): string {
   } as Record<string, string>)[value] || value
 }
 
+function payoutStatusLabel(value: string | null): string {
+  if (!value) return 'Не запрошена'
+  return ({ requested: 'Запрошена', processing: 'В обработке', paid: 'Выплачена', failed: 'Ошибка' } as Record<string, string>)[value] || value
+}
+
 function statusLabel(value: string): string {
   return ({ HEALTHY: 'В норме', LOW_MARGIN: 'Низкая маржа', LOSS: 'Убыток' } as Record<string, string>)[value] || value
 }
