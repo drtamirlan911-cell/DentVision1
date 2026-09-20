@@ -18,7 +18,7 @@ export interface PartnerEconomicsRule {
 export interface PartnerEconomicsInput {
   vertical: PartnerVertical; partnerId: string; grossMinor: bigint; monthlyGmvMinor?: bigint;
   paymentCostMinor?: bigint; aiCostMinor?: bigint; storageCostMinor?: bigint;
-  supportCostMinor?: bigint; refundReserveMinor?: bigint; taxMinor?: bigint;
+  supportCostMinor?: bigint; refundReserveMinor?: bigint; taxMinor?: bigint; branchId?: string | null;
 }
 export type EconomicsStatus = 'HEALTHY' | 'LOSS' | 'LOW_MARGIN';
 export interface PartnerEconomicsBreakdown {
@@ -113,6 +113,7 @@ export async function recordPartnerEconomics(input: PartnerEconomicsInput & { op
     rule: { percentBps: breakdown.rule.percentBps, minFeeMinor: breakdown.rule.minFeeMinor.toString(), maxFeeMinor: breakdown.rule.maxFeeMinor?.toString() ?? null, subscriptionMinor: breakdown.rule.subscriptionMinor.toString(), effectiveFrom: breakdown.rule.effectiveFrom },
     commissionMinor: breakdown.commissionMinor.toString(), partnerRevenueMinor: breakdown.partnerRevenueMinor.toString(), contributionMarginMinor: breakdown.contributionMarginMinor.toString(), contributionMarginBps: breakdown.contributionMarginBps, status: breakdown.status,
     costs: { payment: breakdown.paymentCostMinor.toString(), ai: breakdown.aiCostMinor.toString(), storage: breakdown.storageCostMinor.toString(), support: breakdown.supportCostMinor.toString(), refundReserve: breakdown.refundReserveMinor.toString(), tax: breakdown.taxMinor.toString() },
+    branchId: input.branchId ?? null,
   } satisfies Prisma.InputJsonValue;
   try {
     // Serialize wallet initialization/update for each owner. The wallet unique
