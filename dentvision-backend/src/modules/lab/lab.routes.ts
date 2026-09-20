@@ -194,9 +194,10 @@ labRouter.patch('/:id/status', requirePermission('appointment.write'), async (re
       if (order.status === 'delivered' && owned.status !== 'delivered') {
         const meta = (order.files as { meta?: LabOrderMeta } | null)?.meta || {};
         const partnerId = meta.laboratoryId || null;
+        const branchId = order.patientId ? (await tx.patient.findUnique({ where: { id: order.patientId }, select: { branchId: true } }))?.branchId ?? null : null;
         const grossMinor = order.price != null ? tengeToMinor(Number(order.price) || 0) : 0n;
         if (partnerId && grossMinor > 0n) {
-          await recordPartnerEconomics({ vertical: 'DENTAL_LAB', partnerId, grossMinor, operationId: order.id }, tx);
+          await recordPartnerEconomics({ vertical: 'DENTAL_LAB', partnerId, grossMinor, operationId: order.id, branchId }, tx);
         }
       }
       return order;
