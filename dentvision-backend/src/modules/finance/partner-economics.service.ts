@@ -115,7 +115,31 @@ export async function recordPartnerEconomics(input: PartnerEconomicsInput & { op
     costs: { payment: breakdown.paymentCostMinor.toString(), ai: breakdown.aiCostMinor.toString(), storage: breakdown.storageCostMinor.toString(), support: breakdown.supportCostMinor.toString(), refundReserve: breakdown.refundReserveMinor.toString(), tax: breakdown.taxMinor.toString() },
   } satisfies Prisma.InputJsonValue;
   try {
-    return await db.transaction.create({ data: { id, type: 'partner_economics', status: 'completed', amount: breakdown.grossMinor, currency: 'KZT', refType: input.vertical, refId: input.operationId, meta } });
+    const gateway = await db.wallet.findUnique({ where: { ownerType_ownerId_currency: { ownerType: 'GATEWAY', ownerId: 'system', currency: 'KZT' } } })
+      ?? await db.wallet.create({ data: { ownerType: 'GATEWAY', ownerId: 'system', currency: 'KZT' } });
+    const partnerType = input.vertical === PARTNER_VERTICALS.DENTAL_LAB ? 'LABORATORY' : input.vertical === PARTNER_VERTICALS.MEDICAL_ANALYSIS ? 'LABORATORY' : 'DIAGNOSTIC_CENTER';
+    const partner = await db.wallet.findUnique({ where: { ownerType_ownerId_currency: { ownerType: partnerType as any, ownerId: input.partnerId, currency: 'KZT' } } })
+      ?? await db.wallet.create({ data: { ownerType: partnerType as any, ownerId: input.partnerId, currency: 'KZT' } });
+    const platform = await db.wallet.findUnique({ where: { ownerType_ownerId_currency: { ownerType: 'PLATFORM', ownerId: 'system', currency: 'KZT' } } })
+      ?? await db.wallet.create({ data: { ownerType: 'PLATFORM', ownerId: 'system', currency: 'KZT' } });
+    const transaction = await db.transaction.create({
+      data: {
+        id, type: 'partner_economics', status: 'completed', amount: breakdown.grossMinor, currency: 'KZT',
+        refType: input.vertical, refId: input.operationId, meta,
+        ledgerEntries: {
+          create: [
+            { walletId: gateway.id, direction: 'debit', amount: breakdown.grossMinor },
+            { walletId: partner.id, direction: 'credit', amount: breakdown.partnerRevenueMinor },
+            { walletId: platform.id, direction: 'credit', amount: breakdown.commissionMinor },
+          ],
+        },
+      },
+      include: { ledgerEntries: true },
+    });
+    await db.wallet.update({ where: { id: gateway.id }, data: { balance: { decrement: breakdown.grossMinor } } });
+    await db.wallet.update({ where: { id: partner.id }, data: { balance: { increment: breakdown.partnerRevenueMinor } } });
+    await db.wallet.update({ where: { id: platform.id }, data: { balance: { increment: breakdown.commissionMinor } } });
+    return transaction;
   } catch (error) {
     const raced = await db.transaction.findFirst({ where: { type: 'partner_economics', refType: input.vertical, refId: input.operationId } });
     if (raced) return raced;
