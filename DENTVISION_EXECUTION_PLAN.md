@@ -45,7 +45,7 @@ Evidence recorded in `CURRENT_STATE.md` and `DENTVISION_EXECUTION_LOG.md`.
 - [x] Remove the legacy referral-time economics fallback so settlement cannot use stale `Referral.platformFee` as its authoritative source.
 - [x] Add referral lifecycle/concurrency protection for canonical economics reconciliation.
 - [x] Connect Partner Economics data to the existing Finance Hub Platform view.
-- [ ] Complete accepted → paid → settled integration/concurrency tests with immutable rule/version verification at the durable ledger boundary.
+- [x] Complete accepted → paid → settled integration/concurrency tests with immutable rule/version verification at the durable ledger boundary.
 - [x] Wire the real medical-analysis paid/settled operational lifecycle using the existing `Referral + Laboratory + LaboratoryTest + Payment` domain; do not create a duplicate order model.
 - [x] Complete the ledger/reconciliation surface and connect Finance Hub to the durable economics transactions end-to-end.
 - [x] Keep dental-lab recognition at the existing `delivered` boundary until a real paid/settled callback exists.
@@ -63,7 +63,7 @@ Evidence recorded in `CURRENT_STATE.md` and `DENTVISION_EXECUTION_LOG.md`.
 - [ ] Dental laboratories see per-order/service economics.
 - [x] Expose platform revenue, partner payout, cost, contribution and margin by partner/type/branch/period through durable transparency/dashboard aggregation.
 - [x] Add discrepancy, low-margin and loss alerts from immutable economics rows.
-- [ ] Preserve historical calculations when economics rules change.
+- [x] Preserve historical calculations when economics rules change.
 
 ## Canonical Branch Management Contract
 
@@ -219,7 +219,7 @@ The branch vertical slice is not complete until an isolated E2E workflow proves:
 - [ ] Trigger economics automatically when an eligible order/payment is created or completed.
 - [ ] Automate payout readiness and notifications.
 - [ ] Handle refunds, cancellations, partial fulfillment, discounts, taxes/fees where supported by the domain model.
-- [ ] Add scheduled reconciliation and anomaly detection.
+- [x] Add scheduled reconciliation and anomaly detection.
 
 ### Phase 4 — Product-wide UX and navigation
 **Status:** IN PROGRESS
