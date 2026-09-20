@@ -242,4 +242,36 @@ test.describe('Patient Workflow', () => {
 
     await cleanupPatient(request, ownerToken, created.id);
   });
+
+  test('PATIENT-ODONTO-001: persist tooth 16 finding and expose it in patient read model', async ({ request }) => {
+    const token = await login(request, 'doctor-a@test.com');
+    const patient = await request.post(`${BASE}/api/patients`, {
+      headers: { Authorization: `Bearer ${token}` },
+      data: { firstName: 'Odonto', lastName: `E2E ${Date.now()}`, phone: '+77000000033' },
+    });
+    expect(patient.status()).toBe(201);
+    const patientId = (await patient.json()).data.id;
+
+    const update = await request.patch(`${BASE}/api/patients/${patientId}`, {
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      data: {
+        teeth: {
+          '16': { status: 'caries', surfaces: { O: 'caries', M: 'caries' }, notes: 'E2E odontogram finding' },
+        },
+      },
+    });
+    expect(update.status()).toBe(200);
+    const updated = (await update.json()).data;
+    expect(updated.teeth['16'].status).toBe('caries');
+    expect(updated.teeth['16'].surfaces.O).toBe('caries');
+
+    const read = await request.get(`${BASE}/api/patients/${patientId}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    expect(read.status()).toBe(200);
+    const readData = (await read.json()).data;
+    expect(readData.teeth['16'].status).toBe('caries');
+    expect(readData.teeth['16'].surfaces.M).toBe('caries');
+  });
+
 });
