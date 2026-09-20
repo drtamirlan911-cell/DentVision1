@@ -8,6 +8,7 @@ import { uid, paginate, paginatedResponse } from '../../lib/helpers.js';
 import branchesRouter from '../branches/branches.routes.js';
 import { generateTokens } from '../../lib/jwt.js';
 import { resolveAuthContext } from '../../lib/authContext.js';
+import { auditFromReq } from '../compliance/audit.service.js';
 
 export const organizationsRouter = Router();
 
@@ -110,8 +111,26 @@ organizationsRouter.post('/self-service', async (req: AuthRequest, res) => {
       }
 
       const personId = await ensurePersonRole(tx, req.user!.id, organizationId, type === 'supplier' ? 'seller' : 'owner');
+
+      // Every self-service organization starts with one real operational branch.
+      // This is the canonical Organization → Branch scope; it is persisted and
+      // immediately manageable after refresh rather than being UI-only state.
+      const branchId = uid();
+      const branchCode = (name.trim().toUpperCase().replace(/[^A-ZА-Я0-9]+/gi, '-').replace(/^-|-$/g, '').slice(0, 32) || 'MAIN');
+      await tx.$executeRaw`
+        INSERT INTO "branches"
+          ("id", "organization_id", "clinic_id", "code", "name", "city", "address", "phone", "active", "isDefault", "createdAt", "updatedAt", "settings")
+        VALUES
+          (${branchId}, ${organizationId}, ${type === 'clinic' ? entityId : null}, ${branchCode}, ${name.trim()}, ${city}, ${address}, ${phone}, true, true, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, NULL)
+      `;
+      await tx.branchMember.upsert({
+        where: { personId_branchId: { personId, branchId } },
+        update: {},
+        create: { id: uid(), personId, branchId },
+      });
+
       await tx.user.update({ where: { id: req.user!.id }, data: { role: 'OWNER' } });
-      return { entityId, organizationId, entity, personId };
+      return { entityId, organizationId, entity, personId, branchId };
     });
 
     // The database role is now OWNER, but authorization is organization-scoped.
@@ -137,7 +156,117 @@ organizationsRouter.post('/self-service', async (req: AuthRequest, res) => {
   }
 });
 
+
+// Owner-facing organization control center. These routes deliberately live
+// before the SuperAdmin-only management surface below.
+organizationsRouter.get('/me', async (req: AuthRequest, res) => {
+  try {
+    const person = await prisma.person.findFirst({
+      where: { userId: req.user!.id, organizationId: { not: null } },
+      orderBy: { createdAt: 'asc' },
+      include: { organization: true },
+    });
+    if (!person?.organization) return res.status(404).json({ ok: false, error: 'У вас нет организации' } satisfies ApiResponse);
+
+    const org = person.organization;
+    const branches = await prisma.$queryRaw<Array<{
+      id: string; code: string; name: string; city: string | null; address: string | null;
+      phone: string | null; active: boolean; is_default: boolean;
+    }>>`
+      SELECT "id","code","name","city","address","phone","active","isDefault" AS is_default
+      FROM "branches" WHERE "organization_id" = ${org.id}
+      ORDER BY "isDefault" DESC, "createdAt" ASC
+    `;
+    return res.json({ ok: true, data: { organization: org, person, branches } } satisfies ApiResponse);
+  } catch (error) {
+    console.error('[organizations] me error:', error);
+    return res.status(500).json({ ok: false, error: 'Не удалось получить организацию' } satisfies ApiResponse);
+  }
+});
+
+organizationsRouter.patch('/me', async (req: AuthRequest, res) => {
+  try {
+    const person = await prisma.person.findFirst({ where: { userId: req.user!.id, organizationId: { not: null } }, include: { organization: true } });
+    if (!person?.organization) return res.status(404).json({ ok: false, error: 'У вас нет организации' });
+    const current = person.organization;
+    const body = req.body || {};
+    const data = {
+      name: body.name === undefined ? current.name : String(body.name).trim(),
+      taxId: body.taxId === undefined ? current.taxId : (body.taxId ? String(body.taxId).trim() : null),
+      address: body.address === undefined ? current.address : (body.address ? String(body.address).trim() : null),
+      phone: body.phone === undefined ? current.phone : (body.phone ? String(body.phone).trim() : null),
+      email: body.email === undefined ? current.email : (body.email ? String(body.email).trim().toLowerCase() : null),
+      logo: body.logo === undefined ? current.logo : (body.logo ? String(body.logo).trim() : null),
+      contacts: body.contacts === undefined ? current.contacts : body.contacts,
+    };
+    if (!data.name) return res.status(400).json({ ok: false, error: 'Название организации обязательно' });
+    const updated = await prisma.organization.update({ where: { id: current.id }, data });
+    await auditFromReq(req, { action: 'organization.profile_updated', entity: 'organization', entityId: current.id });
+    return res.json({ ok: true, data: updated } satisfies ApiResponse);
+  } catch (error) {
+    console.error('[organizations] me update error:', error);
+    return res.status(400).json({ ok: false, error: 'Не удалось сохранить профиль организации' } satisfies ApiResponse);
+  }
+});
+
+organizationsRouter.post('/me/verification', async (req: AuthRequest, res) => {
+  try {
+    const person = await prisma.person.findFirst({ where: { userId: req.user!.id, organizationId: { not: null } }, include: { organization: true } });
+    if (!person?.organization) return res.status(404).json({ ok: false, error: 'У вас нет организации' });
+    const org = person.organization;
+    const settings = (org.settings && typeof org.settings === 'object' && !Array.isArray(org.settings)) ? org.settings as Record<string, unknown> : {};
+    const current = String(settings.verification || 'PENDING').toUpperCase();
+    if (current === 'APPROVED') return res.status(409).json({ ok: false, error: 'Организация уже подтверждена' });
+    const updated = await prisma.organization.update({
+      where: { id: org.id },
+      data: { settings: { ...settings, verification: 'SUBMITTED', verificationSubmittedAt: new Date().toISOString() } },
+    });
+    await auditFromReq(req, { action: 'organization.verification_submitted', entity: 'organization', entityId: org.id });
+    return res.json({ ok: true, data: { organizationId: org.id, verification: 'SUBMITTED', organization: updated } } satisfies ApiResponse);
+  } catch (error) {
+    console.error('[organizations] verification submit error:', error);
+    return res.status(400).json({ ok: false, error: 'Не удалось отправить организацию на проверку' } satisfies ApiResponse);
+  }
+});
+
 organizationsRouter.use(requireSuperadmin);
+
+organizationsRouter.get('/verification/queue', async (req: AuthRequest, res) => {
+  try {
+    const organizations = await prisma.organization.findMany({ orderBy: { updatedAt: 'asc' } });
+    const data = organizations
+      .map((org) => {
+        const settings = (org.settings && typeof org.settings === 'object' && !Array.isArray(org.settings)) ? org.settings as Record<string, unknown> : {};
+        return { ...org, verification: String(settings.verification || 'PENDING').toUpperCase() };
+      })
+      .filter((org) => org.verification === 'SUBMITTED' || org.verification === 'PENDING');
+    return res.json({ ok: true, data } satisfies ApiResponse);
+  } catch (error) {
+    console.error('[organizations] verification queue error:', error);
+    return res.status(500).json({ ok: false, error: 'Не удалось получить очередь проверки' } satisfies ApiResponse);
+  }
+});
+
+organizationsRouter.post('/:id/verification', async (req: AuthRequest, res) => {
+  try {
+    const id = String(req.params.id);
+    const status = String(req.body?.status || '').toUpperCase();
+    if (!['APPROVED', 'REJECTED', 'PENDING'].includes(status)) return res.status(400).json({ ok: false, error: 'Статус должен быть APPROVED, REJECTED или PENDING' });
+    const org = await prisma.organization.findUnique({ where: { id } });
+    if (!org) return res.status(404).json({ ok: false, error: 'Организация не найдена' });
+    const settings = (org.settings && typeof org.settings === 'object' && !Array.isArray(org.settings)) ? org.settings as Record<string, unknown> : {};
+    const reason = req.body?.reason ? String(req.body.reason).trim() : null;
+    const updated = await prisma.organization.update({
+      where: { id },
+      data: { settings: { ...settings, verification: status, ...(reason ? { verificationReason: reason } : {}), verificationReviewedAt: new Date().toISOString(), verificationReviewedBy: req.user!.id } },
+    });
+    await auditFromReq(req, { action: 'organization.verification_reviewed', entity: 'organization', entityId: id, details: { status, reason } });
+    return res.json({ ok: true, data: { organization: updated, verification: status } } satisfies ApiResponse);
+  } catch (error) {
+    console.error('[organizations] verification review error:', error);
+    return res.status(400).json({ ok: false, error: 'Не удалось изменить статус проверки' } satisfies ApiResponse);
+  }
+});
 
 organizationsRouter.get('/', async (req: AuthRequest, res) => {
   try {
