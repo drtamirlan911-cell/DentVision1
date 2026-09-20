@@ -518,3 +518,12 @@ Current connected GitHub status has not produced a CI workflow run for these dir
 
 ### Next action
 - Execute/verify the isolated partner owner journeys and connect the resulting operations to Finance Hub end-to-end evidence.
+
+
+## 2026-09-20 — Payout readiness regression coverage
+
+### Implemented
+- `e87f99690306240d7a73bfe1650b4bf2478f39d4` — added regression coverage for lecturer/supplier payout-readiness notification, open-payout suppression, 24-hour notification deduplication and durable job-lock invocation.
+
+### Verification
+- Test contract is committed but has not been executed in the repository CI surface. Current release verification remains **UNVERIFIED**.
