@@ -117,9 +117,8 @@ export async function recordPartnerEconomics(input: PartnerEconomicsInput & { op
   try {
     const gateway = await db.wallet.findUnique({ where: { ownerType_ownerId_currency: { ownerType: 'GATEWAY', ownerId: 'system', currency: 'KZT' } } })
       ?? await db.wallet.create({ data: { ownerType: 'GATEWAY', ownerId: 'system', currency: 'KZT' } });
-    const partnerType = input.vertical === PARTNER_VERTICALS.DENTAL_LAB ? 'LABORATORY' : input.vertical === PARTNER_VERTICALS.MEDICAL_ANALYSIS ? 'LABORATORY' : 'DIAGNOSTIC_CENTER';
-    const partner = await db.wallet.findUnique({ where: { ownerType_ownerId_currency: { ownerType: partnerType as any, ownerId: input.partnerId, currency: 'KZT' } } })
-      ?? await db.wallet.create({ data: { ownerType: partnerType as any, ownerId: input.partnerId, currency: 'KZT' } });
+    const partner = await db.wallet.findUnique({ where: { ownerType_ownerId_currency: { ownerType: 'PARTNER', ownerId: input.partnerId, currency: 'KZT' } } })
+      ?? await db.wallet.create({ data: { ownerType: 'PARTNER', ownerId: input.partnerId, currency: 'KZT' } });
     const platform = await db.wallet.findUnique({ where: { ownerType_ownerId_currency: { ownerType: 'PLATFORM', ownerId: 'system', currency: 'KZT' } } })
       ?? await db.wallet.create({ data: { ownerType: 'PLATFORM', ownerId: 'system', currency: 'KZT' } });
     const transaction = await db.transaction.create({
