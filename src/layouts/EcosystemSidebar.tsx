@@ -29,7 +29,13 @@ function EcosystemSidebar({ collapsed, setCollapsed, sidebarVisible, isMobile, s
   const navigate = useNavigate(); const location = useLocation(); const { t } = useTranslation(); const iam = useIam(); const { setOpen } = useCommandPalette();
   const [openGroups, setOpenGroups] = React.useState<Record<string, boolean>>({ core: true, care: true, partners: true, market: true, business: false });
   const text = (key: string, fallback: string) => { const v = t(key); return v && v !== key ? v : fallback; };
-  const canSee = (item: Item) => { if (isGuest) return Boolean(item.guest); if (item.id === 'home' || item.id === 'ai' || item.id === 'help') return true; return iam.canAccessPage(item.page || pageIdFromPath(item.path)); };
+  const isPatient = String(iam.effectiveRole || '').toLowerCase() === 'patient';
+  const canSee = (item: Item) => {
+    if (isGuest) return Boolean(item.guest);
+    if (isPatient) return ['shop', 'academy', 'profile'].includes(item.id);
+    if (item.id === 'home' || item.id === 'ai' || item.id === 'help') return true;
+    return iam.canAccessPage(item.page || pageIdFromPath(item.path));
+  };
   const visibleGroups = groups.map(g => ({ ...g, items: g.items.filter(canSee) })).filter(g => g.items.length); const visibleMore = moreItems.filter(canSee); const visibleAdmin = isAdmin ? adminItems.filter(canSee) : [];
   const go = (path: string) => { navigate(path); if (isMobile) toggleSidebar(); };
   if (!sidebarVisible && !(isMobile && sidebarOpen)) return null;
