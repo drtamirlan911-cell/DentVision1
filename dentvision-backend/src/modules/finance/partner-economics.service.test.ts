@@ -65,7 +65,7 @@ describe('partner economics calculator', () => {
     const rows = [
       { transactionId:'t1', vertical:'DIAGNOSTIC_3D', partnerId:'p1', branchId:'b1', operationId:'o1', grossMinor:100000n, commissionMinor:7000n, partnerPayoutMinor:93000n, costMinor:2000n, contributionMarginMinor:5000n, contributionMarginBps:500, status:'HEALTHY', economicsVersion:1 },
       { transactionId:'t2', vertical:'MEDICAL_ANALYSIS', partnerId:'p2', branchId:'b2', operationId:'o2', grossMinor:100000n, commissionMinor:6000n, partnerPayoutMinor:94000n, costMinor:6000n, contributionMarginMinor:0n, contributionMarginBps:0, status:'LOW_MARGIN', economicsVersion:1 },
-      { transactionId:'t3', vertical:'DENTAL_LAB', partnerId:'p3', branchId:'b3', operationId:'o3', grossMinor:100000n, commissionMinor:8000n, partnerPayoutMinor:90000n, costMinor:9000n, contributionMarginMinor:-1000n, contributionMarginBps:-100, status:'LOSS', economicsVersion:1 },
+      { transactionId:'t3', vertical:'DENTAL_LAB', partnerId:'p3', branchId:'b3', operationId:'o3', grossMinor:100000n, commissionMinor:8000n, partnerPayoutMinor:92000n, costMinor:9000n, contributionMarginMinor:-1000n, contributionMarginBps:-100, status:'LOSS', economicsVersion:1 },
       { transactionId:'t4', vertical:'DENTAL_LAB', partnerId:'p3', branchId:'b3', operationId:'o4', grossMinor:100000n, commissionMinor:8000n, partnerPayoutMinor:91000n, costMinor:1000n, contributionMarginMinor:7000n, contributionMarginBps:700, status:'HEALTHY', economicsVersion:1 },
     ] as any;
     const dashboard = buildPartnerEconomicsDashboard(rows, { from:null, to:null });
@@ -92,8 +92,8 @@ describe('partner economics reconciliation', () => {
           meta: {
             partnerId: 'center-1',
             economicsVersion: 1,
-            commissionMinor: '7_000',
-            partnerRevenueMinor: '93_000',
+            commissionMinor: '7000',
+            partnerRevenueMinor: '93000',
           },
           ledgerEntries: [
             { direction: 'debit', amount: 100_000n, wallet: { ownerType: 'GATEWAY', ownerId: 'system' } },
@@ -160,12 +160,12 @@ describe('partner economics transparency read model', () => {
           meta: {
             partnerId: 'center-1',
             branchId: 'branch-1',
-            commissionMinor: '70_000',
-            partnerRevenueMinor: '930_000',
-            contributionMarginMinor: '65_000',
+            commissionMinor: '70000',
+            partnerRevenueMinor: '930000',
+            contributionMarginMinor: '65000',
             economicsVersion: 1,
             status: 'HEALTHY',
-            costs: { payment: '5_000', ai: '0', storage: '0', support: '0', refundReserve: '0', tax: '0' },
+            costs: { payment: '5000', ai: '0', storage: '0', support: '0', refundReserve: '0', tax: '0' },
           },
           ledgerEntries: [
             { direction: 'debit', amount: 1_000_000n },
