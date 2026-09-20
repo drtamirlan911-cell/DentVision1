@@ -150,7 +150,7 @@ describe('partner economics reconciliation', () => {
 describe('partner economics transparency read model', () => {
   it('aggregates durable payout, costs and contribution by partner', async () => {
     const db = {
-      payout: { findMany: async () => [] },
+      payout: { findMany: async () => [{ id: 'payout-1', amount: 930_000n, status: 'approved', wallet: { ownerId: 'center-1' }, createdAt: new Date() }] },
       transaction: {
         findMany: async () => [{
           id: 'tx-1',
@@ -185,6 +185,8 @@ describe('partner economics transparency read model', () => {
     expect(result.totals.contributionMarginMinor).toBe(65_000n);
     expect(result.rows[0].economicsVersion).toBe(1);
     expect(result.rows[0].branchId).toBe('branch-1');
+    expect(result.rows[0].payoutStatus).toBe('approved');
+    expect(result.rows[0].payoutAmountMinor).toBe(930_000n);
   });
 
   it('filters branch without recomputing historical economics', async () => {
