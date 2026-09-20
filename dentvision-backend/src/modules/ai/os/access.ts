@@ -95,7 +95,7 @@ export async function resolveAiToolAccess(input: AiToolAccessInput): Promise<AiT
   }
 
   const permissions = new Set(
-    await resolveUserPermissions(input.userId, organizationId ?? clinicId, role),
+    clinicId ? await resolveUserPermissions(input.userId, organizationId ?? clinicId, role) : [],
   );
 
   const allowed = new Set<string>();
