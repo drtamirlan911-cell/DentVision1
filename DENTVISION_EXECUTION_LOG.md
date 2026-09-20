@@ -772,3 +772,10 @@ Run the exact current main-tip CI role/device matrix. Treat every failed role/de
 
 - `bb0e42d1f53817ee22172fa53271e01ebe11614d` / `9df80f2f94d1ba1e872d5dea7044a602713fc658` — platform governance/support screens (`quality`, `platform-finance`, `ai-governance`, `support`, `security`) are included in the route inventory and authorization mapping.
 - `b5b3ad21a2450dcbf8ee5b7758cbb4267326267d` / `0c7090953297201561a265c4c9a4793c7b2517b7` — deterministic E2E support and laboratory identities were added to extend role coverage beyond the initial clinic/partner set.
+
+
+### 2026-09-20 — Visual/interaction design audit expansion
+- `fc05d46b190b358ac88dd0899a2bab48525d633a` — role gate now inspects visible dialogs, menus and listboxes: semantic heading/content, close control, accessible names, internal overflow, and Escape dismissal without unintended navigation.
+- `4e9783bbb84170b96082e24c9b3ebec81462f050` — every audited screen now requires meaningful visible content and information hierarchy; unexplained icon-only interactive controls are rejected.
+- `4a7b194bb790f8b75431b8d4b9a67cc62894b073` — duplicate control-label detection was added as an additional UI ambiguity signal.
+- This complements geometry/accessibility/runtime/security checks; visual screenshots remain evidence for human review, while deterministic assertions catch objective layout and interaction defects.
