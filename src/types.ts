@@ -11,6 +11,7 @@ export interface User {
   clinicId?: string
   login: string
   role: UserRole
+  effectiveRole?: string
   name: string
   phone?: string
   email?: string
