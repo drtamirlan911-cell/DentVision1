@@ -95,6 +95,7 @@ export async function authenticate(req: AuthRequest, res: Response, next: NextFu
     let effectiveSupplierId: string | undefined;
     let unifiedBranchIds: string[] = [];
     let effectiveRole = user.role;
+    let effectiveBranchId: string | undefined;
 
     if (!isGuest) {
       if (payload.organizationId) {
@@ -116,6 +117,14 @@ export async function authenticate(req: AuthRequest, res: Response, next: NextFu
           effectivePersonType = person.personType;
           effectiveRole = scopedRole;
           unifiedBranchIds = person.branchMemberships.map((membership) => membership.branchId);
+          if (payload.branchId) {
+            const requestedBranch = await prisma.$queryRaw<Array<{ id: string; organization_id: string | null }>>`SELECT "id", "organization_id" FROM "branches" WHERE "id" = ${payload.branchId} LIMIT 1`;
+            if (!requestedBranch[0] || requestedBranch[0].organization_id !== payload.organizationId) return res.status(403).json({ ok: false, error: 'Филиал не относится к активной организации' });
+            const roleKeys = person.personRoles.map((pr) => pr.role.key.toLowerCase());
+            const orgManager = roleKeys.some((key) => ['owner', 'org_owner', 'admin', 'org_admin'].includes(key));
+            if (!orgManager && !unifiedBranchIds.includes(payload.branchId)) return res.status(403).json({ ok: false, error: 'У вас нет доступа к выбранному филиалу' });
+            effectiveBranchId = payload.branchId;
+          }
           if (person.organization.type === 'CLINIC') effectiveClinicId = person.organization.originalId || undefined;
         }
       }
@@ -148,7 +157,7 @@ export async function authenticate(req: AuthRequest, res: Response, next: NextFu
       supplierRole: isGuest ? undefined : payload.supplierRole,
       lecturerId: isGuest ? undefined : payload.lecturerId,
       organizationId: effectiveOrgId, organizationType: effectiveOrgType, personType: effectivePersonType,
-      branchIds, assignedBranchId, sessionId: payload.sessionId, isGuest,
+      branchIds, assignedBranchId, branchId: effectiveBranchId, sessionId: payload.sessionId, isGuest,
     } satisfies AuthUser;
     next();
   } catch (err: any) {
@@ -172,7 +181,7 @@ export function optionalAuth(req: AuthRequest, _res: Response, next: NextFunctio
         clinicId: isGuest ? undefined : payload.clinicId,
         organizationId: isGuest ? undefined : payload.organizationId,
         organizationType: isGuest ? undefined : payload.organizationType,
-        personType: isGuest ? undefined : payload.personType, isGuest,
+        personType: isGuest ? undefined : payload.personType, branchId: isGuest ? undefined : payload.branchId, isGuest,
       };
     }
   } catch { /* anonymous */ }
