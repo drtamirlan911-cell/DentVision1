@@ -366,7 +366,10 @@ export async function getPartnerEconomicsTransparency(
     costMinor: acc.costMinor + row.costMinor,
     contributionMarginMinor: acc.contributionMarginMinor + row.contributionMarginMinor,
     contributionMarginBps: 0,
-  }), { operations: 0, grossMinor: 0n, commissionMinor: 0n, partnerPayoutMinor: 0n, costMinor: 0n, contributionMarginMinor: 0n, contributionMarginBps: 0 });
+    payoutId: null,
+    payoutStatus: null,
+    payoutAmountMinor: null,
+  }), { operations: 0, grossMinor: 0n, commissionMinor: 0n, partnerPayoutMinor: 0n, costMinor: 0n, contributionMarginMinor: 0n, contributionMarginBps: 0, payoutId: null, payoutStatus: null, payoutAmountMinor: null });
   totals.contributionMarginBps = totals.grossMinor === 0n ? 0 : Number((totals.contributionMarginMinor * 10_000n) / totals.grossMinor);
 
   const discrepancies = rows.filter((row) => row.grossMinor !== row.commissionMinor + row.partnerPayoutMinor || row.contributionMarginMinor !== row.commissionMinor - row.costMinor).length;
