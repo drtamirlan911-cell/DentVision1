@@ -101,7 +101,7 @@ test.describe('Partner operational lifecycle', () => {
     expect(clinicReferral.result || clinicReferral.results || clinicReferral.reportText).toBeTruthy();
   });
 
-  test('PARTNER-002: medical laboratory order → full lifecycle → result → verified', async () => {
+  test('PARTNER-002: medical laboratory order → full lifecycle → result → delivered', async () => {
     const lab = { id: fixtureLabId };
     expect(lab.id).toBeTruthy();
 
@@ -126,7 +126,7 @@ test.describe('Partner operational lifecycle', () => {
       expect((await res.json()).data.status).toBe(status);
     }
 
-    const read = await api.get(`${BASE}/api/medical-lab/orders/${order.id}`, { headers: auth(ownerToken) });
+    const read = await api.get(`${BASE}/api/lab-orders/${order.id}`, { headers: auth(ownerToken) });
     expect(read.status()).toBe(200);
     expect((await read.json()).data.status).toBe('delivered');
   });
