@@ -1,6 +1,6 @@
 import { test, expect, type APIRequestContext } from '@playwright/test';
 import { makeIin } from '../helpers/iin';
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient } from '../../dentvision-backend/node_modules/@prisma/client';
 
 const BASE = process.env.PLAYWRIGHT_BASE_URL || 'http://localhost:3001';
 const PASSWORD = 'Test1234!';
