@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { ListSkeleton } from '@/components/ui/ds';
-import { useOutletContext } from 'react-router-dom';
+import { useAuth } from '@/store/auth.store';
 import { Shield, Search, RefreshCw, Clock, User as UserIcon, Download } from 'lucide-react';
 import * as api from '../utils/api';
 import { Card } from '../components/ui/ds/Card';
@@ -8,7 +8,7 @@ import { Button } from '../components/ui/ds/Button';
 import { Badge } from '../components/ui/ds/Badge';
 import { EmptyState } from '../components/ui/ds/EmptyState';
 import { PageHeader } from '../components/ui/ds/StatCard';
-import type { Clinic, User, RoleInfo, AuditLogEntry } from '../types';
+import type { AuditLogEntry } from '../types';
 
 const ACTION_LABELS: Record<string, { l: string; v: string }> = {
   create_patient: { l: 'Создал пациента', v: 'success' },
@@ -35,7 +35,8 @@ function getActionInfo(action: string): { l: string; v: string } {
 }
 
 export default function AuditLog() {
-  const { clinic } = useOutletContext<{ clinic: Clinic; user: User; roleInfo: RoleInfo }>();
+  const clinic = useAuth((state) => state.activeClinic || state.clinic);
+
   const [logs, setLogs] = useState<AuditLogEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
