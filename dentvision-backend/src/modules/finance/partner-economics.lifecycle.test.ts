@@ -39,7 +39,7 @@ describe('partner economics vertical matrix', () => {
 
   it('preserves historical rule version in the calculated result', () => {
     const rule = canonicalPartnerEconomicsRules().find((r) => r.vertical === PARTNER_VERTICALS.DENTAL_LAB)!;
-    const historical = { ...rule, version: 7, percentBps: 500 };
+    const historical = { ...rule, version: 7, percentBps: 500, volumeTiers: undefined };
     const row = calculatePartnerEconomics({
       vertical: PARTNER_VERTICALS.DENTAL_LAB,
       partnerId: 'partner-1',
