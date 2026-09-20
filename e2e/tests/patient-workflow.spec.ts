@@ -291,10 +291,10 @@ test.describe('Patient Workflow', () => {
 
     const update = await request.patch(`${BASE}/api/crm/waiting-list/${row.id}`, {
       headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-      data: { status: 'contacted', notes: 'E2E contacted' },
+      data: { status: 'called', notes: 'E2E contacted' },
     });
     expect(update.status()).toBe(200);
-    expect((await update.json()).data.status).toBe('contacted');
+    expect((await update.json()).data.status).toBe('called');
   });
 
 });
