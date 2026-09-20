@@ -112,7 +112,7 @@ test.describe('Partner operational lifecycle', () => {
     const clinic = await prisma.clinic.findFirst({ where: { name: 'E2E Clinic A' }, select: { id: true } });
     const clinicId = clinic?.id;
 
-    const orderRes = await api.post(`${BASE}/api/lab-orders`, {
+    const orderRes = await api.post(`${BASE}/api/lab/medical-laboratory/orders`, {
       headers: auth(ownerToken),
       data: { clinicId, patientId, labId: lab.id, priority: 'routine', specimenType: 'blood' },
     });
@@ -122,7 +122,7 @@ test.describe('Partner operational lifecycle', () => {
 
     const cycle = ['sample_collected', 'received', 'processing', 'result_ready', 'verified'];
     for (const status of cycle) {
-      const res = await api.post(`${BASE}/api/lab-orders/${order.id}/status`, {
+      const res = await api.post(`${BASE}/api/lab/medical-laboratory/orders/${order.id}/status`, {
         headers: auth(superadminToken),
         data: { status },
       });
@@ -130,7 +130,7 @@ test.describe('Partner operational lifecycle', () => {
       expect((await res.json()).data.status).toBe(status);
     }
 
-    const read = await api.get(`${BASE}/api/lab-orders/${order.id}`, { headers: auth(ownerToken) });
+    const read = await api.get(`${BASE}/api/lab/medical-laboratory/orders/${order.id}`, { headers: auth(ownerToken) });
     expect(read.status()).toBe(200);
     expect((await read.json()).data.order.status).toBe('verified');
   });
