@@ -78,4 +78,20 @@ test.describe('Core clinical workflow', () => {
     expect(caseRead.status()).toBe(200);
     expect((await caseRead.json()).data.case.id).toBe(caseId);
   });
+
+  test('CLIN-002: patient medical-data audit is readable for the patient scope', async ({ request }) => {
+    const token = await login(request, 'owner-a@test.com');
+    const patient = await request.post(`${BASE}/api/patients`, {
+      headers: { Authorization: `Bearer ${token}` },
+      data: { firstName: 'Audit', lastName: `Patient ${Date.now()}`, phone: '+77000000034' },
+    });
+    expect(patient.status()).toBe(201);
+    const patientId = (await payload(patient)).id;
+    const audit = await request.get(`${BASE}/api/patients/${patientId}/audit`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    expect(audit.status()).toBe(200);
+    expect(Array.isArray((await payload(audit)))).toBe(true);
+  });
+
 });
