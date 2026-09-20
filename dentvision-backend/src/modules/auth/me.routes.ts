@@ -47,6 +47,7 @@ authMeRouter.get('/me', authenticate, async (req: AuthRequest, res) => {
         role: user.role,
         organizationId: user.organizationId,
         organizationType: user.organizationType,
+        organizationName: user.organizationName,
         personType: user.personType,
         effectiveRole,
       },
