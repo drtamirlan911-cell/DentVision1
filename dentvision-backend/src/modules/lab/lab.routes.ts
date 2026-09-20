@@ -201,9 +201,9 @@ labRouter.patch('/:id/status', requirePermission('appointment.write'), async (re
     if (!clinicId) return res.status(400).json({ ok: false, error: 'Клиника не указана' } satisfies ApiResponse);
     const { status } = req.body as { status?: string };
     if (!status || !VALID_STATUSES.includes(status as typeof VALID_STATUSES[number])) return res.status(400).json({ ok: false, error: `Недопустимый статус. Допустимые: ${VALID_STATUSES.join(', ')}` } satisfies ApiResponse);
-    if (owned.status !== status && !isDentalLabTransitionAllowed(owned.status, status)) return res.status(400).json({ ok: false, error: `Недопустимый переход ${owned.status} → ${status}` } satisfies ApiResponse);
     const owned = await prisma.labOrder.findFirst({ where: { id: req.params.id as string, clinicId, ...branchScopedLabOrder(req) }, select: { id: true, status: true, patientId: true, doctorId: true } });
     if (!owned) return res.status(404).json({ ok: false, error: 'Заказ лаборатории не найден' } satisfies ApiResponse);
+    if (owned.status !== status && !isDentalLabTransitionAllowed(owned.status, status)) return res.status(400).json({ ok: false, error: `Недопустимый переход ${owned.status} → ${status}` } satisfies ApiResponse);
     await ensureDentalLabOrderEventsTable();
     const order = await prisma.$transaction(async (tx) => {
       const order = await tx.labOrder.update({ where: { id: req.params.id as string }, data: { status: status as any } });
