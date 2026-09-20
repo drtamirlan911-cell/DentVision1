@@ -4,6 +4,7 @@ import { authenticate } from '../../middleware/auth.js';
 import { requirePermission } from '../../middleware/rbac.js';
 import type { AuthRequest, ApiResponse } from '../../types/index.js';
 import { uid } from '../../lib/helpers.js';
+import { tengeToMinor } from '../../lib/money.js';
 import { assertOrgAccess } from '../../lib/orgContext.js';
 import { publish } from '../../lib/events.js';
 
@@ -108,9 +109,22 @@ medicalLabLifecycleRouter.post('/orders', requirePermission('patient.read'), asy
       if (!lab?.active) return res.status(400).json({ ok: false, error: 'Медицинская лаборатория недоступна' });
     }
     const id = uid();
+    const requestedTests = Array.isArray(tests) ? tests : [];
+    const testIds = requestedTests.map((test: any) => test?.testId ? String(test.testId) : '').filter(Boolean);
+    const pricedTests = testIds.length
+      ? await prisma.laboratoryTest.findMany({ where: { id: { in: testIds } }, select: { id: true, labId: true, name: true, price: true } })
+      : [];
+    const pricedById = new Map(pricedTests.map((test) => [test.id, test]));
+    for (const test of requestedTests) {
+      if (!test?.testId) continue;
+      const catalog = pricedById.get(String(test.testId));
+      if (!catalog || (labId && catalog.labId !== String(labId))) return res.status(400).json({ ok: false, error: 'Анализ не принадлежит выбранной лаборатории' });
+    }
     await prisma.$executeRawUnsafe(`INSERT INTO "medical_lab_orders" ("id","clinicId","patientId","treatmentCaseId","labId","orderedByUserId","status","priority","notes","specimenType","metadata","createdAt","updatedAt") VALUES ($1,$2,$3,$4,$5,$6,'ordered',$7,$8,$9,$10,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)`, id, clinicId, patientId ? String(patientId) : null, treatmentCaseId ? String(treatmentCaseId) : null, labId ? String(labId) : null, req.user!.id, String(priority), notes ? String(notes) : null, specimenType ? String(specimenType) : null, metadata ?? null);
-    for (const test of Array.isArray(tests) ? tests : []) {
-      await prisma.$executeRawUnsafe(`INSERT INTO "medical_lab_order_tests" ("id","orderId","testId","name","analyteCode","createdAt","updatedAt") VALUES ($1,$2,$3,$4,$5,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)`, uid(), id, test.testId ? String(test.testId) : null, String(test.name || 'Анализ'), test.analyteCode ? String(test.analyteCode) : null);
+    for (const test of requestedTests) {
+      const catalog = test?.testId ? pricedById.get(String(test.testId)) : undefined;
+      const priceMinor = catalog?.price != null ? tengeToMinor(Number(catalog.price) || 0) : null;
+      await prisma.$executeRawUnsafe(`INSERT INTO "medical_lab_order_tests" ("id","orderId","testId","priceMinor","name","analyteCode","createdAt","updatedAt") VALUES ($1,$2,$3,$4,$5,$6,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)`, uid(), id, test.testId ? String(test.testId) : null, priceMinor, String(test.name || catalog?.name || 'Анализ'), test.analyteCode ? String(test.analyteCode) : null);
     }
     await recordEvent(id, clinicId, 'draft', 'ordered', req.user!.id);
     publish('medicalLabOrder.created', { orderId: id, clinicId, patientId, treatmentCaseId, labId, userId: req.user!.id });
