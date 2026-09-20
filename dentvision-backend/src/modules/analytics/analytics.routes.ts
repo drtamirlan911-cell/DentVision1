@@ -203,17 +203,29 @@ analyticsRouter.get('/patients-growth', async (req: AuthRequest, res) => {
 
     const now = new Date();
     const twelveMonthsAgo = new Date(now.getFullYear(), now.getMonth() - 11, 1);
+    const branchIds = analyticsBranchIds(req);
 
     // SQL-level month bucketing instead of shipping every patient row to JS.
-    const rows = await prisma.$queryRaw<Array<{ month: string; count: bigint }>>`
-      SELECT to_char(date_trunc('month', "createdAt"), 'YYYY-MM') AS month,
-             COUNT(*)::bigint AS count
-      FROM "patients"
-      WHERE "clinicId" = ${clinicId}
-        AND "createdAt" >= ${twelveMonthsAgo}
-      GROUP BY 1
-      ORDER BY 1
-    `;
+    const rows = branchIds === null
+      ? await prisma.$queryRaw<Array<{ month: string; count: bigint }>>`
+          SELECT to_char(date_trunc('month', "createdAt"), 'YYYY-MM') AS month,
+                 COUNT(*)::bigint AS count
+          FROM "patients"
+          WHERE "clinicId" = ${clinicId}
+            AND "createdAt" >= ${twelveMonthsAgo}
+          GROUP BY 1
+          ORDER BY 1
+        `
+      : await prisma.$queryRaw<Array<{ month: string; count: bigint }>>`
+          SELECT to_char(date_trunc('month', "createdAt"), 'YYYY-MM') AS month,
+                 COUNT(*)::bigint AS count
+          FROM "patients"
+          WHERE "clinicId" = ${clinicId}
+            AND "createdAt" >= ${twelveMonthsAgo}
+            AND "branchId" = ANY(${branchIds}::text[])
+          GROUP BY 1
+          ORDER BY 1
+        `;
 
     const rowByMonth = new Map(rows.map((r) => [r.month, Number(r.count)]));
 
