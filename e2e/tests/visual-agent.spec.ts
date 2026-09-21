@@ -94,9 +94,7 @@ async function login(page: Page, role: AgentRole) {
   if (!role.entry.test(page.url())) {
     const authProbe = await page.evaluate(async () => {
       try {
-        const match = document.cookie.match(/(?:^|;\\s*)accessToken=([^;]*)/);
-        const token = match?.[1];
-        const response = await fetch('http://localhost:3001/api/auth/me', { headers: token ? { Authorization: `Bearer ${decodeURIComponent(token)}` } : {} });
+        const response = await fetch('http://localhost:3001/api/auth/me', { credentials: 'include' });
         const body = await response.json().catch(() => ({}));
         return { status: response.status, effectiveRole: body?.data?.effectiveRole || body?.effectiveRole || null, organizationType: body?.data?.user?.organizationType || body?.user?.organizationType || null, organizationId: body?.data?.user?.organizationId || body?.user?.organizationId || null };
       } catch (error) {
