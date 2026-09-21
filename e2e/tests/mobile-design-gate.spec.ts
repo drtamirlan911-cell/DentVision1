@@ -59,8 +59,8 @@ async function auditLayout(page: Page, route: string, device: string) {
         return {
           tag: el.tagName.toLowerCase(),
           name: (el.getAttribute('aria-label') || el.textContent || el.getAttribute('placeholder') || '').replace(/\s+/g, ' ').trim().slice(0, 120),
-          width: Math.round(r.width),
-          height: Math.round(r.height),
+          width: Math.ceil(r.width),
+          height: Math.ceil(r.height),
         };
       });
 
@@ -68,13 +68,15 @@ async function auditLayout(page: Page, route: string, device: string) {
       .filter(visible)
       .map((el) => {
         const node = el as HTMLElement;
+        const parentScroller = node.closest<HTMLElement>('[class*="overflow-x-auto"], [class*="overflow-x-scroll"]');
         return {
           name: (node.innerText || node.textContent || '').replace(/\s+/g, ' ').trim().slice(0, 120),
           scrollWidth: node.scrollWidth,
           clientWidth: node.clientWidth,
+          intentionalHorizontalScroll: !!parentScroller,
         };
       })
-      .filter((x) => x.name && x.scrollWidth > x.clientWidth + 2)
+      .filter((x) => x.name && x.scrollWidth > x.clientWidth + 2 && !x.intentionalHorizontalScroll)
       .slice(0, 20);
 
     return {
