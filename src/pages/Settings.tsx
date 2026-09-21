@@ -198,7 +198,7 @@ export default function SettingsPage() {
                         <p className="text-2xs text-txt-muted">{s.sub}</p>
                       </div>
                     </div>
-                    <Switch checked disabled onCheckedChange={() => {}} />
+                    <Switch checked disabled ariaLabel={`Сервис ${s.label}`} onCheckedChange={() => {}} />
                   </div>
                 ))}
               </CardContent>
