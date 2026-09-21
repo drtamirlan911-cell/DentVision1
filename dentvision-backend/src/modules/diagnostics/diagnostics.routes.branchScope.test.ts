@@ -27,4 +27,7 @@ describe('diagnostics referral branch enforcement', () => {
     expect(source).toContain('requireReferralAccess()');
     expect(source).toContain('saveAndSignResult');
   });
+  it('uses the original laboratory/diagnostic entity id for partner organization scope', () => {
+    expect(source).toContain('organizationOriginalId || user.organizationId');
+  });
 });
