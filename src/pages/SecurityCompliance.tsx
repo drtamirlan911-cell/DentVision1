@@ -205,6 +205,7 @@ export default function SecurityCompliance() {
                       checked={accepted}
                       disabled={busy === `consent-${key}`}
                       onCheckedChange={(next) => handleConsent(key, next)}
+                      ariaLabel={label}
                     />
                   </div>
                 );
