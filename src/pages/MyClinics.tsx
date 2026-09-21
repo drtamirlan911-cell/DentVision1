@@ -71,9 +71,8 @@ export default function MyClinics() {
         phone: createForm.phone.trim() || undefined,
       });
       if (res?.accessToken) api.setTokens(res.accessToken, res.refreshToken || null);
-      await useAuth.getState().restoreSession();
       toast.success('Клиника создана');
-      navigate(res?.nextPath || '/crm/schedule', { replace: true });
+      window.location.assign(res?.nextPath || '/crm/schedule');
     } catch (e: any) { toast.error(e?.message || 'Не удалось создать клинику'); }
     finally { setCreating(false); }
   };
