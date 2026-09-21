@@ -78,12 +78,17 @@ export async function listCenters(search?: string, city?: string) {
         `SELECT center_id, status FROM "center_subscriptions"`
       ),
     ]);
-    const subByCenter = new Map(subs.map((r) => [r.center_id, r.status]));
+    const visibleOrganizations = await prisma.organization.findMany({ where: { type: 'DIAGNOSTIC_CENTER' }, select: { originalId: true, settings: true } });
+    const visibleCenterIds = new Set(visibleOrganizations.filter((o) => {
+      const s = (o.settings && typeof o.settings === 'object' && !Array.isArray(o.settings)) ? o.settings as Record<string, unknown> : {};
+      return (s as any).ecosystemVisible === true;
+    }).map((o) => o.originalId).filter((id): id is string => Boolean(id)));
+        const subByCenter = new Map(subs.map((r) => [r.center_id, r.status]));
     const visibleIds = allActive.filter((c) => {
       const st = subByCenter.get(c.id);
       return !st || st === 'active' || st === 'trial';
     }).map((c) => c.id);
-    where.id = { in: visibleIds };
+    where.id = { in: visibleIds.filter((id) => visibleCenterIds.has(id)) };
   } catch { /* table may not exist — show all */ }
   return prisma.diagnosticCenter.findMany({
     where,
@@ -146,6 +151,12 @@ export async function updateCenter(id: string, data: any) {
 export async function listLaboratories(search?: string) {
   const where: any = { active: true };
   if (search) where.name = { contains: search, mode: 'insensitive' };
+  const organizations = await prisma.organization.findMany({ where: { type: 'LABORATORY' }, select: { originalId: true, settings: true } });
+  const visibleIds = organizations.filter((o) => {
+    const s = (o.settings && typeof o.settings === 'object' && !Array.isArray(o.settings)) ? o.settings as Record<string, unknown> : {};
+    return (s as any).ecosystemVisible === true;
+  }).map((o) => o.originalId).filter((id): id is string => Boolean(id));
+  where.id = { in: visibleIds };
   return prisma.laboratory.findMany({ where, include: { _count: { select: { tests: true } } }, orderBy: { rating: 'desc' } });
 }
 
