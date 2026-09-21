@@ -58,6 +58,14 @@ async function getOrder(id: string): Promise<OrderRow | null> {
 
 async function canAccessOrder(user: AuthRequest['user'], order: OrderRow, write = false): Promise<boolean> {
   if (user?.role === 'SUPERADMIN') return true;
+
+  // Receiving laboratory context is authoritative. Some lab users also carry
+  // a legacy clinicId in the JWT; checking the clinic first would silently
+  // scope them to the wrong tenant and could expose/deny the wrong orders.
+  if ((user as any)?.organizationType === 'LABORATORY') {
+    return Boolean(order.labId && (await resolveLaboratoryScopeId(user)) === order.labId);
+  }
+
   if (order.clinicId === user?.clinicId) {
     const role = String(user?.role || '').toUpperCase();
     if (['OWNER', 'ADMIN'].includes(role)) return true;
@@ -69,7 +77,7 @@ async function canAccessOrder(user: AuthRequest['user'], order: OrderRow, write 
     });
     return Boolean(patient);
   }
-  if (order.labId && (await resolveLaboratoryScopeId(user)) === order.labId) return true;
+
   if (!write && order.clinicId) return assertOrgAccess(user!, order.clinicId);
   return false;
 }
@@ -80,13 +88,21 @@ async function recordEvent(orderId: string, clinicId: string, fromStatus: string
 
 medicalLabLifecycleRouter.get('/orders', async (req: AuthRequest, res) => {
   try {
-    const clinicId = req.user?.clinicId;
     const patientId = typeof req.query.patientId === 'string' ? req.query.patientId : null;
     const caseId = typeof req.query.caseId === 'string' ? req.query.caseId : null;
     const status = typeof req.query.status === 'string' ? req.query.status : null;
     const where: string[] = [];
     const args: unknown[] = [];
-    if (clinicId) {
+
+    // Organization context takes precedence over any legacy clinicId carried
+    // by the authentication payload. Medical-lab staff must never fall back to
+    // clinic scoping for their own laboratory orders.
+    if ((req.user as any)?.organizationType === 'LABORATORY') {
+      const labId = await resolveLaboratoryScopeId(req.user);
+      if (!labId) return res.status(403).json({ ok: false, error: 'Медицинская лаборатория не привязана к рабочему контексту' } satisfies ApiResponse);
+      args.push(String(labId)); where.push(`o."labId" = ${args.length}`);
+    } else if (req.user?.clinicId) {
+      const clinicId = req.user.clinicId;
       args.push(clinicId); where.push(`o."clinicId" = ${args.length}`);
       const role = String(req.user?.role || '').toUpperCase();
       const branchIds = (req.user?.branchIds ?? []).filter(Boolean);
@@ -94,12 +110,9 @@ medicalLabLifecycleRouter.get('/orders', async (req: AuthRequest, res) => {
         if (branchIds.length === 0) return res.json({ ok: true, data: [] } satisfies ApiResponse);
         args.push(branchIds); where.push(`EXISTS (SELECT 1 FROM "patients" p WHERE p."id" = o."patientId" AND p."branchId" = ANY(${args.length}::text[]))`);
       }
-    } else if (req.user?.organizationId && (req.user as any).organizationType === 'LABORATORY') {
-      const labId = await resolveLaboratoryScopeId(req.user);
-      if (!labId) return res.status(403).json({ ok: false, error: 'Медицинская лаборатория не привязана к рабочему контексту' } satisfies ApiResponse);
-      args.push(String(labId)); where.push(`o."labId" = ${args.length}`);
+    } else {
+      return res.status(403).json({ ok: false, error: 'Нет рабочего контекста' } satisfies ApiResponse);
     }
-    else return res.status(403).json({ ok: false, error: 'Нет рабочего контекста' } satisfies ApiResponse);
     if (patientId) { args.push(patientId); where.push(`o."patientId" = $${args.length}`); }
     if (caseId) { args.push(caseId); where.push(`o."treatmentCaseId" = $${args.length}`); }
     if (status && STATUSES.includes(status as any)) { args.push(status); where.push(`o."status" = $${args.length}`); }
