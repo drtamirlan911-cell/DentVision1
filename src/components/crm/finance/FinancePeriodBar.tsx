@@ -34,7 +34,7 @@ export function FinancePeriodBar({ period, onChange, className }: Props) {
 
   return (
     <div className={cn('flex flex-wrap items-center gap-2', className)}>
-      <span className="inline-flex items-center gap-1.5 text-xs text-txt-muted mr-1">
+      <span className="inline-flex min-h-9 items-center gap-1.5 text-xs text-txt-muted mr-1">
         <Calendar size={13} />
         {t('finance.period')}
       </span>
@@ -42,7 +42,7 @@ export function FinancePeriodBar({ period, onChange, className }: Props) {
         <button
           type="button"
           onClick={() => navigate(withEcosystemContext('/crm/cases', context))}
-          className="inline-flex items-center gap-1.5 rounded-lg border border-dv-gold/25 bg-dv-gold/8 px-2.5 py-1 text-xs font-medium text-dv-gold transition-colors hover:border-dv-gold/45 hover:bg-dv-gold/12"
+          className="inline-flex min-h-9 items-center gap-1.5 rounded-lg border border-dv-gold/25 bg-dv-gold/8 px-2.5 py-1 text-xs font-medium text-dv-gold transition-colors hover:border-dv-gold/45 hover:bg-dv-gold/12"
           title="Вернуться к клиническому кейсу"
         >
           <Link2 size={12} />
@@ -55,7 +55,7 @@ export function FinancePeriodBar({ period, onChange, className }: Props) {
           type="button"
           onClick={() => setPreset(chip.id)}
           className={cn(
-            'px-2.5 py-1 rounded-lg text-xs font-medium border transition-colors',
+            'min-h-9 px-2.5 py-1 rounded-lg text-xs font-medium border transition-colors',
             period.preset === chip.id
               ? 'bg-dv-gold/15 border-dv-gold/40 text-dv-gold'
               : 'bg-white/[0.02] border-bdr-subtle text-txt-muted hover:text-txt-primary hover:border-dv-gold/25',
@@ -71,7 +71,7 @@ export function FinancePeriodBar({ period, onChange, className }: Props) {
             aria-label="Дата начала"
             value={period.from}
             onChange={(e) => onChange({ ...period, from: e.target.value, preset: 'custom' })}
-            className="bg-surface-2 border-bdr-subtle"
+            className="min-h-9 bg-surface-2 border-bdr-subtle"
           />
           <span className="text-txt-muted text-xs">—</span>
           <DatePicker
