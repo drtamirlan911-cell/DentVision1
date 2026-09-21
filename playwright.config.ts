@@ -7,7 +7,7 @@ export default defineConfig({
   workers: 1,
   outputDir: './e2e/test-results',
   use: {
-    baseURL: process.env.PLAYWRIGHT_BASE_URL || 'http://localhost:3001',
+    baseURL: process.env.PLAYWRIGHT_BASE_URL || 'http://localhost:3000',
     screenshot: 'only-on-failure',
     trace: 'on-first-retry',
   },
@@ -15,7 +15,7 @@ export default defineConfig({
     {
       name: 'e2e-core',
       use: { browserName: 'chromium', viewport: { width: 1440, height: 900 } },
-      testMatch: /.*\\.spec\\.ts/,
+      testMatch: /.*\.spec\.ts/,
     },
     {
       name: 'desktop-1280',
