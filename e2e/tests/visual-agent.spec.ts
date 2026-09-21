@@ -103,12 +103,15 @@ async function inspect(page: Page, role: AgentRole, route: string, viewportId: s
     unnamed: Array.from(document.querySelectorAll('button,a,[role="button"],[role="tab"],[role="menuitem"]')).filter(el => {
       const h = el as HTMLElement;
       const r = h.getBoundingClientRect();
-      if (r.width <= 0 || r.height <= 0) return false;
+      const s = getComputedStyle(h);
+      if (r.width <= 0 || r.height <= 0 || s.display === 'none' || s.visibility === 'hidden' || Number.parseFloat(s.opacity || '1') === 0) return false;
       return !(h.getAttribute('aria-label') || h.getAttribute('title') || h.innerText || '').trim();
     }).length,
     smallControls: Array.from(document.querySelectorAll('button,a,[role="button"],[role="tab"],[role="menuitem"]')).filter(el => {
-      const r = (el as HTMLElement).getBoundingClientRect();
-      return r.width > 0 && r.height > 0 && (r.width < 36 || r.height < 36);
+      const h = el as HTMLElement;
+      const r = h.getBoundingClientRect();
+      const s = getComputedStyle(h);
+      return r.width > 0 && r.height > 0 && s.display !== 'none' && s.visibility !== 'hidden' && Number.parseFloat(s.opacity || '1') > 0 && (r.width < 36 || r.height < 36);
     }).length,
   }));
   expect(problems.empty, role.id + ' ' + route + ': visually empty screen').toBeFalsy();
