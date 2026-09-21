@@ -109,6 +109,8 @@ export async function resetPassword(token: string, newPassword: string): Promise
 export async function getMyClinics(): Promise<any[]> { return apiRequest('/api/auth/my-clinics'); }
 export async function switchClinic(clinicId: string | null): Promise<any> { return apiRequest('/api/auth/switch-clinic', { method: 'POST', body: JSON.stringify({ clinicId }) }); }
 export async function createClinic(data: any): Promise<any> { return apiRequest('/api/auth/clinics', { method: 'POST', body: JSON.stringify(data) }); }
+export type SelfServiceOrganizationType = 'clinic' | 'dental_lab' | 'medical_lab' | 'diagnostic_center' | 'supplier' | 'academy';
+export async function createSelfServiceOrganization(data: { type: SelfServiceOrganizationType; name: string; city?: string; address?: string; phone?: string; email?: string; taxId?: string }): Promise<any> { return apiRequest('/api/organizations/self-service', { method: 'POST', body: JSON.stringify(data) }); }
 export async function joinClinic(data: { code?: string; clinicId?: string }): Promise<any> { return apiRequest('/api/auth/join-clinic', { method: 'POST', body: JSON.stringify(data) }); }
 export async function lookupInvitation(code: string): Promise<any> { return apiRequest(`/api/auth/invitations/lookup?code=${encodeURIComponent(code)}`); }
 export async function createDemoClinic(data?: { name?: string; city?: string; address?: string; phone?: string }): Promise<any> { return apiRequest('/api/auth/demo-clinic', { method: 'POST', body: JSON.stringify(data || {}) }); }
