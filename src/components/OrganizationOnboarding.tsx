@@ -1,7 +1,7 @@
 import React, { useState } from 'react'
 import { motion } from 'framer-motion'
-import { Building2, UserPlus, ArrowRight, Check, Loader2 } from 'lucide-react'
-import { Card, CardContent } from '@/components/ui/ds/Card'
+import { Building2, UserPlus, ArrowRight } from 'lucide-react'
+import { Card } from '@/components/ui/ds/Card'
 import { Button } from '@/components/ui/ds/Button'
 import { Input } from '@/components/ui/ds/Input'
 import { useToast } from '@/components/ui/ds/Toast'
@@ -25,8 +25,6 @@ export function OrganizationOnboarding({ kind, onComplete }: OnboardingProps) {
   const [preview, setPreview] = useState<{ name: string; role: string } | null>(null)
 
   const isCenter = kind === 'CENTER'
-  const title = isCenter ? 'диагностический центр' : 'лабораторию'
-
   const handleRegister = async () => {
     if (!form.name.trim()) { toast.error('Укажите название'); return }
     if (!form.city.trim()) { toast.error('Укажите город'); return }
@@ -43,7 +41,7 @@ export function OrganizationOnboarding({ kind, onComplete }: OnboardingProps) {
       if (result?.accessToken) api.setTokens(result.accessToken, result.refreshToken || null)
       window.location.assign(result?.nextPath || (isCenter ? '/diagnostics/center' : '/diagnostics/lab?workspace=medical-lab'))
     } catch (e: any) {
-      toast.error(e?.message || 'Не удалось отправить заявку')
+      toast.error(e?.message || 'Не удалось создать рабочее пространство')
     } finally {
       setLoading(false)
     }
@@ -80,31 +78,6 @@ export function OrganizationOnboarding({ kind, onComplete }: OnboardingProps) {
     }
   }
 
-  if (false) {
-    // Say what actually happened. The previous copy claimed the organisation
-    // was registered; nothing had been created, and the user was left waiting
-    // for a workspace that would never appear.
-    return (
-      <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className="max-w-lg mx-auto p-4 sm:p-6">
-        <Card padding="lg">
-          <div className="space-y-4 text-center">
-            <div className="mx-auto h-14 w-14 rounded-2xl bg-success/10 flex items-center justify-center">
-              <Check size={26} className="text-success" />
-            </div>
-            <h2 className="text-lg font-semibold text-txt-primary">Заявка отправлена</h2>
-            <p className="text-sm text-txt-muted">
-              Мы проверим данные и активируем {title}. После одобрения кабинет откроется
-              автоматически — вы станете его владельцем.
-            </p>
-            <Button variant="secondary" className="min-h-11" onClick={() => setMode('choice')}>
-              Вернуться
-            </Button>
-          </div>
-        </Card>
-      </motion.div>
-    )
-  }
-
   if (mode === 'register') {
     return (
       <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className="max-w-lg mx-auto p-4 sm:p-6">
@@ -128,7 +101,7 @@ export function OrganizationOnboarding({ kind, onComplete }: OnboardingProps) {
               <Input label="Комментарий" value={form.comment} onChange={(e) => setForm({ ...form, comment: e.target.value })} placeholder="Услуги и специализация" />
             </div>
             <Button className="w-full min-h-11" loading={loading} onClick={handleRegister}>
-              Отправить заявку
+              Создать и открыть workspace
             </Button>
           </div>
         </Card>
