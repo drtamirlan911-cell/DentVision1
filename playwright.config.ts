@@ -103,7 +103,7 @@ export default defineConfig({
     },
   ],
   reporter: [
-    ['html', { open: 'never' }],
+    ['html', { outputFolder: process.env.PLAYWRIGHT_HTML_OUTPUT_DIR || 'playwright-report', open: 'never' }],
     ['list'],
   ],
 });
