@@ -28,7 +28,7 @@ export function substituteVariables(content: string, variables: Record<string, a
 export async function buildDocumentContent(templateId: string, variables: Record<string, any>): Promise<string> {
   const template = await prisma.legalTemplate.findUnique({
     where: { id: templateId },
-    include: { versions: { orderBy: { version: 'desc' }, take: 1 } },
+    include: { versions: { where: { status: 'PUBLISHED' }, orderBy: { version: 'desc' }, take: 1 } },
   });
   if (!template) throw new Error('Template not found');
   const versionContent = template.versions[0]?.content;
@@ -143,7 +143,18 @@ export async function onboardPartner(data: any, createdBy: string) {
     vars.ClinicLicense = data.license || '';
   }
   vars.Subscription = data.subscription || '';
-  vars.CommissionRate = data.commission != null ? Number(data.commission) : 10;
+  const canonicalCommissionByType: Record<string, number | null> = {
+    CLINIC: 0,
+    CORPORATE: 0,
+    DIAGNOSTIC_CENTER: 7,
+    LABORATORY: 6,
+    SUPPLIER: 8,
+    RESELLER: 8,
+    EDUCATION_CENTER: null,
+    LECTURER: null,
+  };
+  const canonicalCommission = canonicalCommissionByType[data.type] ?? null;
+  vars.CommissionRate = data.commission != null ? Number(data.commission) : canonicalCommission;
   const types = DOCUMENTS_PER_TYPE[data.type] || [];
   const documents: any[] = [];
   for (const tplType of types) {
