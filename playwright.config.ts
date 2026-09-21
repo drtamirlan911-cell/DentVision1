@@ -62,6 +62,11 @@ export default defineConfig({
       testMatch: /mobile-design-gate\.spec\.ts/,
     },
     {
+      name: 'visual-agent',
+      use: { browserName: 'chromium', viewport: { width: 1440, height: 900 }, baseURL: process.env.PLAYWRIGHT_UI_URL || 'http://localhost:3000' },
+      testMatch: /visual-agent\\.spec\\.ts/,
+    },
+    {
       name: 'role-desktop',
       use: { browserName: 'chromium', viewport: { width: 1440, height: 900 }, baseURL: process.env.PLAYWRIGHT_UI_URL || 'http://localhost:3000' },
       testMatch: /role-design-gate\.spec\.ts/,
