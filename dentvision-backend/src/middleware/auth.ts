@@ -17,6 +17,7 @@ const ROLE_KEY_MAP: Record<string, UserRole> = {
   LAB: 'LAB', lab: 'LAB',
   STUDENT: 'STUDENT', student: 'STUDENT',
   SUPPORT: 'SUPPORT', support: 'SUPPORT',
+  PATIENT: 'PATIENT', patient: 'PATIENT',
   // Partner-only roles live in the unified Role table but have no UserRole enum
   // equivalent. STUDENT is the least-privileged compatibility identity; the
   // actual seller/lecturer permissions remain authoritative in PersonRole.
@@ -26,7 +27,7 @@ const ROLE_KEY_MAP: Record<string, UserRole> = {
 
 const ROLE_PRIORITY: Record<UserRole, number> = {
   SUPERADMIN: 100, OWNER: 90, ADMIN: 80, MANAGER: 70, DOCTOR: 60,
-  LAB: 50, ASSISTANT: 40, CASHIER: 30, STUDENT: 20, SUPPORT: 10,
+  LAB: 50, ASSISTANT: 40, CASHIER: 30, STUDENT: 20, PATIENT: 15, SUPPORT: 10,
 };
 
 function normalizeScopedRole(roleKey: string): UserRole | undefined {
