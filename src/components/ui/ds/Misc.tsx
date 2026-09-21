@@ -120,14 +120,14 @@ function Switch({
         disabled={disabled}
         onClick={() => onCheckedChange(!checked)}
         className={cn(
-          'relative inline-flex h-6 w-10 shrink-0 cursor-pointer items-center rounded-full transition-colors duration-base ease-dv focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-dv-gold/40 focus-visible:ring-offset-2 focus-visible:ring-offset-surface-0',
+          'relative inline-flex h-10 w-11 shrink-0 cursor-pointer items-center rounded-full transition-colors duration-base ease-dv focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-dv-gold/40 focus-visible:ring-offset-2 focus-visible:ring-offset-surface-0',
           checked ? 'bg-dv-gold' : 'bg-surface-3 border border-bdr-subtle'
         )}
       >
         <span
           className={cn(
-            'inline-block h-4 w-4 rounded-full bg-white shadow-sm transition-transform duration-base ease-dv',
-            checked ? 'translate-x-[21px]' : 'translate-x-[3px]'
+            'inline-block h-5 w-5 rounded-full bg-white shadow-sm transition-transform duration-base ease-dv',
+            checked ? 'translate-x-[23px]' : 'translate-x-[3px]'
           )}
         />
       </button>
