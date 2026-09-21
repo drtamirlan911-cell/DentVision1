@@ -802,3 +802,20 @@ Run the exact current main-tip CI role/device matrix. Treat every failed role/de
 - Added `quality-scripts/visual-release-gate.ts` to validate PNG integrity, required responsive projects, all role/device combinations, and generate `visual-manifest.json`.
 - CI validates the visual evidence even when an earlier gate fails and uploads the complete evidence tree.
 - Verification principle: screenshots are treated as product/design evidence, not merely failure artifacts; visual review must apply the Product DNA world-class bar and 5-Why root-cause analysis to suspicious UI findings.
+
+
+## 2026-09-21 — Visual Agent: eyes + hands across the full ecosystem role matrix
+
+### Implemented
+- `54d654aded533b0824286adfe45235035530e1f7` / `7e16bb95f5313509cf2aefdd401451b05a2cf23a` — added `e2e/tests/visual-agent.spec.ts`, a browser agent layer that actively observes and interacts with authenticated product contexts instead of waiting only for assertion failures.
+- The Visual Agent captures durable screenshots, DOM text, HTML snapshots, geometry/control maps and runtime/network error evidence before and after interaction, hover, scroll and navigation restoration.
+- The matrix covers every currently represented ecosystem identity: clinic owner/admin/doctor/assistant/manager, regular/student, patient, diagnostic-center owner/operator, medical-laboratory owner/technician, dental-laboratory owner/technician, superadmin, support and laboratory.
+- `2d0e12ee38d84c817c8f0062b045729ff2396778` — registered a dedicated Playwright Visual Agent project.
+- `93925a9a912825e71a18f67883c3d2c21cbf1eaa` — CI now executes the Visual Agent after the role/context gate and before business-owner lifecycle verification.
+- `4a171e8282e3924f1891653d81bc996c1d007f48` — visual release integrity now requires Visual Agent evidence for every role at desktop 1440, tablet 820 and mobile 390, in addition to the existing exhaustive role/device evidence.
+
+### Verification principle
+The existing role gate remains the exhaustive route/security/geometry contract. The Visual Agent is complementary: it supplies active visual/interaction evidence and temporal before→action→after states. A screenshot is never treated as proof of correctness by itself; runtime, DOM, interaction and authorization checks remain authoritative.
+
+### Next action
+Run the exact current main-tip CI. Inspect the generated Visual Agent evidence for every role/context and fix real visual/interaction defects using 5-Why root-cause analysis. Do not weaken the role matrix to obtain a green result.
