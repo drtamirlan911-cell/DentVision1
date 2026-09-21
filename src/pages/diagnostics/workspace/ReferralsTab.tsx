@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { FileText, Search, RefreshCw, Eye, Sparkles, Upload, X } from 'lucide-react';
+import { EmptyState } from '@/components/ui/ds/EmptyState';
 import { Card } from '@/components/ui/ds/Card';
 import { Button } from '@/components/ui/ds/Button';
 import { Badge } from '@/components/ui/ds/Badge';
@@ -105,9 +106,12 @@ export function ReferralsTab({ config, orgId, phaseFilter, onClearPhase }: TabPr
         {isLoading ? <Skeleton className="h-64" /> : isError ? (
           <QueryError what="направления" onRetry={() => refetch()} />
         ) : referrals.length === 0 ? (
-          <div className="flex items-center justify-center h-40 text-txt-muted text-sm flex-col gap-2">
-            <FileText size={32} className="opacity-20" />Нет направлений
-          </div>
+          <EmptyState
+            icon={<FileText size={22} />}
+            title="Нет направлений"
+            description="Новые направления от клиник появятся здесь."
+            className="py-10"
+          />
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
