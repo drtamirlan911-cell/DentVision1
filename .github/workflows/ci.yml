@@ -101,6 +101,9 @@ jobs:
         working-directory: dentvision-backend
       - run: npm run db:seed:e2e
         working-directory: dentvision-backend
+      - name: Seed canonical IAM roles and E2E partner contexts
+        run: npx tsx prisma/seed-permissions.ts
+        working-directory: dentvision-backend
       - name: Install Playwright browsers
         run: npx playwright install --with-deps chromium webkit
       - name: Start backend
