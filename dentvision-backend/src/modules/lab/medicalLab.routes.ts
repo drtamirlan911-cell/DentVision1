@@ -37,7 +37,7 @@ type OrderRow = {
 
 async function resolveLaboratoryScopeId(user: AuthRequest['user']): Promise<string | null> {
   if (!user || (user as any).organizationType !== 'LABORATORY') return null;
-  const contextId = user.organizationId ? String(user.organizationId) : '';
+  const contextId = user.organizationOriginalId || (user.organizationId ? String(user.organizationId) : '');
   if (contextId) {
     const direct = await prisma.laboratory.findUnique({ where: { id: contextId }, select: { id: true } });
     if (direct) return direct.id;
