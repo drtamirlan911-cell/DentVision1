@@ -106,7 +106,7 @@ export default function CenterList() {
                   </div>
                 </div>
                 {isSuperAdmin && (
-                  <button onClick={() => openEdit(c)} className="inline-flex items-center justify-center min-h-11 min-w-11 p-1.5 rounded-lg hover:bg-surface-1 text-txt-muted hover:text-dv-gold transition-colors">
+                  <button aria-label={`Редактировать центр ${c.name}`} title={`Редактировать центр ${c.name}`} onClick={() => openEdit(c)} className="inline-flex items-center justify-center min-h-11 min-w-11 p-1.5 rounded-lg hover:bg-surface-1 text-txt-muted hover:text-dv-gold transition-colors">
                     <Edit2 size={14} />
                   </button>
                 )}
