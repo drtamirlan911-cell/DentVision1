@@ -19,7 +19,7 @@ const buttonVariants = cva(
         warning: 'border-warning/30 bg-warning/10 text-warning shadow-elev-1 hover:bg-warning/15 hover:border-warning/50',
       },
       size: {
-        xs: 'h-7 px-2.5 text-xs rounded-lg', sm: 'h-9 px-3 text-sm', md: 'h-10 px-4 text-sm', lg: 'h-11 px-5 text-base', xl: 'h-11 px-6 text-lg',
+        xs: 'h-9 px-2.5 text-xs rounded-lg', sm: 'h-9 px-3 text-sm', md: 'h-10 px-4 text-sm', lg: 'h-11 px-5 text-base', xl: 'h-11 px-6 text-lg',
         icon: 'h-10 w-10 p-0', 'icon-sm': 'h-9 w-9 p-0', 'icon-xs': 'h-8 w-8 p-0',
       },
     },
