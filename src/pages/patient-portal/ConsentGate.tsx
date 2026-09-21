@@ -79,7 +79,7 @@ export function ConsentGate({ children }: { children: React.ReactNode }) {
               <li key={item.type} className="flex flex-wrap items-center gap-3 py-3">
                 <div className="min-w-0 flex-1">
                   {item.link ? (
-                    <a href={item.link} target="_blank" rel="noreferrer" className="text-sm font-medium text-dv-gold hover:underline">
+                    <a href={item.link} target="_blank" rel="noreferrer" className="inline-flex min-h-11 items-center text-sm font-medium text-dv-gold hover:underline">
                       {item.title}
                     </a>
                   ) : (
