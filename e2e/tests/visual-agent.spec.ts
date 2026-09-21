@@ -4,7 +4,7 @@ import path from 'node:path';
 
 const BASE_URL = process.env.PLAYWRIGHT_UI_URL || 'http://localhost:3000';
 const PASSWORD = 'Test1234!';
-const EVIDENCE_ROOT = path.resolve('e2e/visual-evidence/visual-agent');
+const EVIDENCE_ROOT = path.resolve(process.env.VISUAL_EVIDENCE_DIR || 'e2e/visual-evidence', 'visual-agent');
 
 type AgentRole = {
   id: string;
