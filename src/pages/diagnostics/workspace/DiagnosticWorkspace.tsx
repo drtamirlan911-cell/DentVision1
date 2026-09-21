@@ -1,0 +1,236 @@
+import { useEffect, useMemo, useState } from 'react'
+import { motion } from 'framer-motion'
+import { useQuery } from '@tanstack/react-query'
+import { Building2, CalendarClock, DollarSign, FileText, FlaskConical, TrendingUp, Users, Wallet } from 'lucide-react'
+
+import { Card } from '@/components/ui/ds/Card'
+import { HeroStat, PageHeader } from '@/components/ui/ds/StatCard'
+import { QueryError } from '@/components/ui/ds/QueryError'
+import { Badge } from '@/components/ui/ds/Badge'
+import { Tabs } from '@/components/ui/ds/Misc'
+import { countAwaitingAction, countByPhase, type PhaseId } from '@/lib/referralStatus'
+import { queryKeys } from '@/queries/keys'
+import { useAuth } from '@/store/auth.store'
+import * as api from '@/utils/api'
+import { useEcosystemUrlContext } from '@/hooks/useEcosystemUrlContext'
+import EcosystemContextBridge from '@/components/ecosystem/EcosystemContextBridge'
+import EcosystemCaseFlow from '@/components/ecosystem/EcosystemCaseFlow'
+
+import { WORKSPACES, type OrgKind } from './config'
+import { Pipeline } from './Pipeline'
+import { ReferralsTab } from './ReferralsTab'
+import { OnlineBookingsTab } from './OnlineBookingsTab'
+import { ServicesTab } from './ServicesTab'
+import { PaymentsTab } from './PaymentsTab'
+import { CashierTab } from './CashierTab'
+import { FinanceTab } from './FinanceTab'
+import { TeamTab } from './TeamTab'
+import { OrganizationOnboarding } from '@/components/OrganizationOnboarding'
+
+/**
+ * One workspace for diagnostic centres and laboratories.
+ *
+ * `CenterDashboard` and `LabDashboard` were the same screen twice — see
+ * `config.ts` for what actually differs. Both entry routes still exist and both
+ * sidebar items still work; only the implementation is shared.
+ */
+export function DiagnosticWorkspace({ kind: pinnedKind }: { kind?: OrgKind }) {
+  const { user } = useAuth()
+  const ecosystem = useEcosystemUrlContext()
+  const isSuperadmin = user?.role === 'superadmin'
+
+  const claimedKind: OrgKind | undefined =
+    user?.organizationType === 'LABORATORY' ? 'LAB'
+      : user?.organizationType === 'DIAGNOSTIC_CENTER' ? 'CENTER'
+        : undefined
+
+  const [orgId, setOrgId] = useState<string>('')
+  const [activeTab, setActiveTab] = useState('referrals')
+  const [phaseFilter, setPhaseFilter] = useState<PhaseId | null>(null)
+
+  const contextsQuery = useQuery({
+    queryKey: ['iam', 'me', 'contexts'],
+    queryFn: () => api.getMyContexts(),
+    enabled: !claimedKind,
+  })
+  const { data: contextsData, isLoading: contextsLoading, isError: contextsError } = contextsQuery
+
+  const diagnosticContexts = useMemo(
+    () => (contextsData?.contexts || []).filter(
+      (c: any) => c.scopeType === 'DIAGNOSTIC_CENTER' || c.scopeType === 'LABORATORY',
+    ),
+    [contextsData],
+  )
+
+  const kind: OrgKind =
+    pinnedKind
+    ?? claimedKind
+    ?? (diagnosticContexts[0]?.scopeType === 'LABORATORY' ? 'LAB' : 'CENTER')
+
+  const config = WORKSPACES[kind]
+  const isOwnOrg = user?.organizationType === config.organizationType
+  const ownOrgId = user?.organizationId || ''
+
+  const myOrgs = useMemo(
+    () => diagnosticContexts.filter((c: any) => c.scopeType === config.organizationType),
+    [diagnosticContexts, config.organizationType],
+  )
+
+  const { data: catalogueData } = useQuery({
+    queryKey: ['diagnostics', 'orgs', kind],
+    queryFn: () => config.listOrganizations(),
+    enabled: !isOwnOrg && isSuperadmin,
+  })
+  const catalogue = catalogueData?.data || catalogueData || []
+
+  const pickable = isSuperadmin
+    ? catalogue.map((org: any) => ({ id: org.id, name: org.name, city: org.city }))
+    : myOrgs.map((ctx: any) => ({ id: ctx.scopeId, name: ctx.name, city: undefined }))
+
+  const contextualOrgId = ecosystem.organizationId
+  const contextualOrgAuthorized =
+    isSuperadmin
+    || (isOwnOrg && contextualOrgId === ownOrgId)
+    || myOrgs.some((ctx: any) => ctx.scopeId === contextualOrgId)
+
+  useEffect(() => {
+    if (contextualOrgId) {
+      if (contextualOrgAuthorized) {
+        if (orgId !== contextualOrgId) setOrgId(contextualOrgId)
+      } else if (orgId && !isOwnOrg && !isSuperadmin) {
+        setOrgId('')
+      }
+      return
+    }
+    if (isOwnOrg && ownOrgId) { setOrgId(ownOrgId); return }
+    if (!orgId && !isSuperadmin && myOrgs.length === 1) setOrgId(myOrgs[0].scopeId)
+  }, [contextualOrgId, contextualOrgAuthorized, isOwnOrg, ownOrgId, orgId, isSuperadmin, myOrgs])
+
+  // Access is scoped to the selected organization, never merely to having
+  // some diagnostic membership. An ecosystem URL organizationId is context,
+  // not authorization proof.
+  const hasDiagnosticAccess =
+    isSuperadmin
+    || (isOwnOrg && orgId === ownOrgId)
+    || myOrgs.some((ctx: any) => ctx.scopeId === orgId)
+  const needsOnboarding = !pinnedKind && !isOwnOrg && !isSuperadmin && !contextsLoading && !contextsError && myOrgs.length === 0
+
+  const scope = config.referralScope(orgId)
+  const { data: referralsData } = useQuery({
+    queryKey: queryKeys.diagnostics.referrals({ ...scope, limit: '100' }),
+    queryFn: () => api.getDiagnosticReferrals({ ...scope, limit: '100' }),
+    enabled: !!orgId && hasDiagnosticAccess,
+  })
+  const referrals = useMemo(
+    () => referralsData?.items || referralsData?.data || referralsData?.referrals || [],
+    [referralsData],
+  )
+
+  const counts = useMemo(() => countByPhase(referrals), [referrals])
+  const awaiting = useMemo(() => countAwaitingAction(referrals), [referrals])
+
+  const tabs = [
+    ...(kind === 'CENTER' ? [{ id: 'online-bookings', label: 'Онлайн-запись', icon: <CalendarClock size={14} /> }] : []),
+    { id: 'cashier', label: 'Касса', icon: <Wallet size={14} /> },
+    { id: 'referrals', label: config.referralsLabel, icon: <FileText size={14} /> },
+    { id: 'finance', label: 'Финансы', icon: <TrendingUp size={14} /> },
+    { id: 'services', label: config.servicesLabel, icon: <FlaskConical size={14} /> },
+    { id: 'payments', label: 'Оплаты', icon: <DollarSign size={14} /> },
+    { id: 'team', label: 'Сотрудники', icon: <Users size={14} /> },
+  ]
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 12 }}
+      animate={{ opacity: 1, y: 0 }}
+      className="max-w-full space-y-6 overflow-x-hidden p-4 sm:p-6"
+    >
+      <PageHeader
+        title={config.title}
+        subtitle={config.subtitle}
+        icon={<FlaskConical size={22} />}
+        actions={<Badge variant="outline">{kind === 'CENTER' ? 'Центр' : 'Лаборатория'}</Badge>}
+      />
+
+      <EcosystemContextBridge />
+      {(ecosystem.patientId || ecosystem.caseId) && (
+        <EcosystemCaseFlow context={ecosystem} compact />
+      )}
+
+      {contextsError && !isOwnOrg && !isSuperadmin && (
+        <QueryError what="список ваших организаций" onRetry={() => contextsQuery.refetch()} />
+      )}
+
+      {needsOnboarding && (
+        <OrganizationOnboarding kind={kind} onComplete={() => window.location.reload()} />
+      )}
+
+      {!contextsLoading && !contextsError && !hasDiagnosticAccess && (
+        <Card padding="lg">
+          <div className="space-y-2">
+            <h2 className="text-lg font-semibold text-txt-primary">Нет доступа к рабочему пространству</h2>
+            <p className="text-sm text-txt-secondary">
+              Это рабочее пространство доступно только владельцам и сотрудникам соответствующего диагностического центра или лаборатории.
+            </p>
+          </div>
+        </Card>
+      )}
+
+      {!isOwnOrg && pickable.length > 1 && (
+        <Card padding="md">
+          <div className="flex flex-wrap items-center gap-3">
+            <Building2 size={18} className="shrink-0 text-dv-gold" />
+            <select
+              value={orgId}
+              onChange={(e) => setOrgId(e.target.value)}
+              className="min-h-11 flex-1 rounded-lg border border-bdr-subtle bg-surface-1 px-3 py-2 text-sm text-txt-primary focus:outline-none focus:ring-1 focus:ring-dv-gold"
+            >
+              <option value="">{config.pickerLabel}</option>
+              {pickable.map((org: { id: string; name: string; city?: string }) => (
+                <option key={org.id} value={org.id}>{org.name}{org.city ? ` — ${org.city}` : ''}</option>
+              ))}
+            </select>
+          </div>
+        </Card>
+      )}
+
+      {orgId && hasDiagnosticAccess && (
+        <>
+          <Card padding="lg">
+            <div className="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
+              <HeroStat
+                value={awaiting}
+                label="Ждут вашего действия"
+                hint={`${counts.inProgress} в работе · ${counts.done} завершено`}
+                icon={<FileText size={26} />}
+                tone={awaiting > 0 ? 'gold' : 'success'}
+              />
+              <Pipeline
+                counts={counts}
+                activePhase={phaseFilter}
+                onSelect={(phase) => { setPhaseFilter(phase); setActiveTab('referrals') }}
+                className="lg:max-w-2xl lg:flex-1"
+              />
+            </div>
+          </Card>
+
+          <div className="-mx-4 overflow-x-auto px-4 sm:mx-0 sm:px-0">
+            <Tabs tabs={tabs} active={activeTab} onChange={setActiveTab} />
+          </div>
+
+          {activeTab === 'online-bookings' && kind === 'CENTER' && <OnlineBookingsTab centerId={orgId} />}
+          {activeTab === 'cashier' && <CashierTab config={config} orgId={orgId} />}
+          {activeTab === 'referrals' && (
+            <ReferralsTab config={config} orgId={orgId} phaseFilter={phaseFilter} onClearPhase={() => setPhaseFilter(null)} />
+          )}
+          {activeTab === 'finance' && <FinanceTab config={config} orgId={orgId} />}
+          {activeTab === 'services' && <ServicesTab config={config} orgId={orgId} />}
+          {activeTab === 'payments' && <PaymentsTab config={config} orgId={orgId} />}
+          {activeTab === 'team' && <TeamTab config={config} orgId={orgId} />}
+        </>
+      )}
+    </motion.div>
+  )
+}
+
+export default DiagnosticWorkspace
