@@ -553,7 +553,7 @@ export default function Cashier() {
                     placeholder="Поиск..."
                     value={searchUnpaid}
                     onChange={e => setSearchUnpaid(e.target.value)}
-                    className="pl-9 !h-8 !text-xs w-full sm:w-48"
+                    className="pl-9 !h-9 min-h-9 !text-xs w-full sm:w-48"
                   />
                 </div>
               </div>
