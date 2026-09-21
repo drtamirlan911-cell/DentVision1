@@ -42,6 +42,13 @@
 - **Area:** E2E / RBAC / UX
 - **Required:** complete CI rerun after each root-cause fix; verify neighboring scenarios and negative authorization paths.
 
+### RB-006 — Vercel build rate limit
+- **Status:** OPEN
+- **Priority:** P1
+- **Area:** Production deployment
+- **Observed:** GitHub commit status reports Vercel failure with target reason `build-rate-limit` on current commits.
+- **Required:** restore/verify successful production deployment status; do not treat a green GitHub test suite as a production release until deployment is independently confirmed.
+
 ## Closed
 _None yet._
 
