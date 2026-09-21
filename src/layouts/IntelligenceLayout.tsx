@@ -123,7 +123,7 @@ export const IntelligenceLayout: React.FC = () => {
       <Sidebar collapsed={sidebarCollapsed} setCollapsed={setSidebarCollapsed} sidebarVisible={sidebarVisible} isMobile={isMobile} sidebarOpen={sidebarOpen} user={user} roleInfo={roleInfo} logout={logout} toggleSidebar={() => setSidebarOpen(!sidebarOpen)} isGuest={isGuest} />
       <div className={cn('min-h-screen transition-[padding] duration-300', sidebarVisible && !isMobile && (sidebarCollapsed ? 'pl-[76px]' : 'pl-[272px]'))}>
         <header className="sticky top-0 z-30 flex h-16 items-center gap-3 border-b border-[var(--dv-border)] bg-[var(--dv-sidebar)]/95 px-4 backdrop-blur-xl">
-          {isMobile && <button type="button" aria-label="Открыть меню" onClick={() => setSidebarOpen(true)} className="rounded-xl p-2 text-[var(--dv-muted)] hover:bg-[var(--dv-nav-hover)]"><Menu size={19} /></button>}
+          {isMobile && <button type="button" aria-label="Открыть меню" onClick={() => setSidebarOpen(true)} className="flex min-h-11 min-w-11 items-center justify-center rounded-xl p-2 text-[var(--dv-muted)] hover:bg-[var(--dv-nav-hover)]"><Menu size={19} /></button>}
           <WorkspaceSwitcher />
           <div className="ml-auto flex items-center gap-2"><LanguageSwitcher /><AlertDropdown alerts={[]} isOpen={alertOpen} setIsOpen={setAlertOpen} /><DentCashHeaderChip /></div>
         </header>
