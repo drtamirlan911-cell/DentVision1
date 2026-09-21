@@ -15,6 +15,7 @@ import { reportWebVitals } from './utils/vitals';
 initSentry();
 
 const AIWorkspaceIndex = lazyWithRetry(() => import('./components/intelligence/AIWorkspaceRoute'));
+const Welcome = lazyWithRetry(() => import('./pages/Welcome'));
 const Login = lazyWithRetry(() => import('./pages/auth/Login'));
 const ForgotPassword = lazyWithRetry(() => import('./pages/auth/ForgotPassword'));
 const PublicBookingDiscovery = lazyWithRetry(() => import('./pages/auth/PublicBookingDiscovery'));
@@ -127,7 +128,7 @@ if (container) {
               <Route path="/patient-portal" element={<Suspense fallback={<PageLoader />}><PatientPortal /></Suspense>} />
               <Route path="/my-clinics" element={<Suspense fallback={<PageLoader />}><MyClinics /></Suspense>} />
               <Route path="/" element={<IntelligenceLayout />}>
-                <Route index element={<Navigate to="/ai" replace />} />
+                <Route index element={<Suspense fallback={<PageLoader />}><Welcome /></Suspense>} />
                 <Route path="dashboard" element={<Navigate to="/" replace />} />
                 <Route path="intelligence" element={<Navigate to="/ai" replace />} />
                 <Route path="ai" element={<Suspense fallback={<PageLoader />}><AIWorkspaceIndex /></Suspense>} />
