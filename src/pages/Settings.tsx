@@ -250,13 +250,13 @@ export default function SettingsPage() {
               </CardHeader>
               <CardContent className="space-y-4">
                 <SettingRow label="Тёмная тема" sub="Сохраняется на этом устройстве">
-                  <Switch checked={darkMode} onCheckedChange={onDarkMode} />
+                  <Switch checked={darkMode} ariaLabel="Тёмная тема" onCheckedChange={onDarkMode} />
                 </SettingRow>
                 <SettingRow label={<span className="flex items-center gap-1.5"><Bell size={13} /> Уведомления</span>} sub="Push в браузере, когда вкладка в фоне">
-                  <Switch checked={notifications} onCheckedChange={onNotifications} />
+                  <Switch checked={notifications} ariaLabel="Уведомления" onCheckedChange={onNotifications} />
                 </SettingRow>
                 <SettingRow label={<span className="flex items-center gap-1.5"><Save size={13} /> Автосохранение</span>} sub="Черновики форм в CRM сохраняются локально">
-                  <Switch checked={autoSave} onCheckedChange={onAutoSave} />
+                  <Switch checked={autoSave} ariaLabel="Автосохранение" onCheckedChange={onAutoSave} />
                 </SettingRow>
               </CardContent>
             </Card>
