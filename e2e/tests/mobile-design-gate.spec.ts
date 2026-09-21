@@ -18,8 +18,25 @@ const CRITICAL_ROUTES = [
   '/school',
 ];
 
+async function gotoStable(page: Page, url: string, attempts = 3) {
+  let lastError: unknown;
+  for (let attempt = 1; attempt <= attempts; attempt++) {
+    try {
+      await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 30000 });
+      return;
+    } catch (error) {
+      lastError = error;
+      const message = error instanceof Error ? error.message : String(error);
+      const transientNavigation = /Navigation to .* is interrupted by another navigation|Frame load interrupted|net::ERR_ABORTED/i.test(message);
+      if (!transientNavigation || attempt === attempts) throw error;
+      await page.waitForTimeout(250 * attempt);
+    }
+  }
+  throw lastError;
+}
+
 async function login(page: Page) {
-  await page.goto(`${BASE_URL}/login?role=owner`, { waitUntil: 'domcontentloaded', timeout: 30000 });
+  await gotoStable(page, `${BASE_URL}/login?role=owner`);
   await page.locator('input[autocomplete="username"]').fill(E2E_USER);
   await page.locator('input[autocomplete="current-password"]').fill(E2E_PASSWORD);
   await page.getByRole('button', { name: 'Войти в DentVision' }).click();
@@ -91,7 +108,7 @@ test.describe('DentVision responsive design release gate', () => {
 
   test('public welcome and login are responsive', async ({ page }, testInfo) => {
     const device = testInfo.project.name;
-    await page.goto(BASE_URL, { waitUntil: 'domcontentloaded', timeout: 30000 });
+    await gotoStable(page, BASE_URL);
     await expect(page.getByText('DentVision', { exact: true }).first()).toBeVisible({ timeout: 10000 });
     await auditLayout(page, '/', device);
     await page.getByRole('button', { name: 'Я врач' }).click();
@@ -104,12 +121,12 @@ test.describe('DentVision responsive design release gate', () => {
     await login(page);
 
     for (const route of CRITICAL_ROUTES) {
-      await page.goto(`${BASE_URL}${route}`, { waitUntil: 'domcontentloaded', timeout: 30000 });
+      await gotoStable(page, `${BASE_URL}${route}`);
       await page.waitForTimeout(400);
 
       if (new URL(page.url()).pathname === '/login') {
         await login(page);
-        await page.goto(`${BASE_URL}${route}`, { waitUntil: 'domcontentloaded', timeout: 30000 });
+        await gotoStable(page, `${BASE_URL}${route}`);
         await page.waitForTimeout(400);
       }
 
