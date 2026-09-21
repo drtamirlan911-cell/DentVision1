@@ -97,8 +97,17 @@ async function auditLayout(page: Page, route: string, device: string) {
   expect(undersized, `${device} ${route}: interactive target(s) below 36px: ${JSON.stringify(undersized)}`).toEqual([]);
   expect(result.clipped, `${device} ${route}: visible text/control clipping: ${JSON.stringify(result.clipped)}`).toEqual([]);
 
+  const safeRoute = route.replace(/[\\/?#:%*|"<>]/g, '_') || '_home';
+  const bucket = route === '/' || route.startsWith('/login') ? 'welcome' :
+    route.startsWith('/ai') ? 'ai' :
+    route.startsWith('/crm/lab') ? 'lab' :
+    route.startsWith('/crm/') ? 'crm' :
+    route.startsWith('/diagnostics/') ? 'diagnostics' :
+    route.startsWith('/shop') ? 'shop' :
+    route.startsWith('/school') ? 'academy' :
+    'responsive';
   await page.screenshot({
-    path: `e2e/test-results/design-gate/${device}${route.replace(/[\\/?#:%*|"<>]/g, '_') || '_home'}.png`,
+    path: `e2e/visual-evidence/responsive/${bucket}/${device}${safeRoute}.png`,
     fullPage: true,
   });
 }
