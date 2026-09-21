@@ -112,7 +112,7 @@ export default function DiagnosticsLayout() {
             {primaryItems.map(item => {
               const Icon = item.icon;
               return (
-                <button key={item.id} onClick={() => navigate(item.path)}
+                <button key={item.id} aria-label={item.label} title={item.label} onClick={() => navigate(item.path)}
                   className={cn('inline-flex min-h-9 shrink-0 items-center gap-1.5 rounded-lg px-3 py-2 text-sm transition-colors', isActive(item.path) ? 'bg-dv-gold/10 text-dv-gold font-medium' : 'text-txt-muted hover:bg-surface-2 hover:text-txt-primary')}>
                   <Icon size={15} />
                   <span className="hidden sm:inline">{item.label}</span>
@@ -121,7 +121,7 @@ export default function DiagnosticsLayout() {
             })}
             {secondaryItems.length > 0 && (
               <div className="relative shrink-0">
-                <button onClick={() => setMoreOpen(v => !v)} className={cn('inline-flex min-h-9 items-center gap-1.5 rounded-lg px-3 py-2 text-sm text-txt-muted hover:bg-surface-2 hover:text-txt-primary', moreOpen && 'bg-surface-2 text-txt-primary')}>
+                <button aria-label="Ещё" title="Ещё" onClick={() => setMoreOpen(v => !v)} className={cn('inline-flex min-h-9 items-center gap-1.5 rounded-lg px-3 py-2 text-sm text-txt-muted hover:bg-surface-2 hover:text-txt-primary', moreOpen && 'bg-surface-2 text-txt-primary')}>
                   <MoreHorizontal size={16} />
                   <span className="hidden sm:inline">Ещё</span>
                 </button>
