@@ -1,6 +1,7 @@
 import { test, expect, type Page } from '@playwright/test';
 
 const BASE_URL = process.env.PLAYWRIGHT_UI_URL || 'http://localhost:3000';
+const VISUAL_EVIDENCE_ROOT = process.env.VISUAL_EVIDENCE_DIR || 'e2e/visual-evidence';
 const PASSWORD = 'Test1234!';
 
 const PUBLIC_ROUTES = ['/', '/login', '/register', '/forgot-password', '/booking', '/demo', '/pricing', '/terms', '/privacy'];
@@ -249,7 +250,7 @@ test.describe('DentVision exhaustive role/context/browser gate',()=>{
       expect(problems.page,role.id+': page errors').toEqual([]);
       expect(problems.requests,role.id+': failed requests').toEqual([]);
       expect(problems.server,role.id+': HTTP 5xx responses').toEqual([]);
-      await page.screenshot({path:'e2e/visual-evidence/roles/'+role.id+'/'+info.project.name+'.png',fullPage:true});
+      await page.screenshot({path:`${VISUAL_EVIDENCE_ROOT}/roles/${role.id}/${info.project.name}.png`,fullPage:true});
     });
   }
 
