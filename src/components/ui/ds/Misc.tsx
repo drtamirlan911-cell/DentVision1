@@ -105,6 +105,7 @@ function Switch({
   checked: boolean
   onCheckedChange: (checked: boolean) => void
   label?: string
+  ariaLabel?: string
   disabled?: boolean
   className?: string
 }) {
@@ -114,6 +115,7 @@ function Switch({
         type="button"
         role="switch"
         aria-checked={checked}
+        aria-label={ariaLabel || label}
         disabled={disabled}
         onClick={() => onCheckedChange(!checked)}
         className={cn(
