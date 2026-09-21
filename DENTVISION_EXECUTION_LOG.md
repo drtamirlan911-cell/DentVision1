@@ -792,3 +792,13 @@ Run the exact current main-tip CI role/device matrix. Treat every failed role/de
 - The role gate is intended to exercise every declared and discovered route for each supported identity, including patient and diagnostic/medical/dental laboratory contexts, plus modal/menu semantics, visual hierarchy, accessible naming, geometry, runtime/network/5xx failures, authorization and tenant isolation.
 - A fresh workflow run is required; no PASS is claimed until GitHub Actions reports the exact current-tip result.
 - Next action: execute the current main-tip CI gate and repair every real failure without weakening assertions.
+
+
+## 2026-09-21 — Visual Release Gate evidence hardening
+- Fixed the release-gate evidence architecture so sequential Playwright suites no longer overwrite one shared `e2e/test-results` directory.
+- Playwright runtime output is now isolated by `PLAYWRIGHT_OUTPUT_DIR`; HTML reports are isolated by `PLAYWRIGHT_HTML_OUTPUT_DIR`.
+- Visual screenshots are stored outside Playwright's disposable output lifecycle under `e2e/visual-evidence/`, with responsive and role/context evidence separated.
+- Screenshot capture is now enabled for successful and failed Playwright tests.
+- Added `quality-scripts/visual-release-gate.ts` to validate PNG integrity, required responsive projects, all role/device combinations, and generate `visual-manifest.json`.
+- CI validates the visual evidence even when an earlier gate fails and uploads the complete evidence tree.
+- Verification principle: screenshots are treated as product/design evidence, not merely failure artifacts; visual review must apply the Product DNA world-class bar and 5-Why root-cause analysis to suspicious UI findings.
