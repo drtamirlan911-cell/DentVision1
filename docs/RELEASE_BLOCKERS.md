@@ -10,7 +10,9 @@
 - **Area:** Diagnostics / Laboratory / RBAC
 - **Observed:** medical-lab and dental-lab roles produce HTTP 403 on diagnostics-related requests in E2E.
 - **Required:** trace exact method/URL, role, organization/laboratory context, authorization middleware, scope resolver and DB membership/tenant scope.
-- **Fix:** architectural authorization/scope fix; no frontend bypass.
+- **Finding (2026-09-21):** unified auth stores `organizationId` as the `Organization.id`, while laboratory/diagnostic scope checks and memberships require the underlying `Laboratory.id` (`Organization.originalId`). The authenticated context did not preserve that original entity ID, causing partner-lab scope checks to compare different identifiers and return 403.
+- **Fix applied:** auth now carries `organizationOriginalId`; diagnostics, dental-lab platform, and medical-lab scope resolution use the original entity ID when resolving laboratory access.
+- **Remaining:** CI verification is required; the same run also showed 500 responses for medical-lab roles, so those must be traced separately if they persist.
 - **Verification:** positive/negative tests for medical-lab owner/technician and dental-lab owner/technician plus cross-lab isolation and CI evidence.
 
 ### RB-002 — Visual release gate: unnamed interactive controls
