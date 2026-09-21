@@ -133,7 +133,9 @@ jobs:
         env:
           PLAYWRIGHT_OUTPUT_DIR: e2e/test-results/core
           PLAYWRIGHT_HTML_OUTPUT_DIR: playwright-report/core
-        run: npx playwright test $(ls e2e/tests/*.spec.ts | grep -v browser-e2e | grep -v ux-coverage | grep -v business-owner-journeys | grep -v organization-owner-lifecycle | grep -v mobile-design-gate | grep -v role-design-gate)
+        run: |
+          set -o pipefail
+          npx playwright test $(ls e2e/tests/*.spec.ts | grep -v browser-e2e | grep -v ux-coverage | grep -v business-owner-journeys | grep -v organization-owner-lifecycle | grep -v mobile-design-gate | grep -v role-design-gate) 2>&1 | tee e2e-core.log
       - name: Run browser UX coverage
         env:
           PLAYWRIGHT_UI_URL: http://localhost:3000
@@ -225,6 +227,18 @@ jobs:
       - name: Validate visual release evidence
         if: always()
         run: npx tsx quality-scripts/visual-release-gate.ts
+
+      - name: Compact E2E failure summary
+        if: always()
+        run: |
+          {
+            echo "=== E2E core run summary ==="
+            if [ -f e2e-core.log ]; then
+              grep -E '(^[[:space:]]*[0-9]+ failed|^[[:space:]]*[0-9]+ passed|[0-9]+ failed|[0-9]+ passed|Error:|HTTP [45][0-9][0-9]|[45][0-9][0-9] [A-Z]+|expect\(|Test timeout)' e2e-core.log | tail -n 500 || true
+            else
+              echo "e2e-core.log was not created"
+            fi
+          } > e2e-failure-summary.txt
 
       - name: Backend log (on failure)
         if: failure()
