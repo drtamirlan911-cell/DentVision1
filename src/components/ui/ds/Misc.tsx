@@ -99,6 +99,7 @@ function Switch({
   checked,
   onCheckedChange,
   label,
+  ariaLabel,
   disabled,
   className,
 }: {
