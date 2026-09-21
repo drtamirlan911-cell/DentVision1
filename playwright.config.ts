@@ -13,6 +13,11 @@ export default defineConfig({
   },
   projects: [
     {
+      name: 'e2e-core',
+      use: { browserName: 'chromium', viewport: { width: 1440, height: 900 } },
+      testMatch: /.*\\.spec\\.ts/,
+    },
+    {
       name: 'desktop-1280',
       use: { browserName: 'chromium', viewport: { width: 1280, height: 720 } },
       testMatch: /mobile-design-gate\.spec\.ts/,
