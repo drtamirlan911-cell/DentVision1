@@ -249,7 +249,7 @@ test.describe('DentVision exhaustive role/context/browser gate',()=>{
       expect(problems.page,role.id+': page errors').toEqual([]);
       expect(problems.requests,role.id+': failed requests').toEqual([]);
       expect(problems.server,role.id+': HTTP 5xx responses').toEqual([]);
-      await page.screenshot({path:'e2e/test-results/design-gate/roles/'+role.id+'-'+info.project.name+'.png',fullPage:true});
+      await page.screenshot({path:'e2e/visual-evidence/roles/'+role.id+'/'+info.project.name+'.png',fullPage:true});
     });
   }
 
