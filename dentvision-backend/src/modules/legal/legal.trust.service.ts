@@ -71,7 +71,7 @@ export async function ensureLegalTrustPackage(input: {
     iban: input.iban || '',
     phone: input.phone || '',
     email: input.email || '',
-    commission: input.commission ?? 10,
+    commission: input.commission,
   }, input.userId);
 
   try {
