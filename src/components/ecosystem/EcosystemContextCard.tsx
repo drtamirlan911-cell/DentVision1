@@ -38,7 +38,7 @@ export const EcosystemContextCard: React.FC<Props> = ({ user, collapsed = false,
   }
 
   return <div className={cn('mx-3 mb-2 rounded-xl border border-[var(--dv-border)] bg-[var(--dv-surface)] p-2.5', isGuest && 'border-[var(--dv-accent)]/20')}>
-    <button type="button" onClick={() => navigate(target)} className="flex w-full items-center gap-2.5 text-left">
+    <button type="button" onClick={() => navigate(target)} className="flex min-h-11 w-full items-center gap-2.5 text-left">
       <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-[var(--dv-accent-soft)] text-[var(--dv-accent)]">{hasOrg ? <Building2 size={15} /> : <Globe2 size={15} />}</span>
       <span className="min-w-0 flex-1">
         <span className="block truncate text-[11px] font-semibold text-[var(--dv-text)]">{org || 'Личный контекст'}</span>
@@ -46,7 +46,7 @@ export const EcosystemContextCard: React.FC<Props> = ({ user, collapsed = false,
       </span>
       <ChevronRight size={14} className="shrink-0 text-[var(--dv-muted)]" />
     </button>
-    {!isGuest && !hasOrg && <button type="button" onClick={() => navigate('/my-clinics')} className="mt-2 flex w-full items-center justify-center gap-1.5 rounded-lg border border-[var(--dv-border)] px-2 py-1.5 text-[10px] font-medium text-[var(--dv-muted)] hover:text-[var(--dv-text)] hover:bg-[var(--dv-nav-hover)]"><UserRound size={12} /> Подключить рабочий контекст</button>}
+    {!isGuest && !hasOrg && <button type="button" onClick={() => navigate('/my-clinics')} className="mt-2 flex min-h-11 w-full items-center justify-center gap-1.5 rounded-lg border border-[var(--dv-border)] px-2 py-1.5 text-[10px] font-medium text-[var(--dv-muted)] hover:bg-[var(--dv-nav-hover)] hover:text-[var(--dv-text)]"><UserRound size={12} /> Подключить рабочий контекст</button>}
   </div>;
 };
 
