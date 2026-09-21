@@ -1,4 +1,5 @@
 import { test, expect, type Page } from '@playwright/test';
+import fs from 'node:fs/promises';
 
 const BASE_URL = process.env.PLAYWRIGHT_UI_URL || 'http://localhost:3000';
 const VISUAL_EVIDENCE_ROOT = process.env.VISUAL_EVIDENCE_DIR || 'e2e/visual-evidence';
@@ -92,6 +93,21 @@ async function auditLayout(page: Page, route: string, device: string) {
     };
   });
 
+  const safeRouteEvidence = route.replace(/[\\/?#:%*|"<>]/g, '_') || '_home';
+  const evidenceBucket = route === '/' || route.startsWith('/login') ? 'welcome' :
+    route.startsWith('/ai') ? 'ai' :
+    route.startsWith('/crm/lab') ? 'lab' :
+    route.startsWith('/crm/') ? 'crm' :
+    route.startsWith('/diagnostics/') ? 'diagnostics' :
+    route.startsWith('/shop') ? 'shop' :
+    route.startsWith('/school') ? 'academy' :
+    'responsive';
+  const evidenceDir = VISUAL_EVIDENCE_ROOT + '/responsive/' + evidenceBucket;
+  await fs.mkdir(evidenceDir, { recursive: true });
+  const evidenceBase = evidenceDir + '/' + device + safeRouteEvidence;
+  await page.screenshot({ path: evidenceBase + '.png', fullPage: true });
+  await fs.writeFile(evidenceBase + '.json', JSON.stringify(result, null, 2), 'utf8');
+  await fs.writeFile(evidenceBase + '.html', await page.locator('body').evaluate((el) => el.outerHTML).catch(() => ''), 'utf8');
   expect(result.visibleContent, `${device} ${route}: no visible page content`).toBeTruthy();
   expect(result.scrollWidth, `${device} ${route}: horizontal overflow ${result.scrollWidth}px > ${result.clientWidth}px`).toBeLessThanOrEqual(result.clientWidth + 2);
   expect(result.bodyWidth, `${device} ${route}: body overflow ${result.bodyWidth}px > ${result.clientWidth}px`).toBeLessThanOrEqual(result.clientWidth + 2);
