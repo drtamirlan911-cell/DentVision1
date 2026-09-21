@@ -32,6 +32,10 @@ describe('rate-limit ceilings', () => {
     expect(APP).toMatch(/Number\.isFinite\(raw\)\s*&&\s*raw\s*>\s*0\s*\?\s*raw\s*:\s*fallback/);
   });
 
+  it('allows the guest-session ceiling to be raised explicitly for high-volume E2E without changing production defaults', () => {
+    expect(APP).toMatch(/limitFromEnv\('RATE_LIMIT_GUEST_SESSION_MAX',\s*50\)/);
+  });
+
   it('leaves the AI limiter unconfigurable', () => {
     // `ai.spec.ts` asserts that too many AI requests produce 429. If that
     // ceiling could be raised from the environment, the suite's one rate-limit
