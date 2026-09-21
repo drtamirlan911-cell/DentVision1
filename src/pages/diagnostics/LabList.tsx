@@ -127,7 +127,7 @@ export default function LabList() {
           <Card padding="lg" className="w-full max-w-full sm:max-w-md mx-4 max-h-[85vh] overflow-y-auto" onClick={(e: any) => e.stopPropagation()}>
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-lg font-bold text-txt-primary">{editItem ? 'Редактировать лабораторию' : 'Добавить лабораторию'}</h3>
-              <button aria-label="Close" onClick={() => setShowModal(false)} className="p-1 rounded-lg hover:bg-surface-1 text-txt-muted"><X size={18} /></button>
+              <button aria-label="Close" onClick={() => setShowModal(false)} className="inline-flex min-h-11 min-w-11 items-center justify-center p-1 rounded-lg hover:bg-surface-1 text-txt-muted"><X size={18} /></button>
             </div>
             <div className="space-y-3">
               <div>
