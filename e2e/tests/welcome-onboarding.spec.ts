@@ -37,16 +37,21 @@ test.describe('Welcome real-click and self-service organization onboarding', () 
 
   test('WELCOME-002: every organization founder card reaches authenticated onboarding', async ({ page }) => {
     const roles = [
+      ['Я врач', null],
       ['Я владелец клиники', '/my-clinics?create=clinic'],
       ['Я зуботехническая лаборатория', '/register-diagnostics?type=dental_laboratory'],
       ['Я медицинская лаборатория', '/register-diagnostics?type=laboratory'],
       ['Я диагностический центр', '/register-diagnostics?type=center'],
+      ['Я поставщик', null],
+      ['Я академия', null],
+      ['Я лектор', null],
+      ['Я сотрудник клиники', null],
     ] as const;
     for (const [label, expected] of roles) {
       await page.goto(BASE + '/');
       await page.getByRole('button', { name: new RegExp(label) }).click();
       await expect(page).toHaveURL(/\/login\?/);
-      expect(new URL(page.url()).searchParams.get('returnUrl')).toBe(expected);
+      if (expected) expect(new URL(page.url()).searchParams.get('returnUrl')).toBe(expected);
     }
   });
 
