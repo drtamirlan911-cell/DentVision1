@@ -253,7 +253,9 @@ organizationsRouter.post('/me/legal', async (req: AuthRequest, res) => {
     const legalName = String(body.legalName || org.name).trim(); const bin = String(body.bin || org.taxId || '').trim();
     const director = String(body.director || `${req.user!.firstName} ${req.user!.lastName}`).trim(); const address = String(body.address || org.address || '').trim(); const iban = String(body.iban || '').trim();
     if (!legalName || !bin || !director || !address || !iban) return res.status(400).json({ ok: false, error: 'Заполните юридическое наименование, БИН/ИИН, руководителя, юридический адрес и IBAN.' });
-    const type = org.type === 'DIAGNOSTIC_CENTER' ? 'DIAGNOSTIC_CENTER' : org.type === 'LABORATORY' ? 'LABORATORY' : org.type === 'CLINIC' ? 'CLINIC' : org.type === 'ACADEMY' ? 'EDUCATION_CENTER' : org.type === 'SUPPLIER_COMPANY' ? 'SUPPLIER' : 'CORPORATE';
+    const orgSettings = (org.settings && typeof org.settings === 'object' && !Array.isArray(org.settings)) ? org.settings as Record<string, unknown> : {};
+    const laboratoryType = String(orgSettings.laboratoryType || '').toUpperCase();
+    const type = org.type === 'DIAGNOSTIC_CENTER' ? 'DIAGNOSTIC_CENTER' : org.type === 'LABORATORY' ? (laboratoryType === 'DENTAL_LAB' ? 'DENTAL_LAB' : 'LABORATORY') : org.type === 'CLINIC' ? 'CLINIC' : org.type === 'ACADEMY' ? 'EDUCATION_CENTER' : org.type === 'SUPPLIER_COMPANY' ? 'SUPPLIER' : 'CORPORATE';
     const pkg = await ensureLegalTrustPackage({ userId: req.user!.id, organizationId: org.id, type, legalName, bin, director, address, iban, phone: org.phone, email: org.email || req.user!.email });
     const settings = (org.settings && typeof org.settings === 'object' && !Array.isArray(org.settings)) ? org.settings as Record<string, unknown> : {};
     const updated = await prisma.organization.update({ where: { id: org.id }, data: { taxId: bin, address, settings: { ...settings, lifecycle: 'SIGNATURE_PENDING', verification: 'SUBMITTED', ecosystemVisible: false, legal: { status: 'DOCUMENTS_READY', partnerId: pkg.partner.id, ownerSigned: false, platformSigned: false } } } });
