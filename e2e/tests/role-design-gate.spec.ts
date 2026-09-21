@@ -1,4 +1,5 @@
 import { test, expect, type Page } from '@playwright/test';
+import fs from 'node:fs/promises';
 
 const BASE_URL = process.env.PLAYWRIGHT_UI_URL || 'http://localhost:3000';
 const VISUAL_EVIDENCE_ROOT = process.env.VISUAL_EVIDENCE_DIR || 'e2e/visual-evidence';
@@ -200,6 +201,8 @@ async function discoverRoutes(page: Page): Promise<string[]> {
   return [...new Set(hrefs.map(h=>{const u=new URL(h);return u.pathname+u.search}))].filter(r=>!/\/sign\/|\/plan\/|\/book\//.test(r));
 }
 
+function safeRouteName(value:string){ return value.replace(/[^a-zA-Z0-9_-]+/g,'_').replace(/^_+|_+$/g,'') || '_home'; }
+
 async function auditRoute(page: Page, role: Role, route: string, shouldBeAllowed: boolean) {
   await page.goto(BASE_URL+route,{waitUntil:'domcontentloaded',timeout:30000});
   await page.waitForTimeout(300);
@@ -208,6 +211,11 @@ async function auditRoute(page: Page, role: Role, route: string, shouldBeAllowed
     expect(current.pathname+current.search,role.id+' '+route+': forbidden route stayed open').not.toBe(route);
     return;
   }
+  const evidenceDir = VISUAL_EVIDENCE_ROOT + '/roles/' + role.id + '/' + safeRouteName(route);
+  await fs.mkdir(evidenceDir, { recursive: true });
+  await page.screenshot({ path: evidenceDir + '/route.png', fullPage: true });
+  await fs.writeFile(evidenceDir + '/dom.html', await page.locator('body').evaluate((el) => el.outerHTML).catch(() => ''), 'utf8');
+  await fs.writeFile(evidenceDir + '/text.txt', await page.locator('body').innerText().catch(() => ''), 'utf8');
   expect(current.pathname,role.id+' '+route+': allowed route redirected unexpectedly').not.toBe('/login');
   await shellAudit(page,role,route);
   await inspectForms(page,role,route);
@@ -251,6 +259,7 @@ test.describe('DentVision exhaustive role/context/browser gate',()=>{
       expect(problems.requests,role.id+': failed requests').toEqual([]);
       expect(problems.server,role.id+': HTTP 5xx responses').toEqual([]);
       await page.screenshot({path:`${VISUAL_EVIDENCE_ROOT}/roles/${role.id}/${info.project.name}.png`,fullPage:true});
+      await fs.writeFile(`${VISUAL_EVIDENCE_ROOT}/roles/${role.id}/${info.project.name}-runtime.json`, JSON.stringify({console:problems.console,page:problems.page,requests:problems.requests,server:problems.server}, null, 2), 'utf8');
     });
   }
 
