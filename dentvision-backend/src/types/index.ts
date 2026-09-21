@@ -14,6 +14,8 @@ export interface AuthUser {
   lecturerId?: string;
   // Unified organization context (Phase 2)
   organizationId?: string;
+  /** Original domain entity ID behind the active unified organization (e.g. Laboratory.id). */
+  organizationOriginalId?: string;
   organizationType?: string;
   personType?: string;
   /** Branches assigned to the authenticated clinic membership. */
