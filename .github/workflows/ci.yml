@@ -126,14 +126,21 @@ jobs:
           cat /tmp/frontend.log >&2 || true
           exit 1
       - name: Run E2E suite
+        env:
+          PLAYWRIGHT_OUTPUT_DIR: e2e/test-results/core
+          PLAYWRIGHT_HTML_OUTPUT_DIR: playwright-report/core
         run: npx playwright test $(ls e2e/tests/*.spec.ts | grep -v browser-e2e | grep -v ux-coverage | grep -v business-owner-journeys | grep -v organization-owner-lifecycle | grep -v mobile-design-gate | grep -v role-design-gate)
       - name: Run browser UX coverage
         env:
           PLAYWRIGHT_UI_URL: http://localhost:3000
+          PLAYWRIGHT_OUTPUT_DIR: e2e/test-results/ux-coverage
+          PLAYWRIGHT_HTML_OUTPUT_DIR: playwright-report/ux-coverage
         run: npx playwright test e2e/tests/ux-coverage.spec.ts
       - name: Run mobile design release gate
         env:
           PLAYWRIGHT_UI_URL: http://localhost:3000
+          PLAYWRIGHT_OUTPUT_DIR: e2e/test-results/mobile-design-gate
+          PLAYWRIGHT_HTML_OUTPUT_DIR: playwright-report/mobile-design-gate
         run: npx playwright test e2e/tests/mobile-design-gate.spec.ts \
           --project=desktop-1280 \
           --project=laptop-1440 \
@@ -146,14 +153,20 @@ jobs:
       - name: Run role and context design release gate
         env:
           PLAYWRIGHT_UI_URL: http://localhost:3000
+          PLAYWRIGHT_OUTPUT_DIR: e2e/test-results/role-design-gate
+          PLAYWRIGHT_HTML_OUTPUT_DIR: playwright-report/role-design-gate
         run: npx playwright test e2e/tests/role-design-gate.spec.ts --project=role-1280 --project=role-desktop --project=role-1920 --project=role-tablet-768 --project=role-tablet-820 --project=role-mobile --project=role-mobile-412 --project=role-mobile-safari
       - name: Run business owner journeys
         env:
           PLAYWRIGHT_UI_URL: http://localhost:3000
+          PLAYWRIGHT_OUTPUT_DIR: e2e/test-results/business-owner-journeys
+          PLAYWRIGHT_HTML_OUTPUT_DIR: playwright-report/business-owner-journeys
         run: npx playwright test e2e/tests/business-owner-journeys.spec.ts
       - name: Run organization owner lifecycle release gate
         env:
           PLAYWRIGHT_UI_URL: http://localhost:3000
+          PLAYWRIGHT_OUTPUT_DIR: e2e/test-results/organization-owner-lifecycle
+          PLAYWRIGHT_HTML_OUTPUT_DIR: playwright-report/organization-owner-lifecycle
         run: npx playwright test e2e/tests/organization-owner-lifecycle.spec.ts
       - name: Install official Playwright CLI
         run: npm install --no-save --package-lock=false @playwright/cli@latest
@@ -199,6 +212,10 @@ jobs:
             fi
           done
           npx playwright-cli close
+      - name: Validate visual release evidence
+        if: always()
+        run: npx tsx quality-scripts/visual-release-gate.ts
+
       - name: Backend log (on failure)
         if: failure()
         run: cat /tmp/backend.log
@@ -213,4 +230,5 @@ jobs:
             playwright-report/
             .playwright-cli/
             e2e/test-results/
+            e2e/visual-evidence/
           retention-days: 7
