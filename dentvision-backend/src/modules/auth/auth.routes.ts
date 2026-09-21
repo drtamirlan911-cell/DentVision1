@@ -217,7 +217,7 @@ authRouter.post('/refresh', async (req, res) => {
       return res.status(401).json({ ok: false, error: 'Контекст организации больше недействителен' });
     }
 
-    await expireAllSessions(user.id);
+    await expireSession(session.id);
     const newSession = await createSession(user.id, req.ip, req.headers['user-agent']);
     const tokens = generateTokens({
       sub: user.id,
