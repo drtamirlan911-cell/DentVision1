@@ -206,9 +206,9 @@ jobs:
         if: failure()
         run: cat /tmp/frontend.log
       - uses: actions/upload-artifact@v4
-        if: failure()
+        if: always()
         with:
-          name: playwright-report
+          name: playwright-artifacts
           path: |
             playwright-report/
             .playwright-cli/
