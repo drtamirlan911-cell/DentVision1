@@ -802,7 +802,7 @@ export default function Schedule() {
                     e.stopPropagation()
                     openAcceptPayment(appt, { closeVisit: false })
                   }}
-                  className="inline-flex items-center gap-1 rounded-md bg-warning/15 border border-warning/30 px-1.5 py-0.5 text-[10px] font-semibold text-warning hover:bg-warning/25 transition-colors"
+                  className="inline-flex min-h-9 items-center gap-1 rounded-md bg-warning/15 border border-warning/30 px-2 py-1 text-[10px] font-semibold text-warning hover:bg-warning/25 transition-colors"
                 >
                   <Wallet size={10} />
                   Оплатить
@@ -814,7 +814,7 @@ export default function Schedule() {
                 type="button"
                 title="Следующий статус"
                 onClick={(e) => advanceStatus(appt, e)}
-                className="inline-flex"
+                className="inline-flex min-h-9 items-center"
               >
                 <Badge variant="default" size="xs">{sc.label || (sc as any).l}</Badge>
               </button>
@@ -954,7 +954,7 @@ export default function Schedule() {
 
             <div className="flex items-center gap-2 flex-wrap">
               <Input placeholder="Поиск..." value={searchAppts} onChange={e => setSearchAppts(e.target.value)}
-                icon={<Search size={14} />} className="!w-full sm:!w-40 !h-8 min-w-0" />
+                icon={<Search size={14} />} className="!w-full sm:!w-40 !h-9 min-w-0" />
 
               {doctors.length > 1 && (
                 <Select value={selectedDoctorFilter} onChange={e => setSelectedDoctorFilter(e.target.value)}
