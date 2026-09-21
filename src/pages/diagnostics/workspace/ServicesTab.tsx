@@ -93,7 +93,7 @@ export function ServicesTab({ config, orgId }: TabProps) {
                   <td className="py-2.5 pr-3 font-medium text-txt-primary">{s.name}</td>
                   <td className="py-2.5 pr-3 text-txt-muted">{s.category}</td>
                   <td className="py-2.5 pr-3">
-                    <input type="number" value={prices[s.id] ?? ''} onChange={(e) => setPrices((p: any) => ({ ...p, [s.id]: e.target.value }))} className="w-28 min-h-11 bg-surface-1 border border-bdr-subtle rounded-lg px-2 py-1 text-sm text-txt-primary focus:outline-none focus:ring-1 focus:ring-dv-gold" />
+                    <input aria-label={`Цена услуги ${s.name}`} type="number" value={prices[s.id} ?? ''} onChange={(e) => setPrices((p: any) => ({ ...p, [s.id]: e.target.value }))} className="w-28 min-h-11 bg-surface-1 border border-bdr-subtle rounded-lg px-2 py-1 text-sm text-txt-primary focus:outline-none focus:ring-1 focus:ring-dv-gold" />
                   </td>
                   <td className="py-2.5 pr-3"><Badge variant="outline" className={s.active ? 'border-success text-success' : 'border-error text-error'}>{s.active ? 'Активна' : 'Не активна'}</Badge></td>
                 </tr>
@@ -117,13 +117,13 @@ export function ServicesTab({ config, orgId }: TabProps) {
               </div>
               <div>
                 <label className="text-xs text-txt-muted block mb-1">Категория</label>
-                <select value={addForm.category} onChange={(e) => setAddForm((f) => ({ ...f, category: e.target.value }))} className="w-full min-h-11 bg-surface-1 border border-bdr-subtle rounded-lg px-3 py-2 text-sm text-txt-primary focus:outline-none focus:ring-1 focus:ring-dv-gold">
+                <select aria-label="Категория услуги" value={addForm.category} onChange={(e) => setAddForm((f) => ({ ...f, category: e.target.value }))} className="w-full min-h-11 bg-surface-1 border border-bdr-subtle rounded-lg px-3 py-2 text-sm text-txt-primary focus:outline-none focus:ring-1 focus:ring-dv-gold">
                   {DIAG_CATEGORIES.map((c) => (<option key={c} value={c}>{c}</option>))}
                 </select>
               </div>
               <div>
                 <label className="text-xs text-txt-muted block mb-1">Цена (₸)</label>
-                <input type="number" value={addForm.price} onChange={(e) => setAddForm((f) => ({ ...f, price: e.target.value }))} placeholder="Напр. 15000" className="w-full min-h-11 bg-surface-1 border border-bdr-subtle rounded-lg px-3 py-2 text-sm text-txt-primary focus:outline-none focus:ring-1 focus:ring-dv-gold" />
+                <input aria-label="Цена услуги" type="number" value={addForm.price} onChange={(e) => setAddForm((f) => ({ ...f, price: e.target.value }))} placeholder="Напр. 15000" className="w-full min-h-11 bg-surface-1 border border-bdr-subtle rounded-lg px-3 py-2 text-sm text-txt-primary focus:outline-none focus:ring-1 focus:ring-dv-gold" />
               </div>
               <div className="flex justify-end gap-2 pt-2">
                 <Button variant="ghost" size="sm" className="min-h-11" onClick={() => setAddOpen(false)}>Отмена</Button>
