@@ -127,7 +127,7 @@ export default function SettingsPage() {
           <button
             key={t.id}
             onClick={() => setTab(t.id)}
-            className={`flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-xs font-medium transition-colors whitespace-nowrap ${
+            className={`flex min-h-11 items-center gap-1.5 px-3.5 py-2 rounded-lg text-xs font-medium transition-colors whitespace-nowrap ${
               tab === t.id
                 ? 'bg-dv-gold/15 text-dv-gold'
                 : 'text-txt-muted hover:text-txt-primary hover:bg-white/[0.04]'
