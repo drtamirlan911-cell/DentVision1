@@ -251,7 +251,7 @@ export function Assistant() {
                   key={q}
                   type="button"
                   onClick={() => submit(q)}
-                  className="rounded-full border border-bdr-subtle px-3 py-1.5 text-xs text-txt-secondary transition-colors hover:border-dv-gold/40 hover:text-txt-primary"
+                  className="inline-flex min-h-11 items-center rounded-full border border-bdr-subtle px-3 py-1.5 text-xs text-txt-secondary transition-colors hover:border-dv-gold/40 hover:text-txt-primary"
                 >
                   {q}
                 </button>
