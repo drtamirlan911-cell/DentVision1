@@ -30,8 +30,9 @@ const STATUS_FLOW: Record<string, string[]> = {
 
 async function resolveLab(req: AuthRequest) {
   const user = req.user;
-  if (!user?.id || user.organizationType !== 'LABORATORY' || !user.organizationId) return null;
-  const membership = await prisma.laboratoryMember.findFirst({ where: { labId: user.organizationId, userId: user.id }, include: { lab: true } });
+  const labId = user?.organizationOriginalId || user?.organizationId;
+  if (!user?.id || user.organizationType !== 'LABORATORY' || !labId) return null;
+  const membership = await prisma.laboratoryMember.findFirst({ where: { labId, userId: user.id }, include: { lab: true } });
   return membership || null;
 }
 
