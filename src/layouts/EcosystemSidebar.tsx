@@ -37,13 +37,21 @@ function EcosystemSidebar({ collapsed, setCollapsed, sidebarVisible, isMobile, s
     return iam.canAccessPage(item.page || pageIdFromPath(item.path));
   };
   const visibleGroups = groups.map(g => ({ ...g, items: g.items.filter(canSee) })).filter(g => g.items.length); const visibleMore = moreItems.filter(canSee); const visibleAdmin = isAdmin ? adminItems.filter(canSee) : [];
+  React.useEffect(() => {
+    if (!isMobile || !sidebarOpen) return;
+    const onKeyDown = (event: KeyboardEvent) => { if (event.key === 'Escape') toggleSidebar(); };
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    window.addEventListener('keydown', onKeyDown);
+    return () => { document.body.style.overflow = previousOverflow; window.removeEventListener('keydown', onKeyDown); };
+  }, [isMobile, sidebarOpen, toggleSidebar]);
   const go = (path: string) => { navigate(path); if (isMobile) toggleSidebar(); };
   if (!sidebarVisible && !(isMobile && sidebarOpen)) return null;
-  const width = collapsed && !isMobile ? 76 : 272;
+  const width = collapsed && !isMobile ? 76 : isMobile ? Math.min(320, Math.max(272, window.innerWidth - 24)) : 272;
   return <>
-    {isMobile && sidebarOpen && <button type="button" aria-label={text('common.close','Закрыть')} className="fixed inset-0 z-40 min-h-11 bg-black/40" onClick={toggleSidebar} />}
-    <motion.aside initial={false} animate={{ width, x: isMobile && !sidebarOpen ? -300 : 0 }} transition={{ type: 'spring', stiffness: 360, damping: 34 }} className="fixed inset-y-0 left-0 z-50 flex flex-col overflow-hidden border-r border-[var(--dv-border)] bg-[var(--dv-sidebar)]">
-      <div className={cn('flex h-16 shrink-0 items-center border-b border-[var(--dv-border)] px-3', collapsed && !isMobile ? 'justify-center' : 'justify-between')}><button type="button" onClick={() => go('/')} className="flex min-w-0 items-center gap-2.5"><Logo />{(!collapsed || isMobile) && <span className="text-[15px] font-semibold">DentVision</span>}</button>{isMobile ? <button type="button" onClick={toggleSidebar} className="flex min-h-11 min-w-11 items-center justify-center rounded-lg p-2 text-[var(--dv-muted)]" aria-label={text('common.close','Закрыть')}><X size={18}/></button> : <button type="button" onClick={() => setCollapsed(!collapsed)} className="flex min-h-11 min-w-11 items-center justify-center rounded-lg p-2 text-[var(--dv-muted)]" aria-label="Свернуть меню"><ChevronRight className={cn('transition-transform', !collapsed && 'rotate-180')} size={17}/></button>}</div>
+    {isMobile && sidebarOpen && <button type="button" aria-label={text('common.close','Закрыть')} className="fixed inset-0 z-[55] min-h-11 bg-black/50 backdrop-blur-[1px]" onClick={toggleSidebar} />}
+    <motion.aside role={isMobile && sidebarOpen ? 'dialog' : undefined} aria-modal={isMobile && sidebarOpen ? true : undefined} aria-label="Навигация DentVision" initial={false} animate={{ width, x: isMobile && !sidebarOpen ? -300 : 0 }} transition={{ type: 'spring', stiffness: 360, damping: 34 }} className="fixed inset-y-0 left-0 z-[60] flex flex-col overflow-hidden border-r border-[var(--dv-border)] bg-[var(--dv-sidebar)]">
+      <div className={cn('flex h-16 shrink-0 items-center border-b border-[var(--dv-border)] px-3', collapsed && !isMobile ? 'justify-center' : 'justify-between')}><button type="button" onClick={() => go('/')} aria-label="DentVision — главная" className="flex min-w-0 items-center gap-2.5"><Logo variant="compact" height={30} /></button>{isMobile ? <button type="button" onClick={toggleSidebar} className="flex min-h-11 min-w-11 items-center justify-center rounded-lg p-2 text-[var(--dv-muted)]" aria-label={text('common.close','Закрыть')}><X size={18}/></button> : <button type="button" onClick={() => setCollapsed(!collapsed)} className="flex min-h-11 min-w-11 items-center justify-center rounded-lg p-2 text-[var(--dv-muted)]" aria-label="Свернуть меню"><ChevronRight className={cn('transition-transform', !collapsed && 'rotate-180')} size={17}/></button>}</div>
       <div className="px-3 pt-3">{!isPatient && <button type="button" onClick={() => setOpen(true)} className={cn('flex w-full items-center gap-2.5 rounded-xl border border-[var(--dv-border)] bg-[var(--dv-surface)] px-2.5 py-2 text-left', collapsed && !isMobile && 'justify-center')}><span className="grid h-7 w-7 shrink-0 place-items-center rounded-lg bg-[var(--dv-accent-soft)] text-[var(--dv-accent)]"><Command size={14}/></span>{(!collapsed || isMobile) && <><span className="flex-1 text-xs font-medium">Поиск</span><kbd className="rounded-md border px-1.5 py-0.5 text-[10px]">⌘K</kbd></>}</button>}</div>
       {(!collapsed || isMobile) && <div className="pt-3"><EcosystemContextCard user={user} isGuest={isGuest} /></div>}
       <nav className="min-h-0 flex-1 overflow-y-auto px-3 py-4 [scrollbar-width:none]">
