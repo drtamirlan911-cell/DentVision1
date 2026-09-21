@@ -32,7 +32,7 @@ async function auditLayout(page: Page, route: string, device: string) {
     const visible = (el: Element) => {
       const r = (el as HTMLElement).getBoundingClientRect();
       const s = getComputedStyle(el as HTMLElement);
-      return r.width > 0 && r.height > 0 && s.visibility !== 'hidden' && s.display !== 'none';
+      return r.width > 0 && r.height > 0 && r.right > 0 && r.left < window.innerWidth && s.visibility !== 'hidden' && s.display !== 'none';
     };
 
     const interactive = Array.from(document.querySelectorAll('button, a, input, select, textarea'))
