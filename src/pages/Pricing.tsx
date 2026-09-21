@@ -5,12 +5,6 @@ import { useNavigate } from 'react-router-dom';
 import { useGuestStore } from '@/store/guest.store';
 import { getPublicCommercialTerms, getPublicCommercialDocuments } from '@/utils/api';
 
-const PLANS = [
-  { id:'start', name:'START', price:19900, period:'₸ / месяц', icon:Building2, features:['1–2 врача'] },
-  { id:'pro', name:'PRO', price:39900, period:'₸ / месяц', icon:Building2, features:['до 5 врачей'] },
-  { id:'business', name:'BUSINESS', price:79900, period:'₸ / месяц', icon:Building2, features:['до 15 врачей'] },
-  { id:'network', name:'NETWORK', price:149900, period:'₸ / месяц / филиал', icon:Crown, features:['для групп и сетей'] },
-];
 const money=(value:number|null|undefined)=>value==null?'—':new Intl.NumberFormat('ru-RU').format(value)+' ₸';
 const docTypeFor=(type:string)=>type==='diagnostic_center'?'DIAGNOSTICS_AGREEMENT':type==='medical_lab'||type==='dental_lab'?'LABORATORY':type==='supplier'?'SUPPLIER_AGREEMENT':type==='academy'?'ACADEMY_AGREEMENT':type==='lecturer'?'LECTURER_AGREEMENT':'CLINIC_AGREEMENT';
 
@@ -36,7 +30,7 @@ export default function Pricing(){
       <section className="mb-10">
         <h2 className="text-xl font-bold text-txt-primary mb-4">Тарифы клиники</h2>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          {PLANS.map((p)=><div key={p.id} className="rounded-2xl border border-bdr-subtle bg-surface-1 p-5"><p.icon size={20} className="text-dv-gold mb-3"/><h3 className="font-bold text-txt-primary">{p.name}</h3><div className="mt-1 text-2xl font-bold text-txt-primary">{money(p.price)}</div><div className="text-xs text-txt-muted">{p.period.replace('₸ ','')}</div><ul className="mt-4 space-y-2">{p.features.map(f=><li key={f} className="flex gap-2 text-sm text-txt-secondary"><Check size={14} className="mt-0.5 text-success"/>{f}</li>)}</ul></div>)}
+          {(terms?.terms?.find((x:any)=>x.type==='clinic')?.subscriptions||[]).map((p:any)=><div key={p.name} className="rounded-xl border border-bdr-subtle p-5"><p className="font-semibold text-txt-primary">{p.name}</p><p className="text-2xl font-bold text-txt-primary mt-3">{money(p.priceKzt)}</p><p className="text-sm text-txt-secondary">{p.period==='month_per_branch'?'₸ / месяц / филиал':'₸ / месяц'}</p><p className="text-sm text-txt-secondary mt-3">{p.note}</p></div>)}</div><div className="text-xs text-txt-muted">{p.period.replace('₸ ','')}</div><ul className="mt-4 space-y-2">{p.features.map(f=><li key={f} className="flex gap-2 text-sm text-txt-secondary"><Check size={14} className="mt-0.5 text-success"/>{f}</li>)}</ul></div>)}
         </div>
         <p className="mt-3 text-xs text-txt-muted">Цены синхронизированы с действующей экономической политикой DentVision. Комиссия с общей клинической выручки по умолчанию 0%.</p>
       </section>
