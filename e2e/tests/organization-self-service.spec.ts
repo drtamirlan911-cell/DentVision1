@@ -29,8 +29,9 @@ test.describe('Universal organization self-service onboarding', () => {
 
     try {
       for (const type of types) {
+        const idempotencyKey = `e2e-self-service-${stamp}-${type}`;
         const response = await request.post(`${API}/api/organizations/self-service`, {
-          headers: { Authorization: `Bearer ${token}` },
+          headers: { Authorization: `Bearer ${token}`, 'Idempotency-Key': idempotencyKey },
           data: { type, name: `E2E ${type} ${stamp}`, city: 'Astana', phone: '+77000000000', email },
         });
 
@@ -56,6 +57,21 @@ test.describe('Universal organization self-service onboarding', () => {
           academy: '/school',
         }[type];
         expect(body.data.nextPath, type + ' workspace').toBe(expectedNextPath);
+
+        const retry = await request.post(`${API}/api/organizations/self-service`, {
+          headers: { Authorization: `Bearer ${token}`, 'Idempotency-Key': idempotencyKey },
+          data: { type, name: `E2E ${type} ${stamp}`, city: 'Astana', phone: '+77000000000', email },
+        });
+        expect(retry.status(), `${type} retry status`).toBe(200);
+        const retryBody = await retry.json();
+        expect(retryBody.ok).toBe(true);
+        expect(retryBody.data.idempotent).toBe(true);
+        expect(retryBody.data.organizationId).toBe(body.data.organizationId);
+
+        const duplicateCount = await prisma.organization.count({
+          where: { id: body.data.organizationId },
+        });
+        expect(duplicateCount, `${type} idempotency`).toBe(1);
 
         const scopedOwner = await prisma.personRole.findFirst({
           where: {
