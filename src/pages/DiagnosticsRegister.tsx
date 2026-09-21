@@ -1,144 +1,99 @@
-import { useState } from 'react';
-import { Building2, FlaskConical, CheckCircle, ArrowLeft, Factory } from 'lucide-react';
+import { useMemo, useState } from 'react';
+import { Navigate, useNavigate, useSearchParams } from 'react-router-dom';
+import { Building2, FlaskConical, ArrowLeft, Factory, CheckCircle2, Loader2 } from 'lucide-react';
 import { GlassCard } from '@/components/ui/ds/GlassCard';
 import { Button } from '@/components/ui/ds/Button';
-import { useNavigate } from 'react-router-dom';
-import { DIAGNOSTICS_BENEFITS, PartnerBenefits } from '@/components/PartnerBenefits';
+import { useAuth } from '@/store/auth.store';
 import * as api from '@/utils/api';
 
-type PartnerType = 'center' | 'laboratory' | 'dental_laboratory';
+type Kind = 'diagnostic_center' | 'medical_lab' | 'dental_lab';
 
-type DiagnosticsRegistrationPayload = {
-  type: PartnerType;
-  name: string;
-  city?: string;
-  address?: string;
-  phone?: string;
-  email?: string;
-  comment?: string;
+const CONFIG: Record<Kind, { label: string; title: string; icon: typeof Building2; next: string }> = {
+  diagnostic_center: { label: 'диагностический центр', title: 'Создать диагностический центр', icon: Building2, next: '/diagnostics/center' },
+  medical_lab: { label: 'медицинскую лабораторию', title: 'Создать медицинскую лабораторию', icon: FlaskConical, next: '/diagnostics/lab?workspace=medical-lab' },
+  dental_lab: { label: 'зуботехническую лабораторию', title: 'Создать зуботехническую лабораторию', icon: Factory, next: '/diagnostics/lab' },
 };
 
-// The shared API client still exposes the legacy center/laboratory type union.
-// Keep the runtime value intact so the dedicated dental-laboratory registration
-// reaches the backend unchanged; the API type can be widened independently.
-async function submitPartnerRegistration(data: DiagnosticsRegistrationPayload): Promise<any> {
-  return api.submitDiagnosticsRegistration(data as Parameters<typeof api.submitDiagnosticsRegistration>[0]);
+function normalizeType(value: string | null): Kind {
+  if (value === 'center') return 'diagnostic_center';
+  if (value === 'laboratory') return 'medical_lab';
+  return 'dental_lab';
 }
 
-const PARTNER_LABELS: Record<PartnerType, string> = {
-  center: 'диагностический центр',
-  laboratory: 'медицинскую лабораторию',
-  dental_laboratory: 'зуботехническую лабораторию',
-};
-
 export default function DiagnosticsRegister() {
+  const { isAuthenticated, loading: authLoading, restoreSession } = useAuth();
   const navigate = useNavigate();
-  const [step, setStep] = useState<'type' | 'form' | 'done'>('type');
-  const [type, setType] = useState<PartnerType | null>(null);
-  const [form, setForm] = useState({ name: '', city: '', address: '', phone: '', email: '', comment: '' });
+  const [params] = useSearchParams();
+  const kind = normalizeType(params.get('type'));
+  const config = CONFIG[kind];
+  const Icon = config.icon;
+  const [form, setForm] = useState({ name: '', city: '', address: '', phone: '', email: '', taxId: '' });
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
 
-  const handleSubmit = async () => {
-    if (!type || !form.name) return;
+  const loginUrl = useMemo(() => {
+    const returnUrl = '/register-diagnostics?type=' + (params.get('type') || 'dental_laboratory');
+    return '/login?role=owner&returnUrl=' + encodeURIComponent(returnUrl);
+  }, [params]);
+
+  if (authLoading) {
+    return <div className="min-h-screen bg-surface-0 flex items-center justify-center"><Loader2 className="animate-spin text-dv-gold" /></div>;
+  }
+  if (!isAuthenticated) return <Navigate to={loginUrl} replace />;
+
+  const submit = async () => {
+    if (!form.name.trim()) { setError('Укажите название организации'); return; }
+    if (!form.city.trim()) { setError('Укажите город'); return; }
     setSubmitting(true);
     setError('');
     try {
-      await submitPartnerRegistration({ ...form, type });
-      setStep('done');
+      const result = await api.createSelfServiceOrganization({
+        type: kind,
+        name: form.name.trim(),
+        city: form.city.trim(),
+        address: form.address.trim() || undefined,
+        phone: form.phone.trim() || undefined,
+        email: form.email.trim() || undefined,
+        taxId: form.taxId.trim() || undefined,
+      });
+      if (result?.accessToken) api.setTokens(result.accessToken, result.refreshToken || null);
+      await restoreSession();
+      navigate(result?.nextPath || config.next, { replace: true });
     } catch (e: any) {
-      setError(e.message || 'Ошибка отправки');
+      setError(e?.message || 'Не удалось создать организацию');
     } finally {
       setSubmitting(false);
     }
   };
 
-  if (step === 'done') {
-    return (
-      <div className="min-h-screen bg-surface-0 flex items-center justify-center p-4 max-w-full overflow-x-hidden">
-        <GlassCard padding="lg" className="w-full max-w-md text-center">
-          <div className="flex justify-center mb-4"><CheckCircle size={48} className="text-success" /></div>
-          <h2 className="text-lg font-bold text-txt-primary mb-2">Заявка отправлена!</h2>
-          <p className="text-sm text-txt-muted mb-6">
-            Администратор проверит вашу заявку и активирует {type ? PARTNER_LABELS[type] : 'организацию'} в ближайшее время.
-          </p>
-          <Button variant="primary" onClick={() => navigate('/')}>На главную</Button>
-        </GlassCard>
-      </div>
-    );
-  }
-
   return (
-    <div className="min-h-screen bg-surface-0 flex flex-col items-center justify-center gap-6 p-4 max-w-full overflow-x-hidden">
+    <main className="min-h-screen bg-surface-0 flex items-center justify-center p-4 max-w-full overflow-x-hidden">
       <GlassCard padding="lg" className="w-full max-w-md">
-        <button onClick={() => step === 'form' ? setStep('type') : navigate('/')} className="flex items-center gap-1 text-xs text-txt-muted hover:text-txt-primary mb-4 transition-colors min-h-11">
+        <button type="button" onClick={() => navigate('/')} className="flex min-h-11 items-center gap-1 text-xs text-txt-muted hover:text-txt-primary mb-4">
           <ArrowLeft size={14} /> Назад
         </button>
-
-        <h2 className="text-lg font-bold text-txt-primary mb-1">Регистрация партнёра</h2>
-        <p className="text-sm text-txt-muted mb-6">Подключите вашу организацию к экосистеме DentVision</p>
-
-        {step === 'type' && (
-          <div className="space-y-3">
-            <button onClick={() => { setType('center'); setStep('form'); }}
-              className="w-full flex items-center gap-4 p-4 rounded-xl border border-bdr-subtle hover:border-dv-gold/40 hover:bg-dv-gold/5 transition-all text-left min-h-11">
-              <div className="w-12 h-12 rounded-xl bg-dv-gold/10 flex items-center justify-center"><Building2 size={24} className="text-dv-gold" /></div>
-              <div><p className="text-sm font-semibold text-txt-primary">Диагностический центр</p><p className="text-xs text-txt-muted">3D-снимки, МРТ, КТ, радиология</p></div>
-            </button>
-            <button onClick={() => { setType('laboratory'); setStep('form'); }}
-              className="w-full flex items-center gap-4 p-4 rounded-xl border border-bdr-subtle hover:border-dv-gold/40 hover:bg-dv-gold/5 transition-all text-left min-h-11">
-              <div className="w-12 h-12 rounded-xl bg-dv-gold/10 flex items-center justify-center"><FlaskConical size={24} className="text-dv-gold" /></div>
-              <div><p className="text-sm font-semibold text-txt-primary">Медицинская лаборатория</p><p className="text-xs text-txt-muted">Анализы, гистология, биопсия</p></div>
-            </button>
-            <button onClick={() => { setType('dental_laboratory'); setStep('form'); }}
-              className="w-full flex items-center gap-4 p-4 rounded-xl border border-bdr-subtle hover:border-dv-gold/40 hover:bg-dv-gold/5 transition-all text-left min-h-11">
-              <div className="w-12 h-12 rounded-xl bg-info/10 flex items-center justify-center"><Factory size={24} className="text-info" /></div>
-              <div><p className="text-sm font-semibold text-txt-primary">Зуботехническая лаборатория</p><p className="text-xs text-txt-muted">Короны, виниры, протезы, CAD/CAM</p></div>
-            </button>
-          </div>
-        )}
-
-        {step === 'form' && (
-          <div className="space-y-3">
-            <div>
-              <label className="text-xs text-txt-muted block mb-1">Название *</label>
-              <input value={form.name} onChange={e => setForm({ ...form, name: e.target.value })}
-                className="w-full bg-surface-1 border border-bdr-subtle rounded-lg px-3 py-2 text-sm text-txt-primary focus:outline-none focus:ring-1 focus:ring-dv-gold min-h-11" />
-            </div>
-            <div>
-              <label className="text-xs text-txt-muted block mb-1">Город</label>
-              <input value={form.city} onChange={e => setForm({ ...form, city: e.target.value })}
-                className="w-full bg-surface-1 border border-bdr-subtle rounded-lg px-3 py-2 text-sm text-txt-primary focus:outline-none focus:ring-1 focus:ring-dv-gold min-h-11" />
-            </div>
-            <div>
-              <label className="text-xs text-txt-muted block mb-1">Адрес</label>
-              <input value={form.address} onChange={e => setForm({ ...form, address: e.target.value })}
-                className="w-full bg-surface-1 border border-bdr-subtle rounded-lg px-3 py-2 text-sm text-txt-primary focus:outline-none focus:ring-1 focus:ring-dv-gold min-h-11" />
-            </div>
-            <div>
-              <label className="text-xs text-txt-muted block mb-1">Телефон</label>
-              <input value={form.phone} onChange={e => setForm({ ...form, phone: e.target.value })}
-                className="w-full bg-surface-1 border border-bdr-subtle rounded-lg px-3 py-2 text-sm text-txt-primary focus:outline-none focus:ring-1 focus:ring-dv-gold min-h-11" />
-            </div>
-            <div>
-              <label className="text-xs text-txt-muted block mb-1">Email</label>
-              <input value={form.email} onChange={e => setForm({ ...form, email: e.target.value })}
-                className="w-full bg-surface-1 border border-bdr-subtle rounded-lg px-3 py-2 text-sm text-txt-primary focus:outline-none focus:ring-1 focus:ring-dv-gold min-h-11" />
-            </div>
-            <div>
-              <label className="text-xs text-txt-muted block mb-1">Комментарий</label>
-              <textarea value={form.comment} onChange={e => setForm({ ...form, comment: e.target.value })} rows={3}
-                className="w-full bg-surface-1 border border-bdr-subtle rounded-lg px-3 py-2 text-sm text-txt-primary focus:outline-none focus:ring-1 focus:ring-dv-gold resize-none min-h-11" />
-            </div>
-            {error && <p className="text-xs text-danger">{error}</p>}
-            <Button variant="primary" className="w-full min-h-11" onClick={handleSubmit}
-              disabled={!form.name || submitting}>
-              {submitting ? 'Отправка...' : 'Отправить заявку'}
-            </Button>
-          </div>
-        )}
+        <div className="flex items-center gap-3 mb-2">
+          <span className="w-11 h-11 rounded-xl bg-dv-gold/10 flex items-center justify-center text-dv-gold"><Icon size={22} /></span>
+          <div><h1 className="text-lg font-bold text-txt-primary">{config.title}</h1><p className="text-xs text-txt-muted">Самостоятельное создание рабочего пространства</p></div>
+        </div>
+        <p className="text-sm text-txt-secondary mt-4 mb-5">Организация создаётся сразу. Проверка регулируемого профиля может проходить асинхронно, без ручного создания кабинета оператором DentVision.</p>
+        <div className="space-y-3">
+          <label className="block"><span className="text-xs text-txt-muted">Название *</span><input aria-label="Название *" value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} className="mt-1 w-full min-h-11 rounded-lg border border-bdr-subtle bg-surface-1 px-3 text-sm text-txt-primary" /></label>
+          <label className="block"><span className="text-xs text-txt-muted">Город *</span><input aria-label="Город *" value={form.city} onChange={e => setForm({ ...form, city: e.target.value })} className="mt-1 w-full min-h-11 rounded-lg border border-bdr-subtle bg-surface-1 px-3 text-sm text-txt-primary" /></label>
+          <label className="block"><span className="text-xs text-txt-muted">Адрес</span><input aria-label="Адрес" value={form.address} onChange={e => setForm({ ...form, address: e.target.value })} className="mt-1 w-full min-h-11 rounded-lg border border-bdr-subtle bg-surface-1 px-3 text-sm text-txt-primary" /></label>
+          <label className="block"><span className="text-xs text-txt-muted">Телефон</span><input aria-label="Телефон" value={form.phone} onChange={e => setForm({ ...form, phone: e.target.value })} className="mt-1 w-full min-h-11 rounded-lg border border-bdr-subtle bg-surface-1 px-3 text-sm text-txt-primary" /></label>
+          <label className="block"><span className="text-xs text-txt-muted">Email</span><input aria-label="Email" type="email" value={form.email} onChange={e => setForm({ ...form, email: e.target.value })} className="mt-1 w-full min-h-11 rounded-lg border border-bdr-subtle bg-surface-1 px-3 text-sm text-txt-primary" /></label>
+          <label className="block"><span className="text-xs text-txt-muted">БИН / ИИН</span><input aria-label="БИН / ИИН" value={form.taxId} onChange={e => setForm({ ...form, taxId: e.target.value })} className="mt-1 w-full min-h-11 rounded-lg border border-bdr-subtle bg-surface-1 px-3 text-sm text-txt-primary" /></label>
+          {error && <p role="alert" className="text-xs text-danger">{error}</p>}
+          <Button variant="primary" className="w-full min-h-11" onClick={submit} disabled={submitting || !form.name.trim() || !form.city.trim()}>
+            {submitting ? 'Создаём рабочее пространство…' : 'Создать и открыть workspace'}
+          </Button>
+        </div>
+        <div className="mt-5 flex gap-2 rounded-xl border border-bdr-subtle bg-surface-1 p-3 text-xs text-txt-muted">
+          <CheckCircle2 size={15} className="mt-0.5 shrink-0 text-success" />
+          <span>После подтверждения сервером вы станете владельцем организации и сразу попадёте в соответствующий workspace.</span>
+        </div>
       </GlassCard>
-      <PartnerBenefits benefits={DIAGNOSTICS_BENEFITS} className="w-full max-w-md" />
-    </div>
+    </main>
   );
 }
