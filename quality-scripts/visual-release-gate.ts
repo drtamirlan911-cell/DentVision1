@@ -2,6 +2,10 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 const ROOT = path.resolve(process.env.VISUAL_EVIDENCE_DIR || 'e2e/visual-evidence');
+const runId = process.env.GITHUB_RUN_ID || 'local';
+const commitSha = process.env.GITHUB_SHA || 'local';
+const workflow = process.env.GITHUB_WORKFLOW || 'local';
+const ref = process.env.GITHUB_REF_NAME || 'local';
 const manifestPath = path.join(ROOT, 'visual-manifest.json');
 
 const responsiveProjects = ['desktop-1280','laptop-1440','desktop-1920','tablet-768','tablet-820','mobile-390','mobile-412','mobile-safari'];
@@ -58,6 +62,7 @@ const entries = files.map((file) => ({
 const manifest = {
   schemaVersion: 1,
   generatedAt: new Date().toISOString(),
+  run: { runId, commitSha, workflow, ref, evidenceRoot: path.relative(process.cwd(), ROOT) },
   policy: { responsiveProjects, roleProjects, roles, visualAgentViewports, minimumResponsiveScreenshots: 13, minimumRoleScreenshots: roles.length * roleProjects.length, minimumVisualAgentScreenshotsPerRoleViewport: 4 },
   totals: { screenshots: entries.length, responsive: responsiveFiles.length, roles: roleFiles.length, visualAgent: visualAgentFiles.length },
   screenshots: entries,
