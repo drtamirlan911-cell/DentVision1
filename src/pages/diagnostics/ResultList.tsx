@@ -15,18 +15,27 @@ import { useAuthStore } from '@/store/auth.store';
 import { StatusPill } from './workspace/Pipeline';
 import { useEcosystemUrlContext } from '@/hooks/useEcosystemUrlContext';
 import { withEcosystemContext } from '@/config/ecosystemContextLink';
+import { useDiagnosticsOrgScope } from './orgScope';
 
 export default function ResultList() {
   const navigate = useNavigate();
   const activeClinicId = useAuthStore((state) => state.activeClinic?.id);
+  const { orgKind, orgId } = useDiagnosticsOrgScope();
   const context = useEcosystemUrlContext();
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
 
+  const referralScope = orgKind === 'CENTER'
+    ? { centerId: orgId }
+    : orgKind === 'LAB'
+      ? { labId: orgId }
+      : { clinicId: activeClinicId || '' };
+  const hasReferralScope = Boolean(orgId || activeClinicId);
+
   const { data, isLoading, isError, refetch } = useQuery({
-    queryKey: queryKeys.diagnostics.referrals({ clinicId: activeClinicId || '', status: statusFilter || '', search, limit: '100' }),
-    queryFn: () => api.getDiagnosticReferrals({ clinicId: activeClinicId!, status: statusFilter || '', search, limit: '100' }),
-    enabled: Boolean(activeClinicId),
+    queryKey: queryKeys.diagnostics.referrals({ ...referralScope, status: statusFilter || '', search, limit: '100' }),
+    queryFn: () => api.getDiagnosticReferrals({ ...referralScope, status: statusFilter || '', search, limit: '100' }),
+    enabled: hasReferralScope,
   });
 
   const items = data?.items || data?.data || data?.referrals || [];
@@ -41,7 +50,7 @@ export default function ResultList() {
           <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)} aria-label="Фильтр статуса" className="w-full sm:w-auto min-h-11 bg-surface-raised border border-bdr-subtle rounded-lg px-3 py-2.5 text-sm text-txt-primary focus:outline-none focus:border-dv-gold/50 focus:ring-1 focus:ring-dv-gold/20 transition-colors"><option value="">Все результаты</option><option value="COMPLETED">Готово</option><option value="REVIEWED">Просмотрено</option></select>
         </div>
       </div>
-      {!activeClinicId ? (
+      {!hasReferralScope ? (
         <GlassCard padding="md"><div className="flex items-center justify-center min-h-40 text-txt-muted text-sm">Выберите клинику, чтобы открыть результаты диагностики</div></GlassCard>
       ) : isLoading ? (
         <div className="space-y-3">{[1, 2, 3].map(i => <Skeleton key={i} className="h-20" />)}</div>
