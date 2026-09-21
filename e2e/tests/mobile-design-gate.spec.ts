@@ -1,6 +1,7 @@
 import { test, expect, type Page } from '@playwright/test';
 
 const BASE_URL = process.env.PLAYWRIGHT_UI_URL || 'http://localhost:3000';
+const VISUAL_EVIDENCE_ROOT = process.env.VISUAL_EVIDENCE_DIR || 'e2e/visual-evidence';
 const E2E_USER = 'owner-a@test.com';
 const E2E_PASSWORD = 'Test1234!';
 
@@ -109,7 +110,7 @@ async function auditLayout(page: Page, route: string, device: string) {
     route.startsWith('/school') ? 'academy' :
     'responsive';
   await page.screenshot({
-    path: `e2e/visual-evidence/responsive/${bucket}/${device}${safeRoute}.png`,
+    path: `${VISUAL_EVIDENCE_ROOT}/responsive/${bucket}/${device}${safeRoute}.png`,
     fullPage: true,
   });
 }
