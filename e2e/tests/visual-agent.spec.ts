@@ -19,7 +19,7 @@ const ROLES: readonly AgentRole[] = [
   { id: 'doctor', email: 'doctor-a@test.com', entry: /\/ai|\/crm/, journeys: ['/ai','/crm/dental-chart','/diagnostics/referrals'] },
   { id: 'assistant', email: 'assistant-a@test.com', entry: /\/ai|\/crm/, journeys: ['/crm/schedule','/crm/visits','/diagnostics/referrals'] },
   { id: 'manager', email: 'manager-a@test.com', entry: /\/ai|\/crm/, journeys: ['/ai','/crm/staff','/analytics'] },
-  { id: 'regular', email: 'regular@test.com', entry: /\/school|\/profile/, journeys: ['/school','/profile'] },
+  { id: 'regular', email: 'regular@test.com', entry: /\/ai$/, journeys: ['/school','/profile'] },
   { id: 'patient', email: 'patient@dentvision.kz', entry: /\/patient-portal/, journeys: ['/patient-portal','/shop'] },
   { id: 'diagnostic-owner', email: 'diagnostic-owner@test.com', entry: /\/diagnostics\/center/, journeys: ['/diagnostics/center','/diagnostics/results','/diagnostics/settings'] },
   { id: 'diagnostic-operator', email: 'diagnostic-operator@test.com', entry: /\/diagnostics\/center/, journeys: ['/diagnostics/center','/diagnostics/results'] },
@@ -28,7 +28,7 @@ const ROLES: readonly AgentRole[] = [
   { id: 'dental-lab-owner', email: 'dental-lab-owner@test.com', entry: /\/diagnostics\/lab/, journeys: ['/diagnostics/lab','/diagnostics/results','/diagnostics/settings'] },
   { id: 'dental-technician', email: 'dental-technician@test.com', entry: /\/diagnostics\/lab/, journeys: ['/diagnostics/lab','/diagnostics/laboratories','/diagnostics/results'] },
   { id: 'superadmin', email: 'superadmin@test.com', entry: /\/admin|\/ai/, journeys: ['/admin','/security','/ai-governance'] },
-  { id: 'support', email: 'support@test.com', entry: /\/admin|\/analytics|\/profile/, journeys: ['/support','/analytics','/settings'] },
+  { id: 'support', email: 'support@test.com', entry: /\/ai$/, journeys: ['/support','/analytics','/settings'] },
   { id: 'laboratory', email: 'lab-a@test.com', entry: /\/ai|\/crm|\/diagnostics/, journeys: ['/diagnostics','/diagnostics/laboratories','/crm/lab'] },
 ];
 
@@ -85,7 +85,7 @@ async function writeEvidence(page: Page, role: AgentRole, viewportId: string, ch
 }
 
 async function login(page: Page, role: AgentRole) {
-  await page.goto(BASE_URL + '/login?role=owner', { waitUntil: 'domcontentloaded', timeout: 30000 });
+  await page.goto(BASE_URL + '/login', { waitUntil: 'domcontentloaded', timeout: 30000 });
   await page.locator('input[autocomplete="username"]').fill(role.email);
   await page.locator('input[autocomplete="current-password"]').fill(PASSWORD);
   await page.getByRole('button', { name: 'Войти в DentVision' }).click();
