@@ -113,7 +113,7 @@ export const IntelligenceLayout: React.FC = () => {
               <div className="mx-auto grid h-12 w-12 place-items-center rounded-2xl bg-primary/10 text-primary"><User size={22} /></div>
               <h2 className="text-xl font-semibold">DentVision CRM</h2>
               <p className="mx-auto max-w-md text-sm text-muted-foreground">Для доступа к рабочему пространству войдите или создайте аккаунт.</p>
-              <button className="rounded-xl bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground" onClick={() => setGuestCRMOpen(true)}>Продолжить</button>
+              <button className="min-h-9 rounded-xl bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground" onClick={() => setGuestCRMOpen(true)}>Продолжить</button>
             </div>
             <GuestCRMModal open={guestCRMOpen} onClose={() => setGuestCRMOpen(false)} />
           </div>
