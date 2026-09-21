@@ -19,7 +19,7 @@ export default defineConfig({
       // explicitly target the Vite frontend on port 3000.
       use: { browserName: 'chromium', viewport: { width: 1440, height: 900 }, baseURL: process.env.PLAYWRIGHT_API_URL || 'http://localhost:3001' },
       testMatch: /.*\.spec\.ts/,
-      testIgnore: /mobile-design-gate\.spec\.ts|role-design-gate\.spec\.ts/,
+      testIgnore: /mobile-design-gate\.spec\.ts|role-design-gate\.spec\.ts|visual-agent\.spec\.ts/,
     },
     {
       name: 'desktop-1280',
@@ -63,8 +63,8 @@ export default defineConfig({
     },
     {
       name: 'visual-agent',
-      use: { browserName: 'chromium', viewport: { width: 1440, height: 900 }, baseURL: process.env.PLAYWRIGHT_UI_URL || 'http://localhost:3000' },
-      testMatch: /visual-agent\\.spec\\.ts/,
+      use: { browserName: 'chromium', viewport: { width: 1440, height: 900 }, baseURL: process.env.PLAYWRIGHT_UI_URL || 'http://localhost:3000', trace: 'on' },
+      testMatch: /visual-agent\.spec\.ts/,
     },
     {
       name: 'role-desktop',
