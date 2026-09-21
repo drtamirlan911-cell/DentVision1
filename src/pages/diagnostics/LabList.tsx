@@ -105,7 +105,7 @@ export default function LabList() {
                   </div>
                 </div>
                 {isSuperAdmin && (
-                  <button aria-label={`Редактировать лабораторию ${c.name}`} title={`Редактировать лабораторию ${c.name}`} onClick={() => openEdit(c)} className="p-1.5 rounded-lg hover:bg-surface-1 text-txt-muted hover:text-dv-gold transition-colors">
+                  <button aria-label={`Редактировать лабораторию ${c.name}`} title={`Редактировать лабораторию ${c.name}`} onClick={() => openEdit(c)} className="inline-flex min-h-11 min-w-11 items-center justify-center p-1.5 rounded-lg hover:bg-surface-1 text-txt-muted hover:text-dv-gold transition-colors">
                     <Edit2 size={14} />
                   </button>
                 )}
