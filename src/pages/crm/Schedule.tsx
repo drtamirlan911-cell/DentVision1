@@ -865,14 +865,14 @@ export default function Schedule() {
           icon={<Calendar size={20} />}
           actions={
             <div className="flex flex-wrap gap-2 items-center justify-start sm:justify-end">
-              <Button variant="secondary" onClick={printDaySchedule} icon={<Printer size={14} />}>
+              <Button variant="secondary" aria-label="Печать дня" title="Печать дня" onClick={printDaySchedule} icon={<Printer size={14} />}>
                 <span className="hidden sm:inline">Печать дня</span>
               </Button>
-              <Button variant="secondary" onClick={printZReport} icon={<ClipboardCheck size={14} />}>
+              <Button variant="secondary" aria-label="Z-отчёт" title="Z-отчёт" onClick={printZReport} icon={<ClipboardCheck size={14} />}>
                 <span className="hidden sm:inline">Z-отчёт</span>
               </Button>
               {canOpenCashier && (
-                <Button variant="secondary" onClick={() => navigate('/crm/cashier')} icon={<DollarSign size={14} />}>
+                <Button variant="secondary" aria-label="Касса" title="Касса" onClick={() => navigate('/crm/cashier')} icon={<DollarSign size={14} />}>
                   <span className="hidden sm:inline">Касса</span>
                 </Button>
               )}
