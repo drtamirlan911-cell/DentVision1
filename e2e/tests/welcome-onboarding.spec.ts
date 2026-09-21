@@ -30,7 +30,9 @@ test.describe('Welcome real-click and self-service organization onboarding', () 
     for (const [label, target] of homeButtons) {
       await page.goto(BASE + '/');
       await page.getByRole('button', { name: label, exact: true }).click();
-      await expect(page).toHaveURL(target);
+      const currentUrl = new URL(page.url());
+      const currentPath = currentUrl.pathname + currentUrl.search;
+      expect(currentPath).toMatch(target);
       await expect(page.locator('body')).not.toContainText('404');
     }
   });
