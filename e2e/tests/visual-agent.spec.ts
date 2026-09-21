@@ -223,10 +223,10 @@ for (const viewport of VIEWPORTS) {
           JSON.stringify({ role: role.id, viewport, consoleErrors, pageErrors, failedRequests, httpErrors }, null, 2),
           'utf8',
         );
-        expect(consoleErrors, role.id + ' ' + viewport.id + ': console errors').toEqual([]);
-        expect(pageErrors, role.id + ' ' + viewport.id + ': page errors').toEqual([]);
-        expect(failedRequests, role.id + ' ' + viewport.id + ': failed requests').toEqual([]);
-        expect(httpErrors, role.id + ' ' + viewport.id + ': HTTP errors').toEqual([]);
+        expect(consoleErrors, role.id + ' ' + viewport.id + ': console errors\n' + consoleErrors.join('\n')).toEqual([]);
+        expect(pageErrors, role.id + ' ' + viewport.id + ': page errors\n' + pageErrors.join('\n')).toEqual([]);
+        expect(failedRequests, role.id + ' ' + viewport.id + ': failed requests\n' + failedRequests.join('\n')).toEqual([]);
+        expect(httpErrors, role.id + ' ' + viewport.id + ': HTTP errors\n' + httpErrors.join('\n')).toEqual([]);
       });
     }
   });
