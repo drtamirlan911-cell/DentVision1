@@ -17,7 +17,7 @@ organizationsRouter.use('/branches', branchesRouter);
 
 /** Universal self-service onboarding for every organization type already supported by the backend. */
 const SELF_SERVICE_TYPES = {
-  clinic: { orgType: 'CLINIC', nextPath: '/crm' },
+  clinic: { orgType: 'CLINIC', nextPath: '/crm/schedule' },
   dental_lab: { orgType: 'LABORATORY', nextPath: '/diagnostics/lab' },
   medical_lab: { orgType: 'LABORATORY', nextPath: '/diagnostics/lab?workspace=medical-lab' },
   diagnostic_center: { orgType: 'DIAGNOSTIC_CENTER', nextPath: '/diagnostics/center' },
