@@ -161,8 +161,8 @@ export async function onboardPartner(data: any, createdBy: string) {
   const documents: any[] = [];
   for (const tplType of types) {
     const template = await prisma.legalTemplate.findFirst({
-      where: { type: tplType as any },
-      include: { versions: { orderBy: { version: 'desc' }, take: 1 } },
+      where: { type: tplType as any, versions: { some: { status: 'PUBLISHED' } } },
+      include: { versions: { where: { status: 'PUBLISHED' }, orderBy: { version: 'desc' }, take: 1 } },
       orderBy: { createdAt: 'desc' },
     });
     if (template) {
