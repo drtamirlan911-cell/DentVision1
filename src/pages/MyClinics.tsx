@@ -1,4 +1,5 @@
 ﻿import React, { useState, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { ListSkeleton } from '@/components/ui/ds';
 import { useNavigate, Navigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
@@ -24,6 +25,7 @@ export default function MyClinics() {
   const { user, clinics, activeMembership, switchClinic, isAuthenticated, loading: authLoading } = useAuth();
   const toast = useToast();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
   const [joining, setJoining] = useState(false);
@@ -34,7 +36,7 @@ export default function MyClinics() {
   const [branchForm, setBranchForm] = useState({ name: '', code: '', city: '', address: '', phone: '' });
   const [createForm, setCreateForm] = useState({ name: '', city: '', country: 'Казахстан', address: '', phone: '', type: 'clinic', plan: 'starter' });
   const [joinCode, setJoinCode] = useState('');
-  const [activeTab, setActiveTab] = useState<'list' | 'create' | 'join' | 'demo'>('list');
+  const [activeTab, setActiveTab] = useState<'list' | 'create' | 'join' | 'demo'>(() => searchParams.get('create') === 'clinic' ? 'create' : 'list');
 
   useEffect(() => { if (!authLoading) setLoading(false); }, [authLoading]);
 
@@ -61,11 +63,18 @@ export default function MyClinics() {
     if (!createForm.name.trim()) { toast.error('Введите название'); return; }
     setCreating(true);
     try {
-      const res = await api.createClinic(createForm);
-      await switchClinic(res.clinic?.id || null);
+      const res = await api.createSelfServiceOrganization({
+        type: 'clinic',
+        name: createForm.name.trim(),
+        city: createForm.city.trim() || undefined,
+        address: createForm.address.trim() || undefined,
+        phone: createForm.phone.trim() || undefined,
+      });
+      if (res?.accessToken) api.setTokens(res.accessToken, res.refreshToken || null);
+      await useAuth.getState().restoreSession();
       toast.success('Клиника создана');
-      navigate('/crm/schedule');
-    } catch { toast.error('Не удалось создать клинику'); }
+      navigate(res?.nextPath || '/crm/schedule', { replace: true });
+    } catch (e: any) { toast.error(e?.message || 'Не удалось создать клинику'); }
     finally { setCreating(false); }
   };
 
