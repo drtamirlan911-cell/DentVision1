@@ -93,7 +93,7 @@ export function ReferralsTab({ config, orgId, phaseFilter, onClearPhase }: TabPr
           <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-txt-muted" />
           <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Поиск по пациенту..." className="w-full min-h-11 bg-surface-1 border border-bdr-subtle rounded-lg pl-9 pr-3 py-2 text-sm text-txt-primary placeholder:text-txt-ghost focus:outline-none focus:ring-1 focus:ring-dv-gold" />
         </div>
-        <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className="min-h-11 bg-surface-1 border border-bdr-subtle rounded-lg px-3 py-2 text-sm text-txt-primary focus:outline-none focus:ring-1 focus:ring-dv-gold">
+        <select aria-label="Фильтр статуса направления" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className="min-h-11 bg-surface-1 border border-bdr-subtle rounded-lg px-3 py-2 text-sm text-txt-primary focus:outline-none focus:ring-1 focus:ring-dv-gold">
           <option value="">Все статусы</option>
           {Object.entries(REFERRAL_STATUS).map(([key, info]) => (<option key={key} value={key}>{info.label}</option>))}
         </select>
@@ -163,11 +163,11 @@ export function ReferralsTab({ config, orgId, phaseFilter, onClearPhase }: TabPr
             <div className="space-y-3">
               <div>
                 <label className="text-xs text-txt-muted block mb-1">Стоимость услуги (₸)</label>
-                <input type="number" value={costValue} onChange={(e) => setCostValue(e.target.value)} placeholder="Напр. 15000" className="w-full min-h-11 bg-surface-1 border border-bdr-subtle rounded-lg px-3 py-2 text-sm text-txt-primary focus:outline-none focus:ring-1 focus:ring-dv-gold" />
+                <input aria-label="Стоимость направления" type="number" value={costValue} onChange={(e) => setCostValue(e.target.value)} placeholder="Напр. 15000" className="w-full min-h-11 bg-surface-1 border border-bdr-subtle rounded-lg px-3 py-2 text-sm text-txt-primary focus:outline-none focus:ring-1 focus:ring-dv-gold" />
               </div>
               <div>
                 <label className="text-xs text-txt-muted block mb-1">Комиссия платформы (₸, опционально)</label>
-                <input type="number" value={feeValue} onChange={(e) => setFeeValue(e.target.value)} placeholder="Напр. 1500" className="w-full min-h-11 bg-surface-1 border border-bdr-subtle rounded-lg px-3 py-2 text-sm text-txt-primary focus:outline-none focus:ring-1 focus:ring-dv-gold" />
+                <input aria-label="Комиссия платформы" type="number" value={feeValue} onChange={(e) => setFeeValue(e.target.value)} placeholder="Напр. 1500" className="w-full min-h-11 bg-surface-1 border border-bdr-subtle rounded-lg px-3 py-2 text-sm text-txt-primary focus:outline-none focus:ring-1 focus:ring-dv-gold" />
               </div>
               <div className="flex justify-end gap-2 pt-2">
                 <Button variant="ghost" size="sm" className="min-h-11" onClick={() => setCostModal(null)}>Отмена</Button>
@@ -197,7 +197,7 @@ export function ReferralsTab({ config, orgId, phaseFilter, onClearPhase }: TabPr
               <div>
                 <label className="text-xs text-txt-muted block mb-1">Файлы результатов</label>
                 <div className="border border-dashed border-bdr-subtle rounded-lg p-4 text-center">
-                  <input type="file" multiple accept="image/*,.pdf,.dcm" onChange={(e) => setResultFiles(Array.from(e.target.files || []))} className="hidden" id="result-files" />
+                  <input aria-label="Файлы результатов" type="file" multiple accept="image/*,.pdf,.dcm" onChange={(e) => setResultFiles(Array.from(e.target.files || []))} className="hidden" id="result-files" />
                   <label htmlFor="result-files" className="cursor-pointer flex flex-col items-center gap-1 text-txt-muted hover:text-txt-primary">
                     <Upload size={24} className="opacity-40" />
                     <span className="text-xs">Нажмите для загрузки файлов</span>
