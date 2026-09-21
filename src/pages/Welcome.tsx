@@ -38,7 +38,7 @@ export default function Welcome() {
 
   return (
     <main className="dv-welcome min-h-[100dvh] overflow-x-hidden bg-surface-0 px-4 py-6 text-left text-txt-primary md:flex md:justify-center">
-      <div className="flex min-h-[calc(100dvh-3rem)] w-full max-w-[390px] flex-col md:max-w-5xl">
+      <div className="flex min-h-[calc(100dvh-3rem)] w-full max-w-[390px] flex-col pb-20 md:max-w-5xl md:pb-0">
         <header className="flex items-start justify-between">
           <button type="button" onClick={() => navigate('/')} className="min-h-11 text-left" aria-label="DentVision"><span className="block text-[20px] font-normal leading-6 tracking-[-0.02em]">DentVision</span><span className="block text-[10px] leading-3 text-dv-gold">by Dr.Tamirlan</span></button>
           <button type="button" onClick={() => navigate('/login')} className="min-h-11 rounded-xl border border-bdr px-4 text-xs font-semibold">Войти</button>
