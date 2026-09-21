@@ -13,30 +13,9 @@ interface OnboardingProps {
   onComplete: () => void
 }
 
-type Mode = 'choice' | 'register' | 'join' | 'submitted'
+type Mode = 'choice' | 'register' | 'join'
 
-/** The diagnostics member vocabulary, in the words a person recognises. */
-const ROLE_LABELS: Record<string, string> = {
-  admin: 'Администратор',
-  manager: 'Менеджер',
-  radiologist: 'Рентгенолог',
-  operator: 'Оператор',
-}
-
-/**
- * The two ways into a diagnostic centre or laboratory workspace.
- *
- * Both used to be dead ends. "Become a partner" posted to
- * `POST /diagnostics/centers`, which is superadmin-only — a 403 for exactly the
- * user this screen exists for. It now files a registration request, which is
- * the path that has always worked end to end: a request the platform reviews,
- * and on approval the organisation is created and the applicant is made its
- * owner. Moderation is deliberate — a centre receives referrals carrying
- * patient names and diagnoses.
- *
- * "Join an organisation" called `POST /iam/join-by-invite`, which did not
- * exist. It does now, along with the invite codes it consumes.
- */
+/** Self-service organization creation and invitation join flow. */
 export function OrganizationOnboarding({ kind, onComplete }: OnboardingProps) {
   const toast = useToast()
   const [mode, setMode] = useState<Mode>('choice')
@@ -53,16 +32,16 @@ export function OrganizationOnboarding({ kind, onComplete }: OnboardingProps) {
     if (!form.city.trim()) { toast.error('Укажите город'); return }
     setLoading(true)
     try {
-      await api.submitDiagnosticsRegistration({
-        type: isCenter ? 'center' : 'laboratory',
+      const result = await api.createSelfServiceOrganization({
+        type: isCenter ? 'diagnostic_center' : 'medical_lab',
         name: form.name.trim(),
         city: form.city.trim(),
         address: form.address.trim() || undefined,
         phone: form.phone.trim() || undefined,
         email: form.email.trim() || undefined,
-        comment: form.comment.trim() || undefined,
       })
-      setMode('submitted')
+      if (result?.accessToken) api.setTokens(result.accessToken, result.refreshToken || null)
+      window.location.assign(result?.nextPath || (isCenter ? '/diagnostics/center' : '/diagnostics/lab?workspace=medical-lab'))
     } catch (e: any) {
       toast.error(e?.message || 'Не удалось отправить заявку')
     } finally {
@@ -101,7 +80,7 @@ export function OrganizationOnboarding({ kind, onComplete }: OnboardingProps) {
     }
   }
 
-  if (mode === 'submitted') {
+  if (false) {
     // Say what actually happened. The previous copy claimed the organisation
     // was registered; nothing had been created, and the user was left waiting
     // for a workspace that would never appear.
@@ -135,9 +114,9 @@ export function OrganizationOnboarding({ kind, onComplete }: OnboardingProps) {
               <button onClick={() => setMode('choice')} className="text-txt-muted hover:text-txt-primary">← Назад</button>
             </div>
             <div>
-              <h2 className="text-lg font-semibold text-txt-primary">Заявка на регистрацию</h2>
+              <h2 className="text-lg font-semibold text-txt-primary">Создание рабочего пространства</h2>
               <p className="text-sm text-txt-muted mt-1">
-                Заполните данные — мы проверим их и активируем {title}
+                Укажите основные данные — рабочее пространство создастся сразу
               </p>
             </div>
             <div className="space-y-3">
@@ -213,7 +192,7 @@ export function OrganizationOnboarding({ kind, onComplete }: OnboardingProps) {
             вы получите кабинет и направления от клиник
           </p>
           <span className="inline-flex items-center gap-1 text-sm text-dv-gold group-hover:gap-2 transition-all">
-            Подать заявку <ArrowRight size={14} />
+            Создать <ArrowRight size={14} />
           </span>
         </button>
         <button
