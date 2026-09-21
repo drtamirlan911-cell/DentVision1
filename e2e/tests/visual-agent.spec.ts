@@ -91,7 +91,20 @@ async function login(page: Page, role: AgentRole) {
   await page.getByRole('button', { name: 'Войти в DentVision' }).click();
   await page.waitForLoadState('domcontentloaded');
   await page.waitForTimeout(700);
-  expect(page.url(), role.id + ': unexpected post-login entry').toMatch(role.entry);
+  if (!role.entry.test(page.url())) {
+    const authProbe = await page.evaluate(async () => {
+      try {
+        const match = document.cookie.match(/(?:^|;\\s*)accessToken=([^;]*)/);
+        const token = match?.[1];
+        const response = await fetch('http://localhost:3001/api/auth/me', { headers: token ? { Authorization: `Bearer ${decodeURIComponent(token)}` } : {} });
+        const body = await response.json().catch(() => ({}));
+        return { status: response.status, effectiveRole: body?.data?.effectiveRole || body?.effectiveRole || null, organizationType: body?.data?.user?.organizationType || body?.user?.organizationType || null, organizationId: body?.data?.user?.organizationId || body?.user?.organizationId || null };
+      } catch (error) {
+        return { error: String(error) };
+      }
+    });
+    throw new Error(`${role.id}: unexpected post-login entry; actual=${page.url()}; auth=${JSON.stringify(authProbe)}`);
+  }
 }
 
 async function inspect(page: Page, role: AgentRole, route: string, viewportId: string) {
@@ -165,6 +178,7 @@ for (const viewport of VIEWPORTS) {
         page.on('console', message => { if (message.type() === 'error') consoleErrors.push(message.text()); });
         page.on('pageerror', error => pageErrors.push(error.message));
         page.on('requestfailed', request => failedRequests.push(request.method() + ' ' + request.url() + ' :: ' + (request.failure()?.errorText || 'failed')));
+        page.on('response', response => { if (response.status() === 429) consoleErrors.push(`HTTP 429 ${response.url()}`); });
 
         await login(page, role);
         await writeEvidence(page, role, viewport.id, '00_entry');
