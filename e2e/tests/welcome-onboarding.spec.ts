@@ -15,11 +15,22 @@ async function login(page: Page) {
 test.describe('Welcome real-click and self-service organization onboarding', () => {
   test('WELCOME-001: every primary Welcome action performs a real navigation', async ({ page }) => {
     await page.goto(BASE + '/');
-    const intents = ['Записаться к врачу', 'Найти диагностику', 'Работать с лабораторией', 'Купить', 'Учиться', 'Найти работу'];
-    for (const label of intents) {
+    const homeButtons = [
+      ['DentVision', /^\/$/],
+      ['Войти', /\/login/],
+      ['Попробовать DentVision AI', /\/ai/],
+      ['Посмотреть тарифы', /\/pricing/],
+      ['Записаться к врачу', /\/book\/discover/],
+      ['Найти диагностику', /\/diagnostics\/discover/],
+      ['Работать с лабораторией', /\/login\?role=lab/],
+      ['Купить', /\/shop/],
+      ['Учиться', /\/school/],
+      ['Найти работу', /\/jobs/],
+    ] as const;
+    for (const [label, target] of homeButtons) {
       await page.goto(BASE + '/');
       await page.getByRole('button', { name: new RegExp(label) }).click();
-      await expect(page).not.toHaveURL(/\/$/);
+      await expect(page).toHaveURL(target);
       await expect(page.locator('body')).not.toContainText('404');
     }
   });
