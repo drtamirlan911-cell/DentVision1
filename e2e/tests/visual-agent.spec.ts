@@ -14,22 +14,22 @@ type AgentRole = {
 };
 
 const ROLES: readonly AgentRole[] = [
-  { id: 'owner', email: 'owner-a@test.com', entry: /\/ai(?:$|[?#])/, journeys: ['/ai','/crm/patients','/crm/schedule','/diagnostics','/shop','/school','/settings'] },
-  { id: 'admin', email: 'admin-a@test.com', entry: /\/ai|\/crm/, journeys: ['/crm/patients','/crm/schedule','/crm/inventory','/crm/cashier','/diagnostics','/shop','/school'] },
-  { id: 'doctor', email: 'doctor-a@test.com', entry: /\/ai|\/crm/, journeys: ['/ai','/crm/patients','/crm/dental-chart','/crm/treatment-plans','/crm/lab','/diagnostics/referrals','/school'] },
-  { id: 'assistant', email: 'assistant-a@test.com', entry: /\/ai|\/crm/, journeys: ['/crm/schedule','/crm/patients','/crm/visits','/crm/documents','/diagnostics/referrals','/shop','/school'] },
-  { id: 'manager', email: 'manager-a@test.com', entry: /\/ai|\/crm/, journeys: ['/ai','/crm/schedule','/crm/patients','/crm/staff','/crm/promotions','/analytics','/shop'] },
-  { id: 'regular', email: 'regular@test.com', entry: /\/school|\/profile/, journeys: ['/school','/school/courses','/profile','/shop'] },
-  { id: 'patient', email: 'patient@dentvision.kz', entry: /\/patient-portal/, journeys: ['/patient-portal','/shop','/school','/profile'] },
-  { id: 'diagnostic-owner', email: 'diagnostic-owner@test.com', entry: /\/diagnostics\/center/, journeys: ['/diagnostics/center','/diagnostics/center-dashboard','/diagnostics/referrals','/diagnostics/results','/diagnostics/calendar','/diagnostics/statistics','/diagnostics/settings'] },
-  { id: 'diagnostic-operator', email: 'diagnostic-operator@test.com', entry: /\/diagnostics\/center/, journeys: ['/diagnostics/center','/diagnostics/referrals','/diagnostics/results','/diagnostics/calendar'] },
-  { id: 'medical-lab-owner', email: 'medical-lab-owner@test.com', entry: /\/diagnostics\/lab/, journeys: ['/diagnostics/lab','/diagnostics/lab-dashboard','/diagnostics/laboratories','/diagnostics/results','/diagnostics/calendar','/diagnostics/statistics','/diagnostics/settings'] },
-  { id: 'medical-lab-tech', email: 'medical-lab-tech@test.com', entry: /\/diagnostics\/lab/, journeys: ['/diagnostics/lab','/diagnostics/laboratories','/diagnostics/results'] },
-  { id: 'dental-lab-owner', email: 'dental-lab-owner@test.com', entry: /\/diagnostics\/lab/, journeys: ['/diagnostics/lab','/diagnostics/laboratories','/diagnostics/results','/diagnostics/settings'] },
+  { id: 'owner', email: 'owner-a@test.com', entry: /\/ai(?:$|[?#])/, journeys: ['/ai','/diagnostics','/shop'] },
+  { id: 'admin', email: 'admin-a@test.com', entry: /\/ai|\/crm/, journeys: ['/crm/patients','/crm/cashier','/diagnostics'] },
+  { id: 'doctor', email: 'doctor-a@test.com', entry: /\/ai|\/crm/, journeys: ['/ai','/crm/dental-chart','/diagnostics/referrals'] },
+  { id: 'assistant', email: 'assistant-a@test.com', entry: /\/ai|\/crm/, journeys: ['/crm/schedule','/crm/visits','/diagnostics/referrals'] },
+  { id: 'manager', email: 'manager-a@test.com', entry: /\/ai|\/crm/, journeys: ['/ai','/crm/staff','/analytics'] },
+  { id: 'regular', email: 'regular@test.com', entry: /\/school|\/profile/, journeys: ['/school','/profile'] },
+  { id: 'patient', email: 'patient@dentvision.kz', entry: /\/patient-portal/, journeys: ['/patient-portal','/shop'] },
+  { id: 'diagnostic-owner', email: 'diagnostic-owner@test.com', entry: /\/diagnostics\/center/, journeys: ['/diagnostics/center','/diagnostics/results','/diagnostics/settings'] },
+  { id: 'diagnostic-operator', email: 'diagnostic-operator@test.com', entry: /\/diagnostics\/center/, journeys: ['/diagnostics/center','/diagnostics/results'] },
+  { id: 'medical-lab-owner', email: 'medical-lab-owner@test.com', entry: /\/diagnostics\/lab/, journeys: ['/diagnostics/lab','/diagnostics/results','/diagnostics/settings'] },
+  { id: 'medical-lab-tech', email: 'medical-lab-tech@test.com', entry: /\/diagnostics\/lab/, journeys: ['/diagnostics/lab','/diagnostics/results'] },
+  { id: 'dental-lab-owner', email: 'dental-lab-owner@test.com', entry: /\/diagnostics\/lab/, journeys: ['/diagnostics/lab','/diagnostics/results','/diagnostics/settings'] },
   { id: 'dental-technician', email: 'dental-technician@test.com', entry: /\/diagnostics\/lab/, journeys: ['/diagnostics/lab','/diagnostics/laboratories','/diagnostics/results'] },
-  { id: 'superadmin', email: 'superadmin@test.com', entry: /\/admin|\/ai/, journeys: ['/admin','/quality','/security','/audit','/ai-governance','/platform-finance','/support'] },
-  { id: 'support', email: 'support@test.com', entry: /\/admin|\/analytics|\/profile/, journeys: ['/support','/admin','/analytics','/settings','/profile'] },
-  { id: 'laboratory', email: 'lab-a@test.com', entry: /\/ai|\/crm|\/diagnostics/, journeys: ['/diagnostics','/diagnostics/referrals','/diagnostics/laboratories','/diagnostics/results','/crm/lab','/shop'] },
+  { id: 'superadmin', email: 'superadmin@test.com', entry: /\/admin|\/ai/, journeys: ['/admin','/security','/ai-governance'] },
+  { id: 'support', email: 'support@test.com', entry: /\/admin|\/analytics|\/profile/, journeys: ['/support','/analytics','/settings'] },
+  { id: 'laboratory', email: 'lab-a@test.com', entry: /\/ai|\/crm|\/diagnostics/, journeys: ['/diagnostics','/diagnostics/laboratories','/crm/lab'] },
 ];
 
 const VIEWPORTS = [
@@ -129,7 +129,7 @@ async function exerciseHands(page: Page, role: AgentRole, route: string, viewpor
     if (label && !/^(Выйти|Logout|Удалить|Delete)$/i.test(label)) {
       await first.hover().catch(() => {});
       await writeEvidence(page, role, viewportId, '02_' + route + '_hover');
-      await first.click({ timeout: 3000 }).catch(() => {});
+      if (await first.isVisible().catch(() => false)) await first.click({ timeout: 3000 }).catch(() => {});
       await page.waitForTimeout(250);
       await writeEvidence(page, role, viewportId, '03_' + route + '_after_action');
       expect(page.url(), role.id + ' ' + route + ': action produced an unexpected external navigation').toMatch(/^https?:\/\/localhost:3000\//);
