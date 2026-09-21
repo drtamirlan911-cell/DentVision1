@@ -33,7 +33,7 @@ export default function LanguageSwitcher({ compact }: { compact?: boolean }) {
 
   return (
     <div className="relative group">
-      <button className="flex items-center gap-1.5 text-xs text-gray-400 hover:text-gray-200 transition-colors px-2 py-1 rounded-lg hover:bg-surface-1">
+      <button className="flex min-h-11 min-w-11 items-center justify-center gap-1.5 rounded-lg px-2 py-1 text-xs text-gray-400 transition-colors hover:bg-surface-1 hover:text-gray-200">
         <Globe size={14} />
         <span>{LANGUAGES.find(l => l.code === current)?.label || 'Рус'}</span>
       </button>
