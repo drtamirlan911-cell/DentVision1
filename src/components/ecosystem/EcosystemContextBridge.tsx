@@ -52,8 +52,8 @@ export default function EcosystemContextBridge({ patientId, caseId, branchId, or
           <div className="truncate text-[10px] text-txt-muted">{role || participant}{contextState ? ` · ${contextState}` : ''}</div>
         </div>
         <div className="flex items-center gap-1.5">
-          {!compact && <button type="button" onClick={() => open('ai')} className="inline-flex items-center gap-1.5 rounded-xl border border-dv-gold/20 px-2.5 py-2 text-[10px] font-medium text-txt-secondary hover:border-dv-gold/35 hover:text-dv-gold"><Sparkles size={12} /> AI</button>}
-          <button type="button" onClick={() => open(caseId ? 'case' : patientId ? 'patient' : 'ai')} className="inline-flex items-center gap-1 text-[10px] text-txt-muted hover:text-dv-gold">Открыть <ArrowRight size={12} /></button>
+          {!compact && <button type="button" onClick={() => open('ai')} className="inline-flex min-h-9 items-center gap-1.5 rounded-xl border border-dv-gold/20 px-2.5 py-2 text-[10px] font-medium text-txt-secondary hover:border-dv-gold/35 hover:text-dv-gold"><Sparkles size={12} /> AI</button>}
+          <button type="button" onClick={() => open(caseId ? 'case' : patientId ? 'patient' : 'ai')} className="inline-flex min-h-9 items-center gap-1 rounded-lg px-2 text-[10px] text-txt-muted hover:text-dv-gold">Открыть <ArrowRight size={12} /></button>
         </div>
       </div>
       {actions.length > 0 && !compact && (
@@ -61,7 +61,7 @@ export default function EcosystemContextBridge({ patientId, caseId, branchId, or
           {actions.map(action => {
             const target = ACTION_TARGETS[action.id] || 'ai';
             const Icon = ACTION_ICONS[action.id] || GitBranch;
-            return <button key={action.id} type="button" onClick={() => open(target)} className="inline-flex shrink-0 items-center gap-1.5 rounded-lg bg-surface-2 px-2.5 py-1.5 text-[10px] text-txt-secondary hover:text-txt-primary">
+            return <button key={action.id} type="button" onClick={() => open(target)} className="inline-flex min-h-9 shrink-0 items-center gap-1.5 rounded-lg bg-surface-2 px-2.5 py-1.5 text-[10px] text-txt-secondary hover:text-txt-primary">
               <Icon size={11} className="text-dv-gold" /> {action.label}
             </button>;
           })}
