@@ -93,7 +93,7 @@ function collectors(page: Page) {
 
 async function shellAudit(page: Page, role: Role, route: string) {
   const result=await page.evaluate(()=>{
-    const visible=(el:Element)=>{const h=el as HTMLElement,r=h.getBoundingClientRect(),s=getComputedStyle(h);return r.width>0&&r.height>0&&s.display!=='none'&&s.visibility!=='hidden'};
+    const visible=(el:Element)=>{const h=el as HTMLElement,r=h.getBoundingClientRect(),s=getComputedStyle(h);return r.width>0&&r.height>0&&r.right>0&&r.left<innerWidth&&s.display!=='none'&&s.visibility!=='hidden'};
     const controls=Array.from(document.querySelectorAll('button,a,input,select,textarea,[role="button"],[role="tab"],[role="menuitem"]')).filter(visible).map(el=>{const h=el as HTMLElement,r=h.getBoundingClientRect();return{name:(h.getAttribute('aria-label')||h.getAttribute('title')||h.getAttribute('placeholder')||h.innerText||'').replace(/\\s+/g,' ').trim(),w:r.width,h:r.height,disabled:(h as HTMLButtonElement).disabled}});
     const clipped=Array.from(document.querySelectorAll('h1,h2,h3,h4,h5,h6,button,a,[role="button"],[role="tab"]')).filter(visible).map(el=>{const h=el as HTMLElement;return{name:(h.innerText||'').trim(),sw:h.scrollWidth,cw:h.clientWidth}}).filter(x=>x.name&&x.sw>x.cw+2);
     return{text:document.body.innerText,scrollWidth:document.documentElement.scrollWidth,clientWidth:document.documentElement.clientWidth,bodyWidth:document.body.scrollWidth,controls,clipped,headings:Array.from(document.querySelectorAll('h1,h2')).filter(visible).map(x=>(x.textContent||'').trim()).filter(Boolean)};
@@ -111,7 +111,7 @@ async function inspectVisualSemantics(page: Page, role: Role, route: string) {
   const result = await page.evaluate(() => {
     const visible = (el: Element) => {
       const h = el as HTMLElement, r = h.getBoundingClientRect(), s = getComputedStyle(h);
-      return r.width > 0 && r.height > 0 && s.display !== 'none' && s.visibility !== 'hidden' && s.opacity !== '0';
+      return r.width > 0 && r.height > 0 && r.right > 0 && r.left < innerWidth && s.display !== 'none' && s.visibility !== 'hidden' && s.opacity !== '0';
     };
     const text = (el: Element) => (el.textContent || '').replace(/\\s+/g, ' ').trim();
     const interactive = Array.from(document.querySelectorAll('button,a,[role="button"],[role="tab"],[role="menuitem"],input,select,textarea')).filter(visible);
