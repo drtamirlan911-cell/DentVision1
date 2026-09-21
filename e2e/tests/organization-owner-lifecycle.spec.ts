@@ -23,31 +23,22 @@ async function collectUiProblems(page: Page) {
 }
 
 test.describe('DentVision organization owner lifecycle', () => {
-  test('ORG-001: all partner-owner onboarding types are discoverable and usable', async ({ page }) => {
-    const types = ['Диагностический центр', 'Медицинская лаборатория', 'Зуботехническая лаборатория'];
-    for (const type of types) {
-      await page.goto(`${BASE}/register-diagnostics`);
-      await expect(page.getByText('Регистрация партнёра', { exact: true })).toBeVisible();
-      const button = page.getByRole('button', { name: new RegExp(type) });
-      await expect(button).toBeVisible();
-      await button.click();
-      await expect(page.locator('input').first()).toBeVisible();
+  test('ORG-001: partner owner onboarding creates real workspaces', async ({ page }) => {
+    const types = [
+      ['Диагностический центр', 'center', /\/diagnostics\/center/],
+      ['Медицинская лаборатория', 'laboratory', /\/diagnostics\/lab\?workspace=medical-lab/],
+      ['Зуботехническая лаборатория', 'dental_laboratory', /\/diagnostics\/lab(?:$|[?#])/],
+    ] as const;
+    await login(page);
+    for (const [label, type, target] of types) {
+      await page.goto(BASE + '/register-diagnostics?type=' + type);
+      await expect(page.getByRole('heading', { name: new RegExp('Создать ' + label.toLowerCase()) })).toBeVisible();
+      const unique = Date.now();
+      await page.getByLabel('Название *').fill('E2E ' + type + ' ' + unique);
+      await page.getByLabel('Город *').fill('Тараз');
+      await page.getByRole('button', { name: 'Создать и открыть workspace' }).click();
+      await expect(page).toHaveURL(target, { timeout: 20000 });
     }
-  });
-
-  test('ORG-002: partner onboarding is an application flow, not a false account-provisioning success', async ({ page }) => {
-    await page.goto(`${BASE}/register-diagnostics`);
-    await page.getByRole('button', { name: /Диагностический центр/ }).click();
-    const unique = Date.now();
-    await page.locator('input').nth(0).fill(`E2E Diagnostic Owner ${unique}`);
-    await page.locator('input').nth(1).fill('Тараз');
-    await page.locator('input').nth(2).fill('ул. E2E, 10');
-    await page.locator('input').nth(3).fill('+77000000100');
-    await page.locator('input').nth(4).fill(`owner-${unique}@test.com`);
-    await page.getByRole('button', { name: 'Отправить заявку' }).click();
-    await expect(page.getByText('Заявка отправлена!', { exact: true })).toBeVisible({ timeout: 15000 });
-    const body = await page.locator('body').innerText();
-    expect(body).not.toMatch(/аккаунт создан|вы вошли|личный кабинет открыт/i);
   });
 
   test('ORG-003: owner can reach staff administration and its primary actions', async ({ page }) => {
