@@ -144,5 +144,61 @@ const TERMS_OF_SERVICE = 'Пользовательское соглашение 
 
 publicRouter.get('/document/:token', documentSignLimiter, async (req, res) => { try { const data = await getDocumentForSigning(req.params.token as string); if (!data) return res.status(404).json({ ok: false, error: 'Document not found' }); res.json({ ok: true, data }); } catch (e) { res.status(500).json({ ok: false, error: 'Failed to load document' }); } });
 publicRouter.post('/document/:token/sign', documentSignLimiter, async (req, res) => { try { const token = req.params.token as string; const existing = await getDocumentForSigning(token); if (!existing) return res.status(404).json({ ok: false, error: 'Document not found' }); const { signatureData, signedByName } = req.body || {}; const updated = await signDocument({ documentId: existing.documentId, token, signatureData, signedByName }); res.json({ ok: true, data: updated }); } catch (e: any) { res.status(e?.status || 500).json({ ok: false, error: e instanceof Error ? e.message : 'Failed to sign document' }); } });
+
+const COMMERCIAL_TERMS_VERSION = '1.2';
+const COMMERCIAL_TERMS_EFFECTIVE_DATE = '2026-09-17';
+const COMMERCIAL_TERMS = [
+  { type:'clinic', label:'Клиника / владелец', subscriptions:[
+      {name:'START',priceKzt:19900,period:'month',note:'1–2 врача'},
+      {name:'PRO',priceKzt:39900,period:'month',note:'до 5 врачей'},
+      {name:'BUSINESS',priceKzt:79900,period:'month',note:'до 15 врачей'},
+      {name:'NETWORK',priceKzt:149900,period:'month_per_branch',note:'от, для групп/сетей'}
+    ], transaction:{ratePercent:0,minKzt:0,capKzt:null,basis:'клиническая выручка клиники',note:'По умолчанию комиссия с общей клинической выручки не взимается.'}, documents:['CLINIC_AGREEMENT','NDA','DPA'] },
+  { type:'diagnostic_center', label:'Диагностический / 3D-центр', subscriptions:[{name:'BRANCH',priceKzt:49900,period:'month_per_active_billable_branch'}], transaction:{ratePercent:7,minKzt:500,capKzt:3000,basis:'за исследование через DentVision'}, documents:['DIAGNOSTICS_AGREEMENT','NDA'] },
+  { type:'medical_lab', label:'Медицинская лаборатория', subscriptions:[{name:'BRANCH',priceKzt:19900,period:'month_per_active_billable_branch'}], transaction:{ratePercent:6,minKzt:150,capKzt:2500,basis:'за анализ/заказ через DentVision'}, documents:['LABORATORY_AGREEMENT','NDA'] },
+  { type:'dental_lab', label:'Зуботехническая / стоматологическая лаборатория', subscriptions:[{name:'BRANCH',priceKzt:29900,period:'month_per_active_billable_branch'}], transaction:{ratePercent:8,minKzt:500,capKzt:15000,basis:'за кейс',volumeTiers:[
+      {gmvFromKzt:0,ratePercent:10},{gmvFromKzt:1000000,ratePercent:8},{gmvFromKzt:5000000,ratePercent:7},{gmvFromKzt:15000000,ratePercent:6},{gmvFromKzt:30000000,ratePercent:5}
+    ]}, documents:['LABORATORY_AGREEMENT','NDA'] },
+  { type:'supplier', label:'Поставщик / продавец', subscriptions:[], transaction:{ratePercent:8,minKzt:0,capKzt:null,basis:'GMV маркетплейса',volumeTiers:[
+      {label:'standard',ratePercent:8},{label:'high_volume',ratePercent:6},{label:'strategic',ratePercent:5,negotiatedRangePercent:[4,5]}
+    ],note:'Эквайринг/платёжные расходы учитываются отдельно.'}, documents:['SUPPLIER_AGREEMENT','NDA'] },
+  { type:'academy', label:'Академия / школа', subscriptions:[], transaction:{ratePercent:null,minKzt:0,capKzt:null,basis:'зависит от модели привлечения студента',note:'Комиссия определяется источником привлечения.'},
+    acquisitionModels:[
+      {name:'Лектор привёл студента',dentVisionPercent:10,lecturerPercent:90},
+      {name:'DentVision привёл студента',dentVisionPercent:25,lecturerPercent:75},
+      {name:'DentVision: полный маркетинг + продажи',dentVisionPercent:30,lecturerPercent:70}
+    ], documents:['ACADEMY_AGREEMENT','NDA'] },
+  { type:'lecturer', label:'Лектор / эксперт', subscriptions:[], transaction:{ratePercent:null,minKzt:0,capKzt:null,basis:'выручка от обучения',note:'Доля зависит от источника привлечения студента.'},
+    acquisitionModels:[
+      {name:'Лектор привёл студента',dentVisionPercent:10,lecturerPercent:90},
+      {name:'DentVision привёл студента',dentVisionPercent:25,lecturerPercent:75},
+      {name:'DentVision: полный маркетинг + продажи',dentVisionPercent:30,lecturerPercent:70}
+    ], documents:['LECTURER_AGREEMENT','NDA'] }
+];
+
+publicRouter.get('/commercial-terms', discoveryLimiter, (_req, res) => res.json({ok:true,data:{
+  version:COMMERCIAL_TERMS_VERSION,effectiveDate:COMMERCIAL_TERMS_EFFECTIVE_DATE,currency:'KZT',
+  disclosure:'Все опубликованные подписки, комиссии, минимальные и максимальные сборы и модели распределения показываются до регистрации. Платёжные комиссии, налоги, возвраты и иные удержания не включаются в комиссию DentVision и показываются отдельно там, где они известны.',
+  terms:COMMERCIAL_TERMS
+}}));
+
+publicRouter.get('/commercial-documents', discoveryLimiter, async (req,res) => {
+  try {
+    const requested=String(req.query.type||'').trim().toUpperCase();
+    const allowed=new Set(COMMERCIAL_TERMS.flatMap((item:any)=>item.documents));
+    const where:any={versions:{some:{status:'PUBLISHED'}}};
+    if(requested && allowed.has(requested)) where.type=requested;
+    else where.type={in:Array.from(allowed)};
+    const templates=await prisma.legalTemplate.findMany({where,include:{versions:{where:{status:'PUBLISHED'},orderBy:{version:'desc'},take:1}},orderBy:{updatedAt:'desc'}});
+    return res.json({ok:true,data:templates.map((template:any)=>({
+      id:template.id,type:template.type,name:template.name,description:template.description,version:template.currentVersion,
+      content:template.versions[0]?.content||'',publishedAt:template.versions[0]?.publishedAt||null
+    }))});
+  } catch(error) {
+    console.error('[Public] commercial documents',error);
+    return res.status(500).json({ok:false,error:'Не удалось загрузить публичные документы'});
+  }
+});
+
 publicRouter.get('/privacy', (_req, res) => { res.json({ ok: true, data: { content: PRIVACY_POLICY, format: 'text', updatedAt: '2025-07-30' } }); });
 publicRouter.get('/terms', (_req, res) => { res.json({ ok: true, data: { content: TERMS_OF_SERVICE, format: 'text', updatedAt: '2025-07-30' } }); });
