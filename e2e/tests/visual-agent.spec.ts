@@ -151,7 +151,7 @@ for (const viewport of VIEWPORTS) {
   test.describe('visual-agent ' + viewport.id, () => {
     test.use({
       viewport: { width: viewport.width, height: viewport.height },
-      trace: 'on',
+      // Trace is configured at the project level; per-describe trace forces a new worker.
     });
 
     for (const role of ROLES) {
