@@ -49,6 +49,14 @@
 - **Observed:** GitHub commit status reports Vercel failure with target reason `build-rate-limit` on current commits.
 - **Required:** restore/verify successful production deployment status; do not treat a green GitHub test suite as a production release until deployment is independently confirmed.
 
+### RB-007 — Mobile laboratory drawer visual regression
+- **Status:** FIXED — pending CI visual recheck
+- **Priority:** P0
+- **Area:** Responsive navigation / Mobile UX
+- **Evidence:** failure artifact contained 24 screenshots across laboratory owner/technician variants. On 390px screenshots the open drawer shared the bottom-navigation z-layer, leaving bottom navigation visible above/through the drawer; the drawer width also left a large uncovered content area; the header rendered duplicate DentVision wordmark text.
+- **Fix:** mobile drawer now uses a wider bounded width, z-layer above bottom navigation/backdrop, modal interaction semantics, Escape close and body scroll lock; duplicate header wordmark text removed.
+- **Verification:** inspect all 390/412px lab-role screenshots after CI and exercise open/close/Escape/outside-click/touch behavior.
+
 ## Closed
 _None yet._
 
