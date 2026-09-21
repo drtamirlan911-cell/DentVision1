@@ -133,12 +133,13 @@ async function inspectVisualSemantics(page: Page, role: Role, route: string) {
       viewport: {w:innerWidth,h:innerHeight},
       visibleTextLength: text(document.body).length,
       fixedOverlays: Array.from(document.querySelectorAll('[class*="fixed"],[class*="sticky"]')).filter(visible).length,
-      duplicates
+      duplicates,
+      semanticRegions: Array.from(document.querySelectorAll('main,nav,section,[role="main"],[role="navigation"],[role="region"],[role="heading"]')).filter(visible).length
     };
   });
   expect(result.visibleTextLength, role.id + ' ' + route + ': screen is effectively empty').toBeGreaterThan(20);
   expect(result.iconOnly, role.id + ' ' + route + ': unexplained icon-only controls').toBe(0);
-  const hasSemanticHierarchy = result.headings.length > 0 || /<main|<nav|<section|role=["'](?:main|navigation|region|heading)["']/i.test(document.documentElement.outerHTML);
+  const hasSemanticHierarchy = result.headings.length > 0 || result.semanticRegions > 0;
   expect(hasSemanticHierarchy, role.id + ' ' + route + ': no visible semantic information hierarchy').toBeTruthy();
 }
 
