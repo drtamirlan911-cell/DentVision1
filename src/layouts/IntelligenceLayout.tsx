@@ -52,6 +52,7 @@ export const IntelligenceLayout: React.FC = () => {
   const setAiQuery = useAIStore(s => s.setQuery);
 
   const isLoginRoute = ['/login', '/register', '/forgot-password', '/booking'].some(p => location.pathname.startsWith(p));
+  const isPublicWelcome = location.pathname === '/';
   const isPatient = String(user?.role || '').toLowerCase() === 'patient';
   const patientAllowedShellRoute = ['/shop', '/school', '/profile'].some(p => location.pathname === p || location.pathname.startsWith(`${p}/`));
   const isCRMRoute = location.pathname.startsWith('/crm');
@@ -153,7 +154,7 @@ export const IntelligenceLayout: React.FC = () => {
         </AnimatePresence>
       )}
       <CommandPalette open={cmdOpen} onClose={() => setCmdOpen(false)} onAIQuery={handleAIQuery} />
-      {isMobile && <BottomNav />}
+      {isMobile && !isPublicWelcome && <BottomNav />}
       <RegistrationModal />
     </div>
   );
