@@ -250,6 +250,18 @@ jobs:
             e2e-failure-summary.txt
           retention-days: 7
 
+      - name: Upload focused visual failure evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: visual-failure-evidence
+          path: |
+            e2e/test-results/**/test-failed-*.png
+            e2e/test-results/**/error-context.md
+            e2e/test-results/**/test-failed-*.txt
+          if-no-files-found: ignore
+          retention-days: 7
+
       - name: Backend log (on failure)
         if: failure()
         run: cat /tmp/backend.log
