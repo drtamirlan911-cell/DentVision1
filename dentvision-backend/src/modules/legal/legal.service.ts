@@ -95,6 +95,7 @@ const DOCUMENTS_PER_TYPE: Record<string, string[]> = {
   CLINIC: ['CLINIC_AGREEMENT', 'NDA', 'DPA'],
   DIAGNOSTIC_CENTER: ['DIAGNOSTICS_AGREEMENT', 'NDA'],
   LABORATORY: ['LABORATORY_AGREEMENT', 'NDA'],
+  DENTAL_LAB: ['LABORATORY_AGREEMENT', 'NDA'],
   SUPPLIER: ['SUPPLIER_AGREEMENT', 'NDA'],
   LECTURER: ['LECTURER_AGREEMENT', 'NDA'],
   EDUCATION_CENTER: ['ACADEMY_AGREEMENT', 'NDA'],
@@ -109,7 +110,7 @@ export async function onboardPartner(data: any, createdBy: string) {
   const prefix = data.type === 'CLINIC' || data.type === 'CORPORATE' ? 'Clinic'
     : data.type === 'SUPPLIER' || data.type === 'RESELLER' ? 'Supplier'
     : data.type === 'DIAGNOSTIC_CENTER' ? 'Diagnostics'
-    : data.type === 'LABORATORY' ? 'Laboratory'
+    : data.type === 'LABORATORY' || data.type === 'DENTAL_LAB' ? 'Laboratory'
     : data.type === 'LECTURER' ? 'Lecturer'
     : 'Partner';
   const vars: Record<string, any> = {
@@ -148,6 +149,7 @@ export async function onboardPartner(data: any, createdBy: string) {
     CORPORATE: 0,
     DIAGNOSTIC_CENTER: 7,
     LABORATORY: 6,
+    DENTAL_LAB: 8,
     SUPPLIER: 8,
     RESELLER: 8,
     EDUCATION_CENTER: null,
