@@ -58,9 +58,9 @@ export function ConsentGate({ children }: { children: React.ReactNode }) {
     <motion.div
       initial={{ opacity: 0, y: 12 }}
       animate={{ opacity: 1, y: 0 }}
-      className="mx-auto max-w-lg p-4 sm:p-6"
+      className="mx-auto flex min-h-[calc(100dvh-7rem)] w-full max-w-xl items-center justify-center p-4 sm:p-6"
     >
-      <Card padding="lg">
+      <Card padding="lg" className="w-full shadow-elev-2">
         <div className="space-y-5">
           <div className="flex items-center gap-3">
             <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-dv-gold/10">
