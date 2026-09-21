@@ -173,10 +173,14 @@ for (const viewport of VIEWPORTS) {
         const consoleErrors: string[] = [];
         const pageErrors: string[] = [];
         const failedRequests: string[] = [];
+        const httpErrors: string[] = [];
         page.on('console', message => { if (message.type() === 'error') consoleErrors.push(message.text()); });
         page.on('pageerror', error => pageErrors.push(error.message));
         page.on('requestfailed', request => failedRequests.push(request.method() + ' ' + request.url() + ' :: ' + (request.failure()?.errorText || 'failed')));
-        page.on('response', response => { if (response.status() === 429) consoleErrors.push(`HTTP 429 ${response.url()}`); });
+        page.on('response', response => {
+          if (response.status() === 429) consoleErrors.push(`HTTP 429 ${response.url()}`);
+          if (response.status() >= 400) httpErrors.push(`${response.status()} ${response.request().method()} ${response.url()}`);
+        });
 
         await login(page, role);
         await writeEvidence(page, role, viewport.id, '00_entry');
@@ -190,12 +194,13 @@ for (const viewport of VIEWPORTS) {
 
         await fs.writeFile(
           path.join(EVIDENCE_ROOT, role.id, viewport.id, 'runtime.json'),
-          JSON.stringify({ role: role.id, viewport, consoleErrors, pageErrors, failedRequests }, null, 2),
+          JSON.stringify({ role: role.id, viewport, consoleErrors, pageErrors, failedRequests, httpErrors }, null, 2),
           'utf8',
         );
         expect(consoleErrors, role.id + ' ' + viewport.id + ': console errors').toEqual([]);
         expect(pageErrors, role.id + ' ' + viewport.id + ': page errors').toEqual([]);
         expect(failedRequests, role.id + ' ' + viewport.id + ': failed requests').toEqual([]);
+        expect(httpErrors, role.id + ' ' + viewport.id + ': HTTP errors').toEqual([]);
       });
     }
   });
