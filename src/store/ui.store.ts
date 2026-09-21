@@ -73,6 +73,14 @@ const initialPrefs: UiPrefs = typeof window !== 'undefined'
   ? readUiPrefs()
   : { darkMode: true, notifications: true, autoSave: true };
 
+// Mobile navigation is an overlay. It must start closed regardless of the
+// desktop shell state, otherwise the first mobile render is partially hidden
+// behind a full-height drawer and the responsive release gate audits the
+// drawer instead of the page.
+const initialSidebarOpen = typeof window !== 'undefined'
+  ? window.matchMedia('(max-width: 767px)').matches === false
+  : true;
+
 if (typeof window !== 'undefined') {
   applyTheme(initialPrefs.darkMode);
 }
@@ -89,7 +97,7 @@ function persistPrefs(partial: Partial<UiPrefs>, get: () => UIState) {
 }
 
 export const useUIStore = create<UIState>((set, get) => ({
-  sidebarOpen: true,
+  sidebarOpen: initialSidebarOpen,
   sidebarCollapsed: storedCollapsed,
   sidebarPinned: pinned,
   sidebarVisible: welcomed,
