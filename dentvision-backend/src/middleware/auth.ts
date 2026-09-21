@@ -118,6 +118,7 @@ export async function authenticate(req: AuthRequest, res: Response, next: NextFu
     const hasMembership = (user.memberships?.length || 0) > 0;
     const isGuest = guestByEmail && !hasMembership;
     let effectiveOrgId: string | undefined;
+    let effectiveOrgOriginalId: string | undefined;
     let effectiveOrgType: string | undefined;
     let effectivePersonType: string | undefined;
     let effectiveClinicId: string | undefined;
@@ -142,6 +143,7 @@ export async function authenticate(req: AuthRequest, res: Response, next: NextFu
             return res.status(403).json({ ok: false, error: 'У вас нет активной роли в этой организации' });
           }
           effectiveOrgId = payload.organizationId;
+          effectiveOrgOriginalId = person.organization.originalId || undefined;
           effectiveOrgType = person.organization.type;
           effectivePersonType = person.personType;
           effectiveRole = scopedRole;
@@ -185,7 +187,7 @@ export async function authenticate(req: AuthRequest, res: Response, next: NextFu
       supplierId: isGuest ? undefined : (payload.supplierId || effectiveSupplierId),
       supplierRole: isGuest ? undefined : payload.supplierRole,
       lecturerId: isGuest ? undefined : payload.lecturerId,
-      organizationId: effectiveOrgId, organizationType: effectiveOrgType, personType: effectivePersonType,
+      organizationId: effectiveOrgId, organizationOriginalId: effectiveOrgOriginalId, organizationType: effectiveOrgType, personType: effectivePersonType,
       branchIds, assignedBranchId, branchId: effectiveBranchId, sessionId: payload.sessionId, isGuest,
     } satisfies AuthUser;
     next();
