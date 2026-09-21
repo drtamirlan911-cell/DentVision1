@@ -11,5 +11,8 @@ describe('medical lab branch isolation contract', () => {
   });
   it('blocks creation from patients outside the current branch set', () => {
     expect(source).toContain('__NO_BRANCH_ACCESS__');
+    it('resolves laboratory scope from the original organization entity id', () => {
+    expect(source).toContain('organizationOriginalId ||');
   });
+});
 });
