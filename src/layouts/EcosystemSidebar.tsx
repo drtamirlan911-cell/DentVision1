@@ -29,7 +29,7 @@ function EcosystemSidebar({ collapsed, setCollapsed, sidebarVisible, isMobile, s
   const navigate = useNavigate(); const location = useLocation(); const { t } = useTranslation(); const iam = useIam(); const { setOpen } = useCommandPalette();
   const [openGroups, setOpenGroups] = React.useState<Record<string, boolean>>({ core: true, care: true, partners: true, market: true, business: false });
   const text = (key: string, fallback: string) => { const v = t(key); return v && v !== key ? v : fallback; };
-  const isPatient = String(iam.effectiveRole || '').toLowerCase() === 'patient';
+  const isPatient = String(iam.role || '').toLowerCase() === 'patient';
   const canSee = (item: Item) => {
     if (isGuest) return Boolean(item.guest);
     if (isPatient) return ['shop', 'academy', 'profile'].includes(item.id);
