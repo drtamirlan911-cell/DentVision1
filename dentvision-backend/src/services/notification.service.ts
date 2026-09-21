@@ -40,6 +40,7 @@ export const NOTIFICATION_TYPES = {
   CLINIC_EXPIRING: 'admin.clinic.expiring',
   CLINIC_EXPIRED: 'admin.clinic.expired',
   NEW_CLINIC: 'admin.clinic.new',
+  NEW_ORGANIZATION: 'admin.organization.new',
 
   // Platform
   SYSTEM: 'platform.system',
