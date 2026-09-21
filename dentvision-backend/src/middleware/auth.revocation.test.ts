@@ -25,4 +25,10 @@ describe('organization auth context revocation', () => {
   it('allows an explicitly unscoped role to remain effective for the organization context', () => {
     expect(resolveActivePersonRole([role('admin', null, null)], 'clinic-1')).toBe('ADMIN');
   });
+
+  it('recognizes partner roles as a scoped compatibility identity while preserving the canonical role key elsewhere', () => {
+    expect(resolveActivePersonRole([role('diagnostic_owner', 'diagnostic-org')], 'diagnostic-org')).toBe('STUDENT');
+    expect(resolveActivePersonRole([role('medical_lab_technician', 'medical-lab-org')], 'medical-lab-org')).toBe('STUDENT');
+    expect(resolveActivePersonRole([role('dental_technician', 'dental-lab-org')], 'dental-lab-org')).toBe('STUDENT');
+  });
 });
