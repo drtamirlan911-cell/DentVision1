@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Activity, CheckCircle2, Clock3, FlaskConical, Plus, ShieldCheck, Sparkles, TestTube2, XCircle } from 'lucide-react';
 import { Card } from '@/components/ui/ds/Card';
+import { EmptyState } from '@/components/ui/ds/EmptyState';
 import { Badge } from '@/components/ui/ds/Badge';
 import { Button } from '@/components/ui/ds/Button';
 import { PageHeader } from '@/components/ui/ds/StatCard';
@@ -52,7 +53,15 @@ export default function MedicalLabWorkspace() {
           <div className="flex items-center justify-between border-b border-bdr-subtle px-5 py-4"><div><div className="text-sm font-semibold text-txt-primary">Поток исследований</div><div className="text-xs text-txt-muted">{orders.length} направлений в текущем контексте</div></div><Button onClick={() => setCreating((v) => !v)}><Plus className="mr-2 h-4 w-4" />Новое направление</Button></div>
           {creating && <div className="border-b border-bdr-subtle bg-surface-2 p-5"><div className="grid gap-3 md:grid-cols-2"><input value={testName} onChange={(e) => setTestName(e.target.value)} placeholder="Название анализа" className="rounded-xl border border-bdr-subtle bg-surface-1 px-3 py-2 text-sm text-txt-primary" /><input value={specimenType} onChange={(e) => setSpecimenType(e.target.value)} placeholder="Тип биоматериала" className="rounded-xl border border-bdr-subtle bg-surface-1 px-3 py-2 text-sm text-txt-primary" /></div><div className="mt-3 flex justify-end"><Button disabled={!testName.trim() || createMutation.isPending} onClick={() => createMutation.mutate()}>Создать направление</Button></div></div>}
           <div className="divide-y divide-bdr-subtle">
-            {orders.length === 0 && <div className="p-10 text-center text-sm text-txt-muted">Нет направлений. Создайте первое из текущего пациента или клинического кейса.</div>}
+            {orders.length === 0 && (
+              <EmptyState
+                icon={<TestTube2 size={22} />}
+                title="Нет направлений"
+                description="Создайте направление из текущего пациента или клинического кейса."
+                action={<Button size="sm" onClick={() => setCreating(true)}><Plus className="mr-2 h-4 w-4" />Создать направление</Button>}
+                className="py-10"
+              />
+            )}
             {orders.map((order) => <button key={order.id} type="button" onClick={() => setSelectedId(order.id)} className={`w-full px-5 py-4 text-left transition hover:bg-surface-2 ${selectedId === order.id ? 'bg-surface-2' : ''}`}><div className="flex items-start justify-between gap-4"><div className="min-w-0"><div className="truncate text-sm font-medium text-txt-primary">{order.specimenType || 'Биоматериал не указан'}</div><div className="mt-1 text-xs text-txt-muted">{order.patientId ? `Пациент ${order.patientId.slice(0, 8)}` : 'Без пациента'}{order.treatmentCaseId ? ` · Case ${order.treatmentCaseId.slice(0, 8)}` : ''}</div></div><Badge>{statusLabel[order.status] || order.status}</Badge></div><div className="mt-3 flex gap-1">{STAGES.map((stage) => <span key={stage.id} className={`h-1.5 flex-1 rounded-full ${STAGES.findIndex((s) => s.id === order.status) >= STAGES.findIndex((s) => s.id === stage.id) ? 'bg-dv-gold' : 'bg-surface-3'}`} />)}</div></button>)}
           </div>
         </Card>
