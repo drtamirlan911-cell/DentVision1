@@ -96,7 +96,7 @@ export function OrganizationOnboarding({ kind, onComplete }: OnboardingProps) {
             <div>
               <h2 className="text-lg font-semibold text-txt-primary">Создание рабочего пространства</h2>
               <p className="text-sm text-txt-muted mt-1">
-                Укажите основные данные — рабочее пространство создастся сразу
+                Укажите основные данные — рабочее пространство создастся сразу, а проверка юридических данных проходит отдельно
               </p>
             </div>
             <div className="space-y-3">
@@ -165,14 +165,13 @@ export function OrganizationOnboarding({ kind, onComplete }: OnboardingProps) {
             <div className="h-12 w-12 rounded-xl bg-dv-gold/10 flex items-center justify-center">
               <Building2 size={22} className="text-dv-gold" />
             </div>
-            <h3 className="text-base font-semibold text-txt-primary">Стать партнёром</h3>
+            <h3 className="text-base font-semibold text-txt-primary">Создать организацию</h3>
           </div>
           <p className="text-sm text-txt-muted mb-4">
-            Подайте заявку на {isCenter ? 'диагностический центр' : 'лабораторию'}. После проверки
-            вы получите кабинет и направления от клиник
+            Создайте {isCenter ? 'диагностический центр' : 'лабораторию'} самостоятельно. Рабочее пространство откроется сразу; доступ к регулируемым операциям зависит от статуса проверки
           </p>
           <span className="inline-flex items-center gap-1 text-sm text-dv-gold group-hover:gap-2 transition-all">
-            Создать <ArrowRight size={14} />
+            Продолжить <ArrowRight size={14} />
           </span>
         </button>
         <button
