@@ -106,6 +106,7 @@ async function login(page: Page, role: AgentRole) {
 }
 
 async function inspect(page: Page, role: AgentRole, route: string, viewportId: string) {
+  await page.waitForFunction(() => document.body.innerText.trim().length >= 20, undefined, { timeout: 5000 });
   const problems = await page.evaluate(() => {
     const interactive = Array.from(document.querySelectorAll('button,a,[role="button"],[role="tab"],[role="menuitem"]'));
     const visible = (el: Element) => {
