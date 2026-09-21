@@ -15,6 +15,13 @@ interface OnboardingProps {
 
 type Mode = 'choice' | 'register' | 'join'
 
+const ROLE_LABELS: Record<string, string> = {
+  admin: 'Администратор',
+  manager: 'Менеджер',
+  radiologist: 'Рентгенолог',
+  operator: 'Оператор',
+}
+
 /** Self-service organization creation and invitation join flow. */
 export function OrganizationOnboarding({ kind, onComplete }: OnboardingProps) {
   const toast = useToast()
