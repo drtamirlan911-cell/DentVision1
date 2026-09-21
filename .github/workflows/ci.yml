@@ -126,7 +126,7 @@ jobs:
           cat /tmp/frontend.log >&2 || true
           exit 1
       - name: Run E2E suite
-        run: npx playwright test $(ls e2e/tests/*.spec.ts | grep -v browser-e2e | grep -v ux-coverage | grep -v business-owner-journeys | grep -v organization-owner-lifecycle | grep -v mobile-design-gate)
+        run: npx playwright test $(ls e2e/tests/*.spec.ts | grep -v browser-e2e | grep -v ux-coverage | grep -v business-owner-journeys | grep -v organization-owner-lifecycle | grep -v mobile-design-gate | grep -v role-design-gate)
       - name: Run browser UX coverage
         env:
           PLAYWRIGHT_UI_URL: http://localhost:3000
