@@ -42,7 +42,7 @@ export function DentCashHeaderChip() {
       whileTap={{ scale: 0.98 }}
       onClick={() => navigate('/profile')}
       title={t('wallet.header_title', { label })}
-      className="flex items-center gap-1 max-w-[7.5rem] px-1.5 sm:px-2.5 py-1 rounded-full bg-emerald-400/10 border border-emerald-400/25 text-emerald-300 hover:bg-emerald-400/15 transition-colors shrink-0"
+      className="flex min-h-9 items-center gap-1 max-w-[7.5rem] px-1.5 sm:px-2.5 py-1 rounded-full bg-emerald-400/10 border border-emerald-400/25 text-emerald-300 hover:bg-emerald-400/15 transition-colors shrink-0"
     >
       <Gift size={12} className="shrink-0" />
       <span className="text-[10px] font-semibold truncate tabular-nums">
