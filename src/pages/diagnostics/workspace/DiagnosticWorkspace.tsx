@@ -97,13 +97,14 @@ export function DiagnosticWorkspace({ kind: pinnedKind }: { kind?: OrgKind }) {
     if (!orgId && !isSuperadmin && myOrgs.length === 1) setOrgId(myOrgs[0].scopeId)
   }, [ecosystem.organizationId, isOwnOrg, ownOrgId, orgId, isSuperadmin, myOrgs])
 
-  const needsOnboarding = !isOwnOrg && !isSuperadmin && !contextsLoading && !contextsError && myOrgs.length === 0
+  const hasDiagnosticAccess = isSuperadmin || isOwnOrg || myOrgs.length > 0
+  const needsOnboarding = !pinnedKind && !isOwnOrg && !isSuperadmin && !contextsLoading && !contextsError && myOrgs.length === 0
 
   const scope = config.referralScope(orgId)
   const { data: referralsData } = useQuery({
     queryKey: queryKeys.diagnostics.referrals({ ...scope, limit: '100' }),
     queryFn: () => api.getDiagnosticReferrals({ ...scope, limit: '100' }),
-    enabled: !!orgId,
+    enabled: !!orgId && hasDiagnosticAccess,
   })
   const referrals = useMemo(
     () => referralsData?.items || referralsData?.data || referralsData?.referrals || [],
@@ -147,6 +148,17 @@ export function DiagnosticWorkspace({ kind: pinnedKind }: { kind?: OrgKind }) {
 
       {needsOnboarding && (
         <OrganizationOnboarding kind={kind} onComplete={() => window.location.reload()} />
+      )}
+
+      {!contextsLoading && !contextsError && !hasDiagnosticAccess && (
+        <Card padding="lg">
+          <div className="space-y-2">
+            <h2 className="text-lg font-semibold text-txt-primary">Нет доступа к рабочему пространству</h2>
+            <p className="text-sm text-txt-secondary">
+              Это рабочее пространство доступно только владельцам и сотрудникам соответствующего диагностического центра или лаборатории.
+            </p>
+          </div>
+        </Card>
       )}
 
       {!isOwnOrg && pickable.length > 1 && (
