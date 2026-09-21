@@ -138,12 +138,14 @@ jobs:
           set -o pipefail
           npx playwright test $(ls e2e/tests/*.spec.ts | grep -v browser-e2e | grep -v ux-coverage | grep -v business-owner-journeys | grep -v organization-owner-lifecycle | grep -v mobile-design-gate | grep -v role-design-gate) 2>&1 | tee e2e-core.log
       - name: Run browser UX coverage
+        if: always()
         env:
           PLAYWRIGHT_UI_URL: http://localhost:3000
           PLAYWRIGHT_OUTPUT_DIR: e2e/test-results/ux-coverage
           PLAYWRIGHT_HTML_OUTPUT_DIR: playwright-report/ux-coverage
         run: npx playwright test e2e/tests/ux-coverage.spec.ts
       - name: Run mobile design release gate
+        if: always()
         env:
           PLAYWRIGHT_UI_URL: http://localhost:3000
           PLAYWRIGHT_OUTPUT_DIR: e2e/test-results/mobile-design-gate
@@ -167,6 +169,7 @@ jobs:
           retention-days: 30
 
       - name: Run role and context design release gate
+        if: always()
         env:
           PLAYWRIGHT_UI_URL: http://localhost:3000
           PLAYWRIGHT_OUTPUT_DIR: e2e/test-results/role-design-gate
@@ -182,6 +185,7 @@ jobs:
           retention-days: 30
 
       - name: Run Visual Agent eyes/hands across all ecosystem roles
+        if: always()
         env:
           PLAYWRIGHT_UI_URL: http://localhost:3000
           PLAYWRIGHT_OUTPUT_DIR: e2e/test-results/visual-agent
@@ -197,22 +201,27 @@ jobs:
           retention-days: 30
 
       - name: Run business owner journeys
+        if: always()
         env:
           PLAYWRIGHT_UI_URL: http://localhost:3000
           PLAYWRIGHT_OUTPUT_DIR: e2e/test-results/business-owner-journeys
           PLAYWRIGHT_HTML_OUTPUT_DIR: playwright-report/business-owner-journeys
         run: npx playwright test e2e/tests/business-owner-journeys.spec.ts
       - name: Run organization owner lifecycle release gate
+        if: always()
         env:
           PLAYWRIGHT_UI_URL: http://localhost:3000
           PLAYWRIGHT_OUTPUT_DIR: e2e/test-results/organization-owner-lifecycle
           PLAYWRIGHT_HTML_OUTPUT_DIR: playwright-report/organization-owner-lifecycle
         run: npx playwright test e2e/tests/organization-owner-lifecycle.spec.ts
       - name: Install official Playwright CLI
+        if: always()
         run: npm install --no-save --package-lock=false @playwright/cli@latest
       - name: Install Playwright agent skills
+        if: always()
         run: npx playwright-cli install --skills=agents
       - name: Run Playwright CLI browser smoke
+        if: always()
         env:
           PLAYWRIGHT_CLI_SESSION: dentvision-ci-smoke
         run: |
