@@ -35,6 +35,20 @@ type OrderRow = {
   interpretation: string | null; metadata: unknown; createdAt: Date; updatedAt: Date | null;
 };
 
+async function resolveLaboratoryScopeId(user: AuthRequest['user']): Promise<string | null> {
+  if (!user || (user as any).organizationType !== 'LABORATORY') return null;
+  const contextId = user.organizationId ? String(user.organizationId) : '';
+  if (contextId) {
+    const direct = await prisma.laboratory.findUnique({ where: { id: contextId }, select: { id: true } });
+    if (direct) return direct.id;
+  }
+  const membership = await prisma.laboratoryMember.findFirst({
+    where: { userId: user.id },
+    select: { labId: true },
+  });
+  return membership?.labId ?? null;
+}
+
 async function getOrder(id: string): Promise<OrderRow | null> {
   const rows = await prisma.$queryRawUnsafe<OrderRow[]>(`
     SELECT "id","clinicId","patientId","treatmentCaseId","labId","orderedByUserId","status","priority","notes","specimenType","collectedAt","receivedAt","resultReadyAt","verifiedAt","interpretation","metadata","createdAt","updatedAt"
@@ -55,7 +69,7 @@ async function canAccessOrder(user: AuthRequest['user'], order: OrderRow, write 
     });
     return Boolean(patient);
   }
-  if (order.labId && user?.organizationId === order.labId && (user as any).organizationType === 'LABORATORY') return true;
+  if (order.labId && (await resolveLaboratoryScopeId(user)) === order.labId) return true;
   if (!write && order.clinicId) return assertOrgAccess(user!, order.clinicId);
   return false;
 }
@@ -80,7 +94,11 @@ medicalLabLifecycleRouter.get('/orders', async (req: AuthRequest, res) => {
         if (branchIds.length === 0) return res.json({ ok: true, data: [] } satisfies ApiResponse);
         args.push(branchIds); where.push(`EXISTS (SELECT 1 FROM "patients" p WHERE p."id" = o."patientId" AND p."branchId" = ANY(${args.length}::text[]))`);
       }
-    } else if (req.user?.organizationId && (req.user as any).organizationType === 'LABORATORY') { args.push(req.user.organizationId); where.push(`o."labId" = ${args.length}`); }
+    } else if (req.user?.organizationId && (req.user as any).organizationType === 'LABORATORY') {
+      const labId = await resolveLaboratoryScopeId(req.user);
+      if (!labId) return res.status(403).json({ ok: false, error: 'Медицинская лаборатория не привязана к рабочему контексту' } satisfies ApiResponse);
+      args.push(String(labId)); where.push(`o."labId" = ${args.length}`);
+    }
     else return res.status(403).json({ ok: false, error: 'Нет рабочего контекста' } satisfies ApiResponse);
     if (patientId) { args.push(patientId); where.push(`o."patientId" = $${args.length}`); }
     if (caseId) { args.push(caseId); where.push(`o."treatmentCaseId" = $${args.length}`); }
