@@ -81,7 +81,7 @@ async function auditLayout(page: Page, route: string, device: string) {
   expect(result.clipped, `${device} ${route}: visible text/control clipping: ${JSON.stringify(result.clipped)}`).toEqual([]);
 
   await page.screenshot({
-    path: `e2e/test-results/design-gate/${device}${route.replaceAll('/', '_') || '_home'}.png`,
+    path: `e2e/test-results/design-gate/${device}${route.replace(/[\\/?#:%*|"<>]/g, '_') || '_home'}.png`,
     fullPage: true,
   });
 }
