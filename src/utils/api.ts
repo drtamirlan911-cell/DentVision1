@@ -109,6 +109,19 @@ export async function resetPassword(token: string, newPassword: string): Promise
 export async function getMyClinics(): Promise<any[]> { return apiRequest('/api/auth/my-clinics'); }
 export async function switchClinic(clinicId: string | null): Promise<any> { return apiRequest('/api/auth/switch-clinic', { method: 'POST', body: JSON.stringify({ clinicId }) }); }
 export async function createClinic(data: any): Promise<any> { return apiRequest('/api/auth/clinics', { method: 'POST', body: JSON.stringify(data) }); }
+
+export interface CommercialTermSubscription { name:string; priceKzt:number; period:string; note?:string; }
+export interface CommercialTerm {
+  type:string; label:string; subscriptions:CommercialTermSubscription[];
+  transaction:{ratePercent:number|null; minKzt:number; capKzt:number|null; basis:string; note?:string;
+    volumeTiers?:Array<{gmvFromKzt?:number; ratePercent:number; label?:string; negotiatedRangePercent?:[number,number]}>};
+  documents:string[];
+  acquisitionModels?:Array<{name:string; dentVisionPercent:number; lecturerPercent:number}>;
+}
+export interface CommercialTermsResponse { version:string; effectiveDate:string; currency:'KZT'; disclosure:string; terms:CommercialTerm[]; }
+export async function getPublicCommercialTerms():Promise<CommercialTermsResponse>{ const res=await apiRequest('/api/public/commercial-terms'); return res.data??res; }
+export async function getPublicCommercialDocuments(type?:string):Promise<any[]>{ const res=await apiRequest(`/api/public/commercial-documents${type?`?type=${encodeURIComponent(type)}`:''}`); return res.data??res??[]; }
+
 export type SelfServiceOrganizationType = 'clinic' | 'dental_lab' | 'medical_lab' | 'diagnostic_center' | 'supplier' | 'academy';
 export async function createSelfServiceOrganization(data: { type: SelfServiceOrganizationType; name: string; city?: string; address?: string; phone?: string; email?: string; taxId?: string }): Promise<any> { return apiRequest('/api/organizations/self-service', { method: 'POST', body: JSON.stringify(data) }); }
 export async function joinClinic(data: { code?: string; clinicId?: string }): Promise<any> { return apiRequest('/api/auth/join-clinic', { method: 'POST', body: JSON.stringify(data) }); }
