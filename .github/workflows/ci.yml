@@ -74,6 +74,7 @@ jobs:
           --health-retries 5
     env:
       NODE_ENV: development
+      VISUAL_EVIDENCE_DIR: e2e/visual-evidence/${{ github.run_id }}
       DATABASE_URL: postgresql://postgres:postgres@localhost:5432/dentvision?connection_limit=20&pool_timeout=30
       RATE_LIMIT_API_MAX: '100000'
       RATE_LIMIT_AUTH_MAX: '100000'
@@ -156,18 +157,45 @@ jobs:
           --project=mobile-390 \
           --project=mobile-412 \
           --project=mobile-safari
+      - name: Checkpoint upload — mobile visual evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: visual-evidence-mobile-${{ github.run_id }}
+          path: e2e/visual-evidence/${{ github.run_id }}/responsive/
+          if-no-files-found: ignore
+          retention-days: 30
+
       - name: Run role and context design release gate
         env:
           PLAYWRIGHT_UI_URL: http://localhost:3000
           PLAYWRIGHT_OUTPUT_DIR: e2e/test-results/role-design-gate
           PLAYWRIGHT_HTML_OUTPUT_DIR: playwright-report/role-design-gate
         run: npx playwright test e2e/tests/role-design-gate.spec.ts --project=role-1280 --project=role-desktop --project=role-1920 --project=role-tablet-768 --project=role-tablet-820 --project=role-mobile --project=role-mobile-412 --project=role-mobile-safari
+      - name: Checkpoint upload — role visual evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: visual-evidence-roles-${{ github.run_id }}
+          path: e2e/visual-evidence/${{ github.run_id }}/roles/
+          if-no-files-found: ignore
+          retention-days: 30
+
       - name: Run Visual Agent eyes/hands across all ecosystem roles
         env:
           PLAYWRIGHT_UI_URL: http://localhost:3000
           PLAYWRIGHT_OUTPUT_DIR: e2e/test-results/visual-agent
           PLAYWRIGHT_HTML_OUTPUT_DIR: playwright-report/visual-agent
         run: npx playwright test e2e/tests/visual-agent.spec.ts --project=visual-agent
+      - name: Checkpoint upload — visual agent evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: visual-evidence-agent-${{ github.run_id }}
+          path: e2e/visual-evidence/${{ github.run_id }}/visual-agent/
+          if-no-files-found: ignore
+          retention-days: 30
+
       - name: Run business owner journeys
         env:
           PLAYWRIGHT_UI_URL: http://localhost:3000
@@ -244,17 +272,17 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: e2e-core-diagnostics
+          name: e2e-core-diagnostics-${{ github.run_id }}
           path: |
             e2e-core.log
             e2e-failure-summary.txt
-          retention-days: 7
+          retention-days: 30
 
       - name: Upload focused visual failure evidence
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: visual-failure-evidence
+          name: visual-failure-evidence-${{ github.run_id }}
           path: |
             e2e/test-results/**/test-failed-*.png
             e2e/test-results/**/error-context.md
@@ -271,7 +299,7 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: playwright-artifacts
+          name: playwright-artifacts-${{ github.run_id }}
           path: |
             playwright-report/
             .playwright-cli/
