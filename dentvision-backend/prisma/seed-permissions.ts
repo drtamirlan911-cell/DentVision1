@@ -96,6 +96,36 @@ async function seedE2EPartnerFixtures() {
       update: { scopeType: 'organization', scopeId: organization.id },
       create: { id: randomUUID(), personId: person.id, roleId: role.id, scopeType: 'organization', scopeId: organization.id },
     });
+
+    // Keep the canonical Organization context and the legacy partner tables
+    // in sync. Partner workspaces still resolve their operational scope from
+    // DiagnosticCenterMember/LaboratoryMember, so the E2E identity must have
+    // a real partner record instead of only a PersonRole.
+    if (fixture.organizationType === 'DIAGNOSTIC_CENTER') {
+      const center = await prisma.diagnosticCenter.findFirst({ where: { name: fixture.organizationName } });
+      const diagnosticCenter = center ?? await prisma.diagnosticCenter.create({
+        data: { id: randomUUID(), name: fixture.organizationName, city: 'Алматы', active: true },
+      });
+      await prisma.organization.update({ where: { id: organization.id }, data: { originalType: 'DiagnosticCenter', originalId: diagnosticCenter.id } });
+      await prisma.diagnosticCenterMember.upsert({
+        where: { centerId_userId: { centerId: diagnosticCenter.id, userId: user.id } },
+        update: { role: fixture.role === 'diagnostic_owner' ? 'admin' : 'operator' },
+        create: { id: randomUUID(), centerId: diagnosticCenter.id, userId: user.id, role: fixture.role === 'diagnostic_owner' ? 'admin' : 'operator' },
+      });
+    }
+
+    if (fixture.organizationType === 'LABORATORY') {
+      const lab = await prisma.laboratory.findFirst({ where: { name: fixture.organizationName } });
+      const laboratory = lab ?? await prisma.laboratory.create({
+        data: { id: randomUUID(), name: fixture.organizationName, city: 'Алматы', active: true },
+      });
+      await prisma.organization.update({ where: { id: organization.id }, data: { originalType: 'Laboratory', originalId: laboratory.id } });
+      await prisma.laboratoryMember.upsert({
+        where: { labId_userId: { labId: laboratory.id, userId: user.id } },
+        update: { role: fixture.role.endsWith('_owner') ? 'admin' : 'technician' },
+        create: { id: randomUUID(), labId: laboratory.id, userId: user.id, role: fixture.role.endsWith('_owner') ? 'admin' : 'technician' },
+      });
+    }
   }
 }
 
