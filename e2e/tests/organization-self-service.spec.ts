@@ -42,6 +42,11 @@ test.describe('Universal organization self-service onboarding', () => {
         expect(body.data.personId).toBeTruthy();
         expect(body.data.type).toBe(type);
         expect(body.data.verification).toBe('PENDING');
+        const createdOrg = await prisma.organization.findUnique({ where: { id: body.data.organizationId }, select: { settings: true } });
+        const settings = (createdOrg?.settings && typeof createdOrg.settings === 'object') ? createdOrg.settings as Record<string, unknown> : {};
+        expect(settings.lifecycle, `${type} lifecycle`).toBe('PENDING_VERIFICATION');
+        expect(settings.ecosystemVisible, `${type} ecosystem visibility`).toBe(false);
+        expect((settings.legal as Record<string, unknown>)?.status, `${type} legal status`).toBe('PENDING');
         const expectedNextPath = {
           clinic: '/crm/schedule',
           dental_lab: '/diagnostics/lab',
