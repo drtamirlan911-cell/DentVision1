@@ -42,6 +42,15 @@ test.describe('Universal organization self-service onboarding', () => {
         expect(body.data.personId).toBeTruthy();
         expect(body.data.type).toBe(type);
         expect(body.data.verification).toBe('PENDING');
+        const expectedNextPath = {
+          clinic: '/crm/schedule',
+          dental_lab: '/diagnostics/lab',
+          medical_lab: '/diagnostics/lab?workspace=medical-lab',
+          diagnostic_center: '/diagnostics/center',
+          supplier: '/supplier',
+          academy: '/school',
+        }[type];
+        expect(body.data.nextPath, type + ' workspace').toBe(expectedNextPath);
 
         const scopedOwner = await prisma.personRole.findFirst({
           where: {
