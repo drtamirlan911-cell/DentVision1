@@ -7,6 +7,7 @@ const manifestPath = path.join(ROOT, 'visual-manifest.json');
 const responsiveProjects = ['desktop-1280','laptop-1440','desktop-1920','tablet-768','tablet-820','mobile-390','mobile-412','mobile-safari'];
 const roleProjects = ['role-1280','role-desktop','role-1920','role-tablet-768','role-tablet-820','role-mobile','role-mobile-412','role-mobile-safari'];
 const roles = ['owner','admin','doctor','assistant','manager','regular','patient','diagnostic-owner','diagnostic-operator','medical-lab-owner','medical-lab-tech','dental-lab-owner','dental-technician','superadmin','support','laboratory'];
+const visualAgentViewports = ['desktop-1440','tablet-820','mobile-390'];
 
 function walk(dir: string): string[] {
   if (!fs.existsSync(dir)) return [];
@@ -32,6 +33,7 @@ if (files.length === 0) throw new Error('Visual release gate produced zero scree
 
 const responsiveFiles = files.filter((p) => p.includes(`${path.sep}responsive${path.sep}`));
 const roleFiles = files.filter((p) => p.includes(`${path.sep}roles${path.sep}`));
+const visualAgentFiles = files.filter((p) => p.includes(`${path.sep}visual-agent${path.sep}`));
 
 for (const project of responsiveProjects) {
   const projectFiles = responsiveFiles.filter((p) => path.basename(p).startsWith(project));
@@ -39,6 +41,13 @@ for (const project of responsiveProjects) {
 }
 for (const role of roles) {
   for (const project of roleProjects) requireFile(path.join(ROOT, 'roles', role, `${project}.png`), `${role}/${project}`);
+  for (const viewport of visualAgentViewports) {
+    const agentDir = path.join(ROOT, 'visual-agent', role, viewport);
+    const agentScreens = walk(agentDir).filter((p) => p.toLowerCase().endsWith('.png'));
+    if (agentScreens.length < 4) throw new Error(`Visual Agent evidence incomplete for ${role}/${viewport}: expected at least 4 screenshots, found ${agentScreens.length}`);
+    const runtime = path.join(agentDir, 'runtime.json');
+    if (!fs.existsSync(runtime)) throw new Error(`Visual Agent runtime evidence missing: ${path.relative(process.cwd(), runtime)}`);
+  }
 }
 
 const entries = files.map((file) => ({
@@ -49,8 +58,8 @@ const entries = files.map((file) => ({
 const manifest = {
   schemaVersion: 1,
   generatedAt: new Date().toISOString(),
-  policy: { responsiveProjects, roleProjects, roles, minimumResponsiveScreenshots: 13, minimumRoleScreenshots: roles.length * roleProjects.length },
-  totals: { screenshots: entries.length, responsive: responsiveFiles.length, roles: roleFiles.length },
+  policy: { responsiveProjects, roleProjects, roles, visualAgentViewports, minimumResponsiveScreenshots: 13, minimumRoleScreenshots: roles.length * roleProjects.length, minimumVisualAgentScreenshotsPerRoleViewport: 4 },
+  totals: { screenshots: entries.length, responsive: responsiveFiles.length, roles: roleFiles.length, visualAgent: visualAgentFiles.length },
   screenshots: entries,
 };
 fs.writeFileSync(manifestPath, JSON.stringify(manifest, null, 2) + '\n');
