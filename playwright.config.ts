@@ -18,7 +18,8 @@ export default defineConfig({
       // Keep its request fixture on the backend; browser-facing gates below
       // explicitly target the Vite frontend on port 3000.
       use: { browserName: 'chromium', viewport: { width: 1440, height: 900 }, baseURL: process.env.PLAYWRIGHT_API_URL || 'http://localhost:3001' },
-      testMatch: /.*\.spec\.ts/,\n      testIgnore: /mobile-design-gate\.spec\.ts|role-design-gate\.spec\.ts/,
+      testMatch: /.*\.spec\.ts/,
+      testIgnore: /mobile-design-gate\.spec\.ts|role-design-gate\.spec\.ts/,
     },
     {
       name: 'desktop-1280',
