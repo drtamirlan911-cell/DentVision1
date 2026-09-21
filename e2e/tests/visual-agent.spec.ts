@@ -106,29 +106,54 @@ async function login(page: Page, role: AgentRole) {
 }
 
 async function inspect(page: Page, role: AgentRole, route: string, viewportId: string) {
-  const problems = await page.evaluate(() => ({
-    title: document.title,
-    text: document.body.innerText,
-    overflow: document.documentElement.scrollWidth > innerWidth + 2,
-    empty: document.body.innerText.trim().length < 20,
-    unnamed: Array.from(document.querySelectorAll('button,a,[role="button"],[role="tab"],[role="menuitem"]')).filter(el => {
+  const problems = await page.evaluate(() => {
+    const interactive = Array.from(document.querySelectorAll('button,a,[role="button"],[role="tab"],[role="menuitem"]'));
+    const visible = (el: Element) => {
       const h = el as HTMLElement;
       const r = h.getBoundingClientRect();
       const s = getComputedStyle(h);
-      if (r.width <= 0 || r.height <= 0 || s.display === 'none' || s.visibility === 'hidden' || Number.parseFloat(s.opacity || '1') === 0) return false;
-      return !(h.getAttribute('aria-label') || h.getAttribute('title') || h.innerText || '').trim();
-    }).length,
-    smallControls: Array.from(document.querySelectorAll('button,a,[role="button"],[role="tab"],[role="menuitem"]')).filter(el => {
+      return r.width > 0 && r.height > 0 && s.display !== 'none' && s.visibility !== 'hidden' && Number.parseFloat(s.opacity || '1') > 0;
+    };
+    const describe = (el: Element) => {
       const h = el as HTMLElement;
       const r = h.getBoundingClientRect();
-      const s = getComputedStyle(h);
-      return r.width > 0 && r.height > 0 && s.display !== 'none' && s.visibility !== 'hidden' && Number.parseFloat(s.opacity || '1') > 0 && (r.width < 36 || r.height < 36);
-    }).length,
-  }));
+      return {
+        tag: h.tagName.toLowerCase(),
+        role: h.getAttribute('role'),
+        ariaLabel: h.getAttribute('aria-label'),
+        title: h.getAttribute('title'),
+        text: (h.innerText || '').replace(/\\s+/g, ' ').trim().slice(0, 120),
+        href: h.getAttribute('href'),
+        width: Math.round(r.width),
+        height: Math.round(r.height),
+        outerHTML: h.outerHTML.slice(0, 500),
+      };
+    };
+    const visibleInteractive = interactive.filter(visible);
+    const unnamedDetails = visibleInteractive
+      .filter(el => !(el.getAttribute('aria-label') || el.getAttribute('title') || (el as HTMLElement).innerText || '').trim())
+      .map(describe);
+    const smallDetails = visibleInteractive
+      .filter(el => {
+        const r = (el as HTMLElement).getBoundingClientRect();
+        return r.width < 36 || r.height < 36;
+      })
+      .map(describe);
+    return {
+      title: document.title,
+      text: document.body.innerText,
+      overflow: document.documentElement.scrollWidth > innerWidth + 2,
+      empty: document.body.innerText.trim().length < 20,
+      unnamed: unnamedDetails.length,
+      unnamedDetails,
+      smallControls: smallDetails.length,
+      smallDetails,
+    };
+  });
   expect(problems.empty, role.id + ' ' + route + ': visually empty screen').toBeFalsy();
   expect(problems.overflow, role.id + ' ' + route + ': horizontal overflow').toBeFalsy();
-  expect(problems.unnamed, role.id + ' ' + route + ': unnamed interactive controls').toBe(0);
-  expect(problems.smallControls, role.id + ' ' + route + ': undersized interactive controls').toBe(0);
+  expect(problems.unnamed, role.id + ' ' + route + ': unnamed interactive controls\n' + JSON.stringify(problems.unnamedDetails, null, 2)).toBe(0);
+  expect(problems.smallControls, role.id + ' ' + route + ': undersized interactive controls\n' + JSON.stringify(problems.smallDetails, null, 2)).toBe(0);
   expect(/Application error|ChunkLoadError|Failed to fetch dynamically imported module|Something went wrong/i.test(problems.text), role.id + ' ' + route + ': application error').toBeFalsy();
   await writeEvidence(page, role, viewportId, '01_' + route);
 }
