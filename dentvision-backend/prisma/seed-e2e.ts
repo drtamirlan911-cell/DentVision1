@@ -60,7 +60,7 @@ async function ensureE2ESupplier() {
       name: 'E2E Verified Supplier',
       kind: 'SUPPLIER',
       status: 'verified',
-      commissionRate: 1000,
+      commissionRate: 800,
       isActive: true,
       email: 'e2e-supplier@test.dentvision',
       city: 'Алматы',
