@@ -64,6 +64,10 @@ export const IntelligenceLayout: React.FC = () => {
   }, [navigate, setAiQuery]);
 
   useEffect(() => {
+    if (isMobile) setSidebarOpen(false);
+  }, [isMobile, setSidebarOpen]);
+
+  useEffect(() => {
     if (firstRunPhase !== 'greeting') return;
     const timer = window.setTimeout(() => {
       completeFirstRun();
