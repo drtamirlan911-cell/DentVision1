@@ -14,7 +14,6 @@ async function login(page: Page) {
 
 test.describe('Welcome real-click and self-service organization onboarding', () => {
   test('WELCOME-001: every primary Welcome action performs a real navigation', async ({ page }) => {
-    await page.goto(BASE + '/');
     const homeButtons = [
       ['DentVision', /^\/$/],
       ['Войти', /\/login/],
@@ -27,40 +26,10 @@ test.describe('Welcome real-click and self-service organization onboarding', () 
       ['Учиться', /\/school/],
       ['Найти работу', /\/jobs/],
     ] as const;
+
     for (const [label, target] of homeButtons) {
       await page.goto(BASE + '/');
-      await page.getByRole('button', { name: new RegExp(`^${label}import { test, expect, type Page } from '@playwright/test';
-
-const BASE = process.env.PLAYWRIGHT_UI_URL || 'http://localhost:3000';
-const PASSWORD = 'Test1234!';
-const OWNER_EMAIL = 'owner-a@test.com';
-
-async function login(page: Page) {
-  await page.goto(BASE + '/login?role=owner');
-  await page.locator('input[autocomplete="username"]').fill(OWNER_EMAIL);
-  await page.locator('input[autocomplete="current-password"]').fill(PASSWORD);
-  await page.getByRole('button', { name: 'Войти в DentVision' }).click();
-  await expect(page).toHaveURL(/\/ai(?:$|[?#])/, { timeout: 20000 });
-}
-
-test.describe('Welcome real-click and self-service organization onboarding', () => {
-  test('WELCOME-001: every primary Welcome action performs a real navigation', async ({ page }) => {
-    await page.goto(BASE + '/');
-    const homeButtons = [
-      ['DentVision', /^\/$/],
-      ['Войти', /\/login/],
-      ['Попробовать DentVision AI', /\/ai/],
-      ['Посмотреть тарифы', /\/pricing/],
-      ['Записаться к врачу', /\/book\/discover/],
-      ['Найти диагностику', /\/diagnostics\/discover/],
-      ['Работать с лабораторией', /\/login\?role=lab/],
-      ['Купить', /\/shop/],
-      ['Учиться', /\/school/],
-      ['Найти работу', /\/jobs/],
-    ] as const;
-    for (const [label, target] of homeButtons) {
-      await page.goto(BASE + '/');
-      ) }).click();
+      await page.getByRole('button', { name: label, exact: true }).click();
       await expect(page).toHaveURL(target);
       await expect(page.locator('body')).not.toContainText('404');
     }
@@ -78,6 +47,7 @@ test.describe('Welcome real-click and self-service organization onboarding', () 
       ['Я лектор', null],
       ['Я сотрудник клиники', null],
     ] as const;
+
     for (const [label, expected] of roles) {
       await page.goto(BASE + '/');
       await page.getByRole('button', { name: new RegExp(label) }).click();
@@ -116,6 +86,7 @@ test.describe('Welcome real-click and self-service organization onboarding', () 
     await page.getByLabel('Город *').fill('Тараз');
     await page.getByRole('button', { name: 'Создать и открыть workspace' }).click();
     await expect(page).toHaveURL(/\/diagnostics\/lab(?:$|[?#])(?!.*workspace=medical-lab)/, { timeout: 20000 });
+    await expect(page.locator('body')).not.toContainText('404');
   });
 
   test('WELCOME-006: authenticated owner creates a clinic and lands in CRM workspace', async ({ page }) => {
