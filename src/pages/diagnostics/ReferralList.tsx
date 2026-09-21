@@ -138,7 +138,7 @@ export default function ReferralList() {
             placeholder="Поиск по имени или ИИН..."
             className="w-full min-h-11 pl-9 pr-3 py-2 bg-surface-1 border border-bdr-subtle rounded-lg text-sm text-txt-primary placeholder:text-txt-muted focus:outline-none focus:border-dv-gold/40" />
           {search && (
-            <button aria-label="Clear search" onClick={() => handleSearch('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-txt-muted hover:text-txt-primary">
+            <button aria-label="Clear search" onClick={() => handleSearch('')} className="absolute right-1 top-1/2 -translate-y-1/2 inline-flex min-h-11 min-w-11 items-center justify-center text-txt-muted hover:text-txt-primary">
               <X size={14} />
             </button>
           )}
