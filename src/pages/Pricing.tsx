@@ -28,11 +28,47 @@ export default function Pricing(){
         <p className="text-base text-txt-secondary max-w-2xl mx-auto">Подписки, комиссии, минимальные и максимальные сборы и модели распределения видны до создания аккаунта.</p>
       </motion.div>
       <section className="mb-10">
-        <h2 className="text-xl font-bold text-txt-primary mb-4">Тарифы клиники</h2>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          {(terms?.terms?.find((x:any)=>x.type==='clinic')?.subscriptions||[]).map((p:any)=><div key={p.name} className="rounded-xl border border-bdr-subtle p-5"><p className="font-semibold text-txt-primary">{p.name}</p><p className="text-2xl font-bold text-txt-primary mt-3">{money(p.priceKzt)}</p><p className="text-sm text-txt-secondary">{p.period==='month_per_branch'?'₸ / месяц / филиал':'₸ / месяц'}</p><p className="text-sm text-txt-secondary mt-3">{p.note}</p></div>)}</div><div className="text-xs text-txt-muted">{p.period.replace('₸ ','')}</div><ul className="mt-4 space-y-2">{p.features.map(f=><li key={f} className="flex gap-2 text-sm text-txt-secondary"><Check size={14} className="mt-0.5 text-success"/>{f}</li>)}</ul></div>)}
-        </div>
-        <p className="mt-3 text-xs text-txt-muted">Цены синхронизированы с действующей экономической политикой DentVision. Комиссия с общей клинической выручки по умолчанию 0%.</p>
+        <h2 className="mb-4 text-xl font-bold text-txt-primary">Тарифы клиники</h2>
+        {(() => {
+          const clinic = terms?.terms?.find((item: any) => item.type === 'clinic');
+          const subscriptions = clinic?.subscriptions ?? [];
+          return subscriptions.length ? (
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+              {subscriptions.map((plan: any) => (
+                <div key={plan.name} className="rounded-2xl border border-bdr-subtle bg-surface-1 p-5">
+                  {plan.name === 'NETWORK' ? (
+                    <Crown size={20} className="mb-3 text-dv-gold" />
+                  ) : (
+                    <Building2 size={20} className="mb-3 text-dv-gold" />
+                  )}
+                  <h3 className="font-bold text-txt-primary">{plan.name}</h3>
+                  <div className="mt-1 text-2xl font-bold text-txt-primary">{money(plan.priceKzt)}</div>
+                  <div className="text-xs text-txt-muted">
+                    {plan.period === 'month_per_branch' ? '₸ / месяц / филиал' : '₸ / месяц'}
+                  </div>
+                  {plan.note && <p className="mt-3 text-sm text-txt-secondary">{plan.note}</p>}
+                  {plan.features?.length ? (
+                    <ul className="mt-4 space-y-2">
+                      {plan.features.map((feature: string) => (
+                        <li key={feature} className="flex gap-2 text-sm text-txt-secondary">
+                          <Check size={14} className="mt-0.5 shrink-0 text-success" />
+                          {feature}
+                        </li>
+                      ))}
+                    </ul>
+                  ) : null}
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="rounded-xl border border-bdr-subtle bg-surface-1 p-5 text-sm text-txt-muted">
+              Тарифы временно недоступны.
+            </div>
+          );
+        })()}
+        <p className="mt-3 text-xs text-txt-muted">
+          Цены синхронизированы с действующей экономической политикой DentVision. Комиссия с общей клинической выручки по умолчанию 0%.
+        </p>
       </section>
       <section className="rounded-2xl border border-bdr-subtle bg-surface-1 p-5 md:p-7">
         <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-4 mb-5"><div><h2 className="text-xl font-bold text-txt-primary">Комиссии и подписки всех участников</h2><p className="text-sm text-txt-secondary mt-1">Здесь отображаются все опубликованные экономические условия до регистрации.</p></div><select aria-label="Тип участника" value={selectedType} onChange={e=>setSelectedType(e.target.value)} className="min-h-11 rounded-lg border border-bdr-subtle bg-surface-0 px-3 text-sm text-txt-primary">{(terms?.terms||[]).map((x:any)=><option key={x.type} value={x.type}>{x.label}</option>)}</select></div>
