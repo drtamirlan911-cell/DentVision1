@@ -99,6 +99,11 @@ export const IntelligenceLayout: React.FC = () => {
 
   if (isPatient && !patientAllowedShellRoute) return <Navigate to="/patient-portal" replace />;
 
+  // The public Welcome page must not inherit the authenticated shell. In
+  // particular, a mobile sidebar/BottomNav can sit over its primary CTAs and
+  // make the public landing page impossible to operate.
+  if (isPublicWelcome) return <Outlet />;
+
   if (needsAuth) {
     if (isGuest) {
       if (isCRMRoute) {
