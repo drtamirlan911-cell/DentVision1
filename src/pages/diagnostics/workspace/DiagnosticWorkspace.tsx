@@ -179,7 +179,7 @@ export function DiagnosticWorkspace({ kind: pinnedKind }: { kind?: OrgKind }) {
         </Card>
       )}
 
-      {orgId && (
+      {orgId && hasDiagnosticAccess && (
         <>
           <Card padding="lg">
             <div className="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
