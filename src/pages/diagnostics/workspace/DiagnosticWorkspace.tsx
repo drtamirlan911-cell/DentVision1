@@ -91,7 +91,6 @@ export function DiagnosticWorkspace({ kind: pinnedKind }: { kind?: OrgKind }) {
   const contextualOrgAuthorized =
     isSuperadmin
     || (isOwnOrg && contextualOrgId === ownOrgId)
-    || myOrgs.some((ctx: any) => ctx.scopeId === contextualOrgId)
 
   useEffect(() => {
     if (contextualOrgId) {
@@ -106,13 +105,10 @@ export function DiagnosticWorkspace({ kind: pinnedKind }: { kind?: OrgKind }) {
     if (!orgId && !isSuperadmin && myOrgs.length === 1) setOrgId(myOrgs[0].scopeId)
   }, [contextualOrgId, contextualOrgAuthorized, isOwnOrg, ownOrgId, orgId, isSuperadmin, myOrgs])
 
-  // Access is scoped to the selected organization, never merely to having
-  // some diagnostic membership. An ecosystem URL organizationId is context,
-  // not authorization proof.
-  const hasDiagnosticAccess =
-    isSuperadmin
-    || (isOwnOrg && orgId === ownOrgId)
-    || myOrgs.some((ctx: any) => ctx.scopeId === orgId)
+  // Membership in another organization does not activate that context.
+  // Diagnostic API access is available only in the active authorized context;
+  // an ecosystem URL organizationId is context, not authorization proof.
+  const hasDiagnosticAccess = isSuperadmin || (isOwnOrg && orgId === ownOrgId)
   const needsOnboarding = !pinnedKind && !isOwnOrg && !isSuperadmin && !contextsLoading && !contextsError && myOrgs.length === 0
 
   const scope = config.referralScope(orgId)
