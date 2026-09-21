@@ -22,7 +22,7 @@ import {
 } from './googleAuth.js';
 import { auditFromReq, writeAuditLog } from '../compliance/audit.service.js';
 import { createSession } from '../compliance/session.service.js';
-import { expireAllSessions } from '../compliance/session.service.js';
+import { expireSession } from '../compliance/session.service.js';
 import { checkLoginAttempts, recordFailedAttempt, resetAttempts } from '../../lib/loginGuard.js';
 import crypto from 'node:crypto';
 import { setCsrfCookie } from '../../middleware/csrf.js';
