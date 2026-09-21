@@ -21,7 +21,7 @@ function normalizeType(value: string | null): Kind {
 }
 
 export default function DiagnosticsRegister() {
-  const { isAuthenticated, loading: authLoading, restoreSession } = useAuth();
+  const { isAuthenticated, loading: authLoading } = useAuth();
   const navigate = useNavigate();
   const [params] = useSearchParams();
   const kind = normalizeType(params.get('type'));
@@ -57,8 +57,7 @@ export default function DiagnosticsRegister() {
         taxId: form.taxId.trim() || undefined,
       });
       if (result?.accessToken) api.setTokens(result.accessToken, result.refreshToken || null);
-      await restoreSession();
-      navigate(result?.nextPath || config.next, { replace: true });
+      window.location.assign(result?.nextPath || config.next);
     } catch (e: any) {
       setError(e?.message || 'Не удалось создать организацию');
     } finally {
