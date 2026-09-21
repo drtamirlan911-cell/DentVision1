@@ -25,7 +25,7 @@ export default function ResultList() {
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
 
-  const referralScope = orgKind === 'CENTER'
+  const referralScope: Record<string, string> = orgKind === 'CENTER'
     ? { centerId: orgId }
     : orgKind === 'LAB'
       ? { labId: orgId }
