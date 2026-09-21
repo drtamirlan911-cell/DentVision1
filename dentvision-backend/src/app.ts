@@ -175,7 +175,7 @@ const iinLookupLimiter = rateLimit({
 });
 const guestSessionLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 50,
+  max: limitFromEnv('RATE_LIMIT_GUEST_SESSION_MAX', 50),
   standardHeaders: true,
   legacyHeaders: false,
   skip: (req) => req.method === 'OPTIONS',
