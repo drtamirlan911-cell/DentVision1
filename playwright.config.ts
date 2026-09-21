@@ -5,10 +5,10 @@ export default defineConfig({
   timeout: 180000,
   retries: 1,
   workers: 1,
-  outputDir: './e2e/test-results',
+  outputDir: process.env.PLAYWRIGHT_OUTPUT_DIR || './e2e/test-results',
   use: {
     baseURL: process.env.PLAYWRIGHT_BASE_URL || 'http://localhost:3000',
-    screenshot: 'only-on-failure',
+    screenshot: 'on',
     trace: 'on-first-retry',
   },
   projects: [
