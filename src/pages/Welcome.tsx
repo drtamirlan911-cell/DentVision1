@@ -15,10 +15,10 @@ const intents = [
 
 const workRoles = [
   { id: 'doctor', title: 'Я врач', subtitle: 'AI, пациенты и лечение', icon: Stethoscope, path: '/login?role=doctor' },
-  { id: 'owner', title: 'Я владелец клиники', subtitle: 'Команда, пациенты, финансы и операции', icon: Building2, path: '/login?role=owner' },
-  { id: 'dental_lab', title: 'Я зуботехническая лаборатория', subtitle: 'Заказы, производство и сроки', icon: FlaskConical, path: '/diagnostics/register?type=dental_laboratory' },
-  { id: 'medical_lab', title: 'Я медицинская лаборатория', subtitle: 'Исследования, результаты и клиники', icon: FlaskConical, path: '/diagnostics/register?type=laboratory' },
-  { id: 'diagnostic_center', title: 'Я диагностический центр', subtitle: 'Направления, исследования и результаты', icon: ScanLine, path: '/diagnostics/register?type=center' },
+  { id: 'owner', title: 'Я владелец клиники', subtitle: 'Команда, пациенты, финансы и операции', icon: Building2, path: '/login?role=owner&returnUrl=%2Fmy-clinics%3Fcreate%3Dclinic' },
+  { id: 'dental_lab', title: 'Я зуботехническая лаборатория', subtitle: 'Заказы, производство и сроки', icon: FlaskConical, path: '/login?role=owner&returnUrl=%2Fregister-diagnostics%3Ftype%3Ddental_laboratory' },
+  { id: 'medical_lab', title: 'Я медицинская лаборатория', subtitle: 'Исследования, результаты и клиники', icon: FlaskConical, path: '/login?role=owner&returnUrl=%2Fregister-diagnostics%3Ftype%3Dlaboratory' },
+  { id: 'diagnostic_center', title: 'Я диагностический центр', subtitle: 'Направления, исследования и результаты', icon: ScanLine, path: '/login?role=owner&returnUrl=%2Fregister-diagnostics%3Ftype%3Dcenter' },
   { id: 'supplier', title: 'Я поставщик', subtitle: 'Товары, остатки, заказы и Marketplace', icon: Truck, path: '/login?role=supplier' },
   { id: 'academy', title: 'Я академия', subtitle: 'Курсы, преподаватели и слушатели', icon: GraduationCap, path: '/login?role=academy' },
   { id: 'lecturer', title: 'Я лектор', subtitle: 'Экспертный профиль, курсы и вебинары', icon: Mic2, path: '/login?role=lecturer' },
