@@ -584,7 +584,7 @@ function main(): void {
     out.push('');
     for (const item of duplicateMounts) {
       const prefixes = mounts.filter((m) => m.router === item.router).map((m) => `\\`${m.prefix}\\``).join(', ');
-      out.push(`- \\`${item.router}\\` — ${item.count} mounts: ${prefixes}`);
+      out.push(`- ${item.router} — ${item.count} mounts: ${prefixes}`);
     }
     out.push('');
   }
