@@ -19,7 +19,7 @@ const BLOCK_MS = 5000;
 const COUNT = 10;
 
 export class EventBus implements IEventBus {
-  private redis: InstanceType<typeof Redis> | null = null;
+  private redis: Redis | null = null;
   private memoryEmitter = new EventEmitter();
   private subscribers = new Map<EventType | '*', EventSubscriber[]>();
   private connected = false;
