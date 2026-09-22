@@ -43,7 +43,7 @@ test.describe('Universal organization self-service onboarding', () => {
         expect(body.data.personId).toBeTruthy();
         expect(body.data.type).toBe(type);
         expect(body.data.verification).toBe('PENDING');
-        const createdOrg = await prisma.organization.findUnique({ where: { id: body.data.organizationId }, select: { settings: true } });
+        const createdOrg = await prisma.organization.findUnique({ where: { id: body.data.organizationId }, select: { settings: true, originalId: true } });
         const settings = (createdOrg?.settings && typeof createdOrg.settings === 'object') ? createdOrg.settings as Record<string, unknown> : {};
         expect(settings.lifecycle, `${type} lifecycle`).toBe('PENDING_VERIFICATION');
         expect(settings.ecosystemVisible, `${type} ecosystem visibility`).toBe(false);
@@ -112,7 +112,7 @@ test.describe('Universal organization self-service onboarding', () => {
         const aiBody = await aiContextResponse.json();
         const activeWorkspace = aiBody.data?.activeWorkspace;
         expect(activeWorkspace, `${type} AI active workspace`).toBeTruthy();
-        expect(activeWorkspace.scopeId, `${type} AI scope`).toBe(body.data.organizationId);
+        expect(activeWorkspace.scopeId, `${type} AI scope`).toBe(createdOrg?.originalId || body.data.organizationId);
         const expectedScopeType = {
           clinic: 'CLINIC',
           dental_lab: 'LABORATORY',
