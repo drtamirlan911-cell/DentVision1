@@ -11,8 +11,8 @@ describe('branch consistency migration contracts', () => {
     expect(source).toContain('BEFORE INSERT OR UPDATE OF "clinicId", "branch_id"');
     expect(source).toContain('invoices_branch_consistency');
     expect(source).toContain('expenses_branch_consistency');
-    expect(source).toContain('b."isDefault" = true');
-    expect(source).toContain('b."createdAt" ASC');
+    expect(source).toContain('b.is_default = true');
+    expect(source).toContain('b.created_at ASC');
   });
 
   it('uses null-safe comparison for referral patient and branch boundaries', () => {
@@ -20,7 +20,7 @@ describe('branch consistency migration contracts', () => {
     expect(source).toContain('patient_clinic_id IS DISTINCT FROM NEW."clinicId"');
     expect(source).toContain('NEW."branch_id" IS DISTINCT FROM patient_branch_id');
     expect(source).toContain('branch_clinic_id IS DISTINCT FROM NEW."clinicId"');
-    expect(source).toContain('WHERE "patientId" = NEW.id');
+    expect(source).toContain('WHERE "patientId" = NEW."id"');
     expect(source).toContain('AND "clinicId" = NEW."clinicId"');
     expect(source).toContain('patients_sync_referral_branch');
     expect(source).not.toContain('p.clinic_id');
