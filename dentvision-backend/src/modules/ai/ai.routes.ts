@@ -71,41 +71,38 @@ const querySchema = z.object({
   }),
 });
 
-/** Stable AI session per authenticated user (and clinic when present). */
+/**
+ * Stable AI session per authenticated user and active workspace.
+ *
+ * AISession predates the unified workspace model and stores its scope in the
+ * legacy clinicId string column. Non-clinic workspaces use explicit namespaced
+ * keys so supplier, lecturer and organization conversations never share one
+ * platform thread.
+ */
+function aiSessionScope(req: AuthRequest): string {
+  if (req.user?.clinicId) return req.user.clinicId;
+  if (req.user?.organizationId) return 'org:' + req.user.organizationId;
+  if (req.user?.supplierId) return 'supplier:' + req.user.supplierId;
+  if (req.user?.lecturerId) return 'lecturer:' + req.user.lecturerId;
+  return 'user:' + (req.user?.id || 'platform');
+}
+
 async function resolveUserSessionId(req: AuthRequest, requested?: string): Promise<string> {
-  if (!req.user?.id || req.user.isGuest) {
-    return requested && requested.length >= 8 ? requested : crypto.randomUUID();
-  }
+  if (!req.user?.id || req.user.isGuest) return requested && requested.length >= 8 ? requested : crypto.randomUUID();
 
   const userId = req.user.id;
-  const clinicId = req.user.clinicId || DEMO_CLINIC_ID || 'platform';
+  const scopeKey = aiSessionScope(req);
 
   if (requested) {
-    // Only reuse a client session if it belongs to THIS clinic — never mix chats.
-    const owned = await prisma.aISession.findFirst({
-      where: { id: requested, userId, clinicId },
-      select: { id: true },
-    });
+    const owned = await prisma.aISession.findFirst({ where: { id: requested, userId, clinicId: scopeKey }, select: { id: true } });
     if (owned) return owned.id;
   }
 
-  const existing = await prisma.aISession.findFirst({
-    where: { userId, clinicId },
-    orderBy: { updatedAt: 'desc' },
-    select: { id: true },
-  });
+  const existing = await prisma.aISession.findFirst({ where: { userId, clinicId: scopeKey }, orderBy: { updatedAt: 'desc' }, select: { id: true } });
   if (existing) return existing.id;
 
   const id = crypto.randomUUID();
-  await prisma.aISession.create({
-    data: {
-      id,
-      userId,
-      clinicId,
-      messages: [],
-      context: {},
-    },
-  });
+  await prisma.aISession.create({ data: { id, userId, clinicId: scopeKey, messages: [], context: {} } });
   return id;
 }
 
@@ -677,7 +674,7 @@ aiRouter.get('/threads/active', authenticate, async (req: AuthRequest, res) => {
 
 aiRouter.post('/threads/new', authenticate, async (req: AuthRequest, res) => {
   try {
-    const clinicId = req.user!.clinicId || DEMO_CLINIC_ID || 'platform';
+    const clinicId = aiSessionScope(req);
     const id = crypto.randomUUID();
     await prisma.aISession.create({
       data: {

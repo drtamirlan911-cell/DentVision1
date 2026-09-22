@@ -76,7 +76,7 @@ export const useAIStore = create<AIState>((set, get) => ({
     } catch { /* proactive AI must never block the workspace */ }
   },
 
-  clearConversation: () => set({messages:[],conversationContext:[],currentIntent:null,currentAction:null,status:'idle',errorMessage:null,query:''}),
+  clearConversation: () => set({messages:[],conversationContext:[],currentIntent:null,currentAction:null,status:'idle',errorMessage:null,query:'',sessionId:null}),
   resetAI: () => set({status:'idle',currentIntent:null,currentAction:null,messages:[],conversationContext:[],suggestions:[],proactiveAlerts:[],progress:0,errorMessage:null,query:''}),
 }))
 
