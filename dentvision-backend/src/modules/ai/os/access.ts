@@ -47,6 +47,11 @@ export interface AiToolAccessInput {
   userId: string;
   /** Requested clinic scope (JWT claim) — verified here, not trusted. */
   clinicId?: string | null;
+  /** Active unified workspace scope from the authenticated context. */
+  organizationId?: string | null;
+  organizationType?: string | null;
+  supplierId?: string | null;
+  lecturerId?: string | null;
   isGuest?: boolean;
 }
 
@@ -76,26 +81,58 @@ export async function resolveAiToolAccess(input: AiToolAccessInput): Promise<AiT
     };
   }
 
-  // Verify the requested clinic scope before anything is allowed to read it.
+  // Resolve the active workspace, not the user's historical/global role.
+  // A single identity may be OWNER in a clinic, SUPPLIER in a supplier company
+  // and LECTURER in an academy; using User.role here collapses those contexts.
   let role = String(user.role);
   let clinicId: string | null = null;
-  let organizationId: string | null = null;
+  let organizationId: string | null = input.organizationId || null;
+
   if (input.clinicId) {
     const access = await resolveClinicAccess(input.userId, input.clinicId);
     if (access) {
       role = access.role;
       clinicId = input.clinicId;
-      // `resolveUserPermissions` scopes by Organization.id, and a clinic id is
-      // a different value — the Person lookup matched nothing, so the DB
-      // permission graph never contributed here and every AI tool decision
-      // fell back to the hardcoded role matrix. The same mistake was already
-      // found and fixed in auth.routes.ts.
       organizationId = await resolveOrganizationIdForClinic(input.clinicId);
     }
+  } else if (organizationId) {
+    const person = await prisma.person.findFirst({
+      where: { userId: input.userId, organizationId },
+      include: { personRoles: { include: { role: true } } },
+    });
+    if (person) {
+      const roleKeys = person.personRoles.map((pr) => String(pr.role.key).toUpperCase());
+      const preferred = roleKeys.find((key) =>
+        key.startsWith('DIAGNOSTIC_')
+        || key.startsWith('MEDICAL_LAB_')
+        || key.startsWith('DENTAL_LAB_')
+        || key === 'SUPPLIER'
+        || key === 'SELLER'
+        || key === 'LECTURER'
+        || key === 'ACADEMY'
+        || key === 'OWNER'
+        || key === 'ADMIN'
+        || key === 'MANAGER',
+      );
+      role = preferred || String(person.personType || user.role);
+    }
+  } else if (input.supplierId) {
+    role = String(input.supplierId ? 'SUPPLIER' : user.role);
+    const org = await prisma.organization.findFirst({ where: { originalId: input.supplierId } });
+    organizationId = org?.id || null;
+  } else if (input.lecturerId) {
+    role = 'LECTURER';
+    const person = await prisma.person.findFirst({
+      where: { userId: input.userId, originalId: input.lecturerId },
+      select: { organizationId: true },
+    });
+    organizationId = person?.organizationId || null;
   }
 
   const permissions = new Set(
-    clinicId ? await resolveUserPermissions(input.userId, organizationId ?? clinicId, role) : [],
+    organizationId
+      ? await resolveUserPermissions(input.userId, organizationId, role).catch(() => [])
+      : [],
   );
 
   const allowed = new Set<string>();
