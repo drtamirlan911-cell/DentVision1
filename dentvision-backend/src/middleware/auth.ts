@@ -214,6 +214,7 @@ export function optionalAuth(req: AuthRequest, _res: Response, next: NextFunctio
         supplierRole: isGuest ? undefined : payload.supplierRole,
         lecturerId: isGuest ? undefined : payload.lecturerId,
         organizationId: isGuest ? undefined : payload.organizationId,
+        organizationOriginalId: isGuest ? undefined : payload.organizationOriginalId,
         organizationType: isGuest ? undefined : payload.organizationType,
         personType: isGuest ? undefined : payload.personType,
         branchId: isGuest ? undefined : payload.branchId,
