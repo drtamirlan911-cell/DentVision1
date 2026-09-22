@@ -2,8 +2,18 @@ import { Redis } from 'ioredis'
 import { env } from '../config.js'
 
 let _redis: Redis | null = null
+let _disabledUntil = 0
+
+export function disableRedisFor(ms = 60_000): void {
+  _disabledUntil = Date.now() + ms
+  if (_redis) {
+    _redis.disconnect()
+    _redis = null
+  }
+}
 
 export function getRedis(): Redis | null {
+  if (Date.now() < _disabledUntil) return null
   if (_redis) return _redis
 
   const url = env.REDIS_URL || ''
@@ -30,7 +40,9 @@ export function getRedis(): Redis | null {
     })
 
     _redis.on('error', () => {
-      // silently ignore — production may not have Redis
+      // A hard provider limit (for example Upstash request exhaustion) must
+      // not leave BullMQ retrying forever and consuming more requests.
+      disableRedisFor()
     })
 
     return _redis
