@@ -25,9 +25,9 @@ async function collectUiProblems(page: Page) {
 test.describe('DentVision organization owner lifecycle', () => {
   test('ORG-001: partner owner onboarding creates real workspaces', async ({ page }) => {
     const types = [
-      ['Диагностический центр', 'center', /\/diagnostics\/center/],
-      ['Медицинская лаборатория', 'laboratory', /\/diagnostics\/lab\?workspace=medical-lab/],
-      ['Зуботехническая лаборатория', 'dental_laboratory', /\/diagnostics\/lab(?:$|[?#])/],
+      ['диагностический центр', 'center', /\/diagnostics\/center/],
+      ['медицинскую лабораторию', 'laboratory', /\/diagnostics\/lab\?workspace=medical-lab/],
+      ['зуботехническую лабораторию', 'dental_laboratory', /\/diagnostics\/lab(?:$|[?#])/],
     ] as const;
     await login(page);
     for (const [label, type, target] of types) {
