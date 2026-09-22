@@ -15,7 +15,7 @@
  */
 
 import prisma from '../../../lib/prisma.js';
-import { resolveOrganizationIdForClinic } from '../../../lib/orgContext.js';
+import { resolveOrganizationIdForClinic, resolveClinicAccess } from '../../../lib/orgContext.js';
 import { stageFromPath } from '../lib/platformMap.js';
 import { roleLabelFor } from '../../iam/contexts.js';
 import type { AuthRequest } from '../../../types/index.js';
@@ -58,7 +58,10 @@ export async function buildAiContext(req: AuthRequest, hints: ContextHints): Pro
   let workspace: AiRequestContext['workspace'] = null;
   try {
     if (clinicId) {
-      const clinic = await prisma.clinic.findUnique({ where: { id: clinicId }, select: { id: true, name: true } });
+      const access = await resolveClinicAccess(user.id, clinicId);
+      const clinic = access
+        ? await prisma.clinic.findUnique({ where: { id: clinicId }, select: { id: true, name: true } })
+        : null;
       if (clinic) {
         workspace = {
           name: clinic.name,
