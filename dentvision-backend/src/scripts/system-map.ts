@@ -102,7 +102,9 @@ function main(): void {
     .map((router) => ({ router, count: mounts.filter((mount) => mount.router === router).length }))
     .filter((item) => item.count > 1);
   const models = [...read(join(BACKEND_SRC, '../prisma/schema.prisma')).matchAll(/^model\s+(\w+)\s*\{/gm)].map((m) => m[1]);
-  const jobs = walk(join(BACKEND_SRC, 'jobs'), (p) => p.endsWith('.ts') && !p.endsWith('.test.ts')).map(basename);
+  // Keep the callback explicit: Array.map passes the numeric index as its second argument,
+  // which must never be forwarded to path.basename as the optional suffix parameter.
+  const jobs = walk(join(BACKEND_SRC, 'jobs'), (p) => p.endsWith('.ts') && !p.endsWith('.test.ts')).map((file) => basename(file));
   const lines: string[] = [];
   lines.push('# DentVision System Map', '', `> Generated: ${new Date().toISOString()}`, '');
   lines.push('## Summary', '', `- Mounted routers: **${mounts.length}**`, `- Unique route handlers: **${routes.length}**`, `- Registered HTTP routes after mount: **${mountRows.reduce((sum, row) => sum + row.total, 0)}**`, `- Routes without detected web/mobile consumer: **${mountRows.reduce((sum, row) => sum + row.orphan, 0)}**`, `- Prisma models: **${models.length}**`, `- Background jobs: **${jobs.length}**`, `- Permission roles: **${Object.keys(ROLE_PERMISSIONS).length}**`, '');
