@@ -1,5 +1,5 @@
 import { Worker } from 'bullmq'
-import { getRedis } from '../../../lib/redis.js'
+import { disableRedisFor, getRedis } from '../../../lib/redis.js'
 import { resolveClinic } from '../resolver/clinic.resolver.js'
 import { getOrCreateSession } from '../conversation/conversation.manager.js'
 import { buildContext } from '../context/context.builder.js'
@@ -16,6 +16,13 @@ export function startMessageWorker(): void {
   }
 
   let worker: Worker<NormalizedMessage>;
+  try {
+    await redis.ping()
+  } catch (err) {
+    console.warn('[ai-admin] Redis unavailable — worker skipped:', (err as Error).message)
+    disableRedisFor()
+    return
+  }
   try {
     worker = new Worker<NormalizedMessage>(
     'ai-admin-messages',
