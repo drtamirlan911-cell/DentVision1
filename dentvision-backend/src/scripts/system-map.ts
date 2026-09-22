@@ -143,10 +143,16 @@ function routeShape(prefix: string, path: string): string {
  * is the part a route can be matched on.
  */
 function readClientPaths(): Set<string> {
-  const files = walk(FRONTEND_SRC, (p) => p.endsWith('.ts') || p.endsWith('.tsx'));
+  // Web is not the only DentVision client. Android has a real API surface too;
+  // treating Android-only endpoints as "no frontend consumer" created false
+  // orphan signals in the system map.
+  const clientRoots = [FRONTEND_SRC, join(REPO_ROOT, 'android', 'app', 'src')];
+  const files = clientRoots.flatMap((root) =>
+    walk(root, (p) => /\.(ts|tsx|kt|java)$/.test(p)),
+  );
   const paths = new Set<string>();
   for (const file of files) {
-    if (file.includes('.test.')) continue;
+    if (file.includes('.test.') || file.includes('/android/app/src/test/') || file.includes('/android/app/src/androidTest/')) continue;
     const source = read(file);
     for (const match of source.matchAll(/['"`](\/api\/[^'"`\s]*)['"`]/g)) {
       paths.add(match[1]);
