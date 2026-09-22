@@ -15,7 +15,7 @@ function read(path: string): string {
 function walk(dir: string, filter: (p: string) => boolean): string[] {
   const out: string[] = [];
   let entries: Dirent[] = [];
-  try { entries = readdirSync(dir, { withFileTypes: true }); } catch { return out; }
+  try { entries = readdirSync(dir, { withFileTypes: true }).sort((a, b) => a.name.localeCompare(b.name)); } catch { return out; }
   for (const entry of entries) {
     const path = join(dir, entry.name);
     if (entry.isDirectory()) {
