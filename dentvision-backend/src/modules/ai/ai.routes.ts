@@ -166,6 +166,13 @@ interface ProcessedResponse extends AIResponse {
   learnedLabels?: string[];
   activePersona?: string;
   activePersonaLabel?: string;
+  activeWorkspace?: {
+    name: string;
+    scopeType: string;
+    scopeId: string;
+    organizationId: string | null;
+    roleLabel: string;
+  } | null;
 }
 
 /**
@@ -400,6 +407,7 @@ async function processQuery(
         learnedLabels,
         activePersona: result.activePersona,
         activePersonaLabel: result.activePersonaLabel,
+        activeWorkspace,
       };
     } catch (error) {
       // A dead provider (no credits, revoked key) cannot be fixed by falling
@@ -416,6 +424,7 @@ async function processQuery(
           toolsUsed: [],
           learnedHint,
           learnedLabels,
+          activeWorkspace,
         };
       }
       console.error('[AI OS] orchestrator failed, falling back to intent router:', error);
@@ -432,7 +441,7 @@ async function processQuery(
   };
   const response = await aiService.processMessage(text, context, sessionId);
   response.message = (await improveResponseWithLLM(text, response, context)) || response.message;
-  return { ...response, learnedHint, learnedLabels };
+  return { ...response, learnedHint, learnedLabels, activeWorkspace };
 }
 
 aiRouter.post('/query', validate(querySchema), async (req: AuthRequest, res) => {
