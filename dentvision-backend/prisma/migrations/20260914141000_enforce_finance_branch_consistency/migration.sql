@@ -15,8 +15,8 @@ BEGIN
     FROM branches b
     WHERE b.clinic_id = NEW."clinicId"
       AND b.active = true
-      AND b."isDefault" = true
-    ORDER BY b."createdAt" ASC
+      AND b.is_default = true
+    ORDER BY b.created_at ASC
     LIMIT 1;
   END IF;
 
