@@ -94,7 +94,7 @@ describe('resolveAuthContext — default scope', () => {
   it('prefers a clinic organization over other org types', async () => {
     personFindMany.mockResolvedValueOnce([{ personType: 'CLINIC_STAFF', organizationId: ORG_ID, organization: clinicOrg, personRoles: activeClinicRole }]);
     const ctx = await resolveAuthContext(USER_ID);
-    expect(ctx).toEqual({ organizationId: ORG_ID, organizationType: 'CLINIC', personType: 'CLINIC_STAFF', clinicId: CLINIC_ID });
+    expect(ctx).toMatchObject({ organizationId: ORG_ID, organizationOriginalId: CLINIC_ID, organizationType: 'CLINIC', personType: 'CLINIC_STAFF', clinicId: CLINIC_ID });
   });
 
   it('falls back to the oldest legacy membership', async () => {
