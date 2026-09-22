@@ -2230,11 +2230,9 @@ async function main() {
       startPayoutReadinessCronInterval();
     }
     // AI admin worker is independent of cron settings.
-    try {
-      startMessageWorker();
-    } catch (err) {
+    void startMessageWorker().catch((err) => {
       console.warn('[AI_ADMIN] Worker start failed (non-fatal):', err);
-    }
+    });
   });
 }
 
