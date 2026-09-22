@@ -70,6 +70,11 @@ export interface OrchestratorInput {
   text: string;
   userId: string;
   clinicId: string | null;
+  /** Active IAM context; used to resolve partner roles/permissions. */
+  organizationId?: string | null;
+  organizationType?: string | null;
+  supplierId?: string | null;
+  lecturerId?: string | null;
   role: string;
   userName?: string;
   sessionId: string;
