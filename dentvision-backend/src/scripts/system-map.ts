@@ -110,14 +110,20 @@ interface RouteDef {
 function readRoutes(): RouteDef[] {
   const files = walk(join(BACKEND_SRC, 'modules'), (p) => p.endsWith('.routes.ts') && !p.endsWith('.test.ts'));
   const routes: RouteDef[] = [];
-  const pattern = new RegExp(`(\\w+)\\.(${HTTP_METHODS.join('|')})\\(\\s*'([^']*)'`, 'g');
+  const pattern = new RegExp(`(\\w+)\\.(${HTTP_METHODS.join('|')})\\(\\s*['"`]`, 'g');
 
   for (const file of files) {
     const source = read(file);
+    // Route modules may use `const router = Router()` and export it under
+    // a descriptive name. Discover actual Router() variables instead of
+    // assuming the local variable itself ends with `Router`.
+    const routerVars = new Set(
+      [...source.matchAll(/(?:const|let|var)\s+(\w+)\s*=\s*(?:Router|express\.Router)\s*\(/g)].map((m) => m[1]),
+    );
     for (const match of source.matchAll(pattern)) {
       const [, routerVar, method, path] = match;
-      if (!/Router$/.test(routerVar)) continue;
-      routes.push({ file: relative(REPO_ROOT, file), routerVar, method: method.toUpperCase(), path });
+      if (!routerVars.has(routerVar)) continue;
+      routes.push({ file: relative(REPO_ROOT, file), routerVar, method: method.toUpperCase(), path: path ?? '' });
     }
   }
   return routes;
@@ -490,6 +496,10 @@ function main(): void {
 
   const appSource = read(join(BACKEND_SRC, 'app.ts'));
   const unmounted = [...byRouter.keys()].filter((r) => !mounts.some((m) => m.router === r));
+  const mountedRouteRegistrations = mounts.reduce((sum, mount) => sum + (byRouter.get(mount.router)?.length ?? 0), 0);
+  const mountCounts = new Map<string, number>();
+  for (const mount of mounts) mountCounts.set(mount.router, (mountCounts.get(mount.router) ?? 0) + 1);
+  const duplicateMounts = [...mountCounts.entries()].filter(([, count]) => count > 1).map(([router, count]) => ({ router, count }));
   const unusedModels = models.filter((m) => m.reads === 0 && m.writes === 0);
   const writeOnly = models.filter((m) => m.writes > 0 && m.reads === 0);
   const readOnly = models.filter((m) => m.reads > 0 && m.writes === 0);
@@ -512,7 +522,7 @@ function main(): void {
       ['Измерение', 'Значение'],
       [
         ['Смонтированных роутеров', String(mounts.length)],
-        ['Обработчиков маршрутов', String(routes.length)],
+        ['Уникальных обработчиков маршрутов в source', String(routes.length)],
         ['Маршрутов без потребителя на фронте', `**${orphanRoutes.length}**`],
         ['Роутеров, объявленных но не смонтированных', String(unmounted.length)],
         ['Prisma-моделей', String(models.length)],
@@ -535,12 +545,25 @@ function main(): void {
 
   out.push('## Роутеры');
   out.push('');
+  out.push('Маршрутов в таблице = уникальные route handlers, найденные в конкретном route-файле.');
+  out.push('После app.use один router может быть зарегистрирован несколько раз, поэтому число HTTP-регистраций может быть выше.');
+  out.push('Повторные mounts показываются отдельно и не считаются ошибкой сами по себе.');
+  out.push('');
   out.push('«Без потребителя» = ни один строковый литерал `/api/...` во фронтенде');
   out.push('не совпадает с маршрутом посегментно. Это **не** значит «мёртвый»:');
   out.push('так же выглядят вебхуки, серверные интеграции и внутренние вызовы.');
   out.push('');
   out.push(table(['Префикс', 'Роутер', 'Маршрутов', 'Без потребителя'], mountRows));
   out.push('');
+  if (duplicateMounts.length > 0) {
+    out.push('### Router, смонтированный более одного раза');
+    out.push('');
+    for (const item of duplicateMounts) {
+      const prefixes = mounts.filter((m) => m.router === item.router).map((m) => `\\`${m.prefix}\\``).join(', ');
+      out.push(`- \\`${item.router}\\` — ${item.count} mounts: ${prefixes}`);
+    }
+    out.push('');
+  }
 
   if (unmounted.length > 0) {
     out.push('### Объявлены и импортированы, но не смонтированы');
