@@ -54,6 +54,8 @@ export interface JwtPayload {
   lecturerId?: string;
   // Unified organization context (Phase 2)
   organizationId?: string;
+  /** Original domain entity ID behind the active unified organization. */
+  organizationOriginalId?: string;
   organizationType?: string;
   personType?: string;
   branchId?: string;
