@@ -12,10 +12,10 @@ CREATE TABLE IF NOT EXISTS "branches" (
   "address" TEXT,
   "phone" TEXT,
   "active" BOOLEAN NOT NULL DEFAULT true,
-  "isDefault" BOOLEAN NOT NULL DEFAULT false,
+  "is_default" BOOLEAN NOT NULL DEFAULT false,
   "settings" JSONB,
-  "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  "updatedAt" TIMESTAMP(3) NOT NULL,
+  "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  "updated_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
   CONSTRAINT "branches_pkey" PRIMARY KEY ("id")
 );
 
@@ -32,8 +32,8 @@ SET "organization_id" = o."id"
 FROM "organizations" o
 WHERE b."organization_id" IS NULL
   AND b."clinic_id" IS NOT NULL
-  AND o."originalId" = b."clinic_id"
-  AND o."originalType" = 'CLINIC';
+  AND o."original_id" = b."clinic_id"
+  AND o."original_type" = 'Clinic';
 
 -- branch_id is the canonical physical column. The Prisma model maps
 -- ClinicMember.branchId to it with @map("branch_id").
