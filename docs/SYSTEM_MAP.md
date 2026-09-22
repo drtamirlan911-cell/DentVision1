@@ -110,6 +110,3 @@ Identity -> Active Workspace -> Organization -> Branch -> Role -> Permission -> 
 - subscriptionCron.ts
 - workflowRetry.ts
 
-> **Generated** `npm run system-map` from source code.
-> Do not edit manually — rerun the generator.
-> Judgments belong in `SYSTEM_AUDIT.md`; this file contains only facts derivable from code.
