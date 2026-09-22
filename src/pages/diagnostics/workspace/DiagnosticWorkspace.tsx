@@ -68,7 +68,7 @@ export function DiagnosticWorkspace({ kind: pinnedKind }: { kind?: OrgKind }) {
 
   const config = WORKSPACES[kind]
   const isOwnOrg = user?.organizationType === config.organizationType
-  const ownOrgId = (user as (typeof user) & { organizationOriginalId?: string })?.organizationOriginalId || user?.organizationId || ''
+  const ownOrgId = user?.organizationOriginalId || user?.organizationId || ''
 
   const myOrgs = useMemo(
     () => diagnosticContexts.filter((c: any) => c.scopeType === config.organizationType),
