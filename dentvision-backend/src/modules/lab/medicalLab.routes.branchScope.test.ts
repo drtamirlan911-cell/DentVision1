@@ -7,8 +7,10 @@ describe('medical lab branch isolation contract', () => {
 
   it('checks branch membership for clinic medical-lab orders', () => {
     expect(source).toContain('user?.branchIds ?? []');
-    expect(source).toContain('o."clinicId" = ${args.length}');
-    expect(source).toContain('o."labId" = ${args.length}');
+    expect(source).toContain('o."clinicId" = $1');
+    expect(source).not.toContain('o."clinicId" = ${args.length}');
+    expect(source).toContain('o."labId" = $1');
+    expect(source).not.toContain('o."labId" = ${args.length}');
     expect(source).toContain('branchId: { in: branchIds }');
     expect(source).toContain('p."branchId" = ANY(${args.length}::text[])');
   });
