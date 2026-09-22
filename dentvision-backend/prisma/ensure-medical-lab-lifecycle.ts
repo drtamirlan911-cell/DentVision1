@@ -28,7 +28,15 @@ const statements = [
   `CREATE INDEX IF NOT EXISTS "medical_lab_orders_labId_status_idx" ON "medical_lab_orders"("labId","status")`,
   `DO $$ BEGIN ALTER TABLE "medical_lab_orders" ADD CONSTRAINT "medical_lab_orders_clinicId_fkey" FOREIGN KEY ("clinicId") REFERENCES "clinics"("id") ON DELETE CASCADE ON UPDATE CASCADE; EXCEPTION WHEN duplicate_object THEN NULL; END $$`,
   `DO $$ BEGIN ALTER TABLE "medical_lab_orders" ADD CONSTRAINT "medical_lab_orders_patientId_fkey" FOREIGN KEY ("patientId") REFERENCES "patients"("id") ON DELETE SET NULL ON UPDATE CASCADE; EXCEPTION WHEN duplicate_object THEN NULL; END $$`,
-  `DO $$ BEGIN ALTER TABLE "medical_lab_orders" ADD CONSTRAINT "medical_lab_orders_treatmentCaseId_fkey" FOREIGN KEY ("treatmentCaseId") REFERENCES "treatment_cases"("id") ON DELETE SET NULL ON UPDATE CASCADE; EXCEPTION WHEN duplicate_object THEN NULL; END $$`,
+  `DO $ BEGIN
+    IF to_regclass('public.treatment_cases') IS NOT NULL THEN
+      BEGIN
+        ALTER TABLE "medical_lab_orders" ADD CONSTRAINT "medical_lab_orders_treatmentCaseId_fkey"
+          FOREIGN KEY ("treatmentCaseId") REFERENCES "treatment_cases"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+      EXCEPTION WHEN duplicate_object THEN NULL;
+      END;
+    END IF;
+  END $`,
   `DO $$ BEGIN ALTER TABLE "medical_lab_orders" ADD CONSTRAINT "medical_lab_orders_labId_fkey" FOREIGN KEY ("labId") REFERENCES "laboratories"("id") ON DELETE SET NULL ON UPDATE CASCADE; EXCEPTION WHEN duplicate_object THEN NULL; END $$`,
   `DO $$ BEGIN ALTER TABLE "medical_lab_orders" ADD CONSTRAINT "medical_lab_orders_orderedByUserId_fkey" FOREIGN KEY ("orderedByUserId") REFERENCES "users"("id") ON DELETE RESTRICT ON UPDATE CASCADE; EXCEPTION WHEN duplicate_object THEN NULL; END $$`,
   `CREATE TABLE IF NOT EXISTS "medical_lab_order_tests" (
