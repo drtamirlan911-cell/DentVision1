@@ -22,6 +22,8 @@ export function useDiagnosticsOrgScope(): DiagnosticsOrgScope {
     user?.organizationType === 'LABORATORY' ? 'LAB'
       : user?.organizationType === 'DIAGNOSTIC_CENTER' ? 'CENTER'
         : null
-  const orgId = orgKind ? (user?.organizationId || '') : ''
+  const orgId = orgKind
+    ? ((user as typeof user & { organizationOriginalId?: string })?.organizationOriginalId || user?.organizationId || '')
+    : ''
   return { clinicId, orgKind, orgId }
 }
