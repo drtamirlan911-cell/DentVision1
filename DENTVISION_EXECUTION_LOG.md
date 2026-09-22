@@ -868,3 +868,10 @@ Run the exact current main-tip CI. Inspect the generated Visual Agent evidence f
 - Current mobile release-gate artifact exposed a real evidence-quality problem: several critical routes were captured as the global loading spinner at desktop/tablet widths because the gate waited only 400 ms after navigation.
 - 63e30dc8155f62af13cd165ccb8aee6ca0d25f19 adds an explicit visual-readiness wait that rejects the full-screen loading shell before taking screenshots. This does not mask a permanent loading state: it times out if meaningful content never replaces the loader.
 - Current CI still has a separate core E2E failure and a role/context gate failure; those are being investigated from their actual artifacts/logs rather than assumed to be visual-only.
+
+
+## 2026-09-22 — Confirmed CTA contrast root cause from fresh responsive screenshot
+
+- Fresh CI responsive evidence still showed `Новое направление` with a gold background and nearly-gold text, so the previous Button-level fix was not actually reaching the rendered primary button.
+- Root cause was confirmed in `src/styles/dentvision-unified-theme.css`: the selector `[class*='text-dv-gold']` also matched the distinct class `text-dv-gold-on` and, with `!important`, overrode the intended dark-on-gold foreground.
+-  a139ee7a6891228d358f9936b7f39f075bdd3519 changes the selector to the exact class-token form `[class~='text-dv-gold']`, preserving `text-dv-gold-on` and fixing primary-button contrast without changing the design token itself.
