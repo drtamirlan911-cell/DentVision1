@@ -287,7 +287,8 @@ model Branch {
 
   organization Organization? @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   clinic       Clinic?       @relation(fields: [clinicId], references: [id], onDelete: SetNull)
-  members      ClinicMember[]
+  clinicMembers ClinicMember[] @relation("ClinicMemberBranch")
+  members       BranchMember[] @relation("BranchMemberBranch")
 
   @@unique([organizationId, code])
   @@index([organizationId])
@@ -339,7 +340,7 @@ model ClinicMember {
 
   user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
   clinic Clinic @relation(fields: [clinicId], references: [id], onDelete: Cascade)
-  branch Branch? @relation(fields: [branchId], references: [id], onDelete: SetNull)
+  branch Branch? @relation("ClinicMemberBranch", fields: [branchId], references: [id], onDelete: SetNull)
 
   joinedAt  DateTime  @default(now())
   updatedAt DateTime? @updatedAt
@@ -3642,6 +3643,7 @@ model BranchMember {
   id        String   @id @default(uuid())
   personId  String
   branchId  String
+  branch Branch @relation("BranchMemberBranch", fields: [branchId], references: [id], onDelete: Cascade)
   active    Boolean  @default(true)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
