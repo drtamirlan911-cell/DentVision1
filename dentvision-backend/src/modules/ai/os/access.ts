@@ -131,10 +131,24 @@ export async function resolveAiToolAccess(input: AiToolAccessInput): Promise<AiT
       if (role === 'SELLER') role = 'SUPPLIER';
     }
   } else if (input.supplierId) {
-    role = String(input.supplierId ? 'SUPPLIER' : user.role);
+    const member = await prisma.supplierMember.findUnique({
+      where: { userId_supplierId: { userId: input.userId, supplierId: input.supplierId } },
+      select: { role: true },
+    });
+    if (!member) {
+      return { role: 'GUEST', clinicId: null, allowed: new Set(), employee: employeeContractForRole('GUEST') };
+    }
+    role = 'SUPPLIER';
     const org = await prisma.organization.findFirst({ where: { originalId: input.supplierId } });
     organizationId = org?.id || null;
   } else if (input.lecturerId) {
+    const lecturer = await prisma.lecturer.findFirst({
+      where: { id: input.lecturerId, userId: input.userId },
+      select: { id: true },
+    });
+    if (!lecturer) {
+      return { role: 'GUEST', clinicId: null, allowed: new Set(), employee: employeeContractForRole('GUEST') };
+    }
     role = 'LECTURER';
     const person = await prisma.person.findFirst({
       where: { userId: input.userId, originalId: input.lecturerId },
