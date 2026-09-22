@@ -1,4 +1,5 @@
 ALTER TABLE "branch_members"
-ADD COLUMN "active" BOOLEAN NOT NULL DEFAULT true;
+ADD COLUMN IF NOT EXISTS "active" BOOLEAN NOT NULL DEFAULT true;
 
-CREATE INDEX "branch_members_branchId_active_idx" ON "branch_members"("branchId", "active");
+CREATE INDEX IF NOT EXISTS "branch_members_branchId_active_idx"
+ON "branch_members"("branchId", "active");
