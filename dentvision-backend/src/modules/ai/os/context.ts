@@ -56,8 +56,16 @@ export async function buildAiContext(req: AuthRequest, hints: ContextHints): Pro
     : (user.organizationId || null);
 
   let workspace: AiRequestContext['workspace'] = null;
+  // The active workspace token may retain a legacy clinicId for compatibility.
+  // Partner workspaces must win over that stale clinic scope; otherwise the AI
+  // silently reconstructs the clinic workspace after every switch.
+  const hasNonClinicWorkspace = Boolean(
+    user.supplierId
+    || user.lecturerId
+    || (user.organizationId && user.organizationType && user.organizationType !== 'CLINIC'),
+  );
   try {
-    if (clinicId) {
+    if (clinicId && !hasNonClinicWorkspace) {
       const access = await resolveClinicAccess(user.id, clinicId);
       const clinic = access
         ? await prisma.clinic.findUnique({ where: { id: clinicId }, select: { id: true, name: true } })
