@@ -83,7 +83,7 @@ body { background: var(--dv-surface-2) !important; color: var(--dv-text) !import
 [class*='text-txt-primary'] { color: var(--dv-text) !important; }
 [class*='text-txt-secondary'] { color: color-mix(in srgb, var(--dv-text) 72%, transparent) !important; }
 [class*='text-txt-muted'] { color: var(--dv-muted) !important; }
-[class*='text-dv-gold'] { color: var(--dv-accent) !important; }
+[class~='text-dv-gold'] { color: var(--dv-accent) !important; }
 [class*='border-bdr-subtle'], [class*='border-bdr'] { border-color: var(--dv-border) !important; }
 
 /* Legacy service surfaces become one material language. */
