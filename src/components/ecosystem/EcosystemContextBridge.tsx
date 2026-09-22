@@ -14,6 +14,21 @@ export interface EcosystemContextBridgeProps {
   compact?: boolean;
 }
 
+const ROLE_LABELS: Record<string, string> = {
+  diagnostic_owner: 'Владелец диагностического центра',
+  diagnostic_operator: 'Оператор диагностического центра',
+  medical_lab_owner: 'Владелец медицинской лаборатории',
+  medical_lab_tech: 'Лаборант',
+  dental_lab_owner: 'Владелец зуботехнической лаборатории',
+  dental_technician: 'Зубной техник',
+  owner: 'Руководитель',
+  admin: 'Администратор',
+  doctor: 'Врач',
+  assistant: 'Ассистент',
+  manager: 'Менеджер',
+  patient: 'Пациент',
+};
+
 const ACTION_TARGETS: Record<string, Parameters<ReturnType<typeof useEcosystemDeepLinks>['open']>[0]> = {
   'find-provider': 'diagnostics',
   'create-diagnostic-referral': 'diagnostics',
@@ -38,6 +53,7 @@ export default function EcosystemContextBridge({ patientId, caseId, branchId, or
   const { open } = useEcosystemDeepLinks({ patientId, caseId, branchId, organizationId });
   const { availableActions } = useEcosystemActionRegistry();
   const contextLabel = organizationName || (hasOrganization || hasClinic ? 'Рабочий контекст' : 'Личный контекст');
+  const roleLabel = ROLE_LABELS[String(role || '').toLowerCase()] || role || participant;
   const contextState = [patientId && 'пациент', caseId && 'кейс', branchId && 'филиал'].filter(Boolean).join(' · ');
   const actions = availableActions.slice(0, compact ? 2 : 3);
 
@@ -49,7 +65,7 @@ export default function EcosystemContextBridge({ patientId, caseId, branchId, or
         </span>
         <div className="min-w-0 flex-1">
           <div className="truncate text-xs font-semibold text-txt-primary">{contextLabel}</div>
-          <div className="truncate text-[10px] text-txt-muted">{role || participant}{contextState ? ` · ${contextState}` : ''}</div>
+          <div className="truncate text-[10px] text-txt-muted">{roleLabel}{contextState ? ` · ${contextState}` : ''}</div>
         </div>
         <div className="flex items-center gap-1.5">
           {!compact && <button type="button" onClick={() => open('ai')} className="inline-flex min-h-9 items-center gap-1.5 rounded-xl border border-dv-gold/20 px-2.5 py-2 text-[10px] font-medium text-txt-secondary hover:border-dv-gold/35 hover:text-dv-gold"><Sparkles size={12} /> AI</button>}
