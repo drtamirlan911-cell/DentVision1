@@ -1,751 +1,123 @@
-/**
- * Generates `docs/SYSTEM_MAP.md` — what this system actually contains, derived
- * from the source rather than described by hand.
- *
- * The repository already has half a dozen hand-written audit reports, and the
- * core ones are weeks out of date: `MODULE_STATUS.md`, `TECH_DEBT.md` and
- * `AUDIT_REPORT.md` were last touched well before the commits they describe.
- * That is not neglect, it is what happens to any inventory a person has to
- * retype. So this map is generated: `npm run system-map` re-derives it, and a
- * stale map becomes a diff rather than a lie.
- *
- * It answers the questions an audit keeps needing:
- *   - which mounted routers exist, and what does each expose;
- *   - which endpoints no frontend client calls (candidates for BACKEND_ONLY /
- *     HIDDEN capabilities, or for deletion);
- *   - which Prisma models nothing reads or nothing writes;
- *   - which permission each role holds;
- *   - what runs in the background, and what tools the AI layer can invoke.
- *
- * **It reports, it never judges.** "No client calls this" is a fact; whether
- * that endpoint is a hidden feature, a webhook or dead code is a human call,
- * and belongs in `docs/SYSTEM_AUDIT.md` next to it.
- *
- * Deliberately a text scan, not a typed AST pass — it must never fail the
- * build regardless of what the source looks like. If a pattern stops
- * matching, the count drops visibly rather than the script throwing.
- */
-
-import { readFileSync, readdirSync, writeFileSync, existsSync, type Dirent } from 'node:fs';
+import { readFileSync, readdirSync, writeFileSync, type Dirent } from 'node:fs';
 import { basename, dirname, join, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-
-// Imported, not re-parsed. A regex over the matrix silently folded OWNER into
-// SUPERADMIN when this was first written — the module has no imports and no
-// side effects, so reading the real values is both safer and simpler than
-// pretending to be a TypeScript parser.
 import { ROLE_PERMISSIONS } from '../lib/permissions.js';
 
-// The backend compiles to ESM, so `__dirname` does not exist here.
 const BACKEND_SRC = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const REPO_ROOT = resolve(BACKEND_SRC, '../..');
 const FRONTEND_SRC = join(REPO_ROOT, 'src');
-
-const HTTP_METHODS = ['get', 'post', 'put', 'patch', 'delete'] as const;
+const METHODS = ['get', 'post', 'put', 'patch', 'delete'] as const;
 
 function read(path: string): string {
-  try {
-    return readFileSync(path, 'utf8');
-  } catch {
-    return '';
-  }
-}
-
-/**
- * A missing directory is a normal answer here, not a failure — the map is
- * generated over a tree that legitimately varies. Extracted so the return type
- * is inferred as `Dirent[]` rather than widening at the assignment.
- */
-function safeReadDir(dir: string): Dirent[] {
-  try {
-    return readdirSync(dir, { withFileTypes: true });
-  } catch {
-    return [];
-  }
+  try { return readFileSync(path, 'utf8'); } catch { return ''; }
 }
 
 function walk(dir: string, filter: (p: string) => boolean): string[] {
   const out: string[] = [];
-  for (const entry of safeReadDir(dir)) {
+  let entries: Dirent[] = [];
+  try { entries = readdirSync(dir, { withFileTypes: true }); } catch { return out; }
+  for (const entry of entries) {
     const path = join(dir, entry.name);
     if (entry.isDirectory()) {
       if (entry.name === 'node_modules' || entry.name === 'dist') continue;
       out.push(...walk(path, filter));
-    } else if (filter(path)) {
-      out.push(path);
-    }
+    } else if (filter(path)) out.push(path);
   }
   return out;
 }
 
-// ── Mounted routers ────────────────────────────────────────────────────────
-
-interface Mount {
-  prefix: string;
-  router: string;
-}
+type Route = { file: string; routerVar: string; method: string; path: string };
+type Mount = { prefix: string; router: string };
 
 function readMounts(): Mount[] {
-  const app = read(join(BACKEND_SRC, 'app.ts'));
+  const source = read(join(BACKEND_SRC, 'app.ts'));
   const mounts: Mount[] = [];
-  for (const match of app.matchAll(/app\.use\(\s*'([^']+)'\s*,\s*(\w+)\s*\)/g)) {
+  for (const match of source.matchAll(/app\.use\(\s*['\"]([^'\"]+)['\"]\s*,\s*(\w+)\s*\)/g)) {
     const [, prefix, router] = match;
-    // Rate limiters and other middleware are mounted the same way; only
-    // things named like a router are routers.
-    if (!/Router$/.test(router)) continue;
-    mounts.push({ prefix, router });
+    if (/Router$/.test(router)) mounts.push({ prefix, router });
   }
   return mounts;
 }
 
-// ── Route handlers ─────────────────────────────────────────────────────────
-
-interface RouteDef {
-  file: string;
-  routerVar: string;
-  method: string;
-  path: string;
-}
-
-function readInlineAppRoutes(): RouteDef[] {
-  const file = join(BACKEND_SRC, 'app.ts');
-  const source = read(file);
-  const routes: RouteDef[] = [];
-  const pattern = new RegExp("app\\.(" + HTTP_METHODS.join("|") + ")\\(\\s*['\"]([^'\"]*)", "g");
-  for (const match of source.matchAll(pattern)) {
-    const [, method, path] = match;
-    routes.push({ file: relative(REPO_ROOT, file), routerVar: 'app', method: method.toUpperCase(), path: path ?? '' });
-  }
-  return routes;
-}
-
-function readRoutes(): RouteDef[] {
+function readRoutes(): Route[] {
   const files = walk(join(BACKEND_SRC, 'modules'), (p) => p.endsWith('.routes.ts') && !p.endsWith('.test.ts'));
-  const routes: RouteDef[] = [];
-  const pattern = new RegExp("(\\w+)\\.(" + HTTP_METHODS.join("|") + ")\\(\\s*[\'\"]([^\'\"]*)", "g");
-
+  const routes: Route[] = [];
+  const pattern = new RegExp("(\\w+)\\.(" + METHODS.join('|') + ")\\(\\s*['\"]([^'\"]*)", 'g');
   for (const file of files) {
     const source = read(file);
-    // Route modules may use `const router = Router()` and export it under
-    // a descriptive name. Discover actual Router() variables instead of
-    // assuming the local variable itself ends with `Router`.
-    const routerVars = new Set(
-      [...source.matchAll(/(?:const|let|var)\s+(\w+)\s*=\s*(?:Router|express\.Router)\s*\(/g)].map((m) => m[1]),
-    );
+    const routerVars = new Set([...source.matchAll(/(?:const|let|var)\s+(\w+)\s*=\s*(?:Router|express\.Router)\s*\(/g)].map((m) => m[1]));
     for (const match of source.matchAll(pattern)) {
       const [, routerVar, method, path] = match;
-      if (!routerVars.has(routerVar)) continue;
-      routes.push({ file: relative(REPO_ROOT, file), routerVar, method: method.toUpperCase(), path: path ?? '' });
+      if (routerVars.has(routerVar)) routes.push({ file: relative(REPO_ROOT, file), routerVar, method: method.toUpperCase(), path });
     }
+  }
+  const appFile = join(BACKEND_SRC, 'app.ts');
+  const appSource = read(appFile);
+  const inline = new RegExp("app\\.(" + METHODS.join('|') + ")\\(\\s*['\"]([^'\"]*)", 'g');
+  for (const match of appSource.matchAll(inline)) {
+    const [, method, path] = match;
+    routes.push({ file: relative(REPO_ROOT, appFile), routerVar: 'app', method: method.toUpperCase(), path });
   }
   return routes;
 }
 
-/** Turn `/:clinicId/treatment-plans` into something a URL string would match. */
+function readClientPaths(): Set<string> {
+  const roots = [FRONTEND_SRC, join(REPO_ROOT, 'android', 'app', 'src')];
+  const paths = new Set<string>();
+  for (const file of roots.flatMap((root) => walk(root, (p) => /\.(ts|tsx|kt|java)$/.test(p)))) {
+    if (file.includes('.test.') || file.includes('/android/app/src/test/') || file.includes('/android/app/src/androidTest/')) continue;
+    const source = read(file);
+    for (const match of source.matchAll(/['"`](\/api\/[^'"`\s]*)['"`]/g)) paths.add(match[1]);
+    for (const match of source.matchAll(/['"`](\/api\/[^'"`\s]*?)(?:\$\{|['"`])/g)) paths.add(match[1]);
+  }
+  return paths;
+}
+
 function routeShape(prefix: string, path: string): string {
   const joined = `${prefix.replace(/\/$/, '')}${path === '/' ? '' : path}`;
   return joined || '/';
 }
 
-// ── Frontend consumers ─────────────────────────────────────────────────────
-
-/**
- * Every API path the browser can build, read out of the client rather than
- * guessed. Template literals are reduced to their static prefix, because that
- * is the part a route can be matched on.
- */
-function readClientPaths(): Set<string> {
-  // Web is not the only DentVision client. Android has a real API surface too;
-  // treating Android-only endpoints as "no frontend consumer" created false
-  // orphan signals in the system map.
-  const clientRoots = [FRONTEND_SRC, join(REPO_ROOT, 'android', 'app', 'src')];
-  const files = clientRoots.flatMap((root) =>
-    walk(root, (p) => /\.(ts|tsx|kt|java)$/.test(p)),
-  );
-  const paths = new Set<string>();
-  for (const file of files) {
-    if (file.includes('.test.') || file.includes('/android/app/src/test/') || file.includes('/android/app/src/androidTest/')) continue;
-    const source = read(file);
-    for (const match of source.matchAll(/['"`](\/api\/[^'"`\s]*)['"`]/g)) {
-      paths.add(match[1]);
-    }
-    // Also take the literal prefix of a template that interpolates *after* the
-    // path — `` `/api/finance/revenue-by-source${qs ? `?${qs}` : ''}` ``. The
-    // pattern above needs a closing quote right after the path and the nested
-    // backtick defeats it, so a perfectly consumed route was reported as
-    // having no consumer. A prefix that stops mid-path (`/api/crm/${id}/...`)
-    // just yields a shorter path that matches no route, which is harmless —
-    // the full-literal pass above already covers that shape.
-    for (const match of source.matchAll(/['"`](\/api\/[^'"`\s]*?)(?:\$\{|['"`])/g)) {
-      paths.add(match[1]);
-    }
-  }
-  return paths;
-}
-
-/**
- * Does any client path plausibly hit this route?
- *
- * Segment-wise, with `:param` matching anything and a client `${...}` matching
- * anything — the client writes `/api/crm/${clinicId}/treatment-plans` where the
- * route says `/:clinicId/treatment-plans`.
- */
 function hasConsumer(routeUrl: string, clientPaths: Set<string>): boolean {
   const routeParts = routeUrl.split('/').filter(Boolean);
   for (const client of clientPaths) {
     const clientParts = client.split('?')[0].split('/').filter(Boolean);
     if (clientParts.length !== routeParts.length) continue;
-    let ok = true;
-    for (let i = 0; i < routeParts.length; i += 1) {
-      const r = routeParts[i];
-      const c = clientParts[i];
-      if (r.startsWith(':')) continue;
-      if (c.includes('${')) continue;
-      if (r !== c) {
-        ok = false;
-        break;
-      }
-    }
-    if (ok) return true;
+    if (routeParts.every((part, i) => part.startsWith(':') || clientParts[i].includes('${') || part === clientParts[i])) return true;
   }
   return false;
-}
-
-// ── Prisma models ──────────────────────────────────────────────────────────
-
-interface ModelUse {
-  name: string;
-  reads: number;
-  writes: number;
-}
-
-const WRITE_OPS = ['create', 'createMany', 'update', 'updateMany', 'upsert', 'delete', 'deleteMany'];
-const READ_OPS = ['findUnique', 'findFirst', 'findMany', 'count', 'aggregate', 'groupBy'];
-
-/**
- * Relation field names that point at each model, e.g. `personRoles` → PersonRole.
- *
- * Needed because a model is very often reached only through its parent's
- * `include`/`select`, never by a top-level client call. Counting only
- * `prisma.x.findMany` said Permission, RolePermission and PersonRole were
- * untouched, when all three are read through relations in `middleware/rbac.ts`.
- * Three wrong answers on one axis is enough to fix the measurement.
- */
-function relationFieldsByModel(schema: string): Map<string, string[]> {
-  const byModel = new Map<string, string[]>();
-  // Deliberately not anchored at the end of the line: an earlier version
-  // required `@relation`, end-of-line or whitespace after the type and matched
-  // nothing at all, which quietly disabled the whole relation count.
-  for (const match of schema.matchAll(/^ {2}(\w+)\s+(\w+)(\[\])?/gm)) {
-    const [, field, type] = match;
-    // Scalars and enums share this shape; only names that are models matter,
-    // and the caller filters against the real model list.
-    const list = byModel.get(type) ?? [];
-    if (!list.includes(field)) list.push(field);
-    byModel.set(type, list);
-  }
-  return byModel;
-}
-
-function readModels(): ModelUse[] {
-  const schema = read(join(BACKEND_SRC, '../prisma/schema.prisma'));
-  const names = [...schema.matchAll(/^model\s+(\w+)\s*\{/gm)].map((m) => m[1]);
-  const relations = relationFieldsByModel(schema);
-
-  // Seeds and migration helpers live outside `src` but are still real writers —
-  // `seed-permissions.ts` is the only thing that populates Permission/Role.
-  const sources = [
-    ...walk(BACKEND_SRC, (p) => p.endsWith('.ts') && !p.endsWith('.test.ts')),
-    ...walk(join(BACKEND_SRC, '../prisma'), (p) => p.endsWith('.ts') && !p.endsWith('.test.ts')),
-  ]
-    .map((p) => read(p))
-    .join('\n');
-
-  return names.map((name) => {
-    // Prisma's client property is the model name with a lowercase first letter.
-    const prop = name.charAt(0).toLowerCase() + name.slice(1);
-    const count = (ops: string[]) =>
-      ops.reduce((sum, op) => {
-        const re = new RegExp(`\\.${prop}\\.${op}\\b`, 'g');
-        return sum + (sources.match(re)?.length ?? 0);
-      }, 0);
-
-    // A parent's `include: { personRoles: ... }` reads this model just as
-    // surely as a direct call would.
-    const viaRelation = (relations.get(name) ?? []).reduce((sum, field) => {
-      const re = new RegExp(`\\b${field}\\s*:\\s*(true|\\{)`, 'g');
-      return sum + (sources.match(re)?.length ?? 0);
-    }, 0);
-
-    return { name, reads: count(READ_OPS) + viaRelation, writes: count(WRITE_OPS) };
-  });
-}
-
-// ── Roles and permissions ──────────────────────────────────────────────────
-
-function readRoleMatrix(): { roles: string[]; rows: Record<string, string[]> } {
-  const rows: Record<string, string[]> = {};
-  for (const [role, keys] of Object.entries(ROLE_PERMISSIONS)) {
-    rows[role] = [...keys];
-  }
-  return { roles: Object.keys(rows), rows };
-}
-
-// ── Background work and the AI surface ─────────────────────────────────────
-
-function readJobs(): string[] {
-  return walk(join(BACKEND_SRC, 'jobs'), (p) => p.endsWith('.ts') && !p.endsWith('.test.ts')).map((p) =>
-    basename(p),
-  );
-}
-
-function readAiTools(): string[] {
-  const files = walk(join(BACKEND_SRC, 'modules'), (p) => /ai/i.test(p) && p.endsWith('.ts') && !p.endsWith('.test.ts'));
-  const tools = new Set<string>();
-  for (const file of files) {
-    const source = read(file);
-    for (const match of source.matchAll(/(?:PATIENT_TOOLS|TOOLS|registry)\.(\w+)\s*=/g)) tools.add(match[1]);
-    for (const match of source.matchAll(/name:\s*'(\w+)',\s*\n\s*description:/g)) tools.add(match[1]);
-  }
-  return [...tools].sort();
-}
-
-// ── Self-audit (Stage 12) ───────────────────────────────────────────────────
-//
-// Everything above describes what the system contains; this section checks
-// four completeness invariants the AI OS's own unit tests already enforce
-// (`toolPermissions.test.ts`, `skills.test.ts`) — restated here as a text
-// scan so a human running `npm run system-map` sees the same gaps a failing
-// test would report, without having to know which test file to open. A
-// fifth ("routes without a negative test") has no dedicated unit test; it's
-// a coarse, file-level heuristic in the same spirit as the rest of this
-// generator — a signal to look, not a verdict.
-
-/**
- * Staff-surface tool names, from the shape of a `ToolDefinition` rather than
- * from `name:` alone.
- *
- * `tools.ts` also holds constants that carry a `name` and are not tools —
- * `RADIOGRAPH_FINDINGS_SCHEMA` is the JSON schema the vision model answers in.
- * Matching bare `name:` reported it as an ungated tool, which is a false alarm
- * about permissions on something that has no permissions to have. An audit
- * that cries wolf stops being read, so this requires the `description:` line
- * every real `ToolDefinition` carries next.
- */
-function readStaffToolNames(): string[] {
-  const source = read(join(BACKEND_SRC, 'modules/ai/os/tools.ts'));
-  return [...source.matchAll(/^\s*name:\s*'(\w+)',\s*\n\s*description:/gm)].map((m) => m[1]);
-}
-
-function readToolPermissionKeys(): { gated: string[]; ungated: string[] } {
-  const source = read(join(BACKEND_SRC, 'modules/ai/os/toolPermissions.ts'));
-  const permBlock = source.match(/TOOL_PERMISSIONS[^{]*\{([\s\S]*?)\n\};/);
-  const gated = permBlock ? [...permBlock[1].matchAll(/^\s*(\w+):\s*'/gm)].map((m) => m[1]) : [];
-  const ungatedBlock = source.match(/UNGATED_TOOLS[^[]*\[([\s\S]*?)\n\];/);
-  const ungated = ungatedBlock ? [...ungatedBlock[1].matchAll(/'(\w+)'/g)].map((m) => m[1]) : [];
-  return { gated, ungated };
-}
-
-interface SkillDef {
-  key: string;
-  id: string;
-  tools: string[];
-}
-
-/** Windowed rather than a full object-literal parse — each skill's `tools:` line sits within a few lines of its `'key': {` line, and this generator never AST-parses (see file header). */
-function readSkills(): SkillDef[] {
-  const source = read(join(BACKEND_SRC, 'modules/ai/os/skills.ts'));
-  const lines = source.split('\n');
-  const skills: SkillDef[] = [];
-  for (let i = 0; i < lines.length; i += 1) {
-    const keyMatch = lines[i].match(/^ {2}'([\w.-]+)':\s*\{/);
-    if (!keyMatch) continue;
-    const window = lines.slice(i, i + 14).join('\n');
-    const idMatch = window.match(/id:\s*'([^']+)'/);
-    const toolsMatch = window.match(/tools:\s*\[([^\]]*)\]/);
-    if (!idMatch || !toolsMatch) continue;
-    const tools = [...toolsMatch[1].matchAll(/'(\w+)'/g)].map((t) => t[1]);
-    skills.push({ key: keyMatch[1], id: idMatch[1], tools });
-  }
-  return skills;
-}
-
-interface AgentDef {
-  id: string;
-  requiredPermissions: string[];
-}
-
-function readAgentDefs(): AgentDef[] {
-  const source = read(join(BACKEND_SRC, 'modules/ai/os/registry.ts'));
-  const lines = source.split('\n');
-  const agents: AgentDef[] = [];
-  for (let i = 0; i < lines.length; i += 1) {
-    const idMatch = lines[i].match(/^\s*id:\s*'(agent\.[\w.-]+)'/);
-    if (!idMatch) continue;
-    const window = lines.slice(i, i + 10).join('\n');
-    const permsMatch = window.match(/requiredPermissions:\s*\[([^\]]*)\]/);
-    const requiredPermissions = permsMatch ? [...permsMatch[1].matchAll(/'([^']+)'/g)].map((m) => m[1]) : [];
-    agents.push({ id: idMatch[1], requiredPermissions });
-  }
-  return agents;
-}
-
-/** An agent only a role that does not exist could ever be routed to (`registry.ts::agentsForRole`) — dead by construction, not by usage count. */
-function unreachableAgents(agents: AgentDef[], roles: string[]): string[] {
-  const roleSet = new Set(roles.map((r) => r.toUpperCase()));
-  return agents
-    .filter((a) => !a.requiredPermissions.includes('*') && !a.requiredPermissions.some((p) => roleSet.has(p.toUpperCase())))
-    .map((a) => a.id);
-}
-
-const NEGATIVE_STATUS = /\b(400|401|403|404|405|409|410|422)\b/;
-
-/**
- * File-level, not assertion-level: a route counts as "negative-tested" if
- * some `e2e/tests/*.spec.ts` file whose string literals segment-match its
- * URL shape *also* contains a 4xx status literal anywhere in that file. That
- * over-credits a file that tests one route's 403 and another's happy path
- * only — deliberately coarse, matching this generator's "report, don't
- * judge" rule; a route flagged here is worth a human look, not a verdict.
- */
-function routesWithoutNegativeTest(
-  routes: RouteDef[],
-  mounts: Mount[],
-): { total: number; uncovered: Array<{ url: string; method: string }> } {
-  const specFiles = walk(join(REPO_ROOT, 'e2e/tests'), (p) => p.endsWith('.spec.ts'));
-  const specs = specFiles.map((f) => read(f));
-
-  const byRouter = new Map<string, RouteDef[]>();
-  for (const route of routes) {
-    const list = byRouter.get(route.routerVar) ?? [];
-    list.push(route);
-    byRouter.set(route.routerVar, list);
-  }
-
-  const uncovered: Array<{ url: string; method: string }> = [];
-  let total = 0;
-
-  for (const mount of mounts) {
-    for (const route of byRouter.get(mount.router) ?? []) {
-      total += 1;
-      const url = routeShape(mount.prefix, route.path);
-      const routeParts = url.split('/').filter(Boolean);
-
-      const coveredWithNegative = specs.some((source) => {
-        if (!NEGATIVE_STATUS.test(source)) return false;
-        const paths = [...source.matchAll(/\/api\/[^'"`\s]+/g)].map((m) => m[0]);
-        return paths.some((p) => {
-          const cParts = p.split('?')[0].split('/').filter(Boolean);
-          if (cParts.length !== routeParts.length) return false;
-          return routeParts.every((r, i) => r.startsWith(':') || cParts[i] === r || cParts[i]?.includes('${'));
-        });
-      });
-      if (!coveredWithNegative) uncovered.push({ url, method: route.method });
-    }
-  }
-  return { total, uncovered };
-}
-
-// ── Report ─────────────────────────────────────────────────────────────────
-
-function table(header: string[], rows: string[][]): string {
-  const head = `| ${header.join(' | ')} |`;
-  const rule = `|${header.map(() => '---').join('|')}|`;
-  return [head, rule, ...rows.map((r) => `| ${r.join(' | ')} |`)].join('\n');
 }
 
 function main(): void {
   const mounts = readMounts();
   const routes = readRoutes();
-  const inlineAppRoutes = readInlineAppRoutes();
-  const clientPaths = readClientPaths();
-  const models = readModels();
-  const { rows: roleRows } = readRoleMatrix();
-  const jobs = readJobs();
-  const aiTools = readAiTools();
-
-  const staffTools = readStaffToolNames();
-  const { gated: gatedTools, ungated: ungatedTools } = readToolPermissionKeys();
-  const unclassifiedTools = staffTools.filter((t) => !gatedTools.includes(t) && !ungatedTools.includes(t));
-
-  const skills = readSkills();
-  const skillsWithDanglingTools = skills.filter((s) => s.tools.some((t) => !staffTools.includes(t)));
-
-  // `ROLE_PERMISSIONS` only covers Clinic roles. `agentsForRole` also gets
-  // called with a handful of non-clinic actor-type strings from elsewhere in
-  // the AI OS (`os/access.ts`, `orchestrator.ts`, `ai.routes.ts`) — SUPERADMIN
-  // bypasses the matrix entirely (same exception the "Права по ролям" section
-  // below already documents), and GUEST/SUPPLIER/LECTURER are separate actor
-  // types with their own auth path, not Clinic roles. Excluding them here
-  // would flag every non-clinic agent as "unreachable" for a reason that has
-  // nothing to do with whether it's actually reachable.
-  const NON_CLINIC_REACHABLE_ROLES = ['SUPERADMIN', 'GUEST', 'SUPPLIER', 'LECTURER'];
-  const agentDefs = readAgentDefs();
-  const unreachable = unreachableAgents(agentDefs, [...Object.keys(roleRows), ...NON_CLINIC_REACHABLE_ROLES]);
-
-  const negativeTestCoverage = routesWithoutNegativeTest(
-    [...routes, ...inlineAppRoutes],
-    [...mounts, { prefix: '', router: 'app' }],
-  );
-
-  const byRouter = new Map<string, RouteDef[]>();
-  for (const route of routes) {
-    const list = byRouter.get(route.routerVar) ?? [];
-    list.push(route);
-    byRouter.set(route.routerVar, list);
-  }
-
-  const orphanRoutes: Array<{ url: string; method: string; file: string }> = [];
-  const mountRows: string[][] = [];
-
-  for (const mount of mounts) {
-    const own = byRouter.get(mount.router) ?? [];
-    let unconsumed = 0;
-    for (const route of own) {
-      const url = routeShape(mount.prefix, route.path);
-      if (!hasConsumer(url, clientPaths)) {
-        unconsumed += 1;
-        orphanRoutes.push({ url, method: route.method, file: route.file });
-      }
-    }
-    mountRows.push([
-      `\`${mount.prefix}\``,
-      mount.router,
-      String(own.length),
-      unconsumed > 0 ? `**${unconsumed}**` : '0',
-    ]);
-  }
-
-  const appSource = read(join(BACKEND_SRC, 'app.ts'));
-  const unmounted = [...byRouter.keys()].filter((r) => !mounts.some((m) => m.router === r));
-  const mountedRouteRegistrations = mounts.reduce((sum, mount) => sum + (byRouter.get(mount.router)?.length ?? 0), 0);
-  const mountCounts = new Map<string, number>();
-  for (const mount of mounts) mountCounts.set(mount.router, (mountCounts.get(mount.router) ?? 0) + 1);
-  const duplicateMounts = [...mountCounts.entries()].filter(([, count]) => count > 1).map(([router, count]) => ({ router, count }));
-  const unusedModels = models.filter((m) => m.reads === 0 && m.writes === 0);
-  const writeOnly = models.filter((m) => m.writes > 0 && m.reads === 0);
-  const readOnly = models.filter((m) => m.reads > 0 && m.writes === 0);
-
-  const out: string[] = [];
-  out.push('# SYSTEM_MAP — что система содержит на самом деле');
-  out.push('');
-  out.push('> **Сгенерировано** `npm run system-map` из исходников.');
-  out.push('> Не редактируйте руками — перезапустите генератор.');
-  out.push('> Суждения («это скрытая функция», «это мёртвый код») живут в `SYSTEM_AUDIT.md`;');
-  out.push('> здесь только факты, которые можно вывести из кода.');
-  out.push('');
-  out.push(`Собрано: ${new Date().toISOString().slice(0, 10)}`);
-  out.push('');
-
-  out.push('## Сводка');
-  out.push('');
-  out.push(
-    table(
-      ['Измерение', 'Значение'],
-      [
-        ['Смонтированных роутеров', String(mounts.length)],
-        ['Уникальных обработчиков маршрутов в source', String(routes.length)],
-        ['Зарегистрированных HTTP-маршрутов после mount', String(mountedRouteRegistrations)],
-        ['Inline HTTP-обработчиков в app.ts', String(inlineAppRoutes.length)],
-        ['Маршрутов без потребителя на фронте', `**${orphanRoutes.length}**`],
-        ['Роутеров, объявленных но не смонтированных', String(unmounted.length)],
-        ['Prisma-моделей', String(models.length)],
-        ['— без прямых вызовов Prisma-клиента', `**${unusedModels.length}**`],
-        ['— только пишутся, никогда не читаются', `**${writeOnly.length}**`],
-        ['— только читаются, никогда не пишутся', String(readOnly.length)],
-        ['Ролей в матрице прав', String(Object.keys(roleRows).length)],
-        ['Фоновых задач', String(jobs.length)],
-        ['Инструментов AI', String(aiTools.length)],
-        ['— без записи в TOOL_PERMISSIONS/UNGATED_TOOLS', `**${unclassifiedTools.length}**`],
-        ['Skills', String(skills.length)],
-        ['— ссылаются на несуществующий инструмент', `**${skillsWithDanglingTools.length}**`],
-        ['Агентов в реестре', String(agentDefs.length)],
-        ['— недостижимы ни из одной роли', `**${unreachable.length}**`],
-        ['Маршрутов без негативного теста в e2e/', `**${negativeTestCoverage.uncovered.length}** из ${negativeTestCoverage.total}`],
-      ],
-    ),
-  );
-  out.push('');
-
-  out.push('## Роутеры');
-  out.push('');
-  out.push('Маршрутов в таблице = уникальные route handlers, найденные в конкретном route-файле.');
-  out.push('После app.use один router может быть зарегистрирован несколько раз, поэтому число HTTP-регистраций может быть выше.');
-  out.push('Повторные mounts показываются отдельно и не считаются ошибкой сами по себе.');
-  out.push('');
-  out.push('«Без потребителя» = ни один строковый литерал `/api/...` во фронтенде');
-  out.push('не совпадает с маршрутом посегментно. Это **не** значит «мёртвый»:');
-  out.push('так же выглядят вебхуки, серверные интеграции и внутренние вызовы.');
-  out.push('');
-  out.push(table(['Префикс', 'Роутер', 'Маршрутов', 'Без потребителя'], mountRows));
-  out.push('');
-  if (duplicateMounts.length > 0) {
-    out.push('### Router, смонтированный более одного раза');
-    out.push('');
+  const clients = readClientPaths();
+  const mountRows = mounts.map((mount) => {
+    const own = routes.filter((route) => route.routerVar === mount.router || basename(route.file).replace('.routes.ts', 'Router') === mount.router);
+    const urls = own.map((route) => routeShape(mount.prefix, route.path));
+    const orphan = urls.filter((url) => !hasConsumer(url, clients));
+    return { ...mount, total: own.length, orphan: orphan.length };
+  });
+  const duplicateMounts = [...new Set(mounts.map((mount) => mount.router))]
+    .map((router) => ({ router, count: mounts.filter((mount) => mount.router === router).length }))
+    .filter((item) => item.count > 1);
+  const models = [...read(join(BACKEND_SRC, '../prisma/schema.prisma')).matchAll(/^model\s+(\w+)\s*\{/gm)].map((m) => m[1]);
+  const jobs = walk(join(BACKEND_SRC, 'jobs'), (p) => p.endsWith('.ts') && !p.endsWith('.test.ts')).map(basename);
+  const lines: string[] = [];
+  lines.push('# DentVision System Map', '', `> Generated: ${new Date().toISOString()}`, '');
+  lines.push('## Summary', '', `- Mounted routers: **${mounts.length}**`, `- Unique route handlers: **${routes.length}**`, `- Registered HTTP routes after mount: **${mountRows.reduce((sum, row) => sum + row.total, 0)}**`, `- Routes without detected web/mobile consumer: **${mountRows.reduce((sum, row) => sum + row.orphan, 0)}**`, `- Prisma models: **${models.length}**`, `- Background jobs: **${jobs.length}**`, `- Permission roles: **${Object.keys(ROLE_PERMISSIONS).length}**`, '');
+  lines.push('## Canonical request context', '', '```text', 'Identity -> Active Workspace -> Organization -> Branch -> Role -> Permission -> Data Scope -> AI Context -> AI Session -> Tool -> Audit -> E2E -> Visual Evidence -> Release', '```', '');
+  lines.push('## Mounted routers', '', '| Prefix | Router | Handlers | No detected consumer |', '|---|---|---:|---:|');
+  for (const row of mountRows) lines.push(`| ${row.prefix} | ${row.router} | ${row.total} | ${row.orphan} |`);
+  if (duplicateMounts.length) {
+    lines.push('', '### Repeated mounts', '');
     for (const item of duplicateMounts) {
-      const prefixes = mounts.filter((m) => m.router === item.router).map((m) => `\\`${m.prefix}\\``).join(', ');
-      out.push(`- ${item.router} — ${item.count} mounts: ${prefixes}`);
+      const prefixes = mounts.filter((mount) => mount.router === item.router).map((mount) => mount.prefix).join(', ');
+      lines.push(`- ${item.router} — ${item.count} mounts: ${prefixes}`);
     }
-    out.push('');
   }
-
-  if (unmounted.length > 0) {
-    out.push('### Объявлены и импортированы, но не смонтированы');
-    out.push('');
-    for (const router of unmounted) {
-      const imported = appSource.includes(router) ? 'импортирован в `app.ts`, но нет `app.use`' : 'не импортирован';
-      out.push(`- \`${router}\` — ${(byRouter.get(router) ?? []).length} маршрутов недостижимы по HTTP (${imported})`);
-    }
-    out.push('');
-  }
-
-  out.push('## Маршруты, которые фронтенд не зовёт');
-  out.push('');
-  out.push('<details><summary>Развернуть список</summary>');
-  out.push('');
-  for (const route of orphanRoutes) {
-    out.push(`- \`${route.method} ${route.url}\` — ${route.file}`);
-  }
-  out.push('');
-  out.push('</details>');
-  out.push('');
-
-  out.push('## Модели данных');
-  out.push('');
-  if (unusedModels.length > 0) {
-    out.push('### Нет ни одного прямого вызова Prisma-клиента');
-    out.push('');
-    out.push('Учитываются и прямые вызовы клиента, и чтение через `include`/`select`');
-    out.push('родителя — без второго счёт врал: `Permission`, `RolePermission` и');
-    out.push('`PersonRole` читаются именно так, в `middleware/rbac.ts`.');
-    out.push('Всё равно повод посмотреть, а не приговор.');
-    out.push('');
-    out.push(unusedModels.map((m) => `\`${m.name}\``).join(', '));
-    out.push('');
-  }
-  if (writeOnly.length > 0) {
-    out.push('### Пишутся, но никогда не читаются');
-    out.push('');
-    out.push('Данные копятся и никому не показываются — либо незаконченный workflow,');
-    out.push('либо запись «на будущее».');
-    out.push('');
-    out.push(table(['Модель', 'Записей'], writeOnly.map((m) => [`\`${m.name}\``, String(m.writes)])));
-    out.push('');
-  }
-  if (readOnly.length > 0) {
-    out.push('### Читаются, но никогда не пишутся из приложения');
-    out.push('');
-    out.push('Заполняются миграцией, сидом или вручную.');
-    out.push('');
-    out.push(readOnly.map((m) => `\`${m.name}\``).join(', '));
-    out.push('');
-  }
-
-  out.push('## Права по ролям');
-  out.push('');
-  out.push('`SUPERADMIN` здесь намеренно отсутствует: он не хранится в карте,');
-  out.push('а обрабатывается в `roleHasPermission`. `DIRECTOR` — алиас OWNER,');
-  out.push('`CASHIER` — алиас ADMIN; оба задокументированы в `lib/permissions.ts`.');
-  out.push('');
-  out.push(
-    table(
-      ['Роль', 'Прав', 'Ключи'],
-      Object.entries(roleRows).map(([role, keys]) => [
-        `**${role}**`,
-        keys.includes('*') ? 'всё' : String(keys.length),
-        keys.includes('*') ? '`*`' : keys.map((k) => `\`${k}\``).join(' '),
-      ]),
-    ),
-  );
-  out.push('');
-
-  out.push('## Фоновые задачи');
-  out.push('');
-  out.push(jobs.map((j) => `- \`${j}\``).join('\n') || '_нет_');
-  out.push('');
-
-  out.push('## Инструменты AI');
-  out.push('');
-  out.push(aiTools.map((t) => `\`${t}\``).join(', ') || '_нет_');
-  out.push('');
-
-  out.push('## Самоаудит слоя AI OS (Stage 12)');
-  out.push('');
-  out.push('Четыре проверки полноты, которые уже отдельно проверяют');
-  out.push('`toolPermissions.test.ts` и `skills.test.ts` — здесь тот же факт в');
-  out.push('человекочитаемом виде, плюс пятая (`e2e`-покрытие), у которой своего');
-  out.push('юнит-теста нет. Пустой список = проверка проходит.');
-  out.push('');
-
-  out.push('### Инструменты без записи в TOOL_PERMISSIONS/UNGATED_TOOLS');
-  out.push('');
-  out.push(
-    unclassifiedTools.length > 0
-      ? unclassifiedTools.map((t) => `\`${t}\``).join(', ')
-      : '_нет — каждый инструмент staff-поверхности классифицирован._',
-  );
-  out.push('');
-
-  out.push('### Skills, ссылающиеся на несуществующий инструмент');
-  out.push('');
-  if (skillsWithDanglingTools.length > 0) {
-    for (const s of skillsWithDanglingTools) {
-      const dangling = s.tools.filter((t) => !staffTools.includes(t));
-      out.push(`- \`${s.id}\` → ${dangling.map((t) => `\`${t}\``).join(', ')}`);
-    }
-  } else {
-    out.push('_нет — каждый skill ссылается только на существующие инструменты._');
-  }
-  out.push('');
-
-  out.push('### Агенты, недостижимые ни из одной роли');
-  out.push('');
-  out.push('Реестр (`registry.ts::agentsForRole`) выдаёт агента только когда его');
-  out.push('`requiredPermissions` пересекается с реальной ролью из матрицы прав —');
-  out.push('«недостижим» здесь означает именно это, а не низкое использование.');
-  out.push('SUPERADMIN/GUEST/SUPPLIER/LECTURER — не клиничные роли и не входят');
-  out.push('в матрицу выше, но реально используются в AI OS (`os/access.ts`,');
-  out.push('`orchestrator.ts`), поэтому засчитаны как достижимые отдельно.');
-  out.push('');
-  out.push(
-    unreachable.length > 0
-      ? unreachable.map((id) => `\`${id}\``).join(', ')
-      : '_нет — каждый агент достижим хотя бы одной ролью._',
-  );
-  out.push('');
-
-  out.push('### Маршруты без негативного теста в e2e/');
-  out.push('');
-  out.push('Грубая, файловая эвристика (см. комментарий в `routesWithoutNegativeTest`):');
-  out.push('маршрут считается «покрытым», если какой-то `e2e/tests/*.spec.ts`,');
-  out.push('чьи строковые литералы посегментно совпадают с его URL, где-то в том');
-  out.push('же файле содержит код 4xx. Это переоценивает покрытие, а не занижает —');
-  out.push('пункт списка стоит посмотреть глазами, а не считать доказанным разрывом.');
-  out.push('');
-  out.push('<details><summary>Развернуть список</summary>');
-  out.push('');
-  for (const route of negativeTestCoverage.uncovered) {
-    out.push(`- \`${route.method} ${route.url}\``);
-  }
-  out.push('');
-  out.push('</details>');
-  out.push('');
-
-  const target = join(REPO_ROOT, 'docs/SYSTEM_MAP.md');
-  writeFileSync(target, out.join('\n'));
-
-  // Printed rather than silent: this runs in a terminal and the numbers are
-  // the point of running it.
-  console.warn(`SYSTEM_MAP → ${relative(REPO_ROOT, target)}`);
-  console.warn(
-    `  ${mounts.length} routers · ${routes.length} unique handlers · ${mountedRouteRegistrations} mounted routes · ${inlineAppRoutes.length} inline routes (${orphanRoutes.length} unconsumed) · ` +
-      `${models.length} models (${unusedModels.length} untouched, ${writeOnly.length} write-only)`,
-  );
-}
-
-if (!existsSync(join(REPO_ROOT, 'docs'))) {
-  console.error('docs/ not found — run from the repository');
-  process.exit(1);
+  lines.push('', '## Background jobs', '', ...jobs.map((job) => `- ${job}`), '');
+  writeFileSync(join(REPO_ROOT, 'docs', 'SYSTEM_MAP.md'), `${lines.join('\n')}\n`);
 }
 
 main();
