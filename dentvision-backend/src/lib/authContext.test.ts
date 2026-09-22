@@ -36,7 +36,7 @@ describe('resolveAuthContext — preferred organization', () => {
   it('maps a clinic organization to the clinic id, not the organization id', async () => {
     personFindFirst.mockResolvedValueOnce({ personType: 'CLINIC_STAFF', organizationId: ORG_ID, organization: clinicOrg, personRoles: activeClinicRole });
     const ctx = await resolveAuthContext(USER_ID, { organizationId: ORG_ID });
-    expect(ctx).toEqual({ organizationId: ORG_ID, organizationType: 'CLINIC', personType: 'CLINIC_STAFF', clinicId: CLINIC_ID });
+    expect(ctx).toEqual({ organizationId: ORG_ID, organizationOriginalId: CLINIC_ID, organizationType: 'CLINIC', personType: 'CLINIC_STAFF', clinicId: CLINIC_ID });
   });
 
   it('leaves clinicId unset for a non-clinic organization', async () => {
@@ -110,7 +110,7 @@ describe('resolveAuthContext — default scope', () => {
       .mockResolvedValueOnce([])
       .mockResolvedValueOnce([{ personType: 'LECTURER', organizationId: 'org-3', organization: { id: 'org-3', type: 'ACADEMY', originalId: 'academy-1' }, personRoles: [{ scopeType: 'organization', scopeId: 'org-3', role: { key: 'lecturer' } }] }]);
     const ctx = await resolveAuthContext(USER_ID);
-    expect(ctx).toEqual({ organizationId: 'org-3', organizationType: 'ACADEMY', personType: 'LECTURER' });
+    expect(ctx).toEqual({ organizationId: 'org-3', organizationOriginalId: 'academy-1', organizationType: 'ACADEMY', personType: 'LECTURER' });
   });
 
   it('returns an empty context for a user with no memberships at all', async () => {
