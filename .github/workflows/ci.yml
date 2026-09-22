@@ -47,6 +47,10 @@ jobs:
         run: npm run project:index
       - name: Validate generated project index
         run: git diff --exit-code -- quality-scripts/project-index.generated.ts
+      - name: Generate system map
+        run: npm run system-map --prefix dentvision-backend
+      - name: Validate generated system map
+        run: git diff --exit-code -- docs/SYSTEM_MAP.md
       - run: npx prisma generate
       - run: npm run build --if-present
       - run: npx tsc --noEmit
