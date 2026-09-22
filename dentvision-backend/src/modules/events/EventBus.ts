@@ -1,4 +1,4 @@
-import { Redis } from 'ioredis';
+import type { Redis } from 'ioredis';
 import { randomUUID } from 'crypto';
 import { EventEmitter } from 'events';
 import {
@@ -10,7 +10,7 @@ import {
   EventStats,
 } from './EventTypes.js';
 import { eventStore } from './EventStore.js';
-import { env } from '../../config.js';
+import { getRedis, disableRedisFor } from '../../lib/redis.js';
 
 const STREAM_KEY = 'dentvision:events';
 const CONSUMER_GROUP = 'ai-orchestrator';
@@ -28,21 +28,11 @@ export class EventBus implements IEventBus {
   private pollTimer: ReturnType<typeof setInterval> | null = null;
 
   async connect(): Promise<void> {
-    const redisUrl = env.REDIS_URL || '';
-    const forced = env.REDIS_ENABLED === 'true';
-    const wantsRedis =
-      Boolean(redisUrl) && (forced || !(redisUrl.includes('localhost') || redisUrl.includes('127.0.0.1')));
+    const redis = getRedis();
 
-    if (wantsRedis) {
+    if (redis) {
       try {
-        this.redis = new Redis(redisUrl, {
-          maxRetriesPerRequest: 3,
-          retryStrategy(times: number) {
-            if (times > 3) return null;
-            return Math.min(times * 200, 2000);
-          },
-        });
-
+        this.redis = redis;
         await this.redis.ping();
 
         // Create consumer group (ignore if already exists)
@@ -64,6 +54,7 @@ export class EventBus implements IEventBus {
       } catch (err) {
         console.warn('[EventBus] Redis connection failed, falling back to in-memory:', err);
         this.redis = null;
+        disableRedisFor();
       }
     }
 
@@ -80,7 +71,6 @@ export class EventBus implements IEventBus {
     }
 
     if (this.redis) {
-      await this.redis.quit();
       this.redis = null;
     }
 
@@ -212,7 +202,22 @@ export class EventBus implements IEventBus {
       }
     } catch (err) {
       console.error('[EventBus] Poll error:', err);
+      // Provider hard limits (notably Upstash request exhaustion) must stop
+      // the polling loop instead of generating an unbounded stream of Redis
+      // requests while normal API/DB routes are still healthy.
+      this.stopRedisMode(err);
     }
+  }
+
+  private stopRedisMode(error: unknown): void {
+    if (this.pollTimer) {
+      clearInterval(this.pollTimer);
+      this.pollTimer = null;
+    }
+    this.redis = null;
+    this.useRedis = false;
+    console.warn('[EventBus] Redis disabled; continuing in memory mode:', error);
+    disableRedisFor();
   }
 
   private async processRedisMessage(
