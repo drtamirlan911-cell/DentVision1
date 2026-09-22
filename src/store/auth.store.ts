@@ -106,6 +106,7 @@ export interface WorkspaceContext {
   id: string; scopeType: string; scopeId: string; organizationId?: string;
   name: string; roleKey: string; roleLabel: string; personType?: string;
   logo?: string | null; joinedAt?: string; role?: string; level?: string;
+  branchId?: string;
   clinic?: unknown; supplier?: unknown; academy?: unknown;
 }
 
@@ -121,7 +122,37 @@ function normalizeUser(raw: any) { if (!raw) return raw; const name = raw.name |
 function mapMemberships(raw: any[]): Membership[] { return (raw || []).map((m: any) => ({ id: m.id || m.clinicId, clinicId: m.clinicId, role: normalizeRole(m.role), spec: m.spec || null, department: m.department || null, status: m.status || 'active', joinedAt: m.joinedAt || new Date().toISOString(), clinic: m.clinic ? { ...m.clinic, type: m.clinic.type || 'clinic' } : null })) }
 function mapActiveMembership(raw: any): Membership | null { if (!raw) return null; return mapMemberships([raw])[0] || null }
 async function hydrateAuthFromMe() { const me = await api.getMe() as any; const user = normalizeUser(me.user); const memberships = mapMemberships(me.memberships || []); const activeMembership = pickActiveMembership(mapActiveMembership(me.activeMembership), memberships); return { user, memberships, activeMembership, permissions: me.permissions || [], pages: me.pages || [], effectiveRole: me.effectiveRole || null, capabilities: me.capabilities || { canSeeSalary: false, canAddStaff: false, canSeeAudit: false, canBackup: false, canSeeReports: false, canSeeExpenses: false, canManageClinicSettings: false, canManageFinance: false, ownDataOnly: false, readOnly: false } } }
-function getTokenClinicId(token: string | null | undefined): string | null { try { const payload = token?.split('.')[1]; if (!payload) return null; return JSON.parse(atob(payload.replace(/-/g, '+').replace(/_/g, '/'))).clinicId || null } catch { return null } }
+function getTokenContext(token: string | null | undefined): Record<string, any> {
+  try {
+    const payload = token?.split('.')[1];
+    if (!payload) return {};
+    return JSON.parse(atob(payload.replace(/-/g, '+').replace(/_/g, '/').padEnd(Math.ceil(payload.length / 4) * 4, '='))) || {};
+  } catch { return {} }
+}
+function getTokenClinicId(token: string | null | undefined): string | null {
+  return getTokenContext(token).clinicId || null;
+}
+function resolveWorkspaceFromToken(contexts: WorkspaceContext[], token: string | null | undefined): WorkspaceContext | null {
+  const claims = getTokenContext(token);
+  const orgId = claims.organizationId ? String(claims.organizationId) : null;
+  const orgOriginalId = claims.organizationOriginalId ? String(claims.organizationOriginalId) : null;
+  const orgType = claims.organizationType ? String(claims.organizationType) : null;
+  const clinicId = claims.clinicId ? String(claims.clinicId) : null;
+  const supplierId = claims.supplierId ? String(claims.supplierId) : null;
+  const lecturerId = claims.lecturerId ? String(claims.lecturerId) : null;
+  const branchId = claims.branchId ? String(claims.branchId) : undefined;
+  const matches = contexts.filter((w) => {
+    if (branchId && w.branchId === branchId) return true;
+    if (w.scopeType === 'CLINIC' && clinicId && w.scopeId === clinicId) return true;
+    if (w.scopeType === 'SUPPLIER' && supplierId && w.scopeId === supplierId) return true;
+    if (w.scopeType === 'LECTURER' && lecturerId && w.scopeId === lecturerId) return true;
+    if (orgId && w.organizationId === orgId) return true;
+    if (orgOriginalId && w.scopeId === orgOriginalId) return true;
+    if (orgType && w.scopeType === orgType) return w.scopeId === orgId || w.scopeId === orgOriginalId;
+    return false;
+  });
+  return matches[0] ? { ...matches[0], ...(branchId ? { branchId } : {}) } : null;
+}
 function buildClinicFromMembership(m: Membership | null): Clinic | null { if (!m) return null; if (m.clinic) return m.clinic as Clinic; if (m.clinicId) return { id: m.clinicId, name: 'Клиника' } as Clinic; return null }
 function resolveRole(activeMembership: Membership | null, user: User | null): string { return normalizeRole(activeMembership?.role || user?.platformRole || user?.role || 'user') }
 export function getRoleDisplayLabel(role: string | null | undefined): string {
@@ -143,15 +174,15 @@ function resolveRoleInfo(activeMembership: Membership | null, user: User | null)
 function pickActiveMembership(active: Membership | null, memberships: Membership[]): Membership | null { if (active?.clinicId) return active; return memberships[0] || null }
 
 async function applySignIn(set: (partial: Partial<AuthState>) => void, result: any): Promise<void> {
-  let workspaceContexts: WorkspaceContext[] = []
-  try { workspaceContexts = (await api.getMyContexts()).contexts || [] } catch { /* workspace list is non-blocking */ }
   const { accessToken, refreshToken } = result.tokens || result
   api.setTokens(accessToken, refreshToken)
+  let workspaceContexts: WorkspaceContext[] = []
+  try { workspaceContexts = (await api.getMyContexts()).contexts || [] } catch { /* workspace list is non-blocking */ }
   let user = normalizeUser(result.user); let memberships = mapMemberships(result.memberships || []); let activeMembership = pickActiveMembership(mapActiveMembership(result.activeMembership), memberships)
   let permissions: string[] = Array.isArray(result.permissions) ? result.permissions : []; let pages: string[] = Array.isArray(result.pages) ? result.pages : []; let effectiveRole: string | null = result.effectiveRole || null
   let capabilities = result.capabilities || { canSeeSalary: false, canAddStaff: false, canSeeAudit: false, canBackup: false, canSeeReports: false, canSeeExpenses: false, canManageClinicSettings: false, canManageFinance: false, ownDataOnly: false, readOnly: false }
   if (!user || result.memberships === undefined) { const me = await hydrateAuthFromMe(); user = me.user; memberships = me.memberships; activeMembership = pickActiveMembership(me.activeMembership, memberships); permissions = me.permissions; pages = me.pages; effectiveRole = me.effectiveRole; capabilities = me.capabilities }
-  set({ user, token: accessToken, refreshToken, clinic: buildClinicFromMembership(activeMembership), clinics: memberships, workspaceContexts, activeWorkspace: workspaceContexts.find((w) => w.scopeType === 'CLINIC' && w.scopeId === (user as any)?.clinicId) || workspaceContexts[0] || null, activeMembership, activeClinic: buildClinicFromMembership(activeMembership), permissions, pages, effectiveRole, capabilities, loading: false, error: null })
+  set({ user, token: accessToken, refreshToken, clinic: buildClinicFromMembership(activeMembership), clinics: memberships, workspaceContexts, activeWorkspace: resolveWorkspaceFromToken(workspaceContexts, accessToken) || workspaceContexts.find((w) => w.scopeType === 'CLINIC' && w.scopeId === (user as any)?.clinicId) || workspaceContexts[0] || null, activeMembership, activeClinic: buildClinicFromMembership(activeMembership), permissions, pages, effectiveRole, capabilities, loading: false, error: null })
   useGuestStore.getState().clearGuest()
 }
 
@@ -165,7 +196,32 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   restoreSession: async () => {
     const stored = api.loadTokens(); if (!stored?.accessToken && !stored?.refreshToken) { set({ loading: false }); return }
     const inFlight = get()._restorePromise; if (inFlight) return inFlight
-    const run = (async () => { set({ loading: true, _restoring: true }); try { const me = await hydrateAuthFromMe(); let accessToken = stored.accessToken; let refreshToken = stored.refreshToken; if (me.activeMembership?.clinicId && !getTokenClinicId(accessToken)) { const switched = await api.switchClinic(me.activeMembership.clinicId); accessToken = switched.accessToken || accessToken; refreshToken = switched.refreshToken || refreshToken; api.setTokens(accessToken, refreshToken) } set({ user: me.user, token: accessToken, refreshToken, clinic: buildClinicFromMembership(me.activeMembership), clinics: me.memberships, workspaceContexts: get().workspaceContexts, activeWorkspace: get().activeWorkspace, activeMembership: me.activeMembership, activeClinic: buildClinicFromMembership(me.activeMembership), permissions: me.permissions, pages: me.pages, effectiveRole: me.effectiveRole || null, capabilities: me.capabilities }) } catch { api.clearTokens(); set({ user: null, token: null, refreshToken: null, clinic: null, clinics: [], workspaceContexts: [], activeWorkspace: null, activeMembership: null, activeClinic: null, permissions: [], pages: [], effectiveRole: null }) } finally { set({ loading: false, _restoring: false, _restorePromise: null }) } })(); set({ _restorePromise: run }); return run
+    const run = (async () => {
+      set({ loading: true, _restoring: true });
+      try {
+        const me = await hydrateAuthFromMe();
+        let accessToken = stored.accessToken;
+        let refreshToken = stored.refreshToken;
+        if (me.activeMembership?.clinicId && !getTokenClinicId(accessToken)) {
+          const switched = await api.switchClinic(me.activeMembership.clinicId);
+          accessToken = switched.accessToken || accessToken;
+          refreshToken = switched.refreshToken || refreshToken;
+          api.setTokens(accessToken, refreshToken);
+        }
+        let workspaceContexts: WorkspaceContext[] = [];
+        try { workspaceContexts = (await api.getMyContexts()).contexts || []; } catch { workspaceContexts = get().workspaceContexts; }
+        const activeWorkspace = resolveWorkspaceFromToken(workspaceContexts, accessToken)
+          || get().activeWorkspace
+          || workspaceContexts.find((w) => w.scopeType === 'CLINIC' && w.scopeId === me.activeMembership?.clinicId)
+          || workspaceContexts[0]
+          || null;
+        set({ user: me.user, token: accessToken, refreshToken, clinic: activeWorkspace?.scopeType === 'CLINIC' ? buildClinicFromMembership(me.activeMembership) : null, clinics: me.memberships, workspaceContexts, activeWorkspace, activeMembership: activeWorkspace?.scopeType === 'CLINIC' ? me.activeMembership : null, activeClinic: activeWorkspace?.scopeType === 'CLINIC' ? buildClinicFromMembership(me.activeMembership) : null, permissions: me.permissions, pages: me.pages, effectiveRole: me.effectiveRole || null, capabilities: me.capabilities });
+      } catch {
+        api.clearTokens();
+        set({ user: null, token: null, refreshToken: null, clinic: null, clinics: [], workspaceContexts: [], activeWorkspace: null, activeMembership: null, activeClinic: null, permissions: [], pages: [], effectiveRole: null });
+      } finally { set({ loading: false, _restoring: false, _restorePromise: null }) }
+    })();
+    set({ _restorePromise: run }); return run
   },
 
   login: async (loginStr, password) => { set({ loading: true, error: null }); try { await applySignIn(set, await api.login(loginStr, password)); return true } catch (err) { set({ loading: false, error: (err as Error).message || 'Login failed' }); return false } },
@@ -185,7 +241,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   },
 
   switchClinic: async (clinicId) => { try { const result = await api.switchClinic(clinicId); if (result?.accessToken) api.setTokens(result.accessToken, result.refreshToken ?? null); let activeMembership = mapActiveMembership(result?.activeMembership); if (!activeMembership && clinicId) activeMembership = get().clinics.find((m) => m.clinicId === clinicId) || null; set({ token: result?.accessToken || get().token, refreshToken: result?.refreshToken ?? get().refreshToken, activeMembership, clinic: buildClinicFromMembership(activeMembership), activeClinic: buildClinicFromMembership(activeMembership), permissions: Array.isArray(result?.permissions) ? result.permissions : get().permissions, pages: Array.isArray(result?.pages) ? result.pages : get().pages, effectiveRole: result?.effectiveRole || get().effectiveRole, capabilities: result.capabilities || get().capabilities, activeWorkspace: get().workspaceContexts.find((w) => w.scopeType === 'CLINIC' && w.scopeId === clinicId) || get().activeWorkspace }) } catch (err) { set({ error: (err as Error).message || 'Failed to switch clinic' }); throw err } },
-  switchWorkspace: async (workspace) => { try { const result = await api.switchWorkspace(workspace.scopeType, workspace.scopeId); if (result?.accessToken) api.setTokens(result.accessToken, result.refreshToken ?? null); const me = await hydrateAuthFromMe(); const activeWorkspace = get().workspaceContexts.find((w) => w.id === workspace.id) || workspace; set({ user: me.user, token: result?.accessToken || get().token, refreshToken: result?.refreshToken ?? get().refreshToken, clinics: me.memberships, activeMembership: me.memberships.find((m) => m.clinicId === activeWorkspace.scopeId) || null, clinic: activeWorkspace.scopeType === 'CLINIC' ? buildClinicFromMembership(me.memberships.find((m) => m.clinicId === activeWorkspace.scopeId) || null) : null, activeClinic: activeWorkspace.scopeType === 'CLINIC' ? buildClinicFromMembership(me.memberships.find((m) => m.clinicId === activeWorkspace.scopeId) || null) : null, permissions: Array.isArray(result?.permissions) ? result.permissions : me.permissions, pages: Array.isArray(result?.pages) ? result.pages : me.pages, effectiveRole: result?.effectiveRole || me.effectiveRole || null, capabilities: result?.capabilities || me.capabilities, activeWorkspace, error: null }); try { useAIStore.getState().resetAI() } catch {} } catch (err) { set({ error: (err as Error).message || 'Failed to switch workspace' }); throw err } },
+  switchWorkspace: async (workspace) => { try { const result = await api.switchWorkspace(workspace.scopeType, workspace.scopeId, workspace.branchId); if (result?.accessToken) api.setTokens(result.accessToken, result.refreshToken ?? null); const me = await hydrateAuthFromMe(); const activeWorkspace = get().workspaceContexts.find((w) => w.id === workspace.id) || workspace; set({ user: me.user, token: result?.accessToken || get().token, refreshToken: result?.refreshToken ?? get().refreshToken, clinics: me.memberships, activeMembership: me.memberships.find((m) => m.clinicId === activeWorkspace.scopeId) || null, clinic: activeWorkspace.scopeType === 'CLINIC' ? buildClinicFromMembership(me.memberships.find((m) => m.clinicId === activeWorkspace.scopeId) || null) : null, activeClinic: activeWorkspace.scopeType === 'CLINIC' ? buildClinicFromMembership(me.memberships.find((m) => m.clinicId === activeWorkspace.scopeId) || null) : null, permissions: Array.isArray(result?.permissions) ? result.permissions : me.permissions, pages: Array.isArray(result?.pages) ? result.pages : me.pages, effectiveRole: result?.effectiveRole || me.effectiveRole || null, capabilities: result?.capabilities || me.capabilities, activeWorkspace, error: null }); try { useAIStore.getState().resetAI() } catch {} } catch (err) { set({ error: (err as Error).message || 'Failed to switch workspace' }); throw err } },
   setActiveClinic: async (clinicId) => { await get().switchClinic(clinicId) },
   addStaffMember: async (staffData) => { if (!staffData.clinicId || !staffData.login || !staffData.password) return false; try { const result = await api.upsertUser(staffData); if (result) { const newUser = { ...staffData, id: result.id || gid() } as User; _seedStore.users = [..._seedStore.users, newUser]; return newUser } } catch (err) { console.error('API addStaff failed:', err) } const newUser = { ...staffData, id: gid() } as User; _seedStore.users = [..._seedStore.users, newUser]; return newUser },
   getClinicStaff: (clinicId) => _seedStore.users.filter(u => u.clinicId === clinicId),
