@@ -14,71 +14,72 @@ async function login(page: Page, role = 'owner') {
 
 test.describe('DentVision business owner journeys', () => {
   test('BIZ-001: owner onboarding exposes all required partner types', async ({ page }) => {
-    await page.goto(`${BASE}/register-diagnostics`);
-    await expect(page.getByText('Регистрация партнёра', { exact: true })).toBeVisible();
-    await expect(page.getByRole('button', { name: /Диагностический центр/ })).toBeVisible();
-    await expect(page.getByRole('button', { name: /Медицинская лаборатория/ })).toBeVisible();
-    await expect(page.getByRole('button', { name: /Зуботехническая лаборатория/ })).toBeVisible();
+    const variants = [
+      ['center', 'Создать диагностический центр'],
+      ['laboratory', 'Создать медицинскую лабораторию'],
+      ['dental_laboratory', 'Создать зуботехническую лабораторию'],
+    ] as const;
+    for (const [type, title] of variants) {
+      await page.goto(`${BASE}/register-diagnostics?type=${type}`);
+      await expect(page.getByRole('heading', { name: title })).toBeVisible();
+      await expect(page.getByRole('button', { name: 'Создать и открыть workspace' })).toBeVisible();
+    }
   });
 
-  test('BIZ-002: diagnostic center owner can submit onboarding request', async ({ page }) => {
-    await page.goto(`${BASE}/register-diagnostics`);
-    await page.getByRole('button', { name: /Диагностический центр/ }).click();
-    await page.locator('input').nth(0).fill(`E2E Diagnostic Center ${Date.now()}`);
-    await page.locator('input').nth(1).fill('Тараз');
-    await page.locator('input').nth(2).fill('ул. E2E, 1');
-    await page.locator('input').nth(3).fill('+77000000001');
-    await page.locator('input').nth(4).fill(`diag-${Date.now()}@test.com`);
-    await page.getByRole('button', { name: 'Отправить заявку' }).click();
-    await expect(page.getByText('Заявка отправлена!', { exact: true })).toBeVisible({ timeout: 15000 });
+  test('BIZ-002: diagnostic center owner can create workspace', async ({ page }) => {
+    await page.goto(`${BASE}/register-diagnostics?type=center`);
+    await page.getByLabel('Название *').fill(`E2E Diagnostic Center ${Date.now()}`);
+    await page.getByLabel('Город *').fill('Тараз');
+    await page.getByLabel('Адрес').fill('ул. E2E, 1');
+    await page.getByLabel('Телефон').fill('+77000000001');
+    await page.getByLabel('Email').fill(`diag-${Date.now()}@test.com`);
+    await page.getByRole('button', { name: 'Создать и открыть workspace' }).click();
+    await expect(page).toHaveURL(/\/diagnostics\/center/, { timeout: 20000 });
   });
 
-  test('BIZ-003: medical laboratory owner can submit onboarding request', async ({ page }) => {
-    await page.goto(`${BASE}/register-diagnostics`);
-    await page.getByRole('button', { name: /Медицинская лаборатория/ }).click();
-    await page.locator('input').nth(0).fill(`E2E Medical Lab ${Date.now()}`);
-    await page.locator('input').nth(1).fill('Тараз');
-    await page.locator('input').nth(2).fill('ул. E2E, 2');
-    await page.locator('input').nth(3).fill('+77000000002');
-    await page.locator('input').nth(4).fill(`medlab-${Date.now()}@test.com`);
-    await page.getByRole('button', { name: 'Отправить заявку' }).click();
-    await expect(page.getByText('Заявка отправлена!', { exact: true })).toBeVisible({ timeout: 15000 });
+  test('BIZ-003: medical laboratory owner can create workspace', async ({ page }) => {
+    await page.goto(`${BASE}/register-diagnostics?type=laboratory`);
+    await page.getByLabel('Название *').fill(`E2E Medical Lab ${Date.now()}`);
+    await page.getByLabel('Город *').fill('Тараз');
+    await page.getByLabel('Адрес').fill('ул. E2E, 2');
+    await page.getByLabel('Телефон').fill('+77000000002');
+    await page.getByLabel('Email').fill(`medlab-${Date.now()}@test.com`);
+    await page.getByRole('button', { name: 'Создать и открыть workspace' }).click();
+    await expect(page).toHaveURL(/\/diagnostics\/lab\?workspace=medical-lab/, { timeout: 20000 });
   });
 
-  test('BIZ-004: dental laboratory owner can submit onboarding request', async ({ page }) => {
-    await page.goto(`${BASE}/register-diagnostics`);
-    await page.getByRole('button', { name: /Зуботехническая лаборатория/ }).click();
-    await page.locator('input').nth(0).fill(`E2E Dental Lab ${Date.now()}`);
-    await page.locator('input').nth(1).fill('Тараз');
-    await page.locator('input').nth(2).fill('ул. E2E, 3');
-    await page.locator('input').nth(3).fill('+77000000003');
-    await page.locator('input').nth(4).fill(`dentallab-${Date.now()}@test.com`);
-    await page.getByRole('button', { name: 'Отправить заявку' }).click();
-    await expect(page.getByText('Заявка отправлена!', { exact: true })).toBeVisible({ timeout: 15000 });
+  test('BIZ-004: dental laboratory owner can create workspace', async ({ page }) => {
+    await page.goto(`${BASE}/register-diagnostics?type=dental_laboratory`);
+    await page.getByLabel('Название *').fill(`E2E Dental Lab ${Date.now()}`);
+    await page.getByLabel('Город *').fill('Тараз');
+    await page.getByLabel('Адрес').fill('ул. E2E, 3');
+    await page.getByLabel('Телефон').fill('+77000000003');
+    await page.getByLabel('Email').fill(`dentallab-${Date.now()}@test.com`);
+    await page.getByRole('button', { name: 'Создать и открыть workspace' }).click();
+    await expect(page).toHaveURL(/\/diagnostics\/lab(?:$|[?#])/, { timeout: 20000 });
   });
 
 
   test('BIZ-009: partner onboarding forms are connected to real registration endpoints', async ({ page }) => {
-    for (const [buttonName, emailPrefix] of [
-      [/Диагностический центр/, 'diag-full'],
-      [/Медицинская лаборатория/, 'medlab-full'],
-      [/Зуботехническая лаборатория/, 'dental-full'],
+    for (const [type, emailPrefix] of [
+      ['center', 'diag-full'],
+      ['laboratory', 'medlab-full'],
+      ['dental_laboratory', 'dental-full'],
     ] as const) {
-      await page.goto(`${BASE}/register-diagnostics`);
-      await page.getByRole('button', { name: buttonName }).click();
+      await page.goto(`${BASE}/register-diagnostics?type=${type}`);
       const unique = Date.now();
-      await page.locator('input').nth(0).fill(`E2E lifecycle ${emailPrefix} ${unique}`);
-      await page.locator('input').nth(1).fill('Тараз');
-      await page.locator('input').nth(2).fill(`ул. E2E lifecycle ${unique}`);
-      await page.locator('input').nth(3).fill('+77000000020');
-      await page.locator('input').nth(4).fill(`${emailPrefix}-${unique}@test.com`);
+      await page.getByLabel('Название *').fill(`E2E lifecycle ${emailPrefix} ${unique}`);
+      await page.getByLabel('Город *').fill('Тараз');
+      await page.getByLabel('Адрес').fill(`ул. E2E lifecycle ${unique}`);
+      await page.getByLabel('Телефон').fill('+77000000020');
+      await page.getByLabel('Email').fill(`${emailPrefix}-${unique}@test.com`);
       const responsePromise = page.waitForResponse((response) =>
-        response.url().includes('/api/diagnostics/register') && response.request().method() === 'POST'
+        response.url().includes('/api/organizations/self-service') && response.request().method() === 'POST'
       );
-      await page.getByRole('button', { name: 'Отправить заявку' }).click();
+      await page.getByRole('button', { name: 'Создать и открыть workspace' }).click();
       const response = await responsePromise;
       expect(response.ok()).toBeTruthy();
-      await expect(page.getByText('Заявка отправлена!', { exact: true })).toBeVisible({ timeout: 15000 });
+      await expect(page).not.toHaveURL(/\/login/, { timeout: 20000 });
     }
   });
 
