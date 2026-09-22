@@ -709,24 +709,19 @@ async function main() {
       ['originalId', '"originalId" TEXT'],
     ]);
     console.log('[MIGRATION] organizations/persons columns normalized to Prisma camelCase');
-    // Align diagnostics org ids with entity ids (token.organizationId must equal
-    // the center/lab id used by /diagnostics routes and CenterDashboard).
+    // Keep canonical organization UUIDs stable. Diagnostics entity IDs are represented
+    // separately by organizationOriginalId in the workspace/JWT context; rewriting primary
+    // keys here can violate persons.organization_id foreign keys and corrupt tenant scope.
     try {
-      await prisma.$executeRawUnsafe(`
-        UPDATE "persons" SET "organization_id" = o."originalId"
-        FROM "organizations" o
-        WHERE "persons"."organization_id" = o.id
-          AND o."originalType" IN ('DiagnosticCenter','Laboratory')
-          AND o.id <> o."originalId"
-      `);
-      await prisma.$executeRawUnsafe(`
-        UPDATE "organizations" SET id = "originalId"
+      const rows = await prisma.$queryRawUnsafe<Array<{ count: number }>>(`
+        SELECT COUNT(*)::int AS count
+        FROM "organizations"
         WHERE "originalType" IN ('DiagnosticCenter','Laboratory')
-          AND id <> "originalId"
+          AND "originalId" IS NOT NULL
       `);
-      console.log('[MIGRATION] diagnostics org ids aligned to entity ids');
+      console.log(`[MIGRATION] diagnostics organization originals verified: ${rows[0]?.count ?? 0}`);
     } catch (e: any) {
-      console.warn('[MIGRATION] align diagnostics org ids failed (non-fatal):', e?.message);
+      console.warn('[MIGRATION] diagnostics organization verification failed (non-fatal):', e?.message);
     }
     // Create RBAC + legacy membership tables (init_full_schema failed in prod, so they may be missing)
     await prisma.$executeRawUnsafe(`
