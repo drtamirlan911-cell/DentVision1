@@ -83,6 +83,9 @@ export interface OrchestratorInput {
   fewShots?: Array<{ user: string; assistant: string }>;
   /** Current UI path — stage-aware guidance without burning tokens guessing. */
   pathname?: string | null;
+  /** Active workspace selected by the user; distinct from legacy clinicId. */
+  workspace?: { name: string; scopeType: string; roleLabel: string; scopeId?: string; organizationId?: string | null } | null;
+  availableWorkspaces?: Array<{ name: string; scopeType: string; roleLabel: string }>;
   /** Context focus from workspace (patient / product / …). */
   focusType?: string | null;
   focusId?: string | null;
