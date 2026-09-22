@@ -137,6 +137,12 @@ if (container) {
                 <Route path="help" element={<Suspense fallback={<PageLoader />}><Help /></Suspense>} />
                 <Route path="notifications" element={guarded('settings', <NotificationPreferences />)} />
                 <Route path="admin" element={guarded('admin', <SuperAdmin />)} />
+                {/* Platform console deep-links: these are SuperAdmin tabs, not separate pages. */}
+                <Route path="ai-governance" element={guarded('admin', <Navigate to="/admin?tab=ai-governance" replace />)} />
+                <Route path="platform-finance" element={guarded('admin', <Navigate to="/admin?tab=platform-finance" replace />)} />
+                <Route path="ops" element={guarded('admin', <Navigate to="/admin?tab=ops" replace />)} />
+                <Route path="quality" element={guarded('admin', <Navigate to="/admin?tab=quality" replace />)} />
+                <Route path="support" element={guarded('admin', <Navigate to="/admin?tab=support" replace />)} />
                 <Route path="bi" element={guarded('bi', <BIWorkspace />)} />
                 <Route path="security" element={guarded('security', <SecurityCompliance />)} />
                 <Route path="audit" element={guarded('audit', <AuditLog />)} />
