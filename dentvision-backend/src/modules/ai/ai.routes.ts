@@ -81,11 +81,18 @@ const querySchema = z.object({
  * platform thread.
  */
 function aiSessionScope(req: AuthRequest): string {
-  if (req.user?.clinicId) return req.user.clinicId;
-  if (req.user?.organizationId) return 'org:' + req.user.organizationId;
-  if (req.user?.supplierId) return 'supplier:' + req.user.supplierId;
-  if (req.user?.lecturerId) return 'lecturer:' + req.user.lecturerId;
-  return 'user:' + (req.user?.id || 'platform');
+  // Scope follows the active workspace encoded by the context-switch token.
+  // Never let a stale/legacy clinicId collapse supplier, lecturer or another
+  // organization into the clinic thread.
+  const user = req.user;
+  if (user?.organizationId && user.organizationType && user.organizationType !== 'CLINIC') {
+    return 'org:' + user.organizationId;
+  }
+  if (user?.supplierId) return 'supplier:' + user.supplierId;
+  if (user?.lecturerId) return 'lecturer:' + user.lecturerId;
+  if (user?.clinicId) return 'clinic:' + user.clinicId;
+  if (user?.organizationId) return 'org:' + user.organizationId;
+  return 'user:' + (user?.id || 'platform');
 }
 
 async function resolveUserSessionId(req: AuthRequest, requested?: string): Promise<string> {
@@ -299,6 +306,7 @@ async function processQuery(
   // The verified entity focus (Stage 10 context engine) — kernel.ts substitutes
   // a missing patientId argument from this. Guests have no clinic-scoped entity.
   const aiContext = !isGuest && req.user ? await buildAiContext(req, { pathname, focusType, focusId }) : null;
+  const activeWorkspace = aiContext?.workspace ?? null;
 
   // Learn preferences from this utterance BEFORE the model runs (so «запомни» applies now).
   let learnedLabels: string[] = [];
@@ -344,7 +352,7 @@ async function processQuery(
         supplierId: isGuest ? null : (req.user?.supplierId || null),
         lecturerId: isGuest ? null : (req.user?.lecturerId || null),
         role: isGuest ? 'GUEST' : req.user!.role,
-        workspace: aiContext?.workspace ?? null,
+        workspace: activeWorkspace,
         userName: isGuest
           ? 'Гость'
           : [req.user!.firstName, req.user!.lastName].filter(Boolean).join(' '),
