@@ -26,6 +26,8 @@ import { resolveActivePersonRole } from '../middleware/auth.js';
 export interface AuthTokenContext {
   clinicId?: string;
   organizationId?: string;
+  /** Source entity id mirrored by the unified organization (clinic/center/lab). */
+  organizationOriginalId?: string;
   organizationType?: string;
   organizationName?: string;
   personType?: string;
@@ -47,6 +49,7 @@ function contextFromPerson(person: PersonWithContextRole, organizationId: string
   const org = person.organization;
   return {
     organizationId: org.id,
+    organizationOriginalId: org.originalId || undefined,
     organizationType: org.type,
     organizationName: org.name,
     personType: person.personType || undefined,
