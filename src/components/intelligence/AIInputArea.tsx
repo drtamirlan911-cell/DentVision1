@@ -245,7 +245,7 @@ export function AIInputArea({
                   title={voiceSupported ? (listening ? t('ai.stop_recording') : t('ai.voice_input')) : t('ai.voice_not_supported')}
                   aria-label={listening ? 'Остановить голосовой ввод' : 'Начать голосовой ввод'}
                   className={cn(
-                    'relative flex h-9 w-9 items-center justify-center rounded-xl transition-all',
+                    'relative flex h-11 w-11 items-center justify-center rounded-xl transition-all',
                     listening
                       ? 'text-red-400 bg-red-400/10'
                       : voiceSupported
@@ -270,7 +270,7 @@ export function AIInputArea({
                   aria-label="Отправить сообщение"
                   title="Отправить сообщение"
                   className={cn(
-                    'flex h-9 w-9 items-center justify-center rounded-xl transition-all',
+                    'flex h-11 w-11 items-center justify-center rounded-xl transition-all',
                     text.trim()
                       ? 'bg-dv-gold text-dv-gold-on shadow-lg shadow-dv-gold/20'
                       : 'bg-white/[0.05] text-txt-muted'
