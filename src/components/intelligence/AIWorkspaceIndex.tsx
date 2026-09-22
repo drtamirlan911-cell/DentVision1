@@ -16,13 +16,17 @@ const ECOSYSTEM_PROMPTS = ECOSYSTEM_SERVICES.filter(service => !['ai','administr
 const BOOKING_PROMPTS = ['Найди стоматолога рядом со мной и покажи варианты записи','Мне нужна запись к стоматологу. Помоги выбрать клинику и время','Какие стоматологические услуги доступны для записи?']
 
 function renderBriefing(text: string): React.ReactNode {
-  return text.split('\\n').map((line, i) => {
+  const normalized = text.replace(/\\\\n/g, '\\n');
+  const lines = normalized.split('\\n');
+
+  return lines.map((line, i) => {
     const parts = line.split(/(\\*\\*[^*]+\\*\\*)/g).map((part, j) =>
       part.startsWith('**') && part.endsWith('**') && part.length > 4
         ? <strong key={j} className="font-semibold text-txt-primary">{part.slice(2, -2)}</strong>
         : <React.Fragment key={j}>{part}</React.Fragment>,
     );
-    return <React.Fragment key={i}>{parts}{i < text.split('\\n').length - 1 ? <br /> : null}</React.Fragment>;
+
+    return <React.Fragment key={i}>{parts}{i < lines.length - 1 ? <br /> : null}</React.Fragment>;
   });
 }
 
