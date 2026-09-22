@@ -105,10 +105,10 @@ medicalLabLifecycleRouter.get('/orders', async (req: AuthRequest, res) => {
     if ((req.user as any)?.organizationType === 'LABORATORY') {
       const labId = await resolveLaboratoryScopeId(req.user);
       if (!labId) return res.status(403).json({ ok: false, error: 'Медицинская лаборатория не привязана к рабочему контексту' } satisfies ApiResponse);
-      args.push(String(labId)); where.push(`o."labId" = ${args.length}`);
+      args.push(String(labId)); where.push(`o."labId" = $1`);
     } else if (req.user?.clinicId) {
       const clinicId = req.user.clinicId;
-      args.push(clinicId); where.push(`o."clinicId" = ${args.length}`);
+      args.push(clinicId); where.push(`o."clinicId" = $1`);
       const role = String(req.user?.role || '').toUpperCase();
       const branchIds = (req.user?.branchIds ?? []).filter(Boolean);
       if (!['SUPERADMIN', 'OWNER', 'ADMIN'].includes(role)) {
