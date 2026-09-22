@@ -169,9 +169,13 @@ export async function resolveAiToolAccess(input: AiToolAccessInput): Promise<AiT
     organizationId = person?.organizationId || null;
   }
 
+  // Some legacy clinics predate the Organization mirror. Keep the verified
+  // clinic scope as the permission lookup fallback rather than silently
+  // returning an empty permission set for an otherwise valid clinic member.
+  const permissionScopeId = organizationId || clinicId;
   const permissions = new Set(
-    organizationId
-      ? await resolveUserPermissions(input.userId, organizationId, role).catch(() => [])
+    permissionScopeId
+      ? await resolveUserPermissions(input.userId, permissionScopeId, role).catch(() => [])
       : [],
   );
 
