@@ -100,6 +100,28 @@ test.describe('Universal organization self-service onboarding', () => {
         expect(refreshedPayload.organizationId, `${type} refresh context`).toBe(body.data.organizationId);
         token = refreshedBody.data.accessToken;
         refreshToken = refreshedBody.data.refreshToken;
+
+        // Critical multi-workspace invariant: after every workspace switch,
+        // the AI must resolve the same active organization scope instead of
+        // silently falling back to the previous clinic.
+        const aiContextResponse = await request.post(`${API}/api/ai/query`, {
+          headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+          data: { text: `Confirm the active DentVision workspace for E2E ${type}.` },
+        });
+        expect(aiContextResponse.status(), `${type} AI context status`).toBe(200);
+        const aiBody = await aiContextResponse.json();
+        const activeWorkspace = aiBody.data?.activeWorkspace;
+        expect(activeWorkspace, `${type} AI active workspace`).toBeTruthy();
+        expect(activeWorkspace.scopeId, `${type} AI scope`).toBe(body.data.organizationId);
+        const expectedScopeType = {
+          clinic: 'CLINIC',
+          dental_lab: 'LABORATORY',
+          medical_lab: 'LABORATORY',
+          diagnostic_center: 'DIAGNOSTIC_CENTER',
+          supplier: 'SUPPLIER',
+          academy: 'ACADEMY',
+        }[type];
+        expect(activeWorkspace.scopeType, `${type} AI scope type`).toBe(expectedScopeType);
       }
     } finally {
       await cleanupTestUser(email);
