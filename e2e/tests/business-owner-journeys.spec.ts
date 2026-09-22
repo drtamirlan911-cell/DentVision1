@@ -65,13 +65,16 @@ test.describe('DentVision business owner journeys', () => {
 
 
   test('BIZ-009: partner onboarding forms are connected to real registration endpoints', async ({ page }) => {
-    await login(page);
     for (const [type, emailPrefix] of [
       ['center', 'diag-full'],
       ['laboratory', 'medlab-full'],
       ['dental_laboratory', 'dental-full'],
     ] as const) {
+      // Workspace creation changes the active context, so verify each registration
+      // from a fresh authenticated session instead of carrying context across cases.
+      await login(page);
       await page.goto(`${BASE}/register-diagnostics?type=${type}`);
+      await expect(page.getByLabel('Название *')).toBeVisible({ timeout: 15000 });
       const unique = Date.now();
       await page.getByLabel('Название *').fill(`E2E lifecycle ${emailPrefix} ${unique}`);
       await page.getByLabel('Город *').fill('Тараз');
@@ -87,7 +90,6 @@ test.describe('DentVision business owner journeys', () => {
       await expect(page).not.toHaveURL(/\/login/, { timeout: 20000 });
     }
   });
-
   test('BIZ-005: owner can open clinic workspace and staff administration', async ({ page }) => {
     await login(page);
     await page.goto(`${BASE}/crm/staff`);
