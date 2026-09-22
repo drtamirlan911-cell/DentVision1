@@ -17,7 +17,7 @@
 import prisma from '../../../lib/prisma.js';
 import { resolveOrganizationIdForClinic, resolveClinicAccess } from '../../../lib/orgContext.js';
 import { stageFromPath } from '../lib/platformMap.js';
-import { roleLabelFor } from '../../iam/contexts.js';
+import { roleLabelFor, buildWorkspaceContexts, type WorkspaceContext } from '../../iam/contexts.js';
 import type { AuthRequest } from '../../../types/index.js';
 
 export interface ContextHints {
@@ -33,6 +33,8 @@ export interface AiRequestContext {
   clinicId: string | null;
   /** Canonical active workspace identity used by AI prompt and routing. */
   workspace: { name: string; scopeType: string; scopeId: string; organizationId: string | null; roleLabel: string } | null;
+  /** Every workspace the user can enter; the active workspace is authoritative for current actions. */
+  availableWorkspaces: Array<Pick<WorkspaceContext, 'id' | 'scopeType' | 'scopeId' | 'organizationId' | 'name' | 'roleKey' | 'roleLabel'>>;
   page: { pathname: string; pageId: string | null };
   /** The open card in the caller's workspace, if any — null on the plain workspace view. */
   entity: { type: string; id: string } | null;
@@ -50,10 +52,19 @@ const RECENT_EVENTS_LIMIT = 5;
 
 export async function buildAiContext(req: AuthRequest, hints: ContextHints): Promise<AiRequestContext> {
   const user = req.user!;
-  const clinicId = user.clinicId || null;
-  const organizationId = clinicId
-    ? await resolveOrganizationIdForClinic(clinicId)
-    : (user.organizationId || null);
+  const activeIsNonClinic = Boolean(user.organizationId && user.organizationType && user.organizationType !== 'CLINIC') || Boolean(user.supplierId || user.lecturerId);
+  const clinicId = activeIsNonClinic ? null : (user.clinicId || null);
+  const organizationId = activeIsNonClinic ? (user.organizationId || null) : (clinicId ? await resolveOrganizationIdForClinic(clinicId) : (user.organizationId || null));
+  let availableWorkspaces: AiRequestContext['availableWorkspaces'] = [];
+  try {
+    const [memberships, supplierMemberships, lecturer, persons] = await Promise.all([
+      prisma.clinicMember.findMany({ where: { userId: user.id }, select: { id: true, role: true, clinicId: true, joinedAt: true, clinic: { select: { id: true, name: true, logo: true } } }, orderBy: { joinedAt: 'asc' } }),
+      prisma.supplierMember.findMany({ where: { userId: user.id }, select: { id: true, role: true, supplierId: true, createdAt: true, supplier: { select: { id: true, name: true } } }, orderBy: { createdAt: 'asc' } }),
+      prisma.lecturer.findUnique({ where: { userId: user.id }, select: { id: true, level: true, academy: { select: { id: true, name: true } } } }),
+      prisma.person.findMany({ where: { userId: user.id }, include: { organization: { select: { id: true, name: true, type: true, logo: true, originalId: true } }, personRoles: { include: { role: true } } } }),
+    ]);
+    availableWorkspaces = buildWorkspaceContexts({ memberships, supplierMemberships, lecturer, persons }).map(({ id, scopeType, scopeId, organizationId, name, roleKey, roleLabel }) => ({ id, scopeType, scopeId, organizationId, name, roleKey, roleLabel }));
+  } catch (error) { console.warn('[AI context] workspace inventory resolution failed', error); }
 
   let workspace: AiRequestContext['workspace'] = null;
   // The active workspace token may retain a legacy clinicId for compatibility.
@@ -91,8 +102,8 @@ export async function buildAiContext(req: AuthRequest, hints: ContextHints): Pro
         });
         const roleKey =
           person?.personRoles
-            ?.filter((pr) => !pr.scopeId || pr.scopeId === org.id)
-            .filter((pr) => pr.scopeType !== 'organization' || !pr.scopeId || pr.scopeId === org.id)
+            ?.filter((pr) => !pr.scopeId || pr.scopeId === org.id || pr.scopeId === org.originalId)
+            .filter((pr) => !pr.scopeType || pr.scopeType === 'organization' || pr.scopeType === 'ORGANIZATION')
             .map((pr) => pr.role.key)[0]
           || user.personType
           || user.role;
@@ -142,6 +153,7 @@ export async function buildAiContext(req: AuthRequest, hints: ContextHints): Pro
     organizationId,
     clinicId,
     workspace,
+    availableWorkspaces,
     page: { pathname, pageId },
     entity,
     workflow: null,
