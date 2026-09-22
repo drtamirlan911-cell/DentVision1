@@ -324,3 +324,5 @@ jobs:
             e2e/test-results/
             e2e/visual-evidence/
           retention-days: 7
+
+# CI restart marker: verify clean run
