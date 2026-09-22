@@ -231,6 +231,7 @@ model Clinic {
   updatedAt DateTime? @updatedAt
 
   members             ClinicMember[]
+  branches            Branch[]
   invitations         ClinicInvitation[]
   patients            Patient[]
   appointments        Appointment[]
@@ -269,6 +270,32 @@ model Clinic {
   @@map("clinics")
 }
 
+model Branch {
+  id             String       @id @default(uuid())
+  organizationId  String?      @map("organization_id")
+  clinicId       String?      @map("clinic_id")
+  code           String
+  name           String
+  city           String?
+  address        String?
+  phone          String?
+  active         Boolean      @default(true)
+  isDefault      Boolean      @default(false)
+  settings       Json?
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  organization Organization? @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  clinic       Clinic?       @relation(fields: [clinicId], references: [id], onDelete: SetNull)
+  members      ClinicMember[]
+
+  @@unique([organizationId, code])
+  @@index([organizationId])
+  @@index([organizationId, active])
+  @@index([clinicId])
+  @@map("branches")
+}
+
 model Booking {
   id          String        @id @default(uuid())
   clinicId    String
@@ -305,12 +332,14 @@ model ClinicMember {
   userId            String
   clinicId          String
   role              UserRole @default(DOCTOR)
+  branchId           String?   @map("branch_id")
   commissionPercent Int      @default(30)
   baseSalary        Int      @default(0)
   payType           String   @default("commission")
 
   user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
   clinic Clinic @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  branch Branch? @relation(fields: [branchId], references: [id], onDelete: SetNull)
 
   joinedAt  DateTime  @default(now())
   updatedAt DateTime? @updatedAt
@@ -344,6 +373,7 @@ model ClinicInvitation {
 model Patient {
   id             String    @id @default(uuid())
   clinicId       String
+  branchId       String?   @map("branch_id")
   firstName      String
   lastName       String
   phone          String?
@@ -401,6 +431,7 @@ model Patient {
 model Appointment {
   id              String            @id @default(uuid())
   clinicId        String
+  branchId        String?   @map("branch_id")
   patientId       String
   doctorId        String
   date            DateTime
@@ -434,6 +465,7 @@ model Appointment {
   @@index([doctorId, date])
   @@index([treatmentPlanId])
   @@index([treatmentCaseId])
+  @@unique([clinicId, patientId, date, time])
   @@map("appointments")
 }
 
@@ -465,6 +497,7 @@ model WaitingList {
 model Expense {
   id          String   @id @default(uuid())
   clinicId    String
+  branchId    String?   @map("branch_id")
   category    String?
   amount      Int
   description String?
@@ -866,6 +899,7 @@ model LabOrder {
 model Invoice {
   id              String        @id @default(uuid())
   clinicId        String
+  branchId        String?   @map("branch_id")
   patientId       String?
   amount          Int
   status          InvoiceStatus @default(unpaid)
@@ -901,6 +935,7 @@ model InventoryItem {
   id       String  @id @default(uuid())
   clinicId String
   name     String
+  branchId        String?   @map("branch_id")
   category String?
   quantity Int     @default(0)
   minimum  Int     @default(0)
@@ -2989,6 +3024,7 @@ model Referral {
   patientPhoto     String?
   // Doctor info
   clinicId         String
+  branchId         String?            @map("branch_id")
   doctorId         String
   doctorName       String?
   doctorPhone      String?
@@ -3516,6 +3552,7 @@ model Organization {
   // Relations
   persons     Person[]
   invitations OrganizationInvitation[]
+  branches     Branch[]
 
   @@unique([originalType, originalId])
   @@index([type])
