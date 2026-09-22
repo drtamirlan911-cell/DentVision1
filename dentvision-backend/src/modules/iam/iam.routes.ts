@@ -13,6 +13,7 @@ import {
   rejectInvitation,
 } from './invitations.service.js';
 import type { AuthRequest, ApiResponse } from '../../types/index.js';
+import type { UserRole } from '@prisma/client';
 import { auditFromReq, writeAuditLog } from '../compliance/audit.service.js';
 
 /** Roles allowed to manage clinic staff, mirroring MEMBER_MANAGER_ROLES for the other org types. */
@@ -88,7 +89,11 @@ iamRouter.post('/switch-context', async (req: AuthRequest, res) => {
         if (person) await prisma.person.update({ where: { id: person.id }, data: { organizationId: org.id } }).catch(() => {});
       }
       if (person) {
-        const scopedRole = person.personRoles?.find((pr) => !pr.scopeId || pr.scopeId === org.id)?.role.key || person.personType || user.role;
+        const scopedRoleKey = person.personRoles?.find((pr) => !pr.scopeId || pr.scopeId === org.id)?.role.key || person.personType || user.role;
+        const userRoleValues = new Set<UserRole>(['OWNER', 'DOCTOR', 'ASSISTANT', 'ADMIN', 'CASHIER', 'LAB', 'MANAGER', 'STUDENT', 'SUPERADMIN', 'SUPPORT', 'PATIENT']);
+        const scopedRole: UserRole = userRoleValues.has(String(scopedRoleKey).toUpperCase() as UserRole)
+          ? String(scopedRoleKey).toUpperCase() as UserRole
+          : user.role;
         const entityId = org.originalId || org.id;
         let supplierContext = {};
         if (org.type === 'SUPPLIER_COMPANY') {
