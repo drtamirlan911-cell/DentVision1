@@ -296,41 +296,6 @@ async function processQuery(
   const userId = req.user?.id || 'guest';
   const clinicId = isGuest ? null : (req.user!.clinicId || null);
 
-  // The active workspace is the authenticated context selected by the workspace
-  // switcher. Never reconstruct it from the user's global role: one identity may
-  // be OWNER in a clinic, SUPPLIER in a supplier company and LECTURER in Academy.
-  let workspace: { name: string; scopeType: string; roleLabel: string; scopeId?: string; organizationId?: string | null } | null = null;
-  if (!isGuest && req.user) {
-    try {
-      const u = req.user;
-      if (u.clinicId) {
-        const clinic = await prisma.clinic.findUnique({ where: { id: u.clinicId }, select: { id: true, name: true } });
-        workspace = clinic ? { name: clinic.name, scopeType: 'CLINIC', scopeId: clinic.id, roleLabel: roleLabelFor(u.role) } : null;
-      } else if (u.organizationId) {
-        const org = await prisma.organization.findUnique({ where: { id: u.organizationId }, select: { id: true, name: true, type: true, originalId: true } });
-        if (org) {
-          const person = await prisma.person.findFirst({ where: { userId: u.id, organizationId: org.id }, include: { personRoles: { include: { role: true } } } });
-          const roleKey = person?.personRoles?.[0]?.role?.key || u.personType || u.role;
-          workspace = {
-            name: org.name,
-            scopeType: org.type === 'SUPPLIER_COMPANY' ? 'SUPPLIER' : org.type,
-            scopeId: org.originalId || org.id,
-            organizationId: org.id,
-            roleLabel: roleLabelFor(roleKey),
-          };
-        }
-      } else if (u.supplierId) {
-        const supplier = await prisma.supplier.findUnique({ where: { id: u.supplierId }, select: { id: true, name: true } });
-        workspace = supplier ? { name: supplier.name, scopeType: 'SUPPLIER', scopeId: supplier.id, roleLabel: roleLabelFor(u.supplierRole || 'supplier') } : null;
-      } else if (u.lecturerId) {
-        const lecturer = await prisma.lecturer.findUnique({ where: { id: u.lecturerId }, select: { id: true, academy: { select: { name: true } } } });
-        workspace = lecturer ? { name: lecturer.academy?.name || 'Академия', scopeType: 'LECTURER', scopeId: lecturer.id, roleLabel: 'Лектор' } : null;
-      }
-    } catch (e) {
-      console.warn('[AI] active workspace resolution failed', e);
-    }
-  }
-
   // The verified entity focus (Stage 10 context engine) — kernel.ts substitutes
   // a missing patientId argument from this. Guests have no clinic-scoped entity.
   const aiContext = !isGuest && req.user ? await buildAiContext(req, { pathname, focusType, focusId }) : null;
@@ -379,7 +344,7 @@ async function processQuery(
         supplierId: isGuest ? null : (req.user?.supplierId || null),
         lecturerId: isGuest ? null : (req.user?.lecturerId || null),
         role: isGuest ? 'GUEST' : req.user!.role,
-        workspace,
+        workspace: aiContext?.workspace ?? null,
         userName: isGuest
           ? 'Гость'
           : [req.user!.firstName, req.user!.lastName].filter(Boolean).join(' '),
