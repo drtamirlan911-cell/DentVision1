@@ -42,7 +42,7 @@ function readMounts(): Mount[] {
 function readRoutes(): Route[] {
   const files = walk(join(BACKEND_SRC, 'modules'), (p) => p.endsWith('.routes.ts') && !p.endsWith('.test.ts'));
   const routes: Route[] = [];
-  const pattern = new RegExp("(\\w+)\\.(" + METHODS.join('|') + ")\\(\\s*['\"]([^'\"]*)", 'g');
+  const pattern = new RegExp(`(\\w+)\\.(${METHODS.join('|')})\\(\\s*['"]([^'"]*)`, 'g');
   for (const file of files) {
     const source = read(file);
     const routerVars = new Set([...source.matchAll(/(?:const|let|var)\s+(\w+)\s*=\s*(?:Router|express\.Router)\s*\(/g)].map((m) => m[1]));
@@ -53,7 +53,7 @@ function readRoutes(): Route[] {
   }
   const appFile = join(BACKEND_SRC, 'app.ts');
   const appSource = read(appFile);
-  const inline = new RegExp("app\\.(" + METHODS.join('|') + ")\\(\\s*['\"]([^'\"]*)", 'g');
+  const inline = new RegExp(`app\\.(${METHODS.join('|')})\\(\\s*['"]([^'"]*)`, 'g');
   for (const match of appSource.matchAll(inline)) {
     const [, method, path] = match;
     routes.push({ file: relative(REPO_ROOT, appFile), routerVar: 'app', method: method.toUpperCase(), path });
@@ -106,7 +106,7 @@ function main(): void {
   // which must never be forwarded to path.basename as the optional suffix parameter.
   const jobs = walk(join(BACKEND_SRC, 'jobs'), (p) => p.endsWith('.ts') && !p.endsWith('.test.ts')).map((file) => basename(file));
   const lines: string[] = [];
-  lines.push('# DentVision System Map', '', `> Generated: ${new Date().toISOString()}`, '');
+  lines.push('# DentVision System Map', '', `> Generated from repository state`, '');
   lines.push('## Summary', '', `- Mounted routers: **${mounts.length}**`, `- Unique route handlers: **${routes.length}**`, `- Registered HTTP routes after mount: **${mountRows.reduce((sum, row) => sum + row.total, 0)}**`, `- Routes without detected web/mobile consumer: **${mountRows.reduce((sum, row) => sum + row.orphan, 0)}**`, `- Prisma models: **${models.length}**`, `- Background jobs: **${jobs.length}**`, `- Permission roles: **${Object.keys(ROLE_PERMISSIONS).length}**`, '');
   lines.push('## Canonical request context', '', '```text', 'Identity -> Active Workspace -> Organization -> Branch -> Role -> Permission -> Data Scope -> AI Context -> AI Session -> Tool -> Audit -> E2E -> Visual Evidence -> Release', '```', '');
   lines.push('## Mounted routers', '', '| Prefix | Router | Handlers | No detected consumer |', '|---|---|---:|---:|');
