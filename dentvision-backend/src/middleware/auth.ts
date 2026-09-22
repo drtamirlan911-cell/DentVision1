@@ -210,9 +210,14 @@ export function optionalAuth(req: AuthRequest, _res: Response, next: NextFunctio
       req.user = {
         id: payload.sub, email, role: payload.role, firstName: '', lastName: '',
         clinicId: isGuest ? undefined : payload.clinicId,
+        supplierId: isGuest ? undefined : payload.supplierId,
+        supplierRole: isGuest ? undefined : payload.supplierRole,
+        lecturerId: isGuest ? undefined : payload.lecturerId,
         organizationId: isGuest ? undefined : payload.organizationId,
         organizationType: isGuest ? undefined : payload.organizationType,
-        personType: isGuest ? undefined : payload.personType, branchId: isGuest ? undefined : payload.branchId, isGuest,
+        personType: isGuest ? undefined : payload.personType,
+        branchId: isGuest ? undefined : payload.branchId,
+        isGuest,
       };
     }
   } catch { /* anonymous */ }
