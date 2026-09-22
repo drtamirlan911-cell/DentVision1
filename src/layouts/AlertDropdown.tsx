@@ -170,7 +170,7 @@ export const AlertDropdown: React.FC<AlertDropdownProps> = ({ alerts, isOpen, se
 
   return (
     <div className="relative" ref={dropdownRef}>
-      <button type="button" onClick={(e) => { e.stopPropagation(); setIsOpen(!isOpen); }} className={cn('relative flex h-10 w-10 items-center justify-center rounded-lg transition-colors', isOpen ? 'text-dv-gold bg-dv-gold/10' : 'text-dv-gold hover:bg-dv-gold/10')} aria-label={t('platform.notifications')} aria-expanded={isOpen}>
+      <button type="button" onClick={(e) => { e.stopPropagation(); setIsOpen(!isOpen); }} className={cn('relative flex min-h-11 min-w-11 items-center justify-center rounded-lg transition-colors', isOpen ? 'text-dv-gold bg-dv-gold/10' : 'text-dv-gold hover:bg-dv-gold/10')} aria-label={t('platform.notifications')} aria-expanded={isOpen}>
         <Bell size={17} className={badgeCount > 0 ? 'alert-pulse' : undefined} />
         {badgeCount > 0 && <span className="absolute -top-0.5 -right-0.5 h-4 min-w-4 px-0.5 rounded-full bg-dv-gold text-[9px] font-bold text-dv-gold-on flex items-center justify-center">{badgeCount > 9 ? '9+' : badgeCount}</span>}
       </button>
