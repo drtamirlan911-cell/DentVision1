@@ -828,3 +828,22 @@ Run the exact current main-tip CI. Inspect the generated Visual Agent evidence f
 - Root cause for the second was the generic clipping detector treating intentional `overflow-x-auto` tab navigation as a defect. The detector now excludes controls inside explicitly horizontal-scrollable containers while preserving clipping checks elsewhere.
 - Commit: `7ab23572070c851702340987494a383e90055bc7`.
 - The fix is intentionally limited to the test's measurement model; it does not weaken the 36px requirement or disable clipping detection globally.
+
+
+## 2026-09-22 — Visual Agent diagnostics/laboratory runtime defect: parameter binding
+
+### Root cause
+- Fresh Visual Agent evidence from CI run 35652954202 showed repeated 403/500 responses for diagnostic-center and medical/dental laboratory contexts.
+- Backend PostgreSQL logs identified the concrete source: medicalLab.routes.ts built dynamic SQL predicates with numeric interpolation (o."labId" = 1, o."clinicId" = 1, and ANY(2::text[])) instead of positional bind placeholders. PostgreSQL therefore compared text columns against integers, producing 42883 operator does not exist: text = integer and cascading HTTP failures.
+
+### Implemented
+- 4bc15a0468c7dd815fee570cb62286dfab55fc67 — corrected all three dynamic medical-lab list predicates to use $n bind placeholders, preserving parameterized SQL and the existing authorization model.
+- 97090428577393b15fa96fcd256df31e12c59f31 — removed the duplicate diagnostics workspace context bridge; the canonical outer diagnostics layout remains responsible for the context card.
+- 0d5c703dc401c279464a8391409b5b16edaf4682 — added human-readable ecosystem role labels, including medical-lab-tech → Лаборант, so role identity is explicit in the design gate.
+
+### Verification status
+- Quality Gate run 3477 for 0d5c703dc401c279464a8391409b5b16edaf4682 passed.
+- CI run 2983 for the same commit is still executing its Visual Agent job; the medical-lab SQL fix has now triggered the next CI run from commit 4bc15a0468c7dd815fee570cb62286dfab55fc67.
+
+### Next action
+- Wait for the current CI chain to finish, inspect fresh screenshots/DOM/runtime evidence rather than only test failures, then fix the next concrete defect and repeat until the full release gate is green.
