@@ -104,7 +104,7 @@ iamRouter.post('/switch-context', async (req: AuthRequest, res) => {
           if (!orgManager && !assigned) return res.status(403).json({ ok: false, error: 'У вас нет доступа к выбранному филиалу' });
           selectedBranchId = branchId;
         }
-        const tokens = generateTokens({ ...base, organizationId: org.id, organizationType: org.type, personType: person.personType, ...(selectedBranchId ? { branchId: selectedBranchId } : {}), ...supplierContext, ...(org.type === 'CLINIC' && org.originalId ? { clinicId: org.originalId } : {}) });
+        const tokens = generateTokens({ ...base, organizationId: org.id, organizationOriginalId: org.originalId || undefined, organizationType: org.type, personType: person.personType, ...(selectedBranchId ? { branchId: selectedBranchId } : {}), ...supplierContext, ...(org.type === 'CLINIC' && org.originalId ? { clinicId: org.originalId } : {}) });
         await writeAuditLog({ userId: user.id, action: 'auth.switch_context', entity: 'organization', entityId: org.id, details: { scopeType: org.type } });
         return res.json({ ok: true, data: tokens } satisfies ApiResponse);
       }
