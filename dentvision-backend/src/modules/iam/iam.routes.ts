@@ -82,12 +82,13 @@ iamRouter.post('/switch-context', async (req: AuthRequest, res) => {
     const base = { sub: user.id, email: user.email, role: user.role, sessionId: user.sessionId };
     const org = (await prisma.organization.findUnique({ where: { id: scopeId } })) || (await prisma.organization.findFirst({ where: { originalId: scopeId } }));
     if (org) {
-      let person = await prisma.person.findFirst({ where: { userId: user.id, organizationId: org.id } });
+      let person = await prisma.person.findFirst({ where: { userId: user.id, organizationId: org.id }, include: { personRoles: { include: { role: true } } } });
       if (!person && org.originalId) {
         person = await prisma.person.findFirst({ where: { userId: user.id, originalId: `${org.originalId}:${user.id}` } });
         if (person) await prisma.person.update({ where: { id: person.id }, data: { organizationId: org.id } }).catch(() => {});
       }
       if (person) {
+        const scopedRole = person.personRoles?.find((pr) => !pr.scopeId || pr.scopeId === org.id)?.role.key || person.personType || user.role;
         const entityId = org.originalId || org.id;
         let supplierContext = {};
         if (org.type === 'SUPPLIER_COMPANY') {
@@ -104,7 +105,7 @@ iamRouter.post('/switch-context', async (req: AuthRequest, res) => {
           if (!orgManager && !assigned) return res.status(403).json({ ok: false, error: 'У вас нет доступа к выбранному филиалу' });
           selectedBranchId = branchId;
         }
-        const tokens = generateTokens({ ...base, organizationId: org.id, organizationOriginalId: org.originalId || undefined, organizationType: org.type, personType: person.personType, ...(selectedBranchId ? { branchId: selectedBranchId } : {}), ...supplierContext, ...(org.type === 'CLINIC' && org.originalId ? { clinicId: org.originalId } : {}) });
+        const tokens = generateTokens({ ...base, role: scopedRole, organizationId: org.id, organizationOriginalId: org.originalId || undefined, organizationType: org.type, personType: person.personType, ...(selectedBranchId ? { branchId: selectedBranchId } : {}), ...supplierContext, ...(org.type === 'CLINIC' && org.originalId ? { clinicId: org.originalId } : {}) });
         await writeAuditLog({ userId: user.id, action: 'auth.switch_context', entity: 'organization', entityId: org.id, details: { scopeType: org.type } });
         return res.json({ ok: true, data: tokens } satisfies ApiResponse);
       }
