@@ -21,7 +21,7 @@ describe('branch consistency migrations', () => {
     expect(sql).toContain('sync_patient_appointment_branches');
     expect(sql).toContain('NEW.branch_id IS DISTINCT FROM OLD.branch_id');
     expect(sql).toContain('UPDATE appointments');
-    expect(sql).toContain('WHERE "patientId" = NEW."id"');
+    expect(sql).toMatch(/WHERE\s+"patientId"\s*=\s*NEW\.?"?id"?/);
     expect(sql).toContain('AND "clinicId" = NEW."clinicId"');
   });
 });
