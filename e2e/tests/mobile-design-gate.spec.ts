@@ -45,6 +45,27 @@ async function login(page: Page) {
   await page.waitForURL(/\/ai(?:$|[?#])/, { timeout: 30000 });
 }
 
+async function waitForVisualReady(page: Page) {
+  await page.waitForFunction(() => {
+    const root = document.getElementById('root');
+    if (!root) return false;
+    const text = (root.innerText || '').trim();
+    if (text.length < 20) return false;
+    const children = Array.from(root.children);
+    const hasFullscreenSpinner = children.some((child) => {
+      const element = child as HTMLElement;
+      const rect = element.getBoundingClientRect();
+      const spinner = element.querySelector('.animate-spin');
+      return Boolean(spinner)
+        && rect.width >= window.innerWidth * 0.85
+        && rect.height >= window.innerHeight * 0.75
+        && element.innerText.trim().length < 20;
+    });
+    return !hasFullscreenSpinner;
+  }, { timeout: 10000 });
+  await page.waitForTimeout(250);
+}
+
 async function auditLayout(page: Page, route: string, device: string) {
   const result = await page.evaluate(() => {
     const doc = document.documentElement;
@@ -151,11 +172,13 @@ test.describe('DentVision responsive design release gate', () => {
     for (const route of CRITICAL_ROUTES) {
       await gotoStable(page, `${BASE_URL}${route}`);
       await page.waitForTimeout(400);
+      await waitForVisualReady(page);
 
       if (new URL(page.url()).pathname === '/login') {
         await login(page);
         await gotoStable(page, `${BASE_URL}${route}`);
         await page.waitForTimeout(400);
+        await waitForVisualReady(page);
       }
 
       expect(new URL(page.url()).pathname, `${device} ${route}: unexpectedly redirected to login`).not.toBe('/login');
