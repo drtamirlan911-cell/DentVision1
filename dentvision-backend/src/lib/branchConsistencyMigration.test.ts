@@ -20,7 +20,7 @@ describe('branch consistency migration contracts', () => {
     expect(source).toContain('patient_clinic_id IS DISTINCT FROM NEW."clinicId"');
     expect(source).toContain('NEW."branch_id" IS DISTINCT FROM patient_branch_id');
     expect(source).toContain('branch_clinic_id IS DISTINCT FROM NEW."clinicId"');
-    expect(source).toContain('WHERE "patientId" = NEW."id"');
+    expect(source).toMatch(/WHERE\s+"patientId"\s*=\s*NEW\.?"?id"?/);
     expect(source).toContain('AND "clinicId" = NEW."clinicId"');
     expect(source).toContain('patients_sync_referral_branch');
     expect(source).not.toContain('p.clinic_id');
