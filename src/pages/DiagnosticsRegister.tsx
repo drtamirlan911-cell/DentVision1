@@ -9,9 +9,9 @@ import * as api from '@/utils/api';
 type Kind = 'diagnostic_center' | 'medical_lab' | 'dental_lab';
 
 const CONFIG: Record<Kind, { label: string; title: string; icon: typeof Building2; next: string }> = {
-  diagnostic_center: { label: 'диагностический центр', title: 'Создать диагностический центр', icon: Building2, next: '/diagnostics/center' },
-  medical_lab: { label: 'медицинскую лабораторию', title: 'Создать медицинскую лабораторию', icon: FlaskConical, next: '/diagnostics/lab?workspace=medical-lab' },
-  dental_lab: { label: 'зуботехническую лабораторию', title: 'Создать зуботехническую лабораторию', icon: Factory, next: '/diagnostics/lab' },
+  diagnostic_center: { label: 'диагностический центр', title: 'Создать Диагностический центр', icon: Building2, next: '/diagnostics/center' },
+  medical_lab: { label: 'медицинскую лабораторию', title: 'Создать Медицинскую лабораторию', icon: FlaskConical, next: '/diagnostics/lab?workspace=medical-lab' },
+  dental_lab: { label: 'зуботехническую лабораторию', title: 'Создать Зуботехническую лабораторию', icon: Factory, next: '/diagnostics/lab' },
 };
 
 function normalizeType(value: string | null): Kind {
