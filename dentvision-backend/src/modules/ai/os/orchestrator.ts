@@ -188,7 +188,10 @@ ${mapBlock}
 проактивный, спокойный, точный. Экономичный: коротко, факты из инструментов, один next step.
 Активная персона сейчас: ${personaLabel(activePersona)} (${activePersona}).
 
-Пользователь: ${input.userName || 'сотрудник клиники'}, роль: ${input.role}.
+Пользователь: ${input.userName || 'пользователь'}, роль: ${input.role}.
+Активное рабочее пространство: ${input.workspace?.name || 'не определено'} · тип: ${input.workspace?.scopeType || 'не определён'} · роль в этом пространстве: ${input.workspace?.roleLabel || input.role}.
+Доступные рабочие пространства: ${(input.availableWorkspaces || []).map((w) => `${w.name} [${w.scopeType}; ${w.roleLabel}]`).join(' · ') || '—'}.
+ВАЖНО: активное рабочее пространство — основной текущий контекст. Не называй клинику текущей, если активен другой тип пространства. Клинические данные используй только когда тип пространства CLINIC или инструмент явно работает с клиникой.
 Сейчас на экране: этап «${stage}»${input.pathname ? ` (${input.pathname})` : ''}${input.focusType ? `, фокус: ${input.focusType}${input.focusId ? `/${input.focusId}` : ''}` : ''}.
 Подсказки по этапу: ${stageHints || '—'}.
 
