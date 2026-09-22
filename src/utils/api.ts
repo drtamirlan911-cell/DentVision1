@@ -139,6 +139,7 @@ export async function getClinic(clinicId: string): Promise<Clinic> { return apiR
 export async function updateClinic(clinicId: string, data: Partial<Clinic> & { settings?: import('../types').ClinicSettings }): Promise<Clinic> { return apiRequest(`/api/clinics/${clinicId}`, { method: 'PATCH', body: JSON.stringify(data) }); }
 export async function getClinicSettings(clinicId: string): Promise<{ clinic: Clinic; settings: import('../types').ClinicSettings }> { return apiRequest(`/api/clinics/${clinicId}/settings`); }
 export async function getMyContexts(): Promise<{ contexts: any[] }> { return apiRequest('/api/iam/me/contexts'); }
+export async function switchWorkspace(scopeType: string, scopeId: string, branchId?: string): Promise<any> { return apiRequest('/api/iam/switch-context', { method: 'POST', body: JSON.stringify({ scopeType, scopeId, ...(branchId ? { branchId } : {}) }) }); }
 export interface OrganizationMe { organization: any; person: any; branches: any[] }
 export async function getMyOrganization(): Promise<OrganizationMe> { return apiRequest('/api/organizations/me'); }
 export async function updateMyOrganization(data: Record<string, unknown>): Promise<any> { return apiRequest('/api/organizations/me', { method: 'PATCH', body: JSON.stringify(data) }); }
