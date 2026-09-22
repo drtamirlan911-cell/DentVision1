@@ -847,3 +847,17 @@ Run the exact current main-tip CI. Inspect the generated Visual Agent evidence f
 
 ### Next action
 - Wait for the current CI chain to finish, inspect fresh screenshots/DOM/runtime evidence rather than only test failures, then fix the next concrete defect and repeat until the full release gate is green.
+
+
+## 2026-09-22 — Diagnostics/laboratory context and routing cleanup
+
+### Implemented
+- 5583f82674452671a2408f3ca7f4f1f523f51b8a — removed the duplicate EcosystemContextBridge from MedicalLabWorkspace; DiagnosticsLayout is the canonical owner of that context surface.
+- 856fbec98e8d604c12f755e86553b519866db9f5 — removed the duplicate EcosystemContextBridge from DentalLabPlatform for the same canonical-layout rule.
+- fdd9b9f8df5866eb3817c439b784411811788682 — medical-laboratory roles now resolve /diagnostics/lab to MedicalLabWorkspace by role, instead of falling through to the dental-laboratory production board. This removes the documented Medical Lab → Dental Lab semantic mismatch at the source.
+
+### Verification status
+- These fixes are committed to main and have triggered the current CI/Quality Gate chain. The latest run is queued; PASS is not claimed until the fresh role/device Visual Agent evidence completes.
+
+### Next action
+- Inspect the fresh visual-agent artifact for diagnostic center, medical lab and dental lab roles at desktop/tablet/mobile. Verify the old duplicate context, wrong lab subtitle/workspace and oversized empty states are gone in screenshots and DOM. Continue fixing any remaining concrete visual/runtime defect without weakening the release gates.
