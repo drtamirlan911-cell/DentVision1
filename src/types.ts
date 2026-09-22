@@ -27,6 +27,8 @@ export interface User {
   organizationType?: string
   organizationName?: string
   organizationId?: string
+  /** Original entity id (clinic/diagnostic center/laboratory) behind a unified organization id. */
+  organizationOriginalId?: string
   personType?: string
   memberships?: Array<{ id: string; clinicId: string; role: string }>
   activeMembership?: { id: string; clinicId: string; role: string }
