@@ -427,7 +427,7 @@ async function main() {
     await tx.$executeRawUnsafe(`
       CREATE TABLE IF NOT EXISTS "center_subscriptions" (
         id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-        center_id UUID NOT NULL UNIQUE,
+        center_id TEXT NOT NULL UNIQUE,
         status TEXT NOT NULL DEFAULT 'trial',
         trial_end TIMESTAMPTZ DEFAULT (now() + interval '30 days'),
         amount_monthly INT NOT NULL DEFAULT 20000,
@@ -456,14 +456,29 @@ async function main() {
     console.error('[MIGRATION] Перенос авто-списания не удался (не фатально):', err);
   }
 
+  // Normalize an older bootstrap that created center_id as UUID while DiagnosticCenter.id is TEXT.
+  try {
+    await prisma.$executeRawUnsafe(`DO $
+    BEGIN
+      IF EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_schema='public' AND table_name='center_subscriptions' AND column_name='center_id'
+          AND data_type='uuid'
+      ) THEN
+        ALTER TABLE "center_subscriptions" ALTER COLUMN "center_id" TYPE TEXT USING "center_id"::text;
+      END IF;
+    END $;`);
+  } catch (err) {
+    console.error('[MIGRATION] Center subscription id type normalization failed (non-fatal):', err);
+  }
   // Backfill trial subscriptions for existing centers that don't have one yet
   try {
     const res = await prisma.$executeRawUnsafe(`
       INSERT INTO "center_subscriptions" (center_id, status, trial_end)
-      SELECT dc.id::uuid, 'trial', now() + interval '30 days'
+      SELECT dc.id, 'trial', now() + interval '30 days'
       FROM "diagnostic_centers" dc
       WHERE dc.active = true
-        AND NOT EXISTS (SELECT 1 FROM "center_subscriptions" cs WHERE cs.center_id = dc.id::uuid)
+        AND NOT EXISTS (SELECT 1 FROM "center_subscriptions" cs WHERE cs.center_id = dc.id)
     `);
     console.log(`[MIGRATION] Center subscriptions backfilled for ${res} centers`);
   } catch (err) {
