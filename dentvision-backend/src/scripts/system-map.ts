@@ -107,6 +107,18 @@ interface RouteDef {
   path: string;
 }
 
+function readInlineAppRoutes(): RouteDef[] {
+  const file = join(BACKEND_SRC, 'app.ts');
+  const source = read(file);
+  const routes: RouteDef[] = [];
+  const pattern = new RegExp("app\\.(" + HTTP_METHODS.join("|") + ")\\(\\s*['\"]([^'\"]*)", "g");
+  for (const match of source.matchAll(pattern)) {
+    const [, method, path] = match;
+    routes.push({ file: relative(REPO_ROOT, file), routerVar: 'app', method: method.toUpperCase(), path: path ?? '' });
+  }
+  return routes;
+}
+
 function readRoutes(): RouteDef[] {
   const files = walk(join(BACKEND_SRC, 'modules'), (p) => p.endsWith('.routes.ts') && !p.endsWith('.test.ts'));
   const routes: RouteDef[] = [];
@@ -445,6 +457,7 @@ function table(header: string[], rows: string[][]): string {
 function main(): void {
   const mounts = readMounts();
   const routes = readRoutes();
+  const inlineAppRoutes = readInlineAppRoutes();
   const clientPaths = readClientPaths();
   const models = readModels();
   const { rows: roleRows } = readRoleMatrix();
@@ -530,6 +543,7 @@ function main(): void {
         ['Смонтированных роутеров', String(mounts.length)],
         ['Уникальных обработчиков маршрутов в source', String(routes.length)],
         ['Зарегистрированных HTTP-маршрутов после mount', String(mountedRouteRegistrations)],
+        ['Inline HTTP-обработчиков в app.ts', String(inlineAppRoutes.length)],
         ['Маршрутов без потребителя на фронте', `**${orphanRoutes.length}**`],
         ['Роутеров, объявленных но не смонтированных', String(unmounted.length)],
         ['Prisma-моделей', String(models.length)],
@@ -721,7 +735,7 @@ function main(): void {
   // the point of running it.
   console.warn(`SYSTEM_MAP → ${relative(REPO_ROOT, target)}`);
   console.warn(
-    `  ${mounts.length} routers · ${routes.length} routes (${orphanRoutes.length} unconsumed) · ` +
+    `  ${mounts.length} routers · ${routes.length} unique handlers · ${mountedRouteRegistrations} mounted routes · ${inlineAppRoutes.length} inline routes (${orphanRoutes.length} unconsumed) · ` +
       `${models.length} models (${unusedModels.length} untouched, ${writeOnly.length} write-only)`,
   );
 }
