@@ -4,6 +4,7 @@ vi.mock('@/utils/api', () => ({
   login: vi.fn(),
   register: vi.fn(),
   getMe: vi.fn(),
+  getMyContexts: vi.fn(),
   setTokens: vi.fn(),
   clearTokens: vi.fn(),
   loadTokens: vi.fn(),
@@ -16,6 +17,7 @@ import { useAuthStore, ORG_ROLES, PLATFORM_ROLES } from './auth.store'
 import * as api from '@/utils/api'
 
 beforeEach(() => {
+  vi.mocked(api.getMyContexts).mockResolvedValue({ contexts: [] } as any)
   useAuthStore.setState({
     user: null,
     token: null,
