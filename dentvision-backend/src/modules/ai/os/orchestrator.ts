@@ -342,6 +342,10 @@ export async function orchestrate(rawInput: OrchestratorInput): Promise<Orchestr
   const access = await resolveAiToolAccess({
     userId: rawInput.userId,
     clinicId: rawInput.clinicId,
+    organizationId: rawInput.organizationId,
+    organizationType: rawInput.organizationType,
+    supplierId: rawInput.supplierId,
+    lecturerId: rawInput.lecturerId,
     isGuest: rawInput.isGuest,
   });
   const input: OrchestratorInput = { ...rawInput, role: access.role, clinicId: access.clinicId };
