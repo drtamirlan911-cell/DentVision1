@@ -84,7 +84,7 @@ iamRouter.post('/switch-context', async (req: AuthRequest, res) => {
     if (org) {
       let person = await prisma.person.findFirst({ where: { userId: user.id, organizationId: org.id }, include: { personRoles: { include: { role: true } } } });
       if (!person && org.originalId) {
-        person = await prisma.person.findFirst({ where: { userId: user.id, originalId: `${org.originalId}:${user.id}` } });
+        person = await prisma.person.findFirst({ where: { userId: user.id, originalId: `${org.originalId}:${user.id}` }, include: { personRoles: { include: { role: true } } } });
         if (person) await prisma.person.update({ where: { id: person.id }, data: { organizationId: org.id } }).catch(() => {});
       }
       if (person) {
