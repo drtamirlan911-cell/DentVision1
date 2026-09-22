@@ -83,14 +83,14 @@ function PageHeader({
   className?: string
 }) {
   return (
-    <div className={cn('flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between mb-5 sm:mb-6', className)}>
+    <div className={cn('flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between mb-5 lg:mb-6', className)}>
       <div className="flex items-start gap-3 min-w-0">
         {icon && (
           <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-dv-gold/10 text-dv-gold sm:h-12 sm:w-12">
             {icon}
           </div>
         )}
-        <div className="min-w-0">
+        <div className="min-w-0 flex-1">
           <h1 className="text-2xl sm:text-3xl font-semibold text-txt-primary tracking-tight leading-tight break-words">{title}</h1>
           {subtitle && (
             <p className="text-sm text-txt-secondary mt-1 leading-snug break-words">{subtitle}</p>
@@ -98,7 +98,7 @@ function PageHeader({
         </div>
       </div>
       {actions && (
-        <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto sm:justify-end shrink-0">
+        <div className="flex flex-wrap items-center gap-2 w-full lg:w-auto lg:justify-end shrink-0">
           {actions}
         </div>
       )}
