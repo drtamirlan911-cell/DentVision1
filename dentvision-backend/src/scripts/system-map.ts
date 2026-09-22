@@ -483,7 +483,10 @@ function main(): void {
   const agentDefs = readAgentDefs();
   const unreachable = unreachableAgents(agentDefs, [...Object.keys(roleRows), ...NON_CLINIC_REACHABLE_ROLES]);
 
-  const negativeTestCoverage = routesWithoutNegativeTest(routes, mounts);
+  const negativeTestCoverage = routesWithoutNegativeTest(
+    [...routes, ...inlineAppRoutes],
+    [...mounts, { prefix: '', router: 'app' }],
+  );
 
   const byRouter = new Map<string, RouteDef[]>();
   for (const route of routes) {
