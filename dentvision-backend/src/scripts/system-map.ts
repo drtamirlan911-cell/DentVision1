@@ -32,7 +32,7 @@ type Mount = { prefix: string; router: string };
 function readMounts(): Mount[] {
   const source = read(join(BACKEND_SRC, 'app.ts'));
   const mounts: Mount[] = [];
-  for (const match of source.matchAll(/app\.use\(\s*['\"]([^'\"]+)['\"]\s*,\s*(\w+)\s*\)/g)) {
+  for (const match of source.matchAll(/app\.use\(\s*['"]([^'"]+)['"]\s*,\s*(\w+)\s*\)/g)) {
     const [, prefix, router] = match;
     if (/Router$/.test(router)) mounts.push({ prefix, router });
   }
