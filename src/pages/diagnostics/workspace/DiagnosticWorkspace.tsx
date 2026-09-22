@@ -13,7 +13,6 @@ import { queryKeys } from '@/queries/keys'
 import { useAuth } from '@/store/auth.store'
 import * as api from '@/utils/api'
 import { useEcosystemUrlContext } from '@/hooks/useEcosystemUrlContext'
-import EcosystemContextBridge from '@/components/ecosystem/EcosystemContextBridge'
 import EcosystemCaseFlow from '@/components/ecosystem/EcosystemCaseFlow'
 
 import { WORKSPACES, type OrgKind } from './config'
@@ -148,7 +147,6 @@ export function DiagnosticWorkspace({ kind: pinnedKind }: { kind?: OrgKind }) {
         actions={<Badge variant="outline">{kind === 'CENTER' ? 'Центр' : 'Лаборатория'}</Badge>}
       />
 
-      <EcosystemContextBridge />
       {(ecosystem.patientId || ecosystem.caseId) && (
         <EcosystemCaseFlow context={ecosystem} compact />
       )}
