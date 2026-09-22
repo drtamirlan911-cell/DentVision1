@@ -7,7 +7,7 @@ import type { User as UserType } from '@/types';
 interface Props { user: UserType | null; collapsed?: boolean; isGuest?: boolean }
 
 const ROLE_LABELS: Record<string, string> = {
-  doctor: 'Врач', owner: 'Владелец', director: 'Директор', admin: 'Администратор', assistant: 'Ассистент',
+  doctor: 'Врач', owner: 'Руководитель', director: 'Директор', admin: 'Администратор', assistant: 'Ассистент',
   diagnostic_center: 'Диагностический центр', lab_diagnostic: 'Медицинская лаборатория', laboratory: 'Зуботехническая лаборатория',
   lab: 'Лаборатория', supplier: 'Поставщик', lecturer: 'Преподаватель', student: 'Студент', employer: 'Работодатель',
   job_seeker: 'Соискатель', patient: 'Пациент',
