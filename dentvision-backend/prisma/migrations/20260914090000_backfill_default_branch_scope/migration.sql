@@ -17,11 +17,11 @@ WITH chosen_branch AS (
   FROM branches
   WHERE clinic_id IS NOT NULL
     AND active = true
-  ORDER BY clinic_id, "isDefault" DESC, "createdAt" ASC, id ASC
+  ORDER BY clinic_id, "is_default" DESC, "created_at" ASC, id ASC
 )
 UPDATE patients p
 SET branch_id = chosen_branch.branch_id,
-    "updatedAt" = CURRENT_TIMESTAMP
+    "updated_at" = CURRENT_TIMESTAMP
 FROM chosen_branch
 WHERE p."clinicId" = chosen_branch.clinic_id
   AND p.branch_id IS NULL;
@@ -33,11 +33,11 @@ WITH chosen_branch AS (
   FROM branches
   WHERE clinic_id IS NOT NULL
     AND active = true
-  ORDER BY clinic_id, "isDefault" DESC, "createdAt" ASC, id ASC
+  ORDER BY clinic_id, "is_default" DESC, "created_at" ASC, id ASC
 )
 UPDATE appointments a
 SET branch_id = chosen_branch.branch_id,
-    "updatedAt" = CURRENT_TIMESTAMP
+    "updated_at" = CURRENT_TIMESTAMP
 FROM chosen_branch
 WHERE a."clinicId" = chosen_branch.clinic_id
   AND a.branch_id IS NULL;
@@ -49,7 +49,7 @@ WITH chosen_branch AS (
   FROM branches
   WHERE clinic_id IS NOT NULL
     AND active = true
-  ORDER BY clinic_id, "isDefault" DESC, "createdAt" ASC, id ASC
+  ORDER BY clinic_id, "is_default" DESC, "created_at" ASC, id ASC
 )
 UPDATE clinic_members cm
 SET branch_id = chosen_branch.branch_id
