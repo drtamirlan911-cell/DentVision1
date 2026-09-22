@@ -875,3 +875,20 @@ Run the exact current main-tip CI. Inspect the generated Visual Agent evidence f
 - Fresh CI responsive evidence still showed `Новое направление` with a gold background and nearly-gold text, so the previous Button-level fix was not actually reaching the rendered primary button.
 - Root cause was confirmed in `src/styles/dentvision-unified-theme.css`: the selector `[class*='text-dv-gold']` also matched the distinct class `text-dv-gold-on` and, with `!important`, overrode the intended dark-on-gold foreground.
 -  a139ee7a6891228d358f9936b7f39f075bdd3519 changes the selector to the exact class-token form `[class~='text-dv-gold']`, preserving `text-dv-gold-on` and fixing primary-button contrast without changing the design token itself.
+
+
+## 2026-09-22 — AI briefing markdown rendering regression
+
+### Evidence
+- Historical Visual/Design artifact showed the authenticated AI briefing rendering Markdown control characters literally, including **понедельник, 21 сентября**, **3** and **23**.
+- Current AIWorkspaceIndex still rendered the briefing with plain whitespace-pre-line, while chat messages had a dedicated inline-Markdown renderer. The presentation defect therefore remained possible even after the chat renderer was improved.
+
+### Implemented
+- 316a18f0cf1f65b27a798fc165e820f489e907d1 — added a dedicated briefing renderer that converts the supported **bold** syntax to semantic emphasis and preserves line breaks instead of exposing Markdown delimiters to users.
+
+### Verification status
+- Code fix is committed.
+- Fresh CI evidence for this exact commit is pending; no visual pass is claimed until the resulting CI artifact is inspected.
+
+### Next action
+- Verify the fresh AI screenshot in the full visual evidence artifact, then continue the old-PNG regression matrix for Diagnostics, Medical Laboratory, Dental Laboratory, Patient Portal, empty states, overlays and responsive layouts.
