@@ -10,8 +10,9 @@ import { DiagnosticWorkspace } from './workspace/DiagnosticWorkspace';
  */
 export default function LabDashboard() {
   const { user } = useAuth();
+  const role = String(user?.effectiveRole || user?.role || '').toLowerCase();
   const [searchParams] = useSearchParams();
-  const medicalLab = searchParams.get('workspace') === 'medical-lab';
+  const medicalLab = searchParams.get('workspace') === 'medical-lab' || role.startsWith('medical_lab_');
 
   if (medicalLab) return <MedicalLabWorkspace />;
   if (user?.organizationType === 'LABORATORY') return <DentalLabPlatform />;
