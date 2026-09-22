@@ -24,7 +24,10 @@ vi.mock('../../../lib/prisma.js', () => ({
     person: { findMany: personFindMany },
   },
 }));
-vi.mock('../../../lib/orgContext.js', () => ({ resolveOrganizationIdForClinic }));
+vi.mock('../../../lib/orgContext.js', () => ({
+  resolveOrganizationIdForClinic,
+  resolveClinicAccess: vi.fn().mockResolvedValue({ role: 'DOCTOR' }),
+}));
 
 import { buildAiContext } from './context.js';
 
