@@ -195,6 +195,7 @@ if (container) {
                   <Route path="referrals/:id" element={<Suspense fallback={<PageLoader />}><ReferralDetail /></Suspense>} />
                   <Route path="centers" element={<Suspense fallback={<PageLoader />}><CenterList /></Suspense>} />
                   <Route path="labs" element={<Suspense fallback={<PageLoader />}><LabList /></Suspense>} />
+                  <Route path="laboratories" element={<Navigate to="/diagnostics/labs" replace />} />
                   <Route path="patients" element={<Suspense fallback={<PageLoader />}><DiagnosticPatients /></Suspense>} />
                   <Route path="results" element={<Suspense fallback={<PageLoader />}><ResultList /></Suspense>} />
                   <Route path="calendar" element={<Suspense fallback={<PageLoader />}><DiagnosticCalendar /></Suspense>} />
@@ -204,6 +205,7 @@ if (container) {
                   <Route path="lab" element={<Suspense fallback={<PageLoader />}><LabDashboard /></Suspense>} />
                   <Route path="workspace" element={<Suspense fallback={<PageLoader />}><WorkspaceEntry /></Suspense>} />
                   <Route path="registration-requests" element={<Suspense fallback={<PageLoader />}><RegistrationRequests /></Suspense>} />
+                  <Route path="registrations" element={<Navigate to="/diagnostics/registration-requests" replace />} />
                   <Route path="center-dashboard" element={<Navigate to="/diagnostics/center" replace />} />
                   <Route path="lab-dashboard" element={<Navigate to="/diagnostics/lab" replace />} />
                 </Route>
