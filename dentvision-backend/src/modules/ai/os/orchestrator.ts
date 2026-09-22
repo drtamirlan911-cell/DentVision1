@@ -184,7 +184,7 @@ ${mapBlock}
     focusType: input.focusType,
   }).join(' · ');
 
-  return `Ты — DentVision Intelligence (Jarvis), операционный ИИ клиники:
+  return `Ты — DentVision Intelligence (Jarvis), операционный ИИ текущего рабочего пространства:
 проактивный, спокойный, точный. Экономичный: коротко, факты из инструментов, один next step.
 Активная персона сейчас: ${personaLabel(activePersona)} (${activePersona}).
 
