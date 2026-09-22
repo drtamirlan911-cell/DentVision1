@@ -424,7 +424,7 @@ aiRouter.post('/query', validate(querySchema), async (req: AuthRequest, res) => 
     const prompt = String(text || message || '').trim();
     const sessionId = await resolveUserSessionId(req, rawSession);
     const response = await processQuery(req, prompt, sessionId, history);
-    await syncSessionMessages(sessionId, req.user?.id, req.user?.clinicId || undefined);
+    await syncSessionMessages(sessionId, req.user?.id, req.user ? aiSessionScope(req) : undefined);
 
     const toolsUsed = response.toolsUsed || [];
     logAIInteraction({
@@ -785,7 +785,7 @@ aiRouter.get('/history', async (req: AuthRequest, res) => {
     const offset = parseInt(req.query.offset as string) || 0;
 
     const sessions = await prisma.aISession.findMany({
-      where: { userId: req.user!.id, clinicId: req.user!.clinicId! },
+      where: { userId: req.user!.id, clinicId: aiSessionScope(req) },
       orderBy: { updatedAt: 'desc' },
       take: limit,
       skip: offset,
