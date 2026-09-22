@@ -8,7 +8,7 @@ import { sendMessage } from '../sender/messenger.sender.js'
 import { logAudit } from '../audit/audit.logger.js'
 import type { NormalizedMessage } from '../webhook/types.js'
 
-export function startMessageWorker(): void {
+export async function startMessageWorker(): Promise<void> {
   const redis = getRedis()
   if (!redis) {
     console.log('[ai-admin] Redis unavailable — worker skipped (webhooks will be accepted but not processed)')
