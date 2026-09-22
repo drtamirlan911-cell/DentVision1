@@ -9,9 +9,9 @@ BEGIN
   IF NEW.branch_id IS DISTINCT FROM OLD.branch_id THEN
     UPDATE appointments
     SET branch_id = NEW.branch_id,
-        updated_at = CURRENT_TIMESTAMP
-    WHERE patient_id = NEW.id
-      AND clinic_id = NEW.clinic_id;
+        "updatedAt" = CURRENT_TIMESTAMP
+    WHERE "patientId" = NEW."id"
+      AND "clinicId" = NEW."clinicId";
   END IF;
   RETURN NEW;
 END;
