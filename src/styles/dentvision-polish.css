@@ -138,3 +138,9 @@ img { max-width: 100%; }
   .dv-composer-pad button { min-width: 40px; min-height: 40px; }
   .dv-composer-pad textarea { padding-left: 14px !important; padding-top: 12px !important; padding-bottom: 12px !important; }
 }
+
+/* Primary gold actions: keep the foreground token explicit even if a generated opacity utility overrides the Tailwind text color. */
+.bg-dv-gold.text-dv-gold-on,
+[class*="bg-dv-gold"][class*="text-dv-gold-on"] {
+  color: var(--dv-gold-on) !important;
+}
