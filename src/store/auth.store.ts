@@ -117,6 +117,14 @@ async function hydrateAuthFromMe() { const me = await api.getMe() as any; const 
 function getTokenClinicId(token: string | null | undefined): string | null { try { const payload = token?.split('.')[1]; if (!payload) return null; return JSON.parse(atob(payload.replace(/-/g, '+').replace(/_/g, '/'))).clinicId || null } catch { return null } }
 function buildClinicFromMembership(m: Membership | null): Clinic | null { if (!m) return null; if (m.clinic) return m.clinic as Clinic; if (m.clinicId) return { id: m.clinicId, name: 'Клиника' } as Clinic; return null }
 function resolveRole(activeMembership: Membership | null, user: User | null): string { return normalizeRole(activeMembership?.role || user?.platformRole || user?.role || 'user') }
+export function getRoleDisplayLabel(role: string | null | undefined): string {
+  const resolvedRole = normalizeRole(role);
+  if (ORG_ROLES[resolvedRole]) return ORG_ROLES[resolvedRole].label;
+  if (PARTNER_ROLE_LABELS[resolvedRole]) return PARTNER_ROLE_LABELS[resolvedRole];
+  if (PLATFORM_ROLES[resolvedRole]) return PLATFORM_ROLES[resolvedRole].label;
+  return resolvedRole === 'user' ? 'Участник' : resolvedRole;
+}
+
 function resolveRoleInfo(activeMembership: Membership | null, user: User | null): RoleConfig {
   const resolvedRole = resolveRole(activeMembership, user);
   if (ORG_ROLES[resolvedRole]) return ORG_ROLES[resolvedRole];
