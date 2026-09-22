@@ -95,6 +95,18 @@ function aiSessionScope(req: AuthRequest): string {
   return 'user:' + (user?.id || 'platform');
 }
 
+function aiAccessInput(req: AuthRequest) {
+  return {
+    userId: req.user!.id,
+    clinicId: req.user?.clinicId ?? null,
+    organizationId: req.user?.organizationId ?? null,
+    organizationType: req.user?.organizationType ?? null,
+    supplierId: req.user?.supplierId ?? null,
+    lecturerId: req.user?.lecturerId ?? null,
+    isGuest: req.user?.isGuest,
+  };
+}
+
 async function resolveUserSessionId(req: AuthRequest, requested?: string): Promise<string> {
   if (!req.user?.id || req.user.isGuest) return requested && requested.length >= 8 ? requested : crypto.randomUUID();
 
@@ -1141,10 +1153,7 @@ import { resolveAiToolAccess } from './os/access.js';
  */
 aiRouter.get('/skills', authenticate, async (req: AuthRequest, res) => {
   try {
-    const access = await resolveAiToolAccess({
-      userId: req.user!.id,
-      clinicId: req.user?.clinicId ?? null,
-    });
+    const access = await resolveAiToolAccess(aiAccessInput(req));
     return res.json({ ok: true, data: skillCatalogueFor(access, 'staff') });
   } catch (error) {
     console.error('[AI Skills] list failed:', error);
