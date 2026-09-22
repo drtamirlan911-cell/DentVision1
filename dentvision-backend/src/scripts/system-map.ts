@@ -119,6 +119,7 @@ function main(): void {
     }
   }
   lines.push('', '## Background jobs', '', ...jobs.map((job) => `- ${job}`), '');
+  lines.push('> **Generated** `npm run system-map` from source code.', '> Do not edit manually — rerun the generator.', '> Judgments belong in `SYSTEM_AUDIT.md`; this file contains only facts derivable from code.', '');
   writeFileSync(join(REPO_ROOT, 'docs', 'SYSTEM_MAP.md'), `${lines.join('\n')}\n`);
 }
 
