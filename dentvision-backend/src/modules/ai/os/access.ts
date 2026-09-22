@@ -108,7 +108,10 @@ export async function resolveAiToolAccess(input: AiToolAccessInput): Promise<AiT
       include: { personRoles: { include: { role: true } } },
     });
     if (person) {
-      const roleKeys = person.personRoles.map((pr) => String(pr.role.key).toUpperCase());
+      const roleKeys = person.personRoles
+        .filter((pr) => !pr.scopeId || pr.scopeId === organizationId)
+        .filter((pr) => pr.scopeType !== 'organization' || !pr.scopeId || pr.scopeId === organizationId)
+        .map((pr) => String(pr.role.key).toUpperCase());
       const preferred = roleKeys.find((key) =>
         key.startsWith('DIAGNOSTIC_')
         || key.startsWith('MEDICAL_LAB_')
