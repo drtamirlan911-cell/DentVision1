@@ -110,7 +110,7 @@ interface RouteDef {
 function readRoutes(): RouteDef[] {
   const files = walk(join(BACKEND_SRC, 'modules'), (p) => p.endsWith('.routes.ts') && !p.endsWith('.test.ts'));
   const routes: RouteDef[] = [];
-  const pattern = new RegExp("(\\\\w+)\\\\.(" + HTTP_METHODS.join("|") + ")\\\\(\\\\s*[\'\"]([^\'\"]*)", "g");
+  const pattern = new RegExp("(\w+)\.(" + HTTP_METHODS.join("|") + ")\(\s*[\'\"]([^\'\"]*)", "g");
 
   for (const file of files) {
     const source = read(file);
