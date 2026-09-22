@@ -861,3 +861,10 @@ Run the exact current main-tip CI. Inspect the generated Visual Agent evidence f
 
 ### Next action
 - Inspect the fresh visual-agent artifact for diagnostic center, medical lab and dental lab roles at desktop/tablet/mobile. Verify the old duplicate context, wrong lab subtitle/workspace and oversized empty states are gone in screenshots and DOM. Continue fixing any remaining concrete visual/runtime defect without weakening the release gates.
+
+
+## 2026-09-22 — Responsive evidence stability
+
+- Current mobile release-gate artifact exposed a real evidence-quality problem: several critical routes were captured as the global loading spinner at desktop/tablet widths because the gate waited only 400 ms after navigation.
+- 63e30dc8155f62af13cd165ccb8aee6ca0d25f19 adds an explicit visual-readiness wait that rejects the full-screen loading shell before taking screenshots. This does not mask a permanent loading state: it times out if meaningful content never replaces the loader.
+- Current CI still has a separate core E2E failure and a role/context gate failure; those are being investigated from their actual artifacts/logs rather than assumed to be visual-only.
