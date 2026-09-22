@@ -13,7 +13,6 @@ import { logAIInteraction } from './lib/auditLogger.js';
 import { guardAiAccess } from '../../middleware/planGate.js';
 import { consumeGuestAi, guestAiRemaining } from '../../lib/guestAiQuota.js';
 import { buildAiContext } from './os/context.js';
-import { roleLabelFor } from '../iam/contexts.js';
 import multer from 'multer';
 import { transcribeAudio, isTranscriptionFailed, MAX_AUDIO_BYTES } from './lib/transcription.js';
 
