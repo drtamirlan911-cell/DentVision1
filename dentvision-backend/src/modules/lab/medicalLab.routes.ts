@@ -46,7 +46,12 @@ async function resolveLaboratoryScopeId(user: AuthRequest['user']): Promise<stri
     where: { userId: user.id },
     select: { labId: true },
   });
-  return membership?.labId ?? null;
+  if (!membership?.labId) return null;
+  const memberLab = await prisma.laboratory.findUnique({
+    where: { id: String(membership.labId) },
+    select: { id: true },
+  });
+  return memberLab?.id ?? null;
 }
 
 async function getOrder(id: string): Promise<OrderRow | null> {
