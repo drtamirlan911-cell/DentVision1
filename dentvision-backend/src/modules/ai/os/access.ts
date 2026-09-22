@@ -96,6 +96,13 @@ export async function resolveAiToolAccess(input: AiToolAccessInput): Promise<AiT
       organizationId = await resolveOrganizationIdForClinic(input.clinicId);
     }
   } else if (organizationId) {
+    const org = await prisma.organization.findUnique({
+      where: { id: organizationId },
+      select: { id: true, type: true },
+    });
+    if (!org) {
+      return { role: String(user.role), clinicId: null, allowed: new Set(), employee: employeeContractForRole(String(user.role)) };
+    }
     const person = await prisma.person.findFirst({
       where: { userId: input.userId, organizationId },
       include: { personRoles: { include: { role: true } } },
