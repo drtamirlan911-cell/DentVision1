@@ -8,7 +8,6 @@ import { Button } from '@/components/ui/ds/Button';
 import { PageHeader } from '@/components/ui/ds/StatCard';
 import { QueryError } from '@/components/ui/ds/QueryError';
 import { useEcosystemUrlContext } from '@/hooks/useEcosystemUrlContext';
-import EcosystemContextBridge from '@/components/ecosystem/EcosystemContextBridge';
 import EcosystemRelationRail from '@/components/ecosystem/EcosystemRelationRail';
 import { createMedicalLabOrder, getMedicalLabOrder, listMedicalLabOrders, saveMedicalLabInterpretation, saveMedicalLabResults, updateMedicalLabStatus, verifyMedicalLabOrder, type MedicalLabStatus } from '@/utils/medicalLabApi';
 
@@ -42,7 +41,6 @@ export default function MedicalLabWorkspace() {
   return (
     <div className="space-y-6">
       <PageHeader title="Медицинская лаборатория" subtitle="Направление → биоматериал → исследование → результат → верификация → клиническая интерпретация" />
-      <EcosystemContextBridge />
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4 xl:grid-cols-6">
         {[['ordered', 'Направлено', Activity], ['sample_collected', 'Материал', TestTube2], ['processing', 'В работе', FlaskConical], ['result_ready', 'Результаты', Clock3], ['verified', 'Проверено', ShieldCheck], ['cancelled', 'Отменено', XCircle]].map(([id, label, Icon]) => (
           <Card key={id as string} className="border-bdr-subtle bg-surface-1 p-4"><div className="flex items-center justify-between"><Icon className="h-4 w-4 text-dv-gold" /><span className="text-xl font-semibold text-txt-primary">{counts[id as string] || 0}</span></div><div className="mt-2 text-xs text-txt-muted">{label as string}</div></Card>
