@@ -99,15 +99,23 @@ export function WorkspaceSwitcher({ className }: { className?: string }) {
   const activeClinicId = clinic?.id || activeMembership?.clinicId || null
   const activeOrgId = (user as { organizationId?: string } | null)?.organizationId || null
   const activeOrgType = (user as { organizationType?: string } | null)?.organizationType || null
+  const activeSupplierId = (user as { supplierId?: string } | null)?.supplierId || null
+  const activeLecturerId = (user as { lecturerId?: string } | null)?.lecturerId || null
 
   const isActive = (ws: WorkspaceContext) => {
+    if (ws.scopeType === 'LECTURER') {
+      return activeLecturerId ? ws.scopeId === activeLecturerId : Boolean(activeOrgId && ws.organizationId === activeOrgId)
+    }
+    if (ws.scopeType === 'SUPPLIER') {
+      return activeSupplierId ? ws.scopeId === activeSupplierId : Boolean(activeOrgId && (ws.organizationId === activeOrgId || ws.scopeId === activeOrgId))
+    }
     if (activeOrgType && activeOrgType !== 'CLINIC') return ws.organizationId === activeOrgId || ws.scopeId === activeOrgId
     return ws.scopeType === 'CLINIC' && ws.scopeId === activeClinicId
   }
 
   const current = useMemo(
     () => workspaces.find(isActive) || workspaces.find((w) => w.scopeType === 'CLINIC') || workspaces[0],
-    [workspaces, activeClinicId, activeOrgId, activeOrgType],
+    [workspaces, activeClinicId, activeOrgId, activeOrgType, activeSupplierId, activeLecturerId],
   )
 
   useEffect(() => {
@@ -131,7 +139,14 @@ export function WorkspaceSwitcher({ className }: { className?: string }) {
     }
     setBusyId(ws.id)
     try {
-      const tokens = await api.switchContext(ws.scopeType, ws.organizationId || ws.scopeId)
+      // Lecturer/supplier workspaces have their own legacy scope identities. Switching
+      // through the organization id would collapse a lecturer into the academy (and
+      // can leave the AI on the previous clinic scope). Preserve the selected scope
+      // so the JWT carries lecturerId/supplierId and the server can rebuild the same workspace.
+      const switchScopeId = ws.scopeType === 'LECTURER' || ws.scopeType === 'SUPPLIER'
+        ? ws.scopeId
+        : (ws.organizationId || ws.scopeId)
+      const tokens = await api.switchContext(ws.scopeType, switchScopeId)
       if (tokens?.accessToken) api.setTokens(tokens.accessToken, tokens.refreshToken || null)
       await useAuthStore.getState().restoreSession()
 
