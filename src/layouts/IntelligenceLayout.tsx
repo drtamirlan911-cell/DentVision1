@@ -137,7 +137,7 @@ export const IntelligenceLayout: React.FC = () => {
           <WorkspaceSwitcher />
           <div className="ml-auto flex items-center gap-2"><LanguageSwitcher /><AlertDropdown alerts={[]} isOpen={alertOpen} setIsOpen={setAlertOpen} /><DentCashHeaderChip /></div>
         </header>
-        <main className="relative min-h-[calc(100vh-4rem)]">
+        <main className="relative min-h-[calc(100vh-4rem)] pb-[calc(var(--dv-bottomnav-height,3.5rem)+var(--dv-safe-bottom))] md:pb-0">
           <ErrorBoundary><Outlet context={{ clinic: activeClinic || clinic, user, roleInfo }} /></ErrorBoundary>
           <ClinicalAIContextBridge />
           {caseContext.patientId || caseContext.caseId ? <div className="pointer-events-none fixed bottom-4 left-1/2 z-20 w-[min(760px,calc(100%-2rem))] -translate-x-1/2"><div className="pointer-events-auto"><EcosystemCaseFlow compact patientId={caseContext.patientId} caseId={caseContext.caseId} branchId={caseContext.branchId} organizationId={caseContext.organizationId} /></div></div> : null}
