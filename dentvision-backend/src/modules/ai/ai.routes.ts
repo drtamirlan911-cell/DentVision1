@@ -766,11 +766,7 @@ aiRouter.post('/action', authenticate, async (req: AuthRequest, res) => {
   // confirmed=true) execute through the same RBAC-checked tool layer.
   const { executeTool: runTool } = await import('./os/tools.js');
   const { resolveAiToolAccess } = await import('./os/access.js');
-  const access = await resolveAiToolAccess({
-    userId: req.user!.id,
-    clinicId: req.user!.clinicId,
-    isGuest: req.user!.isGuest,
-  });
+  const access = await resolveAiToolAccess(aiAccessInput(req));
   const allowed = access.allowed;
   if (allowed.has(action)) {
     const result = await runTool(action, params, {
@@ -966,11 +962,7 @@ aiRouter.post('/confirm', authenticate, async (req: AuthRequest, res) => {
 
     const { executeTool: runTool } = await import('./os/tools.js');
     const { resolveAiToolAccess } = await import('./os/access.js');
-    const access = await resolveAiToolAccess({
-      userId: req.user!.id,
-      clinicId: req.user!.clinicId,
-      isGuest: req.user!.isGuest,
-    });
+    const access = await resolveAiToolAccess(aiAccessInput(req));
     if (!access.allowed.has(toolName)) {
       return res.status(403).json({ ok: false, error: 'Действие недоступно для роли' });
     }
