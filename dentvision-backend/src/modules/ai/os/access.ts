@@ -88,7 +88,16 @@ export async function resolveAiToolAccess(input: AiToolAccessInput): Promise<AiT
   let clinicId: string | null = null;
   let organizationId: string | null = input.organizationId || null;
 
-  if (input.clinicId) {
+  // A context-switch token can keep the previous clinicId for compatibility.
+  // Partner workspaces are explicit and must take precedence, otherwise both
+  // the UI context and the AI authorization resolver collapse back to clinic.
+  const hasNonClinicWorkspace = Boolean(
+    input.supplierId
+    || input.lecturerId
+    || (input.organizationId && input.organizationType && input.organizationType !== 'CLINIC'),
+  );
+
+  if (input.clinicId && !hasNonClinicWorkspace) {
     const access = await resolveClinicAccess(input.userId, input.clinicId);
     if (access) {
       role = access.role;
