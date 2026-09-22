@@ -114,7 +114,13 @@ export async function resolveAiToolAccess(input: AiToolAccessInput): Promise<AiT
         || key === 'ADMIN'
         || key === 'MANAGER',
       );
-      role = preferred || String(person.personType || user.role);
+      if (org.type === 'SUPPLIER_COMPANY' || person.personType === 'SUPPLIER_REP') {
+        role = 'SUPPLIER';
+      } else if (person.personType === 'LECTURER') {
+        role = 'LECTURER';
+      } else {
+        role = preferred || String(person.personType || user.role);
+      }
       if (role === 'SELLER') role = 'SUPPLIER';
     }
   } else if (input.supplierId) {
