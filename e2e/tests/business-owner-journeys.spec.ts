@@ -14,6 +14,7 @@ async function login(page: Page, role = 'owner') {
 
 test.describe('DentVision business owner journeys', () => {
   test('BIZ-001: owner onboarding exposes all required partner types', async ({ page }) => {
+    await login(page);
     const variants = [
       ['center', 'Создать диагностический центр'],
       ['laboratory', 'Создать медицинскую лабораторию'],
@@ -27,6 +28,7 @@ test.describe('DentVision business owner journeys', () => {
   });
 
   test('BIZ-002: diagnostic center owner can create workspace', async ({ page }) => {
+    await login(page);
     await page.goto(`${BASE}/register-diagnostics?type=center`);
     await page.getByLabel('Название *').fill(`E2E Diagnostic Center ${Date.now()}`);
     await page.getByLabel('Город *').fill('Тараз');
@@ -38,6 +40,7 @@ test.describe('DentVision business owner journeys', () => {
   });
 
   test('BIZ-003: medical laboratory owner can create workspace', async ({ page }) => {
+    await login(page);
     await page.goto(`${BASE}/register-diagnostics?type=laboratory`);
     await page.getByLabel('Название *').fill(`E2E Medical Lab ${Date.now()}`);
     await page.getByLabel('Город *').fill('Тараз');
@@ -49,6 +52,7 @@ test.describe('DentVision business owner journeys', () => {
   });
 
   test('BIZ-004: dental laboratory owner can create workspace', async ({ page }) => {
+    await login(page);
     await page.goto(`${BASE}/register-diagnostics?type=dental_laboratory`);
     await page.getByLabel('Название *').fill(`E2E Dental Lab ${Date.now()}`);
     await page.getByLabel('Город *').fill('Тараз');
@@ -61,6 +65,7 @@ test.describe('DentVision business owner journeys', () => {
 
 
   test('BIZ-009: partner onboarding forms are connected to real registration endpoints', async ({ page }) => {
+    await login(page);
     for (const [type, emailPrefix] of [
       ['center', 'diag-full'],
       ['laboratory', 'medlab-full'],
