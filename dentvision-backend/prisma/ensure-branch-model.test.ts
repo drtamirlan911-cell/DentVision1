@@ -12,13 +12,13 @@ describe('canonical branch schema contract', () => {
   });
 
   it('keeps clinic linkage transitional and nullable', () => {
-    expect(source).toContain('clinicId String? @map("clinic_id")');
+    expect(source).toMatch(/clinicId\s+String\?\s+@map\("clinic_id"\)/);
     expect(source).toContain('clinic Clinic? @relation');
     expect(source).toContain('onDelete: SetNull');
   });
 
   it('assigns ClinicMember records to an optional branch', () => {
-    expect(source).toContain('branchId String? @map("branch_id")');
+    expect(source).toMatch(/branchId\s+String\?\s+@map\("branch_id"\)/);
     expect(source).toContain('branch Branch? @relation');
   });
 
