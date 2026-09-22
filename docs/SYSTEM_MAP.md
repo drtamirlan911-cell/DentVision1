@@ -113,7 +113,3 @@ Identity -> Active Workspace -> Organization -> Branch -> Role -> Permission -> 
 > **Generated** `npm run system-map` from source code.
 > Do not edit manually — rerun the generator.
 > Judgments belong in `SYSTEM_AUDIT.md`; this file contains only facts derivable from code.
-
-> **Generated** `npm run system-map` from source code.
-> Do not edit manually — rerun the generator.
-> Judgments belong in `SYSTEM_AUDIT.md`; this file contains only facts derivable from code.
