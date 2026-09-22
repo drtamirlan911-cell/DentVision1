@@ -523,6 +523,7 @@ function main(): void {
       [
         ['Смонтированных роутеров', String(mounts.length)],
         ['Уникальных обработчиков маршрутов в source', String(routes.length)],
+        ['Зарегистрированных HTTP-маршрутов после mount', String(mountedRouteRegistrations)],
         ['Маршрутов без потребителя на фронте', `**${orphanRoutes.length}**`],
         ['Роутеров, объявленных но не смонтированных', String(unmounted.length)],
         ['Prisma-моделей', String(models.length)],
