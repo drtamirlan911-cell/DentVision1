@@ -81,7 +81,13 @@ export async function buildAiContext(req: AuthRequest, hints: ContextHints): Pro
           where: { userId: user.id, organizationId: org.id },
           include: { personRoles: { include: { role: true } } },
         });
-        const roleKey = person?.personRoles?.[0]?.role?.key || user.personType || user.role;
+        const roleKey =
+          person?.personRoles
+            ?.filter((pr) => !pr.scopeId || pr.scopeId === org.id)
+            .filter((pr) => pr.scopeType !== 'organization' || !pr.scopeId || pr.scopeId === org.id)
+            .map((pr) => pr.role.key)[0]
+          || user.personType
+          || user.role;
         workspace = {
           name: org.name,
           scopeType: org.type === 'SUPPLIER_COMPANY' ? 'SUPPLIER' : org.type,
