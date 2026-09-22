@@ -214,7 +214,7 @@ export function WorkspaceSwitcher({ className }: { className?: string }) {
         ref={buttonRef}
         type="button"
         onClick={() => { if (!open) updateMenuPosition(); setOpen((v) => !v) }}
-        className={cn('group flex items-center gap-2 max-w-[8.5rem] xs:max-w-[10rem] sm:max-w-[16rem] min-h-9 px-2.5 py-1.5 rounded-xl', 'bg-surface-raised border border-bdr-strong text-txt-primary shadow-elev-1 hover:bg-surface-raised-hover hover:border-dv-gold/60 hover:shadow-elev-2 transition-[background-color,border-color,box-shadow] duration-150', open && 'border-dv-gold/70 shadow-elev-2')}
+        className={cn('group flex items-center gap-2 max-w-[8.5rem] xs:max-w-[10rem] sm:max-w-[16rem] min-h-11 px-2.5 py-1.5 rounded-xl', 'bg-surface-raised border border-bdr-strong text-txt-primary shadow-elev-1 hover:bg-surface-raised-hover hover:border-dv-gold/60 hover:shadow-elev-2 transition-[background-color,border-color,box-shadow] duration-150', open && 'border-dv-gold/70 shadow-elev-2')}
         aria-label={t('platform.clinic_switch')}
         aria-expanded={open}
         aria-haspopup="menu"
