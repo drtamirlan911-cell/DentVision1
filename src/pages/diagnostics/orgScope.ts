@@ -23,7 +23,7 @@ export function useDiagnosticsOrgScope(): DiagnosticsOrgScope {
       : user?.organizationType === 'DIAGNOSTIC_CENTER' ? 'CENTER'
         : null
   const orgId = orgKind
-    ? ((user as typeof user & { organizationOriginalId?: string })?.organizationOriginalId || user?.organizationId || '')
+    ? (user?.organizationOriginalId || user?.organizationId || '')
     : ''
   return { clinicId, orgKind, orgId }
 }
