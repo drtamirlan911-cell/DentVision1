@@ -1,12 +1,28 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { agentActivityFindMany, resolveOrganizationIdForClinic } = vi.hoisted(() => ({
+const { agentActivityFindMany, resolveOrganizationIdForClinic, organizationFindUnique, clinicFindUnique, supplierFindUnique, lecturerFindUnique, clinicMemberFindMany, supplierMemberFindMany, personFindMany } = vi.hoisted(() => ({
   agentActivityFindMany: vi.fn(),
   resolveOrganizationIdForClinic: vi.fn(),
+  organizationFindUnique: vi.fn(),
+  clinicFindUnique: vi.fn(),
+  supplierFindUnique: vi.fn(),
+  lecturerFindUnique: vi.fn(),
+  clinicMemberFindMany: vi.fn(),
+  supplierMemberFindMany: vi.fn(),
+  personFindMany: vi.fn(),
 }));
 
 vi.mock('../../../lib/prisma.js', () => ({
-  default: { agentActivity: { findMany: agentActivityFindMany } },
+  default: {
+    agentActivity: { findMany: agentActivityFindMany },
+    organization: { findUnique: organizationFindUnique },
+    clinic: { findUnique: clinicFindUnique },
+    supplier: { findUnique: supplierFindUnique },
+    lecturer: { findUnique: lecturerFindUnique },
+    clinicMember: { findMany: clinicMemberFindMany },
+    supplierMember: { findMany: supplierMemberFindMany },
+    person: { findMany: personFindMany },
+  },
 }));
 vi.mock('../../../lib/orgContext.js', () => ({ resolveOrganizationIdForClinic }));
 
@@ -29,6 +45,13 @@ beforeEach(() => {
   vi.clearAllMocks();
   resolveOrganizationIdForClinic.mockResolvedValue('org-1');
   agentActivityFindMany.mockResolvedValue([]);
+  organizationFindUnique.mockResolvedValue(null);
+  clinicFindUnique.mockResolvedValue({ id: 'clinic-1', name: 'Клиника 1' });
+  supplierFindUnique.mockResolvedValue(null);
+  lecturerFindUnique.mockResolvedValue(null);
+  clinicMemberFindMany.mockResolvedValue([]);
+  supplierMemberFindMany.mockResolvedValue([]);
+  personFindMany.mockResolvedValue([]);
 });
 
 describe('buildAiContext', () => {
@@ -38,6 +61,7 @@ describe('buildAiContext', () => {
     expect(resolveOrganizationIdForClinic).toHaveBeenCalledWith('clinic-1');
     expect(ctx.organizationId).toBe('org-1');
     expect(ctx.clinicId).toBe('clinic-1');
+    expect(ctx.workspace).toEqual(expect.objectContaining({ scopeType: 'CLINIC', scopeId: 'clinic-1', name: 'Клиника 1' }));
   });
 
   it('derives page.pageId from pathname via the shared stage classifier', async () => {
