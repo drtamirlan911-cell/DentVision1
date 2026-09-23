@@ -36,7 +36,7 @@ describe('canonical branch schema contract', () => {
 
   it('keeps the bootstrap command non-mutating and schema-driven', () => {
     const bootstrap = readFileSync(resolve(process.cwd(), 'dentvision-backend/prisma/ensure-branch-model.ts'), 'utf8');
-    expect(bootstrap).toContain('canonical branch schema verified');
+    expect(bootstrap).toContain('canonical organization-scoped branch schema verified');
     expect(bootstrap).not.toContain('writeFileSync');
   });
 
