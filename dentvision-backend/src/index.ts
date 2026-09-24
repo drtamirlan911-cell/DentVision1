@@ -458,7 +458,7 @@ async function main() {
 
   // Normalize an older bootstrap that created center_id as UUID while DiagnosticCenter.id is TEXT.
   try {
-    await prisma.$executeRawUnsafe(`DO $
+    await prisma.$executeRawUnsafe(`DO $dv$
     BEGIN
       IF EXISTS (
         SELECT 1 FROM information_schema.columns
@@ -467,7 +467,7 @@ async function main() {
       ) THEN
         ALTER TABLE "center_subscriptions" ALTER COLUMN "center_id" TYPE TEXT USING "center_id"::text;
       END IF;
-    END $;`);
+    END $dv$;`);
   } catch (err) {
     console.error('[MIGRATION] Center subscription id type normalization failed (non-fatal):', err);
   }
