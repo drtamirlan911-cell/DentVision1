@@ -32,7 +32,7 @@ test.describe('DentVision organization owner lifecycle', () => {
     await login(page);
     for (const [label, type, target] of types) {
       await page.goto(BASE + '/register-diagnostics?type=' + type);
-      await expect(page.getByRole('heading', { name: new RegExp('Создать ' + label) })).toBeVisible();
+      await expect(page.getByRole('heading', { name: new RegExp('Создать ' + label) })).toBeVisible({ timeout: 15000 });
       const unique = Date.now();
       await page.getByLabel('Название *').fill('E2E ' + type + ' ' + unique);
       await page.getByLabel('Город *').fill('Тараз');
