@@ -38,6 +38,10 @@ test.describe('DentVision organization owner lifecycle', () => {
       await page.getByLabel('Город *').fill('Тараз');
       await page.getByRole('button', { name: 'Создать и открыть workspace' }).click();
       await expect(page).toHaveURL(target, { timeout: 20000 });
+      // Creating a partner workspace switches the current auth context to that workspace.
+      // Re-authenticate the original clinic owner before the next self-service creation so
+      // this test verifies that one owner can create all supported partner workspaces.
+      if (type !== 'dental_laboratory') await login(page);
     }
   });
 
