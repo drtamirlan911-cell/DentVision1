@@ -87,6 +87,7 @@ jobs:
       DATABASE_URL: postgresql://postgres:postgres@localhost:5432/dentvision?connection_limit=20&pool_timeout=30
       RATE_LIMIT_API_MAX: '100000'
       RATE_LIMIT_AUTH_MAX: '100000'
+      RATE_LIMIT_AI_MAX: '10000'
       RATE_LIMIT_GUEST_SESSION_MAX: '1000'
       JWT_SECRET: e2e-ci-jwt-secret-not-for-production-use-only-000000
       JWT_REFRESH_SECRET: e2e-ci-refresh-secret-not-for-production-000000
