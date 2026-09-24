@@ -230,12 +230,12 @@ export function WorkspaceSwitcher({ className }: { className?: string }) {
         type="button"
         onClick={() => { if (!open) updateMenuPosition(); setOpen((v) => !v) }}
         className={cn('group flex items-center gap-2 max-w-[8.5rem] xs:max-w-[10rem] sm:max-w-[16rem] min-h-11 px-2.5 py-1.5 rounded-xl', 'bg-surface-raised border border-bdr-strong text-txt-primary shadow-elev-1 hover:bg-surface-raised-hover hover:border-dv-gold/60 hover:shadow-elev-2 transition-[background-color,border-color,box-shadow] duration-150', open && 'border-dv-gold/70 shadow-elev-2')}
-        aria-label={t('platform.clinic_switch')}
+        aria-label={current?.roleLabel ? `${t('platform.clinic_switch')}: ${current.name} — ${current.roleLabel}` : t('platform.clinic_switch')}
         aria-expanded={open}
         aria-haspopup="menu"
       >
         <span className="h-6 w-6 rounded-lg bg-dv-gold/12 border border-dv-gold/25 flex items-center justify-center shrink-0"><Icon size={13} className="text-dv-gold" /></span>
-        <span className="text-xs font-semibold truncate">{current?.name || t('platform.clinic_fallback')}</span>
+        <span className="min-w-0 text-left leading-tight"><span className="block text-xs font-semibold truncate">{current?.name || t('platform.clinic_fallback')}</span>{current?.roleLabel && <span className="block text-[9px] font-medium text-txt-muted truncate">{current.roleLabel}</span>}</span>
         <ChevronDown size={13} className={cn('shrink-0 text-txt-muted transition-transform', open && 'rotate-180')} />
       </button>
       {menu}
