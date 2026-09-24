@@ -23,15 +23,15 @@ describe('canonical branch schema contract', () => {
   });
 
   it('introduces nullable branch scope for Patient and Appointment', () => {
-    expect(source).toMatch(/model Patient \{[\s\S]*?branchId String\?/);
-    expect(source).toMatch(/model Appointment \{[\s\S]*?branchId String\?/);
+    expect(source).toMatch(/model Patient \{[\s\S]*?branchId\s+String\?/);
+    expect(source).toMatch(/model Appointment \{[\s\S]*?branchId\s+String\?/);
   });
 
   it('covers operational models with branch scope', () => {
     for (const model of ['InventoryItem', 'Invoice', 'Expense', 'Referral']) {
       expect(source).toContain(`model ${model} {`);
     }
-    expect(source).toContain('branchId String?');
+    expect(source).toMatch(/branchId\s+String\?/);
   });
 
   it('keeps the bootstrap command non-mutating and schema-driven', () => {
