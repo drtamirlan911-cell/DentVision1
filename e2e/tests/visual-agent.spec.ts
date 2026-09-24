@@ -183,7 +183,7 @@ async function exerciseHands(page: Page, role: AgentRole, route: string, viewpor
   await page.goto(BASE_URL + route, { waitUntil: 'domcontentloaded', timeout: 30000 });
   await page.waitForTimeout(300);
   await writeEvidence(page, role, viewportId, '05_' + route + '_restored');
-  expect(page.url(), role.id + ' ' + route + ': restored route did not resolve to a valid local page').toMatch(/^https?:\/\/localhost:3000\//);
+  expect(page.url()).toContain(new URL(route, BASE_URL).pathname);
   void before;
 }
 
