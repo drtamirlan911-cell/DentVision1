@@ -440,7 +440,7 @@ export default function Cashier() {
               variant="ghost"
               size="sm"
               icon={<Settings2 size={16} />}
-              className="min-h-11 sm:min-h-0"
+              className="min-h-11"
               onClick={() => setShowSettings((v) => !v)}
             >
               Касса
@@ -449,15 +449,15 @@ export default function Cashier() {
               variant="ghost"
               size="sm"
               icon={<ExternalLink size={16} />}
-              className="min-h-11 sm:min-h-0"
+              className="min-h-11"
               onClick={() => navigate('/crm/inventory')}
             >
               Склад
             </Button>
-            <Button variant="secondary" icon={<Plus size={16} />} className="min-h-11 sm:min-h-0" onClick={() => setExpModalOpen(true)}>
+            <Button variant="secondary" icon={<Plus size={16} />} className="min-h-11" onClick={() => setExpModalOpen(true)}>
               Расход
             </Button>
-            <Button icon={<Plus size={16} />} className="min-h-11 sm:min-h-0" onClick={handleNewTransaction}>
+            <Button icon={<Plus size={16} />} className="min-h-11" onClick={handleNewTransaction}>
               Оплата
             </Button>
           </>
@@ -497,7 +497,7 @@ export default function Cashier() {
                 variant="outline"
                 size="sm"
                 icon={<CreditCard size={14} />}
-                className="min-h-11 sm:min-h-0"
+                className="min-h-11"
                 onClick={() => handleQuickPayment(preset)}
               >
                 {preset.name} · {money(preset.price)}
@@ -606,7 +606,7 @@ export default function Cashier() {
                           <Button
                             size="sm"
                             icon={<CreditCard size={14} />}
-                            className="min-h-11 sm:min-h-0"
+                            className="min-h-11"
                             onClick={() => openPaymentModal(appt)}
                           >
                             Оплата
@@ -699,7 +699,7 @@ export default function Cashier() {
                       <Button
                         size="sm"
                         icon={<CreditCard size={14} />}
-                        className="min-h-11 sm:min-h-0"
+                        className="min-h-11"
                         onClick={() => openDebtPayment(d)}
                       >
                         Оплатить
@@ -708,7 +708,7 @@ export default function Cashier() {
                         variant="ghost"
                         size="sm"
                         icon={<Send size={14} />}
-                        className="min-h-11 sm:min-h-0"
+                        className="min-h-11"
                         onClick={() => {
                           if (!d.phone) {
                             showToast('У пациента нет телефона', 'warning')
@@ -736,7 +736,7 @@ export default function Cashier() {
                   variant="outline"
                   size="sm"
                   icon={<Download size={14} />}
-                  className="min-h-11 sm:min-h-0"
+                  className="min-h-11"
                   disabled={!financeReport}
                   onClick={() => {
                     downloadCsv(
@@ -922,12 +922,12 @@ export default function Cashier() {
             onChange={e => setForm({ ...form, notes: e.target.value })}
           />
           <div className="flex flex-col sm:flex-row gap-2 pt-2">
-            <Button type="submit" className="flex-1 min-h-11 sm:min-h-0" loading={payBusy} icon={<CreditCard size={16} />}>
+            <Button type="submit" className="flex-1 min-h-11" loading={payBusy} icon={<CreditCard size={16} />}>
               {isOnlineQrMethod(form.paymentMethod) && form.paymentType !== 'credit'
                 ? `Создать QR ${form.amount ? money(Number(form.amount)) : ''}`
                 : `Принять оплату ${form.amount ? money(Number(form.amount)) : ''}`}
             </Button>
-            <Button type="button" variant="ghost" className="min-h-11 sm:min-h-0" onClick={() => { setModalOpen(false); setPendingPay(null) }}>Отмена</Button>
+            <Button type="button" variant="ghost" className="min-h-11" onClick={() => { setModalOpen(false); setPendingPay(null) }}>Отмена</Button>
           </div>
         </form>
         )}
@@ -968,8 +968,8 @@ export default function Cashier() {
             onChange={e => setExpenseForm({ ...expenseForm, notes: e.target.value })}
           />
           <div className="flex flex-col sm:flex-row gap-2 pt-2">
-            <Button type="submit" className="flex-1 min-h-11 sm:min-h-0">Добавить</Button>
-            <Button type="button" variant="ghost" className="min-h-11 sm:min-h-0" onClick={() => setExpModalOpen(false)}>Отмена</Button>
+            <Button type="submit" className="flex-1 min-h-11">Добавить</Button>
+            <Button type="button" variant="ghost" className="min-h-11" onClick={() => setExpModalOpen(false)}>Отмена</Button>
           </div>
         </form>
       </Modal>
