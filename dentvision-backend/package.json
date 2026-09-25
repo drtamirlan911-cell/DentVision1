@@ -5,7 +5,7 @@
   "scripts": {
     "dev": "tsx watch src/index.ts",
     "build": "tsc",
-    "start": "PRISMA_SCHEMA_DISABLE_ADVISORY_LOCK=true prisma migrate resolve --rolled-back 20260825_lecturer_speciality || true && PRISMA_SCHEMA_DISABLE_ADVISORY_LOCK=true prisma migrate resolve --rolled-back 20260911_legal_partner_org_context || true && PRISMA_SCHEMA_DISABLE_ADVISORY_LOCK=true prisma migrate resolve --rolled-back 20260914_branch_operational_scope || true && PRISMA_SCHEMA_DISABLE_ADVISORY_LOCK=true prisma migrate deploy && tsx prisma/ensure-medical-lab-lifecycle.ts && npx tsx src/index.ts",
+    "start": "PRISMA_SCHEMA_DISABLE_ADVISORY_LOCK=true prisma migrate resolve --rolled-back 20260825_lecturer_speciality || true && PRISMA_SCHEMA_DISABLE_ADVISORY_LOCK=true prisma migrate resolve --rolled-back 20260911_legal_partner_org_context || true && PRISMA_SCHEMA_DISABLE_ADVISORY_LOCK=true prisma migrate resolve --rolled-back 20260914_branch_operational_scope || true && PRISMA_SCHEMA_DISABLE_ADVISORY_LOCK=true prisma migrate resolve --rolled-back 20260914010000_add_branches || true && PRISMA_SCHEMA_DISABLE_ADVISORY_LOCK=true prisma migrate deploy && tsx prisma/ensure-medical-lab-lifecycle.ts && npx tsx src/index.ts",
     "db:migrate": "tsx prisma/ensure-branch-model.ts && tsx prisma/sync-treatment-case-relations.ts && prisma migrate dev",
     "db:deploy": "tsx prisma/ensure-branch-model.ts && tsx prisma/sync-treatment-case-relations.ts && prisma migrate deploy",
     "db:push": "tsx prisma/ensure-branch-model.ts && tsx prisma/sync-treatment-case-relations.ts && prisma db push",
