@@ -59,7 +59,7 @@ FROM (
     lp.id AS partner_id,
     MIN(p.organization_id) AS organization_id
   FROM "legal_partners" lp
-  JOIN "persons" p ON p."userId" = lp.userId
+  JOIN "persons" p ON p."userId" = lp."userId"
   WHERE lp.user_id IS NOT NULL
     AND p.organization_id IS NOT NULL
   GROUP BY lp.id
