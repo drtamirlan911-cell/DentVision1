@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import { buildWorkspaceContexts, roleLabelFor, type ContextSources } from './contexts.js';
 
-const empty: ContextSources = { memberships: [], supplierMemberships: [], lecturer: null, persons: [] };
+const empty: ContextSources = { memberships: [], supplierMemberships: [], lecturer: null, laboratoryMemberships: [], persons: [] };
 
 describe('workspace contexts', () => {
   it('returns one row for a clinic that exists in both halves', () => {
@@ -107,6 +107,21 @@ describe('workspace contexts', () => {
     expect(contexts).toHaveLength(1);
     expect(contexts[0].scopeType).toBe('LECTURER');
     expect(contexts[0].scopeId).toBe('lec-1');
+  });
+
+
+  it('includes a legacy laboratory membership as a laboratory workspace', () => {
+    const contexts = buildWorkspaceContexts({
+      ...empty,
+      laboratoryMemberships: [
+        { id: 'lm1', role: 'manager', labId: 'lab-1', lab: { id: 'lab-1', name: 'Dental Lab' } },
+      ],
+    });
+
+    expect(contexts).toHaveLength(1);
+    expect(contexts[0].scopeType).toBe('LABORATORY');
+    expect(contexts[0].scopeId).toBe('lab-1');
+    expect(contexts[0].roleLabel).toBe('Управляющий');
   });
 
   it('keeps distinct workspaces distinct', () => {
