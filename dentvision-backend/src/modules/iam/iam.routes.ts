@@ -61,13 +61,14 @@ iamRouter.get('/types', async (_req: AuthRequest, res) => {
 iamRouter.get('/me/contexts', async (req: AuthRequest, res) => {
   try {
     const userId = req.user!.id;
-    const [memberships, supplierMemberships, lecturer] = await Promise.all([
+    const [memberships, supplierMemberships, lecturer, laboratoryMemberships] = await Promise.all([
       prisma.clinicMember.findMany({ where: { userId }, select: { id: true, role: true, clinicId: true, joinedAt: true, clinic: { select: { id: true, name: true, plan: true, logo: true } } }, orderBy: { joinedAt: 'asc' } }),
       prisma.supplierMember.findMany({ where: { userId }, select: { id: true, role: true, supplierId: true, createdAt: true, supplier: { select: { id: true, name: true, status: true } } }, orderBy: { createdAt: 'asc' } }),
       prisma.lecturer.findUnique({ where: { userId }, select: { id: true, level: true, academy: { select: { id: true, name: true } } } }),
+      prisma.laboratoryMember.findMany({ where: { userId }, select: { id: true, role: true, labId: true, createdAt: true, lab: { select: { id: true, name: true } } }, orderBy: { createdAt: 'asc' } }),
     ]);
     const persons = await prisma.person.findMany({ where: { userId }, include: { organization: { select: { id: true, name: true, type: true, logo: true, originalId: true } }, personRoles: { include: { role: true } } } });
-    const contexts = buildWorkspaceContexts({ memberships, supplierMemberships, lecturer, persons });
+    const contexts = buildWorkspaceContexts({ memberships, supplierMemberships, lecturer, laboratoryMemberships, persons });
     return res.json({ ok: true, data: { contexts } } satisfies ApiResponse);
   } catch (error) {
     console.error('IAM contexts error:', error);
