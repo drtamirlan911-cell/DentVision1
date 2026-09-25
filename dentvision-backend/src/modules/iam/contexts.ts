@@ -208,6 +208,20 @@ export function buildWorkspaceContexts(sources: ContextSources): WorkspaceContex
     });
   };
 
+  // Canonical PersonRole is the source of truth for partner role identity.
+  // Legacy membership rows intentionally store coarse operational roles, so
+  // using them directly can lose the scoped application role.
+  const canonicalPartnerRoles = new Map<string, string>();
+  for (const p of sources.persons) {
+    const org = p.organization;
+    if (!org) continue;
+    const scopeType = PERSON_TYPE_TO_SCOPE[p.personType] || ORG_TYPE_TO_SCOPE[org.type];
+    if (!scopeType || !org.originalId) continue;
+    const roleKey = (p.personRoles || []).map((pr) => pr.role.key).find((key) =>
+      /^(diagnostic_|medical_lab_|dental_lab_|lab_coordinator|dental_technician|cad_designer|ceramist|orthodontic_technician|qc_specialist|lab_finance)/i.test(key),
+    );
+    if (roleKey) canonicalPartnerRoles.set(scopeType + ':' + org.originalId, roleKey);
+  }
   for (const m of sources.memberships) {
     put({
       id: `CLINIC:${m.clinicId}`,
@@ -243,7 +257,7 @@ export function buildWorkspaceContexts(sources: ContextSources): WorkspaceContex
       scopeType: 'DIAGNOSTIC_CENTER',
       scopeId: m.centerId,
       name: m.center?.name || 'Диагностический центр',
-      roleKey: 'diagnostic.' + String(m.role).toLowerCase(),
+      roleKey: canonicalPartnerRoles.get('DIAGNOSTIC_CENTER:' + m.centerId) || 'diagnostic.' + String(m.role).toLowerCase(),
       roleLabel: roleLabelFor(m.role),
       joinedAt: m.createdAt,
       role: m.role,
@@ -256,7 +270,7 @@ export function buildWorkspaceContexts(sources: ContextSources): WorkspaceContex
       scopeType: 'LABORATORY',
       scopeId: m.labId,
       name: m.lab?.name || 'Лаборатория',
-      roleKey: 'laboratory.' + String(m.role).toLowerCase(),
+      roleKey: canonicalPartnerRoles.get('LABORATORY:' + m.labId) || 'laboratory.' + String(m.role).toLowerCase(),
       roleLabel: roleLabelFor(m.role),
       joinedAt: m.createdAt,
       role: m.role,
