@@ -50,7 +50,7 @@ export interface AiRequestContext {
 
 const RECENT_EVENTS_LIMIT = 5;
 
-export async function buildAiContext(req: AuthRequest, hints: ContextHints): Promise<AiRequestContext> {
+export async function buildAiContext(req: AuthRequest, hints: ContextHints = {}): Promise<AiRequestContext> {
   const user = req.user!;
   const activeIsNonClinic = Boolean(user.organizationId && user.organizationType && user.organizationType !== 'CLINIC') || Boolean(user.supplierId || user.lecturerId);
   const clinicId = activeIsNonClinic ? null : (user.clinicId || null);

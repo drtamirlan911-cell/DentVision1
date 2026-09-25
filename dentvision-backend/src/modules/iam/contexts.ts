@@ -1,4 +1,5 @@
 import { installContentCatalogJsonGuard } from '../../iam/contentCatalogMiddleware.js';
+import type { UserRole } from '@prisma/client';
 
 installContentCatalogJsonGuard();
 
@@ -57,7 +58,6 @@ const ROLE_LABELS: Record<string, string> = {
   owner: 'Владелец',
   director: 'Руководитель',
   admin: 'Администратор',
-  org_admin: 'Администратор',
   manager: 'Управляющий',
   doctor: 'Врач',
   assistant: 'Ассистент',
@@ -110,6 +110,24 @@ export function roleLabelFor(roleKey: string | null | undefined): string {
   const first = String(roleKey).split(',')[0].trim();
   const last = first.includes('.') ? first.slice(first.lastIndexOf('.') + 1) : first;
   return ROLE_LABELS[last.toLowerCase()] || ROLE_LABELS.member;
+}
+
+const PARTNER_ROLE_TO_USER_ROLE: Record<string, UserRole> = {
+  owner: 'OWNER', org_owner: 'OWNER', diagnostic_owner: 'OWNER', medical_lab_owner: 'OWNER', dental_lab_owner: 'OWNER',
+  admin: 'ADMIN', org_admin: 'ADMIN', diagnostic_admin: 'ADMIN', medical_lab_admin: 'ADMIN', dental_lab_admin: 'ADMIN',
+  manager: 'MANAGER', diagnostic_manager: 'MANAGER', medical_lab_manager: 'MANAGER', dental_lab_manager: 'MANAGER',
+  radiologist: 'DOCTOR', doctor: 'DOCTOR', medical_lab_doctor: 'DOCTOR', validator: 'DOCTOR', medical_lab_validator: 'DOCTOR',
+  operator: 'ASSISTANT', diagnostic_operator: 'ASSISTANT', reception: 'ASSISTANT', diagnostic_reception: 'ASSISTANT', medical_lab_reception: 'ASSISTANT', lab_coordinator: 'ASSISTANT',
+  technician: 'LAB', dental_technician: 'LAB', dental_lab_technician: 'LAB', medical_lab_technician: 'LAB', cad_designer: 'LAB', ceramist: 'LAB', orthodontic_technician: 'LAB',
+  finance: 'ADMIN', diagnostic_finance: 'ADMIN', medical_lab_finance: 'ADMIN', lab_finance: 'ADMIN',
+  quality: 'ADMIN', diagnostic_quality: 'ADMIN', medical_lab_quality: 'ADMIN', qc_specialist: 'ADMIN',
+  cashier: 'CASHIER', seller: 'ASSISTANT', supplier_rep: 'ASSISTANT', supplier: 'ASSISTANT', support: 'SUPPORT',
+  student: 'STUDENT', lecturer: 'STUDENT', member: 'PATIENT',
+};
+
+export function userRoleForPartnerRole(roleKey: string | null | undefined, fallback: UserRole): UserRole {
+  const key = String(roleKey || '').trim().toLowerCase();
+  return PARTNER_ROLE_TO_USER_ROLE[key] || fallback;
 }
 
 export interface LegacyClinicRow {

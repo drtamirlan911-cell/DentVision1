@@ -31,7 +31,7 @@ const CLINIC_MANAGER_PAGES = ['dashboard','schedule','patients','analytics','sta
 const PLATFORM_SUPERADMIN_PAGES = ['admin','audit','agent-activity','ai-approvals','backup','analytics','settings','security','quality','diagnostics','diagnostics-centers','diagnostics-labs','platform-finance','ai-governance','support','profile','bi','supplier'];
 
 const ROLES: readonly Role[] = [
-  { id:'owner', email:'owner-a@test.com', label:'Руководитель', family:'clinic', pages:CLINIC_OWNER_PAGES, mustNotContain:[/Владелец диагностического центра/i,/Владелец медицинской лаборатории/i,/Владелец зуботехнической лаборатории/i], entry:/\/ai(?:$|[?#])/ },
+  { id:'owner', email:'owner-a@test.com', label:'Владелец', family:'clinic', pages:CLINIC_OWNER_PAGES, mustNotContain:[/Владелец диагностического центра/i,/Владелец медицинской лаборатории/i,/Владелец зуботехнической лаборатории/i], entry:/\/ai(?:$|[?#])/ },
   { id:'admin', email:'admin-a@test.com', label:'Администратор', family:'clinic', pages:CLINIC_ADMIN_PAGES, mustNotContain:[], entry:/\/ai|\/crm/ },
   { id:'doctor', email:'doctor-a@test.com', label:'Врач', family:'clinic', pages:CLINIC_DOCTOR_PAGES, mustNotContain:[/Super Admin/i], entry:/\/ai|\/crm/ },
   { id:'assistant', email:'assistant-a@test.com', label:'Ассистент', family:'clinic', pages:CLINIC_ASSISTANT_PAGES, mustNotContain:[/Super Admin/i], entry:/\/ai|\/crm/ },
@@ -76,11 +76,26 @@ function pageId(route: string): string | null {
 }
 
 async function login(page: Page, email: string) {
+  // Each role must start from a clean authentication state. Partner-context
+  // tests intentionally mint scoped tokens, so reusing that state can make
+  // the next role appear logged out or land in the previous workspace.
+  await page.context().clearCookies();
   await page.goto(BASE_URL + '/login?role=owner', {waitUntil:'domcontentloaded',timeout:30000});
+  await page.evaluate(() => {
+    localStorage.clear();
+    sessionStorage.clear();
+  });
+  await page.reload({waitUntil:'domcontentloaded',timeout:30000});
   await page.locator('input[autocomplete="username"]').fill(email);
   await page.locator('input[autocomplete="current-password"]').fill(PASSWORD);
   await page.getByRole('button',{name:'Войти в DentVision'}).click();
-  await page.waitForURL(/\/(?:ai|patient-portal|diagnostics|school|admin|profile)(?:$|[?#])/i,{timeout:30000});
+  // SPA navigation can reach the correct URL without producing a fresh
+  // domcontentloaded event (especially WebKit). Poll the URL instead of
+  // waiting on a navigation lifecycle event that may never fire.
+  await expect.poll(() => new URL(page.url()).pathname, {
+    timeout: 30000,
+    message: email + ': login did not reach an authenticated workspace',
+  }).toMatch(/^\/(?:ai|patient-portal|diagnostics|school|admin|profile)(?:$|\/)/i);
   await page.waitForTimeout(600);
 }
 
@@ -120,7 +135,7 @@ async function inspectVisualSemantics(page: Page, role: Role, route: string) {
     const headings = Array.from(document.querySelectorAll('h1,h2,h3')).filter(visible).map(text).filter(Boolean);
     const iconOnly = interactive.filter(el => {
       const h = el as HTMLElement;
-      const label = h.getAttribute('aria-label') || h.getAttribute('title') || '';
+      const label = h.getAttribute('aria-label') || h.getAttribute('title') || h.getAttribute('placeholder') || '';
       return !text(el) && !label;
     });
     const suspicious = Array.from(document.querySelectorAll('[class*="truncate"],[class*="line-clamp"],[class*="ellipsis"]')).filter(visible)
@@ -227,6 +242,46 @@ async function auditRoute(page: Page, role: Role, route: string, shouldBeAllowed
   await page.goForward({waitUntil:'domcontentloaded',timeout:30000}).catch(()=>{});
   await shellAudit(page,role,route);
 }
+
+test('partner context switch applies the scoped application role to the session token', async ({ page }) => {
+  const cases = [
+    { email: 'diagnostic-operator@test.com', roleKey: 'diagnostic_operator', expectedRole: 'ASSISTANT' },
+    { email: 'medical-lab-tech@test.com', roleKey: 'medical_lab_technician', expectedRole: 'LAB' },
+    { email: 'dental-technician@test.com', roleKey: 'dental_technician', expectedRole: 'LAB' },
+  ] as const;
+
+  for (const item of cases) {
+    await login(page, item.email);
+    const contextsResponse = await page.evaluate(async () => {
+      const response = await fetch('/api/iam/me/contexts', { credentials: 'include' });
+      return { status: response.status, body: await response.json().catch(() => ({})) };
+    });
+    expect(contextsResponse.status, item.email + ': contexts endpoint failed').toBe(200);
+
+    const contexts = contextsResponse.body?.data?.contexts || [];
+    const target = contexts.find((context: { roleKey?: string }) =>
+      String(context.roleKey || '').toLowerCase().split(',').includes(item.roleKey),
+    );
+    expect(target, item.email + ': scoped partner context was not seeded').toBeTruthy();
+
+    const switchResponse = await page.evaluate(async (context) => {
+      const response = await fetch('/api/iam/switch-context', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ scopeType: context.scopeType, scopeId: context.scopeId }),
+      });
+      return { status: response.status, body: await response.json().catch(() => ({})) };
+    }, target);
+
+    expect(switchResponse.status, item.email + ': context switch failed').toBe(200);
+    const accessToken = switchResponse.body?.data?.accessToken;
+    expect(accessToken, item.email + ': switch response has no access token').toEqual(expect.any(String));
+
+    const payload = JSON.parse(Buffer.from(String(accessToken).split('.')[1], 'base64url').toString('utf8')) as { role?: string };
+    expect(payload.role, item.email + ': switched token kept the wrong global role').toBe(item.expectedRole);
+  }
+});
 
 test.describe('DentVision exhaustive role/context/browser gate',()=>{
   test.describe.configure({mode:'serial',timeout:120000});

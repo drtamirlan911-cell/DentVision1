@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { buildWorkspaceContexts, roleLabelFor, type ContextSources } from './contexts.js';
+import { buildWorkspaceContexts, roleLabelFor, userRoleForPartnerRole, type ContextSources } from './contexts.js';
 
 const empty: ContextSources = { memberships: [], supplierMemberships: [], lecturer: null, diagnosticCenterMemberships: [], laboratoryMemberships: [], persons: [] };
 
@@ -189,6 +189,36 @@ describe('workspace contexts', () => {
 
     expect(contexts[0].roleLabel).toBe('Владелец');
     expect(contexts[0].roleLabel).not.toMatch(/^[A-Z_]+$/);
+  });
+});
+
+describe('userRoleForPartnerRole', () => {
+  it('maps every legacy partner role to a valid scoped application role', () => {
+    const cases: Array<[string, string]> = [
+      ['diagnostic_owner', 'OWNER'], ['diagnostic_admin', 'ADMIN'], ['diagnostic_manager', 'MANAGER'],
+      ['diagnostic_operator', 'ASSISTANT'], ['diagnostic_reception', 'ASSISTANT'], ['diagnostic_finance', 'ADMIN'], ['diagnostic_quality', 'ADMIN'],
+      ['medical_lab_owner', 'OWNER'], ['medical_lab_admin', 'ADMIN'], ['medical_lab_manager', 'MANAGER'], ['medical_lab_reception', 'ASSISTANT'],
+      ['medical_lab_technician', 'LAB'], ['medical_lab_validator', 'DOCTOR'], ['medical_lab_doctor', 'DOCTOR'], ['medical_lab_finance', 'ADMIN'], ['medical_lab_quality', 'ADMIN'],
+      ['dental_lab_owner', 'OWNER'], ['dental_lab_admin', 'ADMIN'], ['dental_lab_manager', 'MANAGER'], ['lab_coordinator', 'ASSISTANT'],
+      ['dental_technician', 'LAB'], ['cad_designer', 'LAB'], ['ceramist', 'LAB'], ['orthodontic_technician', 'LAB'], ['qc_specialist', 'ADMIN'], ['lab_finance', 'ADMIN'],
+    ];
+    for (const [key, expected] of cases) expect(userRoleForPartnerRole(key, 'PATIENT')).toBe(expected);
+  });
+
+  it('maps supplier roles to scoped application roles', () => {
+    expect(userRoleForPartnerRole('owner', 'PATIENT')).toBe('OWNER');
+    expect(userRoleForPartnerRole('admin', 'PATIENT')).toBe('ADMIN');
+    expect(userRoleForPartnerRole('manager', 'PATIENT')).toBe('MANAGER');
+    expect(userRoleForPartnerRole('seller', 'OWNER')).toBe('ASSISTANT');
+    expect(userRoleForPartnerRole('cashier', 'OWNER')).toBe('CASHIER');
+    expect(userRoleForPartnerRole('supplier_rep', 'OWNER')).toBe('ASSISTANT');
+    expect(userRoleForPartnerRole('support', 'OWNER')).toBe('SUPPORT');
+    expect(userRoleForPartnerRole('student', 'OWNER')).toBe('STUDENT');
+    expect(userRoleForPartnerRole('member', 'OWNER')).toBe('PATIENT');
+  });
+
+  it('fails closed to the current role for an unknown partner role', () => {
+    expect(userRoleForPartnerRole('future_partner_role', 'PATIENT')).toBe('PATIENT');
   });
 });
 

@@ -5,7 +5,7 @@ import { generateTokens } from '../../lib/jwt.js';
 import { resolveUserPermissions } from '../../lib/resolvePermissions.js';
 import { uid } from '../../lib/helpers.js';
 import { resolveClinicAccess } from '../../lib/orgContext.js';
-import { buildWorkspaceContexts } from './contexts.js';
+import { buildWorkspaceContexts, userRoleForPartnerRole } from './contexts.js';
 import {
   acceptInvitation,
   canManageMembers,
@@ -95,7 +95,7 @@ iamRouter.post('/switch-context', async (req: AuthRequest, res) => {
         const userRoleValues = new Set<UserRole>(['OWNER', 'DOCTOR', 'ASSISTANT', 'ADMIN', 'CASHIER', 'LAB', 'MANAGER', 'STUDENT', 'SUPERADMIN', 'SUPPORT', 'PATIENT']);
         const scopedRole: UserRole = userRoleValues.has(String(scopedRoleKey).toUpperCase() as UserRole)
           ? String(scopedRoleKey).toUpperCase() as UserRole
-          : user.role;
+          : userRoleForPartnerRole(scopedRoleKey, user.role);
         const entityId = org.originalId || org.id;
         let supplierContext = {};
         if (org.type === 'SUPPLIER_COMPANY') {
@@ -128,7 +128,18 @@ iamRouter.post('/switch-context', async (req: AuthRequest, res) => {
     if (scopeType === 'SUPPLIER') {
       const member = await prisma.supplierMember.findUnique({ where: { userId_supplierId: { userId: user.id, supplierId: scopeId } } });
       if (member) {
-        const tokens = generateTokens({ ...base, supplierId: scopeId, supplierRole: member.role });
+        const scopedRole = userRoleForPartnerRole(member.role, user.role);
+        const organization = await prisma.organization.findFirst({ where: { originalType: 'Supplier', originalId: scopeId } });
+        const tokens = generateTokens({
+          ...base,
+          role: scopedRole,
+          supplierId: scopeId,
+          supplierRole: member.role,
+          organizationId: organization?.id,
+          organizationOriginalId: scopeId,
+          organizationType: 'SUPPLIER',
+          personType: 'SUPPLIER_REP',
+        });
         await writeAuditLog({ userId: user.id, action: 'auth.switch_context', entity: 'supplier', entityId: scopeId });
         return res.json({ ok: true, data: tokens } satisfies ApiResponse);
       }
@@ -136,8 +147,7 @@ iamRouter.post('/switch-context', async (req: AuthRequest, res) => {
     if (scopeType === 'DIAGNOSTIC_CENTER') {
       const member = await prisma.diagnosticCenterMember.findUnique({ where: { centerId_userId: { centerId: scopeId, userId: user.id } } });
       if (member) {
-        const roleMap: Record<string, UserRole> = { owner: 'OWNER', admin: 'ADMIN', manager: 'MANAGER', radiologist: 'DOCTOR', operator: 'ASSISTANT', reception: 'ASSISTANT', finance: 'ADMIN', quality: 'ADMIN', diagnostic_finance: 'ADMIN', diagnostic_quality: 'ADMIN' };
-        const scopedRole = roleMap[String(member.role).toLowerCase()] || user.role;
+        const scopedRole = userRoleForPartnerRole(member.role, user.role);
         const organization = await prisma.organization.findFirst({ where: { originalType: 'DiagnosticCenter', originalId: scopeId } });
         const tokens = generateTokens({ ...base, role: scopedRole, organizationId: organization?.id, organizationOriginalId: scopeId, organizationType: 'DIAGNOSTIC_CENTER' });
         await writeAuditLog({ userId: user.id, action: 'auth.switch_context', entity: 'diagnostic_center', entityId: scopeId, details: { role: member.role } });
@@ -147,7 +157,20 @@ iamRouter.post('/switch-context', async (req: AuthRequest, res) => {
     if (scopeType === 'LECTURER') {
       const lecturer = await prisma.lecturer.findFirst({ where: { id: scopeId, userId: user.id } });
       if (lecturer) {
-        const tokens = generateTokens({ ...base, lecturerId: scopeId });
+        const academy = lecturer.academyId
+          ? await prisma.academy.findUnique({ where: { id: lecturer.academyId }, select: { id: true, name: true } })
+          : null;
+        const organization = academy
+          ? await prisma.organization.findFirst({ where: { originalType: 'Academy', originalId: academy.id }, select: { id: true } })
+          : null;
+        const tokens = generateTokens({
+          ...base,
+          lecturerId: scopeId,
+          organizationId: organization?.id,
+          organizationOriginalId: academy?.id,
+          organizationType: 'LECTURER',
+          personType: 'LECTURER',
+        });
         await writeAuditLog({ userId: user.id, action: 'auth.switch_context', entity: 'lecturer', entityId: scopeId });
         return res.json({ ok: true, data: tokens } satisfies ApiResponse);
       }
@@ -155,8 +178,7 @@ iamRouter.post('/switch-context', async (req: AuthRequest, res) => {
     if (scopeType === 'LABORATORY') {
       const membership = await prisma.laboratoryMember.findUnique({ where: { labId_userId: { labId: scopeId, userId: user.id } } });
       if (membership) {
-        const roleMap: Record<string, UserRole> = { owner: 'OWNER', admin: 'ADMIN', manager: 'MANAGER', reception: 'ASSISTANT', medical_lab_reception: 'ASSISTANT', lab_coordinator: 'ASSISTANT', technician: 'LAB', dental_technician: 'LAB', cad_designer: 'LAB', ceramist: 'LAB', orthodontic_technician: 'LAB', medical_lab_technician: 'LAB', validator: 'DOCTOR', medical_lab_validator: 'DOCTOR', doctor: 'DOCTOR', medical_lab_doctor: 'DOCTOR', finance: 'ADMIN', lab_finance: 'ADMIN', medical_lab_finance: 'ADMIN', quality: 'ADMIN', qc_specialist: 'ADMIN', medical_lab_quality: 'ADMIN' };
-        const scopedRole = roleMap[String(membership.role).toLowerCase()] || user.role;
+        const scopedRole = userRoleForPartnerRole(membership.role, user.role);
         const organization = await prisma.organization.findFirst({ where: { originalType: 'Laboratory', originalId: scopeId } });
         const tokens = generateTokens({ ...base, role: scopedRole, organizationId: organization?.id, organizationOriginalId: scopeId, organizationType: 'LABORATORY' });
         await writeAuditLog({ userId: user.id, action: 'auth.switch_context', entity: 'laboratory', entityId: scopeId, details: { role: membership.role } });

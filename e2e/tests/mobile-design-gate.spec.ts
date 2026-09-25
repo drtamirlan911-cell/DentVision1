@@ -66,7 +66,21 @@ async function waitForVisualReady(page: Page) {
   await page.waitForTimeout(250);
 }
 
+async function waitForVisualStable(page: Page) {
+  await page.waitForFunction(() => {
+    const candidates = Array.from(document.querySelectorAll('main, section, [role="main"], [role="dialog"]')) as HTMLElement[];
+    if (!candidates.length) return document.body.innerText.trim().length >= 20;
+    return candidates.some((el) => {
+      const style = getComputedStyle(el);
+      const opacity = Number.parseFloat(style.opacity || '1');
+      return opacity >= 0.99;
+    });
+  }, { timeout: 5000 });
+  await page.waitForTimeout(100);
+}
+
 async function auditLayout(page: Page, route: string, device: string) {
+  await waitForVisualStable(page);
   const result = await page.evaluate(() => {
     const doc = document.documentElement;
     const visible = (el: Element) => {
