@@ -128,7 +128,18 @@ iamRouter.post('/switch-context', async (req: AuthRequest, res) => {
     if (scopeType === 'SUPPLIER') {
       const member = await prisma.supplierMember.findUnique({ where: { userId_supplierId: { userId: user.id, supplierId: scopeId } } });
       if (member) {
-        const tokens = generateTokens({ ...base, supplierId: scopeId, supplierRole: member.role });
+        const scopedRole = userRoleForPartnerRole(member.role, user.role);
+        const organization = await prisma.organization.findFirst({ where: { originalType: 'Supplier', originalId: scopeId } });
+        const tokens = generateTokens({
+          ...base,
+          role: scopedRole,
+          supplierId: scopeId,
+          supplierRole: member.role,
+          organizationId: organization?.id,
+          organizationOriginalId: scopeId,
+          organizationType: 'SUPPLIER',
+          personType: 'SUPPLIER_REP',
+        });
         await writeAuditLog({ userId: user.id, action: 'auth.switch_context', entity: 'supplier', entityId: scopeId });
         return res.json({ ok: true, data: tokens } satisfies ApiResponse);
       }
@@ -146,7 +157,20 @@ iamRouter.post('/switch-context', async (req: AuthRequest, res) => {
     if (scopeType === 'LECTURER') {
       const lecturer = await prisma.lecturer.findFirst({ where: { id: scopeId, userId: user.id } });
       if (lecturer) {
-        const tokens = generateTokens({ ...base, lecturerId: scopeId });
+        const academy = lecturer.academyId
+          ? await prisma.academy.findUnique({ where: { id: lecturer.academyId }, select: { id: true, name: true } })
+          : null;
+        const organization = academy
+          ? await prisma.organization.findFirst({ where: { originalType: 'Academy', originalId: academy.id }, select: { id: true } })
+          : null;
+        const tokens = generateTokens({
+          ...base,
+          lecturerId: scopeId,
+          organizationId: organization?.id,
+          organizationOriginalId: academy?.id,
+          organizationType: 'LECTURER',
+          personType: 'LECTURER',
+        });
         await writeAuditLog({ userId: user.id, action: 'auth.switch_context', entity: 'lecturer', entityId: scopeId });
         return res.json({ ok: true, data: tokens } satisfies ApiResponse);
       }
