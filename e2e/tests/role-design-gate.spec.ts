@@ -228,6 +228,46 @@ async function auditRoute(page: Page, role: Role, route: string, shouldBeAllowed
   await shellAudit(page,role,route);
 }
 
+test('partner context switch applies the scoped application role to the session token', async ({ page }) => {
+  const cases = [
+    { email: 'diagnostic-operator@test.com', roleKey: 'diagnostic_operator', expectedRole: 'ASSISTANT' },
+    { email: 'medical-lab-tech@test.com', roleKey: 'medical_lab_technician', expectedRole: 'LAB' },
+    { email: 'dental-technician@test.com', roleKey: 'dental_technician', expectedRole: 'LAB' },
+  ] as const;
+
+  for (const item of cases) {
+    await login(page, item.email);
+    const contextsResponse = await page.evaluate(async () => {
+      const response = await fetch('/api/iam/me/contexts', { credentials: 'include' });
+      return { status: response.status, body: await response.json().catch(() => ({})) };
+    });
+    expect(contextsResponse.status, item.email + ': contexts endpoint failed').toBe(200);
+
+    const contexts = contextsResponse.body?.data?.contexts || [];
+    const target = contexts.find((context: { roleKey?: string }) =>
+      String(context.roleKey || '').toLowerCase().split(',').includes(item.roleKey),
+    );
+    expect(target, item.email + ': scoped partner context was not seeded').toBeTruthy();
+
+    const switchResponse = await page.evaluate(async (context) => {
+      const response = await fetch('/api/iam/switch-context', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ scopeType: context.scopeType, scopeId: context.scopeId }),
+      });
+      return { status: response.status, body: await response.json().catch(() => ({})) };
+    }, target);
+
+    expect(switchResponse.status, item.email + ': context switch failed').toBe(200);
+    const accessToken = switchResponse.body?.data?.accessToken;
+    expect(accessToken, item.email + ': switch response has no access token').toEqual(expect.any(String));
+
+    const payload = JSON.parse(Buffer.from(String(accessToken).split('.')[1], 'base64url').toString('utf8')) as { role?: string };
+    expect(payload.role, item.email + ': switched token kept the wrong global role').toBe(item.expectedRole);
+  }
+});
+
 test.describe('DentVision exhaustive role/context/browser gate',()=>{
   test.describe.configure({mode:'serial',timeout:120000});
   for(const role of ROLES){
