@@ -121,6 +121,8 @@ const PARTNER_ROLE_TO_USER_ROLE: Record<string, UserRole> = {
   technician: 'LAB', dental_technician: 'LAB', dental_lab_technician: 'LAB', medical_lab_technician: 'LAB', cad_designer: 'LAB', ceramist: 'LAB', orthodontic_technician: 'LAB',
   finance: 'ADMIN', diagnostic_finance: 'ADMIN', medical_lab_finance: 'ADMIN', lab_finance: 'ADMIN',
   quality: 'ADMIN', diagnostic_quality: 'ADMIN', medical_lab_quality: 'ADMIN', qc_specialist: 'ADMIN',
+  cashier: 'CASHIER', seller: 'ASSISTANT', supplier_rep: 'ASSISTANT', supplier: 'ASSISTANT', support: 'SUPPORT',
+  student: 'STUDENT', lecturer: 'STUDENT', member: 'PATIENT',
 };
 
 export function userRoleForPartnerRole(roleKey: string | null | undefined, fallback: UserRole): UserRole {
