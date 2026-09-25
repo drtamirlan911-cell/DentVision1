@@ -128,6 +128,14 @@ export interface LegacyLecturerRow {
   academy?: { id: string; name: string } | null;
 }
 
+export interface LegacyLaboratoryRow {
+  id: string;
+  role: string;
+  labId: string;
+  createdAt?: Date;
+  lab?: { id: string; name: string } | null;
+}
+
 export interface UnifiedPersonRow {
   id: string;
   personType: string;
@@ -146,6 +154,7 @@ export interface ContextSources {
   memberships: LegacyClinicRow[];
   supplierMemberships: LegacySupplierRow[];
   lecturer: LegacyLecturerRow | null;
+  laboratoryMemberships: LegacyLaboratoryRow[];
   persons: UnifiedPersonRow[];
 }
 
@@ -192,6 +201,19 @@ export function buildWorkspaceContexts(sources: ContextSources): WorkspaceContex
       joinedAt: m.createdAt,
       role: m.role,
       supplier: m.supplier ?? undefined,
+    });
+  }
+
+  for (const m of sources.laboratoryMemberships) {
+    put({
+      id: 'LABORATORY:' + m.labId,
+      scopeType: 'LABORATORY',
+      scopeId: m.labId,
+      name: m.lab?.name || 'Лаборатория',
+      roleKey: 'laboratory.' + String(m.role).toLowerCase(),
+      roleLabel: roleLabelFor(m.role),
+      joinedAt: m.createdAt,
+      role: m.role,
     });
   }
 
