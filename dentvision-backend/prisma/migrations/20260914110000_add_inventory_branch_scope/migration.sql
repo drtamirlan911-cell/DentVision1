@@ -1,8 +1,8 @@
 -- Inventory becomes branch-aware while retaining clinicId for tenant compatibility.
-ALTER TABLE "inventory" ADD COLUMN IF NOT EXISTS "branch_id" TEXT;
+ALTER TABLE "inventory_items" ADD COLUMN IF NOT EXISTS "branch_id" TEXT;
 
 CREATE INDEX IF NOT EXISTS "inventory_branch_id_idx"
-  ON "inventory"("branch_id");
+  ON "inventory_items"("branch_id");
 
 DO $$ BEGIN
   IF NOT EXISTS (
@@ -25,7 +25,7 @@ WITH chosen_branch AS (
   WHERE clinic_id IS NOT NULL AND active = true
   ORDER BY clinic_id, is_default DESC, created_at ASC, id ASC
 )
-UPDATE inventory i
+UPDATE inventory_items i
 SET branch_id = chosen_branch.branch_id,
     updated_at = CURRENT_TIMESTAMP
 FROM chosen_branch
