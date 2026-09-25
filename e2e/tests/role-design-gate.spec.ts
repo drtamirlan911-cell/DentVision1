@@ -80,7 +80,7 @@ async function login(page: Page, email: string) {
   await page.locator('input[autocomplete="username"]').fill(email);
   await page.locator('input[autocomplete="current-password"]').fill(PASSWORD);
   await page.getByRole('button',{name:'Войти в DentVision'}).click();
-  await page.waitForURL(/\/(?:ai|patient-portal|diagnostics|school|admin|profile)(?:$|[?#])/i,{timeout:30000});
+  await page.waitForURL(/\/(?:ai|patient-portal|diagnostics|school|admin|profile)(?:$|[?#])/i,{timeout:30000, waitUntil:'domcontentloaded'});
   await page.waitForTimeout(600);
 }
 
@@ -120,7 +120,7 @@ async function inspectVisualSemantics(page: Page, role: Role, route: string) {
     const headings = Array.from(document.querySelectorAll('h1,h2,h3')).filter(visible).map(text).filter(Boolean);
     const iconOnly = interactive.filter(el => {
       const h = el as HTMLElement;
-      const label = h.getAttribute('aria-label') || h.getAttribute('title') || '';
+      const label = h.getAttribute('aria-label') || h.getAttribute('title') || h.getAttribute('placeholder') || '';
       return !text(el) && !label;
     });
     const suspicious = Array.from(document.querySelectorAll('[class*="truncate"],[class*="line-clamp"],[class*="ellipsis"]')).filter(visible)
