@@ -48,7 +48,7 @@ export function WorkspaceSwitcher({ className }: { className?: string }) {
   const location = useLocation()
   const toast = useToast()
   const queryClient = useQueryClient()
-  const { user, clinic, activeMembership, isAuthenticated } = useAuth()
+  const { user, clinic, activeMembership, roleInfo, isAuthenticated } = useAuth()
   const setActiveWorkspace = useWorkspaceStore(s => s.setActiveWorkspace)
   const [open, setOpen] = useState(false)
   const [busyId, setBusyId] = useState<string | null>(null)
@@ -117,7 +117,7 @@ export function WorkspaceSwitcher({ className }: { className?: string }) {
     () => workspaces.find(isActive) || workspaces.find((w) => w.scopeType === 'CLINIC') || workspaces[0],
     [workspaces, activeClinicId, activeOrgId, activeOrgType, activeSupplierId, activeLecturerId],
   )
-  const activeRoleLabel = current?.roleLabel || getRoleDisplayLabel((user as any)?.platformRole || (user as any)?.role) || 'Участник экосистемы'
+  const activeRoleLabel = current?.roleLabel || roleInfo?.label || getRoleDisplayLabel((user as any)?.platformRole || (user as any)?.role) || 'Участник экосистемы'
 
   useEffect(() => {
     if (!current) return
