@@ -20,6 +20,7 @@ import { onboardPartner } from './modules/legal/legal.service.js';
 import { grantDiagnosticsAccess } from './modules/diagnostics/diagnostics.service.js';
 import { uid } from './lib/helpers.js';
 import { initSentry } from './lib/sentry.js';
+import { PRODUCT_PRESETS } from './modules/shop/product-presets.seed.js';
 
 // Sentry must be initialized before the Express app (app.ts) is loaded so that
 // errors raised during route/module evaluation are attributed to the SDK.
@@ -2201,6 +2202,55 @@ async function main() {
         END IF;
       END $$
     `);
+  });
+
+  // Marketplace catalog bootstrap: ProductPreset is only a template catalog and
+  // does not render in the buyer-facing /api/shop/products endpoint. Older
+  // production databases can therefore have zero Product rows even though the
+  // preset catalog exists. Materialize the curated presets once, directly into
+  // the real Product table, so the marketplace is backed by actual DB records.
+  await runOnceMigration('materialize_marketplace_product_catalog', 'Marketplace: materialize ProductPresets into buyer-facing Product rows', async (tx) => {
+    const productCount = await tx.product.count();
+    if (productCount > 0) return;
+
+    const categories = await tx.shopCategory.findMany({
+      where: { isActive: true },
+      select: { id: true, name: true },
+    });
+
+    const normalize = (value: string) => value.toLocaleLowerCase('ru-RU');
+    let created = 0;
+    for (let index = 0; index < PRODUCT_PRESETS.length; index += 1) {
+      const preset = PRODUCT_PRESETS[index];
+      const wanted = normalize(preset.categoryQuery);
+      const category = categories.find((item) => normalize(item.name).includes(wanted) || wanted.includes(normalize(item.name)));
+      await tx.product.create({
+        data: {
+          id: uid(),
+          name: preset.name,
+          brand: preset.brand,
+          category: preset.categoryQuery,
+          categoryId: category?.id || null,
+          price: Math.max(1, Math.round(preset.avgPrice)),
+          stock: 20,
+          minStock: 2,
+          description: preset.description,
+          imageUrl: null,
+          unit: preset.unit,
+          manufacturer: preset.manufacturer,
+          country: preset.manufacturer,
+          tags: [preset.categoryQuery],
+          specs: preset.specs || undefined,
+          isActive: true,
+          // These rows are curated by DentVision itself, not attributed to a
+          // supplier. ownBrand is the canonical platform-owned marker used by
+          // checkout eligibility.
+          ownBrand: true,
+        },
+      });
+      created += 1;
+    }
+    console.log(`[MARKETPLACE] Materialized ${created} Product rows from curated presets`);
   });
 
   // Initialize Event Bus

@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import { buildWorkspaceContexts, roleLabelFor, type ContextSources } from './contexts.js';
 
-const empty: ContextSources = { memberships: [], supplierMemberships: [], lecturer: null, persons: [] };
+const empty: ContextSources = { memberships: [], supplierMemberships: [], lecturer: null, diagnosticCenterMemberships: [], laboratoryMemberships: [], persons: [] };
 
 describe('workspace contexts', () => {
   it('returns one row for a clinic that exists in both halves', () => {
@@ -107,6 +107,55 @@ describe('workspace contexts', () => {
     expect(contexts).toHaveLength(1);
     expect(contexts[0].scopeType).toBe('LECTURER');
     expect(contexts[0].scopeId).toBe('lec-1');
+  });
+
+
+  it('includes a legacy laboratory membership as a laboratory workspace', () => {
+    const contexts = buildWorkspaceContexts({
+      ...empty,
+      laboratoryMemberships: [
+        { id: 'lm1', role: 'manager', labId: 'lab-1', lab: { id: 'lab-1', name: 'Dental Lab' } },
+      ],
+    });
+
+    expect(contexts).toHaveLength(1);
+    expect(contexts[0].scopeType).toBe('LABORATORY');
+    expect(contexts[0].scopeId).toBe('lab-1');
+    expect(contexts[0].roleLabel).toBe('Управляющий');
+  });
+
+
+  it('includes every legacy diagnostic-center role as a workspace', () => {
+    const roles = ['owner', 'admin', 'manager', 'radiologist', 'operator'];
+    const contexts = buildWorkspaceContexts({
+      ...empty,
+      diagnosticCenterMemberships: roles.map((role, index) => ({
+        id: 'dm-' + index,
+        role,
+        centerId: 'center-' + index,
+        center: { id: 'center-' + index, name: 'Center ' + index },
+      })),
+    });
+    expect(contexts.map((c) => c.roleLabel)).toEqual([
+      'Владелец',
+      'Администратор',
+      'Управляющий',
+      'Рентгенолог',
+      'Оператор',
+    ]);
+  });
+
+  it('labels all partner roles without falling back to Участник', () => {
+    const roles = [
+      'diagnostic_owner', 'diagnostic_admin', 'diagnostic_manager', 'diagnostic_operator',
+      'diagnostic_reception', 'diagnostic_finance', 'diagnostic_quality',
+      'medical_lab_owner', 'medical_lab_admin', 'medical_lab_manager', 'medical_lab_reception',
+      'medical_lab_technician', 'medical_lab_validator', 'medical_lab_doctor', 'medical_lab_finance',
+      'medical_lab_quality', 'dental_lab_owner', 'dental_lab_admin', 'dental_lab_manager',
+      'lab_coordinator', 'dental_technician', 'cad_designer', 'ceramist', 'orthodontic_technician',
+      'qc_specialist', 'lab_finance',
+    ];
+    for (const role of roles) expect(roleLabelFor(role)).not.toBe('Участник');
   });
 
   it('keeps distinct workspaces distinct', () => {

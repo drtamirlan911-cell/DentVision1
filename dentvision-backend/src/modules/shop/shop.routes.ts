@@ -268,7 +268,10 @@ shopRouter.post('/orders', authenticate, async (req: AuthRequest, res) => {
         return;
       }
       try {
-        assertCheckoutSupplierEligibility(p.supplier?.status, p.supplierId);
+        // Curated platform catalog rows are intentionally supplier-less and
+        // marked ownBrand. They are valid platform-owned goods; third-party
+        // supplier rows still require verified/official_partner status.
+        assertCheckoutSupplierEligibility(p.supplier?.status, p.supplierId, !!p.ownBrand);
       } catch (supplierError) {
         const code = String((supplierError as Error).message || 'CHECKOUT_SUPPLIER_NOT_ELIGIBLE');
         res.status(409).json({ ok: false, error: code });

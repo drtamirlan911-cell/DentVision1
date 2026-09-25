@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { agentActivityFindMany, resolveOrganizationIdForClinic, organizationFindUnique, clinicFindUnique, supplierFindUnique, lecturerFindUnique, clinicMemberFindMany, supplierMemberFindMany, personFindMany } = vi.hoisted(() => ({
+const { agentActivityFindMany, resolveOrganizationIdForClinic, organizationFindUnique, clinicFindUnique, supplierFindUnique, lecturerFindUnique, clinicMemberFindMany, supplierMemberFindMany, diagnosticCenterMemberFindMany, laboratoryMemberFindMany, personFindMany } = vi.hoisted(() => ({
   agentActivityFindMany: vi.fn(),
   resolveOrganizationIdForClinic: vi.fn(),
   organizationFindUnique: vi.fn(),
@@ -9,6 +9,8 @@ const { agentActivityFindMany, resolveOrganizationIdForClinic, organizationFindU
   lecturerFindUnique: vi.fn(),
   clinicMemberFindMany: vi.fn(),
   supplierMemberFindMany: vi.fn(),
+  diagnosticCenterMemberFindMany: vi.fn(),
+  laboratoryMemberFindMany: vi.fn(),
   personFindMany: vi.fn(),
 }));
 
@@ -21,6 +23,8 @@ vi.mock('../../../lib/prisma.js', () => ({
     lecturer: { findUnique: lecturerFindUnique },
     clinicMember: { findMany: clinicMemberFindMany },
     supplierMember: { findMany: supplierMemberFindMany },
+    diagnosticCenterMember: { findMany: diagnosticCenterMemberFindMany },
+    laboratoryMember: { findMany: laboratoryMemberFindMany },
     person: { findMany: personFindMany },
   },
 }));
@@ -54,6 +58,8 @@ beforeEach(() => {
   lecturerFindUnique.mockResolvedValue(null);
   clinicMemberFindMany.mockResolvedValue([]);
   supplierMemberFindMany.mockResolvedValue([]);
+  diagnosticCenterMemberFindMany.mockResolvedValue([]);
+  laboratoryMemberFindMany.mockResolvedValue([]);
   personFindMany.mockResolvedValue([]);
 });
 
@@ -65,6 +71,22 @@ describe('buildAiContext', () => {
     expect(ctx.organizationId).toBe('org-1');
     expect(ctx.clinicId).toBe('clinic-1');
     expect(ctx.workspace).toEqual(expect.objectContaining({ scopeType: 'CLINIC', scopeId: 'clinic-1', name: 'Клиника 1' }));
+  });
+
+
+  it('keeps diagnostic and laboratory legacy workspaces in the AI inventory', async () => {
+    diagnosticCenterMemberFindMany.mockResolvedValueOnce([
+      { id: 'dm-1', role: 'owner', centerId: 'center-1', createdAt: new Date(), center: { id: 'center-1', name: 'Diagnostics' } },
+    ]);
+    laboratoryMemberFindMany.mockResolvedValueOnce([
+      { id: 'lm-1', role: 'manager', labId: 'lab-1', createdAt: new Date(), lab: { id: 'lab-1', name: 'Dental Lab' } },
+    ]);
+
+    const ctx = await buildAiContext(req());
+
+    expect(ctx.availableWorkspaces.map((w) => w.scopeType)).toEqual(expect.arrayContaining(['DIAGNOSTIC_CENTER', 'LABORATORY']));
+    expect(ctx.availableWorkspaces.find((w) => w.scopeId === 'center-1')?.roleLabel).toBe('Владелец');
+    expect(ctx.availableWorkspaces.find((w) => w.scopeId === 'lab-1')?.roleLabel).toBe('Управляющий');
   });
 
   it('derives page.pageId from pathname via the shared stage classifier', async () => {

@@ -51,14 +51,27 @@ export function setTokens(access: string | null, refresh: string | null): void {
   }
 }
 export function loadTokens(): { accessToken: string; refreshToken: string } | null {
+  let accessToken = '';
+  let refreshToken = '';
   try {
     const stored = sessionStorage.getItem('dv_tokens');
-    if (stored) { const { access, refresh } = JSON.parse(stored); _accessToken = access; _refreshToken = refresh; return { accessToken: access, refreshToken: refresh }; }
+    if (stored) {
+      const parsed = JSON.parse(stored);
+      accessToken = typeof parsed?.access === 'string' ? parsed.access : '';
+      refreshToken = typeof parsed?.refresh === 'string' ? parsed.refresh : '';
+    }
   } catch { /* ignore */ }
   try {
-    const refresh = localStorage.getItem('dv_refresh');
-    if (refresh) { _refreshToken = refresh; return { accessToken: '', refreshToken: refresh }; }
+    // Refresh tokens are deliberately durable across workspace switches and
+    // reloads. Prefer the newest durable value over a stale sessionStorage pair.
+    const durableRefresh = localStorage.getItem('dv_refresh');
+    if (durableRefresh) refreshToken = durableRefresh;
   } catch { /* ignore */ }
+  if (accessToken || refreshToken) {
+    _accessToken = accessToken || _accessToken;
+    _refreshToken = refreshToken || _refreshToken;
+    return { accessToken: _accessToken || '', refreshToken: _refreshToken || '' };
+  }
   try { const match = document.cookie.match(/(?:^|;\s*)accessToken=([^;]*)/); if (match) { _accessToken = match[1]; return { accessToken: match[1], refreshToken: '' }; } } catch { /* ignore */ }
   return null;
 }
@@ -70,9 +83,15 @@ export function clearTokens(): void {
   document.cookie = 'refreshToken=; Path=/; Expires=Thu, 01 Jan 1970 00:00:01 GMT; SameSite=None; Secure';
 }
 export function getAccessToken(): string | null { return _accessToken; }
+export function getRefreshToken(): string | null { return _refreshToken; }
 
 // ─── Token Refresh ───
 async function refreshAccessToken(): Promise<string> {
+  // A hard reload can leave the in-memory access token empty while the durable
+  // refresh token is still present. Hydrate it here as a last line of defence
+  // instead of sending an unauthenticated/stale request and surfacing
+  // "Невалидный токен" from otherwise healthy protected endpoints.
+  if (!_refreshToken) loadTokens();
   if (!_refreshToken) throw new Error('No refresh token');
   if (_refreshPromise) return _refreshPromise;
   _refreshPromise = (async () => {
@@ -89,13 +108,26 @@ async function refreshAccessToken(): Promise<string> {
 function clientTimezoneHeader(): string | null { try { const tz = Intl.DateTimeFormat().resolvedOptions().timeZone; return tz && typeof tz === 'string' ? tz : null; } catch { return null; } }
 
 export async function apiRequest(path: string, options: RequestInit = {}): Promise<any> {
+  // Restore persisted credentials before the first request after a reload.
+  // This is intentionally lazy so bootstrap/auth restoration cannot race with
+  // child widgets such as DentCash, Marketplace, or CRM queries.
+  if (!_accessToken && !_refreshToken) loadTokens();
   const headers: Record<string, string> = { ...options.headers as Record<string, string> };
   if (_accessToken) headers['Authorization'] = `Bearer ${_accessToken}`;
   const tz = clientTimezoneHeader(); if (tz) headers['X-Client-Timezone'] = tz;
   if (options.method && !['GET', 'HEAD', 'OPTIONS'].includes(options.method.toUpperCase())) { const csrfMatch = document.cookie.match(/(?:^|;\s*)dv_csrf=([^;]*)/); if (csrfMatch) headers['x-csrf-token'] = csrfMatch[1]; }
   const finalOptions: RequestInit = { ...options, headers, credentials: 'include' }; headers['Content-Type'] = 'application/json';
   let res = await fetch(`${API_URL}${path}`, finalOptions); let data = await res.json();
-  if (res.status === 401 && _refreshToken) { try { const newToken = await refreshAccessToken(); headers['Authorization'] = `Bearer ${newToken}`; res = await fetch(`${API_URL}${path}`, finalOptions); data = await res.json(); } catch { throw new Error('Session expired. Please log in again.'); } }
+  if (res.status === 401) {
+    try {
+      const newToken = await refreshAccessToken();
+      headers['Authorization'] = `Bearer ${newToken}`;
+      res = await fetch(`${API_URL}${path}`, finalOptions);
+      data = await res.json();
+    } catch {
+      throw new Error('Session expired. Please log in again.');
+    }
+  }
   if (!res.ok) { const err: any = new Error(data.error || data.message || `HTTP ${res.status}`); err.status = res.status; err.code = data.code; err.details = data.details; throw err; }
   if (data && typeof data === 'object' && 'ok' in data && data.data !== undefined) return data.data;
   return data;
@@ -182,7 +214,19 @@ export async function getAccessGrants(): Promise<CrossClinicAccessGrantView[]> {
 export async function revokeAccessGrant(grantId: string): Promise<{ revoked: true }> { return apiRequest(`/api/patient-portal/access-grants/${grantId}/revoke`, { method: 'POST' }); }
 export interface CrossClinicAccessLogEntry { id: string; receivingClinicName: string; accessedBy: string; dataCategory: string; createdAt: string; }
 export async function getCrossClinicAccessLog(): Promise<CrossClinicAccessLogEntry[]> { return apiRequest('/api/patient-portal/access-log'); }
-export async function getAppointments(clinicId: string): Promise<Appointment[]> { return collection<Appointment>(await apiRequest('/api/appointments?limit=200')); }
+export async function getAppointments(clinicId: string): Promise<Appointment[]> {
+  const params = new URLSearchParams({ limit: '500' });
+  if (clinicId) params.set('clinicId', clinicId);
+  const rows = collection<Appointment>(await apiRequest(`/api/appointments?${params.toString()}`));
+  // The backend normally serializes YYYY-MM-DD, but older records/alternate
+  // deployments can return an ISO timestamp. Normalize at the API boundary so
+  // Schedule's day/week selectors never silently hide valid appointments.
+  return rows.map((row: any) => ({
+    ...row,
+    date: row?.date ? String(row.date).slice(0, 10) : row?.date,
+    time: row?.time ? String(row.time).slice(0, 5) : '09:00',
+  }));
+}
 export async function checkAppointmentConflicts(params: { doctorId?: string; date: string; time: string; duration?: number; excludeId?: string; patientId?: string; chairId?: string }): Promise<{ hasConflict: boolean; conflicts: Appointment[] }> { const q = new URLSearchParams(); Object.entries(params).forEach(([k, v]) => { if (v != null && v !== '') q.set(k, String(v)); }); return apiRequest(`/api/appointments/conflicts?${q}`); }
 export async function getReceipts(clinicId: string): Promise<Receipt[]> { return collection(await apiRequest('/api/billing/invoices?limit=200')).map(mapReceipt); }
 export async function getFinanceReport(params: { from?: string; to?: string } = {}): Promise<any> { const q = new URLSearchParams(); if (params.from) q.set('from', params.from); if (params.to) q.set('to', params.to); const qs = q.toString(); return apiRequest(`/api/billing/reports${qs ? `?${qs}` : ''}`); }

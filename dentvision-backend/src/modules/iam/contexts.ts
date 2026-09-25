@@ -63,6 +63,12 @@ const ROLE_LABELS: Record<string, string> = {
   assistant: 'Ассистент',
   radiologist: 'Рентгенолог',
   radiology_technician: 'Рентген-лаборант',
+  operator: 'Оператор',
+  reception: 'Регистратура',
+  org_owner: 'Владелец',
+  org_admin: 'Администратор',
+  supplier_rep: 'Представитель поставщика',
+  platform_admin: 'Платформа',
   diagnostic_owner: 'Владелец диагностического центра',
   diagnostic_admin: 'Администратор диагностического центра',
   diagnostic_manager: 'Управляющий диагностического центра',
@@ -128,6 +134,22 @@ export interface LegacyLecturerRow {
   academy?: { id: string; name: string } | null;
 }
 
+export interface LegacyDiagnosticCenterRow {
+  id: string;
+  role: string;
+  centerId: string;
+  createdAt?: Date;
+  center?: { id: string; name: string; logo?: string | null } | null;
+}
+
+export interface LegacyLaboratoryRow {
+  id: string;
+  role: string;
+  labId: string;
+  createdAt?: Date;
+  lab?: { id: string; name: string } | null;
+}
+
 export interface UnifiedPersonRow {
   id: string;
   personType: string;
@@ -146,6 +168,8 @@ export interface ContextSources {
   memberships: LegacyClinicRow[];
   supplierMemberships: LegacySupplierRow[];
   lecturer: LegacyLecturerRow | null;
+  diagnosticCenterMemberships: LegacyDiagnosticCenterRow[];
+  laboratoryMemberships: LegacyLaboratoryRow[];
   persons: UnifiedPersonRow[];
 }
 
@@ -192,6 +216,32 @@ export function buildWorkspaceContexts(sources: ContextSources): WorkspaceContex
       joinedAt: m.createdAt,
       role: m.role,
       supplier: m.supplier ?? undefined,
+    });
+  }
+
+  for (const m of sources.diagnosticCenterMemberships) {
+    put({
+      id: 'DIAGNOSTIC_CENTER:' + m.centerId,
+      scopeType: 'DIAGNOSTIC_CENTER',
+      scopeId: m.centerId,
+      name: m.center?.name || 'Диагностический центр',
+      roleKey: 'diagnostic.' + String(m.role).toLowerCase(),
+      roleLabel: roleLabelFor(m.role),
+      joinedAt: m.createdAt,
+      role: m.role,
+    });
+  }
+
+  for (const m of sources.laboratoryMemberships) {
+    put({
+      id: 'LABORATORY:' + m.labId,
+      scopeType: 'LABORATORY',
+      scopeId: m.labId,
+      name: m.lab?.name || 'Лаборатория',
+      roleKey: 'laboratory.' + String(m.role).toLowerCase(),
+      roleLabel: roleLabelFor(m.role),
+      joinedAt: m.createdAt,
+      role: m.role,
     });
   }
 
