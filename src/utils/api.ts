@@ -70,9 +70,15 @@ export function clearTokens(): void {
   document.cookie = 'refreshToken=; Path=/; Expires=Thu, 01 Jan 1970 00:00:01 GMT; SameSite=None; Secure';
 }
 export function getAccessToken(): string | null { return _accessToken; }
+export function getRefreshToken(): string | null { return _refreshToken; }
 
 // ─── Token Refresh ───
 async function refreshAccessToken(): Promise<string> {
+  // A hard reload can leave the in-memory access token empty while the durable
+  // refresh token is still present. Hydrate it here as a last line of defence
+  // instead of sending an unauthenticated/stale request and surfacing
+  // "Невалидный токен" from otherwise healthy protected endpoints.
+  if (!_refreshToken) loadTokens();
   if (!_refreshToken) throw new Error('No refresh token');
   if (_refreshPromise) return _refreshPromise;
   _refreshPromise = (async () => {
@@ -89,13 +95,26 @@ async function refreshAccessToken(): Promise<string> {
 function clientTimezoneHeader(): string | null { try { const tz = Intl.DateTimeFormat().resolvedOptions().timeZone; return tz && typeof tz === 'string' ? tz : null; } catch { return null; } }
 
 export async function apiRequest(path: string, options: RequestInit = {}): Promise<any> {
+  // Restore persisted credentials before the first request after a reload.
+  // This is intentionally lazy so bootstrap/auth restoration cannot race with
+  // child widgets such as DentCash, Marketplace, or CRM queries.
+  if (!_accessToken && !_refreshToken) loadTokens();
   const headers: Record<string, string> = { ...options.headers as Record<string, string> };
   if (_accessToken) headers['Authorization'] = `Bearer ${_accessToken}`;
   const tz = clientTimezoneHeader(); if (tz) headers['X-Client-Timezone'] = tz;
   if (options.method && !['GET', 'HEAD', 'OPTIONS'].includes(options.method.toUpperCase())) { const csrfMatch = document.cookie.match(/(?:^|;\s*)dv_csrf=([^;]*)/); if (csrfMatch) headers['x-csrf-token'] = csrfMatch[1]; }
   const finalOptions: RequestInit = { ...options, headers, credentials: 'include' }; headers['Content-Type'] = 'application/json';
   let res = await fetch(`${API_URL}${path}`, finalOptions); let data = await res.json();
-  if (res.status === 401 && _refreshToken) { try { const newToken = await refreshAccessToken(); headers['Authorization'] = `Bearer ${newToken}`; res = await fetch(`${API_URL}${path}`, finalOptions); data = await res.json(); } catch { throw new Error('Session expired. Please log in again.'); } }
+  if (res.status === 401) {
+    try {
+      const newToken = await refreshAccessToken();
+      headers['Authorization'] = `Bearer ${newToken}`;
+      res = await fetch(`${API_URL}${path}`, finalOptions);
+      data = await res.json();
+    } catch {
+      throw new Error('Session expired. Please log in again.');
+    }
+  }
   if (!res.ok) { const err: any = new Error(data.error || data.message || `HTTP ${res.status}`); err.status = res.status; err.code = data.code; err.details = data.details; throw err; }
   if (data && typeof data === 'object' && 'ok' in data && data.data !== undefined) return data.data;
   return data;
