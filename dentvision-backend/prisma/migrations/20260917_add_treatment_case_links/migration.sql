@@ -73,44 +73,44 @@ CREATE INDEX IF NOT EXISTS "treatment_plans_treatmentCaseId_idx" ON "treatment_p
 CREATE INDEX IF NOT EXISTS "referrals_treatmentCaseId_idx" ON "referrals"("treatmentCaseId");
 CREATE INDEX IF NOT EXISTS "visits_treatmentCaseId_idx" ON "visits"("treatmentCaseId");
 
-DO $ BEGIN
+DO $$ BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'appointments_treatmentCaseId_fkey') THEN
     ALTER TABLE "appointments" ADD CONSTRAINT "appointments_treatmentCaseId_fkey"
       FOREIGN KEY ("treatmentCaseId") REFERENCES "treatment_cases"("id") ON DELETE SET NULL ON UPDATE CASCADE;
   END IF;
-EXCEPTION WHEN duplicate_object THEN NULL; END $;
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
-DO $ BEGIN
+DO $$ BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'lab_orders_treatmentCaseId_fkey') THEN
     ALTER TABLE "lab_orders" ADD CONSTRAINT "lab_orders_treatmentCaseId_fkey"
       FOREIGN KEY ("treatmentCaseId") REFERENCES "treatment_cases"("id") ON DELETE SET NULL ON UPDATE CASCADE;
   END IF;
-EXCEPTION WHEN duplicate_object THEN NULL; END $;
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
-DO $ BEGIN
+DO $$ BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'invoices_treatmentCaseId_fkey') THEN
     ALTER TABLE "invoices" ADD CONSTRAINT "invoices_treatmentCaseId_fkey"
       FOREIGN KEY ("treatmentCaseId") REFERENCES "treatment_cases"("id") ON DELETE SET NULL ON UPDATE CASCADE;
   END IF;
-EXCEPTION WHEN duplicate_object THEN NULL; END $;
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
-DO $ BEGIN
+DO $$ BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'treatment_plans_treatmentCaseId_fkey') THEN
     ALTER TABLE "treatment_plans" ADD CONSTRAINT "treatment_plans_treatmentCaseId_fkey"
       FOREIGN KEY ("treatmentCaseId") REFERENCES "treatment_cases"("id") ON DELETE SET NULL ON UPDATE CASCADE;
   END IF;
-EXCEPTION WHEN duplicate_object THEN NULL; END $;
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
-DO $ BEGIN
+DO $$ BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'referrals_treatmentCaseId_fkey') THEN
     ALTER TABLE "referrals" ADD CONSTRAINT "referrals_treatmentCaseId_fkey"
       FOREIGN KEY ("treatmentCaseId") REFERENCES "treatment_cases"("id") ON DELETE SET NULL ON UPDATE CASCADE;
   END IF;
-EXCEPTION WHEN duplicate_object THEN NULL; END $;
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
-DO $ BEGIN
+DO $$ BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'visits_treatmentCaseId_fkey') THEN
     ALTER TABLE "visits" ADD CONSTRAINT "visits_treatmentCaseId_fkey"
       FOREIGN KEY ("treatmentCaseId") REFERENCES "treatment_cases"("id") ON DELETE SET NULL ON UPDATE CASCADE;
   END IF;
-EXCEPTION WHEN duplicate_object THEN NULL; END $;
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
