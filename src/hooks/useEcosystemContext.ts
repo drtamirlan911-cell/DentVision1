@@ -33,16 +33,17 @@ function participantForRole(role?: string | null): EcosystemParticipant {
 }
 
 export function useEcosystemContext() {
-  const { user, clinic, activeMembership } = useAuth();
+  const { user, clinic, activeMembership, activeWorkspace } = useAuth();
   return useMemo(() => {
     const rawUser = user as any;
     const membership = activeMembership as any;
-    const role = String(membership?.role || rawUser?.effectiveRole || rawUser?.platformRole || rawUser?.role || 'user').toLowerCase();
+    const role = String(activeWorkspace?.roleLabel || membership?.role || rawUser?.effectiveRole || rawUser?.platformRole || rawUser?.role || 'user').toLowerCase();
 
     // Organization type is authoritative for the cabinet/participant. A global
     // OWNER/ADMIN role is deliberately not interpreted as "clinic": the same
     // person may own a diagnostic center, laboratory, academy, supplier, etc.
     const organizationType =
+      activeWorkspace?.scopeType ||
       membership?.organization?.type ||
       membership?.clinic?.organizationType ||
       membership?.clinic?.type ||
@@ -59,6 +60,7 @@ export function useEcosystemContext() {
     );
     const services = ecosystemServicesFor(participant);
     const organizationName =
+      activeWorkspace?.name ||
       membership?.organization?.name ||
       rawUser?.activeOrganization?.name ||
       rawUser?.organization?.name ||
