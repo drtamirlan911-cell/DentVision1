@@ -47,9 +47,9 @@ BEGIN
     IF branch_id IS NULL THEN
       branch_id := gen_random_uuid()::text;
       INSERT INTO "branches" (
-        "id", "clinic_id", "code", "name", "city", "address", "phone", "active", "is_default"
+        "id", "clinic_id", "code", "name", "city", "address", "phone", "active", "is_default", "updated_at"
       ) VALUES (
-        branch_id, c."id", 'MAIN', c."name", c."city", c."address", c."phone", true, true
+        branch_id, c."id", 'MAIN', c."name", c."city", c."address", c."phone", true, true, CURRENT_TIMESTAMP
       );
     END IF;
 
