@@ -95,7 +95,7 @@ iamRouter.post('/switch-context', async (req: AuthRequest, res) => {
         const userRoleValues = new Set<UserRole>(['OWNER', 'DOCTOR', 'ASSISTANT', 'ADMIN', 'CASHIER', 'LAB', 'MANAGER', 'STUDENT', 'SUPERADMIN', 'SUPPORT', 'PATIENT']);
         const scopedRole: UserRole = userRoleValues.has(String(scopedRoleKey).toUpperCase() as UserRole)
           ? String(scopedRoleKey).toUpperCase() as UserRole
-          : user.role;
+          : userRoleForPartnerRole(scopedRoleKey, user.role);
         const entityId = org.originalId || org.id;
         let supplierContext = {};
         if (org.type === 'SUPPLIER_COMPANY') {
