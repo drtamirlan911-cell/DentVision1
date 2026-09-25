@@ -15,47 +15,51 @@ function isChunkLoadError(err: unknown): boolean {
 }
 
 /**
- * Vite/React.lazy wrapper: on stale-chunk / protected-preview fetch failures,
- * hard-reload once so the browser picks up the current index.html asset map.
- *
- * The optional named-export shape is supported for route modules that expose
- * their component as a named export (currently AIWorkspaceIndex) while keeping
- * the normal default-export contract for the rest of the application.
+ * Vite/React.lazy wrapper: retry transient chunk fetch failures before the
+ * one-time hard reload used for stale deployment asset maps.
  */
 export function lazyWithRetry<T extends ComponentType<any>>(
   factory: () => Promise<LazyModule<T>>,
 ): LazyExoticComponent<T> {
   return lazy(async () => {
-    try {
-      const mod = await factory();
+    let lastError: unknown;
+
+    for (let attempt = 0; attempt < 3; attempt += 1) {
       try {
-        sessionStorage.removeItem(RELOAD_KEY);
-      } catch {
-        /* ignore */
-      }
-      if ('default' in mod) return mod;
-      return { default: mod.AIWorkspaceIndex };
-    } catch (err) {
-      if (isChunkLoadError(err)) {
-        let already = false;
+        const mod = await factory();
         try {
-          already = sessionStorage.getItem(RELOAD_KEY) === '1';
+          sessionStorage.removeItem(RELOAD_KEY);
         } catch {
           /* ignore */
         }
-        if (!already) {
-          try {
-            sessionStorage.setItem(RELOAD_KEY, '1');
-          } catch {
-            /* ignore */
-          }
-          window.location.reload();
-          // Keep suspense pending while the reload happens.
-          return new Promise(() => undefined);
-        }
+        if ('default' in mod) return mod;
+        return { default: mod.AIWorkspaceIndex };
+      } catch (err) {
+        lastError = err;
+        if (!isChunkLoadError(err) || attempt === 2) break;
+        await new Promise((resolve) => setTimeout(resolve, 250 * (attempt + 1)));
       }
-      throw err;
     }
+
+    if (isChunkLoadError(lastError)) {
+      let already = false;
+      try {
+        already = sessionStorage.getItem(RELOAD_KEY) === '1';
+      } catch {
+        /* ignore */
+      }
+      if (!already) {
+        try {
+          sessionStorage.setItem(RELOAD_KEY, '1');
+        } catch {
+          /* ignore */
+        }
+        window.location.reload();
+        return new Promise(() => undefined);
+      }
+    }
+
+    throw lastError;
   });
 }
 
