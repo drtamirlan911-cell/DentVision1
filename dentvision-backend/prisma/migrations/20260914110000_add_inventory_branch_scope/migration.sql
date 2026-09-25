@@ -29,5 +29,5 @@ UPDATE inventory i
 SET branch_id = chosen_branch.branch_id,
     "updatedAt" = CURRENT_TIMESTAMP
 FROM chosen_branch
-WHERE i.clinic_id = chosen_branch.clinic_id
+WHERE i."clinicId" = chosen_branch.clinic_id
   AND i.branch_id IS NULL;
