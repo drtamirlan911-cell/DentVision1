@@ -58,7 +58,6 @@ const ROLE_LABELS: Record<string, string> = {
   owner: 'Владелец',
   director: 'Руководитель',
   admin: 'Администратор',
-  org_admin: 'Администратор',
   manager: 'Управляющий',
   doctor: 'Врач',
   assistant: 'Ассистент',
