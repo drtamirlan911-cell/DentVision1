@@ -11,6 +11,7 @@ function participantForOrganizationType(type?: string | null): EcosystemParticip
   if (value === 'supplier' || value === 'distributor') return 'supplier';
   if (value === 'manufacturer') return 'supplier';
   if (value === 'academy' || value === 'education_center') return 'academy';
+  if (value === 'lecturer') return 'lecturer';
   if (value === 'employer') return 'employer';
   if (value === 'professional_group') return 'community';
   return null;
