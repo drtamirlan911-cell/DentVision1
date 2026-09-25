@@ -136,7 +136,7 @@ iamRouter.post('/switch-context', async (req: AuthRequest, res) => {
     if (scopeType === 'DIAGNOSTIC_CENTER') {
       const member = await prisma.diagnosticCenterMember.findUnique({ where: { centerId_userId: { centerId: scopeId, userId: user.id } } });
       if (member) {
-        const roleMap: Record<string, UserRole> = { owner: 'OWNER', admin: 'ADMIN', manager: 'MANAGER', radiologist: 'DOCTOR', operator: 'ASSISTANT' };
+        const roleMap: Record<string, UserRole> = { owner: 'OWNER', admin: 'ADMIN', manager: 'MANAGER', radiologist: 'DOCTOR', operator: 'ASSISTANT', reception: 'ASSISTANT', finance: 'ADMIN', quality: 'ADMIN', diagnostic_finance: 'ADMIN', diagnostic_quality: 'ADMIN' };
         const scopedRole = roleMap[String(member.role).toLowerCase()] || user.role;
         const organization = await prisma.organization.findFirst({ where: { originalType: 'DiagnosticCenter', originalId: scopeId } });
         const tokens = generateTokens({ ...base, role: scopedRole, organizationId: organization?.id, organizationOriginalId: scopeId, organizationType: 'DIAGNOSTIC_CENTER' });
@@ -155,7 +155,7 @@ iamRouter.post('/switch-context', async (req: AuthRequest, res) => {
     if (scopeType === 'LABORATORY') {
       const membership = await prisma.laboratoryMember.findUnique({ where: { labId_userId: { labId: scopeId, userId: user.id } } });
       if (membership) {
-        const roleMap: Record<string, UserRole> = { owner: 'OWNER', admin: 'ADMIN', manager: 'MANAGER' };
+        const roleMap: Record<string, UserRole> = { owner: 'OWNER', admin: 'ADMIN', manager: 'MANAGER', reception: 'ASSISTANT', medical_lab_reception: 'ASSISTANT', lab_coordinator: 'ASSISTANT', technician: 'LAB', dental_technician: 'LAB', cad_designer: 'LAB', ceramist: 'LAB', orthodontic_technician: 'LAB', medical_lab_technician: 'LAB', validator: 'DOCTOR', medical_lab_validator: 'DOCTOR', doctor: 'DOCTOR', medical_lab_doctor: 'DOCTOR', finance: 'ADMIN', lab_finance: 'ADMIN', medical_lab_finance: 'ADMIN', quality: 'ADMIN', qc_specialist: 'ADMIN', medical_lab_quality: 'ADMIN' };
         const scopedRole = roleMap[String(membership.role).toLowerCase()] || user.role;
         const organization = await prisma.organization.findFirst({ where: { originalType: 'Laboratory', originalId: scopeId } });
         const tokens = generateTokens({ ...base, role: scopedRole, organizationId: organization?.id, organizationOriginalId: scopeId, organizationType: 'LABORATORY' });
