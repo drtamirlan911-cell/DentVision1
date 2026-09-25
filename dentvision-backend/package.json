@@ -5,7 +5,7 @@
   "scripts": {
     "dev": "tsx watch src/index.ts",
     "build": "tsc",
-    "start": "prisma migrate deploy && tsx prisma/ensure-medical-lab-lifecycle.ts && npx tsx src/index.ts",
+    "start": "prisma migrate resolve --rolled-back 20260825_lecturer_speciality || true && prisma migrate deploy && tsx prisma/ensure-medical-lab-lifecycle.ts && npx tsx src/index.ts",
     "db:migrate": "tsx prisma/ensure-branch-model.ts && tsx prisma/sync-treatment-case-relations.ts && prisma migrate dev",
     "db:deploy": "tsx prisma/ensure-branch-model.ts && tsx prisma/sync-treatment-case-relations.ts && prisma migrate deploy",
     "db:push": "tsx prisma/ensure-branch-model.ts && tsx prisma/sync-treatment-case-relations.ts && prisma db push",
