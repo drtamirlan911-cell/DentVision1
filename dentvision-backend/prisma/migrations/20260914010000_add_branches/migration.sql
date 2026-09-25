@@ -59,13 +59,13 @@ BEGIN
   END LOOP;
 END $$;
 
-DO $ BEGIN
+DO $$ BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'clinic_members_branch_id_fkey') THEN
     ALTER TABLE "clinic_members"
       ADD CONSTRAINT "clinic_members_branch_id_fkey"
       FOREIGN KEY ("branch_id") REFERENCES "branches"("id") ON DELETE SET NULL ON UPDATE CASCADE;
   END IF;
-END $;
+END $$;
 
 CREATE UNIQUE INDEX IF NOT EXISTS "branches_one_default_per_clinic"
   ON "branches"("clinic_id") WHERE "is_default" = true;
