@@ -32,8 +32,8 @@ SET "organization_id" = o."id"
 FROM "organizations" o
 WHERE b."organization_id" IS NULL
   AND b."clinic_id" IS NOT NULL
-  AND o."original_id" = b."clinic_id"
-  AND o."original_type" = 'Clinic';
+  AND o."originalId" = b."clinic_id"
+  AND o."originalType" = 'Clinic';
 
 -- branch_id is the canonical physical column. The Prisma model maps
 -- ClinicMember.branchId to it with @map("branch_id").
