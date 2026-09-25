@@ -209,7 +209,12 @@ describe('userRoleForPartnerRole', () => {
     expect(userRoleForPartnerRole('owner', 'PATIENT')).toBe('OWNER');
     expect(userRoleForPartnerRole('admin', 'PATIENT')).toBe('ADMIN');
     expect(userRoleForPartnerRole('manager', 'PATIENT')).toBe('MANAGER');
-    expect(userRoleForPartnerRole('seller', 'PATIENT')).toBe('PATIENT');
+    expect(userRoleForPartnerRole('seller', 'OWNER')).toBe('ASSISTANT');
+    expect(userRoleForPartnerRole('cashier', 'OWNER')).toBe('CASHIER');
+    expect(userRoleForPartnerRole('supplier_rep', 'OWNER')).toBe('ASSISTANT');
+    expect(userRoleForPartnerRole('support', 'OWNER')).toBe('SUPPORT');
+    expect(userRoleForPartnerRole('student', 'OWNER')).toBe('STUDENT');
+    expect(userRoleForPartnerRole('member', 'OWNER')).toBe('PATIENT');
   });
 
   it('fails closed to the current role for an unknown partner role', () => {
