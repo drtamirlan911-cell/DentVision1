@@ -31,7 +31,7 @@ const CLINIC_MANAGER_PAGES = ['dashboard','schedule','patients','analytics','sta
 const PLATFORM_SUPERADMIN_PAGES = ['admin','audit','agent-activity','ai-approvals','backup','analytics','settings','security','quality','diagnostics','diagnostics-centers','diagnostics-labs','platform-finance','ai-governance','support','profile','bi','supplier'];
 
 const ROLES: readonly Role[] = [
-  { id:'owner', email:'owner-a@test.com', label:'Руководитель', family:'clinic', pages:CLINIC_OWNER_PAGES, mustNotContain:[/Владелец диагностического центра/i,/Владелец медицинской лаборатории/i,/Владелец зуботехнической лаборатории/i], entry:/\/ai(?:$|[?#])/ },
+  { id:'owner', email:'owner-a@test.com', label:'Владелец', family:'clinic', pages:CLINIC_OWNER_PAGES, mustNotContain:[/Владелец диагностического центра/i,/Владелец медицинской лаборатории/i,/Владелец зуботехнической лаборатории/i], entry:/\/ai(?:$|[?#])/ },
   { id:'admin', email:'admin-a@test.com', label:'Администратор', family:'clinic', pages:CLINIC_ADMIN_PAGES, mustNotContain:[], entry:/\/ai|\/crm/ },
   { id:'doctor', email:'doctor-a@test.com', label:'Врач', family:'clinic', pages:CLINIC_DOCTOR_PAGES, mustNotContain:[/Super Admin/i], entry:/\/ai|\/crm/ },
   { id:'assistant', email:'assistant-a@test.com', label:'Ассистент', family:'clinic', pages:CLINIC_ASSISTANT_PAGES, mustNotContain:[/Super Admin/i], entry:/\/ai|\/crm/ },
