@@ -37,7 +37,7 @@ WITH chosen_branch AS (
 )
 UPDATE appointments a
 SET branch_id = chosen_branch.branch_id,
-    "updated_at" = CURRENT_TIMESTAMP
+    "updatedAt" = CURRENT_TIMESTAMP
 FROM chosen_branch
 WHERE a."clinicId" = chosen_branch.clinic_id
   AND a.branch_id IS NULL;
