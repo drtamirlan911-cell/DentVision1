@@ -21,7 +21,7 @@ WITH chosen_branch AS (
 )
 UPDATE patients p
 SET branch_id = chosen_branch.branch_id,
-    "updated_at" = CURRENT_TIMESTAMP
+    "updatedAt" = CURRENT_TIMESTAMP
 FROM chosen_branch
 WHERE p."clinicId" = chosen_branch.clinic_id
   AND p.branch_id IS NULL;
