@@ -60,7 +60,7 @@ FROM (
     MIN(p.organization_id) AS organization_id
   FROM "legal_partners" lp
   JOIN "persons" p ON p."userId" = lp."userId"
-  WHERE lp.user_id IS NOT NULL
+  WHERE lp."userId" IS NOT NULL
     AND p.organization_id IS NOT NULL
   GROUP BY lp.id
   HAVING COUNT(DISTINCT p.organization_id) = 1
