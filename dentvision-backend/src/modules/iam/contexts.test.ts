@@ -205,6 +205,13 @@ describe('userRoleForPartnerRole', () => {
     for (const [key, expected] of cases) expect(userRoleForPartnerRole(key, 'PATIENT')).toBe(expected);
   });
 
+  it('maps supplier roles to scoped application roles', () => {
+    expect(userRoleForPartnerRole('owner', 'PATIENT')).toBe('OWNER');
+    expect(userRoleForPartnerRole('admin', 'PATIENT')).toBe('ADMIN');
+    expect(userRoleForPartnerRole('manager', 'PATIENT')).toBe('MANAGER');
+    expect(userRoleForPartnerRole('seller', 'PATIENT')).toBe('PATIENT');
+  });
+
   it('fails closed to the current role for an unknown partner role', () => {
     expect(userRoleForPartnerRole('future_partner_role', 'PATIENT')).toBe('PATIENT');
   });
