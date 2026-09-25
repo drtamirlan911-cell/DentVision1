@@ -2242,6 +2242,10 @@ async function main() {
           tags: [preset.categoryQuery],
           specs: preset.specs || undefined,
           isActive: true,
+          // These rows are curated by DentVision itself, not attributed to a
+          // supplier. ownBrand is the canonical platform-owned marker used by
+          // checkout eligibility.
+          ownBrand: true,
         },
       });
       created += 1;
