@@ -182,7 +182,19 @@ export async function getAccessGrants(): Promise<CrossClinicAccessGrantView[]> {
 export async function revokeAccessGrant(grantId: string): Promise<{ revoked: true }> { return apiRequest(`/api/patient-portal/access-grants/${grantId}/revoke`, { method: 'POST' }); }
 export interface CrossClinicAccessLogEntry { id: string; receivingClinicName: string; accessedBy: string; dataCategory: string; createdAt: string; }
 export async function getCrossClinicAccessLog(): Promise<CrossClinicAccessLogEntry[]> { return apiRequest('/api/patient-portal/access-log'); }
-export async function getAppointments(clinicId: string): Promise<Appointment[]> { return collection<Appointment>(await apiRequest('/api/appointments?limit=200')); }
+export async function getAppointments(clinicId: string): Promise<Appointment[]> {
+  const params = new URLSearchParams({ limit: '500' });
+  if (clinicId) params.set('clinicId', clinicId);
+  const rows = collection<Appointment>(await apiRequest(`/api/appointments?${params.toString()}`));
+  // The backend normally serializes YYYY-MM-DD, but older records/alternate
+  // deployments can return an ISO timestamp. Normalize at the API boundary so
+  // Schedule's day/week selectors never silently hide valid appointments.
+  return rows.map((row: any) => ({
+    ...row,
+    date: row?.date ? String(row.date).slice(0, 10) : row?.date,
+    time: row?.time ? String(row.time).slice(0, 5) : '09:00',
+  }));
+}
 export async function checkAppointmentConflicts(params: { doctorId?: string; date: string; time: string; duration?: number; excludeId?: string; patientId?: string; chairId?: string }): Promise<{ hasConflict: boolean; conflicts: Appointment[] }> { const q = new URLSearchParams(); Object.entries(params).forEach(([k, v]) => { if (v != null && v !== '') q.set(k, String(v)); }); return apiRequest(`/api/appointments/conflicts?${q}`); }
 export async function getReceipts(clinicId: string): Promise<Receipt[]> { return collection(await apiRequest('/api/billing/invoices?limit=200')).map(mapReceipt); }
 export async function getFinanceReport(params: { from?: string; to?: string } = {}): Promise<any> { const q = new URLSearchParams(); if (params.from) q.set('from', params.from); if (params.to) q.set('to', params.to); const qs = q.toString(); return apiRequest(`/api/billing/reports${qs ? `?${qs}` : ''}`); }
