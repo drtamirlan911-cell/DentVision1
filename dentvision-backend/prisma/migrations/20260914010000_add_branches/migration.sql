@@ -55,7 +55,7 @@ BEGIN
 
     UPDATE "clinic_members"
       SET "branch_id" = branch_id
-      WHERE "clinic_id" = c."id" AND "branch_id" IS NULL;
+      WHERE "clinicId" = c."id" AND "branch_id" IS NULL;
   END LOOP;
 END $$;
 
