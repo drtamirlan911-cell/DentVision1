@@ -57,13 +57,15 @@ export async function buildAiContext(req: AuthRequest, hints: ContextHints): Pro
   const organizationId = activeIsNonClinic ? (user.organizationId || null) : (clinicId ? await resolveOrganizationIdForClinic(clinicId) : (user.organizationId || null));
   let availableWorkspaces: AiRequestContext['availableWorkspaces'] = [];
   try {
-    const [memberships, supplierMemberships, lecturer, persons] = await Promise.all([
+    const [memberships, supplierMemberships, lecturer, diagnosticCenterMemberships, laboratoryMemberships, persons] = await Promise.all([
       prisma.clinicMember.findMany({ where: { userId: user.id }, select: { id: true, role: true, clinicId: true, joinedAt: true, clinic: { select: { id: true, name: true, logo: true } } }, orderBy: { joinedAt: 'asc' } }),
       prisma.supplierMember.findMany({ where: { userId: user.id }, select: { id: true, role: true, supplierId: true, createdAt: true, supplier: { select: { id: true, name: true } } }, orderBy: { createdAt: 'asc' } }),
       prisma.lecturer.findUnique({ where: { userId: user.id }, select: { id: true, level: true, academy: { select: { id: true, name: true } } } }),
+      prisma.diagnosticCenterMember.findMany({ where: { userId: user.id }, select: { id: true, role: true, centerId: true, createdAt: true, center: { select: { id: true, name: true, logo: true } } }, orderBy: { createdAt: 'asc' } }),
+      prisma.laboratoryMember.findMany({ where: { userId: user.id }, select: { id: true, role: true, labId: true, createdAt: true, lab: { select: { id: true, name: true } } }, orderBy: { createdAt: 'asc' } }),
       prisma.person.findMany({ where: { userId: user.id }, include: { organization: { select: { id: true, name: true, type: true, logo: true, originalId: true } }, personRoles: { include: { role: true } } } }),
     ]);
-    availableWorkspaces = buildWorkspaceContexts({ memberships, supplierMemberships, lecturer, persons }).map(({ id, scopeType, scopeId, organizationId, name, roleKey, roleLabel }) => ({ id, scopeType, scopeId, organizationId, name, roleKey, roleLabel }));
+    availableWorkspaces = buildWorkspaceContexts({ memberships, supplierMemberships, lecturer, diagnosticCenterMemberships, laboratoryMemberships, persons }).map(({ id, scopeType, scopeId, organizationId, name, roleKey, roleLabel }) => ({ id, scopeType, scopeId, organizationId, name, roleKey, roleLabel }));
   } catch (error) { console.warn('[AI context] workspace inventory resolution failed', error); }
 
   let workspace: AiRequestContext['workspace'] = null;
