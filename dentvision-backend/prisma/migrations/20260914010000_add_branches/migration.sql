@@ -36,25 +36,25 @@ CREATE INDEX IF NOT EXISTS "clinic_members_branch_id_idx"
 DO $$
 DECLARE
   c RECORD;
-  branch_id TEXT;
+  v_branch_id TEXT;
 BEGIN
   FOR c IN SELECT "id", "name", "city", "address", "phone" FROM "clinics" LOOP
-    SELECT "id" INTO branch_id
+    SELECT "id" INTO v_branch_id
       FROM "branches"
       WHERE "clinic_id" = c."id" AND "is_default" = true
       LIMIT 1;
 
-    IF branch_id IS NULL THEN
-      branch_id := gen_random_uuid()::text;
+    IF v_branch_id IS NULL THEN
+      v_branch_id := gen_random_uuid()::text;
       INSERT INTO "branches" (
         "id", "clinic_id", "code", "name", "city", "address", "phone", "active", "is_default", "updated_at"
       ) VALUES (
-        branch_id, c."id", 'MAIN', c."name", c."city", c."address", c."phone", true, true, CURRENT_TIMESTAMP
+        v_branch_id, c."id", 'MAIN', c."name", c."city", c."address", c."phone", true, true, CURRENT_TIMESTAMP
       );
     END IF;
 
     UPDATE "clinic_members"
-      SET "branch_id" = branch_id
+      SET "branch_id" = v_branch_id
       WHERE "clinicId" = c."id" AND "branch_id" IS NULL;
   END LOOP;
 END $$;
