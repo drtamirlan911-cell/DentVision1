@@ -10,7 +10,7 @@ UPDATE invoices i
 SET branch_id = b.id
 FROM branches b
 WHERE i.branch_id IS NULL
-  AND b.clinic_id = i.clinic_id
+  AND b.clinic_id = i."clinicId"
   AND b.active = true
   AND b.is_default = true;
 
@@ -18,7 +18,7 @@ UPDATE expenses e
 SET branch_id = b.id
 FROM branches b
 WHERE e.branch_id IS NULL
-  AND b.clinic_id = e.clinic_id
+  AND b.clinic_id = e."clinicId"
   AND b.active = true
   AND b.is_default = true;
 
@@ -26,13 +26,13 @@ UPDATE referrals r
 SET branch_id = b.id
 FROM branches b
 WHERE r.branch_id IS NULL
-  AND b.clinic_id = r.clinic_id
+  AND b.clinic_id = r."clinicId"
   AND b.active = true
   AND b.is_default = true;
 
-CREATE INDEX IF NOT EXISTS invoices_clinic_branch_idx ON invoices (clinic_id, branch_id);
-CREATE INDEX IF NOT EXISTS expenses_clinic_branch_idx ON expenses (clinic_id, branch_id);
-CREATE INDEX IF NOT EXISTS referrals_clinic_branch_idx ON referrals (clinic_id, branch_id);
+CREATE INDEX IF NOT EXISTS invoices_clinic_branch_idx ON invoices ("clinicId", branch_id);
+CREATE INDEX IF NOT EXISTS expenses_clinic_branch_idx ON expenses ("clinicId", branch_id);
+CREATE INDEX IF NOT EXISTS referrals_clinic_branch_idx ON referrals ("clinicId", branch_id);
 
 DO $$ BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'invoices_branch_id_fkey') THEN
