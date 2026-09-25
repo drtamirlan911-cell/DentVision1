@@ -61,14 +61,15 @@ iamRouter.get('/types', async (_req: AuthRequest, res) => {
 iamRouter.get('/me/contexts', async (req: AuthRequest, res) => {
   try {
     const userId = req.user!.id;
-    const [memberships, supplierMemberships, lecturer, laboratoryMemberships] = await Promise.all([
+    const [memberships, supplierMemberships, lecturer, diagnosticCenterMemberships, laboratoryMemberships] = await Promise.all([
       prisma.clinicMember.findMany({ where: { userId }, select: { id: true, role: true, clinicId: true, joinedAt: true, clinic: { select: { id: true, name: true, plan: true, logo: true } } }, orderBy: { joinedAt: 'asc' } }),
       prisma.supplierMember.findMany({ where: { userId }, select: { id: true, role: true, supplierId: true, createdAt: true, supplier: { select: { id: true, name: true, status: true } } }, orderBy: { createdAt: 'asc' } }),
       prisma.lecturer.findUnique({ where: { userId }, select: { id: true, level: true, academy: { select: { id: true, name: true } } } }),
+      prisma.diagnosticCenterMember.findMany({ where: { userId }, select: { id: true, role: true, centerId: true, createdAt: true, center: { select: { id: true, name: true, logo: true } } }, orderBy: { createdAt: 'asc' } }),
       prisma.laboratoryMember.findMany({ where: { userId }, select: { id: true, role: true, labId: true, createdAt: true, lab: { select: { id: true, name: true } } }, orderBy: { createdAt: 'asc' } }),
     ]);
     const persons = await prisma.person.findMany({ where: { userId }, include: { organization: { select: { id: true, name: true, type: true, logo: true, originalId: true } }, personRoles: { include: { role: true } } } });
-    const contexts = buildWorkspaceContexts({ memberships, supplierMemberships, lecturer, laboratoryMemberships, persons });
+    const contexts = buildWorkspaceContexts({ memberships, supplierMemberships, lecturer, diagnosticCenterMemberships, laboratoryMemberships, persons });
     return res.json({ ok: true, data: { contexts } } satisfies ApiResponse);
   } catch (error) {
     console.error('IAM contexts error:', error);
@@ -129,6 +130,17 @@ iamRouter.post('/switch-context', async (req: AuthRequest, res) => {
       if (member) {
         const tokens = generateTokens({ ...base, supplierId: scopeId, supplierRole: member.role });
         await writeAuditLog({ userId: user.id, action: 'auth.switch_context', entity: 'supplier', entityId: scopeId });
+        return res.json({ ok: true, data: tokens } satisfies ApiResponse);
+      }
+    }
+    if (scopeType === 'DIAGNOSTIC_CENTER') {
+      const member = await prisma.diagnosticCenterMember.findUnique({ where: { centerId_userId: { centerId: scopeId, userId: user.id } } });
+      if (member) {
+        const roleMap: Record<string, UserRole> = { owner: 'OWNER', admin: 'ADMIN', manager: 'MANAGER', radiologist: 'DOCTOR', operator: 'ASSISTANT' };
+        const scopedRole = roleMap[String(member.role).toLowerCase()] || user.role;
+        const organization = await prisma.organization.findFirst({ where: { originalType: 'DiagnosticCenter', originalId: scopeId } });
+        const tokens = generateTokens({ ...base, role: scopedRole, organizationId: organization?.id, organizationOriginalId: scopeId, organizationType: 'DIAGNOSTIC_CENTER' });
+        await writeAuditLog({ userId: user.id, action: 'auth.switch_context', entity: 'diagnostic_center', entityId: scopeId, details: { role: member.role } });
         return res.json({ ok: true, data: tokens } satisfies ApiResponse);
       }
     }
