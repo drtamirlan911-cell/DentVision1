@@ -81,7 +81,7 @@ export function useEcosystemContext() {
       hasOrganization: Boolean(rawUser?.organizationId || rawUser?.activeOrganization?.id || organizationName),
       hasClinic,
     };
-  }, [user, clinic, activeMembership]);
+  }, [user, clinic, activeMembership, activeWorkspace]);
 }
 
 export default useEcosystemContext;
