@@ -33,8 +33,8 @@ SET "organization_id" = o."id"
 FROM "organizations" o
 WHERE b."organization_id" IS NULL
   AND b."clinic_id" IS NOT NULL
-  AND o."original_type" = 'Clinic'
-  AND o."original_id" = b."clinic_id";
+  AND o."originalType" = 'Clinic'
+  AND o."originalId" = b."clinic_id";
 
 ALTER TABLE "clinic_members" ADD COLUMN IF NOT EXISTS "branch_id" TEXT;
 ALTER TABLE "patients" ADD COLUMN IF NOT EXISTS "branch_id" TEXT;
