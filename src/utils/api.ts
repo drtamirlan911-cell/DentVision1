@@ -51,14 +51,27 @@ export function setTokens(access: string | null, refresh: string | null): void {
   }
 }
 export function loadTokens(): { accessToken: string; refreshToken: string } | null {
+  let accessToken = '';
+  let refreshToken = '';
   try {
     const stored = sessionStorage.getItem('dv_tokens');
-    if (stored) { const { access, refresh } = JSON.parse(stored); _accessToken = access; _refreshToken = refresh; return { accessToken: access, refreshToken: refresh }; }
+    if (stored) {
+      const parsed = JSON.parse(stored);
+      accessToken = typeof parsed?.access === 'string' ? parsed.access : '';
+      refreshToken = typeof parsed?.refresh === 'string' ? parsed.refresh : '';
+    }
   } catch { /* ignore */ }
   try {
-    const refresh = localStorage.getItem('dv_refresh');
-    if (refresh) { _refreshToken = refresh; return { accessToken: '', refreshToken: refresh }; }
+    // Refresh tokens are deliberately durable across workspace switches and
+    // reloads. Prefer the newest durable value over a stale sessionStorage pair.
+    const durableRefresh = localStorage.getItem('dv_refresh');
+    if (durableRefresh) refreshToken = durableRefresh;
   } catch { /* ignore */ }
+  if (accessToken || refreshToken) {
+    _accessToken = accessToken || _accessToken;
+    _refreshToken = refreshToken || _refreshToken;
+    return { accessToken: _accessToken || '', refreshToken: _refreshToken || '' };
+  }
   try { const match = document.cookie.match(/(?:^|;\s*)accessToken=([^;]*)/); if (match) { _accessToken = match[1]; return { accessToken: match[1], refreshToken: '' }; } } catch { /* ignore */ }
   return null;
 }
