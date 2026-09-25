@@ -236,7 +236,20 @@ test.describe('DentVision exhaustive role/context/browser gate',()=>{
       await login(page,role.email);
       await expect(page.locator('body')).toContainText('DentVision');
       expect(role.entry.test(page.url()),role.id+': incorrect post-login workspace '+page.url()).toBeTruthy();
-      await expect(page.locator('body'),role.id+': role identity is missing on workspace entry').toContainText(role.label);
+      const identitySurface = await page.evaluate(() => {
+        const body = document.body?.innerText || '';
+        const accessible = Array.from(document.querySelectorAll('[title],[aria-label]'))
+          .filter(el => {
+            const h = el as HTMLElement;
+            const r = h.getBoundingClientRect();
+            const s = getComputedStyle(h);
+            return r.width > 0 && r.height > 0 && s.display !== 'none' && s.visibility !== 'hidden';
+          })
+          .map(el => el.getAttribute('title') || el.getAttribute('aria-label') || '')
+          .join(' ');
+        return body + ' ' + accessible;
+      });
+      expect(identitySurface,role.id+': role identity is missing on workspace entry').toContain(role.label);
 
       const discovered=new Set<string>();
       for(const route of ROUTES){

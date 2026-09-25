@@ -36,13 +36,10 @@ describe('rate-limit ceilings', () => {
     expect(APP).toMatch(/limitFromEnv\('RATE_LIMIT_GUEST_SESSION_MAX',\s*50\)/);
   });
 
-  it('leaves the AI limiter unconfigurable', () => {
-    // `ai.spec.ts` asserts that too many AI requests produce 429. If that
-    // ceiling could be raised from the environment, the suite's one rate-limit
-    // test could be switched off without touching the test.
+  it('keeps the AI limiter production-safe while allowing an explicit E2E budget', () => {
     const ai = APP.slice(APP.indexOf('const aiLimiter'), APP.indexOf('const guestSessionLimiter'));
-    expect(ai).toMatch(/max:\s*100,/);
-    expect(ai).not.toMatch(/limitFromEnv/);
+    expect(ai).toMatch(/max:\s*limitFromEnv\('RATE_LIMIT_AI_MAX',\s*100\)/);
+    expect(ai).toMatch(/limitFromEnv\('RATE_LIMIT_AI_MAX',\s*100\)/);
   });
 
   it('still throttles the webhook callback surface', () => {

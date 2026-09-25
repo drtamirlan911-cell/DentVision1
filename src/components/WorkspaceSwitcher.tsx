@@ -6,7 +6,7 @@ import { useTranslation } from 'react-i18next'
 import { Building2, Check, ChevronDown, FlaskConical, GraduationCap, Loader2, Plus, Store } from 'lucide-react'
 
 import { cn } from '@/lib/utils'
-import { useAuth, useAuthStore } from '@/store/auth.store'
+import { getRoleDisplayLabel, useAuth, useAuthStore } from '@/store/auth.store'
 import { useToast } from '@/components/ui/ds/Toast'
 import { queryKeys } from '@/queries/keys'
 import { useWorkspaceStore } from '@/store/workspace.store'
@@ -48,7 +48,7 @@ export function WorkspaceSwitcher({ className }: { className?: string }) {
   const location = useLocation()
   const toast = useToast()
   const queryClient = useQueryClient()
-  const { user, clinic, activeMembership, isAuthenticated } = useAuth()
+  const { user, clinic, activeMembership, roleInfo, isAuthenticated } = useAuth()
   const setActiveWorkspace = useWorkspaceStore(s => s.setActiveWorkspace)
   const [open, setOpen] = useState(false)
   const [busyId, setBusyId] = useState<string | null>(null)
@@ -117,6 +117,7 @@ export function WorkspaceSwitcher({ className }: { className?: string }) {
     () => workspaces.find(isActive) || workspaces.find((w) => w.scopeType === 'CLINIC') || workspaces[0],
     [workspaces, activeClinicId, activeOrgId, activeOrgType, activeSupplierId, activeLecturerId],
   )
+  const activeRoleLabel = current?.roleLabel || roleInfo?.label || getRoleDisplayLabel((user as any)?.platformRole || (user as any)?.role) || 'Участник экосистемы'
 
   useEffect(() => {
     if (!current) return
@@ -230,12 +231,12 @@ export function WorkspaceSwitcher({ className }: { className?: string }) {
         type="button"
         onClick={() => { if (!open) updateMenuPosition(); setOpen((v) => !v) }}
         className={cn('group flex items-center gap-2 max-w-[8.5rem] xs:max-w-[10rem] sm:max-w-[16rem] min-h-11 px-2.5 py-1.5 rounded-xl', 'bg-surface-raised border border-bdr-strong text-txt-primary shadow-elev-1 hover:bg-surface-raised-hover hover:border-dv-gold/60 hover:shadow-elev-2 transition-[background-color,border-color,box-shadow] duration-150', open && 'border-dv-gold/70 shadow-elev-2')}
-        aria-label={t('platform.clinic_switch')}
+        aria-label={activeRoleLabel ? `${t('platform.clinic_switch')}: ${current?.name || t('platform.clinic_fallback')} — ${activeRoleLabel}` : t('platform.clinic_switch')}
         aria-expanded={open}
         aria-haspopup="menu"
       >
         <span className="h-6 w-6 rounded-lg bg-dv-gold/12 border border-dv-gold/25 flex items-center justify-center shrink-0"><Icon size={13} className="text-dv-gold" /></span>
-        <span className="text-xs font-semibold truncate">{current?.name || t('platform.clinic_fallback')}</span>
+        <span className="min-w-0 text-left leading-tight"><span className="block text-xs font-semibold truncate">{current?.name || t('platform.clinic_fallback')}</span><span className="block text-[9px] font-medium text-txt-muted truncate">{activeRoleLabel}</span></span>
         <ChevronDown size={13} className={cn('shrink-0 text-txt-muted transition-transform', open && 'rotate-180')} />
       </button>
       {menu}

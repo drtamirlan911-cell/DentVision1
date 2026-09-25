@@ -15,6 +15,12 @@ describe('medical lab branch isolation contract', () => {
     expect(source).toContain('p."branchId" = ANY(${args.length}::text[])');
   });
 
+  it('keeps optional medical-lab order filters bound after the tenant scope parameter', () => {
+    expect(source).toContain('o."patientId" = $${args.length}');
+    expect(source).toContain('o."treatmentCaseId" = $${args.length}');
+    expect(source).toContain('o."status" = $${args.length}');
+  });
+
   it('blocks creation from patients outside the current branch set', () => {
     expect(source).toContain('__NO_BRANCH_ACCESS__');
   });

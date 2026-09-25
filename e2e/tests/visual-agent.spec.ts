@@ -27,9 +27,9 @@ const ROLES: readonly AgentRole[] = [
   { id: 'medical-lab-tech', email: 'medical-lab-tech@test.com', entry: /\/diagnostics\/lab/, journeys: ['/diagnostics/lab','/diagnostics/results'] },
   { id: 'dental-lab-owner', email: 'dental-lab-owner@test.com', entry: /\/diagnostics\/lab/, journeys: ['/diagnostics/lab','/diagnostics/results','/diagnostics/settings'] },
   { id: 'dental-technician', email: 'dental-technician@test.com', entry: /\/diagnostics\/lab/, journeys: ['/diagnostics/lab','/diagnostics/labs','/diagnostics/results'] },
-  { id: 'superadmin', email: 'superadmin@test.com', entry: /\/admin|\/ai/, journeys: ['/admin','/security','/ai-governance'] },
-  { id: 'support', email: 'support@test.com', entry: /\/ai$/, journeys: ['/support','/analytics','/settings'] },
-  { id: 'laboratory', email: 'lab-a@test.com', entry: /\/ai|\/crm|\/diagnostics/, journeys: ['/diagnostics','/diagnostics/laboratories','/crm/lab'] },
+  { id: 'superadmin', email: 'superadmin@test.com', entry: /\/admin|\/ai/, journeys: ['/admin','/security','/admin?tab=ai-governance'] },
+  { id: 'support', email: 'support@test.com', entry: /\/ai$/, journeys: ['/ai','/analytics','/settings'] },
+  { id: 'laboratory', email: 'lab-a@test.com', entry: /\/ai|\/crm|\/diagnostics/, journeys: ['/diagnostics','/diagnostics/labs','/crm/lab'] },
 ];
 
 const VIEWPORTS = [

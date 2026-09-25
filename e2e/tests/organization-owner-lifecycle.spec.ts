@@ -32,12 +32,16 @@ test.describe('DentVision organization owner lifecycle', () => {
     await login(page);
     for (const [label, type, target] of types) {
       await page.goto(BASE + '/register-diagnostics?type=' + type);
-      await expect(page.getByRole('heading', { name: new RegExp('Создать ' + label) })).toBeVisible();
+      await expect(page.getByRole('heading', { name: new RegExp('Создать ' + label) })).toBeVisible({ timeout: 15000 });
       const unique = Date.now();
       await page.getByLabel('Название *').fill('E2E ' + type + ' ' + unique);
       await page.getByLabel('Город *').fill('Тараз');
       await page.getByRole('button', { name: 'Создать и открыть workspace' }).click();
       await expect(page).toHaveURL(target, { timeout: 20000 });
+      // Creating a partner workspace switches the current auth context to that workspace.
+      // Re-authenticate the original clinic owner before the next self-service creation so
+      // this test verifies that one owner can create all supported partner workspaces.
+      if (type !== 'dental_laboratory') await login(page);
     }
   });
 

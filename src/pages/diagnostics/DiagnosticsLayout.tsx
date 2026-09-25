@@ -30,7 +30,7 @@ const DIAG_SUBNAV = [
 export default function DiagnosticsLayout() {
   const navigate = useNavigate();
   const location = useLocation();
-  const { user, role } = useAuth();
+  const { user, role, loading: authLoading } = useAuth();
   const iam = useIam();
   const { patientId, caseId, branchId, organizationId } = useEcosystemUrlContext();
   const platformRole = user?.platformRole || role;
@@ -75,6 +75,14 @@ export default function DiagnosticsLayout() {
     if (isReceivingOrg && CLINIC_ONLY_ITEMS.has(item.id)) return false;
     return true;
   }), [platformRole, orgType, isReceivingOrg]);
+
+  if (authLoading) {
+    return <div className="flex h-full min-h-64 items-center justify-center text-sm text-txt-muted">Загрузка рабочего контекста…</div>;
+  }
+
+  if (!user) {
+    return <Navigate to="/login" replace />;
+  }
 
   if (!iam.canAccessPage('diagnostics')) {
     return <Navigate to={iam.pages.length > 0 ? '/' : '/login'} replace />;

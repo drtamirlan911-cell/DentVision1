@@ -23,20 +23,20 @@ describe('canonical branch schema contract', () => {
   });
 
   it('introduces nullable branch scope for Patient and Appointment', () => {
-    expect(source).toMatch(/model Patient \{[\s\S]*?branchId String\?/);
-    expect(source).toMatch(/model Appointment \{[\s\S]*?branchId String\?/);
+    expect(source).toMatch(/model Patient \{[\s\S]*?branchId\s+String\?/);
+    expect(source).toMatch(/model Appointment \{[\s\S]*?branchId\s+String\?/);
   });
 
   it('covers operational models with branch scope', () => {
     for (const model of ['InventoryItem', 'Invoice', 'Expense', 'Referral']) {
       expect(source).toContain(`model ${model} {`);
     }
-    expect(source).toContain('branchId String?');
+    expect(source).toMatch(/branchId\s+String\?/);
   });
 
   it('keeps the bootstrap command non-mutating and schema-driven', () => {
     const bootstrap = readFileSync(resolve(process.cwd(), 'dentvision-backend/prisma/ensure-branch-model.ts'), 'utf8');
-    expect(bootstrap).toContain('canonical branch schema verified');
+    expect(bootstrap).toContain('canonical organization-scoped branch schema verified');
     expect(bootstrap).not.toContain('writeFileSync');
   });
 
