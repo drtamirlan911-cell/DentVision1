@@ -2,7 +2,7 @@
 ALTER TABLE "inventory" ADD COLUMN IF NOT EXISTS "branch_id" TEXT;
 
 CREATE INDEX IF NOT EXISTS "inventory_branch_id_idx"
-  ON "inventory_items"("branch_id");
+  ON "inventory"("branch_id");
 
 DO $$ BEGIN
   IF NOT EXISTS (
