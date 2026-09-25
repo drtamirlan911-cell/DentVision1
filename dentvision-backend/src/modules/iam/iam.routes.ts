@@ -5,7 +5,7 @@ import { generateTokens } from '../../lib/jwt.js';
 import { resolveUserPermissions } from '../../lib/resolvePermissions.js';
 import { uid } from '../../lib/helpers.js';
 import { resolveClinicAccess } from '../../lib/orgContext.js';
-import { buildWorkspaceContexts } from './contexts.js';
+import { buildWorkspaceContexts, userRoleForPartnerRole } from './contexts.js';
 import {
   acceptInvitation,
   canManageMembers,
@@ -136,8 +136,7 @@ iamRouter.post('/switch-context', async (req: AuthRequest, res) => {
     if (scopeType === 'DIAGNOSTIC_CENTER') {
       const member = await prisma.diagnosticCenterMember.findUnique({ where: { centerId_userId: { centerId: scopeId, userId: user.id } } });
       if (member) {
-        const roleMap: Record<string, UserRole> = { owner: 'OWNER', diagnostic_owner: 'OWNER', org_owner: 'OWNER', admin: 'ADMIN', diagnostic_admin: 'ADMIN', org_admin: 'ADMIN', manager: 'MANAGER', diagnostic_manager: 'MANAGER', radiologist: 'DOCTOR', operator: 'ASSISTANT', diagnostic_operator: 'ASSISTANT', reception: 'ASSISTANT', diagnostic_reception: 'ASSISTANT', finance: 'ADMIN', diagnostic_finance: 'ADMIN', quality: 'ADMIN', diagnostic_quality: 'ADMIN' };
-        const scopedRole = roleMap[String(member.role).toLowerCase()] || user.role;
+        const scopedRole = userRoleForPartnerRole(member.role, user.role);
         const organization = await prisma.organization.findFirst({ where: { originalType: 'DiagnosticCenter', originalId: scopeId } });
         const tokens = generateTokens({ ...base, role: scopedRole, organizationId: organization?.id, organizationOriginalId: scopeId, organizationType: 'DIAGNOSTIC_CENTER' });
         await writeAuditLog({ userId: user.id, action: 'auth.switch_context', entity: 'diagnostic_center', entityId: scopeId, details: { role: member.role } });
@@ -155,8 +154,7 @@ iamRouter.post('/switch-context', async (req: AuthRequest, res) => {
     if (scopeType === 'LABORATORY') {
       const membership = await prisma.laboratoryMember.findUnique({ where: { labId_userId: { labId: scopeId, userId: user.id } } });
       if (membership) {
-        const roleMap: Record<string, UserRole> = { owner: 'OWNER', org_owner: 'OWNER', dental_lab_owner: 'OWNER', medical_lab_owner: 'OWNER', admin: 'ADMIN', org_admin: 'ADMIN', dental_lab_admin: 'ADMIN', medical_lab_admin: 'ADMIN', manager: 'MANAGER', dental_lab_manager: 'MANAGER', medical_lab_manager: 'MANAGER', reception: 'ASSISTANT', medical_lab_reception: 'ASSISTANT', lab_coordinator: 'ASSISTANT', technician: 'LAB', dental_technician: 'LAB', dental_lab_technician: 'LAB', cad_designer: 'LAB', ceramist: 'LAB', orthodontic_technician: 'LAB', medical_lab_technician: 'LAB', validator: 'DOCTOR', medical_lab_validator: 'DOCTOR', doctor: 'DOCTOR', medical_lab_doctor: 'DOCTOR', finance: 'ADMIN', lab_finance: 'ADMIN', medical_lab_finance: 'ADMIN', quality: 'ADMIN', qc_specialist: 'ADMIN', medical_lab_quality: 'ADMIN' };
-        const scopedRole = roleMap[String(membership.role).toLowerCase()] || user.role;
+        const scopedRole = userRoleForPartnerRole(membership.role, user.role);
         const organization = await prisma.organization.findFirst({ where: { originalType: 'Laboratory', originalId: scopeId } });
         const tokens = generateTokens({ ...base, role: scopedRole, organizationId: organization?.id, organizationOriginalId: scopeId, organizationType: 'LABORATORY' });
         await writeAuditLog({ userId: user.id, action: 'auth.switch_context', entity: 'laboratory', entityId: scopeId, details: { role: membership.role } });
