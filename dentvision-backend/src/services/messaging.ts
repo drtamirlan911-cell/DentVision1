@@ -49,7 +49,7 @@ export async function sendSms(toPhone: string, body: string): Promise<SendMessag
   if (!to) return { ok: false, channel: 'sms', error: 'Нет телефона' };
 
   if (!twilioConfigured() || !env.TWILIO_FROM_NUMBER) {
-    console.log(`[Messaging:dry-run:sms] → +${to}: ${body.slice(0, 120)}…`);
+    console.warn(`[Messaging:dry-run:sms] → +${to}: ${body.slice(0, 120)}…`);
     return { ok: true, channel: 'console', dryRun: true };
   }
 
@@ -87,7 +87,7 @@ export async function sendWhatsApp(toPhone: string, body: string): Promise<SendM
 
   const from = env.TWILIO_WHATSAPP_FROM || env.TWILIO_FROM_NUMBER;
   if (!twilioConfigured() || !from) {
-    console.log(`[Messaging:dry-run:whatsapp] → +${to}: ${body.slice(0, 120)}…`);
+    console.warn(`[Messaging:dry-run:whatsapp] → +${to}: ${body.slice(0, 120)}…`);
     return { ok: true, channel: 'console', dryRun: true };
   }
 
