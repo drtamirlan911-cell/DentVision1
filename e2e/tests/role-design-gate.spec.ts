@@ -76,11 +76,26 @@ function pageId(route: string): string | null {
 }
 
 async function login(page: Page, email: string) {
+  // Each role must start from a clean authentication state. Partner-context
+  // tests intentionally mint scoped tokens, so reusing that state can make
+  // the next role appear logged out or land in the previous workspace.
+  await page.context().clearCookies();
   await page.goto(BASE_URL + '/login?role=owner', {waitUntil:'domcontentloaded',timeout:30000});
+  await page.evaluate(() => {
+    localStorage.clear();
+    sessionStorage.clear();
+  });
+  await page.reload({waitUntil:'domcontentloaded',timeout:30000});
   await page.locator('input[autocomplete="username"]').fill(email);
   await page.locator('input[autocomplete="current-password"]').fill(PASSWORD);
   await page.getByRole('button',{name:'Войти в DentVision'}).click();
-  await page.waitForURL(/\/(?:ai|patient-portal|diagnostics|school|admin|profile)(?:$|[?#])/i,{timeout:30000, waitUntil:'domcontentloaded'});
+  // SPA navigation can reach the correct URL without producing a fresh
+  // domcontentloaded event (especially WebKit). Poll the URL instead of
+  // waiting on a navigation lifecycle event that may never fire.
+  await expect.poll(() => new URL(page.url()).pathname, {
+    timeout: 30000,
+    message: email + ': login did not reach an authenticated workspace',
+  }).toMatch(/^\/(?:ai|patient-portal|diagnostics|school|admin|profile)(?:$|\/)/i);
   await page.waitForTimeout(600);
 }
 
