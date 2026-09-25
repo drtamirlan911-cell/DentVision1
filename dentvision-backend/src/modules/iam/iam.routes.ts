@@ -140,6 +140,17 @@ iamRouter.post('/switch-context', async (req: AuthRequest, res) => {
         return res.json({ ok: true, data: tokens } satisfies ApiResponse);
       }
     }
+    if (scopeType === 'LABORATORY') {
+      const membership = await prisma.laboratoryMember.findUnique({ where: { labId_userId: { labId: scopeId, userId: user.id } } });
+      if (membership) {
+        const roleMap: Record<string, UserRole> = { owner: 'OWNER', admin: 'ADMIN', manager: 'MANAGER' };
+        const scopedRole = roleMap[String(membership.role).toLowerCase()] || user.role;
+        const organization = await prisma.organization.findFirst({ where: { originalType: 'Laboratory', originalId: scopeId } });
+        const tokens = generateTokens({ ...base, role: scopedRole, organizationId: organization?.id, organizationOriginalId: scopeId, organizationType: 'LABORATORY' });
+        await writeAuditLog({ userId: user.id, action: 'auth.switch_context', entity: 'laboratory', entityId: scopeId, details: { role: membership.role } });
+        return res.json({ ok: true, data: tokens } satisfies ApiResponse);
+      }
+    }
     return res.status(403).json({ ok: false, error: 'У вас нет доступа к этому контексту' } satisfies ApiResponse);
   } catch (error) {
     console.error('IAM switch-context error:', error);
