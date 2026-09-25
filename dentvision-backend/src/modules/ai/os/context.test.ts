@@ -64,6 +64,12 @@ beforeEach(() => {
 });
 
 describe('buildAiContext', () => {
+  it('accepts omitted UI hints for server-side callers', async () => {
+    const ctx = await buildAiContext(req());
+
+    expect(ctx.page).toEqual({ pathname: '', pageId: null });
+  });
+
   it('resolves organizationId via the verified clinic lookup, never the JWT claim directly', async () => {
     const ctx = await buildAiContext(req(), {});
 
