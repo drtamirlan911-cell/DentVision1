@@ -331,13 +331,20 @@ iamRouter.post('/persons/:personId/roles', async (req: AuthRequest, res) => {
     if (String(role.key).toUpperCase() === 'SUPERADMIN' && req.user!.role !== 'SUPERADMIN') {
       return res.status(403).json({ ok: false, error: 'Роль SUPERADMIN может назначать только SUPERADMIN' } satisfies ApiResponse);
     }
-    const effectiveScopeType = scopeType ?? (person.organization ? 'organization' : 'platform');
+    const requestedScopeType = String(scopeType ?? (person.organization ? 'organization' : 'platform')).trim().toLowerCase();
+    if (requestedScopeType !== 'organization' && requestedScopeType !== 'platform') {
+      return res.status(400).json({ ok: false, error: 'scopeType должен быть organization или platform' } satisfies ApiResponse);
+    }
+    const effectiveScopeType = requestedScopeType;
     const canonicalOrganizationId = person.organization?.id;
     if (effectiveScopeType === 'organization' && !canonicalOrganizationId) {
       return res.status(400).json({ ok: false, error: 'Для организационной роли требуется организация Person' } satisfies ApiResponse);
     }
     if (effectiveScopeType === 'organization' && scopeId && scopeId !== canonicalOrganizationId) {
       return res.status(403).json({ ok: false, error: 'scopeId не соответствует организации Person' } satisfies ApiResponse);
+    }
+    if (effectiveScopeType === 'platform' && scopeId) {
+      return res.status(400).json({ ok: false, error: 'Для platform-роли scopeId должен отсутствовать' } satisfies ApiResponse);
     }
     const effectiveScopeId = effectiveScopeType === 'organization' ? canonicalOrganizationId : undefined;
     const scopeKey = effectiveScopeType === 'organization' ? `organization:${effectiveScopeId}` : 'platform';
@@ -346,7 +353,7 @@ iamRouter.post('/persons/:personId/roles', async (req: AuthRequest, res) => {
       update: { scopeType: effectiveScopeType, scopeId: effectiveScopeId ?? null },
       create: { id: uid(), personId, roleId, scopeType: effectiveScopeType, scopeId: effectiveScopeId, scopeKey },
     });
-    await auditFromReq(req, { action: 'person_role.assigned', entity: 'person_role', entityId: assignment.id, details: { personId, roleId, roleName: role.name, scopeType: scopeType || null, scopeId: scopeId || null } });
+    await auditFromReq(req, { action: 'person_role.assigned', entity: 'person_role', entityId: assignment.id, details: { personId, roleId, roleName: role.name, scopeType: effectiveScopeType, scopeId: effectiveScopeId ?? null } });
     return res.status(201).json({ ok: true, data: assignment } satisfies ApiResponse);
   } catch (error) {
     console.error('IAM assign role error:', error);
