@@ -1,8 +1,11 @@
+import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Globe } from 'lucide-react';
 
 export default function LanguageSwitcher({ compact }: { compact?: boolean }) {
   const { i18n, t } = useTranslation();
+  const [open, setOpen] = useState(false);
+  const rootRef = useRef<HTMLDivElement>(null);
   const current = i18n.language?.startsWith('kz') ? 'kz' : i18n.language?.startsWith('en') ? 'en' : 'ru';
 
   const LANGUAGES = [
@@ -14,7 +17,17 @@ export default function LanguageSwitcher({ compact }: { compact?: boolean }) {
   const switchLang = (code: string) => {
     i18n.changeLanguage(code);
     document.documentElement.lang = code === 'kz' ? 'kk' : code;
+    setOpen(false);
   };
+
+  useEffect(() => {
+    if (!open) return;
+    const onPointerDown = (event: PointerEvent) => {
+      if (!rootRef.current?.contains(event.target as Node)) setOpen(false);
+    };
+    document.addEventListener('pointerdown', onPointerDown);
+    return () => document.removeEventListener('pointerdown', onPointerDown);
+  }, [open]);
 
   if (compact) {
     return (
@@ -32,12 +45,12 @@ export default function LanguageSwitcher({ compact }: { compact?: boolean }) {
   }
 
   return (
-    <div className="relative group">
-      <button className="flex min-h-11 min-w-11 items-center justify-center gap-1.5 rounded-lg px-2 py-1 text-xs text-gray-400 transition-colors hover:bg-surface-1 hover:text-gray-200">
+    <div ref={rootRef} className="relative">
+      <button type="button" onClick={() => setOpen((value) => !value)} aria-expanded={open} aria-haspopup="menu" className="flex min-h-11 min-w-11 items-center justify-center gap-1.5 rounded-lg px-2 py-1 text-xs text-gray-400 transition-colors hover:bg-surface-1 hover:text-gray-200">
         <Globe size={14} />
         <span>{LANGUAGES.find(l => l.code === current)?.label || 'Рус'}</span>
       </button>
-      <div className="absolute top-full right-0 mt-1 bg-gray-900 border border-gray-700 rounded-xl p-1.5 shadow-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-50 min-w-[140px]">
+      {open && <div role="menu" className="absolute top-full right-0 mt-1 bg-gray-900 border border-gray-700 rounded-xl p-1.5 shadow-xl z-50 min-w-[140px]">
         {LANGUAGES.map((lang) => (
           <button key={lang.code} onClick={() => switchLang(lang.code)}
             className={`w-full text-left px-3 py-2 rounded-lg text-xs font-medium transition-colors ${
@@ -46,7 +59,7 @@ export default function LanguageSwitcher({ compact }: { compact?: boolean }) {
             {lang.full}
           </button>
         ))}
-      </div>
+      </div>}
     </div>
   );
 }
