@@ -276,7 +276,11 @@ export function buildWorkspaceContexts(sources: ContextSources): WorkspaceContex
       scopeType: 'LABORATORY',
       scopeId: m.labId,
       name: m.lab?.name || 'Лаборатория',
-      roleKey: canonicalPartnerRoles.get('LABORATORY:' + m.labId) || `laboratory_${String(m.role).toLowerCase()}`,
+      roleKey: (canonicalPartnerRoles.get('LABORATORY:' + m.labId) || (() => {
+        const legacyRole = String(m.role).toLowerCase();
+        if (legacyRole === 'technician') return 'laboratory_technician,medical_lab_technician,dental_technician';
+        return `laboratory_${legacyRole}`;
+      })()),
       roleLabel: roleLabelFor(m.role),
       joinedAt: m.createdAt,
       role: m.role,
