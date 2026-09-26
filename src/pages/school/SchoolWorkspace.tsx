@@ -236,6 +236,7 @@ export default function SchoolWorkspace() {
                 size="sm"
                 className="min-h-11"
                 icon={<GraduationCap size={14} />}
+                aria-label="Стать лектором"
                 disabled={registering}
                 onClick={() => void becomeLecturer()}
               >
