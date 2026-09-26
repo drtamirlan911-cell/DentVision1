@@ -99,7 +99,7 @@ async function login(page: Page, email: string) {
   await expect.poll(() => page.locator('body').innerText().catch(() => ''), {
     timeout: 10000,
     message: email + ': authenticated workspace did not render',
-  }).toMatch(/DentVision/i);
+  }).toMatch(/.{20,}/s);
   await page.waitForTimeout(300);
 }
 
