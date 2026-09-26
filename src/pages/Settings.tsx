@@ -57,6 +57,7 @@ export default function SettingsPage() {
   const canManageOrganization = ['owner', 'admin', 'superadmin'].includes(String(iam.role || user?.role || '').toLowerCase())
   const clinicId = clinic?.id || activeMembership?.clinicId || user?.clinicId || ''
   const clinicName = clinic?.name || 'вашей клиники'
+  const canSeeDeveloperSettings = ['developer', 'superadmin'].includes(String(iam.role || user?.role || '').toLowerCase())
 
   const onDarkMode = (next: boolean) => {
     setDarkMode(next)
@@ -123,7 +124,7 @@ export default function SettingsPage() {
 
       {/* ── Tab bar ── */}
       <motion.div variants={item} className="flex gap-1 p-1 rounded-xl bg-surface-1 border border-bdr-subtle w-fit overflow-x-auto max-w-full no-scrollbar">
-        {TABS.filter((t) => t.id !== 'organization' || canManageOrganization).map((t) => (
+        {TABS.filter((t) => (t.id !== 'organization' || canManageOrganization) && (t.id !== 'developer' || canSeeDeveloperSettings)).map((t) => (
           <button
             key={t.id}
             onClick={() => setTab(t.id)}
