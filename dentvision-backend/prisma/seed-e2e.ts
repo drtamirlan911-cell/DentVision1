@@ -210,24 +210,37 @@ async function ensureE2EPatientFixture(clinicId: string, patientUser: { id: stri
   const doctor = await prisma.user.findUnique({ where: { email: 'doctor-a@test.com' }, select: { id: true } });
   if (!doctor) return patient;
 
-  if (!await prisma.appointment.findFirst({ where: { clinicId, patientId: patient.id } })) {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    await prisma.appointment.create({
-      data: {
-        id: randomUUID(),
+  const appointmentDate = new Date();
+  appointmentDate.setHours(0, 0, 0, 0);
+  await prisma.appointment.upsert({
+    where: {
+      clinicId_patientId_date_time: {
         clinicId,
         patientId: patient.id,
-        doctorId: doctor.id,
-        date: today,
+        date: appointmentDate,
         time: '11:30',
-        duration: 45,
-        status: 'confirmed',
-        type: 'Консультация',
-        notes: 'E2E patient portal appointment',
       },
-    });
-  }
+    },
+    update: {
+      doctorId: doctor.id,
+      duration: 45,
+      status: 'confirmed',
+      type: 'Консультация',
+      notes: 'E2E patient portal appointment',
+    },
+    create: {
+      id: randomUUID(),
+      clinicId,
+      patientId: patient.id,
+      doctorId: doctor.id,
+      date: appointmentDate,
+      time: '11:30',
+      duration: 45,
+      status: 'confirmed',
+      type: 'Консультация',
+      notes: 'E2E patient portal appointment',
+    },
+  });
 
   if (!await prisma.visit.findFirst({ where: { patientId: patient.id } })) {
     await prisma.visit.create({
