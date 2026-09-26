@@ -15,15 +15,16 @@ interface TabsProps {
   className?: string
   size?: 'sm' | 'md'
   variant?: 'pill' | 'underline'
+  wrap?: boolean
 }
 
-function Tabs({ tabs, active, onChange, className, size = 'md', variant = 'pill' }: TabsProps) {
+function Tabs({ tabs, active, onChange, className, size = 'md', variant = 'pill', wrap = false }: TabsProps) {
   const underline = variant === 'underline'
 
   return (
     <div
       className={cn(
-        'w-full max-w-full overflow-x-auto overscroll-x-contain scrollbar-none',
+        wrap ? 'w-full max-w-full overflow-visible' : 'w-full max-w-full overflow-x-auto overscroll-x-contain scrollbar-none',
         underline && 'border-b border-bdr-subtle',
         className
       )}
@@ -31,7 +32,7 @@ function Tabs({ tabs, active, onChange, className, size = 'md', variant = 'pill'
       <div
         role="tablist"
         className={cn(
-          'inline-flex min-w-max items-center',
+          wrap ? 'flex w-full min-w-0 flex-wrap items-center' : 'inline-flex min-w-max items-center',
           underline ? 'gap-0.5 sm:gap-1' : 'gap-1 rounded-xl bg-surface-2 p-1'
         )}
       >
