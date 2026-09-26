@@ -7,7 +7,9 @@ ALTER TABLE "person_roles"
 
 UPDATE "person_roles"
 SET "scopeKey" = CASE
-  WHEN LOWER(COALESCE("scopeType", '')) = 'organization' AND "scopeId" IS NOT NULL
+  -- scopeId is the strongest legacy signal: older rows may have a null or
+  -- differently-cased scopeType while still carrying the organization id.
+  WHEN "scopeId" IS NOT NULL
     THEN 'organization:' || "scopeId"
   WHEN LOWER(COALESCE("scopeType", '')) = 'platform'
     THEN 'platform'
