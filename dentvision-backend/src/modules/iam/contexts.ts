@@ -220,7 +220,13 @@ export function buildWorkspaceContexts(sources: ContextSources): WorkspaceContex
     const roleKey = (p.personRoles || []).map((pr) => pr.role.key).find((key) =>
       /^(diagnostic_|medical_lab_|dental_lab_|lab_coordinator|dental_technician|cad_designer|ceramist|orthodontic_technician|qc_specialist|lab_finance)/i.test(key),
     );
-    if (roleKey) canonicalPartnerRoles.set(scopeType + ':' + org.originalId, roleKey);
+    if (roleKey) {
+      // Keep both canonical Organization.id and mirrored source id aliases.
+      // Legacy workspace memberships use the source entity id, while unified
+      // Person rows are keyed by Organization.id during context merging.
+      canonicalPartnerRoles.set(scopeType + ':' + org.id, roleKey);
+      if (org.originalId) canonicalPartnerRoles.set(scopeType + ':' + org.originalId, roleKey);
+    }
   }
   for (const m of sources.memberships) {
     put({
