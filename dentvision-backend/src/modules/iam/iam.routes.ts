@@ -125,7 +125,13 @@ iamRouter.post('/switch-context', async (req: AuthRequest, res) => {
         if (person) await prisma.person.update({ where: { id: person.id }, data: { organizationId: org.id } }).catch(() => {});
       }
       if (person) {
-        const scopedRoleKey = person.personRoles?.find((pr) => !pr.scopeId || pr.scopeId === org.id)?.role.key || person.personType || user.role;
+        // Organization workspaces must be authorized by an organization-scoped PersonRole.
+        // A platform role must never become an implicit authorization fallback for an org context.
+        const scopedRoleKey = person.personRoles
+          ?.find((pr) => pr.scopeType === 'organization' && pr.scopeId === org.id)?.role.key;
+        if (!scopedRoleKey) {
+          return res.status(403).json({ ok: false, error: 'У вас нет роли в выбранной организации' } satisfies ApiResponse);
+        }
         const userRoleValues = new Set<UserRole>(['OWNER', 'DOCTOR', 'ASSISTANT', 'ADMIN', 'CASHIER', 'LAB', 'MANAGER', 'STUDENT', 'SUPERADMIN', 'SUPPORT', 'PATIENT']);
         const scopedRole: UserRole = userRoleValues.has(String(scopedRoleKey).toUpperCase() as UserRole)
           ? String(scopedRoleKey).toUpperCase() as UserRole
@@ -140,7 +146,10 @@ iamRouter.post('/switch-context', async (req: AuthRequest, res) => {
         if (branchId) {
           const rows = await prisma.$queryRaw<Array<{ id: string; organization_id: string | null }>>`SELECT "id", "organization_id" FROM "branches" WHERE "id" = ${branchId} LIMIT 1`;
           if (!rows[0] || rows[0].organization_id !== org.id) return res.status(403).json({ ok: false, error: 'Филиал не относится к выбранной организации' });
-          const roleRows = await prisma.personRole.findMany({ where: { personId: person.id }, include: { role: true } });
+          const roleRows = await prisma.personRole.findMany({
+            where: { personId: person.id, scopeType: 'organization', scopeId: org.id },
+            include: { role: true },
+          });
           const orgManager = roleRows.some((pr) => ['owner', 'org_owner', 'admin', 'org_admin'].includes(pr.role.key.toLowerCase()));
           const assigned = await prisma.branchMember.findUnique({ where: { personId_branchId: { personId: person.id, branchId } } });
           if (!orgManager && !assigned) return res.status(403).json({ ok: false, error: 'У вас нет доступа к выбранному филиалу' });
