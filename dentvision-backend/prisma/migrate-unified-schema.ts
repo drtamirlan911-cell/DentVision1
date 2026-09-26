@@ -22,14 +22,21 @@ async function assignRole(personId: string, roleKey: string, scopeType?: string,
     console.warn(`  ⚠ role '${roleKey}' not found — skipping`);
     return;
   }
-  const scopeKey = scopeType === 'organization' && scopeId
-    ? `organization:${scopeId}`
+  if (scopeType === 'organization' && !scopeId) {
+    console.warn(`  ⚠ role '${roleKey}' for person '${personId}' has no organization scope — skipping`);
+    return;
+  }
+
+  const normalizedScopeType = scopeType === 'organization' ? 'organization' : 'platform';
+  const normalizedScopeId = normalizedScopeType === 'organization' ? scopeId! : null;
+  const scopeKey = normalizedScopeType === 'organization'
+    ? `organization:${normalizedScopeId}`
     : 'platform';
 
   await prisma.personRole.upsert({
     where: { personId_roleId_scopeKey: { personId, roleId: role.id, scopeKey } },
-    update: { scopeType: scopeType ?? null, scopeId: scopeId ?? null },
-    create: { personId, roleId: role.id, scopeType, scopeId, scopeKey },
+    update: { scopeType: normalizedScopeType, scopeId: normalizedScopeId },
+    create: { personId, roleId: role.id, scopeType: normalizedScopeType, scopeId: normalizedScopeId, scopeKey },
   });
 }
 
