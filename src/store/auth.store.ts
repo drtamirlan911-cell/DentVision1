@@ -199,7 +199,18 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     const run = (async () => {
       set({ loading: true, _restoring: true });
       try {
-        const me = await hydrateAuthFromMe();
+        let me: Awaited<ReturnType<typeof hydrateAuthFromMe>>;
+        try {
+          me = await hydrateAuthFromMe();
+        } catch (firstError) {
+          // A reload can race a short-lived backend/DB hiccup. Refresh once and
+          // retry /me before destroying an otherwise valid persisted session.
+          // We still fail closed when both the original and refreshed session
+          // cannot hydrate.
+          if (!stored.refreshToken) throw firstError;
+          await get().refresh();
+          me = await hydrateAuthFromMe();
+        }
         let accessToken = stored.accessToken;
         let refreshToken = stored.refreshToken;
         if (me.activeMembership?.clinicId && !getTokenClinicId(accessToken)) {
