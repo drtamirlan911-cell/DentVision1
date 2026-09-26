@@ -43,8 +43,13 @@ function tokenStorage(): Storage { try { return getRememberMe() ? localStorage :
 export function setTokens(access: string | null, refresh: string | null): void {
   _accessToken = access; _refreshToken = refresh;
   if (access && refresh) {
+    // Keep the access/refresh pair tab-scoped. A single shared localStorage
+    // refresh token is unsafe for parallel tabs/workspaces: refresh rotates the
+    // server-side session, so one tab can invalidate another tab's token.
     try { sessionStorage.setItem('dv_tokens', JSON.stringify({ access, refresh })); } catch { /* ignore */ }
-    try { localStorage.setItem('dv_refresh', refresh); } catch { /* ignore */ }
+    // Remove the legacy shared refresh token so older state cannot be selected
+    // by another tab after this version is loaded.
+    try { localStorage.removeItem('dv_refresh'); } catch { /* ignore */ }
   } else {
     try { sessionStorage.removeItem('dv_tokens'); } catch { /* ignore */ }
     try { localStorage.removeItem('dv_refresh'); } catch { /* ignore */ }
@@ -61,12 +66,10 @@ export function loadTokens(): { accessToken: string; refreshToken: string } | nu
       refreshToken = typeof parsed?.refresh === 'string' ? parsed.refresh : '';
     }
   } catch { /* ignore */ }
-  try {
-    // Refresh tokens are deliberately durable across workspace switches and
-    // reloads. Prefer the newest durable value over a stale sessionStorage pair.
-    const durableRefresh = localStorage.getItem('dv_refresh');
-    if (durableRefresh) refreshToken = durableRefresh;
-  } catch { /* ignore */ }
+  // Do not recover a refresh token from localStorage. Refresh tokens are bound
+  // to a server session, and sharing one across tabs causes session rotation in
+  // one tab to invalidate another tab. sessionStorage survives normal reloads
+  // while keeping each browser context isolated.
   if (accessToken || refreshToken) {
     _accessToken = accessToken || _accessToken;
     _refreshToken = refreshToken || _refreshToken;
