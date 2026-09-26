@@ -96,7 +96,11 @@ async function login(page: Page, email: string) {
     timeout: 30000,
     message: email + ': login did not reach an authenticated workspace',
   }).toMatch(/^\/(?:ai|patient-portal|diagnostics|school|admin|profile)(?:$|\/)/i);
-  await page.waitForTimeout(600);
+  await expect.poll(() => page.locator('body').innerText().catch(() => ''), {
+    timeout: 10000,
+    message: email + ': authenticated workspace did not render',
+  }).toMatch(/DentVision/i);
+  await page.waitForTimeout(300);
 }
 
 function collectors(page: Page) {
@@ -220,6 +224,10 @@ function safeRouteName(value:string){ return value.replace(/[^a-zA-Z0-9_-]+/g,'_
 
 async function auditRoute(page: Page, role: Role, route: string, shouldBeAllowed: boolean) {
   await page.goto(BASE_URL+route,{waitUntil:'domcontentloaded',timeout:30000});
+  await expect.poll(() => page.locator('body').innerText().catch(() => ''), {
+    timeout: 10000,
+    message: role.id + ' ' + route + ': page did not render stable content',
+  }).toMatch(/.{20,}/s);
   await page.waitForTimeout(300);
   const current=new URL(page.url());
   if(!shouldBeAllowed){
@@ -237,6 +245,10 @@ async function auditRoute(page: Page, role: Role, route: string, shouldBeAllowed
   await inspectDialogsAndMenus(page,role,route);
   await inspectVisualSemantics(page,role,route);
   await page.reload({waitUntil:'domcontentloaded',timeout:30000});
+  await expect.poll(() => page.locator('body').innerText().catch(() => ''), {
+    timeout: 10000,
+    message: role.id + ' ' + route + ': page did not render after reload',
+  }).toMatch(/.{20,}/s);
   await shellAudit(page,role,route);
   await page.goBack({waitUntil:'domcontentloaded',timeout:30000}).catch(()=>{});
   await page.goForward({waitUntil:'domcontentloaded',timeout:30000}).catch(()=>{});
@@ -262,7 +274,7 @@ test('partner context switch applies the scoped application role to the session 
     const target = contexts.find((context: { roleKey?: string }) =>
       String(context.roleKey || '').toLowerCase().split(',').includes(item.roleKey),
     );
-    expect(target, item.email + ': scoped partner context was not seeded').toBeTruthy();
+    expect(target, item.email + ': scoped partner context was not seeded; returned contexts=' + JSON.stringify(contexts)).toBeTruthy();
 
     const switchResponse = await page.evaluate(async (context) => {
       const response = await fetch('/api/iam/switch-context', {
