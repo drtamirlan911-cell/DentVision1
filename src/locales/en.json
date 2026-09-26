@@ -120,7 +120,8 @@
     "security": "Security & Compliance",
     "quality": "Quality Center",
     "shop_admin": "Shop Admin",
-    "school_admin": "School Admin"
+    "school_admin": "School Admin",
+    "ai_short": "AI"
   },
   "shop": {
     "title": "Marketplace",
