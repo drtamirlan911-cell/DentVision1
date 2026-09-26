@@ -91,10 +91,11 @@ async function seedE2EPartnerFixtures() {
     });
 
     const role = await prisma.role.findUniqueOrThrow({ where: { key: fixture.role } });
+    const scopeKey = `organization:${organization.id}`;
     await prisma.personRole.upsert({
-      where: { personId_roleId: { personId: person.id, roleId: role.id } },
+      where: { personId_roleId_scopeKey: { personId: person.id, roleId: role.id, scopeKey } },
       update: { scopeType: 'organization', scopeId: organization.id },
-      create: { id: randomUUID(), personId: person.id, roleId: role.id, scopeType: 'organization', scopeId: organization.id },
+      create: { id: randomUUID(), personId: person.id, roleId: role.id, scopeType: 'organization', scopeId: organization.id, scopeKey },
     });
 
     // Keep the canonical Organization context and the legacy partner tables
