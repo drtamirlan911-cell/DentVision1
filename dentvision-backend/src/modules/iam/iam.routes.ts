@@ -331,7 +331,17 @@ iamRouter.post('/persons/:personId/roles', async (req: AuthRequest, res) => {
     if (String(role.key).toUpperCase() === 'SUPERADMIN' && req.user!.role !== 'SUPERADMIN') {
       return res.status(403).json({ ok: false, error: 'Роль SUPERADMIN может назначать только SUPERADMIN' } satisfies ApiResponse);
     }
-    const assignment = await prisma.personRole.upsert({ where: { personId_roleId: { personId, roleId } }, update: { scopeType, scopeId }, create: { id: uid(), personId, roleId, scopeType, scopeId } });
+    const effectiveScopeType = scopeType ?? (person.organization ? 'organization' : 'platform');
+    const effectiveScopeId = effectiveScopeType === 'organization' ? (scopeId ?? person.organization?.id ?? undefined) : undefined;
+    if (effectiveScopeType === 'organization' && !effectiveScopeId) {
+      return res.status(400).json({ ok: false, error: 'Для организационной роли требуется scopeId' } satisfies ApiResponse);
+    }
+    const scopeKey = effectiveScopeType === 'organization' && effectiveScopeId ? `organization:${effectiveScopeId}` : 'platform';
+    const assignment = await prisma.personRole.upsert({
+      where: { personId_roleId_scopeKey: { personId, roleId, scopeKey } },
+      update: { scopeType: effectiveScopeType, scopeId: effectiveScopeId ?? null },
+      create: { id: uid(), personId, roleId, scopeType: effectiveScopeType, scopeId: effectiveScopeId, scopeKey },
+    });
     await auditFromReq(req, { action: 'person_role.assigned', entity: 'person_role', entityId: assignment.id, details: { personId, roleId, roleName: role.name, scopeType: scopeType || null, scopeId: scopeId || null } });
     return res.status(201).json({ ok: true, data: assignment } satisfies ApiResponse);
   } catch (error) {
@@ -348,7 +358,8 @@ iamRouter.delete('/persons/:personId/roles/:roleId', async (req: AuthRequest, re
     if (!person) return res.status(404).json({ ok: false, error: 'Персона не найдена' } satisfies ApiResponse);
     const allowed = await canManageRolesFor(req.user!, person.organization);
     if (!allowed) return res.status(403).json({ ok: false, error: 'Недостаточно прав для удаления роли' } satisfies ApiResponse);
-    await prisma.personRole.deleteMany({ where: { personId, roleId } });
+    const scopeKey = person.organization ? `organization:${person.organization.id}` : 'platform';
+    await prisma.personRole.deleteMany({ where: { personId, roleId, scopeKey } });
     await auditFromReq(req, { action: 'person_role.removed', entity: 'person_role', entityId: `${personId}:${roleId}`, details: { personId, roleId } });
     return res.json({ ok: true, data: null } satisfies ApiResponse);
   } catch (error) {
