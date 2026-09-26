@@ -52,12 +52,20 @@ test.describe('DentVision browser UX coverage', () => {
       const errors = collectRuntimeErrors(page);
       try {
         await page.goto(`${BASE_URL}${route}`, { waitUntil: 'domcontentloaded', timeout: 20000 });
-        await page.waitForTimeout(500);
+        await expect.poll(() => page.locator('body').innerText().catch(() => ''), {
+          timeout: 10000,
+          message: `${route}: page did not render stable content`,
+        }).toMatch(/.{20,}/s);
+        await page.waitForTimeout(300);
         let url = new URL(page.url());
         if (url.pathname === '/login') {
           await login(page);
           await page.goto(BASE_URL + route, { waitUntil: 'domcontentloaded', timeout: 20000 });
-          await page.waitForTimeout(500);
+          await expect.poll(() => page.locator('body').innerText().catch(() => ''), {
+            timeout: 10000,
+            message: `${route}: page did not render after re-authentication`,
+          }).toMatch(/.{20,}/s);
+          await page.waitForTimeout(300);
           url = new URL(page.url());
           if (url.pathname === '/login') {
             failures.push(`${route}: redirected to login after re-authentication`);
