@@ -73,11 +73,11 @@ export default function EcosystemContextBridge({ patientId, caseId, branchId, or
         </div>
       </div>
       {actions.length > 0 && !compact && (
-        <div className="mt-2.5 flex gap-1.5 overflow-x-auto border-t border-bdr-subtle pt-2.5">
+        <div className="mt-2.5 flex flex-wrap gap-1.5 border-t border-bdr-subtle pt-2.5">
           {actions.map(action => {
             const target = ACTION_TARGETS[action.id] || 'ai';
             const Icon = ACTION_ICONS[action.id] || GitBranch;
-            return <button key={action.id} type="button" onClick={() => open(target)} className="inline-flex min-h-9 shrink-0 items-center gap-1.5 rounded-lg bg-surface-2 px-2.5 py-1.5 text-[10px] text-txt-secondary hover:text-txt-primary">
+            return <button key={action.id} type="button" onClick={() => open(target)} className="inline-flex min-h-9 min-w-0 flex-1 items-center justify-center gap-1.5 rounded-lg bg-surface-2 px-2.5 py-1.5 text-[10px] text-txt-secondary hover:text-txt-primary">
               <Icon size={11} className="text-dv-gold" /> {action.label}
             </button>;
           })}
