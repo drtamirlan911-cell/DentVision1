@@ -65,7 +65,7 @@ test.describe('Patient Workflow', () => {
     });
     expect(searchRes.status()).toBe(200);
     const body = await apiPayload(searchRes);
-    const patients = body.data || body.patients || body;
+    const patients = Array.isArray(body.data) ? body.data : Array.isArray(body?.data?.data) ? body.data.data : Array.isArray(body.patients) ? body.patients : body;
     expect(Array.isArray(patients)).toBeTruthy();
     const found = patients.some((p: any) => p.id === created.id);
     expect(found).toBeTruthy();
