@@ -207,12 +207,13 @@ test.describe('Patient Workflow', () => {
     });
     expect(page1.status()).toBe(200);
     const p1Body = await apiPayload(page1);
-    const p1Data = p1Body.data || p1Body.patients || p1Body;
+    const p1Data = Array.isArray(p1Body.data) ? p1Body.data : Array.isArray(p1Body?.data?.data) ? p1Body.data.data : Array.isArray(p1Body.patients) ? p1Body.patients : p1Body;
     expect(Array.isArray(p1Data)).toBeTruthy();
     expect(p1Data.length).toBeLessThanOrEqual(2);
 
-    if (p1Body.totalPages !== undefined) {
-      expect(p1Body.totalPages).toBeGreaterThanOrEqual(3);
+    const pagination = p1Body?.data?.pagination || p1Body?.pagination;
+    if (pagination?.pages !== undefined) {
+      expect(pagination.pages).toBeGreaterThanOrEqual(3);
     }
 
     for (const id of ids) {
