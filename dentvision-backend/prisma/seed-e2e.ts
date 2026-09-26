@@ -259,130 +259,6 @@ async function ensureE2EPatientFixture(clinicId: string, patientUser: { id: stri
   return patient;
 }
 
-async function ensureE2EPartnerContexts() {
-  const fixtures = [
-    {
-      email: 'diagnostic-owner@test.com',
-      scope: 'DIAGNOSTIC_CENTER' as const,
-      legacyRole: 'admin',
-      roleKey: 'diagnostic_owner',
-      personType: 'OPERATOR',
-      name: 'E2E Diagnostic Center',
-      originalType: 'DiagnosticCenter',
-    },
-    {
-      email: 'diagnostic-operator@test.com',
-      scope: 'DIAGNOSTIC_CENTER' as const,
-      legacyRole: 'operator',
-      roleKey: 'diagnostic_operator',
-      personType: 'OPERATOR',
-      name: 'E2E Diagnostic Center',
-      originalType: 'DiagnosticCenter',
-    },
-    {
-      email: 'medical-lab-owner@test.com',
-      scope: 'LABORATORY' as const,
-      legacyRole: 'admin',
-      roleKey: 'medical_lab_owner',
-      personType: 'STAFF',
-      name: 'E2E Medical Laboratory',
-      originalType: 'Laboratory',
-    },
-    {
-      email: 'medical-lab-tech@test.com',
-      scope: 'LABORATORY' as const,
-      legacyRole: 'technician',
-      roleKey: 'medical_lab_technician',
-      personType: 'STAFF',
-      name: 'E2E Medical Laboratory',
-      originalType: 'Laboratory',
-    },
-    {
-      email: 'dental-lab-owner@test.com',
-      scope: 'LABORATORY' as const,
-      legacyRole: 'admin',
-      roleKey: 'dental_lab_owner',
-      personType: 'STAFF',
-      name: 'E2E Dental Laboratory',
-      originalType: 'Laboratory',
-    },
-    {
-      email: 'dental-technician@test.com',
-      scope: 'LABORATORY' as const,
-      legacyRole: 'technician',
-      roleKey: 'dental_technician',
-      personType: 'STAFF',
-      name: 'E2E Dental Laboratory',
-      originalType: 'Laboratory',
-    },
-  ];
-
-  const roleCache = new Map<string, { id: string }>();
-  for (const fixture of fixtures) {
-    let orgId: string;
-    let legacyId: string;
-
-    if (fixture.scope === 'DIAGNOSTIC_CENTER') {
-      const center = await prisma.diagnosticCenter.findFirst({ where: { name: fixture.name } })
-        ?? await prisma.diagnosticCenter.create({ data: { id: randomUUID(), name: fixture.name, city: 'Алматы', active: true } });
-      const member = await prisma.diagnosticCenterMember.upsert({
-        where: { centerId_userId: { centerId: center.id, userId: (await prisma.user.findUniqueOrThrow({ where: { email: fixture.email }, select: { id: true } })).id } },
-        create: { id: randomUUID(), centerId: center.id, userId: (await prisma.user.findUniqueOrThrow({ where: { email: fixture.email }, select: { id: true } })).id, role: fixture.legacyRole },
-        update: { role: fixture.legacyRole },
-      });
-      legacyId = member.id;
-      const org = await prisma.organization.findFirst({ where: { originalType: fixture.originalType, originalId: center.id } })
-        ?? await prisma.organization.create({ data: { id: randomUUID(), name: fixture.name, type: fixture.scope, originalType: fixture.originalType, originalId: center.id } });
-      orgId = org.id;
-    } else {
-      const lab = await prisma.laboratory.findFirst({ where: { name: fixture.name } })
-        ?? await prisma.laboratory.create({ data: { id: randomUUID(), name: fixture.name, city: 'Алматы', active: true } });
-      const user = await prisma.user.findUniqueOrThrow({ where: { email: fixture.email }, select: { id: true } });
-      const member = await prisma.laboratoryMember.upsert({
-        where: { labId_userId: { labId: lab.id, userId: user.id } },
-        create: { id: randomUUID(), labId: lab.id, userId: user.id, role: fixture.legacyRole },
-        update: { role: fixture.legacyRole },
-      });
-      legacyId = member.id;
-      const org = await prisma.organization.findFirst({ where: { originalType: fixture.originalType, originalId: lab.id } })
-        ?? await prisma.organization.create({ data: { id: randomUUID(), name: fixture.name, type: fixture.scope, originalType: fixture.originalType, originalId: lab.id } });
-      orgId = org.id;
-    }
-
-    const user = await prisma.user.findUniqueOrThrow({ where: { email: fixture.email }, select: { id: true, firstName: true, lastName: true, email: true } });
-    const person = await prisma.person.findFirst({ where: { userId: user.id, organizationId: orgId } })
-      ?? await prisma.person.create({
-        data: {
-          id: randomUUID(),
-          userId: user.id,
-          organizationId: orgId,
-          fullName: [user.firstName, user.lastName].filter(Boolean).join(' ') || fixture.email,
-          personType: fixture.personType,
-          email: user.email,
-          originalType: fixture.originalType === 'DiagnosticCenter' ? 'DiagnosticCenterMember' : 'LaboratoryMember',
-          originalId: legacyId,
-        },
-      });
-
-    let role = roleCache.get(fixture.roleKey);
-    if (!role) {
-      role = await prisma.role.upsert({
-        where: { key: fixture.roleKey },
-        create: { id: randomUUID(), key: fixture.roleKey, name: fixture.roleKey, description: 'E2E scoped partner role', isSystem: true },
-        update: {},
-        select: { id: true },
-      });
-      roleCache.set(fixture.roleKey, role);
-    }
-
-    await prisma.personRole.upsert({
-      where: { personId_roleId: { personId: person.id, roleId: role.id } },
-      create: { id: randomUUID(), personId: person.id, roleId: role.id, scopeType: 'organization', scopeId: orgId },
-      update: { scopeType: 'organization', scopeId: orgId },
-    });
-  }
-}
-
 async function ensureE2EBranchContext(clinicId: string, code: string, name: string) {
   const existing = await prisma.$queryRaw<Array<{ id: string }>>`
     SELECT id
@@ -425,7 +301,6 @@ export async function seedE2E() {
   await ensureSubscription(clinicB.id);
   await upsertProducts();
   await upsertAcademyFixtures();
-  await ensureE2EPartnerContexts();
 
   for (const spec of E2E_USERS) {
     const user = await prisma.user.upsert({
