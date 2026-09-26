@@ -138,7 +138,7 @@ export function DiagnosticWorkspace({ kind: pinnedKind }: { kind?: OrgKind }) {
     <motion.div
       initial={{ opacity: 0, y: 12 }}
       animate={{ opacity: 1, y: 0 }}
-      className="max-w-full space-y-6 overflow-x-hidden p-4 sm:p-6"
+      className="max-w-full space-y-6 overflow-x-hidden p-4 pb-[calc(var(--dv-bottomnav-height,3.5rem)+var(--dv-safe-bottom)+1rem)] sm:p-6 sm:pb-6"
     >
       <PageHeader
         title={config.title}
@@ -208,8 +208,8 @@ export function DiagnosticWorkspace({ kind: pinnedKind }: { kind?: OrgKind }) {
             </div>
           </Card>
 
-          <div className="-mx-4 overflow-x-auto px-4 sm:mx-0 sm:px-0">
-            <Tabs tabs={tabs} active={activeTab} onChange={setActiveTab} />
+          <div className="-mx-4 px-4 sm:mx-0 sm:px-0">
+            <Tabs tabs={tabs} active={activeTab} onChange={setActiveTab} wrap />
           </div>
 
           {activeTab === 'online-bookings' && kind === 'CENTER' && <OnlineBookingsTab centerId={orgId} />}
