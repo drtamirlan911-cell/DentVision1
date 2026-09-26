@@ -900,3 +900,14 @@ Run the exact current main-tip CI. Inspect the generated Visual Agent evidence f
 - Fixed by keeping the access/refresh pair tab-scoped in `sessionStorage` and removing the legacy shared `dv_refresh` value. Commit: `8b285aee40acafd80f044b6de99d82e42d26ca39`.
 - Verification required: fresh CI must prove owner `/settings`, all role/context gates, reload/back-forward persistence, and the existing cross-tenant/security checks. No release/merge conclusion is made before fresh evidence.
 
+
+
+## 2026-09-26 — Master Spec v5 Organization/IAM reconciliation started
+- PR #287 was merged to main at `e853e844b37d1410c7de9a9b28ac2f493c0370f`.
+- Master Spec v5 reconciliation identified a concrete IAM mismatch: `PersonRole` stored `scopeType/scopeId` but uniqueness was only `personId + roleId`, preventing the same role from being assigned to the same person in multiple organizations.
+- Started PR #288 on `refactor/master-spec-v5-organization-scope`.
+- Added canonical `PersonRole.scopeKey` and changed uniqueness to `personId + roleId + scopeKey`.
+- Added production migration `20260926120000_person_role_scope_key` that backfills scope keys before replacing the legacy unique index.
+- Updated unified-schema and E2E permission seeding to use the scoped composite key.
+- Added migration coverage.
+- This is the first architectural correction in the Master Spec v5 reconciliation sequence; subsequent work must continue through Organization types, Branch/data scope, AI scope, Finance scope, and vertical cross-organization slices.
