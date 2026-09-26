@@ -7,11 +7,11 @@ ALTER TABLE "person_roles"
 
 UPDATE "person_roles"
 SET "scopeKey" = CASE
-  WHEN "scopeType" = 'organization' AND "scopeId" IS NOT NULL
+  WHEN LOWER(COALESCE("scopeType", '')) = 'organization' AND "scopeId" IS NOT NULL
     THEN 'organization:' || "scopeId"
-  WHEN "scopeType" = 'platform'
+  WHEN LOWER(COALESCE("scopeType", '')) = 'platform'
     THEN 'platform'
-  ELSE COALESCE("scopeType", 'platform')
+  ELSE COALESCE(LOWER("scopeType"), 'platform')
 END;
 
 DROP INDEX IF EXISTS "person_roles_personId_roleId_key";
