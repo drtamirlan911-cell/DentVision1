@@ -117,7 +117,7 @@ export async function apiRequestOptional(path: string, options: RequestInit = {}
   if (_accessToken) headers['Authorization'] = `Bearer ${_accessToken}`;
   const tz = clientTimezoneHeader(); if (tz) headers['X-Client-Timezone'] = tz;
   if (options.method && !['GET', 'HEAD', 'OPTIONS'].includes(options.method.toUpperCase())) {
-    const csrfMatch = document.cookie.match(/(?:^|;\\s*)dv_csrf=([^;]*)/);
+    const csrfMatch = document.cookie.match(/(?:^|;\s*)dv_csrf=([^;]*)/);
     if (csrfMatch) headers['x-csrf-token'] = csrfMatch[1];
   }
   headers['Content-Type'] = 'application/json';
