@@ -32,7 +32,7 @@ describe('PersonRole scoped identity migration', () => {
     expect(sql).toContain('ADD COLUMN IF NOT EXISTS "scopeKey" TEXT NOT NULL DEFAULT \'platform\'');
     expect(sql).toContain('DROP INDEX IF EXISTS "person_roles_personId_roleId_key"');
     expect(sql).toContain('"scopeId" IS NOT NULL');
-    expect(sql).toContain("'organization:' || "scopeId"");
+    expect(sql).toContain("'organization:' || \"scopeId\"");
     expect(sql).toContain('"personId", "roleId", "scopeKey"');
   });
 });
