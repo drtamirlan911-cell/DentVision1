@@ -107,6 +107,31 @@ async function refreshAccessToken(): Promise<string> {
 }
 function clientTimezoneHeader(): string | null { try { const tz = Intl.DateTimeFormat().resolvedOptions().timeZone; return tz && typeof tz === 'string' ? tz : null; } catch { return null; } }
 
+/**
+ * Best-effort authenticated request for non-critical UI preferences.
+ * A 401/5xx here must not invalidate an otherwise usable application session.
+ */
+export async function apiRequestOptional(path: string, options: RequestInit = {}): Promise<any | null> {
+  if (!_accessToken && !_refreshToken) loadTokens();
+  const headers: Record<string, string> = { ...options.headers as Record<string, string> };
+  if (_accessToken) headers['Authorization'] = `Bearer ${_accessToken}`;
+  const tz = clientTimezoneHeader(); if (tz) headers['X-Client-Timezone'] = tz;
+  if (options.method && !['GET', 'HEAD', 'OPTIONS'].includes(options.method.toUpperCase())) {
+    const csrfMatch = document.cookie.match(/(?:^|;\\s*)dv_csrf=([^;]*)/);
+    if (csrfMatch) headers['x-csrf-token'] = csrfMatch[1];
+  }
+  headers['Content-Type'] = 'application/json';
+  try {
+    const res = await fetch(`${API_URL}${path}`, { ...options, headers, credentials: 'include' });
+    if (!res.ok) return null;
+    const data = await res.json();
+    if (data && typeof data === 'object' && 'ok' in data && data.data !== undefined) return data.data;
+    return data;
+  } catch {
+    return null;
+  }
+}
+
 export async function apiRequest(path: string, options: RequestInit = {}): Promise<any> {
   // Restore persisted credentials before the first request after a reload.
   // This is intentionally lazy so bootstrap/auth restoration cannot race with
@@ -421,7 +446,10 @@ export async function getUnreadCount(): Promise<number> { const data = await api
 export async function createNotification(input: NotificationInput): Promise<any> { return apiRequest('/api/notifications', { method: 'POST', body: JSON.stringify(input) }); }
 export async function markNotificationRead(id: string): Promise<any> { return apiRequest(`/api/notifications/${id}/read`, { method: 'POST' }); }
 export async function markAllNotificationsRead(): Promise<any> { return apiRequest('/api/notifications/read-all', { method: 'POST' }); }
-export async function getNotificationPreferences(): Promise<Array<{ type: string; enabled: boolean }>> { const data = await apiRequest('/api/notifications/preferences'); return data || []; }
+export async function getNotificationPreferences(): Promise<Array<{ type: string; enabled: boolean }>> {
+  const data = await apiRequestOptional('/api/notifications/preferences');
+  return Array.isArray(data) ? data : [];
+}
 export async function updateNotificationPreference(type: string, enabled: boolean): Promise<any> { return apiRequest('/api/notifications/preferences', { method: 'PUT', body: JSON.stringify({ type, enabled }) }); }
 export async function getNotificationTypes(): Promise<Record<string, string>> { const data = await apiRequest('/api/notifications/types'); return data || {}; }
 export async function createShopCategory(data: any): Promise<any> { return apiRequest('/api/shop/categories', { method: 'POST', body: JSON.stringify(data) }); }
