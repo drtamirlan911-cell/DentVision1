@@ -168,7 +168,7 @@ export default function SettingsPage() {
                   title="Kaspi кассы"
                   desc="QR на кассе идёт на ваш Kaspi/банк, не на DentVision"
                   btn="Подключить"
-                  onClick={() => navigate('/crm/settings')}
+                  onClick={() => navigate('/crm/clinic-settings')}
                 />
               </motion.div>
             </>
