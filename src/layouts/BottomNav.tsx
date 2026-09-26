@@ -29,7 +29,7 @@ export function BottomNav() {
 
   const ITEMS: BottomNavItem[] = useMemo(() => {
     const items: BottomNavItem[] = [
-      { id: 'ai', label: t('nav.digital_assistant', 'ИИ'), icon: <Bot size={19} />, path: '/ai', color: '#A47B35' },
+      { id: 'ai', label: t('nav.ai_short', 'ИИ'), icon: <Bot size={19} />, path: '/ai', color: '#A47B35' },
       { id: 'crm', label: t('nav.crm', 'Клиника'), icon: <Stethoscope size={19} />, path: '/crm/schedule', color: '#A47B35', requiresAuth: true },
       { id: 'shop', label: t('nav.market', 'Маркет'), icon: <ShoppingCart size={19} />, path: '/shop', color: '#A47B35' },
       { id: 'more', label: t('nav.more', 'Ещё'), icon: <MoreHorizontal size={20} />, color: '#A47B35' },
