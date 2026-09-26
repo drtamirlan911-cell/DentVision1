@@ -70,6 +70,39 @@ iamRouter.get('/me/contexts', async (req: AuthRequest, res) => {
     ]);
     const persons = await prisma.person.findMany({ where: { userId }, include: { organization: { select: { id: true, name: true, type: true, logo: true, originalId: true } }, personRoles: { include: { role: true } } } });
     const contexts = buildWorkspaceContexts({ memberships, supplierMemberships, lecturer, diagnosticCenterMemberships, laboratoryMemberships, persons });
+
+    // The active JWT already proves the user's canonical organization context.
+    // Keep that context visible even if a legacy partner membership is missing
+    // or was created after the Person graph. This is a read-model repair path,
+    // not an authorization bypass: the Person must exist and carry an active
+    // scoped role before we expose the workspace.
+    if (req.user?.organizationId) {
+      const activeOrgId = req.user.organizationId;
+      const activePerson = persons.find((person) => person.organization?.id === activeOrgId);
+      const activeRole = activePerson?.personRoles
+        ?.map((personRole) => personRole.role.key)
+        .find((key) => /^(diagnostic_|medical_lab_|dental_lab_|lab_coordinator|dental_technician|cad_designer|ceramist|orthodontic_technician|qc_specialist|lab_finance)/i.test(key));
+      if (activePerson?.organization && activeRole) {
+        const org = activePerson.organization;
+        const scopeType = ORG_TYPE_TO_SCOPE[org.type];
+        const scopeId = org.originalId || org.id;
+        const id = scopeType ? (scopeType + ':' + scopeId) : null;
+        if (scopeType && id && !contexts.some((context) => context.id === id)) {
+          contexts.push({
+            id,
+            scopeType,
+            scopeId,
+            organizationId: org.id,
+            name: org.name,
+            roleKey: activeRole,
+            roleLabel: roleLabelFor(activeRole),
+            personType: activePerson.personType,
+            logo: org.logo ?? null,
+          });
+        }
+      }
+    }
+
     return res.json({ ok: true, data: { contexts } } satisfies ApiResponse);
   } catch (error) {
     console.error('IAM contexts error:', error);
