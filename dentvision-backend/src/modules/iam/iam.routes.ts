@@ -332,11 +332,15 @@ iamRouter.post('/persons/:personId/roles', async (req: AuthRequest, res) => {
       return res.status(403).json({ ok: false, error: 'Роль SUPERADMIN может назначать только SUPERADMIN' } satisfies ApiResponse);
     }
     const effectiveScopeType = scopeType ?? (person.organization ? 'organization' : 'platform');
-    const effectiveScopeId = effectiveScopeType === 'organization' ? (scopeId ?? person.organization?.id ?? undefined) : undefined;
-    if (effectiveScopeType === 'organization' && !effectiveScopeId) {
-      return res.status(400).json({ ok: false, error: 'Для организационной роли требуется scopeId' } satisfies ApiResponse);
+    const canonicalOrganizationId = person.organization?.id;
+    if (effectiveScopeType === 'organization' && !canonicalOrganizationId) {
+      return res.status(400).json({ ok: false, error: 'Для организационной роли требуется организация Person' } satisfies ApiResponse);
     }
-    const scopeKey = effectiveScopeType === 'organization' && effectiveScopeId ? `organization:${effectiveScopeId}` : 'platform';
+    if (effectiveScopeType === 'organization' && scopeId && scopeId !== canonicalOrganizationId) {
+      return res.status(403).json({ ok: false, error: 'scopeId не соответствует организации Person' } satisfies ApiResponse);
+    }
+    const effectiveScopeId = effectiveScopeType === 'organization' ? canonicalOrganizationId : undefined;
+    const scopeKey = effectiveScopeType === 'organization' ? `organization:${effectiveScopeId}` : 'platform';
     const assignment = await prisma.personRole.upsert({
       where: { personId_roleId_scopeKey: { personId, roleId, scopeKey } },
       update: { scopeType: effectiveScopeType, scopeId: effectiveScopeId ?? null },
