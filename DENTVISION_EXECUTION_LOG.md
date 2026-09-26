@@ -892,3 +892,11 @@ Run the exact current main-tip CI. Inspect the generated Visual Agent evidence f
 
 ### Next action
 - Verify the fresh AI screenshot in the full visual evidence artifact, then continue the old-PNG regression matrix for Diagnostics, Medical Laboratory, Dental Laboratory, Patient Portal, empty states, overlays and responsive layouts.
+
+## 2026-09-26 — PR #287 release-gate auth/session hardening
+- CI #3279 exposed a false partner-workspace brand assertion and a real owner `/settings` redirect-to-login in WebKit evidence.
+- The partner assertion was corrected in `e2e/tests/role-design-gate.spec.ts` at commit `f9964b3` to validate rendered workspace content rather than require the literal DentVision brand.
+- Root-cause review found a session-isolation defect in `src/utils/api.ts`: refresh tokens were copied to shared `localStorage`, while backend refresh rotates the session. Parallel browser contexts for the same user could therefore reuse and invalidate another context's refresh session.
+- Fixed by keeping the access/refresh pair tab-scoped in `sessionStorage` and removing the legacy shared `dv_refresh` value. Commit: `8b285aee40acafd80f044b6de99d82e42d26ca39`.
+- Verification required: fresh CI must prove owner `/settings`, all role/context gates, reload/back-forward persistence, and the existing cross-tenant/security checks. No release/merge conclusion is made before fresh evidence.
+
