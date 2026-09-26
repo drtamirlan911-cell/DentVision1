@@ -3716,13 +3716,17 @@ model PersonRole {
   roleId    String
   scopeType String? // 'organization' | 'platform' | null
   scopeId   String? // organization ID if scoped
+  /// Canonical deterministic scope identity used for uniqueness and lookup.
+  /// Examples: organization:<organizationId> or platform.
+  scopeKey  String  @default("platform")
 
   person Person @relation(fields: [personId], references: [id], onDelete: Cascade)
   role   Role   @relation(fields: [roleId], references: [id], onDelete: Cascade)
 
-  @@unique([personId, roleId])
+  @@unique([personId, roleId, scopeKey])
   @@index([personId])
   @@index([roleId])
+  @@index([scopeKey])
   @@map("person_roles")
 }
 
