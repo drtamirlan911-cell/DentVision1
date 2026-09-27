@@ -19,7 +19,7 @@ export function RequirePage({
   children: React.ReactNode
 }) {
   const location = useLocation()
-  const { isAuthenticated, loading } = useAuth()
+  const { isAuthenticated, loading, activeWorkspace, effectiveRole } = useAuth()
   const iam = useIam()
 
   // `/` is public application entry. Authenticated users go directly to AI Workspace.
@@ -50,7 +50,7 @@ export function RequirePage({
   const pageId = page || pageIdFromPath(location.pathname)
   const allowed = iam.pages
 
-  if (iam.canAccessPage(pageId)) {
+  // Supplier is a workspace, not a clinic/platform role. It must be reachable only\n  // while the authenticated session is actually scoped to a supplier workspace;\n  // otherwise /supplier becomes a cross-context data boundary bypass.\n  const supplierWorkspace = pageId === 'supplier' && (\n    String(activeWorkspace?.scopeType || '').toUpperCase() === 'SUPPLIER' ||\n    String(effectiveRole || '').toUpperCase() === 'SUPERADMIN'\n  )\n\n  if (supplierWorkspace || iam.canAccessPage(pageId)) {
     return <>{children}</>
   }
 
