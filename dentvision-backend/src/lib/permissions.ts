@@ -377,7 +377,9 @@ function partnerPageFamily(role: string): string | undefined {
   return undefined;
 }
 
-const AI_APPROVAL_ROLES = new Set(['OWNER', 'DIRECTOR', 'ADMIN', 'DOCTOR', 'SUPERADMIN']);\n\nexport function pagesForCaller(permissions: readonly string[], role: string | null | undefined): string[] {
+const AI_APPROVAL_ROLES = new Set(['OWNER', 'DIRECTOR', 'ADMIN', 'DOCTOR', 'SUPERADMIN']);
+
+export function pagesForCaller(permissions: readonly string[], role: string | null | undefined): string[] {
   const resolvedRole = String(role || '').toUpperCase();
   if (resolvedRole === 'PATIENT') {
     return ['profile', 'shop', 'school'];
