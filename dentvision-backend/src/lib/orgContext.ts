@@ -94,6 +94,28 @@ export const PERSON_ROLE_MAP: Record<string, string> = {
   assistant: 'ASSISTANT', student: 'STUDENT', support: 'SUPPORT',
 };
 
+const CLINIC_ROLE_PRIORITY: Record<string, number> = {
+  SUPERADMIN: 1000,
+  OWNER: 900,
+  DIRECTOR: 850,
+  ADMIN: 800,
+  MANAGER: 700,
+  DOCTOR: 600,
+  LAB: 500,
+  ASSISTANT: 400,
+  SUPPORT: 300,
+  STUDENT: 200,
+};
+
+function resolvePrimaryClinicRole(personRoles: Array<{ scopeType: string | null; scopeId: string | null; role: { key: string } }>, organizationId: string): string | undefined {
+  const mapped = personRoles
+    .filter((pr) => pr.scopeType === 'organization' && pr.scopeId === organizationId)
+    .map((pr) => PERSON_ROLE_MAP[pr.role.key.toLowerCase()])
+    .filter((role): role is string => Boolean(role));
+  mapped.sort((a, b) => (CLINIC_ROLE_PRIORITY[b] || 0) - (CLINIC_ROLE_PRIORITY[a] || 0));
+  return mapped[0];
+}
+
 export async function resolveClinicAccess(userId: string, clinicId: string): Promise<{ role: string } | null> {
   if (!clinicId) return null;
   const user = await prisma.user.findUnique({ where: { id: userId }, select: { role: true } });
@@ -109,8 +131,7 @@ export async function resolveClinicAccess(userId: string, clinicId: string): Pro
       include: { personRoles: { include: { role: true } } },
     });
     if (person) {
-      const unifiedRole = person.personRoles?.find((pr) => pr.scopeType === 'organization' && pr.scopeId === org.id)?.role?.key;
-      const mapped = unifiedRole ? PERSON_ROLE_MAP[unifiedRole] : undefined;
+      const mapped = resolvePrimaryClinicRole(person.personRoles || [], org.id);
       if (mapped) return { role: mapped };
     }
   }
