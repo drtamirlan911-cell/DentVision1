@@ -335,8 +335,14 @@ export async function seedPermissions() {
     console.log(`  ✓ ${r.key} — ${perms.length} permissions`);
   }
 
-  await seedE2EClinicCanonicalContexts();
-  await seedE2EPartnerFixtures();
+  // E2E identities and organizations belong only to isolated test databases.
+  // Production must never acquire test users or synthetic partner organizations.
+  if (process.env.NODE_ENV !== 'production' && process.env.SEED_E2E_FIXTURES === 'true') {
+    await seedE2EClinicCanonicalContexts();
+    await seedE2EPartnerFixtures();
+  } else {
+    console.log('[SEED] Skipping E2E clinic/partner fixtures outside an explicit test seed.');
+  }
 }
 
 async function main() {
