@@ -57,8 +57,9 @@ export async function resolveAnyClinicMembership(userId: string): Promise<{ clin
     include: { organization: { select: { id: true, originalId: true } }, personRoles: { include: { role: true } } },
   });
   if (person?.organization?.originalId) {
-    const key = person.personRoles?.find((pr) => pr.scopeType === 'organization' && pr.scopeId === person.organization?.id)?.role?.key;
-    const role = key ? PERSON_ROLE_MAP[key] : undefined;
+    const role = person.organization?.id
+      ? resolvePrimaryClinicRole(person.personRoles || [], person.organization.id)
+      : undefined;
     if (role) return { clinicId: person.organization.originalId, role };
   }
 
