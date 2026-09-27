@@ -149,7 +149,7 @@ async function seedE2EPartnerFixtures() {
         update: { role: fixture.role.endsWith('_owner') ? 'admin' : 'technician' },
         create: { id: randomUUID(), labId: laboratory.id, userId: user.id, role: fixture.role.endsWith('_owner') ? 'admin' : 'technician' },
       });
-    }    }
+    }
 
     const persistedUser = await prisma.user.findUnique({ where: { email: fixture.email }, select: { id: true } });
     const persistedPerson = await prisma.person.findFirst({
