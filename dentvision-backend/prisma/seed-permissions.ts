@@ -172,6 +172,87 @@ async function seedE2EPartnerFixtures() {
   }
 }
 
+async function seedE2EClinicCanonicalContexts() {
+  const clinicMembers = await prisma.clinicMember.findMany({
+    include: {
+      user: { select: { id: true, firstName: true, lastName: true, email: true, role: true } },
+      clinic: { select: { id: true, name: true, address: true, phone: true, logo: true, city: true } },
+    },
+  });
+
+  for (const member of clinicMembers) {
+    const organization = await prisma.organization.upsert({
+      where: { originalType_originalId: { originalType: 'Clinic', originalId: member.clinicId } },
+      update: {
+        name: member.clinic.name,
+        type: 'CLINIC',
+        address: member.clinic.address || undefined,
+        phone: member.clinic.phone || undefined,
+        logo: member.clinic.logo || undefined,
+        contacts: member.clinic.city ? { city: member.clinic.city } : undefined,
+      },
+      create: {
+        id: randomUUID(),
+        name: member.clinic.name,
+        type: 'CLINIC',
+        address: member.clinic.address || undefined,
+        phone: member.clinic.phone || undefined,
+        logo: member.clinic.logo || undefined,
+        contacts: member.clinic.city ? { city: member.clinic.city } : undefined,
+        originalType: 'Clinic',
+        originalId: member.clinicId,
+      },
+    });
+
+    const person = await prisma.person.upsert({
+      where: { userId_organizationId: { userId: member.userId, organizationId: organization.id } },
+      update: {
+        fullName: [member.user.firstName, member.user.lastName].filter(Boolean).join(' ') || member.user.email,
+        email: member.user.email,
+        personType: 'DOCTOR',
+      },
+      create: {
+        id: randomUUID(),
+        fullName: [member.user.firstName, member.user.lastName].filter(Boolean).join(' ') || member.user.email,
+        email: member.user.email,
+        personType: 'DOCTOR',
+        organizationId: organization.id,
+        userId: member.userId,
+        originalType: 'ClinicMember',
+        originalId: member.id,
+      },
+    });
+
+    const roleKey = resolveClinicRoleKey(member.role);
+    if (!roleKey) {
+      console.warn('  ⚠ canonical clinic role not recognized for ' + member.user.email + '; skipping');
+      continue;
+    }
+
+    const role = await prisma.role.findUnique({ where: { key: roleKey } });
+    if (!role) {
+      console.warn('  ⚠ canonical clinic Role ' + roleKey + ' is missing for ' + member.user.email + '; skipping');
+      continue;
+    }
+
+    const scopeKey = 'organization:' + organization.id;
+    await prisma.personRole.upsert({
+      where: { personId_roleId_scopeKey: { personId: person.id, roleId: role.id, scopeKey } },
+      update: { scopeType: 'organization', scopeId: organization.id },
+      create: {
+        id: randomUUID(),
+        personId: person.id,
+        roleId: role.id,
+        scopeType: 'organization',
+        scopeId: organization.id,
+        scopeKey,
+      },
+    });
+
+    console.log('  ✓ clinic ' + member.user.email + ' -> ' + roleKey + ' -> organization:' + organization.id);
+  }
+}
+
 export async function seedPermissions() {
   console.log('[SEED] Seeding permissions...');
 
@@ -209,6 +290,7 @@ export async function seedPermissions() {
     console.log(`  ✓ ${r.key} — ${perms.length} permissions`);
   }
 
+  await seedE2EClinicCanonicalContexts();
   await seedE2EPartnerFixtures();
 }
 
