@@ -148,8 +148,8 @@ describe('resolveClinicAccess', () => {
 describe('resolveAnyClinicMembership', () => {
   it('resolves via the oldest Person (unified) membership in a CLINIC-type org, mapping the role', async () => {
     personFindFirst.mockResolvedValueOnce({
-      organization: { originalId: CLINIC_ID },
-      personRoles: [{ role: { key: 'owner' } }],
+      organization: { id: 'org-1', originalId: CLINIC_ID },
+      personRoles: [{ scopeType: 'organization', scopeId: 'org-1', role: { key: 'owner' } }],
     });
     const result = await resolveAnyClinicMembership(USER_ID);
     expect(result).toEqual({ clinicId: CLINIC_ID, role: 'OWNER' });
@@ -161,7 +161,7 @@ describe('resolveAnyClinicMembership', () => {
 
   it('falls through to the legacy membership when the Person has no PersonRole', async () => {
     // Was: default to org_admin -> ADMIN. Same fail-open as resolveClinicAccess.
-    personFindFirst.mockResolvedValueOnce({ organization: { originalId: CLINIC_ID }, personRoles: [] });
+    personFindFirst.mockResolvedValueOnce({ organization: { id: 'org-1', originalId: CLINIC_ID }, personRoles: [] });
     clinicMemberFindFirst.mockResolvedValueOnce({ clinicId: CLINIC_ID, role: 'DOCTOR' });
     const result = await resolveAnyClinicMembership(USER_ID);
     expect(result).toEqual({ clinicId: CLINIC_ID, role: 'DOCTOR' });
