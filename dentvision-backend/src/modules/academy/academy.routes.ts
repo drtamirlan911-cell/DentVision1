@@ -43,6 +43,25 @@ academiesRouter.post('/register', async (req: AuthRequest, res) => {
     const existing = await prisma.academy.findFirst({ where: { ownerId: req.user!.id, name: academyName } });
     if (existing) {
       const organization = await prisma.organization.findUnique({ where: { originalType_originalId: { originalType: 'Academy', originalId: existing.id } } });
+      // Repair older registrations that predate canonical PersonRole creation.
+      // Returning the existing academy must leave the same canonical state as a
+      // fresh registration; otherwise the user can see the academy but cannot
+      // switch into its workspace.
+      if (organization) {
+        const person = await prisma.person.findUnique({
+          where: { originalType_originalId: { originalType: 'AcademyOwner', originalId: existing.id + ':' + req.user!.id } },
+          select: { id: true },
+        });
+        const ownerRole = await prisma.role.findUnique({ where: { key: 'owner' } });
+        if (person && ownerRole) {
+          const scopeKey = 'organization:' + organization.id;
+          await prisma.personRole.upsert({
+            where: { personId_roleId_scopeKey: { personId: person.id, roleId: ownerRole.id, scopeKey } },
+            update: { scopeType: 'organization', scopeId: organization.id },
+            create: { personId: person.id, roleId: ownerRole.id, scopeType: 'organization', scopeId: organization.id, scopeKey },
+          });
+        }
+      }
       return res.status(409).json({ ok: false, error: 'Вы уже зарегистрировали эту академию.', data: { academy: existing, organizationId: organization?.id } } satisfies ApiResponse);
     }
     const academy = await prisma.academy.create({ data: { name: academyName, city: city || null, ownerId: req.user!.id } });
@@ -101,7 +120,37 @@ academiesRouter.post('/', requirePermission('academy.manage'), async (req: AuthR
     const { name, city, ownerId } = req.body || {};
     if (!name) return res.status(400).json({ ok: false, error: 'Название обязательно' } satisfies ApiResponse);
     const academy = await prisma.academy.create({ data: { name, city: city || null, ownerId: ownerId || null } });
-    await prisma.organization.upsert({ where: { originalType_originalId: { originalType: 'Academy', originalId: academy.id } }, update: { name: academy.name }, create: { id: uid(), name: academy.name, type: 'ACADEMY', originalType: 'Academy', originalId: academy.id } });
+    const organization = await prisma.organization.upsert({
+      where: { originalType_originalId: { originalType: 'Academy', originalId: academy.id } },
+      update: { name: academy.name },
+      create: { id: uid(), name: academy.name, type: 'ACADEMY', originalType: 'Academy', originalId: academy.id },
+    });
+    if (ownerId) {
+      const ownerRole = await prisma.role.findUnique({ where: { key: 'owner' } });
+      const ownerUser = await prisma.user.findUnique({ where: { id: ownerId }, select: { id: true, firstName: true, lastName: true } });
+      if (ownerRole && ownerUser) {
+        const person = await prisma.person.upsert({
+          where: { originalType_originalId: { originalType: 'AcademyOwner', originalId: academy.id + ':' + ownerId } },
+          update: { userId: ownerId, organizationId: organization.id },
+          create: {
+            id: uid(),
+            fullName: [ownerUser.firstName, ownerUser.lastName].filter(Boolean).join(' ') || academy.name,
+            personType: 'STAFF',
+            organizationId: organization.id,
+            userId: ownerId,
+            originalType: 'AcademyOwner',
+            originalId: academy.id + ':' + ownerId,
+            contacts: { role: 'OWNER', academyId: academy.id } as any,
+          },
+        });
+        const scopeKey = 'organization:' + organization.id;
+        await prisma.personRole.upsert({
+          where: { personId_roleId_scopeKey: { personId: person.id, roleId: ownerRole.id, scopeKey } },
+          update: { scopeType: 'organization', scopeId: organization.id },
+          create: { personId: person.id, roleId: ownerRole.id, scopeType: 'organization', scopeId: organization.id, scopeKey },
+        });
+      }
+    }
     return res.status(201).json({ ok: true, data: academy } satisfies ApiResponse);
   } catch (error) {
     console.error('Create academy error:', error);
