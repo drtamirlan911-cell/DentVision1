@@ -111,6 +111,7 @@ export default function NotificationPreferencesPage() {
                   <Switch
                     checked={isEnabled(item.type)}
                     onCheckedChange={(v) => handleToggle(item.type, v)}
+                    ariaLabel={item.label}
                     disabled={saving === item.type}
                   />
                 </div>
