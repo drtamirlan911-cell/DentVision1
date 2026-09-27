@@ -83,7 +83,7 @@ describe('resolveClinicAccess', () => {
   it('resolves the unified role via Person -> PersonRole when the org and role mapping exist', async () => {
     userFindUnique.mockResolvedValueOnce({ role: 'DOCTOR' });
     organizationFindFirst.mockResolvedValueOnce({ id: 'org-1' });
-    personFindFirst.mockResolvedValueOnce({ personRoles: [{ role: { key: 'owner' } }] });
+    personFindFirst.mockResolvedValueOnce({ organization: { id: 'org-1' }, personRoles: [{ scopeType: 'organization', scopeId: 'org-1', role: { key: 'owner' } }] });
     const result = await resolveClinicAccess(USER_ID, CLINIC_ID);
     expect(result).toEqual({ role: 'OWNER' });
   });
