@@ -2115,7 +2115,10 @@ async function main() {
   // `lecturerId: null` keeps these platform-curated (not attributed to an
   // actual lecturer) — `commerce/register`'s existing `sellerType: 'PLATFORM'`
   // fallback already handles a course with no lecturer correctly.
-  await runOnceMigration('seed_academy_platform_catalog', 'Academy OS: платформенный каталог вебинаров/офис-курсов переведён в реальные записи Course', async (tx) => {
+  // Academy platform catalog is reference data, not schema state. Keep it repairable even
+  // when an older boot has already marked the migration as applied.
+  try {
+    await prisma.$transaction(async (tx) => {
     const day = 24 * 60 * 60 * 1000;
     const now = Date.now();
 
@@ -2148,8 +2151,8 @@ async function main() {
 
     for (const w of webinars) {
       const academyId = await findOrCreateAcademy(w.academy, null);
-      await tx.course.create({
-        data: {
+      const existingCourse = await tx.course.findFirst({ where: { title: w.title } });
+      if (!existingCourse) await tx.course.create({ data: {
           id: uid(),
           title: w.title,
           author: w.author,
@@ -2167,8 +2170,8 @@ async function main() {
 
     for (const o of officeCourses) {
       const academyId = await findOrCreateAcademy(o.academy, o.city);
-      await tx.course.create({
-        data: {
+      const existingCourse = await tx.course.findFirst({ where: { title: w.title } });
+      if (!existingCourse) await tx.course.create({ data: {
           id: uid(),
           title: o.title,
           author: o.author,
@@ -2183,8 +2186,10 @@ async function main() {
         },
       });
     }
-  });
-
+    });
+  } catch (err) {
+    console.error('[SEED] Academy platform catalog repair failed:', err);
+  }
   // Зеркалит prisma/migrations/20260809_add_notification_preferences/migration.sql
   // — та миграция без этого блока никогда не выполнялась на боевой БД (файл
   // существовал, но `runOnceMigration` для него не было), поэтому
