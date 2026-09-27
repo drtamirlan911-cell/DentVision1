@@ -57,7 +57,7 @@ export async function resolveAnyClinicMembership(userId: string): Promise<{ clin
     include: { organization: { select: { originalId: true } }, personRoles: { include: { role: true } } },
   });
   if (person?.organization?.originalId) {
-    const key = person.personRoles?.[0]?.role?.key;
+    const key = person.personRoles?.find((pr) => pr.scopeType === 'organization' && pr.scopeId === person.organization?.originalId)?.role?.key;
     const role = key ? PERSON_ROLE_MAP[key] : undefined;
     if (role) return { clinicId: person.organization.originalId, role };
   }
@@ -98,7 +98,7 @@ export async function resolveClinicAccess(userId: string, clinicId: string): Pro
       include: { personRoles: { include: { role: true } } },
     });
     if (person) {
-      const unifiedRole = person.personRoles?.[0]?.role?.key;
+      const unifiedRole = person.personRoles?.find((pr) => pr.scopeType === 'organization' && pr.scopeId === org.id)?.role?.key;
       const mapped = unifiedRole ? PERSON_ROLE_MAP[unifiedRole] : undefined;
       if (mapped) return { role: mapped };
     }
