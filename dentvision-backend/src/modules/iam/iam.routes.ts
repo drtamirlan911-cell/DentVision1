@@ -331,16 +331,28 @@ iamRouter.post('/switch-context', async (req: AuthRequest, res) => {
         const organization = academy
           ? await prisma.organization.findFirst({ where: { originalType: 'Academy', originalId: academy.id }, select: { id: true } })
           : null;
-        const tokens = generateTokens({
-          ...base,
-          lecturerId: scopeId,
-          organizationId: organization?.id,
-          organizationOriginalId: academy?.id,
-          organizationType: 'LECTURER',
-          personType: 'LECTURER',
-        });
-        await writeAuditLog({ userId: user.id, action: 'auth.switch_context', entity: 'lecturer', entityId: scopeId });
-        return res.json({ ok: true, data: tokens } satisfies ApiResponse);
+        if (organization) {
+          const person = await prisma.person.findFirst({
+            where: { userId: user.id, organizationId: organization.id, originalType: 'Lecturer', originalId: lecturer.id },
+            include: { personRoles: { include: { role: true } } },
+          });
+          const scopedRoleKey = person?.personRoles?.find((pr) => pr.scopeType === 'organization' && pr.scopeId === organization.id)?.role.key;
+          if (!person || !scopedRoleKey) return res.status(403).json({ ok: false, error: 'У вас нет роли лектора в выбранной организации' } satisfies ApiResponse);
+          const tokens = generateTokens({
+            ...base,
+            role: userRoleForPartnerRole(scopedRoleKey, user.role),
+            lecturerId: scopeId,
+            organizationId: organization.id,
+            organizationOriginalId: academy!.id,
+            organizationType: 'LECTURER',
+            personType: 'LECTURER',
+          });
+          await writeAuditLog({ userId: user.id, action: 'auth.switch_context', entity: 'lecturer', entityId: scopeId });
+          return res.json({ ok: true, data: tokens } satisfies ApiResponse);
+        }
+        // A lecturer without an Academy organization remains a legacy-only
+        // profile and is handled below by the final deny rather than inventing
+        // an organization scope.
       }
     }
     if (scopeType === 'LABORATORY') {
