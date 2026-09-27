@@ -99,6 +99,19 @@ describe('resolveUserPermissions', () => {
 
 
 describe('organization scope isolation', () => {
+  it('does not import platform permissions into an organization scope', async () => {
+    personFindFirst.mockResolvedValueOnce({
+      personRoles: [
+        { scopeType: 'platform', scopeId: null, role: { permissions: [{ permission: { key: 'admin.read' } }] } },
+        { scopeType: 'organization', scopeId: 'org-1', role: { permissions: [{ permission: { key: 'patients.read' } }] } },
+      ],
+    });
+    const result = await resolveUserPermissions('user-1', 'org-1', 'DOCTOR');
+    expect(result).toContain('patients.read');
+    expect(result).not.toContain('admin.read');
+    expect(result).toContain('medical.manage');
+  });
+
   it('does not import permissions from another organization', async () => {
     personFindFirst.mockResolvedValueOnce(
       makePerson([], [
