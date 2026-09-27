@@ -54,10 +54,10 @@ export async function resolveAnyClinicMembership(userId: string): Promise<{ clin
   const person = await prisma.person.findFirst({
     where: { userId, organization: { type: 'CLINIC' } },
     orderBy: { createdAt: 'asc' },
-    include: { organization: { select: { originalId: true } }, personRoles: { include: { role: true } } },
+    include: { organization: { select: { id: true, originalId: true } }, personRoles: { include: { role: true } } },
   });
   if (person?.organization?.originalId) {
-    const key = person.personRoles?.find((pr) => pr.scopeType === 'organization' && pr.scopeId === person.organization?.originalId)?.role?.key;
+    const key = person.personRoles?.find((pr) => pr.scopeType === 'organization' && pr.scopeId === person.organization?.id)?.role?.key;
     const role = key ? PERSON_ROLE_MAP[key] : undefined;
     if (role) return { clinicId: person.organization.originalId, role };
   }
