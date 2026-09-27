@@ -22,8 +22,19 @@ export function getClinicId(user: AuthUser): string | undefined { return user.cl
 
 export async function assertOrgAccess(user: AuthUser, orgId: string): Promise<boolean> {
   if (user.role === 'SUPERADMIN') return true;
-  const person = await prisma.person.findFirst({ where: { userId: user.id, organizationId: orgId } });
+  const person = await prisma.person.findFirst({
+    where: {
+      userId: user.id,
+      organizationId: orgId,
+      personRoles: { some: { scopeType: 'organization', scopeId: orgId } },
+    },
+    select: { id: true },
+  });
   if (person) return true;
+  // Once an organization exists, legacy ClinicMember must not bypass the
+  // canonical organization-scoped PersonRole boundary.
+  const organization = await prisma.organization.findUnique({ where: { id: orgId }, select: { id: true } });
+  if (organization) return false;
   const member = await prisma.clinicMember.findUnique({ where: { userId_clinicId: { userId: user.id, clinicId: orgId } } });
   return Boolean(member);
 }
@@ -78,13 +89,23 @@ export async function resolveClinicAccess(userId: string, clinicId: string): Pro
   if (user?.role === 'SUPERADMIN') return { role: 'SUPERADMIN' };
   const org = await prisma.organization.findFirst({ where: { originalType: 'Clinic', originalId: clinicId } });
   if (org) {
-    const person = await prisma.person.findFirst({ where: { userId, organizationId: org.id }, include: { personRoles: { include: { role: true } } } });
+    const person = await prisma.person.findFirst({
+      where: {
+        userId,
+        organizationId: org.id,
+        personRoles: { some: { scopeType: 'organization', scopeId: org.id } },
+      },
+      include: { personRoles: { include: { role: true } } },
+    });
     if (person) {
       const unifiedRole = person.personRoles?.[0]?.role?.key;
       const mapped = unifiedRole ? PERSON_ROLE_MAP[unifiedRole] : undefined;
       if (mapped) return { role: mapped };
     }
   }
+  // A canonical organization exists, so legacy membership cannot authorize a
+  // user who lacks an organization-scoped PersonRole.
+  if (org) return null;
   const member = await prisma.clinicMember.findUnique({ where: { userId_clinicId: { userId, clinicId } } });
   return member ? { role: member.role } : null;
 }
