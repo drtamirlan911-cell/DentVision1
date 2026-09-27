@@ -172,6 +172,22 @@ async function seedE2EPartnerFixtures() {
   }
 }
 
+function resolveClinicRoleKey(role: string | null | undefined): string | null {
+  const normalized = String(role || '').trim().toUpperCase();
+  const aliases: Record<string, string> = {
+    OWNER: 'owner',
+    ADMIN: 'admin',
+    MANAGER: 'manager',
+    DOCTOR: 'doctor',
+    ASSISTANT: 'assistant',
+    RECEPTIONIST: 'receptionist',
+    RECEPTION: 'receptionist',
+    CASHIER: 'cashier',
+    ACCOUNTANT: 'accountant',
+  };
+  return aliases[normalized] ?? null;
+}
+
 async function seedE2EClinicCanonicalContexts() {
   const clinicMembers = await prisma.clinicMember.findMany({
     include: {
