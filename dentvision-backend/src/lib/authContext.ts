@@ -75,10 +75,8 @@ export async function resolveOrganizationRoleKey(userId: string, organizationId:
     select: {
       personRoles: {
         where: {
-          OR: [
-            { scopeId: null },
-            { scopeId: organizationId },
-          ],
+          scopeType: 'organization',
+          scopeId: organizationId,
         },
         select: { scopeId: true, scopeType: true, role: { select: { key: true } } },
       },
@@ -86,8 +84,7 @@ export async function resolveOrganizationRoleKey(userId: string, organizationId:
   });
   if (!person) return undefined;
   const roles = person.personRoles.filter((pr) =>
-    (!pr.scopeId || pr.scopeId === organizationId) &&
-    (!pr.scopeType || pr.scopeType === 'organization')
+    pr.scopeType === 'organization' && pr.scopeId === organizationId
   );
   roles.sort((a, b) => (PARTNER_ROLE_PRIORITY[b.role.key.toUpperCase()] || 10) - (PARTNER_ROLE_PRIORITY[a.role.key.toUpperCase()] || 10));
   return roles[0]?.role.key?.toUpperCase();
