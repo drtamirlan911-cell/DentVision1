@@ -38,16 +38,10 @@ async function resolveFailedMigrations() {
     const failed = allMigrations.filter(m => m.finished_at === null && m.rolled_back_at === null);
     
     if (failed.length > 0) {
-      console.log(`Found ${failed.length} potentially failed migration(s):`, failed.map(r => r.migration_name));
-      for (const m of failed) {
-        console.log(`Force-deleting failed migration record: ${m.migration_name}`);
-        try {
-          await prisma.$executeRawUnsafe(`DELETE FROM "_prisma_migrations" WHERE migration_name = $1`, m.migration_name);
-          console.log(`Deleted: ${m.migration_name}`);
-        } catch (e) {
-          console.error(`Failed to delete ${m.migration_name}:`, e);
-        }
-      }
+      // Never mutate _prisma_migrations here. A migration with a missing
+      // finished_at may have partially changed production; deleting its record
+      // would hide the failure and make migrate deploy replay unknown DDL.
+      throw new Error('PRISMA_MIGRATION_INCOMPLETE: ' + failed.map(r => r.migration_name).join(', '));
     } else {
       console.log('No failed migrations found');
     }
