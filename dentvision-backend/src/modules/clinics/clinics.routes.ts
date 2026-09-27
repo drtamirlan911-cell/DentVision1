@@ -60,13 +60,31 @@ clinicsRouter.get('/', authenticate, async (req: AuthRequest, res) => {
       ? { name: { contains: search, mode: 'insensitive' as const } }
       : {};
 
-    // Non-superadmins see only clinics they belong to.
+    // Non-superadmins are scoped by canonical Organization → Person → PersonRole.
+    // Legacy ClinicMember is only a compatibility fallback for users who have
+    // not entered the canonical clinic model yet.
     if (req.user?.role !== 'SUPERADMIN') {
-      const memberClinicIds = (await prisma.clinicMember.findMany({
-        where: { userId: req.user!.id },
-        select: { clinicId: true },
-      })).map(m => m.clinicId);
-      where.id = { in: memberClinicIds.length ? memberClinicIds : ['none'] };
+      const canonicalClinicPeople = await prisma.person.findMany({
+        where: { userId: req.user!.id, organization: { type: 'CLINIC' } },
+        select: {
+          organization: { select: { originalId: true } },
+          personRoles: { select: { scopeType: true, scopeId: true } },
+        },
+      });
+      if (canonicalClinicPeople.length) {
+        const clinicIds = canonicalClinicPeople
+          .filter((p) => p.organization?.originalId && p.personRoles.some((pr) =>
+            pr.scopeType === 'organization'
+          ))
+          .map((p) => p.organization!.originalId!);
+        where.id = { in: clinicIds.length ? clinicIds : ['none'] };
+      } else {
+        const memberClinicIds = (await prisma.clinicMember.findMany({
+          where: { userId: req.user!.id },
+          select: { clinicId: true },
+        })).map(m => m.clinicId);
+        where.id = { in: memberClinicIds.length ? memberClinicIds : ['none'] };
+      }
     }
 
     const { skip, take } = paginate(page, limit);
