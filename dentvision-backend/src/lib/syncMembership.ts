@@ -278,9 +278,20 @@ export async function syncPersonFromSupportUser(userId: string): Promise<void> {
 export async function findOrgMembership(userId: string, orgId: string) {
   // Try unified Person
   const person = await prisma.person.findFirst({
-    where: { userId, organizationId: orgId },
+    where: {
+      userId,
+      organizationId: orgId,
+      personRoles: { some: { scopeType: 'organization', scopeId: orgId } },
+    },
+    include: { personRoles: { include: { role: true } } },
   });
   if (person) return { source: 'person' as const, person };
+
+  // If a canonical Person already exists for this organization but has no
+  // active scoped role, fail closed. A legacy ClinicMember must not resurrect
+  // authorization after a canonical role is revoked.
+  const canonicalPerson = await prisma.person.findFirst({ where: { userId, organizationId: orgId }, select: { id: true } });
+  if (canonicalPerson) return null;
 
   // Try legacy ClinicMember (org might be a clinic)
   const member = await prisma.clinicMember.findUnique({
