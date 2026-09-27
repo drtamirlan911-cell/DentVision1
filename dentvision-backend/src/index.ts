@@ -912,9 +912,9 @@ async function main() {
       console.log('[SEED] DentVision supplier created');
     }
 
-    const catCount = await prisma.$queryRawUnsafe<Array<{ cnt: number }>>(`SELECT COUNT(*)::int as cnt FROM "shop_categories"`);
-    if (catCount[0].cnt === 0) {
-      const categories = [
+    // Categories are reference data. Reconcile each slug independently so a
+    // partially populated database cannot block the missing categories.
+    const categories = [
         { name: 'Композиты', slug: 'composites', description: 'Пломбировочные и реставрационные материалы', sortOrder: 1 },
         { name: 'Инструменты', slug: 'instruments', description: 'Стоматологические инструменты и наконечники', sortOrder: 2 },
         { name: 'Оборудование', slug: 'equipment', description: 'Стоматологические установки, автоклавы, скалеры', sortOrder: 3 },
@@ -934,8 +934,7 @@ async function main() {
           c.name, c.slug, c.description, c.sortOrder
         );
       }
-      console.log('[SEED] 8 shop categories created');
-    }
+      console.log('[SEED] Marketplace category catalog reconciled');
   } catch (err) {
     console.warn('[SEED] Categories seed failed (non-fatal):', err);
   }
