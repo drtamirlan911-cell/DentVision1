@@ -116,9 +116,16 @@ iamRouter.post('/switch-context', async (req: AuthRequest, res) => {
     const { scopeType, scopeId, branchId } = req.body as { scopeType: string; scopeId?: string; branchId?: string };
     const user = req.user!;
     if (!scopeType || !scopeId) return res.status(400).json({ ok: false, error: 'scopeType и scopeId обязательны' } satisfies ApiResponse);
+    const requestedScopeType = String(scopeType).trim().toUpperCase();
     const base = { sub: user.id, email: user.email, role: user.role, sessionId: user.sessionId };
     const org = (await prisma.organization.findUnique({ where: { id: scopeId } })) || (await prisma.organization.findFirst({ where: { originalId: scopeId } }));
     if (org) {
+      const expectedScopeTypes = new Set(
+        org.type === 'SUPPLIER_COMPANY' ? ['SUPPLIER', 'SUPPLIER_COMPANY'] : [org.type],
+      );
+      if (!expectedScopeTypes.has(requestedScopeType)) {
+        return res.status(403).json({ ok: false, error: 'Тип контекста не соответствует организации' } satisfies ApiResponse);
+      }
       let person = await prisma.person.findFirst({ where: { userId: user.id, organizationId: org.id }, include: { personRoles: { include: { role: true } } } });
       if (!person && org.originalId) {
         person = await prisma.person.findFirst({ where: { userId: user.id, originalId: `${org.originalId}:${user.id}` }, include: { personRoles: { include: { role: true } } } });
