@@ -392,6 +392,7 @@ const AI_APPROVAL_ROLES = new Set(['OWNER', 'DIRECTOR', 'ADMIN', 'DOCTOR', 'SUPE
     ...BASE_PAGES,
     ...pagesForPermissions(permissions),
     ...(role ? pagesForRole(resolvedRole) : []),
+    ...(AI_APPROVAL_ROLES.has(resolvedRole) ? ['ai-approvals'] : []),
   ]));
 }
 
