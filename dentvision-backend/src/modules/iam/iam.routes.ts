@@ -200,6 +200,9 @@ iamRouter.post('/switch-context', async (req: AuthRequest, res) => {
         await writeAuditLog({ userId: user.id, action: 'auth.switch_context', entity: 'organization', entityId: org.id, details: { scopeType: org.type } });
         return res.json({ ok: true, data: tokens } satisfies ApiResponse);
       }
+      // A canonical organization must never fall through to legacy membership
+      // authorization: the selected workspace requires an org-scoped PersonRole.
+      return res.status(403).json({ ok: false, error: 'У вас нет роли в выбранной организации' } satisfies ApiResponse);
     }
     if (scopeType === 'CLINIC') {
       const membership = await prisma.clinicMember.findUnique({ where: { userId_clinicId: { userId: user.id, clinicId: scopeId } } });
