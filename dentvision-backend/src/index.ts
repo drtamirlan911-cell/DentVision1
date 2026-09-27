@@ -2170,7 +2170,7 @@ async function main() {
 
     for (const o of officeCourses) {
       const academyId = await findOrCreateAcademy(o.academy, o.city);
-      const existingCourse = await tx.course.findFirst({ where: { title: w.title } });
+      const existingCourse = await tx.course.findFirst({ where: { title: o.title } });
       if (!existingCourse) await tx.course.create({ data: {
           id: uid(),
           title: o.title,
