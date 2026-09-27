@@ -103,6 +103,8 @@ jobs:
       - run: npm ci
       - run: npm ci
         working-directory: dentvision-backend
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps chromium webkit
       - run: npx prisma generate
         working-directory: dentvision-backend
       - name: Sync Prisma schema for the isolated E2E database
@@ -116,8 +118,6 @@ jobs:
       - name: Seed canonical IAM roles and E2E partner contexts
         run: npx tsx prisma/seed-permissions.ts
         working-directory: dentvision-backend
-      - name: Install Playwright browsers
-        run: npx playwright install --with-deps chromium webkit
       - name: Start backend
         run: nohup npx tsx src/index.ts > /tmp/backend.log 2>&1 &
         working-directory: dentvision-backend
