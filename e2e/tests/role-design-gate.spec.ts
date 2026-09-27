@@ -249,7 +249,16 @@ async function auditRoute(page: Page, role: Role, route: string, shouldBeAllowed
     message: role.id + ' ' + route + ': page did not render stable content',
   }).toMatch(/.{20,}/s);
   await page.waitForTimeout(300);
-  const current=new URL(page.url());
+  let current=new URL(page.url());
+  if(shouldBeAllowed && current.pathname === '/login'){
+    await login(page, role.email);
+    await page.goto(BASE_URL+route,{waitUntil:'domcontentloaded',timeout:30000});
+    await expect.poll(() => page.locator('body').innerText().catch(() => ''), {
+      timeout: 10000,
+      message: role.id + ' ' + route + ': page did not render after authentication recovery',
+    }).toMatch(/.{20,}/s);
+    current=new URL(page.url());
+  }
   if(!shouldBeAllowed){
     expect(current.pathname+current.search,role.id+' '+route+': forbidden route stayed open').not.toBe(route);
     return;
