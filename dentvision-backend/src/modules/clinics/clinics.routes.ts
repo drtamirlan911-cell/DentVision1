@@ -246,6 +246,51 @@ clinicsRouter.post('/', authenticate, async (req: AuthRequest, res) => {
       }),
     ]);
 
+    // Canonical IAM must be complete at the point the clinic is created:
+    // Organization → Person → PersonRole(owner). Without this, the legacy
+    // ClinicMember exists but the Master Spec v5 workspace cannot be activated.
+    const ownerRole = await prisma.role.findUnique({ where: { key: 'owner' } });
+    const ownerUser = await prisma.user.findUnique({
+      where: { id: req.user!.id },
+      select: { firstName: true, lastName: true, phone: true, email: true, spec: true },
+    });
+    const organization = await prisma.organization.findFirst({
+      where: { originalType: 'Clinic', originalId: clinicId },
+      select: { id: true },
+    });
+    if (!ownerRole || !ownerUser || !organization) {
+      throw new Error('Canonical clinic IAM bootstrap failed');
+    }
+    const person = await prisma.person.upsert({
+      where: { userId_organizationId: { userId: req.user!.id, organizationId: organization.id } },
+      update: {
+        fullName: (ownerUser.firstName + ' ' + ownerUser.lastName).trim(),
+        personType: 'STAFF',
+        phone: ownerUser.phone || undefined,
+        email: ownerUser.email || undefined,
+        specialization: ownerUser.spec || undefined,
+        originalType: 'ClinicMember',
+        originalId: clinicId + ':' + req.user!.id,
+      },
+      create: {
+        id: uid(),
+        fullName: (ownerUser.firstName + ' ' + ownerUser.lastName).trim() || 'Владелец клиники',
+        personType: 'STAFF',
+        organizationId: organization.id,
+        userId: req.user!.id,
+        phone: ownerUser.phone || undefined,
+        email: ownerUser.email || undefined,
+        specialization: ownerUser.spec || undefined,
+        originalType: 'ClinicMember',
+        originalId: clinicId + ':' + req.user!.id,
+      },
+    });
+    await prisma.personRole.upsert({
+      where: { personId_roleId_scopeKey: { personId: person.id, roleId: ownerRole.id, scopeKey: 'organization:' + organization.id } },
+      update: { scopeType: 'organization', scopeId: organization.id },
+      create: { personId: person.id, roleId: ownerRole.id, scopeType: 'organization', scopeId: organization.id, scopeKey: 'organization:' + organization.id },
+    });
+
     const response: ApiResponse = {
       ok: true,
       data: clinic,
