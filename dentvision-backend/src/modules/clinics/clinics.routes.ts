@@ -13,6 +13,7 @@ import {
 import { guardUserCreate } from '../../middleware/planGate.js';
 import { upsertStaffCompensation } from '../../lib/staffCompensation.js';
 import { syncPersonFromClinicMember, removePersonFromClinicMember } from '../../lib/syncMembership.js';
+import { resolveClinicAccess } from '../../lib/orgContext.js';
 import { auditFromReq } from '../compliance/audit.service.js';
 
 export const clinicsRouter = Router();
@@ -29,15 +30,9 @@ function normalizeStaffRole(role?: string): 'OWNER' | 'ADMIN' | 'DOCTOR' | 'ASSI
 }
 
 async function assertCanManageStaff(userId: string, clinicId: string) {
-  const actor = await prisma.user.findUnique({ where: { id: userId }, select: { role: true } });
-  if (actor?.role === 'SUPERADMIN') {
-    return { ok: true as const, membership: { role: 'OWNER' as const } };
-  }
-  const membership = await prisma.clinicMember.findUnique({
-    where: { userId_clinicId: { userId, clinicId } },
-  });
+  const membership = await resolveClinicAccess(userId, clinicId);
   if (!membership) return { ok: false as const, status: 403, error: 'Вы не являетесь участником этой клиники' };
-  if (!['OWNER', 'ADMIN'].includes(membership.role)) {
+  if (!['OWNER', 'ADMIN', 'SUPERADMIN'].includes(membership.role)) {
     return { ok: false as const, status: 403, error: 'Недостаточно прав для управления сотрудниками' };
   }
   return { ok: true as const, membership };
@@ -115,17 +110,8 @@ clinicsRouter.get('/:id', authenticate, async (req, res) => {
 
     // Non-superadmins must belong to the clinic they're viewing.
     if (!isSuperadmin) {
-      const member = await prisma.clinicMember.findUnique({
-        where: { userId_clinicId: { userId: (req as any).user!.id, clinicId: id } },
-      });
-      if (!member) {
-        const person = await prisma.person.findFirst({
-          where: { userId: (req as any).user!.id, organization: { originalType: 'Clinic', originalId: id } },
-        });
-        if (!person) {
-          return res.status(403).json({ ok: false, error: 'Forbidden' });
-        }
-      }
+      const access = await resolveClinicAccess((req as any).user!.id, id);
+      if (!access) return res.status(403).json({ ok: false, error: 'Forbidden' });
     }
 
     const clinic = await prisma.clinic.findUnique({
@@ -314,9 +300,7 @@ clinicsRouter.patch('/:id', authenticate, async (req: AuthRequest, res) => {
       settings?: ClinicSettingsPayload;
     };
 
-    const membership = await prisma.clinicMember.findUnique({
-      where: { userId_clinicId: { userId: req.user!.id, clinicId: id } },
-    });
+    const membership = await resolveClinicAccess(req.user!.id, id);
 
     if (!membership) {
       return res.status(403).json({ ok: false, error: 'Вы не являетесь участником этой клиники' });
@@ -396,9 +380,7 @@ clinicsRouter.patch('/:id', authenticate, async (req: AuthRequest, res) => {
 clinicsRouter.get('/:id/settings', authenticate, async (req: AuthRequest, res) => {
   try {
     const id = req.params.id as string;
-    const membership = await prisma.clinicMember.findUnique({
-      where: { userId_clinicId: { userId: req.user!.id, clinicId: id } },
-    });
+    const membership = await resolveClinicAccess(req.user!.id, id);
     if (!membership) {
       return res.status(403).json({ ok: false, error: 'Вы не являетесь участником этой клиники' });
     }
@@ -441,9 +423,7 @@ clinicsRouter.get('/:id/settings', authenticate, async (req: AuthRequest, res) =
 clinicsRouter.put('/:id/settings', authenticate, async (req: AuthRequest, res) => {
   try {
     const id = req.params.id as string;
-    const membership = await prisma.clinicMember.findUnique({
-      where: { userId_clinicId: { userId: req.user!.id, clinicId: id } },
-    });
+    const membership = await resolveClinicAccess(req.user!.id, id);
     if (!membership) {
       return res.status(403).json({ ok: false, error: 'Вы не являетесь участником этой клиники' });
     }
@@ -493,15 +473,13 @@ clinicsRouter.post('/:id/invite', authenticate, guardUserCreate, async (req: Aut
   try {
     const id = req.params.id as string;
 
-    const membership = await prisma.clinicMember.findUnique({
-      where: { userId_clinicId: { userId: req.user!.id, clinicId: id } },
-    });
+    const membership = await resolveClinicAccess(req.user!.id, id);
 
     if (!membership) {
       return res.status(403).json({ ok: false, error: 'Вы не являетесь участником этой клиники' });
     }
 
-    if (!['OWNER', 'ADMIN'].includes(membership.role)) {
+    if (!['OWNER', 'ADMIN', 'SUPERADMIN'].includes(membership.role)) {
       return res.status(403).json({ ok: false, error: 'Недостаточно прав для создания приглашений' });
     }
 
