@@ -115,8 +115,11 @@ iamRouter.get('/me/contexts', async (req: AuthRequest, res) => {
       const activeOrgId = req.user.organizationId;
       const activePerson = persons.find((person) => person.organization?.id === activeOrgId);
       const activeRole = activePerson?.personRoles
-        ?.map((personRole) => personRole.role.key)
-        .find((key) => /^(diagnostic_|medical_lab_|dental_lab_|lab_coordinator|dental_technician|cad_designer|ceramist|orthodontic_technician|qc_specialist|lab_finance)/i.test(key));
+        ?.find((personRole) =>
+          personRole.scopeType === 'organization' &&
+          personRole.scopeId === activeOrgId &&
+          /^(diagnostic_|medical_lab_|dental_lab_|lab_coordinator|dental_technician|cad_designer|ceramist|orthodontic_technician|qc_specialist|lab_finance)/i.test(personRole.role.key),
+        )?.role.key;
       if (activePerson?.organization && activeRole) {
         const org = activePerson.organization;
         const scopeType = ({ CLINIC: 'CLINIC', DIAGNOSTIC_CENTER: 'DIAGNOSTIC_CENTER', LABORATORY: 'LABORATORY', SUPPLIER_COMPANY: 'SUPPLIER', SUPPLIER: 'SUPPLIER', ACADEMY: 'ACADEMY', PARTNER: 'PARTNER' } as Record<string, ScopeType>)[org.type];
