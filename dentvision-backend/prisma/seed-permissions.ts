@@ -166,6 +166,20 @@ async function seedE2EPartnerFixtures() {
     if (!persistedUser || !persistedPerson || !persistedPersonRole || !persistedMembership) {
       throw new Error(`E2E partner graph incomplete for ${fixture.email}: user=${Boolean(persistedUser)} person=${Boolean(persistedPerson)} personRole=${Boolean(persistedPersonRole)} membership=${Boolean(persistedMembership)}`);
     }
+    const canonicalVerification = await prisma.personRole.findFirst({
+      where: {
+        personId: person.id,
+        roleId: role.id,
+        scopeType: 'organization',
+        scopeId: organization.id,
+        scopeKey,
+      },
+      select: { id: true },
+    });
+    if (!canonicalVerification) {
+      throw new Error(`Canonical partner PersonRole verification failed for ${fixture.email}: organization=${organization.id} role=${fixture.role}`);
+    }
+
     console.log(`  ✓ partner ${fixture.email} -> ${fixture.role} -> organization:${organization.id}`);
 
 
@@ -184,6 +198,7 @@ function resolveClinicRoleKey(role: string | null | undefined): string | null {
     RECEPTION: 'receptionist',
     CASHIER: 'cashier',
     ACCOUNTANT: 'accountant',
+    LAB: 'lab',
   };
   return aliases[normalized] ?? null;
 }
@@ -264,6 +279,20 @@ async function seedE2EClinicCanonicalContexts() {
         scopeKey,
       },
     });
+
+    const persisted = await prisma.personRole.findFirst({
+      where: {
+        personId: person.id,
+        roleId: role.id,
+        scopeType: 'organization',
+        scopeId: organization.id,
+        scopeKey,
+      },
+      select: { id: true },
+    });
+    if (!persisted) {
+      throw new Error('Canonical clinic PersonRole verification failed for ' + member.user.email);
+    }
 
     console.log('  ✓ clinic ' + member.user.email + ' -> ' + roleKey + ' -> organization:' + organization.id);
   }
