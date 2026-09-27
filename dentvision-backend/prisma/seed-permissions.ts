@@ -121,19 +121,6 @@ async function seedE2EPartnerFixtures() {
     });
     if (!verified) throw new Error(`E2E partner PersonRole was not persisted for ${fixture.email}`);
 
-    const persistedUser = await prisma.user.findUnique({ where: { email: fixture.email }, select: { id: true } });
-    const persistedPerson = await prisma.person.findFirst({
-      where: { userId: user.id, organizationId: organization.id },
-      select: { id: true },
-    });
-    const persistedMembership = fixture.organizationType === 'DIAGNOSTIC_CENTER'
-      ? await prisma.diagnosticCenterMember.findFirst({ where: { userId: user.id }, select: { id: true } })
-      : await prisma.laboratoryMember.findFirst({ where: { userId: user.id }, select: { id: true } });
-    if (!persistedUser || !persistedPerson || !persistedMembership) {
-      throw new Error(`E2E partner graph incomplete for ${fixture.email}: user=${Boolean(persistedUser)} person=${Boolean(persistedPerson)} membership=${Boolean(persistedMembership)}`);
-    }
-    console.log(`  ✓ partner ${fixture.email} -> ${fixture.role} -> organization:${organization.id}`);
-
     // Keep the canonical Organization context and the legacy partner tables
     // in sync. Partner workspaces still resolve their operational scope from
     // DiagnosticCenterMember/LaboratoryMember, so the E2E identity must have
@@ -162,7 +149,26 @@ async function seedE2EPartnerFixtures() {
         update: { role: fixture.role.endsWith('_owner') ? 'admin' : 'technician' },
         create: { id: randomUUID(), labId: laboratory.id, userId: user.id, role: fixture.role.endsWith('_owner') ? 'admin' : 'technician' },
       });
+    }    }
+
+    const persistedUser = await prisma.user.findUnique({ where: { email: fixture.email }, select: { id: true } });
+    const persistedPerson = await prisma.person.findFirst({
+      where: { userId: user.id, organizationId: organization.id },
+      select: { id: true },
+    });
+    const persistedPersonRole = await prisma.personRole.findFirst({
+      where: { personId: person.id, roleId: role.id, scopeType: 'organization', scopeId: organization.id, scopeKey },
+      select: { id: true },
+    });
+    const persistedMembership = fixture.organizationType === 'DIAGNOSTIC_CENTER'
+      ? await prisma.diagnosticCenterMember.findFirst({ where: { userId: user.id }, select: { id: true } })
+      : await prisma.laboratoryMember.findFirst({ where: { userId: user.id }, select: { id: true } });
+    if (!persistedUser || !persistedPerson || !persistedPersonRole || !persistedMembership) {
+      throw new Error(`E2E partner graph incomplete for ${fixture.email}: user=${Boolean(persistedUser)} person=${Boolean(persistedPerson)} personRole=${Boolean(persistedPersonRole)} membership=${Boolean(persistedMembership)}`);
     }
+    console.log(`  ✓ partner ${fixture.email} -> ${fixture.role} -> organization:${organization.id}`);
+
+
   }
 }
 
