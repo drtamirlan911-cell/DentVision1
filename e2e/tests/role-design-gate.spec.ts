@@ -216,8 +216,28 @@ async function inspectForms(page: Page, role: Role, route: string) {
 }
 
 async function discoverRoutes(page: Page): Promise<string[]> {
-  const hrefs=await page.locator('a[href]').evaluateAll(as=>as.map(a=>(a as HTMLAnchorElement).href).filter(h=>h.startsWith(location.origin)));
-  return [...new Set(hrefs.map(h=>{const u=new URL(h);return u.pathname+u.search}))].filter(r=>!/\/sign\/|\/plan\/|\/book\//.test(r));
+  // Route navigation can still be committing when a role page immediately
+  // starts a discovery pass. Retry the DOM read instead of turning a harmless
+  // execution-context replacement into a release-gate failure.
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    try {
+      await page.waitForLoadState('domcontentloaded', { timeout: 5000 }).catch(() => {});
+      const hrefs = await page.locator('a[href]').evaluateAll((as) =>
+        as.map((a) => (a as HTMLAnchorElement).href).filter((h) => h.startsWith(location.origin)),
+      );
+      return [...new Set(hrefs.map((h) => {
+        const u = new URL(h);
+        return u.pathname + u.search;
+      }))].filter((r) => !/\/sign\/|\/plan\/|\/book\//.test(r));
+    } catch (error) {
+      const message = String(error);
+      if (!/execution context was destroyed|frame was detached|target page, context or browser has been closed/i.test(message) || attempt === 2) {
+        throw error;
+      }
+      await page.waitForTimeout(150);
+    }
+  }
+  return [];
 }
 
 function safeRouteName(value:string){ return value.replace(/[^a-zA-Z0-9_-]+/g,'_').replace(/^_+|_+$/g,'') || '_home'; }
