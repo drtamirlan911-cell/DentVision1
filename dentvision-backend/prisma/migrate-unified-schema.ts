@@ -279,7 +279,11 @@ async function migratePersons() {
           originalId: dm.id,
         },
       });
-      await assignRole(person.id, 'doctor', 'organization', org?.id ?? undefined);
+      const existingPartnerRole = org ? await prisma.personRole.findFirst({ where: { personId: person.id, scopeType: 'organization', scopeId: org.id, role: { key: { startsWith: 'diagnostic_' } } }, select: { id: true } }) : null;
+      if (!existingPartnerRole) {
+        const diagnosticRoleKey = dm.role === 'admin' ? 'diagnostic_owner' : dm.role === 'operator' ? 'diagnostic_operator' : 'diagnostic_reception';
+        await assignRole(person.id, diagnosticRoleKey, 'organization', org?.id ?? undefined);
+      }
   });
   console.log(`  ✓ ${dcMembersMigrated} diagnostic center members migrated`);
 
@@ -299,7 +303,8 @@ async function migratePersons() {
           originalId: lm.id,
         },
       });
-      await assignRole(person.id, 'lab', 'organization', org?.id ?? undefined);
+      const existingPartnerRole = org ? await prisma.personRole.findFirst({ where: { personId: person.id, scopeType: 'organization', scopeId: org.id, role: { key: { in: ['medical_lab_owner', 'medical_lab_admin', 'medical_lab_technician', 'dental_lab_owner', 'dental_lab_admin', 'dental_technician', 'lab_coordinator'] } } }, select: { id: true } }) : null;
+      if (!existingPartnerRole) await assignRole(person.id, 'lab', 'organization', org?.id ?? undefined);
   });
   console.log(`  ✓ ${labMembersMigrated} laboratory members migrated`);
 }
@@ -357,11 +362,9 @@ async function main() {
   await migrateSupport();
 
   if (failures.length) {
-    // Loud but not fatal: this runs in the deploy's buildCommand, and refusing
-    // to deploy the application because some rows could not be backfilled is
-    // the worse outcome. The run is idempotent — the next deploy retries them.
-    console.error(`\n=== Migration finished with ${failures.length} skipped row(s) ===`);
+    console.error(`\n=== Migration finished with ${failures.length} failed row(s) ===`);
     for (const failure of failures) console.error(`  ✗ ${failure}`);
+    throw new Error('CANONICAL_BACKFILL_INCOMPLETE');
   } else {
     console.log('\n=== Migration complete ===');
   }
