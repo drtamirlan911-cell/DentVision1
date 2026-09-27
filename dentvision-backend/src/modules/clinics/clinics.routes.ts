@@ -373,6 +373,10 @@ clinicsRouter.patch('/:id', authenticate, async (req: AuthRequest, res) => {
       },
     });
 
+    // Repair legacy clinics as they are touched: every ClinicMember must have
+    // the canonical PersonRole required by the active workspace contract.
+    await syncPersonFromClinicMember(id, req.user!.id, membership.role);
+
     const response: ApiResponse = {
       ok: true,
       data: {
