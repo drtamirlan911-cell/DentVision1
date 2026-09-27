@@ -72,6 +72,40 @@ iamRouter.get('/me/contexts', async (req: AuthRequest, res) => {
     const persons = await prisma.person.findMany({ where: { userId }, include: { organization: { select: { id: true, name: true, type: true, logo: true, originalId: true } }, personRoles: { include: { role: true } } } });
     const contexts = buildWorkspaceContexts({ memberships, supplierMemberships, lecturer, diagnosticCenterMemberships, laboratoryMemberships, persons });
 
+    // Canonical partner workspaces must remain discoverable from PersonRole
+    // even when a legacy DiagnosticCenterMember/LaboratoryMember row is absent
+    // or temporarily stale. Only an organization-scoped PersonRole for this
+    // exact user + organization can materialize the context.
+    const partnerRolePattern = /^(diagnostic_|medical_lab_|dental_lab_|lab_coordinator|dental_technician|cad_designer|ceramist|orthodontic_technician|qc_specialist|lab_finance)/i;
+    for (const person of persons) {
+      const org = person.organization;
+      if (!org) continue;
+      const scopedRole = person.personRoles
+        ?.find((personRole) =>
+          personRole.scopeType === 'organization' &&
+          personRole.scopeId === org.id &&
+          partnerRolePattern.test(personRole.role.key),
+        )?.role.key;
+      if (!scopedRole) continue;
+      const scopeType = ({ DIAGNOSTIC_CENTER: 'DIAGNOSTIC_CENTER', LABORATORY: 'LABORATORY' } as Record<string, ScopeType>)[org.type];
+      if (!scopeType) continue;
+      const scopeId = org.originalId || org.id;
+      const id = scopeType + ':' + scopeId;
+      if (!contexts.some((context) => context.id === id)) {
+        contexts.push({
+          id,
+          scopeType,
+          scopeId,
+          organizationId: org.id,
+          name: org.name,
+          roleKey: scopedRole,
+          roleLabel: roleLabelFor(scopedRole),
+          personType: person.personType,
+          logo: org.logo ?? null,
+        });
+      }
+    }
+
     // The active JWT already proves the user's canonical organization context.
     // Keep that context visible even if a legacy partner membership is missing
     // or was created after the Person graph. This is a read-model repair path,
