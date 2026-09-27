@@ -13,7 +13,7 @@ SET "scopeKey" = CASE
     THEN 'organization:' || "scopeId"
   WHEN LOWER(COALESCE("scopeType", '')) = 'platform'
     THEN 'platform'
-  ELSE COALESCE(LOWER("scopeType"), 'platform')
+  ELSE 'platform'
 END;
 
 DROP INDEX IF EXISTS "person_roles_personId_roleId_key";
