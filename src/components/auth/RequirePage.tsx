@@ -50,7 +50,15 @@ export function RequirePage({
   const pageId = page || pageIdFromPath(location.pathname)
   const allowed = iam.pages
 
-  // Supplier is a workspace, not a clinic/platform role. It must be reachable only\n  // while the authenticated session is actually scoped to a supplier workspace;\n  // otherwise /supplier becomes a cross-context data boundary bypass.\n  const supplierWorkspace = pageId === 'supplier' && (\n    String(activeWorkspace?.scopeType || '').toUpperCase() === 'SUPPLIER' ||\n    String(effectiveRole || '').toUpperCase() === 'SUPERADMIN'\n  )\n\n  if (supplierWorkspace || iam.canAccessPage(pageId)) {
+  // Supplier is a workspace, not a clinic/platform role. It must be reachable only
+  // while the authenticated session is actually scoped to a supplier workspace;
+  // otherwise /supplier becomes a cross-context data boundary bypass.
+  const supplierWorkspace = pageId === 'supplier' && (
+    String(activeWorkspace?.scopeType || '').toUpperCase() === 'SUPPLIER' ||
+    String(effectiveRole || '').toUpperCase() === 'SUPERADMIN'
+  )
+
+  if (supplierWorkspace || iam.canAccessPage(pageId)) {
     return <>{children}</>
   }
 
