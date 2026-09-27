@@ -1,10 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const {
-  userFindUnique, organizationFindFirst, personFindFirst, clinicMemberFindUnique, clinicMemberFindFirst,
+  userFindUnique, organizationFindFirst, organizationFindUnique, personFindFirst, clinicMemberFindUnique, clinicMemberFindFirst,
 } = vi.hoisted(() => ({
   userFindUnique: vi.fn(),
   organizationFindFirst: vi.fn(),
+  organizationFindUnique: vi.fn(),
   personFindFirst: vi.fn(),
   clinicMemberFindUnique: vi.fn(),
   clinicMemberFindFirst: vi.fn(),
@@ -13,7 +14,7 @@ const {
 vi.mock('./prisma.js', () => ({
   default: {
     user: { findUnique: userFindUnique },
-    organization: { findFirst: organizationFindFirst },
+    organization: { findFirst: organizationFindFirst, findUnique: organizationFindUnique },
     person: { findFirst: personFindFirst },
     clinicMember: { findUnique: clinicMemberFindUnique, findFirst: clinicMemberFindFirst },
   },
@@ -27,6 +28,7 @@ const USER_ID = 'user-1';
 beforeEach(() => {
   userFindUnique.mockReset();
   organizationFindFirst.mockReset();
+  organizationFindUnique.mockReset();
   personFindFirst.mockReset();
   clinicMemberFindUnique.mockReset();
   clinicMemberFindFirst.mockReset();
@@ -47,8 +49,9 @@ describe('assertOrgAccess', () => {
     expect(clinicMemberFindUnique).not.toHaveBeenCalled();
   });
 
-  it('falls back to legacy ClinicMember when no Person row exists', async () => {
+  it('falls back to legacy ClinicMember only when the canonical Organization does not exist', async () => {
     personFindFirst.mockResolvedValueOnce(null);
+    organizationFindUnique.mockResolvedValueOnce(null);
     clinicMemberFindUnique.mockResolvedValueOnce({ id: 'member-1' });
     const result = await assertOrgAccess({ id: USER_ID, role: 'DOCTOR' } as any, CLINIC_ID);
     expect(result).toBe(true);
@@ -56,6 +59,7 @@ describe('assertOrgAccess', () => {
 
   it('rejects a user with neither a Person nor a ClinicMember row', async () => {
     personFindFirst.mockResolvedValueOnce(null);
+    organizationFindUnique.mockResolvedValueOnce(null);
     clinicMemberFindUnique.mockResolvedValueOnce(null);
     const result = await assertOrgAccess({ id: USER_ID, role: 'DOCTOR' } as any, CLINIC_ID);
     expect(result).toBe(false);
@@ -84,17 +88,14 @@ describe('resolveClinicAccess', () => {
     expect(result).toEqual({ role: 'OWNER' });
   });
 
-  it('falls through to the legacy role when the Person carries no PersonRole', async () => {
-    // This used to default to org_admin -> ADMIN, and the old test asserted
-    // that as intended behaviour. It is not: grantDiagnosticsAccess creates a
-    // Person *without* a role for `radiologist`/`operator` precisely so they
-    // fall back to the narrower legacy check, and the default took that away.
+  it('fails closed when the canonical Organization exists but the Person carries no PersonRole', async () => {
     userFindUnique.mockResolvedValueOnce({ role: 'DOCTOR' });
     organizationFindFirst.mockResolvedValueOnce({ id: 'org-1' });
     personFindFirst.mockResolvedValueOnce({ personRoles: [] });
     clinicMemberFindUnique.mockResolvedValueOnce({ role: 'ASSISTANT' });
     const result = await resolveClinicAccess(USER_ID, CLINIC_ID);
-    expect(result).toEqual({ role: 'ASSISTANT' });
+    expect(result).toBeNull();
+    expect(clinicMemberFindUnique).not.toHaveBeenCalled();
   });
 
   it('denies rather than guessing when a Person has no role and no legacy membership', async () => {
@@ -115,13 +116,14 @@ describe('resolveClinicAccess', () => {
     expect(await resolveClinicAccess(USER_ID, CLINIC_ID)).toBeNull();
   });
 
-  it('falls back to the legacy ClinicMember role when there is no Person row', async () => {
+  it('fails closed when a canonical Organization exists but no Person row exists', async () => {
     userFindUnique.mockResolvedValueOnce({ role: 'DOCTOR' });
     organizationFindFirst.mockResolvedValueOnce({ id: 'org-1' });
     personFindFirst.mockResolvedValueOnce(null);
     clinicMemberFindUnique.mockResolvedValueOnce({ role: 'LAB' });
     const result = await resolveClinicAccess(USER_ID, CLINIC_ID);
-    expect(result).toEqual({ role: 'LAB' });
+    expect(result).toBeNull();
+    expect(clinicMemberFindUnique).not.toHaveBeenCalled();
   });
 
   it('falls back to legacy ClinicMember when the Organization row does not exist yet', async () => {
