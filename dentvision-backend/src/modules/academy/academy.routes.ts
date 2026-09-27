@@ -66,6 +66,24 @@ academiesRouter.post('/register', async (req: AuthRequest, res) => {
         contacts: { role: 'OWNER', academyId: academy.id } as any,
       },
     });
+
+    // Canonical IAM: Academy registration must create the organization-scoped
+    // owner assignment. A Person without PersonRole can be displayed by the
+    // context read model but cannot activate the workspace under Master Spec v5.
+    const ownerRole = await prisma.role.findUnique({ where: { key: 'owner' } });
+    if (!ownerRole) throw new Error('Canonical IAM role owner is missing');
+    const ownerPerson = await prisma.person.findUnique({
+      where: { originalType_originalId: { originalType: 'AcademyOwner', originalId: academy.id + ':' + req.user!.id } },
+      select: { id: true },
+    });
+    if (!ownerPerson) throw new Error('Academy owner Person was not created');
+    const scopeKey = 'organization:' + organization.id;
+    await prisma.personRole.upsert({
+      where: { personId_roleId_scopeKey: { personId: ownerPerson.id, roleId: ownerRole.id, scopeKey } },
+      update: { scopeType: 'organization', scopeId: organization.id },
+      create: { personId: ownerPerson.id, roleId: ownerRole.id, scopeType: 'organization', scopeId: organization.id, scopeKey },
+    });
+
     const legal = await ensureLegalTrustPackage({
       userId: req.user!.id, organizationId: organization.id, type: 'ACADEMY', legalName: String(legalName || academyName),
       bin: bin || null, director: [req.user!.firstName, req.user!.lastName].filter(Boolean).join(' ') || null,
