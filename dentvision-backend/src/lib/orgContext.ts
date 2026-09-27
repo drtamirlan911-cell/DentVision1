@@ -61,6 +61,17 @@ export async function resolveAnyClinicMembership(userId: string): Promise<{ clin
     const role = key ? PERSON_ROLE_MAP[key] : undefined;
     if (role) return { clinicId: person.organization.originalId, role };
   }
+
+  // Do not let a stale/roleless canonical Person fall through to an unrelated
+  // legacy clinic membership. If the user has canonical clinic Persons, only
+  // those organizations are eligible; legacy fallback is reserved for users
+  // who have not entered the canonical clinic model yet.
+  const canonicalClinicPerson = await prisma.person.findFirst({
+    where: { userId, organization: { type: 'CLINIC' } },
+    select: { id: true },
+  });
+  if (canonicalClinicPerson) return null;
+
   const member = await prisma.clinicMember.findFirst({ where: { userId }, orderBy: { joinedAt: 'asc' } });
   return member ? { clinicId: member.clinicId, role: member.role } : null;
 }
