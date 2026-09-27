@@ -106,6 +106,70 @@ iamRouter.get('/me/contexts', async (req: AuthRequest, res) => {
       }
     }
 
+    // Read the canonical PersonRole relation directly as a second read-model path.
+    // This remains fail-closed: only an organization-scoped partner PersonRole can
+    // materialize a partner workspace; legacy memberships alone never authorize it.
+    const canonicalPartnerAssignments = await prisma.personRole.findMany({
+      where: {
+        scopeType: 'organization',
+        scopeId: { not: null },
+        person: { userId },
+        role: { key: { startsWith: 'diagnostic_' } },
+      },
+      include: {
+        role: true,
+        person: {
+          include: { organization: { select: { id: true, name: true, type: true, logo: true, originalId: true } } },
+        },
+      },
+    });
+    const canonicalAssignments = await prisma.personRole.findMany({
+      where: {
+        scopeType: 'organization',
+        scopeId: { not: null },
+        person: { userId },
+        role: {
+          key: {
+            in: [
+              'medical_lab_owner', 'medical_lab_admin', 'medical_lab_manager', 'medical_lab_reception',
+              'medical_lab_technician', 'medical_lab_validator', 'medical_lab_doctor', 'medical_lab_finance',
+              'medical_lab_quality', 'dental_lab_owner', 'dental_lab_admin', 'dental_lab_manager',
+              'lab_coordinator', 'dental_technician', 'cad_designer', 'ceramist', 'orthodontic_technician',
+              'qc_specialist', 'lab_finance',
+            ],
+          },
+        },
+      },
+      include: {
+        role: true,
+        person: {
+          include: { organization: { select: { id: true, name: true, type: true, logo: true, originalId: true } } },
+        },
+      },
+    });
+    for (const assignment of [...canonicalPartnerAssignments, ...canonicalAssignments]) {
+      const org = assignment.person.organization;
+      if (!org || !assignment.scopeId) continue;
+      if (assignment.scopeId !== org.id) continue;
+      const scopeType = ({ DIAGNOSTIC_CENTER: 'DIAGNOSTIC_CENTER', LABORATORY: 'LABORATORY' } as Record<string, ScopeType>)[org.type];
+      if (!scopeType) continue;
+      const scopeId = org.originalId || org.id;
+      const id = scopeType + ':' + scopeId;
+      if (!contexts.some((context) => context.id === id)) {
+        contexts.push({
+          id,
+          scopeType,
+          scopeId,
+          organizationId: org.id,
+          name: org.name,
+          roleKey: assignment.role.key,
+          roleLabel: roleLabelFor(assignment.role.key),
+          personType: assignment.person.personType,
+          logo: org.logo ?? null,
+        });
+      }
+    }
+
     // The active JWT already proves the user's canonical organization context.
     // Keep that context visible even if a legacy partner membership is missing
     // or was created after the Person graph. This is a read-model repair path,
