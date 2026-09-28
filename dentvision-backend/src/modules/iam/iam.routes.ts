@@ -155,7 +155,18 @@ iamRouter.get('/me/contexts', async (req: AuthRequest, res) => {
       if (!scopeType) continue;
       const scopeId = org.originalId || org.id;
       const id = scopeType + ':' + scopeId;
-      if (!contexts.some((context) => context.id === id)) {
+      const existing = contexts.find((context) => context.id === id);
+      if (existing) {
+        // Canonical PersonRole wins over the coarse legacy member role.
+        // Keep the same workspace identity but repair its role metadata so the
+        // client never observes a stale "operator/technician" role after the
+        // canonical organization graph has been seeded.
+        existing.organizationId = org.id;
+        existing.roleKey = assignment.role.key;
+        existing.roleLabel = roleLabelFor(assignment.role.key);
+        existing.personType = assignment.person.personType;
+        existing.logo = org.logo ?? null;
+      } else {
         contexts.push({
           id,
           scopeType,
