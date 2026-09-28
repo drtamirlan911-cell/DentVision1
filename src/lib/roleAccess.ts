@@ -13,6 +13,7 @@ export const PATH_PAGE_ID: Record<string, string> = {
   '/analytics': 'analytics', '/admin': 'admin', '/audit': 'audit', '/agent-activity': 'agent-activity',
   '/ai-approvals': 'ai-approvals', '/backup': 'backup', '/shop': 'shop', '/school': 'school',
   '/settings': 'settings', '/bi': 'bi', '/diagnostics': 'diagnostics', '/supplier': 'supplier',
+  '/notifications': 'notifications', '/help': 'help', '/profile': 'profile',
   '/diagnostics/referrals': 'diagnostics-referrals', '/diagnostics/centers': 'diagnostics-centers',
   '/diagnostics/laboratories': 'diagnostics-labs', '/diagnostics/labs': 'diagnostics-labs',
   '/diagnostics/results': 'diagnostics-results', '/diagnostics/calendar': 'diagnostics-calendar',
