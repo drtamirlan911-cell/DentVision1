@@ -270,16 +270,18 @@ test('partner context switch applies the scoped application role to the session 
     });
     expect(contextsResponse.status, item.email + ': contexts endpoint failed').toBe(200);
 
-    const target = await expect.poll(async () => {
+    let target: { scopeType?: string; scopeId?: string; roleKey?: string } | undefined;
+    await expect.poll(async () => {
       const response = await page.evaluate(async () => {
         const current = await fetch('/api/iam/me/contexts', { credentials: 'include' });
         return { status: current.status, body: await current.json().catch(() => ({})) };
       });
-      if (response.status !== 200) return undefined;
+      if (response.status !== 200) return false;
       const contexts = response.body?.data?.contexts || [];
-      return contexts.find((context: { roleKey?: string }) =>
+      target = contexts.find((context: { roleKey?: string }) =>
         String(context.roleKey || '').toLowerCase().split(',').includes(item.roleKey),
       );
+      return Boolean(target);
     }, {
       timeout: 5000,
       intervals: [100, 250, 500, 1000],
