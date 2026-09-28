@@ -118,9 +118,18 @@ test.describe('DentVision browser UX coverage', () => {
     for (const route of ROUTES) {
       await page.goto(`${BASE_URL}${route}`, { waitUntil: 'domcontentloaded', timeout: 20000 });
       await page.waitForTimeout(100);
-      const hrefs = await page.locator('a[href]').evaluateAll((anchors) => anchors
-        .map((a) => (a as HTMLAnchorElement).href)
-        .filter((href) => href.startsWith(window.location.origin)));
+      let hrefs: string[] = [];
+      for (const delay of [100, 250, 500, 1000]) {
+        await page.waitForTimeout(delay);
+        try {
+          hrefs = await page.locator('a[href]').evaluateAll((anchors) => anchors
+            .map((a) => (a as HTMLAnchorElement).href)
+            .filter((href) => href.startsWith(window.location.origin)));
+          break;
+        } catch (error) {
+          if (!/Execution context was destroyed|Target page, context or browser has been closed/i.test(String(error))) throw error;
+        }
+      }
 
       for (const href of hrefs) {
         const targetUrl = new URL(href);
