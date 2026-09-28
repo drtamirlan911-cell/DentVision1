@@ -216,8 +216,24 @@ async function inspectForms(page: Page, role: Role, route: string) {
 }
 
 async function discoverRoutes(page: Page): Promise<string[]> {
-  const hrefs=await page.locator('a[href]').evaluateAll(as=>as.map(a=>(a as HTMLAnchorElement).href).filter(h=>h.startsWith(location.origin)));
-  return [...new Set(hrefs.map(h=>{const u=new URL(h);return u.pathname+u.search}))].filter(r=>!/\/sign\/|\/plan\/|\/book\//.test(r));
+  // Route transitions can still be settling after domcontentloaded in the SPA.
+  // Retry the DOM read instead of letting an in-flight navigation destroy the
+  // evaluation context and abort the entire visual evidence run.
+  for (const delay of [100, 250, 500, 1000]) {
+    await page.waitForTimeout(delay);
+    try {
+      const hrefs = await page.locator('a[href]').evaluateAll(as =>
+        as.map(a => (a as HTMLAnchorElement).href).filter(h => h.startsWith(location.origin)),
+      );
+      return [...new Set(hrefs.map(h => {
+        const u = new URL(h);
+        return u.pathname + u.search;
+      }))].filter(r => !/\/sign\/|\/plan\/|\/book\//.test(r));
+    } catch (error) {
+      if (!/Execution context was destroyed|Target page, context or browser has been closed/i.test(String(error))) throw error;
+    }
+  }
+  return [];
 }
 
 function safeRouteName(value:string){ return value.replace(/[^a-zA-Z0-9_-]+/g,'_').replace(/^_+|_+$/g,'') || '_home'; }
