@@ -270,11 +270,21 @@ test('partner context switch applies the scoped application role to the session 
     });
     expect(contextsResponse.status, item.email + ': contexts endpoint failed').toBe(200);
 
-    const contexts = contextsResponse.body?.data?.contexts || [];
-    const target = contexts.find((context: { roleKey?: string }) =>
-      String(context.roleKey || '').toLowerCase().split(',').includes(item.roleKey),
-    );
-    expect(target, item.email + ': scoped partner context was not seeded; returned contexts=' + JSON.stringify(contexts)).toBeTruthy();
+    const target = await expect.poll(async () => {
+      const response = await page.evaluate(async () => {
+        const current = await fetch('/api/iam/me/contexts', { credentials: 'include' });
+        return { status: current.status, body: await current.json().catch(() => ({})) };
+      });
+      if (response.status !== 200) return undefined;
+      const contexts = response.body?.data?.contexts || [];
+      return contexts.find((context: { roleKey?: string }) =>
+        String(context.roleKey || '').toLowerCase().split(',').includes(item.roleKey),
+      );
+    }, {
+      timeout: 5000,
+      intervals: [100, 250, 500, 1000],
+      message: item.email + ': scoped partner context was not exposed by /api/iam/me/contexts',
+    }).toBeTruthy();
 
     const switchResponse = await page.evaluate(async (context) => {
       const response = await fetch('/api/iam/switch-context', {
