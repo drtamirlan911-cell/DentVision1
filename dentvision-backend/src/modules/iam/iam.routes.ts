@@ -350,9 +350,26 @@ iamRouter.post('/switch-context', async (req: AuthRequest, res) => {
           await writeAuditLog({ userId: user.id, action: 'auth.switch_context', entity: 'lecturer', entityId: scopeId });
           return res.json({ ok: true, data: tokens } satisfies ApiResponse);
         }
-        // A lecturer without an Academy organization remains a legacy-only
-        // profile and is handled below by the final deny rather than inventing
-        // an organization scope.
+        // A self-registered lecturer may exist before an Academy organization is
+        // attached. Per the unified-schema deprecation contract, keep the legacy
+        // lecturer context only when no canonical Academy organization exists.
+        const legacyLecturer = await prisma.lecturer.findFirst({
+          where: { id: scopeId, userId: user.id },
+          select: { id: true },
+        });
+        if (legacyLecturer) {
+          const tokens = generateTokens({
+            ...base,
+            role: userRoleForPartnerRole('lecturer', user.role),
+            lecturerId: legacyLecturer.id,
+            organizationType: 'LECTURER',
+            personType: 'LECTURER',
+          });
+          await writeAuditLog({ userId: user.id, action: 'auth.switch_context', entity: 'lecturer', entityId: legacyLecturer.id });
+          return res.json({ ok: true, data: tokens } satisfies ApiResponse);
+        }
+        // A lecturer without an Academy organization and without a matching
+        // lecturer profile is denied rather than inventing a scope.
       }
     }
     if (scopeType === 'LABORATORY') {
