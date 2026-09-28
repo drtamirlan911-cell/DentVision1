@@ -83,6 +83,7 @@ jobs:
           --health-retries 5
     env:
       NODE_ENV: development
+      SEED_E2E_FIXTURES: 'true'
       VISUAL_EVIDENCE_DIR: e2e/visual-evidence/${{ github.run_id }}
       DATABASE_URL: postgresql://postgres:postgres@localhost:5432/dentvision?connection_limit=20&pool_timeout=30
       RATE_LIMIT_API_MAX: '100000'
