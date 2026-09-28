@@ -237,10 +237,27 @@ export async function activateClinicSubscriptionFromPayment(
   // Notify owners/admins (batched in-app create). Runs on the same `db` as the
   // rest of this function so the notification never survives a rollback of
   // the subscription it claims was activated.
-  const members = await db.clinicMember.findMany({
-    where: { clinicId: opts.clinicId, role: { in: ['OWNER', 'ADMIN'] } },
-    select: { userId: true },
+  const organization = await db.organization.findFirst({
+    where: { originalType: 'Clinic', originalId: opts.clinicId },
+    select: { id: true },
   });
+  const recipients = organization
+    ? await db.person.findMany({
+        where: {
+          organizationId: organization.id,
+          userId: { not: null },
+          personRoles: {
+            some: {
+              scopeType: 'organization',
+              scopeId: organization.id,
+              role: { key: { in: ['owner', 'org_owner', 'admin', 'org_admin'] } },
+            },
+          },
+        },
+        select: { userId: true },
+      })
+    : [];
+  const members = recipients.map((p) => ({ userId: p.userId! }));
   const title = 'Подписка активирована';
   const message =
     opts.saasPlan === 'starter'
@@ -314,10 +331,26 @@ export async function notifyClinicOwners(
   link = '/crm/billing',
 ) {
   const { dispatchNotifications } = await import('../notifications/dispatch.service.js');
-  const members = await prisma.clinicMember.findMany({
-    where: { clinicId, role: { in: ['OWNER', 'ADMIN'] } },
-    select: { userId: true },
+  const organization = await prisma.organization.findFirst({
+    where: { originalType: 'Clinic', originalId: clinicId },
+    select: { id: true },
   });
+  const members = organization
+    ? (await prisma.person.findMany({
+        where: {
+          organizationId: organization.id,
+          userId: { not: null },
+          personRoles: {
+            some: {
+              scopeType: 'organization',
+              scopeId: organization.id,
+              role: { key: { in: ['owner', 'org_owner', 'admin', 'org_admin'] } },
+            },
+          },
+        },
+        select: { userId: true },
+      })).map((p) => ({ userId: p.userId! }))
+    : [];
   if (members.length > 0) {
     await dispatchNotifications(
       members.map((m) => ({
