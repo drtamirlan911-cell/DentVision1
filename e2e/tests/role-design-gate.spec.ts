@@ -2,6 +2,7 @@ import { test, expect, type Page } from '@playwright/test';
 import fs from 'node:fs/promises';
 
 const BASE_URL = process.env.PLAYWRIGHT_UI_URL || 'http://localhost:3000';
+const API_BASE_URL = process.env.VITE_API_URL || 'http://localhost:3001';
 const VISUAL_EVIDENCE_ROOT = process.env.VISUAL_EVIDENCE_DIR || 'e2e/visual-evidence';
 const PASSWORD = 'Test1234!';
 
@@ -280,18 +281,28 @@ test('partner context switch applies the scoped application role to the session 
 
   for (const item of cases) {
     await login(page, item.email);
-    const contextsResponse = await page.evaluate(async () => {
-      const response = await fetch('/api/iam/me/contexts', { credentials: 'include' });
+    const contextsResponse = await page.evaluate(async (apiBase) => {
+      const stored = sessionStorage.getItem('dv_tokens');
+      const token = stored ? JSON.parse(stored)?.access : null;
+      const response = await fetch(apiBase + '/api/iam/me/contexts', {
+        credentials: 'include',
+        headers: token ? { Authorization: 'Bearer ' + token } : {},
+      });
       return { status: response.status, body: await response.json().catch(() => ({})) };
-    });
+    }, API_BASE_URL);
     expect(contextsResponse.status, item.email + ': contexts endpoint failed').toBe(200);
 
     let target: { scopeType?: string; scopeId?: string; roleKey?: string } | undefined;
     await expect.poll(async () => {
-      const response = await page.evaluate(async () => {
-        const current = await fetch('/api/iam/me/contexts', { credentials: 'include' });
+      const response = await page.evaluate(async (apiBase) => {
+        const stored = sessionStorage.getItem('dv_tokens');
+        const token = stored ? JSON.parse(stored)?.access : null;
+        const current = await fetch(apiBase + '/api/iam/me/contexts', {
+          credentials: 'include',
+          headers: token ? { Authorization: 'Bearer ' + token } : {},
+        });
         return { status: current.status, body: await current.json().catch(() => ({})) };
-      });
+      }, API_BASE_URL);
       if (response.status !== 200) return false;
       const contexts = response.body?.data?.contexts || [];
       target = contexts.find((context: { roleKey?: string }) =>
@@ -304,15 +315,20 @@ test('partner context switch applies the scoped application role to the session 
       message: item.email + ': scoped partner context was not exposed by /api/iam/me/contexts',
     }).toBeTruthy();
 
-    const switchResponse = await page.evaluate(async (context) => {
-      const response = await fetch('/api/iam/switch-context', {
+    const switchResponse = await page.evaluate(async ({ apiBase, context }) => {
+      const stored = sessionStorage.getItem('dv_tokens');
+      const token = stored ? JSON.parse(stored)?.access : null;
+      const response = await fetch(apiBase + '/api/iam/switch-context', {
         method: 'POST',
         credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: 'Bearer ' + token } : {}),
+        },
         body: JSON.stringify({ scopeType: context.scopeType, scopeId: context.scopeId }),
       });
       return { status: response.status, body: await response.json().catch(() => ({})) };
-    }, target);
+    }, { apiBase: API_BASE_URL, context: target });
 
     expect(switchResponse.status, item.email + ': context switch failed').toBe(200);
     const accessToken = switchResponse.body?.data?.accessToken;
