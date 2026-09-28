@@ -14,16 +14,17 @@ vi.mock('./prisma.js', () => ({
 
 import { resolveUserPermissions } from './resolvePermissions.js';
 
-function makePerson(keys: string[], scopedRoles: Array<{ scopeId?: string | null; keys: string[] }> = []) {
+function makePerson(keys: string[], scopeId = 'org-1', scopedRoles: Array<{ scopeId?: string | null; keys: string[] }> = []) {
   return {
     personRoles: [
       {
-        role: {
-          permissions: keys.map((key) => ({ permission: { key } })),
-        },
-      },
-      ...scopedRoles.map(({ scopeId = null, keys: roleKeys }) => ({
+        scopeType: scopeId ? 'organization' : null,
         scopeId,
+        role: { permissions: keys.map((key) => ({ permission: { key } })) },
+      },
+      ...scopedRoles.map(({ scopeId: roleScopeId = null, keys: roleKeys }) => ({
+        scopeType: roleScopeId ? 'organization' : null,
+        scopeId: roleScopeId,
         role: { permissions: roleKeys.map((key) => ({ permission: { key } })) },
       })),
     ],
