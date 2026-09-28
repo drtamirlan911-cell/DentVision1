@@ -58,7 +58,13 @@ export function RequirePage({
     String(effectiveRole || '').toUpperCase() === 'SUPERADMIN'
   )
 
-  if (supplierWorkspace || iam.canAccessPage(pageId)) {
+  // Supplier is a separate organization workspace. Never let a clinic,
+  // platform, or generic role's page permissions accidentally expose it.
+  if (pageId === 'supplier' && !supplierWorkspace) {
+    return <Navigate to={firstAllowedCrmPath(allowed)} replace />
+  }
+
+  if (iam.canAccessPage(pageId)) {
     return <>{children}</>
   }
 
