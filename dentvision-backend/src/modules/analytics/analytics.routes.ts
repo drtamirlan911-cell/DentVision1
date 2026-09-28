@@ -174,12 +174,11 @@ analyticsRouter.get('/doctors', async (req: AuthRequest, res) => {
       select: {
         userId: true,
         fullName: true,
-        user: { select: { id: true, firstName: true, lastName: true } },
       },
       orderBy: { createdAt: 'asc' },
     });
 
-    const doctorIds = persons.map((p) => p.user?.id || p.userId).filter((id): id is string => Boolean(id));
+    const doctorIds = persons.map((p) => p.userId).filter((id): id is string => Boolean(id));
 
     const appointmentCounts = await prisma.appointment.groupBy({
       by: ['doctorId'],
@@ -199,9 +198,9 @@ analyticsRouter.get('/doctors', async (req: AuthRequest, res) => {
     }
 
     const utilization = persons.map((p) => {
-      const doctorId = p.user?.id || p.userId!;
-      const [firstName, ...lastParts] = (p.user?.firstName || p.fullName || '').split(' ');
-      const lastName = p.user?.lastName || lastParts.join(' ');
+      const doctorId = p.userId!;
+      const [firstName, ...lastParts] = (p.fullName || '').split(' ');
+      const lastName = lastParts.join(' ');
       return {
         doctorId,
         firstName,
