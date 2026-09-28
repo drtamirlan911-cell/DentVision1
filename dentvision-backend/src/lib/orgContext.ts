@@ -40,7 +40,32 @@ export async function assertOrgAccess(user: AuthUser, orgId: string): Promise<bo
 }
 
 export async function isClinicMember(userId: string, clinicId: string): Promise<boolean> {
-  return Boolean(await prisma.clinicMember.findUnique({ where: { userId_clinicId: { userId, clinicId } }, select: { userId: true } }));
+  if (!userId || !clinicId) return false;
+
+  // Canonical authorization source: Organization + Person + organization-scoped
+  // PersonRole. The legacy ClinicMember table remains a domain compatibility
+  // source, but it must not authorize access once the clinic has been
+  // canonicalized to an Organization.
+  const organization = await prisma.organization.findFirst({
+    where: { originalType: 'Clinic', originalId: clinicId },
+    select: { id: true },
+  });
+  if (organization) {
+    return Boolean(await prisma.person.findFirst({
+      where: {
+        userId,
+        organizationId: organization.id,
+        personRoles: { some: { scopeType: 'organization', scopeId: organization.id } },
+      },
+      select: { id: true },
+    }));
+  }
+
+  // Pre-canonical legacy data is still supported during Phase C migration.
+  return Boolean(await prisma.clinicMember.findUnique({
+    where: { userId_clinicId: { userId, clinicId } },
+    select: { userId: true },
+  }));
 }
 
 export async function resolveOrganizationIdForClinic(clinicId: string): Promise<string | null> {
