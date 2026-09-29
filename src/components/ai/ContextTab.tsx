@@ -32,8 +32,8 @@ export function ContextTab() {
   if (isSchool) return <ScopeHint icon={<GraduationCap size={28} className="text-dv-gold" />} title="Академия" body="Каталог курсов для обучения. Кабинет школы — для лекторов: свои курсы, аналитика и выплаты." actionLabel="Открыть кабинет школы" onAction={() => navigate('/school')} />
   if (isShop) return <ScopeHint icon={<Store size={28} className="text-dv-gold" />} title="Маркетплейс" body="Покупка материалов. Кабинет продавца — для поставщиков: товары, склад, кошелёк." actionLabel="Кабинет продавца" onAction={() => navigate('/supplier')} />
   if (!isCrm || !patient) {
-    const workspaceLabel = activeWorkspace?.name || contract?.workspace?.name || 'Рабочее пространство'
-    const roleLabel = activeWorkspace?.roleLabel || contract?.role?.label || 'Участник'
+    const workspaceLabel = activeWorkspace?.name || contract?.workspaceName || 'Рабочее пространство'
+    const roleLabel = activeWorkspace?.roleLabel || contract?.roleLabel || 'Участник'
     const workflowLabel = contract?.workflow?.key || 'workspace'
     const queueLabel = contract?.queue?.key || 'workspace'
     const entityLabel = contract?.entity?.type && contract?.entity?.id ? `${contract.entity.type} · ${contract.entity.id}` : 'Нет открытого объекта'
