@@ -79,7 +79,7 @@ describe('workspace contexts', () => {
           id: 'p1',
           personType: 'SUPPLIER_REP',
           organization: { id: 'org-2', name: 'МедТорг', type: 'SUPPLIER_COMPANY', originalId: 'sup-1' },
-          personRoles: [{ role: { key: 'seller' } }],
+          personRoles: [{ scopeType: 'organization', scopeId: 'org-2', role: { key: 'seller' } }],
         },
       ],
     });
