@@ -226,7 +226,7 @@ export function buildWorkspaceContexts(sources: ContextSources): WorkspaceContex
     const roleKey = (p.personRoles || []).find((pr) =>
       pr.scopeType === 'organization' &&
       pr.scopeId === org.id &&
-      /^(diagnostic_|medical_lab_|dental_lab_|lab_coordinator|dental_technician|cad_designer|ceramist|orthodontic_technician|qc_specialist|lab_finance)/i.test(pr.role.key),
+      /^(seller|supplier|supplier_rep|diagnostic_|medical_lab_|dental_lab_|lab_coordinator|dental_technician|cad_designer|ceramist|orthodontic_technician|qc_specialist|lab_finance)/ii.test(pr.role.key),
     )?.role.key;
     if (roleKey) {
       // Keep both canonical Organization.id and mirrored source id aliases.
