@@ -301,6 +301,12 @@ async function migratePersons() {
       // the scope only from an explicit course→academy relationship owned by
       // this lecturer; never invent a tenant or fall back to a global role.
       const academyId = l.academyId ?? (
+        await prisma.academy.findFirst({
+          where: { ownerId: l.userId },
+          select: { id: true },
+          orderBy: { updatedAt: 'desc' },
+        })
+      )?.id ?? (
         await prisma.course.findFirst({
           where: { lecturerId: l.id, academyId: { not: null } },
           select: { academyId: true },
