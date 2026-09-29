@@ -1085,3 +1085,4 @@ These changes are route/entry reconciliation only. Existing domain implementatio
 - Replaced Redis-specific daily counter tests with PostgreSQL persistence/failure-path tests.
 - GitHub repository search shows no remaining `ioredis`, `bullmq`, `REDIS_URL`, or direct Redis runtime imports.
 - Required next: verify the new production deploy reaches API listening state and confirm durable queue worker initialization.
+- Follow-up: stabilized WorkspaceSwitcher active-context callback and corrected its TypeScript import; frontend lint/build gates are expected to remain within the existing warning budget.
