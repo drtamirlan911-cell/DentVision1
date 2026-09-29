@@ -833,7 +833,7 @@ aiRouter.post('/session', async (req: AuthRequest, res) => {
   try {
     const context = {
       userId: req.user!.id,
-      clinicId: req.user!.clinicId!,
+      clinicId: aiSessionScope(req),
       role: req.user!.role,
       sessionId: crypto.randomUUID(),
       metadata: {},
@@ -918,12 +918,30 @@ aiRouter.get('/briefing', authenticate, async (req: AuthRequest, res) => {
     }
     const { buildJarvisBriefing } = await import('./core/jarvisBriefing.js');
     const clinicId = req.user.clinicId || null;
+    const activeWorkspace = await buildAiContext(req, {}).then((ctx) => ctx?.workspace ?? null).catch(() => null);
     const clinic = clinicId
       ? await prisma.clinic.findUnique({
           where: { id: clinicId },
           select: { name: true },
         }).catch(() => null)
       : null;
+    if (!clinicId) {
+      const workspaceName = activeWorkspace?.name || 'DentVision';
+      const reply = 'Рабочий контекст «' + workspaceName + '» готов. Я могу помочь с задачами, очередями, аналитикой и действиями, доступными вашей роли.';
+      return res.json({
+        ok: true,
+        data: {
+          reply,
+          message: reply,
+          suggestions: ['Что требует внимания сегодня?', 'Покажи мои задачи на сегодня', 'Какие действия доступны в этом workspace?'],
+          skill: 'workspace',
+          intent: 'WORKSPACE_BRIEFING',
+          action: { type: 'SHOW_BRIEFING', payload: { workspace: activeWorkspace } },
+          role: req.user.role || 'STAFF',
+          timeZone: timeZone,
+        },
+      });
+    }
     const { clientTimeZoneFromRequest } = await import('./lib/timezone.js');
     const timeZone = clientTimeZoneFromRequest({
       headers: req.headers as Record<string, string | string[] | undefined>,
