@@ -409,6 +409,18 @@ The web and Android surfaces should be projections of this same graph, not separ
 9. Finish legal/trust, finance and branch vertical-slice production evidence.
 10. Only then perform final visual/mobile/production release certification.
 
+## 9. Post-audit corrections already applied
+
+The following concrete findings were corrected after the initial audit:
+
+- AI streaming session persistence now uses the same canonical `aiSessionScope(req)` as normal AI queries, so supplier/lecturer/other organization sessions are not re-saved under a null/stale clinic scope.
+- AI memory list/delete/clear and feedback persistence now use the active AI workspace scope instead of raw `req.user.clinicId`.
+- AI Workspace visibly shows the active workspace name, not only `clinic.name`.
+- Academy context switching now uses the canonical `/school/workspace` route.
+- The old `/school-workspace` path is retained as a redirect alias to prevent stale links/bookmarks from becoming a dead route.
+
+These fixes reduce the current AI/context and routing gaps, but they do not close the broader P0/P1 items described above.
+
 ## 9. Audit conclusion
 
 The current application is **a substantial but incomplete DentVision platform foundation**.
