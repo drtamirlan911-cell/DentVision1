@@ -323,19 +323,30 @@ export async function seedPermissions() {
       select: { id: true },
     });
 
-    // Keep reconciliation set-based. The previous relation-filtered delete
-    // scanned role_permissions through Permission on every deploy and could
-    // stall a zero-downtime Render rollout when another instance was warming up.
-    await prisma.rolePermission.deleteMany({
-      where: {
-        roleId: role.id,
-        ...(perms.length ? { permissionId: { notIn: perms.map((p) => p.id) } } : {}),
-      },
+    // Reconcile by primary-key IDs rather than a relation-filtered
+    // NOT IN query. Production can accumulate a large role_permissions table;
+    // the composite PK (roleId, permissionId) makes these explicit ID lookups
+    // predictable and avoids a long table scan during every Render rollout.
+    const desiredPermissionIds = new Set(perms.map((perm) => perm.id));
+    const existing = await prisma.rolePermission.findMany({
+      where: { roleId: role.id },
+      select: { permissionId: true },
     });
+    const stalePermissionIds = existing
+      .map((row) => row.permissionId)
+      .filter((permissionId) => !desiredPermissionIds.has(permissionId));
 
-    if (perms.length) {
+    if (stalePermissionIds.length) {
+      await prisma.rolePermission.deleteMany({
+        where: { roleId: role.id, permissionId: { in: stalePermissionIds } },
+      });
+    }
+
+    const existingPermissionIds = new Set(existing.map((row) => row.permissionId));
+    const missing = perms.filter((perm) => !existingPermissionIds.has(perm.id));
+    if (missing.length) {
       await prisma.rolePermission.createMany({
-        data: perms.map((perm) => ({ roleId: role.id, permissionId: perm.id })),
+        data: missing.map((perm) => ({ roleId: role.id, permissionId: perm.id })),
         skipDuplicates: true,
       });
     }
