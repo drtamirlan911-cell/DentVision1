@@ -25,11 +25,17 @@ import type {
 } from '../types';
 import { normalizeAlertTone } from './alertTone';
 import { API_URL } from './apiOrigin';
+import type { WorkspaceContextContract } from '@/lib/workspaceContext';
 
 // ─── Token Management ───
 let _accessToken: string | null = null;
 let _refreshToken: string | null = null;
 let _refreshPromise: Promise<string> | null = null;
+let _workspaceContext: WorkspaceContextContract | null = null;
+
+/** Set the canonical active context used by context-aware API/AI requests. */
+export function setWorkspaceContext(context: WorkspaceContextContract | null): void { _workspaceContext = context; }
+export function getWorkspaceContext(): WorkspaceContextContract | null { return _workspaceContext; }
 
 const REMEMBER_KEY = 'dv_remember_me';
 
@@ -118,6 +124,20 @@ export async function apiRequestOptional(path: string, options: RequestInit = {}
   if (!_accessToken && !_refreshToken) loadTokens();
   const headers: Record<string, string> = { ...options.headers as Record<string, string> };
   if (_accessToken) headers['Authorization'] = `Bearer ${_accessToken}`;
+  if (_workspaceContext) {
+    headers['X-DentVision-Workspace-Id'] = _workspaceContext.workspaceId;
+    headers['X-DentVision-Role'] = _workspaceContext.roleKey;
+    if (_workspaceContext.organizationId) headers['X-DentVision-Organization-Id'] = _workspaceContext.organizationId;
+    if (_workspaceContext.branchId) headers['X-DentVision-Branch-Id'] = _workspaceContext.branchId;
+    if (_workspaceContext.workflow.key !== 'workspace') headers['X-DentVision-Workflow'] = _workspaceContext.workflow.key;
+  }
+  if (_workspaceContext) {
+    headers['X-DentVision-Workspace-Id'] = _workspaceContext.workspaceId;
+    headers['X-DentVision-Role'] = _workspaceContext.roleKey;
+    if (_workspaceContext.organizationId) headers['X-DentVision-Organization-Id'] = _workspaceContext.organizationId;
+    if (_workspaceContext.branchId) headers['X-DentVision-Branch-Id'] = _workspaceContext.branchId;
+    if (_workspaceContext.workflow.key !== 'workspace') headers['X-DentVision-Workflow'] = _workspaceContext.workflow.key;
+  }
   const tz = clientTimezoneHeader(); if (tz) headers['X-Client-Timezone'] = tz;
   if (options.method && !['GET', 'HEAD', 'OPTIONS'].includes(options.method.toUpperCase())) {
     const csrfMatch = document.cookie.match(/(?:^|;\s*)dv_csrf=([^;]*)/);
