@@ -247,8 +247,13 @@ export class EventOrchestrator extends EventEmitter {
     const roleKeys = new Set<string>();
     for (const role of roles) {
       const key = role.toLowerCase();
-      if (key === 'owner') roleKeys.add('owner'), roleKeys.add('org_owner');
-      else if (key === 'admin') roleKeys.add('admin'), roleKeys.add('org_admin');
+      if (key === 'owner') {
+        roleKeys.add('owner');
+        roleKeys.add('org_owner');
+      } else if (key === 'admin') {
+        roleKeys.add('admin');
+        roleKeys.add('org_admin');
+      }
       else if (key === 'manager') roleKeys.add('manager');
       else if (key === 'doctor') roleKeys.add('doctor');
       else if (key === 'assistant') roleKeys.add('assistant');
