@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/ds/Button'
 import { usePatientStore } from '@/store/patient.store'
 import { useAuth } from '@/store/auth.store'
 import { useGuestStore } from '@/store/guest.store'
+import { useWorkspaceStore } from '@/store/workspace.store'
 import { AI_NAV_ACTIONS } from '@/lib/aiPlatformMap'
 
 const TREATMENT_STAGES = [
@@ -24,11 +25,42 @@ export function ContextTab() {
   const location = useLocation(); const navigate = useNavigate(); const { user } = useAuth()
   const isGuest = useGuestStore((s) => s.isGuest) || !user; const patientData = usePatientStore((s) => s.patientData); const selectedPatientId = usePatientStore((s) => s.selectedPatient)
   const path = location.pathname; const isCrm = path.startsWith('/crm'); const isSchool = path.startsWith('/school'); const isShop = path.startsWith('/shop') || path === '/supplier'
-  if (isGuest && !isCrm && !isSchool && !isShop) return <ScopeHint icon={<Sparkles size={28} className="text-dv-gold" />} title="Вы в режиме гостя" body="Свободно смотрите маркетплейс, Academy и демо-клинику. После входа контекст станет живым: пациенты, записи и касса вашей клиники." actionLabel="Открыть демо" onAction={() => navigate('/crm/schedule?demo=1')} />
+  const activeWorkspace = useWorkspaceStore((s) => s.activeWorkspace)
+  const contract = useWorkspaceStore((s) => s.contextContract)
+  if (isGuest && !isCrm && !isSchool && !isShop) return <ScopeHint icon={<Sparkles size={28} className="text-dv-gold" />} title="Контекст DentVision" body="Вы просматриваете платформу без активной организации. Войдите или создайте рабочий контекст, чтобы AI мог работать с вашими данными и действиями." actionLabel="Открыть демо" onAction={() => navigate('/crm/schedule?demo=1')} />
   const patient: PatientContextData | null = patientData ? { id: String(patientData.id || selectedPatientId || ''), name: patientData.name || 'Пациент', phone: patientData.phone, nextVisit: patientData.nextVisit, treatmentStage: patientData.treatmentStage || 'treatment', debt: Number(patientData.debt || 0) || undefined, allergies: Array.isArray(patientData.allergies) ? patientData.allergies : undefined, insurance: patientData.insurance, notes: patientData.notes, avatar: patientData.avatar } : null
   if (isSchool) return <ScopeHint icon={<GraduationCap size={28} className="text-dv-gold" />} title="Академия" body="Каталог курсов для обучения. Кабинет школы — для лекторов: свои курсы, аналитика и выплаты." actionLabel="Открыть кабинет школы" onAction={() => navigate('/school-workspace')} />
   if (isShop) return <ScopeHint icon={<Store size={28} className="text-dv-gold" />} title="Маркетплейс" body="Покупка материалов. Кабинет продавца — для поставщиков: товары, склад, кошелёк." actionLabel="Кабинет продавца" onAction={() => navigate('/supplier')} />
-  if (!isCrm || !patient) return <EmptyState title={isCrm ? 'Пациент не выбран' : 'Контекст раздела'} body={isCrm ? 'Выберите пациента в CRM — здесь появятся визиты, долг и быстрые действия.' : 'Эта панель показывает контекст текущего раздела: в CRM — пациент, в Академии — школа, в Маркетплейсе — продавец.'} />
+  if (!isCrm || !patient) {
+    const workspaceLabel = activeWorkspace?.name || contract?.workspace?.name || 'Рабочее пространство'
+    const roleLabel = activeWorkspace?.roleLabel || contract?.role?.label || 'Участник'
+    const workflowLabel = contract?.workflow?.key || 'workspace'
+    const queueLabel = contract?.queue?.key || 'workspace'
+    const entityLabel = contract?.entity?.type && contract?.entity?.id ? `${contract.entity.type} · ${contract.entity.id}` : 'Нет открытого объекта'
+    return (
+      <div className="space-y-3 p-3 sm:p-4">
+        <GlassCard padding="md" className="border-dv-gold/15">
+          <div className="flex items-start gap-3">
+            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-dv-gold/10 text-dv-gold"><Sparkles size={19} /></div>
+            <div className="min-w-0">
+              <p className="text-[10px] font-semibold uppercase tracking-wider text-txt-ghost">Active workspace</p>
+              <h3 className="mt-1 truncate text-sm font-semibold text-txt-primary">{workspaceLabel}</h3>
+              <p className="mt-1 text-[11px] text-txt-muted">{roleLabel}</p>
+            </div>
+          </div>
+        </GlassCard>
+        <GlassCard padding="md">
+          <h4 className="mb-3 text-xs font-semibold text-txt-primary">Рабочий контекст</h4>
+          <div className="space-y-2 text-[11px]">
+            <ContextRow label="Workflow" value={workflowLabel} />
+            <ContextRow label="Очередь" value={queueLabel} />
+            <ContextRow label="Объект" value={entityLabel} />
+          </div>
+        </GlassCard>
+        <EmptyState title={isCrm ? 'Пациент не выбран' : 'Контекст готов'} body={isCrm ? 'Выберите пациента в CRM — здесь появятся клинические данные и действия.' : 'AI использует этот workspace, workflow, очередь и открытый объект как текущий контекст.'} />
+      </div>
+    )
+  }
   const currentStage = TREATMENT_STAGES.find((s) => s.id === patient.treatmentStage) || TREATMENT_STAGES[2]; const stageIndex = TREATMENT_STAGES.findIndex((s) => s.id === currentStage.id)
   const quickActions = [{ label: 'Карта', path: AI_NAV_ACTIONS.OpenMedicalCard }, { label: 'План', path: AI_NAV_ACTIONS.OpenTreatmentPlans }, { label: 'Оплата', path: AI_NAV_ACTIONS.OpenCashier }, { label: 'Запись', path: AI_NAV_ACTIONS.OpenSchedule }]
   return (
@@ -56,5 +88,6 @@ export function ContextTab() {
     </div>
   )
 }
+function ContextRow({ label, value }: { label: string; value: string }) { return <div className="flex items-center justify-between gap-3 rounded-lg border border-white/[0.06] bg-white/[0.02] px-3 py-2"><span className="text-txt-muted">{label}</span><span className="max-w-[62%] truncate text-right font-medium text-txt-primary">{value}</span></div> }
 function EmptyState({ title, body }: { title: string; body: string }) { return <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex flex-col items-center justify-center py-12 px-6 text-center"><div className="flex h-14 w-14 items-center justify-center rounded-xl bg-surface-raised mb-3"><User size={24} className="text-txt-muted" /></div><h3 className="text-sm font-semibold text-txt-primary mb-1">{title}</h3><p className="text-xs text-txt-muted max-w-[240px] leading-relaxed">{body}</p></motion.div> }
 function ScopeHint({ icon, title, body, actionLabel, onAction }: { icon: ReactNode; title: string; body: string; actionLabel: string; onAction: () => void }) { return <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="p-3 sm:p-4 space-y-4"><GlassCard padding="md" className="text-center space-y-3 border-dv-gold/10"><div className="mx-auto flex h-14 w-14 items-center justify-center rounded-xl bg-dv-gold/10">{icon}</div><div><h3 className="text-sm font-semibold text-txt-primary">{title}</h3><p className="text-xs text-txt-muted mt-1.5 leading-relaxed">{body}</p></div><Button size="sm" className="w-full min-h-10" onClick={onAction}>{actionLabel}</Button></GlassCard></motion.div> }
