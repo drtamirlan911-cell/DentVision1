@@ -313,9 +313,31 @@ async function migratePersons() {
           orderBy: { updatedAt: 'desc' },
         })
       )?.academyId ?? null;
-      const org = academyId
+      let org = academyId
         ? await prisma.organization.findFirst({ where: { originalType: 'Academy', originalId: academyId } })
         : null;
+
+      // Some legacy lecturer rows can still point at an Academy whose canonical
+      // Organization was not materialized during an earlier partial backfill.
+      // Restore that exact Academy organization rather than dropping the scoped
+      // lecturer role. This is idempotent and never invents a tenant.
+      if (!org && academyId) {
+        const academy = await prisma.academy.findUnique({ where: { id: academyId } });
+        if (academy) {
+          org = await prisma.organization.upsert({
+            where: { originalType_originalId: { originalType: 'Academy', originalId: academy.id } },
+            update: {},
+            create: {
+              name: academy.name,
+              type: 'ACADEMY',
+              contacts: academy.city ? { city: academy.city } : undefined,
+              settings: { ownerId: academy.ownerId } as Record<string, unknown>,
+              originalType: 'Academy',
+              originalId: academy.id,
+            },
+          });
+        }
+      }
       const person = await upsertCanonicalPerson({
         fullName: `Lecturer ${l.id}`,
         personType: 'LECTURER',
