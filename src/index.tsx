@@ -157,6 +157,112 @@ if (container) {
                 <Route path="academy" element={<Navigate to="/school" replace />} />
                 <Route path="laboratories" element={<Navigate to="/diagnostics/labs" replace />} />
                 <Route path="professional" element={<Navigate to="/profile" replace />} />
+                {/* Master Spec cabinet consolidation: target routes resolve to existing canonical workflows. */ }
+                <Route path="discover" element={<Navigate to="/" replace />} />
+                <Route path="organizations" element={<Navigate to="/settings" replace />} />
+                <Route path="organizations/:organizationId" element={<Navigate to="/settings" replace />} />
+                <Route path="professionals/:professionalId" element={<Navigate to="/profile" replace />} />
+                <Route path="services/:serviceId" element={<Navigate to="/shop" replace />} />
+                <Route path="tasks" element={<Navigate to="/ai" replace />} />
+                <Route path="search" element={<Navigate to="/ai" replace />} />
+                <Route path="activity" element={<Navigate to="/audit" replace />} />
+
+                <Route path="practice/patients/:patientId" element={<Navigate to="/crm/patients" replace />} />
+                <Route path="practice/analytics" element={<Navigate to="/analytics" replace />} />
+
+                <Route path="diagnostics/today" element={<Navigate to="/diagnostics/workspace" replace />} />
+                <Route path="diagnostics/orders" element={<Navigate to="/diagnostics/referrals" replace />} />
+                <Route path="diagnostics/worklist" element={<Navigate to="/diagnostics/referrals" replace />} />
+                <Route path="diagnostics/studies/:studyId" element={<Navigate to="/diagnostics/results" replace />} />
+                <Route path="diagnostics/reports" element={<Navigate to="/diagnostics/results" replace />} />
+                <Route path="diagnostics/ai" element={<Navigate to="/ai" replace />} />
+                <Route path="diagnostics/services" element={<Navigate to="/diagnostics/settings" replace />} />
+                <Route path="diagnostics/schedule" element={<Navigate to="/diagnostics/calendar" replace />} />
+                <Route path="diagnostics/rooms" element={<Navigate to="/diagnostics/settings" replace />} />
+                <Route path="diagnostics/modalities" element={<Navigate to="/diagnostics/settings" replace />} />
+                <Route path="diagnostics/staff" element={<Navigate to="/diagnostics/settings" replace />} />
+                <Route path="diagnostics/branches" element={<Navigate to="/settings" replace />} />
+                <Route path="diagnostics/finance" element={<Navigate to="/diagnostics/workspace" replace />} />
+                <Route path="diagnostics/analytics" element={<Navigate to="/diagnostics/statistics" replace />} />
+                <Route path="diagnostics/viewer/:studyId" element={<Navigate to="/diagnostics/results" replace />} />
+
+                <Route path="medical-lab/today" element={<Navigate to="/medical-lab" replace />} />
+                <Route path="medical-lab/orders" element={<Navigate to="/medical-lab" replace />} />
+                <Route path="medical-lab/specimens" element={<Navigate to="/medical-lab" replace />} />
+                <Route path="medical-lab/worklist" element={<Navigate to="/medical-lab" replace />} />
+                <Route path="medical-lab/processing" element={<Navigate to="/medical-lab" replace />} />
+                <Route path="medical-lab/results" element={<Navigate to="/medical-lab" replace />} />
+                <Route path="medical-lab/results/:resultId" element={<Navigate to="/medical-lab" replace />} />
+                <Route path="medical-lab/clients" element={<Navigate to="/medical-lab" replace />} />
+                <Route path="medical-lab/tests" element={<Navigate to="/medical-lab" replace />} />
+                <Route path="medical-lab/panels" element={<Navigate to="/medical-lab" replace />} />
+                <Route path="medical-lab/quality" element={<Navigate to="/medical-lab" replace />} />
+                <Route path="medical-lab/equipment" element={<Navigate to="/medical-lab" replace />} />
+                <Route path="medical-lab/staff" element={<Navigate to="/settings" replace />} />
+                <Route path="medical-lab/branches" element={<Navigate to="/settings" replace />} />
+                <Route path="medical-lab/finance" element={<Navigate to="/diagnostics/workspace" replace />} />
+                <Route path="medical-lab/analytics" element={<Navigate to="/analytics" replace />} />
+                <Route path="medical-lab/settings" element={<Navigate to="/settings" replace />} />
+
+                <Route path="dental-lab/today" element={<Navigate to="/dental-lab" replace />} />
+                <Route path="dental-lab/inbox" element={<Navigate to="/dental-lab" replace />} />
+                <Route path="dental-lab/cases" element={<Navigate to="/crm/lab" replace />} />
+                <Route path="dental-lab/cases/:caseId" element={<Navigate to="/crm/lab" replace />} />
+                <Route path="dental-lab/production" element={<Navigate to="/dental-lab" replace />} />
+                <Route path="dental-lab/workstations" element={<Navigate to="/dental-lab" replace />} />
+                <Route path="dental-lab/design" element={<Navigate to="/dental-lab" replace />} />
+                <Route path="dental-lab/cadcam" element={<Navigate to="/dental-lab" replace />} />
+                <Route path="dental-lab/qc" element={<Navigate to="/dental-lab" replace />} />
+                <Route path="dental-lab/remakes" element={<Navigate to="/dental-lab" replace />} />
+                <Route path="dental-lab/shipping" element={<Navigate to="/dental-lab" replace />} />
+                <Route path="dental-lab/clients" element={<Navigate to="/dental-lab" replace />} />
+                <Route path="dental-lab/catalog" element={<Navigate to="/shop" replace />} />
+                <Route path="dental-lab/materials" element={<Navigate to="/shop" replace />} />
+                <Route path="dental-lab/inventory" element={<Navigate to="/crm/inventory" replace />} />
+                <Route path="dental-lab/invoices" element={<Navigate to="/crm/cashier" replace />} />
+                <Route path="dental-lab/finance" element={<Navigate to="/diagnostics/workspace" replace />} />
+                <Route path="dental-lab/analytics" element={<Navigate to="/analytics" replace />} />
+                <Route path="dental-lab/staff" element={<Navigate to="/settings" replace />} />
+                <Route path="dental-lab/settings" element={<Navigate to="/settings" replace />} />
+
+                <Route path="business/today" element={<Navigate to="/supplier" replace />} />
+                <Route path="business/catalog" element={<Navigate to="/shop" replace />} />
+                <Route path="business/products" element={<Navigate to="/supplier" replace />} />
+                <Route path="business/inventory" element={<Navigate to="/supplier" replace />} />
+                <Route path="business/orders" element={<Navigate to="/supplier" replace />} />
+                <Route path="business/fulfillment" element={<Navigate to="/supplier" replace />} />
+                <Route path="business/customers" element={<Navigate to="/supplier" replace />} />
+                <Route path="business/pricing" element={<Navigate to="/supplier" replace />} />
+                <Route path="business/promotions" element={<Navigate to="/supplier" replace />} />
+                <Route path="business/finance" element={<Navigate to="/supplier" replace />} />
+                <Route path="business/analytics" element={<Navigate to="/analytics" replace />} />
+                <Route path="business/team" element={<Navigate to="/supplier" replace />} />
+                <Route path="business/settings" element={<Navigate to="/settings" replace />} />
+
+                <Route path="academy/workspace" element={<Navigate to="/school/workspace" replace />} />
+                <Route path="academy/courses" element={<Navigate to="/school" replace />} />
+                <Route path="academy/courses/:courseId" element={<Navigate to="/school/course/:courseId" replace />} />
+                <Route path="academy/students" element={<Navigate to="/school/workspace" replace />} />
+                <Route path="academy/content" element={<Navigate to="/school/workspace" replace />} />
+                <Route path="academy/assessments" element={<Navigate to="/school/workspace" replace />} />
+                <Route path="academy/certificates" element={<Navigate to="/school/workspace" replace />} />
+                <Route path="academy/schedule" element={<Navigate to="/school/workspace" replace />} />
+                <Route path="academy/finance" element={<Navigate to="/school/workspace" replace />} />
+                <Route path="academy/analytics" element={<Navigate to="/school/workspace" replace />} />
+                <Route path="academy/team" element={<Navigate to="/school/workspace" replace />} />
+                <Route path="academy/settings" element={<Navigate to="/settings" replace />} />
+
+                <Route path="professional/profile" element={<Navigate to="/profile" replace />} />
+                <Route path="professional/credentials" element={<Navigate to="/profile" replace />} />
+                <Route path="professional/portfolio" element={<Navigate to="/profile" replace />} />
+                <Route path="jobs/matches" element={<Navigate to="/jobs" replace />} />
+                <Route path="jobs/applications" element={<Navigate to="/jobs" replace />} />
+                <Route path="jobs/messages" element={<Navigate to="/jobs" replace />} />
+                <Route path="employer" element={<Navigate to="/jobs" replace />} />
+                <Route path="employer/vacancies" element={<Navigate to="/jobs" replace />} />
+                <Route path="employer/candidates" element={<Navigate to="/jobs" replace />} />
+                <Route path="employer/hiring" element={<Navigate to="/jobs" replace />} />
+
                 <Route path="dashboard" element={<Navigate to="/" replace />} />
                 <Route path="intelligence" element={<Navigate to="/ai" replace />} />
                 <Route path="ai" element={<Suspense fallback={<PageLoader />}><AIWorkspaceIndex /></Suspense>} />
