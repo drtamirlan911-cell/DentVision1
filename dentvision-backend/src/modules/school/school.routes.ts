@@ -437,6 +437,7 @@ schoolRouter.post('/enrollments', authenticate, async (req: AuthRequest, res) =>
           },
         },
       });
+      await writeAuditLog({ action: 'ACADEMY_ENROLLMENT_PAYMENT_STARTED', entity: 'payment', entityId: payment.id, details: { workflow: 'learning', queueKey: 'courses', courseId, courseTitle: course.title, amount: price, provider: 'kaspi_qr' }, userId });
       res.status(201).json({
         ok: true,
         data: {
