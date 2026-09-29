@@ -996,3 +996,21 @@ These changes are route/entry reconciliation only. Existing domain implementatio
 - Exact mainline HEAD `e81734e954fbba8df90011231cf963fcda469d28` passed Quality Gate `#4103`: TypeScript, frontend ESLint and `quality-scripts/release-gate.ts` all passed.
 - The corresponding full CI push run `#3402` was cancelled by the workflow's push concurrency before jobs were created because successive mainline commits were intentionally made during convergence. A final stable-tip full CI/E2E/Visual run is therefore still required and will be triggered after this checkpoint.
 - No implementation branch remains open; PR #289 is closed after its unique fix was applied to main.
+
+
+## 2026-09-29 — Durable background transport hardening
+
+### Implemented on fix/durable-event-bus
+- `71f224985e305c06d72d1264012ffed564d4cb47` — EventBus now records one durable event failure per delivery attempt instead of incrementing retries once per failed subscriber.
+- `0b98a3d3a512ee682a96587f4d9c95167455b80c` — AI-admin PostgreSQL worker prevents duplicate polling timers when startup is invoked more than once.
+
+### Verification status
+- PR #290 remains open against main and is not release-ready yet.
+- CI run #3499 is still executing.
+- Quality Gate #4218 was re-run after an initial TypeScript failure; exact final result is pending.
+- Vercel reports a free-tier deployment rate limit for the PR head; the preview had previously reached READY, but the latest commit cannot create another deployment until the provider limit resets.
+
+### Next action
+- Finish exact-HEAD CI/E2E/Visual verification.
+- Do not merge PR #290 solely on green tests while production deployment evidence is unavailable.
+- Continue Master Spec v5 vertical slices on the stable mainline: partner owner lifecycle, canonical AI workspace scope, production data normalization, Academy/Marketplace completion and release evidence.
