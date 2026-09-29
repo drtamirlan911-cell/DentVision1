@@ -129,13 +129,6 @@ export async function apiRequestOptional(path: string, options: RequestInit = {}
     if (getActiveWorkspaceContext().branchId) headers['X-DentVision-Branch-Id'] = getActiveWorkspaceContext().branchId;
     if (getActiveWorkspaceContext().workflow.key !== 'workspace') headers['X-DentVision-Workflow'] = getActiveWorkspaceContext().workflow.key;
   }
-  if (getActiveWorkspaceContext()) {
-    headers['X-DentVision-Workspace-Id'] = getActiveWorkspaceContext().workspaceId;
-    headers['X-DentVision-Role'] = getActiveWorkspaceContext().roleKey;
-    if (getActiveWorkspaceContext().organizationId) headers['X-DentVision-Organization-Id'] = getActiveWorkspaceContext().organizationId;
-    if (getActiveWorkspaceContext().branchId) headers['X-DentVision-Branch-Id'] = getActiveWorkspaceContext().branchId;
-    if (getActiveWorkspaceContext().workflow.key !== 'workspace') headers['X-DentVision-Workflow'] = getActiveWorkspaceContext().workflow.key;
-  }
   const tz = clientTimezoneHeader(); if (tz) headers['X-Client-Timezone'] = tz;
   if (options.method && !['GET', 'HEAD', 'OPTIONS'].includes(options.method.toUpperCase())) {
     const csrfMatch = document.cookie.match(/(?:^|;\s*)dv_csrf=([^;]*)/);
