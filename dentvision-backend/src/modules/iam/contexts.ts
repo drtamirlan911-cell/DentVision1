@@ -237,7 +237,7 @@ export function buildWorkspaceContexts(sources: ContextSources): WorkspaceContex
     }
   }
   for (const m of sources.memberships) {
-    put({
+    putLegacy({
       id: `CLINIC:${m.clinicId}`,
       scopeType: 'CLINIC',
       scopeId: m.clinicId,
