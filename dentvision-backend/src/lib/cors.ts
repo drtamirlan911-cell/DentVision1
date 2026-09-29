@@ -63,10 +63,7 @@ export function applyCorsHeaders(req: Request, res: Response): void {
     'Access-Control-Allow-Methods',
     'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS',
   );
-  res.setHeader(
-    'Access-Control-Allow-Headers',
-    'Content-Type, Authorization, X-Platform-Ops-Key, X-Cron-Secret, X-Requested-With, X-Client-Timezone, X-Timezone, X-Csrf-Token, X-DentVision-Workspace-Id, X-DentVision-Role, X-DentVision-Organization-Id, X-DentVision-Branch-Id, X-DentVision-Workflow',
-  );
+  res.setHeader('Access-Control-Allow-Headers', CORS_HEADERS.join(', '));
 }
 
 /** First middleware: CORS on every request, answer OPTIONS immediately. */
