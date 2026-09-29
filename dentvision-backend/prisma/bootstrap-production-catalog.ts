@@ -162,9 +162,11 @@ async function main() {
   console.log('[BOOTSTRAP] Production reference catalog reconciliation complete');
 }
 
-main()
-  .catch((error) => {
-    console.error('[BOOTSTRAP] Production catalog reconciliation failed:', error);
-    process.exitCode = 1;
-  })
-  .finally(async () => { await prisma.$disconnect(); });
+try {
+  await main();
+} catch (error) {
+  console.error('[BOOTSTRAP] Production catalog reconciliation failed:', error);
+  process.exitCode = 1;
+} finally {
+  await prisma.$disconnect();
+}
