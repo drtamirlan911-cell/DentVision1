@@ -637,7 +637,7 @@ export async function getAIActions(): Promise<any> { return apiRequest('/api/com
 export async function confirmAIAction(id: string): Promise<any> { return apiRequest(`/api/compliance/ai/${id}/confirm`, { method: 'POST', body: '{}' }); }
 export async function getDiagnosticsDashboard(scope: { clinicId?: string; centerId?: string; labId?: string } = {}): Promise<any> { const q = new URLSearchParams(); if (scope.clinicId) q.set('clinicId', scope.clinicId); if (scope.centerId) q.set('centerId', scope.centerId); if (scope.labId) q.set('labId', scope.labId); const qs = q.toString(); return apiRequest(`/api/diagnostics/dashboard${qs ? `?${qs}` : ''}`); }
 export async function markDiagnosticReferralPaid(id: string): Promise<any> { return apiRequest(`/api/diagnostics/referrals/${id}/mark-paid`, { method: 'POST', body: '{}' }); }
-export async function getDiagnosticsCenterDashboard(centerId: string): Promise<any> { return apiRequest(`/api/diagnostics/centers/${centerId}/dashboard`); }
+export async function getDiagnosticsCenterDashboard(centerId: string): Promise<any> { return getDiagnosticsDashboard({ centerId }); }
 export async function getDiagnosticCenters(search?: string, city?: string): Promise<any> { const q = new URLSearchParams(); if (search) q.set('search', search); if (city) q.set('city', city); return apiRequest(`/api/diagnostics/centers?${q}`); }
 export async function getDiagnosticCenter(id: string): Promise<any> { return apiRequest(`/api/diagnostics/centers/${id}`); }
 export async function createDiagnosticCenter(data: any): Promise<any> { return apiRequest('/api/diagnostics/centers', { method: 'POST', body: JSON.stringify(data) }); }
@@ -670,17 +670,17 @@ export async function getDiagnosticsRegistrations(status?: string): Promise<any>
 export async function approveDiagnosticsRegistration(id: string): Promise<any> { return apiRequest(`/api/diagnostics/registrations/${id}/approve`, { method: 'POST', body: '{}' }); }
 export async function rejectDiagnosticsRegistration(id: string, reason?: string): Promise<any> { return apiRequest(`/api/diagnostics/registrations/${id}/reject`, { method: 'POST', body: JSON.stringify({ reason }) }); }
 export async function seedDiagnosticsTestData(): Promise<any> { return apiRequest('/api/diagnostics/seed-test-data', { method: 'POST', body: '{}' }); }
-export const getDiagnosticsCenterPricing = (centerId: string) => apiRequest(`/api/diagnostics/centers/${centerId}/pricing`);
+export const getDiagnosticsCenterPricing = (centerId: string) => getDiagnosticStudies(centerId);
 export const updateDiagnosticsCenterPricing = (centerId: string, studies: { id: string; price: number }[]) => apiRequest(`/api/diagnostics/centers/${centerId}/pricing`, { method: 'PATCH', body: JSON.stringify({ studies }) });
 export const createDiagnosticsCenterStudy = (centerId: string, data: { name: string; category: string; price?: number; description?: string; durationMin?: number }) => apiRequest(`/api/diagnostics/centers/${centerId}/pricing`, { method: 'POST', body: JSON.stringify(data) });
-export const getDiagnosticsLabPricing = (labId: string) => apiRequest(`/api/diagnostics/laboratories/${labId}/pricing`);
+export const getDiagnosticsLabPricing = (labId: string) => getDiagnosticLabTests(labId);
 export const updateDiagnosticsLabPricing = (labId: string, tests: { id: string; price: number }[]) => apiRequest(`/api/diagnostics/laboratories/${labId}/pricing`, { method: 'PATCH', body: JSON.stringify({ tests }) });
-export const getDiagnosticsCenterPayments = (centerId: string) => apiRequest(`/api/diagnostics/centers/${centerId}/payments`);
+export const getDiagnosticsCenterPayments = (centerId: string) => getDiagnosticReferrals({ centerId });
 export const collectDiagnosticsCashierPayment = (centerId: string, payload: { referralId: string; cost: number; platformFee?: number }) => apiRequest(`/api/diagnostics/centers/${centerId}/cashier/collect`, { method: 'POST', body: JSON.stringify(payload) });
 export const createDiagnosticsLabTest = (labId: string, data: { name: string; category: string; price?: number }) => apiRequest(`/api/diagnostics/laboratories/${labId}/pricing`, { method: 'POST', body: JSON.stringify(data) });
 export const collectDiagnosticsLabCashierPayment = (labId: string, payload: { referralId: string; cost: number }) => apiRequest(`/api/diagnostics/laboratories/${labId}/cashier/collect`, { method: 'POST', body: JSON.stringify(payload) });
-export async function getDiagnosticsLabDashboard(labId: string): Promise<any> { return apiRequest(`/api/diagnostics/laboratories/${labId}/dashboard`); }
-export const getDiagnosticsLabPayments = (labId: string) => apiRequest(`/api/diagnostics/laboratories/${labId}/payments`);
+export async function getDiagnosticsLabDashboard(labId: string): Promise<any> { return getDiagnosticsDashboard({ labId }); }
+export const getDiagnosticsLabPayments = (labId: string) => getDiagnosticReferrals({ labId });
 export const getDiagnosticsCommissionRules = () => apiRequest('/api/diagnostics/commission-rules');
 export const createDiagnosticsCommissionRule = (data: { centerId?: string; labId?: string; percentBps: number; description?: string }) => apiRequest('/api/diagnostics/commission-rules', { method: 'POST', body: JSON.stringify(data) });
 export const getDiagnosticsStats = () => apiRequest('/api/diagnostics/stats');
