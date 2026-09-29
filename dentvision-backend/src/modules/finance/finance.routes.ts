@@ -273,7 +273,7 @@ financeRouter.post('/sales', requirePermission('finance.manage'), async (req: Au
       action: 'finance.sale_recorded',
       entity: 'transaction',
       entityId: transaction.id,
-      details: { domain, sellerType, sellerId, amountMinor: String(minor) },
+      details: { workflow: 'finance', queueKey: 'receivables', domain, sellerType, sellerId, amountMinor: String(minor), refType: refType || null, refId: refId || null },
     });
     return res.status(201).json({ ok: true, data: serializeBigInt(transaction) } satisfies ApiResponse);
   } catch (error) {
