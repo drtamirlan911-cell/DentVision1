@@ -1,7 +1,6 @@
-import { PrismaClient, Prisma } from '@prisma/client';
+import { Prisma } from '@prisma/client';
+import prisma from '../../lib/prisma.js';
 import { CRMEvent } from './EventTypes.js';
-
-const prisma = new PrismaClient();
 
 export class EventStore {
   async save(event: CRMEvent): Promise<void> {
