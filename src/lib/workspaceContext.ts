@@ -33,6 +33,10 @@ export interface WorkspaceContextContract {
     ownDataOnly: boolean
   }
   participant: string | null
+  queue: {
+    key: string
+    itemCount?: number | null
+  }
   entity: {
     type: string
     id: string | null
@@ -92,6 +96,10 @@ export function workspaceContextFrom(source: WorkspaceContextSource, fallbackPer
       ownDataOnly: Boolean(source.ownDataOnly),
     },
     participant: normalize(source.personType),
+    queue: {
+      key: 'workspace',
+      itemCount: null,
+    },
     entity: {
       type: 'workspace',
       id: source.id,
@@ -107,10 +115,12 @@ export function workflowContext(
   context: WorkspaceContextContract,
   workflowKey: string,
   step?: string | null,
+  queueKey?: string | null,
   entity?: { type: string; id: string | null },
 ): WorkspaceContextContract {
   return {
     ...context,
+    queue: { ...context.queue, key: normalize(queueKey) || context.queue.key },
     entity: entity || context.entity,
     workflow: { key: workflowKey || 'workspace', step: normalize(step) },
   }
