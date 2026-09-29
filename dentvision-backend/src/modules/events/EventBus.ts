@@ -28,6 +28,7 @@ export class EventBus implements IEventBus {
   private pollTimer: ReturnType<typeof setInterval> | null = null;
   private databasePollTimer: ReturnType<typeof setInterval> | null = null;
   private databasePollRunning = false;
+  private lastLeaseRecoveryAt = 0;
 
   async connect(): Promise<void> {
     const redis = getRedis();
@@ -210,7 +211,10 @@ export class EventBus implements IEventBus {
     this.databasePollRunning = true;
 
     try {
-      await eventStore.recoverStaleProcessing();
+      if (Date.now() - this.lastLeaseRecoveryAt >= 30_000) {
+        await eventStore.recoverStaleProcessing();
+        this.lastLeaseRecoveryAt = Date.now();
+      }
       const events = await eventStore.claimPending(COUNT);
 
       for (const event of events) {
@@ -218,7 +222,6 @@ export class EventBus implements IEventBus {
         if (ok) {
           await eventStore.markCompleted(event.id);
         }
-        this.stats.published += 0;
       }
     } finally {
       this.databasePollRunning = false;
