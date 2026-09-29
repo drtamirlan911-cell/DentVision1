@@ -1,6 +1,6 @@
 # DentVision Platform Specification
 
-**Статус:** Canonical Product Specification  
+**Статус:** Bounded Product Specification (detail layer under Master Spec v5)  
 **Версия:** 1.0.1  
 **Дата:** 2026-07-20  
 **Уровень:** Product + Platform + Company Foundation
@@ -60,6 +60,10 @@ Constitution index: [`../00_CONSTITUTION/README.md`](../00_CONSTITUTION/README.m
 
 ---
 
+## Нормативная иерархия
+
+`docs/DENTVISION_MASTER_SPEC.md` является единственным каноническим Product/System source of truth. Constitution/Product DNA устанавливают обязательные принципы и quality gates. Этот каталог сохраняет детальные module specifications и acceptance criteria; при расхождении с Master Spec v5 применяется Master Spec, а module document должен быть обновлён.
+
 ## Связанные документы
 
 | Документ | Роль |
@@ -70,9 +74,10 @@ Constitution index: [`../00_CONSTITUTION/README.md`](../00_CONSTITUTION/README.m
 | [`/docs/MODULE_STATUS.md`](../MODULE_STATUS.md) | Текущий статус реализации модулей |
 
 **Правило приоритета:**  
-1. Constitution — [`MISSION`](./MISSION.md) + [`Product DNA`](../00_CONSTITUTION/02_PRODUCT_DNA.md)  
-2. Остальная спецификация `docs/spec/`  
-3. UX Blueprint → Blueprint → код  
+1. `docs/DENTVISION_MASTER_SPEC.md` — canonical Product/System source of truth  
+2. Constitution — [`MISSION`](./MISSION.md) + [`Product DNA`](../00_CONSTITUTION/02_PRODUCT_DNA.md) — обязательные product/quality principles  
+3. Эта спецификация `docs/spec/` — bounded module/detail requirements  
+4. UX Blueprint → Blueprint → код, если они не противоречат уровням выше  
 
 ---
 
