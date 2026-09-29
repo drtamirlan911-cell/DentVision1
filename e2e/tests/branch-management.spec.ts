@@ -18,6 +18,13 @@ async function createBranch(page: Page, name: string) {
   await page.getByLabel('Код').fill(`E2E-${Date.now()}`);
   await page.getByRole('button', { name: 'Создать филиал', exact: true }).click();
   await expect(page.getByText(name, { exact: true })).toBeVisible({ timeout: 15000 });
+  const response = await page.request.get('/api/branches');
+  expect(response.ok()).toBeTruthy();
+  const payload = await response.json();
+  const branches = Array.isArray(payload) ? payload : payload?.data ?? [];
+  const branch = branches.find((item: { name?: string }) => item.name === name);
+  expect(branch?.id).toBeTruthy();
+  return branch.id as string;
 }
 
 test.describe('Clinic branch management', () => {
@@ -55,7 +62,7 @@ test.describe('Clinic branch management', () => {
     await login(page);
     await page.goto(`${BASE}/my-clinics`);
     const branchName = `E2E Switch ${Date.now()}`;
-    await createBranch(page, branchName);
+    const branchId = await createBranch(page, branchName);
 
     await page.goto(`${BASE}/ai`);
     const trigger = page.getByTestId('workspace-switcher-trigger');
@@ -69,8 +76,10 @@ test.describe('Clinic branch management', () => {
     );
     await page.getByRole('button', { name: branchName, exact: true }).click();
     const request = await branchRequest;
-    expect(request.headers()['x-dentvision-branch-id']).toBeTruthy();
+    expect(request.headers()['x-dentvision-branch-id']).toBe(branchId);
     await expect(page.getByTestId('workspace-switcher-trigger')).toBeVisible();
+    await page.reload();
+    await expect(page.getByTestId('workspace-switcher-trigger')).toContainText(branchName);
   });
 
 });
