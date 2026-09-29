@@ -297,9 +297,28 @@ async function migratePersons() {
   console.log('[MIGRATE] Migrating lecturers → persons...');
   const lecturers = await prisma.lecturer.findMany({ include: { academy: true } });
   const lecturersMigrated = await eachRow(lecturers, (l) => `lecturer ${l.id}`, async (l) => {
-      const org = l.academy
+      let org = l.academy
         ? await prisma.organization.findFirst({ where: { originalType: 'Academy', originalId: l.academyId } })
         : null;
+
+      // Some legacy lecturer rows can still point at an Academy whose canonical
+      // Organization was not materialized during an earlier partial backfill.
+      // Restore that exact Academy organization rather than dropping the scoped
+      // lecturer role. This is idempotent and never invents a tenant.
+      if (!org && l.academy) {
+        org = await prisma.organization.upsert({
+          where: { originalType_originalId: { originalType: 'Academy', originalId: l.academy.id } },
+          update: {},
+          create: {
+            name: l.academy.name,
+            type: 'ACADEMY',
+            contacts: l.academy.city ? { city: l.academy.city } : undefined,
+            settings: { ownerId: l.academy.ownerId } as Record<string, unknown>,
+            originalType: 'Academy',
+            originalId: l.academy.id,
+          },
+        });
+      }
       const person = await upsertCanonicalPerson({
         fullName: `Lecturer ${l.id}`,
         personType: 'LECTURER',
