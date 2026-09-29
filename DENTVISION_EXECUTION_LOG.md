@@ -990,3 +990,9 @@ These changes are route/entry reconciliation only. Existing domain implementatio
 - Verify the exact current main HEAD with full CI/E2E/Visual evidence.
 - Inspect any failures at job/artifact level and repair them on `main`.
 - Continue the remaining Master Spec P0/P1 work: canonical AI scope consolidation, partner cabinet workflow completeness, production data normalization/bootstrap verification, Android ecosystem parity, and full release/rollback evidence.
+
+
+## 2026-09-29 — Release-gate verification checkpoint
+- Exact mainline HEAD `e81734e954fbba8df90011231cf963fcda469d28` passed Quality Gate `#4103`: TypeScript, frontend ESLint and `quality-scripts/release-gate.ts` all passed.
+- The corresponding full CI push run `#3402` was cancelled by the workflow's push concurrency before jobs were created because successive mainline commits were intentionally made during convergence. A final stable-tip full CI/E2E/Visual run is therefore still required and will be triggered after this checkpoint.
+- No implementation branch remains open; PR #289 is closed after its unique fix was applied to main.
