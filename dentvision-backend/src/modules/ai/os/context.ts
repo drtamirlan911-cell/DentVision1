@@ -25,6 +25,8 @@ export interface ContextHints {
   /** 'workspace' (the default focus) never resolves to an entity — there is nothing open. */
   focusType?: string | null;
   focusId?: string | null;
+  workflowKey?: string | null;
+  workflowStep?: string | null;
 }
 
 export interface AiRequestContext {
@@ -186,7 +188,7 @@ export async function buildAiContext(req: AuthRequest, hints: ContextHints = {})
     availableWorkspaces,
     page: { pathname, pageId },
     entity,
-    workflow: null,
+    workflow: hints.workflowKey ? { id: hints.workflowKey, state: hints.workflowStep || 'active' } : null,
     recentEvents,
   };
 }
