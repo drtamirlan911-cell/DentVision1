@@ -1014,3 +1014,20 @@ These changes are route/entry reconciliation only. Existing domain implementatio
 - Finish exact-HEAD CI/E2E/Visual verification.
 - Do not merge PR #290 solely on green tests while production deployment evidence is unavailable.
 - Continue Master Spec v5 vertical slices on the stable mainline: partner owner lifecycle, canonical AI workspace scope, production data normalization, Academy/Marketplace completion and release evidence.
+
+
+## 2026-09-29 — Canonical workspace authority after durable transport merge
+
+### Implemented
+- `06c75eb5795b568f780286ba13fd3064bb066f79` — merged PR #290: PostgreSQL/Neon is the sole durable background transport; Redis/BullMQ runtime dependency removed.
+- `dd5c09f50dd07915a59ec23a858044c05881a766` — canonical `Person → Organization → PersonRole` workspace contexts now take precedence over stale legacy membership rows.
+- `54eea49cf1dbd442543e79c9198c13ff8b15cacd` — regression coverage proves a stale legacy clinic role cannot override the canonical scoped role.
+
+### Verification
+- Main is currently at `54eea49cf1dbd442543e79c9198c13ff8b15cacd` after the IAM fix.
+- Render has queued the mainline deployment for that exact commit; production verification remains pending until the deploy finishes.
+- No open pull requests remain after PR #290 merge.
+
+### Next action
+- Verify the exact mainline CI/E2E/Visual chain and Render runtime.
+- Continue the Master Spec v5 business-owner vertical slice: partner registration → organization → branches → staff/roles → operational workflow → economics → Finance Hub.
