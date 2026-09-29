@@ -193,7 +193,7 @@ fun WorkspaceSwitcherSheet(
                     if (grouped.isEmpty()) {
                         EmptyStateView(
                             title = "Рабочих пространств нет",
-                            description = "Создайте клинику или присоединитесь к существующей.",
+                            description = "Создайте организацию или присоединитесь к существующей.",
                             modifier = Modifier.padding(vertical = 16.dp),
                         )
                     } else {
