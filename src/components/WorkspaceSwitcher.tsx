@@ -76,17 +76,6 @@ export function WorkspaceSwitcher({ className }: { className?: string }) {
     refetchOnWindowFocus: true,
   })
 
-  interface BranchOption { id: string; name: string; code?: string | null; active?: boolean }
-  const { data: branches = [], isFetching: branchesLoading } = useQuery<BranchOption[]>({
-    queryKey: ['workspace-branches', current?.organizationId],
-    queryFn: async () => {
-      if (!current?.organizationId) return []
-      return (await api.listBranches({ organizationId: current.organizationId })) as BranchOption[]
-    },
-    enabled: open && !!current?.organizationId && isAuthenticated,
-    staleTime: 30_000,
-  })
-
   const updateMenuPosition = () => {
     const rect = buttonRef.current?.getBoundingClientRect()
     if (!rect) return
@@ -137,6 +126,17 @@ export function WorkspaceSwitcher({ className }: { className?: string }) {
     [workspaces, activeClinicId, activeOrgId, activeOrgType, activeSupplierId, activeLecturerId],
   )
   const activeRoleLabel = current?.roleLabel || roleInfo?.label || getRoleDisplayLabel((user as any)?.platformRole || (user as any)?.role) || 'Участник экосистемы'
+
+  interface BranchOption { id: string; name: string; code?: string | null; active?: boolean }
+  const { data: branches = [], isFetching: branchesLoading } = useQuery<BranchOption[]>({
+    queryKey: ['workspace-branches', current?.organizationId],
+    queryFn: async () => {
+      if (!current?.organizationId) return []
+      return (await api.listBranches({ organizationId: current.organizationId })) as BranchOption[]
+    },
+    enabled: open && !!current?.organizationId && isAuthenticated,
+    staleTime: 30_000,
+  })
 
   useEffect(() => {
     if (!current) return
