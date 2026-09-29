@@ -473,6 +473,7 @@ shopRouter.post('/orders', authenticate, async (req: AuthRequest, res) => {
             where: { id: intent.pay.id },
             data: { status: 'failed', meta: { ...(intent.pay.meta as object || {}), state: 'confirmed_failure', error: message.slice(0, 500) } },
           }).catch(() => null);
+          await auditFromReq(req, { action: 'shop.checkout.payment_failed', entity: 'order', entityId: order.id, details: { workflow: 'procurement', queueKey: 'checkout', status: 'payment_failed', reason: 'payment_provider_rejected' } }).catch(() => {});
           await compensateDeterministicCheckoutFailure(order.id, 'payment_provider_rejected').catch((e) => {
             console.error('[checkout compensation]', e);
           });
@@ -490,6 +491,7 @@ shopRouter.post('/orders', authenticate, async (req: AuthRequest, res) => {
           where: { id: intent.pay.id },
           data: { meta: { ...(intent.pay.meta as object || {}), state: 'unknown', providerError: message.slice(0, 500) } },
         }).catch(() => null);
+        await auditFromReq(req, { action: 'shop.checkout.payment_unknown', entity: 'order', entityId: order.id, details: { workflow: 'procurement', queueKey: 'checkout', status: 'payment_unknown' } }).catch(() => {});
         console.error('[kaspi provider outcome unknown]', providerError);
       }
     } else {
