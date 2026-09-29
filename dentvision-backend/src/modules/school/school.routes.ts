@@ -255,7 +255,7 @@ schoolRouter.get('/hub', optionalAuth, async (req: AuthRequest, res) => {
   }
 });
 
-schoolRouter.get('/courses', async (req, res) => {
+schoolRouter.get('/courses', optionalAuth, async (req, res) => {
   try {
     const { category, search, format } = req.query;
     const where: Record<string, unknown> = {
@@ -287,7 +287,7 @@ schoolRouter.get('/courses', async (req, res) => {
   }
 });
 
-schoolRouter.get('/courses/:id', async (req, res) => {
+schoolRouter.get('/courses/:id', optionalAuth, async (req, res) => {
   try {
     const { id } = req.params;
     const course = await prisma.course.findUnique({
