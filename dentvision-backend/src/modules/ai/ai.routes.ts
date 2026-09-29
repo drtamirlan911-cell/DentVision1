@@ -925,6 +925,11 @@ aiRouter.get('/briefing', authenticate, async (req: AuthRequest, res) => {
           select: { name: true },
         }).catch(() => null)
       : null;
+    const { clientTimeZoneFromRequest } = await import('./lib/timezone.js');
+    const timeZone = clientTimeZoneFromRequest({
+      headers: req.headers as Record<string, string | string[] | undefined>,
+      query: (req.query || {}) as Record<string, unknown>,
+    });
     if (!clinicId) {
       const workspaceName = activeWorkspace?.name || 'DentVision';
       const reply = 'Рабочий контекст «' + workspaceName + '» готов. Я могу помочь с задачами, очередями, аналитикой и действиями, доступными вашей роли.';
@@ -942,11 +947,6 @@ aiRouter.get('/briefing', authenticate, async (req: AuthRequest, res) => {
         },
       });
     }
-    const { clientTimeZoneFromRequest } = await import('./lib/timezone.js');
-    const timeZone = clientTimeZoneFromRequest({
-      headers: req.headers as Record<string, string | string[] | undefined>,
-      query: (req.query || {}) as Record<string, unknown>,
-    });
     const briefing = await buildJarvisBriefing({
       userId: req.user.id,
       clinicId,
