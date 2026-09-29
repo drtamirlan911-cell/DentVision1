@@ -273,7 +273,6 @@ async function migratePersons() {
         originalType: 'ClinicMember',
         originalId: `${m.clinicId}:${m.userId}`,
       });
-            });
       const roleKey = resolveClinicRoleKey(m.role);
       if (!roleKey) {
         console.warn(`  ⚠ unrecognized ClinicMember role '${m.role}' for user ${m.userId} in clinic ${m.clinicId} — skipping role assignment`);
@@ -310,7 +309,6 @@ async function migratePersons() {
         originalType: 'Lecturer',
         originalId: l.id,
       });
-            });
       await assignRole(person.id, 'lecturer', 'organization', org?.id ?? undefined);
   });
   console.log(`  ✓ ${lecturersMigrated} lecturers migrated`);
@@ -328,7 +326,6 @@ async function migratePersons() {
         originalType: 'SupplierMember',
         originalId: sm.id,
       });
-            });
       await assignRole(person.id, 'seller', 'organization', org?.id ?? undefined);
   });
   console.log(`  ✓ ${supplierMembersMigrated} supplier members migrated`);
@@ -345,7 +342,6 @@ async function migratePersons() {
         originalType: 'DiagnosticCenterMember',
         originalId: dm.id,
       });
-            });
       const existingPartnerRole = org ? await prisma.personRole.findFirst({ where: { personId: person.id, scopeType: 'organization', scopeId: org.id, role: { key: { startsWith: 'diagnostic_' } } }, select: { id: true } }) : null;
       if (!existingPartnerRole) {
         const diagnosticRoleKey = dm.role === 'admin' ? 'diagnostic_owner' : dm.role === 'operator' ? 'diagnostic_operator' : 'diagnostic_reception';
@@ -366,7 +362,6 @@ async function migratePersons() {
         originalType: 'LaboratoryMember',
         originalId: lm.id,
       });
-            });
       const existingPartnerRole = org ? await prisma.personRole.findFirst({ where: { personId: person.id, scopeType: 'organization', scopeId: org.id, role: { key: { in: ['medical_lab_owner', 'medical_lab_admin', 'medical_lab_technician', 'dental_lab_owner', 'dental_lab_admin', 'dental_technician', 'lab_coordinator'] } } }, select: { id: true } }) : null;
       if (!existingPartnerRole) await assignRole(person.id, 'lab', 'organization', org?.id ?? undefined);
   });
