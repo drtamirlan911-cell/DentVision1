@@ -25,7 +25,7 @@ interface WorkspaceState {
   contextContract: WorkspaceContextContract | null
   onboarding: { completed: boolean; currentScreen: number; skipped: boolean }
   setContextFocus: (focusType: ContextFocus, focusId?: string | null, data?: Record<string, unknown>) => void
-  setWorkflow: (workflowKey: string, step?: string | null, entity?: { type: string; id: string | null }) => void
+  setWorkflow: (workflowKey: string, step?: string | null, entity?: { type: string; id: string | null }, queueKey?: string | null) => void
   setContextData: (data: Record<string, unknown>) => void
   clearContext: () => void
   setActiveWorkspace: (workspace: Omit<ActiveWorkspaceMeta, 'switchedAt'>, contract?: WorkspaceContextContract | null) => void
@@ -63,8 +63,8 @@ export const useWorkspaceStore = create<WorkspaceState>((set) => ({
       context: { focusType, focusId, data, lastUpdated: Date.now() },
     }
   }),
-  setWorkflow: (workflowKey, step = null, entity) => set((state) => {
-    const nextContract = state.contextContract ? workflowContext(state.contextContract, workflowKey, step, entity) : null
+  setWorkflow: (workflowKey, step = null, entity, queueKey = null) => set((state) => {
+    const nextContract = state.contextContract ? workflowContext(state.contextContract, workflowKey, step, entity, queueKey) : null
     setActiveWorkspaceContext(nextContract)
     return {
       contextContract: nextContract,
