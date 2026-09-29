@@ -27,6 +27,7 @@ export interface ContextHints {
   focusId?: string | null;
   workflowKey?: string | null;
   workflowStep?: string | null;
+  queueKey?: string | null;
 }
 
 export interface AiRequestContext {
@@ -48,6 +49,7 @@ export interface AiRequestContext {
    * person is walking through) — always null until one does. Honest gap,
    * not a stub pretending to be real.
    */
+  queue: { key: string };
   workflow: { id: string; state: string } | null;
   recentEvents: Array<{ type: string; at: string }>;
 }
