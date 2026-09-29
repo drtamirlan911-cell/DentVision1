@@ -2538,6 +2538,7 @@ model AIEvent {
   @@index([status])
   @@index([type])
   @@index([createdAt])
+  @@index([status, createdAt])
   @@index([status, processingAt])
   @@index([userId])
   @@map("ai_events")
