@@ -4,6 +4,7 @@ import { motion } from 'framer-motion'
 import { Package, Plus, Search, Minus, AlertTriangle, Edit, DollarSign, ShoppingCart, History, PackageMinus } from 'lucide-react'
 import { useToast } from '@/components/ui/ds/Toast'
 import { useNavigate } from 'react-router-dom'
+import { useCart } from '@/store/cart.store'
 import { useQueryClient } from '@tanstack/react-query'
 import { useDataQuery } from '../../queries/useDataQuery'
 import { queryKeys } from '../../queries/keys'
@@ -54,6 +55,7 @@ interface InventoryForm {
 export default function Inventory() {
   const { clinic } = useOutletContext<OutletContext>()
   const navigate = useNavigate()
+  const { addToCart } = useCart()
   const [searchParams, setSearchParams] = useSearchParams()
   const { showToast, toast, clearToast } = useToast()
   const { inventory, upsertInventoryItem } = useDataQuery(clinic?.id)
@@ -250,7 +252,15 @@ export default function Inventory() {
                     <div className="flex gap-1.5 flex-wrap" onClick={e => e.stopPropagation()}>
                       {canWrite && <><Button variant="danger" size="icon-xs" className="min-h-11 min-w-11" icon={<Minus size={12} />} onClick={() => quickAdjust(item, -1)} aria-label="Уменьшить на 1" /><Button variant="primary" size="icon-xs" className="min-h-11 min-w-11" icon={<Plus size={12} />} onClick={() => quickAdjust(item, 1)} aria-label="Увеличить на 1" /><Button variant="primary" size="icon-xs" className="min-h-11 min-w-11" onClick={() => quickAdjust(item, 10)}>+10</Button></>}
                       <Button variant="ghost" size="icon-xs" className="min-h-11 min-w-11" title="История движений" icon={<History size={12} />} onClick={() => openHistory(item)} aria-label={`История движений: ${item.name}`} />
-                      {isLow && <Button variant="secondary" size="icon-xs" className="min-h-11 min-w-11" title={shopMatch ? `Заказать: ${shopMatch.name}` : 'Заказать в Маркетплейсе'} icon={<ShoppingCart size={12} />} onClick={() => navigate(shopMatch?.id ? `/shop/${shopMatch.id}` : `/shop?q=${encodeURIComponent(item.name || '')}`)} aria-label="Заказать в маркетплейсе" />}
+                      {isLow && <Button variant="secondary" size="icon-xs" className="min-h-11 min-w-11" title={shopMatch ? `Добавить в корзину: ${shopMatch.name}` : 'Найти в Маркетплейсе'} icon={<ShoppingCart size={12} />} onClick={() => {
+                      if (!shopMatch?.id) { navigate(`/shop?q=${encodeURIComponent(item.name || '')}`); return }
+                      const target = shopProducts.find((product: any) => product.id === shopMatch.id)
+                      if (!target) { navigate(`/shop/${shopMatch.id}`); return }
+                      const min = Number(item.minQuantity || item.min || 0)
+                      const deficit = Math.max(1, min - Number(item.quantity || 0))
+                      for (let i = 0; i < deficit; i++) addToCart(target)
+                      navigate('/shop/checkout')
+                    }} aria-label={shopMatch?.id ? "Добавить критичный остаток в корзину" : "Найти в маркетплейсе"} />}
                     </div>
                     {item.supplier && <p className="text-xs text-txt-muted mt-2">Поставщик: {item.supplier}</p>}
                     {item.expiryDate && <p className={cn('text-xs mt-0.5', new Date(item.expiryDate) < new Date() ? 'text-error' : 'text-txt-muted')}>Годен до: {String(item.expiryDate).slice(0, 10)}</p>}
