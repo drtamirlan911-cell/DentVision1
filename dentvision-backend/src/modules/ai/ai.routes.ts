@@ -64,6 +64,8 @@ const querySchema = z.object({
     pathname: z.string().max(200).optional(),
     focusType: z.string().max(64).optional(),
     focusId: z.string().max(128).optional(),
+    workflowKey: z.string().max(128).optional(),
+    workflowStep: z.string().max(128).optional(),
     history: z.array(z.object({
       role: z.string(),
       content: z.string(),
@@ -317,13 +319,15 @@ async function processQuery(
   const pathname = typeof body.pathname === 'string' ? body.pathname : undefined;
   const focusType = typeof body.focusType === 'string' ? body.focusType : undefined;
   const focusId = typeof body.focusId === 'string' ? body.focusId : undefined;
+  const workflowKey = typeof body.workflowKey === 'string' ? body.workflowKey : undefined;
+  const workflowStep = typeof body.workflowStep === 'string' ? body.workflowStep : undefined;
 
   const userId = req.user?.id || 'guest';
   const clinicId = isGuest ? null : (req.user!.clinicId || null);
 
   // The verified entity focus (Stage 10 context engine) — kernel.ts substitutes
   // a missing patientId argument from this. Guests have no clinic-scoped entity.
-  const aiContext = !isGuest && req.user ? await buildAiContext(req, { pathname, focusType, focusId }) : null;
+  const aiContext = !isGuest && req.user ? await buildAiContext(req, { pathname, focusType, focusId, workflowKey, workflowStep }) : null;
   const activeWorkspace = aiContext?.workspace ?? null;
 
   // Learn preferences from this utterance BEFORE the model runs (so «запомни» applies now).
