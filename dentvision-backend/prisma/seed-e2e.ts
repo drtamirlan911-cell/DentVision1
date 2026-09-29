@@ -271,14 +271,14 @@ async function ensureE2EBranchContext(clinicId: string, code: string, name: stri
   if (!existing[0]) {
     await prisma.$executeRaw`
       INSERT INTO branches
-        (id, clinic_id, code, name, active, "isDefault", "createdAt", "updatedAt")
+        (id, clinic_id, code, name, active, is_default, created_at, updated_at)
       VALUES
         (${branchId}, ${clinicId}, ${code}, ${name}, true, true, NOW(), NOW())
     `;
   } else {
     await prisma.$executeRaw`
       UPDATE branches
-      SET name = ${name}, active = true, "isDefault" = true, "updatedAt" = NOW()
+      SET name = ${name}, active = true, is_default = true, updated_at = NOW()
       WHERE id = ${branchId}
     `;
   }
