@@ -1,72 +1,44 @@
-/**
- * A daily counter shared by every instance.
- *
- * Three spend guards — the model token budget and the guest/patient assistant
- * quotas — used to live in `Map`s inside one process. Both quota files said so
- * in their own comments: the tally resets on deploy, and a second instance
- * keeps its own. On two instances a clinic therefore spent twice the daily
- * budget it was told it had, and a restart cleared the guard entirely.
- *
- * Redis makes the count one number. When Redis is absent every function here
- * returns `null`, and the caller keeps its existing in-memory path — so a
- * deployment without Redis behaves exactly as it does today.
- */
+import prisma from './prisma.js'
 
-import { getRedis } from './redis.js'
+const TTL_MS = 48 * 60 * 60 * 1000
 
-/** Two days: covers the UTC day plus clock skew, and expires itself. */
-const TTL_SECONDS = 48 * 60 * 60
-
-/** The day component of every key, so midnight is a new key, not a cron job. */
 export function utcDay(at: Date = new Date()): string {
   return at.toISOString().slice(0, 10)
 }
 
-/**
- * Add to today's counter and return the new total.
- *
- * `null` means "no shared counter available" — no Redis configured, or the
- * call failed. Callers fall back to their own memory rather than failing the
- * request: for a patient asking about their own treatment, failing open is the
- * right direction, and that was already this code's documented decision.
- */
 export async function incrementDaily(key: string, by = 1): Promise<number | null> {
-  const redis = getRedis()
-  if (!redis) return null
+  if (!Number.isFinite(by) || by <= 0) return null
   try {
-    const total = await redis.incrby(key, by)
-    // Only on creation. Re-arming the TTL on every write would slide the
-    // expiry forward forever and keep yesterday's key alive.
-    if (total === by) await redis.expire(key, TTL_SECONDS)
-    return total
+    const expiresAt = new Date(Date.now() + TTL_MS)
+    const rows = await prisma.$queryRaw<Array<{ total: number }>>`
+      INSERT INTO daily_counters (key, day, total, expires_at, created_at, updated_at)
+      VALUES (${key}, ${utcDay()}, ${by}, ${expiresAt}, NOW(), NOW())
+      ON CONFLICT (key, day) DO UPDATE
+      SET total = daily_counters.total + EXCLUDED.total, updated_at = NOW()
+      RETURNING total
+    `
+    return Number(rows[0]?.total ?? 0)
   } catch {
     return null
   }
 }
 
-/** Today's total, or `null` when there is no shared counter to read. */
 export async function readDaily(key: string): Promise<number | null> {
-  const redis = getRedis()
-  if (!redis) return null
   try {
-    const raw = await redis.get(key)
-    if (raw === null || raw === undefined) return 0
-    const n = Number(raw)
-    return Number.isFinite(n) ? n : 0
+    const rows = await prisma.$queryRaw<Array<{ total: number }>>`
+      SELECT total FROM daily_counters
+      WHERE key = ${key} AND day = ${utcDay()} AND expires_at > NOW() LIMIT 1
+    `
+    return Number(rows[0]?.total ?? 0)
   } catch {
     return null
   }
 }
 
-/** Drop a counter. Used by tests and by an operator clearing a stuck quota. */
 export async function clearDaily(key: string): Promise<void> {
-  const redis = getRedis()
-  if (!redis) return
   try {
-    await redis.del(key)
-  } catch {
-    /* nothing to do: the key expires on its own */
-  }
+    await prisma.$executeRaw`DELETE FROM daily_counters WHERE key = ${key} AND day = ${utcDay()}`
+  } catch {}
 }
 
 export const counterKeys = {
