@@ -173,7 +173,7 @@ export interface EventContext {
 
 export interface EventStats {
   connected: boolean;
-  mode: 'redis' | 'memory';
+  mode: 'postgres' | 'redis' | 'memory';
   published: number;
   processed: number;
   failed: number;
