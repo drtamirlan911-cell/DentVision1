@@ -30,12 +30,28 @@ const PROFESSIONAL_USER_ROLES = new Set([
 ]);
 
 export function resolveActiveContentContext(req: Request): ActiveContentContext {
-  const raw = String(req.get('x-dentvision-context') || req.query.context || '').trim().toUpperCase();
-  if (raw === 'PATIENT' || raw === 'DOCTOR' || raw === 'DENTAL_STUDENT' || raw === 'ASSISTANT' || raw === 'LAB' || raw === 'DIAGNOSTIC' || raw === 'SELLER' || raw === 'LECTURER') {
-    return raw;
+  const explicit = String(req.get('x-dentvision-context') || req.query.context || '').trim().toUpperCase();
+  if (explicit === 'PATIENT' || explicit === 'DOCTOR' || explicit === 'DENTAL_STUDENT' || explicit === 'ASSISTANT' || explicit === 'LAB' || explicit === 'DIAGNOSTIC' || explicit === 'SELLER' || explicit === 'LECTURER') {
+    return explicit;
   }
 
-  const role = String((req as Request & { user?: { role?: string } }).user?.role || '').toUpperCase();
+  // The canonical workspace contract is carried by the JWT after
+  // /iam/switch-context. Do not collapse every partner role into DOCTOR:
+  // diagnostic/lab/supplier workspaces need their own catalog audience.
+  const user = (req as Request & { user?: {
+    role?: string;
+    organizationType?: string;
+  } }).user;
+  const organizationType = String(user?.organizationType || '').toUpperCase();
+  if (organizationType === 'DIAGNOSTIC_CENTER') return 'DIAGNOSTIC';
+  if (organizationType === 'LABORATORY') {
+    const role = String(user?.role || '').toUpperCase();
+    return role === 'DOCTOR' ? 'DOCTOR' : 'LAB';
+  }
+  if (organizationType === 'SUPPLIER' || organizationType === 'SUPPLIER_COMPANY') return 'SELLER';
+  if (organizationType === 'ACADEMY') return 'LECTURER';
+
+  const role = String(req.get('x-dentvision-role') || user?.role || '').toUpperCase();
   if (role === 'STUDENT') return 'DENTAL_STUDENT';
   if (PROFESSIONAL_USER_ROLES.has(role)) return 'DOCTOR';
   return 'PUBLIC';
