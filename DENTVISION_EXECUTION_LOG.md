@@ -966,3 +966,27 @@ The route aliases are reconciliation only: they point to already implemented wor
 ### Verification
 - Fresh mainline CI is required for these commits.
 - PR #289 remains the only open PR and is being verified independently; no new implementation branch was created.
+
+
+## 2026-09-29 — Mainline cabinet/onboarding convergence continuation
+
+### Implemented
+- `cc936e428bf7382492c50c368f142052b90e61be` — applied the unique PR #289 role-gate authentication recovery directly to `main`, preserving its useful release-gate fix without carrying the stale divergent PR branch forward. PR #289 was closed as superseded.
+- `809043c44374f8377f74cedeea0fbeb93162d3cc` — reconciled additional Master Spec cabinet routes to existing canonical workflows rather than creating duplicate pages: discovery/universal routes, practice patient/analytics, diagnostic queues/studies/reporting, medical-lab operational routes, dental-lab production/support routes, business/supplier routes, academy routes, and professional/employer routes.
+- `ed891428d7ac1f1433f2d5c6d6ef0757b7b6b1b8` — preserved Academy course deep-link identity by rendering the existing `SchoolCourse` implementation directly instead of redirecting to a literal parameter placeholder.
+- `5f1ba44160426fcc3351ef08def13d62b568537f` — canonical onboarding now supports `/organizations/new`, `/organizations/join` and `/invitations` entry points through the same unified onboarding engine; onboarding can initialize create/join mode from the canonical query intent.
+- `e2ddd94269fa0813d1fe9c6be2d9a1ad324d4910` — added canonical organization entry routes to the web shell.
+- `e81734e954fbba8df90011231cf963fcda469d28` — added student and employer intent paths so non-organization users are not forced into organization creation for education or hiring workflows.
+
+### Architecture rule
+These changes are route/entry reconciliation only. Existing domain implementations remain authoritative. No duplicate organization, permission, finance, laboratory, Academy or AI data model was introduced.
+
+### Verification
+- Quality Gate `#4097` was green for the previous main HEAD `56cdf7ed27751f0a7c40ec56706e0331ae5f4d9b`.
+- Fresh Quality Gate `#4102` is executing against the intermediate main tip `e2ddd94269fa0813d1fe9c6be2d9a1ad324d4910`; its TypeScript step is running. Later commits require a final exact-HEAD gate before release status can be considered verified.
+- Render DentVision API auto-deploy is currently queued behind an older `update_in_progress` deployment; a manual deploy trigger was accepted but the latest deployment remains queued. This is an infrastructure/deployment-state blocker, not evidence of an application failure.
+
+### Next action
+- Verify the exact current main HEAD with full CI/E2E/Visual evidence.
+- Inspect any failures at job/artifact level and repair them on `main`.
+- Continue the remaining Master Spec P0/P1 work: canonical AI scope consolidation, partner cabinet workflow completeness, production data normalization/bootstrap verification, Android ecosystem parity, and full release/rollback evidence.
