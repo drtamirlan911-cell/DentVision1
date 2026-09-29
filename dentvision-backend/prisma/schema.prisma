@@ -2528,7 +2528,8 @@ model AIEvent {
   result      Json?
   error       String?
   createdAt   DateTime      @default(now())
-  processedAt DateTime?
+  processedAt  DateTime?
+  processingAt DateTime?
 
   user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
   clinic Clinic @relation(fields: [clinicId], references: [id], onDelete: Cascade)
@@ -2537,6 +2538,7 @@ model AIEvent {
   @@index([status])
   @@index([type])
   @@index([createdAt])
+  @@index([status, processingAt])
   @@index([userId])
   @@map("ai_events")
 }
