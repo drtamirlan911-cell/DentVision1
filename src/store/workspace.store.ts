@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import type { WorkspaceContextContract } from '@/lib/workspaceContext'
+import { workflowContext } from '@/lib/workspaceContext'
 
 export type ContextFocus = 'workspace' | 'patient' | 'appointment' | 'product' | 'course' | 'analytics' | 'invoice' | 'lab'
 
@@ -24,6 +25,7 @@ interface WorkspaceState {
   contextContract: WorkspaceContextContract | null
   onboarding: { completed: boolean; currentScreen: number; skipped: boolean }
   setContextFocus: (focusType: ContextFocus, focusId?: string | null, data?: Record<string, unknown>) => void
+  setWorkflow: (workflowKey: string, step?: string | null, entity?: { type: string; id: string | null }) => void
   setContextData: (data: Record<string, unknown>) => void
   clearContext: () => void
   setActiveWorkspace: (workspace: Omit<ActiveWorkspaceMeta, 'switchedAt'>, contract?: WorkspaceContextContract | null) => void
@@ -41,7 +43,29 @@ export const useWorkspaceStore = create<WorkspaceState>((set) => ({
     currentScreen: 0,
     skipped: false,
   },
-  setContextFocus: (focusType, focusId = null, data = {}) => set({ context: { focusType, focusId, data, lastUpdated: Date.now() } }),
+  setContextFocus: (focusType, focusId = null, data = {}) => set((state) => {
+    const workflowMap: Record<ContextFocus, string> = {
+      workspace: 'workspace',
+      patient: 'clinical-case',
+      appointment: 'appointment',
+      product: 'procurement',
+      course: 'learning',
+      analytics: 'analytics',
+      invoice: 'finance',
+      lab: 'laboratory',
+    }
+    const nextContract = state.contextContract
+      ? workflowContext(state.contextContract, workflowMap[focusType], null, { type: focusType, id: focusId })
+      : null
+    return {
+      contextContract: nextContract,
+      context: { focusType, focusId, data, lastUpdated: Date.now() },
+    }
+  }),
+  setWorkflow: (workflowKey, step = null, entity) => set((state) => ({
+    contextContract: state.contextContract ? workflowContext(state.contextContract, workflowKey, step, entity) : null,
+    context: { ...state.context, lastUpdated: Date.now() },
+  })),
   setContextData: (data) => set((state) => ({ context: { ...state.context, data: { ...state.context.data, ...data }, lastUpdated: Date.now() } })),
   clearContext: () => set({ context: { focusType: 'workspace', focusId: null, data: {}, lastUpdated: Date.now() } }),
   setActiveWorkspace: (workspace, contract = null) => set((state) => {
