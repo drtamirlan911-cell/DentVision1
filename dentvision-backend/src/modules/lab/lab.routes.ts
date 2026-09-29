@@ -11,6 +11,7 @@ import { publish } from '../../lib/events.js';
 import { recordPartnerEconomics } from '../finance/partner-economics.service.js';
 import { labPlatformRouter } from './labPlatform.routes.js';
 import { medicalLabLifecycleRouter } from './medicalLab.routes.js';
+import { writeAuditLog } from '../compliance/audit.service.js';
 
 export const labRouter = Router();
 labRouter.use('/platform', labPlatformRouter);
@@ -190,7 +191,13 @@ labRouter.post('/', requirePermission('appointment.write'), async (req: AuthRequ
     const data = prepared.data as any;
     const order = id ? await prisma.labOrder.update({ where: { id }, data }) : await prisma.labOrder.create({ data: { id: uid(), clinicId, ...data } });
     if (body.treatmentCaseId) await prisma.$executeRawUnsafe(`UPDATE "lab_orders" SET "treatmentCaseId"=$1 WHERE "id"=$2`, body.treatmentCaseId, order.id);
-    if (!id) publish('labOrder.created', { clinicId, labOrderId: order.id, patientId: order.patientId || undefined, doctorId: order.doctorId || undefined, treatmentCaseId: body.treatmentCaseId || undefined, userId: req.user?.id });
+    if (!id) {
+      await writeAuditLog({ action: 'LAB_ORDER_CREATED', entity: 'lab_order', entityId: order.id, details: { status: order.status, laboratoryId: body.laboratoryId || null, treatmentCaseId: body.treatmentCaseId || null }, userId: req.user!.id, clinicId });
+      publish('labOrder.created', { clinicId, labOrderId: order.id, patientId: order.patientId || undefined, doctorId: order.doctorId || undefined, treatmentCaseId: body.treatmentCaseId || undefined, userId: req.user?.id });
+    }
+    if (id) {
+      await writeAuditLog({ action: 'LAB_ORDER_UPDATED', entity: 'lab_order', entityId: order.id, details: { fields: Object.keys(body) }, userId: req.user!.id, clinicId });
+    }
     return res.status(201).json({ ok: true, data: serializeLabOrder(order) } satisfies ApiResponse);
   } catch (error) { console.error('[Lab] upsert error:', error); return res.status(500).json({ ok: false, error: 'Не удалось сохранить заказ лаборатории' } satisfies ApiResponse); }
 });
@@ -219,6 +226,7 @@ labRouter.patch('/:id/status', requirePermission('appointment.write'), async (re
       }
       return order;
     });
+    await writeAuditLog({ action: 'LAB_ORDER_STATUS_CHANGED', entity: 'lab_order', entityId: order.id, details: { workflow: 'dental-laboratory', queueKey: 'lab-orders', fromStatus: owned.status, toStatus: order.status, patientId: owned.patientId || null }, userId: req.user!.id, clinicId });
     publish('labOrder.status_changed', { clinicId, labOrderId: order.id, patientId: owned.patientId || undefined, doctorId: owned.doctorId || undefined, status: order.status, previousStatus: owned.status, userId: req.user?.id });
     return res.json({ ok: true, data: serializeLabOrder(order) } satisfies ApiResponse);
   } catch (error) { console.error('[Lab] status update error:', error); return res.status(500).json({ ok: false, error: 'Не удалось обновить статус заказа' } satisfies ApiResponse); }
@@ -230,6 +238,7 @@ labRouter.delete('/:id', requirePermission('appointment.write'), async (req: Aut
     if (!clinicId) return res.status(400).json({ ok: false, error: 'Клиника не указана' } satisfies ApiResponse);
     const result = await prisma.labOrder.deleteMany({ where: { id: req.params.id as string, clinicId, ...branchScopedLabOrder(req) } });
     if (result.count === 0) return res.status(404).json({ ok: false, error: 'Заказ лаборатории не найден' } satisfies ApiResponse);
+    await writeAuditLog({ action: 'LAB_ORDER_DELETED', entity: 'lab_order', entityId: req.params.id as string, userId: req.user!.id, clinicId });
     return res.json({ ok: true, data: { deleted: true } } satisfies ApiResponse);
   } catch (error) { console.error('[Lab] delete error:', error); return res.status(500).json({ ok: false, error: 'Не удалось удалить заказ лаборатории' } satisfies ApiResponse); }
 });
