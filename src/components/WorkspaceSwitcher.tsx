@@ -3,7 +3,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
-import { Building2, Check, ChevronDown, FlaskConical, GraduationCap, Loader2, Plus, Store } from 'lucide-react'
+import { Building2, Check, ChevronDown, FlaskConical, GraduationCap, Loader2, Plus, Store, GitBranch } from 'lucide-react'
 
 import { cn } from '@/lib/utils'
 import { getRoleDisplayLabel, useAuth, useAuthStore } from '@/store/auth.store'
@@ -74,6 +74,17 @@ export function WorkspaceSwitcher({ className }: { className?: string }) {
     enabled: !!user && isAuthenticated,
     staleTime: 60_000,
     refetchOnWindowFocus: true,
+  })
+
+  interface BranchOption { id: string; name: string; code?: string | null; active?: boolean }
+  const { data: branches = [], isFetching: branchesLoading } = useQuery<BranchOption[]>({
+    queryKey: ['workspace-branches', current?.organizationId],
+    queryFn: async () => {
+      if (!current?.organizationId) return []
+      return (await api.listBranches({ organizationId: current.organizationId })) as BranchOption[]
+    },
+    enabled: open && !!current?.organizationId && isAuthenticated,
+    staleTime: 30_000,
   })
 
   const updateMenuPosition = () => {
@@ -193,11 +204,43 @@ export function WorkspaceSwitcher({ className }: { className?: string }) {
         case 'LABORATORY': navigate('/diagnostics/lab-dashboard'); break
         case 'SUPPLIER': navigate('/supplier'); break
         case 'LECTURER':
-        case 'ACADEMY': navigate('/school/workspace'); break
+        case 'ACADEMY': navigate('/school'); break
         case 'PARTNER': navigate('/shop'); break
       }
     } catch (e) {
       toast.error((e as Error)?.message || t('platform.clinic_switch_error'))
+    } finally {
+      setBusyId(null)
+    }
+  }
+
+  const pickBranch = async (branch: BranchOption) => {
+    if (!current || busyId) return
+    if (current.branchId === branch.id) { setOpen(false); return }
+    setBusyId(`branch:${branch.id}`)
+    try {
+      const switchScopeId = current.scopeType === 'LECTURER' || current.scopeType === 'SUPPLIER'
+        ? current.scopeId
+        : (current.organizationId || current.scopeId)
+      const tokens = await api.switchContext(current.scopeType, switchScopeId, branch.id)
+      if (tokens?.accessToken) api.setTokens(tokens.accessToken, tokens.refreshToken || null)
+      await useAuthStore.getState().restoreSession()
+
+      const selected = { ...current, branchId: branch.id }
+      const contract = workspaceContextFrom(selected, selected.permissions || [])
+      api.setWorkspaceContext(contract)
+      setActiveWorkspace({ id: selected.id, scopeType: selected.scopeType, organizationId: selected.organizationId, branchId: selected.branchId, name: selected.name, roleKey: selected.roleKey, roleLabel: selected.roleLabel, permissions: selected.permissions, participant: selected.personType, dataScope: contract.dataScope }, contract)
+      setContextFocus('workspace', selected.id, { organizationId: selected.organizationId || null, branchId: branch.id, roleKey: selected.roleKey || selected.role || null, scopeType: selected.scopeType })
+      window.dispatchEvent(new CustomEvent('dentvision:workspace-switched', { detail: { id: selected.id, scopeType: selected.scopeType, organizationId: selected.organizationId, branchId: branch.id, name: selected.name, roleLabel: selected.roleLabel, roleKey: selected.roleKey || null } }))
+      toast.success(`Филиал: ${branch.name}`)
+      setOpen(false)
+      void queryClient.invalidateQueries({ queryKey: queryKeys.appointments })
+      void queryClient.invalidateQueries({ queryKey: queryKeys.patients })
+      void queryClient.invalidateQueries({ queryKey: queryKeys.receipts })
+      void queryClient.invalidateQueries({ queryKey: queryKeys.waitingList })
+      void queryClient.invalidateQueries({ queryKey: queryKeys.chairs })
+    } catch (e) {
+      toast.error((e as Error)?.message || 'Не удалось переключить филиал')
     } finally {
       setBusyId(null)
     }
@@ -243,6 +286,29 @@ export function WorkspaceSwitcher({ className }: { className?: string }) {
           </div>
         ))}
       </div>
+
+      {current?.organizationId && (branchesLoading || branches.length > 0) && (
+        <div className="mt-1 border-t border-bdr-subtle pt-1.5">
+          <div className="flex items-center justify-between px-2 py-1.5">
+            <p className="text-[10px] font-semibold uppercase tracking-wider text-txt-muted">Филиалы</p>
+            {branchesLoading && <Loader2 size={12} className="animate-spin text-txt-muted" />}
+          </div>
+          <div className="space-y-0.5">
+            {branches.map((branch) => {
+              const active = current.branchId === branch.id
+              const loading = busyId === `branch:${branch.id}`
+              return (
+                <button key={branch.id} type="button" disabled={!!busyId} onClick={() => void pickBranch(branch)} aria-current={active ? 'true' : undefined}
+                  className={cn('w-full flex items-center gap-2.5 px-2.5 py-2 min-h-11 rounded-xl text-left border transition-[background-color,border-color,color] duration-150 disabled:opacity-60', active ? 'border-dv-gold/50 bg-dv-gold/10 text-txt-primary' : 'border-transparent text-txt-primary hover:border-bdr-subtle hover:bg-surface-2')}>
+                  <span className={cn('h-7 w-7 rounded-lg flex items-center justify-center shrink-0 border', active ? 'bg-dv-gold/15 border-dv-gold/30 text-dv-gold' : 'bg-surface-2 border-bdr-subtle text-txt-secondary')}><GitBranch size={14} /></span>
+                  <span className="min-w-0 flex-1"><span className="block text-xs font-semibold truncate">{branch.name}</span>{branch.code && <span className="block text-[10px] text-txt-muted truncate">{branch.code}</span>}</span>
+                  {loading ? <Loader2 size={14} className="animate-spin shrink-0 text-dv-gold" /> : active ? <Check size={14} className="shrink-0 text-dv-gold" /> : null}
+                </button>
+              )
+            })}
+          </div>
+        </div>
+      )}
       <button type="button" onClick={() => { setOpen(false); navigate('/my-clinics') }} className="mt-1 w-full flex items-center gap-2 px-2.5 py-2 min-h-11 rounded-xl border border-transparent text-xs font-medium text-txt-secondary hover:text-txt-primary hover:bg-surface-2 hover:border-bdr-subtle transition-colors"><Plus size={14} />{t('platform.all_clinics')}</button>
     </div>,
     document.body,
@@ -253,6 +319,8 @@ export function WorkspaceSwitcher({ className }: { className?: string }) {
       <button
         ref={buttonRef}
         type="button"
+        onPointerDown={(event) => event.stopPropagation()}
+        onMouseDown={(event) => event.stopPropagation()}
         onClick={() => { if (!open) updateMenuPosition(); setOpen((v) => !v) }}
         className={cn('group flex items-center gap-2 max-w-[8.5rem] xs:max-w-[10rem] sm:max-w-[16rem] min-h-11 px-2.5 py-1.5 rounded-xl', 'bg-surface-raised border border-bdr-strong text-txt-primary shadow-elev-1 hover:bg-surface-raised-hover hover:border-dv-gold/60 hover:shadow-elev-2 transition-[background-color,border-color,box-shadow] duration-150', open && 'border-dv-gold/70 shadow-elev-2')}
         aria-label={activeRoleLabel ? `${t('platform.clinic_switch')}: ${current?.name || t('platform.clinic_fallback')} — ${activeRoleLabel}` : t('platform.clinic_switch')}
