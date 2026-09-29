@@ -1053,3 +1053,26 @@ These changes are route/entry reconciliation only. Existing domain implementatio
 
 ### Verification
 - Required next: deploy the fix, confirm migration success, then verify durable worker startup and HTTP port health before proceeding to the next Master Spec work.
+
+## 2026-09-29 — Exact-head production recovery and deploy hardening
+
+### Findings
+- The failed production migration is now demonstrably recovered: Render applied `20260929130000_ai_admin_postgres_queue` and `20260929133000_ai_event_claim_index`, followed by successful permission seeding.
+- The previous P3009/P3018 errors belong to the pre-fix boot attempts; the corrected deploy reached migration application successfully.
+- Vercel's latest READY production deployment is still older than the current mainline. The current commit cannot yet be treated as production-verified because the Vercel provider is reporting the existing build-rate-limit blocker.
+- Vercel runtime error aggregation for the project reports no runtime errors in the selected last-hour window.
+
+### Hardening implemented
+- Added `prestart` recovery for the exact failed AI-admin migration so future production boots recover that migration before `prisma migrate deploy`.
+- Removed the recovery side effect from `ensure-branch-model.ts`; that script is again a schema validation gate only.
+- Durable AI-admin queue remains isolated in `ai_admin_queue_messages`.
+
+### Current state
+- No open pull requests.
+- Mainline contains the DB recovery/hardening commits.
+- Release is still blocked by exact-head CI/visual evidence and Vercel deployment-rate-limit evidence.
+
+### Next action
+- Verify the latest Render deploy reaches full bootstrap and durable worker startup.
+- Verify exact-head GitHub CI.
+- Continue P0 release blockers and partner owner lifecycle; do not mark release-ready until production deployment evidence catches up to current main.
