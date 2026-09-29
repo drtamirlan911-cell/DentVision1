@@ -253,6 +253,7 @@ export function WorkspaceSwitcher({ className }: { className?: string }) {
       style={{ top: menuPosition.top, left: menuPosition.left, width: menuPosition.width, maxHeight: 'calc(100vh - 24px)' }}
       role="menu"
       aria-label="Рабочее пространство"
+      data-testid="workspace-switcher-menu"
     >
       <div className="px-2 py-1.5 border-b border-bdr-subtle mb-1">
         <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-txt-muted">Рабочее пространство</p>
@@ -319,6 +320,7 @@ export function WorkspaceSwitcher({ className }: { className?: string }) {
       <button
         ref={buttonRef}
         type="button"
+        data-testid="workspace-switcher-trigger"
         onPointerDown={(event) => event.stopPropagation()}
         onMouseDown={(event) => event.stopPropagation()}
         onClick={() => { if (!open) updateMenuPosition(); setOpen((v) => !v) }}
