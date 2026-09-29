@@ -90,4 +90,9 @@ export const CORS_HEADERS = [
   'X-Client-Timezone',
   'X-Timezone',
   'X-Csrf-Token',
+  'X-DentVision-Workspace-Id',
+  'X-DentVision-Role',
+  'X-DentVision-Organization-Id',
+  'X-DentVision-Branch-Id',
+  'X-DentVision-Workflow',
 ] as const;
