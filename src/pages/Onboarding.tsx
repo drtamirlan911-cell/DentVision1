@@ -29,7 +29,8 @@ const PERSONAL_INTENTS = [
 export default function Onboarding() {
   const { isAuthenticated, loading: authLoading } = useAuth()
   const toast = useToast()
-  const [mode, setMode] = useState<Mode>('intent')
+  const initialMode = new URLSearchParams(window.location.search).get('mode')
+  const [mode, setMode] = useState<Mode>(initialMode === 'join' || initialMode === 'create' ? initialMode : 'intent')
   const [kind, setKind] = useState<Kind | null>(null)
   const [form, setForm] = useState({ name: '', city: '', address: '', phone: '', email: '', taxId: '' })
   const [inviteCode, setInviteCode] = useState('')
