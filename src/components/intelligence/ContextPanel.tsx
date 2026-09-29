@@ -11,6 +11,7 @@ import { ClinicalCaseCopilot } from '@/components/superapp/ClinicalCaseCopilot'
 import { useAIStore } from '@/store/ai.store'
 import { useAuth } from '@/store/auth.store'
 import { useGuestStore } from '@/store/guest.store'
+import { useWorkspaceStore } from '@/store/workspace.store'
 
 type TabId = 'context' | 'digital-twin' | 'alerts' | 'activity'
 
@@ -21,6 +22,8 @@ export function ContextPanel({ onClose }: ContextPanelProps) {
   const isGuest = useGuestStore((s) => s.isGuest) || !user
   const [activeTab, setActiveTab] = useState<TabId>(isGuest ? 'digital-twin' : 'context')
   const alertCount = useAIStore((s) => s.proactiveAlerts.length)
+  const activeWorkspace = useWorkspaceStore((s) => s.activeWorkspace)
+  const contract = useWorkspaceStore((s) => s.contextContract)
 
   const tabs: { id: TabId; label: string; hint: string; icon: React.ElementType }[] = [
     { id: 'context', label: 'Контекст', hint: isGuest ? 'Что открыто сейчас' : 'Текущий объект работы', icon: User },
@@ -46,10 +49,10 @@ export function ContextPanel({ onClose }: ContextPanelProps) {
       </div>
 
       <div className="border-b border-bdr-subtle px-3 py-3">
-        <div className="mb-2 flex items-center gap-2"><CalendarDays size={15} className="text-dv-gold" /><span className="text-xs font-semibold text-txt-primary">Сегодня</span><span className="text-[10px] text-txt-ghost">операционный контекст</span></div>
+        <div className="mb-2 flex items-center gap-2"><CalendarDays size={15} className="text-dv-gold" /><span className="text-xs font-semibold text-txt-primary">{activeWorkspace?.name || 'Рабочее пространство'}</span><span className="text-[10px] text-txt-ghost">{activeWorkspace?.roleLabel || 'контекст'}</span></div>
         <div className="grid grid-cols-3 gap-2">
-          <div className="rounded-lg border border-white/[0.06] bg-white/[0.025] p-2"><div className="text-sm font-semibold text-txt-primary">—</div><div className="text-[9px] text-txt-muted">Пациенты</div></div>
-          <div className="rounded-lg border border-white/[0.06] bg-white/[0.025] p-2"><div className="text-sm font-semibold text-txt-primary">—</div><div className="text-[9px] text-txt-muted">Задачи</div></div>
+          <div className="rounded-lg border border-white/[0.06] bg-white/[0.025] p-2"><div className="truncate text-xs font-semibold text-txt-primary">{contract?.workflow?.key || 'workspace'}</div><div className="text-[9px] text-txt-muted">Workflow</div></div>
+          <div className="rounded-lg border border-white/[0.06] bg-white/[0.025] p-2"><div className="truncate text-xs font-semibold text-txt-primary">{contract?.queue?.key || 'workspace'}</div><div className="text-[9px] text-txt-muted">Очередь</div></div>
           <div className="rounded-lg border border-white/[0.06] bg-white/[0.025] p-2"><div className="text-sm font-semibold text-txt-primary">{alertCount}</div><div className="text-[9px] text-txt-muted">AI сигналы</div></div>
         </div>
       </div>
