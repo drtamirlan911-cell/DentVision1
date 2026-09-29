@@ -488,20 +488,31 @@ export async function aiGenerateResult(referralId: string, userId: string) {
     const raw = await simpleChat(`Ты — врач-рентгенолог. Перед тобой снимок исследования ${referral.studyType} пациента ${referral.patientName}.\nЖалобы: ${referral.complaints || 'не указаны'}. Предв. диагноз: ${referral.preliminaryDx || 'нет'}.\nЦель: ${referral.studyGoal || 'не указана'}.\nОписывай ТОЛЬКО то, что видно на снимке. Если структура не просматривается — так и пиши, не додумывай.`, 'Опиши снимок и выдай заключение на русском языке.', { maxTokens: 1000, imageUrl, jsonSchema: REPORT_SCHEMA });
     const report = parseReport(raw);
     if (!report) throw new DiagnosticAiUnavailable('UNPARSABLE', 'Модель вернула ответ в неожиданном формате — заключение не сохранено');
-    return upsertResult(referralId, renderReport(report), { sawSource: true, conclusion: report.conclusion });
+    return upsertResult(referralId, renderReport(report), userId, { sawSource: true, conclusion: report.conclusion });
   }
   const labCategories = ['ALLERGY', 'HISTOLOGY', 'PCR', 'MICROBIOLOGY', 'BLOOD', 'GENETICS', 'BIOPSY', 'SALIVA', 'PATHOLOGY'];
   if (labCategories.includes(category)) return aiAnalyzeLabResult(referralId, referral, userId);
   const prompt = `Ты — ассистент стоматолога. На основе данных направления напиши заключение диагностического исследования.\n\nПациент: ${referral.patientName}\nИсследование: ${referral.studyType}\nЖалобы: ${referral.complaints || 'не указаны'}\nПредварительный диагноз: ${referral.preliminaryDx || 'не указан'}\nЦель: ${referral.studyGoal || 'не указана'}\nАллергии: ${referral.allergies || 'нет'}\nОсобые отметки: ${referral.specialNotes || 'нет'}\nКлиника: ${referral.clinic?.name || 'не указана'}\n\nНапиши заключение в формате:\n1. Описание исследования\n2. Результаты\n3. Заключение\n4. Рекомендации`;
   const aiContent = await simpleChat(prompt, 'Сгенерируй заключение на русском языке.', { maxTokens: 1000 });
-  return upsertResult(referralId, aiContent, { sawSource: false });
+  return upsertResult(referralId, aiContent, userId, { sawSource: false });
 }
 
-async function upsertResult(referralId: string, aiContent: string, opts: { sawSource: boolean; conclusion?: string } = { sawSource: false }) {
+async function upsertResult(referralId: string, aiContent: string, userId: string, opts: { sawSource: boolean; conclusion?: string } = { sawSource: false }) {
   const data = { reportText: aiContent, aiGenerated: true, aiSawSource: opts.sawSource, ...(opts.conclusion ? { conclusion: opts.conclusion } : {}) };
   const existing = await prisma.diagnosticResult.findUnique({ where: { referralId } });
-  if (existing) return prisma.diagnosticResult.update({ where: { referralId }, data });
-  return prisma.diagnosticResult.create({ data: { id: uid(), referralId, ...data } });
+  const result = existing
+    ? await prisma.diagnosticResult.update({ where: { referralId }, data })
+    : await prisma.diagnosticResult.create({ data: { id: uid(), referralId, ...data } });
+  const referral = await prisma.referral.findUnique({ where: { id: referralId }, select: { clinicId: true, studyType: true, category: true } });
+  await writeAuditLog({
+    action: 'AI_DIAGNOSTIC_RESULT_GENERATED',
+    entity: 'referral',
+    entityId: referralId,
+    details: { workflow: 'diagnostics', queueKey: 'worklist', resultId: result.id, category: referral?.category || null, studyType: referral?.studyType || null, requiresConfirmation: true },
+    userId,
+    clinicId: referral?.clinicId || undefined,
+  });
+  return result;
 }
 
 async function aiAnalyzeLabResult(referralId: string, referral: any, _userId: string) {
