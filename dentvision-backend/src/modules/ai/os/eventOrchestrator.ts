@@ -61,6 +61,7 @@ async function enrichEmployeeResult(
   if (!result.success || !result.message || action.action !== 'generateDailySummary') {
     return result;
   }
+  if (Date.now() < aiProviderUnavailableUntil) return result;
 
   if (Date.now() < aiProviderUnavailableUntil) return result;
 
