@@ -14,6 +14,7 @@ const BATCH_SIZE = 3
 let polling = false
 let stopped = false
 let lastRecoveryAt = 0
+let pollTimer: ReturnType<typeof setInterval> | null = null
 
 async function processMessage(msg: NormalizedMessage): Promise<void> {
   const startedAt = Date.now()
@@ -97,6 +98,8 @@ export async function startMessageWorker(): Promise<void> {
     stopped = false
     console.log('[ai-admin] Durable PostgreSQL message worker started')
     void poll()
-    setInterval(() => void poll(), POLL_INTERVAL_MS)
+    if (!pollTimer) {
+      pollTimer = setInterval(() => void poll(), POLL_INTERVAL_MS)
+    }
   }
 }
