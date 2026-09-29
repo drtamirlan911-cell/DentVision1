@@ -4,6 +4,7 @@ import { authenticate, optionalAuth } from '../../middleware/auth.js';
 import { requireSuperadmin } from '../../middleware/rbac.js';
 import { AuthRequest } from '../../types/index.js';
 import { uid } from '../../lib/helpers.js';
+import { writeAuditLog } from '../compliance/audit.service.js';
 import {
   CLINICAL_CASES,
   DEFAULT_EXAM,
@@ -452,6 +453,13 @@ schoolRouter.post('/enrollments', authenticate, async (req: AuthRequest, res) =>
       data: { id: uid(), userId, courseId },
       include: { course: true },
     });
+    await writeAuditLog({
+      action: 'ACADEMY_ENROLLMENT_CREATED',
+      entity: 'school_enrollment',
+      entityId: enrollment.id,
+      details: { workflow: 'learning', queueKey: 'courses', courseId, courseTitle: course.title, price },
+      userId,
+    });
     res.status(201).json({
       ok: true,
       data: { ...enrollment, requiresPayment: false, enrolled: true },
@@ -503,6 +511,13 @@ schoolRouter.patch('/enrollments/:id', authenticate, async (req: AuthRequest, re
           : {}),
       },
       include: { course: true },
+    });
+    await writeAuditLog({
+      action: completed === true ? 'ACADEMY_COURSE_COMPLETED' : 'ACADEMY_PROGRESS_UPDATED',
+      entity: 'school_enrollment',
+      entityId: updated.id,
+      details: { workflow: 'learning', queueKey: 'courses', courseId: updated.courseId, progress: updated.progress, completed: updated.completed, completedLessons: updated.completedLessons },
+      userId: req.user!.id,
     });
     res.json({ ok: true, data: updated });
   } catch (error) {
