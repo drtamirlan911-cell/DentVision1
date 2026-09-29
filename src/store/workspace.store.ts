@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 import type { WorkspaceContextContract } from '@/lib/workspaceContext'
-import { workflowContext } from '@/lib/workspaceContext'
+import { setActiveWorkspaceContext, workflowContext } from '@/lib/workspaceContext'
 
 export type ContextFocus = 'workspace' | 'patient' | 'appointment' | 'product' | 'course' | 'analytics' | 'invoice' | 'lab'
 
@@ -57,21 +57,27 @@ export const useWorkspaceStore = create<WorkspaceState>((set) => ({
     const nextContract = state.contextContract
       ? workflowContext(state.contextContract, workflowMap[focusType], null, { type: focusType, id: focusId })
       : null
+    setActiveWorkspaceContext(nextContract)
     return {
       contextContract: nextContract,
       context: { focusType, focusId, data, lastUpdated: Date.now() },
     }
   }),
-  setWorkflow: (workflowKey, step = null, entity) => set((state) => ({
-    contextContract: state.contextContract ? workflowContext(state.contextContract, workflowKey, step, entity) : null,
-    context: { ...state.context, lastUpdated: Date.now() },
-  })),
+  setWorkflow: (workflowKey, step = null, entity) => set((state) => {
+    const nextContract = state.contextContract ? workflowContext(state.contextContract, workflowKey, step, entity) : null
+    setActiveWorkspaceContext(nextContract)
+    return {
+      contextContract: nextContract,
+      context: { ...state.context, lastUpdated: Date.now() },
+    }
+  }),
   setContextData: (data) => set((state) => ({ context: { ...state.context, data: { ...state.context.data, ...data }, lastUpdated: Date.now() } })),
   clearContext: () => set({ context: { focusType: 'workspace', focusId: null, data: {}, lastUpdated: Date.now() } }),
   setActiveWorkspace: (workspace, contract = null) => set((state) => {
     const previous = state.activeWorkspace
     const same = previous?.id === workspace.id && previous?.scopeType === workspace.scopeType && previous?.organizationId === workspace.organizationId && previous?.roleLabel === workspace.roleLabel
     const switchedAt = same ? previous.switchedAt : Date.now()
+    if (contract) setActiveWorkspaceContext(contract)
     return {
       activeWorkspace: { ...workspace, switchedAt },
       contextContract: contract || state.contextContract,
