@@ -1,4 +1,4 @@
-CREATE TABLE IF NOT EXISTS ai_admin_messages (
+CREATE TABLE IF NOT EXISTS ai_admin_queue_messages (
   id UUID PRIMARY KEY,
   channel VARCHAR(32) NOT NULL,
   channel_account_id TEXT NOT NULL,
@@ -12,10 +12,10 @@ CREATE TABLE IF NOT EXISTS ai_admin_messages (
   UNIQUE (channel, external_message_id)
 );
 
-CREATE INDEX IF NOT EXISTS ai_admin_messages_pending_idx
-  ON ai_admin_messages (created_at)
+CREATE INDEX IF NOT EXISTS ai_admin_queue_messages_pending_idx
+  ON ai_admin_queue_messages (created_at)
   WHERE status = 'pending';
 
-CREATE INDEX IF NOT EXISTS ai_admin_messages_processing_idx
-  ON ai_admin_messages (updated_at)
+CREATE INDEX IF NOT EXISTS ai_admin_queue_messages_processing_idx
+  ON ai_admin_queue_messages (updated_at)
   WHERE status = 'processing';
