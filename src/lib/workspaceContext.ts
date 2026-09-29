@@ -115,8 +115,8 @@ export function workflowContext(
   context: WorkspaceContextContract,
   workflowKey: string,
   step?: string | null,
-  queueKey?: string | null,
   entity?: { type: string; id: string | null },
+  queueKey?: string | null,
 ): WorkspaceContextContract {
   return {
     ...context,
