@@ -212,6 +212,7 @@ if (container) {
                 <Route path="school" element={<Suspense fallback={<PageLoader />}><School /></Suspense>} />
                 <Route path="school/course/:id" element={<Suspense fallback={<PageLoader />}><SchoolCourse /></Suspense>} />
                 <Route path="school/workspace" element={<Suspense fallback={<PageLoader />}><SchoolWorkspace /></Suspense>} />
+                <Route path="school-workspace" element={<Navigate to="/school/workspace" replace />} />
                 <Route path="admin/shop" element={guarded('admin', <ShopAdmin />)} />
                 <Route path="admin/school" element={guarded('admin', <SchoolAdmin />)} />
                 <Route path="legal" element={<Suspense fallback={<PageLoader />}><LegalLayout /></Suspense>} />
