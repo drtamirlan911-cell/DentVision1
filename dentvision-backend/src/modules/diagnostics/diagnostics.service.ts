@@ -1,5 +1,5 @@
 import prisma from '../../lib/prisma.js';
-import { assertOrgAccess, resolveOrganizationIdForClinic } from '../../lib/orgContext.js';
+import { isClinicMember, resolveOrganizationIdForClinic } from '../../lib/orgContext.js';
 import { uid } from '../../lib/helpers.js';
 import { writeAuditLog } from '../compliance/audit.service.js';
 import { simpleChat } from '../ai/llm/client.js';
@@ -583,7 +583,7 @@ export async function confirmAiResult(referralId: string, userId: string) {
       })
     : null;
   const authorized = referral.doctorId === userId || Boolean(canonicalAccess) ||
-    (!organizationId && await assertOrgAccess({ id: userId, role: 'OWNER' } as any, referral.clinicId));
+    (!organizationId && await isClinicMember(userId, referral.clinicId));
   if (!authorized) {
     throw new Error('Только врач или уполномоченный сотрудник клиники может подтвердить AI-результат');
   }
