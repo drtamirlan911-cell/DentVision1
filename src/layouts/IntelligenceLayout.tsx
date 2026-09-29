@@ -23,6 +23,7 @@ import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { ClinicalAIContextBridge } from '@/components/superapp/ClinicalAIContextBridge';
 import EcosystemCaseFlow from '@/components/ecosystem/EcosystemCaseFlow';
 import { useEcosystemUrlContext } from '@/hooks/useEcosystemUrlContext';
+import { WorkspaceWorkflowBridge } from '@/components/WorkspaceWorkflowBridge';
 
 const FIRST_RUN_COLLAPSE_MS = 15_000;
 
@@ -139,6 +140,7 @@ export const IntelligenceLayout: React.FC = () => {
         </header>
         <main className="relative min-h-[calc(100vh-4rem)] pb-[calc(var(--dv-bottomnav-height,3.5rem)+var(--dv-safe-bottom))] md:pb-0">
           <ErrorBoundary><Outlet context={{ clinic: activeClinic || clinic, user, roleInfo }} /></ErrorBoundary>
+          <WorkspaceWorkflowBridge />
           <ClinicalAIContextBridge />
           {caseContext.patientId || caseContext.caseId ? <div className="pointer-events-none fixed bottom-4 left-1/2 z-20 w-[min(760px,calc(100%-2rem))] -translate-x-1/2"><div className="pointer-events-auto"><EcosystemCaseFlow compact patientId={caseContext.patientId} caseId={caseContext.caseId} branchId={caseContext.branchId} organizationId={caseContext.organizationId} /></div></div> : null}
         </main>
