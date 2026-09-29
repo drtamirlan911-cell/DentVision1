@@ -937,3 +937,18 @@ Run the exact current main-tip CI. Inspect the generated Visual Agent evidence f
 - Let the current full CI/E2E/Visual chain finish before the next verification cycle.
 - Inspect the complete role/visual artifact, especially Owner `/settings`, partner contexts, mobile lab drawers and AI workspace context.
 - Continue with the remaining Master Spec vertical gaps: unified onboarding, canonical partner cabinets, Organization/Person/PersonRole migration, Marketplace procurement completion, Academy acceptance matrix and Android ecosystem context parity.
+
+
+## 2026-09-29 — Unified onboarding and procurement convergence
+
+### Implemented
+- `131d9140293bc5a4c4c60cbdc7233af727d55fcb` — placed the unified `/onboarding` page on the implementation branch. It uses the existing `/api/organizations/self-service` contract for clinic, diagnostic center, medical lab, dental lab, supplier and academy organizations, plus join-by-invitation.
+- `4883e36930c4bc7ebd2b70a0d2bc8d5b7a1d344c` — critical inventory restock now adds the matched Marketplace product to the canonical cart and opens checkout; unmatched inventory still falls back to Marketplace search.
+- `1ccca90b033dcaf5cea1d5f2e3d787778e7d8c7b` — mobile workspace switcher wording made organization-neutral.
+
+### Verification
+- A short-lived CI run on `cbb8154` failed at TypeScript because the new onboarding file had initially been committed outside the implementation branch. This was a repository placement error, not an application behavior failure.
+- The file is now present on the implementation branch at `131d9140`. The next CI run is the release verification candidate; no pass is claimed yet.
+
+### Next action
+- Do not add unrelated changes. Let the full CI/E2E/Visual chain for the corrected HEAD finish, then inspect every gate and fresh artifact before any merge decision.
