@@ -1070,7 +1070,7 @@ aiRouter.post('/feedback', authenticate, async (req: AuthRequest, res) => {
     const learning = await import('./learning/learning.service.js');
     const result = await learning.recordMessageFeedback({
       userId: req.user!.id,
-      clinicId: req.user?.clinicId || null,
+      clinicId: aiSessionScope(req),
       messageId: req.body?.messageId || null,
       sessionId: req.body?.sessionId || null,
       rating,
@@ -1097,7 +1097,7 @@ aiRouter.post('/feedback', authenticate, async (req: AuthRequest, res) => {
 aiRouter.get('/memory', authenticate, async (req: AuthRequest, res) => {
   try {
     const learning = await import('./learning/learning.service.js');
-    const items = await learning.listPrefs(req.user!.id, req.user?.clinicId || null);
+    const items = await learning.listPrefs(req.user!.id, aiSessionScope(req));
     return res.json({ ok: true, data: { items } });
   } catch (error) {
     console.error('[AI Memory list]', error);
@@ -1108,7 +1108,7 @@ aiRouter.get('/memory', authenticate, async (req: AuthRequest, res) => {
 aiRouter.delete('/memory/:key', authenticate, async (req: AuthRequest, res) => {
   try {
     const learning = await import('./learning/learning.service.js');
-    const removed = await learning.deletePref(req.user!.id, req.user?.clinicId || null, String(req.params.key));
+    const removed = await learning.deletePref(req.user!.id, aiSessionScope(req), String(req.params.key));
     return res.json({ ok: true, data: { removed } });
   } catch (error) {
     console.error('[AI Memory delete]', error);
@@ -1119,7 +1119,7 @@ aiRouter.delete('/memory/:key', authenticate, async (req: AuthRequest, res) => {
 aiRouter.delete('/memory', authenticate, async (req: AuthRequest, res) => {
   try {
     const learning = await import('./learning/learning.service.js');
-    await learning.clearPrefs(req.user!.id, req.user?.clinicId || null);
+    await learning.clearPrefs(req.user!.id, aiSessionScope(req));
     return res.json({ ok: true, data: { cleared: true } });
   } catch (error) {
     console.error('[AI Memory clear]', error);
