@@ -232,16 +232,48 @@ export class EventOrchestrator extends EventEmitter {
     const roles = AGENT_ROLES[action.agent] || [];
     if (!roles.length || !event.clinicId) return [];
 
-    const members = await prisma.clinicMember.findMany({
+    // Resolve recipients through the canonical Organization → Person → PersonRole
+    // graph. Legacy ClinicMember is intentionally not used here: AI notifications
+    // must follow the same scoped organization boundary as the active workspace.
+    const organization = await prisma.organization.findFirst({
       where: {
-        clinicId: event.clinicId,
-        role: { in: roles as any },
+        originalType: 'Clinic',
+        originalId: event.clinicId,
+      },
+      select: { id: true },
+    });
+    if (!organization) return [];
+
+    const roleKeys = new Set<string>();
+    for (const role of roles) {
+      const key = role.toLowerCase();
+      if (key === 'owner') roleKeys.add('owner'), roleKeys.add('org_owner');
+      else if (key === 'admin') roleKeys.add('admin'), roleKeys.add('org_admin');
+      else if (key === 'manager') roleKeys.add('manager');
+      else if (key === 'doctor') roleKeys.add('doctor');
+      else if (key === 'assistant') roleKeys.add('assistant');
+      else if (key === 'cashier') roleKeys.add('cashier');
+      else if (key === 'superadmin') roleKeys.add('superadmin');
+    }
+
+    const persons = await prisma.person.findMany({
+      where: {
+        organizationId: organization.id,
+        userId: { not: null },
+        personRoles: {
+          some: {
+            scopeType: 'organization',
+            scopeId: organization.id,
+            scopeKey: `organization:${organization.id}`,
+            role: { key: { in: [...roleKeys] } },
+          },
+        },
       },
       select: { userId: true },
       take: 50,
     });
 
-    return [...new Set(members.map((member) => member.userId))];
+    return [...new Set(persons.map((person) => person.userId).filter((id): id is string => Boolean(id)))];
   }
 
   private async publishRealtimeResults(processed: ProcessedEvent): Promise<void> {
