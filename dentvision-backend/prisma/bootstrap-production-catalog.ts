@@ -1,7 +1,7 @@
 import prisma from '../src/lib/prisma.js';
 import { randomUUID } from 'node:crypto';
 import { PRODUCT_PRESETS } from '../src/modules/shop/product-presets.seed.js';
-import { CLINICAL_CASES, LIBRARY_ITEMS } from '../src/modules/school/academyContent.js';
+import { CLINICAL_CASES } from '../src/modules/school/academyContent.js';
 
 if (process.env.NODE_ENV !== 'production') {
   throw new Error('bootstrap-production-catalog.ts is production-only');
