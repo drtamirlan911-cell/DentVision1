@@ -177,6 +177,85 @@ async function migrateOrganizations() {
   console.log(`  ✓ ${labsMigrated} laboratories migrated`);
 }
 
+type CanonicalPersonInput = {
+  fullName: string;
+  personType: string;
+  organizationId?: string | null;
+  userId?: string | null;
+  phone?: string | null;
+  email?: string | null;
+  specialization?: string | null;
+  bio?: string | null;
+  contacts?: Record<string, unknown> | null;
+  originalType: string;
+  originalId: string;
+};
+
+/**
+ * A user may legitimately have several legacy membership rows for the same
+ * organization. The canonical model intentionally collapses those rows into
+ * one Person and represents each capability through PersonRole. Resolve by
+ * legacy provenance first, then by the canonical (userId, organizationId)
+ * identity before creating a new row.
+ */
+async function upsertCanonicalPerson(input: CanonicalPersonInput) {
+  const source = await prisma.person.findUnique({
+    where: { originalType_originalId: { originalType: input.originalType, originalId: input.originalId } },
+  });
+  if (source) {
+    return prisma.person.update({
+      where: { id: source.id },
+      data: {
+        fullName: input.fullName,
+        personType: input.personType,
+        organizationId: input.organizationId ?? null,
+        userId: input.userId ?? null,
+        phone: input.phone ?? null,
+        email: input.email ?? null,
+        specialization: input.specialization ?? null,
+        bio: input.bio ?? null,
+        contacts: input.contacts ?? undefined,
+      },
+    });
+  }
+
+  if (input.userId && input.organizationId) {
+    const canonical = await prisma.person.findUnique({
+      where: { userId_organizationId: { userId: input.userId, organizationId: input.organizationId } },
+    });
+    if (canonical) {
+      return prisma.person.update({
+        where: { id: canonical.id },
+        data: {
+          fullName: canonical.fullName || input.fullName,
+          personType: canonical.personType || input.personType,
+          phone: canonical.phone || input.phone || null,
+          email: canonical.email || input.email || null,
+          specialization: canonical.specialization || input.specialization || null,
+          bio: canonical.bio || input.bio || null,
+          contacts: canonical.contacts || input.contacts || undefined,
+        },
+      });
+    }
+  }
+
+  return prisma.person.create({
+    data: {
+      fullName: input.fullName,
+      personType: input.personType,
+      organizationId: input.organizationId ?? null,
+      userId: input.userId ?? null,
+      phone: input.phone ?? null,
+      email: input.email ?? null,
+      specialization: input.specialization ?? null,
+      bio: input.bio ?? null,
+      contacts: input.contacts ?? undefined,
+      originalType: input.originalType,
+      originalId: input.originalId,
+    },
+  });
+}
+
 async function migratePersons() {
   console.log('[MIGRATE] Migrating clinic members → persons...');
   const members = await prisma.clinicMember.findMany({ include: { user: true } });
@@ -184,20 +263,17 @@ async function migratePersons() {
       const org = await prisma.organization.findFirst({
         where: { originalType: 'Clinic', originalId: m.clinicId },
       });
-      const person = await prisma.person.upsert({
-        where: { originalType_originalId: { originalType: 'ClinicMember', originalId: `${m.clinicId}:${m.userId}` } },
-        update: { organizationId: org?.id ?? undefined },
-        create: {
-          fullName: `${m.user.firstName} ${m.user.lastName}`,
-          personType: 'DOCTOR',
-          organizationId: org?.id ?? undefined,
-          userId: m.userId,
-          specialization: m.user.spec || undefined,
-          phone: m.user.phone || undefined,
-          originalType: 'ClinicMember',
-          originalId: `${m.clinicId}:${m.userId}`,
-        },
+      const person = await upsertCanonicalPerson({
+        fullName: `${m.user.firstName} ${m.user.lastName}`,
+        personType: 'DOCTOR',
+        organizationId: org?.id ?? null,
+        userId: m.userId,
+        specialization: m.user.spec || null,
+        phone: m.user.phone || null,
+        originalType: 'ClinicMember',
+        originalId: `${m.clinicId}:${m.userId}`,
       });
+            });
       const roleKey = resolveClinicRoleKey(m.role);
       if (!roleKey) {
         console.warn(`  ⚠ unrecognized ClinicMember role '${m.role}' for user ${m.userId} in clinic ${m.clinicId} — skipping role assignment`);
@@ -225,19 +301,16 @@ async function migratePersons() {
       const org = l.academy
         ? await prisma.organization.findFirst({ where: { originalType: 'Academy', originalId: l.academyId } })
         : null;
-      const person = await prisma.person.upsert({
-        where: { originalType_originalId: { originalType: 'Lecturer', originalId: l.id } },
-        update: { organizationId: org?.id ?? undefined },
-        create: {
-          fullName: `Lecturer ${l.id}`,
-          personType: 'LECTURER',
-          organizationId: org?.id ?? undefined,
-          userId: l.userId,
-          bio: l.bio || undefined,
-          originalType: 'Lecturer',
-          originalId: l.id,
-        },
+      const person = await upsertCanonicalPerson({
+        fullName: `Lecturer ${l.id}`,
+        personType: 'LECTURER',
+        organizationId: org?.id ?? null,
+        userId: l.userId,
+        bio: l.bio || null,
+        originalType: 'Lecturer',
+        originalId: l.id,
       });
+            });
       await assignRole(person.id, 'lecturer', 'organization', org?.id ?? undefined);
   });
   console.log(`  ✓ ${lecturersMigrated} lecturers migrated`);
@@ -246,19 +319,16 @@ async function migratePersons() {
   const supplierMembers = await prisma.supplierMember.findMany({ include: { supplier: true } });
   const supplierMembersMigrated = await eachRow(supplierMembers, (sm) => `supplier member ${sm.id}`, async (sm) => {
       const org = await prisma.organization.findFirst({ where: { originalType: 'Supplier', originalId: sm.supplierId } });
-      const person = await prisma.person.upsert({
-        where: { originalType_originalId: { originalType: 'SupplierMember', originalId: sm.id } },
-        update: { organizationId: org?.id ?? undefined },
-        create: {
-          fullName: sm.name || `Supplier user ${sm.userId}`,
-          personType: 'SUPPLIER_REP',
-          organizationId: org?.id ?? undefined,
-          userId: sm.userId,
-          contacts: { role: sm.role } as Record<string, unknown>,
-          originalType: 'SupplierMember',
-          originalId: sm.id,
-        },
+      const person = await upsertCanonicalPerson({
+        fullName: sm.name || `Supplier user ${sm.userId}`,
+        personType: 'SUPPLIER_REP',
+        organizationId: org?.id ?? null,
+        userId: sm.userId,
+        contacts: { role: sm.role },
+        originalType: 'SupplierMember',
+        originalId: sm.id,
       });
+            });
       await assignRole(person.id, 'seller', 'organization', org?.id ?? undefined);
   });
   console.log(`  ✓ ${supplierMembersMigrated} supplier members migrated`);
@@ -267,18 +337,15 @@ async function migratePersons() {
   const dcMembers = await prisma.diagnosticCenterMember.findMany({ include: { center: true } });
   const dcMembersMigrated = await eachRow(dcMembers, (dm) => `diagnostic center member ${dm.id}`, async (dm) => {
       const org = await prisma.organization.findFirst({ where: { originalType: 'DiagnosticCenter', originalId: dm.centerId } });
-      const person = await prisma.person.upsert({
-        where: { originalType_originalId: { originalType: 'DiagnosticCenterMember', originalId: dm.id } },
-        update: { organizationId: org?.id ?? undefined },
-        create: {
-          fullName: `DC member ${dm.userId}`,
-          personType: dm.role === 'radiologist' ? 'RADIOLOGIST' : 'STAFF',
-          organizationId: org?.id ?? undefined,
-          userId: dm.userId,
-          originalType: 'DiagnosticCenterMember',
-          originalId: dm.id,
-        },
+      const person = await upsertCanonicalPerson({
+        fullName: `DC member ${dm.userId}`,
+        personType: dm.role === 'radiologist' ? 'RADIOLOGIST' : 'STAFF',
+        organizationId: org?.id ?? null,
+        userId: dm.userId,
+        originalType: 'DiagnosticCenterMember',
+        originalId: dm.id,
       });
+            });
       const existingPartnerRole = org ? await prisma.personRole.findFirst({ where: { personId: person.id, scopeType: 'organization', scopeId: org.id, role: { key: { startsWith: 'diagnostic_' } } }, select: { id: true } }) : null;
       if (!existingPartnerRole) {
         const diagnosticRoleKey = dm.role === 'admin' ? 'diagnostic_owner' : dm.role === 'operator' ? 'diagnostic_operator' : 'diagnostic_reception';
@@ -291,18 +358,15 @@ async function migratePersons() {
   const labMembers = await prisma.laboratoryMember.findMany({ include: { lab: true } });
   const labMembersMigrated = await eachRow(labMembers, (lm) => `laboratory member ${lm.id}`, async (lm) => {
       const org = await prisma.organization.findFirst({ where: { originalType: 'Laboratory', originalId: lm.labId } });
-      const person = await prisma.person.upsert({
-        where: { originalType_originalId: { originalType: 'LaboratoryMember', originalId: lm.id } },
-        update: { organizationId: org?.id ?? undefined },
-        create: {
-          fullName: `Lab member ${lm.userId}`,
-          personType: 'STAFF',
-          organizationId: org?.id ?? undefined,
-          userId: lm.userId,
-          originalType: 'LaboratoryMember',
-          originalId: lm.id,
-        },
+      const person = await upsertCanonicalPerson({
+        fullName: `Lab member ${lm.userId}`,
+        personType: 'STAFF',
+        organizationId: org?.id ?? null,
+        userId: lm.userId,
+        originalType: 'LaboratoryMember',
+        originalId: lm.id,
       });
+            });
       const existingPartnerRole = org ? await prisma.personRole.findFirst({ where: { personId: person.id, scopeType: 'organization', scopeId: org.id, role: { key: { in: ['medical_lab_owner', 'medical_lab_admin', 'medical_lab_technician', 'dental_lab_owner', 'dental_lab_admin', 'dental_technician', 'lab_coordinator'] } } }, select: { id: true } }) : null;
       if (!existingPartnerRole) await assignRole(person.id, 'lab', 'organization', org?.id ?? undefined);
   });
