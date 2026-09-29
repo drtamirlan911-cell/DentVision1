@@ -12,9 +12,9 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
  * edit that says nothing about the doctor must not erase the attribution.
  */
 
-const { isClinicMember } = vi.hoisted(() => ({ isClinicMember: vi.fn() }));
+const { resolveClinicAccess } = vi.hoisted(() => ({ resolveClinicAccess: vi.fn() }));
 
-vi.mock('../../lib/orgContext.js', () => ({ isClinicMember }));
+vi.mock('../../lib/orgContext.js', () => ({ resolveClinicAccess }));
 vi.mock('../../lib/prisma.js', () => ({ default: { labOrder: {} } }));
 vi.mock('../../middleware/auth.js', () => ({ authenticate: vi.fn() }));
 vi.mock('../../middleware/rbac.js', () => ({ requirePermission: () => vi.fn() }));
@@ -27,16 +27,16 @@ const { prepareLabOrderWrite } = await import('./lab.routes.js');
 
 beforeEach(() => {
   vi.clearAllMocks();
-  isClinicMember.mockResolvedValue(true);
+  resolveClinicAccess.mockResolvedValue({ role: 'DOCTOR' });
 });
 
 describe('who may be recorded as the ordering doctor', () => {
   it('refuses a doctor who does not work at this clinic', async () => {
-    isClinicMember.mockResolvedValue(false);
+    resolveClinicAccess.mockResolvedValue(null);
     const result = await prepareLabOrderWrite('clinic-1', { doctorId: 'outsider' });
     expect(result.error).toBeTruthy();
     expect(result.data).toBeUndefined();
-    expect(isClinicMember).toHaveBeenCalledWith('outsider', 'clinic-1');
+    expect(resolveClinicAccess).toHaveBeenCalledWith('outsider', 'clinic-1');
   });
 
   it('accepts a doctor who does, and writes them to the column', async () => {
@@ -48,12 +48,12 @@ describe('who may be recorded as the ordering doctor', () => {
   it('asks the database rather than trusting the body', async () => {
     // The whole point: before this, the id was written verbatim.
     await prepareLabOrderWrite('clinic-1', { doctorId: 'anybody' });
-    expect(isClinicMember).toHaveBeenCalledTimes(1);
+    expect(resolveClinicAccess).toHaveBeenCalledTimes(1);
   });
 
   it('does not check, or write, when no doctor was supplied', async () => {
     const result = await prepareLabOrderWrite('clinic-1', { labType: 'Коронка' });
-    expect(isClinicMember).not.toHaveBeenCalled();
+    expect(resolveClinicAccess).not.toHaveBeenCalled();
     expect('doctorId' in result.data!).toBe(false);
   });
 });
