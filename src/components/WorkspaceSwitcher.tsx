@@ -126,7 +126,20 @@ export function WorkspaceSwitcher({ className }: { className?: string }) {
 
   useEffect(() => {
     if (!current) return
-    setActiveWorkspace({ id: current.id, scopeType: current.scopeType, organizationId: current.organizationId, name: current.name, roleLabel: current.roleLabel })
+    const contract = workspaceContextFrom(current, current.permissions || [])
+    api.setWorkspaceContext(contract)
+    setActiveWorkspace({
+      id: current.id,
+      scopeType: current.scopeType,
+      organizationId: current.organizationId,
+      branchId: current.branchId,
+      name: current.name,
+      roleKey: current.roleKey,
+      roleLabel: current.roleLabel,
+      permissions: current.permissions,
+      participant: current.personType,
+      dataScope: contract.dataScope,
+    }, contract)
   }, [current, setActiveWorkspace])
 
   const grouped = useMemo(
