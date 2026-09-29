@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import { Navigate } from 'react-router-dom'
-import { Building2, FlaskConical, Factory, Store, GraduationCap, Stethoscope, Users, ArrowRight } from 'lucide-react'
+import { Building2, FlaskConical, Factory, Store, GraduationCap, Stethoscope, Users, ArrowRight, BriefcaseBusiness, UserRound } from 'lucide-react'
 import { Card } from '@/components/ui/ds/Card'
 import { Button } from '@/components/ui/ds/Button'
 import { Input } from '@/components/ui/ds/Input'
@@ -18,6 +18,12 @@ const TYPES: Array<{ id: Kind; label: string; description: string; icon: typeof 
   { id: 'dental_lab', label: 'Зуботехническая лаборатория', description: 'Кейсы, производство, QC и доставка', icon: Factory, nextPath: '/diagnostics/lab' },
   { id: 'supplier', label: 'Поставщик / производитель', description: 'Каталог, заказы, fulfillment и выплаты', icon: Store, nextPath: '/supplier' },
   { id: 'academy', label: 'Академия / образовательный центр', description: 'Курсы, студенты, преподаватели и сертификаты', icon: GraduationCap, nextPath: '/school' },
+]
+
+const PERSONAL_INTENTS = [
+  { id: 'professional', label: 'Профессионал / врач', description: 'Профиль, портфолио, credentials и профессиональные возможности', icon: Stethoscope, nextPath: '/profile' },
+  { id: 'patient', label: 'Пациент / покупатель', description: 'Запись, лечение, документы и покупки без создания организации', icon: UserRound, nextPath: '/patient-portal' },
+  { id: 'jobs', label: 'Работа / найм', description: 'Вакансии, кандидаты и профессиональные возможности', icon: BriefcaseBusiness, nextPath: '/jobs' },
 ]
 
 export default function Onboarding() {
@@ -103,6 +109,21 @@ export default function Onboarding() {
             </button>
           )})}
         </div>
+        <section className="mt-6">
+          <div className="mb-3 px-1">
+            <p className="text-xs font-semibold text-txt-primary">Без организации</p>
+            <p className="mt-1 text-xs leading-5 text-txt-muted">Не нужно создавать клинику или другую организацию, если ваша задача — личный профессиональный, пациентский или job-контекст.</p>
+          </div>
+          <div className="grid gap-3 sm:grid-cols-3">
+            {PERSONAL_INTENTS.map(intent => { const Icon = intent.icon; return (
+              <button key={intent.id} type="button" onClick={() => window.location.assign(intent.nextPath)} className="group min-h-32 rounded-2xl border border-bdr-subtle bg-surface-1 p-4 text-left transition hover:border-dv-gold/40 hover:bg-dv-gold/[0.03]">
+                <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-surface-2 text-dv-gold"><Icon size={17} /></span>
+                <span className="mt-3 block text-sm font-semibold text-txt-primary">{intent.label}</span>
+                <span className="mt-1 block text-xs leading-5 text-txt-muted">{intent.description}</span>
+              </button>
+            )})}
+          </div>
+        </section>
         <div className="mt-6 flex flex-col items-start gap-3 rounded-2xl border border-bdr-subtle bg-surface-1 p-5 sm:flex-row sm:items-center sm:justify-between">
           <div><p className="text-sm font-semibold text-txt-primary">У вас уже есть приглашение?</p><p className="mt-1 text-xs text-txt-muted">Присоединитесь к организации без создания новой.</p></div>
           <Button variant="secondary" className="min-h-11" onClick={() => setMode('join')}><Users size={15} /> Войти по приглашению</Button>
