@@ -220,7 +220,17 @@ export default function Inventory() {
                 <span className="text-txt-primary font-medium truncate max-w-full sm:max-w-[220px]">{row.item.name}</span>
                 <span className="text-txt-muted">{row.item.quantity ?? 0}/{row.min}</span>
                 {best && <span className="text-txt-muted truncate max-w-full sm:max-w-[200px]">→ {best.kind === 'exact' ? 'есть' : 'аналог'}: {best.name}</span>}
-                <Button size="sm" variant="secondary" className="min-h-11" onClick={() => navigate(`/shop?q=${encodeURIComponent(row.query)}`)}>В маркет</Button>
+                {best?.id && (best.stock ?? 0) > 0 ? (
+                  <Button size="sm" variant="secondary" className="min-h-11" onClick={() => {
+                    const target = shopProducts.find((product: any) => product.id === best.id)
+                    if (!target) { navigate(`/shop?q=${encodeURIComponent(row.query)}`); return }
+                    const deficit = Math.max(1, row.min - Number(row.item.quantity || 0))
+                    for (let i = 0; i < deficit; i++) addToCart(target)
+                    navigate('/shop/checkout')
+                  }}>Заказать</Button>
+                ) : (
+                  <Button size="sm" variant="secondary" className="min-h-11" onClick={() => navigate(`/shop?q=${encodeURIComponent(row.query)}`)}>Найти</Button>
+                )}
               </div>
             )})}</div>
           </div></div>
