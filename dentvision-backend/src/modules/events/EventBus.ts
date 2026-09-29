@@ -115,6 +115,9 @@ export class EventBus implements IEventBus {
         const ok = await this.callSubscribers(event);
         if (ok) {
           await eventStore.markCompleted(event.id);
+        } else {
+          const failure = `One or more subscribers failed for ${event.type}`;
+          await eventStore.markFailed(event.id, failure);
         }
       }
     } catch (error) {
@@ -150,7 +153,6 @@ export class EventBus implements IEventBus {
       this.stats.failed++;
       const message = err instanceof Error ? err.message : String(err);
       console.error(`[EventBus] Handler error for ${event.type}:`, message);
-      await eventStore.markFailed(event.id, message);
       return false;
     }
   }
