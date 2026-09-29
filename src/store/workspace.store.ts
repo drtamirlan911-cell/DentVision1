@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import type { WorkspaceContextContract } from '@/lib/workspaceContext'
 
 export type ContextFocus = 'workspace' | 'patient' | 'appointment' | 'product' | 'course' | 'analytics' | 'invoice' | 'lab'
 
@@ -6,19 +7,26 @@ export interface ActiveWorkspaceMeta {
   id: string
   scopeType: string
   organizationId?: string
+  branchId?: string
   name: string
   roleLabel: string
+  roleKey?: string
+  permissions?: string[]
+  dataScope?: WorkspaceContextContract['dataScope']
+  participant?: string | null
+  workflow?: WorkspaceContextContract['workflow']
   switchedAt: number
 }
 
 interface WorkspaceState {
   context: { focusType: ContextFocus; focusId: string | null; data: Record<string, unknown>; lastUpdated: number }
   activeWorkspace: ActiveWorkspaceMeta | null
+  contextContract: WorkspaceContextContract | null
   onboarding: { completed: boolean; currentScreen: number; skipped: boolean }
   setContextFocus: (focusType: ContextFocus, focusId?: string | null, data?: Record<string, unknown>) => void
   setContextData: (data: Record<string, unknown>) => void
   clearContext: () => void
-  setActiveWorkspace: (workspace: Omit<ActiveWorkspaceMeta, 'switchedAt'>) => void
+  setActiveWorkspace: (workspace: Omit<ActiveWorkspaceMeta, 'switchedAt'>, contract?: WorkspaceContextContract | null) => void
   setOnboardingComplete: (completed: boolean) => void
   setOnboardingScreen: (screen: number) => void
   setOnboardingSkipped: (skipped: boolean) => void
@@ -27,6 +35,7 @@ interface WorkspaceState {
 export const useWorkspaceStore = create<WorkspaceState>((set) => ({
   context: { focusType: 'workspace', focusId: null, data: {}, lastUpdated: Date.now() },
   activeWorkspace: null,
+  contextContract: null,
   onboarding: {
     completed: (() => { try { return typeof window !== 'undefined' && !!sessionStorage.getItem('dv_welcomed') } catch { return false } })(),
     currentScreen: 0,
@@ -35,12 +44,13 @@ export const useWorkspaceStore = create<WorkspaceState>((set) => ({
   setContextFocus: (focusType, focusId = null, data = {}) => set({ context: { focusType, focusId, data, lastUpdated: Date.now() } }),
   setContextData: (data) => set((state) => ({ context: { ...state.context, data: { ...state.context.data, ...data }, lastUpdated: Date.now() } })),
   clearContext: () => set({ context: { focusType: 'workspace', focusId: null, data: {}, lastUpdated: Date.now() } }),
-  setActiveWorkspace: (workspace) => set((state) => {
+  setActiveWorkspace: (workspace, contract = null) => set((state) => {
     const previous = state.activeWorkspace
     const same = previous?.id === workspace.id && previous?.scopeType === workspace.scopeType && previous?.organizationId === workspace.organizationId && previous?.roleLabel === workspace.roleLabel
     const switchedAt = same ? previous.switchedAt : Date.now()
     return {
       activeWorkspace: { ...workspace, switchedAt },
+      contextContract: contract || state.contextContract,
       context: { focusType: 'workspace', focusId: workspace.id, data: { workspaceName: workspace.name, workspaceRole: workspace.roleLabel, workspaceType: workspace.scopeType }, lastUpdated: same ? state.context.lastUpdated : Date.now() },
     }
   }),
