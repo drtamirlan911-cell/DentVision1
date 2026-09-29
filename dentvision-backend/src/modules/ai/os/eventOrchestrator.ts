@@ -7,6 +7,7 @@ import { getActionHandler, EventActionResult } from './eventActions.js';
 import { sseManager } from '../ai.notifications.routes.js';
 import prisma from '../../../lib/prisma.js';
 import { simpleChat } from '../llm/client.js';
+import { isProviderUnavailableError } from '../lib/providerFetch.js';
 
 export interface ProcessedEvent {
   event: CRMEvent;
@@ -26,6 +27,9 @@ const DEFAULT_CONFIG: EventOrchestratorConfig = {
   concurrency: 5,
   logLevel: 'info',
 };
+
+const AI_PROVIDER_COOLDOWN_MS = 5 * 60 * 1000;
+let aiProviderUnavailableUntil = 0;
 
 const AGENT_ROLES: Record<string, string[]> = {
   doctor: ['DOCTOR', 'ASSISTANT'],
@@ -57,6 +61,8 @@ async function enrichEmployeeResult(
   if (!result.success || !result.message || action.action !== 'generateDailySummary') {
     return result;
   }
+
+  if (Date.now() < aiProviderUnavailableUntil) return result;
 
   try {
     const facts = JSON.stringify({
@@ -99,7 +105,12 @@ async function enrichEmployeeResult(
       },
     };
   } catch (error) {
-    console.warn('[EventOrchestrator] AI employee reasoning failed; using deterministic result', error);
+    if (isProviderUnavailableError(error)) {
+      aiProviderUnavailableUntil = Date.now() + AI_PROVIDER_COOLDOWN_MS;
+      console.warn('[EventOrchestrator] AI provider unavailable; deterministic DailySummary will be used until cooldown expires');
+    } else {
+      console.warn('[EventOrchestrator] AI employee reasoning failed; using deterministic result', error);
+    }
     return result;
   }
 }
@@ -404,4 +415,5 @@ export function getEventOrchestrator(
 export function resetEventOrchestrator(): void {
   if (instance) instance.stop();
   instance = null;
+  aiProviderUnavailableUntil = 0;
 }
