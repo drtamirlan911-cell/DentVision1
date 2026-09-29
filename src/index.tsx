@@ -120,6 +120,9 @@ if (container) {
             <Routes>
               <Route path="/login" element={<Suspense fallback={<PageLoader />}><Login /></Suspense>} />
               <Route path="/onboarding" element={<Suspense fallback={<PageLoader />}><Onboarding /></Suspense>} />
+              <Route path="/organizations/new" element={<Navigate to="/onboarding?mode=create" replace />} />
+              <Route path="/organizations/join" element={<Navigate to="/onboarding?mode=join" replace />} />
+              <Route path="/invitations" element={<Navigate to="/onboarding?mode=join" replace />} />
               <Route path="/forgot-password" element={<Suspense fallback={<PageLoader />}><ForgotPassword /></Suspense>} />
               <Route path="/book/discover" element={<Suspense fallback={<PageLoader />}><PublicBookingDiscovery /></Suspense>} />
               <Route path="/diagnostics/discover" element={<Suspense fallback={<PageLoader />}><PublicDiagnosticsDiscovery /></Suspense>} />
