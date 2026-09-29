@@ -1,6 +1,7 @@
 import { useMemo } from 'react';
 import { useAuth } from '@/store/auth.store';
 import { ecosystemContextFor, ecosystemServicesFor, type EcosystemParticipant } from '@/config/ecosystem';
+import { workspaceContextFrom, type WorkspaceContextContract } from '@/lib/workspaceContext';
 
 function participantForOrganizationType(type?: string | null): EcosystemParticipant | null {
   const value = String(type || '').trim().toLowerCase();
@@ -34,9 +35,12 @@ function participantForRole(role?: string | null): EcosystemParticipant {
 }
 
 export function useEcosystemContext() {
-  const { user, clinic, activeMembership, activeWorkspace } = useAuth();
+  const { user, clinic, activeMembership, activeWorkspace, permissions } = useAuth();
   return useMemo(() => {
     const rawUser = user as any;
+    const contract: WorkspaceContextContract | null = activeWorkspace
+      ? workspaceContextFrom(activeWorkspace as any, Array.isArray(permissions) ? permissions : [])
+      : null;
     const membership = activeMembership as any;
     const role = String(activeWorkspace?.roleLabel || membership?.role || rawUser?.effectiveRole || rawUser?.platformRole || rawUser?.role || 'user').toLowerCase();
 
@@ -80,8 +84,9 @@ export function useEcosystemContext() {
       role,
       hasOrganization: Boolean(rawUser?.organizationId || rawUser?.activeOrganization?.id || organizationName),
       hasClinic,
+      workspace: contract,
     };
-  }, [user, clinic, activeMembership, activeWorkspace]);
+  }, [user, clinic, activeMembership, activeWorkspace, permissions]);
 }
 
 export default useEcosystemContext;
