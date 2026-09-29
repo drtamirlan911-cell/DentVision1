@@ -153,20 +153,6 @@ async function ensureAcademy() {
     if (!existing) coursesCreated += 1;
   }
 
-  for (const item of LIBRARY_ITEMS) {
-    try {
-      await prisma.$executeRawUnsafe(
-        `INSERT INTO "school_library_items"
-          (id, title, description, author, category, type, url, content, tags)
-         SELECT $1,$2,$3,$4,$5,$6,NULL,$7,$8::jsonb
-         WHERE NOT EXISTS (SELECT 1 FROM "school_library_items" WHERE title = $2)`,
-        randomUUID(), item.title, null, item.author, item.category, item.type, null, JSON.stringify([]),
-      );
-    } catch {
-      break;
-    }
-  }
-
   console.log(`[BOOTSTRAP] Academy: ${academy.id}; organization ${organization.id}; courses +${coursesCreated}`);
 }
 
