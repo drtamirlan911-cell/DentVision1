@@ -190,6 +190,7 @@ export async function buildAiContext(req: AuthRequest, hints: ContextHints = {})
     availableWorkspaces,
     page: { pathname, pageId },
     entity,
+    queue: { key: hints.queueKey || hints.workflowKey || 'workspace' },
     workflow: hints.workflowKey ? { id: hints.workflowKey, state: hints.workflowStep || 'active' } : null,
     recentEvents,
   };
