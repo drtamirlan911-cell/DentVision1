@@ -9,6 +9,7 @@ import { requestPayout, PayoutError } from '../finance/payout.service.js';
 import type { AuthRequest, ApiResponse } from '../../types/index.js';
 import { buildSupplierDashboard, buildSupplierInsights, getSupplierOrders } from './supplierDashboard.js';
 import { canTransitionOrder } from '../../lib/orderStatus.js';
+import { writeAuditLog } from '../compliance/audit.service.js';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Supplier Workspace (self-service cabinet). All routes operate strictly on the
@@ -163,6 +164,14 @@ supplierWorkspaceRouter.patch('/orders/:id/status', requireSupplierWrite, async 
       await restockFromOrder(order.id)
         .catch((err) => console.error('[inventory restock]', err));
     }
+    await writeAuditLog({
+      action: 'SUPPLIER_ORDER_STATUS_CHANGED',
+      entity: 'order',
+      entityId: order.id,
+      details: { workflow: 'supplier-operations', queueKey: 'orders', fromStatus: owned.status, toStatus: status, supplierId: req.user!.supplierId },
+      userId: req.user!.id,
+    });
+
     if (status === 'cancelled') {
       const { reverseCashback } = await import('../dentcash/refund.service.js');
       await reverseCashback({
