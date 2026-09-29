@@ -421,6 +421,16 @@ The following concrete findings were corrected after the initial audit:
 
 These fixes reduce the current AI/context and routing gaps, but they do not close the broader P0/P1 items described above.
 
+## 9.1 Convergence fixes after the first audit
+
+Additional implementation now in the branch:
+
+- Added a canonical `/onboarding` entry using the existing backend self-service Organization API for clinic, diagnostic center, medical laboratory, dental laboratory, supplier and academy creation.
+- The onboarding surface supports both Create and Join-by-invitation and therefore converges participant onboarding on Organization → Person/PersonRole → Branch rather than maintaining separate registration products.
+- Critical inventory restock now enters the existing Marketplace cart and checkout when a deterministic product match exists.
+- Mobile workspace switching copy no longer tells non-clinic users to “create a clinic”; it uses organization-neutral terminology.
+- AI optional sidecars no longer invalidate the authenticated session when their best-effort requests receive an authorization error.
+
 ## 9. Audit conclusion
 
 The current application is **a substantial but incomplete DentVision platform foundation**.
