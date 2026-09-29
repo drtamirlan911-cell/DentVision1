@@ -26,6 +26,8 @@ export class EventBus implements IEventBus {
   private useRedis = false;
   private stats = { published: 0, processed: 0, failed: 0 };
   private pollTimer: ReturnType<typeof setInterval> | null = null;
+  private databasePollTimer: ReturnType<typeof setInterval> | null = null;
+  private databasePollRunning = false;
 
   async connect(): Promise<void> {
     const redis = getRedis();
@@ -58,16 +60,23 @@ export class EventBus implements IEventBus {
       }
     }
 
-    // Fallback to in-memory
+    // PostgreSQL is the durable fallback. Redis is only an accelerator; a
+    // provider quota/outage must never downgrade the event system to volatile
+    // process memory.
     this.useRedis = false;
     this.connected = true;
-    console.log('[EventBus] Using in-memory mode (no Redis)');
+    console.log('[EventBus] Redis unavailable; using PostgreSQL durable event queue');
+    this.startDatabasePolling();
   }
 
   async disconnect(): Promise<void> {
     if (this.pollTimer) {
       clearInterval(this.pollTimer);
       this.pollTimer = null;
+    }
+    if (this.databasePollTimer) {
+      clearInterval(this.databasePollTimer);
+      this.databasePollTimer = null;
     }
 
     if (this.redis) {
@@ -182,6 +191,40 @@ export class EventBus implements IEventBus {
     this.pollEvents().catch(console.error);
   }
 
+  private startDatabasePolling(): void {
+    if (this.databasePollTimer) return;
+
+    this.databasePollTimer = setInterval(() => {
+      this.pollDatabaseEvents().catch((err) => {
+        console.error('[EventBus] PostgreSQL poll error:', err);
+      });
+    }, 1000);
+
+    this.pollDatabaseEvents().catch((err) => {
+      console.error('[EventBus] PostgreSQL initial poll error:', err);
+    });
+  }
+
+  private async pollDatabaseEvents(): Promise<void> {
+    if (this.databasePollRunning) return;
+    this.databasePollRunning = true;
+
+    try {
+      await eventStore.recoverStaleProcessing();
+      const events = await eventStore.claimPending(COUNT);
+
+      for (const event of events) {
+        const ok = await this.callSubscribers(event);
+        if (ok) {
+          await eventStore.markCompleted(event.id);
+        }
+        this.stats.published += 0;
+      }
+    } finally {
+      this.databasePollRunning = false;
+    }
+  }
+
   private async pollEvents(): Promise<void> {
     if (!this.redis) return;
 
@@ -216,8 +259,9 @@ export class EventBus implements IEventBus {
     }
     this.redis = null;
     this.useRedis = false;
-    console.warn('[EventBus] Redis disabled; continuing in memory mode:', error);
+    console.warn('[EventBus] Redis disabled; switching to PostgreSQL durable mode:', error);
     disableRedisFor();
+    this.startDatabasePolling();
   }
 
   private async processRedisMessage(
@@ -250,41 +294,48 @@ export class EventBus implements IEventBus {
       }
     }
 
-    await this.callSubscribers(event);
+    const ok = await this.callSubscribers(event);
 
-    // Acknowledge message
-    if (this.redis) {
+    // Only acknowledge successfully handled Redis messages. Failed handlers
+    // leave the durable AIEvent pending/failed for retry or operator recovery.
+    if (ok && this.redis) {
       await this.redis.xack(STREAM_KEY, CONSUMER_GROUP, messageId);
     }
   }
 
-  private async callSubscribers(event: CRMEvent): Promise<void> {
+  private async callSubscribers(event: CRMEvent): Promise<boolean> {
+    let ok = true;
+
     // Call type-specific subscribers
     const typeHandlers = this.subscribers.get(event.type) || [];
     for (const handler of typeHandlers) {
-      await this.callHandler(handler, event);
+      if (!(await this.callHandler(handler, event))) ok = false;
     }
 
     // Call wildcard subscribers
     const wildcardHandlers = this.subscribers.get('*') || [];
     for (const handler of wildcardHandlers) {
-      await this.callHandler(handler, event);
+      if (!(await this.callHandler(handler, event))) ok = false;
     }
+
+    return ok;
   }
 
   private async callHandler(
     handler: EventSubscriber,
     event: CRMEvent
-  ): Promise<void> {
+  ): Promise<boolean> {
     try {
       await handler(event);
       this.stats.processed++;
+      return true;
     } catch (err) {
       this.stats.failed++;
       console.error(`[EventBus] Handler error for ${event.type}:`, err);
 
       // Update event status in store
       await eventStore.markFailed(event.id, (err as Error).message);
+      return false;
     }
   }
 }
