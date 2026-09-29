@@ -47,7 +47,7 @@ async function ensureMarketplaceCatalog() {
       unit: preset.unit,
       tags: preset.tags,
       specs: preset.specs,
-      manufacturer: preset.manufacturer,
+      manufacturer: preset.brand,
       country: preset.manufacturer,
       currency: 'KZT',
       isActive: true,
