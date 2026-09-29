@@ -215,14 +215,24 @@ export async function syncPersonFromLecturer(lecturerId: string, userId: string,
   }
 
   const dbRole = await prisma.role.findUnique({ where: { key: 'lecturer' } });
-  if (dbRole) {
-    const scopeKey = org ? `organization:${org.id}` : 'platform';
-    await prisma.personRole.upsert({
-      where: { personId_roleId_scopeKey: { personId: person.id, roleId: dbRole.id, scopeKey } },
-      update: { scopeType: org ? 'organization' : 'platform', scopeId: org?.id ?? null },
-      create: { personId: person.id, roleId: dbRole.id, scopeType: org ? 'organization' : 'platform', scopeId: org?.id, scopeKey },
+  if (!dbRole) return;
+
+  if (!org) {
+    // Lecturer access is organization-scoped. Never create or retain a
+    // platform-scoped lecturer role when the Academy relationship is missing.
+    // The Person remains unscoped until an explicit Academy is assigned.
+    await prisma.personRole.deleteMany({
+      where: { personId: person.id, roleId: dbRole.id, scopeType: 'platform' },
     });
+    return;
   }
+
+  const scopeKey = `organization:${org.id}`;
+  await prisma.personRole.upsert({
+    where: { personId_roleId_scopeKey: { personId: person.id, roleId: dbRole.id, scopeKey } },
+    update: { scopeType: 'organization', scopeId: org.id },
+    create: { personId: person.id, roleId: dbRole.id, scopeType: 'organization', scopeId: org.id, scopeKey },
+  });
 }
 
 /**
