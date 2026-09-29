@@ -131,6 +131,32 @@ if (container) {
               <Route path="/my-clinics" element={<Suspense fallback={<PageLoader />}><MyClinics /></Suspense>} />
               <Route path="/" element={<IntelligenceLayout />}>
                 <Route index element={<Suspense fallback={<PageLoader />}><Welcome /></Suspense>} />
+                {/* Canonical Master Spec v5 aliases. These preserve the existing
+                    implementations while moving the public IA toward contextual cabinets. */ }
+                <Route path="home" element={<Navigate to="/ai" replace />} />
+                <Route path="context" element={<Navigate to="/ai" replace />} />
+                <Route path="practice" element={<Navigate to="/crm/schedule" replace />} />
+                <Route path="practice/today" element={<Navigate to="/crm/schedule" replace />} />
+                <Route path="practice/calendar" element={<Navigate to="/crm/schedule" replace />} />
+                <Route path="practice/patients" element={<Navigate to="/crm/patients" replace />} />
+                <Route path="practice/cases/:caseId" element={<Navigate to="/crm/cases" replace />} />
+                <Route path="practice/odontogram" element={<Navigate to="/crm/dental-chart" replace />} />
+                <Route path="practice/treatment-plans" element={<Navigate to="/crm/treatment-plans" replace />} />
+                <Route path="practice/appointments" element={<Navigate to="/crm/schedule" replace />} />
+                <Route path="practice/diagnostics" element={<Navigate to="/diagnostics" replace />} />
+                <Route path="practice/lab-orders" element={<Navigate to="/crm/lab" replace />} />
+                <Route path="practice/inventory" element={<Navigate to="/crm/inventory" replace />} />
+                <Route path="practice/documents" element={<Navigate to="/crm/documents" replace />} />
+                <Route path="practice/communications" element={<Navigate to="/crm/patient-inbox" replace />} />
+                <Route path="practice/finance" element={<Navigate to="/crm/cashier" replace />} />
+                <Route path="practice/team" element={<Navigate to="/crm/staff" replace />} />
+                <Route path="practice/branches" element={<Navigate to="/settings" replace />} />
+                <Route path="medical-lab" element={<Navigate to="/diagnostics/lab?workspace=medical-lab" replace />} />
+                <Route path="dental-lab" element={<Navigate to="/diagnostics/lab?workspace=dental-lab" replace />} />
+                <Route path="business" element={<Navigate to="/supplier" replace />} />
+                <Route path="academy" element={<Navigate to="/school" replace />} />
+                <Route path="laboratories" element={<Navigate to="/diagnostics/labs" replace />} />
+                <Route path="professional" element={<Navigate to="/profile" replace />} />
                 <Route path="dashboard" element={<Navigate to="/" replace />} />
                 <Route path="intelligence" element={<Navigate to="/ai" replace />} />
                 <Route path="ai" element={<Suspense fallback={<PageLoader />}><AIWorkspaceIndex /></Suspense>} />
