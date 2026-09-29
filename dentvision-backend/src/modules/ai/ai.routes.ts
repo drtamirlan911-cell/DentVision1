@@ -389,6 +389,7 @@ async function processQuery(
         pathname,
         focusType,
         focusId,
+        queue: aiContext?.queue ?? null,
         entity: aiContext?.entity ?? null,
       });
 
