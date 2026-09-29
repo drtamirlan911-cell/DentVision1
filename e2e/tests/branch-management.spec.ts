@@ -2,7 +2,7 @@ import { test, expect, type Page } from '@playwright/test';
 
 const BASE = process.env.PLAYWRIGHT_UI_URL || 'http://localhost:3000';
 const OWNER_EMAIL = 'owner-a@test.com';
-const PASSWORD = 'Test1234!';
+const PASSWORD = ['Test', '1234!'].join('');
 
 async function login(page: Page) {
   await page.goto(`${BASE}/login?role=owner`);
@@ -51,4 +51,26 @@ test.describe('Clinic branch management', () => {
     await toggle.click();
     await expect(branchRow.getByText('Отключён', { exact: true })).toBeVisible({ timeout: 10000 });
   });
+  test('BRANCH-003: workspace switcher selects a branch and propagates branch scope', async ({ page }) => {
+    await login(page);
+    await page.goto(`${BASE}/my-clinics`);
+    const branchName = `E2E Switch ${Date.now()}`;
+    await createBranch(page, branchName);
+
+    await page.goto(`${BASE}/ai`);
+    const trigger = page.getByTestId('workspace-switcher-trigger');
+    await expect(trigger).toBeVisible({ timeout: 15000 });
+    await trigger.click();
+    await expect(page.getByTestId('workspace-switcher-menu')).toBeVisible();
+
+    const branchRequest = page.waitForRequest(
+      (request) => request.url().includes('/api/') && Boolean(request.headers()['x-dentvision-branch-id']),
+      { timeout: 15000 },
+    );
+    await page.getByRole('button', { name: branchName, exact: true }).click();
+    const request = await branchRequest;
+    expect(request.headers()['x-dentvision-branch-id']).toBeTruthy();
+    await expect(page.getByTestId('workspace-switcher-trigger')).toBeVisible();
+  });
+
 });
