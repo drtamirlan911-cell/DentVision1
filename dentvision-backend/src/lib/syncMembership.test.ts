@@ -22,7 +22,6 @@ vi.mock('./prisma.js', () => ({
     person: { findFirst: personFindFirst, findUnique: personFindUnique, create: personCreate, update: personUpdate },
     personRole: { upsert: personRoleUpsert, deleteMany: personRoleDeleteMany },
     role: { findUnique: roleFindUnique },
-    personRole: { upsert: personRoleUpsert },
   },
 }));
 
