@@ -232,6 +232,10 @@ iamRouter.get('/me/contexts', async (req: AuthRequest, res) => {
       `;
       const defaultBranchByOrg = new Map(branchRows.map((row) => [row.organizationId, row.branchId]));
       for (const context of contexts) {
+        if (context.organizationId === req.user?.organizationId && req.user?.branchId) {
+          context.branchId = String(req.user.branchId);
+          continue;
+        }
         if (!context.branchId && context.organizationId) {
           const branchId = defaultBranchByOrg.get(context.organizationId);
           if (branchId) context.branchId = branchId;
