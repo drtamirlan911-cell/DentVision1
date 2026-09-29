@@ -1,4 +1,5 @@
 import prisma from '../../lib/prisma.js';
+import { assertOrgAccess, resolveOrganizationIdForClinic } from '../../lib/orgContext.js';
 import { uid } from '../../lib/helpers.js';
 import { writeAuditLog } from '../compliance/audit.service.js';
 import { simpleChat } from '../ai/llm/client.js';
@@ -564,15 +565,26 @@ export async function confirmAiResult(referralId: string, userId: string) {
   if (!referral.result.aiGenerated) throw new Error('Результат не является AI-результатом');
   if (referral.result.signedAt) throw new Error('Результат уже подтверждён');
 
-  const member = await prisma.clinicMember.findFirst({
-    where: {
-      clinicId: referral.clinicId,
-      userId,
-      role: { in: ['OWNER', 'ADMIN', 'DOCTOR'] },
-    },
-    select: { userId: true, role: true },
-  });
-  if (!member && referral.doctorId !== userId) {
+  const organizationId = await resolveOrganizationIdForClinic(referral.clinicId);
+  const canonicalAccess = organizationId
+    ? await prisma.person.findFirst({
+        where: {
+          userId,
+          organizationId,
+          personRoles: {
+            some: {
+              scopeType: 'organization',
+              scopeId: organizationId,
+              role: { key: { in: ['owner', 'org_owner', 'admin', 'org_admin', 'doctor'] } },
+            },
+          },
+        },
+        select: { id: true },
+      })
+    : null;
+  const authorized = referral.doctorId === userId || Boolean(canonicalAccess) ||
+    (!organizationId && await assertOrgAccess({ id: userId, role: 'OWNER' } as any, referral.clinicId));
+  if (!authorized) {
     throw new Error('Только врач или уполномоченный сотрудник клиники может подтвердить AI-результат');
   }
 
