@@ -21,14 +21,16 @@ describe('workspace context contract', () => {
     expect(context.branchId).toBe('branch-a')
     expect(context.roleKey).toBe('diagnostic_owner')
     expect(context.dataScope).toEqual({ organizationId: 'org-a', branchId: 'branch-a', ownDataOnly: false })
+    expect(context.queue).toEqual({ key: 'workspace', itemCount: null })
     expect(context.entity).toEqual({ type: 'workspace', id: 'workspace-a' })
   })
 
   it('carries workflow and entity without changing authorization scope', () => {
     const context = workspaceContextFrom(source)
-    const next = workflowContext(context, 'diagnostic-report', 'validation', { type: 'study', id: 'study-a' })
+    const next = workflowContext(context, 'diagnostic-report', 'validation', { type: 'study', id: 'study-a' }, 'worklist')
     expect(next.organizationId).toBe('org-a')
     expect(next.branchId).toBe('branch-a')
+    expect(next.queue.key).toBe('worklist')
     expect(next.workflow).toEqual({ key: 'diagnostic-report', step: 'validation' })
     expect(next.entity).toEqual({ type: 'study', id: 'study-a' })
   })
