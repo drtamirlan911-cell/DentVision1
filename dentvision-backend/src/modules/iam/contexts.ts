@@ -26,6 +26,7 @@ export interface WorkspaceContext {
   scopeType: ScopeType;
   scopeId: string;
   organizationId?: string;
+  branchId?: string;
   name: string;
   roleKey: string;
   roleLabel: string;
