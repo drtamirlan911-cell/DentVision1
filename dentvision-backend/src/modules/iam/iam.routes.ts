@@ -216,6 +216,29 @@ iamRouter.get('/me/contexts', async (req: AuthRequest, res) => {
       }
     }
 
+    // Branch is part of the canonical active context. The context endpoint exposes
+    // the current default branch as a read-model hint; /switch-context still
+    // validates the requested branch against the selected organization.
+    const organizationIds = Array.from(new Set(contexts.map((context) => context.organizationId).filter((id): id is string => Boolean(id))));
+    if (organizationIds.length) {
+      const branchRows = await prisma.$queryRaw<Array<{ organizationId: string; branchId: string }>>`
+        SELECT DISTINCT ON ("organization_id")
+          "organization_id" AS "organizationId",
+          "id" AS "branchId"
+        FROM "branches"
+        WHERE "organization_id" IN (${Prisma.join(organizationIds)})
+          AND "active" = true
+        ORDER BY "organization_id", "isDefault" DESC, "createdAt" ASC
+      `;
+      const defaultBranchByOrg = new Map(branchRows.map((row) => [row.organizationId, row.branchId]));
+      for (const context of contexts) {
+        if (!context.branchId && context.organizationId) {
+          const branchId = defaultBranchByOrg.get(context.organizationId);
+          if (branchId) context.branchId = branchId;
+        }
+      }
+    }
+
     return res.json({ ok: true, data: { contexts } } satisfies ApiResponse);
   } catch (error) {
     console.error('IAM contexts error:', error);
