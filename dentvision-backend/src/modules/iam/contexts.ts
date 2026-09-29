@@ -198,19 +198,20 @@ export interface ContextSources {
 
 export function buildWorkspaceContexts(sources: ContextSources): WorkspaceContext[] {
   const byIdentity = new Map<string, WorkspaceContext>();
+  const canonicalIds = new Set<string>();
 
-  const put = (entry: WorkspaceContext) => {
-    const existing = byIdentity.get(entry.id);
-    if (!existing) {
-      byIdentity.set(entry.id, entry);
-      return;
-    }
-    byIdentity.set(entry.id, {
-      ...existing,
-      ...Object.fromEntries(Object.entries(entry).filter(([, v]) => v !== undefined && v !== null)),
-      name: existing.name || entry.name,
-      roleLabel: existing.roleLabel !== ROLE_LABELS.member ? existing.roleLabel : entry.roleLabel,
-    });
+  // Canonical Person → Organization → PersonRole is authoritative. Legacy
+  // membership rows remain compatibility inputs only when no canonical
+  // workspace exists for the same scope. This prevents a stale ClinicMember /
+  // partner membership from leaking a second or incorrectly scoped workspace.
+  const putCanonical = (entry: WorkspaceContext) => {
+    canonicalIds.add(entry.id);
+    byIdentity.set(entry.id, entry);
+  };
+
+  const putLegacy = (entry: WorkspaceContext) => {
+    if (canonicalIds.has(entry.id)) return;
+    byIdentity.set(entry.id, entry);
   };
 
   // Canonical PersonRole is the source of truth for partner role identity.
@@ -251,7 +252,7 @@ export function buildWorkspaceContexts(sources: ContextSources): WorkspaceContex
   }
 
   for (const m of sources.supplierMemberships) {
-    put({
+    putLegacy({
       id: `SUPPLIER:${m.supplierId}`,
       scopeType: 'SUPPLIER',
       scopeId: m.supplierId,
@@ -265,7 +266,7 @@ export function buildWorkspaceContexts(sources: ContextSources): WorkspaceContex
   }
 
   for (const m of sources.diagnosticCenterMemberships) {
-    put({
+    putLegacy({
       id: 'DIAGNOSTIC_CENTER:' + m.centerId,
       scopeType: 'DIAGNOSTIC_CENTER',
       scopeId: m.centerId,
@@ -278,7 +279,7 @@ export function buildWorkspaceContexts(sources: ContextSources): WorkspaceContex
   }
 
   for (const m of sources.laboratoryMemberships) {
-    put({
+    putLegacy({
       id: 'LABORATORY:' + m.labId,
       scopeType: 'LABORATORY',
       scopeId: m.labId,
@@ -296,7 +297,7 @@ export function buildWorkspaceContexts(sources: ContextSources): WorkspaceContex
 
   if (sources.lecturer) {
     const l = sources.lecturer;
-    put({
+    putLegacy({
       id: `LECTURER:${l.id}`,
       scopeType: 'LECTURER',
       scopeId: l.id,
@@ -326,7 +327,7 @@ export function buildWorkspaceContexts(sources: ContextSources): WorkspaceContex
       .map((pr) => pr.role.key)
       .join(',') || p.personType.toLowerCase();
 
-    put({
+    putCanonical({
       id: `${scopeType}:${entityId}`,
       scopeType,
       scopeId: entityId,
