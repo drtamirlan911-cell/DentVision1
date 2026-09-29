@@ -20,8 +20,8 @@ function workflowForPath(pathname: string): { key: string; step: string | null; 
   if (path.startsWith('/diagnostics/center')) return { key: 'diagnostic-center', step: 'worklist', queue: 'worklist', entityType: 'study' }
   if (path.startsWith('/diagnostics/lab')) return { key: 'medical-laboratory', step: 'worklist', queue: 'worklist', entityType: 'lab-order' }
   if (path.startsWith('/diagnostics/')) return { key: 'diagnostics', step: null, queue: 'referrals', entityType: 'study' }
-  if (path.startsWith('/medical-lab')) return { key: 'medical-laboratory', step: null, entityType: 'lab-order' }
-  if (path.startsWith('/dental-lab')) return { key: 'dental-laboratory', step: null, entityType: 'lab-case' }
+  if (path.startsWith('/medical-lab')) return { key: 'medical-laboratory', step: null, queue: 'worklist', entityType: 'lab-order' }
+  if (path.startsWith('/dental-lab')) return { key: 'dental-laboratory', step: null, queue: 'worklist', entityType: 'lab-case' }
   if (path.startsWith('/supplier')) return { key: 'supplier-operations', step: workflowStep(path, 'orders'), queue: 'orders', entityType: 'order' }
   if (path.startsWith('/shop')) return { key: 'procurement', step: workflowStep(path, 'catalog'), queue: path.startsWith('/shop/checkout') ? 'checkout' : 'catalog', entityType: 'product' }
   if (path.startsWith('/school')) return { key: 'learning', step: null, queue: 'courses', entityType: 'course' }
