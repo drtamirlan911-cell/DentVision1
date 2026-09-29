@@ -1031,3 +1031,25 @@ These changes are route/entry reconciliation only. Existing domain implementatio
 ### Next action
 - Verify the exact mainline CI/E2E/Visual chain and Render runtime.
 - Continue the Master Spec v5 business-owner vertical slice: partner registration → organization → branches → staff/roles → operational workflow → economics → Finance Hub.
+
+## 2026-09-29 — Production migration recovery: AI-admin queue table collision
+
+### Root cause
+- Render production boot was blocked by Prisma P3009.
+- Migration 20260929130000_ai_admin_postgres_queue attempted to create ai_admin_messages, but that table name is already occupied by the existing Prisma AiAdminMessage conversation model.
+- CREATE TABLE IF NOT EXISTS reused the existing conversation table, after which the queue-specific indexes could not be created against its different schema.
+- This was a schema-name collision introduced by the durable AI-admin queue migration.
+
+### Implemented
+- Renamed the durable worker table to ai_admin_queue_messages; the existing conversation table remains untouched.
+- Updated the worker SQL binding to the dedicated queue table.
+- Added recovery of this exact failed migration to the existing Prisma postinstall compatibility gate; it is a no-op when the migration is already applied, absent, or no database connection exists.
+- Added a standalone recovery script as an explicit operational tool for the same migration state.
+
+### Safety
+- No production database reset or destructive data wipe is performed.
+- Recovery targets only migration 20260929130000_ai_admin_postgres_queue and relies on Prisma's migrate resolve --rolled-back behavior.
+- Normal prisma migrate deploy remains authoritative for applying the corrected migration.
+
+### Verification
+- Required next: deploy the fix, confirm migration success, then verify durable worker startup and HTTP port health before proceeding to the next Master Spec work.
