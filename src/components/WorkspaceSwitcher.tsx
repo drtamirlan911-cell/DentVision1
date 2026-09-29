@@ -110,7 +110,7 @@ export function WorkspaceSwitcher({ className }: { className?: string }) {
   const activeSupplierId = (user as { supplierId?: string } | null)?.supplierId || null
   const activeLecturerId = (user as { lecturerId?: string } | null)?.lecturerId || null
 
-  const isActive = (ws: WorkspaceContext) => {
+  const isActive = useCallback((ws: WorkspaceContext) => {
     if (ws.scopeType === 'LECTURER') {
       return activeLecturerId ? ws.scopeId === activeLecturerId : Boolean(activeOrgId && ws.organizationId === activeOrgId)
     }
@@ -119,11 +119,11 @@ export function WorkspaceSwitcher({ className }: { className?: string }) {
     }
     if (activeOrgType && activeOrgType !== 'CLINIC') return ws.organizationId === activeOrgId || ws.scopeId === activeOrgId
     return ws.scopeType === 'CLINIC' && ws.scopeId === activeClinicId
-  }
+  }, [activeClinicId, activeOrgId, activeOrgType, activeSupplierId, activeLecturerId])
 
   const current = useMemo(
     () => workspaces.find(isActive) || workspaces.find((w) => w.scopeType === 'CLINIC') || workspaces[0],
-    [workspaces, activeClinicId, activeOrgId, activeOrgType, activeSupplierId, activeLecturerId],
+    [workspaces, isActive],
   )
   const activeRoleLabel = current?.roleLabel || roleInfo?.label || getRoleDisplayLabel((user as any)?.platformRole || (user as any)?.role) || 'Участник экосистемы'
 
