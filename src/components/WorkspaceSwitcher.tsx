@@ -10,6 +10,7 @@ import { getRoleDisplayLabel, useAuth, useAuthStore } from '@/store/auth.store'
 import { useToast } from '@/components/ui/ds/Toast'
 import { queryKeys } from '@/queries/keys'
 import { useWorkspaceStore } from '@/store/workspace.store'
+import { workspaceContextFrom } from '@/lib/workspaceContext'
 import * as api from '@/utils/api'
 
 type ScopeType = 'CLINIC' | 'DIAGNOSTIC_CENTER' | 'LABORATORY' | 'SUPPLIER' | 'LECTURER' | 'ACADEMY' | 'PARTNER'
@@ -19,6 +20,9 @@ interface WorkspaceContext {
   scopeType: ScopeType
   scopeId: string
   organizationId?: string
+  branchId?: string
+  permissions?: string[]
+  ownDataOnly?: boolean
   name: string
   roleLabel: string
   logo?: string | null
@@ -50,6 +54,7 @@ export function WorkspaceSwitcher({ className }: { className?: string }) {
   const queryClient = useQueryClient()
   const { user, clinic, activeMembership, roleInfo, isAuthenticated } = useAuth()
   const setActiveWorkspace = useWorkspaceStore(s => s.setActiveWorkspace)
+  const setContextFocus = useWorkspaceStore(s => s.setContextFocus)
   const [open, setOpen] = useState(false)
   const [busyId, setBusyId] = useState<string | null>(null)
   const [menuPosition, setMenuPosition] = useState({ top: 0, left: 0, width: 304 })
@@ -147,12 +152,14 @@ export function WorkspaceSwitcher({ className }: { className?: string }) {
       const switchScopeId = ws.scopeType === 'LECTURER' || ws.scopeType === 'SUPPLIER'
         ? ws.scopeId
         : (ws.organizationId || ws.scopeId)
-      const tokens = await api.switchContext(ws.scopeType, switchScopeId)
+      const tokens = await api.switchContext(ws.scopeType, switchScopeId, ws.branchId)
       if (tokens?.accessToken) api.setTokens(tokens.accessToken, tokens.refreshToken || null)
       await useAuthStore.getState().restoreSession()
 
-      setActiveWorkspace({ id: ws.id, scopeType: ws.scopeType, organizationId: ws.organizationId, name: ws.name, roleLabel: ws.roleLabel })
-      window.dispatchEvent(new CustomEvent('dentvision:workspace-switched', { detail: { id: ws.id, scopeType: ws.scopeType, organizationId: ws.organizationId, name: ws.name, roleLabel: ws.roleLabel } }))
+      const contract = workspaceContextFrom(ws, ws.permissions || [])
+      setActiveWorkspace({ id: ws.id, scopeType: ws.scopeType, organizationId: ws.organizationId, branchId: ws.branchId, name: ws.name, roleKey: ws.roleKey, roleLabel: ws.roleLabel, permissions: ws.permissions, participant: ws.personType, dataScope: contract.dataScope }, contract)
+      setContextFocus('workspace', ws.id, { organizationId: ws.organizationId || null, branchId: ws.branchId || null, roleKey: ws.roleKey || ws.role || null, scopeType: ws.scopeType })
+      window.dispatchEvent(new CustomEvent('dentvision:workspace-switched', { detail: { id: ws.id, scopeType: ws.scopeType, organizationId: ws.organizationId, branchId: ws.branchId || null, name: ws.name, roleLabel: ws.roleLabel, roleKey: ws.roleKey || null } }))
 
       toast.success(t('platform.clinic_active', { name: ws.name }))
       setOpen(false)
