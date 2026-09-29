@@ -14,16 +14,17 @@ vi.mock('./prisma.js', () => ({
 
 import { resolveUserPermissions } from './resolvePermissions.js';
 
-function makePerson(keys: string[], scopedRoles: Array<{ scopeId?: string | null; keys: string[] }> = []) {
+function makePerson(keys: string[], scopeId = 'org-1', scopedRoles: Array<{ scopeId?: string | null; keys: string[] }> = []) {
   return {
     personRoles: [
       {
-        role: {
-          permissions: keys.map((key) => ({ permission: { key } })),
-        },
-      },
-      ...scopedRoles.map(({ scopeId = null, keys: roleKeys }) => ({
+        scopeType: scopeId ? 'organization' : null,
         scopeId,
+        role: { permissions: keys.map((key) => ({ permission: { key } })) },
+      },
+      ...scopedRoles.map(({ scopeId: roleScopeId = null, keys: roleKeys }) => ({
+        scopeType: roleScopeId ? 'organization' : null,
+        scopeId: roleScopeId,
         role: { permissions: roleKeys.map((key) => ({ permission: { key } })) },
       })),
     ],
@@ -99,6 +100,19 @@ describe('resolveUserPermissions', () => {
 
 
 describe('organization scope isolation', () => {
+  it('does not import platform permissions into an organization scope', async () => {
+    personFindFirst.mockResolvedValueOnce({
+      personRoles: [
+        { scopeType: 'platform', scopeId: null, role: { permissions: [{ permission: { key: 'admin.read' } }] } },
+        { scopeType: 'organization', scopeId: 'org-1', role: { permissions: [{ permission: { key: 'patients.read' } }] } },
+      ],
+    });
+    const result = await resolveUserPermissions('user-1', 'org-1', 'DOCTOR');
+    expect(result).toContain('patients.read');
+    expect(result).not.toContain('admin.read');
+    expect(result).toContain('medical.manage');
+  });
+
   it('does not import permissions from another organization', async () => {
     personFindFirst.mockResolvedValueOnce(
       makePerson([], [

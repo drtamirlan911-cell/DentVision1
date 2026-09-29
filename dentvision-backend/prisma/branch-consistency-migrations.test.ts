@@ -24,4 +24,14 @@ describe('branch consistency migrations', () => {
     expect(sql).toMatch(/WHERE\s+"patientId"\s*=\s*NEW\.?"?id"?/);
     expect(sql).toContain('AND "clinicId" = NEW."clinicId"');
   });
+
+  it('replaces global person-role uniqueness with scope-aware uniqueness and normalizes invalid legacy scope types', () => {
+    const sql = migration('20260926120000_person_role_scope_key');
+    expect(sql).toContain('ADD COLUMN IF NOT EXISTS "scopeKey" TEXT NOT NULL DEFAULT \'platform\'');
+    expect(sql).toContain('DROP INDEX IF EXISTS "person_roles_personId_roleId_key"');
+    expect(sql).toContain('WHEN "scopeId" IS NOT NULL');
+    expect(sql).toContain("'organization:' || \"scopeId\"");
+    expect(sql).toContain("ELSE 'platform'");
+    expect(sql).toContain('"personId", "roleId", "scopeKey"');
+  });
 });

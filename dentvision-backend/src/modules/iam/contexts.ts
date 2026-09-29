@@ -179,7 +179,11 @@ export interface UnifiedPersonRow {
     logo?: string | null;
     originalId?: string | null;
   } | null;
-  personRoles?: Array<{ role: { key: string } }>;
+  personRoles?: Array<{
+    scopeType: string;
+    scopeId: string | null;
+    role: { key: string };
+  }>;
 }
 
 export interface ContextSources {
@@ -217,9 +221,11 @@ export function buildWorkspaceContexts(sources: ContextSources): WorkspaceContex
     if (!org) continue;
     const scopeType = PERSON_TYPE_TO_SCOPE[p.personType] || ORG_TYPE_TO_SCOPE[org.type];
     if (!scopeType || !org.originalId) continue;
-    const roleKey = (p.personRoles || []).map((pr) => pr.role.key).find((key) =>
-      /^(diagnostic_|medical_lab_|dental_lab_|lab_coordinator|dental_technician|cad_designer|ceramist|orthodontic_technician|qc_specialist|lab_finance)/i.test(key),
-    );
+    const roleKey = (p.personRoles || []).find((pr) =>
+      pr.scopeType === 'organization' &&
+      pr.scopeId === org.id &&
+      /^(diagnostic_|medical_lab_|dental_lab_|lab_coordinator|dental_technician|cad_designer|ceramist|orthodontic_technician|qc_specialist|lab_finance)/i.test(pr.role.key),
+    )?.role.key;
     if (roleKey) {
       // Keep both canonical Organization.id and mirrored source id aliases.
       // Legacy workspace memberships use the source entity id, while unified
@@ -314,7 +320,10 @@ export function buildWorkspaceContexts(sources: ContextSources): WorkspaceContex
         ? p.originalId || org.originalId || org.id
         : org.originalId || org.id;
 
-    const roleKey = (p.personRoles || []).map((pr) => pr.role.key).join(',') || p.personType.toLowerCase();
+    const roleKey = (p.personRoles || [])
+      .filter((pr) => pr.scopeType === 'organization' && pr.scopeId === org.id)
+      .map((pr) => pr.role.key)
+      .join(',') || p.personType.toLowerCase();
 
     put({
       id: `${scopeType}:${entityId}`,

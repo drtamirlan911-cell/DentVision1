@@ -71,12 +71,11 @@ export function resolveActivePersonRole(
   personRoles: Array<{ scopeType: string | null; scopeId: string | null; role: { key: string } }>,
   organizationId: string,
 ): UserRole | undefined {
+  // Organization context is authoritative: only an explicit organization-scoped
+  // PersonRole for this exact organization may activate tenant permissions.
+  // Null/legacy scope rows are never treated as active here.
   const activeRoles = personRoles
-    .filter((pr) => {
-      if (pr.scopeType === 'organization' && pr.scopeId && pr.scopeId !== organizationId) return false;
-      if (pr.scopeId && pr.scopeId !== organizationId) return false;
-      return true;
-    })
+    .filter((pr) => pr.scopeType === 'organization' && pr.scopeId === organizationId)
     .map((pr) => normalizeScopedRole(pr.role.key))
     .filter((role): role is UserRole => Boolean(role));
 

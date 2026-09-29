@@ -900,3 +900,55 @@ Run the exact current main-tip CI. Inspect the generated Visual Agent evidence f
 - Fixed by keeping the access/refresh pair tab-scoped in `sessionStorage` and removing the legacy shared `dv_refresh` value. Commit: `8b285aee40acafd80f044b6de99d82e42d26ca39`.
 - Verification required: fresh CI must prove owner `/settings`, all role/context gates, reload/back-forward persistence, and the existing cross-tenant/security checks. No release/merge conclusion is made before fresh evidence.
 
+
+
+## 2026-09-26 — Master Spec v5 Organization/IAM reconciliation started
+- PR #287 was merged to main at `e853e844b37d1410c7de9a9b28ac2f493c0370f`.
+- Master Spec v5 reconciliation identified a concrete IAM mismatch: `PersonRole` stored `scopeType/scopeId` but uniqueness was only `personId + roleId`, preventing the same role from being assigned to the same person in multiple organizations.
+- Started PR #288 on `refactor/master-spec-v5-organization-scope`.
+- Added canonical `PersonRole.scopeKey` and changed uniqueness to `personId + roleId + scopeKey`.
+- Added production migration `20260926120000_person_role_scope_key` that backfills scope keys before replacing the legacy unique index.
+- Updated unified-schema and E2E permission seeding to use the scoped composite key.
+- Added migration coverage.
+- This is the first architectural correction in the Master Spec v5 reconciliation sequence; subsequent work must continue through Organization types, Branch/data scope, AI scope, Finance scope, and vertical cross-organization slices.
+
+
+## 2026-09-29 — Master Spec system audit and workflow convergence
+
+### Audit
+- Audited the canonical Master Spec v5, Product DNA/Constitution, Execution Plan, Context, System Map, Self-Service Organization OS, Lab/Diagnostics, Marketplace, Academy, AI OS, Legal/Trust, Mobile, Economics and Release Blockers against the current web/backend/Android implementation.
+- Added `docs/SYSTEM_AUDIT.md` with the target product model, concrete P0/P1 mismatches and implementation order.
+- Confirmed the main remaining gap is architectural coherence: existing vertical capabilities must converge on one Organization → Branch → Workspace → Role → Data Scope → Workflow → AI runtime rather than adding isolated modules.
+
+### Implemented
+- `e879399095a906cccb60b4addc5976a06a21d6aa` — AI stream persistence and AI memory/feedback paths now use the active workspace scope instead of falling back to raw `clinicId`.
+- `e879399095a906cccb60b4addc5976a06a21d6aa` — AI thread/proactive/briefing sidecars use non-destructive optional requests so a best-effort AI 401 cannot clear an otherwise valid authenticated session.
+- `4883e36930c4bc7ebd2b70a0d2bc8d5b7a1d344c` — critical CRM inventory restock action now adds the matched Marketplace product to the existing cart for the calculated stock deficit and opens checkout; unmatched items retain the Marketplace search fallback.
+- Academy workspace navigation was reconciled to `/school/workspace`, while the legacy `/school-workspace` path remains an explicit redirect alias.
+- AI Workspace now visibly identifies the active workspace rather than showing only clinic naming.
+
+### Verification
+- Quality Gate for the pre-convergence HEAD passed.
+- The subsequent full CI had a real Owner `/settings` redirect-to-login failure after the AI route; the artifact was inspected directly and showed authenticated Owner screens before `/settings`.
+- The likely mechanism was confirmed in the request layer: optional AI sidecars used the destructive 401 refresh path, whose failure clears tokens and navigates to `/login`. The sidecars have now been moved to the existing non-destructive optional request path.
+- A fresh full CI/E2E/visual chain is running for the new HEAD. Do not treat the earlier green Quality Gate as release proof for this HEAD.
+
+### Next action
+- Let the current full CI/E2E/Visual chain finish before the next verification cycle.
+- Inspect the complete role/visual artifact, especially Owner `/settings`, partner contexts, mobile lab drawers and AI workspace context.
+- Continue with the remaining Master Spec vertical gaps: unified onboarding, canonical partner cabinets, Organization/Person/PersonRole migration, Marketplace procurement completion, Academy acceptance matrix and Android ecosystem context parity.
+
+
+## 2026-09-29 — Unified onboarding and procurement convergence
+
+### Implemented
+- `131d9140293bc5a4c4c60cbdc7233af727d55fcb` — placed the unified `/onboarding` page on the implementation branch. It uses the existing `/api/organizations/self-service` contract for clinic, diagnostic center, medical lab, dental lab, supplier and academy organizations, plus join-by-invitation.
+- `4883e36930c4bc7ebd2b70a0d2bc8d5b7a1d344c` — critical inventory restock now adds the matched Marketplace product to the canonical cart and opens checkout; unmatched inventory still falls back to Marketplace search.
+- `1ccca90b033dcaf5cea1d5f2e3d787778e7d8c7b` — mobile workspace switcher wording made organization-neutral.
+
+### Verification
+- A short-lived CI run on `cbb8154` failed at TypeScript because the new onboarding file had initially been committed outside the implementation branch. This was a repository placement error, not an application behavior failure.
+- The file is now present on the implementation branch at `131d9140`. The next CI run is the release verification candidate; no pass is claimed yet.
+
+### Next action
+- Do not add unrelated changes. Let the full CI/E2E/Visual chain for the corrected HEAD finish, then inspect every gate and fresh artifact before any merge decision.

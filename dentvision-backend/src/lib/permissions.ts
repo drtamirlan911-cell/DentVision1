@@ -377,6 +377,8 @@ function partnerPageFamily(role: string): string | undefined {
   return undefined;
 }
 
+const AI_APPROVAL_ROLES = new Set(['OWNER', 'DIRECTOR', 'ADMIN', 'DOCTOR', 'SUPERADMIN']);
+
 export function pagesForCaller(permissions: readonly string[], role: string | null | undefined): string[] {
   const resolvedRole = String(role || '').toUpperCase();
   if (resolvedRole === 'PATIENT') {
@@ -392,6 +394,7 @@ export function pagesForCaller(permissions: readonly string[], role: string | nu
     ...BASE_PAGES,
     ...pagesForPermissions(permissions),
     ...(role ? pagesForRole(resolvedRole) : []),
+    ...(AI_APPROVAL_ROLES.has(resolvedRole) ? ['ai-approvals'] : []),
   ]));
 }
 

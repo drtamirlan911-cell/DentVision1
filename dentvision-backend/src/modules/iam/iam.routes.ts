@@ -72,6 +72,115 @@ iamRouter.get('/me/contexts', async (req: AuthRequest, res) => {
     const persons = await prisma.person.findMany({ where: { userId }, include: { organization: { select: { id: true, name: true, type: true, logo: true, originalId: true } }, personRoles: { include: { role: true } } } });
     const contexts = buildWorkspaceContexts({ memberships, supplierMemberships, lecturer, diagnosticCenterMemberships, laboratoryMemberships, persons });
 
+    // Canonical partner workspaces must remain discoverable from PersonRole
+    // even when a legacy DiagnosticCenterMember/LaboratoryMember row is absent
+    // or temporarily stale. Only an organization-scoped PersonRole for this
+    // exact user + organization can materialize the context.
+    const partnerRolePattern = /^(diagnostic_|medical_lab_|dental_lab_|lab_coordinator|dental_technician|cad_designer|ceramist|orthodontic_technician|qc_specialist|lab_finance)/i;
+    for (const person of persons) {
+      const org = person.organization;
+      if (!org) continue;
+      const scopedRole = person.personRoles
+        ?.find((personRole) =>
+          personRole.scopeType === 'organization' &&
+          personRole.scopeId === org.id &&
+          partnerRolePattern.test(personRole.role.key),
+        )?.role.key;
+      if (!scopedRole) continue;
+      const scopeType = ({ DIAGNOSTIC_CENTER: 'DIAGNOSTIC_CENTER', LABORATORY: 'LABORATORY' } as Record<string, ScopeType>)[org.type];
+      if (!scopeType) continue;
+      const scopeId = org.originalId || org.id;
+      const id = scopeType + ':' + scopeId;
+      if (!contexts.some((context) => context.id === id)) {
+        contexts.push({
+          id,
+          scopeType,
+          scopeId,
+          organizationId: org.id,
+          name: org.name,
+          roleKey: scopedRole,
+          roleLabel: roleLabelFor(scopedRole),
+          personType: person.personType,
+          logo: org.logo ?? null,
+        });
+      }
+    }
+
+    // Read the canonical PersonRole relation directly as a second read-model path.
+    // This remains fail-closed: only an organization-scoped partner PersonRole can
+    // materialize a partner workspace; legacy memberships alone never authorize it.
+    const canonicalPartnerAssignments = await prisma.personRole.findMany({
+      where: {
+        scopeType: 'organization',
+        scopeId: { not: null },
+        person: { userId },
+        role: { key: { startsWith: 'diagnostic_' } },
+      },
+      include: {
+        role: true,
+        person: {
+          include: { organization: { select: { id: true, name: true, type: true, logo: true, originalId: true } } },
+        },
+      },
+    });
+    const canonicalAssignments = await prisma.personRole.findMany({
+      where: {
+        scopeType: 'organization',
+        scopeId: { not: null },
+        person: { userId },
+        role: {
+          key: {
+            in: [
+              'medical_lab_owner', 'medical_lab_admin', 'medical_lab_manager', 'medical_lab_reception',
+              'medical_lab_technician', 'medical_lab_validator', 'medical_lab_doctor', 'medical_lab_finance',
+              'medical_lab_quality', 'dental_lab_owner', 'dental_lab_admin', 'dental_lab_manager',
+              'lab_coordinator', 'dental_technician', 'cad_designer', 'ceramist', 'orthodontic_technician',
+              'qc_specialist', 'lab_finance',
+            ],
+          },
+        },
+      },
+      include: {
+        role: true,
+        person: {
+          include: { organization: { select: { id: true, name: true, type: true, logo: true, originalId: true } } },
+        },
+      },
+    });
+    for (const assignment of [...canonicalPartnerAssignments, ...canonicalAssignments]) {
+      const org = assignment.person.organization;
+      if (!org || !assignment.scopeId) continue;
+      if (assignment.scopeId !== org.id) continue;
+      const scopeType = ({ DIAGNOSTIC_CENTER: 'DIAGNOSTIC_CENTER', LABORATORY: 'LABORATORY' } as Record<string, ScopeType>)[org.type];
+      if (!scopeType) continue;
+      const scopeId = org.originalId || org.id;
+      const id = scopeType + ':' + scopeId;
+      const existing = contexts.find((context) => context.id === id);
+      if (existing) {
+        // Canonical PersonRole wins over the coarse legacy member role.
+        // Keep the same workspace identity but repair its role metadata so the
+        // client never observes a stale "operator/technician" role after the
+        // canonical organization graph has been seeded.
+        existing.organizationId = org.id;
+        existing.roleKey = assignment.role.key;
+        existing.roleLabel = roleLabelFor(assignment.role.key);
+        existing.personType = assignment.person.personType;
+        existing.logo = org.logo ?? null;
+      } else {
+        contexts.push({
+          id,
+          scopeType,
+          scopeId,
+          organizationId: org.id,
+          name: org.name,
+          roleKey: assignment.role.key,
+          roleLabel: roleLabelFor(assignment.role.key),
+          personType: assignment.person.personType,
+          logo: org.logo ?? null,
+        });
+      }
+    }
+
     // The active JWT already proves the user's canonical organization context.
     // Keep that context visible even if a legacy partner membership is missing
     // or was created after the Person graph. This is a read-model repair path,
@@ -81,8 +190,11 @@ iamRouter.get('/me/contexts', async (req: AuthRequest, res) => {
       const activeOrgId = req.user.organizationId;
       const activePerson = persons.find((person) => person.organization?.id === activeOrgId);
       const activeRole = activePerson?.personRoles
-        ?.map((personRole) => personRole.role.key)
-        .find((key) => /^(diagnostic_|medical_lab_|dental_lab_|lab_coordinator|dental_technician|cad_designer|ceramist|orthodontic_technician|qc_specialist|lab_finance)/i.test(key));
+        ?.find((personRole) =>
+          personRole.scopeType === 'organization' &&
+          personRole.scopeId === activeOrgId &&
+          /^(diagnostic_|medical_lab_|dental_lab_|lab_coordinator|dental_technician|cad_designer|ceramist|orthodontic_technician|qc_specialist|lab_finance)/i.test(personRole.role.key),
+        )?.role.key;
       if (activePerson?.organization && activeRole) {
         const org = activePerson.organization;
         const scopeType = ({ CLINIC: 'CLINIC', DIAGNOSTIC_CENTER: 'DIAGNOSTIC_CENTER', LABORATORY: 'LABORATORY', SUPPLIER_COMPANY: 'SUPPLIER', SUPPLIER: 'SUPPLIER', ACADEMY: 'ACADEMY', PARTNER: 'PARTNER' } as Record<string, ScopeType>)[org.type];
@@ -116,16 +228,29 @@ iamRouter.post('/switch-context', async (req: AuthRequest, res) => {
     const { scopeType, scopeId, branchId } = req.body as { scopeType: string; scopeId?: string; branchId?: string };
     const user = req.user!;
     if (!scopeType || !scopeId) return res.status(400).json({ ok: false, error: 'scopeType и scopeId обязательны' } satisfies ApiResponse);
+    const requestedScopeType = String(scopeType).trim().toUpperCase();
     const base = { sub: user.id, email: user.email, role: user.role, sessionId: user.sessionId };
     const org = (await prisma.organization.findUnique({ where: { id: scopeId } })) || (await prisma.organization.findFirst({ where: { originalId: scopeId } }));
     if (org) {
+      const expectedScopeTypes = new Set(
+        org.type === 'SUPPLIER_COMPANY' ? ['SUPPLIER', 'SUPPLIER_COMPANY'] : [org.type],
+      );
+      if (!expectedScopeTypes.has(requestedScopeType)) {
+        return res.status(403).json({ ok: false, error: 'Тип контекста не соответствует организации' } satisfies ApiResponse);
+      }
       let person = await prisma.person.findFirst({ where: { userId: user.id, organizationId: org.id }, include: { personRoles: { include: { role: true } } } });
       if (!person && org.originalId) {
         person = await prisma.person.findFirst({ where: { userId: user.id, originalId: `${org.originalId}:${user.id}` }, include: { personRoles: { include: { role: true } } } });
         if (person) await prisma.person.update({ where: { id: person.id }, data: { organizationId: org.id } }).catch(() => {});
       }
       if (person) {
-        const scopedRoleKey = person.personRoles?.find((pr) => !pr.scopeId || pr.scopeId === org.id)?.role.key || person.personType || user.role;
+        // Organization workspaces must be authorized by an organization-scoped PersonRole.
+        // A platform role must never become an implicit authorization fallback for an org context.
+        const scopedRoleKey = person.personRoles
+          ?.find((pr) => pr.scopeType === 'organization' && pr.scopeId === org.id)?.role.key;
+        if (!scopedRoleKey) {
+          return res.status(403).json({ ok: false, error: 'У вас нет роли в выбранной организации' } satisfies ApiResponse);
+        }
         const userRoleValues = new Set<UserRole>(['OWNER', 'DOCTOR', 'ASSISTANT', 'ADMIN', 'CASHIER', 'LAB', 'MANAGER', 'STUDENT', 'SUPERADMIN', 'SUPPORT', 'PATIENT']);
         const scopedRole: UserRole = userRoleValues.has(String(scopedRoleKey).toUpperCase() as UserRole)
           ? String(scopedRoleKey).toUpperCase() as UserRole
@@ -140,7 +265,10 @@ iamRouter.post('/switch-context', async (req: AuthRequest, res) => {
         if (branchId) {
           const rows = await prisma.$queryRaw<Array<{ id: string; organization_id: string | null }>>`SELECT "id", "organization_id" FROM "branches" WHERE "id" = ${branchId} LIMIT 1`;
           if (!rows[0] || rows[0].organization_id !== org.id) return res.status(403).json({ ok: false, error: 'Филиал не относится к выбранной организации' });
-          const roleRows = await prisma.personRole.findMany({ where: { personId: person.id }, include: { role: true } });
+          const roleRows = await prisma.personRole.findMany({
+            where: { personId: person.id, scopeType: 'organization', scopeId: org.id },
+            include: { role: true },
+          });
           const orgManager = roleRows.some((pr) => ['owner', 'org_owner', 'admin', 'org_admin'].includes(pr.role.key.toLowerCase()));
           const assigned = await prisma.branchMember.findUnique({ where: { personId_branchId: { personId: person.id, branchId } } });
           if (!orgManager && !assigned) return res.status(403).json({ ok: false, error: 'У вас нет доступа к выбранному филиалу' });
@@ -150,6 +278,9 @@ iamRouter.post('/switch-context', async (req: AuthRequest, res) => {
         await writeAuditLog({ userId: user.id, action: 'auth.switch_context', entity: 'organization', entityId: org.id, details: { scopeType: org.type } });
         return res.json({ ok: true, data: tokens } satisfies ApiResponse);
       }
+      // A canonical organization must never fall through to legacy membership
+      // authorization: the selected workspace requires an org-scoped PersonRole.
+      return res.status(403).json({ ok: false, error: 'У вас нет роли в выбранной организации' } satisfies ApiResponse);
     }
     if (scopeType === 'CLINIC') {
       const membership = await prisma.clinicMember.findUnique({ where: { userId_clinicId: { userId: user.id, clinicId: scopeId } } });
@@ -160,30 +291,44 @@ iamRouter.post('/switch-context', async (req: AuthRequest, res) => {
       }
     }
     if (scopeType === 'SUPPLIER') {
+      const organization = await prisma.organization.findFirst({ where: { originalType: 'Supplier', originalId: scopeId } });
+      if (organization) {
+        const person = await prisma.person.findFirst({
+          where: { userId: user.id, organizationId: organization.id },
+          include: { personRoles: { include: { role: true } } },
+        });
+        const scopedRoleKey = person?.personRoles?.find((pr) => pr.scopeType === 'organization' && pr.scopeId === organization.id)?.role.key;
+        if (!person || !scopedRoleKey) return res.status(403).json({ ok: false, error: 'У вас нет роли в выбранной организации' } satisfies ApiResponse);
+        const scopedRole = userRoleForPartnerRole(scopedRoleKey, user.role);
+        const member = await prisma.supplierMember.findUnique({ where: { userId_supplierId: { userId: user.id, supplierId: scopeId } } });
+        const tokens = generateTokens({ ...base, role: scopedRole, supplierId: scopeId, supplierRole: member?.role || scopedRoleKey, organizationId: organization.id, organizationOriginalId: scopeId, organizationType: 'SUPPLIER', personType: person.personType });
+        await writeAuditLog({ userId: user.id, action: 'auth.switch_context', entity: 'supplier', entityId: scopeId });
+        return res.json({ ok: true, data: tokens } satisfies ApiResponse);
+      }
       const member = await prisma.supplierMember.findUnique({ where: { userId_supplierId: { userId: user.id, supplierId: scopeId } } });
       if (member) {
         const scopedRole = userRoleForPartnerRole(member.role, user.role);
-        const organization = await prisma.organization.findFirst({ where: { originalType: 'Supplier', originalId: scopeId } });
-        const tokens = generateTokens({
-          ...base,
-          role: scopedRole,
-          supplierId: scopeId,
-          supplierRole: member.role,
-          organizationId: organization?.id,
-          organizationOriginalId: scopeId,
-          organizationType: 'SUPPLIER',
-          personType: 'SUPPLIER_REP',
-        });
+        const tokens = generateTokens({ ...base, role: scopedRole, supplierId: scopeId, supplierRole: member.role, organizationType: 'SUPPLIER', personType: 'SUPPLIER_REP' });
         await writeAuditLog({ userId: user.id, action: 'auth.switch_context', entity: 'supplier', entityId: scopeId });
         return res.json({ ok: true, data: tokens } satisfies ApiResponse);
       }
     }
     if (scopeType === 'DIAGNOSTIC_CENTER') {
+      const organization = await prisma.organization.findFirst({ where: { originalType: 'DiagnosticCenter', originalId: scopeId } });
+      if (organization) {
+        const person = await prisma.person.findFirst({ where: { userId: user.id, organizationId: organization.id }, include: { personRoles: { include: { role: true } } } });
+        const scopedRoleKey = person?.personRoles?.find((pr) => pr.scopeType === 'organization' && pr.scopeId === organization.id)?.role.key;
+        if (!person || !scopedRoleKey) return res.status(403).json({ ok: false, error: 'У вас нет роли в выбранной организации' } satisfies ApiResponse);
+        const member = await prisma.diagnosticCenterMember.findUnique({ where: { centerId_userId: { centerId: scopeId, userId: user.id } } });
+        const scopedRole = userRoleForPartnerRole(scopedRoleKey, user.role);
+        const tokens = generateTokens({ ...base, role: scopedRole, organizationId: organization.id, organizationOriginalId: scopeId, organizationType: 'DIAGNOSTIC_CENTER', personType: person.personType });
+        await writeAuditLog({ userId: user.id, action: 'auth.switch_context', entity: 'diagnostic_center', entityId: scopeId, details: { role: member?.role || scopedRoleKey } });
+        return res.json({ ok: true, data: tokens } satisfies ApiResponse);
+      }
       const member = await prisma.diagnosticCenterMember.findUnique({ where: { centerId_userId: { centerId: scopeId, userId: user.id } } });
       if (member) {
         const scopedRole = userRoleForPartnerRole(member.role, user.role);
-        const organization = await prisma.organization.findFirst({ where: { originalType: 'DiagnosticCenter', originalId: scopeId } });
-        const tokens = generateTokens({ ...base, role: scopedRole, organizationId: organization?.id, organizationOriginalId: scopeId, organizationType: 'DIAGNOSTIC_CENTER' });
+        const tokens = generateTokens({ ...base, role: scopedRole, organizationOriginalId: scopeId, organizationType: 'DIAGNOSTIC_CENTER' });
         await writeAuditLog({ userId: user.id, action: 'auth.switch_context', entity: 'diagnostic_center', entityId: scopeId, details: { role: member.role } });
         return res.json({ ok: true, data: tokens } satisfies ApiResponse);
       }
@@ -197,24 +342,63 @@ iamRouter.post('/switch-context', async (req: AuthRequest, res) => {
         const organization = academy
           ? await prisma.organization.findFirst({ where: { originalType: 'Academy', originalId: academy.id }, select: { id: true } })
           : null;
-        const tokens = generateTokens({
-          ...base,
-          lecturerId: scopeId,
-          organizationId: organization?.id,
-          organizationOriginalId: academy?.id,
-          organizationType: 'LECTURER',
-          personType: 'LECTURER',
+        if (organization) {
+          const person = await prisma.person.findFirst({
+            where: { userId: user.id, organizationId: organization.id, originalType: 'Lecturer', originalId: lecturer.id },
+            include: { personRoles: { include: { role: true } } },
+          });
+          const scopedRoleKey = person?.personRoles?.find((pr) => pr.scopeType === 'organization' && pr.scopeId === organization.id)?.role.key;
+          if (!person || !scopedRoleKey) return res.status(403).json({ ok: false, error: 'У вас нет роли лектора в выбранной организации' } satisfies ApiResponse);
+          const tokens = generateTokens({
+            ...base,
+            role: userRoleForPartnerRole(scopedRoleKey, user.role),
+            lecturerId: scopeId,
+            organizationId: organization.id,
+            organizationOriginalId: academy!.id,
+            organizationType: 'LECTURER',
+            personType: 'LECTURER',
+          });
+          await writeAuditLog({ userId: user.id, action: 'auth.switch_context', entity: 'lecturer', entityId: scopeId });
+          return res.json({ ok: true, data: tokens } satisfies ApiResponse);
+        }
+        // A self-registered lecturer may exist before an Academy organization is
+        // attached. Per the unified-schema deprecation contract, keep the legacy
+        // lecturer context only when no canonical Academy organization exists.
+        const legacyLecturer = await prisma.lecturer.findFirst({
+          where: { id: scopeId, userId: user.id },
+          select: { id: true },
         });
-        await writeAuditLog({ userId: user.id, action: 'auth.switch_context', entity: 'lecturer', entityId: scopeId });
-        return res.json({ ok: true, data: tokens } satisfies ApiResponse);
+        if (legacyLecturer) {
+          const tokens = generateTokens({
+            ...base,
+            role: userRoleForPartnerRole('lecturer', user.role),
+            lecturerId: legacyLecturer.id,
+            organizationType: 'LECTURER',
+            personType: 'LECTURER',
+          });
+          await writeAuditLog({ userId: user.id, action: 'auth.switch_context', entity: 'lecturer', entityId: legacyLecturer.id });
+          return res.json({ ok: true, data: tokens } satisfies ApiResponse);
+        }
+        // A lecturer without an Academy organization and without a matching
+        // lecturer profile is denied rather than inventing a scope.
       }
     }
     if (scopeType === 'LABORATORY') {
+      const organization = await prisma.organization.findFirst({ where: { originalType: 'Laboratory', originalId: scopeId } });
+      if (organization) {
+        const person = await prisma.person.findFirst({ where: { userId: user.id, organizationId: organization.id }, include: { personRoles: { include: { role: true } } } });
+        const scopedRoleKey = person?.personRoles?.find((pr) => pr.scopeType === 'organization' && pr.scopeId === organization.id)?.role.key;
+        if (!person || !scopedRoleKey) return res.status(403).json({ ok: false, error: 'У вас нет роли в выбранной организации' } satisfies ApiResponse);
+        const membership = await prisma.laboratoryMember.findUnique({ where: { labId_userId: { labId: scopeId, userId: user.id } } });
+        const scopedRole = userRoleForPartnerRole(scopedRoleKey, user.role);
+        const tokens = generateTokens({ ...base, role: scopedRole, organizationId: organization.id, organizationOriginalId: scopeId, organizationType: 'LABORATORY', personType: person.personType });
+        await writeAuditLog({ userId: user.id, action: 'auth.switch_context', entity: 'laboratory', entityId: scopeId, details: { role: membership?.role || scopedRoleKey } });
+        return res.json({ ok: true, data: tokens } satisfies ApiResponse);
+      }
       const membership = await prisma.laboratoryMember.findUnique({ where: { labId_userId: { labId: scopeId, userId: user.id } } });
       if (membership) {
         const scopedRole = userRoleForPartnerRole(membership.role, user.role);
-        const organization = await prisma.organization.findFirst({ where: { originalType: 'Laboratory', originalId: scopeId } });
-        const tokens = generateTokens({ ...base, role: scopedRole, organizationId: organization?.id, organizationOriginalId: scopeId, organizationType: 'LABORATORY' });
+        const tokens = generateTokens({ ...base, role: scopedRole, organizationOriginalId: scopeId, organizationType: 'LABORATORY' });
         await writeAuditLog({ userId: user.id, action: 'auth.switch_context', entity: 'laboratory', entityId: scopeId, details: { role: membership.role } });
         return res.json({ ok: true, data: tokens } satisfies ApiResponse);
       }
@@ -331,8 +515,29 @@ iamRouter.post('/persons/:personId/roles', async (req: AuthRequest, res) => {
     if (String(role.key).toUpperCase() === 'SUPERADMIN' && req.user!.role !== 'SUPERADMIN') {
       return res.status(403).json({ ok: false, error: 'Роль SUPERADMIN может назначать только SUPERADMIN' } satisfies ApiResponse);
     }
-    const assignment = await prisma.personRole.upsert({ where: { personId_roleId: { personId, roleId } }, update: { scopeType, scopeId }, create: { id: uid(), personId, roleId, scopeType, scopeId } });
-    await auditFromReq(req, { action: 'person_role.assigned', entity: 'person_role', entityId: assignment.id, details: { personId, roleId, roleName: role.name, scopeType: scopeType || null, scopeId: scopeId || null } });
+    const requestedScopeType = String(scopeType ?? (person.organization ? 'organization' : 'platform')).trim().toLowerCase();
+    if (requestedScopeType !== 'organization' && requestedScopeType !== 'platform') {
+      return res.status(400).json({ ok: false, error: 'scopeType должен быть organization или platform' } satisfies ApiResponse);
+    }
+    const effectiveScopeType = requestedScopeType;
+    const canonicalOrganizationId = person.organization?.id;
+    if (effectiveScopeType === 'organization' && !canonicalOrganizationId) {
+      return res.status(400).json({ ok: false, error: 'Для организационной роли требуется организация Person' } satisfies ApiResponse);
+    }
+    if (effectiveScopeType === 'organization' && scopeId && scopeId !== canonicalOrganizationId) {
+      return res.status(403).json({ ok: false, error: 'scopeId не соответствует организации Person' } satisfies ApiResponse);
+    }
+    if (effectiveScopeType === 'platform' && scopeId) {
+      return res.status(400).json({ ok: false, error: 'Для platform-роли scopeId должен отсутствовать' } satisfies ApiResponse);
+    }
+    const effectiveScopeId = effectiveScopeType === 'organization' ? canonicalOrganizationId : undefined;
+    const scopeKey = effectiveScopeType === 'organization' ? `organization:${effectiveScopeId}` : 'platform';
+    const assignment = await prisma.personRole.upsert({
+      where: { personId_roleId_scopeKey: { personId, roleId, scopeKey } },
+      update: { scopeType: effectiveScopeType, scopeId: effectiveScopeId ?? null },
+      create: { id: uid(), personId, roleId, scopeType: effectiveScopeType, scopeId: effectiveScopeId, scopeKey },
+    });
+    await auditFromReq(req, { action: 'person_role.assigned', entity: 'person_role', entityId: assignment.id, details: { personId, roleId, roleName: role.name, scopeType: effectiveScopeType, scopeId: effectiveScopeId ?? null } });
     return res.status(201).json({ ok: true, data: assignment } satisfies ApiResponse);
   } catch (error) {
     console.error('IAM assign role error:', error);
@@ -348,7 +553,8 @@ iamRouter.delete('/persons/:personId/roles/:roleId', async (req: AuthRequest, re
     if (!person) return res.status(404).json({ ok: false, error: 'Персона не найдена' } satisfies ApiResponse);
     const allowed = await canManageRolesFor(req.user!, person.organization);
     if (!allowed) return res.status(403).json({ ok: false, error: 'Недостаточно прав для удаления роли' } satisfies ApiResponse);
-    await prisma.personRole.deleteMany({ where: { personId, roleId } });
+    const scopeKey = person.organization ? `organization:${person.organization.id}` : 'platform';
+    await prisma.personRole.deleteMany({ where: { personId, roleId, scopeKey } });
     await auditFromReq(req, { action: 'person_role.removed', entity: 'person_role', entityId: `${personId}:${roleId}`, details: { personId, roleId } });
     return res.json({ ok: true, data: null } satisfies ApiResponse);
   } catch (error) {

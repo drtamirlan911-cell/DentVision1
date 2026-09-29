@@ -169,7 +169,7 @@ export function WorkspaceSwitcher({ className }: { className?: string }) {
         case 'LABORATORY': navigate('/diagnostics/lab-dashboard'); break
         case 'SUPPLIER': navigate('/supplier'); break
         case 'LECTURER':
-        case 'ACADEMY': navigate('/school-workspace'); break
+        case 'ACADEMY': navigate('/school/workspace'); break
         case 'PARTNER': navigate('/shop'); break
       }
     } catch (e) {

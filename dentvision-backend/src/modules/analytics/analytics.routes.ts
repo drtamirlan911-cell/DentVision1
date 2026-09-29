@@ -4,6 +4,7 @@ import { authenticate } from '../../middleware/auth.js';
 import { requirePermission } from '../../middleware/rbac.js';
 import { AuthRequest } from '../../types/index.js';
 import { guardAnalytics } from '../../middleware/planGate.js';
+import { resolveOrganizationIdForClinic } from '../../lib/orgContext.js';
 
 const analyticsRouter = Router();
 
@@ -150,17 +151,34 @@ analyticsRouter.get('/doctors', async (req: AuthRequest, res) => {
     const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
     const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
 
-    const members = await prisma.clinicMember.findMany({
+    const organizationId = await resolveOrganizationIdForClinic(clinicId);
+    if (!organizationId) {
+      return res.status(409).json({ ok: false, error: 'Canonical clinic organization is not initialized' });
+    }
+
+    // Canonical staff source: Person + organization-scoped PersonRole.
+    // ClinicMember remains a legacy compatibility table and is not used for
+    // analytics authorization or staff discovery after canonicalization.
+    const persons = await prisma.person.findMany({
       where: {
-        clinicId,
-        role: { in: ['DOCTOR', 'OWNER'] },
+        organizationId,
+        personRoles: {
+          some: {
+            scopeType: 'organization',
+            scopeId: organizationId,
+            role: { key: { in: ['doctor', 'owner'] } },
+          },
+        },
+        userId: { not: null },
       },
-      include: {
-        user: { select: { id: true, firstName: true, lastName: true } },
+      select: {
+        userId: true,
+        fullName: true,
       },
+      orderBy: { createdAt: 'asc' },
     });
 
-    const doctorIds = members.map((m) => m.user.id);
+    const doctorIds = persons.map((p) => p.userId).filter((id): id is string => Boolean(id));
 
     const appointmentCounts = await prisma.appointment.groupBy({
       by: ['doctorId'],
@@ -179,12 +197,17 @@ analyticsRouter.get('/doctors', async (req: AuthRequest, res) => {
       countMap.set(entry.doctorId, entry._count.id);
     }
 
-    const utilization = members.map((m) => ({
-      doctorId: m.user.id,
-      firstName: m.user.firstName,
-      lastName: m.user.lastName,
-      appointmentsThisMonth: countMap.get(m.user.id) || 0,
-    }));
+    const utilization = persons.map((p) => {
+      const doctorId = p.userId!;
+      const [firstName, ...lastParts] = (p.fullName || '').split(' ');
+      const lastName = lastParts.join(' ');
+      return {
+        doctorId,
+        firstName,
+        lastName,
+        appointmentsThisMonth: countMap.get(doctorId) || 0,
+      };
+    });
 
     res.json({ ok: true, data: utilization });
   } catch (error) {

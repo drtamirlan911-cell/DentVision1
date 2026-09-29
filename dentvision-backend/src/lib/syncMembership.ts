@@ -80,10 +80,11 @@ export async function syncPersonFromClinicMember(clinicId: string, userId: strin
   }
   const dbRole = await prisma.role.findUnique({ where: { key: roleKey } });
   if (dbRole) {
+    const scopeKey = `organization:${org.id}`;
     await prisma.personRole.upsert({
-      where: { personId_roleId: { personId: person.id, roleId: dbRole.id } },
-      update: {},
-      create: { personId: person.id, roleId: dbRole.id },
+      where: { personId_roleId_scopeKey: { personId: person.id, roleId: dbRole.id, scopeKey } },
+      update: { scopeType: 'organization', scopeId: org.id },
+      create: { personId: person.id, roleId: dbRole.id, scopeType: 'organization', scopeId: org.id, scopeKey },
     });
   }
 }
@@ -148,10 +149,11 @@ export async function syncPersonFromSupplierMember(memberId: string, supplierId:
 
   const dbRole = await prisma.role.findUnique({ where: { key: 'seller' } });
   if (dbRole) {
+    const scopeKey = `organization:${org.id}`;
     await prisma.personRole.upsert({
-      where: { personId_roleId: { personId: person.id, roleId: dbRole.id } },
-      update: {},
-      create: { personId: person.id, roleId: dbRole.id },
+      where: { personId_roleId_scopeKey: { personId: person.id, roleId: dbRole.id, scopeKey } },
+      update: { scopeType: 'organization', scopeId: org.id },
+      create: { personId: person.id, roleId: dbRole.id, scopeType: 'organization', scopeId: org.id, scopeKey },
     });
   }
 }
@@ -214,10 +216,11 @@ export async function syncPersonFromLecturer(lecturerId: string, userId: string,
 
   const dbRole = await prisma.role.findUnique({ where: { key: 'lecturer' } });
   if (dbRole) {
+    const scopeKey = org ? `organization:${org.id}` : 'platform';
     await prisma.personRole.upsert({
-      where: { personId_roleId: { personId: person.id, roleId: dbRole.id } },
-      update: {},
-      create: { personId: person.id, roleId: dbRole.id },
+      where: { personId_roleId_scopeKey: { personId: person.id, roleId: dbRole.id, scopeKey } },
+      update: { scopeType: org ? 'organization' : 'platform', scopeId: org?.id ?? null },
+      create: { personId: person.id, roleId: dbRole.id, scopeType: org ? 'organization' : 'platform', scopeId: org?.id, scopeKey },
     });
   }
 }
@@ -260,10 +263,11 @@ export async function syncPersonFromSupportUser(userId: string): Promise<void> {
 
   const dbRole = await prisma.role.findUnique({ where: { key: 'support' } });
   if (dbRole) {
+    const scopeKey = 'platform';
     await prisma.personRole.upsert({
-      where: { personId_roleId: { personId: person.id, roleId: dbRole.id } },
-      update: {},
-      create: { personId: person.id, roleId: dbRole.id, scopeType: 'platform' },
+      where: { personId_roleId_scopeKey: { personId: person.id, roleId: dbRole.id, scopeKey } },
+      update: { scopeType: 'platform', scopeId: null },
+      create: { personId: person.id, roleId: dbRole.id, scopeType: 'platform', scopeId: null, scopeKey },
     });
   }
 }
@@ -274,9 +278,20 @@ export async function syncPersonFromSupportUser(userId: string): Promise<void> {
 export async function findOrgMembership(userId: string, orgId: string) {
   // Try unified Person
   const person = await prisma.person.findFirst({
-    where: { userId, organizationId: orgId },
+    where: {
+      userId,
+      organizationId: orgId,
+      personRoles: { some: { scopeType: 'organization', scopeId: orgId } },
+    },
+    include: { personRoles: { include: { role: true } } },
   });
   if (person) return { source: 'person' as const, person };
+
+  // If a canonical Person already exists for this organization but has no
+  // active scoped role, fail closed. A legacy ClinicMember must not resurrect
+  // authorization after a canonical role is revoked.
+  const canonicalPerson = await prisma.person.findFirst({ where: { userId, organizationId: orgId }, select: { id: true } });
+  if (canonicalPerson) return null;
 
   // Try legacy ClinicMember (org might be a clinic)
   const member = await prisma.clinicMember.findUnique({

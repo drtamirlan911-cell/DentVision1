@@ -889,18 +889,32 @@ async function main() {
 
   // Seed marketplace catalog
   try {
-    // Ensure DentVision supplier exists
-    const supCount = await prisma.$queryRawUnsafe<Array<{ cnt: number }>>(`SELECT COUNT(*)::int as cnt FROM "suppliers"`);
-    if (supCount[0].cnt === 0) {
-      await prisma.$executeRawUnsafe(
-        `INSERT INTO "suppliers" (id, name, kind, status, email, phone, city, "legalAddress", description, rating, "commissionRate", "isActive") VALUES (gen_random_uuid(), 'DentVision', 'DISTRIBUTOR', 'official_partner', 'supplier@dentvision.kz', '+7 727 123 45 67', 'Алматы', 'ул. Абая 150, офис 301', 'Официальный поставщик стоматологических материалов и оборудования DentVision', 4.8, 500, true) ON CONFLICT DO NOTHING`
-      );
+    // Ensure the platform catalog supplier exists independently of unrelated suppliers.
+    // The previous COUNT(*) gate skipped this when any supplier row existed, leaving
+    // a fresh/partially migrated database with zero DentVision products.
+    const dvSupplier = await prisma.supplier.findFirst({ where: { name: 'DentVision' }, select: { id: true } });
+    if (!dvSupplier) {
+      await prisma.supplier.create({
+        data: {
+          name: 'DentVision',
+          kind: 'DISTRIBUTOR',
+          status: 'official_partner',
+          email: 'supplier@dentvision.kz',
+          phone: '+7 727 123 45 67',
+          city: 'Алматы',
+          legalAddress: 'ул. Абая 150, офис 301',
+          description: 'Официальный поставщик стоматологических материалов и оборудования DentVision',
+          rating: 4.8,
+          commissionRate: 500,
+          isActive: true,
+        },
+      });
       console.log('[SEED] DentVision supplier created');
     }
 
-    const catCount = await prisma.$queryRawUnsafe<Array<{ cnt: number }>>(`SELECT COUNT(*)::int as cnt FROM "shop_categories"`);
-    if (catCount[0].cnt === 0) {
-      const categories = [
+    // Categories are reference data. Reconcile each slug independently so a
+    // partially populated database cannot block the missing categories.
+    const categories = [
         { name: 'Композиты', slug: 'composites', description: 'Пломбировочные и реставрационные материалы', sortOrder: 1 },
         { name: 'Инструменты', slug: 'instruments', description: 'Стоматологические инструменты и наконечники', sortOrder: 2 },
         { name: 'Оборудование', slug: 'equipment', description: 'Стоматологические установки, автоклавы, скалеры', sortOrder: 3 },
@@ -920,8 +934,7 @@ async function main() {
           c.name, c.slug, c.description, c.sortOrder
         );
       }
-      console.log('[SEED] 8 shop categories created');
-    }
+      console.log('[SEED] Marketplace category catalog reconciled');
   } catch (err) {
     console.warn('[SEED] Categories seed failed (non-fatal):', err);
   }
@@ -930,9 +943,9 @@ async function main() {
   try {
     const prodCount = await prisma.$queryRawUnsafe<Array<{ cnt: number }>>(`SELECT COUNT(*)::int as cnt FROM "products"`);
     if (prodCount[0].cnt === 0) {
-      const dvSupplier = await prisma.$queryRawUnsafe<Array<{ id: string }>>(`SELECT id FROM "suppliers" WHERE name = 'DentVision' LIMIT 1`);
-      if (dvSupplier.length > 0) {
-        const sid = dvSupplier[0].id;
+      const supplierRow = await prisma.supplier.findFirst({ where: { name: 'DentVision' }, select: { id: true } });
+      if (supplierRow) {
+        const sid = supplierRow.id;
         const compositesId = (await prisma.$queryRawUnsafe<Array<{ id: string }>>(`SELECT id FROM "shop_categories" WHERE slug = 'composites' LIMIT 1`))[0]?.id;
         const instrumentsId = (await prisma.$queryRawUnsafe<Array<{ id: string }>>(`SELECT id FROM "shop_categories" WHERE slug = 'instruments' LIMIT 1`))[0]?.id;
         const equipmentId = (await prisma.$queryRawUnsafe<Array<{ id: string }>>(`SELECT id FROM "shop_categories" WHERE slug = 'equipment' LIMIT 1`))[0]?.id;
@@ -2101,7 +2114,10 @@ async function main() {
   // `lecturerId: null` keeps these platform-curated (not attributed to an
   // actual lecturer) — `commerce/register`'s existing `sellerType: 'PLATFORM'`
   // fallback already handles a course with no lecturer correctly.
-  await runOnceMigration('seed_academy_platform_catalog', 'Academy OS: платформенный каталог вебинаров/офис-курсов переведён в реальные записи Course', async (tx) => {
+  // Academy platform catalog is reference data, not schema state. Keep it repairable even
+  // when an older boot has already marked the migration as applied.
+  try {
+    await prisma.$transaction(async (tx) => {
     const day = 24 * 60 * 60 * 1000;
     const now = Date.now();
 
@@ -2134,8 +2150,8 @@ async function main() {
 
     for (const w of webinars) {
       const academyId = await findOrCreateAcademy(w.academy, null);
-      await tx.course.create({
-        data: {
+      const existingCourse = await tx.course.findFirst({ where: { title: w.title } });
+      if (!existingCourse) await tx.course.create({ data: {
           id: uid(),
           title: w.title,
           author: w.author,
@@ -2153,8 +2169,8 @@ async function main() {
 
     for (const o of officeCourses) {
       const academyId = await findOrCreateAcademy(o.academy, o.city);
-      await tx.course.create({
-        data: {
+      const existingCourse = await tx.course.findFirst({ where: { title: o.title } });
+      if (!existingCourse) await tx.course.create({ data: {
           id: uid(),
           title: o.title,
           author: o.author,
@@ -2169,8 +2185,10 @@ async function main() {
         },
       });
     }
-  });
-
+    });
+  } catch (err) {
+    console.error('[SEED] Academy platform catalog repair failed:', err);
+  }
   // Зеркалит prisma/migrations/20260809_add_notification_preferences/migration.sql
   // — та миграция без этого блока никогда не выполнялась на боевой БД (файл
   // существовал, но `runOnceMigration` для него не было), поэтому

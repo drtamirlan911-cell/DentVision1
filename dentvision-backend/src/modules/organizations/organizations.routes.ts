@@ -52,10 +52,11 @@ async function ensurePersonRole(
   });
   const role = await tx.role.findUnique({ where: { key: roleKey } });
   if (!role) throw new Error(`Роль ${roleKey} не найдена`);
+  const scopeKey = `organization:${organizationId}`;
   await tx.personRole.upsert({
-    where: { personId_roleId: { personId: person.id, roleId: role.id } },
+    where: { personId_roleId_scopeKey: { personId: person.id, roleId: role.id, scopeKey } },
     update: { scopeType: 'organization', scopeId: organizationId },
-    create: { personId: person.id, roleId: role.id, scopeType: 'organization', scopeId: organizationId },
+    create: { personId: person.id, roleId: role.id, scopeType: 'organization', scopeId: organizationId, scopeKey },
   });
   return person.id;
 }

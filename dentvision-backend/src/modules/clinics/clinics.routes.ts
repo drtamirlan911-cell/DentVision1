@@ -13,6 +13,7 @@ import {
 import { guardUserCreate } from '../../middleware/planGate.js';
 import { upsertStaffCompensation } from '../../lib/staffCompensation.js';
 import { syncPersonFromClinicMember, removePersonFromClinicMember } from '../../lib/syncMembership.js';
+import { resolveClinicAccess } from '../../lib/orgContext.js';
 import { auditFromReq } from '../compliance/audit.service.js';
 
 export const clinicsRouter = Router();
@@ -29,15 +30,9 @@ function normalizeStaffRole(role?: string): 'OWNER' | 'ADMIN' | 'DOCTOR' | 'ASSI
 }
 
 async function assertCanManageStaff(userId: string, clinicId: string) {
-  const actor = await prisma.user.findUnique({ where: { id: userId }, select: { role: true } });
-  if (actor?.role === 'SUPERADMIN') {
-    return { ok: true as const, membership: { role: 'OWNER' as const } };
-  }
-  const membership = await prisma.clinicMember.findUnique({
-    where: { userId_clinicId: { userId, clinicId } },
-  });
+  const membership = await resolveClinicAccess(userId, clinicId);
   if (!membership) return { ok: false as const, status: 403, error: 'Вы не являетесь участником этой клиники' };
-  if (!['OWNER', 'ADMIN'].includes(membership.role)) {
+  if (!['OWNER', 'ADMIN', 'SUPERADMIN'].includes(membership.role)) {
     return { ok: false as const, status: 403, error: 'Недостаточно прав для управления сотрудниками' };
   }
   return { ok: true as const, membership };
@@ -65,13 +60,31 @@ clinicsRouter.get('/', authenticate, async (req: AuthRequest, res) => {
       ? { name: { contains: search, mode: 'insensitive' as const } }
       : {};
 
-    // Non-superadmins see only clinics they belong to.
+    // Non-superadmins are scoped by canonical Organization → Person → PersonRole.
+    // Legacy ClinicMember is only a compatibility fallback for users who have
+    // not entered the canonical clinic model yet.
     if (req.user?.role !== 'SUPERADMIN') {
-      const memberClinicIds = (await prisma.clinicMember.findMany({
-        where: { userId: req.user!.id },
-        select: { clinicId: true },
-      })).map(m => m.clinicId);
-      where.id = { in: memberClinicIds.length ? memberClinicIds : ['none'] };
+      const canonicalClinicPeople = await prisma.person.findMany({
+        where: { userId: req.user!.id, organization: { type: 'CLINIC' } },
+        select: {
+          organization: { select: { id: true, originalId: true } },
+          personRoles: { select: { scopeType: true, scopeId: true } },
+        },
+      });
+      if (canonicalClinicPeople.length) {
+        const clinicIds = canonicalClinicPeople
+          .filter((p) => p.organization?.originalId && p.personRoles.some((pr) =>
+            pr.scopeType === 'organization' && pr.scopeId === p.organization?.id
+          ))
+          .map((p) => p.organization!.originalId!);
+        where.id = { in: clinicIds.length ? clinicIds : ['none'] };
+      } else {
+        const memberClinicIds = (await prisma.clinicMember.findMany({
+          where: { userId: req.user!.id },
+          select: { clinicId: true },
+        })).map(m => m.clinicId);
+        where.id = { in: memberClinicIds.length ? memberClinicIds : ['none'] };
+      }
     }
 
     const { skip, take } = paginate(page, limit);
@@ -115,17 +128,8 @@ clinicsRouter.get('/:id', authenticate, async (req, res) => {
 
     // Non-superadmins must belong to the clinic they're viewing.
     if (!isSuperadmin) {
-      const member = await prisma.clinicMember.findUnique({
-        where: { userId_clinicId: { userId: (req as any).user!.id, clinicId: id } },
-      });
-      if (!member) {
-        const person = await prisma.person.findFirst({
-          where: { userId: (req as any).user!.id, organization: { originalType: 'Clinic', originalId: id } },
-        });
-        if (!person) {
-          return res.status(403).json({ ok: false, error: 'Forbidden' });
-        }
-      }
+      const access = await resolveClinicAccess((req as any).user!.id, id);
+      if (!access) return res.status(403).json({ ok: false, error: 'Forbidden' });
     }
 
     const clinic = await prisma.clinic.findUnique({
@@ -246,6 +250,51 @@ clinicsRouter.post('/', authenticate, async (req: AuthRequest, res) => {
       }),
     ]);
 
+    // Canonical IAM must be complete at the point the clinic is created:
+    // Organization → Person → PersonRole(owner). Without this, the legacy
+    // ClinicMember exists but the Master Spec v5 workspace cannot be activated.
+    const ownerRole = await prisma.role.findUnique({ where: { key: 'owner' } });
+    const ownerUser = await prisma.user.findUnique({
+      where: { id: req.user!.id },
+      select: { firstName: true, lastName: true, phone: true, email: true, spec: true },
+    });
+    const organization = await prisma.organization.findFirst({
+      where: { originalType: 'Clinic', originalId: clinicId },
+      select: { id: true },
+    });
+    if (!ownerRole || !ownerUser || !organization) {
+      throw new Error('Canonical clinic IAM bootstrap failed');
+    }
+    const person = await prisma.person.upsert({
+      where: { userId_organizationId: { userId: req.user!.id, organizationId: organization.id } },
+      update: {
+        fullName: (ownerUser.firstName + ' ' + ownerUser.lastName).trim(),
+        personType: 'STAFF',
+        phone: ownerUser.phone || undefined,
+        email: ownerUser.email || undefined,
+        specialization: ownerUser.spec || undefined,
+        originalType: 'ClinicMember',
+        originalId: clinicId + ':' + req.user!.id,
+      },
+      create: {
+        id: uid(),
+        fullName: (ownerUser.firstName + ' ' + ownerUser.lastName).trim() || 'Владелец клиники',
+        personType: 'STAFF',
+        organizationId: organization.id,
+        userId: req.user!.id,
+        phone: ownerUser.phone || undefined,
+        email: ownerUser.email || undefined,
+        specialization: ownerUser.spec || undefined,
+        originalType: 'ClinicMember',
+        originalId: clinicId + ':' + req.user!.id,
+      },
+    });
+    await prisma.personRole.upsert({
+      where: { personId_roleId_scopeKey: { personId: person.id, roleId: ownerRole.id, scopeKey: 'organization:' + organization.id } },
+      update: { scopeType: 'organization', scopeId: organization.id },
+      create: { personId: person.id, roleId: ownerRole.id, scopeType: 'organization', scopeId: organization.id, scopeKey: 'organization:' + organization.id },
+    });
+
     const response: ApiResponse = {
       ok: true,
       data: clinic,
@@ -269,9 +318,7 @@ clinicsRouter.patch('/:id', authenticate, async (req: AuthRequest, res) => {
       settings?: ClinicSettingsPayload;
     };
 
-    const membership = await prisma.clinicMember.findUnique({
-      where: { userId_clinicId: { userId: req.user!.id, clinicId: id } },
-    });
+    const membership = await resolveClinicAccess(req.user!.id, id);
 
     if (!membership) {
       return res.status(403).json({ ok: false, error: 'Вы не являетесь участником этой клиники' });
@@ -328,6 +375,10 @@ clinicsRouter.patch('/:id', authenticate, async (req: AuthRequest, res) => {
       },
     });
 
+    // Repair legacy clinics as they are touched: every ClinicMember must have
+    // the canonical PersonRole required by the active workspace contract.
+    await syncPersonFromClinicMember(id, req.user!.id, membership.role);
+
     const response: ApiResponse = {
       ok: true,
       data: {
@@ -347,9 +398,7 @@ clinicsRouter.patch('/:id', authenticate, async (req: AuthRequest, res) => {
 clinicsRouter.get('/:id/settings', authenticate, async (req: AuthRequest, res) => {
   try {
     const id = req.params.id as string;
-    const membership = await prisma.clinicMember.findUnique({
-      where: { userId_clinicId: { userId: req.user!.id, clinicId: id } },
-    });
+    const membership = await resolveClinicAccess(req.user!.id, id);
     if (!membership) {
       return res.status(403).json({ ok: false, error: 'Вы не являетесь участником этой клиники' });
     }
@@ -392,9 +441,7 @@ clinicsRouter.get('/:id/settings', authenticate, async (req: AuthRequest, res) =
 clinicsRouter.put('/:id/settings', authenticate, async (req: AuthRequest, res) => {
   try {
     const id = req.params.id as string;
-    const membership = await prisma.clinicMember.findUnique({
-      where: { userId_clinicId: { userId: req.user!.id, clinicId: id } },
-    });
+    const membership = await resolveClinicAccess(req.user!.id, id);
     if (!membership) {
       return res.status(403).json({ ok: false, error: 'Вы не являетесь участником этой клиники' });
     }
@@ -444,15 +491,13 @@ clinicsRouter.post('/:id/invite', authenticate, guardUserCreate, async (req: Aut
   try {
     const id = req.params.id as string;
 
-    const membership = await prisma.clinicMember.findUnique({
-      where: { userId_clinicId: { userId: req.user!.id, clinicId: id } },
-    });
+    const membership = await resolveClinicAccess(req.user!.id, id);
 
     if (!membership) {
       return res.status(403).json({ ok: false, error: 'Вы не являетесь участником этой клиники' });
     }
 
-    if (!['OWNER', 'ADMIN'].includes(membership.role)) {
+    if (!['OWNER', 'ADMIN', 'SUPERADMIN'].includes(membership.role)) {
       return res.status(403).json({ ok: false, error: 'Недостаточно прав для создания приглашений' });
     }
 

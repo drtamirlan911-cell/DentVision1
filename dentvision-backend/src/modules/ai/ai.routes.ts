@@ -580,7 +580,7 @@ aiRouter.post('/query/stream', async (req: AuthRequest, res) => {
     let response: ProcessedResponse;
     try {
       response = await processQuery(req, text, sessionId, history, onToken);
-      await syncSessionMessages(sessionId, req.user?.id, req.user?.clinicId || undefined);
+      await syncSessionMessages(sessionId, req.user?.id, req.user ? aiSessionScope(req) : undefined);
     } finally {
       clearInterval(heartbeat);
     }
@@ -833,7 +833,7 @@ aiRouter.post('/session', async (req: AuthRequest, res) => {
   try {
     const context = {
       userId: req.user!.id,
-      clinicId: req.user!.clinicId!,
+      clinicId: aiSessionScope(req),
       role: req.user!.role,
       sessionId: crypto.randomUUID(),
       metadata: {},
@@ -918,6 +918,7 @@ aiRouter.get('/briefing', authenticate, async (req: AuthRequest, res) => {
     }
     const { buildJarvisBriefing } = await import('./core/jarvisBriefing.js');
     const clinicId = req.user.clinicId || null;
+    const activeWorkspace = await buildAiContext(req, {}).then((ctx) => ctx?.workspace ?? null).catch(() => null);
     const clinic = clinicId
       ? await prisma.clinic.findUnique({
           where: { id: clinicId },
@@ -929,6 +930,23 @@ aiRouter.get('/briefing', authenticate, async (req: AuthRequest, res) => {
       headers: req.headers as Record<string, string | string[] | undefined>,
       query: (req.query || {}) as Record<string, unknown>,
     });
+    if (!clinicId) {
+      const workspaceName = activeWorkspace?.name || 'DentVision';
+      const reply = 'Рабочий контекст «' + workspaceName + '» готов. Я могу помочь с задачами, очередями, аналитикой и действиями, доступными вашей роли.';
+      return res.json({
+        ok: true,
+        data: {
+          reply,
+          message: reply,
+          suggestions: ['Что требует внимания сегодня?', 'Покажи мои задачи на сегодня', 'Какие действия доступны в этом workspace?'],
+          skill: 'workspace',
+          intent: 'WORKSPACE_BRIEFING',
+          action: { type: 'SHOW_BRIEFING', payload: { workspace: activeWorkspace } },
+          role: req.user.role || 'STAFF',
+          timeZone: timeZone,
+        },
+      });
+    }
     const briefing = await buildJarvisBriefing({
       userId: req.user.id,
       clinicId,
@@ -1070,7 +1088,7 @@ aiRouter.post('/feedback', authenticate, async (req: AuthRequest, res) => {
     const learning = await import('./learning/learning.service.js');
     const result = await learning.recordMessageFeedback({
       userId: req.user!.id,
-      clinicId: req.user?.clinicId || null,
+      clinicId: aiSessionScope(req),
       messageId: req.body?.messageId || null,
       sessionId: req.body?.sessionId || null,
       rating,
@@ -1097,7 +1115,7 @@ aiRouter.post('/feedback', authenticate, async (req: AuthRequest, res) => {
 aiRouter.get('/memory', authenticate, async (req: AuthRequest, res) => {
   try {
     const learning = await import('./learning/learning.service.js');
-    const items = await learning.listPrefs(req.user!.id, req.user?.clinicId || null);
+    const items = await learning.listPrefs(req.user!.id, aiSessionScope(req));
     return res.json({ ok: true, data: { items } });
   } catch (error) {
     console.error('[AI Memory list]', error);
@@ -1108,7 +1126,7 @@ aiRouter.get('/memory', authenticate, async (req: AuthRequest, res) => {
 aiRouter.delete('/memory/:key', authenticate, async (req: AuthRequest, res) => {
   try {
     const learning = await import('./learning/learning.service.js');
-    const removed = await learning.deletePref(req.user!.id, req.user?.clinicId || null, String(req.params.key));
+    const removed = await learning.deletePref(req.user!.id, aiSessionScope(req), String(req.params.key));
     return res.json({ ok: true, data: { removed } });
   } catch (error) {
     console.error('[AI Memory delete]', error);
@@ -1119,7 +1137,7 @@ aiRouter.delete('/memory/:key', authenticate, async (req: AuthRequest, res) => {
 aiRouter.delete('/memory', authenticate, async (req: AuthRequest, res) => {
   try {
     const learning = await import('./learning/learning.service.js');
-    await learning.clearPrefs(req.user!.id, req.user?.clinicId || null);
+    await learning.clearPrefs(req.user!.id, aiSessionScope(req));
     return res.json({ ok: true, data: { cleared: true } });
   } catch (error) {
     console.error('[AI Memory clear]', error);

@@ -1,5 +1,6 @@
 import { PrismaClient } from '@prisma/client';
 import { randomUUID } from 'node:crypto';
+import bcrypt from 'bcryptjs';
 import { PERMISSIONS, ROLE_PERMISSIONS } from '../src/lib/permissions.js';
 import { CLINIC_ROLE_DEFINITIONS } from '../src/lib/clinicRoleAccessRegistry.js';
 import { PARTNER_ROLE_DEFINITIONS } from '../src/lib/roleAccessRegistry.js';
@@ -52,6 +53,8 @@ const SUPERADMIN_ROLE = {
   permissionKeys: ALL_PERMISSIONS,
 };
 
+const E2E_PARTNER_PASSWORD = 'Test1234!';
+
 const E2E_PARTNER_FIXTURES = [
   { email: 'diagnostic-owner@test.com', organizationType: 'DIAGNOSTIC_CENTER', organizationName: 'E2E Diagnostic Center', role: 'diagnostic_owner' },
   { email: 'diagnostic-operator@test.com', organizationType: 'DIAGNOSTIC_CENTER', organizationName: 'E2E Diagnostic Center', role: 'diagnostic_operator' },
@@ -63,8 +66,22 @@ const E2E_PARTNER_FIXTURES = [
 
 async function seedE2EPartnerFixtures() {
   for (const fixture of E2E_PARTNER_FIXTURES) {
-    const user = await prisma.user.findUnique({ where: { email: fixture.email }, select: { id: true } });
-    if (!user) continue;
+    // Keep the fixture self-healing: a missing user must never silently skip
+    // the canonical Person/PersonRole graph and leave /api/iam/me/contexts empty.
+    const password = await bcrypt.hash(E2E_PARTNER_PASSWORD, 10);
+    const user = await prisma.user.upsert({
+      where: { email: fixture.email },
+      update: { password, role: 'STUDENT' },
+      create: {
+        id: randomUUID(),
+        email: fixture.email,
+        password,
+        firstName: fixture.email.split('@')[0],
+        lastName: 'E2E',
+        role: 'STUDENT',
+      },
+      select: { id: true },
+    });
 
     const organization = await prisma.organization.upsert({
       where: { id: (await prisma.organization.findFirst({ where: { type: fixture.organizationType, name: fixture.organizationName }, select: { id: true } }))?.id || randomUUID() },
@@ -91,11 +108,18 @@ async function seedE2EPartnerFixtures() {
     });
 
     const role = await prisma.role.findUniqueOrThrow({ where: { key: fixture.role } });
+    const scopeKey = `organization:${organization.id}`;
     await prisma.personRole.upsert({
-      where: { personId_roleId: { personId: person.id, roleId: role.id } },
+      where: { personId_roleId_scopeKey: { personId: person.id, roleId: role.id, scopeKey } },
       update: { scopeType: 'organization', scopeId: organization.id },
-      create: { id: randomUUID(), personId: person.id, roleId: role.id, scopeType: 'organization', scopeId: organization.id },
+      create: { id: randomUUID(), personId: person.id, roleId: role.id, scopeType: 'organization', scopeId: organization.id, scopeKey },
     });
+
+    const verified = await prisma.personRole.findFirst({
+      where: { personId: person.id, roleId: role.id, scopeType: 'organization', scopeId: organization.id, scopeKey },
+      select: { id: true },
+    });
+    if (!verified) throw new Error(`E2E partner PersonRole was not persisted for ${fixture.email}`);
 
     // Keep the canonical Organization context and the legacy partner tables
     // in sync. Partner workspaces still resolve their operational scope from
@@ -126,6 +150,151 @@ async function seedE2EPartnerFixtures() {
         create: { id: randomUUID(), labId: laboratory.id, userId: user.id, role: fixture.role.endsWith('_owner') ? 'admin' : 'technician' },
       });
     }
+
+    const persistedUser = await prisma.user.findUnique({ where: { email: fixture.email }, select: { id: true } });
+    const persistedPerson = await prisma.person.findFirst({
+      where: { userId: user.id, organizationId: organization.id },
+      select: { id: true },
+    });
+    const persistedPersonRole = await prisma.personRole.findFirst({
+      where: { personId: person.id, roleId: role.id, scopeType: 'organization', scopeId: organization.id, scopeKey },
+      select: { id: true },
+    });
+    const persistedMembership = fixture.organizationType === 'DIAGNOSTIC_CENTER'
+      ? await prisma.diagnosticCenterMember.findFirst({ where: { userId: user.id }, select: { id: true } })
+      : await prisma.laboratoryMember.findFirst({ where: { userId: user.id }, select: { id: true } });
+    if (!persistedUser || !persistedPerson || !persistedPersonRole || !persistedMembership) {
+      throw new Error(`E2E partner graph incomplete for ${fixture.email}: user=${Boolean(persistedUser)} person=${Boolean(persistedPerson)} personRole=${Boolean(persistedPersonRole)} membership=${Boolean(persistedMembership)}`);
+    }
+    const canonicalVerification = await prisma.personRole.findFirst({
+      where: {
+        personId: person.id,
+        roleId: role.id,
+        scopeType: 'organization',
+        scopeId: organization.id,
+        scopeKey,
+      },
+      select: { id: true },
+    });
+    if (!canonicalVerification) {
+      throw new Error(`Canonical partner PersonRole verification failed for ${fixture.email}: organization=${organization.id} role=${fixture.role}`);
+    }
+
+    console.log(`  ✓ partner ${fixture.email} -> ${fixture.role} -> organization:${organization.id}`);
+
+
+  }
+}
+
+function resolveClinicRoleKey(role: string | null | undefined): string | null {
+  const normalized = String(role || '').trim().toUpperCase();
+  const aliases: Record<string, string> = {
+    OWNER: 'owner',
+    ADMIN: 'admin',
+    MANAGER: 'manager',
+    DOCTOR: 'doctor',
+    ASSISTANT: 'assistant',
+    RECEPTIONIST: 'receptionist',
+    RECEPTION: 'receptionist',
+    CASHIER: 'cashier',
+    ACCOUNTANT: 'accountant',
+    LAB: 'lab',
+  };
+  return aliases[normalized] ?? null;
+}
+
+async function seedE2EClinicCanonicalContexts() {
+  const clinicMembers = await prisma.clinicMember.findMany({
+    include: {
+      user: { select: { id: true, firstName: true, lastName: true, email: true, role: true } },
+      clinic: { select: { id: true, name: true, address: true, phone: true, logo: true, city: true } },
+    },
+  });
+
+  for (const member of clinicMembers) {
+    const organization = await prisma.organization.upsert({
+      where: { originalType_originalId: { originalType: 'Clinic', originalId: member.clinicId } },
+      update: {
+        name: member.clinic.name,
+        type: 'CLINIC',
+        address: member.clinic.address || undefined,
+        phone: member.clinic.phone || undefined,
+        logo: member.clinic.logo || undefined,
+        contacts: member.clinic.city ? { city: member.clinic.city } : undefined,
+      },
+      create: {
+        id: randomUUID(),
+        name: member.clinic.name,
+        type: 'CLINIC',
+        address: member.clinic.address || undefined,
+        phone: member.clinic.phone || undefined,
+        logo: member.clinic.logo || undefined,
+        contacts: member.clinic.city ? { city: member.clinic.city } : undefined,
+        originalType: 'Clinic',
+        originalId: member.clinicId,
+      },
+    });
+
+    const person = await prisma.person.upsert({
+      where: { userId_organizationId: { userId: member.userId, organizationId: organization.id } },
+      update: {
+        fullName: [member.user.firstName, member.user.lastName].filter(Boolean).join(' ') || member.user.email,
+        email: member.user.email,
+        personType: 'DOCTOR',
+      },
+      create: {
+        id: randomUUID(),
+        fullName: [member.user.firstName, member.user.lastName].filter(Boolean).join(' ') || member.user.email,
+        email: member.user.email,
+        personType: 'DOCTOR',
+        organizationId: organization.id,
+        userId: member.userId,
+        originalType: 'ClinicMember',
+        originalId: member.id,
+      },
+    });
+
+    const roleKey = resolveClinicRoleKey(member.role);
+    if (!roleKey) {
+      console.warn('  ⚠ canonical clinic role not recognized for ' + member.user.email + '; skipping');
+      continue;
+    }
+
+    const role = await prisma.role.findUnique({ where: { key: roleKey } });
+    if (!role) {
+      console.warn('  ⚠ canonical clinic Role ' + roleKey + ' is missing for ' + member.user.email + '; skipping');
+      continue;
+    }
+
+    const scopeKey = 'organization:' + organization.id;
+    await prisma.personRole.upsert({
+      where: { personId_roleId_scopeKey: { personId: person.id, roleId: role.id, scopeKey } },
+      update: { scopeType: 'organization', scopeId: organization.id },
+      create: {
+        id: randomUUID(),
+        personId: person.id,
+        roleId: role.id,
+        scopeType: 'organization',
+        scopeId: organization.id,
+        scopeKey,
+      },
+    });
+
+    const persisted = await prisma.personRole.findFirst({
+      where: {
+        personId: person.id,
+        roleId: role.id,
+        scopeType: 'organization',
+        scopeId: organization.id,
+        scopeKey,
+      },
+      select: { id: true },
+    });
+    if (!persisted) {
+      throw new Error('Canonical clinic PersonRole verification failed for ' + member.user.email);
+    }
+
+    console.log('  ✓ clinic ' + member.user.email + ' -> ' + roleKey + ' -> organization:' + organization.id);
   }
 }
 
@@ -166,7 +335,14 @@ export async function seedPermissions() {
     console.log(`  ✓ ${r.key} — ${perms.length} permissions`);
   }
 
-  await seedE2EPartnerFixtures();
+  // E2E identities and organizations belong only to isolated test databases.
+  // Production must never acquire test users or synthetic partner organizations.
+  if (process.env.NODE_ENV !== 'production' && process.env.SEED_E2E_FIXTURES === 'true') {
+    await seedE2EClinicCanonicalContexts();
+    await seedE2EPartnerFixtures();
+  } else {
+    console.log('[SEED] Skipping E2E clinic/partner fixtures outside an explicit test seed.');
+  }
 }
 
 async function main() {

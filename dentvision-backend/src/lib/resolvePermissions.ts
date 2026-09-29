@@ -58,7 +58,13 @@ export async function resolveUserPermissions(
         // PersonRole is scoped: never leak permissions from another organization
         // into the active access context. Global/unscoped roles remain applicable;
         // organization-scoped roles must match the requested organization.
-        if (scopeId && pr.scopeId && pr.scopeId !== scopeId) continue;
+        if (scopeId) {
+          // An organization workspace consumes only organization-scoped roles for
+          // that exact organization. Platform roles belong to the platform
+          // workspace and must not bleed into a tenant merely because the same
+          // Person also has a platform assignment.
+          if (pr.scopeType !== 'organization' || pr.scopeId !== scopeId) continue;
+        }
         for (const rp of pr.role.permissions) perms.add(rp.permission.key);
       }
       if (perms.size > 0) return Array.from(perms);

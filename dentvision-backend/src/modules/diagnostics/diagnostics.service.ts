@@ -217,7 +217,14 @@ export async function grantDiagnosticsAccess(type: 'DiagnosticCenter' | 'Laborat
       return true;
     }
     const dbRole = await prisma.role.findUnique({ where: { key: roleKey } });
-    if (dbRole) await prisma.personRole.upsert({ where: { personId_roleId: { personId: person.id, roleId: dbRole.id } }, update: {}, create: { personId: person.id, roleId: dbRole.id } });
+    if (dbRole) {
+      const scopeKey = `organization:${org.id}`;
+      await prisma.personRole.upsert({
+        where: { personId_roleId_scopeKey: { personId: person.id, roleId: dbRole.id, scopeKey } },
+        update: { scopeType: 'organization', scopeId: org.id },
+        create: { personId: person.id, roleId: dbRole.id, scopeType: 'organization', scopeId: org.id, scopeKey },
+      });
+    }
     return true;
   } catch (e) {
     console.warn(`[Diagnostics] grantDiagnosticsAccess failed (${type} ${entityId}):`, (e as Error).message);
