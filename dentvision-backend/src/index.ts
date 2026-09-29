@@ -2284,7 +2284,7 @@ async function main() {
   orchestrator.start();
   console.log('[AI_ORCHESTRATOR] Event-driven layer started');
 
-  app.listen(env.PORT, () => {
+  app.listen(env.PORT, '0.0.0.0', () => {
     console.log(`[SERVER] DentVision Backend running on http://localhost:${env.PORT}`);
     console.log(`[ENV] ${env.NODE_ENV}`);
     if (env.REMINDER_CRON_MS > 0) {
