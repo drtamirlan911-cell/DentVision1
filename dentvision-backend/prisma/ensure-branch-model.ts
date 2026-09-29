@@ -1,4 +1,3 @@
-import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 
@@ -16,4 +15,4 @@ const required = [
 for (const marker of required) {
   if (!schema.includes(marker)) throw new Error(`[prisma] canonical branch schema marker missing: ${marker}`);
 }
-\nconsole.log('[prisma] canonical organization-scoped branch schema verified');
+console.log('[prisma] canonical organization-scoped branch schema verified');
