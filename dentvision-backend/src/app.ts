@@ -5,7 +5,6 @@ import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
 import { errorHandler, notFound } from './middleware/errorHandler.js';
 import prisma from './lib/prisma.js';
-import { getRedis } from './lib/redis.js';
 import { sseManager } from './modules/ai/ai.notifications.routes.js';
 import { csrfProtection } from './middleware/csrf.js';
 import {
@@ -216,19 +215,9 @@ app.get('/api/health', async (_req, res) => {
       return { status: 'error' as const, error: err instanceof Error ? err.message : 'Query failed' };
     }
   })();
-  const redis = await (async () => {
-    const client = getRedis();
-    if (!client) return { status: 'not_configured' as const };
-    const start = Date.now();
-    try {
-      await client.ping();
-      return { status: 'ok' as const, latencyMs: Date.now() - start };
-    } catch (err) {
-      return { status: 'error' as const, error: err instanceof Error ? err.message : 'Ping failed' };
-    }
-  })();
+  const durableQueue = { status: 'postgres' as const };
   const realtime = { status: 'ok' as const, activeConnections: sseManager.getTotalClients() };
-  res.json({ ok: true, service: 'dentvision-backend', version: '2.0.0', timestamp: new Date().toISOString(), checks: { database, redis, realtime } });
+  res.json({ ok: true, service: 'dentvision-backend', version: '2.0.0', timestamp: new Date().toISOString(), checks: { database, durableQueue, realtime } });
 });
 
 app.use('/api', compatRouter);
