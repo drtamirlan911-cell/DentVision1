@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const {
   userFindUnique, organizationFindFirst, personFindFirst, personFindUnique,
-  personCreate, personUpdate, roleFindUnique, personRoleUpsert,
+  personCreate, personUpdate, roleFindUnique, personRoleUpsert, personRoleDeleteMany,
 } = vi.hoisted(() => ({
   userFindUnique: vi.fn(),
   organizationFindFirst: vi.fn(),
@@ -12,6 +12,7 @@ const {
   personUpdate: vi.fn(),
   roleFindUnique: vi.fn(),
   personRoleUpsert: vi.fn(),
+  personRoleDeleteMany: vi.fn(),
 }));
 
 vi.mock('./prisma.js', () => ({
@@ -19,6 +20,7 @@ vi.mock('./prisma.js', () => ({
     user: { findUnique: userFindUnique },
     organization: { findFirst: organizationFindFirst },
     person: { findFirst: personFindFirst, findUnique: personFindUnique, create: personCreate, update: personUpdate },
+    personRole: { upsert: personRoleUpsert, deleteMany: personRoleDeleteMany },
     role: { findUnique: roleFindUnique },
     personRole: { upsert: personRoleUpsert },
   },
@@ -57,6 +59,7 @@ describe('syncPersonFromClinicMember — role resolution', () => {
     personUpdate.mockReset().mockResolvedValue({ id: 'person-1' });
     roleFindUnique.mockReset().mockResolvedValue({ id: 'role-1' });
     personRoleUpsert.mockReset();
+    personRoleDeleteMany.mockReset();
   });
 
   afterEach(() => {
@@ -179,10 +182,13 @@ describe('syncPersonFromLecturer', () => {
     expect(personRoleUpsert).toHaveBeenCalledOnce();
   });
 
-  it('tolerates a lecturer with no academy (no Organization lookup, still syncs)', async () => {
+  it('fails closed for a lecturer with no academy and removes stale platform scope', async () => {
     await syncPersonFromLecturer('lecturer-1', USER_ID, null);
     expect(organizationFindFirst).not.toHaveBeenCalled();
-    expect(personRoleUpsert).toHaveBeenCalledOnce();
+    expect(personRoleUpsert).not.toHaveBeenCalled();
+    expect(personRoleDeleteMany).toHaveBeenCalledWith({
+      where: { personId: 'person-1', roleId: 'role-1', scopeType: 'platform' },
+    });
   });
 });
 
