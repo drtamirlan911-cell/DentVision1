@@ -26,10 +26,80 @@ export class EventStore {
     try {
       await prisma.aIEvent.update({
         where: { id: eventId },
-        data: { status: 'processing' },
+        data: { status: 'processing', processingAt: new Date() },
       });
     } catch (err) {
       console.error('[EventStore] Failed to mark processing:', err);
+    }
+  }
+
+  /**
+   * Claim pending events durably in PostgreSQL. Multiple API instances can
+   * poll concurrently because SKIP LOCKED makes each row owned by one
+   * transaction at a time.
+   */
+  async claimPending(limit = 10): Promise<CRMEvent[]> {
+    try {
+      return await prisma.$transaction(async (tx) => {
+        const rows = await tx.$queryRaw<Array<{
+          id: string;
+          type: string;
+          source: string;
+          clinicId: string;
+          userId: string;
+          payload: Prisma.JsonValue;
+          createdAt: Date;
+        }>>`
+          SELECT "id", "type", "source", "clinicId", "userId", "payload", "createdAt"
+          FROM "ai_events"
+          WHERE "status" = 'pending' AND "retries" < "maxRetries"
+          ORDER BY "createdAt" ASC
+          LIMIT ${Math.max(1, Math.min(limit, 50))}
+          FOR UPDATE SKIP LOCKED
+        `;
+
+        if (!rows.length) return [];
+
+        await tx.aIEvent.updateMany({
+          where: { id: { in: rows.map((row) => row.id) } },
+          data: { status: 'processing', processingAt: new Date() },
+        });
+
+        return rows.map((row) => ({
+          id: row.id,
+          type: row.type as CRMEvent['type'],
+          timestamp: row.createdAt,
+          source: row.source,
+          clinicId: row.clinicId,
+          userId: row.userId,
+          payload: (row.payload ?? {}) as Record<string, unknown>,
+        }));
+      });
+    } catch (err) {
+      console.error('[EventStore] Failed to claim pending events:', err);
+      return [];
+    }
+  }
+
+  /**
+   * Recover leases left behind by a crashed worker. The lease is deliberately
+   * short; handlers are expected to be idempotent and event completion remains
+   * the source of truth.
+   */
+  async recoverStaleProcessing(leaseMs = 5 * 60 * 1000): Promise<number> {
+    try {
+      const cutoff = new Date(Date.now() - leaseMs);
+      const result = await prisma.aIEvent.updateMany({
+        where: {
+          status: 'processing',
+          processingAt: { lt: cutoff },
+        },
+        data: { status: 'pending', processingAt: null },
+      });
+      return result.count;
+    } catch (err) {
+      console.error('[EventStore] Failed to recover stale events:', err);
+      return 0;
     }
   }
 
@@ -41,6 +111,7 @@ export class EventStore {
           status: 'completed',
           result: result ? (result as unknown as Prisma.InputJsonValue) : undefined,
           processedAt: new Date(),
+          processingAt: null,
         },
       });
     } catch (err) {
@@ -55,9 +126,10 @@ export class EventStore {
       await prisma.aIEvent.update({
         where: { id: eventId },
         data: {
-          status: event && event.retries >= event.maxRetries ? 'failed' : 'pending',
+          status: event && event.retries + 1 >= event.maxRetries ? 'failed' : 'pending',
           error,
           retries: { increment: 1 },
+          processingAt: null,
         },
       });
     } catch (err) {
