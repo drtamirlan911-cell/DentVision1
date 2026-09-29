@@ -63,3 +63,5 @@ export async function recoverStaleMessages(leaseMs = 5 * 60 * 1000): Promise<voi
     WHERE status = 'processing' AND updated_at < ${new Date(Date.now() - leaseMs)}
   `)
 }
+
+// queue table binding is intentionally isolated from the conversation model.
