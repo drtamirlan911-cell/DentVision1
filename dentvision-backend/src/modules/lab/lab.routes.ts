@@ -6,7 +6,7 @@ import type { AuthRequest, ApiResponse } from '../../types/index.js';
 import { uid } from '../../lib/helpers.js';
 import { tengeToMinor } from '../../lib/money.js';
 import { loadClinicAccess, blockClinicWrites } from '../../middleware/planGate.js';
-import { isClinicMember } from '../../lib/orgContext.js';
+import { isClinicMember, resolveClinicAccess } from '../../lib/orgContext.js';
 import { publish } from '../../lib/events.js';
 import { recordPartnerEconomics } from '../finance/partner-economics.service.js';
 import { labPlatformRouter } from './labPlatform.routes.js';
@@ -152,7 +152,16 @@ export interface PreparedLabOrder { error?: string; data?: Record<string, unknow
 
 export async function prepareLabOrderWrite(clinicId: string, body: LabOrderBody, existingMeta: LabOrderMeta = {}, branchIds: string[] | null = null): Promise<PreparedLabOrder> {
   const { patientId, patientName, labType, material, toothNumber, shade, dueDate, notes, status, price, remakeOfId, appointmentId, tryInDate, doctorId, laboratoryId, technicianId, treatmentCaseId } = body;
-  if (doctorId && !(await isClinicMember(doctorId, clinicId))) return { error: 'Указанный врач не найден в этой клинике' };
+  if (doctorId) {
+    // Canonical Organization → Person → PersonRole is authoritative for clinic
+    // membership once the clinic has been migrated. Legacy ClinicMember is only
+    // a compatibility fallback for pre-canonical tenants.
+    const access = await resolveClinicAccess(doctorId, clinicId);
+    const allowedDoctorRoles = new Set(['DOCTOR', 'OWNER', 'DIRECTOR', 'ADMIN', 'MANAGER']);
+    if (!access || !allowedDoctorRoles.has(String(access.role || '').toUpperCase())) {
+      return { error: 'Указанный врач не найден в этой клинике' };
+    }
+  }
   if (patientId && branchIds !== null) {
     const patient = await prisma.patient.findFirst({ where: { id: patientId, clinicId, branchId: branchIds.length > 0 ? { in: branchIds } : '__NO_BRANCH_ACCESS__' }, select: { id: true } });
     if (!patient) return { error: 'Пациент недоступен в текущем филиале' };
