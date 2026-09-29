@@ -80,9 +80,10 @@ const statements = [
 ];
 
 try {
-  await prisma.$transaction(async (tx) => {
-    for (const sql of statements) await tx.$executeRawUnsafe(sql);
-  });
+  // Idempotent DDL is executed statement-by-statement. A single interactive
+  // transaction exceeded Prisma's default 5s timeout on Neon during production
+  // startup and caused P2028 even though the individual statements were safe.
+  for (const sql of statements) await prisma.$executeRawUnsafe(sql);
   console.log('[DB] Medical laboratory lifecycle schema ready');
 } catch (error) {
   console.error('[DB] Medical laboratory lifecycle schema failed:', error);
