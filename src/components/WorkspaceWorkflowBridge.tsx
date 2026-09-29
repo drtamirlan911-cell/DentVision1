@@ -36,7 +36,7 @@ function entityFromPath(pathname: string, search: string, fallbackType: string):
   if (explicit) return { type: fallbackType, id: explicit }
 
   const segments = pathname.split('/').filter(Boolean)
-  const last = segments.at(-1)
+  const last = segments[segments.length - 1]
   if (last && !['schedule','patients','clinical-case','lab','inventory','cashier','diagnostics','center','lab-dashboard','school','workspace','supplier','shop','jobs','community','analytics','settings'].includes(last)) {
     return { type: fallbackType, id: last }
   }
