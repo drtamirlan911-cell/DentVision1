@@ -24,6 +24,8 @@ const PERSONAL_INTENTS = [
   { id: 'professional', label: 'Профессионал / врач', description: 'Профиль, портфолио, credentials и профессиональные возможности', icon: Stethoscope, nextPath: '/profile' },
   { id: 'patient', label: 'Пациент / покупатель', description: 'Запись, лечение, документы и покупки без создания организации', icon: UserRound, nextPath: '/patient-portal' },
   { id: 'jobs', label: 'Работа / найм', description: 'Вакансии, кандидаты и профессиональные возможности', icon: BriefcaseBusiness, nextPath: '/jobs' },
+  { id: 'student', label: 'Студент / обучение', description: 'Курсы, обучение, прогресс и сертификаты', icon: GraduationCap, nextPath: '/school' },
+  { id: 'employer', label: 'Работодатель', description: 'Вакансии, кандидаты и найм специалистов', icon: BriefcaseBusiness, nextPath: '/jobs' },
 ]
 
 export default function Onboarding() {
