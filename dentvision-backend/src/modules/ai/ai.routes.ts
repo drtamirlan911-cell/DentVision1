@@ -580,7 +580,7 @@ aiRouter.post('/query/stream', async (req: AuthRequest, res) => {
     let response: ProcessedResponse;
     try {
       response = await processQuery(req, text, sessionId, history, onToken);
-      await syncSessionMessages(sessionId, req.user?.id, req.user?.clinicId || undefined);
+      await syncSessionMessages(sessionId, req.user?.id, req.user ? aiSessionScope(req) : undefined);
     } finally {
       clearInterval(heartbeat);
     }
