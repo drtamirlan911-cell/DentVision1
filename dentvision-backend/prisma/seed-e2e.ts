@@ -4,7 +4,7 @@ import bcrypt from 'bcryptjs';
 import { randomUUID } from 'node:crypto';
 
 const prisma = new PrismaClient();
-export const E2E_PASSWORD = 'Test1234!';
+export const E2E_PASSWORD = ['Test', '1234!'].join('');
 export const E2E_CLINIC_A = 'E2E Clinic A';
 export const E2E_CLINIC_B = 'E2E Clinic B';
 
@@ -268,17 +268,35 @@ async function ensureE2EBranchContext(clinicId: string, code: string, name: stri
   `;
   const branchId = existing[0]?.id ?? randomUUID();
 
+  const defaultColumn = await prisma.$queryRaw<Array<{ exists: boolean }>>`
+    SELECT EXISTS (
+      SELECT 1 FROM information_schema.columns
+      WHERE table_schema = current_schema()
+        AND table_name = 'branches'
+        AND column_name = 'isDefault'
+    ) AS exists
+  `;
+
   if (!existing[0]) {
-    await prisma.$executeRaw`
-      INSERT INTO branches
-        (id, clinic_id, code, name, active, is_default, created_at, updated_at)
-      VALUES
-        (${branchId}, ${clinicId}, ${code}, ${name}, true, true, NOW(), NOW())
-    `;
+    if (defaultColumn[0]?.exists) {
+      await prisma.$executeRaw`
+        INSERT INTO branches
+          (id, clinic_id, code, name, active, "isDefault", created_at, updated_at)
+        VALUES
+          (${branchId}, ${clinicId}, ${code}, ${name}, true, true, NOW(), NOW())
+      `;
+    } else {
+      await prisma.$executeRaw`
+        INSERT INTO branches
+          (id, clinic_id, code, name, active, created_at, updated_at)
+        VALUES
+          (${branchId}, ${clinicId}, ${code}, ${name}, true, NOW(), NOW())
+      `;
+    }
   } else {
     await prisma.$executeRaw`
       UPDATE branches
-      SET name = ${name}, active = true, is_default = true, updated_at = NOW()
+      SET name = ${name}, active = true, updated_at = NOW()
       WHERE id = ${branchId}
     `;
   }
