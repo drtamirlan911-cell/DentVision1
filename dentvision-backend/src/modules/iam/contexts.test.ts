@@ -28,6 +28,28 @@ describe('workspace contexts', () => {
     expect(contexts[0].organizationId).toBe('org-uuid-1');
   });
 
+  it('uses canonical PersonRole instead of stale legacy clinic role', () => {
+    const contexts = buildWorkspaceContexts({
+      ...empty,
+      memberships: [
+        { id: 'cm1', role: 'DOCTOR', clinicId: 'clinic-1', clinic: { id: 'clinic-1', name: 'Улыбка' } },
+      ],
+      persons: [
+        {
+          id: 'p1',
+          personType: 'STAFF',
+          organization: { id: 'org-uuid-1', name: 'Улыбка', type: 'CLINIC', originalId: 'clinic-1' },
+          personRoles: [{ scopeType: 'organization', scopeId: 'org-uuid-1', role: { key: 'owner' } }],
+        },
+      ],
+    });
+
+    expect(contexts).toHaveLength(1);
+    expect(contexts[0].roleKey).toBe('owner');
+    expect(contexts[0].roleLabel).toBe('Владелец');
+    expect(contexts[0].organizationId).toBe('org-uuid-1');
+  });
+
   it('keys a clinic by its own id, never by Organization.id', () => {
     // `Organization.id` is a fresh uuid; the clinic's id lives in originalId.
     // Handing the former to a clinic-scoped call resolves to nothing.
