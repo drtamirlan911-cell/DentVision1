@@ -33,6 +33,8 @@ export interface AiRequestContext {
   clinicId: string | null;
   /** Canonical active workspace identity used by AI prompt and routing. */
   workspace: { name: string; scopeType: string; scopeId: string; organizationId: string | null; roleLabel: string } | null;
+  /** Canonical branch scope for clinic/organization workspaces. */
+  branch: { id: string; name: string; code: string; organizationId: string | null; clinicId: string | null } | null;
   /** Every workspace the user can enter; the active workspace is authoritative for current actions. */
   availableWorkspaces: Array<Pick<WorkspaceContext, 'id' | 'scopeType' | 'scopeId' | 'organizationId' | 'name' | 'roleKey' | 'roleLabel'>>;
   page: { pathname: string; pageId: string | null };
@@ -69,6 +71,31 @@ export async function buildAiContext(req: AuthRequest, hints: ContextHints = {})
   } catch (error) { console.warn('[AI context] workspace inventory resolution failed', error); }
 
   let workspace: AiRequestContext['workspace'] = null;
+  let branch: AiRequestContext['branch'] = null;
+
+  // Branch is part of the authorization chain, not UI decoration. Resolve it
+  // only from the authenticated context and verify it belongs to the active
+  // clinic/organization before exposing it to the AI prompt.
+  if (user.branchId) {
+    try {
+      const candidate = await prisma.branch.findUnique({
+        where: { id: user.branchId },
+        select: { id: true, name: true, code: true, organizationId: true, clinicId: true },
+      });
+      const branchAllowed = Boolean(
+        candidate
+        && (
+          (user.organizationId && candidate.organizationId === user.organizationId)
+          || (user.clinicId && candidate.clinicId === user.clinicId)
+          || (user.branchIds || []).includes(candidate.id)
+          || candidate.id === user.assignedBranchId
+        ),
+      );
+      if (branchAllowed) branch = candidate;
+    } catch (error) {
+      console.warn('[AI context] branch resolution failed', error);
+    }
+  }
   // The active workspace token may retain a legacy clinicId for compatibility.
   // Partner workspaces must win over that stale clinic scope; otherwise the AI
   // silently reconstructs the clinic workspace after every switch.
@@ -155,6 +182,7 @@ export async function buildAiContext(req: AuthRequest, hints: ContextHints = {})
     organizationId,
     clinicId,
     workspace,
+    branch,
     availableWorkspaces,
     page: { pathname, pageId },
     entity,
