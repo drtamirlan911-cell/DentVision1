@@ -57,6 +57,16 @@ export interface WorkspaceContextSource {
   personType?: string | null
 }
 
+let activeWorkspaceContext: WorkspaceContextContract | null = null
+
+export function setActiveWorkspaceContext(context: WorkspaceContextContract | null): void {
+  activeWorkspaceContext = context
+}
+
+export function getActiveWorkspaceContext(): WorkspaceContextContract | null {
+  return activeWorkspaceContext
+}
+
 const normalize = (value?: string | null) => {
   const v = String(value || '').trim()
   return v || null
