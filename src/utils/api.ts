@@ -153,6 +153,14 @@ export async function apiRequest(path: string, options: RequestInit = {}): Promi
   if (!_accessToken && !_refreshToken) loadTokens();
   const headers: Record<string, string> = { ...options.headers as Record<string, string> };
   if (_accessToken) headers['Authorization'] = `Bearer ${_accessToken}`;
+  const activeContext = getActiveWorkspaceContext();
+  if (activeContext) {
+    headers['X-DentVision-Workspace-Id'] = activeContext.workspaceId;
+    headers['X-DentVision-Role'] = activeContext.roleKey;
+    if (activeContext.organizationId) headers['X-DentVision-Organization-Id'] = activeContext.organizationId;
+    if (activeContext.branchId) headers['X-DentVision-Branch-Id'] = activeContext.branchId;
+    if (activeContext.workflow.key !== 'workspace') headers['X-DentVision-Workflow'] = activeContext.workflow.key;
+  }
   const tz = clientTimezoneHeader(); if (tz) headers['X-Client-Timezone'] = tz;
   if (options.method && !['GET', 'HEAD', 'OPTIONS'].includes(options.method.toUpperCase())) { const csrfMatch = document.cookie.match(/(?:^|;\s*)dv_csrf=([^;]*)/); if (csrfMatch) headers['x-csrf-token'] = csrfMatch[1]; }
   const finalOptions: RequestInit = { ...options, headers, credentials: 'include' }; headers['Content-Type'] = 'application/json';
