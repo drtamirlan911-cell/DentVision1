@@ -527,16 +527,61 @@ export async function saveAndSignResult(data: { referralId: string; reportText: 
   const notifyUserIds = new Set<string>();
   if (referral.doctorId) notifyUserIds.add(referral.doctorId);
   if (referral.clinicId) {
-    const clinicMembers = await prisma.clinicMember.findMany({ where: { clinicId: referral.clinicId, role: { in: ['OWNER', 'ADMIN', 'DOCTOR'] } }, select: { userId: true, clinicId: true } }).catch(() => [] as Array<{ userId: string; clinicId: string }>);
-    for (const m of clinicMembers) if (m.userId !== referral.doctorId) notifyUserIds.add(m.userId);
+    const organizationId = await resolveOrganizationIdForClinic(referral.clinicId);
+    if (organizationId) {
+      const persons = await prisma.person.findMany({
+        where: {
+          organizationId,
+          userId: { not: null },
+          personRoles: {
+            some: {
+              scopeType: 'organization',
+              scopeId: organizationId,
+              role: { key: { in: ['owner', 'org_owner', 'admin', 'org_admin', 'doctor'] } },
+            },
+          },
+        },
+        select: { userId: true },
+        take: 50,
+      });
+      for (const person of persons) if (person.userId && person.userId !== referral.doctorId) notifyUserIds.add(person.userId);
+    } else {
+      const clinicMembers = await prisma.clinicMember.findMany({
+        where: { clinicId: referral.clinicId, role: { in: ['OWNER', 'ADMIN', 'DOCTOR'] } },
+        select: { userId: true },
+      }).catch(() => [] as Array<{ userId: string }>);
+      for (const member of clinicMembers) if (member.userId !== referral.doctorId) notifyUserIds.add(member.userId);
+    }
   }
   if (referral.centerId) {
-    const centerMembers = await prisma.diagnosticCenterMember.findMany({ where: { centerId: referral.centerId, role: { in: ['admin', 'manager'] } } }).catch(() => [] as Array<{ userId: string }>);
-    for (const m of centerMembers) notifyUserIds.add(m.userId);
+    const organization = await prisma.organization.findFirst({ where: { originalType: 'DiagnosticCenter', originalId: referral.centerId }, select: { id: true } });
+    if (organization) {
+      const persons = await prisma.person.findMany({
+        where: {
+          organizationId: organization.id,
+          userId: { not: null },
+          personRoles: { some: { scopeType: 'organization', scopeId: organization.id, role: { key: { in: ['owner', 'org_owner', 'admin', 'org_admin', 'manager'] } } } },
+        },
+        select: { userId: true },
+        take: 50,
+      });
+      for (const person of persons) if (person.userId) notifyUserIds.add(person.userId);
+    }
   }
   if (referral.labId) {
-    const labMembers = await prisma.laboratoryMember.findMany({ where: { labId: referral.labId, role: { in: ['admin', 'manager'] } } }).catch(() => [] as Array<{ userId: string }>);
-    for (const m of labMembers) notifyUserIds.add(m.userId);
+    const organization = await prisma.organization.findFirst({ where: { originalType: 'Laboratory', originalId: referral.labId }, select: { id: true } });
+    if (organization) {
+      const persons = await prisma.person.findMany({
+        where: {
+          organizationId: organization.id,
+          userId: { not: null },
+          personRoles: { some: { scopeType: 'organization', scopeId: organization.id, role: { key: { in: ['owner', 'org_owner', 'admin', 'org_admin', 'manager'] } } } },
+        },
+        select: { userId: true },
+        take: 50,
+      });
+      for (const person of persons) if (person.userId) notifyUserIds.add(person.userId);
+    }
   }
   if (notifyUserIds.size > 0) {
     const title = 'Результат диагностики подтверждён';
