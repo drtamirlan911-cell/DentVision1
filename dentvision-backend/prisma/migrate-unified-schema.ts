@@ -297,8 +297,18 @@ async function migratePersons() {
   console.log('[MIGRATE] Migrating lecturers → persons...');
   const lecturers = await prisma.lecturer.findMany({ include: { academy: true } });
   const lecturersMigrated = await eachRow(lecturers, (l) => `lecturer ${l.id}`, async (l) => {
-      const org = l.academy
-        ? await prisma.organization.findFirst({ where: { originalType: 'Academy', originalId: l.academyId } })
+      // academyId is nullable in the legacy model. When it is absent, recover
+      // the scope only from an explicit course→academy relationship owned by
+      // this lecturer; never invent a tenant or fall back to a global role.
+      const academyId = l.academyId ?? (
+        await prisma.course.findFirst({
+          where: { lecturerId: l.id, academyId: { not: null } },
+          select: { academyId: true },
+          orderBy: { updatedAt: 'desc' },
+        })
+      )?.academyId ?? null;
+      const org = academyId
+        ? await prisma.organization.findFirst({ where: { originalType: 'Academy', originalId: academyId } })
         : null;
       const person = await upsertCanonicalPerson({
         fullName: `Lecturer ${l.id}`,
