@@ -19,6 +19,7 @@ export class EventStore {
       });
     } catch (err) {
       console.error('[EventStore] Failed to save event:', err);
+      throw err;
     }
   }
 
