@@ -1,0 +1,2 @@
+CREATE TABLE IF NOT EXISTS daily_counters (key TEXT NOT NULL, day TEXT NOT NULL, total BIGINT NOT NULL DEFAULT 0, expires_at TIMESTAMP(3) NOT NULL, created_at TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP, updated_at TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP, CONSTRAINT daily_counters_pkey PRIMARY KEY (key, day));
+CREATE INDEX IF NOT EXISTS daily_counters_expires_at_idx ON daily_counters (expires_at);
