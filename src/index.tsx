@@ -241,7 +241,7 @@ if (container) {
 
                 <Route path="academy/workspace" element={<Navigate to="/school/workspace" replace />} />
                 <Route path="academy/courses" element={<Navigate to="/school" replace />} />
-                <Route path="academy/courses/:courseId" element={<Navigate to="/school/course/:courseId" replace />} />
+                <Route path="academy/courses/:courseId" element={<Suspense fallback={<PageLoader />}><SchoolCourse /></Suspense>} />
                 <Route path="academy/students" element={<Navigate to="/school/workspace" replace />} />
                 <Route path="academy/content" element={<Navigate to="/school/workspace" replace />} />
                 <Route path="academy/assessments" element={<Navigate to="/school/workspace" replace />} />
