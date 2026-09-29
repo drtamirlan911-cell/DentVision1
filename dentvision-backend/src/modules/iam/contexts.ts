@@ -322,10 +322,11 @@ export function buildWorkspaceContexts(sources: ContextSources): WorkspaceContex
         ? p.originalId || org.originalId || org.id
         : org.originalId || org.id;
 
-    const roleKey = (p.personRoles || [])
+    const rawRoleKey = (p.personRoles || [])
       .filter((pr) => pr.scopeType === 'organization' && pr.scopeId === org.id)
       .map((pr) => pr.role.key)
       .join(',') || p.personType.toLowerCase();
+    const roleKey = scopeType === 'SUPPLIER' && rawRoleKey === 'supplier_rep' ? 'seller' : rawRoleKey;
 
     putCanonical({
       id: `${scopeType}:${entityId}`,
