@@ -103,7 +103,8 @@ const LegalLayout = lazyWithRetry(() => import('./pages/legal/LegalLayout'));
 const PartnerLegal = lazyWithRetry(() => import('./pages/partner/PartnerLegal'));
 const MyClinics = lazyWithRetry(() => import('./pages/MyClinics'));
 const SupplierWorkspace = lazyWithRetry(() => import('./pages/supplier/SupplierWorkspace'));
-const NotFound = lazyWithRetry(() => import('./pages/NotFound'));
+const NotFound = lazyWithRetry(() => import('./pages/NotFound'))
+const Onboarding = lazyWithRetry(() => import('./pages/Onboarding'));
 
 function PageLoader() { return <div className="flex min-h-[50vh] items-center justify-center"><div className="h-8 w-8 animate-spin rounded-full border-4 border-dv-gold/30 border-t-dv-gold" /></div>; }
 function guarded(page: string, node: React.ReactNode) { return <RequirePage page={page}><Suspense fallback={<PageLoader />}>{node}</Suspense></RequirePage>; }
@@ -118,6 +119,7 @@ if (container) {
           <Providers>
             <Routes>
               <Route path="/login" element={<Suspense fallback={<PageLoader />}><Login /></Suspense>} />
+              <Route path="/onboarding" element={<Suspense fallback={<PageLoader />}><Onboarding /></Suspense>} />
               <Route path="/forgot-password" element={<Suspense fallback={<PageLoader />}><ForgotPassword /></Suspense>} />
               <Route path="/book/discover" element={<Suspense fallback={<PageLoader />}><PublicBookingDiscovery /></Suspense>} />
               <Route path="/diagnostics/discover" element={<Suspense fallback={<PageLoader />}><PublicDiagnosticsDiscovery /></Suspense>} />
