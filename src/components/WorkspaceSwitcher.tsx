@@ -23,6 +23,9 @@ interface WorkspaceContext {
   branchId?: string
   permissions?: string[]
   ownDataOnly?: boolean
+  roleKey?: string
+  role?: string
+  personType?: string | null
   name: string
   roleLabel: string
   logo?: string | null
