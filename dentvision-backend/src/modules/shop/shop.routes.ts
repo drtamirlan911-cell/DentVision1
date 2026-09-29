@@ -13,6 +13,7 @@ import { reserveIdempotencyKey, completeIdempotencyKey, deleteIdempotencyKey } f
 import { normalizeCheckoutItems } from './checkout.validation.js';
 import { compensateDeterministicCheckoutFailure } from './checkout.compensation.js';
 import { assertCheckoutSupplierEligibility } from './supplierIntegrity.js';
+import { auditFromReq } from '../compliance/audit.service.js';
 
 const shopRouter = Router();
 
@@ -501,6 +502,22 @@ shopRouter.post('/orders', authenticate, async (req: AuthRequest, res) => {
         },
       });
     }
+
+    await auditFromReq(req, {
+      action: 'shop.checkout.workflow',
+      entity: 'order',
+      entityId: order.id,
+      details: {
+        workflow: 'procurement',
+        queueKey: 'checkout',
+        status: order.status,
+        paymentMethod: method,
+        paymentUnknown,
+        total: finalTotal,
+        dentCashSpentMinor: spent.toString(),
+        requiresPayment: !!payment,
+      },
+    });
 
     // Phase 4: Cashback (external, non-critical)
     cashbackResult = await accrueShopOrderCashback({
