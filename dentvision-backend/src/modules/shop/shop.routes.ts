@@ -2,7 +2,7 @@ import { Router } from 'express';
 import { createHash } from 'crypto';
 import type { Prisma } from '@prisma/client';
 import prisma from '../../lib/prisma.js';
-import { authenticate } from '../../middleware/auth.js';
+import { authenticate, optionalAuth } from '../../middleware/auth.js';
 import { requireSuperadmin } from '../../middleware/rbac.js';
 import { AuthRequest } from '../../types/index.js';
 import { uid, paginate, paginatedResponse } from '../../lib/helpers.js';
@@ -17,7 +17,7 @@ import { auditFromReq } from '../compliance/audit.service.js';
 
 const shopRouter = Router();
 
-shopRouter.get('/products', async (req, res) => {
+shopRouter.get('/products', optionalAuth, async (req, res) => {
   try {
     const { category, search, sort, city } = req.query;
     const page = Math.max(1, parseInt(req.query.page as string) || 1);
@@ -124,7 +124,7 @@ shopRouter.get('/products', async (req, res) => {
   }
 });
 
-shopRouter.get('/products/:id', async (req, res) => {
+shopRouter.get('/products/:id', optionalAuth, async (req, res) => {
   try {
     const { id } = req.params;
 
