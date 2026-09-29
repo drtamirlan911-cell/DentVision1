@@ -952,3 +952,17 @@ Run the exact current main-tip CI. Inspect the generated Visual Agent evidence f
 
 ### Next action
 - Do not add unrelated changes. Let the full CI/E2E/Visual chain for the corrected HEAD finish, then inspect every gate and fresh artifact before any merge decision.
+
+
+## 2026-09-29 — Mainline Master Spec v5 IA/onboarding convergence
+
+### Implemented
+- `31c672afa04d40ed1d289fa089a715d72d823dcf` — added canonical Master Spec v5 route aliases on `main` without duplicating existing implementations: `/home`, `/practice/*`, `/medical-lab`, `/dental-lab`, `/business`, `/academy`, `/laboratories`, `/professional`. Existing legacy routes remain as compatibility implementations.
+- `297d90e92552aa25a14c476d37321a3ffbac82f8` — extended unified `/onboarding` with non-organization intents for professional, patient/buyer and jobs/hiring, so users are not forced into organization creation for unrelated goals.
+
+### Architectural rule
+The route aliases are reconciliation only: they point to already implemented workflows and do not create duplicate data models or authorization systems. New canonical cabinet behavior must be implemented behind the Organization → Branch → Workspace → Role → Permission → Data Scope chain.
+
+### Verification
+- Fresh mainline CI is required for these commits.
+- PR #289 remains the only open PR and is being verified independently; no new implementation branch was created.
