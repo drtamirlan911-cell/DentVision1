@@ -521,6 +521,7 @@ async function aiAnalyzeLabResult(referralId: string, referral: any, _userId: st
   const aiContent = await simpleChat(prompt, 'Проанализируй лабораторные показатели на русском.', { maxTokens: 1200, imageUrl });
   const summary = '🔬 Показатели считаны с приложенного бланка. Требуется подтверждение врача для внесения в карту пациента.';
   const result = await prisma.diagnosticResult.upsert({ where: { referralId }, update: { reportText: aiContent, aiGenerated: true, aiSawSource: true, aiSummary: summary }, create: { id: uid(), referralId, reportText: aiContent, aiGenerated: true, aiSawSource: true, aiSummary: summary } });
+  await writeAuditLog({ action: 'AI_LAB_RESULT_GENERATED', entity: 'referral', entityId: referralId, details: { workflow: 'medical-laboratory', queueKey: 'worklist', resultId: result.id, requiresConfirmation: true }, userId: _userId, clinicId: referral.clinicId || undefined });
   if (referral.doctorId && referral.clinicId) await dispatchNotifications([{ userId: referral.doctorId, clinicId: referral.clinicId, type: 'workflow', title: 'AI обнаружил лабораторные данные', message: `Направление #${referralId.slice(0, 8)} — ${referral.patientName}. Показатели извлечены. Проверьте и подтвердите внесение в карту пациента.`, link: `/diagnostics/referrals/${referralId}` }]);
   return result;
 }
