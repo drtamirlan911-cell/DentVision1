@@ -335,6 +335,7 @@ export function buildWorkspaceContexts(sources: ContextSources): WorkspaceContex
       name: org.name,
       roleKey,
       roleLabel: roleLabelFor(roleKey),
+      role: roleKey,
       personType: p.personType,
       logo: org.logo ?? null,
     });
