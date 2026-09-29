@@ -318,18 +318,25 @@ export async function seedPermissions() {
       create: { key: r.key, name: r.name, description: r.description, isSystem: true },
     });
 
-    await prisma.rolePermission.deleteMany({
-      where: { roleId: role.id, permission: { key: { notIn: r.permissionKeys } } },
-    });
-
     const perms = await prisma.permission.findMany({
       where: { key: { in: r.permissionKeys } },
+      select: { id: true },
     });
-    for (const perm of perms) {
-      await prisma.rolePermission.upsert({
-        where: { roleId_permissionId: { roleId: role.id, permissionId: perm.id } },
-        update: {},
-        create: { roleId: role.id, permissionId: perm.id },
+
+    // Keep reconciliation set-based. The previous relation-filtered delete
+    // scanned role_permissions through Permission on every deploy and could
+    // stall a zero-downtime Render rollout when another instance was warming up.
+    await prisma.rolePermission.deleteMany({
+      where: {
+        roleId: role.id,
+        ...(perms.length ? { permissionId: { notIn: perms.map((p) => p.id) } } : {}),
+      },
+    });
+
+    if (perms.length) {
+      await prisma.rolePermission.createMany({
+        data: perms.map((perm) => ({ roleId: role.id, permissionId: perm.id })),
+        skipDuplicates: true,
       });
     }
     console.log(`  ✓ ${r.key} — ${perms.length} permissions`);
