@@ -2,6 +2,11 @@ import { useEffect, useMemo } from 'react'
 import { useLocation } from 'react-router-dom'
 import { useWorkspaceStore } from '@/store/workspace.store'
 
+function workflowStep(pathname: string, fallback: string): string {
+  const segments = pathname.split('/').filter(Boolean)
+  return segments[1] || fallback
+}
+
 function workflowForPath(pathname: string): { key: string; step: string | null; queue: string; entityType: string } {
   const path = pathname.toLowerCase()
   if (path === '/ai' || path.startsWith('/ai/')) return { key: 'ai', step: null, queue: 'ai', entityType: 'ai-session' }
@@ -9,16 +14,16 @@ function workflowForPath(pathname: string): { key: string; step: string | null; 
   if (path.startsWith('/crm/patients')) return { key: 'patient', step: null, queue: 'patients', entityType: 'patient' }
   if (path.startsWith('/crm/schedule')) return { key: 'appointment', step: null, queue: 'today', entityType: 'appointment' }
   if (path.startsWith('/crm/lab')) return { key: 'dental-laboratory', step: null, queue: 'lab-orders', entityType: 'lab-order' }
-  if (path.startsWith('/crm/inventory')) return { key: 'procurement', step: null, queue: 'inventory', entityType: 'inventory' }
+  if (path.startsWith('/crm/inventory')) return { key: 'procurement', step: 'restock', queue: 'inventory', entityType: 'inventory' }
   if (path.startsWith('/crm/cashier')) return { key: 'finance', step: null, queue: 'receivables', entityType: 'invoice' }
   if (path.startsWith('/crm/')) return { key: 'practice', step: null, queue: 'today', entityType: 'practice' }
-  if (path.startsWith('/diagnostics/center')) return { key: 'diagnostic-center', step: null, queue: 'worklist', entityType: 'study' }
-  if (path.startsWith('/diagnostics/lab')) return { key: 'medical-laboratory', step: null, queue: 'worklist', entityType: 'lab-order' }
+  if (path.startsWith('/diagnostics/center')) return { key: 'diagnostic-center', step: 'worklist', queue: 'worklist', entityType: 'study' }
+  if (path.startsWith('/diagnostics/lab')) return { key: 'medical-laboratory', step: 'worklist', queue: 'worklist', entityType: 'lab-order' }
   if (path.startsWith('/diagnostics/')) return { key: 'diagnostics', step: null, queue: 'referrals', entityType: 'study' }
   if (path.startsWith('/medical-lab')) return { key: 'medical-laboratory', step: null, entityType: 'lab-order' }
   if (path.startsWith('/dental-lab')) return { key: 'dental-laboratory', step: null, entityType: 'lab-case' }
-  if (path.startsWith('/supplier')) return { key: 'supplier-operations', step: null, queue: 'orders', entityType: 'order' }
-  if (path.startsWith('/shop')) return { key: 'procurement', step: null, entityType: 'product' }
+  if (path.startsWith('/supplier')) return { key: 'supplier-operations', step: workflowStep(path, 'orders'), queue: 'orders', entityType: 'order' }
+  if (path.startsWith('/shop')) return { key: 'procurement', step: workflowStep(path, 'catalog'), queue: path.startsWith('/shop/checkout') ? 'checkout' : 'catalog', entityType: 'product' }
   if (path.startsWith('/school')) return { key: 'learning', step: null, queue: 'courses', entityType: 'course' }
   if (path.startsWith('/jobs')) return { key: 'employment', step: null, queue: 'matches', entityType: 'job' }
   if (path.startsWith('/community')) return { key: 'network', step: null, queue: 'connections', entityType: 'community' }
