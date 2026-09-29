@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import prisma from '../../lib/prisma.js';
+import { Prisma } from '@prisma/client';
 import { authenticate } from '../../middleware/auth.js';
 import { generateTokens } from '../../lib/jwt.js';
 import { resolveUserPermissions } from '../../lib/resolvePermissions.js';
