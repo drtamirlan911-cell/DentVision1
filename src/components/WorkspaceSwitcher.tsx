@@ -129,12 +129,14 @@ export function WorkspaceSwitcher({ className }: { className?: string }) {
 
   interface BranchOption { id: string; name: string; code?: string | null; active?: boolean }
   const { data: branches = [], isFetching: branchesLoading } = useQuery<BranchOption[]>({
-    queryKey: ['workspace-branches', current?.organizationId],
+    queryKey: ['workspace-branches', current?.organizationId || current?.scopeId],
     queryFn: async () => {
-      if (!current?.organizationId) return []
-      return (await api.listBranches({ organizationId: current.organizationId })) as BranchOption[]
+      if (!current) return []
+      const params = current.organizationId ? { organizationId: current.organizationId } : current.scopeType === 'CLINIC' ? { clinicId: current.scopeId } : {}
+      if (!params.organizationId && !params.clinicId) return []
+      return (await api.listBranches(params)) as BranchOption[]
     },
-    enabled: open && !!current?.organizationId && isAuthenticated,
+    enabled: open && !!current && isAuthenticated,
     staleTime: 30_000,
   })
 
@@ -288,7 +290,7 @@ export function WorkspaceSwitcher({ className }: { className?: string }) {
         ))}
       </div>
 
-      {current?.organizationId && (branchesLoading || branches.length > 0) && (
+      {current && (branchesLoading || branches.length > 0) && (
         <div className="mt-1 border-t border-bdr-subtle pt-1.5">
           <div className="flex items-center justify-between px-2 py-1.5">
             <p className="text-[10px] font-semibold uppercase tracking-wider text-txt-muted">Филиалы</p>
