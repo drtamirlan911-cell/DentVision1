@@ -1076,3 +1076,12 @@ These changes are route/entry reconciliation only. Existing domain implementatio
 - Verify the latest Render deploy reaches full bootstrap and durable worker startup.
 - Verify exact-head GitHub CI.
 - Continue P0 release blockers and partner owner lifecycle; do not mark release-ready until production deployment evidence catches up to current main.
+
+## 2026-09-29 — Redis runtime dependency removed from daily AI quotas
+
+- Production startup exposed a remaining import of the deleted Redis runtime module from `src/lib/dailyCounter.ts`.
+- Restored a null-return compatibility shim immediately to unblock startup without restoring Redis as a runtime dependency.
+- Replaced the daily counter implementation with a PostgreSQL-backed durable counter and added migration `20260929140000_postgres_daily_counters`.
+- Replaced Redis-specific daily counter tests with PostgreSQL persistence/failure-path tests.
+- GitHub repository search shows no remaining `ioredis`, `bullmq`, `REDIS_URL`, or direct Redis runtime imports.
+- Required next: verify the new production deploy reaches API listening state and confirm durable queue worker initialization.
