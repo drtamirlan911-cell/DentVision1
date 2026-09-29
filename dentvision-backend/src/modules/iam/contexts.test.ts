@@ -88,6 +88,24 @@ describe('workspace contexts', () => {
     expect(contexts[0].scopeId).toBe('sup-1');
   });
 
+  it('uses the canonical supplier role when it is organization-scoped', () => {
+    const contexts = buildWorkspaceContexts({
+      ...empty,
+      persons: [
+        {
+          id: 'p1',
+          personType: 'SUPPLIER_REP',
+          organization: { id: 'org-2', name: 'МедТорг', type: 'SUPPLIER_COMPANY', originalId: 'sup-1' },
+          personRoles: [{ scopeType: 'organization', scopeId: 'org-2', role: { key: 'seller' } }],
+        },
+      ],
+    });
+
+    expect(contexts).toHaveLength(1);
+    expect(contexts[0].roleKey).toBe('seller');
+    expect(contexts[0].organizationId).toBe('org-2');
+  });
+
   it('merges a supplier reached from both halves', () => {
     const contexts = buildWorkspaceContexts({
       ...empty,
