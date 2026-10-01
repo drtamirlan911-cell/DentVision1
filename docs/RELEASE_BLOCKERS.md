@@ -42,13 +42,6 @@
 - **Area:** E2E / RBAC / UX
 - **Required:** complete CI rerun after each root-cause fix; verify neighboring scenarios and negative authorization paths.
 
-### RB-006 — Vercel build rate limit
-- **Status:** OPEN
-- **Priority:** P1
-- **Area:** Production deployment
-- **Observed:** GitHub commit status reports Vercel failure with target reason `build-rate-limit` on current commits.
-- **Required:** restore/verify successful production deployment status; do not treat a green GitHub test suite as a production release until deployment is independently confirmed.
-
 ### RB-007 — Mobile laboratory drawer visual regression
 - **Status:** FIXED — pending CI visual recheck
 - **Priority:** P0
@@ -74,7 +67,13 @@
 - **Required:** verify authenticated professional/owner contexts expose the expected catalog and that cross-tenant/catalog audience isolation is preserved. This is not closed by the public 200 response.
 
 ## Closed
-_None yet._
+
+### RB-006 — Vercel build rate limit
+- **Status:** CLOSED — production deployment independently verified
+- **Priority:** P1
+- **Area:** Production deployment
+- **Resolution:** current production deployment `dpl_DuniATXLbvea8NA521pCyVyg4p1N` is READY and is built from current `main` commit `5815fa931cc9603b0ec68fb59bf42d48169f24cc`.
+- **Verification:** Vercel production deployment state is READY; Render production deployment `dep-daut9p2d2mec73fl53g0` is LIVE from the same commit. The blocker is no longer present on the current release.
 
 ## Operating rule
 When a new blocker is discovered:
