@@ -66,7 +66,7 @@ class DiagnosticsRepository(
     suspend fun createReferral(body: CreateReferralRequest): Referral = apiCall { api.diagnostics.createReferral(body) }
 
     suspend fun uploadFile(body: UploadFileRequest) {
-        apiCall { api.diagnostics.uploadFile(body) }
+        apiCall { api.diagnostics.uploadFile(body.referralId, body) }
     }
 
     suspend fun registrations(status: String? = null): List<RegistrationRequest> =
@@ -82,7 +82,7 @@ class DiagnosticsRepository(
         apiCall { api.diagnostics.changeReferralStatus(id, ChangeReferralStatusRequest(status = status, cost = cost, platformFee = platformFee)) }
 
     suspend fun aiGenerateResult(referralId: String): AiGeneratedResult =
-        apiCall { api.diagnostics.aiGenerateResult(AiGenerateResultRequest(referralId)) }
+        apiCall { api.diagnostics.aiGenerateResult(referralId) }.let { it.result ?: throw ApiException(status = 200, message = "AI не вернул результат") }
 
     suspend fun signResult(referralId: String, reportText: String, conclusion: String?): JsonElement =
         apiCall { api.diagnostics.signResult(referralId, SignResultRequest(reportText, conclusion)) }
