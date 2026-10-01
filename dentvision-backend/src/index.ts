@@ -2271,47 +2271,43 @@ async function main() {
     console.log(`[MARKETPLACE] Materialized ${created} Product rows from curated presets`);
   });
 
-  // Initialize Event Bus
-  try {
-    await eventBus.connect();
-    console.log('[EVENT_BUS] Initialized');
-  } catch (err) {
-    console.error('[EVENT_BUS] Connection failed:', err);
-    // Don't exit — fallback to in-memory mode
-  }
-
-  // Initialize Event Orchestrator (subscribes to all events)
-  orchestrator.start();
-  console.log('[AI_ORCHESTRATOR] Event-driven layer started');
-
+  // Bind the HTTP listener before optional background infrastructure.
+  // Render health checks must see an open port even if an event/AI subsystem
+  // is slow to initialize or temporarily unavailable.
   app.listen(env.PORT, '0.0.0.0', () => {
     console.log(`[SERVER] DentVision Backend running on http://localhost:${env.PORT}`);
     console.log(`[ENV] ${env.NODE_ENV}`);
     if (env.REMINDER_CRON_MS > 0) {
       startReminderCronInterval(env.REMINDER_CRON_MS);
       startSubscriptionCronInterval(env.REMINDER_CRON_MS);
-      // Monthly platform-commission settlements (hourly interval; monthly work is
-      // guarded by referral linking, so most runs are cheap no-ops).
       startSettlementCronInterval(60 * 60 * 1000);
-      // Persists today's SaaSMetrics/CustomerMetrics/BISnapshot once a day.
       startBiSnapshotCronInterval(24 * 60 * 60 * 1000);
-      // Re-notifies OWNER/ADMIN when an escalated patient thread sits
-      // unclaimed — checked every 5 min, re-notifies past a 15 min silence.
       startOnCallInterval();
-      // Expires AiApproval rows nobody decided on in time.
       startAiApprovalSweeperInterval();
-      // Retries failed Workflow Studio runs, capped at 3 attempts each.
       startWorkflowRetryInterval();
-      // Proposes (never books) a recall review when a clinic has overdue patients.
       startRecallAgentInterval();
       startPartnerEconomicsReconciliationCronInterval();
       startPayoutReadinessCronInterval();
     }
-    // AI admin worker is independent of cron settings.
     void startMessageWorker().catch((err) => {
       console.warn('[AI_ADMIN] Worker start failed (non-fatal):', err);
     });
   });
+
+  // Initialize optional event infrastructure after the HTTP listener is live.
+  try {
+    await eventBus.connect();
+    console.log('[EVENT_BUS] Initialized');
+  } catch (err) {
+    console.error('[EVENT_BUS] Connection failed:', err);
+  }
+
+  try {
+    orchestrator.start();
+    console.log('[AI_ORCHESTRATOR] Event-driven layer started');
+  } catch (err) {
+    console.error('[AI_ORCHESTRATOR] Startup failed:', err);
+  }
 }
 
 process.on('SIGTERM', async () => {
