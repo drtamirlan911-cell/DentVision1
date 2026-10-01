@@ -75,13 +75,26 @@ function guardCatalogResponse(req: Request, res: Response, body: any) {
   const isHub = isAcademy && path === '/api/school/hub';
   const isCourseList = isAcademy && path === '/api/school/courses';
   const isCourseDetail = isAcademy && /^\/api\/school\/courses\/[^/]+$/.test(path);
+  const isAcademyOfferingList = isAcademy && [
+    '/api/school/live',
+    '/api/school/webinars',
+    '/api/school/office-courses',
+    '/api/school/textbooks',
+  ].includes(path);
+  const isAcademyProfessionalList = isAcademy && [
+    '/api/school/clinical-cases',
+    '/api/school/library',
+  ].includes(path);
   const isProductList = !isAcademy && path === '/api/shop/products';
   const isProductDetail = !isAcademy && /^\/api\/shop\/products\/[^/]+$/.test(path);
 
   if (isHub) {
     body = { ...body, data: filterAcademyHub(body.data || {}, context) };
-  } else if (isCourseList) {
+  } else if (isCourseList || isAcademyOfferingList) {
     body = { ...body, data: filterAcademyCoursePayload(body.data, context) };
+  } else if (isAcademyProfessionalList) {
+    const professional = canExposeCatalogItem('ACADEMY', context, ['PROFESSIONAL']);
+    if (!professional) body = { ...body, data: [] };
   } else if (isCourseDetail) {
     const course = body.data;
     if (!course || !canExposeCatalogItem('ACADEMY', context, audiencesFromCourseMeta(course.meta))) {
