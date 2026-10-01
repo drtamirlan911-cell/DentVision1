@@ -526,7 +526,7 @@ schoolRouter.patch('/enrollments/:id', authenticate, async (req: AuthRequest, re
   }
 });
 
-schoolRouter.get('/clinical-cases', async (req, res) => {
+schoolRouter.get('/clinical-cases', optionalAuth, async (req, res) => {
   try {
     const category = req.query.category ? String(req.query.category) : '';
     let rows: any[] = [];
@@ -570,7 +570,7 @@ schoolRouter.put('/clinical-cases/:id', authenticate, requireSuperadmin, async (
   } catch (e: any) { res.status(500).json({ ok: false, error: 'Failed to update case' }); }
 });
 
-schoolRouter.get('/library', async (req, res) => {
+schoolRouter.get('/library', optionalAuth, async (req, res) => {
   try {
     const category = req.query.category ? String(req.query.category) : '';
     const search = req.query.search ? String(req.query.search).toLowerCase() : '';
@@ -593,22 +593,22 @@ schoolRouter.get('/library', async (req, res) => {
   }
 });
 
-schoolRouter.get('/live', async (_req, res) => {
+schoolRouter.get('/live', optionalAuth, async (_req, res) => {
   const db = await loadDbOfferings('webinar');
   res.json({ ok: true, data: db.map(mapCourseToEventCard) });
 });
 
-schoolRouter.get('/webinars', async (_req, res) => {
+schoolRouter.get('/webinars', optionalAuth, async (_req, res) => {
   const db = await loadDbOfferings('webinar');
   res.json({ ok: true, data: db.map(mapCourseToEventCard) });
 });
 
-schoolRouter.get('/office-courses', async (_req, res) => {
+schoolRouter.get('/office-courses', optionalAuth, async (_req, res) => {
   const db = await loadDbOfferings('office');
   res.json({ ok: true, data: db.map(mapCourseToEventCard) });
 });
 
-schoolRouter.get('/textbooks', async (_req, res) => {
+schoolRouter.get('/textbooks', optionalAuth, async (_req, res) => {
   const db = await loadDbOfferings('textbook');
   res.json({ ok: true, data: db.map(mapCourseToEventCard) });
 });
