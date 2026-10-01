@@ -300,19 +300,19 @@ async function migratePersons() {
       // academyId is nullable in the legacy model. When it is absent, recover
       // the scope only from an explicit course→academy relationship owned by
       // this lecturer; never invent a tenant or fall back to a global role.
-      const academyId = l.academyId ?? (
-        await prisma.academy.findFirst({
-          where: { ownerId: l.userId },
-          select: { id: true },
-          orderBy: { updatedAt: 'desc' },
-        })
-      )?.id ?? (
-        await prisma.course.findFirst({
-          where: { lecturerId: l.id, academyId: { not: null } },
-          select: { academyId: true },
-          orderBy: { updatedAt: 'desc' },
-        })
-      )?.academyId ?? null;
+      const academyFromLecturer = l.academyId;
+      const academyFromOwner = academyFromLecturer ? null : (await prisma.academy.findFirst({
+        where: { ownerId: l.userId },
+        select: { id: true },
+        orderBy: { updatedAt: 'desc' },
+      }))?.id ?? null;
+      const academyFromCourse = academyFromLecturer || academyFromOwner ? null : (await prisma.course.findFirst({
+        where: { lecturerId: l.id, academyId: { not: null } },
+        select: { academyId: true },
+        orderBy: { updatedAt: 'desc' },
+      }))?.academyId ?? null;
+      const academyId = academyFromLecturer ?? academyFromOwner ?? academyFromCourse ?? null;
+      console.log(`  [LECTURER_SCOPE] lecturer=${l.id} user=${l.userId} source=${academyFromLecturer ? 'lecturer.academyId' : academyFromOwner ? 'academy.ownerId' : academyFromCourse ? 'course.lecturerId' : 'none'} academy=${academyId ?? 'none'}`);
       let org = academyId
         ? await prisma.organization.findFirst({ where: { originalType: 'Academy', originalId: academyId } })
         : null;
