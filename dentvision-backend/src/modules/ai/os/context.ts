@@ -154,10 +154,12 @@ export async function buildAiContext(req: AuthRequest, hints: ContextHints = {})
         workspace = { name: supplier.name, scopeType: 'SUPPLIER', scopeId: supplier.id, organizationId: null, roleLabel: roleLabelFor(user.supplierRole || 'supplier') };
       }
     } else if (user.lecturerId) {
-      const lecturer = await prisma.lecturer.findUnique({ where: { id: user.lecturerId }, select: { id: true, academy: { select: { name: true } } } });
-      if (lecturer) {
+      const lecturer = await prisma.lecturer.findUnique({ where: { id: user.lecturerId }, select: { id: true, academy: { select: { id: true, name: true } } } });
+      // An orphan lecturer is not a workspace. Do not manufacture an Academy
+      // scope from the role alone; the Academy relation must be explicit.
+      if (lecturer?.academy) {
         const person = await prisma.person.findFirst({ where: { userId: user.id, originalId: user.lecturerId }, select: { organizationId: true } });
-        workspace = { name: lecturer.academy?.name || 'Академия', scopeType: 'LECTURER', scopeId: lecturer.id, organizationId: person?.organizationId || null, roleLabel: 'Лектор' };
+        workspace = { name: lecturer.academy.name, scopeType: 'LECTURER', scopeId: lecturer.id, organizationId: person?.organizationId || null, roleLabel: 'Лектор' };
       }
     }
   } catch (error) {
