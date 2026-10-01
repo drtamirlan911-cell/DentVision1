@@ -60,7 +60,9 @@ async function ensureMarketplaceCatalog() {
       created += 1;
     }
   }
-  console.log(`[BOOTSTRAP] Marketplace catalog: +${created}, updated ${updated}, categories ${categories.size}`);
+  const totalProducts = await prisma.product.count({ where: { isActive: true } });
+  const totalCategories = await prisma.shopCategory.count({ where: { isActive: true } });
+  console.log(`[BOOTSTRAP] Marketplace catalog: +${created}, updated ${updated}, active products ${totalProducts}, active categories ${totalCategories}`);
 }
 
 async function ensureAcademy() {
@@ -153,7 +155,9 @@ async function ensureAcademy() {
     if (!existing) coursesCreated += 1;
   }
 
-  console.log(`[BOOTSTRAP] Academy: ${academy.id}; organization ${organization.id}; courses +${coursesCreated}`);
+  const totalCourses = await prisma.course.count({ where: { academyId: academy.id } });
+  const totalAcademies = await prisma.academy.count();
+  console.log(`[BOOTSTRAP] Academy: ${academy.id}; organization ${organization.id}; courses +${coursesCreated}, academy courses ${totalCourses}, academies ${totalAcademies}`);
 }
 
 async function main() {
