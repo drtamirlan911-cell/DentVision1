@@ -61,17 +61,17 @@ interface DiagnosticsApi {
     @GET("api/diagnostics/laboratories")
     suspend fun laboratories(@Query("search") search: String? = null): ApiEnvelope<List<DiagnosticOrg>>
 
-    @GET("api/diagnostics/centers/{id}/pricing")
-    suspend fun centerPricing(@Path("id") id: String): ApiEnvelope<List<PricingItem>>
+    @GET("api/diagnostics/studies")
+    suspend fun centerPricing(@Query("centerId") id: String): ApiEnvelope<List<PricingItem>>
 
-    @GET("api/diagnostics/laboratories/{id}/pricing")
-    suspend fun labPricing(@Path("id") id: String): ApiEnvelope<List<PricingItem>>
+    @GET("api/diagnostics/lab-tests")
+    suspend fun labPricing(@Query("labId") id: String): ApiEnvelope<List<PricingItem>>
 
     @POST("api/diagnostics/referrals")
     suspend fun createReferral(@Body body: CreateReferralRequest): ApiEnvelope<Referral>
 
-    @POST("api/diagnostics/files/upload")
-    suspend fun uploadFile(@Body body: UploadFileRequest): ApiEnvelope<JsonElement>
+    @POST("api/diagnostics/referrals/{referralId}/files")
+    suspend fun uploadFile(@Path("referralId") referralId: String, @Body body: UploadFileRequest): ApiEnvelope<JsonElement>
 
     /** Только SUPERADMIN — сервер отвечает 403 всем остальным. */
     @GET("api/diagnostics/registrations")
@@ -93,10 +93,10 @@ interface DiagnosticsApi {
         @Body body: ChangeReferralStatusRequest,
     ): ApiEnvelope<Referral>
 
-    @POST("api/diagnostics/results/ai-generate")
-    suspend fun aiGenerateResult(@Body body: AiGenerateResultRequest): ApiEnvelope<AiGeneratedResult>
+    @POST("api/diagnostics/referrals/{referralId}/ai-result")
+    suspend fun aiGenerateResult(@Path("referralId") referralId: String): ApiEnvelope<AiGeneratedResultEnvelope>
 
-    @POST("api/diagnostics/results/{id}/sign")
+    @POST("api/diagnostics/referrals/{id}/results/sign")
     suspend fun signResult(@Path("id") id: String, @Body body: SignResultRequest): ApiEnvelope<JsonElement>
 
     @GET("api/diagnostics/centers/{id}/payments")
