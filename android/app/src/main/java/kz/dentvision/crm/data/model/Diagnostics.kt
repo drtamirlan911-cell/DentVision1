@@ -315,6 +315,12 @@ data class AiGeneratedResult(
     val reportText: String? = null,
 )
 
+@Serializable
+data class AiGeneratedResultEnvelope(
+    val result: AiGeneratedResult? = null,
+    val requiresDoctorConfirmation: Boolean = true,
+)
+
 /** Тело `POST /api/diagnostics/results/:id/sign`. */
 @Serializable
 data class SignResultRequest(
