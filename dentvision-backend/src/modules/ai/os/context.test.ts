@@ -61,6 +61,23 @@ beforeEach(() => {
   diagnosticCenterMemberFindMany.mockResolvedValue([]);
   laboratoryMemberFindMany.mockResolvedValue([]);
   personFindMany.mockResolvedValue([]);
+  it('does not manufacture an active Academy workspace for an orphan lecturer', async () => {
+    lecturerFindUnique.mockResolvedValueOnce({
+      id: 'lec-1',
+      academy: null,
+    });
+
+    const ctx = await buildAiContext(req({
+      role: 'STUDENT',
+      clinicId: null,
+      organizationId: null,
+      organizationType: undefined,
+      lecturerId: 'lec-1',
+    }));
+
+    expect(ctx.workspace).toBeNull();
+  });
+
 });
 
 describe('buildAiContext', () => {
