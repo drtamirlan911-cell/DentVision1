@@ -61,6 +61,8 @@ beforeEach(() => {
   diagnosticCenterMemberFindMany.mockResolvedValue([]);
   laboratoryMemberFindMany.mockResolvedValue([]);
   personFindMany.mockResolvedValue([]);
+});
+
   it('does not manufacture an active Academy workspace for an orphan lecturer', async () => {
     lecturerFindUnique.mockResolvedValueOnce({
       id: 'lec-1',
@@ -77,8 +79,6 @@ beforeEach(() => {
 
     expect(ctx.workspace).toBeNull();
   });
-
-});
 
 describe('buildAiContext', () => {
   it('accepts omitted UI hints for server-side callers', async () => {
