@@ -63,9 +63,24 @@ async function main() {
 // when imported by tests.
 if (import.meta.url === `file://${process.argv[1]}`) {
   main()
-    .catch((e) => {
-      console.error('[BACKFILL] Failed:', e);
-      process.exit(1);
+    .then(async () => {
+      // This script runs in the production startup && chain. Prisma can keep
+      // the Node event loop alive briefly after the work is complete, which
+      // prevents the next bootstrap command from starting. Disconnect
+      // deterministically, but never let shutdown bookkeeping block startup
+      // indefinitely.
+      await Promise.race([
+        prisma.$disconnect(),
+        new Promise<void>((resolve) => setTimeout(resolve, 5000)),
+      ]);
+      process.exit(0);
     })
-    .finally(() => prisma.$disconnect());
+    .catch(async (e) => {
+      console.error('[BACKFILL] Failed:', e);
+      await Promise.race([
+        prisma.$disconnect(),
+        new Promise<void>((resolve) => setTimeout(resolve, 1000)),
+      ]);
+      process.exit(1);
+    });
 }
