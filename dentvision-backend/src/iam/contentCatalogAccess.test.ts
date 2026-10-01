@@ -27,4 +27,13 @@ describe('catalog audience resolution', () => {
     } as any;
     expect(resolveActiveContentContext(req)).toBe('DOCTOR');
   });
+  it('resolves an authenticated buyer workspace to the buyer catalog context', () => {
+    const req = {
+      query: { context: 'PATIENT' },
+      get: () => 'PATIENT',
+      user: { role: 'BUYER', organizationType: 'CLINIC' },
+    } as any;
+    expect(resolveActiveContentContext(req)).toBe('BUYER');
+  });
+
 });
