@@ -26,4 +26,10 @@ describe('context-bound content access', () => {
     expect(canAccessContent({ surface: 'MARKETPLACE', activeContext: 'PATIENT', audiences: ['PROFESSIONAL', 'PATIENT'] })).toBe(false);
     expect(canAccessContent({ surface: 'MARKETPLACE', activeContext: 'DOCTOR', audiences: ['PROFESSIONAL'] })).toBe(true);
   });
+  it('allows buyers to see professional catalog content without doctor-specific audience access', () => {
+    expect(canAccessContent({ surface: 'MARKETPLACE', activeContext: 'BUYER', audiences: ['PROFESSIONAL'] })).toBe(true);
+    expect(canAccessContent({ surface: 'ACADEMY', activeContext: 'BUYER', audiences: ['DOCTOR'] })).toBe(false);
+    expect(getAllowedAudiences('BUYER')).toEqual(['GENERAL', 'PROFESSIONAL']);
+  });
+
 });
