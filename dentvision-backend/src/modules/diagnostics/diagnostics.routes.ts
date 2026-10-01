@@ -8,7 +8,7 @@ import { assertOrgAccess, resolveClinicAccess } from '../../lib/orgContext.js';
 import { IinValidationError } from '../../lib/patientIin.js';
 import { canAccessReferralBranch } from '../../lib/diagnosticReferralBranchPolicy.js';
 
-export async function claimReferralPaid(referralId: string, data: { paid: boolean }): Promise<boolean> { const result = await (prisma as any).referral.updateMany({ where: { id: referralId, paid: false }, data }); return result.count === 1; }
+export async function claimReferralPaid(referralId: string, data: { paid: boolean; paidAt?: Date; cost?: number; platformFee?: number }): Promise<boolean> { const result = await (prisma as any).referral.updateMany({ where: { id: referralId, paid: false }, data }); return result.count === 1; }
 function sameOrgContext(user: AuthRequest['user'], type: 'DiagnosticCenter' | 'Laboratory', id: string): boolean { if (!user || !id) return false; if (user.role === 'SUPERADMIN') return true; const expected = type === 'DiagnosticCenter' ? 'DIAGNOSTIC_CENTER' : 'LABORATORY'; const entityId = (user as any).organizationOriginalId || user.organizationId; return entityId === id && (user as any).organizationType === expected; }
 async function referralBranchAllowed(user: AuthRequest['user'], referral: { clinicId: string; branchId?: string | null }): Promise<boolean> { if (user.role === 'SUPERADMIN') return true; return canAccessReferralBranch(user, { clinicId: referral.clinicId, branchId: referral.branchId ?? null }); }
 async function referralListBranchIds(user: AuthRequest['user'], clinicId?: string): Promise<string[] | undefined> {
@@ -109,9 +109,13 @@ diagnosticsRouter.post('/referrals/:id/status', requireReferralAccess(true), asy
 // Keep it separate from /status so COMPLETED and PAID cannot be conflated.
 diagnosticsRouter.post('/referrals/:id/mark-paid', requireReferralAccess(true), async (req: AuthRequest, res: any) => {
   try {
-    const won = await claimReferralPaid(req.params.id, { paid: true });
+    const cost = req.body?.cost === undefined ? undefined : Number(req.body.cost);
+    const platformFee = req.body?.platformFee === undefined ? undefined : Number(req.body.platformFee);
+    if (cost !== undefined && (!Number.isFinite(cost) || cost < 0)) return res.status(400).json({ ok: false, error: 'Некорректная стоимость' });
+    if (platformFee !== undefined && (!Number.isFinite(platformFee) || platformFee < 0)) return res.status(400).json({ ok: false, error: 'Некорректная комиссия' });
+    const won = await claimReferralPaid(req.params.id, { paid: true, paidAt: new Date(), ...(cost !== undefined ? { cost } : {}), ...(platformFee !== undefined ? { platformFee } : {}) });
     if (!won) return res.status(409).json({ ok: false, error: 'Направление уже оплачено' });
-    const data = await prisma.referral.update({ where: { id: req.params.id }, data: { paidAt: new Date() } });
+    const data = await prisma.referral.findUnique({ where: { id: req.params.id } });
     return res.json({ ok: true, data } satisfies ApiResponse);
   } catch (e: any) { return res.status(400).json({ ok: false, error: e.message } satisfies ApiResponse); }
 });
