@@ -150,6 +150,15 @@ describe('workspace contexts', () => {
   });
 
 
+  it('fails closed for an orphan lecturer without an academy scope', () => {
+    const contexts = buildWorkspaceContexts({
+      ...empty,
+      lecturer: { id: 'orphan-lec', level: 'new', academy: null },
+    });
+
+    expect(contexts).toEqual([]);
+  });
+
   it('includes a legacy laboratory membership as a laboratory workspace', () => {
     const contexts = buildWorkspaceContexts({
       ...empty,
