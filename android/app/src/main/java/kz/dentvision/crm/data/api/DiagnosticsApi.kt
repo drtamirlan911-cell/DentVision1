@@ -1,7 +1,6 @@
 package kz.dentvision.crm.data.api
 
 import kotlinx.serialization.json.JsonElement
-import kz.dentvision.crm.data.model.AiGenerateResultRequest
 import kz.dentvision.crm.data.model.AiGeneratedResult
 import kz.dentvision.crm.data.model.ChangeReferralStatusRequest
 import kz.dentvision.crm.data.model.CollectPaymentRequest
