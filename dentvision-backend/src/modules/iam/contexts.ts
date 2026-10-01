@@ -295,7 +295,7 @@ export function buildWorkspaceContexts(sources: ContextSources): WorkspaceContex
     });
   }
 
-  if (sources.lecturer) {
+  if (sources.lecturer?.academy) {
     const l = sources.lecturer;
     putLegacy({
       id: `LECTURER:${l.id}`,
