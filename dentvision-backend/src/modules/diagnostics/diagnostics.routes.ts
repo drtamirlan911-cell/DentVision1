@@ -112,6 +112,44 @@ diagnosticsRouter.get('/referrals/:id', requireReferralAccess(true), async (req:
 diagnosticsRouter.patch('/referrals/:id', requireReferralAccess(), async (req: AuthRequest, res) => { try { const allowed = ['patientName','patientIin','patientBirth','patientGender','patientPhone','patientEmail','pregnancy','allergies','specialNotes','category','studyType','anatomicalSites','complaints','preliminaryDx','studyGoal','commentForDoctor','commentForLab','priority','centerId','labId','scheduledDate','scheduledTime']; const data: Record<string, unknown> = {}; for (const key of allowed) if (key in req.body) data[key] = req.body[key]; return res.json({ ok: true, data: await svc.updateReferral(req.params.id, data, req.user!.id) } satisfies ApiResponse); } catch (e: any) { return res.status(400).json({ ok: false, error: e.message } satisfies ApiResponse); } });
 diagnosticsRouter.post('/referrals/:id/mark-paid', requireReferralAccess(true), async (req: AuthRequest, res) => { try { const referral = await prisma.referral.findUnique({ where: { id: req.params.id }, select: { centerId: true, labId: true, cost: true, paid: true } }); if (!referral) return res.status(404).json({ ok: false, error: 'Referral not found' }); if (!referral.centerId && !referral.labId) return res.status(400).json({ ok: false, error: 'У направления не назначен центр или лаборатория' }); const cost = req.body?.cost !== undefined ? Number(req.body.cost) : Number(referral.cost ?? 0); const platformFee = req.body?.platformFee !== undefined ? Number(req.body.platformFee) : 0; if (!Number.isFinite(cost) || cost < 0 || !Number.isFinite(platformFee) || platformFee < 0) return res.status(400).json({ ok: false, error: 'Некорректная сумма оплаты' }); const updated = await prisma.referral.update({ where: { id: req.params.id }, data: { cost, platformFee, paid: true, paidAt: new Date() } }); return res.json({ ok: true, data: updated } satisfies ApiResponse); } catch (e: any) { return res.status(400).json({ ok: false, error: e.message } satisfies ApiResponse); } });
 diagnosticsRouter.post('/referrals/:id/status', requireReferralAccess(true), async (req: AuthRequest, res) => { try { const status = String(req.body?.status || '').toUpperCase() as any; const allowed = ['DRAFT','SENT','ACCEPTED','SCHEDULED','PATIENT_ARRIVED','IN_PROGRESS','COMPLETED','CANCELLED']; if (!allowed.includes(status)) return res.status(400).json({ ok: false, error: 'Недопустимый статус направления' }); const data = await svc.changeReferralStatus(req.params.id, status, req.user!.id, req.body?.reason, req.body?.cost, undefined); return res.json({ ok: true, data } satisfies ApiResponse); } catch (e: any) { return res.status(400).json({ ok: false, error: e.message } satisfies ApiResponse); } });
+
+// Cashier collection is a money-state transition, not a referral status.
+// Keep it separate from /status so COMPLETED and PAID cannot be conflated.
+diagnosticsRouter.post('/referrals/:id/mark-paid', requireReferralAccess(true), async (req: AuthRequest, res: any) => {
+  try {
+    const won = await claimReferralPaid(req.params.id, { paid: true });
+    if (!won) return res.status(409).json({ ok: false, error: 'Направление уже оплачено' });
+    const data = await prisma.referral.update({ where: { id: req.params.id }, data: { paidAt: new Date() } });
+    return res.json({ ok: true, data } satisfies ApiResponse);
+  } catch (e: any) { return res.status(400).json({ ok: false, error: e.message } satisfies ApiResponse); }
+});
+diagnosticsRouter.post('/centers/:id/cashier/collect', async (req: AuthRequest, res: any) => {
+  try {
+    if (!sameOrgContext(req.user, 'DiagnosticCenter', req.params.id)) return res.status(403).json({ ok: false, error: 'Нет доступа к центру' });
+    const referralId = String(req.body?.referralId || '');
+    const cost = Number(req.body?.cost);
+    const platformFee = Number(req.body?.platformFee || 0);
+    if (!referralId || !Number.isFinite(cost) || cost <= 0 || !Number.isFinite(platformFee) || platformFee < 0) return res.status(400).json({ ok: false, error: 'Некорректные данные оплаты' });
+    const referral = await prisma.referral.findUnique({ where: { id: referralId }, select: { id: true, centerId: true, labId: true } });
+    if (!referral || referral.centerId !== req.params.id) return res.status(404).json({ ok: false, error: 'Направление центра не найдено' });
+    const claimed = await prisma.referral.updateMany({ where: { id: referralId, paid: false }, data: { cost, platformFee, paid: true, paidAt: new Date() } });
+    if (claimed.count !== 1) return res.status(409).json({ ok: false, error: 'Направление уже оплачено' });
+    return res.json({ ok: true, data: await prisma.referral.findUnique({ where: { id: referralId } }) } satisfies ApiResponse);
+  } catch (e: any) { return res.status(400).json({ ok: false, error: e.message } satisfies ApiResponse); }
+});
+diagnosticsRouter.post('/laboratories/:id/cashier/collect', async (req: AuthRequest, res: any) => {
+  try {
+    if (!sameOrgContext(req.user, 'Laboratory', req.params.id)) return res.status(403).json({ ok: false, error: 'Нет доступа к лаборатории' });
+    const referralId = String(req.body?.referralId || '');
+    const cost = Number(req.body?.cost);
+    if (!referralId || !Number.isFinite(cost) || cost <= 0) return res.status(400).json({ ok: false, error: 'Некорректные данные оплаты' });
+    const referral = await prisma.referral.findUnique({ where: { id: referralId }, select: { id: true, labId: true } });
+    if (!referral || referral.labId !== req.params.id) return res.status(404).json({ ok: false, error: 'Направление лаборатории не найдено' });
+    const claimed = await prisma.referral.updateMany({ where: { id: referralId, paid: false }, data: { cost, paid: true, paidAt: new Date() } });
+    if (claimed.count !== 1) return res.status(409).json({ ok: false, error: 'Направление уже оплачено' });
+    return res.json({ ok: true, data: await prisma.referral.findUnique({ where: { id: referralId } }) } satisfies ApiResponse);
+  } catch (e: any) { return res.status(400).json({ ok: false, error: e.message } satisfies ApiResponse); }
+});
 diagnosticsRouter.delete('/referrals/:id', requireReferralAccess(), async (req: AuthRequest, res) => { try { await svc.deleteReferral(req.params.id, req.user!.id); return res.json({ ok: true }); } catch (e: any) { return res.status(400).json({ ok: false, error: e.message } satisfies ApiResponse); } });
 diagnosticsRouter.post('/referrals/:id/files', requireReferralAccess(true), async (req: AuthRequest, res) => { try { const { fileName, fileData, fileType, fileSize } = req.body || {}; if (!fileName || !fileData || !fileType) return res.status(400).json({ ok: false, error: 'fileName, fileData и fileType обязательны' }); const data = await svc.uploadReferralFile({ referralId: req.params.id, fileName: String(fileName), fileData: String(fileData), fileType: String(fileType), fileSize: fileSize ? Number(fileSize) : undefined, uploadedBy: req.user!.id }); return res.status(201).json({ ok: true, data } satisfies ApiResponse); } catch (e: any) { return res.status(400).json({ ok: false, error: e.message } satisfies ApiResponse); } });
 diagnosticsRouter.delete('/referral-files/:id', async (req: AuthRequest, res) => { try { const file = await prisma.referralFile.findUnique({ where: { id: req.params.id }, select: { referralId: true } }); if (!file) return res.status(404).json({ ok: false, error: 'File not found' }); const access = await (async () => { const referral = await prisma.referral.findUnique({ where: { id: file.referralId }, select: { clinicId: true, branchId: true, doctorId: true, centerId: true, labId: true } }); if (!referral) return false; return referral.doctorId === req.user!.id ? await referralBranchAllowed(req.user!, referral) : (await assertOrgAccess(req.user!, referral.clinicId) && await referralBranchAllowed(req.user!, referral)) || (referral.centerId ? sameOrgContext(req.user, 'DiagnosticCenter', referral.centerId) : false) || (referral.labId ? sameOrgContext(req.user, 'Laboratory', referral.labId) : false); })(); if (!access) return res.status(403).json({ ok: false, error: 'Нет доступа к файлу' }); await svc.deleteReferralFile(req.params.id, req.user!.id); return res.json({ ok: true }); } catch (e: any) { return res.status(400).json({ ok: false, error: e.message } satisfies ApiResponse); } });
