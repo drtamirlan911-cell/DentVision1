@@ -36,4 +36,22 @@ describe('catalog audience resolution', () => {
     expect(resolveActiveContentContext(req)).toBe('BUYER');
   });
 
+  it('maps authenticated Academy workspace to lecturer catalog access', () => {
+    const req = {
+      user: { role: 'STUDENT', organizationType: 'ACADEMY' },
+      query: {},
+      get: () => undefined,
+    } as any;
+    expect(resolveActiveContentContext(req)).toBe('LECTURER');
+  });
+
+  it('maps authenticated supplier workspace to seller catalog access', () => {
+    const req = {
+      user: { role: 'ASSISTANT', organizationType: 'SUPPLIER_COMPANY' },
+      query: {},
+      get: () => undefined,
+    } as any;
+    expect(resolveActiveContentContext(req)).toBe('SELLER');
+  });
+
 });
