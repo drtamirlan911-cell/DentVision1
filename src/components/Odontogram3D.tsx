@@ -425,6 +425,7 @@ export function SurfaceEditor({ toothNumber, tooth, surfaces, onSave, onCancel }
   const [editedSurfaces, setEditedSurfaces] = useState<ToothSurfaces>(initial.surfaces || {})
   const [paint, setPaint] = useState<ToothStatusKey>('caries')
   const [notes, setNotes] = useState<string>(initial.notes || '')
+  const [diagnosis, setDiagnosis] = useState<string>(initial.diagnosis || '')
 
   const applyWhole = (next: ToothStatusKey) => {
     setStatus(next)
@@ -452,6 +453,7 @@ export function SurfaceEditor({ toothNumber, tooth, surfaces, onSave, onCancel }
     onSave(toothNumber, {
       status,
       surfaces: editedSurfaces,
+      diagnosis: diagnosis.trim() ? diagnosis.trim() : null,
       notes: notes.trim() ? notes.trim() : null,
     })
   }
@@ -562,6 +564,22 @@ export function SurfaceEditor({ toothNumber, tooth, surfaces, onSave, onCancel }
 
       {/* Tooth-level note — the chart toolbar's «Заметка» lands here, and the
           model already carried `notes`; nothing else was reading it. */}
+      <div>
+        <label
+          htmlFor={`tooth-diagnosis-${toothNumber}`}
+          className="block text-[9px] sm:text-[10px] uppercase tracking-wide text-txt-muted font-semibold mb-1.5"
+        >
+          Диагноз
+        </label>
+        <input
+          id={`tooth-diagnosis-${toothNumber}`}
+          value={diagnosis}
+          onChange={(e) => setDiagnosis(e.target.value)}
+          placeholder="Например: K02.1 / глубокий кариес"
+          className="w-full rounded-lg border border-bdr-subtle bg-surface-1 px-2.5 py-2 text-xs text-txt-primary placeholder:text-txt-muted focus:outline-none focus-visible:ring-2 focus-visible:ring-dv-gold/50 mb-3"
+        />
+      </div>
+
       <div>
         <label
           htmlFor={`tooth-note-${toothNumber}`}
