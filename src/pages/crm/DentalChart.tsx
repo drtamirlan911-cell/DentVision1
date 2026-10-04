@@ -4,7 +4,8 @@ import { motion } from 'framer-motion';
 import { Smile, Search, ArrowRight, Save } from 'lucide-react';
 import { useAuth } from '@/store/auth.store';
 import { useDataQuery } from '@/queries/useDataQuery';
-import { Odontogram3D, ToothLegend, SurfaceEditor, AutoTreatmentPlan } from '@/components/Odontogram3D';
+import { AutoTreatmentPlan } from '@/components/Odontogram3D';
+import { ClinicalOdontogram } from '@/components/ClinicalOdontogram';
 import { syncOdontogramToTreatmentPlan } from '@/lib/odontogram-plan-sync';
 import { statusLabel } from '@/lib/odontogram';
 import { VisitDictation } from '@/components/odontogram/VisitDictation';
@@ -191,111 +192,54 @@ export default function DentalChart() {
                     Полная карта
                   </Button>
                 </div>
-                <VisitDictation
-                  teeth={teeth}
-                  onApply={(findings) => {
+                <ClinicalOdontogram
+                  patientTeeth={teeth}
+                  selectedTooth={selectedTooth}
+                  onToothClick={(n) => setSelectedTooth(n)}
+                  onApplyStatus={(n, status) => {
+                    setTeeth((prev) => ({
+                      ...prev,
+                      [n]: {
+                        ...(typeof prev[n] === 'object' ? prev[n] : {}),
+                        status,
+                        ...(status === 'missing' || status === 'extracted' || status === 'implant' ? { surfaces: {} } : {}),
+                      },
+                    }));
+                    setSelectedTooth(n);
+                    setDirty(true);
+                  }}
+                  onToothDataChange={(n, data) => {
+                    setTeeth((prev) => ({
+                      ...prev,
+                      [n]: {
+                        ...(typeof prev[n] === 'object' ? prev[n] : {}),
+                        ...data,
+                      },
+                    }));
+                    setDirty(true);
+                  }}
+                  onAction={(action, tooth) => {
+                    if (!tooth) {
+                      showToast('Сначала выберите зуб', 'error');
+                      return;
+                    }
+                    if (action === 'note') {
+                      setSelectedTooth(tooth);
+                      return;
+                    }
+                    if (action === 'photo') {
+                      navigate(`/crm/patients?patient=${selected.id}&tab=photos`);
+                      return;
+                    }
                     setTeeth((prev) => {
                       const next = { ...prev };
-                      for (const f of findings) {
-                        const current = typeof next[f.tooth] === 'object' ? { ...next[f.tooth] } : {};
-                        if (f.kind === 'planned') {
-                          // A recommendation is not a state. It is recorded on the
-                          // tooth so it is not lost, but it must never repaint the
-                          // chart — the crown the doctor proposed does not exist yet.
-                          const note = `Рекомендовано: ${statusLabel(f.status)}`;
-                          const existing = String(current.notes || '');
-                          next[f.tooth] = {
-                            ...current,
-                            notes: existing.includes(note) ? existing : [existing, note].filter(Boolean).join('; '),
-                          };
-                          continue;
-                        }
-                        next[f.tooth] = {
-                          ...current,
-                          status: f.status,
-                          ...(f.surfaces.length > 0
-                            ? {
-                                surfaces: {
-                                  ...(typeof current.surfaces === 'object' ? current.surfaces : {}),
-                                  ...Object.fromEntries(f.surfaces.map((s) => [s, f.status])),
-                                },
-                              }
-                            : {}),
-                          // Same rule the toolbar follows: a tooth that is gone
-                          // cannot keep surface paint from when it was there.
-                          ...(f.status === 'missing' || f.status === 'extracted' || f.status === 'implant'
-                            ? { surfaces: {} }
-                            : {}),
-                        };
-                      }
+                      delete next[tooth];
+                      delete next[String(tooth)];
                       return next;
                     });
                     setDirty(true);
                   }}
                 />
-                <div className="overflow-x-auto w-full">
-                  <ToothLegend />
-                  <Odontogram3D
-                    patientTeeth={teeth}
-                    onToothClick={(n) => setSelectedTooth(n)}
-                    selectedTooth={selectedTooth}
-                    onApplyStatus={(n, status) => {
-                      setTeeth((prev) => ({
-                        ...prev,
-                        [n]: {
-                          ...(typeof prev[n] === 'object' ? prev[n] : {}),
-                          status,
-                          // A whole-tooth replacement supersedes surface paint;
-                          // leaving it would draw caries on a tooth that is gone.
-                          ...(status === 'missing' || status === 'extracted' || status === 'implant'
-                            ? { surfaces: {} }
-                            : {}),
-                        },
-                      }))
-                      setSelectedTooth(n)
-                      setDirty(true)
-                    }}
-                    onAction={(action, tooth) => {
-                      if (!tooth) {
-                        showToast('Сначала выберите зуб', 'error')
-                        return
-                      }
-                      if (action === 'note') {
-                        setSelectedTooth(tooth)
-                        return
-                      }
-                      if (action === 'photo') {
-                        navigate(`/crm/patients?patient=${selected.id}&tab=photos`)
-                        return
-                      }
-                      setTeeth((prev) => {
-                        const next = { ...prev }
-                        delete next[tooth]
-                        delete next[String(tooth)]
-                        return next
-                      })
-                      setDirty(true)
-                    }}
-                  />
-                </div>
-                {selectedTooth && (
-                  <SurfaceEditor
-                    toothNumber={selectedTooth}
-                    tooth={teeth[selectedTooth]}
-                    onSave={(n, data) => {
-                      setTeeth((prev) => ({
-                        ...prev,
-                        [n]: {
-                          ...(typeof prev[n] === 'object' ? prev[n] : {}),
-                          ...data,
-                        },
-                      }))
-                      setDirty(true)
-                      setSelectedTooth(undefined)
-                    }}
-                    onCancel={() => setSelectedTooth(undefined)}
-                  />
-                )}
                 <AutoTreatmentPlan
                   teeth={teeth}
                   patientId={selected.id}
