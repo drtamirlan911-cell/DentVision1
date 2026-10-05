@@ -162,7 +162,7 @@ export function ClinicalOdontogram({
               <div className="min-w-[720px]">
                 <ToothRow teeth={upper} upper patientTeeth={patientTeeth} selectedTooth={selectedTooth} tool={tool} onApplyStatus={onApplyStatus} onToothClick={onToothClick} toothSize={toothSize} />
                 <div className="mx-auto my-2 h-px w-[96%] bg-bdr-subtle" />
-                <ToothRow teeth={[...lower].reverse()} upper={false} patientTeeth={patientTeeth} selectedTooth={selectedTooth} tool={tool} onApplyStatus={onApplyStatus} onToothClick={onToothClick} toothSize={toothSize} />
+                <ToothRow teeth={lower} upper={false} patientTeeth={patientTeeth} selectedTooth={selectedTooth} tool={tool} onApplyStatus={onApplyStatus} onToothClick={onToothClick} toothSize={toothSize} />
               </div>
             </div>
             <div className="mt-4 flex flex-wrap items-center justify-center gap-x-4 gap-y-1 text-[9px] text-txt-muted">
