@@ -23,12 +23,12 @@ const STATUS_TOOLS: ToothStatusKey[] = ['caries', 'filled', 'crown', 'implant', 
 
 function archPoint(index: number, count: number, upper: boolean) {
   const t = count <= 1 ? 0.5 : index / (count - 1)
-  const x = 5 + t * 90
-  const edgeY = upper ? 27 : 73
-  const centerY = upper ? 45 : 55
-  const curve = 1 - Math.pow(Math.abs(t - 0.5) * 2, 1.55)
+  const x = 4.5 + t * 91
+  const edgeY = upper ? 24 : 76
+  const centerY = upper ? 46 : 54
+  const curve = 1 - Math.pow(Math.abs(t - 0.5) * 2, 1.72)
   const y = edgeY + (centerY - edgeY) * curve
-  const rotation = (upper ? 1 : -1) * (t - 0.5) * 20
+  const rotation = (upper ? 1 : -1) * (t - 0.5) * 24
   return { left: x, top: y, rotation }
 }
 
