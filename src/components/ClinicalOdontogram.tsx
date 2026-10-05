@@ -21,10 +21,52 @@ interface Props {
 
 const STATUS_TOOLS: ToothStatusKey[] = ['caries', 'filled', 'crown', 'implant', 'fracture', 'inflammation', 'missing', 'root', 'veneer', 'endo_ok', 'endo_fail']
 
-function pointOnArch(index: number, count: number, upper: boolean, rx: number, ry: number) {
-  const t = index / Math.max(1, count - 1)
-  const angle = upper ? Math.PI + t * Math.PI : Math.PI - t * Math.PI
-  return { left: 50 + Math.cos(angle) * rx, top: upper ? 47 + Math.sin(angle) * ry : 53 + Math.sin(angle) * ry }
+function toothColumnClass(index: number) {
+  if (index < 2 || index > 13) return 'scale-[0.92]'
+  if (index < 4 || index > 11) return 'scale-[0.96]'
+  return 'scale-100'
+}
+
+function ToothRow({
+  teeth, upper, patientTeeth, selectedTooth, tool, onApplyStatus, onToothClick, toothSize,
+}: {
+  teeth: number[]
+  upper: boolean
+  patientTeeth: PatientTeeth
+  selectedTooth?: number
+  tool: ToothStatusKey | null
+  onApplyStatus?: (n: number, s: string) => void
+  onToothClick: (n: number) => void
+  toothSize: number
+}) {
+  return (
+    <div className={cn('grid grid-cols-16 items-center gap-0.5 sm:gap-1 md:gap-1.5 px-1 sm:px-3', !upper && 'mt-5 sm:mt-7')}>
+      {teeth.map((n, index) => {
+        const t = normalizeTooth(patientTeeth[n] ?? patientTeeth[String(n)])
+        const active = selectedTooth === n
+        return (
+          <div key={n} className={cn('relative flex min-w-0 flex-col items-center justify-center', toothColumnClass(index))}>
+            <span className={cn('mb-1 text-[8px] sm:text-[10px] tabular-nums', active ? 'font-bold text-dv-gold' : 'text-txt-muted')}>{n}</span>
+            <button
+              type="button"
+              aria-label={`Зуб ${n}${t.status && t.status !== 'healthy' ? `, ${statusLabel(t.status)}` : ''}`}
+              onClick={() => { if (tool && onApplyStatus) onApplyStatus(n, tool); onToothClick(n) }}
+              className={cn('relative rounded-xl p-0 transition-transform duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-dv-gold/70', active && 'z-20 scale-110', !active && 'hover:scale-105')}
+            >
+              {active && <span className="absolute -inset-1 rounded-xl border border-dv-gold/80 bg-dv-gold/10" />}
+              <span className="relative block">
+                <AnatomicalToothSvg toothNumber={n} status={t.status} surfaces={t.surfaces} selected={active} size={toothSize} view="buccal" showLabels={false} />
+              </span>
+            </button>
+            <div className="mt-1 flex h-3 items-center justify-center gap-0.5">
+              {t.status !== 'healthy' && t.status !== 'missing' && <span className="h-1.5 w-1.5 rounded-full" style={{ background: STATUS_META[t.status]?.color }} />}
+              {Object.keys(t.surfaces || {}).length > 0 && <span className="text-[7px] text-txt-muted">S</span>}
+            </div>
+          </div>
+        )
+      })}
+    </div>
+  )
 }
 
 export function ClinicalOdontogram({
@@ -39,12 +81,12 @@ export function ClinicalOdontogram({
 }: Props) {
   const [tool, setTool] = useState<ToothStatusKey | null>(null)
   const [open, setOpen] = useState(true)
-  const [toothSize, setToothSize] = useState(42)
+  const [toothSize, setToothSize] = useState(34)
 
   useEffect(() => {
     const measure = () => {
       const w = window.innerWidth
-      setToothSize(w < 430 ? 26 : w < 640 ? 31 : w < 1024 ? 38 : 46)
+      setToothSize(w < 430 ? 20 : w < 640 ? 24 : w < 1024 ? 30 : 34)
     }
     measure()
     window.addEventListener('resize', measure)
@@ -110,25 +152,21 @@ export function ClinicalOdontogram({
 
       <div className="grid xl:grid-cols-[minmax(0,1fr)_330px]">
         <section className="min-w-0 px-2 py-5 sm:px-4 sm:py-7">
-          <div className="relative mx-auto aspect-[1.15/1] w-full max-w-[780px] min-h-[390px] overflow-visible rounded-3xl border border-bdr-subtle bg-surface-1/40">
-            <div className="absolute left-1/2 top-[47%] h-[68%] w-[88%] -translate-x-1/2 -translate-y-1/2 rounded-[50%] border border-dv-gold/10" />
-            <svg className="pointer-events-none absolute inset-0 h-full w-full" viewBox="0 0 600 520" preserveAspectRatio="none" aria-hidden>
-              <path d="M55 255 Q300 20 545 255" fill="none" stroke="currentColor" strokeOpacity=".13" strokeWidth="2" />
-              <path d="M55 275 Q300 500 545 275" fill="none" stroke="currentColor" strokeOpacity=".13" strokeWidth="2" />
-              <path d="M95 260 Q300 80 505 260" fill="none" stroke="currentColor" strokeOpacity=".06" strokeWidth="10" strokeLinecap="round" />
-              <path d="M95 270 Q300 440 505 270" fill="none" stroke="currentColor" strokeOpacity=".06" strokeWidth="10" strokeLinecap="round" />
-              <line x1="300" y1="40" x2="300" y2="480" stroke="currentColor" strokeOpacity=".05" strokeDasharray="4 7" />
-            </svg>
-
-            <div className="absolute left-3 top-3 rounded-lg border border-bdr-subtle bg-surface-1/80 px-2 py-1 text-[9px] uppercase tracking-[.14em] text-txt-muted">Верхняя</div>
-            <div className="absolute bottom-3 left-3 rounded-lg border border-bdr-subtle bg-surface-1/80 px-2 py-1 text-[9px] uppercase tracking-[.14em] text-txt-muted">Нижняя</div>
-
-            {upper.map((n, i) => renderTooth(n, i, true))}
-            {lower.map((n, i) => renderTooth(n, i, false))}
-
-            <div className="absolute left-1/2 top-1/2 z-[1] -translate-x-1/2 -translate-y-1/2 text-center pointer-events-none">
-              <div className="text-[9px] uppercase tracking-[.18em] text-txt-muted/60">FDI</div>
-              <div className="mt-1 text-[10px] text-txt-muted/50">выберите зуб</div>
+          <div className="relative mx-auto w-full max-w-[1180px] rounded-2xl border border-bdr-subtle bg-surface-1/50 px-1 py-5 sm:px-3 sm:py-7">
+            <div className="mb-3 flex items-center justify-center gap-3 text-[9px] uppercase tracking-[.16em] text-txt-muted">
+              <span>Верхняя челюсть</span><span className="h-px w-8 bg-bdr-subtle" />
+              <span className="text-dv-gold/70">FDI</span><span className="h-px w-8 bg-bdr-subtle" />
+              <span>Нижняя челюсть</span>
+            </div>
+            <div className="overflow-x-auto">
+              <div className="min-w-[720px]">
+                <ToothRow teeth={upper} upper patientTeeth={patientTeeth} selectedTooth={selectedTooth} tool={tool} onApplyStatus={onApplyStatus} onToothClick={onToothClick} toothSize={toothSize} />
+                <div className="mx-auto my-2 h-px w-[96%] bg-bdr-subtle" />
+                <ToothRow teeth={[...lower].reverse()} upper={false} patientTeeth={patientTeeth} selectedTooth={selectedTooth} tool={tool} onApplyStatus={onApplyStatus} onToothClick={onToothClick} toothSize={toothSize} />
+              </div>
+            </div>
+            <div className="mt-4 flex flex-wrap items-center justify-center gap-x-4 gap-y-1 text-[9px] text-txt-muted">
+              <span>M — мезиальная</span><span>O — окклюзионная</span><span>D — дистальная</span><span>B — щёчная</span><span>L — язычная</span>
             </div>
           </div>
 
