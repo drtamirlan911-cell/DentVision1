@@ -21,16 +21,23 @@ interface Props {
 
 const STATUS_TOOLS: ToothStatusKey[] = ['caries', 'filled', 'crown', 'implant', 'fracture', 'inflammation', 'missing', 'root', 'veneer', 'endo_ok', 'endo_fail']
 
-function toothColumnClass(index: number) {
-  if (index < 2 || index > 13) return 'scale-[0.92]'
-  if (index < 4 || index > 11) return 'scale-[0.96]'
-  return 'scale-100'
+function archPoint(index: number, count: number, upper: boolean) {
+  const t = count <= 1 ? 0.5 : index / (count - 1)
+  const x = 5 + t * 90
+  const edgeY = upper ? 27 : 73
+  const centerY = upper ? 45 : 55
+  const curve = 1 - Math.pow(Math.abs(t - 0.5) * 2, 1.55)
+  const y = edgeY + (centerY - edgeY) * curve
+  const rotation = (upper ? 1 : -1) * (t - 0.5) * 20
+  return { left: x, top: y, rotation }
 }
 
-function ToothRow({
-  teeth, upper, patientTeeth, selectedTooth, tool, onApplyStatus, onToothClick, toothSize,
+function ArchTooth({
+  n, index, count, upper, patientTeeth, selectedTooth, tool, onApplyStatus, onToothClick, toothSize,
 }: {
-  teeth: number[]
+  n: number
+  index: number
+  count: number
   upper: boolean
   patientTeeth: PatientTeeth
   selectedTooth?: number
@@ -39,32 +46,42 @@ function ToothRow({
   onToothClick: (n: number) => void
   toothSize: number
 }) {
+  const t = normalizeTooth(patientTeeth[n] ?? patientTeeth[String(n)])
+  const active = selectedTooth === n
+  const p = archPoint(index, count, upper)
+
   return (
-    <div className={cn('grid grid-cols-16 items-center gap-0.5 sm:gap-1 md:gap-1.5 px-1 sm:px-3', !upper && 'mt-5 sm:mt-7')}>
-      {teeth.map((n, index) => {
-        const t = normalizeTooth(patientTeeth[n] ?? patientTeeth[String(n)])
-        const active = selectedTooth === n
-        return (
-          <div key={n} className={cn('relative flex min-w-0 flex-col items-center justify-center', toothColumnClass(index))}>
-            <span className={cn('mb-1 text-[8px] sm:text-[10px] tabular-nums', active ? 'font-bold text-dv-gold' : 'text-txt-muted')}>{n}</span>
-            <button
-              type="button"
-              aria-label={`Зуб ${n}${t.status && t.status !== 'healthy' ? `, ${statusLabel(t.status)}` : ''}`}
-              onClick={() => { if (tool && onApplyStatus) onApplyStatus(n, tool); onToothClick(n) }}
-              className={cn('relative rounded-xl p-0 transition-transform duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-dv-gold/70', active && 'z-20 scale-110', !active && 'hover:scale-105')}
-            >
-              {active && <span className="absolute -inset-1 rounded-xl border border-dv-gold/80 bg-dv-gold/10" />}
-              <span className="relative block">
-                <AnatomicalToothSvg toothNumber={n} status={t.status} surfaces={t.surfaces} selected={active} size={toothSize} view="buccal" showLabels={false} />
-              </span>
-            </button>
-            <div className="mt-1 flex h-3 items-center justify-center gap-0.5">
-              {t.status !== 'healthy' && t.status !== 'missing' && <span className="h-1.5 w-1.5 rounded-full" style={{ background: STATUS_META[t.status]?.color }} />}
-              {Object.keys(t.surfaces || {}).length > 0 && <span className="text-[7px] text-txt-muted">S</span>}
-            </div>
-          </div>
-        )
-      })}
+    <div
+      key={n}
+      className="absolute z-10 flex -translate-x-1/2 -translate-y-1/2 flex-col items-center"
+      style={{ left: `${p.left}%`, top: `${p.top}%` }}
+    >
+      <div style={{ transform: `rotate(${p.rotation}deg)` }}>
+        <AnatomicalToothSvg
+          toothNumber={n}
+          status={t.status}
+          surfaces={t.surfaces}
+          selected={active}
+          size={toothSize}
+          view="buccal"
+          showLabels={false}
+          onClick={() => {
+            if (tool && onApplyStatus) onApplyStatus(n, tool)
+            onToothClick(n)
+          }}
+        />
+      </div>
+      <span className={cn(
+        'pointer-events-none absolute whitespace-nowrap text-[8px] tabular-nums sm:text-[10px]',
+        upper ? '-bottom-5 sm:-bottom-6' : '-top-5 sm:-top-6',
+        active ? 'font-semibold text-dv-gold' : 'text-txt-muted',
+      )}>{n}</span>
+      {Object.keys(t.surfaces || {}).length > 0 && (
+        <span className={cn(
+          'pointer-events-none absolute whitespace-nowrap text-[7px] text-txt-muted/80',
+          upper ? '-bottom-8' : '-top-8',
+        )}>{Object.keys(t.surfaces || {}).join(' · ')}</span>
+      )}
     </div>
   )
 }
@@ -81,12 +98,12 @@ export function ClinicalOdontogram({
 }: Props) {
   const [tool, setTool] = useState<ToothStatusKey | null>(null)
   const [open, setOpen] = useState(true)
-  const [toothSize, setToothSize] = useState(34)
+  const [toothSize, setToothSize] = useState(30)
 
   useEffect(() => {
     const measure = () => {
       const w = window.innerWidth
-      setToothSize(w < 430 ? 20 : w < 640 ? 24 : w < 1024 ? 30 : 34)
+      setToothSize(w < 430 ? 22 : w < 640 ? 25 : w < 1024 ? 30 : 34)
     }
     measure()
     window.addEventListener('resize', measure)
@@ -106,29 +123,6 @@ export function ClinicalOdontogram({
     }).length,
     [patientTeeth],
   )
-
-  const renderTooth = (n: number, index: number, upperArch: boolean) => {
-    const t = normalizeTooth(patientTeeth[n] ?? patientTeeth[String(n)])
-    const p = pointOnArch(index, upperArch ? upper.length : lower.length, upperArch, 44, 33)
-    const active = selectedTooth === n
-
-    return (
-      <div key={n} className="absolute z-10" style={{ left: `${p.left}%`, top: `${p.top}%`, transform: 'translate(-50%, -50%)' }}>
-        <button
-          type="button"
-          aria-label={`Зуб ${n}${t.status && t.status !== 'healthy' ? `, ${statusLabel(t.status)}` : ''}`}
-          onClick={() => { if (tool && onApplyStatus) onApplyStatus(n, tool); onToothClick(n) }}
-          className={cn('relative rounded-2xl p-0.5 transition-transform duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-dv-gold/70', active && 'scale-110')}
-        >
-          {active && <span className="absolute -inset-1.5 rounded-2xl border border-dv-gold/70 bg-dv-gold/10 shadow-[0_0_20px_rgba(201,169,110,.18)]" />}
-          <span className="relative block">
-            <AnatomicalToothSvg toothNumber={n} status={t.status} surfaces={t.surfaces} selected={active} size={toothSize} view="occlusal" showLabels={false} />
-          </span>
-        </button>
-        <span className={cn('pointer-events-none absolute left-1/2 -translate-x-1/2 whitespace-nowrap text-[9px] sm:text-[10px] tabular-nums', upperArch ? '-top-4 sm:-top-5' : '-bottom-4 sm:-bottom-5', active ? 'font-semibold text-dv-gold' : 'text-txt-muted')}>{n}</span>
-      </div>
-    )
-  }
 
   return (
     <Card padding="none" className="overflow-hidden">
@@ -153,24 +147,23 @@ export function ClinicalOdontogram({
       <div className="grid xl:grid-cols-[minmax(0,1fr)_330px]">
         <section className="min-w-0 px-2 py-5 sm:px-4 sm:py-7">
           <div className="relative mx-auto w-full max-w-[1180px] rounded-2xl border border-bdr-subtle bg-surface-1/50 px-1 py-5 sm:px-3 sm:py-7">
-            <div className="mb-3 flex items-center justify-center gap-3 text-[9px] uppercase tracking-[.16em] text-txt-muted">
-              <span>Верхняя челюсть</span><span className="h-px w-8 bg-bdr-subtle" />
-              <span className="text-dv-gold/70">FDI</span><span className="h-px w-8 bg-bdr-subtle" />
+            <div className="mb-2 flex items-center justify-center gap-3 text-[9px] uppercase tracking-[.16em] text-txt-muted">
+              <span>Верхняя челюсть</span>
+              <span className="text-dv-gold/70">FDI · пациентский вид</span>
               <span>Нижняя челюсть</span>
             </div>
-            <div className="overflow-x-auto">
-              <div className="min-w-[720px]">
-                <ToothRow teeth={upper} upper patientTeeth={patientTeeth} selectedTooth={selectedTooth} tool={tool} onApplyStatus={onApplyStatus} onToothClick={onToothClick} toothSize={toothSize} />
-                <div className="mx-auto my-2 h-px w-[96%] bg-bdr-subtle" />
-                <ToothRow teeth={lower} upper={false} patientTeeth={patientTeeth} selectedTooth={selectedTooth} tool={tool} onApplyStatus={onApplyStatus} onToothClick={onToothClick} toothSize={toothSize} />
-              </div>
+            <div className="relative mx-auto aspect-[1.9/1] min-h-[245px] w-full max-w-[1080px] overflow-visible">
+              <div className="pointer-events-none absolute left-1/2 top-[10%] bottom-[10%] -translate-x-1/2 border-l border-dashed border-dv-gold/30" aria-hidden />
+              <div className="pointer-events-none absolute left-[5%] right-[5%] top-1/2 border-t border-bdr-subtle/60" aria-hidden />
+              {upper.map((n, index) => <ArchTooth key={n} n={n} index={index} count={upper.length} upper patientTeeth={patientTeeth} selectedTooth={selectedTooth} tool={tool} onApplyStatus={onApplyStatus} onToothClick={onToothClick} toothSize={toothSize} />)}
+              {lower.map((n, index) => <ArchTooth key={n} n={n} index={index} count={lower.length} upper={false} patientTeeth={patientTeeth} selectedTooth={selectedTooth} tool={tool} onApplyStatus={onApplyStatus} onToothClick={onToothClick} toothSize={toothSize} />)}
             </div>
-            <div className="mt-4 flex flex-wrap items-center justify-center gap-x-4 gap-y-1 text-[9px] text-txt-muted">
+            <div className="mt-2 flex flex-wrap items-center justify-center gap-x-4 gap-y-1 text-[9px] text-txt-muted">
               <span>M — мезиальная</span><span>O — окклюзионная</span><span>D — дистальная</span><span>B — щёчная</span><span>L — язычная</span>
             </div>
           </div>
 
-          <div className="mt-7 flex flex-wrap justify-center gap-1.5">
+                    <div className="mt-7 flex flex-wrap justify-center gap-1.5">
             {STATUS_TOOLS.map((s) => (
               <button key={s} type="button" aria-pressed={tool === s} onClick={() => setTool(tool === s ? null : s)} className={cn('rounded-lg border px-2 py-1.5 text-[10px] transition-colors', tool === s ? 'border-dv-gold/50 bg-dv-gold/10 text-txt-primary' : 'border-bdr-subtle text-txt-secondary hover:bg-surface-2')}>
                 <i className="mr-1.5 inline-block h-2 w-2 rounded-full" style={{ background: STATUS_META[s]?.color }} />
