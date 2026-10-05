@@ -24,7 +24,7 @@ async function ensureTestBranch(clinicId: string): Promise<string> {
   const existing = await prisma.$queryRaw<Array<{ id: string }>>`
     SELECT "id" FROM "branches"
     WHERE "clinic_id" = ${clinicId} AND "active" = true
-    ORDER BY "isDefault" DESC, "createdAt" ASC
+    ORDER BY "isDefault" DESC, "created_at" ASC
     LIMIT 1
   `
   if (existing[0]?.id) return existing[0].id
@@ -32,7 +32,7 @@ async function ensureTestBranch(clinicId: string): Promise<string> {
   const branchId = randomUUID()
   await prisma.$executeRaw`
     INSERT INTO "branches"
-      ("id", "clinic_id", "code", "name", "active", "isDefault", "createdAt", "updatedAt")
+      ("id", "clinic_id", "code", "name", "active", "isDefault", "created_at", "updated_at")
     VALUES
       (${branchId}, ${clinicId}, ${`E2E-${clinicId.slice(0, 8)}`}, 'E2E Main Branch', true, true, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
   `
