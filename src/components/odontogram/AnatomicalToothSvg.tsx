@@ -1,7 +1,7 @@
 import React from 'react'
 import { useTranslation } from 'react-i18next'
 import { cn } from '@/lib/utils'
-import { getToothMorphology, isUpperArch, type RootPattern } from './toothMorphology'
+import { getToothMorphology, isUpperArch, type RootPattern, type ToothVariant } from './toothMorphology'
 import {
   STATUS_META,
   statusColor,
@@ -100,14 +100,14 @@ function crownPath(pattern: RootPattern): string {
 }
 
 /** Faint internal lines that suggest form without cutting the silhouette. */
-function toothDetail(pattern: RootPattern): React.ReactNode {
+function toothDetail(pattern: RootPattern, variant: ToothVariant): React.ReactNode {
   const wide = pattern === 'molarUpper' || pattern === 'molarLower'
   return (
     <>
       {/* Cervical line: where enamel ends. A soft curve, not a border. */}
       <path d={wide ? 'M9.6 27.4 C15 29.6 25 29.6 30.4 27.4' : 'M14.8 27.2 C17 29 23 29 25.2 27.2'} />
       {/* Developmental lobe on the crown face. */}
-      {wide && <path d="M20 34 C20.4 40 20.4 46 20 51" />}
+      {wide && <path d="M20 34 C20.4 40 20.4 46 20 51" />}\n      {variant === 'centralIncisor' && <path d="M17.1 31 C17.6 38 17.7 44 17.5 49" />}\n      {variant === 'lateralIncisor' && <path d="M20 31 C20.2 37 20.3 43 20.1 49" />}\n      {variant === 'canine' && <path d="M20 29 L20 48" />}\n      {variant === 'upperPremolar1' && <><path d="M14 38 C16 35.5 18 34.8 20 35.2" /><path d="M20 35.2 C22 34.8 24 35.5 26 38" /><path d="M18.5 43 C19.2 41.2 20.8 41.2 21.5 43" /></>}\n      {variant === 'upperPremolar2' && <path d="M20 35 C20 39 20 44 20 50" />}\n      {variant === 'lowerPremolar' && <path d="M20 34 C18.5 39 18.5 44 20 49 C21.5 44 21.5 39 20 34" />}\n      {(variant === 'upperMolar1' || variant === 'upperMolar2' || variant === 'upperMolar3') && <><path d="M13 34 C15 37 17 39 20 40" /><path d="M27 34 C25 37 23 39 20 40" /></>}\n      {(variant === 'lowerMolar1' || variant === 'lowerMolar2' || variant === 'lowerMolar3') && <path d="M12 39 C16 37 24 37 28 39" />}
     </>
   )
 }
@@ -261,7 +261,7 @@ function occlusalOutline(pattern: RootPattern): string {
 }
 
 /** The fissure pattern inside the occlusal table — what makes it read as a tooth. */
-function occlusalFissures(pattern: RootPattern): React.ReactNode {
+function occlusalFissures(pattern: RootPattern, variant: ToothVariant): React.ReactNode {
   switch (pattern) {
     case 'incisor':
       return <path d="M20 11 L20 29" />
@@ -275,7 +275,7 @@ function occlusalFissures(pattern: RootPattern): React.ReactNode {
     case 'premolar1':
     case 'premolar2':
       // One central groove running mesiodistally between the two cusps.
-      return <path d="M11.5 20 C15 18.5 25 18.5 28.5 20" />
+      return variant === 'lowerPremolar' ? <path d="M11.5 20 C15 18 25 22 28.5 20" /> : <path d="M11.5 20 C15 18.5 25 18.5 28.5 20" />
     case 'molarUpper':
     case 'molarLower':
     default:
@@ -462,7 +462,7 @@ function OcclusalTooth({
       {/* Cusp shading: a soft inner ring so the table reads as domed, not flat. */}
       <path d={outline} fill="none" stroke="#FFFFFF" strokeOpacity="0.55" strokeWidth="1.6" transform="scale(0.9) translate(2.2 2.2)" />
       <g fill="none" stroke="#A8967F" strokeOpacity="0.75" strokeWidth="1.1" strokeLinecap="round">
-        {occlusalFissures(pattern)}
+        {occlusalFissures(pattern, morph.variant)}
       </g>
       {isImplant ? (
         <g>
@@ -654,7 +654,7 @@ export function AnatomicalToothSvg({
 
               {!isRootOnly && (
                 <g fill="none" stroke="#B79E82" strokeOpacity="0.45" strokeWidth="0.8" strokeLinecap="round">
-                  {toothDetail(morph.pattern)}
+                  {toothDetail(morph.pattern, morph.variant)}
                 </g>
               )}
 
