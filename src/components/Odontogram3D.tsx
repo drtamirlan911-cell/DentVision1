@@ -299,6 +299,44 @@ export function Odontogram3D({
         </div>
       </div>
 
+      {selectedTooth && (
+        <div className="mx-3 mb-2 rounded-xl border border-bdr-subtle bg-surface-1/70 p-3 sm:p-4" data-testid="selected-tooth-anatomy">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div>
+              <p className="m-0 text-[10px] font-semibold uppercase tracking-[0.12em] text-txt-muted">Анатомия выбранного зуба</p>
+              <p className="mt-1 mb-0 text-sm font-semibold text-txt-primary">Зуб {selectedTooth} · {selectedMorph?.label || 'анатомическая модель'}</p>
+            </div>
+            <span className="rounded-full border border-dv-gold/30 bg-dv-gold/10 px-2 py-1 text-[10px] text-dv-gold">
+              {tipStatus && tipStatus !== 'healthy' ? (STATUS_META[tipStatus]?.label || tipStatus) : 'Без отмеченной патологии'}
+            </span>
+          </div>
+          <div className="mt-3 grid grid-cols-1 sm:grid-cols-[150px_1fr] items-center gap-4">
+            <div className="relative mx-auto h-32 w-24 rounded-[46%_46%_38%_38%] border-2 border-txt-muted/40 bg-surface-2 shadow-inner">
+              <div className="absolute left-1/2 top-3 h-16 w-14 -translate-x-1/2 rounded-[45%] border border-txt-muted/50 bg-surface-0" title="Crown" />
+              <div className="absolute left-1/2 top-[4.5rem] h-9 w-7 -translate-x-1/2 rounded-full border border-txt-muted/40 bg-surface-1" title="Dentin" />
+              <div className="absolute left-1/2 top-[5.8rem] h-6 w-3 -translate-x-1/2 rounded-full border border-dv-gold/70 bg-dv-gold/20" title="Pulp" />
+              <div className="absolute left-1/2 top-[7.2rem] h-11 w-1 -translate-x-1/2 rounded-full bg-txt-muted/50" title="Nerve" />
+              <div className="absolute left-[calc(50%-1px)] top-[9rem] h-5 w-0.5 bg-txt-muted/40" title="Root" />
+              <span className="absolute -bottom-5 left-1/2 -translate-x-1/2 whitespace-nowrap text-[9px] text-txt-muted">Crown · Dentin · Pulp · Nerve · Root</span>
+            </div>
+            <div className="grid grid-cols-2 sm:grid-cols-5 gap-1.5">
+              {[
+                ['Crown','Коронка'],
+                ['Dentin','Дентин'],
+                ['Pulp','Пульпа'],
+                ['Nerve','Нерв'],
+                ['Root','Корень'],
+              ].map(([key,label]) => (
+                <div key={key} className="rounded-lg border border-bdr-subtle bg-surface-2 px-2 py-2 text-center">
+                  <p className="m-0 text-[10px] font-semibold text-txt-primary">{key}</p>
+                  <p className="m-0 mt-0.5 text-[9px] text-txt-muted">{label}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
       {tipTooth && tipMorph && (
         <p className="px-4 md:px-5 pb-1 text-center text-[11px] text-txt-secondary m-0">
           {t('diagnostics.tooth')} <span className="text-dv-gold font-semibold">{tipTooth}</span>{' · '}{tipMorph.label}
