@@ -3,7 +3,38 @@ import prisma from '../../lib/prisma.js';
 import { commissionMinor } from '../../lib/money.js';
 import { writeRevenue, revenueSourceForDomain } from './revenue.service.js';
 
-const DEFAULT_COMMISSION_BPS = 1000; // 10%
+/**
+ * Canonical platform defaults. Scope-specific CommissionRule rows may override
+ * the rate, but the safety floor/cap remains domain policy unless a future
+ * explicit rule schema overrides those values.
+ *
+ * Amounts are minor KZT units (tiyn). The previous universal 10% fallback was
+ * not the DentVision economics policy and made an unset commission rule
+ * silently overcharge some domains.
+ */
+const DEFAULT_COMMISSION_POLICY: Record<string, { bps: number; minMinor?: bigint; maxMinor?: bigint }> = {
+  diagnostics: { bps: 700, minMinor: 50_000n, maxMinor: 300_000n }, // 7%, min ₸500, cap ₸3,000
+  diagnostic: { bps: 700, minMinor: 50_000n, maxMinor: 300_000n },
+  medical_lab: { bps: 600, minMinor: 15_000n, maxMinor: 250_000n }, // 6%, min ₸150, cap ₸2,500
+  medical_lab_order: { bps: 600, minMinor: 15_000n, maxMinor: 250_000n },
+  dental_lab: { bps: 800 }, // 8%
+  shop: { bps: 800 }, // Marketplace standard
+  marketplace: { bps: 800 },
+  school: { bps: 1000 }, // Academy base; tier overrides remain explicit policy data
+  academy: { bps: 1000 },
+};
+
+function defaultCommissionPolicy(domain: string) {
+  return DEFAULT_COMMISSION_POLICY[String(domain || '').toLowerCase()] || { bps: 1000 };
+}
+
+function applyCommissionBounds(amountMinor: bigint, commissionMinor: bigint, policy: { minMinor?: bigint; maxMinor?: bigint }) {
+  if (amountMinor <= 0n || commissionMinor <= 0n) return 0n;
+  let result = commissionMinor;
+  if (policy.minMinor !== undefined && result < policy.minMinor) result = policy.minMinor;
+  if (policy.maxMinor !== undefined && result > policy.maxMinor) result = policy.maxMinor;
+  return result > amountMinor ? amountMinor : result;
+}
 
 export async function getOrCreateWallet(
   ownerType: WalletOwnerType,
@@ -34,7 +65,7 @@ export async function resolveCommissionBps(
   const global = await db.commissionRule.findFirst({
     where: { domain, scopeId: null },
   });
-  return global?.percentBps ?? DEFAULT_COMMISSION_BPS;
+  return global?.percentBps ?? defaultCommissionPolicy(domain).bps;
 }
 
 interface SaleInput {
@@ -64,8 +95,13 @@ interface SaleInput {
  */
 export async function recordSaleTx(input: SaleInput, db: Prisma.TransactionClient) {
   const currency = input.currency || 'KZT';
+  const policy = defaultCommissionPolicy(input.domain);
   const bps = await resolveCommissionBps(input.domain, input.sellerId, db, { branchId: input.branchId, organizationId: input.organizationId });
-  const commission = commissionMinor(input.amountMinor, bps);
+  const commission = applyCommissionBounds(
+    input.amountMinor,
+    commissionMinor(input.amountMinor, bps),
+    policy,
+  );
   const net = input.amountMinor - commission;
 
   const gateway = await getOrCreateWallet('GATEWAY', 'system', currency, db);
@@ -80,7 +116,15 @@ export async function recordSaleTx(input: SaleInput, db: Prisma.TransactionClien
       currency,
       refType: input.refType || input.domain,
       refId: input.refId || null,
-      meta: { bps, commission: commission.toString(), net: net.toString() } as Prisma.InputJsonValue,
+      meta: {
+        bps,
+        commission: commission.toString(),
+        net: net.toString(),
+        policy: {
+          minMinor: policy.minMinor?.toString() ?? null,
+          maxMinor: policy.maxMinor?.toString() ?? null,
+        },
+      } as Prisma.InputJsonValue,
       ledgerEntries: {
         create: [
           { walletId: gateway.id, direction: 'debit', amount: input.amountMinor },
