@@ -44,9 +44,13 @@ function requirePlatformFinance(req: AuthRequest, res: any): boolean {
  */
 function walletOwnershipGuard(req: AuthRequest, ownerType: string, ownerId: string): boolean {
   if (req.user?.role === 'SUPERADMIN') return true;
-  return (ownerType === 'CLINIC' && req.user?.clinicId === ownerId)
-    || req.user?.supplierId === ownerId
-    || req.user?.organizationId === ownerId;
+  if (ownerType === 'CLINIC') return req.user?.clinicId === ownerId;
+  if (ownerType === 'SUPPLIER') return req.user?.supplierId === ownerId;
+  // organizationId alone is not sufficient: it must map to the wallet owner type
+  // represented by the current context. Never let an organization ID authorize
+  // an arbitrary ownerType with the same UUID.
+  if (ownerType === 'PARTNER') return req.user?.organizationId === ownerId;
+  return false;
 }
 
 // Wallet list for current user context
@@ -57,7 +61,7 @@ financeRouter.get('/wallets', async (req: AuthRequest, res) => {
         OR: [
           ...(req.user?.clinicId ? [{ ownerType: 'CLINIC' as any, ownerId: req.user.clinicId }] : []),
           ...(req.user?.supplierId ? [{ ownerType: 'SUPPLIER' as any, ownerId: req.user.supplierId }] : []),
-          ...(req.user?.organizationId ? [{ ownerType: undefined, ownerId: req.user.organizationId }] : []),
+          ...(req.user?.organizationId ? [{ ownerType: 'PARTNER' as any, ownerId: req.user.organizationId }] : []),
         ].filter(Boolean),
       },
     });
