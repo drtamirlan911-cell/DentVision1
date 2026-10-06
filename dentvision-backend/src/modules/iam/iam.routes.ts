@@ -70,7 +70,17 @@ iamRouter.get('/me/contexts', async (req: AuthRequest, res) => {
       prisma.diagnosticCenterMember.findMany({ where: { userId }, select: { id: true, role: true, centerId: true, createdAt: true, center: { select: { id: true, name: true, logo: true } } }, orderBy: { createdAt: 'asc' } }),
       prisma.laboratoryMember.findMany({ where: { userId }, select: { id: true, role: true, labId: true, createdAt: true, lab: { select: { id: true, name: true } } }, orderBy: { createdAt: 'asc' } }),
     ]);
-    const persons = await prisma.person.findMany({ where: { userId }, include: { organization: { select: { id: true, name: true, type: true, logo: true, originalId: true } }, personRoles: { include: { role: true } } } });
+    // Context discovery is a read-model endpoint. A broken/stale canonical Person
+    // graph must not turn the entire workspace switcher into HTTP 500: legacy
+    // memberships are still valid compatibility evidence and authorization remains
+    // enforced by context switching endpoints.
+    const persons = await prisma.person.findMany({
+      where: { userId },
+      include: { organization: { select: { id: true, name: true, type: true, logo: true, originalId: true } }, personRoles: { include: { role: true } } },
+    }).catch((error) => {
+      console.error('IAM contexts: canonical person read failed; using legacy memberships', error);
+      return [];
+    });
     const contexts = buildWorkspaceContexts({ memberships, supplierMemberships, lecturer, diagnosticCenterMemberships, laboratoryMemberships, persons });
 
     // Canonical partner workspaces must remain discoverable from PersonRole
@@ -123,6 +133,9 @@ iamRouter.get('/me/contexts', async (req: AuthRequest, res) => {
           include: { organization: { select: { id: true, name: true, type: true, logo: true, originalId: true } } },
         },
       },
+    }).catch((error) => {
+      console.error('IAM contexts: diagnostic PersonRole read failed; retaining legacy/canonical base contexts', error);
+      return [];
     });
     const canonicalAssignments = await prisma.personRole.findMany({
       where: {
@@ -147,6 +160,9 @@ iamRouter.get('/me/contexts', async (req: AuthRequest, res) => {
           include: { organization: { select: { id: true, name: true, type: true, logo: true, originalId: true } } },
         },
       },
+    }).catch((error) => {
+      console.error('IAM contexts: canonical partner role read failed; retaining base contexts', error);
+      return [];
     });
     for (const assignment of [...canonicalPartnerAssignments, ...canonicalAssignments]) {
       const org = assignment.person.organization;
