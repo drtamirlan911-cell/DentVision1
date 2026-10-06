@@ -1085,3 +1085,17 @@ These changes are route/entry reconciliation only. Existing domain implementatio
 - Replaced Redis-specific daily counter tests with PostgreSQL persistence/failure-path tests.
 - GitHub repository search shows no remaining `ioredis`, `bullmq`, `REDIS_URL`, or direct Redis runtime imports.
 - Required next: verify the new production deploy reaches API listening state and confirm durable queue worker initialization.
+
+
+## 2026-10-06 — PR #302 continuation: diagnostics subscription expiry hardening
+
+### Implemented
+- `5b10b881668c6441cab4cbd4feb3058b9a121191` — corrected `ensureCenterSubscription()` to read the existing subscription's `trial_end` alongside `paid_until`. Existing trial subscriptions can now reach the expiry path instead of remaining effectively active because the expiry timestamp was not loaded.
+
+### Verification state
+- PR #302 head remains at the preceding checkpoint before this fix; the new fix is the next commit on `fix/release-blockers-20261006`.
+- Quality Gate #4429 remains green for the preceding head.
+- CI #3641 remains the required fresh full verification; no release-ready status is inferred while E2E/browser/mobile/role/context/visual/business journeys are pending.
+
+### Next action
+- Continue static/runtime blocker remediation on PR #302 without waiting for CI completion, then verify the exact new head through the full release gate chain.
