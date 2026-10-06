@@ -201,7 +201,7 @@ financeRouter.get('/partner-economics/transparency', requirePermission('finance.
 });
 
 // Ledger integrity check (platform): net of all wallet balances must be 0.
-financeRouter.get('/ledger/health', requirePermission('finance.manage'), async (_req, res) => {
+financeRouter.get('/ledger/health', requirePermission('finance.manage'), async (req, res) => {
   if (!requirePlatformFinance(req, res)) return;
   const net = await ledgerNetBalance();
   return res.json({ ok: true, data: { netBalance: net.toString(), balanced: net === 0n } } satisfies ApiResponse);
