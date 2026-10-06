@@ -128,7 +128,7 @@ diagnosticsRouter.post('/referrals/:id/status', requireReferralAccess(true), asy
 diagnosticsRouter.post('/referrals/:id/mark-paid', requireReferralAccess(true), async (req: AuthRequest, res: any) => {
   try {
     const cost = req.body?.cost === undefined ? undefined : Number(req.body.cost);
-    const platformFee = req.body?.platformFee === undefined ? undefined : Number(req.body.platformFee);
+    const platformFee = undefined;
     if (cost !== undefined && (!Number.isFinite(cost) || cost < 0)) return res.status(400).json({ ok: false, error: 'Некорректная стоимость' });
     if (platformFee !== undefined && (!Number.isFinite(platformFee) || platformFee < 0)) return res.status(400).json({ ok: false, error: 'Некорректная комиссия' });
     const won = await claimReferralPaid(req.params.id, { paid: true, paidAt: new Date(), ...(cost !== undefined ? { cost } : {}), ...(platformFee !== undefined ? { platformFee } : {}) });
@@ -142,11 +142,11 @@ diagnosticsRouter.post('/centers/:id/cashier/collect', async (req: AuthRequest, 
     if (!sameOrgContext(req.user, 'DiagnosticCenter', req.params.id)) return res.status(403).json({ ok: false, error: 'Нет доступа к центру' });
     const referralId = String(req.body?.referralId || '');
     const cost = Number(req.body?.cost);
-    const platformFee = Number(req.body?.platformFee || 0);
-    if (!referralId || !Number.isFinite(cost) || cost <= 0 || !Number.isFinite(platformFee) || platformFee < 0) return res.status(400).json({ ok: false, error: 'Некорректные данные оплаты' });
+    const platformFee = undefined;
+    if (!referralId || !Number.isFinite(cost) || cost <= 0) return res.status(400).json({ ok: false, error: 'Некорректные данные оплаты' });
     const referral = await prisma.referral.findUnique({ where: { id: referralId }, select: { id: true, centerId: true, labId: true } });
     if (!referral || referral.centerId !== req.params.id) return res.status(404).json({ ok: false, error: 'Направление центра не найдено' });
-    const claimed = await prisma.referral.updateMany({ where: { id: referralId, paid: false }, data: { cost, platformFee, paid: true, paidAt: new Date() } });
+    const claimed = await prisma.referral.updateMany({ where: { id: referralId, paid: false }, data: { cost, paid: true, paidAt: new Date() } });
     if (claimed.count !== 1) return res.status(409).json({ ok: false, error: 'Направление уже оплачено' });
     return res.json({ ok: true, data: await prisma.referral.findUnique({ where: { id: referralId } }) } satisfies ApiResponse);
   } catch (e: any) { return res.status(400).json({ ok: false, error: e.message } satisfies ApiResponse); }
