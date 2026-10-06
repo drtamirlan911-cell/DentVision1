@@ -439,6 +439,7 @@ function OcclusalTooth({
   status,
   surfaces,
   pattern,
+  variant,
   selected,
 }: {
   toothNumber: number
@@ -589,6 +590,7 @@ export function AnatomicalToothSvg({
           status={status}
           surfaces={surfaces}
           pattern={morph.pattern}
+          variant={morph.variant}
           selected={selected}
         />
       </svg>,
