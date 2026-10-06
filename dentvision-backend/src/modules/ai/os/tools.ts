@@ -19,7 +19,7 @@ import { applyToothFindings as applyToothFindingsToChart, isValidFdi } from '../
 import { searchClinicalNotes } from '../lib/clinicalSearch.js';
 import { uid } from '../../../lib/helpers.js';
 import { publish } from '../../../lib/events.js';
-import { isClinicMember, resolveClinicAccess } from '../../../lib/orgContext.js';
+import { resolveClinicAccess } from '../../../lib/orgContext.js';
 import { buildClinicLoadPlan } from '../core/clinicLoadPlan.js';
 import { scrubToolOutput } from '../lib/piiScrubber.js';
 import { createReferral } from '../../diagnostics/diagnostics.service.js';
