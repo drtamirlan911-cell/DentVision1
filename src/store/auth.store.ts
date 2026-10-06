@@ -5,6 +5,7 @@ import { API_URL } from '@/utils/apiOrigin'
 import { useGuestStore } from './guest.store'
 import { useAIStore } from './ai.store'
 import { INIT_CLINICS, INIT_USERS, gid } from '@/utils/constants'
+import { workspaceContextFrom } from '@/lib/workspaceContext'
 
 // ─── Role config (moved from AuthContext) ───
 
@@ -182,7 +183,12 @@ async function applySignIn(set: (partial: Partial<AuthState>) => void, result: a
   let permissions: string[] = Array.isArray(result.permissions) ? result.permissions : []; let pages: string[] = Array.isArray(result.pages) ? result.pages : []; let effectiveRole: string | null = result.effectiveRole || null
   let capabilities = result.capabilities || { canSeeSalary: false, canAddStaff: false, canSeeAudit: false, canBackup: false, canSeeReports: false, canSeeExpenses: false, canManageClinicSettings: false, canManageFinance: false, ownDataOnly: false, readOnly: false }
   if (!user || result.memberships === undefined) { const me = await hydrateAuthFromMe(); user = me.user; memberships = me.memberships; activeMembership = pickActiveMembership(me.activeMembership, memberships); permissions = me.permissions; pages = me.pages; effectiveRole = me.effectiveRole; capabilities = me.capabilities }
-  set({ user, token: accessToken, refreshToken, clinic: buildClinicFromMembership(activeMembership), clinics: memberships, workspaceContexts, activeWorkspace: resolveWorkspaceFromToken(workspaceContexts, accessToken) || workspaceContexts.find((w) => w.scopeType === 'CLINIC' && w.scopeId === (user as any)?.clinicId) || workspaceContexts[0] || null, activeMembership, activeClinic: buildClinicFromMembership(activeMembership), permissions, pages, effectiveRole, capabilities, loading: false, error: null })
+  const activeWorkspace = resolveWorkspaceFromToken(workspaceContexts, accessToken)
+    || workspaceContexts.find((w) => w.scopeType === 'CLINIC' && w.scopeId === (user as any)?.clinicId)
+    || workspaceContexts[0]
+    || null
+  if (activeWorkspace) api.setWorkspaceContext(workspaceContextFrom(activeWorkspace, permissions))
+  set({ user, token: accessToken, refreshToken, clinic: buildClinicFromMembership(activeMembership), clinics: memberships, workspaceContexts, activeWorkspace, activeMembership, activeClinic: buildClinicFromMembership(activeMembership), permissions, pages, effectiveRole, capabilities, loading: false, error: null })
   useGuestStore.getState().clearGuest()
 }
 
@@ -226,6 +232,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
           || workspaceContexts.find((w) => w.scopeType === 'CLINIC' && w.scopeId === me.activeMembership?.clinicId)
           || workspaceContexts[0]
           || null;
+        if (activeWorkspace) api.setWorkspaceContext(workspaceContextFrom(activeWorkspace, me.permissions))
         set({ user: me.user, token: accessToken, refreshToken, clinic: activeWorkspace?.scopeType === 'CLINIC' ? buildClinicFromMembership(me.activeMembership) : null, clinics: me.memberships, workspaceContexts, activeWorkspace, activeMembership: activeWorkspace?.scopeType === 'CLINIC' ? me.activeMembership : null, activeClinic: activeWorkspace?.scopeType === 'CLINIC' ? buildClinicFromMembership(me.activeMembership) : null, permissions: me.permissions, pages: me.pages, effectiveRole: me.effectiveRole || null, capabilities: me.capabilities });
       } catch {
         api.clearTokens();
@@ -238,7 +245,10 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   login: async (loginStr, password) => { set({ loading: true, error: null }); try { await applySignIn(set, await api.login(loginStr, password)); return true } catch (err) { set({ loading: false, error: (err as Error).message || 'Login failed' }); return false } },
   loginWithGoogle: async (idToken) => { set({ loading: true, error: null }); try { await applySignIn(set, await api.googleSignIn(idToken)); return true } catch (err) { set({ loading: false, error: (err as Error).message || 'Google sign-in failed' }); return false } },
   logout: () => { try { useAIStore.getState().resetAI() } catch { /* ignore */ }; api.clearTokens(); set({ user: null, token: null, refreshToken: null, clinic: null, clinics: [], activeMembership: null, activeClinic: null, permissions: [], pages: [], effectiveRole: null, workspaceContexts: [], activeWorkspace: null, capabilities: { canSeeSalary: false, canAddStaff: false, canSeeAudit: false, canBackup: false, canSeeReports: false, canSeeExpenses: false, canManageClinicSettings: false, canManageFinance: false, ownDataOnly: false, readOnly: false }, loading: false, error: null }) },
-  register: async (formData) => { set({ loading: true, error: null }); try { const result = await api.register(formData); const { accessToken, refreshToken } = result.tokens || result; if (accessToken) api.setTokens(accessToken, refreshToken); let user = normalizeUser(result.user); let memberships = mapMemberships(result.memberships || []); let activeMembership = pickActiveMembership(mapActiveMembership(result.activeMembership), memberships); let permissions: string[] = Array.isArray(result.permissions) ? result.permissions : []; if (accessToken && (!user || result.memberships === undefined)) { const me = await hydrateAuthFromMe(); user = me.user; memberships = me.memberships; activeMembership = pickActiveMembership(me.activeMembership, memberships); permissions = me.permissions } set({ user, token: accessToken || null, refreshToken: refreshToken || null, clinic: buildClinicFromMembership(activeMembership), clinics: memberships, workspaceContexts: (await api.getMyContexts().catch(() => ({ contexts: [] }))).contexts || [], activeWorkspace: null, activeMembership, activeClinic: buildClinicFromMembership(activeMembership), permissions, loading: false, error: null }); useGuestStore.getState().clearGuest(); return true } catch (err) { set({ loading: false, error: (err as Error).message || 'Registration failed' }); return false } },
+  register: async (formData) => { set({ loading: true, error: null }); try { const result = await api.register(formData); const { accessToken, refreshToken } = result.tokens || result; if (accessToken) api.setTokens(accessToken, refreshToken); let user = normalizeUser(result.user); let memberships = mapMemberships(result.memberships || []); let activeMembership = pickActiveMembership(mapActiveMembership(result.activeMembership), memberships); let permissions: string[] = Array.isArray(result.permissions) ? result.permissions : []; if (accessToken && (!user || result.memberships === undefined)) { const me = await hydrateAuthFromMe(); user = me.user; memberships = me.memberships; activeMembership = pickActiveMembership(me.activeMembership, memberships); permissions = me.permissions } const workspaceContexts = ((await api.getMyContexts().catch(() => ({ contexts: [] }))).contexts || []) as WorkspaceContext[]
+      const activeWorkspace = resolveWorkspaceFromToken(workspaceContexts, accessToken) || workspaceContexts.find((w) => w.scopeType === 'CLINIC' && w.scopeId === activeMembership?.clinicId) || workspaceContexts[0] || null
+      if (activeWorkspace) api.setWorkspaceContext(workspaceContextFrom(activeWorkspace, permissions))
+      set({ user, token: accessToken || null, refreshToken: refreshToken || null, clinic: buildClinicFromMembership(activeMembership), clinics: memberships, workspaceContexts, activeWorkspace, activeMembership, activeClinic: buildClinicFromMembership(activeMembership), permissions, loading: false, error: null }); useGuestStore.getState().clearGuest(); return true } catch (err) { set({ loading: false, error: (err as Error).message || 'Registration failed' }); return false } },
   forgotPassword: async (loginStr) => { try { return await api.forgotPassword(loginStr) } catch { return { error: 'Ошибка соединения' } } },
 
   refresh: async () => {
