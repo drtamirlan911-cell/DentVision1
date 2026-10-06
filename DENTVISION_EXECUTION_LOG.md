@@ -1150,3 +1150,16 @@ These changes are route/entry reconciliation only. Existing domain implementatio
 ## 2026-10-06 — PR #302 continuation: Diagnostics financial input hardening
 
 - `be0c4186947f6d150bd57a474fbd1b01b9a104b6` — removed client-supplied `platformFee` from referral payment/status paths. Commission is now derived server-side instead of accepting a caller-controlled fee value.
+
+
+## 2026-10-06 — PR #302 continuation: referral destination and signing authorization hardening
+
+### Implemented
+- `c85f58d6d09f54befee84dd83f1d72da28ad9393` — referral create/update now validates selected diagnostic center/laboratory through the canonical visibility + active-subscription boundary before accepting destination IDs.
+- `bb27922d714193f1be2b2f7fb8719a815f2577d2` — removed the remaining client-controlled `platformFee` parameter from referral status mutation; Diagnostics commission is always derived server-side from the canonical 7% / ₸500 min / ₸3,000 cap policy.
+- `112b237f757300ee0a37cc196b21529d2aa31361` — diagnostic result signing now requires an authorized clinical user and, when the referral has an assigned doctor, only that assigned doctor can sign. The signed user is no longer trusted merely because a caller can supply a doctor ID to the service.
+
+### Verification state
+- Exact PR #302 head after these changes: `112b237f757300ee0a37cc196b21529d2aa31361`.
+- Fresh CI is pending on the exact head; previous Quality Gate results are not treated as current-head evidence.
+- Static audit continues while CI runs.
