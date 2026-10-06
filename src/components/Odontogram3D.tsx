@@ -188,163 +188,72 @@ export function Odontogram3D({
     onToothClick(n)
   }
 
-  const Midline = () => (
-    <div className="w-px self-stretch shrink-0 mx-1.5 md:mx-2.5 bg-bdr-subtle" aria-hidden />
-  )
+  const archCurve = (index: number, count: number, upper: boolean) => {
+    const center = (count - 1) / 2
+    const normalized = center === 0 ? 0 : (index - center) / center
+    const curve = Math.cos(normalized * Math.PI / 2)
+    const rotation = upper ? normalized * 18 : normalized * -18
+    const translateY = upper ? curve * 38 : curve * -38
+    return { rotation, translateY }
+  }
 
-  const numberRow = (teeth: readonly number[], key: string) => (
-    <div className="flex items-center justify-center" key={key}>
-      {teeth.slice(0, half).map((n) => (
-        <span
-          key={n}
-          style={{ width: cell }}
-          className={cn(
-            'text-center text-[10px] tabular-nums leading-none shrink-0',
-            selectedTooth === n || hovered === n ? 'text-dv-gold font-semibold' : 'text-txt-muted',
-          )}
+  const curvedArch = (teeth: readonly number[], upper: boolean) => {
+    const toothCount = teeth.length
+    const isPrimary = toothCount < 16
+    const cell = isPrimary ? 'clamp(27px, 5.8vw, 42px)' : 'clamp(24px, 4.9vw, 42px)'
+    const chartWidth = isPrimary ? 'min(620px, 100%)' : 'min(760px, 100%)'
+
+    return (
+      <div className="relative mx-auto w-full overflow-visible" style={{ maxWidth: chartWidth }}>
+        <div
+          className="relative mx-auto h-[154px] sm:h-[174px] md:h-[194px]"
+          style={{ width: '100%' }}
+          role="group"
+          aria-label={upper ? 'Верхняя зубная дуга' : 'Нижняя зубная дуга'}
         >
-          {n}
-        </span>
-      ))}
-      <Midline />
-      {teeth.slice(half).map((n) => (
-        <span
-          key={n}
-          style={{ width: cell }}
-          className={cn(
-            'text-center text-[10px] tabular-nums leading-none shrink-0',
-            selectedTooth === n || hovered === n ? 'text-dv-gold font-semibold' : 'text-txt-muted',
-          )}
-        >
-          {n}
-        </span>
-      ))}
-    </div>
-  )
-
-  const toothRow = (teeth: readonly number[], view: 'buccal' | 'occlusal', upper: boolean) => (
-    <div className={cn('flex justify-center', upper ? 'items-end' : 'items-start')}>
-      {teeth.slice(0, half).map((n) => {
-        const d = toothOf(n)
-        return (
-          <div key={n} style={{ width: cell }} className="flex justify-center shrink-0">
-            <AnatomicalToothSvg
-              toothNumber={n}
-              status={d.status}
-              surfaces={d.surfaces}
-              selected={selectedTooth === n}
-              onClick={() => handleTooth(n)}
-              onHover={setHovered}
-              size={toothSize}
-              view={view}
-              showLabels={false}
-            />
-          </div>
-        )
-      })}
-      <Midline />
-      {teeth.slice(half).map((n) => {
-        const d = toothOf(n)
-        return (
-          <div key={n} style={{ width: cell }} className="flex justify-center shrink-0">
-            <AnatomicalToothSvg
-              toothNumber={n}
-              status={d.status}
-              surfaces={d.surfaces}
-              selected={selectedTooth === n}
-              onClick={() => handleTooth(n)}
-              onHover={setHovered}
-              size={toothSize}
-              view={view}
-              showLabels={false}
-            />
-          </div>
-        )
-      })}
-    </div>
-  )
-
-  /** R/L side markers, as on a printed chart. */
-  const sideLabel = (side: 'R' | 'L', jaw: string) => (
-    <div className="flex flex-col items-center justify-center gap-0.5 rounded-lg border border-bdr-subtle px-2 py-2 shrink-0">
-      <span className="text-xs font-semibold text-txt-secondary leading-none">{side}</span>
-      <span className="text-[9px] text-txt-muted leading-none">{jaw}</span>
-    </div>
-  )
-
-  const archBlock = (teeth: readonly number[], view: 'buccal' | 'occlusal', upper: boolean, jaw: string) => (
-    <div className="flex items-stretch justify-center gap-2 md:gap-3">
-      {sideLabel('R', jaw)}
-      <div className="flex-1 min-w-0 flex justify-center">{toothRow(teeth, view, upper)}</div>
-      {sideLabel('L', jaw)}
-    </div>
-  )
-
-  const hoveredMorph = hovered ? getToothMorphology(hovered) : null
-  const selectedMorph = selectedTooth ? getToothMorphology(selectedTooth) : null
-  const tipTooth = hovered ?? selectedTooth
-  const tipMorph = hoveredMorph ?? selectedMorph
-  const tipStatus = tipTooth ? toothOf(tipTooth).status : undefined
-
-  const STATUS_TOOLS_PRIMARY = ['caries', 'filled', 'crown', 'implant']
-  const STATUS_TOOLS_SECONDARY = ['extracted', 'fracture', 'inflammation', 'missing']
-  /** Everything else the model knows — kept reachable, not dropped. */
-  const STATUS_TOOLS_MORE = WHOLE_TOOTH_STATUSES.filter(
-    (s) => !STATUS_TOOLS_PRIMARY.includes(s) && !STATUS_TOOLS_SECONDARY.includes(s) && s !== 'healthy',
-  )
-
-  return (
-    <Card padding="none" className="overflow-hidden max-w-full">
-      {/* ── Header: title · dentition · history ── */}
-      <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3.5 md:px-5">
-        <h3 className="text-base font-semibold text-txt-primary m-0">{t('diagnostics.odontogram')}</h3>
-
-        <div className="flex items-center gap-1 rounded-lg border border-bdr-subtle p-0.5">
-          {(['permanent', 'primary'] as const).map((m) => (
-            <button
-              key={m}
-              type="button"
-              onClick={() => setMode(m)}
-              aria-pressed={mode === m}
-              className={cn(
-                'rounded-md px-3 py-1.5 text-xs font-medium transition-colors',
-                'focus:outline-none focus-visible:ring-2 focus-visible:ring-dv-gold/50',
-                mode === m ? 'bg-surface-2 text-txt-primary shadow-sm' : 'text-txt-muted hover:text-txt-secondary',
-              )}
-            >
-              {m === 'permanent' ? t('diagnostics.permanent_teeth') : t('diagnostics.primary_teeth')}
-            </button>
-          ))}
-        </div>
-
-        {onHistoryClick ? (
-          <Button size="sm" variant="secondary" onClick={onHistoryClick} icon={<History size={14} />}>
-            {t('diagnostics.change_history')}
-          </Button>
-        ) : (
-          <span className="text-[11px] text-txt-muted">
-            {tool ? t('diagnostics.tool_hint_active', { tool: STATUS_META[tool]?.label || tool }) : t('diagnostics.click_status')}
-          </span>
-        )}
-      </div>
-
-      {/* ── The chart ── */}
-      <div className="overflow-x-auto overscroll-x-contain px-3 pb-2 md:px-5">
-        <div className="min-w-max mx-auto space-y-1.5 py-2">
-          {numberRow(upperTeeth, 'up-top')}
-          {archBlock(upperTeeth, 'buccal', true, t('diagnostics.jaw_upper_short'))}
-          {numberRow(upperTeeth, 'up-bottom')}
-
-          <div className="h-2" />
-          {toothRow(upperTeeth, 'occlusal', true)}
-          {toothRow(lowerTeeth, 'occlusal', false)}
-          <div className="h-2" />
-
-          {numberRow(lowerTeeth, 'low-top')}
-          {archBlock(lowerTeeth, 'buccal', false, t('diagnostics.jaw_lower_short'))}
-          {numberRow(lowerTeeth, 'low-bottom')}
+          {teeth.map((n, index) => {
+            const { rotation, translateY } = archCurve(index, toothCount, upper)
+            const tooth = toothOf(n)
+            return (
+              <div
+                key={n}
+                className="absolute left-1/2 top-1/2 flex -translate-x-1/2 -translate-y-1/2 flex-col items-center"
+                style={{
+                  width: cell,
+                  transform: `translate(-50%, calc(-50% + ${translateY}px)) rotate(${rotation}deg)`,
+                }}
+              >
+                <span
+                  className={cn(
+                    'mb-1 text-[9px] font-semibold tabular-nums leading-none transition-colors sm:text-[10px]',
+                    selectedTooth === n || hovered === n ? 'text-dv-gold' : 'text-txt-muted',
+                  )}
+                >
+                  {n}
+                </span>
+                <AnatomicalToothSvg
+                  toothNumber={n}
+                  status={tooth.status}
+                  surfaces={tooth.surfaces}
+                  selected={selectedTooth === n}
+                  onClick={() => handleTooth(n)}
+                  onHover={setHovered}
+                  size={toothSize}
+                  view="buccal"
+                  showLabels={false}
+                />
+              </div>
+            )
+          })}
+          <div
+            aria-hidden
+            className="pointer-events-none absolute left-1/2 top-1/2 h-px w-1/2 -translate-x-1/2 border-t border-dashed border-bdr-subtle/60"
+            style={{ transform: `translate(-50%, ${upper ? '46px' : '-46px'})` }}
+          />
         </div>
       </div>
+    )
+  }
 
       {tipTooth && tipMorph && (
         <p className="px-4 md:px-5 pb-1 text-center text-[11px] text-txt-secondary m-0">
