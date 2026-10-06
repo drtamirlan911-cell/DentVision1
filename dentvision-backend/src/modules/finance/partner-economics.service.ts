@@ -173,7 +173,7 @@ export interface PartnerEconomicsReconciliationRow {
 }
 
 export async function reconcilePartnerEconomics(
-  opts: { from?: Date; to?: Date; partnerId?: string; vertical?: PartnerVertical } = {},
+  opts: { from?: Date; to?: Date; partnerId?: string; vertical?: PartnerVertical; branchId?: string } = {},
   db: Prisma.TransactionClient | typeof prisma = prisma,
 ): Promise<{ rows: PartnerEconomicsReconciliationRow[]; discrepancies: number }> {
   const where: Prisma.TransactionWhereInput = { type: 'partner_economics' };
@@ -182,6 +182,12 @@ export async function reconcilePartnerEconomics(
   if (opts.partnerId) where.meta = { path: ['partnerId'], equals: opts.partnerId };
   if (opts.branchId) where.meta = { path: ['branchId'], equals: opts.branchId };
   const transactions = await db.transaction.findMany({ where, include: { ledgerEntries: { include: { wallet: { select: { ownerType: true, ownerId: true } } } } }, orderBy: { createdAt: 'asc' } });
+  const scopedTransactions = opts.branchId
+    ? transactions.filter((transaction) => {
+        const meta = (transaction.meta || {}) as Record<string, unknown>;
+        return meta.branchId === opts.branchId;
+      })
+    : transactions;
   const rows = scopedTransactions.map((transaction) => {
     const meta = (transaction.meta || {}) as Record<string, unknown>;
     const grossMinor = BigInt(transaction.amount);
