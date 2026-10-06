@@ -68,7 +68,14 @@ export async function getCenterSubscription(centerId: string) {
   } catch { return null; }
 }
 
-const DIAGNOSTIC_COMMISSION_BPS = 1000;
+const DIAGNOSTIC_COMMISSION_BPS = 700;
+const DIAGNOSTIC_COMMISSION_MIN = 500;
+const DIAGNOSTIC_COMMISSION_MAX = 3000;
+
+function diagnosticPlatformFee(amount: number) {
+  if (!Number.isFinite(amount) || amount <= 0) return 0;
+  return Math.min(DIAGNOSTIC_COMMISSION_MAX, Math.max(DIAGNOSTIC_COMMISSION_MIN, Math.round(amount * DIAGNOSTIC_COMMISSION_BPS / 10_000)));
+}
 
 // ─── Centers ───
 
@@ -417,7 +424,7 @@ export async function changeReferralStatus(id: string, status: ReferralStatus, u
     }
     if (resolvedCost === undefined) throw new Error('Укажите стоимость исследования или установите цену в прайс-листе центра.');
     update.cost = resolvedCost;
-    update.platformFee = platformFee !== undefined ? platformFee : Math.round(Number(resolvedCost) * 0.1);
+    update.platformFee = platformFee !== undefined ? platformFee : diagnosticPlatformFee(Number(resolvedCost));
   }
   if (status === 'COMPLETED') update.completedAt = new Date();
   if (status === 'COMPLETED' && cost !== undefined) { update.cost = cost; update.paid = false; }
