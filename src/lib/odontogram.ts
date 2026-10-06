@@ -230,7 +230,12 @@ export function buildPlanFromOdontogram(teeth: PatientTeeth): PlanRecommendation
         status: 'root',
       })
     }
-    if (status === 'caries') {
+    const cariesSurfaces = SURFACE_KEYS.filter((s) => normalizeSurfaceStatus(surfaces[s]) === 'caries')
+
+    // If the chart already contains surface-level caries, the surface plan is
+    // the precise recommendation. Do not also add the generic whole-tooth
+    // restoration for the same clinical finding.
+    if (status === 'caries' && cariesSurfaces.length === 0) {
       out.push({
         tooth: num,
         procedure: 'Лечение кариеса + реставрация',
@@ -271,7 +276,6 @@ export function buildPlanFromOdontogram(teeth: PatientTeeth): PlanRecommendation
       })
     }
 
-    const cariesSurfaces = SURFACE_KEYS.filter((s) => normalizeSurfaceStatus(surfaces[s]) === 'caries')
     if (cariesSurfaces.length) {
       out.push({
         tooth: num,
