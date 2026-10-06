@@ -1110,3 +1110,14 @@ These changes are route/entry reconciliation only. Existing domain implementatio
 ### Verification state
 - These changes are on `fix/release-blockers-20261006` / PR #302.
 - Fresh full CI remains mandatory; no release-ready status is inferred from Quality Gate #4429 alone.
+
+
+## 2026-10-06 — PR #302 continuation: fail-closed commission resolution
+
+### Implemented
+- `24c3c41a108548c8580e8eaaa21b42ba10d0823f` — removed the remaining universal 10% behavior for unsupported commission domains. If neither a scoped/global rule nor a canonical domain policy exists, Finance now fails closed instead of inventing a fee.
+- `5c592d547f525e116b601ed30c257eb0fa39f488` / `74a8d48c728d658c5913eb38ce236459495fb1bc` — updated Finance regression coverage for canonical defaults and diagnostic minimum-fee behavior.
+
+### Verification state
+- Fresh exact-HEAD Quality Gate/full CI remains mandatory after these commits.
+- The canonical economics document remains authoritative; no new pricing model or conflicting policy was introduced.
