@@ -8,7 +8,7 @@ import { assertOrgAccess, resolveClinicAccess } from '../../lib/orgContext.js';
 import { IinValidationError } from '../../lib/patientIin.js';
 import { canAccessReferralBranch } from '../../lib/diagnosticReferralBranchPolicy.js';
 
-export async function claimReferralPaid(referralId: string, data: { paid: boolean; paidAt?: Date; cost?: number; platformFee?: number }): Promise<boolean> { const result = await (prisma as any).referral.updateMany({ where: { id: referralId, paid: false }, data }); return result.count === 1; }
+export async function claimReferralPaid(referralId: string, data: { paid: boolean; paidAt?: Date; cost?: number }): Promise<boolean> { const result = await (prisma as any).referral.updateMany({ where: { id: referralId, paid: false }, data }); return result.count === 1; }
 function sameOrgContext(user: AuthRequest['user'], type: 'DiagnosticCenter' | 'Laboratory', id: string): boolean { if (!user || !id) return false; if (user.role === 'SUPERADMIN') return true; const expected = type === 'DiagnosticCenter' ? 'DIAGNOSTIC_CENTER' : 'LABORATORY'; const entityId = (user as any).organizationOriginalId || user.organizationId; return entityId === id && (user as any).organizationType === expected; }
 function canManagePartnerBilling(user: AuthRequest['user']): boolean {
   if (!user) return false;
@@ -80,6 +80,7 @@ diagnosticsRouter.get('/lab-tests', async (req: AuthRequest, res) => {
 diagnosticsRouter.patch('/centers/:id/pricing', async (req: AuthRequest, res) => {
   try {
     if (!sameOrgContext(req.user, 'DiagnosticCenter', req.params.id)) return res.status(403).json({ ok: false, error: 'Нет доступа к центру' });
+    if (!canManagePartnerBilling(req.user)) return res.status(403).json({ ok: false, error: 'Недостаточно прав для приёма оплаты' });
     const studies = Array.isArray(req.body?.studies) ? req.body.studies : [];
     const ids = studies.map((x: any) => String(x?.id || '')).filter(Boolean);
     if (!ids.length) return res.json({ ok: true, data: [] } satisfies ApiResponse);
@@ -104,6 +105,7 @@ diagnosticsRouter.post('/centers/:id/pricing', async (req: AuthRequest, res) => 
 diagnosticsRouter.patch('/laboratories/:id/pricing', async (req: AuthRequest, res) => {
   try {
     if (!sameOrgContext(req.user, 'Laboratory', req.params.id)) return res.status(403).json({ ok: false, error: 'Нет доступа к лаборатории' });
+    if (!canManagePartnerBilling(req.user)) return res.status(403).json({ ok: false, error: 'Недостаточно прав для приёма оплаты' });
     const tests = Array.isArray(req.body?.tests) ? req.body.tests : [];
     const ids = tests.map((x: any) => String(x?.id || '')).filter(Boolean);
     if (!ids.length) return res.json({ ok: true, data: [] } satisfies ApiResponse);
