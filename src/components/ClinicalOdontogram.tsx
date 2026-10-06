@@ -24,11 +24,13 @@ const STATUS_TOOLS: ToothStatusKey[] = ['caries', 'filled', 'crown', 'implant', 
 function archPoint(index: number, count: number, upper: boolean) {
   const t = count <= 1 ? 0.5 : index / (count - 1)
   const x = 4.5 + t * 91
-  const edgeY = upper ? 24 : 76
-  const centerY = upper ? 46 : 54
-  const curve = 1 - Math.pow(Math.abs(t - 0.5) * 2, 1.72)
+  const edgeY = upper ? 20 : 80
+  const centerY = upper ? 48 : 52
+  // Stronger U-shape: the first/last molars sit visibly farther back than
+  // the incisors, matching the reference arch instead of a shallow sine wave.
+  const curve = 1 - Math.pow(Math.abs(t - 0.5) * 2, 1.48)
   const y = edgeY + (centerY - edgeY) * curve
-  const rotation = (upper ? 1 : -1) * (t - 0.5) * 24
+  const rotation = (upper ? 1 : -1) * (t - 0.5) * 30
   return { left: x, top: y, rotation }
 }
 
@@ -63,7 +65,7 @@ function ArchTooth({
           surfaces={t.surfaces}
           selected={active}
           size={toothSize}
-          view="buccal"
+          view="occlusal"
           showLabels={false}
           onClick={() => {
             if (tool && onApplyStatus) onApplyStatus(n, tool)
@@ -98,12 +100,15 @@ export function ClinicalOdontogram({
 }: Props) {
   const [tool, setTool] = useState<ToothStatusKey | null>(null)
   const [open, setOpen] = useState(true)
-  const [toothSize, setToothSize] = useState(30)
+  // The reference chart is a crown/occlusal odontogram: large anatomical crowns
+  // arranged on two continuous arches. Roots belong to the selected-tooth detail,
+  // not to the 32-tooth overview.
+  const [toothSize, setToothSize] = useState(44)
 
   useEffect(() => {
     const measure = () => {
       const w = window.innerWidth
-      setToothSize(w < 430 ? 22 : w < 640 ? 25 : w < 1024 ? 30 : 34)
+      setToothSize(w < 390 ? 28 : w < 640 ? 34 : w < 1024 ? 42 : 50)
     }
     measure()
     window.addEventListener('resize', measure)
@@ -147,14 +152,16 @@ export function ClinicalOdontogram({
       <div className="grid xl:grid-cols-[minmax(0,1fr)_330px]">
         <section className="min-w-0 px-2 py-5 sm:px-4 sm:py-7">
           <div className="relative mx-auto w-full max-w-[1180px] rounded-2xl border border-bdr-subtle bg-surface-1/50 px-1 py-5 sm:px-3 sm:py-7">
-            <div className="mb-2 flex items-center justify-center gap-3 text-[9px] uppercase tracking-[.16em] text-txt-muted">
-              <span>Верхняя челюсть</span>
-              <span className="text-dv-gold/70">FDI · пациентский вид</span>
-              <span>Нижняя челюсть</span>
+            <div className="mb-1 flex items-center justify-center text-[9px] uppercase tracking-[.18em] text-txt-muted">
+              <span className="text-dv-gold/75">FDI · пациентский вид · 32 зуба</span>
             </div>
-            <div className="relative mx-auto aspect-[1.9/1] min-h-[245px] w-full max-w-[1080px] overflow-visible">
-              <div className="pointer-events-none absolute left-1/2 top-[10%] bottom-[10%] -translate-x-1/2 border-l border-dashed border-dv-gold/30" aria-hidden />
-              <div className="pointer-events-none absolute left-[5%] right-[5%] top-1/2 border-t border-bdr-subtle/60" aria-hidden />
+            <div className="relative mx-auto aspect-[1.42/1] min-h-[320px] w-full max-w-[1080px] overflow-visible sm:aspect-[1.62/1] sm:min-h-[360px] lg:aspect-[1.9/1] lg:min-h-[400px]">
+              <div className="pointer-events-none absolute left-1/2 top-[7%] bottom-[7%] -translate-x-1/2 border-l border-dashed border-dv-gold/40" aria-hidden />
+              <div className="pointer-events-none absolute left-[6%] right-[6%] top-1/2 border-t border-bdr-subtle/35" aria-hidden />
+              <div className="pointer-events-none absolute left-[25%] top-[18%] h-[10%] border-l border-dashed border-bdr-subtle/25" aria-hidden />
+              <div className="pointer-events-none absolute left-[75%] top-[18%] h-[10%] border-l border-dashed border-bdr-subtle/25" aria-hidden />
+              <div className="pointer-events-none absolute left-[25%] bottom-[18%] h-[10%] border-l border-dashed border-bdr-subtle/25" aria-hidden />
+              <div className="pointer-events-none absolute left-[75%] bottom-[18%] h-[10%] border-l border-dashed border-bdr-subtle/25" aria-hidden />
               {upper.map((n, index) => <ArchTooth key={n} n={n} index={index} count={upper.length} upper patientTeeth={patientTeeth} selectedTooth={selectedTooth} tool={tool} onApplyStatus={onApplyStatus} onToothClick={onToothClick} toothSize={toothSize} />)}
               {lower.map((n, index) => <ArchTooth key={n} n={n} index={index} count={lower.length} upper={false} patientTeeth={patientTeeth} selectedTooth={selectedTooth} tool={tool} onApplyStatus={onApplyStatus} onToothClick={onToothClick} toothSize={toothSize} />)}
             </div>
