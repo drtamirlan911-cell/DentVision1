@@ -326,6 +326,8 @@ export function Odontogram3D({
       )}
     </Card>
   )
+}
+
 interface ToothEditorProps {
   toothNumber: number
   tooth?: string | ToothData
