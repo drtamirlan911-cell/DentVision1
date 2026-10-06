@@ -1099,3 +1099,14 @@ These changes are route/entry reconciliation only. Existing domain implementatio
 
 ### Next action
 - Continue static/runtime blocker remediation on PR #302 without waiting for CI completion, then verify the exact new head through the full release gate chain.
+
+
+## 2026-10-06 — PR #302 continuation: Finance policy/revenue correction
+
+### Implemented
+- `0d81260ec7b87fb90b5868371998a8ae1125ac6b` — aligned the default Dental Laboratory commission with the canonical economics policy: 8% with ₸500 minimum and ₸15,000 cap.
+- Corrected platform Revenue recording to recognize the actual DentVision commission rather than the transaction gross amount. Gross transaction value remains in the Finance transaction/ledger; platform revenue is the commission.
+
+### Verification state
+- These changes are on `fix/release-blockers-20261006` / PR #302.
+- Fresh full CI remains mandatory; no release-ready status is inferred from Quality Gate #4429 alone.
