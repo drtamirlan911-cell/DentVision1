@@ -1131,3 +1131,12 @@ These changes are route/entry reconciliation only. Existing domain implementatio
 
 ### Verification
 - Fresh exact-HEAD CI remains required.
+
+
+## 2026-10-06 — PR #302 continuation: diagnostics lookup IDOR hardening
+
+### Implemented
+- `925457cd189f83680ba17815ca3bf2cbd86d78ea` — `/diagnostics/studies?centerId=...` and `/diagnostics/lab-tests?labId=...` now require the referenced partner entity to pass the canonical visibility/subscription boundary before returning its catalog. Previously an authenticated user could query an arbitrary center/lab ID and bypass the list visibility gate.
+
+### Verification
+- Fresh exact-HEAD Quality Gate and full CI remain mandatory.
