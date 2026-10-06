@@ -260,22 +260,32 @@ function SurfaceOverlays({
  * profile view cannot show which cusp a lesion sits in; this one can.
  * Drawn in a 40×40 box so it lines up column-for-column with the profile row.
  */
-function occlusalOutline(pattern: RootPattern): string {
+function occlusalOutline(pattern: RootPattern, variant?: ToothVariant): string {
   switch (pattern) {
     case 'incisor':
-      // Incisal edge seen from above: a narrow, gently bowed blade.
-      return 'M14.5 11 C14.5 8.6 16.4 7.2 20 7.2 C23.6 7.2 25.5 8.6 25.5 11 L26 29 C26 31.6 23.4 33 20 33 C16.6 33 14 31.6 14 29 Z'
+      // Central incisors are broader and squarer; laterals are narrower and
+      // slightly more rounded. The incisal edge is kept distinct from the root.
+      return variant === 'lateralIncisor'
+        ? 'M15 11 C15.2 8.2 17 6.8 20 6.8 C23 6.8 24.8 8.2 25 11 L25.5 28.5 C25.5 31.3 23.2 33 20 33 C16.8 33 14.5 31.3 14.5 28.5 Z'
+        : 'M13.8 11 C14 8.1 16.1 6.4 20 6.4 C23.9 6.4 26 8.1 26.2 11 L26 29 C25.8 31.8 23.4 33.5 20 33.5 C16.6 33.5 14.2 31.8 14 29 Z'
     case 'canine':
-      // A single cusp pulls the mesial edge to a point.
-      return 'M13.5 13 C13.5 9.6 16 6.4 20 5.4 C24 6.4 26.5 9.6 26.5 13 L27 27.5 C27 31 24 33.4 20 33.4 C16 33.4 13 31 13 27.5 Z'
+      // The canine has a single dominant cusp and a long central ridge.
+      return 'M13 14 C13.1 10.2 15.9 7 20 4.8 C24.1 7 26.9 10.2 27 14 L26.4 27.6 C26.2 31.1 23.8 33.8 20 34 C16.2 33.8 13.8 31.1 13.6 27.6 Z'
     case 'premolar1':
+      // Upper first premolar: distinctly bicuspid with a slightly angular table.
+      return 'M10.2 13.2 C10.8 9.8 14.4 7.2 18.2 7.2 C19.1 7.2 19.8 7.7 20 8.5 C20.2 7.7 20.9 7.2 21.8 7.2 C25.6 7.2 29.2 9.8 29.8 13.2 L29.2 27 C28.7 30.3 25.4 32.6 20 32.8 C14.6 32.6 11.3 30.3 10.8 27 Z'
     case 'premolar2':
-      // Two cusps — an oval, waisted slightly where the fissure crosses.
-      return 'M9.5 14 C9.5 10.4 14 7.8 20 7.8 C26 7.8 30.5 10.4 30.5 14 C30.8 17 30.8 23 30.5 26 C30.5 29.8 26 32.4 20 32.4 C14 32.4 9.5 29.8 9.5 26 C9.2 23 9.2 17 9.5 14 Z'
+      // Upper second premolar: rounder and less angular than the first.
+      return 'M10 14 C10.3 10.2 14.2 7.5 20 7.5 C25.8 7.5 29.7 10.2 30 14 C30.4 17.8 30.2 24 29.8 27 C29.4 30.4 25.6 32.7 20 32.7 C14.4 32.7 10.6 30.4 10.2 27 C9.8 24 9.6 17.8 10 14 Z'
     case 'molarUpper':
+      // Upper molars: rhomboid crown with four principal cuspal corners.
+      return 'M7.2 13 C8 9.2 12.3 6.2 18 6.2 C19 6.2 19.7 6.7 20.3 7.4 C21 6.7 22 6.2 23 6.2 C28.2 6.2 32.2 9.3 32.8 13 C33.3 16.7 33 24.5 32.2 27.7 C31.4 31.3 27.2 33.7 22.8 33.7 C21.4 33.7 20.5 33.2 20 32.5 C19.5 33.2 18.6 33.7 17.2 33.7 C12.8 33.7 8.6 31.3 7.8 27.7 C7 24.5 6.7 16.7 7.2 13 Z'
     case 'molarLower':
+      // Lower molars: wider mesiodistally with five-cusp suggestion.
+      return variant === 'lowerMolar3'
+        ? 'M7.5 14 C8.4 10.3 12.5 7.3 17 7.3 C18.2 7.3 19.2 7.8 20 8.8 C20.8 7.8 21.8 7.3 23 7.3 C27.5 7.3 31.6 10.3 32.5 14 C33.1 17.5 32.8 25.5 31.8 28.5 C30.6 32 26.6 34 22.8 34 C21.4 34 20.5 33.5 20 32.7 C19.5 33.5 18.6 34 17.2 34 C13.4 34 9.4 32 8.2 28.5 C7.2 25.5 6.9 17.5 7.5 14 Z'
+        : 'M6.5 13.5 C7.2 9.6 11.3 6.5 16.2 6.5 C18 6.5 19.2 7.2 20 8.2 C20.8 7.2 22 6.5 23.8 6.5 C28.7 6.5 32.8 9.6 33.5 13.5 C34 17.5 33.6 25.5 32.6 28.5 C31.4 32 27.1 34 23 34 C21.7 34 20.7 33.5 20 32.4 C19.3 33.5 18.3 34 17 34 C12.9 34 8.6 32 7.4 28.5 C6.4 25.5 6 17.5 6.5 13.5 Z'
     default:
-      // Four cusps: a rounded rhomboid with a soft lobe at each corner.
       return 'M6 13.5 C6 9.4 11.2 6.2 20 6.2 C28.8 6.2 34 9.4 34 13.5 C34.4 16.5 34.4 23.5 34 26.8 C34 31 28.8 34 20 34 C11.2 34 6 31 6 26.8 C5.6 23.5 5.6 16.5 6 13.5 Z'
   }
 }
@@ -341,7 +351,7 @@ function StatusMarks({
     // An outline that hugs the crown, not a fill: the tooth underneath is intact.
     return (
       <path
-        d={occlusal ? occlusalOutline(pattern) : crownPath(pattern)}
+        d={occlusal ? occlusalOutline(pattern, undefined) : crownPath(pattern)}
         fill={STATUS_META.crown.color}
         fillOpacity="0.1"
         stroke={STATUS_META.crown.color}
@@ -449,7 +459,7 @@ function OcclusalTooth({
   variant: ToothVariant
   selected?: boolean
 }) {
-  const outline = occlusalOutline(pattern)
+  const outline = occlusalOutline(pattern, variant)
   const isMissing = status === 'missing'
   const isExtracted = status === 'extracted'
   const isImplant = status === 'implant'
