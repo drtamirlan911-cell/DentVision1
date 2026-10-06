@@ -1121,3 +1121,13 @@ These changes are route/entry reconciliation only. Existing domain implementatio
 ### Verification state
 - Fresh exact-HEAD Quality Gate/full CI remains mandatory after these commits.
 - The canonical economics document remains authoritative; no new pricing model or conflicting policy was introduced.
+
+
+## 2026-10-06 — PR #302 continuation: legacy Diagnostics fee removed
+
+### Implemented
+- `d497e502f755e31fb49ea1b9a47977a230bf3c33` — removed the legacy 10% Diagnostics referral `platformFee` fallback and aligned referral economics with canonical policy: 7%, minimum ₸500, maximum ₸3,000.
+- This closes a second independent code path that could still apply the retired universal 10% rate even after Finance Core had been corrected.
+
+### Verification
+- Fresh exact-HEAD CI remains required.
