@@ -155,6 +155,7 @@ export function Odontogram3D({
   const [ownDentition, setOwnDentition] = useState<Dentition>('permanent')
   const [ownTool, setOwnTool] = useState<string | null>(null)
   const [hovered, setHovered] = useState<number | null>(null)
+  const [pendingStatus, setPendingStatus] = useState<{ tooth: number; status: string } | null>(null)
 
   const mode: Dentition = dentition ?? ownDentition
   const setMode = (next: Dentition) => (onDentitionChange ? onDentitionChange(next) : setOwnDentition(next))
@@ -179,13 +180,25 @@ export function Odontogram3D({
 
   const toothOf = (n: number) => normalizeTooth(patientTeeth[n] ?? patientTeeth[String(n)])
 
-  /** A tool stamps directly; without one the click selects, as it always did. */
+  /** Statuses that can materially change the clinical record require an explicit confirmation. */
+  const DESTRUCTIVE_STATUSES = new Set(['missing', 'extracted', 'implant', 'root', 'endo_fail'])
+
   const handleTooth = (n: number) => {
     if (tool && onApplyStatus) {
-      onApplyStatus(n, tool)
+      if (DESTRUCTIVE_STATUSES.has(tool)) {
+        setPendingStatus({ tooth: n, status: tool })
+      } else {
+        onApplyStatus(n, tool)
+      }
       return
     }
     onToothClick(n)
+  }
+
+  const confirmPendingStatus = () => {
+    if (!pendingStatus || !onApplyStatus) return
+    onApplyStatus(pendingStatus.tooth, pendingStatus.status)
+    setPendingStatus(null)
   }
 
   const archCurve = (index: number, count: number, upper: boolean) => {
@@ -298,6 +311,23 @@ export function Odontogram3D({
           {curvedArch(lowerTeeth, false)}
         </div>
       </div>
+
+      {pendingStatus && (
+        <div className="mx-3 my-2 rounded-xl border border-amber-500/30 bg-amber-500/5 p-3" role="alert" data-testid="odontogram-status-confirmation">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="min-w-0">
+              <p className="m-0 text-xs font-semibold text-txt-primary">Подтвердить изменение зуба {pendingStatus.tooth}?</p>
+              <p className="mt-1 mb-0 text-[11px] leading-4 text-txt-secondary">
+                Действие «{STATUS_META[pendingStatus.status]?.label || pendingStatus.status}» изменит клиническую запись и может повлиять на план лечения.
+              </p>
+            </div>
+            <div className="flex shrink-0 gap-2">
+              <Button size="sm" variant="secondary" onClick={() => setPendingStatus(null)}>Отмена</Button>
+              <Button size="sm" onClick={confirmPendingStatus}>Подтвердить</Button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {selectedTooth && (
         <div className="mx-3 mb-2 rounded-xl border border-bdr-subtle bg-surface-1/70 p-3 sm:p-4" data-testid="selected-tooth-anatomy">
