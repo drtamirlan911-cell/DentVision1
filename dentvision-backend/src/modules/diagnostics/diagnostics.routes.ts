@@ -135,6 +135,7 @@ diagnosticsRouter.post('/referrals/:id/status', requireReferralAccess(true), asy
 // Keep it separate from /status so COMPLETED and PAID cannot be conflated.
 diagnosticsRouter.post('/referrals/:id/mark-paid', requireReferralAccess(true), async (req: AuthRequest, res: any) => {
   try {
+    if (!canManagePartnerBilling(req.user)) return res.status(403).json({ ok: false, error: 'Недостаточно прав для приёма оплаты' });
     const cost = req.body?.cost === undefined ? undefined : Number(req.body.cost);
     if (cost !== undefined && (!Number.isFinite(cost) || cost < 0)) return res.status(400).json({ ok: false, error: 'Некорректная стоимость' });
     const won = await claimReferralPaid(req.params.id, { paid: true, paidAt: new Date(), ...(cost !== undefined ? { cost } : {}),  });
