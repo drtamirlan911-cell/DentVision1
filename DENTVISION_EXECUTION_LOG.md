@@ -1145,3 +1145,8 @@ These changes are route/entry reconciliation only. Existing domain implementatio
 ## 2026-10-06 — PR #302 continuation: notification detail path
 
 - `44f6bd7c7697d8e7fb166be9d00a8e0aeb0e378c` — added authenticated `GET /notifications/:id`, scoped directly by `userId`, so notification UI can open full details without relying on client-side list state or an unscoped lookup.
+
+
+## 2026-10-06 — PR #302 continuation: Diagnostics financial input hardening
+
+- `be0c4186947f6d150bd57a474fbd1b01b9a104b6` — removed client-supplied `platformFee` from referral payment/status paths. Commission is now derived server-side instead of accepting a caller-controlled fee value.
