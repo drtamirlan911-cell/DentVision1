@@ -238,7 +238,7 @@ test.describe('Academy / Course Workflow', () => {
       const unauthRes = await api.get(`${BASE_URL}${endpoint}/${premium.id}`, {
         headers: { 'Content-Type': 'application/json' },
       });
-      expect([200, 401, 403]).toContain(unauthRes.status());
+      expect([401, 403]).toContain(unauthRes.status());
     }
   });
 
