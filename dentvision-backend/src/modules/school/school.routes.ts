@@ -305,6 +305,24 @@ schoolRouter.get('/courses/:id', optionalAuth, async (req, res) => {
       return;
     }
 
+    // Paid course detail contains lesson content. The public catalog may show
+    // price/metadata, but it must never expose the paid curriculum itself.
+    const userId = (req as AuthRequest).user?.id;
+    if (Number(course.price || 0) > 0) {
+      if (!userId) {
+        res.status(401).json({ ok: false, error: 'Требуется авторизация для платного курса' });
+        return;
+      }
+      const enrollment = await prisma.schoolEnrollment.findUnique({
+        where: { userId_courseId: { userId, courseId: course.id } },
+        select: { id: true },
+      });
+      if (!enrollment) {
+        res.status(403).json({ ok: false, error: 'Требуется запись на курс' });
+        return;
+      }
+    }
+
     res.json({ ok: true, data: mapCourseDetail(course) });
   } catch (error) {
     res.status(500).json({ ok: false, error: 'Failed to fetch course' });
