@@ -20,7 +20,7 @@ import type { ReferralStatus, DiagnosticCategory, ReferralPriority } from '@pris
 export async function ensureCenterSubscription(centerId: string) {
   try {
     const existing = await prisma.$queryRawUnsafe<any[]>(
-      `SELECT id, status, paid_until FROM "center_subscriptions" WHERE center_id::text = $1`, centerId
+      `SELECT id, status, trial_end, paid_until FROM "center_subscriptions" WHERE center_id::text = $1`, centerId
     );
     if (existing.length === 0) {
       await prisma.$executeRawUnsafe(
