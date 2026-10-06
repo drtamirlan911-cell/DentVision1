@@ -425,6 +425,7 @@ function OcclusalTooth({
   status?: StatusKey
   surfaces?: ToothSurfaces | null
   pattern: RootPattern
+  variant: ToothVariant
   selected?: boolean
 }) {
   const outline = occlusalOutline(pattern)
@@ -462,7 +463,7 @@ function OcclusalTooth({
       {/* Cusp shading: a soft inner ring so the table reads as domed, not flat. */}
       <path d={outline} fill="none" stroke="#FFFFFF" strokeOpacity="0.55" strokeWidth="1.6" transform="scale(0.9) translate(2.2 2.2)" />
       <g fill="none" stroke="#A8967F" strokeOpacity="0.75" strokeWidth="1.1" strokeLinecap="round">
-        {occlusalFissures(pattern, morph.variant)}
+        {occlusalFissures(pattern, variant)}
       </g>
       {isImplant ? (
         <g>
