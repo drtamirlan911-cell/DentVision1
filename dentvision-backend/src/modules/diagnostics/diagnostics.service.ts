@@ -406,7 +406,7 @@ export async function updateReferral(id: string, data: any, userId: string) {
   return referral;
 }
 
-export async function changeReferralStatus(id: string, status: ReferralStatus, userId: string, reason?: string, cost?: number, platformFee?: number) {
+export async function changeReferralStatus(id: string, status: ReferralStatus, userId: string, reason?: string, cost?: number) {
   const referral = await prisma.referral.findUnique({ where: { id } });
   if (!referral) throw new Error('Referral not found');
   if (status === 'ACCEPTED' && referral.centerId) {
@@ -424,7 +424,7 @@ export async function changeReferralStatus(id: string, status: ReferralStatus, u
     }
     if (resolvedCost === undefined) throw new Error('Укажите стоимость исследования или установите цену в прайс-листе центра.');
     update.cost = resolvedCost;
-    update.platformFee = platformFee !== undefined ? platformFee : diagnosticPlatformFee(Number(resolvedCost));
+    update.platformFee = diagnosticPlatformFee(Number(resolvedCost));
   }
   if (status === 'COMPLETED') update.completedAt = new Date();
   if (status === 'COMPLETED' && cost !== undefined) { update.cost = cost; update.paid = false; }
