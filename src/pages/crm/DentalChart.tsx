@@ -24,9 +24,10 @@ import { usePatientStore } from '@/store/patient.store';
 export default function DentalChart() {
   const navigate = useNavigate();
   const [params] = useSearchParams();
-  const { user } = useAuth();
+  const { user, activeClinic, activeMembership, activeWorkspace } = useAuth();
   const { showToast } = useToast();
-  const { patients, upsertPatient } = useDataQuery(user?.clinicId);
+  const clinicId = activeClinic?.id || activeMembership?.clinicId || user?.clinicId || (activeWorkspace?.scopeType === 'clinic' ? activeWorkspace.scopeId : undefined);
+  const { patients, upsertPatient } = useDataQuery(clinicId);
   const [search, setSearch] = useState('');
   const [selectedId, setSelectedId] = useState<string | null>(params.get('patient'));
   const [selectedTooth, setSelectedTooth] = useState<number | undefined>();
@@ -67,7 +68,7 @@ export default function DentalChart() {
     if (!selected) return;
     setSaving(true);
     try {
-      const clinicId = user?.clinicId || (selected as any).clinicId;
+      const clinicId = activeClinic?.id || activeMembership?.clinicId || user?.clinicId || (activeWorkspace?.scopeType === 'clinic' ? activeWorkspace.scopeId : undefined) || (selected as any).clinicId;
       await upsertPatient({
         id: selected.id,
         clinicId,
@@ -244,9 +245,9 @@ export default function DentalChart() {
                   teeth={teeth}
                   patientId={selected.id}
                   patientName={selected.name || (selected as any).fullName}
-                  clinicId={user?.clinicId || (selected as any).clinicId}
+                  clinicId={clinicId || (selected as any).clinicId}
                   onAddToPlan={async () => {
-                    const clinicId = user?.clinicId || (selected as any).clinicId;
+                    const clinicId = activeClinic?.id || activeMembership?.clinicId || user?.clinicId || (activeWorkspace?.scopeType === 'clinic' ? activeWorkspace.scopeId : undefined) || (selected as any).clinicId;
                     if (!clinicId) {
                       showToast('Выберите клинику', 'error');
                       return;
