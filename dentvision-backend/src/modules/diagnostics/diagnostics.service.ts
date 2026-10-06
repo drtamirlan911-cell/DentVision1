@@ -50,8 +50,12 @@ export async function ensureCenterSubscription(centerId: string) {
       return { active: false, status: 'expired' as const };
     }
     return { active: sub.status === 'active' || sub.status === 'trial', status: sub.status as string };
-  } catch {
-    return { active: true, status: 'trial' as const };
+  } catch (error) {
+    // Fail closed: a database/subscription verification outage must never
+    // grant partner access. Callers can surface the unavailable state and
+    // retry instead of exposing an unverified center.
+    console.error('[Diagnostics] center subscription verification failed:', error);
+    return { active: false, status: 'unavailable' as const };
   }
 }
 
@@ -90,7 +94,13 @@ export async function listCenters(search?: string, city?: string) {
       return !st || st === 'active' || st === 'trial';
     }).map((c) => c.id);
     where.id = { in: visibleIds.filter((id) => visibleCenterIds.has(id)) };
-  } catch { /* table may not exist — show all */ }
+  } catch (error) {
+    // Fail closed. If the canonical Organization/subscription visibility
+    // boundary cannot be evaluated, returning all active centers would turn
+    // an infrastructure error into a tenant/data exposure.
+    console.error('[Diagnostics] center visibility resolution failed:', error);
+    return [];
+  }
   return prisma.diagnosticCenter.findMany({
     where,
     include: { _count: { select: { studies: true, operators: true } } },
@@ -99,15 +109,33 @@ export async function listCenters(search?: string, city?: string) {
 }
 
 export async function getCenter(id: string) {
-  return prisma.diagnosticCenter.findUnique({
-    where: { id },
-    include: {
-      studies: { where: { active: true } },
-      operators: { where: { active: true }, include: { user: { select: { id: true, firstName: true, lastName: true } } } },
-      radiologists: { where: { active: true }, include: { user: { select: { id: true, firstName: true, lastName: true } } } },
-      _count: { select: { bookings: true } },
-    },
-  });
+  try {
+    const org = await prisma.organization.findFirst({
+      where: { type: 'DIAGNOSTIC_CENTER', originalType: 'DiagnosticCenter', originalId: id },
+      select: { id: true, settings: true },
+    });
+    if (!org) return null;
+    const settings = (org.settings && typeof org.settings === 'object' && !Array.isArray(org.settings))
+      ? org.settings as Record<string, unknown>
+      : {};
+    if (settings.ecosystemVisible === false) return null;
+
+    const subscription = await ensureCenterSubscription(id);
+    if (!subscription.active) return null;
+
+    return prisma.diagnosticCenter.findFirst({
+      where: { id, active: true },
+      include: {
+        studies: { where: { active: true } },
+        operators: { where: { active: true }, include: { user: { select: { id: true, firstName: true, lastName: true } } } },
+        radiologists: { where: { active: true }, include: { user: { select: { id: true, firstName: true, lastName: true } } } },
+        _count: { select: { bookings: true } },
+      },
+    });
+  } catch (error) {
+    console.error('[Diagnostics] center visibility check failed:', error);
+    return null;
+  }
 }
 
 async function syncOrgFromEntity(
@@ -162,7 +190,24 @@ export async function listLaboratories(search?: string) {
 }
 
 export async function getLaboratory(id: string) {
-  return prisma.laboratory.findUnique({ where: { id }, include: { tests: { where: { active: true } } } });
+  try {
+    const org = await prisma.organization.findFirst({
+      where: { type: 'LABORATORY', originalType: 'Laboratory', originalId: id },
+      select: { settings: true },
+    });
+    if (!org) return null;
+    const settings = (org.settings && typeof org.settings === 'object' && !Array.isArray(org.settings))
+      ? org.settings as Record<string, unknown>
+      : {};
+    if (settings.ecosystemVisible !== true) return null;
+    return prisma.laboratory.findFirst({
+      where: { id, active: true },
+      include: { tests: { where: { active: true } } },
+    });
+  } catch (error) {
+    console.error('[Diagnostics] laboratory visibility check failed:', error);
+    return null;
+  }
 }
 
 export async function createLaboratory(data: { name: string; city?: string; address?: string; phone?: string; email?: string; }) {
