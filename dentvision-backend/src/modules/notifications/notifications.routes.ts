@@ -89,6 +89,19 @@ notificationsRouter.post('/', async (req: AuthRequest, res) => {
   }
 });
 
+notificationsRouter.get('/:id', async (req: AuthRequest, res) => {
+  try {
+    const notification = await prisma.notification.findFirst({
+      where: { id: req.params.id, userId: req.user!.id },
+    });
+    if (!notification) return res.status(404).json({ ok: false, error: 'Уведомление не найдено' });
+    return res.json({ ok: true, data: notification });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : 'Внутренняя ошибка сервера';
+    return res.status(500).json({ ok: false, error: message });
+  }
+});
+
 notificationsRouter.post('/:id/read', async (req: AuthRequest, res) => {
   try {
     const { id } = req.params as { id: string };
