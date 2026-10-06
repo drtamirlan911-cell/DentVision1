@@ -526,6 +526,15 @@ export function AnatomicalToothSvg({
   const isEndoFail = status === 'endo_fail'
   const isExtracted = status === 'extracted'
   const rootFill = isRootOnly || isEndoFail ? (STATUS_META[status || 'root']?.color || '#E67E22') : '#E7DFD3'
+  // Posterior morphology is not interchangeable: first molars are largest,
+  // second molars are slightly smaller, and third molars are smaller/bulbous
+  // with shorter roots. Keep the shared SVG families, but preserve these
+  // clinically visible proportions instead of rendering 16/17/18 identically.
+  const posteriorScale = [18, 28, 38, 48].includes(toothNumber)
+    ? 0.84
+    : [17, 27, 37, 47].includes(toothNumber)
+      ? 0.93
+      : 1
   const height = Math.round((size * BUCCAL_VB_H) / 40)
   const crownCy = upper ? 44 : BUCCAL_VB_H - 44
   const tooltip = `${toothNumber} · ${morph.label}${status && status !== 'healthy' ? ` · ${STATUS_META[status]?.label || status}` : ''}`
@@ -556,6 +565,7 @@ export function AnatomicalToothSvg({
   if (view === 'occlusal') {
     return shell(
       <svg width={size} height={size} viewBox="0 0 40 40" aria-hidden>
+        <g transform={posteriorScale === 1 ? undefined : `translate(20 20) scale(${posteriorScale}) translate(-20 -20)`}>
         <defs>
           <linearGradient id={`occl-${toothNumber}`} x1="0.2" y1="0" x2="0.8" y2="1">
             <stop offset="0%" stopColor="#FDFBF7" />
@@ -570,6 +580,7 @@ export function AnatomicalToothSvg({
           pattern={morph.pattern}
           selected={selected}
         />
+        </g>
       </svg>,
       size + 8,
       size + 6,
@@ -619,6 +630,7 @@ export function AnatomicalToothSvg({
             lower arch, so both arches are guaranteed to match. Glyphs carrying
             text stay outside the flip — they would render upside down. */}
         <g transform={upper ? undefined : `translate(0,${BUCCAL_VB_H}) scale(1,-1)`}>
+          <g transform={posteriorScale === 1 ? undefined : `translate(20 31) scale(${posteriorScale}) translate(-20 -31)`}>
           {isImplant ? (
             <ImplantGlyph upper fill={STATUS_META.implant.color} />
           ) : isMissing || isExtracted ? (
@@ -676,6 +688,7 @@ export function AnatomicalToothSvg({
               <SurfaceOverlays surfaces={surfaces} upper pattern={morph.pattern} />
             </g>
           )}
+          </g>
         </g>
 
         {/* Endo marker on crown center — unflipped so the tick reads correctly. */}
