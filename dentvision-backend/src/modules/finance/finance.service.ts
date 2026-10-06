@@ -17,7 +17,7 @@ const DEFAULT_COMMISSION_POLICY: Record<string, { bps: number; minMinor?: bigint
   diagnostic: { bps: 700, minMinor: 50_000n, maxMinor: 300_000n },
   medical_lab: { bps: 600, minMinor: 15_000n, maxMinor: 250_000n }, // 6%, min ₸150, cap ₸2,500
   medical_lab_order: { bps: 600, minMinor: 15_000n, maxMinor: 250_000n },
-  dental_lab: { bps: 800 }, // 8%
+  dental_lab: { bps: 800, minMinor: 50_000n, maxMinor: 1_500_000n }, // 8%, min ₸500, cap ₸15,000
   shop: { bps: 800 }, // Marketplace standard
   marketplace: { bps: 800 },
   school: { bps: 1000 }, // Academy base; tier overrides remain explicit policy data
@@ -143,7 +143,7 @@ export async function recordSaleTx(input: SaleInput, db: Prisma.TransactionClien
   await writeRevenue(
     {
       source: revenueSourceForDomain(input.domain),
-      amountMinor: input.amountMinor,
+      amountMinor: commission,
       refType: input.refType || input.domain,
       refId: input.refId,
     },
