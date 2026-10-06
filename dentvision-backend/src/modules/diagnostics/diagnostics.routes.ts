@@ -10,6 +10,14 @@ import { canAccessReferralBranch } from '../../lib/diagnosticReferralBranchPolic
 
 export async function claimReferralPaid(referralId: string, data: { paid: boolean; paidAt?: Date; cost?: number; platformFee?: number }): Promise<boolean> { const result = await (prisma as any).referral.updateMany({ where: { id: referralId, paid: false }, data }); return result.count === 1; }
 function sameOrgContext(user: AuthRequest['user'], type: 'DiagnosticCenter' | 'Laboratory', id: string): boolean { if (!user || !id) return false; if (user.role === 'SUPERADMIN') return true; const expected = type === 'DiagnosticCenter' ? 'DIAGNOSTIC_CENTER' : 'LABORATORY'; const entityId = (user as any).organizationOriginalId || user.organizationId; return entityId === id && (user as any).organizationType === expected; }
+function canManagePartnerBilling(user: AuthRequest['user']): boolean {
+  if (!user) return false;
+  const role = String(user.role || '').toUpperCase();
+  if (['SUPERADMIN', 'OWNER', 'ADMIN', 'MANAGER', 'DIRECTOR', 'CASHIER'].includes(role)) return true;
+  // Partner-specific roles follow the same financial-control suffixes while
+  // keeping registrars/operators out of money-state mutations.
+  return /_(OWNER|ADMIN|MANAGER|DIRECTOR|CASHIER|FINANCE)$/.test(role);
+}
 async function referralBranchAllowed(user: AuthRequest['user'], referral: { clinicId: string; branchId?: string | null }): Promise<boolean> { if (user.role === 'SUPERADMIN') return true; return canAccessReferralBranch(user, { clinicId: referral.clinicId, branchId: referral.branchId ?? null }); }
 async function referralListBranchIds(user: AuthRequest['user'], clinicId?: string): Promise<string[] | undefined> {
   if (!clinicId || user.role === 'SUPERADMIN') return undefined;
