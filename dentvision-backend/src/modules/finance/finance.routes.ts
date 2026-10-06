@@ -27,6 +27,14 @@ financeRouter.use(authenticate);
 
 const OWNER_TYPES = ['CLINIC', 'SUPPLIER', 'ACADEMY', 'LECTURER', 'PARTNER', 'PLATFORM', 'GATEWAY'];
 
+function requirePlatformFinance(req: AuthRequest, res: any): boolean {
+  if (req.user?.role !== 'SUPERADMIN') {
+    res.status(403).json({ ok: false, error: 'Требуются права платформенного финансового администратора' } satisfies ApiResponse);
+    return false;
+  }
+  return true;
+}
+
 /**
  * Wallet reads are intentionally NOT gated by `requirePermission('finance.manage')`:
  * a clinic/supplier needs to read its own balance without holding that platform
@@ -116,6 +124,7 @@ financeRouter.get('/transactions', requirePermission('finance.manage'), async (r
 });
 
 financeRouter.get('/partner-economics/dashboard', requirePermission('finance.manage'), async (req: AuthRequest, res) => {
+  if (!requirePlatformFinance(req, res)) return;
   try {
     const parseDate = (value: unknown): Date | undefined => {
       if (typeof value !== 'string' || !value) return undefined;
@@ -143,6 +152,7 @@ financeRouter.get('/partner-economics/dashboard', requirePermission('finance.man
 });
 
 financeRouter.get('/partner-economics/reconciliation', requirePermission('finance.manage'), async (req: AuthRequest, res) => {
+  if (!requirePlatformFinance(req, res)) return;
   try {
     const from = typeof req.query.from === 'string' ? new Date(req.query.from) : undefined;
     const to = typeof req.query.to === 'string' ? new Date(req.query.to) : undefined;
@@ -158,6 +168,7 @@ financeRouter.get('/partner-economics/reconciliation', requirePermission('financ
 });
 
 financeRouter.get('/partner-economics/transparency', requirePermission('finance.manage'), async (req: AuthRequest, res) => {
+  if (!requirePlatformFinance(req, res)) return;
   try {
     const parseDate = (value: unknown): Date | undefined => {
       if (typeof value !== 'string' || !value) return undefined;
@@ -187,12 +198,14 @@ financeRouter.get('/partner-economics/transparency', requirePermission('finance.
 
 // Ledger integrity check (platform): net of all wallet balances must be 0.
 financeRouter.get('/ledger/health', requirePermission('finance.manage'), async (_req, res) => {
+  if (!requirePlatformFinance(req, res)) return;
   const net = await ledgerNetBalance();
   return res.json({ ok: true, data: { netBalance: net.toString(), balanced: net === 0n } } satisfies ApiResponse);
 });
 
 // Commission rules (platform).
 financeRouter.get('/commission-rules', requirePermission('finance.manage'), async (req: AuthRequest, res) => {
+  if (!requirePlatformFinance(req, res)) return;
   try {
     const { domain, scopeId } = req.query as Record<string, string | undefined>;
     const where: Record<string, unknown> = {};
@@ -206,6 +219,7 @@ financeRouter.get('/commission-rules', requirePermission('finance.manage'), asyn
 });
 
 financeRouter.post('/commission-rules', requirePermission('finance.manage'), async (req: AuthRequest, res) => {
+  if (!requirePlatformFinance(req, res)) return;
   try {
     const { domain, scopeId, percentBps, splitJson } = req.body || {};
     if (!domain || percentBps === undefined) {
@@ -241,6 +255,7 @@ financeRouter.post('/commission-rules', requirePermission('finance.manage'), asy
 // Record a sale (platform trigger for now; later wired into shop/school checkout).
 // Body: { domain, sellerType, sellerId, amount (в тенге) | amountMinor, refId? }
 financeRouter.post('/sales', requirePermission('finance.manage'), async (req: AuthRequest, res) => {
+  if (!requirePlatformFinance(req, res)) return;
   try {
     const { domain, sellerType, sellerId, amount, amountMinor, refId, refType } = req.body || {};
     if (!domain || !sellerType || !sellerId || (amount === undefined && amountMinor === undefined)) {
@@ -284,6 +299,7 @@ financeRouter.post('/sales', requirePermission('finance.manage'), async (req: Au
 
 // Manual transaction (superadmin: bonuses, fees, refunds).
 financeRouter.post('/transactions/manual', requirePermission('finance.manage'), async (req: AuthRequest, res) => {
+  if (!requirePlatformFinance(req, res)) return;
   try {
     const { walletId, type, amount, description, refType, refId } = req.body || {};
     if (!walletId || !amount || !type || !description) {
@@ -355,6 +371,7 @@ export default financeRouter;
 
 /** The queue itself. Defaults to what is waiting on a human. */
 financeRouter.get('/payouts', requirePermission('finance.manage'), async (req: AuthRequest, res) => {
+  if (!requirePlatformFinance(req, res)) return;
   const status = String(req.query.status || 'requested');
   const payouts = await listPayouts({
     status: (PAYOUT_STATUSES as readonly string[]).includes(status)
@@ -371,6 +388,7 @@ financeRouter.get('/payouts', requirePermission('finance.manage'), async (req: A
  * the service owns that rule so a second caller cannot invent its own.
  */
 financeRouter.post('/payouts/:id/status', requirePermission('finance.manage'), async (req: AuthRequest, res) => {
+  if (!requirePlatformFinance(req, res)) return;
   const next = String((req.body || {}).status || '');
   if (!(PAYOUT_STATUSES as readonly string[]).includes(next)) {
     return res.status(400).json({
@@ -431,6 +449,7 @@ financeRouter.get('/expenses', requirePermission('finance.manage'), async (req: 
 });
 
 financeRouter.post('/expenses', requirePermission('finance.manage'), async (req: AuthRequest, res) => {
+  if (!requirePlatformFinance(req, res)) return;
   try {
     const { category, amount, date, meta } = req.body || {};
     if (!category || !EXPENSE_CATEGORIES.includes(String(category))) {
@@ -478,6 +497,7 @@ financeRouter.post('/expenses', requirePermission('finance.manage'), async (req:
  * finance core was built, and which nothing read until now.
  */
 financeRouter.get('/revenue-by-source', requirePermission('finance.manage'), async (req: AuthRequest, res) => {
+  if (!requirePlatformFinance(req, res)) return;
   try {
     const parseDate = (value: unknown): Date | undefined => {
       if (typeof value !== 'string' || !value) return undefined;
