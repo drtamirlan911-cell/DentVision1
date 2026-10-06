@@ -25,7 +25,7 @@ const DEFAULT_COMMISSION_POLICY: Record<string, { bps: number; minMinor?: bigint
 };
 
 function defaultCommissionPolicy(domain: string) {
-  return DEFAULT_COMMISSION_POLICY[String(domain || '').toLowerCase()] || { bps: 1000 };
+  return DEFAULT_COMMISSION_POLICY[String(domain || '').toLowerCase()] ?? null;
 }
 
 function applyCommissionBounds(amountMinor: bigint, commissionMinor: bigint, policy: { minMinor?: bigint; maxMinor?: bigint }) {
@@ -65,7 +65,10 @@ export async function resolveCommissionBps(
   const global = await db.commissionRule.findFirst({
     where: { domain, scopeId: null },
   });
-  return global?.percentBps ?? defaultCommissionPolicy(domain).bps;
+  if (global?.percentBps !== undefined && global?.percentBps !== null) return global.percentBps;
+  const policy = defaultCommissionPolicy(domain);
+  if (!policy) throw new Error(`No commission policy configured for domain: ${domain}`);
+  return policy.bps;
 }
 
 interface SaleInput {
@@ -96,6 +99,7 @@ interface SaleInput {
 export async function recordSaleTx(input: SaleInput, db: Prisma.TransactionClient) {
   const currency = input.currency || 'KZT';
   const policy = defaultCommissionPolicy(input.domain);
+  if (!policy) throw new Error(`No commission policy configured for domain: ${input.domain}`);
   const bps = await resolveCommissionBps(input.domain, input.sellerId, db, { branchId: input.branchId, organizationId: input.organizationId });
   const commission = applyCommissionBounds(
     input.amountMinor,
