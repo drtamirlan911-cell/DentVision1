@@ -180,6 +180,7 @@ export async function reconcilePartnerEconomics(
   if (opts.from || opts.to) where.createdAt = { ...(opts.from ? { gte: opts.from } : {}), ...(opts.to ? { lt: opts.to } : {}) };
   if (opts.vertical) where.refType = opts.vertical;
   if (opts.partnerId) where.meta = { path: ['partnerId'], equals: opts.partnerId };
+  if (opts.branchId) where.meta = { path: ['branchId'], equals: opts.branchId };
   const transactions = await db.transaction.findMany({ where, include: { ledgerEntries: { include: { wallet: { select: { ownerType: true, ownerId: true } } } } }, orderBy: { createdAt: 'asc' } });
   const rows = transactions.map((transaction) => {
     const meta = (transaction.meta || {}) as Record<string, unknown>;
