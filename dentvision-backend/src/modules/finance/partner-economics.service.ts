@@ -182,7 +182,7 @@ export async function reconcilePartnerEconomics(
   if (opts.partnerId) where.meta = { path: ['partnerId'], equals: opts.partnerId };
   if (opts.branchId) where.meta = { path: ['branchId'], equals: opts.branchId };
   const transactions = await db.transaction.findMany({ where, include: { ledgerEntries: { include: { wallet: { select: { ownerType: true, ownerId: true } } } } }, orderBy: { createdAt: 'asc' } });
-  const rows = transactions.map((transaction) => {
+  const rows = scopedTransactions.map((transaction) => {
     const meta = (transaction.meta || {}) as Record<string, unknown>;
     const grossMinor = BigInt(transaction.amount);
     const commissionMinor = BigInt(String(meta.commissionMinor ?? '0'));
@@ -302,7 +302,17 @@ export async function getPartnerEconomicsTransparency(
     select: { id: true, amount: true, refType: true, refId: true, meta: true, ledgerEntries: { select: { direction: true, amount: true } } },
   });
 
-  const partnerIds = [...new Set(transactions.map((transaction) => {
+  // Keep a second, application-level branch boundary so alternate DB adapters,
+  // test doubles, or future query refactors cannot accidentally return another
+  // branch's financial rows after the database predicate is assembled.
+  const scopedTransactions = opts.branchId
+    ? transactions.filter((transaction) => {
+        const meta = (transaction.meta || {}) as Record<string, unknown>;
+        return meta.branchId === opts.branchId;
+      })
+    : transactions;
+
+  const partnerIds = [...new Set(scopedTransactions.map((transaction) => {
     const meta = (transaction.meta || {}) as Record<string, unknown>;
     return typeof meta.partnerId === 'string' ? meta.partnerId : '';
   }).filter(Boolean))];
