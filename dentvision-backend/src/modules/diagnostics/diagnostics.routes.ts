@@ -47,8 +47,26 @@ diagnosticsRouter.get('/registrations', requireSuperadmin, async (req: AuthReque
 diagnosticsRouter.post('/registrations/:id/approve', requireSuperadmin, async (req: AuthRequest, res) => { try { return res.json({ ok: true, data: await svc.approveRegistrationRequest(req.params.id as string, req.user!.id) } satisfies ApiResponse); } catch (e: any) { return res.status(500).json({ ok: false, error: e.message } satisfies ApiResponse); } });
 diagnosticsRouter.post('/registrations/:id/reject', requireSuperadmin, async (req: AuthRequest, res) => { try { const { reason } = req.body; return res.json({ ok: true, data: await svc.rejectRegistrationRequest(req.params.id as string, req.user!.id, reason) } satisfies ApiResponse); } catch (e: any) { return res.status(500).json({ ok: false, error: e.message } satisfies ApiResponse); } });
 diagnosticsRouter.post('/seed-test-data', requireSuperadmin, async (_req: AuthRequest, res) => { try { return res.json({ ok: true, data: await svc.seedTestData() } satisfies ApiResponse); } catch (e: any) { return res.status(500).json({ ok: false, error: e.message } satisfies ApiResponse); } });
-diagnosticsRouter.get('/studies', async (req: AuthRequest, res) => { try { const { centerId, category } = req.query as any; return res.json({ ok: true, data: await svc.listStudies(centerId, category) } satisfies ApiResponse); } catch (e: any) { return res.status(500).json({ ok: false, error: e.message } satisfies ApiResponse); } });
-diagnosticsRouter.get('/lab-tests', async (req: AuthRequest, res) => { try { const { labId, category } = req.query as any; return res.json({ ok: true, data: await svc.listLabTests(labId, category) } satisfies ApiResponse); } catch (e: any) { return res.status(500).json({ ok: false, error: e.message } satisfies ApiResponse); } });
+diagnosticsRouter.get('/studies', async (req: AuthRequest, res) => {
+  try {
+    const { centerId, category } = req.query as any;
+    if (centerId) {
+      const center = await svc.getCenter(String(centerId));
+      if (!center) return res.status(404).json({ ok: false, error: 'Diagnostic center not found' } satisfies ApiResponse);
+    }
+    return res.json({ ok: true, data: await svc.listStudies(centerId, category) } satisfies ApiResponse);
+  } catch (e: any) { return res.status(500).json({ ok: false, error: e.message } satisfies ApiResponse); }
+});
+diagnosticsRouter.get('/lab-tests', async (req: AuthRequest, res) => {
+  try {
+    const { labId, category } = req.query as any;
+    if (labId) {
+      const lab = await svc.getLaboratory(String(labId));
+      if (!lab) return res.status(404).json({ ok: false, error: 'Laboratory not found' } satisfies ApiResponse);
+    }
+    return res.json({ ok: true, data: await svc.listLabTests(labId, category) } satisfies ApiResponse);
+  } catch (e: any) { return res.status(500).json({ ok: false, error: e.message } satisfies ApiResponse); }
+});
 // Diagnostic-center / laboratory service management. These endpoints are scoped
 // to the active partner organization; they never accept an arbitrary org id.
 diagnosticsRouter.patch('/centers/:id/pricing', async (req: AuthRequest, res) => {
