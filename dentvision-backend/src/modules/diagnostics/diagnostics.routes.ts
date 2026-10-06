@@ -95,6 +95,7 @@ diagnosticsRouter.patch('/centers/:id/pricing', async (req: AuthRequest, res) =>
 diagnosticsRouter.post('/centers/:id/pricing', async (req: AuthRequest, res) => {
   try {
     if (!sameOrgContext(req.user, 'DiagnosticCenter', req.params.id)) return res.status(403).json({ ok: false, error: 'Нет доступа к центру' });
+    if (!canManagePartnerBilling(req.user)) return res.status(403).json({ ok: false, error: 'Недостаточно прав для управления услугами' });
     const name = String(req.body?.name || '').trim();
     const category = String(req.body?.category || '').toUpperCase();
     if (!name || !category) return res.status(400).json({ ok: false, error: 'Название и категория обязательны' });
@@ -120,6 +121,7 @@ diagnosticsRouter.patch('/laboratories/:id/pricing', async (req: AuthRequest, re
 diagnosticsRouter.post('/laboratories/:id/pricing', async (req: AuthRequest, res) => {
   try {
     if (!sameOrgContext(req.user, 'Laboratory', req.params.id)) return res.status(403).json({ ok: false, error: 'Нет доступа к лаборатории' });
+    if (!canManagePartnerBilling(req.user)) return res.status(403).json({ ok: false, error: 'Недостаточно прав для управления услугами' });
     const name = String(req.body?.name || '').trim();
     const category = String(req.body?.category || '').toUpperCase();
     if (!name || !category) return res.status(400).json({ ok: false, error: 'Название и категория обязательны' });
@@ -149,6 +151,7 @@ diagnosticsRouter.post('/referrals/:id/mark-paid', requireReferralAccess(true), 
 diagnosticsRouter.post('/centers/:id/cashier/collect', async (req: AuthRequest, res: any) => {
   try {
     if (!sameOrgContext(req.user, 'DiagnosticCenter', req.params.id)) return res.status(403).json({ ok: false, error: 'Нет доступа к центру' });
+    if (!canManagePartnerBilling(req.user)) return res.status(403).json({ ok: false, error: 'Недостаточно прав для приёма оплаты' });
     const referralId = String(req.body?.referralId || '');
     const cost = Number(req.body?.cost);
     const platformFee = undefined;
@@ -163,6 +166,7 @@ diagnosticsRouter.post('/centers/:id/cashier/collect', async (req: AuthRequest, 
 diagnosticsRouter.post('/laboratories/:id/cashier/collect', async (req: AuthRequest, res: any) => {
   try {
     if (!sameOrgContext(req.user, 'Laboratory', req.params.id)) return res.status(403).json({ ok: false, error: 'Нет доступа к лаборатории' });
+    if (!canManagePartnerBilling(req.user)) return res.status(403).json({ ok: false, error: 'Недостаточно прав для приёма оплаты' });
     const referralId = String(req.body?.referralId || '');
     const cost = Number(req.body?.cost);
     if (!referralId || !Number.isFinite(cost) || cost <= 0) return res.status(400).json({ ok: false, error: 'Некорректные данные оплаты' });
