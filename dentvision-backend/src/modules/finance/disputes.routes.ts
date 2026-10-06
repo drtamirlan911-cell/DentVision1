@@ -19,7 +19,31 @@ disputesRouter.post('/', async (req: AuthRequest, res) => {
     if (!refType || !refId || !reason) {
       return res.status(400).json({ ok: false, error: 'refType, refId и reason обязательны' } satisfies ApiResponse);
     }
-    const dispute = await prisma.dispute.create({ data: { refType, refId, reason } });
+
+    // A dispute is a financial side-effect boundary. Do not allow an authenticated
+    // user to create a dispute against an arbitrary tenant's reference.
+    const normalizedRefType = String(refType).trim().toLowerCase();
+    if (normalizedRefType !== 'order') {
+      return res.status(400).json({ ok: false, error: 'Неподдерживаемый тип объекта спора' } satisfies ApiResponse);
+    }
+
+    const order = await prisma.order.findUnique({
+      where: { id: String(refId) },
+      select: { id: true, userId: true, clinicId: true },
+    });
+    if (!order) {
+      return res.status(404).json({ ok: false, error: 'Заказ не найден' } satisfies ApiResponse);
+    }
+
+    const canDispute = order.userId === req.user?.id
+      || (!!req.user?.clinicId && order.clinicId === req.user.clinicId);
+    if (!canDispute) {
+      return res.status(403).json({ ok: false, error: 'Нет доступа к этому заказу' } satisfies ApiResponse);
+    }
+
+    const dispute = await prisma.dispute.create({
+      data: { refType: normalizedRefType, refId: order.id, reason: String(reason).trim() },
+    });
     await auditFromReq(req, {
       action: 'dispute.created',
       entity: 'dispute',
