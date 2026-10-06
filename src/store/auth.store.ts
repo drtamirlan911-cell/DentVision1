@@ -213,7 +213,18 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         }
         let accessToken = stored.accessToken;
         let refreshToken = stored.refreshToken;
-        if (me.activeMembership?.clinicId && !getTokenClinicId(accessToken)) {
+        const tokenContext = getTokenContext(accessToken);
+        const hasScopedNonClinicContext = Boolean(
+          tokenContext.organizationId ||
+          tokenContext.organizationOriginalId ||
+          tokenContext.supplierId ||
+          tokenContext.lecturerId ||
+          tokenContext.organizationType,
+        );
+        // A partner workspace (diagnostics/lab/supplier/academy) may coexist with
+        // clinic memberships. Never "repair" its token by silently switching to
+        // the first clinic membership just because clinicId is absent.
+        if (me.activeMembership?.clinicId && !getTokenClinicId(accessToken) && !hasScopedNonClinicContext) {
           const switched = await api.switchClinic(me.activeMembership.clinicId);
           accessToken = switched.accessToken || accessToken;
           refreshToken = switched.refreshToken || refreshToken;
