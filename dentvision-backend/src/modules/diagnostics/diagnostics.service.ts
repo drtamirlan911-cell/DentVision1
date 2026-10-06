@@ -1,5 +1,5 @@
 import prisma from '../../lib/prisma.js';
-import { isClinicMember, resolveOrganizationIdForClinic } from '../../lib/orgContext.js';
+import { isClinicMember, resolveClinicAccess, resolveOrganizationIdForClinic } from '../../lib/orgContext.js';
 import { uid } from '../../lib/helpers.js';
 import { writeAuditLog } from '../compliance/audit.service.js';
 import { simpleChat } from '../ai/llm/client.js';
@@ -581,6 +581,12 @@ async function aiAnalyzeLabResult(referralId: string, referral: any, _userId: st
 export async function saveAndSignResult(data: { referralId: string; reportText: string; conclusion?: string; doctorId: string; }) {
   const referral = await prisma.referral.findUnique({ where: { id: data.referralId }, include: { result: true } });
   if (!referral) throw new Error('Referral not found');
+  if (!data.doctorId) throw new Error('Врач обязателен для подписания результата');
+  if (referral.doctorId && referral.doctorId !== data.doctorId) throw new Error('Подписать результат может только назначенный врач');
+  if (referral.clinicId) {
+    const access = await resolveClinicAccess(data.doctorId, referral.clinicId);
+    if (!access || !['DOCTOR', 'OWNER', 'DIRECTOR'].includes(String(access.role).toUpperCase())) throw new Error('Пользователь не имеет права подписывать диагностический результат');
+  }
   const result = await prisma.diagnosticResult.upsert({
     where: { referralId: data.referralId },
     update: { reportText: data.reportText, conclusion: data.conclusion || undefined, signedBy: data.doctorId, signedAt: new Date() },
