@@ -255,66 +255,77 @@ export function Odontogram3D({
     )
   }
 
+  const hoveredMorph = hovered ? getToothMorphology(hovered) : null
+  const selectedMorph = selectedTooth ? getToothMorphology(selectedTooth) : null
+  const tipTooth = hovered ?? selectedTooth
+  const tipMorph = hoveredMorph ?? selectedMorph
+  const tipStatus = tipTooth ? toothOf(tipTooth).status : undefined
+
+  const STATUS_TOOLS_PRIMARY = ['caries', 'filled', 'crown', 'implant']
+  const STATUS_TOOLS_SECONDARY = ['extracted', 'fracture', 'inflammation', 'missing']
+  const STATUS_TOOLS_MORE = WHOLE_TOOTH_STATUSES.filter(
+    (s) => !STATUS_TOOLS_PRIMARY.includes(s) && !STATUS_TOOLS_SECONDARY.includes(s) && s !== 'healthy',
+  )
+
+  return (
+    <Card padding="none" className="overflow-hidden max-w-full">
+      <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3.5 md:px-5">
+        <div>
+          <h3 className="text-base font-semibold text-txt-primary m-0">{t('diagnostics.odontogram')}</h3>
+          <p className="mt-1 text-[10px] text-txt-muted">
+            {mode === 'permanent' ? 'Постоянные зубы · FDI 11–48' : 'Молочные зубы · FDI 51–85'}
+          </p>
+        </div>
+        <div className="flex items-center gap-1 rounded-lg border border-bdr-subtle p-0.5">
+          {(['permanent', 'primary'] as const).map((m) => (
+            <button key={m} type="button" onClick={() => setMode(m)} aria-pressed={mode === m}
+              className={cn('rounded-md px-3 py-1.5 text-xs font-medium transition-colors', 'focus:outline-none focus-visible:ring-2 focus-visible:ring-dv-gold/50', mode === m ? 'bg-surface-2 text-txt-primary shadow-sm' : 'text-txt-muted hover:text-txt-secondary')}>
+              {m === 'permanent' ? t('diagnostics.permanent_teeth') : t('diagnostics.primary_teeth')}
+            </button>
+          ))}
+        </div>
+        {onHistoryClick ? (
+          <Button size="sm" variant="secondary" onClick={onHistoryClick} icon={<History size={14} />}>
+            {t('diagnostics.change_history')}
+          </Button>
+        ) : <span className="text-[11px] text-txt-muted">{tool ? t('diagnostics.tool_hint_active', { tool: STATUS_META[tool]?.label || tool }) : t('diagnostics.click_status')}</span>}
+      </div>
+
+      <div className="border-y border-bdr-subtle bg-surface-0/60 px-2 py-3 sm:px-4">
+        <div className="mx-auto flex max-w-[820px] flex-col gap-0">
+          {curvedArch(upperTeeth, true)}
+          <div className="relative z-10 -my-2 flex items-center justify-center"><div className="h-5 w-px bg-bdr-subtle/60" aria-hidden /></div>
+          {curvedArch(lowerTeeth, false)}
+        </div>
+      </div>
+
       {tipTooth && tipMorph && (
         <p className="px-4 md:px-5 pb-1 text-center text-[11px] text-txt-secondary m-0">
-          {t('diagnostics.tooth')} <span className="text-dv-gold font-semibold">{tipTooth}</span>
-          {' · '}
-          {tipMorph.label}
-          {tipStatus && tipStatus !== 'healthy' ? ` · ${STATUS_META[tipStatus]?.label || tipStatus}` : ''}
+          {t('diagnostics.tooth')} <span className="text-dv-gold font-semibold">{tipTooth}</span>{' · '}{tipMorph.label}
+          {tipStatus && tipStatus !== 'healthy' ? ' · ' + (STATUS_META[tipStatus]?.label || tipStatus) : ''}
         </p>
       )}
 
-      {/* ── Toolbar ── */}
       {showToolbar && (
         <div className="flex flex-wrap items-center justify-center gap-2 px-3 md:px-5 py-3">
           <div className="flex items-center gap-1 rounded-xl border border-bdr-subtle p-1">
-            {STATUS_TOOLS_PRIMARY.map((s) => (
-              <ChartToolButton key={s} label={STATUS_META[s].label} active={tool === s} onClick={() => setTool(tool === s ? null : s)}>
-                <StatusSwatch status={s} />
-              </ChartToolButton>
-            ))}
+            {STATUS_TOOLS_PRIMARY.map((s) => <ChartToolButton key={s} label={STATUS_META[s].label} active={tool === s} onClick={() => setTool(tool === s ? null : s)}><StatusSwatch status={s} /></ChartToolButton>)}
           </div>
-
           <div className="flex items-center gap-1 rounded-xl border border-bdr-subtle p-1">
-            {STATUS_TOOLS_SECONDARY.map((s) => (
-              <ChartToolButton key={s} label={STATUS_META[s].label} active={tool === s} onClick={() => setTool(tool === s ? null : s)}>
-                <StatusSwatch status={s} />
-              </ChartToolButton>
-            ))}
+            {STATUS_TOOLS_SECONDARY.map((s) => <ChartToolButton key={s} label={STATUS_META[s].label} active={tool === s} onClick={() => setTool(tool === s ? null : s)}><StatusSwatch status={s} /></ChartToolButton>)}
           </div>
-
-          {/* Rendered only when the host actually handles them — a chart button
-              that does nothing is worse than one that isn't there. */}
-          {onAction && (
-            <div className="flex items-center gap-1 rounded-xl border border-bdr-subtle p-1">
-              <ChartToolButton label={t('diagnostics.action_note')} onClick={() => onAction('note', selectedTooth)}>
-                <Pencil size={13} className="text-txt-secondary" />
-              </ChartToolButton>
-              <ChartToolButton label={t('diagnostics.action_photo')} onClick={() => onAction('photo', selectedTooth)}>
-                <Camera size={13} className="text-txt-secondary" />
-              </ChartToolButton>
-              <ChartToolButton label={t('diagnostics.action_clear')} onClick={() => onAction('clear', selectedTooth)}>
-                <Trash2 size={13} className="text-txt-secondary" />
-              </ChartToolButton>
-            </div>
-          )}
-
-          {/* Statuses beyond the reference set stay reachable rather than lost. */}
-          {STATUS_TOOLS_MORE.length > 0 && (
-            <div className="flex items-center gap-1 rounded-xl border border-bdr-subtle p-1">
-              {STATUS_TOOLS_MORE.map((s) => (
-                <ChartToolButton key={s} label={STATUS_META[s]?.label || s} active={tool === s} onClick={() => setTool(tool === s ? null : s)}>
-                  <StatusSwatch status={s} />
-                </ChartToolButton>
-              ))}
-            </div>
-          )}
+          {onAction && <div className="flex items-center gap-1 rounded-xl border border-bdr-subtle p-1">
+            <ChartToolButton label={t('diagnostics.action_note')} onClick={() => onAction('note', selectedTooth)}><Pencil size={13} className="text-txt-secondary" /></ChartToolButton>
+            <ChartToolButton label={t('diagnostics.action_photo')} onClick={() => onAction('photo', selectedTooth)}><Camera size={13} className="text-txt-secondary" /></ChartToolButton>
+            <ChartToolButton label={t('diagnostics.action_clear')} onClick={() => onAction('clear', selectedTooth)}><Trash2 size={13} className="text-txt-secondary" /></ChartToolButton>
+          </div>}
+          {STATUS_TOOLS_MORE.length > 0 && <div className="flex max-w-full items-center gap-1 overflow-x-auto rounded-xl border border-bdr-subtle p-1">
+            {STATUS_TOOLS_MORE.map((s) => <ChartToolButton key={s} label={STATUS_META[s]?.label || s} active={tool === s} onClick={() => setTool(tool === s ? null : s)}><StatusSwatch status={s} /></ChartToolButton>)}
+          </div>}
         </div>
       )}
     </Card>
   )
-}
-
 interface ToothEditorProps {
   toothNumber: number
   tooth?: string | ToothData
