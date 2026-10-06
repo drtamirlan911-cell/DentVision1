@@ -113,6 +113,26 @@ function toothDetail(pattern: RootPattern, variant: ToothVariant): React.ReactNo
 }
 
 
+function toothVariantTransform(variant: ToothVariant): string | undefined {
+  switch (variant) {
+    case 'lateralIncisor':
+      return 'translate(1.4 0) scale(0.86 1)';
+    case 'upperPremolar2':
+      return 'translate(1 0) scale(0.92 1)';
+    case 'lowerPremolar':
+      return 'translate(1 0) scale(0.94 1)';
+    case 'upperMolar2':
+      return 'translate(0.6 0) scale(0.94 1)';
+    case 'upperMolar3':
+    case 'lowerMolar3':
+      return 'translate(2 0) scale(0.82 0.96)';
+    case 'lowerMolar2':
+      return 'translate(0.5 0) scale(0.94 1)';
+    default:
+      return undefined;
+  }
+}
+
 function ImplantGlyph({ upper, fill }: { upper: boolean; fill: string }) {
   if (upper) {
     return (
@@ -620,6 +640,7 @@ export function AnatomicalToothSvg({
             lower arch, so both arches are guaranteed to match. Glyphs carrying
             text stay outside the flip — they would render upside down. */}
         <g transform={upper ? undefined : `translate(0,${BUCCAL_VB_H}) scale(1,-1)`}>
+          <g transform={toothVariantTransform(morph.variant)}>
           {isImplant ? (
             <ImplantGlyph upper fill={STATUS_META.implant.color} />
           ) : isMissing || isExtracted ? (
@@ -677,6 +698,7 @@ export function AnatomicalToothSvg({
               <SurfaceOverlays surfaces={surfaces} upper pattern={morph.pattern} />
             </g>
           )}
+          </g>
         </g>
 
         {/* Endo marker on crown center — unflipped so the tick reads correctly. */}
