@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const { tx, prismaMock } = vi.hoisted(() => {
@@ -50,6 +52,16 @@ function paidPayment() {
 }
 
 describe('refundPayment', () => {
+  it('keeps clinic refund authority behind billing.manage', () => {
+    const routeSource = readFileSync(
+      resolve(process.cwd(), 'dentvision-backend/src/modules/payments/payments.routes.ts'),
+      'utf8',
+    );
+    expect(routeSource).toContain('async function canManageClinicRefund');
+    expect(routeSource).toContain("permissionsSatisfy(new Set(permissions), 'billing.manage')");
+    expect(routeSource).not.toContain('// Clinic cashier payments: any active member of that clinic may confirm.');
+  });
+
   it('reverses the original ledger with opposite directions', async () => {
     paidPayment();
     const result = await refundPayment('p1', 10_000n, 'refund-1', 'test');
