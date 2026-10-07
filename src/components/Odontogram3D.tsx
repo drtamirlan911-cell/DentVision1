@@ -374,9 +374,20 @@ export function Odontogram3D({
                 <path d="M38 58 C32 39 45 22 67 19 C90 15 115 19 129 36 C136 44 139 54 137 63 L126 70 C128 88 125 104 117 123 L108 145 C103 153 94 153 90 145 L82 124 C78 112 74 112 70 124 L61 145 C57 153 48 153 44 145 L35 123 C27 104 28 86 35 69 Z" fill="rgba(34,211,238,0.08)" stroke="#67e8f9" strokeWidth="2.5" filter="url(#anatomy-glow)" />
                 <path d="M45 58 C40 42 52 29 71 27 C92 24 112 28 123 41 C128 48 130 55 128 62 L118 69 C119 85 116 101 109 119 L101 140 C99 144 95 145 92 140 L83 118 C78 106 74 106 69 118 L60 140 C58 145 53 144 51 140 L42 119 C35 101 36 84 42 69 Z" fill="url(#anatomy-dentin)" fillOpacity="0.86" stroke="#fed7aa" strokeOpacity="0.75" strokeWidth="1.1" />
                 <path d="M55 57 C52 47 60 39 73 37 C87 35 101 37 109 46 C113 51 114 56 112 61 L104 68 C106 82 102 94 97 107 L89 130 C87 135 84 135 82 130 L75 108 C72 99 69 99 66 108 L58 130 C56 135 53 134 51 130 L44 108 C40 94 41 82 47 68 Z" fill="url(#anatomy-pulp)" fillOpacity="0.92" />
-                <path d="M80 50 C82 62 82 74 79 88 L72 117" fill="none" stroke="#38bdf8" strokeWidth="2.4" strokeLinecap="round" filter="url(#anatomy-glow)" />
-                <path d="M82 50 C85 62 86 74 89 88 L96 117" fill="none" stroke="#60a5fa" strokeWidth="2.1" strokeLinecap="round" filter="url(#anatomy-glow)" />
-                <path d="M73 118 L68 140 M90 118 L95 140" fill="none" stroke="#2563eb" strokeWidth="2.2" strokeLinecap="round" />
+                {selectedMorph?.roots === 3 ? (
+                  <>
+                    <path d="M79 50 C79 65 77 83 72 101 L64 137" fill="none" stroke="#38bdf8" strokeWidth="2.4" strokeLinecap="round" filter="url(#anatomy-glow)" />
+                    <path d="M82 50 C83 65 82 83 82 101 L82 141" fill="none" stroke="#60a5fa" strokeWidth="2.2" strokeLinecap="round" filter="url(#anatomy-glow)" />
+                    <path d="M85 50 C87 65 90 83 94 101 L101 137" fill="none" stroke="#38bdf8" strokeWidth="2.4" strokeLinecap="round" filter="url(#anatomy-glow)" />
+                  </>
+                ) : selectedMorph?.roots === 2 ? (
+                  <>
+                    <path d="M79 50 C80 67 78 86 73 103 L67 139" fill="none" stroke="#38bdf8" strokeWidth="2.4" strokeLinecap="round" filter="url(#anatomy-glow)" />
+                    <path d="M84 50 C85 67 88 86 92 103 L98 139" fill="none" stroke="#60a5fa" strokeWidth="2.2" strokeLinecap="round" filter="url(#anatomy-glow)" />
+                  </>
+                ) : (
+                  <path d="M81 50 C82 68 82 88 82 105 L82 140" fill="none" stroke="#60a5fa" strokeWidth="2.4" strokeLinecap="round" filter="url(#anatomy-glow)" />
+                )}
                 <path d="M51 56 C58 52 67 50 79 50" fill="none" stroke="#ecfeff" strokeWidth="2.2" strokeLinecap="round" />
               </svg>
             </div>
