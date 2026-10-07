@@ -16,15 +16,44 @@ import {
   mapCourseToEventCard,
   normalizeSchoolFormat,
 } from './schoolFormats.js';
+import {
+  audiencesFromCourseMeta,
+  canExposeCatalogItem,
+  resolveActiveContentContext,
+} from '../../iam/contentCatalogAccess.js';
 
 const schoolRouter = Router();
 
-function mapCourse(course: any) {
+const PUBLIC_COURSE_META_KEYS = [
+  'subtitle',
+  'instructorTitle',
+  'difficulty',
+  'durationHours',
+  'lessonCount',
+  'rating',
+  'tags',
+  'certificateEnabled',
+  'audiences',
+] as const;
+
+function catalogMeta(meta: unknown): Record<string, unknown> | null {
+  if (!meta || typeof meta !== 'object' || Array.isArray(meta)) return null;
+  const source = meta as Record<string, unknown>;
+  const safe: Record<string, unknown> = {};
+  for (const key of PUBLIC_COURSE_META_KEYS) {
+    if (source[key] !== undefined) safe[key] = source[key];
+  }
+  return Object.keys(safe).length ? safe : null;
+}
+
+function mapCourse(course: any, options: { includePrivateFile?: boolean } = {}) {
   const lessonCount = course._count?.lessons ?? course.lessons?.length ?? 0;
   const durationHours = course.duration
     ? Number(String(course.duration).replace(/[^\d.]/g, '')) || lessonCount
     : lessonCount;
   const format = normalizeSchoolFormat(course.format);
+  const price = Number(course.price || 0);
+  const safeMeta = catalogMeta(course.meta);
   return {
     id: course.id,
     title: course.title,
@@ -51,12 +80,22 @@ function mapCourse(course: any) {
     format,
     startsAt: course.startsAt || null,
     seats: course.seats ?? null,
-    fileUrl: course.fileUrl || null,
-    meta: course.meta || null,
+    // A paid course may carry a downloadable asset. It is a private field and
+    // is returned only after the detail route has established enrollment.
+    fileUrl: options.includePrivateFile || price <= 0 ? course.fileUrl || null : null,
+    meta: safeMeta,
+    // Preserve the catalog's existing flat rich fields without leaking lesson
+    // modules or arbitrary future private keys stored in Course.meta.
+    ...(safeMeta || {}),
     created_at: course.createdAt,
-    // Round-trip rich admin fields stored in meta (subtitle, difficulty, tags, modules, ...)
-    ...((course.meta as Record<string, unknown>) || {}),
   };
+}
+
+function visibleAcademyCourses<T extends { meta?: unknown }>(courses: T[], req: AuthRequest): T[] {
+  const context = resolveActiveContentContext(req);
+  return courses.filter((course) =>
+    canExposeCatalogItem('ACADEMY', context, audiencesFromCourseMeta(course.meta)),
+  );
 }
 
 function lessonsFromModules(modules: any): Array<{ title: string; videoUrl: string | null; content: string | null; duration: number; order: number }> {
@@ -130,7 +169,7 @@ function mapCourseDetail(course: any) {
   }
 
   return {
-    ...mapCourse(course),
+    ...mapCourse(course, { includePrivateFile: true }),
     modules: [
       {
         id: 'm1',
@@ -219,7 +258,9 @@ schoolRouter.get('/hub', optionalAuth, async (req: AuthRequest, res) => {
         webinars,
         officeCourses,
         textbooks,
-        courses: trackCourses.map(mapCourse),
+        courses: trackCourses
+          .filter((course) => canExposeCatalogItem('ACADEMY', resolveActiveContentContext(req), audiencesFromCourseMeta(course.meta)))
+          .map(mapCourse),
         academies: academies.map((a) => ({
           id: a.id,
           name: a.name,
@@ -281,7 +322,8 @@ schoolRouter.get('/courses', optionalAuth, async (req, res) => {
       orderBy: { createdAt: 'desc' },
     });
 
-    res.json({ ok: true, data: courses.map(mapCourse) });
+    const visibleCourses = visibleAcademyCourses(courses, req);
+    res.json({ ok: true, data: visibleCourses.map(mapCourse) });
   } catch (error) {
     res.status(500).json({ ok: false, error: 'Failed to fetch courses' });
   }
@@ -301,6 +343,12 @@ schoolRouter.get('/courses/:id', optionalAuth, async (req, res) => {
     });
 
     if (!course) {
+      res.status(404).json({ ok: false, error: 'Course not found' });
+      return;
+    }
+
+    const contentContext = resolveActiveContentContext(req);
+    if (!canExposeCatalogItem('ACADEMY', contentContext, audiencesFromCourseMeta(course.meta))) {
       res.status(404).json({ ok: false, error: 'Course not found' });
       return;
     }
