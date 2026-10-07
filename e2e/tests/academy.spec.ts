@@ -34,6 +34,31 @@ async function loginLecturer(api: APIRequestContext) {
   return lecturerToken;
 }
 test.describe('Academy / Course Workflow', () => {
+  test('ACADEMY-011: format catalog routes preserve audience isolation', async () => {
+    const apiPublic = await apiRequest.newContext();
+    const id = `academy-format-${Date.now()}`;
+    try {
+      await prisma.course.create({
+        data: {
+          id,
+          title: 'Professional format fixture',
+          price: 20000,
+          format: 'webinar',
+          meta: { audiences: ['PROFESSIONAL'] },
+        },
+      });
+      for (const formatPath of ['live', 'webinars', 'office-courses', 'textbooks']) {
+        const response = await apiPublic.get(`${BASE_URL}/api/school/${formatPath}`);
+        expect(response.status()).toBe(200);
+        const body = await response.json();
+        const items = Array.isArray(body.data) ? body.data : [];
+        expect(items.some((item: { id?: string }) => item.id === id)).toBe(false);
+      }
+    } finally {
+      await prisma.course.deleteMany({ where: { id } }).catch(() => {});
+      await apiPublic.dispose();
+    }
+  });
   test('ACADEMY-010: lecturer course CRUD stays inside the active Academy organization', async () => {
     const lecturerApi = await apiRequest.newContext();
     const token = await loginLecturer(lecturerApi);
