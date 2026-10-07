@@ -207,9 +207,9 @@ export function Odontogram3D({
     // A real dental arch is deeper through the incisors and flatter towards the
     // molars. Cosine gives the chart a continuous U/∩ contour without kinks.
     const curve = Math.cos(normalized * Math.PI / 2)
-    const depth = count < 16 ? 42 : 54
+    const depth = count < 16 ? 30 : 38
     const rotation = upper ? normalized * 26 : normalized * -26
-    const translateY = upper ? -curve * depth : curve * depth
+    // Upper anterior teeth sit deeper toward the midline; lower anterior teeth mirror upward.\n    // This keeps the two rows facing one another as a true dental-arch composition.\n    const translateY = upper ? curve * depth : -curve * depth
     return { rotation, translateY }
   }
 
@@ -222,7 +222,7 @@ export function Odontogram3D({
     return (
       <div className="relative mx-auto w-full overflow-visible" style={{ maxWidth: chartWidth }}>
         <div
-          className="relative mx-auto h-[192px] sm:h-[214px] md:h-[232px]"
+          className="relative mx-auto h-[176px] sm:h-[192px] md:h-[208px]"
           style={{ width: '100%' }}
           role="group"
           aria-label={upper ? 'Верхняя зубная дуга' : 'Нижняя зубная дуга'}
