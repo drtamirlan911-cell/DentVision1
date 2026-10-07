@@ -57,6 +57,21 @@ export function badgeCountFor(input: { unreadNotifications: number }): number {
   return Math.max(0, input.unreadNotifications);
 }
 
+function timeAgo(value: string): string {
+  const timestamp = Date.parse(value);
+  if (!Number.isFinite(timestamp)) return '';
+  const diffSeconds = Math.round((timestamp - Date.now()) / 1000);
+  const abs = Math.abs(diffSeconds);
+  const unit = abs < 60 ? 'second' : abs < 3600 ? 'minute' : abs < 86400 ? 'hour' : 'day';
+  const divisor = unit === 'second' ? 1 : unit === 'minute' ? 60 : unit === 'hour' ? 3600 : 86400;
+  const valueInUnit = Math.round(diffSeconds / divisor);
+  try {
+    return new Intl.RelativeTimeFormat('ru', { numeric: 'auto' }).format(valueInUnit, `${unit}s` as Intl.RelativeTimeFormatUnit);
+  } catch {
+    return new Date(timestamp).toLocaleString('ru-RU');
+  }
+}
+
 function normalizePriority(p: BellAlert['priority']): 'high' | 'medium' | 'low' {
   if (p === 'high' || p === 'medium' || p === 'low') return p;
   const n = Number(p) || 0;
