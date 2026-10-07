@@ -429,14 +429,18 @@ async function canManageClinicRefund(user: AuthRequest['user'], clinicId: string
 
 async function assertPaymentOwner(req: AuthRequest, payment: { meta: unknown; refType: string | null; refId: string | null }) {
   const meta = (payment.meta || {}) as { userId?: string; clinicId?: string; merchantScope?: string };
+
+  // Clinic payments are financial-control operations. This branch must run
+  // before the generic meta.userId ownership check because clinic payment
+  // creation intentionally records the creator in meta.userId as well.
+  if (meta.clinicId && (meta.merchantScope === 'clinic' || payment.refType === 'appointment' || payment.refType === 'crm_invoice')) {
+    return canManageClinicRefund(req.user!, meta.clinicId);
+  }
+
   if (meta.userId && meta.userId === req.user!.id) return true;
   if (payment.refType === 'order' && payment.refId) {
     const order = await prisma.order.findUnique({ where: { id: payment.refId }, select: { userId: true } });
     if (order?.userId === req.user!.id) return true;
-  }
-  // Clinic payments require an authorized finance role in the same clinic.
-  if (meta.clinicId && (meta.merchantScope === 'clinic' || payment.refType === 'appointment' || payment.refType === 'crm_invoice')) {
-    return canManageClinicRefund(req.user!, meta.clinicId);
   }
   return false;
 }
