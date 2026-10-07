@@ -127,19 +127,6 @@ notificationsRouter.post('/read-all', async (req: AuthRequest, res) => {
   }
 });
 
-notificationsRouter.get('/:id', async (req: AuthRequest, res) => {
-  try {
-    const notification = await prisma.notification.findFirst({
-      where: { id: req.params.id, userId: req.user!.id },
-    });
-    if (!notification) return res.status(404).json({ ok: false, error: 'Уведомление не найдено' });
-    return res.json({ ok: true, data: notification });
-  } catch (err) {
-    const message = err instanceof Error ? err.message : 'Внутренняя ошибка сервера';
-    return res.status(500).json({ ok: false, error: message });
-  }
-});
-
 // ─── Preferences ───
 
 notificationsRouter.get('/preferences', async (req: AuthRequest, res) => {
@@ -175,5 +162,20 @@ notificationsRouter.put('/preferences', async (req: AuthRequest, res) => {
 notificationsRouter.get('/types', async (_req, res) => {
   return res.json({ ok: true, data: NOTIFICATION_TYPES } satisfies ApiResponse);
 });
+
+// Dynamic notification detail route intentionally stays after all static GET endpoints.
+notificationsRouter.get('/:id', async (req: AuthRequest, res) => {
+  try {
+    const notification = await prisma.notification.findFirst({
+      where: { id: req.params.id, userId: req.user!.id },
+    });
+    if (!notification) return res.status(404).json({ ok: false, error: 'Уведомление не найдено' });
+    return res.json({ ok: true, data: notification });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : 'Внутренняя ошибка сервера';
+    return res.status(500).json({ ok: false, error: message });
+  }
+});
+
 
 export { notificationsRouter };
