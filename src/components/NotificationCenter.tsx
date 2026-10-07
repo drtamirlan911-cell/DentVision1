@@ -102,15 +102,15 @@ export default function NotificationCenter() {
                   <p className="text-2xs font-medium text-dv-gold">{typeMeta[selected.type as NotificationType]?.label || t('platform.notification_system')}</p>
                   <h3 className="mt-1 text-base font-semibold text-txt-primary">{selected.title}</h3>
                 </div>
-                <button type="button" aria-label="Close notification details" onClick={closeDetail} className="text-txt-muted hover:text-txt-primary"><X size={18} /></button>
+                <button type="button" aria-label="Close notification details" onClick={closeDetail} className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-txt-muted hover:bg-surface-2 hover:text-txt-primary"><X size={18} /></button>
               </div>
               <div className="space-y-3 px-5 py-5">
                 <p className="whitespace-pre-wrap break-words text-sm leading-6 text-txt-secondary">{selected.message || 'Нет дополнительного описания.'}</p>
                 <p className="text-2xs text-txt-ghost">{timeAgo(selected.createdAt)}</p>
               </div>
               <div className="flex justify-end gap-2 border-t border-bdr-subtle px-5 py-3">
-                <button type="button" onClick={closeDetail} className="rounded-lg px-3 py-2 text-xs text-txt-secondary hover:bg-surface-2">Закрыть</button>
-                {selected.actionUrl && <button type="button" onClick={followAction} className="rounded-lg bg-dv-gold px-3 py-2 text-xs font-medium text-black">Открыть связанный раздел</button>}
+                <button type="button" onClick={closeDetail} className="min-h-9 rounded-lg px-3 py-2 text-xs text-txt-secondary hover:bg-surface-2">Закрыть</button>
+                {selected.actionUrl && <button type="button" onClick={followAction} className="min-h-9 rounded-lg bg-dv-gold px-3 py-2 text-xs font-medium text-black">Открыть связанный раздел</button>}
               </div>
             </motion.div>
           </motion.div>
@@ -140,7 +140,7 @@ export default function NotificationCenter() {
               <button
                 aria-label="Close notifications"
                 onClick={() => setOpen(false)}
-                className="text-txt-muted hover:text-txt-primary"
+                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-txt-muted hover:bg-surface-2 hover:text-txt-primary"
               >
                 <X size={16} />
               </button>
@@ -153,7 +153,7 @@ export default function NotificationCenter() {
                   key={tabValue}
                   onClick={() => setTab(tabValue)}
                   className={cn(
-                    'rounded-lg px-3 py-1.5 text-xs font-medium transition-colors',
+                    'min-h-9 rounded-lg px-3 py-1.5 text-xs font-medium transition-colors',
                     tab === tabValue ? 'bg-surface-2 text-dv-gold' : 'text-txt-muted hover:text-txt-secondary'
                   )}
                 >
@@ -163,7 +163,7 @@ export default function NotificationCenter() {
               <div className="ml-auto">
                 <button
                   onClick={markAll}
-                  className="flex items-center gap-1 rounded-lg px-2 py-1.5 text-2xs text-txt-muted hover:text-txt-primary"
+                  className="flex min-h-9 items-center gap-1 rounded-lg px-2 py-1.5 text-2xs text-txt-muted hover:text-txt-primary"
                 >
                   <Check size={13} /> {t('platform.notification_read_all')}
                 </button>
