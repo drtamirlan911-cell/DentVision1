@@ -99,6 +99,16 @@
 - **Regression:** payment settlement tests cover tampered subscription amount; source contract covers creation-time billing and tariff guards.
 - **Verification:** fresh exact-head CI/E2E required before closure.
 
+### RB-013 — Clinic-cash payment creation lacks financial permission and ref scope
+- **Status:** FIXED — pending exact-head CI verification
+- **Priority:** P0
+- **Area:** Finance / Payments / RBAC / Tenant integrity
+- **Observed:** clinic-cash payment creation used clinic membership as sufficient authorization and accepted client-supplied appointment/invoice refs without proving they belonged to the selected clinic.
+- **Risk:** ordinary clinical members could initiate money-state changes; a finance user could bind a payment to a cross-clinic appointment/invoice.
+- **Fix:** clinic cash requires scoped `billing.manage`; appointment refs must belong to the active clinic; invoice refs must belong to the active clinic and the payment cannot exceed the outstanding invoice balance.
+- **Regression:** payment route contract locks the billing guard and clinic/ref/amount checks.
+- **Verification:** fresh exact-head CI/E2E remains required.
+
 ## Closed
 
 ### RB-006 — Vercel build rate limit
