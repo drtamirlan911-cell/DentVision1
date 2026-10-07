@@ -1447,3 +1447,11 @@ These changes are route/entry reconciliation only. Existing domain implementatio
 
 ### Next action
 - Run the full exact-head CI/E2E/browser/mobile/role/visual chain and continue closing only evidence-backed blockers.
+
+
+## 2026-10-08 — Owner lifecycle registration boundary
+
+- `bb44b097eacd5141c849f8bc6d7ccc914cc88b58` — branch-management E2E now asserts the workspace picker reflects a switched branch immediately before reload, protecting the canonical Organization → Branch read-model contract.
+- `f117de85fcc466d7c9c75b417a24f9e8415f204d` — added a deterministic E2E vertical slice for new account registration → canonical partner onboarding → scoped PersonRole/Branch creation → `/api/iam/me/contexts` persistence → reload.
+- The registration assertion also verifies a malicious `role: OWNER` request still creates only the unscoped `STUDENT` global account; privileged access is granted only by the scoped onboarding graph.
+- Verification remains CI-gated; no new exact-head GitHub Actions run is currently reported for the connector-authored commits.
