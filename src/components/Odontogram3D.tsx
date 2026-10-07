@@ -175,9 +175,6 @@ export function Odontogram3D({
 
   const upperTeeth = archTeeth(mode, true)
   const lowerTeeth = archTeeth(mode, false)
-  const half = upperTeeth.length / 2
-  const cell = toothSize + 10
-
   const toothOf = (n: number) => normalizeTooth(patientTeeth[n] ?? patientTeeth[String(n)])
 
   /** Statuses that can materially change the clinical record require an explicit confirmation. */
@@ -209,9 +206,9 @@ export function Odontogram3D({
     const curve = Math.cos(normalized * Math.PI / 2)
     const depth = count < 16 ? 30 : 38
     const rotation = upper ? normalized * 26 : normalized * -26
-    // Upper anterior teeth sit deeper toward the midline; lower anterior teeth mirror upward.
+    // Upper anterior teeth sit toward the opposing lower arch; lower anterior teeth mirror upward.
     // This keeps the two rows facing one another as a true dental-arch composition.
-    const translateY = upper ? -curve * depth : curve * depth
+    const translateY = upper ? curve * depth : -curve * depth
     return { rotation, translateY }
   }
 
