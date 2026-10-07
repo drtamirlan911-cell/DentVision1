@@ -471,6 +471,8 @@ export async function buildProactiveAlerts(opts: {
   clinicId?: string | null;
   role?: string;
   isGuest?: boolean;
+  organizationType?: string | null;
+  workspaceName?: string | null;
 }): Promise<Array<{
   type: string;
   category: string;
@@ -490,6 +492,7 @@ export async function buildProactiveAlerts(opts: {
 
   const guestRole = String(opts.role || '').toUpperCase() === 'GUEST' || opts.isGuest;
   const clinicId = opts.clinicId;
+  const organizationType = String(opts.organizationType || '').toUpperCase();
   if (!clinicId) {
     if (guestRole) {
       alerts.push(
@@ -518,6 +521,18 @@ export async function buildProactiveAlerts(opts: {
           action: { type: 'OpenShop' },
         },
       );
+      return alerts;
+    }
+    if (organizationType && organizationType !== 'CLINIC') {
+      const workspaceName = String(opts.workspaceName || '').trim() || 'рабочий контекст';
+      alerts.push({
+        type: 'workspace',
+        category: 'context',
+        text: `Контекст «${workspaceName}» активен — AI работает в рамках этой организации и роли`,
+        message: `Контекст «${workspaceName}» активен — AI работает в рамках этой организации и роли`,
+        priority: 6,
+        action: { type: 'OpenWorkspace' },
+      });
       return alerts;
     }
     alerts.push({
