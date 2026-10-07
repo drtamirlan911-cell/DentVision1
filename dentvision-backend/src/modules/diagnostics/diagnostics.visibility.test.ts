@@ -1,10 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 
 describe('diagnostics public visibility boundary', () => {
   it('requires explicit ecosystemVisible=true for center list/detail paths', () => {
     const source = readFileSync(
-      new URL('./diagnostics.service.ts', import.meta.url),
+      resolve(process.cwd(), 'dentvision-backend/src/modules/diagnostics/diagnostics.service.ts'),
       'utf8',
     );
 
