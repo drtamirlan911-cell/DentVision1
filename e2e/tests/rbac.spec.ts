@@ -245,7 +245,7 @@ test.describe('RBAC - Role-Based Access Control', () => {
       headers: authHeaders(token),
     });
     expect(ownContexts.status()).toBe(200);
-    const contexts = ownContexts.body ? await ownContexts.json() : {};
+    const contexts = await ownContexts.json();
     const diagnostic = (contexts.data || contexts).contexts?.find(
       (context: { scopeType?: string; organizationId?: string }) => context.scopeType === 'DIAGNOSTIC_CENTER',
     );
