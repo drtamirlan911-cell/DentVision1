@@ -204,9 +204,12 @@ export function Odontogram3D({
   const archCurve = (index: number, count: number, upper: boolean) => {
     const center = (count - 1) / 2
     const normalized = center === 0 ? 0 : (index - center) / center
+    // A real dental arch is deeper through the incisors and flatter towards the
+    // molars. Cosine gives the chart a continuous U/∩ contour without kinks.
     const curve = Math.cos(normalized * Math.PI / 2)
-    const rotation = upper ? normalized * 22 : normalized * -22
-    const translateY = upper ? -curve * 44 : curve * 44
+    const depth = count < 16 ? 42 : 54
+    const rotation = upper ? normalized * 26 : normalized * -26
+    const translateY = upper ? -curve * depth : curve * depth
     return { rotation, translateY }
   }
 
@@ -214,12 +217,12 @@ export function Odontogram3D({
     const toothCount = teeth.length
     const isPrimary = toothCount < 16
     const cell = isPrimary ? 'clamp(27px, 5.8vw, 42px)' : 'clamp(24px, 4.9vw, 42px)'
-    const chartWidth = isPrimary ? 'min(620px, 100%)' : 'min(760px, 100%)'
+    const chartWidth = isPrimary ? 'min(640px, 100%)' : 'min(800px, 100%)'
 
     return (
       <div className="relative mx-auto w-full overflow-visible" style={{ maxWidth: chartWidth }}>
         <div
-          className="relative mx-auto h-[178px] sm:h-[198px] md:h-[218px]"
+          className="relative mx-auto h-[192px] sm:h-[214px] md:h-[232px]"
           style={{ width: '100%' }}
           role="group"
           aria-label={upper ? 'Верхняя зубная дуга' : 'Нижняя зубная дуга'}
@@ -233,7 +236,7 @@ export function Odontogram3D({
           {teeth.map((n, index) => {
             const { rotation, translateY } = archCurve(index, toothCount, upper)
             const tooth = toothOf(n)
-            const xPercent = toothCount <= 1 ? 50 : 6 + (index / (toothCount - 1)) * 88
+            const xPercent = toothCount <= 1 ? 50 : 6.5 + (index / (toothCount - 1)) * 87
             return (
               <div
                 key={n}
@@ -268,7 +271,7 @@ export function Odontogram3D({
           })}
           <div
             aria-hidden
-            className="pointer-events-none absolute left-1/2 top-1/2 h-[72%] w-[72%] -translate-x-1/2 -translate-y-1/2 rounded-[50%] border border-cyan-400/10"
+            className="pointer-events-none absolute left-1/2 top-1/2 h-[68%] w-[78%] -translate-x-1/2 -translate-y-1/2 rounded-[50%] border border-cyan-400/10"
             style={{ transform: `translate(-50%, ${upper ? '-8%' : '8%'})` }}
           />
         </div>
