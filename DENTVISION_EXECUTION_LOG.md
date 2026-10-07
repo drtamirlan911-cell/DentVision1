@@ -1330,3 +1330,24 @@ These changes are route/entry reconciliation only. Existing domain implementatio
 - The selected panel now also surfaces the current tooth state and non-healthy surface findings next to the existing enamel/dentin/pulp/nerve/root anatomy view.
 - Clinical state mutation, destructive-status confirmation, FDI numbering, treatment-plan sync, and tooth persistence logic were not changed by this visual/layout refinement.
 - Fresh exact-head CI and browser/mobile visual evidence remain required before treating the refinement as release-proven.
+
+
+## 2026-10-08 — PR #302: branch physical-schema + AI mobile target hardening
+
+### Exact CI evidence
+- CI #3822 on the prior exact HEAD exposed a systemic branch-scope failure: E2E raw SQL queried physical columns "branches.createdAt" / "updatedAt", while the canonical Prisma Branch model maps audit timestamps to "created_at" / "updated_at".
+- This single schema mismatch cascaded into patient creation/list failures, appointments, clinical fixtures, branch management and tenant/IDOR journeys.
+- Role Design also exposed a /me/contexts branch-default query using the same stale physical timestamp names.
+- Mobile Design Gate exposed sub-36px interactive targets in the authenticated AI workspace.
+
+### Fixes applied
+- e2e/helpers/factories.ts — branch fixture discovery/creation now uses the physical snake_case audit columns used by the canonical Branch schema.
+- dentvision-backend/src/lib/patientBranchScope.ts — organization branch ordering now uses "created_at".
+- dentvision-backend/src/modules/branches/branches.routes.ts — branch read/create/update raw SQL now uses "created_at" / "updated_at" consistently with Prisma mappings.
+- dentvision-backend/src/modules/iam/iam.routes.ts — /me/contexts default-branch query now uses the mapped physical timestamp columns, preventing context discovery HTTP 500.
+- src/components/intelligence/AIWorkspaceIndex.tsx — the AI workspace root now enforces a minimum 36×36px target for descendant buttons, while preserving larger explicit controls.
+
+### Verification status
+- Quality Gate was green before these changes and a new exact-head Quality Gate/CI pair has been triggered after them.
+- The new exact-head evidence is the only release evidence that may be used for the next decision; previous cancelled runs remain historical context only.
+- Release remains UNVERIFIED pending fresh core E2E, Browser UX, Mobile Design, Role/Context, Visual Agent and downstream business-owner gates.
