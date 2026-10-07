@@ -344,7 +344,7 @@ export function Odontogram3D({
               <p className="m-0 text-[10px] font-semibold uppercase tracking-[0.12em] text-txt-muted">Анатомия выбранного зуба</p>
               <p className="mt-1 mb-0 text-sm font-semibold text-txt-primary">Зуб {selectedTooth} · {selectedMorph?.label || 'анатомическая модель'}</p>
             </div>
-            <span className="rounded-full border border-dv-gold/30 bg-dv-gold/10 px-2 py-1 text-[10px] text-dv-gold">
+            <span className="rounded-full border border-cyan-400/25 bg-cyan-400/10 px-2 py-1 text-[10px] text-cyan-300">
               {tipStatus && tipStatus !== 'healthy' ? (STATUS_META[tipStatus]?.label || tipStatus) : 'Без отмеченной патологии'}
             </span>
           </div>
@@ -379,7 +379,6 @@ export function Odontogram3D({
                 <path d="M73 118 L68 140 M90 118 L95 140" fill="none" stroke="#2563eb" strokeWidth="2.2" strokeLinecap="round" />
                 <path d="M51 56 C58 52 67 50 79 50" fill="none" stroke="#ecfeff" strokeWidth="2.2" strokeLinecap="round" />
               </svg>
-            </div>
             </div>
             <div className="grid grid-cols-2 sm:grid-cols-5 gap-1.5">
               {[
