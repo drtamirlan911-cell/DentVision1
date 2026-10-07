@@ -198,8 +198,18 @@ organizationsRouter.post('/self-service', async (req: AuthRequest, res) => {
 // before the SuperAdmin-only management surface below.
 organizationsRouter.get('/me', async (req: AuthRequest, res) => {
   try {
+    const requestedOrganizationId = String(
+      req.user?.organizationId ||
+      req.header('X-DentVision-Organization-Id') ||
+      req.header('X-DentVision-Workspace-Id') ||
+      '',
+    ).trim();
     const person = await prisma.person.findFirst({
-      where: { userId: req.user!.id, organizationId: { not: null } },
+      where: {
+        userId: req.user!.id,
+        organizationId: { not: null },
+        ...(requestedOrganizationId ? { organizationId: requestedOrganizationId } : {}),
+      },
       orderBy: { createdAt: 'asc' },
       include: { organization: true },
     });
