@@ -1163,3 +1163,21 @@ These changes are route/entry reconciliation only. Existing domain implementatio
 - Exact PR #302 head after these changes: `112b237f757300ee0a37cc196b21529d2aa31361`.
 - Fresh CI is pending on the exact head; previous Quality Gate results are not treated as current-head evidence.
 - Static audit continues while CI runs.
+
+## 2026-10-07 — PR #302 continuation: anatomical odontogram refinement
+
+### Implemented
+- `af8063aafd4f6d8fd22ae9e7e034e097b6a983df` — refined occlusal anatomy in `AnatomicalToothSvg.tsx`: central/lateral incisors, canine, first/second premolars, upper first/second molars, and lower first/second molars now use distinct silhouettes and fissure/cusp patterns. Lower first molars retain a five-cusp pattern; upper first molars retain a first-molar-specific accessory cusp detail.
+- The same pass corrected lower-arch buccal/lingual surface mirroring for occlusal findings, so MODBL marking semantics remain consistent between arches.
+- `364fc2da535b6204128b413a4e0f5fcfcd174f7c` — tuned the curved upper/lower arch geometry, tooth rotation, responsive width and spacing while keeping the full 32-tooth chart visible.
+
+### Safety
+- No clinical status vocabulary, patient data model, treatment-plan API or routing contract was changed.
+- Changes are isolated to odontogram presentation/mapping logic.
+
+### Verification state
+- Branch remains **UNVERIFIED** until fresh CI/E2E/browser/mobile/role/context/visual evidence is available for the new exact HEAD.
+- Combined commit status currently exposes the Vercel check as pending for the latest commit.
+
+### Next action
+- Inspect the fresh workflow/deployment result for the exact HEAD, then repair any compiler/E2E/mobile visual regressions without weakening tests.
