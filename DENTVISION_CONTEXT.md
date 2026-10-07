@@ -51,10 +51,13 @@ The UI uses progressive disclosure: the underlying ecosystem remains complete, w
 AI action lifecycle:
 `Intent → Context → Permission → Plan → Preview → Confirmation when required → Execute → Verify → Audit`
 
-## 5. Verified repository state — 2026-09-16
-- `main` contains the latest security/release-gate hardening and the current documentation consolidation.
-- Latest verified fully green core CI evidence recorded in the execution log is run `35066089223` on exact HEAD `844b469e084dd5acec6fb45f26d28757c27a3568`: frontend lint, build/typecheck/unit, backend lint, full E2E, browser UX, Business Owner journeys, Organization Owner lifecycle release gate and Playwright CLI smoke passed.
-- A later branch-deactivation test hardening commit exists after that run; therefore the latest main state still requires a fresh CI verification before it can be treated as green.
+## 5. Verified repository state — 2026-10-07
+- `main` remains the product source of truth; PR #302 is the active release-blocker remediation branch.
+- Current PR #302 exact HEAD: `2152e3f02b2f3ca06f505ae45c866d8feeb98db1`.
+- Quality Gate run `4765` is currently in progress on that exact HEAD; TypeScript and frontend ESLint steps have completed successfully and the repository release-gate step is still running.
+- Full CI run `3804` for the exact HEAD is queued. Its E2E/browser/mobile/role-context/visual/business-owner evidence is therefore not yet available and the release remains UNVERIFIED.
+- The preceding exact-head CI run exposed 3 unit-test failures caused by Vitest/source-path test-harness incompatibilities; those test defects were repaired on PR #302 before the current HEAD.
+- PR #302 also contains the current odontogram curved-arch refinement, notification detail/ownership hardening, and payment metadata ownership hardening; these latest changes are UNVERIFIED until fresh exact-head gates complete.
 
 ### Product status
 - Clinical RBAC boundary: IMPLEMENTED + unit coverage; fresh CI required after later main changes.
