@@ -450,18 +450,19 @@ function OcclusalTooth({
 
   return (
     <g>
-      {selected && <path d={outline} fill="none" stroke="#C9A96E" strokeWidth="2.6" opacity="0.55" />}
+      {selected && <path d={outline} fill="none" stroke="#67e8f9" strokeWidth="2.8" opacity="0.95" filter={`url(#occl-neon-${toothNumber})`} />}
       <path
         d={outline}
         fill={`url(#occl-${toothNumber})`}
-        stroke="#B9A48A"
-        strokeOpacity="0.55"
-        strokeWidth="0.9"
+        stroke="#a5f3fc"
+        strokeOpacity="0.92"
+        strokeWidth="1.05"
         strokeLinejoin="round"
+        filter={`url(#occl-neon-${toothNumber})`}
       />
       {/* Cusp shading: a soft inner ring so the table reads as domed, not flat. */}
-      <path d={outline} fill="none" stroke="#FFFFFF" strokeOpacity="0.55" strokeWidth="1.6" transform="scale(0.9) translate(2.2 2.2)" />
-      <g fill="none" stroke="#A8967F" strokeOpacity="0.75" strokeWidth="1.1" strokeLinecap="round">
+      <path d={outline} fill="none" stroke="#ecfeff" strokeOpacity="0.72" strokeWidth="1.7" transform="scale(0.9) translate(2.2 2.2)" />
+      <g fill="none" stroke="#075985" strokeOpacity="0.9" strokeWidth="1.05" strokeLinecap="round">
         {occlusalFissures(pattern)}
       </g>
       {isImplant ? (
@@ -498,7 +499,7 @@ function OcclusalSurfaceMarks({ surfaces, pattern }: { surfaces?: ToothSurfaces 
         if (!st || st === 'healthy') return null
         const z = zones[key]
         if (!z) return null
-        return <circle key={key} cx={z.x} cy={z.y} r="2.6" fill={statusColor(st)} stroke="#FFFFFF" strokeOpacity="0.8" strokeWidth="0.7" />
+        return <circle key={key} cx={z.x} cy={z.y} r="2.8" fill={statusColor(st)} stroke="#ecfeff" strokeOpacity="0.92" strokeWidth="0.75" filter={`url(#occl-neon-${toothNumber})`} />
       })}
     </g>
   )
@@ -568,11 +569,21 @@ export function AnatomicalToothSvg({
       <svg width={size} height={size} viewBox="0 0 40 40" aria-hidden>
         <g transform={posteriorScale === 1 ? undefined : `translate(20 20) scale(${posteriorScale}) translate(-20 -20)`}>
         <defs>
-          <linearGradient id={`occl-${toothNumber}`} x1="0.2" y1="0" x2="0.8" y2="1">
-            <stop offset="0%" stopColor="#FDFBF7" />
-            <stop offset="55%" stopColor="#F2EADC" />
-            <stop offset="100%" stopColor="#E4D8C4" />
+          <linearGradient id={`occl-${toothNumber}`} x1="0.15" y1="0" x2="0.85" y2="1">
+            <stop offset="0%" stopColor="#f8feff" />
+            <stop offset="28%" stopColor="#bff8ff" />
+            <stop offset="58%" stopColor="#4ddbea" />
+            <stop offset="82%" stopColor="#16a9c0" />
+            <stop offset="100%" stopColor="#075985" />
           </linearGradient>
+          <filter id={`occl-neon-${toothNumber}`} x="-70%" y="-70%" width="240%" height="240%">
+            <feGaussianBlur stdDeviation="1.1" result="blur" />
+            <feColorMatrix in="blur" type="matrix" values="0.7 0 0 0 0 0 0.95 0 0 0.25 0 0 1 0 0.45 0 0 0 0.9 0" result="glow" />
+            <feMerge>
+              <feMergeNode in="glow" />
+              <feMergeNode in="SourceGraphic" />
+            </feMerge>
+          </filter>
         </defs>
         <OcclusalTooth
           toothNumber={toothNumber}
