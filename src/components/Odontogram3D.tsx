@@ -209,7 +209,9 @@ export function Odontogram3D({
     const curve = Math.cos(normalized * Math.PI / 2)
     const depth = count < 16 ? 30 : 38
     const rotation = upper ? normalized * 26 : normalized * -26
-    // Upper anterior teeth sit deeper toward the midline; lower anterior teeth mirror upward.\n    // This keeps the two rows facing one another as a true dental-arch composition.\n    const translateY = upper ? curve * depth : -curve * depth
+    // Upper anterior teeth sit deeper toward the midline; lower anterior teeth mirror upward.
+    // This keeps the two rows facing one another as a true dental-arch composition.
+    const translateY = upper ? -curve * depth : curve * depth
     return { rotation, translateY }
   }
 
