@@ -194,7 +194,7 @@ organizationsRouter.post('/self-service', async (req: AuthRequest, res) => {
       if (authContext.organizationId !== result.organizationId) throw new Error('Не удалось установить контекст существующей организации');
       const scopedRoleKey = await resolveOrganizationRoleKey(req.user!.id, result.organizationId);
       const role = scopedRoleKey || selfServiceRoleKey(type);
-      const tokens = generateTokens({ sub: req.user!.id, email: req.user!.email, role, ...authContext, branchId: result.branchId || undefined, sessionId: req.user!.sessionId });
+      const tokens = generateTokens({ sub: req.user!.id, email: req.user!.email, role: role as any, ...authContext, branchId: result.branchId || undefined, sessionId: req.user!.sessionId });
       setAuthCookies(res, tokens.accessToken, tokens.refreshToken);
       return res.status(200).json({ ok: true, data: { entityId: result.entityId, organizationId: result.organizationId, type, verification: String((result.existingSettings as any)?.verification || 'PENDING'), nextPath: SELF_SERVICE_TYPES[type].nextPath, idempotent: true, ...tokens } } satisfies ApiResponse);
     }
@@ -212,7 +212,7 @@ organizationsRouter.post('/self-service', async (req: AuthRequest, res) => {
     const tokens = generateTokens({
       sub: req.user!.id,
       email: req.user!.email,
-      role: result.scopedRoleKey,
+      role: result.scopedRoleKey as any,
       ...authContext,
       branchId: result.branchId,
       sessionId: req.user!.sessionId,
