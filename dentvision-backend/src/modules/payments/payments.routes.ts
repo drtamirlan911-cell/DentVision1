@@ -411,7 +411,13 @@ async function claimPaymentForSettlement(
 async function canManageClinicRefund(user: AuthRequest['user'], clinicId: string): Promise<boolean> {
   if (!user || !clinicId) return false;
   if (user.role === 'SUPERADMIN') return true;
-  if (!(await assertOrgAccess(user, clinicId))) return false;
+
+  // Resolve the canonical Organization scope before checking access: the
+  // payment metadata still carries the domain Clinic.id, while canonical IAM
+  // uses Organization.id after migration. Legacy clinics fall back to the same
+  // id when no canonical mapping exists.
+  const organizationId = (await resolveOrganizationIdForClinic(clinicId)) || clinicId;
+  if (!(await assertOrgAccess(user, organizationId))) return false;
 
   // Refund is a financial mutation, not ordinary payment visibility. Resolve the
   // caller's role in this exact clinic and require the canonical billing.manage
@@ -419,7 +425,6 @@ async function canManageClinicRefund(user: AuthRequest['user'], clinicId: string
   // patient/payment, while OWNER/ADMIN/CASHIER retain operational control.
   const scopedRole = await resolveClinicAccess(user.id, clinicId);
   if (!scopedRole) return false;
-  const organizationId = (await resolveOrganizationIdForClinic(clinicId)) || clinicId;
   const permissions = await resolveUserPermissions(user.id, organizationId, scopedRole.role);
   return permissionsSatisfy(new Set(permissions), 'billing.manage');
 }
