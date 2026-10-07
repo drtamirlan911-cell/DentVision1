@@ -53,11 +53,12 @@ AI action lifecycle:
 
 ## 5. Verified repository state — 2026-10-07
 - `main` remains the product source of truth; PR #302 is the active release-blocker remediation branch.
-- Current PR #302 exact HEAD: `2152e3f02b2f3ca06f505ae45c866d8feeb98db1`.
-- Quality Gate run `4765` is currently in progress on that exact HEAD; TypeScript and frontend ESLint steps have completed successfully and the repository release-gate step is still running.
-- Full CI run `3804` for the exact HEAD is queued. Its E2E/browser/mobile/role-context/visual/business-owner evidence is therefore not yet available and the release remains UNVERIFIED.
-- The preceding exact-head CI run exposed 3 unit-test failures caused by Vitest/source-path test-harness incompatibilities; those test defects were repaired on PR #302 before the current HEAD.
-- PR #302 also contains the current odontogram curved-arch refinement, notification detail/ownership hardening, and payment metadata ownership hardening; these latest changes are UNVERIFIED until fresh exact-head gates complete.
+- Current PR #302 exact HEAD: `f45ea6ced5648e2accfaa4ab4b8d6c8106c4634c`.
+- Quality Gate #4791 passed on the preceding exact-head `7b86b600dd9253334b26fd21ce89ae4e01b4aa6b`, including TypeScript, frontend ESLint and the repository release-gate step.
+- Full CI #3816 reached real execution on `7b86b600dd9253334b26fd21ce89ae4e01b4aa6b`: frontend lint, backend lint, build/typecheck, Command Center audit and generated system-map validation passed; unit tests finished at **2048 passed / 1 failed** across 221 test files.
+- The single CI #3816 unit-test failure was a source-inspection boundary defect in `organizations.test.ts`; it was repaired on `a0f87c0e8f1756887d73a09ca67a6bfa7a513a01` by slicing the actual control-flow branches rather than an object-literal field.
+- `f45ea6ced5648e2accfaa4ab4b8d6c8106c4634c` records that repair in the execution log and synchronizes this context file. A fresh full CI must verify this post-fix exact HEAD; no superseded run is release evidence.
+- PR #302 contains the current odontogram curved-arch refinement, notification detail/ownership hardening, and payment metadata/Academy settlement hardening; these remain unverified until fresh exact-head browser/E2E/visual evidence completes.
 
 ### Product status
 - Clinical RBAC boundary: IMPLEMENTED + unit coverage; fresh CI required after later main changes.
