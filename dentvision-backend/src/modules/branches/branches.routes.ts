@@ -60,7 +60,7 @@ async function organizationMembership(userId: string, organizationId: string): P
     WHERE p."userId" = ${userId}
       AND p."organization_id" = ${organizationId}
       AND pr."scopeId" = ${organizationId}
-      AND COALESCE(pr."scopeType", 'organization') = 'organization'
+      AND pr."scopeType" = 'organization'
     ORDER BY CASE
       WHEN LOWER(r."key") IN ('owner','org_owner') OR LOWER(r."key") LIKE '%_owner' THEN 0
       WHEN LOWER(r."key") IN ('admin','org_admin') OR LOWER(r."key") LIKE '%_admin' THEN 1
