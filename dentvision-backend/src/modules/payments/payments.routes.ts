@@ -670,6 +670,33 @@ paymentsRouter.post('/', authenticate, async (req: AuthRequest, res) => {
         return res.status(403).json({ ok: false, error: 'Недостаточно прав для приёма оплаты в этой клинике' } satisfies ApiResponse);
       }
 
+      if (refType === 'appointment' && refId) {
+        const appointment = await prisma.appointment.findFirst({
+          where: { id: String(refId), clinicId },
+          select: { id: true },
+        });
+        if (!appointment) {
+          return res.status(403).json({ ok: false, error: 'Приём не относится к выбранной клинике' } satisfies ApiResponse);
+        }
+      }
+
+      if (refType === 'crm_invoice' && refId) {
+        const invoice = await prisma.invoice.findFirst({
+          where: { id: String(refId), clinicId, deletedAt: null },
+          select: { amount: true, paidAmount: true, status: true },
+        });
+        if (!invoice) {
+          return res.status(403).json({ ok: false, error: 'Счёт не относится к выбранной клинике' } satisfies ApiResponse);
+        }
+        const outstandingMinor = tengeToMinor(Math.max(0, invoice.amount - invoice.paidAmount));
+        if (outstandingMinor <= 0n) {
+          return res.status(409).json({ ok: false, error: 'Счёт уже полностью оплачен' } satisfies ApiResponse);
+        }
+        if (minor > outstandingMinor) {
+          return res.status(409).json({ ok: false, error: 'Сумма платежа превышает остаток счёта' } satisfies ApiResponse);
+        }
+      }
+
       const created = await createClinicKaspiPayment({
         clinicId,
         amountMinor: minor,
