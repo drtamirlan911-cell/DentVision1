@@ -1323,3 +1323,10 @@ These changes are route/entry reconciliation only. Existing domain implementatio
 - The single failure was `dentvision-backend/src/modules/organizations/organizations.test.ts`: the regression test sliced the diagnostic/laboratory source block starting at `originalType: ...` inside an object literal, so the block did not contain the canonical `tx.organization.upsert` declaration.
 - `a0f87c0e8f1756887d73a09ca67a6bfa7a513a01` — changed the source-inspection boundaries to the actual `diagnostic_center`, `dental_lab/medical_lab`, and `supplier` control-flow branches. No production authorization or identity logic was weakened.
 - Verification: the failing test must be re-run on the post-fix exact HEAD; the concurrent full E2E job was superseded by the branch push.
+
+## 2026-10-07 — Odontogram clinical-context layout refinement
+
+- `4f540e4fc256779ad8598beebc898d206925322d` — moved the selected-tooth clinical context beside the curved dental arches at desktop widths; mobile stacks the context below the arches.
+- The selected panel now also surfaces the current tooth state and non-healthy surface findings next to the existing enamel/dentin/pulp/nerve/root anatomy view.
+- Clinical state mutation, destructive-status confirmation, FDI numbering, treatment-plan sync, and tooth persistence logic were not changed by this visual/layout refinement.
+- Fresh exact-head CI and browser/mobile visual evidence remain required before treating the refinement as release-proven.

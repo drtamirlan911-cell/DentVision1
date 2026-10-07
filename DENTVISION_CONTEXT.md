@@ -149,3 +149,4 @@ Superseded product roadmaps, stale status snapshots and duplicate North Star/add
 For each slice: **inspect → implement → test → fix → verify → document → continue**.
 
 Do not repeat an audit when implementation can resolve the issue. Do not weaken tests. Do not invent a parallel architecture. Preserve the whole ecosystem and make complexity progressively discoverable.
+- `4f540e4fc256779ad8598beebc898d206925322d` contains a focused odontogram UX refinement: desktop places the selected-tooth clinical context beside the curved upper/lower arches; mobile stacks it below. This is implementation evidence only until fresh exact-head CI/browser/visual gates pass.
