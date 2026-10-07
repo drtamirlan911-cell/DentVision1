@@ -243,6 +243,15 @@ export function WorkspaceSwitcher({ className }: { className?: string }) {
       const contract = workspaceContextFrom(selected, selected.permissions || [])
       api.setWorkspaceContext(contract)
       setActiveWorkspace({ id: selected.id, scopeType: selected.scopeType, organizationId: selected.organizationId, branchId: selected.branchId, name: selected.name, roleKey: selected.roleKey, roleLabel: selected.roleLabel, permissions: selected.permissions, participant: selected.personType, dataScope: contract.dataScope }, contract)
+      // Keep React Query's workspace read-model in sync with the JWT/store
+      // immediately. Without this, the server context was switched correctly
+      // but the picker could still display the previous branch until a refetch.
+      queryClient.setQueryData<WorkspaceContext[]>(
+        ['workspaces', user?.id],
+        (items) => items?.map((item) =>
+          item.id === selected.id ? { ...item, branchId: branch.id } : item,
+        ),
+      )
       setContextFocus('workspace', selected.id, { organizationId: selected.organizationId || null, branchId: branch.id, roleKey: selected.roleKey || selected.role || null, scopeType: selected.scopeType })
       window.dispatchEvent(new CustomEvent('dentvision:workspace-switched', { detail: { id: selected.id, scopeType: selected.scopeType, organizationId: selected.organizationId, branchId: branch.id, name: selected.name, roleLabel: selected.roleLabel, roleKey: selected.roleKey || null } }))
       toast.success(`Филиал: ${branch.name}`)
