@@ -155,7 +155,7 @@ async function syncOrgFromEntity(
       where: { originalType_originalId: { originalType: type, originalId: id } },
       update: { name: data.name, address: data.address || null, phone: data.phone || null, email: data.email || null, contacts: data.city ? { city: data.city } : undefined },
       create: {
-        id,
+        id: uid(),
         name: data.name,
         type: type === 'DiagnosticCenter' ? 'DIAGNOSTIC_CENTER' : 'LABORATORY',
         address: data.address || null,
