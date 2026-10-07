@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import prisma from '../../lib/prisma.js';
 import { authenticate, optionalAuth } from '../../middleware/auth.js';
-import { requireSuperadmin } from '../../middleware/rbac.js';
+import { requirePermission, requireSuperadmin } from '../../middleware/rbac.js';
 import { AuthRequest } from '../../types/index.js';
 import { uid } from '../../lib/helpers.js';
 import { writeAuditLog } from '../compliance/audit.service.js';
@@ -23,6 +23,23 @@ import {
 } from '../../iam/contentCatalogAccess.js';
 
 const schoolRouter = Router();
+
+async function activeAcademyScope(req: AuthRequest): Promise<{ academyId: string; lecturerId?: string } | null> {
+  const user = req.user;
+  const organizationType = String(user?.organizationType || '').toUpperCase();
+  const academyId = String(user?.organizationOriginalId || '').trim();
+  if (organizationType !== 'ACADEMY' || !academyId) return null;
+
+  const lecturer = await prisma.lecturer.findUnique({
+    where: { userId: user!.id },
+    select: { id: true, academyId: true },
+  });
+  if (lecturer?.academyId && lecturer.academyId !== academyId) return null;
+  return {
+    academyId,
+    ...(lecturer?.id ? { lecturerId: lecturer.id } : {}),
+  };
+}
 
 const PUBLIC_COURSE_META_KEYS = [
   'subtitle',
@@ -381,8 +398,10 @@ schoolRouter.get('/courses/:id', optionalAuth, async (req, res) => {
   }
 });
 
-schoolRouter.post('/courses', authenticate, requireSuperadmin, async (req: AuthRequest, res) => {
+schoolRouter.post('/courses', authenticate, requirePermission('academy.manage'), async (req: AuthRequest, res) => {
   try {
+    const academyScope = await activeAcademyScope(req);
+    if (!academyScope) return res.status(403).json({ ok: false, error: 'Активный контекст Academy не найден' });
     const b = req.body || {};
     if (!b.title || !String(b.title).trim()) {
       return res.status(400).json({ ok: false, error: 'Название курса обязательно' });
@@ -398,6 +417,8 @@ schoolRouter.post('/courses', authenticate, requireSuperadmin, async (req: AuthR
         category: b.category || null,
         duration: b.durationHours ? `${Number(b.durationHours) || 0} ч` : null,
         format: 'course',
+        lecturerId: academyScope.lecturerId || null,
+        academyId: academyScope.academyId,
         meta: {
           subtitle: b.subtitle || null,
           instructorTitle: b.instructorTitle || null,
@@ -416,12 +437,15 @@ schoolRouter.post('/courses', authenticate, requireSuperadmin, async (req: AuthR
   } catch (e: any) { res.status(500).json({ ok: false, error: 'Failed to create course' }); }
 });
 
-schoolRouter.put('/courses/:id', authenticate, requireSuperadmin, async (req: AuthRequest, res) => {
+schoolRouter.put('/courses/:id', authenticate, requirePermission('academy.manage'), async (req: AuthRequest, res) => {
   try {
+    const academyScope = await activeAcademyScope(req);
+    if (!academyScope) return res.status(403).json({ ok: false, error: 'Активный контекст Academy не найден' });
     const id = req.params.id as string;
     const b = req.body || {};
     const existing = await prisma.course.findUnique({ where: { id } });
     if (!existing) return res.status(404).json({ ok: false, error: 'Курс не найден' });
+    if (existing.academyId !== academyScope.academyId) return res.status(403).json({ ok: false, error: 'Курс принадлежит другой Academy организации' });
     await prisma.lesson.deleteMany({ where: { courseId: id } });
     const course = await prisma.course.update({
       where: { id },
@@ -451,9 +475,15 @@ schoolRouter.put('/courses/:id', authenticate, requireSuperadmin, async (req: Au
   } catch (e: any) { res.status(500).json({ ok: false, error: 'Failed to update course' }); }
 });
 
-schoolRouter.delete('/courses/:id', authenticate, requireSuperadmin, async (req: AuthRequest, res) => {
+schoolRouter.delete('/courses/:id', authenticate, requirePermission('academy.manage'), async (req: AuthRequest, res) => {
   try {
-    await prisma.course.delete({ where: { id: req.params.id as string } });
+    const academyScope = await activeAcademyScope(req);
+    if (!academyScope) return res.status(403).json({ ok: false, error: 'Активный контекст Academy не найден' });
+    const id = req.params.id as string;
+    const existing = await prisma.course.findUnique({ where: { id }, select: { academyId: true } });
+    if (!existing) return res.status(404).json({ ok: false, error: 'Курс не найден' });
+    if (existing.academyId !== academyScope.academyId) return res.status(403).json({ ok: false, error: 'Курс принадлежит другой Academy организации' });
+    await prisma.course.delete({ where: { id } });
     res.json({ ok: true });
   } catch (e: any) { res.status(500).json({ ok: false, error: 'Failed to delete course' }); }
 });
