@@ -1409,3 +1409,14 @@ These changes are route/entry reconciliation only. Existing domain implementatio
 - This closes the confirmed adjacent physical-schema defect found during the post-`financeBranchScope`/`inventoryBranchScope` scan. No authorization boundary was weakened.
 - Verification: a fresh exact-head CI run is required because the current workflow evidence predates these commits.
 - Release remains **UNVERIFIED** pending the full CI/E2E/browser/mobile/role-context/visual/business-owner evidence chain.
+
+
+## 2026-10-08 — Academy catalog/content isolation hardening
+
+- `9cd0dd7d1d5337a78a8465b342d2f020801a85f8` — introduced a safe Academy catalog DTO: arbitrary `Course.meta.modules` and other private keys are no longer spread into public course cards; paid `fileUrl` is withheld unless an authorized detail flow requests it.
+- `d02845a907938181ab5597ea9820fdb05cded420` — applied the canonical Academy audience policy to course, webinar, textbook, and office catalog surfaces and to course detail access.
+- `d463f395da1d5b950389c9f50fcbf0203b6b3aef` — removed paid asset URLs from Academy event cards as an independent projection-level safeguard.
+- `d49576cd34be6bcb58012b227b5a5658e737ee83` — added E2E coverage proving a public paid GENERAL course has no downloadable/private module payload and a PROFESSIONAL-only course is absent from the public catalog.
+- This extends the existing paid-course detail authorization rather than replacing it: catalog visibility, private asset projection, detail access, and enrollment are now separate enforcement layers.
+- Verification: fresh exact-head CI required after these commits.
+- Release remains **UNVERIFIED** pending the full CI/E2E/browser/mobile/role-context/visual/business-owner evidence chain.
