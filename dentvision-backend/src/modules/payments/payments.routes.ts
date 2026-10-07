@@ -26,6 +26,7 @@ import {
   assertClinicWritable,
   PlanGateError,
 } from '../billing/planEntitlements.js';
+import { assertClinicBillingAccess, getPlanCatalog } from '../billing/clinicSubscription.service.js';
 import { assertClinicOrgAccess, assertOrgAccess, resolveClinicAccess, resolveOrganizationIdForClinic } from '../../lib/orgContext.js';
 import { permissionsSatisfy } from '../../lib/permissions.js';
 import { resolveUserPermissions } from '../../lib/resolvePermissions.js';
@@ -335,6 +336,11 @@ async function settlePaidPayment(
     const planRaw = String(meta.saasPlan || 'professional').toLowerCase();
     const saasPlan = (planRaw === 'pro' ? 'professional' : planRaw) as
       'starter' | 'professional' | 'enterprise';
+    const plan = getPlanCatalog().find((item) => item.id === saasPlan);
+    const months = Math.min(Math.max(Number(meta.months || 1), 1), 24);
+    if (!plan || Number(plan.amountMinor) <= 0 || payment.amount !== BigInt(plan.amountMinor) * BigInt(months)) {
+      throw new Error('Недопустимая сумма SaaS-подписки при settlement');
+    }
     const { activateClinicSubscriptionFromPayment, isSaasPlanId } = await import(
       '../billing/clinicSubscription.service.js'
     );
@@ -597,6 +603,38 @@ paymentsRouter.post('/', authenticate, async (req: AuthRequest, res) => {
     }
 
     const metaObj = meta && typeof meta === 'object' ? (meta as Record<string, unknown>) : {};
+
+    // SaaS subscription payments mutate a Clinic subscription during the
+    // authenticated callback. Require scoped billing authority and verify the
+    // exact server-side tariff total before creating the payment.
+    if (refType === 'subscription') {
+      const subscriptionClinicId = String(refId || '').trim();
+      if (!subscriptionClinicId) {
+        return res.status(400).json({ ok: false, error: 'clinicId обязателен для оплаты подписки' } satisfies ApiResponse);
+      }
+      const planRaw = String(metaObj.saasPlan || '').toLowerCase();
+      const normalizedPlan = planRaw === 'pro' ? 'professional' : planRaw;
+      const plan = getPlanCatalog().find((item) => item.id === normalizedPlan);
+      if (!plan || Number(plan.amountMinor) <= 0) {
+        return res.status(400).json({ ok: false, error: 'Некорректный платный тариф' } satisfies ApiResponse);
+      }
+      const months = Math.min(Math.max(Number(metaObj.months || 1), 1), 24);
+      const expectedMinor = BigInt(plan.amountMinor) * BigInt(months);
+      if (minor !== expectedMinor) {
+        return res.status(409).json({
+          ok: false,
+          error: `Сумма подписки не совпадает с тарифом: ожидалось ${expectedMinor}, получено ${minor}`,
+        } satisfies ApiResponse);
+      }
+      try {
+        await assertClinicBillingAccess(req.user!.id, subscriptionClinicId);
+      } catch (error: any) {
+        return res.status(Number(error?.status) || 403).json({
+          ok: false,
+          error: error?.message || 'Недостаточно прав для управления подпиской',
+        } satisfies ApiResponse);
+      }
+    }
 
     // P1 IDOR fix: a payment references an external object (order/invoice) by
     // refId. Never create a payment against an object the caller does not own.
