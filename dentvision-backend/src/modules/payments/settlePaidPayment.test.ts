@@ -88,7 +88,7 @@ describe('settlePaidPayment — db threading', () => {
         domain: null,
         sellerType: null,
         sellerId: null,
-        amount: 49900n,
+        amount: 4990000n,
         meta: { saasPlan: 'professional', months: 1 },
       },
       fakeTx,
@@ -98,7 +98,7 @@ describe('settlePaidPayment — db threading', () => {
       fakeTx,
     );
     expect(writeRevenue).toHaveBeenCalledWith(
-      expect.objectContaining({ source: 'SaaS', amountMinor: 49900n, refId: 'clinic-1' }),
+      expect.objectContaining({ source: 'SaaS', amountMinor: 4990000n, refId: 'clinic-1' }),
       fakeTx,
     );
   });
