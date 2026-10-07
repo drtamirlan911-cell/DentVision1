@@ -1278,3 +1278,12 @@ These changes are route/entry reconciliation only. Existing domain implementatio
 
 - `889da67d1ecbb011b6bc4e01c9bae2ca926caf5d` — synchronized `DENTVISION_CONTEXT.md` with the current active PR #302 state, preserving the distinction between verified prior evidence and the current unverified exact HEAD.
 - Current exact-head CI remains the release evidence source; no release-ready status is inferred from documentation or older green runs.
+
+
+## 2026-10-07 — PR #302 continuation: Academy settlement source-of-truth hardening
+
+- `204e95c7cbcf6b4f56ca03cafa7a7e13989febfa` — Academy enrollment settlement now verifies the paid amount against the canonical course price and derives seller identity from the persisted course (lecturer/academy) instead of trusting payment `sellerId/sellerType`.
+- `66c677a24fc60dd0002c823b66ffcf3f4d9286ec` — added a regression contract preventing reintroduction of client-controlled Academy seller identity in enrollment settlement.
+
+### Verification status
+- The current branch HEAD is this log commit and is unverified until fresh exact-head CI completes.
