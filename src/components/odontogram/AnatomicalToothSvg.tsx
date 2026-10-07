@@ -843,7 +843,7 @@ export function AnatomicalToothSvg({
               )}
 
               {!isRootOnly && (
-                <StatusMarks status={status} pattern={morph.pattern} occlusal={false} cx={20} cy={44} />
+                <StatusMarks status={status} pattern={morph.pattern} toothNumber={toothNumber} occlusal={false} cx={20} cy={44} />
               )}
 
               <SurfaceOverlays surfaces={surfaces} upper pattern={morph.pattern} />
