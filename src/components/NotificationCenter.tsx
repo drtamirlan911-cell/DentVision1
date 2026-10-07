@@ -63,6 +63,18 @@ export default function NotificationCenter() {
 
   const closeDetail = () => setSelected(null)
 
+  useEffect(() => {
+    if (!selected && !open) return
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        if (selected) setSelected(null)
+        else setOpen(false)
+      }
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [selected, open])
+
   const followAction = () => {
     if (!selected?.actionUrl) return
     closeDetail()
