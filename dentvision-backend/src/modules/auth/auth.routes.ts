@@ -65,7 +65,7 @@ async function buildSignInPayload(user: SignInUser, req: any, res: any) {
     : authContext.organizationId
       ? await resolveOrganizationRoleKey(user.id, authContext.organizationId) || user.role
       : user.role;
-  const tokens = generateTokens({ sub: user.id, email: user.email, role: scopedRole, ...authContext, sessionId: session.id });
+  const tokens = generateTokens({ sub: user.id, email: user.email, role: scopedRole as UserRole, ...authContext, sessionId: session.id });
   const { password: _password, memberships, ...userWithoutPassword } = user;
   setAuthCookies(res, tokens.accessToken, tokens.refreshToken);
   return { user: { ...userWithoutPassword, clinicId, organizationId: authContext.organizationId, organizationOriginalId: authContext.organizationOriginalId, organizationType: authContext.organizationType, organizationName: authContext.organizationName, personType: authContext.personType, effectiveRole: scopedRole, name: `${user.firstName} ${user.lastName}`.trim() }, memberships: memberships.map((m) => ({ id: m.id, role: m.role, clinicId: m.clinicId, joinedAt: m.joinedAt, clinic: m.clinic })), activeMembership, permissions: effectivePermissions, pages: pagesForCaller(effectivePermissions, scopedRole), capabilities: capabilitiesForPermissions(effectivePermissions, scopedRole), effectiveRole: scopedRole, ...tokens };
@@ -225,7 +225,7 @@ authRouter.post('/refresh', async (req, res) => {
     const tokens = generateTokens({
       sub: user.id,
       email: user.email,
-      role: scopedRole || user.role,
+      role: (scopedRole || user.role) as UserRole,
       ...authContext,
       sessionId: newSession.id,
     });
