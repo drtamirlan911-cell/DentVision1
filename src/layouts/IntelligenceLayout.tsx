@@ -136,7 +136,6 @@ export const IntelligenceLayout: React.FC = () => {
         <header className="sticky top-0 z-30 flex h-16 items-center gap-3 border-b border-[var(--dv-border)] bg-[var(--dv-sidebar)]/95 px-4 backdrop-blur-xl">
           {isMobile && <button type="button" aria-label="Открыть меню" onClick={() => setSidebarOpen(true)} className="flex min-h-11 min-w-11 items-center justify-center rounded-xl p-2 text-[var(--dv-muted)] hover:bg-[var(--dv-nav-hover)]"><Menu size={19} /></button>}
           <WorkspaceSwitcher />
-          <button type="button" aria-label="Открыть контекст" onClick={() => setContextSheetOpen(true)} className="ml-1 flex min-h-11 min-w-11 items-center justify-center rounded-xl p-2 text-[var(--dv-muted)] hover:bg-[var(--dv-nav-hover)]" title="Контекст"><PanelRight size={19} /></button>
           <div className="ml-auto flex items-center gap-2">
             <button
               type="button"
