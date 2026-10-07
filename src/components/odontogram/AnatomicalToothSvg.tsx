@@ -214,7 +214,6 @@ function SurfaceOverlays({
             strokeWidth="0.5"
           />
         )
-        )
       })}
     </g>
   )
