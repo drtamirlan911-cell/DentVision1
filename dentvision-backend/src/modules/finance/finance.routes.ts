@@ -112,7 +112,17 @@ financeRouter.get('/transactions', requirePermission('finance.manage'), async (r
       // (a SUPERADMIN skips this branch entirely, which is why it went
       // unnoticed). "Transactions that touched one of my wallets" is the
       // filter that was meant.
-      ownerFilter.ledgerEntries = { some: { wallet: { ownerId: { in: [...new Set(ids)] } } } };
+      const walletScopes: Array<{ ownerType: WalletOwnerType; ownerId: string }> = [];
+      if (req.user?.clinicId) walletScopes.push({ ownerType: 'CLINIC', ownerId: req.user.clinicId });
+      if (req.user?.supplierId) walletScopes.push({ ownerType: 'SUPPLIER', ownerId: req.user.supplierId });
+      if (req.user?.organizationId) walletScopes.push({ ownerType: 'PARTNER', ownerId: req.user.organizationId });
+      ownerFilter.ledgerEntries = {
+        some: {
+          wallet: {
+            OR: walletScopes.map(({ ownerType, ownerId }) => ({ ownerType, ownerId })),
+          },
+        },
+      };
     }
     const transactions = await prisma.transaction.findMany({
       where: ownerFilter,
