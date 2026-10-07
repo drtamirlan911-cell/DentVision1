@@ -181,6 +181,10 @@ async function settleEnrollmentPayment(
 
   const course = await db.course.findUnique({ where: { id: courseId } });
   if (!course) return false;
+  const expectedAmount = tengeToMinor(Number(course.price || 0));
+  if (expectedAmount !== payment.amount) {
+    throw new Error(`Сумма оплаты курса не совпадает с ценой курса: ожидалось ${expectedAmount}, получено ${payment.amount}`);
+  }
 
   let enrollment = await db.schoolEnrollment.findUnique({
     where: { userId_courseId: { userId, courseId } },
@@ -196,13 +200,14 @@ async function settleEnrollmentPayment(
     where: { refType: 'enrollment', refId: enrollment.id, type: 'sale' },
   });
 
-  const lecturerId = payment.sellerId || course.lecturerId;
-  if (lecturerId && payment.amount > 0n && !alreadySold) {
+  const sellerType = course.lecturerId ? 'LECTURER' : course.academyId ? 'ACADEMY' : null;
+  const sellerId = course.lecturerId || course.academyId || null;
+  if (sellerType && sellerId && payment.amount > 0n && !alreadySold) {
     await recordSaleTx(
       {
         domain: 'school',
-        sellerType: (payment.sellerType as WalletOwnerType) || 'LECTURER',
-        sellerId: lecturerId,
+        sellerType,
+        sellerId,
         amountMinor: payment.amount,
         refType: 'enrollment',
         refId: enrollment.id,
@@ -254,8 +259,15 @@ async function settleAcademyEventPayment(
   }
 
   if (payment.amount > 0n) {
-    const sellerType = (payment.sellerType || 'PLATFORM') as WalletOwnerType;
-    const sellerId = payment.sellerId || 'system';
+    const course = meta.courseId ? await db.course.findUnique({ where: { id: meta.courseId }, select: { price: true, lecturerId: true, academyId: true } }) : null;
+    if (course) {
+      const expectedAmount = tengeToMinor(Number(course.price || 0));
+      if (expectedAmount !== payment.amount) {
+        throw new Error(`Сумма оплаты Academy event не совпадает с ценой курса: ожидалось ${expectedAmount}, получено ${payment.amount}`);
+      }
+    }
+    const sellerType = (course?.lecturerId ? 'LECTURER' : course?.academyId ? 'ACADEMY' : payment.sellerType || 'PLATFORM') as WalletOwnerType;
+    const sellerId = course?.lecturerId || course?.academyId || payment.sellerId || 'system';
     // Previously best-effort (`.catch()`-swallowed) because recordSale opened
     // its own independent transaction. Now that this runs inside the caller's
     // shared `db`, a failure here must abort the whole settlement instead of
