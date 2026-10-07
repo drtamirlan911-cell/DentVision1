@@ -53,7 +53,7 @@ AI action lifecycle:
 
 ## 5. Verified repository state — 2026-10-07
 - `main` remains the product source of truth; PR #302 is the active release-blocker remediation branch.
-- Current PR #302 exact HEAD: `da864b717d63d9a1a26bca14a1b6fd2978e41e96` (latest Academy/Diagnostics security checkpoint; exact-head CI verification pending).ntation checkpoint; exact-head verification still pending).
+- Current PR #302 exact HEAD: `a3c6f22b49475de8606a23ae1c1b1fa432df5028` (latest subscription/Academy/Diagnostics security checkpoint; exact-head CI verification pending).nostics security checkpoint; exact-head CI verification pending).ntation checkpoint; exact-head verification still pending).
 - Quality Gate #4791 passed on the preceding exact-head `7b86b600dd9253334b26fd21ce89ae4e01b4aa6b`, including TypeScript, frontend ESLint and the repository release-gate step.
 - Full CI #3816 reached real execution on `7b86b600dd9253334b26fd21ce89ae4e01b4aa6b`: frontend lint, backend lint, build/typecheck, Command Center audit and generated system-map validation passed; unit tests finished at **2048 passed / 1 failed** across 221 test files.
 - The single CI #3816 unit-test failure was a source-inspection boundary defect in `organizations.test.ts`; it was repaired on `a0f87c0e8f1756887d73a09ca67a6bfa7a513a01` by slicing the actual control-flow branches rather than an object-literal field.
@@ -193,3 +193,9 @@ Do not repeat an audit when implementation can resolve the issue. Do not weaken 
 - Diagnostics referral clinic authorization now translates domain Clinic.id to canonical Organization.id through `assertClinicOrgAccess`.
 - Latest documented HEAD: `da864b717d63d9a1a26bca14a1b6fd2978e41e96`.
 - Fresh exact-head CI is pending; release remains UNVERIFIED.
+
+## 2026-10-08 — Subscription finance checkpoint
+- Generic subscription payment creation now requires scoped clinic billing authority and an exact server-derived plan total.
+- Subscription settlement repeats the plan/amount invariant before activating the target clinic subscription.
+- Latest documented HEAD: `a3c6f22b49475de8606a23ae1c1b1fa432df5028`.
+- Release remains UNVERIFIED pending exact-head CI/E2E/browser/mobile/role/visual evidence.
