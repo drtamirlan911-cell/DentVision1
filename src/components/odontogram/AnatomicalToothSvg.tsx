@@ -434,6 +434,58 @@ function StatusMarks({
 }
 
 /** The tooth seen from above — same status vocabulary, different geometry. */
+function OcclusalCusps({ pattern }: { pattern: RootPattern }) {
+  if (pattern === 'incisor') {
+    return <path d="M15.2 11.5 C17 10.1 18.6 9.6 20 9.6 C21.4 9.6 23 10.1 24.8 11.5" fill="none" stroke="#e6fdff" strokeOpacity="0.55" strokeWidth="0.7" />
+  }
+  if (pattern === 'canine') {
+    return (
+      <g fill="rgba(236,254,255,0.22)" stroke="#e6fdff" strokeOpacity="0.6" strokeWidth="0.65">
+        <ellipse cx="20" cy="10.2" rx="4.2" ry="3.3" />
+        <path d="M20 10.2 L16.3 23.2 M20 10.2 L23.7 23.2" fill="none" />
+      </g>
+    )
+  }
+  if (pattern === 'premolar1') {
+    return (
+      <g fill="rgba(236,254,255,0.25)" stroke="#e6fdff" strokeOpacity="0.62" strokeWidth="0.7">
+        <ellipse cx="14.6" cy="14.2" rx="4.3" ry="5" />
+        <ellipse cx="25.4" cy="14.2" rx="4.0" ry="4.6" />
+        <path d="M14.6 14.2 C17.2 18.4 18.2 20.5 20 21.8 C21.8 20.5 22.8 18.4 25.4 14.2" fill="none" />
+      </g>
+    )
+  }
+  if (pattern === 'premolar2') {
+    return (
+      <g fill="rgba(236,254,255,0.22)" stroke="#e6fdff" strokeOpacity="0.58" strokeWidth="0.65">
+        <ellipse cx="14.8" cy="14.6" rx="4.0" ry="4.5" />
+        <ellipse cx="25.2" cy="14.6" rx="4.0" ry="4.5" />
+        <path d="M15 15 C17.5 18.1 18.5 20 20 20.7 C21.5 20 22.5 18.1 25 15" fill="none" />
+      </g>
+    )
+  }
+  if (pattern === 'molarUpper') {
+    return (
+      <g fill="rgba(236,254,255,0.2)" stroke="#e6fdff" strokeOpacity="0.62" strokeWidth="0.65">
+        <ellipse cx="13.2" cy="13.2" rx="5.0" ry="4.5" />
+        <ellipse cx="25.8" cy="13.2" rx="4.6" ry="4.3" />
+        <ellipse cx="13.4" cy="26.1" rx="4.6" ry="4.5" />
+        <ellipse cx="26.0" cy="25.5" rx="4.2" ry="4.1" />
+        <path d="M13.2 13.2 C17 16 18.5 18 20 20 C21.5 18 23 16 25.8 13.2 M13.4 26.1 C16.8 23.5 18.5 21.8 20 20 C21.5 21.8 23.2 23.5 26 25.5" fill="none" />
+      </g>
+    )
+  }
+  return (
+    <g fill="rgba(236,254,255,0.2)" stroke="#e6fdff" strokeOpacity="0.62" strokeWidth="0.65">
+      <ellipse cx="13.1" cy="13.4" rx="4.8" ry="4.4" />
+      <ellipse cx="26.9" cy="13.4" rx="4.8" ry="4.4" />
+      <ellipse cx="13.3" cy="26.1" rx="4.8" ry="4.5" />
+      <ellipse cx="26.7" cy="26.1" rx="4.8" ry="4.5" />
+      <path d="M13.1 13.4 C16.8 16.3 18.4 18.4 20 20 C21.6 18.4 23.2 16.3 26.9 13.4 M13.3 26.1 C16.7 23.5 18.5 21.8 20 20 C21.5 21.8 23.3 23.5 26.7 26.1" fill="none" />
+    </g>
+  )
+}
+
 function OcclusalTooth({
   toothNumber,
   status,
@@ -485,6 +537,7 @@ function OcclusalTooth({
       <g fill="none" stroke="#075985" strokeOpacity="0.9" strokeWidth="1.05" strokeLinecap="round">
         {occlusalFissures(pattern)}
       </g>
+      <OcclusalCusps pattern={pattern} />
       {isImplant ? (
         <g>
           <circle cx={cx} cy={cy} r="6" fill={STATUS_META.implant.color} fillOpacity="0.16" stroke={STATUS_META.implant.color} strokeWidth="1.5" />
