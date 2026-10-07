@@ -74,6 +74,7 @@ describe('createAppointment — doctorId must belong to the clinic', () => {
 
   it('skips the membership check when doctorId defaults to the caller (already verified by the orchestrator)', async () => {
     patientFindFirst.mockResolvedValue({ id: 'pat-1', firstName: 'А', lastName: 'Б' });
+    resolveClinicAccess.mockResolvedValue({ role: 'DOCTOR' });
     appointmentCreate.mockResolvedValue({ id: 'appt-1' });
 
     const result = await TOOLS.createAppointment.execute(
@@ -112,6 +113,7 @@ describe('rescheduleAppointment — doctorId must belong to the clinic', () => {
 
   it('does not re-check when doctorId is left as the existing one', async () => {
     appointmentFindFirst.mockResolvedValue(existing);
+    resolveClinicAccess.mockResolvedValue({ role: 'DOCTOR' });
     appointmentUpdate.mockResolvedValue({ id: 'appt-1', patient: {} });
 
     const result = await TOOLS.rescheduleAppointment.execute(
