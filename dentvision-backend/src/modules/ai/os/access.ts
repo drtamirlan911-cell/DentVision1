@@ -119,7 +119,6 @@ export async function resolveAiToolAccess(input: AiToolAccessInput): Promise<AiT
     if (person) {
       const roleKeys = person.personRoles
         .filter((pr) => pr.scopeType === 'organization' && pr.scopeId === organizationId)
-        .filter((pr) => pr.scopeType !== 'organization' || !pr.scopeId || pr.scopeId === organizationId)
         .map((pr) => String(pr.role.key).toUpperCase());
       const preferred = roleKeys.find((key) =>
         key.startsWith('DIAGNOSTIC_')
