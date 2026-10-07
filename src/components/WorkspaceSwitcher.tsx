@@ -235,8 +235,9 @@ export function WorkspaceSwitcher({ className }: { className?: string }) {
       const switchScopeId = current.scopeType === 'LECTURER' || current.scopeType === 'SUPPLIER'
         ? current.scopeId
         : (current.organizationId || current.scopeId)
-      const tokens = await api.switchContext(current.scopeType, switchScopeId, branch.id)
-      if (tokens?.accessToken) api.setTokens(tokens.accessToken, tokens.refreshToken || null)
+      await api.switchContext(current.scopeType, switchScopeId, branch.id)
+      // switchContext persists the scoped token centrally; rehydrate the store
+      // from that single credential source before updating the read-model.
       await useAuthStore.getState().restoreSession()
 
       const selected = { ...current, branchId: branch.id }
