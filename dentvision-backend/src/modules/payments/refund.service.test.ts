@@ -52,6 +52,18 @@ function paidPayment() {
 }
 
 describe('refundPayment', () => {
+
+  it('binds clinic-cash payment references to the selected clinic', () => {
+    const clinicCashStart = routeSource.indexOf("if (isClinicCashier)");
+    const platformStart = routeSource.indexOf("// Platform Kaspi", clinicCashStart);
+    const clinicCashBlock = routeSource.slice(clinicCashStart, platformStart);
+    expect(clinicCashBlock).toContain("prisma.appointment.findFirst");
+    expect(clinicCashBlock).toContain("where: { id: String(refId), clinicId }");
+    expect(clinicCashBlock).toContain("prisma.invoice.findFirst");
+    expect(clinicCashBlock).toContain("where: { id: String(refId), clinicId, deletedAt: null }");
+    expect(clinicCashBlock).toContain("minor > outstandingMinor");
+  });
+
   it('keeps clinic refund authority behind billing.manage', () => {
     const routeSource = readFileSync(
       resolve(process.cwd(), 'dentvision-backend/src/modules/payments/payments.routes.ts'),
