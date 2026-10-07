@@ -122,8 +122,19 @@ export function WorkspaceSwitcher({ className }: { className?: string }) {
   }, [activeClinicId, activeOrgId, activeOrgType, activeSupplierId, activeLecturerId])
 
   const current = useMemo(
-    () => workspaces.find(isActive) || workspaces.find((w) => w.scopeType === 'CLINIC') || workspaces[0],
-    [workspaces, isActive],
+    () => {
+      const exact = workspaces.find(isActive)
+      if (exact) return exact
+      if (activeOrgId) {
+        const sameOrganization = workspaces.find((w) => w.organizationId === activeOrgId || w.scopeId === activeOrgId)
+        if (sameOrganization) return sameOrganization
+      }
+      if (activeOrgType && activeOrgType !== 'CLINIC') {
+        return workspaces.find((w) => w.scopeType !== 'CLINIC') || workspaces[0]
+      }
+      return workspaces.find((w) => w.scopeType === 'CLINIC') || workspaces[0]
+    },
+    [workspaces, isActive, activeOrgId, activeOrgType],
   )
   const activeRoleLabel = current?.roleLabel || roleInfo?.label || getRoleDisplayLabel((user as any)?.platformRole || (user as any)?.role) || 'Участник экосистемы'
 
