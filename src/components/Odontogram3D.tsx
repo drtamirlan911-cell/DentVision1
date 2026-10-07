@@ -205,8 +205,8 @@ export function Odontogram3D({
     const center = (count - 1) / 2
     const normalized = center === 0 ? 0 : (index - center) / center
     const curve = Math.cos(normalized * Math.PI / 2)
-    const rotation = upper ? normalized * 18 : normalized * -18
-    const translateY = upper ? curve * 38 : curve * -38
+    const rotation = upper ? normalized * 22 : normalized * -22
+    const translateY = upper ? -curve * 44 : curve * 44
     return { rotation, translateY }
   }
 
@@ -219,7 +219,7 @@ export function Odontogram3D({
     return (
       <div className="relative mx-auto w-full overflow-visible" style={{ maxWidth: chartWidth }}>
         <div
-          className="relative mx-auto h-[154px] sm:h-[174px] md:h-[194px]"
+          className="relative mx-auto h-[178px] sm:h-[198px] md:h-[218px]"
           style={{ width: '100%' }}
           role="group"
           aria-label={upper ? 'Верхняя зубная дуга' : 'Нижняя зубная дуга'}
@@ -262,8 +262,8 @@ export function Odontogram3D({
           })}
           <div
             aria-hidden
-            className="pointer-events-none absolute left-1/2 top-1/2 h-px w-1/2 -translate-x-1/2 border-t border-dashed border-bdr-subtle/60"
-            style={{ transform: `translate(-50%, ${upper ? '46px' : '-46px'})` }}
+            className="pointer-events-none absolute left-1/2 top-1/2 h-[72%] w-[72%] -translate-x-1/2 -translate-y-1/2 rounded-[50%] border border-cyan-400/10"
+            style={{ transform: `translate(-50%, ${upper ? '-8%' : '8%'})` }}
           />
         </div>
       </div>
