@@ -51,6 +51,7 @@ describe('branch route authorization contract', () => {
     expect(source).toContain("member_disabled");
     expect(source).toContain('bm."active" = true');
     expect(source).toContain('updateMany({where:{personId:person.id,branchId},data:{active}})');
+    expect(source).toContain('SET "branch_id"=${branchId},"updatedAt"=CURRENT_TIMESTAMP');
   });
 
 });
