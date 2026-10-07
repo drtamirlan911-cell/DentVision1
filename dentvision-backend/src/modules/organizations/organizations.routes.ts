@@ -126,7 +126,7 @@ organizationsRouter.post('/self-service', async (req: AuthRequest, res) => {
         const settings = (org.settings && typeof org.settings === 'object' && !Array.isArray(org.settings)) ? org.settings as Record<string, unknown> : {};
         const originalId = String(org.originalId || '');
         const defaultBranch = await tx.$queryRaw<Array<{ id: string }>>`
-          SELECT "id" FROM "branches" WHERE "organization_id" = ${org.id} ORDER BY "isDefault" DESC, "createdAt" ASC LIMIT 1
+          SELECT "id" FROM "branches" WHERE "organization_id" = ${org.id} ORDER BY "isDefault" DESC, "created_at" ASC LIMIT 1
         `;
         return { entityId: originalId, organizationId: org.id, entity: null, personId: existing.id, branchId: defaultBranch[0]?.id || null, idempotent: true, existingSettings: settings };
       }
@@ -174,7 +174,7 @@ organizationsRouter.post('/self-service', async (req: AuthRequest, res) => {
       const branchCode = (name.trim().toUpperCase().replace(/[^A-ZА-Я0-9]+/gi, '-').replace(/^-|-$/g, '').slice(0, 32) || 'MAIN');
       await tx.$executeRaw`
         INSERT INTO "branches"
-          ("id", "organization_id", "clinic_id", "code", "name", "city", "address", "phone", "active", "isDefault", "createdAt", "updatedAt", "settings")
+          ("id", "organization_id", "clinic_id", "code", "name", "city", "address", "phone", "active", "isDefault", "created_at", "updated_at", "settings")
         VALUES
           (${branchId}, ${organizationId}, ${type === 'clinic' ? entityId : null}, ${branchCode}, ${name.trim()}, ${city}, ${address}, ${phone}, true, true, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, NULL)
       `;
@@ -252,7 +252,7 @@ organizationsRouter.get('/me', async (req: AuthRequest, res) => {
     }>>`
       SELECT "id","code","name","city","address","phone","active","isDefault" AS is_default
       FROM "branches" WHERE "organization_id" = ${org.id}
-      ORDER BY "isDefault" DESC, "createdAt" ASC
+      ORDER BY "isDefault" DESC, "created_at" ASC
     `;
     return res.json({ ok: true, data: { organization: org, person, branches } } satisfies ApiResponse);
   } catch (error) {
