@@ -24,6 +24,75 @@ function auth(token: string) {
 }
 
 test.describe('Academy / Course Workflow', () => {
+  test('ACADEMY-009: public Academy catalog cannot expose paid assets or professional-only courses', async () => {
+    const publicApi = await apiRequest.newContext();
+    const generalId = `academy-security-general-${Date.now()}`;
+    const professionalId = `academy-security-professional-${Date.now()}`;
+
+    try {
+      await prisma.course.create({
+        data: {
+          id: generalId,
+          title: 'E2E Public Paid Catalog',
+          description: 'Catalog security fixture',
+          price: 45000,
+          format: 'course',
+          fileUrl: 'https://private.example/paid-course.pdf',
+          meta: {
+            audiences: ['GENERAL'],
+            modules: [{ title: 'Private module', lessons: [{ title: 'Secret lesson', contentUrl: 'https://private.example/secret.mp4' }] }],
+          },
+          lessons: {
+            create: [{
+              id: `lesson-security-${Date.now()}`,
+              title: 'Secret lesson',
+              content: 'SECRET_PAID_LESSON_CONTENT',
+              videoUrl: 'https://private.example/secret.mp4',
+              order: 0,
+              duration: 20,
+            }],
+          },
+        },
+      });
+      await prisma.course.create({
+        data: {
+          id: professionalId,
+          title: 'E2E Professional Only Course',
+          description: 'Professional catalog fixture',
+          price: 30000,
+          format: 'course',
+          meta: { audiences: ['PROFESSIONAL'], modules: [{ title: 'Professional private module' }] },
+        },
+      });
+
+      const listRes = await publicApi.get(`${BASE_URL}/api/school/courses`);
+      expect(listRes.status()).toBe(200);
+      const body = await listRes.json();
+      const courses = Array.isArray(body.data) ? body.data : body.data?.courses || body.data || [];
+
+      const publicPaid = courses.find((course: { id?: string }) => course.id === generalId);
+      expect(publicPaid, 'general-audience paid course remains catalog-visible').toBeTruthy();
+      expect(publicPaid.fileUrl).toBeNull();
+      expect(publicPaid.modules).toBeUndefined();
+      expect(publicPaid.meta?.modules).toBeUndefined();
+
+      expect(
+        courses.some((course: { id?: string }) => course.id === professionalId),
+        'professional-only course must not enter public catalog',
+      ).toBe(false);
+
+      const unauthDetail = await publicApi.get(`${BASE_URL}/api/school/courses/${generalId}`);
+      expect([401, 403]).toContain(unauthDetail.status());
+
+      const professionalDetail = await publicApi.get(`${BASE_URL}/api/school/courses/${professionalId}`);
+      expect(professionalDetail.status()).toBe(404);
+    } finally {
+      await prisma.course.deleteMany({ where: { id: { in: [generalId, professionalId] } } }).catch(() => {});
+      await publicApi.dispose();
+    }
+  });
+
+
   let api: APIRequestContext;
 
   /**
