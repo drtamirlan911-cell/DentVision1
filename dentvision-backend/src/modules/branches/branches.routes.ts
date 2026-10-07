@@ -23,7 +23,21 @@ type OrganizationRoleRow = { role_key: string };
 function serialize(row: BranchRow) {
   return { id: row.id, organizationId: row.organization_id, clinicId: row.clinic_id, code: row.code, name: row.name, city: row.city, address: row.address, phone: row.phone, active: row.active, isDefault: row.is_default, settings: row.settings, createdAt: row.created_at, updatedAt: row.updated_at };
 }
-function isOrganizationBranchManagerRole(role: string): boolean {,  const normalized = String(role || '').trim().toLowerCase();,  return ['owner', 'org_owner', 'admin', 'org_admin'].includes(normalized),    || /_(owner|admin)$/.test(normalized);,},,function roleScope(role: string): RoleScope {,  const normalized = String(role || '').trim().toUpperCase();,  if (isOrganizationBranchManagerRole(normalized)) return 'ORGANIZATION';,  switch (normalized) {,    case 'MANAGER': return 'BRANCH';,    case 'DOCTOR': case 'ASSISTANT': case 'RECEPTIONIST': case 'CASHIER': return 'ASSIGNED';,    default: return 'OWN';,  },}
+function isOrganizationBranchManagerRole(role: string): boolean {
+  const normalized = String(role || '').trim().toLowerCase();
+  return ['owner', 'org_owner', 'admin', 'org_admin'].includes(normalized)
+    || /_(owner|admin)$/.test(normalized);
+}
+
+function roleScope(role: string): RoleScope {
+  const normalized = String(role || '').trim().toUpperCase();
+  if (isOrganizationBranchManagerRole(normalized)) return 'ORGANIZATION';
+  switch (normalized) {
+    case 'MANAGER': return 'BRANCH';
+    case 'DOCTOR': case 'ASSISTANT': case 'RECEPTIONIST': case 'CASHIER': return 'ASSIGNED';
+    default: return 'OWN';
+  }
+}
 async function membership(userId: string, clinicId: string): Promise<MemberScopeRow | null> {
   const user = await prisma.user.findUnique({ where: { id: userId }, select: { role: true } });
   if (user?.role === 'SUPERADMIN') return { role: 'OWNER', branch_id: null };
@@ -69,7 +83,11 @@ async function authorizeOrganizationBranch(userId: string, organizationId: strin
   const member = await organizationMembership(userId, organizationId);
   if (!member) return { allowed: false as const, status: 403, error: 'Вы не являетесь участником этой организации' };
   const role = String(member.role_key || '').toLowerCase();
-  if (!isOrganizationBranchManagerRole(role)) {,    return { allowed: false as const, status: 403, error: 'Только Руководитель или Администратор может управлять филиалами' };,  },  if (mutation && !isOrganizationBranchManagerRole(role)) {,    return { allowed: false as const, status: 403, error: 'Недостаточно прав для изменения филиала' };,  }
+  if (!isOrganizationBranchManagerRole(role)) {
+    return { allowed: false as const, status: 403, error: 'Только Руководитель или Администратор может управлять филиалами' };
+  }
+  if (mutation && !isOrganizationBranchManagerRole(role)) {
+    return { allowed: false as const, status: 403, error: 'Недостаточно прав для изменения филиала' };
   }
   return { allowed: true as const, member };
 }
@@ -142,7 +160,10 @@ branchesRouter.get('/', async (req: AuthRequest, res) => {
           "isDefault" AS is_default, "settings", "createdAt" AS created_at, "updatedAt" AS updated_at
         FROM "branches"
         WHERE "organization_id" = ${organizationId}
-          AND (LOWER(${String(member.role_key)}) IN ('owner','org_owner','admin','org_admin'),               OR LOWER(${String(member.role_key)}) LIKE '%_owner',               OR LOWER(${String(member.role_key)}) LIKE '%_admin',               OR "id" = ANY(${(req.user?.branchIds ?? []).filter(Boolean)}::text[]))
+          AND (LOWER(${String(member.role_key)}) IN ('owner','org_owner','admin','org_admin')
+            OR LOWER(${String(member.role_key)}) LIKE '%_owner'
+            OR LOWER(${String(member.role_key)}) LIKE '%_admin'
+            OR "id" = ANY(${(req.user?.branchIds ?? []).filter(Boolean)}::text[]))
         ORDER BY "isDefault" DESC, "createdAt" ASC
       `;
       return res.json({ ok: true, data: rows.map(serialize) });
