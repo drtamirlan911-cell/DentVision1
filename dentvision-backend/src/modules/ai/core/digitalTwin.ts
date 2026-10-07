@@ -104,7 +104,11 @@ export function buildGuestPlatformTwin(user?: {
   };
 }
 
-export async function buildDigitalTwin(userId: string, clinicId?: string | null, opts?: { isGuest?: boolean }) {
+export async function buildDigitalTwin(
+  userId: string,
+  clinicId?: string | null,
+  opts?: { isGuest?: boolean; organizationType?: string | null },
+) {
   const user = await prisma.user.findUnique({
     where: { id: userId },
     select: {
@@ -132,8 +136,15 @@ export async function buildDigitalTwin(userId: string, clinicId?: string | null,
 
   let activeClinicId: string | null = clinicId || null;
   let resolvedRole: string | undefined;
+  const organizationType = String(opts?.organizationType || '').toUpperCase() || null;
   if (clinicId) {
     resolvedRole = (await resolveClinicAccess(userId, clinicId))?.role;
+  } else if (organizationType && organizationType !== 'CLINIC') {
+    // Active non-clinic workspaces must not silently fall back to an arbitrary
+    // clinic membership. That would make the digital twin contradict the
+    // canonical Active Workspace and could expose the wrong tenant's workload.
+    activeClinicId = null;
+    resolvedRole = undefined;
   } else {
     const access = await resolveAnyClinicMembership(userId);
     activeClinicId = access?.clinicId || null;
