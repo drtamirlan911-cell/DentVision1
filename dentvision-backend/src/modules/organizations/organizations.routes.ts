@@ -61,6 +61,19 @@ async function ensurePersonRole(
   return person.id;
 }
 
+async function currentOrganizationPerson(userId: string, requestedOrganizationId?: string | null) {
+  const organizationId = String(requestedOrganizationId || '').trim();
+  return prisma.person.findFirst({
+    where: {
+      userId,
+      organizationId: { not: null },
+      ...(organizationId ? { organizationId } : {}),
+    },
+    orderBy: { createdAt: 'asc' },
+    include: { organization: true },
+  });
+}
+
 function setAuthCookies(res: any, accessToken: string, refreshToken: string) {
   res.cookie('accessToken', accessToken, { httpOnly: true, secure: process.env.NODE_ENV === 'production', sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax', maxAge: 24 * 60 * 60 * 1000, path: '/' });
   res.cookie('refreshToken', refreshToken, { httpOnly: true, secure: process.env.NODE_ENV === 'production', sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax', maxAge: 7 * 24 * 60 * 60 * 1000, path: '/' });
@@ -204,15 +217,7 @@ organizationsRouter.get('/me', async (req: AuthRequest, res) => {
       req.header('X-DentVision-Workspace-Id') ||
       '',
     ).trim();
-    const person = await prisma.person.findFirst({
-      where: {
-        userId: req.user!.id,
-        organizationId: { not: null },
-        ...(requestedOrganizationId ? { organizationId: requestedOrganizationId } : {}),
-      },
-      orderBy: { createdAt: 'asc' },
-      include: { organization: true },
-    });
+    const person = await currentOrganizationPerson(req.user!.id, requestedOrganizationId);
     if (!person?.organization) return res.status(404).json({ ok: false, error: 'У вас нет организации' } satisfies ApiResponse);
 
     const org = person.organization;
@@ -233,7 +238,13 @@ organizationsRouter.get('/me', async (req: AuthRequest, res) => {
 
 organizationsRouter.patch('/me', async (req: AuthRequest, res) => {
   try {
-    const person = await prisma.person.findFirst({ where: { userId: req.user!.id, organizationId: { not: null } }, include: { organization: true } });
+    const requestedOrganizationId = String(
+      req.user?.organizationId ||
+      req.header('X-DentVision-Organization-Id') ||
+      req.header('X-DentVision-Workspace-Id') ||
+      '',
+    ).trim();
+    const person = await currentOrganizationPerson(req.user!.id, requestedOrganizationId);
     if (!person?.organization) return res.status(404).json({ ok: false, error: 'У вас нет организации' });
     const current = person.organization;
     const body = req.body || {};
@@ -258,7 +269,13 @@ organizationsRouter.patch('/me', async (req: AuthRequest, res) => {
 
 organizationsRouter.post('/me/legal', async (req: AuthRequest, res) => {
   try {
-    const person = await prisma.person.findFirst({ where: { userId: req.user!.id, organizationId: { not: null } }, include: { organization: true } });
+    const requestedOrganizationId = String(
+      req.user?.organizationId ||
+      req.header('X-DentVision-Organization-Id') ||
+      req.header('X-DentVision-Workspace-Id') ||
+      '',
+    ).trim();
+    const person = await currentOrganizationPerson(req.user!.id, requestedOrganizationId);
     if (!person?.organization) return res.status(404).json({ ok: false, error: 'У вас нет организации' });
     const org = person.organization; const body = req.body || {};
     const legalName = String(body.legalName || org.name).trim(); const bin = String(body.bin || org.taxId || '').trim();
@@ -277,7 +294,13 @@ organizationsRouter.post('/me/legal', async (req: AuthRequest, res) => {
 
 organizationsRouter.post('/me/verification', async (req: AuthRequest, res) => {
   try {
-    const person = await prisma.person.findFirst({ where: { userId: req.user!.id, organizationId: { not: null } }, include: { organization: true } });
+    const requestedOrganizationId = String(
+      req.user?.organizationId ||
+      req.header('X-DentVision-Organization-Id') ||
+      req.header('X-DentVision-Workspace-Id') ||
+      '',
+    ).trim();
+    const person = await currentOrganizationPerson(req.user!.id, requestedOrganizationId);
     if (!person?.organization) return res.status(404).json({ ok: false, error: 'У вас нет организации' });
     const org = person.organization; const partner = await getLegalPartnerForContext(req.user!.id, org.id);
     if (!partner) return res.status(400).json({ ok: false, error: 'Сначала заполните юридические реквизиты и сформируйте документы.' });
