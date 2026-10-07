@@ -168,3 +168,13 @@ describe('buildAiContext', () => {
     expect(ctx.user).toEqual({ id: 'user-9', role: 'OWNER', name: 'Аида Ержанова' });
   });
 });
+
+describe('AI partner workspace proactive context', () => {
+  it('keeps partner workspace explicit when no clinic scope exists', async () => {
+    const source = readFileSync(resolve(process.cwd(), 'dentvision-backend/src/modules/ai/core/digitalTwin.ts'), 'utf8');
+    expect(source).toContain('organizationType?: string | null');
+    expect(source).toContain("organizationType !== 'CLINIC'");
+    expect(source).toContain('type: \'workspace\'');
+    expect(source).not.toContain('const access = await resolveAnyClinicMembership(userId);');
+  });
+});
