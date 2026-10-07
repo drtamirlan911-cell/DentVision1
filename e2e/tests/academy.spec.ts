@@ -6,6 +6,7 @@ const BASE_URL = process.env.PLAYWRIGHT_BASE_URL || 'http://localhost:3001';
 const OWNER = { email: 'owner-a@test.com', password: 'Test1234!' };
 
 let ownerToken = '';
+let lecturerToken = '';
 let testCourseId = '';
 let testEnrollmentId = '';
 
@@ -23,7 +24,83 @@ function auth(token: string) {
   return { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' };
 }
 
+async function loginLecturer(api: APIRequestContext) {
+  if (lecturerToken) return lecturerToken;
+  const res = await api.post(`${BASE_URL}/api/auth/login`, {
+    data: { email: 'lecturer@test.com', password: 'Test1234!' },
+  });
+  const body = await res.json();
+  lecturerToken = body.data?.accessToken || body.accessToken;
+  return lecturerToken;
+}
 test.describe('Academy / Course Workflow', () => {
+  test('ACADEMY-010: lecturer course CRUD stays inside the active Academy organization', async () => {
+    const lecturerApi = await apiRequest.newContext();
+    const token = await loginLecturer(lecturerApi);
+    const otherAcademyId = `academy-cross-tenant-${Date.now()}`;
+    const foreignCourseId = `course-cross-tenant-${Date.now()}`;
+
+    try {
+      const created = await lecturerApi.post(`${BASE_URL}/api/school/courses`, {
+        headers: auth(token),
+        data: {
+          title: 'E2E Lecturer Scoped Course',
+          description: 'Academy scope regression',
+          price: 10000,
+          category: 'E2E',
+          durationHours: 2,
+          tags: ['e2e', 'scoped'],
+          modules: [{ title: 'Scoped module', lessons: [{ title: 'Scoped lesson' }] }],
+        },
+      });
+      expect(created.status()).toBe(201);
+      const createdBody = await created.json();
+      const createdCourse = createdBody.data || createdBody;
+      expect(createdCourse.academyId).toBeTruthy();
+      expect(createdCourse.lecturerId).toBeTruthy();
+      testCourseId = createdCourse.id;
+
+      const otherAcademy = await prisma.academy.create({
+        data: { id: otherAcademyId, name: 'E2E Other Academy', city: 'Астана' },
+      });
+      await prisma.course.create({
+        data: {
+          id: foreignCourseId,
+          title: 'E2E Foreign Academy Course',
+          price: 10000,
+          academyId: otherAcademy.id,
+          format: 'course',
+        },
+      });
+
+      const forbiddenUpdate = await lecturerApi.put(`${BASE_URL}/api/school/courses/${foreignCourseId}`, {
+        headers: auth(token),
+        data: { title: 'Attempted cross-Academy mutation' },
+      });
+      expect(forbiddenUpdate.status()).toBe(403);
+
+      const forbiddenDelete = await lecturerApi.delete(`${BASE_URL}/api/school/courses/${foreignCourseId}`, {
+        headers: auth(token),
+      });
+      expect(forbiddenDelete.status()).toBe(403);
+
+      const updated = await lecturerApi.put(`${BASE_URL}/api/school/courses/${testCourseId}`, {
+        headers: auth(token),
+        data: { title: 'E2E Lecturer Scoped Course Updated', modules: [] },
+      });
+      expect(updated.status()).toBe(200);
+
+      const deleted = await lecturerApi.delete(`${BASE_URL}/api/school/courses/${testCourseId}`, {
+        headers: auth(token),
+      });
+      expect(deleted.status()).toBe(200);
+      testCourseId = '';
+    } finally {
+      await prisma.course.deleteMany({ where: { id: { in: [foreignCourseId, testCourseId].filter(Boolean) } } }).catch(() => {});
+      await prisma.academy.deleteMany({ where: { id: otherAcademyId } }).catch(() => {});
+      await lecturerApi.dispose();
+    }
+  });
   test('ACADEMY-009: public Academy catalog cannot expose paid assets or professional-only courses', async () => {
     const publicApi = await apiRequest.newContext();
     const generalId = `academy-security-general-${Date.now()}`;
