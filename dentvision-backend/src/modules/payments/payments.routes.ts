@@ -26,7 +26,9 @@ import {
   assertClinicWritable,
   PlanGateError,
 } from '../billing/planEntitlements.js';
-import { assertOrgAccess } from '../../lib/orgContext.js';
+import { assertOrgAccess, resolveClinicAccess, resolveOrganizationIdForClinic } from '../../lib/orgContext.js';
+import { permissionsSatisfy } from '../../lib/permissions.js';
+import { resolveUserPermissions } from '../../lib/resolvePermissions.js';
 import { canTransitionOrder } from '../../lib/orderStatus.js';
 import { auditFromReq, writeAuditLog } from '../compliance/audit.service.js';
 import { reserveIdempotencyKey, completeIdempotencyKey, deleteIdempotencyKey } from '../../lib/idempotency.js';
@@ -406,6 +408,22 @@ async function claimPaymentForSettlement(
   return claimed.count === 1;
 }
 
+async function canManageClinicRefund(user: AuthRequest['user'], clinicId: string): Promise<boolean> {
+  if (!user || !clinicId) return false;
+  if (user.role === 'SUPERADMIN') return true;
+  if (!(await assertOrgAccess(user, clinicId))) return false;
+
+  // Refund is a financial mutation, not ordinary payment visibility. Resolve the
+  // caller's role in this exact clinic and require the canonical billing.manage
+  // permission. A doctor/assistant cannot refund merely because they can read the
+  // patient/payment, while OWNER/ADMIN/CASHIER retain operational control.
+  const scopedRole = await resolveClinicAccess(user.id, clinicId);
+  if (!scopedRole) return false;
+  const organizationId = (await resolveOrganizationIdForClinic(clinicId)) || clinicId;
+  const permissions = await resolveUserPermissions(user.id, organizationId, scopedRole.role);
+  return permissionsSatisfy(new Set(permissions), 'billing.manage');
+}
+
 async function assertPaymentOwner(req: AuthRequest, payment: { meta: unknown; refType: string | null; refId: string | null }) {
   const meta = (payment.meta || {}) as { userId?: string; clinicId?: string; merchantScope?: string };
   if (meta.userId && meta.userId === req.user!.id) return true;
@@ -413,9 +431,9 @@ async function assertPaymentOwner(req: AuthRequest, payment: { meta: unknown; re
     const order = await prisma.order.findUnique({ where: { id: payment.refId }, select: { userId: true } });
     if (order?.userId === req.user!.id) return true;
   }
-  // Clinic cashier payments: any active member of that clinic may confirm.
+  // Clinic payments require an authorized finance role in the same clinic.
   if (meta.clinicId && (meta.merchantScope === 'clinic' || payment.refType === 'appointment' || payment.refType === 'crm_invoice')) {
-    if (await assertOrgAccess(req.user!, meta.clinicId)) return true;
+    return canManageClinicRefund(req.user!, meta.clinicId);
   }
   return false;
 }
