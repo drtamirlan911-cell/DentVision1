@@ -93,7 +93,7 @@ export async function listCenters(search?: string, city?: string) {
     const visibleOrganizations = await prisma.organization.findMany({ where: { type: 'DIAGNOSTIC_CENTER' }, select: { originalId: true, settings: true } });
     const visibleCenterIds = new Set(visibleOrganizations.filter((o) => {
       const s = (o.settings && typeof o.settings === 'object' && !Array.isArray(o.settings)) ? o.settings as Record<string, unknown> : {};
-      return (s as any).ecosystemVisible !== false;
+      return (s as any).ecosystemVisible === true;
     }).map((o) => o.originalId).filter((id): id is string => Boolean(id)));
         const subByCenter = new Map(subs.map((r) => [r.center_id, r.status]));
     const visibleIds = allActive.filter((c) => {
@@ -125,7 +125,7 @@ export async function getCenter(id: string) {
     const settings = (org.settings && typeof org.settings === 'object' && !Array.isArray(org.settings))
       ? org.settings as Record<string, unknown>
       : {};
-    if (settings.ecosystemVisible === false) return null;
+    if (settings.ecosystemVisible !== true) return null;
 
     const subscription = await ensureCenterSubscription(id);
     if (!subscription.active) return null;
