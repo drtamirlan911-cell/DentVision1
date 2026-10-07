@@ -1472,3 +1472,10 @@ These changes are route/entry reconciliation only. Existing domain implementatio
 - `0fb9118e4807f1f30a4667c2a7caecce6c1ec76a` — made `api.switchContext()` persist the returned scoped access/refresh pair centrally and made `switchWorkspace()` delegate to the same canonical function. This prevents supplier/diagnostics/workspace flows from switching only in component-local state.
 - These changes preserve the canonical Identity → Active Workspace → Organization → Branch → Role → Permission chain; no fallback to global privileged roles was added.
 - Exact-head verification is still pending; connector-visible Vercel failure remains an infrastructure `build-rate-limit` condition, not a code failure, until a fresh full CI run exists.
+
+
+## 2026-10-08 — Supplier route authorization boundary
+
+- `96bf86cdf4638a15c857df5bfa609cebbb995eec` — routed `/supplier` through the existing workspace-aware `RequirePage('supplier')` guard. Supplier access now requires an authenticated session actually scoped to `SUPPLIER` (or explicit SUPERADMIN), matching the guard's documented contract instead of relying on an unguarded route.
+- The change is paired with `0fb9118e4807f1f30a4667c2a7caecce6c1ec76a`, which persists the scoped JWT at the shared `switchContext()` boundary, so the guard can observe the selected supplier workspace after navigation/reload.
+- No new supplier authorization path was introduced; the backend remains authoritative.
