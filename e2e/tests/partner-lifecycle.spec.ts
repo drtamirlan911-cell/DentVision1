@@ -49,6 +49,7 @@ test.describe('Partner operational lifecycle', () => {
     fixtureCenterId = centerPayload.data?.entityId;
     const centerAccessToken = centerPayload.data?.accessToken || centerPayload.accessToken;
     expect(centerAccessToken).toBeTruthy();
+    centerOwnerToken = centerAccessToken;
     const centerTokenPayload = JSON.parse(Buffer.from(centerAccessToken.split('.')[1], 'base64url').toString('utf8')) as {
       role?: string;
       organizationType?: string;
@@ -69,6 +70,8 @@ test.describe('Partner operational lifecycle', () => {
     expect(refreshRes.status()).toBe(200);
     const refreshedPayload = await refreshRes.json();
     const refreshedAccessToken = refreshedPayload.data?.accessToken || refreshedPayload.accessToken;
+    expect(refreshedAccessToken).toBeTruthy();
+    centerOwnerToken = refreshedAccessToken;
     const refreshedTokenPayload = JSON.parse(Buffer.from(refreshedAccessToken.split('.')[1], 'base64url').toString('utf8')) as {
       role?: string;
       organizationType?: string;
@@ -98,6 +101,9 @@ test.describe('Partner operational lifecycle', () => {
     expect(labOnboard.status()).toBe(201);
     const labPayload = await labOnboard.json();
     fixtureLabId = labPayload.data?.entityId;
+    const labAccessToken = labPayload.data?.accessToken || labPayload.accessToken;
+    expect(labAccessToken).toBeTruthy();
+    labOwnerToken = labAccessToken;
 
     const patient = await api.post(`${BASE}/api/patients`, {
       headers: auth(ownerToken),
