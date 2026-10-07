@@ -1237,3 +1237,25 @@ These changes are route/entry reconciliation only. Existing domain implementatio
 - The next CI must re-run the complete matrix on the post-log HEAD; no cancelled historical run is evidence.
 - Vercel preview had previously reached READY for the prior exact commits, while later previews hit the account build-rate-limit. This is tracked separately from application correctness and is not treated as a code test failure.
 - Release remains **UNVERIFIED** until full CI/E2E/browser/mobile/role-context/visual evidence and current production/rollback evidence are captured.
+
+
+## 2026-10-07 — PR #302 continuation: exact-head test failure repair + arch orientation
+
+### Exact-head evidence
+- Current branch HEAD: `60e33d84a60633d436d5e9d48f307128b9ba542f`.
+- CI run `3795` on the preceding exact head reached the test phase; Quality Gate `4745` passed, while the full CI lint-test job failed at unit tests.
+- Unit-test result: **2038 passed / 3 failed** across 221 test files.
+- The three failures were test-harness defects: Vitest hoisting in `rbac.partner.test.ts`, and `import.meta.url` resolving to a non-file URL in the two source-inspection tests for Diagnostics and Organizations.
+
+### Implemented
+- `3f0683362766bc07ed98adf0482a6efed28336d9` — changed the partner RBAC mock to `vi.hoisted` so the mocked permission resolver is initialized before Vitest's hoisted `vi.mock` factory executes.
+- `f9768767a6ad86b107aaa21554ba7e9a2151b7ad` and `116f9b66a3768ae493aa70699af04d74554f9d91` — changed the two source-inspection tests to resolve repository paths from `process.cwd()`, removing the invalid `URL` scheme dependency.
+- `60e33d84a60633d436d5e9d48f307128b9ba542f` — corrected the visual arch orientation: upper anterior teeth now descend toward the opposing lower arch and the lower anterior teeth rise toward it, preserving the curved dental-arch composition while keeping the neon anatomical morphology.
+
+### Verification status
+- Frontend lint, backend lint, TypeScript/build, project/system-map validation and Quality Gate were green on the preceding exact head.
+- A fresh workflow for `60e33d84a60633d436d5e9d48f307128b9ba542f` has not yet appeared in the Actions API at this checkpoint; therefore the new fixes are **UNVERIFIED**.
+- Release remains blocked until fresh full CI, E2E, browser UX, mobile design, role/context, visual evidence and business-owner journeys pass on this exact HEAD.
+
+### Next action
+- Inspect the fresh exact-head Actions run as soon as it is available, repair any remaining failures, and do not merge until the complete release evidence chain is green.
