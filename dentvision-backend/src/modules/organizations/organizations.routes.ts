@@ -212,7 +212,7 @@ organizationsRouter.post('/self-service', async (req: AuthRequest, res) => {
     const tokens = generateTokens({
       sub: req.user!.id,
       email: req.user!.email,
-      role: result.scopedRoleKey as UserRole,
+      role: String(result.scopedRoleKey || '').toUpperCase() as UserRole,
       ...authContext,
       branchId: result.branchId,
       sessionId: req.user!.sessionId,
