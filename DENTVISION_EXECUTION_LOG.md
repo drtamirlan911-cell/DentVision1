@@ -1207,3 +1207,33 @@ These changes are route/entry reconciliation only. Existing domain implementatio
 - Corrected the clinical odontogram arch geometry on the active implementation branch: upper anterior teeth now curve toward the midline and the lower arch mirrors upward, with reduced vertical depth and chart height so the two opposing arches read as one coherent dental-arch composition.
 - Verification status: the exact-head CI/Quality Gate must complete for commit 587aca7e42696d088e43fc2425028bbece8ca107; visual evidence remains required before declaring the odontogram pass complete.
 - Next action: inspect the exact-head CI jobs and visual artifacts, then continue the remaining P0/P1 release blockers rather than treating historical green/cancelled runs as current evidence.
+
+## 2026-10-07 — PR #302: CI failure triage and IAM/onboarding hardening
+
+### Exact-head verification
+- Candidate before this checkpoint: `8203627b645a4fa5d76246b2694751f01291772c`.
+- Quality Gate passed on the exact candidate: run `4689`.
+- Full CI `3772` executed the complete unit-test surface and reported **2030 passed / 7 failed** across 218 test files.
+
+### Root causes found
+- `pageParity.test.ts`: partner-role routing returned only the partner family pages and dropped the authenticated baseline (`shop/school/profile/settings/public diagnostics`). This contradicted the documented baseline contract.
+- `finance.service.test.ts`: diagnostic minimum was represented in minor KZT units; the test used the string `50_000` instead of the actual serialized value `50000`.
+- `ai/os/appointmentDoctorId.test.ts`: the production guard now uses `resolveClinicAccess`, while the regression mock still exported the retired `isClinicMember` symbol.
+
+### Fixes applied
+- `39ca1c0b1520fb0cd083e7b2e03b97cbbe22a515` — partner workspaces retain the authenticated baseline pages while adding role-specific pages.
+- `191fff904061b78a2776a07e20aef392599711db` — AI appointment regression tests mock the actual scoped clinic-access resolver.
+- `1623f281730ac6021bc181df4ea63ecfc41ba427` — finance diagnostic minimum assertion corrected to the real minor-unit serialization.
+
+### Separate IAM/onboarding hardening already on this branch
+- `12b2f9872f4f6c8799f24e842138ec6dcbe44cdd` / `f7e39117d7a3bc360b517dccb4e15f47b039778e` / `a21870ce3c5ee5fea6fd8b5a93ad57689ffbe60e` — AI organization-scoped role resolution and Seller→Supplier agent mapping hardened.
+- `60a1d67f6fa58c214c3230f33147bd6836a857b3` — removed the redundant legacy organization-role fallback.
+- `9d12bae9b91d2986209df584c6d968fccef6aa7a` — self-service scoped role normalized in the JWT.
+- `b3c7114c18e3accd5122683b991c0f2c3e269ad4` — Diagnostic Center/Laboratory onboarding now uses a canonical `Organization.id` separate from the mirrored entity `originalId`.
+- `8203627b645a4fa5d76246b2694751f01291772c` — idempotent self-service token role normalized as well.
+
+### Current release state
+- Current exact branch candidate is `1623f281730ac6021bc181df4ea63ecfc41ba427` before this log-only checkpoint.
+- The next CI must re-run the complete matrix on the post-log HEAD; no cancelled historical run is evidence.
+- Vercel preview had previously reached READY for the prior exact commits, while later previews hit the account build-rate-limit. This is tracked separately from application correctness and is not treated as a code test failure.
+- Release remains **UNVERIFIED** until full CI/E2E/browser/mobile/role-context/visual evidence and current production/rollback evidence are captured.
