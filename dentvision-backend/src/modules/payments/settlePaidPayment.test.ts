@@ -278,3 +278,20 @@ describe('Academy settlement source-of-truth contract', () => {
     expect(block).not.toContain('payment.sellerType');
   });
 });
+
+describe('Subscription payment creation boundary', () => {
+  it('requires scoped billing access and exact tariff amount before creating a subscription payment', () => {
+    const source = readFileSync(
+      resolve(process.cwd(), 'dentvision-backend/src/modules/payments/payments.routes.ts'),
+      'utf8',
+    );
+    const createStart = source.indexOf("paymentsRouter.post('/', authenticate");
+    const refundStart = source.indexOf("paymentsRouter.post('/:id/refund", createStart);
+    const block = source.slice(createStart, refundStart);
+    expect(block).toContain("if (refType === 'subscription')");
+    expect(block).toContain("assertClinicBillingAccess(req.user!.id, subscriptionClinicId)");
+    expect(block).toContain("const expectedMinor = BigInt(plan.amountMinor) * BigInt(months)");
+    expect(block).toContain("if (minor !== expectedMinor)");
+  });
+});
+
