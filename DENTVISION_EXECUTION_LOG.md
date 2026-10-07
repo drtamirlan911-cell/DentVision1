@@ -1287,3 +1287,12 @@ These changes are route/entry reconciliation only. Existing domain implementatio
 
 ### Verification status
 - The current branch HEAD is this log commit and is unverified until fresh exact-head CI completes.
+
+
+## 2026-10-07 — Diagnostics result signer safety hardening
+
+- `5aba6fbbb40376242ef0fe3b67f5aba28b90c352` — partner diagnostic result signing now requires the clinical signer role appropriate to the partner type: `RADIOLOGIST` for diagnostic centers; `MEDICAL_LAB_VALIDATOR` or `MEDICAL_LAB_DOCTOR` for medical laboratories. Partner owner/admin/manager/finance/quality roles can no longer sign by virtue of broad management access.
+- `9f092472999b7b6b64ce21f06daf5625930ec88d` — added a regression contract for the clinical signer boundary.
+
+### Verification status
+- Latest code/documentation changes are pending fresh exact-head CI verification.
