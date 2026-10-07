@@ -170,7 +170,10 @@ test.describe('DentVision business owner journeys', () => {
       );
       expect(context).toBeTruthy();
       expect(context.scopeType).toBe(
-        type === 'center' ? 'DIAGNOSTIC_CENTER' : type === 'laboratory' ? 'LABORATORY' : 'LABORATORY',
+        type === 'center' ? 'DIAGNOSTIC_CENTER' : 'LABORATORY',
+      );
+      expect(context.roleKey).toBe(
+        type === 'center' ? 'diagnostic_owner' : type === 'laboratory' ? 'medical_lab_owner' : 'dental_lab_owner',
       );
       expect(context.branchId).toBe(onboarding.data.branchId);
 
