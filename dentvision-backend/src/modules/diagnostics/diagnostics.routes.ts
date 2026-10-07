@@ -18,6 +18,14 @@ function canManagePartnerBilling(user: AuthRequest['user']): boolean {
   // keeping registrars/operators out of money-state mutations.
   return /_(OWNER|ADMIN|MANAGER|DIRECTOR|CASHIER|FINANCE)$/.test(role);
 }
+function canManagePartnerCatalog(user: AuthRequest['user']): boolean {
+  if (!user) return false;
+  const role = String(user.role || '').toUpperCase();
+  if (['SUPERADMIN', 'OWNER', 'ADMIN', 'MANAGER', 'DIRECTOR'].includes(role)) return true;
+  // Catalog/pricing is a privileged configuration mutation, not a cashier
+  // collection action. Partner-specific cashier roles must not reach it.
+  return /_(OWNER|ADMIN|MANAGER|DIRECTOR|FINANCE)$/.test(role);
+}
 async function referralBranchAllowed(user: AuthRequest['user'], referral: { clinicId: string; branchId?: string | null }): Promise<boolean> { if (user.role === 'SUPERADMIN') return true; return canAccessReferralBranch(user, { clinicId: referral.clinicId, branchId: referral.branchId ?? null }); }
 async function referralListBranchIds(user: AuthRequest['user'], clinicId?: string): Promise<string[] | undefined> {
   if (!clinicId || user.role === 'SUPERADMIN') return undefined;
@@ -90,7 +98,7 @@ diagnosticsRouter.get('/lab-tests', async (req: AuthRequest, res) => {
 diagnosticsRouter.patch('/centers/:id/pricing', async (req: AuthRequest, res) => {
   try {
     if (!sameOrgContext(req.user, 'DiagnosticCenter', req.params.id)) return res.status(403).json({ ok: false, error: 'Нет доступа к центру' });
-    if (!canManagePartnerBilling(req.user)) return res.status(403).json({ ok: false, error: 'Недостаточно прав для приёма оплаты' });
+    if (!canManagePartnerCatalog(req.user)) return res.status(403).json({ ok: false, error: 'Недостаточно прав для приёма оплаты' });
     const studies = Array.isArray(req.body?.studies) ? req.body.studies : [];
     const ids = studies.map((x: any) => String(x?.id || '')).filter(Boolean);
     if (!ids.length) return res.json({ ok: true, data: [] } satisfies ApiResponse);
@@ -105,7 +113,7 @@ diagnosticsRouter.patch('/centers/:id/pricing', async (req: AuthRequest, res) =>
 diagnosticsRouter.post('/centers/:id/pricing', async (req: AuthRequest, res) => {
   try {
     if (!sameOrgContext(req.user, 'DiagnosticCenter', req.params.id)) return res.status(403).json({ ok: false, error: 'Нет доступа к центру' });
-    if (!canManagePartnerBilling(req.user)) return res.status(403).json({ ok: false, error: 'Недостаточно прав для управления услугами' });
+    if (!canManagePartnerCatalog(req.user)) return res.status(403).json({ ok: false, error: 'Недостаточно прав для управления услугами' });
     const name = String(req.body?.name || '').trim();
     const category = String(req.body?.category || '').toUpperCase();
     if (!name || !category) return res.status(400).json({ ok: false, error: 'Название и категория обязательны' });
@@ -116,7 +124,7 @@ diagnosticsRouter.post('/centers/:id/pricing', async (req: AuthRequest, res) => 
 diagnosticsRouter.patch('/laboratories/:id/pricing', async (req: AuthRequest, res) => {
   try {
     if (!sameOrgContext(req.user, 'Laboratory', req.params.id)) return res.status(403).json({ ok: false, error: 'Нет доступа к лаборатории' });
-    if (!canManagePartnerBilling(req.user)) return res.status(403).json({ ok: false, error: 'Недостаточно прав для приёма оплаты' });
+    if (!canManagePartnerCatalog(req.user)) return res.status(403).json({ ok: false, error: 'Недостаточно прав для приёма оплаты' });
     const tests = Array.isArray(req.body?.tests) ? req.body.tests : [];
     const ids = tests.map((x: any) => String(x?.id || '')).filter(Boolean);
     if (!ids.length) return res.json({ ok: true, data: [] } satisfies ApiResponse);
@@ -131,7 +139,7 @@ diagnosticsRouter.patch('/laboratories/:id/pricing', async (req: AuthRequest, re
 diagnosticsRouter.post('/laboratories/:id/pricing', async (req: AuthRequest, res) => {
   try {
     if (!sameOrgContext(req.user, 'Laboratory', req.params.id)) return res.status(403).json({ ok: false, error: 'Нет доступа к лаборатории' });
-    if (!canManagePartnerBilling(req.user)) return res.status(403).json({ ok: false, error: 'Недостаточно прав для управления услугами' });
+    if (!canManagePartnerCatalog(req.user)) return res.status(403).json({ ok: false, error: 'Недостаточно прав для управления услугами' });
     const name = String(req.body?.name || '').trim();
     const category = String(req.body?.category || '').toUpperCase();
     if (!name || !category) return res.status(400).json({ ok: false, error: 'Название и категория обязательны' });
