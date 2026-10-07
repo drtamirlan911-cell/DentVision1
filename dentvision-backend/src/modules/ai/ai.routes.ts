@@ -909,6 +909,8 @@ aiRouter.get('/proactive', optionalAuth, async (req: AuthRequest, res) => {
       clinicId: req.user?.isGuest ? null : (req.user?.clinicId || null),
       role: req.user?.isGuest ? 'GUEST' : (req.user?.role || 'guest'),
       isGuest: req.user?.isGuest === true,
+      organizationType: req.user?.organizationType || null,
+      workspaceName: req.user?.organizationType && req.user.organizationType !== 'CLINIC' ? 'активная организация' : null,
     });
     res.json({ ok: true, data: { alerts } });
   } catch (error) {
