@@ -83,9 +83,9 @@ test.describe('DentVision business owner journeys', () => {
       // Workspace creation changes the active context, so verify each registration
       // from a fresh authenticated session instead of carrying context across cases.
       await login(page);
+      const kind = type === 'center' ? 'diagnostic_center' : type === 'laboratory' ? 'medical_lab' : 'dental_lab';
       await page.goto(`${BASE}/onboarding?mode=create&kind=${kind}`);
       await expect(page.getByLabel('Название *')).toBeVisible({ timeout: 15000 });
-      const kind = type === 'center' ? 'diagnostic_center' : type === 'laboratory' ? 'medical_lab' : 'dental_lab';
       const unique = Date.now();
       await page.getByLabel('Название *').fill(`E2E lifecycle ${emailPrefix} ${unique}`);
       await page.getByLabel('Город').fill('Тараз');
