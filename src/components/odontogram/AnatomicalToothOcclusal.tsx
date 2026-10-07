@@ -1,5 +1,6 @@
 import React from 'react'
 import { isUpperArch, type RootPattern } from './toothMorphology'
+import { crownPath } from './toothCrownShapes'
 import {
   STATUS_META,
   statusColor,
