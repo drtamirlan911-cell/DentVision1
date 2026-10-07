@@ -59,8 +59,8 @@ async function organizationMembership(userId: string, organizationId: string): P
     JOIN "roles" r ON r."id" = pr."roleId"
     WHERE p."userId" = ${userId}
       AND p."organization_id" = ${organizationId}
-      AND (pr."scopeId" = ${organizationId} OR pr."scopeId" IS NULL)
-      AND COALESCE(pr."scopeType", 'organization') IN ('organization', 'platform')
+      AND pr."scopeId" = ${organizationId}
+      AND COALESCE(pr."scopeType", 'organization') = 'organization'
     ORDER BY CASE
       WHEN LOWER(r."key") IN ('owner','org_owner') OR LOWER(r."key") LIKE '%_owner' THEN 0
       WHEN LOWER(r."key") IN ('admin','org_admin') OR LOWER(r."key") LIKE '%_admin' THEN 1
