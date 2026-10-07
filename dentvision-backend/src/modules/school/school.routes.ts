@@ -226,15 +226,21 @@ schoolRouter.get('/hub', optionalAuth, async (req: AuthRequest, res) => {
       users.map((u) => [u.id, `${u.firstName} ${u.lastName}`.trim()]),
     );
 
+    const contentContext = resolveActiveContentContext(req);
+    const isVisible = (course: { meta?: unknown }) =>
+      canExposeCatalogItem('ACADEMY', contentContext, audiencesFromCourseMeta(course.meta));
+
     const [dbWebinars, dbTextbooks, dbOffice] = await Promise.all([
       loadDbOfferings('webinar'),
       loadDbOfferings('textbook'),
       loadDbOfferings('office'),
     ]);
-    const webinars = dbWebinars.map(mapCourseToEventCard);
-    const officeCourses = dbOffice.map(mapCourseToEventCard);
-    const textbooks = dbTextbooks.map(mapCourseToEventCard);
-    const trackCourses = courses.filter((c) => normalizeSchoolFormat((c as any).format) === 'course');
+    const webinars = dbWebinars.filter(isVisible).map(mapCourseToEventCard);
+    const officeCourses = dbOffice.filter(isVisible).map(mapCourseToEventCard);
+    const textbooks = dbTextbooks.filter(isVisible).map(mapCourseToEventCard);
+    const trackCourses = courses.filter((course) =>
+      normalizeSchoolFormat((course as any).format) === 'course' && isVisible(course),
+    );
 
     res.json({
       ok: true,
@@ -258,9 +264,7 @@ schoolRouter.get('/hub', optionalAuth, async (req: AuthRequest, res) => {
         webinars,
         officeCourses,
         textbooks,
-        courses: trackCourses
-          .filter((course) => canExposeCatalogItem('ACADEMY', resolveActiveContentContext(req), audiencesFromCourseMeta(course.meta)))
-          .map(mapCourse),
+        courses: trackCourses.map(mapCourse),
         academies: academies.map((a) => ({
           id: a.id,
           name: a.name,
@@ -296,7 +300,7 @@ schoolRouter.get('/hub', optionalAuth, async (req: AuthRequest, res) => {
   }
 });
 
-schoolRouter.get('/courses', optionalAuth, async (req, res) => {
+schoolRouter.get('/courses', optionalAuth, async (req: AuthRequest, res) => {
   try {
     const { category, search, format } = req.query;
     const where: Record<string, unknown> = {
