@@ -1,4 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 
 const { agentActivityFindMany, resolveOrganizationIdForClinic, organizationFindUnique, clinicFindUnique, supplierFindUnique, lecturerFindUnique, clinicMemberFindMany, supplierMemberFindMany, diagnosticCenterMemberFindMany, laboratoryMemberFindMany, personFindMany } = vi.hoisted(() => ({
   agentActivityFindMany: vi.fn(),
