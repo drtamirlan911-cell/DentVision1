@@ -26,7 +26,7 @@ import {
   assertClinicWritable,
   PlanGateError,
 } from '../billing/planEntitlements.js';
-import { assertClinicOrgAccess, assertOrgAccess, resolveClinicAccess } from '../../lib/orgContext.js';
+import { assertClinicOrgAccess, assertOrgAccess, resolveClinicAccess, resolveOrganizationIdForClinic } from '../../lib/orgContext.js';
 import { permissionsSatisfy } from '../../lib/permissions.js';
 import { resolveUserPermissions } from '../../lib/resolvePermissions.js';
 import { canTransitionOrder } from '../../lib/orderStatus.js';
@@ -422,7 +422,7 @@ async function canManageClinicRefund(user: AuthRequest['user'], clinicId: string
   // patient/payment, while OWNER/ADMIN/CASHIER retain operational control.
   const scopedRole = await resolveClinicAccess(user.id, clinicId);
   if (!scopedRole) return false;
-  const organizationId = user.organizationId || user.clinicId || clinicId;
+  const organizationId = (await resolveOrganizationIdForClinic(clinicId)) || clinicId;
   const permissions = await resolveUserPermissions(user.id, organizationId, scopedRole.role);
   return permissionsSatisfy(new Set(permissions), 'billing.manage');
 }
