@@ -597,7 +597,7 @@ paymentsRouter.post('/', authenticate, async (req: AuthRequest, res) => {
     if (refType === 'medical_lab_order' && refId) {
       const medicalOrder = await medicalLabOrderAmountMinor(refId);
       if (!medicalOrder) return res.status(404).json({ ok: false, error: 'Медицинский лабораторный заказ не найден или не назначен лаборатории' } satisfies ApiResponse);
-      if (!(await assertOrgAccess(req.user!, medicalOrder.clinicId))) return res.status(403).json({ ok: false, error: 'Нет доступа к этому медицинскому заказу' } satisfies ApiResponse);
+      if (!(await assertClinicOrgAccess(req.user!, medicalOrder.clinicId))) return res.status(403).json({ ok: false, error: 'Нет доступа к этому медицинскому заказу' } satisfies ApiResponse);
       if (medicalOrder.amountMinor <= 0n) return res.status(400).json({ ok: false, error: 'В медицинском заказе отсутствуют оплачиваемые анализы' } satisfies ApiResponse);
       if (medicalOrder.amountMinor !== minor) return res.status(409).json({ ok: false, error: `Сумма не совпадает с медицинским заказом: ожидалось ${medicalOrder.amountMinor}, получено ${minor}` } satisfies ApiResponse);
     }
@@ -662,7 +662,7 @@ paymentsRouter.post('/', authenticate, async (req: AuthRequest, res) => {
           error: 'clinicId обязателен для оплаты на кассе клиники',
         } satisfies ApiResponse);
       }
-      if (!(await assertOrgAccess(req.user!, clinicId))) {
+      if (!(await assertClinicOrgAccess(req.user!, clinicId))) {
         return res.status(403).json({ ok: false, error: 'Нет доступа к кассе этой клиники' } satisfies ApiResponse);
       }
 
