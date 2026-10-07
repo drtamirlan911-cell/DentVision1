@@ -1455,3 +1455,11 @@ These changes are route/entry reconciliation only. Existing domain implementatio
 - `f117de85fcc466d7c9c75b417a24f9e8415f204d` — added a deterministic E2E vertical slice for new account registration → canonical partner onboarding → scoped PersonRole/Branch creation → `/api/iam/me/contexts` persistence → reload.
 - The registration assertion also verifies a malicious `role: OWNER` request still creates only the unscoped `STUDENT` global account; privileged access is granted only by the scoped onboarding graph.
 - Verification remains CI-gated; no new exact-head GitHub Actions run is currently reported for the connector-authored commits.
+
+
+## 2026-10-08 — Branch code uniqueness contract
+
+- `83fed36035692d1cd547a011088050f7ab9b90c6` — branch create/edit now normalizes codes through one helper and performs explicit organization-scoped uniqueness checks. Duplicate create/update returns stable `409 BRANCH_CODE_CONFLICT`; DB `23505` remains a final concurrency guard.
+- `7e6ea1d810bcafca7b5a0c5754b55b4125231dee` — added E2E coverage for duplicate branch creation and conflicting branch-code edits.
+- This closes the branch-management contract's recoverable uniqueness path without introducing another branch model.
+- Verification remains exact-head CI-gated.
