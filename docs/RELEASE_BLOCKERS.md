@@ -66,6 +66,16 @@
 - **Finding:** the canonical content-catalog response guard intentionally filters Marketplace/Academy items according to active authenticated content context.
 - **Required:** verify authenticated professional/owner contexts expose the expected catalog and that cross-tenant/catalog audience isolation is preserved. This is not closed by the public 200 response.
 
+### RB-010 — Clinic payment refund over-authorization
+- **Status:** FIXED — pending exact-head CI verification
+- **Priority:** P0
+- **Area:** Finance / RBAC / Payment safety
+- **Observed:** `POST /api/payments/:id/refund` treated any authorized clinic member as a sufficient owner for clinic-scoped payments.
+- **Risk:** clinical staff with payment visibility, including roles without `billing.manage`, could reach a financial reversal mutation.
+- **Fix:** clinic refund access now resolves the user's role in the exact clinic and requires canonical `billing.manage` permission; organization access alone is insufficient.
+- **Regression:** payment refund test now checks the route uses the scoped `billing.manage` boundary.
+- **Verification:** static exact-file inspection passed; fresh CI/E2E is still required for closure.
+
 ## Closed
 
 ### RB-006 — Vercel build rate limit
