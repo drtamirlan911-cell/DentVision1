@@ -78,10 +78,11 @@ test.describe('Partner operational lifecycle', () => {
     expect(refreshedTokenPayload.organizationType).toBe('DIAGNOSTIC_CENTER');
     expect(refreshedTokenPayload.organizationId).toBe(centerTokenPayload.organizationId);
 
-    const centerTokenPayload = JSON.parse(Buffer.from(centerOwnerToken.split('.')[1], 'base64url').toString('utf8')) as { organizationId?: string };
-    expect(centerTokenPayload.organizationId).toBeTruthy();
+    const centerOrgContext = JSON.parse(Buffer.from(centerOwnerToken.split('.')[1], 'base64url').toString('utf8')) as { organizationId?: string };
+    const centerOrgId = centerOrgContext.organizationId;
+    expect(centerOrgId).toBeTruthy();
     const branchList = await api.get(
-      `${BASE}/api/organizations/branches?organizationId=${encodeURIComponent(centerTokenPayload.organizationId!)}`,
+      `${BASE}/api/organizations/branches?organizationId=${encodeURIComponent(centerOrgId!)}`,
       { headers: auth(centerOwnerToken) },
     );
     expect(branchList.status()).toBe(200);
