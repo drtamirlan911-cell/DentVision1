@@ -1378,3 +1378,25 @@ These changes are route/entry reconciliation only. Existing domain implementatio
 - `dentvision-backend/src/lib/financeBranchScope.ts` and `dentvision-backend/src/lib/inventoryBranchScope.ts` — branch ordering now uses the canonical physical `created_at` column instead of the stale `createdAt` identifier.
 - A targeted pass across adjacent branch-related backend modules did not find another confirmed `branches.createdAt/updatedAt` raw-SQL reference in the checked production files.
 - Fresh exact-head CI is required after these changes; release remains UNVERIFIED.
+
+
+## 2026-10-08 — Partner pricing authorization hardening
+
+### Finding
+- Review of PR #302 exposed an authorization overreach in `dentvision-backend/src/modules/diagnostics/diagnostics.routes.ts`.
+- `canManagePartnerBilling` correctly included cashier roles for payment collection, but the same guard was also used by diagnostic-center/laboratory pricing and catalog mutation endpoints.
+- This meant a cashier could reach privileged pricing/catalog configuration inside the partner organization.
+
+### Implemented
+- Added `canManagePartnerCatalog`, restricted to `SUPERADMIN/OWNER/ADMIN/MANAGER/DIRECTOR` plus the corresponding partner-scope privileged suffixes.
+- Pricing update/create endpoints now use the catalog guard.
+- Payment collection and `/referrals/:id/mark-paid` retain the broader billing guard required for cashier workflows.
+- Added a route-contract regression test proving the four pricing handlers use the catalog guard while the three billing handlers retain the billing guard.
+
+### Verification
+- Static repository contract verification on the new branch HEAD confirms 4 catalog guards and 3 billing guards.
+- Fresh CI has not yet executed for the new exact HEAD; release status remains UNVERIFIED.
+- Vercel preview for `22274262449d88b6e5be09eef2dc09b4e66d0ef9` is currently QUEUED.
+
+### Next action
+- Verify the exact new HEAD through the full CI/E2E/browser/mobile/role/visual chain before any release or merge decision.
