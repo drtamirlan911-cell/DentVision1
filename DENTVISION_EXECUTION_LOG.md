@@ -1420,3 +1420,11 @@ These changes are route/entry reconciliation only. Existing domain implementatio
 - This extends the existing paid-course detail authorization rather than replacing it: catalog visibility, private asset projection, detail access, and enrollment are now separate enforcement layers.
 - Verification: fresh exact-head CI required after these commits.
 - Release remains **UNVERIFIED** pending the full CI/E2E/browser/mobile/role-context/visual/business-owner evidence chain.
+
+
+## 2026-10-08 — Active notification detail workflow
+
+- `f880f78ef33c8899850b6360b1bee5e4dbfd201c` — changed the live `AlertDropdown` used by `IntelligenceLayout`: notification clicks now open a detail dialog with full message/timestamp, support Escape/backdrop close, and only navigate after an explicit action.
+- `73952b217f5e783c1ea7130731f623a448be3f47` — added E2E coverage for create → reload → notification list → detail → related-section navigation.
+- This removes the split behavior where the existing `NotificationCenter` supported details but the active topbar component navigated directly and discarded the notification context.
+- Verification: fresh exact-head CI required after these commits.
