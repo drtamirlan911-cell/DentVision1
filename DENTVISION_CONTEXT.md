@@ -157,3 +157,8 @@ Do not repeat an audit when implementation can resolve the issue. Do not weaken 
 - Latest code changes after the previous checkpoint: physical branch timestamp alignment across E2E factories, patient branch scope, branch API and IAM context discovery; AI workspace 36px descendant button target guard.
 - These changes were driven by exact CI #3822 evidence: branch raw-SQL column mismatch caused cascading patient/appointment/clinical/IDOR failures; /me/contexts had the same stale timestamp query; Mobile Design Gate exposed undersized AI controls.
 - Fresh exact-head CI/Quality Gate must be used for release decisions after the latest documentation checkpoint.
+
+## 2026-10-08 — Marketplace context hardening
+- Marketplace list/detail now enforce catalog audience at the route boundary for PUBLIC/PATIENT contexts; authenticated PATIENT is explicitly recognized by the content-access resolver.
+- This addresses the exact CI #3822 patient-context professional-product exposure assertion without weakening the E2E contract.
+- Fresh exact-head CI remains the release evidence source; release is still UNVERIFIED.
