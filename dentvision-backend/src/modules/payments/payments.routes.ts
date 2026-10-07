@@ -21,11 +21,6 @@ import {
 } from './clinicPayments.js';
 import { createHmac, timingSafeEqual } from 'node:crypto';
 import type { AuthRequest, ApiResponse } from '../../types/index.js';
-import {
-  resolveClinicAccess,
-  assertClinicWritable,
-  PlanGateError,
-} from '../billing/planEntitlements.js';
 import { assertClinicBillingAccess, getPlanCatalog } from '../billing/clinicSubscription.service.js';
 import { assertClinicOrgAccess, resolveClinicAccess, resolveOrganizationIdForClinic } from '../../lib/orgContext.js';
 import { permissionsSatisfy } from '../../lib/permissions.js';
