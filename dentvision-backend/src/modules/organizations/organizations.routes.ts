@@ -8,7 +8,7 @@ import type { AuthRequest, ApiResponse } from '../../types/index.js';
 import { uid, paginate, paginatedResponse } from '../../lib/helpers.js';
 import branchesRouter from '../branches/branches.routes.js';
 import { generateTokens } from '../../lib/jwt.js';
-import { resolveAuthContext } from '../../lib/authContext.js';
+import { resolveAuthContext, resolveOrganizationRoleKey } from '../../lib/authContext.js';
 import { auditFromReq } from '../compliance/audit.service.js';
 import { createNotificationForMany, NOTIFICATION_TYPES } from '../../services/notification.service.js';
 import { ensureLegalTrustPackage, getLegalPartnerForContext } from '../legal/legal.trust.service.js';
@@ -29,6 +29,17 @@ const SELF_SERVICE_TYPES = {
 } as const;
 
 type SelfServiceType = keyof typeof SELF_SERVICE_TYPES;
+
+function selfServiceRoleKey(type: SelfServiceType): string {
+  switch (type) {
+    case 'clinic': return 'owner';
+    case 'diagnostic_center': return 'diagnostic_owner';
+    case 'medical_lab': return 'medical_lab_owner';
+    case 'dental_lab': return 'dental_lab_owner';
+    case 'supplier': return 'seller';
+    case 'academy': return 'lecturer';
+  }
+}
 
 function selfServiceType(value: unknown): SelfServiceType | null {
   const key = String(value || '').trim().toLowerCase() as SelfServiceType;
@@ -148,7 +159,8 @@ organizationsRouter.post('/self-service', async (req: AuthRequest, res) => {
         await tx.organization.create({ data: { id: organizationId, name, type: 'ACADEMY' as any, taxId, address, phone, email, originalType: 'Academy', originalId: entityId, settings: { lifecycle: 'PENDING_VERIFICATION', verification: 'PENDING', ecosystemVisible: false, legal: { status: 'PENDING' }, onboardingKey: idempotencyKey, selfServiceType: type } as any } });
       }
 
-      const personId = await ensurePersonRole(tx, req.user!.id, organizationId, type === 'supplier' ? 'seller' : 'owner');
+      const scopedRoleKey = selfServiceRoleKey(type);
+      const personId = await ensurePersonRole(tx, req.user!.id, organizationId, scopedRoleKey);
 
       // Every self-service organization starts with one real operational branch.
       // This is the canonical Organization → Branch scope; it is persisted and
@@ -174,13 +186,15 @@ organizationsRouter.post('/self-service', async (req: AuthRequest, res) => {
       if (type === 'clinic') {
         await tx.user.update({ where: { id: req.user!.id }, data: { role: 'OWNER' } });
       }
-      return { entityId, organizationId, entity, personId, branchId, idempotent: false, existingSettings: null };
+      return { entityId, organizationId, entity, personId, branchId, scopedRoleKey, idempotent: false, existingSettings: null };
     });
 
     if (result.idempotent) {
       const authContext = await resolveAuthContext(req.user!.id, { organizationId: result.organizationId });
       if (authContext.organizationId !== result.organizationId) throw new Error('Не удалось установить контекст существующей организации');
-      const tokens = generateTokens({ sub: req.user!.id, email: req.user!.email, role: 'OWNER', ...authContext, branchId: result.branchId || undefined, sessionId: req.user!.sessionId });
+      const scopedRoleKey = await resolveOrganizationRoleKey(req.user!.id, result.organizationId);
+      const role = scopedRoleKey || selfServiceRoleKey(type);
+      const tokens = generateTokens({ sub: req.user!.id, email: req.user!.email, role, ...authContext, branchId: result.branchId || undefined, sessionId: req.user!.sessionId });
       setAuthCookies(res, tokens.accessToken, tokens.refreshToken);
       return res.status(200).json({ ok: true, data: { entityId: result.entityId, organizationId: result.organizationId, type, verification: String((result.existingSettings as any)?.verification || 'PENDING'), nextPath: SELF_SERVICE_TYPES[type].nextPath, idempotent: true, ...tokens } } satisfies ApiResponse);
     }
@@ -188,9 +202,9 @@ organizationsRouter.post('/self-service', async (req: AuthRequest, res) => {
     const superadmins = await prisma.user.findMany({ where: { role: 'SUPERADMIN' }, select: { id: true } });
     await createNotificationForMany(superadmins.map((u) => u.id), { type: NOTIFICATION_TYPES.NEW_ORGANIZATION, title: 'Новая организация создана', message: `Создана организация «${name}». Требуется проверка юридических данных и оформление документов.`, link: `/admin/organizations?organizationId=${result.organizationId}`, force: true });
 
-    // The database role is now OWNER, but authorization is organization-scoped.
-    // Issue a fresh context-bound token immediately so the client does not spend
-    // the remainder of the old session in an unscoped OWNER fallback context.
+    // The JWT must carry the scoped partner role. Global User.role remains a
+    // legacy compatibility field and must never become a tenant-wide OWNER
+    // authorization shortcut for partner workspaces.
     const authContext = await resolveAuthContext(req.user!.id, { organizationId: result.organizationId });
     if (authContext.organizationId !== result.organizationId) {
       throw new Error('Не удалось установить контекст созданной организации');
@@ -198,7 +212,7 @@ organizationsRouter.post('/self-service', async (req: AuthRequest, res) => {
     const tokens = generateTokens({
       sub: req.user!.id,
       email: req.user!.email,
-      role: 'OWNER',
+      role: result.scopedRoleKey,
       ...authContext,
       branchId: result.branchId,
       sessionId: req.user!.sessionId,
