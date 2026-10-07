@@ -51,20 +51,23 @@
 - **Verification:** inspect all 390/412px lab-role screenshots after CI and exercise open/close/Escape/outside-click/touch behavior.
 
 ### RB-008 — Academy lecturer without organization scope
-- **Status:** OPEN
+- **Status:** PARTIALLY FIXED — production identity remediation remains open
 - **Priority:** P1
 - **Area:** Identity / Academy / Data integrity
 - **Observed:** production unified-schema migration on 2026-09-29 reported one lecturer role without an organization scope and skipped its scoped PersonRole.
 - **Runtime evidence:** migration completed successfully, but one lecturer was skipped because no Academy organization scope could be resolved.
+- **Implementation hardening:** Academy course CRUD now accepts scoped `academy.manage` and requires an active Academy organization; E2E seeds a real scoped lecturer and rejects cross-Academy mutation.
 - **Required:** identify the affected lecturer/academy relationship in production, restore the canonical Academy organization link if the source relationship is valid, then rerun/verify IAM context generation. Do not assign a synthetic tenant.
 
 ### RB-009 — Public catalog response vs authenticated catalog policy
-- **Status:** OPEN
+- **Status:** FIXED — pending exact-head CI verification
 - **Priority:** P1
 - **Area:** Marketplace / Academy / Content access
 - **Observed:** unauthenticated production calls return 200 but filtered catalog arrays (Marketplace data empty; Academy KPI counts populated while public course/event arrays are filtered).
 - **Finding:** the canonical content-catalog response guard intentionally filters Marketplace/Academy items according to active authenticated content context.
-- **Required:** verify authenticated professional/owner contexts expose the expected catalog and that cross-tenant/catalog audience isolation is preserved. This is not closed by the public 200 response.
+- **Fix:** audience policy now applies to Academy course, webinar, live, office-course, textbook and commerce-registration routes. PUBLIC/PATIENT contexts cannot expose PROFESSIONAL-only Academy items or register them.
+- **Regression:** Academy E2E verifies all four format catalog endpoints omit a PROFESSIONAL-only fixture from the public result set.
+- **Verification:** exact-head CI/E2E still required; public 200 alone remains insufficient.
 
 ### RB-010 — Clinic payment refund over-authorization
 - **Status:** FIXED — pending exact-head CI verification
@@ -75,6 +78,16 @@
 - **Fix:** clinic refund access now resolves the user's role in the exact clinic and requires canonical `billing.manage` permission; organization access alone is insufficient.
 - **Regression:** payment refund test now checks the route uses the scoped `billing.manage` boundary.
 - **Verification:** static exact-file inspection passed; fresh CI/E2E is still required for closure.
+
+### RB-011 — Clinic domain ID used as canonical organization ID in Diagnostics
+- **Status:** FIXED — pending exact-head CI verification
+- **Priority:** P0
+- **Area:** Diagnostics / IAM / Tenant scope
+- **Observed:** referral authorization passed domain `Clinic.id` directly to `assertOrgAccess`, while canonical IAM uses `Organization.id` and stores the source Clinic.id in `originalId`.
+- **Risk:** valid clinic-scoped referral workflows could fail after canonicalization.
+- **Fix:** added shared `assertClinicOrgAccess` translation with legacy fallback and switched diagnostics referral authorization paths to it.
+- **Regression:** `orgContext.test.ts` covers canonical/legacy mapping; diagnostics contract test locks the referral boundary.
+- **Verification:** static inspection passed; fresh exact-head CI/E2E remains required.
 
 ## Closed
 
