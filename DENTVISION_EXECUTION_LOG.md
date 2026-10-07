@@ -1259,3 +1259,16 @@ These changes are route/entry reconciliation only. Existing domain implementatio
 
 ### Next action
 - Inspect the fresh exact-head Actions run as soon as it is available, repair any remaining failures, and do not merge until the complete release evidence chain is green.
+
+
+## 2026-10-07 — PR #302 continuation: notification detail + payment metadata ownership hardening
+
+### Implemented
+- Added a frontend `getNotification(id)` API call and changed the notification detail dialog to fetch the authoritative server-side record when opened, while retaining the list item as a graceful fallback.
+- Hardened `POST /api/notifications/:id/read` to mutate only rows owned by the authenticated user without returning a distinct 403 for another user's notification identifier.
+- Added regression contracts for notification ownership and dynamic-route ordering.
+- Corrected payment metadata merge order so client `meta` cannot overwrite server-authoritative `userId`, merchant scope, clinic ID or generated QR metadata.
+
+### Verification status
+- These changes are unverified until the next exact-head CI/Quality Gate completes.
+- Release remains blocked on full CI/E2E/browser/mobile/role-context/visual/business-owner evidence.
