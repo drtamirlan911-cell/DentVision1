@@ -243,20 +243,24 @@ function SurfaceOverlays({
 function occlusalOutline(pattern: RootPattern): string {
   switch (pattern) {
     case 'incisor':
-      // Incisal edge seen from above: a narrow, gently bowed blade.
-      return 'M14.5 11 C14.5 8.6 16.4 7.2 20 7.2 C23.6 7.2 25.5 8.6 25.5 11 L26 29 C26 31.6 23.4 33 20 33 C16.6 33 14 31.6 14 29 Z'
+      // Narrow, slightly asymmetric rounded quadrilateral with a real incisal edge.
+      return 'M14.8 10.4 C15.2 8.1 17.1 7 20 7 C22.9 7 24.8 8.1 25.2 10.4 L25.8 27.8 C25.9 31.1 23.6 33 20 33 C16.4 33 14.1 31.1 14.2 27.8 Z'
     case 'canine':
-      // A single cusp pulls the mesial edge to a point.
-      return 'M13.5 13 C13.5 9.6 16 6.4 20 5.4 C24 6.4 26.5 9.6 26.5 13 L27 27.5 C27 31 24 33.4 20 33.4 C16 33.4 13 31 13 27.5 Z'
+      // One dominant cusp with two long ridges sweeping into the cervical half.
+      return 'M13.7 13.2 C14.1 9.7 16.2 6.2 20 5 C23.8 6.2 25.9 9.7 26.3 13.2 L27 27.2 C27 31 23.9 33.8 20 34 C16.1 33.8 13 31 13 27.2 Z'
     case 'premolar1':
+      // Upper first premolar: two distinct cusps, mesial cusp slightly dominant.
+      return 'M9.4 14.2 C10.1 10.8 13.7 8 18.2 7.2 C19.2 7 19.8 8 20.1 9.2 C20.5 8 21.1 7 22.2 7.4 C26.7 8.2 29.9 10.9 30.6 14.4 L30.3 26.6 C29.9 30.2 25.5 33 20 33.1 C14.5 33 10.1 30.2 9.7 26.6 Z'
     case 'premolar2':
-      // Two cusps — an oval, waisted slightly where the fissure crosses.
-      return 'M9.5 14 C9.5 10.4 14 7.8 20 7.8 C26 7.8 30.5 10.4 30.5 14 C30.8 17 30.8 23 30.5 26 C30.5 29.8 26 32.4 20 32.4 C14 32.4 9.5 29.8 9.5 26 C9.2 23 9.2 17 9.5 14 Z'
+      // Second premolar: fuller, more symmetrical two-cusp oval.
+      return 'M10 14 C10.6 10.4 14.3 8 20 7.8 C25.7 8 29.4 10.4 30 14 C30.7 17.2 30.7 23.7 30 26.7 C29.1 30.6 25.2 32.7 20 32.7 C14.8 32.7 10.9 30.6 10 26.7 C9.3 23.7 9.3 17.2 10 14 Z'
     case 'molarUpper':
+      // Upper molar: rhomboid occlusal table with four cuspal lobes.
+      return 'M7.2 12.4 C9.2 8.4 13.7 6.1 18.1 6.5 L22.4 7.2 C26.6 6.2 31 8.4 32.8 12.4 L33.7 17.2 C34 20.8 33.4 26.8 31.1 29.8 C28.5 33.1 24.3 34.2 20 33.8 C15.7 34.2 11.5 33.1 8.9 29.8 C6.6 26.8 6 20.8 6.3 17.2 Z'
     case 'molarLower':
     default:
-      // Four cusps: a rounded rhomboid with a soft lobe at each corner.
-      return 'M6 13.5 C6 9.4 11.2 6.2 20 6.2 C28.8 6.2 34 9.4 34 13.5 C34.4 16.5 34.4 23.5 34 26.8 C34 31 28.8 34 20 34 C11.2 34 6 31 6 26.8 C5.6 23.5 5.6 16.5 6 13.5 Z'
+      // Lower molar: wider buccolingually, lower lingual side and two broad distal lobes.
+      return 'M6.5 13.4 C8.1 9.1 12.9 7 18 7.3 C19 7.4 19.6 8.1 20 9.2 C20.4 8.1 21 7.4 22 7.3 C27.1 7 31.9 9.1 33.5 13.4 L33.8 25.8 C33.5 30.8 28.4 33.8 22.9 33.2 L20 32.4 L17.1 33.2 C11.6 33.8 6.5 30.8 6.2 25.8 Z'
   }
 }
 
@@ -264,27 +268,43 @@ function occlusalOutline(pattern: RootPattern): string {
 function occlusalFissures(pattern: RootPattern): React.ReactNode {
   switch (pattern) {
     case 'incisor':
-      return <path d="M20 11 L20 29" />
+      return <path d="M20 10.5 C19.7 15 19.8 20.5 20 28.8" />
     case 'canine':
       return (
         <>
-          <path d="M20 9 L20 30" />
-          <path d="M20 20 L15 25 M20 20 L25 25" />
+          <path d="M20 9 L20 29.5" />
+          <path d="M20 19 L15.2 25.5 M20 19 L24.8 25.5" />
         </>
       )
     case 'premolar1':
-    case 'premolar2':
-      // One central groove running mesiodistally between the two cusps.
-      return <path d="M11.5 20 C15 18.5 25 18.5 28.5 20" />
-    case 'molarUpper':
-    case 'molarLower':
-    default:
-      // Central groove plus the buccal and lingual branches — the classic cross.
       return (
         <>
-          <path d="M9.5 20 C14 18.2 26 18.2 30.5 20" />
-          <path d="M16.5 9.5 C17.5 14 17.5 17 16.8 19.4" />
-          <path d="M23 31 C22 26.5 22 23 22.8 20.6" />
+          <path d="M12.6 20 C15.4 18.8 18 18.4 20 19.2 C22 18.4 24.6 18.8 27.4 20" />
+          <path d="M20 18.8 C20.1 21.2 20.1 23.8 20 26.4" />
+        </>
+      )
+    case 'premolar2':
+      return (
+        <>
+          <path d="M12.3 20 C15.6 18.8 24.4 18.8 27.7 20" />
+          <path d="M20 18.9 L20 26" />
+        </>
+      )
+    case 'molarUpper':
+      return (
+        <>
+          <path d="M9.2 19.7 C13 18.2 16.3 18.4 20 20 C23.7 18.4 27 18.2 30.8 19.7" />
+          <path d="M15.6 10.1 C17 13.2 17.6 16.3 17.2 19.5" />
+          <path d="M24.4 30 C23.1 26.8 22.5 23.4 23 20.2" />
+        </>
+      )
+    case 'molarLower':
+    default:
+      return (
+        <>
+          <path d="M9.2 19.6 C12.6 18.6 16.8 18.7 20 20.2 C23.2 18.7 27.4 18.6 30.8 19.6" />
+          <path d="M16 10.4 C17.5 13.4 18 16.2 17.4 19.5" />
+          <path d="M24 30.2 C22.8 26.9 22.5 23.7 23.1 20.4" />
         </>
       )
   }
