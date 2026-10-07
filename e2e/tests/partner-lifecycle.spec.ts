@@ -106,6 +106,7 @@ test.describe('Partner operational lifecycle', () => {
       expect((await res.json()).data.status).toBe(status);
     }
 
+    const visitCountBefore = await prisma.visit.count({ where: { patientId } });
     const result = await api.post(`${BASE}/api/diagnostics/referrals/${referral.id}/results/sign`, {
       headers: auth(centerOwnerToken),
       data: { reportText: 'E2E diagnostic report', conclusion: 'No acute findings' },
@@ -113,6 +114,7 @@ test.describe('Partner operational lifecycle', () => {
     expect(result.status()).toBe(200);
     const signed = (await result.json()).data;
     expect(signed.patientRecordUpdated).toBe(false);
+    expect(await prisma.visit.count({ where: { patientId } })).toBe(visitCountBefore);
 
     const clinicRead = await api.get(`${BASE}/api/diagnostics/referrals/${referral.id}`, {
       headers: auth(ownerToken),
