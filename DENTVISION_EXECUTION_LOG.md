@@ -1181,3 +1181,20 @@ These changes are route/entry reconciliation only. Existing domain implementatio
 
 ### Next action
 - Inspect the fresh workflow/deployment result for the exact HEAD, then repair any compiler/E2E/mobile visual regressions without weakening tests.
+
+## 2026-10-07 — Current exact HEAD verification checkpoint
+
+### Verified
+- `8875df42e1fc39989880778fc4c86cec0467c224` is the exact current branch HEAD at this checkpoint.
+- Vercel preview deployment `dpl_2JNvFPoE1UT3Bt2Fm5cHTPuxybCi` is **READY** from that exact SHA.
+- Quality Gate run `4580` completed **PASS**: npm ci, TypeScript, ESLint and repository release-gate all succeeded.
+
+### Current unverified release surface
+- Full CI run `3715` for the exact SHA is queued/pending and remains the authoritative source for E2E, browser UX, mobile design, role/context design, visual evidence and business-owner journeys.
+- No production deployment or release-ready claim is made from the Quality Gate alone.
+
+### Changes included before this checkpoint
+- Odontogram anatomy/arch refinement and lower-arch B/L surface mirroring.
+- Canonical six-type onboarding routed through `/onboarding`; legacy diagnostics registration is now only a compatibility redirect.
+- AI digital twin no longer falls back to an arbitrary clinic for an explicitly active non-clinic organization type.
+
