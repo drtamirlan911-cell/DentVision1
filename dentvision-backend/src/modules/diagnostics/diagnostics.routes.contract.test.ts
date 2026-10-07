@@ -26,6 +26,16 @@ describe('diagnostics route contract', () => {
     expect(source).not.toContain("['DOCTOR', 'OWNER', 'DIRECTOR', 'ADMIN'].includes(doctorAccess.role)");
   });
 
+
+  it('does not grant cashier roles partner pricing/catalog mutation access', () => {
+    expect(source).toContain('function canManagePartnerCatalog');
+    expect(source).not.toContain("if (!canManagePartnerCatalog(req.user)) return res.status(403).json({ ok: false, error: 'Недостаточно прав для приёма оплаты' })");
+    const pricingSection = source.slice(source.indexOf("diagnosticsRouter.patch('/centers/:id/pricing'"), source.indexOf("diagnosticsRouter.get('/referrals'")); 
+    expect((pricingSection.match(/if \(!canManagePartnerCatalog\(req\.user\)\)/g) || [])).toHaveLength(4);
+    const billingSection = source.slice(source.indexOf("diagnosticsRouter.post('/referrals/:id/mark-paid'"), source.indexOf("diagnosticsRouter.delete('/referrals/:id'")); 
+    expect((billingSection.match(/if \(!canManagePartnerBilling\(req\.user\)\)/g) || [])).toHaveLength(3);
+  });
+
   it('keeps partner pricing and cashier handlers unique', () => {
     expect((source.match(/diagnosticsRouter\.patch\('\/centers\/:id\/pricing'/g) || [])).toHaveLength(1);
     expect((source.match(/diagnosticsRouter\.post\('\/centers\/:id\/pricing'/g) || [])).toHaveLength(1);
