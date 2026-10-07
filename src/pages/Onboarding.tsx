@@ -11,13 +11,13 @@ import * as api from '@/utils/api'
 type Kind = 'clinic' | 'diagnostic_center' | 'medical_lab' | 'dental_lab' | 'supplier' | 'academy'
 type Mode = 'intent' | 'create' | 'join'
 
-const TYPES: Array<{ id: Kind; label: string; description: string; icon: typeof Building2; nextPath: string }> = [
-  { id: 'clinic', label: 'Стоматологическая клиника', description: 'Пациенты, команда, расписание и лечение', icon: Stethoscope, nextPath: '/crm/schedule' },
-  { id: 'diagnostic_center', label: 'Диагностический центр', description: 'Направления, исследования и заключения', icon: Building2, nextPath: '/diagnostics/center' },
-  { id: 'medical_lab', label: 'Медицинская лаборатория', description: 'Заказы, образцы, анализы и результаты', icon: FlaskConical, nextPath: '/diagnostics/lab?workspace=medical-lab' },
-  { id: 'dental_lab', label: 'Зуботехническая лаборатория', description: 'Кейсы, производство, QC и доставка', icon: Factory, nextPath: '/diagnostics/lab' },
-  { id: 'supplier', label: 'Поставщик / производитель', description: 'Каталог, заказы, fulfillment и выплаты', icon: Store, nextPath: '/supplier' },
-  { id: 'academy', label: 'Академия / образовательный центр', description: 'Курсы, студенты, преподаватели и сертификаты', icon: GraduationCap, nextPath: '/school' },
+const TYPES: Array<{ id: Kind; label: string; createLabel: string; description: string; icon: typeof Building2; nextPath: string }> = [
+  { id: 'clinic', label: 'Стоматологическая клиника', createLabel: 'стоматологическую клинику', description: 'Пациенты, команда, расписание и лечение', icon: Stethoscope, nextPath: '/crm/schedule' },
+  { id: 'diagnostic_center', label: 'Диагностический центр', createLabel: 'диагностический центр', description: 'Направления, исследования и заключения', icon: Building2, nextPath: '/diagnostics/center' },
+  { id: 'medical_lab', label: 'Медицинская лаборатория', createLabel: 'медицинскую лабораторию', description: 'Заказы, образцы, анализы и результаты', icon: FlaskConical, nextPath: '/diagnostics/lab?workspace=medical-lab' },
+  { id: 'dental_lab', label: 'Зуботехническая лаборатория', createLabel: 'зуботехническую лабораторию', description: 'Кейсы, производство, QC и доставка', icon: Factory, nextPath: '/diagnostics/lab' },
+  { id: 'supplier', label: 'Поставщик / производитель', createLabel: 'поставщика / производителя', description: 'Каталог, заказы, fulfillment и выплаты', icon: Store, nextPath: '/supplier' },
+  { id: 'academy', label: 'Академия / образовательный центр', createLabel: 'академию / образовательный центр', description: 'Курсы, студенты, преподаватели и сертификаты', icon: GraduationCap, nextPath: '/school' },
 ]
 
 const PERSONAL_INTENTS = [
@@ -159,7 +159,7 @@ export default function Onboarding() {
         <button type="button" onClick={() => setMode('intent')} className="mb-5 min-h-11 text-xs text-txt-muted hover:text-txt-primary">← Назад</button>
         <div className="flex items-start gap-3">
           {selected && <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-dv-gold/10 text-dv-gold">{(() => { const Icon = selected.icon; return <Icon size={18} /> })()}</span>}
-          <div><h1 className="text-xl font-semibold text-txt-primary">Создать {selected?.label?.toLowerCase()}</h1><p className="mt-1 text-sm text-txt-muted">Создание организации и первого рабочего контекста</p></div>
+          <div><h1 className="text-xl font-semibold text-txt-primary">Создать {selected?.createLabel}</h1><p className="mt-1 text-sm text-txt-muted">Создание организации и первого рабочего контекста</p></div>
         </div>
         <div className="mt-5 space-y-3">
           <Input label="Название *" value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} />
