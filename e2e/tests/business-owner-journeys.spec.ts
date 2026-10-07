@@ -13,6 +13,64 @@ async function login(page: Page, role = 'owner') {
 }
 
 test.describe('DentVision business owner journeys', () => {
+  test('BIZ-000: new account registration → partner onboarding → persisted workspace context', async ({ page }) => {
+    const unique = Date.now();
+    const email = `e2e-new-owner-${unique}@test.com`;
+    const password = 'Test1234!';
+    const organizationName = `E2E Registered Diagnostic ${unique}`;
+
+    const registration = await page.request.post('/api/auth/register', {
+      data: {
+        email,
+        password,
+        firstName: 'E2E',
+        lastName: 'Registered Owner',
+        role: 'OWNER',
+      },
+    });
+    expect(registration.status()).toBe(201);
+    const registrationPayload = await registration.json();
+    expect(registrationPayload.data?.user?.role).toBe('STUDENT');
+
+    // The registration response sets the authenticated cookies in the same
+    // Playwright browser context. The canonical onboarding flow must then
+    // elevate access only through the scoped organization PersonRole graph.
+    await page.goto(`${BASE}/onboarding?mode=create&kind=diagnostic_center`);
+    await expect(page.getByRole('heading', { name: 'Создать диагностический центр' })).toBeVisible({ timeout: 15000 });
+    await page.getByLabel('Название *').fill(organizationName);
+    await page.getByLabel('Город').fill('Тараз');
+    await page.getByLabel('Адрес').fill(`ул. E2E Registered ${unique}`);
+    await page.getByLabel('Телефон').fill('+77000000021');
+    await page.getByLabel('Email').fill(email);
+
+    const onboardingResponse = await page.waitForResponse((response) =>
+      response.url().includes('/api/organizations/self-service') && response.request().method() === 'POST',
+    );
+    await page.getByRole('button', { name: 'Создать и открыть workspace' }).click();
+    const onboarding = await onboardingResponse;
+    expect(onboarding.status()).toBe(201);
+    const onboardingPayload = await onboarding.json();
+    expect(onboardingPayload.data?.verification).toBe('PENDING');
+    expect(onboardingPayload.data?.organizationId).toBeTruthy();
+    expect(onboardingPayload.data?.branchId).toBeTruthy();
+
+    const contextsResponse = await page.request.get('/api/iam/me/contexts');
+    expect(contextsResponse.ok()).toBeTruthy();
+    const contextsPayload = await contextsResponse.json();
+    const context = (contextsPayload.contexts || []).find(
+      (item: { organizationId?: string; name?: string }) =>
+        item.organizationId === onboardingPayload.data.organizationId || item.name === organizationName,
+    );
+    expect(context, 'created organization must be present in canonical workspace context list').toBeTruthy();
+    expect(context.scopeType).toBe('DIAGNOSTIC_CENTER');
+    expect(context.branchId).toBe(onboardingPayload.data.branchId);
+
+    await page.reload();
+    await expect(page).not.toHaveURL(/\/login/);
+    await expect(page.getByTestId('workspace-switcher-trigger')).toContainText(organizationName);
+  });
+
+
   test('BIZ-001: canonical onboarding exposes all six organization types', async ({ page }) => {
     await login(page);
     const variants = [
