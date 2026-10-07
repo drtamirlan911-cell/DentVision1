@@ -165,7 +165,6 @@ notificationsRouter.get('/types', async (_req, res) => {
 
 // Dynamic notification detail route intentionally stays after all static GET endpoints.
 
-export { notificationsRouter };
 notificationsRouter.get('/:id', async (req: AuthRequest, res) => {
   try {
     const notification = await prisma.notification.findFirst({
@@ -179,3 +178,4 @@ notificationsRouter.get('/:id', async (req: AuthRequest, res) => {
   }
 });
 
+export { notificationsRouter };
