@@ -27,7 +27,7 @@ import {
   PlanGateError,
 } from '../billing/planEntitlements.js';
 import { assertClinicBillingAccess, getPlanCatalog } from '../billing/clinicSubscription.service.js';
-import { assertClinicOrgAccess, assertOrgAccess, resolveClinicAccess, resolveOrganizationIdForClinic } from '../../lib/orgContext.js';
+import { assertClinicOrgAccess, resolveClinicAccess, resolveOrganizationIdForClinic } from '../../lib/orgContext.js';
 import { permissionsSatisfy } from '../../lib/permissions.js';
 import { resolveUserPermissions } from '../../lib/resolvePermissions.js';
 import { canTransitionOrder } from '../../lib/orderStatus.js';
