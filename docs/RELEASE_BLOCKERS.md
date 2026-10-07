@@ -89,6 +89,16 @@
 - **Regression:** `orgContext.test.ts` covers canonical/legacy mapping; diagnostics contract test locks the referral boundary.
 - **Verification:** static inspection passed; fresh exact-head CI/E2E remains required.
 
+### RB-012 — SaaS subscription payment can target an arbitrary clinic
+- **Status:** FIXED — pending exact-head CI verification
+- **Priority:** P0
+- **Area:** Finance / Subscription / IDOR
+- **Observed:** generic payment creation accepted `refType=subscription`, arbitrary clinic `refId`, client `saasPlan` and `months` without scoped clinic billing authorization or exact tariff reconciliation.
+- **Risk:** a crafted payment could be settled against another clinic and activate its SaaS subscription.
+- **Fix:** subscription payment creation now requires `assertClinicBillingAccess` for the target clinic, accepts only paid catalog plans, validates integer months 1–24, and requires exact server-derived tariff total. Settlement repeats the tariff/amount invariant.
+- **Regression:** payment settlement tests cover tampered subscription amount; source contract covers creation-time billing and tariff guards.
+- **Verification:** fresh exact-head CI/E2E required before closure.
+
 ## Closed
 
 ### RB-006 — Vercel build rate limit
