@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 
-const resolveUserPermissions = vi.fn();
+const { resolveUserPermissions } = vi.hoisted(() => ({ resolveUserPermissions: vi.fn() }));
 
 vi.mock('../lib/resolvePermissions.js', () => ({ resolveUserPermissions }));
 vi.mock('../lib/prisma.js', () => ({ default: {} }));
