@@ -265,6 +265,12 @@ function occlusalOutline(pattern: RootPattern): string {
 }
 
 /** The fissure pattern inside the occlusal table — what makes it read as a tooth. */
+function thirdMolarOutline(upper: boolean): string {
+  return upper
+    ? 'M8.2 14 C9.5 9.8 14.1 7.1 19.2 7.5 C24.6 6.2 30 9.4 31.8 13.7 C33.2 17.4 32.1 23.7 29.5 27.8 C26.8 32 21.5 33.5 16.8 32.9 C11.7 32.3 7.7 29 7 24.4 C6.5 20.5 6.8 17 8.2 14 Z'
+    : 'M7.8 14.5 C9.8 10.1 14.4 7.6 19.1 8.1 C24.3 6.8 29.8 9.2 32 13.9 C33.2 18.2 32.2 24.4 29.1 28.7 C26.2 32.4 21.3 33.4 16.4 32.7 C11.1 32 7.4 28.8 7 24.1 C6.6 20.1 6.6 17 7.8 14.5 Z'
+}
+
 function occlusalFissures(pattern: RootPattern): React.ReactNode {
   switch (pattern) {
     case 'incisor':
@@ -499,7 +505,8 @@ function OcclusalTooth({
   pattern: RootPattern
   selected?: boolean
 }) {
-  const outline = occlusalOutline(pattern)
+  const isThirdMolar = [18, 28, 38, 48].includes(toothNumber)
+  const outline = isThirdMolar ? thirdMolarOutline(isUpperArch(toothNumber)) : occlusalOutline(pattern)
   const isMissing = status === 'missing'
   const isExtracted = status === 'extracted'
   const isImplant = status === 'implant'
