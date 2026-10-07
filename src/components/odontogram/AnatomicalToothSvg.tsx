@@ -211,8 +211,9 @@ function SurfaceOverlays({
             fill={color}
             opacity={0.92}
             stroke="rgba(255,255,255,0.35)"
-        eon-${toothNumber})`}
+            strokeWidth="0.5"
           />
+        )
         )
       })}
     </g>
