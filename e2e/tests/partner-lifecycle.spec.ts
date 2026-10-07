@@ -47,6 +47,36 @@ test.describe('Partner operational lifecycle', () => {
     expect(centerOnboard.status()).toBe(201);
     const centerPayload = await centerOnboard.json();
     fixtureCenterId = centerPayload.data?.entityId;
+    const centerAccessToken = centerPayload.data?.accessToken || centerPayload.accessToken;
+    expect(centerAccessToken).toBeTruthy();
+    const centerTokenPayload = JSON.parse(Buffer.from(centerAccessToken.split('.')[1], 'base64url').toString('utf8')) as {
+      role?: string;
+      organizationType?: string;
+      organizationId?: string;
+      branchId?: string;
+    };
+    expect(centerTokenPayload.role).toBe('diagnostic_owner');
+    expect(centerTokenPayload.organizationType).toBe('DIAGNOSTIC_CENTER');
+    expect(centerTokenPayload.organizationId).toBeTruthy();
+    expect(centerTokenPayload.branchId).toBeTruthy();
+
+    const state = await api.storageState();
+    const refreshCookie = state.cookies.find((cookie) => cookie.name === 'refreshToken');
+    expect(refreshCookie).toBeTruthy();
+    const refreshRes = await api.post(`${BASE}/api/auth/refresh`, {
+      data: { refreshToken: refreshCookie!.value },
+    });
+    expect(refreshRes.status()).toBe(200);
+    const refreshedPayload = await refreshRes.json();
+    const refreshedAccessToken = refreshedPayload.data?.accessToken || refreshedPayload.accessToken;
+    const refreshedTokenPayload = JSON.parse(Buffer.from(refreshedAccessToken.split('.')[1], 'base64url').toString('utf8')) as {
+      role?: string;
+      organizationType?: string;
+      organizationId?: string;
+    };
+    expect(refreshedTokenPayload.role).toBe('diagnostic_owner');
+    expect(refreshedTokenPayload.organizationType).toBe('DIAGNOSTIC_CENTER');
+    expect(refreshedTokenPayload.organizationId).toBe(centerTokenPayload.organizationId);
 
     const labOwner = await createTestUser({ email: `medical-lab-owner-${Date.now()}@test.dentvision`, firstName: 'Medical Lab', lastName: 'Owner' });
     labOwnerToken = await login(api, labOwner.email);
