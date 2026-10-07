@@ -79,6 +79,11 @@ async function currentOrganizationPerson(userId: string, requestedOrganizationId
       userId,
       organizationId: { not: null },
       ...(organizationId ? { organizationId } : {}),
+      personRoles: {
+        some: organizationId
+          ? { scopeType: 'organization', scopeId: organizationId }
+          : { scopeType: 'organization' },
+      },
     },
     orderBy: { createdAt: 'asc' },
     include: { organization: true },
