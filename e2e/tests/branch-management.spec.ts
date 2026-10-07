@@ -35,6 +35,47 @@ async function createBranch(page: Page, name: string) {
 }
 
 test.describe('Canonical organization branch management', () => {
+  test('BRANCH-004: branch code uniqueness is a recoverable conflict for create and edit', async ({ page }) => {
+    await login(page);
+    await openBranchManagement(page);
+
+    const firstName = `E2E Code A ${Date.now()}`;
+    const secondName = `E2E Code B ${Date.now()}`;
+    await createBranch(page, firstName);
+    await createBranch(page, secondName);
+
+    const raw = await page.request.get('/api/branches');
+    expect(raw.ok()).toBeTruthy();
+    const payload = await raw.json();
+    const branches = Array.isArray(payload) ? payload : payload?.data ?? [];
+    const first = branches.find((item: { name?: string }) => item.name === firstName);
+    const second = branches.find((item: { name?: string }) => item.name === secondName);
+    expect(first?.id).toBeTruthy();
+    expect(second?.id).toBeTruthy();
+    expect(first?.code).toBeTruthy();
+    expect(second?.code).toBeTruthy();
+
+    const duplicateCreate = await page.request.post('/api/branches', {
+      data: {
+        organizationId: first.organizationId,
+        clinicId: first.clinicId,
+        code: first.code,
+        name: `E2E Duplicate Code ${Date.now()}`,
+      },
+    });
+    expect(duplicateCreate.status()).toBe(409);
+    const duplicateCreateBody = await duplicateCreate.json();
+    expect(duplicateCreateBody.code || duplicateCreateBody.data?.code).toBe('BRANCH_CODE_CONFLICT');
+
+    const duplicateEdit = await page.request.patch(`/api/branches/${second.id}`, {
+      data: { code: first.code },
+    });
+    expect(duplicateEdit.status()).toBe(409);
+    const duplicateEditBody = await duplicateEdit.json();
+    expect(duplicateEditBody.code || duplicateEditBody.data?.code).toBe('BRANCH_CODE_CONFLICT');
+  });
+
+
   test('BRANCH-001: owner creates a persistent branch from Settings → Organization', async ({ page }) => {
     await login(page);
     await openBranchManagement(page);
