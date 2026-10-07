@@ -1428,3 +1428,22 @@ These changes are route/entry reconciliation only. Existing domain implementatio
 - `73952b217f5e783c1ea7130731f623a448be3f47` — added E2E coverage for create → reload → notification list → detail → related-section navigation.
 - This removes the split behavior where the existing `NotificationCenter` supported details but the active topbar component navigated directly and discarded the notification context.
 - Verification: fresh exact-head CI required after these commits.
+
+## 2026-10-08 — Clinic payment refund authorization hardening
+
+### Finding
+- Review of `POST /api/payments/:id/refund` found that clinic-scoped payment ownership returned true for any member with organization access.
+- This made ordinary clinical/operational membership sufficient to reach a financial reversal mutation, despite the canonical permission model reserving `billing.manage` for finance-control roles.
+
+### Implemented
+- Added `canManageClinicRefund` to resolve the caller's scoped clinic role and effective permissions for the exact organization.
+- Clinic refunds now require `billing.manage`; SUPERADMIN remains explicitly allowed.
+- Personal platform/order refund ownership behavior remains unchanged.
+- Added a regression assertion in `refund.service.test.ts`.
+
+### Verification
+- Static repository verification confirms the route contains the scoped `billing.manage` check and no longer contains the member-only clinic refund branch.
+- Fresh CI/E2E evidence is still unavailable for the new exact HEAD.
+
+### Next action
+- Run the full exact-head CI/E2E/browser/mobile/role/visual chain and continue closing only evidence-backed blockers.
