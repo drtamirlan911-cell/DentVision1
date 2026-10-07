@@ -1296,3 +1296,12 @@ These changes are route/entry reconciliation only. Existing domain implementatio
 
 ### Verification status
 - Latest code/documentation changes are pending fresh exact-head CI verification.
+
+
+## 2026-10-07 — Diagnostics clinical assignee boundary
+
+- `9955c83841180bbcb0a57616102192a178507ab6` — diagnostic referral creation no longer allows an `ADMIN` to be assigned as the clinical doctor; only `DOCTOR`, `OWNER` or `DIRECTOR` clinic access roles are accepted.
+- `19b86b41fca6d7cde08ee6f8f973ff141f7a89bd` — added route-contract regression coverage for the clinical assignee restriction.
+
+### Verification status
+- Current HEAD remains unverified until fresh exact-head CI completes.
