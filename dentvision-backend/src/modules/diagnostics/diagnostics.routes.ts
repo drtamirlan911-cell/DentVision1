@@ -59,8 +59,13 @@ diagnosticsRouter.get('/studies', async (req: AuthRequest, res) => {
   try {
     const { centerId, category } = req.query as any;
     if (centerId) {
-      const center = await svc.getCenter(String(centerId));
+      const centerIdValue = String(centerId);
+      const center = await svc.getCenter(centerIdValue);
       if (!center) return res.status(404).json({ ok: false, error: 'Diagnostic center not found' } satisfies ApiResponse);
+      if (!sameOrgContext(req.user, 'DiagnosticCenter', centerIdValue)) {
+        const clinicAccess = await assertOrgAccess(req.user!, centerIdValue).catch(() => false);
+        if (!clinicAccess) return res.status(403).json({ ok: false, error: 'Нет доступа к диагностическому центру' } satisfies ApiResponse);
+      }
     }
     return res.json({ ok: true, data: await svc.listStudies(centerId, category) } satisfies ApiResponse);
   } catch (e: any) { return res.status(500).json({ ok: false, error: e.message } satisfies ApiResponse); }
@@ -69,8 +74,13 @@ diagnosticsRouter.get('/lab-tests', async (req: AuthRequest, res) => {
   try {
     const { labId, category } = req.query as any;
     if (labId) {
-      const lab = await svc.getLaboratory(String(labId));
+      const labIdValue = String(labId);
+      const lab = await svc.getLaboratory(labIdValue);
       if (!lab) return res.status(404).json({ ok: false, error: 'Laboratory not found' } satisfies ApiResponse);
+      if (!sameOrgContext(req.user, 'Laboratory', labIdValue)) {
+        const clinicAccess = await assertOrgAccess(req.user!, labIdValue).catch(() => false);
+        if (!clinicAccess) return res.status(403).json({ ok: false, error: 'Нет доступа к лаборатории' } satisfies ApiResponse);
+      }
     }
     return res.json({ ok: true, data: await svc.listLabTests(labId, category) } satisfies ApiResponse);
   } catch (e: any) { return res.status(500).json({ ok: false, error: e.message } satisfies ApiResponse); }
