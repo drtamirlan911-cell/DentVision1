@@ -315,103 +315,125 @@ export function Odontogram3D({
       </div>
 
       <div className="border-y border-bdr-subtle bg-surface-0/60 px-2 py-3 sm:px-4">
-        <div className="mx-auto flex max-w-[820px] flex-col gap-0">
-          {curvedArch(upperTeeth, true)}
-          <div className="relative z-10 -my-2 flex items-center justify-center"><div className="h-5 w-px bg-bdr-subtle/60" aria-hidden /></div>
-          {curvedArch(lowerTeeth, false)}
-        </div>
-      </div>
-
-      {pendingStatus && (
-        <div className="mx-3 my-2 rounded-xl border border-amber-500/30 bg-amber-500/5 p-3" role="alert" data-testid="odontogram-status-confirmation">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div className="min-w-0">
-              <p className="m-0 text-xs font-semibold text-txt-primary">Подтвердить изменение зуба {pendingStatus.tooth}?</p>
-              <p className="mt-1 mb-0 text-[11px] leading-4 text-txt-secondary">
-                Действие «{STATUS_META[pendingStatus.status]?.label || pendingStatus.status}» изменит клиническую запись и может повлиять на план лечения.
-              </p>
-            </div>
-            <div className="flex shrink-0 gap-2">
-              <Button size="sm" variant="secondary" onClick={() => setPendingStatus(null)}>Отмена</Button>
-              <Button size="sm" onClick={confirmPendingStatus}>Подтвердить</Button>
+        {pendingStatus && (
+          <div className="mx-3 my-2 rounded-xl border border-amber-500/30 bg-amber-500/5 p-3" role="alert" data-testid="odontogram-status-confirmation">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div className="min-w-0">
+                <p className="m-0 text-xs font-semibold text-txt-primary">Подтвердить изменение зуба {pendingStatus.tooth}?</p>
+                <p className="mt-1 mb-0 text-[11px] leading-4 text-txt-secondary">
+                  Действие «{STATUS_META[pendingStatus.status]?.label || pendingStatus.status}» изменит клиническую запись и может повлиять на план лечения.
+                </p>
+              </div>
+              <div className="flex shrink-0 gap-2">
+                <Button size="sm" variant="secondary" onClick={() => setPendingStatus(null)}>Отмена</Button>
+                <Button size="sm" onClick={confirmPendingStatus}>Подтвердить</Button>
+              </div>
             </div>
           </div>
-        </div>
-      )}
+        )}
 
-      {selectedTooth && (
-        <div className="mx-3 mb-2 rounded-xl border border-bdr-subtle bg-surface-1/70 p-3 sm:p-4" data-testid="selected-tooth-anatomy">
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <div>
-              <p className="m-0 text-[10px] font-semibold uppercase tracking-[0.12em] text-txt-muted">Анатомия выбранного зуба</p>
-              <p className="mt-1 mb-0 text-sm font-semibold text-txt-primary">Зуб {selectedTooth} · {selectedMorph?.label || 'анатомическая модель'}</p>
+        <div className="mx-auto grid max-w-[1180px] grid-cols-1 gap-3 lg:grid-cols-[minmax(0,1fr)_320px] lg:items-start">
+          <div className="border-y border-bdr-subtle bg-surface-0/60 px-2 py-3 sm:px-4">
+            <div className="mx-auto flex max-w-[820px] flex-col gap-0">
+              {curvedArch(upperTeeth, true)}
+              <div className="relative z-10 -my-2 flex items-center justify-center"><div className="h-5 w-px bg-bdr-subtle/60" aria-hidden /></div>
+              {curvedArch(lowerTeeth, false)}
             </div>
-            <span className="rounded-full border border-cyan-400/25 bg-cyan-400/10 px-2 py-1 text-[10px] text-cyan-300">
-              {tipStatus && tipStatus !== 'healthy' ? (STATUS_META[tipStatus]?.label || tipStatus) : 'Без отмеченной патологии'}
-            </span>
           </div>
-          <div className="mt-3 grid grid-cols-1 sm:grid-cols-[150px_1fr] items-center gap-4">
-            <div className="relative mx-auto h-40 w-44">
-              <svg viewBox="0 0 180 160" className="h-full w-full" role="img" aria-label="Анатомический срез зуба">
-                <defs>
-                  <linearGradient id="anatomy-enamel" x1="0" y1="0" x2="1" y2="1">
-                    <stop offset="0%" stopColor="#effcff" />
-                    <stop offset="35%" stopColor="#67e8f9" />
-                    <stop offset="70%" stopColor="#06b6d4" />
-                    <stop offset="100%" stopColor="#075985" />
-                  </linearGradient>
-                  <linearGradient id="anatomy-dentin" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="#f8c38a" stopOpacity="0.9" />
-                    <stop offset="100%" stopColor="#b45309" stopOpacity="0.72" />
-                  </linearGradient>
-                  <linearGradient id="anatomy-pulp" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="#fb7185" />
-                    <stop offset="100%" stopColor="#be123c" />
-                  </linearGradient>
-                  <filter id="anatomy-glow" x="-60%" y="-60%" width="220%" height="220%">
-                    <feGaussianBlur stdDeviation="2.2" result="blur" />
-                    <feMerge><feMergeNode in="blur" /><feMergeNode in="SourceGraphic" /></feMerge>
-                  </filter>
-                </defs>
-                <path d="M38 58 C32 39 45 22 67 19 C90 15 115 19 129 36 C136 44 139 54 137 63 L126 70 C128 88 125 104 117 123 L108 145 C103 153 94 153 90 145 L82 124 C78 112 74 112 70 124 L61 145 C57 153 48 153 44 145 L35 123 C27 104 28 86 35 69 Z" fill="rgba(34,211,238,0.08)" stroke="#67e8f9" strokeWidth="2.5" filter="url(#anatomy-glow)" />
-                <path d="M45 58 C40 42 52 29 71 27 C92 24 112 28 123 41 C128 48 130 55 128 62 L118 69 C119 85 116 101 109 119 L101 140 C99 144 95 145 92 140 L83 118 C78 106 74 106 69 118 L60 140 C58 145 53 144 51 140 L42 119 C35 101 36 84 42 69 Z" fill="url(#anatomy-dentin)" fillOpacity="0.86" stroke="#fed7aa" strokeOpacity="0.75" strokeWidth="1.1" />
-                <path d="M55 57 C52 47 60 39 73 37 C87 35 101 37 109 46 C113 51 114 56 112 61 L104 68 C106 82 102 94 97 107 L89 130 C87 135 84 135 82 130 L75 108 C72 99 69 99 66 108 L58 130 C56 135 53 134 51 130 L44 108 C40 94 41 82 47 68 Z" fill="url(#anatomy-pulp)" fillOpacity="0.92" />
-                {selectedMorph?.roots === 3 ? (
-                  <>
-                    <path d="M79 50 C79 65 77 83 72 101 L64 137" fill="none" stroke="#38bdf8" strokeWidth="2.4" strokeLinecap="round" filter="url(#anatomy-glow)" />
-                    <path d="M82 50 C83 65 82 83 82 101 L82 141" fill="none" stroke="#60a5fa" strokeWidth="2.2" strokeLinecap="round" filter="url(#anatomy-glow)" />
-                    <path d="M85 50 C87 65 90 83 94 101 L101 137" fill="none" stroke="#38bdf8" strokeWidth="2.4" strokeLinecap="round" filter="url(#anatomy-glow)" />
-                  </>
-                ) : selectedMorph?.roots === 2 ? (
-                  <>
-                    <path d="M79 50 C80 67 78 86 73 103 L67 139" fill="none" stroke="#38bdf8" strokeWidth="2.4" strokeLinecap="round" filter="url(#anatomy-glow)" />
-                    <path d="M84 50 C85 67 88 86 92 103 L98 139" fill="none" stroke="#60a5fa" strokeWidth="2.2" strokeLinecap="round" filter="url(#anatomy-glow)" />
-                  </>
-                ) : (
-                  <path d="M81 50 C82 68 82 88 82 105 L82 140" fill="none" stroke="#60a5fa" strokeWidth="2.4" strokeLinecap="round" filter="url(#anatomy-glow)" />
-                )}
-                <path d="M51 56 C58 52 67 50 79 50" fill="none" stroke="#ecfeff" strokeWidth="2.2" strokeLinecap="round" />
-              </svg>
-            </div>
-            <div className="grid grid-cols-2 sm:grid-cols-5 gap-1.5">
-              {[
-                ['Crown','Коронка'],
-                ['Dentin','Дентин'],
-                ['Pulp','Пульпа'],
-                ['Nerve','Нерв'],
-                ['Root','Корень'],
-              ].map(([key,label]) => (
-                <div key={key} className="rounded-lg border border-bdr-subtle bg-surface-2 px-2 py-2 text-center">
-                  <p className="m-0 text-[10px] font-semibold text-txt-primary">{key}</p>
-                  <p className="m-0 mt-0.5 text-[9px] text-txt-muted">{label}</p>
+
+          {selectedTooth && (
+            <div className="mx-3 mb-2 rounded-xl border border-bdr-subtle bg-surface-1/70 p-3 sm:p-4" data-testid="selected-tooth-anatomy">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div>
+                  <p className="m-0 text-[10px] font-semibold uppercase tracking-[0.12em] text-txt-muted">Клинический контекст</p>
+                  <p className="mt-1 mb-0 text-sm font-semibold text-txt-primary">Зуб {selectedTooth} · {selectedMorph?.label || 'анатомическая модель'}</p>
                 </div>
-              ))}
+                <span className="rounded-full border border-cyan-400/25 bg-cyan-400/10 px-2 py-1 text-[10px] text-cyan-300">
+                  {tipStatus && tipStatus !== 'healthy' ? (STATUS_META[tipStatus]?.label || tipStatus) : 'Без отмеченной патологии'}
+                </span>
+              </div>
+              <div className="mt-3 grid grid-cols-1 gap-3">
+                <div className="relative mx-auto h-44 w-48 rounded-xl border border-cyan-400/10 bg-cyan-400/[0.025] p-1">
+                  <svg viewBox="0 0 180 160" className="h-full w-full" role="img" aria-label="Анатомический срез зуба">
+                    <defs>
+                      <linearGradient id="anatomy-enamel" x1="0" y1="0" x2="1" y2="1">
+                        <stop offset="0%" stopColor="#effcff" />
+                        <stop offset="35%" stopColor="#67e8f9" />
+                        <stop offset="70%" stopColor="#06b6d4" />
+                        <stop offset="100%" stopColor="#075985" />
+                      </linearGradient>
+                      <linearGradient id="anatomy-dentin" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" stopColor="#f8c38a" stopOpacity="0.9" />
+                        <stop offset="100%" stopColor="#b45309" stopOpacity="0.72" />
+                      </linearGradient>
+                      <linearGradient id="anatomy-pulp" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" stopColor="#fb7185" />
+                        <stop offset="100%" stopColor="#be123c" />
+                      </linearGradient>
+                      <filter id="anatomy-glow" x="-60%" y="-60%" width="220%" height="220%">
+                        <feGaussianBlur stdDeviation="2.2" result="blur" />
+                        <feMerge><feMergeNode in="blur" /><feMergeNode in="SourceGraphic" /></feMerge>
+                      </filter>
+                    </defs>
+                    <path d="M38 58 C32 39 45 22 67 19 C90 15 115 19 129 36 C136 44 139 54 137 63 L126 70 C128 88 125 104 117 123 L108 145 C103 153 94 153 90 145 L82 124 C78 112 74 112 70 124 L61 145 C57 153 48 153 44 145 L35 123 C27 104 28 86 35 69 Z" fill="rgba(34,211,238,0.08)" stroke="#67e8f9" strokeWidth="2.5" filter="url(#anatomy-glow)" />
+                    <path d="M45 58 C40 42 52 29 71 27 C92 24 112 28 123 41 C128 48 130 55 128 62 L118 69 C119 85 116 101 109 119 L101 140 C99 144 95 145 92 140 L83 118 C78 106 74 106 69 118 L60 140 C58 145 53 144 51 140 L42 119 C35 101 36 84 42 69 Z" fill="url(#anatomy-dentin)" fillOpacity="0.86" stroke="#fed7aa" strokeOpacity="0.75" strokeWidth="1.1" />
+                    <path d="M55 57 C52 47 60 39 73 37 C87 35 101 37 109 46 C113 51 114 56 112 61 L104 68 C106 82 102 94 97 107 L89 130 C87 135 84 135 82 130 L75 108 C72 99 69 99 66 108 L58 130 C56 135 53 134 51 130 L44 108 C40 94 41 82 47 68 Z" fill="url(#anatomy-pulp)" fillOpacity="0.92" />
+                    {selectedMorph?.roots === 3 ? (
+                      <>
+                        <path d="M79 50 C79 65 77 83 72 101 L64 137" fill="none" stroke="#38bdf8" strokeWidth="2.4" strokeLinecap="round" filter="url(#anatomy-glow)" />
+                        <path d="M82 50 C83 65 82 83 82 101 L82 141" fill="none" stroke="#60a5fa" strokeWidth="2.2" strokeLinecap="round" filter="url(#anatomy-glow)" />
+                        <path d="M85 50 C87 65 90 83 94 101 L101 137" fill="none" stroke="#38bdf8" strokeWidth="2.4" strokeLinecap="round" filter="url(#anatomy-glow)" />
+                      </>
+                    ) : selectedMorph?.roots === 2 ? (
+                      <>
+                        <path d="M79 50 C80 67 78 86 73 103 L67 139" fill="none" stroke="#38bdf8" strokeWidth="2.4" strokeLinecap="round" filter="url(#anatomy-glow)" />
+                        <path d="M84 50 C85 67 88 86 92 103 L98 139" fill="none" stroke="#60a5fa" strokeWidth="2.2" strokeLinecap="round" filter="url(#anatomy-glow)" />
+                      </>
+                    ) : (
+                      <path d="M81 50 C82 68 82 88 82 105 L82 140" fill="none" stroke="#60a5fa" strokeWidth="2.4" strokeLinecap="round" filter="url(#anatomy-glow)" />
+                    )}
+                    <path d="M51 56 C58 52 67 50 79 50" fill="none" stroke="#ecfeff" strokeWidth="2.2" strokeLinecap="round" />
+                  </svg>
+                </div>
+                <div className="grid grid-cols-2 gap-1.5">
+                  {[
+                    ['Crown','Коронка'],
+                    ['Dentin','Дентин'],
+                    ['Pulp','Пульпа'],
+                    ['Nerve','Нерв'],
+                    ['Root','Корень'],
+                  ].map(([key,label]) => (
+                    <div key={key} className="rounded-lg border border-bdr-subtle bg-surface-2 px-2 py-2 text-center">
+                      <p className="m-0 text-[10px] font-semibold text-txt-primary">{key}</p>
+                      <p className="m-0 mt-0.5 text-[9px] text-txt-muted">{label}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+              <div className="grid grid-cols-1 gap-1.5">
+                <div className="rounded-lg border border-bdr-subtle bg-surface-2/70 px-2.5 py-2">
+                  <p className="m-0 text-[9px] uppercase tracking-wide text-txt-muted">Состояние</p>
+                  <p className="mt-0.5 mb-0 text-[11px] font-semibold text-txt-primary">
+                    {tipStatus && tipStatus !== 'healthy' ? (STATUS_META[tipStatus]?.label || tipStatus) : 'Интактный зуб'}
+                  </p>
+                </div>
+                {(() => {
+                  const surfaceEntries = Object.entries(toothOf(selectedTooth).surfaces || {})
+                    .filter(([, value]) => value && normalizeSurfaceStatus(value) !== 'healthy')
+                  return surfaceEntries.length > 0 ? (
+                    <div className="rounded-lg border border-bdr-subtle bg-surface-2/70 px-2.5 py-2">
+                      <p className="m-0 text-[9px] uppercase tracking-wide text-txt-muted">Поверхности</p>
+                      <p className="mt-0.5 mb-0 text-[11px] text-txt-secondary">
+                        {surfaceEntries.map(([surface, value]) => surface + ': ' + (STATUS_META[normalizeSurfaceStatus(value) || '']?.label || normalizeSurfaceStatus(value) || value)).join(' · ')}
+                      </p>
+                    </div>
+                  ) : null
+                })()}
+              </div>
             </div>
-          </div>
+          )}
         </div>
-      )}
-
-      {tipTooth && tipMorph && (
+      </div>      {tipTooth && tipMorph && (
         <p className="px-4 md:px-5 pb-1 text-center text-[11px] text-txt-secondary m-0">
           {t('diagnostics.tooth')} <span className="text-dv-gold font-semibold">{tipTooth}</span>{' · '}{tipMorph.label}
           {tipStatus && tipStatus !== 'healthy' ? ' · ' + (STATUS_META[tipStatus]?.label || tipStatus) : ''}
