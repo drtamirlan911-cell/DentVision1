@@ -99,6 +99,23 @@ describe('permissionsForRole', () => {
   });
 });
 
+describe('scoped partner page families', () => {
+  it('keeps seller and lecturer out of unrelated clinic/diagnostics pages', async () => {
+    const source = await import('./permissions.js');
+    const seller = source.pagesForCaller(['shop.read', 'shop.manage', 'supplier.manage'], 'SELLER');
+    const lecturer = source.pagesForCaller(['academy.read', 'academy.manage'], 'LECTURER');
+
+    expect(seller).toEqual(expect.arrayContaining(['supplier', 'shop', 'inventory', 'profile']));
+    expect(seller).not.toContain('patients');
+    expect(seller).not.toContain('diagnostics');
+
+    expect(lecturer).toEqual(expect.arrayContaining(['school', 'profile']));
+    expect(lecturer).not.toContain('patients');
+    expect(lecturer).not.toContain('diagnostics');
+    expect(lecturer).not.toContain('finance');
+  });
+});
+
 describe('roleHasPermission', () => {
   it('SUPERADMIN bypasses everything', () => {
     expect(roleHasPermission('SUPERADMIN', 'anything' as any)).toBe(true);
