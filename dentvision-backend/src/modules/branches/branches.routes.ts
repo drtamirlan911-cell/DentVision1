@@ -431,7 +431,11 @@ branchesRouter.patch('/:id/members/:userId/status', async (req: AuthRequest, res
       if(!authz.allowed)return res.status(authz.status).json({ok:false,error:authz.error});
       const target=await prisma.clinicMember.findUnique({where:{userId_clinicId:{userId,clinicId:branch.clinic_id}}});
       if(!target || target.branchId !== branchId) return res.status(404).json({ok:false,error:'Сотрудник не закреплён за этим филиалом'});
-      if(!active) await prisma.$executeRaw`UPDATE "clinic_members" SET "branch_id"=NULL,"updatedAt"=CURRENT_TIMESTAMP WHERE "userId"=${userId} AND "clinicId"=${branch.clinic_id} AND "branch_id"=${branchId}`;
+      if(active) {
+        await prisma.$executeRaw`UPDATE "clinic_members" SET "branch_id"=${branchId},"updatedAt"=CURRENT_TIMESTAMP WHERE "userId"=${userId} AND "clinicId"=${branch.clinic_id}`;
+      } else {
+        await prisma.$executeRaw`UPDATE "clinic_members" SET "branch_id"=NULL,"updatedAt"=CURRENT_TIMESTAMP WHERE "userId"=${userId} AND "clinicId"=${branch.clinic_id} AND "branch_id"=${branchId}`;
+      }
       await auditFromReq(req,{action:active?'branch.member_enabled':'branch.member_disabled',entity:'branch',entityId:branchId,details:{userId,active}});
       return res.json({ok:true,data:{userId,branchId,active}});
     }
