@@ -168,3 +168,9 @@ Do not repeat an audit when implementation can resolve the issue. Do not weaken 
 - Corrected Branch raw SQL to use `created_at`/`updated_at` while preserving `clinic_members.updatedAt` camelCase.
 - Marketplace public/patient filtering includes a JSON-array type guard for legacy tag shapes.
 - This HEAD is the fresh release candidate for the next full CI evidence cycle; no readiness is inferred yet.
+
+
+## 2026-10-08 — Finance/Inventory branch scope checkpoint
+- Finance and Inventory branch-scope SQL now use the physical `branches.created_at` timestamp column.
+- Adjacent branch-related backend files were reviewed for the same confirmed stale Branch timestamp pattern; no additional confirmed production references were found in the checked set.
+- Current exact HEAD requires a fresh full CI/E2E/design/role/visual cycle before any readiness decision.
