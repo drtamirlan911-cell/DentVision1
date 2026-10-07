@@ -693,24 +693,28 @@ schoolRouter.get('/library', optionalAuth, async (req, res) => {
   }
 });
 
-schoolRouter.get('/live', optionalAuth, async (_req, res) => {
-  const db = await loadDbOfferings('webinar');
-  res.json({ ok: true, data: db.map(mapCourseToEventCard) });
+async function visibleOfferingCards(format: 'webinar' | 'textbook' | 'office', req: AuthRequest) {
+  const db = await loadDbOfferings(format);
+  const context = resolveActiveContentContext(req);
+  return db
+    .filter((course) => canExposeCatalogItem('ACADEMY', context, audiencesFromCourseMeta(course.meta)))
+    .map(mapCourseToEventCard);
+}
+
+schoolRouter.get('/live', optionalAuth, async (req: AuthRequest, res) => {
+  res.json({ ok: true, data: await visibleOfferingCards('webinar', req) });
 });
 
-schoolRouter.get('/webinars', optionalAuth, async (_req, res) => {
-  const db = await loadDbOfferings('webinar');
-  res.json({ ok: true, data: db.map(mapCourseToEventCard) });
+schoolRouter.get('/webinars', optionalAuth, async (req: AuthRequest, res) => {
+  res.json({ ok: true, data: await visibleOfferingCards('webinar', req) });
 });
 
-schoolRouter.get('/office-courses', optionalAuth, async (_req, res) => {
-  const db = await loadDbOfferings('office');
-  res.json({ ok: true, data: db.map(mapCourseToEventCard) });
+schoolRouter.get('/office-courses', optionalAuth, async (req: AuthRequest, res) => {
+  res.json({ ok: true, data: await visibleOfferingCards('office', req) });
 });
 
-schoolRouter.get('/textbooks', optionalAuth, async (_req, res) => {
-  const db = await loadDbOfferings('textbook');
-  res.json({ ok: true, data: db.map(mapCourseToEventCard) });
+schoolRouter.get('/textbooks', optionalAuth, async (req: AuthRequest, res) => {
+  res.json({ ok: true, data: await visibleOfferingCards('textbook', req) });
 });
 
 /** Paid registration for webinars, office seats, textbooks (soft catalog + lecturer DB). */
@@ -744,6 +748,12 @@ schoolRouter.post('/commerce/register', authenticate, async (req: AuthRequest, r
 
     if (!product) {
       res.status(404).json({ ok: false, error: 'Продукт не найден' });
+      return;
+    }
+
+    const contentContext = resolveActiveContentContext(req);
+    if (!canExposeCatalogItem('ACADEMY', contentContext, audiencesFromCourseMeta(dbProduct?.meta))) {
+      res.status(404).json({ ok: false, error: 'Продукт недоступен в текущем контексте' });
       return;
     }
 
