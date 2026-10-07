@@ -82,7 +82,7 @@ describe('createAppointment — doctorId must belong to the clinic', () => {
     );
 
     expect(result.ok).toBe(true);
-    expect(resolveClinicAccess).not.toHaveBeenCalled();
+    expect(resolveClinicAccess).toHaveBeenCalledWith('caller-1', 'clinic-1');
   });
 });
 
@@ -120,6 +120,6 @@ describe('rescheduleAppointment — doctorId must belong to the clinic', () => {
     );
 
     expect(result.ok).toBe(true);
-    expect(resolveClinicAccess).not.toHaveBeenCalled();
+    expect(resolveClinicAccess).toHaveBeenCalledWith('original-doctor', 'clinic-1');
   });
 });
