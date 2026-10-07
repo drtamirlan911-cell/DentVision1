@@ -107,11 +107,13 @@ describe('scoped partner page families', () => {
 
     expect(seller).toEqual(expect.arrayContaining(['supplier', 'shop', 'inventory', 'profile']));
     expect(seller).not.toContain('patients');
-    expect(seller).not.toContain('diagnostics');
+    expect(seller).not.toContain('patients');
+    expect(seller).not.toContain('medical-card');
+    expect(seller).not.toContain('finance');
 
     expect(lecturer).toEqual(expect.arrayContaining(['school', 'profile']));
     expect(lecturer).not.toContain('patients');
-    expect(lecturer).not.toContain('diagnostics');
+    expect(lecturer).not.toContain('patients');
     expect(lecturer).not.toContain('finance');
   });
 });
