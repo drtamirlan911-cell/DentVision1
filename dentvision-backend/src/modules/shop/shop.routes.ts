@@ -81,7 +81,7 @@ shopRouter.get('/products', optionalAuth, async (req, res) => {
               SELECT 1 FROM jsonb_array_elements_text(p."tags") AS tag(value)
               WHERE upper(trim(tag.value)) IN ('AUDIENCE:PROFESSIONAL', 'AUDIENCE:DOCTOR', 'AUDIENCE:DENTAL_STUDENT', 'AUDIENCE:ASSISTANT', 'AUDIENCE:LAB', 'AUDIENCE:DIAGNOSTIC', 'AUDIENCE:SELLER')
             )
-        `)).map((row) => row.id)
+        `).map((row) => row.id)
       : null;
     if (catalogIds) where.id = { in: catalogIds };
 
