@@ -414,7 +414,7 @@ async function claimPaymentForSettlement(
   return claimed.count === 1;
 }
 
-async function canManageClinicRefund(user: AuthRequest['user'], clinicId: string): Promise<boolean> {
+async function canManageClinicBillingMutation(user: AuthRequest['user'], clinicId: string): Promise<boolean> {
   if (!user || !clinicId) return false;
   if (user.role === 'SUPERADMIN') return true;
 
@@ -440,7 +440,7 @@ async function assertPaymentOwner(req: AuthRequest, payment: { meta: unknown; re
   // before the generic meta.userId ownership check because clinic payment
   // creation intentionally records the creator in meta.userId as well.
   if (meta.clinicId && (meta.merchantScope === 'clinic' || payment.refType === 'appointment' || payment.refType === 'crm_invoice')) {
-    return canManageClinicRefund(req.user!, meta.clinicId);
+    return canManageClinicBillingMutation(req.user!, meta.clinicId);
   }
 
   if (meta.userId && meta.userId === req.user!.id) return true;
@@ -666,8 +666,8 @@ paymentsRouter.post('/', authenticate, async (req: AuthRequest, res) => {
           error: 'clinicId обязателен для оплаты на кассе клиники',
         } satisfies ApiResponse);
       }
-      if (!(await assertClinicOrgAccess(req.user!, clinicId))) {
-        return res.status(403).json({ ok: false, error: 'Нет доступа к кассе этой клиники' } satisfies ApiResponse);
+      if (!(await canManageClinicBillingMutation(req.user!, clinicId))) {
+        return res.status(403).json({ ok: false, error: 'Недостаточно прав для приёма оплаты в этой клинике' } satisfies ApiResponse);
       }
 
       const created = await createClinicKaspiPayment({
