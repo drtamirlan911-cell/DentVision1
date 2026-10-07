@@ -62,6 +62,7 @@ const E2E_PARTNER_FIXTURES = [
   { email: 'medical-lab-tech@test.com', organizationType: 'LABORATORY', organizationName: 'E2E Medical Laboratory', role: 'medical_lab_technician' },
   { email: 'dental-lab-owner@test.com', organizationType: 'LABORATORY', organizationName: 'E2E Dental Laboratory', role: 'dental_lab_owner' },
   { email: 'dental-technician@test.com', organizationType: 'LABORATORY', organizationName: 'E2E Dental Laboratory', role: 'dental_technician' },
+  { email: 'lecturer@test.com', organizationType: 'ACADEMY', organizationName: 'E2E Academy', role: 'lecturer' },
 ] as const;
 
 async function seedE2EPartnerFixtures() {
@@ -151,6 +152,22 @@ async function seedE2EPartnerFixtures() {
       });
     }
 
+    if (fixture.organizationType === 'ACADEMY') {
+      const academy = await prisma.academy.findFirst({ where: { name: fixture.organizationName } });
+      const academyRecord = academy ?? await prisma.academy.create({
+        data: { id: randomUUID(), name: fixture.organizationName, city: 'Алматы' },
+      });
+      await prisma.organization.update({
+        where: { id: organization.id },
+        data: { originalType: 'Academy', originalId: academyRecord.id },
+      });
+      await prisma.lecturer.upsert({
+        where: { userId: user.id },
+        update: { academyId: academyRecord.id },
+        create: { id: randomUUID(), userId: user.id, academyId: academyRecord.id, level: 'new' },
+      });
+    }
+
     const persistedUser = await prisma.user.findUnique({ where: { email: fixture.email }, select: { id: true } });
     const persistedPerson = await prisma.person.findFirst({
       where: { userId: user.id, organizationId: organization.id },
@@ -162,7 +179,9 @@ async function seedE2EPartnerFixtures() {
     });
     const persistedMembership = fixture.organizationType === 'DIAGNOSTIC_CENTER'
       ? await prisma.diagnosticCenterMember.findFirst({ where: { userId: user.id }, select: { id: true } })
-      : await prisma.laboratoryMember.findFirst({ where: { userId: user.id }, select: { id: true } });
+      : fixture.organizationType === 'LABORATORY'
+        ? await prisma.laboratoryMember.findFirst({ where: { userId: user.id }, select: { id: true } })
+        : await prisma.lecturer.findFirst({ where: { userId: user.id, academyId: organization.originalId || undefined }, select: { id: true } });
     if (!persistedUser || !persistedPerson || !persistedPersonRole || !persistedMembership) {
       throw new Error(`E2E partner graph incomplete for ${fixture.email}: user=${Boolean(persistedUser)} person=${Boolean(persistedPerson)} personRole=${Boolean(persistedPersonRole)} membership=${Boolean(persistedMembership)}`);
     }
