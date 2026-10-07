@@ -232,4 +232,36 @@ test.describe('RBAC - Role-Based Access Control', () => {
     expect([403, 404]).toContain(res.status());
   });
 
+  test('RBAC-017: partner owner branch scope is tenant-bound', async () => {
+    const loginRes = await api.post(`${BASE_URL}/api/auth/login`, {
+      data: { email: 'diagnostic-owner@test.com', password: 'Test1234!' },
+    });
+    expect(loginRes.status()).toBe(200);
+    const body = await loginRes.json();
+    const token = body.data?.accessToken || body.accessToken;
+    expect(token).toBeTruthy();
+
+    const ownContexts = await api.get(`${BASE_URL}/api/iam/me/contexts`, {
+      headers: authHeaders(token),
+    });
+    expect(ownContexts.status()).toBe(200);
+    const contexts = ownContexts.body ? await ownContexts.json() : {};
+    const diagnostic = (contexts.data || contexts).contexts?.find(
+      (context: { scopeType?: string; organizationId?: string }) => context.scopeType === 'DIAGNOSTIC_CENTER',
+    );
+    expect(diagnostic?.organizationId).toBeTruthy();
+
+    const ownBranches = await api.get(
+      `${BASE_URL}/api/organizations/branches?organizationId=${encodeURIComponent(diagnostic.organizationId)}`,
+      { headers: authHeaders(token) },
+    );
+    expect(ownBranches.status()).toBe(200);
+
+    const foreignBranches = await api.get(
+      `${BASE_URL}/api/organizations/branches?organizationId=00000000-0000-0000-0000-000000000001`,
+      { headers: authHeaders(token) },
+    );
+    expect([403, 404]).toContain(foreignBranches.status());
+  });
+
 });
