@@ -1502,3 +1502,21 @@ These changes are route/entry reconciliation only. Existing domain implementatio
 - Static review of the changed Academy, IAM, branch, notification and routing contracts found no additional confirmed defect that justified a speculative schema/API change in this pass.
 - Local repository execution could not be run in this environment because outbound GitHub DNS/network access is unavailable; verification therefore relies on source-level contract review plus existing CI evidence.
 - Release remains **UNVERIFIED** until a fresh exact-head GitHub Actions run produces the required lint/typecheck/build/unit/E2E/browser/mobile/role-context evidence. Vercel's observed `build-rate-limit` failure is infrastructure, not a code-pass signal.
+
+## 2026-10-08 — SaaS subscription payment IDOR hardening
+
+### Finding
+- Generic `POST /api/payments` accepted subscription references without proving that the caller could manage the target clinic subscription.
+- The settlement path activated a subscription from `payment.refId` and `meta.saasPlan/months`, so request-controlled identifiers could reach a financial mutation for another clinic.
+
+### Implemented
+- Subscription payment creation now requires `assertClinicBillingAccess` for the target Clinic scope.
+- Paid tariff and integer month count (1–24) are validated from the canonical plan catalog.
+- Payment amount must exactly equal server-derived tariff price × months.
+- Settlement repeats the same tariff/amount invariant before subscription activation.
+- Clinic cash and medical-lab payment scope checks use the shared canonical Clinic.id → Organization.id resolver.
+
+### Verification
+- Existing settlement unit suite was updated to mock the canonical plan catalog and reject a tampered subscription amount.
+- A source contract now locks creation-time billing authorization and tariff reconciliation.
+- Exact-head CI is still pending; release remains UNVERIFIED.
