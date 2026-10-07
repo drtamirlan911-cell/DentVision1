@@ -1463,3 +1463,12 @@ These changes are route/entry reconciliation only. Existing domain implementatio
 - `7e6ea1d810bcafca7b5a0c5754b55b4125231dee` — added E2E coverage for duplicate branch creation and conflicting branch-code edits.
 - This closes the branch-management contract's recoverable uniqueness path without introducing another branch model.
 - Verification remains exact-head CI-gated.
+
+
+## 2026-10-08 — Context + branch staff hardening continuation
+
+- `65b6698b88b758f90e234734ebb8e75817450856` — fixed clinic branch staff re-enable: disabled `ClinicMember` records with `branchId=NULL` can now be re-enabled for their branch; members assigned to another branch receive a stable `409 BRANCH_MEMBER_ASSIGNED_ELSEWHERE`.
+- `6b69166ff863f8beb8786f1ad6da49e486385848` — strengthened the backend regression contract for the re-enable path.
+- `0fb9118e4807f1f30a4667c2a7caecce6c1ec76a` — made `api.switchContext()` persist the returned scoped access/refresh pair centrally and made `switchWorkspace()` delegate to the same canonical function. This prevents supplier/diagnostics/workspace flows from switching only in component-local state.
+- These changes preserve the canonical Identity → Active Workspace → Organization → Branch → Role → Permission chain; no fallback to global privileged roles was added.
+- Exact-head verification is still pending; connector-visible Vercel failure remains an infrastructure `build-rate-limit` condition, not a code failure, until a fresh full CI run exists.
