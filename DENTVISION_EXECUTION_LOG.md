@@ -1372,3 +1372,9 @@ These changes are route/entry reconciliation only. Existing domain implementatio
 - `dentvision-backend/src/modules/branches/branches.routes.ts` — corrected the earlier timestamp alignment so only the Branch table uses `created_at`/`updated_at`; `clinic_members.updatedAt` remains camelCase as defined by its canonical Prisma model.
 - This correction prevents branch member assignment/status/unassignment from inheriting an invalid snake_case timestamp column.
 - Fresh exact-head CI is required after this final corrective change; release remains UNVERIFIED.
+
+
+## 2026-10-08 — Finance/Inventory branch timestamp hardening
+- `dentvision-backend/src/lib/financeBranchScope.ts` and `dentvision-backend/src/lib/inventoryBranchScope.ts` — branch ordering now uses the canonical physical `created_at` column instead of the stale `createdAt` identifier.
+- A targeted pass across adjacent branch-related backend modules did not find another confirmed `branches.createdAt/updatedAt` raw-SQL reference in the checked production files.
+- Fresh exact-head CI is required after these changes; release remains UNVERIFIED.
