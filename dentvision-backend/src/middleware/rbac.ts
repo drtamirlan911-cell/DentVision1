@@ -105,10 +105,13 @@ export function requirePermission(...keys: (PermissionKey | string)[]) {
         : keys;
 
       const scopeId = req.user.organizationId || req.user.clinicId;
+      const isCanonicalClinicScope =
+        !req.user.organizationId ||
+        String((req.user as any).organizationType || '').toUpperCase() === 'CLINIC';
       const permissions = await resolveUserPermissions(
         req.user.id,
         scopeId,
-        req.user.role,
+        isCanonicalClinicScope ? req.user.role : undefined,
       );
       const granted = new Set(permissions);
       const resolved = effectiveKeys.map((key) => (LEGACY_KEY_MAP as Record<string, string>)[key] || key);
