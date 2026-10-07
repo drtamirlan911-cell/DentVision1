@@ -53,7 +53,7 @@ AI action lifecycle:
 
 ## 5. Verified repository state — 2026-10-07
 - `main` remains the product source of truth; PR #302 is the active release-blocker remediation branch.
-- Current PR #302 exact HEAD: `f45ea6ced5648e2accfaa4ab4b8d6c8106c4634c`.
+- Current PR #302 exact HEAD: `22274262449d88b6e5be09eef2dc09b4e66d0ef9` (latest fix commit; exact-head verification still pending).
 - Quality Gate #4791 passed on the preceding exact-head `7b86b600dd9253334b26fd21ce89ae4e01b4aa6b`, including TypeScript, frontend ESLint and the repository release-gate step.
 - Full CI #3816 reached real execution on `7b86b600dd9253334b26fd21ce89ae4e01b4aa6b`: frontend lint, backend lint, build/typecheck, Command Center audit and generated system-map validation passed; unit tests finished at **2048 passed / 1 failed** across 221 test files.
 - The single CI #3816 unit-test failure was a source-inspection boundary defect in `organizations.test.ts`; it was repaired on `a0f87c0e8f1756887d73a09ca67a6bfa7a513a01` by slicing the actual control-flow branches rather than an object-literal field.
@@ -174,3 +174,9 @@ Do not repeat an audit when implementation can resolve the issue. Do not weaken 
 - Finance and Inventory branch-scope SQL now use the physical `branches.created_at` timestamp column.
 - Adjacent branch-related backend files were reviewed for the same confirmed stale Branch timestamp pattern; no additional confirmed production references were found in the checked set.
 - Current exact HEAD requires a fresh full CI/E2E/design/role/visual cycle before any readiness decision.
+
+
+## 2026-10-08 — Pricing permission correction checkpoint
+- PR #302 latest exact HEAD is `22274262449d88b6e5be09eef2dc09b4e66d0ef9`.
+- Diagnostic/laboratory pricing and catalog mutations no longer share the cashier-enabled billing guard.
+- This is a security hardening change only; no release readiness is inferred until fresh exact-head CI/E2E/browser/mobile/role/visual evidence exists.
