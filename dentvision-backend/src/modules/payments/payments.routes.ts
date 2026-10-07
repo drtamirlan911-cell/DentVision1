@@ -618,7 +618,11 @@ paymentsRouter.post('/', authenticate, async (req: AuthRequest, res) => {
       if (!plan || Number(plan.amountMinor) <= 0) {
         return res.status(400).json({ ok: false, error: 'Некорректный платный тариф' } satisfies ApiResponse);
       }
-      const months = Math.min(Math.max(Number(metaObj.months || 1), 1), 24);
+      const requestedMonths = Number(metaObj.months ?? 1);
+      if (!Number.isInteger(requestedMonths) || requestedMonths < 1 || requestedMonths > 24) {
+        return res.status(400).json({ ok: false, error: 'Количество месяцев должно быть целым числом от 1 до 24' } satisfies ApiResponse);
+      }
+      const months = requestedMonths;
       const expectedMinor = BigInt(plan.amountMinor) * BigInt(months);
       if (minor !== expectedMinor) {
         return res.status(409).json({
