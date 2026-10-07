@@ -29,6 +29,28 @@ function isOrganizationBranchManagerRole(role: string): boolean {
     || /_(owner|admin)$/.test(normalized);
 }
 
+function normalizeBranchCode(input: string | undefined, fallback = 'BRANCH'): string {
+  const normalized = String(input || fallback)
+    .trim()
+    .toUpperCase()
+    .replace(/[^A-ZА-Я0-9]+/gi, '-')
+    .replace(/^-|-$/g, '')
+    .slice(0, 32);
+  return normalized || `${fallback}-${Date.now()}`;
+}
+
+async function branchCodeTaken(organizationId: string, code: string, excludeBranchId?: string): Promise<boolean> {
+  const rows = await prisma.$queryRaw<Array<{ id: string }>>`
+    SELECT "id"
+    FROM "branches"
+    WHERE "organization_id" = ${organizationId}
+      AND "code" = ${code}
+      AND (${excludeBranchId || null}::text IS NULL OR "id" <> ${excludeBranchId || null})
+    LIMIT 1
+  `;
+  return rows.length > 0;
+}
+
 function roleScope(role: string): RoleScope {
   const normalized = String(role || '').trim().toUpperCase();
   if (isOrganizationBranchManagerRole(normalized)) return 'ORGANIZATION';
@@ -231,7 +253,10 @@ branchesRouter.post('/', async (req: AuthRequest, res) => {
           });
         }
       }
-      const branchCode = String(code || name).trim().toUpperCase().replace(/[^A-ZА-Я0-9]+/gi, '-').replace(/^-|-$/g, '').slice(0, 32) || `BRANCH-${Date.now()}`;
+      const branchCode = normalizeBranchCode(code || name);
+      if (await branchCodeTaken(organizationId, branchCode)) {
+        return res.status(409).json({ ok: false, error: 'Филиал с таким кодом уже существует', code: 'BRANCH_CODE_CONFLICT' });
+      }
       const branchId = uid();
       const rows = await prisma.$queryRaw<BranchRow[]>`
         INSERT INTO "branches"
@@ -265,7 +290,10 @@ branchesRouter.post('/', async (req: AuthRequest, res) => {
         data: { clinicId, activeBranches, plan: subscription?.plan || null, requiredPlan: 'NETWORK' },
       });
     }
-    const branchCode = String(code || name).trim().toUpperCase().replace(/[^A-ZА-Я0-9]+/gi, '-').replace(/^-|-$/g, '').slice(0, 32) || `BRANCH-${Date.now()}`;
+    const branchCode = normalizeBranchCode(code || name);
+    if (clinicOrganizationId && await branchCodeTaken(clinicOrganizationId, branchCode)) {
+      return res.status(409).json({ ok: false, error: 'Филиал с таким кодом уже существует', code: 'BRANCH_CODE_CONFLICT' });
+    }
     const branchId = uid();
     const rows = await prisma.$queryRaw<BranchRow[]>`
       INSERT INTO "branches"
@@ -277,7 +305,9 @@ branchesRouter.post('/', async (req: AuthRequest, res) => {
     `;
     return res.status(201).json({ ok: true, data: serialize(rows[0]) });
   } catch (error: any) {
-    if (String(error?.message || '').includes('branches_clinic_id_code_key') || String(error?.message || '').includes('branches_organization_id_code_key')) return res.status(409).json({ ok: false, error: 'Филиал с таким кодом уже существует' });
+    if (error?.code === '23505' || String(error?.message || '').includes('branches_clinic_id_code_key') || String(error?.message || '').includes('branches_organization_id_code_key')) {
+      return res.status(409).json({ ok: false, error: 'Филиал с таким кодом уже существует', code: 'BRANCH_CODE_CONFLICT' });
+    }
     console.error('[branches] create', error); return res.status(500).json({ ok: false, error: 'Не удалось создать филиал' });
   }
 });
@@ -301,7 +331,10 @@ branchesRouter.patch('/:id', async (req: AuthRequest, res) => {
       const counts = await prisma.$queryRaw<Array<{ count: bigint }>>`SELECT COUNT(*)::bigint AS count FROM "branches" WHERE "organization_id" = ${branch.organization_id} AND "active" = true`;
       if (Number(counts[0]?.count ?? 0) <= 1) return res.status(409).json({ ok: false, error: 'Нельзя отключить единственный активный филиал' });
     }
-    const nextCode = code === undefined ? branch.code : String(code).trim().toUpperCase().replace(/[^A-ZА-Я0-9]+/gi, '-').replace(/^-|-$/g, '').slice(0, 32);
+    const nextCode = code === undefined ? branch.code : normalizeBranchCode(code, 'BRANCH');
+    if (nextCode !== branch.code && branch.organization_id && await branchCodeTaken(branch.organization_id, nextCode, branchId)) {
+      return res.status(409).json({ ok: false, error: 'Филиал с таким кодом уже существует', code: 'BRANCH_CODE_CONFLICT' });
+    }
     const updated = await prisma.$queryRaw<BranchRow[]>`
       UPDATE "branches" SET "code" = ${nextCode}, "name" = COALESCE(${name ?? null}, "name"), "city" = ${city === undefined ? branch.city : city || null}, "address" = ${address === undefined ? branch.address : address || null}, "phone" = ${phone === undefined ? branch.phone : phone || null}, "active" = COALESCE(${active ?? null}, "active"), "settings" = ${settings === undefined ? branch.settings : settings}, "updated_at" = CURRENT_TIMESTAMP
       WHERE "id" = ${branchId}
@@ -309,7 +342,10 @@ branchesRouter.patch('/:id', async (req: AuthRequest, res) => {
     `;
     await auditFromReq(req, { action: active === false ? 'branch.archived' : 'branch.updated', entity: 'branch', entityId: branchId, details: { active, code: nextCode } });
     return res.json({ ok: true, data: serialize(updated[0]) });
-  } catch (error) { console.error('[branches] update', error); return res.status(500).json({ ok: false, error: 'Не удалось изменить филиал' }); }
+  } catch (error: any) {
+    if (error?.code === '23505') return res.status(409).json({ ok: false, error: 'Филиал с таким кодом уже существует', code: 'BRANCH_CODE_CONFLICT' });
+    console.error('[branches] update', error); return res.status(500).json({ ok: false, error: 'Не удалось изменить филиал' });
+  }
 });
 
 branchesRouter.post('/:id/workspace', async (req: AuthRequest, res) => {
