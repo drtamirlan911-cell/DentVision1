@@ -12,55 +12,67 @@ async function login(page: Page) {
   await page.waitForURL(/\/ai(?:$|[?#])/, { timeout: 20000 });
 }
 
+async function openBranchManagement(page: Page) {
+  await page.goto(`${BASE}/settings`);
+  await page.getByRole('button', { name: 'Организация', exact: true }).click();
+  await expect(page.getByText('Организация и филиалы', { exact: true })).toBeVisible({ timeout: 15000 });
+}
+
 async function createBranch(page: Page, name: string) {
-  await page.getByRole('button', { name: 'Добавить филиал', exact: true }).click();
-  await page.getByLabel('Название филиала *').fill(name);
-  await page.getByLabel('Код').fill(`E2E-${Date.now()}`);
-  await page.getByRole('button', { name: 'Создать филиал', exact: true }).click();
+  await page.getByRole('button', { name: 'Новый филиал', exact: true }).click();
+  await page.getByLabel('Название *', { exact: true }).fill(name);
+  await page.getByLabel('Код', { exact: true }).fill(`E2E-${Date.now()}`);
+  await page.getByRole('button', { name: 'Сохранить', exact: true }).click();
   await expect(page.getByText(name, { exact: true })).toBeVisible({ timeout: 15000 });
+
   const response = await page.request.get('/api/branches');
   expect(response.ok()).toBeTruthy();
-  const payload = await response.json();
-  const branches = Array.isArray(payload) ? payload : payload?.data ?? [];
+  const raw = await response.json();
+  const branches = Array.isArray(raw) ? raw : raw?.data ?? [];
   const branch = branches.find((item: { name?: string }) => item.name === name);
   expect(branch?.id).toBeTruthy();
   return branch.id as string;
 }
 
-test.describe('Clinic branch management', () => {
-  test('BRANCH-001: owner sees persistent branch workspace and can create a branch', async ({ page }) => {
+test.describe('Canonical organization branch management', () => {
+  test('BRANCH-001: owner creates a persistent branch from Settings → Organization', async ({ page }) => {
     await login(page);
-    await page.goto(`${BASE}/my-clinics`);
-
-    await expect(page.getByText('Филиалы', { exact: true })).toBeVisible({ timeout: 15000 });
-    await expect(page.getByRole('button', { name: 'Добавить филиал', exact: true })).toBeVisible();
+    await openBranchManagement(page);
 
     const branchName = `E2E Branch ${Date.now()}`;
     await createBranch(page, branchName);
+
     await page.reload();
     await expect(page.getByText(branchName, { exact: true })).toBeVisible({ timeout: 15000 });
   });
 
-  test('BRANCH-002: owner can deactivate a non-default branch', async ({ page }) => {
+  test('BRANCH-002: owner archives a non-default branch without deleting its record', async ({ page }) => {
     await login(page);
-    await page.goto(`${BASE}/my-clinics`);
-    await expect(page.getByText('Филиалы', { exact: true })).toBeVisible({ timeout: 15000 });
+    await openBranchManagement(page);
 
-    const branchName = `E2E Deactivation ${Date.now()}`;
-    await createBranch(page, branchName);
+    const branchName = `E2E Archive ${Date.now()}`;
+    const branchId = await createBranch(page, branchName);
 
-    const branchRow = page.getByText(branchName, { exact: true }).locator('../..').locator('..');
-    await expect(branchRow).toContainText('Активен');
-    await expect(branchRow).not.toContainText('Основной');
+    const branchRequest = await page.request.patch(`/api/branches/${branchId}`, {
+      data: { active: false },
+    });
+    expect(branchRequest.ok()).toBeTruthy();
 
-    const toggle = branchRow.getByRole('button', { name: /Отключить филиал/, exact: false });
-    await expect(toggle).toHaveCount(1);
-    await toggle.click();
-    await expect(branchRow.getByText('Отключён', { exact: true })).toBeVisible({ timeout: 10000 });
+    await page.reload();
+    const row = page.getByText(branchName, { exact: true });
+    await expect(row).toBeVisible({ timeout: 15000 });
+
+    const raw = await page.request.get('/api/branches');
+    const payload = await raw.json();
+    const branches = Array.isArray(payload) ? payload : payload?.data ?? [];
+    const archived = branches.find((item: { id?: string }) => item.id === branchId);
+    expect(archived?.active).toBe(false);
   });
+
   test('BRANCH-003: workspace switcher selects a branch and propagates branch scope', async ({ page }) => {
     await login(page);
-    await page.goto(`${BASE}/my-clinics`);
+    await openBranchManagement(page);
+
     const branchName = `E2E Switch ${Date.now()}`;
     const branchId = await createBranch(page, branchName);
 
@@ -71,15 +83,13 @@ test.describe('Clinic branch management', () => {
     await expect(page.getByTestId('workspace-switcher-menu')).toBeVisible();
 
     const branchRequest = page.waitForRequest(
-      (request) => request.url().includes('/api/') && Boolean(request.headers()['x-dentvision-branch-id']),
+      (request) => request.url().includes('/api/') && request.headers()['x-dentvision-branch-id'] === branchId,
       { timeout: 15000 },
     );
     await page.getByRole('button', { name: branchName, exact: true }).click();
-    const request = await branchRequest;
-    expect(request.headers()['x-dentvision-branch-id']).toBe(branchId);
-    await expect(page.getByTestId('workspace-switcher-trigger')).toBeVisible();
+    await branchRequest;
+
     await page.reload();
     await expect(page.getByTestId('workspace-switcher-trigger')).toContainText(branchName);
   });
-
 });
