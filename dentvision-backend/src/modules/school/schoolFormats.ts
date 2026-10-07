@@ -68,7 +68,11 @@ export function mapCourseToEventCard(course: {
     seatsLeft: seats == null ? undefined : Math.max(0, seats - enrolled),
     category: course.category || 'Academy OS',
     imageUrl: course.imageUrl,
-    fileUrl: course.fileUrl || (meta.fileUrl as string) || null,
+    // Catalog cards may be public. A paid course's downloadable asset is
+    // private and must only be exposed from an authorized course detail flow.
+    fileUrl: Number(course.price || 0) > 0
+      ? null
+      : course.fileUrl || (meta.fileUrl as string) || null,
     pages: meta.pages ?? null,
     includes: Array.isArray(meta.includes) ? meta.includes : undefined,
     venue: (meta.venue as string) || null,
