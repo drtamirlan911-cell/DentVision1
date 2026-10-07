@@ -37,6 +37,28 @@ describe('partner permission baseline isolation', () => {
     expect(next).toHaveBeenCalledTimes(1);
   });
 
+  it('fails closed when a partner scoped policy has no grants', async () => {
+    resolveUserPermissions.mockResolvedValueOnce([]);
+
+    const req = {
+      user: {
+        id: 'user-1',
+        role: 'OWNER',
+        organizationId: 'org-diagnostic',
+        organizationType: 'DIAGNOSTIC_CENTER',
+      },
+      method: 'GET',
+      path: '/patients',
+    } as any;
+    const res = makeResponse();
+    const next = vi.fn();
+
+    await requirePermission('patients.read')(req, res as any, next);
+
+    expect(next).not.toHaveBeenCalled();
+    expect(res.status).toHaveBeenCalledWith(403);
+  });
+
   it('keeps the role baseline for a canonical clinic scope', async () => {
     resolveUserPermissions.mockResolvedValueOnce(['patients.read']);
 
