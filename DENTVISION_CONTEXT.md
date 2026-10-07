@@ -53,7 +53,7 @@ AI action lifecycle:
 
 ## 5. Verified repository state — 2026-10-07
 - `main` remains the product source of truth; PR #302 is the active release-blocker remediation branch.
-- Current PR #302 exact HEAD: `96c599643757e64b9a0a2a6fd2ecbde96b6ed048` (latest security fix; exact-head verification still pending).
+- Current PR #302 exact HEAD: `ec540c6611f83b3fbc1d1cb7812d32808a6ac7a9` (latest documentation checkpoint; exact-head verification still pending).
 - Quality Gate #4791 passed on the preceding exact-head `7b86b600dd9253334b26fd21ce89ae4e01b4aa6b`, including TypeScript, frontend ESLint and the repository release-gate step.
 - Full CI #3816 reached real execution on `7b86b600dd9253334b26fd21ce89ae4e01b4aa6b`: frontend lint, backend lint, build/typecheck, Command Center audit and generated system-map validation passed; unit tests finished at **2048 passed / 1 failed** across 221 test files.
 - The single CI #3816 unit-test failure was a source-inspection boundary defect in `organizations.test.ts`; it was repaired on `a0f87c0e8f1756887d73a09ca67a6bfa7a513a01` by slicing the actual control-flow branches rather than an object-literal field.
