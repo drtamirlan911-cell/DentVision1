@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
+import { resolve } from 'node:path';
 
 // Mock prisma
 vi.mock('../../lib/prisma.js', () => ({
@@ -62,7 +63,7 @@ describe('canonical partner organization identity', () => {
   it('persists the Organization id returned by Diagnostic/Laboratory upsert', async () => {
     const fs = await import('node:fs/promises');
     const source = await fs.readFile(
-      new URL('./organizations.routes.ts', import.meta.url),
+      resolve(process.cwd(), 'dentvision-backend/src/modules/organizations/organizations.routes.ts'),
       'utf8',
     );
 
