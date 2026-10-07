@@ -1400,3 +1400,12 @@ These changes are route/entry reconciliation only. Existing domain implementatio
 
 ### Next action
 - Verify the exact new HEAD through the full CI/E2E/browser/mobile/role/visual chain before any release or merge decision.
+
+
+## 2026-10-08 — Organization branch SQL physical-schema correction
+
+- `485ae3c27c206416a602e897855461e76edfc4e4` — corrected the remaining raw SQL in `organizations.routes.ts` to use the canonical Branch physical audit columns `created_at`/`updated_at` for self-service idempotent lookup, branch creation, and organization control-center ordering.
+- `da2a69c7451911301e7105ac83dac9be493d8a9d` — added a regression contract that inspects those Branch SQL fragments and rejects the old camelCase physical column names.
+- This closes the confirmed adjacent physical-schema defect found during the post-`financeBranchScope`/`inventoryBranchScope` scan. No authorization boundary was weakened.
+- Verification: a fresh exact-head CI run is required because the current workflow evidence predates these commits.
+- Release remains **UNVERIFIED** pending the full CI/E2E/browser/mobile/role-context/visual/business-owner evidence chain.
