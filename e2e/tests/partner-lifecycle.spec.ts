@@ -56,7 +56,7 @@ test.describe('Partner operational lifecycle', () => {
       organizationId?: string;
       branchId?: string;
     };
-    expect(centerTokenPayload.role).toBe('diagnostic_owner');
+    expect(centerTokenPayload.role).toBe('DIAGNOSTIC_OWNER');
     expect(centerTokenPayload.organizationType).toBe('DIAGNOSTIC_CENTER');
     expect(centerTokenPayload.organizationId).toBeTruthy();
     expect(centerTokenPayload.branchId).toBeTruthy();
@@ -77,7 +77,7 @@ test.describe('Partner operational lifecycle', () => {
       organizationType?: string;
       organizationId?: string;
     };
-    expect(refreshedTokenPayload.role).toBe('diagnostic_owner');
+    expect(refreshedTokenPayload.role).toBe('DIAGNOSTIC_OWNER');
     expect(refreshedTokenPayload.organizationType).toBe('DIAGNOSTIC_CENTER');
     expect(refreshedTokenPayload.organizationId).toBe(centerTokenPayload.organizationId);
 
