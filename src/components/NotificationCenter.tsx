@@ -11,6 +11,7 @@ import {
   X,
 } from 'lucide-react'
 import { useNotificationStore } from '@/store/notification.store'
+import * as api from '@/utils/api'
 import { cn, timeAgo } from '@/lib/utils'
 import type { AppNotification, NotificationType } from '@/types'
 import { useTranslation } from 'react-i18next'
@@ -56,9 +57,15 @@ export default function NotificationCenter() {
 
   const typeMeta = useTypeMeta()
 
-  const handleOpen = (n: AppNotification) => {
-    if (!n.read) markRead(n.id)
+  const handleOpen = async (n: AppNotification) => {
+    if (!n.read) void markRead(n.id)
     setSelected(n)
+    try {
+      const detail = await api.getNotification(n.id)
+      if (detail) setSelected({ ...n, ...detail })
+    } catch {
+      // The list item remains usable when the detail request fails.
+    }
   }
 
   const closeDetail = () => setSelected(null)
