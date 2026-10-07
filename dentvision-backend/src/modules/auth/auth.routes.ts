@@ -219,10 +219,13 @@ authRouter.post('/refresh', async (req, res) => {
 
     await expireSession(session.id);
     const newSession = await createSession(user.id, req.ip, req.headers['user-agent']);
+    const scopedRole = authContext.organizationId
+      ? await resolveOrganizationRoleKey(user.id, authContext.organizationId)
+      : undefined;
     const tokens = generateTokens({
       sub: user.id,
       email: user.email,
-      role: user.role,
+      role: scopedRole || user.role,
       ...authContext,
       sessionId: newSession.id,
     });
