@@ -98,7 +98,7 @@ diagnosticsRouter.get('/lab-tests', async (req: AuthRequest, res) => {
 diagnosticsRouter.patch('/centers/:id/pricing', async (req: AuthRequest, res) => {
   try {
     if (!sameOrgContext(req.user, 'DiagnosticCenter', req.params.id)) return res.status(403).json({ ok: false, error: 'Нет доступа к центру' });
-    if (!canManagePartnerCatalog(req.user)) return res.status(403).json({ ok: false, error: 'Недостаточно прав для приёма оплаты' });
+    if (!canManagePartnerCatalog(req.user)) return res.status(403).json({ ok: false, error: 'Недостаточно прав для управления услугами' });
     const studies = Array.isArray(req.body?.studies) ? req.body.studies : [];
     const ids = studies.map((x: any) => String(x?.id || '')).filter(Boolean);
     if (!ids.length) return res.json({ ok: true, data: [] } satisfies ApiResponse);
@@ -124,7 +124,7 @@ diagnosticsRouter.post('/centers/:id/pricing', async (req: AuthRequest, res) => 
 diagnosticsRouter.patch('/laboratories/:id/pricing', async (req: AuthRequest, res) => {
   try {
     if (!sameOrgContext(req.user, 'Laboratory', req.params.id)) return res.status(403).json({ ok: false, error: 'Нет доступа к лаборатории' });
-    if (!canManagePartnerCatalog(req.user)) return res.status(403).json({ ok: false, error: 'Недостаточно прав для приёма оплаты' });
+    if (!canManagePartnerCatalog(req.user)) return res.status(403).json({ ok: false, error: 'Недостаточно прав для управления услугами' });
     const tests = Array.isArray(req.body?.tests) ? req.body.tests : [];
     const ids = tests.map((x: any) => String(x?.id || '')).filter(Boolean);
     if (!ids.length) return res.json({ ok: true, data: [] } satisfies ApiResponse);
