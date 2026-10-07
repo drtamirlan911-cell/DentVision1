@@ -247,7 +247,7 @@ export function Odontogram3D({
                 <span
                   className={cn(
                     'mb-1 text-[9px] font-semibold tabular-nums leading-none transition-colors sm:text-[10px]',
-                    selectedTooth === n || hovered === n ? 'text-dv-gold' : 'text-txt-muted',
+                    selectedTooth === n || hovered === n ? 'text-cyan-300 drop-shadow-[0_0_6px_rgba(34,211,238,0.55)]' : 'text-txt-muted',
                   )}
                 >
                   {n}
