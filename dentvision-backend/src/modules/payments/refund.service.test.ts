@@ -60,6 +60,10 @@ describe('refundPayment', () => {
     expect(routeSource).toContain('async function canManageClinicRefund');
     expect(routeSource).toContain("permissionsSatisfy(new Set(permissions), 'billing.manage')");
     expect(routeSource).not.toContain('// Clinic cashier payments: any active member of that clinic may confirm.');
+    const clinicBoundary = routeSource.indexOf("if (meta.clinicId && (meta.merchantScope === 'clinic'");
+    const genericOwnerCheck = routeSource.indexOf("if (meta.userId && meta.userId === req.user!.id)");
+    expect(clinicBoundary).toBeGreaterThan(-1);
+    expect(genericOwnerCheck).toBeGreaterThan(clinicBoundary);
   });
 
   it('reverses the original ledger with opposite directions', async () => {
