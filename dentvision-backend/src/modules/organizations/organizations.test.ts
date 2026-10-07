@@ -83,6 +83,32 @@ describe('canonical partner organization identity', () => {
   });
 });
 
+describe('organization branch physical schema contract', () => {
+  it('uses the mapped snake_case audit columns in raw Branch SQL', async () => {
+    const fs = await import('node:fs/promises');
+    const source = await fs.readFile(
+      resolve(process.cwd(), 'dentvision-backend/src/modules/organizations/organizations.routes.ts'),
+      'utf8',
+    );
+
+    const branchInsertStart = source.indexOf('INSERT INTO "branches"');
+    const branchControlStart = source.indexOf('SELECT "id","code","name","city","address","phone","active","isDefault" AS is_default');
+    expect(branchInsertStart).toBeGreaterThan(-1);
+    expect(branchControlStart).toBeGreaterThan(branchInsertStart);
+
+    const branchInsert = source.slice(branchInsertStart, branchControlStart);
+    const branchControl = source.slice(branchControlStart, source.indexOf('return res.json({ ok: true, data: { organization: org, person, branches }', branchControlStart));
+
+    expect(branchInsert).toContain('"created_at"');
+    expect(branchInsert).toContain('"updated_at"');
+    expect(branchInsert).not.toContain('"createdAt"');
+    expect(branchInsert).not.toContain('"updatedAt"');
+
+    expect(branchControl).toContain('ORDER BY "isDefault" DESC, "created_at" ASC');
+    expect(branchControl).not.toContain('ORDER BY "isDefault" DESC, "createdAt" ASC');
+  });
+});
+
 describe('organization control-center authorization', () => {
   it('requires an explicit organization-scoped PersonRole', async () => {
     const fs = await import('node:fs/promises');
