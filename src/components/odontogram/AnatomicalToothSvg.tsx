@@ -473,13 +473,13 @@ function OcclusalTooth({
       ) : (
         <StatusMarks status={status} pattern={pattern} occlusal cx={cx} cy={cy} />
       )}
-      <OcclusalSurfaceMarks surfaces={surfaces} pattern={pattern} />
+      <OcclusalSurfaceMarks surfaces={surfaces} pattern={pattern} toothNumber={toothNumber} />
     </g>
   )
 }
 
 /** MODBL paint mapped onto the occlusal table's five zones. */
-function OcclusalSurfaceMarks({ surfaces, pattern }: { surfaces?: ToothSurfaces | null; pattern: RootPattern }) {
+function OcclusalSurfaceMarks({ surfaces, pattern, toothNumber }: { surfaces?: ToothSurfaces | null; pattern: RootPattern; toothNumber: number }) {
   if (!surfaces) return null
   const entries = Object.entries(surfaces) as [SurfaceKey, string][]
   if (!entries.length) return null
