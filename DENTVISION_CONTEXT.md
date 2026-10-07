@@ -162,3 +162,9 @@ Do not repeat an audit when implementation can resolve the issue. Do not weaken 
 - Marketplace list/detail now enforce catalog audience at the route boundary for PUBLIC/PATIENT contexts; authenticated PATIENT is explicitly recognized by the content-access resolver.
 - This addresses the exact CI #3822 patient-context professional-product exposure assertion without weakening the E2E contract.
 - Fresh exact-head CI remains the release evidence source; release is still UNVERIFIED.
+
+
+## 2026-10-08 — Final pre-CI SQL checkpoint
+- Corrected Branch raw SQL to use `created_at`/`updated_at` while preserving `clinic_members.updatedAt` camelCase.
+- Marketplace public/patient filtering includes a JSON-array type guard for legacy tag shapes.
+- This HEAD is the fresh release candidate for the next full CI evidence cycle; no readiness is inferred yet.
