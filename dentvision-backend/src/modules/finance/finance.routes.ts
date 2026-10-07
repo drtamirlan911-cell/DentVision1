@@ -429,6 +429,7 @@ financeRouter.post('/payouts/:id/status', requirePermission('finance.manage'), a
 const EXPENSE_CATEGORIES = ['SERVER', 'AI_API', 'MARKETING', 'SALARY', 'SUPPORT', 'PAYMENT_FEES'];
 
 financeRouter.get('/expenses', requirePermission('finance.manage'), async (req: AuthRequest, res) => {
+  if (!requirePlatformFinance(req, res)) return;
   try {
     const { category, from, to } = req.query as Record<string, string | undefined>;
     const where: Record<string, unknown> = { tenantId: 'platform' };
