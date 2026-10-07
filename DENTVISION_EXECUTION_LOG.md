@@ -1367,3 +1367,8 @@ These changes are route/entry reconciliation only. Existing domain implementatio
 - `dentvision-backend/src/modules/shop/shop.routes.ts` — patient/public Marketplace audience SQL now checks `jsonb_typeof(tags) = 'array'` before `jsonb_array_elements_text`, preventing malformed/legacy JSON tag shapes from turning catalog access into HTTP 500.
 - No change to the fail-closed audience policy: unclassified or mixed professional rows remain unavailable to patient/public contexts.
 - This is recorded before the fresh exact-head CI rerun; release remains UNVERIFIED.
+
+## 2026-10-08 — Branch SQL casing correction
+- `dentvision-backend/src/modules/branches/branches.routes.ts` — corrected the earlier timestamp alignment so only the Branch table uses `created_at`/`updated_at`; `clinic_members.updatedAt` remains camelCase as defined by its canonical Prisma model.
+- This correction prevents branch member assignment/status/unassignment from inheriting an invalid snake_case timestamp column.
+- Fresh exact-head CI is required after this final corrective change; release remains UNVERIFIED.
