@@ -460,6 +460,9 @@ iamRouter.post('/invitations', async (req: AuthRequest, res) => {
     if (!organizationId) return res.status(400).json({ ok: false, error: 'organizationId обязателен' } satisfies ApiResponse);
     const org = (await prisma.organization.findUnique({ where: { id: organizationId } })) || (await prisma.organization.findFirst({ where: { originalId: organizationId } }));
     if (!org) return res.status(404).json({ ok: false, error: 'Организация не найдена' } satisfies ApiResponse);
+    if (!['DIAGNOSTIC_CENTER', 'LABORATORY'].includes(String(org.type).toUpperCase())) {
+      return res.status(400).json({ ok: false, error: 'Приглашения пока поддерживаются только для диагностических центров и лабораторий' } satisfies ApiResponse);
+    }
     const allowed = await canManageMembers(req.user!.id, org, req.user!.role === 'SUPERADMIN');
     if (!allowed) return res.status(403).json({ ok: false, error: 'Только владелец или администратор может приглашать' } satisfies ApiResponse);
     const invitation = await createInvitation({ organizationId: org.id, role, email, expiresInDays, createdBy: req.user!.id });
