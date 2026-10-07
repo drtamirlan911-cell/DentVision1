@@ -367,7 +367,7 @@ branchesRouter.post('/:id/members/:userId', async (req: AuthRequest, res) => {
       if(!authz.allowed)return res.status(authz.status).json({ok:false,error:authz.error});
       const target=await prisma.clinicMember.findUnique({where:{userId_clinicId:{userId,clinicId:branch.clinic_id}}});
       if(!target)return res.status(404).json({ok:false,error:'Сотрудник не является участником клиники'});
-      await prisma.$executeRaw`UPDATE "clinic_members" SET "branch_id"=${branchId},"updated_at"=CURRENT_TIMESTAMP WHERE "userId"=${userId} AND "clinicId"=${branch.clinic_id}`;
+      await prisma.$executeRaw`UPDATE "clinic_members" SET "branch_id"=${branchId},"updatedAt"=CURRENT_TIMESTAMP WHERE "userId"=${userId} AND "clinicId"=${branch.clinic_id}`;
       await auditFromReq(req, { action: 'branch.member_assigned', entity: 'branch', entityId: branchId, details: { userId } });
     return res.json({ok:true,data:{userId,branchId}});
     }
@@ -395,7 +395,7 @@ branchesRouter.patch('/:id/members/:userId/status', async (req: AuthRequest, res
       if(!authz.allowed)return res.status(authz.status).json({ok:false,error:authz.error});
       const target=await prisma.clinicMember.findUnique({where:{userId_clinicId:{userId,clinicId:branch.clinic_id}}});
       if(!target || target.branchId !== branchId) return res.status(404).json({ok:false,error:'Сотрудник не закреплён за этим филиалом'});
-      if(!active) await prisma.$executeRaw`UPDATE "clinic_members" SET "branch_id"=NULL,"updated_at"=CURRENT_TIMESTAMP WHERE "userId"=${userId} AND "clinicId"=${branch.clinic_id} AND "branch_id"=${branchId}`;
+      if(!active) await prisma.$executeRaw`UPDATE "clinic_members" SET "branch_id"=NULL,"updatedAt"=CURRENT_TIMESTAMP WHERE "userId"=${userId} AND "clinicId"=${branch.clinic_id} AND "branch_id"=${branchId}`;
       await auditFromReq(req,{action:active?'branch.member_enabled':'branch.member_disabled',entity:'branch',entityId:branchId,details:{userId,active}});
       return res.json({ok:true,data:{userId,branchId,active}});
     }
@@ -418,7 +418,7 @@ branchesRouter.delete('/:id/members/:userId', async (req: AuthRequest, res) => {
     if(branch.clinic_id){
       const authz=await authorizeMemberBranch(req.user!.id,branch.clinic_id,branch,true);
       if(!authz.allowed)return res.status(authz.status).json({ok:false,error:authz.error});
-      await prisma.$executeRaw`UPDATE "clinic_members" SET "branch_id"=NULL,"updated_at"=CURRENT_TIMESTAMP WHERE "userId"=${userId} AND "clinicId"=${branch.clinic_id} AND "branch_id"=${branchId}`;
+      await prisma.$executeRaw`UPDATE "clinic_members" SET "branch_id"=NULL,"updatedAt"=CURRENT_TIMESTAMP WHERE "userId"=${userId} AND "clinicId"=${branch.clinic_id} AND "branch_id"=${branchId}`;
       await auditFromReq(req, { action: 'branch.member_unassigned', entity: 'branch', entityId: branchId, details: { userId } });
     return res.json({ok:true,data:{userId,branchId:null}});
     }
