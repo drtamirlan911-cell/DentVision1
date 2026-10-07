@@ -167,7 +167,13 @@ organizationsRouter.post('/self-service', async (req: AuthRequest, res) => {
         create: { id: uid(), personId, branchId },
       });
 
-      await tx.user.update({ where: { id: req.user!.id }, data: { role: 'OWNER' } });
+      // Global user role must not become an authorization shortcut for partner
+      // organizations. Clinic ownership keeps the legacy OWNER role for clinic
+      // compatibility; partner/academy ownership is scoped by PersonRole + JWT
+      // Active Workspace context.
+      if (type === 'clinic') {
+        await tx.user.update({ where: { id: req.user!.id }, data: { role: 'OWNER' } });
+      }
       return { entityId, organizationId, entity, personId, branchId, idempotent: false, existingSettings: null };
     });
 
