@@ -1493,3 +1493,12 @@ These changes are route/entry reconciliation only. Existing domain implementatio
 - Static source inspection confirms all format catalog routes call the same audience policy and commerce registration checks the active context before creating payment/enrollment side effects.
 - Static source inspection confirms diagnostics referral clinic authorization uses the canonical resolver.
 - Exact-head CI is still pending after documentation commits; release remains UNVERIFIED.
+
+
+## 2026-10-08 — Final pass in this work cycle
+
+- `8f090c0ce95bbc9cbd89f506c5f842d718ab4e6f` — isolated the multi-vertical partner onboarding E2E loop by clearing browser cookies before each registration/context slice.
+- `3db49884b16cdc9231921329a2fb0121fb6712703` — removed duplicate token persistence from `WorkspaceSwitcher`; scoped credential persistence now has one canonical owner in `api.switchContext()`.
+- Static review of the changed Academy, IAM, branch, notification and routing contracts found no additional confirmed defect that justified a speculative schema/API change in this pass.
+- Local repository execution could not be run in this environment because outbound GitHub DNS/network access is unavailable; verification therefore relies on source-level contract review plus existing CI evidence.
+- Release remains **UNVERIFIED** until a fresh exact-head GitHub Actions run produces the required lint/typecheck/build/unit/E2E/browser/mobile/role-context evidence. Vercel's observed `build-rate-limit` failure is infrastructure, not a code-pass signal.
