@@ -16,7 +16,7 @@ function makeResponse() {
 
 describe('partner permission baseline isolation', () => {
   it('does not pass the global OWNER/ASSISTANT role as a baseline for partner scopes', async () => {
-    resolveUserPermissions.mockResolvedValueOnce(['supplier.manage']);
+    resolveUserPermissions.mockResolvedValueOnce(['shop.manage']);
 
     const req = {
       user: {
