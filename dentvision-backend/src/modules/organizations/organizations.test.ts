@@ -81,3 +81,20 @@ describe('canonical partner organization identity', () => {
     expect(laboratoryBlock).toContain('organizationId = canonicalOrganization.id');
   });
 });
+
+describe('organization control-center authorization', () => {
+  it('requires an explicit organization-scoped PersonRole', async () => {
+    const fs = await import('node:fs/promises');
+    const source = await fs.readFile(
+      new URL('./organizations.routes.ts', import.meta.url),
+      'utf8',
+    );
+    const helperStart = source.indexOf('async function currentOrganizationPerson');
+    const helperEnd = source.indexOf('\n}\n\nfunction setAuthCookies', helperStart);
+    const helper = source.slice(helperStart, helperEnd);
+
+    expect(helper).toContain('personRoles: {');
+    expect(helper).toContain("scopeType: 'organization'");
+    expect(helper).toContain("scopeId: organizationId");
+  });
+});
