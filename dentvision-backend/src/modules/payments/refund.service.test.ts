@@ -54,6 +54,10 @@ function paidPayment() {
 describe('refundPayment', () => {
 
   it('binds clinic-cash payment references to the selected clinic', () => {
+    const routeSource = readFileSync(
+      resolve(process.cwd(), 'dentvision-backend/src/modules/payments/payments.routes.ts'),
+      'utf8',
+    );
     const clinicCashStart = routeSource.indexOf("if (isClinicCashier)");
     const platformStart = routeSource.indexOf("// Platform Kaspi", clinicCashStart);
     const clinicCashBlock = routeSource.slice(clinicCashStart, platformStart);
