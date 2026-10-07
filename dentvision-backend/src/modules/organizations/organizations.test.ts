@@ -57,3 +57,27 @@ describe('Organization model', () => {
     expect(org.settings.features).toContain('ai');
   });
 });
+
+describe('canonical partner organization identity', () => {
+  it('persists the Organization id returned by Diagnostic/Laboratory upsert', async () => {
+    const fs = await import('node:fs/promises');
+    const source = await fs.readFile(
+      new URL('./organizations.routes.ts', import.meta.url),
+      'utf8',
+    );
+
+    const diagnosticBlock = source.slice(
+      source.indexOf("originalType: 'DiagnosticCenter'"),
+      source.indexOf("type === 'dental_lab'"),
+    );
+    const laboratoryBlock = source.slice(
+      source.indexOf("originalType: 'Laboratory'"),
+      source.indexOf("type === 'supplier'"),
+    );
+
+    expect(diagnosticBlock).toContain('const canonicalOrganization = await tx.organization.upsert');
+    expect(diagnosticBlock).toContain('organizationId = canonicalOrganization.id');
+    expect(laboratoryBlock).toContain('const canonicalOrganization = await tx.organization.upsert');
+    expect(laboratoryBlock).toContain('organizationId = canonicalOrganization.id');
+  });
+});
