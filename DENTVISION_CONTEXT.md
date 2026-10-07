@@ -53,7 +53,7 @@ AI action lifecycle:
 
 ## 5. Verified repository state — 2026-10-07
 - `main` remains the product source of truth; PR #302 is the active release-blocker remediation branch.
-- Current PR #302 exact HEAD: `ec540c6611f83b3fbc1d1cb7812d32808a6ac7a9` (latest documentation checkpoint; exact-head verification still pending).
+- Current PR #302 exact HEAD: `da864b717d63d9a1a26bca14a1b6fd2978e41e96` (latest Academy/Diagnostics security checkpoint; exact-head CI verification pending).ntation checkpoint; exact-head verification still pending).
 - Quality Gate #4791 passed on the preceding exact-head `7b86b600dd9253334b26fd21ce89ae4e01b4aa6b`, including TypeScript, frontend ESLint and the repository release-gate step.
 - Full CI #3816 reached real execution on `7b86b600dd9253334b26fd21ce89ae4e01b4aa6b`: frontend lint, backend lint, build/typecheck, Command Center audit and generated system-map validation passed; unit tests finished at **2048 passed / 1 failed** across 221 test files.
 - The single CI #3816 unit-test failure was a source-inspection boundary defect in `organizations.test.ts`; it was repaired on `a0f87c0e8f1756887d73a09ca67a6bfa7a513a01` by slicing the actual control-flow branches rather than an object-literal field.
@@ -186,3 +186,10 @@ Do not repeat an audit when implementation can resolve the issue. Do not weaken 
 - The earlier member-only refund authorization path is removed.
 - The latest exact PR #302 HEAD is `96c599643757e64b9a0a2a6fd2ecbde96b6ed048`.
 - Release remains UNVERIFIED until fresh exact-head CI/E2E/browser/mobile/role/visual evidence exists.
+
+## 2026-10-08 — Academy/Diagnostics policy checkpoint
+- Academy course CRUD uses scoped `academy.manage` and active Academy organization context; course create derives Academy/lecturer ownership and update/delete reject foreign Academy rows.
+- Academy format catalog routes and commerce registration now apply the canonical content-audience policy.
+- Diagnostics referral clinic authorization now translates domain Clinic.id to canonical Organization.id through `assertClinicOrgAccess`.
+- Latest documented HEAD: `da864b717d63d9a1a26bca14a1b6fd2978e41e96`.
+- Fresh exact-head CI is pending; release remains UNVERIFIED.
