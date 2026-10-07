@@ -245,7 +245,7 @@ iamRouter.get('/me/contexts', async (req: AuthRequest, res) => {
         FROM "branches"
         WHERE "organization_id" IN (${Prisma.join(organizationIds)})
           AND "active" = true
-        ORDER BY "organization_id", "isDefault" DESC, "createdAt" ASC
+        ORDER BY "organization_id", "isDefault" DESC, "created_at" ASC
       `;
       const defaultBranchByOrg = new Map(branchRows.map((row) => [row.organizationId, row.branchId]));
       for (const context of contexts) {
