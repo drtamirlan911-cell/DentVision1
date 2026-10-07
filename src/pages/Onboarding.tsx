@@ -31,9 +31,12 @@ const PERSONAL_INTENTS = [
 export default function Onboarding() {
   const { isAuthenticated, loading: authLoading } = useAuth()
   const toast = useToast()
-  const initialMode = new URLSearchParams(window.location.search).get('mode')
-  const [mode, setMode] = useState<Mode>(initialMode === 'join' || initialMode === 'create' ? initialMode : 'intent')
-  const [kind, setKind] = useState<Kind | null>(null)
+  const query = new URLSearchParams(window.location.search)
+  const initialMode = query.get('mode')
+  const initialKind = query.get('kind')
+  const normalizedInitialKind = TYPES.some(t => t.id === initialKind) ? initialKind as Kind : null
+  const [mode, setMode] = useState<Mode>(initialMode === 'join' || (initialMode === 'create' && normalizedInitialKind) ? initialMode : 'intent')
+  const [kind, setKind] = useState<Kind | null>(normalizedInitialKind)
   const [form, setForm] = useState({ name: '', city: '', address: '', phone: '', email: '', taxId: '' })
   const [inviteCode, setInviteCode] = useState('')
   const [invitePreview, setInvitePreview] = useState<{ name?: string; role?: string } | null>(null)
@@ -156,7 +159,7 @@ export default function Onboarding() {
         <button type="button" onClick={() => setMode('intent')} className="mb-5 min-h-11 text-xs text-txt-muted hover:text-txt-primary">← Назад</button>
         <div className="flex items-start gap-3">
           {selected && <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-dv-gold/10 text-dv-gold">{(() => { const Icon = selected.icon; return <Icon size={18} /> })()}</span>}
-          <div><h1 className="text-xl font-semibold text-txt-primary">{selected?.label}</h1><p className="mt-1 text-sm text-txt-muted">Создание организации и первого рабочего контекста</p></div>
+          <div><h1 className="text-xl font-semibold text-txt-primary">Создать {selected?.label?.toLowerCase()}</h1><p className="mt-1 text-sm text-txt-muted">Создание организации и первого рабочего контекста</p></div>
         </div>
         <div className="mt-5 space-y-3">
           <Input label="Название *" value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} />
