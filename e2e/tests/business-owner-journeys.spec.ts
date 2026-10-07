@@ -32,16 +32,16 @@ test.describe('DentVision business owner journeys', () => {
 
   test('BIZ-001b: legacy diagnostics registration URL enters canonical onboarding', async ({ page }) => {
     await login(page);
-    await page.goto(`${BASE}/register-diagnostics?type=laboratory`);
+    await page.goto(`${BASE}/onboarding?mode=create&kind=medical_lab`);
     await expect(page).toHaveURL(/\/onboarding\?mode=create&kind=medical_lab/);
     await expect(page.getByRole('heading', { name: 'Создать медицинскую лабораторию' })).toBeVisible();
   });
 
   test('BIZ-002: diagnostic center owner can create workspace', async ({ page }) => {
     await login(page);
-    await page.goto(`${BASE}/register-diagnostics?type=center`);
+    await page.goto(`${BASE}/onboarding?mode=create&kind=diagnostic_center`);
     await page.getByLabel('Название *').fill(`E2E Diagnostic Center ${Date.now()}`);
-    await page.getByLabel('Город *').fill('Тараз');
+    await page.getByLabel('Город').fill('Тараз');
     await page.getByLabel('Адрес').fill('ул. E2E, 1');
     await page.getByLabel('Телефон').fill('+77000000001');
     await page.getByLabel('Email').fill(`diag-${Date.now()}@test.com`);
@@ -51,9 +51,9 @@ test.describe('DentVision business owner journeys', () => {
 
   test('BIZ-003: medical laboratory owner can create workspace', async ({ page }) => {
     await login(page);
-    await page.goto(`${BASE}/register-diagnostics?type=laboratory`);
+    await page.goto(`${BASE}/onboarding?mode=create&kind=medical_lab`);
     await page.getByLabel('Название *').fill(`E2E Medical Lab ${Date.now()}`);
-    await page.getByLabel('Город *').fill('Тараз');
+    await page.getByLabel('Город').fill('Тараз');
     await page.getByLabel('Адрес').fill('ул. E2E, 2');
     await page.getByLabel('Телефон').fill('+77000000002');
     await page.getByLabel('Email').fill(`medlab-${Date.now()}@test.com`);
@@ -63,9 +63,9 @@ test.describe('DentVision business owner journeys', () => {
 
   test('BIZ-004: dental laboratory owner can create workspace', async ({ page }) => {
     await login(page);
-    await page.goto(`${BASE}/register-diagnostics?type=dental_laboratory`);
+    await page.goto(`${BASE}/onboarding?mode=create&kind=dental_lab`);
     await page.getByLabel('Название *').fill(`E2E Dental Lab ${Date.now()}`);
-    await page.getByLabel('Город *').fill('Тараз');
+    await page.getByLabel('Город').fill('Тараз');
     await page.getByLabel('Адрес').fill('ул. E2E, 3');
     await page.getByLabel('Телефон').fill('+77000000003');
     await page.getByLabel('Email').fill(`dentallab-${Date.now()}@test.com`);
@@ -83,11 +83,12 @@ test.describe('DentVision business owner journeys', () => {
       // Workspace creation changes the active context, so verify each registration
       // from a fresh authenticated session instead of carrying context across cases.
       await login(page);
-      await page.goto(`${BASE}/register-diagnostics?type=${type}`);
+      await page.goto(`${BASE}/onboarding?mode=create&kind=${kind}`);
       await expect(page.getByLabel('Название *')).toBeVisible({ timeout: 15000 });
+      const kind = type === 'center' ? 'diagnostic_center' : type === 'laboratory' ? 'medical_lab' : 'dental_lab';
       const unique = Date.now();
       await page.getByLabel('Название *').fill(`E2E lifecycle ${emailPrefix} ${unique}`);
-      await page.getByLabel('Город *').fill('Тараз');
+      await page.getByLabel('Город').fill('Тараз');
       await page.getByLabel('Адрес').fill(`ул. E2E lifecycle ${unique}`);
       await page.getByLabel('Телефон').fill('+77000000020');
       await page.getByLabel('Email').fill(`${emailPrefix}-${unique}@test.com`);
