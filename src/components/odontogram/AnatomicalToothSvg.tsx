@@ -275,8 +275,10 @@ function occlusalOutline(pattern: RootPattern, toothNumber: number): string {
       // Lower first molars have five functional cusps; second molars settle into a four-cusp rectangle.
       if (lowerFirstMolar) {
         return 'M6.2 13.1 C7.8 9.1 12.5 7 17 7.3 C18.2 7.4 19.1 8 20 9.1 C20.9 8 21.8 7.4 23 7.3 C27.5 7 32.2 9.1 33.8 13.1 L34 25.9 C33.7 30.6 29.7 33.5 24.9 33.3 C23 33.2 21.5 32.7 20 31.7 C18.5 32.7 17 33.2 15.1 33.3 C10.3 33.5 6.3 30.6 6 25.9 Z'
+      }
       if (lowerSecondMolar) {
         return 'M6.7 13.4 C8.2 9.6 12.7 7.2 17.8 7.4 C18.8 7.4 19.5 8 20 8.8 C20.5 8 21.2 7.4 22.2 7.4 C27.3 7.2 31.8 9.6 33.3 13.4 L33.5 25.8 C33.3 30.2 28.9 33 24 33 C22.1 33 20.7 32.7 20 32.1 C19.3 32.7 17.9 33 16 33 C11.1 33 6.7 30.2 6.5 25.8 Z'
+      }
       return 'M7 13.3 C8.5 9.6 12.8 7.4 17.9 7.5 C18.8 7.5 19.5 8 20 8.8 C20.5 8 21.2 7.5 22.1 7.5 C27.2 7.4 31.5 9.6 33 13.3 L33.4 25.8 C33.2 30.3 28.8 33.1 24 33.1 C22.1 33.1 20.7 32.7 20 32 C19.3 32.7 17.9 33.1 16 33.1 C11.2 33.1 6.8 30.3 6.6 25.8 Z'
   }
 }
@@ -360,12 +362,14 @@ function occlusalFissures(pattern: RootPattern, toothNumber: number): React.Reac
 function StatusMarks({
   status,
   pattern,
+  toothNumber,
   occlusal,
   cx,
   cy,
 }: {
   status?: StatusKey
   pattern: RootPattern
+  toothNumber: number
   occlusal: boolean
   cx: number
   cy: number
@@ -380,7 +384,7 @@ function StatusMarks({
     // An outline that hugs the crown, not a fill: the tooth underneath is intact.
     return (
       <path
-        d={occlusal ? occlusalOutline(pattern) : crownPath(pattern)}
+        d={occlusal ? occlusalOutline(pattern, toothNumber) : crownPath(pattern)}
         fill={STATUS_META.crown.color}
         fillOpacity="0.1"
         stroke={STATUS_META.crown.color}
@@ -458,7 +462,7 @@ function StatusMarks({
   if (status === 'veneer') {
     return (
       <path
-        d={occlusal ? occlusalOutline(pattern) : crownPath(pattern)}
+        d={occlusal ? occlusalOutline(pattern, toothNumber) : crownPath(pattern)}
         fill={STATUS_META.veneer.color}
         fillOpacity="0.16"
         stroke={STATUS_META.veneer.color}
@@ -588,7 +592,7 @@ function OcclusalTooth({
           <circle cx={cx} cy={cy} r="2.2" fill={STATUS_META.implant.color} />
         </g>
       ) : (
-        <StatusMarks status={status} pattern={pattern} occlusal cx={cx} cy={cy} />
+        <StatusMarks status={status} pattern={pattern} toothNumber={toothNumber} occlusal cx={cx} cy={cy} />
       )}
       <OcclusalSurfaceMarks surfaces={surfaces} pattern={pattern} toothNumber={toothNumber} />
     </g>
