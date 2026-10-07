@@ -578,14 +578,23 @@ async function aiAnalyzeLabResult(referralId: string, referral: any, _userId: st
   return result;
 }
 
-export async function saveAndSignResult(data: { referralId: string; reportText: string; conclusion?: string; doctorId: string; }) {
+export async function saveAndSignResult(data: {
+  referralId: string;
+  reportText: string;
+  conclusion?: string;
+  doctorId: string;
+  signerScope?: 'clinic' | 'diagnostic_center' | 'laboratory';
+}) {
   const referral = await prisma.referral.findUnique({ where: { id: data.referralId }, include: { result: true } });
   if (!referral) throw new Error('Referral not found');
-  if (!data.doctorId) throw new Error('Врач обязателен для подписания результата');
-  if (referral.doctorId && referral.doctorId !== data.doctorId) throw new Error('Подписать результат может только назначенный врач');
-  if (referral.clinicId) {
-    const access = await resolveClinicAccess(data.doctorId, referral.clinicId);
-    if (!access || !['DOCTOR', 'OWNER', 'DIRECTOR'].includes(String(access.role).toUpperCase())) throw new Error('Пользователь не имеет права подписывать диагностический результат');
+  if (!data.doctorId) throw new Error('Пользователь обязателен для подписания результата');
+  const partnerSigner = data.signerScope === 'diagnostic_center' || data.signerScope === 'laboratory';
+  if (!partnerSigner) {
+    if (referral.doctorId && referral.doctorId !== data.doctorId) throw new Error('Подписать результат может только назначенный врач');
+    if (referral.clinicId) {
+      const access = await resolveClinicAccess(data.doctorId, referral.clinicId);
+      if (!access || !['DOCTOR', 'OWNER', 'DIRECTOR'].includes(String(access.role).toUpperCase())) throw new Error('Пользователь не имеет права подписывать диагностический результат');
+    }
   }
   const result = await prisma.diagnosticResult.upsert({
     where: { referralId: data.referralId },
@@ -593,7 +602,12 @@ export async function saveAndSignResult(data: { referralId: string; reportText: 
     create: { id: uid(), referralId: data.referralId, reportText: data.reportText, conclusion: data.conclusion || undefined, signedBy: data.doctorId, signedAt: new Date() },
   });
   await prisma.referral.update({ where: { id: data.referralId }, data: { status: 'COMPLETED', completedAt: new Date() } });
-  if (referral.patientId) await prisma.visit.create({ data: { id: uid(), patientId: referral.patientId, doctorId: data.doctorId, diagnosis: referral.preliminaryDx || data.conclusion || undefined, complaints: referral.complaints || undefined, treatment: { type: 'diagnostic_result', studyType: referral.studyType, reportText: data.reportText, conclusion: data.conclusion, _aiGenerated: true, _source: 'diagnostic' }, notes: `[AI-ввод] Результат диагностики: ${referral.studyType}. Направление #${referral.id.slice(0, 8)}. Проверьте данные.` } });
+  // Only a clinic-side doctor may write a Visit into the clinical chart.
+  // Partner results remain diagnostic evidence until the clinic explicitly
+  // reviews/acknowledges them; a partner user must never masquerade as a doctor.
+  if (referral.patientId && !partnerSigner) {
+    await prisma.visit.create({ data: { id: uid(), patientId: referral.patientId, doctorId: data.doctorId, diagnosis: referral.preliminaryDx || data.conclusion || undefined, complaints: referral.complaints || undefined, treatment: { type: 'diagnostic_result', studyType: referral.studyType, reportText: data.reportText, conclusion: data.conclusion, _aiGenerated: true, _source: 'diagnostic' }, notes: `[AI-ввод] Результат диагностики: ${referral.studyType}. Направление #${referral.id.slice(0, 8)}. Проверьте данные.` } })
+  }
   const notifyUserIds = new Set<string>();
   if (referral.doctorId) notifyUserIds.add(referral.doctorId);
   if (referral.clinicId) {
@@ -658,7 +672,14 @@ export async function saveAndSignResult(data: { referralId: string; reportText: 
     const message = `Врач ${referral.doctorName || 'доктор'} подтвердил результат по направлению #${referral.id.slice(0, 8)} (${referral.patientName}). Данные автоматически внесены в карту пациента.`;
     await dispatchNotifications(Array.from(notifyUserIds).map((userId) => ({ userId, clinicId: referral.clinicId || undefined, type: 'workflow' as const, title, message, link: `/diagnostics/referrals/${referral.id}` })));
   }
-  await writeAuditLog({ action: 'RESULT_SIGNED', entity: 'referral', entityId: data.referralId, details: { studyType: referral.studyType, signedBy: data.doctorId }, userId: data.doctorId, clinicId: referral.clinicId });
+  await writeAuditLog({
+    action: 'RESULT_SIGNED',
+    entity: 'referral',
+    entityId: data.referralId,
+    details: { studyType: referral.studyType, signedBy: data.doctorId, signerScope: data.signerScope || 'clinic' },
+    userId: data.doctorId,
+    clinicId: referral.clinicId,
+  });
   publish('diagnostics.result_ready', { referralId: data.referralId, resultId: result.id, clinicId: referral.clinicId || '', centerId: referral.centerId || '', doctorId: data.doctorId, patientName: referral.patientName || '', studyType: referral.studyType || '', userId: data.doctorId });
   return result;
 }
