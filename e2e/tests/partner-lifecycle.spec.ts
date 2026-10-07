@@ -1,6 +1,7 @@
 import { test, expect, type APIRequestContext } from '@playwright/test';
 import { makeIin } from '../helpers/iin';
 import { PrismaClient } from '../../dentvision-backend/node_modules/@prisma/client/default.js';
+import { createTestUser } from '../helpers/factories';
 
 const BASE = process.env.PLAYWRIGHT_BASE_URL || 'http://localhost:3001';
 const PASSWORD = 'Test1234!';
@@ -23,6 +24,8 @@ test.describe('Partner operational lifecycle', () => {
   const prisma = new PrismaClient();
   let fixtureCenterId = '';
   let fixtureLabId = '';
+  let centerOwnerToken = '';
+  let labOwnerToken = '';
 
   test.beforeAll(async ({ playwright }) => {
     api = await playwright.request.newContext();
@@ -35,10 +38,25 @@ test.describe('Partner operational lifecycle', () => {
     const user = body.data?.user || body.data || body.user || body;
     doctorId = user.id;
 
-    const fixtureCenter = await prisma.diagnosticCenter.create({ data: { name: `E2E Diagnostic ${Date.now()}`, city: 'Тараз' } });
-    fixtureCenterId = fixtureCenter.id;
-    const fixtureLab = await prisma.laboratory.create({ data: { name: `E2E Medical Lab ${Date.now()}`, city: 'Тараз' } });
-    fixtureLabId = fixtureLab.id;
+    const centerOwner = await createTestUser({ email: `diagnostic-owner-${Date.now()}@test.dentvision`, firstName: 'Diagnostic', lastName: 'Owner' });
+    centerOwnerToken = await login(api, centerOwner.email);
+    const centerOnboard = await api.post(`${BASE}/api/organizations/self-service`, {
+      headers: auth(centerOwnerToken),
+      data: { type: 'diagnostic_center', name: `E2E Diagnostic ${Date.now()}`, city: 'Тараз' },
+    });
+    expect(centerOnboard.status()).toBe(201);
+    const centerPayload = await centerOnboard.json();
+    fixtureCenterId = centerPayload.data?.entityId;
+
+    const labOwner = await createTestUser({ email: `medical-lab-owner-${Date.now()}@test.dentvision`, firstName: 'Medical Lab', lastName: 'Owner' });
+    labOwnerToken = await login(api, labOwner.email);
+    const labOnboard = await api.post(`${BASE}/api/organizations/self-service`, {
+      headers: auth(labOwnerToken),
+      data: { type: 'medical_lab', name: `E2E Medical Lab ${Date.now()}`, city: 'Тараз' },
+    });
+    expect(labOnboard.status()).toBe(201);
+    const labPayload = await labOnboard.json();
+    fixtureLabId = labPayload.data?.entityId;
 
     const patient = await api.post(`${BASE}/api/patients`, {
       headers: auth(ownerToken),
@@ -79,7 +97,7 @@ test.describe('Partner operational lifecycle', () => {
     const referral = (await referralRes.json()).data;
     expect(referral.status).toBe('SENT');
 
-    for (const [status, actor] of [['ACCEPTED', superadminToken], ['IN_PROGRESS', superadminToken], ['COMPLETED', superadminToken]] as const) {
+    for (const [status, actor] of [['ACCEPTED', centerOwnerToken], ['IN_PROGRESS', centerOwnerToken], ['COMPLETED', centerOwnerToken]] as const) {
       const res = await api.post(`${BASE}/api/diagnostics/referrals/${referral.id}/status`, {
         headers: auth(actor),
         data: { status, cost: 10000 },
@@ -89,12 +107,12 @@ test.describe('Partner operational lifecycle', () => {
     }
 
     const result = await api.post(`${BASE}/api/diagnostics/referrals/${referral.id}/results/sign`, {
-      headers: auth(ownerToken),
+      headers: auth(centerOwnerToken),
       data: { reportText: 'E2E diagnostic report', conclusion: 'No acute findings' },
     });
     expect(result.status()).toBe(200);
     const signed = (await result.json()).data;
-    expect(signed.patientRecordUpdated).toBe(true);
+    expect(signed.patientRecordUpdated).toBe(false);
 
     const clinicRead = await api.get(`${BASE}/api/diagnostics/referrals/${referral.id}`, {
       headers: auth(ownerToken),
@@ -123,7 +141,7 @@ test.describe('Partner operational lifecycle', () => {
     const cycle = ['sample_collected', 'received', 'processing', 'result_ready', 'verified'];
     for (const status of cycle) {
       const res = await api.post(`${BASE}/api/lab-orders/medical-laboratory/orders/${order.id}/status`, {
-        headers: auth(superadminToken),
+        headers: auth(labOwnerToken),
         data: { status },
       });
       expect(res.status()).toBe(200);
