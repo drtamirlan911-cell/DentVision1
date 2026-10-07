@@ -87,7 +87,7 @@ describe('organization control-center authorization', () => {
   it('requires an explicit organization-scoped PersonRole', async () => {
     const fs = await import('node:fs/promises');
     const source = await fs.readFile(
-      new URL('./organizations.routes.ts', import.meta.url),
+      resolve(process.cwd(), 'dentvision-backend/src/modules/organizations/organizations.routes.ts'),
       'utf8',
     );
     const helperStart = source.indexOf('async function currentOrganizationPerson');
