@@ -156,7 +156,30 @@ test.describe('DentVision business owner journeys', () => {
       await page.getByRole('button', { name: 'Создать и открыть workspace' }).click();
       const response = await responsePromise;
       expect(response.ok()).toBeTruthy();
+      const onboarding = await response.json();
+      expect(onboarding.data?.organizationId).toBeTruthy();
+      expect(onboarding.data?.branchId).toBeTruthy();
+      expect(onboarding.data?.verification).toBe('PENDING');
+
+      const contextsResponse = await page.request.get('/api/iam/me/contexts');
+      expect(contextsResponse.ok()).toBeTruthy();
+      const contextsPayload = await contextsResponse.json();
+      const context = (contextsPayload.contexts || []).find(
+        (item: { organizationId?: string; scopeType?: string; branchId?: string }) =>
+          item.organizationId === onboarding.data.organizationId,
+      );
+      expect(context).toBeTruthy();
+      expect(context.scopeType).toBe(
+        type === 'center' ? 'DIAGNOSTIC_CENTER' : type === 'laboratory' ? 'LABORATORY' : 'LABORATORY',
+      );
+      expect(context.branchId).toBe(onboarding.data.branchId);
+
+      await page.reload();
       await expect(page).not.toHaveURL(/\/login/, { timeout: 20000 });
+      await expect(page.getByTestId('workspace-switcher-trigger')).toBeVisible({ timeout: 15000 });
+      await expect(page.getByTestId('workspace-switcher-trigger')).toContainText(
+        new RegExp(`E2E lifecycle ${emailPrefix}`),
+      );
     }
   });
   test('BIZ-005: owner can open clinic workspace and staff administration', async ({ page }) => {
