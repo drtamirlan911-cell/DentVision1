@@ -138,8 +138,10 @@ test.describe('DentVision business owner journeys', () => {
       ['laboratory', 'medlab-full'],
       ['dental_laboratory', 'dental-full'],
     ] as const) {
-      // Workspace creation changes the active context, so verify each registration
-      // from a fresh authenticated session instead of carrying context across cases.
+      // Workspace creation changes the active context. Clear browser auth
+      // state before each vertical slice so one partner workspace cannot become
+      // the implicit starting context for the next registration.
+      await page.context().clearCookies();
       await login(page);
       const kind = type === 'center' ? 'diagnostic_center' : type === 'laboratory' ? 'medical_lab' : 'dental_lab';
       await page.goto(`${BASE}/onboarding?mode=create&kind=${kind}`);
