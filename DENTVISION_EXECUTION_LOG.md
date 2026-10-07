@@ -1351,3 +1351,14 @@ These changes are route/entry reconciliation only. Existing domain implementatio
 - Quality Gate was green before these changes and a new exact-head Quality Gate/CI pair has been triggered after them.
 - The new exact-head evidence is the only release evidence that may be used for the next decision; previous cancelled runs remain historical context only.
 - Release remains UNVERIFIED pending fresh core E2E, Browser UX, Mobile Design, Role/Context, Visual Agent and downstream business-owner gates.
+
+## 2026-10-08 — PR #302: Marketplace context fail-closed hardening
+
+### Implemented
+- `dentvision-backend/src/iam/contentCatalogAccess.ts` — authenticated PATIENT users now resolve to the PATIENT catalog audience instead of falling through to PUBLIC.
+- `dentvision-backend/src/modules/shop/shop.routes.ts` — Marketplace list filtering is enforced directly from the active server-resolved content context; patient/public contexts receive only explicitly GENERAL/PATIENT tagged products and mixed professional-audience rows are excluded. Product detail applies the same authorization policy before returning data.
+
+### Verification status
+- This is a follow-up to exact CI evidence showing a patient-context Marketplace catalog assertion failure.
+- Fresh CI must validate the complete branch-scope, IAM-context, Marketplace and AI mobile changes on the current exact HEAD.
+- Release remains UNVERIFIED until all required downstream gates are green.
