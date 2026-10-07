@@ -14,6 +14,13 @@ describe('diagnostics route contract', () => {
     expect(new Set(routes).size).toBe(routes.length);
   });
 
+
+  it('resolves referral Clinic.id through the canonical organization scope', () => {
+    expect(source).toContain('export async function assertClinicOrgAccess');
+    expect(source).toContain("assertClinicOrgAccess(req.user!, referral.clinicId)");
+    expect(source).toContain("assertClinicOrgAccess(req.user!, clinicId)");
+  });
+
   it('keeps payment transition separate from referral status', () => {
     expect((source.match(/diagnosticsRouter\.post\('\/referrals\/:id\/mark-paid'/g) || [])).toHaveLength(1);
     expect(source).toContain("diagnosticsRouter.post('/referrals/:id/status'");
