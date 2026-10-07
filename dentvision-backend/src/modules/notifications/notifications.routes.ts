@@ -92,20 +92,15 @@ notificationsRouter.post('/', async (req: AuthRequest, res) => {
 notificationsRouter.post('/:id/read', async (req: AuthRequest, res) => {
   try {
     const { id } = req.params as { id: string };
-
-    const existing = await prisma.notification.findUnique({ where: { id } });
-    if (!existing) {
-      return res.status(404).json({ ok: false, error: 'Уведомление не найдено' });
-    }
-    if (existing.userId !== req.user!.id) {
-      return res.status(403).json({ ok: false, error: 'Доступ запрещён' });
-    }
-
-    const notification = await prisma.notification.update({
-      where: { id },
+    const updated = await prisma.notification.updateMany({
+      where: { id, userId: req.user!.id, read: false },
       data: { read: true },
     });
-
+    if (updated.count === 0) {
+      const own = await prisma.notification.findFirst({ where: { id, userId: req.user!.id }, select: { id: true } });
+      if (!own) return res.status(404).json({ ok: false, error: 'Уведомление не найдено' });
+    }
+    const notification = await prisma.notification.findFirst({ where: { id, userId: req.user!.id } });
     return res.json({ ok: true, data: notification });
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Внутренняя ошибка сервера';
