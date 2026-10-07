@@ -1080,7 +1080,14 @@ aiRouter.get('/twin/proactive', optionalAuth, async (req: AuthRequest, res) => {
     });
     if (!twin) return res.json({ ok: true, data: { suggestions: [], feed: [] } });
 
-    const allAlerts = clinicId ? await buildProactiveAlerts({ userId, clinicId, role: (twin as any).role }) : [];
+    const allAlerts = await buildProactiveAlerts({
+      userId,
+      clinicId: clinicId || null,
+      role: (twin as any).role,
+      isGuest: false,
+      organizationType: req.user?.organizationType || null,
+      workspaceName: activeWorkspace?.name || null,
+    });
     const suggestions = screen ? buildContextualSuggestions(twin as any, screen, allAlerts) : [];
     const feed = allAlerts.slice(0, 30);
 
