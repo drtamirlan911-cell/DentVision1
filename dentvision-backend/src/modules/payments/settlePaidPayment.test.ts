@@ -1,4 +1,6 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 
 /**
  * settlePaidPayment used to call recordSale/activateClinicSubscriptionFromPayment/
@@ -236,5 +238,23 @@ describe('claimPaymentForSettlement — double-confirm race guard', () => {
       fakeTx,
     )).rejects.toThrow('Сумма оплаты медицинского анализа не совпадает');
     expect(recordPartnerEconomics).not.toHaveBeenCalled();
+  });
+});
+
+
+describe('Academy settlement source-of-truth contract', () => {
+  it('derives course payment amount and seller identity from the canonical course', () => {
+    const source = readFileSync(
+      resolve(process.cwd(), 'dentvision-backend/src/modules/payments/payments.routes.ts'),
+      'utf8',
+    );
+    const start = source.indexOf('async function settleEnrollmentPayment(');
+    const end = source.indexOf('async function settleAcademyEventPayment(', start);
+    const block = source.slice(start, end);
+    expect(block).toContain('const expectedAmount = tengeToMinor(Number(course.price || 0));');
+    expect(block).toContain("const sellerType = course.lecturerId ? 'LECTURER' : course.academyId ? 'ACADEMY' : null;");
+    expect(block).toContain('const sellerId = course.lecturerId || course.academyId || null;');
+    expect(block).not.toContain('payment.sellerId');
+    expect(block).not.toContain('payment.sellerType');
   });
 });
