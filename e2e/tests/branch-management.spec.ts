@@ -53,14 +53,10 @@ test.describe('Canonical organization branch management', () => {
     const branchName = `E2E Archive ${Date.now()}`;
     const branchId = await createBranch(page, branchName);
 
-    const branchRequest = await page.request.patch(`/api/branches/${branchId}`, {
-      data: { active: false },
-    });
-    expect(branchRequest.ok()).toBeTruthy();
-
-    await page.reload();
-    const row = page.getByText(branchName, { exact: true });
-    await expect(row).toBeVisible({ timeout: 15000 });
+    await page.getByText(branchName, { exact: true }).click();
+    await page.getByRole('button', { name: 'Архивировать', exact: true }).click();
+    await expect(page.getByText(branchName, { exact: true })).toBeVisible({ timeout: 15000 });
+    await expect(page.getByText('Архив', { exact: true })).toBeVisible({ timeout: 10000 });
 
     const raw = await page.request.get('/api/branches');
     const payload = await raw.json();
