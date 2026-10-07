@@ -601,22 +601,40 @@ function OcclusalSurfaceMarks({ surfaces, pattern, toothNumber }: { surfaces?: T
   const entries = Object.entries(surfaces) as [SurfaceKey, string][]
   if (!entries.length) return null
   const wide = pattern === 'molarUpper' || pattern === 'molarLower'
-  const r = wide ? 11 : 8
-  const zones: Record<SurfaceKey, { x: number; y: number }> = {
-    O: { x: 20, y: 20 },
-    M: { x: 20, y: 20 - r },
-    D: { x: 20, y: 20 + r },
-    B: { x: 20 - r, y: 20 },
-    L: { x: 20 + r, y: 20 },
+  const r = wide ? 10.5 : 7.8
+  const upper = isUpperArch(toothNumber)
+  const zones: Record<SurfaceKey, { x: number; y: number; rx: number; ry: number }> = {
+    O: { x: 20, y: 20, rx: wide ? 4.2 : 3.2, ry: wide ? 2.7 : 2.5 },
+    M: { x: 20, y: 20 - r, rx: wide ? 2.5 : 2.0, ry: wide ? 3.2 : 2.8 },
+    D: { x: 20, y: 20 + r, rx: wide ? 2.5 : 2.0, ry: wide ? 3.2 : 2.8 },
+    B: { x: 20 - r, y: 20, rx: wide ? 3.0 : 2.4, ry: wide ? 2.2 : 2.0 },
+    L: { x: 20 + r, y: 20, rx: wide ? 3.0 : 2.4, ry: wide ? 2.2 : 2.0 },
   }
   return (
     <g>
       {entries.map(([key, raw]) => {
         const st = normalizeSurfaceStatus(raw)
         if (!st || st === 'healthy') return null
-        const z = zones[key]
+        // Buccal/lingual are mirrored between the upper and lower arches.
+        const mappedKey: SurfaceKey = !upper && key === 'B' ? 'L' : !upper && key === 'L' ? 'B' : key
+        const z = zones[mappedKey]
         if (!z) return null
-        return <circle key={key} cx={z.x} cy={z.y} r="2.8" fill={statusColor(st)} stroke="#ecfeff" strokeOpacity="0.92" strokeWidth="0.75" filter={`url(#occl-neon-${toothNumber})`} />
+        const color = statusColor(st)
+        return (
+          <ellipse
+            key={key}
+            cx={z.x}
+            cy={z.y}
+            rx={z.rx}
+            ry={z.ry}
+            fill={color}
+            fillOpacity="0.84"
+            stroke="#ecfeff"
+            strokeOpacity="0.92"
+            strokeWidth="0.7"
+            filter={`url(#occl-neon-${toothNumber})`}
+          />
+        )
       })}
     </g>
   )
