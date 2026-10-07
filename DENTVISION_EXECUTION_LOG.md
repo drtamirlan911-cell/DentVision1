@@ -1479,3 +1479,17 @@ These changes are route/entry reconciliation only. Existing domain implementatio
 - `96bf86cdf4638a15c857df5bfa609cebbb995eec` — routed `/supplier` through the existing workspace-aware `RequirePage('supplier')` guard. Supplier access now requires an authenticated session actually scoped to `SUPPLIER` (or explicit SUPERADMIN), matching the guard's documented contract instead of relying on an unguarded route.
 - The change is paired with `0fb9118e4807f1f30a4667c2a7caecce6c1ec76a`, which persists the scoped JWT at the shared `switchContext()` boundary, so the guard can observe the selected supplier workspace after navigation/reload.
 - No new supplier authorization path was introduced; the backend remains authoritative.
+
+## 2026-10-08 — Academy catalog route and Diagnostics clinic-scope hardening
+
+### Implemented
+- `school.routes.ts`: applied the canonical Academy audience policy to `/live`, `/webinars`, `/office-courses`, `/textbooks`, and `/commerce/register`.
+- PUBLIC/PATIENT contexts can no longer receive or register PROFESSIONAL-only Academy products through alternate format endpoints.
+- `academy.manage` course CRUD remains organization-scoped; the lecturer E2E fixture now exercises ownership and cross-Academy denial.
+- `assertClinicOrgAccess` centralizes Clinic.id → Organization.id translation for canonical IAM, with legacy fallback only when no canonical Organization exists.
+- Diagnostics referral authorization paths now consume the canonical clinic resolver.
+
+### Verification
+- Static source inspection confirms all format catalog routes call the same audience policy and commerce registration checks the active context before creating payment/enrollment side effects.
+- Static source inspection confirms diagnostics referral clinic authorization uses the canonical resolver.
+- Exact-head CI is still pending after documentation commits; release remains UNVERIFIED.
