@@ -177,6 +177,9 @@ describe('AI partner workspace proactive context', () => {
     expect(source).toContain('organizationType?: string | null');
     expect(source).toContain("organizationType !== 'CLINIC'");
     expect(source).toContain('type: \'workspace\'');
-    expect(source).not.toContain('const access = await resolveAnyClinicMembership(userId);');
+    const partnerGuard = source.indexOf("else if (organizationType && organizationType !== 'CLINIC')");
+    const legacyFallback = source.indexOf("const access = await resolveAnyClinicMembership(userId)");
+    expect(partnerGuard).toBeGreaterThanOrEqual(0);
+    expect(legacyFallback).toBeGreaterThan(partnerGuard);
   });
 });
