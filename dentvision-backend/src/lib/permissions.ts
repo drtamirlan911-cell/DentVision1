@@ -367,6 +367,8 @@ const PARTNER_ROLE_PAGES: Record<string, string[]> = {
   DIAGNOSTIC: ['diagnostics', 'diagnostics-referrals', 'diagnostics-centers', 'diagnostics-results', 'diagnostics-calendar', 'diagnostics-statistics', 'diagnostics-settings', 'profile'],
   MEDICAL_LAB: ['diagnostics', 'diagnostics-laboratories', 'diagnostics-results', 'diagnostics-calendar', 'diagnostics-statistics', 'diagnostics-settings', 'profile'],
   DENTAL_LAB: ['diagnostics', 'diagnostics-laboratories', 'diagnostics-results', 'diagnostics-settings', 'profile'],
+  SUPPLIER: ['supplier', 'shop', 'inventory', 'profile'],
+  ACADEMY: ['school', 'profile'],
 };
 
 function partnerPageFamily(role: string): string | undefined {
@@ -374,6 +376,8 @@ function partnerPageFamily(role: string): string | undefined {
   if (r.startsWith('DIAGNOSTIC_') || r === 'RADIOLOGIST' || r === 'RADIOLOGY_TECHNICIAN') return 'DIAGNOSTIC';
   if (r.startsWith('MEDICAL_LAB_')) return 'MEDICAL_LAB';
   if (r.startsWith('DENTAL_LAB_') || ['LAB_COORDINATOR', 'DENTAL_TECHNICIAN', 'CAD_DESIGNER', 'CERAMIST', 'ORTHODONTIC_TECHNICIAN', 'QC_SPECIALIST', 'LAB_FINANCE'].includes(r)) return 'DENTAL_LAB';
+  if (r === 'SELLER') return 'SUPPLIER';
+  if (r === 'LECTURER') return 'ACADEMY';
   return undefined;
 }
 
