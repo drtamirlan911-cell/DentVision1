@@ -391,7 +391,10 @@ export function pagesForCaller(permissions: readonly string[], role: string | nu
 
   const partnerFamily = partnerPageFamily(resolvedRole);
   if (partnerFamily) {
-    return PARTNER_ROLE_PAGES[partnerFamily];
+    return Array.from(new Set([
+      ...BASE_PAGES,
+      ...PARTNER_ROLE_PAGES[partnerFamily],
+    ]));
   }
 
   return Array.from(new Set([
