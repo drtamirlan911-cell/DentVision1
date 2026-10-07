@@ -254,7 +254,7 @@ export function Odontogram3D({
                   onClick={() => handleTooth(n)}
                   onHover={setHovered}
                   size={toothSize}
-                  view="buccal"
+                  view="occlusal"
                   showLabels={false}
                 />
               </div>
