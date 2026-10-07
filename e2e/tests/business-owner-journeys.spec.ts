@@ -13,18 +13,28 @@ async function login(page: Page, role = 'owner') {
 }
 
 test.describe('DentVision business owner journeys', () => {
-  test('BIZ-001: owner onboarding exposes all required partner types', async ({ page }) => {
+  test('BIZ-001: canonical onboarding exposes all six organization types', async ({ page }) => {
     await login(page);
     const variants = [
-      ['center', 'Создать диагностический центр'],
-      ['laboratory', 'Создать медицинскую лабораторию'],
-      ['dental_laboratory', 'Создать зуботехническую лабораторию'],
+      ['clinic', 'Создать стоматологическую клинику'],
+      ['diagnostic_center', 'Создать диагностический центр'],
+      ['medical_lab', 'Создать медицинскую лабораторию'],
+      ['dental_lab', 'Создать зуботехническую лабораторию'],
+      ['supplier', 'Создать поставщик / производитель'],
+      ['academy', 'Создать академия / образовательный центр'],
     ] as const;
-    for (const [type, title] of variants) {
-      await page.goto(`${BASE}/register-diagnostics?type=${type}`);
+    for (const [kind, title] of variants) {
+      await page.goto(`${BASE}/onboarding?mode=create&kind=${kind}`);
       await expect(page.getByRole('heading', { name: title })).toBeVisible();
       await expect(page.getByRole('button', { name: 'Создать и открыть workspace' })).toBeVisible();
     }
+  });
+
+  test('BIZ-001b: legacy diagnostics registration URL enters canonical onboarding', async ({ page }) => {
+    await login(page);
+    await page.goto(`${BASE}/register-diagnostics?type=laboratory`);
+    await expect(page).toHaveURL(/\/onboarding\?mode=create&kind=medical_lab/);
+    await expect(page.getByRole('heading', { name: 'Создать медицинскую лабораторию' })).toBeVisible();
   });
 
   test('BIZ-002: diagnostic center owner can create workspace', async ({ page }) => {
