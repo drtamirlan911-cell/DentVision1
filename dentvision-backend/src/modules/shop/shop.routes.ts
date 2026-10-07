@@ -72,7 +72,7 @@ shopRouter.get('/products', optionalAuth, async (req, res) => {
           SELECT p."id"
           FROM "products" p
           WHERE p."isActive" = true
-            AND p."tags" IS NOT NULL
+            AND jsonb_typeof(p."tags") = 'array'
             AND EXISTS (
               SELECT 1 FROM jsonb_array_elements_text(p."tags") AS tag(value)
               WHERE upper(trim(tag.value)) IN ('AUDIENCE:GENERAL', 'AUDIENCE:PATIENT')
