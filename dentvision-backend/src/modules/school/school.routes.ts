@@ -281,7 +281,7 @@ schoolRouter.get('/hub', optionalAuth, async (req: AuthRequest, res) => {
         webinars,
         officeCourses,
         textbooks,
-        courses: trackCourses.map(mapCourse),
+        courses: trackCourses.map((course) => mapCourse(course)),
         academies: academies.map((a) => ({
           id: a.id,
           name: a.name,
@@ -344,7 +344,7 @@ schoolRouter.get('/courses', optionalAuth, async (req: AuthRequest, res) => {
     });
 
     const visibleCourses = visibleAcademyCourses(courses, req);
-    res.json({ ok: true, data: visibleCourses.map(mapCourse) });
+    res.json({ ok: true, data: visibleCourses.map((course) => mapCourse(course)) });
   } catch (error) {
     res.status(500).json({ ok: false, error: 'Failed to fetch courses' });
   }
