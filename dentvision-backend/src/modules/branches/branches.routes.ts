@@ -430,7 +430,9 @@ branchesRouter.patch('/:id/members/:userId/status', async (req: AuthRequest, res
       const authz=await authorizeMemberBranch(req.user!.id,branch.clinic_id,branch,true);
       if(!authz.allowed)return res.status(authz.status).json({ok:false,error:authz.error});
       const target=await prisma.clinicMember.findUnique({where:{userId_clinicId:{userId,clinicId:branch.clinic_id}}});
-      if(!target || target.branchId !== branchId) return res.status(404).json({ok:false,error:'Сотрудник не закреплён за этим филиалом'});
+      if(!target) return res.status(404).json({ok:false,error:'Сотрудник не найден в клинике'});
+      if(!active && target.branchId !== branchId) return res.status(404).json({ok:false,error:'Сотрудник не закреплён за этим филиалом'});
+      if(active && target.branchId && target.branchId !== branchId) return res.status(409).json({ok:false,error:'Сотрудник уже закреплён за другим филиалом',code:'BRANCH_MEMBER_ASSIGNED_ELSEWHERE'});
       if(active) {
         await prisma.$executeRaw`UPDATE "clinic_members" SET "branch_id"=${branchId},"updatedAt"=CURRENT_TIMESTAMP WHERE "userId"=${userId} AND "clinicId"=${branch.clinic_id}`;
       } else {
