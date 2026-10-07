@@ -21,6 +21,11 @@ describe('diagnostics route contract', () => {
     expect(source).not.toContain("status === 'PAID'");
   });
 
+  it('assigns diagnostic referrals only to clinical clinic roles', () => {
+    expect(source).toContain("['DOCTOR', 'OWNER', 'DIRECTOR'].includes(doctorAccess.role)");
+    expect(source).not.toContain("['DOCTOR', 'OWNER', 'DIRECTOR', 'ADMIN'].includes(doctorAccess.role)");
+  });
+
   it('keeps partner pricing and cashier handlers unique', () => {
     expect((source.match(/diagnosticsRouter\.patch\('\/centers\/:id\/pricing'/g) || [])).toHaveLength(1);
     expect((source.match(/diagnosticsRouter\.post\('\/centers\/:id\/pricing'/g) || [])).toHaveLength(1);
