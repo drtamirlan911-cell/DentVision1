@@ -1305,3 +1305,14 @@ These changes are route/entry reconciliation only. Existing domain implementatio
 
 ### Verification status
 - Current HEAD remains unverified until fresh exact-head CI completes.
+
+
+## 2026-10-07 — CI #3814 failure repair
+
+- Exact-head CI #3814 reached **2046 passed / 3 failed** unit tests; frontend lint, backend lint, build/typecheck, command-center audit and generated system-map validation passed.
+- Fixed the three test-contract failures without weakening production authorization:
+  - supplier RBAC test now asserts the canonical `shop.manage` key after the legacy `supplier.manage` mapping;
+  - organization canonical-identity test now slices the actual `diagnostic_center` and laboratory branches rather than starting inside an object literal;
+  - organization control-center test now resolves the source path from `process.cwd()`, avoiding non-file `import.meta.url` resolution.
+- These are test-harness corrections; the partner fail-closed authorization behavior remains unchanged.
+- Current exact-head CI must rerun before any release decision.
