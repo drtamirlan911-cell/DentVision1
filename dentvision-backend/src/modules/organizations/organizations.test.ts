@@ -68,12 +68,12 @@ describe('canonical partner organization identity', () => {
     );
 
     const diagnosticBlock = source.slice(
-      source.indexOf("originalType: 'DiagnosticCenter'"),
-      source.indexOf("type === 'dental_lab'"),
+      source.indexOf("type === 'diagnostic_center'"),
+      source.indexOf("} else if (type === 'dental_lab' || type === 'medical_lab')"),
     );
     const laboratoryBlock = source.slice(
-      source.indexOf("originalType: 'Laboratory'"),
-      source.indexOf("type === 'supplier'"),
+      source.indexOf("} else if (type === 'dental_lab' || type === 'medical_lab')"),
+      source.indexOf("} else if (type === 'supplier')"),
     );
 
     expect(diagnosticBlock).toContain('const canonicalOrganization = await tx.organization.upsert');
