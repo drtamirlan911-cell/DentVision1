@@ -241,7 +241,7 @@ describe('canonical commission policy', () => {
     txDelegate.transaction.create.mockImplementationOnce(async (args: any) => ({ meta: args.data.meta }));
 
     const low: any = await recordSaleTx({ domain: 'diagnostics', sellerType: 'SUPPLIER' as never, sellerId: 'sup-d', amountMinor: 100_000n }, txDelegate as never);
-    expect(low.meta.commission).toBe('50_000');
+    expect(low.meta.commission).toBe('50000');
   });
 });
 });
