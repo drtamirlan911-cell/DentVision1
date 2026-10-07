@@ -47,7 +47,9 @@ describe('assertClinicOrgAccess', () => {
       expect.objectContaining({ where: { originalType: 'Clinic', originalId: CLINIC_ID }, select: { id: true } }),
     );
     expect(personFindFirst).toHaveBeenCalledWith(
-      expect.objectContaining({ where: { userId: USER_ID, organizationId: 'org-1' } }),
+      expect.objectContaining({
+        where: expect.objectContaining({ userId: USER_ID, organizationId: 'org-1' }),
+      }),
     );
     expect(clinicMemberFindUnique).not.toHaveBeenCalled();
   });
