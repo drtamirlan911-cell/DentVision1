@@ -1316,3 +1316,10 @@ These changes are route/entry reconciliation only. Existing domain implementatio
   - organization control-center test now resolves the source path from `process.cwd()`, avoiding non-file `import.meta.url` resolution.
 - These are test-harness corrections; the partner fail-closed authorization behavior remains unchanged.
 - Current exact-head CI must rerun before any release decision.
+
+## 2026-10-07 — PR #302 exact-head CI unit-test repair (organizations source inspection)
+
+- Exact-head CI #3816 reached the unit-test phase with **2048 passed / 1 failed** across 221 test files.
+- The single failure was `dentvision-backend/src/modules/organizations/organizations.test.ts`: the regression test sliced the diagnostic/laboratory source block starting at `originalType: ...` inside an object literal, so the block did not contain the canonical `tx.organization.upsert` declaration.
+- `a0f87c0e8f1756887d73a09ca67a6bfa7a513a01` — changed the source-inspection boundaries to the actual `diagnostic_center`, `dental_lab/medical_lab`, and `supplier` control-flow branches. No production authorization or identity logic was weakened.
+- Verification: the failing test must be re-run on the post-fix exact HEAD; the concurrent full E2E job was superseded by the branch push.
