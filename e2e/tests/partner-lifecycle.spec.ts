@@ -78,6 +78,16 @@ test.describe('Partner operational lifecycle', () => {
     expect(refreshedTokenPayload.organizationType).toBe('DIAGNOSTIC_CENTER');
     expect(refreshedTokenPayload.organizationId).toBe(centerTokenPayload.organizationId);
 
+    const centerTokenPayload = JSON.parse(Buffer.from(centerOwnerToken.split('.')[1], 'base64url').toString('utf8')) as { organizationId?: string };
+    expect(centerTokenPayload.organizationId).toBeTruthy();
+    const branchList = await api.get(
+      `${BASE}/api/organizations/branches?organizationId=${encodeURIComponent(centerTokenPayload.organizationId!)}`,
+      { headers: auth(centerOwnerToken) },
+    );
+    expect(branchList.status()).toBe(200);
+    const partnerBranches = (await branchList.json()).data || [];
+    expect(partnerBranches.length).toBeGreaterThanOrEqual(1);
+
     const labOwner = await createTestUser({ email: `medical-lab-owner-${Date.now()}@test.dentvision`, firstName: 'Medical Lab', lastName: 'Owner' });
     labOwnerToken = await login(api, labOwner.email);
     const labOnboard = await api.post(`${BASE}/api/organizations/self-service`, {
