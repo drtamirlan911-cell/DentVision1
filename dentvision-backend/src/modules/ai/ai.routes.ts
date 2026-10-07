@@ -1080,13 +1080,19 @@ aiRouter.get('/twin/proactive', optionalAuth, async (req: AuthRequest, res) => {
     });
     if (!twin) return res.json({ ok: true, data: { suggestions: [], feed: [] } });
 
+    const workspaceName = req.user?.organizationId
+      ? (await prisma.organization.findUnique({
+          where: { id: req.user.organizationId },
+          select: { name: true },
+        }))?.name || null
+      : null;
     const allAlerts = await buildProactiveAlerts({
       userId,
       clinicId: clinicId || null,
       role: (twin as any).role,
       isGuest: false,
       organizationType: req.user?.organizationType || null,
-      workspaceName: activeWorkspace?.name || null,
+      workspaceName,
     });
     const suggestions = screen ? buildContextualSuggestions(twin as any, screen, allAlerts) : [];
     const feed = allAlerts.slice(0, 30);
