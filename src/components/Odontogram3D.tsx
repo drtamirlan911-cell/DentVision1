@@ -227,11 +227,13 @@ export function Odontogram3D({
           {teeth.map((n, index) => {
             const { rotation, translateY } = archCurve(index, toothCount, upper)
             const tooth = toothOf(n)
+            const xPercent = toothCount <= 1 ? 50 : 6 + (index / (toothCount - 1)) * 88
             return (
               <div
                 key={n}
-                className="absolute left-1/2 top-1/2 flex -translate-x-1/2 -translate-y-1/2 flex-col items-center"
+                className="absolute top-1/2 flex -translate-x-1/2 -translate-y-1/2 flex-col items-center"
                 style={{
+                  left: `${xPercent}%`,
                   width: cell,
                   transform: `translate(-50%, calc(-50% + ${translateY}px)) rotate(${rotation}deg)`,
                 }}
