@@ -1198,3 +1198,12 @@ These changes are route/entry reconciliation only. Existing domain implementatio
 - Canonical six-type onboarding routed through `/onboarding`; legacy diagnostics registration is now only a compatibility redirect.
 - AI digital twin no longer falls back to an arbitrary clinic for an explicitly active non-clinic organization type.
 
+
+
+## 2026-10-07 — Active agent pass: odontogram arch verification
+
+- Inspected the canonical Operating Directive, Execution Plan, Context and Architecture before implementation.
+- Verified PR #302 is the current release-blocker remediation branch and that its earlier CI runs were repeatedly cancelled as new commits arrived; no cancelled run is treated as release evidence.
+- Corrected the clinical odontogram arch geometry on the active implementation branch: upper anterior teeth now curve toward the midline and the lower arch mirrors upward, with reduced vertical depth and chart height so the two opposing arches read as one coherent dental-arch composition.
+- Verification status: the exact-head CI/Quality Gate must complete for commit 587aca7e42696d088e43fc2425028bbece8ca107; visual evidence remains required before declaring the odontogram pass complete.
+- Next action: inspect the exact-head CI jobs and visual artifacts, then continue the remaining P0/P1 release blockers rather than treating historical green/cancelled runs as current evidence.
