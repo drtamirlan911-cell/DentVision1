@@ -85,6 +85,11 @@ test.describe('Canonical organization branch management', () => {
     await page.getByRole('button', { name: branchName, exact: true }).click();
     await branchRequest;
 
+    // The picker is driven by the same workspace read-model that feeds
+    // downstream navigation. It must reflect the newly active branch
+    // immediately, not only after a full page reload/refetch.
+    await expect(trigger).toContainText(branchName);
+
     await page.reload();
     await expect(page.getByTestId('workspace-switcher-trigger')).toContainText(branchName);
   });
