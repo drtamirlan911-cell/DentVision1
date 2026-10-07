@@ -12,12 +12,13 @@ import { resolve } from 'node:path';
  * every branch's callee — not the global prisma client, not a new default.
  */
 
-const { recordSaleTx, recordPartnerEconomics, activateClinicSubscriptionFromPayment, isSaasPlanId, accrueSaasCashback, markSettlementPaid, writeRevenue } =
+const { recordSaleTx, recordPartnerEconomics, activateClinicSubscriptionFromPayment, isSaasPlanId, getPlanCatalog, accrueSaasCashback, markSettlementPaid, writeRevenue } =
   vi.hoisted(() => ({
     recordSaleTx: vi.fn(),
     recordPartnerEconomics: vi.fn(),
     activateClinicSubscriptionFromPayment: vi.fn(),
     isSaasPlanId: vi.fn(() => true),
+  getPlanCatalog: vi.fn(() => [{ id: 'professional', amountMinor: '4990000' }, { id: 'enterprise', amountMinor: '14990000' }]),
     accrueSaasCashback: vi.fn(),
     markSettlementPaid: vi.fn(),
     writeRevenue: vi.fn(),
@@ -30,6 +31,7 @@ vi.mock('../finance/revenue.service.js', () => ({ writeRevenue }));
 vi.mock('../billing/clinicSubscription.service.js', () => ({
   activateClinicSubscriptionFromPayment,
   isSaasPlanId,
+  getPlanCatalog,
 }));
 vi.mock('../dentcash/cashback.engine.js', () => ({ accrueSaasCashback }));
 vi.mock('../diagnostics/settlement.service.js', () => ({ markSettlementPaid }));
@@ -99,6 +101,24 @@ describe('settlePaidPayment — db threading', () => {
       expect.objectContaining({ source: 'SaaS', amountMinor: 49900n, refId: 'clinic-1' }),
       fakeTx,
     );
+  });
+
+
+  it('subscription branch: rejects a tampered amount before activation', async () => {
+    await expect(settlePaidPayment(
+      {
+        id: 'pay-sub-bad',
+        refType: 'subscription',
+        refId: 'clinic-1',
+        domain: null,
+        sellerType: null,
+        sellerId: null,
+        amount: 4990001n,
+        meta: { saasPlan: 'professional', months: 1 },
+      },
+      fakeTx,
+    )).rejects.toThrow('Недопустимая сумма SaaS-подписки');
+    expect(activateClinicSubscriptionFromPayment).not.toHaveBeenCalled();
   });
 
   it('settlement branch: passes db through to markSettlementPaid', async () => {
