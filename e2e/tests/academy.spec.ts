@@ -433,10 +433,13 @@ test.describe('Academy / Course Workflow', () => {
 
     if (Array.isArray(courses) && courses.length > 0) {
       const premium = courses.find((c: any) => c.price > 0) || courses[0];
-      const unauthRes = await api.get(`${BASE_URL}${endpoint}/${premium.id}`, {
-        headers: { 'Content-Type': 'application/json' },
-      });
-      expect([401, 403]).toContain(unauthRes.status());
+      const anonymousApi = await apiRequest.newContext();
+      try {
+        const unauthRes = await anonymousApi.get(`${BASE_URL}${endpoint}/${premium.id}`);
+        expect([401, 403]).toContain(unauthRes.status());
+      } finally {
+        await anonymousApi.dispose();
+      }
     }
   });
 
