@@ -7,6 +7,7 @@ import { ToastProvider } from './components/ui/ds';
 import IntelligenceLayout from './layouts/IntelligenceLayout';
 import { lazyWithRetry } from '@/utils/lazyWithRetry';
 import { RequirePage } from '@/components/auth/RequirePage';
+import { RequireWorkspaceScope } from '@/components/auth/RequireWorkspaceScope';
 import { initSentry } from './lib/sentry';
 import './lib/i18n';
 import './styles/global.css';
@@ -338,8 +339,8 @@ if (container) {
                   <Route path="calendar" element={<Suspense fallback={<PageLoader />}><DiagnosticCalendar /></Suspense>} />
                   <Route path="statistics" element={<Suspense fallback={<PageLoader />}><DiagnosticStatistics /></Suspense>} />
                   <Route path="settings" element={<Suspense fallback={<PageLoader />}><DiagnosticSettings /></Suspense>} />
-                  <Route path="center" element={<Suspense fallback={<PageLoader />}><CenterDashboard /></Suspense>} />
-                  <Route path="lab" element={<Suspense fallback={<PageLoader />}><LabDashboard /></Suspense>} />
+                  <Route path="center" element={<RequireWorkspaceScope scopeType="DIAGNOSTIC_CENTER"><Suspense fallback={<PageLoader />}><CenterDashboard /></Suspense></RequireWorkspaceScope>} />
+                  <Route path="lab" element={<RequireWorkspaceScope scopeType="LABORATORY"><Suspense fallback={<PageLoader />}><LabDashboard /></Suspense></RequireWorkspaceScope>} />
                   <Route path="workspace" element={<Suspense fallback={<PageLoader />}><WorkspaceEntry /></Suspense>} />
                   <Route path="registration-requests" element={<Suspense fallback={<PageLoader />}><RegistrationRequests /></Suspense>} />
                   <Route path="registrations" element={<Navigate to="/diagnostics/registration-requests" replace />} />
