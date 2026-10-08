@@ -34,6 +34,33 @@ async function loginLecturer(api: APIRequestContext) {
   return lecturerToken;
 }
 test.describe('Academy / Course Workflow', () => {
+  test('ACADEMY-012: lecturer switch-context preserves the canonical Academy organization type', async () => {
+    const lecturerApi = await apiRequest.newContext();
+    const token = await loginLecturer(lecturerApi);
+    try {
+      const contextsRes = await lecturerApi.get(`${BASE_URL}/api/iam/me/contexts`, { headers: auth(token) });
+      expect(contextsRes.status()).toBe(200);
+      const contextsBody = await contextsRes.json();
+      const lecturerContext = (contextsBody.data?.contexts || contextsBody.contexts || []).find((item: any) => item.scopeType === 'LECTURER');
+      expect(lecturerContext?.scopeId).toBeTruthy();
+
+      const switched = await lecturerApi.post(`${BASE_URL}/api/iam/switch-context`, {
+        headers: auth(token),
+        data: { scopeType: 'LECTURER', scopeId: lecturerContext.scopeId },
+      });
+      expect(switched.status()).toBe(200);
+      const switchedBody = await switched.json();
+      const switchedToken = switchedBody.data?.accessToken || switchedBody.accessToken;
+      expect(switchedToken).toBeTruthy();
+      const payload = JSON.parse(Buffer.from(String(switchedToken).split('.')[1], 'base64url').toString('utf8'));
+      expect(payload.organizationType).toBe('ACADEMY');
+      expect(payload.organizationId).toBe(lecturerContext.organizationId);
+      expect(payload.organizationOriginalId).toBeTruthy();
+      expect(payload.lecturerId).toBe(lecturerContext.scopeId);
+    } finally {
+      await lecturerApi.dispose();
+    }
+  });
   test('ACADEMY-011: format catalog routes preserve audience isolation', async () => {
     const apiPublic = await apiRequest.newContext();
     const id = `academy-format-${Date.now()}`;
