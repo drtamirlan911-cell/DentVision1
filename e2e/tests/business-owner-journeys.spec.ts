@@ -32,9 +32,17 @@ test.describe('DentVision business owner journeys', () => {
     const registrationPayload = await registration.json();
     expect(registrationPayload.data?.user?.role).toBe('STUDENT');
 
-    // The registration response sets the authenticated cookies in the same
-    // Playwright browser context. The canonical onboarding flow must then
-    // elevate access only through the scoped organization PersonRole graph.
+    // page.request is a separate API client and does not hydrate the frontend
+    // auth store. Persist the returned pair through the same tab-scoped storage
+    // contract used by api.setTokens(), then let normal bootstrap restore it.
+    const registrationAccess = registrationPayload.data?.accessToken || registrationPayload.accessToken;
+    const registrationRefresh = registrationPayload.data?.refreshToken || registrationPayload.refreshToken;
+    expect(registrationAccess).toBeTruthy();
+    expect(registrationRefresh).toBeTruthy();
+    await page.goto(`${BASE}/`);
+    await page.evaluate(({ access, refresh }) => {
+      sessionStorage.setItem('dv_tokens', JSON.stringify({ access, refresh }));
+    }, { access: registrationAccess, refresh: registrationRefresh });
     await page.goto(`${BASE}/onboarding?mode=create&kind=diagnostic_center`);
     await expect(page.getByRole('heading', { name: 'Создать диагностический центр' })).toBeVisible({ timeout: 15000 });
     await page.getByLabel('Название *').fill(organizationName);
@@ -78,8 +86,8 @@ test.describe('DentVision business owner journeys', () => {
       ['diagnostic_center', 'Создать диагностический центр'],
       ['medical_lab', 'Создать медицинскую лабораторию'],
       ['dental_lab', 'Создать зуботехническую лабораторию'],
-      ['supplier', 'Создать поставщик / производитель'],
-      ['academy', 'Создать академия / образовательный центр'],
+      ['supplier', 'Создать поставщика / производителя'],
+      ['academy', 'Создать академию / образовательный центр'],
     ] as const;
     for (const [kind, title] of variants) {
       await page.goto(`${BASE}/onboarding?mode=create&kind=${kind}`);
@@ -152,13 +160,23 @@ test.describe('DentVision business owner journeys', () => {
       await page.getByLabel('Адрес').fill(`ул. E2E lifecycle ${unique}`);
       await page.getByLabel('Телефон').fill('+77000000020');
       await page.getByLabel('Email').fill(`${emailPrefix}-${unique}@test.com`);
-      const responsePromise = page.waitForResponse((response) =>
-        response.url().includes('/api/organizations/self-service') && response.request().method() === 'POST'
-      );
+      const responsePromise = page.waitForResponse(async (response) => {
+        if (!response.url().includes('/api/organizations/self-service') || response.request().method() !== 'POST') return false;
+        try {
+          await response.body();
+          return true;
+        } catch {
+          return false;
+        }
+      }).then(async (response) => {
+        const body = await response.json().catch(() => null);
+        return { status: response.status(), ok: response.ok(), body };
+      });
       await page.getByRole('button', { name: 'Создать и открыть workspace' }).click();
       const response = await responsePromise;
-      expect(response.ok()).toBeTruthy();
-      const onboarding = await response.json();
+      expect(response.ok).toBeTruthy();
+      const onboarding = response.body;
+      expect(onboarding).toBeTruthy();
       expect(onboarding.data?.organizationId).toBeTruthy();
       expect(onboarding.data?.branchId).toBeTruthy();
       expect(onboarding.data?.verification).toBe('PENDING');
