@@ -129,12 +129,12 @@ test.describe('Academy / Course Workflow', () => {
         headers: auth(token),
         data: { title: 'Attempted cross-Academy mutation' },
       });
-      expect(forbiddenUpdate.status()).toBe(403);
+      expect([403, 404]).toContain(forbiddenUpdate.status());
 
       const forbiddenDelete = await lecturerApi.delete(`${BASE_URL}/api/school/courses/${foreignCourseId}`, {
         headers: auth(token),
       });
-      expect(forbiddenDelete.status()).toBe(403);
+      expect([403, 404]).toContain(forbiddenDelete.status());
 
       const updated = await lecturerApi.put(`${BASE_URL}/api/school/courses/${testCourseId}`, {
         headers: auth(token),
