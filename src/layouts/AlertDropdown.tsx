@@ -57,7 +57,7 @@ export function badgeCountFor(input: { unreadNotifications: number }): number {
   return Math.max(0, input.unreadNotifications);
 }
 
-function timeAgo(value: string): string {
+export function timeAgo(value: string): string {
   const timestamp = Date.parse(value);
   if (!Number.isFinite(timestamp)) return '';
   const diffSeconds = Math.round((timestamp - Date.now()) / 1000);
