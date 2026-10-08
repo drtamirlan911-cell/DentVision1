@@ -66,7 +66,7 @@ function timeAgo(value: string): string {
   const divisor = unit === 'second' ? 1 : unit === 'minute' ? 60 : unit === 'hour' ? 3600 : 86400;
   const valueInUnit = Math.round(diffSeconds / divisor);
   try {
-    return new Intl.RelativeTimeFormat('ru', { numeric: 'auto' }).format(valueInUnit, `${unit}s` as Intl.RelativeTimeFormatUnit);
+    return new Intl.RelativeTimeFormat('ru', { numeric: 'auto' }).format(valueInUnit, unit as Intl.RelativeTimeFormatUnit);
   } catch {
     return new Date(timestamp).toLocaleString('ru-RU');
   }
