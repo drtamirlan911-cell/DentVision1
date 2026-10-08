@@ -46,7 +46,7 @@ export function CityFilter({
               type="button"
               onClick={() => onChange('')}
               className={cn(
-                'rounded-lg border px-2.5 py-1 text-2xs transition-colors',
+                'inline-flex min-h-9 items-center rounded-lg border px-2.5 py-1 text-2xs transition-colors',
                 !selected
                   ? 'border-dv-gold/40 bg-dv-gold/15 text-dv-gold'
                   : 'border-bdr-subtle text-txt-muted hover:text-txt-primary hover:border-bdr-default',
@@ -61,7 +61,7 @@ export function CityFilter({
               key={city}
               onClick={() => onChange(city === selected ? (required ? city : '') : city)}
               className={cn(
-                'rounded-lg border px-2.5 py-1 text-2xs transition-colors',
+                'inline-flex min-h-9 items-center rounded-lg border px-2.5 py-1 text-2xs transition-colors',
                 selected === city
                   ? 'border-dv-gold/40 bg-dv-gold/15 text-dv-gold'
                   : 'border-bdr-subtle text-txt-muted hover:text-txt-primary hover:border-bdr-default',
