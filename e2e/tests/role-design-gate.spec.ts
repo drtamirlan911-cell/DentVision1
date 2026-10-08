@@ -6,7 +6,7 @@ const API_BASE_URL = process.env.VITE_API_URL || 'http://localhost:3001';
 const VISUAL_EVIDENCE_ROOT = process.env.VISUAL_EVIDENCE_DIR || 'e2e/visual-evidence';
 const PASSWORD = 'Test1234!';
 
-const PUBLIC_ROUTES = ['/', '/login', '/register', '/forgot-password', '/booking', '/demo', '/pricing', '/terms', '/privacy'];
+const PUBLIC_ROUTES = ['/', '/login', '/register', '/forgot-password', '/booking', '/demo', '/pricing', '/terms', '/privacy', '/jobs'];
 const AUTH_COMMON_ROUTES = ['/', '/help', '/notifications', '/profile'];
 const ROUTES = [
   '/ai','/analytics','/settings','/help','/notifications','/admin','/bi','/security','/audit','/agent-activity','/ai-approvals','/backup','/profile',
@@ -24,10 +24,10 @@ type Role = {
   pages: string[]; mustNotContain: RegExp[]; entry: RegExp;
 };
 
-const CLINIC_OWNER_PAGES = ['dashboard','schedule','patients','medical-card','visits','icd10','documents','finance','cashier','pricelist','lab','reminders','promotions','inventory','staff','audit','agent-activity','ai-approvals','backup','shop','school','analytics','settings','clinic-settings','billing','treatment-plans','dental-chart','diagnostics','diagnostics-referrals','diagnostics-centers','diagnostics-labs','diagnostics-results','profile','bi','patient-inbox','workflow'];
-const CLINIC_ADMIN_PAGES = ['schedule','patients','medical-card','visits','icd10','documents','finance','cashier','pricelist','lab','reminders','promotions','inventory','staff','shop','school','analytics','settings','clinic-settings','billing','treatment-plans','dental-chart','diagnostics','diagnostics-referrals','diagnostics-results','profile','patient-inbox','workflow','ai-approvals'];
-const CLINIC_DOCTOR_PAGES = ['schedule','patients','medical-card','visits','icd10','documents','lab','reminders','school','treatment-plans','dental-chart','diagnostics-referrals','diagnostics-results','profile','ai-approvals'];
-const CLINIC_ASSISTANT_PAGES = ['schedule','patients','visits','documents','reminders','shop','school','diagnostics-referrals','diagnostics-results','profile'];
+const CLINIC_OWNER_PAGES = ['community','dashboard','schedule','patients','medical-card','visits','icd10','documents','finance','cashier','pricelist','lab','reminders','promotions','inventory','staff','audit','agent-activity','ai-approvals','backup','shop','school','analytics','settings','clinic-settings','billing','treatment-plans','dental-chart','diagnostics','diagnostics-referrals','diagnostics-centers','diagnostics-labs','diagnostics-results','profile','bi','patient-inbox','workflow'];
+const CLINIC_ADMIN_PAGES = ['community','schedule','patients','medical-card','visits','icd10','documents','finance','cashier','pricelist','lab','reminders','promotions','inventory','staff','shop','school','analytics','settings','clinic-settings','billing','treatment-plans','dental-chart','diagnostics','diagnostics-referrals','diagnostics-results','profile','patient-inbox','workflow','ai-approvals'];
+const CLINIC_DOCTOR_PAGES = ['community','schedule','patients','medical-card','visits','icd10','documents','lab','reminders','school','treatment-plans','dental-chart','diagnostics-referrals','diagnostics-results','profile','ai-approvals'];
+const CLINIC_ASSISTANT_PAGES = ['community','schedule','patients','visits','documents','reminders','shop','school','diagnostics-referrals','diagnostics-results','profile'];
 const CLINIC_MANAGER_PAGES = ['dashboard','schedule','patients','analytics','staff','promotions','shop','profile'];
 const PLATFORM_SUPERADMIN_PAGES = ['admin','audit','agent-activity','ai-approvals','backup','analytics','settings','security','quality','diagnostics','diagnostics-centers','diagnostics-labs','platform-finance','ai-governance','support','profile','bi','supplier'];
 
@@ -58,7 +58,7 @@ function pageId(route: string): string | null {
     '/crm/pricelist':'pricelist','/crm/lab':'lab','/crm/inventory':'inventory','/crm/documents':'documents','/crm/staff':'staff','/crm/reminders':'reminders','/crm/promotions':'promotions','/crm/marketing':'promotions','/crm/icd10':'icd10','/crm/workflow':'workflow','/crm/integrations/messaging':'clinic-settings',
     '/analytics':'analytics','/admin':'admin','/audit':'audit','/agent-activity':'agent-activity','/ai-approvals':'ai-approvals','/backup':'backup','/shop':'shop','/school':'school','/settings':'settings','/bi':'bi','/security':'security','/quality':'quality','/platform-finance':'platform-finance','/ai-governance':'ai-governance','/support':'support','/diagnostics':'diagnostics','/supplier':'supplier',
     '/diagnostics/referrals':'diagnostics-referrals','/diagnostics/centers':'diagnostics-centers','/diagnostics/labs':'diagnostics-labs','/diagnostics/laboratories':'diagnostics-labs','/diagnostics/results':'diagnostics-results','/diagnostics/calendar':'diagnostics-calendar','/diagnostics/statistics':'diagnostics-statistics','/diagnostics/settings':'diagnostics-settings',
-    '/diagnostics/center':'diagnostics','/diagnostics/lab':'diagnostics','/diagnostics/workspace':'diagnostics','/diagnostics/center-dashboard':'diagnostics','/diagnostics/lab-dashboard':'diagnostics','/diagnostics/registrations':'admin','/diagnostics/registration-requests':'admin',
+    '/diagnostics/center':'diagnostics','/diagnostics/lab':'diagnostics','/community':'community','/diagnostics/workspace':'diagnostics','/diagnostics/center-dashboard':'diagnostics','/diagnostics/lab-dashboard':'diagnostics','/diagnostics/registrations':'admin','/diagnostics/registration-requests':'admin',
   };
   if (map[p]) return map[p];
   if (p.startsWith('/shop')) return 'shop';
