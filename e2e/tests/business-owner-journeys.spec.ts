@@ -43,6 +43,8 @@ test.describe('DentVision business owner journeys', () => {
     await page.evaluate(({ access, refresh }) => {
       sessionStorage.setItem('dv_tokens', JSON.stringify({ access, refresh }));
     }, { access: registrationAccess, refresh: registrationRefresh });
+    await page.reload();
+    await expect.poll(() => page.locator('body').innerText().catch(() => '')).toMatch(/DentVision|создать/i);
     await page.goto(`${BASE}/onboarding?mode=create&kind=diagnostic_center`);
     await expect(page.getByRole('heading', { name: 'Создать диагностический центр' })).toBeVisible({ timeout: 15000 });
     await page.getByLabel('Название *').fill(organizationName);
@@ -169,7 +171,9 @@ test.describe('DentVision business owner journeys', () => {
           return false;
         }
       }).then(async (response) => {
-        const body = await response.json().catch(() => null);
+        const rawBody = await response.body().catch(() => Buffer.from(''));
+        let body: any = null;
+        try { body = JSON.parse(rawBody.toString('utf8')); } catch { body = null; }
         return { status: response.status(), ok: response.ok(), body };
       });
       await page.getByRole('button', { name: 'Создать и открыть workspace' }).click();
