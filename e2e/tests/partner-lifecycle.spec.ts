@@ -106,6 +106,13 @@ test.describe('Partner operational lifecycle', () => {
         userId: centerRadiologistId,
       },
     });
+
+    await prisma.branchMember.create({
+      data: {
+        personId: radiologistPerson.id,
+        branchId: centerTokenPayload.branchId!,
+      },
+    });
     const radiologistRole = await prisma.role.findUnique({ where: { key: 'radiologist' }, select: { id: true } });
     expect(radiologistRole?.id).toBeTruthy();
     await prisma.personRole.create({
