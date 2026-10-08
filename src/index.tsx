@@ -289,6 +289,7 @@ if (container) {
                 <Route path="profile" element={guarded('profile', <Profile />)} />
                 <Route path="supplier" element={guarded('supplier', <SupplierWorkspace />)} />
                 <Route path="jobs" element={<Suspense fallback={<PageLoader />}><Jobs /></Suspense>} />
+                <Route path="community" element={guarded('community', <Community />)} />
                 <Route path="community" element={<Suspense fallback={<PageLoader />}><Community /></Suspense>} />
                 <Route path="demo" element={<Suspense fallback={<PageLoader />}><Demo /></Suspense>} />
                 <Route path="pricing" element={<Suspense fallback={<PageLoader />}><Pricing /></Suspense>} />
