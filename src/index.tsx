@@ -7,6 +7,7 @@ import { ToastProvider } from './components/ui/ds';
 import IntelligenceLayout from './layouts/IntelligenceLayout';
 import { lazyWithRetry } from '@/utils/lazyWithRetry';
 import { RequirePage } from '@/components/auth/RequirePage';
+import { RequireWorkspaceScope } from '@/components/auth/RequireWorkspaceScope';
 import { initSentry } from './lib/sentry';
 import './lib/i18n';
 import './styles/global.css';
@@ -287,9 +288,9 @@ if (container) {
                 <Route path="ai-approvals" element={guarded('ai-approvals', <AiApprovals />)} />
                 <Route path="backup" element={guarded('backup', <Backup />)} />
                 <Route path="profile" element={guarded('profile', <Profile />)} />
-                <Route path="supplier" element={<Suspense fallback={<PageLoader />}><SupplierWorkspace /></Suspense>} />
+                <Route path="supplier" element={guarded('supplier', <SupplierWorkspace />)} />
                 <Route path="jobs" element={<Suspense fallback={<PageLoader />}><Jobs /></Suspense>} />
-                <Route path="community" element={<Suspense fallback={<PageLoader />}><Community /></Suspense>} />
+                <Route path="community" element={guarded('community', <Community />)} />
                 <Route path="demo" element={<Suspense fallback={<PageLoader />}><Demo /></Suspense>} />
                 <Route path="pricing" element={<Suspense fallback={<PageLoader />}><Pricing /></Suspense>} />
                 <Route path="terms" element={<Suspense fallback={<PageLoader />}><Terms /></Suspense>} />
@@ -338,8 +339,8 @@ if (container) {
                   <Route path="calendar" element={<Suspense fallback={<PageLoader />}><DiagnosticCalendar /></Suspense>} />
                   <Route path="statistics" element={<Suspense fallback={<PageLoader />}><DiagnosticStatistics /></Suspense>} />
                   <Route path="settings" element={<Suspense fallback={<PageLoader />}><DiagnosticSettings /></Suspense>} />
-                  <Route path="center" element={<Suspense fallback={<PageLoader />}><CenterDashboard /></Suspense>} />
-                  <Route path="lab" element={<Suspense fallback={<PageLoader />}><LabDashboard /></Suspense>} />
+                  <Route path="center" element={<RequireWorkspaceScope scopeType="DIAGNOSTIC_CENTER"><Suspense fallback={<PageLoader />}><CenterDashboard /></Suspense></RequireWorkspaceScope>} />
+                  <Route path="lab" element={<RequireWorkspaceScope scopeType="LABORATORY"><Suspense fallback={<PageLoader />}><LabDashboard /></Suspense></RequireWorkspaceScope>} />
                   <Route path="workspace" element={<Suspense fallback={<PageLoader />}><WorkspaceEntry /></Suspense>} />
                   <Route path="registration-requests" element={<Suspense fallback={<PageLoader />}><RegistrationRequests /></Suspense>} />
                   <Route path="registrations" element={<Navigate to="/diagnostics/registration-requests" replace />} />

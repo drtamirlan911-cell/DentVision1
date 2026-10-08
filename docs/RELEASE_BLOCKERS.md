@@ -51,20 +51,73 @@
 - **Verification:** inspect all 390/412px lab-role screenshots after CI and exercise open/close/Escape/outside-click/touch behavior.
 
 ### RB-008 — Academy lecturer without organization scope
-- **Status:** OPEN
+- **Status:** PARTIALLY FIXED — production identity remediation remains open
 - **Priority:** P1
 - **Area:** Identity / Academy / Data integrity
 - **Observed:** production unified-schema migration on 2026-09-29 reported one lecturer role without an organization scope and skipped its scoped PersonRole.
 - **Runtime evidence:** migration completed successfully, but one lecturer was skipped because no Academy organization scope could be resolved.
+- **Implementation hardening:** Academy course CRUD now accepts scoped `academy.manage` and requires an active Academy organization; E2E seeds a real scoped lecturer and rejects cross-Academy mutation.
 - **Required:** identify the affected lecturer/academy relationship in production, restore the canonical Academy organization link if the source relationship is valid, then rerun/verify IAM context generation. Do not assign a synthetic tenant.
 
 ### RB-009 — Public catalog response vs authenticated catalog policy
-- **Status:** OPEN
+- **Status:** FIXED — pending exact-head CI verification
 - **Priority:** P1
 - **Area:** Marketplace / Academy / Content access
 - **Observed:** unauthenticated production calls return 200 but filtered catalog arrays (Marketplace data empty; Academy KPI counts populated while public course/event arrays are filtered).
 - **Finding:** the canonical content-catalog response guard intentionally filters Marketplace/Academy items according to active authenticated content context.
-- **Required:** verify authenticated professional/owner contexts expose the expected catalog and that cross-tenant/catalog audience isolation is preserved. This is not closed by the public 200 response.
+- **Fix:** audience policy now applies to Academy course, webinar, live, office-course, textbook and commerce-registration routes. PUBLIC/PATIENT contexts cannot expose PROFESSIONAL-only Academy items or register them.
+- **Regression:** Academy E2E verifies all four format catalog endpoints omit a PROFESSIONAL-only fixture from the public result set.
+- **Verification:** exact-head CI/E2E still required; public 200 alone remains insufficient.
+
+### RB-010 — Clinic payment refund over-authorization
+- **Status:** FIXED — pending exact-head CI verification
+- **Priority:** P0
+- **Area:** Finance / RBAC / Payment safety
+- **Observed:** `POST /api/payments/:id/refund` treated any authorized clinic member as a sufficient owner for clinic-scoped payments.
+- **Risk:** clinical staff with payment visibility, including roles without `billing.manage`, could reach a financial reversal mutation.
+- **Fix:** clinic refund access now resolves the user's role in the exact clinic and requires canonical `billing.manage` permission; organization access alone is insufficient.
+- **Regression:** payment refund test now checks the route uses the scoped `billing.manage` boundary.
+- **Verification:** static exact-file inspection passed; fresh CI/E2E is still required for closure.
+
+### RB-011 — Clinic domain ID used as canonical organization ID in Diagnostics
+- **Status:** FIXED — pending exact-head CI verification
+- **Priority:** P0
+- **Area:** Diagnostics / IAM / Tenant scope
+- **Observed:** referral authorization passed domain `Clinic.id` directly to `assertOrgAccess`, while canonical IAM uses `Organization.id` and stores the source Clinic.id in `originalId`.
+- **Risk:** valid clinic-scoped referral workflows could fail after canonicalization.
+- **Fix:** added shared `assertClinicOrgAccess` translation with legacy fallback and switched diagnostics referral authorization paths to it.
+- **Regression:** `orgContext.test.ts` covers canonical/legacy mapping; diagnostics contract test locks the referral boundary.
+- **Verification:** static inspection passed; fresh exact-head CI/E2E remains required.
+
+### RB-012 — SaaS subscription payment can target an arbitrary clinic
+- **Status:** FIXED — pending exact-head CI verification
+- **Priority:** P0
+- **Area:** Finance / Subscription / IDOR
+- **Observed:** generic payment creation accepted `refType=subscription`, arbitrary clinic `refId`, client `saasPlan` and `months` without scoped clinic billing authorization or exact tariff reconciliation.
+- **Risk:** a crafted payment could be settled against another clinic and activate its SaaS subscription.
+- **Fix:** subscription payment creation now requires `assertClinicBillingAccess` for the target clinic, accepts only paid catalog plans, validates integer months 1–24, and requires exact server-derived tariff total. Settlement repeats the tariff/amount invariant.
+- **Regression:** payment settlement tests cover tampered subscription amount; source contract covers creation-time billing and tariff guards.
+- **Verification:** fresh exact-head CI/E2E required before closure.
+
+### RB-013 — Clinic-cash payment creation lacks financial permission and ref scope
+- **Status:** FIXED — pending exact-head CI verification
+- **Priority:** P0
+- **Area:** Finance / Payments / RBAC / Tenant integrity
+- **Observed:** clinic-cash payment creation used clinic membership as sufficient authorization and accepted client-supplied appointment/invoice refs without proving they belonged to the selected clinic.
+- **Risk:** ordinary clinical members could initiate money-state changes; a finance user could bind a payment to a cross-clinic appointment/invoice.
+- **Fix:** clinic cash requires scoped `billing.manage`; appointment refs must belong to the active clinic; invoice refs must belong to the active clinic and the payment cannot exceed the outstanding invoice balance.
+- **Regression:** payment route contract locks the billing guard and clinic/ref/amount checks.
+- **Verification:** fresh exact-head CI/E2E remains required.
+
+### RB-014 — Lecturer context token uses non-canonical organization type
+- **Status:** FIXED — pending exact-head CI/E2E verification
+- **Priority:** P1
+- **Area:** Identity / Workspace Context / Academy
+- **Observed:** `POST /api/iam/switch-context` for `scopeType=LECTURER` emitted `organizationType=LECTURER`, while canonical Academy organization context is `ACADEMY`.
+- **Risk:** content-policy resolution and frontend workspace logic could classify an explicitly selected lecturer workspace as a different role/context.
+- **Fix:** lecturer switch-context now emits the canonical Academy organization type while preserving lecturer scope/identity.
+- **Regression:** `ACADEMY-012` switches a real lecturer context and asserts `organizationType=ACADEMY`, canonical `organizationId`, `organizationOriginalId`, and `lecturerId`.
+- **Verification:** local backend TypeScript passes; exact-head E2E required before closure.
 
 ## Closed
 

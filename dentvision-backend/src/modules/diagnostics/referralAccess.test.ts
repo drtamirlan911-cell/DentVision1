@@ -1,15 +1,16 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { referralFindUnique, assertOrgAccess, queryRaw } = vi.hoisted(() => ({
+const { referralFindUnique, assertOrgAccess, assertClinicOrgAccess, queryRaw } = vi.hoisted(() => ({
   referralFindUnique: vi.fn(),
   assertOrgAccess: vi.fn(),
+  assertClinicOrgAccess: vi.fn(),
   queryRaw: vi.fn(),
 }));
 
 vi.mock('../../lib/prisma.js', () => ({
   default: { referral: { findUnique: referralFindUnique }, $queryRaw: queryRaw },
 }));
-vi.mock('../../lib/orgContext.js', () => ({ assertOrgAccess }));
+vi.mock('../../lib/orgContext.js', () => ({ assertOrgAccess, assertClinicOrgAccess }));
 
 import { authorizeReferralListScope, requireReferralAccess } from './diagnostics.routes.js';
 
@@ -40,14 +41,14 @@ describe('requireReferralAccess middleware', () => {
     expect(next).toHaveBeenCalledOnce(); expect(assertOrgAccess).not.toHaveBeenCalled();
   });
   it('admits a member of the referring clinic within the assigned branch', async () => {
-    referralFindUnique.mockResolvedValueOnce(referral); assertOrgAccess.mockResolvedValueOnce(true);
+    referralFindUnique.mockResolvedValueOnce(referral); assertClinicOrgAccess.mockResolvedValueOnce(true);
     const req: any = { params: { id: 'r1' }, user: { id: 'staff-1', role: 'ASSISTANT', clinicId: 'clinic-1', branchIds: ['branch-1'], assignedBranchId: 'branch-1' } };
     const res = mockRes(); const next = vi.fn();
     await requireReferralAccess()(req, res, next);
-    expect(next).toHaveBeenCalledOnce(); expect(assertOrgAccess).toHaveBeenCalledWith(req.user, 'clinic-1');
+    expect(next).toHaveBeenCalledOnce(); expect(assertClinicOrgAccess).toHaveBeenCalledWith(req.user, 'clinic-1');
   });
   it('rejects an unrelated user with 403 when includeCenterLab is false', async () => {
-    referralFindUnique.mockResolvedValueOnce(referral); assertOrgAccess.mockResolvedValueOnce(false);
+    referralFindUnique.mockResolvedValueOnce(referral); assertClinicOrgAccess.mockResolvedValueOnce(false);
     const req: any = { params: { id: 'r1' }, user: { id: 'center-staff', role: 'DOCTOR', organizationType: 'DIAGNOSTIC_CENTER', organizationId: 'center-1' } };
     const res = mockRes(); const next = vi.fn(); await requireReferralAccess()(req, res, next);
     expect(next).not.toHaveBeenCalled(); expect(res.status).toHaveBeenCalledWith(403);
@@ -65,7 +66,7 @@ describe('requireReferralAccess middleware', () => {
     expect(next).not.toHaveBeenCalled(); expect(res.status).toHaveBeenCalledWith(403);
   });
   it('admits the executing lab staff when includeCenterLab is true', async () => {
-    referralFindUnique.mockResolvedValueOnce({ ...referral, centerId: null, labId: 'lab-1' }); assertOrgAccess.mockResolvedValueOnce(false);
+    referralFindUnique.mockResolvedValueOnce({ ...referral, centerId: null, labId: 'lab-1' }); assertClinicOrgAccess.mockResolvedValueOnce(false);
     const req: any = { params: { id: 'r1' }, user: { id: 'lab-staff', role: 'LAB', organizationType: 'LABORATORY', organizationId: 'lab-1' } };
     const res = mockRes(); const next = vi.fn(); await requireReferralAccess(true)(req, res, next);
     expect(next).toHaveBeenCalledOnce();
@@ -80,10 +81,10 @@ describe('authorizeReferralListScope', () => {
   it('allows SUPERADMIN with no scope at all', async () => { expect(await authorizeReferralListScope({ id: 'admin', role: 'SUPERADMIN' } as any, {})).toEqual({ ok: true }); });
   it('rejects a non-superadmin query with no scope', async () => { const result = await authorizeReferralListScope({ id: 'u1', role: 'DOCTOR' } as any, {}); expect(result.ok).toBe(false); if (!result.ok) expect(result.status).toBe(400); });
   it('allows a clinicId the caller is a member of', async () => {
-    assertOrgAccess.mockResolvedValueOnce(true); const user = { id: 'u1', role: 'DOCTOR' } as any;
-    expect(await authorizeReferralListScope(user, { clinicId: 'clinic-1' })).toEqual({ ok: true }); expect(assertOrgAccess).toHaveBeenCalledWith(user, 'clinic-1');
+    assertClinicOrgAccess.mockResolvedValueOnce(true); const user = { id: 'u1', role: 'DOCTOR' } as any;
+    expect(await authorizeReferralListScope(user, { clinicId: 'clinic-1' })).toEqual({ ok: true }); expect(assertClinicOrgAccess).toHaveBeenCalledWith(user, 'clinic-1');
   });
-  it('rejects a clinicId the caller is NOT a member of', async () => { assertOrgAccess.mockResolvedValueOnce(false); const result = await authorizeReferralListScope({ id: 'u1', role: 'DOCTOR' } as any, { clinicId: 'someone-elses-clinic' }); expect(result.ok).toBe(false); if (!result.ok) expect(result.status).toBe(403); });
+  it('rejects a clinicId the caller is NOT a member of', async () => { assertClinicOrgAccess.mockResolvedValueOnce(false); const result = await authorizeReferralListScope({ id: 'u1', role: 'DOCTOR' } as any, { clinicId: 'someone-elses-clinic' }); expect(result.ok).toBe(false); if (!result.ok) expect(result.status).toBe(403); });
   it('allows a centerId matching the caller\'s organization context', async () => { const user = { id: 'u1', role: 'DOCTOR', organizationType: 'DIAGNOSTIC_CENTER', organizationId: 'center-1' } as any; expect(await authorizeReferralListScope(user, { centerId: 'center-1' })).toEqual({ ok: true }); });
   it('rejects a centerId that does not match the caller\'s organization', async () => { const result = await authorizeReferralListScope({ id: 'u1', role: 'DOCTOR', organizationType: 'DIAGNOSTIC_CENTER', organizationId: 'center-1' } as any, { centerId: 'center-99' }); expect(result.ok).toBe(false); if (!result.ok) expect(result.status).toBe(403); });
   it('rejects a labId that does not match the caller\'s organization', async () => { const result = await authorizeReferralListScope({ id: 'u1', role: 'LAB', organizationType: 'LABORATORY', organizationId: 'lab-1' } as any, { labId: 'lab-99' }); expect(result.ok).toBe(false); if (!result.ok) expect(result.status).toBe(403); });

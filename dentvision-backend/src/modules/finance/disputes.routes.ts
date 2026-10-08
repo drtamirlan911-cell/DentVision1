@@ -2,6 +2,7 @@ import { Router } from 'express';
 import prisma from '../../lib/prisma.js';
 import { authenticate } from '../../middleware/auth.js';
 import { requirePermission } from '../../middleware/rbac.js';
+import { requireSuperadmin } from '../../middleware/rbac.js';
 import type { AuthRequest, ApiResponse } from '../../types/index.js';
 import { reverseCashback } from '../dentcash/refund.service.js';
 import { auditFromReq } from '../compliance/audit.service.js';
@@ -19,7 +20,31 @@ disputesRouter.post('/', async (req: AuthRequest, res) => {
     if (!refType || !refId || !reason) {
       return res.status(400).json({ ok: false, error: 'refType, refId и reason обязательны' } satisfies ApiResponse);
     }
-    const dispute = await prisma.dispute.create({ data: { refType, refId, reason } });
+
+    // A dispute is a financial side-effect boundary. Do not allow an authenticated
+    // user to create a dispute against an arbitrary tenant's reference.
+    const normalizedRefType = String(refType).trim().toLowerCase();
+    if (normalizedRefType !== 'order') {
+      return res.status(400).json({ ok: false, error: 'Неподдерживаемый тип объекта спора' } satisfies ApiResponse);
+    }
+
+    const order = await prisma.order.findUnique({
+      where: { id: String(refId) },
+      select: { id: true, userId: true, clinicId: true },
+    });
+    if (!order) {
+      return res.status(404).json({ ok: false, error: 'Заказ не найден' } satisfies ApiResponse);
+    }
+
+    const canDispute = order.userId === req.user?.id
+      || (!!req.user?.clinicId && order.clinicId === req.user.clinicId);
+    if (!canDispute) {
+      return res.status(403).json({ ok: false, error: 'Нет доступа к этому заказу' } satisfies ApiResponse);
+    }
+
+    const dispute = await prisma.dispute.create({
+      data: { refType: normalizedRefType, refId: order.id, reason: String(reason).trim() },
+    });
     await auditFromReq(req, {
       action: 'dispute.created',
       entity: 'dispute',
@@ -33,12 +58,12 @@ disputesRouter.post('/', async (req: AuthRequest, res) => {
   }
 });
 
-disputesRouter.get('/', requirePermission('finance.manage'), async (req: AuthRequest, res) => {
+disputesRouter.get('/', requireSuperadmin, async (req: AuthRequest, res) => {
   const disputes = await prisma.dispute.findMany({ orderBy: { createdAt: 'desc' }, take: 100 });
   return res.json({ ok: true, data: disputes } satisfies ApiResponse);
 });
 
-disputesRouter.post('/:id/status', requirePermission('finance.manage'), async (req: AuthRequest, res) => {
+disputesRouter.post('/:id/status', requireSuperadmin, async (req: AuthRequest, res) => {
   try {
     const requestedStatus: unknown = req.body?.status;
     if (!isDisputeStatus(requestedStatus)) {
@@ -78,16 +103,25 @@ disputesRouter.post('/:id/status', requirePermission('finance.manage'), async (r
       return res.status(404).json({ ok: false, error: 'Спор не найден после обновления' } satisfies ApiResponse);
     }
 
-    // Trigger refund when dispute is resolved in favour of the buyer.
-    if (requestedStatus === 'resolved' && existing.refType && existing.refId) {
+    // Financial resolution is a platform-level mutation. Only supported order
+    // disputes may trigger DentCash reversal; never pass an arbitrary reference
+    // type into the refund engine.
+    if (requestedStatus === 'resolved' && existing.refType === 'order' && existing.refId) {
       try {
         await reverseCashback({
-          refType: existing.refType,
+          refType: 'order',
           refId: existing.refId,
           reason: 'dispute_resolved',
         });
       } catch (error) {
         console.error('Dispute refund failed:', error);
+        // Do not report a successful financial resolution when the compensating
+        // financial action failed.
+        await prisma.dispute.updateMany({
+          where: { id: existing.id, status: requestedStatus },
+          data: { status: existing.status },
+        }).catch(() => undefined);
+        return res.status(502).json({ ok: false, error: 'Не удалось выполнить возврат по спору' } satisfies ApiResponse);
       }
     }
 

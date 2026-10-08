@@ -299,7 +299,7 @@ const AGENTS: AgentDefinition[] = [
     name: 'Supplier Agent',
     domain: 'marketplace',
     version: '1.0.0',
-    requiredPermissions: ['SUPPLIER'],
+    requiredPermissions: ['SUPPLIER', 'SELLER'],
     allowedTools: ['searchProducts', 'navigate'],
     owner: 'marketplace-team',
     status: 'active',

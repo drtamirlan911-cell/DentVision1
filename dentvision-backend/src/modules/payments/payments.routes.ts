@@ -21,12 +21,10 @@ import {
 } from './clinicPayments.js';
 import { createHmac, timingSafeEqual } from 'node:crypto';
 import type { AuthRequest, ApiResponse } from '../../types/index.js';
-import {
-  resolveClinicAccess,
-  assertClinicWritable,
-  PlanGateError,
-} from '../billing/planEntitlements.js';
-import { assertOrgAccess } from '../../lib/orgContext.js';
+import { assertClinicBillingAccess, getPlanCatalog } from '../billing/clinicSubscription.service.js';
+import { assertClinicOrgAccess, resolveClinicAccess, resolveOrganizationIdForClinic } from '../../lib/orgContext.js';
+import { permissionsSatisfy } from '../../lib/permissions.js';
+import { resolveUserPermissions } from '../../lib/resolvePermissions.js';
 import { canTransitionOrder } from '../../lib/orderStatus.js';
 import { auditFromReq, writeAuditLog } from '../compliance/audit.service.js';
 import { reserveIdempotencyKey, completeIdempotencyKey, deleteIdempotencyKey } from '../../lib/idempotency.js';
@@ -181,6 +179,10 @@ async function settleEnrollmentPayment(
 
   const course = await db.course.findUnique({ where: { id: courseId } });
   if (!course) return false;
+  const expectedAmount = tengeToMinor(Number(course.price || 0));
+  if (expectedAmount !== payment.amount) {
+    throw new Error(`Сумма оплаты курса не совпадает с ценой курса: ожидалось ${expectedAmount}, получено ${payment.amount}`);
+  }
 
   let enrollment = await db.schoolEnrollment.findUnique({
     where: { userId_courseId: { userId, courseId } },
@@ -196,13 +198,14 @@ async function settleEnrollmentPayment(
     where: { refType: 'enrollment', refId: enrollment.id, type: 'sale' },
   });
 
-  const lecturerId = payment.sellerId || course.lecturerId;
-  if (lecturerId && payment.amount > 0n && !alreadySold) {
+  const sellerType = course.lecturerId ? 'LECTURER' : course.academyId ? 'ACADEMY' : null;
+  const sellerId = course.lecturerId || course.academyId || null;
+  if (sellerType && sellerId && payment.amount > 0n && !alreadySold) {
     await recordSaleTx(
       {
         domain: 'school',
-        sellerType: (payment.sellerType as WalletOwnerType) || 'LECTURER',
-        sellerId: lecturerId,
+        sellerType,
+        sellerId,
         amountMinor: payment.amount,
         refType: 'enrollment',
         refId: enrollment.id,
@@ -254,8 +257,15 @@ async function settleAcademyEventPayment(
   }
 
   if (payment.amount > 0n) {
-    const sellerType = (payment.sellerType || 'PLATFORM') as WalletOwnerType;
-    const sellerId = payment.sellerId || 'system';
+    const course = meta.courseId ? await db.course.findUnique({ where: { id: meta.courseId }, select: { price: true, lecturerId: true, academyId: true } }) : null;
+    if (course) {
+      const expectedAmount = tengeToMinor(Number(course.price || 0));
+      if (expectedAmount !== payment.amount) {
+        throw new Error(`Сумма оплаты Academy event не совпадает с ценой курса: ожидалось ${expectedAmount}, получено ${payment.amount}`);
+      }
+    }
+    const sellerType = (course?.lecturerId ? 'LECTURER' : course?.academyId ? 'ACADEMY' : payment.sellerType || 'PLATFORM') as WalletOwnerType;
+    const sellerId = course?.lecturerId || course?.academyId || payment.sellerId || 'system';
     // Previously best-effort (`.catch()`-swallowed) because recordSale opened
     // its own independent transaction. Now that this runs inside the caller's
     // shared `db`, a failure here must abort the whole settlement instead of
@@ -321,6 +331,11 @@ async function settlePaidPayment(
     const planRaw = String(meta.saasPlan || 'professional').toLowerCase();
     const saasPlan = (planRaw === 'pro' ? 'professional' : planRaw) as
       'starter' | 'professional' | 'enterprise';
+    const plan = getPlanCatalog().find((item) => item.id === saasPlan);
+    const months = Math.min(Math.max(Number(meta.months || 1), 1), 24);
+    if (!plan || Number(plan.amountMinor) <= 0 || payment.amount !== BigInt(plan.amountMinor) * BigInt(months)) {
+      throw new Error('Недопустимая сумма SaaS-подписки при settlement');
+    }
     const { activateClinicSubscriptionFromPayment, isSaasPlanId } = await import(
       '../billing/clinicSubscription.service.js'
     );
@@ -394,16 +409,39 @@ async function claimPaymentForSettlement(
   return claimed.count === 1;
 }
 
+async function canManageClinicBillingMutation(user: AuthRequest['user'], clinicId: string): Promise<boolean> {
+  if (!user || !clinicId) return false;
+  if (user.role === 'SUPERADMIN') return true;
+
+  // Payment metadata carries the domain Clinic.id. Use the shared resolver so
+  // canonical Organization.id and legacy ClinicMember scopes are handled once.
+  if (!(await assertClinicOrgAccess(user, clinicId))) return false;
+
+  // Refund is a financial mutation, not ordinary payment visibility. Resolve the
+  // caller's role in this exact clinic and require the canonical billing.manage
+  // permission. A doctor/assistant cannot refund merely because they can read the
+  // patient/payment, while OWNER/ADMIN/CASHIER retain operational control.
+  const scopedRole = await resolveClinicAccess(user.id, clinicId);
+  if (!scopedRole) return false;
+  const organizationId = (await resolveOrganizationIdForClinic(clinicId)) || clinicId;
+  const permissions = await resolveUserPermissions(user.id, organizationId, scopedRole.role);
+  return permissionsSatisfy(new Set(permissions), 'billing.manage');
+}
+
 async function assertPaymentOwner(req: AuthRequest, payment: { meta: unknown; refType: string | null; refId: string | null }) {
   const meta = (payment.meta || {}) as { userId?: string; clinicId?: string; merchantScope?: string };
+
+  // Clinic payments are financial-control operations. This branch must run
+  // before the generic meta.userId ownership check because clinic payment
+  // creation intentionally records the creator in meta.userId as well.
+  if (meta.clinicId && (meta.merchantScope === 'clinic' || payment.refType === 'appointment' || payment.refType === 'crm_invoice')) {
+    return canManageClinicBillingMutation(req.user!, meta.clinicId);
+  }
+
   if (meta.userId && meta.userId === req.user!.id) return true;
   if (payment.refType === 'order' && payment.refId) {
     const order = await prisma.order.findUnique({ where: { id: payment.refId }, select: { userId: true } });
     if (order?.userId === req.user!.id) return true;
-  }
-  // Clinic cashier payments: any active member of that clinic may confirm.
-  if (meta.clinicId && (meta.merchantScope === 'clinic' || payment.refType === 'appointment' || payment.refType === 'crm_invoice')) {
-    if (await assertOrgAccess(req.user!, meta.clinicId)) return true;
   }
   return false;
 }
@@ -554,12 +592,48 @@ paymentsRouter.post('/', authenticate, async (req: AuthRequest, res) => {
     if (refType === 'medical_lab_order' && refId) {
       const medicalOrder = await medicalLabOrderAmountMinor(refId);
       if (!medicalOrder) return res.status(404).json({ ok: false, error: 'Медицинский лабораторный заказ не найден или не назначен лаборатории' } satisfies ApiResponse);
-      if (!(await assertOrgAccess(req.user!, medicalOrder.clinicId))) return res.status(403).json({ ok: false, error: 'Нет доступа к этому медицинскому заказу' } satisfies ApiResponse);
+      if (!(await assertClinicOrgAccess(req.user!, medicalOrder.clinicId))) return res.status(403).json({ ok: false, error: 'Нет доступа к этому медицинскому заказу' } satisfies ApiResponse);
       if (medicalOrder.amountMinor <= 0n) return res.status(400).json({ ok: false, error: 'В медицинском заказе отсутствуют оплачиваемые анализы' } satisfies ApiResponse);
       if (medicalOrder.amountMinor !== minor) return res.status(409).json({ ok: false, error: `Сумма не совпадает с медицинским заказом: ожидалось ${medicalOrder.amountMinor}, получено ${minor}` } satisfies ApiResponse);
     }
 
     const metaObj = meta && typeof meta === 'object' ? (meta as Record<string, unknown>) : {};
+
+    // SaaS subscription payments mutate a Clinic subscription during the
+    // authenticated callback. Require scoped billing authority and verify the
+    // exact server-side tariff total before creating the payment.
+    if (refType === 'subscription') {
+      const subscriptionClinicId = String(refId || '').trim();
+      if (!subscriptionClinicId) {
+        return res.status(400).json({ ok: false, error: 'clinicId обязателен для оплаты подписки' } satisfies ApiResponse);
+      }
+      const planRaw = String(metaObj.saasPlan || '').toLowerCase();
+      const normalizedPlan = planRaw === 'pro' ? 'professional' : planRaw;
+      const plan = getPlanCatalog().find((item) => item.id === normalizedPlan);
+      if (!plan || Number(plan.amountMinor) <= 0) {
+        return res.status(400).json({ ok: false, error: 'Некорректный платный тариф' } satisfies ApiResponse);
+      }
+      const requestedMonths = Number(metaObj.months ?? 1);
+      if (!Number.isInteger(requestedMonths) || requestedMonths < 1 || requestedMonths > 24) {
+        return res.status(400).json({ ok: false, error: 'Количество месяцев должно быть целым числом от 1 до 24' } satisfies ApiResponse);
+      }
+      const months = requestedMonths;
+      const expectedMinor = BigInt(plan.amountMinor) * BigInt(months);
+      if (minor !== expectedMinor) {
+        return res.status(409).json({
+          ok: false,
+          error: `Сумма подписки не совпадает с тарифом: ожидалось ${expectedMinor}, получено ${minor}`,
+        } satisfies ApiResponse);
+      }
+      try {
+        await assertClinicBillingAccess(req.user!.id, subscriptionClinicId);
+      } catch (error: any) {
+        return res.status(Number(error?.status) || 403).json({
+          ok: false,
+          error: error?.message || 'Недостаточно прав для управления подпиской',
+        } satisfies ApiResponse);
+      }
+    }
 
     // P1 IDOR fix: a payment references an external object (order/invoice) by
     // refId. Never create a payment against an object the caller does not own.
@@ -587,8 +661,35 @@ paymentsRouter.post('/', authenticate, async (req: AuthRequest, res) => {
           error: 'clinicId обязателен для оплаты на кассе клиники',
         } satisfies ApiResponse);
       }
-      if (!(await assertOrgAccess(req.user!, clinicId))) {
-        return res.status(403).json({ ok: false, error: 'Нет доступа к кассе этой клиники' } satisfies ApiResponse);
+      if (!(await canManageClinicBillingMutation(req.user!, clinicId))) {
+        return res.status(403).json({ ok: false, error: 'Недостаточно прав для приёма оплаты в этой клинике' } satisfies ApiResponse);
+      }
+
+      if (refType === 'appointment' && refId) {
+        const appointment = await prisma.appointment.findFirst({
+          where: { id: String(refId), clinicId },
+          select: { id: true },
+        });
+        if (!appointment) {
+          return res.status(403).json({ ok: false, error: 'Приём не относится к выбранной клинике' } satisfies ApiResponse);
+        }
+      }
+
+      if (refType === 'crm_invoice' && refId) {
+        const invoice = await prisma.invoice.findFirst({
+          where: { id: String(refId), clinicId, deletedAt: null },
+          select: { amount: true, paidAmount: true, status: true },
+        });
+        if (!invoice) {
+          return res.status(403).json({ ok: false, error: 'Счёт не относится к выбранной клинике' } satisfies ApiResponse);
+        }
+        const outstandingMinor = tengeToMinor(Math.max(0, invoice.amount - invoice.paidAmount));
+        if (outstandingMinor <= 0n) {
+          return res.status(409).json({ ok: false, error: 'Счёт уже полностью оплачен' } satisfies ApiResponse);
+        }
+        if (minor > outstandingMinor) {
+          return res.status(409).json({ ok: false, error: 'Сумма платежа превышает остаток счёта' } satisfies ApiResponse);
+        }
       }
 
       const created = await createClinicKaspiPayment({
@@ -610,12 +711,12 @@ paymentsRouter.post('/', authenticate, async (req: AuthRequest, res) => {
           sellerType: sellerType || 'CLINIC',
           sellerId: sellerId || clinicId,
           meta: {
+            ...metaObj,
             qr: created.qr,
             userId: req.user!.id,
             clinicId,
             merchantScope: 'clinic',
             clinicPayMode: created.mode,
-            ...metaObj,
           },
         },
       });
@@ -655,10 +756,10 @@ paymentsRouter.post('/', authenticate, async (req: AuthRequest, res) => {
         sellerType: sellerType || null,
         sellerId: sellerId || null,
         meta: {
+          ...(meta && typeof meta === 'object' ? meta : {}),
           qr: created.qr,
           userId: req.user!.id,
           merchantScope: 'platform',
-          ...(meta && typeof meta === 'object' ? meta : {}),
         },
       },
     });

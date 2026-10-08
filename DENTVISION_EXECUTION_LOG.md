@@ -1085,3 +1085,475 @@ These changes are route/entry reconciliation only. Existing domain implementatio
 - Replaced Redis-specific daily counter tests with PostgreSQL persistence/failure-path tests.
 - GitHub repository search shows no remaining `ioredis`, `bullmq`, `REDIS_URL`, or direct Redis runtime imports.
 - Required next: verify the new production deploy reaches API listening state and confirm durable queue worker initialization.
+
+
+## 2026-10-06 — PR #302 continuation: diagnostics subscription expiry hardening
+
+### Implemented
+- `5b10b881668c6441cab4cbd4feb3058b9a121191` — corrected `ensureCenterSubscription()` to read the existing subscription's `trial_end` alongside `paid_until`. Existing trial subscriptions can now reach the expiry path instead of remaining effectively active because the expiry timestamp was not loaded.
+
+### Verification state
+- PR #302 head remains at the preceding checkpoint before this fix; the new fix is the next commit on `fix/release-blockers-20261006`.
+- Quality Gate #4429 remains green for the preceding head.
+- CI #3641 remains the required fresh full verification; no release-ready status is inferred while E2E/browser/mobile/role/context/visual/business journeys are pending.
+
+### Next action
+- Continue static/runtime blocker remediation on PR #302 without waiting for CI completion, then verify the exact new head through the full release gate chain.
+
+
+## 2026-10-06 — PR #302 continuation: Finance policy/revenue correction
+
+### Implemented
+- `0d81260ec7b87fb90b5868371998a8ae1125ac6b` — aligned the default Dental Laboratory commission with the canonical economics policy: 8% with ₸500 minimum and ₸15,000 cap.
+- Corrected platform Revenue recording to recognize the actual DentVision commission rather than the transaction gross amount. Gross transaction value remains in the Finance transaction/ledger; platform revenue is the commission.
+
+### Verification state
+- These changes are on `fix/release-blockers-20261006` / PR #302.
+- Fresh full CI remains mandatory; no release-ready status is inferred from Quality Gate #4429 alone.
+
+
+## 2026-10-06 — PR #302 continuation: fail-closed commission resolution
+
+### Implemented
+- `24c3c41a108548c8580e8eaaa21b42ba10d0823f` — removed the remaining universal 10% behavior for unsupported commission domains. If neither a scoped/global rule nor a canonical domain policy exists, Finance now fails closed instead of inventing a fee.
+- `5c592d547f525e116b601ed30c257eb0fa39f488` / `74a8d48c728d658c5913eb38ce236459495fb1bc` — updated Finance regression coverage for canonical defaults and diagnostic minimum-fee behavior.
+
+### Verification state
+- Fresh exact-HEAD Quality Gate/full CI remains mandatory after these commits.
+- The canonical economics document remains authoritative; no new pricing model or conflicting policy was introduced.
+
+
+## 2026-10-06 — PR #302 continuation: legacy Diagnostics fee removed
+
+### Implemented
+- `d497e502f755e31fb49ea1b9a47977a230bf3c33` — removed the legacy 10% Diagnostics referral `platformFee` fallback and aligned referral economics with canonical policy: 7%, minimum ₸500, maximum ₸3,000.
+- This closes a second independent code path that could still apply the retired universal 10% rate even after Finance Core had been corrected.
+
+### Verification
+- Fresh exact-HEAD CI remains required.
+
+
+## 2026-10-06 — PR #302 continuation: diagnostics lookup IDOR hardening
+
+### Implemented
+- `925457cd189f83680ba17815ca3bf2cbd86d78ea` — `/diagnostics/studies?centerId=...` and `/diagnostics/lab-tests?labId=...` now require the referenced partner entity to pass the canonical visibility/subscription boundary before returning its catalog. Previously an authenticated user could query an arbitrary center/lab ID and bypass the list visibility gate.
+
+### Verification
+- Fresh exact-HEAD Quality Gate and full CI remain mandatory.
+
+
+## 2026-10-06 — PR #302 continuation: notification detail path
+
+- `44f6bd7c7697d8e7fb166be9d00a8e0aeb0e378c` — added authenticated `GET /notifications/:id`, scoped directly by `userId`, so notification UI can open full details without relying on client-side list state or an unscoped lookup.
+
+
+## 2026-10-06 — PR #302 continuation: Diagnostics financial input hardening
+
+- `be0c4186947f6d150bd57a474fbd1b01b9a104b6` — removed client-supplied `platformFee` from referral payment/status paths. Commission is now derived server-side instead of accepting a caller-controlled fee value.
+
+
+## 2026-10-06 — PR #302 continuation: referral destination and signing authorization hardening
+
+### Implemented
+- `c85f58d6d09f54befee84dd83f1d72da28ad9393` — referral create/update now validates selected diagnostic center/laboratory through the canonical visibility + active-subscription boundary before accepting destination IDs.
+- `bb27922d714193f1be2b2f7fb8719a815f2577d2` — removed the remaining client-controlled `platformFee` parameter from referral status mutation; Diagnostics commission is always derived server-side from the canonical 7% / ₸500 min / ₸3,000 cap policy.
+- `112b237f757300ee0a37cc196b21529d2aa31361` — diagnostic result signing now requires an authorized clinical user and, when the referral has an assigned doctor, only that assigned doctor can sign. The signed user is no longer trusted merely because a caller can supply a doctor ID to the service.
+
+### Verification state
+- Exact PR #302 head after these changes: `112b237f757300ee0a37cc196b21529d2aa31361`.
+- Fresh CI is pending on the exact head; previous Quality Gate results are not treated as current-head evidence.
+- Static audit continues while CI runs.
+
+## 2026-10-07 — PR #302 continuation: anatomical odontogram refinement
+
+### Implemented
+- `af8063aafd4f6d8fd22ae9e7e034e097b6a983df` — refined occlusal anatomy in `AnatomicalToothSvg.tsx`: central/lateral incisors, canine, first/second premolars, upper first/second molars, and lower first/second molars now use distinct silhouettes and fissure/cusp patterns. Lower first molars retain a five-cusp pattern; upper first molars retain a first-molar-specific accessory cusp detail.
+- The same pass corrected lower-arch buccal/lingual surface mirroring for occlusal findings, so MODBL marking semantics remain consistent between arches.
+- `364fc2da535b6204128b413a4e0f5fcfcd174f7c` — tuned the curved upper/lower arch geometry, tooth rotation, responsive width and spacing while keeping the full 32-tooth chart visible.
+
+### Safety
+- No clinical status vocabulary, patient data model, treatment-plan API or routing contract was changed.
+- Changes are isolated to odontogram presentation/mapping logic.
+
+### Verification state
+- Branch remains **UNVERIFIED** until fresh CI/E2E/browser/mobile/role/context/visual evidence is available for the new exact HEAD.
+- Combined commit status currently exposes the Vercel check as pending for the latest commit.
+
+### Next action
+- Inspect the fresh workflow/deployment result for the exact HEAD, then repair any compiler/E2E/mobile visual regressions without weakening tests.
+
+## 2026-10-07 — Current exact HEAD verification checkpoint
+
+### Verified
+- `8875df42e1fc39989880778fc4c86cec0467c224` is the exact current branch HEAD at this checkpoint.
+- Vercel preview deployment `dpl_2JNvFPoE1UT3Bt2Fm5cHTPuxybCi` is **READY** from that exact SHA.
+- Quality Gate run `4580` completed **PASS**: npm ci, TypeScript, ESLint and repository release-gate all succeeded.
+
+### Current unverified release surface
+- Full CI run `3715` for the exact SHA is queued/pending and remains the authoritative source for E2E, browser UX, mobile design, role/context design, visual evidence and business-owner journeys.
+- No production deployment or release-ready claim is made from the Quality Gate alone.
+
+### Changes included before this checkpoint
+- Odontogram anatomy/arch refinement and lower-arch B/L surface mirroring.
+- Canonical six-type onboarding routed through `/onboarding`; legacy diagnostics registration is now only a compatibility redirect.
+- AI digital twin no longer falls back to an arbitrary clinic for an explicitly active non-clinic organization type.
+
+
+
+## 2026-10-07 — Active agent pass: odontogram arch verification
+
+- Inspected the canonical Operating Directive, Execution Plan, Context and Architecture before implementation.
+- Verified PR #302 is the current release-blocker remediation branch and that its earlier CI runs were repeatedly cancelled as new commits arrived; no cancelled run is treated as release evidence.
+- Corrected the clinical odontogram arch geometry on the active implementation branch: upper anterior teeth now curve toward the midline and the lower arch mirrors upward, with reduced vertical depth and chart height so the two opposing arches read as one coherent dental-arch composition.
+- Verification status: the exact-head CI/Quality Gate must complete for commit 587aca7e42696d088e43fc2425028bbece8ca107; visual evidence remains required before declaring the odontogram pass complete.
+- Next action: inspect the exact-head CI jobs and visual artifacts, then continue the remaining P0/P1 release blockers rather than treating historical green/cancelled runs as current evidence.
+
+## 2026-10-07 — PR #302: CI failure triage and IAM/onboarding hardening
+
+### Exact-head verification
+- Candidate before this checkpoint: `8203627b645a4fa5d76246b2694751f01291772c`.
+- Quality Gate passed on the exact candidate: run `4689`.
+- Full CI `3772` executed the complete unit-test surface and reported **2030 passed / 7 failed** across 218 test files.
+
+### Root causes found
+- `pageParity.test.ts`: partner-role routing returned only the partner family pages and dropped the authenticated baseline (`shop/school/profile/settings/public diagnostics`). This contradicted the documented baseline contract.
+- `finance.service.test.ts`: diagnostic minimum was represented in minor KZT units; the test used the string `50_000` instead of the actual serialized value `50000`.
+- `ai/os/appointmentDoctorId.test.ts`: the production guard now uses `resolveClinicAccess`, while the regression mock still exported the retired `isClinicMember` symbol.
+
+### Fixes applied
+- `39ca1c0b1520fb0cd083e7b2e03b97cbbe22a515` — partner workspaces retain the authenticated baseline pages while adding role-specific pages.
+- `191fff904061b78a2776a07e20aef392599711db` — AI appointment regression tests mock the actual scoped clinic-access resolver.
+- `1623f281730ac6021bc181df4ea63ecfc41ba427` — finance diagnostic minimum assertion corrected to the real minor-unit serialization.
+
+### Separate IAM/onboarding hardening already on this branch
+- `12b2f9872f4f6c8799f24e842138ec6dcbe44cdd` / `f7e39117d7a3bc360b517dccb4e15f47b039778e` / `a21870ce3c5ee5fea6fd8b5a93ad57689ffbe60e` — AI organization-scoped role resolution and Seller→Supplier agent mapping hardened.
+- `60a1d67f6fa58c214c3230f33147bd6836a857b3` — removed the redundant legacy organization-role fallback.
+- `9d12bae9b91d2986209df584c6d968fccef6aa7a` — self-service scoped role normalized in the JWT.
+- `b3c7114c18e3accd5122683b991c0f2c3e269ad4` — Diagnostic Center/Laboratory onboarding now uses a canonical `Organization.id` separate from the mirrored entity `originalId`.
+- `8203627b645a4fa5d76246b2694751f01291772c` — idempotent self-service token role normalized as well.
+
+### Current release state
+- Current exact branch candidate is `1623f281730ac6021bc181df4ea63ecfc41ba427` before this log-only checkpoint.
+- The next CI must re-run the complete matrix on the post-log HEAD; no cancelled historical run is evidence.
+- Vercel preview had previously reached READY for the prior exact commits, while later previews hit the account build-rate-limit. This is tracked separately from application correctness and is not treated as a code test failure.
+- Release remains **UNVERIFIED** until full CI/E2E/browser/mobile/role-context/visual evidence and current production/rollback evidence are captured.
+
+
+## 2026-10-07 — PR #302 continuation: exact-head test failure repair + arch orientation
+
+### Exact-head evidence
+- Current branch HEAD: `60e33d84a60633d436d5e9d48f307128b9ba542f`.
+- CI run `3795` on the preceding exact head reached the test phase; Quality Gate `4745` passed, while the full CI lint-test job failed at unit tests.
+- Unit-test result: **2038 passed / 3 failed** across 221 test files.
+- The three failures were test-harness defects: Vitest hoisting in `rbac.partner.test.ts`, and `import.meta.url` resolving to a non-file URL in the two source-inspection tests for Diagnostics and Organizations.
+
+### Implemented
+- `3f0683362766bc07ed98adf0482a6efed28336d9` — changed the partner RBAC mock to `vi.hoisted` so the mocked permission resolver is initialized before Vitest's hoisted `vi.mock` factory executes.
+- `f9768767a6ad86b107aaa21554ba7e9a2151b7ad` and `116f9b66a3768ae493aa70699af04d74554f9d91` — changed the two source-inspection tests to resolve repository paths from `process.cwd()`, removing the invalid `URL` scheme dependency.
+- `60e33d84a60633d436d5e9d48f307128b9ba542f` — corrected the visual arch orientation: upper anterior teeth now descend toward the opposing lower arch and the lower anterior teeth rise toward it, preserving the curved dental-arch composition while keeping the neon anatomical morphology.
+
+### Verification status
+- Frontend lint, backend lint, TypeScript/build, project/system-map validation and Quality Gate were green on the preceding exact head.
+- A fresh workflow for `60e33d84a60633d436d5e9d48f307128b9ba542f` has not yet appeared in the Actions API at this checkpoint; therefore the new fixes are **UNVERIFIED**.
+- Release remains blocked until fresh full CI, E2E, browser UX, mobile design, role/context, visual evidence and business-owner journeys pass on this exact HEAD.
+
+### Next action
+- Inspect the fresh exact-head Actions run as soon as it is available, repair any remaining failures, and do not merge until the complete release evidence chain is green.
+
+
+## 2026-10-07 — PR #302 continuation: notification detail + payment metadata ownership hardening
+
+### Implemented
+- Added a frontend `getNotification(id)` API call and changed the notification detail dialog to fetch the authoritative server-side record when opened, while retaining the list item as a graceful fallback.
+- Hardened `POST /api/notifications/:id/read` to mutate only rows owned by the authenticated user without returning a distinct 403 for another user's notification identifier.
+- Added regression contracts for notification ownership and dynamic-route ordering.
+- Corrected payment metadata merge order so client `meta` cannot overwrite server-authoritative `userId`, merchant scope, clinic ID or generated QR metadata.
+
+### Verification status
+- These changes are unverified until the next exact-head CI/Quality Gate completes.
+- Release remains blocked on full CI/E2E/browser/mobile/role-context/visual/business-owner evidence.
+
+
+## 2026-10-07 — Documentation state synchronization
+
+- `889da67d1ecbb011b6bc4e01c9bae2ca926caf5d` — synchronized `DENTVISION_CONTEXT.md` with the current active PR #302 state, preserving the distinction between verified prior evidence and the current unverified exact HEAD.
+- Current exact-head CI remains the release evidence source; no release-ready status is inferred from documentation or older green runs.
+
+
+## 2026-10-07 — PR #302 continuation: Academy settlement source-of-truth hardening
+
+- `204e95c7cbcf6b4f56ca03cafa7a7e13989febfa` — Academy enrollment settlement now verifies the paid amount against the canonical course price and derives seller identity from the persisted course (lecturer/academy) instead of trusting payment `sellerId/sellerType`.
+- `66c677a24fc60dd0002c823b66ffcf3f4d9286ec` — added a regression contract preventing reintroduction of client-controlled Academy seller identity in enrollment settlement.
+
+### Verification status
+- The current branch HEAD is this log commit and is unverified until fresh exact-head CI completes.
+
+
+## 2026-10-07 — Diagnostics result signer safety hardening
+
+- `5aba6fbbb40376242ef0fe3b67f5aba28b90c352` — partner diagnostic result signing now requires the clinical signer role appropriate to the partner type: `RADIOLOGIST` for diagnostic centers; `MEDICAL_LAB_VALIDATOR` or `MEDICAL_LAB_DOCTOR` for medical laboratories. Partner owner/admin/manager/finance/quality roles can no longer sign by virtue of broad management access.
+- `9f092472999b7b6b64ce21f06daf5625930ec88d` — added a regression contract for the clinical signer boundary.
+
+### Verification status
+- Latest code/documentation changes are pending fresh exact-head CI verification.
+
+
+## 2026-10-07 — Diagnostics clinical assignee boundary
+
+- `9955c83841180bbcb0a57616102192a178507ab6` — diagnostic referral creation no longer allows an `ADMIN` to be assigned as the clinical doctor; only `DOCTOR`, `OWNER` or `DIRECTOR` clinic access roles are accepted.
+- `19b86b41fca6d7cde08ee6f8f973ff141f7a89bd` — added route-contract regression coverage for the clinical assignee restriction.
+
+### Verification status
+- Current HEAD remains unverified until fresh exact-head CI completes.
+
+
+## 2026-10-07 — CI #3814 failure repair
+
+- Exact-head CI #3814 reached **2046 passed / 3 failed** unit tests; frontend lint, backend lint, build/typecheck, command-center audit and generated system-map validation passed.
+- Fixed the three test-contract failures without weakening production authorization:
+  - supplier RBAC test now asserts the canonical `shop.manage` key after the legacy `supplier.manage` mapping;
+  - organization canonical-identity test now slices the actual `diagnostic_center` and laboratory branches rather than starting inside an object literal;
+  - organization control-center test now resolves the source path from `process.cwd()`, avoiding non-file `import.meta.url` resolution.
+- These are test-harness corrections; the partner fail-closed authorization behavior remains unchanged.
+- Current exact-head CI must rerun before any release decision.
+
+## 2026-10-07 — PR #302 exact-head CI unit-test repair (organizations source inspection)
+
+- Exact-head CI #3816 reached the unit-test phase with **2048 passed / 1 failed** across 221 test files.
+- The single failure was `dentvision-backend/src/modules/organizations/organizations.test.ts`: the regression test sliced the diagnostic/laboratory source block starting at `originalType: ...` inside an object literal, so the block did not contain the canonical `tx.organization.upsert` declaration.
+- `a0f87c0e8f1756887d73a09ca67a6bfa7a513a01` — changed the source-inspection boundaries to the actual `diagnostic_center`, `dental_lab/medical_lab`, and `supplier` control-flow branches. No production authorization or identity logic was weakened.
+- Verification: the failing test must be re-run on the post-fix exact HEAD; the concurrent full E2E job was superseded by the branch push.
+
+## 2026-10-07 — Odontogram clinical-context layout refinement
+
+- `4f540e4fc256779ad8598beebc898d206925322d` — moved the selected-tooth clinical context beside the curved dental arches at desktop widths; mobile stacks the context below the arches.
+- The selected panel now also surfaces the current tooth state and non-healthy surface findings next to the existing enamel/dentin/pulp/nerve/root anatomy view.
+- Clinical state mutation, destructive-status confirmation, FDI numbering, treatment-plan sync, and tooth persistence logic were not changed by this visual/layout refinement.
+- Fresh exact-head CI and browser/mobile visual evidence remain required before treating the refinement as release-proven.
+
+
+## 2026-10-08 — PR #302: branch physical-schema + AI mobile target hardening
+
+### Exact CI evidence
+- CI #3822 on the prior exact HEAD exposed a systemic branch-scope failure: E2E raw SQL queried physical columns "branches.createdAt" / "updatedAt", while the canonical Prisma Branch model maps audit timestamps to "created_at" / "updated_at".
+- This single schema mismatch cascaded into patient creation/list failures, appointments, clinical fixtures, branch management and tenant/IDOR journeys.
+- Role Design also exposed a /me/contexts branch-default query using the same stale physical timestamp names.
+- Mobile Design Gate exposed sub-36px interactive targets in the authenticated AI workspace.
+
+### Fixes applied
+- e2e/helpers/factories.ts — branch fixture discovery/creation now uses the physical snake_case audit columns used by the canonical Branch schema.
+- dentvision-backend/src/lib/patientBranchScope.ts — organization branch ordering now uses "created_at".
+- dentvision-backend/src/modules/branches/branches.routes.ts — branch read/create/update raw SQL now uses "created_at" / "updated_at" consistently with Prisma mappings.
+- dentvision-backend/src/modules/iam/iam.routes.ts — /me/contexts default-branch query now uses the mapped physical timestamp columns, preventing context discovery HTTP 500.
+- src/components/intelligence/AIWorkspaceIndex.tsx — the AI workspace root now enforces a minimum 36×36px target for descendant buttons, while preserving larger explicit controls.
+
+### Verification status
+- Quality Gate was green before these changes and a new exact-head Quality Gate/CI pair has been triggered after them.
+- The new exact-head evidence is the only release evidence that may be used for the next decision; previous cancelled runs remain historical context only.
+- Release remains UNVERIFIED pending fresh core E2E, Browser UX, Mobile Design, Role/Context, Visual Agent and downstream business-owner gates.
+
+## 2026-10-08 — PR #302: Marketplace context fail-closed hardening
+
+### Implemented
+- `dentvision-backend/src/iam/contentCatalogAccess.ts` — authenticated PATIENT users now resolve to the PATIENT catalog audience instead of falling through to PUBLIC.
+- `dentvision-backend/src/modules/shop/shop.routes.ts` — Marketplace list filtering is enforced directly from the active server-resolved content context; patient/public contexts receive only explicitly GENERAL/PATIENT tagged products and mixed professional-audience rows are excluded. Product detail applies the same authorization policy before returning data.
+
+### Verification status
+- This is a follow-up to exact CI evidence showing a patient-context Marketplace catalog assertion failure.
+- Fresh CI must validate the complete branch-scope, IAM-context, Marketplace and AI mobile changes on the current exact HEAD.
+- Release remains UNVERIFIED until all required downstream gates are green.
+
+## 2026-10-08 — Marketplace legacy-tag safety
+- `dentvision-backend/src/modules/shop/shop.routes.ts` — patient/public Marketplace audience SQL now checks `jsonb_typeof(tags) = 'array'` before `jsonb_array_elements_text`, preventing malformed/legacy JSON tag shapes from turning catalog access into HTTP 500.
+- No change to the fail-closed audience policy: unclassified or mixed professional rows remain unavailable to patient/public contexts.
+- This is recorded before the fresh exact-head CI rerun; release remains UNVERIFIED.
+
+## 2026-10-08 — Branch SQL casing correction
+- `dentvision-backend/src/modules/branches/branches.routes.ts` — corrected the earlier timestamp alignment so only the Branch table uses `created_at`/`updated_at`; `clinic_members.updatedAt` remains camelCase as defined by its canonical Prisma model.
+- This correction prevents branch member assignment/status/unassignment from inheriting an invalid snake_case timestamp column.
+- Fresh exact-head CI is required after this final corrective change; release remains UNVERIFIED.
+
+
+## 2026-10-08 — Finance/Inventory branch timestamp hardening
+- `dentvision-backend/src/lib/financeBranchScope.ts` and `dentvision-backend/src/lib/inventoryBranchScope.ts` — branch ordering now uses the canonical physical `created_at` column instead of the stale `createdAt` identifier.
+- A targeted pass across adjacent branch-related backend modules did not find another confirmed `branches.createdAt/updatedAt` raw-SQL reference in the checked production files.
+- Fresh exact-head CI is required after these changes; release remains UNVERIFIED.
+
+
+## 2026-10-08 — Partner pricing authorization hardening
+
+### Finding
+- Review of PR #302 exposed an authorization overreach in `dentvision-backend/src/modules/diagnostics/diagnostics.routes.ts`.
+- `canManagePartnerBilling` correctly included cashier roles for payment collection, but the same guard was also used by diagnostic-center/laboratory pricing and catalog mutation endpoints.
+- This meant a cashier could reach privileged pricing/catalog configuration inside the partner organization.
+
+### Implemented
+- Added `canManagePartnerCatalog`, restricted to `SUPERADMIN/OWNER/ADMIN/MANAGER/DIRECTOR` plus the corresponding partner-scope privileged suffixes.
+- Pricing update/create endpoints now use the catalog guard.
+- Payment collection and `/referrals/:id/mark-paid` retain the broader billing guard required for cashier workflows.
+- Added a route-contract regression test proving the four pricing handlers use the catalog guard while the three billing handlers retain the billing guard.
+
+### Verification
+- Static repository contract verification on the new branch HEAD confirms 4 catalog guards and 3 billing guards.
+- Fresh CI has not yet executed for the new exact HEAD; release status remains UNVERIFIED.
+- Vercel preview for `22274262449d88b6e5be09eef2dc09b4e66d0ef9` is currently QUEUED.
+
+### Next action
+- Verify the exact new HEAD through the full CI/E2E/browser/mobile/role/visual chain before any release or merge decision.
+
+
+## 2026-10-08 — Organization branch SQL physical-schema correction
+
+- `485ae3c27c206416a602e897855461e76edfc4e4` — corrected the remaining raw SQL in `organizations.routes.ts` to use the canonical Branch physical audit columns `created_at`/`updated_at` for self-service idempotent lookup, branch creation, and organization control-center ordering.
+- `da2a69c7451911301e7105ac83dac9be493d8a9d` — added a regression contract that inspects those Branch SQL fragments and rejects the old camelCase physical column names.
+- This closes the confirmed adjacent physical-schema defect found during the post-`financeBranchScope`/`inventoryBranchScope` scan. No authorization boundary was weakened.
+- Verification: a fresh exact-head CI run is required because the current workflow evidence predates these commits.
+- Release remains **UNVERIFIED** pending the full CI/E2E/browser/mobile/role-context/visual/business-owner evidence chain.
+
+
+## 2026-10-08 — Academy catalog/content isolation hardening
+
+- `9cd0dd7d1d5337a78a8465b342d2f020801a85f8` — introduced a safe Academy catalog DTO: arbitrary `Course.meta.modules` and other private keys are no longer spread into public course cards; paid `fileUrl` is withheld unless an authorized detail flow requests it.
+- `d02845a907938181ab5597ea9820fdb05cded420` — applied the canonical Academy audience policy to course, webinar, textbook, and office catalog surfaces and to course detail access.
+- `d463f395da1d5b950389c9f50fcbf0203b6b3aef` — removed paid asset URLs from Academy event cards as an independent projection-level safeguard.
+- `d49576cd34be6bcb58012b227b5a5658e737ee83` — added E2E coverage proving a public paid GENERAL course has no downloadable/private module payload and a PROFESSIONAL-only course is absent from the public catalog.
+- This extends the existing paid-course detail authorization rather than replacing it: catalog visibility, private asset projection, detail access, and enrollment are now separate enforcement layers.
+- Verification: fresh exact-head CI required after these commits.
+- Release remains **UNVERIFIED** pending the full CI/E2E/browser/mobile/role-context/visual/business-owner evidence chain.
+
+
+## 2026-10-08 — Active notification detail workflow
+
+- `f880f78ef33c8899850b6360b1bee5e4dbfd201c` — changed the live `AlertDropdown` used by `IntelligenceLayout`: notification clicks now open a detail dialog with full message/timestamp, support Escape/backdrop close, and only navigate after an explicit action.
+- `73952b217f5e783c1ea7130731f623a448be3f47` — added E2E coverage for create → reload → notification list → detail → related-section navigation.
+- This removes the split behavior where the existing `NotificationCenter` supported details but the active topbar component navigated directly and discarded the notification context.
+- Verification: fresh exact-head CI required after these commits.
+
+## 2026-10-08 — Clinic payment refund authorization hardening
+
+### Finding
+- Review of `POST /api/payments/:id/refund` found that clinic-scoped payment ownership returned true for any member with organization access.
+- This made ordinary clinical/operational membership sufficient to reach a financial reversal mutation, despite the canonical permission model reserving `billing.manage` for finance-control roles.
+
+### Implemented
+- Added `canManageClinicRefund` to resolve the caller's scoped clinic role and effective permissions for the exact organization.
+- Clinic refunds now require `billing.manage`; SUPERADMIN remains explicitly allowed.
+- Personal platform/order refund ownership behavior remains unchanged.
+- Added a regression assertion in `refund.service.test.ts`.
+
+### Verification
+- Static repository verification confirms the route contains the scoped `billing.manage` check and no longer contains the member-only clinic refund branch.
+- Fresh CI/E2E evidence is still unavailable for the new exact HEAD.
+
+### Next action
+- Run the full exact-head CI/E2E/browser/mobile/role/visual chain and continue closing only evidence-backed blockers.
+
+
+## 2026-10-08 — Owner lifecycle registration boundary
+
+- `bb44b097eacd5141c849f8bc6d7ccc914cc88b58` — branch-management E2E now asserts the workspace picker reflects a switched branch immediately before reload, protecting the canonical Organization → Branch read-model contract.
+- `f117de85fcc466d7c9c75b417a24f9e8415f204d` — added a deterministic E2E vertical slice for new account registration → canonical partner onboarding → scoped PersonRole/Branch creation → `/api/iam/me/contexts` persistence → reload.
+- The registration assertion also verifies a malicious `role: OWNER` request still creates only the unscoped `STUDENT` global account; privileged access is granted only by the scoped onboarding graph.
+- Verification remains CI-gated; no new exact-head GitHub Actions run is currently reported for the connector-authored commits.
+
+
+## 2026-10-08 — Branch code uniqueness contract
+
+- `83fed36035692d1cd547a011088050f7ab9b90c6` — branch create/edit now normalizes codes through one helper and performs explicit organization-scoped uniqueness checks. Duplicate create/update returns stable `409 BRANCH_CODE_CONFLICT`; DB `23505` remains a final concurrency guard.
+- `7e6ea1d810bcafca7b5a0c5754b55b4125231dee` — added E2E coverage for duplicate branch creation and conflicting branch-code edits.
+- This closes the branch-management contract's recoverable uniqueness path without introducing another branch model.
+- Verification remains exact-head CI-gated.
+
+
+## 2026-10-08 — Context + branch staff hardening continuation
+
+- `65b6698b88b758f90e234734ebb8e75817450856` — fixed clinic branch staff re-enable: disabled `ClinicMember` records with `branchId=NULL` can now be re-enabled for their branch; members assigned to another branch receive a stable `409 BRANCH_MEMBER_ASSIGNED_ELSEWHERE`.
+- `6b69166ff863f8beb8786f1ad6da49e486385848` — strengthened the backend regression contract for the re-enable path.
+- `0fb9118e4807f1f30a4667c2a7caecce6c1ec76a` — made `api.switchContext()` persist the returned scoped access/refresh pair centrally and made `switchWorkspace()` delegate to the same canonical function. This prevents supplier/diagnostics/workspace flows from switching only in component-local state.
+- These changes preserve the canonical Identity → Active Workspace → Organization → Branch → Role → Permission chain; no fallback to global privileged roles was added.
+- Exact-head verification is still pending; connector-visible Vercel failure remains an infrastructure `build-rate-limit` condition, not a code failure, until a fresh full CI run exists.
+
+
+## 2026-10-08 — Supplier route authorization boundary
+
+- `96bf86cdf4638a15c857df5bfa609cebbb995eec` — routed `/supplier` through the existing workspace-aware `RequirePage('supplier')` guard. Supplier access now requires an authenticated session actually scoped to `SUPPLIER` (or explicit SUPERADMIN), matching the guard's documented contract instead of relying on an unguarded route.
+- The change is paired with `0fb9118e4807f1f30a4667c2a7caecce6c1ec76a`, which persists the scoped JWT at the shared `switchContext()` boundary, so the guard can observe the selected supplier workspace after navigation/reload.
+- No new supplier authorization path was introduced; the backend remains authoritative.
+
+## 2026-10-08 — Academy catalog route and Diagnostics clinic-scope hardening
+
+### Implemented
+- `school.routes.ts`: applied the canonical Academy audience policy to `/live`, `/webinars`, `/office-courses`, `/textbooks`, and `/commerce/register`.
+- PUBLIC/PATIENT contexts can no longer receive or register PROFESSIONAL-only Academy products through alternate format endpoints.
+- `academy.manage` course CRUD remains organization-scoped; the lecturer E2E fixture now exercises ownership and cross-Academy denial.
+- `assertClinicOrgAccess` centralizes Clinic.id → Organization.id translation for canonical IAM, with legacy fallback only when no canonical Organization exists.
+- Diagnostics referral authorization paths now consume the canonical clinic resolver.
+
+### Verification
+- Static source inspection confirms all format catalog routes call the same audience policy and commerce registration checks the active context before creating payment/enrollment side effects.
+- Static source inspection confirms diagnostics referral clinic authorization uses the canonical resolver.
+- Exact-head CI is still pending after documentation commits; release remains UNVERIFIED.
+
+
+## 2026-10-08 — Final pass in this work cycle
+
+- `8f090c0ce95bbc9cbd89f506c5f842d718ab4e6f` — isolated the multi-vertical partner onboarding E2E loop by clearing browser cookies before each registration/context slice.
+- `3db49884b16cdc9231921329a2fb0121fb6712703` — removed duplicate token persistence from `WorkspaceSwitcher`; scoped credential persistence now has one canonical owner in `api.switchContext()`.
+- Static review of the changed Academy, IAM, branch, notification and routing contracts found no additional confirmed defect that justified a speculative schema/API change in this pass.
+- Local repository execution could not be run in this environment because outbound GitHub DNS/network access is unavailable; verification therefore relies on source-level contract review plus existing CI evidence.
+- Release remains **UNVERIFIED** until a fresh exact-head GitHub Actions run produces the required lint/typecheck/build/unit/E2E/browser/mobile/role-context evidence. Vercel's observed `build-rate-limit` failure is infrastructure, not a code-pass signal.
+
+## 2026-10-08 — SaaS subscription payment IDOR hardening
+
+### Finding
+- Generic `POST /api/payments` accepted subscription references without proving that the caller could manage the target clinic subscription.
+- The settlement path activated a subscription from `payment.refId` and `meta.saasPlan/months`, so request-controlled identifiers could reach a financial mutation for another clinic.
+
+### Implemented
+- Subscription payment creation now requires `assertClinicBillingAccess` for the target Clinic scope.
+- Paid tariff and integer month count (1–24) are validated from the canonical plan catalog.
+- Payment amount must exactly equal server-derived tariff price × months.
+- Settlement repeats the same tariff/amount invariant before subscription activation.
+- Clinic cash and medical-lab payment scope checks use the shared canonical Clinic.id → Organization.id resolver.
+
+### Verification
+- Existing settlement unit suite was updated to mock the canonical plan catalog and reject a tampered subscription amount.
+- A source contract now locks creation-time billing authorization and tariff reconciliation.
+- Exact-head CI is still pending; release remains UNVERIFIED.
+
+## 2026-10-08 — Exact-head verification checkpoint
+
+### Verified
+- Root TypeScript: PASS.
+- Frontend ESLint (max 13 warnings): PASS.
+- Backend TypeScript: PASS.
+- Backend ESLint (max 73 warnings): PASS.
+- Local Release Gate: 6/6 PASS.
+- Local full Vitest on the preceding branch state: 727/727 suites and 2059/2059 tests PASS.
+- Notification relative-time unit: 2/2 PASS.
+
+### GitHub Actions
+- Quality Gate #5011: SUCCESS on `be7913e8d9c078d94fa96c4e11d342519a397138`.
+- CI #3920: IN PROGRESS; backend/frontend lint jobs completed SUCCESS, lint-test and E2E remain in progress.
+- No release/merge decision is made until the full CI chain and visual evidence complete.
+
+## 2026-10-08 — Release-blocker CI root-cause repair pass
+
+### Implemented
+- Fixed a real patient-create 500 in `dentvision-backend/src/modules/patients/patients.routes.ts`: the raw branch-selection query now uses the physical `branches.created_at` column instead of the non-existent Prisma-style `createdAt` identifier.
+- Added a regression assertion in `patients.routes.branchScope.test.ts` so the physical branch timestamp mapping cannot silently regress.
+- Added the canonical IAM page gate to the frontend `/jobs` route; the route now uses the same `guarded('jobs', ...)` boundary as other workspace pages and no longer bypasses role/page access policy.
+- Corrected Notifications E2E to send the existing CSRF cookie value as `x-csrf-token`; backend CSRF protection remains enabled.
+- Corrected platform-finance E2E fixtures to use the seeded SUPERADMIN identity for platform-only Partner Economics, expense and payout routes; no backend authorization was weakened.
+- Updated Academy cross-tenant CRUD E2E to accept the secure `403/404` fail-closed outcome while still requiring denial of the mutation.
+
+### Verification
+- Exact current HEAD: `a7337de37074e4cf036de24d4d249f29634a6e38`.
+- Local root test suite after installing the backend dependency set: **225/225 test files passed, 2077/2077 tests passed**.
+- Root TypeScript check: passed.
+- Backend TypeScript check: passed.
+- Backend production dependency audit: **0 vulnerabilities**.
+- Quality Gate on the current HEAD: passed. Full CI/E2E is still pending/running and remains the release authority.
+
+### Release status
+- Release remains **NOT READY** until the exact current HEAD completes the full CI/E2E, role/context, business-owner, visual evidence and remaining release-gate requirements.

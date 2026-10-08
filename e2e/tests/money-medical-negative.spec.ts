@@ -22,6 +22,7 @@ const ACCOUNTS = {
   doctorA: { email: 'doctor-a@test.com', password: 'Test1234!' },
   assistantA: { email: 'assistant-a@test.com', password: 'Test1234!' },
   ownerB: { email: 'owner-b@test.com', password: 'Test1234!' },
+  superadmin: { email: 'superadmin@test.com', password: 'Test1234!' },
 };
 
 /** An id shaped like the real thing, belonging to nothing. */
@@ -32,6 +33,7 @@ let ownerA: string;
 let doctorA: string;
 let assistantA: string;
 let ownerB: string;
+let superadmin: string;
 
 async function signIn(email: string, password: string): Promise<string> {
   const res = await ctx.post('/api/auth/login', { data: { email, password } });
@@ -50,6 +52,7 @@ test.beforeAll(async () => {
   doctorA = await signIn(ACCOUNTS.doctorA.email, ACCOUNTS.doctorA.password);
   assistantA = await signIn(ACCOUNTS.assistantA.email, ACCOUNTS.assistantA.password);
   ownerB = await signIn(ACCOUNTS.ownerB.email, ACCOUNTS.ownerB.password);
+  superadmin = await signIn(ACCOUNTS.superadmin.email, ACCOUNTS.superadmin.password);
 });
 
 test.afterAll(async () => {
@@ -119,7 +122,7 @@ test.describe('Деньги: платформенные финансы', () => {
   });
 
   test('выручка по источникам: суммы приходят строками, без float', async () => {
-    const res = await ctx.get('/api/finance/revenue-by-source', { headers: auth(ownerA) });
+    const res = await ctx.get('/api/finance/revenue-by-source', { headers: auth(superadmin) });
 
     expect(res.status()).toBe(200);
     const report = (await res.json()).data;

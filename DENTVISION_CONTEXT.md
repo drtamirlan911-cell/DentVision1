@@ -51,10 +51,14 @@ The UI uses progressive disclosure: the underlying ecosystem remains complete, w
 AI action lifecycle:
 `Intent → Context → Permission → Plan → Preview → Confirmation when required → Execute → Verify → Audit`
 
-## 5. Verified repository state — 2026-09-16
-- `main` contains the latest security/release-gate hardening and the current documentation consolidation.
-- Latest verified fully green core CI evidence recorded in the execution log is run `35066089223` on exact HEAD `844b469e084dd5acec6fb45f26d28757c27a3568`: frontend lint, build/typecheck/unit, backend lint, full E2E, browser UX, Business Owner journeys, Organization Owner lifecycle release gate and Playwright CLI smoke passed.
-- A later branch-deactivation test hardening commit exists after that run; therefore the latest main state still requires a fresh CI verification before it can be treated as green.
+## 5. Verified repository state — 2026-10-07
+- `main` remains the product source of truth; PR #302 is the active release-blocker remediation branch.
+- Current PR #302 exact HEAD: `be7913e8d9c078d94fa96c4e11d342519a397138` (current security/Academy/notification checkpoint; Quality Gate green, full CI/E2E still running).n/Academy/Diagnostics security checkpoint; exact-head CI verification pending).nostics security checkpoint; exact-head CI verification pending).ntation checkpoint; exact-head verification still pending).
+- Quality Gate #4791 passed on the preceding exact-head `7b86b600dd9253334b26fd21ce89ae4e01b4aa6b`, including TypeScript, frontend ESLint and the repository release-gate step.
+- Full CI #3816 reached real execution on `7b86b600dd9253334b26fd21ce89ae4e01b4aa6b`: frontend lint, backend lint, build/typecheck, Command Center audit and generated system-map validation passed; unit tests finished at **2048 passed / 1 failed** across 221 test files.
+- The single CI #3816 unit-test failure was a source-inspection boundary defect in `organizations.test.ts`; it was repaired on `a0f87c0e8f1756887d73a09ca67a6bfa7a513a01` by slicing the actual control-flow branches rather than an object-literal field.
+- `f45ea6ced5648e2accfaa4ab4b8d6c8106c4634c` records that repair in the execution log and synchronizes this context file. A fresh full CI must verify this post-fix exact HEAD; no superseded run is release evidence.
+- PR #302 contains the current odontogram curved-arch refinement, notification detail/ownership hardening, and payment metadata/Academy settlement hardening; these remain unverified until fresh exact-head browser/E2E/visual evidence completes.
 
 ### Product status
 - Clinical RBAC boundary: IMPLEMENTED + unit coverage; fresh CI required after later main changes.
@@ -145,3 +149,58 @@ Superseded product roadmaps, stale status snapshots and duplicate North Star/add
 For each slice: **inspect → implement → test → fix → verify → document → continue**.
 
 Do not repeat an audit when implementation can resolve the issue. Do not weaken tests. Do not invent a parallel architecture. Preserve the whole ecosystem and make complexity progressively discoverable.
+- `4f540e4fc256779ad8598beebc898d206925322d` contains a focused odontogram UX refinement: desktop places the selected-tooth clinical context beside the curved upper/lower arches; mobile stacks it below. This is implementation evidence only until fresh exact-head CI/browser/visual gates pass.
+
+
+## 2026-10-08 — Current verified checkpoint
+- PR #302 remains open/draft and release remains UNVERIFIED.
+- Latest code changes after the previous checkpoint: physical branch timestamp alignment across E2E factories, patient branch scope, branch API and IAM context discovery; AI workspace 36px descendant button target guard.
+- These changes were driven by exact CI #3822 evidence: branch raw-SQL column mismatch caused cascading patient/appointment/clinical/IDOR failures; /me/contexts had the same stale timestamp query; Mobile Design Gate exposed undersized AI controls.
+- Fresh exact-head CI/Quality Gate must be used for release decisions after the latest documentation checkpoint.
+
+## 2026-10-08 — Marketplace context hardening
+- Marketplace list/detail now enforce catalog audience at the route boundary for PUBLIC/PATIENT contexts; authenticated PATIENT is explicitly recognized by the content-access resolver.
+- This addresses the exact CI #3822 patient-context professional-product exposure assertion without weakening the E2E contract.
+- Fresh exact-head CI remains the release evidence source; release is still UNVERIFIED.
+
+
+## 2026-10-08 — Final pre-CI SQL checkpoint
+- Corrected Branch raw SQL to use `created_at`/`updated_at` while preserving `clinic_members.updatedAt` camelCase.
+- Marketplace public/patient filtering includes a JSON-array type guard for legacy tag shapes.
+- This HEAD is the fresh release candidate for the next full CI evidence cycle; no readiness is inferred yet.
+
+
+## 2026-10-08 — Finance/Inventory branch scope checkpoint
+- Finance and Inventory branch-scope SQL now use the physical `branches.created_at` timestamp column.
+- Adjacent branch-related backend files were reviewed for the same confirmed stale Branch timestamp pattern; no additional confirmed production references were found in the checked set.
+- Current exact HEAD requires a fresh full CI/E2E/design/role/visual cycle before any readiness decision.
+
+
+## 2026-10-08 — Pricing permission correction checkpoint
+- PR #302 latest exact HEAD is `22274262449d88b6e5be09eef2dc09b4e66d0ef9`.
+- Diagnostic/laboratory pricing and catalog mutations no longer share the cashier-enabled billing guard.
+- This is a security hardening change only; no release readiness is inferred until fresh exact-head CI/E2E/browser/mobile/role/visual evidence exists.
+
+## 2026-10-08 — Payment refund authorization checkpoint
+- Clinic-scoped payment refunds now require the canonical `billing.manage` permission resolved against the exact clinic scope.
+- The earlier member-only refund authorization path is removed.
+- The latest exact PR #302 HEAD is `96c599643757e64b9a0a2a6fd2ecbde96b6ed048`.
+- Release remains UNVERIFIED until fresh exact-head CI/E2E/browser/mobile/role/visual evidence exists.
+
+## 2026-10-08 — Academy/Diagnostics policy checkpoint
+- Academy course CRUD uses scoped `academy.manage` and active Academy organization context; course create derives Academy/lecturer ownership and update/delete reject foreign Academy rows.
+- Academy format catalog routes and commerce registration now apply the canonical content-audience policy.
+- Diagnostics referral clinic authorization now translates domain Clinic.id to canonical Organization.id through `assertClinicOrgAccess`.
+- Latest documented HEAD: `da864b717d63d9a1a26bca14a1b6fd2978e41e96`.
+- Fresh exact-head CI is pending; release remains UNVERIFIED.
+
+## 2026-10-08 — Subscription finance checkpoint
+- Generic subscription payment creation now requires scoped clinic billing authority and an exact server-derived plan total.
+- Subscription settlement repeats the plan/amount invariant before activating the target clinic subscription.
+- Latest documented HEAD: `a3c6f22b49475de8606a23ae1c1b1fa432df5028`.
+- Release remains UNVERIFIED pending exact-head CI/E2E/browser/mobile/role/visual evidence.
+
+## 2026-10-08 — Verification checkpoint
+- Local full Vitest on the preceding exact branch state passed: 727/727 test suites, 2059/2059 tests.
+- Current GitHub Quality Gate #5011 is green for `be7913e8d9c078d94fa96c4e11d342519a397138`.
+- Current CI #3920 is still running its lint-test and E2E/browser/mobile/role/visual chain.

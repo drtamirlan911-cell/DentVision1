@@ -317,7 +317,7 @@ export const MODULE_PAGES: Record<string, string[]> = {
   diagnostics:  ['diagnostics', 'diagnostics-referrals', 'diagnostics-centers', 'diagnostics-laboratories', 'diagnostics-labs', 'diagnostics-results', 'diagnostics-calendar', 'diagnostics-statistics', 'diagnostics-settings'],
   academy:      ['school'],
   shop:         ['shop', 'promotions'],
-  community:    [],
+  community:    ['community'],
   audit:        ['audit'],
   admin:        ['admin'],
   bi:           ['bi'],
@@ -367,6 +367,8 @@ const PARTNER_ROLE_PAGES: Record<string, string[]> = {
   DIAGNOSTIC: ['diagnostics', 'diagnostics-referrals', 'diagnostics-centers', 'diagnostics-results', 'diagnostics-calendar', 'diagnostics-statistics', 'diagnostics-settings', 'profile'],
   MEDICAL_LAB: ['diagnostics', 'diagnostics-laboratories', 'diagnostics-results', 'diagnostics-calendar', 'diagnostics-statistics', 'diagnostics-settings', 'profile'],
   DENTAL_LAB: ['diagnostics', 'diagnostics-laboratories', 'diagnostics-results', 'diagnostics-settings', 'profile'],
+  SUPPLIER: ['supplier', 'shop', 'inventory', 'profile'],
+  ACADEMY: ['school', 'profile'],
 };
 
 function partnerPageFamily(role: string): string | undefined {
@@ -374,6 +376,8 @@ function partnerPageFamily(role: string): string | undefined {
   if (r.startsWith('DIAGNOSTIC_') || r === 'RADIOLOGIST' || r === 'RADIOLOGY_TECHNICIAN') return 'DIAGNOSTIC';
   if (r.startsWith('MEDICAL_LAB_')) return 'MEDICAL_LAB';
   if (r.startsWith('DENTAL_LAB_') || ['LAB_COORDINATOR', 'DENTAL_TECHNICIAN', 'CAD_DESIGNER', 'CERAMIST', 'ORTHODONTIC_TECHNICIAN', 'QC_SPECIALIST', 'LAB_FINANCE'].includes(r)) return 'DENTAL_LAB';
+  if (r === 'SELLER') return 'SUPPLIER';
+  if (r === 'LECTURER') return 'ACADEMY';
   return undefined;
 }
 
@@ -385,9 +389,19 @@ export function pagesForCaller(permissions: readonly string[], role: string | nu
     return ['profile', 'shop', 'school'];
   }
 
+  // STUDENT is a learner role, not an ecosystem partner workspace. Keep the
+  // page surface aligned with the canonical STUDENT role matrix instead of
+  // inheriting partner-oriented BASE_PAGES such as diagnostics/settings.
+  if (resolvedRole === 'STUDENT') {
+    return ['shop', 'school', 'profile'];
+  }
+
   const partnerFamily = partnerPageFamily(resolvedRole);
   if (partnerFamily) {
-    return PARTNER_ROLE_PAGES[partnerFamily];
+    return Array.from(new Set([
+      ...BASE_PAGES,
+      ...PARTNER_ROLE_PAGES[partnerFamily],
+    ]));
   }
 
   return Array.from(new Set([

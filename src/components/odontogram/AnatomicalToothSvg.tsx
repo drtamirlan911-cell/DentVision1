@@ -2,6 +2,7 @@ import React from 'react'
 import { useTranslation } from 'react-i18next'
 import { cn } from '@/lib/utils'
 import { getToothMorphology, isUpperArch, type RootPattern } from './toothMorphology'
+import { OcclusalTooth, StatusMarks } from './AnatomicalToothOcclusal'
 import {
   STATUS_META,
   statusColor,
@@ -83,21 +84,7 @@ function toothOutline(pattern: RootPattern): string {
  * The crown portion alone — for marks that belong on the crown and must not
  * run down the roots, such as a crown restoration's outline.
  */
-function crownPath(pattern: RootPattern): string {
-  switch (pattern) {
-    case 'incisor':
-      return 'M15.6 26 C14.6 32 13.4 40 13.2 46 C13.2 52 15.4 57.4 20 57.6 C24.6 57.4 26.8 52 26.8 46 C26.6 40 25.4 32 24.4 26 Z'
-    case 'canine':
-      return 'M15.4 26 C14.4 32 13 40 12.8 45.4 C12.8 50.4 14.6 54 17.2 56.2 C18.4 57.2 19.4 58.8 20 60.4 C20.6 58.8 21.6 57.2 22.8 56.2 C25.4 54 27.2 50.4 27.2 45.4 C27 40 25.6 32 24.6 26 Z'
-    case 'premolar1':
-    case 'premolar2':
-      return 'M14.2 26 C13 32 11 38 10.8 43.4 C10.8 49 13 54.4 16.6 56 C18.2 56.6 19.4 54.4 20 52.4 C20.6 54.4 21.8 56.6 23.4 56 C27 54.4 29.2 49 29.2 43.4 C29 38 27 32 25.8 26 Z'
-    case 'molarUpper':
-    case 'molarLower':
-    default:
-      return 'M9 26 C7 32 5.6 38 5.6 43 C5.6 50 8 56.4 12.6 58 C14.6 58.6 16.4 56.4 17.4 54.4 C18.2 52.9 21.8 52.9 22.6 54.4 C23.6 56.4 25.4 58.6 27.4 58 C32 56.4 34.4 50 34.4 43 C34.4 38 33 32 31 26 Z'
-  }
-}
+import { crownPath } from './toothCrownShapes'
 
 /** Faint internal lines that suggest form without cutting the silhouette. */
 function toothDetail(pattern: RootPattern): React.ReactNode {
@@ -232,278 +219,6 @@ function SurfaceOverlays({
   )
 }
 
-/**
- * Occlusal (chewing-surface) outline — the tooth seen from above.
- *
- * A clinical chart shows each tooth twice: once in profile with its roots, and
- * once looking straight down at the surface the caries is actually on. The
- * profile view cannot show which cusp a lesion sits in; this one can.
- * Drawn in a 40×40 box so it lines up column-for-column with the profile row.
- */
-function occlusalOutline(pattern: RootPattern): string {
-  switch (pattern) {
-    case 'incisor':
-      // Incisal edge seen from above: a narrow, gently bowed blade.
-      return 'M14.5 11 C14.5 8.6 16.4 7.2 20 7.2 C23.6 7.2 25.5 8.6 25.5 11 L26 29 C26 31.6 23.4 33 20 33 C16.6 33 14 31.6 14 29 Z'
-    case 'canine':
-      // A single cusp pulls the mesial edge to a point.
-      return 'M13.5 13 C13.5 9.6 16 6.4 20 5.4 C24 6.4 26.5 9.6 26.5 13 L27 27.5 C27 31 24 33.4 20 33.4 C16 33.4 13 31 13 27.5 Z'
-    case 'premolar1':
-    case 'premolar2':
-      // Two cusps — an oval, waisted slightly where the fissure crosses.
-      return 'M9.5 14 C9.5 10.4 14 7.8 20 7.8 C26 7.8 30.5 10.4 30.5 14 C30.8 17 30.8 23 30.5 26 C30.5 29.8 26 32.4 20 32.4 C14 32.4 9.5 29.8 9.5 26 C9.2 23 9.2 17 9.5 14 Z'
-    case 'molarUpper':
-    case 'molarLower':
-    default:
-      // Four cusps: a rounded rhomboid with a soft lobe at each corner.
-      return 'M6 13.5 C6 9.4 11.2 6.2 20 6.2 C28.8 6.2 34 9.4 34 13.5 C34.4 16.5 34.4 23.5 34 26.8 C34 31 28.8 34 20 34 C11.2 34 6 31 6 26.8 C5.6 23.5 5.6 16.5 6 13.5 Z'
-  }
-}
-
-/** The fissure pattern inside the occlusal table — what makes it read as a tooth. */
-function occlusalFissures(pattern: RootPattern): React.ReactNode {
-  switch (pattern) {
-    case 'incisor':
-      return <path d="M20 11 L20 29" />
-    case 'canine':
-      return (
-        <>
-          <path d="M20 9 L20 30" />
-          <path d="M20 20 L15 25 M20 20 L25 25" />
-        </>
-      )
-    case 'premolar1':
-    case 'premolar2':
-      // One central groove running mesiodistally between the two cusps.
-      return <path d="M11.5 20 C15 18.5 25 18.5 28.5 20" />
-    case 'molarUpper':
-    case 'molarLower':
-    default:
-      // Central groove plus the buccal and lingual branches — the classic cross.
-      return (
-        <>
-          <path d="M9.5 20 C14 18.2 26 18.2 30.5 20" />
-          <path d="M16.5 9.5 C17.5 14 17.5 17 16.8 19.4" />
-          <path d="M23 31 C22 26.5 22 23 22.8 20.6" />
-        </>
-      )
-  }
-}
-
-/**
- * Clinical marks drawn *over* an intact tooth.
- *
- * The tooth stays enamel-coloured and the finding sits on it, which is how a
- * paper chart reads: a filled molar is a molar with a filling in it, not a
- * black tooth. Painting the whole crown in the status colour — the earlier
- * behaviour — loses the anatomy the rest of this file exists to draw.
- */
-function StatusMarks({
-  status,
-  pattern,
-  occlusal,
-  cx,
-  cy,
-}: {
-  status?: StatusKey
-  pattern: RootPattern
-  occlusal: boolean
-  cx: number
-  cy: number
-}) {
-  if (!status || status === 'healthy' || status === 'missing' || status === 'extracted' || status === 'implant') {
-    return null
-  }
-  const wide = pattern === 'molarUpper' || pattern === 'molarLower'
-  const rx = occlusal ? (wide ? 9 : 6.5) : wide ? 8.5 : 6
-
-  if (status === 'crown') {
-    // An outline that hugs the crown, not a fill: the tooth underneath is intact.
-    return (
-      <path
-        d={occlusal ? occlusalOutline(pattern) : crownPath(pattern)}
-        fill={STATUS_META.crown.color}
-        fillOpacity="0.1"
-        stroke={STATUS_META.crown.color}
-        strokeWidth="1.7"
-        strokeLinejoin="round"
-      />
-    )
-  }
-
-  if (status === 'filled') {
-    // A restoration follows the fissure it filled — a lobed shape, not a disc.
-    const c = STATUS_META.filled.color
-    return wide ? (
-      <g fill={c}>
-        <rect x={cx - rx * 0.72} y={cy - 2.1} width={rx * 1.44} height="4.2" rx="1.6" />
-        <rect x={cx - 2.1} y={cy - rx * 0.62} width="4.2" height={rx * 1.24} rx="1.6" />
-      </g>
-    ) : (
-      <ellipse cx={cx} cy={cy} rx={rx * 0.62} ry={rx * 0.5} fill={c} />
-    )
-  }
-
-  if (status === 'caries') {
-    // An outlined lesion — visible on ivory without turning the tooth red.
-    return (
-      <g>
-        <ellipse
-          cx={cx}
-          cy={cy}
-          rx={rx * 0.56}
-          ry={rx * 0.46}
-          fill={STATUS_META.caries.color}
-          fillOpacity="0.22"
-          stroke={STATUS_META.caries.color}
-          strokeWidth="1.5"
-        />
-      </g>
-    )
-  }
-
-  if (status === 'fracture') {
-    // A crack: one thin jagged line, drawn across the crown.
-    return (
-      <path
-        d={
-          occlusal
-            ? `M${cx - rx * 0.7} ${cy - rx * 0.5} L${cx - 1} ${cy - 0.5} L${cx + 1.4} ${cy + 1.5} L${cx + rx * 0.6} ${cy + rx * 0.55}`
-            : `M${cx - 3.5} ${cy - 9} L${cx - 0.5} ${cy - 3} L${cx + 2.5} ${cy + 1} L${cx - 1} ${cy + 7}`
-        }
-        fill="none"
-        stroke={STATUS_META.fracture.color}
-        strokeWidth="1.5"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    )
-  }
-
-  if (status === 'inflammation') {
-    // A soft halo at the apex (profile) or over the table (occlusal).
-    return (
-      <circle
-        cx={cx}
-        cy={cy}
-        r={rx * 0.72}
-        fill={STATUS_META.inflammation.color}
-        fillOpacity="0.2"
-        stroke={STATUS_META.inflammation.color}
-        strokeWidth="1.2"
-        strokeDasharray="2.5 2"
-      />
-    )
-  }
-
-  if (status === 'veneer') {
-    return (
-      <path
-        d={occlusal ? occlusalOutline(pattern) : crownPath(pattern)}
-        fill={STATUS_META.veneer.color}
-        fillOpacity="0.16"
-        stroke={STATUS_META.veneer.color}
-        strokeWidth="1.3"
-        strokeDasharray="3 1.6"
-        strokeLinejoin="round"
-      />
-    )
-  }
-
-  return null
-}
-
-/** The tooth seen from above — same status vocabulary, different geometry. */
-function OcclusalTooth({
-  toothNumber,
-  status,
-  surfaces,
-  pattern,
-  selected,
-}: {
-  toothNumber: number
-  status?: StatusKey
-  surfaces?: ToothSurfaces | null
-  pattern: RootPattern
-  selected?: boolean
-}) {
-  const outline = occlusalOutline(pattern)
-  const isMissing = status === 'missing'
-  const isExtracted = status === 'extracted'
-  const isImplant = status === 'implant'
-  const cx = 20
-  const cy = 20
-
-  if (isMissing || isExtracted) {
-    return (
-      <g opacity={isExtracted ? 0.75 : 0.55}>
-        <path d={outline} fill="none" stroke={STATUS_META[status].color} strokeWidth="1.3" strokeDasharray="3 2.4" />
-        {isExtracted && (
-          <g stroke={STATUS_META.extracted.color} strokeWidth="1.6" strokeLinecap="round">
-            <line x1="13" y1="13" x2="27" y2="27" />
-            <line x1="27" y1="13" x2="13" y2="27" />
-          </g>
-        )}
-      </g>
-    )
-  }
-
-  return (
-    <g>
-      {selected && <path d={outline} fill="none" stroke="#C9A96E" strokeWidth="2.6" opacity="0.55" />}
-      <path
-        d={outline}
-        fill={`url(#occl-${toothNumber})`}
-        stroke="#B9A48A"
-        strokeOpacity="0.55"
-        strokeWidth="0.9"
-        strokeLinejoin="round"
-      />
-      {/* Cusp shading: a soft inner ring so the table reads as domed, not flat. */}
-      <path d={outline} fill="none" stroke="#FFFFFF" strokeOpacity="0.55" strokeWidth="1.6" transform="scale(0.9) translate(2.2 2.2)" />
-      <g fill="none" stroke="#A8967F" strokeOpacity="0.75" strokeWidth="1.1" strokeLinecap="round">
-        {occlusalFissures(pattern)}
-      </g>
-      {isImplant ? (
-        <g>
-          <circle cx={cx} cy={cy} r="6" fill={STATUS_META.implant.color} fillOpacity="0.16" stroke={STATUS_META.implant.color} strokeWidth="1.5" />
-          <circle cx={cx} cy={cy} r="2.2" fill={STATUS_META.implant.color} />
-        </g>
-      ) : (
-        <StatusMarks status={status} pattern={pattern} occlusal cx={cx} cy={cy} />
-      )}
-      <OcclusalSurfaceMarks surfaces={surfaces} pattern={pattern} />
-    </g>
-  )
-}
-
-/** MODBL paint mapped onto the occlusal table's five zones. */
-function OcclusalSurfaceMarks({ surfaces, pattern }: { surfaces?: ToothSurfaces | null; pattern: RootPattern }) {
-  if (!surfaces) return null
-  const entries = Object.entries(surfaces) as [SurfaceKey, string][]
-  if (!entries.length) return null
-  const wide = pattern === 'molarUpper' || pattern === 'molarLower'
-  const r = wide ? 11 : 8
-  const zones: Record<SurfaceKey, { x: number; y: number }> = {
-    O: { x: 20, y: 20 },
-    M: { x: 20, y: 20 - r },
-    D: { x: 20, y: 20 + r },
-    B: { x: 20 - r, y: 20 },
-    L: { x: 20 + r, y: 20 },
-  }
-  return (
-    <g>
-      {entries.map(([key, raw]) => {
-        const st = normalizeSurfaceStatus(raw)
-        if (!st || st === 'healthy') return null
-        const z = zones[key]
-        if (!z) return null
-        return <circle key={key} cx={z.x} cy={z.y} r="2.6" fill={statusColor(st)} stroke="#FFFFFF" strokeOpacity="0.8" strokeWidth="0.7" />
-      })}
-    </g>
-  )
-}
-
 export function AnatomicalToothSvg({
   toothNumber,
   status,
@@ -525,7 +240,19 @@ export function AnatomicalToothSvg({
   const isEndoOk = status === 'endo_ok'
   const isEndoFail = status === 'endo_fail'
   const isExtracted = status === 'extracted'
-  const rootFill = isRootOnly || isEndoFail ? (STATUS_META[status || 'root']?.color || '#E67E22') : '#E7DFD3'
+  const rootFill = isRootOnly || isEndoFail ? (STATUS_META[status || 'root']?.color || '#fb923c') : '#113247'
+  const clinicalColor = STATUS_META[status || '']?.color || '#22d3ee'
+  // Posterior morphology is not interchangeable: first molars are largest,
+  // second molars are slightly smaller, and third molars are smaller/bulbous
+  // with shorter roots. Keep the shared SVG families, but preserve these
+  // clinically visible proportions instead of rendering 16/17/18 identically.
+  const posteriorScale = [18, 28, 38, 48].includes(toothNumber)
+    ? 0.86
+    : [17, 27, 37, 47].includes(toothNumber)
+      ? 0.94
+      : [16, 26, 36, 46].includes(toothNumber)
+        ? 1.02
+        : 1
   const height = Math.round((size * BUCCAL_VB_H) / 40)
   const crownCy = upper ? 44 : BUCCAL_VB_H - 44
   const tooltip = `${toothNumber} · ${morph.label}${status && status !== 'healthy' ? ` · ${STATUS_META[status]?.label || status}` : ''}`
@@ -556,12 +283,23 @@ export function AnatomicalToothSvg({
   if (view === 'occlusal') {
     return shell(
       <svg width={size} height={size} viewBox="0 0 40 40" aria-hidden>
+        <g transform={posteriorScale === 1 ? undefined : `translate(20 20) scale(${posteriorScale}) translate(-20 -20)`}>
         <defs>
-          <linearGradient id={`occl-${toothNumber}`} x1="0.2" y1="0" x2="0.8" y2="1">
-            <stop offset="0%" stopColor="#FDFBF7" />
-            <stop offset="55%" stopColor="#F2EADC" />
-            <stop offset="100%" stopColor="#E4D8C4" />
+          <linearGradient id={`occl-${toothNumber}`} x1="0.15" y1="0" x2="0.85" y2="1">
+            <stop offset="0%" stopColor="#f8feff" />
+            <stop offset="28%" stopColor="#bff8ff" />
+            <stop offset="58%" stopColor="#4ddbea" />
+            <stop offset="82%" stopColor="#16a9c0" />
+            <stop offset="100%" stopColor="#075985" />
           </linearGradient>
+          <filter id={`occl-neon-${toothNumber}`} x="-70%" y="-70%" width="240%" height="240%">
+            <feGaussianBlur stdDeviation="1.1" result="blur" />
+            <feColorMatrix in="blur" type="matrix" values="0.7 0 0 0 0 0 0.95 0 0 0.25 0 0 1 0 0.45 0 0 0 0.9 0" result="glow" />
+            <feMerge>
+              <feMergeNode in="glow" />
+              <feMergeNode in="SourceGraphic" />
+            </feMerge>
+          </filter>
         </defs>
         <OcclusalTooth
           toothNumber={toothNumber}
@@ -570,6 +308,7 @@ export function AnatomicalToothSvg({
           pattern={morph.pattern}
           selected={selected}
         />
+        </g>
       </svg>,
       size + 8,
       size + 6,
@@ -593,32 +332,40 @@ export function AnatomicalToothSvg({
         height={height}
         viewBox={`0 0 40 ${BUCCAL_VB_H}`}
         aria-hidden
-        className={cn(selected && 'drop-shadow-[0_0_8px_rgba(201,169,110,0.55)]')}
+        className={cn(selected && 'drop-shadow-[0_0_14px_rgba(34,211,238,0.8)]')}
       >
         <defs>
-          {/* Warm ivory rather than the old blue-grey: a tooth is bone, and the
-              cool ramp read as porcelain against the reference chart. */}
-          {/* Root end slightly duller than the crown — one tooth, two tissues. */}
-          <linearGradient id={`enamel-${toothNumber}`} x1="0.2" y1="0" x2="0.55" y2="1">
-            <stop offset="0%" stopColor="#E6D8C2" />
-            <stop offset="34%" stopColor="#F1E7D6" />
-            <stop offset="62%" stopColor="#FDFBF6" />
-            <stop offset="100%" stopColor="#EFE3CE" />
+          <linearGradient id={`enamel-${toothNumber}`} x1="0.15" y1="0" x2="0.82" y2="1">
+            <stop offset="0%" stopColor="#f7feff" />
+            <stop offset="18%" stopColor="#c8f8ff" />
+            <stop offset="45%" stopColor="#6ee7f9" />
+            <stop offset="72%" stopColor="#22d3ee" />
+            <stop offset="100%" stopColor="#0b7285" />
           </linearGradient>
           <linearGradient id={`rootGrad-${toothNumber}`} x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor={upper ? '#DFCFB4' : '#F2E9DA'} />
-            <stop offset="100%" stopColor={upper ? '#F2E9DA' : '#DFCFB4'} />
+            <stop offset="0%" stopColor={upper ? '#164e63' : '#155e75'} />
+            <stop offset="50%" stopColor="#0e7490" />
+            <stop offset="100%" stopColor={upper ? '#082f49' : '#083344'} />
           </linearGradient>
+          <filter id={`neon-${toothNumber}`} x="-80%" y="-60%" width="260%" height="220%">
+            <feGaussianBlur stdDeviation="1.25" result="blur" />
+            <feColorMatrix in="blur" type="matrix" values="1 0 0 0 0 0 1 0 0 0.55 0 0 1 0 0.75 0 0 0 0.9 0" result="glow" />
+            <feMerge>
+              <feMergeNode in="glow" />
+              <feMergeNode in="SourceGraphic" />
+            </feMerge>
+          </filter>
         </defs>
 
         {selected && (
-          <rect x="1" y="1" width="38" height={BUCCAL_VB_H - 2} rx="6" fill="none" stroke="#C9A96E" strokeWidth="1.4" strokeDasharray="3 2" />
+          <rect x="1" y="1" width="38" height={BUCCAL_VB_H - 2} rx="6" fill="rgba(34,211,238,0.04)" stroke="#67e8f9" strokeWidth="1.5" strokeDasharray="2.5 1.8" />
         )}
 
         {/* Everything anatomical is drawn upper-side-up and mirrored for the
             lower arch, so both arches are guaranteed to match. Glyphs carrying
             text stay outside the flip — they would render upside down. */}
         <g transform={upper ? undefined : `translate(0,${BUCCAL_VB_H}) scale(1,-1)`}>
+          <g transform={posteriorScale === 1 ? undefined : `translate(20 31) scale(${posteriorScale}) translate(-20 -31)`}>
           {isImplant ? (
             <ImplantGlyph upper fill={STATUS_META.implant.color} />
           ) : isMissing || isExtracted ? (
@@ -645,15 +392,16 @@ export function AnatomicalToothSvg({
               <path
                 d={toothOutline(morph.pattern)}
                 fill={isRootOnly || isEndoFail ? rootFill : `url(#enamel-${toothNumber})`}
-                stroke="#B0967A"
-                strokeOpacity="0.75"
-                strokeWidth="0.9"
+                stroke={isRootOnly || isEndoFail ? clinicalColor : '#67e8f9'}
+                strokeOpacity={isRootOnly ? 0.75 : 0.96}
+                strokeWidth={isRootOnly ? 1.05 : 1.15}
                 strokeLinejoin="round"
-                opacity={isRootOnly ? 0.5 : 1}
+                opacity={isRootOnly ? 0.62 : 1}
+                filter={!isRootOnly && !isEndoFail ? `url(#neon-${toothNumber})` : undefined}
               />
 
               {!isRootOnly && (
-                <g fill="none" stroke="#B79E82" strokeOpacity="0.45" strokeWidth="0.8" strokeLinecap="round">
+                <g fill="none" stroke="#083344" strokeOpacity="0.95" strokeWidth="0.72" strokeLinecap="round">
                   {toothDetail(morph.pattern)}
                 </g>
               )}
@@ -663,25 +411,26 @@ export function AnatomicalToothSvg({
                 <path
                   d="M15 34 C16.1 40 16.3 46 15.9 51"
                   fill="none"
-                  stroke="rgba(255,255,255,0.6)"
-                  strokeWidth="1.6"
+                  stroke="#ecfeff"
+                  strokeWidth="1.8"
                   strokeLinecap="round"
                 />
               )}
 
               {!isRootOnly && (
-                <StatusMarks status={status} pattern={morph.pattern} occlusal={false} cx={20} cy={44} />
+                <StatusMarks status={status} pattern={morph.pattern} toothNumber={toothNumber} occlusal={false} cx={20} cy={44} />
               )}
 
               <SurfaceOverlays surfaces={surfaces} upper pattern={morph.pattern} />
             </g>
           )}
+          </g>
         </g>
 
         {/* Endo marker on crown center — unflipped so the tick reads correctly. */}
         {(isEndoOk || isEndoFail) && !isMissing && !isExtracted && (
           <g>
-            <circle cx="20" cy={crownCy} r="4.5" fill={isEndoOk ? '#2ECC71' : '#C0392B'} stroke="white" strokeWidth="0.8" />
+            <circle cx="20" cy={crownCy} r="4.5" fill={isEndoOk ? '#22c55e' : '#f43f5e'} stroke="#ecfeff" strokeWidth="0.8" filter={`url(#neon-${toothNumber})`} />
             <text x="20" y={crownCy + 2.2} textAnchor="middle" fontSize="6" fontWeight="700" fill="white">
               {isEndoOk ? '✓' : '✗'}
             </text>

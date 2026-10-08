@@ -14,6 +14,7 @@ import { normalizeCheckoutItems } from './checkout.validation.js';
 import { compensateDeterministicCheckoutFailure } from './checkout.compensation.js';
 import { assertCheckoutSupplierEligibility } from './supplierIntegrity.js';
 import { auditFromReq } from '../compliance/audit.service.js';
+import { audiencesFromProductTags, canExposeCatalogItem, resolveActiveContentContext } from '../../iam/contentCatalogAccess.js';
 
 const shopRouter = Router();
 
@@ -64,6 +65,25 @@ shopRouter.get('/products', optionalAuth, async (req, res) => {
         orderBy = { createdAt: 'desc' };
         break;
     }
+
+    const catalogContext = resolveActiveContentContext(req);
+    const catalogIds = (catalogContext === 'PUBLIC' || catalogContext === 'PATIENT')
+      ? (await prisma.$queryRaw<Array<{ id: string }>>`
+          SELECT p."id"
+          FROM "products" p
+          WHERE p."isActive" = true
+            AND jsonb_typeof(p."tags") = 'array'
+            AND EXISTS (
+              SELECT 1 FROM jsonb_array_elements_text(p."tags") AS tag(value)
+              WHERE upper(trim(tag.value)) IN ('AUDIENCE:GENERAL', 'AUDIENCE:PATIENT')
+            )
+            AND NOT EXISTS (
+              SELECT 1 FROM jsonb_array_elements_text(p."tags") AS tag(value)
+              WHERE upper(trim(tag.value)) IN ('AUDIENCE:PROFESSIONAL', 'AUDIENCE:DOCTOR', 'AUDIENCE:DENTAL_STUDENT', 'AUDIENCE:ASSISTANT', 'AUDIENCE:LAB', 'AUDIENCE:DIAGNOSTIC', 'AUDIENCE:SELLER')
+            )
+        `).map((row) => row.id)
+      : null;
+    if (catalogIds) where.id = { in: catalogIds };
 
     const [products, total] = await Promise.all([
       prisma.product.findMany({
@@ -135,7 +155,7 @@ shopRouter.get('/products/:id', optionalAuth, async (req, res) => {
       },
     });
 
-    if (!product) {
+    if (!product || !canExposeCatalogItem('MARKETPLACE', resolveActiveContentContext(req), audiencesFromProductTags(product.tags))) {
       res.status(404).json({ ok: false, error: 'Product not found' });
       return;
     }

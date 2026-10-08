@@ -122,8 +122,19 @@ export function WorkspaceSwitcher({ className }: { className?: string }) {
   }, [activeClinicId, activeOrgId, activeOrgType, activeSupplierId, activeLecturerId])
 
   const current = useMemo(
-    () => workspaces.find(isActive) || workspaces.find((w) => w.scopeType === 'CLINIC') || workspaces[0],
-    [workspaces, isActive],
+    () => {
+      const exact = workspaces.find(isActive)
+      if (exact) return exact
+      if (activeOrgId) {
+        const sameOrganization = workspaces.find((w) => w.organizationId === activeOrgId || w.scopeId === activeOrgId)
+        if (sameOrganization) return sameOrganization
+      }
+      if (activeOrgType && activeOrgType !== 'CLINIC') {
+        return workspaces.find((w) => w.scopeType !== 'CLINIC') || workspaces[0]
+      }
+      return workspaces.find((w) => w.scopeType === 'CLINIC') || workspaces[0]
+    },
+    [workspaces, isActive, activeOrgId, activeOrgType],
   )
   const activeRoleLabel = current?.roleLabel || roleInfo?.label || getRoleDisplayLabel((user as any)?.platformRole || (user as any)?.role) || 'Участник экосистемы'
 
@@ -224,14 +235,24 @@ export function WorkspaceSwitcher({ className }: { className?: string }) {
       const switchScopeId = current.scopeType === 'LECTURER' || current.scopeType === 'SUPPLIER'
         ? current.scopeId
         : (current.organizationId || current.scopeId)
-      const tokens = await api.switchContext(current.scopeType, switchScopeId, branch.id)
-      if (tokens?.accessToken) api.setTokens(tokens.accessToken, tokens.refreshToken || null)
+      await api.switchContext(current.scopeType, switchScopeId, branch.id)
+      // switchContext persists the scoped token centrally; rehydrate the store
+      // from that single credential source before updating the read-model.
       await useAuthStore.getState().restoreSession()
 
       const selected = { ...current, branchId: branch.id }
       const contract = workspaceContextFrom(selected, selected.permissions || [])
       api.setWorkspaceContext(contract)
       setActiveWorkspace({ id: selected.id, scopeType: selected.scopeType, organizationId: selected.organizationId, branchId: selected.branchId, name: selected.name, roleKey: selected.roleKey, roleLabel: selected.roleLabel, permissions: selected.permissions, participant: selected.personType, dataScope: contract.dataScope }, contract)
+      // Keep React Query's workspace read-model in sync with the JWT/store
+      // immediately. Without this, the server context was switched correctly
+      // but the picker could still display the previous branch until a refetch.
+      queryClient.setQueryData<WorkspaceContext[]>(
+        ['workspaces', user?.id],
+        (items) => items?.map((item) =>
+          item.id === selected.id ? { ...item, branchId: branch.id } : item,
+        ),
+      )
       setContextFocus('workspace', selected.id, { organizationId: selected.organizationId || null, branchId: branch.id, roleKey: selected.roleKey || selected.role || null, scopeType: selected.scopeType })
       window.dispatchEvent(new CustomEvent('dentvision:workspace-switched', { detail: { id: selected.id, scopeType: selected.scopeType, organizationId: selected.organizationId, branchId: branch.id, name: selected.name, roleLabel: selected.roleLabel, roleKey: selected.roleKey || null } }))
       toast.success(`Филиал: ${branch.name}`)

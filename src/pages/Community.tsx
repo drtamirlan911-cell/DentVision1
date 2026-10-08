@@ -368,7 +368,7 @@ export default function CommunityPage() {
                         type="button"
                         aria-label={`Нравится: ${post.likesCount || 0}`}
                         title="Нравится"
-                        className={cn('inline-flex items-center gap-1.5 text-xs min-h-11', post.liked ? 'text-error' : 'hover:text-txt-primary')}
+                        className={cn('inline-flex items-center gap-1.5 text-xs min-h-11 min-w-11 justify-center', post.liked ? 'text-error' : 'hover:text-txt-primary')}
                         onClick={() => void toggleLike(post.id)}
                       >
                         <Heart size={14} fill={post.liked ? 'currentColor' : 'none'} />
@@ -378,7 +378,7 @@ export default function CommunityPage() {
                         type="button"
                         aria-label={`Комментарии: ${post.commentsCount || 0}`}
                         title="Комментарии"
-                        className="inline-flex items-center gap-1.5 text-xs hover:text-txt-primary min-h-11"
+                        className="inline-flex items-center gap-1.5 text-xs hover:text-txt-primary min-h-11 min-w-11 justify-center"
                         onClick={() => void openComments(post.id)}
                       >
                         <MessageSquare size={14} />
@@ -388,7 +388,7 @@ export default function CommunityPage() {
                         type="button"
                         aria-label={post.saved ? 'Убрать из сохранённых' : 'Сохранить пост'}
                         title={post.saved ? 'Убрать из сохранённых' : 'Сохранить пост'}
-                        className={cn('inline-flex items-center gap-1.5 text-xs min-h-11', post.saved ? 'text-dv-gold' : 'hover:text-txt-primary')}
+                        className={cn('inline-flex items-center gap-1.5 text-xs min-h-11 min-w-11 justify-center', post.saved ? 'text-dv-gold' : 'hover:text-txt-primary')}
                         onClick={() => void toggleSave(post.id)}
                       >
                         <Bookmark size={14} fill={post.saved ? 'currentColor' : 'none'} />
@@ -397,7 +397,7 @@ export default function CommunityPage() {
                         type="button"
                         aria-label="Поделиться постом"
                         title="Поделиться постом"
-                        className="inline-flex items-center gap-1.5 text-xs hover:text-txt-primary ml-auto min-h-11"
+                        className="inline-flex items-center gap-1.5 text-xs hover:text-txt-primary ml-auto min-h-11 min-w-11 justify-center"
                         onClick={() => void sharePost(post)}
                       >
                         <Share2 size={14} />

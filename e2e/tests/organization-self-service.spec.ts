@@ -41,6 +41,9 @@ test.describe('Universal organization self-service onboarding', () => {
         expect(body.data.entityId).toBeTruthy();
         expect(body.data.organizationId).toBeTruthy();
         expect(body.data.personId).toBeTruthy();
+        if (type !== 'clinic') {
+          expect(body.data.organizationId, `${type} canonical organization id`).not.toBe(body.data.entityId);
+        }
         expect(body.data.type).toBe(type);
         expect(body.data.verification).toBe('PENDING');
         const createdOrg = await prisma.organization.findUnique({ where: { id: body.data.organizationId }, select: { settings: true, originalId: true } });
@@ -73,12 +76,20 @@ test.describe('Universal organization self-service onboarding', () => {
         });
         expect(duplicateCount, `${type} idempotency`).toBe(1);
 
+        const expectedOwnerRole = {
+          clinic: 'owner',
+          dental_lab: 'dental_lab_owner',
+          medical_lab: 'medical_lab_owner',
+          diagnostic_center: 'diagnostic_owner',
+          supplier: 'seller',
+          academy: 'lecturer',
+        }[type];
         const scopedOwner = await prisma.personRole.findFirst({
           where: {
             personId: body.data.personId,
             scopeType: 'organization',
             scopeId: body.data.organizationId,
-            role: { key: type === 'supplier' ? 'seller' : 'owner' },
+            role: { key: expectedOwnerRole },
           },
           select: { id: true },
         });

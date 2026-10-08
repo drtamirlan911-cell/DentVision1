@@ -6,7 +6,7 @@ import { PrismaClient } from '../../dentvision-backend/node_modules/@prisma/clie
 const BASE_URL = process.env.PLAYWRIGHT_BASE_URL || 'http://localhost:3001';
 const prisma = new PrismaClient();
 
-const OWNER = { email: 'owner-a@test.com', password: 'Test1234!' };
+const PLATFORM_FINANCE_ADMIN = { email: 'superadmin@test.com', password: 'Test1234!' };
 // A dedicated lecturer account per run, not the shared `regular@test.com` —
 // this file funds its wallet directly through Prisma and drives it through
 // the full payout state machine, and a lecturer profile plus stray Payout/
@@ -46,7 +46,7 @@ test.describe('Payout Workflow', () => {
 
   test.beforeAll(async () => {
     api = await apiRequest.newContext();
-    ownerToken = await login(api, OWNER.email, OWNER.password);
+    ownerToken = await login(api, PLATFORM_FINANCE_ADMIN.email, PLATFORM_FINANCE_ADMIN.password);
 
     const regRes = await api.post(`${BASE_URL}/api/auth/register`, {
       data: { email: LECTURER_EMAIL, password: LECTURER_PASSWORD, firstName: 'Payout', lastName: 'Lecturer' },

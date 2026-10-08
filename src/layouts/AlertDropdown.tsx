@@ -1,4 +1,4 @@
-import React, { useRef, useEffect, useMemo } from 'react';
+import React, { useRef, useEffect, useMemo, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import { Bell, X, AlertCircle, AlertTriangle, Info } from 'lucide-react';
@@ -57,6 +57,21 @@ export function badgeCountFor(input: { unreadNotifications: number }): number {
   return Math.max(0, input.unreadNotifications);
 }
 
+export function timeAgo(value: string): string {
+  const timestamp = Date.parse(value);
+  if (!Number.isFinite(timestamp)) return '';
+  const diffSeconds = Math.round((timestamp - Date.now()) / 1000);
+  const abs = Math.abs(diffSeconds);
+  const unit = abs < 60 ? 'second' : abs < 3600 ? 'minute' : abs < 86400 ? 'hour' : 'day';
+  const divisor = unit === 'second' ? 1 : unit === 'minute' ? 60 : unit === 'hour' ? 3600 : 86400;
+  const valueInUnit = Math.round(diffSeconds / divisor);
+  try {
+    return new Intl.RelativeTimeFormat('ru', { numeric: 'auto' }).format(valueInUnit, unit as Intl.RelativeTimeFormatUnit);
+  } catch {
+    return new Date(timestamp).toLocaleString('ru-RU');
+  }
+}
+
 function normalizePriority(p: BellAlert['priority']): 'high' | 'medium' | 'low' {
   if (p === 'high' || p === 'medium' || p === 'low') return p;
   const n = Number(p) || 0;
@@ -89,6 +104,14 @@ export const AlertDropdown: React.FC<AlertDropdownProps> = ({ alerts, isOpen, se
   const markRead = useNotificationStore((s) => s.markAsRead);
   const markAll = useNotificationStore((s) => s.markAllAsRead);
   const loadNotifications = useNotificationStore((s) => s.loadNotifications);
+  const [selectedNotification, setSelectedNotification] = useState<{
+    id: string;
+    type: string;
+    title: string;
+    message: string;
+    createdAt: string;
+    actionUrl?: string;
+  } | null>(null);
 
   useEffect(() => {
     if (!isAuthenticated || isGuest) return;
@@ -107,6 +130,15 @@ export const AlertDropdown: React.FC<AlertDropdownProps> = ({ alerts, isOpen, se
       document.removeEventListener('touchstart', handler);
     };
   }, [isOpen, setIsOpen]);
+
+  useEffect(() => {
+    if (!selectedNotification) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setSelectedNotification(null);
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [selectedNotification]);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -155,7 +187,14 @@ export const AlertDropdown: React.FC<AlertDropdownProps> = ({ alerts, isOpen, se
     const path = resolveAlertPath(alert);
     return (
       <button key={alert.id || `${alert.type}-${i}`} type="button" onClick={() => {
-        if (alert.source === 'notification' && alert.id && !alert.read) void markRead(alert.id);
+        if (alert.source === 'notification' && alert.id) {
+          const notification = notifications.find((item) => item.id === alert.id);
+          if (!notification) return;
+          if (!notification.read) void markRead(notification.id);
+          setSelectedNotification(notification);
+          setIsOpen(false);
+          return;
+        }
         if (path) navigate(path);
         setIsOpen(false);
       }} className={cn('w-full text-left flex items-start gap-2.5 px-3 py-3 border-b border-bdr-subtle last:border-b-0 hover:bg-surface-2 transition-colors', alert.source === 'notification' && !alert.read && 'bg-dv-gold/[0.06]')}>
@@ -174,6 +213,75 @@ export const AlertDropdown: React.FC<AlertDropdownProps> = ({ alerts, isOpen, se
         <Bell size={17} className={badgeCount > 0 ? 'alert-pulse' : undefined} />
         {badgeCount > 0 && <span className="absolute -top-0.5 -right-0.5 h-4 min-w-4 px-0.5 rounded-full bg-dv-gold text-[9px] font-bold text-dv-gold-on flex items-center justify-center">{badgeCount > 9 ? '9+' : badgeCount}</span>}
       </button>
+      <AnimatePresence>
+        {selectedNotification && (
+          <motion.div
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[120] flex items-center justify-center bg-black/60 p-4"
+            role="dialog"
+            aria-modal="true"
+            aria-label={selectedNotification.title}
+            onMouseDown={(e) => {
+              if (e.target === e.currentTarget) setSelectedNotification(null);
+            }}
+          >
+            <motion.div
+              initial={{ opacity: 0, y: 8, scale: 0.98 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: 8, scale: 0.98 }}
+              className="w-full max-w-lg overflow-hidden rounded-2xl border border-bdr-subtle bg-surface-1 shadow-2xl"
+            >
+              <div className="flex items-start justify-between gap-4 border-b border-bdr-subtle px-5 py-4">
+                <div className="min-w-0">
+                  <p className="text-2xs font-medium uppercase tracking-wider text-dv-gold">
+                    {t('platform.notification_source')}
+                  </p>
+                  <h3 className="mt-1 text-base font-semibold text-txt-primary break-words">
+                    {selectedNotification.title}
+                  </h3>
+                </div>
+                <button
+                  type="button"
+                  aria-label={t('common.close')}
+                  onClick={() => setSelectedNotification(null)}
+                  className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-txt-muted hover:bg-surface-2 hover:text-txt-primary"
+                >
+                  <X size={18} />
+                </button>
+              </div>
+              <div className="space-y-3 px-5 py-5">
+                <p className="whitespace-pre-wrap break-words text-sm leading-6 text-txt-secondary">
+                  {selectedNotification.message || t('platform.notification_empty_short')}
+                </p>
+                <p className="text-2xs text-txt-ghost">{timeAgo(selectedNotification.createdAt)}</p>
+              </div>
+              <div className="flex flex-wrap justify-end gap-2 border-t border-bdr-subtle px-5 py-3">
+                <button
+                  type="button"
+                  onClick={() => setSelectedNotification(null)}
+                  className="min-h-9 rounded-lg px-3 py-2 text-xs text-txt-secondary hover:bg-surface-2"
+                >
+                  {t('common.close')}
+                </button>
+                {selectedNotification.actionUrl && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const path = selectedNotification.actionUrl;
+                      setSelectedNotification(null);
+                      if (path) navigate(path);
+                    }}
+                    className="min-h-9 rounded-lg bg-dv-gold px-3 py-2 text-xs font-medium text-black"
+                  >
+                    Открыть связанный раздел
+                  </button>
+                )}
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       <AnimatePresence>
         {isOpen && (
           <>

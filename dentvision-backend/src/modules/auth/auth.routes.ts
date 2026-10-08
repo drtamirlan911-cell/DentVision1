@@ -59,15 +59,15 @@ async function buildSignInPayload(user: SignInUser, req: any, res: any) {
   const clinicId = authContext.clinicId;
   const activeMembership = user.memberships[0] ? { id: user.memberships[0].id, role: user.memberships[0].role, clinicId: user.memberships[0].clinicId, joinedAt: user.memberships[0].joinedAt, clinic: user.memberships[0].clinic } : null;
   const session = await createSession(user.id, req.ip, req.headers['user-agent']);
-  const tokens = generateTokens({ sub: user.id, email: user.email, role: user.role, ...authContext, sessionId: session.id });
-  const { password: _password, memberships, ...userWithoutPassword } = user;
-  setAuthCookies(res, tokens.accessToken, tokens.refreshToken);
   const effectivePermissions = await resolveUserPermissions(user.id, authContext.organizationId);
   const scopedRole = clinicId
     ? (await resolveClinicAccess(user.id, clinicId))?.role || user.role
     : authContext.organizationId
       ? await resolveOrganizationRoleKey(user.id, authContext.organizationId) || user.role
       : user.role;
+  const tokens = generateTokens({ sub: user.id, email: user.email, role: scopedRole as UserRole, ...authContext, sessionId: session.id });
+  const { password: _password, memberships, ...userWithoutPassword } = user;
+  setAuthCookies(res, tokens.accessToken, tokens.refreshToken);
   return { user: { ...userWithoutPassword, clinicId, organizationId: authContext.organizationId, organizationOriginalId: authContext.organizationOriginalId, organizationType: authContext.organizationType, organizationName: authContext.organizationName, personType: authContext.personType, effectiveRole: scopedRole, name: `${user.firstName} ${user.lastName}`.trim() }, memberships: memberships.map((m) => ({ id: m.id, role: m.role, clinicId: m.clinicId, joinedAt: m.joinedAt, clinic: m.clinic })), activeMembership, permissions: effectivePermissions, pages: pagesForCaller(effectivePermissions, scopedRole), capabilities: capabilitiesForPermissions(effectivePermissions, scopedRole), effectiveRole: scopedRole, ...tokens };
 }
 
@@ -219,10 +219,13 @@ authRouter.post('/refresh', async (req, res) => {
 
     await expireSession(session.id);
     const newSession = await createSession(user.id, req.ip, req.headers['user-agent']);
+    const scopedRole = authContext.organizationId
+      ? await resolveOrganizationRoleKey(user.id, authContext.organizationId)
+      : undefined;
     const tokens = generateTokens({
       sub: user.id,
       email: user.email,
-      role: user.role,
+      role: (scopedRole || user.role) as UserRole,
       ...authContext,
       sessionId: newSession.id,
     });

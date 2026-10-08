@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { createHash } from 'node:crypto';
-import type { Prisma } from '@prisma/client';
+import type { Prisma, UserRole } from '@prisma/client';
 import prisma from '../../lib/prisma.js';
 import { authenticate } from '../../middleware/auth.js';
 import { requireSuperadmin } from '../../middleware/rbac.js';
@@ -8,7 +8,7 @@ import type { AuthRequest, ApiResponse } from '../../types/index.js';
 import { uid, paginate, paginatedResponse } from '../../lib/helpers.js';
 import branchesRouter from '../branches/branches.routes.js';
 import { generateTokens } from '../../lib/jwt.js';
-import { resolveAuthContext } from '../../lib/authContext.js';
+import { resolveAuthContext, resolveOrganizationRoleKey } from '../../lib/authContext.js';
 import { auditFromReq } from '../compliance/audit.service.js';
 import { createNotificationForMany, NOTIFICATION_TYPES } from '../../services/notification.service.js';
 import { ensureLegalTrustPackage, getLegalPartnerForContext } from '../legal/legal.trust.service.js';
@@ -29,6 +29,17 @@ const SELF_SERVICE_TYPES = {
 } as const;
 
 type SelfServiceType = keyof typeof SELF_SERVICE_TYPES;
+
+function selfServiceRoleKey(type: SelfServiceType): string {
+  switch (type) {
+    case 'clinic': return 'owner';
+    case 'diagnostic_center': return 'diagnostic_owner';
+    case 'medical_lab': return 'medical_lab_owner';
+    case 'dental_lab': return 'dental_lab_owner';
+    case 'supplier': return 'seller';
+    case 'academy': return 'lecturer';
+  }
+}
 
 function selfServiceType(value: unknown): SelfServiceType | null {
   const key = String(value || '').trim().toLowerCase() as SelfServiceType;
@@ -59,6 +70,24 @@ async function ensurePersonRole(
     create: { personId: person.id, roleId: role.id, scopeType: 'organization', scopeId: organizationId, scopeKey },
   });
   return person.id;
+}
+
+async function currentOrganizationPerson(userId: string, requestedOrganizationId?: string | null) {
+  const organizationId = String(requestedOrganizationId || '').trim();
+  return prisma.person.findFirst({
+    where: {
+      userId,
+      organizationId: { not: null },
+      ...(organizationId ? { organizationId } : {}),
+      personRoles: {
+        some: organizationId
+          ? { scopeType: 'organization', scopeId: organizationId }
+          : { scopeType: 'organization' },
+      },
+    },
+    orderBy: { createdAt: 'asc' },
+    include: { organization: true },
+  });
 }
 
 function setAuthCookies(res: any, accessToken: string, refreshToken: string) {
@@ -97,7 +126,7 @@ organizationsRouter.post('/self-service', async (req: AuthRequest, res) => {
         const settings = (org.settings && typeof org.settings === 'object' && !Array.isArray(org.settings)) ? org.settings as Record<string, unknown> : {};
         const originalId = String(org.originalId || '');
         const defaultBranch = await tx.$queryRaw<Array<{ id: string }>>`
-          SELECT "id" FROM "branches" WHERE "organization_id" = ${org.id} ORDER BY "isDefault" DESC, "createdAt" ASC LIMIT 1
+          SELECT "id" FROM "branches" WHERE "organization_id" = ${org.id} ORDER BY "isDefault" DESC, "created_at" ASC LIMIT 1
         `;
         return { entityId: originalId, organizationId: org.id, entity: null, personId: existing.id, branchId: defaultBranch[0]?.id || null, idempotent: true, existingSettings: settings };
       }
@@ -114,14 +143,14 @@ organizationsRouter.post('/self-service', async (req: AuthRequest, res) => {
       } else if (type === 'diagnostic_center') {
         entityId = uid();
         entity = await tx.diagnosticCenter.create({ data: { id: entityId, name, city: city || undefined, address: address || undefined, phone: phone || undefined, email: email || undefined, active: true } });
-        organizationId = entityId;
-        await tx.organization.upsert({ where: { originalType_originalId: { originalType: 'DiagnosticCenter', originalId: entityId } }, update: { name, address, phone, email, taxId, settings: { lifecycle: 'PENDING_VERIFICATION', verification: 'PENDING', ecosystemVisible: false, legal: { status: 'PENDING' }, onboardingKey: idempotencyKey, selfServiceType: type } as any }, create: { id: entityId, name, type: 'DIAGNOSTIC_CENTER' as any, address, phone, email, taxId, contacts: city ? { city } : undefined, originalType: 'DiagnosticCenter', originalId: entityId, settings: { lifecycle: 'PENDING_VERIFICATION', verification: 'PENDING', ecosystemVisible: false, legal: { status: 'PENDING' }, onboardingKey: idempotencyKey, selfServiceType: type } as any } });
+        const canonicalOrganization = await tx.organization.upsert({ where: { originalType_originalId: { originalType: 'DiagnosticCenter', originalId: entityId } }, update: { name, address, phone, email, taxId, settings: { lifecycle: 'PENDING_VERIFICATION', verification: 'PENDING', ecosystemVisible: false, legal: { status: 'PENDING' }, onboardingKey: idempotencyKey, selfServiceType: type } as any }, create: { id: uid(), name, type: 'DIAGNOSTIC_CENTER' as any, address, phone, email, taxId, contacts: city ? { city } : undefined, originalType: 'DiagnosticCenter', originalId: entityId, settings: { lifecycle: 'PENDING_VERIFICATION', verification: 'PENDING', ecosystemVisible: false, legal: { status: 'PENDING' }, onboardingKey: idempotencyKey, selfServiceType: type } as any } });
+        organizationId = canonicalOrganization.id;
         await tx.diagnosticCenterMember.create({ data: { id: uid(), centerId: entityId, userId: req.user!.id, role: 'owner' } });
       } else if (type === 'dental_lab' || type === 'medical_lab') {
         entityId = uid();
         entity = await tx.laboratory.create({ data: { id: entityId, name, city: city || undefined, address: address || undefined, phone: phone || undefined, email: email || undefined, active: true } });
-        organizationId = entityId;
-        await tx.organization.upsert({ where: { originalType_originalId: { originalType: 'Laboratory', originalId: entityId } }, update: { name, address, phone, email, taxId, settings: { lifecycle: 'PENDING_VERIFICATION', verification: 'PENDING', ecosystemVisible: false, legal: { status: 'PENDING' }, laboratoryType: type === 'dental_lab' ? 'DENTAL_LAB' : 'MEDICAL_LAB', onboardingKey: idempotencyKey, selfServiceType: type } as any }, create: { id: entityId, name, type: 'LABORATORY' as any, address, phone, email, taxId, originalType: 'Laboratory', originalId: entityId, settings: { lifecycle: 'PENDING_VERIFICATION', verification: 'PENDING', ecosystemVisible: false, legal: { status: 'PENDING' }, laboratoryType: type === 'dental_lab' ? 'DENTAL_LAB' : 'MEDICAL_LAB', onboardingKey: idempotencyKey, selfServiceType: type } as any } });
+        const canonicalOrganization = await tx.organization.upsert({ where: { originalType_originalId: { originalType: 'Laboratory', originalId: entityId } }, update: { name, address, phone, email, taxId, settings: { lifecycle: 'PENDING_VERIFICATION', verification: 'PENDING', ecosystemVisible: false, legal: { status: 'PENDING' }, laboratoryType: type === 'dental_lab' ? 'DENTAL_LAB' : 'MEDICAL_LAB', onboardingKey: idempotencyKey, selfServiceType: type } as any }, create: { id: uid(), name, type: 'LABORATORY' as any, address, phone, email, taxId, originalType: 'Laboratory', originalId: entityId, settings: { lifecycle: 'PENDING_VERIFICATION', verification: 'PENDING', ecosystemVisible: false, legal: { status: 'PENDING' }, laboratoryType: type === 'dental_lab' ? 'DENTAL_LAB' : 'MEDICAL_LAB', onboardingKey: idempotencyKey, selfServiceType: type } as any } });
+        organizationId = canonicalOrganization.id;
         await tx.laboratoryMember.create({ data: { id: uid(), labId: entityId, userId: req.user!.id, role: 'owner' } });
       } else if (type === 'supplier') {
         entityId = uid();
@@ -135,7 +164,8 @@ organizationsRouter.post('/self-service', async (req: AuthRequest, res) => {
         await tx.organization.create({ data: { id: organizationId, name, type: 'ACADEMY' as any, taxId, address, phone, email, originalType: 'Academy', originalId: entityId, settings: { lifecycle: 'PENDING_VERIFICATION', verification: 'PENDING', ecosystemVisible: false, legal: { status: 'PENDING' }, onboardingKey: idempotencyKey, selfServiceType: type } as any } });
       }
 
-      const personId = await ensurePersonRole(tx, req.user!.id, organizationId, type === 'supplier' ? 'seller' : 'owner');
+      const scopedRoleKey = selfServiceRoleKey(type);
+      const personId = await ensurePersonRole(tx, req.user!.id, organizationId, scopedRoleKey);
 
       // Every self-service organization starts with one real operational branch.
       // This is the canonical Organization → Branch scope; it is persisted and
@@ -144,7 +174,7 @@ organizationsRouter.post('/self-service', async (req: AuthRequest, res) => {
       const branchCode = (name.trim().toUpperCase().replace(/[^A-ZА-Я0-9]+/gi, '-').replace(/^-|-$/g, '').slice(0, 32) || 'MAIN');
       await tx.$executeRaw`
         INSERT INTO "branches"
-          ("id", "organization_id", "clinic_id", "code", "name", "city", "address", "phone", "active", "isDefault", "createdAt", "updatedAt", "settings")
+          ("id", "organization_id", "clinic_id", "code", "name", "city", "address", "phone", "active", "isDefault", "created_at", "updated_at", "settings")
         VALUES
           (${branchId}, ${organizationId}, ${type === 'clinic' ? entityId : null}, ${branchCode}, ${name.trim()}, ${city}, ${address}, ${phone}, true, true, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, NULL)
       `;
@@ -154,14 +184,22 @@ organizationsRouter.post('/self-service', async (req: AuthRequest, res) => {
         create: { id: uid(), personId, branchId },
       });
 
-      await tx.user.update({ where: { id: req.user!.id }, data: { role: 'OWNER' } });
-      return { entityId, organizationId, entity, personId, branchId, idempotent: false, existingSettings: null };
+      // Global user role must not become an authorization shortcut for partner
+      // organizations. Clinic ownership keeps the legacy OWNER role for clinic
+      // compatibility; partner/academy ownership is scoped by PersonRole + JWT
+      // Active Workspace context.
+      if (type === 'clinic') {
+        await tx.user.update({ where: { id: req.user!.id }, data: { role: 'OWNER' } });
+      }
+      return { entityId, organizationId, entity, personId, branchId, scopedRoleKey, idempotent: false, existingSettings: null };
     });
 
     if (result.idempotent) {
       const authContext = await resolveAuthContext(req.user!.id, { organizationId: result.organizationId });
       if (authContext.organizationId !== result.organizationId) throw new Error('Не удалось установить контекст существующей организации');
-      const tokens = generateTokens({ sub: req.user!.id, email: req.user!.email, role: 'OWNER', ...authContext, branchId: result.branchId || undefined, sessionId: req.user!.sessionId });
+      const scopedRoleKey = await resolveOrganizationRoleKey(req.user!.id, result.organizationId);
+      const role = String(scopedRoleKey || selfServiceRoleKey(type)).toUpperCase();
+      const tokens = generateTokens({ sub: req.user!.id, email: req.user!.email, role: role as UserRole, ...authContext, branchId: result.branchId || undefined, sessionId: req.user!.sessionId });
       setAuthCookies(res, tokens.accessToken, tokens.refreshToken);
       return res.status(200).json({ ok: true, data: { entityId: result.entityId, organizationId: result.organizationId, type, verification: String((result.existingSettings as any)?.verification || 'PENDING'), nextPath: SELF_SERVICE_TYPES[type].nextPath, idempotent: true, ...tokens } } satisfies ApiResponse);
     }
@@ -169,9 +207,9 @@ organizationsRouter.post('/self-service', async (req: AuthRequest, res) => {
     const superadmins = await prisma.user.findMany({ where: { role: 'SUPERADMIN' }, select: { id: true } });
     await createNotificationForMany(superadmins.map((u) => u.id), { type: NOTIFICATION_TYPES.NEW_ORGANIZATION, title: 'Новая организация создана', message: `Создана организация «${name}». Требуется проверка юридических данных и оформление документов.`, link: `/admin/organizations?organizationId=${result.organizationId}`, force: true });
 
-    // The database role is now OWNER, but authorization is organization-scoped.
-    // Issue a fresh context-bound token immediately so the client does not spend
-    // the remainder of the old session in an unscoped OWNER fallback context.
+    // The JWT must carry the scoped partner role. Global User.role remains a
+    // legacy compatibility field and must never become a tenant-wide OWNER
+    // authorization shortcut for partner workspaces.
     const authContext = await resolveAuthContext(req.user!.id, { organizationId: result.organizationId });
     if (authContext.organizationId !== result.organizationId) {
       throw new Error('Не удалось установить контекст созданной организации');
@@ -179,7 +217,7 @@ organizationsRouter.post('/self-service', async (req: AuthRequest, res) => {
     const tokens = generateTokens({
       sub: req.user!.id,
       email: req.user!.email,
-      role: 'OWNER',
+      role: String(result.scopedRoleKey || '').toUpperCase() as UserRole,
       ...authContext,
       branchId: result.branchId,
       sessionId: req.user!.sessionId,
@@ -198,11 +236,13 @@ organizationsRouter.post('/self-service', async (req: AuthRequest, res) => {
 // before the SuperAdmin-only management surface below.
 organizationsRouter.get('/me', async (req: AuthRequest, res) => {
   try {
-    const person = await prisma.person.findFirst({
-      where: { userId: req.user!.id, organizationId: { not: null } },
-      orderBy: { createdAt: 'asc' },
-      include: { organization: true },
-    });
+    const requestedOrganizationId = String(
+      req.user?.organizationId ||
+      req.header('X-DentVision-Organization-Id') ||
+      req.header('X-DentVision-Workspace-Id') ||
+      '',
+    ).trim();
+    const person = await currentOrganizationPerson(req.user!.id, requestedOrganizationId);
     if (!person?.organization) return res.status(404).json({ ok: false, error: 'У вас нет организации' } satisfies ApiResponse);
 
     const org = person.organization;
@@ -212,7 +252,7 @@ organizationsRouter.get('/me', async (req: AuthRequest, res) => {
     }>>`
       SELECT "id","code","name","city","address","phone","active","isDefault" AS is_default
       FROM "branches" WHERE "organization_id" = ${org.id}
-      ORDER BY "isDefault" DESC, "createdAt" ASC
+      ORDER BY "isDefault" DESC, "created_at" ASC
     `;
     return res.json({ ok: true, data: { organization: org, person, branches } } satisfies ApiResponse);
   } catch (error) {
@@ -223,7 +263,13 @@ organizationsRouter.get('/me', async (req: AuthRequest, res) => {
 
 organizationsRouter.patch('/me', async (req: AuthRequest, res) => {
   try {
-    const person = await prisma.person.findFirst({ where: { userId: req.user!.id, organizationId: { not: null } }, include: { organization: true } });
+    const requestedOrganizationId = String(
+      req.user?.organizationId ||
+      req.header('X-DentVision-Organization-Id') ||
+      req.header('X-DentVision-Workspace-Id') ||
+      '',
+    ).trim();
+    const person = await currentOrganizationPerson(req.user!.id, requestedOrganizationId);
     if (!person?.organization) return res.status(404).json({ ok: false, error: 'У вас нет организации' });
     const current = person.organization;
     const body = req.body || {};
@@ -248,7 +294,13 @@ organizationsRouter.patch('/me', async (req: AuthRequest, res) => {
 
 organizationsRouter.post('/me/legal', async (req: AuthRequest, res) => {
   try {
-    const person = await prisma.person.findFirst({ where: { userId: req.user!.id, organizationId: { not: null } }, include: { organization: true } });
+    const requestedOrganizationId = String(
+      req.user?.organizationId ||
+      req.header('X-DentVision-Organization-Id') ||
+      req.header('X-DentVision-Workspace-Id') ||
+      '',
+    ).trim();
+    const person = await currentOrganizationPerson(req.user!.id, requestedOrganizationId);
     if (!person?.organization) return res.status(404).json({ ok: false, error: 'У вас нет организации' });
     const org = person.organization; const body = req.body || {};
     const legalName = String(body.legalName || org.name).trim(); const bin = String(body.bin || org.taxId || '').trim();
@@ -267,7 +319,13 @@ organizationsRouter.post('/me/legal', async (req: AuthRequest, res) => {
 
 organizationsRouter.post('/me/verification', async (req: AuthRequest, res) => {
   try {
-    const person = await prisma.person.findFirst({ where: { userId: req.user!.id, organizationId: { not: null } }, include: { organization: true } });
+    const requestedOrganizationId = String(
+      req.user?.organizationId ||
+      req.header('X-DentVision-Organization-Id') ||
+      req.header('X-DentVision-Workspace-Id') ||
+      '',
+    ).trim();
+    const person = await currentOrganizationPerson(req.user!.id, requestedOrganizationId);
     if (!person?.organization) return res.status(404).json({ ok: false, error: 'У вас нет организации' });
     const org = person.organization; const partner = await getLegalPartnerForContext(req.user!.id, org.id);
     if (!partner) return res.status(400).json({ ok: false, error: 'Сначала заполните юридические реквизиты и сформируйте документы.' });

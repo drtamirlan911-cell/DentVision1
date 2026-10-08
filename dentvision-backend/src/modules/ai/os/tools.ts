@@ -19,7 +19,7 @@ import { applyToothFindings as applyToothFindingsToChart, isValidFdi } from '../
 import { searchClinicalNotes } from '../lib/clinicalSearch.js';
 import { uid } from '../../../lib/helpers.js';
 import { publish } from '../../../lib/events.js';
-import { isClinicMember } from '../../../lib/orgContext.js';
+import { resolveClinicAccess } from '../../../lib/orgContext.js';
 import { buildClinicLoadPlan } from '../core/clinicLoadPlan.js';
 import { scrubToolOutput } from '../lib/piiScrubber.js';
 import { createReferral } from '../../diagnostics/diagnostics.service.js';
@@ -105,6 +105,14 @@ const RADIOGRAPH_FINDINGS_SCHEMA = {
 function requireClinic(ctx: ToolContext): string {
   if (!ctx.clinicId) throw new Error('NO_CLINIC');
   return ctx.clinicId;
+}
+
+const APPOINTMENT_DOCTOR_ROLES = new Set(['DOCTOR', 'OWNER', 'DIRECTOR']);
+
+async function resolveAppointmentDoctor(doctorId: string, clinicId: string): Promise<boolean> {
+  if (!doctorId || !clinicId) return false;
+  const access = await resolveClinicAccess(doctorId, clinicId);
+  return Boolean(access && APPOINTMENT_DOCTOR_ROLES.has(String(access.role).toUpperCase()));
 }
 
 /**
@@ -343,14 +351,13 @@ export const TOOLS: Record<string, ToolSpec> = {
       if (!patient) return { ok: false, error: 'Пациент не найден' };
 
       const doctorId = String(args.doctorId || ctx.userId);
-      // `doctorId` comes from the model's tool-call arguments when explicitly
-      // given (the caller may ask to book "with Dr. X"). Unlike patientId
-      // above, nothing here confirms it belongs to this clinic — write it
-      // unchecked and the appointment ends up assigned to a user with no
-      // relationship to the clinic at all. Skipped when it defaulted to
-      // ctx.userId, which the orchestrator already verified.
-      if (args.doctorId && doctorId !== ctx.userId && !(await isClinicMember(doctorId, clinicId))) {
-        return { ok: false, error: 'Указанный врач не найден в этой клинике' };
+      if (!(await resolveAppointmentDoctor(doctorId, clinicId))) {
+        return {
+          ok: false,
+          error: args.doctorId
+            ? 'Указанный пользователь не является врачом в этой клинике'
+            : 'Для записи необходимо указать врача; текущий пользователь не имеет врачебной роли',
+        };
       }
       const time = String(args.time);
       const duration = Number(args.duration) || 60;
@@ -552,8 +559,8 @@ export const TOOLS: Record<string, ToolSpec> = {
       const date = String(args.date);
       const time = String(args.time);
       const doctorId = String(args.doctorId || existing.doctorId);
-      if (args.doctorId && doctorId !== existing.doctorId && !(await isClinicMember(doctorId, clinicId))) {
-        return { ok: false, error: 'Указанный врач не найден в этой клинике' };
+      if (!(await resolveAppointmentDoctor(doctorId, clinicId))) {
+        return { ok: false, error: 'Указанный пользователь не является врачом в этой клинике' };
       }
       const name = existing.patient
         ? `${existing.patient.firstName} ${existing.patient.lastName}`.trim()

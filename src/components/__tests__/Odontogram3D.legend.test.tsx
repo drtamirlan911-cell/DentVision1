@@ -18,9 +18,16 @@ vi.mock('lucide-react', () => ({
   Sparkles: () => null,
   Check: () => null,
   X: () => null,
+  History: () => null,
+  Pencil: () => null,
+  Camera: () => null,
+  Trash2: () => null,
+}))
+vi.mock('react-router-dom', () => ({
+  useNavigate: () => () => {},
 }))
 
-const { SurfaceEditor } = await import('../Odontogram3D')
+const { Odontogram3D, SurfaceEditor } = await import('../Odontogram3D')
 
 describe('SurfaceEditor legend', () => {
   it('binds --status-color from STATUS_META to the active status button', () => {
@@ -56,5 +63,47 @@ describe('SurfaceEditor legend', () => {
     fireEvent.click(crownBtn)
     expect(crownBtn).toHaveClass('bg-[var(--status-color)]')
     expect(crownBtn.style.getPropertyValue('--status-color').trim()).toBe('#3B82F6')
+  })
+})
+
+
+describe('Odontogram selected-tooth clinical context', () => {
+  it('opens anatomical context for a real tooth selection and reflects surface findings', () => {
+    const patientTeeth = {
+      16: { status: 'caries', surfaces: { O: 'caries' } },
+    }
+
+    const onToothClick = vi.fn()
+    const view = render(
+      <Odontogram3D
+        patientTeeth={patientTeeth}
+        onToothClick={onToothClick}
+        selectedTooth={undefined}
+        showToolbar={false}
+      />,
+    )
+
+    const toothButton = screen.getByRole('button', { name: /16 ·/ })
+    fireEvent.click(toothButton)
+    expect(onToothClick).toHaveBeenCalledWith(16)
+
+    view.rerender(
+      <Odontogram3D
+        patientTeeth={patientTeeth}
+        onToothClick={onToothClick}
+        selectedTooth={16}
+        showToolbar={false}
+      />,
+    )
+
+    const context = screen.getByTestId('selected-tooth-anatomy')
+    expect(within(context).getByText('Клинический контекст')).toBeTruthy()
+    expect(within(context).getByText('Коронка')).toBeTruthy()
+    expect(within(context).getByText('Дентин')).toBeTruthy()
+    expect(within(context).getByText('Пульпа')).toBeTruthy()
+    expect(within(context).getByText('Нерв')).toBeTruthy()
+    expect(within(context).getByText('Корень')).toBeTruthy()
+    expect(within(context).getByText(/Поверхности/)).toBeTruthy()
+    expect(within(context).getByText(/O:/)).toBeTruthy()
   })
 })

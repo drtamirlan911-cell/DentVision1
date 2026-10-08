@@ -70,7 +70,17 @@ iamRouter.get('/me/contexts', async (req: AuthRequest, res) => {
       prisma.diagnosticCenterMember.findMany({ where: { userId }, select: { id: true, role: true, centerId: true, createdAt: true, center: { select: { id: true, name: true, logo: true } } }, orderBy: { createdAt: 'asc' } }),
       prisma.laboratoryMember.findMany({ where: { userId }, select: { id: true, role: true, labId: true, createdAt: true, lab: { select: { id: true, name: true } } }, orderBy: { createdAt: 'asc' } }),
     ]);
-    const persons = await prisma.person.findMany({ where: { userId }, include: { organization: { select: { id: true, name: true, type: true, logo: true, originalId: true } }, personRoles: { include: { role: true } } } });
+    // Context discovery is a read-model endpoint. A broken/stale canonical Person
+    // graph must not turn the entire workspace switcher into HTTP 500: legacy
+    // memberships are still valid compatibility evidence and authorization remains
+    // enforced by context switching endpoints.
+    const persons = await prisma.person.findMany({
+      where: { userId },
+      include: { organization: { select: { id: true, name: true, type: true, logo: true, originalId: true } }, personRoles: { include: { role: true } } },
+    }).catch((error) => {
+      console.error('IAM contexts: canonical person read failed; using legacy memberships', error);
+      return [];
+    });
     const contexts = buildWorkspaceContexts({ memberships, supplierMemberships, lecturer, diagnosticCenterMemberships, laboratoryMemberships, persons });
 
     // Canonical partner workspaces must remain discoverable from PersonRole
@@ -78,6 +88,7 @@ iamRouter.get('/me/contexts', async (req: AuthRequest, res) => {
     // or temporarily stale. Only an organization-scoped PersonRole for this
     // exact user + organization can materialize the context.
     const partnerRolePattern = /^(diagnostic_|medical_lab_|dental_lab_|lab_coordinator|dental_technician|cad_designer|ceramist|orthodontic_technician|qc_specialist|lab_finance)/i;
+    const academyRolePattern = /^(lecturer|academy_)/i;
     for (const person of persons) {
       const org = person.organization;
       if (!org) continue;
@@ -123,6 +134,9 @@ iamRouter.get('/me/contexts', async (req: AuthRequest, res) => {
           include: { organization: { select: { id: true, name: true, type: true, logo: true, originalId: true } } },
         },
       },
+    }).catch((error) => {
+      console.error('IAM contexts: diagnostic PersonRole read failed; retaining legacy/canonical base contexts', error);
+      return [];
     });
     const canonicalAssignments = await prisma.personRole.findMany({
       where: {
@@ -147,6 +161,9 @@ iamRouter.get('/me/contexts', async (req: AuthRequest, res) => {
           include: { organization: { select: { id: true, name: true, type: true, logo: true, originalId: true } } },
         },
       },
+    }).catch((error) => {
+      console.error('IAM contexts: canonical partner role read failed; retaining base contexts', error);
+      return [];
     });
     for (const assignment of [...canonicalPartnerAssignments, ...canonicalAssignments]) {
       const org = assignment.person.organization;
@@ -194,7 +211,8 @@ iamRouter.get('/me/contexts', async (req: AuthRequest, res) => {
         ?.find((personRole) =>
           personRole.scopeType === 'organization' &&
           personRole.scopeId === activeOrgId &&
-          /^(diagnostic_|medical_lab_|dental_lab_|lab_coordinator|dental_technician|cad_designer|ceramist|orthodontic_technician|qc_specialist|lab_finance)/i.test(personRole.role.key),
+          (/^(diagnostic_|medical_lab_|dental_lab_|lab_coordinator|dental_technician|cad_designer|ceramist|orthodontic_technician|qc_specialist|lab_finance)/i.test(personRole.role.key) ||
+            academyRolePattern.test(personRole.role.key)),
         )?.role.key;
       if (activePerson?.organization && activeRole) {
         const org = activePerson.organization;
@@ -229,7 +247,7 @@ iamRouter.get('/me/contexts', async (req: AuthRequest, res) => {
         FROM "branches"
         WHERE "organization_id" IN (${Prisma.join(organizationIds)})
           AND "active" = true
-        ORDER BY "organization_id", "isDefault" DESC, "createdAt" ASC
+        ORDER BY "organization_id", "isDefault" DESC, "created_at" ASC
       `;
       const defaultBranchByOrg = new Map(branchRows.map((row) => [row.organizationId, row.branchId]));
       for (const context of contexts) {
@@ -368,7 +386,7 @@ iamRouter.post('/switch-context', async (req: AuthRequest, res) => {
           ? await prisma.academy.findUnique({ where: { id: lecturer.academyId }, select: { id: true, name: true } })
           : null;
         const organization = academy
-          ? await prisma.organization.findFirst({ where: { originalType: 'Academy', originalId: academy.id }, select: { id: true } })
+          ? await prisma.organization.findFirst({ where: { originalType: 'Academy', originalId: academy.id }, select: { id: true, type: true, originalType: true } })
           : null;
         if (organization) {
           const person = await prisma.person.findFirst({
@@ -383,7 +401,7 @@ iamRouter.post('/switch-context', async (req: AuthRequest, res) => {
             lecturerId: scopeId,
             organizationId: organization.id,
             organizationOriginalId: academy!.id,
-            organizationType: 'LECTURER',
+            organizationType: organization.originalType === 'Academy' ? 'ACADEMY' : organization.type,
             personType: 'LECTURER',
           });
           await writeAuditLog({ userId: user.id, action: 'auth.switch_context', entity: 'lecturer', entityId: scopeId });
@@ -444,6 +462,9 @@ iamRouter.post('/invitations', async (req: AuthRequest, res) => {
     if (!organizationId) return res.status(400).json({ ok: false, error: 'organizationId обязателен' } satisfies ApiResponse);
     const org = (await prisma.organization.findUnique({ where: { id: organizationId } })) || (await prisma.organization.findFirst({ where: { originalId: organizationId } }));
     if (!org) return res.status(404).json({ ok: false, error: 'Организация не найдена' } satisfies ApiResponse);
+    if (!['DIAGNOSTIC_CENTER', 'LABORATORY'].includes(String(org.type).toUpperCase())) {
+      return res.status(400).json({ ok: false, error: 'Приглашения пока поддерживаются только для диагностических центров и лабораторий' } satisfies ApiResponse);
+    }
     const allowed = await canManageMembers(req.user!.id, org, req.user!.role === 'SUPERADMIN');
     if (!allowed) return res.status(403).json({ ok: false, error: 'Только владелец или администратор может приглашать' } satisfies ApiResponse);
     const invitation = await createInvitation({ organizationId: org.id, role, email, expiresInDays, createdBy: req.user!.id });
