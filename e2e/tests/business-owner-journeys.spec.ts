@@ -166,7 +166,7 @@ test.describe('DentVision business owner journeys', () => {
       const contextsResponse = await page.request.get('/api/iam/me/contexts');
       expect(contextsResponse.ok()).toBeTruthy();
       const contextsPayload = await contextsResponse.json();
-      const context = (contextsPayload.contexts || []).find(
+      const context = (contextsPayload.data?.contexts || []).find(
         (item: { organizationId?: string; scopeType?: string; branchId?: string }) =>
           item.organizationId === onboarding.data.organizationId,
       );
