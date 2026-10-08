@@ -8,6 +8,7 @@ const PASSWORD = 'Test1234!';
 
 const PUBLIC_ROUTES = ['/', '/login', '/register', '/forgot-password', '/booking', '/demo', '/pricing', '/terms', '/privacy', '/jobs'];
 const AUTH_COMMON_ROUTES = ['/', '/help', '/notifications', '/profile'];
+const AUTHENTICATED_BASE_PAGES = ['shop','school','profile','settings','diagnostics','diagnostics-centers','diagnostics-labs','diagnostics-laboratories'] as const;
 const ROUTES = [
   '/ai','/analytics','/settings','/help','/notifications','/admin','/bi','/security','/audit','/agent-activity','/ai-approvals','/backup','/profile',
   '/supplier','/jobs','/community','/quality','/platform-finance','/ai-governance','/support',
@@ -32,12 +33,12 @@ const CLINIC_MANAGER_PAGES = ['dashboard','schedule','patients','analytics','sta
 const PLATFORM_SUPERADMIN_PAGES = ['admin','audit','agent-activity','ai-approvals','backup','analytics','settings','security','quality','diagnostics','diagnostics-centers','diagnostics-labs','platform-finance','ai-governance','support','profile','bi','supplier'];
 
 const ROLES: readonly Role[] = [
-  { id:'owner', email:'owner-a@test.com', label:'Владелец', family:'clinic', pages:CLINIC_OWNER_PAGES, mustNotContain:[/Владелец диагностического центра/i,/Владелец медицинской лаборатории/i,/Владелец зуботехнической лаборатории/i], entry:/\/ai(?:$|[?#])/ },
-  { id:'admin', email:'admin-a@test.com', label:'Администратор', family:'clinic', pages:CLINIC_ADMIN_PAGES, mustNotContain:[], entry:/\/ai|\/crm/ },
-  { id:'doctor', email:'doctor-a@test.com', label:'Врач', family:'clinic', pages:CLINIC_DOCTOR_PAGES, mustNotContain:[/Super Admin/i], entry:/\/ai|\/crm/ },
-  { id:'assistant', email:'assistant-a@test.com', label:'Ассистент', family:'clinic', pages:CLINIC_ASSISTANT_PAGES, mustNotContain:[/Super Admin/i], entry:/\/ai|\/crm/ },
-  { id:'manager', email:'manager-a@test.com', label:'Менеджер', family:'clinic', pages:CLINIC_MANAGER_PAGES, mustNotContain:[/Super Admin/i], entry:/\/ai|\/crm/ },
-  { id:'regular', email:'regular@test.com', label:'Студент', family:'platform', pages:['school','profile'], mustNotContain:[/CRM|Клиника|Super Admin/i], entry:/\/school|\/profile/ },
+  { id:'owner', email:'owner-a@test.com', label:'Владелец', family:'clinic', pages:[...AUTHENTICATED_BASE_PAGES,...CLINIC_OWNER_PAGES], mustNotContain:[/Владелец диагностического центра/i,/Владелец медицинской лаборатории/i,/Владелец зуботехнической лаборатории/i], entry:/\/ai(?:$|[?#])/ },
+  { id:'admin', email:'admin-a@test.com', label:'Администратор', family:'clinic', pages:[...AUTHENTICATED_BASE_PAGES,...CLINIC_ADMIN_PAGES], mustNotContain:[], entry:/\/ai|\/crm/ },
+  { id:'doctor', email:'doctor-a@test.com', label:'Врач', family:'clinic', pages:[...AUTHENTICATED_BASE_PAGES,...CLINIC_DOCTOR_PAGES], mustNotContain:[/Super Admin/i], entry:/\/ai|\/crm/ },
+  { id:'assistant', email:'assistant-a@test.com', label:'Ассистент', family:'clinic', pages:[...AUTHENTICATED_BASE_PAGES,...CLINIC_ASSISTANT_PAGES], mustNotContain:[/Super Admin/i], entry:/\/ai|\/crm/ },
+  { id:'manager', email:'manager-a@test.com', label:'Менеджер', family:'clinic', pages:[...AUTHENTICATED_BASE_PAGES,...CLINIC_MANAGER_PAGES], mustNotContain:[/Super Admin/i], entry:/\/ai|\/crm/ },
+  { id:'regular', email:'regular@test.com', label:'Студент', family:'platform', pages:[...AUTHENTICATED_BASE_PAGES], mustNotContain:[/CRM|Клиника|Super Admin/i], entry:/\/school|\/profile/ },
   { id:'patient', email:'patient@dentvision.kz', label:'Пациент', family:'patient', pages:['profile','shop','school'], mustNotContain:[/CRM|Клиника|Super Admin|Диагностический центр|Медицинская лаборатория|зуботехническая/i], entry:/\/patient-portal/ },
   { id:'diagnostic-owner', email:'diagnostic-owner@test.com', label:'Владелец диагностического центра', family:'diagnostic', pages:['diagnostics','diagnostics-referrals','diagnostics-centers','diagnostics-results','diagnostics-calendar','diagnostics-statistics','diagnostics-settings','profile'], mustNotContain:[/Врач|Стоматологическая клиника|Зуботехническая лаборатория/i], entry:/\/diagnostics\/center/ },
   { id:'diagnostic-operator', email:'diagnostic-operator@test.com', label:'Оператор диагностического центра', family:'diagnostic', pages:['diagnostics','diagnostics-referrals','diagnostics-centers','diagnostics-results','diagnostics-calendar','profile'], mustNotContain:[/Настройки диагностического центра/i], entry:/\/diagnostics\/center/ },
@@ -45,9 +46,9 @@ const ROLES: readonly Role[] = [
   { id:'medical-lab-tech', email:'medical-lab-tech@test.com', label:'Лаборант', family:'medical-lab', pages:['diagnostics','diagnostics-laboratories','diagnostics-results','profile'], mustNotContain:[/Настройки диагностического центра/i], entry:/\/diagnostics\/lab/ },
   { id:'dental-lab-owner', email:'dental-lab-owner@test.com', label:'Владелец зуботехнической лаборатории', family:'dental-lab', pages:['diagnostics','diagnostics-laboratories','diagnostics-results','diagnostics-settings','profile'], mustNotContain:[/Медицинская лаборатория|Диагностический центр/i], entry:/\/diagnostics\/lab/ },
   { id:'dental-technician', email:'dental-technician@test.com', label:'Зубной техник', family:'dental-lab', pages:['diagnostics','diagnostics-laboratories','diagnostics-results','profile'], mustNotContain:[/Настройки диагностического центра/i], entry:/\/diagnostics\/lab/ },
-  { id:'superadmin', email:'superadmin@test.com', label:'Super Admin', family:'platform', pages:PLATFORM_SUPERADMIN_PAGES, mustNotContain:[/Пациент|Зубной техник/i], entry:/\/admin|\/ai/ },
-  { id:'support', email:'support@test.com', label:'Поддержка', family:'platform', pages:['admin','analytics','settings','profile'], mustNotContain:[/Врач|Пациент/i], entry:/\/admin|\/analytics|\/profile/ },
-  { id:'laboratory', email:'lab-a@test.com', label:'Лаборатория', family:'clinic', pages:['lab','shop','diagnostics','diagnostics-referrals','diagnostics-laboratories','diagnostics-results','profile'], mustNotContain:[/Super Admin/i], entry:/\/ai|\/crm|\/diagnostics/ },
+  { id:'superadmin', email:'superadmin@test.com', label:'Super Admin', family:'platform', pages:[...AUTHENTICATED_BASE_PAGES,...PLATFORM_SUPERADMIN_PAGES], mustNotContain:[/Пациент|Зубной техник/i], entry:/\/admin|\/ai/ },
+  { id:'support', email:'support@test.com', label:'Поддержка', family:'platform', pages:[...AUTHENTICATED_BASE_PAGES,'admin','analytics'], mustNotContain:[/Врач|Пациент/i], entry:/\/admin|\/analytics|\/profile/ },
+  { id:'laboratory', email:'lab-a@test.com', label:'Лаборатория', family:'clinic', pages:[...AUTHENTICATED_BASE_PAGES,'lab','diagnostics-referrals','diagnostics-laboratories','diagnostics-results'], mustNotContain:[/Super Admin/i], entry:/\/ai|\/crm|\/diagnostics/ },
 ] as const;
 
 function pageId(route: string): string | null {
