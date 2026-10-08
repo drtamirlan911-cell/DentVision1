@@ -88,6 +88,7 @@ iamRouter.get('/me/contexts', async (req: AuthRequest, res) => {
     // or temporarily stale. Only an organization-scoped PersonRole for this
     // exact user + organization can materialize the context.
     const partnerRolePattern = /^(diagnostic_|medical_lab_|dental_lab_|lab_coordinator|dental_technician|cad_designer|ceramist|orthodontic_technician|qc_specialist|lab_finance)/i;
+    const academyRolePattern = /^(lecturer|academy_)/i;
     for (const person of persons) {
       const org = person.organization;
       if (!org) continue;
@@ -210,7 +211,8 @@ iamRouter.get('/me/contexts', async (req: AuthRequest, res) => {
         ?.find((personRole) =>
           personRole.scopeType === 'organization' &&
           personRole.scopeId === activeOrgId &&
-          /^(diagnostic_|medical_lab_|dental_lab_|lab_coordinator|dental_technician|cad_designer|ceramist|orthodontic_technician|qc_specialist|lab_finance)/i.test(personRole.role.key),
+          (/^(diagnostic_|medical_lab_|dental_lab_|lab_coordinator|dental_technician|cad_designer|ceramist|orthodontic_technician|qc_specialist|lab_finance)/i.test(personRole.role.key) ||
+            academyRolePattern.test(personRole.role.key)),
         )?.role.key;
       if (activePerson?.organization && activeRole) {
         const org = activePerson.organization;
