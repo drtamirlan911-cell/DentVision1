@@ -1520,3 +1520,19 @@ These changes are route/entry reconciliation only. Existing domain implementatio
 - Existing settlement unit suite was updated to mock the canonical plan catalog and reject a tampered subscription amount.
 - A source contract now locks creation-time billing authorization and tariff reconciliation.
 - Exact-head CI is still pending; release remains UNVERIFIED.
+
+## 2026-10-08 — Exact-head verification checkpoint
+
+### Verified
+- Root TypeScript: PASS.
+- Frontend ESLint (max 13 warnings): PASS.
+- Backend TypeScript: PASS.
+- Backend ESLint (max 73 warnings): PASS.
+- Local Release Gate: 6/6 PASS.
+- Local full Vitest on the preceding branch state: 727/727 suites and 2059/2059 tests PASS.
+- Notification relative-time unit: 2/2 PASS.
+
+### GitHub Actions
+- Quality Gate #5011: SUCCESS on `be7913e8d9c078d94fa96c4e11d342519a397138`.
+- CI #3920: IN PROGRESS; backend/frontend lint jobs completed SUCCESS, lint-test and E2E remain in progress.
+- No release/merge decision is made until the full CI chain and visual evidence complete.
