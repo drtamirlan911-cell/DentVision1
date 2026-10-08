@@ -458,7 +458,6 @@ model Appointment {
   doctor        User           @relation(fields: [doctorId], references: [id], onDelete: Restrict)
   treatmentPlan TreatmentPlan? @relation(fields: [treatmentPlanId], references: [id], onDelete: SetNull)
   treatmentCase TreatmentCase? @relation(fields: [treatmentCaseId], references: [id], onDelete: SetNull)
-  treatmentCase TreatmentCase? @relation(fields: [treatmentCaseId], references: [id], onDelete: SetNull)
 
   createdAt DateTime  @default(now())
   updatedAt DateTime? @updatedAt
@@ -920,6 +919,7 @@ model Invoice {
   clinic        Clinic         @relation(fields: [clinicId], references: [id], onDelete: Cascade)
   patient       Patient?       @relation(fields: [patientId], references: [id], onDelete: SetNull)
   treatmentPlan TreatmentPlan? @relation(fields: [treatmentPlanId], references: [id], onDelete: SetNull)
+  treatmentCase TreatmentCase? @relation(fields: [treatmentCaseId], references: [id], onDelete: SetNull)
 
   createdAt DateTime  @default(now())
   updatedAt DateTime? @updatedAt
