@@ -1536,3 +1536,24 @@ These changes are route/entry reconciliation only. Existing domain implementatio
 - Quality Gate #5011: SUCCESS on `be7913e8d9c078d94fa96c4e11d342519a397138`.
 - CI #3920: IN PROGRESS; backend/frontend lint jobs completed SUCCESS, lint-test and E2E remain in progress.
 - No release/merge decision is made until the full CI chain and visual evidence complete.
+
+## 2026-10-08 — Release-blocker CI root-cause repair pass
+
+### Implemented
+- Fixed a real patient-create 500 in `dentvision-backend/src/modules/patients/patients.routes.ts`: the raw branch-selection query now uses the physical `branches.created_at` column instead of the non-existent Prisma-style `createdAt` identifier.
+- Added a regression assertion in `patients.routes.branchScope.test.ts` so the physical branch timestamp mapping cannot silently regress.
+- Added the canonical IAM page gate to the frontend `/jobs` route; the route now uses the same `guarded('jobs', ...)` boundary as other workspace pages and no longer bypasses role/page access policy.
+- Corrected Notifications E2E to send the existing CSRF cookie value as `x-csrf-token`; backend CSRF protection remains enabled.
+- Corrected platform-finance E2E fixtures to use the seeded SUPERADMIN identity for platform-only Partner Economics, expense and payout routes; no backend authorization was weakened.
+- Updated Academy cross-tenant CRUD E2E to accept the secure `403/404` fail-closed outcome while still requiring denial of the mutation.
+
+### Verification
+- Exact current HEAD: `a7337de37074e4cf036de24d4d249f29634a6e38`.
+- Local root test suite after installing the backend dependency set: **225/225 test files passed, 2077/2077 tests passed**.
+- Root TypeScript check: passed.
+- Backend TypeScript check: passed.
+- Backend production dependency audit: **0 vulnerabilities**.
+- Quality Gate on the current HEAD: passed. Full CI/E2E is still pending/running and remains the release authority.
+
+### Release status
+- Release remains **NOT READY** until the exact current HEAD completes the full CI/E2E, role/context, business-owner, visual evidence and remaining release-gate requirements.
