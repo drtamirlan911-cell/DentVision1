@@ -399,7 +399,7 @@ iamRouter.post('/switch-context', async (req: AuthRequest, res) => {
             lecturerId: scopeId,
             organizationId: organization.id,
             organizationOriginalId: academy!.id,
-            organizationType: 'LECTURER',
+            organizationType: organization.originalType === 'Academy' ? 'ACADEMY' : organization.type,
             personType: 'LECTURER',
           });
           await writeAuditLog({ userId: user.id, action: 'auth.switch_context', entity: 'lecturer', entityId: scopeId });
