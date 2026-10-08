@@ -4,10 +4,16 @@ import {
   MODULE_PAGES,
   capabilitiesForPermissions,
   pagesForPermissions,
+  pagesForCaller,
   permissionsForRole,
 } from './permissions.js';
 
 describe('pagesForPermissions', () => {
+  it('keeps STUDENT on learner pages instead of inheriting global partner pages', () => {
+    expect(pagesForCaller([], 'STUDENT')).toEqual(['shop', 'school', 'profile']);
+  });
+
+
   it('expands the wildcard to every known page', () => {
     const all = new Set(Object.values(MODULE_PAGES).flat());
     expect(new Set(pagesForPermissions(['*']))).toEqual(all);

@@ -389,6 +389,13 @@ export function pagesForCaller(permissions: readonly string[], role: string | nu
     return ['profile', 'shop', 'school'];
   }
 
+  // STUDENT is a learner role, not an ecosystem partner workspace. Keep the
+  // page surface aligned with the canonical STUDENT role matrix instead of
+  // inheriting partner-oriented BASE_PAGES such as diagnostics/settings.
+  if (resolvedRole === 'STUDENT') {
+    return ['shop', 'school', 'profile'];
+  }
+
   const partnerFamily = partnerPageFamily(resolvedRole);
   if (partnerFamily) {
     return Array.from(new Set([
