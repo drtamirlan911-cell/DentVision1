@@ -88,7 +88,19 @@ test.describe('Academy / Course Workflow', () => {
   });
   test('ACADEMY-010: lecturer course CRUD stays inside the active Academy organization', async () => {
     const lecturerApi = await apiRequest.newContext();
-    const token = await loginLecturer(lecturerApi);
+    const baseToken = await loginLecturer(lecturerApi);
+    const contextsRes = await lecturerApi.get(`${BASE_URL}/api/iam/me/contexts`, { headers: auth(baseToken) });
+    expect(contextsRes.status()).toBe(200);
+    const contexts = (await contextsRes.json()).data?.contexts || [];
+    const academyContext = contexts.find((item: any) => item.scopeType === 'LECTURER' || item.scopeType === 'ACADEMY');
+    expect(academyContext?.scopeId).toBeTruthy();
+    const switched = await lecturerApi.post(`${BASE_URL}/api/iam/switch-context`, {
+      headers: auth(baseToken),
+      data: { scopeType: academyContext.scopeType, scopeId: academyContext.scopeId, branchId: academyContext.branchId },
+    });
+    expect(switched.status()).toBe(200);
+    const token = (await switched.json()).data?.accessToken || (await switched.json()).accessToken;
+    expect(token).toBeTruthy();
     const otherAcademyId = `academy-cross-tenant-${Date.now()}`;
     const foreignCourseId = `course-cross-tenant-${Date.now()}`;
 
