@@ -161,10 +161,14 @@ async function seedE2EPartnerFixtures() {
         where: { id: organization.id },
         data: { originalType: 'Academy', originalId: academyRecord.id },
       });
-      await prisma.lecturer.upsert({
+      const lecturer = await prisma.lecturer.upsert({
         where: { userId: user.id },
         update: { academyId: academyRecord.id },
         create: { id: randomUUID(), userId: user.id, academyId: academyRecord.id, level: 'new' },
+      });
+      await prisma.person.update({
+        where: { id: person.id },
+        data: { personType: 'LECTURER', originalType: 'Lecturer', originalId: lecturer.id },
       });
     }
 
