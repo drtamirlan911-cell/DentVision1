@@ -109,6 +109,16 @@
 - **Regression:** payment route contract locks the billing guard and clinic/ref/amount checks.
 - **Verification:** fresh exact-head CI/E2E remains required.
 
+### RB-014 — Lecturer context token uses non-canonical organization type
+- **Status:** FIXED — pending exact-head CI/E2E verification
+- **Priority:** P1
+- **Area:** Identity / Workspace Context / Academy
+- **Observed:** `POST /api/iam/switch-context` for `scopeType=LECTURER` emitted `organizationType=LECTURER`, while canonical Academy organization context is `ACADEMY`.
+- **Risk:** content-policy resolution and frontend workspace logic could classify an explicitly selected lecturer workspace as a different role/context.
+- **Fix:** lecturer switch-context now emits the canonical Academy organization type while preserving lecturer scope/identity.
+- **Regression:** `ACADEMY-012` switches a real lecturer context and asserts `organizationType=ACADEMY`, canonical `organizationId`, `organizationOriginalId`, and `lecturerId`.
+- **Verification:** local backend TypeScript passes; exact-head E2E required before closure.
+
 ## Closed
 
 ### RB-006 — Vercel build rate limit
