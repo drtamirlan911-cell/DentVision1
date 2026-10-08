@@ -114,6 +114,9 @@ jobs:
       - name: Apply raw lifecycle tables required by E2E
         run: npx prisma db execute --schema prisma/schema.prisma --file prisma/migrations/20260917_medical_lab_and_dental_lifecycle/migration.sql
         working-directory: dentvision-backend
+      - name: Apply durable AI queue SQL required by background workers
+        run: npx prisma db execute --schema prisma/schema.prisma --file prisma/migrations/20260929130000_ai_admin_postgres_queue/migration.sql
+        working-directory: dentvision-backend
       - run: npm run db:seed:e2e
         working-directory: dentvision-backend
       - name: Seed canonical IAM roles and E2E partner contexts
