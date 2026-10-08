@@ -30,8 +30,8 @@ describe('pagesForPermissions', () => {
     expect(pagesForPermissions([])).toEqual([]);
   });
 
-  it('grants only the shared profile for a permission with no pages', () => {
-    expect(pagesForPermissions(['community.read'])).toEqual(['profile']);
+  it('maps community permissions to the community page', () => {
+    expect(pagesForPermissions(['community.read'])).toEqual(['community', 'profile']);
   });
 
   it('maps settings.manage to clinic settings only, not personal settings', () => {
