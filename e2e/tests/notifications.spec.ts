@@ -20,7 +20,11 @@ test.describe('Notification detail workflow', () => {
     const title = `E2E notification detail ${stamp}`;
     const message = `Notification body ${stamp}`;
 
+    const csrf = (await page.context().cookies()).find((cookie) => cookie.name === 'dv_csrf')?.value;
+    expect(csrf, 'authenticated browser must expose the CSRF cookie used for state-changing API calls').toBeTruthy();
+
     const create = await page.request.post('/api/notifications', {
+      headers: { 'x-csrf-token': csrf! },
       data: {
         type: 'system',
         title,
