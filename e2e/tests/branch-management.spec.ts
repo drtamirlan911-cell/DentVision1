@@ -1,8 +1,10 @@
 import { test, expect, type Page } from '@playwright/test';
+import { PrismaClient } from '../../dentvision-backend/node_modules/@prisma/client/index.js';
 
 const BASE = process.env.PLAYWRIGHT_UI_URL || 'http://localhost:3000';
 const OWNER_EMAIL = 'owner-a@test.com';
 const PASSWORD = ['Test', '1234!'].join('');
+const prisma = new PrismaClient();
 
 async function login(page: Page) {
   await page.goto(`${BASE}/login?role=owner`);
@@ -35,6 +37,18 @@ async function createBranch(page: Page, name: string) {
 }
 
 test.describe('Canonical organization branch management', () => {
+  test.beforeAll(async () => {
+    const owner = await prisma.user.findUnique({ where: { email: OWNER_EMAIL }, select: { id: true } });
+    const clinic = owner ? await prisma.clinicMember.findFirst({ where: { userId: owner.id }, select: { clinicId: true } }) : null;
+    expect(clinic?.clinicId).toBeTruthy();
+    await prisma.subscription.upsert({
+      where: { ownerType_ownerId: { ownerType: 'CLINIC', ownerId: clinic!.clinicId } },
+      update: { plan: 'NETWORK', status: 'active', periodEnd: null },
+      create: { ownerType: 'CLINIC', ownerId: clinic!.clinicId, plan: 'NETWORK', status: 'active', periodEnd: null },
+    });
+  });
+
+  test.afterAll(async () => { await prisma.$disconnect(); });
   test('BRANCH-004: branch code uniqueness is a recoverable conflict for create and edit', async ({ page }) => {
     await login(page);
     await openBranchManagement(page);
