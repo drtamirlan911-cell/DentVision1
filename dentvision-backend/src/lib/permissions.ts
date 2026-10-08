@@ -317,7 +317,7 @@ export const MODULE_PAGES: Record<string, string[]> = {
   diagnostics:  ['diagnostics', 'diagnostics-referrals', 'diagnostics-centers', 'diagnostics-laboratories', 'diagnostics-labs', 'diagnostics-results', 'diagnostics-calendar', 'diagnostics-statistics', 'diagnostics-settings'],
   academy:      ['school'],
   shop:         ['shop', 'promotions'],
-  community:    [],
+  community:    ['community'],
   audit:        ['audit'],
   admin:        ['admin'],
   bi:           ['bi'],
