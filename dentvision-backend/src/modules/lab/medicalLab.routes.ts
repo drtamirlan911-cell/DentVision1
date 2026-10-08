@@ -5,7 +5,7 @@ import { requirePermission } from '../../middleware/rbac.js';
 import type { AuthRequest, ApiResponse } from '../../types/index.js';
 import { uid } from '../../lib/helpers.js';
 import { tengeToMinor } from '../../lib/money.js';
-import { assertOrgAccess } from '../../lib/orgContext.js';
+import { assertClinicOrgAccess } from '../../lib/orgContext.js';
 import { publish } from '../../lib/events.js';
 
 export const medicalLabLifecycleRouter = Router();
@@ -83,7 +83,7 @@ async function canAccessOrder(user: AuthRequest['user'], order: OrderRow, write 
     return Boolean(patient);
   }
 
-  if (!write && order.clinicId) return assertOrgAccess(user!, order.clinicId);
+  if (!write && order.clinicId) return assertClinicOrgAccess(user!, order.clinicId);
   return false;
 }
 
@@ -129,7 +129,7 @@ medicalLabLifecycleRouter.get('/orders', async (req: AuthRequest, res) => {
 medicalLabLifecycleRouter.post('/orders', requirePermission('patient.read'), async (req: AuthRequest, res) => {
   try {
     const clinicId = String(req.user?.clinicId || req.body?.clinicId || '');
-    if (!clinicId || !(await assertOrgAccess(req.user!, clinicId))) return res.status(403).json({ ok: false, error: 'Нет доступа к клинике' });
+    if (!clinicId || !(await assertClinicOrgAccess(req.user!, clinicId))) return res.status(403).json({ ok: false, error: 'Нет доступа к клинике' });
     const { patientId = null, treatmentCaseId = null, labId = null, priority = 'routine', notes = null, specimenType = null, tests = [], metadata = null } = req.body || {};
     if (patientId) {
       const role = String(req.user?.role || '').toUpperCase();
