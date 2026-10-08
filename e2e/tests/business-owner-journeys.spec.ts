@@ -53,11 +53,12 @@ test.describe('DentVision business owner journeys', () => {
     await page.getByLabel('Телефон').fill('+77000000021');
     await page.getByLabel('Email').fill(email);
 
-    const onboardingResponse = await page.waitForResponse((response) =>
+    const onboardingResponsePromise = page.waitForResponse((response) =>
       response.url().includes('/api/organizations/self-service') && response.request().method() === 'POST',
     );
     await page.getByRole('button', { name: 'Создать и открыть workspace' }).click();
-    const onboarding = await onboardingResponse;
+    const onboardingResponse = await onboardingResponsePromise;
+    const onboarding = onboardingResponse;
     expect(onboarding.status()).toBe(201);
     const onboardingPayload = await onboarding.json();
     expect(onboardingPayload.data?.verification).toBe('PENDING');
@@ -162,24 +163,13 @@ test.describe('DentVision business owner journeys', () => {
       await page.getByLabel('Адрес').fill(`ул. E2E lifecycle ${unique}`);
       await page.getByLabel('Телефон').fill('+77000000020');
       await page.getByLabel('Email').fill(`${emailPrefix}-${unique}@test.com`);
-      const responsePromise = page.waitForResponse(async (response) => {
-        if (!response.url().includes('/api/organizations/self-service') || response.request().method() !== 'POST') return false;
-        try {
-          await response.body();
-          return true;
-        } catch {
-          return false;
-        }
-      }).then(async (response) => {
-        const rawBody = await response.body().catch(() => Buffer.from(''));
-        let body: any = null;
-        try { body = JSON.parse(rawBody.toString('utf8')); } catch { body = null; }
-        return { status: response.status(), ok: response.ok(), body };
-      });
+      const responsePromise = page.waitForResponse((response) =>
+        response.url().includes('/api/organizations/self-service') && response.request().method() === 'POST',
+      );
       await page.getByRole('button', { name: 'Создать и открыть workspace' }).click();
       const response = await responsePromise;
-      expect(response.ok).toBeTruthy();
-      const onboarding = response.body;
+      expect(response.ok()).toBeTruthy();
+      const onboarding = await response.json();
       expect(onboarding).toBeTruthy();
       expect(onboarding.data?.organizationId).toBeTruthy();
       expect(onboarding.data?.branchId).toBeTruthy();
