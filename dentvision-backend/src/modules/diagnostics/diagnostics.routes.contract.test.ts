@@ -16,7 +16,7 @@ describe('diagnostics route contract', () => {
 
 
   it('resolves referral Clinic.id through the canonical organization scope', () => {
-    expect(source).toContain('export async function assertClinicOrgAccess');
+    expect(source).toContain("import { assertClinicOrgAccess");
     expect(source).toContain("assertClinicOrgAccess(req.user!, referral.clinicId)");
     expect(source).toContain("assertClinicOrgAccess(req.user!, clinicId)");
   });
