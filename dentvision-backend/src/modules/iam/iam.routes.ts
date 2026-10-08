@@ -384,7 +384,7 @@ iamRouter.post('/switch-context', async (req: AuthRequest, res) => {
           ? await prisma.academy.findUnique({ where: { id: lecturer.academyId }, select: { id: true, name: true } })
           : null;
         const organization = academy
-          ? await prisma.organization.findFirst({ where: { originalType: 'Academy', originalId: academy.id }, select: { id: true } })
+          ? await prisma.organization.findFirst({ where: { originalType: 'Academy', originalId: academy.id }, select: { id: true, type: true, originalType: true } })
           : null;
         if (organization) {
           const person = await prisma.person.findFirst({
