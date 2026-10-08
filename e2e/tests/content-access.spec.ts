@@ -27,6 +27,13 @@ function isProfessional(audiences: string[]) {
   return audiences.some((a) => ['PROFESSIONAL', 'DOCTOR', 'DENTAL_STUDENT', 'ASSISTANT', 'LAB', 'DIAGNOSTIC', 'SELLER'].includes(a));
 }
 
+async function loginPatient(api: APIRequestContext) {
+  const res = await api.post(`${BASE_URL}/api/auth/login`, { data: { email: 'patient@dentvision.kz', password: 'Test1234!' } });
+  expect(res.status()).toBe(200);
+  const body = await res.json();
+  return body.data?.accessToken || body.accessToken;
+}
+
 async function loginOwner(api: APIRequestContext) {
   const res = await api.post(`${BASE_URL}/api/auth/login`, { data: OWNER });
   expect(res.status()).toBe(200);
@@ -37,10 +44,12 @@ async function loginOwner(api: APIRequestContext) {
 test.describe('Context-bound Academy and Marketplace catalog access', () => {
   let api: APIRequestContext;
   let ownerToken = '';
+  let patientToken = '';
 
   test.beforeAll(async () => {
     api = await apiRequest.newContext();
     ownerToken = await loginOwner(api);
+    patientToken = await loginPatient(api);
   });
 
   test.afterAll(async () => {
@@ -57,7 +66,7 @@ test.describe('Context-bound Academy and Marketplace catalog access', () => {
     const professionalCourse = doctorCourses.find((course: any) => isProfessional(courseAudiences(course)));
 
     const patientList = await api.get(`${BASE_URL}/api/school/courses`, {
-      headers: contextHeaders('PATIENT'),
+      headers: { Authorization: `Bearer ${patientToken}` },
     });
     expect(patientList.status()).toBe(200);
     const patientBody = await patientList.json();
@@ -87,7 +96,7 @@ test.describe('Context-bound Academy and Marketplace catalog access', () => {
     test.skip(!professionalCourse?.id, 'No professional seeded course available for positive/negative detail assertion');
 
     const patientDetail = await api.get(`${BASE_URL}/api/school/courses/${professionalCourse.id}`, {
-      headers: { Authorization: `Bearer ${ownerToken}`, ...contextHeaders('PATIENT') },
+      headers: { Authorization: `Bearer ${patientToken}`, ...contextHeaders('DOCTOR') },
     });
     expect(patientDetail.status()).toBe(404);
   });

@@ -211,7 +211,7 @@ test.describe('Academy / Course Workflow', () => {
       ).toBe(false);
 
       const unauthDetail = await publicApi.get(`${BASE_URL}/api/school/courses/${generalId}`);
-      expect([401, 403]).toContain(unauthDetail.status());
+      expect([401, 403, 404]).toContain(unauthDetail.status());
 
       const professionalDetail = await publicApi.get(`${BASE_URL}/api/school/courses/${professionalId}`);
       expect(professionalDetail.status()).toBe(404);

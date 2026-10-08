@@ -1,4 +1,5 @@
 import { test, expect, type APIRequestContext } from '@playwright/test';
+import { randomUUID } from 'node:crypto';
 import { makeIin } from '../helpers/iin';
 import { PrismaClient } from '../../dentvision-backend/node_modules/@prisma/client/default.js';
 import { createTestUser } from '../helpers/factories';
@@ -25,6 +26,8 @@ test.describe('Partner operational lifecycle', () => {
   let fixtureCenterId = '';
   let fixtureLabId = '';
   let centerOwnerToken = '';
+  let centerRadiologistToken = '';
+  let centerRadiologistId = '';
   let labOwnerToken = '';
 
   test.beforeAll(async ({ playwright }) => {
@@ -60,6 +63,74 @@ test.describe('Partner operational lifecycle', () => {
     expect(centerTokenPayload.organizationType).toBe('DIAGNOSTIC_CENTER');
     expect(centerTokenPayload.organizationId).toBeTruthy();
     expect(centerTokenPayload.branchId).toBeTruthy();
+
+    // Operational referral/result tests start from an approved, visible partner
+    // workspace. Self-service onboarding intentionally creates PENDING visibility;
+    // this fixture advances only that lifecycle prerequisite without weakening the
+    // production fail-closed policy.
+    const centerOrgId = centerTokenPayload.organizationId!;
+    const centerOrg = await prisma.organization.findUnique({ where: { id: centerOrgId }, select: { settings: true } });
+    const centerSettings = centerOrg?.settings && typeof centerOrg.settings === 'object' ? centerOrg.settings as Record<string, unknown> : {};
+    await prisma.organization.update({
+      where: { id: centerOrgId },
+      data: {
+        settings: {
+          ...centerSettings,
+          lifecycle: 'ACTIVE',
+          verification: 'VERIFIED',
+          ecosystemVisible: true,
+          legal: {
+            ...((centerSettings.legal && typeof centerSettings.legal === 'object') ? centerSettings.legal as Record<string, unknown> : {}),
+            status: 'READY',
+          },
+        },
+      },
+    });
+
+    const radiologist = await createTestUser({
+      email: `radiologist-${Date.now()}@test.dentvision`,
+      firstName: 'E2E',
+      lastName: 'Radiologist',
+      role: 'STUDENT' as any,
+    });
+    centerRadiologistId = radiologist.id;
+    await prisma.diagnosticCenterMember.create({
+      data: { centerId: fixtureCenterId, userId: centerRadiologistId, role: 'radiologist' },
+    });
+    const radiologistPerson = await prisma.person.create({
+      data: {
+        id: randomUUID(),
+        fullName: 'E2E Radiologist',
+        personType: 'RADIOLOGIST',
+        organizationId: centerOrgId,
+        userId: centerRadiologistId,
+      },
+    });
+    const radiologistRole = await prisma.role.findUnique({ where: { key: 'radiologist' }, select: { id: true } });
+    expect(radiologistRole?.id).toBeTruthy();
+    await prisma.personRole.create({
+      data: {
+        id: randomUUID(),
+        personId: radiologistPerson.id,
+        roleId: radiologistRole!.id,
+        scopeType: 'organization',
+        scopeId: centerOrgId,
+        scopeKey: `organization:${centerOrgId}`,
+      },
+    });
+    const radiologistBaseToken = await login(api, radiologist.email);
+    const radiologistContextsRes = await api.get(`${BASE}/api/iam/me/contexts`, { headers: auth(radiologistBaseToken) });
+    expect(radiologistContextsRes.status()).toBe(200);
+    const radiologistContexts = (await radiologistContextsRes.json()).data?.contexts || [];
+    const radiologistContext = radiologistContexts.find((item: any) => item.scopeType === 'DIAGNOSTIC_CENTER' && item.organizationId === centerOrgId);
+    expect(radiologistContext).toBeTruthy();
+    const switchedRadiologist = await api.post(`${BASE}/api/iam/switch-context`, {
+      headers: auth(radiologistBaseToken),
+      data: { scopeType: radiologistContext.scopeType, scopeId: radiologistContext.scopeId, branchId: radiologistContext.branchId },
+    });
+    expect(switchedRadiologist.status()).toBe(200);
+    centerRadiologistToken = (await switchedRadiologist.json()).data.accessToken;
+    expect(centerRadiologistToken).toBeTruthy();
 
     const state = await api.storageState();
     const refreshCookie = state.cookies.find((cookie) => cookie.name === 'refreshToken');
@@ -113,7 +184,16 @@ test.describe('Partner operational lifecycle', () => {
     patientId = (await patient.json()).data?.id || (await patient.json()).id;
   });
 
-  test.afterAll(async () => { await api.dispose(); await prisma.$disconnect(); });
+  test.afterAll(async () => {
+    if (centerRadiologistId) {
+      await prisma.diagnosticCenterMember.deleteMany({ where: { userId: centerRadiologistId } }).catch(() => {});
+      await prisma.personRole.deleteMany({ where: { person: { userId: centerRadiologistId } } }).catch(() => {});
+      await prisma.person.deleteMany({ where: { userId: centerRadiologistId } }).catch(() => {});
+      await prisma.user.delete({ where: { id: centerRadiologistId } }).catch(() => {});
+    }
+    await api.dispose();
+    await prisma.$disconnect();
+  });
 
   test('PARTNER-001: diagnostic center referral → accept → process → result → clinic visibility', async () => {
     const centerId = fixtureCenterId;
@@ -155,7 +235,7 @@ test.describe('Partner operational lifecycle', () => {
 
     const visitCountBefore = await prisma.visit.count({ where: { patientId } });
     const result = await api.post(`${BASE}/api/diagnostics/referrals/${referral.id}/results/sign`, {
-      headers: auth(centerOwnerToken),
+      headers: auth(centerRadiologistToken),
       data: { reportText: 'E2E diagnostic report', conclusion: 'No acute findings' },
     });
     expect(result.status()).toBe(200);
