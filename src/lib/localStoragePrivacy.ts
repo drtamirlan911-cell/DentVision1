@@ -2,7 +2,7 @@ const SENSITIVE_PATIENT_KEYS = new Set([
   'iin', 'patientiin', 'medicalhistory', 'medicalrecord', 'medicalcard',
   'patientphone', 'phone', 'phonenumber', 'mobile', 'telephone',
   'patientname', 'patientemail', 'email', 'address', 'dob', 'dateofbirth',
-  'diagnosis', 'clinicalnotes', 'medicalnotes', 'notes',
+  'diagnosis', 'clinicalnotes', 'medicalnotes', 'notes', 'reason',
 ]);
 
 function normalizedKey(key: string): string {
