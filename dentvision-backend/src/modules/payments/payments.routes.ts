@@ -610,12 +610,13 @@ paymentsRouter.post('/', authenticate, async (req: AuthRequest, res) => {
           sellerType: sellerType || 'CLINIC',
           sellerId: sellerId || clinicId,
           meta: {
+            ...metaObj,
+            // Server-owned payment identity/scope must be written last.
             qr: created.qr,
             userId: req.user!.id,
             clinicId,
             merchantScope: 'clinic',
             clinicPayMode: created.mode,
-            ...metaObj,
           },
         },
       });
@@ -655,10 +656,11 @@ paymentsRouter.post('/', authenticate, async (req: AuthRequest, res) => {
         sellerType: sellerType || null,
         sellerId: sellerId || null,
         meta: {
+          ...(meta && typeof meta === 'object' ? meta : {}),
+          // Client metadata cannot override the authenticated payer or scope.
           qr: created.qr,
           userId: req.user!.id,
           merchantScope: 'platform',
-          ...(meta && typeof meta === 'object' ? meta : {}),
         },
       },
     });
