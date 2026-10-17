@@ -13,6 +13,7 @@ const envSchema = z.object({
   PORT: z.coerce.number().default(3001),
   NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
   CORS_ORIGIN: z.string().default('http://localhost:5173'),
+  VERCEL_TEAM_SLUG: z.string().optional(),
   S3_ENDPOINT: z.string().optional(),
   S3_REGION: z.string().optional(),
   S3_BUCKET: z.string().optional(),
@@ -135,6 +136,11 @@ if (env.NODE_ENV === 'production') {
   }
   if (!env.ENCRYPTION_KEY || env.ENCRYPTION_KEY.length < 32) {
     console.error('[config] ENCRYPTION_KEY must be set in production (min 32 chars)');
+    process.exit(1);
+  }
+  const corsOrigins = [env.CORS_ORIGIN, env.FRONTEND_URL || ''].join(',').split(',').map((v) => v.trim()).filter(Boolean);
+  if (corsOrigins.length === 0 || corsOrigins.includes('*') || corsOrigins.some((v) => v === '*')) {
+    console.error('[config] CORS_ORIGIN/FRONTEND_URL must contain explicit production origins');
     process.exit(1);
   }
 
