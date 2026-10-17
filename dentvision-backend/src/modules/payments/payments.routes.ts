@@ -648,7 +648,7 @@ paymentsRouter.post('/', authenticate, async (req: AuthRequest, res) => {
         return res.status(400).json({ ok: false, error: 'Некорректный тариф или срок подписки' } satisfies ApiResponse);
       }
       if (minor !== expectedMinor) {
-        return res.status(409).json({ ok: false, error: 'Сумма не совпадает с тарифом и сроком подписки', expectedAmountMinor: String(expectedMinor) } satisfies ApiResponse);
+        return res.status(409).json({ ok: false, error: 'Сумма не совпадает с тарифом и сроком подписки' } satisfies ApiResponse);
       }
       trustedMeta = { ...trustedMeta, saasPlan, months, clinicId: String(refId), userId: req.user!.id };
       trustedSellerType = null;
