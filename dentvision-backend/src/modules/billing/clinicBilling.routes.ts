@@ -12,6 +12,7 @@ import {
   assertClinicBillingAccess,
   assertClinicMemberAccess,
   getClinicBillingSnapshot,
+  getClinicSubscriptionAmountMinor,
   isSaasPlanId,
   CLINIC_SAAS_PLANS,
 } from './clinicSubscription.service.js';
@@ -90,10 +91,18 @@ clinicBillingRouter.post('/checkout', async (req: AuthRequest, res) => {
       return res.status(400).json({ ok: false, error: 'Некорректный тариф' } satisfies ApiResponse);
     }
 
-    const months = Math.min(Math.max(parseInt(String(req.body?.months || 1), 10) || 1, 1), 12);
+    const requestedMonths: unknown = req.body?.months === undefined ? 1 : req.body.months;
+    if (typeof requestedMonths !== 'number' || !Number.isInteger(requestedMonths) || requestedMonths < 1 || requestedMonths > 24) {
+      return res.status(400).json({ ok: false, error: 'Срок подписки должен быть целым числом от 1 до 24 месяцев' } satisfies ApiResponse);
+    }
+    const months = requestedMonths;
     const catalog = CLINIC_SAAS_PLANS.find((p) => p.id === planId)!;
+    const amountMinor = getClinicSubscriptionAmountMinor(planId, months);
+    if (amountMinor === null) {
+      return res.status(400).json({ ok: false, error: 'Тариф или срок подписки не поддерживается' } satisfies ApiResponse);
+    }
 
-    // Free forever — activate without payment
+    // A zero-price tier, if intentionally added to the canonical catalog, may be activated without a payment.
     if (catalog.priceTenge <= 0) {
       const result = await activateClinicSubscriptionFromPayment({
         clinicId,
@@ -112,7 +121,6 @@ clinicBillingRouter.post('/checkout', async (req: AuthRequest, res) => {
       } satisfies ApiResponse);
     }
 
-    const amountMinor = tengeToMinor(catalog.priceTenge * months);
     const gateway = providers.kaspi_qr;
     const created = await gateway.createPayment({ amountMinor, refId: clinicId });
 
@@ -149,7 +157,7 @@ clinicBillingRouter.post('/checkout', async (req: AuthRequest, res) => {
         payment: withPaymentQr(serializeBigInt(payment) as Record<string, unknown>, created.qr),
         plan: planId,
         months,
-        amountTenge: catalog.priceTenge * months,
+        amountTenge: Number(amountMinor / 100n),
       },
     } satisfies ApiResponse);
   } catch (error: any) {
