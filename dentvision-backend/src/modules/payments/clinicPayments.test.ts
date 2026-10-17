@@ -9,7 +9,7 @@ const mocks = vi.hoisted(() => ({
   lastRequestOptions: null as any,
 }));
 
-vi.mock('node:dns/promises', () => ({ lookup: mocks.lookup }));
+vi.mock('node:dns/promises', async (importOriginal) => ({ ...(await importOriginal()), lookup: mocks.lookup }));
 vi.mock('node:https', () => ({ request: mocks.request }));
 vi.mock('../../lib/prisma.js', () => ({ default: {} }));
 vi.mock('../../config.js', () => ({
