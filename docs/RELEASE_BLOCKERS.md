@@ -89,6 +89,14 @@
 - **Fix on branch:** all endpoint attempts for one logical payment creation reuse a single idempotency key.
 - **Regression coverage:** `clinicPayments.test.ts` asserts the key is identical across fallback attempts; exact-HEAD CI remains pending.
 
+### RB-021 — Cancelled CI runs continue launching E2E suites
+- **Status:** IN PROGRESS — workflow verification pending
+- **Priority:** P1
+- **Area:** CI reliability / Release evidence
+- **Finding:** E2E gates used `if: always()`, so a cancelled run could continue launching later Playwright suites after dependency installation was interrupted. The resulting missing-package failures were not valid application regression evidence and consumed runner time.
+- **Fix on branch:** test/install/release-gate steps now use `if: ${{ !cancelled() }}`, which still allows later gates to run after test failures but skips them after cancellation. Artifact uploads and compact diagnostics remain `always()`.
+- **Remaining:** validate on the next exact-HEAD workflow run that cancellation stops test execution and that a non-cancelled run reaches the actual E2E gates.
+
 ### RB-001 — Medical/Dental Laboratory 403 Forbidden
 - **Status:** OPEN
 - **Priority:** P0
