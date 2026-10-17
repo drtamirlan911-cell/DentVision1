@@ -29,8 +29,8 @@ services:
       - key: PORT
         value: 10000
       - key: CORS_ORIGIN
-        # Production + localhost. Preview hosts matching dent-vision* / dentvision* are always allowed in code.
-        value: "https://dent-vision1.vercel.app,http://localhost:5173"
+        # Production origin only; preview origins require VERCEL_TEAM_SLUG.
+        value: "https://dent-vision1.vercel.app"
       - key: OPENAI_API_KEY
         sync: false
       # Model selection is discovered, not hardcoded: on first use the backend
