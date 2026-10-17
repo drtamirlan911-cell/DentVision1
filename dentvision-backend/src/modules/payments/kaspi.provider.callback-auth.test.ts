@@ -1,5 +1,5 @@
 import { createHmac } from 'node:crypto';
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('../../config.js', () => ({
   env: {
@@ -7,11 +7,14 @@ vi.mock('../../config.js', () => ({
     KASPI_PAY_BASE_URL: 'https://pay.kaspi.kz/pay',
     KASPI_MERCHANT_ID: undefined,
     KASPI_API_KEY: undefined,
+    KASPI_API_BASE_URL: 'https://pay.kaspi.kz',
+    NODE_ENV: 'test',
     FRONTEND_URL: 'https://dentvision.app',
   },
 }));
 
-import { verifyKaspiCallbackAuth } from './kaspi.provider.js';
+import { kaspiProvider, verifyKaspiCallbackAuth } from './kaspi.provider.js';
+import { env } from '../../config.js';
 
 const externalId = 'kaspi-test-payment';
 const status = 'paid';
@@ -38,5 +41,39 @@ describe('verifyKaspiCallbackAuth', () => {
       headers: { 'x-kaspi-signature': signature },
       body: { externalId: 'different-payment', status },
     })).toEqual({ ok: false, error: 'Неверная подпись callback' });
+  });
+});
+
+
+describe('Kaspi production callback and provider configuration', () => {
+  const originalNodeEnv = env.NODE_ENV;
+  const originalMerchantId = env.KASPI_MERCHANT_ID;
+  const originalApiKey = env.KASPI_API_KEY;
+  const originalCallbackSecret = env.KASPI_CALLBACK_SECRET;
+
+  afterEach(() => {
+    env.NODE_ENV = originalNodeEnv;
+    env.KASPI_MERCHANT_ID = originalMerchantId;
+    env.KASPI_API_KEY = originalApiKey;
+    env.KASPI_CALLBACK_SECRET = originalCallbackSecret;
+  });
+
+  it.each(['short', 'a'.repeat(31)])('rejects callback secrets shorter than 32 characters (%s)', (secretValue) => {
+    env.KASPI_CALLBACK_SECRET = secretValue === 'short' ? 'short' : secretValue;
+    expect(verifyKaspiCallbackAuth({
+      headers: { 'x-kaspi-signature': 'irrelevant' },
+      body: { externalId, status },
+    })).toEqual({
+      ok: false,
+      error: 'KASPI_CALLBACK_SECRET не настроен или короче 32 символов — callback оплаты отклонён',
+    });
+  });
+
+  it('refuses mock payment creation in production when merchant credentials are missing', async () => {
+    env.NODE_ENV = 'production';
+    env.KASPI_MERCHANT_ID = undefined;
+    env.KASPI_API_KEY = undefined;
+    await expect(kaspiProvider.createPayment({ amountMinor: 1000n }))
+      .rejects.toThrow(/require KASPI_MERCHANT_ID and KASPI_API_KEY/);
   });
 });
