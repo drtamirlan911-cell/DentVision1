@@ -446,11 +446,24 @@ async function assertPaymentOwner(
     return assertClinicPaymentStaffAccess(req.user!.id, meta.clinicId);
   }
 
-  if (meta.userId && meta.userId === req.user!.id) return true;
-  if ((payment.refType === 'order' || payment.refType === 'shop_order') && payment.refId) {
-    const order = await prisma.order.findUnique({ where: { id: payment.refId }, select: { userId: true } });
-    if (order?.userId === req.user!.id) return true;
+  // Orders are canonical ownership records. Historical payment metadata was
+  // client-writable before the metadata hardening, so it must never override an
+  // order's actual owner when reading, confirming, refunding, or replaying a
+  // payment. Fail closed if the referenced order is missing or DB lookup fails.
+  if (payment.refType === 'order' || payment.refType === 'shop_order') {
+    if (!payment.refId) return false;
+    try {
+      const order = await prisma.order.findUnique({
+        where: { id: payment.refId },
+        select: { userId: true },
+      });
+      return Boolean(order && order.userId === req.user!.id);
+    } catch {
+      return false;
+    }
   }
+
+  if (meta.userId && meta.userId === req.user!.id) return true;
   return false;
 }
 
