@@ -10,7 +10,7 @@ const mocks = vi.hoisted(() => ({
 }));
 
 vi.mock('node:dns/promises', async (importOriginal) => ({ ...(await importOriginal()), lookup: mocks.lookup }));
-vi.mock('node:https', () => ({ request: mocks.request }));
+vi.mock('node:https', async (importOriginal) => ({ ...(await importOriginal()), request: mocks.request }));
 vi.mock('../../lib/prisma.js', () => ({ default: {} }));
 vi.mock('../../config.js', () => ({
   env: { NODE_ENV: 'test', PORT: 3001, CORS_ORIGIN: '', PUBLIC_API_URL: '' },
