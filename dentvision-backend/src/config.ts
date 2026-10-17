@@ -87,6 +87,8 @@ const envSchema = z.object({
   /** Kaspi / payment webhook shared secret (min 32 in production). Required to accept paid callbacks. */
   KASPI_CALLBACK_SECRET: z.string().optional(),
   PAYMENTS_SANDBOX: z.enum(['true', 'false']).default('false'),
+  /** Optional comma-separated exact hostname allowlist for per-clinic HTTPS gateways. */
+  CLINIC_GATEWAY_ALLOWED_HOSTS: z.string().optional(),
   /** Kaspi merchant ID from Kaspi Business dashboard. */
   KASPI_MERCHANT_ID: z.string().optional(),
   /** Kaspi API key from Kaspi Business dashboard. */
