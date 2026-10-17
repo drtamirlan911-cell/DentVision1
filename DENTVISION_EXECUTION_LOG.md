@@ -1085,3 +1085,27 @@ These changes are route/entry reconciliation only. Existing domain implementatio
 - Replaced Redis-specific daily counter tests with PostgreSQL persistence/failure-path tests.
 - GitHub repository search shows no remaining `ioredis`, `bullmq`, `REDIS_URL`, or direct Redis runtime imports.
 - Required next: verify the new production deploy reaches API listening state and confirm durable queue worker initialization.
+
+
+## 2026-10-17 — Payment/security hardening continuation
+
+### Owner decision
+- Owner selected static clinic-payment confirmation by authorized clinic staff in production.
+- The policy is clinic-only: require backend clinic access, retain audit logging, and never use this path for DentVision platform payments. docs/KASPI_CLINIC_SETUP.md now documents this policy.
+
+### Implemented on branch security/payment-hardening-20261017
+- Payment GET/confirm now infer clinic scope from persisted provider === clinic_kaspi, not client-writable meta.merchantScope.
+- Confirmation rechecks backend organization access for the clinic payment.
+- Static clinic mode can use the documented staff confirmation path; API clinic mode still requires a gateway-reported paid state; sandbox bypass remains limited to non-clinic payments.
+- Server-owned payment metadata is written after client metadata so client-supplied userId, clinicId, merchantScope, clinicPayMode and qr cannot override persisted values.
+- Patient field encryption fails closed in production when encryption is unavailable; derived AES key is cached without changing salt/ciphertext format.
+- Production config requires ENCRYPTION_KEY; Render exposes it as sync: false; Docker Compose fails if it is absent.
+- Production CORS now requires explicit HTTPS origins, rejects localhost/wildcard/empty configuration, and only accepts Vercel preview hosts matching VERCEL_TEAM_SLUG.
+- Added RB-010 through RB-013 to the canonical blocker register. RB-010 through RB-011 remain open; RB-012 and RB-013 await tests.
+
+### Verification
+- Changes were committed through GitHub on the feature branch; no local repository runtime is available in this session (the container cannot resolve github.com), so npm install, Vitest, TypeScript, ESLint and E2E have NOT been run.
+- No task is marked DONE. The branch requires regression tests and a full exact-head CI run before merge.
+
+### Next action
+- Add automated regression tests first, then complete server-side amount/plan checks and SSRF-safe gateway handling. Continue tasks E–I only after the P0 fixes are covered by tests.
