@@ -8,12 +8,13 @@ let cachedRawKey: string | null = null;
 let cachedDerivedKey: Buffer | null = null;
 
 function getKey(): Buffer {
-  const raw = process.env.ENCRYPTION_KEY;
+  const configured = process.env.ENCRYPTION_KEY;
+  let raw = configured;
   if (!raw || raw.length < KEY_MIN_LENGTH) {
     if (process.env.NODE_ENV === 'production') {
       throw new Error('[fieldEncryption] ENCRYPTION_KEY must be set in production (min 32 chars)');
     }
-    return crypto.scryptSync('dev-only-key-not-for-production', 'salt', 32);
+    raw = 'dev-only-key-not-for-production';
   }
   if (cachedRawKey !== raw || !cachedDerivedKey) {
     cachedDerivedKey = crypto.scryptSync(raw, 'salt', 32);
