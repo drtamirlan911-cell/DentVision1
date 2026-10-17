@@ -21,12 +21,7 @@ import {
 } from './clinicPayments.js';
 import { createHmac, timingSafeEqual } from 'node:crypto';
 import type { AuthRequest, ApiResponse } from '../../types/index.js';
-import {
-  resolveClinicAccess,
-  assertClinicWritable,
-  PlanGateError,
-} from '../billing/planEntitlements.js';
-import { assertOrgAccess } from '../../lib/orgContext.js';
+import { assertOrgAccess, resolveClinicAccess as resolveClinicMemberAccess } from '../../lib/orgContext.js';
 import { assertClinicBillingAccess, getClinicSubscriptionAmountMinor, isSaasPlanId } from '../billing/clinicSubscription.service.js';
 import { canTransitionOrder } from '../../lib/orderStatus.js';
 import { auditFromReq, writeAuditLog } from '../compliance/audit.service.js';
@@ -410,6 +405,19 @@ async function claimPaymentForSettlement(
   return claimed.count === 1;
 }
 
+const CLINIC_PAYMENT_STAFF_ROLES = new Set(['OWNER', 'DIRECTOR', 'ADMIN', 'MANAGER', 'CASHIER', 'SUPERADMIN']);
+
+async function assertClinicPaymentStaffAccess(userId: string, clinicId: string): Promise<boolean> {
+  if (!userId || !clinicId) return false;
+  try {
+    const access = await resolveClinicMemberAccess(userId, clinicId);
+    return Boolean(access && CLINIC_PAYMENT_STAFF_ROLES.has(String(access.role).toUpperCase()));
+  } catch {
+    // Fail closed when the canonical role resolver or database is unavailable.
+    return false;
+  }
+}
+
 async function assertPaymentOwner(
   req: AuthRequest,
   payment: { provider: string; meta: unknown; refType: string | null; refId: string | null },
@@ -421,7 +429,7 @@ async function assertPaymentOwner(
   // records whose metadata may have been written before this validation.
   if (payment.provider === 'clinic_kaspi') {
     if (!meta.clinicId) return false;
-    return Boolean(await assertOrgAccess(req.user!, meta.clinicId));
+    return assertClinicPaymentStaffAccess(req.user!.id, meta.clinicId);
   }
 
   if (meta.userId && meta.userId === req.user!.id) return true;
@@ -452,8 +460,8 @@ function verifyClinicCallbackAuth(input: {
   headers: Record<string, string | string[] | undefined>;
   body: { externalId?: string; status?: string; signature?: string };
 }): { ok: true } | { ok: false; error: string } {
-  if (!input.secret || input.secret.length < 16) {
-    return { ok: false, error: 'Webhook secret клиники не настроен' };
+  if (!input.secret || input.secret.length < 32) {
+    return { ok: false, error: 'Webhook secret клиники не настроен или короче 32 символов' };
   }
   const headerRaw =
     input.headers['x-kaspi-signature'] ||
@@ -692,7 +700,7 @@ paymentsRouter.post('/', authenticate, async (req: AuthRequest, res) => {
           error: 'clinicId обязателен для оплаты на кассе клиники',
         } satisfies ApiResponse);
       }
-      if (!(await assertOrgAccess(req.user!, clinicId))) {
+      if (!(await assertClinicPaymentStaffAccess(req.user!.id, clinicId))) {
         return res.status(403).json({ ok: false, error: 'Нет доступа к кассе этой клиники' } satisfies ApiResponse);
       }
 
@@ -939,7 +947,7 @@ paymentsRouter.post('/:id/confirm', authenticate, async (req: AuthRequest, res) 
       // The provider is server-created and is the authoritative scope marker.
       // Require the canonical clinic reference and current backend membership;
       // metadata alone never grants clinic cashier privileges.
-      if (!meta.clinicId || !(await assertOrgAccess(req.user!, meta.clinicId))) {
+      if (!meta.clinicId || !(await assertClinicPaymentStaffAccess(req.user!.id, meta.clinicId))) {
         return res.status(403).json({ ok: false, error: 'Нет доступа к кассе этой клиники' } satisfies ApiResponse);
       }
     }
@@ -1002,12 +1010,20 @@ paymentsRouter.post('/:id/confirm', authenticate, async (req: AuthRequest, res) 
 
     const qrMeta = (result.updated.meta || {}) as { qr?: string };
 
-    if (result.settled) {
+    if (!result.alreadyPaid) {
+      // Any successful status transition must be auditable, including static
+      // clinic staff confirmation when a downstream CRM workflow owns posting
+      // the receipt/ledger record.
       await auditFromReq(req, {
         action: 'payment.confirmed',
         entity: 'payment',
         entityId: payment.id,
-        details: { amountMinor: String(payment.amount) },
+        details: {
+          amountMinor: String(payment.amount),
+          provider: payment.provider,
+          clinicStaffConfirm: isClinic && meta.clinicPayMode === 'static' && providerStatus !== 'paid',
+          settled: result.settled,
+        },
       });
     }
 
