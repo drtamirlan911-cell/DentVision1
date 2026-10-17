@@ -28,13 +28,6 @@
 - **Verification:** not run. Compatibility, startup, round-trip and cache tests remain required; no key rotation or format change was made.
 
 
-### RB-014 — Access-token expiry and Kaspi production configuration
-- **Status:** IN PROGRESS
-- **Priority:** P1
-- **Area:** Authentication / Payments
-- **Implemented on branch:** access JWT default is 15m in backend config, backend .env.example, Docker Compose and Render; platform sandbox confirmation now requires explicit PAYMENTS_SANDBOX=true; Kaspi mock payment creation is disabled in production without merchant credentials; callback secret minimum is 32 characters in the verifier.
-- **Verification:** not run. Frontend refresh, Android AuthInterceptor/TokenAuthenticator, callback regression tests, and full CI remain required.
-
 ### RB-013 — Credentialed CORS allows untrusted origins
 - **Status:** IN PROGRESS
 - **Priority:** P0
@@ -42,6 +35,13 @@
 - **Implemented on branch:** production CORS is restricted to explicit configured HTTPS origins plus Vercel preview hostnames ending in the configured team slug; wildcard/empty production configuration and localhost are rejected; Render production origin no longer includes localhost.
 - **Verification:** not run. Add/run negative and positive origin tests, and verify VERCEL_TEAM_SLUG is configured for intended previews.
 
+
+### RB-014 — Access-token expiry and Kaspi production configuration
+- **Status:** IN PROGRESS
+- **Priority:** P1
+- **Area:** Authentication / Payments
+- **Implemented on branch:** access JWT default is 15m in backend config, backend .env.example, Docker Compose and Render; platform sandbox confirmation now requires explicit PAYMENTS_SANDBOX=true; Kaspi mock payment creation is disabled in production without merchant credentials; callback secret minimum is 32 characters in the verifier.
+- **Verification:** not run. Frontend refresh, Android AuthInterceptor/TokenAuthenticator, callback regression tests, and full CI remain required.
 
 ### RB-015 — Upload permission must precede multipart parsing
 - **Status:** IN PROGRESS — verification pending
