@@ -1023,6 +1023,25 @@ paymentsRouter.post('/callbacks/kaspi', async (req, res) => {
     if (!payment) {
       return res.status(404).json({ ok: false, error: 'Платёж не найден' } satisfies ApiResponse);
     }
+    // Platform Kaspi callbacks cannot settle clinic-merchant payments.
+    if (payment.provider === 'clinic_kaspi') {
+      return res.status(403).json({ ok: false, error: 'Платёж принадлежит кассе клиники' } satisfies ApiResponse);
+    }
+    // The callback signature contract may omit amount. If the provider sends
+    // one, compare it to the immutable DB amount rather than trusting payload.
+    if (req.body?.amountMinor !== undefined || req.body?.amount !== undefined) {
+      let callbackAmount: bigint;
+      try {
+        callbackAmount = req.body.amountMinor !== undefined
+          ? BigInt(req.body.amountMinor)
+          : parseTengeToMinor(req.body.amount);
+      } catch {
+        return res.status(400).json({ ok: false, error: 'Некорректная сумма callback' } satisfies ApiResponse);
+      }
+      if (callbackAmount !== payment.amount) {
+        return res.status(409).json({ ok: false, error: 'Сумма callback не совпадает с платёжной записью' } satisfies ApiResponse);
+      }
+    }
 
     if (payment.status === 'paid') {
       return res.json({ ok: true, data: { id: payment.id, status: payment.status, settled: false } } satisfies ApiResponse);
@@ -1090,9 +1109,15 @@ paymentsRouter.post('/callbacks/kaspi/clinic/:clinicId', async (req, res) => {
     if (!payment) {
       return res.status(404).json({ ok: false, error: 'Платёж не найден' } satisfies ApiResponse);
     }
+    if (payment.provider !== 'clinic_kaspi') {
+      return res.status(403).json({ ok: false, error: 'Платёж не принадлежит шлюзу клиники' } satisfies ApiResponse);
+    }
     const pMeta = (payment.meta || {}) as { clinicId?: string };
-    if (pMeta.clinicId && pMeta.clinicId !== clinicId) {
+    if (!pMeta.clinicId || pMeta.clinicId !== clinicId) {
       return res.status(403).json({ ok: false, error: 'Платёж другой клиники' } satisfies ApiResponse);
+    }
+    if (['subscription', 'enrollment', 'academy_event', 'order', 'shop_order', 'medical_lab_order'].includes(String(payment.refType))) {
+      return res.status(403).json({ ok: false, error: 'Платежи платформы нельзя подтверждать шлюзом клиники' } satisfies ApiResponse);
     }
 
     if (payment.status === 'paid') {
