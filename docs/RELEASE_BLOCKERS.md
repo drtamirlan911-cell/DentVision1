@@ -5,16 +5,20 @@
 ## Open
 
 ### RB-010 — Payment amount, subscription entitlement and metadata trust
-- **Status:** OPEN
+- **Status:** IN PROGRESS — exact-HEAD CI verification pending
 - **Priority:** P0
 - **Area:** Payments / Billing / IAM
-- **Required:** reproduce with negative Vitest tests; derive subscription, enrollment and academy-event amounts from canonical server data; enforce billing access; prevent client metadata from controlling payer, clinic and merchant scope; confirm/get scope from persisted provider data. Current branch only fixes metadata overwrite order and provider-derived scope for GET/confirm; amount/plan validation and complete tests remain outstanding.
+- **Implemented on branch:** subscription creation checks clinic billing authorization and derives plan/month amount from the canonical subscription service; Academy enrollment/event creation derives price and seller from the persisted course; client metadata cannot override server-owned payer/scope/merchant fields; payment-reference ownership checks remain in place.
+- **Regression coverage:** `payments.routes.creation-security.test.ts` covers underpayment, invalid plans/months, unauthorized clinic billing, client metadata spoofing, and Academy underpayment.
+- **Remaining:** run the tests and inspect all payment/callback paths against the actual provider contract. No release claim until exact-HEAD CI and negative payment tests pass.
 
 ### RB-011 — Clinic gateway SSRF and payment-status trust
-- **Status:** OPEN
+- **Status:** IN PROGRESS — regression verification pending
 - **Priority:** P0
 - **Area:** Payments / SSRF
-- **Required:** validate gateway URLs at save and use time, reject private/link-local/metadata destinations, pin resolved addresses against DNS rebinding, reject redirects, add timeout/response-size limits, and prove platform payments never trust clinic gateway status. Not yet implemented or tested.
+- **Implemented on branch:** validate HTTPS gateway URL at save/use time; reject IP literals, localhost and unsafe hostnames; resolve all DNS records and reject any private, link-local, metadata, documentation or reserved address; pin one validated public address for the outbound TLS request; reject redirects; enforce an 8-second timeout and 64 KiB response cap; reject clinic callbacks outside API mode and prevent platform payment references from using the clinic callback.
+- **Regression coverage:** `clinicPayments.test.ts` covers unsafe IP ranges, DNS answers, redirect rejection, DNS pinning and host allowlist; `payments.routes.creation-security.test.ts` covers clinic confirmation and callback-mode boundaries.
+- **Remaining:** run exact-HEAD tests and verify payment amount/status semantics against each real gateway's documented callback contract.
 
 ### RB-012 — Patient field encryption fail-open and startup configuration
 - **Status:** IN PROGRESS
@@ -22,6 +26,24 @@
 - **Area:** PHI / Encryption
 - **Implemented on branch:** production config now exits if ENCRYPTION_KEY is missing/short; encryptPatientFields and decryptPatientFields fail closed in production; derived AES key is cached per configured key without changing salt or ciphertext format; Render and Docker configuration require the key.
 - **Verification:** not run. Compatibility, startup, round-trip and cache tests remain required; no key rotation or format change was made.
+
+
+### RB-015 — Upload permission must precede multipart parsing
+- **Status:** IN PROGRESS — verification pending
+- **Priority:** P1
+- **Area:** File upload / Resource exhaustion
+- **Finding:** the upload route previously buffered up to 60 MiB before checking `patient.write`, allowing authenticated but unauthorized users to consume upload memory.
+- **Fix on branch:** moved `requirePermission('patient.write')` ahead of the concurrency limiter and Multer parsing.
+- **Remaining:** verify route middleware behavior and upload negative paths in CI; preserve the 60 MiB clinical imaging limit and file-signature validation.
+
+### RB-016 — Clinic gateway callbacks must respect configured payment mode
+- **Status:** IN PROGRESS — regression verification pending
+- **Priority:** P0
+- **Area:** Payments / Clinic cashier
+- **Finding:** a valid/stale clinic webhook secret could otherwise reach callback processing while the clinic was configured for static/manual confirmation.
+- **Fix on branch:** clinic callback now rejects requests unless the persisted clinic payment mode is `api`; static mode remains authorized staff confirmation only.
+- **Regression coverage:** a negative integration test asserts static-mode callbacks return 403 and never query/settle a payment.
+- **Remaining:** exact-HEAD CI and payment lifecycle verification.
 
 ### RB-014 — Access-token expiry and Kaspi production configuration
 - **Status:** IN PROGRESS
