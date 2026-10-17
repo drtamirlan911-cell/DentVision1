@@ -10,12 +10,17 @@ import { describe, expect, it, vi, beforeEach } from 'vitest';
  * every branch's callee — not the global prisma client, not a new default.
  */
 
-const { recordSaleTx, recordPartnerEconomics, activateClinicSubscriptionFromPayment, isSaasPlanId, accrueSaasCashback, markSettlementPaid, writeRevenue } =
+const { recordSaleTx, recordPartnerEconomics, activateClinicSubscriptionFromPayment, isSaasPlanId, getClinicSubscriptionAmountMinor, assertClinicBillingAccess, accrueSaasCashback, markSettlementPaid, writeRevenue } =
   vi.hoisted(() => ({
     recordSaleTx: vi.fn(),
     recordPartnerEconomics: vi.fn(),
     activateClinicSubscriptionFromPayment: vi.fn(),
     isSaasPlanId: vi.fn(() => true),
+    getClinicSubscriptionAmountMinor: vi.fn((plan: string, months: number) => {
+      const monthly: Record<string, bigint> = { starter: 1_990_000n, professional: 3_990_000n, enterprise: 7_990_000n };
+      return monthly[plan] && Number.isInteger(months) && months >= 1 && months <= 24 ? monthly[plan] * BigInt(months) : null;
+    }),
+    assertClinicBillingAccess: vi.fn(),
     accrueSaasCashback: vi.fn(),
     markSettlementPaid: vi.fn(),
     writeRevenue: vi.fn(),
