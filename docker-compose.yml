@@ -20,7 +20,7 @@ services:
       - PORT=3001
       - REDIS_URL=${REDIS_URL:-}
       - OPENAI_API_KEY=${OPENAI_API_KEY:-}
-      - ENCRYPTION_KEY=${ENCRYPTION_KEY}
+      - ENCRYPTION_KEY=${ENCRYPTION_KEY:?ENCRYPTION_KEY is required}
     healthcheck:
       test: ["CMD", "curl", "--fail", "http://localhost:3001/api/health"]
       interval: 30s
