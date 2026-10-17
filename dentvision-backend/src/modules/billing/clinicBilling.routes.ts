@@ -70,8 +70,9 @@ clinicBillingRouter.get('/me', async (req: AuthRequest, res) => {
     }
     return res.json({ ok: true, data: snap } satisfies ApiResponse);
   } catch (error: any) {
-    const status = error?.status || 500;
-    return res.status(status).json({ ok: false, error: error?.message || 'Ошибка' } satisfies ApiResponse);
+    const status = Number(error?.status) >= 400 && Number(error?.status) < 500 ? Number(error.status) : 500;
+    if (status === 500) console.error('[clinic-billing/me]', error);
+    return res.status(status).json({ ok: false, error: status < 500 && error instanceof Error ? error.message : 'Внутренняя ошибка сервера' } satisfies ApiResponse);
   }
 });
 
@@ -161,9 +162,9 @@ clinicBillingRouter.post('/checkout', async (req: AuthRequest, res) => {
       },
     } satisfies ApiResponse);
   } catch (error: any) {
+    const status = Number(error?.status) >= 400 && Number(error?.status) < 500 ? Number(error.status) : 500;
     console.error('[clinic-billing/checkout]', error);
-    const status = error?.status || 500;
-    return res.status(status).json({ ok: false, error: error?.message || 'Ошибка checkout' } satisfies ApiResponse);
+    return res.status(status).json({ ok: false, error: status < 500 && error instanceof Error ? error.message : 'Внутренняя ошибка сервера' } satisfies ApiResponse);
   }
 });
 
@@ -230,9 +231,9 @@ clinicBillingRouter.post('/confirm', async (req: AuthRequest, res) => {
       },
     } satisfies ApiResponse);
   } catch (error: any) {
+    const status = Number(error?.status) >= 400 && Number(error?.status) < 500 ? Number(error.status) : 500;
     console.error('[clinic-billing/confirm]', error);
-    const status = error?.status || 500;
-    return res.status(status).json({ ok: false, error: error?.message || 'Ошибка подтверждения' } satisfies ApiResponse);
+    return res.status(status).json({ ok: false, error: status < 500 && error instanceof Error ? error.message : 'Внутренняя ошибка сервера' } satisfies ApiResponse);
   }
 });
 
@@ -259,8 +260,9 @@ clinicBillingRouter.get('/payments/:id', async (req: AuthRequest, res) => {
       },
     } satisfies ApiResponse);
   } catch (error: any) {
-    const status = error?.status || 500;
-    return res.status(status).json({ ok: false, error: error?.message || 'Ошибка' } satisfies ApiResponse);
+    const status = Number(error?.status) >= 400 && Number(error?.status) < 500 ? Number(error.status) : 500;
+    if (status === 500) console.error('[clinic-billing/payments]', error);
+    return res.status(status).json({ ok: false, error: status < 500 && error instanceof Error ? error.message : 'Внутренняя ошибка сервера' } satisfies ApiResponse);
   }
 });
 
