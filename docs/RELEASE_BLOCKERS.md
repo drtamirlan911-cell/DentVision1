@@ -4,6 +4,33 @@
 
 ## Open
 
+### RB-010 — Payment amount, subscription entitlement and metadata trust
+- **Status:** OPEN
+- **Priority:** P0
+- **Area:** Payments / Billing / IAM
+- **Required:** reproduce with negative Vitest tests; derive subscription, enrollment and academy-event amounts from canonical server data; enforce billing access; prevent client metadata from controlling payer, clinic and merchant scope; confirm/get scope from persisted provider data. Current branch only fixes metadata overwrite order and provider-derived scope for GET/confirm; amount/plan validation and complete tests remain outstanding.
+
+### RB-011 — Clinic gateway SSRF and payment-status trust
+- **Status:** OPEN
+- **Priority:** P0
+- **Area:** Payments / SSRF
+- **Required:** validate gateway URLs at save and use time, reject private/link-local/metadata destinations, pin resolved addresses against DNS rebinding, reject redirects, add timeout/response-size limits, and prove platform payments never trust clinic gateway status. Not yet implemented or tested.
+
+### RB-012 — Patient field encryption fail-open and startup configuration
+- **Status:** IN PROGRESS
+- **Priority:** P0
+- **Area:** PHI / Encryption
+- **Implemented on branch:** production config now exits if ENCRYPTION_KEY is missing/short; encryptPatientFields and decryptPatientFields fail closed in production; derived AES key is cached per configured key without changing salt or ciphertext format; Render and Docker configuration require the key.
+- **Verification:** not run. Compatibility, startup, round-trip and cache tests remain required; no key rotation or format change was made.
+
+### RB-013 — Credentialed CORS allows untrusted origins
+- **Status:** IN PROGRESS
+- **Priority:** P0
+- **Area:** API security / CORS
+- **Implemented on branch:** production CORS is restricted to explicit configured HTTPS origins plus Vercel preview hostnames ending in the configured team slug; wildcard/empty production configuration and localhost are rejected; Render production origin no longer includes localhost.
+- **Verification:** not run. Add/run negative and positive origin tests, and verify VERCEL_TEAM_SLUG is configured for intended previews.
+
+
 ### RB-001 — Medical/Dental Laboratory 403 Forbidden
 - **Status:** OPEN
 - **Priority:** P0
