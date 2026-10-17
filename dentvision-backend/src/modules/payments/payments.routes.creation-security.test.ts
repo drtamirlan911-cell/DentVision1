@@ -6,10 +6,15 @@ const m = vi.hoisted(() => ({
   user: { id: 'authenticated-user', role: 'DOCTOR', clinicId: 'clinic-owned' } as any,
   paymentCreate: vi.fn(),
   paymentFindUnique: vi.fn(),
+  paymentUpdateMany: vi.fn(),
+  paymentFindUniqueOrThrow: vi.fn(),
+  transaction: vi.fn(),
   orderFindUnique: vi.fn(),
   courseFindUnique: vi.fn(),
   providerCreate: vi.fn(),
   providerStatus: vi.fn(),
+  getClinicGatewayStatus: m.getClinicGatewayStatus,
+  loadClinicPaymentsConfig: m.loadClinicPaymentsConfig,
   assertClinicBillingAccess: vi.fn(),
   assertOrgAccess: vi.fn(),
   resolveClinicMemberAccess: vi.fn(),
@@ -25,7 +30,7 @@ vi.mock('../../lib/prisma.js', () => ({
     payment: { create: m.paymentCreate, findUnique: m.paymentFindUnique },
     order: { findUnique: m.orderFindUnique },
     course: { findUnique: m.courseFindUnique },
-    $transaction: vi.fn(),
+    $transaction: m.transaction,
   },
 }));
 vi.mock('../../middleware/auth.js', () => ({
@@ -117,6 +122,23 @@ beforeEach(() => {
   m.courseFindUnique.mockResolvedValue({ id: 'course-1', price: 39900, lecturerId: 'lecturer-1', academyId: 'academy-1' });
   m.providerCreate.mockResolvedValue({ externalId: 'gateway-payment-1', qr: 'https://pay.example/qr' });
   m.providerStatus.mockResolvedValue('pending');
+  m.getClinicGatewayStatus.mockResolvedValue('pending');
+  m.loadClinicPaymentsConfig.mockResolvedValue({
+    clinic: { id: 'clinic-owned', name: 'Test Clinic' },
+    cfg: { mode: 'static' },
+  });
+  m.paymentUpdateMany.mockResolvedValue({ count: 1 });
+  m.paymentFindUniqueOrThrow.mockResolvedValue({
+    id: 'payment-clinic-confirm',
+    status: 'paid',
+    meta: { qr: 'https://clinic.example/qr' },
+  });
+  m.transaction.mockImplementation(async (callback: any) => callback({
+    payment: {
+      updateMany: m.paymentUpdateMany,
+      findUniqueOrThrow: m.paymentFindUniqueOrThrow,
+    },
+  }));
   m.paymentCreate.mockImplementation(async ({ data }: any) => ({
     id: 'payment-created-1',
     ...data,
@@ -130,6 +152,15 @@ async function postPayment(body: Record<string, unknown>, headers: Record<string
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...headers },
     body: JSON.stringify(body),
+  });
+  return { response, body: await response.json() as any };
+}
+
+async function postConfirm(paymentId: string) {
+  const response = await fetch(`${baseUrl}/api/payments/${paymentId}/confirm`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({}),
   });
   return { response, body: await response.json() as any };
 }
@@ -244,5 +275,93 @@ describe('payment creation server-side pricing and metadata protection', () => {
     expect(enrollment.response.status).toBe(201);
     expect(m.paymentCreate.mock.calls[0][0].data.meta.userId).toBe('authenticated-user');
     expect(enrollment.body.ok).toBe(true);
+  });
+});
+
+
+describe('clinic static payment confirmation policy', () => {
+  it('does not trust historical client-controlled clinicPayMode when current clinic mode is API', async () => {
+    m.paymentFindUnique.mockResolvedValue({
+      id: 'payment-api-clinic',
+      provider: 'clinic_kaspi',
+      externalId: 'clinic-external-1',
+      amount: 10_000n,
+      status: 'pending',
+      refType: 'crm_invoice',
+      refId: 'invoice-1',
+      meta: {
+        clinicId: 'clinic-owned',
+        userId: 'authenticated-user',
+        merchantScope: 'clinic',
+        clinicPayMode: 'static',
+      },
+    });
+    m.loadClinicPaymentsConfig.mockResolvedValue({
+      clinic: { id: 'clinic-owned', name: 'Test Clinic' },
+      cfg: { mode: 'api', apiBaseUrl: 'https://gateway.example', apiKey: 'redacted' },
+    });
+    const { response, body } = await postConfirm('payment-api-clinic');
+    expect(response.status).toBe(402);
+    expect(body.ok).toBe(false);
+    expect(m.getClinicGatewayStatus).toHaveBeenCalledWith('clinic-owned', 'clinic-external-1');
+    expect(m.transaction).not.toHaveBeenCalled();
+    expect(m.auditFromReq).not.toHaveBeenCalled();
+  });
+
+  it('allows an authorized staff member to confirm current static clinic mode and audits it', async () => {
+    m.paymentFindUnique.mockResolvedValue({
+      id: 'payment-static-clinic',
+      provider: 'clinic_kaspi',
+      externalId: 'clinic-external-2',
+      amount: 10_000n,
+      status: 'pending',
+      refType: 'crm_invoice',
+      refId: 'invoice-2',
+      meta: {
+        clinicId: 'clinic-owned',
+        userId: 'another-user',
+        merchantScope: 'platform',
+        clinicPayMode: 'api',
+      },
+    });
+    m.loadClinicPaymentsConfig.mockResolvedValue({
+      clinic: { id: 'clinic-owned', name: 'Test Clinic' },
+      cfg: { mode: 'static' },
+    });
+    const { response, body } = await postConfirm('payment-static-clinic');
+    expect(response.status).toBe(200);
+    expect(body.ok).toBe(true);
+    expect(body.data.clinicStaffConfirm).toBe(true);
+    expect(m.getClinicGatewayStatus).not.toHaveBeenCalled();
+    expect(m.transaction).toHaveBeenCalledTimes(1);
+    expect(m.auditFromReq).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        action: 'payment.confirmed',
+        entityId: 'payment-static-clinic',
+        details: expect.objectContaining({
+          clinicStaffConfirm: true,
+          provider: 'clinic_kaspi',
+        }),
+      }),
+    );
+  });
+
+  it('rejects static confirmation when the caller has no authorized financial role in the clinic', async () => {
+    m.paymentFindUnique.mockResolvedValue({
+      id: 'payment-no-clinic-access',
+      provider: 'clinic_kaspi',
+      externalId: 'clinic-external-3',
+      amount: 10_000n,
+      status: 'pending',
+      refType: 'crm_invoice',
+      refId: 'invoice-3',
+      meta: { clinicId: 'clinic-owned', clinicPayMode: 'static' },
+    });
+    m.resolveClinicMemberAccess.mockResolvedValue(null);
+    const { response } = await postConfirm('payment-no-clinic-access');
+    expect(response.status).toBe(403);
+    expect(m.transaction).not.toHaveBeenCalled();
+    expect(m.loadClinicPaymentsConfig).not.toHaveBeenCalled();
   });
 });
