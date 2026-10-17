@@ -222,7 +222,10 @@ export async function activateClinicSubscriptionFromPayment(
   },
   db: Prisma.TransactionClient | typeof prisma = prisma,
 ) {
-  const months = Math.min(Math.max(opts.months || 1, 1), 24);
+  const months = opts.months ?? 1;
+  if (!isSaasPlanId(opts.saasPlan) || !Number.isInteger(months) || months < 1 || months > 24) {
+    throw new Error('Некорректный тариф или срок подписки');
+  }
   const clinicPlan = saasPlanToClinicPlan(opts.saasPlan);
   const existing = await db.subscription.findUnique({
     where: { ownerType_ownerId: { ownerType: 'CLINIC', ownerId: opts.clinicId } },
