@@ -197,19 +197,27 @@ export function isPublicGatewayAddress(address: string): boolean {
   }
   if (family !== 6) return false;
   const lower = normalized.toLowerCase();
-  // Only global-unicast 2000::/3 is accepted; this excludes ULA, link-local,
-  // loopback, unspecified, multicast and IPv4-mapped IPv6 destinations.
-  if (!/^[23]/.test(lower)) return false;
-  if (/^2001:db8(?::|$)/.test(lower) || /^2001:0(?::|$)/.test(lower) ||
-      /^2001:2(?::|$)/.test(lower) || /^2001:10(?::|$)/.test(lower) ||
-      /^2001:20(?::|$)/.test(lower) || /^2002(?::|$)/.test(lower)) return false;
+  // Canonicalize groups numerically so expanded and compressed IPv6 spellings
+  // receive the same policy decision.
+  const [leftRaw = '', rightRaw = ''] = lower.split('::');
+  const left = leftRaw ? leftRaw.split(':') : [];
+  const right = rightRaw ? rightRaw.split(':') : [];
+  const missing = 8 - left.length - right.length;
+  if (missing < 0 || (lower.includes('::') ? missing < 1 : missing !== 0)) return false;
+  const groups = [...left, ...Array(missing).fill('0'), ...right].map((part) => Number.parseInt(part || '0', 16));
+  if (groups.length !== 8 || groups.some((group) => !Number.isInteger(group) || group < 0 || group > 0xffff)) return false;
+  const [first, second] = groups;
+  // Only global-unicast 2000::/3 is accepted. Conservatively reject special-use
+  // 2001::/23, documentation 2001:db8::/32 and the 6to4 transition prefix.
+  if (first < 0x2000 || first > 0x3fff) return false;
+  if ((first === 0x2001 && (second <= 0x01ff || second === 0x0db8)) || first === 0x2002) return false;
   return true;
 }
 
 function clinicGatewayHostAllowlist(): Set<string> | null {
   const raw = process.env.CLINIC_GATEWAY_ALLOWED_HOSTS?.trim();
   if (!raw) return null;
-  const hosts = raw.split(',').map((entry) => entry.trim().toLowerCase().replace(/\\.$/, '')).filter(Boolean);
+  const hosts = raw.split(',').map((entry) => entry.trim().toLowerCase().replace(/\.$/, '')).filter(Boolean);
   return new Set(hosts);
 }
 
@@ -225,8 +233,8 @@ export async function validateClinicGatewayUrl(raw: string): Promise<ValidatedCl
   } catch {
     throw new ClinicPaymentsError('API Base URL шлюза имеет неверный формат', 400, 'CLINIC_GATEWAY_URL');
   }
-  const hostname = url.hostname.toLowerCase().replace(/\\.$/, '');
-  const literal = hostname.replace(/^\\[|\\]$/g, '');
+  const hostname = url.hostname.toLowerCase().replace(/\.$/, '');
+  const literal = hostname.replace(/^\[|\]$/g, '');
   if (url.protocol !== 'https:' || !hostname || url.username || url.password || url.search || url.hash ||
       isIP(literal) !== 0 || hostname === 'localhost' || hostname.endsWith('.localhost') ||
       hostname.endsWith('.local') || hostname === 'metadata.google.internal') {
@@ -261,7 +269,7 @@ export async function requestClinicGateway(input: {
   body?: string;
 }): Promise<{ statusCode: number; body: string }> {
   const target = await validateClinicGatewayUrl(input.url);
-  const hostname = target.url.hostname.replace(/^\\[|\\]$/g, '');
+  const hostname = target.url.hostname.replace(/^\[|\]$/g, '');
   return new Promise((resolve, reject) => {
     let settled = false;
     const fail = (error: Error) => {
