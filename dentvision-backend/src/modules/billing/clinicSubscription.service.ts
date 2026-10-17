@@ -228,15 +228,13 @@ export async function activateClinicSubscriptionFromPayment(
     where: { ownerType_ownerId: { ownerType: 'CLINIC', ownerId: opts.clinicId } },
   });
 
-  let periodEnd: Date | null = null;
-  if (opts.saasPlan === 'starter') {
-    periodEnd = null; // free forever
-  } else {
-    const now = new Date();
-    const base =
-      existing?.periodEnd && existing.periodEnd > now ? existing.periodEnd : now;
-    periodEnd = addMonths(base, months);
-  }
+  const now = new Date();
+  const base =
+    existing?.periodEnd && existing.periodEnd > now ? existing.periodEnd : now;
+  // All published clinic SaaS tiers are monthly paid plans in canonical
+  // Partner Economics. Starter must expire like the higher tiers; a null
+  // periodEnd here would incorrectly grant a paid plan lifetime access.
+  const periodEnd = addMonths(base, months);
 
   const result = await upsertClinicSubscription(
     {
@@ -275,9 +273,7 @@ export async function activateClinicSubscriptionFromPayment(
   const members = recipients.map((p) => ({ userId: p.userId! }));
   const title = 'Подписка активирована';
   const message =
-    opts.saasPlan === 'starter'
-      ? 'Тариф Starter активирован бесплатно.'
-      : `Тариф ${opts.saasPlan} оплачен. Действует до ${periodEnd?.toISOString().slice(0, 10)}.`;
+    `Тариф ${opts.saasPlan} оплачен. Действует до ${periodEnd.toISOString().slice(0, 10)}.`;
 
   if (members.length > 0) {
     await db.notification.createMany({
