@@ -14,8 +14,14 @@ import { encrypt as rawEncrypt, decrypt as rawDecrypt } from './fieldEncryption.
 import { normalizeIin } from './iin.js';
 
 let encryptionAvailable: boolean | null = null;
+let encryptionAvailabilityKey: string | null = null;
 
 function canEncrypt(): boolean {
+  const keyIdentity = process.env.ENCRYPTION_KEY || '__development_fallback__';
+  if (encryptionAvailabilityKey !== keyIdentity) {
+    encryptionAvailabilityKey = keyIdentity;
+    encryptionAvailable = null;
+  }
   if (encryptionAvailable !== null) return encryptionAvailable;
   try {
     const test = rawEncrypt('phi-test');
