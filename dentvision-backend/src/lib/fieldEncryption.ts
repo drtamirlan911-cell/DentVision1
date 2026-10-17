@@ -4,6 +4,8 @@ const ALGORITHM = 'aes-256-gcm';
 const IV_LENGTH = 16;
 const TAG_LENGTH = 16;
 const KEY_MIN_LENGTH = 32;
+let cachedRawKey: string | null = null;
+let cachedDerivedKey: Buffer | null = null;
 
 function getKey(): Buffer {
   const raw = process.env.ENCRYPTION_KEY;
@@ -13,7 +15,11 @@ function getKey(): Buffer {
     }
     return crypto.scryptSync('dev-only-key-not-for-production', 'salt', 32);
   }
-  return crypto.scryptSync(raw, 'salt', 32);
+  if (cachedRawKey !== raw || !cachedDerivedKey) {
+    cachedDerivedKey = crypto.scryptSync(raw, 'salt', 32);
+    cachedRawKey = raw;
+  }
+  return cachedDerivedKey;
 }
 
 export function encrypt(plaintext: string): string {
