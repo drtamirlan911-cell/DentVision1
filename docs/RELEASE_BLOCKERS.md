@@ -10,14 +10,14 @@
 - **Area:** Payments / Billing / IAM
 - **Implemented on branch:** subscription creation checks clinic billing authorization and derives plan/month amount from the canonical subscription service; Academy enrollment/event creation derives price and seller from the persisted course; client metadata cannot override server-owned payer/scope/merchant fields; payment-reference ownership checks remain in place.
 - **Regression coverage:** `payments.routes.creation-security.test.ts` covers underpayment, invalid plans/months, unauthorized clinic billing, client metadata spoofing, and Academy underpayment.
-- **Remaining:** run the tests and inspect all payment/callback paths against the actual provider contract. No release claim until exact-HEAD CI and negative payment tests pass.
+- **Additional branch protections:** optional callback amounts are checked against the immutable payment amount; out-of-order non-paid callbacks update only a still-pending payment; gateway fallback attempts reuse one idempotency key. **Remaining:** exact-HEAD CI plus verification against each actual provider contract.
 
 ### RB-011 — Clinic gateway SSRF and payment-status trust
 - **Status:** IN PROGRESS — regression verification pending
 - **Priority:** P0
 - **Area:** Payments / SSRF
 - **Implemented on branch:** validate HTTPS gateway URL at save/use time; reject IP literals, localhost and unsafe hostnames; resolve all DNS records and reject any private, link-local, metadata, documentation or reserved address; pin one validated public address for the outbound TLS request; reject redirects; enforce an 8-second timeout and 64 KiB response cap; reject clinic callbacks outside API mode and prevent platform payment references from using the clinic callback.
-- **Regression coverage:** `clinicPayments.test.ts` covers unsafe IP ranges, DNS answers, redirect rejection, DNS pinning and host allowlist; `payments.routes.creation-security.test.ts` covers clinic confirmation and callback-mode boundaries.
+- **Regression coverage:** `clinicPayments.test.ts` covers unsafe IP ranges including expanded IPv6 special-use forms, IPv6 literals, DNS answers, redirect rejection, DNS pinning, host allowlist and stable fallback idempotency; `payments.routes.creation-security.test.ts` covers clinic confirmation, static callback rejection, amount mismatch and callback race protection.
 - **Remaining:** run exact-HEAD tests and verify payment amount/status semantics against each real gateway's documented callback contract.
 
 ### RB-012 — Patient field encryption fail-open and startup configuration
@@ -25,7 +25,7 @@
 - **Priority:** P0
 - **Area:** PHI / Encryption
 - **Implemented on branch:** production config now exits if ENCRYPTION_KEY is missing/short; encryptPatientFields and decryptPatientFields fail closed in production; derived AES key is cached per configured key without changing salt or ciphertext format; Render and Docker configuration require the key.
-- **Verification:** not run. Compatibility, startup, round-trip and cache tests remain required; no key rotation or format change was made.
+- **Verification:** round-trip, legacy ciphertext, cache and production fail-closed tests exist; exact-HEAD CI remains pending. Legacy rows already stored as plaintext are not automatically encrypted by this change and require a separately approved, audited backfill. No key rotation or format change was made.
 
 
 ### RB-013 — Credentialed CORS allows untrusted origins
@@ -33,7 +33,7 @@
 - **Priority:** P0
 - **Area:** API security / CORS
 - **Implemented on branch:** production CORS is restricted to explicit configured HTTPS origins plus Vercel preview hostnames ending in the configured team slug; wildcard/empty production configuration and localhost are rejected; Render production origin no longer includes localhost.
-- **Verification:** not run. Add/run negative and positive origin tests, and verify VERCEL_TEAM_SLUG is configured for intended previews.
+- **Regression coverage:** `cors.test.ts` covers exact HTTPS origins, hostile suffixes, Vercel team slug, localhost, wildcard and missing-origin behavior. Exact-HEAD CI and intended preview-host configuration remain unverified.
 
 
 ### RB-014 — Access-token expiry and Kaspi production configuration
@@ -58,7 +58,7 @@
 - **Finding:** a valid/stale clinic webhook secret could otherwise reach callback processing while the clinic was configured for static/manual confirmation.
 - **Fix on branch:** clinic callback now rejects requests unless the persisted clinic payment mode is `api`; static mode remains authorized staff confirmation only.
 - **Regression coverage:** a negative integration test asserts static-mode callbacks return 403 and never query/settle a payment.
-- **Remaining:** exact-HEAD CI and payment lifecycle verification.
+- **Additional branch protections:** non-paid callbacks can update only pending records; optional callback amounts are compared with the stored amount; late failed/pending callbacks cannot downgrade a paid/terminal payment. **Remaining:** exact-HEAD CI and actual provider lifecycle/contract verification.
 
 ### RB-017 — Production security-header policy is not consistent across hosts
 - **Status:** OPEN — deployment behavior not proven
@@ -73,6 +73,21 @@
 - **Area:** Authentication / Realtime
 - **Finding:** `src/services/websocket/socket.ts` constructs `/ws?token=<access-token>`. URL credentials can leak into proxy/application logs. No matching WebSocket upgrade handler was found in the backend entry points inspected in this branch; the actual `VITE_WS_URL` service owner and authentication contract remain unverified.
 - **Required:** verify whether realtime is an external service and how it authenticates. Replace long-lived bearer query credentials with a short-lived, audience-bound, single-use connection ticket or an authenticated first-frame protocol only after the server contract is confirmed. Do not invent a parallel endpoint or break realtime blindly.
+
+### RB-019 — Platform Kaspi API contract and network bounds
+- **Status:** OPEN — provider contract not independently verified
+- **Priority:** P1
+- **Area:** Payments / External API
+- **Finding:** the platform provider adapter uses a configurable API base URL and parses the response body without an explicit request timeout or response-size cap. The current generic callback signature must not be assumed to match the official Kaspi contract without authoritative documentation.
+- **Required:** verify the actual merchant API/callback contract, constrain production base URL to approved HTTPS hosts, add bounded timeout/body handling and test provider signature/amount/idempotency semantics. Do not invent a Kaspi endpoint or signature algorithm.
+
+### RB-020 — Clinic gateway fallback idempotency
+- **Status:** IN PROGRESS — exact-HEAD test pending
+- **Priority:** P1
+- **Area:** Payments / Duplicate invoice prevention
+- **Finding:** fallback attempts across compatible gateway endpoints could previously generate a new idempotency key per attempt.
+- **Fix on branch:** all endpoint attempts for one logical payment creation reuse a single idempotency key.
+- **Regression coverage:** `clinicPayments.test.ts` asserts the key is identical across fallback attempts; exact-HEAD CI remains pending.
 
 ### RB-001 — Medical/Dental Laboratory 403 Forbidden
 - **Status:** OPEN
