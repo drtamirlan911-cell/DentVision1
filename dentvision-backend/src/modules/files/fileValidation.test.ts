@@ -37,7 +37,7 @@ describe('isAcceptedFilePayload', () => {
   });
 
   it('accepts OBJ geometry and non-empty binary STL geometry', () => {
-    expect(isAcceptedFilePayload(file('x.obj', 'model/obj', 'v 0 0 0\\nf 1 2 3'))).toBe(true);
+    expect(isAcceptedFilePayload(file('x.obj', 'model/obj', 'v 0 0 0\nf 1 2 3'))).toBe(true);
     const stl = Buffer.alloc(134);
     stl.writeUInt32LE(1, 80);
     expect(isAcceptedFilePayload(file('x.stl', 'model/stl', stl))).toBe(true);
