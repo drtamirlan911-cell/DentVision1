@@ -364,6 +364,39 @@ describe('payment callback terminal-state race protection', () => {
   });
 });
 
+describe('clinic callback amount validation', () => {
+  it('rejects a clinic callback amount that differs from the persisted payment amount', async () => {
+    const secret = 'clinic-webhook-secret-at-least-32-characters';
+    const externalId = 'clinic-external-amount-mismatch';
+    const signature = createHmac('sha256', secret).update(`${externalId}:paid`).digest('hex');
+    m.loadClinicPaymentsConfig.mockResolvedValue({
+      clinic: { id: 'clinic-owned', name: 'Test Clinic' },
+      cfg: { mode: 'api', webhookSecret: secret },
+    });
+    m.paymentFindUnique.mockResolvedValueOnce({
+      id: 'payment-clinic-amount',
+      externalId,
+      provider: 'clinic_kaspi',
+      amount: 10_000n,
+      status: 'pending',
+      refType: 'crm_invoice',
+      refId: 'invoice-amount',
+      meta: { clinicId: 'clinic-owned' },
+    });
+
+    const { response, body } = await postClinicCallback('clinic-owned', {
+      externalId,
+      status: 'paid',
+      amountMinor: '1',
+    }, { 'X-Kaspi-Signature': signature });
+
+    expect(response.status).toBe(409);
+    expect(body.ok).toBe(false);
+    expect(m.paymentUpdateMany).not.toHaveBeenCalled();
+    expect(m.transaction).not.toHaveBeenCalled();
+  });
+});
+
 describe('clinic gateway callback mode boundary', () => {
   it('rejects gateway callbacks when the clinic is configured for static/manual confirmation', async () => {
     m.loadClinicPaymentsConfig.mockResolvedValue({
