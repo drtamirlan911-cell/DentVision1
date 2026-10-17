@@ -18,37 +18,45 @@ const configured = parseCorsOrigins(
   [env.CORS_ORIGIN, env.FRONTEND_URL || ''].filter(Boolean).join(','),
 );
 
-/** Only explicitly configured origins are trusted in production. */
-export function isOriginAllowed(origin: string | undefined): boolean {
-  const production = env.NODE_ENV === 'production';
-  if (!origin) return !production;
-  if (production) {
+export interface CorsPolicy {
+  production: boolean;
+  origins: string[];
+  vercelTeamSlug?: string;
+}
+
+export function isOriginAllowedByPolicy(origin: string | undefined, policy: CorsPolicy): boolean {
+  if (!origin) return !policy.production;
+  if (policy.production) {
     try {
       const parsed = new URL(origin);
-      if (parsed.protocol !== 'https:' || parsed.hostname === 'localhost' || parsed.hostname === '127.0.0.1' || parsed.hostname === '::1') return false;
-    } catch { return false; }
+      if (parsed.protocol !== 'https:' ||
+          ['localhost', '127.0.0.1', '::1'].includes(parsed.hostname.toLowerCase())) return false;
+    } catch {
+      return false;
+    }
   }
-  if (configured.includes(origin)) return true;
-  if (production) {
-    const teamSlug = process.env.VERCEL_TEAM_SLUG?.trim().toLowerCase();
+  if (policy.origins.includes(origin)) return true;
+  if (policy.production) {
+    const teamSlug = policy.vercelTeamSlug?.trim().toLowerCase();
     if (!teamSlug || !/^[a-z0-9-]+$/.test(teamSlug)) return false;
     try {
-      const parsed = new URL(origin);
-      if (parsed.protocol !== 'https:') return false;
-      const host = parsed.hostname.toLowerCase();
+      const host = new URL(origin).hostname.toLowerCase();
       return host.endsWith(`-${teamSlug}.vercel.app`) &&
         host.length > teamSlug.length + '.vercel.app'.length + 1;
     } catch {
       return false;
     }
   }
-  try {
-    const parsed = new URL(origin);
-    if (parsed.protocol === 'http:' && DEVELOPMENT_ALLOWED_ORIGINS.includes(origin)) return true;
-    return false;
-  } catch {
-    return false;
-  }
+  return DEVELOPMENT_ALLOWED_ORIGINS.includes(origin);
+}
+
+/** Only explicit origins and project previews matching the team slug are trusted in production. */
+export function isOriginAllowed(origin: string | undefined): boolean {
+  return isOriginAllowedByPolicy(origin, {
+    production: env.NODE_ENV === 'production',
+    origins: configured,
+    vercelTeamSlug: process.env.VERCEL_TEAM_SLUG,
+  });
 }
 
 /** Attach ACAO on any response (errors, 429, 402) so browsers don't mask the real status. */
