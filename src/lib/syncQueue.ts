@@ -5,6 +5,7 @@
 
 import type { Appointment } from '../types'
 import * as api from '../utils/api'
+import { sanitizeForLocalStorage } from './localStoragePrivacy'
 
 const QUEUE_KEY = 'dv_schedule_sync_queue_v1'
 const CACHE_PREFIX = 'dv_schedule_day_'
@@ -18,9 +19,27 @@ export type SyncQueueItem = {
   lastError?: string
 }
 
+function sanitizeQueueItem(item: SyncQueueItem): SyncQueueItem {
+  return {
+    ...item,
+    // Remove patient names, phones, notes, diagnosis and other sensitive
+    // fields before anything enters persistent browser storage.
+    payload: sanitizeForLocalStorage(item.payload),
+  }
+}
+
 function loadQueue(): SyncQueueItem[] {
   try {
-    return JSON.parse(localStorage.getItem(QUEUE_KEY) || '[]')
+    const parsed = JSON.parse(localStorage.getItem(QUEUE_KEY) || '[]')
+    if (!Array.isArray(parsed)) return []
+    const sanitized = parsed
+      .filter((item): item is SyncQueueItem => Boolean(item && typeof item === 'object' && item.payload && typeof item.payload.id === 'string'))
+      .map((item) => sanitizeQueueItem(item))
+    // Rewrite old queues in-place, so PHI written by older builds is scrubbed
+    // even when the user only reads the queue and never enqueues new work.
+    const serialized = JSON.stringify(sanitized.slice(-100))
+    if (localStorage.getItem(QUEUE_KEY) !== serialized) localStorage.setItem(QUEUE_KEY, serialized)
+    return sanitized.slice(-100)
   } catch {
     return []
   }
@@ -28,7 +47,7 @@ function loadQueue(): SyncQueueItem[] {
 
 function saveQueue(items: SyncQueueItem[]): void {
   try {
-    localStorage.setItem(QUEUE_KEY, JSON.stringify(items.slice(-100)))
+    localStorage.setItem(QUEUE_KEY, JSON.stringify(items.slice(-100).map(sanitizeQueueItem)))
   } catch { /* ignore */ }
 }
 
@@ -64,17 +83,25 @@ export function cacheDayAppointments(clinicId: string, date: string, appointment
   try {
     localStorage.setItem(
       `${CACHE_PREFIX}${clinicId}_${date}`,
-      JSON.stringify({ savedAt: new Date().toISOString(), appointments }),
+      JSON.stringify({
+        savedAt: new Date().toISOString(),
+        appointments: appointments.map((appointment) => sanitizeForLocalStorage(appointment)),
+      }),
     )
   } catch { /* ignore */ }
 }
 
 export function readCachedDayAppointments(clinicId: string, date: string): Appointment[] | null {
   try {
-    const raw = localStorage.getItem(`${CACHE_PREFIX}${clinicId}_${date}`)
+    const key = `${CACHE_PREFIX}${clinicId}_${date}`
+    const raw = localStorage.getItem(key)
     if (!raw) return null
     const parsed = JSON.parse(raw)
-    return Array.isArray(parsed.appointments) ? parsed.appointments : null
+    if (!Array.isArray(parsed.appointments)) return null
+    const appointments = parsed.appointments.map((appointment: Appointment) => sanitizeForLocalStorage(appointment))
+    // Scrub caches created by pre-hardening versions as they are read.
+    localStorage.setItem(key, JSON.stringify({ ...parsed, appointments }))
+    return appointments
   } catch {
     return null
   }
