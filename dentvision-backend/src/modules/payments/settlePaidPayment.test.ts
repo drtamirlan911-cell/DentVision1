@@ -101,9 +101,27 @@ describe('settlePaidPayment — db threading', () => {
       fakeTx,
     );
     expect(writeRevenue).toHaveBeenCalledWith(
-      expect.objectContaining({ source: 'SaaS', amountMinor: 49900n, refId: 'clinic-1' }),
+      expect.objectContaining({ source: 'SaaS', amountMinor: 3_990_000n, refId: 'clinic-1' }),
       fakeTx,
     );
+  });
+
+  it('subscription settlement rejects a client amount that differs from canonical plan/month pricing', async () => {
+    await expect(settlePaidPayment(
+      {
+        id: 'pay-underpaid-subscription',
+        refType: 'subscription',
+        refId: 'clinic-1',
+        domain: null,
+        sellerType: null,
+        sellerId: null,
+        amount: 1n,
+        meta: { saasPlan: 'professional', months: 1 },
+      },
+      fakeTx,
+    )).rejects.toThrow(/canonical tariff/i);
+    expect(activateClinicSubscriptionFromPayment).not.toHaveBeenCalled();
+    expect(writeRevenue).not.toHaveBeenCalled();
   });
 
   it('settlement branch: passes db through to markSettlementPaid', async () => {
