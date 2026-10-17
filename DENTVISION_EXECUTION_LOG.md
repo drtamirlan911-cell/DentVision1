@@ -1168,3 +1168,12 @@ These changes are route/entry reconciliation only. Existing domain implementatio
 - Legacy plaintext PHI may remain in existing database rows; production backfill/key rotation was not executed and needs an approved, audited plan.
 - Reconcile the active production CSP/header path and verify the external realtime server before changing WebSocket token transport.
 - Complete fresh exact-HEAD CI/E2E/browser/mobile/role-context evidence. Keep PR #307 as draft; `main` remains unchanged.
+
+
+## 2026-10-17 — CI cancellation reliability
+
+- Root cause: the E2E workflow used `if: always()` on test/install/release-gate steps. After a push cancelled an older workflow, those steps still launched and failed because the interrupted run had not completed dependency installation. This produced misleading Playwright module errors and wasted runner time.
+- Changed the E2E workflow so browser UX, mobile/role/Visual Agent/business-owner/organization-owner gates, Playwright CLI setup/smoke and visual evidence validation use `${{ !cancelled() }}`. This still runs gates after ordinary test failures, but does not start new suites after cancellation.
+- Kept artifact uploads and compact failure summaries on `if: always()` so useful evidence is preserved when available.
+- Added RB-021 to the canonical blocker register. Exact-HEAD workflow behavior remains pending until the next full run completes.
+- No E2E application regression is inferred from the cancelled run's missing-Playwright errors. The final candidate must complete CI without being superseded by another push.
