@@ -166,6 +166,15 @@ async function postConfirm(paymentId: string) {
   return { response, body: await response.json() as any };
 }
 
+async function postClinicCallback(clinicId: string, body: Record<string, unknown>) {
+  const response = await fetch(`${baseUrl}/api/payments/callbacks/kaspi/clinic/${clinicId}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  return { response, body: await response.json() as any };
+}
+
 describe('payment creation server-side pricing and metadata protection', () => {
   it('rejects a subscription amount below the current server price with 409 before reserving idempotency', async () => {
     const { response, body } = await postPayment({
@@ -279,6 +288,26 @@ describe('payment creation server-side pricing and metadata protection', () => {
   });
 });
 
+
+describe('clinic gateway callback mode boundary', () => {
+  it('rejects gateway callbacks when the clinic is configured for static/manual confirmation', async () => {
+    m.loadClinicPaymentsConfig.mockResolvedValue({
+      clinic: { id: 'clinic-owned', name: 'Test Clinic' },
+      cfg: { mode: 'static', webhookSecret: 'test-secret-with-at-least-32-characters' },
+    });
+
+    const { response, body } = await postClinicCallback('clinic-owned', {
+      externalId: 'clinic-external-static',
+      status: 'paid',
+      signature: 'not-a-valid-signature',
+    });
+
+    expect(response.status).toBe(403);
+    expect(body.ok).toBe(false);
+    expect(m.paymentFindUnique).not.toHaveBeenCalled();
+    expect(m.transaction).not.toHaveBeenCalled();
+  });
+});
 
 describe('clinic static payment confirmation policy', () => {
   it('does not trust historical client-controlled clinicPayMode when current clinic mode is API', async () => {
