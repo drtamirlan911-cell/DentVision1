@@ -671,7 +671,7 @@ paymentsRouter.post('/', authenticate, async (req: AuthRequest, res) => {
       const expectedMinor = course.price == null ? 0n : tengeToMinor(course.price);
       if (expectedMinor <= 0n) return res.status(409).json({ ok: false, error: 'Для бесплатного курса не требуется платёж' } satisfies ApiResponse);
       if (minor !== expectedMinor) {
-        return res.status(409).json({ ok: false, error: 'Сумма не совпадает с актуальной ценой Academy', expectedAmountMinor: String(expectedMinor) } satisfies ApiResponse);
+        return res.status(409).json({ ok: false, error: 'Сумма не совпадает с актуальной ценой Academy' } satisfies ApiResponse);
       }
       trustedMeta = {
         ...trustedMeta,
