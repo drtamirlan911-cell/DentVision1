@@ -1,4 +1,5 @@
 // @vitest-environment node
+import { createHmac } from 'node:crypto';
 import express from 'express';
 import type { Server } from 'node:http';
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -28,7 +29,7 @@ const m = vi.hoisted(() => ({
 
 vi.mock('../../lib/prisma.js', () => ({
   default: {
-    payment: { create: m.paymentCreate, findUnique: m.paymentFindUnique },
+    payment: { create: m.paymentCreate, findUnique: m.paymentFindUnique, updateMany: m.paymentUpdateMany },
     order: { findUnique: m.orderFindUnique },
     course: { findUnique: m.courseFindUnique },
     $transaction: m.transaction,
@@ -166,8 +167,17 @@ async function postConfirm(paymentId: string) {
   return { response, body: await response.json() as any };
 }
 
-async function postClinicCallback(clinicId: string, body: Record<string, unknown>) {
+async function postClinicCallback(clinicId: string, body: Record<string, unknown>, headers: Record<string, string> = {}) {
   const response = await fetch(`${baseUrl}/api/payments/callbacks/kaspi/clinic/${clinicId}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...headers },
+    body: JSON.stringify(body),
+  });
+  return { response, body: await response.json() as any };
+}
+
+async function postPlatformCallback(body: Record<string, unknown>) {
+  const response = await fetch(`${baseUrl}/api/payments/callbacks/kaspi`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
@@ -288,6 +298,71 @@ describe('payment creation server-side pricing and metadata protection', () => {
   });
 });
 
+
+describe('payment callback terminal-state race protection', () => {
+  it('does not downgrade a platform payment when a failed callback races with settlement', async () => {
+    const pending = {
+      id: 'payment-platform-race',
+      externalId: 'platform-external-race',
+      provider: 'kaspi_qr',
+      amount: 10_000n,
+      status: 'pending',
+      refType: 'crm_invoice',
+      refId: 'invoice-race',
+      meta: {},
+    };
+    m.paymentFindUnique.mockResolvedValueOnce(pending).mockResolvedValueOnce({ ...pending, status: 'paid' });
+    m.paymentUpdateMany.mockResolvedValueOnce({ count: 0 });
+
+    const { response, body } = await postPlatformCallback({
+      externalId: 'platform-external-race',
+      status: 'failed',
+    });
+
+    expect(response.status).toBe(200);
+    expect(m.paymentUpdateMany).toHaveBeenCalledWith({
+      where: { id: 'payment-platform-race', status: 'pending' },
+      data: { status: 'failed' },
+    });
+    expect(body.data.status).toBe('paid');
+    expect(m.transaction).not.toHaveBeenCalled();
+  });
+
+  it('does not downgrade a clinic payment when a failed callback races with settlement', async () => {
+    const secret = 'clinic-webhook-secret-at-least-32-characters';
+    const externalId = 'clinic-external-race';
+    const signature = createHmac('sha256', secret).update(`${externalId}:failed`).digest('hex');
+    const pending = {
+      id: 'payment-clinic-race',
+      externalId,
+      provider: 'clinic_kaspi',
+      amount: 10_000n,
+      status: 'pending',
+      refType: 'crm_invoice',
+      refId: 'invoice-race',
+      meta: { clinicId: 'clinic-owned' },
+    };
+    m.loadClinicPaymentsConfig.mockResolvedValue({
+      clinic: { id: 'clinic-owned', name: 'Test Clinic' },
+      cfg: { mode: 'api', webhookSecret: secret },
+    });
+    m.paymentFindUnique.mockResolvedValueOnce(pending).mockResolvedValueOnce({ ...pending, status: 'paid' });
+    m.paymentUpdateMany.mockResolvedValueOnce({ count: 0 });
+
+    const { response, body } = await postClinicCallback('clinic-owned', {
+      externalId,
+      status: 'failed',
+    }, { 'X-Kaspi-Signature': signature });
+
+    expect(response.status).toBe(200);
+    expect(m.paymentUpdateMany).toHaveBeenCalledWith({
+      where: { id: 'payment-clinic-race', status: 'pending' },
+      data: { status: 'failed' },
+    });
+    expect(body.data.status).toBe('paid');
+    expect(m.transaction).not.toHaveBeenCalled();
+  });
+});
 
 describe('clinic gateway callback mode boundary', () => {
   it('rejects gateway callbacks when the clinic is configured for static/manual confirmation', async () => {
