@@ -15,6 +15,7 @@ import { upsertStaffCompensation } from '../../lib/staffCompensation.js';
 import { syncPersonFromClinicMember, removePersonFromClinicMember } from '../../lib/syncMembership.js';
 import { resolveClinicAccess } from '../../lib/orgContext.js';
 import { auditFromReq } from '../compliance/audit.service.js';
+import { ClinicPaymentsError, validateClinicGatewayUrl } from '../payments/clinicPayments.js';
 
 export const clinicsRouter = Router();
 
@@ -341,6 +342,19 @@ clinicsRouter.patch('/:id', authenticate, async (req: AuthRequest, res) => {
       settings !== undefined
         ? mergeClinicSettings(existing.settings, settings)
         : undefined;
+
+    // Do not persist an unsafe gateway target. The same URL is revalidated
+    // and DNS-pinned on every outbound gateway request.
+    if (nextSettings?.payments?.mode === 'api') {
+      try {
+        await validateClinicGatewayUrl(String(nextSettings.payments.apiBaseUrl || ''));
+      } catch (error) {
+        if (error instanceof ClinicPaymentsError) {
+          return res.status(error.status).json({ ok: false, error: error.message, code: error.code });
+        }
+        return res.status(400).json({ ok: false, error: 'API Base URL шлюза не прошёл проверку' });
+      }
+    }
 
     const clinic = await prisma.clinic.update({
       where: { id },
