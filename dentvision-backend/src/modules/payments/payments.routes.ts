@@ -27,6 +27,7 @@ import {
   PlanGateError,
 } from '../billing/planEntitlements.js';
 import { assertOrgAccess } from '../../lib/orgContext.js';
+import { assertClinicBillingAccess, getClinicSubscriptionAmountMinor, isSaasPlanId } from '../billing/clinicSubscription.service.js';
 import { canTransitionOrder } from '../../lib/orderStatus.js';
 import { auditFromReq, writeAuditLog } from '../compliance/audit.service.js';
 import { reserveIdempotencyKey, completeIdempotencyKey, deleteIdempotencyKey } from '../../lib/idempotency.js';
@@ -181,6 +182,10 @@ async function settleEnrollmentPayment(
 
   const course = await db.course.findUnique({ where: { id: courseId } });
   if (!course) return false;
+  const expectedAmountMinor = course.price == null ? 0n : tengeToMinor(course.price);
+  if (expectedAmountMinor <= 0n || payment.amount !== expectedAmountMinor) {
+    throw new Error('Сумма оплаты курса не совпадает с актуальной ценой курса');
+  }
 
   let enrollment = await db.schoolEnrollment.findUnique({
     where: { userId_courseId: { userId, courseId } },
@@ -228,6 +233,7 @@ async function settleEnrollmentPayment(
 async function settleAcademyEventPayment(
   payment: {
     id: string;
+    refId: string | null;
     amount: bigint;
     sellerType?: string | null;
     sellerId?: string | null;
@@ -243,6 +249,15 @@ async function settleAcademyEventPayment(
     courseId?: string;
   };
   if (!meta.productId || !meta.userId) return false;
+
+  // Course/event price must come from the canonical persisted course record.
+  const courseId = meta.courseId || payment.refId || meta.productId;
+  const course = await db.course.findUnique({ where: { id: courseId } });
+  if (!course || course.price == null) return false;
+  const expectedAmountMinor = tengeToMinor(course.price);
+  if (expectedAmountMinor <= 0n || payment.amount !== expectedAmountMinor) {
+    throw new Error('Сумма оплаты события Academy не совпадает с актуальной ценой');
+  }
 
   // Lecturer-owned DB product: create enrollment + credit lecturer wallet.
   if (meta.courseId) {
@@ -318,12 +333,13 @@ async function settlePaidPayment(
 
   if (payment.refType === 'subscription' && payment.refId) {
     const meta = (payment.meta || {}) as { saasPlan?: string; months?: number; userId?: string };
-    const planRaw = String(meta.saasPlan || 'professional').toLowerCase();
-    const saasPlan = (planRaw === 'pro' ? 'professional' : planRaw) as
-      'starter' | 'professional' | 'enterprise';
-    const { activateClinicSubscriptionFromPayment, isSaasPlanId } = await import(
-      '../billing/clinicSubscription.service.js'
-    );
+    const planRaw = String(meta.saasPlan || '').toLowerCase();
+    const saasPlan = (planRaw === 'pro' ? 'professional' : planRaw);
+    const expectedAmountMinor = getClinicSubscriptionAmountMinor(saasPlan, meta.months ?? 1);
+    if (!isSaasPlanId(saasPlan) || expectedAmountMinor === null || payment.amount !== expectedAmountMinor) {
+      throw new Error('Сумма платежа подписки не совпадает с каноническим тарифом');
+    }
+    const { activateClinicSubscriptionFromPayment } = await import('../billing/clinicSubscription.service.js');
     if (isSaasPlanId(saasPlan)) {
       await activateClinicSubscriptionFromPayment(
         {
@@ -560,6 +576,63 @@ paymentsRouter.post('/', authenticate, async (req: AuthRequest, res) => {
     }
 
     const metaObj = meta && typeof meta === 'object' ? (meta as Record<string, unknown>) : {};
+    let trustedMeta: Record<string, unknown> = { ...metaObj };
+    let trustedSellerType: string | null | undefined = sellerType;
+    let trustedSellerId: string | null | undefined = sellerId;
+    let trustedDomain: string | null | undefined = domain;
+
+    // Payment amount, entitlement and seller details for billable platform
+    // references are derived from canonical DB/config data before creating a QR.
+    if (refType === 'subscription') {
+      if (!refId) return res.status(400).json({ ok: false, error: 'clinicId/refId обязателен для подписки' } satisfies ApiResponse);
+      try {
+        await assertClinicBillingAccess(req.user!.id, String(refId));
+      } catch (error: any) {
+        return res.status(error?.status || 403).json({ ok: false, error: 'Нет прав на оплату подписки этой клиники' } satisfies ApiResponse);
+      }
+      const planRaw = String(metaObj.saasPlan || '').toLowerCase();
+      const saasPlan = planRaw === 'pro' ? 'professional' : planRaw;
+      const months = metaObj.months === undefined ? 1 : metaObj.months;
+      const expectedMinor = getClinicSubscriptionAmountMinor(saasPlan, months);
+      if (expectedMinor === null) {
+        return res.status(400).json({ ok: false, error: 'Некорректный тариф или срок подписки' } satisfies ApiResponse);
+      }
+      if (minor !== expectedMinor) {
+        return res.status(409).json({ ok: false, error: 'Сумма не совпадает с тарифом и сроком подписки', expectedAmountMinor: String(expectedMinor) } satisfies ApiResponse);
+      }
+      trustedMeta = { ...metaObj, saasPlan, months, clinicId: String(refId), userId: req.user!.id };
+      trustedSellerType = null;
+      trustedSellerId = null;
+      trustedDomain = 'saas';
+    }
+
+    if (refType === 'enrollment' || refType === 'academy_event') {
+      const requestedCourseId = String(
+        refType === 'enrollment'
+          ? refId || ''
+          : metaObj.courseId || refId || metaObj.productId || '',
+      ).trim();
+      if (!requestedCourseId) return res.status(400).json({ ok: false, error: 'ID курса или события обязателен' } satisfies ApiResponse);
+      const course = await prisma.course.findUnique({
+        where: { id: requestedCourseId },
+        select: { id: true, price: true, lecturerId: true, academyId: true },
+      });
+      if (!course) return res.status(404).json({ ok: false, error: 'Курс или событие Academy не найдено' } satisfies ApiResponse);
+      const expectedMinor = course.price == null ? 0n : tengeToMinor(course.price);
+      if (expectedMinor <= 0n) return res.status(409).json({ ok: false, error: 'Для бесплатного курса не требуется платёж' } satisfies ApiResponse);
+      if (minor !== expectedMinor) {
+        return res.status(409).json({ ok: false, error: 'Сумма не совпадает с актуальной ценой Academy', expectedAmountMinor: String(expectedMinor) } satisfies ApiResponse);
+      }
+      trustedMeta = {
+        ...metaObj,
+        userId: req.user!.id,
+        ...(refType === 'enrollment' ? { courseId: course.id } : { productId: course.id }),
+        ...(metaObj.courseId ? { courseId: course.id } : {}),
+      };
+      trustedSellerType = course.lecturerId ? 'LECTURER' : 'PLATFORM';
+      trustedSellerId = course.lecturerId || 'system';
+      trustedDomain = 'school';
+    }
 
     // P1 IDOR fix: a payment references an external object (order/invoice) by
     // refId. Never create a payment against an object the caller does not own.
@@ -614,7 +687,7 @@ paymentsRouter.post('/', authenticate, async (req: AuthRequest, res) => {
           sellerType: sellerType || 'CLINIC',
           sellerId: sellerId || clinicId,
           meta: {
-            ...metaObj,
+            ...trustedMeta,
             // Server-owned payment identity/scope must be written last.
             qr: created.qr,
             userId: req.user!.id,
@@ -656,11 +729,11 @@ paymentsRouter.post('/', authenticate, async (req: AuthRequest, res) => {
         status: 'pending',
         refType: refType || null,
         refId: refId || null,
-        domain: domain || null,
-        sellerType: sellerType || null,
-        sellerId: sellerId || null,
+        domain: trustedDomain || null,
+        sellerType: trustedSellerType || null,
+        sellerId: trustedSellerId || null,
         meta: {
-          ...(meta && typeof meta === 'object' ? meta : {}),
+          ...trustedMeta,
           // Client metadata cannot override the authenticated payer or scope.
           qr: created.qr,
           userId: req.user!.id,
