@@ -3,10 +3,13 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 const TEST_KEY = 'test-encryption-key-that-is-long-enough-123';
 
 describe('field encryption', () => {
+  const originalKey = process.env.ENCRYPTION_KEY;
+  const originalNodeEnv = process.env.NODE_ENV;
+
   afterEach(() => {
     vi.resetModules();
-    delete process.env.ENCRYPTION_KEY;
-    delete process.env.NODE_ENV;
+    process.env.ENCRYPTION_KEY = originalKey;
+    process.env.NODE_ENV = originalNodeEnv;
   });
 
   it('round-trips encrypted values without changing the persisted format', async () => {
