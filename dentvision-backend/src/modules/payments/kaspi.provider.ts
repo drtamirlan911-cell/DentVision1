@@ -60,7 +60,7 @@ export const kaspiProvider: PaymentProvider = {
   },
   async getPaymentStatus(externalId) {
     if (!env.KASPI_MERCHANT_ID || !env.KASPI_API_KEY) return mockLedger.get(externalId) || 'pending';
-    const response = await fetch(`${(env.KASPI_API_BASE_URL || 'https://pay.kaspi.kz').replace(/\\/$/, '')}/api/v1/payments/${encodeURIComponent(externalId)}`, {
+    const response = await fetch(`${(env.KASPI_API_BASE_URL || 'https://pay.kaspi.kz').replace(/\/$/, '')}/api/v1/payments/${encodeURIComponent(externalId)}`, {
       headers: { 'Authorization': `Bearer ${env.KASPI_API_KEY}`, 'X-Merchant-Id': env.KASPI_MERCHANT_ID },
     });
     if (!response.ok) return 'pending';
