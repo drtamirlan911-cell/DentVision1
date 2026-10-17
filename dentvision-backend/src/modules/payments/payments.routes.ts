@@ -485,6 +485,7 @@ function verifyClinicCallbackAuth(input: {
 paymentsRouter.post('/', authenticate, async (req: AuthRequest, res) => {
   let idempotencyKey: string | undefined;
   let keyCompleted = false;
+  let keyReserved = false;
   try {
     // Idempotency: use client key or generate server-side from content hash so
     // a missing header still dedupes identical submits (audit F-3).
@@ -497,25 +498,40 @@ paymentsRouter.post('/', authenticate, async (req: AuthRequest, res) => {
         .digest('hex');
       idempotencyKey = `server-${hash.slice(0, 32)}`;
     }
-    const reserved = await reserveIdempotencyKey(idempotencyKey);
-    if (reserved.status === 'in_flight') {
-      // Another identical request is being processed right now.
-      return res.status(409).json({
-        ok: false,
-        error: 'Запрос уже обрабатывается, повторите позже',
-      } satisfies ApiResponse);
-    }
-    if (reserved.status === 'exists') {
-      const payment = await prisma.payment.findUnique({ where: { id: reserved.resultId } });
-      if (payment) {
-        return res.status(200).json({
-          ok: true,
-          data: serializeBigInt(payment),
-        } satisfies ApiResponse);
+    // Validate the requested payment and its server-side price/ownership
+    // before reserving the key. Invalid inputs must not leave a stuck in-flight
+    // idempotency record. Reservation is performed just before contacting a
+    // payment provider, independently in the clinic/platform branch.
+    const reserveForPayment = async (): Promise<boolean> => {
+      let reserved = await reserveIdempotencyKey(idempotencyKey!);
+      if (reserved.status === 'exists') {
+        const existingPayment = await prisma.payment.findUnique({ where: { id: reserved.resultId } });
+        if (existingPayment) {
+          if (!(await assertPaymentOwner(req, existingPayment))) {
+            res.status(403).json({ ok: false, error: 'Нет доступа к существующему платежу' } satisfies ApiResponse);
+          } else {
+            res.status(200).json({ ok: true, data: serializeBigInt(existingPayment) } satisfies ApiResponse);
+          }
+          return false;
+        }
+        // Stale key to a deleted payment: release and race-safely reserve again.
+        await deleteIdempotencyKey(idempotencyKey!);
+        reserved = await reserveIdempotencyKey(idempotencyKey!);
       }
-      // Stale record pointing at a deleted payment — free the key and continue.
-      await deleteIdempotencyKey(idempotencyKey);
-    }
+      if (reserved.status === 'in_flight') {
+        res.status(409).json({
+          ok: false,
+          error: 'Запрос уже обрабатывается, повторите позже',
+        } satisfies ApiResponse);
+        return false;
+      }
+      if (reserved.status !== 'reserved') {
+        res.status(409).json({ ok: false, error: 'Не удалось зарезервировать ключ идемпотентности' } satisfies ApiResponse);
+        return false;
+      }
+      keyReserved = true;
+      return true;
+    };
 
     const {
       amount,
@@ -680,6 +696,8 @@ paymentsRouter.post('/', authenticate, async (req: AuthRequest, res) => {
         return res.status(403).json({ ok: false, error: 'Нет доступа к кассе этой клиники' } satisfies ApiResponse);
       }
 
+      if (!(await reserveForPayment())) return;
+
       const created = await createClinicKaspiPayment({
         clinicId,
         amountMinor: minor,
@@ -732,6 +750,8 @@ paymentsRouter.post('/', authenticate, async (req: AuthRequest, res) => {
       return res.status(400).json({ ok: false, error: 'Неизвестный провайдер' } satisfies ApiResponse);
     }
 
+    if (!(await reserveForPayment())) return;
+
     const created = await gateway.createPayment({ amountMinor: minor, refId });
     const payment = await prisma.payment.create({
       data: {
@@ -771,7 +791,7 @@ paymentsRouter.post('/', authenticate, async (req: AuthRequest, res) => {
   } catch (error: any) {
     // Free a reserved-but-unfinished key so a retry can succeed instead of
     // hitting a permanent 409 (audit F-3).
-    if (idempotencyKey && !keyCompleted) {
+    if (idempotencyKey && keyReserved && !keyCompleted) {
       await deleteIdempotencyKey(idempotencyKey);
     }
     if (error instanceof ClinicPaymentsError) {
