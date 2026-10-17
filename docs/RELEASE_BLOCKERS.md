@@ -23,6 +23,13 @@
 - **Implemented on branch:** production config now exits if ENCRYPTION_KEY is missing/short; encryptPatientFields and decryptPatientFields fail closed in production; derived AES key is cached per configured key without changing salt or ciphertext format; Render and Docker configuration require the key.
 - **Verification:** not run. Compatibility, startup, round-trip and cache tests remain required; no key rotation or format change was made.
 
+### RB-014 — Access-token expiry and Kaspi production configuration
+- **Status:** IN PROGRESS
+- **Priority:** P1
+- **Area:** Authentication / Payments
+- **Implemented on branch:** access JWT default is 15m in backend config, backend .env.example, Docker Compose and Render; platform sandbox confirmation now requires explicit PAYMENTS_SANDBOX=true; Kaspi mock payment creation is disabled in production without merchant credentials; callback secret minimum is 32 characters in the verifier.
+- **Verification:** not run. Frontend refresh, Android AuthInterceptor/TokenAuthenticator, callback regression tests, and full CI remain required.
+
 ### RB-013 — Credentialed CORS allows untrusted origins
 - **Status:** IN PROGRESS
 - **Priority:** P0
