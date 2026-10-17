@@ -30,6 +30,20 @@ import { reserveIdempotencyKey, completeIdempotencyKey, deleteIdempotencyKey } f
 // Payments (Phase 5). Payment gateway + Kaspi QR with authenticated callback.
 export const paymentsRouter = Router();
 
+const SERVER_OWNED_PAYMENT_META_KEYS = new Set([
+  'userid', 'clinicid', 'merchantscope', 'clinicpaymode', 'qr',
+]);
+
+function clientSafePaymentMeta(value: unknown): Record<string, unknown> {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return {};
+  return Object.fromEntries(
+    Object.entries(value as Record<string, unknown>).filter(([key]) => {
+      const normalized = key.replace(/[^a-z0-9]/gi, '').toLowerCase();
+      return !SERVER_OWNED_PAYMENT_META_KEYS.has(normalized);
+    }),
+  );
+}
+
 async function medicalLabOrderAmountMinor(
   orderId: string,
   db: Prisma.TransactionClient | typeof prisma = prisma,
@@ -612,7 +626,7 @@ paymentsRouter.post('/', authenticate, async (req: AuthRequest, res) => {
     }
 
     const metaObj = meta && typeof meta === 'object' ? (meta as Record<string, unknown>) : {};
-    let trustedMeta: Record<string, unknown> = { ...metaObj };
+    let trustedMeta: Record<string, unknown> = clientSafePaymentMeta(metaObj);
     let trustedSellerType: string | null | undefined = sellerType;
     let trustedSellerId: string | null | undefined = sellerId;
     let trustedDomain: string | null | undefined = domain;
@@ -636,7 +650,7 @@ paymentsRouter.post('/', authenticate, async (req: AuthRequest, res) => {
       if (minor !== expectedMinor) {
         return res.status(409).json({ ok: false, error: 'Сумма не совпадает с тарифом и сроком подписки', expectedAmountMinor: String(expectedMinor) } satisfies ApiResponse);
       }
-      trustedMeta = { ...metaObj, saasPlan, months, clinicId: String(refId), userId: req.user!.id };
+      trustedMeta = { ...trustedMeta, saasPlan, months, clinicId: String(refId), userId: req.user!.id };
       trustedSellerType = null;
       trustedSellerId = null;
       trustedDomain = 'saas';
@@ -660,7 +674,7 @@ paymentsRouter.post('/', authenticate, async (req: AuthRequest, res) => {
         return res.status(409).json({ ok: false, error: 'Сумма не совпадает с актуальной ценой Academy', expectedAmountMinor: String(expectedMinor) } satisfies ApiResponse);
       }
       trustedMeta = {
-        ...metaObj,
+        ...trustedMeta,
         userId: req.user!.id,
         ...(refType === 'enrollment' ? { courseId: course.id } : { productId: course.id }),
         ...(metaObj.courseId ? { courseId: course.id } : {}),
