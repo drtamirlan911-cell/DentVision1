@@ -1109,3 +1109,36 @@ These changes are route/entry reconciliation only. Existing domain implementatio
 
 ### Next action
 - Add automated regression tests first, then complete server-side amount/plan checks and SSRF-safe gateway handling. Continue tasks E–I only after the P0 fixes are covered by tests.
+
+
+## 2026-10-17 — Payment / production security hardening continuation
+
+### Canonical source review
+- Read the repository Operating Directive, Context, Product DNA, Master Spec, Execution Plan, canonical Partner Economics, Settlement Payment Contract, Clinic Kaspi Setup, Security Policy, Release Blockers and current execution history before this continuation.
+- Preserved the canonical economics rule: subscription prices and transaction amounts must come from server-side domain data; commissions/settlement remain separate from clinic clinical revenue.
+- Preserved the owner decision: static clinic Kaspi payments may be manually confirmed only by authorized clinic staff after checking receipt; clinic API mode requires gateway status; platform payments cannot be settled by the clinic cashier.
+
+### Changes committed on `security/payment-hardening-20261017`
+- Payment creation now checks clinic billing access and canonical subscription plan/month price, checks Academy prices from persisted course records, and prevents client metadata from overriding server-owned payer/scope/merchant fields.
+- Clinic gateway SSRF defenses cover save/use-time URL validation, DNS answer validation, public-address pinning, redirect rejection, timeout and response-size caps.
+- Clinic gateway callback now rejects requests when the clinic is in static/manual mode.
+- Upload authorization now runs before Multer buffers the multipart file, preventing users without `patient.write` from consuming the upload memory budget.
+- Fixed the webhook callback rate limit to the documented fixed ceiling of 10 requests/minute; provider partitioning remains, with IPv6 clients grouped by /64.
+- Fixed TypeScript issues in the webhook rate-limit generator, subscription renewal guard and payment error response types.
+- Fixed regression-test setup for DNS/HTTPS module mocks and made the local payment route integration test run in Node rather than the browser-like happy-dom environment.
+- Fixed privacy detection for phone numbers embedded in generic labels/notes.
+- Updated the clinic Kaspi setup guide to document HMAC-SHA256 signatures accurately and clarify that callbacks are API-mode only.
+- Updated `docs/RELEASE_BLOCKERS.md` with implementation status and remaining verification gates.
+
+### CI evidence and current verification state
+- Run `39019297185` on SHA `8e5d90f5be03ecc24a7d1ba4b9fcb71db09376c0` exposed backend TypeScript errors and 26 unit-test failures, including the payment test harness and webhook rate-limit contract. This run is diagnostic evidence, not a pass.
+- Run `39036540335` on SHA `a0f58ef809b13fc8220b01208e6cd7cb29e6e0af`: backend lint and frontend lint passed; TypeScript passed; unit tests still failed due the fixed webhook ceiling assertion, HTTPS mock exports, and happy-dom local-server fetch restrictions. Fixes were committed afterward.
+- Quality Gate and Android workflows passed on earlier candidate SHAs, but they do not replace a fresh exact-HEAD CI run.
+- Current branch HEAD at the time of this entry: `8aebc69ec5b6728bf2829f8c10caaa57fd52ad8a` (release-blocker documentation update). Fresh CI/E2E and the newly added static-callback regression test remain **PENDING / UNVERIFIED**.
+- `main` remains unchanged; PR #307 remains draft and must not be merged until exact-HEAD CI and P0 security gates pass.
+
+### Next actions
+1. Verify latest CI on exact HEAD; fix every new failing test without weakening assertions.
+2. Verify the static-mode clinic callback regression and API-mode callback lifecycle.
+3. Complete the broader security pass: production header review, upload route negative-path coverage, auth/session regression, dependency vulnerability triage, and production-safe read-only evidence review.
+4. Update Context and this log only after verified state changes; do not infer production secret values or rotate keys without an approved operational plan.
