@@ -8,7 +8,7 @@ const envSchema = z.object({
   REDIS_ENABLED: z.string().default('false'),
   JWT_SECRET: z.string().min(32),
   JWT_REFRESH_SECRET: z.string().min(32),
-  JWT_EXPIRES_IN: z.string().default('24h'),
+  JWT_EXPIRES_IN: z.string().default('15m'),
   JWT_REFRESH_EXPIRES_IN: z.string().default('7d'),
   PORT: z.coerce.number().default(3001),
   NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
@@ -86,6 +86,7 @@ const envSchema = z.object({
   PLATFORM_OPS_SECRET: z.string().optional(),
   /** Kaspi / payment webhook shared secret (min 32 in production). Required to accept paid callbacks. */
   KASPI_CALLBACK_SECRET: z.string().optional(),
+  PAYMENTS_SANDBOX: z.enum(['true', 'false']).default('false'),
   /** Kaspi merchant ID from Kaspi Business dashboard. */
   KASPI_MERCHANT_ID: z.string().optional(),
   /** Kaspi API key from Kaspi Business dashboard. */
