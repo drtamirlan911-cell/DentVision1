@@ -1199,6 +1199,22 @@ paymentsRouter.post('/callbacks/kaspi/clinic/:clinicId', async (req, res) => {
       return res.status(403).json({ ok: false, error: 'Платежи платформы нельзя подтверждать шлюзом клиники' } satisfies ApiResponse);
     }
 
+    // Some clinic gateways include the paid amount in their callback. If they
+    // do, compare it with the immutable payment record; never settle a mismatch.
+    if (req.body?.amountMinor !== undefined || req.body?.amount !== undefined) {
+      let callbackAmount: bigint;
+      try {
+        callbackAmount = req.body.amountMinor !== undefined
+          ? BigInt(req.body.amountMinor)
+          : parseTengeToMinor(req.body.amount);
+      } catch {
+        return res.status(400).json({ ok: false, error: 'Некорректная сумма callback' } satisfies ApiResponse);
+      }
+      if (callbackAmount !== payment.amount) {
+        return res.status(409).json({ ok: false, error: 'Сумма callback не совпадает с платёжной записью' } satisfies ApiResponse);
+      }
+    }
+
     if (payment.status === 'paid') {
       return res.json({ ok: true, data: { id: payment.id, status: payment.status, settled: false } } satisfies ApiResponse);
     }
