@@ -16,6 +16,7 @@ const m = vi.hoisted(() => ({
   providerCreate: vi.fn(),
   providerStatus: vi.fn(),
   getClinicGatewayStatus: vi.fn(),
+  createClinicKaspiPayment: vi.fn(),
   loadClinicPaymentsConfig: vi.fn(),
   assertClinicBillingAccess: vi.fn(),
   assertOrgAccess: vi.fn(),
@@ -59,7 +60,7 @@ vi.mock('./kaspi.provider.js', () => ({
 }));
 vi.mock('./clinicPayments.js', () => ({
   ClinicPaymentsError: class ClinicPaymentsError extends Error { status = 400; code = 'CLINIC_PAYMENTS'; },
-  createClinicKaspiPayment: vi.fn(),
+  createClinicKaspiPayment: m.createClinicKaspiPayment,
   getClinicGatewayStatus: m.getClinicGatewayStatus,
   loadClinicPaymentsConfig: m.loadClinicPaymentsConfig,
 }));
@@ -125,6 +126,7 @@ beforeEach(() => {
   m.providerCreate.mockResolvedValue({ externalId: 'gateway-payment-1', qr: 'https://pay.example/qr' });
   m.providerStatus.mockResolvedValue('pending');
   m.getClinicGatewayStatus.mockResolvedValue('pending');
+  m.createClinicKaspiPayment.mockResolvedValue({ externalId: 'clinic-payment-1', qr: 'https://clinic.example/qr', provider: 'clinic_kaspi', mode: 'static' });
   m.loadClinicPaymentsConfig.mockResolvedValue({
     clinic: { id: 'clinic-owned', name: 'Test Clinic' },
     cfg: { mode: 'static' },
@@ -525,5 +527,43 @@ describe('legacy platform payment ownership', () => {
     expect(body.ok).toBe(false);
     expect(m.providerStatus).not.toHaveBeenCalled();
     expect(m.transaction).not.toHaveBeenCalled();
+  });
+});
+
+
+describe('server-owned payment references', () => {
+  it('rejects generic sale payments with caller-chosen seller identity', async () => {
+    const { response, body } = await postPayment({
+      amountMinor: '100',
+      refType: 'sale',
+      domain: 'shop',
+      sellerType: 'SUPPLIER',
+      sellerId: 'attacker-controlled-supplier',
+      refId: 'unverified-sale',
+    });
+
+    expect(response.status).toBe(400);
+    expect(body.ok).toBe(false);
+    expect(m.reserveIdempotencyKey).not.toHaveBeenCalled();
+    expect(m.providerCreate).not.toHaveBeenCalled();
+    expect(m.createClinicKaspiPayment).not.toHaveBeenCalled();
+    expect(m.paymentCreate).not.toHaveBeenCalled();
+  });
+
+  it('rejects generic settlement payments so the caller cannot bypass canonical settlement amount and ownership', async () => {
+    const { response, body } = await postPayment({
+      amountMinor: '1',
+      refType: 'settlement',
+      refId: 'diagnostic-settlement-1',
+      domain: 'crm',
+      meta: { clinicId: 'clinic-owned' },
+    });
+
+    expect(response.status).toBe(400);
+    expect(body.ok).toBe(false);
+    expect(m.reserveIdempotencyKey).not.toHaveBeenCalled();
+    expect(m.providerCreate).not.toHaveBeenCalled();
+    expect(m.createClinicKaspiPayment).not.toHaveBeenCalled();
+    expect(m.paymentCreate).not.toHaveBeenCalled();
   });
 });
