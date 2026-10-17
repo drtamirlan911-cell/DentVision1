@@ -2,7 +2,7 @@ import express from 'express';
 import cookieParser from 'cookie-parser';
 import cors from 'cors';
 import helmet from 'helmet';
-import rateLimit from 'express-rate-limit';
+import rateLimit, { ipKeyGenerator } from 'express-rate-limit';
 import { errorHandler, notFound } from './middleware/errorHandler.js';
 import prisma from './lib/prisma.js';
 import { sseManager } from './modules/ai/ai.notifications.routes.js';
@@ -95,10 +95,10 @@ app.use(helmet({
   contentSecurityPolicy: {
     directives: {
       defaultSrc: ["'self'"],
-      scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'"],
+      scriptSrc: ["'self'", 'https://accounts.google.com', 'https://apis.google.com'],
       styleSrc: ["'self'", "'unsafe-inline'"],
       imgSrc: ["'self'", "data:", "https:", "blob:"],
-      connectSrc: ["'self'", "https://dentvision-backend.onrender.com", "https://dent-vision1.vercel.app", "wss:"],
+      connectSrc: ["'self'", 'https://dentvision-api.onrender.com', 'https://dent-vision1.vercel.app', 'https://accounts.google.com', 'https://www.googleapis.com', 'https://*.ingest.sentry.io', 'https://*.sentry.io', 'wss:'],
       fontSrc: ["'self'", "data:"],
       objectSrc: ["'none'"],
       frameAncestors: ["'none'"],
@@ -195,7 +195,11 @@ app.use('/api/audit/backup', apiLimiter);
 
 const webhookLimiter = rateLimit({
   windowMs: 60 * 1000,
-  max: 10,
+  max: limitFromEnv('RATE_LIMIT_WEBHOOK_MAX', 120),
+  keyGenerator: (req) => {
+    const providerKey = String(req.path.split('/').filter(Boolean)[0] || 'unknown').toLowerCase();
+    return `${providerKey}:${ipKeyGenerator(req.ip || '0.0.0.0')}`;
+  },
   standardHeaders: true,
   legacyHeaders: false,
   handler: (req, res, _next, options) => {
@@ -212,11 +216,12 @@ app.get('/api/health', async (_req, res) => {
       await prisma.$queryRaw`SELECT 1`;
       return { status: 'ok' as const, latencyMs: Date.now() - start };
     } catch (err) {
-      return { status: 'error' as const, error: err instanceof Error ? err.message : 'Query failed' };
+      // Public health must not disclose database hosts, query details or raw errors.
+      return { status: 'error' as const };
     }
   })();
   const durableQueue = { status: 'postgres' as const };
-  const realtime = { status: 'ok' as const, activeConnections: sseManager.getTotalClients() };
+  const realtime = { status: 'ok' as const };
   res.json({ ok: true, service: 'dentvision-backend', version: '2.0.0', timestamp: new Date().toISOString(), checks: { database, durableQueue, realtime } });
 });
 
