@@ -573,11 +573,15 @@ paymentsRouter.post('/', authenticate, async (req: AuthRequest, res) => {
     }
 
     const clinicId = String(metaObj.clinicId || req.body?.clinicId || '');
-    const isClinicCashier =
-      domain === 'crm' ||
-      refType === 'appointment' ||
-      refType === 'crm_invoice' ||
-      Boolean(clinicId && (domain === 'crm' || metaObj.merchantScope === 'clinic'));
+    // Platform-owned references always use the platform merchant. A client
+    // cannot reroute SaaS, Academy, Shop or medical-lab payments by setting
+    // domain=crm, clinicId or merchantScope in the request.
+    const platformRefTypes = new Set([
+      'subscription', 'enrollment', 'academy_event', 'order', 'shop_order',
+      'medical_lab_order',
+    ]);
+    const isClinicCashier = !platformRefTypes.has(String(refType || '')) &&
+      (domain === 'crm' || refType === 'appointment' || refType === 'crm_invoice');
 
     // CRM cashier → clinic's own Kaspi/bank (never platform merchant).
     if (isClinicCashier) {
