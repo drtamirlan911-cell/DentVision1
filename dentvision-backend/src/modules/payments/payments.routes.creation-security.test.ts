@@ -1,4 +1,5 @@
 import express from 'express';
+import type { Server } from 'node:http';
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const m = vi.hoisted(() => ({
@@ -85,7 +86,7 @@ vi.mock('../../lib/idempotency.js', () => ({
 
 import { paymentsRouter } from './payments.routes.js';
 
-let server: ReturnType<ReturnType<typeof express>['listen']>;
+let server: Server;
 let baseUrl = '';
 
 beforeAll(async () => {
@@ -196,7 +197,7 @@ describe('payment creation server-side pricing and metadata protection', () => {
     expect(saved.meta.userId).toBe('authenticated-user');
     expect(saved.meta.clinicId).toBe('clinic-owned');
     expect(saved.meta.merchantScope).toBe('platform');
-    expect(saved.meta.clinicPayMode).toBe('static');
+    expect(saved.meta.clinicPayMode).toBeUndefined();
     expect(saved.meta.qr).toBe('https://pay.example/qr');
     expect(m.providerCreate).toHaveBeenCalledWith({ amountMinor: 3_990_000n, refId: 'clinic-owned' });
     expect(body.ok).toBe(true);
