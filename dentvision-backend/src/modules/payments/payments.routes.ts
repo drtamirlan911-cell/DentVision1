@@ -1118,10 +1118,6 @@ paymentsRouter.post('/callbacks/kaspi', async (req, res) => {
     }
 
     const newStatus = status === 'paid' ? 'paid' : status === 'failed' ? 'failed' : 'pending';
-    if (payment.externalId) {
-      markMockPaymentStatus(payment.externalId, newStatus);
-    }
-
     let settled = false;
     if (newStatus === 'paid') {
       // Same atomic guard as /confirm: only the caller that actually flips
@@ -1134,20 +1130,28 @@ paymentsRouter.post('/callbacks/kaspi', async (req, res) => {
       });
       settled = result.settled;
     } else {
-      await prisma.payment.update({
-        where: { id: payment.id },
+      // Non-paid callbacks may only transition a still-pending payment. A stale
+      // failed/pending callback must never overwrite a paid or terminal state.
+      await prisma.payment.updateMany({
+        where: { id: payment.id, status: 'pending' },
         data: { status: newStatus },
       });
+    }
+
+    const latestPayment = await prisma.payment.findUnique({ where: { id: payment.id } });
+    const effectiveStatus = latestPayment?.status || payment.status;
+    if (payment.externalId && ['pending', 'paid', 'failed', 'expired'].includes(effectiveStatus)) {
+      markMockPaymentStatus(payment.externalId, effectiveStatus as 'pending' | 'paid' | 'failed' | 'expired');
     }
 
     await writeAuditLog({
       action: 'payment.callback_kaspi',
       entity: 'payment',
       entityId: payment.id,
-      details: { newStatus, settled },
+      details: { requestedStatus: newStatus, effectiveStatus, settled },
     });
 
-    return res.json({ ok: true, data: { id: payment.id, status: newStatus, settled } } satisfies ApiResponse);
+    return res.json({ ok: true, data: { id: payment.id, status: effectiveStatus, settled } } satisfies ApiResponse);
   } catch (error) {
     console.error('Kaspi callback error:', error);
     return res.status(500).json({ ok: false, error: 'Ошибка обработки callback' } satisfies ApiResponse);
@@ -1227,10 +1231,14 @@ paymentsRouter.post('/callbacks/kaspi/clinic/:clinicId', async (req, res) => {
       updated = result.upd;
       settled = result.settled;
     } else {
-      updated = await prisma.payment.update({
-        where: { id: payment.id },
+      // Keep paid/failed/expired terminal states stable when callbacks arrive
+      // out of order; only a pending payment may accept a non-paid transition.
+      await prisma.payment.updateMany({
+        where: { id: payment.id, status: 'pending' },
         data: { status: newStatus },
       });
+      const latestPayment = await prisma.payment.findUnique({ where: { id: payment.id } });
+      updated = latestPayment || { id: payment.id, status: payment.status };
     }
 
     await writeAuditLog({
@@ -1238,7 +1246,7 @@ paymentsRouter.post('/callbacks/kaspi/clinic/:clinicId', async (req, res) => {
       action: 'payment.callback_kaspi_clinic',
       entity: 'payment',
       entityId: payment.id,
-      details: { newStatus, settled },
+      details: { requestedStatus: newStatus, effectiveStatus: updated.status, settled },
     });
 
     return res.json({ ok: true, data: { id: updated.id, status: updated.status, settled } } satisfies ApiResponse);
