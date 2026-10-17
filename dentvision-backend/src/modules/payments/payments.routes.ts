@@ -955,14 +955,22 @@ paymentsRouter.post('/:id/confirm', authenticate, async (req: AuthRequest, res) 
       } satisfies ApiResponse);
     }
 
-    const meta = (payment.meta || {}) as { clinicId?: string; clinicPayMode?: string };
+    const meta = (payment.meta || {}) as { clinicId?: string };
     const isClinic = payment.provider === 'clinic_kaspi';
+    let clinicPayMode: 'static' | 'api' | 'unconfigured' = 'unconfigured';
     if (isClinic) {
       // The provider is server-created and is the authoritative scope marker.
       // Require the canonical clinic reference and current backend membership;
       // metadata alone never grants clinic cashier privileges.
       if (!meta.clinicId || !(await assertClinicPaymentStaffAccess(req.user!.id, meta.clinicId))) {
         return res.status(403).json({ ok: false, error: 'Нет доступа к кассе этой клиники' } satisfies ApiResponse);
+      }
+      // Do not trust historical clinicPayMode metadata written by old versions:
+      // before this hardening it could be overridden by the creation request.
+      const clinicConfig = await loadClinicPaymentsConfig(meta.clinicId);
+      clinicPayMode = clinicConfig.cfg.mode;
+      if (clinicPayMode !== 'static' && clinicPayMode !== 'api') {
+        return res.status(409).json({ ok: false, error: 'Способ оплаты клиники не настроен; подтверждение запрещено' } satisfies ApiResponse);
       }
     }
 
@@ -971,7 +979,7 @@ paymentsRouter.post('/:id/confirm', authenticate, async (req: AuthRequest, res) 
       if (isClinic) {
         // Static mode is a human-confirmed clinic cash workflow. API mode must
         // receive a paid state from the configured clinic gateway.
-        if (meta.clinicPayMode === 'api' && meta.clinicId) {
+        if (clinicPayMode === 'api' && meta.clinicId) {
           providerStatus = await getClinicGatewayStatus(meta.clinicId, payment.externalId);
         }
       } else {
@@ -991,7 +999,7 @@ paymentsRouter.post('/:id/confirm', authenticate, async (req: AuthRequest, res) 
     }
 
     const sandbox = env.PAYMENTS_SANDBOX === 'true' && !isClinic;
-    const clinicStaffStaticConfirm = isClinic && meta.clinicPayMode === 'static';
+    const clinicStaffStaticConfirm = isClinic && clinicPayMode === 'static';
     const canComplete = providerStatus === 'paid' || clinicStaffStaticConfirm || (!isClinic && sandbox);
 
     if (!canComplete) {
@@ -1035,7 +1043,7 @@ paymentsRouter.post('/:id/confirm', authenticate, async (req: AuthRequest, res) 
         details: {
           amountMinor: String(payment.amount),
           provider: payment.provider,
-          clinicStaffConfirm: isClinic && meta.clinicPayMode === 'static' && providerStatus !== 'paid',
+          clinicStaffConfirm: isClinic && clinicPayMode === 'static' && providerStatus !== 'paid',
           settled: result.settled,
         },
       });
