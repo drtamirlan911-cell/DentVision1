@@ -91,6 +91,8 @@ services:
         sync: false
       - key: KASPI_API_KEY
         sync: false
+      - key: KASPI_API_BASE_URL
+        sync: false
       # Transactional email (password reset, patient portal links).
       # SMTP_PASSWORD must be a Google App Password for this account — Google
       # refuses account passwords for SMTP, and App Passwords require 2-Step
