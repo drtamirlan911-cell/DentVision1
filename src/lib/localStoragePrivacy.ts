@@ -34,6 +34,11 @@ export function sanitizeForLocalStorage<T>(value: T): T {
   const result: Record<string, unknown> = {};
   for (const [key, child] of Object.entries(value as Record<string, unknown>)) {
     if (SENSITIVE_PATIENT_KEYS.has(normalizedKey(key))) continue;
+    // A generic field (e.g. label/description) can still contain an IIN or
+    // phone number. Do not preserve such values just because the property name
+    // is not obviously patient-related.
+    if (typeof child === 'string' && containsSensitiveIdentifierText(child)) continue;
+    if (typeof child === 'number' && containsSensitiveIdentifierText(String(child))) continue;
     result[key] = sanitizeForLocalStorage(child);
   }
   return result as T;
