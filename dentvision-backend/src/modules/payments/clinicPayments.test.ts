@@ -60,6 +60,11 @@ describe('clinic gateway SSRF policy', () => {
     'fc00::1',
     'fe80::1',
     '2001:db8::1',
+    '2001:0000::1',
+    '2001:0002::1',
+    '2001:0010::1',
+    '2001:0020::1',
+    '2002:0808:0808::1',
   ])('rejects private, link-local, or reserved address %s', async (address) => {
     const { isPublicGatewayAddress } = await import('./clinicPayments.js');
     expect(isPublicGatewayAddress(address)).toBe(false);
@@ -71,6 +76,7 @@ describe('clinic gateway SSRF policy', () => {
     await expect(validateClinicGatewayUrl('https://localhost/api')).rejects.toThrow();
     await expect(validateClinicGatewayUrl('https://user:pass@gateway.example/api')).rejects.toThrow();
     await expect(validateClinicGatewayUrl('https://169.254.169.254/latest/meta-data')).rejects.toThrow();
+    await expect(validateClinicGatewayUrl('https://[2001:4860:4860::8888]/api')).rejects.toThrow();
     expect(mocks.lookup).not.toHaveBeenCalled();
   });
 
