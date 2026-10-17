@@ -22,8 +22,8 @@ export function isAcceptedFilePayload(file: { originalname: string; mimetype: st
     '.dcm': () => buffer.length >= 132 && buffer.toString('ascii', 128, 132) === 'DICM',
     '.dicom': () => buffer.length >= 132 && buffer.toString('ascii', 128, 132) === 'DICM',
     '.stl': () => (textStart.startsWith('solid') && textStart.includes('facet normal') && textStart.includes('vertex')) ||
-      (buffer.length >= 84 && 84 + buffer.readUInt32LE(80) * 50 <= buffer.length),
-    '.obj': () => textStart.startsWith('#') || /(?:^|\\n)\\s*(?:v|vn|vt|f)\\s+-?\\d/.test(buffer.subarray(0, Math.min(buffer.length, 4096)).toString('utf8')),
+      (buffer.length >= 84 && buffer.readUInt32LE(80) > 0 && 84 + buffer.readUInt32LE(80) * 50 <= buffer.length),
+    '.obj': () => /(?:^|\n)\s*(?:v|vn|vt|f)\s+-?\d/.test(buffer.subarray(0, Math.min(buffer.length, 4096)).toString('utf8')),
   };
   if (!signatures[ext] || !signatures[ext]()) return false;
 
