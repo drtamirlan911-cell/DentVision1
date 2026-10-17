@@ -859,7 +859,7 @@ paymentsRouter.post('/:id/confirm', authenticate, async (req: AuthRequest, res) 
       } satisfies ApiResponse);
     }
 
-    const sandbox = !isProduction;
+    const sandbox = env.PAYMENTS_SANDBOX === 'true' && !isClinic;
     const clinicStaffStaticConfirm = isClinic && meta.clinicPayMode === 'static';
     const canComplete = providerStatus === 'paid' || clinicStaffStaticConfirm || (!isClinic && sandbox);
 
