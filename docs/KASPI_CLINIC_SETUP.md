@@ -52,8 +52,11 @@
 ```http
 POST /api/payments/callbacks/kaspi/clinic/{clinicId}
 Headers:
-  X-Kaspi-Signature: <shared-secret>
-  # или HMAC-SHA256 hex от "externalId:status"
+  X-Kaspi-Signature: <HMAC-SHA256 hex от "externalId:status">
+Body:
+  { "externalId": "...", "status": "paid" }
+
+Подпись вычисляется как HMAC-SHA256 от точной строки `externalId:status` с использованием webhook secret клиники. Передавать сам секрет в заголовке нельзя: raw secret не является подписью и будет отклонён.
 Body:
   { "externalId": "...", "status": "paid" }
 ```
