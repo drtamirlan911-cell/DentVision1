@@ -46,7 +46,7 @@ export const kaspiProvider: PaymentProvider = {
       console.warn('[kaspi] Mock mode — set KASPI_MERCHANT_ID and KASPI_API_KEY for production');
       return { externalId, qr };
     }
-    const response = await fetch(`${(env.KASPI_API_BASE_URL || 'https://pay.kaspi.kz').replace(/\\/$/, '')}/api/v1/payments`, {
+    const response = await fetch(`${(env.KASPI_API_BASE_URL || 'https://pay.kaspi.kz').replace(/\/$/, '')}/api/v1/payments`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${env.KASPI_API_KEY}`, 'X-Merchant-Id': env.KASPI_MERCHANT_ID },
       body: JSON.stringify({ merchant_id: env.KASPI_MERCHANT_ID, amount: Number(amountMinor) / 100, external_id: randomUUID(), return_url: `${env.FRONTEND_URL || 'https://dentvision.app'}/payment/success` }),
