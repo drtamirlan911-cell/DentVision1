@@ -33,6 +33,8 @@ vi.mock('../finance/revenue.service.js', () => ({ writeRevenue }));
 vi.mock('../billing/clinicSubscription.service.js', () => ({
   activateClinicSubscriptionFromPayment,
   isSaasPlanId,
+  getClinicSubscriptionAmountMinor,
+  assertClinicBillingAccess,
 }));
 vi.mock('../dentcash/cashback.engine.js', () => ({ accrueSaasCashback }));
 vi.mock('../diagnostics/settlement.service.js', () => ({ markSettlementPaid }));
@@ -89,7 +91,7 @@ describe('settlePaidPayment — db threading', () => {
         domain: null,
         sellerType: null,
         sellerId: null,
-        amount: 49900n,
+        amount: 3_990_000n,
         meta: { saasPlan: 'professional', months: 1 },
       },
       fakeTx,
