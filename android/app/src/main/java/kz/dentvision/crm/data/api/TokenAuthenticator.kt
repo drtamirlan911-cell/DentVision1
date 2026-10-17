@@ -11,6 +11,7 @@ import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
 import okhttp3.Response
 import okhttp3.Route
+import java.util.concurrent.TimeUnit
 
 /**
  * Обновление токена на 401 — ровно одна попытка, как в вебе.
@@ -30,16 +31,39 @@ class TokenAuthenticator(
 ) : Authenticator {
 
     private val json = Json { ignoreUnknownKeys = true }
-    private val bareClient = OkHttpClient.Builder().build()
+    private val refreshLock = Any()
+    // Match the primary API client's cold-start tolerance; refresh must not
+    // expire faster than the request that triggered it on Render's free tier.
+    private val bareClient = OkHttpClient.Builder()
+        .connectTimeout(60, TimeUnit.SECONDS)
+        .readTimeout(60, TimeUnit.SECONDS)
+        .writeTimeout(60, TimeUnit.SECONDS)
+        .callTimeout(90, TimeUnit.SECONDS)
+        .build()
     private val jsonType = "application/json; charset=utf-8".toMediaType()
 
-    override fun authenticate(route: Route?, response: Response): Request? {
-        if (responseCount(response) > 1) {
+    override fun authenticate(route: Route?, response: Response): Request? = synchronized(refreshLock) {
+        val sentToken = response.request.header("Authorization")
+            ?.removePrefix("Bearer ")
+            ?.takeIf { it.isNotBlank() }
+        val currentAccessToken = session.accessToken
+        val responseCount = responseCount(response)
+
+        // Another call may have rotated the session while this 401 was waiting
+        // for the lock. Reuse the newer token instead of replaying the same
+        // one-time refresh token and accidentally clearing a healthy session.
+        if (currentAccessToken != null && currentAccessToken != sentToken && responseCount <= 2) {
+            return@synchronized response.request.newBuilder()
+                .header("Authorization", "Bearer $currentAccessToken")
+                .build()
+        }
+
+        if (responseCount > 1) {
             session.clear()
             onSessionLost()
-            return null
+            return@synchronized null
         }
-        val refresh = session.refreshToken ?: return null
+        val refresh = session.refreshToken ?: return@synchronized null
 
         val body = json.encodeToString(RefreshRequest.serializer(), RefreshRequest(refresh))
             .toRequestBody(jsonType)
@@ -53,8 +77,8 @@ class TokenAuthenticator(
             bareClient.newCall(request).execute().use { res ->
                 if (!res.isSuccessful) return@use null
                 val text = res.body?.string() ?: return@use null
-                // `/api/auth/refresh` отвечает конвертом `{ ok, data }`; веб
-                // принимает и голое тело (`raw.data || raw`) — здесь так же.
+                // `/api/auth/refresh` responds with `{ ok, data }`; tolerate
+                // the bare DTO response too, for parity with the web client.
                 val envelope = runCatching {
                     json.decodeFromString(ApiEnvelope.serializer(RefreshResponse.serializer()), text)
                 }.getOrNull()
@@ -66,11 +90,11 @@ class TokenAuthenticator(
         if (refreshed == null) {
             session.clear()
             onSessionLost()
-            return null
+            return@synchronized null
         }
 
         session.updateTokens(refreshed.accessToken, refreshed.refreshToken)
-        return response.request.newBuilder()
+        response.request.newBuilder()
             .header("Authorization", "Bearer ${refreshed.accessToken}")
             .build()
     }
