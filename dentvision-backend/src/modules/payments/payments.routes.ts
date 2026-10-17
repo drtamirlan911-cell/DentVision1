@@ -410,16 +410,24 @@ async function claimPaymentForSettlement(
   return claimed.count === 1;
 }
 
-async function assertPaymentOwner(req: AuthRequest, payment: { meta: unknown; refType: string | null; refId: string | null }) {
-  const meta = (payment.meta || {}) as { userId?: string; clinicId?: string; merchantScope?: string };
+async function assertPaymentOwner(
+  req: AuthRequest,
+  payment: { provider: string; meta: unknown; refType: string | null; refId: string | null },
+) {
+  const meta = (payment.meta || {}) as { userId?: string; clinicId?: string };
+
+  // Clinic scope is derived from the immutable server-selected provider, not
+  // the client-writable meta fields. This also protects historic clinic
+  // records whose metadata may have been written before this validation.
+  if (payment.provider === 'clinic_kaspi') {
+    if (!meta.clinicId) return false;
+    return Boolean(await assertOrgAccess(req.user!, meta.clinicId));
+  }
+
   if (meta.userId && meta.userId === req.user!.id) return true;
-  if (payment.refType === 'order' && payment.refId) {
+  if ((payment.refType === 'order' || payment.refType === 'shop_order') && payment.refId) {
     const order = await prisma.order.findUnique({ where: { id: payment.refId }, select: { userId: true } });
     if (order?.userId === req.user!.id) return true;
-  }
-  // Clinic cashier payments: any active member of that clinic may confirm.
-  if (meta.clinicId && (meta.merchantScope === 'clinic' || payment.refType === 'appointment' || payment.refType === 'crm_invoice')) {
-    if (await assertOrgAccess(req.user!, meta.clinicId)) return true;
   }
   return false;
 }
