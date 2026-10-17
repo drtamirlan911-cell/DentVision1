@@ -133,5 +133,9 @@ if (env.NODE_ENV === 'production') {
     console.error('[config] KASPI_CALLBACK_SECRET must be set in production (min 32 chars)');
     process.exit(1);
   }
+  if (!env.ENCRYPTION_KEY || env.ENCRYPTION_KEY.length < 32) {
+    console.error('[config] ENCRYPTION_KEY must be set in production (min 32 chars)');
+    process.exit(1);
+  }
 
 }
