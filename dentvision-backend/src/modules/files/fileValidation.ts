@@ -5,7 +5,7 @@ export function isAcceptedFilePayload(file: { originalname: string; mimetype: st
   const mime = String(file.mimetype || '').toLowerCase().split(';')[0].trim();
   const buffer = file.buffer;
   const startsWith = (signature: number[]) => signature.every((byte, index) => buffer[index] === byte);
-  const textStart = buffer.subarray(0, Math.min(buffer.length, 512)).toString('utf8').replace(/^\\uFEFF/, '').trimStart().toLowerCase();
+  const textStart = buffer.subarray(0, Math.min(buffer.length, 512)).toString('utf8').replace(/^\uFEFF/, '').trimStart().toLowerCase();
   const genericMime = ['application/octet-stream', 'binary/octet-stream', 'application/zip'].includes(mime);
 
   const signatures: Record<string, () => boolean> = {
