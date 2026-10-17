@@ -37,6 +37,9 @@ export const kaspiProvider: PaymentProvider = {
   name: 'kaspi_qr',
   async createPayment({ amountMinor, refId }) {
     if (!env.KASPI_MERCHANT_ID || !env.KASPI_API_KEY) {
+      if (env.NODE_ENV === 'production') {
+        throw new Error('Kaspi production payments require KASPI_MERCHANT_ID and KASPI_API_KEY');
+      }
       const externalId = `kaspi_${randomUUID()}`;
       mockLedger.set(externalId, 'pending');
       const qr = buildKaspiPayUrl({ externalId, amountMinor, refId });
@@ -83,7 +86,7 @@ export function verifyKaspiCallbackAuth(input: {
   body: { externalId?: string; status?: string; signature?: string };
 }): { ok: true } | { ok: false; error: string } {
   const secret = env.KASPI_CALLBACK_SECRET;
-  if (!secret || secret.length < 16) return { ok: false, error: 'KASPI_CALLBACK_SECRET не настроен — callback оплаты отклонён' };
+  if (!secret || secret.length < 32) return { ok: false, error: 'KASPI_CALLBACK_SECRET не настроен или короче 32 символов — callback оплаты отклонён' };
 
   const headerRaw = input.headers['x-kaspi-signature'] || input.headers['x-callback-secret'] || input.headers['x-webhook-secret'];
   const header = Array.isArray(headerRaw) ? headerRaw[0] : headerRaw;
