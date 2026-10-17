@@ -191,7 +191,7 @@ filesRouter.post('/documents/:id/sign', requirePermission('patient.write'), asyn
   }
 });
 
-filesRouter.post('/upload', limitConcurrentMemoryUploads, upload.single('file'), requirePermission('patient.write'), async (req: AuthRequest, res) => {
+filesRouter.post('/upload', requirePermission('patient.write'), limitConcurrentMemoryUploads, upload.single('file'), async (req: AuthRequest, res) => {
   try {
     if (denyGuest(req, res)) return;
     if (!req.file) {
