@@ -22,6 +22,12 @@ const configured = parseCorsOrigins(
 export function isOriginAllowed(origin: string | undefined): boolean {
   const production = env.NODE_ENV === 'production';
   if (!origin) return !production;
+  if (production) {
+    try {
+      const parsed = new URL(origin);
+      if (parsed.protocol !== 'https:' || parsed.hostname === 'localhost' || parsed.hostname === '127.0.0.1' || parsed.hostname === '::1') return false;
+    } catch { return false; }
+  }
   if (configured.includes(origin)) return true;
   if (production) {
     const teamSlug = process.env.VERCEL_TEAM_SLUG?.trim().toLowerCase();
