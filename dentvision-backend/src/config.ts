@@ -95,6 +95,8 @@ const envSchema = z.object({
   KASPI_API_KEY: z.string().optional(),
   /** Kaspi pay base URL for QR deeplinks. */
   KASPI_PAY_BASE_URL: z.string().url().optional(),
+  /** Kaspi HTTP API base URL; distinct from customer-facing QR deeplink base. */
+  KASPI_API_BASE_URL: z.string().url().optional(),
   /** Frontend URL for Kaspi ReturnUrl. */
   FRONTEND_URL: z.string().url().optional(),
   /** Public API URL for webhook callbacks. Used by clinic payments module. */
