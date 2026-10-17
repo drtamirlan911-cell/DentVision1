@@ -26,6 +26,8 @@ services:
         generateValue: true
       - key: JWT_REFRESH_SECRET
         generateValue: true
+      - key: JWT_EXPIRES_IN
+        value: 15m
       - key: PORT
         value: 10000
       - key: CORS_ORIGIN
