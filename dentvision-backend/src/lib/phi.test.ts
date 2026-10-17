@@ -101,3 +101,22 @@ describe('encryptField production safety', () => {
     expect(() => encryptField('sensitive medical data')).toThrow(/Encryption unavailable in production/);
   });
 });
+
+
+describe('patient field batch encryption production safety', () => {
+  const originalNodeEnv = process.env.NODE_ENV;
+  const originalKey = process.env.ENCRYPTION_KEY;
+
+  afterEach(() => {
+    process.env.NODE_ENV = originalNodeEnv;
+    process.env.ENCRYPTION_KEY = originalKey;
+  });
+
+  it('throws instead of returning unencrypted patient fields in production', async () => {
+    process.env.NODE_ENV = 'production';
+    delete process.env.ENCRYPTION_KEY;
+    const { encryptPatientFields } = await import('./phi.js');
+    const patient = { iin: '900101350125', medicalHistory: 'sensitive history' };
+    expect(() => encryptPatientFields(patient)).toThrow(/encryption unavailable in production/i);
+  });
+});
