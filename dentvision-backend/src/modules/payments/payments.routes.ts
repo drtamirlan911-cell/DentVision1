@@ -780,9 +780,12 @@ paymentsRouter.get('/:id', authenticate, async (req: AuthRequest, res) => {
   const meta = (payment.meta || {}) as { qr?: string; clinicId?: string; merchantScope?: string };
   let providerStatus: string | null = null;
   if (payment.externalId) {
-    if (meta.merchantScope === 'clinic' && meta.clinicId) {
+    // Payment scope is determined by the server-controlled provider, never
+    // by client-writable metadata. Clinic gateway status is never consulted
+    // for platform payments.
+    if (payment.provider === 'clinic_kaspi' && meta.clinicId) {
       providerStatus = await getClinicGatewayStatus(meta.clinicId, payment.externalId);
-    } else {
+    } else if (payment.provider !== 'clinic_kaspi') {
       const gateway = providers[payment.provider] || providers.kaspi_qr;
       providerStatus = await gateway.getPaymentStatus(payment.externalId);
     }
@@ -819,13 +822,25 @@ paymentsRouter.post('/:id/confirm', authenticate, async (req: AuthRequest, res) 
       } satisfies ApiResponse);
     }
 
-    const meta = (payment.meta || {}) as { clinicId?: string; merchantScope?: string; clinicPayMode?: string };
-    const isClinic = meta.merchantScope === 'clinic' || payment.provider === 'clinic_kaspi';
+    const meta = (payment.meta || {}) as { clinicId?: string; clinicPayMode?: string };
+    const isClinic = payment.provider === 'clinic_kaspi';
+    if (isClinic) {
+      // The provider is server-created and is the authoritative scope marker.
+      // Require the canonical clinic reference and current backend membership;
+      // metadata alone never grants clinic cashier privileges.
+      if (!meta.clinicId || !(await assertOrgAccess(req.user!, meta.clinicId))) {
+        return res.status(403).json({ ok: false, error: 'Нет доступа к кассе этой клиники' } satisfies ApiResponse);
+      }
+    }
 
     let providerStatus: 'pending' | 'paid' | 'failed' | 'expired' = 'pending';
     if (payment.externalId) {
-      if (isClinic && meta.clinicId) {
-        providerStatus = await getClinicGatewayStatus(meta.clinicId, payment.externalId);
+      if (isClinic) {
+        // Static mode is a human-confirmed clinic cash workflow. API mode must
+        // receive a paid state from the configured clinic gateway.
+        if (meta.clinicPayMode === 'api' && meta.clinicId) {
+          providerStatus = await getClinicGatewayStatus(meta.clinicId, payment.externalId);
+        }
       } else {
         const gateway = providers[payment.provider] || providers.kaspi_qr;
         providerStatus = await gateway.getPaymentStatus(payment.externalId);
@@ -843,7 +858,8 @@ paymentsRouter.post('/:id/confirm', authenticate, async (req: AuthRequest, res) 
     }
 
     const sandbox = !isProduction;
-    const canComplete = providerStatus === 'paid' || sandbox;
+    const clinicStaffStaticConfirm = isClinic && meta.clinicPayMode === 'static';
+    const canComplete = providerStatus === 'paid' || clinicStaffStaticConfirm || (!isClinic && sandbox);
 
     if (!canComplete) {
       return res.status(402).json({
