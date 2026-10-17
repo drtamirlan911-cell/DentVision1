@@ -60,8 +60,8 @@ vi.mock('./kaspi.provider.js', () => ({
 vi.mock('./clinicPayments.js', () => ({
   ClinicPaymentsError: class ClinicPaymentsError extends Error { status = 400; code = 'CLINIC_PAYMENTS'; },
   createClinicKaspiPayment: vi.fn(),
-  getClinicGatewayStatus: vi.fn(),
-  loadClinicPaymentsConfig: vi.fn(),
+  getClinicGatewayStatus: m.getClinicGatewayStatus,
+  loadClinicPaymentsConfig: m.loadClinicPaymentsConfig,
 }));
 vi.mock('../../lib/orgContext.js', () => ({
   assertOrgAccess: m.assertOrgAccess,
