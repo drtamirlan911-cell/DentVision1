@@ -60,6 +60,20 @@
 - **Regression coverage:** a negative integration test asserts static-mode callbacks return 403 and never query/settle a payment.
 - **Remaining:** exact-HEAD CI and payment lifecycle verification.
 
+### RB-017 — Production security-header policy is not consistent across hosts
+- **Status:** OPEN — deployment behavior not proven
+- **Priority:** P1
+- **Area:** Frontend delivery / Browser security
+- **Finding:** `vercel.json` sets CSP as `Content-Security-Policy-Report-Only`, while `nginx.conf` enforces a different CSP; the Nginx policy permits generic `wss:` and broad HTTPS image/font sources. The deployed path and CSP violation evidence have not been reconciled.
+- **Required:** identify the active production delivery path, collect CSP violation evidence, then converge on one tested policy. Do not switch to enforcement blindly without validating Google sign-in, Sentry, WebSocket, imaging and document workflows.
+
+### RB-018 — WebSocket bearer token is placed in the URL query string
+- **Status:** OPEN — protocol/hosting ownership needs verification
+- **Priority:** P1
+- **Area:** Authentication / Realtime
+- **Finding:** `src/services/websocket/socket.ts` constructs `/ws?token=<access-token>`. URL credentials can leak into proxy/application logs. No matching WebSocket upgrade handler was found in the backend entry points inspected in this branch; the actual `VITE_WS_URL` service owner and authentication contract remain unverified.
+- **Required:** verify whether realtime is an external service and how it authenticates. Replace long-lived bearer query credentials with a short-lived, audience-bound, single-use connection ticket or an authenticated first-frame protocol only after the server contract is confirmed. Do not invent a parallel endpoint or break realtime blindly.
+
 ### RB-001 — Medical/Dental Laboratory 403 Forbidden
 - **Status:** OPEN
 - **Priority:** P0
