@@ -215,6 +215,9 @@ const webhookLimiter = rateLimit({
     const providerKey = String(req.path.split('/').filter(Boolean)[0] || 'unknown').toLowerCase();
     return `${providerKey}:${webhookRateLimitAddress(req.ip || req.socket.remoteAddress || 'unknown')}`;
   },
+  // The custom generator above performs its own IPv6 /64 normalization; the
+  // bundled express-rate-limit 7.x helper is not exported by this pinned version.
+  validate: { ip: false },
   standardHeaders: true,
   legacyHeaders: false,
   handler: (req, res, _next, options) => {
