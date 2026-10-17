@@ -4,6 +4,8 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 const mocks = vi.hoisted(() => ({
   lookup: vi.fn(),
   request: vi.fn(),
+  requestOptions: [] as any[],
+  clinicFindUnique: vi.fn(),
   responseStatus: 200,
   responseBody: '{"ok":true}',
   lastRequestOptions: null as any,
@@ -11,7 +13,7 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock('node:dns/promises', async (importOriginal) => ({ ...(await importOriginal()), lookup: mocks.lookup }));
 vi.mock('node:https', async (importOriginal) => ({ ...(await importOriginal()), request: mocks.request }));
-vi.mock('../../lib/prisma.js', () => ({ default: {} }));
+vi.mock('../../lib/prisma.js', () => ({ default: { clinic: { findUnique: mocks.clinicFindUnique } } }));
 vi.mock('../../config.js', () => ({
   env: { NODE_ENV: 'test', PORT: 3001, CORS_ORIGIN: '', PUBLIC_API_URL: '' },
 }));
@@ -22,6 +24,7 @@ function configureHttpsResponse(status = 200, body = '{"ok":true}') {
   mocks.responseBody = body;
   mocks.request.mockImplementation((options: unknown, callback: (response: any) => void) => {
     mocks.lastRequestOptions = options;
+    mocks.requestOptions.push(options);
     const request = new EventEmitter() as any;
     request.setTimeout = () => request;
     request.write = () => true;
@@ -45,6 +48,7 @@ function configureHttpsResponse(status = 200, body = '{"ok":true}') {
 describe('clinic gateway SSRF policy', () => {
   afterEach(() => {
     vi.clearAllMocks();
+    mocks.requestOptions.length = 0;
     delete process.env.CLINIC_GATEWAY_ALLOWED_HOSTS;
   });
 
@@ -100,6 +104,27 @@ describe('clinic gateway SSRF policy', () => {
     expect(mocks.request).toHaveBeenCalledTimes(1);
     expect(mocks.lastRequestOptions.lookup).toBeTypeOf('function');
     expect(mocks.lastRequestOptions.servername).toBe('gateway.example');
+  });
+
+  it('reuses one idempotency key across gateway endpoint fallback attempts', async () => {
+    mocks.lookup.mockResolvedValue([{ address: '93.184.216.34', family: 4 }]);
+    mocks.clinicFindUnique.mockResolvedValue({
+      id: 'clinic-1',
+      name: 'Test Clinic',
+      settings: { payments: { mode: 'api', apiBaseUrl: 'https://gateway.example/api/v1', apiKey: 'test-api-key' } },
+    });
+    configureHttpsResponse(302, '');
+
+    const { createClinicKaspiPayment } = await import('./clinicPayments.js');
+    await expect(createClinicKaspiPayment({
+      clinicId: 'clinic-1',
+      amountMinor: 10_000n,
+      refId: 'invoice-1',
+    })).rejects.toThrow();
+
+    expect(mocks.requestOptions).toHaveLength(3);
+    const idempotencyKeys = mocks.requestOptions.map((options) => options.headers['Idempotency-Key']);
+    expect(new Set(idempotencyKeys).size).toBe(1);
   });
 
   it('enforces an optional exact hostname allowlist', async () => {
