@@ -7,8 +7,8 @@ import {
 
 describe('localStorage patient-data privacy guard', () => {
   it('detects direct and nested PHI fields', () => {
-    expect(containsSensitivePatientData({ patient: { iin: 'IIN_PLACEHOLDER' } })).toBe(true);
-    expect(containsSensitivePatientData({ contact: { patientPhone: 'PHONE_PLACEHOLDER' } })).toBe(true);
+    expect(containsSensitivePatientData({ patient: { iin: '000000000000' } })).toBe(true);
+    expect(containsSensitivePatientData({ contact: { patientPhone: '+7 000 000 00 00' } })).toBe(true);
     expect(containsSensitivePatientData({ medicalHistory: 'HISTORY_PLACEHOLDER' })).toBe(true);
   });
 
@@ -22,7 +22,8 @@ describe('localStorage patient-data privacy guard', () => {
       notes: 'CLINICAL_NOTES_PLACEHOLDER',
       date: '2026-10-17',
       time: '10:30',
-      nested: { iin: 'IIN_PLACEHOLDER', medicalCard: 'MEDICAL_CARD_PLACEHOLDER', phone: 'PHONE_PLACEHOLDER' },
+      nested: { iin: '000000000000', medicalCard: 'MEDICAL_CARD_PLACEHOLDER', phone: '+7 000 000 00 00' },
+      displayLabel: 'reference 000000000000',
     });
     expect(safe).toEqual({
       id: 'appointment-test',
@@ -41,7 +42,7 @@ describe('localStorage patient-data privacy guard', () => {
   });
 
   it('detects likely identifiers inside otherwise generic text fields', () => {
-    expect(containsSensitivePatientData({ notes: 'contact IIN_PLACEHOLDER' })).toBe(true);
-    expect(containsSensitivePatientData({ value: 'PHONE_PLACEHOLDER' })).toBe(true);
+    expect(containsSensitivePatientData({ displayLabel: 'contact 000000000000' })).toBe(true);
+    expect(containsSensitivePatientData({ displayLabel: 'call +7 000 000 00 00' })).toBe(true);
   });
 });
