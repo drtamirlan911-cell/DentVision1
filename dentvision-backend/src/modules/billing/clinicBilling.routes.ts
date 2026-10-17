@@ -3,7 +3,7 @@ import prisma from '../../lib/prisma.js';
 import { authenticate } from '../../middleware/auth.js';
 import { requirePermission } from '../../middleware/rbac.js';
 import { env } from '../../config.js';
-import { tengeToMinor, serializeBigInt } from '../../lib/money.js';
+import { serializeBigInt } from '../../lib/money.js';
 import { providers, withPaymentQr } from '../payments/kaspi.provider.js';
 import type { AuthRequest, ApiResponse } from '../../types/index.js';
 import { runSubscriptionCron } from '../../jobs/subscriptionCron.js';
