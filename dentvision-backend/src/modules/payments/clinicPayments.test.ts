@@ -29,6 +29,8 @@ function configureHttpsResponse(status = 200, body = '{"ok":true}') {
       const response = new EventEmitter() as any;
       response.statusCode = mocks.responseStatus;
       response.headers = {};
+      response.resume = () => response;
+      response.destroy = () => response;
       callback(response);
       queueMicrotask(() => {
         response.emit('data', Buffer.from(mocks.responseBody));
@@ -51,6 +53,7 @@ describe('clinic gateway SSRF policy', () => {
     '10.1.2.3',
     '172.16.0.1',
     '192.168.1.4',
+    '192.0.2.1',
     '169.254.169.254',
     '0.0.0.0',
     '::1',
