@@ -371,7 +371,7 @@ async function settlePaidPayment(
     settled = (await settleMedicalLabOrderPayment(payment, db)) || settled;
   }
 
-  if (payment.refType === 'order') {
+  if (payment.refType === 'order' || payment.refType === 'shop_order') {
     settled = (await settleOrderPayment(payment, db)) || settled;
   }
 
@@ -540,14 +540,18 @@ paymentsRouter.post('/', authenticate, async (req: AuthRequest, res) => {
     // reconciled later in the callback (settleOrderPayment already derives the
     // supplier splits from `order.items`, not from this amount).
     if ((refType === 'order' || refType === 'shop_order') && refId) {
-      const ref = await prisma.$transaction(async (tx) => {
-        if (refType === 'order') {
-          return tx.order.findUnique({ where: { id: refId }, select: { total: true, status: true } });
-        }
-        return null;
+      const ref = await prisma.order.findUnique({
+        where: { id: refId },
+        select: { total: true, status: true },
       });
       if (!ref) {
         return res.status(404).json({ ok: false, error: 'Ссылка на заказ не найдена' } satisfies ApiResponse);
+      }
+      if (ref.status === 'paid' || !canTransitionOrder(ref.status, 'paid')) {
+        return res.status(409).json({
+          ok: false,
+          error: 'Заказ больше не принимает оплату в текущем статусе',
+        } satisfies ApiResponse);
       }
       // Reconcile against `order.total`, not a sum of `order.items` prices.
       // `shop.routes.ts` sets `total` to goods + delivery, minus any DentCash
