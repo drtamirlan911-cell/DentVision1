@@ -1142,3 +1142,29 @@ These changes are route/entry reconciliation only. Existing domain implementatio
 2. Verify the static-mode clinic callback regression and API-mode callback lifecycle.
 3. Complete the broader security pass: production header review, upload route negative-path coverage, auth/session regression, dependency vulnerability triage, and production-safe read-only evidence review.
 4. Update Context and this log only after verified state changes; do not infer production secret values or rotate keys without an approved operational plan.
+
+
+## 2026-10-17 — Security review follow-up: callback races, IPv6 and test harness
+
+### Additional code changes
+- Canonicalized IPv6 address checks numerically, so expanded and compressed spellings of special-use ranges receive the same SSRF decision; fixed IPv6 literal bracket and trailing-dot hostname normalization.
+- Added negative coverage for expanded IPv6 special-use addresses and IPv6 URL literals.
+- Reused one idempotency key across fallback paths for a single logical clinic gateway payment creation.
+- Made non-paid platform and clinic callbacks update only a payment that is still `pending`. The callback response and audit event now report the effective persisted status, preventing stale failure/pending callbacks from downgrading a concurrent settlement.
+- Added optional clinic callback amount validation against the persisted amount; mismatches are rejected before settlement.
+- Added race-condition and callback amount regression tests.
+- Fixed test harness isolation: backend route integration tests run in Node, DNS/HTTPS tests run in Node, and clinic route mocks now share the exact mock functions configured by the tests.
+- Tightened 3D upload signature checks: comment-only OBJ and zero-triangle binary STL are rejected; the OBJ fixture uses an actual newline. Fixed UTF-8 BOM stripping in text-based mesh headers.
+- Reconciled Render's Kaspi environment comment with the new production fail-closed behavior and expanded the blocker register for provider contract, idempotency, CSP and WebSocket token-query risks.
+
+### CI interpretation
+- Run `39037509671` was cancelled by a newer push while dependencies were being installed. Later E2E steps are marked `if: always()` and attempted to run after cancellation; Playwright was therefore missing. Those later step errors are **not valid evidence of application E2E failures**.
+- Run `39037635900` was also superseded by a newer push before a complete end-to-end result.
+- The earlier unit-test run `39036540335` did provide valid diagnostics: backend/frontend lint and TypeScript passed, while unit tests exposed the webhook ceiling assertion, incomplete HTTPS mock, and happy-dom fetch limitation. The test environment/mocks were subsequently corrected.
+- The current candidate includes callback race and amount checks, stable gateway idempotency, expanded IPv6 SSRF tests, upload signature tests, and corrected test isolation. Exact-HEAD CI/E2E is still pending; do not infer a pass from older candidate SHAs.
+
+### Remaining hard blockers
+- Verify the official Kaspi merchant API and callback contract before treating the generic HMAC scheme as production-valid; the platform provider adapter still needs explicit network timeout/response bounds.
+- Legacy plaintext PHI may remain in existing database rows; production backfill/key rotation was not executed and needs an approved, audited plan.
+- Reconcile the active production CSP/header path and verify the external realtime server before changing WebSocket token transport.
+- Complete fresh exact-HEAD CI/E2E/browser/mobile/role-context evidence. Keep PR #307 as draft; `main` remains unchanged.
