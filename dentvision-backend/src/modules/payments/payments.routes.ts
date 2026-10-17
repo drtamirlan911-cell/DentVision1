@@ -579,6 +579,19 @@ paymentsRouter.post('/', authenticate, async (req: AuthRequest, res) => {
       refId,
       meta,
     } = req.body || {};
+
+    // These are internal ledger operations, not buyer-selectable payment
+    // products. "sale" would let a caller choose the credited seller/domain,
+    // while "settlement" must be created only by paySettlement(), which derives
+    // the exact due amount and authorized owner from the persisted settlement.
+    // Reject before reserving idempotency or contacting any payment provider.
+    if (refType === 'sale' || refType === 'settlement') {
+      return res.status(400).json({
+        ok: false,
+        error: 'Этот тип платежа создаётся только внутренним финансовым процессом',
+      } satisfies ApiResponse);
+    }
+
     if (amount === undefined && amountMinor === undefined) {
       return res.status(400).json({ ok: false, error: 'amount обязателен' } satisfies ApiResponse);
     }
