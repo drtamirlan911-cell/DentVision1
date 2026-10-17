@@ -16,10 +16,68 @@ const filesRouter = Router();
 filesRouter.use(authenticate);
 
 const storage = multer.memoryStorage();
+const MAX_CONCURRENT_MEMORY_UPLOADS = 2;
+let activeMemoryUploads = 0;
+
+/** Memory storage is retained for compatibility, but concurrent 60MB uploads are bounded. */
+function limitConcurrentMemoryUploads(_req: AuthRequest, res: any, next: (error?: any) => void) {
+  if (activeMemoryUploads >= MAX_CONCURRENT_MEMORY_UPLOADS) {
+    return res.status(429).json({ ok: false, error: 'Слишком много одновременных загрузок. Повторите позже.', code: 'UPLOAD_BUSY' });
+  }
+  activeMemoryUploads += 1;
+  let released = false;
+  const release = () => {
+    if (released) return;
+    released = true;
+    activeMemoryUploads = Math.max(0, activeMemoryUploads - 1);
+  };
+  res.once('finish', release);
+  res.once('close', release);
+  next();
+}
+
+function isAcceptedFilePayload(file: { originalname: string; mimetype: string; buffer: Buffer }): boolean {
+  const ext = path.extname(file.originalname).toLowerCase();
+  const mime = String(file.mimetype || '').toLowerCase().split(';')[0].trim();
+  const buffer = file.buffer;
+  const startsWith = (signature: number[]) => signature.every((byte, index) => buffer[index] === byte);
+  const textStart = buffer.subarray(0, Math.min(buffer.length, 512)).toString('utf8').replace(/^\\uFEFF/, '').trimStart().toLowerCase();
+  const genericMime = ['application/octet-stream', 'binary/octet-stream', 'application/zip'].includes(mime);
+
+  const signatures: Record<string, () => boolean> = {
+    '.jpg': () => startsWith([0xff, 0xd8, 0xff]),
+    '.jpeg': () => startsWith([0xff, 0xd8, 0xff]),
+    '.png': () => startsWith([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
+    '.gif': () => textStart.startsWith('') && ['GIF87a', 'GIF89a'].some((sig) => buffer.subarray(0, 6).toString('ascii') === sig),
+    '.webp': () => buffer.length >= 12 && buffer.toString('ascii', 0, 4) === 'RIFF' && buffer.toString('ascii', 8, 12) === 'WEBP',
+    '.pdf': () => buffer.subarray(0, 5).toString('ascii') === '%PDF-',
+    '.doc': () => startsWith([0xd0, 0xcf, 0x11, 0xe0, 0xa1, 0xb1, 0x1a, 0xe1]),
+    '.xls': () => startsWith([0xd0, 0xcf, 0x11, 0xe0, 0xa1, 0xb1, 0x1a, 0xe1]),
+    '.docx': () => startsWith([0x50, 0x4b, 0x03, 0x04]),
+    '.xlsx': () => startsWith([0x50, 0x4b, 0x03, 0x04]),
+    '.dcm': () => buffer.length >= 132 && buffer.toString('ascii', 128, 132) === 'DICM',
+    '.dicom': () => buffer.length >= 132 && buffer.toString('ascii', 128, 132) === 'DICM',
+    '.stl': () => (textStart.startsWith('solid') && textStart.includes('facet normal') && textStart.includes('vertex')) ||
+      (buffer.length >= 84 && 84 + buffer.readUInt32LE(80) * 50 <= buffer.length),
+    '.obj': () => textStart.startsWith('#') || /(?:^|\\n)\\s*(?:v|vn|vt|f)\\s+-?\\d/.test(buffer.subarray(0, Math.min(buffer.length, 4096)).toString('utf8')),
+  };
+  if (!signatures[ext] || !signatures[ext]()) return false;
+
+  const allowedMimes: Record<string, string[]> = {
+    '.jpg': ['image/jpeg'], '.jpeg': ['image/jpeg'], '.png': ['image/png'],
+    '.gif': ['image/gif'], '.webp': ['image/webp'], '.pdf': ['application/pdf'],
+    '.doc': ['application/msword'], '.docx': ['application/vnd.openxmlformats-officedocument.wordprocessingml.document'],
+    '.xls': ['application/vnd.ms-excel'], '.xlsx': ['application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'],
+    '.dcm': ['application/dicom', 'application/dicom+json'], '.dicom': ['application/dicom', 'application/dicom+json'],
+    '.stl': ['model/stl', 'application/sla'], '.obj': ['model/obj', 'text/plain'],
+  };
+  return genericMime || (allowedMimes[ext]?.includes(mime) ?? false);
+}
+
 const upload = multer({
   storage,
   // CBCT/DICOM studies commonly run 50MB+; 10MB silently truncated real cases.
-  limits: { fileSize: 60 * 1024 * 1024 },
+  limits: { fileSize: 60 * 1024 * 1024, files: 1, fields: 12 },
   fileFilter: (_req, file, cb) => {
     const allowed = [
       '.jpg', '.jpeg', '.png', '.gif', '.webp',
@@ -71,8 +129,8 @@ filesRouter.get('/', requirePermission('patient.read'), async (req: AuthRequest,
 
     return res.json({ ok: true, data: documents } satisfies ApiResponse);
   } catch (err) {
-    const message = err instanceof Error ? err.message : 'Внутренняя ошибка сервера';
-    return res.status(500).json({ ok: false, error: message });
+    console.error('[files] Request failed:', err);
+    return res.status(500).json({ ok: false, error: 'Внутренняя ошибка сервера' });
   }
 });
 
@@ -109,7 +167,11 @@ filesRouter.post('/documents', requirePermission('patient.write'), async (req: A
       if (!assertSameClinic(req, res, existing.clinicId)) return;
     }
 
-    const url = `data:text/plain;charset=utf-8;base64,${Buffer.from(content || '', 'utf-8').toString('base64')}`;
+    const plainContent = typeof content === 'string' ? content : '';
+    if (Buffer.byteLength(plainContent, 'utf8') > 256 * 1024) {
+      return res.status(413).json({ ok: false, error: 'Текстовый документ превышает лимит 256 КБ' } satisfies ApiResponse);
+    }
+    const url = `data:text/plain;charset=utf-8;base64,${Buffer.from(plainContent, 'utf-8').toString('base64')}`;
 
     const doc = id
       ? await prisma.document.update({
@@ -139,8 +201,9 @@ filesRouter.post('/documents/:id/send-signature', requirePermission('patient.wri
       data: { id, token, signUrl, message: 'Ссылка на подпись создана' },
     } satisfies ApiResponse);
   } catch (err: any) {
-    const message = err instanceof Error ? err.message : 'Внутренняя ошибка сервера';
-    return res.status(err?.status || 500).json({ ok: false, error: message } satisfies ApiResponse);
+    const status = Number(err?.status) >= 400 && Number(err?.status) < 500 ? Number(err.status) : 500;
+    console.error('[files] Signature operation failed:', err);
+    return res.status(status).json({ ok: false, error: status < 500 && err instanceof Error ? err.message : 'Внутренняя ошибка сервера' } satisfies ApiResponse);
   }
 });
 
@@ -163,11 +226,14 @@ filesRouter.post('/documents/:id/sign', requirePermission('patient.write'), asyn
   }
 });
 
-filesRouter.post('/upload', upload.single('file'), requirePermission('patient.write'), async (req: AuthRequest, res) => {
+filesRouter.post('/upload', limitConcurrentMemoryUploads, upload.single('file'), requirePermission('patient.write'), async (req: AuthRequest, res) => {
   try {
     if (denyGuest(req, res)) return;
     if (!req.file) {
       return res.status(400).json({ ok: false, error: 'Файл не загружен' });
+    }
+    if (!isAcceptedFilePayload(req.file)) {
+      return res.status(400).json({ ok: false, error: 'Содержимое файла не соответствует расширению и MIME-типу' });
     }
     if (!storageConfigured()) {
       // Refuse loudly rather than fabricate a URL nothing serves — the prior
