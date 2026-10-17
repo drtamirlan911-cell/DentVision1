@@ -400,6 +400,10 @@ async function createViaClinicGateway(input: {
   // Compatible with common KZ Kaspi bridges (ApiPay-style /invoices/qr).
   // Clinics can point apiBaseUrl at their chosen gateway.
   const endpoints = [`${base}/invoices/qr`, `${base}/qr`, `${base}/v2/qr`];
+  // Every fallback attempt represents the same logical payment creation. Reuse
+  // one key so a gateway that processed a request before returning an error
+  // cannot create a second invoice when the next compatible path is attempted.
+  const idempotencyKey = randomUUID();
   let lastError = 'Gateway не ответил';
 
   for (const url of endpoints) {
@@ -411,7 +415,7 @@ async function createViaClinicGateway(input: {
           'Content-Type': 'application/json',
           'X-API-Key': key,
           Authorization: `Bearer ${key}`,
-          'Idempotency-Key': randomUUID(),
+          'Idempotency-Key': idempotencyKey,
         },
         body: JSON.stringify({
           amount: amountTenge,
