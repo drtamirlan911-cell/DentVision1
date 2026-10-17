@@ -119,7 +119,7 @@ describe('settlePaidPayment — db threading', () => {
         meta: { saasPlan: 'professional', months: 1 },
       },
       fakeTx,
-    )).rejects.toThrow(/canonical tariff/i);
+    )).rejects.toThrow(/подписки не совпадает/i);
     expect(activateClinicSubscriptionFromPayment).not.toHaveBeenCalled();
     expect(writeRevenue).not.toHaveBeenCalled();
   });
