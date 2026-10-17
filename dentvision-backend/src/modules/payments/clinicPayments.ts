@@ -396,7 +396,8 @@ async function createViaClinicGateway(input: {
 
   for (const url of endpoints) {
     try {
-      const res = await fetch(url, {
+      const res = await requestClinicGateway({
+        url,
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -411,9 +412,10 @@ async function createViaClinicGateway(input: {
           clinic_id: input.clinicId,
         }),
       });
-      const raw: any = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        lastError = String(raw?.error || raw?.message || `HTTP ${res.status}`);
+      let raw: any = {};
+      try { raw = JSON.parse(res.body); } catch { /* invalid JSON is handled as a gateway error */ }
+      if (res.statusCode < 200 || res.statusCode >= 300) {
+        lastError = `HTTP ${res.statusCode}`;
         continue;
       }
       const data: any = raw?.data && typeof raw.data === 'object' ? raw.data : raw;
@@ -462,14 +464,17 @@ export async function getClinicGatewayStatus(
   ];
   for (const url of urls) {
     try {
-      const res = await fetch(url, {
+      const res = await requestClinicGateway({
+        url,
+        method: 'GET',
         headers: {
           'X-API-Key': cfg.apiKey,
           Authorization: `Bearer ${cfg.apiKey}`,
         },
       });
-      if (!res.ok) continue;
-      const raw: any = await res.json().catch(() => ({}));
+      if (res.statusCode < 200 || res.statusCode >= 300) continue;
+      let raw: any = {};
+      try { raw = JSON.parse(res.body); } catch { continue; }
       const data: any = raw?.data && typeof raw.data === 'object' ? raw.data : raw;
       const status = String(data.status || data.payment_status || data.state || '').toLowerCase();
       if (['paid', 'success', 'processed', 'completed', 'done'].includes(status)) return 'paid';
