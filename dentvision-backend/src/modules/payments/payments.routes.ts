@@ -1160,6 +1160,11 @@ paymentsRouter.post('/callbacks/kaspi/clinic/:clinicId', async (req, res) => {
     const clinicId = req.params.clinicId as string;
     const { clinic, cfg } = await loadClinicPaymentsConfig(clinicId);
     void clinic;
+    // Static mode is explicitly manual-confirmation only. A stale webhook secret
+    // must not turn a static clinic payment into an externally confirmed payment.
+    if (cfg.mode !== 'api') {
+      return res.status(403).json({ ok: false, error: 'Webhook разрешён только в API-режиме кассы клиники' } satisfies ApiResponse);
+    }
     const auth = verifyClinicCallbackAuth({
       secret: cfg.webhookSecret || '',
       headers: req.headers as Record<string, string | string[] | undefined>,
