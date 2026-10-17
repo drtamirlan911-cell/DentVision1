@@ -96,7 +96,10 @@ export function hmacIin(iin: string | null | undefined): string | null {
 export function encryptPatientFields<T extends Record<string, unknown>>(
   data: T,
 ): T {
-  if (!canEncrypt()) return data;
+  if (!canEncrypt()) {
+    if (process.env.NODE_ENV === 'production') throw new Error('[phi] Patient-field encryption unavailable in production');
+    return data;
+  }
   if (typeof data.iin === 'string') (data as Record<string, unknown>).iin = encryptField(data.iin as string);
   if (typeof data.medicalHistory === 'string') (data as Record<string, unknown>).medicalHistory = encryptField(data.medicalHistory as string);
   return data;
@@ -106,7 +109,11 @@ export function encryptPatientFields<T extends Record<string, unknown>>(
 export function decryptPatientFields<T extends Record<string, unknown> | null>(
   data: T,
 ): T {
-  if (!data || !canEncrypt()) return data;
+  if (!data) return data;
+  if (!canEncrypt()) {
+    if (process.env.NODE_ENV === 'production') throw new Error('[phi] Patient-field decryption unavailable in production');
+    return data;
+  }
   if (typeof (data as Record<string, unknown>).iin === 'string') {
     (data as Record<string, unknown>).iin = decryptField((data as Record<string, unknown>).iin as string);
   }
