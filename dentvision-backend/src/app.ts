@@ -210,7 +210,7 @@ function webhookRateLimitAddress(ip: string): string {
 
 const webhookLimiter = rateLimit({
   windowMs: 60 * 1000,
-  max: limitFromEnv('RATE_LIMIT_WEBHOOK_MAX', 120),
+  max: 10,
   keyGenerator: (req) => {
     const providerKey = String(req.path.split('/').filter(Boolean)[0] || 'unknown').toLowerCase();
     return `${providerKey}:${webhookRateLimitAddress(req.ip || req.socket.remoteAddress || 'unknown')}`;
