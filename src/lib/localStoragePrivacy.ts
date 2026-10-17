@@ -11,6 +11,8 @@ function normalizedKey(key: string): string {
 
 function containsSensitiveIdentifierText(value: string): boolean {
   if (/\b\d{12}\b/.test(value)) return true;
+  // Phone numbers embedded in labels/notes are PHI too; redact them even with surrounding text.
+  if (/(?:\+?7|8)[\s()-]?\d{3}[\s()-]?\d{3}[\s()-]?\d{2}[\s()-]?\d{2}/.test(value)) return true;
   const compact = value.replace(/[\s()+-]/g, '');
   return /^(?:7|8)?\d{10,11}$/.test(compact);
 }
