@@ -118,7 +118,7 @@ export function publicClinicPayments(
     apiBaseUrl: cfg.apiBaseUrl || '',
     configured: isClinicPaymentsConfigured(cfg),
     apiKeySet: Boolean(cfg.apiKey),
-    webhookSecretSet: Boolean(cfg.webhookSecret && cfg.webhookSecret.length >= 16),
+    webhookSecretSet: Boolean(cfg.webhookSecret && cfg.webhookSecret.length >= 32),
     webhookUrl: clinicId ? `${apiHost.replace(/\/$/, '')}/api/payments/callbacks/kaspi/clinic/${clinicId}` : undefined,
   };
 }
