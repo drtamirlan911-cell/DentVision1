@@ -503,3 +503,27 @@ describe('clinic static payment confirmation policy', () => {
     expect(m.loadClinicPaymentsConfig).not.toHaveBeenCalled();
   });
 });
+
+
+describe('legacy platform payment ownership', () => {
+  it('uses the canonical order owner instead of a client-writable legacy userId when confirming an order payment', async () => {
+    m.paymentFindUnique.mockResolvedValueOnce({
+      id: 'legacy-order-payment',
+      provider: 'kaspi_qr',
+      externalId: 'legacy-order-external',
+      amount: 10_000n,
+      status: 'pending',
+      refType: 'order',
+      refId: 'victim-order',
+      meta: { userId: 'authenticated-user' },
+    });
+    m.orderFindUnique.mockResolvedValueOnce({ userId: 'another-user' });
+
+    const { response, body } = await postConfirm('legacy-order-payment');
+
+    expect(response.status).toBe(403);
+    expect(body.ok).toBe(false);
+    expect(m.providerStatus).not.toHaveBeenCalled();
+    expect(m.transaction).not.toHaveBeenCalled();
+  });
+});
