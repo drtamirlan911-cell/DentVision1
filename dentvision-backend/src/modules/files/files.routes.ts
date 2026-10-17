@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import type { Request, Response, NextFunction } from 'express';
 import multer from 'multer';
 import path from 'node:path';
 import prisma from '../../lib/prisma.js';
@@ -20,7 +21,7 @@ const MAX_CONCURRENT_MEMORY_UPLOADS = 2;
 let activeMemoryUploads = 0;
 
 /** Memory storage is retained for compatibility, but concurrent 60MB uploads are bounded. */
-function limitConcurrentMemoryUploads(_req: AuthRequest, res: any, next: (error?: any) => void) {
+function limitConcurrentMemoryUploads(_req: Request, res: Response, next: NextFunction) {
   if (activeMemoryUploads >= MAX_CONCURRENT_MEMORY_UPLOADS) {
     return res.status(429).json({ ok: false, error: 'Слишком много одновременных загрузок. Повторите позже.', code: 'UPLOAD_BUSY' });
   }
@@ -48,7 +49,7 @@ function isAcceptedFilePayload(file: { originalname: string; mimetype: string; b
     '.jpg': () => startsWith([0xff, 0xd8, 0xff]),
     '.jpeg': () => startsWith([0xff, 0xd8, 0xff]),
     '.png': () => startsWith([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
-    '.gif': () => textStart.startsWith('') && ['GIF87a', 'GIF89a'].some((sig) => buffer.subarray(0, 6).toString('ascii') === sig),
+    '.gif': () => ['GIF87a', 'GIF89a'].some((sig) => buffer.subarray(0, 6).toString('ascii') === sig),
     '.webp': () => buffer.length >= 12 && buffer.toString('ascii', 0, 4) === 'RIFF' && buffer.toString('ascii', 8, 12) === 'WEBP',
     '.pdf': () => buffer.subarray(0, 5).toString('ascii') === '%PDF-',
     '.doc': () => startsWith([0xd0, 0xcf, 0x11, 0xe0, 0xa1, 0xb1, 0x1a, 0xe1]),
@@ -184,8 +185,8 @@ filesRouter.post('/documents', requirePermission('patient.write'), async (req: A
 
     return res.status(201).json({ ok: true, data: doc } satisfies ApiResponse);
   } catch (err) {
-    const message = err instanceof Error ? err.message : 'Внутренняя ошибка сервера';
-    return res.status(500).json({ ok: false, error: message });
+    console.error('[files] Request failed:', err);
+    return res.status(500).json({ ok: false, error: 'Внутренняя ошибка сервера' });
   }
 });
 
@@ -221,8 +222,9 @@ filesRouter.post('/documents/:id/sign', requirePermission('patient.write'), asyn
     });
     return res.json({ ok: true, data: updated } satisfies ApiResponse);
   } catch (err: any) {
-    const message = err instanceof Error ? err.message : 'Внутренняя ошибка сервера';
-    return res.status(err?.status || 500).json({ ok: false, error: message } satisfies ApiResponse);
+    const status = Number(err?.status) >= 400 && Number(err?.status) < 500 ? Number(err.status) : 500;
+    console.error('[files] Signing operation failed:', err);
+    return res.status(status).json({ ok: false, error: status < 500 && err instanceof Error ? err.message : 'Внутренняя ошибка сервера' } satisfies ApiResponse);
   }
 });
 
@@ -317,8 +319,8 @@ filesRouter.post('/upload', limitConcurrentMemoryUploads, upload.single('file'),
       },
     });
   } catch (err) {
-    const message = err instanceof Error ? err.message : 'Внутренняя ошибка сервера';
-    return res.status(500).json({ ok: false, error: message });
+    console.error('[files] Request failed:', err);
+    return res.status(500).json({ ok: false, error: 'Внутренняя ошибка сервера' });
   }
 });
 
@@ -365,8 +367,8 @@ filesRouter.get('/:id/content', requirePermission('patient.read'), async (req: A
     // behind this URL was never actually persisted.
     return res.status(410).json({ ok: false, error: 'Файл недоступен (загружен до подключения хранилища)' });
   } catch (err) {
-    const message = err instanceof Error ? err.message : 'Внутренняя ошибка сервера';
-    return res.status(500).json({ ok: false, error: message });
+    console.error('[files] Request failed:', err);
+    return res.status(500).json({ ok: false, error: 'Внутренняя ошибка сервера' });
   }
 });
 
@@ -395,8 +397,8 @@ filesRouter.get('/:id', requirePermission('patient.read'), async (req: AuthReque
       },
     });
   } catch (err) {
-    const message = err instanceof Error ? err.message : 'Внутренняя ошибка сервера';
-    return res.status(500).json({ ok: false, error: message });
+    console.error('[files] Request failed:', err);
+    return res.status(500).json({ ok: false, error: 'Внутренняя ошибка сервера' });
   }
 });
 
@@ -416,8 +418,8 @@ filesRouter.delete('/:id', requirePermission('patient.write'), async (req: AuthR
 
     return res.json({ ok: true, data: { deleted: true } });
   } catch (err) {
-    const message = err instanceof Error ? err.message : 'Внутренняя ошибка сервера';
-    return res.status(500).json({ ok: false, error: message });
+    console.error('[files] Request failed:', err);
+    return res.status(500).json({ ok: false, error: 'Внутренняя ошибка сервера' });
   }
 });
 
