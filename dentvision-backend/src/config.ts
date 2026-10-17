@@ -139,8 +139,11 @@ if (env.NODE_ENV === 'production') {
     process.exit(1);
   }
   const corsOrigins = [env.CORS_ORIGIN, env.FRONTEND_URL || ''].join(',').split(',').map((v) => v.trim()).filter(Boolean);
-  if (corsOrigins.length === 0 || corsOrigins.includes('*') || corsOrigins.some((v) => v === '*')) {
-    console.error('[config] CORS_ORIGIN/FRONTEND_URL must contain explicit production origins');
+  if (corsOrigins.length === 0 || corsOrigins.includes('*') || corsOrigins.some((v) => {
+    try { const parsed = new URL(v); return parsed.protocol !== 'https:' || ['localhost', '127.0.0.1', '::1'].includes(parsed.hostname); }
+    catch { return true; }
+  })) {
+    console.error('[config] CORS_ORIGIN/FRONTEND_URL must contain explicit HTTPS production origins, without localhost or wildcard');
     process.exit(1);
   }
 
