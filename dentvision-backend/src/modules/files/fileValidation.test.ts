@@ -31,6 +31,18 @@ describe('isAcceptedFilePayload', () => {
     expect(isAcceptedFilePayload(file('x.dcm', 'application/dicom', Buffer.from('not a DICOM file')))).toBe(false);
   });
 
+  it('rejects comment-only OBJ files and empty binary STL payloads', () => {
+    expect(isAcceptedFilePayload(file('x.obj', 'text/plain', '# exporter metadata only'))).toBe(false);
+    expect(isAcceptedFilePayload(file('x.stl', 'model/stl', Buffer.alloc(84)))).toBe(false);
+  });
+
+  it('accepts OBJ geometry and non-empty binary STL geometry', () => {
+    expect(isAcceptedFilePayload(file('x.obj', 'model/obj', 'v 0 0 0\\nf 1 2 3'))).toBe(true);
+    const stl = Buffer.alloc(134);
+    stl.writeUInt32LE(1, 80);
+    expect(isAcceptedFilePayload(file('x.stl', 'model/stl', stl))).toBe(true);
+  });
+
   it('rejects unknown extensions and arbitrary text disguised as a PDF', () => {
     expect(isAcceptedFilePayload(file('x.exe', 'application/octet-stream', 'MZ'))).toBe(false);
     expect(isAcceptedFilePayload(file('x.pdf', 'application/pdf', 'patient note without PDF header'))).toBe(false);
