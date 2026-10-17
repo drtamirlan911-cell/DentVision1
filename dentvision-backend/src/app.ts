@@ -2,7 +2,7 @@ import express from 'express';
 import cookieParser from 'cookie-parser';
 import cors from 'cors';
 import helmet from 'helmet';
-import rateLimit, { ipKeyGenerator } from 'express-rate-limit';
+import rateLimit from 'express-rate-limit';
 import { errorHandler, notFound } from './middleware/errorHandler.js';
 import prisma from './lib/prisma.js';
 import { sseManager } from './modules/ai/ai.notifications.routes.js';
@@ -193,12 +193,27 @@ app.use('/api/guest/session', guestSessionLimiter);
 app.use('/api/guest/convert', authLimiter);
 app.use('/api/audit/backup', apiLimiter);
 
+function webhookRateLimitAddress(ip: string): string {
+  const value = ip.toLowerCase().split('%')[0];
+  // Express may expose IPv4-mapped IPv6 addresses; group those with the IPv4 client.
+  const mapped = value.match(/^::ffff:(\\d{1,3}(?:\\.\\d{1,3}){3})$/);
+  if (mapped) return mapped[1];
+  if (!value.includes(':')) return value || 'unknown';
+  // Rate-limit IPv6 clients by /64 so rotating interface identifiers does not bypass limits.
+  const [leftRaw = '', rightRaw = ''] = value.split('::');
+  const left = leftRaw ? leftRaw.split(':') : [];
+  const right = rightRaw ? rightRaw.split(':') : [];
+  const missing = Math.max(0, 8 - left.length - right.length);
+  const expanded = [...left, ...Array(missing).fill('0'), ...right];
+  return `${expanded.slice(0, 4).map((part) => Number.parseInt(part || '0', 16).toString(16)).join(':')}::/64`;
+}
+
 const webhookLimiter = rateLimit({
   windowMs: 60 * 1000,
   max: limitFromEnv('RATE_LIMIT_WEBHOOK_MAX', 120),
   keyGenerator: (req) => {
     const providerKey = String(req.path.split('/').filter(Boolean)[0] || 'unknown').toLowerCase();
-    return `${providerKey}:${ipKeyGenerator(req.ip || '0.0.0.0')}`;
+    return `${providerKey}:${webhookRateLimitAddress(req.ip || req.socket.remoteAddress || 'unknown')}`;
   },
   standardHeaders: true,
   legacyHeaders: false,
