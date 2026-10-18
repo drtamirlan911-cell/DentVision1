@@ -118,6 +118,9 @@ jobs:
       - name: Apply durable AI admin queue table required by backend worker
         run: npx prisma db execute --schema prisma/schema.prisma --file prisma/migrations/20260929130000_ai_admin_postgres_queue/migration.sql
         working-directory: dentvision-backend
+      - name: Apply PostgreSQL daily counters table required by rate limiting
+        run: npx prisma db execute --schema prisma/schema.prisma --file prisma/migrations/20260929140000_postgres_daily_counters/migration.sql
+        working-directory: dentvision-backend
       - run: npm run db:seed:e2e
         working-directory: dentvision-backend
       - name: Seed canonical IAM roles and E2E partner contexts
