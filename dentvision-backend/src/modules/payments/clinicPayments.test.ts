@@ -70,6 +70,7 @@ describe('clinic gateway SSRF policy', () => {
     '2001:0010::1',
     '2001:0020::1',
     '2002:0808:0808::1',
+    '3fff::1', // RFC 9637 documentation prefix must not be accepted as a public gateway
   ])('rejects private, link-local, or reserved address %s', async (address) => {
     const { isPublicGatewayAddress } = await import('./clinicPayments.js');
     expect(isPublicGatewayAddress(address)).toBe(false);
