@@ -211,6 +211,9 @@ export function isPublicGatewayAddress(address: string): boolean {
   // 2001::/23, documentation 2001:db8::/32 and the 6to4 transition prefix.
   if (first < 0x2000 || first > 0x3fff) return false;
   if ((first === 0x2001 && (second <= 0x01ff || second === 0x0db8)) || first === 0x2002) return false;
+  // RFC 9637 reserves 3fff::/20 for documentation; it is inside 2000::/3,
+  // so the broad global-unicast check above is not sufficient by itself.
+  if (first === 0x3fff && second <= 0x0fff) return false;
   return true;
 }
 
