@@ -63,7 +63,7 @@ export default defineConfig({
     },
     {
       name: 'visual-agent',
-      use: { browserName: 'chromium', viewport: { width: 1440, height: 900 }, baseURL: process.env.PLAYWRIGHT_UI_URL || 'http://localhost:3000', trace: 'on' },
+      use: { browserName: 'chromium', viewport: { width: 1440, height: 900 }, baseURL: process.env.PLAYWRIGHT_UI_URL || 'http://localhost:3000', trace: 'retain-on-failure' },
       testMatch: /visual-agent\.spec\.ts/,
     },
     {

@@ -262,7 +262,8 @@ async function auditRoute(page: Page, role: Role, route: string, shouldBeAllowed
   }
   const evidenceDir = VISUAL_EVIDENCE_ROOT + '/roles/' + role.id + '/' + safeRouteName(route);
   await fs.mkdir(evidenceDir, { recursive: true });
-  await page.screenshot({ path: evidenceDir + '/route.png', fullPage: true });
+  // Keep per-route DOM/text evidence; viewport screenshots are captured once per role/project
+  // and on test failure. This avoids thousands of redundant full-page PNGs in CI artifacts.
   await fs.writeFile(evidenceDir + '/dom.html', await page.locator('body').evaluate((el) => el.outerHTML).catch(() => ''), 'utf8');
   await fs.writeFile(evidenceDir + '/text.txt', await page.locator('body').innerText().catch(() => ''), 'utf8');
   expect(current.pathname,role.id+' '+route+': allowed route redirected unexpectedly').not.toBe('/login');
