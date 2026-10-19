@@ -232,6 +232,14 @@ export function WorkspaceSwitcher({ className }: { className?: string }) {
       const contract = workspaceContextFrom(selected, selected.permissions || [])
       api.setWorkspaceContext(contract)
       setActiveWorkspace({ id: selected.id, scopeType: selected.scopeType, organizationId: selected.organizationId, branchId: selected.branchId, name: selected.name, roleKey: selected.roleKey, roleLabel: selected.roleLabel, permissions: selected.permissions, participant: selected.personType, dataScope: contract.dataScope }, contract)
+      // Keep the query-backed selector in sync with the branch context just
+      // committed to auth/session state. Without this, the request header changes
+      // but the menu keeps rendering the old branch as selected until refetch.
+      queryClient.setQueryData<WorkspaceContext[]>(['workspaces', user?.id], (items = []) =>
+        items.map((workspace) => workspace.id === selected.id
+          ? { ...workspace, branchId: branch.id }
+          : workspace),
+      )
       setContextFocus('workspace', selected.id, { organizationId: selected.organizationId || null, branchId: branch.id, roleKey: selected.roleKey || selected.role || null, scopeType: selected.scopeType })
       window.dispatchEvent(new CustomEvent('dentvision:workspace-switched', { detail: { id: selected.id, scopeType: selected.scopeType, organizationId: selected.organizationId, branchId: branch.id, name: selected.name, roleLabel: selected.roleLabel, roleKey: selected.roleKey || null } }))
       toast.success(`Филиал: ${branch.name}`)
