@@ -27,6 +27,16 @@
 11. Never create a competing roadmap, current-state file, release gate or product specification without a clearly different bounded purpose.
 12. Preserve all unfinished previous work while adding new priorities.
 
+## 2A. Current branch and release evidence — 2026-10-20
+
+- Active implementation branch: `security/payment-hardening-20261017`; pull request: [#307](https://github.com/drtamirlan911-cell/DentVision1/pull/307), still draft pending release verification.
+- Production `main` was not changed by this release-gate work.
+- Previous candidate `0134e6881687f5c9de7efe1c6ebe10eaa544d651`: Quality Gate and Android passed; backend/frontend lint and unit/build jobs passed; core E2E, browser UX and mobile design gate passed. The role/context gate remained in progress in the latest connected status because the full route matrix was repeated across eight viewport projects.
+- Follow-up factors viewport-independent authorization/tenant checks into one exhaustive `role-1280` run while retaining role-specific critical-screen DOM/responsive audits and the required screenshot per role per viewport. SPA route discovery no longer sleeps before successful first reads. The existing 60-minute CI E2E-job limit remains in place.
+- This follow-up remains **UNVERIFIED** until the exact-head CI, role/context, Visual Agent, business-owner and organization-owner gates finish. Do not merge or mark release-ready on the older candidate evidence.
+- Render API health was observed returning HTTP 200 with database status `ok` on 2026-10-19; Vercel reported no runtime-error clusters for its queried 24-hour window. These observations do not close the application release blockers.
+- RB-010 through RB-024 remain governed by `docs/RELEASE_BLOCKERS.md`; RB-019 specifically remains open because public Kaspi partner pages reviewed do not establish the technical API/callback contract assumed by the generic provider adapter.
+
 ## 3. Status vocabulary
 - DONE = implementation + workflow + verification evidence agree.
 - PARTIAL = meaningful implementation exists but full workflow is incomplete.

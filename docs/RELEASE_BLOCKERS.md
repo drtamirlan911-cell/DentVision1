@@ -75,11 +75,13 @@
 - **Required:** verify whether realtime is an external service and how it authenticates. Replace long-lived bearer query credentials with a short-lived, audience-bound, single-use connection ticket or an authenticated first-frame protocol only after the server contract is confirmed. Do not invent a parallel endpoint or break realtime blindly.
 
 ### RB-019 — Platform Kaspi API contract and network bounds
-- **Status:** OPEN — provider contract not independently verified
+- **Status:** OPEN — official payment-provider contract not independently verified
 - **Priority:** P1
 - **Area:** Payments / External API
-- **Finding:** the platform provider adapter uses a configurable API base URL and parses the response body without an explicit request timeout or response-size cap. The current generic callback signature must not be assumed to match the official Kaspi contract without authoritative documentation.
-- **Required:** verify the actual merchant API/callback contract, constrain production base URL to approved HTTPS hosts, add bounded timeout/body handling and test provider signature/amount/idempotency semantics. Do not invent a Kaspi endpoint or signature algorithm.
+- **Finding:** public Kaspi partner documentation describes applying, signing a contract and then accepting payments, but the public pages reviewed do not publish the endpoint, authentication headers, response schema or callback-signature contract used by this platform adapter. The documented Shop API is a separate catalog/order integration and must not be treated as the online-payment API.
+- **Implemented on branch:** outbound request timeout (8 seconds), redirect rejection, bounded 64 KiB response reads, cancellation of provider error bodies, generic error messages, and payment-amount safe-integer bounds.
+- **Remaining:** verify the actual contract supplied to DentVision by Kaspi/provider, constrain production API base URL to its approved host(s), and validate status/amount/idempotency/callback semantics against that contract. Do not treat the generic HMAC callback scheme or the current `/api/v1/payments` path as officially compatible without primary contract evidence.
+- **Primary sources reviewed 2026-10-20:** [Kaspi payment partnership](https://kaspi.kz/webpay/partnership) describes the application/contract onboarding route; [Kaspi Shop API guide](https://guide.kaspi.kz/partner/ru/shop/api/general/q3193) describes product/order operations, not the technical acquiring contract.
 
 ### RB-020 — Clinic gateway fallback idempotency
 - **Status:** IN PROGRESS — exact-HEAD test pending
@@ -186,6 +188,15 @@
 - **Fix on branch:** the core E2E glob now excludes `visual-agent`; the dedicated Visual Agent gate is retained with its separate output and evidence directory. No tests or assertions were removed.
 - **Verification:** confirm the new CI logs show no `visual-agent.spec.ts` in the core suite and that the dedicated Visual Agent gate executes once to completion.
  
+### RB-024 — Role/context gate repeats the exhaustive route matrix at every viewport
+- **Status:** IN PROGRESS — exact-HEAD CI verification pending
+- **Priority:** P1
+- **Area:** CI reliability / RBAC / responsive release evidence
+- **Finding:** `role-design-gate.spec.ts` ran the same full declared/discovered-route authorization and DOM audit for all 16 roles in each of eight viewport projects. Its route discovery also waited 100+250+500+1000 ms before reads even when the first DOM read succeeded. This multiplied thousands of unnecessary navigations; run `39339294547` showed the role/context step still in progress after core E2E, browser UX and mobile gate had completed.
+- **Fix on branch:** keep the exhaustive role, route, anonymous-access and cross-tenant checks once at `role-1280`; run role-specific critical-screen layout/DOM/accessibility audits and retain per-role/per-viewport screenshots on all remaining viewport projects; skip duplicate viewport-independent IAM/tenant/anonymous assertions; retry route discovery only after an SPA context-destroyed error.
+- **Coverage preserved:** mobile design gate and Visual Agent remain separate; the visual release manifest still receives its required role screenshot for every viewport. The 36px interactive-control threshold and authorization assertions are unchanged. The CI already specifies a 60-minute E2E job timeout and that bound remains in place.
+- **Remaining:** verify the new exact HEAD completes core E2E, browser UX, mobile, role/context, Visual Agent, business-owner and organization-owner gates; inspect the compact failure summary before resolving this blocker.
+
 ## Operating rule
 When a new blocker is discovered:
 1. Add it here with a stable ID.

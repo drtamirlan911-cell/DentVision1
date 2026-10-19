@@ -50,8 +50,30 @@ const ROLES: readonly Role[] = [
   { id:'laboratory', email:'lab-a@test.com', label:'Лаборатория', family:'clinic', pages:['lab','shop','diagnostics','diagnostics-referrals','diagnostics-laboratories','diagnostics-results','profile'], mustNotContain:[/Super Admin/i], entry:/\/ai|\/crm|\/diagnostics/ },
 ] as const;
 
-function pageId(route: string): string | null {
+
+const RESPONSIVE_ROUTES_BY_ROLE: Record<string, string[]> = {
+  owner: ['/ai','/crm/schedule','/crm/patients','/crm/dental-chart','/crm/treatment-plans','/crm/cashier','/crm/finance','/diagnostics/referrals','/shop','/school'],
+  admin: ['/crm/schedule','/crm/patients','/crm/dental-chart','/crm/treatment-plans','/crm/cashier','/diagnostics/referrals','/shop','/school'],
+  doctor: ['/crm/schedule','/crm/patients','/crm/visits','/crm/dental-chart','/crm/treatment-plans','/diagnostics/referrals'],
+  assistant: ['/crm/schedule','/crm/patients','/crm/visits','/crm/documents','/crm/reminders','/diagnostics/referrals'],
+  manager: ['/crm/schedule','/crm/patients','/analytics','/crm/staff','/crm/promotions','/shop'],
+  regular: ['/school','/profile'],
+  patient: ['/patient-portal','/profile','/shop','/school'],
+  'diagnostic-owner': ['/diagnostics/center','/diagnostics/referrals','/diagnostics/results','/diagnostics/calendar','/diagnostics/statistics'],
+  'diagnostic-operator': ['/diagnostics/center','/diagnostics/referrals','/diagnostics/results'],
+  'medical-lab-owner': ['/diagnostics/lab?workspace=medical-lab','/diagnostics/laboratories','/diagnostics/results','/diagnostics/calendar'],
+  'medical-lab-tech': ['/diagnostics/lab?workspace=medical-lab','/diagnostics/laboratories','/diagnostics/results'],
+  'dental-lab-owner': ['/diagnostics/lab','/diagnostics/laboratories','/diagnostics/results'],
+  'dental-technician': ['/diagnostics/lab','/diagnostics/laboratories','/diagnostics/results'],
+  superadmin: ['/admin','/quality','/platform-finance','/diagnostics','/ai-governance'],
+  support: ['/admin','/analytics','/settings','/profile'],
+  laboratory: ['/crm/lab','/shop','/diagnostics/referrals','/diagnostics/laboratories','/diagnostics/results'],
+};
+
+function pageId(route: string, role?: Role): string | null {
   const p = new URL(route, BASE_URL).pathname.replace(/\/$/,'') || '/';
+  // Partner labs use their canonical IAM page key, distinct from the clinic labs route.
+  if (p === '/diagnostics/laboratories' && role?.pages.includes('diagnostics-laboratories') && !role.pages.includes('diagnostics-labs')) return 'diagnostics-laboratories';
   const map: Record<string,string> = {
     '/ai':'dashboard','/crm/schedule':'schedule','/crm/patients':'patients','/crm/medical-card':'medical-card','/crm/finance':'finance','/crm/cashier':'cashier',
     '/crm/clinic-settings':'clinic-settings','/crm/billing':'billing','/crm/patient-inbox':'patient-inbox','/crm/visits':'visits','/crm/dental-chart':'dental-chart','/crm/treatment-plans':'treatment-plans',
@@ -217,11 +239,11 @@ async function inspectForms(page: Page, role: Role, route: string) {
 }
 
 async function discoverRoutes(page: Page): Promise<string[]> {
-  // Route transitions can still be settling after domcontentloaded in the SPA.
-  // Retry the DOM read instead of letting an in-flight navigation destroy the
-  // evaluation context and abort the entire visual evidence run.
-  for (const delay of [100, 250, 500, 1000]) {
-    await page.waitForTimeout(delay);
+  // Read immediately on stable screens. A fixed pre-read wait on every route
+  // multiplied the exhaustive role matrix even when the first read worked.
+  // Delay only after an SPA transition invalidates the current execution context.
+  for (const delay of [0, 100, 250, 500]) {
+    if (delay > 0) await page.waitForTimeout(delay);
     try {
       const hrefs = await page.locator('a[href]').evaluateAll(as =>
         as.map(a => (a as HTMLAnchorElement).href).filter(h => h.startsWith(location.origin)),
@@ -282,7 +304,8 @@ async function auditRoute(page: Page, role: Role, route: string, shouldBeAllowed
   await shellAudit(page,role,route);
 }
 
-test('partner context switch applies the scoped application role to the session token', async ({ page }) => {
+test('partner context switch applies the scoped application role to the session token', async ({ page }, info) => {
+  test.skip(info.project.name !== 'role-1280', 'IAM token/context contract is viewport-independent; execute once per CI run');
   const cases = [
     { email: 'diagnostic-operator@test.com', roleKey: 'diagnostic_operator', expectedRole: 'ASSISTANT' },
     { email: 'medical-lab-tech@test.com', roleKey: 'medical_lab_technician', expectedRole: 'LAB' },
@@ -372,14 +395,57 @@ test.describe('DentVision exhaustive role/context/browser gate',()=>{
       });
       expect(identitySurface,role.id+': role identity is missing on workspace entry').toContain(role.label);
 
+      if (info.project.name !== 'role-1280') {
+        // Authorization over every declared/discovered route runs once at role-1280.
+        // Other projects retain role-specific responsive audits over critical journeys
+        // and still emit the per-role/per-viewport PNG required by the release manifest.
+        for (const route of RESPONSIVE_ROUTES_BY_ROLE[role.id] || []) {
+          const routePageId = pageId(route, role);
+          const explicitlyPublicPortal = role.id === 'patient' && new URL(route, BASE_URL).pathname === '/patient-portal';
+          if (!routePageId && !explicitlyPublicPortal) continue;
+          if (routePageId && !role.pages.includes(routePageId)) continue;
+
+          await page.goto(BASE_URL + route, { waitUntil: 'domcontentloaded', timeout: 30000 });
+          await expect.poll(() => page.locator('body').innerText().catch(() => ''), {
+            timeout: 10000,
+            message: role.id + ' ' + route + ': responsive critical screen did not render',
+          }).toMatch(/.{20,}/s);
+          expect(new URL(page.url()).pathname, role.id + ' ' + route + ': responsive allowed screen redirected to login').not.toBe('/login');
+          await shellAudit(page, role, route);
+          await inspectForms(page, role, route);
+          await inspectDialogsAndMenus(page, role, route);
+          await inspectVisualSemantics(page, role, route);
+
+          const evidenceDir = VISUAL_EVIDENCE_ROOT + '/roles/' + role.id + '/' + safeRouteName(route);
+          await fs.mkdir(evidenceDir, { recursive: true });
+          await fs.writeFile(evidenceDir + '/dom.html', await page.locator('body').evaluate((el) => el.outerHTML).catch(() => ''), 'utf8');
+          await fs.writeFile(evidenceDir + '/text.txt', await page.locator('body').innerText().catch(() => ''), 'utf8');
+        }
+
+        await page.goto(BASE_URL + '/', { waitUntil: 'domcontentloaded', timeout: 30000 });
+        const storage = await page.evaluate(() => ({ localStorage: Object.keys(localStorage), sessionStorage: Object.keys(sessionStorage) }));
+        expect(JSON.stringify(storage)).not.toMatch(/password/i);
+        const token = await page.evaluate(() => Object.entries(localStorage).filter(([k]) => /token|auth/i.test(k)).map(([,v]) => String(v)).join(' '));
+        expect(token).not.toMatch(/Test1234!/i);
+        expect(problems.console, role.id + ': console errors in responsive journeys').toEqual([]);
+        expect(problems.page, role.id + ': page errors in responsive journeys').toEqual([]);
+        expect(problems.requests, role.id + ': failed requests in responsive journeys').toEqual([]);
+        expect(problems.server, role.id + ': HTTP 5xx in responsive journeys').toEqual([]);
+        await page.screenshot({ path: `${VISUAL_EVIDENCE_ROOT}/roles/${role.id}/${info.project.name}.png`, fullPage: true });
+        await fs.writeFile(`${VISUAL_EVIDENCE_ROOT}/roles/${role.id}/${info.project.name}-runtime.json`, JSON.stringify({ console: problems.console, page: problems.page, requests: problems.requests, server: problems.server }, null, 2), 'utf8');
+        return;
+      }
+
       const discovered=new Set<string>();
       for(const route of ROUTES){
-        const allowed=PUBLIC_ROUTES.includes(route)||AUTH_COMMON_ROUTES.includes(route)||!!pageId(route)&&role.pages.includes(pageId(route)!);
+        const routePage = pageId(route, role);
+        const allowed=PUBLIC_ROUTES.includes(route)||AUTH_COMMON_ROUTES.includes(route)||!!routePage&&role.pages.includes(routePage);
         await auditRoute(page,role,route,allowed);
         if(allowed) for(const discoveredRoute of await discoverRoutes(page)) discovered.add(discoveredRoute);
       }
       for(const route of [...discovered].filter(r=>!ROUTES.includes(r as any))){
-        const allowed=PUBLIC_ROUTES.includes(route)||AUTH_COMMON_ROUTES.includes(route)||!!pageId(route)&&role.pages.includes(pageId(route)!);
+        const routePage = pageId(route, role);
+        const allowed=PUBLIC_ROUTES.includes(route)||AUTH_COMMON_ROUTES.includes(route)||!!routePage&&role.pages.includes(routePage);
         await auditRoute(page,role,route,allowed);
       }
 
@@ -397,7 +463,8 @@ test.describe('DentVision exhaustive role/context/browser gate',()=>{
     });
   }
 
-  test('cross-tenant: Clinic A never exposes Clinic B identity',async({page})=>{
+  test('cross-tenant: Clinic A never exposes Clinic B identity',async({page},info)=>{
+    test.skip(info.project.name !== 'role-1280', 'Tenant isolation is a data-scope contract; execute once per CI run');
     const problems=collectors(page);
     await login(page,'owner-a@test.com');
     expect(await page.locator('body').innerText()).toContain('E2E Clinic A');
@@ -410,7 +477,8 @@ test.describe('DentVision exhaustive role/context/browser gate',()=>{
     expect(problems.requests).toEqual([]);
   });
 
-  test('anonymous: every protected route redirects before protected content renders',async({page})=>{
+  test('anonymous: every protected route redirects before protected content renders',async({page},info)=>{
+    test.skip(info.project.name !== 'role-1280', 'Anonymous authorization matrix is viewport-independent; execute once per CI run');
     for(const route of ROUTES.filter(r=>!PUBLIC_ROUTES.includes(r))){
       await page.context().clearCookies();
       await page.goto(BASE_URL+route,{waitUntil:'domcontentloaded',timeout:30000});

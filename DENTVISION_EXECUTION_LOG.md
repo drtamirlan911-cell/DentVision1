@@ -1213,3 +1213,28 @@ These changes are route/entry reconciliation only. Existing domain implementatio
 
 ### Next action
 - Let CI finish on this exact HEAD. Read the compact diagnostics first; download only small targeted failure evidence. Keep PR #307 as draft until P0 security, E2E, browser, mobile and role/context gates pass.
+
+
+## 2026-10-20 — Role/context CI runtime de-duplication
+
+### Verified finding
+- On candidate `0134e6881687f5c9de7efe1c6ebe10eaa544d651`, CI run `39339294547` completed core E2E, browser UX and mobile design gate successfully, then remained in the role/context step in the latest connected status. The full route matrix in `role-design-gate.spec.ts` repeated for 16 roles across eight viewport projects, although authorization and cross-tenant data-scope behavior are not viewport-dependent.
+- `discoverRoutes()` also waited 100, 250, 500 and 1000 ms before trying the DOM read on every allowed route, even where the first read would succeed. That introduced avoidable serial delay.
+- The gate had not produced a failure conclusion in the connected status; this is treated as a test-runtime reliability issue, not as evidence that all role routes passed.
+
+### Implemented on the branch
+- Kept exhaustive declared/discovered route access, anonymous-access and Clinic A/Clinic B tenant-isolation assertions in one canonical `role-1280` run.
+- Other viewport projects now check role-specific critical screens for responsive overflow, clipped text, unnamed/undersized controls, forms, menus/dialogs, semantic hierarchy and runtime errors; they continue to emit the per-role/per-viewport screenshot and runtime evidence required by the visual manifest.
+- The partner IAM context token contract, cross-tenant assertion and anonymous route sweep are no longer duplicated across viewport projects.
+- Route discovery now reads immediately and retries with bounded delays only after SPA navigation invalidates the execution context.
+- Fixed route-key classification for `/diagnostics/laboratories`: partner lab roles use the canonical `diagnostics-laboratories` page key, distinct from the clinic's `diagnostics-labs` key.
+- The existing 60-minute CI E2E-job limit is retained.
+
+### Evidence / remaining verification
+- Previous candidate exact-head checks: Quality Gate, Android, backend lint, frontend lint and unit/build job all passed; core E2E, browser UX and mobile design gate passed. The role/context gate had not completed.
+- New implementation is **UNVERIFIED** until CI completes against its exact commit. The new gate must still exercise all declared/discovered role routes at its canonical viewport and critical screens at every viewport.
+- Official Kaspi partner sources reviewed: the public payment partnership page describes application/contract onboarding, while the published Shop API guide documents catalog/order API. Neither establishes the technical online-payment endpoint or HMAC callback contract currently assumed by the generic platform provider adapter; RB-019 remains open. Provider timeout/body bounds are already implemented and are now recorded accurately in the blocker register.
+- Production `main` remains unchanged; PR #307 stays draft.
+
+### Next action
+- Read the compact E2E failure summary from the new exact-head run, fix failures without relaxing assertions, and close RB-024 only after the role/context and downstream visual/business release gates finish.
