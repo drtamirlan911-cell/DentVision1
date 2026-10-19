@@ -287,7 +287,7 @@ if (container) {
                 <Route path="ai-approvals" element={guarded('ai-approvals', <AiApprovals />)} />
                 <Route path="backup" element={guarded('backup', <Backup />)} />
                 <Route path="profile" element={guarded('profile', <Profile />)} />
-                <Route path="supplier" element={<Suspense fallback={<PageLoader />}><SupplierWorkspace /></Suspense>} />
+                <Route path="supplier" element={guarded('supplier', <SupplierWorkspace />)} />
                 <Route path="jobs" element={<Suspense fallback={<PageLoader />}><Jobs /></Suspense>} />
                 <Route path="community" element={<Suspense fallback={<PageLoader />}><Community /></Suspense>} />
                 <Route path="demo" element={<Suspense fallback={<PageLoader />}><Demo /></Suspense>} />

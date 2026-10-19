@@ -6,7 +6,7 @@ const API_BASE_URL = process.env.VITE_API_URL || 'http://localhost:3001';
 const VISUAL_EVIDENCE_ROOT = process.env.VISUAL_EVIDENCE_DIR || 'e2e/visual-evidence';
 const PASSWORD = 'Test1234!';
 
-const PUBLIC_ROUTES = ['/', '/login', '/register', '/forgot-password', '/booking', '/demo', '/pricing', '/terms', '/privacy'];
+const PUBLIC_ROUTES = ['/', '/login', '/register', '/forgot-password', '/booking', '/demo', '/jobs', '/pricing', '/terms', '/privacy'];
 const AUTH_COMMON_ROUTES = ['/', '/help', '/notifications', '/profile'];
 const ROUTES = [
   '/ai','/analytics','/settings','/help','/notifications','/admin','/bi','/security','/audit','/agent-activity','/ai-approvals','/backup','/profile',

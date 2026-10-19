@@ -70,14 +70,20 @@ test.describe('Clinic branch management', () => {
     await trigger.click();
     await expect(page.getByTestId('workspace-switcher-menu')).toBeVisible();
 
+    await page.getByRole('button', { name: branchName, exact: true }).click();
+    await expect(trigger).toContainText(branchName, { timeout: 10000 });
+
+    // Selecting a branch updates the active client context; verify propagation
+    // on the next real data request instead of assuming the selector itself
+    // must issue a request (which made the old test race-prone).
     const branchRequest = page.waitForRequest(
       (request) => request.url().includes('/api/') && Boolean(request.headers()['x-dentvision-branch-id']),
       { timeout: 15000 },
     );
-    await page.getByRole('button', { name: branchName, exact: true }).click();
+    await page.goto(`${BASE}/crm/patients`);
     const request = await branchRequest;
     expect(request.headers()['x-dentvision-branch-id']).toBe(branchId);
-    await expect(page.getByTestId('workspace-switcher-trigger')).toBeVisible();
+    await expect(page.getByTestId('workspace-switcher-trigger')).toContainText(branchName);
     await page.reload();
     await expect(page.getByTestId('workspace-switcher-trigger')).toContainText(branchName);
   });

@@ -27,7 +27,7 @@ export async function resolveInventoryBranchContext(
     const branches = await prisma.$queryRaw<Array<{ id: string }>>`
       SELECT id FROM branches
       WHERE clinic_id = ${clinicId} AND active = true
-      ORDER BY "isDefault" DESC, "createdAt" ASC
+      ORDER BY "isDefault" DESC, created_at ASC
     `;
     return {
       clinicId,

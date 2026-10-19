@@ -8,7 +8,7 @@ export default defineConfig({
   outputDir: process.env.PLAYWRIGHT_OUTPUT_DIR || './e2e/test-results',
   use: {
     baseURL: process.env.PLAYWRIGHT_BASE_URL || 'http://localhost:3000',
-    screenshot: 'on',
+    screenshot: 'only-on-failure',
     trace: 'on-first-retry',
   },
   projects: [
