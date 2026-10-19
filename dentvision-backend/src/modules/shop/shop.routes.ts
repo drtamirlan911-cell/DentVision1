@@ -17,7 +17,7 @@ import { auditFromReq } from '../compliance/audit.service.js';
 
 const shopRouter = Router();
 
-const PUBLIC_PRODUCT_AUDIENCES = new Set(['PATIENT', 'PUBLIC', 'ALL', 'CONSUMER']);
+const PUBLIC_PRODUCT_AUDIENCES = new Set(['PATIENT', 'PUBLIC', 'ALL', 'GENERAL', 'CONSUMER']);
 const PROFESSIONAL_PRODUCT_AUDIENCES = new Set([
   'PROFESSIONAL', 'DOCTOR', 'DENTAL_STUDENT', 'ASSISTANT', 'LAB', 'DIAGNOSTIC', 'SELLER',
 ]);
@@ -87,6 +87,7 @@ shopRouter.get('/products', optionalAuth, async (req, res) => {
             { tags: { array_contains: ['AUDIENCE:PATIENT'] } },
             { tags: { array_contains: ['AUDIENCE:PUBLIC'] } },
             { tags: { array_contains: ['AUDIENCE:ALL'] } },
+            { tags: { array_contains: ['AUDIENCE:GENERAL'] } },
             { tags: { array_contains: ['AUDIENCE:CONSUMER'] } },
           ],
           NOT: [
