@@ -939,12 +939,12 @@ export default function Schedule() {
                 size="sm" aria-label="Дата"
                 className="!h-9 !text-sm bg-white/[0.04] border-bdr-subtle min-w-0" />
               <Button variant="ghost" size="icon-sm" aria-label="Вперёд" onClick={() => shiftPeriod(1)} className="!min-w-11 !min-h-11"><ChevronRight size={16} /></Button>
-              <Button variant="outline" size="sm" onClick={() => setSelDate(today())}>Сегодня</Button>
+              <Button variant="outline" size="sm" onClick={() => setSelDate(today())} className="!min-h-10">Сегодня</Button>
 
               <div className="flex flex-wrap rounded-lg border border-bdr-subtle overflow-hidden">
                 {([['day', 'День'], ['week', 'Неделя']] as const).map(([key, label]) => (
                   <button key={key} onClick={() => setPeriodMode(key)}
-                    className={cn('px-3 py-1.5 text-xs font-semibold transition-colors min-h-9',
+                    className={cn('px-3 py-1.5 text-xs font-semibold transition-colors min-h-10',
                       periodMode === key ? 'bg-dv-gold/15 text-dv-gold' : 'text-txt-muted hover:text-txt-secondary')}>
                     {label}
                   </button>
@@ -970,7 +970,7 @@ export default function Schedule() {
                     { key: 'single' as const, label: 'Общий', labelFull: 'Общий' },
                   ]).map(m => (
                     <button key={m.key} onClick={() => setViewMode(m.key)}
-                      className={cn('px-2.5 sm:px-3 py-1.5 text-xs font-semibold transition-colors whitespace-nowrap min-h-9',
+                      className={cn('px-2.5 sm:px-3 py-1.5 text-xs font-semibold transition-colors whitespace-nowrap min-h-10',
                         viewMode === m.key ? 'bg-dv-gold/15 text-dv-gold' : 'text-txt-muted hover:text-txt-secondary')}>
                       <span className="sm:hidden">{m.label}</span>
                       <span className="hidden sm:inline">{m.labelFull}</span>

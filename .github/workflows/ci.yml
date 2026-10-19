@@ -155,7 +155,7 @@ jobs:
           PLAYWRIGHT_HTML_OUTPUT_DIR: playwright-report/core
         run: |
           set -o pipefail
-          npx playwright test $(ls e2e/tests/*.spec.ts | grep -v browser-e2e | grep -v ux-coverage | grep -v business-owner-journeys | grep -v organization-owner-lifecycle | grep -v mobile-design-gate | grep -v role-design-gate) 2>&1 | tee e2e-core.log
+          npx playwright test $(ls e2e/tests/*.spec.ts | grep -v browser-e2e | grep -v ux-coverage | grep -v business-owner-journeys | grep -v organization-owner-lifecycle | grep -v mobile-design-gate | grep -v role-design-gate | grep -v visual-agent) 2>&1 | tee e2e-core.log
       - name: Run browser UX coverage
         # Continue after failed tests, but never run a new suite after workflow cancellation.
         if: ${{ !cancelled() }}

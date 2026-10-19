@@ -125,12 +125,13 @@
 - **Verification:** rerun after fixes; inspect DOM + screenshot + computed state; check hidden/mobile controls.
 
 ### RB-003 — Visual release gate: undersized touch targets
-- **Status:** IN PROGRESS
+- **Status:** IN PROGRESS — exact-HEAD visual recheck pending
 - **Priority:** P0
 - **Area:** Responsive / Accessibility
-- **Observed:** Patient Portal / Shop and consent-related controls were below the required touch target.
-- **Verification:** all critical mobile/tablet widths and interactive states.
-
+- **Observed:** Patient Portal / Shop and consent-related controls were below the required touch target. The focused visual artifact from E2E run `39336772296` also found Schedule toolbar buttons “Сегодня”, “День” and “Неделя” with raw heights below the 36px gate; displayed dimensions were rounded to 36px in diagnostics, masking the fractional-pixel shortfall.
+- **Fix on branch:** the Schedule “Сегодня”, day/week and view-mode controls now enforce a 40px minimum height. The test remains at its original 36px threshold.
+- **Verification:** re-run all critical mobile/tablet widths, role contexts and interactive states on the exact candidate HEAD.
+ 
 ### RB-004 — Full visual/design release evidence
 - **Status:** OPEN
 - **Priority:** P0
@@ -177,6 +178,14 @@
 - **Resolution:** current production deployment `dpl_DuniATXLbvea8NA521pCyVyg4p1N` is READY and is built from current `main` commit `5815fa931cc9603b0ec68fb59bf42d48169f24cc`.
 - **Verification:** Vercel production deployment state is READY; Render production deployment `dep-daut9p2d2mec73fl53g0` is LIVE from the same commit. The blocker is no longer present on the current release.
 
+### RB-023 — Visual Agent matrix duplicated in core E2E
+- **Status:** IN PROGRESS — exact-HEAD workflow verification pending
+- **Priority:** P1
+- **Area:** CI duration / visual regression reliability
+- **Finding:** the core E2E file glob included `visual-agent.spec.ts`, although CI already runs that full ecosystem role/viewport matrix in its dedicated Visual Agent release-gate step. This duplicated expensive browser work and its flaky retry evidence.
+- **Fix on branch:** the core E2E glob now excludes `visual-agent`; the dedicated Visual Agent gate is retained with its separate output and evidence directory. No tests or assertions were removed.
+- **Verification:** confirm the new CI logs show no `visual-agent.spec.ts` in the core suite and that the dedicated Visual Agent gate executes once to completion.
+ 
 ## Operating rule
 When a new blocker is discovered:
 1. Add it here with a stable ID.

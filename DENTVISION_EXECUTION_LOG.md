@@ -1193,3 +1193,23 @@ These changes are route/entry reconciliation only. Existing domain implementatio
 
 ### Next action
 - Inspect the fresh run's compact failure summary and execute only the failing area plus its neighboring regression matrix. Keep PR #307 as draft until the P0 security and release gates pass.
+
+
+## 2026-10-20 — E2E runtime and Schedule touch-target follow-up
+
+### Evidence from focused artifacts
+- On pre-privacy-hardening HEAD `5433db239c863bc8269000ee4aaee34841bc1134`, the core E2E suite completed successfully with 277 passed in 10.1 minutes and browser UX coverage passed. This was diagnostic evidence only; later mobile/role/Visual Agent gates were cancelled or skipped after a newer push and cannot count as release verification.
+- The compact visual artifact showed a retry on the assistant `/crm/schedule` interaction. Three toolbar controls (“Сегодня”, “День”, “Неделя”) measured slightly below 36px in raw geometry, while the diagnostics rounded each height to 36px. The assertion itself is retained unchanged.
+- The core CI glob also included `visual-agent.spec.ts`, even though a dedicated full Visual Agent gate already runs later. This explained duplicated role/viewport test execution and unnecessary browser/artifact cost.
+
+### Follow-up implementation
+- Excluded `visual-agent.spec.ts` from the core E2E glob while retaining the standalone Visual Agent gate.
+- Raised the measured Schedule toolbar controls and adjacent view-mode controls to a 40px minimum, preserving the original 36px release threshold.
+- Recorded the changes in RB-003 and added RB-023 to the canonical blocker register. No assertion was weakened and no existing test suite was removed.
+
+### Verification status
+- Current branch candidate is being verified by a fresh exact-HEAD CI/Quality Gate/Android run. The previously observed Quality Gate pass on `ce2ca0e358c7b720161480ff48fe12cad1a32165` does not certify this follow-up commit.
+- Production `main` and the production deployment were not changed.
+
+### Next action
+- Let CI finish on this exact HEAD. Read the compact diagnostics first; download only small targeted failure evidence. Keep PR #307 as draft until P0 security, E2E, browser, mobile and role/context gates pass.
