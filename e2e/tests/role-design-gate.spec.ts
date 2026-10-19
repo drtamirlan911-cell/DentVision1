@@ -124,7 +124,7 @@ async function shellAudit(page: Page, role: Role, route: string) {
   expect(result.scrollWidth,role.id+' '+route+': document overflow').toBeLessThanOrEqual(result.clientWidth+2);
   expect(result.bodyWidth,role.id+' '+route+': body overflow').toBeLessThanOrEqual(result.clientWidth+2);
   expect(result.clipped,role.id+' '+route+': clipped text').toEqual([]);
-  expect(result.controls.filter(x=>x.w<36||x.h<36),role.id+' '+route+': undersized controls').toEqual([]);
+  expect(result.controls.filter(x=>x.w<36||x.h<36),role.id+' '+route+': undersized controls '+JSON.stringify(result.controls.filter(x=>x.w<36||x.h<36))).toEqual([]);
   expect(result.controls.filter(x=>!x.name),role.id+' '+route+': unnamed controls').toEqual([]);
   for(const forbidden of role.mustNotContain) expect(result.text,role.id+' '+route+': forbidden context visible').not.toMatch(forbidden);
 }

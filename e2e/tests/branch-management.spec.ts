@@ -70,7 +70,7 @@ test.describe('Clinic branch management', () => {
     await trigger.click();
     await expect(page.getByTestId('workspace-switcher-menu')).toBeVisible();
 
-    await page.getByRole('button', { name: branchName, exact: true }).click();
+    await page.getByRole('button', { name: new RegExp(branchName) }).click();
     await expect(trigger).toContainText(branchName, { timeout: 10000 });
 
     // Selecting a branch updates the active client context; verify propagation
