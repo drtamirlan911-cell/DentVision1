@@ -20,12 +20,16 @@ export type SyncQueueItem = {
 }
 
 function sanitizeQueueItem(item: SyncQueueItem): SyncQueueItem {
-  return {
+  const sanitized: SyncQueueItem = {
     ...item,
     // Remove patient names, phones, notes, diagnosis and other sensitive
     // fields before anything enters persistent browser storage.
     payload: sanitizeForLocalStorage(item.payload),
   }
+  // Raw API/network errors can echo patient-entered data. The UI only uses
+  // queue counts, so error text is neither needed nor safe to persist.
+  delete sanitized.lastError
+  return sanitized
 }
 
 function loadQueue(): SyncQueueItem[] {

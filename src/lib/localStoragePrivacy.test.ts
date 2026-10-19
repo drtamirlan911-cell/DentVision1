@@ -45,4 +45,19 @@ describe('localStorage patient-data privacy guard', () => {
     expect(containsSensitivePatientData({ displayLabel: 'contact 000000000000' })).toBe(true);
     expect(containsSensitivePatientData({ displayLabel: 'call +7 000 000 00 00' })).toBe(true);
   });
+  it('redacts identifier-like scalar strings in arrays while preserving opaque identifiers', () => {
+    const safe = sanitizeForLocalStorage({
+      patientId: 'opaque-patient-reference',
+      labels: [
+        'General consultation',
+        'call +7 777 123 45 67',
+        'record IIN 000000000000',
+      ],
+    });
+    expect(safe).toEqual({
+      patientId: 'opaque-patient-reference',
+      labels: ['General consultation'],
+    });
+  });
+
 });

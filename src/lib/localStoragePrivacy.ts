@@ -31,7 +31,16 @@ export function containsSensitivePatientData(value: unknown): boolean {
 
 /** Redact patient identifiers and clinical text from offline schedule payloads. */
 export function sanitizeForLocalStorage<T>(value: T): T {
-  if (Array.isArray(value)) return value.map((item) => sanitizeForLocalStorage(item)) as T;
+  if (Array.isArray(value)) {
+    // Array primitives are not reached by the object-field checks below.
+    // Redact identifier-like text there too, while preserving opaque IDs in named fields.
+    const safeItems = value.filter((item) => {
+      if (typeof item === 'string') return !containsSensitiveIdentifierText(item);
+      if (typeof item === 'number') return !containsSensitiveIdentifierText(String(item));
+      return true;
+    });
+    return safeItems.map((item) => sanitizeForLocalStorage(item)) as T;
+  }
   if (!value || typeof value !== 'object') return value;
   const result: Record<string, unknown> = {};
   for (const [key, child] of Object.entries(value as Record<string, unknown>)) {

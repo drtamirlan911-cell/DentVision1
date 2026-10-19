@@ -1177,3 +1177,19 @@ These changes are route/entry reconciliation only. Existing domain implementatio
 - Kept artifact uploads and compact failure summaries on `if: always()` so useful evidence is preserved when available.
 - Added RB-021 to the canonical blocker register. Exact-HEAD workflow behavior remains pending until the next full run completes.
 - No E2E application regression is inferred from the cancelled run's missing-Playwright errors. The final candidate must complete CI without being superseded by another push.
+
+
+## 2026-10-20 — Offline schedule queue privacy hardening
+
+### Finding and implementation
+- The actual Schedule flow uses `getSyncQueue()` to display only a pending-item count. However, failed sync items persisted the raw API/network exception in `lastError`, which was unnecessary and could carry patient-entered content.
+- Queue sanitization now removes `lastError` when reading or writing records, including legacy queue entries. The sanitizer also filters phone/IIN-like scalar strings from array values while preserving opaque IDs in named appointment/patient/clinic/doctor fields.
+- Added regression coverage for legacy persistent-queue cleanup and array scalar redaction.
+
+### Verification status
+- Changes are being committed on `security/payment-hardening-20261017` for a fresh exact-HEAD CI run.
+- The pre-fix run `39336772296` had reached browser UX coverage on HEAD `5433db239c863bc8269000ee4aaee34841bc1134`; it is not evidence for the new changes.
+- The release blockers remain open until the new HEAD passes unit, E2E, browser, mobile and role/context gates. Production `main` was not changed.
+
+### Next action
+- Inspect the fresh run's compact failure summary and execute only the failing area plus its neighboring regression matrix. Keep PR #307 as draft until the P0 security and release gates pass.
