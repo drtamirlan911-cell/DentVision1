@@ -50,11 +50,19 @@ async function writeEvidence(page: Page, role: AgentRole, viewportId: string, ch
   const dir = path.join(EVIDENCE_ROOT, role.id, viewportId);
   await ensureDir(dir);
   const stem = safeName(checkpoint);
-  await page.screenshot({ path: path.join(dir, stem + '.png'), fullPage: true });
+  // Preserve a full-page baseline and an after-action screenshot. Scroll/restore
+  // checkpoints keep compact text + geometry evidence; duplicating full-page PNG
+  // and HTML at every checkpoint made CI artifacts exceed 1.7 GB.
+  const detailedCheckpoint = checkpoint.startsWith('01_') || checkpoint.includes('_after_action');
+  if (detailedCheckpoint) {
+    await page.screenshot({ path: path.join(dir, stem + '.png'), fullPage: checkpoint.startsWith('01_') });
+  }
   const snapshot = await page.locator('body').innerText().catch(() => '');
   await fs.writeFile(path.join(dir, stem + '.txt'), snapshot, 'utf8');
-  const html = await page.locator('body').evaluate(el => el.outerHTML).catch(() => '');
-  await fs.writeFile(path.join(dir, stem + '.html'), html, 'utf8');
+  if (detailedCheckpoint) {
+    const html = await page.locator('body').evaluate(el => el.outerHTML).catch(() => '');
+    await fs.writeFile(path.join(dir, stem + '.html'), html, 'utf8');
+  }
 
   const geometry = await page.evaluate(() => {
     const visible = (el: Element) => {

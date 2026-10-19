@@ -70,12 +70,20 @@ test.describe('Clinic branch management', () => {
     await trigger.click();
     await expect(page.getByTestId('workspace-switcher-menu')).toBeVisible();
 
-    await page.getByRole('button', { name: new RegExp(branchName) }).click();
-    await expect(trigger).toContainText(branchName, { timeout: 10000 });
+    const branchOption = () => page.getByRole('button', { name: new RegExp(branchName) });
+    await branchOption().click();
+    await expect(page.getByTestId('workspace-switcher-menu')).toBeHidden();
 
-    // Selecting a branch updates the active client context; verify propagation
-    // on the next real data request instead of assuming the selector itself
-    // must issue a request (which made the old test race-prone).
+    // The trigger displays the organization/workspace name, not the selected
+    // branch name. Reopen the menu and assert the selected branch's semantic
+    // state rather than asserting unrelated trigger text.
+    await trigger.click();
+    await expect(page.getByTestId('workspace-switcher-menu')).toBeVisible();
+    await expect(branchOption()).toHaveAttribute('aria-current', 'true');
+    await trigger.click();
+
+    // Verify branch context on the next real data request. The branch selector
+    // itself updates the client context and need not issue a data request.
     const branchRequest = page.waitForRequest(
       (request) => request.url().includes('/api/') && Boolean(request.headers()['x-dentvision-branch-id']),
       { timeout: 15000 },
@@ -83,9 +91,11 @@ test.describe('Clinic branch management', () => {
     await page.goto(`${BASE}/crm/patients`);
     const request = await branchRequest;
     expect(request.headers()['x-dentvision-branch-id']).toBe(branchId);
-    await expect(page.getByTestId('workspace-switcher-trigger')).toContainText(branchName);
+
     await page.reload();
-    await expect(page.getByTestId('workspace-switcher-trigger')).toContainText(branchName);
+    await trigger.click();
+    await expect(page.getByTestId('workspace-switcher-menu')).toBeVisible();
+    await expect(branchOption()).toHaveAttribute('aria-current', 'true');
   });
 
 });
