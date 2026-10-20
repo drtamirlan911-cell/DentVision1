@@ -214,6 +214,22 @@
 - **Source:** [official Playwright CLI documentation](https://playwright.dev/docs/getting-started-cli) and [official repository](https://github.com/microsoft/playwright-cli).
 - **Remaining:** ensure the exact-head workflow completes CLI install, skills, real browser login/navigation smoke and visual evidence validation.
 
+### RB-027 — Role/context gate test file does not parse
+- **Status:** IN PROGRESS — exact-HEAD verification pending
+- **Priority:** P0 for release verification
+- **Area:** CI / IAM / release evidence
+- **Observed:** CI run `39345487645` failed before the role/context matrix could execute. `e2e/tests/role-design-gate.spec.ts` had an unclosed `auditRoute` function before the partner-context test, producing a parser error at EOF. The visual evidence gate then failed because the expected role screenshots were absent.
+- **Fix on branch:** commit `f479ebce86694e134a631a4fe076b1ca367debea` closes the function before the next test declaration.
+- **Verification:** exact-HEAD CI must show the role/context tests actually execute and produce the required role/viewport screenshots; the downstream visual release gate must then pass. Do not close based on the syntax fix alone.
+
+### RB-028 — Visual Agent expects the wrong student entry route
+- **Status:** IN PROGRESS — exact-HEAD verification pending
+- **Priority:** P1
+- **Area:** Role-aware onboarding / Visual Agent
+- **Observed:** Visual Agent failed for `regular@test.com` because the test expected `/ai` while the authenticated response reported effective role `STUDENT` and the application correctly routed to `/school`.
+- **Fix on branch:** commit `d0d4d10798b0b4873f14e6028988d84425ed8923` updates the fixture's expected entry route to `/school` without changing application behavior.
+- **Verification:** exact-HEAD Visual Agent must complete all role/viewport journeys; preserve the student workspace assertion.
+
 ## Operating rule
 When a new blocker is discovered:
 1. Add it here with a stable ID.
