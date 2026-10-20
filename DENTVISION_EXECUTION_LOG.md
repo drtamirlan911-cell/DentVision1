@@ -1263,3 +1263,21 @@ These changes are route/entry reconciliation only. Existing domain implementatio
 
 ### Next action
 - Inspect the next exact-head compact failure summary and only then fix remaining root causes, including the Safari CORS requests if still reproducible after the development-origin alias.
+
+## 2026-10-20 — Repair role-gate compilation and align student visual expectation
+
+### Findings
+- Exact-HEAD CI run `39345487645` failed the role/context gate before executing its tests: `e2e/tests/role-design-gate.spec.ts` left `auditRoute` unclosed before the partner-context test, producing a TypeScript/Playwright parser error at EOF. The visual evidence gate then failed downstream because role screenshots were never generated.
+- The dedicated Visual Agent also rejected the regular student fixture because its test still expected `/ai`, while the intended student workspace is `/school`.
+
+### Implemented on `security/payment-hardening-20261017`
+- Commit `f479ebce86694e134a631a4fe076b1ca367debea`: closed `auditRoute` before declaring the partner-context test, restoring valid test-file structure.
+- Commit `d0d4d10798b0b4873f14e6028988d84425ed8923`: aligned the Visual Agent student entry expectation with the School workspace route.
+- `main` remains unchanged. PR #307 remains draft.
+
+### Verification
+- Both commits have triggered new GitHub Actions runs. The fixes are **UNVERIFIED** until exact-HEAD CI, role/context, Visual Agent and visual evidence gates complete successfully.
+- Do not interpret the downstream missing-screenshot failure as an independent product regression until the role gate runs again.
+
+### Next action
+- Inspect the latest exact-HEAD CI result and compact failure summary. Fix genuine remaining failures without weakening role, tenant, clinical, payment or visual assertions.
