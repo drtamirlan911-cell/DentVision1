@@ -1281,3 +1281,17 @@ These changes are route/entry reconciliation only. Existing domain implementatio
 
 ### Next action
 - Inspect the latest exact-HEAD CI result and compact failure summary. Fix genuine remaining failures without weakening role, tenant, clinical, payment or visual assertions.
+
+## 2026-10-20 — PHI storage and offline queue integrity review
+
+### Confirmed source findings
+- `dentvision-backend/src/lib/phi.ts` encrypts Patient IIN through the dedicated `patientIin.ts` path, but `encryptPatientFields` only handles string-valued `medicalHistory`.
+- The canonical patient create/update routes currently persist `medicalHistory` as a Prisma JSON object, so the existing helper does not encrypt that JSON object. Do not mark the patient-data encryption requirement complete on the basis of IIN encryption alone.
+- `src/lib/syncQueue.ts` redacts PHI before writing offline queue/cache entries to localStorage. The queue flush subsequently submits the sanitized payload to `api.upsertAppointment`; an end-to-end contract check is needed to ensure redaction does not silently turn an offline edit into a partial appointment update.
+- These are newly recorded blockers RB-029 and RB-030 in `docs/RELEASE_BLOCKERS.md`.
+
+### Required next actions
+1. Map all patient clinical-history write/read consumers before choosing a field-encryption strategy. Preserve JSON-dependent clinical workflows and authorized API responses; never encrypt the entire JSON column without compatibility design.
+2. Build an audited, resumable migration/backfill plan for legacy plaintext values with dry-run, integrity checks, progress counts and rollback safeguards.
+3. Test offline appointment create/update/reconnect/flush against the real API contract while asserting that PHI and raw error text never persist in browser storage.
+4. Continue exact-HEAD CI and release-gate triage. The last observed candidate has frontend lint, backend lint, unit/build Quality Gate and Android passing; the long E2E job is still running. No release-ready claim is permitted until it completes and all required gates pass.
