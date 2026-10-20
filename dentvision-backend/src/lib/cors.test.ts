@@ -52,7 +52,10 @@ describe('isOriginAllowedByPolicy', () => {
 
   it('allows only explicit development localhost exceptions', () => {
     expect(isOriginAllowedByPolicy('http://localhost:5173', { production: false, origins: [] })).toBe(true);
+    expect(isOriginAllowedByPolicy('http://localhost:3000', { production: false, origins: [] })).toBe(true);
+    expect(isOriginAllowedByPolicy('http://127.0.0.1:3000', { production: false, origins: [] })).toBe(true);
     expect(isOriginAllowedByPolicy('http://localhost:9999', { production: false, origins: [] })).toBe(false);
+    expect(isOriginAllowedByPolicy('http://127.0.0.1:9999', { production: false, origins: [] })).toBe(false);
     expect(isOriginAllowedByPolicy('https://attacker.vercel.app', { production: false, origins: [] })).toBe(false);
   });
 });

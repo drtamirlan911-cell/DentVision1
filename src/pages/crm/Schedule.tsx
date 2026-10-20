@@ -937,7 +937,7 @@ export default function Schedule() {
               <Button variant="ghost" size="icon-sm" aria-label="Назад" onClick={() => shiftPeriod(-1)} className="!min-w-11 !min-h-11"><ChevronLeft size={16} /></Button>
               <DatePicker value={selDate} onChange={e => setSelDate(e.target.value)}
                 size="sm" aria-label="Дата"
-                className="!h-9 !text-sm bg-white/[0.04] border-bdr-subtle min-w-0" />
+                className="!h-10 !min-h-10 !text-sm bg-white/[0.04] border-bdr-subtle min-w-0" />
               <Button variant="ghost" size="icon-sm" aria-label="Вперёд" onClick={() => shiftPeriod(1)} className="!min-w-11 !min-h-11"><ChevronRight size={16} /></Button>
               <Button variant="outline" size="sm" onClick={() => setSelDate(today())} className="!min-h-10">Сегодня</Button>
 

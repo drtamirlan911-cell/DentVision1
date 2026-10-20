@@ -1238,3 +1238,28 @@ These changes are route/entry reconciliation only. Existing domain implementatio
 
 ### Next action
 - Read the compact E2E failure summary from the new exact-head run, fix failures without relaxing assertions, and close RB-024 only after the role/context and downstream visual/business release gates finish.
+
+
+## 2026-10-20 — Role gate regressions and CLI smoke repair
+
+### Evidence from run `39341057868` on HEAD `794638197e17a0cbd46180ca1406c31e67839a1d`
+- Core E2E passed (230 tests / 43.4 seconds), browser UX and mobile design gate passed, Quality Gate and Android passed, Visual Agent passed, and both business-owner and organization-owner journeys passed. Role/context failed on actual findings.
+- Failure artifacts identified: (1) `/community` is an intentional public feed but absent from the test's public-route policy; (2) `regular@test.com` is a real `STUDENT` fixture but login redirected it to `/ai` rather than `/school`; (3) Documents action targets were 32×32px; (4) Schedule date picker and School actions were fractionally below the 36px threshold; (5) Reminders tab text “Контроль (хирургия)” was clipped by 4px; (6) Safari/WebKit requests to `/api/guest/session` and `/api/ai/proactive` failed CORS checks. The CI origin may be represented as `127.0.0.1:3000` by WebKit, so this alias is allowed in development only, with regression assertions. Production CORS policy is unchanged.
+- The serial role-test group stopped on the first failure, skipped later role cases and left screenshots missing from the visual manifest. It now runs as independent tests under the existing single-worker Playwright configuration; an afterEach hook preserves the per-role/per-viewport screenshot when a genuine assertion fails.
+- Route-level authorization, DOM/accessibility checks, all explicit and discovered routes, anonymous protected-route checks, tenant isolation and all 36px touch-target assertions remain enabled. Reload/back/forward testing is exercised once per role rather than redundantly after every route.
+- The Playwright CLI smoke could not start because the workflow called `npx playwright-cli` after installing `@playwright/cli`, producing `npm error could not determine executable to run`; its skills step used `--skills=agents` instead of the official `--skills` option. The workflow now installs globally in the ephemeral runner and calls `playwright-cli` directly.
+
+### Implemented on the branch
+- Student landing redirect corrected without overriding scoped partner contexts whose base database role is STUDENT.
+- Community test policy aligned to the existing public route/component contract and a guest-feed smoke test added.
+- Document icon actions, School catalog actions, Schedule date picker and Reminders tabs fixed for touch targets and clipped text.
+- Development-only CORS loopback alias coverage added; production HTTPS origin allowlist remains fail-closed.
+- Playwright CLI install/invocation corrected against official documentation.
+- Added/updated RB-003, RB-025 and RB-026. No production deployment or mainline edit was performed.
+
+### Verification status
+- All changes in this entry are **UNVERIFIED** until the new exact-HEAD CI, role/context gate, Visual Agent, business-owner and organization-owner gates finish.
+- Do not close RB-003/RB-025/RB-026 solely because code has changed. PR #307 remains draft.
+
+### Next action
+- Inspect the next exact-head compact failure summary and only then fix remaining root causes, including the Safari CORS requests if still reproducible after the development-origin alias.

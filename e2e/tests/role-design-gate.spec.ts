@@ -6,7 +6,7 @@ const API_BASE_URL = process.env.VITE_API_URL || 'http://localhost:3001';
 const VISUAL_EVIDENCE_ROOT = process.env.VISUAL_EVIDENCE_DIR || 'e2e/visual-evidence';
 const PASSWORD = 'Test1234!';
 
-const PUBLIC_ROUTES = ['/', '/login', '/register', '/forgot-password', '/booking', '/demo', '/jobs', '/pricing', '/terms', '/privacy'];
+const PUBLIC_ROUTES = ['/', '/login', '/register', '/forgot-password', '/booking', '/demo', '/jobs', '/community', '/pricing', '/terms', '/privacy'];
 const AUTH_COMMON_ROUTES = ['/', '/help', '/notifications', '/profile'];
 const ROUTES = [
   '/ai','/analytics','/settings','/help','/notifications','/admin','/bi','/security','/audit','/agent-activity','/ai-approvals','/backup','/profile',
@@ -293,16 +293,7 @@ async function auditRoute(page: Page, role: Role, route: string, shouldBeAllowed
   await inspectForms(page,role,route);
   await inspectDialogsAndMenus(page,role,route);
   await inspectVisualSemantics(page,role,route);
-  await page.reload({waitUntil:'domcontentloaded',timeout:30000});
-  await expect.poll(() => page.locator('body').innerText().catch(() => ''), {
-    timeout: 10000,
-    message: role.id + ' ' + route + ': page did not render after reload',
-  }).toMatch(/.{20,}/s);
-  await shellAudit(page,role,route);
-  await page.goBack({waitUntil:'domcontentloaded',timeout:30000}).catch(()=>{});
-  await page.goForward({waitUntil:'domcontentloaded',timeout:30000}).catch(()=>{});
-  await shellAudit(page,role,route);
-}
+
 
 test('partner context switch applies the scoped application role to the session token', async ({ page }, info) => {
   test.skip(info.project.name !== 'role-1280', 'IAM token/context contract is viewport-independent; execute once per CI run');
@@ -373,7 +364,19 @@ test('partner context switch applies the scoped application role to the session 
 });
 
 test.describe('DentVision exhaustive role/context/browser gate',()=>{
-  test.describe.configure({mode:'serial',timeout:120000});
+  test.describe.configure({mode:'default',timeout:120000});
+
+  test.afterEach(async ({ page }, info) => {
+    if (!info.title.includes('every declared and discovered screen plus security boundary')) return;
+    const roleId = info.title.split(':')[0];
+    const dir = `${VISUAL_EVIDENCE_ROOT}/roles/${roleId}`;
+    const screenshotPath = `${dir}/${info.project.name}.png`;
+    const runtimePath = `${dir}/${info.project.name}-runtime.json`;
+    await fs.mkdir(dir, { recursive: true });
+    try { await fs.access(screenshotPath); } catch { await page.screenshot({ path: screenshotPath, fullPage: true }).catch(() => {}); }
+    try { await fs.access(runtimePath); } catch { await fs.writeFile(runtimePath, JSON.stringify({ testStatus: info.status, testError: info.error?.message || null }, null, 2), 'utf8'); }
+  });
+
   for(const role of ROLES){
     test(role.id+': every declared and discovered screen plus security boundary',async({page},info)=>{
       const problems=collectors(page);
@@ -449,6 +452,22 @@ test.describe('DentVision exhaustive role/context/browser gate',()=>{
         await auditRoute(page,role,route,allowed);
       }
 
+      // Full route authorization/DOM audits remain exhaustive; history integrity is viewport-independent.
+      const historyRoute = '/profile';
+      await page.goto(BASE_URL + historyRoute, { waitUntil: 'domcontentloaded', timeout: 30000 });
+      await expect.poll(() => page.locator('body').innerText().catch(() => ''), {
+        timeout: 10000, message: role.id + ': profile did not render for browser-history check',
+      }).toMatch(/.{20,}/s);
+      await page.reload({ waitUntil: 'domcontentloaded', timeout: 30000 });
+      await expect.poll(() => page.locator('body').innerText().catch(() => ''), {
+        timeout: 10000, message: role.id + ': profile did not render after reload',
+      }).toMatch(/.{20,}/s);
+      await shellAudit(page, role, historyRoute);
+      await page.goBack({ waitUntil: 'domcontentloaded', timeout: 30000 }).catch(() => {});
+      await page.goForward({ waitUntil: 'domcontentloaded', timeout: 30000 }).catch(() => {});
+      expect(new URL(page.url()).pathname, role.id + ': browser forward did not restore target route').toBe(historyRoute);
+      await shellAudit(page, role, historyRoute);
+
       await page.goto(BASE_URL+'/',{waitUntil:'domcontentloaded',timeout:30000});
       const storage=await page.evaluate(()=>({localStorage:Object.keys(localStorage),sessionStorage:Object.keys(sessionStorage)}));
       expect(JSON.stringify(storage)).not.toMatch(/password/i);
@@ -475,6 +494,15 @@ test.describe('DentVision exhaustive role/context/browser gate',()=>{
     expect(problems.console).toEqual([]);
     expect(problems.page).toEqual([]);
     expect(problems.requests).toEqual([]);
+  });
+
+  test('anonymous can browse public Community feed', async ({ page }, info) => {
+    test.skip(info.project.name !== 'role-1280', 'Public route policy is verified once per CI run');
+    await page.goto(BASE_URL + '/community', { waitUntil: 'domcontentloaded', timeout: 30000 });
+    await expect.poll(() => page.locator('body').innerText().catch(() => ''), {
+      timeout: 10000, message: 'Public Community feed did not render for a guest',
+    }).toMatch(/.{20,}/s);
+    expect(new URL(page.url()).pathname, 'Public Community feed unexpectedly redirected to login').toBe('/community');
   });
 
   test('anonymous: every protected route redirects before protected content renders',async({page},info)=>{

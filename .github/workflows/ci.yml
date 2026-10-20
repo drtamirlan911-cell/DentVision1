@@ -242,11 +242,11 @@ jobs:
       - name: Install official Playwright CLI
         # Continue after failed tests, but never run a new suite after workflow cancellation.
         if: ${{ !cancelled() }}
-        run: npm install --no-save --package-lock=false @playwright/cli@latest
+        run: npm install --global @playwright/cli@latest
       - name: Install Playwright agent skills
         # Continue after failed tests, but never run a new suite after workflow cancellation.
         if: ${{ !cancelled() }}
-        run: npx playwright-cli install --skills=agents
+        run: playwright-cli install --skills
       - name: Run Playwright CLI browser smoke
         # Continue after failed tests, but never run a new suite after workflow cancellation.
         if: ${{ !cancelled() }}
@@ -255,12 +255,12 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p .playwright-cli
-          npx playwright-cli --version
-          npx playwright-cli open 'http://localhost:3000/login?role=owner'
-          npx playwright-cli fill 'input[autocomplete="username"]' 'owner-a@test.com'
-          npx playwright-cli fill 'input[autocomplete="current-password"]' 'Test1234!'
-          npx playwright-cli click "getByRole('button', { name: 'Войти в DentVision' })"
-          npx playwright-cli snapshot --filename=.playwright-cli/ci-authenticated.yml
+          playwright-cli --version
+          playwright-cli open 'http://localhost:3000/login?role=owner'
+          playwright-cli fill 'input[autocomplete="username"]' 'owner-a@test.com'
+          playwright-cli fill 'input[autocomplete="current-password"]' 'Test1234!'
+          playwright-cli click "getByRole('button', { name: 'Войти в DentVision' })"
+          playwright-cli snapshot --filename=.playwright-cli/ci-authenticated.yml
           test -s .playwright-cli/ci-authenticated.yml
           grep -q "DentVision" .playwright-cli/ci-authenticated.yml
           for route in \
@@ -280,15 +280,15 @@ jobs:
             /shop \
             /school; do
             safe_name=$(printf '%s' "$route" | tr '/-' '__')
-            npx playwright-cli goto "http://localhost:3000$route"
-            npx playwright-cli snapshot --filename=".playwright-cli/${safe_name}.yml"
+            playwright-cli goto "http://localhost:3000$route"
+            playwright-cli snapshot --filename=".playwright-cli/${safe_name}.yml"
             test -s ".playwright-cli/${safe_name}.yml"
             if grep -Eqi 'Application error|ChunkLoadError|Failed to fetch dynamically imported module|Something went wrong' ".playwright-cli/${safe_name}.yml"; then
               echo "Playwright CLI found an application error on $route" >&2
               exit 1
             fi
           done
-          npx playwright-cli close
+          playwright-cli close
       - name: Validate visual release evidence
         # Continue after failed tests, but never run a new suite after workflow cancellation.
         if: ${{ !cancelled() }}

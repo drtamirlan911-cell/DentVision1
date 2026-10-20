@@ -130,10 +130,10 @@
 - **Status:** IN PROGRESS — exact-HEAD visual recheck pending
 - **Priority:** P0
 - **Area:** Responsive / Accessibility
-- **Observed:** Patient Portal / Shop and consent-related controls were below the required touch target. The focused visual artifact from E2E run `39336772296` also found Schedule toolbar buttons “Сегодня”, “День” and “Неделя” with raw heights below the 36px gate; displayed dimensions were rounded to 36px in diagnostics, masking the fractional-pixel shortfall.
-- **Fix on branch:** the Schedule “Сегодня”, day/week and view-mode controls now enforce a 40px minimum height. The test remains at its original 36px threshold.
-- **Verification:** re-run all critical mobile/tablet widths, role contexts and interactive states on the exact candidate HEAD.
- 
+- **Observed:** Patient Portal / Shop and consent-related controls were below the required touch target. E2E run `39341057868` additionally reported 32×32px document action controls, the Schedule date picker at 35.99998px, and School catalog actions measured just below 36px. The 36px assertion is intentional and remains unchanged.
+- **Fix on branch:** Schedule date picker now has an explicit 40px height; School catalog action buttons enforce 40px minimum height; document icon actions enforce 40×40px targets and may wrap without horizontal overflow. Reminders tabs use a responsive two/four-column grid with wrapping labels.
+- **Verification:** rerun all critical mobile/tablet widths and role contexts, including keyboard/touch interactions and screenshots.
+
 ### RB-004 — Full visual/design release evidence
 - **Status:** OPEN
 - **Priority:** P0
@@ -196,6 +196,23 @@
 - **Fix on branch:** keep the exhaustive role, route, anonymous-access and cross-tenant checks once at `role-1280`; run role-specific critical-screen layout/DOM/accessibility audits and retain per-role/per-viewport screenshots on all remaining viewport projects; skip duplicate viewport-independent IAM/tenant/anonymous assertions; retry route discovery only after an SPA context-destroyed error.
 - **Coverage preserved:** mobile design gate and Visual Agent remain separate; the visual release manifest still receives its required role screenshot for every viewport. The 36px interactive-control threshold and authorization assertions are unchanged. The CI already specifies a 60-minute E2E job timeout and that bound remains in place.
 - **Remaining:** verify the new exact HEAD completes core E2E, browser UX, mobile, role/context, Visual Agent, business-owner and organization-owner gates; inspect the compact failure summary before resolving this blocker.
+
+### RB-025 — Role gate exposed auth/route and responsive UI regressions
+- **Status:** IN PROGRESS — exact-HEAD CI verification pending
+- **Priority:** P0
+- **Area:** IAM / RBAC / responsive release gate
+- **Observed:** role/context gate on `7946381` failed because `/community` is an intentionally unguarded public feed but was classified as forbidden by the test policy; E2E STUDENT fixture `regular@test.com` was redirected to `/ai` instead of its `/school` workspace; and responsive controls had the undersized/clipped issues recorded under RB-003.
+- **Fix on branch:** explicitly classify Community as public and add an anonymous-feed smoke check; student/regular/learner accounts with a student effective role land on School, while partner contexts whose base DB role is STUDENT continue to honor their scoped `effectiveRole`; allow role tests to report independently and preserve failure screenshots; keep the 36px release assertion unchanged.
+- **Remaining:** exact-head CI must verify public vs protected routes, all role route matrices, cross-tenant isolation, responsive controls and per-role/per-viewport evidence.
+
+### RB-026 — Playwright CLI smoke never reaches browser checks
+- **Status:** IN PROGRESS — exact-HEAD workflow verification pending
+- **Priority:** P1
+- **Area:** CI / browser verification
+- **Observed:** workflow `39341057868` installed `@playwright/cli` locally but then invoked it through `npx playwright-cli`, which returned `npm error could not determine executable to run`; the skills command also used the unsupported `--skills=agents` argument.
+- **Fix on branch:** install the official CLI globally in the ephemeral GitHub runner, call its `playwright-cli` binary directly, and use `playwright-cli install --skills`. The browser smoke routes and application-error assertions are unchanged.
+- **Source:** [official Playwright CLI documentation](https://playwright.dev/docs/getting-started-cli) and [official repository](https://github.com/microsoft/playwright-cli).
+- **Remaining:** ensure the exact-head workflow completes CLI install, skills, real browser login/navigation smoke and visual evidence validation.
 
 ## Operating rule
 When a new blocker is discovered:
