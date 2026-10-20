@@ -293,7 +293,7 @@ async function auditRoute(page: Page, role: Role, route: string, shouldBeAllowed
   await inspectForms(page,role,route);
   await inspectDialogsAndMenus(page,role,route);
   await inspectVisualSemantics(page,role,route);
-
+}
 
 test('partner context switch applies the scoped application role to the session token', async ({ page }, info) => {
   test.skip(info.project.name !== 'role-1280', 'IAM token/context contract is viewport-independent; execute once per CI run');
