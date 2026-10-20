@@ -19,7 +19,7 @@ const ROLES: readonly AgentRole[] = [
   { id: 'doctor', email: 'doctor-a@test.com', entry: /\/ai|\/crm/, journeys: ['/ai','/crm/dental-chart','/diagnostics/referrals'] },
   { id: 'assistant', email: 'assistant-a@test.com', entry: /\/ai|\/crm/, journeys: ['/crm/schedule','/crm/visits','/diagnostics/referrals'] },
   { id: 'manager', email: 'manager-a@test.com', entry: /\/ai|\/crm/, journeys: ['/ai','/crm/staff','/analytics'] },
-  { id: 'regular', email: 'regular@test.com', entry: /\/ai$/, journeys: ['/school','/profile'] },
+  { id: 'regular', email: 'regular@test.com', entry: /\/school(?:$|[?#])/, journeys: ['/school','/profile'] },
   { id: 'patient', email: 'patient@dentvision.kz', entry: /\/patient-portal/, journeys: ['/patient-portal','/shop'] },
   { id: 'diagnostic-owner', email: 'diagnostic-owner@test.com', entry: /\/diagnostics\/center/, journeys: ['/diagnostics/center','/diagnostics/results','/diagnostics/settings'] },
   { id: 'diagnostic-operator', email: 'diagnostic-operator@test.com', entry: /\/diagnostics\/center/, journeys: ['/diagnostics/center','/diagnostics/results'] },
