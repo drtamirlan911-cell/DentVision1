@@ -4,6 +4,24 @@
 
 ## Open
 
+### RB-029 — Patient clinical history JSON is not encrypted at rest
+- **Status:** OPEN — implementation gap confirmed by source inspection
+- **Priority:** P0
+- **Area:** PHI / clinical data protection
+- **Evidence:** `dentvision-backend/src/lib/phi.ts` encrypts `iin` and `medicalHistory` only when those values are strings. The canonical Patient write path in `dentvision-backend/src/modules/patients/patients.routes.ts` persists `medicalHistory` as a Prisma JSON object (`history as Prisma.InputJsonValue`); the PATCH path likewise merges and persists the object directly. The encrypted IIN path does not prove the clinical-history JSON is encrypted.
+- **Risk:** allergies, clinical notes, categories, source metadata and tooth/clinical details may remain readable in database backups or dumps, depending on their exact contents. Phone, email, address and notes also remain searchable plaintext fields by current design and require a documented threat-model decision.
+- **Required fix:** map all Patient write/read paths and downstream consumers first. Design field-level encryption or a compatible encrypted-at-rest storage strategy without breaking JSON queries, reports, AI context, clinical workflows, or historical records. Include an audited migration/backfill with dry-run, resumability, counts, integrity checks and rollback plan. Do not encrypt the entire JSON column blindly.
+- **Verification:** tests must prove plaintext does not appear in persisted sensitive fields, API responses remain correctly decrypted for authorized roles, tenant/branch boundaries hold, legacy records remain readable during migration, and failed/missing keys fail closed in production.
+
+### RB-030 — Offline appointment queue privacy redaction may drop required sync fields
+- **Status:** OPEN — behavior requires end-to-end verification
+- **Priority:** P1
+- **Area:** Offline schedule / data integrity / privacy
+- **Evidence:** `src/lib/syncQueue.ts` sanitizes queue payloads before persistence and removes patient names, phone, notes, diagnosis and other fields; `flushSyncQueue` later submits the sanitized payload to `api.upsertAppointment`. This protects localStorage from PHI but may silently turn an offline edit into a partial appointment update if the API requires any redacted field.
+- **Required fix:** verify the exact upsert contract and define an explicit offline-safe payload containing only durable IDs and editable non-PHI fields, or move the sensitive queue to an appropriately encrypted storage mechanism with a key lifecycle. Never reintroduce plaintext PHI to localStorage to make sync pass.
+- **Verification:** E2E must create/edit an appointment offline, reconnect, flush, and verify server-side state and patient association without storing patient names, contact data, clinical notes or raw errors in browser storage.
+
+
 ### RB-010 — Payment amount, subscription entitlement and metadata trust
 - **Status:** IN PROGRESS — exact-HEAD CI verification pending
 - **Priority:** P0
