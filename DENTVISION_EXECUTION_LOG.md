@@ -1295,3 +1295,14 @@ These changes are route/entry reconciliation only. Existing domain implementatio
 2. Build an audited, resumable migration/backfill plan for legacy plaintext values with dry-run, integrity checks, progress counts and rollback safeguards.
 3. Test offline appointment create/update/reconnect/flush against the real API contract while asserting that PHI and raw error text never persist in browser storage.
 4. Continue exact-HEAD CI and release-gate triage. The last observed candidate has frontend lint, backend lint, unit/build Quality Gate and Android passing; the long E2E job is still running. No release-ready claim is permitted until it completes and all required gates pass.
+
+
+## 2026-10-20 — Role/context release-gate follow-up
+
+### Evidence from exact candidate `470498beb379d32775497cda00bfe8a39eefe157`
+- Workflow run `39355354936` completed. Backend lint, frontend lint, build/typecheck/unit tests, core E2E, Browser UX, mobile design gate, Visual Agent, business-owner journeys, organization-owner lifecycle, Playwright CLI smoke, and visual evidence validation passed.
+- The role/context gate failed with 87 attempts, clustered rather than 87 independent source defects: repeated `toContainText('DentVision')` failures on valid authenticated workspace content (not all partner/consent screens carry the wordmark), role identity missing because a generic workspace label `Участник` masked the effective role, support's default `/ai` landing route, and WebKit API fetch errors referencing `localhost:3001`.
+- The exact-run log showed the runtime errors are in the page-error collector; they are not being filtered out. The browser-facing API base is changed to IPv4 loopback for the next run, with RB-031 kept open until WebKit proves this removes the errors.
+- Follow-up code changes: (1) identity labels use a non-generic active role label or fall back through effective role and user roles before a generic workspace role key; (2) support/superadmin/developer entry routes go to `/admin`; (3) authenticated workspace checks validate rendered content and reject login redirection instead of requiring a literal brand string on every screen; (4) CI WebKit API base targets `127.0.0.1`.
+- The changes are **NOT VERIFIED** until CI on the new exact head completes. Keep PR #307 draft; do not merge or deploy.
+- Previously confirmed unrelated P0/P1 blockers remain open, including RB-010–RB-019, RB-029 (clinical-history JSON encryption design/backfill) and RB-030 (offline sync integrity/privacy). Do not infer closure from the role-gate changes.

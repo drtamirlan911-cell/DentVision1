@@ -96,7 +96,7 @@ jobs:
       KASPI_CALLBACK_SECRET: e2e-ci-kaspi-callback-secret-not-for-prod-0000
       PAYMENTS_SANDBOX: 'true'
       PLAYWRIGHT_UI_URL: http://localhost:3000
-      VITE_API_URL: http://localhost:3001
+      VITE_API_URL: http://127.0.0.1:3001
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4

@@ -22,6 +22,14 @@
 - **Verification:** E2E must create/edit an appointment offline, reconnect, flush, and verify server-side state and patient association without storing patient names, contact data, clinical notes or raw errors in browser storage.
 
 
+### RB-031 — WebKit role-gate API calls fail with access-control/network errors
+- **Status:** IN PROGRESS — exact-HEAD verification pending
+- **Priority:** P1
+- **Area:** CI browser compatibility / API connectivity
+- **Observed:** run `39355354936` passed Chromium-based core E2E, Browser UX and mobile design, but the WebKit responsive role gate collected repeated page errors for `/api/guest/session` and `/api/ai/proactive` when calling `http://localhost:3001`. They are counted as runtime errors and must not be suppressed as harmless noise.
+- **Follow-up:** CI's browser-facing API base was switched to `http://127.0.0.1:3001` so WebKit is not dependent on how `localhost` resolves inside the runner. The page origin remains `http://localhost:3000`, which is explicitly allowed by the development CORS policy.
+- **Remaining:** verify the next full role/context run has no WebKit page/request/server errors and that explicit CORS policy tests still pass. If it fails, inspect the specific failed request and response headers rather than weakening the collector.
+
 ### RB-010 — Payment amount, subscription entitlement and metadata trust
 - **Status:** IN PROGRESS — exact-HEAD CI verification pending
 - **Priority:** P0
@@ -221,7 +229,9 @@
 - **Area:** IAM / RBAC / responsive release gate
 - **Observed:** role/context gate on `7946381` failed because `/community` is an intentionally unguarded public feed but was classified as forbidden by the test policy; E2E STUDENT fixture `regular@test.com` was redirected to `/ai` instead of its `/school` workspace; and responsive controls had the undersized/clipped issues recorded under RB-003.
 - **Fix on branch:** explicitly classify Community as public and add an anonymous-feed smoke check; student/regular/learner accounts with a student effective role land on School, while partner contexts whose base DB role is STUDENT continue to honor their scoped `effectiveRole`; allow role tests to report independently and preserve failure screenshots; keep the 36px release assertion unchanged.
-- **Remaining:** exact-head CI must verify public vs protected routes, all role route matrices, cross-tenant isolation, responsive controls and per-role/per-viewport evidence.
+- **Latest exact-HEAD evidence:** run `39355354936` at `470498beb379d32775497cda00bfe8a39eefe157` completed the role/context job but failed 87 test attempts. The failures cluster into four areas: brittle requirement for the literal `DentVision` string on valid authenticated workspace/consent screens; generic/missing visible role labels for `superadmin` and the clinic lab fixture; support routed to `/ai`; and WebKit runtime errors associated with requests to `localhost:3001`. Other gates in that run passed, but the overall CI job failed.
+- **Follow-up fixes on branch:** entry-screen checks validate authenticated rendered content and reject a login redirect instead of requiring brand text on every workspace; generic role labels fall back to the resolved active/effective/global role; `superadmin`, `support`, and `developer` land in the platform admin workspace; the CI browser API target uses IPv4 loopback to remove localhost IPv4/IPv6 ambiguity.
+- **Remaining:** run exact-HEAD CI again; verify the visible role labels, supported platform entry routes, public/protected route matrix, cross-tenant isolation, responsive controls and per-role/per-viewport evidence. The WebKit network fix is a hypothesis until the next run passes.
 
 ### RB-026 — Playwright CLI smoke never reaches browser checks
 - **Status:** IN PROGRESS — exact-HEAD workflow verification pending

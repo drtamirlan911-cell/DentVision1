@@ -381,7 +381,11 @@ test.describe('DentVision exhaustive role/context/browser gate',()=>{
     test(role.id+': every declared and discovered screen plus security boundary',async({page},info)=>{
       const problems=collectors(page);
       await login(page,role.email);
-      await expect(page.locator('body')).toContainText('DentVision');
+      await expect.poll(() => page.locator('body').innerText().catch(() => ''), {
+        timeout: 10000,
+        message: role.id + ': authenticated entry screen did not render',
+      }).toMatch(/.{20,}/s);
+      expect(new URL(page.url()).pathname, role.id + ': entry route unexpectedly returned to login').not.toBe('/login');
       expect(role.entry.test(page.url()),role.id+': incorrect post-login workspace '+page.url()).toBeTruthy();
       const identitySurface = await page.evaluate(() => {
         const body = document.body?.innerText || '';

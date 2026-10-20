@@ -55,7 +55,7 @@ export function WorkspaceSwitcher({ className }: { className?: string }) {
   const location = useLocation()
   const toast = useToast()
   const queryClient = useQueryClient()
-  const { user, clinic, activeMembership, roleInfo, isAuthenticated } = useAuth()
+  const { user, clinic, activeMembership, roleInfo, effectiveRole, isAuthenticated } = useAuth()
   const setActiveWorkspace = useWorkspaceStore(s => s.setActiveWorkspace)
   const setContextFocus = useWorkspaceStore(s => s.setContextFocus)
   const [open, setOpen] = useState(false)
@@ -125,7 +125,17 @@ export function WorkspaceSwitcher({ className }: { className?: string }) {
     () => workspaces.find(isActive) || workspaces.find((w) => w.scopeType === 'CLINIC') || workspaces[0],
     [workspaces, isActive],
   )
-  const activeRoleLabel = current?.roleLabel || roleInfo?.label || getRoleDisplayLabel((user as any)?.platformRole || (user as any)?.role) || 'Участник экосистемы'
+  const isGenericRoleLabel = (label?: string | null) =>
+    !label?.trim() || /^(?:участник(?: экосистемы)?|member|participant|user|пользователь)$/i.test(label.trim())
+  const activeRoleLabel = useMemo(() => {
+    if (!isGenericRoleLabel(current?.roleLabel)) return current?.roleLabel || roleInfo?.label || 'Участник экосистемы'
+    const fallbackRoles = [effectiveRole, (user as any)?.role, (user as any)?.platformRole, current?.roleKey, current?.role]
+    for (const candidate of fallbackRoles) {
+      const label = getRoleDisplayLabel(candidate)
+      if (!isGenericRoleLabel(label)) return label
+    }
+    return roleInfo?.label || 'Участник экосистемы'
+  }, [current, effectiveRole, user, roleInfo?.label])
 
   interface BranchOption { id: string; name: string; code?: string | null; active?: boolean }
   const { data: branches = [], isFetching: branchesLoading } = useQuery<BranchOption[]>({
