@@ -7,7 +7,7 @@ const VISUAL_EVIDENCE_ROOT = process.env.VISUAL_EVIDENCE_DIR || 'e2e/visual-evid
 const PASSWORD = 'Test1234!';
 
 const PUBLIC_ROUTES = ['/', '/login', '/register', '/forgot-password', '/booking', '/demo', '/jobs', '/community', '/pricing', '/terms', '/privacy'];
-const AUTH_COMMON_ROUTES = ['/', '/help', '/notifications', '/profile'];
+const AUTH_COMMON_ROUTES = ['/', '/ai', '/help', '/notifications', '/profile'];
 const ROUTES = [
   '/ai','/analytics','/settings','/help','/notifications','/admin','/bi','/security','/audit','/agent-activity','/ai-approvals','/backup','/profile',
   '/supplier','/jobs','/community','/quality','/platform-finance','/ai-governance','/support',
@@ -46,7 +46,7 @@ const ROLES: readonly Role[] = [
   { id:'dental-lab-owner', email:'dental-lab-owner@test.com', label:'Владелец зуботехнической лаборатории', family:'dental-lab', pages:['diagnostics','diagnostics-laboratories','diagnostics-results','diagnostics-settings','profile'], mustNotContain:[/Медицинская лаборатория|Диагностический центр/i], entry:/\/diagnostics\/lab/ },
   { id:'dental-technician', email:'dental-technician@test.com', label:'Зубной техник', family:'dental-lab', pages:['diagnostics','diagnostics-laboratories','diagnostics-results','profile'], mustNotContain:[/Настройки диагностического центра/i], entry:/\/diagnostics\/lab/ },
   { id:'superadmin', email:'superadmin@test.com', label:'Super Admin', family:'platform', pages:PLATFORM_SUPERADMIN_PAGES, mustNotContain:[/Пациент|Зубной техник/i], entry:/\/admin|\/ai/ },
-  { id:'support', email:'support@test.com', label:'Поддержка', family:'platform', pages:['admin','analytics','settings','profile'], mustNotContain:[/Врач|Пациент/i], entry:/\/admin|\/analytics|\/profile/ },
+  { id:'support', email:'support@test.com', label:'Поддержка', family:'platform', pages:['admin','analytics','settings','profile'], mustNotContain:[/Врач|Пациент/i], entry:/\/help/ },
   { id:'laboratory', email:'lab-a@test.com', label:'Лаборатория', family:'clinic', pages:['lab','shop','diagnostics','diagnostics-referrals','diagnostics-laboratories','diagnostics-results','profile'], mustNotContain:[/Super Admin/i], entry:/\/ai|\/crm|\/diagnostics/ },
 ] as const;
 
@@ -66,7 +66,7 @@ const RESPONSIVE_ROUTES_BY_ROLE: Record<string, string[]> = {
   'dental-lab-owner': ['/diagnostics/lab','/diagnostics/laboratories','/diagnostics/results'],
   'dental-technician': ['/diagnostics/lab','/diagnostics/laboratories','/diagnostics/results'],
   superadmin: ['/admin','/quality','/platform-finance','/diagnostics','/ai-governance'],
-  support: ['/admin','/analytics','/settings','/profile'],
+  support: ['/help','/analytics','/settings','/profile'],
   laboratory: ['/crm/lab','/shop','/diagnostics/referrals','/diagnostics/laboratories','/diagnostics/results'],
 };
 
@@ -75,7 +75,7 @@ function pageId(route: string, role?: Role): string | null {
   // Partner labs use their canonical IAM page key, distinct from the clinic labs route.
   if (p === '/diagnostics/laboratories' && role?.pages.includes('diagnostics-laboratories') && !role.pages.includes('diagnostics-labs')) return 'diagnostics-laboratories';
   const map: Record<string,string> = {
-    '/ai':'dashboard','/crm/schedule':'schedule','/crm/patients':'patients','/crm/medical-card':'medical-card','/crm/finance':'finance','/crm/cashier':'cashier',
+    '/ai':'ai','/crm/schedule':'schedule','/crm/patients':'patients','/crm/medical-card':'medical-card','/crm/finance':'finance','/crm/cashier':'cashier',
     '/crm/clinic-settings':'clinic-settings','/crm/billing':'billing','/crm/patient-inbox':'patient-inbox','/crm/visits':'visits','/crm/dental-chart':'dental-chart','/crm/treatment-plans':'treatment-plans',
     '/crm/pricelist':'pricelist','/crm/lab':'lab','/crm/inventory':'inventory','/crm/documents':'documents','/crm/staff':'staff','/crm/reminders':'reminders','/crm/promotions':'promotions','/crm/marketing':'promotions','/crm/icd10':'icd10','/crm/workflow':'workflow','/crm/integrations/messaging':'clinic-settings',
     '/analytics':'analytics','/admin':'admin','/audit':'audit','/agent-activity':'agent-activity','/ai-approvals':'ai-approvals','/backup':'backup','/shop':'shop','/school':'school','/settings':'settings','/bi':'bi','/security':'security','/quality':'quality','/platform-finance':'platform-finance','/ai-governance':'ai-governance','/support':'support','/diagnostics':'diagnostics','/supplier':'supplier',
@@ -509,9 +509,18 @@ test.describe('DentVision exhaustive role/context/browser gate',()=>{
     expect(new URL(page.url()).pathname, 'Public Community feed unexpectedly redirected to login').toBe('/community');
   });
 
+  test('anonymous guest AI landing keeps clinical APIs protected', async ({ page }) => {
+    await page.context().clearCookies();
+    const protectedResponse = await page.request.get(API_BASE_URL + '/api/patients');
+    expect([401, 403], 'guest context must not access clinical patient records').toContain(protectedResponse.status());
+    await page.goto(BASE_URL + '/ai', { waitUntil: 'domcontentloaded', timeout: 30000 });
+    await expect.poll(() => page.locator('body').innerText().catch(() => ''), { timeout: 10000 }).toMatch(/.{20,}/s);
+    expect(new URL(page.url()).pathname, 'anonymous guest AI landing should remain available').toBe('/ai');
+  });
+
   test('anonymous: every protected route redirects before protected content renders',async({page},info)=>{
     test.skip(info.project.name !== 'role-1280', 'Anonymous authorization matrix is viewport-independent; execute once per CI run');
-    for(const route of ROUTES.filter(r=>!PUBLIC_ROUTES.includes(r))){
+    for(const route of ROUTES.filter(r=>!PUBLIC_ROUTES.includes(r) && r !== '/ai'))
       await page.context().clearCookies();
       await page.goto(BASE_URL+route,{waitUntil:'domcontentloaded',timeout:30000});
       expect(new URL(page.url()).pathname,'anonymous '+route+': protected screen exposed').toBe('/login');

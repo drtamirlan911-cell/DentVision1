@@ -16,14 +16,18 @@ async function createBranch(page: Page, name: string) {
   await page.getByRole('button', { name: 'Добавить филиал', exact: true }).click();
   await page.getByLabel('Название филиала *').fill(name);
   await page.getByLabel('Код').fill(`E2E-${Date.now()}`);
+  const creationResponsePromise = page.waitForResponse(response =>
+    response.request().method() === 'POST' && new URL(response.url()).pathname.replace(/\\/$/, '') === '/api/branches',
+    { timeout: 15000 },
+  );
   await page.getByRole('button', { name: 'Создать филиал', exact: true }).click();
-  await expect(page.getByText(name, { exact: true })).toBeVisible({ timeout: 15000 });
-  const response = await page.request.get('/api/branches');
-  expect(response.ok()).toBeTruthy();
+  const response = await creationResponsePromise;
   const payload = await response.json();
-  const branches = Array.isArray(payload) ? payload : payload?.data ?? [];
-  const branch = branches.find((item: { name?: string }) => item.name === name);
+  const branch = payload?.data ?? payload;
+  expect(response.status(), `Branch create failed: ${JSON.stringify(payload)}`).toBe(201);
+  expect(branch?.name).toBe(name);
   expect(branch?.id).toBeTruthy();
+  await expect(page.getByText(name, { exact: true })).toBeVisible({ timeout: 15000 });
   return branch.id as string;
 }
 

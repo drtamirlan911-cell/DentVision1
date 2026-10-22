@@ -802,7 +802,7 @@ export default function Schedule() {
                     e.stopPropagation()
                     openAcceptPayment(appt, { closeVisit: false })
                   }}
-                  className="inline-flex min-h-9 items-center gap-1 rounded-md bg-warning/15 border border-warning/30 px-2 py-1 text-[10px] font-semibold text-warning hover:bg-warning/25 transition-colors"
+                  className="inline-flex min-h-10 items-center gap-1 rounded-md bg-warning/15 border border-warning/30 px-2 py-1 text-[10px] font-semibold text-warning hover:bg-warning/25 transition-colors"
                 >
                   <Wallet size={10} />
                   Оплатить
@@ -814,7 +814,7 @@ export default function Schedule() {
                 type="button"
                 title="Следующий статус"
                 onClick={(e) => advanceStatus(appt, e)}
-                className="inline-flex min-h-9 items-center"
+                className="inline-flex min-h-10 items-center"
               >
                 <Badge variant="default" size="xs">{sc.label || (sc as any).l}</Badge>
               </button>
