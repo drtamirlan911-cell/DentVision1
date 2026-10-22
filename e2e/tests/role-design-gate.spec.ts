@@ -46,7 +46,7 @@ const ROLES: readonly Role[] = [
   { id:'dental-lab-owner', email:'dental-lab-owner@test.com', label:'Владелец зуботехнической лаборатории', family:'dental-lab', pages:['diagnostics','diagnostics-laboratories','diagnostics-results','diagnostics-settings','profile'], mustNotContain:[/Медицинская лаборатория|Диагностический центр/i], entry:/\/diagnostics\/lab/ },
   { id:'dental-technician', email:'dental-technician@test.com', label:'Зубной техник', family:'dental-lab', pages:['diagnostics','diagnostics-laboratories','diagnostics-results','profile'], mustNotContain:[/Настройки диагностического центра/i], entry:/\/diagnostics\/lab/ },
   { id:'superadmin', email:'superadmin@test.com', label:'Super Admin', family:'platform', pages:PLATFORM_SUPERADMIN_PAGES, mustNotContain:[/Пациент|Зубной техник/i], entry:/\/admin|\/ai/ },
-  { id:'support', email:'support@test.com', label:'Поддержка', family:'platform', pages:['admin','analytics','settings','profile'], mustNotContain:[/Врач|Пациент/i], entry:/\/help/ },
+  { id:'support', email:'support@test.com', label:'Поддержка', family:'platform', pages:['help','analytics','settings','profile'], mustNotContain:[/Врач|Пациент|Super Admin|Платформенная консоль/i], entry:/\/help/ },
   { id:'laboratory', email:'lab-a@test.com', label:'Лаборатория', family:'clinic', pages:['lab','shop','diagnostics','diagnostics-referrals','diagnostics-laboratories','diagnostics-results','profile'], mustNotContain:[/Super Admin/i], entry:/\/ai|\/crm|\/diagnostics/ },
 ] as const;
 
