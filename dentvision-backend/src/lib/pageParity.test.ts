@@ -68,7 +68,9 @@ const LEGACY_PLATFORM_PAGES: Record<string, { role: string; permissions: string[
   support: {
     role: 'SUPPORT',
     permissions: [],
-    pages: ['admin', 'analytics', 'settings', 'profile'],
+    // Keep this in sync with PLATFORM_ROLES.support in src/store/auth.store.ts.
+    // Support has a support workbench, not the Super Admin console.
+    pages: ['help', 'analytics', 'settings', 'profile'],
   },
   superadmin: {
     role: 'SUPERADMIN',
@@ -138,7 +140,8 @@ describe('server page list covers the frontend legacy config', () => {
     expect(served).toContain('diagnostics-laboratories');
   });
 
-  it('keeps the admin console out of every clinic role', () => {
+  it('keeps the admin console out of every clinic role and support', () => {
+    expect(pagesForCaller([], 'SUPPORT')).not.toContain('admin');
     for (const { backendRole } of Object.values(LEGACY_ORG_PAGES)) {
       expect(pagesForCaller([], backendRole)).not.toContain('admin');
     }
