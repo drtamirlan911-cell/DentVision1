@@ -393,10 +393,6 @@ export function pagesForCaller(permissions: readonly string[], role: string | nu
     ...BASE_PAGES,
     ...pagesForPermissions(permissions),
     ...(role ? pagesForRole(resolvedRole) : []),
-    // SUPPORT uses the role-scoped support workbench at /admin. Exposing this
-    // route identifier does not grant admin.* permissions; API operations remain
-    // protected by their own permission checks. Keep platform-only pages gated.
-    ...(resolvedRole === 'SUPPORT' ? ['admin'] : []),
     ...(AI_APPROVAL_ROLES.has(resolvedRole) ? ['ai-approvals'] : []),
   ]));
 }
