@@ -1306,3 +1306,18 @@ These changes are route/entry reconciliation only. Existing domain implementatio
 - Follow-up code changes: (1) identity labels use a non-generic active role label or fall back through effective role and user roles before a generic workspace role key; (2) support/superadmin/developer entry routes go to `/admin`; (3) authenticated workspace checks validate rendered content and reject login redirection instead of requiring a literal brand string on every screen; (4) CI WebKit API base targets `127.0.0.1`.
 - The changes are **NOT VERIFIED** until CI on the new exact head completes. Keep PR #307 draft; do not merge or deploy.
 - Previously confirmed unrelated P0/P1 blockers remain open, including RB-010–RB-019, RB-029 (clinical-history JSON encryption design/backfill) and RB-030 (offline sync integrity/privacy). Do not infer closure from the role-gate changes.
+
+
+## 2026-10-22 — Support page parity and admin-console boundary
+
+### Finding
+- Exact-head CI run `39835539643` reported `pageParity.test.ts` failing because the backend page list omitted `admin` while the test's support fixture still expected it. Source-of-truth review found the fixture had drifted from `src/store/auth.store.ts`: the canonical SUPPORT pages are `help`, `analytics`, `settings`, and `profile`; `/admin` renders the Super Admin console and is guarded by the `admin` page permission.
+- Granting SUPPORT the `admin` page to silence parity would violate the IAM boundary. The attempted route-only exception was reverted immediately before any deployment; it is not retained in the branch.
+
+### Correction
+- Align the backend parity fixture and role/context test with the canonical support workspace.
+- Add an explicit regression assertion that SUPPORT does not receive the `admin` page. Keep platform/admin endpoint permissions unchanged.
+- Branch `security/payment-hardening-20261017`; `main` remains untouched; PR #307 remains draft.
+
+### Verification
+- Unit, exact-HEAD role/context, and full CI verification are pending on the corrected candidate. Do not close RB-025 or mark this work release-ready until the exact-head gates pass.
