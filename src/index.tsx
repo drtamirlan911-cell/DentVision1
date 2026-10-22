@@ -279,7 +279,7 @@ if (container) {
                 <Route path="platform-finance" element={guarded('admin', <Navigate to="/admin?tab=platform-finance" replace />)} />
                 <Route path="ops" element={guarded('admin', <Navigate to="/admin?tab=ops" replace />)} />
                 <Route path="quality" element={guarded('admin', <Navigate to="/admin?tab=quality" replace />)} />
-                <Route path="support" element={guarded('admin', <Navigate to="/admin?tab=support" replace />)} />
+                <Route path="support" element={<Navigate to="/help" replace />} />
                 <Route path="bi" element={guarded('bi', <BIWorkspace />)} />
                 <Route path="security" element={guarded('security', <SecurityCompliance />)} />
                 <Route path="audit" element={guarded('audit', <AuditLog />)} />

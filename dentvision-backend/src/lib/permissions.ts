@@ -151,7 +151,6 @@ const MATRIX: Record<string, RoleMatrixRow> = {
     appointments: ['read'],
     billing:      ['read'],
     bi:           ['read'],
-    admin:        ['read'],
     shop:         ['read'],
     analytics:    ['read'],
   },
@@ -299,7 +298,7 @@ export function permissionsForRole(role: string | null | undefined): PermissionK
  * `PLATFORM_ROLES.user` in the legacy config is exactly this set.
  */
 export const BASE_PAGES: readonly string[] = [
-  'shop', 'school', 'profile', 'settings',
+  'shop', 'school', 'profile', 'settings', 'help',
   'diagnostics', 'diagnostics-centers', 'diagnostics-labs', 'diagnostics-laboratories',
 ];
 

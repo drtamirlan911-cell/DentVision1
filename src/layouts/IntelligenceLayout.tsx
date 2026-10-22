@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Outlet, useNavigate, useLocation, Navigate } from 'react-router-dom';
 import { Menu, User } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { useAuth } from '@/store/auth.store';
+import { getRoleDisplayLabel, useAuth } from '@/store/auth.store';
 import { useUIStore } from '@/store/ui.store';
 import { useGuestStore } from '@/store/guest.store';
 import { ContextPanel } from '@/components/intelligence/ContextPanel';
@@ -30,7 +30,7 @@ const FIRST_RUN_COLLAPSE_MS = 15_000;
 export const IntelligenceLayout: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  const { user, isAuthenticated, roleInfo, logout, activeClinic, clinic } = useAuth();
+  const { user, isAuthenticated, roleInfo, effectiveRole, logout, activeClinic, clinic } = useAuth();
   const { isGuest, isGuestRoute, requiresAuth, initGuest, showRegistrationModal, setRegistrationModal } = useGuestStore();
   const isMobile = useCompactShell();
   const {
@@ -52,6 +52,7 @@ export const IntelligenceLayout: React.FC = () => {
   const caseContext = useEcosystemUrlContext();
   const setAiQuery = useAIStore(s => s.setQuery);
 
+  const roleLabel = roleInfo?.label || getRoleDisplayLabel(effectiveRole || (user as any)?.platformRole || user?.role);
   const isLoginRoute = ['/login', '/register', '/forgot-password', '/booking'].some(p => location.pathname.startsWith(p));
   const isPublicWelcome = location.pathname === '/';
   const isPatient = String(user?.role || '').toLowerCase() === 'patient';
@@ -136,6 +137,7 @@ export const IntelligenceLayout: React.FC = () => {
         <header className="sticky top-0 z-30 flex h-16 items-center gap-3 border-b border-[var(--dv-border)] bg-[var(--dv-sidebar)]/95 px-4 backdrop-blur-xl">
           {isMobile && <button type="button" aria-label="Открыть меню" onClick={() => setSidebarOpen(true)} className="flex min-h-11 min-w-11 items-center justify-center rounded-xl p-2 text-[var(--dv-muted)] hover:bg-[var(--dv-nav-hover)]"><Menu size={19} /></button>}
           <WorkspaceSwitcher />
+          {isAuthenticated && <span data-testid="active-role-label" title={roleLabel} aria-label={`Текущая роль: ${roleLabel}`} className="inline-flex max-w-[108px] shrink-0 items-center truncate rounded-full border border-[var(--dv-border)] px-2 py-1 text-[10px] leading-tight text-[var(--dv-muted)] sm:max-w-[160px]">{roleLabel}</span>}
           <div className="ml-auto flex items-center gap-2"><LanguageSwitcher /><AlertDropdown alerts={[]} isOpen={alertOpen} setIsOpen={setAlertOpen} /><DentCashHeaderChip /></div>
         </header>
         <main className="relative min-h-[calc(100vh-4rem)] pb-[calc(var(--dv-bottomnav-height,3.5rem)+var(--dv-safe-bottom))] md:pb-0">

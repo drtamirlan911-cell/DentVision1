@@ -78,7 +78,7 @@ const PARTNER_ROLE_LABELS: Record<string, string> = {
 
 export const PLATFORM_ROLES: Record<string, RoleConfig> = {
   superadmin: { label: 'Super Admin', icon: '⚙️', pages: ['admin', 'audit', 'agent-activity', 'ai-approvals', 'backup', 'analytics', 'settings', 'security', 'quality', 'diagnostics', 'diagnostics-centers', 'diagnostics-labs', 'platform-finance', 'ai-governance', 'support', 'profile', 'bi', 'supplier'], canSeeSalary: false, canSeeSuperAdmin: true, canAddStaff: false, canSeeAudit: true, canBackup: true, canManageClinicSettings: true, canManageFinance: true },
-  support: { label: 'Поддержка', icon: '🛟', pages: ['admin', 'analytics', 'settings', 'profile'] },
+  support: { label: 'Поддержка', icon: '🛟', pages: ['help', 'analytics', 'settings', 'profile'] },
   developer: { label: 'Разработчик', icon: '🛠️', pages: ['admin', 'quality', 'analytics', 'settings', 'audit', 'agent-activity', 'ai-approvals', 'backup', 'profile', 'security'] },
   user: { label: 'Пользователь', icon: '👤', pages: ['shop', 'school', 'diagnostics', 'diagnostics-centers', 'diagnostics-labs', 'profile'] },
   verified: { label: 'Проверенный', icon: '✅', pages: ['shop', 'school', 'diagnostics', 'diagnostics-centers', 'diagnostics-labs', 'profile'] },

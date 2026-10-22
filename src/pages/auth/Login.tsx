@@ -46,7 +46,8 @@ export default function Login() {
     if (partnerRole.startsWith('medical_lab_')) { navigate('/diagnostics/lab?workspace=medical-lab', { replace: true }); return }
     if (partnerRole.startsWith('dental_lab_') || ['lab_coordinator', 'dental_technician', 'cad_designer', 'ceramist', 'orthodontic_technician', 'qc_specialist', 'lab_finance'].includes(partnerRole)) { navigate('/diagnostics/lab', { replace: true }); return }
     const platformRoles = [partnerRole, baseRole, String((user as any).platformRole || '').toLowerCase()]
-    if (platformRoles.some(value => ['superadmin', 'support', 'developer'].includes(value))) { navigate('/admin', { replace: true }); return }
+    if (platformRoles.some(value => ['superadmin', 'developer'].includes(value))) { navigate('/admin', { replace: true }); return }
+    if (platformRoles.some(value => value === 'support')) { navigate('/help', { replace: true }); return }
     const target = returnUrl && !returnUrl.includes('/login') && returnUrl !== '/' ? returnUrl : '/ai'
     navigate(target, { replace: true })
   }, [user, effectiveRole, navigate, params, returnUrl])
