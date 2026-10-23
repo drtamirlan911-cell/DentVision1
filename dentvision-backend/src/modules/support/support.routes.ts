@@ -5,6 +5,7 @@ import { authenticate } from '../../middleware/auth.js';
 import { uid } from '../../lib/helpers.js';
 import type { AuthRequest, ApiResponse } from '../../types/index.js';
 import { canTransitionSupportTicket, isSupportTicketStatus } from './supportState.js';
+import { canReadSupportTicket, isSupportStaffRole } from './supportPolicy.js';
 
 export const supportRouter = Router();
 supportRouter.use(authenticate);
@@ -16,7 +17,7 @@ const SUPPORT_ROLE = 'SUPPORT' as const;
 class SupportRequestError extends Error {
   constructor(public statusCode: number, message: string) { super(message); }
 }
-function isStaff(req: AuthRequest) { return Boolean(req.user && STAFF.has(String(req.user.role))); }
+function isStaff(req: AuthRequest) { return Boolean(req.user && isSupportStaffRole(req.user.role)); }
 function cleanText(value: unknown, max: number): string | null {
   if (typeof value !== 'string') return null;
   const clean = value.replace(/\u0000/g, '').replace(/[\u0001-\u0008\u000B\u000C\u000E-\u001F\u007F]/g, '').trim();
@@ -54,7 +55,7 @@ const detailInclude = {
   ...summaryInclude,
   messages: { orderBy: { createdAt:'asc' as const }, take:100, include:{ author:{select:{id:true,firstName:true,lastName:true,role:true}} } },
 } satisfies Prisma.SupportTicketInclude;
-function canRead(req: AuthRequest, requesterUserId: string|null) { return isStaff(req) || requesterUserId === req.user?.id; }
+function canRead(req: AuthRequest, requesterUserId: string|null) { return canReadSupportTicket(req.user ? { id: req.user.id, role: req.user.role } : null, requesterUserId); }
 
 supportRouter.get('/mine', async (req: AuthRequest,res) => {
   try {
