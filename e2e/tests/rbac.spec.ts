@@ -87,13 +87,16 @@ test.describe('RBAC - Role-Based Access Control', () => {
       data: { iin: makeIin(), firstName: 'RBAC', lastName: 'InvoiceTarget', phone: '+77000000005' },
     });
     const patientBody = await patientRes.json();
+    expect(patientRes.status(), `RBAC-005 patient fixture creation failed: ${JSON.stringify(patientBody)}`).toBe(201);
     const patientId = (patientBody.data || patientBody).id;
+    expect(patientId, `RBAC-005 patient fixture response has no id: ${JSON.stringify(patientBody)}`).toBeTruthy();
 
     const res = await api.post(`${BASE_URL}/api/billing/invoices`, {
       headers: authHeaders(token),
       data: { patientId, amount: 10000, description: 'Test invoice' },
     });
-    expect([200, 201]).toContain(res.status());
+    const invoiceBody = await res.json();
+    expect([200, 201], `RBAC-005 invoice creation failed: ${JSON.stringify(invoiceBody)}`).toContain(res.status());
   });
 
   test('RBAC-006: ASSISTANT cannot create invoices → 403', async () => {
