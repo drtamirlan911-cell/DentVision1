@@ -36,7 +36,9 @@ async function createTicket(user: AuthenticatedUser) {
       sourcePath: '/help',
     },
   });
-  expect(response.status(), await response.text()).toBe(201);
+  if (response.status() !== 201) {
+    throw new Error(`support ticket creation failed: ${response.status()} ${await response.text()}`);
+  }
   const body = await response.json();
   const ticket = body.data ?? body;
   expect(typeof ticket.id).toBe('string');
@@ -44,17 +46,20 @@ async function createTicket(user: AuthenticatedUser) {
 }
 
 test.describe('Ecosystem support API', () => {
-  let ownerA: AuthenticatedUser;
-  let ownerB: AuthenticatedUser;
-  let support: AuthenticatedUser;
-  let anonymous: APIRequestContext;
+  let ownerA: AuthenticatedUser | undefined;
+  let ownerB: AuthenticatedUser | undefined;
+  let support: AuthenticatedUser | undefined;
+  let ownerAContext: APIRequestContext | undefined;
+  let ownerBContext: APIRequestContext | undefined;
+  let supportContext: APIRequestContext | undefined;
+  let anonymous: APIRequestContext | undefined;
 
   test.beforeAll(async () => {
     // Keep cookie/session state isolated between identities. A shared Playwright
     // request context can otherwise authenticate an ostensibly anonymous call.
-    const ownerAContext = await apiRequest.newContext({ baseURL: BASE_URL });
-    const ownerBContext = await apiRequest.newContext({ baseURL: BASE_URL });
-    const supportContext = await apiRequest.newContext({ baseURL: BASE_URL });
+    ownerAContext = await apiRequest.newContext({ baseURL: BASE_URL });
+    ownerBContext = await apiRequest.newContext({ baseURL: BASE_URL });
+    supportContext = await apiRequest.newContext({ baseURL: BASE_URL });
     anonymous = await apiRequest.newContext({ baseURL: BASE_URL });
 
     const [ownerAToken, ownerBToken, supportToken] = await Promise.all([
@@ -70,9 +75,9 @@ test.describe('Ecosystem support API', () => {
 
   test.afterAll(async () => {
     await Promise.all([
-      ownerA?.context.dispose(),
-      ownerB?.context.dispose(),
-      support?.context.dispose(),
+      ownerAContext?.dispose(),
+      ownerBContext?.dispose(),
+      supportContext?.dispose(),
       anonymous?.dispose(),
     ]);
   });
