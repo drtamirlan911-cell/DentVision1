@@ -1,49 +1,62 @@
-import { useNavigate } from 'react-router-dom'
-import { ArrowRight, BookOpen, CircleHelp, MessageSquare, Search } from 'lucide-react'
+import { useEffect, useState } from 'react';
+import { useQuery,useMutation,useQueryClient } from '@tanstack/react-query';
+import { useSearchParams } from 'react-router-dom';
+import { ArrowRight,BookOpen,CheckCircle2,Clock3,LifeBuoy,MessageSquare,Plus,RefreshCw,Search,Send,ShieldAlert,Ticket,X } from 'lucide-react';
+import * as api from '@/utils/api';
+import { useAuth } from '@/store/auth.store';
+import type { SupportTicket,SupportTicketCategory,SupportTicketStatus } from '@/utils/api';
 
-const topics = [
-  { title: 'Начало работы', text: 'Настройте клинику, команду, расписание и рабочие процессы.', path: '/settings', icon: BookOpen },
-  { title: 'Поиск и AI', text: 'Используйте глобальный поиск или AI Workspace для быстрых действий.', path: '/', icon: Search },
-  { title: 'Поддержка', text: 'Опишите проблему или задачу — контекст приложения поможет быстрее разобраться.', path: '/community', icon: MessageSquare },
-]
+const CATEGORIES:Record<SupportTicketCategory,string>={ACCOUNT:'Аккаунт и профиль',ACCESS:'Вход и доступы',WORKFLOW:'Рабочий процесс',BILLING:'Оплата и тарифы',BUG:'Ошибка в приложении',SECURITY:'Безопасность',OTHER:'Другое'};
+const STATUSES:Record<SupportTicketStatus,string>={OPEN:'Открыто',IN_PROGRESS:'В работе',WAITING_FOR_USER:'Нужен ваш ответ',RESOLVED:'Решено',CLOSED:'Закрыто'};
+const STATUS_STYLE:Record<SupportTicketStatus,string>={OPEN:'border-sky-500/30 bg-sky-500/10 text-sky-700 dark:text-sky-300',IN_PROGRESS:'border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-300',WAITING_FOR_USER:'border-violet-500/30 bg-violet-500/10 text-violet-700 dark:text-violet-300',RESOLVED:'border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300',CLOSED:'border-slate-500/30 bg-slate-500/10 text-slate-600 dark:text-slate-300'};
+const PRIORITIES={LOW:'Низкий',NORMAL:'Обычный',HIGH:'Высокий',URGENT:'Срочный'};
+function dateLabel(v:string){return new Intl.DateTimeFormat('ru-RU',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'}).format(new Date(v));}
+function nameLabel(v?:{firstName?:string;lastName?:string;email?:string}|null){return [v?.firstName,v?.lastName].filter(Boolean).join(' ')||v?.email||'Пользователь';}
+function ErrorBox({message}:{message:string}){return <div role="alert" className="rounded-xl border border-red-500/25 bg-red-500/5 p-3 text-sm text-red-700 dark:text-red-300">{message}</div>}
 
-export default function HelpPage() {
-  const navigate = useNavigate()
-
-  return (
-    <main className="dv-page mx-auto w-full max-w-5xl space-y-6 p-4 md:p-6">
-      <section className="dv-panel overflow-hidden p-6 md:p-8">
-        <div className="flex items-start gap-4">
-          <div className="rounded-2xl bg-dv-gold/10 p-3 text-dv-gold">
-            <CircleHelp size={24} />
-          </div>
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-dv-muted">DentVision Support</p>
-            <h1 className="mt-1 text-2xl font-semibold text-dv-text md:text-3xl">Помощь и поддержка</h1>
-            <p className="mt-2 max-w-2xl text-sm leading-6 text-dv-muted">
-              Быстрый доступ к основным разделам и рабочим сценариям DentVision.
-            </p>
-          </div>
-        </div>
-      </section>
-
-      <section className="grid gap-3 md:grid-cols-3">
-        {topics.map(({ title, text, path, icon: Icon }) => (
-          <button
-            key={title}
-            type="button"
-            onClick={() => navigate(path)}
-            className="dv-panel group text-left p-5 transition hover:-translate-y-0.5 hover:border-dv-gold/40"
-          >
-            <Icon size={20} className="text-dv-gold" />
-            <h2 className="mt-4 font-semibold text-dv-text">{title}</h2>
-            <p className="mt-1 text-sm leading-5 text-dv-muted">{text}</p>
-            <span className="mt-4 inline-flex items-center gap-1 text-sm font-medium text-dv-gold">
-              Открыть <ArrowRight size={15} className="transition group-hover:translate-x-0.5" />
-            </span>
-          </button>
-        ))}
-      </section>
-    </main>
-  )
+export default function HelpPage(){
+ const {user,effectiveRole}=useAuth(); const [params,setParams]=useSearchParams(); const qc=useQueryClient();
+ const role=String(effectiveRole||user?.platformRole||user?.role||'').toLowerCase().replace(/_/g,'-');
+ const staff=role==='support'||role==='superadmin';
+ const [view,setView]=useState<'mine'|'queue'>(params.get('view')==='queue'&&staff?'queue':'mine');
+ const [selectedId,setSelectedId]=useState<string|null>(params.get('ticketId'));
+ const [showCreate,setShowCreate]=useState(false); const [subject,setSubject]=useState(''); const [category,setCategory]=useState<SupportTicketCategory>('WORKFLOW'); const [description,setDescription]=useState(''); const [reply,setReply]=useState(''); const [filter,setFilter]=useState<SupportTicketStatus|'ALL'>('ALL');
+ useEffect(()=>{if(staff&&params.get('view')==='queue')setView('queue');if(params.get('ticketId'))setSelectedId(params.get('ticketId'));},[params,staff]);
+ const mine=useQuery({queryKey:['support','mine'],queryFn:api.getMySupportTickets,enabled:Boolean(user),staleTime:10000,retry:1});
+ const queue=useQuery({queryKey:['support','queue',filter],queryFn:()=>api.getSupportQueue({status:filter}),enabled:Boolean(user)&&staff&&view==='queue',staleTime:5000,retry:1});
+ const selected=useQuery({queryKey:['support','ticket',selectedId],queryFn:()=>api.getSupportTicket(selectedId!),enabled:Boolean(user)&&Boolean(selectedId),staleTime:3000,retry:1});
+ const create=useMutation({mutationFn:()=>api.createSupportTicket({subject:subject.trim(),description:description.trim(),category,sourcePath:window.location.pathname}),onSuccess:async t=>{await qc.invalidateQueries({queryKey:['support']});setSubject('');setDescription('');setShowCreate(false);setSelectedId(t.id);setView('mine');setParams({ticketId:t.id},{replace:true});}});
+ const replyMutation=useMutation({mutationFn:()=>api.replyToSupportTicket(selectedId!,reply.trim()),onSuccess:async()=>{setReply('');await qc.invalidateQueries({queryKey:['support']});}});
+ const statusMutation=useMutation({mutationFn:(status:SupportTicketStatus)=>api.updateSupportTicket(selectedId!,{status}),onSuccess:async()=>{await qc.invalidateQueries({queryKey:['support']});}});
+ const tickets=view==='queue'&&staff?queue.data||[]:mine.data||[]; const ticket=selected.data;
+ const actionError=[create.error,replyMutation.error,statusMutation.error].find(Boolean) as Error|undefined;
+ const qError=view==='queue'&&staff?queue.error:mine.error;
+ function openTicket(t:SupportTicket){setSelectedId(t.id);setParams({...view==='queue'&&staff?{view:'queue'}:{},ticketId:t.id},{replace:true});}
+ function changeView(v:'mine'|'queue'){setView(v);setSelectedId(null);setParams(v==='queue'?{view:'queue'}:{},{replace:true});}
+ return <main className="dv-page mx-auto w-full max-w-6xl space-y-5 p-4 md:p-6">
+  <section className="dv-panel p-5 md:p-7"><div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+   <div className="flex min-w-0 items-start gap-3"><div className="rounded-2xl bg-dv-gold/10 p-3 text-dv-gold"><LifeBuoy size={23}/></div><div><p className="text-xs font-semibold uppercase tracking-[0.16em] text-dv-muted">DentVision · Support Center</p><h1 className="mt-1 text-2xl font-semibold text-dv-text md:text-3xl">Помощь и поддержка</h1><p className="mt-2 max-w-2xl text-sm leading-6 text-dv-muted">Обращения по аккаунту, рабочим процессам, оплате и ошибкам. История сообщений и статус сохраняются в одном месте.</p></div></div>
+   {user&&<button type="button" onClick={()=>setShowCreate(v=>!v)} className="inline-flex min-h-11 shrink-0 items-center justify-center gap-2 rounded-xl bg-dv-gold px-4 py-2 text-sm font-semibold text-white">{showCreate?<X size={16}/>:<Plus size={16}/>} {showCreate?'Отмена':'Новое обращение'}</button>}
+  </div>{staff&&<div className="mt-5 flex flex-wrap gap-2 border-t border-dv-border pt-4"><button type="button" onClick={()=>changeView('mine')} className={`min-h-11 rounded-lg px-4 text-sm font-medium ${view==='mine'?'bg-dv-gold/10 text-dv-gold':'text-dv-muted hover:bg-dv-panel'}`}>Мои обращения</button><button type="button" onClick={()=>changeView('queue')} className={`min-h-11 rounded-lg px-4 text-sm font-medium ${view==='queue'?'bg-dv-gold/10 text-dv-gold':'text-dv-muted hover:bg-dv-panel'}`}>Очередь поддержки</button></div>}</section>
+  {!user&&<section className="dv-panel p-5"><h2 className="font-semibold text-dv-text">Войдите в DentVision, чтобы отправить обращение</h2><p className="mt-1 text-sm text-dv-muted">После входа здесь появится ваша история обращений.</p><a href="/login" className="mt-3 inline-flex min-h-11 items-center gap-2 rounded-xl border border-dv-gold/30 px-4 text-sm font-semibold text-dv-gold">Перейти ко входу <ArrowRight size={16}/></a></section>}
+  {user&&showCreate&&<section className="dv-panel space-y-4 p-5 md:p-6"><div><h2 className="text-lg font-semibold text-dv-text">Новое обращение</h2><p className="mt-1 text-sm text-dv-muted">Опишите проблему, шаги и ожидаемый результат.</p></div>
+   <div className="grid gap-4 md:grid-cols-[220px_minmax(0,1fr)]"><label className="block text-sm font-medium text-dv-text">Категория<select value={category} onChange={e=>setCategory(e.target.value as SupportTicketCategory)} className="mt-1.5 min-h-11 w-full rounded-xl border border-dv-border bg-dv-panel px-3 text-sm">{Object.entries(CATEGORIES).map(([k,v])=><option key={k} value={k}>{v}</option>)}</select></label><label className="block text-sm font-medium text-dv-text">Тема<input value={subject} onChange={e=>setSubject(e.target.value)} maxLength={160} required placeholder="Например: не открывается расписание" className="mt-1.5 min-h-11 w-full rounded-xl border border-dv-border bg-dv-panel px-3 text-sm"/></label></div>
+   <label className="block text-sm font-medium text-dv-text">Что произошло<textarea value={description} onChange={e=>setDescription(e.target.value)} maxLength={4000} required rows={5} placeholder="Шаги, ожидаемый результат и фактическое поведение" className="mt-1.5 w-full rounded-xl border border-dv-border bg-dv-panel p-3 text-sm leading-6"/><span className="mt-1 block text-right text-xs text-dv-muted">{description.length}/4000</span></label>
+   <div className="flex items-start gap-2 rounded-xl border border-amber-500/25 bg-amber-500/5 p-3 text-sm text-dv-muted"><ShieldAlert size={18} className="mt-0.5 shrink-0 text-amber-600"/><p><strong className="font-semibold text-dv-text">Не указывайте медицинские данные:</strong> ФИО/ИИН пациента, диагнозы, клинические заметки и документы. Для клинической информации используйте защищённые клинические процессы DentVision.</p></div>
+   {create.error&&<ErrorBox message={create.error.message}/>}<div className="flex flex-wrap justify-end gap-2"><button type="button" onClick={()=>setShowCreate(false)} className="min-h-11 rounded-xl px-4 text-sm text-dv-muted">Отмена</button><button type="button" disabled={create.isPending||subject.trim().length<3||!description.trim()} onClick={()=>create.mutate()} className="inline-flex min-h-11 items-center gap-2 rounded-xl bg-dv-gold px-4 text-sm font-semibold text-white disabled:opacity-50">{create.isPending?<RefreshCw size={16} className="animate-spin"/>:<Send size={16}/>}Отправить</button></div>
+  </section>}
+  {user&&actionError&&!showCreate&&<ErrorBox message={actionError.message}/>} {user&&qError&&<ErrorBox message={(qError as Error).message}/>}
+  {user&&<div className="grid min-w-0 gap-4 lg:grid-cols-[minmax(260px,0.85fr)_minmax(0,1.4fr)]">
+   <section className="dv-panel min-w-0 overflow-hidden"><div className="flex items-center justify-between gap-2 border-b border-dv-border p-4"><div className="flex items-center gap-2"><Ticket size={17} className="text-dv-gold"/><h2 className="font-semibold text-dv-text">{view==='queue'&&staff?'Очередь':'Ваши обращения'}</h2></div><button type="button" aria-label="Обновить обращения" onClick={()=>qc.invalidateQueries({queryKey:['support']})} className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-lg text-dv-muted"><RefreshCw size={16}/></button></div>
+   {view==='queue'&&staff&&<div className="border-b border-dv-border p-3"><label htmlFor="support-filter" className="sr-only">Фильтр статуса</label><select id="support-filter" value={filter} onChange={e=>setFilter(e.target.value as SupportTicketStatus|'ALL')} className="min-h-11 w-full rounded-lg border border-dv-border bg-dv-panel px-3 text-sm"><option value="ALL">Все статусы</option>{Object.entries(STATUSES).map(([k,v])=><option key={k} value={k}>{v}</option>)}</select></div>}
+   {((view==='queue'&&queue.isLoading)||(view==='mine'&&mine.isLoading))?<div className="space-y-3 p-4"><div className="h-16 animate-pulse rounded-xl bg-dv-panel"/><div className="h-16 animate-pulse rounded-xl bg-dv-panel"/></div>:tickets.length===0?<div className="p-6 text-center"><MessageSquare size={24} className="mx-auto text-dv-muted"/><p className="mt-2 text-sm font-medium text-dv-text">{view==='queue'?'Очередь пока пуста':'Обращений пока нет'}</p><p className="mt-1 text-xs leading-5 text-dv-muted">{view==='queue'?'Новые запросы появятся здесь.':'Создайте обращение — история ответов останется здесь.'}</p></div>:<div className="divide-y divide-dv-border">{tickets.map(t=><button key={t.id} type="button" onClick={()=>openTicket(t)} className={`block min-h-24 w-full p-4 text-left transition hover:bg-dv-panel/70 ${selectedId===t.id?'bg-dv-gold/5':''}`}><div className="flex items-start justify-between gap-2"><span className="line-clamp-2 text-sm font-semibold text-dv-text">{t.subject}</span><span className={`shrink-0 rounded-full border px-2 py-0.5 text-[11px] font-medium ${STATUS_STYLE[t.status]}`}>{STATUSES[t.status]}</span></div><div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-dv-muted"><span>{CATEGORIES[t.category]}</span><span>{dateLabel(t.updatedAt)}</span>{view==='queue'&&staff&&<span>{nameLabel(t.requester)}</span>}<span>{t._count?.messages??0} сообщ.</span></div></button>)}</div>}</section>
+   <section className="dv-panel min-w-0 overflow-hidden">{!selectedId?<div className="flex min-h-72 flex-col items-center justify-center p-6 text-center"><Search size={28} className="text-dv-muted"/><p className="mt-3 font-medium text-dv-text">Выберите обращение</p><p className="mt-1 text-sm text-dv-muted">Здесь будут описание, переписка и действия.</p></div>:selected.isLoading?<div className="space-y-3 p-5"><div className="h-6 w-2/3 animate-pulse rounded bg-dv-panel"/><div className="h-20 animate-pulse rounded bg-dv-panel"/></div>:selected.error?<div className="p-5"><ErrorBox message={(selected.error as Error).message}/><button type="button" onClick={()=>{setSelectedId(null);setParams(view==='queue'?{view:'queue'}:{},{replace:true})}} className="mt-3 min-h-11 text-sm text-dv-gold">Назад к списку</button></div>:ticket?<><div className="border-b border-dv-border p-4 md:p-5"><div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-start"><div className="min-w-0"><p className="text-xs text-dv-muted">Обращение · {ticket.id.slice(0,8)}</p><h2 className="mt-1 break-words text-lg font-semibold text-dv-text">{ticket.subject}</h2><div className="mt-2 flex flex-wrap gap-2"><span className={`rounded-full border px-2.5 py-1 text-xs ${STATUS_STYLE[ticket.status]}`}>{STATUSES[ticket.status]}</span><span className="rounded-full border border-dv-border px-2.5 py-1 text-xs text-dv-muted">{CATEGORIES[ticket.category]}</span>{staff&&<span className="rounded-full border border-dv-border px-2.5 py-1 text-xs text-dv-muted">{PRIORITIES[ticket.priority]}</span>}</div></div>
+   {staff&&ticket.status!=='CLOSED'&&<label className="block shrink-0 text-xs text-dv-muted">Статус<select value={ticket.status} onChange={e=>statusMutation.mutate(e.target.value as SupportTicketStatus)} disabled={statusMutation.isPending} className="mt-1 block min-h-11 w-full rounded-lg border border-dv-border bg-dv-panel px-2 text-sm text-dv-text">{Object.entries(STATUSES).map(([k,v])=><option key={k} value={k} disabled={k!==ticket.status&&!staff}>{v}</option>)}</select></label>}
+   {staff&&ticket.status==='CLOSED'&&<button type="button" onClick={()=>statusMutation.mutate('IN_PROGRESS')} disabled={statusMutation.isPending} className="min-h-11 rounded-lg border border-dv-border px-3 text-sm font-medium">Возобновить</button>}</div>
+   <p className="mt-4 whitespace-pre-wrap break-words text-sm leading-6 text-dv-text">{ticket.description}</p><p className="mt-3 text-xs text-dv-muted">Создано {dateLabel(ticket.createdAt)} · Обновлено {dateLabel(ticket.updatedAt)}</p>{staff&&<p className="mt-1 text-xs text-dv-muted">Заявитель: {nameLabel(ticket.requester)}</p>}</div>
+   <div className="max-h-[480px] space-y-3 overflow-y-auto p-4 md:p-5">{(ticket.messages||[]).map(m=>{const own=m.authorUserId===user.id;return <article key={m.id} className={`max-w-[92%] rounded-2xl border p-3 ${own?'ml-auto border-dv-gold/30 bg-dv-gold/5':'mr-auto border-dv-border bg-dv-panel/60'}`}><div className="flex flex-wrap items-center justify-between gap-2 text-xs text-dv-muted"><span className="font-semibold text-dv-text">{own?'Вы':nameLabel(m.author)}</span><time dateTime={m.createdAt}>{dateLabel(m.createdAt)}</time></div><p className="mt-2 whitespace-pre-wrap break-words text-sm leading-6 text-dv-text">{m.body}</p></article>})}{(!ticket.messages||ticket.messages.length===0)&&<p className="text-sm text-dv-muted">Ответов пока нет. Первое сообщение сохранено в описании обращения.</p>}</div>
+   {ticket.status!=='CLOSED'?<form onSubmit={e=>{e.preventDefault();if(reply.trim())replyMutation.mutate()}} className="border-t border-dv-border p-4 md:p-5">{actionError&&<div className="mb-3"><ErrorBox message={actionError.message}/></div>}<label htmlFor="support-reply" className="mb-1.5 block text-sm font-medium text-dv-text">Ответ</label><textarea id="support-reply" value={reply} onChange={e=>setReply(e.target.value)} maxLength={4000} rows={3} placeholder="Напишите сообщение…" className="w-full rounded-xl border border-dv-border bg-dv-panel p-3 text-sm leading-6"/><div className="mt-2 flex flex-wrap items-center justify-between gap-2"><span className="text-xs text-dv-muted">Не отправляйте медицинские данные или пароли.</span><button type="submit" disabled={!reply.trim()||replyMutation.isPending} className="inline-flex min-h-11 items-center gap-2 rounded-xl bg-dv-gold px-4 text-sm font-semibold text-white disabled:opacity-50">{replyMutation.isPending?<RefreshCw size={15} className="animate-spin"/>:<Send size={15}/>}Ответить</button></div></form>:<div className="border-t border-dv-border p-4 text-sm text-dv-muted">Обращение закрыто. Для продолжения попросите поддержку возобновить его.</div>}</>:null}</section>
+  </div>}
+  <section className="grid gap-3 md:grid-cols-2"><div className="dv-panel p-4"><div className="flex items-center gap-2"><BookOpen size={17} className="text-dv-gold"/><h2 className="font-semibold text-dv-text">Начало работы</h2></div><p className="mt-2 text-sm leading-5 text-dv-muted">Настройки, рабочее пространство и команда доступны в профильных разделах.</p><a href="/settings" className="mt-3 inline-flex min-h-11 items-center gap-2 text-sm font-medium text-dv-gold">Открыть настройки <ArrowRight size={15}/></a></div><div className="dv-panel p-4"><div className="flex items-center gap-2"><CheckCircle2 size={17} className="text-dv-gold"/><h2 className="font-semibold text-dv-text">Прозрачный статус</h2></div><p className="mt-2 text-sm leading-5 text-dv-muted">Каждое обращение хранит статус, время обновления и всю переписку.</p><div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-dv-muted"><Clock3 size={14}/>История доступна после входа</div></div></section>
+ </main>;
 }
