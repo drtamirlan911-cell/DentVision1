@@ -126,7 +126,7 @@ supportRouter.post('/tickets/:id/messages', async (req: AuthRequest,res) => {
       const staff=isStaff(req);
       let next: SupportTicketStatus|null=null;
       if(staff && ticket.status!==SupportTicketStatus.IN_PROGRESS) next=SupportTicketStatus.IN_PROGRESS;
-      if(!staff && [SupportTicketStatus.WAITING_FOR_USER,SupportTicketStatus.RESOLVED].includes(ticket.status)) next=SupportTicketStatus.IN_PROGRESS;
+      if(!staff && (ticket.status===SupportTicketStatus.WAITING_FOR_USER || ticket.status===SupportTicketStatus.RESOLVED)) next=SupportTicketStatus.IN_PROGRESS;
       if(next && !canTransitionSupportTicket(ticket.status,next,staff?'SUPPORT':'REQUESTER')) throw new SupportRequestError(409,'Недопустимый переход статуса');
       if(next) {
         const changed=await tx.supportTicket.updateMany({where:{id:ticket.id,status:ticket.status},data:{
