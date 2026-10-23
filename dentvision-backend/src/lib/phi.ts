@@ -51,12 +51,18 @@ export function decryptField(value: string | null): string | null {
   if (value == null) return null;
   // Backward-compat: plaintext data saved before encryption was enabled.
   if (!value.startsWith(MARKER)) return value;
-  if (!canEncrypt()) return value;
+  if (!canEncrypt()) {
+    if (process.env.NODE_ENV === 'production') {
+      throw new Error('[phi] Decryption unavailable in production');
+    }
+    return value;
+  }
   try {
     return rawDecrypt(value.slice(MARKER.length));
   } catch {
-    // Corrupted or key-rotated — return the raw value so the app doesn't crash.
-    return value;
+    // Never treat an encrypted payload as valid plaintext when integrity
+    // verification fails or the configured key cannot decrypt the value.
+    throw new Error('[phi] Unable to decrypt encrypted field');
   }
 }
 
