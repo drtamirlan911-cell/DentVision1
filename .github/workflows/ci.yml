@@ -150,6 +150,7 @@ jobs:
           cat /tmp/frontend.log >&2 || true
           exit 1
       - name: Run E2E suite
+        id: e2e_core
         env:
           PLAYWRIGHT_OUTPUT_DIR: e2e/test-results/core
           PLAYWRIGHT_HTML_OUTPUT_DIR: playwright-report/core
@@ -300,7 +301,7 @@ jobs:
           {
             echo "=== E2E core run summary ==="
             if [ -f e2e-core.log ]; then
-              grep -E '(^[[:space:]]*[0-9]+ failed|^[[:space:]]*[0-9]+ passed|[0-9]+ failed|[0-9]+ passed|Error:|HTTP [45][0-9][0-9]|[45][0-9][0-9] [A-Z]+|expect\(|Test timeout)' e2e-core.log | tail -n 500 || true
+              grep -E '(^[[:space:]]*[0-9]+ failed|^[[:space:]]*[0-9]+ passed|[0-9]+ failed|[0-9]+ passed|Error:|HTTP [45][0-9][0-9]|[45][0-9][0-9] [A-Z]+|expect\(|Test timeout)' e2e-core.log | tail -n 120 || true
             else
               echo "e2e-core.log was not created"
             fi
@@ -311,10 +312,27 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: e2e-core-diagnostics-${{ github.run_id }}
-          path: |
-            e2e-core.log
-            e2e-failure-summary.txt
+          path: e2e-failure-summary.txt
+          if-no-files-found: error
           retention-days: 30
+
+      - name: Upload full E2E core log on core failure
+        if: steps.e2e_core.outcome == 'failure' && !cancelled()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-core-full-log-${{ github.run_id }}
+          path: e2e-core.log
+          if-no-files-found: error
+          retention-days: 3
+
+      - name: Upload Playwright traces on failure
+        if: failure() && !cancelled()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-traces-${{ github.run_id }}
+          path: e2e/test-results/**/trace.zip
+          if-no-files-found: ignore
+          retention-days: 3
 
       - name: Upload focused visual failure evidence
         if: always()
@@ -341,8 +359,7 @@ jobs:
           path: |
             playwright-report/
             .playwright-cli/
-            e2e/test-results/
-            e2e/visual-evidence/
+          if-no-files-found: ignore
           retention-days: 7
 
 # CI restart marker: verify clean run
