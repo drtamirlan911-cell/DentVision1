@@ -72,19 +72,44 @@ supportRouter.get('/mine', async (req: AuthRequest,res) => {
   } catch (e) { console.error('[support/mine]',e); return res.status(500).json({ok:false,error:'Не удалось загрузить обращения'} satisfies ApiResponse); }
 });
 
+supportRouter.get('/staff', async (req: AuthRequest,res) => {
+  if (!isStaff(req)) return res.status(403).json({ok:false,error:'Недостаточно прав'} satisfies ApiResponse);
+  try {
+    const data = await prisma.user.findMany({
+      where: { role: SUPPORT_ROLE },
+      select: { id:true, firstName:true, lastName:true, email:true },
+      orderBy: [{firstName:'asc'},{lastName:'asc'}],
+      take:100,
+    });
+    return res.json({ok:true,data} satisfies ApiResponse);
+  } catch(e) { console.error('[support/staff]',e); return res.status(500).json({ok:false,error:'Не удалось загрузить сотрудников поддержки'} satisfies ApiResponse); }
+});
+
 supportRouter.get('/queue', async (req: AuthRequest,res) => {
   if (!isStaff(req)) return res.status(403).json({ok:false,error:'Недостаточно прав'} satisfies ApiResponse);
   const {page,limit,skip} = pagination(req.query as Record<string,unknown>);
   const raw = req.query.status;
   const status = raw === undefined || raw === '' || raw === 'ALL' ? undefined : isSupportTicketStatus(raw) ? raw : null;
   if (status === null) return res.status(400).json({ok:false,error:'Некорректный статус'} satisfies ApiResponse);
-  const where: Prisma.SupportTicketWhereInput = status ? {status} : {};
+  const rawQuery = req.query.q;
+  if (rawQuery !== undefined && typeof rawQuery !== 'string') return res.status(400).json({ok:false,error:'Некорректный поисковый запрос'} satisfies ApiResponse);
+  const q = typeof rawQuery === 'string' ? rawQuery.trim().slice(0,100) : '';
+  const where: Prisma.SupportTicketWhereInput = {
+    ...(status ? {status} : {}),
+    ...(q ? { OR: [
+      {id:{contains:q,mode:'insensitive'}},
+      {subject:{contains:q,mode:'insensitive'}},
+      {requester:{is:{firstName:{contains:q,mode:'insensitive'}}}},
+      {requester:{is:{lastName:{contains:q,mode:'insensitive'}}}},
+      {requester:{is:{email:{contains:q,mode:'insensitive'}}}},
+    ]} : {}),
+  };
   try {
     const [data,total] = await Promise.all([
       prisma.supportTicket.findMany({where,orderBy:[{priority:'desc'},{updatedAt:'asc'}],skip,take:limit,include:summaryInclude}),
       prisma.supportTicket.count({where}),
     ]);
-    return res.json({ok:true,data,pagination:{page,limit,total}});
+    return res.json({ok:true,data:{tickets:data,pagination:{page,limit,total,pages:Math.ceil(total/limit)}}});
   } catch(e) { console.error('[support/queue]',e); return res.status(500).json({ok:false,error:'Не удалось загрузить очередь'} satisfies ApiResponse); }
 });
 
