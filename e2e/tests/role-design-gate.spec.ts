@@ -123,7 +123,6 @@ async function login(page: Page, email: string) {
     timeout: 10000,
     message: email + ': authenticated workspace did not render',
   }).toMatch(/.{20,}/s);
-  await page.waitForTimeout(300);
 }
 
 async function activatePartnerWorkspace(page: Page, role: Role) {
@@ -288,9 +287,10 @@ async function inspectDialogsAndMenus(page: Page, role: Role, route: string) {
   if (dialogCount || menuCount) {
     const before = page.url();
     await page.keyboard.press('Escape');
-    await page.waitForTimeout(100);
-    const after = await page.locator('[role="dialog"]:visible,[aria-modal="true"]:visible,[role="menu"]:visible,[role="listbox"]:visible').count();
-    expect(after, role.id + ' ' + route + ': Escape did not close overlay').toBe(0);
+    await expect(
+      page.locator('[role="dialog"]:visible,[aria-modal="true"]:visible,[role="menu"]:visible,[role="listbox"]:visible'),
+      role.id + ' ' + route + ': Escape did not close overlay',
+    ).toHaveCount(0, { timeout: 5000 });
     expect(page.url(), role.id + ' ' + route + ': Escape unexpectedly navigated').toBe(before);
   }
 }
@@ -320,8 +320,6 @@ async function discoverRoutes(page: Page): Promise<string[]> {
   }
   return [];
 }
-
-function safeRouteName(value:string){ return value.replace(/[^a-zA-Z0-9_-]+/g,'_').replace(/^_+|_+$/g,'') || '_home'; }
 
 async function waitForRouteReady(page: Page, role: Role, route: string) {
   try {
@@ -375,12 +373,10 @@ async function auditRoute(page: Page, role: Role, route: string, shouldBeAllowed
     current = new URL(page.url());
   }
 
-  const evidenceDir = VISUAL_EVIDENCE_ROOT + '/roles/' + role.id + '/' + safeRouteName(route);
-  await fs.mkdir(evidenceDir, { recursive: true });
-  // Keep route-level DOM/text evidence for the exhaustive route matrix.
-  // Responsive projects keep their own independent screenshots/runtime evidence.
-  await fs.writeFile(evidenceDir + '/dom.html', await page.locator('body').evaluate((el) => el.outerHTML).catch(() => ''), 'utf8');
-  await fs.writeFile(evidenceDir + '/text.txt', await page.locator('body').innerText().catch(() => ''), 'utf8');
+  // DOM content, route policy and visual semantics are asserted live in-browser. Do not
+  // persist full HTML/text for every passing route: this checkpoint uploads role evidence
+  // even on success, and duplicate snapshots add volume without increasing test coverage.
+  // Failed retries retain the browser DOM in Playwright traces, which are uploaded on failure.
   expect(current.pathname, role.id + ' ' + route + ': allowed route redirected unexpectedly').not.toBe('/login');
   await shellAudit(page, role, route);
   await inspectForms(page, role, route);
@@ -466,6 +462,12 @@ test.describe('DentVision exhaustive role/context/browser gate',()=>{
     const screenshotPath = `${dir}/${info.project.name}.png`;
     const runtimePath = `${dir}/${info.project.name}-runtime.json`;
     await fs.mkdir(dir, { recursive: true });
+    if (info.status !== 'passed') {
+      // Replace earlier retry evidence: never leave a stale passing/failed screenshot behind.
+      await page.screenshot({ path: screenshotPath, fullPage: true }).catch(() => {});
+      await fs.writeFile(runtimePath, JSON.stringify({ testStatus: info.status, testError: info.error?.message || null }, null, 2), 'utf8');
+      return;
+    }
     try { await fs.access(screenshotPath); } catch { await page.screenshot({ path: screenshotPath, fullPage: true }).catch(() => {}); }
     try { await fs.access(runtimePath); } catch { await fs.writeFile(runtimePath, JSON.stringify({ testStatus: info.status, testError: info.error?.message || null }, null, 2), 'utf8'); }
   });

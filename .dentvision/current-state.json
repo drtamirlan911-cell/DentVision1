@@ -4,12 +4,12 @@
   "source": "DENTVISION_CONTEXT.md",
   "lastVerifiedMergeCommit": "b1daa27c0e0b4c446a9350186107b438ac8ba342",
   "releaseStatus": "UNVERIFIED",
-  "qualityGate": "unverified_post_merge",
-  "ci": "unverified_post_merge",
-  "e2e": "unverified_post_merge",
+  "qualityGate": "unverified_pending_exact_head_gates",
+  "ci": "unverified_pending_exact_head_gates",
+  "e2e": "unverified_pending_exact_head_gates",
   "currentPriority": "P0 release correctness",
   "openWork": [
-    "Verify post-merge CI and browser gates",
+    "Verify CI/E2E/browser/role and partner lifecycle gates on the latest exact HEAD",
     "Verify diagnostics confirmation route/service contract",
     "Verify fail-closed auth session issuance",
     "Complete IAM negative matrix",
@@ -17,7 +17,7 @@
     "Complete partner lifecycle and Finance Hub reconciliation",
     "Verify Clinical/Treatment Case lifecycle",
     "Implement persistent product-led growth directive",
-    "Verify Android build/install/runtime",
+    "Verify Android build/install/runtime on the release candidate",
     "Implement real 32-tooth WebGL/3D odontogram"
   ],
   "authoritativeDocuments": [
@@ -25,8 +25,9 @@
     "DENTVISION_OPERATING_DIRECTIVE.md",
     "DENTVISION_EXECUTION_PLAN.md",
     "DENTVISION_EXECUTION_LOG.md",
-    "DENTVISION_SUPERAPP_BLUEPRINT.md",
-    "DENTVISION_SUPERAPP_MASTER_PLAN.md",
+    "docs/DENTVISION_MASTER_SPEC.md",
+    "docs/00_CONSTITUTION/02_PRODUCT_DNA.md",
+    "docs/RELEASE_BLOCKERS.md",
     "docs/business/DENTVISION_PARTNER_ECONOMICS.md"
   ],
   "protectedRules": [
@@ -35,5 +36,12 @@
     "Do not issue protected JWTs without an active session",
     "Do not silently reprice historical economics",
     "Do not create competing source-of-truth documents"
+  ],
+  "architectureDocuments": [
+    "ARCHITECTURE.md",
+    "docs/SYSTEM_MAP.md"
+  ],
+  "retainedReferenceDocuments": [
+    "DENTVISION_SUPERAPP_BLUEPRINT.md"
   ]
 }

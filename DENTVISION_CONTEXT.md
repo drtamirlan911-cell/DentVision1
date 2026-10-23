@@ -54,6 +54,13 @@
 - The new commit supersedes run 39962109509 before its role gate completed. Results for that role gate and subsequent stages on the superseded SHA are **not verified**. Keep PR #307 draft, do not merge/deploy, and require checks for the latest exact head.
 
 
+## 2D. Exact-head role-gate follow-up — 2026-10-23
+
+- Candidate before this follow-up: `9f7efd2b6c1946f0f15ffdd8400d9439b31f8b29`; CI run `39965626810`.
+- At inspection, frontend lint, backend lint, lint/unit/build, core E2E, browser UX, and mobile design gate had passed; Quality Gate and Android workflows were successful. The role/context gate was still running, so its outcome and downstream Visual Agent/business-owner/organization-owner/CLI/visual-release gates were not verified.
+- This follow-up deliberately supersedes the in-flight run to remove successful-path DOM/HTML artifact bloat, replace fixed sleeps with state-based readiness checks, and reconcile conflicting control-plane document references. The prior role result is neither pass nor fail.
+- The new branch head remains UNVERIFIED pending CI, E2E, browser/role, Visual Agent, partner lifecycle, CLI smoke, visual release evidence, and relevant platform checks on that exact HEAD. Keep PR #307 draft; do not merge or deploy.
+
 ## 3. Status vocabulary
 - DONE = implementation + workflow + verification evidence agree.
 - PARTIAL = meaningful implementation exists but full workflow is incomplete.
@@ -78,10 +85,10 @@ The UI uses progressive disclosure: the underlying ecosystem remains complete, w
 AI action lifecycle:
 `Intent → Context → Permission → Plan → Preview → Confirmation when required → Execute → Verify → Audit`
 
-## 5. Verified repository state — 2026-09-16
-- `main` contains the latest security/release-gate hardening and the current documentation consolidation.
-- Latest verified fully green core CI evidence recorded in the execution log is run `35066089223` on exact HEAD `844b469e084dd5acec6fb45f26d28757c27a3568`: frontend lint, build/typecheck/unit, backend lint, full E2E, browser UX, Business Owner journeys, Organization Owner lifecycle release gate and Playwright CLI smoke passed.
-- A later branch-deactivation test hardening commit exists after that run; therefore the latest main state still requires a fresh CI verification before it can be treated as green.
+## 5. Historical repository baseline — 2026-09-16 (reference only; not current release evidence)
+- This section is a historical product/runtime snapshot retained for context. Its branch descriptions, status labels and CI result are not evidence for the current main or PR #307 head.
+- Historical run `35066089223` on HEAD `844b469e084dd5acec6fb45f26d28757c27a3568` passed its listed checks at that time; subsequent changes mean that result must not support a current release claim.
+- Use Sections 2A–2D and the newest exact-head workflow results for current verification. The current branch remains UNVERIFIED until all required gates pass on one exact HEAD.
 
 ### Product status
 - Clinical RBAC boundary: IMPLEMENTED + unit coverage; fresh CI required after later main changes.

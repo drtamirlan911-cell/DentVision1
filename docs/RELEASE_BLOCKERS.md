@@ -30,6 +30,14 @@
 - **Follow-up:** CI's browser-facing API base was switched to `http://127.0.0.1:3001` so WebKit is not dependent on how `localhost` resolves inside the runner. The page origin remains `http://localhost:3000`, which is explicitly allowed by the development CORS policy.
 - **Remaining:** verify the next full role/context run has no WebKit page/request/server errors and that explicit CORS policy tests still pass. If it fails, inspect the specific failed request and response headers rather than weakening the collector.
 
+### RB-032 — Successful-path E2E DOM dumps inflate role/visual artifacts
+- **Status:** IN PROGRESS — artifact policy corrected in the follow-up; exact-HEAD verification pending
+- **Priority:** P1
+- **Area:** CI reliability / E2E evidence / developer-agent efficiency
+- **Evidence:** the role matrix persisted full `body.outerHTML` and page text for every permitted route under `e2e/visual-evidence/.../roles`, while CI uploaded that directory on successful runs. Mobile/Visual Agent tests also wrote complete HTML snapshots into successful evidence. This duplicated route state, increased artifact size/count, and violated the failure-only diagnostic policy.
+- **Required fix:** keep all browser/role/tenant/branch/viewport assertions and release-required screenshots; limit successful artifacts to screenshots, compact runtime/geometry/accessibility data, and bounded text at meaningful checkpoints. Full DOM snapshots and traces must be failure-only. Replace unconditional sleeps with state-based waits without suppressing errors or widening allowed routes.
+- **Verification:** on the same exact HEAD, confirm all selected tests execute; role/context, Visual Agent, business-owner, organization-owner, mobile/responsive and visual-release gates pass; the manifest confirms no successful-path HTML dumps and a bounded artifact footprint. Leave open until this evidence exists.
+
 ### RB-010 — Payment amount, subscription entitlement and metadata trust
 - **Status:** IN PROGRESS — exact-HEAD CI verification pending
 - **Priority:** P0

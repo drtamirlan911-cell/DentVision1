@@ -62,8 +62,7 @@ async function waitForVisualReady(page: Page) {
         && element.innerText.trim().length < 20;
     });
     return !hasFullscreenSpinner;
-  }, { timeout: 10000 });
-  await page.waitForTimeout(250);
+  }, undefined, { timeout: 10000 });
 }
 
 async function waitForVisualStable(page: Page) {
@@ -75,8 +74,7 @@ async function waitForVisualStable(page: Page) {
       const opacity = Number.parseFloat(style.opacity || '1');
       return opacity >= 0.99;
     });
-  }, { timeout: 5000 });
-  await page.waitForTimeout(100);
+  }, undefined, { timeout: 5000 });
 }
 
 async function auditLayout(page: Page, route: string, device: string) {
@@ -142,7 +140,6 @@ async function auditLayout(page: Page, route: string, device: string) {
   const evidenceBase = evidenceDir + '/' + device + safeRouteEvidence;
   await page.screenshot({ path: evidenceBase + '.png', fullPage: true });
   await fs.writeFile(evidenceBase + '.json', JSON.stringify(result, null, 2), 'utf8');
-  await fs.writeFile(evidenceBase + '.html', await page.locator('body').evaluate((el) => el.outerHTML).catch(() => ''), 'utf8');
   expect(result.visibleContent, `${device} ${route}: no visible page content`).toBeTruthy();
   expect(result.scrollWidth, `${device} ${route}: horizontal overflow ${result.scrollWidth}px > ${result.clientWidth}px`).toBeLessThanOrEqual(result.clientWidth + 2);
   expect(result.bodyWidth, `${device} ${route}: body overflow ${result.bodyWidth}px > ${result.clientWidth}px`).toBeLessThanOrEqual(result.clientWidth + 2);

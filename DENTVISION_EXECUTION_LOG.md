@@ -1390,3 +1390,25 @@ These changes are route/entry reconciliation only. Existing domain implementatio
 - Replaced the 300ms fixed sleep and text-only readiness wait with a DOM-based readiness check that waits for meaningful root text and disappearance of the full-screen loading/auth skeleton. Denied routes now use a bounded URL-path poll to confirm an actual redirect away from the protected route. This is expected to reduce route-matrix idle time without reducing route coverage or weakening RBAC/tenant assertions.
 - Corrected the compact summary grep to match literal `expect(` lines with the valid ERE escape. Added a mandatory AI-agent/CI efficiency protocol to the Operating Directive: verify exact SHA, inspect step summaries and artifact sizes first, avoid bulk-download/context ingestion, read only the failing gate's bounded evidence, and batch commits rather than repeatedly cancelling active runs.
 - The old run's role gate was superseded before it completed; do not treat it as pass/fail. Final verification is pending on the new exact head.
+
+
+## 2026-10-23 — E2E pass-artifact and control-plane consistency follow-up
+
+### Findings
+- On candidate `9f7efd2b6c1946f0f15ffdd8400d9439b31f8b29`, run `39965626810` had frontend lint, backend lint, lint/unit/build, core E2E, browser UX and mobile design completed successfully; Quality Gate and Android workflows were successful. The exhaustive role/context step remained active. Its result and later steps were not verified.
+- The role gate wrote a full `body.outerHTML` plus page text for every allowed route to the role visual-evidence directory, and CI uploaded that directory on successful runs. Mobile and Visual Agent also persisted full HTML at passing checkpoints. That made success-path artifacts contain heavy diagnostic dumps despite the operating directive requiring such dumps to be failure-only.
+- The visual/role tests still contained unconditional pauses despite existing DOM readiness checks. In the mobile gate, `page.waitForFunction(..., { timeout })` passed the timeout object as the callback argument rather than the options argument, so the stated 5/10-second waits were not actually applied.
+- The current-state bootstrap pointed to a missing `CURRENT_STATE.md`; the curated JSON listed a missing `DENTVISION_SUPERAPP_MASTER_PLAN.md` and omitted the canonical Master Spec/Product DNA.
+
+### Implementation in this follow-up
+- Removed full route HTML/text persistence from every successful role-matrix route; browser assertions and the exhaustive route/role matrix remain intact.
+- Fixed failed-attempt screenshot/runtime evidence so a retry cannot leave stale evidence from an earlier attempt.
+- Replaced the role-gate Escape pause with a bounded assertion that the overlay really closes; removed the redundant fixed login pause.
+- Mobile visual readiness/stability waits now pass options in the correct Playwright argument position and rely on rendered-state checks rather than fixed 250/100 ms delays. Successful mobile evidence keeps PNGs and structured geometry JSON, not full HTML.
+- Visual Agent now waits for role-specific URL/content state instead of a fixed login delay, waits for content after route actions/restoration, preserves baseline/action PNGs and geometry JSON, and caps text snapshots at 8,000 characters only at meaningful checkpoints. Full HTML stays in failure retry traces rather than successful evidence.
+- Updated the operating directive, current context, execution plan, curated state JSON and blocker register to align the success-artifact policy and remove references to absent control-plane documents. RB-032 remains open pending verification.
+
+### Verification status and next action
+- The in-flight run `39965626810` was deliberately superseded while its role/context step remained active so the known artifact/readiness defects could be tested together rather than spending another full role-matrix cycle on the previous implementation. Its role and downstream outcomes are NOT VERIFIED—not classified as pass or fail.
+- The changed source has not yet been verified by CI on the follow-up commit. Check the new exact HEAD and its run, inspect step summaries and the bounded manifest first, and only retrieve a failing gate's relevant logs/traces.
+- Keep PR #307 draft; do not merge, deploy, or mark release-ready. Continue RB-029 clinical-history encryption analysis separately: the Prisma JSON object has multiple direct consumers, so a safe fix requires a central read/write strategy and compatibility tests rather than storing opaque ciphertext in the JSON field without migration planning.
