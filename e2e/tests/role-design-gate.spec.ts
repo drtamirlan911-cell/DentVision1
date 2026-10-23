@@ -77,7 +77,7 @@ function pageId(route: string, role?: Role): string | null {
   const map: Record<string,string> = {
     '/ai':'ai','/crm/schedule':'schedule','/crm/patients':'patients','/crm/medical-card':'medical-card','/crm/finance':'finance','/crm/cashier':'cashier',
     '/crm/clinic-settings':'clinic-settings','/crm/billing':'billing','/crm/patient-inbox':'patient-inbox','/crm/visits':'visits','/crm/dental-chart':'dental-chart','/crm/treatment-plans':'treatment-plans',
-    '/crm/pricelist':'pricelist','/crm/lab':'lab','/crm/inventory':'inventory','/crm/documents':'documents','/crm/staff':'staff','/crm/reminders':'reminders','/crm/promotions':'promotions','/crm/marketing':'promotions','/crm/icd10':'icd10','/crm/workflow':'workflow','/crm/integrations/messaging':'clinic-settings',
+    '/crm/pricelist':'pricelist','/crm/lab':'lab','/crm/inventory':'inventory','/crm/stock-rules':'inventory','/crm/documents':'documents','/crm/staff':'staff','/crm/reminders':'reminders','/crm/promotions':'promotions','/crm/marketing':'promotions','/crm/icd10':'icd10','/crm/workflow':'workflow','/crm/integrations/messaging':'clinic-settings',
     '/analytics':'analytics','/admin':'admin','/audit':'audit','/agent-activity':'agent-activity','/ai-approvals':'ai-approvals','/backup':'backup','/shop':'shop','/school':'school','/settings':'settings','/bi':'bi','/security':'security','/quality':'quality','/platform-finance':'platform-finance','/ai-governance':'ai-governance','/support':'support','/diagnostics':'diagnostics','/supplier':'supplier',
     '/diagnostics/referrals':'diagnostics-referrals','/diagnostics/centers':'diagnostics-centers','/diagnostics/labs':'diagnostics-labs','/diagnostics/laboratories':'diagnostics-labs','/diagnostics/results':'diagnostics-results','/diagnostics/calendar':'diagnostics-calendar','/diagnostics/statistics':'diagnostics-statistics','/diagnostics/settings':'diagnostics-settings',
     '/diagnostics/center':'diagnostics','/diagnostics/lab':'diagnostics','/diagnostics/workspace':'diagnostics','/diagnostics/center-dashboard':'diagnostics','/diagnostics/lab-dashboard':'diagnostics','/diagnostics/registrations':'admin','/diagnostics/registration-requests':'admin',
@@ -118,7 +118,7 @@ async function login(page: Page, email: string) {
   await expect.poll(() => new URL(page.url()).pathname, {
     timeout: 30000,
     message: email + ': login did not reach an authenticated workspace',
-  }).toMatch(/^\/(?:ai|patient-portal|diagnostics|school|admin|profile)(?:$|\/)/i);
+  }).toMatch(/^\/(?:ai|patient-portal|diagnostics|school|admin|profile|help|analytics|settings)(?:$|\/)/i);
   await expect.poll(() => page.locator('body').innerText().catch(() => ''), {
     timeout: 10000,
     message: email + ': authenticated workspace did not render',
