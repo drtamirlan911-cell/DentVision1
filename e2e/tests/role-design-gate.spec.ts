@@ -518,12 +518,19 @@ test.describe('DentVision exhaustive role/context/browser gate',()=>{
     expect(new URL(page.url()).pathname, 'anonymous guest AI landing should remain available').toBe('/ai');
   });
 
-  test('anonymous: every protected route redirects before protected content renders',async({page},info)=>{
-    test.skip(info.project.name !== 'role-1280', 'Anonymous authorization matrix is viewport-independent; execute once per CI run');
-    for(const route of ROUTES.filter(r=>!PUBLIC_ROUTES.includes(r) && r !== '/ai'))
+  test('anonymous: every protected route redirects before protected content renders', async ({ page }, info) => {
+    test.skip(
+      info.project.name !== 'role-1280',
+      'Anonymous authorization matrix is viewport-independent; execute once per CI run',
+    );
+
+    for (const route of ROUTES.filter((r) => !PUBLIC_ROUTES.includes(r) && r !== '/ai')) {
       await page.context().clearCookies();
-      await page.goto(BASE_URL+route,{waitUntil:'domcontentloaded',timeout:30000});
-      expect(new URL(page.url()).pathname,'anonymous '+route+': protected screen exposed').toBe('/login');
+      await page.goto(BASE_URL + route, { waitUntil: 'domcontentloaded', timeout: 30000 });
+      expect(
+        new URL(page.url()).pathname,
+        'anonymous ' + route + ': protected screen exposed',
+      ).toBe('/login');
     }
   });
 });
