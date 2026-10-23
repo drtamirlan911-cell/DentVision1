@@ -126,6 +126,52 @@ async function login(page: Page, email: string) {
   await page.waitForTimeout(300);
 }
 
+async function activatePartnerWorkspace(page: Page, role: Role) {
+  const expectedScope = role.family === 'diagnostic'
+    ? 'DIAGNOSTIC_CENTER'
+    : role.family === 'medical-lab' || role.family === 'dental-lab'
+      ? 'LABORATORY'
+      : null;
+  if (!expectedScope) return;
+
+  // Partner-only test users have a base STUDENT account and a separate scoped
+  // organization role. Merely displaying the first available workspace is not
+  // authorization: activate it through the real switcher so the API issues a
+  // context-bound token before auditing role access.
+  const trigger = page.getByTestId('workspace-switcher-trigger');
+  await expect(trigger, role.id + ': workspace switcher missing').toBeVisible({ timeout: 15000 });
+  await trigger.click();
+  const menu = page.getByTestId('workspace-switcher-menu');
+  await expect(menu).toBeVisible({ timeout: 10000 });
+  const escapedLabel = role.label.replace(/[.*+?^${}()|[\]\\]/g, '\\function collectors(page: Page) {');
+  const option = menu.getByRole('button', { name: new RegExp(escapedLabel, 'i') });
+  await expect(option, role.id + ': scoped organization role not offered in workspace menu').toHaveCount(1);
+  await option.click();
+  await expect(menu).toBeHidden({ timeout: 15000 });
+
+  await expect.poll(() => page.evaluate(() => {
+    try {
+      const stored = sessionStorage.getItem('dv_tokens');
+      const access = stored ? JSON.parse(stored)?.access : null;
+      const payload = access?.split('.')[1];
+      if (!payload) return { role: null, organizationType: null };
+      const normalized = payload.replace(/-/g, '+').replace(/_/g, '/').padEnd(Math.ceil(payload.length / 4) * 4, '=');
+      const claims = JSON.parse(atob(normalized));
+      return { role: claims.role || null, organizationType: claims.organizationType || null };
+    } catch {
+      return { role: null, organizationType: null };
+    }
+  }), {
+    timeout: 15000,
+    message: role.id + ': workspace switch did not persist a scoped token',
+  }).toMatchObject({ organizationType: expectedScope });
+
+  await expect.poll(() => page.locator('body').innerText().catch(() => ''), {
+    timeout: 15000,
+    message: role.id + ': scoped workspace did not render',
+  }).toContain(role.label);
+}
+
 function collectors(page: Page) {
   const problems={console:[] as string[],page:[] as string[],requests:[] as string[],server:[] as string[]};
   page.on('console',m=>{if(m.type()==='error') problems.console.push(m.text())});
@@ -382,6 +428,7 @@ test.describe('DentVision exhaustive role/context/browser gate',()=>{
     test(role.id+': every declared and discovered screen plus security boundary',async({page},info)=>{
       const problems=collectors(page);
       await login(page,role.email);
+      await activatePartnerWorkspace(page, role);
       await expect.poll(() => page.locator('body').innerText().catch(() => ''), {
         timeout: 10000,
         message: role.id + ': authenticated entry screen did not render',
