@@ -1342,3 +1342,26 @@ These changes are route/entry reconciliation only. Existing domain implementatio
 - Extracted ticket visibility into `supportPolicy.ts` and wired the support routes to the shared policy instead of duplicating role checks.
 - Added `supportPolicy.test.ts` for requester-own-ticket access, cross-user denial, null requester, support/superadmin access, and fail-closed unknown/missing roles.
 - This is unit-level policy coverage, not a substitute for HTTP integration tests against the actual middleware/database. Exact-HEAD CI remains pending; no support subsystem release gate is marked DONE.
+
+## 2026-10-23 — Spec Kit-style bounded repair: support contract and CI index gate
+
+### Evidence and changes on `security/payment-hardening-20261017`
+- Inspected the official `github/spec-kit` process and applied its assess → scoped fix → verify pattern without introducing a competing DentVision roadmap or changing `main`.
+- Fixed the Help page queue contract: `getSupportQueue` returns `SupportQueuePage`, so the list renders `queue.data.tickets` while personal cases remain an array. Commit: `e75683a7cd5271070d9950e6d3e04287b6e47a7c`.
+- Refreshed `docs/SYSTEM_MAP.md` to match the exact output reported by the backend system-map generator in CI (679 unique handlers, 643 mounted HTTP routes, support router 7 handlers). Commit: `d6bc79d1755d6adb798f99b5a49efa82d9bb8337`.
+- Added `e2e/tests/support.spec.ts` for five HTTP-level scenarios: requester create/read, cross-user read/reply denial, staff-only queue/directory, paginated staff queue with status/priority update, and unauthenticated denial. Roles use separate Playwright request contexts so shared session cookies cannot mask authorization behavior. Latest test file is on this branch; see the commit history for its follow-up TypeScript/context cleanup.
+- Found the CI project-index check was a no-op: it diffed `quality-scripts/project-index.generated.ts`, which does not exist in this repository. The actual generator writes inventory to `.dentvision/*.json`.
+- Changed the index generator so it no longer overwrites the curated `.dentvision/current-state.json` sourced from `DENTVISION_CONTEXT.md`; that file is authoritative state, not a disposable generated summary. Commit: `9fe26b4c13897306cea137db4e9b2d17d1f97cd4`.
+- Added `quality-scripts/validate-project-index.ts` to validate real generated routes, roles, workspace identifiers, security requirements, tests (including support and API-contract tests), Android screen inventory, and preservation of curated current state. Commit: `9d5b069c46e85d7f070d9244741f6252dbe352bb`. The CI workflow must call this validator in place of the missing-file diff check.
+
+### Verification status — do not infer release readiness
+- Quality Gate and Android build passed on `d6bc79d`, and again on `3ef18a4`; frontend lint, backend lint, build/typecheck, and unit tests passed on the latter candidate.
+- Core E2E and browser UX completed successfully on SHA `d6bc79d`; the job was superseded by newer pushes before later release gates finished. A fresh run on `3ef18a4` had frontend lint, backend lint, and unit tests green, but Playwright browser installation remained in progress without a reported failure. Later pushes will cancel that superseded run.
+- The new support-specific E2E cases and the new project-index validator are **PENDING exact-HEAD CI verification**. Checked-in `.dentvision/*.json` placeholders have not been synchronized as committed snapshots by this work; the new CI validator checks freshly generated output, and snapshot synchronization remains a separate tracked follow-up.
+- Existing blockers remain open, including RB-010–RB-019 payment/security verification, RB-029 clinical-history JSON encryption/backfill, RB-030 offline appointment sync integrity, and RB-031 WebKit connectivity. No blocker is closed by these changes.
+
+### Guardrails and next action
+- `main` and production are untouched; PR #307 remains draft.
+- Verify the new project-index validator and support HTTP E2E suite on the final exact commit. Inspect failure logs/artifacts in bounded chunks and retain failing assertions; do not weaken authorization, data-protection, or visual release gates.
+- Do not mark support complete, merge the PR, or claim production readiness until the exact-HEAD required gates and remaining P0/P1 blockers have their own evidence.
+
