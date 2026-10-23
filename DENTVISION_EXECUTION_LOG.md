@@ -1336,3 +1336,9 @@ These changes are route/entry reconciliation only. Existing domain implementatio
 - **PARTIAL / NOT RELEASE-VERIFIED.** The UI/API/schema are present; source presence is not proof that all users can use support safely or that staff can operate it effectively.
 - `main` and production were not changed. PR #307 remains draft.
 - Next: verify fresh exact-HEAD CI; add route-level integration tests for requester IDOR and staff-only queue/assignment; validate migration and notification paths; then implement server-backed queue search/pagination/assignment UX. Define approved SLA and escalation policy before coding timers or promising response targets.
+
+
+### 2026-10-23 — Support authorization policy regression tests
+- Extracted ticket visibility into `supportPolicy.ts` and wired the support routes to the shared policy instead of duplicating role checks.
+- Added `supportPolicy.test.ts` for requester-own-ticket access, cross-user denial, null requester, support/superadmin access, and fail-closed unknown/missing roles.
+- This is unit-level policy coverage, not a substitute for HTTP integration tests against the actual middleware/database. Exact-HEAD CI remains pending; no support subsystem release gate is marked DONE.
