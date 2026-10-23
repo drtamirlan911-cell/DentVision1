@@ -46,9 +46,9 @@ async function createTicket(user: AuthenticatedUser) {
 }
 
 test.describe('Ecosystem support API', () => {
-  let ownerA: AuthenticatedUser | undefined;
-  let ownerB: AuthenticatedUser | undefined;
-  let support: AuthenticatedUser | undefined;
+  let ownerA!: AuthenticatedUser;
+  let ownerB!: AuthenticatedUser;
+  let support!: AuthenticatedUser;
   let ownerAContext: APIRequestContext | undefined;
   let ownerBContext: APIRequestContext | undefined;
   let supportContext: APIRequestContext | undefined;
