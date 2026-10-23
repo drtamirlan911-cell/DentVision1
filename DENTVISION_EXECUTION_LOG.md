@@ -1321,3 +1321,18 @@ These changes are route/entry reconciliation only. Existing domain implementatio
 
 ### Verification
 - Unit, exact-HEAD role/context, and full CI verification are pending on the corrected candidate. Do not close RB-025 or mark this work release-ready until the exact-head gates pass.
+
+
+## 2026-10-23 — Ecosystem support control-plane baseline
+
+### Inspected
+- Read the operating directive, current context, master spec, Product DNA, execution plan and release-blocker register before changing the branch.
+- Confirmed an initial Help center already exists: `src/pages/Help.tsx`; backend ticket routes and state helper exist under `dentvision-backend/src/modules/support/`; schema migration is `20261023120000_ecosystem_support_center`.
+- Current implementation includes requester-owned tickets, staff queue, message/status/priority/assignee backend fields, audit records and in-app notifications. Existing unit tests cover the finite status vocabulary and selected transitions only; they do not prove end-to-end authorization or operational readiness.
+- CI run `39926596764` exposed a TypeScript error in requester reply status narrowing at `support.routes.ts`. Replaced the array `includes` check with explicit enum comparisons in commit `3681ef32c286ba5b55dfd4841ed497a562e152ee`; this preserves intended behavior and addresses the exact compiler diagnostic. Fresh exact-HEAD verification is pending.
+- Added the support/control-plane capability matrix and release gates to the existing canonical execution plan rather than creating a competing roadmap.
+
+### Current status
+- **PARTIAL / NOT RELEASE-VERIFIED.** The UI/API/schema are present; source presence is not proof that all users can use support safely or that staff can operate it effectively.
+- `main` and production were not changed. PR #307 remains draft.
+- Next: verify fresh exact-HEAD CI; add route-level integration tests for requester IDOR and staff-only queue/assignment; validate migration and notification paths; then implement server-backed queue search/pagination/assignment UX. Define approved SLA and escalation policy before coding timers or promising response targets.
