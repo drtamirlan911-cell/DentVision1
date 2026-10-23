@@ -51,7 +51,7 @@ jobs:
       - name: Generate project index
         run: npm run project:index
       - name: Validate generated project index
-        run: git diff --exit-code -- quality-scripts/project-index.generated.ts
+        run: npx tsx quality-scripts/validate-project-index.ts
       - run: npx prisma generate
       - run: npm run build --if-present
       - run: npx tsc --noEmit
