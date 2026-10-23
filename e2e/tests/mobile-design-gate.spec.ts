@@ -151,19 +151,9 @@ async function auditLayout(page: Page, route: string, device: string) {
   expect(undersized, `${device} ${route}: interactive target(s) below 36px: ${JSON.stringify(undersized)}`).toEqual([]);
   expect(result.clipped, `${device} ${route}: visible text/control clipping: ${JSON.stringify(result.clipped)}`).toEqual([]);
 
-  const safeRoute = route.replace(/[\\/?#:%*|"<>]/g, '_') || '_home';
-  const bucket = route === '/' || route.startsWith('/login') ? 'welcome' :
-    route.startsWith('/ai') ? 'ai' :
-    route.startsWith('/crm/lab') ? 'lab' :
-    route.startsWith('/crm/') ? 'crm' :
-    route.startsWith('/diagnostics/') ? 'diagnostics' :
-    route.startsWith('/shop') ? 'shop' :
-    route.startsWith('/school') ? 'academy' :
-    'responsive';
-  await page.screenshot({
-    path: `${VISUAL_EVIDENCE_ROOT}/responsive/${bucket}/${device}${safeRoute}.png`,
-    fullPage: true,
-  });
+  // The canonical screenshot was already written above; avoid taking the same
+  // full-page PNG twice, which adds needless browser and artifact work.
+
 }
 
 test.describe('DentVision responsive design release gate', () => {
@@ -185,13 +175,11 @@ test.describe('DentVision responsive design release gate', () => {
 
     for (const route of CRITICAL_ROUTES) {
       await gotoStable(page, `${BASE_URL}${route}`);
-      await page.waitForTimeout(400);
       await waitForVisualReady(page);
 
       if (new URL(page.url()).pathname === '/login') {
         await login(page);
         await gotoStable(page, `${BASE_URL}${route}`);
-        await page.waitForTimeout(400);
         await waitForVisualReady(page);
       }
 
