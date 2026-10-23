@@ -28,7 +28,7 @@ export default function HelpPage(){
  const create=useMutation({mutationFn:()=>api.createSupportTicket({subject:subject.trim(),description:description.trim(),category,sourcePath:window.location.pathname}),onSuccess:async t=>{await qc.invalidateQueries({queryKey:['support']});setSubject('');setDescription('');setShowCreate(false);setSelectedId(t.id);setView('mine');setParams({ticketId:t.id},{replace:true});}});
  const replyMutation=useMutation({mutationFn:()=>api.replyToSupportTicket(selectedId!,reply.trim()),onSuccess:async()=>{setReply('');await qc.invalidateQueries({queryKey:['support']});}});
  const statusMutation=useMutation({mutationFn:(status:SupportTicketStatus)=>api.updateSupportTicket(selectedId!,{status}),onSuccess:async()=>{await qc.invalidateQueries({queryKey:['support']});}});
- const tickets=view==='queue'&&staff?queue.data||[]:mine.data||[]; const ticket=selected.data;
+ const tickets: SupportTicket[] = view === 'queue' && staff ? (queue.data?.tickets ?? []) : (mine.data ?? []); const ticket=selected.data;
  const actionError=[create.error,replyMutation.error,statusMutation.error].find(Boolean) as Error|undefined;
  const qError=view==='queue'&&staff?queue.error:mine.error;
  function openTicket(t:SupportTicket){setSelectedId(t.id);setParams({...view==='queue'&&staff?{view:'queue'}:{},ticketId:t.id},{replace:true});}
