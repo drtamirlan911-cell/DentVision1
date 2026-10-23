@@ -9,7 +9,6 @@ import { canReadSupportTicket, isSupportStaffRole } from './supportPolicy.js';
 
 export const supportRouter = Router();
 supportRouter.use(authenticate);
-const STAFF = new Set(['SUPPORT','SUPERADMIN']);
 const CATEGORIES = new Set<string>(Object.values(SupportTicketCategory));
 const PRIORITIES = new Set<string>(Object.values(SupportTicketPriority));
 const SUPPORT_ROLE = 'SUPPORT' as const;
