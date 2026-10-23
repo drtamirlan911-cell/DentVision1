@@ -355,3 +355,36 @@ A phase is complete only when:
 **Next:** complete partner transparency/Finance Hub, then automated operations, then product-wide UX/clinical/ecosystem hardening.
 
 The work proceeds in vertical slices: implement → verify → commit → update the persistent log → move to the next slice.
+
+## Ecosystem Support & Operations Control Plane
+
+**Status: PARTIAL — initial user-facing support center exists; full operational control plane is not verified.**
+This section is the single checklist for support-system delivery. It extends existing Help, IAM, notifications, audit and domain workflows; it must not create a parallel identity, permission, ticket or organization model.
+
+### Current implementation evidence (source exists; runtime behavior still requires tests)
+- [x] User-facing entry: `src/pages/Help.tsx` — create an issue, view own issues, open a conversation, reply, and see status.
+- [x] Backend endpoints: `dentvision-backend/src/modules/support/support.routes.ts` — `GET /mine`, staff-only `GET /queue`, create/read/reply/update ticket.
+- [x] Finite status/category/priority vocabulary and transition helper: `supportState.ts`; unit coverage: `supportState.test.ts`.
+- [x] Persisted ticket/message schema and migration: `20261023120000_ecosystem_support_center`.
+- [x] Audit events and in-app notifications are written on core ticket/message/status paths.
+- [ ] **Not verified:** end-to-end API authorization, requester-to-requester isolation, staff permissions, notification delivery, race handling, migration on a clean database, and actual Help-page workflows.
+- [ ] **Not implemented/verified as a complete service operation:** SLA timers and breach alerts, escalation/on-call ownership, assignment UX, queue search and useful filters, paginated queue UX, resolution quality/reopen analytics, incident/outage communication, knowledge-base deflection, and support health dashboard.
+
+### Product contract — one support system, role-aware entry
+- Every signed-in participant (patient/buyer, professional, clinic, diagnostic center, medical lab, dental lab, supplier, academy/lecturer/student, employer/job seeker, community participant and platform operator) must have one discoverable Help entry. Entry and language are contextual; support staff tooling is not exposed to ordinary users.
+- A user may read/reply only to their own tickets. Support access is an explicit server-authorized capability; a client role, URL parameter or ticket ID is never authorization proof. Superadmin access must follow governed policy and be audited.
+- Ticket categories are shared and stable; context metadata may include organization/branch/workspace and source route only when server-validated and safe. Never attach patient records, clinical notes, tokens, payment credentials or raw browser storage automatically.
+- Urgent security, privacy, payment and clinical-safety reports require explicit severity, restricted visibility where appropriate, audit trail and escalation path. Do not promise response times until an owner-approved support policy defines them.
+- Status transitions, assignment, priority, replies and closure must be atomic, auditable and race-safe. Reopening a closed ticket is staff-only unless policy explicitly changes.
+- Queue views must help staff answer: what is urgent, who owns it, how long it has waited, what is blocking it, and what action is next. Default UI stays simple; advanced filters and diagnostics are progressively disclosed.
+- Incident/outage communication must be separate from private ticket messages and must never expose one customer's data to another.
+- Every control shown in the UI must be backed by a real endpoint and permission. No placeholder buttons or simulated metrics.
+
+### Release gates for this subsystem
+1. Add integration tests for create/list/detail/reply/status/assignment, malformed inputs, missing/invalid role, requester isolation, cross-user IDOR, staff-only queue, and concurrent updates.
+2. Verify database migration from an empty database and from the current schema; check foreign keys, indexes, rollback/forward recovery and seed compatibility.
+3. Add rate limits and abuse controls for ticket creation/replies; bound message history and query sizes; avoid logging message bodies or sensitive diagnostics.
+4. Add explicit operational policy before implementing SLA timers: support hours/time zone, first-response/resolution targets by severity, holidays, escalation owners, after-hours behavior and reporting windows.
+5. Implement only the next verified slice: queue search/filter/pagination and assignment UX backed by server-side filters, then SLA/escalation and outcome analytics with tests.
+6. Verify all supported participant contexts and mobile widths; check keyboard access, accessible target sizes, loading/empty/error/retry states and deep-link authorization.
+7. Mark this subsystem DONE only when the above gates have evidence in CI and the execution log. Source presence alone is PARTIAL.
