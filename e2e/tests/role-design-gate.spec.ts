@@ -143,7 +143,7 @@ async function activatePartnerWorkspace(page: Page, role: Role) {
   await trigger.click();
   const menu = page.getByTestId('workspace-switcher-menu');
   await expect(menu).toBeVisible({ timeout: 10000 });
-  const option = menu.getByRole('button').filter({ hasText: role.label });');
+  const option = menu.getByRole('button').filter({ hasText: role.label });
   await expect(option, role.id + ': scoped organization role not offered in workspace menu').toHaveCount(1);
   await option.click();
   await expect(menu).toBeHidden({ timeout: 15000 });
