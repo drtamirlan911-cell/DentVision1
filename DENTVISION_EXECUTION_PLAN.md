@@ -355,3 +355,27 @@ A phase is complete only when:
 **Next:** complete partner transparency/Finance Hub, then automated operations, then product-wide UX/clinical/ecosystem hardening.
 
 The work proceeds in vertical slices: implement → verify → commit → update the persistent log → move to the next slice.
+
+## Ecosystem support operations — inventory-first workstream (2026-10-23)
+
+**Status:** DESIGN RECORDED; implementation inventory and runtime verification NOT STARTED. Do not treat this as a shipped feature.
+
+Canonical design: `docs/operations/DENTVISION_ECOSYSTEM_SUPPORT_OPERATIONS.md`. This is a bounded operations model, not a competing roadmap or source of product/economic policy.
+
+- [ ] SUP-01 inventory existing support, feedback, incident, admin, notification and knowledge capabilities in code and tests.
+- [ ] SUP-02 verify tenant-scoped case lifecycle and immutable audit history.
+- [ ] SUP-03 prove server-side role/domain authorization and cross-tenant denial.
+- [ ] SUP-04 approve severity/service-hours policy before enabling SLA clocks.
+- [ ] SUP-05 verify incident ownership, timeline, customer updates and postmortem workflow.
+- [ ] SUP-06 verify assignment, backup ownership, overdue detection and escalation delivery.
+- [ ] SUP-07 verify safe attachments, PHI redaction and restricted clinical evidence access.
+- [ ] SUP-08 define and reconcile dashboard metrics against source records.
+- [ ] SUP-09 verify knowledge search, article permissions, ownership and review lifecycle.
+- [ ] SUP-10 verify notification delivery, retries, deduplication and PHI-safe payloads.
+- [ ] SUP-11 verify defect-to-PR-to-CI-to-release traceability.
+- [ ] SUP-12 verify AI triage remains advisory, evidence-grounded and human-approved for high-risk actions.
+- [ ] SUP-13 verify mobile, offline/retry, accessibility and all ecosystem participant contexts.
+- [ ] SUP-14 verify retention, deletion, export and legal-hold controls.
+- [ ] SUP-15 assign primary/backup operational owners and rehearse incident recovery.
+
+Definition of DONE for each SUP item: exact code path + owning service + authorization scope + tests + current CI/runtime evidence + known limitations. A route, screen or document alone is insufficient. Update this existing plan and the execution log; do not create another status register.
