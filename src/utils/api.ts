@@ -797,13 +797,17 @@ export interface SupportTicket {
   messages?: SupportTicketMessage[]; _count?: { messages: number };
 }
 export async function getMySupportTickets(): Promise<SupportTicket[]> { return apiRequest('/api/support/mine'); }
-export async function getSupportQueue(params: { status?: SupportTicketStatus | 'ALL'; page?: number; limit?: number } = {}): Promise<SupportTicket[]> {
+export interface SupportQueuePage { tickets: SupportTicket[]; pagination: { page: number; limit: number; total: number; pages: number }; }
+export interface SupportStaffMember { id: string; firstName: string; lastName: string; email: string; }
+export async function getSupportQueue(params: { status?: SupportTicketStatus | 'ALL'; q?: string; page?: number; limit?: number } = {}): Promise<SupportQueuePage> {
   const q = new URLSearchParams();
   if (params.status) q.set('status', params.status);
+  if (params.q?.trim()) q.set('q', params.q.trim().slice(0,100));
   if (params.page) q.set('page', String(params.page));
   if (params.limit) q.set('limit', String(params.limit));
   return apiRequest('/api/support/queue' + (q.size ? '?' + q.toString() : ''));
 }
+export async function getSupportStaff(): Promise<SupportStaffMember[]> { return apiRequest('/api/support/staff'); }
 export async function getSupportTicket(id: string): Promise<SupportTicket> {
   return apiRequest('/api/support/tickets/' + encodeURIComponent(id));
 }
