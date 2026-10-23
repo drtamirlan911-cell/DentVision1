@@ -7,7 +7,7 @@ export const PATH_PAGE_ID: Record<string, string> = {
   '/crm/finance': 'finance', '/crm/cashier': 'cashier', '/crm/clinic-settings': 'clinic-settings',
   '/crm/billing': 'billing', '/crm/patient-inbox': 'patient-inbox', '/crm/visits': 'visits',
   '/crm/dental-chart': 'dental-chart', '/crm/treatment-plans': 'treatment-plans', '/crm/pricelist': 'pricelist',
-  '/crm/lab': 'lab', '/crm/inventory': 'inventory', '/crm/documents': 'documents', '/crm/staff': 'staff',
+  '/crm/lab': 'lab', '/crm/inventory': 'inventory', '/crm/stock-rules': 'inventory', '/crm/documents': 'documents', '/crm/staff': 'staff',
   '/crm/reminders': 'reminders', '/crm/promotions': 'promotions', '/crm/marketing': 'promotions',
   '/crm/icd10': 'icd10', '/crm/workflow': 'workflow', '/crm/integrations/messaging': 'clinic-settings',
   '/analytics': 'analytics', '/admin': 'admin', '/audit': 'audit', '/agent-activity': 'agent-activity',
