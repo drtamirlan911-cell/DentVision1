@@ -120,3 +120,40 @@ describe('patient field batch encryption production safety', () => {
     expect(() => encryptPatientFields(patient)).toThrow(/encryption unavailable in production/i);
   });
 });
+
+
+describe('decryptField integrity and availability', () => {
+  const originalNodeEnv = process.env.NODE_ENV;
+  const originalKey = process.env.ENCRYPTION_KEY;
+
+  afterEach(() => {
+    process.env.NODE_ENV = originalNodeEnv;
+    process.env.ENCRYPTION_KEY = originalKey;
+  });
+
+  it('round-trips encrypted fields while keeping ciphertext marked', async () => {
+    process.env.NODE_ENV = 'test';
+    process.env.ENCRYPTION_KEY = 'phi-test-key-that-is-long-enough-123456';
+    const { encryptField, decryptField } = await import('./phi.js');
+    const encrypted = encryptField('private clinical value');
+    expect(encrypted).toMatch(/^ENC:/);
+    expect(encrypted).not.toContain('private clinical value');
+    expect(decryptField(encrypted)).toBe('private clinical value');
+  });
+
+  it('fails closed on tampered or malformed encrypted data', async () => {
+    process.env.NODE_ENV = 'test';
+    process.env.ENCRYPTION_KEY = 'phi-test-key-that-is-long-enough-123456';
+    const { decryptField } = await import('./phi.js');
+    expect(() => decryptField('ENC:not-valid-ciphertext')).toThrow(/Unable to decrypt encrypted field/);
+  });
+
+  it('fails closed in production when ciphertext exists but the encryption key is unavailable', async () => {
+    process.env.NODE_ENV = 'production';
+    process.env.ENCRYPTION_KEY = 'phi-test-key-that-is-long-enough-123456';
+    const { encryptField, decryptField } = await import('./phi.js');
+    const encrypted = encryptField('private clinical value');
+    delete process.env.ENCRYPTION_KEY;
+    expect(() => decryptField(encrypted)).toThrow(/Decryption unavailable in production/);
+  });
+});
