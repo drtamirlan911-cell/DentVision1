@@ -109,6 +109,6 @@ export default defineConfig({
   ],
   reporter: [
     ['html', { outputFolder: process.env.PLAYWRIGHT_HTML_OUTPUT_DIR || 'playwright-report', open: 'never' }],
-    ['list'],
+    ['dot'],
   ],
 });
