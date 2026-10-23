@@ -19,7 +19,11 @@ class SupportRequestError extends Error {
 function isStaff(req: AuthRequest) { return Boolean(req.user && isSupportStaffRole(req.user.role)); }
 function cleanText(value: unknown, max: number): string | null {
   if (typeof value !== 'string') return null;
-  const clean = value.replace(/\u0000/g, '').replace(/[\u0001-\u0008\u000B\u000C\u000E-\u001F\u007F]/g, '').trim();
+  // Strip ASCII control characters without a control-character regex (ESLint no-control-regex).
+  const clean = Array.from(value).filter((char) => {
+    const code = char.charCodeAt(0);
+    return code >= 0x20 && code !== 0x7f;
+  }).join('').trim();
   return clean.length > 0 && clean.length <= max ? clean : null;
 }
 function pagination(query: Record<string, unknown>) {
