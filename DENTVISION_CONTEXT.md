@@ -47,11 +47,12 @@
 
 ## 2C. E2E execution efficiency findings — 2026-10-23
 
-- CI run 39959200531 showed core E2E and browser UX passing while mobile responsive visual checks were still running; later role/context, Visual Agent, business-owner and organization-owner stages had not yet started at inspection time. Do not treat it as final verification.
-- The latest branch changes remove duplicate full-page screenshot work and redundant fixed waits from the responsive gate; they do not remove tests or weaken assertions.
-- Route-level DOM/text snapshots are produced once by the exhaustive role-1280 route matrix. Other viewport projects keep their own responsive critical-route checks, screenshots and runtime evidence.
-- CI records per-gate duration and logs, summarizes all instrumented gate results, and records evidence-folder file counts/byte sizes. Full HTML/CLI diagnostic artifacts are failure-only; passing visual screenshots remain available for a seven-day window.
-- Exact-head verification pending. Keep PR #307 draft, do not merge/deploy, and inspect only the failing gate's logs after checking the timing/size manifest.
+- Workflow run 39962109509 used exact head `5bb2e385434e038519de186c672a99aa6f44da56`. Frontend lint, backend lint, Quality Gate, Android, and unit checks passed. Core E2E passed in 64 seconds; browser UX passed in 106 seconds; mobile design passed in 117 seconds. On prior run 39959200531, mobile design took 165 seconds. The current mobile evidence artifact was 19.5 MB compressed.
+- The role/context matrix was still active after roughly 14 minutes without a reported gate result. It audits 71 declared routes across 16 roles plus discovered routes. The fixed 300 ms sleep after each route accumulated as artificial wait time.
+- The role gate now waits for meaningful root content and the disappearance of a full-screen loading/auth skeleton. For forbidden routes it waits for the URL path to leave the protected path, with a bounded timeout; route, role, and negative-access assertions remain enabled.
+- CI records per-gate duration/log location and an artifact manifest; full HTML/CLI reports are failure-only; passed mobile screenshots stay available for seven days. Summary extraction includes escaped literal `expect(` matches.
+- The new commit supersedes run 39962109509 before its role gate completed. Results for that role gate and subsequent stages on the superseded SHA are **not verified**. Keep PR #307 draft, do not merge/deploy, and require checks for the latest exact head.
+
 
 ## 3. Status vocabulary
 - DONE = implementation + workflow + verification evidence agree.

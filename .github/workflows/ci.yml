@@ -321,7 +321,7 @@ jobs:
               [ -f "$log_file" ] || continue
               echo
               echo "=== $log_file ==="
-              grep -E '(^[[:space:]]*[0-9]+ failed|^[[:space:]]*[0-9]+ passed|[0-9]+ failed|[0-9]+ passed|Error:|HTTP [45][0-9][0-9]|Test timeout|timed out)' "$log_file" | tail -n 35 || true
+              grep -E '(^[[:space:]]*[0-9]+ failed|^[[:space:]]*[0-9]+ passed|[0-9]+ failed|[0-9]+ passed|Error:|HTTP [45][0-9][0-9]|expect\(|Test timeout|timed out)' "$log_file" | tail -n 35 || true
             done
           } > e2e-failure-summary.txt
       - name: Upload compact E2E diagnostics

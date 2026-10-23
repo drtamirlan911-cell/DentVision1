@@ -1381,3 +1381,12 @@ These changes are route/entry reconciliation only. Existing domain implementatio
 ### Verification status
 - Implementation is UNVERIFIED until all required checks complete on the final exact head. The inspected run above predates this combined change and is not valid verification for this candidate.
 - Keep PR #307 draft; do not merge or deploy based on this optimization. If a gate fails, use the compact manifest/timing summary first, then inspect only that gate's bounded log section and failure-only artifacts.
+
+
+## 2026-10-23 — Role-matrix readiness and diagnostic extraction
+
+- Run `39962109509` on SHA `5bb2e385434e038519de186c672a99aa6f44da56`: core E2E passed in 64s, browser UX passed in 106s, mobile design passed in 117s, and the mobile visual artifact was 19.5 MB compressed. The mobile duration on predecessor run `39959200531` was 165s (about 29% slower).
+- Role/context was still active after 14m with no recorded failure when the follow-up fix was prepared. The main authorization matrix visits 71 known routes plus discovered routes for each of 16 roles, so unconditional 300ms sleeps compound across more than a thousand route transitions.
+- Replaced the 300ms fixed sleep and text-only readiness wait with a DOM-based readiness check that waits for meaningful root text and disappearance of the full-screen loading/auth skeleton. Denied routes now use a bounded URL-path poll to confirm an actual redirect away from the protected route. This is expected to reduce route-matrix idle time without reducing route coverage or weakening RBAC/tenant assertions.
+- Corrected the compact summary grep to match literal `expect(` lines with the valid ERE escape. Added a mandatory AI-agent/CI efficiency protocol to the Operating Directive: verify exact SHA, inspect step summaries and artifact sizes first, avoid bulk-download/context ingestion, read only the failing gate's bounded evidence, and batch commits rather than repeatedly cancelling active runs.
+- The old run's role gate was superseded before it completed; do not treat it as pass/fail. Final verification is pending on the new exact head.

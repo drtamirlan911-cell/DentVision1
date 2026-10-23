@@ -323,38 +323,69 @@ async function discoverRoutes(page: Page): Promise<string[]> {
 
 function safeRouteName(value:string){ return value.replace(/[^a-zA-Z0-9_-]+/g,'_').replace(/^_+|_+$/g,'') || '_home'; }
 
-async function auditRoute(page: Page, role: Role, route: string, shouldBeAllowed: boolean) {
-  await page.goto(BASE_URL+route,{waitUntil:'domcontentloaded',timeout:30000});
-  await expect.poll(() => page.locator('body').innerText().catch(() => ''), {
-    timeout: 10000,
-    message: role.id + ' ' + route + ': page did not render stable content',
-  }).toMatch(/.{20,}/s);
-  await page.waitForTimeout(300);
-  let current=new URL(page.url());
-  if(shouldBeAllowed && current.pathname === '/login'){
-    await login(page, role.email);
-    await page.goto(BASE_URL+route,{waitUntil:'domcontentloaded',timeout:30000});
-    await expect.poll(() => page.locator('body').innerText().catch(() => ''), {
-      timeout: 10000,
-      message: role.id + ' ' + route + ': page did not render after authentication recovery',
-    }).toMatch(/.{20,}/s);
-    current=new URL(page.url());
+async function waitForRouteReady(page: Page, role: Role, route: string) {
+  try {
+    // Wait for meaningful rendered content and for the full-screen auth/loading
+    // skeleton to disappear. A fixed 300ms sleep per route cost several minutes
+    // across the exhaustive role matrix without proving that the route was ready.
+    await page.waitForFunction(() => {
+      const root = document.getElementById('root');
+      if (!root) return false;
+      const text = (root.innerText || '').trim();
+      if (text.length < 20) return false;
+      const hasFullscreenSpinner = Array.from(root.children).some((child) => {
+        const element = child as HTMLElement;
+        const rect = element.getBoundingClientRect();
+        const spinner = element.querySelector('.animate-spin');
+        return Boolean(spinner)
+          && rect.width >= window.innerWidth * 0.85
+          && rect.height >= window.innerHeight * 0.75
+          && element.innerText.trim().length < 20;
+      });
+      return !hasFullscreenSpinner;
+    }, undefined, { timeout: 10000 });
+  } catch (error) {
+    throw new Error(role.id + ' ' + route + ': page did not reach stable rendered content: ' + String(error));
   }
-  if(!shouldBeAllowed){
-    expect(current.pathname+current.search,role.id+' '+route+': forbidden route stayed open').not.toBe(route);
+}
+
+async function auditRoute(page: Page, role: Role, route: string, shouldBeAllowed: boolean) {
+  const expectedPath = new URL(BASE_URL + route).pathname;
+  await page.goto(BASE_URL + route, { waitUntil: 'domcontentloaded', timeout: 30000 });
+  await waitForRouteReady(page, role, route);
+  let current = new URL(page.url());
+
+  if (!shouldBeAllowed) {
+    // Do not guess at auth-hydration timing. Wait until the protected path actually
+    // changes; a route that remains open fails with a bounded, explicit diagnostic.
+    await expect.poll(() => new URL(page.url()).pathname, {
+      timeout: 5000,
+      intervals: [50, 100, 250, 500],
+      message: role.id + ' ' + route + ': forbidden route did not redirect away from protected path',
+    }).not.toBe(expectedPath);
+    current = new URL(page.url());
+    expect(current.pathname, role.id + ' ' + route + ': forbidden route stayed open').not.toBe(expectedPath);
     return;
   }
+
+  if (current.pathname === '/login') {
+    await login(page, role.email);
+    await page.goto(BASE_URL + route, { waitUntil: 'domcontentloaded', timeout: 30000 });
+    await waitForRouteReady(page, role, route);
+    current = new URL(page.url());
+  }
+
   const evidenceDir = VISUAL_EVIDENCE_ROOT + '/roles/' + role.id + '/' + safeRouteName(route);
   await fs.mkdir(evidenceDir, { recursive: true });
-  // Keep per-route DOM/text evidence; viewport screenshots are captured once per role/project
-  // and on test failure. This avoids thousands of redundant full-page PNGs in CI artifacts.
+  // Keep route-level DOM/text evidence for the exhaustive route matrix.
+  // Responsive projects keep their own independent screenshots/runtime evidence.
   await fs.writeFile(evidenceDir + '/dom.html', await page.locator('body').evaluate((el) => el.outerHTML).catch(() => ''), 'utf8');
   await fs.writeFile(evidenceDir + '/text.txt', await page.locator('body').innerText().catch(() => ''), 'utf8');
-  expect(current.pathname,role.id+' '+route+': allowed route redirected unexpectedly').not.toBe('/login');
-  await shellAudit(page,role,route);
-  await inspectForms(page,role,route);
-  await inspectDialogsAndMenus(page,role,route);
-  await inspectVisualSemantics(page,role,route);
+  expect(current.pathname, role.id + ' ' + route + ': allowed route redirected unexpectedly').not.toBe('/login');
+  await shellAudit(page, role, route);
+  await inspectForms(page, role, route);
+  await inspectDialogsAndMenus(page, role, route);
+  await inspectVisualSemantics(page, role, route);
 }
 
 test('partner context switch applies the scoped application role to the session token', async ({ page }, info) => {
