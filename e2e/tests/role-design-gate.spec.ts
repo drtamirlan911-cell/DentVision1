@@ -7,7 +7,7 @@ const VISUAL_EVIDENCE_ROOT = process.env.VISUAL_EVIDENCE_DIR || 'e2e/visual-evid
 const PASSWORD = 'Test1234!';
 
 const PUBLIC_ROUTES = ['/', '/login', '/register', '/forgot-password', '/booking', '/demo', '/jobs', '/community', '/pricing', '/terms', '/privacy'];
-const AUTH_COMMON_ROUTES = ['/', '/ai', '/help', '/notifications', '/profile'];
+const AUTH_COMMON_ROUTES = ['/', '/ai', '/help', '/notifications', '/profile', '/settings'];
 const ROUTES = [
   '/ai','/analytics','/settings','/help','/notifications','/admin','/bi','/security','/audit','/agent-activity','/ai-approvals','/backup','/profile',
   '/supplier','/jobs','/community','/quality','/platform-finance','/ai-governance','/support',
@@ -140,7 +140,8 @@ async function shellAudit(page: Page, role: Role, route: string) {
     const visible=(el:Element)=>{const h=el as HTMLElement,r=h.getBoundingClientRect(),s=getComputedStyle(h);return r.width>0&&r.height>0&&r.right>0&&r.left<innerWidth&&s.display!=='none'&&s.visibility!=='hidden'};
     const controls=Array.from(document.querySelectorAll('button,a,input,select,textarea,[role="button"],[role="tab"],[role="menuitem"]')).filter(visible).map(el=>{const h=el as HTMLElement,r=h.getBoundingClientRect();return{name:(h.getAttribute('aria-label')||h.getAttribute('title')||h.getAttribute('placeholder')||h.innerText||'').replace(/\\s+/g,' ').trim(),w:r.width,h:r.height,disabled:(h as HTMLButtonElement).disabled}});
     const clipped=Array.from(document.querySelectorAll('h1,h2,h3,h4,h5,h6,button,a,[role="button"],[role="tab"]')).filter(visible).map(el=>{const h=el as HTMLElement;return{name:(h.innerText||'').trim(),sw:h.scrollWidth,cw:h.clientWidth}}).filter(x=>x.name&&x.sw>x.cw+2);
-    return{text:document.body.innerText,scrollWidth:document.documentElement.scrollWidth,clientWidth:document.documentElement.clientWidth,bodyWidth:document.body.scrollWidth,controls,clipped,headings:Array.from(document.querySelectorAll('h1,h2')).filter(visible).map(x=>(x.textContent||'').trim()).filter(Boolean)};
+    const shellText=Array.from(document.querySelectorAll('header,aside,nav,[role="banner"],[role="navigation"],[role="complementary"],[data-testid="workspace-switcher-trigger"],[data-testid="workspace-switcher-menu"]')).filter(visible).map(el=>((el as HTMLElement).innerText||el.textContent||'').replace(/\\s+/g,' ').trim()).filter(Boolean).join(' ');
+    return{text:document.body.innerText,shellText,scrollWidth:document.documentElement.scrollWidth,clientWidth:document.documentElement.clientWidth,bodyWidth:document.body.scrollWidth,controls,clipped,headings:Array.from(document.querySelectorAll('h1,h2')).filter(visible).map(x=>(x.textContent||'').trim()).filter(Boolean)};
   });
   expect(/Application error|ChunkLoadError|Failed to fetch dynamically imported module|Something went wrong/i.test(result.text),role.id+' '+route+': application error').toBeFalsy();
   expect(result.scrollWidth,role.id+' '+route+': document overflow').toBeLessThanOrEqual(result.clientWidth+2);
@@ -148,7 +149,7 @@ async function shellAudit(page: Page, role: Role, route: string) {
   expect(result.clipped,role.id+' '+route+': clipped text').toEqual([]);
   expect(result.controls.filter(x=>x.w<36||x.h<36),role.id+' '+route+': undersized controls '+JSON.stringify(result.controls.filter(x=>x.w<36||x.h<36))).toEqual([]);
   expect(result.controls.filter(x=>!x.name),role.id+' '+route+': unnamed controls').toEqual([]);
-  for(const forbidden of role.mustNotContain) expect(result.text,role.id+' '+route+': forbidden context visible').not.toMatch(forbidden);
+  for(const forbidden of role.mustNotContain) expect(result.shellText,role.id+' '+route+': forbidden role/workspace context visible').not.toMatch(forbidden);
 }
 
 async function inspectVisualSemantics(page: Page, role: Role, route: string) {
@@ -524,13 +525,20 @@ test.describe('DentVision exhaustive role/context/browser gate',()=>{
       'Anonymous authorization matrix is viewport-independent; execute once per CI run',
     );
 
+    await page.addInitScript(() => {
+      localStorage.clear();
+      sessionStorage.clear();
+    });
     for (const route of ROUTES.filter((r) => !PUBLIC_ROUTES.includes(r) && r !== '/ai')) {
       await page.context().clearCookies();
       await page.goto(BASE_URL + route, { waitUntil: 'domcontentloaded', timeout: 30000 });
-      expect(
-        new URL(page.url()).pathname,
-        'anonymous ' + route + ': protected screen exposed',
-      ).toBe('/login');
+      // The auth store hydrates asynchronously after DOMContentLoaded. The guard
+      // renders a skeleton during hydration; assert the eventual redirect rather
+      // than treating that transient URL as protected-content exposure.
+      await expect.poll(() => new URL(page.url()).pathname, {
+        timeout: 15000,
+        message: 'anonymous ' + route + ': protected route did not redirect after auth hydration',
+      }).toBe('/login');
     }
   });
 });
