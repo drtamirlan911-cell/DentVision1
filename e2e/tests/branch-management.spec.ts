@@ -17,7 +17,7 @@ async function createBranch(page: Page, name: string) {
   await page.getByLabel('Название филиала *').fill(name);
   await page.getByLabel('Код').fill(`E2E-${Date.now()}`);
   const creationResponsePromise = page.waitForResponse(response =>
-    response.request().method() === 'POST' && new URL(response.url()).pathname.replace(/\\/$/, '') === '/api/branches',
+    response.request().method() === 'POST' && new URL(response.url()).pathname === '/api/branches',
     { timeout: 15000 },
   );
   await page.getByRole('button', { name: 'Создать филиал', exact: true }).click();
