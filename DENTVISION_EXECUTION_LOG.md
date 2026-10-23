@@ -1366,3 +1366,18 @@ These changes are route/entry reconciliation only. Existing domain implementatio
 - Verify the new project-index validator and support HTTP E2E suite on the final exact commit. Inspect failure logs/artifacts in bounded chunks and retain failing assertions; do not weaken authorization, data-protection, or visual release gates.
 - Do not mark support complete, merge the PR, or claim production readiness until the exact-HEAD required gates and remaining P0/P1 blockers have their own evidence.
 
+
+
+## 2026-10-23 — E2E runtime and artifact efficiency pass
+
+### Findings and implementation
+- Exact-head run 39959200531 had frontend lint, backend lint, and lint/unit/build checks green; core E2E and browser UX also completed successfully. The mobile responsive gate was still running when inspected, while role/context, Visual Agent, business-owner and organization-owner gates remained pending. This was not a final green run and was superseded by follow-up commits.
+- The responsive design gate captured each full-page screenshot twice to the same output path and used two fixed 400 ms waits before existing DOM-based readiness checks. Removed the duplicate screenshot calls and redundant fixed waits; retained the eight viewport projects, all route checks, and all layout/accessibility assertions.
+- The exhaustive role route/authorization matrix runs in role-1280. Other viewports perform their own responsive critical-route assertions and per-role/per-viewport screenshot/runtime evidence, but had been repeatedly overwriting identical route-level DOM/text files. The exhaustive matrix remains the owner of shared route-level DOM/text snapshots; other projects retain responsive assertions and independent screenshots/runtime JSON.
+- Added a shared E2E gate runner to preserve each gate's exit code, compact live Playwright output, full per-gate logs for failed-run diagnostics, and elapsed duration. The failure summary now reports all instrumented gates rather than only core E2E.
+- Added a bounded run manifest with per-gate timing and evidence file counts/byte sizes, including the largest evidence files. Full HTML reports/CLI snapshots are uploaded only after a failed run; visual evidence remains available for successful runs with seven-day retention.
+- Tests and security/role/viewport gates were not deleted or silently skipped. The implementation preserves existing selection/authorization assertions and focuses on duplicate work, redundant artifact writes, and observability.
+
+### Verification status
+- Implementation is UNVERIFIED until all required checks complete on the final exact head. The inspected run above predates this combined change and is not valid verification for this candidate.
+- Keep PR #307 draft; do not merge or deploy based on this optimization. If a gate fails, use the compact manifest/timing summary first, then inspect only that gate's bounded log section and failure-only artifacts.

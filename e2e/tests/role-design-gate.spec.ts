@@ -487,10 +487,8 @@ test.describe('DentVision exhaustive role/context/browser gate',()=>{
           await inspectDialogsAndMenus(page, role, route);
           await inspectVisualSemantics(page, role, route);
 
-          const evidenceDir = VISUAL_EVIDENCE_ROOT + '/roles/' + role.id + '/' + safeRouteName(route);
-          await fs.mkdir(evidenceDir, { recursive: true });
-          await fs.writeFile(evidenceDir + '/dom.html', await page.locator('body').evaluate((el) => el.outerHTML).catch(() => ''), 'utf8');
-          await fs.writeFile(evidenceDir + '/text.txt', await page.locator('body').innerText().catch(() => ''), 'utf8');
+          // Shared route-level DOM/text snapshots are written by the exhaustive role-1280 matrix.
+          // Viewport projects retain their independent screenshot and runtime evidence.
         }
 
         await page.goto(BASE_URL + '/', { waitUntil: 'domcontentloaded', timeout: 30000 });

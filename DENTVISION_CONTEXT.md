@@ -45,6 +45,14 @@
 - These changes remain **UNVERIFIED** pending exact-HEAD CI. Keep PR #307 draft and do not deploy.
 - Canonical register: `docs/RELEASE_BLOCKERS.md`, RB-003, RB-025, RB-026; history: `DENTVISION_EXECUTION_LOG.md`.
 
+## 2C. E2E execution efficiency findings — 2026-10-23
+
+- CI run 39959200531 showed core E2E and browser UX passing while mobile responsive visual checks were still running; later role/context, Visual Agent, business-owner and organization-owner stages had not yet started at inspection time. Do not treat it as final verification.
+- The latest branch changes remove duplicate full-page screenshot work and redundant fixed waits from the responsive gate; they do not remove tests or weaken assertions.
+- Route-level DOM/text snapshots are produced once by the exhaustive role-1280 route matrix. Other viewport projects keep their own responsive critical-route checks, screenshots and runtime evidence.
+- CI records per-gate duration and logs, summarizes all instrumented gate results, and records evidence-folder file counts/byte sizes. Full HTML/CLI diagnostic artifacts are failure-only; passing visual screenshots remain available for a seven-day window.
+- Exact-head verification pending. Keep PR #307 draft, do not merge/deploy, and inspect only the failing gate's logs after checking the timing/size manifest.
+
 ## 3. Status vocabulary
 - DONE = implementation + workflow + verification evidence agree.
 - PARTIAL = meaningful implementation exists but full workflow is incomplete.
