@@ -171,6 +171,22 @@ async function activatePartnerWorkspace(page: Page, role: Role) {
   }).toContain(role.label);
 }
 
+async function acceptPatientPortalConsents(page: Page) {
+  const consentHeading = page.getByRole('heading', { name: 'Прежде чем продолжить' });
+  if (await consentHeading.count() === 0) return;
+
+  // This is a synthetic E2E patient account. Exercise the real consent UI and
+  // API; never bypass the legal/clinical consent gate in application code.
+  const acceptButtons = page.getByRole('button', { name: 'Принимаю', exact: true });
+  for (let accepted = 0; accepted < 8; accepted += 1) {
+    const before = await acceptButtons.count();
+    if (before === 0) break;
+    await acceptButtons.first().click();
+    await expect(acceptButtons, 'patient consent acceptance did not persist').toHaveCount(before - 1, { timeout: 15000 });
+  }
+  await expect(consentHeading, 'patient portal must leave the consent gate only after all mandatory agreements are accepted').toHaveCount(0, { timeout: 15000 });
+}
+
 function collectors(page: Page) {
   const problems={console:[] as string[],page:[] as string[],requests:[] as string[],server:[] as string[]};
   page.on('console',m=>{if(m.type()==='error') problems.console.push(m.text())});
@@ -428,6 +444,7 @@ test.describe('DentVision exhaustive role/context/browser gate',()=>{
       const problems=collectors(page);
       await login(page,role.email);
       await activatePartnerWorkspace(page, role);
+      if (role.id === 'patient') await acceptPatientPortalConsents(page);
       await expect.poll(() => page.locator('body').innerText().catch(() => ''), {
         timeout: 10000,
         message: role.id + ': authenticated entry screen did not render',
