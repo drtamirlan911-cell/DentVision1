@@ -2,7 +2,8 @@ import { test, expect, type Page } from '@playwright/test';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 
-const BASE_URL = process.env.PLAYWRIGHT_UI_URL || 'http://localhost:3000';
+const BASE_URL = process.env.PLAYWRIGHT_UI_URL || 'http://127.0.0.1:3000';
+const API_BASE_URL = process.env.VITE_API_URL || 'http://127.0.0.1:3001';
 const PASSWORD = 'Test1234!';
 const EVIDENCE_ROOT = path.resolve(process.env.VISUAL_EVIDENCE_DIR || 'e2e/visual-evidence', 'visual-agent');
 
@@ -126,15 +127,15 @@ async function login(page: Page, role: AgentRole) {
     message: role.id + ': login did not reach the expected workspace',
   }).toBeTruthy().catch(() => undefined);
   if (!role.entry.test(page.url())) {
-    const authProbe = await page.evaluate(async () => {
+    const authProbe = await page.evaluate(async (apiBase: string) => {
       try {
-        const response = await fetch('http://localhost:3001/api/auth/me', { credentials: 'include' });
+        const response = await fetch(`${apiBase}/api/auth/me`, { credentials: 'include' });
         const body = await response.json().catch(() => ({}));
         return { status: response.status, effectiveRole: body?.data?.effectiveRole || body?.effectiveRole || null, organizationType: body?.data?.user?.organizationType || body?.user?.organizationType || null, organizationId: body?.data?.user?.organizationId || body?.user?.organizationId || null };
       } catch (error) {
         return { error: String(error) };
       }
-    });
+    }, API_BASE_URL);
     throw new Error(`${role.id}: unexpected post-login entry; actual=${page.url()}; auth=${JSON.stringify(authProbe)}`);
   }
   await waitForRenderedPage(page, role.id + ': authenticated entry');

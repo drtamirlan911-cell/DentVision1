@@ -1412,3 +1412,28 @@ These changes are route/entry reconciliation only. Existing domain implementatio
 - The in-flight run `39965626810` was deliberately superseded while its role/context step remained active so the known artifact/readiness defects could be tested together rather than spending another full role-matrix cycle on the previous implementation. Its role and downstream outcomes are NOT VERIFIED—not classified as pass or fail.
 - The changed source has not yet been verified by CI on the follow-up commit. Check the new exact HEAD and its run, inspect step summaries and the bounded manifest first, and only retrieve a failing gate's relevant logs/traces.
 - Keep PR #307 draft; do not merge, deploy, or mark release-ready. Continue RB-029 clinical-history encryption analysis separately: the Prisma JSON object has multiple direct consumers, so a safe fix requires a central read/write strategy and compatibility tests rather than storing opaque ciphertext in the JSON field without migration planning.
+
+
+## 2026-10-24 — Exact-head role-gate triage and bounded repair
+
+### Evidence from previous candidate
+- Inspected the canonical operating directive, context, execution plan/log, Product DNA, Master Spec, generated System Map, release blockers, IAM role matrix, Kaspi clinic setup, settlement/payment contract and canonical partner economics before modifying the branch.
+- Run `39970030360` on `f681f4b8f0784a1f8553da5612c58634593b2ab9` passed frontend/backend lint, lint/unit/build Quality Gate, Android, core E2E, Browser UX, mobile design gate, business-owner journeys, organization-owner lifecycle and Playwright CLI smoke.
+- The same run failed the role/context gate with 58 failed attempts, Visual Agent with 3 failed and 44 passed, and visual release evidence validation because a role/viewport screenshot was missing after the earlier gate failure. This is not a green release candidate.
+- The failure-only artifacts were retained: `playwright-artifacts` 186,463,087 bytes; `playwright-traces` 175,929,159 bytes; compact diagnostics 2,548 bytes. No bulk artifact download was performed.
+
+### Root-cause analysis and implementation
+- **RB-031 / WebKit CORS:** 5-Why conclusion — CI used `localhost:3000` for the page and `127.0.0.1:3001` for the API; changing only the API hostname did not remove cross-host loopback access-control failures. Updated all CI browser UI origins and the frontend readiness probe to `127.0.0.1:3000`, kept the API at `127.0.0.1:3001`, aligned E2E defaults and removed the visual-agent auth probe's hard-coded API origin. Production CORS allowlist and CORS assertions remain unchanged.
+- **RB-025 / owner identity:** the frontend role map labelled `owner` as `Руководитель` while the canonical IAM matrix requires `Владелец`. Changed only the display label; no permission or scope was expanded.
+- **RB-003 / design-system hit targets:** the `Button asChild` implementation passed a Fragment to Radix `Slot`, so classes and variant/size did not reach the actual child link. Changed it to clone the single child element and place icon/loading/text inside that child. Added `Button.test.tsx` to assert link class, variant, label and icon propagation. Changed the diagnostics dashboard `Все` action from extra-small to `min-h-11`.
+- Updated the canonical blocker register, current context, execution priority and curated `.dentvision/current-state.json`. Blockers remain open until exact-head CI evidence proves closure.
+
+### Commit chain
+- Implementation commit: `IMPLEMENTATION_COMMIT_SHA_PENDING`.
+- A metadata/state commit is created directly on top of that implementation commit so this log can record its SHA before the branch ref is moved. The final branch tip is the only candidate eligible for exact-head verification.
+
+### Verification and residual risks
+- No local test run was possible in this session because the container could not resolve `github.com` for a repository clone. This is explicitly not a test pass. The branch update triggers fresh GitHub Actions; exact-head CI is pending until those jobs finish.
+- The previous run is failed evidence for the previous SHA, not the new candidate. Keep PR #307 draft and do not merge/deploy.
+- **Next priority after the release-gate follow-up:** RB-029 P0 — map all Patient `medicalHistory` read/write consumers and design a compatible encrypted-at-rest strategy plus audited, resumable legacy backfill. Do not blindly encrypt the Prisma JSON column.
+- Other open P0/P1 risks remain, including payment amount/SSRF/configuration/CORS controls (RB-010–RB-016), the unverified official platform Kaspi API/callback contract (RB-019), and offline queue integrity/privacy (RB-030/RB-022). No production payment or PHI migration was performed.

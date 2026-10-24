@@ -7,9 +7,10 @@
   "qualityGate": "unverified_pending_exact_head_gates",
   "ci": "unverified_pending_exact_head_gates",
   "e2e": "unverified_pending_exact_head_gates",
-  "currentPriority": "P0 release correctness",
+  "currentPriority": "P0 PHI data protection + exact-head release-gate correctness",
   "openWork": [
-    "Verify CI/E2E/browser/role and partner lifecycle gates on the latest exact HEAD",
+    "RB-029 P0: map Patient.medicalHistory readers/writers and design safe encrypted-at-rest storage plus audited resumable backfill",
+    "Verify exact-head CI for RB-031 WebKit access-control, RB-025 role identity, and RB-003 design-system/touch-target fixes",
     "Verify diagnostics confirmation route/service contract",
     "Verify fail-closed auth session issuance",
     "Complete IAM negative matrix",

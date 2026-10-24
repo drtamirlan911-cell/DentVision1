@@ -351,11 +351,11 @@ A phase is complete only when:
 - `DENTVISION_EXECUTION_LOG.md` records what changed, commit, verification, and next action.
 
 ## Current execution priority
-**Now:** run the business-owner lifecycle vertical slice in parallel with the remaining Economics Engine → Ledger work. Start at registration for each partner type, then organization, branches, staff, permissions, operational workflows and economics. The canonical branch contract above is part of this slice: locate the real owner entry point, implement the missing branch management path, verify scope boundaries, and convert every discovered real defect into an implementation fix plus regression test.
+**Now — release-gate stabilization:** verify the exact-head CI follow-up for RB-031 (WebKit/API origin), RB-025 (canonical role identity) and RB-003 (touch-target/design-system propagation). Preserve all CORS, IAM, tenant/branch, visual and browser runtime assertions. Do not merge or deploy until role/context, Visual Agent, visual release evidence and every required exact-head gate pass.
 
-**Next:** complete partner transparency/Finance Hub, then automated operations, then product-wide UX/clinical/ecosystem hardening.
+**Next — highest unresolved data-protection blocker:** RB-029 (P0) requires mapping every Patient `medicalHistory` writer, reader and downstream consumer, then designing an encrypted-at-rest representation plus an audited, resumable backfill with dry-run, integrity checks, progress counts, compatibility tests and rollback safeguards. Do not encrypt the Prisma JSON field blindly or break authorized clinical workflows.
 
-The work proceeds in vertical slices: implement → verify → commit → update the persistent log → move to the next slice.
+**Then:** finish P0 payment/PHI controls RB-010, RB-011, RB-012, RB-013 and RB-016; verify the actual provider contract for RB-019; continue partner lifecycle/economics/Finance Hub and the support control plane without dropping unfinished work.
 
 ## Ecosystem Support & Operations Control Plane
 

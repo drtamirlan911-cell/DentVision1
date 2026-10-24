@@ -95,7 +95,7 @@ jobs:
       JWT_REFRESH_SECRET: e2e-ci-refresh-secret-not-for-production-000000
       KASPI_CALLBACK_SECRET: e2e-ci-kaspi-callback-secret-not-for-prod-0000
       PAYMENTS_SANDBOX: 'true'
-      PLAYWRIGHT_UI_URL: http://localhost:3000
+      PLAYWRIGHT_UI_URL: http://127.0.0.1:3000
       VITE_API_URL: http://127.0.0.1:3001
     steps:
       - uses: actions/checkout@v4
@@ -143,7 +143,7 @@ jobs:
       - name: Wait for frontend
         run: |
           for i in $(seq 1 30); do
-            curl -sf http://localhost:3000/ >/dev/null && exit 0
+            curl -sf http://127.0.0.1:3000/ >/dev/null && exit 0
             sleep 2
           done
           echo "Frontend did not become ready in time" >&2
@@ -160,7 +160,7 @@ jobs:
         # Continue after failed tests, but never run a new suite after workflow cancellation.
         if: ${{ !cancelled() }}
         env:
-          PLAYWRIGHT_UI_URL: http://localhost:3000
+          PLAYWRIGHT_UI_URL: http://127.0.0.1:3000
           PLAYWRIGHT_OUTPUT_DIR: e2e/test-results/ux-coverage
           PLAYWRIGHT_HTML_OUTPUT_DIR: playwright-report/ux-coverage
         run: bash quality-scripts/run-e2e-gate.sh browser-ux npx playwright test e2e/tests/ux-coverage.spec.ts
@@ -168,7 +168,7 @@ jobs:
         # Continue after failed tests, but never run a new suite after workflow cancellation.
         if: ${{ !cancelled() }}
         env:
-          PLAYWRIGHT_UI_URL: http://localhost:3000
+          PLAYWRIGHT_UI_URL: http://127.0.0.1:3000
           PLAYWRIGHT_OUTPUT_DIR: e2e/test-results/mobile-design-gate
           PLAYWRIGHT_HTML_OUTPUT_DIR: playwright-report/mobile-design-gate
         run: >-
@@ -196,7 +196,7 @@ jobs:
         # Continue after failed tests, but never run a new suite after workflow cancellation.
         if: ${{ !cancelled() }}
         env:
-          PLAYWRIGHT_UI_URL: http://localhost:3000
+          PLAYWRIGHT_UI_URL: http://127.0.0.1:3000
           PLAYWRIGHT_OUTPUT_DIR: e2e/test-results/role-design-gate
           PLAYWRIGHT_HTML_OUTPUT_DIR: playwright-report/role-design-gate
         run: >-
@@ -224,7 +224,7 @@ jobs:
         # Continue after failed tests, but never run a new suite after workflow cancellation.
         if: ${{ !cancelled() }}
         env:
-          PLAYWRIGHT_UI_URL: http://localhost:3000
+          PLAYWRIGHT_UI_URL: http://127.0.0.1:3000
           PLAYWRIGHT_OUTPUT_DIR: e2e/test-results/visual-agent
           PLAYWRIGHT_HTML_OUTPUT_DIR: playwright-report/visual-agent
         run: bash quality-scripts/run-e2e-gate.sh visual-agent npx playwright test e2e/tests/visual-agent.spec.ts --project=visual-agent
@@ -242,7 +242,7 @@ jobs:
         # Continue after failed tests, but never run a new suite after workflow cancellation.
         if: ${{ !cancelled() }}
         env:
-          PLAYWRIGHT_UI_URL: http://localhost:3000
+          PLAYWRIGHT_UI_URL: http://127.0.0.1:3000
           PLAYWRIGHT_OUTPUT_DIR: e2e/test-results/business-owner-journeys
           PLAYWRIGHT_HTML_OUTPUT_DIR: playwright-report/business-owner-journeys
         run: bash quality-scripts/run-e2e-gate.sh business-owner-journeys npx playwright test e2e/tests/business-owner-journeys.spec.ts
@@ -250,7 +250,7 @@ jobs:
         # Continue after failed tests, but never run a new suite after workflow cancellation.
         if: ${{ !cancelled() }}
         env:
-          PLAYWRIGHT_UI_URL: http://localhost:3000
+          PLAYWRIGHT_UI_URL: http://127.0.0.1:3000
           PLAYWRIGHT_OUTPUT_DIR: e2e/test-results/organization-owner-lifecycle
           PLAYWRIGHT_HTML_OUTPUT_DIR: playwright-report/organization-owner-lifecycle
         run: bash quality-scripts/run-e2e-gate.sh organization-owner-lifecycle npx playwright test e2e/tests/organization-owner-lifecycle.spec.ts

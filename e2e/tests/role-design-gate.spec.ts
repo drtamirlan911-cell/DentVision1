@@ -1,8 +1,8 @@
 import { test, expect, type Page } from '@playwright/test';
 import fs from 'node:fs/promises';
 
-const BASE_URL = process.env.PLAYWRIGHT_UI_URL || 'http://localhost:3000';
-const API_BASE_URL = process.env.VITE_API_URL || 'http://localhost:3001';
+const BASE_URL = process.env.PLAYWRIGHT_UI_URL || 'http://127.0.0.1:3000';
+const API_BASE_URL = process.env.VITE_API_URL || 'http://127.0.0.1:3001';
 const VISUAL_EVIDENCE_ROOT = process.env.VISUAL_EVIDENCE_DIR || 'e2e/visual-evidence';
 const PASSWORD = 'Test1234!';
 
