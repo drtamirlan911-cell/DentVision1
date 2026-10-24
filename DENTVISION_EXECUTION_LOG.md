@@ -1429,7 +1429,7 @@ These changes are route/entry reconciliation only. Existing domain implementatio
 - Updated the canonical blocker register, current context, execution priority and curated `.dentvision/current-state.json`. Blockers remain open until exact-head CI evidence proves closure.
 
 ### Commit chain
-- Implementation commit: `IMPLEMENTATION_COMMIT_SHA_PENDING`.
+- Implementation commit: `3da346f752defe23853031747dde9e9dda5abdac`.
 - A metadata/state commit is created directly on top of that implementation commit so this log can record its SHA before the branch ref is moved. The final branch tip is the only candidate eligible for exact-head verification.
 
 ### Verification and residual risks
