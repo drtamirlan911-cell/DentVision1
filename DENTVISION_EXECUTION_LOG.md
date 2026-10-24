@@ -1085,3 +1085,39 @@ These changes are route/entry reconciliation only. Existing domain implementatio
 - Replaced Redis-specific daily counter tests with PostgreSQL persistence/failure-path tests.
 - GitHub repository search shows no remaining `ioredis`, `bullmq`, `REDIS_URL`, or direct Redis runtime imports.
 - Required next: verify the new production deploy reaches API listening state and confirm durable queue worker initialization.
+
+## 2026-10-24 — Release-control audit and current blocker reconciliation
+
+### Source-of-truth review
+- Read the Operating Directive, Context, Execution Plan, Execution Log, Product DNA, Master Spec, generated System Map, Release Blockers, IAM role matrix, security/auth/RBAC audits, Kaspi clinic setup, Settlement Payment Contract and canonical Partner Economics policy.
+- Verified GitHub repository metadata, exact `main` ref, open PR metadata, current check runs, and the active PR #307 workflow jobs. No repository code or production system was modified.
+- Current `main` remains at `d47aec8dc310731516f3a46cd0e3855781dd171e`. A Quality Gate rerun passed on 2026-10-23, but the latest full-CI evidence visible for that exact SHA includes `lint-test` failure and E2E cancellation; current-main full release readiness is not established.
+
+### Root-cause findings (5 Why)
+1. **RB-033 — branch protection disabled (P0):** direct pushes can bypass release checks because GitHub reports `protected: false`, protection disabled, and required-check enforcement off with no contexts. The root cause is a missing repository-level governance control, not an application-code defect. Existing issue #259 remains open. Closure requires a repository-admin settings change and a test PR proving failed required checks block merge.
+2. **RB-029 — clinical-history JSON encryption gap (P0):** current-main `phi.ts` encrypts `medicalHistory` only when it is a string, while Patient upsert/PATCH persist the history object as `Prisma.InputJsonValue` and serialization reads the object directly. Root cause is the mismatch between a string-only encryption helper and a structured JSON storage/consumer contract. A blind column encryption would break consumers; map readers/writers and design a versioned representation plus audited resumable backfill first.
+3. **RB-019 — provider contract ambiguity (P1):** mainline Kaspi setup documentation showed `X-Kaspi-Signature: <shared-secret>` or a generic HMAC alternative without proving that either matches the actual provider contract. The guide now identifies the sample as a DentVision adapter contract, rejects raw-secret-as-signature and explicitly requires provider-issued technical documentation before claiming official Kaspi compatibility.
+
+### Changes committed
+- Documentation checkpoint commit: `7b073c5f9b1d39ff9aeb455727cfbc29c8e76786`.
+- Updated `DENTVISION_CONTEXT.md` with exact-main SHA, branch-protection evidence, current-main CI limitations and separate PR #307 candidate status.
+- Updated `DENTVISION_EXECUTION_PLAN.md` to prioritize release-control/evidence integrity and the PHI JSON gap.
+- Updated `docs/RELEASE_BLOCKERS.md` with RB-029, RB-019 and RB-033; all remain OPEN.
+- Updated `docs/KASPI_CLINIC_SETUP.md` to clarify the generic gateway contract and remove the raw-secret signature example.
+- Branch: `autonomous/release-control-audit-20261024`. `main` was not changed and no PR was merged.
+
+### Verification
+- Verified the referenced source lines directly from current-main GitHub file contents; no tests were added or changed because this commit is documentation-only.
+- Checked the modified documents for required section markers before writing their blobs. Full CI was not run for this documentation branch; do not claim a test pass.
+- PR #307 exact head `adaaa90794018911451d9faa649aa880d9b093de`: workflow `40064469652` was still active at the 10:15 Asia/Almaty checkpoint. Frontend lint, backend lint, `lint-test`, Quality Gate and Android build were green; E2E was still executing the role/context gate. These are not mainline release evidence.
+
+### Residual risks / required action
+- **Manual:** enable branch protection for `main`, require PR-based changes and the actual stable CI/release checks. The connected GitHub interface used in this run can read protection metadata but cannot write branch-protection settings.
+- Do not close RB-029 until all Patient history consumers, query paths, migration/backfill and legacy-read behavior are mapped and tested.
+- Do not close RB-019 until the real gateway/acquiring contract is obtained and the adapter's signature, amount/currency, timestamp/replay, idempotency and status semantics are verified.
+- Do not push to PR #307 while its E2E job is active unless cancellation is intentional. After it finishes, inspect the compact failing-gate summary and only the relevant bounded artifacts.
+
+### Next action
+- Re-check run `40064469652` and record its exact final conclusion before selecting the next code change.
+- Continue with the highest-impact verified failure; first address branch protection via repository settings, then map RB-029 consumers before implementing a safe PHI-at-rest design.
+
