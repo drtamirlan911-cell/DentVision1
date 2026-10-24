@@ -776,3 +776,47 @@ export interface QualityIssue { id: string; label: string; severity: 'critical' 
 export interface QualityScanResult { scannedAt: string; filesScanned: number; items: QualityIssue[]; bundleSizeBytes: number | null; }
 export async function getSystemHealth(): Promise<QualityHealthCheck> { return apiRequest('/api/health'); }
 export async function runQualityScan(): Promise<QualityScanResult> { return apiRequest('/api/quality/scan', { method: 'POST' }); }
+
+
+// ─── Ecosystem-wide platform support ─────────────────────────────
+export type SupportTicketStatus = 'OPEN' | 'IN_PROGRESS' | 'WAITING_FOR_USER' | 'RESOLVED' | 'CLOSED';
+export type SupportTicketCategory = 'ACCOUNT' | 'ACCESS' | 'WORKFLOW' | 'BILLING' | 'BUG' | 'SECURITY' | 'OTHER';
+export type SupportTicketPriority = 'LOW' | 'NORMAL' | 'HIGH' | 'URGENT';
+export interface SupportTicketMessage {
+  id: string; ticketId: string; authorUserId: string | null; body: string; createdAt: string;
+  author?: { id: string; firstName: string; lastName: string; role: string } | null;
+}
+export interface SupportTicket {
+  id: string; requesterUserId: string | null; assigneeUserId: string | null;
+  category: SupportTicketCategory; status: SupportTicketStatus; priority: SupportTicketPriority;
+  subject: string; description: string; sourcePath: string | null;
+  firstResponseAt: string | null; resolvedAt: string | null; closedAt: string | null;
+  createdAt: string; updatedAt: string;
+  requester?: { id: string; firstName: string; lastName: string; email: string } | null;
+  assignee?: { id: string; firstName: string; lastName: string; email: string } | null;
+  messages?: SupportTicketMessage[]; _count?: { messages: number };
+}
+export async function getMySupportTickets(): Promise<SupportTicket[]> { return apiRequest('/api/support/mine'); }
+export interface SupportQueuePage { tickets: SupportTicket[]; pagination: { page: number; limit: number; total: number; pages: number }; }
+export interface SupportStaffMember { id: string; firstName: string; lastName: string; email: string; }
+export async function getSupportQueue(params: { status?: SupportTicketStatus | 'ALL'; q?: string; page?: number; limit?: number } = {}): Promise<SupportQueuePage> {
+  const q = new URLSearchParams();
+  if (params.status) q.set('status', params.status);
+  if (params.q?.trim()) q.set('q', params.q.trim().slice(0,100));
+  if (params.page) q.set('page', String(params.page));
+  if (params.limit) q.set('limit', String(params.limit));
+  return apiRequest('/api/support/queue' + (q.size ? '?' + q.toString() : ''));
+}
+export async function getSupportStaff(): Promise<SupportStaffMember[]> { return apiRequest('/api/support/staff'); }
+export async function getSupportTicket(id: string): Promise<SupportTicket> {
+  return apiRequest('/api/support/tickets/' + encodeURIComponent(id));
+}
+export async function createSupportTicket(body: { subject: string; description: string; category: SupportTicketCategory; sourcePath?: string }): Promise<SupportTicket> {
+  return apiRequest('/api/support/tickets', { method: 'POST', body: JSON.stringify(body) });
+}
+export async function replyToSupportTicket(id: string, body: string): Promise<{ message: SupportTicketMessage; status: SupportTicketStatus }> {
+  return apiRequest('/api/support/tickets/' + encodeURIComponent(id) + '/messages', { method: 'POST', body: JSON.stringify({ body }) });
+}
+export async function updateSupportTicket(id: string, body: { status?: SupportTicketStatus; priority?: SupportTicketPriority; assigneeUserId?: string | null }): Promise<SupportTicket> {
+  return apiRequest('/api/support/tickets/' + encodeURIComponent(id), { method: 'PATCH', body: JSON.stringify(body) });
+}

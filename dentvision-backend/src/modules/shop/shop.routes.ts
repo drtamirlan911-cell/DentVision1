@@ -17,6 +17,33 @@ import { auditFromReq } from '../compliance/audit.service.js';
 
 const shopRouter = Router();
 
+const PUBLIC_PRODUCT_AUDIENCES = new Set(['PATIENT', 'PUBLIC', 'ALL', 'GENERAL', 'CONSUMER']);
+const PROFESSIONAL_PRODUCT_AUDIENCES = new Set([
+  'PROFESSIONAL', 'DOCTOR', 'DENTAL_STUDENT', 'ASSISTANT', 'LAB', 'DIAGNOSTIC', 'SELLER',
+]);
+
+function productAudienceTags(product: { tags?: unknown }): string[] {
+  if (!Array.isArray(product.tags)) return [];
+  return product.tags
+    .filter((tag): tag is string => typeof tag === 'string')
+    .map((tag) => tag.trim().toUpperCase())
+    .filter((tag) => tag.startsWith('AUDIENCE:'))
+    .map((tag) => tag.slice('AUDIENCE:'.length));
+}
+
+function isPatientContext(req: { get(name: string): string | undefined; user?: { role?: string } }): boolean {
+  return String(req.get('X-DentVision-Context') || '').toUpperCase() === 'PATIENT'
+    || String(req.user?.role || '').toUpperCase() === 'PATIENT';
+}
+
+function visibleToPatient(product: { tags?: unknown }): boolean {
+  const audiences = productAudienceTags(product);
+  // Missing/unknown audience metadata fails closed for patients. A professional
+  // marker also wins over a broad marker to prevent accidental catalog leakage.
+  return audiences.some((audience) => PUBLIC_PRODUCT_AUDIENCES.has(audience))
+    && !audiences.some((audience) => PROFESSIONAL_PRODUCT_AUDIENCES.has(audience));
+}
+
 shopRouter.get('/products', optionalAuth, async (req, res) => {
   try {
     const { category, search, sort, city } = req.query;
@@ -46,6 +73,46 @@ shopRouter.get('/products', optionalAuth, async (req, res) => {
           { legalAddress: { contains: cityFilter, mode: 'insensitive' } },
         ],
       };
+    }
+
+    if (isPatientContext(req)) {
+      // Patient browsing is allow-listed: products must explicitly declare a
+      // patient/public audience. Untagged legacy products remain professional.
+      const searchOr = where.OR;
+      delete where.OR;
+      where.AND = [
+        ...(Array.isArray(searchOr) ? [{ OR: searchOr }] : []),
+        {
+          OR: [
+            { tags: { array_contains: ['AUDIENCE:PATIENT'] } },
+            { tags: { array_contains: ['audience:PATIENT'] } },
+            { tags: { array_contains: ['AUDIENCE:PUBLIC'] } },
+            { tags: { array_contains: ['audience:PUBLIC'] } },
+            { tags: { array_contains: ['AUDIENCE:ALL'] } },
+            { tags: { array_contains: ['audience:ALL'] } },
+            { tags: { array_contains: ['AUDIENCE:GENERAL'] } },
+            { tags: { array_contains: ['audience:GENERAL'] } },
+            { tags: { array_contains: ['AUDIENCE:CONSUMER'] } },
+            { tags: { array_contains: ['audience:CONSUMER'] } },
+          ],
+          NOT: [
+            { tags: { array_contains: ['AUDIENCE:PROFESSIONAL'] } },
+            { tags: { array_contains: ['audience:PROFESSIONAL'] } },
+            { tags: { array_contains: ['AUDIENCE:DOCTOR'] } },
+            { tags: { array_contains: ['audience:DOCTOR'] } },
+            { tags: { array_contains: ['AUDIENCE:DENTAL_STUDENT'] } },
+            { tags: { array_contains: ['audience:DENTAL_STUDENT'] } },
+            { tags: { array_contains: ['AUDIENCE:ASSISTANT'] } },
+            { tags: { array_contains: ['audience:ASSISTANT'] } },
+            { tags: { array_contains: ['AUDIENCE:LAB'] } },
+            { tags: { array_contains: ['audience:LAB'] } },
+            { tags: { array_contains: ['AUDIENCE:DIAGNOSTIC'] } },
+            { tags: { array_contains: ['audience:DIAGNOSTIC'] } },
+            { tags: { array_contains: ['AUDIENCE:SELLER'] } },
+            { tags: { array_contains: ['audience:SELLER'] } },
+          ],
+        },
+      ];
     }
 
     let orderBy: Record<string, string>;
@@ -135,7 +202,7 @@ shopRouter.get('/products/:id', optionalAuth, async (req, res) => {
       },
     });
 
-    if (!product) {
+    if (!product || (isPatientContext(req) && !visibleToPatient(product))) {
       res.status(404).json({ ok: false, error: 'Product not found' });
       return;
     }

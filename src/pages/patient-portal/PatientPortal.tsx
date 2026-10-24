@@ -105,6 +105,7 @@ export default function PatientPortal() {
     // first or nothing below can load at all.
     <ConsentGate>
     <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className="p-4 sm:p-6 max-w-5xl mx-auto space-y-6">
+      <div className="flex"><span title="Пациент" aria-label="Текущая роль: Пациент" className="inline-flex items-center rounded-full border border-bdr-subtle bg-surface-1 px-3 py-1 text-xs font-medium text-txt-muted">Пациент</span></div>
       <PageHeader
         title={t('patientPortal.title')}
         subtitle={t('patientPortal.welcome', { name: user.name || user.login })}

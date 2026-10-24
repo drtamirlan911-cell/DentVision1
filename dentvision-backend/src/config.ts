@@ -8,11 +8,12 @@ const envSchema = z.object({
   REDIS_ENABLED: z.string().default('false'),
   JWT_SECRET: z.string().min(32),
   JWT_REFRESH_SECRET: z.string().min(32),
-  JWT_EXPIRES_IN: z.string().default('24h'),
+  JWT_EXPIRES_IN: z.string().default('15m'),
   JWT_REFRESH_EXPIRES_IN: z.string().default('7d'),
   PORT: z.coerce.number().default(3001),
   NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
   CORS_ORIGIN: z.string().default('http://localhost:5173'),
+  VERCEL_TEAM_SLUG: z.string().optional(),
   S3_ENDPOINT: z.string().optional(),
   S3_REGION: z.string().optional(),
   S3_BUCKET: z.string().optional(),
@@ -85,12 +86,17 @@ const envSchema = z.object({
   PLATFORM_OPS_SECRET: z.string().optional(),
   /** Kaspi / payment webhook shared secret (min 32 in production). Required to accept paid callbacks. */
   KASPI_CALLBACK_SECRET: z.string().optional(),
+  PAYMENTS_SANDBOX: z.enum(['true', 'false']).default('false'),
+  /** Optional comma-separated exact hostname allowlist for per-clinic HTTPS gateways. */
+  CLINIC_GATEWAY_ALLOWED_HOSTS: z.string().optional(),
   /** Kaspi merchant ID from Kaspi Business dashboard. */
   KASPI_MERCHANT_ID: z.string().optional(),
   /** Kaspi API key from Kaspi Business dashboard. */
   KASPI_API_KEY: z.string().optional(),
   /** Kaspi pay base URL for QR deeplinks. */
   KASPI_PAY_BASE_URL: z.string().url().optional(),
+  /** Kaspi HTTP API base URL; distinct from customer-facing QR deeplink base. */
+  KASPI_API_BASE_URL: z.string().url().optional(),
   /** Frontend URL for Kaspi ReturnUrl. */
   FRONTEND_URL: z.string().url().optional(),
   /** Public API URL for webhook callbacks. Used by clinic payments module. */
@@ -131,6 +137,18 @@ export const env = envSchema.parse(process.env);
 if (env.NODE_ENV === 'production') {
   if (!env.KASPI_CALLBACK_SECRET || env.KASPI_CALLBACK_SECRET.length < 32) {
     console.error('[config] KASPI_CALLBACK_SECRET must be set in production (min 32 chars)');
+    process.exit(1);
+  }
+  if (!env.ENCRYPTION_KEY || env.ENCRYPTION_KEY.length < 32) {
+    console.error('[config] ENCRYPTION_KEY must be set in production (min 32 chars)');
+    process.exit(1);
+  }
+  const corsOrigins = [env.CORS_ORIGIN, env.FRONTEND_URL || ''].join(',').split(',').map((v) => v.trim()).filter(Boolean);
+  if (corsOrigins.length === 0 || corsOrigins.includes('*') || corsOrigins.some((v) => {
+    try { const parsed = new URL(v); return parsed.protocol !== 'https:' || ['localhost', '127.0.0.1', '::1'].includes(parsed.hostname); }
+    catch { return true; }
+  })) {
+    console.error('[config] CORS_ORIGIN/FRONTEND_URL must contain explicit HTTPS production origins, without localhost or wildcard');
     process.exit(1);
   }
 

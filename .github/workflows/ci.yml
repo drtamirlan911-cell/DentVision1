@@ -51,7 +51,7 @@ jobs:
       - name: Generate project index
         run: npm run project:index
       - name: Validate generated project index
-        run: git diff --exit-code -- quality-scripts/project-index.generated.ts
+        run: npx tsx quality-scripts/validate-project-index.ts
       - run: npx prisma generate
       - run: npm run build --if-present
       - run: npx tsc --noEmit
@@ -67,6 +67,7 @@ jobs:
 
   e2e:
     runs-on: ubuntu-latest
+    timeout-minutes: 60
     services:
       postgres:
         image: postgres:16
@@ -93,8 +94,9 @@ jobs:
       JWT_SECRET: e2e-ci-jwt-secret-not-for-production-use-only-000000
       JWT_REFRESH_SECRET: e2e-ci-refresh-secret-not-for-production-000000
       KASPI_CALLBACK_SECRET: e2e-ci-kaspi-callback-secret-not-for-prod-0000
-      PLAYWRIGHT_UI_URL: http://localhost:3000
-      VITE_API_URL: http://localhost:3001
+      PAYMENTS_SANDBOX: 'true'
+      PLAYWRIGHT_UI_URL: http://127.0.0.1:3000
+      VITE_API_URL: http://127.0.0.1:3001
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -113,6 +115,12 @@ jobs:
         working-directory: dentvision-backend
       - name: Apply raw lifecycle tables required by E2E
         run: npx prisma db execute --schema prisma/schema.prisma --file prisma/migrations/20260917_medical_lab_and_dental_lifecycle/migration.sql
+        working-directory: dentvision-backend
+      - name: Apply durable AI admin queue table required by backend worker
+        run: npx prisma db execute --schema prisma/schema.prisma --file prisma/migrations/20260929130000_ai_admin_postgres_queue/migration.sql
+        working-directory: dentvision-backend
+      - name: Apply PostgreSQL daily counters table required by rate limiting
+        run: npx prisma db execute --schema prisma/schema.prisma --file prisma/migrations/20260929140000_postgres_daily_counters/migration.sql
         working-directory: dentvision-backend
       - run: npm run db:seed:e2e
         working-directory: dentvision-backend
@@ -135,40 +143,44 @@ jobs:
       - name: Wait for frontend
         run: |
           for i in $(seq 1 30); do
-            curl -sf http://localhost:3000/ >/dev/null && exit 0
+            curl -sf http://127.0.0.1:3000/ >/dev/null && exit 0
             sleep 2
           done
           echo "Frontend did not become ready in time" >&2
           cat /tmp/frontend.log >&2 || true
           exit 1
       - name: Run E2E suite
+        id: e2e_core
         env:
           PLAYWRIGHT_OUTPUT_DIR: e2e/test-results/core
           PLAYWRIGHT_HTML_OUTPUT_DIR: playwright-report/core
-        run: |
-          set -o pipefail
-          npx playwright test $(ls e2e/tests/*.spec.ts | grep -v browser-e2e | grep -v ux-coverage | grep -v business-owner-journeys | grep -v organization-owner-lifecycle | grep -v mobile-design-gate | grep -v role-design-gate) 2>&1 | tee e2e-core.log
+          E2E_GATE_LOG_PATH: e2e-core.log
+        run: bash quality-scripts/run-e2e-gate.sh e2e-core npx playwright test $(ls e2e/tests/*.spec.ts | grep -v browser-e2e | grep -v ux-coverage | grep -v business-owner-journeys | grep -v organization-owner-lifecycle | grep -v mobile-design-gate | grep -v role-design-gate | grep -v visual-agent)
       - name: Run browser UX coverage
-        if: always()
+        # Continue after failed tests, but never run a new suite after workflow cancellation.
+        if: ${{ !cancelled() }}
         env:
-          PLAYWRIGHT_UI_URL: http://localhost:3000
+          PLAYWRIGHT_UI_URL: http://127.0.0.1:3000
           PLAYWRIGHT_OUTPUT_DIR: e2e/test-results/ux-coverage
           PLAYWRIGHT_HTML_OUTPUT_DIR: playwright-report/ux-coverage
-        run: npx playwright test e2e/tests/ux-coverage.spec.ts
+        run: bash quality-scripts/run-e2e-gate.sh browser-ux npx playwright test e2e/tests/ux-coverage.spec.ts
       - name: Run mobile design release gate
-        if: always()
+        # Continue after failed tests, but never run a new suite after workflow cancellation.
+        if: ${{ !cancelled() }}
         env:
-          PLAYWRIGHT_UI_URL: http://localhost:3000
+          PLAYWRIGHT_UI_URL: http://127.0.0.1:3000
           PLAYWRIGHT_OUTPUT_DIR: e2e/test-results/mobile-design-gate
           PLAYWRIGHT_HTML_OUTPUT_DIR: playwright-report/mobile-design-gate
-        run: npx playwright test e2e/tests/mobile-design-gate.spec.ts \
-          --project=desktop-1280 \
-          --project=laptop-1440 \
-          --project=desktop-1920 \
-          --project=tablet-768 \
-          --project=tablet-820 \
-          --project=mobile-390 \
-          --project=mobile-412 \
+        run: >-
+          bash quality-scripts/run-e2e-gate.sh mobile-design-gate
+          npx playwright test e2e/tests/mobile-design-gate.spec.ts
+          --project=desktop-1280
+          --project=laptop-1440
+          --project=desktop-1920
+          --project=tablet-768
+          --project=tablet-820
+          --project=mobile-390
+          --project=mobile-412
           --project=mobile-safari
       - name: Checkpoint upload — mobile visual evidence
         if: always()
@@ -177,15 +189,27 @@ jobs:
           name: visual-evidence-mobile-${{ github.run_id }}
           path: e2e/visual-evidence/${{ github.run_id }}/responsive/
           if-no-files-found: ignore
-          retention-days: 30
+          retention-days: 7
+          compression-level: 1
 
       - name: Run role and context design release gate
-        if: always()
+        # Continue after failed tests, but never run a new suite after workflow cancellation.
+        if: ${{ !cancelled() }}
         env:
-          PLAYWRIGHT_UI_URL: http://localhost:3000
+          PLAYWRIGHT_UI_URL: http://127.0.0.1:3000
           PLAYWRIGHT_OUTPUT_DIR: e2e/test-results/role-design-gate
           PLAYWRIGHT_HTML_OUTPUT_DIR: playwright-report/role-design-gate
-        run: npx playwright test e2e/tests/role-design-gate.spec.ts --project=role-1280 --project=role-desktop --project=role-1920 --project=role-tablet-768 --project=role-tablet-820 --project=role-mobile --project=role-mobile-412 --project=role-mobile-safari
+        run: >-
+          bash quality-scripts/run-e2e-gate.sh role-design-gate
+          npx playwright test e2e/tests/role-design-gate.spec.ts
+          --project=role-1280
+          --project=role-desktop
+          --project=role-1920
+          --project=role-tablet-768
+          --project=role-tablet-820
+          --project=role-mobile
+          --project=role-mobile-412
+          --project=role-mobile-safari
       - name: Checkpoint upload — role visual evidence
         if: always()
         uses: actions/upload-artifact@v4
@@ -193,15 +217,17 @@ jobs:
           name: visual-evidence-roles-${{ github.run_id }}
           path: e2e/visual-evidence/${{ github.run_id }}/roles/
           if-no-files-found: ignore
-          retention-days: 30
+          retention-days: 7
+          compression-level: 1
 
       - name: Run Visual Agent eyes/hands across all ecosystem roles
-        if: always()
+        # Continue after failed tests, but never run a new suite after workflow cancellation.
+        if: ${{ !cancelled() }}
         env:
-          PLAYWRIGHT_UI_URL: http://localhost:3000
+          PLAYWRIGHT_UI_URL: http://127.0.0.1:3000
           PLAYWRIGHT_OUTPUT_DIR: e2e/test-results/visual-agent
           PLAYWRIGHT_HTML_OUTPUT_DIR: playwright-report/visual-agent
-        run: npx playwright test e2e/tests/visual-agent.spec.ts --project=visual-agent
+        run: bash quality-scripts/run-e2e-gate.sh visual-agent npx playwright test e2e/tests/visual-agent.spec.ts --project=visual-agent
       - name: Checkpoint upload — visual agent evidence
         if: always()
         uses: actions/upload-artifact@v4
@@ -209,94 +235,126 @@ jobs:
           name: visual-evidence-agent-${{ github.run_id }}
           path: e2e/visual-evidence/${{ github.run_id }}/visual-agent/
           if-no-files-found: ignore
-          retention-days: 30
+          retention-days: 7
+          compression-level: 1
 
       - name: Run business owner journeys
-        if: always()
+        # Continue after failed tests, but never run a new suite after workflow cancellation.
+        if: ${{ !cancelled() }}
         env:
-          PLAYWRIGHT_UI_URL: http://localhost:3000
+          PLAYWRIGHT_UI_URL: http://127.0.0.1:3000
           PLAYWRIGHT_OUTPUT_DIR: e2e/test-results/business-owner-journeys
           PLAYWRIGHT_HTML_OUTPUT_DIR: playwright-report/business-owner-journeys
-        run: npx playwright test e2e/tests/business-owner-journeys.spec.ts
+        run: bash quality-scripts/run-e2e-gate.sh business-owner-journeys npx playwright test e2e/tests/business-owner-journeys.spec.ts
       - name: Run organization owner lifecycle release gate
-        if: always()
+        # Continue after failed tests, but never run a new suite after workflow cancellation.
+        if: ${{ !cancelled() }}
         env:
-          PLAYWRIGHT_UI_URL: http://localhost:3000
+          PLAYWRIGHT_UI_URL: http://127.0.0.1:3000
           PLAYWRIGHT_OUTPUT_DIR: e2e/test-results/organization-owner-lifecycle
           PLAYWRIGHT_HTML_OUTPUT_DIR: playwright-report/organization-owner-lifecycle
-        run: npx playwright test e2e/tests/organization-owner-lifecycle.spec.ts
+        run: bash quality-scripts/run-e2e-gate.sh organization-owner-lifecycle npx playwright test e2e/tests/organization-owner-lifecycle.spec.ts
       - name: Install official Playwright CLI
-        if: always()
-        run: npm install --no-save --package-lock=false @playwright/cli@latest
+        # Continue after failed tests, but never run a new suite after workflow cancellation.
+        if: ${{ !cancelled() }}
+        run: npm install --global @playwright/cli@latest
       - name: Install Playwright agent skills
-        if: always()
-        run: npx playwright-cli install --skills=agents
+        # Continue after failed tests, but never run a new suite after workflow cancellation.
+        if: ${{ !cancelled() }}
+        run: playwright-cli install --skills
       - name: Run Playwright CLI browser smoke
-        if: always()
+        # Continue after failed tests, but never run a new suite after workflow cancellation.
+        if: ${{ !cancelled() }}
         env:
           PLAYWRIGHT_CLI_SESSION: dentvision-ci-smoke
-        run: |
-          set -euo pipefail
-          mkdir -p .playwright-cli
-          npx playwright-cli --version
-          npx playwright-cli open 'http://localhost:3000/login?role=owner'
-          npx playwright-cli fill 'input[autocomplete="username"]' 'owner-a@test.com'
-          npx playwright-cli fill 'input[autocomplete="current-password"]' 'Test1234!'
-          npx playwright-cli click "getByRole('button', { name: 'Войти в DentVision' })"
-          npx playwright-cli snapshot --filename=.playwright-cli/ci-authenticated.yml
-          test -s .playwright-cli/ci-authenticated.yml
-          grep -q "DentVision" .playwright-cli/ci-authenticated.yml
-          for route in \
-            /ai \
-            /crm/patients \
-            /crm/schedule \
-            /crm/dental-chart \
-            /crm/treatment-plans \
-            /crm/lab \
-            /crm/inventory \
-            /crm/cashier \
-            /diagnostics \
-            /diagnostics/referrals \
-            /diagnostics/results \
-            /diagnostics/center \
-            /diagnostics/lab \
-            /shop \
-            /school; do
-            safe_name=$(printf '%s' "$route" | tr '/-' '__')
-            npx playwright-cli goto "http://localhost:3000$route"
-            npx playwright-cli snapshot --filename=".playwright-cli/${safe_name}.yml"
-            test -s ".playwright-cli/${safe_name}.yml"
-            if grep -Eqi 'Application error|ChunkLoadError|Failed to fetch dynamically imported module|Something went wrong' ".playwright-cli/${safe_name}.yml"; then
-              echo "Playwright CLI found an application error on $route" >&2
-              exit 1
-            fi
-          done
-          npx playwright-cli close
+        run: bash quality-scripts/run-e2e-gate.sh playwright-cli-smoke bash quality-scripts/playwright-cli-smoke.sh
       - name: Validate visual release evidence
+        # Continue after failed tests, but never run a new suite after workflow cancellation.
+        if: ${{ !cancelled() }}
+        run: bash quality-scripts/run-e2e-gate.sh visual-release-gate npx tsx quality-scripts/visual-release-gate.ts
+
+      - name: Generate bounded E2E artifact manifest
         if: always()
-        run: npx tsx quality-scripts/visual-release-gate.ts
+        run: |
+          touch e2e-gate-timings.txt
+          profile_dir() {
+            label="$1"
+            dir="$2"
+            if [ ! -d "$dir" ]; then
+              printf '%-22s files=0 bytes=0\n' "$label"
+              return
+            fi
+            count="$(find "$dir" -type f | wc -l | tr -d '[:space:]')"
+            bytes="$(find "$dir" -type f -printf '%s\n' | awk '{ sum += $1 } END { printf "%.0f", sum + 0 }')"
+            printf '%-22s files=%s bytes=%s\n' "$label" "$count" "$bytes"
+            find "$dir" -type f -printf '%s\t%p\n' | sort -nr | head -n 3 || true
+          }
+          {
+            echo "run_id=$GITHUB_RUN_ID"
+            echo "commit=$GITHUB_SHA"
+            echo "ref=$GITHUB_REF_NAME"
+            echo "core_outcome=${{ steps.e2e_core.outcome }}"
+            echo
+            echo "=== Gate timing ==="
+            cat e2e-gate-timings.txt
+            echo
+            echo "=== Evidence footprint (top 3 files per directory) ==="
+            profile_dir responsive "e2e/visual-evidence/$GITHUB_RUN_ID/responsive"
+            profile_dir roles "e2e/visual-evidence/$GITHUB_RUN_ID/roles"
+            profile_dir visual-agent "e2e/visual-evidence/$GITHUB_RUN_ID/visual-agent"
+            profile_dir test-results e2e/test-results
+            profile_dir html-reports playwright-report
+            profile_dir cli-snapshots .playwright-cli
+          } > e2e-run-manifest.txt
+          {
+            echo "### E2E gate timing and artifact profile"
+            cat e2e-run-manifest.txt
+          } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Compact E2E failure summary
         if: always()
         run: |
           {
-            echo "=== E2E core run summary ==="
-            if [ -f e2e-core.log ]; then
-              grep -E '(^[[:space:]]*[0-9]+ failed|^[[:space:]]*[0-9]+ passed|[0-9]+ failed|[0-9]+ passed|Error:|HTTP [45][0-9][0-9]|[45][0-9][0-9] [A-Z]+|expect\(|Test timeout)' e2e-core.log | tail -n 500 || true
-            else
-              echo "e2e-core.log was not created"
-            fi
+            echo "=== E2E gate timings ==="
+            cat e2e-gate-timings.txt 2>/dev/null || true
+            for log_file in e2e-core.log e2e-gate-logs/*.log; do
+              [ -f "$log_file" ] || continue
+              echo
+              echo "=== $log_file ==="
+              grep -E '(^[[:space:]]*[0-9]+ failed|^[[:space:]]*[0-9]+ passed|[0-9]+ failed|[0-9]+ passed|Error:|HTTP [45][0-9][0-9]|expect\(|Test timeout|timed out)' "$log_file" | tail -n 35 || true
+            done
           } > e2e-failure-summary.txt
-
       - name: Upload compact E2E diagnostics
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: e2e-core-diagnostics-${{ github.run_id }}
+          name: e2e-run-diagnostics-${{ github.run_id }}
+          path: |
+            e2e-failure-summary.txt
+            e2e-run-manifest.txt
+            e2e-gate-timings.txt
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Upload full E2E gate logs on failure
+        if: failure() && !cancelled()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-full-logs-${{ github.run_id }}
           path: |
             e2e-core.log
-            e2e-failure-summary.txt
-          retention-days: 30
+            e2e-gate-logs/
+          if-no-files-found: ignore
+          retention-days: 3
+
+      - name: Upload Playwright traces on failure
+        if: failure() && !cancelled()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-traces-${{ github.run_id }}
+          path: e2e/test-results/**/trace.zip
+          if-no-files-found: ignore
+          retention-days: 3
 
       - name: Upload focused visual failure evidence
         if: always()
@@ -316,15 +374,15 @@ jobs:
       - name: Frontend log (on failure)
         if: failure()
         run: cat /tmp/frontend.log
-      - uses: actions/upload-artifact@v4
-        if: always()
+      - name: Upload HTML reports and CLI snapshots on failure
+        uses: actions/upload-artifact@v4
+        if: failure() && !cancelled()
         with:
           name: playwright-artifacts-${{ github.run_id }}
           path: |
             playwright-report/
             .playwright-cli/
-            e2e/test-results/
-            e2e/visual-evidence/
-          retention-days: 7
+          if-no-files-found: ignore
+          retention-days: 3
 
 # CI restart marker: verify clean run

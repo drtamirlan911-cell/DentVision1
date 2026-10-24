@@ -279,7 +279,7 @@ if (container) {
                 <Route path="platform-finance" element={guarded('admin', <Navigate to="/admin?tab=platform-finance" replace />)} />
                 <Route path="ops" element={guarded('admin', <Navigate to="/admin?tab=ops" replace />)} />
                 <Route path="quality" element={guarded('admin', <Navigate to="/admin?tab=quality" replace />)} />
-                <Route path="support" element={guarded('admin', <Navigate to="/admin?tab=support" replace />)} />
+                <Route path="support" element={<Navigate to="/help" replace />} />
                 <Route path="bi" element={guarded('bi', <BIWorkspace />)} />
                 <Route path="security" element={guarded('security', <SecurityCompliance />)} />
                 <Route path="audit" element={guarded('audit', <AuditLog />)} />
@@ -287,7 +287,7 @@ if (container) {
                 <Route path="ai-approvals" element={guarded('ai-approvals', <AiApprovals />)} />
                 <Route path="backup" element={guarded('backup', <Backup />)} />
                 <Route path="profile" element={guarded('profile', <Profile />)} />
-                <Route path="supplier" element={<Suspense fallback={<PageLoader />}><SupplierWorkspace /></Suspense>} />
+                <Route path="supplier" element={guarded('supplier', <SupplierWorkspace />)} />
                 <Route path="jobs" element={<Suspense fallback={<PageLoader />}><Jobs /></Suspense>} />
                 <Route path="community" element={<Suspense fallback={<PageLoader />}><Community /></Suspense>} />
                 <Route path="demo" element={<Suspense fallback={<PageLoader />}><Demo /></Suspense>} />

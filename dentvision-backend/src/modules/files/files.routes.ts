@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import type { Request, Response, NextFunction } from 'express';
 import multer from 'multer';
 import path from 'node:path';
 import prisma from '../../lib/prisma.js';
@@ -10,16 +11,37 @@ import { uid } from '../../lib/helpers.js';
 import { assertSameClinic, denyGuest, requireClinicScope } from '../../lib/clinicAccess.js';
 import { isStorageKey, keyFromStorageUrl, signedDownloadUrl, storageConfigured, toStorageUrl, uploadObject } from '../../lib/storage.js';
 import { createSignLink, signDocument } from './documentSign.service.js';
+import { isAcceptedFilePayload } from './fileValidation.js';
 
 const filesRouter = Router();
 
 filesRouter.use(authenticate);
 
 const storage = multer.memoryStorage();
+const MAX_CONCURRENT_MEMORY_UPLOADS = 2;
+let activeMemoryUploads = 0;
+
+/** Memory storage is retained for compatibility, but concurrent 60MB uploads are bounded. */
+function limitConcurrentMemoryUploads(_req: Request, res: Response, next: NextFunction) {
+  if (activeMemoryUploads >= MAX_CONCURRENT_MEMORY_UPLOADS) {
+    return res.status(429).json({ ok: false, error: 'Слишком много одновременных загрузок. Повторите позже.', code: 'UPLOAD_BUSY' });
+  }
+  activeMemoryUploads += 1;
+  let released = false;
+  const release = () => {
+    if (released) return;
+    released = true;
+    activeMemoryUploads = Math.max(0, activeMemoryUploads - 1);
+  };
+  res.once('finish', release);
+  res.once('close', release);
+  next();
+}
+
 const upload = multer({
   storage,
   // CBCT/DICOM studies commonly run 50MB+; 10MB silently truncated real cases.
-  limits: { fileSize: 60 * 1024 * 1024 },
+  limits: { fileSize: 60 * 1024 * 1024, files: 1, fields: 12 },
   fileFilter: (_req, file, cb) => {
     const allowed = [
       '.jpg', '.jpeg', '.png', '.gif', '.webp',
@@ -71,8 +93,8 @@ filesRouter.get('/', requirePermission('patient.read'), async (req: AuthRequest,
 
     return res.json({ ok: true, data: documents } satisfies ApiResponse);
   } catch (err) {
-    const message = err instanceof Error ? err.message : 'Внутренняя ошибка сервера';
-    return res.status(500).json({ ok: false, error: message });
+    console.error('[files] Request failed:', err);
+    return res.status(500).json({ ok: false, error: 'Внутренняя ошибка сервера' });
   }
 });
 
@@ -109,7 +131,11 @@ filesRouter.post('/documents', requirePermission('patient.write'), async (req: A
       if (!assertSameClinic(req, res, existing.clinicId)) return;
     }
 
-    const url = `data:text/plain;charset=utf-8;base64,${Buffer.from(content || '', 'utf-8').toString('base64')}`;
+    const plainContent = typeof content === 'string' ? content : '';
+    if (Buffer.byteLength(plainContent, 'utf8') > 256 * 1024) {
+      return res.status(413).json({ ok: false, error: 'Текстовый документ превышает лимит 256 КБ' } satisfies ApiResponse);
+    }
+    const url = `data:text/plain;charset=utf-8;base64,${Buffer.from(plainContent, 'utf-8').toString('base64')}`;
 
     const doc = id
       ? await prisma.document.update({
@@ -122,8 +148,8 @@ filesRouter.post('/documents', requirePermission('patient.write'), async (req: A
 
     return res.status(201).json({ ok: true, data: doc } satisfies ApiResponse);
   } catch (err) {
-    const message = err instanceof Error ? err.message : 'Внутренняя ошибка сервера';
-    return res.status(500).json({ ok: false, error: message });
+    console.error('[files] Request failed:', err);
+    return res.status(500).json({ ok: false, error: 'Внутренняя ошибка сервера' });
   }
 });
 
@@ -139,8 +165,9 @@ filesRouter.post('/documents/:id/send-signature', requirePermission('patient.wri
       data: { id, token, signUrl, message: 'Ссылка на подпись создана' },
     } satisfies ApiResponse);
   } catch (err: any) {
-    const message = err instanceof Error ? err.message : 'Внутренняя ошибка сервера';
-    return res.status(err?.status || 500).json({ ok: false, error: message } satisfies ApiResponse);
+    const status = Number(err?.status) >= 400 && Number(err?.status) < 500 ? Number(err.status) : 500;
+    console.error('[files] Signature operation failed:', err);
+    return res.status(status).json({ ok: false, error: status < 500 && err instanceof Error ? err.message : 'Внутренняя ошибка сервера' } satisfies ApiResponse);
   }
 });
 
@@ -158,16 +185,20 @@ filesRouter.post('/documents/:id/sign', requirePermission('patient.write'), asyn
     });
     return res.json({ ok: true, data: updated } satisfies ApiResponse);
   } catch (err: any) {
-    const message = err instanceof Error ? err.message : 'Внутренняя ошибка сервера';
-    return res.status(err?.status || 500).json({ ok: false, error: message } satisfies ApiResponse);
+    const status = Number(err?.status) >= 400 && Number(err?.status) < 500 ? Number(err.status) : 500;
+    console.error('[files] Signing operation failed:', err);
+    return res.status(status).json({ ok: false, error: status < 500 && err instanceof Error ? err.message : 'Внутренняя ошибка сервера' } satisfies ApiResponse);
   }
 });
 
-filesRouter.post('/upload', upload.single('file'), requirePermission('patient.write'), async (req: AuthRequest, res) => {
+filesRouter.post('/upload', requirePermission('patient.write'), limitConcurrentMemoryUploads, upload.single('file'), async (req: AuthRequest, res) => {
   try {
     if (denyGuest(req, res)) return;
     if (!req.file) {
       return res.status(400).json({ ok: false, error: 'Файл не загружен' });
+    }
+    if (!isAcceptedFilePayload(req.file)) {
+      return res.status(400).json({ ok: false, error: 'Содержимое файла не соответствует расширению и MIME-типу' });
     }
     if (!storageConfigured()) {
       // Refuse loudly rather than fabricate a URL nothing serves — the prior
@@ -251,8 +282,8 @@ filesRouter.post('/upload', upload.single('file'), requirePermission('patient.wr
       },
     });
   } catch (err) {
-    const message = err instanceof Error ? err.message : 'Внутренняя ошибка сервера';
-    return res.status(500).json({ ok: false, error: message });
+    console.error('[files] Request failed:', err);
+    return res.status(500).json({ ok: false, error: 'Внутренняя ошибка сервера' });
   }
 });
 
@@ -299,8 +330,8 @@ filesRouter.get('/:id/content', requirePermission('patient.read'), async (req: A
     // behind this URL was never actually persisted.
     return res.status(410).json({ ok: false, error: 'Файл недоступен (загружен до подключения хранилища)' });
   } catch (err) {
-    const message = err instanceof Error ? err.message : 'Внутренняя ошибка сервера';
-    return res.status(500).json({ ok: false, error: message });
+    console.error('[files] Request failed:', err);
+    return res.status(500).json({ ok: false, error: 'Внутренняя ошибка сервера' });
   }
 });
 
@@ -329,8 +360,8 @@ filesRouter.get('/:id', requirePermission('patient.read'), async (req: AuthReque
       },
     });
   } catch (err) {
-    const message = err instanceof Error ? err.message : 'Внутренняя ошибка сервера';
-    return res.status(500).json({ ok: false, error: message });
+    console.error('[files] Request failed:', err);
+    return res.status(500).json({ ok: false, error: 'Внутренняя ошибка сервера' });
   }
 });
 
@@ -350,8 +381,8 @@ filesRouter.delete('/:id', requirePermission('patient.write'), async (req: AuthR
 
     return res.json({ ok: true, data: { deleted: true } });
   } catch (err) {
-    const message = err instanceof Error ? err.message : 'Внутренняя ошибка сервера';
-    return res.status(500).json({ ok: false, error: message });
+    console.error('[files] Request failed:', err);
+    return res.status(500).json({ ok: false, error: 'Внутренняя ошибка сервера' });
   }
 });
 

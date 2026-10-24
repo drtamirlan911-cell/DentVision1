@@ -55,7 +55,7 @@ export function WorkspaceSwitcher({ className }: { className?: string }) {
   const location = useLocation()
   const toast = useToast()
   const queryClient = useQueryClient()
-  const { user, clinic, activeMembership, roleInfo, isAuthenticated } = useAuth()
+  const { user, clinic, activeMembership, roleInfo, effectiveRole, isAuthenticated } = useAuth()
   const setActiveWorkspace = useWorkspaceStore(s => s.setActiveWorkspace)
   const setContextFocus = useWorkspaceStore(s => s.setContextFocus)
   const [open, setOpen] = useState(false)
@@ -125,7 +125,17 @@ export function WorkspaceSwitcher({ className }: { className?: string }) {
     () => workspaces.find(isActive) || workspaces.find((w) => w.scopeType === 'CLINIC') || workspaces[0],
     [workspaces, isActive],
   )
-  const activeRoleLabel = current?.roleLabel || roleInfo?.label || getRoleDisplayLabel((user as any)?.platformRole || (user as any)?.role) || 'Участник экосистемы'
+  const isGenericRoleLabel = (label?: string | null) =>
+    !label?.trim() || /^(?:участник(?: экосистемы)?|member|participant|user|пользователь)$/i.test(label.trim())
+  const activeRoleLabel = useMemo(() => {
+    if (!isGenericRoleLabel(current?.roleLabel)) return current?.roleLabel || roleInfo?.label || 'Участник экосистемы'
+    const fallbackRoles = [effectiveRole, (user as any)?.role, (user as any)?.platformRole, current?.roleKey, current?.role]
+    for (const candidate of fallbackRoles) {
+      const label = getRoleDisplayLabel(candidate)
+      if (!isGenericRoleLabel(label)) return label
+    }
+    return roleInfo?.label || 'Участник экосистемы'
+  }, [current, effectiveRole, user, roleInfo?.label])
 
   interface BranchOption { id: string; name: string; code?: string | null; active?: boolean }
   const { data: branches = [], isFetching: branchesLoading } = useQuery<BranchOption[]>({
@@ -232,6 +242,14 @@ export function WorkspaceSwitcher({ className }: { className?: string }) {
       const contract = workspaceContextFrom(selected, selected.permissions || [])
       api.setWorkspaceContext(contract)
       setActiveWorkspace({ id: selected.id, scopeType: selected.scopeType, organizationId: selected.organizationId, branchId: selected.branchId, name: selected.name, roleKey: selected.roleKey, roleLabel: selected.roleLabel, permissions: selected.permissions, participant: selected.personType, dataScope: contract.dataScope }, contract)
+      // Keep the query-backed selector in sync with the branch context just
+      // committed to auth/session state. Without this, the request header changes
+      // but the menu keeps rendering the old branch as selected until refetch.
+      queryClient.setQueryData<WorkspaceContext[]>(['workspaces', user?.id], (items = []) =>
+        items.map((workspace) => workspace.id === selected.id
+          ? { ...workspace, branchId: branch.id }
+          : workspace),
+      )
       setContextFocus('workspace', selected.id, { organizationId: selected.organizationId || null, branchId: branch.id, roleKey: selected.roleKey || selected.role || null, scopeType: selected.scopeType })
       window.dispatchEvent(new CustomEvent('dentvision:workspace-switched', { detail: { id: selected.id, scopeType: selected.scopeType, organizationId: selected.organizationId, branchId: branch.id, name: selected.name, roleLabel: selected.roleLabel, roleKey: selected.roleKey || null } }))
       toast.success(`Филиал: ${branch.name}`)

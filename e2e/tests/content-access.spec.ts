@@ -109,6 +109,15 @@ test.describe('Context-bound Academy and Marketplace catalog access', () => {
     const patientProducts = Array.isArray(patientBody.data) ? patientBody.data : patientBody.data?.products || [];
     expect(patientProducts.every((product: any) => !isProfessional(productAudiences(product)))).toBe(true);
 
+    // Keep the explicit GENERAL catalog fixture visible to patients so this
+    // check cannot pass vacuously with an empty or over-filtered catalog.
+    const publicPatientProduct = patientProducts.find((product: any) => product.name === 'E2E Oral Care Starter Kit');
+    expect(publicPatientProduct?.id).toBeTruthy();
+    const publicPatientDetail = await api.get(`${BASE_URL}/api/shop/products/${publicPatientProduct.id}`, {
+      headers: contextHeaders('PATIENT'),
+    });
+    expect(publicPatientDetail.status()).toBe(200);
+
     if (professionalProduct?.id) {
       const patientDetail = await api.get(`${BASE_URL}/api/shop/products/${professionalProduct.id}`, {
         headers: contextHeaders('PATIENT'),

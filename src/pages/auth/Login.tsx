@@ -40,9 +40,14 @@ export default function Login() {
     if (!user) return
     if (params.get('portal') === 'patient' || user.role === 'patient' || String(effectiveRole || '').toLowerCase() === 'patient') { navigate('/patient-portal', { replace: true }); return }
     const partnerRole = String(effectiveRole || '').toLowerCase()
+    const baseRole = String(user.role || '').toLowerCase()
+    if (['student', 'regular', 'learner'].includes(partnerRole) || (!partnerRole && ['student', 'regular', 'learner'].includes(baseRole))) { navigate('/school', { replace: true }); return }
     if (partnerRole.startsWith('diagnostic_') || ['radiologist', 'radiology_technician'].includes(partnerRole)) { navigate('/diagnostics/center', { replace: true }); return }
     if (partnerRole.startsWith('medical_lab_')) { navigate('/diagnostics/lab?workspace=medical-lab', { replace: true }); return }
     if (partnerRole.startsWith('dental_lab_') || ['lab_coordinator', 'dental_technician', 'cad_designer', 'ceramist', 'orthodontic_technician', 'qc_specialist', 'lab_finance'].includes(partnerRole)) { navigate('/diagnostics/lab', { replace: true }); return }
+    const platformRoles = [partnerRole, baseRole, String((user as any).platformRole || '').toLowerCase()]
+    if (platformRoles.some(value => ['superadmin', 'developer'].includes(value))) { navigate('/admin', { replace: true }); return }
+    if (platformRoles.some(value => value === 'support')) { navigate('/help', { replace: true }); return }
     const target = returnUrl && !returnUrl.includes('/login') && returnUrl !== '/' ? returnUrl : '/ai'
     navigate(target, { replace: true })
   }, [user, effectiveRole, navigate, params, returnUrl])

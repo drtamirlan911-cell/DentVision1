@@ -1085,3 +1085,355 @@ These changes are route/entry reconciliation only. Existing domain implementatio
 - Replaced Redis-specific daily counter tests with PostgreSQL persistence/failure-path tests.
 - GitHub repository search shows no remaining `ioredis`, `bullmq`, `REDIS_URL`, or direct Redis runtime imports.
 - Required next: verify the new production deploy reaches API listening state and confirm durable queue worker initialization.
+
+
+## 2026-10-17 — Payment/security hardening continuation
+
+### Owner decision
+- Owner selected static clinic-payment confirmation by authorized clinic staff in production.
+- The policy is clinic-only: require backend clinic access, retain audit logging, and never use this path for DentVision platform payments. docs/KASPI_CLINIC_SETUP.md now documents this policy.
+
+### Implemented on branch security/payment-hardening-20261017
+- Payment GET/confirm now infer clinic scope from persisted provider === clinic_kaspi, not client-writable meta.merchantScope.
+- Confirmation rechecks backend organization access for the clinic payment.
+- Static clinic mode can use the documented staff confirmation path; API clinic mode still requires a gateway-reported paid state; sandbox bypass remains limited to non-clinic payments.
+- Server-owned payment metadata is written after client metadata so client-supplied userId, clinicId, merchantScope, clinicPayMode and qr cannot override persisted values.
+- Patient field encryption fails closed in production when encryption is unavailable; derived AES key is cached without changing salt/ciphertext format.
+- Production config requires ENCRYPTION_KEY; Render exposes it as sync: false; Docker Compose fails if it is absent.
+- Production CORS now requires explicit HTTPS origins, rejects localhost/wildcard/empty configuration, and only accepts Vercel preview hosts matching VERCEL_TEAM_SLUG.
+- Added RB-010 through RB-013 to the canonical blocker register. RB-010 through RB-011 remain open; RB-012 and RB-013 await tests.
+
+### Verification
+- Changes were committed through GitHub on the feature branch; no local repository runtime is available in this session (the container cannot resolve github.com), so npm install, Vitest, TypeScript, ESLint and E2E have NOT been run.
+- No task is marked DONE. The branch requires regression tests and a full exact-head CI run before merge.
+
+### Next action
+- Add automated regression tests first, then complete server-side amount/plan checks and SSRF-safe gateway handling. Continue tasks E–I only after the P0 fixes are covered by tests.
+
+
+## 2026-10-17 — Payment / production security hardening continuation
+
+### Canonical source review
+- Read the repository Operating Directive, Context, Product DNA, Master Spec, Execution Plan, canonical Partner Economics, Settlement Payment Contract, Clinic Kaspi Setup, Security Policy, Release Blockers and current execution history before this continuation.
+- Preserved the canonical economics rule: subscription prices and transaction amounts must come from server-side domain data; commissions/settlement remain separate from clinic clinical revenue.
+- Preserved the owner decision: static clinic Kaspi payments may be manually confirmed only by authorized clinic staff after checking receipt; clinic API mode requires gateway status; platform payments cannot be settled by the clinic cashier.
+
+### Changes committed on `security/payment-hardening-20261017`
+- Payment creation now checks clinic billing access and canonical subscription plan/month price, checks Academy prices from persisted course records, and prevents client metadata from overriding server-owned payer/scope/merchant fields.
+- Clinic gateway SSRF defenses cover save/use-time URL validation, DNS answer validation, public-address pinning, redirect rejection, timeout and response-size caps.
+- Clinic gateway callback now rejects requests when the clinic is in static/manual mode.
+- Upload authorization now runs before Multer buffers the multipart file, preventing users without `patient.write` from consuming the upload memory budget.
+- Fixed the webhook callback rate limit to the documented fixed ceiling of 10 requests/minute; provider partitioning remains, with IPv6 clients grouped by /64.
+- Fixed TypeScript issues in the webhook rate-limit generator, subscription renewal guard and payment error response types.
+- Fixed regression-test setup for DNS/HTTPS module mocks and made the local payment route integration test run in Node rather than the browser-like happy-dom environment.
+- Fixed privacy detection for phone numbers embedded in generic labels/notes.
+- Updated the clinic Kaspi setup guide to document HMAC-SHA256 signatures accurately and clarify that callbacks are API-mode only.
+- Updated `docs/RELEASE_BLOCKERS.md` with implementation status and remaining verification gates.
+
+### CI evidence and current verification state
+- Run `39019297185` on SHA `8e5d90f5be03ecc24a7d1ba4b9fcb71db09376c0` exposed backend TypeScript errors and 26 unit-test failures, including the payment test harness and webhook rate-limit contract. This run is diagnostic evidence, not a pass.
+- Run `39036540335` on SHA `a0f58ef809b13fc8220b01208e6cd7cb29e6e0af`: backend lint and frontend lint passed; TypeScript passed; unit tests still failed due the fixed webhook ceiling assertion, HTTPS mock exports, and happy-dom local-server fetch restrictions. Fixes were committed afterward.
+- Quality Gate and Android workflows passed on earlier candidate SHAs, but they do not replace a fresh exact-HEAD CI run.
+- Current branch HEAD at the time of this entry: `8aebc69ec5b6728bf2829f8c10caaa57fd52ad8a` (release-blocker documentation update). Fresh CI/E2E and the newly added static-callback regression test remain **PENDING / UNVERIFIED**.
+- `main` remains unchanged; PR #307 remains draft and must not be merged until exact-HEAD CI and P0 security gates pass.
+
+### Next actions
+1. Verify latest CI on exact HEAD; fix every new failing test without weakening assertions.
+2. Verify the static-mode clinic callback regression and API-mode callback lifecycle.
+3. Complete the broader security pass: production header review, upload route negative-path coverage, auth/session regression, dependency vulnerability triage, and production-safe read-only evidence review.
+4. Update Context and this log only after verified state changes; do not infer production secret values or rotate keys without an approved operational plan.
+
+
+## 2026-10-17 — Security review follow-up: callback races, IPv6 and test harness
+
+### Additional code changes
+- Canonicalized IPv6 address checks numerically, so expanded and compressed spellings of special-use ranges receive the same SSRF decision; fixed IPv6 literal bracket and trailing-dot hostname normalization.
+- Added negative coverage for expanded IPv6 special-use addresses and IPv6 URL literals.
+- Reused one idempotency key across fallback paths for a single logical clinic gateway payment creation.
+- Made non-paid platform and clinic callbacks update only a payment that is still `pending`. The callback response and audit event now report the effective persisted status, preventing stale failure/pending callbacks from downgrading a concurrent settlement.
+- Added optional clinic callback amount validation against the persisted amount; mismatches are rejected before settlement.
+- Added race-condition and callback amount regression tests.
+- Fixed test harness isolation: backend route integration tests run in Node, DNS/HTTPS tests run in Node, and clinic route mocks now share the exact mock functions configured by the tests.
+- Tightened 3D upload signature checks: comment-only OBJ and zero-triangle binary STL are rejected; the OBJ fixture uses an actual newline. Fixed UTF-8 BOM stripping in text-based mesh headers.
+- Reconciled Render's Kaspi environment comment with the new production fail-closed behavior and expanded the blocker register for provider contract, idempotency, CSP and WebSocket token-query risks.
+
+### CI interpretation
+- Run `39037509671` was cancelled by a newer push while dependencies were being installed. Later E2E steps are marked `if: always()` and attempted to run after cancellation; Playwright was therefore missing. Those later step errors are **not valid evidence of application E2E failures**.
+- Run `39037635900` was also superseded by a newer push before a complete end-to-end result.
+- The earlier unit-test run `39036540335` did provide valid diagnostics: backend/frontend lint and TypeScript passed, while unit tests exposed the webhook ceiling assertion, incomplete HTTPS mock, and happy-dom fetch limitation. The test environment/mocks were subsequently corrected.
+- The current candidate includes callback race and amount checks, stable gateway idempotency, expanded IPv6 SSRF tests, upload signature tests, and corrected test isolation. Exact-HEAD CI/E2E is still pending; do not infer a pass from older candidate SHAs.
+
+### Remaining hard blockers
+- Verify the official Kaspi merchant API and callback contract before treating the generic HMAC scheme as production-valid; the platform provider adapter still needs explicit network timeout/response bounds.
+- Legacy plaintext PHI may remain in existing database rows; production backfill/key rotation was not executed and needs an approved, audited plan.
+- Reconcile the active production CSP/header path and verify the external realtime server before changing WebSocket token transport.
+- Complete fresh exact-HEAD CI/E2E/browser/mobile/role-context evidence. Keep PR #307 as draft; `main` remains unchanged.
+
+
+## 2026-10-17 — CI cancellation reliability
+
+- Root cause: the E2E workflow used `if: always()` on test/install/release-gate steps. After a push cancelled an older workflow, those steps still launched and failed because the interrupted run had not completed dependency installation. This produced misleading Playwright module errors and wasted runner time.
+- Changed the E2E workflow so browser UX, mobile/role/Visual Agent/business-owner/organization-owner gates, Playwright CLI setup/smoke and visual evidence validation use `${{ !cancelled() }}`. This still runs gates after ordinary test failures, but does not start new suites after cancellation.
+- Kept artifact uploads and compact failure summaries on `if: always()` so useful evidence is preserved when available.
+- Added RB-021 to the canonical blocker register. Exact-HEAD workflow behavior remains pending until the next full run completes.
+- No E2E application regression is inferred from the cancelled run's missing-Playwright errors. The final candidate must complete CI without being superseded by another push.
+
+
+## 2026-10-20 — Offline schedule queue privacy hardening
+
+### Finding and implementation
+- The actual Schedule flow uses `getSyncQueue()` to display only a pending-item count. However, failed sync items persisted the raw API/network exception in `lastError`, which was unnecessary and could carry patient-entered content.
+- Queue sanitization now removes `lastError` when reading or writing records, including legacy queue entries. The sanitizer also filters phone/IIN-like scalar strings from array values while preserving opaque IDs in named appointment/patient/clinic/doctor fields.
+- Added regression coverage for legacy persistent-queue cleanup and array scalar redaction.
+
+### Verification status
+- Changes are being committed on `security/payment-hardening-20261017` for a fresh exact-HEAD CI run.
+- The pre-fix run `39336772296` had reached browser UX coverage on HEAD `5433db239c863bc8269000ee4aaee34841bc1134`; it is not evidence for the new changes.
+- The release blockers remain open until the new HEAD passes unit, E2E, browser, mobile and role/context gates. Production `main` was not changed.
+
+### Next action
+- Inspect the fresh run's compact failure summary and execute only the failing area plus its neighboring regression matrix. Keep PR #307 as draft until the P0 security and release gates pass.
+
+
+## 2026-10-20 — E2E runtime and Schedule touch-target follow-up
+
+### Evidence from focused artifacts
+- On pre-privacy-hardening HEAD `5433db239c863bc8269000ee4aaee34841bc1134`, the core E2E suite completed successfully with 277 passed in 10.1 minutes and browser UX coverage passed. This was diagnostic evidence only; later mobile/role/Visual Agent gates were cancelled or skipped after a newer push and cannot count as release verification.
+- The compact visual artifact showed a retry on the assistant `/crm/schedule` interaction. Three toolbar controls (“Сегодня”, “День”, “Неделя”) measured slightly below 36px in raw geometry, while the diagnostics rounded each height to 36px. The assertion itself is retained unchanged.
+- The core CI glob also included `visual-agent.spec.ts`, even though a dedicated full Visual Agent gate already runs later. This explained duplicated role/viewport test execution and unnecessary browser/artifact cost.
+
+### Follow-up implementation
+- Excluded `visual-agent.spec.ts` from the core E2E glob while retaining the standalone Visual Agent gate.
+- Raised the measured Schedule toolbar controls and adjacent view-mode controls to a 40px minimum, preserving the original 36px release threshold.
+- Recorded the changes in RB-003 and added RB-023 to the canonical blocker register. No assertion was weakened and no existing test suite was removed.
+
+### Verification status
+- Current branch candidate is being verified by a fresh exact-HEAD CI/Quality Gate/Android run. The previously observed Quality Gate pass on `ce2ca0e358c7b720161480ff48fe12cad1a32165` does not certify this follow-up commit.
+- Production `main` and the production deployment were not changed.
+
+### Next action
+- Let CI finish on this exact HEAD. Read the compact diagnostics first; download only small targeted failure evidence. Keep PR #307 as draft until P0 security, E2E, browser, mobile and role/context gates pass.
+
+
+## 2026-10-20 — Role/context CI runtime de-duplication
+
+### Verified finding
+- On candidate `0134e6881687f5c9de7efe1c6ebe10eaa544d651`, CI run `39339294547` completed core E2E, browser UX and mobile design gate successfully, then remained in the role/context step in the latest connected status. The full route matrix in `role-design-gate.spec.ts` repeated for 16 roles across eight viewport projects, although authorization and cross-tenant data-scope behavior are not viewport-dependent.
+- `discoverRoutes()` also waited 100, 250, 500 and 1000 ms before trying the DOM read on every allowed route, even where the first read would succeed. That introduced avoidable serial delay.
+- The gate had not produced a failure conclusion in the connected status; this is treated as a test-runtime reliability issue, not as evidence that all role routes passed.
+
+### Implemented on the branch
+- Kept exhaustive declared/discovered route access, anonymous-access and Clinic A/Clinic B tenant-isolation assertions in one canonical `role-1280` run.
+- Other viewport projects now check role-specific critical screens for responsive overflow, clipped text, unnamed/undersized controls, forms, menus/dialogs, semantic hierarchy and runtime errors; they continue to emit the per-role/per-viewport screenshot and runtime evidence required by the visual manifest.
+- The partner IAM context token contract, cross-tenant assertion and anonymous route sweep are no longer duplicated across viewport projects.
+- Route discovery now reads immediately and retries with bounded delays only after SPA navigation invalidates the execution context.
+- Fixed route-key classification for `/diagnostics/laboratories`: partner lab roles use the canonical `diagnostics-laboratories` page key, distinct from the clinic's `diagnostics-labs` key.
+- The existing 60-minute CI E2E-job limit is retained.
+
+### Evidence / remaining verification
+- Previous candidate exact-head checks: Quality Gate, Android, backend lint, frontend lint and unit/build job all passed; core E2E, browser UX and mobile design gate passed. The role/context gate had not completed.
+- New implementation is **UNVERIFIED** until CI completes against its exact commit. The new gate must still exercise all declared/discovered role routes at its canonical viewport and critical screens at every viewport.
+- Official Kaspi partner sources reviewed: the public payment partnership page describes application/contract onboarding, while the published Shop API guide documents catalog/order API. Neither establishes the technical online-payment endpoint or HMAC callback contract currently assumed by the generic platform provider adapter; RB-019 remains open. Provider timeout/body bounds are already implemented and are now recorded accurately in the blocker register.
+- Production `main` remains unchanged; PR #307 stays draft.
+
+### Next action
+- Read the compact E2E failure summary from the new exact-head run, fix failures without relaxing assertions, and close RB-024 only after the role/context and downstream visual/business release gates finish.
+
+
+## 2026-10-20 — Role gate regressions and CLI smoke repair
+
+### Evidence from run `39341057868` on HEAD `794638197e17a0cbd46180ca1406c31e67839a1d`
+- Core E2E passed (230 tests / 43.4 seconds), browser UX and mobile design gate passed, Quality Gate and Android passed, Visual Agent passed, and both business-owner and organization-owner journeys passed. Role/context failed on actual findings.
+- Failure artifacts identified: (1) `/community` is an intentional public feed but absent from the test's public-route policy; (2) `regular@test.com` is a real `STUDENT` fixture but login redirected it to `/ai` rather than `/school`; (3) Documents action targets were 32×32px; (4) Schedule date picker and School actions were fractionally below the 36px threshold; (5) Reminders tab text “Контроль (хирургия)” was clipped by 4px; (6) Safari/WebKit requests to `/api/guest/session` and `/api/ai/proactive` failed CORS checks. The CI origin may be represented as `127.0.0.1:3000` by WebKit, so this alias is allowed in development only, with regression assertions. Production CORS policy is unchanged.
+- The serial role-test group stopped on the first failure, skipped later role cases and left screenshots missing from the visual manifest. It now runs as independent tests under the existing single-worker Playwright configuration; an afterEach hook preserves the per-role/per-viewport screenshot when a genuine assertion fails.
+- Route-level authorization, DOM/accessibility checks, all explicit and discovered routes, anonymous protected-route checks, tenant isolation and all 36px touch-target assertions remain enabled. Reload/back/forward testing is exercised once per role rather than redundantly after every route.
+- The Playwright CLI smoke could not start because the workflow called `npx playwright-cli` after installing `@playwright/cli`, producing `npm error could not determine executable to run`; its skills step used `--skills=agents` instead of the official `--skills` option. The workflow now installs globally in the ephemeral runner and calls `playwright-cli` directly.
+
+### Implemented on the branch
+- Student landing redirect corrected without overriding scoped partner contexts whose base database role is STUDENT.
+- Community test policy aligned to the existing public route/component contract and a guest-feed smoke test added.
+- Document icon actions, School catalog actions, Schedule date picker and Reminders tabs fixed for touch targets and clipped text.
+- Development-only CORS loopback alias coverage added; production HTTPS origin allowlist remains fail-closed.
+- Playwright CLI install/invocation corrected against official documentation.
+- Added/updated RB-003, RB-025 and RB-026. No production deployment or mainline edit was performed.
+
+### Verification status
+- All changes in this entry are **UNVERIFIED** until the new exact-HEAD CI, role/context gate, Visual Agent, business-owner and organization-owner gates finish.
+- Do not close RB-003/RB-025/RB-026 solely because code has changed. PR #307 remains draft.
+
+### Next action
+- Inspect the next exact-head compact failure summary and only then fix remaining root causes, including the Safari CORS requests if still reproducible after the development-origin alias.
+
+## 2026-10-20 — Repair role-gate compilation and align student visual expectation
+
+### Findings
+- Exact-HEAD CI run `39345487645` failed the role/context gate before executing its tests: `e2e/tests/role-design-gate.spec.ts` left `auditRoute` unclosed before the partner-context test, producing a TypeScript/Playwright parser error at EOF. The visual evidence gate then failed downstream because role screenshots were never generated.
+- The dedicated Visual Agent also rejected the regular student fixture because its test still expected `/ai`, while the intended student workspace is `/school`.
+
+### Implemented on `security/payment-hardening-20261017`
+- Commit `f479ebce86694e134a631a4fe076b1ca367debea`: closed `auditRoute` before declaring the partner-context test, restoring valid test-file structure.
+- Commit `d0d4d10798b0b4873f14e6028988d84425ed8923`: aligned the Visual Agent student entry expectation with the School workspace route.
+- `main` remains unchanged. PR #307 remains draft.
+
+### Verification
+- Both commits have triggered new GitHub Actions runs. The fixes are **UNVERIFIED** until exact-HEAD CI, role/context, Visual Agent and visual evidence gates complete successfully.
+- Do not interpret the downstream missing-screenshot failure as an independent product regression until the role gate runs again.
+
+### Next action
+- Inspect the latest exact-HEAD CI result and compact failure summary. Fix genuine remaining failures without weakening role, tenant, clinical, payment or visual assertions.
+
+## 2026-10-20 — PHI storage and offline queue integrity review
+
+### Confirmed source findings
+- `dentvision-backend/src/lib/phi.ts` encrypts Patient IIN through the dedicated `patientIin.ts` path, but `encryptPatientFields` only handles string-valued `medicalHistory`.
+- The canonical patient create/update routes currently persist `medicalHistory` as a Prisma JSON object, so the existing helper does not encrypt that JSON object. Do not mark the patient-data encryption requirement complete on the basis of IIN encryption alone.
+- `src/lib/syncQueue.ts` redacts PHI before writing offline queue/cache entries to localStorage. The queue flush subsequently submits the sanitized payload to `api.upsertAppointment`; an end-to-end contract check is needed to ensure redaction does not silently turn an offline edit into a partial appointment update.
+- These are newly recorded blockers RB-029 and RB-030 in `docs/RELEASE_BLOCKERS.md`.
+
+### Required next actions
+1. Map all patient clinical-history write/read consumers before choosing a field-encryption strategy. Preserve JSON-dependent clinical workflows and authorized API responses; never encrypt the entire JSON column without compatibility design.
+2. Build an audited, resumable migration/backfill plan for legacy plaintext values with dry-run, integrity checks, progress counts and rollback safeguards.
+3. Test offline appointment create/update/reconnect/flush against the real API contract while asserting that PHI and raw error text never persist in browser storage.
+4. Continue exact-HEAD CI and release-gate triage. The last observed candidate has frontend lint, backend lint, unit/build Quality Gate and Android passing; the long E2E job is still running. No release-ready claim is permitted until it completes and all required gates pass.
+
+
+## 2026-10-20 — Role/context release-gate follow-up
+
+### Evidence from exact candidate `470498beb379d32775497cda00bfe8a39eefe157`
+- Workflow run `39355354936` completed. Backend lint, frontend lint, build/typecheck/unit tests, core E2E, Browser UX, mobile design gate, Visual Agent, business-owner journeys, organization-owner lifecycle, Playwright CLI smoke, and visual evidence validation passed.
+- The role/context gate failed with 87 attempts, clustered rather than 87 independent source defects: repeated `toContainText('DentVision')` failures on valid authenticated workspace content (not all partner/consent screens carry the wordmark), role identity missing because a generic workspace label `Участник` masked the effective role, support's default `/ai` landing route, and WebKit API fetch errors referencing `localhost:3001`.
+- The exact-run log showed the runtime errors are in the page-error collector; they are not being filtered out. The browser-facing API base is changed to IPv4 loopback for the next run, with RB-031 kept open until WebKit proves this removes the errors.
+- Follow-up code changes: (1) identity labels use a non-generic active role label or fall back through effective role and user roles before a generic workspace role key; (2) support/superadmin/developer entry routes go to `/admin`; (3) authenticated workspace checks validate rendered content and reject login redirection instead of requiring a literal brand string on every screen; (4) CI WebKit API base targets `127.0.0.1`.
+- The changes are **NOT VERIFIED** until CI on the new exact head completes. Keep PR #307 draft; do not merge or deploy.
+- Previously confirmed unrelated P0/P1 blockers remain open, including RB-010–RB-019, RB-029 (clinical-history JSON encryption design/backfill) and RB-030 (offline sync integrity/privacy). Do not infer closure from the role-gate changes.
+
+
+## 2026-10-22 — Support page parity and admin-console boundary
+
+### Finding
+- Exact-head CI run `39835539643` reported `pageParity.test.ts` failing because the backend page list omitted `admin` while the test's support fixture still expected it. Source-of-truth review found the fixture had drifted from `src/store/auth.store.ts`: the canonical SUPPORT pages are `help`, `analytics`, `settings`, and `profile`; `/admin` renders the Super Admin console and is guarded by the `admin` page permission.
+- Granting SUPPORT the `admin` page to silence parity would violate the IAM boundary. The attempted route-only exception was reverted immediately before any deployment; it is not retained in the branch.
+
+### Correction
+- Align the backend parity fixture and role/context test with the canonical support workspace.
+- Add an explicit regression assertion that SUPPORT does not receive the `admin` page. Keep platform/admin endpoint permissions unchanged.
+- Branch `security/payment-hardening-20261017`; `main` remains untouched; PR #307 remains draft.
+
+### Verification
+- Unit, exact-HEAD role/context, and full CI verification are pending on the corrected candidate. Do not close RB-025 or mark this work release-ready until the exact-head gates pass.
+
+
+## 2026-10-23 — Ecosystem support control-plane baseline
+
+### Inspected
+- Read the operating directive, current context, master spec, Product DNA, execution plan and release-blocker register before changing the branch.
+- Confirmed an initial Help center already exists: `src/pages/Help.tsx`; backend ticket routes and state helper exist under `dentvision-backend/src/modules/support/`; schema migration is `20261023120000_ecosystem_support_center`.
+- Current implementation includes requester-owned tickets, staff queue, message/status/priority/assignee backend fields, audit records and in-app notifications. Existing unit tests cover the finite status vocabulary and selected transitions only; they do not prove end-to-end authorization or operational readiness.
+- CI run `39926596764` exposed a TypeScript error in requester reply status narrowing at `support.routes.ts`. Replaced the array `includes` check with explicit enum comparisons in commit `3681ef32c286ba5b55dfd4841ed497a562e152ee`; this preserves intended behavior and addresses the exact compiler diagnostic. Fresh exact-HEAD verification is pending.
+- Added the support/control-plane capability matrix and release gates to the existing canonical execution plan rather than creating a competing roadmap.
+
+### Current status
+- **PARTIAL / NOT RELEASE-VERIFIED.** The UI/API/schema are present; source presence is not proof that all users can use support safely or that staff can operate it effectively.
+- `main` and production were not changed. PR #307 remains draft.
+- Next: verify fresh exact-HEAD CI; add route-level integration tests for requester IDOR and staff-only queue/assignment; validate migration and notification paths; then implement server-backed queue search/pagination/assignment UX. Define approved SLA and escalation policy before coding timers or promising response targets.
+
+
+### 2026-10-23 — Support authorization policy regression tests
+- Extracted ticket visibility into `supportPolicy.ts` and wired the support routes to the shared policy instead of duplicating role checks.
+- Added `supportPolicy.test.ts` for requester-own-ticket access, cross-user denial, null requester, support/superadmin access, and fail-closed unknown/missing roles.
+- This is unit-level policy coverage, not a substitute for HTTP integration tests against the actual middleware/database. Exact-HEAD CI remains pending; no support subsystem release gate is marked DONE.
+
+## 2026-10-23 — Spec Kit-style bounded repair: support contract and CI index gate
+
+### Evidence and changes on `security/payment-hardening-20261017`
+- Inspected the official `github/spec-kit` process and applied its assess → scoped fix → verify pattern without introducing a competing DentVision roadmap or changing `main`.
+- Fixed the Help page queue contract: `getSupportQueue` returns `SupportQueuePage`, so the list renders `queue.data.tickets` while personal cases remain an array. Commit: `e75683a7cd5271070d9950e6d3e04287b6e47a7c`.
+- Refreshed `docs/SYSTEM_MAP.md` to match the exact output reported by the backend system-map generator in CI (679 unique handlers, 643 mounted HTTP routes, support router 7 handlers). Commit: `d6bc79d1755d6adb798f99b5a49efa82d9bb8337`.
+- Added `e2e/tests/support.spec.ts` for five HTTP-level scenarios: requester create/read, cross-user read/reply denial, staff-only queue/directory, paginated staff queue with status/priority update, and unauthenticated denial. Roles use separate Playwright request contexts so shared session cookies cannot mask authorization behavior. Latest test file is on this branch; see the commit history for its follow-up TypeScript/context cleanup.
+- Found the CI project-index check was a no-op: it diffed `quality-scripts/project-index.generated.ts`, which does not exist in this repository. The actual generator writes inventory to `.dentvision/*.json`.
+- Changed the index generator so it no longer overwrites the curated `.dentvision/current-state.json` sourced from `DENTVISION_CONTEXT.md`; that file is authoritative state, not a disposable generated summary. Commit: `9fe26b4c13897306cea137db4e9b2d17d1f97cd4`.
+- Added `quality-scripts/validate-project-index.ts` to validate real generated routes, roles, workspace identifiers, security requirements, tests (including support and API-contract tests), Android screen inventory, and preservation of curated current state. Commit: `9d5b069c46e85d7f070d9244741f6252dbe352bb`.
+- Replaced the CI no-op diff against the nonexistent `quality-scripts/project-index.generated.ts` with `npx tsx quality-scripts/validate-project-index.ts` after index generation. Workflow commit: `2b51521d163f0de6505b982740a42b2bbf950293`.
+
+### Verification status — do not infer release readiness
+- Quality Gate and Android build passed on `d6bc79d`, and again on `3ef18a4`; frontend lint, backend lint, build/typecheck, and unit tests passed on the latter candidate.
+- Core E2E and browser UX completed successfully on SHA `d6bc79d`; the job was superseded by newer pushes before later release gates finished. A fresh run on `3ef18a4` had frontend lint, backend lint, and unit tests green, but Playwright browser installation remained in progress without a reported failure. Later pushes will cancel that superseded run.
+- The new support-specific E2E cases and the new project-index validator are **PENDING exact-HEAD CI verification**. Checked-in `.dentvision/*.json` placeholders have not been synchronized as committed snapshots by this work; the new CI validator checks freshly generated output, and snapshot synchronization remains a separate tracked follow-up.
+- Existing blockers remain open, including RB-010–RB-019 payment/security verification, RB-029 clinical-history JSON encryption/backfill, RB-030 offline appointment sync integrity, and RB-031 WebKit connectivity. No blocker is closed by these changes.
+
+### Guardrails and next action
+- `main` and production are untouched; PR #307 remains draft.
+- Verify the new project-index validator and support HTTP E2E suite on the final exact commit. Inspect failure logs/artifacts in bounded chunks and retain failing assertions; do not weaken authorization, data-protection, or visual release gates.
+- Do not mark support complete, merge the PR, or claim production readiness until the exact-HEAD required gates and remaining P0/P1 blockers have their own evidence.
+
+
+
+## 2026-10-23 — E2E runtime and artifact efficiency pass
+
+### Findings and implementation
+- Exact-head run 39959200531 had frontend lint, backend lint, and lint/unit/build checks green; core E2E and browser UX also completed successfully. The mobile responsive gate was still running when inspected, while role/context, Visual Agent, business-owner and organization-owner gates remained pending. This was not a final green run and was superseded by follow-up commits.
+- The responsive design gate captured each full-page screenshot twice to the same output path and used two fixed 400 ms waits before existing DOM-based readiness checks. Removed the duplicate screenshot calls and redundant fixed waits; retained the eight viewport projects, all route checks, and all layout/accessibility assertions.
+- The exhaustive role route/authorization matrix runs in role-1280. Other viewports perform their own responsive critical-route assertions and per-role/per-viewport screenshot/runtime evidence, but had been repeatedly overwriting identical route-level DOM/text files. The exhaustive matrix remains the owner of shared route-level DOM/text snapshots; other projects retain responsive assertions and independent screenshots/runtime JSON.
+- Added a shared E2E gate runner to preserve each gate's exit code, compact live Playwright output, full per-gate logs for failed-run diagnostics, and elapsed duration. The failure summary now reports all instrumented gates rather than only core E2E.
+- Added a bounded run manifest with per-gate timing and evidence file counts/byte sizes, including the largest evidence files. Full HTML reports/CLI snapshots are uploaded only after a failed run; visual evidence remains available for successful runs with seven-day retention.
+- Tests and security/role/viewport gates were not deleted or silently skipped. The implementation preserves existing selection/authorization assertions and focuses on duplicate work, redundant artifact writes, and observability.
+
+### Verification status
+- Implementation is UNVERIFIED until all required checks complete on the final exact head. The inspected run above predates this combined change and is not valid verification for this candidate.
+- Keep PR #307 draft; do not merge or deploy based on this optimization. If a gate fails, use the compact manifest/timing summary first, then inspect only that gate's bounded log section and failure-only artifacts.
+
+
+## 2026-10-23 — Role-matrix readiness and diagnostic extraction
+
+- Run `39962109509` on SHA `5bb2e385434e038519de186c672a99aa6f44da56`: core E2E passed in 64s, browser UX passed in 106s, mobile design passed in 117s, and the mobile visual artifact was 19.5 MB compressed. The mobile duration on predecessor run `39959200531` was 165s (about 29% slower).
+- Role/context was still active after 14m with no recorded failure when the follow-up fix was prepared. The main authorization matrix visits 71 known routes plus discovered routes for each of 16 roles, so unconditional 300ms sleeps compound across more than a thousand route transitions.
+- Replaced the 300ms fixed sleep and text-only readiness wait with a DOM-based readiness check that waits for meaningful root text and disappearance of the full-screen loading/auth skeleton. Denied routes now use a bounded URL-path poll to confirm an actual redirect away from the protected route. This is expected to reduce route-matrix idle time without reducing route coverage or weakening RBAC/tenant assertions.
+- Corrected the compact summary grep to match literal `expect(` lines with the valid ERE escape. Added a mandatory AI-agent/CI efficiency protocol to the Operating Directive: verify exact SHA, inspect step summaries and artifact sizes first, avoid bulk-download/context ingestion, read only the failing gate's bounded evidence, and batch commits rather than repeatedly cancelling active runs.
+- The old run's role gate was superseded before it completed; do not treat it as pass/fail. Final verification is pending on the new exact head.
+
+
+## 2026-10-23 — E2E pass-artifact and control-plane consistency follow-up
+
+### Findings
+- On candidate `9f7efd2b6c1946f0f15ffdd8400d9439b31f8b29`, run `39965626810` had frontend lint, backend lint, lint/unit/build, core E2E, browser UX and mobile design completed successfully; Quality Gate and Android workflows were successful. The exhaustive role/context step remained active. Its result and later steps were not verified.
+- The role gate wrote a full `body.outerHTML` plus page text for every allowed route to the role visual-evidence directory, and CI uploaded that directory on successful runs. Mobile and Visual Agent also persisted full HTML at passing checkpoints. That made success-path artifacts contain heavy diagnostic dumps despite the operating directive requiring such dumps to be failure-only.
+- The visual/role tests still contained unconditional pauses despite existing DOM readiness checks. In the mobile gate, `page.waitForFunction(..., { timeout })` passed the timeout object as the callback argument rather than the options argument, so the stated 5/10-second waits were not actually applied.
+- The current-state bootstrap pointed to a missing `CURRENT_STATE.md`; the curated JSON listed a missing `DENTVISION_SUPERAPP_MASTER_PLAN.md` and omitted the canonical Master Spec/Product DNA.
+
+### Implementation in this follow-up
+- Removed full route HTML/text persistence from every successful role-matrix route; browser assertions and the exhaustive route/role matrix remain intact.
+- Fixed failed-attempt screenshot/runtime evidence so a retry cannot leave stale evidence from an earlier attempt.
+- Replaced the role-gate Escape pause with a bounded assertion that the overlay really closes; removed the redundant fixed login pause.
+- Mobile visual readiness/stability waits now pass options in the correct Playwright argument position and rely on rendered-state checks rather than fixed 250/100 ms delays. Successful mobile evidence keeps PNGs and structured geometry JSON, not full HTML.
+- Visual Agent now waits for role-specific URL/content state instead of a fixed login delay, waits for content after route actions/restoration, preserves baseline/action PNGs and geometry JSON, and caps text snapshots at 8,000 characters only at meaningful checkpoints. Full HTML stays in failure retry traces rather than successful evidence.
+- Updated the operating directive, current context, execution plan, curated state JSON and blocker register to align the success-artifact policy and remove references to absent control-plane documents. RB-032 remains open pending verification.
+
+### Verification status and next action
+- The in-flight run `39965626810` was deliberately superseded while its role/context step remained active so the known artifact/readiness defects could be tested together rather than spending another full role-matrix cycle on the previous implementation. Its role and downstream outcomes are NOT VERIFIED—not classified as pass or fail.
+- The changed source has not yet been verified by CI on the follow-up commit. Check the new exact HEAD and its run, inspect step summaries and the bounded manifest first, and only retrieve a failing gate's relevant logs/traces.
+- Keep PR #307 draft; do not merge, deploy, or mark release-ready. Continue RB-029 clinical-history encryption analysis separately: the Prisma JSON object has multiple direct consumers, so a safe fix requires a central read/write strategy and compatibility tests rather than storing opaque ciphertext in the JSON field without migration planning.
+
+
+## 2026-10-24 — Exact-head role-gate triage and bounded repair
+
+### Evidence from previous candidate
+- Inspected the canonical operating directive, context, execution plan/log, Product DNA, Master Spec, generated System Map, release blockers, IAM role matrix, Kaspi clinic setup, settlement/payment contract and canonical partner economics before modifying the branch.
+- Run `39970030360` on `f681f4b8f0784a1f8553da5612c58634593b2ab9` passed frontend/backend lint, lint/unit/build Quality Gate, Android, core E2E, Browser UX, mobile design gate, business-owner journeys, organization-owner lifecycle and Playwright CLI smoke.
+- The same run failed the role/context gate with 58 failed attempts, Visual Agent with 3 failed and 44 passed, and visual release evidence validation because a role/viewport screenshot was missing after the earlier gate failure. This is not a green release candidate.
+- The failure-only artifacts were retained: `playwright-artifacts` 186,463,087 bytes; `playwright-traces` 175,929,159 bytes; compact diagnostics 2,548 bytes. No bulk artifact download was performed.
+
+### Root-cause analysis and implementation
+- **RB-031 / WebKit CORS:** 5-Why conclusion — CI used `localhost:3000` for the page and `127.0.0.1:3001` for the API; changing only the API hostname did not remove cross-host loopback access-control failures. Updated all CI browser UI origins and the frontend readiness probe to `127.0.0.1:3000`, kept the API at `127.0.0.1:3001`, aligned E2E defaults and removed the visual-agent auth probe's hard-coded API origin. Production CORS allowlist and CORS assertions remain unchanged.
+- **RB-025 / owner identity:** the frontend role map labelled `owner` as `Руководитель` while the canonical IAM matrix requires `Владелец`. Changed only the display label; no permission or scope was expanded.
+- **RB-003 / design-system hit targets:** the `Button asChild` implementation passed a Fragment to Radix `Slot`, so classes and variant/size did not reach the actual child link. Changed it to clone the single child element and place icon/loading/text inside that child. Added `Button.test.tsx` to assert link class, variant, label and icon propagation. Changed the diagnostics dashboard `Все` action from extra-small to `min-h-11`.
+- Updated the canonical blocker register, current context, execution priority and curated `.dentvision/current-state.json`. Blockers remain open until exact-head CI evidence proves closure.
+
+### Commit chain
+- Implementation commit: `3da346f752defe23853031747dde9e9dda5abdac`.
+- A metadata/state commit is created directly on top of that implementation commit so this log can record its SHA before the branch ref is moved. The final branch tip is the only candidate eligible for exact-head verification.
+
+### Verification and residual risks
+- No local test run was possible in this session because the container could not resolve `github.com` for a repository clone. This is explicitly not a test pass. The branch update triggers fresh GitHub Actions; exact-head CI is pending until those jobs finish.
+- The previous run is failed evidence for the previous SHA, not the new candidate. Keep PR #307 draft and do not merge/deploy.
+- **Next priority after the release-gate follow-up:** RB-029 P0 — map all Patient `medicalHistory` read/write consumers and design a compatible encrypted-at-rest strategy plus audited, resumable legacy backfill. Do not blindly encrypt the Prisma JSON column.
+- Other open P0/P1 risks remain, including payment amount/SSRF/configuration/CORS controls (RB-010–RB-016), the unverified official platform Kaspi API/callback contract (RB-019), and offline queue integrity/privacy (RB-030/RB-022). No production payment or PHI migration was performed.

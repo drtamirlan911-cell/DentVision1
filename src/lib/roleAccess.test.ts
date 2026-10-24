@@ -10,6 +10,7 @@ describe('roleAccess', () => {
     expect(pageIdFromPath('/crm/finance')).toBe('finance')
     expect(pageIdFromPath('/crm/medical-card')).toBe('medical-card')
     expect(pageIdFromPath('/crm/integrations/messaging')).toBe('clinic-settings')
+    expect(pageIdFromPath('/crm/stock-rules')).toBe('inventory')
     expect(pageIdFromPath('/supplier')).toBe('supplier')
     expect(pageIdFromPath('/shop/orders')).toBe('shop')
   })

@@ -62,8 +62,7 @@ async function waitForVisualReady(page: Page) {
         && element.innerText.trim().length < 20;
     });
     return !hasFullscreenSpinner;
-  }, { timeout: 10000 });
-  await page.waitForTimeout(250);
+  }, undefined, { timeout: 10000 });
 }
 
 async function waitForVisualStable(page: Page) {
@@ -75,8 +74,7 @@ async function waitForVisualStable(page: Page) {
       const opacity = Number.parseFloat(style.opacity || '1');
       return opacity >= 0.99;
     });
-  }, { timeout: 5000 });
-  await page.waitForTimeout(100);
+  }, undefined, { timeout: 5000 });
 }
 
 async function auditLayout(page: Page, route: string, device: string) {
@@ -142,7 +140,6 @@ async function auditLayout(page: Page, route: string, device: string) {
   const evidenceBase = evidenceDir + '/' + device + safeRouteEvidence;
   await page.screenshot({ path: evidenceBase + '.png', fullPage: true });
   await fs.writeFile(evidenceBase + '.json', JSON.stringify(result, null, 2), 'utf8');
-  await fs.writeFile(evidenceBase + '.html', await page.locator('body').evaluate((el) => el.outerHTML).catch(() => ''), 'utf8');
   expect(result.visibleContent, `${device} ${route}: no visible page content`).toBeTruthy();
   expect(result.scrollWidth, `${device} ${route}: horizontal overflow ${result.scrollWidth}px > ${result.clientWidth}px`).toBeLessThanOrEqual(result.clientWidth + 2);
   expect(result.bodyWidth, `${device} ${route}: body overflow ${result.bodyWidth}px > ${result.clientWidth}px`).toBeLessThanOrEqual(result.clientWidth + 2);
@@ -151,19 +148,9 @@ async function auditLayout(page: Page, route: string, device: string) {
   expect(undersized, `${device} ${route}: interactive target(s) below 36px: ${JSON.stringify(undersized)}`).toEqual([]);
   expect(result.clipped, `${device} ${route}: visible text/control clipping: ${JSON.stringify(result.clipped)}`).toEqual([]);
 
-  const safeRoute = route.replace(/[\\/?#:%*|"<>]/g, '_') || '_home';
-  const bucket = route === '/' || route.startsWith('/login') ? 'welcome' :
-    route.startsWith('/ai') ? 'ai' :
-    route.startsWith('/crm/lab') ? 'lab' :
-    route.startsWith('/crm/') ? 'crm' :
-    route.startsWith('/diagnostics/') ? 'diagnostics' :
-    route.startsWith('/shop') ? 'shop' :
-    route.startsWith('/school') ? 'academy' :
-    'responsive';
-  await page.screenshot({
-    path: `${VISUAL_EVIDENCE_ROOT}/responsive/${bucket}/${device}${safeRoute}.png`,
-    fullPage: true,
-  });
+  // The canonical screenshot was already written above; avoid taking the same
+  // full-page PNG twice, which adds needless browser and artifact work.
+
 }
 
 test.describe('DentVision responsive design release gate', () => {
@@ -185,13 +172,11 @@ test.describe('DentVision responsive design release gate', () => {
 
     for (const route of CRITICAL_ROUTES) {
       await gotoStable(page, `${BASE_URL}${route}`);
-      await page.waitForTimeout(400);
       await waitForVisualReady(page);
 
       if (new URL(page.url()).pathname === '/login') {
         await login(page);
         await gotoStable(page, `${BASE_URL}${route}`);
-        await page.waitForTimeout(400);
         await waitForVisualReady(page);
       }
 

@@ -10,12 +10,17 @@ import { describe, expect, it, vi, beforeEach } from 'vitest';
  * every branch's callee — not the global prisma client, not a new default.
  */
 
-const { recordSaleTx, recordPartnerEconomics, activateClinicSubscriptionFromPayment, isSaasPlanId, accrueSaasCashback, markSettlementPaid, writeRevenue } =
+const { recordSaleTx, recordPartnerEconomics, activateClinicSubscriptionFromPayment, isSaasPlanId, getClinicSubscriptionAmountMinor, assertClinicBillingAccess, accrueSaasCashback, markSettlementPaid, writeRevenue } =
   vi.hoisted(() => ({
     recordSaleTx: vi.fn(),
     recordPartnerEconomics: vi.fn(),
     activateClinicSubscriptionFromPayment: vi.fn(),
     isSaasPlanId: vi.fn(() => true),
+    getClinicSubscriptionAmountMinor: vi.fn((plan: string, months: number) => {
+      const monthly: Record<string, bigint> = { starter: 1_990_000n, professional: 3_990_000n, enterprise: 7_990_000n };
+      return monthly[plan] && Number.isInteger(months) && months >= 1 && months <= 24 ? monthly[plan] * BigInt(months) : null;
+    }),
+    assertClinicBillingAccess: vi.fn(),
     accrueSaasCashback: vi.fn(),
     markSettlementPaid: vi.fn(),
     writeRevenue: vi.fn(),
@@ -28,6 +33,8 @@ vi.mock('../finance/revenue.service.js', () => ({ writeRevenue }));
 vi.mock('../billing/clinicSubscription.service.js', () => ({
   activateClinicSubscriptionFromPayment,
   isSaasPlanId,
+  getClinicSubscriptionAmountMinor,
+  assertClinicBillingAccess,
 }));
 vi.mock('../dentcash/cashback.engine.js', () => ({ accrueSaasCashback }));
 vi.mock('../diagnostics/settlement.service.js', () => ({ markSettlementPaid }));
@@ -84,7 +91,7 @@ describe('settlePaidPayment — db threading', () => {
         domain: null,
         sellerType: null,
         sellerId: null,
-        amount: 49900n,
+        amount: 3_990_000n,
         meta: { saasPlan: 'professional', months: 1 },
       },
       fakeTx,
@@ -94,9 +101,27 @@ describe('settlePaidPayment — db threading', () => {
       fakeTx,
     );
     expect(writeRevenue).toHaveBeenCalledWith(
-      expect.objectContaining({ source: 'SaaS', amountMinor: 49900n, refId: 'clinic-1' }),
+      expect.objectContaining({ source: 'SaaS', amountMinor: 3_990_000n, refId: 'clinic-1' }),
       fakeTx,
     );
+  });
+
+  it('subscription settlement rejects a client amount that differs from canonical plan/month pricing', async () => {
+    await expect(settlePaidPayment(
+      {
+        id: 'pay-underpaid-subscription',
+        refType: 'subscription',
+        refId: 'clinic-1',
+        domain: null,
+        sellerType: null,
+        sellerId: null,
+        amount: 1n,
+        meta: { saasPlan: 'professional', months: 1 },
+      },
+      fakeTx,
+    )).rejects.toThrow(/подписки не совпадает/i);
+    expect(activateClinicSubscriptionFromPayment).not.toHaveBeenCalled();
+    expect(writeRevenue).not.toHaveBeenCalled();
   });
 
   it('settlement branch: passes db through to markSettlementPaid', async () => {

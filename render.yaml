@@ -26,11 +26,13 @@ services:
         generateValue: true
       - key: JWT_REFRESH_SECRET
         generateValue: true
+      - key: JWT_EXPIRES_IN
+        value: 15m
       - key: PORT
         value: 10000
       - key: CORS_ORIGIN
-        # Production + localhost. Preview hosts matching dent-vision* / dentvision* are always allowed in code.
-        value: "https://dent-vision1.vercel.app,http://localhost:5173"
+        # Production origin only; preview origins require VERCEL_TEAM_SLUG.
+        value: "https://dent-vision1.vercel.app"
       - key: OPENAI_API_KEY
         sync: false
       # Model selection is discovered, not hardcoded: on first use the backend
@@ -70,20 +72,20 @@ services:
         sync: false
       - key: META_WEBHOOK_VERIFY_TOKEN
         sync: false
+      - key: ENCRYPTION_KEY
+        sync: false
+      - key: PAYMENTS_SANDBOX
+        value: "false"
       - key: KASPI_CALLBACK_SECRET
         sync: false
-      # Kaspi merchant credentials. Without these, kaspiProvider silently runs
-      # in mock mode: it still builds a real-looking pay.kaspi.kz QR/link, but
-      # never registers a real transaction with Kaspi, so getPaymentStatus can
-      # never become 'paid' outside the sandbox self-confirm bypass (which is
-      # itself correctly disabled when NODE_ENV=production). That means every
-      # money-moving flow this key mediates — subscriptions, marketplace
-      # checkout, diagnostics settlement, academy payments, auto-renewal — can
-      # look like it works while never actually collecting payment. Set both
-      # in the Render dashboard from the Kaspi merchant portal.
+      # Kaspi merchant credentials. Production payment creation fails closed
+      # when credentials are absent; configure these values from the verified
+      # merchant API contract before enabling live money-moving flows.
       - key: KASPI_MERCHANT_ID
         sync: false
       - key: KASPI_API_KEY
+        sync: false
+      - key: KASPI_API_BASE_URL
         sync: false
       # Transactional email (password reset, patient portal links).
       # SMTP_PASSWORD must be a Google App Password for this account — Google
