@@ -350,8 +350,17 @@ A phase is complete only when:
 - `DENTVISION_EXECUTION_LOG.md` records what changed, commit, verification, and next action.
 
 ## Current execution priority
-**Now:** run the business-owner lifecycle vertical slice in parallel with the remaining Economics Engine → Ledger work. Start at registration for each partner type, then organization, branches, staff, permissions, operational workflows and economics. The canonical branch contract above is part of this slice: locate the real owner entry point, implement the missing branch management path, verify scope boundaries, and convert every discovered real defect into an implementation fix plus regression test.
 
-**Next:** complete partner transparency/Finance Hub, then automated operations, then product-wide UX/clinical/ecosystem hardening.
+**P0 — release-control and evidence integrity**
+1. Resolve RB-033: enable GitHub branch protection for `main`, require PR-based changes and the stable CI/release checks. This needs a repository-admin settings action; the connected GitHub read interface can verify the rule but cannot write it.
+2. Keep the release NOT READY until a fresh full CI run on one exact target SHA passes. The current `main` has a green Quality Gate rerun but stale/failed/cancelled full-CI evidence. Never combine check results from different SHAs.
+3. Track draft PR #307 independently: its exact-head run `40064469652` is still in E2E role/context verification at the recorded checkpoint. Do not push another commit to that branch while its workflow is active unless intentionally cancelling the run. After completion, inspect only the failing gate's bounded summary/artifacts and preserve the original evidence.
+4. Resolve RB-029 (P0) by mapping all Patient `medicalHistory` writers/readers and downstream consumers, then design an encrypted-at-rest representation and an audited, resumable backfill with dry-run, integrity checks, progress counts, compatibility tests and rollback safeguards. Do not encrypt the Prisma JSON field blindly.
+5. Continue the payment/PHI controls already tracked on PR #307, including RB-010/RB-011/RB-012/RB-013/RB-016 on that branch, and verify RB-019 against the actual provider-issued contract. Branch-specific blocker IDs must not be treated as implemented on `main`.
 
-The work proceeds in vertical slices: implement → verify → commit → update the persistent log → move to the next slice.
+**P1 — operational completeness after P0 gates**
+- Complete diagnostic-center, medical-lab and dental-lab owner journeys with role/tenant/branch negative paths.
+- Complete partner economics and Finance Hub verification against durable ledger records.
+- Continue support operations only after tracing existing schema → API → IAM → UI → notifications → tests; keep all proposed support capabilities NOT VERIFIED until runtime evidence exists.
+
+The work proceeds in small vertical slices: inspect → root-cause analysis → implement → targeted tests → exact-head CI → document → continue. Do not merge or deploy from this automation run.

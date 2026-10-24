@@ -51,28 +51,33 @@ The UI uses progressive disclosure: the underlying ecosystem remains complete, w
 AI action lifecycle:
 `Intent → Context → Permission → Plan → Preview → Confirmation when required → Execute → Verify → Audit`
 
-## 5. Verified repository state — 2026-09-16
-- `main` contains the latest security/release-gate hardening and the current documentation consolidation.
-- Latest verified fully green core CI evidence recorded in the execution log is run `35066089223` on exact HEAD `844b469e084dd5acec6fb45f26d28757c27a3568`: frontend lint, build/typecheck/unit, backend lint, full E2E, browser UX, Business Owner journeys, Organization Owner lifecycle release gate and Playwright CLI smoke passed.
-- A later branch-deactivation test hardening commit exists after that run; therefore the latest main state still requires a fresh CI verification before it can be treated as green.
+## 5. Verified repository state — 2026-10-24
+
+### Main branch and release status
+- Exact GitHub `main` HEAD: `d47aec8dc310731516f3a46cd0e3855781dd171e` (commit timestamp 2026-10-01T11:03:04Z).
+- **Release status: NOT READY / UNVERIFIED.** The latest exact-HEAD Quality Gate rerun passed on 2026-10-23 (workflow run `39928172985`), but this is not a full release pass. The latest full CI evidence visible for this SHA includes `lint-test` failure and E2E cancellation in run `36852925083` on 2026-10-01. No later full CI/E2E/visual/role-context run is verified for current `main`.
+- **Branch protection is disabled.** GitHub's branch endpoint reports `protected: false`, `protection.enabled: false`, and required-status-check enforcement `off` with no contexts. This directly confirms the open release-control issue #259. A repository administrator must configure the rule in GitHub; the connected repository read surface does not expose a branch-protection write operation.
+- No code or production deployment was changed during this audit.
+
+### Separate security-hardening candidate — not main
+- Draft PR #307 branch `security/payment-hardening-20261017`, exact head `adaaa90794018911451d9faa649aa880d9b093de`.
+- Workflow run `40064469652` was active at the 2026-10-24 10:15 Asia/Almaty checkpoint. Frontend lint, backend lint, `lint-test`, Quality Gate and Android build passed on that exact head; the E2E job was still executing the role/context design release gate. These results are **candidate-branch evidence only** and do not validate `main`.
+- Keep PR #307 in draft until its exact-head E2E/browser/mobile/role-context/Visual Agent/business-owner/organization-owner gates complete, payment provider contracts are verified, and P0 PHI/security blockers have explicit closure evidence.
+- Draft PR #308 adds a support-operations design/checklist only; it does not establish runtime or release readiness. PRs #301 and #302 also remain unmerged candidates requiring fresh exact-head verification.
 
 ### Product status
-- Clinical RBAC boundary: IMPLEMENTED + unit coverage; fresh CI required after later main changes.
-- IAM / role matrix / tenant and branch isolation: PARTIAL; negative-path matrix continues.
-- Active-session enforcement: IMPLEMENTED + E2E regression.
-- Partner onboarding: PARTIAL.
-- Economics engine/ledger: PARTIAL; deterministic engine and rule snapshots exist, durable paid→settled medical-analysis and full reconciliation remain open.
+- Clinical RBAC boundary: IMPLEMENTED in source with unit coverage; current-main full CI and negative E2E remain unverified.
+- IAM / role matrix / tenant and branch isolation: PARTIAL; the complete negative-path release matrix is still open.
+- Active-session enforcement: IMPLEMENTED in source; exact-current-main release evidence is stale.
+- Partner onboarding and branch/staff lifecycle: PARTIAL until fresh owner journeys and cross-tenant/branch gates pass.
+- Economics engine/ledger: PARTIAL; deterministic rules and snapshots exist, but release verification and provider-backed payment semantics remain open.
 - Clinical OS / Treatment Case: PARTIAL.
-- Diagnostics: PARTIAL; confirmation action exists, full clinic→partner→result→confirmation→payment lifecycle is not release-proven.
-- Medical analysis laboratories: PARTIAL.
-- Dental laboratories: PARTIAL.
-- AI control plane: PARTIAL.
-- Marketplace / Academy / Jobs / Community: PARTIAL.
-- Finance Hub: PARTIAL.
-- UX/design system: PARTIAL; documentation now establishes ecosystem-first progressive-disclosure direction.
-- Web release: NOT READY until fresh gates prove the target commit.
+- Diagnostics, medical laboratories and dental laboratories: PARTIAL; complete partner lifecycle and cross-organization isolation are not release-proven on current `main`.
+- AI control plane, Marketplace, Academy, Jobs, Community and Finance Hub: PARTIAL.
+- UX/design system: PARTIAL; exact-current-main responsive/visual/role evidence is not complete.
+- Web release: NOT READY until full CI/E2E/visual/role-context gates pass on one exact target SHA and branch protection is enabled.
 - True natural interactive 32-tooth WebGL/3D odontogram: NOT IMPLEMENTED; current dental chart is not evidence of a WebGL renderer.
-- Android release: UNVERIFIED until fresh build/install/runtime evidence exists.
+- Android release: UNVERIFIED for current `main`; a passing build on PR #307 is not mainline release evidence.
 
 ## 6. Known implementation facts
 - `TreatmentCaseWorkspace` exists; full case lifecycle remains unverified/partial.
