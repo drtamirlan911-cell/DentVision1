@@ -22,13 +22,14 @@ This document is the persistent execution contract for DentVision. It is the sou
 ### Phase 0 — Technical baseline / control plane
 **Status:** COMPLETE
 
-Evidence recorded in `CURRENT_STATE.md` and `DENTVISION_EXECUTION_LOG.md`.
+Evidence recorded in `DENTVISION_CONTEXT.md` and `DENTVISION_EXECUTION_LOG.md`; the context file is the current state bootstrap.
 
 - [x] Create this master execution plan.
 - [x] Create persistent execution log.
-- [x] Confirm the existing project control plane: `ARCHITECTURE.md`, `CURRENT_STATE.md`, and `.dentvision/current-state.json`.
+- [x] Confirm the control plane: `DENTVISION_CONTEXT.md` is the current state/authority bootstrap; `ARCHITECTURE.md` is the architecture overview; `.dentvision/current-state.json` is the curated machine-readable summary sourced from context (`generated: false`).
+- [x] Record repository-path audit: `CURRENT_STATE.md` is absent at this branch head and is not an active current-state source; do not recreate a competing status document.
 - [x] Stabilize CI and record evidence.
-- [x] Restore/verify `dentvision-backend/src/modules/patients/patients.routes.ts` against Git history as required by `CURRENT_STATE.md`.
+- [x] Restore/verify `dentvision-backend/src/modules/patients/patients.routes.ts` against Git history, recording evidence in `DENTVISION_EXECUTION_LOG.md` (no `CURRENT_STATE.md` exists at this branch head).
 - [x] Verify backend runtime/infrastructure baseline.
 - [x] Record the exact baseline commit and active implementation branch in the execution log.
 - [x] Locate and read the canonical `DENTVISION_PARTNER_ECONOMICS.md`; retain it as the sole economics policy source.
@@ -350,10 +351,71 @@ A phase is complete only when:
 - `DENTVISION_EXECUTION_LOG.md` records what changed, commit, verification, and next action.
 
 ## Current execution priority
-**Now — P0 security and release integrity:** verify RB-034 on branch security/doctor-agent-tenant-isolation-20261025. The exact candidate SHA must pass targeted DoctorAgent negative-path tests, TypeScript, backend lint, unit tests and the full role/context E2E gate before RB-034 can be closed. Keep main unchanged. The generated system map must match the generator on any candidate branch.
 
-**Next — P0 data protection:** complete the full Patient.medicalHistory read/write/AI/report/export inventory for RB-029, then design a versioned encrypted-at-rest representation and resumable, audited legacy backfill. Do not encrypt the JSON column blindly. Repository-admin action for RB-033 (required branch checks on main) remains manual and release-blocking; verify actual required-check names and prove a failing check blocks merge.
+**P0 — release-control and evidence integrity**
+1. Resolve RB-033: enable GitHub branch protection for `main`, require PR-based changes and the stable CI/release checks. This needs a repository-admin settings action; the connected GitHub read interface can verify the rule but cannot write it.
+2. Keep the release NOT READY until a fresh full CI run on one exact target SHA passes. The current `main` has a green Quality Gate rerun but stale/failed/cancelled full-CI evidence. Never combine check results from different SHAs.
+3. Track draft PR #307 independently: its exact-head run `40064469652` is still in E2E role/context verification at the recorded checkpoint. Do not push another commit to that branch while its workflow is active unless intentionally cancelling the run. After completion, inspect only the failing gate's bounded summary/artifacts and preserve the original evidence.
+4. Resolve RB-029 (P0) by mapping all Patient `medicalHistory` writers/readers and downstream consumers, then design an encrypted-at-rest representation and an audited, resumable backfill with dry-run, integrity checks, progress counts, compatibility tests and rollback safeguards. Do not encrypt the Prisma JSON field blindly.
+5. Continue the payment/PHI controls already tracked on PR #307, including RB-010/RB-011/RB-012/RB-013/RB-016 on that branch, and verify RB-019 against the actual provider-issued contract. Branch-specific blocker IDs must not be treated as implemented on `main`.
 
-**After these P0 gates:** resume the business-owner lifecycle vertical slice (registration → organization → branches → staff/permissions → operations → economics), then partner transparency/Finance Hub, automated operations and product-wide UX/clinical/ecosystem hardening.
+**P1 — operational completeness after P0 gates**
+- Complete diagnostic-center, medical-lab and dental-lab owner journeys with role/tenant/branch negative paths.
+- Complete partner economics and Finance Hub verification against durable ledger records.
+- Continue support operations only after tracing existing schema → API → IAM → UI → notifications → tests; keep all proposed support capabilities NOT VERIFIED until runtime evidence exists.
 
-The work proceeds in vertical slices: implement → targeted verify → full relevant gates → commit → update the persistent log → move to the next slice.
+The work proceeds in small vertical slices: inspect → root-cause analysis → implement → targeted tests → exact-head CI → document → continue. Do not merge or deploy from this automation run.
+
+## Ecosystem Support & Operations Control Plane
+
+**Status: PARTIAL — initial user-facing support center exists; full operational control plane is not verified.**
+This section is the single checklist for support-system delivery. It extends existing Help, IAM, notifications, audit and domain workflows; it must not create a parallel identity, permission, ticket or organization model.
+
+### Current implementation evidence (source exists; runtime behavior still requires tests)
+- [x] User-facing entry: `src/pages/Help.tsx` — create an issue, view own issues, open a conversation, reply, and see status.
+- [x] Backend endpoints: `dentvision-backend/src/modules/support/support.routes.ts` — `GET /mine`, staff-only `GET /queue`, create/read/reply/update ticket.
+- [x] Finite status/category/priority vocabulary and transition helper: `supportState.ts`; unit coverage: `supportState.test.ts`.
+- [x] Persisted ticket/message schema and migration: `20261023120000_ecosystem_support_center`.
+- [x] Audit events and in-app notifications are written on core ticket/message/status paths.
+- [ ] **Not verified:** end-to-end API authorization, requester-to-requester isolation, staff permissions, notification delivery, race handling, migration on a clean database, and actual Help-page workflows.
+- [ ] **Not implemented/verified as a complete service operation:** SLA timers and breach alerts, escalation/on-call ownership, assignment UX, queue search and useful filters, paginated queue UX, resolution quality/reopen analytics, incident/outage communication, knowledge-base deflection, and support health dashboard.
+
+### Product contract — one support system, role-aware entry
+- Every signed-in participant (patient/buyer, professional, clinic, diagnostic center, medical lab, dental lab, supplier, academy/lecturer/student, employer/job seeker, community participant and platform operator) must have one discoverable Help entry. Entry and language are contextual; support staff tooling is not exposed to ordinary users.
+- A user may read/reply only to their own tickets. Support access is an explicit server-authorized capability; a client role, URL parameter or ticket ID is never authorization proof. Superadmin access must follow governed policy and be audited.
+- Ticket categories are shared and stable; context metadata may include organization/branch/workspace and source route only when server-validated and safe. Never attach patient records, clinical notes, tokens, payment credentials or raw browser storage automatically.
+- Urgent security, privacy, payment and clinical-safety reports require explicit severity, restricted visibility where appropriate, audit trail and escalation path. Do not promise response times until an owner-approved support policy defines them.
+- Status transitions, assignment, priority, replies and closure must be atomic, auditable and race-safe. Reopening a closed ticket is staff-only unless policy explicitly changes.
+- Queue views must help staff answer: what is urgent, who owns it, how long it has waited, what is blocking it, and what action is next. Default UI stays simple; advanced filters and diagnostics are progressively disclosed.
+- Incident/outage communication must be separate from private ticket messages and must never expose one customer's data to another.
+- Every control shown in the UI must be backed by a real endpoint and permission. No placeholder buttons or simulated metrics.
+
+### Release gates for this subsystem
+1. Add integration tests for create/list/detail/reply/status/assignment, malformed inputs, missing/invalid role, requester isolation, cross-user IDOR, staff-only queue, and concurrent updates.
+2. Verify database migration from an empty database and from the current schema; check foreign keys, indexes, rollback/forward recovery and seed compatibility.
+3. Add rate limits and abuse controls for ticket creation/replies; bound message history and query sizes; avoid logging message bodies or sensitive diagnostics.
+4. Add explicit operational policy before implementing SLA timers: support hours/time zone, first-response/resolution targets by severity, holidays, escalation owners, after-hours behavior and reporting windows.
+5. Implement only the next verified slice: queue search/filter/pagination and assignment UX backed by server-side filters, then SLA/escalation and outcome analytics with tests.
+6. Verify all supported participant contexts and mobile widths; check keyboard access, accessible target sizes, loading/empty/error/retry states and deep-link authorization.
+7. Mark this subsystem DONE only when the above gates have evidence in CI and the execution log. Source presence alone is PARTIAL.
+
+### SUP-01…SUP-15 — cross-ecosystem operational evidence checklist
+**Status: proposal/checklist integrated; individual runtime outcomes NOT VERIFIED.** These checks extend the support service above and are not a second status register.
+
+- [ ] SUP-01 inventory existing support, feedback, incident, admin, notification and knowledge capabilities in code and tests.
+- [ ] SUP-02 verify tenant-scoped case lifecycle and immutable audit history.
+- [ ] SUP-03 prove server-side role/domain authorization and cross-tenant denial.
+- [ ] SUP-04 approve severity and service-hours policy before enabling SLA clocks.
+- [ ] SUP-05 verify incident ownership, timeline, customer updates and postmortem workflow.
+- [ ] SUP-06 verify assignment, backup ownership, overdue detection and escalation delivery.
+- [ ] SUP-07 verify safe attachments, PHI redaction and restricted clinical-evidence access.
+- [ ] SUP-08 define and reconcile dashboard metrics against authoritative records.
+- [ ] SUP-09 verify knowledge search, article permissions, ownership and review lifecycle.
+- [ ] SUP-10 verify notification delivery, retries, deduplication and PHI-safe payloads.
+- [ ] SUP-11 verify defect-to-PR-to-CI-to-release traceability.
+- [ ] SUP-12 verify AI triage remains advisory, evidence-grounded and human-approved for high-risk actions.
+- [ ] SUP-13 verify mobile, offline/retry, accessibility and every supported participant context.
+- [ ] SUP-14 verify retention, deletion, export and legal-hold controls.
+- [ ] SUP-15 assign primary/backup operational owners and rehearse incident recovery.
+
+Definition of DONE for each SUP item: exact code path + owning service + authorization scope + tests + current CI/runtime evidence + known limitations. A route, screen or document alone is insufficient.

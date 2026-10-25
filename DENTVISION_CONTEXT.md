@@ -52,15 +52,29 @@ AI action lifecycle:
 `Intent → Context → Permission → Plan → Preview → Confirmation when required → Execute → Verify → Audit`
 
 ## 5. Verified repository state — 2026-10-25
-- Exact current GitHub main HEAD: d47aec8dc310731516f3a46cd0e3855781dd171e.
-- Main Quality Gate run 40065996095 passed on 2026-10-24, but this is not a full release pass. The latest full CI recorded for that exact SHA remains run 36852925083 (2026-10-01), with lint-test failure and E2E cancellation. Fresh exact-main CI/E2E/visual/role-context evidence is not established.
-- Branch protection remains an open release-control item in the prior audit record. The branch-protection endpoint is not accessible through the current connector permissions, so it was not independently re-read in this run. Repository-admin configuration and a merge-blocking test remain required.
-- No production deployment was changed during this run.
 
-### Candidate verification updates — 2026-10-25
-- PR #309 candidate head f30119b4f6752e540327666f9f34afe4a17bfe96: docs/SYSTEM_MAP.md was synchronized with generator output (672 handlers, 636 registered routes, 101 routes without detected consumers; diagnostics 35 handlers / 1 without detected consumer). CI run 40163222925 passed frontend lint, backend lint, generated project index, TypeScript, system-map validation and npm test; E2E remained in progress at the last checkpoint. Quality Gate run 40163223009 passed. Candidate-branch evidence only.
-- RB-034 records a confirmed AI DoctorAgent cross-tenant access defect. Candidate branch security/doctor-agent-tenant-isolation-20261025 has implementation commit 80c842777e5fdfdeacf3c672febd9e3624276d6b with scoped queries and negative-path tests; exact-head CI/E2E verification is pending.
-- Canonical IAM role matrix path is docs/DENTVISION_IAM_ROLE_MATRIX.md. A root-level DENTVISION_IAM_ROLE_MATRIX.md does not exist; use the path under docs/ for future audits.
+### Main and integration status
+- Exact GitHub `main` HEAD at the start of this integration cycle: `b27f9b920ee08388dfb560c4ad0ff6243f461844`.
+- Already merged before this reconciliation: PR #300 → `22c1350abf311859a791ff773d43e2b1fb1487b9`; PR #310 → `f1276fdb9ab2d7761f7e6c3f77e82eff752ac835`; PR #301 → `b27f9b920ee08388dfb560c4ad0ff6243f461844`. Their source branches remain intact.
+- Integration workspace: `integration/merge-all-20261025`. Every session must re-read the live branch ref; do not assume a saved SHA remains current as reconciliation commits are added.
+- Release status: **NOT READY**. No full exact-head CI/E2E/role-context/visual/Android pass has been established for current `main`; PR #310's CI run `40164023070` was still in progress at the last API check, and PR #301's E2E run `37469591391` was cancelled before it was merged. Candidate-branch success is not current-main evidence.
+- Branch protection remains an open P0 control (RB-033 / issue #259). A previous audit reported protection disabled; this run could not independently re-read the administrative setting through the connected permission surface. Verify it in GitHub repository settings.
+- No production deployment is authorized by this integration work. Source branches and existing CI artifacts remain preserved.
+
+### Source branch / candidate evidence
+- PR #310: DoctorAgent patient and appointment lookups are now tenant-scoped on main. Lint/type/unit jobs passed on source head `bf65526de39628201a94ab986c77cc38d73cbfbe`; E2E was still running at the last direct observation. Keep RB-034 open until exact-main E2E, branch/assigned-patient authorization, and the negative cross-tenant tests are verified.
+- PR #301: clinical odontogram workspace is merged to main, but source CI `37469591391` had cancelled E2E. Preserve the merged code and rerun mobile, clinical-workflow, responsiveness, and role/context tests on the integrated candidate.
+- PR #307: payment/production security candidate `adaaa90794018911451d9faa649aa880d9b093de`; lint and unit checks plus Android/Quality Gate passed, but CI `40064469652` failed the role/context release gate. GitHub rejected a direct merge because of conflicts.
+- PR #302: release/IAM/finance/odontogram candidate `8855e522dce91b01652520bef2ccec6e21f5630f`; lint and Quality Gate passed, but CI `37791379352` failed core E2E, role/context, business-owner, and visual release checks. GitHub rejected a direct merge because of conflicts.
+- PR #309: documentation candidate `f30119b4f6752e540327666f9f34afe4a17bfe96`; lint/unit/system-map checks passed, but its CI `40163222925` had not completed all E2E/visual/role-context checks at the last direct observation. Its overlapping documents must be reconciled rather than copied wholesale.
+- PR #308: support-operations workflow design only; it does not itself prove the runtime support system is complete. Preserve its SUP-01…SUP-15 inventory checklist and validate actual code, database, IAM, notifications and tests before marking items done.
+
+### Active high-risk release blockers
+- RB-029 — Patient `medicalHistory` JSON may bypass the string-only PHI encryption helper; reader/writer inventory and a compatible, resumable encrypted-at-rest migration are still required.
+- RB-019 — actual payment provider contract must be verified; a generic gateway HMAC example must not be described as the official Kaspi API contract.
+- RB-033 — branch protection / required checks need repository-admin verification.
+- RB-034 — DoctorAgent cross-tenant patient/appointment IDOR fix needs completed exact-head E2E and role/context evidence.
+- Existing RB-001…RB-009 entries and the payment/PHI blockers introduced by PR #307 remain open unless their own fixing commit and verification evidence are recorded.
 
 ### Product status
 - Clinical RBAC boundary: IMPLEMENTED + unit coverage; fresh CI required after later main changes.
