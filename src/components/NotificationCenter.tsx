@@ -241,7 +241,7 @@ export default function NotificationCenter() {
       </AnimatePresence>
 
       <AnimatePresence>
-        {selectedNotification && (
+        {selected && (
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
@@ -251,7 +251,7 @@ export default function NotificationCenter() {
             aria-modal="true"
             aria-labelledby="notification-detail-title"
             onMouseDown={(event) => {
-              if (event.target === event.currentTarget) setSelectedNotification(null)
+              if (event.target === event.currentTarget) setSelected(null)
             }}
           >
             <motion.div
@@ -267,27 +267,27 @@ export default function NotificationCenter() {
                     <span
                       className="flex h-8 w-8 items-center justify-center rounded-lg"
                       style={{
-                        backgroundColor: `${(typeMeta[selectedNotification.type as NotificationType] || typeMeta.system).color}1a`,
-                        color: (typeMeta[selectedNotification.type as NotificationType] || typeMeta.system).color,
+                        backgroundColor: `${(typeMeta[selected.type as NotificationType] || typeMeta.system).color}1a`,
+                        color: (typeMeta[selected.type as NotificationType] || typeMeta.system).color,
                       }}
                     >
-                      {(typeMeta[selectedNotification.type as NotificationType] || typeMeta.system).icon}
+                      {(typeMeta[selected.type as NotificationType] || typeMeta.system).icon}
                     </span>
                     <span
                       className="text-xs font-medium"
-                      style={{ color: (typeMeta[selectedNotification.type as NotificationType] || typeMeta.system).color }}
+                      style={{ color: (typeMeta[selected.type as NotificationType] || typeMeta.system).color }}
                     >
-                      {(typeMeta[selectedNotification.type as NotificationType] || typeMeta.system).label}
+                      {(typeMeta[selected.type as NotificationType] || typeMeta.system).label}
                     </span>
                   </div>
                   <h3 id="notification-detail-title" className="text-base font-semibold text-txt-primary">
-                    {selectedNotification.title}
+                    {selected.title}
                   </h3>
                 </div>
                 <button
                   type="button"
                   aria-label="Закрыть уведомление"
-                  onClick={() => setSelectedNotification(null)}
+                  onClick={() => setSelected(null)}
                   className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-txt-muted hover:bg-surface-2 hover:text-txt-primary"
                 >
                   <X size={18} />
@@ -297,8 +297,8 @@ export default function NotificationCenter() {
               <div className="max-h-[60vh] overflow-y-auto px-4 py-5">
                 <div className="mb-4 flex items-center gap-2 text-xs text-txt-muted">
                   <Clock3 size={14} />
-                  <span>{timeAgo(selectedNotification.createdAt)}</span>
-                  {!selectedNotification.read && (
+                  <span>{timeAgo(selected.createdAt)}</span>
+                  {!selected.read && (
                     <span className="rounded-full bg-dv-gold/15 px-2 py-0.5 text-[10px] font-semibold text-dv-gold">
                       {t('platform.notification_new')}
                     </span>
@@ -306,7 +306,7 @@ export default function NotificationCenter() {
                 </div>
                 <div className="rounded-xl border border-bdr-subtle bg-surface-2/50 px-4 py-4">
                   <p className="whitespace-pre-wrap break-words text-sm leading-6 text-txt-secondary">
-                    {selectedNotification.message || 'Нет дополнительного описания.'}
+                    {selected.message || 'Нет дополнительного описания.'}
                   </p>
                 </div>
               </div>
@@ -314,15 +314,15 @@ export default function NotificationCenter() {
               <div className="flex flex-col-reverse gap-2 border-t border-bdr-subtle px-4 py-3 sm:flex-row sm:justify-end">
                 <button
                   type="button"
-                  onClick={() => setSelectedNotification(null)}
+                  onClick={() => setSelected(null)}
                   className="min-h-11 rounded-lg border border-bdr-subtle px-4 text-sm font-medium text-txt-secondary hover:bg-surface-2 hover:text-txt-primary"
                 >
                   Закрыть
                 </button>
-                {selectedNotification.actionUrl && (
+                {selected.actionUrl && (
                   <button
                     type="button"
-                    onClick={handleNavigate}
+                    onClick={followAction}
                     className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg bg-dv-gold px-4 text-sm font-semibold text-black hover:brightness-105"
                   >
                     Открыть
