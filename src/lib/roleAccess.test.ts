@@ -10,8 +10,10 @@ describe('roleAccess', () => {
     expect(pageIdFromPath('/crm/finance')).toBe('finance')
     expect(pageIdFromPath('/crm/medical-card')).toBe('medical-card')
     expect(pageIdFromPath('/crm/integrations/messaging')).toBe('clinic-settings')
+    expect(pageIdFromPath('/crm/stock-rules')).toBe('inventory')
     expect(pageIdFromPath('/supplier')).toBe('supplier')
     expect(pageIdFromPath('/shop/orders')).toBe('shop')
+    expect(pageIdFromPath('/community')).toBe('community')
   })
 
   it('maps real diagnostics routes to their IAM page ids', () => {
@@ -42,6 +44,11 @@ describe('roleAccess', () => {
     expect(canAccessPage(assistant, 'medical-card')).toBe(false)
     expect(canAccessPage(assistant, 'lab')).toBe(false)
     expect(canAccessPage(assistant, 'schedule')).toBe(true)
+  })
+
+  it('maps community access to the unified page ACL', () => {
+    expect(canAccessPage(['community'], 'community')).toBe(true)
+    expect(canAccessPage(['profile'], 'community')).toBe(false)
   })
 
   it('picks first allowed CRM fallback', () => {
