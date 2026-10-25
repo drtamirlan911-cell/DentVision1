@@ -44,8 +44,13 @@ complianceRouter.get('/sessions', async (req: AuthRequest, res) => {
 
 complianceRouter.post('/sessions/:id/expire', async (req: AuthRequest, res) => {
   try {
-    await expireSession(String(req.params.id));
-    await auditFromReq(req, { action: 'SESSION_EXPIRED', entity: 'session', entityId: String(req.params.id) });
+    const sessionId = String(req.params.id);
+    const expired = await expireSession(sessionId, req.user!.id);
+    if (!expired) {
+      // Do not reveal whether another user's session exists.
+      return res.status(404).json({ ok: false, error: 'Сессия не найдена' } satisfies ApiResponse);
+    }
+    await auditFromReq(req, { action: 'SESSION_EXPIRED', entity: 'session', entityId: sessionId });
     return res.json({ ok: true } satisfies ApiResponse);
   } catch (error) {
     return res.status(500).json({ ok: false, error: 'Ошибка завершения сессии' } satisfies ApiResponse);
