@@ -2046,3 +2046,10 @@ These changes are route/entry reconciliation only. Existing domain implementatio
 ### Verification status
 - These changes are a candidate fix, **not yet verified** by new exact-head CI. Re-run and review the concise gate summary before closing RB-032 or marking release ready.
 - Do not delete source branches or treat main's Quality Gate success as full release approval.
+
+
+## 2026-10-25 — Finance E2E authorization vs input-validation separation
+
+- The prior `FIN-003` used `owner-a@test.com` to expect HTTP 400 for an invalid platform-finance period. The exact-main CI run returned 403 because platform partner economics is explicitly protected by `requirePermission('finance.manage')` and the additional platform-finance boundary; that response was not evidence the date parser worked.
+- Updated the test contract in the integration candidate to keep both behaviors independently asserted: a clinic owner receives 403 even when the query is malformed, and a platform SUPERADMIN receives 400 with `Некорректная дата` for the same malformed input. No authorization rule is relaxed.
+- This is a candidate test correction, not yet verified by exact-head CI. If SUPERADMIN does not reach the validation handler, investigate auth/permission middleware rather than accepting 403 as a validation pass.
