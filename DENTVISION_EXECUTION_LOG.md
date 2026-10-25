@@ -1987,3 +1987,84 @@ These changes are route/entry reconciliation only. Existing domain implementatio
 - Repairs committed on `main`: restored the complete `e2e/tests/academy.spec.ts` suite after detecting that an earlier patch had replaced the file with an unrelated fragment; corrected the IAM branch query from Prisma model field `"createdAt"` to its mapped SQL column `"created_at"`.
 - The integration branch now includes payment server-owned metadata and canonical amount validation from PR #307, billing permission checks from PR #302, RBAC/organization/marketplace route changes, E2E test repairs/coverage, workspace/auth context changes, mobile touch targets, odontogram arch layout and status confirmation, plus source-branch historical log records.
 - Verification status is NOT READY until the integration branch completes exact-head CI, core E2E, role/context, business-owner, visual evidence and Android gates. Known earlier E2E failures were `expect is not defined` in the truncated Academy test, raw SQL `createdAt` mapping, generated project-map mismatch, and role/context/visual failures. The first two defects were fixed; final rerun must establish whether they are cleared.
+
+## 2026-10-25 — Preserved branch integration checkpoint
+
+- Captured all 241 branch refs with exact HEAD SHAs and PR-history links in `docs/integration/INTEGRATION_RECONCILIATION_20261025.md`; no source branch was deleted, force-pushed, rebased, or rewritten.
+- Reconciled merge-base `5093a76909cf3808ccbb53d5805dff4fbfaa3eb5`, `main` `d273a4ecdd1daf8b3269d223c06a7a9c43a162e7`, and integration parent `2390f98f33f055cdb8513736a4e3e95522e655d7` by exact Git tree/blob SHA. Current `main` already contains the same final blobs for the majority of integration changes and the five payment/checkout regression test files merged via PR #318; those main-side files are retained in the merge tree.
+- Payment route conflict resolution retains both branches' hardening: the exact-clinic appointment ownership and outstanding-invoice balance guards from current `main`, plus the delayed idempotency reservation and canonical payment authorization logic. Current `main` versions of `settlePaidPayment.test.ts` and `IntelligenceLayout.tsx` are retained to preserve the canonical subscription error contract and accessible `min-h-11` interaction target.
+- Verification boundary: Quality Gate passed on parent `2390f98f33f055cdb8513736a4e3e95522e655d7`; the merged tree requires fresh exact-head CI, unit/E2E, role-context and visual validation. Vercel currently reports a build-rate limit, not a validated application failure. Release status remains **NOT READY**; no production deployment or release approval is implied.
+
+## 2026-10-25 — Branch-safe security port and selective tree audit
+
+### Preserved scope
+- Kept the 241-ref branch census and PR cross-reference in `docs/integration/INTEGRATION_RECONCILIATION_20261025.md`; added the exact-content dispositions for representative payment, clinical, IAM, AI, Academy, lab and security branches.
+- No branch was deleted, force-pushed, rebased or rewritten. Whole-branch merges were rejected where the branch tree is older and omits newer main-only code.
+
+### Ported from PR #319 into `integration/merge-train-20261025`
+- `dentvision-backend/src/modules/compliance/session.service.ts`: expire a session only when both session ID and authenticated owner match and it remains active; use an atomic conditional update.
+- `dentvision-backend/src/modules/auth/auth.routes.ts`: refresh-token rotation fails closed when the owned session cannot be atomically expired.
+- `dentvision-backend/src/modules/compliance/compliance.routes.ts`: foreign/missing/inactive session expiration gets a generic 404; audit only successful expiration.
+- Added `dentvision-backend/src/modules/compliance/session.service.test.ts` and `e2e/tests/session-security.spec.ts`.
+- Commits on the integration branch: `e730deff2da74161df104eb6c16ef4582067e53b`, `e6c05365af9150f4e9233ed7acb3d67021e221de`, `765aa7768e9ff437c1bd87e4c54e1073714a2f3c`, `c520dadeb4635d3cf7aa98e956e4209fcada055c`, `e6779ef9eaa19a5cb07476ace01757f2e2dec778`, plus the reconciliation-document update `963d5fd5ec95a49466acc886ce448a75769a462a`.
+- PR #319 remains open/draft. Its original branch is preserved; this selective port is not a claim that its full suite has passed.
+
+### CI and next repair target
+- Before this selective port, merge commit `fd1ad330d4cfc9c954127ee902e7f2432575e259` passed Quality Gate, backend lint, frontend lint and lint-test. E2E core failed; later role/context validation was still running when last checked.
+- Prior complete E2E evidence includes Playwright response-body reads after navigation, a login-form selector timeout in the organization-owner journey, and unique-key collisions in seeded/concurrent tests. Fix the test lifecycle/data isolation itself; do not mute page/console errors, remove role coverage or loosen assertions.
+- **Verification:** newly ported session ownership changes have not yet passed the complete exact-head CI. Keep the integration PR draft and release status **NOT READY** until fresh exact-head CI, E2E, role/context, business-owner, organization-owner, visual/mobile and security gates pass.
+
+## 2026-10-25 — E2E diagnostics and fixture contract repairs
+
+- Root-cause review of the previous full E2E log confirmed:
+  - BRANCH-001/002/003 read `/api/branches` without required `clinicId`/ `organizationId`, and direct test API calls lacked the browser's Bearer token.
+  - BRANCH-004 did not surface the failing create response; the test now reports the exact status/body rather than only timing out waiting for a rendered name.
+  - NOTIFY-001's direct client write returned 403; the test now creates a server-owned notification fixture in the database and cleans it in `finally`, while continuing to verify the actual AlertDropdown and linked navigation.
+  - PARTNER-001 used the shared APIRequestContext's refresh cookie after authenticating a radiologist, then expected the diagnostic owner role. The owner refresh token is now captured immediately after self-service onboarding and used explicitly.
+- FIN-003 remains unresolved: owner-a currently receives 403 before invalid-period validation. Do not accept a 403 as proof that 400 validation is working and do not weaken the assertion; add an authorized finance fixture or a separate RBAC-vs-validation test.
+- These test fixes have not yet been validated by new exact-head CI; keep PR #317 draft and release state **NOT READY** until a fresh complete run is green.
+
+
+## 2026-10-25 — E2E failure attribution and bounded-output integration pass
+
+### Exact-head evidence reviewed
+- Main SHA: `d273a4ecdd1daf8b3269d223c06a7a9c43a162e7`; CI run `40183562189`.
+- Frontend lint, backend lint, and `lint-test` passed. Browser UX, mobile design, Visual Agent, Playwright CLI smoke, and visual evidence validation passed.
+- Failed gates: core E2E (99 s), role/context (953 s; 70 failed / 56 passed / 28 skipped), business-owner journeys (2 failed / 9 passed; 30 s), organization-owner lifecycle (1 failed / 6 passed; 375 s).
+- Role/context failures repeatedly captured the workspace before the asynchronous IAM-context query rendered its role label. The support route expectation omitted the actual `/help` entry route. The forbidden-route branch also waited for normal page content before asserting a redirect, adding unnecessary waits on routes that should be denied.
+- Business-owner failures were traced to a race: `page.unroute()` ran after the click but before the in-flight onboarding route handler completed `route.fulfill()`, causing “response was not captured” and “Route is already handled”.
+- Organization-owner lifecycle re-login reused the browser's scoped token after workspace creation, so navigation could redirect away from the login form before credentials were filled.
+- Core E2E still has branch-management failures in `e2e/tests/branch-management.spec.ts`; they are retained as an explicit follow-up and are not counted as solved by the role/onboarding fixes.
+
+### Candidate changes on `integration/merge-train-20261025`
+- Wait for role identity to render; show the canonical role label even for authenticated users with no organization workspace; canonicalize the Owner label to “Владелец”.
+- Evaluate forbidden-route redirects before waiting for allowed-page content and include `/help` in Support's valid entry-route contract. Authorization assertions and responsive viewport matrix remain enabled.
+- Keep the real self-service API response capture route installed until the upstream response has been fulfilled; fail clearly on a bounded response timeout.
+- Clear cookies and tab-scoped credentials before a lifecycle test deliberately re-authenticates after changing workspace.
+- Keep each gate's full output in its durable log while showing only bounded, de-duplicated failures in the action log. Exclude generated Playwright report/evidence directories from Vite's watcher to stop report self-reload noise.
+
+### Verification status
+- These changes are a candidate fix, **not yet verified** by new exact-head CI. Re-run and review the concise gate summary before closing RB-032 or marking release ready.
+- Do not delete source branches or treat main's Quality Gate success as full release approval.
+
+
+## 2026-10-25 — Finance E2E authorization vs input-validation separation
+
+- The prior `FIN-003` used `owner-a@test.com` to expect HTTP 400 for an invalid platform-finance period. The exact-main CI run returned 403 because platform partner economics is explicitly protected by `requirePermission('finance.manage')` and the additional platform-finance boundary; that response was not evidence the date parser worked.
+- Updated the test contract in the integration candidate to keep both behaviors independently asserted: a clinic owner receives 403 even when the query is malformed, and a platform SUPERADMIN receives 400 with `Некорректная дата` for the same malformed input. No authorization rule is relaxed.
+- This is a candidate test correction, not yet verified by exact-head CI. If SUPERADMIN does not reach the validation handler, investigate auth/permission middleware rather than accepting 403 as a validation pass.
+
+
+## 2026-10-25 — Superseding failed integration candidate with a bounded E2E fix pass
+
+- The exact integration HEAD `f2371623cf39a98d067dd1102aa450f19e351761` ran as CI run `40192163708`: backend lint, frontend lint, and unit/type test gate passed; core E2E and role/context gate failed. The Visual Agent gate was still executing when this candidate was prepared.
+- Because the CI job had already failed two required gates, the remaining run was intentionally superseded by the consolidated candidate rather than spending additional runner time on a known-failing SHA. GitHub Actions is configured to cancel the previous CI execution for a new push to the same ref; the old failure artifacts remain evidence and are not treated as a pass.
+- The consolidated candidate includes the role/context timing and visible-role repair, support-route correction, safe onboarding response capture, deterministic lifecycle re-login, compact E2E live output with full logs retained, and watcher exclusions for generated Playwright evidence. The finance E2E validation/authorization split is also included.
+- The branch ref has not been updated by this documentation record yet. New exact-head verification is required after publishing the candidate; release remains NOT READY.
+
+
+## 2026-10-25 — E2E diagnostics checkpoint workflow optimization
+
+- On candidate SHA `f90208b5eeb019e34faadfd1396efc91b75f84f5`, frontend lint, backend lint, both Quality Gate runs and unit/type/lint-test checks passed. The core E2E step failed, but its log was not available to the connected log reader while the same E2E job continued through later gates; final artifact upload currently occurred near the end of the job.
+- Added per-gate failure checkpoint uploads immediately after core E2E, browser UX, mobile design, role/context, Visual Agent, business-owner journeys and organization-owner lifecycle. Each checkpoint contains only that gate's text log and compact test failure context, with three-day retention and maximum compression; large Playwright traces and HTML reports remain on their existing failure-only upload path.
+- This is an observability/workflow improvement, not a test pass. The failed-core candidate will be intentionally superseded to activate the early-artifact path; release remains NOT READY.

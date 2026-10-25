@@ -159,7 +159,20 @@ jobs:
           PLAYWRIGHT_HTML_OUTPUT_DIR: playwright-report/core
           E2E_GATE_LOG_PATH: e2e-core.log
         run: bash quality-scripts/run-e2e-gate.sh e2e-core npx playwright test $(ls e2e/tests/*.spec.ts | grep -v browser-e2e | grep -v ux-coverage | grep -v business-owner-journeys | grep -v organization-owner-lifecycle | grep -v mobile-design-gate | grep -v role-design-gate | grep -v visual-agent)
+      - name: Checkpoint upload — core failure diagnostics
+        if: ${{ always() && steps.e2e_core.outcome == 'failure' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-checkpoint-core-${{ github.run_id }}
+          path: |
+            e2e-core.log
+            e2e/test-results/core/**/error-context.md
+            e2e/test-results/core/**/test-failed-*.txt
+          if-no-files-found: warn
+          retention-days: 3
+          compression-level: 9
       - name: Run browser UX coverage
+        id: browser_ux
         # Continue after failed tests, but never run a new suite after workflow cancellation.
         if: ${{ !cancelled() }}
         env:
@@ -167,7 +180,20 @@ jobs:
           PLAYWRIGHT_OUTPUT_DIR: e2e/test-results/ux-coverage
           PLAYWRIGHT_HTML_OUTPUT_DIR: playwright-report/ux-coverage
         run: bash quality-scripts/run-e2e-gate.sh browser-ux npx playwright test e2e/tests/ux-coverage.spec.ts
+      - name: Checkpoint upload — browser-ux failure diagnostics
+        if: ${{ always() && steps.browser_ux.outcome == 'failure' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-checkpoint-browser-ux-${{ github.run_id }}
+          path: |
+            e2e-gate-logs/browser-ux.log
+            e2e/test-results/ux-coverage/**/error-context.md
+            e2e/test-results/ux-coverage/**/test-failed-*.txt
+          if-no-files-found: warn
+          retention-days: 3
+          compression-level: 9
       - name: Run mobile design release gate
+        id: mobile_design_gate
         # Continue after failed tests, but never run a new suite after workflow cancellation.
         if: ${{ !cancelled() }}
         env:
@@ -185,6 +211,18 @@ jobs:
           --project=mobile-390
           --project=mobile-412
           --project=mobile-safari
+      - name: Checkpoint upload — mobile-design failure diagnostics
+        if: ${{ always() && steps.mobile_design_gate.outcome == 'failure' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-checkpoint-mobile-design-${{ github.run_id }}
+          path: |
+            e2e-gate-logs/mobile-design-gate.log
+            e2e/test-results/mobile-design-gate/**/error-context.md
+            e2e/test-results/mobile-design-gate/**/test-failed-*.txt
+          if-no-files-found: warn
+          retention-days: 3
+          compression-level: 9
       - name: Checkpoint upload — mobile visual evidence
         if: always()
         uses: actions/upload-artifact@v4
@@ -196,6 +234,7 @@ jobs:
           compression-level: 1
 
       - name: Run role and context design release gate
+        id: role_design_gate
         # Continue after failed tests, but never run a new suite after workflow cancellation.
         if: ${{ !cancelled() }}
         env:
@@ -213,6 +252,18 @@ jobs:
           --project=role-mobile
           --project=role-mobile-412
           --project=role-mobile-safari
+      - name: Checkpoint upload — role-context failure diagnostics
+        if: ${{ always() && steps.role_design_gate.outcome == 'failure' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-checkpoint-role-context-${{ github.run_id }}
+          path: |
+            e2e-gate-logs/role-design-gate.log
+            e2e/test-results/role-design-gate/**/error-context.md
+            e2e/test-results/role-design-gate/**/test-failed-*.txt
+          if-no-files-found: warn
+          retention-days: 3
+          compression-level: 9
       - name: Checkpoint upload — role visual evidence
         if: always()
         uses: actions/upload-artifact@v4
@@ -224,6 +275,7 @@ jobs:
           compression-level: 1
 
       - name: Run Visual Agent eyes/hands across all ecosystem roles
+        id: visual_agent
         # Continue after failed tests, but never run a new suite after workflow cancellation.
         if: ${{ !cancelled() }}
         env:
@@ -231,6 +283,18 @@ jobs:
           PLAYWRIGHT_OUTPUT_DIR: e2e/test-results/visual-agent
           PLAYWRIGHT_HTML_OUTPUT_DIR: playwright-report/visual-agent
         run: bash quality-scripts/run-e2e-gate.sh visual-agent npx playwright test e2e/tests/visual-agent.spec.ts --project=visual-agent
+      - name: Checkpoint upload — visual-agent failure diagnostics
+        if: ${{ always() && steps.visual_agent.outcome == 'failure' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-checkpoint-visual-agent-${{ github.run_id }}
+          path: |
+            e2e-gate-logs/visual-agent.log
+            e2e/test-results/visual-agent/**/error-context.md
+            e2e/test-results/visual-agent/**/test-failed-*.txt
+          if-no-files-found: warn
+          retention-days: 3
+          compression-level: 9
       - name: Checkpoint upload — visual agent evidence
         if: always()
         uses: actions/upload-artifact@v4
@@ -242,6 +306,7 @@ jobs:
           compression-level: 1
 
       - name: Run business owner journeys
+        id: business_owner_journeys
         # Continue after failed tests, but never run a new suite after workflow cancellation.
         if: ${{ !cancelled() }}
         env:
@@ -249,7 +314,20 @@ jobs:
           PLAYWRIGHT_OUTPUT_DIR: e2e/test-results/business-owner-journeys
           PLAYWRIGHT_HTML_OUTPUT_DIR: playwright-report/business-owner-journeys
         run: bash quality-scripts/run-e2e-gate.sh business-owner-journeys npx playwright test e2e/tests/business-owner-journeys.spec.ts
+      - name: Checkpoint upload — business-owner failure diagnostics
+        if: ${{ always() && steps.business_owner_journeys.outcome == 'failure' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-checkpoint-business-owner-${{ github.run_id }}
+          path: |
+            e2e-gate-logs/business-owner-journeys.log
+            e2e/test-results/business-owner-journeys/**/error-context.md
+            e2e/test-results/business-owner-journeys/**/test-failed-*.txt
+          if-no-files-found: warn
+          retention-days: 3
+          compression-level: 9
       - name: Run organization owner lifecycle release gate
+        id: organization_owner_lifecycle
         # Continue after failed tests, but never run a new suite after workflow cancellation.
         if: ${{ !cancelled() }}
         env:
@@ -257,6 +335,18 @@ jobs:
           PLAYWRIGHT_OUTPUT_DIR: e2e/test-results/organization-owner-lifecycle
           PLAYWRIGHT_HTML_OUTPUT_DIR: playwright-report/organization-owner-lifecycle
         run: bash quality-scripts/run-e2e-gate.sh organization-owner-lifecycle npx playwright test e2e/tests/organization-owner-lifecycle.spec.ts
+      - name: Checkpoint upload — organization-owner failure diagnostics
+        if: ${{ always() && steps.organization_owner_lifecycle.outcome == 'failure' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-checkpoint-organization-owner-${{ github.run_id }}
+          path: |
+            e2e-gate-logs/organization-owner-lifecycle.log
+            e2e/test-results/organization-owner-lifecycle/**/error-context.md
+            e2e/test-results/organization-owner-lifecycle/**/test-failed-*.txt
+          if-no-files-found: warn
+          retention-days: 3
+          compression-level: 9
       - name: Install official Playwright CLI
         # Continue after failed tests, but never run a new suite after workflow cancellation.
         if: ${{ !cancelled() }}
@@ -320,13 +410,9 @@ jobs:
           {
             echo "=== E2E gate timings ==="
             cat e2e-gate-timings.txt 2>/dev/null || true
-            for log_file in e2e-core.log e2e-gate-logs/*.log; do
-              [ -f "$log_file" ] || continue
-              echo
-              echo "=== $log_file ==="
-              grep -E '(^[[:space:]]*[0-9]+ failed|^[[:space:]]*[0-9]+ passed|[0-9]+ failed|[0-9]+ passed|Error:|HTTP [45][0-9][0-9]|expect\(|Test timeout|timed out)' "$log_file" | tail -n 35 || true
-            done
+            node quality-scripts/summarize-e2e-failures.mjs e2e-core.log e2e-gate-logs/*.log
           } > e2e-failure-summary.txt
+          cat e2e-failure-summary.txt >> "$GITHUB_STEP_SUMMARY"
 
       - name: Upload compact E2E diagnostics
         if: always()

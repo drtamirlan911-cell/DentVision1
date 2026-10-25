@@ -47,11 +47,23 @@ test.describe('Finance Hub — partner economics', () => {
     expect([401, 403]).toContain(res.status());
   });
 
-  test('FIN-003: invalid economics period fails closed', async ({ request }) => {
+  test('FIN-003: clinic owner without platform-finance scope is denied', async ({ request }) => {
     const t = await token(request, 'owner-a@test.com');
     const res = await request.get(`${BASE}/api/finance/partner-economics/transparency?from=not-a-date`, {
       headers: { Authorization: `Bearer ${t}` },
     });
+    // Authorization runs before the input parser: the owner must not gain a
+    // validation oracle by submitting malformed platform-finance parameters.
+    expect(res.status()).toBe(403);
+  });
+
+  test('FIN-004: invalid economics period is rejected for platform finance admin', async ({ request }) => {
+    const t = await token(request, 'superadmin@test.com');
+    const res = await request.get(`${BASE}/api/finance/partner-economics/transparency?from=not-a-date`, {
+      headers: { Authorization: `Bearer ${t}` },
+    });
     expect(res.status()).toBe(400);
+    const body = await res.json();
+    expect(body.error).toBe('Некорректная дата');
   });
 });
