@@ -1994,3 +1994,22 @@ These changes are route/entry reconciliation only. Existing domain implementatio
 - Reconciled merge-base `5093a76909cf3808ccbb53d5805dff4fbfaa3eb5`, `main` `d273a4ecdd1daf8b3269d223c06a7a9c43a162e7`, and integration parent `2390f98f33f055cdb8513736a4e3e95522e655d7` by exact Git tree/blob SHA. Current `main` already contains the same final blobs for the majority of integration changes and the five payment/checkout regression test files merged via PR #318; those main-side files are retained in the merge tree.
 - Payment route conflict resolution retains both branches' hardening: the exact-clinic appointment ownership and outstanding-invoice balance guards from current `main`, plus the delayed idempotency reservation and canonical payment authorization logic. Current `main` versions of `settlePaidPayment.test.ts` and `IntelligenceLayout.tsx` are retained to preserve the canonical subscription error contract and accessible `min-h-11` interaction target.
 - Verification boundary: Quality Gate passed on parent `2390f98f33f055cdb8513736a4e3e95522e655d7`; the merged tree requires fresh exact-head CI, unit/E2E, role-context and visual validation. Vercel currently reports a build-rate limit, not a validated application failure. Release status remains **NOT READY**; no production deployment or release approval is implied.
+
+## 2026-10-25 — Branch-safe security port and selective tree audit
+
+### Preserved scope
+- Kept the 241-ref branch census and PR cross-reference in `docs/integration/INTEGRATION_RECONCILIATION_20261025.md`; added the exact-content dispositions for representative payment, clinical, IAM, AI, Academy, lab and security branches.
+- No branch was deleted, force-pushed, rebased or rewritten. Whole-branch merges were rejected where the branch tree is older and omits newer main-only code.
+
+### Ported from PR #319 into `integration/merge-train-20261025`
+- `dentvision-backend/src/modules/compliance/session.service.ts`: expire a session only when both session ID and authenticated owner match and it remains active; use an atomic conditional update.
+- `dentvision-backend/src/modules/auth/auth.routes.ts`: refresh-token rotation fails closed when the owned session cannot be atomically expired.
+- `dentvision-backend/src/modules/compliance/compliance.routes.ts`: foreign/missing/inactive session expiration gets a generic 404; audit only successful expiration.
+- Added `dentvision-backend/src/modules/compliance/session.service.test.ts` and `e2e/tests/session-security.spec.ts`.
+- Commits on the integration branch: `e730deff2da74161df104eb6c16ef4582067e53b`, `e6c05365af9150f4e9233ed7acb3d67021e221de`, `765aa7768e9ff437c1bd87e4c54e1073714a2f3c`, `c520dadeb4635d3cf7aa98e956e4209fcada055c`, `e6779ef9eaa19a5cb07476ace01757f2e2dec778`, plus the reconciliation-document update `963d5fd5ec95a49466acc886ce448a75769a462a`.
+- PR #319 remains open/draft. Its original branch is preserved; this selective port is not a claim that its full suite has passed.
+
+### CI and next repair target
+- Before this selective port, merge commit `fd1ad330d4cfc9c954127ee902e7f2432575e259` passed Quality Gate, backend lint, frontend lint and lint-test. E2E core failed; later role/context validation was still running when last checked.
+- Prior complete E2E evidence includes Playwright response-body reads after navigation, a login-form selector timeout in the organization-owner journey, and unique-key collisions in seeded/concurrent tests. Fix the test lifecycle/data isolation itself; do not mute page/console errors, remove role coverage or loosen assertions.
+- **Verification:** newly ported session ownership changes have not yet passed the complete exact-head CI. Keep the integration PR draft and release status **NOT READY** until fresh exact-head CI, E2E, role/context, business-owner, organization-owner, visual/mobile and security gates pass.
