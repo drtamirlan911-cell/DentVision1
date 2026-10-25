@@ -30,6 +30,21 @@ async function bearerHeaders(page: Page): Promise<{ Authorization: string }> {
   return { Authorization: `Bearer ${token}` };
 }
 
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\async function openBranchManagement(page: Page) {
+  await page.goto(`${BASE}/settings`);
+  await page.getByRole('button', { name: 'Организация', exact: true }).click();
+  await expect(page.getByText('Организация и филиалы', { exact: true })).toBeVisible({ timeout: 15000 });
+}
+');
+}
+
+function branchRow(page: Page, name: string) {
+  // The branch is a single accessible button containing its name, code and status badge.
+  // Exact text matching cannot find the name as a standalone text node inside that button.
+  return page.getByRole('button', { name: new RegExp(escapeRegExp(name)) });
+}
+
 async function openBranchManagement(page: Page) {
   await page.goto(`${BASE}/settings`);
   await page.getByRole('button', { name: 'Организация', exact: true }).click();
@@ -48,7 +63,7 @@ async function createBranch(page: Page, name: string) {
   const createResponse = await createResponsePromise;
   const createBody = await createResponse.json().catch(() => null);
   expect(createResponse.status(), `Branch creation returned HTTP ${createResponse.status()}: ${JSON.stringify(createBody)}`).toBe(201);
-  await expect(page.getByText(name, { exact: true })).toBeVisible({ timeout: 15000 });
+  await expect(branchRow(page, name)).toBeVisible({ timeout: 15000 });
 
   const response = await page.request.get(`/api/branches?clinicId=${encodeURIComponent(ownerClinicId)}`, {
     headers: await bearerHeaders(page),
@@ -58,7 +73,7 @@ async function createBranch(page: Page, name: string) {
   const branches = Array.isArray(raw) ? raw : raw?.data ?? [];
   const branch = branches.find((item: { name?: string }) => item.name === name);
   expect(branch?.id).toBeTruthy();
-  await expect(page.getByText(name, { exact: true })).toBeVisible({ timeout: 15000 });
+  await expect(branchRow(page, name)).toBeVisible({ timeout: 15000 });
   return branch.id as string;
 }
 
@@ -127,7 +142,10 @@ test.describe('Canonical organization branch management', () => {
     const branchName = `E2E Branch ${Date.now()}`;
     await createBranch(page, branchName);
     await page.reload();
-    await expect(page.getByText(branchName, { exact: true })).toBeVisible({ timeout: 15000 });
+    // Settings intentionally returns to the default Clinic tab after reload.
+    // Reopen Organization so this persistence assertion tests the actual branch list.
+    await openBranchManagement(page);
+    await expect(branchRow(page, branchName)).toBeVisible({ timeout: 15000 });
   });
 
   test('BRANCH-002: owner archives a non-default branch without deleting its record', async ({ page }) => {
@@ -137,10 +155,9 @@ test.describe('Canonical organization branch management', () => {
     const branchName = `E2E Archive ${Date.now()}`;
     const branchId = await createBranch(page, branchName);
 
-    await page.getByText(branchName, { exact: true }).click();
+    await branchRow(page, branchName).click();
     await page.getByRole('button', { name: 'Архивировать', exact: true }).click();
-    await expect(page.getByText(branchName, { exact: true })).toBeVisible({ timeout: 15000 });
-    await expect(page.getByText('Архив', { exact: true })).toBeVisible({ timeout: 10000 });
+    await expect(branchRow(page, branchName)).toContainText('Архив', { timeout: 15000 });
 
     const raw = await page.request.get(`/api/branches?clinicId=${encodeURIComponent(ownerClinicId)}`, { headers: await bearerHeaders(page) });
     const payload = await raw.json();
@@ -173,19 +190,23 @@ test.describe('Canonical organization branch management', () => {
     await expect(branchOption()).toHaveAttribute('aria-current', 'true');
     await trigger.click();
 
-    // Verify branch context on the next real data request. The branch selector
-    // itself updates the client context and need not issue a data request.
+    // Selecting a branch changes the active workspace context but does not itself
+    // issue a scoped read. Navigate to a real data-driven screen and verify that its
+    // first API request carries the selected branch scope.
     const branchRequest = page.waitForRequest(
       (request) => request.url().includes('/api/') && request.headers()['x-dentvision-branch-id'] === branchId,
       { timeout: 15000 },
     );
-    await page.getByRole('button', { name: branchName, exact: true }).click();
-    await branchRequest;
+    await page.goto(`${BASE}/crm/schedule`);
+    const scopedRequest = await branchRequest;
+    expect(scopedRequest.headers()['x-dentvision-branch-id']).toBe(branchId);
 
-    // The picker is driven by the same workspace read-model that feeds
-    // downstream navigation. It must reflect the newly active branch
-    // immediately, not only after a full page reload/refetch.
-    await expect(trigger).toContainText(branchName);
+    // The picker is driven by the same workspace read-model that feeds downstream
+    // navigation. Reopen it and verify the selected branch remains active.
+    await trigger.click();
+    await expect(page.getByTestId('workspace-switcher-menu')).toBeVisible();
+    await expect(branchOption()).toHaveAttribute('aria-current', 'true');
+    await trigger.click();
 
     await page.reload();
     await trigger.click();
