@@ -207,7 +207,7 @@ diagnosticsRouter.post('/referrals/:id/results/sign', requireReferralAccess(true
     // Require the server-issued personType as the partner-specific signing capability.
     const actorPersonType = String((req.user as any)?.personType || '').toUpperCase();
     const partnerCanSign = diagnosticPartnerAccess
-      ? actorPersonType === 'RADIOLOGIST' && ['DOCTOR', 'RADIOLOGIST', 'DIAGNOSTIC_RADIOLOGIST'].includes(actorRole)
+      ? actorPersonType === 'RADIOLOGIST' && ['STUDENT', 'DOCTOR', 'RADIOLOGIST', 'DIAGNOSTIC_RADIOLOGIST'].includes(actorRole)
       : laboratoryPartnerAccess
         ? ['MEDICAL_LAB_VALIDATOR', 'MEDICAL_LAB_DOCTOR'].includes(actorRole)
         : false;
