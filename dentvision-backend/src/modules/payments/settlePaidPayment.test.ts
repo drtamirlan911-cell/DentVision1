@@ -271,7 +271,8 @@ describe('Academy settlement source-of-truth contract', () => {
     const start = source.indexOf('async function settleEnrollmentPayment(');
     const end = source.indexOf('async function settleAcademyEventPayment(', start);
     const block = source.slice(start, end);
-    expect(block).toContain('const expectedAmount = tengeToMinor(Number(course.price || 0));');
+    expect(block).toContain('const expectedAmountMinor = course.price == null ? 0n : tengeToMinor(course.price);');
+    expect(block).toContain('if (expectedAmountMinor <= 0n || payment.amount !== expectedAmountMinor)');
     expect(block).toContain("const sellerType = course.lecturerId ? 'LECTURER' : course.academyId ? 'ACADEMY' : null;");
     expect(block).toContain('const sellerId = course.lecturerId || course.academyId || null;');
     expect(block).not.toContain('payment.sellerId');
@@ -289,8 +290,9 @@ describe('Subscription payment creation boundary', () => {
     const refundStart = source.indexOf("paymentsRouter.post('/:id/refund", createStart);
     const block = source.slice(createStart, refundStart);
     expect(block).toContain("if (refType === 'subscription')");
-    expect(block).toContain("assertClinicBillingAccess(req.user!.id, subscriptionClinicId)");
-    expect(block).toContain("const expectedMinor = BigInt(plan.amountMinor) * BigInt(months)");
+    expect(block).toContain("assertClinicBillingAccess(req.user!.id, String(refId))");
+    expect(block).toContain("const expectedMinor = getClinicSubscriptionAmountMinor(saasPlan, months)");
+    expect(block).toContain("if (expectedMinor === null)");
     expect(block).toContain("if (minor !== expectedMinor)");
   });
 });
