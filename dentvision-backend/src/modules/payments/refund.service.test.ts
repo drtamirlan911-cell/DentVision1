@@ -53,7 +53,7 @@ function paidPayment() {
 
 describe('refundPayment', () => {
 
-  it('binds clinic-cash payment references to the selected clinic', () => {
+  it('validates clinic-cash appointment and invoice references before creating a payment', () => {
     const routeSource = readFileSync(
       resolve(process.cwd(), 'dentvision-backend/src/modules/payments/payments.routes.ts'),
       'utf8',
@@ -66,6 +66,7 @@ describe('refundPayment', () => {
     expect(clinicCashBlock).toContain("prisma.invoice.findFirst");
     expect(clinicCashBlock).toContain("where: { id: String(refId), clinicId, deletedAt: null }");
     expect(clinicCashBlock).toContain("minor > outstandingMinor");
+    expect(clinicCashBlock.indexOf("prisma.invoice.findFirst")).toBeLessThan(clinicCashBlock.indexOf("reserveForPayment"));
   });
 
   it('keeps clinic refund authority behind billing.manage', () => {
@@ -76,14 +77,15 @@ describe('refundPayment', () => {
     expect(routeSource).toContain('async function canManageClinicBillingMutation');
     expect(routeSource).toContain("permissionsSatisfy(new Set(permissions), 'billing.manage')");
     expect(routeSource).not.toContain('// Clinic cashier payments: any active member of that clinic may confirm.');
-    const clinicBoundary = routeSource.indexOf("if (meta.clinicId && (meta.merchantScope === 'clinic'");
+    const clinicBoundary = routeSource.indexOf("if (meta.clinicId && (payment.provider === 'clinic_kaspi'");
     const genericOwnerCheck = routeSource.indexOf("if (meta.userId && meta.userId === req.user!.id)");
     expect(clinicBoundary).toBeGreaterThan(-1);
     expect(genericOwnerCheck).toBeGreaterThan(clinicBoundary);
+    expect(routeSource).toContain("return canManageClinicBillingMutation(req.user!, meta.clinicId)");
     const clinicCashStart = routeSource.indexOf("if (isClinicCashier)");
     const clinicCashEnd = routeSource.indexOf("// Platform Kaspi", clinicCashStart);
     const clinicCashBlock = routeSource.slice(clinicCashStart, clinicCashEnd);
-    expect(clinicCashBlock).toContain("canManageClinicBillingMutation(req.user!, clinicId)");
+    expect(clinicCashBlock).toContain("assertClinicPaymentStaffAccess(req.user!.id, clinicId)");
   });
 
   it('reverses the original ledger with opposite directions', async () => {

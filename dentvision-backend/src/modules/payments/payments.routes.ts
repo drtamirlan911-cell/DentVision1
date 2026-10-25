@@ -764,6 +764,41 @@ paymentsRouter.post('/', authenticate, async (req: AuthRequest, res) => {
         return res.status(403).json({ ok: false, error: 'Нет доступа к кассе этой клиники' } satisfies ApiResponse);
       }
 
+      // A referenced clinical object must belong to this exact clinic. A valid
+      // cashier role alone must not allow cross-clinic payment via a substituted refId.
+      if (refType === 'appointment' && refId) {
+        const appointment = await prisma.appointment.findFirst({
+          where: { id: String(refId), clinicId },
+          select: { id: true, clinicId: true },
+        });
+        if (!appointment) {
+          return res.status(404).json({ ok: false, error: 'Приём не найден в выбранной клинике' } satisfies ApiResponse);
+        }
+      }
+
+      // Invoice balances are stored in whole KZT, payments in minor units.
+      // Permit partial payments, but never collect above the canonical balance.
+      if ((refType === 'crm_invoice' || (!refType && domain === 'crm')) && refId) {
+        const invoice = await prisma.invoice.findFirst({
+          where: { id: String(refId), clinicId, deletedAt: null },
+          select: { id: true, clinicId: true, amount: true, paidAmount: true, status: true },
+        });
+        if (!invoice) {
+          return res.status(404).json({ ok: false, error: 'Счёт не найден в выбранной клинике' } satisfies ApiResponse);
+        }
+        const outstandingTenge = Math.max(0, Number(invoice.amount) - Number(invoice.paidAmount || 0));
+        const outstandingMinor = tengeToMinor(outstandingTenge);
+        if (invoice.status === 'paid' || outstandingMinor <= 0n) {
+          return res.status(409).json({ ok: false, error: 'Счёт уже оплачен' } satisfies ApiResponse);
+        }
+        if (minor % 100n !== 0n) {
+          return res.status(400).json({ ok: false, error: 'Сумма оплаты счёта должна быть в целых тенге' } satisfies ApiResponse);
+        }
+        if (minor > outstandingMinor) {
+          return res.status(409).json({ ok: false, error: 'Сумма превышает остаток по счёту' } satisfies ApiResponse);
+        }
+      }
+
       if (!(await reserveForPayment())) return;
 
       const created = await createClinicKaspiPayment({
