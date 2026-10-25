@@ -214,7 +214,9 @@ export async function getClinic(clinicId: string): Promise<Clinic> { return apiR
 export async function updateClinic(clinicId: string, data: Partial<Clinic> & { settings?: import('../types').ClinicSettings }): Promise<Clinic> { return apiRequest(`/api/clinics/${clinicId}`, { method: 'PATCH', body: JSON.stringify(data) }); }
 export async function getClinicSettings(clinicId: string): Promise<{ clinic: Clinic; settings: import('../types').ClinicSettings }> { return apiRequest(`/api/clinics/${clinicId}/settings`); }
 export async function getMyContexts(): Promise<{ contexts: any[] }> { return apiRequest('/api/iam/me/contexts'); }
-export async function switchWorkspace(scopeType: string, scopeId: string, branchId?: string): Promise<any> { return apiRequest('/api/iam/switch-context', { method: 'POST', body: JSON.stringify({ scopeType, scopeId, ...(branchId ? { branchId } : {}) }) }); }
+export async function switchWorkspace(scopeType: string, scopeId: string, branchId?: string): Promise<any> {
+  return switchContext(scopeType, scopeId, branchId);
+}
 export interface OrganizationMe { organization: any; person: any; branches: any[] }
 export async function getMyOrganization(): Promise<OrganizationMe> { return apiRequest('/api/organizations/me'); }
 export async function updateMyOrganization(data: Record<string, unknown>): Promise<any> { return apiRequest('/api/organizations/me', { method: 'PATCH', body: JSON.stringify(data) }); }
@@ -228,7 +230,19 @@ export async function openBranchWorkspace(id: string): Promise<any> { return api
 export async function getBranchMembers(id: string): Promise<any[]> { const res = await apiRequest(`/api/branches/${encodeURIComponent(id)}/members`); return Array.isArray(res) ? res : (res?.data || []); }
 export async function assignBranchMember(branchId: string, userId: string): Promise<any> { return apiRequest(`/api/branches/${encodeURIComponent(branchId)}/members/${encodeURIComponent(userId)}`, { method: 'POST', body: JSON.stringify({}) }); }
 export async function unassignBranchMember(branchId: string, userId: string): Promise<any> { return apiRequest(`/api/branches/${encodeURIComponent(branchId)}/members/${encodeURIComponent(userId)}`, { method: 'DELETE' }); }
-export async function switchContext(scopeType: string, scopeId?: string, branchId?: string): Promise<any> { return apiRequest('/api/iam/switch-context', { method: 'POST', body: JSON.stringify({ scopeType, scopeId, branchId }) }); }
+export async function switchContext(scopeType: string, scopeId?: string, branchId?: string): Promise<any> {
+  const result = await apiRequest('/api/iam/switch-context', {
+    method: 'POST',
+    body: JSON.stringify({ scopeType, scopeId, branchId }),
+  });
+  // Context switching is a credential mutation, not just a data request.
+  // Persist the scoped token centrally so every workspace (including the
+  // supplier and diagnostics cabinets) survives navigation and hard reload.
+  if (result?.accessToken) {
+    setTokens(result.accessToken, result.refreshToken ?? null);
+  }
+  return result;
+}
 export async function getOrganizationPersons(organizationId: string): Promise<any[]> { const res = await getPersons({ organizationId, limit: 200 }); return Array.isArray(res?.data) ? res.data : []; }
 async function supplierFetch(path: string, token: string, options: RequestInit = {}): Promise<any> { const res = await fetch(`${API_URL}${path}`, { ...options, headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}`, ...(options.headers as Record<string, string>) } }); const data = await res.json(); if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`); return data.data !== undefined ? data.data : data; }
 export const supplierWs = { me: (t: string) => supplierFetch('/api/supplier/me', t), updateMe: (t: string, b: Record<string, unknown>) => supplierFetch('/api/supplier/me', t, { method: 'PATCH', body: JSON.stringify(b) }), addDocument: (t: string, b: Record<string, unknown>) => supplierFetch('/api/supplier/documents', t, { method: 'POST', body: JSON.stringify(b) }), products: (t: string) => supplierFetch('/api/supplier/products', t), createProduct: (t: string, b: Record<string, unknown>) => supplierFetch('/api/supplier/products', t, { method: 'POST', body: JSON.stringify(b) }), updateProduct: (t: string, id: string, b: Record<string, unknown>) => supplierFetch(`/api/supplier/products/${id}`, t, { method: 'PATCH', body: JSON.stringify(b) }), deleteProduct: (t: string, id: string) => supplierFetch(`/api/supplier/products/${id}`, t, { method: 'DELETE' }), wallet: (t: string) => supplierFetch('/api/supplier/wallet', t), analytics: (t: string) => supplierFetch('/api/supplier/analytics', t), dashboard: (t: string) => supplierFetch('/api/supplier/dashboard', t), insights: (t: string) => supplierFetch('/api/supplier/insights', t), orders: (t: string) => supplierFetch('/api/supplier/orders', t), updateOrderStatus: (t: string, id: string, status: string) => supplierFetch(`/api/supplier/orders/${id}/status`, t, { method: 'PATCH', body: JSON.stringify({ status }) }), createPromotion: (t: string, b: Record<string, unknown>) => supplierFetch('/api/supplier/promotions', t, { method: 'POST', body: JSON.stringify(b) }), cashbackRules: (t: string) => supplierFetch('/api/supplier/cashback-rules', t), upsertCashbackRule: (t: string, b: Record<string, unknown>) => supplierFetch('/api/supplier/cashback-rules', t, { method: 'PUT', body: JSON.stringify(b) }), deleteCashbackRule: (t: string, id: string) => supplierFetch(`/api/supplier/cashback-rules/${id}`, t, { method: 'DELETE' }), requestPayout: (t: string, b: Record<string, unknown>) => supplierFetch('/api/supplier/payouts', t, { method: 'POST', body: JSON.stringify(b) }) };
@@ -461,6 +475,7 @@ export async function getPublicServiceAccess(clinicId: string): Promise<Record<s
 export interface NotificationInput { type: string; category?: string; clinicId?: string | null; userId?: string | null; title: string; message?: string | null; actionUrl?: string | null; }
 export async function getNotifications(opts: { unread?: boolean; type?: string; limit?: number } = {}): Promise<any[]> { const q = new URLSearchParams(); if (opts.unread) q.set('unread', 'true'); if (opts.type) q.set('type', opts.type); if (opts.limit) q.set('limit', String(opts.limit)); const qs = q.toString(); return apiRequest(`/api/notifications${qs ? `?${qs}` : ''}`); }
 export async function getUnreadCount(): Promise<number> { const data = await apiRequest('/api/notifications/unread-count'); return data.unread || data.count || 0; }
+export async function getNotification(id: string): Promise<any> { return apiRequest(`/api/notifications/${encodeURIComponent(id)}`); }
 export async function createNotification(input: NotificationInput): Promise<any> { return apiRequest('/api/notifications', { method: 'POST', body: JSON.stringify(input) }); }
 export async function markNotificationRead(id: string): Promise<any> { return apiRequest(`/api/notifications/${id}/read`, { method: 'POST' }); }
 export async function markAllNotificationsRead(): Promise<any> { return apiRequest('/api/notifications/read-all', { method: 'POST' }); }
