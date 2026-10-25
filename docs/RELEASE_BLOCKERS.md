@@ -265,14 +265,14 @@
 - **Verification:** local backend TypeScript passes; exact-head E2E required before closure.
 
 ### RB-034 — AI DoctorAgent cross-tenant patient/appointment IDOR
-- **Status:** IN PROGRESS — candidate fix implemented; exact-head verification pending
+- **Status:** IN PROGRESS — fix is present in current `main` history; exact-head CI and role/context E2E verification pending
 - **Priority:** P0
 - **Area:** AI / Clinical Privacy / Tenant Isolation / IDOR
-- **Evidence:** current-main file dentvision-backend/src/modules/ai/agents/doctor.agent.ts (blob d1a4947196b40965070e0cade276b1e866b53e0e) used findUnique by caller-supplied patient/appointment ID in PATIENT_BRIEFING, AFTER_APPOINTMENT, CREATE_ESTIMATE, REFER_DIAGNOSTICS and SCHEDULE_NEXT_VISIT; AFTER_APPOINTMENT updated an appointment by ID alone; CREATE_APPOINTMENT did not prove that the patient belonged to the active clinic.
+- **Evidence:** historical source blob `d1a4947196b40965070e0cade276b1e866b53e0e` contained primary-key-only patient/appointment access in the named intents. The remediation commit `f1276fdb9ab2d7761f7e6c3f77e82eff752ac835` is an ancestor of fetched current `main` HEAD `6581695e91eb70c638bc0b94efb10773d8882dd9`; current source has clinic-scoped queries and a fail-closed active-clinic guard. Ancestry/source evidence confirms implementation presence, not end-to-end release closure.
 - **Risk:** an AI intent carrying a guessed/foreign ID could expose patient name, clinical context and decrypted IIN, or mutate another clinic's appointment. Frontend role hiding does not protect these server-side paths.
 - **5 Why / root cause:** patient and appointment identifiers are accepted from AI parameters → several legacy handlers query/update by primary key alone → clinic-scoped access is applied inconsistently across the same agent → handlers rely on upstream routing rather than proving ownership at the data boundary → no direct negative cross-tenant regression test covers these intents.
-- **Candidate remediation:** branch security/doctor-agent-tenant-isolation-20261025 adds fail-closed clinic-context validation, scopes identified patient/appointment reads to context.clinicId, verifies patient ownership before appointment creation, and conditionally completes only an appointment matching both clinic and patient.
-- **Closure criteria:** targeted unit tests prove foreign patient/appointment IDs are denied and same-tenant operations remain valid; TypeScript/lint/unit checks and full role/context E2E pass on the exact candidate SHA; no patient or appointment data crosses tenant boundaries. Main remains affected until a verified fix is merged.
+- **Remediation and verification branch:** implementation commit `f1276fdb9ab2d7761f7e6c3f77e82eff752ac835` is already in current `main` history. Branch `security/doctor-agent-tenant-isolation-20261025` adds the isolated PostgreSQL/IAM diagnostic workflow and focused context E2E. The DoctorAgent regression suite checks missing active-clinic context across all 13 clinic-bound intents and rejects database reads/writes; focused local suite passes 25/25 and full local unit suite passes 244 files / 2,229 tests. Exact-head GitHub CI and role/context E2E are still required.
+- **Closure criteria:** targeted negative and same-tenant control tests, TypeScript/lint/unit checks, dedicated IAM-context E2E and the full role/context release gate must pass on the exact PR HEAD. Until fresh CI and E2E evidence is captured and reviewed, RB-034 remains a P0 release blocker even though the implementation commit is present in `main` history.
 
 ### RB-029 — Patient clinical history JSON is not encrypted at rest
 - **Status:** OPEN — implementation gap confirmed on current `main` by source inspection

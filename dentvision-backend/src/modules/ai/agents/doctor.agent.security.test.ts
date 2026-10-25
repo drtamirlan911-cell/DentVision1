@@ -41,15 +41,27 @@ describe('DoctorAgent tenant boundaries', () => {
     mocks.prisma.diagnosticCenter.findMany.mockResolvedValue([]);
   });
 
-  it('fails closed when a clinic-scoped intent has no active clinic', async () => {
+  it.each([
+    'PATIENT_BRIEFING', 'AFTER_APPOINTMENT', 'CREATE_ESTIMATE', 'REFER_DIAGNOSTICS',
+    'SCHEDULE_NEXT_VISIT', 'SEARCH_PATIENT', 'CREATE_APPOINTMENT', 'OPEN_MEDICAL_CARD',
+    'GET_MEDICAL_CARD', 'CREATE_TREATMENT_PLAN', 'VIEW_CBCT', 'SHOW_CBCT', 'VIEW_SCHEDULE',
+  ])('fails closed for %s when no active clinic is selected', async (intent) => {
     const result = await new DoctorAgent().handle(
       { userId: 'doctor-a' } as any,
-      'CREATE_ESTIMATE',
-      { patientId: 'patient-foreign' },
+      intent,
+      { patientId: 'patient-foreign', appointmentId: 'appointment-foreign' },
     );
 
     expect(result.message).toContain('Активная клиника не определена');
     expect(mocks.prisma.patient.findFirst).not.toHaveBeenCalled();
+    expect(mocks.prisma.patient.findMany).not.toHaveBeenCalled();
+    expect(mocks.prisma.appointment.findFirst).not.toHaveBeenCalled();
+    expect(mocks.prisma.appointment.findMany).not.toHaveBeenCalled();
+    expect(mocks.prisma.appointment.updateMany).not.toHaveBeenCalled();
+    expect(mocks.prisma.appointment.create).not.toHaveBeenCalled();
+    expect(mocks.prisma.treatmentPlan.create).not.toHaveBeenCalled();
+    expect(mocks.prisma.patientImage.findMany).not.toHaveBeenCalled();
+    expect(mocks.prisma.diagnosticCenter.findMany).not.toHaveBeenCalled();
   });
 
   it('scopes patient briefing by both patient and active clinic', async () => {
