@@ -1987,3 +1987,20 @@ These changes are route/entry reconciliation only. Existing domain implementatio
 - Repairs committed on `main`: restored the complete `e2e/tests/academy.spec.ts` suite after detecting that an earlier patch had replaced the file with an unrelated fragment; corrected the IAM branch query from Prisma model field `"createdAt"` to its mapped SQL column `"created_at"`.
 - The integration branch now includes payment server-owned metadata and canonical amount validation from PR #307, billing permission checks from PR #302, RBAC/organization/marketplace route changes, E2E test repairs/coverage, workspace/auth context changes, mobile touch targets, odontogram arch layout and status confirmation, plus source-branch historical log records.
 - Verification status is NOT READY until the integration branch completes exact-head CI, core E2E, role/context, business-owner, visual evidence and Android gates. Known earlier E2E failures were `expect is not defined` in the truncated Academy test, raw SQL `createdAt` mapping, generated project-map mismatch, and role/context/visual failures. The first two defects were fixed; final rerun must establish whether they are cleared.
+
+
+## 2026-10-25 — E2E console output bounded without reducing test coverage
+
+### Inspection and baseline
+- Read the Operating Directive, current Context, Execution Plan, Execution Log, Product DNA, Master Spec, README, CI workflow, Quality Gate workflow, package scripts, Playwright configuration, Vitest configuration and Release Blockers from GitHub.
+- Baseline `main` SHA: `d273a4ecdd1daf8b3269d223c06a7a9c43a162e7`. CI run `40183562189` passed frontend/backend lint and the unit/type/build/system-map gate but failed E2E: 7 core failures, role/context failures, 2 business-owner failures and an organization-owner lifecycle timeout. This is not release-ready evidence.
+- The CI environment already starts PostgreSQL 16, applies the isolated E2E schema/migrations and fixtures, starts local frontend/backend services, and runs Playwright browser/role/visual gates. A second parallel test workflow would duplicate the existing release gate and is not being introduced.
+- Failure artifacts on the baseline run included 142.63 MB of Playwright traces and 155.26 MB of HTML/CLI artifacts. The gate wrapper also streamed the entire raw test output through `tee`, making the live Actions log unnecessarily large.
+
+### Implemented on isolated branch
+- Branch: `test-env/compact-e2e-output-20261025`, based on the exact main SHA above; production `main` and all existing work branches remain untouched.
+- `quality-scripts/run-e2e-gate.sh` now captures the full command output directly to the gate log, emits a configurable 20-second heartbeat, prints bounded high-signal failure excerpts or a compact passing summary, records duration, and propagates the original command exit code.
+- Local wrapper verification: `bash -n` passed; a mock success command returned exit code 0 and printed its summary; a mock failing command returned exit code 7 and printed the relevant error excerpt. Full project CI/E2E has not yet verified this candidate.
+
+### Status / next action
+- Candidate remains **UNVERIFIED** pending CI on the final PR head. Keep this branch isolated; inspect only compact diagnostics first, then fetch a bounded log or trace for the specific failing gate. Do not weaken route, role, tenant, clinical, financial, or responsive assertions to make the run green.
