@@ -1,7 +1,7 @@
 /** FDI permanent dentition morphology for textbook odontogram. */
 
 export type RootPattern = 'incisor' | 'canine' | 'premolar1' | 'premolar2' | 'molarUpper' | 'molarLower'
-export type ToothVariant = 'centralIncisor' | 'lateralIncisor' | 'canine' | 'upperPremolar1' | 'upperPremolar2' | 'lowerPremolar' | 'upperMolar1' | 'upperMolar2' | 'upperMolar3' | 'lowerMolar1' | 'lowerMolar2' | 'lowerMolar3' | 'primaryIncisor' | 'primaryCanine' | 'primaryMolar'
+export type ToothVariant = 'centralIncisor' | 'lateralIncisor' | 'canine' | 'upperPremolar1' | 'upperPremolar2' | 'lowerPremolar' | 'upperMolar1' | 'upperMolar2' | 'upperMolar3' | 'lowerMolar1' | 'lowerMolar2' | 'lowerMolar3' | 'lowerPremolar1' | 'lowerPremolar2' | 'primaryIncisor' | 'primaryCanine' | 'primaryMolar'
 
 export interface ToothMorphology {
   /** Anatomical family for SVG silhouette */
@@ -31,10 +31,10 @@ export const TOOTH_MORPHOLOGY: Record<number, ToothMorphology> = {
   26: MU('1 моляр'), 27: MU('2 моляр'), 28: MU('Зуб мудрости'),
 
   48: ML('Зуб мудрости'), 47: ML('2 моляр'), 46: ML('1 моляр'),
-  45: { pattern: 'premolar2', roots: 1, label: '2 премоляр', variant: 'lowerPremolar' }, 44: { pattern: 'premolar2', roots: 1, label: '1 премоляр', variant: 'lowerPremolar' }, 43: CAN('Клык'),
+  45: { pattern: 'premolar2', roots: 1, label: '2 премоляр', variant: 'lowerPremolar2' }, 44: { pattern: 'premolar2', roots: 1, label: '1 премоляр', variant: 'lowerPremolar1' }, 43: CAN('Клык'),
   42: LAT('2 резец'), 41: INC('1 резец'),
   31: INC('1 резец'), 32: LAT('2 резец'), 33: CAN('Клык'),
-  34: { pattern: 'premolar2', roots: 1, label: '1 премоляр', variant: 'lowerPremolar' }, 35: { pattern: 'premolar2', roots: 1, label: '2 премоляр', variant: 'lowerPremolar' },
+  34: { pattern: 'premolar2', roots: 1, label: '1 премоляр', variant: 'lowerPremolar1' }, 35: { pattern: 'premolar2', roots: 1, label: '2 премоляр', variant: 'lowerPremolar2' },
   36: ML('1 моляр'), 37: ML('2 моляр'), 38: ML('Зуб мудрости'),
 }
 

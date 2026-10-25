@@ -61,7 +61,12 @@ interface AnatomicalToothSvgProps {
  * the two arches cannot drift apart. Roots take ~55% of the height, which is
  * the proportion that reads as a tooth rather than as a lollipop.
  */
-function toothOutline(pattern: RootPattern): string {
+function toothOutline(pattern: RootPattern, variant?: ToothVariant): string {
+  if (variant === 'lowerPremolar1') {
+    // Mandibular first premolar: dominant buccal cusp and reduced lingual cusp.
+    // Keep the single-root mandibular outline distinct from upper first-premolar morphology.
+    return 'M14.2 26 C13 32 11 38 10.8 43.4 C10.8 49 13 54.4 16.6 56 C18.2 56.6 19.4 54.4 20 52.4 C20.6 54.4 21.8 55.1 23.4 54.9 C27 53.9 29.2 49 29.2 43.4 C29 38 27 32 25.8 26 C25.4 19 24.8 10 24 5.4 C23.6 3 16.4 3 16 5.4 C15.2 10 14.6 19 14.2 26 Z';
+  }
   switch (pattern) {
     case 'incisor':
       return 'M15.6 26 C14.6 32 13.4 40 13.2 46 C13.2 52 15.4 57.4 20 57.6 C24.6 57.4 26.8 52 26.8 46 C26.6 40 25.4 32 24.4 26 C24 19 23.4 10 22.6 5.6 C22.2 3.2 17.8 3.2 17.4 5.6 C16.6 10 16 19 15.6 26 Z'
@@ -107,7 +112,16 @@ function toothDetail(pattern: RootPattern, variant: ToothVariant): React.ReactNo
       {/* Cervical line: where enamel ends. A soft curve, not a border. */}
       <path d={wide ? 'M9.6 27.4 C15 29.6 25 29.6 30.4 27.4' : 'M14.8 27.2 C17 29 23 29 25.2 27.2'} />
       {/* Developmental lobe on the crown face. */}
-      {wide && <path d="M20 34 C20.4 40 20.4 46 20 51" />}\n      {variant === 'centralIncisor' && <path d="M17.1 31 C17.6 38 17.7 44 17.5 49" />}\n      {variant === 'lateralIncisor' && <path d="M20 31 C20.2 37 20.3 43 20.1 49" />}\n      {variant === 'canine' && <path d="M20 29 L20 48" />}\n      {variant === 'upperPremolar1' && <><path d="M14 38 C16 35.5 18 34.8 20 35.2" /><path d="M20 35.2 C22 34.8 24 35.5 26 38" /><path d="M18.5 43 C19.2 41.2 20.8 41.2 21.5 43" /></>}\n      {variant === 'upperPremolar2' && <path d="M20 35 C20 39 20 44 20 50" />}\n      {variant === 'lowerPremolar' && <path d="M20 34 C18.5 39 18.5 44 20 49 C21.5 44 21.5 39 20 34" />}\n      {(variant === 'upperMolar1' || variant === 'upperMolar2' || variant === 'upperMolar3') && <><path d="M13 34 C15 37 17 39 20 40" /><path d="M27 34 C25 37 23 39 20 40" /></>}\n      {(variant === 'lowerMolar1' || variant === 'lowerMolar2' || variant === 'lowerMolar3') && <path d="M12 39 C16 37 24 37 28 39" />}
+      {wide && <path d="M20 34 C20.4 40 20.4 46 20 51" />}
+      {variant === 'centralIncisor' && <path d="M17.1 31 C17.6 38 17.7 44 17.5 49" />}
+      {variant === 'lateralIncisor' && <path d="M20 31 C20.2 37 20.3 43 20.1 49" />}
+      {variant === 'canine' && <path d="M20 29 L20 48" />}
+      {variant === 'upperPremolar1' && <><path d="M14 38 C16 35.5 18 34.8 20 35.2" /><path d="M20 35.2 C22 34.8 24 35.5 26 38" /><path d="M18.5 43 C19.2 41.2 20.8 41.2 21.5 43" /></>}
+      {variant === 'upperPremolar2' && <path d="M20 35 C20 39 20 44 20 50" />}
+      {variant === 'lowerPremolar1' && <><path d="M17.8 33 C17.3 38 18.2 44 19.5 49" /><path d="M22.1 35 C22.8 40 21.8 45 20.5 49" /></>}
+      {(variant === 'lowerPremolar2' || variant === 'lowerPremolar') && <path d="M20 34 C18.5 39 18.5 44 20 49 C21.5 44 21.5 39 20 34" />}
+      {(variant === 'upperMolar1' || variant === 'upperMolar2' || variant === 'upperMolar3') && <><path d="M13 34 C15 37 17 39 20 40" /><path d="M27 34 C25 37 23 39 20 40" /></>}
+      {(variant === 'lowerMolar1' || variant === 'lowerMolar2' || variant === 'lowerMolar3') && <path d="M12 39 C16 37 24 37 28 39" />}
     </>
   )
 }
@@ -119,6 +133,9 @@ function toothVariantTransform(variant: ToothVariant): string | undefined {
       return 'translate(1.4 0) scale(0.86 1)';
     case 'upperPremolar2':
       return 'translate(1 0) scale(0.92 1)';
+    case 'lowerPremolar1':
+      return 'translate(0.5 0) scale(0.91 1)';
+    case 'lowerPremolar2':
     case 'lowerPremolar':
       return 'translate(1 0) scale(0.94 1)';
     case 'upperMolar2':
@@ -275,7 +292,12 @@ function occlusalOutline(pattern: RootPattern, variant?: ToothVariant): string {
       // Upper first premolar: distinctly bicuspid with a slightly angular table.
       return 'M10.2 13.2 C10.8 9.8 14.4 7.2 18.2 7.2 C19.1 7.2 19.8 7.7 20 8.5 C20.2 7.7 20.9 7.2 21.8 7.2 C25.6 7.2 29.2 9.8 29.8 13.2 L29.2 27 C28.7 30.3 25.4 32.6 20 32.8 C14.6 32.6 11.3 30.3 10.8 27 Z'
     case 'premolar2':
-      // Upper second premolar: rounder and less angular than the first.
+      if (variant === 'lowerPremolar1') {
+        // Lower first premolar: more angular table with a dominant buccal cusp
+        // and a reduced lingual cusp, distinct from the rounder second premolar.
+        return 'M10.6 13.6 C11.5 10.2 15 7.4 18.6 7.6 C19.4 7.6 19.9 8 20.2 8.7 C20.7 8.2 21.6 8 22.4 8.3 C26.2 9 29.1 11 29.6 14.2 L29.2 26.8 C28.6 30.2 25.2 32.5 20 32.7 C14.9 32.5 11.5 30.2 10.9 26.8 Z';
+      }
+      // Upper second and lower second premolars: rounder occlusal table.
       return 'M10 14 C10.3 10.2 14.2 7.5 20 7.5 C25.8 7.5 29.7 10.2 30 14 C30.4 17.8 30.2 24 29.8 27 C29.4 30.4 25.6 32.7 20 32.7 C14.4 32.7 10.6 30.4 10.2 27 C9.8 24 9.6 17.8 10 14 Z'
     case 'molarUpper':
       // Upper molars: rhomboid crown with four principal cuspal corners.
@@ -304,8 +326,11 @@ function occlusalFissures(pattern: RootPattern, variant: ToothVariant): React.Re
       )
     case 'premolar1':
     case 'premolar2':
-      // One central groove running mesiodistally between the two cusps.
-      return variant === 'lowerPremolar' ? <path d="M11.5 20 C15 18 25 22 28.5 20" /> : <path d="M11.5 20 C15 18.5 25 18.5 28.5 20" />
+      // One central groove between the cusps; the mandibular first premolar has
+      // a more oblique groove because the lingual cusp is distinctly smaller.
+      return variant === 'lowerPremolar1'
+        ? <path d="M11.5 20 C15 18 25 22 28.5 20" />
+        : <path d="M11.5 20 C15 18.5 25 18.5 28.5 20" />
     case 'molarUpper':
     case 'molarLower':
     default:
@@ -677,7 +702,7 @@ export function AnatomicalToothSvg({
               {/* One path for the whole tooth — crown flowing into root through
                   the neck, with the furcations cut into the same outline. */}
               <path
-                d={toothOutline(morph.pattern)}
+                d={toothOutline(morph.pattern, morph.variant)}
                 fill={isRootOnly || isEndoFail ? rootFill : `url(#enamel-${toothNumber})`}
                 stroke="#B0967A"
                 strokeOpacity="0.75"
