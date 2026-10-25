@@ -77,6 +77,18 @@ export class DoctorAgent implements Agent {
   }
 
   async handle(context: AIContext, intent: string, params: Record<string, unknown>): Promise<AIResponse> {
+    const clinicBoundIntents = new Set([
+      'PATIENT_BRIEFING', 'AFTER_APPOINTMENT', 'CREATE_ESTIMATE', 'REFER_DIAGNOSTICS',
+      'SCHEDULE_NEXT_VISIT', 'SEARCH_PATIENT', 'CREATE_APPOINTMENT', 'OPEN_MEDICAL_CARD',
+      'GET_MEDICAL_CARD', 'CREATE_TREATMENT_PLAN', 'VIEW_CBCT', 'SHOW_CBCT', 'VIEW_SCHEDULE',
+    ]);
+    if (clinicBoundIntents.has(intent) && !context.clinicId) {
+      return {
+        message: 'Активная клиника не определена. Выберите рабочее пространство и повторите.',
+        intent,
+        suggestions: [],
+      };
+    }
     switch (intent) {
       case 'PATIENT_BRIEFING':
         return this.patientBriefing(context, params);
@@ -120,8 +132,8 @@ export class DoctorAgent implements Agent {
     let complaints: string[] = [];
 
     if (appointmentId) {
-      appointment = await prisma.appointment.findUnique({
-        where: { id: appointmentId },
+      appointment = await prisma.appointment.findFirst({
+        where: { id: appointmentId, clinicId: context.clinicId },
         include: {
           patient: {
             include: {
@@ -133,6 +145,9 @@ export class DoctorAgent implements Agent {
           doctor: { select: { firstName: true, lastName: true } },
         },
       });
+      if (appointment && appointment.patient?.clinicId !== context.clinicId) {
+        appointment = null;
+      }
       if (appointment) {
         patient = appointment.patient;
         if (appointment.notes) {
@@ -155,8 +170,8 @@ export class DoctorAgent implements Agent {
     }
 
     if (!patient && patientId) {
-      patient = await prisma.patient.findUnique({
-        where: { id: patientId },
+      patient = await prisma.patient.findFirst({
+        where: { id: patientId, clinicId: context.clinicId },
         include: {
           images: { orderBy: { createdAt: 'desc' }, take: 5 },
           treatmentPlans: { orderBy: { createdAt: 'desc' }, take: 3 },
@@ -245,17 +260,20 @@ export class DoctorAgent implements Agent {
       };
     }
 
-    const patient = await prisma.patient.findUnique({
-      where: { id: patientId },
+    const patient = await prisma.patient.findFirst({
+      where: { id: patientId, clinicId: context.clinicId },
       select: { id: true, firstName: true, lastName: true },
     });
     if (!patient) return { message: 'Пациент не найден', intent: 'AFTER_APPOINTMENT', suggestions: [] };
 
     if (appointmentId) {
-      await prisma.appointment.update({
-        where: { id: appointmentId },
+      const updated = await prisma.appointment.updateMany({
+        where: { id: appointmentId, clinicId: context.clinicId, patientId },
         data: { status: 'completed' },
       });
+      if (updated.count !== 1) {
+        return { message: 'Приём не найден', intent: 'AFTER_APPOINTMENT', suggestions: [] };
+      }
     }
 
     return {
@@ -280,8 +298,8 @@ export class DoctorAgent implements Agent {
     const diagnosis = (params.diagnosis as string) || '';
     if (!patientId) return { message: 'Укажите пациента', intent: 'CREATE_ESTIMATE', suggestions: [] };
 
-    const patient = await prisma.patient.findUnique({
-      where: { id: patientId },
+    const patient = await prisma.patient.findFirst({
+      where: { id: patientId, clinicId: context.clinicId },
       select: { firstName: true, lastName: true },
     });
     if (!patient) return { message: 'Пациент не найден', intent: 'CREATE_ESTIMATE', suggestions: [] };
@@ -314,8 +332,8 @@ export class DoctorAgent implements Agent {
     const patientId = params.patientId as string;
     if (!patientId) return { message: 'Укажите пациента', intent: 'REFER_DIAGNOSTICS', suggestions: [] };
 
-    const patient = await prisma.patient.findUnique({
-      where: { id: patientId },
+    const patient = await prisma.patient.findFirst({
+      where: { id: patientId, clinicId: context.clinicId },
       select: { firstName: true, lastName: true, clinicId: true },
     });
     if (!patient) return { message: 'Пациент не найден', intent: 'REFER_DIAGNOSTICS', suggestions: [] };
@@ -347,8 +365,8 @@ export class DoctorAgent implements Agent {
     const patientId = params.patientId as string;
     if (!patientId) return { message: 'Укажите пациента', intent: 'SCHEDULE_NEXT_VISIT', suggestions: [] };
 
-    const patient = await prisma.patient.findUnique({
-      where: { id: patientId },
+    const patient = await prisma.patient.findFirst({
+      where: { id: patientId, clinicId: context.clinicId },
       select: { firstName: true, lastName: true },
     });
     if (!patient) return { message: 'Пациент не найден', intent: 'SCHEDULE_NEXT_VISIT', suggestions: [] };
@@ -444,6 +462,14 @@ export class DoctorAgent implements Agent {
         confirmData: { patientId, doctorId: context.userId, date, service, duration: 30 },
         suggestions: [],
       };
+    }
+
+    const scopedPatient = await prisma.patient.findFirst({
+      where: { id: patientId as string, clinicId: context.clinicId },
+      select: { id: true },
+    });
+    if (!scopedPatient) {
+      return { message: 'Пациент не найден в активной клинике', intent: 'CREATE_APPOINTMENT', suggestions: [] };
     }
 
     const appointment = await prisma.appointment.create({

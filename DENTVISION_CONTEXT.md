@@ -51,10 +51,16 @@ The UI uses progressive disclosure: the underlying ecosystem remains complete, w
 AI action lifecycle:
 `Intent → Context → Permission → Plan → Preview → Confirmation when required → Execute → Verify → Audit`
 
-## 5. Verified repository state — 2026-09-16
-- `main` contains the latest security/release-gate hardening and the current documentation consolidation.
-- Latest verified fully green core CI evidence recorded in the execution log is run `35066089223` on exact HEAD `844b469e084dd5acec6fb45f26d28757c27a3568`: frontend lint, build/typecheck/unit, backend lint, full E2E, browser UX, Business Owner journeys, Organization Owner lifecycle release gate and Playwright CLI smoke passed.
-- A later branch-deactivation test hardening commit exists after that run; therefore the latest main state still requires a fresh CI verification before it can be treated as green.
+## 5. Verified repository state — 2026-10-25
+- Exact current GitHub main HEAD: d47aec8dc310731516f3a46cd0e3855781dd171e.
+- Main Quality Gate run 40065996095 passed on 2026-10-24, but this is not a full release pass. The latest full CI recorded for that exact SHA remains run 36852925083 (2026-10-01), with lint-test failure and E2E cancellation. Fresh exact-main CI/E2E/visual/role-context evidence is not established.
+- Branch protection remains an open release-control item in the prior audit record. The branch-protection endpoint is not accessible through the current connector permissions, so it was not independently re-read in this run. Repository-admin configuration and a merge-blocking test remain required.
+- No production deployment was changed during this run.
+
+### Candidate verification updates — 2026-10-25
+- PR #309 candidate head f30119b4f6752e540327666f9f34afe4a17bfe96: docs/SYSTEM_MAP.md was synchronized with generator output (672 handlers, 636 registered routes, 101 routes without detected consumers; diagnostics 35 handlers / 1 without detected consumer). CI run 40163222925 passed frontend lint, backend lint, generated project index, TypeScript, system-map validation and npm test; E2E remained in progress at the last checkpoint. Quality Gate run 40163223009 passed. Candidate-branch evidence only.
+- RB-034 records a confirmed AI DoctorAgent cross-tenant access defect. Candidate branch security/doctor-agent-tenant-isolation-20261025 scopes caller-supplied patient/appointment IDs and adds negative-path tests; exact commit and CI results must be recorded after commit/verification.
+- Canonical IAM role matrix path is docs/DENTVISION_IAM_ROLE_MATRIX.md. A root-level DENTVISION_IAM_ROLE_MATRIX.md does not exist; use the path under docs/ for future audits.
 
 ### Product status
 - Clinical RBAC boundary: IMPLEMENTED + unit coverage; fresh CI required after later main changes.
