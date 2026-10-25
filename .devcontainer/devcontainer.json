@@ -1,0 +1,34 @@
+{
+  "name": "DentVision Development",
+  "dockerComposeFile": "docker-compose.yml",
+  "service": "workspace",
+  "workspaceFolder": "/workspaces/DentVision1",
+  "shutdownAction": "stopCompose",
+  "forwardPorts": [3000, 3001, 5432],
+  "portsAttributes": {
+    "3000": { "label": "DentVision frontend", "onAutoForward": "notify" },
+    "3001": { "label": "DentVision backend API", "onAutoForward": "notify" },
+    "5432": { "label": "Local development PostgreSQL", "onAutoForward": "silent" }
+  },
+  "postCreateCommand": "bash .devcontainer/post-create.sh",
+  "remoteEnv": {
+    "NODE_ENV": "development",
+    "DATABASE_URL": "postgresql://dentvision:dentvision_dev_only@postgres:5432/dentvision_dev?schema=public",
+    "JWT_SECRET": "local-development-only-change-before-any-shared-use",
+    "JWT_REFRESH_SECRET": "local-development-refresh-only-change-before-any-shared-use",
+    "ENCRYPTION_KEY": "local-development-key-32-chars!!",
+    "PORT": "3001",
+    "CORS_ORIGIN": "http://localhost:3000",
+    "PAYMENTS_SANDBOX": "true"
+  },
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "dbaeumer.vscode-eslint",
+        "esbenp.prettier-vscode",
+        "Prisma.prisma",
+        "ms-playwright.playwright"
+      ]
+    }
+  }
+}
