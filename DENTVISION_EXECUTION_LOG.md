@@ -2086,3 +2086,31 @@ These changes are route/entry reconciliation only. Existing domain implementatio
 ### Verification still required / next action
 - The local sandbox does not contain a PostgreSQL server/container runtime, so the real login/context request must be verified against the isolated PostgreSQL service in GitHub Actions, not against production. The dedicated `.github/workflows/rb034-context-diagnostic.yml` validates the seeded diagnostic-operator IAM context; the main CI workflow also contains the full E2E, role-design and context gates.
 - GitHub's combined status for the current-main SHA exposed only a successful Vercel status; the commit workflow-run connector returned no GitHub Actions runs. This is not evidence that GitHub CI or E2E passed. Publish the verification branch as a draft PR, inspect the actual checks and logs, fix genuine failures, and keep RB-034 / release status open until exact-HEAD role/context E2E evidence is green.
+
+
+## 2026-10-25 — RB-034 E2E root-cause repairs: partner signing and IAM token context
+
+### Root causes confirmed from exact-head E2E evidence
+- On pre-repair candidate 91526cae232e8f0023099d5a0b60f51697a007d6, Core E2E failed PARTNER-001 because a diagnostic radiologist received HTTP 403 when signing a result. switch-context normalizes the specialized radiologist role to the compatible UserRole.DOCTOR; the signing endpoint compared req.user.role to specialized values, which cannot match that normalized enum. Existing referral/organization access checks remain in force.
+- BIZ-009 used Playwright's separate page.request client to read /api/iam/me/contexts without forwarding the tab-scoped sessionStorage token. The request therefore had no explicit Bearer credential even though onboarding returned an access token.
+
+### Changes proposed in the focused follow-up
+- Adds dentvision-backend/src/modules/diagnostics/signingAuthorization.ts. It authorizes partner signing by finding a Person with an explicit PersonRole whose scopeType and scopeId match the user's exact active organization and whose canonical Role.key is in a narrow allow-list. Missing identity/organization context fails closed. Diagnostic signers are limited to radiologist; medical-lab signers to medical_lab_validator or medical_lab_doctor.
+- Updates the signing route to use the scoped helper after existing referral and partner/clinic access checks. General owner/admin/manager roles gain no signing authority just from their general role.
+- Adds three unit tests for scoped radiologist authorization, denial without an explicit signer role, and fail-closed behavior without organization context; updates the diagnostic static-contract test accordingly.
+- Fixes BIZ-009 to send the access token returned by self-service onboarding when requesting /api/iam/me/contexts, with an explicit HTTP-status diagnostic.
+- The project-index generator was run and validated locally. It proposed a bulk refresh of .dentvision/*.json; that unrelated 10K-line generated update is intentionally excluded from the focused security commit. Backend system-map regeneration left docs/SYSTEM_MAP.md unchanged.
+
+### Verification before publication
+- Focused signing and diagnostics visibility tests: 5/5 passed.
+- Full root unit suite: 245 test files / 2,232 tests passed, exit code 0.
+- Frontend typecheck/lint and backend typecheck, lint and TypeScript build passed.
+- Project-index validation, JSON validation and git diff --check passed.
+- No local E2E suite was run against an isolated database. GitHub CI for the remote candidate had not verified these follow-up changes at this checkpoint.
+- The newest remote candidate d632bff595a749f6e926269c5dbdc4ab4e707d8d has dedicated RB-034 Context Diagnostic and Quality Gate green; full CI was in progress as last observed. The new commit is required before asserting these follow-up changes passed CI.
+
+### Infrastructure truth / remaining uncertainty
+- Render metadata confirms dentvision-api deploys from DentVision1/main. The listed Render Postgres instance is the unrelated suspended romantic-invitations-db. The actual deployed external PostgreSQL provider/host is not established from available service metadata; do not claim Neon or alter DATABASE_URL without independently verifying provider configuration. No production database, migration or deployment was touched.
+
+### Next action
+- Review the full CI result for the current candidate, then commit this scoped-role and BIZ-009 token repair on the existing verification branch only. Inspect fresh exact-head core E2E, role/context and focused diagnostics evidence. Keep PR #323 draft/open and main unchanged.

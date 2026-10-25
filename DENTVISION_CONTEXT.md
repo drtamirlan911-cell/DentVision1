@@ -27,15 +27,16 @@
 11. Never create a competing roadmap, current-state file, release gate or product specification without a clearly different bounded purpose.
 12. Preserve all unfinished previous work while adding new priorities.
 
-## 2A. Current branch and release evidence — 2026-10-20
+## 2A. Current branch and release evidence — 2026-10-25
 
-- Active implementation branch: `security/payment-hardening-20261017`; pull request: [#307](https://github.com/drtamirlan911-cell/DentVision1/pull/307), still draft pending release verification.
-- Production `main` was not changed by this release-gate work.
-- Previous candidate `0134e6881687f5c9de7efe1c6ebe10eaa544d651`: Quality Gate and Android passed; backend/frontend lint and unit/build jobs passed; core E2E, browser UX and mobile design gate passed. The role/context gate remained in progress in the latest connected status because the full route matrix was repeated across eight viewport projects.
-- Follow-up factors viewport-independent authorization/tenant checks into one exhaustive `role-1280` run while retaining role-specific critical-screen DOM/responsive audits and the required screenshot per role per viewport. SPA route discovery no longer sleeps before successful first reads. The existing 60-minute CI E2E-job limit remains in place.
-- This follow-up remains **UNVERIFIED** until the exact-head CI, role/context, Visual Agent, business-owner and organization-owner gates finish. Do not merge or mark release-ready on the older candidate evidence.
-- Render API health was observed returning HTTP 200 with database status `ok` on 2026-10-19; Vercel reported no runtime-error clusters for its queried 24-hour window. These observations do not close the application release blockers.
-- RB-010 through RB-024 remain governed by `docs/RELEASE_BLOCKERS.md`; RB-019 specifically remains open because public Kaspi partner pages reviewed do not establish the technical API/callback contract assumed by the generic provider adapter.
+- Product repository: drtamirlan911-cell/DentVision1; current verified main HEAD is 6581695e91eb70c638bc0b94efb10773d8882dd9.
+- Active P0 verification branch: security/doctor-agent-tenant-isolation-20261025; PR #323 is open/draft and targets main.
+- Candidate commit d632bff595a749f6e926269c5dbdc4ab4e707d8d is being verified. The dedicated RB-034 Context Diagnostic (run 40216825918) and Quality Gate (run 40216825923) passed on this SHA. The full CI run 40216825980 was still in progress at the last query; no release-ready claim is justified.
+- Earlier full E2E run 40210283358 exposed a diagnostic radiologist's result-signing request returning 403 and BIZ-009 calling /api/iam/me/contexts without forwarding the tab-scoped Bearer token. The next commit also admitted STUDENT in the general-role allow-list, which does not resolve the normalized-role mismatch robustly. The local follow-up replaces that check with an explicit database PersonRole scoped to the active organization and passes the onboarding access token in BIZ-009. Exact-head CI for the stronger follow-up is pending.
+- Local verification before the latest remote candidate: 245 unit-test files / 2,232 tests passed; frontend typecheck/lint passed; backend typecheck, lint and TypeScript build passed; focused signing/visibility tests passed 5/5; project-index validation passed; generated docs/SYSTEM_MAP.md matched its generator. These are local checks, not GitHub CI evidence for the current remote SHA.
+- RB-033 remains open. GitHub branch metadata showed main protection disabled and no required checks; repository-admin action and a merge-blocking test are still required.
+- Render confirms dentvision-api deploys from DentVision1/main. Its listed Render Postgres resource is the unrelated suspended romantic-invitations-db. DentVision uses Prisma/PostgreSQL, but the actual deployed database provider/host has not been established from available service metadata. Do not claim Neon or change database configuration until the deployed DATABASE_URL host/provider is verified without exposing credentials.
+- No production database, migration or production deployment was changed in this checkpoint.
 
 ## 2B. Latest role-gate findings — 2026-10-20
 
@@ -104,29 +105,14 @@ AI action lifecycle:
 `Intent → Context → Permission → Plan → Preview → Confirmation when required → Execute → Verify → Audit`
 
 ## 5. Verified repository state — 2026-10-25
-- Exact current GitHub main HEAD: d47aec8dc310731516f3a46cd0e3855781dd171e.
-- Main Quality Gate run 40065996095 passed on 2026-10-24, but this is not a full release pass. The latest full CI recorded for that exact SHA remains run 36852925083 (2026-10-01), with lint-test failure and E2E cancellation. Fresh exact-main CI/E2E/visual/role-context evidence is not established.
-- Branch protection remains an open release-control item in the prior audit record. The branch-protection endpoint is not accessible through the current connector permissions, so it was not independently re-read in this run. Repository-admin configuration and a merge-blocking test remain required.
-- No production deployment was changed during this run.
-
-### Candidate verification updates — 2026-10-25
-- PR #309 candidate head f30119b4f6752e540327666f9f34afe4a17bfe96: docs/SYSTEM_MAP.md was synchronized with generator output (672 handlers, 636 registered routes, 101 routes without detected consumers; diagnostics 35 handlers / 1 without detected consumer). CI run 40163222925 passed frontend lint, backend lint, generated project index, TypeScript, system-map validation and npm test; E2E remained in progress at the last checkpoint. Quality Gate run 40163223009 passed. Candidate-branch evidence only.
-- RB-034 records a confirmed AI DoctorAgent cross-tenant access defect. The traceable remediation commit `f1276fdb9ab2d7761f7e6c3f77e82eff752ac835` is an ancestor of current `main` HEAD `6581695e91eb70c638bc0b94efb10773d8882dd9`; the previously recorded hash `80c842777e5fdfdeacf3c672febd9e3624276d6b` could not be resolved from the fetched refs/history and is superseded by the traceable commit. Branch `security/doctor-agent-tenant-isolation-20261025` adds a dedicated isolated-PostgreSQL IAM diagnostic workflow and E2E check. On the Vercel dev sandbox: DoctorAgent + diagnostics focused tests 25/25 passed; full unit suite 244 files / 2,229 tests passed; frontend typecheck/lint, backend typecheck/build/lint, command-center audit, project-index validation, and system-map consistency passed. Current-head GitHub Actions / dedicated IAM-context E2E / full role-context release-gate evidence is still pending, so RB-034 remains IN PROGRESS and release remains NOT READY.
-- Canonical IAM role matrix path is docs/DENTVISION_IAM_ROLE_MATRIX.md. A root-level DENTVISION_IAM_ROLE_MATRIX.md does not exist; use the path under docs/ for future audits.
-
-### Product status
-- Clinical RBAC boundary: IMPLEMENTED in source with unit coverage; current-main full CI and negative E2E remain unverified.
-- IAM / role matrix / tenant and branch isolation: PARTIAL; the complete negative-path release matrix is still open.
-- Active-session enforcement: IMPLEMENTED in source; exact-current-main release evidence is stale.
-- Partner onboarding and branch/staff lifecycle: PARTIAL until fresh owner journeys and cross-tenant/branch gates pass.
-- Economics engine/ledger: PARTIAL; deterministic rules and snapshots exist, but release verification and provider-backed payment semantics remain open.
-- Clinical OS / Treatment Case: PARTIAL.
-- Diagnostics, medical laboratories and dental laboratories: PARTIAL; complete partner lifecycle and cross-organization isolation are not release-proven on current `main`.
-- AI control plane, Marketplace, Academy, Jobs, Community and Finance Hub: PARTIAL.
-- UX/design system: PARTIAL; exact-current-main responsive/visual/role evidence is not complete.
-- Web release: NOT READY until full CI/E2E/visual/role-context gates pass on one exact target SHA and branch protection is enabled.
-- True natural interactive 32-tooth WebGL/3D odontogram: NOT IMPLEMENTED; current dental chart is not evidence of a WebGL renderer.
-- Android release: UNVERIFIED for current `main`; a passing build on PR #307 is not mainline release evidence.
+- Current verified main HEAD: 6581695e91eb70c638bc0b94efb10773d8882dd9. Keep main unchanged while P0 verification continues.
+- Current RB-034 candidate is PR #323 on security/doctor-agent-tenant-isolation-20261025. Candidate SHA d632bff595a749f6e926269c5dbdc4ab4e707d8d has its focused RB-034 diagnostic and Quality Gate green; the full CI run 40216825980 was in progress at the last query. This does not yet establish a green release gate.
+- The stronger local signing fix uses canonical PersonRole scoped to the user's active organization, rather than a broad general-role allow-list. BIZ-009 now forwards the onboarding access token to the IAM-context request. Fresh exact-head CI must verify the follow-up.
+- Local evidence on the pre-rebase repair: 245 unit-test files / 2,232 tests passed; frontend typecheck/lint passed; backend typecheck, lint and build passed; focused signing/visibility tests 5/5 passed; project-index validation passed; generated docs/SYSTEM_MAP.md remains in sync. These local results must not be reported as GitHub CI results for a remote SHA.
+- Earlier E2E failure findings: PARTNER-001 result-signing 403, BIZ-009 missing Bearer header, and 55 failures among 168 role/context checks. Inspect new exact-head artifacts after the scoped-role and request-token changes.
+- RB-033 is still a P0 release blocker: main protection was reported disabled with no required checks; a repository administrator must configure and verify required checks.
+- The Render dentvision-api service deploys from DentVision1/main. The listed Render Postgres database is the unrelated suspended romantic-invitations-db; the deployed database provider/host remains unverified. Do not infer Neon from Prisma usage alone.
+- No production deployment, database or migration was changed.
 
 ## 6. Known implementation facts
 - `TreatmentCaseWorkspace` exists; full case lifecycle remains unverified/partial.

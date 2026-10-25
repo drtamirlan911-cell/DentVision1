@@ -265,7 +265,7 @@
 - **Verification:** local backend TypeScript passes; exact-head E2E required before closure.
 
 ### RB-034 — AI DoctorAgent cross-tenant patient/appointment IDOR
-- **Status:** IN PROGRESS — fix is present in current `main` history; exact-head CI and role/context E2E verification pending
+- **Status:** IN PROGRESS — DoctorAgent remediation is present in main history; exact-head CI and the full role/context E2E gate are still required. Candidate E2E also exposed partner result-signing role normalization and a missing Bearer token in BIZ-009; database-scoped signer authorization and test-token repairs are awaiting fresh exact-head CI.
 - **Priority:** P0
 - **Area:** AI / Clinical Privacy / Tenant Isolation / IDOR
 - **Evidence:** historical source blob `d1a4947196b40965070e0cade276b1e866b53e0e` contained primary-key-only patient/appointment access in the named intents. The remediation commit `f1276fdb9ab2d7761f7e6c3f77e82eff752ac835` is an ancestor of fetched current `main` HEAD `6581695e91eb70c638bc0b94efb10773d8882dd9`; current source has clinic-scoped queries and a fail-closed active-clinic guard. Ancestry/source evidence confirms implementation presence, not end-to-end release closure.

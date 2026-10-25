@@ -220,8 +220,13 @@ test.describe('DentVision business owner journeys', () => {
       expect(onboarding.data?.branchId).toBeTruthy();
       expect(onboarding.data?.verification).toBe('PENDING');
 
-      const contextsResponse = await page.request.get('/api/iam/me/contexts');
-      expect(contextsResponse.ok()).toBeTruthy();
+      // The API request client does not automatically read the tab's sessionStorage token.
+      const accessToken = onboarding.data?.accessToken || onboarding.accessToken;
+      expect(accessToken, 'onboarding must issue an access token for the new workspace context').toBeTruthy();
+      const contextsResponse = await page.request.get('/api/iam/me/contexts', {
+        headers: { Authorization: `Bearer ${accessToken}` },
+      });
+      expect(contextsResponse.ok(), `IAM context read failed with HTTP ${contextsResponse.status()}`).toBeTruthy();
       const contextsPayload = await contextsResponse.json();
       const context = (contextsPayload.data?.contexts || []).find(
         (item: { organizationId?: string; scopeType?: string; branchId?: string }) =>
