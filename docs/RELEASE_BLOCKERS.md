@@ -5,13 +5,14 @@
 ## Open
 
 ### RB-029 — Patient clinical history JSON is not encrypted at rest
-- **Status:** OPEN — implementation gap confirmed by source inspection
+- **Status:** OPEN — application-layer implementation is in draft PR #324; legacy rows and release verification remain outstanding
 - **Priority:** P0
 - **Area:** PHI / clinical data protection
-- **Evidence:** `dentvision-backend/src/lib/phi.ts` encrypts `iin` and `medicalHistory` only when those values are strings. The canonical Patient write path in `dentvision-backend/src/modules/patients/patients.routes.ts` persists `medicalHistory` as a Prisma JSON object (`history as Prisma.InputJsonValue`); the PATCH path likewise merges and persists the object directly. The encrypted IIN path does not prove the clinical-history JSON is encrypted.
-- **Risk:** allergies, clinical notes, categories, source metadata and tooth/clinical details may remain readable in database backups or dumps, depending on their exact contents. Phone, email, address and notes also remain searchable plaintext fields by current design and require a documented threat-model decision.
-- **Required fix:** map all Patient write/read paths and downstream consumers first. Design field-level encryption or a compatible encrypted-at-rest storage strategy without breaking JSON queries, reports, AI context, clinical workflows, or historical records. Include an audited migration/backfill with dry-run, resumability, counts, integrity checks and rollback plan. Do not encrypt the entire JSON column blindly.
-- **Verification:** tests must prove plaintext does not appear in persisted sensitive fields, API responses remain correctly decrypted for authorized roles, tenant/branch boundaries hold, legacy records remain readable during migration, and failed/missing keys fail closed in production.
+- **Evidence:** the historical implementation encrypted medicalHistory only when it was a string, while Patient CRUD stored a structured Prisma JSON object. Draft PR #324 adds a versioned __dentvisionEncryptedV1 envelope for structured JSON, decode-before-read/merge, and encrypt-before-write in canonical Patient CRUD and odontogram paths. The AI tool context and patient-created AI event decode the envelope; existing cross-clinic and patient-portal reads use the shared decrypt helper. The Prisma JSON column and Neon schema are unchanged.
+- **Compatibility / migration:** legacy plaintext JSON remains readable during rollout; the previous patient-portal scalar ENC: format remains readable and is counted separately. A guarded db:backfill:medical-history command is being added with dry-run by default, full-key/decryption preflight before writes, versioned envelopes, compare-and-set updates, bounded batches, and explicit target confirmation. It is not part of application startup.
+- **Risk:** until the backfill runs against a verified target, old structured rows remain plaintext at rest. Phone, email, address and notes also remain searchable plaintext fields by current design and require a separate documented threat-model decision.
+- **Required fix:** map all Patient read/write paths; review and verify the guarded backfill with a backup and staging dry run; account for any concurrent legacy writers; test API response compatibility, AI context, odontogram round trips, cross-clinic authorization, key availability, encrypted-row integrity and CAS conflict behavior. Define rollback/recovery before any production data write.
+- **Verification:** PR #324 remains draft and unmerged. Quality Gate has passed on its current candidate, but full exact-head CI is still required after the latest changes. No production query, backfill, schema migration, merge or deployment has been performed for this work.
 
 ### RB-030 — Offline appointment queue privacy redaction may drop required sync fields
 - **Status:** OPEN — behavior requires end-to-end verification

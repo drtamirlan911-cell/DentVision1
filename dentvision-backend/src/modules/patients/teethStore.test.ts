@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { decryptMedicalHistory } from '../../lib/phi.js';
 
 const { patientFindFirst, patientUpdate, toothUpsert } = vi.hoisted(() => ({
   patientFindFirst: vi.fn(),
@@ -15,9 +16,11 @@ vi.mock('../../lib/prisma.js', () => ({
 
 const { applyToothFindings, isValidFdi, normalizeSurfaceFindings, syncTeeth } = await import('./teethStore.js');
 
-/** What `patient.update` was asked to write. */
+/** Decode the persisted envelope before asserting the domain-level teeth map. */
 function writtenTeeth(): Record<string, any> {
-  return (patientUpdate.mock.calls[0][0].data.medicalHistory as any).teeth;
+  const stored = patientUpdate.mock.calls[0][0].data.medicalHistory;
+  const decoded = decryptMedicalHistory(stored);
+  return (decoded as any).teeth;
 }
 
 beforeEach(() => {

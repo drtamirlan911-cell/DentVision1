@@ -157,3 +157,56 @@ describe('decryptField integrity and availability', () => {
     expect(() => decryptField(encrypted)).toThrow(/Decryption unavailable in production/);
   });
 });
+
+
+describe('structured medical history encryption', () => {
+  const originalNodeEnv = process.env.NODE_ENV;
+  const originalKey = process.env.ENCRYPTION_KEY;
+
+  beforeEach(() => {
+    process.env.NODE_ENV = 'test';
+    process.env.ENCRYPTION_KEY = 'phi-test-key-that-is-long-enough-123456';
+  });
+
+  afterEach(() => {
+    process.env.NODE_ENV = originalNodeEnv;
+    process.env.ENCRYPTION_KEY = originalKey;
+  });
+
+  it('stores structured clinical history as ciphertext and round-trips the original JSON', async () => {
+    const { encryptMedicalHistory, decryptMedicalHistory } = await import('./phi.js');
+    const original = { complaints: 'sensitive complaint', allergies: ['penicillin'], teeth: { '16': { status: 'caries' } } };
+    const stored = encryptMedicalHistory(original) as Record<string, unknown>;
+    expect(stored.__dentvisionEncryptedV1).toMatch(/^ENC:/);
+    expect(JSON.stringify(stored)).not.toContain('sensitive complaint');
+    expect(JSON.stringify(stored)).not.toContain('penicillin');
+    expect(decryptMedicalHistory(stored)).toEqual(original);
+    expect(encryptMedicalHistory(stored)).toEqual(stored);
+  });
+
+  it('leaves legacy plaintext JSON readable until the resumable backfill is run', async () => {
+    const { decryptMedicalHistory } = await import('./phi.js');
+    const original = { allergies: 'legacy allergy', teeth: { '11': { status: 'healthy' } } };
+    expect(decryptMedicalHistory(original)).toEqual(original);
+  });
+
+  it('reads legacy scalar ENC values written by the patient portal', async () => {
+    const { encryptField, decryptMedicalHistory } = await import('./phi.js');
+    const stored = encryptField('patient-entered clinical note');
+    expect(decryptMedicalHistory(stored)).toBe('patient-entered clinical note');
+  });
+
+  it('fails closed when an encrypted history cannot be decrypted with the configured key', async () => {
+    const { encryptMedicalHistory, decryptMedicalHistory } = await import('./phi.js');
+    const stored = encryptMedicalHistory({ complaints: 'private' });
+    process.env.ENCRYPTION_KEY = 'different-key-that-is-also-long-enough-1234';
+    expect(() => decryptMedicalHistory(stored)).toThrow(/Unable to decrypt encrypted field|decryption unavailable/i);
+  });
+
+  it('does not store clinical history as plaintext in production when the key is missing', async () => {
+    const { encryptMedicalHistory } = await import('./phi.js');
+    process.env.NODE_ENV = 'production';
+    delete process.env.ENCRYPTION_KEY;
+    expect(() => encryptMedicalHistory({ complaints: 'private' })).toThrow(/encryption unavailable in production/i);
+  });
+});
