@@ -1085,3 +1085,31 @@ These changes are route/entry reconciliation only. Existing domain implementatio
 - Replaced Redis-specific daily counter tests with PostgreSQL persistence/failure-path tests.
 - GitHub repository search shows no remaining `ioredis`, `bullmq`, `REDIS_URL`, or direct Redis runtime imports.
 - Required next: verify the new production deploy reaches API listening state and confirm durable queue worker initialization.
+
+
+## 2026-10-25 — RB-034 AI DoctorAgent tenant-isolation candidate
+
+### Evidence and root cause
+- Audited current main HEAD d47aec8dc310731516f3a46cd0e3855781dd171e and source blob d1a4947196b40965070e0cade276b1e866b53e0e for dentvision-backend/src/modules/ai/agents/doctor.agent.ts.
+- Confirmed that PATIENT_BRIEFING, AFTER_APPOINTMENT, CREATE_ESTIMATE, REFER_DIAGNOSTICS and SCHEDULE_NEXT_VISIT contained patient lookups by primary key without clinicId; PATIENT_BRIEFING also loaded an appointment by ID only. AFTER_APPOINTMENT changed appointment status by ID only. CREATE_APPOINTMENT accepted a patient ID without first proving that the patient belonged to the active clinic.
+- Tenant risk: an AI action with a guessed/foreign ID could expose patient name/clinical context (PATIENT_BRIEFING also returns decrypted IIN) or mutate an appointment. The legacy agent had inconsistent query-level scoping and no direct cross-tenant regression tests. This is an application-code defect, not a frontend-only issue.
+
+### Candidate implementation
+- Branch: security/doctor-agent-tenant-isolation-20261025.
+- Implementation commit: 80c842777e5fdfdeacf3c672febd9e3624276d6b (not merged).
+- Changed dentvision-backend/src/modules/ai/agents/doctor.agent.ts: clinic-scoped patient/appointment reads, fail-closed behavior when a clinic-bound intent has no active clinic, patient ownership check before appointment creation, appointment completion constrained by ID + clinicId + patientId, and a guard against an appointment linked to a patient from another clinic.
+- Added dentvision-backend/src/modules/ai/agents/doctor.agent.security.test.ts with 8 regression cases covering missing clinic context, scoped patient/appointment lookups, foreign-patient appointment creation denial, same-clinic creation, and scoped appointment completion.
+- Updated docs/RELEASE_BLOCKERS.md with RB-034, reordered DENTVISION_EXECUTION_PLAN.md around P0 security/data-protection gates, refreshed DENTVISION_CONTEXT.md, synchronized generated docs/SYSTEM_MAP.md (672 handlers / 636 registered routes / 101 routes without detected consumer; diagnostics 35 / 1), and corrected the stale PATIENT-role row in docs/compliance/RBAC_AUDIT.md.
+
+### Verification state
+- Source-level review confirms there are no remaining prisma.patient.findUnique or prisma.appointment.findUnique calls in DoctorAgent; the previously unscoped appointment.update call is replaced with updateMany constrained by clinic and patient.
+- The new regression tests are committed but have NOT yet been executed on this exact candidate SHA. No claim of passing TypeScript, lint, unit tests or E2E is made. Open a PR to trigger exact-head CI, then inspect test output and the role/context gate before treating RB-034 as closed.
+- Separate PR #309 candidate run 40163222925 passed lint-test, including generated system-map validation and npm test, but it did not contain this DoctorAgent fix and is not evidence for this candidate. PR #309 E2E was still in progress at the last observed checkpoint.
+- Main remains unchanged. Main Quality Gate run 40065996095 passed on 2026-10-24; the latest full CI recorded for main SHA d47aec8dc310731516f3a46cd0e3855781dd171e remains run 36852925083 with lint-test failure and E2E cancellation.
+
+### Residual risks and next priority
+- RB-034 remains OPEN until exact-head targeted tests and full relevant CI/E2E pass. Review any test failures before further edits; do not weaken or skip release gates.
+- RB-029 remains open. Initial consumer inspection found direct Patient reads in patients.routes.ts, patientPortal.routes.ts, ai/os/tools.ts, ai/core/context.manager.ts and ai/agents/doctor.agent.ts; the full read/write/export/report inventory and safe encrypted JSON migration are still required before implementation.
+- RB-033 requires repository-admin configuration of mandatory main checks. The branch-protection API returned 403 to the current integration, so it could not be changed or independently re-verified in this run.
+- RB-019 payment-provider contract verification remains open.
+- Next: open the candidate PR, run exact-head CI, inspect focused failure summaries/artifacts in bounded chunks, fix only evidenced defects, then update this log with test run IDs and results. Do not merge into main.

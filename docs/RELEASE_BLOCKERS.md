@@ -66,6 +66,16 @@
 - **Finding:** the canonical content-catalog response guard intentionally filters Marketplace/Academy items according to active authenticated content context.
 - **Required:** verify authenticated professional/owner contexts expose the expected catalog and that cross-tenant/catalog audience isolation is preserved. This is not closed by the public 200 response.
 
+### RB-034 — AI DoctorAgent cross-tenant patient/appointment IDOR
+- **Status:** IN PROGRESS — candidate fix implemented; exact-head verification pending
+- **Priority:** P0
+- **Area:** AI / Clinical Privacy / Tenant Isolation / IDOR
+- **Evidence:** current-main file dentvision-backend/src/modules/ai/agents/doctor.agent.ts (blob d1a4947196b40965070e0cade276b1e866b53e0e) used findUnique by caller-supplied patient/appointment ID in PATIENT_BRIEFING, AFTER_APPOINTMENT, CREATE_ESTIMATE, REFER_DIAGNOSTICS and SCHEDULE_NEXT_VISIT; AFTER_APPOINTMENT updated an appointment by ID alone; CREATE_APPOINTMENT did not prove that the patient belonged to the active clinic.
+- **Risk:** an AI intent carrying a guessed/foreign ID could expose patient name, clinical context and decrypted IIN, or mutate another clinic's appointment. Frontend role hiding does not protect these server-side paths.
+- **5 Why / root cause:** patient and appointment identifiers are accepted from AI parameters → several legacy handlers query/update by primary key alone → clinic-scoped access is applied inconsistently across the same agent → handlers rely on upstream routing rather than proving ownership at the data boundary → no direct negative cross-tenant regression test covers these intents.
+- **Candidate remediation:** branch security/doctor-agent-tenant-isolation-20261025 adds fail-closed clinic-context validation, scopes identified patient/appointment reads to context.clinicId, verifies patient ownership before appointment creation, and conditionally completes only an appointment matching both clinic and patient.
+- **Closure criteria:** targeted unit tests prove foreign patient/appointment IDs are denied and same-tenant operations remain valid; TypeScript/lint/unit checks and full role/context E2E pass on the exact candidate SHA; no patient or appointment data crosses tenant boundaries. Main remains affected until a verified fix is merged.
+
 ## Closed
 
 ### RB-006 — Vercel build rate limit

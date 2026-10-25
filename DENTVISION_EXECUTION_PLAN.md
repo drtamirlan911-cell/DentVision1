@@ -350,8 +350,10 @@ A phase is complete only when:
 - `DENTVISION_EXECUTION_LOG.md` records what changed, commit, verification, and next action.
 
 ## Current execution priority
-**Now:** run the business-owner lifecycle vertical slice in parallel with the remaining Economics Engine → Ledger work. Start at registration for each partner type, then organization, branches, staff, permissions, operational workflows and economics. The canonical branch contract above is part of this slice: locate the real owner entry point, implement the missing branch management path, verify scope boundaries, and convert every discovered real defect into an implementation fix plus regression test.
+**Now — P0 security and release integrity:** verify RB-034 on branch security/doctor-agent-tenant-isolation-20261025. The exact candidate SHA must pass targeted DoctorAgent negative-path tests, TypeScript, backend lint, unit tests and the full role/context E2E gate before RB-034 can be closed. Keep main unchanged. The generated system map must match the generator on any candidate branch.
 
-**Next:** complete partner transparency/Finance Hub, then automated operations, then product-wide UX/clinical/ecosystem hardening.
+**Next — P0 data protection:** complete the full Patient.medicalHistory read/write/AI/report/export inventory for RB-029, then design a versioned encrypted-at-rest representation and resumable, audited legacy backfill. Do not encrypt the JSON column blindly. Repository-admin action for RB-033 (required branch checks on main) remains manual and release-blocking; verify actual required-check names and prove a failing check blocks merge.
 
-The work proceeds in vertical slices: implement → verify → commit → update the persistent log → move to the next slice.
+**After these P0 gates:** resume the business-owner lifecycle vertical slice (registration → organization → branches → staff/permissions → operations → economics), then partner transparency/Finance Hub, automated operations and product-wide UX/clinical/ecosystem hardening.
+
+The work proceeds in vertical slices: implement → targeted verify → full relevant gates → commit → update the persistent log → move to the next slice.
