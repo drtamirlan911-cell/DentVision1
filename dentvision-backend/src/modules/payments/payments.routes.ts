@@ -21,7 +21,7 @@ import {
 } from './clinicPayments.js';
 import { createHmac, timingSafeEqual } from 'node:crypto';
 import type { AuthRequest, ApiResponse } from '../../types/index.js';
-import { assertOrgAccess, assertClinicOrgAccess, resolveClinicAccess, resolveOrganizationIdForClinic } from '../../lib/orgContext.js';
+import { assertClinicOrgAccess, resolveClinicAccess, resolveOrganizationIdForClinic } from '../../lib/orgContext.js';
 import { permissionsSatisfy } from '../../lib/permissions.js';
 import { resolveUserPermissions } from '../../lib/resolvePermissions.js';
 import { assertClinicBillingAccess, getClinicSubscriptionAmountMinor, isSaasPlanId } from '../billing/clinicSubscription.service.js';
@@ -456,19 +456,14 @@ async function assertPaymentOwner(
 ) {
   const meta = (payment.meta || {}) as { userId?: string; clinicId?: string; merchantScope?: string };
 
-  // New clinic payments use the server-selected provider as the authoritative scope.
+  // The server-selected clinic provider is authoritative for new clinic payments.
   if (payment.provider === 'clinic_kaspi') {
     if (!meta.clinicId) return false;
     return assertClinicPaymentStaffAccess(req.user!.id, meta.clinicId);
   }
 
-  // Legacy clinic records may predate the canonical provider marker. Their metadata
-  // can narrow access, but never grants it without current scoped billing permission.
-  if (meta.clinicId && (meta.merchantScope === 'clinic' || payment.refType === 'appointment' || payment.refType === 'crm_invoice')) {
-    return canManageClinicBillingMutation(req.user!, meta.clinicId);
-  }
-
-  // Order ownership is derived from the canonical order row, never writable metadata.
+  // Canonical order ownership must precede legacy metadata: historical
+  // client-controlled merchantScope/clinicId never overrides the order owner.
   if (payment.refType === 'order' || payment.refType === 'shop_order') {
     if (!payment.refId) return false;
     try {
@@ -477,6 +472,20 @@ async function assertPaymentOwner(
     } catch {
       return false;
     }
+  }
+
+  // Clinic financial references require explicit clinic scope; missing scope
+  // fails closed instead of falling through to legacy meta.userId ownership.
+  if (payment.refType === 'appointment' || payment.refType === 'crm_invoice') {
+    if (!meta.clinicId) return false;
+    return canManageClinicBillingMutation(req.user!, meta.clinicId);
+  }
+
+  const platformOwnedRefTypes = new Set([
+    'subscription', 'enrollment', 'academy_event', 'medical_lab_order', 'sale', 'settlement',
+  ]);
+  if (meta.clinicId && meta.merchantScope === 'clinic' && !platformOwnedRefTypes.has(String(payment.refType || ''))) {
+    return canManageClinicBillingMutation(req.user!, meta.clinicId);
   }
 
   if (meta.userId && meta.userId === req.user!.id) return true;
@@ -900,8 +909,13 @@ paymentsRouter.post('/:id/refund', authenticate, async (req: AuthRequest, res) =
     }
 
     const refundMeta = (payment.meta || {}) as { clinicId?: string; merchantScope?: string };
+    const platformOwnedRefTypes = new Set([
+      'order', 'shop_order', 'subscription', 'enrollment', 'academy_event',
+      'medical_lab_order', 'sale', 'settlement',
+    ]);
     const isClinicRefund = payment.provider === 'clinic_kaspi' ||
-      Boolean(refundMeta.clinicId && (refundMeta.merchantScope === 'clinic' || payment.refType === 'appointment' || payment.refType === 'crm_invoice'));
+      Boolean(refundMeta.clinicId && !platformOwnedRefTypes.has(String(payment.refType || '')) &&
+        (refundMeta.merchantScope === 'clinic' || payment.refType === 'appointment' || payment.refType === 'crm_invoice'));
     if (isClinicRefund && (!refundMeta.clinicId || !(await canManageClinicBillingMutation(req.user!, refundMeta.clinicId)))) {
       return res.status(403).json({ ok: false, error: 'Недостаточно прав для возврата средств клиники' } satisfies ApiResponse);
     }
