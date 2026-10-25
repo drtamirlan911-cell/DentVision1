@@ -320,13 +320,10 @@ jobs:
           {
             echo "=== E2E gate timings ==="
             cat e2e-gate-timings.txt 2>/dev/null || true
-            for log_file in e2e-core.log e2e-gate-logs/*.log; do
-              [ -f "$log_file" ] || continue
-              echo
-              echo "=== $log_file ==="
-              grep -E '(^[[:space:]]*[0-9]+ failed|^[[:space:]]*[0-9]+ passed|[0-9]+ failed|[0-9]+ passed|Error:|HTTP [45][0-9][0-9]|expect\(|Test timeout|timed out)' "$log_file" | tail -n 35 || true
-            done
+            echo
+            node quality-scripts/summarize-e2e-failures.mjs e2e-core.log e2e-gate-logs/*.log
           } > e2e-failure-summary.txt
+          cat e2e-failure-summary.txt >> "$GITHUB_STEP_SUMMARY"
 
       - name: Upload compact E2E diagnostics
         if: always()
