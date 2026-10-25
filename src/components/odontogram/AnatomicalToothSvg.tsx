@@ -1,6 +1,7 @@
 import React from 'react'
 import { useTranslation } from 'react-i18next'
 import { cn } from '@/lib/utils'
+import { crownPath } from './toothCrownShapes'
 import { getToothMorphology, isUpperArch, type RootPattern, type ToothVariant } from './toothMorphology'
 import {
   STATUS_META,
@@ -79,26 +80,6 @@ function toothOutline(pattern: RootPattern): string {
   }
 }
 
-/**
- * The crown portion alone — for marks that belong on the crown and must not
- * run down the roots, such as a crown restoration's outline.
- */
-function crownPath(pattern: RootPattern): string {
-  switch (pattern) {
-    case 'incisor':
-      return 'M15.6 26 C14.6 32 13.4 40 13.2 46 C13.2 52 15.4 57.4 20 57.6 C24.6 57.4 26.8 52 26.8 46 C26.6 40 25.4 32 24.4 26 Z'
-    case 'canine':
-      return 'M15.4 26 C14.4 32 13 40 12.8 45.4 C12.8 50.4 14.6 54 17.2 56.2 C18.4 57.2 19.4 58.8 20 60.4 C20.6 58.8 21.6 57.2 22.8 56.2 C25.4 54 27.2 50.4 27.2 45.4 C27 40 25.6 32 24.6 26 Z'
-    case 'premolar1':
-    case 'premolar2':
-      return 'M14.2 26 C13 32 11 38 10.8 43.4 C10.8 49 13 54.4 16.6 56 C18.2 56.6 19.4 54.4 20 52.4 C20.6 54.4 21.8 56.6 23.4 56 C27 54.4 29.2 49 29.2 43.4 C29 38 27 32 25.8 26 Z'
-    case 'molarUpper':
-    case 'molarLower':
-    default:
-      return 'M9 26 C7 32 5.6 38 5.6 43 C5.6 50 8 56.4 12.6 58 C14.6 58.6 16.4 56.4 17.4 54.4 C18.2 52.9 21.8 52.9 22.6 54.4 C23.6 56.4 25.4 58.6 27.4 58 C32 56.4 34.4 50 34.4 43 C34.4 38 33 32 31 26 Z'
-  }
-}
-
 /** Faint internal lines that suggest form without cutting the silhouette. */
 function toothDetail(pattern: RootPattern, variant: ToothVariant): React.ReactNode {
   const wide = pattern === 'molarUpper' || pattern === 'molarLower'
@@ -107,7 +88,15 @@ function toothDetail(pattern: RootPattern, variant: ToothVariant): React.ReactNo
       {/* Cervical line: where enamel ends. A soft curve, not a border. */}
       <path d={wide ? 'M9.6 27.4 C15 29.6 25 29.6 30.4 27.4' : 'M14.8 27.2 C17 29 23 29 25.2 27.2'} />
       {/* Developmental lobe on the crown face. */}
-      {wide && <path d="M20 34 C20.4 40 20.4 46 20 51" />}\n      {variant === 'centralIncisor' && <path d="M17.1 31 C17.6 38 17.7 44 17.5 49" />}\n      {variant === 'lateralIncisor' && <path d="M20 31 C20.2 37 20.3 43 20.1 49" />}\n      {variant === 'canine' && <path d="M20 29 L20 48" />}\n      {variant === 'upperPremolar1' && <><path d="M14 38 C16 35.5 18 34.8 20 35.2" /><path d="M20 35.2 C22 34.8 24 35.5 26 38" /><path d="M18.5 43 C19.2 41.2 20.8 41.2 21.5 43" /></>}\n      {variant === 'upperPremolar2' && <path d="M20 35 C20 39 20 44 20 50" />}\n      {variant === 'lowerPremolar' && <path d="M20 34 C18.5 39 18.5 44 20 49 C21.5 44 21.5 39 20 34" />}\n      {(variant === 'upperMolar1' || variant === 'upperMolar2' || variant === 'upperMolar3') && <><path d="M13 34 C15 37 17 39 20 40" /><path d="M27 34 C25 37 23 39 20 40" /></>}\n      {(variant === 'lowerMolar1' || variant === 'lowerMolar2' || variant === 'lowerMolar3') && <path d="M12 39 C16 37 24 37 28 39" />}
+      {wide && <path d="M20 34 C20.4 40 20.4 46 20 51" />}
+      {variant === 'centralIncisor' && <path d="M17.1 31 C17.6 38 17.7 44 17.5 49" />}
+      {variant === 'lateralIncisor' && <path d="M20 31 C20.2 37 20.3 43 20.1 49" />}
+      {variant === 'canine' && <path d="M20 29 L20 48" />}
+      {variant === 'upperPremolar1' && <><path d="M14 38 C16 35.5 18 34.8 20 35.2" /><path d="M20 35.2 C22 34.8 24 35.5 26 38" /><path d="M18.5 43 C19.2 41.2 20.8 41.2 21.5 43" /></>}
+      {variant === 'upperPremolar2' && <path d="M20 35 C20 39 20 44 20 50" />}
+      {variant === 'lowerPremolar' && <path d="M20 34 C18.5 39 18.5 44 20 49 C21.5 44 21.5 39 20 34" />}
+      {(variant === 'upperMolar1' || variant === 'upperMolar2' || variant === 'upperMolar3') && <><path d="M13 34 C15 37 17 39 20 40" /><path d="M27 34 C25 37 23 39 20 40" /></>}
+      {(variant === 'lowerMolar1' || variant === 'lowerMolar2' || variant === 'lowerMolar3') && <path d="M12 39 C16 37 24 37 28 39" />}
     </>
   )
 }
@@ -557,7 +546,19 @@ export function AnatomicalToothSvg({
   const isEndoOk = status === 'endo_ok'
   const isEndoFail = status === 'endo_fail'
   const isExtracted = status === 'extracted'
-  const rootFill = isRootOnly || isEndoFail ? (STATUS_META[status || 'root']?.color || '#E67E22') : '#E7DFD3'
+  const rootFill = isRootOnly || isEndoFail ? (STATUS_META[status || 'root']?.color || '#fb923c') : '#113247'
+  const clinicalColor = STATUS_META[status || '']?.color || '#22d3ee'
+  // Posterior morphology is not interchangeable: first molars are largest,
+  // second molars are slightly smaller, and third molars are smaller/bulbous
+  // with shorter roots. Keep the shared SVG families, but preserve these
+  // clinically visible proportions instead of rendering 16/17/18 identically.
+  const posteriorScale = [18, 28, 38, 48].includes(toothNumber)
+    ? 0.86
+    : [17, 27, 37, 47].includes(toothNumber)
+      ? 0.94
+      : [16, 26, 36, 46].includes(toothNumber)
+        ? 1.02
+        : 1
   const height = Math.round((size * BUCCAL_VB_H) / 40)
   const crownCy = upper ? 44 : BUCCAL_VB_H - 44
   const tooltip = `${toothNumber} · ${morph.label}${status && status !== 'healthy' ? ` · ${STATUS_META[status]?.label || status}` : ''}`
@@ -588,12 +589,23 @@ export function AnatomicalToothSvg({
   if (view === 'occlusal') {
     return shell(
       <svg width={size} height={size} viewBox="0 0 40 40" aria-hidden>
+        <g transform={posteriorScale === 1 ? undefined : `translate(20 20) scale(${posteriorScale}) translate(-20 -20)`}>
         <defs>
-          <linearGradient id={`occl-${toothNumber}`} x1="0.2" y1="0" x2="0.8" y2="1">
-            <stop offset="0%" stopColor="#FDFBF7" />
-            <stop offset="55%" stopColor="#F2EADC" />
-            <stop offset="100%" stopColor="#E4D8C4" />
+          <linearGradient id={`occl-${toothNumber}`} x1="0.15" y1="0" x2="0.85" y2="1">
+            <stop offset="0%" stopColor="#f8feff" />
+            <stop offset="28%" stopColor="#bff8ff" />
+            <stop offset="58%" stopColor="#4ddbea" />
+            <stop offset="82%" stopColor="#16a9c0" />
+            <stop offset="100%" stopColor="#075985" />
           </linearGradient>
+          <filter id={`occl-neon-${toothNumber}`} x="-70%" y="-70%" width="240%" height="240%">
+            <feGaussianBlur stdDeviation="1.1" result="blur" />
+            <feColorMatrix in="blur" type="matrix" values="0.7 0 0 0 0 0 0.95 0 0 0.25 0 0 1 0 0.45 0 0 0 0.9 0" result="glow" />
+            <feMerge>
+              <feMergeNode in="glow" />
+              <feMergeNode in="SourceGraphic" />
+            </feMerge>
+          </filter>
         </defs>
         <OcclusalTooth
           toothNumber={toothNumber}
@@ -603,6 +615,7 @@ export function AnatomicalToothSvg({
           variant={morph.variant}
           selected={selected}
         />
+        </g>
       </svg>,
       size + 8,
       size + 6,
@@ -626,26 +639,33 @@ export function AnatomicalToothSvg({
         height={height}
         viewBox={`0 0 40 ${BUCCAL_VB_H}`}
         aria-hidden
-        className={cn(selected && 'drop-shadow-[0_0_8px_rgba(201,169,110,0.55)]')}
+        className={cn(selected && 'drop-shadow-[0_0_14px_rgba(34,211,238,0.8)]')}
       >
         <defs>
-          {/* Warm ivory rather than the old blue-grey: a tooth is bone, and the
-              cool ramp read as porcelain against the reference chart. */}
-          {/* Root end slightly duller than the crown — one tooth, two tissues. */}
-          <linearGradient id={`enamel-${toothNumber}`} x1="0.2" y1="0" x2="0.55" y2="1">
-            <stop offset="0%" stopColor="#E6D8C2" />
-            <stop offset="34%" stopColor="#F1E7D6" />
-            <stop offset="62%" stopColor="#FDFBF6" />
-            <stop offset="100%" stopColor="#EFE3CE" />
+          <linearGradient id={`enamel-${toothNumber}`} x1="0.15" y1="0" x2="0.82" y2="1">
+            <stop offset="0%" stopColor="#f7feff" />
+            <stop offset="18%" stopColor="#c8f8ff" />
+            <stop offset="45%" stopColor="#6ee7f9" />
+            <stop offset="72%" stopColor="#22d3ee" />
+            <stop offset="100%" stopColor="#0b7285" />
           </linearGradient>
           <linearGradient id={`rootGrad-${toothNumber}`} x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor={upper ? '#DFCFB4' : '#F2E9DA'} />
-            <stop offset="100%" stopColor={upper ? '#F2E9DA' : '#DFCFB4'} />
+            <stop offset="0%" stopColor={upper ? '#164e63' : '#155e75'} />
+            <stop offset="50%" stopColor="#0e7490" />
+            <stop offset="100%" stopColor={upper ? '#082f49' : '#083344'} />
           </linearGradient>
+          <filter id={`neon-${toothNumber}`} x="-80%" y="-60%" width="260%" height="220%">
+            <feGaussianBlur stdDeviation="1.25" result="blur" />
+            <feColorMatrix in="blur" type="matrix" values="1 0 0 0 0 0 1 0 0 0.55 0 0 1 0 0.75 0 0 0 0.9 0" result="glow" />
+            <feMerge>
+              <feMergeNode in="glow" />
+              <feMergeNode in="SourceGraphic" />
+            </feMerge>
+          </filter>
         </defs>
 
         {selected && (
-          <rect x="1" y="1" width="38" height={BUCCAL_VB_H - 2} rx="6" fill="none" stroke="#C9A96E" strokeWidth="1.4" strokeDasharray="3 2" />
+          <rect x="1" y="1" width="38" height={BUCCAL_VB_H - 2} rx="6" fill="rgba(34,211,238,0.04)" stroke="#67e8f9" strokeWidth="1.5" strokeDasharray="2.5 1.8" />
         )}
 
         {/* Everything anatomical is drawn upper-side-up and mirrored for the
@@ -679,11 +699,12 @@ export function AnatomicalToothSvg({
               <path
                 d={toothOutline(morph.pattern)}
                 fill={isRootOnly || isEndoFail ? rootFill : `url(#enamel-${toothNumber})`}
-                stroke="#B0967A"
-                strokeOpacity="0.75"
-                strokeWidth="0.9"
+                stroke={isRootOnly || isEndoFail ? clinicalColor : '#67e8f9'}
+                strokeOpacity={isRootOnly ? 0.75 : 0.96}
+                strokeWidth={isRootOnly ? 1.05 : 1.15}
                 strokeLinejoin="round"
-                opacity={isRootOnly ? 0.5 : 1}
+                opacity={isRootOnly ? 0.62 : 1}
+                filter={!isRootOnly && !isEndoFail ? `url(#neon-${toothNumber})` : undefined}
               />
 
               {!isRootOnly && (
@@ -697,8 +718,8 @@ export function AnatomicalToothSvg({
                 <path
                   d="M15 34 C16.1 40 16.3 46 15.9 51"
                   fill="none"
-                  stroke="rgba(255,255,255,0.6)"
-                  strokeWidth="1.6"
+                  stroke="#ecfeff"
+                  strokeWidth="1.8"
                   strokeLinecap="round"
                 />
               )}
@@ -716,7 +737,7 @@ export function AnatomicalToothSvg({
         {/* Endo marker on crown center — unflipped so the tick reads correctly. */}
         {(isEndoOk || isEndoFail) && !isMissing && !isExtracted && (
           <g>
-            <circle cx="20" cy={crownCy} r="4.5" fill={isEndoOk ? '#2ECC71' : '#C0392B'} stroke="white" strokeWidth="0.8" />
+            <circle cx="20" cy={crownCy} r="4.5" fill={isEndoOk ? '#22c55e' : '#f43f5e'} stroke="#ecfeff" strokeWidth="0.8" filter={`url(#neon-${toothNumber})`} />
             <text x="20" y={crownCy + 2.2} textAnchor="middle" fontSize="6" fontWeight="700" fill="white">
               {isEndoOk ? '✓' : '✗'}
             </text>

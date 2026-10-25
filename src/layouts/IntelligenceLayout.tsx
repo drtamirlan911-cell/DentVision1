@@ -1,9 +1,9 @@
 import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Outlet, useNavigate, useLocation, Navigate } from 'react-router-dom';
-import { Menu, User } from 'lucide-react';
+import { Menu, PanelRight, User } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { useAuth } from '@/store/auth.store';
+import { getRoleDisplayLabel, useAuth } from '@/store/auth.store';
 import { useUIStore } from '@/store/ui.store';
 import { useGuestStore } from '@/store/guest.store';
 import { ContextPanel } from '@/components/intelligence/ContextPanel';
@@ -30,7 +30,7 @@ const FIRST_RUN_COLLAPSE_MS = 15_000;
 export const IntelligenceLayout: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  const { user, isAuthenticated, roleInfo, logout, activeClinic, clinic } = useAuth();
+  const { user, isAuthenticated, roleInfo, effectiveRole, logout, activeClinic, clinic } = useAuth();
   const { isGuest, isGuestRoute, requiresAuth, initGuest, showRegistrationModal, setRegistrationModal } = useGuestStore();
   const isMobile = useCompactShell();
   const {
@@ -52,6 +52,7 @@ export const IntelligenceLayout: React.FC = () => {
   const caseContext = useEcosystemUrlContext();
   const setAiQuery = useAIStore(s => s.setQuery);
 
+  const roleLabel = roleInfo?.label || getRoleDisplayLabel(effectiveRole || (user as any)?.platformRole || user?.role);
   const isLoginRoute = ['/login', '/register', '/forgot-password', '/booking'].some(p => location.pathname.startsWith(p));
   const isPublicWelcome = location.pathname === '/';
   const isPatient = String(user?.role || '').toLowerCase() === 'patient';
@@ -136,7 +137,26 @@ export const IntelligenceLayout: React.FC = () => {
         <header className="sticky top-0 z-30 flex h-16 items-center gap-3 border-b border-[var(--dv-border)] bg-[var(--dv-sidebar)]/95 px-4 backdrop-blur-xl">
           {isMobile && <button type="button" aria-label="Открыть меню" onClick={() => setSidebarOpen(true)} className="flex min-h-11 min-w-11 items-center justify-center rounded-xl p-2 text-[var(--dv-muted)] hover:bg-[var(--dv-nav-hover)]"><Menu size={19} /></button>}
           <WorkspaceSwitcher />
-          <div className="ml-auto flex items-center gap-2"><LanguageSwitcher /><AlertDropdown alerts={[]} isOpen={alertOpen} setIsOpen={setAlertOpen} /><DentCashHeaderChip /></div>
+          <div className="ml-auto flex items-center gap-2">
+            <button
+              type="button"
+              aria-label={contextSheetOpen ? 'Закрыть контекст' : 'Открыть контекст'}
+              aria-expanded={contextSheetOpen}
+              onClick={() => setContextSheetOpen((open) => !open)}
+              className={cn(
+                'flex min-h-11 min-w-11 items-center justify-center rounded-xl p-2 transition-colors',
+                contextSheetOpen
+                  ? 'bg-dv-gold/10 text-dv-gold'
+                  : 'text-[var(--dv-muted)] hover:bg-[var(--dv-nav-hover)] hover:text-foreground',
+              )}
+              title={contextSheetOpen ? 'Закрыть контекст' : 'Контекст и AI-сигналы'}
+            >
+              <PanelRight size={19} />
+            </button>
+            <LanguageSwitcher />
+            <AlertDropdown alerts={[]} isOpen={alertOpen} setIsOpen={setAlertOpen} />
+            <DentCashHeaderChip />
+          </div>
         </header>
         <main className="relative min-h-[calc(100vh-4rem)] pb-[calc(var(--dv-bottomnav-height,3.5rem)+var(--dv-safe-bottom))] md:pb-0">
           <ErrorBoundary><Outlet context={{ clinic: activeClinic || clinic, user, roleInfo }} /></ErrorBoundary>
@@ -149,7 +169,7 @@ export const IntelligenceLayout: React.FC = () => {
         <AnimatePresence>
           {contextSheetOpen && (
             <motion.aside initial={{ x: 380, opacity: 0 }} animate={{ x: 0, opacity: 1 }} exit={{ x: 380, opacity: 0 }} className="fixed right-0 top-16 z-40 h-[calc(100vh-4rem)] w-[380px] border-l border-[var(--dv-border)] bg-[var(--dv-sidebar)] shadow-2xl">
-              <ContextPanel />
+              <ContextPanel onClose={() => setContextSheetOpen(false)} />
             </motion.aside>
           )}
         </AnimatePresence>
@@ -159,7 +179,7 @@ export const IntelligenceLayout: React.FC = () => {
           {contextSheetOpen && (
             <motion.div initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }} className="fixed inset-x-0 bottom-0 z-50 max-h-[80vh] rounded-t-3xl border-t border-[var(--dv-border)] bg-[var(--dv-sidebar)] p-3 shadow-2xl">
               <div className="mx-auto mb-2 h-1 w-10 rounded-full bg-[var(--dv-border)]" />
-              <ContextPanel />
+              <ContextPanel onClose={() => setContextSheetOpen(false)} />
             </motion.div>
           )}
         </AnimatePresence>

@@ -22,13 +22,14 @@ This document is the persistent execution contract for DentVision. It is the sou
 ### Phase 0 — Technical baseline / control plane
 **Status:** COMPLETE
 
-Evidence recorded in `CURRENT_STATE.md` and `DENTVISION_EXECUTION_LOG.md`.
+Evidence recorded in `DENTVISION_CONTEXT.md` and `DENTVISION_EXECUTION_LOG.md`; the context file is the current state bootstrap.
 
 - [x] Create this master execution plan.
 - [x] Create persistent execution log.
-- [x] Confirm the existing project control plane: `ARCHITECTURE.md`, `CURRENT_STATE.md`, and `.dentvision/current-state.json`.
+- [x] Confirm the control plane: `DENTVISION_CONTEXT.md` is the current state/authority bootstrap; `ARCHITECTURE.md` is the architecture overview; `.dentvision/current-state.json` is the curated machine-readable summary sourced from context (`generated: false`).
+- [x] Record repository-path audit: `CURRENT_STATE.md` is absent at this branch head and is not an active current-state source; do not recreate a competing status document.
 - [x] Stabilize CI and record evidence.
-- [x] Restore/verify `dentvision-backend/src/modules/patients/patients.routes.ts` against Git history as required by `CURRENT_STATE.md`.
+- [x] Restore/verify `dentvision-backend/src/modules/patients/patients.routes.ts` against Git history, recording evidence in `DENTVISION_EXECUTION_LOG.md` (no `CURRENT_STATE.md` exists at this branch head).
 - [x] Verify backend runtime/infrastructure baseline.
 - [x] Record the exact baseline commit and active implementation branch in the execution log.
 - [x] Locate and read the canonical `DENTVISION_PARTNER_ECONOMICS.md`; retain it as the sole economics policy source.
@@ -357,3 +358,27 @@ A phase is complete only when:
 **After these P0 gates:** resume the business-owner lifecycle vertical slice (registration → organization → branches → staff/permissions → operations → economics), then partner transparency/Finance Hub, automated operations and product-wide UX/clinical/ecosystem hardening.
 
 The work proceeds in vertical slices: implement → targeted verify → full relevant gates → commit → update the persistent log → move to the next slice.
+
+## Ecosystem support operations — inventory-first workstream (2026-10-23)
+
+**Status:** DESIGN RECORDED; implementation inventory and runtime verification NOT STARTED. Do not treat this as a shipped feature.
+
+Canonical design: `docs/operations/DENTVISION_ECOSYSTEM_SUPPORT_OPERATIONS.md`. This is a bounded operations model, not a competing roadmap or source of product/economic policy.
+
+- [ ] SUP-01 inventory existing support, feedback, incident, admin, notification and knowledge capabilities in code and tests.
+- [ ] SUP-02 verify tenant-scoped case lifecycle and immutable audit history.
+- [ ] SUP-03 prove server-side role/domain authorization and cross-tenant denial.
+- [ ] SUP-04 approve severity/service-hours policy before enabling SLA clocks.
+- [ ] SUP-05 verify incident ownership, timeline, customer updates and postmortem workflow.
+- [ ] SUP-06 verify assignment, backup ownership, overdue detection and escalation delivery.
+- [ ] SUP-07 verify safe attachments, PHI redaction and restricted clinical evidence access.
+- [ ] SUP-08 define and reconcile dashboard metrics against source records.
+- [ ] SUP-09 verify knowledge search, article permissions, ownership and review lifecycle.
+- [ ] SUP-10 verify notification delivery, retries, deduplication and PHI-safe payloads.
+- [ ] SUP-11 verify defect-to-PR-to-CI-to-release traceability.
+- [ ] SUP-12 verify AI triage remains advisory, evidence-grounded and human-approved for high-risk actions.
+- [ ] SUP-13 verify mobile, offline/retry, accessibility and all ecosystem participant contexts.
+- [ ] SUP-14 verify retention, deletion, export and legal-hold controls.
+- [ ] SUP-15 assign primary/backup operational owners and rehearse incident recovery.
+
+Definition of DONE for each SUP item: exact code path + owning service + authorization scope + tests + current CI/runtime evidence + known limitations. A route, screen or document alone is insufficient. Update this existing plan and the execution log; do not create another status register.

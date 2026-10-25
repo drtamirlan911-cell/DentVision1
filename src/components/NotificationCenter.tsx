@@ -9,10 +9,9 @@ import {
   Settings as SettingsIcon,
   Check,
   X,
-  ArrowRight,
-  Clock3,
 } from 'lucide-react'
 import { useNotificationStore } from '@/store/notification.store'
+import * as api from '@/utils/api'
 import { cn, timeAgo } from '@/lib/utils'
 import type { AppNotification, NotificationType } from '@/types'
 import { useTranslation } from 'react-i18next'
@@ -43,7 +42,7 @@ export default function NotificationCenter() {
   const markAll = useNotificationStore((s) => s.markAllAsRead)
   const [open, setOpen] = useState(false)
   const [tab, setTab] = useState<'all' | 'unread'>('all')
-  const [selectedNotification, setSelectedNotification] = useState<AppNotification | null>(null)
+  const [selected, setSelected] = useState<AppNotification | null>(null)
   const ref = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -58,16 +57,36 @@ export default function NotificationCenter() {
 
   const typeMeta = useTypeMeta()
 
-  const handleOpen = (n: AppNotification) => {
+  const handleOpen = async (n: AppNotification) => {
     if (!n.read) void markRead(n.id)
-    setSelectedNotification(n)
+    setSelected(n)
+    try {
+      const detail = await api.getNotification(n.id)
+      if (detail) setSelected({ ...n, ...detail })
+    } catch {
+      // The list item remains usable when the detail request fails.
+    }
   }
 
-  const handleNavigate = () => {
-    const actionUrl = selectedNotification?.actionUrl
-    setSelectedNotification(null)
+  const closeDetail = () => setSelected(null)
+
+  useEffect(() => {
+    if (!selected && !open) return
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        if (selected) setSelected(null)
+        else setOpen(false)
+      }
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [selected, open])
+
+  const followAction = () => {
+    if (!selected?.actionUrl) return
+    closeDetail()
     setOpen(false)
-    if (actionUrl) navigate(actionUrl)
+    navigate(selected.actionUrl)
   }
 
   return (
@@ -84,6 +103,38 @@ export default function NotificationCenter() {
           </span>
         )}
       </button>
+
+      <AnimatePresence>
+        {selected && (
+          <motion.div
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[70] flex items-center justify-center bg-black/60 p-4"
+            role="dialog" aria-modal="true" aria-label={selected.title}
+            onMouseDown={(e) => { if (e.target === e.currentTarget) closeDetail() }}
+          >
+            <motion.div
+              initial={{ opacity: 0, y: 8, scale: 0.98 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: 8, scale: 0.98 }}
+              className="w-full max-w-lg rounded-2xl border border-bdr-subtle bg-surface-1 shadow-2xl"
+            >
+              <div className="flex items-start justify-between gap-4 border-b border-bdr-subtle px-5 py-4">
+                <div className="min-w-0">
+                  <p className="text-2xs font-medium text-dv-gold">{typeMeta[selected.type as NotificationType]?.label || t('platform.notification_system')}</p>
+                  <h3 className="mt-1 text-base font-semibold text-txt-primary">{selected.title}</h3>
+                </div>
+                <button type="button" aria-label="Close notification details" onClick={closeDetail} className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-txt-muted hover:bg-surface-2 hover:text-txt-primary"><X size={18} /></button>
+              </div>
+              <div className="space-y-3 px-5 py-5">
+                <p className="whitespace-pre-wrap break-words text-sm leading-6 text-txt-secondary">{selected.message || 'Нет дополнительного описания.'}</p>
+                <p className="text-2xs text-txt-ghost">{timeAgo(selected.createdAt)}</p>
+              </div>
+              <div className="flex justify-end gap-2 border-t border-bdr-subtle px-5 py-3">
+                <button type="button" onClick={closeDetail} className="min-h-9 rounded-lg px-3 py-2 text-xs text-txt-secondary hover:bg-surface-2">Закрыть</button>
+                {selected.actionUrl && <button type="button" onClick={followAction} className="min-h-9 rounded-lg bg-dv-gold px-3 py-2 text-xs font-medium text-black">Открыть связанный раздел</button>}
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       <AnimatePresence>
         {open && (
@@ -108,7 +159,7 @@ export default function NotificationCenter() {
               <button
                 aria-label="Close notifications"
                 onClick={() => setOpen(false)}
-                className="text-txt-muted hover:text-txt-primary"
+                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-txt-muted hover:bg-surface-2 hover:text-txt-primary"
               >
                 <X size={16} />
               </button>
@@ -121,7 +172,7 @@ export default function NotificationCenter() {
                   key={tabValue}
                   onClick={() => setTab(tabValue)}
                   className={cn(
-                    'rounded-lg px-3 py-1.5 text-xs font-medium transition-colors',
+                    'min-h-9 rounded-lg px-3 py-1.5 text-xs font-medium transition-colors',
                     tab === tabValue ? 'bg-surface-2 text-dv-gold' : 'text-txt-muted hover:text-txt-secondary'
                   )}
                 >
@@ -131,7 +182,7 @@ export default function NotificationCenter() {
               <div className="ml-auto">
                 <button
                   onClick={markAll}
-                  className="flex items-center gap-1 rounded-lg px-2 py-1.5 text-2xs text-txt-muted hover:text-txt-primary"
+                  className="flex min-h-9 items-center gap-1 rounded-lg px-2 py-1.5 text-2xs text-txt-muted hover:text-txt-primary"
                 >
                   <Check size={13} /> {t('platform.notification_read_all')}
                 </button>
@@ -187,100 +238,6 @@ export default function NotificationCenter() {
         )}
       </AnimatePresence>
 
-      <AnimatePresence>
-        {selectedNotification && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[1100] flex items-end justify-center bg-black/60 p-0 sm:items-center sm:p-4"
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="notification-detail-title"
-            onMouseDown={(event) => {
-              if (event.target === event.currentTarget) setSelectedNotification(null)
-            }}
-          >
-            <motion.div
-              initial={{ opacity: 0, y: 24 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: 24 }}
-              transition={{ duration: 0.18 }}
-              className="w-full max-w-lg overflow-hidden rounded-t-2xl border border-bdr-subtle bg-surface-1 shadow-2xl sm:rounded-2xl"
-            >
-              <div className="flex items-start justify-between gap-3 border-b border-bdr-subtle px-4 py-4">
-                <div className="min-w-0">
-                  <div className="mb-1 flex items-center gap-2">
-                    <span
-                      className="flex h-8 w-8 items-center justify-center rounded-lg"
-                      style={{
-                        backgroundColor: `${(typeMeta[selectedNotification.type as NotificationType] || typeMeta.system).color}1a`,
-                        color: (typeMeta[selectedNotification.type as NotificationType] || typeMeta.system).color,
-                      }}
-                    >
-                      {(typeMeta[selectedNotification.type as NotificationType] || typeMeta.system).icon}
-                    </span>
-                    <span
-                      className="text-xs font-medium"
-                      style={{ color: (typeMeta[selectedNotification.type as NotificationType] || typeMeta.system).color }}
-                    >
-                      {(typeMeta[selectedNotification.type as NotificationType] || typeMeta.system).label}
-                    </span>
-                  </div>
-                  <h3 id="notification-detail-title" className="text-base font-semibold text-txt-primary">
-                    {selectedNotification.title}
-                  </h3>
-                </div>
-                <button
-                  type="button"
-                  aria-label="Закрыть уведомление"
-                  onClick={() => setSelectedNotification(null)}
-                  className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-txt-muted hover:bg-surface-2 hover:text-txt-primary"
-                >
-                  <X size={18} />
-                </button>
-              </div>
-
-              <div className="max-h-[60vh] overflow-y-auto px-4 py-5">
-                <div className="mb-4 flex items-center gap-2 text-xs text-txt-muted">
-                  <Clock3 size={14} />
-                  <span>{timeAgo(selectedNotification.createdAt)}</span>
-                  {!selectedNotification.read && (
-                    <span className="rounded-full bg-dv-gold/15 px-2 py-0.5 text-[10px] font-semibold text-dv-gold">
-                      {t('platform.notification_new')}
-                    </span>
-                  )}
-                </div>
-                <div className="rounded-xl border border-bdr-subtle bg-surface-2/50 px-4 py-4">
-                  <p className="whitespace-pre-wrap break-words text-sm leading-6 text-txt-secondary">
-                    {selectedNotification.message || 'Нет дополнительного описания.'}
-                  </p>
-                </div>
-              </div>
-
-              <div className="flex flex-col-reverse gap-2 border-t border-bdr-subtle px-4 py-3 sm:flex-row sm:justify-end">
-                <button
-                  type="button"
-                  onClick={() => setSelectedNotification(null)}
-                  className="min-h-11 rounded-lg border border-bdr-subtle px-4 text-sm font-medium text-txt-secondary hover:bg-surface-2 hover:text-txt-primary"
-                >
-                  Закрыть
-                </button>
-                {selectedNotification.actionUrl && (
-                  <button
-                    type="button"
-                    onClick={handleNavigate}
-                    className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg bg-dv-gold px-4 text-sm font-semibold text-black hover:brightness-105"
-                  >
-                    Открыть
-                    <ArrowRight size={15} />
-                  </button>
-                )}
-              </div>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
     </div>
   )
 }

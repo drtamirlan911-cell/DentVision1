@@ -1,4 +1,6 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 
 /**
  * settlePaidPayment used to call recordSale/activateClinicSubscriptionFromPayment/
@@ -10,12 +12,13 @@ import { describe, expect, it, vi, beforeEach } from 'vitest';
  * every branch's callee — not the global prisma client, not a new default.
  */
 
-const { recordSaleTx, recordPartnerEconomics, activateClinicSubscriptionFromPayment, isSaasPlanId, accrueSaasCashback, markSettlementPaid, writeRevenue } =
+const { recordSaleTx, recordPartnerEconomics, activateClinicSubscriptionFromPayment, isSaasPlanId, getPlanCatalog, accrueSaasCashback, markSettlementPaid, writeRevenue } =
   vi.hoisted(() => ({
     recordSaleTx: vi.fn(),
     recordPartnerEconomics: vi.fn(),
     activateClinicSubscriptionFromPayment: vi.fn(),
     isSaasPlanId: vi.fn(() => true),
+  getPlanCatalog: vi.fn(() => [{ id: 'professional', amountMinor: '4990000' }, { id: 'enterprise', amountMinor: '14990000' }]),
     accrueSaasCashback: vi.fn(),
     markSettlementPaid: vi.fn(),
     writeRevenue: vi.fn(),
@@ -28,6 +31,7 @@ vi.mock('../finance/revenue.service.js', () => ({ writeRevenue }));
 vi.mock('../billing/clinicSubscription.service.js', () => ({
   activateClinicSubscriptionFromPayment,
   isSaasPlanId,
+  getPlanCatalog,
 }));
 vi.mock('../dentcash/cashback.engine.js', () => ({ accrueSaasCashback }));
 vi.mock('../diagnostics/settlement.service.js', () => ({ markSettlementPaid }));
@@ -84,7 +88,7 @@ describe('settlePaidPayment — db threading', () => {
         domain: null,
         sellerType: null,
         sellerId: null,
-        amount: 49900n,
+        amount: 4990000n,
         meta: { saasPlan: 'professional', months: 1 },
       },
       fakeTx,
@@ -94,9 +98,27 @@ describe('settlePaidPayment — db threading', () => {
       fakeTx,
     );
     expect(writeRevenue).toHaveBeenCalledWith(
-      expect.objectContaining({ source: 'SaaS', amountMinor: 49900n, refId: 'clinic-1' }),
+      expect.objectContaining({ source: 'SaaS', amountMinor: 4990000n, refId: 'clinic-1' }),
       fakeTx,
     );
+  });
+
+
+  it('subscription branch: rejects a tampered amount before activation', async () => {
+    await expect(settlePaidPayment(
+      {
+        id: 'pay-sub-bad',
+        refType: 'subscription',
+        refId: 'clinic-1',
+        domain: null,
+        sellerType: null,
+        sellerId: null,
+        amount: 4990001n,
+        meta: { saasPlan: 'professional', months: 1 },
+      },
+      fakeTx,
+    )).rejects.toThrow('Недопустимая сумма SaaS-подписки');
+    expect(activateClinicSubscriptionFromPayment).not.toHaveBeenCalled();
   });
 
   it('settlement branch: passes db through to markSettlementPaid', async () => {
@@ -238,3 +260,38 @@ describe('claimPaymentForSettlement — double-confirm race guard', () => {
     expect(recordPartnerEconomics).not.toHaveBeenCalled();
   });
 });
+
+
+describe('Academy settlement source-of-truth contract', () => {
+  it('derives course payment amount and seller identity from the canonical course', () => {
+    const source = readFileSync(
+      resolve(process.cwd(), 'dentvision-backend/src/modules/payments/payments.routes.ts'),
+      'utf8',
+    );
+    const start = source.indexOf('async function settleEnrollmentPayment(');
+    const end = source.indexOf('async function settleAcademyEventPayment(', start);
+    const block = source.slice(start, end);
+    expect(block).toContain('const expectedAmount = tengeToMinor(Number(course.price || 0));');
+    expect(block).toContain("const sellerType = course.lecturerId ? 'LECTURER' : course.academyId ? 'ACADEMY' : null;");
+    expect(block).toContain('const sellerId = course.lecturerId || course.academyId || null;');
+    expect(block).not.toContain('payment.sellerId');
+    expect(block).not.toContain('payment.sellerType');
+  });
+});
+
+describe('Subscription payment creation boundary', () => {
+  it('requires scoped billing access and exact tariff amount before creating a subscription payment', () => {
+    const source = readFileSync(
+      resolve(process.cwd(), 'dentvision-backend/src/modules/payments/payments.routes.ts'),
+      'utf8',
+    );
+    const createStart = source.indexOf("paymentsRouter.post('/', authenticate");
+    const refundStart = source.indexOf("paymentsRouter.post('/:id/refund", createStart);
+    const block = source.slice(createStart, refundStart);
+    expect(block).toContain("if (refType === 'subscription')");
+    expect(block).toContain("assertClinicBillingAccess(req.user!.id, subscriptionClinicId)");
+    expect(block).toContain("const expectedMinor = BigInt(plan.amountMinor) * BigInt(months)");
+    expect(block).toContain("if (minor !== expectedMinor)");
+  });
+});
+
