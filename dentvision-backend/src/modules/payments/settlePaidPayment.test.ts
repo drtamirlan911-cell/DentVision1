@@ -123,7 +123,7 @@ describe('settlePaidPayment — db threading', () => {
         meta: { saasPlan: 'professional', months: 1 },
       },
       fakeTx,
-    )).rejects.toThrow('Недопустимая сумма SaaS-подписки');
+    )).rejects.toThrow('Сумма платежа подписки не совпадает с каноническим тарифом');
     expect(activateClinicSubscriptionFromPayment).not.toHaveBeenCalled();
   });
 
