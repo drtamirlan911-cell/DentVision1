@@ -13,6 +13,7 @@ import {
   Clock3,
 } from 'lucide-react'
 import { useNotificationStore } from '@/store/notification.store'
+import * as api from '@/utils/api'
 import { cn, timeAgo } from '@/lib/utils'
 import type { AppNotification, NotificationType } from '@/types'
 import { useTranslation } from 'react-i18next'
@@ -58,9 +59,15 @@ export default function NotificationCenter() {
 
   const typeMeta = useTypeMeta()
 
-  const handleOpen = (n: AppNotification) => {
+  const handleOpen = async (n: AppNotification) => {
     if (!n.read) void markRead(n.id)
     setSelectedNotification(n)
+    try {
+      const detail = await api.getNotification(n.id)
+      if (detail) setSelectedNotification({ ...n, ...detail })
+    } catch {
+      // Keep the list item usable if the detail request fails.
+    }
   }
 
   const handleNavigate = () => {
@@ -69,6 +76,18 @@ export default function NotificationCenter() {
     setOpen(false)
     if (actionUrl) navigate(actionUrl)
   }
+
+  useEffect(() => {
+    if (!selectedNotification && !open) return
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        if (selectedNotification) setSelectedNotification(null)
+        else setOpen(false)
+      }
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [selectedNotification, open])
 
   return (
     <div className="relative" ref={ref}>
