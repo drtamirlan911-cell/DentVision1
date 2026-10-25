@@ -126,6 +126,31 @@ enum PaymentStatus {
   expired
 }
 
+enum SupportTicketStatus {
+  OPEN
+  IN_PROGRESS
+  WAITING_FOR_USER
+  RESOLVED
+  CLOSED
+}
+
+enum SupportTicketCategory {
+  ACCOUNT
+  ACCESS
+  WORKFLOW
+  BILLING
+  BUG
+  SECURITY
+  OTHER
+}
+
+enum SupportTicketPriority {
+  LOW
+  NORMAL
+  HIGH
+  URGENT
+}
+
 // --- USER SYSTEM ---
 
 model User {
@@ -212,6 +237,9 @@ model User {
   patientConversationsAsPatient PatientConversation[]        @relation("PatientConversationAsPatient")
   patientConversationsAssigned  PatientConversation[]        @relation("PatientConversationAssignee")
   patientConversationMessages   PatientConversationMessage[]
+  supportTicketsCreated         SupportTicket[]        @relation("SupportTicketRequester")
+  supportTicketsAssigned        SupportTicket[]        @relation("SupportTicketAssignee")
+  supportTicketMessages         SupportTicketMessage[] @relation("SupportTicketMessageAuthor")
 
   @@map("users")
 }
@@ -919,6 +947,7 @@ model Invoice {
   clinic        Clinic         @relation(fields: [clinicId], references: [id], onDelete: Cascade)
   patient       Patient?       @relation(fields: [patientId], references: [id], onDelete: SetNull)
   treatmentPlan TreatmentPlan? @relation(fields: [treatmentPlanId], references: [id], onDelete: SetNull)
+  treatmentCase TreatmentCase? @relation(fields: [treatmentCaseId], references: [id], onDelete: SetNull)
 
   createdAt DateTime  @default(now())
   updatedAt DateTime? @updatedAt
@@ -3914,4 +3943,47 @@ model TreatmentCase {
   @@index([patientId])
   @@index([status])
   @@map("treatment_cases")
+}
+
+
+/// Platform-wide support request. Do not attach clinical files or patient identifiers.
+model SupportTicket {
+  id              String                @id @default(uuid())
+  requesterUserId String?
+  assigneeUserId  String?
+  category        SupportTicketCategory
+  status          SupportTicketStatus   @default(OPEN)
+  priority        SupportTicketPriority @default(NORMAL)
+  subject         String                @db.VarChar(160)
+  description     String                @db.Text
+  sourcePath      String?               @db.VarChar(240)
+  firstResponseAt DateTime?
+  resolvedAt      DateTime?
+  closedAt        DateTime?
+  createdAt       DateTime              @default(now())
+  updatedAt       DateTime              @updatedAt
+
+  requester User?                 @relation("SupportTicketRequester", fields: [requesterUserId], references: [id], onDelete: SetNull)
+  assignee  User?                 @relation("SupportTicketAssignee", fields: [assigneeUserId], references: [id], onDelete: SetNull)
+  messages  SupportTicketMessage[]
+
+  @@index([requesterUserId, updatedAt])
+  @@index([status, priority, createdAt])
+  @@index([assigneeUserId, status])
+  @@map("support_tickets")
+}
+
+/// User-visible ticket conversation; no internal-note or attachment path in v1.
+model SupportTicketMessage {
+  id           String   @id @default(uuid())
+  ticketId     String
+  authorUserId String?
+  body         String   @db.Text
+  createdAt    DateTime @default(now())
+
+  ticket SupportTicket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  author User?          @relation("SupportTicketMessageAuthor", fields: [authorUserId], references: [id], onDelete: SetNull)
+
+  @@index([ticketId, createdAt])
+  @@map("support_ticket_messages")
 }
