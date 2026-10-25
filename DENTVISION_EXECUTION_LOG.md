@@ -2061,3 +2061,10 @@ These changes are route/entry reconciliation only. Existing domain implementatio
 - Because the CI job had already failed two required gates, the remaining run was intentionally superseded by the consolidated candidate rather than spending additional runner time on a known-failing SHA. GitHub Actions is configured to cancel the previous CI execution for a new push to the same ref; the old failure artifacts remain evidence and are not treated as a pass.
 - The consolidated candidate includes the role/context timing and visible-role repair, support-route correction, safe onboarding response capture, deterministic lifecycle re-login, compact E2E live output with full logs retained, and watcher exclusions for generated Playwright evidence. The finance E2E validation/authorization split is also included.
 - The branch ref has not been updated by this documentation record yet. New exact-head verification is required after publishing the candidate; release remains NOT READY.
+
+
+## 2026-10-25 — E2E diagnostics checkpoint workflow optimization
+
+- On candidate SHA `f90208b5eeb019e34faadfd1396efc91b75f84f5`, frontend lint, backend lint, both Quality Gate runs and unit/type/lint-test checks passed. The core E2E step failed, but its log was not available to the connected log reader while the same E2E job continued through later gates; final artifact upload currently occurred near the end of the job.
+- Added per-gate failure checkpoint uploads immediately after core E2E, browser UX, mobile design, role/context, Visual Agent, business-owner journeys and organization-owner lifecycle. Each checkpoint contains only that gate's text log and compact test failure context, with three-day retention and maximum compression; large Playwright traces and HTML reports remain on their existing failure-only upload path.
+- This is an observability/workflow improvement, not a test pass. The failed-core candidate will be intentionally superseded to activate the early-artifact path; release remains NOT READY.
