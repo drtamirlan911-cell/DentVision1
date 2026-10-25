@@ -352,3 +352,14 @@ This is a read-only census of all branch refs returned by GitHub at the time of 
 - On that same SHA, backend-lint, frontend-lint and lint-test passed; the E2E core suite failed while subsequent role/context gate was still running at last inspection. The post-port changes produce a new SHA and require a fresh complete run.
 - E2E failure patterns from the prior completed run include late Playwright response-body reads after navigation, a login-form selector timeout in the organization-owner journey, and duplicate test fixture uniqueness keys (users, appointments, idempotency records). These must be repaired at source; do not weaken assertions or disable coverage.
 - No source branch has been deleted, force-pushed, rebased, or rewritten. Release status remains **NOT READY**.
+
+## Appendix C — E2E contract corrections after log review (2026-10-25)
+
+| Failing check | Evidence | Change |
+|---|---|---|
+| Branch-management BRANCH-001/002/003 readback | `GET /api/branches` requires `clinicId` or `organizationId`; the test omitted both and also made unauthenticated Playwright API calls. | Add explicit clinic scope and the browser's Bearer access token to test API calls. |
+| Branch-management create diagnostics | UI create failure previously only surfaced as “branch name not visible”, obscuring the API failure. | Capture the matching POST response and include status/body in the test failure while preserving the 201 contract. Use a stable alphanumeric unique code. |
+| Notification detail NOTIFY-001 | Client POST to the notifications endpoint returned 403; notifications are operational records and this scenario only needs an existing owner-owned record to verify display/navigation. | Seed the fixture record in the test database and clean it up in `finally`; the test still exercises the actual UI details and linked navigation. |
+| Partner lifecycle PARTNER-001 | Refresh token was read from a shared API request context after logging in a radiologist, so refresh correctly returned the radiologist role. | Capture the diagnostic owner's refresh token immediately after self-service onboarding and use that token in the owner refresh assertion. |
+
+These are test-contract/data-isolation corrections, not bypasses of server authorization. Finance partner-economics test FIN-003 still needs an authorized fixture to distinguish parameter validation (400) from the expected authorization denial (403); its assertion is intentionally not weakened.

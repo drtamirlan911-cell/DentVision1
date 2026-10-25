@@ -1,8 +1,10 @@
 import { test, expect, type Page } from '@playwright/test';
+import { PrismaClient } from '../../dentvision-backend/node_modules/@prisma/client/index.js';
 
 const BASE = process.env.PLAYWRIGHT_UI_URL || 'http://localhost:3000';
 const OWNER_EMAIL = 'owner-a@test.com';
 const PASSWORD = 'Test1234!';
+const prisma = new PrismaClient();
 
 async function login(page: Page) {
   await page.goto(`${BASE}/login?role=owner`);
@@ -20,21 +22,16 @@ test.describe('Notification detail workflow', () => {
     const title = `E2E notification detail ${stamp}`;
     const message = `Notification body ${stamp}`;
 
-    const csrf = (await page.context().cookies()).find((cookie) => cookie.name === 'dv_csrf')?.value;
-    expect(csrf, 'authenticated browser must expose the CSRF cookie used for state-changing API calls').toBeTruthy();
+    const owner = await prisma.user.findUnique({ where: { email: OWNER_EMAIL }, select: { id: true } });
+    expect(owner?.id, 'the E2E owner fixture must exist').toBeTruthy();
+    try {
+      // Notifications are server-generated operational records. Seed the owner-owned
+      // record directly so this UI test does not depend on a client-write endpoint.
+      await prisma.notification.create({
+        data: { userId: owner!.id, type: 'system', title, message, link: '/crm/schedule', read: false },
+      });
 
-    const create = await page.request.post('/api/notifications', {
-      headers: { 'x-csrf-token': csrf! },
-      data: {
-        type: 'system',
-        title,
-        message,
-        link: '/crm/schedule',
-      },
-    });
-    expect(create.status()).toBe(201);
-
-    // The active topbar uses AlertDropdown; reload after creation so its
+      // The active topbar uses AlertDropdown; reload after creation so its
     // server-backed notification store performs a fresh read.
     await page.reload();
     const bell = page.locator('button[aria-label="Уведомления"]');
@@ -50,7 +47,12 @@ test.describe('Notification detail workflow', () => {
     await expect(dialog).toContainText(message);
     await expect(page).toHaveURL(/\/ai(?:$|[?#])/);
 
-    await dialog.getByRole('button', { name: 'Открыть связанный раздел' }).click();
-    await page.waitForURL(/\/crm\/schedule(?:$|[?#])/);
+      await dialog.getByRole('button', { name: 'Открыть связанный раздел' }).click();
+      await page.waitForURL(/\/crm\/schedule(?:$|[?#])/);
+    } finally {
+      await prisma.notification.deleteMany({ where: { userId: owner!.id, title } });
+    }
   });
+
+  test.afterAll(async () => { await prisma.$disconnect(); });
 });

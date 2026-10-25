@@ -2013,3 +2013,13 @@ These changes are route/entry reconciliation only. Existing domain implementatio
 - Before this selective port, merge commit `fd1ad330d4cfc9c954127ee902e7f2432575e259` passed Quality Gate, backend lint, frontend lint and lint-test. E2E core failed; later role/context validation was still running when last checked.
 - Prior complete E2E evidence includes Playwright response-body reads after navigation, a login-form selector timeout in the organization-owner journey, and unique-key collisions in seeded/concurrent tests. Fix the test lifecycle/data isolation itself; do not mute page/console errors, remove role coverage or loosen assertions.
 - **Verification:** newly ported session ownership changes have not yet passed the complete exact-head CI. Keep the integration PR draft and release status **NOT READY** until fresh exact-head CI, E2E, role/context, business-owner, organization-owner, visual/mobile and security gates pass.
+
+## 2026-10-25 — E2E diagnostics and fixture contract repairs
+
+- Root-cause review of the previous full E2E log confirmed:
+  - BRANCH-001/002/003 read `/api/branches` without required `clinicId`/ `organizationId`, and direct test API calls lacked the browser's Bearer token.
+  - BRANCH-004 did not surface the failing create response; the test now reports the exact status/body rather than only timing out waiting for a rendered name.
+  - NOTIFY-001's direct client write returned 403; the test now creates a server-owned notification fixture in the database and cleans it in `finally`, while continuing to verify the actual AlertDropdown and linked navigation.
+  - PARTNER-001 used the shared APIRequestContext's refresh cookie after authenticating a radiologist, then expected the diagnostic owner role. The owner refresh token is now captured immediately after self-service onboarding and used explicitly.
+- FIN-003 remains unresolved: owner-a currently receives 403 before invalid-period validation. Do not accept a 403 as proof that 400 validation is working and do not weaken the assertion; add an authorized finance fixture or a separate RBAC-vs-validation test.
+- These test fixes have not yet been validated by new exact-head CI; keep PR #317 draft and release state **NOT READY** until a fresh complete run is green.
