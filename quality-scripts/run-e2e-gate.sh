@@ -37,6 +37,7 @@ status=0
 wait "$command_pid" || status=$?
 finished_at="$(date +%s)"
 duration="$((finished_at - started_at))"
+printf '%s status=%s duration_seconds=%s log=%s\n' "$gate_name" "$status" "$duration" "$log_path" >> "$timing_path"
 printf '%s status=%s duration_seconds=%s log=%s\n' "$gate_name" "$status" "$duration" "$log_path"
 
 # The full log remains available as a failure-only artifact. Print only the
