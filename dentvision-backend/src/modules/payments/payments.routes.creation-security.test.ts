@@ -74,7 +74,6 @@ vi.mock('../../lib/orgContext.js', () => ({
   assertOrgAccess: m.assertOrgAccess,
   assertClinicOrgAccess: m.assertClinicOrgAccess,
   resolveClinicAccess: m.resolveClinicMemberAccess,
-  resolveClinicAccess: m.resolveClinicMemberAccess,
   resolveOrganizationIdForClinic: m.resolveOrganizationIdForClinic,
 }));
 vi.mock('../../lib/resolvePermissions.js', () => ({
