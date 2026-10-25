@@ -27,6 +27,58 @@
 11. Never create a competing roadmap, current-state file, release gate or product specification without a clearly different bounded purpose.
 12. Preserve all unfinished previous work while adding new priorities.
 
+## 2A. Current branch and release evidence — 2026-10-20
+
+- Active implementation branch: `security/payment-hardening-20261017`; pull request: [#307](https://github.com/drtamirlan911-cell/DentVision1/pull/307), still draft pending release verification.
+- Production `main` was not changed by this release-gate work.
+- Previous candidate `0134e6881687f5c9de7efe1c6ebe10eaa544d651`: Quality Gate and Android passed; backend/frontend lint and unit/build jobs passed; core E2E, browser UX and mobile design gate passed. The role/context gate remained in progress in the latest connected status because the full route matrix was repeated across eight viewport projects.
+- Follow-up factors viewport-independent authorization/tenant checks into one exhaustive `role-1280` run while retaining role-specific critical-screen DOM/responsive audits and the required screenshot per role per viewport. SPA route discovery no longer sleeps before successful first reads. The existing 60-minute CI E2E-job limit remains in place.
+- This follow-up remains **UNVERIFIED** until the exact-head CI, role/context, Visual Agent, business-owner and organization-owner gates finish. Do not merge or mark release-ready on the older candidate evidence.
+- Render API health was observed returning HTTP 200 with database status `ok` on 2026-10-19; Vercel reported no runtime-error clusters for its queried 24-hour window. These observations do not close the application release blockers.
+- RB-010 through RB-024 remain governed by `docs/RELEASE_BLOCKERS.md`; RB-019 specifically remains open because public Kaspi partner pages reviewed do not establish the technical API/callback contract assumed by the generic provider adapter.
+
+## 2B. Latest role-gate findings — 2026-10-20
+
+- Last checked candidate: `794638197e17a0cbd46180ca1406c31e67839a1d`. Core E2E, browser UX, mobile design gate, Quality Gate, Android, Visual Agent, business-owner and organization-owner stages passed; role/context failed on route-policy, student landing and responsive UI findings. CLI smoke failed at installation/invocation; visual validation failure was downstream from incomplete role screenshots after serial-test abort.
+- Follow-up fixes role-to-School routing for student effective roles, treats the existing public `/community` feed as public in role-policy tests, preserves partner `effectiveRole`, fixes measured 36px touch controls and clipped reminder labels, and preserves failure screenshots.
+- Playwright CLI invocation is corrected against official CLI docs; development-only CORS includes the 127.0.0.1:3000 loopback alias with explicit tests. Production CORS allowlist is unchanged.
+- These changes remain **UNVERIFIED** pending exact-HEAD CI. Keep PR #307 draft and do not deploy.
+- Canonical register: `docs/RELEASE_BLOCKERS.md`, RB-003, RB-025, RB-026; history: `DENTVISION_EXECUTION_LOG.md`.
+
+## 2C. E2E execution efficiency findings — 2026-10-23
+
+- Workflow run 39962109509 used exact head `5bb2e385434e038519de186c672a99aa6f44da56`. Frontend lint, backend lint, Quality Gate, Android, and unit checks passed. Core E2E passed in 64 seconds; browser UX passed in 106 seconds; mobile design passed in 117 seconds. On prior run 39959200531, mobile design took 165 seconds. The current mobile evidence artifact was 19.5 MB compressed.
+- The role/context matrix was still active after roughly 14 minutes without a reported gate result. It audits 71 declared routes across 16 roles plus discovered routes. The fixed 300 ms sleep after each route accumulated as artificial wait time.
+- The role gate now waits for meaningful root content and the disappearance of a full-screen loading/auth skeleton. For forbidden routes it waits for the URL path to leave the protected path, with a bounded timeout; route, role, and negative-access assertions remain enabled.
+- CI records per-gate duration/log location and an artifact manifest; full HTML/CLI reports are failure-only; passed mobile screenshots stay available for seven days. Summary extraction includes escaped literal `expect(` matches.
+- The new commit supersedes run 39962109509 before its role gate completed. Results for that role gate and subsequent stages on the superseded SHA are **not verified**. Keep PR #307 draft, do not merge/deploy, and require checks for the latest exact head.
+
+
+## 2D. Exact-head role-gate follow-up — 2026-10-23
+
+- Candidate before this follow-up: `9f7efd2b6c1946f0f15ffdd8400d9439b31f8b29`; CI run `39965626810`.
+- At inspection, frontend lint, backend lint, lint/unit/build, core E2E, browser UX, and mobile design gate had passed; Quality Gate and Android workflows were successful. The role/context gate was still running, so its outcome and downstream Visual Agent/business-owner/organization-owner/CLI/visual-release gates were not verified.
+- This follow-up deliberately supersedes the in-flight run to remove successful-path DOM/HTML artifact bloat, replace fixed sleeps with state-based readiness checks, and reconcile conflicting control-plane document references. The prior role result is neither pass nor fail.
+- The new branch head remains UNVERIFIED pending CI, E2E, browser/role, Visual Agent, partner lifecycle, CLI smoke, visual release evidence, and relevant platform checks on that exact HEAD. Keep PR #307 draft; do not merge or deploy.
+
+## 2E. Exact-head release-gate triage — 2026-10-24
+
+- Previous candidate: `f681f4b8f0784a1f8553da5612c58634593b2ab9`; workflow run `39970030360` completed on 2026-10-23. This run is evidence for that SHA only, not for the follow-up candidate.
+- Passed on that SHA: frontend lint, backend lint, lint/unit/build Quality Gate, Android, core E2E, Browser UX, mobile design gate, business-owner journeys, organization-owner lifecycle and Playwright CLI smoke.
+- Failed on that SHA: role/context gate (58 attempts failed), Visual Agent (3 failed, 44 passed) and visual release evidence validation downstream from missing role screenshots. The overall E2E job failed; no release-ready conclusion is allowed.
+- **RB-031 root cause:** the page origin was `http://localhost:3000` while browser API calls used `http://127.0.0.1:3001`; WebKit still reported access-control errors for `/api/guest/session` and `/api/ai/proactive`. The previous API-only hostname change was insufficient. The follow-up aligns both browser and API loopback hostnames and updates direct probes; production CORS policy is unchanged.
+- **RB-025 root cause:** the clinic `owner` label rendered `Руководитель`, while the canonical IAM role matrix requires `Владелец`. The follow-up changes only the display label, not the role/permission bundle.
+- **RB-003 root cause:** the shared `Button asChild` wrapped its child in a React Fragment before passing it to Radix `Slot`, preventing classes/size from reaching the child anchor. The patient portal CTA was measured at 149×24. The diagnostics `Все` action used the extra-small variant and measured around the 36px threshold. The follow-up fixes child propagation, adds a focused component regression test and raises the diagnostics action to `min-h-11`.
+- **Artifact evidence:** run `39970030360` produced a 186,463,087-byte aggregate Playwright artifact and 175,929,159 bytes of traces. Compact diagnostics were 2,548 bytes. Large failure traces were preserved; do not delete or suppress evidence. Inspect the bounded manifest first on the next run.
+- **Candidate implementation commit:** `3da346f752defe23853031747dde9e9dda5abdac`. A metadata/state commit is created directly on top of this implementation commit; only the final branch tip is eligible for exact-head verification.
+- `main` and production remain untouched; PR #307 remains draft. The new candidate is **UNVERIFIED** until GitHub Actions completes all required gates on its exact final SHA.
+
+### Root-cause 5-Why summaries
+1. WebKit network errors persisted because the page and API used different loopback hostnames; prior work changed only the API host, and direct probes still hard-coded localhost. Root cause: inconsistent CI origin canonicalization, not a reason to weaken CORS.
+2. Owner identity failed because the frontend's owner display label drifted from the canonical IAM matrix. Root cause: duplicate presentation mapping was not reconciled with the role contract; permissions remain unchanged.
+3. The patient portal link had no design-system hit target because `Button asChild` passed a Fragment rather than the actual child element to Radix `Slot`. Root cause: polymorphic component implementation violated its class/size forwarding contract; a component regression test now covers it.
+4. The diagnostics action was below the intended touch-target floor because it used the extra-small variant without a minimum height. Root cause: one action had not adopted the existing touch-target convention; `min-h-11` corrects it without weakening the gate.
+
 ## 3. Status vocabulary
 - DONE = implementation + workflow + verification evidence agree.
 - PARTIAL = meaningful implementation exists but full workflow is incomplete.
@@ -63,22 +115,18 @@ AI action lifecycle:
 - Canonical IAM role matrix path is docs/DENTVISION_IAM_ROLE_MATRIX.md. A root-level DENTVISION_IAM_ROLE_MATRIX.md does not exist; use the path under docs/ for future audits.
 
 ### Product status
-- Clinical RBAC boundary: IMPLEMENTED + unit coverage; fresh CI required after later main changes.
-- IAM / role matrix / tenant and branch isolation: PARTIAL; negative-path matrix continues.
-- Active-session enforcement: IMPLEMENTED + E2E regression.
-- Partner onboarding: PARTIAL.
-- Economics engine/ledger: PARTIAL; deterministic engine and rule snapshots exist, durable paid→settled medical-analysis and full reconciliation remain open.
+- Clinical RBAC boundary: IMPLEMENTED in source with unit coverage; current-main full CI and negative E2E remain unverified.
+- IAM / role matrix / tenant and branch isolation: PARTIAL; the complete negative-path release matrix is still open.
+- Active-session enforcement: IMPLEMENTED in source; exact-current-main release evidence is stale.
+- Partner onboarding and branch/staff lifecycle: PARTIAL until fresh owner journeys and cross-tenant/branch gates pass.
+- Economics engine/ledger: PARTIAL; deterministic rules and snapshots exist, but release verification and provider-backed payment semantics remain open.
 - Clinical OS / Treatment Case: PARTIAL.
-- Diagnostics: PARTIAL; confirmation action exists, full clinic→partner→result→confirmation→payment lifecycle is not release-proven.
-- Medical analysis laboratories: PARTIAL.
-- Dental laboratories: PARTIAL.
-- AI control plane: PARTIAL.
-- Marketplace / Academy / Jobs / Community: PARTIAL.
-- Finance Hub: PARTIAL.
-- UX/design system: PARTIAL; documentation now establishes ecosystem-first progressive-disclosure direction.
-- Web release: NOT READY until fresh gates prove the target commit.
+- Diagnostics, medical laboratories and dental laboratories: PARTIAL; complete partner lifecycle and cross-organization isolation are not release-proven on current `main`.
+- AI control plane, Marketplace, Academy, Jobs, Community and Finance Hub: PARTIAL.
+- UX/design system: PARTIAL; exact-current-main responsive/visual/role evidence is not complete.
+- Web release: NOT READY until full CI/E2E/visual/role-context gates pass on one exact target SHA and branch protection is enabled.
 - True natural interactive 32-tooth WebGL/3D odontogram: NOT IMPLEMENTED; current dental chart is not evidence of a WebGL renderer.
-- Android release: UNVERIFIED until fresh build/install/runtime evidence exists.
+- Android release: UNVERIFIED for current `main`; a passing build on PR #307 is not mainline release evidence.
 
 ## 6. Known implementation facts
 - `TreatmentCaseWorkspace` exists; full case lifecycle remains unverified/partial.
@@ -151,3 +199,58 @@ Superseded product roadmaps, stale status snapshots and duplicate North Star/add
 For each slice: **inspect → implement → test → fix → verify → document → continue**.
 
 Do not repeat an audit when implementation can resolve the issue. Do not weaken tests. Do not invent a parallel architecture. Preserve the whole ecosystem and make complexity progressively discoverable.
+- `4f540e4fc256779ad8598beebc898d206925322d` contains a focused odontogram UX refinement: desktop places the selected-tooth clinical context beside the curved upper/lower arches; mobile stacks it below. This is implementation evidence only until fresh exact-head CI/browser/visual gates pass.
+
+
+## 2026-10-08 — Current verified checkpoint
+- PR #302 remains open/draft and release remains UNVERIFIED.
+- Latest code changes after the previous checkpoint: physical branch timestamp alignment across E2E factories, patient branch scope, branch API and IAM context discovery; AI workspace 36px descendant button target guard.
+- These changes were driven by exact CI #3822 evidence: branch raw-SQL column mismatch caused cascading patient/appointment/clinical/IDOR failures; /me/contexts had the same stale timestamp query; Mobile Design Gate exposed undersized AI controls.
+- Fresh exact-head CI/Quality Gate must be used for release decisions after the latest documentation checkpoint.
+
+## 2026-10-08 — Marketplace context hardening
+- Marketplace list/detail now enforce catalog audience at the route boundary for PUBLIC/PATIENT contexts; authenticated PATIENT is explicitly recognized by the content-access resolver.
+- This addresses the exact CI #3822 patient-context professional-product exposure assertion without weakening the E2E contract.
+- Fresh exact-head CI remains the release evidence source; release is still UNVERIFIED.
+
+
+## 2026-10-08 — Final pre-CI SQL checkpoint
+- Corrected Branch raw SQL to use `created_at`/`updated_at` while preserving `clinic_members.updatedAt` camelCase.
+- Marketplace public/patient filtering includes a JSON-array type guard for legacy tag shapes.
+- This HEAD is the fresh release candidate for the next full CI evidence cycle; no readiness is inferred yet.
+
+
+## 2026-10-08 — Finance/Inventory branch scope checkpoint
+- Finance and Inventory branch-scope SQL now use the physical `branches.created_at` timestamp column.
+- Adjacent branch-related backend files were reviewed for the same confirmed stale Branch timestamp pattern; no additional confirmed production references were found in the checked set.
+- Current exact HEAD requires a fresh full CI/E2E/design/role/visual cycle before any readiness decision.
+
+
+## 2026-10-08 — Pricing permission correction checkpoint
+- PR #302 latest exact HEAD is `22274262449d88b6e5be09eef2dc09b4e66d0ef9`.
+- Diagnostic/laboratory pricing and catalog mutations no longer share the cashier-enabled billing guard.
+- This is a security hardening change only; no release readiness is inferred until fresh exact-head CI/E2E/browser/mobile/role/visual evidence exists.
+
+## 2026-10-08 — Payment refund authorization checkpoint
+- Clinic-scoped payment refunds now require the canonical `billing.manage` permission resolved against the exact clinic scope.
+- The earlier member-only refund authorization path is removed.
+- The latest exact PR #302 HEAD is `96c599643757e64b9a0a2a6fd2ecbde96b6ed048`.
+- Release remains UNVERIFIED until fresh exact-head CI/E2E/browser/mobile/role/visual evidence exists.
+
+## 2026-10-08 — Academy/Diagnostics policy checkpoint
+- Academy course CRUD uses scoped `academy.manage` and active Academy organization context; course create derives Academy/lecturer ownership and update/delete reject foreign Academy rows.
+- Academy format catalog routes and commerce registration now apply the canonical content-audience policy.
+- Diagnostics referral clinic authorization now translates domain Clinic.id to canonical Organization.id through `assertClinicOrgAccess`.
+- Latest documented HEAD: `da864b717d63d9a1a26bca14a1b6fd2978e41e96`.
+- Fresh exact-head CI is pending; release remains UNVERIFIED.
+
+## 2026-10-08 — Subscription finance checkpoint
+- Generic subscription payment creation now requires scoped clinic billing authority and an exact server-derived plan total.
+- Subscription settlement repeats the plan/amount invariant before activating the target clinic subscription.
+- Latest documented HEAD: `a3c6f22b49475de8606a23ae1c1b1fa432df5028`.
+- Release remains UNVERIFIED pending exact-head CI/E2E/browser/mobile/role/visual evidence.
+
+## 2026-10-08 — Verification checkpoint
+- Local full Vitest on the preceding exact branch state passed: 727/727 test suites, 2059/2059 tests.
+- Current GitHub Quality Gate #5011 is green for `be7913e8d9c078d94fa96c4e11d342519a397138`.
+- Current CI #3920 is still running its lint-test and E2E/browser/mobile/role/visual chain.
