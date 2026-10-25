@@ -175,11 +175,9 @@ export default function FinanceTab() {
   const [disputeDetail, setDisputeDetail] = useState<any>(null);
   const [payoutStatusFilter, setPayoutStatusFilter] = useState('requested');
 
-  const report = useQuery({ queryKey: ['finance', 'report'], queryFn: () => api.getFinanceReport(), staleTime: 30_000 });
-  // Platform revenue split by where the money came from. `report` above cannot
-  // answer this: its `revenue` is one number, and BI's `bySource` keys on the
-  // free-form `payment.domain` string rather than the RevenueSource enum this
-  // ledger records.
+  // This is a platform finance view. Do not query /api/billing/reports here:
+  // that endpoint is intentionally scoped to a single active clinic. The platform
+  // view uses platform-level finance APIs below instead.
   const revenueSources = useQuery({
     queryKey: ['finance', 'revenue-by-source'],
     queryFn: () => api.getRevenueBySource(),
@@ -288,7 +286,6 @@ export default function FinanceTab() {
     return data;
   }
 
-  const reportData: any = report.data || {};
   const txData: any = transactions.data || {};
   const txList: any[] = Array.isArray(txData.data) ? txData.data : (Array.isArray(txData) ? txData : []);
   const txTotal: number = txData.total || txList.length;
@@ -346,12 +343,12 @@ export default function FinanceTab() {
 
       {subTab === 'overview' && (
         <div className="space-y-6">
-          {report.isLoading ? (
+          {(revenueSources.isLoading || transactions.isLoading || wallets.isLoading || commissionRules.isLoading || disputes.isLoading) ? (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
               {Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-24 rounded-xl" />)}
             </div>
-          ) : report.isError ? (
-            <FinanceQueryError onRetry={() => report.refetch()} />
+          ) : (revenueSources.isError || transactions.isError || wallets.isError || commissionRules.isError || disputes.isError) ? (
+            <FinanceQueryError onRetry={() => { void Promise.all([revenueSources.refetch(), transactions.refetch(), wallets.refetch(), commissionRules.refetch(), disputes.refetch()]); }} />
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
               <StatCard label="Транзакции" value={totalTransactions} icon={<ArrowUpDown size={18} />} />

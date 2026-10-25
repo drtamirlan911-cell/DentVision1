@@ -2121,3 +2121,9 @@ These changes are route/entry reconciliation only. Existing domain implementatio
 - The Shop Orders empty-state “В каталог →” button also lacked a sufficient touch target; it now receives minimum 44px dimensions and centering.
 - The BIZ-009 owner-onboarding test was separately corrected to clear cookies and persisted browser auth state before attempting another login, preventing restoration of the previous workspace from hiding the login form.
 - These are source/test changes on the draft verification branch. The latest full CI for this combined candidate must be checked after commit; no release is declared, PRs remain drafts, and production was not changed.
+
+## 2026-10-25 — E2E trace-rooted 400 fixes
+
+- Inspected the actual Playwright network trace, not just the generic console message. Diagnostic owner/operator failures were a `GET /api/diagnostics/referrals?limit=20&offset=0` response `400 {"ok":false,"error":"Укажите clinicId, centerId или labId"}`, despite a verified active `DIAGNOSTIC_CENTER` context in the authenticated request. Added a pure resolver to infer the omitted center/lab/clinic filter from server-authenticated context, then kept the existing scope authorization before querying. Explicit query scopes are still validated and cannot override tenant access.
+- The superadmin trace showed `GET /api/billing/reports` returned `400 {"ok":false,"error":"Clinic ID not found"}` in the platform Finance tab. That page used a clinic-only billing report just to gate its platform overview even though the displayed numbers come from platform finance APIs. Removed that cross-scope request and tied loading/error/retry state to the actual platform-level queries.
+- Added focused unit tests for active-context scope resolution. These changes are saved on the draft verification branch; exact-head CI must run before release status changes. No production database or service was queried/modified, and no PR was merged.
