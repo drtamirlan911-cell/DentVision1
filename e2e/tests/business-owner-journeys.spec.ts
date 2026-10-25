@@ -14,32 +14,39 @@ async function login(page: Page, role = 'owner') {
 
 async function submitAndCaptureOnboarding(page: Page): Promise<{ status: number; ok: boolean; body: any }> {
   let captured: { status: number; ok: boolean; body: any } | null = null;
-  await Promise.all([
-    page.waitForResponse(async (response) => {
-      if (
-        !response.url().includes('/api/organizations/self-service') ||
-        response.request().method() !== 'POST'
-      ) return false;
+  const routePattern = "**/api/organizations/self-service";
 
-      // Read the body while Playwright still owns the response lifecycle. The
-      // onboarding flow navigates immediately, which can invalidate a later
-      // response.json() call in the test.
-      const rawBody = await response.body().catch(() => Buffer.from(''));
-      let body: any = null;
-      try {
-        body = JSON.parse(rawBody.toString('utf8'));
-      } catch {
-        body = null;
-      }
-      captured = { status: response.status(), ok: response.ok(), body };
-      return true;
-    }, { timeout: 20000 }),
-    page.getByRole('button', { name: 'Создать и открыть workspace' }).click(),
-  ]);
-  if (!captured) throw new Error('Self-service onboarding response was not captured');
+  // Intercept the API response and read its body before the browser receives
+  // it. The onboarding UI navigates immediately after a successful response;
+  // reading the body later through CDP can fail with "No resource with given
+  // identifier found". Do not swallow this error into a false successful path.
+  await page.route(routePattern, async (route) => {
+    if (route.request().method() !== "POST") {
+      await route.continue();
+      return;
+    }
+
+    const upstream = await route.fetch();
+    const rawBody = await upstream.body();
+    let body: any = null;
+    try {
+      body = JSON.parse(rawBody.toString("utf8"));
+    } catch {
+      body = null;
+    }
+    captured = { status: upstream.status(), ok: upstream.ok(), body };
+    await route.fulfill({ response: upstream, body: rawBody });
+  });
+
+  try {
+    await page.getByRole("button", { name: "Создать и открыть workspace" }).click();
+  } finally {
+    await page.unroute(routePattern);
+  }
+
+  if (!captured) throw new Error("Self-service onboarding response was not captured");
   return captured;
 }
-
 test.describe('DentVision business owner journeys', () => {
   test('BIZ-000: new account registration → partner onboarding → persisted workspace context', async ({ page }) => {
     const unique = Date.now();
