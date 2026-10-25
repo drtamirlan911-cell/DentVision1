@@ -12,6 +12,41 @@ async function login(page: Page, role = 'owner') {
   await page.waitForURL(/\/ai(?:$|[?#])/, { timeout: 20000 });
 }
 
+async function submitAndCaptureOnboarding(page: Page): Promise<{ status: number; ok: boolean; body: any }> {
+  let captured: { status: number; ok: boolean; body: any } | null = null;
+  const routePattern = "**/api/organizations/self-service";
+
+  // Intercept the API response and read its body before the browser receives
+  // it. The onboarding UI navigates immediately after a successful response;
+  // reading the body later through CDP can fail with "No resource with given
+  // identifier found". Do not swallow this error into a false successful path.
+  await page.route(routePattern, async (route) => {
+    if (route.request().method() !== "POST") {
+      await route.continue();
+      return;
+    }
+
+    const upstream = await route.fetch();
+    const rawBody = await upstream.body();
+    let body: any = null;
+    try {
+      body = JSON.parse(rawBody.toString("utf8"));
+    } catch {
+      body = null;
+    }
+    captured = { status: upstream.status(), ok: upstream.ok(), body };
+    await route.fulfill({ response: upstream, body: rawBody });
+  });
+
+  try {
+    await page.getByRole("button", { name: "Создать и открыть workspace" }).click();
+  } finally {
+    await page.unroute(routePattern);
+  }
+
+  if (!captured) throw new Error("Self-service onboarding response was not captured");
+  return captured;
+}
 test.describe('DentVision business owner journeys', () => {
   test('BIZ-000: new account registration → partner onboarding → persisted workspace context', async ({ page }) => {
     const unique = Date.now();
@@ -53,16 +88,10 @@ test.describe('DentVision business owner journeys', () => {
     await page.getByLabel('Телефон').fill('+77000000021');
     await page.getByLabel('Email').fill(email);
 
-    const [onboardingResponse] = await Promise.all([
-      page.waitForResponse((response) =>
-        response.url().includes('/api/organizations/self-service') && response.request().method() === 'POST',
-        { timeout: 20000 },
-      ),
-      page.getByRole('button', { name: 'Создать и открыть workspace' }).click(),
-    ]);
-    const onboarding = onboardingResponse;
-    expect(onboarding.status()).toBe(201);
-    const onboardingPayload = await onboarding.json();
+    const onboarding = await submitAndCaptureOnboarding(page);
+    expect(onboarding.status).toBe(201);
+    expect(onboarding.ok).toBe(true);
+    const onboardingPayload = onboarding.body;
     expect(onboardingPayload.data?.verification).toBe('PENDING');
     expect(onboardingPayload.data?.organizationId).toBeTruthy();
     expect(onboardingPayload.data?.branchId).toBeTruthy();
@@ -165,19 +194,9 @@ test.describe('DentVision business owner journeys', () => {
       await page.getByLabel('Адрес').fill(`ул. E2E lifecycle ${unique}`);
       await page.getByLabel('Телефон').fill('+77000000020');
       await page.getByLabel('Email').fill(`${emailPrefix}-${unique}@test.com`);
-      const [response] = await Promise.all([
-        page.waitForResponse(
-          (response) =>
-            response.url().includes('/api/organizations/self-service') &&
-            response.request().method() === 'POST',
-          { timeout: 20000 },
-        ),
-        page.getByRole('button', { name: 'Создать и открыть workspace' }).click(),
-      ]);
-      const responseBody = await response.json();
-      const responseData = { status: response.status(), ok: response.ok(), body: responseBody };
-      expect(response.ok).toBeTruthy();
-      const onboarding = responseData.body;
+      const response = await submitAndCaptureOnboarding(page);
+      expect(response.ok).toBe(true);
+      const onboarding = response.body;
       expect(onboarding).toBeTruthy();
       expect(onboarding.data?.organizationId).toBeTruthy();
       expect(onboarding.data?.branchId).toBeTruthy();

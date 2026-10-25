@@ -244,7 +244,7 @@ export const AlertDropdown: React.FC<AlertDropdownProps> = ({ alerts, isOpen, se
                   type="button"
                   aria-label={t('common.close')}
                   onClick={() => setSelectedNotification(null)}
-                  className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-txt-muted hover:bg-surface-2 hover:text-txt-primary"
+                  className="flex min-h-11 min-w-11 shrink-0 items-center justify-center rounded-lg text-txt-muted hover:bg-surface-2 hover:text-txt-primary"
                 >
                   <X size={18} />
                 </button>
@@ -259,7 +259,7 @@ export const AlertDropdown: React.FC<AlertDropdownProps> = ({ alerts, isOpen, se
                 <button
                   type="button"
                   onClick={() => setSelectedNotification(null)}
-                  className="min-h-9 rounded-lg px-3 py-2 text-xs text-txt-secondary hover:bg-surface-2"
+                  className="min-h-11 rounded-lg px-3 py-2 text-xs text-txt-secondary hover:bg-surface-2"
                 >
                   {t('common.close')}
                 </button>
@@ -271,7 +271,7 @@ export const AlertDropdown: React.FC<AlertDropdownProps> = ({ alerts, isOpen, se
                       setSelectedNotification(null);
                       if (path) navigate(path);
                     }}
-                    className="min-h-9 rounded-lg bg-dv-gold px-3 py-2 text-xs font-medium text-black"
+                    className="min-h-11 rounded-lg bg-dv-gold px-3 py-2 text-xs font-medium text-black"
                   >
                     Открыть связанный раздел
                   </button>
@@ -290,8 +290,8 @@ export const AlertDropdown: React.FC<AlertDropdownProps> = ({ alerts, isOpen, se
               <div className="flex items-center justify-between px-3 py-2.5 border-b border-bdr-subtle">
                 <span className="text-xs font-semibold text-txt-primary">{t('platform.notifications')}</span>
                 <div className="flex items-center gap-1">
-                  {unreadNotifs > 0 && <button type="button" onClick={() => void markAll()} className="px-2 py-1 rounded text-[10px] text-txt-muted hover:text-txt-primary transition-colors">{t('platform.notification_read_all')}</button>}
-                  <button type="button" onClick={() => setIsOpen(false)} className="p-1 rounded text-txt-muted hover:text-txt-primary transition-colors" aria-label={t('common.close')}><X size={14} /></button>
+                  {unreadNotifs > 0 && <button type="button" onClick={() => void markAll()} className="min-h-11 px-2 py-1 rounded text-[10px] text-txt-muted hover:text-txt-primary transition-colors">{t('platform.notification_read_all')}</button>}
+                  <button type="button" onClick={() => setIsOpen(false)} className="min-h-11 min-w-11 p-1 rounded text-txt-muted hover:text-txt-primary transition-colors" aria-label={t('common.close')}><X size={14} /></button>
                 </div>
               </div>
               <div className="max-h-[min(60vh,360px)] overflow-y-auto overscroll-contain">
