@@ -12,13 +12,18 @@ import { resolve } from 'node:path';
  * every branch's callee — not the global prisma client, not a new default.
  */
 
-const { recordSaleTx, recordPartnerEconomics, activateClinicSubscriptionFromPayment, isSaasPlanId, getPlanCatalog, accrueSaasCashback, markSettlementPaid, writeRevenue } =
+const { recordSaleTx, recordPartnerEconomics, activateClinicSubscriptionFromPayment, isSaasPlanId, getPlanCatalog, getClinicSubscriptionAmountMinor, accrueSaasCashback, markSettlementPaid, writeRevenue } =
   vi.hoisted(() => ({
     recordSaleTx: vi.fn(),
     recordPartnerEconomics: vi.fn(),
     activateClinicSubscriptionFromPayment: vi.fn(),
     isSaasPlanId: vi.fn(() => true),
-  getPlanCatalog: vi.fn(() => [{ id: 'professional', amountMinor: '4990000' }, { id: 'enterprise', amountMinor: '14990000' }]),
+  getPlanCatalog: vi.fn(() => [{ id: 'professional', amountMinor: '3990000' }, { id: 'enterprise', amountMinor: '7990000' }]),
+    getClinicSubscriptionAmountMinor: vi.fn((plan: string, months: unknown) => {
+      const monthly: Record<string, bigint> = { starter: 1_990_000n, professional: 3_990_000n, enterprise: 7_990_000n };
+      if (typeof months !== 'number' || !Number.isInteger(months) || months < 1 || months > 24 || !monthly[plan]) return null;
+      return monthly[plan] * BigInt(months);
+    }),
     accrueSaasCashback: vi.fn(),
     markSettlementPaid: vi.fn(),
     writeRevenue: vi.fn(),
@@ -32,6 +37,7 @@ vi.mock('../billing/clinicSubscription.service.js', () => ({
   activateClinicSubscriptionFromPayment,
   isSaasPlanId,
   getPlanCatalog,
+  getClinicSubscriptionAmountMinor,
 }));
 vi.mock('../dentcash/cashback.engine.js', () => ({ accrueSaasCashback }));
 vi.mock('../diagnostics/settlement.service.js', () => ({ markSettlementPaid }));
@@ -88,7 +94,7 @@ describe('settlePaidPayment — db threading', () => {
         domain: null,
         sellerType: null,
         sellerId: null,
-        amount: 4990000n,
+        amount: 3990000n,
         meta: { saasPlan: 'professional', months: 1 },
       },
       fakeTx,
@@ -98,7 +104,7 @@ describe('settlePaidPayment — db threading', () => {
       fakeTx,
     );
     expect(writeRevenue).toHaveBeenCalledWith(
-      expect.objectContaining({ source: 'SaaS', amountMinor: 4990000n, refId: 'clinic-1' }),
+      expect.objectContaining({ source: 'SaaS', amountMinor: 3990000n, refId: 'clinic-1' }),
       fakeTx,
     );
   });
@@ -113,7 +119,7 @@ describe('settlePaidPayment — db threading', () => {
         domain: null,
         sellerType: null,
         sellerId: null,
-        amount: 4990001n,
+        amount: 3990001n,
         meta: { saasPlan: 'professional', months: 1 },
       },
       fakeTx,
