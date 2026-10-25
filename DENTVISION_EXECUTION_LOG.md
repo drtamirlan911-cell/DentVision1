@@ -2114,3 +2114,10 @@ These changes are route/entry reconciliation only. Existing domain implementatio
 
 ### Next action
 - Review the full CI result for the current candidate, then commit this scoped-role and BIZ-009 token repair on the existing verification branch only. Inspect fresh exact-head core E2E, role/context and focused diagnostics evidence. Keep PR #323 draft/open and main unchanged.
+
+## 2026-10-25 — E2E role-context gate root-cause follow-up
+
+- On branch `security/doctor-agent-tenant-isolation-20261025`, the next focused release-gate corrections address four observed mismatches: `/ai` is the shared workspace and must not be treated as a forbidden route solely because its action permissions are scoped; the public Community feed was accidentally wrapped in the page-auth guard; Help/support is user-specific but the guest route policy did not require authentication; and the mobile bottom navigation advertised Clinic to patient/student/partner roles that lacked schedule access.
+- The Shop Orders empty-state “В каталог →” button also lacked a sufficient touch target; it now receives minimum 44px dimensions and centering.
+- The BIZ-009 owner-onboarding test was separately corrected to clear cookies and persisted browser auth state before attempting another login, preventing restoration of the previous workspace from hiding the login form.
+- These are source/test changes on the draft verification branch. The latest full CI for this combined candidate must be checked after commit; no release is declared, PRs remain drafts, and production was not changed.

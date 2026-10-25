@@ -7,7 +7,7 @@ const VISUAL_EVIDENCE_ROOT = process.env.VISUAL_EVIDENCE_DIR || 'e2e/visual-evid
 const PASSWORD = 'Test1234!';
 
 const PUBLIC_ROUTES = ['/', '/login', '/register', '/forgot-password', '/booking', '/demo', '/pricing', '/terms', '/privacy', '/jobs'];
-const AUTH_COMMON_ROUTES = ['/', '/help', '/notifications', '/profile'];
+const AUTH_COMMON_ROUTES = ['/', '/ai', '/help', '/notifications', '/profile'];
 const AUTHENTICATED_BASE_PAGES = ['shop','school','profile','settings','diagnostics','diagnostics-centers','diagnostics-labs','diagnostics-laboratories'] as const;
 const ROUTES = [
   '/ai','/analytics','/settings','/help','/notifications','/admin','/bi','/security','/audit','/agent-activity','/ai-approvals','/backup','/profile',
