@@ -1113,3 +1113,37 @@ These changes are route/entry reconciliation only. Existing domain implementatio
 - RB-033 requires repository-admin configuration of mandatory main checks. The branch-protection API returned 403 to the current integration, so it could not be changed or independently re-verified in this run.
 - RB-019 payment-provider contract verification remains open.
 - Next: open the candidate PR, run exact-head CI, inspect focused failure summaries/artifacts in bounded chunks, fix only evidenced defects, then update this log with test run IDs and results. Do not merge into main.
+
+## 2026-10-25 — integration evidence reconciliation and support contract fix
+
+### Canonical documents and repository state
+- Re-read the Operating Directive, Context, Execution Plan, Execution Log, Product DNA, Master Spec, generated System Map, Release Blockers, security/IAM/RBAC documents, Settlement Payment Contract, Kaspi setup and Partner Economics policy before editing.
+- Exact main HEAD: `b27f9b920ee08388dfb560c4ad0ff6243f461844`. PR #300, #310 and #301 are merged. Main is not release-ready: Quality Gate `40165707211` passed, but full CI `40165707260` still had E2E in progress at the last poll.
+- GitHub branch metadata returned `protected: false` for main. RB-033 remains open; repository-admin settings cannot be changed through the current connector.
+
+### Confirmed defects and root causes
+1. **Support API contract mismatch:** integration head `cb607b296ad2b8210e8976da69afc86fa2abd2fb` contained `Help.tsx` imports for six support-center API functions/types that did not exist in `src/utils/api.ts`. Quality Gate run `40166704655` failed with 14 TypeScript diagnostics. The root cause was UI/backend/schema work landing without the typed client contract.
+2. **CI workflow invalid step:** `.github/workflows/ci.yml` had an empty step named “Apply durable AI queue SQL required by background workers” with no `run` or `uses`, and the daily-counter migration lacked `working-directory: dentvision-backend`. Workflow run `40166775537` had no jobs. The empty step was removed and the migration working directory corrected.
+3. **Generated System Map drift:** the actual CI generator on code checkpoint `f29c2b3487b6cde9ea1f287e2a159036bcedcb3d` produced 69 mounted routers, 680 unique route handlers, 644 registered routes, 150 Prisma models, 9 notification handlers and the new `/api/support` router with 7 handlers. CI `40166964371` failed the system-map diff check because the committed generated file was stale. The exact generated delta is synchronized in commit `d93f112fec96e25030b6ed3cbbedb9833db120ba`.
+4. **Payment route not integrated:** candidate `payments.routes.ts` blob `d3d55cd7e41dbc660ee372c270ff6ff832553edf` is byte-identical to main. Meanwhile the candidate includes `payments.routes.creation-security.test.ts` from PR #307, whose tests require server-derived metadata, subscription/course pricing, provider-based clinic scope, static-mode callback denial and atomic settlement. PR #302 adds canonical `billing.manage` authorization and clinic-scoped appointment/invoice references. This is a P0 integration gap, not a passing security implementation.
+5. **PHI-at-rest gap confirmed on current main:** `phi.ts` blob `da64d8174962a4ee52ac7c45d44f77a8789e8d89` and `patients.routes.ts` blob `c6f544c8e0a66e45daa0db3d26bdbb32b7a2ba75` confirm the string-only encryption helper is incompatible with the structured JSON clinical-history write/read contract. RB-029 remains open; no backfill was run.
+6. **Support privacy residual risk:** support ticket description/message fields accept unrestricted text; the UI warning is not server-side enforcement. Added candidate blocker RB-040. No PHI filtering/retention fix is claimed.
+
+### Changes committed in this documentation branch
+- Code checkpoint before documentation changes: `f29c2b3487b6cde9ea1f287e2a159036bcedcb3d`.
+- Added typed support-center API response/input types and six API functions in `src/utils/api.ts` (commit `4aafcd264731896a8170c19561ceae479b873f8a`).
+- Fixed the CI workflow empty step and daily-counter migration working directory (commit `f29c2b3487b6cde9ea1f287e2a159036bcedcb3d`).
+- Reconciled `docs/RELEASE_BLOCKERS.md` across PR #302, #307, #309 and main. PR #302's legacy RB-010–RB-014 collide with PR #307's different RB-010–RB-014, so the PR #302 items are preserved as RB-035–RB-039 with their legacy IDs noted. Added RB-040 for support PHI minimization. RB-029/RB-019/RB-033 evidence was merged; RB-034 now reflects that its implementation is in main but verification remains open.
+- Updated `DENTVISION_CONTEXT.md` and `DENTVISION_EXECUTION_PLAN.md` with exact SHAs, active CI status, unresolved payment-route integration and manual branch-protection action.
+- Updated `docs/SYSTEM_MAP.md` from the actual CI generator output and adopted the provider-contract clarification from `docs/KASPI_CLINIC_SETUP.md` on the release-control audit branch.
+
+### Verification (do not overstate)
+- Quality Gate run `40166832656` on code checkpoint `f29c2b3487b6cde9ea1f287e2a159036bcedcb3d`: PASS — TypeScript, frontend ESLint and repository release-gate script.
+- Draft PR #312 full CI run `40166964371` at that checkpoint: backend lint PASS, frontend lint PASS, `lint-test` FAIL at System Map validation; core E2E failed and browser UX was still running at the last poll. Android run `40166964450` was still running. No full CI/E2E/Android pass is claimed.
+- No changes were merged into main and no production deployment was triggered.
+
+### Residual risks / next action
+- Keep PR #312 draft and do not merge. Preserve its CI/E2E/Android evidence until the runs complete; then inspect bounded logs and artifacts.
+- Next P0: semantically integrate PR #307 payment hardening with PR #302 clinic billing permission/reference-scope changes in `payments.routes.ts`, add missing negative-path tests, and run exact-head backend unit/E2E/security gates.
+- Keep RB-029, RB-033, RB-034, RB-019 and RB-040 open until their own closure criteria pass.
+

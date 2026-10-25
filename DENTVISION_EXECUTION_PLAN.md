@@ -349,11 +349,22 @@ A phase is complete only when:
 - no duplicate competing source of truth was introduced;
 - `DENTVISION_EXECUTION_LOG.md` records what changed, commit, verification, and next action.
 
-## Current execution priority
-**Now — P0 security and release integrity:** verify RB-034 on branch security/doctor-agent-tenant-isolation-20261025. The exact candidate SHA must pass targeted DoctorAgent negative-path tests, TypeScript, backend lint, unit tests and the full role/context E2E gate before RB-034 can be closed. Keep main unchanged. The generated system map must match the generator on any candidate branch.
+## Current execution priority — 2026-10-25
 
-**Next — P0 data protection:** complete the full Patient.medicalHistory read/write/AI/report/export inventory for RB-029, then design a versioned encrypted-at-rest representation and resumable, audited legacy backfill. Do not encrypt the JSON column blindly. Repository-admin action for RB-033 (required branch checks on main) remains manual and release-blocking; verify actual required-check names and prove a failing check blocks merge.
+**P0 — payment security and exact-head evidence integrity**
 
-**After these P0 gates:** resume the business-owner lifecycle vertical slice (registration → organization → branches → staff/permissions → operations → economics), then partner transparency/Finance Hub, automated operations and product-wide UX/clinical/ecosystem hardening.
+1. Preserve the active CI/Android evidence for draft PR #312 until the runs finish. Then inspect compact failure summaries and only the artifacts tied to failing gates; do not push into an active run merely to restart it.
+2. Resolve payment-route integration before any merge. The candidate `payments.routes.ts` blob is unchanged from main, while `payments.routes.creation-security.test.ts` expects hardening present on PR #307 but not yet integrated into that route. Merge PR #307's server-derived metadata, order ownership, server-priced subscription/course validation, callback-mode guard, amount validation and atomic settlement with PR #302's canonical `billing.manage` authorization, clinic-scoped appointment/invoice references and outstanding-invoice checks. Keep static/manual clinic confirmation restricted to authorized clinic staff; platform payments must not be confirmed through the clinic callback.
+3. Keep RB-034 open despite PR #310 being merged into main. Run DoctorAgent negative-path tests and the full role/context E2E gate on exact main SHA `b27f9b920ee08388dfb560c4ad0ff6243f461844`; latest main CI run `40165707260` had not completed at the checkpoint.
+4. Resolve RB-029 safely: inventory every Patient clinical-history write/read/filter/report/export/AI consumer, then design a versioned encrypted representation and audited resumable backfill with dry-run, integrity checks, legacy compatibility and rollback. Do not encrypt the JSON column blindly.
+5. Resolve RB-033 through repository settings: enable protection/rules for `main`, require the exact stable checks reported by GitHub and prove a failed required check blocks merge. This is a manual repository-admin action; the current connector cannot change it.
+6. Keep RB-019 open until the actual provider-issued acquiring/gateway contract is obtained and the adapter's signatures, amount/currency, replay, idempotency, status transitions, timeouts and host allowlist are verified.
+7. Keep RB-040 open for the candidate support center until server-side PHI minimization, access auditing and retention behavior are tested and documented.
 
-The work proceeds in vertical slices: implement → targeted verify → full relevant gates → commit → update the persistent log → move to the next slice.
+**P1 — CI/release evidence and ecosystem verification**
+- The generated system map is synchronized to candidate generator output (69 routers, 680 handlers, 644 registered routes, 150 Prisma models). The next exact-head CI must prove `npm run system-map` and validation pass.
+- Complete RB-001–RB-005 and RB-007–RB-028 with exact-head regression evidence; keep “fixed/implemented” statuses open until their specified gates pass.
+- Verify diagnostic-center, medical-lab and dental-lab owner journeys with cross-tenant/branch negative paths; then partner economics/Finance Hub against durable ledger records.
+- Continue support operations only after schema → API → IAM → UI → notifications → tests are connected and RB-040 is resolved.
+
+Do not merge or deploy from this run. Keep original PR branches, evidence and failed test history. Use inspect → root-cause analysis → small implementation → targeted tests → exact-head CI/E2E → documentation → continue.

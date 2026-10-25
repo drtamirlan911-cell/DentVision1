@@ -52,15 +52,22 @@ AI action lifecycle:
 `Intent → Context → Permission → Plan → Preview → Confirmation when required → Execute → Verify → Audit`
 
 ## 5. Verified repository state — 2026-10-25
-- Exact current GitHub main HEAD: d47aec8dc310731516f3a46cd0e3855781dd171e.
-- Main Quality Gate run 40065996095 passed on 2026-10-24, but this is not a full release pass. The latest full CI recorded for that exact SHA remains run 36852925083 (2026-10-01), with lint-test failure and E2E cancellation. Fresh exact-main CI/E2E/visual/role-context evidence is not established.
-- Branch protection remains an open release-control item in the prior audit record. The branch-protection endpoint is not accessible through the current connector permissions, so it was not independently re-read in this run. Repository-admin configuration and a merge-blocking test remain required.
-- No production deployment was changed during this run.
 
-### Candidate verification updates — 2026-10-25
-- PR #309 candidate head f30119b4f6752e540327666f9f34afe4a17bfe96: docs/SYSTEM_MAP.md was synchronized with generator output (672 handlers, 636 registered routes, 101 routes without detected consumers; diagnostics 35 handlers / 1 without detected consumer). CI run 40163222925 passed frontend lint, backend lint, generated project index, TypeScript, system-map validation and npm test; E2E remained in progress at the last checkpoint. Quality Gate run 40163223009 passed. Candidate-branch evidence only.
-- RB-034 records a confirmed AI DoctorAgent cross-tenant access defect. Candidate branch security/doctor-agent-tenant-isolation-20261025 has implementation commit 80c842777e5fdfdeacf3c672febd9e3624276d6b with scoped queries and negative-path tests; exact-head CI/E2E verification is pending.
-- Canonical IAM role matrix path is docs/DENTVISION_IAM_ROLE_MATRIX.md. A root-level DENTVISION_IAM_ROLE_MATRIX.md does not exist; use the path under docs/ for future audits.
+### Main branch and release status
+- Exact GitHub `main` HEAD: `b27f9b920ee08388dfb560c4ad0ff6243f461844`.
+- PR #300, #310 and #301 are merged. PR #310 merged at `f1276fdb9ab2d7761f7e6c3f77e82eff752ac835`; current main includes the DoctorAgent scoped-query fix and negative-path tests.
+- Main Quality Gate run `40165707211` passed on the current main SHA. Full CI run `40165707260` had frontend lint, backend lint and `lint-test` pass, while E2E remained in progress at the last poll. This is not a full release pass.
+- GitHub `GET /repos/drtamirlan911-cell/DentVision1/branches/main` returned `protected: false` on 2026-10-25. Branch protection is a P0 manual repository-admin action; detailed protection settings were not accessible through the current connector in this run.
+- **Release status: NOT READY.** Do not merge or deploy from the current integration candidate.
+
+### Integration candidate status — exact evidence checkpoint
+- Draft PR #312, head branch `fix/support-api-contract-20261025`, code checkpoint SHA `f29c2b3487b6cde9ea1f287e2a159036bcedcb3d`; PR is open, draft and not mergeable. It is validation-only; do not merge it.
+- Quality Gate run `40166832656` on that exact code checkpoint passed TypeScript, frontend ESLint and the repository release-gate script.
+- Full CI run `40166964371` was still running at the 2026-10-25 10:53 Asia/Almaty checkpoint. Backend lint and frontend lint passed. `lint-test` failed because the generator produced a newer `docs/SYSTEM_MAP.md` (69 routers, 680 handlers, 644 registered routes, 150 Prisma models, one additional notification route and the seven-route support router). The exact generated delta is synchronized in this documentation branch.
+- The core E2E step failed; browser UX coverage was still running when last checked. Android run `40166964450` was still running. Preserve these runs and inspect bounded logs/artifacts after completion.
+- The prior integration head `cb607b296ad2b8210e8976da69afc86fa2abd2fb` failed Quality Gate on missing support API exports. The candidate adds typed support-center API functions and repairs the CI workflow's empty E2E step and daily-counter migration working directory.
+- **Critical unresolved integration risk:** candidate `payments.routes.ts` still has the same blob as current main (`d3d55cd7e41dbc660ee372c270ff6ff832553edf`). New security tests from PR #307 expect server-derived payment metadata, server-side subscription pricing, provider-based clinic scope, static-mode callback denial and terminal-state protection; PR #302 adds stricter billing permission and appointment/invoice scope checks. Those changes are not yet semantically integrated into that route. Do not merge the candidate until this P0 is resolved and exact-head tests pass.
+- `docs/SYSTEM_MAP.md` now matches the exact generator delta from the candidate CI log; regenerate it after future route/model changes.
 
 ### Product status
 - Clinical RBAC boundary: IMPLEMENTED + unit coverage; fresh CI required after later main changes.
