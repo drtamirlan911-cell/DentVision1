@@ -26,7 +26,7 @@ function clean(line) {
 function categoryFor(text) {
   const value = text.toLowerCase();
   if (/403|forbidden|not authorized|permission|tenant|organization scope|branch scope/.test(value)) return 'AUTH/SCOPE';
-  if (/timeout|timed out|waitfor|not visible|element\(s\) not found|locator\./.test(value)) return 'UI/WAIT';
+  if (/timeout|timed out|waitfor|not visible|tobevisible|element\(s\) not found|locator/.test(value)) return 'UI/WAIT';
   if (/p2002|unique constraint|duplicate key|foreign key|deadlock|database|prisma/.test(value)) return 'TEST DATA/DB';
   if (/expected:|received:|toequal|tobe\(|tocontain|tohave/.test(value)) return 'ASSERTION';
   if (/econnrefused|econnreset|socket hang up|502|503|service unavailable|failed to fetch/.test(value)) return 'INFRA/NETWORK';
