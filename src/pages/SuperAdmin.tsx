@@ -3,7 +3,7 @@ import { Navigate, useSearchParams } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
-  Building2, CheckCircle, Ban, AlertTriangle, Users, Banknote, Pencil,
+  Building2, CheckCircle, Ban, AlertTriangle, Users, Banknote, Pencil, ArrowRight,
   KeyRound, Trash2, Plus, Shield, UserPlus, Eye, EyeOff, Copy, RefreshCw,
   Search, LifeBuoy, Headphones, UserCheck, Activity, ShoppingCart, GraduationCap,
   Brain, DollarSign, Microscope, BarChart3, Accessibility, Handshake, Gauge,
@@ -450,8 +450,12 @@ export default function SuperAdmin() {
       );
       case 'support': return (
         <>
-          <div className="flex flex-wrap justify-end mb-2">
-            <Button icon={<Headphones size={16} />} className="min-h-11" onClick={() => { setSupportForm({ login: '', name: '', email: '', password: '' }); setNewSupportPw(null); setSupportModal(true); }}>Ассистент</Button>
+          <div className="mb-2 flex flex-wrap items-center justify-between gap-3">
+            <p className="text-sm text-txt-muted">Управление аккаунтами сотрудников поддержки. Очередь обращений пользователей — отдельно.</p>
+            <div className="flex flex-wrap gap-2">
+              <a href="/help?view=queue" className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-dv-gold/30 px-4 text-sm font-semibold text-dv-gold hover:bg-dv-gold/5">Очередь обращений <ArrowRight size={15} /></a>
+              <Button icon={<Headphones size={16} />} className="min-h-11" onClick={() => { setSupportForm({ login: '', name: '', email: '', password: '' }); setNewSupportPw(null); setSupportModal(true); }}>Ассистент</Button>
+            </div>
           </div>
           <Card padding="none">
             <div className="overflow-x-auto">

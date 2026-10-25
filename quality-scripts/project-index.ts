@@ -110,7 +110,8 @@ const tests = extractTests(files);
 const workspaces = extractWorkspaces(files);
 const androidScreens = extractAndroidScreens(files);
 const security = extractSecurity(files);
-const gitHead = process.env.GITHUB_SHA ?? 'local';
+// .dentvision/current-state.json is a curated canonical record sourced from DENTVISION_CONTEXT.md.
+// Keep it immutable here; generated inventory belongs in routes/api/roles/workspaces/tests/security/parity.
 
 writeJson('routes.json', { generated: true, generator: 'quality-scripts/project-index.ts', webRoutes: web, backendRoutes: backend });
 writeJson('api.json', { generated: true, generator: 'quality-scripts/project-index.ts', backendRoutes: backend, frontendApiFiles: files.filter((f) => /src\/(lib|api|services)/.test(rel(f))).map(rel) });
@@ -119,6 +120,5 @@ writeJson('workspaces.json', { generated: true, generator: 'quality-scripts/proj
 writeJson('tests.json', { generated: true, generator: 'quality-scripts/project-index.ts', testFiles: tests, commands: { lint: 'npm run lint', typecheck: 'npm run typecheck', unit: 'npm test', e2e: 'npm run test:e2e', quality: 'npm run quality:ci' } });
 writeJson('security.json', { generated: true, generator: 'quality-scripts/project-index.ts', requirements: ['authentication', 'RBAC', 'workspace/tenant isolation', 'ownership checks', 'idempotency', 'audit trail', 'authenticated realtime notifications', 'no secrets in source'], ...security });
 writeJson('parity.json', { generated: true, generator: 'quality-scripts/project-index.ts', webRoutes: web.map((x) => x.path), androidScreens, paritySourceFiles: files.filter((f) => f.includes('/android/') || f.startsWith(path.join(root, 'src'))).map(rel) });
-writeJson('current-state.json', { schemaVersion: 1, generated: true, generator: 'quality-scripts/project-index.ts', indexedAt: new Date().toISOString(), commit: gitHead, currentPhase: 0, phaseName: 'CI stabilization', releaseStatus: 'NOT_RELEASED', protectedItems: ['Do not merge PR #247 before release gates pass', 'Do not invent routes or permissions', 'Do not treat model context as durable source of truth'], indexStats: { files: files.length, webRoutes: web.length, backendRoutes: backend.length, roles: roles.length, tests: tests.length, androidScreens: androidScreens.length } });
 
 console.log(`DentVision index generated: ${files.length} files, ${web.length} web routes, ${backend.length} backend routes, ${roles.length} roles, ${tests.length} test files, ${androidScreens.length} Android screens.`);

@@ -104,7 +104,11 @@ export function buildGuestPlatformTwin(user?: {
   };
 }
 
-export async function buildDigitalTwin(userId: string, clinicId?: string | null, opts?: { isGuest?: boolean }) {
+export async function buildDigitalTwin(
+  userId: string,
+  clinicId?: string | null,
+  opts?: { isGuest?: boolean; organizationType?: string | null },
+) {
   const user = await prisma.user.findUnique({
     where: { id: userId },
     select: {
@@ -132,8 +136,15 @@ export async function buildDigitalTwin(userId: string, clinicId?: string | null,
 
   let activeClinicId: string | null = clinicId || null;
   let resolvedRole: string | undefined;
+  const organizationType = String(opts?.organizationType || '').toUpperCase() || null;
   if (clinicId) {
     resolvedRole = (await resolveClinicAccess(userId, clinicId))?.role;
+  } else if (organizationType && organizationType !== 'CLINIC') {
+    // Active non-clinic workspaces must not silently fall back to an arbitrary
+    // clinic membership. That would make the digital twin contradict the
+    // canonical Active Workspace and could expose the wrong tenant's workload.
+    activeClinicId = null;
+    resolvedRole = undefined;
   } else {
     const access = await resolveAnyClinicMembership(userId);
     activeClinicId = access?.clinicId || null;
@@ -460,6 +471,8 @@ export async function buildProactiveAlerts(opts: {
   clinicId?: string | null;
   role?: string;
   isGuest?: boolean;
+  organizationType?: string | null;
+  workspaceName?: string | null;
 }): Promise<Array<{
   type: string;
   category: string;
@@ -479,6 +492,7 @@ export async function buildProactiveAlerts(opts: {
 
   const guestRole = String(opts.role || '').toUpperCase() === 'GUEST' || opts.isGuest;
   const clinicId = opts.clinicId;
+  const organizationType = String(opts.organizationType || '').toUpperCase();
   if (!clinicId) {
     if (guestRole) {
       alerts.push(
@@ -507,6 +521,18 @@ export async function buildProactiveAlerts(opts: {
           action: { type: 'OpenShop' },
         },
       );
+      return alerts;
+    }
+    if (organizationType && organizationType !== 'CLINIC') {
+      const workspaceName = String(opts.workspaceName || '').trim() || 'рабочий контекст';
+      alerts.push({
+        type: 'workspace',
+        category: 'context',
+        text: `Контекст «${workspaceName}» активен — AI работает в рамках этой организации и роли`,
+        message: `Контекст «${workspaceName}» активен — AI работает в рамках этой организации и роли`,
+        priority: 6,
+        action: { type: 'OpenWorkspace' },
+      });
       return alerts;
     }
     alerts.push({

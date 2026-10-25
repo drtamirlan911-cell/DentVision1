@@ -19,12 +19,14 @@ function patchModel(
   let block = schema.slice(start, end + 3);
   const fieldName = field.trim().split(/\s+/)[0];
   const relationName = relation.trim().split(/\s+/)[0];
-  if (!new RegExp(`^\\s*${fieldName}\\b`, 'm').test(block)) {
+  const hasField = block.split('\n').some((line) => line.trimStart().startsWith(`${fieldName} `));
+  const hasRelation = block.split('\n').some((line) => line.trimStart().startsWith(`${relationName} `));
+  if (!hasField) {
     const fieldIndex = block.indexOf(fieldAnchor);
     if (fieldIndex < 0) throw new Error(`TreatmentCase field anchor not found: ${modelName}: ${fieldAnchor}`);
     block = `${block.slice(0, fieldIndex + fieldAnchor.length)}${field}${block.slice(fieldIndex + fieldAnchor.length)}`;
   }
-  if (!new RegExp(`^\\s*${relationName}\\b`, 'm').test(block)) {
+  if (!hasRelation) {
     const relationIndex = block.indexOf(relationAnchor);
     if (relationIndex < 0) throw new Error(`TreatmentCase relation anchor not found: ${modelName}: ${relationAnchor}`);
     block = `${block.slice(0, relationIndex + relationAnchor.length)}${relation}${block.slice(relationIndex + relationAnchor.length)}`;
@@ -92,12 +94,14 @@ const reverseRelations = [
   '  invoices       Invoice[]\n',
 ].join('');
 const reverseNames = ['appointments', 'visits', 'treatmentPlans', 'referrals', 'labOrders', 'invoices'];
-const hasAllReverseRelations = reverseNames.every((name) => new RegExp(`^\\s*${name}\\b`, 'm').test(caseBlock));
+const hasAllReverseRelations = reverseNames.every((name) =>
+  caseBlock.split('\n').some((line) => line.trimStart().startsWith(`${name} `)),
+);
 if (!hasAllReverseRelations) {
   const index = caseBlock.indexOf(reverseAnchor);
   if (index < 0) throw new Error('TreatmentCase patient relation not found');
   for (const name of reverseNames) {
-    if (!new RegExp(`^\\s*${name}\\b`, 'm').test(caseBlock)) {
+    if (!caseBlock.split('\n').some((line) => line.trimStart().startsWith(`${name} `))) {
       const relationLine = reverseRelations.split('\n').find((line) => line.trim().startsWith(name + ' '));
       if (relationLine) caseBlock = `${caseBlock.slice(0, index + reverseAnchor.length)}${relationLine}
 ${caseBlock.slice(index + reverseAnchor.length)}`;

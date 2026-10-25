@@ -105,20 +105,24 @@ export function requirePermission(...keys: (PermissionKey | string)[]) {
         : keys;
 
       const scopeId = req.user.organizationId || req.user.clinicId;
+      const isCanonicalClinicScope =
+        !req.user.organizationId ||
+        String((req.user as any).organizationType || '').toUpperCase() === 'CLINIC';
       const permissions = await resolveUserPermissions(
         req.user.id,
         scopeId,
-        req.user.role,
+        isCanonicalClinicScope ? req.user.role : undefined,
       );
       const granted = new Set(permissions);
       const resolved = effectiveKeys.map((key) => (LEGACY_KEY_MAP as Record<string, string>)[key] || key);
 
       if (resolved.every((key) => permissionsSatisfy(granted, key))) return next();
 
-      // Preserve the legacy fallback only when the unified resolver has no
-      // usable grants at all. This keeps legacy-only users operational without
-      // allowing an empty scoped policy to manufacture new permissions.
-      if (permissions.length === 0) {
+      // Legacy role fallback is only safe for canonical clinic scopes.
+      // Partner workspaces must fail closed when their scoped policy is empty;
+      // their JWT role is a compatibility enum value (e.g. OWNER/ASSISTANT),
+      // not a tenant-wide clinic authorization grant.
+      if (permissions.length === 0 && isCanonicalClinicScope) {
         const allowed = effectiveKeys.every((key) => roleHasPermission(req.user!.role, key));
         if (allowed) return next();
       }

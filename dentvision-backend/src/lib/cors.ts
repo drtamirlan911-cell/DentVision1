@@ -1,55 +1,63 @@
 import type { Request, Response, NextFunction } from 'express';
 import { env } from '../config.js';
 
-const DEFAULT_ALLOWED_ORIGINS = [
-  'https://dent-vision1.vercel.app',
-  'https://dentvision1.vercel.app',
+const DEVELOPMENT_ALLOWED_ORIGINS = [
   'http://localhost:5173',
   'http://localhost:3000',
   'http://127.0.0.1:5173',
+  'http://127.0.0.1:3000',
 ];
 
-function parseCorsOrigins(raw: string): true | string[] {
+function parseCorsOrigins(raw: string): string[] {
   const value = (raw || '').trim();
-  if (!value || value === '*') return true;
-  return [...new Set([
-    ...value.split(',').map((s) => s.trim()).filter(Boolean),
-    ...DEFAULT_ALLOWED_ORIGINS,
-  ])];
+  // Empty and wildcard values must never turn credentialed CORS into allow-all.
+  if (!value || value === '*') return [];
+  return [...new Set(value.split(',').map((s) => s.trim()).filter(Boolean))];
 }
 
-const configured = parseCorsOrigins(env.CORS_ORIGIN + (env.FRONTEND_URL ? `,${env.FRONTEND_URL}` : ''));
+const configured = parseCorsOrigins(
+  [env.CORS_ORIGIN, env.FRONTEND_URL || ''].filter(Boolean).join(','),
+);
 
-/**
- * Allow production + DentVision Vercel previews/deployment URLs.
- * Vercel can serve the same Git commit from several generated deployment
- * hostnames, so restricting CORS to only the canonical alias makes a working
- * production frontend fail with a browser-level "network error".
- */
+export interface CorsPolicy {
+  production: boolean;
+  origins: string[];
+  vercelTeamSlug?: string;
+}
+
+export function isOriginAllowedByPolicy(origin: string | undefined, policy: CorsPolicy): boolean {
+  if (!origin) return !policy.production;
+  if (policy.production) {
+    try {
+      const parsed = new URL(origin);
+      if (parsed.protocol !== 'https:' ||
+          ['localhost', '127.0.0.1', '::1'].includes(parsed.hostname.toLowerCase())) return false;
+    } catch {
+      return false;
+    }
+  }
+  if (policy.origins.includes(origin)) return true;
+  if (policy.production) {
+    const teamSlug = policy.vercelTeamSlug?.trim().toLowerCase();
+    if (!teamSlug || !/^[a-z0-9-]+$/.test(teamSlug)) return false;
+    try {
+      const host = new URL(origin).hostname.toLowerCase();
+      return host.endsWith(`-${teamSlug}.vercel.app`) &&
+        host.length > teamSlug.length + '.vercel.app'.length + 1;
+    } catch {
+      return false;
+    }
+  }
+  return DEVELOPMENT_ALLOWED_ORIGINS.includes(origin);
+}
+
+/** Only explicit origins and project previews matching the team slug are trusted in production. */
 export function isOriginAllowed(origin: string | undefined): boolean {
-  if (!origin) {
-    if (process.env.NODE_ENV === 'production') return false;
-    return true;
-  }
-  if (configured === true) return true;
-  if (configured.includes(origin)) return true;
-  try {
-    const host = new URL(origin).hostname.toLowerCase();
-    if (host === 'localhost' || host === '127.0.0.1') return true;
-    if (!host.endsWith('.vercel.app')) return false;
-
-    // Canonical production aliases.
-    if (host === 'dent-vision1.vercel.app' || host === 'dentvision1.vercel.app') return true;
-
-    // Generated deployment/preview/team aliases belonging to this project.
-    // Examples: dent-vision1-git-main-*.vercel.app and
-    // dent-vision1-<deployment>-<team>.vercel.app.
-    if (/^dent-vision1-[a-z0-9-]+\.vercel\.app$/.test(host)) return true;
-    if (/^dentvision1-[a-z0-9-]+\.vercel\.app$/.test(host)) return true;
-    return false;
-  } catch {
-    return false;
-  }
+  return isOriginAllowedByPolicy(origin, {
+    production: env.NODE_ENV === 'production',
+    origins: configured,
+    vercelTeamSlug: process.env.VERCEL_TEAM_SLUG,
+  });
 }
 
 /** Attach ACAO on any response (errors, 429, 402) so browsers don't mask the real status. */

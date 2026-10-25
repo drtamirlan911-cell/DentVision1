@@ -167,3 +167,16 @@ export async function resolveClinicAccess(userId: string, clinicId: string): Pro
   const member = await prisma.clinicMember.findUnique({ where: { userId_clinicId: { userId, clinicId } } });
   return member ? { role: member.role } : null;
 }
+
+
+/**
+ * Authorize a domain Clinic.id against the canonical Organization/PersonRole
+ * scope, with a legacy ClinicMember fallback only when the organization has not
+ * been canonicalized yet.
+ */
+export async function assertClinicOrgAccess(user: AuthUser, clinicId: string): Promise<boolean> {
+  if (!user || !clinicId) return false;
+  if (user.role === 'SUPERADMIN') return true;
+  const organizationId = await resolveOrganizationIdForClinic(clinicId);
+  return assertOrgAccess(user, organizationId || clinicId);
+}

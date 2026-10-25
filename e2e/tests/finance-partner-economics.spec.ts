@@ -12,7 +12,7 @@ async function token(request: any, email: string) {
 
 test.describe('Finance Hub — partner economics', () => {
   test('FIN-001: finance manager can inspect durable partner economics and reconciliation', async ({ request }) => {
-    const t = await token(request, 'owner-a@test.com');
+    const t = await token(request, 'superadmin@test.com');
     const headers = { Authorization: `Bearer ${t}` };
 
     const dashboard = await request.get(`${BASE}/api/finance/partner-economics/dashboard`, { headers });

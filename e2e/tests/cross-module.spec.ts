@@ -57,6 +57,7 @@ test.describe('Cross-Module Workflow: referral → center → result → lab →
         type: 'DIAGNOSTIC_CENTER',
         originalType: 'DiagnosticCenter',
         originalId: centerId,
+        settings: { lifecycle: 'ACTIVE', verification: 'VERIFIED', ecosystemVisible: true, legal: { status: 'READY' } },
       },
     });
     const centerUser = await prisma.user.create({

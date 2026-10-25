@@ -121,7 +121,7 @@ describe('recordSaleTx', () => {
       data: {
         tenantId: 'platform',
         source: 'SHOP',
-        amount: 10_000n,
+        amount: 800n,
         meta: { refType: 'order', refId: 'order-1' },
       },
     });
@@ -220,8 +220,28 @@ describe('getOrCreateWallet / resolveCommissionBps db threading', () => {
 
     const bps = await resolveCommissionBps('shop', 'sup-3', txDelegate as never);
 
-    expect(bps).toBe(1000);
+    expect(bps).toBe(800);
     expect(globalCommissionFindUnique).not.toHaveBeenCalled();
     expect(globalCommissionFindFirst).not.toHaveBeenCalled();
   });
+
+
+describe('canonical commission policy', () => {
+  it('fails closed instead of inventing a universal commission for an unknown domain', async () => {
+    await expect(resolveCommissionBps('unknown-domain', 'seller-x', txDelegate as never)).rejects.toThrow(
+      'No commission policy configured for domain: unknown-domain',
+    );
+  });
+
+  it('applies the diagnostic minimum and cap', async () => {
+    txDelegate.wallet.findUnique
+      .mockResolvedValueOnce(wallet('gw', 'GATEWAY', 'system'))
+      .mockResolvedValueOnce(wallet('sw', 'SUPPLIER', 'sup-d'))
+      .mockResolvedValueOnce(wallet('pw', 'PLATFORM', 'system'));
+    txDelegate.transaction.create.mockImplementationOnce(async (args: any) => ({ meta: args.data.meta }));
+
+    const low: any = await recordSaleTx({ domain: 'diagnostics', sellerType: 'SUPPLIER' as never, sellerId: 'sup-d', amountMinor: 100_000n }, txDelegate as never);
+    expect(low.meta.commission).toBe('50000');
+  });
+});
 });

@@ -776,3 +776,92 @@ export interface QualityIssue { id: string; label: string; severity: 'critical' 
 export interface QualityScanResult { scannedAt: string; filesScanned: number; items: QualityIssue[]; bundleSizeBytes: number | null; }
 export async function getSystemHealth(): Promise<QualityHealthCheck> { return apiRequest('/api/health'); }
 export async function runQualityScan(): Promise<QualityScanResult> { return apiRequest('/api/quality/scan', { method: 'POST' }); }
+
+// --- Ecosystem support center ---
+// The backend enforces requester ownership and SUPPORT/SUPERADMIN authorization;
+// these client types describe responses only and are never an authorization source.
+export type SupportTicketCategory =
+  | 'ACCOUNT' | 'ACCESS' | 'WORKFLOW' | 'BILLING' | 'BUG' | 'SECURITY' | 'OTHER';
+export type SupportTicketStatus =
+  | 'OPEN' | 'IN_PROGRESS' | 'WAITING_FOR_USER' | 'RESOLVED' | 'CLOSED';
+export type SupportTicketPriority = 'LOW' | 'NORMAL' | 'HIGH' | 'URGENT';
+
+export interface SupportTicketUserSummary {
+  id: string;
+  firstName: string;
+  lastName: string;
+  email?: string;
+  role?: string;
+}
+export interface SupportTicketMessage {
+  id: string;
+  ticketId: string;
+  authorUserId: string | null;
+  body: string;
+  createdAt: string;
+  author: SupportTicketUserSummary | null;
+}
+export interface SupportTicket {
+  id: string;
+  requesterUserId: string | null;
+  assigneeUserId: string | null;
+  category: SupportTicketCategory;
+  status: SupportTicketStatus;
+  priority: SupportTicketPriority;
+  subject: string;
+  description: string;
+  sourcePath: string | null;
+  firstResponseAt: string | null;
+  resolvedAt: string | null;
+  closedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+  requester: SupportTicketUserSummary | null;
+  assignee: SupportTicketUserSummary | null;
+  messages?: SupportTicketMessage[];
+  _count?: { messages: number };
+}
+export interface SupportTicketQueue {
+  tickets: SupportTicket[];
+  pagination: { page: number; limit: number; total: number; pages: number };
+}
+export interface SupportTicketCreateInput {
+  subject: string;
+  description: string;
+  category: SupportTicketCategory;
+  sourcePath?: string;
+}
+export interface SupportTicketUpdateInput {
+  status?: SupportTicketStatus;
+  priority?: SupportTicketPriority;
+  assigneeUserId?: string | null;
+}
+
+export async function getMySupportTickets(): Promise<SupportTicket[]> {
+  return apiRequest('/api/support/mine');
+}
+export async function getSupportQueue(options: { status?: SupportTicketStatus | 'ALL' } = {}): Promise<SupportTicketQueue> {
+  const status = options.status && options.status !== 'ALL'
+    ? `?status=${encodeURIComponent(options.status)}`
+    : '';
+  return apiRequest(`/api/support/queue${status}`);
+}
+export async function getSupportTicket(ticketId: string): Promise<SupportTicket> {
+  return apiRequest(`/api/support/tickets/${encodeURIComponent(ticketId)}`);
+}
+export async function createSupportTicket(data: SupportTicketCreateInput): Promise<SupportTicket> {
+  return apiRequest('/api/support/tickets', { method: 'POST', body: JSON.stringify(data) });
+}
+export async function replyToSupportTicket(ticketId: string, body: string): Promise<{ message: SupportTicketMessage; status: SupportTicketStatus }> {
+  return apiRequest(`/api/support/tickets/${encodeURIComponent(ticketId)}/messages`, {
+    method: 'POST',
+    body: JSON.stringify({ body }),
+  });
+}
+export async function updateSupportTicket(ticketId: string, data: SupportTicketUpdateInput): Promise<SupportTicket> {
+  return apiRequest(`/api/support/tickets/${encodeURIComponent(ticketId)}`, {
+    method: 'PATCH',
+    body: JSON.stringify(data),
+  });
+}
+

@@ -305,7 +305,7 @@ export default function Visits() {
                       </div>
                     )}
                   </div>
-                  <Button variant="ghost" size="icon-xs" icon={<Edit3 size={14} />} onClick={() => startEdit(visit)} aria-label="Редактировать посещение" />
+                  <Button variant="ghost" size="icon-sm" className="min-h-11 min-w-11" icon={<Edit3 size={14} />} onClick={() => startEdit(visit)} aria-label="Редактировать посещение" />
                 </div>
               </Card>
             </motion.div>

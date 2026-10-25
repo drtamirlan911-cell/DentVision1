@@ -8,7 +8,7 @@ export default defineConfig({
   outputDir: process.env.PLAYWRIGHT_OUTPUT_DIR || './e2e/test-results',
   use: {
     baseURL: process.env.PLAYWRIGHT_BASE_URL || 'http://localhost:3000',
-    screenshot: 'on',
+    screenshot: 'only-on-failure',
     trace: 'on-first-retry',
   },
   projects: [
@@ -63,7 +63,7 @@ export default defineConfig({
     },
     {
       name: 'visual-agent',
-      use: { browserName: 'chromium', viewport: { width: 1440, height: 900 }, baseURL: process.env.PLAYWRIGHT_UI_URL || 'http://localhost:3000', trace: 'on' },
+      use: { browserName: 'chromium', viewport: { width: 1440, height: 900 }, baseURL: process.env.PLAYWRIGHT_UI_URL || 'http://localhost:3000', trace: 'retain-on-failure' },
       testMatch: /visual-agent\.spec\.ts/,
     },
     {
@@ -109,6 +109,6 @@ export default defineConfig({
   ],
   reporter: [
     ['html', { outputFolder: process.env.PLAYWRIGHT_HTML_OUTPUT_DIR || 'playwright-report', open: 'never' }],
-    ['list'],
+    ['dot'],
   ],
 });

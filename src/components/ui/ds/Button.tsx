@@ -35,9 +35,16 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(({ className, va
   const hasTextChild = typeof children === 'string' || (Array.isArray(children) && children.some(c => typeof c === 'string'))
   const isIconOnly = !hasTextChild && (!!icon || React.Children.count(children) > 0)
   const ariaLabel = props['aria-label'] || (isIconOnly ? title : undefined)
-  const content = <>{loading ? <><svg className="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg><span className="sr-only">{loadingText || 'Loading...'}</span></> : icon ? <span className="shrink-0 transition-transform duration-base ease-dv group-hover:translate-x-px">{icon}</span> : null}{children}</>
+  const loadingIndicator = loading ? <><svg className="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg><span className="sr-only">{loadingText || 'Loading...'}</span></> : null
+  const leadingIcon = !loading && icon ? <span className="shrink-0 transition-transform duration-base ease-dv group-hover:translate-x-px">{icon}</span> : null
+  const content = <>{loadingIndicator}{leadingIcon}{children}</>
   const commonProps = { ...(props as any), 'aria-label': ariaLabel, title: ariaLabel || title }
-  if (asChild) return <Slot className={cn(buttonVariants({ variant, size, className }))} ref={ref} aria-busy={loading ? true : undefined} {...commonProps}>{content}</Slot>
+  if (asChild) {
+    if (!React.isValidElement(children)) throw new Error('Button with asChild requires a single element child')
+    const child = children as React.ReactElement<{ children?: React.ReactNode }>
+    const slottedChild = React.cloneElement(child, {}, <>{loadingIndicator}{leadingIcon}{child.props.children}</>)
+    return <Slot className={cn(buttonVariants({ variant, size, className }))} ref={ref} aria-busy={loading ? true : undefined} {...commonProps}>{slottedChild}</Slot>
+  }
   return <motion.button type="button" className={cn(buttonVariants({ variant, size, className }))} ref={ref} disabled={isDisabled} aria-busy={loading ? true : undefined} whileHover={!isDisabled ? { y: -1 } : undefined} whileTap={!isDisabled ? { scale: 0.985 } : undefined} {...commonProps}>{content}</motion.button>
 })
 Button.displayName = 'Button'

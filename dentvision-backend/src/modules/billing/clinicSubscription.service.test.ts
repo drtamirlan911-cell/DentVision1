@@ -12,7 +12,7 @@ vi.mock('../../lib/prisma.js', () => ({
   },
 }));
 
-import { assertClinicMemberAccess, assertClinicBillingAccess } from './clinicSubscription.service.js';
+import { assertClinicMemberAccess, assertClinicBillingAccess, getClinicSubscriptionAmountMinor } from './clinicSubscription.service.js';
 
 describe('assertClinicMemberAccess', () => {
   it('rejects a missing clinicId with 400', async () => {
@@ -72,5 +72,30 @@ describe('assertClinicBillingAccess', () => {
     userFindUnique.mockResolvedValueOnce({ role: 'SUPERADMIN' });
     const result = await assertClinicBillingAccess('u1', 'c1');
     expect(result).toEqual({ source: 'superadmin', role: 'SUPERADMIN' });
+  });
+});
+
+
+describe('canonical clinic subscription pricing', () => {
+  it.each([
+    ['starter', 19900, 1, 1990000n],
+    ['professional', 39900, 1, 3990000n],
+    ['enterprise', 79900, 1, 7990000n],
+    ['professional', 39900, 3, 11970000n],
+    ['enterprise', 79900, 12, 95880000n],
+  ])('computes the expected amount for plan %s', (plan, _monthlyTenge, months, expected) => {
+    expect(getClinicSubscriptionAmountMinor(plan, months)).toBe(expected);
+  });
+
+  it.each([
+    ['unknown', 1],
+    ['network', 1],
+    ['professional', 0],
+    ['professional', 25],
+    ['professional', 1.5],
+    ['professional', '3'],
+    ['', 1],
+  ])('rejects invalid plan/months (%s, %s)', (plan, months) => {
+    expect(getClinicSubscriptionAmountMinor(plan, months)).toBeNull();
   });
 });

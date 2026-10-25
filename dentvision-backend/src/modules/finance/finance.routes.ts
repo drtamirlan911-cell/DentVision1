@@ -27,6 +27,14 @@ financeRouter.use(authenticate);
 
 const OWNER_TYPES = ['CLINIC', 'SUPPLIER', 'ACADEMY', 'LECTURER', 'PARTNER', 'PLATFORM', 'GATEWAY'];
 
+function requirePlatformFinance(req: AuthRequest, res: any): boolean {
+  if (req.user?.role !== 'SUPERADMIN') {
+    res.status(403).json({ ok: false, error: 'Требуются права платформенного финансового администратора' } satisfies ApiResponse);
+    return false;
+  }
+  return true;
+}
+
 /**
  * Wallet reads are intentionally NOT gated by `requirePermission('finance.manage')`:
  * a clinic/supplier needs to read its own balance without holding that platform
@@ -36,9 +44,13 @@ const OWNER_TYPES = ['CLINIC', 'SUPPLIER', 'ACADEMY', 'LECTURER', 'PARTNER', 'PL
  */
 function walletOwnershipGuard(req: AuthRequest, ownerType: string, ownerId: string): boolean {
   if (req.user?.role === 'SUPERADMIN') return true;
-  return (ownerType === 'CLINIC' && req.user?.clinicId === ownerId)
-    || req.user?.supplierId === ownerId
-    || req.user?.organizationId === ownerId;
+  if (ownerType === 'CLINIC') return req.user?.clinicId === ownerId;
+  if (ownerType === 'SUPPLIER') return req.user?.supplierId === ownerId;
+  // organizationId alone is not sufficient: it must map to the wallet owner type
+  // represented by the current context. Never let an organization ID authorize
+  // an arbitrary ownerType with the same UUID.
+  if (ownerType === 'PARTNER') return req.user?.organizationId === ownerId;
+  return false;
 }
 
 // Wallet list for current user context
@@ -49,7 +61,7 @@ financeRouter.get('/wallets', async (req: AuthRequest, res) => {
         OR: [
           ...(req.user?.clinicId ? [{ ownerType: 'CLINIC' as any, ownerId: req.user.clinicId }] : []),
           ...(req.user?.supplierId ? [{ ownerType: 'SUPPLIER' as any, ownerId: req.user.supplierId }] : []),
-          ...(req.user?.organizationId ? [{ ownerType: undefined, ownerId: req.user.organizationId }] : []),
+          ...(req.user?.organizationId ? [{ ownerType: 'PARTNER' as any, ownerId: req.user.organizationId }] : []),
         ].filter(Boolean),
       },
     });
@@ -100,7 +112,17 @@ financeRouter.get('/transactions', requirePermission('finance.manage'), async (r
       // (a SUPERADMIN skips this branch entirely, which is why it went
       // unnoticed). "Transactions that touched one of my wallets" is the
       // filter that was meant.
-      ownerFilter.ledgerEntries = { some: { wallet: { ownerId: { in: [...new Set(ids)] } } } };
+      const walletScopes: Array<{ ownerType: WalletOwnerType; ownerId: string }> = [];
+      if (req.user?.clinicId) walletScopes.push({ ownerType: 'CLINIC', ownerId: req.user.clinicId });
+      if (req.user?.supplierId) walletScopes.push({ ownerType: 'SUPPLIER', ownerId: req.user.supplierId });
+      if (req.user?.organizationId) walletScopes.push({ ownerType: 'PARTNER', ownerId: req.user.organizationId });
+      ownerFilter.ledgerEntries = {
+        some: {
+          wallet: {
+            OR: walletScopes.map(({ ownerType, ownerId }) => ({ ownerType, ownerId })),
+          },
+        },
+      };
     }
     const transactions = await prisma.transaction.findMany({
       where: ownerFilter,
@@ -116,6 +138,7 @@ financeRouter.get('/transactions', requirePermission('finance.manage'), async (r
 });
 
 financeRouter.get('/partner-economics/dashboard', requirePermission('finance.manage'), async (req: AuthRequest, res) => {
+  if (!requirePlatformFinance(req, res)) return;
   try {
     const parseDate = (value: unknown): Date | undefined => {
       if (typeof value !== 'string' || !value) return undefined;
@@ -143,6 +166,7 @@ financeRouter.get('/partner-economics/dashboard', requirePermission('finance.man
 });
 
 financeRouter.get('/partner-economics/reconciliation', requirePermission('finance.manage'), async (req: AuthRequest, res) => {
+  if (!requirePlatformFinance(req, res)) return;
   try {
     const from = typeof req.query.from === 'string' ? new Date(req.query.from) : undefined;
     const to = typeof req.query.to === 'string' ? new Date(req.query.to) : undefined;
@@ -158,6 +182,7 @@ financeRouter.get('/partner-economics/reconciliation', requirePermission('financ
 });
 
 financeRouter.get('/partner-economics/transparency', requirePermission('finance.manage'), async (req: AuthRequest, res) => {
+  if (!requirePlatformFinance(req, res)) return;
   try {
     const parseDate = (value: unknown): Date | undefined => {
       if (typeof value !== 'string' || !value) return undefined;
@@ -186,13 +211,15 @@ financeRouter.get('/partner-economics/transparency', requirePermission('finance.
 });
 
 // Ledger integrity check (platform): net of all wallet balances must be 0.
-financeRouter.get('/ledger/health', requirePermission('finance.manage'), async (_req, res) => {
+financeRouter.get('/ledger/health', requirePermission('finance.manage'), async (req, res) => {
+  if (!requirePlatformFinance(req, res)) return;
   const net = await ledgerNetBalance();
   return res.json({ ok: true, data: { netBalance: net.toString(), balanced: net === 0n } } satisfies ApiResponse);
 });
 
 // Commission rules (platform).
 financeRouter.get('/commission-rules', requirePermission('finance.manage'), async (req: AuthRequest, res) => {
+  if (!requirePlatformFinance(req, res)) return;
   try {
     const { domain, scopeId } = req.query as Record<string, string | undefined>;
     const where: Record<string, unknown> = {};
@@ -206,6 +233,7 @@ financeRouter.get('/commission-rules', requirePermission('finance.manage'), asyn
 });
 
 financeRouter.post('/commission-rules', requirePermission('finance.manage'), async (req: AuthRequest, res) => {
+  if (!requirePlatformFinance(req, res)) return;
   try {
     const { domain, scopeId, percentBps, splitJson } = req.body || {};
     if (!domain || percentBps === undefined) {
@@ -241,6 +269,7 @@ financeRouter.post('/commission-rules', requirePermission('finance.manage'), asy
 // Record a sale (platform trigger for now; later wired into shop/school checkout).
 // Body: { domain, sellerType, sellerId, amount (в тенге) | amountMinor, refId? }
 financeRouter.post('/sales', requirePermission('finance.manage'), async (req: AuthRequest, res) => {
+  if (!requirePlatformFinance(req, res)) return;
   try {
     const { domain, sellerType, sellerId, amount, amountMinor, refId, refType } = req.body || {};
     if (!domain || !sellerType || !sellerId || (amount === undefined && amountMinor === undefined)) {
@@ -284,6 +313,7 @@ financeRouter.post('/sales', requirePermission('finance.manage'), async (req: Au
 
 // Manual transaction (superadmin: bonuses, fees, refunds).
 financeRouter.post('/transactions/manual', requirePermission('finance.manage'), async (req: AuthRequest, res) => {
+  if (!requirePlatformFinance(req, res)) return;
   try {
     const { walletId, type, amount, description, refType, refId } = req.body || {};
     if (!walletId || !amount || !type || !description) {
@@ -355,6 +385,7 @@ export default financeRouter;
 
 /** The queue itself. Defaults to what is waiting on a human. */
 financeRouter.get('/payouts', requirePermission('finance.manage'), async (req: AuthRequest, res) => {
+  if (!requirePlatformFinance(req, res)) return;
   const status = String(req.query.status || 'requested');
   const payouts = await listPayouts({
     status: (PAYOUT_STATUSES as readonly string[]).includes(status)
@@ -371,6 +402,7 @@ financeRouter.get('/payouts', requirePermission('finance.manage'), async (req: A
  * the service owns that rule so a second caller cannot invent its own.
  */
 financeRouter.post('/payouts/:id/status', requirePermission('finance.manage'), async (req: AuthRequest, res) => {
+  if (!requirePlatformFinance(req, res)) return;
   const next = String((req.body || {}).status || '');
   if (!(PAYOUT_STATUSES as readonly string[]).includes(next)) {
     return res.status(400).json({
@@ -407,6 +439,7 @@ financeRouter.post('/payouts/:id/status', requirePermission('finance.manage'), a
 const EXPENSE_CATEGORIES = ['SERVER', 'AI_API', 'MARKETING', 'SALARY', 'SUPPORT', 'PAYMENT_FEES'];
 
 financeRouter.get('/expenses', requirePermission('finance.manage'), async (req: AuthRequest, res) => {
+  if (!requirePlatformFinance(req, res)) return;
   try {
     const { category, from, to } = req.query as Record<string, string | undefined>;
     const where: Record<string, unknown> = { tenantId: 'platform' };
@@ -431,6 +464,7 @@ financeRouter.get('/expenses', requirePermission('finance.manage'), async (req: 
 });
 
 financeRouter.post('/expenses', requirePermission('finance.manage'), async (req: AuthRequest, res) => {
+  if (!requirePlatformFinance(req, res)) return;
   try {
     const { category, amount, date, meta } = req.body || {};
     if (!category || !EXPENSE_CATEGORIES.includes(String(category))) {
@@ -478,6 +512,7 @@ financeRouter.post('/expenses', requirePermission('finance.manage'), async (req:
  * finance core was built, and which nothing read until now.
  */
 financeRouter.get('/revenue-by-source', requirePermission('finance.manage'), async (req: AuthRequest, res) => {
+  if (!requirePlatformFinance(req, res)) return;
   try {
     const parseDate = (value: unknown): Date | undefined => {
       if (typeof value !== 'string' || !value) return undefined;

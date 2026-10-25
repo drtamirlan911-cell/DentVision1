@@ -51,6 +51,7 @@ export function resolveActiveContentContext(req: Request): ActiveContentContext 
   if (organizationType === 'ACADEMY') return 'LECTURER';
 
   const role = String(user.role || '').toUpperCase();
+  if (role === 'PATIENT') return 'PATIENT';
   if (role === 'STUDENT') return 'DENTAL_STUDENT';
   if (role === 'BUYER') return 'BUYER';
   if (PROFESSIONAL_USER_ROLES.has(role)) return 'DOCTOR';

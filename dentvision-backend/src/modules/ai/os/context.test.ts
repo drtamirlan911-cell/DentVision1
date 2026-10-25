@@ -1,4 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 
 const { agentActivityFindMany, resolveOrganizationIdForClinic, organizationFindUnique, clinicFindUnique, supplierFindUnique, lecturerFindUnique, clinicMemberFindMany, supplierMemberFindMany, diagnosticCenterMemberFindMany, laboratoryMemberFindMany, personFindMany } = vi.hoisted(() => ({
   agentActivityFindMany: vi.fn(),
@@ -166,5 +168,18 @@ describe('buildAiContext', () => {
     const ctx = await buildAiContext(req({ id: 'user-9', role: 'OWNER' }), {});
 
     expect(ctx.user).toEqual({ id: 'user-9', role: 'OWNER', name: 'Аида Ержанова' });
+  });
+});
+
+describe('AI partner workspace proactive context', () => {
+  it('keeps partner workspace explicit when no clinic scope exists', async () => {
+    const source = readFileSync(resolve(process.cwd(), 'dentvision-backend/src/modules/ai/core/digitalTwin.ts'), 'utf8');
+    expect(source).toContain('organizationType?: string | null');
+    expect(source).toContain("organizationType !== 'CLINIC'");
+    expect(source).toContain('type: \'workspace\'');
+    const partnerGuard = source.indexOf("else if (organizationType && organizationType !== 'CLINIC')");
+    const legacyFallback = source.indexOf("const access = await resolveAnyClinicMembership(userId)");
+    expect(partnerGuard).toBeGreaterThanOrEqual(0);
+    expect(legacyFallback).toBeGreaterThan(partnerGuard);
   });
 });

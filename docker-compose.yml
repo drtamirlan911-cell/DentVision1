@@ -14,13 +14,17 @@ services:
       - DATABASE_URL=${DATABASE_URL}
       - JWT_SECRET=${JWT_SECRET}
       - JWT_REFRESH_SECRET=${JWT_REFRESH_SECRET}
-      - JWT_EXPIRES_IN=${JWT_EXPIRES_IN:-24h}
+      - JWT_EXPIRES_IN=${JWT_EXPIRES_IN:-15m}
       - JWT_REFRESH_EXPIRES_IN=${JWT_REFRESH_EXPIRES_IN:-7d}
+      - PAYMENTS_SANDBOX=${PAYMENTS_SANDBOX:-false}
       - CORS_ORIGIN=${CORS_ORIGIN:-http://localhost:80}
       - PORT=3001
       - REDIS_URL=${REDIS_URL:-}
       - OPENAI_API_KEY=${OPENAI_API_KEY:-}
-      - ENCRYPTION_KEY=${ENCRYPTION_KEY}
+      - ENCRYPTION_KEY=${ENCRYPTION_KEY:?ENCRYPTION_KEY is required}
+      - KASPI_PAY_BASE_URL=${KASPI_PAY_BASE_URL:-https://pay.kaspi.kz/pay}
+      - KASPI_API_BASE_URL=${KASPI_API_BASE_URL:-https://pay.kaspi.kz}
+      - KASPI_CALLBACK_SECRET=${KASPI_CALLBACK_SECRET}
     healthcheck:
       test: ["CMD", "curl", "--fail", "http://localhost:3001/api/health"]
       interval: 30s

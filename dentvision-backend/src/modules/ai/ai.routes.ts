@@ -909,6 +909,8 @@ aiRouter.get('/proactive', optionalAuth, async (req: AuthRequest, res) => {
       clinicId: req.user?.isGuest ? null : (req.user?.clinicId || null),
       role: req.user?.isGuest ? 'GUEST' : (req.user?.role || 'guest'),
       isGuest: req.user?.isGuest === true,
+      organizationType: req.user?.organizationType || null,
+      workspaceName: req.user?.organizationType && req.user.organizationType !== 'CLINIC' ? 'активная организация' : null,
     });
     res.json({ ok: true, data: { alerts } });
   } catch (error) {
@@ -1035,6 +1037,7 @@ aiRouter.get('/digital-twin', optionalAuth, async (req: AuthRequest, res) => {
     }
     const twin = await buildDigitalTwin(req.user.id, req.user?.clinicId || null, {
       isGuest: req.user?.isGuest === true,
+      organizationType: req.user?.organizationType || null,
     });
     if (!twin) {
       return res.status(404).json({ ok: false, error: 'Пользователь не найден' });
@@ -1071,10 +1074,26 @@ aiRouter.get('/twin/proactive', optionalAuth, async (req: AuthRequest, res) => {
     if (!userId) return res.json({ ok: true, data: { suggestions: [], feed: [] } });
 
     const { buildDigitalTwin, buildProactiveAlerts, buildContextualSuggestions } = await import('./core/digitalTwin.js');
-    const twin = await buildDigitalTwin(userId, clinicId || null, { isGuest: false });
+    const twin = await buildDigitalTwin(userId, clinicId || null, {
+      isGuest: false,
+      organizationType: req.user?.organizationType || null,
+    });
     if (!twin) return res.json({ ok: true, data: { suggestions: [], feed: [] } });
 
-    const allAlerts = clinicId ? await buildProactiveAlerts({ userId, clinicId, role: (twin as any).role }) : [];
+    const workspaceName = req.user?.organizationId
+      ? (await prisma.organization.findUnique({
+          where: { id: req.user.organizationId },
+          select: { name: true },
+        }))?.name || null
+      : null;
+    const allAlerts = await buildProactiveAlerts({
+      userId,
+      clinicId: clinicId || null,
+      role: (twin as any).role,
+      isGuest: false,
+      organizationType: req.user?.organizationType || null,
+      workspaceName,
+    });
     const suggestions = screen ? buildContextualSuggestions(twin as any, screen, allAlerts) : [];
     const feed = allAlerts.slice(0, 30);
 
