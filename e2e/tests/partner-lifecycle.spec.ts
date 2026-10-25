@@ -141,6 +141,10 @@ test.describe('Partner operational lifecycle', () => {
     expect(switchedRadiologist.status()).toBe(200);
     centerRadiologistToken = (await switchedRadiologist.json()).data.accessToken;
     expect(centerRadiologistToken).toBeTruthy();
+    const radiologistTokenPayload = JSON.parse(Buffer.from(centerRadiologistToken.split('.')[1], 'base64url').toString('utf8')) as { role?: string; personType?: string; organizationType?: string };
+    expect(radiologistTokenPayload.role).toBe('DOCTOR');
+    expect(radiologistTokenPayload.personType).toBe('RADIOLOGIST');
+    expect(radiologistTokenPayload.organizationType).toBe('DIAGNOSTIC_CENTER');
 
     // Refresh the diagnostic-center owner's scoped token captured at onboarding.
     // The shared APIRequestContext has since logged in the radiologist and its cookie
@@ -246,8 +250,9 @@ test.describe('Partner operational lifecycle', () => {
       headers: auth(centerRadiologistToken),
       data: { reportText: 'E2E diagnostic report', conclusion: 'No acute findings' },
     });
-    expect(result.status()).toBe(200);
-    const signed = (await result.json()).data;
+    const resultBody = await result.json();
+    expect(result.status(), JSON.stringify(resultBody)).toBe(200);
+    const signed = resultBody.data;
     expect(signed.patientRecordUpdated).toBe(false);
     expect(await prisma.visit.count({ where: { patientId } })).toBe(visitCountBefore);
 
