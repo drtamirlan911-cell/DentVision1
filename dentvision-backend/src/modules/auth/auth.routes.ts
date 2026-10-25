@@ -217,7 +217,8 @@ authRouter.post('/refresh', async (req, res) => {
       return res.status(401).json({ ok: false, error: 'Контекст организации больше недействителен' });
     }
 
-    await expireSession(session.id);
+    const rotated = await expireSession(session.id, user.id);
+    if (!rotated) return res.status(401).json({ ok: false, error: 'Сессия уже недействительна' });
     const newSession = await createSession(user.id, req.ip, req.headers['user-agent']);
     const scopedRole = authContext.organizationId
       ? await resolveOrganizationRoleKey(user.id, authContext.organizationId)
