@@ -368,6 +368,38 @@ describe('payment creation server-side pricing and metadata protection', () => {
     expect(saved.meta.qr).toBe('https://clinic.example/qr');
   });
 
+  it('does not let legacy clinic metadata override canonical order ownership', async () => {
+    m.paymentFindUnique.mockResolvedValueOnce({
+      id: 'legacy-order-payment', provider: 'kaspi_qr', status: 'pending',
+      refType: 'order', refId: 'order-foreign',
+      meta: { userId: 'attacker', clinicId: 'clinic-owned', merchantScope: 'clinic' },
+    });
+    m.orderFindUnique.mockResolvedValueOnce({ userId: 'different-buyer' });
+    const { response } = await postConfirm('legacy-order-payment');
+    expect(response.status).toBe(403);
+  });
+
+  it('allows the canonical order owner despite stale clinic metadata on an old order payment', async () => {
+    m.paymentFindUnique.mockResolvedValueOnce({
+      id: 'legacy-order-payment-owned', provider: 'kaspi_qr', status: 'pending',
+      refType: 'order', refId: 'order-owned',
+      meta: { userId: 'attacker', clinicId: 'clinic-owned', merchantScope: 'clinic' },
+    });
+    m.orderFindUnique.mockResolvedValueOnce({ userId: 'authenticated-user' });
+    const { response } = await postConfirm('legacy-order-payment-owned');
+    expect(response.status).toBe(402); // authorized owner reaches provider-pending handling
+  });
+
+  it('fails closed for legacy clinic invoice payments with no clinic scope', async () => {
+    m.paymentFindUnique.mockResolvedValueOnce({
+      id: 'legacy-invoice-payment', provider: 'kaspi_qr', status: 'pending',
+      refType: 'crm_invoice', refId: 'invoice-1',
+      meta: { userId: 'authenticated-user', merchantScope: 'clinic' },
+    });
+    const { response } = await postConfirm('legacy-invoice-payment');
+    expect(response.status).toBe(403);
+  });
+
   it('requires billing.manage for clinic refunds even when the caller can access the clinic payment', async () => {
     m.paymentFindUnique.mockResolvedValueOnce({
       id: 'clinic-payment-refund', provider: 'clinic_kaspi', status: 'pending',
