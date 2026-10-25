@@ -5,6 +5,16 @@ const OWNER_EMAIL = 'owner-a@test.com';
 const PASSWORD = 'Test1234!';
 
 async function login(page: Page, role = 'owner') {
+  // A cookie-only reset leaves the persisted Zustand token/context in sessionStorage.
+  // Clear storage and force a full reload before opening Login, otherwise the app
+  // silently restores the previous partner workspace and redirects away from /login.
+  await page.context().clearCookies();
+  await page.goto(BASE);
+  await page.evaluate(() => {
+    localStorage.clear();
+    sessionStorage.clear();
+  });
+  await page.reload();
   await page.goto(`${BASE}/login?role=${role}`);
   await page.locator('input[autocomplete="username"]').fill(OWNER_EMAIL);
   await page.locator('input[autocomplete="current-password"]').fill(PASSWORD);
