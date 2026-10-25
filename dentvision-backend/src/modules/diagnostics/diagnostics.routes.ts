@@ -204,7 +204,7 @@ diagnosticsRouter.post('/referrals/:id/ai-result', requireReferralAccess(), asyn
 diagnosticsRouter.post('/referrals/:id/confirm-ai-result', requireReferralAccess(), async (req: AuthRequest, res) => { try { const data = await svc.confirmAiResult(req.params.id, req.user!.id); return res.json({ ok: true, data } satisfies ApiResponse); } catch (e: any) { return res.status(400).json({ ok: false, error: e.message } satisfies ApiResponse); } });
 diagnosticsRouter.post('/referrals/:id/results/sign', requireReferralAccess(true), async (req: AuthRequest, res) => { try { const referral = await prisma.referral.findUnique({ where: { id: req.params.id }, select: { clinicId: true, doctorId: true, branchId: true, centerId: true, labId: true } }); if (!referral) return res.status(404).json({ ok: false, error: 'Referral not found' }); const clinicAccess = await referralBranchAllowed(req.user!, referral); const diagnosticPartnerAccess = referral.centerId ? sameOrgContext(req.user, 'DiagnosticCenter', referral.centerId) : false; const laboratoryPartnerAccess = referral.labId ? sameOrgContext(req.user, 'Laboratory', referral.labId) : false; const partnerAccess = diagnosticPartnerAccess || laboratoryPartnerAccess; const actorRole = String(req.user?.role || '').toUpperCase();
     const partnerCanSign = diagnosticPartnerAccess
-      ? actorRole === 'RADIOLOGIST'
+      ? ['RADIOLOGIST', 'DIAGNOSTIC_RADIOLOGIST'].includes(actorRole)
       : laboratoryPartnerAccess
         ? ['MEDICAL_LAB_VALIDATOR', 'MEDICAL_LAB_DOCTOR'].includes(actorRole)
         : false;
