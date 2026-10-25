@@ -1,6 +1,7 @@
 import React from 'react'
 import { useTranslation } from 'react-i18next'
 import { cn } from '@/lib/utils'
+import { crownPath } from './toothCrownShapes'
 import { getToothMorphology, isUpperArch, type RootPattern, type ToothVariant } from './toothMorphology'
 import {
   STATUS_META,
@@ -79,12 +80,6 @@ function toothOutline(pattern: RootPattern): string {
   }
 }
 
-/**
- * The crown portion alone — for marks that belong on the crown and must not
- * run down the roots, such as a crown restoration's outline.
- */
-import { crownPath } from './toothCrownShapes'
-
 /** Faint internal lines that suggest form without cutting the silhouette. */
 function toothDetail(pattern: RootPattern, variant: ToothVariant): React.ReactNode {
   const wide = pattern === 'molarUpper' || pattern === 'molarLower'
@@ -93,7 +88,15 @@ function toothDetail(pattern: RootPattern, variant: ToothVariant): React.ReactNo
       {/* Cervical line: where enamel ends. A soft curve, not a border. */}
       <path d={wide ? 'M9.6 27.4 C15 29.6 25 29.6 30.4 27.4' : 'M14.8 27.2 C17 29 23 29 25.2 27.2'} />
       {/* Developmental lobe on the crown face. */}
-      {wide && <path d="M20 34 C20.4 40 20.4 46 20 51" />}\n      {variant === 'centralIncisor' && <path d="M17.1 31 C17.6 38 17.7 44 17.5 49" />}\n      {variant === 'lateralIncisor' && <path d="M20 31 C20.2 37 20.3 43 20.1 49" />}\n      {variant === 'canine' && <path d="M20 29 L20 48" />}\n      {variant === 'upperPremolar1' && <><path d="M14 38 C16 35.5 18 34.8 20 35.2" /><path d="M20 35.2 C22 34.8 24 35.5 26 38" /><path d="M18.5 43 C19.2 41.2 20.8 41.2 21.5 43" /></>}\n      {variant === 'upperPremolar2' && <path d="M20 35 C20 39 20 44 20 50" />}\n      {variant === 'lowerPremolar' && <path d="M20 34 C18.5 39 18.5 44 20 49 C21.5 44 21.5 39 20 34" />}\n      {(variant === 'upperMolar1' || variant === 'upperMolar2' || variant === 'upperMolar3') && <><path d="M13 34 C15 37 17 39 20 40" /><path d="M27 34 C25 37 23 39 20 40" /></>}\n      {(variant === 'lowerMolar1' || variant === 'lowerMolar2' || variant === 'lowerMolar3') && <path d="M12 39 C16 37 24 37 28 39" />}
+      {wide && <path d="M20 34 C20.4 40 20.4 46 20 51" />}
+      {variant === 'centralIncisor' && <path d="M17.1 31 C17.6 38 17.7 44 17.5 49" />}
+      {variant === 'lateralIncisor' && <path d="M20 31 C20.2 37 20.3 43 20.1 49" />}
+      {variant === 'canine' && <path d="M20 29 L20 48" />}
+      {variant === 'upperPremolar1' && <><path d="M14 38 C16 35.5 18 34.8 20 35.2" /><path d="M20 35.2 C22 34.8 24 35.5 26 38" /><path d="M18.5 43 C19.2 41.2 20.8 41.2 21.5 43" /></>}
+      {variant === 'upperPremolar2' && <path d="M20 35 C20 39 20 44 20 50" />}
+      {variant === 'lowerPremolar' && <path d="M20 34 C18.5 39 18.5 44 20 49 C21.5 44 21.5 39 20 34" />}
+      {(variant === 'upperMolar1' || variant === 'upperMolar2' || variant === 'upperMolar3') && <><path d="M13 34 C15 37 17 39 20 40" /><path d="M27 34 C25 37 23 39 20 40" /></>}
+      {(variant === 'lowerMolar1' || variant === 'lowerMolar2' || variant === 'lowerMolar3') && <path d="M12 39 C16 37 24 37 28 39" />}
     </>
   )
 }
