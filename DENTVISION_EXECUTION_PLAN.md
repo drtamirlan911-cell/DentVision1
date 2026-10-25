@@ -22,13 +22,14 @@ This document is the persistent execution contract for DentVision. It is the sou
 ### Phase 0 — Technical baseline / control plane
 **Status:** COMPLETE
 
-Evidence recorded in `CURRENT_STATE.md` and `DENTVISION_EXECUTION_LOG.md`.
+Evidence recorded in `DENTVISION_CONTEXT.md` and `DENTVISION_EXECUTION_LOG.md`; the context file is the current state bootstrap.
 
 - [x] Create this master execution plan.
 - [x] Create persistent execution log.
-- [x] Confirm the existing project control plane: `ARCHITECTURE.md`, `CURRENT_STATE.md`, and `.dentvision/current-state.json`.
+- [x] Confirm the control plane: `DENTVISION_CONTEXT.md` is the current state/authority bootstrap; `ARCHITECTURE.md` is the architecture overview; `.dentvision/current-state.json` is the curated machine-readable summary sourced from context (`generated: false`).
+- [x] Record repository-path audit: `CURRENT_STATE.md` is absent at this branch head and is not an active current-state source; do not recreate a competing status document.
 - [x] Stabilize CI and record evidence.
-- [x] Restore/verify `dentvision-backend/src/modules/patients/patients.routes.ts` against Git history as required by `CURRENT_STATE.md`.
+- [x] Restore/verify `dentvision-backend/src/modules/patients/patients.routes.ts` against Git history, recording evidence in `DENTVISION_EXECUTION_LOG.md` (no `CURRENT_STATE.md` exists at this branch head).
 - [x] Verify backend runtime/infrastructure baseline.
 - [x] Record the exact baseline commit and active implementation branch in the execution log.
 - [x] Locate and read the canonical `DENTVISION_PARTNER_ECONOMICS.md`; retain it as the sole economics policy source.
