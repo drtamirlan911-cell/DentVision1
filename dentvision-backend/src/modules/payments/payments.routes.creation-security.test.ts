@@ -12,6 +12,8 @@ const m = vi.hoisted(() => ({
   paymentFindUniqueOrThrow: vi.fn(),
   transaction: vi.fn(),
   orderFindUnique: vi.fn(),
+  appointmentFindFirst: vi.fn(),
+  invoiceFindFirst: vi.fn(),
   courseFindUnique: vi.fn(),
   providerCreate: vi.fn(),
   providerStatus: vi.fn(),
@@ -21,6 +23,9 @@ const m = vi.hoisted(() => ({
   assertClinicBillingAccess: vi.fn(),
   assertOrgAccess: vi.fn(),
   resolveClinicMemberAccess: vi.fn(),
+  assertClinicOrgAccess: vi.fn(),
+  resolveOrganizationIdForClinic: vi.fn(),
+  resolveUserPermissions: vi.fn(),
   reserveIdempotencyKey: vi.fn(),
   completeIdempotencyKey: vi.fn(),
   deleteIdempotencyKey: vi.fn(),
@@ -32,6 +37,8 @@ vi.mock('../../lib/prisma.js', () => ({
   default: {
     payment: { create: m.paymentCreate, findUnique: m.paymentFindUnique, updateMany: m.paymentUpdateMany },
     order: { findUnique: m.orderFindUnique },
+    appointment: { findFirst: m.appointmentFindFirst },
+    invoice: { findFirst: m.invoiceFindFirst },
     course: { findUnique: m.courseFindUnique },
     $transaction: m.transaction,
   },
@@ -66,7 +73,15 @@ vi.mock('./clinicPayments.js', () => ({
 }));
 vi.mock('../../lib/orgContext.js', () => ({
   assertOrgAccess: m.assertOrgAccess,
+  assertClinicOrgAccess: m.assertClinicOrgAccess,
   resolveClinicAccess: m.resolveClinicMemberAccess,
+  resolveOrganizationIdForClinic: m.resolveOrganizationIdForClinic,
+}));
+vi.mock('../../lib/permissions.js', () => ({
+  permissionsSatisfy: (granted: Set<string>, required: string) => granted.has(required),
+}));
+vi.mock('../../lib/resolvePermissions.js', () => ({
+  resolveUserPermissions: m.resolveUserPermissions,
 }));
 vi.mock('../billing/clinicSubscription.service.js', () => ({
   assertClinicBillingAccess: m.assertClinicBillingAccess,
@@ -120,8 +135,13 @@ beforeEach(() => {
   m.deleteIdempotencyKey.mockResolvedValue(undefined);
   m.assertClinicBillingAccess.mockResolvedValue({ role: 'OWNER' });
   m.assertOrgAccess.mockResolvedValue(true);
+  m.assertClinicOrgAccess.mockResolvedValue(true);
+  m.resolveOrganizationIdForClinic.mockResolvedValue('org-clinic-owned');
+  m.resolveUserPermissions.mockResolvedValue(['billing.manage']);
   m.resolveClinicMemberAccess.mockResolvedValue({ role: 'OWNER' });
   m.orderFindUnique.mockResolvedValue(null);
+  m.appointmentFindFirst.mockResolvedValue({ id: 'appointment-1' });
+  m.invoiceFindFirst.mockResolvedValue({ amount: 100, paidAmount: 0, status: 'pending' });
   m.courseFindUnique.mockResolvedValue({ id: 'course-1', price: 39900, lecturerId: 'lecturer-1', academyId: 'academy-1' });
   m.providerCreate.mockResolvedValue({ externalId: 'gateway-payment-1', qr: 'https://pay.example/qr' });
   m.providerStatus.mockResolvedValue('pending');
@@ -297,6 +317,71 @@ describe('payment creation server-side pricing and metadata protection', () => {
     expect(enrollment.response.status).toBe(201);
     expect(m.paymentCreate.mock.calls[0][0].data.meta.userId).toBe('authenticated-user');
     expect(enrollment.body.ok).toBe(true);
+  });
+
+  it('denies clinic invoice payments when the invoice is outside the selected clinic', async () => {
+    m.invoiceFindFirst.mockResolvedValueOnce(null);
+    const { response } = await postPayment({
+      amountMinor: '10000', domain: 'crm', refType: 'crm_invoice', refId: 'foreign-invoice',
+      meta: { clinicId: 'clinic-owned', merchantScope: 'clinic' },
+    });
+    expect(response.status).toBe(403);
+    expect(m.paymentCreate).not.toHaveBeenCalled();
+    expect(m.reserveIdempotencyKey).not.toHaveBeenCalled();
+  });
+
+  it('rejects a clinic invoice payment above the outstanding balance', async () => {
+    m.invoiceFindFirst.mockResolvedValueOnce({ amount: 100, paidAmount: 80, status: 'pending' });
+    const { response } = await postPayment({
+      amountMinor: '3000', domain: 'crm', refType: 'crm_invoice', refId: 'invoice-1',
+      meta: { clinicId: 'clinic-owned', merchantScope: 'clinic' },
+    });
+    expect(response.status).toBe(409);
+    expect(m.paymentCreate).not.toHaveBeenCalled();
+  });
+
+  it('requires billing.manage for clinic cash payment creation', async () => {
+    m.resolveUserPermissions.mockResolvedValueOnce([]);
+    const { response } = await postPayment({
+      amountMinor: '10000', domain: 'crm', refType: 'appointment', refId: 'appointment-1',
+      meta: { clinicId: 'clinic-owned', merchantScope: 'clinic' },
+    });
+    expect(response.status).toBe(403);
+    expect(m.createClinicKaspiPayment).not.toHaveBeenCalled();
+    expect(m.paymentCreate).not.toHaveBeenCalled();
+  });
+
+  it('derives clinic payment seller and payer metadata from server context', async () => {
+    const { response } = await postPayment({
+      amountMinor: '10000', domain: 'crm', refType: 'crm_invoice', refId: 'invoice-1',
+      sellerType: 'SUPPLIER', sellerId: 'attacker-seller',
+      meta: { clinicId: 'clinic-owned', merchantScope: 'platform', userId: 'attacker', clinicPayMode: 'api', qr: 'https://attacker.example/qr' },
+    });
+    expect(response.status).toBe(201);
+    const saved = m.paymentCreate.mock.calls[0][0].data;
+    expect(saved.sellerType).toBe('CLINIC');
+    expect(saved.sellerId).toBe('clinic-owned');
+    expect(saved.meta.userId).toBe('authenticated-user');
+    expect(saved.meta.clinicId).toBe('clinic-owned');
+    expect(saved.meta.merchantScope).toBe('clinic');
+    expect(saved.meta.clinicPayMode).toBe('static');
+    expect(saved.meta.qr).toBe('https://clinic.example/qr');
+  });
+
+  it('requires billing.manage for clinic refunds even when the caller can access the clinic payment', async () => {
+    m.paymentFindUnique.mockResolvedValueOnce({
+      id: 'clinic-payment-refund', provider: 'clinic_kaspi', status: 'pending',
+      refType: 'crm_invoice', refId: 'invoice-1',
+      meta: { clinicId: 'clinic-owned', merchantScope: 'clinic', userId: 'authenticated-user' },
+    });
+    m.resolveUserPermissions.mockResolvedValueOnce([]);
+    const response = await fetch(`${baseUrl}/api/payments/clinic-payment-refund/refund`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Idempotency-Key': 'refund-test-key' },
+      body: JSON.stringify({ amountMinor: '1000', reason: 'test' }),
+    });
+    expect(response.status).toBe(403);
+    expect(m.reserveIdempotencyKey).not.toHaveBeenCalled();
   });
 });
 
