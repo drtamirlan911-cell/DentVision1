@@ -2053,3 +2053,11 @@ These changes are route/entry reconciliation only. Existing domain implementatio
 - The prior `FIN-003` used `owner-a@test.com` to expect HTTP 400 for an invalid platform-finance period. The exact-main CI run returned 403 because platform partner economics is explicitly protected by `requirePermission('finance.manage')` and the additional platform-finance boundary; that response was not evidence the date parser worked.
 - Updated the test contract in the integration candidate to keep both behaviors independently asserted: a clinic owner receives 403 even when the query is malformed, and a platform SUPERADMIN receives 400 with `Некорректная дата` for the same malformed input. No authorization rule is relaxed.
 - This is a candidate test correction, not yet verified by exact-head CI. If SUPERADMIN does not reach the validation handler, investigate auth/permission middleware rather than accepting 403 as a validation pass.
+
+
+## 2026-10-25 — Superseding failed integration candidate with a bounded E2E fix pass
+
+- The exact integration HEAD `f2371623cf39a98d067dd1102aa450f19e351761` ran as CI run `40192163708`: backend lint, frontend lint, and unit/type test gate passed; core E2E and role/context gate failed. The Visual Agent gate was still executing when this candidate was prepared.
+- Because the CI job had already failed two required gates, the remaining run was intentionally superseded by the consolidated candidate rather than spending additional runner time on a known-failing SHA. GitHub Actions is configured to cancel the previous CI execution for a new push to the same ref; the old failure artifacts remain evidence and are not treated as a pass.
+- The consolidated candidate includes the role/context timing and visible-role repair, support-route correction, safe onboarding response capture, deterministic lifecycle re-login, compact E2E live output with full logs retained, and watcher exclusions for generated Playwright evidence. The finance E2E validation/authorization split is also included.
+- The branch ref has not been updated by this documentation record yet. New exact-head verification is required after publishing the candidate; release remains NOT READY.

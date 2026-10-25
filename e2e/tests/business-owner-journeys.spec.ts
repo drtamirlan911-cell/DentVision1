@@ -52,6 +52,9 @@ async function submitAndCaptureOnboarding(page: Page): Promise<{ status: number;
   let timeoutId: ReturnType<typeof setTimeout> | undefined;
   try {
     const clickPromise = page.getByRole("button", { name: "Создать и открыть workspace" }).click();
+    // If capture times out before the click action settles, mark its rejection handled;
+    // awaiting clickPromise below still propagates the original failure when appropriate.
+    clickPromise.catch(() => {});
     timeoutId = setTimeout(() => rejectCapture(new Error("Timed out waiting for self-service onboarding response")), 15000);
     const captured = await capturedResponse;
     await clickPromise;
