@@ -59,7 +59,7 @@ AI action lifecycle:
 
 ### Candidate verification updates — 2026-10-25
 - PR #309 candidate head f30119b4f6752e540327666f9f34afe4a17bfe96: docs/SYSTEM_MAP.md was synchronized with generator output (672 handlers, 636 registered routes, 101 routes without detected consumers; diagnostics 35 handlers / 1 without detected consumer). CI run 40163222925 passed frontend lint, backend lint, generated project index, TypeScript, system-map validation and npm test; E2E remained in progress at the last checkpoint. Quality Gate run 40163223009 passed. Candidate-branch evidence only.
-- RB-034 records a confirmed AI DoctorAgent cross-tenant access defect. Candidate branch security/doctor-agent-tenant-isolation-20261025 scopes caller-supplied patient/appointment IDs and adds negative-path tests; exact commit and CI results must be recorded after commit/verification.
+- RB-034 records a confirmed AI DoctorAgent cross-tenant access defect. Candidate branch security/doctor-agent-tenant-isolation-20261025 has implementation commit 80c842777e5fdfdeacf3c672febd9e3624276d6b with scoped queries and negative-path tests; exact-head CI/E2E verification is pending.
 - Canonical IAM role matrix path is docs/DENTVISION_IAM_ROLE_MATRIX.md. A root-level DENTVISION_IAM_ROLE_MATRIX.md does not exist; use the path under docs/ for future audits.
 
 ### Product status
