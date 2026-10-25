@@ -61,6 +61,8 @@ jobs:
         working-directory: dentvision-backend
       - name: Generate system map
         run: npm run system-map --prefix dentvision-backend
+      - name: Output generated system map for reconciliation
+        run: cat docs/SYSTEM_MAP.md
       - name: Validate generated system map
         run: git diff --exit-code -- docs/SYSTEM_MAP.md
       - run: npm test
