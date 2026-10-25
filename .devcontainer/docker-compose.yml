@@ -1,0 +1,38 @@
+services:
+  workspace:
+    image: mcr.microsoft.com/devcontainers/javascript-node:1-22-bookworm
+    command: sleep infinity
+    init: true
+    working_dir: /workspaces/DentVision1
+    volumes:
+      - ..:/workspaces/DentVision1:cached
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      NODE_ENV: development
+      DATABASE_URL: postgresql://dentvision:dentvision_dev_only@postgres:5432/dentvision_dev?schema=public
+      JWT_SECRET: local-development-only-change-before-any-shared-use
+      JWT_REFRESH_SECRET: local-development-refresh-only-change-before-any-shared-use
+      ENCRYPTION_KEY: local-development-key-32-chars!!
+      PORT: "3001"
+      CORS_ORIGIN: http://localhost:3000
+      PAYMENTS_SANDBOX: "true"
+
+  postgres:
+    image: postgres:16-bookworm
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: dentvision
+      POSTGRES_PASSWORD: dentvision_dev_only
+      POSTGRES_DB: dentvision_dev
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U dentvision -d dentvision_dev"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    volumes:
+      - dentvision_dev_postgres:/var/lib/postgresql/data
+
+volumes:
+  dentvision_dev_postgres:
