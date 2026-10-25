@@ -4,10 +4,16 @@ import {
   MODULE_PAGES,
   capabilitiesForPermissions,
   pagesForPermissions,
+  pagesForCaller,
   permissionsForRole,
 } from './permissions.js';
 
 describe('pagesForPermissions', () => {
+  it('keeps STUDENT on learner pages instead of inheriting global partner pages', () => {
+    expect(pagesForCaller([], 'STUDENT')).toEqual(['shop', 'school', 'profile']);
+  });
+
+
   it('expands the wildcard to every known page', () => {
     const all = new Set(Object.values(MODULE_PAGES).flat());
     expect(new Set(pagesForPermissions(['*']))).toEqual(all);
@@ -30,8 +36,8 @@ describe('pagesForPermissions', () => {
     expect(pagesForPermissions([])).toEqual([]);
   });
 
-  it('grants only the shared profile for a permission with no pages', () => {
-    expect(pagesForPermissions(['community.read'])).toEqual(['profile']);
+  it('maps community permissions to the community page', () => {
+    expect(pagesForPermissions(['community.read'])).toEqual(['community', 'profile']);
   });
 
   it('maps settings.manage to clinic settings only, not personal settings', () => {

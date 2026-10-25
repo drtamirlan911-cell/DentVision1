@@ -165,7 +165,7 @@ export default function School() {
             <CardContent className="p-5 sm:p-6">
               <div className="flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
                 <div className="flex items-start gap-3 min-w-0"><div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-dv-gold/10 text-dv-gold"><GraduationCap size={19} /></div><div><p className="text-sm font-semibold text-txt-primary">Образование для стоматолога — в одном workspace</p><p className="text-sm text-txt-secondary mt-1 max-w-2xl">Live-вебинары, hands-on, цифровая библиотека и онлайн-треки с сертификатами.</p></div></div>
-                <div className="flex flex-wrap gap-2 shrink-0"><Button size="sm" onClick={() => setTab('webinars')}>Вебинары</Button><Button size="sm" variant="secondary" onClick={() => setTab('textbooks')}>Учебники</Button><Button size="sm" variant="secondary" onClick={() => setTab('office')}>Офис-курсы</Button><Button size="sm" variant="secondary" onClick={() => { setTab('homework'); setHwOpen(true) }}>AI-проверка ДЗ</Button></div>
+                <div className="flex flex-wrap gap-2 shrink-0"><Button size="sm" className="!min-h-10" onClick={() => setTab('webinars')}>Вебинары</Button><Button size="sm" className="!min-h-10" variant="secondary" onClick={() => setTab('textbooks')}>Учебники</Button><Button size="sm" className="!min-h-10" variant="secondary" onClick={() => setTab('office')}>Офис-курсы</Button><Button size="sm" className="!min-h-10" variant="secondary" onClick={() => { setTab('homework'); setHwOpen(true) }}>AI-проверка ДЗ</Button></div>
               </div>
             </CardContent>
           </Card>

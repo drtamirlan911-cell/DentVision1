@@ -177,6 +177,20 @@ For every release:
 
 Never use an old green run to declare a newer commit releasable.
 
+## CI/E2E agent efficiency protocol
+
+This protocol is mandatory when using an AI agent or tool to inspect long E2E runs.
+
+- Confirm the workflow run ID and exact head SHA before interpreting results. Never combine statuses from different commits and never call a partial run a release pass.
+- Inspect job/step states first. Do not fetch full logs while a job is active; if the log endpoint is unavailable, use the step summary rather than repeatedly retrying the same unavailable payload.
+- Before downloading artifacts, list artifact names and compressed sizes. Use the bounded CI manifest (per-gate durations, evidence counts/bytes and largest files) before inspecting evidence.
+- Never ingest all screenshot/DOM/trace artifacts into the assistant context. Start with the failing gate and its compact summary; retrieve only that gate's bounded log and the relevant route/role screenshot or trace. Expand to another artifact only when the first evidence is insufficient.
+- Keep successful tests and security assertions. Reduce duplicate operations, fixed sleeps, repetitive writes, reporter noise and upload scope—not test coverage.
+- Full logs, Playwright traces and HTML/DOM dumps are failure-only diagnostics. Successful visual artifacts should contain the screenshots required by `visual-release-gate.ts`, runtime summaries and compact geometry/accessibility JSON; do not persist full `outerHTML` or unbounded page text for every passing route. If a failure snapshot is needed, cap it and upload it only with the failing gate. Preserve screenshot counts, all authorization assertions, and route/device coverage.
+- Measure each release gate separately. If one gate dominates, profile that stage and remove redundant work without weakening DOM readiness, RBAC, tenant isolation, clinical/financial or responsive assertions.
+- Do not push another commit to the same branch while a run is active unless cancelling it is intentional; branch concurrency may cancel the prior run. Batch known fixes, record the SHA, and verify the final exact head.
+- Record active, passed, failed, cancelled and not-yet-run gates distinctly in `DENTVISION_CONTEXT.md` and `DENTVISION_EXECUTION_LOG.md`.
+
 ## Execution priority
 
 ### P0 — Release correctness

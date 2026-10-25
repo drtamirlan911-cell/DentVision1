@@ -228,21 +228,21 @@ export default function Reminders() {
 
       {/* Tabs */}
       <motion.div variants={fadeUp}>
-        <div className="flex flex-wrap gap-1 rounded-xl bg-surface-1 p-1">
+        <div className="grid grid-cols-2 gap-2 rounded-xl bg-surface-1 p-1 md:grid-cols-4">
           {tabs.map(t => (
             <button
               key={t.id}
               onClick={() => setTab(t.id)}
-              className={`flex flex-1 min-w-[140px] items-center justify-center gap-2 rounded-lg px-3 py-2.5 text-xs font-semibold transition-all duration-150 min-h-11 ${
+              className={`flex w-full min-w-0 items-center justify-center gap-2 rounded-lg px-2 py-2.5 text-xs font-semibold leading-tight text-center whitespace-normal break-words transition-all duration-150 min-h-11 ${
                 tab === t.id
                   ? 'bg-dv-gold/20 text-dv-gold'
                   : 'text-txt-muted hover:bg-surface-1'
               }`}
             >
               {t.icon}
-              {t.label}
+              <span className="min-w-0 break-words">{t.label}</span>
               {t.count > 0 && (
-                <span className="ml-1 inline-flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-error px-1.5 text-[10px] font-bold text-white">
+                <span className="ml-1 inline-flex h-[18px] min-w-[18px] shrink-0 items-center justify-center rounded-full bg-error px-1.5 text-[10px] font-bold text-white">
                   {t.count}
                 </span>
               )}

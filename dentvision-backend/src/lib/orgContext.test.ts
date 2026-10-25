@@ -20,7 +20,7 @@ vi.mock('./prisma.js', () => ({
   },
 }));
 
-import { assertOrgAccess, resolveClinicAccess, resolveAnyClinicMembership } from './orgContext.js';
+import { assertOrgAccess, assertClinicOrgAccess, resolveClinicAccess, resolveAnyClinicMembership } from './orgContext.js';
 
 const CLINIC_ID = 'clinic-1';
 const USER_ID = 'user-1';
@@ -32,6 +32,38 @@ beforeEach(() => {
   personFindFirst.mockReset();
   clinicMemberFindUnique.mockReset();
   clinicMemberFindFirst.mockReset();
+});
+
+
+describe('assertClinicOrgAccess', () => {
+  it('translates a domain Clinic.id to the canonical Organization.id', async () => {
+    organizationFindFirst.mockResolvedValueOnce({ id: 'org-1' });
+    personFindFirst.mockResolvedValueOnce({ id: 'person-1' });
+
+    const result = await assertClinicOrgAccess({ id: USER_ID, role: 'DOCTOR' } as any, CLINIC_ID);
+
+    expect(result).toBe(true);
+    expect(organizationFindFirst).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { originalType: 'Clinic', originalId: CLINIC_ID }, select: { id: true } }),
+    );
+    expect(personFindFirst).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({ userId: USER_ID, organizationId: 'org-1' }),
+      }),
+    );
+    expect(clinicMemberFindUnique).not.toHaveBeenCalled();
+  });
+
+  it('keeps the legacy ClinicMember fallback when no canonical Organization exists', async () => {
+    organizationFindFirst.mockResolvedValueOnce(null);
+    personFindFirst.mockResolvedValueOnce(null);
+    organizationFindUnique.mockResolvedValueOnce(null);
+    clinicMemberFindUnique.mockResolvedValueOnce({ id: 'member-1' });
+
+    const result = await assertClinicOrgAccess({ id: USER_ID, role: 'DOCTOR' } as any, CLINIC_ID);
+
+    expect(result).toBe(true);
+  });
 });
 
 describe('assertOrgAccess', () => {

@@ -84,7 +84,7 @@ export default function OrganizationBranchesTab() {
     try {
       const result = editing.id
         ? await api.updateBranch(editing.id, { name: editing.name, code: editing.code, city: editing.city || '', address: editing.address || '', phone: editing.phone || '' })
-        : await api.createBranch({ organizationId: organization.id, name: editing.name, code: editing.code, city: editing.city || '', address: editing.address || '', phone: editing.phone || '' })
+        : await api.createBranch({ organizationId: organization.id, clinicId: organization.originalId || organization.clinicId || undefined, name: editing.name, code: editing.code, city: editing.city || '', address: editing.address || '', phone: editing.phone || '' })
       const branch = result?.data || result
       setEditing(null); setCreating(false)
       await load()

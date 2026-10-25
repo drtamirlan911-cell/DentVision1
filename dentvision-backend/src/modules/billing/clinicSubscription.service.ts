@@ -15,15 +15,15 @@ export const CLINIC_SAAS_PLANS = [
   {
     id: 'starter',
     name: 'Starter',
-    priceTenge: 0,
-    period: 'навсегда',
+    priceTenge: 19900,
+    period: '/месяц',
     description: 'Базовый CRM для небольшой практики',
     features: ['До 100 пациентов', 'Базовое расписание', '1 пользователь', 'Без AI и аналитики'],
   },
   {
     id: 'professional',
     name: 'Professional',
-    priceTenge: 49900,
+    priceTenge: 39900,
     period: '/месяц',
     description: 'Полный CRM + AI + аналитика',
     features: ['Безлимит пациентов', 'До 10 пользователей', 'AI-ассистент (100 запросов/мес)', 'Аналитика'],
@@ -32,7 +32,7 @@ export const CLINIC_SAAS_PLANS = [
   {
     id: 'enterprise',
     name: 'Enterprise',
-    priceTenge: 149900,
+    priceTenge: 79900,
     period: '/месяц',
     description: 'Сети клиник и расширенная поддержка',
     features: ['Всё из Professional', 'Безлимит AI', 'Мульти-клиника', 'Приоритетная поддержка'],
@@ -59,6 +59,21 @@ const BILLING_ROLES = new Set(['OWNER', 'ADMIN', 'SUPERADMIN']);
 
 export function isSaasPlanId(v: string): v is SaasPlanId {
   return CLINIC_SAAS_PLANS.some((p) => p.id === v);
+}
+
+/**
+ * Resolve the canonical monthly SaaS price without accepting client-supplied
+ * pricing. The current schema maps START/PRO/BUSINESS to standard/pro/enterprise.
+ * NETWORK remains unsupported by this clinic plan enum and is deliberately
+ * rejected until a canonical model/workflow exists for its branch-priced terms.
+ */
+export function getClinicSubscriptionAmountMinor(plan: string, months: unknown): bigint | null {
+  if (!isSaasPlanId(plan) || typeof months !== 'number' || !Number.isInteger(months) || months < 1 || months > 24) {
+    return null;
+  }
+  const selected = CLINIC_SAAS_PLANS.find((item) => item.id === plan);
+  if (!selected || selected.priceTenge <= 0) return null;
+  return tengeToMinor(selected.priceTenge) * BigInt(months);
 }
 
 export function getPlanCatalog() {
@@ -207,21 +222,22 @@ export async function activateClinicSubscriptionFromPayment(
   },
   db: Prisma.TransactionClient | typeof prisma = prisma,
 ) {
-  const months = Math.min(Math.max(opts.months || 1, 1), 24);
+  const months = opts.months ?? 1;
+  if (!isSaasPlanId(opts.saasPlan) || !Number.isInteger(months) || months < 1 || months > 24) {
+    throw new Error('Некорректный тариф или срок подписки');
+  }
   const clinicPlan = saasPlanToClinicPlan(opts.saasPlan);
   const existing = await db.subscription.findUnique({
     where: { ownerType_ownerId: { ownerType: 'CLINIC', ownerId: opts.clinicId } },
   });
 
-  let periodEnd: Date | null = null;
-  if (opts.saasPlan === 'starter') {
-    periodEnd = null; // free forever
-  } else {
-    const now = new Date();
-    const base =
-      existing?.periodEnd && existing.periodEnd > now ? existing.periodEnd : now;
-    periodEnd = addMonths(base, months);
-  }
+  const now = new Date();
+  const base =
+    existing?.periodEnd && existing.periodEnd > now ? existing.periodEnd : now;
+  // All published clinic SaaS tiers are monthly paid plans in canonical
+  // Partner Economics. Starter must expire like the higher tiers; a null
+  // periodEnd here would incorrectly grant a paid plan lifetime access.
+  const periodEnd = addMonths(base, months);
 
   const result = await upsertClinicSubscription(
     {
@@ -260,9 +276,7 @@ export async function activateClinicSubscriptionFromPayment(
   const members = recipients.map((p) => ({ userId: p.userId! }));
   const title = 'Подписка активирована';
   const message =
-    opts.saasPlan === 'starter'
-      ? 'Тариф Starter активирован бесплатно.'
-      : `Тариф ${opts.saasPlan} оплачен. Действует до ${periodEnd?.toISOString().slice(0, 10)}.`;
+    `Тариф ${opts.saasPlan} оплачен. Действует до ${periodEnd.toISOString().slice(0, 10)}.`;
 
   if (members.length > 0) {
     await db.notification.createMany({

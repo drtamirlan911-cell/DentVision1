@@ -92,20 +92,15 @@ notificationsRouter.post('/', async (req: AuthRequest, res) => {
 notificationsRouter.post('/:id/read', async (req: AuthRequest, res) => {
   try {
     const { id } = req.params as { id: string };
-
-    const existing = await prisma.notification.findUnique({ where: { id } });
-    if (!existing) {
-      return res.status(404).json({ ok: false, error: 'Уведомление не найдено' });
-    }
-    if (existing.userId !== req.user!.id) {
-      return res.status(403).json({ ok: false, error: 'Доступ запрещён' });
-    }
-
-    const notification = await prisma.notification.update({
-      where: { id },
+    const updated = await prisma.notification.updateMany({
+      where: { id, userId: req.user!.id, read: false },
       data: { read: true },
     });
-
+    if (updated.count === 0) {
+      const own = await prisma.notification.findFirst({ where: { id, userId: req.user!.id }, select: { id: true } });
+      if (!own) return res.status(404).json({ ok: false, error: 'Уведомление не найдено' });
+    }
+    const notification = await prisma.notification.findFirst({ where: { id, userId: req.user!.id } });
     return res.json({ ok: true, data: notification });
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Внутренняя ошибка сервера';
@@ -161,6 +156,21 @@ notificationsRouter.put('/preferences', async (req: AuthRequest, res) => {
 // Expose valid types so the frontend can build a preferences UI
 notificationsRouter.get('/types', async (_req, res) => {
   return res.json({ ok: true, data: NOTIFICATION_TYPES } satisfies ApiResponse);
+});
+
+// Dynamic notification detail route intentionally stays after all static GET endpoints.
+
+notificationsRouter.get('/:id', async (req: AuthRequest, res) => {
+  try {
+    const notification = await prisma.notification.findFirst({
+      where: { id: req.params.id, userId: req.user!.id },
+    });
+    if (!notification) return res.status(404).json({ ok: false, error: 'Уведомление не найдено' });
+    return res.json({ ok: true, data: notification });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : 'Внутренняя ошибка сервера';
+    return res.status(500).json({ ok: false, error: message });
+  }
 });
 
 export { notificationsRouter };

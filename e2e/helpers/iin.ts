@@ -21,6 +21,10 @@ function checkDigit(digits: number[]): number | null {
   return sum2 === 10 ? null : sum2;
 }
 
+// Every worker gets a randomized start slot, then emits a monotonic sequence.
+// The old Date.now()+counter sequence repeated every 10 seconds for the same
+// call position, colliding with persisted patients during retries/repeated CI.
+const PROCESS_SERIAL_START = Math.floor(Math.random() * 10_000);
 let counter = 0;
 
 /**
@@ -46,7 +50,7 @@ export function makeIin(birthDate = '1990-01-01', sex: 'male' | 'female' = 'male
 
   for (let attempt = 0; attempt < 10_000; attempt += 1) {
     counter += 1;
-    const seq = String((counter + Date.now()) % 10_000).padStart(4, '0');
+    const seq = String((PROCESS_SERIAL_START + counter - 1) % 10_000).padStart(4, '0');
     const digits = `${yymmdd}${centurySex}${seq}`.split('').map(Number);
     const check = checkDigit(digits);
     if (check !== null) return `${yymmdd}${centurySex}${seq}${check}`;

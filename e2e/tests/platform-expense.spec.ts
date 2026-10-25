@@ -1,7 +1,7 @@
 import { test, expect, APIRequestContext, request as apiRequest } from '@playwright/test';
 
 const BASE_URL = process.env.PLAYWRIGHT_BASE_URL || 'http://localhost:3001';
-const OWNER = { email: 'owner-a@test.com', password: 'Test1234!' };
+const SUPERADMIN = { email: 'superadmin@test.com', password: 'Test1234!' };
 
 function auth(token: string) {
   return { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' };
@@ -16,11 +16,11 @@ async function login(api: APIRequestContext, email: string, password: string): P
 
 test.describe('Platform expenses (finance.routes.ts POST/GET /expenses)', () => {
   let api: APIRequestContext;
-  let ownerToken: string;
+  let superadminToken: string;
 
   test.beforeAll(async () => {
     api = await apiRequest.newContext();
-    ownerToken = await login(api, OWNER.email, OWNER.password);
+    superadminToken = await login(api, SUPERADMIN.email, SUPERADMIN.password);
   });
 
   test.afterAll(async () => {
@@ -29,7 +29,7 @@ test.describe('Platform expenses (finance.routes.ts POST/GET /expenses)', () => 
 
   test('EXP-001 create rejects an unknown category', async () => {
     const res = await api.post(`${BASE_URL}/api/finance/expenses`, {
-      headers: auth(ownerToken),
+      headers: auth(superadminToken),
       data: { category: 'NOT_A_CATEGORY', amount: '1000' },
     });
     expect(res.status()).toBe(400);
@@ -37,7 +37,7 @@ test.describe('Platform expenses (finance.routes.ts POST/GET /expenses)', () => 
 
   test('EXP-002 create rejects a non-positive amount', async () => {
     const res = await api.post(`${BASE_URL}/api/finance/expenses`, {
-      headers: auth(ownerToken),
+      headers: auth(superadminToken),
       data: { category: 'SERVER', amount: '0' },
     });
     expect(res.status()).toBe(400);
@@ -45,7 +45,7 @@ test.describe('Platform expenses (finance.routes.ts POST/GET /expenses)', () => 
 
   test('EXP-003 create writes a PlatformExpense row, and the list reflects it', async () => {
     const createRes = await api.post(`${BASE_URL}/api/finance/expenses`, {
-      headers: auth(ownerToken),
+      headers: auth(superadminToken),
       data: { category: 'SERVER', amount: '15000', meta: { note: 'e2e' } },
     });
     expect(createRes.status()).toBe(201);
@@ -54,7 +54,7 @@ test.describe('Platform expenses (finance.routes.ts POST/GET /expenses)', () => 
     expect(created.amount).toBe('1500000'); // minor units (тиын)
 
     const listRes = await api.get(`${BASE_URL}/api/finance/expenses?category=SERVER`, {
-      headers: auth(ownerToken),
+      headers: auth(superadminToken),
     });
     expect(listRes.status()).toBe(200);
     const rows = (await listRes.json()).data;

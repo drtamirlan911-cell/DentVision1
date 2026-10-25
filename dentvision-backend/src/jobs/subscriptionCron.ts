@@ -51,7 +51,7 @@ async function markSent(clinicId: string, key: string, meta?: Record<string, unk
 async function initiateRenewal(clinicId: string, sub: { id: string; plan?: string; periodEnd?: Date }): Promise<void> {
   // NOTE: the subscription row exposes the SaaS plan as `plan` (not `planId`).
   const plan = CLINIC_SAAS_PLANS.find(p => p.id === sub.plan);
-  if (!plan || plan.priceTenge === 0) return;
+  if (!plan) return;
 
   const periodKey = sub.periodEnd ? new Date(sub.periodEnd).toISOString().slice(0, 10) : 'na';
   const renewalKey = `renewal_${sub.id}_${periodKey}`;

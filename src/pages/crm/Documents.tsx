@@ -879,16 +879,16 @@ export default function Documents() {
                         </p>
                       </div>
                     </div>
-                    <div className="flex items-center gap-1">
-                      <Button variant="ghost" size="icon-xs" icon={<Eye size={14} />} onClick={() => setPreviewDoc(doc)} title="Просмотр" aria-label="Просмотр" />
-                      <Button variant="ghost" size="icon-xs" icon={<Copy size={14} />} onClick={() => copyDoc(doc.content || '')} title="Копировать" aria-label="Копировать" />
-                      <Button variant="ghost" size="icon-xs" icon={<Download size={14} />} onClick={() => downloadDoc(doc)} title="Скачать" aria-label="Скачать" />
-                      <Button variant="ghost" size="icon-xs" icon={<Edit3 size={14} />} onClick={() => startEdit(doc)} title="Редактировать" aria-label="Редактировать" />
-                      <Button variant="ghost" size="icon-xs" icon={<Trash2 size={14} />} onClick={() => setToDelete(doc)} title="Удалить" aria-label="Удалить" className="text-txt-muted hover:text-error" />
+                    <div className="flex max-w-full min-w-0 flex-wrap items-center justify-end gap-1">
+                      <Button variant="ghost" size="icon-xs" className="!h-10 !w-10 !min-h-10 !min-w-10" icon={<Eye size={14} />} onClick={() => setPreviewDoc(doc)} title="Просмотр" aria-label="Просмотр" />
+                      <Button variant="ghost" size="icon-xs" className="!h-10 !w-10 !min-h-10 !min-w-10" icon={<Copy size={14} />} onClick={() => copyDoc(doc.content || '')} title="Копировать" aria-label="Копировать" />
+                      <Button variant="ghost" size="icon-xs" className="!h-10 !w-10 !min-h-10 !min-w-10" icon={<Download size={14} />} onClick={() => downloadDoc(doc)} title="Скачать" aria-label="Скачать" />
+                      <Button variant="ghost" size="icon-xs" className="!h-10 !w-10 !min-h-10 !min-w-10" icon={<Edit3 size={14} />} onClick={() => startEdit(doc)} title="Редактировать" aria-label="Редактировать" />
+                      <Button variant="ghost" size="icon-xs" className="!h-10 !w-10 !min-h-10 !min-w-10 text-txt-muted hover:text-error" icon={<Trash2 size={14} />} onClick={() => setToDelete(doc)} title="Удалить" aria-label="Удалить" />
                       {(doc.status as string) !== 'signed' && (
                         <>
-                          <Button variant="ghost" size="icon-xs" icon={<Send size={14} />} onClick={() => handleSendForSignature(doc)} title="Отправить на подпись" aria-label="Отправить на подпись" />
-                          <Button variant="ghost" size="icon-xs" icon={<PenTool size={14} />} onClick={() => handleSignInline(doc)} title="Подписать на планшете" aria-label="Подписать на планшете" className="text-txt-muted hover:text-emerald-400" />
+                          <Button variant="ghost" size="icon-xs" className="!h-10 !w-10 !min-h-10 !min-w-10" icon={<Send size={14} />} onClick={() => handleSendForSignature(doc)} title="Отправить на подпись" aria-label="Отправить на подпись" />
+                          <Button variant="ghost" size="icon-xs" className="!h-10 !w-10 !min-h-10 !min-w-10 text-txt-muted hover:text-emerald-400" icon={<PenTool size={14} />} onClick={() => handleSignInline(doc)} title="Подписать на планшете" aria-label="Подписать на планшете" />
                         </>
                       )}
                     </div>

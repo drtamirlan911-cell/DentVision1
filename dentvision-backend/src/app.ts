@@ -64,6 +64,7 @@ import { suppliersRouter } from './modules/suppliers/suppliers.routes.js';
 import { ecosystemRouter } from './modules/analytics/ecosystem.routes.js';
 import { complianceRouter } from './modules/compliance/compliance.routes.js';
 import { qualityRouter } from './modules/quality/quality.routes.js';
+import { supportRouter } from './modules/support/support.routes.js';
 import { publicRouter } from './modules/public/public.routes.js';
 import { dentcashRouter } from './modules/dentcash/dentcash.routes.js';
 import { biRouter } from './modules/bi/bi.routes.js';
@@ -95,10 +96,10 @@ app.use(helmet({
   contentSecurityPolicy: {
     directives: {
       defaultSrc: ["'self'"],
-      scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'"],
+      scriptSrc: ["'self'", 'https://accounts.google.com', 'https://apis.google.com'],
       styleSrc: ["'self'", "'unsafe-inline'"],
       imgSrc: ["'self'", "data:", "https:", "blob:"],
-      connectSrc: ["'self'", "https://dentvision-backend.onrender.com", "https://dent-vision1.vercel.app", "wss:"],
+      connectSrc: ["'self'", 'https://dentvision-api.onrender.com', 'https://dent-vision1.vercel.app', 'https://accounts.google.com', 'https://www.googleapis.com', 'https://*.ingest.sentry.io', 'https://*.sentry.io', 'wss:'],
       fontSrc: ["'self'", "data:"],
       objectSrc: ["'none'"],
       frameAncestors: ["'none'"],
@@ -193,9 +194,31 @@ app.use('/api/guest/session', guestSessionLimiter);
 app.use('/api/guest/convert', authLimiter);
 app.use('/api/audit/backup', apiLimiter);
 
+function webhookRateLimitAddress(ip: string): string {
+  const value = ip.toLowerCase().split('%')[0];
+  // Express may expose IPv4-mapped IPv6 addresses; group those with the IPv4 client.
+  const mapped = value.match(/^::ffff:(\\d{1,3}(?:\\.\\d{1,3}){3})$/);
+  if (mapped) return mapped[1];
+  if (!value.includes(':')) return value || 'unknown';
+  // Rate-limit IPv6 clients by /64 so rotating interface identifiers does not bypass limits.
+  const [leftRaw = '', rightRaw = ''] = value.split('::');
+  const left = leftRaw ? leftRaw.split(':') : [];
+  const right = rightRaw ? rightRaw.split(':') : [];
+  const missing = Math.max(0, 8 - left.length - right.length);
+  const expanded = [...left, ...Array(missing).fill('0'), ...right];
+  return `${expanded.slice(0, 4).map((part) => Number.parseInt(part || '0', 16).toString(16)).join(':')}::/64`;
+}
+
 const webhookLimiter = rateLimit({
   windowMs: 60 * 1000,
   max: 10,
+  keyGenerator: (req) => {
+    const providerKey = String(req.path.split('/').filter(Boolean)[0] || 'unknown').toLowerCase();
+    return `${providerKey}:${webhookRateLimitAddress(req.ip || req.socket.remoteAddress || 'unknown')}`;
+  },
+  // The custom generator above performs its own IPv6 /64 normalization; the
+  // bundled express-rate-limit 7.x helper is not exported by this pinned version.
+  validate: { ip: false },
   standardHeaders: true,
   legacyHeaders: false,
   handler: (req, res, _next, options) => {
@@ -212,11 +235,12 @@ app.get('/api/health', async (_req, res) => {
       await prisma.$queryRaw`SELECT 1`;
       return { status: 'ok' as const, latencyMs: Date.now() - start };
     } catch (err) {
-      return { status: 'error' as const, error: err instanceof Error ? err.message : 'Query failed' };
+      // Public health must not disclose database hosts, query details or raw errors.
+      return { status: 'error' as const };
     }
   })();
   const durableQueue = { status: 'postgres' as const };
-  const realtime = { status: 'ok' as const, activeConnections: sseManager.getTotalClients() };
+  const realtime = { status: 'ok' as const };
   res.json({ ok: true, service: 'dentvision-backend', version: '2.0.0', timestamp: new Date().toISOString(), checks: { database, durableQueue, realtime } });
 });
 
@@ -265,6 +289,7 @@ app.use('/api/jobs', jobsRouter);
 app.use('/api/ops/suppliers', opsSuppliersRouter);
 app.use('/api/ops', opsHubRouter);
 app.use('/api/quality', qualityRouter);
+app.use('/api/support', supportRouter);
 app.use('/api/bi', biRouter);
 app.use('/api/diagnostics', diagnosticsRouter);
 app.use('/api/legal', legalRouter);

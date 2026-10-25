@@ -35,12 +35,12 @@ export function priorMonthPeriod(now = new Date()): { periodStart: Date; periodE
 async function ownerAdminUserIds(ownerType: SettlementOwnerType, ownerId: string): Promise<string[]> {
   if (ownerType === 'CENTER') {
     const rows = await prisma.diagnosticCenterMember
-      .findMany({ where: { centerId: ownerId }, select: { userId: true } })
+      .findMany({ where: { centerId: ownerId, role: { in: ['admin', 'manager'] } }, select: { userId: true } })
       .catch(() => [] as { userId: string }[]);
     return rows.map((r) => r.userId);
   }
   const rows = await prisma.laboratoryMember
-    .findMany({ where: { labId: ownerId }, select: { userId: true } })
+    .findMany({ where: { labId: ownerId, role: { in: ['owner', 'admin', 'manager', 'director', 'cashier', 'finance'] } }, select: { userId: true } })
     .catch(() => [] as { userId: string }[]);
   return rows.map((r) => r.userId);
 }

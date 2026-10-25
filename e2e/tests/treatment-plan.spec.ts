@@ -65,6 +65,8 @@ async function createPatient(request: APIRequestContext, token: string): Promise
     data: { iin: makeIin(), firstName: 'TP', lastName: 'Patient', phone: `+7700${Date.now() % 10_000_000}` },
   });
   const body = await apiPayload(res);
+  expect(res.status(), `Patient fixture creation failed: ${JSON.stringify(body)}`).toBe(201);
+  expect(body.id, `Patient fixture response has no id: ${JSON.stringify(body)}`).toBeTruthy();
   return body.id;
 }
 
@@ -113,8 +115,8 @@ test.describe('Treatment Plan Workflow', () => {
       title: 'Full mouth restoration',
       stages: [stage('Коронки', 'Коронка', 1500), stage('Мост', 'Мостовидный протез', 2000)],
     });
-    expect(res.status()).toBe(201);
     const body = await apiPayload(res);
+    expect(res.status(), `TP-001 treatment plan creation failed: ${JSON.stringify(body)}`).toBe(201);
     expect(body).toHaveProperty('id');
     expect(body.title).toBe('Full mouth restoration');
     expect(body.patientId).toBe(patientId);

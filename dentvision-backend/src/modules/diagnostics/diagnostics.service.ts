@@ -1,5 +1,5 @@
 import prisma from '../../lib/prisma.js';
-import { isClinicMember, resolveOrganizationIdForClinic } from '../../lib/orgContext.js';
+import { isClinicMember, resolveClinicAccess, resolveOrganizationIdForClinic } from '../../lib/orgContext.js';
 import { uid } from '../../lib/helpers.js';
 import { writeAuditLog } from '../compliance/audit.service.js';
 import { simpleChat } from '../ai/llm/client.js';
@@ -20,7 +20,7 @@ import type { ReferralStatus, DiagnosticCategory, ReferralPriority } from '@pris
 export async function ensureCenterSubscription(centerId: string) {
   try {
     const existing = await prisma.$queryRawUnsafe<any[]>(
-      `SELECT id, status, paid_until FROM "center_subscriptions" WHERE center_id::text = $1`, centerId
+      `SELECT id, status, trial_end, paid_until FROM "center_subscriptions" WHERE center_id::text = $1`, centerId
     );
     if (existing.length === 0) {
       await prisma.$executeRawUnsafe(
@@ -50,8 +50,12 @@ export async function ensureCenterSubscription(centerId: string) {
       return { active: false, status: 'expired' as const };
     }
     return { active: sub.status === 'active' || sub.status === 'trial', status: sub.status as string };
-  } catch {
-    return { active: true, status: 'trial' as const };
+  } catch (error) {
+    // Fail closed: a database/subscription verification outage must never
+    // grant partner access. Callers can surface the unavailable state and
+    // retry instead of exposing an unverified center.
+    console.error('[Diagnostics] center subscription verification failed:', error);
+    return { active: false, status: 'unavailable' as const };
   }
 }
 
@@ -64,7 +68,14 @@ export async function getCenterSubscription(centerId: string) {
   } catch { return null; }
 }
 
-const DIAGNOSTIC_COMMISSION_BPS = 1000;
+const DIAGNOSTIC_COMMISSION_BPS = 700;
+const DIAGNOSTIC_COMMISSION_MIN = 500;
+const DIAGNOSTIC_COMMISSION_MAX = 3000;
+
+function diagnosticPlatformFee(amount: number) {
+  if (!Number.isFinite(amount) || amount <= 0) return 0;
+  return Math.min(DIAGNOSTIC_COMMISSION_MAX, Math.max(DIAGNOSTIC_COMMISSION_MIN, Math.round(amount * DIAGNOSTIC_COMMISSION_BPS / 10_000)));
+}
 
 // ─── Centers ───
 
@@ -82,7 +93,7 @@ export async function listCenters(search?: string, city?: string) {
     const visibleOrganizations = await prisma.organization.findMany({ where: { type: 'DIAGNOSTIC_CENTER' }, select: { originalId: true, settings: true } });
     const visibleCenterIds = new Set(visibleOrganizations.filter((o) => {
       const s = (o.settings && typeof o.settings === 'object' && !Array.isArray(o.settings)) ? o.settings as Record<string, unknown> : {};
-      return (s as any).ecosystemVisible !== false;
+      return (s as any).ecosystemVisible === true;
     }).map((o) => o.originalId).filter((id): id is string => Boolean(id)));
         const subByCenter = new Map(subs.map((r) => [r.center_id, r.status]));
     const visibleIds = allActive.filter((c) => {
@@ -90,7 +101,13 @@ export async function listCenters(search?: string, city?: string) {
       return !st || st === 'active' || st === 'trial';
     }).map((c) => c.id);
     where.id = { in: visibleIds.filter((id) => visibleCenterIds.has(id)) };
-  } catch { /* table may not exist — show all */ }
+  } catch (error) {
+    // Fail closed. If the canonical Organization/subscription visibility
+    // boundary cannot be evaluated, returning all active centers would turn
+    // an infrastructure error into a tenant/data exposure.
+    console.error('[Diagnostics] center visibility resolution failed:', error);
+    return [];
+  }
   return prisma.diagnosticCenter.findMany({
     where,
     include: { _count: { select: { studies: true, operators: true } } },
@@ -99,15 +116,33 @@ export async function listCenters(search?: string, city?: string) {
 }
 
 export async function getCenter(id: string) {
-  return prisma.diagnosticCenter.findUnique({
-    where: { id },
-    include: {
-      studies: { where: { active: true } },
-      operators: { where: { active: true }, include: { user: { select: { id: true, firstName: true, lastName: true } } } },
-      radiologists: { where: { active: true }, include: { user: { select: { id: true, firstName: true, lastName: true } } } },
-      _count: { select: { bookings: true } },
-    },
-  });
+  try {
+    const org = await prisma.organization.findFirst({
+      where: { type: 'DIAGNOSTIC_CENTER', originalType: 'DiagnosticCenter', originalId: id },
+      select: { id: true, settings: true },
+    });
+    if (!org) return null;
+    const settings = (org.settings && typeof org.settings === 'object' && !Array.isArray(org.settings))
+      ? org.settings as Record<string, unknown>
+      : {};
+    if (settings.ecosystemVisible !== true) return null;
+
+    const subscription = await ensureCenterSubscription(id);
+    if (!subscription.active) return null;
+
+    return prisma.diagnosticCenter.findFirst({
+      where: { id, active: true },
+      include: {
+        studies: { where: { active: true } },
+        operators: { where: { active: true }, include: { user: { select: { id: true, firstName: true, lastName: true } } } },
+        radiologists: { where: { active: true }, include: { user: { select: { id: true, firstName: true, lastName: true } } } },
+        _count: { select: { bookings: true } },
+      },
+    });
+  } catch (error) {
+    console.error('[Diagnostics] center visibility check failed:', error);
+    return null;
+  }
 }
 
 async function syncOrgFromEntity(
@@ -120,7 +155,7 @@ async function syncOrgFromEntity(
       where: { originalType_originalId: { originalType: type, originalId: id } },
       update: { name: data.name, address: data.address || null, phone: data.phone || null, email: data.email || null, contacts: data.city ? { city: data.city } : undefined },
       create: {
-        id,
+        id: uid(),
         name: data.name,
         type: type === 'DiagnosticCenter' ? 'DIAGNOSTIC_CENTER' : 'LABORATORY',
         address: data.address || null,
@@ -162,7 +197,24 @@ export async function listLaboratories(search?: string) {
 }
 
 export async function getLaboratory(id: string) {
-  return prisma.laboratory.findUnique({ where: { id }, include: { tests: { where: { active: true } } } });
+  try {
+    const org = await prisma.organization.findFirst({
+      where: { type: 'LABORATORY', originalType: 'Laboratory', originalId: id },
+      select: { settings: true },
+    });
+    if (!org) return null;
+    const settings = (org.settings && typeof org.settings === 'object' && !Array.isArray(org.settings))
+      ? org.settings as Record<string, unknown>
+      : {};
+    if (settings.ecosystemVisible !== true) return null;
+    return prisma.laboratory.findFirst({
+      where: { id, active: true },
+      include: { tests: { where: { active: true } } },
+    });
+  } catch (error) {
+    console.error('[Diagnostics] laboratory visibility check failed:', error);
+    return null;
+  }
 }
 
 export async function createLaboratory(data: { name: string; city?: string; address?: string; phone?: string; email?: string; }) {
@@ -354,7 +406,7 @@ export async function updateReferral(id: string, data: any, userId: string) {
   return referral;
 }
 
-export async function changeReferralStatus(id: string, status: ReferralStatus, userId: string, reason?: string, cost?: number, platformFee?: number) {
+export async function changeReferralStatus(id: string, status: ReferralStatus, userId: string, reason?: string, cost?: number) {
   const referral = await prisma.referral.findUnique({ where: { id } });
   if (!referral) throw new Error('Referral not found');
   if (status === 'ACCEPTED' && referral.centerId) {
@@ -372,7 +424,7 @@ export async function changeReferralStatus(id: string, status: ReferralStatus, u
     }
     if (resolvedCost === undefined) throw new Error('Укажите стоимость исследования или установите цену в прайс-листе центра.');
     update.cost = resolvedCost;
-    update.platformFee = platformFee !== undefined ? platformFee : Math.round(Number(resolvedCost) * 0.1);
+    update.platformFee = diagnosticPlatformFee(Number(resolvedCost));
   }
   if (status === 'COMPLETED') update.completedAt = new Date();
   if (status === 'COMPLETED' && cost !== undefined) { update.cost = cost; update.paid = false; }
@@ -526,16 +578,36 @@ async function aiAnalyzeLabResult(referralId: string, referral: any, _userId: st
   return result;
 }
 
-export async function saveAndSignResult(data: { referralId: string; reportText: string; conclusion?: string; doctorId: string; }) {
+export async function saveAndSignResult(data: {
+  referralId: string;
+  reportText: string;
+  conclusion?: string;
+  doctorId: string;
+  signerScope?: 'clinic' | 'diagnostic_center' | 'laboratory';
+}) {
   const referral = await prisma.referral.findUnique({ where: { id: data.referralId }, include: { result: true } });
   if (!referral) throw new Error('Referral not found');
+  if (!data.doctorId) throw new Error('Пользователь обязателен для подписания результата');
+  const partnerSigner = data.signerScope === 'diagnostic_center' || data.signerScope === 'laboratory';
+  if (!partnerSigner) {
+    if (referral.doctorId && referral.doctorId !== data.doctorId) throw new Error('Подписать результат может только назначенный врач');
+    if (referral.clinicId) {
+      const access = await resolveClinicAccess(data.doctorId, referral.clinicId);
+      if (!access || !['DOCTOR', 'OWNER', 'DIRECTOR'].includes(String(access.role).toUpperCase())) throw new Error('Пользователь не имеет права подписывать диагностический результат');
+    }
+  }
   const result = await prisma.diagnosticResult.upsert({
     where: { referralId: data.referralId },
     update: { reportText: data.reportText, conclusion: data.conclusion || undefined, signedBy: data.doctorId, signedAt: new Date() },
     create: { id: uid(), referralId: data.referralId, reportText: data.reportText, conclusion: data.conclusion || undefined, signedBy: data.doctorId, signedAt: new Date() },
   });
   await prisma.referral.update({ where: { id: data.referralId }, data: { status: 'COMPLETED', completedAt: new Date() } });
-  if (referral.patientId) await prisma.visit.create({ data: { id: uid(), patientId: referral.patientId, doctorId: data.doctorId, diagnosis: referral.preliminaryDx || data.conclusion || undefined, complaints: referral.complaints || undefined, treatment: { type: 'diagnostic_result', studyType: referral.studyType, reportText: data.reportText, conclusion: data.conclusion, _aiGenerated: true, _source: 'diagnostic' }, notes: `[AI-ввод] Результат диагностики: ${referral.studyType}. Направление #${referral.id.slice(0, 8)}. Проверьте данные.` } });
+  // Only a clinic-side doctor may write a Visit into the clinical chart.
+  // Partner results remain diagnostic evidence until the clinic explicitly
+  // reviews/acknowledges them; a partner user must never masquerade as a doctor.
+  if (referral.patientId && !partnerSigner) {
+    await prisma.visit.create({ data: { id: uid(), patientId: referral.patientId, doctorId: data.doctorId, diagnosis: referral.preliminaryDx || data.conclusion || undefined, complaints: referral.complaints || undefined, treatment: { type: 'diagnostic_result', studyType: referral.studyType, reportText: data.reportText, conclusion: data.conclusion, _aiGenerated: true, _source: 'diagnostic' }, notes: `[AI-ввод] Результат диагностики: ${referral.studyType}. Направление #${referral.id.slice(0, 8)}. Проверьте данные.` } })
+  }
   const notifyUserIds = new Set<string>();
   if (referral.doctorId) notifyUserIds.add(referral.doctorId);
   if (referral.clinicId) {
@@ -600,7 +672,14 @@ export async function saveAndSignResult(data: { referralId: string; reportText: 
     const message = `Врач ${referral.doctorName || 'доктор'} подтвердил результат по направлению #${referral.id.slice(0, 8)} (${referral.patientName}). Данные автоматически внесены в карту пациента.`;
     await dispatchNotifications(Array.from(notifyUserIds).map((userId) => ({ userId, clinicId: referral.clinicId || undefined, type: 'workflow' as const, title, message, link: `/diagnostics/referrals/${referral.id}` })));
   }
-  await writeAuditLog({ action: 'RESULT_SIGNED', entity: 'referral', entityId: data.referralId, details: { studyType: referral.studyType, signedBy: data.doctorId }, userId: data.doctorId, clinicId: referral.clinicId });
+  await writeAuditLog({
+    action: 'RESULT_SIGNED',
+    entity: 'referral',
+    entityId: data.referralId,
+    details: { studyType: referral.studyType, signedBy: data.doctorId, signerScope: data.signerScope || 'clinic' },
+    userId: data.doctorId,
+    clinicId: referral.clinicId,
+  });
   publish('diagnostics.result_ready', { referralId: data.referralId, resultId: result.id, clinicId: referral.clinicId || '', centerId: referral.centerId || '', doctorId: data.doctorId, patientName: referral.patientName || '', studyType: referral.studyType || '', userId: data.doctorId });
   return result;
 }

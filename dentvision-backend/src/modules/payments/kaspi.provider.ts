@@ -1,6 +1,70 @@
 import { createHmac, timingSafeEqual, randomUUID } from 'node:crypto';
 import { env } from '../../config.js';
 
+const PROVIDER_REQUEST_TIMEOUT_MS = 8_000;
+const PROVIDER_RESPONSE_LIMIT_BYTES = 64 * 1024;
+
+async function readProviderResponse(response: Response): Promise<string> {
+  const lengthHeader = response.headers.get('content-length');
+  const declaredLength = lengthHeader === null ? null : Number(lengthHeader);
+  if (declaredLength !== null && Number.isFinite(declaredLength) && declaredLength > PROVIDER_RESPONSE_LIMIT_BYTES) {
+    await response.body?.cancel().catch(() => undefined);
+    throw new Error('Kaspi API response exceeds 64 KiB limit');
+  }
+
+  if (!response.body) return '';
+  const reader = response.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let total = 0;
+
+  try {
+    while (true) {
+      const next = await reader.read();
+      if (next.done) break;
+      total += next.value.byteLength;
+      if (total > PROVIDER_RESPONSE_LIMIT_BYTES) {
+        await reader.cancel().catch(() => undefined);
+        throw new Error('Kaspi API response exceeds 64 KiB limit');
+      }
+      chunks.push(next.value);
+    }
+  } finally {
+    try { reader.releaseLock(); } catch { /* stream may already be cancelled */ }
+  }
+
+  const bytes = new Uint8Array(total);
+  let offset = 0;
+  for (const chunk of chunks) {
+    bytes.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+  return new TextDecoder().decode(bytes);
+}
+
+function parseProviderJson<T>(raw: string): T {
+  try {
+    return JSON.parse(raw) as T;
+  } catch {
+    throw new Error('Kaspi API returned invalid JSON');
+  }
+}
+
+function kaspiApiBaseUrl(): string {
+  const raw = (env.KASPI_API_BASE_URL || 'https://pay.kaspi.kz').replace(/\/$/, '');
+  let url: URL;
+  try { url = new URL(raw); } catch { throw new Error('KASPI_API_BASE_URL is invalid'); }
+  if (
+    (env.NODE_ENV === 'production' && url.protocol !== 'https:') ||
+    url.username.length > 0 ||
+    url.password.length > 0 ||
+    url.search.length > 0 ||
+    url.hash.length > 0
+  ) {
+    throw new Error('KASPI_API_BASE_URL must be a credential-free HTTPS base URL in production');
+  }
+  return url.toString().replace(/\/$/, '');
+}
+
 // Payment provider abstraction. Real Kaspi QR implements the same interface; mock is used until merchant credentials are configured.
 export interface PaymentProvider {
   name: string;
@@ -37,31 +101,50 @@ export const kaspiProvider: PaymentProvider = {
   name: 'kaspi_qr',
   async createPayment({ amountMinor, refId }) {
     if (!env.KASPI_MERCHANT_ID || !env.KASPI_API_KEY) {
+      if (env.NODE_ENV === 'production') {
+        throw new Error('Kaspi production payments require KASPI_MERCHANT_ID and KASPI_API_KEY');
+      }
       const externalId = `kaspi_${randomUUID()}`;
       mockLedger.set(externalId, 'pending');
       const qr = buildKaspiPayUrl({ externalId, amountMinor, refId });
       console.warn('[kaspi] Mock mode — set KASPI_MERCHANT_ID and KASPI_API_KEY for production');
       return { externalId, qr };
     }
-    const response = await fetch(`${env.KASPI_PAY_BASE_URL || 'https://pay.kaspi.kz'}/api/v1/payments`, {
+    if (amountMinor <= 0n || amountMinor > BigInt(Number.MAX_SAFE_INTEGER)) {
+      throw new Error('Kaspi payment amount is outside the supported range');
+    }
+    const response = await fetch(`${kaspiApiBaseUrl()}/api/v1/payments`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${env.KASPI_API_KEY}`, 'X-Merchant-Id': env.KASPI_MERCHANT_ID },
       body: JSON.stringify({ merchant_id: env.KASPI_MERCHANT_ID, amount: Number(amountMinor) / 100, external_id: randomUUID(), return_url: `${env.FRONTEND_URL || 'https://dentvision.app'}/payment/success` }),
+      signal: AbortSignal.timeout(PROVIDER_REQUEST_TIMEOUT_MS),
+      redirect: 'error',
     });
     if (!response.ok) {
-      const err = await response.text();
-      throw new Error(`Kaspi API error: ${response.status} ${err}`);
+      await response.body?.cancel().catch(() => undefined);
+      // Do not reflect an arbitrary provider body into logs/API errors.
+      throw new Error(`Kaspi API request failed with HTTP ${response.status}`);
     }
-    const data = await response.json() as { payment_id: string; qr_url: string };
+    const data = parseProviderJson<{ payment_id?: unknown; qr_url?: unknown }>(await readProviderResponse(response));
+    if (typeof data.payment_id !== 'string' || !data.payment_id.trim() ||
+        typeof data.qr_url !== 'string' || !data.qr_url.trim()) {
+      throw new Error('Kaspi API response is missing payment_id or qr_url');
+    }
     return { externalId: data.payment_id, qr: data.qr_url };
   },
   async getPaymentStatus(externalId) {
     if (!env.KASPI_MERCHANT_ID || !env.KASPI_API_KEY) return mockLedger.get(externalId) || 'pending';
-    const response = await fetch(`${env.KASPI_PAY_BASE_URL || 'https://pay.kaspi.kz'}/api/v1/payments/${externalId}`, {
+    const response = await fetch(`${kaspiApiBaseUrl()}/api/v1/payments/${encodeURIComponent(externalId)}`, {
       headers: { 'Authorization': `Bearer ${env.KASPI_API_KEY}`, 'X-Merchant-Id': env.KASPI_MERCHANT_ID },
+      signal: AbortSignal.timeout(PROVIDER_REQUEST_TIMEOUT_MS),
+      redirect: 'error',
     });
-    if (!response.ok) return 'pending';
-    const data = await response.json() as { status: string };
+    if (!response.ok) {
+      await response.body?.cancel().catch(() => undefined);
+      return 'pending';
+    }
+    const data = parseProviderJson<{ status?: unknown }>(await readProviderResponse(response));
+    if (typeof data.status !== 'string') return 'pending';
     const statusMap: Record<string, 'pending' | 'paid' | 'failed' | 'expired'> = { WAIT: 'pending', PAID: 'paid', FAILED: 'failed', EXPIRED: 'expired' };
     return statusMap[data.status] || 'pending';
   },
@@ -83,7 +166,7 @@ export function verifyKaspiCallbackAuth(input: {
   body: { externalId?: string; status?: string; signature?: string };
 }): { ok: true } | { ok: false; error: string } {
   const secret = env.KASPI_CALLBACK_SECRET;
-  if (!secret || secret.length < 16) return { ok: false, error: 'KASPI_CALLBACK_SECRET не настроен — callback оплаты отклонён' };
+  if (!secret || secret.length < 32) return { ok: false, error: 'KASPI_CALLBACK_SECRET не настроен или короче 32 символов — callback оплаты отклонён' };
 
   const headerRaw = input.headers['x-kaspi-signature'] || input.headers['x-callback-secret'] || input.headers['x-webhook-secret'];
   const header = Array.isArray(headerRaw) ? headerRaw[0] : headerRaw;

@@ -2,7 +2,8 @@ import { test, expect, type Page } from '@playwright/test';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 
-const BASE_URL = process.env.PLAYWRIGHT_UI_URL || 'http://localhost:3000';
+const BASE_URL = process.env.PLAYWRIGHT_UI_URL || 'http://127.0.0.1:3000';
+const API_BASE_URL = process.env.VITE_API_URL || 'http://127.0.0.1:3001';
 const PASSWORD = 'Test1234!';
 const EVIDENCE_ROOT = path.resolve(process.env.VISUAL_EVIDENCE_DIR || 'e2e/visual-evidence', 'visual-agent');
 
@@ -19,7 +20,7 @@ const ROLES: readonly AgentRole[] = [
   { id: 'doctor', email: 'doctor-a@test.com', entry: /\/ai|\/crm/, journeys: ['/ai','/crm/dental-chart','/diagnostics/referrals'] },
   { id: 'assistant', email: 'assistant-a@test.com', entry: /\/ai|\/crm/, journeys: ['/crm/schedule','/crm/visits','/diagnostics/referrals'] },
   { id: 'manager', email: 'manager-a@test.com', entry: /\/ai|\/crm/, journeys: ['/ai','/crm/staff','/analytics'] },
-  { id: 'regular', email: 'regular@test.com', entry: /\/ai$/, journeys: ['/school','/profile'] },
+  { id: 'regular', email: 'regular@test.com', entry: /\/school(?:$|[?#])/, journeys: ['/school','/profile'] },
   { id: 'patient', email: 'patient@dentvision.kz', entry: /\/patient-portal/, journeys: ['/patient-portal','/shop'] },
   { id: 'diagnostic-owner', email: 'diagnostic-owner@test.com', entry: /\/diagnostics\/center/, journeys: ['/diagnostics/center','/diagnostics/results','/diagnostics/settings'] },
   { id: 'diagnostic-operator', email: 'diagnostic-operator@test.com', entry: /\/diagnostics\/center/, journeys: ['/diagnostics/center','/diagnostics/results'] },
@@ -28,7 +29,7 @@ const ROLES: readonly AgentRole[] = [
   { id: 'dental-lab-owner', email: 'dental-lab-owner@test.com', entry: /\/diagnostics\/lab/, journeys: ['/diagnostics/lab','/diagnostics/results','/diagnostics/settings'] },
   { id: 'dental-technician', email: 'dental-technician@test.com', entry: /\/diagnostics\/lab/, journeys: ['/diagnostics/lab','/diagnostics/labs','/diagnostics/results'] },
   { id: 'superadmin', email: 'superadmin@test.com', entry: /\/admin|\/ai/, journeys: ['/admin','/security','/admin?tab=ai-governance'] },
-  { id: 'support', email: 'support@test.com', entry: /\/ai$/, journeys: ['/ai','/analytics','/settings'] },
+  { id: 'support', email: 'support@test.com', entry: /\/help(?:$|[?#])/, journeys: ['/help','/analytics','/settings'] },
   { id: 'laboratory', email: 'lab-a@test.com', entry: /\/ai|\/crm|\/diagnostics/, journeys: ['/diagnostics','/diagnostics/labs','/crm/lab'] },
 ];
 
@@ -46,15 +47,45 @@ async function ensureDir(dir: string) {
   await fs.mkdir(dir, { recursive: true });
 }
 
+async function waitForRenderedPage(page: Page, label: string) {
+  try {
+    await page.waitForFunction(() => {
+      const root = document.getElementById('root');
+      const text = (root?.innerText || document.body?.innerText || '').trim();
+      if (text.length < 20) return false;
+      const scope = root || document.body;
+      const hasFullscreenSpinner = Array.from(scope.children).some((child) => {
+        const element = child as HTMLElement;
+        const rect = element.getBoundingClientRect();
+        return Boolean(element.querySelector('.animate-spin'))
+          && rect.width >= window.innerWidth * 0.85
+          && rect.height >= window.innerHeight * 0.75
+          && element.innerText.trim().length < 20;
+      });
+      return !hasFullscreenSpinner;
+    }, undefined, { timeout: 10000 });
+  } catch (error) {
+    throw new Error(label + ': meaningful rendered content was not ready: ' + String(error));
+  }
+}
+
 async function writeEvidence(page: Page, role: AgentRole, viewportId: string, checkpoint: string) {
   const dir = path.join(EVIDENCE_ROOT, role.id, viewportId);
   await ensureDir(dir);
   const stem = safeName(checkpoint);
-  await page.screenshot({ path: path.join(dir, stem + '.png'), fullPage: true });
-  const snapshot = await page.locator('body').innerText().catch(() => '');
-  await fs.writeFile(path.join(dir, stem + '.txt'), snapshot, 'utf8');
-  const html = await page.locator('body').evaluate(el => el.outerHTML).catch(() => '');
-  await fs.writeFile(path.join(dir, stem + '.html'), html, 'utf8');
+  // Preserve a full-page baseline and an after-action screenshot. Scroll/restore
+  // checkpoints keep compact text + geometry evidence; duplicating full-page PNG
+  // and HTML at every checkpoint made CI artifacts exceed 1.7 GB.
+  const detailedCheckpoint = checkpoint.startsWith('01_') || checkpoint.includes('_after_action');
+  if (detailedCheckpoint) {
+    await page.screenshot({ path: path.join(dir, stem + '.png'), fullPage: checkpoint.startsWith('01_') });
+  }
+  // Detailed checkpoints keep bounded text and a screenshot; geometry/accessibility
+  // metrics remain available at every checkpoint. HTML DOM dumps are failure-only via trace.
+  if (detailedCheckpoint) {
+    const snapshot = (await page.locator('body').innerText().catch(() => '')).slice(0, 8000);
+    await fs.writeFile(path.join(dir, stem + '.txt'), snapshot, 'utf8');
+  }
 
   const geometry = await page.evaluate(() => {
     const visible = (el: Element) => {
@@ -89,20 +120,25 @@ async function login(page: Page, role: AgentRole) {
   await page.locator('input[autocomplete="username"]').fill(role.email);
   await page.locator('input[autocomplete="current-password"]').fill(PASSWORD);
   await page.getByRole('button', { name: 'Войти в DentVision' }).click();
-  await page.waitForLoadState('domcontentloaded');
-  await page.waitForTimeout(700);
+  // Login may be an SPA transition; poll the real role-specific destination instead
+  // of paying an unconditional 700ms delay on each role/viewport.
+  await expect.poll(() => role.entry.test(page.url()), {
+    timeout: 30000,
+    message: role.id + ': login did not reach the expected workspace',
+  }).toBeTruthy().catch(() => undefined);
   if (!role.entry.test(page.url())) {
-    const authProbe = await page.evaluate(async () => {
+    const authProbe = await page.evaluate(async (apiBase: string) => {
       try {
-        const response = await fetch('http://localhost:3001/api/auth/me', { credentials: 'include' });
+        const response = await fetch(`${apiBase}/api/auth/me`, { credentials: 'include' });
         const body = await response.json().catch(() => ({}));
         return { status: response.status, effectiveRole: body?.data?.effectiveRole || body?.effectiveRole || null, organizationType: body?.data?.user?.organizationType || body?.user?.organizationType || null, organizationId: body?.data?.user?.organizationId || body?.user?.organizationId || null };
       } catch (error) {
         return { error: String(error) };
       }
-    });
+    }, API_BASE_URL);
     throw new Error(`${role.id}: unexpected post-login entry; actual=${page.url()}; auth=${JSON.stringify(authProbe)}`);
   }
+  await waitForRenderedPage(page, role.id + ': authenticated entry');
 }
 
 async function inspect(page: Page, role: AgentRole, route: string, viewportId: string) {
@@ -161,6 +197,7 @@ async function inspect(page: Page, role: AgentRole, route: string, viewportId: s
 
 async function exerciseHands(page: Page, role: AgentRole, route: string, viewportId: string) {
   const before = page.url();
+  const beforeUrl = new URL(before);
   const candidates = page.locator('button:visible, a:visible, [role="button"]:visible').filter({ hasText: /.+/ });
   const count = await candidates.count();
   if (count > 0) {
@@ -170,21 +207,30 @@ async function exerciseHands(page: Page, role: AgentRole, route: string, viewpor
       await first.hover().catch(() => {});
       await writeEvidence(page, role, viewportId, '02_' + route + '_hover');
       if (await first.isVisible().catch(() => false)) await first.click({ timeout: 3000 }).catch(() => {});
-      await page.waitForTimeout(250);
+      expect(new URL(page.url()).origin, role.id + ' ' + route + ': action produced an unexpected external navigation')
+        .toBe(new URL(BASE_URL).origin);
+      await waitForRenderedPage(page, role.id + ' ' + route + ' after action');
       await writeEvidence(page, role, viewportId, '03_' + route + '_after_action');
-      expect(page.url(), role.id + ' ' + route + ': action produced an unexpected external navigation').toMatch(/^https?:\/\/localhost:3000\//);
-      await page.goBack({ waitUntil: 'domcontentloaded', timeout: 10000 }).catch(() => {});
-      await page.waitForTimeout(250);
+      // Go back only if the action really changed the URL. A modal/tab interaction
+      // must not accidentally navigate the browser away from the screen being audited.
+      if (page.url() !== before) {
+        await page.goBack({ waitUntil: 'domcontentloaded', timeout: 10000 }).catch(() => {});
+        await expect.poll(() => new URL(page.url()).pathname, {
+          timeout: 10000,
+          message: role.id + ' ' + route + ': browser back did not restore the previous path',
+        }).toBe(beforeUrl.pathname);
+        await waitForRenderedPage(page, role.id + ' ' + route + ' after history restore');
+      }
     }
   }
   await page.mouse.wheel(0, Math.min(900, Math.max(350, await page.evaluate(() => document.documentElement.scrollHeight / 2))));
-  await page.waitForTimeout(150);
+  await page.evaluate(() => new Promise<void>((resolve) => requestAnimationFrame(() => resolve())));
   await writeEvidence(page, role, viewportId, '04_' + route + '_scrolled');
   await page.goto(BASE_URL + route, { waitUntil: 'domcontentloaded', timeout: 30000 });
-  await page.waitForTimeout(300);
+  await waitForRenderedPage(page, role.id + ' ' + route + ' after route restore');
   await writeEvidence(page, role, viewportId, '05_' + route + '_restored');
-  expect(page.url()).toContain(new URL(route, BASE_URL).pathname);
-  void before;
+  expect(new URL(page.url()).pathname, role.id + ' ' + route + ': route was not restored')
+    .toBe(new URL(route, BASE_URL).pathname);
 }
 
 for (const viewport of VIEWPORTS) {
@@ -213,7 +259,7 @@ for (const viewport of VIEWPORTS) {
 
         for (const route of role.journeys) {
           await page.goto(BASE_URL + route, { waitUntil: 'domcontentloaded', timeout: 30000 });
-          await page.waitForTimeout(500);
+          await waitForRenderedPage(page, role.id + ' ' + route);
           await inspect(page, role, route, viewport.id);
           await exerciseHands(page, role, route, viewport.id);
         }

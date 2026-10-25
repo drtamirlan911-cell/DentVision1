@@ -135,8 +135,7 @@ export async function buildAiContext(req: AuthRequest, hints: ContextHints = {})
         });
         const roleKey =
           person?.personRoles
-            ?.filter((pr) => !pr.scopeId || pr.scopeId === org.id || pr.scopeId === org.originalId)
-            .filter((pr) => !pr.scopeType || pr.scopeType === 'organization' || pr.scopeType === 'ORGANIZATION')
+            ?.filter((pr) => (pr.scopeType === 'organization' || pr.scopeType === 'ORGANIZATION') && pr.scopeId === org.id)
             .map((pr) => pr.role.key)[0]
           || user.personType
           || user.role;
