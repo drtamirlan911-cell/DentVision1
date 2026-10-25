@@ -130,8 +130,7 @@ async function applyBackfill(batchSize: number): Promise<number> {
       const encryptedJson = json(encrypted);
       const changed = await prisma.$executeRaw`
         UPDATE "patients"
-        SET "medicalHistory" = ${encryptedJson}::jsonb,
-            "updatedAt" = NOW()
+        SET "medicalHistory" = ${encryptedJson}::jsonb
         WHERE "id" = ${row.id}
           AND "medicalHistory" = ${originalJson}::jsonb
       `;
