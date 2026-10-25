@@ -10,6 +10,8 @@ const m = vi.hoisted(() => ({
   paymentFindUnique: vi.fn(),
   paymentUpdateMany: vi.fn(),
   paymentFindUniqueOrThrow: vi.fn(),
+  appointmentFindFirst: vi.fn(),
+  invoiceFindFirst: vi.fn(),
   transaction: vi.fn(),
   orderFindUnique: vi.fn(),
   courseFindUnique: vi.fn(),
@@ -21,6 +23,8 @@ const m = vi.hoisted(() => ({
   assertClinicBillingAccess: vi.fn(),
   assertOrgAccess: vi.fn(),
   resolveClinicMemberAccess: vi.fn(),
+  assertClinicOrgAccess: vi.fn(),
+  resolveOrganizationIdForClinic: vi.fn(),
   reserveIdempotencyKey: vi.fn(),
   completeIdempotencyKey: vi.fn(),
   deleteIdempotencyKey: vi.fn(),
@@ -33,6 +37,8 @@ vi.mock('../../lib/prisma.js', () => ({
     payment: { create: m.paymentCreate, findUnique: m.paymentFindUnique, updateMany: m.paymentUpdateMany },
     order: { findUnique: m.orderFindUnique },
     course: { findUnique: m.courseFindUnique },
+    appointment: { findFirst: m.appointmentFindFirst },
+    invoice: { findFirst: m.invoiceFindFirst },
     $transaction: m.transaction,
   },
 }));
@@ -66,7 +72,13 @@ vi.mock('./clinicPayments.js', () => ({
 }));
 vi.mock('../../lib/orgContext.js', () => ({
   assertOrgAccess: m.assertOrgAccess,
+  assertClinicOrgAccess: m.assertClinicOrgAccess,
   resolveClinicAccess: m.resolveClinicMemberAccess,
+  resolveClinicAccess: m.resolveClinicMemberAccess,
+  resolveOrganizationIdForClinic: m.resolveOrganizationIdForClinic,
+}));
+vi.mock('../../lib/resolvePermissions.js', () => ({
+  resolveUserPermissions: vi.fn(async () => ['billing.manage']),
 }));
 vi.mock('../billing/clinicSubscription.service.js', () => ({
   assertClinicBillingAccess: m.assertClinicBillingAccess,
@@ -120,7 +132,11 @@ beforeEach(() => {
   m.deleteIdempotencyKey.mockResolvedValue(undefined);
   m.assertClinicBillingAccess.mockResolvedValue({ role: 'OWNER' });
   m.assertOrgAccess.mockResolvedValue(true);
+  m.assertClinicOrgAccess.mockResolvedValue(true);
+  m.resolveOrganizationIdForClinic.mockImplementation((clinicId: string) => clinicId);
   m.resolveClinicMemberAccess.mockResolvedValue({ role: 'OWNER' });
+  m.appointmentFindFirst.mockResolvedValue({ id: 'appointment-1', clinicId: 'clinic-owned' });
+  m.invoiceFindFirst.mockResolvedValue({ id: 'invoice-1', clinicId: 'clinic-owned', amount: 1000, paidAmount: 0, status: 'unpaid' });
   m.orderFindUnique.mockResolvedValue(null);
   m.courseFindUnique.mockResolvedValue({ id: 'course-1', price: 39900, lecturerId: 'lecturer-1', academyId: 'academy-1' });
   m.providerCreate.mockResolvedValue({ externalId: 'gateway-payment-1', qr: 'https://pay.example/qr' });
