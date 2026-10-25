@@ -315,6 +315,103 @@ describe('payment creation server-side pricing and metadata protection', () => {
   });
 });
 
+describe('clinic cashier reference boundaries', () => {
+  it('rejects an appointment that does not belong to the selected clinic before contacting the provider', async () => {
+    m.appointmentFindFirst.mockResolvedValueOnce(null);
+
+    const { response, body } = await postPayment({
+      amountMinor: '10000',
+      domain: 'crm',
+      refType: 'appointment',
+      refId: 'foreign-appointment',
+      clinicId: 'clinic-owned',
+    });
+
+    expect(response.status).toBe(404);
+    expect(body.ok).toBe(false);
+    expect(m.appointmentFindFirst).toHaveBeenCalledWith({
+      where: { id: 'foreign-appointment', clinicId: 'clinic-owned' },
+      select: { id: true, clinicId: true },
+    });
+    expect(m.reserveIdempotencyKey).not.toHaveBeenCalled();
+    expect(m.createClinicKaspiPayment).not.toHaveBeenCalled();
+    expect(m.paymentCreate).not.toHaveBeenCalled();
+  });
+
+  it('rejects an invoice from another clinic before contacting the provider', async () => {
+    m.invoiceFindFirst.mockResolvedValueOnce(null);
+
+    const { response, body } = await postPayment({
+      amountMinor: '10000',
+      domain: 'crm',
+      refType: 'crm_invoice',
+      refId: 'foreign-invoice',
+      clinicId: 'clinic-owned',
+    });
+
+    expect(response.status).toBe(404);
+    expect(body.ok).toBe(false);
+    expect(m.invoiceFindFirst).toHaveBeenCalledWith({
+      where: { id: 'foreign-invoice', clinicId: 'clinic-owned', deletedAt: null },
+      select: { id: true, clinicId: true, amount: true, paidAmount: true, status: true },
+    });
+    expect(m.reserveIdempotencyKey).not.toHaveBeenCalled();
+    expect(m.createClinicKaspiPayment).not.toHaveBeenCalled();
+    expect(m.paymentCreate).not.toHaveBeenCalled();
+  });
+
+  it('rejects an invoice payment above the outstanding balance', async () => {
+    m.invoiceFindFirst.mockResolvedValueOnce({
+      id: 'invoice-1',
+      clinicId: 'clinic-owned',
+      amount: 1000,
+      paidAmount: 800,
+      status: 'partial',
+    });
+
+    const { response, body } = await postPayment({
+      amountMinor: '30000',
+      domain: 'crm',
+      refType: 'crm_invoice',
+      refId: 'invoice-1',
+      clinicId: 'clinic-owned',
+    });
+
+    expect(response.status).toBe(409);
+    expect(body.ok).toBe(false);
+    expect(m.reserveIdempotencyKey).not.toHaveBeenCalled();
+    expect(m.createClinicKaspiPayment).not.toHaveBeenCalled();
+    expect(m.paymentCreate).not.toHaveBeenCalled();
+  });
+
+  it('allows a partial invoice payment that stays within the outstanding balance', async () => {
+    m.invoiceFindFirst.mockResolvedValueOnce({
+      id: 'invoice-1',
+      clinicId: 'clinic-owned',
+      amount: 1000,
+      paidAmount: 200,
+      status: 'partial',
+    });
+
+    const { response, body } = await postPayment({
+      amountMinor: '40000',
+      domain: 'crm',
+      refType: 'crm_invoice',
+      refId: 'invoice-1',
+      clinicId: 'clinic-owned',
+    });
+
+    expect(response.status).toBe(201);
+    expect(body.ok).toBe(true);
+    expect(m.createClinicKaspiPayment).toHaveBeenCalledWith(expect.objectContaining({
+      clinicId: 'clinic-owned',
+      amountMinor: 40000n,
+      refId: 'invoice-1',
+    }));
+  });
+});
+
+
 
 describe('payment callback terminal-state race protection', () => {
   it('does not downgrade a platform payment when a failed callback races with settlement', async () => {
