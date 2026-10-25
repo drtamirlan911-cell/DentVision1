@@ -30,21 +30,12 @@ async function bearerHeaders(page: Page): Promise<{ Authorization: string }> {
   return { Authorization: `Bearer ${token}` };
 }
 
-function escapeRegExp(value: string): string {
-  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\async function openBranchManagement(page: Page) {
-  await page.goto(`${BASE}/settings`);
-  await page.getByRole('button', { name: 'Организация', exact: true }).click();
-  await expect(page.getByText('Организация и филиалы', { exact: true })).toBeVisible({ timeout: 15000 });
-}
-');
-}
-
 function branchRow(page: Page, name: string) {
-  // The branch is a single accessible button containing its name, code and status badge.
-  // Exact text matching cannot find the name as a standalone text node inside that button.
-  return page.getByRole('button', { name: new RegExp(escapeRegExp(name)) });
+  // The branch is one accessible button containing its name, code and status badge.
+  // The known E2E fixture names use a simple alphanumeric pattern, so partial regex
+  // matching safely finds the row without requiring a standalone text node.
+  return page.getByRole('button', { name: new RegExp(name) });
 }
-
 async function openBranchManagement(page: Page) {
   await page.goto(`${BASE}/settings`);
   await page.getByRole('button', { name: 'Организация', exact: true }).click();
