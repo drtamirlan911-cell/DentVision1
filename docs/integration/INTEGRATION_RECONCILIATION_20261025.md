@@ -316,3 +316,39 @@ This is a read-only census of all branch refs returned by GitHub at the time of 
 2. A merged PR does not prove its current branch tip is merged: refs may have advanced after merge or the PR may have multiple historical uses. Compare the exact SHA, not just PR state.
 3. A closed-unmerged PR or a branch with no PR match remains reviewable work, not disposable clutter. Group identical tips (for example, the `tmp/*247*` family) as shared snapshots; do not delete them during reconciliation.
 4. Do not merge the integration train until its divergence from current `main` has been reconciled and required exact-head CI/E2E/role-context/visual/Android gates pass. Current state remains NOT READY.
+
+## Appendix B — Selective source-tree audit and security port (2026-10-25)
+
+### Audited outcomes (exact blob SHA/content comparison, not commit-count heuristics)
+
+| Source branch | Audit result against current `main` | Integration disposition |
+|---|---|---|
+| `fix/payment-integration-gates-20261025` | Payment route and the creation-security/refund/settlement test blobs were verified identical to canonical `main` at audit time. | Already represented; do not copy duplicate files. |
+| `fix/payment-route-reconciliation-20261025` | Contains older billing and Academy price assumptions, older branch-role normalization, and fewer appointment/invoice ownership assertions than `main`. | Preserve ref; do not merge stale files wholesale. Main's newer contract remains canonical. |
+| `security/payment-hardening-20261017` | Large older-tree divergence; many paths have old content and current-main-only files are absent. | Preserve ref and selectively inspect only concrete non-duplicated security changes. |
+| `security/staged-release-fixes-20261023` | `fieldEncryption.ts` is already identical to `main`; branch `phi.ts` returns an encrypted payload after decryption/integrity failure, whereas `main` fails closed. | Keep main's stronger behavior. RB-029 (clinical-history JSON encryption and audited backfill) remains open. |
+| `security/doctor-agent-tenant-isolation-20261025` | `doctor.agent.ts` and its security test are blob-identical to `main`. | Already represented; preserve historical branch ref. |
+| `feat/dental-lab-economics-vertical` | Economics service, service test, and event subscriber are blob-identical to `main`. | Already represented; no duplicate port. |
+| `fix/ai-provider-circuit-breaker` | Older version lacks the current `aiProviderUnavailableUntil` fast-path guard present in main's `eventOrchestrator.ts`. | Keep newer main implementation. |
+| `fix/lecturer-academy-org-backfill` | Branch's migration script has a narrower lecturer→academy lookup; main also recovers explicit owner and course→lecturer relationships. | Keep current main script; do not regress recovery behavior. |
+| `feat/content-access-hardening`, `iam-action-revocation-hardening`, `feat/branch-management-control-plane`, `feat/branch-management-documentation` | Old tree families have hundreds of path differences and omit newer main-only content. Their path-only files are largely legacy plans/tests/screens, not a safe replacement for current application code. | Preserve refs. Selectively cherry-pick only a verified missing behavior, never restore the branch tree wholesale. |
+| `feat/clinical-odontogram-20261004` | Holds an older odontogram implementation/file family; it is not a safe whole-branch merge over the current application. | Preserve ref and compare individual clinical requirements before selective port. |
+| `feat/enterprise-superadmin-complete`, `feat/invitation-service`, `feat/home-dashboard-proactive-ai-custom-grid-14172438245139088814` | Commit comparison reports zero commits ahead of main. | No unique commits to port at present; keep refs until census confirms no subsequent change. |
+| `docs/ai-employee-task-lifecycle-recovery-20261025` | `docs/AI_EMPLOYEE_TASKS.md` exists in main's tree. | Already represented in integration tree. |
+| `fix/session-expire-ownership-20261025` / PR #319 | Added a real session-owner authorization gap fix not present in main. | Selectively ported the service, auth-refresh and compliance-route changes plus focused unit and E2E regressions into this train; source PR/branch remains preserved for independent review. |
+
+### Session ownership fix ported to the train
+
+- `expireSession(sessionId, userId)` now uses a scoped `updateMany` predicate (`id + userId + active expiration`) and returns false when no owned active session is changed.
+- Refresh rotation stops with 401 if the refresh-token session cannot be expired for its authenticated user.
+- Compliance session-expiration returns the same 404 for missing/foreign/inactive sessions and audits only a successful expiration.
+- Added unit coverage in `dentvision-backend/src/modules/compliance/session.service.test.ts` and an end-to-end cross-user check in `e2e/tests/session-security.spec.ts`.
+- Port commits: `e730deff2da74161df104eb6c16ef4582067e53b`, `e6c05365af9150f4e9233ed7acb3d67021e221de`, `765aa7768e9ff437c1bd87e4c54e1073714a2f3c`, `c520dadeb4635d3cf7aa98e956e4209fcada055c`, `e6779ef9eaa19a5cb07476ace01757f2e2dec778`.
+- Verification status: **not yet validated by exact-head CI**. PR #319 remains open/draft; no claim is made that the complete E2E suite is green.
+
+### Current integration gate status
+
+- Latest fully completed gate: Quality Gate on merge commit `fd1ad330d4cfc9c954127ee902e7f2432575e259` passed.
+- On that same SHA, backend-lint, frontend-lint and lint-test passed; the E2E core suite failed while subsequent role/context gate was still running at last inspection. The post-port changes produce a new SHA and require a fresh complete run.
+- E2E failure patterns from the prior completed run include late Playwright response-body reads after navigation, a login-form selector timeout in the organization-owner journey, and duplicate test fixture uniqueness keys (users, appointments, idempotency records). These must be repaired at source; do not weaken assertions or disable coverage.
+- No source branch has been deleted, force-pushed, rebased, or rewritten. Release status remains **NOT READY**.
