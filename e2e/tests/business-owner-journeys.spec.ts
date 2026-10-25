@@ -13,40 +13,55 @@ async function login(page: Page, role = 'owner') {
 }
 
 async function submitAndCaptureOnboarding(page: Page): Promise<{ status: number; ok: boolean; body: any }> {
-  let captured: { status: number; ok: boolean; body: any } | null = null;
-  const routePattern = "**/api/organizations/self-service";
+  type CapturedResponse = { status: number; ok: boolean; body: any };
+  let resolveCapture!: (response: CapturedResponse) => void;
+  let rejectCapture!: (error: unknown) => void;
+  const capturedResponse = new Promise<CapturedResponse>((resolve, reject) => {
+    resolveCapture = resolve;
+    rejectCapture = reject;
+  });
+  const routePattern = "**/api/organizations/self-service**";
 
-  // Intercept the API response and read its body before the browser receives
-  // it. The onboarding UI navigates immediately after a successful response;
-  // reading the body later through CDP can fail with "No resource with given
-  // identifier found". Do not swallow this error into a false successful path.
+  // Keep the route installed until the in-flight POST has been fulfilled. The
+  // UI navigates after this response, so unroute-after-click races the handler
+  // and can auto-continue the request before route.fulfill() executes.
   await page.route(routePattern, async (route) => {
     if (route.request().method() !== "POST") {
       await route.continue();
       return;
     }
 
-    const upstream = await route.fetch();
-    const rawBody = await upstream.body();
-    let body: any = null;
     try {
-      body = JSON.parse(rawBody.toString("utf8"));
-    } catch {
-      body = null;
+      const upstream = await route.fetch();
+      const rawBody = await upstream.body();
+      let body: any = null;
+      try {
+        body = JSON.parse(rawBody.toString("utf8"));
+      } catch {
+        body = null;
+      }
+      const captured = { status: upstream.status(), ok: upstream.ok(), body };
+      await route.fulfill({ response: upstream, body: rawBody });
+      resolveCapture(captured);
+    } catch (error) {
+      rejectCapture(error);
+      await route.abort().catch(() => {});
     }
-    captured = { status: upstream.status(), ok: upstream.ok(), body };
-    await route.fulfill({ response: upstream, body: rawBody });
   });
 
+  let timeoutId: ReturnType<typeof setTimeout> | undefined;
   try {
-    await page.getByRole("button", { name: "Создать и открыть workspace" }).click();
+    const clickPromise = page.getByRole("button", { name: "Создать и открыть workspace" }).click();
+    timeoutId = setTimeout(() => rejectCapture(new Error("Timed out waiting for self-service onboarding response")), 15000);
+    const captured = await capturedResponse;
+    await clickPromise;
+    return captured;
   } finally {
+    if (timeoutId) clearTimeout(timeoutId);
     await page.unroute(routePattern);
   }
-
-  if (!captured) throw new Error("Self-service onboarding response was not captured");
-  return captured;
 }
+
 test.describe('DentVision business owner journeys', () => {
   test('BIZ-000: new account registration → partner onboarding → persisted workspace context', async ({ page }) => {
     const unique = Date.now();
