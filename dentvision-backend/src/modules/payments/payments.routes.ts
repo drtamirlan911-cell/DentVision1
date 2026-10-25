@@ -178,8 +178,6 @@ async function settleEnrollmentPayment(
     id: string;
     refId: string | null;
     amount: bigint;
-    sellerType: string | null;
-    sellerId: string | null;
     meta: unknown;
   },
   db: Prisma.TransactionClient,
@@ -194,6 +192,10 @@ async function settleEnrollmentPayment(
 
   const course = await db.course.findUnique({ where: { id: courseId } });
   if (!course) return false;
+
+  // The persisted course is the authority for price and seller identity.
+  // Never accept sellerType/sellerId from a historic payment row as the
+  // source of truth when crediting an Academy or lecturer.
   const expectedAmountMinor = course.price == null ? 0n : tengeToMinor(course.price);
   if (expectedAmountMinor <= 0n || payment.amount !== expectedAmountMinor) {
     throw new Error('Сумма оплаты курса не совпадает с актуальной ценой курса');
@@ -213,13 +215,14 @@ async function settleEnrollmentPayment(
     where: { refType: 'enrollment', refId: enrollment.id, type: 'sale' },
   });
 
-  const lecturerId = payment.sellerId || course.lecturerId;
-  if (lecturerId && payment.amount > 0n && !alreadySold) {
+  const sellerType = course.lecturerId ? 'LECTURER' : course.academyId ? 'ACADEMY' : null;
+  const sellerId = course.lecturerId || course.academyId || null;
+  if (sellerType && sellerId && payment.amount > 0n && !alreadySold) {
     await recordSaleTx(
       {
         domain: 'school',
-        sellerType: (payment.sellerType as WalletOwnerType) || 'LECTURER',
-        sellerId: lecturerId,
+        sellerType: sellerType as WalletOwnerType,
+        sellerId,
         amountMinor: payment.amount,
         refType: 'enrollment',
         refId: enrollment.id,
@@ -722,8 +725,8 @@ paymentsRouter.post('/', authenticate, async (req: AuthRequest, res) => {
         ...(refType === 'enrollment' ? { courseId: course.id } : { productId: course.id }),
         ...(metaObj.courseId ? { courseId: course.id } : {}),
       };
-      trustedSellerType = course.lecturerId ? 'LECTURER' : 'PLATFORM';
-      trustedSellerId = course.lecturerId || 'system';
+      trustedSellerType = course.lecturerId ? 'LECTURER' : course.academyId ? 'ACADEMY' : null;
+      trustedSellerId = course.lecturerId || course.academyId || null;
       trustedDomain = 'school';
     }
 

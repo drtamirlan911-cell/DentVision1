@@ -1,4 +1,6 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 
 /**
  * settlePaidPayment used to call recordSale/activateClinicSubscriptionFromPayment/
@@ -10,12 +12,17 @@ import { describe, expect, it, vi, beforeEach } from 'vitest';
  * every branch's callee — not the global prisma client, not a new default.
  */
 
-const { recordSaleTx, recordPartnerEconomics, activateClinicSubscriptionFromPayment, isSaasPlanId, accrueSaasCashback, markSettlementPaid, writeRevenue } =
+const { recordSaleTx, recordPartnerEconomics, activateClinicSubscriptionFromPayment, isSaasPlanId, getClinicSubscriptionAmountMinor, assertClinicBillingAccess, accrueSaasCashback, markSettlementPaid, writeRevenue } =
   vi.hoisted(() => ({
     recordSaleTx: vi.fn(),
     recordPartnerEconomics: vi.fn(),
     activateClinicSubscriptionFromPayment: vi.fn(),
     isSaasPlanId: vi.fn(() => true),
+    getClinicSubscriptionAmountMinor: vi.fn((plan: string, months: number) => {
+      const monthly: Record<string, bigint> = { starter: 1_990_000n, professional: 3_990_000n, enterprise: 7_990_000n };
+      return monthly[plan] && Number.isInteger(months) && months >= 1 && months <= 24 ? monthly[plan] * BigInt(months) : null;
+    }),
+    assertClinicBillingAccess: vi.fn(),
     accrueSaasCashback: vi.fn(),
     markSettlementPaid: vi.fn(),
     writeRevenue: vi.fn(),
@@ -28,6 +35,8 @@ vi.mock('../finance/revenue.service.js', () => ({ writeRevenue }));
 vi.mock('../billing/clinicSubscription.service.js', () => ({
   activateClinicSubscriptionFromPayment,
   isSaasPlanId,
+  getClinicSubscriptionAmountMinor,
+  assertClinicBillingAccess,
 }));
 vi.mock('../dentcash/cashback.engine.js', () => ({ accrueSaasCashback }));
 vi.mock('../diagnostics/settlement.service.js', () => ({ markSettlementPaid }));
@@ -84,7 +93,7 @@ describe('settlePaidPayment — db threading', () => {
         domain: null,
         sellerType: null,
         sellerId: null,
-        amount: 49900n,
+        amount: 3_990_000n,
         meta: { saasPlan: 'professional', months: 1 },
       },
       fakeTx,
@@ -94,9 +103,27 @@ describe('settlePaidPayment — db threading', () => {
       fakeTx,
     );
     expect(writeRevenue).toHaveBeenCalledWith(
-      expect.objectContaining({ source: 'SaaS', amountMinor: 49900n, refId: 'clinic-1' }),
+      expect.objectContaining({ source: 'SaaS', amountMinor: 3_990_000n, refId: 'clinic-1' }),
       fakeTx,
     );
+  });
+
+  it('subscription settlement rejects a client amount that differs from canonical plan/month pricing', async () => {
+    await expect(settlePaidPayment(
+      {
+        id: 'pay-underpaid-subscription',
+        refType: 'subscription',
+        refId: 'clinic-1',
+        domain: null,
+        sellerType: null,
+        sellerId: null,
+        amount: 1n,
+        meta: { saasPlan: 'professional', months: 1 },
+      },
+      fakeTx,
+    )).rejects.toThrow(/подписки не совпадает/i);
+    expect(activateClinicSubscriptionFromPayment).not.toHaveBeenCalled();
+    expect(writeRevenue).not.toHaveBeenCalled();
   });
 
   it('settlement branch: passes db through to markSettlementPaid', async () => {
@@ -236,5 +263,40 @@ describe('claimPaymentForSettlement — double-confirm race guard', () => {
       fakeTx,
     )).rejects.toThrow('Сумма оплаты медицинского анализа не совпадает');
     expect(recordPartnerEconomics).not.toHaveBeenCalled();
+  });
+});
+
+
+describe('Academy settlement source-of-truth contract', () => {
+  it('derives course payment price and seller identity from the persisted course', () => {
+    const source = readFileSync(
+      resolve(process.cwd(), 'dentvision-backend/src/modules/payments/payments.routes.ts'),
+      'utf8',
+    );
+    const start = source.indexOf('async function settleEnrollmentPayment(');
+    const end = source.indexOf('async function settleAcademyEventPayment(', start);
+    const block = source.slice(start, end);
+    expect(block).toContain('const expectedAmountMinor = course.price == null ? 0n : tengeToMinor(course.price);');
+    expect(block).toContain("const sellerType = course.lecturerId ? 'LECTURER' : course.academyId ? 'ACADEMY' : null;");
+    expect(block).toContain('const sellerId = course.lecturerId || course.academyId || null;');
+    expect(block).not.toContain('payment.sellerId');
+    expect(block).not.toContain('payment.sellerType');
+  });
+});
+
+describe('Subscription payment creation boundary', () => {
+  it('requires scoped billing access and exact canonical plan/month pricing before creating a subscription payment', () => {
+    const source = readFileSync(
+      resolve(process.cwd(), 'dentvision-backend/src/modules/payments/payments.routes.ts'),
+      'utf8',
+    );
+    const createStart = source.indexOf("paymentsRouter.post('/', authenticate");
+    const refundStart = source.indexOf("paymentsRouter.post('/:id/refund", createStart);
+    const block = source.slice(createStart, refundStart);
+    expect(block).toContain("if (refType === 'subscription')");
+    expect(block).toContain('assertClinicBillingAccess(req.user!.id, String(refId))');
+    expect(block).toContain('getClinicSubscriptionAmountMinor(saasPlan, months)');
+    expect(block).toContain('if (minor !== expectedMinor)');
+    expect(block).toContain('trustedMeta = { ...trustedMeta, saasPlan, months, clinicId: String(refId), userId: req.user!.id }');
   });
 });
