@@ -5,8 +5,8 @@
 ## Summary
 
 - Mounted routers: **69**
-- Unique route handlers: **690**
-- Registered HTTP routes after mount: **652**
+- Unique route handlers: **689**
+- Registered HTTP routes after mount: **651**
 - Routes without detected web/mobile consumer: **101**
 - Prisma models: **150**
 - Background jobs: **12**
@@ -77,7 +77,7 @@ Identity -> Active Workspace -> Organization -> Branch -> Role -> Permission -> 
 | /api/ai-admin/webhook | webhookGatewayRouter | 0 | 0 |
 | /api/ai-governance | aiGovernanceRouter | 3 | 1 |
 | /api/meta | metaRouter | 5 | 2 |
-| /api/organizations | organizationsRouter | 12 | 2 |
+| /api/organizations | organizationsRouter | 11 | 2 |
 | /api/persons | personsRouter | 5 | 0 |
 | /api/branches | branchesRouter | 10 | 0 |
 | /api/patient-portal/ai | aiPatientRouter | 4 | 0 |
