@@ -283,3 +283,9 @@ Do not repeat an audit when implementation can resolve the issue. Do not weaken 
 - Further source review of the structured medical-history codec found that idempotent internal envelope handling must be paired with strict HTTP input guards. The canonical Patient create/upsert and PATCH routes could otherwise accept a client-supplied root `__dentvisionEncryptedV1` value and pass it through as if it were service-produced ciphertext.
 - Code candidate committed as `2368ff723efd5ea02349fd39dfec47c6ff87360e` on the existing RB-029 branch. It adds `isClientSuppliedEncryptedMedicalHistory` and applies it at Patient Portal profile update and canonical Patient create/update boundaries. Root `ENC:` values and reserved envelope markers are rejected; normal structured values and nested clinical fields remain supported.
 - Regression coverage added for the shared validator and all three route write boundaries. Await exact-head CI; RB-029 stays OPEN. No database access, backfill, staging write, or deployment performed.
+
+## 2026-10-26 — RB-029 malformed envelope fail-closed hardening
+
+- Source audit found that `decryptMedicalHistory()` recognized a V1 envelope only when `__dentvisionEncryptedV1` already contained an `ENC:`-prefixed string. A malformed value under this reserved root key could otherwise be returned as if it were legacy plaintext JSON.
+- Added explicit reserved-marker detection. Valid internal V1 envelopes remain idempotent; malformed reserved markers now throw a bounded, non-PHI error on both encode and decode. Added regression coverage for malformed string and numeric marker values.
+- Exact-head CI is required before this candidate is considered verified. No database was queried or modified, and no backfill, migration, staging operation or deployment was performed.

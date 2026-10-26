@@ -2334,3 +2334,9 @@ These changes are route/entry reconciliation only. Existing domain implementatio
 - Static review found a second write-boundary issue adjacent to the Patient Portal string-coercion bug: canonical Patient create/upsert and PATCH accepted caller-supplied root `__dentvisionEncryptedV1` markers. Since the codec is intentionally idempotent for trusted stored envelopes, the route boundary must reject client-supplied ciphertext rather than treating it as service-produced data.
 - Implementation commit: `2368ff723efd5ea02349fd39dfec47c6ff87360e` on existing branch `security/rb029-patient-portal-history-envelope-20261026`. The shared predicate rejects root `ENC:` strings / reserved envelope markers at Patient Portal profile update, Patient create/upsert and Patient PATCH. Normal nested structured history remains valid.
 - Added unit coverage for the shared predicate and route-source contracts for all three write boundaries. This is not yet verified by exact-head CI. RB-029 stays OPEN pending the full downstream/concurrency audit, backup/rollback review and approved read-only staging dry run. No database was queried or modified, and no backfill or deployment was run.
+
+## 2026-10-26 — RB-029 malformed envelope fail-closed hardening
+
+- Source audit found that `decryptMedicalHistory()` recognized a V1 envelope only when `__dentvisionEncryptedV1` already contained an `ENC:`-prefixed string. A malformed value under this reserved root key could otherwise be returned as if it were legacy plaintext JSON.
+- Added explicit reserved-marker detection. Valid internal V1 envelopes remain idempotent; malformed reserved markers now throw a bounded, non-PHI error on both encode and decode. Added regression coverage for malformed string and numeric marker values.
+- Verification pending exact-head CI. No database read/write, backfill, migration, staging operation or deployment was performed.

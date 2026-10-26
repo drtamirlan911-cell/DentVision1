@@ -80,9 +80,18 @@ export function isClientSuppliedEncryptedMedicalHistory(value: unknown): boolean
   return Object.prototype.hasOwnProperty.call(value, MEDICAL_HISTORY_ENVELOPE);
 }
 
+function hasMedicalHistoryEnvelopeMarker(value: unknown): value is Record<string, unknown> {
+  return Boolean(
+    value
+    && typeof value === 'object'
+    && !Array.isArray(value)
+    && Object.prototype.hasOwnProperty.call(value, MEDICAL_HISTORY_ENVELOPE),
+  );
+}
+
 function isEncryptedMedicalHistoryEnvelope(value: unknown): value is EncryptedMedicalHistoryEnvelope {
-  if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
-  const candidate = (value as Record<string, unknown>)[MEDICAL_HISTORY_ENVELOPE];
+  if (!hasMedicalHistoryEnvelopeMarker(value)) return false;
+  const candidate = value[MEDICAL_HISTORY_ENVELOPE];
   return typeof candidate === 'string' && candidate.startsWith(MARKER);
 }
 
@@ -93,7 +102,10 @@ function isEncryptedMedicalHistoryEnvelope(value: unknown): value is EncryptedMe
  */
 export function encryptMedicalHistory(value: unknown): unknown {
   if (value == null) return value;
-  if (isEncryptedMedicalHistoryEnvelope(value)) return value;
+  if (hasMedicalHistoryEnvelopeMarker(value)) {
+    if (isEncryptedMedicalHistoryEnvelope(value)) return value;
+    throw new Error('[phi] Invalid medical-history encryption envelope');
+  }
   // Older patient-portal writes store a scalar ENC: value in this JSON column.
   if (typeof value === 'string' && value.startsWith(MARKER)) return value;
   if (!canEncrypt()) {
@@ -114,7 +126,11 @@ export function encryptMedicalHistory(value: unknown): unknown {
 /** Decode current envelopes and legacy scalar ciphertext; leave old plaintext JSON untouched. */
 export function decryptMedicalHistory(value: unknown): unknown {
   if (value == null) return value;
+  const hasEnvelope = hasMedicalHistoryEnvelopeMarker(value);
   const isEnvelope = isEncryptedMedicalHistoryEnvelope(value);
+  if (hasEnvelope && !isEnvelope) {
+    throw new Error('[phi] Invalid medical-history encryption envelope');
+  }
   const ciphertext = isEnvelope
     ? value[MEDICAL_HISTORY_ENVELOPE]
     : typeof value === 'string' && value.startsWith(MARKER) ? value : null;

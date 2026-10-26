@@ -9,7 +9,7 @@
 
 - Current main (`ac913cc3389a294d0b135a852b035ddddb1018ca`) includes the versioned `__dentvisionEncryptedV1` envelope codec in `dentvision-backend/src/lib/phi.ts`; canonical Patient CRUD and odontogram write paths use `encryptMedicalHistory`, and relevant readers decode the envelope before returning clinical data.
 - Follow-up review found the Patient Portal profile writer still used `encryptField(String(body.medicalHistory))`, which destroys structured JSON shape; the candidate switches to the shared codec. Additional review found that canonical Patient create/upsert and PATCH boundaries need to reject caller-provided root ciphertext/envelope markers because the codec deliberately supports idempotent internal envelope round-trips. Code commit `2368ff723efd5ea02349fd39dfec47c6ff87360e` on the candidate branch guards all three API writers with `isClientSuppliedEncryptedMedicalHistory`; this prevents replay of untrusted ciphertext from being treated as service-produced data. Route/codec regression tests are added, but exact-head CI is still pending.
-- The candidate adds a focused source-contract regression test. It is not merged or verified by full CI until its branch checks complete. No production/staging database operation or backfill has been executed.
+- The candidate adds a focused source-contract regression test. The shared codec now also fails closed when a root-level `__dentvisionEncryptedV1` marker is present but its value is malformed or not `ENC:` ciphertext, instead of treating that object as legacy plaintext JSON. Exact-head CI is still pending. No production/staging database operation or backfill has been executed.
 
 ## Executive finding
 
@@ -63,7 +63,9 @@ The broader 33-path ORM sweep also includes patient lookups in AI agents/context
 - The existing `phi.test.ts` production-failure test supplies a **string** history. It does not prove JSON-object encryption. `teethStore.test.ts`, `cross-clinic.service.test.ts` and `clinical-core.spec.ts` currently exercise object-shaped history, not encrypted envelopes.
 - The current format has no field-level ciphertext version or key ID; the helper has no explicit keyring/rotation migration contract.
 
-## Recommended implementation contract (not yet implemented)
+## Original implementation contract — remaining acceptance checklist
+
+The checklist below predates the shared V1 codec and compatible writers/readers. Treat it as a release-closure checklist, not as a statement that the implementation is absent. The shared codec and some call sites exist; a single typed repository boundary, all-consumer verification, explicit key metadata/rotation, concurrency protection, derivative-PHI controls, staged dry run and rollback evidence remain open unless separately verified.
 
 1. **One codec and one repository boundary.** Introduce a typed `MedicalHistory` codec/repository used by all Patient create/update/read paths. Its public read result is a validated structured object (or `null`); its write method accepts only the validated object. Do not allow route/UI modules to encode/decode ciphertext themselves or spread arbitrary Prisma JSON into the UI.
 2. **Versioned encrypted representation.** Persist a tagged envelope with an explicit format version, algorithm and key ID, e.g. `{$format: 'dentvision.phi.medicalHistory', v: 1, alg: 'A256GCM', kid: 'phi-2026-01', ciphertext: '...'}`. Ciphertext must be authenticated with a unique IV per write. Store the envelope in the JSONB field only after all readers/writers use the codec; do not pass the envelope to Prisma-facing reports, the AI model, or frontend state. A separate ciphertext column is an alternative only if the migration plan includes a strict deadline to clear the old plaintext column—keeping both populated would not close the at-rest blocker.
@@ -72,7 +74,7 @@ The broader 33-path ORM sweep also includes patient lookups in AI agents/context
 5. **Keep tenant/branch and consent gates before decryption.** Centralize crypto after authorization has resolved the allowed clinic/organization. Cross-clinic reads still require a live approved grant and preserve the audit log. Patient Portal reads remain self-bound and consent-gated. Decryption itself is not an authorization decision.
 6. **Account for derivative PHI.** Decide and test a retention/access policy for complaint text in `ai_events.payload` and clinical details echoed in `ai_messages.content` / `ai_sessions.messages`. A source-column encryption pass cannot remove or encrypt these derived copies. Review backups/exports and relevant data-retention behavior before declaring overall clinical-data protection complete.
 
-## Migration / backfill runbook (to implement only after the codec and path changes)
+## Migration / backfill runbook — do not execute until all path changes and approvals are complete
 
 1. **Read-only dry run in an isolated database.** Count `NULL`, JSON object, JSON array, JSON string, number/boolean and malformed legacy values using `jsonb_typeof`; identify `ENC:`-marked string values separately. Do not print record payloads or clinical values. Record only counts, a time-bound snapshot ID, and non-reversible row identifiers/hashes for exceptions. Verify a tested backup/restore and key availability before any production-sized run.
 2. **Deploy compatibility readers and encrypted writers first.** New writes are encrypted/versioned; reads understand both the old object and the versioned envelope. Do not continue dual-writing plaintext. Patient Portal's object/string contract must be fixed here, along with CRM list/detail, odontology, AI, cross-clinic and events.
