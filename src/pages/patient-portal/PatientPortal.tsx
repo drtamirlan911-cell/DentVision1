@@ -101,11 +101,11 @@ export default function PatientPortal() {
   }
 
   return (
-    // Every portal route is behind `requireConsent()`, so the agreements come
-    // first or nothing below can load at all.
-    <ConsentGate>
-    <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className="p-4 sm:p-6 max-w-5xl mx-auto space-y-6">
-      <div className="flex"><span title="Пациент" aria-label="Текущая роль: Пациент" className="inline-flex items-center rounded-full border border-bdr-subtle bg-surface-1 px-3 py-1 text-xs font-medium text-txt-muted">Пациент</span></div>
+    <div className="p-4 sm:p-6 max-w-5xl mx-auto">
+      <div className="mb-6 flex"><span title="Пациент" aria-label="Текущая роль: Пациент" className="inline-flex items-center rounded-full border border-bdr-subtle bg-surface-1 px-3 py-1 text-xs font-medium text-txt-muted">Пациент</span></div>
+      {/* Keep role identity visible; patient data remains inside the consent gate. */}
+      <ConsentGate>
+      <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
       <PageHeader
         title={t('patientPortal.title')}
         subtitle={t('patientPortal.welcome', { name: user.name || user.login })}
@@ -129,7 +129,8 @@ export default function PatientPortal() {
         {activeTab === 'diagnostics' && <DiagnosticsTab />}
         {activeTab === 'access' && <AccessTab />}
       </div>
-    </motion.div>
-    </ConsentGate>
+      </motion.div>
+      </ConsentGate>
+    </div>
   );
 }
