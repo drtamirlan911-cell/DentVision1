@@ -16,6 +16,7 @@ import { syncPersonFromClinicMember, removePersonFromClinicMember } from '../../
 import { resolveClinicAccess } from '../../lib/orgContext.js';
 import { auditFromReq } from '../compliance/audit.service.js';
 import { ClinicPaymentsError, validateClinicGatewayUrl } from '../payments/clinicPayments.js';
+import { createClinicForOwner, normalizeClinicInput } from './clinicCreation.service.js';
 
 export const clinicsRouter = Router();
 
@@ -203,107 +204,16 @@ clinicsRouter.get('/:id', authenticate, async (req, res) => {
 
 clinicsRouter.post('/', authenticate, async (req: AuthRequest, res) => {
   try {
-    const { name, city, address, phone } = req.body as {
-      name: string;
-      city?: string;
-      address?: string;
-      phone?: string;
-    };
-
-    if (!name) {
-      return res.status(400).json({ ok: false, error: 'Название клиники обязательно' });
-    }
-
-    const clinicId = uid();
-
-    const [clinic] = await prisma.$transaction([
-      prisma.clinic.create({
-        data: {
-          id: clinicId,
-          name,
-          city: city || null,
-          address: address || null,
-          phone: phone || null,
-        },
-      }),
-      prisma.clinicMember.create({
-        data: {
-          id: uid(),
-          userId: req.user!.id,
-          clinicId,
-          role: 'OWNER',
-        },
-      }),
-      // Also create an Organization entry for unified API
-      prisma.organization.upsert({
-        where: { originalType_originalId: { originalType: 'Clinic', originalId: clinicId } },
-        update: { name, address, phone },
-        create: {
-          id: uid(),
-          name,
-          type: 'CLINIC',
-          address: address || null,
-          phone: phone || null,
-          contacts: city ? { city } : undefined,
-          originalType: 'Clinic',
-          originalId: clinicId,
-        },
-      }),
-    ]);
-
-    // Canonical IAM must be complete at the point the clinic is created:
-    // Organization → Person → PersonRole(owner). Without this, the legacy
-    // ClinicMember exists but the Master Spec v5 workspace cannot be activated.
-    const ownerRole = await prisma.role.findUnique({ where: { key: 'owner' } });
-    const ownerUser = await prisma.user.findUnique({
-      where: { id: req.user!.id },
-      select: { firstName: true, lastName: true, phone: true, email: true, spec: true },
+    const input = normalizeClinicInput(req.body);
+    if (!input) return res.status(400).json({ ok: false, error: 'Укажите корректное название клиники и проверьте контактные поля' });
+    const { clinic } = await createClinicForOwner(req.user!.id, input, {
+      action: 'clinic.create', entity: 'clinic', userId: req.user!.id, clinicId: req.user!.clinicId,
+      ip: req.ip || req.socket?.remoteAddress,
     });
-    const organization = await prisma.organization.findFirst({
-      where: { originalType: 'Clinic', originalId: clinicId },
-      select: { id: true },
-    });
-    if (!ownerRole || !ownerUser || !organization) {
-      throw new Error('Canonical clinic IAM bootstrap failed');
-    }
-    const person = await prisma.person.upsert({
-      where: { userId_organizationId: { userId: req.user!.id, organizationId: organization.id } },
-      update: {
-        fullName: (ownerUser.firstName + ' ' + ownerUser.lastName).trim(),
-        personType: 'STAFF',
-        phone: ownerUser.phone || undefined,
-        email: ownerUser.email || undefined,
-        specialization: ownerUser.spec || undefined,
-        originalType: 'ClinicMember',
-        originalId: clinicId + ':' + req.user!.id,
-      },
-      create: {
-        id: uid(),
-        fullName: (ownerUser.firstName + ' ' + ownerUser.lastName).trim() || 'Владелец клиники',
-        personType: 'STAFF',
-        organizationId: organization.id,
-        userId: req.user!.id,
-        phone: ownerUser.phone || undefined,
-        email: ownerUser.email || undefined,
-        specialization: ownerUser.spec || undefined,
-        originalType: 'ClinicMember',
-        originalId: clinicId + ':' + req.user!.id,
-      },
-    });
-    await prisma.personRole.upsert({
-      where: { personId_roleId_scopeKey: { personId: person.id, roleId: ownerRole.id, scopeKey: 'organization:' + organization.id } },
-      update: { scopeType: 'organization', scopeId: organization.id },
-      create: { personId: person.id, roleId: ownerRole.id, scopeType: 'organization', scopeId: organization.id, scopeKey: 'organization:' + organization.id },
-    });
-
-    const response: ApiResponse = {
-      ok: true,
-      data: clinic,
-    };
-
-    res.status(201).json(response);
+    return res.status(201).json({ ok: true, data: clinic } satisfies ApiResponse);
   } catch (error) {
-    res.status(500).json({ ok: false, error: 'Ошибка при создании клиники' });
+    console.error('[clinics/create]', error);
+    return res.status(500).json({ ok: false, error: 'Ошибка при создании клиники' });
   }
 });
 

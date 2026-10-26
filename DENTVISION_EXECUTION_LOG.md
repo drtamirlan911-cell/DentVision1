@@ -2204,3 +2204,97 @@ These changes are route/entry reconciliation only. Existing domain implementatio
 - Integrated the application-layer structured medical-history encryption candidate with current main while preserving the RB-034 IAM/diagnostic-signing changes already landed on main.
 - Preserved a versioned encrypted JSON envelope, compatibility decoding, canonical Patient and odontogram write/read paths, AI event/tool decoding, focused tests, and the guarded `db:backfill:medical-history` command.
 - RB-029 remains OPEN. The previous 63/63 focused test result and older Quality Gate result are not proof for this merged exact head; run fresh CI and review all consumers/concurrent writers. Backfill remains unrun; no production database was queried or modified.
+
+## 2026-10-26 — Auth/diagnostics endpoint repair (local verification only)
+- Worktree: `fix/auth-diagnostics-endpoints-20261025`; changes remain local to the Vercel sandbox. No commit, push, PR update, or production deployment performed.
+- Added clinic-context switching with a newly issued session and expiration of the previous session; retained canonical default-context resolution for non-clinic participants at login.
+- Added atomic clinic + organization + Person/PersonRole bootstrap, server-assigned `DEMO` plan, and idempotent demo-clinic creation.
+- Hardened invitation join handling and clinic membership context response; added superadmin-only diagnostics stats and commission-rule endpoints with validation and audit attempt.
+- Regenerated `.dentvision/*` inventories and `docs/SYSTEM_MAP.md` using the repository's system-map generator.
+- Verification in sandbox after the audit transaction fix: full Vitest suite **246/246 test files and 2,227/2,227 tests passed**; focused auth/clinic/diagnostics contracts **12/12 tests passed**; frontend `npm run typecheck` passed; frontend `npm run build` passed (Vite reports existing chunk-size/dynamic-import warnings); backend `npm run build` passed; ESLint on touched source/test files passed; `git diff --check` passed.
+- Audit integrity follow-up: clinic creation (both self-service endpoints), demo-clinic creation, clinic-session rotation, and diagnostics commission-rule mutations now write their audit event in the same Prisma transaction as the mutation. An audit insert failure should roll back that transaction rather than be swallowed. The full test suite passes after this change; live PostgreSQL integration is still required to verify transaction rollback behavior against the deployed schema.
+
+## 2026-10-26 — Atomic audit closure and repository handoff
+
+- Completed transactional audit handling for clinic-context switching: session creation, previous-session expiration, and the `auth.switch_clinic` audit event now share one transaction. A failed audit write rolls back session rotation.
+- Clinic creation (both auth self-service endpoints and the clinics endpoint) now writes its audit event inside the same transaction as the Clinic/Organization/Person/PersonRole bootstrap. Demo-clinic creation keeps the event in the existing idempotent transaction.
+- Diagnostic commission-rule upsert and its audit event now share a transaction for both scoped and global rules. The central audit helper accepts a Prisma transaction client; session helpers accept one for atomic rotation.
+- Verification after these changes: backend TypeScript build passed; focused auth/clinic/diagnostics contract tests passed **12/12**; `git diff --check` passed. A full Vitest rerun was attempted but the sandbox terminated the process with exit code 143 before results were produced; it is not counted as a pass. No live PostgreSQL integration, browser E2E, or production smoke test was run.
+- Work is committed to the feature branch for review. No production deployment or merge to `main` performed. Release remains **NOT READY** pending database integration, E2E/browser, and production verification.
+
+
+## 2026-10-26 — Role/context and diagnostics-scope repair candidate
+
+- CI run `40269710407` at HEAD `08ebba2fe4232aaf5aa41a6d7139012f2b16c683` had lint checks passing while role/context and business-owner E2E failed.
+- Candidate fixes guard nested diagnostics pages, separate clinic referral creation from partner-scoped reading, derive `clinicId`/`centerId`/`labId` from the active workspace, and avoid issuing unscoped referrals requests.
+- Platform-wide wildcard permissions no longer imply clinic CRM or supplier-tenant membership. Help/Notifications and shared AI/public Community route expectations are explicit. BIZ-000/BIZ-009 use the browser bearer token for IAM context checks.
+- Exact-head CI/E2E rerun remains pending; release stays **NOT READY**. No production deployment or production database changes were performed.
+
+
+## 2026-10-26 — Password-reset endpoint repair
+
+### Implemented in PR #326
+- Password-reset requests persist only a SHA-256 digest of the one-hour token; the raw token is sent only in the email link.
+- Added `POST /api/auth/reset-password` with server-side password-policy validation.
+- Conditional token consumption, password mutation, outstanding-token cleanup, active-session revocation and the audit event commit in one transaction.
+- Added focused tests for reset-token digest/expiry/one-time claim.
+
+### Scope decision
+- The proposed organization-delete endpoint was removed before merge. The shared Organization model can point to legacy domain records through `originalType` / `originalId`; safe deletion needs a domain-aware lifecycle, not just an emptiness check of persons/branches. No organization deletion route remains in this PR.
+
+### Verification
+- Exact-HEAD CI and database/browser release gates remain required. The generated system map was synchronized after the latest endpoint addition.
+- Release remains **NOT READY** until exact-HEAD CI/E2E and required database/browser gates are green. No merge or production deployment was performed.
+
+## 2026-10-26 — Generated system-map validation repair
+
+- Exact-head CI run `40281118512` showed backend lint and frontend lint passing, but `lint-test` failed at `Validate generated system map`: the CI generator changed route counts from 688 to 690 unique handlers and from 650 to 652 mounted registrations after adding the reset and organization endpoints.
+- Updated `docs/SYSTEM_MAP.md` to match the generator output for the two new handlers and router totals; no generator or release check was bypassed.
+- The Quality Gate run `40281118577` passed for HEAD `7ed6529f7daac3a83cd21a783133079d9c2eb3c7`. CI E2E was still running at the time of this log entry; the generated-map correction requires a new exact-HEAD CI run.
+- Release remains **NOT READY** until the new CI/E2E result and the required database/browser gates are green.
+
+
+## 2026-10-26 — Platform diagnostics stats contract
+
+- The superadmin `GET /api/diagnostics/stats` endpoint now builds on `diagnostics.service.ts::getDashboardStats({})`, preserving canonical pending/completed/overdue and recent-referral fields, and adds the platform-wide status-count map.
+- Added a route contract test to prevent the platform stats endpoint from drifting into a partial duplicate of the canonical dashboard read model.
+- Organization deletion remains deferred; after removing that extra route, `docs/SYSTEM_MAP.md` correctly returns to 689 unique handlers / 651 mounted registrations (one net new endpoint: password reset).
+- Exact-HEAD CI is running after this final test/source update. Release remains **NOT READY** until CI/E2E and required database/browser gates complete successfully.
+
+
+## 2026-10-26 — Page parity failure and tenant-isolation contract
+
+- Exact-head CI run `40282056925` executed 2,234 tests: 2,233 passed and one pre-existing IAM parity assertion failed. The legacy `SUPERADMIN` page list required both `support` and `supplier`, while the newer tenant-isolation contract correctly forbids platform superadmins from entering supplier-tenant workspace.
+- Resolved the conflicting contract by retaining `supplier` as intentionally excluded in the parity baseline, while restoring the platform `support` screen to the `SUPERADMIN` page list.
+- Extended the dedicated permissions test to assert both sides: `SUPERADMIN` sees `support` and does not see `supplier`. No authorization middleware or tenant boundary was relaxed.
+- This was found in the all-tests run; exact-HEAD CI/E2E is required again for the correction. Release remains **NOT READY** until the run completes.
+
+
+## 2026-10-26 — Persist clinic invitations
+
+- Found a broken contract in `POST /api/auth/invitations`: it returned a generated code without inserting a `ClinicInvitation` row, while lookup/join reads the table. Such invitations could never be accepted.
+- Added `clinicInvitations.service.ts`; invitation creation now persists the clinic, normalized email, role, code and expiry before returning success, retrying only unique-code collisions.
+- Kept existing lookup/join handlers in place; their active-clinic checks, email match, atomic claim, and idempotent repeat acceptance remain authoritative.
+- Added focused tests for persistence, uniqueness-collision retry, and propagation of unrelated database failures. Exact-HEAD CI/E2E is required to verify this additional fix.
+
+
+## 2026-10-26 — Generated inventory refresh
+
+- Refreshed `.dentvision/api.json` and `.dentvision/routes.json` to include the new `POST /reset-password` handler.
+- Refreshed `.dentvision/tests.json` with the password-reset and clinic-invitation persistence regression suites, and updated the security inventory to include the password-reset service/audit references.
+- Inventory changes are generated-contract maintenance only; exact-HEAD CI remains the deciding verification.
+
+
+## 2026-10-26 — PR #326 role/context and onboarding follow-up
+
+- Starting point: PR #326 HEAD `8866b1fb988ac62a33dcc863905485ed6c964ba4`; exact merge-ref CI run [40283285265](https://github.com/drtamirlan911-cell/DentVision1/actions/runs/40283285265). Backend/frontend lint and core E2E passed; role/context and business-owner journeys failed. No production or `main` changes were made.
+- This candidate addresses the findings: require patient active context for authenticated patient data; guard Help; prevent `billing.read` from exposing cashier/finance pages; remove BI from clinic ADMIN/MANAGER; remove scheduling from legacy LAB; align Assistant lab coordination and the public patient login entry with role policy; fix the measured medical-card touch target; and wait through onboarding navigation before reading session tokens.
+- The role gate now records URLs for HTTP 400 responses. Loopback CORS origins are explicit in the isolated E2E environment; production CORS policy is unchanged.
+- Regression tests cover billing read-only pages, BI role boundaries and legacy LAB scheduling. No security assertion was deleted or weakened.
+- Verification at commit creation: **PENDING** exact-HEAD CI; do not merge PR #326 or close RB-034 based on this change alone.
+
+## 2026-10-26 — Auth/diagnostics merge-train reconciliation
+
+- Reconciled PR #326 with the current main line after the RB-034 and RB-029 branches landed. Current-main role/page policy, public Community route, Patient Portal access guard, and scoped partner-signing authorization were retained rather than replaced with older branch copies.
+- Carried forward PR #326 auth/session and clinic-context updates, atomic clinic/organization/Person/PersonRole bootstrap, and SuperAdmin diagnostics commission-rule endpoints. Commission-rule persistence and the corresponding audit record remain within one transaction.
+- The merge-resolution commit requires fresh exact-head CI. Historic results for earlier candidates do not certify this tree. No production database query/write, migration, backfill, or deployment was performed.

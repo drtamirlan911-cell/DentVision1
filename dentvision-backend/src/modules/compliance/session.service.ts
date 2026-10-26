@@ -1,4 +1,7 @@
+import type { Prisma } from '@prisma/client';
 import prisma from '../../lib/prisma.js';
+
+type SessionClient = Pick<Prisma.TransactionClient, 'userSession'>;
 
 export interface SessionInfo {
   id: string;
@@ -29,9 +32,10 @@ export async function createSession(
   userId: string,
   ipAddress?: string,
   userAgent?: string,
+  client: SessionClient = prisma,
 ): Promise<SessionInfo> {
   const { device, browser } = parseUA(userAgent);
-  const session = await prisma.userSession.create({
+  const session = await client.userSession.create({
     data: {
       userId,
       device,
@@ -61,8 +65,8 @@ export async function listActiveSessions(userId: string): Promise<SessionInfo[]>
 }
 
 /** Expire a session only when it belongs to the authenticated user. */
-export async function expireSession(sessionId: string, userId: string): Promise<boolean> {
-  const result = await prisma.userSession.updateMany({
+export async function expireSession(sessionId: string, userId: string, client: SessionClient = prisma): Promise<boolean> {
+  const result = await client.userSession.updateMany({
     where: { id: sessionId, userId, expiredAt: { gt: new Date() } },
     data: { expiredAt: new Date() },
   });
