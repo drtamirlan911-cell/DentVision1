@@ -30,9 +30,15 @@ function Tooth({ num, selected, onClick }: { num: number; selected: boolean; onC
     : (selected ? 'bg-dv-gold text-dv-gold-on' : 'bg-surface-1/80 text-txt-muted hover:bg-surface-1');
 
   return (
-    <button type="button" onClick={onClick}
-      className={cn('flex items-center justify-center rounded text-[10px] font-bold transition-all border', size, bg,
-        selected ? 'border-dv-gold/60 shadow-sm' : 'border-bdr-subtle')}>
+    <button
+      type="button"
+      aria-label={`Зуб ${TOOTH_LABELS[num] || num}`}
+      aria-pressed={selected}
+      title={`Зуб ${TOOTH_LABELS[num] || num}`}
+      onClick={onClick}
+      className={cn('flex min-h-9 min-w-9 items-center justify-center rounded text-[10px] font-bold transition-all border', size, bg,
+        selected ? 'border-dv-gold/60 shadow-sm' : 'border-bdr-subtle')}
+    >
       {num}
     </button>
   );
@@ -70,8 +76,12 @@ export default function ToothSelector({ selected, onChange }: Props) {
           { label: t('diagnostics.right'), value: 'right' as const },
           { label: t('diagnostics.deselect_all'), value: 'none' as const },
         ].map(a => (
-          <button key={a.value} type="button" onClick={() => selectRegion(a.value)}
-            className="px-2.5 py-1 rounded-lg text-xs font-medium bg-surface-1 border border-bdr-subtle text-txt-muted hover:text-txt-primary transition-colors">
+          <button
+            key={a.value}
+            type="button"
+            onClick={() => selectRegion(a.value)}
+            className="min-h-9 min-w-9 px-2.5 py-1 rounded-lg text-xs font-medium bg-surface-1 border border-bdr-subtle text-txt-muted hover:text-txt-primary transition-colors"
+          >
             {a.label}
           </button>
         ))}

@@ -175,11 +175,9 @@ export default function FinanceTab() {
   const [disputeDetail, setDisputeDetail] = useState<any>(null);
   const [payoutStatusFilter, setPayoutStatusFilter] = useState('requested');
 
-  const report = useQuery({ queryKey: ['finance', 'report'], queryFn: () => api.getFinanceReport(), staleTime: 30_000 });
-  // Platform revenue split by where the money came from. `report` above cannot
-  // answer this: its `revenue` is one number, and BI's `bySource` keys on the
-  // free-form `payment.domain` string rather than the RevenueSource enum this
-  // ledger records.
+  // This is a platform finance view. Do not query /api/billing/reports here:
+  // that endpoint is intentionally scoped to a single active clinic. The platform
+  // view uses platform-level finance APIs below instead.
   const revenueSources = useQuery({
     queryKey: ['finance', 'revenue-by-source'],
     queryFn: () => api.getRevenueBySource(),
@@ -197,6 +195,20 @@ export default function FinanceTab() {
     queryKey: ['finance', 'transactions', txParams],
     queryFn: () => apiFetch('/api/finance/transactions?' + new URLSearchParams(txParams).toString()),
     staleTime: 10_000,
+  });
+
+  // Platform overview uses platform-wide sources, never the clinic-only billing report.
+  // Counts and commission sums use a bounded sample of the newest 200 transactions.
+  const overviewTransactions = useQuery({
+    queryKey: ['finance', 'overview-transactions'],
+    queryFn: () => apiFetch('/api/finance/transactions?limit=200'),
+    staleTime: 30_000,
+  });
+
+  const platformWallet = useQuery({
+    queryKey: ['finance', 'platform-wallet'],
+    queryFn: () => apiFetch('/api/finance/wallets/PLATFORM/system'),
+    staleTime: 30_000,
   });
 
   const wallets = useQuery({
@@ -288,7 +300,6 @@ export default function FinanceTab() {
     return data;
   }
 
-  const reportData: any = report.data || {};
   const txData: any = transactions.data || {};
   const txList: any[] = Array.isArray(txData.data) ? txData.data : (Array.isArray(txData) ? txData : []);
   const txTotal: number = txData.total || txList.length;
@@ -303,16 +314,32 @@ export default function FinanceTab() {
   const payoutRaw: any = payouts.data;
   const payoutList: any[] = Array.isArray(payoutRaw) ? payoutRaw : (payoutRaw?.data || []);
   const ledgerData: any = ledgerHealth.data || {};
+  const overviewTxRaw: any = overviewTransactions.data;
+  const overviewTxList: any[] = Array.isArray(overviewTxRaw?.data)
+    ? overviewTxRaw.data
+    : Array.isArray(overviewTxRaw) ? overviewTxRaw : [];
+  const platformWalletRaw: any = platformWallet.data;
+  const platformWalletData: any = platformWalletRaw?.data || platformWalletRaw || {};
+  const totalTransactions = overviewTxList.length;
+  const platformBalance = Number(platformWalletData.balance || 0) / 100;
+  const totalCommissions = overviewTxList
+    .filter((tx: any) => String(tx.type || '').toUpperCase() === 'COMMISSION')
+    .reduce((sum: number, tx: any) => sum + Number(tx.amount || 0), 0) / 100;
+  const disputesCount = disputeList.filter((d: any) => ['open', 'review'].includes(String(d.status || '').toLowerCase())).length;
+  const completedTransactions = overviewTxList.filter((tx: any) => String(tx.status || '').toUpperCase() === 'COMPLETED').length;
+  const pendingTransactions = overviewTxList.filter((tx: any) => String(tx.status || '').toUpperCase() === 'PENDING').length;
+  const platformRevenue = Number(revenueSources.data?.totalMinor || 0) / 100;
 
-  const totalTransactions = reportData.totalTransactions ?? txTotal;
-  const platformBalance = reportData.platformBalance ?? walletList.find((w: any) => (w.type || '').toLowerCase() === 'platform')?.balance ?? 0;
-  const totalCommissions = reportData.totalCommissions ?? 0;
-  const disputesCount = reportData.disputesCount ?? disputeList.filter((d: any) => d.status === 'open' || d.status === 'review').length;
-
-  const chartData = (reportData.dailyTransactions || []).map((d: any) => ({
-    date: fd(d.date || d.createdAt),
-    amount: d.amount || d.total || 0,
-  }));
+  const dailyTotals = new Map<string, number>();
+  for (const tx of overviewTxList) {
+    const createdAt = tx.createdAt ? new Date(tx.createdAt) : null;
+    if (!createdAt || Number.isNaN(createdAt.getTime())) continue;
+    const day = createdAt.toISOString().slice(0, 10);
+    dailyTotals.set(day, (dailyTotals.get(day) || 0) + Number(tx.amount || 0) / 100);
+  }
+  const chartData = Array.from(dailyTotals.entries())
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([date, amount]) => ({ date: fd(date), amount }));
 
   const txTypeDonutData = (() => {
     const counts: Record<string, number> = {};
@@ -346,24 +373,24 @@ export default function FinanceTab() {
 
       {subTab === 'overview' && (
         <div className="space-y-6">
-          {report.isLoading ? (
+          {(revenueSources.isLoading || overviewTransactions.isLoading || platformWallet.isLoading || transactions.isLoading || wallets.isLoading || commissionRules.isLoading || disputes.isLoading) ? (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
               {Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-24 rounded-xl" />)}
             </div>
-          ) : report.isError ? (
-            <FinanceQueryError onRetry={() => report.refetch()} />
+          ) : (revenueSources.isError || overviewTransactions.isError || platformWallet.isError || transactions.isError || wallets.isError || commissionRules.isError || disputes.isError) ? (
+            <FinanceQueryError onRetry={() => { void Promise.all([revenueSources.refetch(), overviewTransactions.refetch(), platformWallet.refetch(), transactions.refetch(), wallets.refetch(), commissionRules.refetch(), disputes.refetch()]); }} />
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-              <StatCard label="Транзакции" value={totalTransactions} icon={<ArrowUpDown size={18} />} />
+              <StatCard label="Транзакции (последние 200)" value={totalTransactions} icon={<ArrowUpDown size={18} />} />
               <StatCard label="Баланс платформы" value={fmtKzt(platformBalance)} icon={<Wallet size={18} />} />
-              <StatCard label="Комиссии" value={fmtKzt(totalCommissions)} icon={<TrendingUp size={18} />} />
+              <StatCard label="Комиссии (последние 200)" value={fmtKzt(totalCommissions)} icon={<TrendingUp size={18} />} />
               <StatCard label="Споры" value={disputesCount} icon={<AlertTriangle size={18} />} />
             </div>
           )}
 
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
             <GlassCard padding="md" className="lg:col-span-2">
-              <h3 className="text-sm font-semibold text-txt-primary mb-4">Транзакции по дням</h3>
+              <h3 className="text-sm font-semibold text-txt-primary mb-4">Сумма транзакций по дням (последние 200)</h3>
               {chartData.length > 0 ? (
                 <AreaChartComponent data={chartData} xKey="date" yKey="amount" height={240} formatter={(v: number) => fmtKzt(v)} />
               ) : (
@@ -385,7 +412,7 @@ export default function FinanceTab() {
               <div className="flex items-center gap-3">
                 <div className="p-2 rounded-lg bg-[#22C55E]/10 text-success"><Check size={18} /></div>
                 <div>
-                  <p className="text-lg font-bold text-txt-primary">{reportData.completedTransactions ?? 0}</p>
+                  <p className="text-lg font-bold text-txt-primary">{completedTransactions}</p>
                   <p className="text-xs text-txt-muted">Завершённых транзакций</p>
                 </div>
               </div>
@@ -394,7 +421,7 @@ export default function FinanceTab() {
               <div className="flex items-center gap-3">
                 <div className="p-2 rounded-lg bg-[#F59E0B]/10 text-[#F59E0B]"><AlertTriangle size={18} /></div>
                 <div>
-                  <p className="text-lg font-bold text-txt-primary">{reportData.pendingTransactions ?? 0}</p>
+                  <p className="text-lg font-bold text-txt-primary">{pendingTransactions}</p>
                   <p className="text-xs text-txt-muted">Ожидающих</p>
                 </div>
               </div>
@@ -403,7 +430,7 @@ export default function FinanceTab() {
               <div className="flex items-center gap-3">
                 <div className="p-2 rounded-lg bg-dv-gold/10 text-dv-gold"><DollarSign size={18} /></div>
                 <div>
-                  <p className="text-lg font-bold text-txt-primary">{fmtKzt(reportData.revenue ?? 0)}</p>
+                  <p className="text-lg font-bold text-txt-primary">{fmtKzt(platformRevenue)}</p>
                   <p className="text-xs text-txt-muted">Выручка</p>
                 </div>
               </div>
@@ -494,7 +521,7 @@ export default function FinanceTab() {
                           </td>
                           <td className="px-4 py-3">
                             <span className={`text-sm font-semibold ${tx.type === 'CREDIT' ? 'text-success' : tx.type === 'DEBIT' ? 'text-error' : 'text-txt-primary'}`}>
-                              {tx.type === 'CREDIT' ? '+' : '-'}{fmtKzt(tx.amount)}
+                              {tx.type === 'CREDIT' ? '+' : '-'}{fmtKzt(Number(tx.amount || 0) / 100)}
                             </span>
                           </td>
                           <td className="px-4 py-3">
@@ -544,10 +571,10 @@ export default function FinanceTab() {
                         <p className="text-xs text-txt-muted">{w.currency || 'KZT'}</p>
                       </div>
                     </div>
-                    <p className="text-2xl font-bold text-dv-gold">{fmtKzt(w.balance || 0)}</p>
+                    <p className="text-2xl font-bold text-dv-gold">{fmtKzt(Number(w.balance || 0) / 100)}</p>
                     <div className="mt-2 flex gap-4 text-xs text-txt-muted">
-                      <span>Приход: {fmtKzt(w.totalCredit || 0)}</span>
-                      <span>Расход: {fmtKzt(w.totalDebit || 0)}</span>
+                      <span>Приход: {fmtKzt(Number(w.totalCredit || 0) / 100)}</span>
+                      <span>Расход: {fmtKzt(Number(w.totalDebit || 0) / 100)}</span>
                     </div>
                   </GlassCard>
                 );
@@ -581,9 +608,9 @@ export default function FinanceTab() {
                           <td className="px-4 py-3">
                             <Badge variant="info" size="sm">{w.type || '—'}</Badge>
                           </td>
-                          <td className="px-4 py-3 text-sm font-semibold text-dv-gold">{fmtKzt(w.balance || 0)}</td>
-                          <td className="px-4 py-3 text-sm text-success">{fmtKzt(w.totalCredit || 0)}</td>
-                          <td className="px-4 py-3 text-sm text-error">{fmtKzt(w.totalDebit || 0)}</td>
+                          <td className="px-4 py-3 text-sm font-semibold text-dv-gold">{fmtKzt(Number(w.balance || 0) / 100)}</td>
+                          <td className="px-4 py-3 text-sm text-success">{fmtKzt(Number(w.totalCredit || 0) / 100)}</td>
+                          <td className="px-4 py-3 text-sm text-error">{fmtKzt(Number(w.totalDebit || 0) / 100)}</td>
                           <td className="px-4 py-3 text-xs text-txt-muted">{fd(w.updatedAt)}</td>
                         </tr>
                       );
@@ -690,7 +717,7 @@ export default function FinanceTab() {
                             {DISPUTE_STATUS_LABEL[d.status] || d.status}
                           </Badge>
                         </td>
-                        <td className="px-4 py-3 text-sm text-txt-primary">{d.amount ? fmtKzt(d.amount) : '—'}</td>
+                        <td className="px-4 py-3 text-sm text-txt-primary">{d.amount ? fmtKzt(Number(d.amount || 0) / 100) : '—'}</td>
                         <td className="px-4 py-3 text-xs text-txt-muted">{fd(d.createdAt)}</td>
                         <td className="px-4 py-3">
                           <div className="flex gap-1">
@@ -910,7 +937,7 @@ export default function FinanceTab() {
           });
         }} className="space-y-4">
           <Select label="Кошелёк *" className="min-h-11" value={manualForm.walletId} onChange={e => setManualForm({ ...manualForm, walletId: e.target.value })}
-            options={[{ value: '', label: 'Выберите кошелёк' }, ...walletList.map((w: any) => ({ value: w.id, label: `${w.name || w.type} (${fmtKzt(w.balance || 0)})` }))]} />
+            options={[{ value: '', label: 'Выберите кошелёк' }, ...walletList.map((w: any) => ({ value: w.id, label: `${w.name || w.type} (${fmtKzt(Number(w.balance || 0) / 100)})` }))]} />
           <Select label="Тип *" className="min-h-11" value={manualForm.type} onChange={e => setManualForm({ ...manualForm, type: e.target.value as 'CREDIT' | 'DEBIT' })}
             options={[{ value: 'CREDIT', label: 'Приход (CREDIT)' }, { value: 'DEBIT', label: 'Расход (DEBIT)' }]} />
           <Input label="Сумма (₸) *" className="min-h-11" type="number" min="0" step="100" value={manualForm.amount} onChange={e => setManualForm({ ...manualForm, amount: e.target.value })} placeholder="0" />

@@ -1,0 +1,83 @@
+name: RB-034 Context Diagnostic
+
+on:
+  push:
+    branches:
+      - security/doctor-agent-tenant-isolation-20261025
+  pull_request:
+    branches: [main]
+    paths:
+      - 'dentvision-backend/src/modules/iam/**'
+      - 'dentvision-backend/src/modules/ai/agents/doctor.agent.ts'
+      - 'dentvision-backend/src/modules/ai/agents/doctor.agent.security.test.ts'
+      - 'e2e/tests/rb034-iam-contexts.spec.ts'
+      - '.github/workflows/rb034-context-diagnostic.yml'
+
+jobs:
+  focused-context:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: dentvision
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d dentvision"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      NODE_ENV: development
+      SEED_E2E_FIXTURES: 'true'
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/dentvision?connection_limit=20&pool_timeout=30
+      RATE_LIMIT_API_MAX: '100000'
+      RATE_LIMIT_AUTH_MAX: '100000'
+      RATE_LIMIT_AI_MAX: '10000'
+      RATE_LIMIT_GUEST_SESSION_MAX: '1000'
+      JWT_SECRET: e2e-ci-jwt-secret-not-for-production-use-only-000000
+      JWT_REFRESH_SECRET: e2e-ci-refresh-secret-not-for-production-000000
+      KASPI_CALLBACK_SECRET: e2e-ci-kaspi-callback-secret-not-for-prod-0000
+      PLAYWRIGHT_API_URL: http://localhost:3001
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - name: Install backend dependencies and generate Prisma client
+        working-directory: dentvision-backend
+        run: |
+          npm ci
+          npx prisma generate
+          npx prisma db push --skip-generate
+      - name: Seed isolated E2E identities and canonical contexts
+        working-directory: dentvision-backend
+        run: npm run db:seed:e2e
+      - name: Verify DoctorAgent tenant boundary tests
+        run: npx vitest run dentvision-backend/src/modules/ai/agents/doctor.agent.security.test.ts
+      - name: Start backend
+        working-directory: dentvision-backend
+        run: nohup npx tsx src/index.ts > /tmp/rb034-backend.log 2>&1 &
+      - name: Wait for backend health
+        run: |
+          for i in $(seq 1 30); do
+            curl -sf http://localhost:3001/api/health && exit 0
+            sleep 2
+          done
+          echo "Backend health check did not become ready" >&2
+          tail -n 300 /tmp/rb034-backend.log >&2 || true
+          exit 1
+      - name: Run focused IAM context request
+        run: npx playwright test e2e/tests/rb034-iam-contexts.spec.ts --project=e2e-core --workers=1
+      - name: Backend diagnostics on failure
+        if: failure()
+        run: |
+          echo '===== RB-034 focused request output ====='
+          cat test-results/e2e-core/e2e/tests/rb034-iam-contexts.spec.ts/error-context.md 2>/dev/null || true
+          echo '===== Backend log ====='
+          tail -n 500 /tmp/rb034-backend.log || true

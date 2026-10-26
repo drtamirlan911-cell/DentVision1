@@ -76,7 +76,6 @@ const MATRIX: Record<string, RoleMatrixRow> = {
     academy:      ['read'],
     shop:         ['manage'],
     community:    ['read', 'write'],
-    bi:           ['read'],
   },
 
   MANAGER: {
@@ -92,7 +91,6 @@ const MATRIX: Record<string, RoleMatrixRow> = {
     diagnostics:  ['read'],
     shop:         ['read'],
     academy:      ['read'],
-    bi:           ['read'],
     dashboard:    ['read'],
   },
 
@@ -345,7 +343,27 @@ export function pagesForPermissions(permissions: readonly string[]): string[] {
     }
     const mod = perm.split('.')[0];
     const modPages = MODULE_PAGES[mod];
-    if (modPages) modPages.forEach((p) => pages.add(p));
+    if (!modPages) continue;
+
+    // Read-only billing permits scoped invoice/charge visibility, not the clinic-wide
+    // Cashier/Finance workspace, which includes collection and administrative actions.
+    // Catalogue visibility is not campaign administration. Only elevated
+    // shop permissions expose the promotions-management page.
+    if (mod === 'shop') {
+      const action = perm.split('.')[1];
+      pages.add('shop');
+      if (action === 'write' || action === 'delete' || action === 'manage') pages.add('promotions');
+      continue;
+    }
+    if (mod === 'billing') {
+      const action = perm.split('.')[1];
+      if (action === 'write' || action === 'delete' || action === 'manage') {
+        modPages.forEach((p) => pages.add(p));
+      }
+      continue;
+    }
+
+    modPages.forEach((p) => pages.add(p));
   }
   // The profile page is open to every authenticated user (it was in every
   // legacy role's pages list) even though no profile.* permission exists.
@@ -354,13 +372,11 @@ export function pagesForPermissions(permissions: readonly string[]): string[] {
 }
 
 /**
- * Pages for a caller, from their effective permissions UNION their role.
+ * Resolve the caller's visible page surface from their active role and effective permissions.
  *
- * Never narrower than the role matrix alone. The DB permission graph is
- * additive to the matrix everywhere else (`requirePermission` allows when
- * either grants), and page visibility has to match: a Person seeded with a
- * couple of narrow keys must not silently revoke the pages their role has
- * always had.
+ * Low-level read permissions can support embedded lookups and APIs without
+ * granting an entire operational workspace. Platform roles also stay outside
+ * clinic CRM pages; page visibility is not a wildcard expansion of API grants.
  */
 const PARTNER_ROLE_PAGES: Record<string, string[]> = {
   DIAGNOSTIC: ['diagnostics', 'diagnostics-referrals', 'diagnostics-centers', 'diagnostics-results', 'diagnostics-calendar', 'diagnostics-statistics', 'diagnostics-settings', 'profile'],
@@ -395,20 +411,64 @@ export function pagesForCaller(permissions: readonly string[], role: string | nu
     return ['shop', 'school', 'profile'];
   }
 
-  const partnerFamily = partnerPageFamily(resolvedRole);
-  if (partnerFamily) {
+  // Platform identities do not inherit clinic workflows from the permission
+  // wildcard. Shared catalogue and diagnostic-directory pages remain available.
+  if (resolvedRole === 'SUPERADMIN') {
     return Array.from(new Set([
       ...BASE_PAGES,
-      ...PARTNER_ROLE_PAGES[partnerFamily],
+      'admin', 'audit', 'agent-activity', 'ai-approvals', 'backup', 'analytics',
+      'security', 'quality', 'platform-finance', 'ai-governance', 'support', 'bi',
     ]));
   }
 
-  return Array.from(new Set([
+  // Support can open its support/admin and analytics surfaces, but its
+  // read-oriented API grants must not make clinic BI, schedule, lab, or inventory
+  // workspaces visible.
+  if (resolvedRole === 'SUPPORT') {
+    return Array.from(new Set([...BASE_PAGES, 'analytics']));
+  }
+
+  const partnerFamily = partnerPageFamily(resolvedRole);
+  if (partnerFamily) {
+    let partnerPages = [...PARTNER_ROLE_PAGES[partnerFamily]];
+    if (partnerFamily === 'DIAGNOSTIC') {
+      if (!['DIAGNOSTIC_OWNER', 'DIAGNOSTIC_ADMIN'].includes(resolvedRole)) {
+        partnerPages = partnerPages.filter((page) => page !== 'diagnostics-settings');
+      }
+      if (!['DIAGNOSTIC_OWNER', 'DIAGNOSTIC_ADMIN', 'DIAGNOSTIC_MANAGER', 'DIAGNOSTIC_FINANCE', 'DIAGNOSTIC_QUALITY'].includes(resolvedRole)) {
+        partnerPages = partnerPages.filter((page) => page !== 'diagnostics-statistics');
+      }
+    } else if (partnerFamily === 'MEDICAL_LAB') {
+      if (!['MEDICAL_LAB_OWNER', 'MEDICAL_LAB_ADMIN'].includes(resolvedRole)) {
+        partnerPages = partnerPages.filter((page) => page !== 'diagnostics-settings');
+      }
+      if (['MEDICAL_LAB_TECHNICIAN', 'MEDICAL_LAB_RECEPTION'].includes(resolvedRole)) {
+        partnerPages = partnerPages.filter((page) => !['diagnostics-calendar', 'diagnostics-statistics'].includes(page));
+      } else if (['MEDICAL_LAB_VALIDATOR', 'MEDICAL_LAB_DOCTOR'].includes(resolvedRole)) {
+        partnerPages = partnerPages.filter((page) => page !== 'diagnostics-statistics');
+      }
+    } else if (partnerFamily === 'DENTAL_LAB' && !['DENTAL_LAB_OWNER', 'DENTAL_LAB_ADMIN'].includes(resolvedRole)) {
+      partnerPages = partnerPages.filter((page) => page !== 'diagnostics-settings');
+    }
+    return Array.from(new Set([...BASE_PAGES, ...partnerPages]));
+  }
+
+  const pages = new Set([
     ...BASE_PAGES,
     ...pagesForPermissions(permissions),
     ...(role ? pagesForRole(resolvedRole) : []),
     ...(AI_APPROVAL_ROLES.has(resolvedRole) ? ['ai-approvals'] : []),
-  ]));
+  ]);
+
+  // Read access supports embedded stock lookups; it does not grant clinical
+  // users the full inventory management screen.
+  if (resolvedRole === 'DOCTOR' || resolvedRole === 'ASSISTANT') pages.delete('inventory');
+
+  // Managers may consume lab status data, but the full laboratory workbench is
+  // not part of their role's visible workspace contract.
+  if (resolvedRole === 'MANAGER') pages.delete('lab');
+
+  return Array.from(pages);
 }
 
 /** Derive visible CRM pages from a role's permission set. */

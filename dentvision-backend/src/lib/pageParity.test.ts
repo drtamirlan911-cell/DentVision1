@@ -46,7 +46,7 @@ const LEGACY_ORG_PAGES: Record<string, { backendRole: string; pages: string[] }>
   },
   manager: {
     backendRole: 'MANAGER',
-    pages: ['dashboard', 'schedule', 'patients', 'analytics', 'staff', 'promotions', 'shop', 'profile'],
+    pages: ['dashboard', 'schedule', 'patients', 'analytics', 'inventory', 'staff', 'shop', 'profile'],
   },
   // `intern` (a different frontend role, still permissive) no longer maps to
   // backend STUDENT — see `ORG_ROLES.student` in auth.store.ts. STUDENT is
@@ -90,9 +90,14 @@ const LEGACY_PLATFORM_PAGES: Record<string, { role: string; permissions: string[
 
 describe('server page list covers the platform and workspace roles', () => {
   for (const [legacyRole, { role, permissions, pages }] of Object.entries(LEGACY_PLATFORM_PAGES)) {
-    it(`grants ${role} everything legacy '${legacyRole}' had`, () => {
+    it(`grants ${role} the compatible pages from legacy '${legacyRole}'`, () => {
       const served = pagesForCaller(permissions, role);
-      expect(pages.filter((page) => !served.includes(page))).toEqual([]);
+      // A platform SUPERADMIN deliberately does not inherit the Supplier
+      // workspace merely because its wildcard is global. The supplier page
+      // depends on an active supplier organization context, not a platform role.
+      const intentionallyExcluded = role === 'SUPERADMIN' ? new Set(['supplier']) : new Set<string>();
+      expect(pages.filter((page) => !intentionallyExcluded.has(page) && !served.includes(page))).toEqual([]);
+      if (role === 'SUPERADMIN') expect(served).not.toContain('supplier');
     });
   }
 

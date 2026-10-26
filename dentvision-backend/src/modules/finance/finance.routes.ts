@@ -56,15 +56,19 @@ function walletOwnershipGuard(req: AuthRequest, ownerType: string, ownerId: stri
 // Wallet list for current user context
 financeRouter.get('/wallets', async (req: AuthRequest, res) => {
   try {
-    const wallets = await prisma.wallet.findMany({
-      where: {
-        OR: [
-          ...(req.user?.clinicId ? [{ ownerType: 'CLINIC' as any, ownerId: req.user.clinicId }] : []),
-          ...(req.user?.supplierId ? [{ ownerType: 'SUPPLIER' as any, ownerId: req.user.supplierId }] : []),
-          ...(req.user?.organizationId ? [{ ownerType: 'PARTNER' as any, ownerId: req.user.organizationId }] : []),
-        ].filter(Boolean),
-      },
-    });
+    // Platform finance needs the complete wallet catalogue, but that view is
+    // reserved to SUPERADMIN. Every other caller remains limited to their own
+    // active clinic/supplier/partner wallets.
+    const where = req.user?.role === 'SUPERADMIN'
+      ? {}
+      : {
+          OR: [
+            ...(req.user?.clinicId ? [{ ownerType: 'CLINIC' as any, ownerId: req.user.clinicId }] : []),
+            ...(req.user?.supplierId ? [{ ownerType: 'SUPPLIER' as any, ownerId: req.user.supplierId }] : []),
+            ...(req.user?.organizationId ? [{ ownerType: 'PARTNER' as any, ownerId: req.user.organizationId }] : []),
+          ].filter(Boolean),
+        };
+    const wallets = await prisma.wallet.findMany({ where });
     res.json({ ok: true, data: serializeBigInt(wallets) } satisfies ApiResponse);
   } catch (error) {
     res.status(500).json({ ok: false, error: 'Ошибка загрузки кошельков' } satisfies ApiResponse);

@@ -5,6 +5,16 @@ const OWNER_EMAIL = 'owner-a@test.com';
 const PASSWORD = 'Test1234!';
 
 async function login(page: Page, role = 'owner') {
+  // A cookie-only reset leaves the persisted Zustand token/context in sessionStorage.
+  // Clear storage and force a full reload before opening Login, otherwise the app
+  // silently restores the previous partner workspace and redirects away from /login.
+  await page.context().clearCookies();
+  await page.goto(BASE);
+  await page.evaluate(() => {
+    localStorage.clear();
+    sessionStorage.clear();
+  });
+  await page.reload();
   await page.goto(`${BASE}/login?role=${role}`);
   await page.locator('input[autocomplete="username"]').fill(OWNER_EMAIL);
   await page.locator('input[autocomplete="current-password"]').fill(PASSWORD);
@@ -220,8 +230,13 @@ test.describe('DentVision business owner journeys', () => {
       expect(onboarding.data?.branchId).toBeTruthy();
       expect(onboarding.data?.verification).toBe('PENDING');
 
-      const contextsResponse = await page.request.get('/api/iam/me/contexts');
-      expect(contextsResponse.ok()).toBeTruthy();
+      // The API request client does not automatically read the tab's sessionStorage token.
+      const accessToken = onboarding.data?.accessToken || onboarding.accessToken;
+      expect(accessToken, 'onboarding must issue an access token for the new workspace context').toBeTruthy();
+      const contextsResponse = await page.request.get('/api/iam/me/contexts', {
+        headers: { Authorization: `Bearer ${accessToken}` },
+      });
+      expect(contextsResponse.ok(), `IAM context read failed with HTTP ${contextsResponse.status()}`).toBeTruthy();
       const contextsPayload = await contextsResponse.json();
       const context = (contextsPayload.data?.contexts || []).find(
         (item: { organizationId?: string; scopeType?: string; branchId?: string }) =>

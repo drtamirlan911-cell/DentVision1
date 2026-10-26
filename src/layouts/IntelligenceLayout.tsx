@@ -30,7 +30,7 @@ const FIRST_RUN_COLLAPSE_MS = 15_000;
 export const IntelligenceLayout: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  const { user, isAuthenticated, roleInfo, effectiveRole, logout, activeClinic, clinic } = useAuth();
+  const { user, isAuthenticated, roleInfo, effectiveRole, logout, activeClinic, clinic, loading: authLoading } = useAuth();
   const { isGuest, isGuestRoute, requiresAuth, initGuest, showRegistrationModal, setRegistrationModal } = useGuestStore();
   const isMobile = useCompactShell();
   const {
@@ -88,8 +88,14 @@ export const IntelligenceLayout: React.FC = () => {
   }, [firstRunPhase, isAuthenticated, isLoginRoute, location.pathname, navigate]);
 
   useEffect(() => {
-    if (!isAuthenticated && !isGuest && !isLoginRoute) void initGuest();
-  }, [isAuthenticated, isGuest, isLoginRoute, initGuest]);
+    // restoreSession() hydrates credentials asynchronously. Starting a guest
+    // session during that window creates an unnecessary cross-origin request and
+    // can race with the authenticated workspace context.
+    // A direct visit to a protected URL must go to login, not create a guest
+    // session and turn the authorization boundary into a guest CRM modal.
+    if (authLoading || isAuthenticated || isGuest || isLoginRoute || requiresAuth(location.pathname)) return;
+    void initGuest();
+  }, [authLoading, isAuthenticated, isGuest, isLoginRoute, location.pathname, requiresAuth, initGuest]);
 
   useEffect(() => {
     if (!needsAuth || !isGuest) return;
@@ -111,6 +117,10 @@ export const IntelligenceLayout: React.FC = () => {
   if (isPublicWelcome) return <Outlet />;
 
   if (needsAuth) {
+    // A direct visit to a protected URL without an authenticated or guest
+    // session must resolve to login. Do not leave the user on a permanent
+    // loading shell when guest initialization is intentionally skipped there.
+    if (!isGuest) return <Navigate to="/login" replace state={{ from: location.pathname }} />;
     if (isGuest) {
       if (isCRMRoute) {
         return (
