@@ -602,7 +602,12 @@ test.describe('DentVision exhaustive role/context/browser gate',()=>{
     test.skip(info.project.name !== 'role-1280', 'Tenant isolation is a data-scope contract; execute once per CI run');
     const problems=collectors(page);
     await login(page,'owner-a@test.com');
-    expect(await page.locator('body').innerText()).toContain('E2E Clinic A');
+    // Route changes can settle before the workspace context label is hydrated.
+    // Wait for the active tenant identity before starting the isolation assertions.
+    await expect.poll(() => page.locator('body').innerText().catch(() => ''), {
+      timeout: 10000,
+      message: 'Clinic A workspace identity did not hydrate after login',
+    }).toContain('E2E Clinic A');
     for(const route of ['/crm/patients','/crm/schedule','/crm/finance','/crm/inventory']){
       await page.goto(BASE_URL+route,{waitUntil:'domcontentloaded',timeout:30000});
       expect(await page.locator('body').innerText()).not.toContain('E2E Clinic B');
