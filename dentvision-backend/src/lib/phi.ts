@@ -66,6 +66,66 @@ export function decryptField(value: string | null): string | null {
   }
 }
 
+const MEDICAL_HISTORY_ENVELOPE = '__dentvisionEncryptedV1' as const;
+type EncryptedMedicalHistoryEnvelope = { __dentvisionEncryptedV1: string };
+
+function isEncryptedMedicalHistoryEnvelope(value: unknown): value is EncryptedMedicalHistoryEnvelope {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
+  const candidate = (value as Record<string, unknown>)[MEDICAL_HISTORY_ENVELOPE];
+  return typeof candidate === 'string' && candidate.startsWith(MARKER);
+}
+
+/**
+ * Encrypt the complete JSON value stored in Patient.medicalHistory without
+ * changing the PostgreSQL JSON column or the API's decoded object shape.
+ * Legacy plaintext JSON is read-compatible; already-encrypted values are idempotent.
+ */
+export function encryptMedicalHistory(value: unknown): unknown {
+  if (value == null) return value;
+  if (isEncryptedMedicalHistoryEnvelope(value)) return value;
+  // Older patient-portal writes store a scalar ENC: value in this JSON column.
+  if (typeof value === 'string' && value.startsWith(MARKER)) return value;
+  if (!canEncrypt()) {
+    if (process.env.NODE_ENV === 'production') {
+      throw new Error('[phi] Medical-history encryption unavailable in production');
+    }
+    return value;
+  }
+  const serialized = JSON.stringify(value);
+  if (serialized === undefined) throw new Error('[phi] Medical history must be JSON serializable');
+  const encrypted = encryptField(serialized);
+  if (!encrypted || !encrypted.startsWith(MARKER)) {
+    throw new Error('[phi] Medical-history encryption did not produce ciphertext');
+  }
+  return { [MEDICAL_HISTORY_ENVELOPE]: encrypted } satisfies EncryptedMedicalHistoryEnvelope;
+}
+
+/** Decode current envelopes and legacy scalar ciphertext; leave old plaintext JSON untouched. */
+export function decryptMedicalHistory(value: unknown): unknown {
+  if (value == null) return value;
+  const isEnvelope = isEncryptedMedicalHistoryEnvelope(value);
+  const ciphertext = isEnvelope
+    ? value[MEDICAL_HISTORY_ENVELOPE]
+    : typeof value === 'string' && value.startsWith(MARKER) ? value : null;
+  if (!ciphertext) return value;
+  const decrypted = decryptField(ciphertext);
+  // decryptField deliberately passes through ciphertext in non-production when the
+  // key is absent; never expose that token as patient history or overwrite it.
+  if (decrypted === ciphertext || decrypted?.startsWith(MARKER)) {
+    throw new Error('[phi] Medical-history decryption unavailable without the matching ENCRYPTION_KEY');
+  }
+  if (isEnvelope) {
+    try {
+      return JSON.parse(decrypted as string) as unknown;
+    } catch {
+      throw new Error('[phi] Encrypted medical history is not valid JSON');
+    }
+  }
+  // Backward compatibility: the patient portal historically encrypted plain text,
+  // not JSON.stringify(text). Parse JSON when it was stored that way; otherwise keep text.
+  try { return JSON.parse(decrypted as string) as unknown; } catch { return decrypted; }
+}
+
 /**
  * Deterministic blind index for IIN lookups.
  *
@@ -113,7 +173,7 @@ export function encryptPatientFields<T extends Record<string, unknown>>(
     return data;
   }
   if (typeof data.iin === 'string') (data as Record<string, unknown>).iin = encryptField(data.iin as string);
-  if (typeof data.medicalHistory === 'string') (data as Record<string, unknown>).medicalHistory = encryptField(data.medicalHistory as string);
+  if (data.medicalHistory != null) (data as Record<string, unknown>).medicalHistory = encryptMedicalHistory(data.medicalHistory);
   return data;
 }
 
@@ -124,13 +184,17 @@ export function decryptPatientFields<T extends Record<string, unknown> | null>(
   if (!data) return data;
   if (!canEncrypt()) {
     if (process.env.NODE_ENV === 'production') throw new Error('[phi] Patient-field decryption unavailable in production');
+    const history = (data as Record<string, unknown>).medicalHistory;
+    if (isEncryptedMedicalHistoryEnvelope(history) || (typeof history === 'string' && history.startsWith(MARKER))) {
+      throw new Error('[phi] Medical-history decryption unavailable without the matching ENCRYPTION_KEY');
+    }
     return data;
   }
   if (typeof (data as Record<string, unknown>).iin === 'string') {
     (data as Record<string, unknown>).iin = decryptField((data as Record<string, unknown>).iin as string);
   }
-  if (typeof (data as Record<string, unknown>).medicalHistory === 'string') {
-    (data as Record<string, unknown>).medicalHistory = decryptField((data as Record<string, unknown>).medicalHistory as string);
+  if ((data as Record<string, unknown>).medicalHistory != null) {
+    (data as Record<string, unknown>).medicalHistory = decryptMedicalHistory((data as Record<string, unknown>).medicalHistory);
   }
   return data;
 }

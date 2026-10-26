@@ -2182,3 +2182,25 @@ These changes are route/entry reconciliation only. Existing domain implementatio
 - Confirmed matrix mismatches against `docs/DENTVISION_IAM_ROLE_MATRIX.md`: MANAGER has branch-scoped inventory access; `shop.read` must not imply promotions administration; platform BI is not a default ADMIN/MANAGER page; partner settings/statistics/calendar visibility must respect the actual partner sub-role.
 - Follow-up source/test updates make the shop page mapping action-aware, restore partner role-level page restrictions, remove ADMIN/MANAGER BI grants from both the fallback matrix and canonical clinic-role registry, align manager inventory page parity, and put referral creation behind a dedicated `diagnostics-referral-create` page key granted only to clinic OWNER/ADMIN/DOCTOR/ASSISTANT roles.
 - These are source and regression-test updates only. Exact-head GitHub CI is required after commit; this log does not mark any gate passed. The change is confined to the PR branch; `main`, production and production data remain unchanged.
+
+## 2026-10-25 — RB-029 structured medical-history encryption candidate
+
+- Working PR: https://github.com/drtamirlan911-cell/DentVision1/pull/324, branch security/phi-medical-history-encryption-20261025. Draft only; not a production release.
+- Added a versioned encrypted JSON envelope for Patient.medicalHistory without changing the Prisma JSON column or Neon schema. Canonical Patient create/update and odontogram write paths encrypt before persistence and decode before merge/serialization. AI tool context and patient-created AI event readers decode the history before use. Existing cross-clinic and patient-portal reads use the shared decrypt helper.
+- Added focused tests for encrypted round trips, no plaintext in the persisted envelope, legacy plaintext JSON, legacy scalar ENC values, wrong/missing keys, and write-mode confirmation. Odontogram tests now assert the decoded domain shape rather than expecting plaintext in the raw persistence payload.
+- Added a guarded db:backfill:medical-history command. It defaults to read-only dry run; apply mode requires matching CLI and environment targets, while production additionally requires two explicit confirmations. It performs a complete preflight before writes, validates existing ciphertext under the configured key, and uses per-row JSONB compare-and-set updates. It is not called by startup.
+- RB-029 remains OPEN until all downstream consumers and concurrent writes are verified, the backfill gets a staging dry run plus backup/rollback review, and current exact-head CI passes. No production database was queried or modified, and no migration, merge or deployment was performed.
+- Quality Gate passed on candidate 8e873960fbe0dc1e730b384cc87d36317a9af37c before this backfill/docs follow-up. That CI does not verify the later commit. Re-check full CI for the final branch head before treating any check as passed.
+
+## 2026-10-25 — RB-029 verification and stacked PR
+
+- The RB-029 source changes were locally validated on the P0 branch in Vercel Sandbox: backend TypeScript build passed; focused PHI, odontogram and backfill tests passed 63/63. The broad root test command exited 0; the follow-up root build was interrupted by sandbox lifetime and is not claimed as verified.
+- CI on the unstacked P0 candidate passed Quality Gate, backend lint, frontend lint and lint/test, but broad E2E failed because the run did not contain the separate scoped diagnostic-signing fix in PR #323. No production data was touched.
+- PR #324 is being stacked onto the current PR #323 candidate so combined exact-head CI exercises both changes. It remains draft pending required gates.
+- Backfill has not been run. RB-029 remains OPEN pending staging dry run, backup/rollback review, complete consumer audit and release-gate verification.
+
+## 2026-10-26 — RB-029 integration with the current main line
+
+- Integrated the application-layer structured medical-history encryption candidate with current main while preserving the RB-034 IAM/diagnostic-signing changes already landed on main.
+- Preserved a versioned encrypted JSON envelope, compatibility decoding, canonical Patient and odontogram write/read paths, AI event/tool decoding, focused tests, and the guarded `db:backfill:medical-history` command.
+- RB-029 remains OPEN. The previous 63/63 focused test result and older Quality Gate result are not proof for this merged exact head; run fresh CI and review all consumers/concurrent writers. Backfill remains unrun; no production database was queried or modified.

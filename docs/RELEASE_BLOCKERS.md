@@ -5,14 +5,14 @@
 ## Open
 
 ### RB-029 — Patient clinical history JSON is not encrypted at rest
-- **Status:** OPEN — static inventory and migration design documented; codec implementation and audited backfill pending
+- **Status:** OPEN — versioned application-layer encrypted JSON envelope and compatibility paths implemented on the current candidate; staging dry run and release verification remain outstanding
 - **Priority:** P0
 - **Area:** PHI / clinical data protection
-- **Evidence:** the static inventory [`docs/security/RB-029_MEDICAL_HISTORY_ENCRYPTION_INVENTORY.md`](security/RB-029_MEDICAL_HISTORY_ENCRYPTION_INVENTORY.md), audited on exact `main` SHA `6581695e91eb70c638bc0b94efb10773d8882dd9`, found the same confirmed gap and traced the downstream consumers. A source sweep found 58 explicit `medicalHistory` references across 23 files and 85 textual Prisma Patient ORM call lines across 33 backend paths (including tests). The counts are static-reference counts, not unique endpoints or database row counts.
-- **Risk:** allergies, clinical notes, categories, source metadata and tooth/clinical details may remain readable in database backups or dumps, depending on their exact contents. Phone, email, address and notes also remain searchable plaintext fields by current design and require a documented threat-model decision.
-- **Required fix:** implement the shared versioned history codec/repository and migrate all read/write/AI/event/portal/odontogram/cross-clinic consumers per the inventory. Run a read-only dry run and an audited, resumable, conflict-safe backfill with counts, integrity checks, PHI-free exception ledger and tested rollback. Do not encrypt the JSON column blindly.
-- **Verification:** tests must prove plaintext does not appear in persisted sensitive fields, API responses remain correctly decrypted for authorized roles, tenant/branch boundaries hold, legacy records remain readable during migration, and failed/missing keys fail closed in production.
-
+- **Evidence:** the static inventory [`docs/security/RB-029_MEDICAL_HISTORY_ENCRYPTION_INVENTORY.md`](security/RB-029_MEDICAL_HISTORY_ENCRYPTION_INVENTORY.md) found 58 explicit `medicalHistory` references across 23 files and 85 textual Prisma Patient ORM-call lines across 33 backend paths. The candidate adds a versioned `__dentvisionEncryptedV1` JSON envelope, decode-before-read/merge, encrypt-before-write for canonical Patient CRUD and odontogram paths, and decoding in AI tool/event consumers. The Prisma JSON column is unchanged.
+- **Compatibility / migration:** legacy plaintext JSON and the previous patient-portal scalar `ENC:` format remain readable during rollout. The guarded `db:backfill:medical-history` command defaults to dry-run, performs a complete preflight, validates existing ciphertext, and uses bounded JSONB compare-and-set updates; production writes require explicit matching target confirmations. It is not called at startup.
+- **Risk:** until a backfill runs against an explicitly verified target, existing structured history rows may remain plaintext at rest. Phone, email, address and notes also remain searchable plaintext fields by current design and require a separate documented threat-model decision.
+- **Required fix:** complete the audit of all readers, writers, filters, exports/reports, AI/event copies, portal/odontogram/cross-clinic consumers and concurrent legacy writers; review a backup and rollback plan; run a read-only staging dry run; verify count/round-trip/integrity reconciliation before any approved write.
+- **Verification:** focused PHI/odontogram/backfill tests passed 63/63 on an earlier candidate, not this merged exact head. Fresh exact-head CI and consumer/security review remain required. No production database query, backfill, schema migration or deployment has been performed.
 ### RB-030 — Offline appointment queue privacy redaction may drop required sync fields
 - **Status:** OPEN — behavior requires end-to-end verification
 - **Priority:** P1

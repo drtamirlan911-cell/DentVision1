@@ -22,7 +22,8 @@
     "cron:reminders": "tsx -e \"import { runReminderCron } from './src/jobs/reminderCron.ts'; runReminderCron().then(r => { console.log(JSON.stringify(r,null,2)); process.exit(0); }).catch(e => { console.error(e); process.exit(1); })\"",
     "system-map": "tsx src/scripts/system-map.ts",
     "db:seed:e2e": "tsx prisma/seed-e2e.ts && tsx prisma/seed-permissions.ts && tsx prisma/seed-e2e-branches.ts && tsx prisma/normalize-e2e-catalog.ts && tsx prisma/seed-e2e-referral-branch.ts",
-    "prestart": "tsx prisma/recover-failed-migrations.ts"
+    "prestart": "tsx prisma/recover-failed-migrations.ts",
+    "db:backfill:medical-history": "tsx prisma/backfill-medical-history.ts"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"

@@ -14,6 +14,7 @@ import type { Prisma, DiagnosticCategory, ReferralPriority } from '@prisma/clien
 import prisma from '../../../lib/prisma.js';
 import { simpleChat } from '../llm/client.js';
 import { resolveImageUrl } from '../../../lib/imageUrl.js';
+import { decryptMedicalHistory } from '../../../lib/phi.js';
 import { checkImageAnalysisConsent, isImageConsentDenied, IMAGE_CONSENT_MESSAGE } from './imageConsent.js';
 import { applyToothFindings as applyToothFindingsToChart, isValidFdi } from '../../patients/teethStore.js';
 import { searchClinicalNotes } from '../lib/clinicalSearch.js';
@@ -228,8 +229,9 @@ export const TOOLS: Record<string, ToolSpec> = {
       });
       if (!patient) return { ok: false, error: 'Пациент не найден' };
 
-      const history = (patient.medicalHistory && typeof patient.medicalHistory === 'object'
-        ? patient.medicalHistory
+      const decodedHistory = decryptMedicalHistory(patient.medicalHistory);
+      const history = (decodedHistory && typeof decodedHistory === 'object' && !Array.isArray(decodedHistory)
+        ? decodedHistory
         : {}) as Record<string, any>;
       const teethMap: Record<string, any> = {};
       if (history.teeth && typeof history.teeth === 'object') Object.assign(teethMap, history.teeth);
