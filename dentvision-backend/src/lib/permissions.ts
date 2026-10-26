@@ -298,7 +298,7 @@ export function permissionsForRole(role: string | null | undefined): PermissionK
  * `PLATFORM_ROLES.user` in the legacy config is exactly this set.
  */
 export const BASE_PAGES: readonly string[] = [
-  'shop', 'school', 'profile', 'settings', 'help',
+  'shop', 'school', 'profile', 'settings', 'help', 'notifications',
   'diagnostics', 'diagnostics-centers', 'diagnostics-labs', 'diagnostics-laboratories',
 ];
 
@@ -384,31 +384,65 @@ const AI_APPROVAL_ROLES = new Set(['OWNER', 'DIRECTOR', 'ADMIN', 'DOCTOR', 'SUPE
 
 export function pagesForCaller(permissions: readonly string[], role: string | null | undefined): string[] {
   const resolvedRole = String(role || '').toUpperCase();
-  if (resolvedRole === 'PATIENT') {
-    return ['profile', 'shop', 'school'];
-  }
 
-  // STUDENT is a learner role, not an ecosystem partner workspace. Keep the
-  // page surface aligned with the canonical STUDENT role matrix instead of
-  // inheriting partner-oriented BASE_PAGES such as diagnostics/settings.
+  // Platform access never implies clinic CRM or supplier-tenant membership.
+  if (resolvedRole === 'SUPERADMIN') {
+    return [
+      'shop', 'school', 'profile', 'settings', 'help', 'notifications',
+      'diagnostics', 'diagnostics-centers', 'diagnostics-labs', 'diagnostics-laboratories',
+      'admin', 'audit', 'agent-activity', 'ai-approvals', 'backup', 'analytics',
+      'security', 'quality', 'platform-finance', 'ai-governance', 'bi',
+    ];
+  }
+  if (resolvedRole === 'SUPPORT') {
+    return ['profile', 'settings', 'help', 'notifications', 'analytics'];
+  }
+  if (resolvedRole === 'PATIENT') {
+    return ['profile', 'shop', 'school', 'help', 'notifications'];
+  }
   if (resolvedRole === 'STUDENT') {
-    return ['shop', 'school', 'profile'];
+    return ['shop', 'school', 'profile', 'help', 'notifications'];
   }
 
   const partnerFamily = partnerPageFamily(resolvedRole);
   if (partnerFamily) {
-    return Array.from(new Set([
-      ...BASE_PAGES,
-      ...PARTNER_ROLE_PAGES[partnerFamily],
-    ]));
+    let partnerPages = [...PARTNER_ROLE_PAGES[partnerFamily]];
+    if (partnerFamily === 'DIAGNOSTIC') {
+      if (!['DIAGNOSTIC_OWNER', 'DIAGNOSTIC_ADMIN'].includes(resolvedRole)) {
+        partnerPages = partnerPages.filter((p) => p !== 'diagnostics-settings');
+      }
+      if (!['DIAGNOSTIC_OWNER', 'DIAGNOSTIC_ADMIN', 'DIAGNOSTIC_MANAGER', 'DIAGNOSTIC_FINANCE', 'DIAGNOSTIC_QUALITY'].includes(resolvedRole)) {
+        partnerPages = partnerPages.filter((p) => p !== 'diagnostics-statistics');
+      }
+    } else if (partnerFamily === 'MEDICAL_LAB') {
+      if (!['MEDICAL_LAB_OWNER', 'MEDICAL_LAB_ADMIN'].includes(resolvedRole)) {
+        partnerPages = partnerPages.filter((p) => p !== 'diagnostics-settings');
+      }
+      if (['MEDICAL_LAB_TECHNICIAN', 'MEDICAL_LAB_RECEPTION'].includes(resolvedRole)) {
+        partnerPages = partnerPages.filter((p) => !['diagnostics-calendar', 'diagnostics-statistics'].includes(p));
+      } else if (['MEDICAL_LAB_VALIDATOR', 'MEDICAL_LAB_DOCTOR'].includes(resolvedRole)) {
+        partnerPages = partnerPages.filter((p) => p !== 'diagnostics-statistics');
+      }
+    } else if (partnerFamily === 'DENTAL_LAB' && !['DENTAL_LAB_OWNER', 'DENTAL_LAB_ADMIN'].includes(resolvedRole)) {
+      partnerPages = partnerPages.filter((p) => p !== 'diagnostics-settings');
+    }
+    const pages = new Set([...BASE_PAGES, ...partnerPages]);
+    if (['OWNER', 'DIRECTOR', 'ADMIN', 'DOCTOR', 'ASSISTANT'].includes(resolvedRole)) {
+      pages.add('diagnostics-referral-create');
+    }
+    return Array.from(pages);
   }
 
-  return Array.from(new Set([
+  const pages = new Set([
     ...BASE_PAGES,
     ...pagesForPermissions(permissions),
     ...(role ? pagesForRole(resolvedRole) : []),
     ...(AI_APPROVAL_ROLES.has(resolvedRole) ? ['ai-approvals'] : []),
-  ]));
+  ]);
+  if (['OWNER', 'DIRECTOR', 'ADMIN', 'DOCTOR', 'ASSISTANT'].includes(resolvedRole)) {
+    pages.add('diagnostics-referral-create');
+  }
+  return Array.from(pages);
 }
 
 /** Derive visible CRM pages from a role's permission set. */
