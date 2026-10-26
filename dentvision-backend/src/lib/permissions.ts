@@ -419,7 +419,7 @@ export function pagesForCaller(permissions: readonly string[], role: string | nu
   // read-oriented API grants must not make clinic BI, schedule, lab, or inventory
   // workspaces visible.
   if (resolvedRole === 'SUPPORT') {
-    return Array.from(new Set([...BASE_PAGES, 'admin', 'analytics']));
+    return Array.from(new Set([...BASE_PAGES, 'analytics']));
   }
 
   const partnerFamily = partnerPageFamily(resolvedRole);
