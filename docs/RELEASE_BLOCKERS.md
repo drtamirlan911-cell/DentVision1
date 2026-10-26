@@ -317,6 +317,8 @@ Latest exact-head follow-up (2026-10-26):
 - **Required next action / owner:** repository administrator must enable protection/rules for `main`, require PR-based changes and the stable status checks used by the actual workflows (including `quality`, `lint-test`, `frontend-lint`, `backend-lint`, `e2e`, and the Android build check where applicable). Do not require guessed check names; select the exact names reported by GitHub for the required workflows.
 - **Closure criteria:** GitHub reports protection enabled and required checks enforced; a test PR demonstrates a failed required check blocks merge. The current connected read-only GitHub interface cannot apply this settings change, so it remains a manual admin action.
 
+- **Derivative-PHI event minimization (candidate branch `security/rb029-patient-portal-history-envelope-20261026`):** PatientCreated's durable AI event and AI Employee task payload now contain only a patient ID and a complaint-presence boolean; actions re-read and decrypt the clinic-scoped Patient record in memory, and notification messages omit complaint text and patient names. This closes only that duplication path. Other clinical event payloads, AI transcripts, concurrency and full consumer audits remain open; RB-029 stays OPEN pending exact-head gates and an approved staging/rollback procedure.
+
 ## Closed
 
 ### RB-006 — Vercel build rate limit

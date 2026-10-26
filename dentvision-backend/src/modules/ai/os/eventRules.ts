@@ -42,7 +42,7 @@ export const EVENT_RULES: EventRule[] = [
     id: 'rule-patient-created',
     name: 'Новый пациент — анализ жалоб',
     event: EventType.PatientCreated,
-    conditions: (payload) => Boolean(payload.complaints && (payload.complaints as string[]).length > 0),
+    conditions: (payload) => payload.hasComplaints === true,
     actions: [
       { agent: 'doctor', action: 'analyzeComplaints', timeout: 15000 },
       { agent: 'doctor', action: 'recommendExams', timeout: 10000, parallel: true },

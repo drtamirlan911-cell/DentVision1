@@ -2340,3 +2340,9 @@ These changes are route/entry reconciliation only. Existing domain implementatio
 - Source audit found that `decryptMedicalHistory()` recognized a V1 envelope only when `__dentvisionEncryptedV1` already contained an `ENC:`-prefixed string. A malformed value under this reserved root key could otherwise be returned as if it were legacy plaintext JSON.
 - Added explicit reserved-marker detection. Valid internal V1 envelopes remain idempotent; malformed reserved markers now throw a bounded, non-PHI error on both encode and decode. Added regression coverage for malformed string and numeric marker values.
 - Verification pending exact-head CI. No database read/write, backfill, migration, staging operation or deployment was performed.
+
+## 2026-10-26 — Reduce PHI in durable PatientCreated AI events
+
+- Audit found that `aiEventBridge.ts` copied complaint text and patient names into the durable `ai_events.payload`; `aiEmployeeTaskSubscriber` then persisted that payload as a task's action input. Complaint text was consequently duplicated outside the encrypted `Patient.medicalHistory` field.
+- The event now persists only the patient ID and a boolean complaint-presence hint. AI event actions re-read the patient under both patient ID and clinic ID, decrypt the structured history in memory, and avoid echoing names/raw complaint text into persisted notification messages. The patient-created rule no longer accepts complaint text as its trigger.
+- Added regression tests for the safe payload contract, clinic-scoped lookup and absence of raw complaint text in action results. Other clinical event payload types and AI transcript retention remain part of the RB-029 downstream audit. Exact-head CI pending; no database read/write, backfill, migration or deployment was performed.

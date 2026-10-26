@@ -289,3 +289,9 @@ Do not repeat an audit when implementation can resolve the issue. Do not weaken 
 - Source audit found that `decryptMedicalHistory()` recognized a V1 envelope only when `__dentvisionEncryptedV1` already contained an `ENC:`-prefixed string. A malformed value under this reserved root key could otherwise be returned as if it were legacy plaintext JSON.
 - Added explicit reserved-marker detection. Valid internal V1 envelopes remain idempotent; malformed reserved markers now throw a bounded, non-PHI error on both encode and decode. Added regression coverage for malformed string and numeric marker values.
 - Exact-head CI is required before this candidate is considered verified. No database was queried or modified, and no backfill, migration, staging operation or deployment was performed.
+
+## 2026-10-26 — Reduce PHI in durable PatientCreated AI events
+
+- The legacy patient-created event no longer includes the complaint narrative. The durable AI event and queued AI Employee tasks now receive only `patientId` and `hasComplaints`; the action handler re-reads the patient using both patient ID and clinic ID, then decrypts history in memory.
+- AI action/notification text no longer echoes patient names or complaint text. Focused tests cover the non-PHI event rule contract, clinic-scoped lookup, and absence of raw complaint text in action results.
+- This is a scoped derivative-PHI improvement, not RB-029 closure. Other event payloads with clinical fields, notification/AI transcript retention and all-consumer/concurrency review remain open. Exact-head CI is pending; no database operation or backfill was run.
