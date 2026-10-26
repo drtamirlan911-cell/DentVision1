@@ -391,7 +391,7 @@ export function pagesForCaller(permissions: readonly string[], role: string | nu
       'shop', 'school', 'profile', 'settings', 'help', 'notifications',
       'diagnostics', 'diagnostics-centers', 'diagnostics-labs', 'diagnostics-laboratories',
       'admin', 'audit', 'agent-activity', 'ai-approvals', 'backup', 'analytics',
-      'security', 'quality', 'platform-finance', 'ai-governance', 'bi',
+      'security', 'quality', 'platform-finance', 'ai-governance', 'bi', 'support',
     ];
   }
   if (resolvedRole === 'SUPPORT') {

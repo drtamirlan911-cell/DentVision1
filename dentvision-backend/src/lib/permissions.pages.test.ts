@@ -19,6 +19,7 @@ describe('pagesForPermissions', () => {
     expect(superadmin).toContain('admin');
     expect(superadmin).not.toContain('schedule');
     expect(superadmin).not.toContain('supplier');
+    expect(superadmin).toContain('support');
     expect(superadmin).not.toContain('diagnostics-referrals');
     const support = pagesForCaller(['*'], 'SUPPORT');
     expect(support).toContain('help');

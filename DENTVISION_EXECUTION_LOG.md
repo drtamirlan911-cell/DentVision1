@@ -2124,3 +2124,11 @@ These changes are route/entry reconciliation only. Existing domain implementatio
 - Added a route contract test to prevent the platform stats endpoint from drifting into a partial duplicate of the canonical dashboard read model.
 - Organization deletion remains deferred; after removing that extra route, `docs/SYSTEM_MAP.md` correctly returns to 689 unique handlers / 651 mounted registrations (one net new endpoint: password reset).
 - Exact-HEAD CI is running after this final test/source update. Release remains **NOT READY** until CI/E2E and required database/browser gates complete successfully.
+
+
+## 2026-10-26 — Page parity failure and tenant-isolation contract
+
+- Exact-head CI run `40282056925` executed 2,234 tests: 2,233 passed and one pre-existing IAM parity assertion failed. The legacy `SUPERADMIN` page list required both `support` and `supplier`, while the newer tenant-isolation contract correctly forbids platform superadmins from entering supplier-tenant workspace.
+- Resolved the conflicting contract by retaining `supplier` as intentionally excluded in the parity baseline, while restoring the platform `support` screen to the `SUPERADMIN` page list.
+- Extended the dedicated permissions test to assert both sides: `SUPERADMIN` sees `support` and does not see `supplier`. No authorization middleware or tenant boundary was relaxed.
+- This was found in the all-tests run; exact-HEAD CI/E2E is required again for the correction. Release remains **NOT READY** until the run completes.

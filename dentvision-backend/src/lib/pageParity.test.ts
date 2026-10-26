@@ -59,6 +59,7 @@ const LEGACY_ORG_PAGES: Record<string, { backendRole: string; pages: string[] }>
 };
 
 /** PLATFORM_ROLES and the non-clinic workspaces, same source. */
+/** The supplier tenant is intentionally excluded by current tenant-isolation policy for SUPERADMIN. */
 const LEGACY_PLATFORM_PAGES: Record<string, { role: string; permissions: string[]; pages: string[] }> = {
   'user (supplier / lecturer / buyer)': {
     role: 'SUPPLIER',
@@ -77,7 +78,7 @@ const LEGACY_PLATFORM_PAGES: Record<string, { role: string; permissions: string[
     permissions: ['*'],
     pages: ['admin', 'audit', 'backup', 'analytics', 'settings', 'security', 'quality',
       'diagnostics', 'diagnostics-centers', 'diagnostics-labs', 'platform-finance',
-      'ai-governance', 'support', 'profile', 'bi', 'supplier'],
+      'ai-governance', 'support', 'profile', 'bi'],
   },
   diagnostic_center: {
     // A centre member's Person resolves to an org role; ADMIN is representative.
