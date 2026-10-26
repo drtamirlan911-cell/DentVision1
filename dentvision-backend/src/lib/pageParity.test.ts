@@ -90,9 +90,14 @@ const LEGACY_PLATFORM_PAGES: Record<string, { role: string; permissions: string[
 
 describe('server page list covers the platform and workspace roles', () => {
   for (const [legacyRole, { role, permissions, pages }] of Object.entries(LEGACY_PLATFORM_PAGES)) {
-    it(`grants ${role} everything legacy '${legacyRole}' had`, () => {
+    it(`grants ${role} the compatible pages from legacy '${legacyRole}'`, () => {
       const served = pagesForCaller(permissions, role);
-      expect(pages.filter((page) => !served.includes(page))).toEqual([]);
+      // A platform SUPERADMIN deliberately does not inherit the Supplier
+      // workspace merely because its wildcard is global. The supplier page
+      // depends on an active supplier organization context, not a platform role.
+      const intentionallyExcluded = role === 'SUPERADMIN' ? new Set(['supplier']) : new Set<string>();
+      expect(pages.filter((page) => !intentionallyExcluded.has(page) && !served.includes(page))).toEqual([]);
+      if (role === 'SUPERADMIN') expect(served).not.toContain('supplier');
     });
   }
 
