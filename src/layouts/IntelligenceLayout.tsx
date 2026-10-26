@@ -30,7 +30,7 @@ const FIRST_RUN_COLLAPSE_MS = 15_000;
 export const IntelligenceLayout: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  const { user, isAuthenticated, roleInfo, effectiveRole, logout, activeClinic, clinic } = useAuth();
+  const { user, isAuthenticated, roleInfo, effectiveRole, logout, activeClinic, clinic, loading: authLoading } = useAuth();
   const { isGuest, isGuestRoute, requiresAuth, initGuest, showRegistrationModal, setRegistrationModal } = useGuestStore();
   const isMobile = useCompactShell();
   const {
@@ -88,8 +88,13 @@ export const IntelligenceLayout: React.FC = () => {
   }, [firstRunPhase, isAuthenticated, isLoginRoute, location.pathname, navigate]);
 
   useEffect(() => {
-    if (!isAuthenticated && !isGuest && !isLoginRoute) void initGuest();
-  }, [isAuthenticated, isGuest, isLoginRoute, initGuest]);
+    // restoreSession() hydrates credentials asynchronously. Starting a guest
+    // session during that window creates an unnecessary cross-origin request and
+    // can race with the authenticated workspace context. Only bootstrap guests
+    // after auth restoration has conclusively completed.
+    if (authLoading || isAuthenticated || isGuest || isLoginRoute) return;
+    void initGuest();
+  }, [authLoading, isAuthenticated, isGuest, isLoginRoute, initGuest]);
 
   useEffect(() => {
     if (!needsAuth || !isGuest) return;
