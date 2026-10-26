@@ -76,7 +76,7 @@ describe('pagesForPermissions', () => {
 
   it('keeps support out of clinic BI and operational workspaces', () => {
     const pages = pagesForCaller(permissionsForRole('SUPPORT'), 'SUPPORT');
-    expect(pages).toContain('admin');
+    expect(pages).not.toContain('admin');
     expect(pages).toContain('analytics');
     expect(pages).not.toContain('bi');
     expect(pages).not.toContain('schedule');
