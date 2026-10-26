@@ -37,7 +37,7 @@ done
 
 status=0
 wait "$command_pid" || status=$?
-"$@" 2>&1 | tee "$log_path" | awk '
+awk '
   function short(s) { return length(s) > 320 ? substr(s, 1, 317) "..." : s }
   /^Running [0-9]+ tests using [0-9]+ worker/ { print short($0); fflush(); next }
   /^[[:space:]]*[·×F°✓✔✘○]+[[:space:]]*$/ { print short($0); fflush(); next }
@@ -62,9 +62,7 @@ wait "$command_pid" || status=$?
     if (failure_headers > 12) printf "... %d more failure headings omitted from live output; complete log retained.\n", failure_headers - 12
     if (diagnostic_lines > unique_diagnostics) printf "... %d repeated/extra diagnostic lines omitted; complete log retained.\n", diagnostic_lines - unique_diagnostics
   }
-'
-pipeline_status=( "${PIPESTATUS[@]}" )
-status="${pipeline_status[0]:-1}"
+' "$log_path"
 finished_at="$(date +%s)"
 duration="$((finished_at - started_at))"
 printf '%s status=%s duration_seconds=%s log=%s\n' "$gate_name" "$status" "$duration" "$log_path" >> "$timing_path"
