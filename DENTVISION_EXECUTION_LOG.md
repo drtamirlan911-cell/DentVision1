@@ -2310,3 +2310,12 @@ These changes are route/entry reconciliation only. Existing domain implementatio
 
 - CI run [40338265481](https://github.com/drtamirlan911-cell/DentVision1/actions/runs/40338265481) on `40528bd5bfaba03dd8e1791a1f54168fac55befe` passed backend-lint, frontend-lint and Quality Gate. The unit-test stage reached 2,283/2,284; its only failure was an obsolete exact array expectation in `permissions.pages.test.ts` that omitted `help` and `notifications` from the restored STUDENT common page set.
 - Updated the test expectation to the intended five-page set rather than rolling back the access-policy change. Fresh exact-head CI/E2E remains required for the correction commit.
+
+
+## 2026-10-26 — RB-029 patient portal history writer correction
+
+- Starting evidence: current main `ac913cc3389a294d0b135a852b035ddddb1018ca` had a remaining writer outside the canonical CRM/odontogram paths. `PUT /api/patient-portal/me/profile` called `encryptField(String(body.medicalHistory))`; an incoming JSON object was coerced to `"[object Object]"` and stored in the Patient JSON column, breaking the structured-history contract.
+- Candidate branch: `security/rb029-patient-portal-history-envelope-20261026`. The route now uses `encryptMedicalHistory(body.medicalHistory)` to preserve the JSON value shape and rejects client-supplied `ENC:` scalar values and the reserved `__dentvisionEncryptedV1` envelope marker, avoiding untrusted ciphertext being stored as if it had been produced by the service.
+- Added `dentvision-backend/src/modules/patient-portal/patientPortal.history.contract.test.ts` to pin the route's use of the shared encoder and the reserved-input guard. The shared `phi.test.ts` suite already covers structured object encryption/round-trip and legacy scalar decoding.
+- Reconciled `docs/security/RB-029_MEDICAL_HISTORY_ENCRYPTION_INVENTORY.md` so it records the original finding as historical and identifies the candidate follow-up without claiming it is merged.
+- Verification: not yet verified by exact-head CI. This corrects one source path only. RB-029 remains OPEN pending full downstream consumer/concurrent-writer audit, backup/rollback review, read-only staging dry run and count/round-trip/integrity reconciliation. No production or staging database operation, backfill, schema migration or deployment was performed.
