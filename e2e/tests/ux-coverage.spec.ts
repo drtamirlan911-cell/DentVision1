@@ -33,7 +33,6 @@ async function login(page: Page) {
 
 function collectRuntimeErrors(page: Page) {
   const errors: string[] = [];
-  const pendingResponses: Promise<void>[] = [];
   const onPageError = (error: Error) => errors.push(`pageerror: ${error.message}`);
   const onConsole = (message: ConsoleMessage) => {
     if (message.type() === 'error') errors.push(`console: ${message.text()}`);
@@ -49,24 +48,23 @@ function collectRuntimeErrors(page: Page) {
     }
     if (!url.pathname.startsWith('/api/')) return;
 
-    // Only include the API's generic code/error fields, never arbitrary response
-    // data, to make authorization failures actionable without dumping patient data.
-    pendingResponses.push(response.json().then((payload: unknown) => {
+    // Record the status/path synchronously so an incomplete response body can
+    // never stall the route gate. Attach only bounded generic code/error fields
+    // asynchronously; never serialize arbitrary response data or patient data.
+    const index = errors.push(`http ${status}: ${url.pathname}${url.search}`) - 1;
+    void response.json().then((payload: unknown) => {
       const record = payload && typeof payload === 'object' ? payload as Record<string, unknown> : {};
       const code = typeof record.code === 'string' ? record.code.slice(0, 80) : '';
       const message = typeof record.error === 'string' ? record.error.slice(0, 120) : '';
       const detail = [code, message].filter(Boolean).join(': ');
-      errors.push(`http ${status}: ${url.pathname}${url.search}${detail ? ` (${detail})` : ''}`);
-    }).catch(() => {
-      errors.push(`http ${status}: ${url.pathname}${url.search}`);
-    }));
+      if (detail) errors[index] = `${errors[index]} (${detail})`;
+    }).catch(() => {});
   };
   page.on('pageerror', onPageError);
   page.on('console', onConsole);
   page.on('response', onResponse);
   return {
     errors,
-    flush: async () => { await Promise.all(pendingResponses); },
     dispose: () => {
       page.off('pageerror', onPageError);
       page.off('console', onConsole);
@@ -92,7 +90,6 @@ test.describe('DentVision browser UX coverage', () => {
           message: `${route}: page did not render stable content`,
         }).toMatch(/.{20,}/s);
         await page.waitForTimeout(300);
-        await runtime.flush();
         let url = new URL(page.url());
         if (url.pathname === '/login') {
           await login(page);
