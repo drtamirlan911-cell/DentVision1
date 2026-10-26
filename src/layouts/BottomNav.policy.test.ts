@@ -15,12 +15,15 @@ describe('shouldShowClinicWorkspaceTab', () => {
     expect(shouldShowClinicWorkspaceTab(true, false, true)).toBe(true);
   });
 
-  it.each([
-    ['patient', true, false, false],
-    ['student', true, false, false],
-    ['support', true, false, false],
-    ['partner without clinic schedule access', true, false, false],
-  ])('hides CRM from %s contexts without schedule permission', (_role, isAuthenticated, isGuest, canAccessSchedule) => {
-    expect(shouldShowClinicWorkspaceTab(isAuthenticated, isGuest, canAccessSchedule)).toBe(false);
+  it('hides CRM from the patient context without schedule permission', () => {
+    expect(shouldShowClinicWorkspaceTab(true, false, false)).toBe(false);
+  });
+
+  it('hides CRM from the student context without schedule permission', () => {
+    expect(shouldShowClinicWorkspaceTab(true, false, false)).toBe(false);
+  });
+
+  it('hides CRM from support and partner contexts without schedule permission', () => {
+    expect(shouldShowClinicWorkspaceTab(true, false, false)).toBe(false);
   });
 });
