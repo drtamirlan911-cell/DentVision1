@@ -278,3 +278,5 @@ Do not repeat an audit when implementation can resolve the issue. Do not weaken 
 
 - PR #328 CI run `40345409642` confirmed the Browser UX 403 path as `GET /api/crm/{clinicId}/treatment-plans` from both Patients and Treatment Plans. Its route has both permission and clinic-scope 403 branches; next diagnostic candidate records only generic JSON `code` / `error` fields to identify the denial without logging arbitrary response or patient data.
 - In the same run, branch-management tests queried legacy `clinicId` after creating branches through the canonical Organization flow. Candidate test change now queries the canonical organization scope; rerun needed before treating branch picker as verified.
+
+- Latest PR #328 Core E2E identified two stale `clinic!.clinicId` references inside the branch-management fixture's subscription upsert; the new fixture queries `prisma.clinic` directly, so that property is undefined. Candidate correction consistently uses validated `ownerClinicId`. Await exact-head CI before marking this test block or the picker fix verified.

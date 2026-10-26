@@ -90,9 +90,9 @@ test.describe('Canonical organization branch management', () => {
     expect(organization?.id, 'E2E Clinic A must have a canonical Organization').toBeTruthy();
     ownerOrganizationId = organization!.id;
     await prisma.subscription.upsert({
-      where: { ownerType_ownerId: { ownerType: 'CLINIC', ownerId: clinic!.clinicId } },
+      where: { ownerType_ownerId: { ownerType: 'CLINIC', ownerId: ownerClinicId } },
       update: { plan: 'NETWORK', status: 'active', periodEnd: null },
-      create: { ownerType: 'CLINIC', ownerId: clinic!.clinicId, plan: 'NETWORK', status: 'active', periodEnd: null },
+      create: { ownerType: 'CLINIC', ownerId: ownerClinicId, plan: 'NETWORK', status: 'active', periodEnd: null },
     });
   });
 
