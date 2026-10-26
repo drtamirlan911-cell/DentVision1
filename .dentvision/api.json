@@ -534,6 +534,11 @@
     },
     {
       "method": "POST",
+      "path": "/reset-password",
+      "source": "dentvision-backend/src/modules/auth/auth.routes.ts"
+    },
+    {
+      "method": "POST",
       "path": "/logout",
       "source": "dentvision-backend/src/modules/auth/auth.routes.ts"
     },

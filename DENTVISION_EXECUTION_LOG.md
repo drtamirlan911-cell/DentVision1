@@ -2140,3 +2140,10 @@ These changes are route/entry reconciliation only. Existing domain implementatio
 - Added `clinicInvitations.service.ts`; invitation creation now persists the clinic, normalized email, role, code and expiry before returning success, retrying only unique-code collisions.
 - Kept existing lookup/join handlers in place; their active-clinic checks, email match, atomic claim, and idempotent repeat acceptance remain authoritative.
 - Added focused tests for persistence, uniqueness-collision retry, and propagation of unrelated database failures. Exact-HEAD CI/E2E is required to verify this additional fix.
+
+
+## 2026-10-26 — Generated inventory refresh
+
+- Refreshed `.dentvision/api.json` and `.dentvision/routes.json` to include the new `POST /reset-password` handler.
+- Refreshed `.dentvision/tests.json` with the password-reset and clinic-invitation persistence regression suites, and updated the security inventory to include the password-reset service/audit references.
+- Inventory changes are generated-contract maintenance only; exact-HEAD CI remains the deciding verification.
