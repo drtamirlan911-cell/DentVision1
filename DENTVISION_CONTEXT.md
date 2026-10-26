@@ -262,3 +262,10 @@ Do not repeat an audit when implementation can resolve the issue. Do not weaken 
 - Current verification branch: `security/doctor-agent-tenant-isolation-20261025`; prior candidate `277bc824aa8e6ec90fd3f280ac9b026a14570454` passed backend/frontend lint, 2,240 unit tests, Quality Gate, dedicated RB-034 IAM-context diagnostics, core E2E, Browser UX and mobile design; role/context was still running when its test policy was reviewed.
 - The next candidate corrects the anonymous route matrix for the documented public `/patient-portal` login/registration entry. It asserts the public entry and real login hand-off while preserving the authenticated non-patient redirect and guest denial at clinical APIs.
 - Fresh exact-HEAD CI is required after this change. RB-034 and release readiness remain OPEN/NOT READY until all required security, role/context, Visual Agent, business-owner and organization-owner gates pass together.
+
+## Main CI follow-up — 2026-10-26
+
+- Inspected exact-head CI for `main` at `ac913cc3389a294d0b135a852b035ddddb1018ca`: backend lint, frontend lint, lint-test and Quality Gate passed; E2E was still running during this inspection.
+- The core gate completed 240 tests and skipped 5, but BRANCH-003 timed out because the created branch option was outside the visible viewport in the workspace picker. Browser UX independently reported HTTP 403 resource errors on `/crm/patients` and `/crm/treatment-plans`. These must be fixed rather than ignored.
+- Candidate change in `fix/workspace-switcher-menu-overflow-20261026` makes the whole picker scrollable and constrains its height to the viewport. Pending PR/CI; this is not yet a verified fix.
+- `RB-029` remains OPEN; no production database read/write, medical-history backfill, or deployment was performed.

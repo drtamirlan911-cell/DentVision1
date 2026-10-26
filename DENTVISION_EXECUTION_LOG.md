@@ -2310,3 +2310,10 @@ These changes are route/entry reconciliation only. Existing domain implementatio
 
 - CI run [40338265481](https://github.com/drtamirlan911-cell/DentVision1/actions/runs/40338265481) on `40528bd5bfaba03dd8e1791a1f54168fac55befe` passed backend-lint, frontend-lint and Quality Gate. The unit-test stage reached 2,283/2,284; its only failure was an obsolete exact array expectation in `permissions.pages.test.ts` that omitted `help` and `notifications` from the restored STUDENT common page set.
 - Updated the test expectation to the intended five-page set rather than rolling back the access-policy change. Fresh exact-head CI/E2E remains required for the correction commit.
+
+## 2026-10-26 — Main CI follow-up: workspace picker overflow
+
+- Current main under verification: `ac913cc3389a294d0b135a852b035ddddb1018ca`; CI run [40338995671](https://github.com/drtamirlan911-cell/DentVision1/actions/runs/40338995671) passed backend/frontend lint and lint-test, while E2E was still running when inspected.
+- Completed E2E checkpoints reported 240 core tests passed and 5 skipped, with BRANCH-003 failing after a 180-second timeout because a newly created branch option remained outside the viewport in the workspace switcher. Browser UX also reported HTTP 403 resource errors on `/crm/patients` and `/crm/treatment-plans`; these are real diagnostics and must not be suppressed. Role/context gate was still running at inspection time.
+- Candidate fix: keep the entire workspace/branch picker scrollable within the remaining viewport height. The existing branch-management E2E remains the regression check; no assertion or role policy was weakened.
+- Verification: candidate PR required; no local Vercel sandbox was available because the Hobby snapshot-storage limit was reached. Do not treat this candidate as verified until exact-head CI/E2E passes and the 403s are independently resolved.

@@ -301,8 +301,8 @@ export function WorkspaceSwitcher({ className }: { className?: string }) {
   const menu = open ? createPortal(
     <div
       ref={menuRef}
-      className="fixed z-[1000] rounded-2xl border border-bdr-strong bg-surface-raised shadow-elev-3 p-1.5"
-      style={{ top: menuPosition.top, left: menuPosition.left, width: menuPosition.width, maxHeight: 'calc(100vh - 24px)' }}
+      className="fixed z-[1000] rounded-2xl border border-bdr-strong bg-surface-raised shadow-elev-3 p-1.5 overflow-y-auto overscroll-contain"
+      style={{ top: menuPosition.top, left: menuPosition.left, width: menuPosition.width, maxHeight: Math.max(120, window.innerHeight - menuPosition.top - 12) }}
       role="menu"
       aria-label="Рабочее пространство"
       data-testid="workspace-switcher-menu"
