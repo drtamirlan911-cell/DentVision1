@@ -55,14 +55,17 @@ diagnosticsRouter.use(authenticate);
 
 diagnosticsRouter.get('/stats', requireSuperadmin, async (_req: AuthRequest, res) => {
   try {
-    const startOfToday = new Date(); startOfToday.setHours(0, 0, 0, 0);
-    const [groups, total, todayCount] = await Promise.all([
+    // Reuse the canonical diagnostics dashboard read model so the platform view
+    // includes pending/completed/overdue and recent referrals, not just totals.
+    const [base, groups] = await Promise.all([
+      svc.getDashboardStats({}),
       prisma.referral.groupBy({ by: ['status'], _count: { _all: true } }),
-      prisma.referral.count(),
-      prisma.referral.count({ where: { createdAt: { gte: startOfToday } } }),
     ]);
-    const byStatus = groups.reduce<Record<string, number>>((result, group) => { result[String(group.status).toUpperCase()] = group._count._all; return result; }, {});
-    return res.json({ ok: true, data: { total, todayCount, byStatus } } satisfies ApiResponse);
+    const byStatus = groups.reduce<Record<string, number>>((result, group) => {
+      result[String(group.status).toUpperCase()] = group._count._all;
+      return result;
+    }, {});
+    return res.json({ ok: true, data: { ...base, byStatus } } satisfies ApiResponse);
   } catch (error) {
     console.error('[diagnostics/stats]', error);
     return res.status(500).json({ ok: false, error: 'Не удалось получить статистику диагностики' } satisfies ApiResponse);
