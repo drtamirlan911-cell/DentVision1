@@ -9,7 +9,7 @@ import EcosystemContextBridge from '@/components/ecosystem/EcosystemContextBridg
 import EcosystemCaseFlow from '@/components/ecosystem/EcosystemCaseFlow';
 import { useEcosystemUrlContext } from '@/hooks/useEcosystemUrlContext';
 
-const CLINIC_ONLY_ITEMS = new Set(['referrals', 'centers', 'laboratories', 'register']);
+const CLINIC_ONLY_ITEMS = new Set(['centers', 'laboratories', 'register']);
 
 const DIAG_SUBNAV = [
   { id: 'dashboard', label: 'Обзор', path: '/diagnostics', icon: LayoutDashboard },
