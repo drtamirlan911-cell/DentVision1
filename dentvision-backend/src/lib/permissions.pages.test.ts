@@ -10,9 +10,22 @@ import {
 
 describe('pagesForPermissions', () => {
   it('keeps STUDENT on learner pages instead of inheriting global partner pages', () => {
-    expect(pagesForCaller([], 'STUDENT')).toEqual(['shop', 'school', 'profile']);
+    expect(pagesForCaller([], 'STUDENT')).toEqual(['shop', 'school', 'profile', 'help', 'notifications']);
   });
 
+
+  it('keeps platform roles out of clinical and supplier tenants even with wildcard permissions', () => {
+    const superadmin = pagesForCaller(['*'], 'SUPERADMIN');
+    expect(superadmin).toContain('admin');
+    expect(superadmin).not.toContain('schedule');
+    expect(superadmin).not.toContain('supplier');
+    expect(superadmin).not.toContain('diagnostics-referrals');
+    const support = pagesForCaller(['*'], 'SUPPORT');
+    expect(support).toContain('help');
+    expect(support).toContain('analytics');
+    expect(support).not.toContain('admin');
+    expect(support).not.toContain('schedule');
+  });
 
   it('expands the wildcard to every known page', () => {
     const all = new Set(Object.values(MODULE_PAGES).flat());
