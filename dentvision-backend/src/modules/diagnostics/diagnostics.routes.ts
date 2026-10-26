@@ -272,10 +272,58 @@ diagnosticsRouter.get('/dashboard', async (req: AuthRequest, res) => { try { con
 diagnosticsRouter.post('/referrals/:id/ai-result', requireReferralAccess(), async (req: AuthRequest, res) => { try { const data = await svc.aiGenerateResult(req.params.id, req.user!.id); return res.json({ ok: true, data: { result: data, requiresDoctorConfirmation: true } } satisfies ApiResponse); } catch (e: any) { return res.status(422).json({ ok: false, error: e.message } satisfies ApiResponse); } });
 diagnosticsRouter.post('/referrals/:id/confirm-ai-result', requireReferralAccess(), async (req: AuthRequest, res) => { try { const data = await svc.confirmAiResult(req.params.id, req.user!.id); return res.json({ ok: true, data } satisfies ApiResponse); } catch (e: any) { return res.status(400).json({ ok: false, error: e.message } satisfies ApiResponse); } });
 diagnosticsRouter.post('/referrals/:id/results/sign', requireReferralAccess(true), async (req: AuthRequest, res) => { try { const referral = await prisma.referral.findUnique({ where: { id: req.params.id }, select: { clinicId: true, doctorId: true, branchId: true, centerId: true, labId: true } }); if (!referral) return res.status(404).json({ ok: false, error: 'Referral not found' }); const clinicAccess = await referralBranchAllowed(req.user!, referral); const diagnosticPartnerAccess = referral.centerId ? sameOrgContext(req.user, 'DiagnosticCenter', referral.centerId) : false; const laboratoryPartnerAccess = referral.labId ? sameOrgContext(req.user, 'Laboratory', referral.labId) : false; const partnerAccess = diagnosticPartnerAccess || laboratoryPartnerAccess; const actorRole = String(req.user?.role || '').toUpperCase();
+    // Partner-specific roles are normalized to the shared UserRole enum in JWTs
+    // (for example, radiologist -> DOCTOR). Authorization must therefore use the
+    // active organization's canonical PersonRole, not broaden access to all DOCTORs.
+    const scopedOrganizationId = req.user?.organizationId;
+    const diagnosticSignerRole = diagnosticPartnerAccess && scopedOrganizationId
+      ? await prisma.personRole.findFirst({
+          where: {
+            scopeType: 'organization',
+            scopeId: scopedOrganizationId,
+            person: { userId: req.user!.id, organizationId: scopedOrganizationId },
+            role: { key: { in: ['radiologist', 'diagnostic_radiologist'] } },
+          },
+          select: { id: true },
+        })
+      : null;
+    const laboratorySignerRole = laboratoryPartnerAccess && scopedOrganizationId
+      ? await prisma.personRole.findFirst({
+          where: {
+            scopeType: 'organization',
+            scopeId: scopedOrganizationId,
+            person: { userId: req.user!.id, organizationId: scopedOrganizationId },
+            role: { key: { in: ['medical_lab_validator', 'medical_lab_doctor'] } },
+          },
+          select: { id: true },
+        })
+      : null;
+    // Keep the pre-IAM membership fallback for older partner accounts, but only
+    // grant it when the persisted membership role is explicitly authorized.
+    const legacyDiagnosticSigner = diagnosticPartnerAccess && referral.centerId
+      ? await prisma.diagnosticCenterMember.findFirst({
+          where: {
+            centerId: referral.centerId,
+            userId: req.user!.id,
+            role: { in: ['radiologist', 'diagnostic_radiologist'] },
+          },
+          select: { id: true },
+        })
+      : null;
+    const legacyLaboratorySigner = laboratoryPartnerAccess && referral.labId
+      ? await prisma.laboratoryMember.findFirst({
+          where: {
+            labId: referral.labId,
+            userId: req.user!.id,
+            role: { in: ['medical_lab_validator', 'medical_lab_doctor', 'MEDICAL_LAB_VALIDATOR', 'MEDICAL_LAB_DOCTOR'] },
+          },
+          select: { id: true },
+        })
+      : null;
     const partnerCanSign = diagnosticPartnerAccess
-      ? ['RADIOLOGIST', 'DIAGNOSTIC_RADIOLOGIST'].includes(actorRole)
+      ? Boolean(diagnosticSignerRole || legacyDiagnosticSigner || ['RADIOLOGIST', 'DIAGNOSTIC_RADIOLOGIST'].includes(actorRole))
       : laboratoryPartnerAccess
-        ? ['MEDICAL_LAB_VALIDATOR', 'MEDICAL_LAB_DOCTOR'].includes(actorRole)
+        ? Boolean(laboratorySignerRole || legacyLaboratorySigner || ['MEDICAL_LAB_VALIDATOR', 'MEDICAL_LAB_DOCTOR'].includes(actorRole))
         : false;
     if (!clinicAccess && !partnerAccess) return res.status(403).json({ ok: false, error: 'Нет доступа к направлению' });
     if (partnerAccess && !clinicAccess && !partnerCanSign) return res.status(403).json({ ok: false, error: 'Недостаточно прав для подписания результата' }); const reportText = String(req.body?.reportText || '').trim(); if (!reportText) return res.status(400).json({ ok: false, error: 'reportText обязателен' }); const signerScope = diagnosticPartnerAccess ? 'diagnostic_center' : laboratoryPartnerAccess ? 'laboratory' : 'clinic'; const result = await svc.saveAndSignResult({ referralId: req.params.id, reportText, conclusion: req.body?.conclusion ? String(req.body.conclusion) : undefined, doctorId: req.user!.id, signerScope }); return res.json({ ok: true, data: { result, patientRecordUpdated: signerScope === 'clinic' } } satisfies ApiResponse); } catch (e: any) { return res.status(400).json({ ok: false, error: e.message } satisfies ApiResponse); } });
