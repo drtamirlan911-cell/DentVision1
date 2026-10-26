@@ -83,6 +83,43 @@ describe('pagesForPermissions', () => {
     expect(pages).not.toContain('patients');
   });
 
+  it('keeps shop catalogue reads separate from campaign administration', () => {
+    expect(pagesForPermissions(['shop.read'])).toContain('shop');
+    expect(pagesForPermissions(['shop.read'])).not.toContain('promotions');
+    expect(pagesForPermissions(['shop.manage'])).toEqual(expect.arrayContaining(['shop', 'promotions']));
+    expect(pagesForCaller(permissionsForRole('DOCTOR'), 'DOCTOR')).not.toContain('promotions');
+    expect(pagesForCaller(permissionsForRole('ASSISTANT'), 'ASSISTANT')).not.toContain('promotions');
+    expect(pagesForCaller(permissionsForRole('OWNER'), 'OWNER')).toContain('promotions');
+  });
+
+  it('aligns the manager and administrator surface with the canonical IAM matrix', () => {
+    const managerPages = pagesForCaller(permissionsForRole('MANAGER'), 'MANAGER');
+    expect(managerPages).toContain('inventory');
+    expect(managerPages).not.toContain('lab');
+    expect(managerPages).not.toContain('bi');
+    expect(managerPages).not.toContain('promotions');
+    expect(pagesForCaller(permissionsForRole('ADMIN'), 'ADMIN')).not.toContain('bi');
+    expect(pagesForCaller(permissionsForRole('OWNER'), 'OWNER')).toContain('bi');
+  });
+
+  it('limits partner workspace settings and work queues by role', () => {
+    const diagnosticOwner = pagesForCaller([], 'DIAGNOSTIC_OWNER');
+    const diagnosticOperator = pagesForCaller([], 'DIAGNOSTIC_OPERATOR');
+    expect(diagnosticOwner).toContain('diagnostics-settings');
+    expect(diagnosticOperator).not.toContain('diagnostics-settings');
+    expect(diagnosticOperator).not.toContain('diagnostics-statistics');
+
+    const medicalLabOwner = pagesForCaller([], 'MEDICAL_LAB_OWNER');
+    const medicalLabTech = pagesForCaller([], 'MEDICAL_LAB_TECHNICIAN');
+    expect(medicalLabOwner).toContain('diagnostics-settings');
+    expect(medicalLabTech).not.toContain('diagnostics-settings');
+    expect(medicalLabTech).not.toContain('diagnostics-calendar');
+    expect(medicalLabTech).not.toContain('diagnostics-statistics');
+
+    expect(pagesForCaller([], 'DENTAL_LAB_OWNER')).toContain('diagnostics-settings');
+    expect(pagesForCaller([], 'DENTAL_TECHNICIAN')).not.toContain('diagnostics-settings');
+  });
+
   it('does not expose the inventory workbench to read-only clinical roles', () => {
     expect(pagesForCaller(permissionsForRole('DOCTOR'), 'DOCTOR')).not.toContain('inventory');
     expect(pagesForCaller(permissionsForRole('ASSISTANT'), 'ASSISTANT')).not.toContain('inventory');

@@ -76,7 +76,6 @@ const MATRIX: Record<string, RoleMatrixRow> = {
     academy:      ['read'],
     shop:         ['manage'],
     community:    ['read', 'write'],
-    bi:           ['read'],
   },
 
   MANAGER: {
@@ -92,7 +91,6 @@ const MATRIX: Record<string, RoleMatrixRow> = {
     diagnostics:  ['read'],
     shop:         ['read'],
     academy:      ['read'],
-    bi:           ['read'],
     dashboard:    ['read'],
   },
 
@@ -349,6 +347,14 @@ export function pagesForPermissions(permissions: readonly string[]): string[] {
 
     // Read-only billing permits scoped invoice/charge visibility, not the clinic-wide
     // Cashier/Finance workspace, which includes collection and administrative actions.
+    // Catalogue visibility is not campaign administration. Only elevated
+    // shop permissions expose the promotions-management page.
+    if (mod === 'shop') {
+      const action = perm.split('.')[1];
+      pages.add('shop');
+      if (action === 'write' || action === 'delete' || action === 'manage') pages.add('promotions');
+      continue;
+    }
     if (mod === 'billing') {
       const action = perm.split('.')[1];
       if (action === 'write' || action === 'delete' || action === 'manage') {
@@ -424,10 +430,27 @@ export function pagesForCaller(permissions: readonly string[], role: string | nu
 
   const partnerFamily = partnerPageFamily(resolvedRole);
   if (partnerFamily) {
-    return Array.from(new Set([
-      ...BASE_PAGES,
-      ...PARTNER_ROLE_PAGES[partnerFamily],
-    ]));
+    let partnerPages = [...PARTNER_ROLE_PAGES[partnerFamily]];
+    if (partnerFamily === 'DIAGNOSTIC') {
+      if (!['DIAGNOSTIC_OWNER', 'DIAGNOSTIC_ADMIN'].includes(resolvedRole)) {
+        partnerPages = partnerPages.filter((page) => page !== 'diagnostics-settings');
+      }
+      if (!['DIAGNOSTIC_OWNER', 'DIAGNOSTIC_ADMIN', 'DIAGNOSTIC_MANAGER', 'DIAGNOSTIC_FINANCE', 'DIAGNOSTIC_QUALITY'].includes(resolvedRole)) {
+        partnerPages = partnerPages.filter((page) => page !== 'diagnostics-statistics');
+      }
+    } else if (partnerFamily === 'MEDICAL_LAB') {
+      if (!['MEDICAL_LAB_OWNER', 'MEDICAL_LAB_ADMIN'].includes(resolvedRole)) {
+        partnerPages = partnerPages.filter((page) => page !== 'diagnostics-settings');
+      }
+      if (['MEDICAL_LAB_TECHNICIAN', 'MEDICAL_LAB_RECEPTION'].includes(resolvedRole)) {
+        partnerPages = partnerPages.filter((page) => !['diagnostics-calendar', 'diagnostics-statistics'].includes(page));
+      } else if (['MEDICAL_LAB_VALIDATOR', 'MEDICAL_LAB_DOCTOR'].includes(resolvedRole)) {
+        partnerPages = partnerPages.filter((page) => page !== 'diagnostics-statistics');
+      }
+    } else if (partnerFamily === 'DENTAL_LAB' && !['DENTAL_LAB_OWNER', 'DENTAL_LAB_ADMIN'].includes(resolvedRole)) {
+      partnerPages = partnerPages.filter((page) => page !== 'diagnostics-settings');
+    }
+    return Array.from(new Set([...BASE_PAGES, ...partnerPages]));
   }
 
   const pages = new Set([

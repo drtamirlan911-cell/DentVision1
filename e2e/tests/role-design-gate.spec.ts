@@ -25,11 +25,11 @@ type Role = {
   pages: string[]; mustNotContain: RegExp[]; entry: RegExp;
 };
 
-const CLINIC_OWNER_PAGES = ['community','dashboard','schedule','patients','medical-card','visits','icd10','documents','finance','cashier','pricelist','lab','reminders','promotions','inventory','staff','audit','agent-activity','ai-approvals','backup','shop','school','analytics','settings','clinic-settings','billing','treatment-plans','dental-chart','diagnostics','diagnostics-referrals','diagnostics-centers','diagnostics-labs','diagnostics-results','profile','bi','patient-inbox','workflow'];
-const CLINIC_ADMIN_PAGES = ['community','schedule','patients','medical-card','visits','icd10','documents','finance','cashier','pricelist','lab','reminders','promotions','inventory','staff','shop','school','analytics','bi','settings','clinic-settings','billing','treatment-plans','dental-chart','diagnostics','diagnostics-referrals','diagnostics-results','profile','patient-inbox','workflow','ai-approvals'];
-const CLINIC_DOCTOR_PAGES = ['community','schedule','patients','medical-card','visits','icd10','documents','lab','reminders','school','treatment-plans','dental-chart','diagnostics-referrals','diagnostics-results','profile','ai-approvals'];
-const CLINIC_ASSISTANT_PAGES = ['community','schedule','patients','visits','documents','reminders','lab','shop','school','diagnostics-referrals','diagnostics-results','profile'];
-const CLINIC_MANAGER_PAGES = ['dashboard','schedule','patients','analytics','bi','staff','promotions','shop','profile'];
+const CLINIC_OWNER_PAGES = ['community','dashboard','schedule','patients','medical-card','visits','icd10','documents','finance','cashier','pricelist','lab','reminders','promotions','inventory','staff','audit','agent-activity','ai-approvals','backup','shop','school','analytics','settings','clinic-settings','billing','treatment-plans','dental-chart','diagnostics','diagnostics-referrals','diagnostics-referral-create','diagnostics-centers','diagnostics-labs','diagnostics-results','profile','bi','patient-inbox','workflow'];
+const CLINIC_ADMIN_PAGES = ['community','schedule','patients','medical-card','visits','icd10','documents','finance','cashier','pricelist','lab','reminders','promotions','inventory','staff','shop','school','analytics','settings','clinic-settings','billing','treatment-plans','dental-chart','diagnostics','diagnostics-referrals','diagnostics-referral-create','diagnostics-results','profile','patient-inbox','workflow','ai-approvals'];
+const CLINIC_DOCTOR_PAGES = ['community','schedule','patients','medical-card','visits','icd10','documents','lab','reminders','school','treatment-plans','dental-chart','diagnostics-referrals','diagnostics-referral-create','diagnostics-results','profile','ai-approvals'];
+const CLINIC_ASSISTANT_PAGES = ['community','schedule','patients','visits','documents','reminders','lab','shop','school','diagnostics-referrals','diagnostics-referral-create','diagnostics-results','profile'];
+const CLINIC_MANAGER_PAGES = ['dashboard','schedule','patients','analytics','inventory','staff','shop','profile'];
 const PLATFORM_SUPERADMIN_PAGES = ['admin','audit','agent-activity','ai-approvals','backup','analytics','settings','security','quality','diagnostics','diagnostics-centers','diagnostics-labs','platform-finance','ai-governance','support','profile','bi'];
 
 const ROLES: readonly Role[] = [
@@ -57,7 +57,7 @@ const RESPONSIVE_ROUTES_BY_ROLE: Record<string, string[]> = {
   admin: ['/crm/schedule','/crm/patients','/crm/dental-chart','/crm/treatment-plans','/crm/cashier','/diagnostics/referrals','/shop','/school'],
   doctor: ['/crm/schedule','/crm/patients','/crm/visits','/crm/dental-chart','/crm/treatment-plans','/diagnostics/referrals'],
   assistant: ['/crm/schedule','/crm/patients','/crm/visits','/crm/documents','/crm/reminders','/diagnostics/referrals'],
-  manager: ['/crm/schedule','/crm/patients','/analytics','/crm/staff','/crm/promotions','/shop'],
+  manager: ['/crm/schedule','/crm/patients','/analytics','/crm/inventory','/crm/staff','/shop'],
   regular: ['/school','/profile'],
   patient: ['/patient-portal','/profile','/shop','/school'],
   'diagnostic-owner': ['/diagnostics/center','/diagnostics/referrals','/diagnostics/results','/diagnostics/calendar','/diagnostics/statistics'],
@@ -80,7 +80,7 @@ function pageId(route: string, role?: Role): string | null {
     '/crm/clinic-settings':'clinic-settings','/crm/billing':'billing','/crm/patient-inbox':'patient-inbox','/crm/visits':'visits','/crm/dental-chart':'dental-chart','/crm/treatment-plans':'treatment-plans',
     '/crm/pricelist':'pricelist','/crm/lab':'lab','/crm/inventory':'inventory','/crm/stock-rules':'inventory','/crm/documents':'documents','/crm/staff':'staff','/crm/reminders':'reminders','/crm/promotions':'promotions','/crm/marketing':'promotions','/crm/icd10':'icd10','/crm/workflow':'workflow','/crm/integrations/messaging':'clinic-settings',
     '/analytics':'analytics','/admin':'admin','/audit':'audit','/agent-activity':'agent-activity','/ai-approvals':'ai-approvals','/backup':'backup','/shop':'shop','/school':'school','/settings':'settings','/bi':'bi','/security':'security','/quality':'quality','/platform-finance':'platform-finance','/ai-governance':'ai-governance','/support':'support','/diagnostics':'diagnostics','/supplier':'supplier',
-    '/diagnostics/referrals':'diagnostics-referrals','/diagnostics/centers':'diagnostics-centers','/diagnostics/labs':'diagnostics-labs','/diagnostics/laboratories':'diagnostics-labs','/diagnostics/results':'diagnostics-results','/diagnostics/calendar':'diagnostics-calendar','/diagnostics/statistics':'diagnostics-statistics','/diagnostics/settings':'diagnostics-settings',
+    '/diagnostics/referrals':'diagnostics-referrals','/diagnostics/referrals/new':'diagnostics-referral-create','/diagnostics/centers':'diagnostics-centers','/diagnostics/labs':'diagnostics-labs','/diagnostics/laboratories':'diagnostics-labs','/diagnostics/results':'diagnostics-results','/diagnostics/calendar':'diagnostics-calendar','/diagnostics/statistics':'diagnostics-statistics','/diagnostics/settings':'diagnostics-settings',
     '/diagnostics/center':'diagnostics','/diagnostics/lab':'diagnostics','/community':'community','/patient-portal':'patient-portal','/diagnostics/workspace':'diagnostics','/diagnostics/center-dashboard':'diagnostics','/diagnostics/lab-dashboard':'diagnostics','/diagnostics/registrations':'admin','/diagnostics/registration-requests':'admin',
   };
   if (map[p]) return map[p];

@@ -46,7 +46,7 @@ const LEGACY_ORG_PAGES: Record<string, { backendRole: string; pages: string[] }>
   },
   manager: {
     backendRole: 'MANAGER',
-    pages: ['dashboard', 'schedule', 'patients', 'analytics', 'staff', 'promotions', 'shop', 'profile'],
+    pages: ['dashboard', 'schedule', 'patients', 'analytics', 'inventory', 'staff', 'shop', 'profile'],
   },
   // `intern` (a different frontend role, still permissive) no longer maps to
   // backend STUDENT — see `ORG_ROLES.student` in auth.store.ts. STUDENT is

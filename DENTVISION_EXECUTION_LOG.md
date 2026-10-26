@@ -2146,3 +2146,11 @@ These changes are route/entry reconciliation only. Existing domain implementatio
 - The anonymous-route matrix previously classified every non-`/ai` route outside `PUBLIC_ROUTES` as requiring a redirect to `/login`. That conflicts with the portal's intended public entry and would fail the full release gate even when the application behavior is correct.
 - The gate now verifies that the anonymous portal entry renders, the login action transitions to `/login`, and the patient portal/return parameters survive. It does not skip the route, weaken API checks, or grant patient data to a guest.
 - This is a regression-test correction only. The new exact HEAD must rerun the full CI, including role/context, Visual Agent and business/organization-owner gates. RB-034 remains OPEN; do not merge or declare release readiness based on the previous candidate's partial pass.
+
+
+## 2026-10-26 — RB-034 access-matrix follow-up (verification remains open)
+
+- Inspected the exact-head role/context gate from CI run [40273618658](https://github.com/drtamirlan911-cell/DentVision1/actions/runs/40273618658) on PR #323 / commit `f902f69b5fb7ee9b4b191e9412f3cee9c38be87a`. The gate completed with 107 passed, 33 failed and 28 skipped; the same run's Core E2E, browser UX, mobile design, business-owner and organization-owner jobs passed.
+- Confirmed matrix mismatches against `docs/DENTVISION_IAM_ROLE_MATRIX.md`: MANAGER has branch-scoped inventory access; `shop.read` must not imply promotions administration; platform BI is not a default ADMIN/MANAGER page; partner settings/statistics/calendar visibility must respect the actual partner sub-role.
+- Follow-up source/test updates make the shop page mapping action-aware, restore partner role-level page restrictions, remove ADMIN/MANAGER BI grants from both the fallback matrix and canonical clinic-role registry, align manager inventory page parity, and put referral creation behind a dedicated `diagnostics-referral-create` page key granted only to clinic OWNER/ADMIN/DOCTOR/ASSISTANT roles.
+- These are source and regression-test updates only. Exact-head GitHub CI is required after commit; this log does not mark any gate passed. The change is confined to the PR branch; `main`, production and production data remain unchanged.

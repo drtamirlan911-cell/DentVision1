@@ -329,7 +329,7 @@ if (container) {
                 <Route path="diagnostics" element={guarded('diagnostics', <DiagnosticsLayout />)}>
                   <Route index element={<Suspense fallback={<PageLoader />}><DiagnosticsDashboard /></Suspense>} />
                   <Route path="referrals" element={guarded('diagnostics-referrals', <ReferralList />)} />
-                  <Route path="referrals/new" element={guarded('diagnostics-referrals', <ReferralForm />)} />
+                  <Route path="referrals/new" element={guarded('diagnostics-referral-create', <ReferralForm />)} />
                   <Route path="referrals/:id" element={guarded('diagnostics-referrals', <ReferralDetail />)} />
                   <Route path="centers" element={guarded('diagnostics-centers', <CenterList />)} />
                   <Route path="labs" element={guarded('diagnostics-labs', <LabList />)} />
