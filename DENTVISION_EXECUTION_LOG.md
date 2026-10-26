@@ -2341,3 +2341,10 @@ These changes are route/entry reconciliation only. Existing domain implementatio
 - Verification pending: the current CI had frontend/backend lint and unit test gates passing before this change; a fresh exact-head CI/E2E run must confirm the CRM 403s are gone and branch-management tests reach the workspace-picker assertions. No permission or tenant-scope check was loosened.
 
 - Follow-up to the diagnostic collector: API status/path is recorded synchronously; bounded JSON `code`/`error` enrichment is now non-blocking. This prevents an incomplete/streaming error response from hanging the UX gate while preserving the error signal and avoiding arbitrary response data.
+
+
+## 2026-10-26 — Prevent duplicate execution in E2E gate wrapper
+
+- During PR #328 exact-head CI review, `quality-scripts/run-e2e-gate.sh` was found to invoke each gate twice: first in the background with output captured to a durable log, then again through `tee | awk` to print bounded output. The second invocation doubled the browser/test work and replaced the status of the first invocation.
+- Corrected the wrapper to run the gate once, preserve the original `wait` exit code, and apply the existing bounded-output filter to the captured log file. Heartbeats and complete diagnostic logs remain in place.
+- Verification status: pending exact-head CI. Pre-correction run [40351462316](https://github.com/drtamirlan911-cell/DentVision1/actions/runs/40351462316) had backend/frontend lint, unit tests, core E2E, Browser UX and mobile design gate successful; role/context was still in progress after more than 40 minutes. Do not treat that superseded run as final release evidence.
