@@ -12,6 +12,20 @@ async function login(page: Page, role = 'owner') {
   await page.waitForURL(/\/ai(?:$|[?#])/, { timeout: 20000 });
 }
 
+async function getAuthenticatedContexts(page: Page) {
+  const accessToken = await page.evaluate(() => {
+    try { return JSON.parse(sessionStorage.getItem('dv_tokens') || '{}')?.access || null; }
+    catch { return null; }
+  });
+  expect(accessToken, 'browser session should contain an access token').toBeTruthy();
+  const response = await page.request.get('/api/iam/me/contexts', {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+  const body = await response.text();
+  expect(response.ok(), `contexts request failed with HTTP ${response.status()}: ${body}`).toBeTruthy();
+  return JSON.parse(body);
+}
+
 async function submitAndCaptureOnboarding(page: Page): Promise<{ status: number; ok: boolean; body: any }> {
   type CapturedResponse = { status: number; ok: boolean; body: any };
   let resolveCapture!: (response: CapturedResponse) => void;
@@ -114,9 +128,7 @@ test.describe('DentVision business owner journeys', () => {
     expect(onboardingPayload.data?.organizationId).toBeTruthy();
     expect(onboardingPayload.data?.branchId).toBeTruthy();
 
-    const contextsResponse = await page.request.get('/api/iam/me/contexts');
-    expect(contextsResponse.ok()).toBeTruthy();
-    const contextsPayload = await contextsResponse.json();
+    const contextsPayload = await getAuthenticatedContexts(page);
     const context = (contextsPayload.data?.contexts || []).find(
       (item: { organizationId?: string; name?: string }) =>
         item.organizationId === onboardingPayload.data.organizationId || item.name === organizationName,
@@ -220,9 +232,7 @@ test.describe('DentVision business owner journeys', () => {
       expect(onboarding.data?.branchId).toBeTruthy();
       expect(onboarding.data?.verification).toBe('PENDING');
 
-      const contextsResponse = await page.request.get('/api/iam/me/contexts');
-      expect(contextsResponse.ok()).toBeTruthy();
-      const contextsPayload = await contextsResponse.json();
+      const contextsPayload = await getAuthenticatedContexts(page);
       const context = (contextsPayload.data?.contexts || []).find(
         (item: { organizationId?: string; scopeType?: string; branchId?: string }) =>
           item.organizationId === onboarding.data.organizationId,
