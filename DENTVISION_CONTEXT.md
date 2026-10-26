@@ -254,3 +254,12 @@ Do not repeat an audit when implementation can resolve the issue. Do not weaken 
 - Local full Vitest on the preceding exact branch state passed: 727/727 test suites, 2059/2059 tests.
 - Current GitHub Quality Gate #5011 is green for `be7913e8d9c078d94fa96c4e11d342519a397138`.
 - Current CI #3920 is still running its lint-test and E2E/browser/mobile/role/visual chain.
+
+
+## 2F — E2E runner output stability — 2026-10-25
+
+- Verified baseline `main` HEAD: `d273a4ecdd1daf8b3269d223c06a7a9c43a162e7`. The CI run `40183562189` for that exact SHA passed frontend lint, backend lint, TypeScript/build/system-map checks and unit tests, but the E2E job failed. Core E2E had 7 failures; role/context failed; business-owner journeys failed; organization-owner lifecycle hit a test timeout. The run is not release evidence for a passing candidate.
+- The repository already has an isolated GitHub Actions test environment: PostgreSQL 16, E2E-only database sync/migrations/fixtures, local frontend/backend processes, Playwright Chromium/WebKit, and separate core, UX, mobile, role, visual and owner gates. Do not create a duplicate CI/E2E system.
+- Confirmed runner bottleneck: `quality-scripts/run-e2e-gate.sh` used `tee` to stream the complete verbose Playwright output into Actions logs. The same main run uploaded 142.63 MB of traces and 155.26 MB of HTML/CLI artifacts after failures, despite also producing a compact diagnostic summary.
+- Candidate change on `test-env/compact-e2e-output-20261025`: preserve complete per-gate logs on disk, print a heartbeat every 20 seconds, print a short success summary or at most 80 high-signal failure lines, and preserve the original command exit status. Shell syntax and success/failure exit-code behavior were checked locally with mock commands.
+- Candidate verification status: **PENDING exact-head GitHub Actions CI/E2E**. This branch is isolated from `main` and the existing integration/security branches. Do not merge or deploy until the new exact-head run completes and all relevant gates are reviewed.
