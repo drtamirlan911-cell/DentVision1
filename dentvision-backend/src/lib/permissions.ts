@@ -345,7 +345,19 @@ export function pagesForPermissions(permissions: readonly string[]): string[] {
     }
     const mod = perm.split('.')[0];
     const modPages = MODULE_PAGES[mod];
-    if (modPages) modPages.forEach((p) => pages.add(p));
+    if (!modPages) continue;
+
+    // Read-only billing permits scoped invoice/charge visibility, not the clinic-wide
+    // Cashier/Finance workspace, which includes collection and administrative actions.
+    if (mod === 'billing') {
+      const action = perm.split('.')[1];
+      if (action === 'write' || action === 'delete' || action === 'manage') {
+        modPages.forEach((p) => pages.add(p));
+      }
+      continue;
+    }
+
+    modPages.forEach((p) => pages.add(p));
   }
   // The profile page is open to every authenticated user (it was in every
   // legacy role's pages list) even though no profile.* permission exists.
@@ -403,12 +415,17 @@ export function pagesForCaller(permissions: readonly string[], role: string | nu
     ]));
   }
 
-  return Array.from(new Set([
+  const pages = new Set([
     ...BASE_PAGES,
     ...pagesForPermissions(permissions),
     ...(role ? pagesForRole(resolvedRole) : []),
     ...(AI_APPROVAL_ROLES.has(resolvedRole) ? ['ai-approvals'] : []),
-  ]));
+  ]);
+
+  // A platform wildcard is not an active Supplier organization membership.
+  if (resolvedRole === 'SUPERADMIN') pages.delete('supplier');
+
+  return Array.from(pages);
 }
 
 /** Derive visible CRM pages from a role's permission set. */

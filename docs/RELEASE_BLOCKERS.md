@@ -274,6 +274,13 @@
 - **Remediation and verification branch:** implementation commit `f1276fdb9ab2d7761f7e6c3f77e82eff752ac835` is already in current `main` history. Branch `security/doctor-agent-tenant-isolation-20261025` adds the isolated PostgreSQL/IAM diagnostic workflow and focused context E2E. The DoctorAgent regression suite checks missing active-clinic context across all 13 clinic-bound intents and rejects database reads/writes; focused local suite passes 25/25 and full local unit suite passes 244 files / 2,229 tests. Exact-head GitHub CI and role/context E2E are still required.
 - **Closure criteria:** targeted negative and same-tenant control tests, TypeScript/lint/unit checks, dedicated IAM-context E2E and the full role/context release gate must pass on the exact PR HEAD. Until fresh CI and E2E evidence is captured and reviewed, RB-034 remains a P0 release blocker even though the implementation commit is present in `main` history.
 
+#### Follow-up — exact-head release-gate audit (2026-10-26)
+
+CI run `40223952465` on candidate `a539bad954795adbea59399e4bd6eae139ac7f6a` failed the full role/context design gate. Observed causes included the undersized Medical Card search target, disagreement between E2E and canonical policy for Community/partner settings/BI/assistant lab, broad Finance/Cashier page derivation from `billing.read`, absent Patient Portal role scoping, and the global-SUPERADMIN-to-Supplier exception. Backend/frontend lint, unit/type checks, Quality Gate and the dedicated RB-034 diagnostic passed.
+
+The remediation candidate narrows Finance/Cashier routes to billing write/delete/manage, requires active Supplier scope, guards Patient Portal by patient context, restores the 44px search target, and synchronizes E2E policy with the canonical role matrix without skipping assertions. **RB-034 remains OPEN** until fresh full security and role/context gates pass on the exact remediation HEAD.
+
+
 ### RB-029 — Patient clinical history JSON is not encrypted at rest
 - **Status:** OPEN — implementation gap confirmed on current `main` by source inspection
 - **Priority:** P0

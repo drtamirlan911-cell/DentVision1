@@ -50,6 +50,27 @@ describe('pagesForPermissions', () => {
     expect(pagesForPermissions(['settings.manage'])).not.toContain('settings');
   });
 
+  it('does not expose clinic-wide finance pages from read-only billing access', () => {
+    const readOnlyPages = pagesForPermissions(['billing.read']);
+    expect(readOnlyPages).not.toContain('finance');
+    expect(readOnlyPages).not.toContain('cashier');
+    expect(readOnlyPages).not.toContain('billing');
+    expect(pagesForPermissions(['billing.manage'])).toEqual(
+      expect.arrayContaining(['finance', 'cashier', 'billing', 'pricelist']),
+    );
+  });
+
+  it('keeps Supplier separate from the global SUPERADMIN context', () => {
+    expect(pagesForCaller(['*'], 'SUPERADMIN')).not.toContain('supplier');
+    expect(pagesForCaller(['shop.manage'], 'SELLER')).toContain('supplier');
+  });
+
+  it('retains personal settings for scoped partner workspaces', () => {
+    for (const role of ['DIAGNOSTIC_OWNER', 'MEDICAL_LAB_OWNER', 'DENTAL_LAB_OWNER']) {
+      expect(pagesForCaller([], role)).toContain('settings');
+    }
+  });
+
   it('never shows the admin console to a clinic role', () => {
     expect(pagesForPermissions(permissionsForRole('OWNER'))).not.toContain('admin');
     expect(pagesForPermissions(permissionsForRole('SUPERADMIN'))).toContain('admin');

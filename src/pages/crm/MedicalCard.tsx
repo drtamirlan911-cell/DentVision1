@@ -168,7 +168,7 @@ export default function MedicalCard() {
               placeholder="Поиск пациента..."
               value={searchQuery}
               onChange={e => setSearchQuery(e.target.value)}
-              className="min-h-11 w-full pl-9 sm:min-h-0"
+              className="min-h-11 w-full pl-9"
             />
           </div>
           <div className="max-h-[500px] space-y-1 overflow-y-auto">

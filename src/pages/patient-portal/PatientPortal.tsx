@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { motion } from 'framer-motion';
-import { useNavigate, useSearchParams, Link } from 'react-router-dom';
+import { Navigate, useNavigate, useSearchParams, Link } from 'react-router-dom';
 import {
   Calendar, FileText, Receipt, Activity, LogIn, UserPlus,
   ClipboardList, FileImage, User, CheckCircle2, Sparkles,
@@ -27,7 +27,7 @@ import { Assistant } from './Assistant';
 
 export default function PatientPortal() {
   const { t } = useTranslation();
-  const { user, isAuthenticated, loginWithGoogle } = useAuth();
+  const { user, isAuthenticated, loginWithGoogle, effectiveRole } = useAuth();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const queryClient = useQueryClient();
@@ -75,6 +75,12 @@ export default function PatientPortal() {
 
   const portalReturnUrl = `/patient-portal${linkClinicId ? `?clinic=${encodeURIComponent(linkClinicId)}${linkPhone ? `&phone=${encodeURIComponent(linkPhone)}` : ''}` : ''}`;
 
+  const isPatientContext = String(effectiveRole || user?.role || '').toUpperCase() === 'PATIENT';
+
+  // Do not expose the patient-facing surface in clinic/partner/platform contexts.
+  if (isAuthenticated && user && !isPatientContext) {
+    return <Navigate to="/ai" replace />;
+  }
   if (!isAuthenticated || !user) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-surface-0 p-6">
