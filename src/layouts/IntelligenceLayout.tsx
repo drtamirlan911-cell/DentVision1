@@ -90,11 +90,12 @@ export const IntelligenceLayout: React.FC = () => {
   useEffect(() => {
     // restoreSession() hydrates credentials asynchronously. Starting a guest
     // session during that window creates an unnecessary cross-origin request and
-    // can race with the authenticated workspace context. Only bootstrap guests
-    // after auth restoration has conclusively completed.
-    if (authLoading || isAuthenticated || isGuest || isLoginRoute) return;
+    // can race with the authenticated workspace context.
+    // A direct visit to a protected URL must go to login, not create a guest
+    // session and turn the authorization boundary into a guest CRM modal.
+    if (authLoading || isAuthenticated || isGuest || isLoginRoute || requiresAuth(location.pathname)) return;
     void initGuest();
-  }, [authLoading, isAuthenticated, isGuest, isLoginRoute, initGuest]);
+  }, [authLoading, isAuthenticated, isGuest, isLoginRoute, location.pathname, requiresAuth, initGuest]);
 
   useEffect(() => {
     if (!needsAuth || !isGuest) return;
