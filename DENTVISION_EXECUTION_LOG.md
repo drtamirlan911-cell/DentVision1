@@ -2085,3 +2085,11 @@ These changes are route/entry reconciliation only. Existing domain implementatio
 - Diagnostic commission-rule upsert and its audit event now share a transaction for both scoped and global rules. The central audit helper accepts a Prisma transaction client; session helpers accept one for atomic rotation.
 - Verification after these changes: backend TypeScript build passed; focused auth/clinic/diagnostics contract tests passed **12/12**; `git diff --check` passed. A full Vitest rerun was attempted but the sandbox terminated the process with exit code 143 before results were produced; it is not counted as a pass. No live PostgreSQL integration, browser E2E, or production smoke test was run.
 - Work is committed to the feature branch for review. No production deployment or merge to `main` performed. Release remains **NOT READY** pending database integration, E2E/browser, and production verification.
+
+
+## 2026-10-26 — Role/context and diagnostics-scope repair candidate
+
+- CI run `40269710407` at HEAD `08ebba2fe4232aaf5aa41a6d7139012f2b16c683` had lint checks passing while role/context and business-owner E2E failed.
+- Candidate fixes guard nested diagnostics pages, separate clinic referral creation from partner-scoped reading, derive `clinicId`/`centerId`/`labId` from the active workspace, and avoid issuing unscoped referrals requests.
+- Platform-wide wildcard permissions no longer imply clinic CRM or supplier-tenant membership. Help/Notifications and shared AI/public Community route expectations are explicit. BIZ-000/BIZ-009 use the browser bearer token for IAM context checks.
+- Exact-head CI/E2E rerun remains pending; release stays **NOT READY**. No production deployment or production database changes were performed.
