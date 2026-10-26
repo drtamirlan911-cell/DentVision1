@@ -6,8 +6,8 @@ const API_BASE_URL = process.env.VITE_API_URL || 'http://127.0.0.1:3001';
 const VISUAL_EVIDENCE_ROOT = process.env.VISUAL_EVIDENCE_DIR || 'e2e/visual-evidence';
 const PASSWORD = 'Test1234!';
 
-const PUBLIC_ROUTES = ['/', '/login', '/register', '/forgot-password', '/booking', '/demo', '/pricing', '/terms', '/privacy', '/jobs'];
-const AUTH_COMMON_ROUTES = ['/', '/help', '/notifications', '/profile'];
+const PUBLIC_ROUTES = ['/', '/login', '/register', '/forgot-password', '/booking', '/demo', '/pricing', '/terms', '/privacy', '/jobs', '/help', '/community'];
+const AUTH_COMMON_ROUTES = ['/', '/ai', '/help', '/notifications', '/profile'];
 const AUTHENTICATED_BASE_PAGES = ['shop','school','profile','settings','diagnostics','diagnostics-centers','diagnostics-labs','diagnostics-laboratories'] as const;
 const ROUTES = [
   '/ai','/analytics','/settings','/help','/notifications','/admin','/bi','/security','/audit','/agent-activity','/ai-approvals','/backup','/profile',
@@ -602,7 +602,12 @@ test.describe('DentVision exhaustive role/context/browser gate',()=>{
     test.skip(info.project.name !== 'role-1280', 'Tenant isolation is a data-scope contract; execute once per CI run');
     const problems=collectors(page);
     await login(page,'owner-a@test.com');
-    expect(await page.locator('body').innerText()).toContain('E2E Clinic A');
+    // Route changes can settle before the workspace context label is hydrated.
+    // Wait for the active tenant identity before starting the isolation assertions.
+    await expect.poll(() => page.locator('body').innerText().catch(() => ''), {
+      timeout: 10000,
+      message: 'Clinic A workspace identity did not hydrate after login',
+    }).toContain('E2E Clinic A');
     for(const route of ['/crm/patients','/crm/schedule','/crm/finance','/crm/inventory']){
       await page.goto(BASE_URL+route,{waitUntil:'domcontentloaded',timeout:30000});
       expect(await page.locator('body').innerText()).not.toContain('E2E Clinic B');
