@@ -2095,24 +2095,20 @@ These changes are route/entry reconciliation only. Existing domain implementatio
 - Exact-head CI/E2E rerun remains pending; release stays **NOT READY**. No production deployment or production database changes were performed.
 
 
-## 2026-10-26 — Password reset and safe empty-organization deletion
+## 2026-10-26 — Password-reset endpoint repair
 
 ### Implemented in PR #326
 - Password-reset requests persist only a SHA-256 digest of the one-hour token; the raw token is sent only in the email link.
 - Added `POST /api/auth/reset-password` with server-side password-policy validation.
 - Conditional token consumption, password mutation, outstanding-token cleanup, active-session revocation and the audit event commit in one transaction.
-- Added superadmin-only `DELETE /api/organizations/:id`; deletion is refused while people or branches remain, and deletion plus audit are transactional.
-- Added focused tests for reset-token digest/expiry/one-time claim and organization deletion preconditions.
-- The existing application mounts the files router at both `/api/files` and `/api/documents`, so changing the API-client path from the uploaded patch was unnecessary.
+- Added focused tests for reset-token digest/expiry/one-time claim.
+
+### Scope decision
+- The proposed organization-delete endpoint was removed before merge. The shared Organization model can point to legacy domain records through `originalType` / `originalId`; safe deletion needs a domain-aware lifecycle, not just an emptiness check of persons/branches. No organization deletion route remains in this PR.
 
 ### Verification
-- No local repository checkout is available in this environment.
-- The new commit requires fresh exact-HEAD CI/Quality Gate; previous-head results are not accepted as evidence.
-- Release status remains **NOT READY** until exact-HEAD CI and required database/browser gates are green. No merge or production deployment was performed.
-
-### Next action
-- Inspect exact-HEAD CI results and fix any failures without weakening tests; do not merge while any required gate is failing or pending.
-
+- Exact-HEAD CI and database/browser release gates remain required. The generated system map was synchronized after the latest endpoint addition.
+- Release remains **NOT READY** until exact-HEAD CI/E2E and required database/browser gates are green. No merge or production deployment was performed.
 
 ## 2026-10-26 — Generated system-map validation repair
 
