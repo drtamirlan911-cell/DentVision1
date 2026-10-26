@@ -2319,3 +2319,12 @@ These changes are route/entry reconciliation only. Existing domain implementatio
 - Added `dentvision-backend/src/modules/patient-portal/patientPortal.history.contract.test.ts` to pin the route's use of the shared encoder and the reserved-input guard. The shared `phi.test.ts` suite already covers structured object encryption/round-trip and legacy scalar decoding.
 - Reconciled `docs/security/RB-029_MEDICAL_HISTORY_ENCRYPTION_INVENTORY.md` so it records the original finding as historical and identifies the candidate follow-up without claiming it is merged.
 - Verification: not yet verified by exact-head CI. This corrects one source path only. RB-029 remains OPEN pending full downstream consumer/concurrent-writer audit, backup/rollback review, read-only staging dry run and count/round-trip/integrity reconciliation. No production or staging database operation, backfill, schema migration or deployment was performed.
+
+
+## 2026-10-26 — E2E failure triage: organization branch persistence query
+
+- Exact-head CI run `40363016216` on PR #329 passed backend lint, frontend lint and all `lint-test` steps. `Run E2E suite` completed with 237 passed, 5 skipped, 4 failed.
+- All four failures were `BRANCH-001`, `BRANCH-002`, `BRANCH-003`, and `BRANCH-004`, and each stopped inside the common `createBranch()` helper at the lookup after it had received HTTP 201 and confirmed the new row was visible in the organization settings UI.
+- Root cause: the base-branch helper then queried `/api/branches?clinicId=<ownerClinicId>`, a deliberately clinic-scoped listing contract; the UI created the branch through `/api/branches` with `organizationId`, and organization branches can have `clinic_id = null`. The test was querying the wrong scope, not seeing the just-created organization branch.
+- Candidate correction: updated `e2e/tests/branch-management.spec.ts` from the existing PR #328 canonical organization fixture/query change (`/api/branches?organizationId=<ownerOrganizationId>`), keeping the branch persistence assertions and negative-path checks strict. Commit: `bf83fff0f4d1b611e5cbf8528561f1744082ba97`.
+- Verification: the new exact-head CI has been triggered; no result yet. Any subsequent role/context failures must be diagnosed separately, not masked. No application authorization policy or CORS check was relaxed; no database/backfill/deployment was performed.
