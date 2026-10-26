@@ -2319,3 +2319,5 @@ These changes are route/entry reconciliation only. Existing domain implementatio
 - Verification: candidate PR required; no local Vercel sandbox was available because the Hobby snapshot-storage limit was reached. Do not treat this candidate as verified until exact-head CI/E2E passes and the 403s are independently resolved.
 
 - Follow-up in PR [#328](https://github.com/drtamirlan911-cell/DentVision1/pull/328): the viewport fix now also positions the menu above its trigger when insufficient room remains below. The UX coverage collector now unregisters per-route listeners and logs failing API response status + path, so the two 403s can be diagnosed without weakening assertions.
+
+- Follow-up candidate after reviewing the original BRANCH-003 trace: removed the nested scroll container around the workspace-only list. The branch picker now has one outer scroll viewport for both workspace options and the branch list, avoiding competing nested scrolling. Verification remains pending exact-head CI.

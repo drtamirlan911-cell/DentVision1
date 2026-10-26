@@ -315,7 +315,7 @@ export function WorkspaceSwitcher({ className }: { className?: string }) {
         <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-txt-muted">Рабочее пространство</p>
         <p className="text-[11px] text-txt-secondary mt-0.5">Выберите контекст DentVision</p>
       </div>
-      <div className="max-h-[min(60vh,26rem)] overflow-y-auto space-y-1">
+      <div className="space-y-1">
         {grouped.map((group) => (
           <div key={group.label}>
             {grouped.length > 1 && <p className="px-2 py-1.5 text-[10px] font-semibold uppercase tracking-wider text-txt-muted">{group.label}</p>}
