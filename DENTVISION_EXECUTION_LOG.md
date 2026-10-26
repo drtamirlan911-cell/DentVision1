@@ -2305,3 +2305,8 @@ These changes are route/entry reconciliation only. Existing domain implementatio
 - Restored: notification pages for patient/student/support/platform roles; narrow read-only billing visibility to the price list; removal of LAB appointment access; medical/dental lab referral queues; clinic referral-create permission checks; patient-context scoping in the portal while preserving its anonymous login/registration entry; explicit E2E IAM-context bearer-token forwarding; and minimum 44px touch-target sizing for the empty Shop Orders action.
 - Updated the existing permission contract to assert that billing.read exposes the price list and that referral creation is available only on the intended roles. The generated system map was already reconciled in commit 6d50392e1815b06ca2a0855d40424df0004fdb16.
 - These follow-up changes require a fresh full CI run on their exact commit. They do not close RB-029 or RB-034, and no production database operation or deployment was performed.
+
+## 2026-10-26 — Unit test expectation aligned with restored STUDENT page contract
+
+- CI run [40338265481](https://github.com/drtamirlan911-cell/DentVision1/actions/runs/40338265481) on `40528bd5bfaba03dd8e1791a1f54168fac55befe` passed backend-lint, frontend-lint and Quality Gate. The unit-test stage reached 2,283/2,284; its only failure was an obsolete exact array expectation in `permissions.pages.test.ts` that omitted `help` and `notifications` from the restored STUDENT common page set.
+- Updated the test expectation to the intended five-page set rather than rolling back the access-policy change. Fresh exact-head CI/E2E remains required for the correction commit.

@@ -10,7 +10,7 @@ import {
 
 describe('pagesForPermissions', () => {
   it('keeps STUDENT on learner pages instead of inheriting global partner pages', () => {
-    expect(pagesForCaller([], 'STUDENT')).toEqual(['shop', 'school', 'profile']);
+    expect(pagesForCaller([], 'STUDENT')).toEqual(['shop', 'school', 'profile', 'help', 'notifications']);
   });
 
 
