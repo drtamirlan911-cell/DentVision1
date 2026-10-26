@@ -33,22 +33,40 @@ async function login(page: Page) {
 
 function collectRuntimeErrors(page: Page) {
   const errors: string[] = [];
+  const pendingResponses: Promise<void>[] = [];
   const onPageError = (error: Error) => errors.push(`pageerror: ${error.message}`);
   const onConsole = (message: ConsoleMessage) => {
     if (message.type() === 'error') errors.push(`console: ${message.text()}`);
   };
   const onResponse = (response: Response) => {
-    if (response.status() < 400) return;
-    const url = new URL(response.url());
-    if (url.pathname.startsWith('/api/')) {
-      errors.push(`http ${response.status()}: ${url.pathname}${url.search}`);
+    const status = response.status();
+    if (status < 400) return;
+    let url: URL;
+    try {
+      url = new URL(response.url());
+    } catch {
+      return;
     }
+    if (!url.pathname.startsWith('/api/')) return;
+
+    // Only include the API's generic code/error fields, never arbitrary response
+    // data, to make authorization failures actionable without dumping patient data.
+    pendingResponses.push(response.json().then((payload: unknown) => {
+      const record = payload && typeof payload === 'object' ? payload as Record<string, unknown> : {};
+      const code = typeof record.code === 'string' ? record.code.slice(0, 80) : '';
+      const message = typeof record.error === 'string' ? record.error.slice(0, 120) : '';
+      const detail = [code, message].filter(Boolean).join(': ');
+      errors.push(`http ${status}: ${url.pathname}${url.search}${detail ? ` (${detail})` : ''}`);
+    }).catch(() => {
+      errors.push(`http ${status}: ${url.pathname}${url.search}`);
+    }));
   };
   page.on('pageerror', onPageError);
   page.on('console', onConsole);
   page.on('response', onResponse);
   return {
     errors,
+    flush: async () => { await Promise.all(pendingResponses); },
     dispose: () => {
       page.off('pageerror', onPageError);
       page.off('console', onConsole);
@@ -74,6 +92,7 @@ test.describe('DentVision browser UX coverage', () => {
           message: `${route}: page did not render stable content`,
         }).toMatch(/.{20,}/s);
         await page.waitForTimeout(300);
+        await runtime.flush();
         let url = new URL(page.url());
         if (url.pathname === '/login') {
           await login(page);

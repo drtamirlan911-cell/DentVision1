@@ -275,3 +275,6 @@ Do not repeat an audit when implementation can resolve the issue. Do not weaken 
 - BRANCH-003 follow-up: PR #328 removes the inner workspace-only scroll area so that one outer viewport scrolls both workspace and branch options. Await exact-head CI before marking the UI defect resolved.
 
 - PR #328 CI finding: branch-management E2E tests were mixing canonical organization-scoped branch creation with an explicit legacy `clinicId` list query. Candidate regression-test fix uses the seeded clinic's canonical Organization ID on branch list assertions. This is a test-scope correction, not a backend authorization change; exact-head rerun remains required.
+
+- PR #328 CI run `40345409642` confirmed the Browser UX 403 path as `GET /api/crm/{clinicId}/treatment-plans` from both Patients and Treatment Plans. Its route has both permission and clinic-scope 403 branches; next diagnostic candidate records only generic JSON `code` / `error` fields to identify the denial without logging arbitrary response or patient data.
+- In the same run, branch-management tests queried legacy `clinicId` after creating branches through the canonical Organization flow. Candidate test change now queries the canonical organization scope; rerun needed before treating branch picker as verified.
