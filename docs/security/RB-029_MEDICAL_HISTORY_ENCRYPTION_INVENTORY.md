@@ -8,7 +8,7 @@
 ## Implementation reconciliation — 2026-10-26
 
 - Current main (`ac913cc3389a294d0b135a852b035ddddb1018ca`) includes the versioned `__dentvisionEncryptedV1` envelope codec in `dentvision-backend/src/lib/phi.ts`; canonical Patient CRUD and odontogram write paths use `encryptMedicalHistory`, and relevant readers decode the envelope before returning clinical data.
-- Follow-up review found the separate Patient Portal profile writer still used `encryptField(String(body.medicalHistory))`, which destroys the structured JSON object shape. Candidate `security/rb029-patient-portal-history-envelope-20261026` switches it to the shared codec and rejects client-supplied ciphertext/envelope markers to avoid storing opaque or malformed encrypted payloads from the API.
+- Follow-up review found the Patient Portal profile writer still used `encryptField(String(body.medicalHistory))`, which destroys structured JSON shape; the candidate switches to the shared codec. Additional review found that canonical Patient create/upsert and PATCH boundaries need to reject caller-provided root ciphertext/envelope markers because the codec deliberately supports idempotent internal envelope round-trips. Code commit `2368ff723efd5ea02349fd39dfec47c6ff87360e` on the candidate branch guards all three API writers with `isClientSuppliedEncryptedMedicalHistory`; this prevents replay of untrusted ciphertext from being treated as service-produced data. Route/codec regression tests are added, but exact-head CI is still pending.
 - The candidate adds a focused source-contract regression test. It is not merged or verified by full CI until its branch checks complete. No production/staging database operation or backfill has been executed.
 
 ## Executive finding

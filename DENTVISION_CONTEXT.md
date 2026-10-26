@@ -277,3 +277,9 @@ Do not repeat an audit when implementation can resolve the issue. Do not weaken 
 - Corrected `e2e/tests/branch-management.spec.ts` on this candidate using the organization-scoped setup and `/api/branches?organizationId=...` read already introduced on PR #328. This keeps assertions strict and verifies canonical persistence rather than treating an organization branch with nullable `clinic_id` as absent.
 - Exact-head CI must rerun; do not infer the later mobile/role gates passed based on the previous run. The E2E continuation on the superseded SHA was still running Browser UX when inspected.
 - RB-029 remains OPEN. No database query/write, backfill or deployment was performed.
+
+## 2026-10-26 — RB-029 API envelope-input guard
+
+- Further source review of the structured medical-history codec found that idempotent internal envelope handling must be paired with strict HTTP input guards. The canonical Patient create/upsert and PATCH routes could otherwise accept a client-supplied root `__dentvisionEncryptedV1` value and pass it through as if it were service-produced ciphertext.
+- Code candidate committed as `2368ff723efd5ea02349fd39dfec47c6ff87360e` on the existing RB-029 branch. It adds `isClientSuppliedEncryptedMedicalHistory` and applies it at Patient Portal profile update and canonical Patient create/update boundaries. Root `ENC:` values and reserved envelope markers are rejected; normal structured values and nested clinical fields remain supported.
+- Regression coverage added for the shared validator and all three route write boundaries. Await exact-head CI; RB-029 stays OPEN. No database access, backfill, staging write, or deployment performed.
