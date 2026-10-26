@@ -71,10 +71,18 @@ async function createBranch(page: Page, name: string) {
 
 test.describe('Canonical organization branch management', () => {
   test.beforeAll(async () => {
-    const owner = await prisma.user.findUnique({ where: { email: OWNER_EMAIL }, select: { id: true } });
-    const clinic = owner ? await prisma.clinicMember.findFirst({ where: { userId: owner.id }, select: { clinicId: true } }) : null;
-    expect(clinic?.clinicId).toBeTruthy();
-    ownerClinicId = clinic!.clinicId;
+    const [owner, clinic] = await Promise.all([
+      prisma.user.findUnique({ where: { email: OWNER_EMAIL }, select: { id: true } }),
+      prisma.clinic.findFirst({ where: { name: 'E2E Clinic A' }, select: { id: true } }),
+    ]);
+    expect(owner?.id, 'E2E owner fixture must exist').toBeTruthy();
+    expect(clinic?.id, 'E2E Clinic A fixture must exist').toBeTruthy();
+    ownerClinicId = clinic!.id;
+    const membership = await prisma.clinicMember.findUnique({
+      where: { userId_clinicId: { userId: owner!.id, clinicId: ownerClinicId } },
+      select: { role: true },
+    });
+    expect(membership?.role, 'E2E owner must be a member of E2E Clinic A').toBe('OWNER');
     const organization = await prisma.organization.findFirst({
       where: { originalType: 'Clinic', originalId: ownerClinicId },
       select: { id: true },
