@@ -93,7 +93,13 @@ export default function FileUploader({ referralId, onUpload, files, onDelete, di
                 <Icon size={16} className="text-txt-muted" />
                 <span className="text-xs text-txt-primary flex-1 truncate">{f.fileName}</span>
                 {onDelete && (
-                  <button aria-label="Delete file" onClick={() => onDelete(f.id)} className="opacity-0 group-hover:opacity-100 text-error transition-opacity">
+                  <button
+                    type="button"
+                    aria-label={`Удалить файл ${f.fileName}`}
+                    title={`Удалить файл ${f.fileName}`}
+                    onClick={() => onDelete(f.id)}
+                    className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg opacity-0 group-hover:opacity-100 focus-visible:opacity-100 text-error transition-opacity"
+                  >
                     <X size={14} />
                   </button>
                 )}

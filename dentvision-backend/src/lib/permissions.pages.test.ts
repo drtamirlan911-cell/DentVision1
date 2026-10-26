@@ -50,6 +50,95 @@ describe('pagesForPermissions', () => {
     expect(pagesForPermissions(['settings.manage'])).not.toContain('settings');
   });
 
+  it('does not expose clinic-wide finance pages from read-only billing access', () => {
+    const readOnlyPages = pagesForPermissions(['billing.read']);
+    expect(readOnlyPages).not.toContain('finance');
+    expect(readOnlyPages).not.toContain('cashier');
+    expect(readOnlyPages).not.toContain('billing');
+    expect(pagesForPermissions(['billing.manage'])).toEqual(
+      expect.arrayContaining(['finance', 'cashier', 'billing', 'pricelist']),
+    );
+  });
+
+  it('keeps Supplier separate from the global SUPERADMIN context', () => {
+    expect(pagesForCaller(['*'], 'SUPERADMIN')).not.toContain('supplier');
+    expect(pagesForCaller(['shop.manage'], 'SELLER')).toContain('supplier');
+  });
+
+  it('keeps platform SuperAdmin out of clinic CRM workspaces', () => {
+    const pages = pagesForCaller(['*'], 'SUPERADMIN');
+    expect(pages).toContain('admin');
+    expect(pages).toContain('platform-finance');
+    for (const page of ['schedule', 'patients', 'inventory', 'lab', 'finance', 'cashier', 'clinic-settings', 'staff', 'workflow']) {
+      expect(pages).not.toContain(page);
+    }
+  });
+
+  it('keeps support out of clinic BI and operational workspaces', () => {
+    const pages = pagesForCaller(permissionsForRole('SUPPORT'), 'SUPPORT');
+    expect(pages).not.toContain('admin');
+    expect(pages).toContain('analytics');
+    expect(pages).not.toContain('bi');
+    expect(pages).not.toContain('schedule');
+    expect(pages).not.toContain('patients');
+  });
+
+  it('keeps shop catalogue reads separate from campaign administration', () => {
+    expect(pagesForPermissions(['shop.read'])).toContain('shop');
+    expect(pagesForPermissions(['shop.read'])).not.toContain('promotions');
+    expect(pagesForPermissions(['shop.manage'])).toEqual(expect.arrayContaining(['shop', 'promotions']));
+    expect(pagesForCaller(permissionsForRole('DOCTOR'), 'DOCTOR')).not.toContain('promotions');
+    expect(pagesForCaller(permissionsForRole('ASSISTANT'), 'ASSISTANT')).not.toContain('promotions');
+    expect(pagesForCaller(permissionsForRole('OWNER'), 'OWNER')).toContain('promotions');
+  });
+
+  it('aligns the manager and administrator surface with the canonical IAM matrix', () => {
+    const managerPages = pagesForCaller(permissionsForRole('MANAGER'), 'MANAGER');
+    expect(managerPages).toContain('inventory');
+    expect(managerPages).not.toContain('lab');
+    expect(managerPages).not.toContain('bi');
+    expect(managerPages).not.toContain('promotions');
+    expect(pagesForCaller(permissionsForRole('ADMIN'), 'ADMIN')).not.toContain('bi');
+    expect(pagesForCaller(permissionsForRole('OWNER'), 'OWNER')).toContain('bi');
+  });
+
+  it('limits partner workspace settings and work queues by role', () => {
+    const diagnosticOwner = pagesForCaller([], 'DIAGNOSTIC_OWNER');
+    const diagnosticOperator = pagesForCaller([], 'DIAGNOSTIC_OPERATOR');
+    expect(diagnosticOwner).toContain('diagnostics-settings');
+    expect(diagnosticOperator).not.toContain('diagnostics-settings');
+    expect(diagnosticOperator).not.toContain('diagnostics-statistics');
+
+    const medicalLabOwner = pagesForCaller([], 'MEDICAL_LAB_OWNER');
+    const medicalLabTech = pagesForCaller([], 'MEDICAL_LAB_TECHNICIAN');
+    expect(medicalLabOwner).toContain('diagnostics-settings');
+    expect(medicalLabTech).not.toContain('diagnostics-settings');
+    expect(medicalLabTech).not.toContain('diagnostics-calendar');
+    expect(medicalLabTech).not.toContain('diagnostics-statistics');
+
+    expect(pagesForCaller([], 'DENTAL_LAB_OWNER')).toContain('diagnostics-settings');
+    expect(pagesForCaller([], 'DENTAL_TECHNICIAN')).not.toContain('diagnostics-settings');
+  });
+
+  it('does not expose the inventory workbench to read-only clinical roles', () => {
+    expect(pagesForCaller(permissionsForRole('DOCTOR'), 'DOCTOR')).not.toContain('inventory');
+    expect(pagesForCaller(permissionsForRole('ASSISTANT'), 'ASSISTANT')).not.toContain('inventory');
+    expect(pagesForCaller(permissionsForRole('OWNER'), 'OWNER')).toContain('inventory');
+  });
+
+  it('does not expose the laboratory workbench to manager-only read access', () => {
+    expect(pagesForCaller(permissionsForRole('MANAGER'), 'MANAGER')).not.toContain('lab');
+    expect(pagesForCaller(permissionsForRole('DOCTOR'), 'DOCTOR')).toContain('lab');
+    expect(pagesForCaller(permissionsForRole('ASSISTANT'), 'ASSISTANT')).toContain('lab');
+  });
+
+
+  it('retains personal settings for scoped partner workspaces', () => {
+    for (const role of ['DIAGNOSTIC_OWNER', 'MEDICAL_LAB_OWNER', 'DENTAL_LAB_OWNER']) {
+      expect(pagesForCaller([], role)).toContain('settings');
+    }
+  });
+
   it('never shows the admin console to a clinic role', () => {
     expect(pagesForPermissions(permissionsForRole('OWNER'))).not.toContain('admin');
     expect(pagesForPermissions(permissionsForRole('SUPERADMIN'))).toContain('admin');

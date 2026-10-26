@@ -62,6 +62,16 @@ export function ConsentGate({ children }: { children: React.ReactNode }) {
     >
       <Card padding="lg" className="w-full shadow-elev-2">
         <div className="space-y-5">
+          <div className="flex">
+            <span
+              title="Пациент"
+              aria-label="Текущая роль: Пациент"
+              data-testid="workspace-role-indicator"
+              className="inline-flex min-h-9 items-center rounded-full border border-bdr-subtle bg-surface-1 px-3 py-1 text-xs font-medium text-txt-muted"
+            >
+              Пациент
+            </span>
+          </div>
           <div className="flex items-center gap-3">
             <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-dv-gold/10">
               <FileCheck size={22} className="text-dv-gold" />

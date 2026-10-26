@@ -2096,3 +2096,89 @@ These changes are route/entry reconciliation only. Existing domain implementatio
 - Mapped derivative PHI copies: `patient.created` extracts complaints/chiefComplaint/notes into the durable `AIEvent.payload`; AI prompts/replies are stored in `AIMessage.content` and copied to `AISession.messages`. Encrypting the Patient JSON alone does not cover these adjacent persistence surfaces. Their retention/transmission policy is part of the closure review.
 - Recommended design is a central typed codec/repository, versioned AES-GCM envelope with key ID and fail-closed production behavior, temporary legacy-read mode, all consumers migrated before backfill, bounded keyset batches with optimistic concurrency, resumable checkpoints, PHI-free exception records, count/round-trip reconciliation and rollback/backup-expiry review. Do not dual-write plaintext or ciphertext envelopes to API/AI consumers.
 - RB-029 remains **OPEN / P0**. Next action: review/publish this source inventory as a draft PR, then implement the codec and compatibility paths with tests. Database row counts/backfill must be measured only by a read-only dry run against an explicitly verified environment; no production DB/provider was touched or inferred.
+
+
+## 2026-10-25 — RB-034 exact-source review and local verification checkpoint
+
+### Current repository state
+- Re-fetched the remote `main` ref. Its exact HEAD is `6581695e91eb70c638bc0b94efb10773d8882dd9`; implementation commit `f1276fdb9ab2d7761f7e6c3f77e82eff752ac835` is an ancestor of this HEAD. The current `main` source contains the clinic-bound intent guard, scoped patient/appointment predicates and conditional appointment completion. This corrects the previous context note that treated the implementation as not yet merged. No merge, push to `main`, or production change was performed during this work.
+- The previously recorded implementation hash `80c842777e5fdfdeacf3c672febd9e3624276d6b` could not be resolved from the fetched refs/history. `DENTVISION_CONTEXT.md` and the RB-034 blocker now point to the traceable implementation SHA and current-main state.
+
+### Regression coverage and local results
+- The latest regression-test change on the verification branch expands the no-active-clinic test across all 13 clinic-bound DoctorAgent intents and asserts that patient, appointment, treatment-plan, patient-image and diagnostic-center reads/writes are not called. This tests the fail-closed boundary directly rather than merely checking one representative intent.
+- Updated the diagnostics result-signing static contract test to assert the actual explicit allow-list (`RADIOLOGIST` / `DIAGNOSTIC_RADIOLOGIST`) while preserving negative assertions against broad owner/admin/manager/quality role fallbacks. This resolves a stale source-string expectation without relaxing authorization.
+- Focused DoctorAgent + diagnostics tests: 25 passed, 0 failed. Full root unit suite after the expanded coverage: 244 test files, 2,229 tests passed, exit 0 (132.55 seconds).
+- Local checks passed: frontend `npm run typecheck`; backend `npx tsc --noEmit`; backend TypeScript build; frontend ESLint with the repository's 13-warning ceiling; backend ESLint with the repository's 73-warning ceiling; `quality-scripts/command-center-audit.ts`; project-index generation + validator; and regenerated system-map validation (`docs/SYSTEM_MAP.md` remained clean).
+- Dependency installation reported audit summaries of 17 vulnerabilities in root dependencies (8 moderate, 8 high, 1 critical) and 4 in backend dependencies (1 moderate, 3 high). No automated dependency upgrades were made; dependency-level triage is a separate follow-up after the P0 access-control verification.
+
+### Verification still required / next action
+- The local sandbox does not contain a PostgreSQL server/container runtime, so the real login/context request must be verified against the isolated PostgreSQL service in GitHub Actions, not against production. The dedicated `.github/workflows/rb034-context-diagnostic.yml` validates the seeded diagnostic-operator IAM context; the main CI workflow also contains the full E2E, role-design and context gates.
+- GitHub's combined status for the current-main SHA exposed only a successful Vercel status; the commit workflow-run connector returned no GitHub Actions runs. This is not evidence that GitHub CI or E2E passed. Publish the verification branch as a draft PR, inspect the actual checks and logs, fix genuine failures, and keep RB-034 / release status open until exact-HEAD role/context E2E evidence is green.
+
+
+## 2026-10-25 — RB-034 E2E root-cause repairs: partner signing and IAM token context
+
+### Root causes confirmed from exact-head E2E evidence
+- On pre-repair candidate 91526cae232e8f0023099d5a0b60f51697a007d6, Core E2E failed PARTNER-001 because a diagnostic radiologist received HTTP 403 when signing a result. switch-context normalizes the specialized radiologist role to the compatible UserRole.DOCTOR; the signing endpoint compared req.user.role to specialized values, which cannot match that normalized enum. Existing referral/organization access checks remain in force.
+- BIZ-009 used Playwright's separate page.request client to read /api/iam/me/contexts without forwarding the tab-scoped sessionStorage token. The request therefore had no explicit Bearer credential even though onboarding returned an access token.
+
+### Changes proposed in the focused follow-up
+- Adds dentvision-backend/src/modules/diagnostics/signingAuthorization.ts. It authorizes partner signing by finding a Person with an explicit PersonRole whose scopeType and scopeId match the user's exact active organization and whose canonical Role.key is in a narrow allow-list. Missing identity/organization context fails closed. Diagnostic signers are limited to radiologist; medical-lab signers to medical_lab_validator or medical_lab_doctor.
+- Updates the signing route to use the scoped helper after existing referral and partner/clinic access checks. General owner/admin/manager roles gain no signing authority just from their general role.
+- Adds three unit tests for scoped radiologist authorization, denial without an explicit signer role, and fail-closed behavior without organization context; updates the diagnostic static-contract test accordingly.
+- Fixes BIZ-009 to send the access token returned by self-service onboarding when requesting /api/iam/me/contexts, with an explicit HTTP-status diagnostic.
+- The project-index generator was run and validated locally. It proposed a bulk refresh of .dentvision/*.json; that unrelated 10K-line generated update is intentionally excluded from the focused security commit. Backend system-map regeneration left docs/SYSTEM_MAP.md unchanged.
+
+### Verification before publication
+- Focused signing and diagnostics visibility tests: 5/5 passed.
+- Full root unit suite: 245 test files / 2,232 tests passed, exit code 0.
+- Frontend typecheck/lint and backend typecheck, lint and TypeScript build passed.
+- Project-index validation, JSON validation and git diff --check passed.
+- No local E2E suite was run against an isolated database. GitHub CI for the remote candidate had not verified these follow-up changes at this checkpoint.
+- The newest remote candidate d632bff595a749f6e926269c5dbdc4ab4e707d8d has dedicated RB-034 Context Diagnostic and Quality Gate green; full CI was in progress as last observed. The new commit is required before asserting these follow-up changes passed CI.
+
+### Infrastructure truth / remaining uncertainty
+- Render metadata confirms dentvision-api deploys from DentVision1/main. The listed Render Postgres instance is the unrelated suspended romantic-invitations-db. The actual deployed external PostgreSQL provider/host is not established from available service metadata; do not claim Neon or alter DATABASE_URL without independently verifying provider configuration. No production database, migration or deployment was touched.
+
+### Next action
+- Review the full CI result for the current candidate, then commit this scoped-role and BIZ-009 token repair on the existing verification branch only. Inspect fresh exact-head core E2E, role/context and focused diagnostics evidence. Keep PR #323 draft/open and main unchanged.
+
+## 2026-10-25 — E2E role-context gate root-cause follow-up
+
+- On branch `security/doctor-agent-tenant-isolation-20261025`, the next focused release-gate corrections address four observed mismatches: `/ai` is the shared workspace and must not be treated as a forbidden route solely because its action permissions are scoped; the public Community feed was accidentally wrapped in the page-auth guard; Help/support is user-specific but the guest route policy did not require authentication; and the mobile bottom navigation advertised Clinic to patient/student/partner roles that lacked schedule access.
+- The Shop Orders empty-state “В каталог →” button also lacked a sufficient touch target; it now receives minimum 44px dimensions and centering.
+- The BIZ-009 owner-onboarding test was separately corrected to clear cookies and persisted browser auth state before attempting another login, preventing restoration of the previous workspace from hiding the login form.
+- These are source/test changes on the draft verification branch. The latest full CI for this combined candidate must be checked after commit; no release is declared, PRs remain drafts, and production was not changed.
+
+## 2026-10-25 — E2E trace-rooted 400 fixes
+
+- Inspected the actual Playwright network trace, not just the generic console message. Diagnostic owner/operator failures were a `GET /api/diagnostics/referrals?limit=20&offset=0` response `400 {"ok":false,"error":"Укажите clinicId, centerId или labId"}`, despite a verified active `DIAGNOSTIC_CENTER` context in the authenticated request. Added a pure resolver to infer the omitted center/lab/clinic filter from server-authenticated context, then kept the existing scope authorization before querying. Explicit query scopes are still validated and cannot override tenant access.
+- The superadmin trace showed `GET /api/billing/reports` returned `400 {"ok":false,"error":"Clinic ID not found"}` in the platform Finance tab. That page used a clinic-only billing report just to gate its platform overview even though the displayed numbers come from platform finance APIs. Removed that cross-scope request and tied loading/error/retry state to the actual platform-level queries.
+- Added focused unit tests for active-context scope resolution. These changes are saved on the draft verification branch; exact-head CI must run before release status changes. No production database or service was queried/modified, and no PR was merged.
+
+### 2026-10-26 — RB-034 role/context gate remediation
+
+- **Starting evidence:** exact candidate `a539bad954795adbea59399e4bd6eae139ac7f6a`; CI run `40223952465` failed the full role/context design gate. Backend lint, frontend lint, unit/type checks, Quality Gate and the dedicated RB-034 Context Diagnostic passed. RB-034 remains OPEN until fresh exact-head CI passes.
+- **Permission boundary:** `billing.read` no longer exposes the clinic-wide Finance/Cashier routes; those screens require billing write/delete/manage. Regression tests cover both read-only and managed access.
+- **Workspace boundary:** a global SUPERADMIN no longer implicitly gets a Supplier workspace. `/supplier` requires an active `SUPPLIER` workspace and redirects to AI when that context is absent.
+- **Patient Portal:** authenticated non-patient contexts are redirected from `/patient-portal`; the patient role continues through the portal/consent/API checks.
+- **Role matrix:** E2E expectations now include documented BI access for ADMIN/MANAGER, lab coordination for ASSISTANT, shared personal settings for partner contexts, and public Community. No assertions are skipped.
+- **Accessibility:** removed the desktop breakpoint override that reduced the Medical Card search control below its required 44px minimum.
+- **Status:** candidate remediation committed for a fresh release-gate run. No production data changed. RB-034 is NOT DONE until the complete role/context and security gates pass on the exact new HEAD.
+
+
+## 2026-10-26 — Public Patient Portal entry contract in the role gate
+
+- Exact candidate before this follow-up: `277bc824aa8e6ec90fd3f280ac9b026a14570454`. Backend/frontend lint, Quality Gate, the dedicated RB-034 IAM-context diagnostic, the 2,240-test unit suite, core E2E, Browser UX and mobile design all passed on that SHA; the exhaustive role/context gate was still running.
+- Source review found that `/patient-portal` intentionally renders a public login/registration entry for anonymous visitors. Its login action preserves `portal=patient` and a `returnUrl`; authenticated non-patient contexts are redirected to `/ai`, and patient-data APIs still require patient identity/consent.
+- The anonymous-route matrix previously classified every non-`/ai` route outside `PUBLIC_ROUTES` as requiring a redirect to `/login`. That conflicts with the portal's intended public entry and would fail the full release gate even when the application behavior is correct.
+- The gate now verifies that the anonymous portal entry renders, the login action transitions to `/login`, and the patient portal/return parameters survive. It does not skip the route, weaken API checks, or grant patient data to a guest.
+- This is a regression-test correction only. The new exact HEAD must rerun the full CI, including role/context, Visual Agent and business/organization-owner gates. RB-034 remains OPEN; do not merge or declare release readiness based on the previous candidate's partial pass.
+
+
+## 2026-10-26 — RB-034 access-matrix follow-up (verification remains open)
+
+- Inspected the exact-head role/context gate from CI run [40273618658](https://github.com/drtamirlan911-cell/DentVision1/actions/runs/40273618658) on PR #323 / commit `f902f69b5fb7ee9b4b191e9412f3cee9c38be87a`. The gate completed with 107 passed, 33 failed and 28 skipped; the same run's Core E2E, browser UX, mobile design, business-owner and organization-owner jobs passed.
+- Confirmed matrix mismatches against `docs/DENTVISION_IAM_ROLE_MATRIX.md`: MANAGER has branch-scoped inventory access; `shop.read` must not imply promotions administration; platform BI is not a default ADMIN/MANAGER page; partner settings/statistics/calendar visibility must respect the actual partner sub-role.
+- Follow-up source/test updates make the shop page mapping action-aware, restore partner role-level page restrictions, remove ADMIN/MANAGER BI grants from both the fallback matrix and canonical clinic-role registry, align manager inventory page parity, and put referral creation behind a dedicated `diagnostics-referral-create` page key granted only to clinic OWNER/ADMIN/DOCTOR/ASSISTANT roles.
+- These are source and regression-test updates only. Exact-head GitHub CI is required after commit; this log does not mark any gate passed. The change is confined to the PR branch; `main`, production and production data remain unchanged.
