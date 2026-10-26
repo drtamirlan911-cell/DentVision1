@@ -7,19 +7,27 @@ const patientPortalRoute = readFileSync(
   'utf8',
 );
 
+const patientCrudRoute = readFileSync(
+  resolve(process.cwd(), 'dentvision-backend/src/modules/patients/patients.routes.ts'),
+  'utf8',
+);
+
 const phi = readFileSync(resolve(process.cwd(), 'dentvision-backend/src/lib/phi.ts'), 'utf8');
 
 describe('patient portal structured medical-history persistence contract', () => {
   it('uses the canonical JSON history envelope encoder instead of coercing history to a string', () => {
     expect(patientPortalRoute).toContain(
-      "import { decryptPatientFields, encryptMedicalHistory, hmacIin } from '../../lib/phi.js';",
+      "import { decryptPatientFields, encryptMedicalHistory, hmacIin, isClientSuppliedEncryptedMedicalHistory } from '../../lib/phi.js';",
     );
     expect(patientPortalRoute).toContain(
       'data.medicalHistory = encryptMedicalHistory(history);',
     );
     expect(patientPortalRoute).not.toContain('encryptField(String(body.medicalHistory))');
-    expect(patientPortalRoute).toContain("Object.prototype.hasOwnProperty.call(history, '__dentvisionEncryptedV1')");
-    expect(patientPortalRoute).toContain("history.startsWith('ENC:')");
+    expect(patientPortalRoute).toContain('if (isClientSuppliedEncryptedMedicalHistory(history))');
+  });
+
+  it('rejects caller-supplied encrypted history markers in canonical Patient create/update APIs', () => {
+    expect((patientCrudRoute.match(/isClientSuppliedEncryptedMedicalHistory\(body\.medicalHistory\)/g) || [])).toHaveLength(2);
   });
 
   it('keeps object JSON round-tripping in the shared encrypted envelope codec', () => {

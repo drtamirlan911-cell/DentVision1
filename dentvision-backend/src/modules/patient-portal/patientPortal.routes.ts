@@ -2,7 +2,7 @@ import { Router } from 'express';
 import prisma from '../../lib/prisma.js';
 import { authenticate } from '../../middleware/auth.js';
 import { requireConsent } from '../../middleware/consentGate.js';
-import { decryptPatientFields, encryptMedicalHistory, hmacIin } from '../../lib/phi.js';
+import { decryptPatientFields, encryptMedicalHistory, hmacIin, isClientSuppliedEncryptedMedicalHistory } from '../../lib/phi.js';
 import { resolvePatientForUser } from './patientLink.js';
 import { isStorageKey, keyFromStorageUrl, signedDownloadUrl, storageConfigured } from '../../lib/storage.js';
 import * as crossClinicSvc from '../cross-clinic/cross-clinic.service.js';
@@ -72,13 +72,7 @@ patientPortalRouter.put('/me/profile', ensurePatient, async (req: AuthRequest, r
 
     if (body.medicalHistory !== undefined) {
       const history = body.medicalHistory;
-      const isEnvelope = Boolean(
-        history
-        && typeof history === 'object'
-        && !Array.isArray(history)
-        && Object.prototype.hasOwnProperty.call(history, '__dentvisionEncryptedV1'),
-      );
-      if ((typeof history === 'string' && history.startsWith('ENC:')) || isEnvelope) {
+      if (isClientSuppliedEncryptedMedicalHistory(history)) {
         return res.status(400).json({ ok: false, error: 'Передайте медицинскую историю в исходном формате' });
       }
       data.medicalHistory = encryptMedicalHistory(history);

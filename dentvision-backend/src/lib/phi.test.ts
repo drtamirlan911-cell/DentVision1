@@ -184,6 +184,14 @@ describe('structured medical history encryption', () => {
     expect(encryptMedicalHistory(stored)).toEqual(stored);
   });
 
+  it('rejects root-level client-supplied ciphertext/envelopes but permits nested clinical data', async () => {
+    const { isClientSuppliedEncryptedMedicalHistory } = await import('./phi.js');
+    expect(isClientSuppliedEncryptedMedicalHistory('ENC:untrusted')).toBe(true);
+    expect(isClientSuppliedEncryptedMedicalHistory({ __dentvisionEncryptedV1: 'ENC:untrusted' })).toBe(true);
+    expect(isClientSuppliedEncryptedMedicalHistory({ complaints: 'pain', detail: { __dentvisionEncryptedV1: 'ENC:data' } })).toBe(false);
+    expect(isClientSuppliedEncryptedMedicalHistory({ complaints: 'pain' })).toBe(false);
+  });
+
   it('leaves legacy plaintext JSON readable until the resumable backfill is run', async () => {
     const { decryptMedicalHistory } = await import('./phi.js');
     const original = { allergies: 'legacy allergy', teeth: { '11': { status: 'healthy' } } };

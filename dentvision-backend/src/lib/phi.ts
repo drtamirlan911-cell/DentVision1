@@ -69,6 +69,17 @@ export function decryptField(value: string | null): string | null {
 const MEDICAL_HISTORY_ENVELOPE = '__dentvisionEncryptedV1' as const;
 type EncryptedMedicalHistoryEnvelope = { __dentvisionEncryptedV1: string };
 
+/**
+ * Reject root-level ciphertext/envelope values at untrusted HTTP write boundaries.
+ * The codec remains idempotent for trusted internal round-trips, so routes must
+ * not let clients replay a ciphertext envelope or poison a Patient JSONB row.
+ */
+export function isClientSuppliedEncryptedMedicalHistory(value: unknown): boolean {
+  if (typeof value === 'string' && value.startsWith(MARKER)) return true;
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
+  return Object.prototype.hasOwnProperty.call(value, MEDICAL_HISTORY_ENVELOPE);
+}
+
 function isEncryptedMedicalHistoryEnvelope(value: unknown): value is EncryptedMedicalHistoryEnvelope {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
   const candidate = (value as Record<string, unknown>)[MEDICAL_HISTORY_ENVELOPE];
