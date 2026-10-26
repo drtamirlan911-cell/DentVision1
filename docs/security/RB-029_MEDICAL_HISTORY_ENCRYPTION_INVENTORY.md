@@ -1,9 +1,15 @@
 # RB-029 — Patient.medicalHistory encryption inventory and migration design
 
-- **Audit base:** `main` at `6581695e91eb70c638bc0b94efb10773d8882dd9` (2026-10-25).
+- **Audit base:** `main` at `6581695e91eb70c638bc0b94efb10773d8882dd9` (2026-10-25). The original inventory observations below describe that revision; newer code must be assessed from its current source.
 - **Release blocker:** RB-029, P0, PHI / clinical data protection.
-- **Status:** static source inventory and migration design prepared; encryption implementation, database counts/backfill, production verification and closure remain outstanding.
+- **Status:** static source inventory and staged rollout design exist; the versioned JSON envelope codec, compatibility decoding, guarded backfill utility, canonical CRM writers and odontogram writer were subsequently implemented and merged. The remaining consumers, concurrency behavior, staging dry run, backup/rollback and exact-head release gates are still open.
 - **Safety boundary:** this document describes source paths and a safe rollout. It does not change schema, encrypt production data, run a backfill or infer anything about the deployed database provider.
+
+## Implementation reconciliation — 2026-10-26
+
+- Current main (`ac913cc3389a294d0b135a852b035ddddb1018ca`) includes the versioned `__dentvisionEncryptedV1` envelope codec in `dentvision-backend/src/lib/phi.ts`; canonical Patient CRUD and odontogram write paths use `encryptMedicalHistory`, and relevant readers decode the envelope before returning clinical data.
+- Follow-up review found the separate Patient Portal profile writer still used `encryptField(String(body.medicalHistory))`, which destroys the structured JSON object shape. Candidate `security/rb029-patient-portal-history-envelope-20261026` switches it to the shared codec and rejects client-supplied ciphertext/envelope markers to avoid storing opaque or malformed encrypted payloads from the API.
+- The candidate adds a focused source-contract regression test. It is not merged or verified by full CI until its branch checks complete. No production/staging database operation or backfill has been executed.
 
 ## Executive finding
 
