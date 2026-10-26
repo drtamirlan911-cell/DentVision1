@@ -6,8 +6,8 @@ const API_BASE_URL = process.env.VITE_API_URL || 'http://127.0.0.1:3001';
 const VISUAL_EVIDENCE_ROOT = process.env.VISUAL_EVIDENCE_DIR || 'e2e/visual-evidence';
 const PASSWORD = 'Test1234!';
 
-const PUBLIC_ROUTES = ['/', '/login', '/register', '/forgot-password', '/booking', '/demo', '/pricing', '/terms', '/privacy', '/jobs'];
-const AUTH_COMMON_ROUTES = ['/', '/help', '/notifications', '/profile'];
+const PUBLIC_ROUTES = ['/', '/login', '/register', '/forgot-password', '/booking', '/demo', '/pricing', '/terms', '/privacy', '/jobs', '/community'];
+const AUTH_COMMON_ROUTES = ['/', '/ai', '/help', '/notifications', '/profile'];
 const AUTHENTICATED_BASE_PAGES = ['shop','school','profile','settings','diagnostics','diagnostics-centers','diagnostics-labs','diagnostics-laboratories'] as const;
 const ROUTES = [
   '/ai','/analytics','/settings','/help','/notifications','/admin','/bi','/security','/audit','/agent-activity','/ai-approvals','/backup','/profile',
@@ -47,7 +47,7 @@ const ROLES: readonly Role[] = [
   { id:'dental-lab-owner', email:'dental-lab-owner@test.com', label:'Владелец зуботехнической лаборатории', family:'dental-lab', pages:['diagnostics','diagnostics-laboratories','diagnostics-results','diagnostics-settings','profile'], mustNotContain:[/Медицинская лаборатория|Диагностический центр/i], entry:/\/diagnostics\/lab/ },
   { id:'dental-technician', email:'dental-technician@test.com', label:'Зубной техник', family:'dental-lab', pages:['diagnostics','diagnostics-laboratories','diagnostics-results','profile'], mustNotContain:[/Настройки диагностического центра/i], entry:/\/diagnostics\/lab/ },
   { id:'superadmin', email:'superadmin@test.com', label:'Super Admin', family:'platform', pages:[...AUTHENTICATED_BASE_PAGES,...PLATFORM_SUPERADMIN_PAGES], mustNotContain:[/Пациент|Зубной техник/i], entry:/\/admin|\/ai/ },
-  { id:'support', email:'support@test.com', label:'Поддержка', family:'platform', pages:[...AUTHENTICATED_BASE_PAGES,'admin','analytics'], mustNotContain:[/Врач|Пациент/i], entry:/\/admin|\/analytics|\/help|\/profile/ },
+  { id:'support', email:'support@test.com', label:'Поддержка', family:'platform', pages:['analytics'], mustNotContain:[/Врач|Пациент/i], entry:/\/admin|\/analytics|\/help|\/profile/ },
   { id:'laboratory', email:'lab-a@test.com', label:'Лаборатория', family:'clinic', pages:[...AUTHENTICATED_BASE_PAGES,'lab','diagnostics-referrals','diagnostics-laboratories','diagnostics-results'], mustNotContain:[/Super Admin/i], entry:/\/ai|\/crm|\/diagnostics/ },
 ] as const;
 
@@ -73,13 +73,14 @@ const RESPONSIVE_ROUTES_BY_ROLE: Record<string, string[]> = {
 
 function pageId(route: string, role?: Role): string | null {
   const p = new URL(route, BASE_URL).pathname.replace(/\/$/,'') || '/';
+  if (p === '/diagnostics/referrals/new') return 'diagnostics-referral-create';
   // Partner labs use their canonical IAM page key, distinct from the clinic labs route.
   if (p === '/diagnostics/laboratories' && role?.pages.includes('diagnostics-laboratories') && !role.pages.includes('diagnostics-labs')) return 'diagnostics-laboratories';
   const map: Record<string,string> = {
     '/ai':'ai','/crm/schedule':'schedule','/crm/patients':'patients','/crm/medical-card':'medical-card','/crm/finance':'finance','/crm/cashier':'cashier',
     '/crm/clinic-settings':'clinic-settings','/crm/billing':'billing','/crm/patient-inbox':'patient-inbox','/crm/visits':'visits','/crm/dental-chart':'dental-chart','/crm/treatment-plans':'treatment-plans',
     '/crm/pricelist':'pricelist','/crm/lab':'lab','/crm/inventory':'inventory','/crm/stock-rules':'inventory','/crm/documents':'documents','/crm/staff':'staff','/crm/reminders':'reminders','/crm/promotions':'promotions','/crm/marketing':'promotions','/crm/icd10':'icd10','/crm/workflow':'workflow','/crm/integrations/messaging':'clinic-settings',
-    '/analytics':'analytics','/admin':'admin','/audit':'audit','/agent-activity':'agent-activity','/ai-approvals':'ai-approvals','/backup':'backup','/shop':'shop','/school':'school','/settings':'settings','/bi':'bi','/security':'security','/quality':'quality','/platform-finance':'platform-finance','/ai-governance':'ai-governance','/support':'support','/diagnostics':'diagnostics','/supplier':'supplier',
+    '/analytics':'analytics','/admin':'admin','/audit':'audit','/agent-activity':'agent-activity','/ai-approvals':'ai-approvals','/backup':'backup','/shop':'shop','/school':'school','/settings':'settings','/bi':'bi','/security':'security','/quality':'quality','/platform-finance':'platform-finance','/ai-governance':'ai-governance','/support':'help','/diagnostics':'diagnostics','/supplier':'supplier',
     '/diagnostics/referrals':'diagnostics-referrals','/diagnostics/centers':'diagnostics-centers','/diagnostics/labs':'diagnostics-labs','/diagnostics/laboratories':'diagnostics-labs','/diagnostics/results':'diagnostics-results','/diagnostics/calendar':'diagnostics-calendar','/diagnostics/statistics':'diagnostics-statistics','/diagnostics/settings':'diagnostics-settings',
     '/diagnostics/center':'diagnostics','/diagnostics/lab':'diagnostics','/community':'community','/diagnostics/workspace':'diagnostics','/diagnostics/center-dashboard':'diagnostics','/diagnostics/lab-dashboard':'diagnostics','/diagnostics/registrations':'admin','/diagnostics/registration-requests':'admin',
   };
