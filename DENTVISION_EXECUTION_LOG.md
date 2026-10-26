@@ -2112,3 +2112,11 @@ These changes are route/entry reconciliation only. Existing domain implementatio
 
 ### Next action
 - Inspect exact-HEAD CI results and fix any failures without weakening tests; do not merge while any required gate is failing or pending.
+
+
+## 2026-10-26 — Generated system-map validation repair
+
+- Exact-head CI run `40281118512` showed backend lint and frontend lint passing, but `lint-test` failed at `Validate generated system map`: the CI generator changed route counts from 688 to 690 unique handlers and from 650 to 652 mounted registrations after adding the reset and organization endpoints.
+- Updated `docs/SYSTEM_MAP.md` to match the generator output for the two new handlers and router totals; no generator or release check was bypassed.
+- The Quality Gate run `40281118577` passed for HEAD `7ed6529f7daac3a83cd21a783133079d9c2eb3c7`. CI E2E was still running at the time of this log entry; the generated-map correction requires a new exact-HEAD CI run.
+- Release remains **NOT READY** until the new CI/E2E result and the required database/browser gates are green.
