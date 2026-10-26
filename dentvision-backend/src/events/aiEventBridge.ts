@@ -1,4 +1,5 @@
 import prisma from '../lib/prisma.js';
+import { decryptMedicalHistory } from '../lib/phi.js';
 import { createHash } from 'node:crypto';
 import { subscribe } from '../lib/events.js';
 import { eventBus as aiEventBus } from '../modules/events/index.js';
@@ -21,7 +22,8 @@ export function registerAIEventBridge(): void {
 
   subscribe('patient.created', async ({ clinicId, patientId, userId, name }) => {
     const patient = await prisma.patient.findFirst({ where: { id: patientId, clinicId }, select: { medicalHistory: true, notes: true } });
-    const history = patient?.medicalHistory && typeof patient.medicalHistory === 'object' ? patient.medicalHistory as Record<string, unknown> : {};
+    const decodedHistory = decryptMedicalHistory(patient?.medicalHistory);
+    const history = decodedHistory && typeof decodedHistory === 'object' && !Array.isArray(decodedHistory) ? decodedHistory as Record<string, unknown> : {};
     const raw = history.complaints ?? history.chiefComplaint ?? patient?.notes;
     const complaints = raw ? (Array.isArray(raw) ? raw.map(String).slice(0, 12) : [String(raw).slice(0, 500)]) : [];
     await aiEventBus.publish(EventType.PatientCreated, {

@@ -10,6 +10,7 @@
  */
 
 import prisma from '../../lib/prisma.js';
+import { decryptMedicalHistory, encryptMedicalHistory } from '../../lib/phi.js';
 import { uid } from '../../lib/helpers.js';
 
 export type ToothMap = Record<string, unknown>;
@@ -108,8 +109,9 @@ export async function applyToothFindings(
   });
   if (!patient) throw new Error('PATIENT_NOT_FOUND');
 
-  const history = (patient.medicalHistory && typeof patient.medicalHistory === 'object'
-    ? { ...(patient.medicalHistory as Record<string, unknown>) }
+  const decodedHistory = decryptMedicalHistory(patient.medicalHistory);
+  const history = (decodedHistory && typeof decodedHistory === 'object' && !Array.isArray(decodedHistory)
+    ? { ...(decodedHistory as Record<string, unknown>) }
     : {}) as Record<string, unknown>;
   const teeth: ToothMap =
     history.teeth && typeof history.teeth === 'object' ? { ...(history.teeth as ToothMap) } : {};
@@ -145,7 +147,7 @@ export async function applyToothFindings(
   history.teeth = teeth;
   await prisma.patient.update({
     where: { id: patientId },
-    data: { medicalHistory: history as any },
+    data: { medicalHistory: encryptMedicalHistory(history) as any },
   });
   await syncTeeth(patientId, teeth);
 
