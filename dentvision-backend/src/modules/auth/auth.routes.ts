@@ -14,6 +14,7 @@ import { pagesForCaller, capabilitiesForPermissions } from '../../lib/permission
 import { resolveClinicAccess } from '../../lib/orgContext.js';
 import { sendEmail } from '../../services/email.js';
 import { buildPasswordResetEmail } from './passwordResetEmail.js';
+import { issuePasswordResetToken, resetPasswordWithToken } from './passwordReset.service.js';
 import {
   GoogleAuthError,
   googleSignInEnabled,
@@ -273,9 +274,10 @@ authRouter.post('/forgot-password', async (req, res) => {
   try {
     const normalizedEmail = String(req.body?.email || '').trim().toLowerCase();
     if (normalizedEmail.includes('@') && !normalizedEmail.endsWith('@guest.local')) {
-      const user = await prisma.user.findUnique({ where: { email: normalizedEmail }, select: { id: true, email: true, firstName: true, password: true } });
-      if (user?.password) {
-        const token = crypto.randomBytes(32).toString('hex');
+      const user = await prisma.user.findUnique({ where: { email: normalizedEmail }, select: { id: true, email: true, firstName: true } });
+      if (user) {
+        // Persist only the token digest; the raw token is delivered only via email.
+        const token = await issuePasswordResetToken(user.id);
         try {
           await sendEmail({ to: user.email, ...buildPasswordResetEmail({ token, firstName: user.firstName }) });
         } catch (error) {
@@ -287,6 +289,21 @@ authRouter.post('/forgot-password', async (req, res) => {
   } catch (error) {
     console.error('[auth/forgot-password]', error);
     return res.status(200).json({ ok: true, data: { message: 'Если указанный email зарегистрирован, вы получите письмо с инструкциями.' } });
+  }
+});
+
+
+/** Redeem a one-time password-reset token. */
+authRouter.post('/reset-password', async (req, res) => {
+  try {
+    const rawToken = String(req.body?.token || '').trim();
+    const newPassword = String(req.body?.newPassword ?? req.body?.password ?? '');
+    const result = await resetPasswordWithToken(rawToken, newPassword);
+    if (result.ok === false) return res.status(result.status).json({ ok: false, error: result.error } satisfies ApiResponse);
+    return res.json({ ok: true, data: { message: 'Пароль успешно изменён' } } satisfies ApiResponse);
+  } catch (error) {
+    console.error('[auth/reset-password]', error);
+    return res.status(500).json({ ok: false, error: 'Не удалось сменить пароль' } satisfies ApiResponse);
   }
 });
 

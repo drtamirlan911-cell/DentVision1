@@ -10,6 +10,7 @@ import branchesRouter from '../branches/branches.routes.js';
 import { generateTokens } from '../../lib/jwt.js';
 import { resolveAuthContext, resolveOrganizationRoleKey } from '../../lib/authContext.js';
 import { auditFromReq } from '../compliance/audit.service.js';
+import { deleteOrganizationIfEmpty } from './organizationDeletion.service.js';
 import { createNotificationForMany, NOTIFICATION_TYPES } from '../../services/notification.service.js';
 import { ensureLegalTrustPackage, getLegalPartnerForContext } from '../legal/legal.trust.service.js';
 
@@ -441,5 +442,32 @@ organizationsRouter.patch('/:id', async (req: AuthRequest, res) => {
   } catch (error) {
     console.error('[organizations] update error:', error);
     return res.status(500).json({ ok: false, error: 'Не удалось обновить организацию' } satisfies ApiResponse);
+  }
+});
+
+/**
+ * Superadmin-only deletion of an organization without people or branches.
+ * The deletion and audit row are committed in one transaction.
+ */
+organizationsRouter.delete('/:id', authenticate, requireSuperadmin, async (req: AuthRequest, res) => {
+  try {
+    const id = String(req.params.id);
+    const result = await prisma.$transaction(async (tx) => {
+      const deleted = await deleteOrganizationIfEmpty(id, tx);
+      if (deleted.ok) {
+        await auditFromReq(req, {
+          action: 'organization.delete',
+          entity: 'organization',
+          entityId: id,
+          details: { name: deleted.data.name },
+        }, tx);
+      }
+      return deleted;
+    });
+    if (result.ok === false) return res.status(result.status).json({ ok: false, error: result.error } satisfies ApiResponse);
+    return res.json({ ok: true, data: result.data } satisfies ApiResponse);
+  } catch (error) {
+    console.error('[organizations/delete]', error);
+    return res.status(500).json({ ok: false, error: 'Не удалось удалить организацию' } satisfies ApiResponse);
   }
 });
