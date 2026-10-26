@@ -2137,3 +2137,12 @@ These changes are route/entry reconciliation only. Existing domain implementatio
 - **Role matrix:** E2E expectations now include documented BI access for ADMIN/MANAGER, lab coordination for ASSISTANT, shared personal settings for partner contexts, and public Community. No assertions are skipped.
 - **Accessibility:** removed the desktop breakpoint override that reduced the Medical Card search control below its required 44px minimum.
 - **Status:** candidate remediation committed for a fresh release-gate run. No production data changed. RB-034 is NOT DONE until the complete role/context and security gates pass on the exact new HEAD.
+
+
+## 2026-10-26 — Public Patient Portal entry contract in the role gate
+
+- Exact candidate before this follow-up: `277bc824aa8e6ec90fd3f280ac9b026a14570454`. Backend/frontend lint, Quality Gate, the dedicated RB-034 IAM-context diagnostic, the 2,240-test unit suite, core E2E, Browser UX and mobile design all passed on that SHA; the exhaustive role/context gate was still running.
+- Source review found that `/patient-portal` intentionally renders a public login/registration entry for anonymous visitors. Its login action preserves `portal=patient` and a `returnUrl`; authenticated non-patient contexts are redirected to `/ai`, and patient-data APIs still require patient identity/consent.
+- The anonymous-route matrix previously classified every non-`/ai` route outside `PUBLIC_ROUTES` as requiring a redirect to `/login`. That conflicts with the portal's intended public entry and would fail the full release gate even when the application behavior is correct.
+- The gate now verifies that the anonymous portal entry renders, the login action transitions to `/login`, and the patient portal/return parameters survive. It does not skip the route, weaken API checks, or grant patient data to a guest.
+- This is a regression-test correction only. The new exact HEAD must rerun the full CI, including role/context, Visual Agent and business/organization-owner gates. RB-034 remains OPEN; do not merge or declare release readiness based on the previous candidate's partial pass.

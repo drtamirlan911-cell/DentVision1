@@ -643,6 +643,33 @@ test.describe('DentVision exhaustive role/context/browser gate',()=>{
     for (const route of ROUTES.filter((r) => !PUBLIC_ROUTES.includes(r) && r !== '/ai')) {
       await page.context().clearCookies();
       await page.goto(BASE_URL + route, { waitUntil: 'domcontentloaded', timeout: 30000 });
+
+      // The patient portal has a deliberate public entry: unauthenticated
+      // visitors can sign in/register, but must not receive patient data.
+      // Verify the real hand-off rather than misclassifying it as a protected
+      // route that must redirect before the visitor can choose to authenticate.
+      if (route === '/patient-portal') {
+        await expect.poll(() => page.locator('body').innerText().catch(() => ''), {
+          timeout: 10000,
+          message: 'anonymous patient portal authentication entry did not render',
+        }).toMatch(/.{20,}/s);
+        expect(new URL(page.url()).pathname, 'patient portal public entry unexpectedly redirected').toBe('/patient-portal');
+
+        const loginAction = page.getByRole('button').first();
+        await expect(loginAction, 'patient portal must expose a login action to anonymous visitors').toBeVisible({ timeout: 10000 });
+        await loginAction.click();
+        await expect.poll(() => new URL(page.url()).pathname, {
+          timeout: 15000,
+          message: 'patient portal login action did not reach login',
+        }).toBe('/login');
+
+        const loginLocation = new URL(page.url());
+        expect(loginLocation.searchParams.get('portal')).toBe('patient');
+        expect(loginLocation.searchParams.get('returnUrl')).toContain('/patient-portal');
+        await expect(page.locator('input[autocomplete="username"]')).toBeVisible({ timeout: 10000 });
+        continue;
+      }
+
       // The auth store hydrates asynchronously after DOMContentLoaded. The guard
       // renders a skeleton during hydration; assert the eventual redirect rather
       // than treating that transient URL as protected-content exposure.
