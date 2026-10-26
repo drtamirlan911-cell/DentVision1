@@ -273,7 +273,7 @@ if (container) {
                 <Route path="analytics" element={guarded('analytics', <Analytics />)} />
                 <Route path="settings" element={guarded('settings', <SettingsPage />)} />
                 <Route path="help" element={<Suspense fallback={<PageLoader />}><Help /></Suspense>} />
-                <Route path="notifications" element={guarded('settings', <NotificationPreferences />)} />
+                <Route path="notifications" element={guarded('notifications', <NotificationPreferences />)} />
                 <Route path="admin" element={guarded('admin', <SuperAdmin />)} />
                 {/* Platform console deep-links: these are SuperAdmin tabs, not separate pages. */}
                 <Route path="ai-governance" element={guarded('admin', <Navigate to="/admin?tab=ai-governance" replace />)} />
@@ -290,7 +290,7 @@ if (container) {
                 <Route path="profile" element={guarded('profile', <Profile />)} />
                 <Route path="supplier" element={guarded('supplier', <SupplierWorkspace />)} />
                 <Route path="jobs" element={<Suspense fallback={<PageLoader />}><Jobs /></Suspense>} />
-                <Route path="community" element={guarded('community', <Community />)} />
+                <Route path="community" element={<Suspense fallback={<PageLoader />}><Community /></Suspense>} />
                 <Route path="demo" element={<Suspense fallback={<PageLoader />}><Demo /></Suspense>} />
                 <Route path="pricing" element={<Suspense fallback={<PageLoader />}><Pricing /></Suspense>} />
                 <Route path="terms" element={<Suspense fallback={<PageLoader />}><Terms /></Suspense>} />
@@ -327,22 +327,22 @@ if (container) {
                 <Route path="shop/favorites" element={<Suspense fallback={<PageLoader />}><ShopFavorites /></Suspense>} />
                 <Route path="shop/suppliers" element={<Suspense fallback={<PageLoader />}><ShopSuppliers /></Suspense>} />
                 <Route path="diagnostics" element={<Suspense fallback={<PageLoader />}><DiagnosticsLayout /></Suspense>}>
-                  <Route index element={<Suspense fallback={<PageLoader />}><DiagnosticsDashboard /></Suspense>} />
-                  <Route path="referrals" element={<Suspense fallback={<PageLoader />}><ReferralList /></Suspense>} />
-                  <Route path="referrals/new" element={<Suspense fallback={<PageLoader />}><ReferralForm /></Suspense>} />
-                  <Route path="referrals/:id" element={<Suspense fallback={<PageLoader />}><ReferralDetail /></Suspense>} />
-                  <Route path="centers" element={<Suspense fallback={<PageLoader />}><CenterList /></Suspense>} />
-                  <Route path="labs" element={<Suspense fallback={<PageLoader />}><LabList /></Suspense>} />
+                  <Route index element={guarded('diagnostics', <DiagnosticsDashboard />)} />
+                  <Route path="referrals" element={guarded('diagnostics-referrals', <ReferralList />)} />
+                  <Route path="referrals/new" element={guarded('diagnostics-referral-create', <ReferralForm />)} />
+                  <Route path="referrals/:id" element={guarded('diagnostics-referrals', <ReferralDetail />)} />
+                  <Route path="centers" element={guarded('diagnostics-centers', <CenterList />)} />
+                  <Route path="labs" element={guarded('diagnostics-labs', <LabList />)} />
                   <Route path="laboratories" element={<Navigate to="/diagnostics/labs" replace />} />
-                  <Route path="patients" element={<Suspense fallback={<PageLoader />}><DiagnosticPatients /></Suspense>} />
-                  <Route path="results" element={<Suspense fallback={<PageLoader />}><ResultList /></Suspense>} />
-                  <Route path="calendar" element={<Suspense fallback={<PageLoader />}><DiagnosticCalendar /></Suspense>} />
-                  <Route path="statistics" element={<Suspense fallback={<PageLoader />}><DiagnosticStatistics /></Suspense>} />
-                  <Route path="settings" element={<Suspense fallback={<PageLoader />}><DiagnosticSettings /></Suspense>} />
-                  <Route path="center" element={<RequireWorkspaceScope scopeType="DIAGNOSTIC_CENTER"><Suspense fallback={<PageLoader />}><CenterDashboard /></Suspense></RequireWorkspaceScope>} />
-                  <Route path="lab" element={<RequireWorkspaceScope scopeType="LABORATORY"><Suspense fallback={<PageLoader />}><LabDashboard /></Suspense></RequireWorkspaceScope>} />
-                  <Route path="workspace" element={<Suspense fallback={<PageLoader />}><WorkspaceEntry /></Suspense>} />
-                  <Route path="registration-requests" element={<Suspense fallback={<PageLoader />}><RegistrationRequests /></Suspense>} />
+                  <Route path="patients" element={guarded('diagnostics-patients', <DiagnosticPatients />)} />
+                  <Route path="results" element={guarded('diagnostics-results', <ResultList />)} />
+                  <Route path="calendar" element={guarded('diagnostics-calendar', <DiagnosticCalendar />)} />
+                  <Route path="statistics" element={guarded('diagnostics-statistics', <DiagnosticStatistics />)} />
+                  <Route path="settings" element={guarded('diagnostics-settings', <DiagnosticSettings />)} />
+                  <Route path="center" element={guarded('diagnostics', <RequireWorkspaceScope scopeType="DIAGNOSTIC_CENTER"><CenterDashboard /></RequireWorkspaceScope>)} />
+                  <Route path="lab" element={guarded('diagnostics', <RequireWorkspaceScope scopeType="LABORATORY"><LabDashboard /></RequireWorkspaceScope>)} />
+                  <Route path="workspace" element={guarded('diagnostics', <WorkspaceEntry />)} />
+                  <Route path="registration-requests" element={guarded('admin', <RegistrationRequests />)} />
                   <Route path="registrations" element={<Navigate to="/diagnostics/registration-requests" replace />} />
                   <Route path="center-dashboard" element={<Navigate to="/diagnostics/center" replace />} />
                   <Route path="lab-dashboard" element={<Navigate to="/diagnostics/lab" replace />} />
