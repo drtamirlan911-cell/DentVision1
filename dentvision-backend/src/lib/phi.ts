@@ -212,7 +212,10 @@ export function decryptPatientFields<T extends Record<string, unknown> | null>(
   if (!canEncrypt()) {
     if (process.env.NODE_ENV === 'production') throw new Error('[phi] Patient-field decryption unavailable in production');
     const history = (data as Record<string, unknown>).medicalHistory;
-    if (isEncryptedMedicalHistoryEnvelope(history) || (typeof history === 'string' && history.startsWith(MARKER))) {
+    if (hasMedicalHistoryEnvelopeMarker(history) || (typeof history === 'string' && history.startsWith(MARKER))) {
+      // The codec distinguishes malformed reserved envelopes from valid
+      // ciphertext and fails closed when the matching key is unavailable.
+      decryptMedicalHistory(history);
       throw new Error('[phi] Medical-history decryption unavailable without the matching ENCRYPTION_KEY');
     }
     return data;

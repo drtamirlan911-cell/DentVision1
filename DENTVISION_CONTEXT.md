@@ -290,6 +290,11 @@ Do not repeat an audit when implementation can resolve the issue. Do not weaken 
 - Added explicit reserved-marker detection. Valid internal V1 envelopes remain idempotent; malformed reserved markers now throw a bounded, non-PHI error on both encode and decode. Added regression coverage for malformed string and numeric marker values.
 - Exact-head CI is required before this candidate is considered verified. No database was queried or modified, and no backfill, migration, staging operation or deployment was performed.
 
+## 2026-10-26 — CI correction: type-safe PatientCreated payload and no-key envelope guard
+
+- CI run `40381667033` for head `d6838bb87b1e4f8fa1b79d3e1639d9e3b3202a12` failed backend TypeScript at `aiEventBridge.ts(36,56)`: the payload interface lacked the index signature required by the durable event bus. The same head passed frontend lint, unit tests and Quality Gate.
+- The candidate now makes `PatientCreatedPayload` compatible with `Record<string, unknown>`, and `decryptPatientFields()` passes reserved markers through the shared fail-closed codec when the key is unavailable. A regression test covers malformed reserved markers in that no-key path. Fresh exact-head CI is required before verification.
+
 ## 2026-10-26 — Reduce PHI in durable PatientCreated AI events
 
 - The legacy patient-created event no longer includes the complaint narrative. The durable AI event and queued AI Employee tasks now receive only `patientId` and `hasComplaints`; the action handler re-reads the patient using both patient ID and clinic ID, then decrypts history in memory.

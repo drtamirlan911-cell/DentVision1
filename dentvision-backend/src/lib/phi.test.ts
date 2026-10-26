@@ -200,6 +200,14 @@ describe('structured medical history encryption', () => {
     expect(() => decryptMedicalHistory({ __dentvisionEncryptedV1: 123 })).toThrow(/Invalid medical-history encryption envelope/);
   });
 
+  it('fails closed on malformed reserved envelopes when the key is unavailable', async () => {
+    const { decryptPatientFields } = await import('./phi.js');
+    delete process.env.ENCRYPTION_KEY;
+    expect(() => decryptPatientFields({
+      medicalHistory: { __dentvisionEncryptedV1: 'not-ciphertext' },
+    })).toThrow(/Invalid medical-history encryption envelope/);
+  });
+
   it('leaves legacy plaintext JSON readable until the resumable backfill is run', async () => {
     const { decryptMedicalHistory } = await import('./phi.js');
     const original = { allergies: 'legacy allergy', teeth: { '11': { status: 'healthy' } } };

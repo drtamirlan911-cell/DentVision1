@@ -50,7 +50,7 @@ export enum EventType {
 
 // ─── Event Payloads ───
 
-export interface PatientCreatedPayload {
+export interface PatientCreatedPayload extends Record<string, unknown> {
   patientId: string;
   /** Non-clinical routing hint; complaint text is re-read from the scoped Patient row. */
   hasComplaints: boolean;
