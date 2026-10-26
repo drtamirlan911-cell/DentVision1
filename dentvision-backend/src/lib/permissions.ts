@@ -364,8 +364,8 @@ export function pagesForPermissions(permissions: readonly string[]): string[] {
  */
 const PARTNER_ROLE_PAGES: Record<string, string[]> = {
   DIAGNOSTIC: ['diagnostics', 'diagnostics-referrals', 'diagnostics-centers', 'diagnostics-results', 'diagnostics-calendar', 'diagnostics-statistics', 'diagnostics-settings', 'profile'],
-  MEDICAL_LAB: ['diagnostics', 'diagnostics-laboratories', 'diagnostics-results', 'diagnostics-calendar', 'diagnostics-statistics', 'diagnostics-settings', 'profile'],
-  DENTAL_LAB: ['diagnostics', 'diagnostics-laboratories', 'diagnostics-results', 'diagnostics-settings', 'profile'],
+  MEDICAL_LAB: ['diagnostics', 'diagnostics-referrals', 'diagnostics-laboratories', 'diagnostics-results', 'diagnostics-calendar', 'diagnostics-statistics', 'diagnostics-settings', 'profile'],
+  DENTAL_LAB: ['diagnostics', 'diagnostics-referrals', 'diagnostics-laboratories', 'diagnostics-results', 'diagnostics-settings', 'profile'],
   SUPPLIER: ['supplier', 'shop', 'inventory', 'profile'],
   ACADEMY: ['school', 'profile'],
 };
