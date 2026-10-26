@@ -273,3 +273,5 @@ Do not repeat an audit when implementation can resolve the issue. Do not weaken 
 - Follow-up in PR [#328](https://github.com/drtamirlan911-cell/DentVision1/pull/328): the picker now opens above its trigger when necessary and scrolls the entire menu within the available height. The UX smoke collector was hardened to dispose per-route listeners and report the URL path/status for failing API responses. Exact-head CI remains pending.
 
 - BRANCH-003 follow-up: PR #328 removes the inner workspace-only scroll area so that one outer viewport scrolls both workspace and branch options. Await exact-head CI before marking the UI defect resolved.
+
+- PR #328 CI finding: branch-management E2E tests were mixing canonical organization-scoped branch creation with an explicit legacy `clinicId` list query. Candidate regression-test fix uses the seeded clinic's canonical Organization ID on branch list assertions. This is a test-scope correction, not a backend authorization change; exact-head rerun remains required.

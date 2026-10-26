@@ -2321,3 +2321,10 @@ These changes are route/entry reconciliation only. Existing domain implementatio
 - Follow-up in PR [#328](https://github.com/drtamirlan911-cell/DentVision1/pull/328): the viewport fix now also positions the menu above its trigger when insufficient room remains below. The UX coverage collector now unregisters per-route listeners and logs failing API response status + path, so the two 403s can be diagnosed without weakening assertions.
 
 - Follow-up candidate after reviewing the original BRANCH-003 trace: removed the nested scroll container around the workspace-only list. The branch picker now has one outer scroll viewport for both workspace options and the branch list, avoiding competing nested scrolling. Verification remains pending exact-head CI.
+
+## 2026-10-26 — Branch-management E2E query-scope correction
+
+- PR [#328](https://github.com/drtamirlan911-cell/DentVision1/pull/328) exact-head run `40345409642` passed frontend lint, backend lint and Quality Gate, but Core E2E failed in all four branch-management tests before the actual branch-picker assertion.
+- Verified cause: the branch-management helper created branches through the canonical organization-oriented Settings flow, then queried `/api/branches?clinicId=...`. The branch list route deliberately treats an explicit `clinicId` as a legacy clinic-scoped request; canonical branch rows are read through `organizationId`. The test's list lookup returned HTTP 200 but filtered out the branch it had just created.
+- Candidate correction: the E2E setup now resolves the seeded clinic's canonical Organization ID and uses `/api/branches?organizationId=...` consistently for create/list/archive assertions. No authorization rule or assertion was weakened.
+- Verification pending: rerun Core E2E to confirm the helper reaches BRANCH-003 and validate the single-scroll picker fix; Browser UX response diagnostics from this run are being reviewed independently before another push.
