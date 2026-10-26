@@ -3,6 +3,7 @@
  * Call from any module: await audit(req, 'PATIENT_VIEW', 'patient', patientId, { old, new });
  * The middleware-based approach (AuthRequest) keeps caller code minimal.
  */
+import type { Prisma } from '@prisma/client';
 import prisma from '../../lib/prisma.js';
 import { uid } from '../../lib/helpers.js';
 import type { AuthRequest } from '../../types/index.js';
@@ -17,8 +18,10 @@ export interface AuditInput {
   ip?: string;
 }
 
-export async function writeAuditLog(input: AuditInput): Promise<void> {
-  await prisma.auditLog.create({
+type AuditClient = Pick<Prisma.TransactionClient, 'auditLog'>;
+
+export async function writeAuditLog(input: AuditInput, client: AuditClient = prisma): Promise<void> {
+  await client.auditLog.create({
     data: {
       id: uid(),
       userId: input.userId || null,
@@ -33,11 +36,15 @@ export async function writeAuditLog(input: AuditInput): Promise<void> {
 }
 
 /** Convenience: extract req context + pass through */
-export function auditFromReq(req: AuthRequest, input: Omit<AuditInput, 'userId' | 'clinicId' | 'ip'>): Promise<void> {
+export function auditFromReq(
+  req: AuthRequest,
+  input: Omit<AuditInput, 'userId' | 'clinicId' | 'ip'>,
+  client: AuditClient = prisma,
+): Promise<void> {
   return writeAuditLog({
     ...input,
     userId: req.user?.id,
     clinicId: req.user?.clinicId,
     ip: req.ip || req.socket?.remoteAddress,
-  });
+  }, client);
 }

@@ -5,8 +5,8 @@
 ## Summary
 
 - Mounted routers: **69**
-- Unique route handlers: **680**
-- Registered HTTP routes after mount: **644**
+- Unique route handlers: **688**
+- Registered HTTP routes after mount: **650**
 - Routes without detected web/mobile consumer: **101**
 - Prisma models: **150**
 - Background jobs: **12**
@@ -23,7 +23,7 @@ Identity -> Active Workspace -> Organization -> Branch -> Role -> Permission -> 
 | Prefix | Router | Handlers | No detected consumer |
 |---|---|---:|---:|
 | /api | compatRouter | 0 | 0 |
-| /api/auth | authRouter | 6 | 1 |
+| /api/auth | authRouter | 9 | 1 |
 | /api/iam | iamRouter | 12 | 1 |
 | /api/clinics | clinicsRouter | 10 | 1 |
 | /api/patients | patientsRouter | 15 | 4 |
@@ -69,7 +69,7 @@ Identity -> Active Workspace -> Organization -> Branch -> Role -> Permission -> 
 | /api/quality | qualityRouter | 1 | 0 |
 | /api/support | supportRouter | 7 | 0 |
 | /api/bi | biRouter | 18 | 4 |
-| /api/diagnostics | diagnosticsRouter | 35 | 1 |
+| /api/diagnostics | diagnosticsRouter | 38 | 1 |
 | /api/legal | legalRouter | 33 | 8 |
 | /api/partner/legal | legalPartnerRouter | 0 | 0 |
 | /api/finance | financeRouter | 16 | 7 |

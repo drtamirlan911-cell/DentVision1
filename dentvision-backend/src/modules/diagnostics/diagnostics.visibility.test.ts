@@ -25,7 +25,7 @@ describe('diagnostic result signing role boundary', () => {
     const start = source.indexOf("diagnosticsRouter.post('/referrals/:id/results/sign'");
     const end = source.indexOf("diagnosticsRouter.", start + 20);
     const block = source.slice(start, end > start ? end : start + 4000);
-    expect(block).toContain("actorRole === 'RADIOLOGIST'");
+    expect(block).toContain("['RADIOLOGIST', 'DIAGNOSTIC_RADIOLOGIST'].includes(actorRole)");
     expect(block).toContain("['MEDICAL_LAB_VALIDATOR', 'MEDICAL_LAB_DOCTOR'].includes(actorRole)");
     expect(block).not.toContain("['SUPERADMIN', 'OWNER', 'ADMIN', 'MANAGER', 'DIRECTOR'].includes(actorRole)");
     expect(block).not.toContain('/_(OWNER|ADMIN|MANAGER|DOCTOR|RADIOLOGIST|TECHNICIAN|VALIDATOR|QUALITY)$/');

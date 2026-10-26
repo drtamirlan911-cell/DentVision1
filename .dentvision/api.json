@@ -1,8 +1,3837 @@
 {
   "generated": true,
   "generator": "quality-scripts/project-index.ts",
-  "sources": ["dentvision-backend/src", "src/lib"],
-  "backendRoutes": [],
-  "frontendApiReferences": [],
-  "note": "Run npm run project:index to populate discovered Express routes and API references."
+  "backendRoutes": [
+    {
+      "method": "GET",
+      "path": "/api/health",
+      "source": "dentvision-backend/src/app.ts"
+    },
+    {
+      "method": "GET",
+      "path": "/service-access/public/:clinicId",
+      "source": "dentvision-backend/src/compat/compatRouter.ts"
+    },
+    {
+      "method": "GET",
+      "path": "/",
+      "source": "dentvision-backend/src/modules/academy/academy.routes.ts"
+    },
+    {
+      "method": "POST",
+      "path": "/register",
+      "source": "dentvision-backend/src/modules/academy/academy.routes.ts"
+    },
+    {
+      "method": "POST",
+      "path": "/",
+      "source": "dentvision-backend/src/modules/academy/academy.routes.ts"
+    },
+    {
+      "method": "PATCH",
+      "path": "/:id",
+      "source": "dentvision-backend/src/modules/academy/academy.routes.ts"
+    },
+    {
+      "method": "DELETE",
+      "path": "/:id",
+      "source": "dentvision-backend/src/modules/academy/academy.routes.ts"
+    },
+    {
+      "method": "GET",
+      "path": "/",
+      "source": "dentvision-backend/src/modules/academy/academy.routes.ts"
+    },
+    {
+      "method": "GET",
+      "path": "/:id",
+      "source": "dentvision-backend/src/modules/academy/academy.routes.ts"
+    },
+    {
+      "method": "POST",
+      "path": "/",
+      "source": "dentvision-backend/src/modules/academy/academy.routes.ts"
+    },
+    {
+      "method": "POST",
+      "path": "/:id/level",
+      "source": "dentvision-backend/src/modules/academy/academy.routes.ts"
+    },
+    {
+      "method": "POST",
+      "path": "/:id/verifications",
+      "source": "dentvision-backend/src/modules/academy/academy.routes.ts"
+    },
+    {
+      "method": "PATCH",
+      "path": "/:id/verifications/:verificationId",
+      "source": "dentvision-backend/src/modules/academy/academy.routes.ts"
+    },
+    {
+      "method": "POST",
+      "path": "/reset-demo",
+      "source": "dentvision-backend/src/modules/admin/admin.routes.ts"
+    },
+    {
+      "method": "GET",
+      "path": "/test-accounts",
+      "source": "dentvision-backend/src/modules/admin/admin.routes.ts"
+    },
+    {
+      "method": "GET",
+      "path": "/stats",
+      "source": "dentvision-backend/src/modules/admin/admin.routes.ts"
+    },
+    {
+      "method": "GET",
+      "path": "/clinics",
+      "source": "dentvision-backend/src/modules/admin/admin.routes.ts"
+    },
+    {
+      "method": "POST",
+      "path": "/clinics",
+      "source": "dentvision-backend/src/modules/admin/admin.routes.ts"
+    },
+    {
+      "method": "PUT",
+      "path": "/clinics/:id",
+      "source": "dentvision-backend/src/modules/admin/admin.routes.ts"
+    },
+    {
+      "method": "DELETE",
+      "path": "/clinics/:id",
+      "source": "dentvision-backend/src/modules/admin/admin.routes.ts"
+    },
+    {
+      "method": "PATCH",
+      "path": "/clinics/:id/toggle",
+      "source": "dentvision-backend/src/modules/admin/admin.routes.ts"
+    },
+    {
+      "method": "PATCH",
+      "path": "/clinics/:id/plan",
+      "source": "dentvision-backend/src/modules/admin/admin.routes.ts"
+    },
+    {
+      "method": "PATCH",
+      "path": "/clinics/:id/extend",
+      "source": "dentvision-backend/src/modules/admin/admin.routes.ts"
+    },
+    {
+      "method": "GET",
+      "path": "/users",
+      "source": "dentvision-backend/src/modules/admin/admin.routes.ts"
+    },
+    {
+      "method": "GET",
+      "path": "/users/:id",
+      "source": "dentvision-backend/src/modules/admin/admin.routes.ts"
+    },
+    {
+      "method": "POST",
+      "path": "/users",
+      "source": "dentvision-backend/src/modules/admin/admin.routes.ts"
+    },
+    {
+      "method": "PATCH",
+      "path": "/users/:id/password",
+      "source": "dentvision-backend/src/modules/admin/admin.routes.ts"
+    },
+    {
+      "method": "DELETE",
+      "path": "/users/:id",
+      "source": "dentvision-backend/src/modules/admin/admin.routes.ts"
+    },
+    {
+      "method": "GET",
+      "path": "/support",
+      "source": "dentvision-backend/src/modules/admin/admin.routes.ts"
+    },
+    {
+      "method": "POST",
+      "path": "/support",
+      "source": "dentvision-backend/src/modules/admin/admin.routes.ts"
+    },
+    {
+      "method": "DELETE",
+      "path": "/support/:id",
+      "source": "dentvision-backend/src/modules/admin/admin.routes.ts"
+    },
+    {
+      "method": "POST",
+      "path": "/ticket",
+      "source": "dentvision-backend/src/modules/ai/ai.notifications.routes.ts"
+    },
+    {
+      "method": "GET",
+      "path": "/stream",
+      "source": "dentvision-backend/src/modules/ai/ai.notifications.routes.ts"
+    },
+    {
+      "method": "GET",
+      "path": "/stats",
+      "source": "dentvision-backend/src/modules/ai/ai.notifications.routes.ts"
+    },
+    {
+      "method": "POST",
+      "path": "/query",
+      "source": "dentvision-backend/src/modules/ai/ai.routes.ts"
+    },
+    {
+      "method": "POST",
+      "path": "/transcribe",
+      "source": "dentvision-backend/src/modules/ai/ai.routes.ts"
+    },
+    {
+      "method": "POST",
+      "path": "/query/stream",
+      "source": "dentvision-backend/src/modules/ai/ai.routes.ts"
+    },
+    {
+      "method": "GET",
+      "path": "/threads",
+      "source": "dentvision-backend/src/modules/ai/ai.routes.ts"
+    },
+    {
+      "method": "GET",
+      "path": "/threads/active",
+      "source": "dentvision-backend/src/modules/ai/ai.routes.ts"
+    },
+    {
+      "method": "POST",
+      "path": "/threads/new",
+      "source": "dentvision-backend/src/modules/ai/ai.routes.ts"
+    },
+    {
+      "method": "POST",
+      "path": "/action",
+      "source": "dentvision-backend/src/modules/ai/ai.routes.ts"
+    },
+    {
+      "method": "GET",
+      "path": "/history",
+      "source": "dentvision-backend/src/modules/ai/ai.routes.ts"
+    },
+    {
+      "method": "POST",
+      "path": "/session",
+      "source": "dentvision-backend/src/modules/ai/ai.routes.ts"
+    },
+    {
+      "method": "POST",
+      "path": "/greeting",
+      "source": "dentvision-backend/src/modules/ai/ai.routes.ts"
+    },
+    {
+      "method": "GET",
+      "path": "/proactive",
+      "source": "dentvision-backend/src/modules/ai/ai.routes.ts"
+    },
+    {
+      "method": "GET",
+      "path": "/briefing",
+      "source": "dentvision-backend/src/modules/ai/ai.routes.ts"
+    },
+    {
+      "method": "POST",
+      "path": "/confirm",
+      "source": "dentvision-backend/src/modules/ai/ai.routes.ts"
+    },
+    {
+      "method": "GET",
+      "path": "/digital-twin",
+      "source": "dentvision-backend/src/modules/ai/ai.routes.ts"
+    },
+    {
+      "method": "GET",
+      "path": "/twin/proactive",
+      "source": "dentvision-backend/src/modules/ai/ai.routes.ts"
+    },
+    {
+      "method": "POST",
+      "path": "/feedback",
+      "source": "dentvision-backend/src/modules/ai/ai.routes.ts"
+    },
+    {
+      "method": "GET",
+      "path": "/memory",
+      "source": "dentvision-backend/src/modules/ai/ai.routes.ts"
+    },
+    {
+      "method": "DELETE",
+      "path": "/memory/:key",
+      "source": "dentvision-backend/src/modules/ai/ai.routes.ts"
+    },
+    {
+      "method": "DELETE",
+      "path": "/memory",
+      "source": "dentvision-backend/src/modules/ai/ai.routes.ts"
+    },
+    {
+      "method": "GET",
+      "path": "/skills",
+      "source": "dentvision-backend/src/modules/ai/ai.routes.ts"
+    },
+    {
+      "method": "GET",
+      "path": "/insights",
+      "source": "dentvision-backend/src/modules/ai/ai.routes.ts"
+    },
+    {
+      "method": "POST",
+      "path": "/insights/:id/dismiss",
+      "source": "dentvision-backend/src/modules/ai/ai.routes.ts"
+    },
+    {
+      "method": "GET",
+      "path": "/",
+      "source": "dentvision-backend/src/modules/ai/ai.timeline.routes.ts"
+    },
+    {
+      "method": "GET",
+      "path": "/stats",
+      "source": "dentvision-backend/src/modules/ai/ai.timeline.routes.ts"
+    },
+    {
+      "method": "GET",
+      "path": "retry-after",
+      "source": "dentvision-backend/src/modules/ai/lib/providerFetch.ts"
+    },
+    {
+      "method": "GET",
+      "path": "model",
+      "source": "dentvision-backend/src/modules/ai/lib/transcription.test.ts"
+    },
+    {
+      "method": "GET",
+      "path": "language",
+      "source": "dentvision-backend/src/modules/ai/lib/transcription.test.ts"
+    },
+    {
+      "method": "GET",
+      "path": "prompt",
+      "source": "dentvision-backend/src/modules/ai/lib/transcription.test.ts"
+    },
+    {
+      "method": "GET",
+      "path": "/",
+      "source": "dentvision-backend/src/modules/ai/os/approvals.routes.ts"
+    },
+    {
+      "method": "GET",
+      "path": "/tasks",
+      "source": "dentvision-backend/src/modules/ai/os/approvals.routes.ts"
+    },
+    {
+      "method": "POST",
+      "path": "/tasks/:id/transition",
+      "source": "dentvision-backend/src/modules/ai/os/approvals.routes.ts"
+    },
+    {
+      "method": "POST",
+      "path": "/:id/approve",
+      "source": "dentvision-backend/src/modules/ai/os/approvals.routes.ts"
+    },
+    {
+      "method": "POST",
+      "path": "/:id/reject",
+      "source": "dentvision-backend/src/modules/ai/os/approvals.routes.ts"
+    },
+    {
+      "method": "DELETE",
+      "path": "${channel}:${channelAccountId}",
+      "source": "dentvision-backend/src/modules/ai-admin/resolver/clinic.resolver.ts"
+    },
+    {
+      "method": "GET",
+      "path": "/whatsapp",
+      "source": "dentvision-backend/src/modules/ai-admin/webhook/webhook.gateway.ts"
+    },
+    {
+      "method": "POST",
+      "path": "/whatsapp",
+      "source": "dentvision-backend/src/modules/ai-admin/webhook/webhook.gateway.ts"
+    },
+    {
+      "method": "GET",
+      "path": "/instagram",
+      "source": "dentvision-backend/src/modules/ai-admin/webhook/webhook.gateway.ts"
+    },
+    {
+      "method": "POST",
+      "path": "/instagram",
+      "source": "dentvision-backend/src/modules/ai-admin/webhook/webhook.gateway.ts"
+    },
+    {
+      "method": "POST",
+      "path": "/review",
+      "source": "dentvision-backend/src/modules/ai-governance/ai-governance.routes.ts"
+    },
+    {
+      "method": "GET",
+      "path": "/supplier/:id/suggest",
+      "source": "dentvision-backend/src/modules/ai-governance/ai-governance.routes.ts"
+    },
+    {
+      "method": "POST",
+      "path": "/course/outline",
+      "source": "dentvision-backend/src/modules/ai-governance/ai-governance.routes.ts"
+    },
+    {
+      "method": "GET",
+      "path": "/status",
+      "source": "dentvision-backend/src/modules/ai-patient/aiPatient.routes.ts"
+    },
+    {
+      "method": "POST",
+      "path": "/consent",
+      "source": "dentvision-backend/src/modules/ai-patient/aiPatient.routes.ts"
+    },
+    {
+      "method": "GET",
+      "path": "/history",
+      "source": "dentvision-backend/src/modules/ai-patient/aiPatient.routes.ts"
+    },
+    {
+      "method": "POST",
+      "path": "/chat",
+      "source": "dentvision-backend/src/modules/ai-patient/aiPatient.routes.ts"
+    },
+    {
+      "method": "GET",
+      "path": "/dashboard",
+      "source": "dentvision-backend/src/modules/analytics/analytics.routes.ts"
+    },
+    {
+      "method": "GET",
+      "path": "/revenue",
+      "source": "dentvision-backend/src/modules/analytics/analytics.routes.ts"
+    },
+    {
+      "method": "GET",
+      "path": "/doctors",
+      "source": "dentvision-backend/src/modules/analytics/analytics.routes.ts"
+    },
+    {
+      "method": "GET",
+      "path": "/patients-growth",
+      "source": "dentvision-backend/src/modules/analytics/analytics.routes.ts"
+    },
+    {
+      "method": "GET",
+      "path": "/ecosystem",
+      "source": "dentvision-backend/src/modules/analytics/ecosystem.routes.ts"
+    },
+    {
+      "method": "GET",
+      "path": "/",
+      "source": "dentvision-backend/src/modules/appointments/appointments.routes.ts"
+    },
+    {
+      "method": "GET",
+      "path": "/conflicts",
+      "source": "dentvision-backend/src/modules/appointments/appointments.routes.ts"
+    },
+    {
+      "method": "POST",
+      "path": "/",
+      "source": "dentvision-backend/src/modules/appointments/appointments.routes.ts"
+    },
+    {
+      "method": "PATCH",
+      "path": "/:id/status",
+      "source": "dentvision-backend/src/modules/appointments/appointments.routes.ts"
+    },
+    {
+      "method": "POST",
+      "path": "/:id/close",
+      "source": "dentvision-backend/src/modules/appointments/appointments.routes.ts"
+    },
+    {
+      "method": "DELETE",
+      "path": "/:id",
+      "source": "dentvision-backend/src/modules/appointments/appointments.routes.ts"
+    },
+    {
+      "method": "GET",
+      "path": "/",
+      "source": "dentvision-backend/src/modules/audit/audit.routes.ts"
+    },
+    {
+      "method": "POST",
+      "path": "/backup",
+      "source": "dentvision-backend/src/modules/audit/audit.routes.ts"
+    },
+    {
+      "method": "POST",
+      "path": "/switch-clinic",
+      "source": "dentvision-backend/src/modules/auth/auth.diagnostics-endpoints.contract.test.ts"
+    },
+    {
+      "method": "POST",
+      "path": "/clinics",
+      "source": "dentvision-backend/src/modules/auth/auth.diagnostics-endpoints.contract.test.ts"
+    },
+    {
+      "method": "POST",
+      "path": "/demo-clinic",
+      "source": "dentvision-backend/src/modules/auth/auth.diagnostics-endpoints.contract.test.ts"
+    },
+    {
+      "method": "POST",
+      "path": "/auth/invitations",
+      "source": "dentvision-backend/src/modules/auth/auth.diagnostics-endpoints.contract.test.ts"
+    },
+    {
+      "method": "GET",
+      "path": "/stats",
+      "source": "dentvision-backend/src/modules/auth/auth.diagnostics-endpoints.contract.test.ts"
+    },
+    {
+      "method": "GET",
+      "path": "/commission-rules",
+      "source": "dentvision-backend/src/modules/auth/auth.diagnostics-endpoints.contract.test.ts"
+    },
+    {
+      "method": "POST",
+      "path": "/commission-rules",
+      "source": "dentvision-backend/src/modules/auth/auth.diagnostics-endpoints.contract.test.ts"
+    },
+    {
+      "method": "POST",
+      "path": "/switch-clinic",
+      "source": "dentvision-backend/src/modules/auth/auth.routes.ts"
+    },
+    {
+      "method": "POST",
+      "path": "/clinics",
+      "source": "dentvision-backend/src/modules/auth/auth.routes.ts"
+    },
+    {
+      "method": "POST",
+      "path": "/demo-clinic",
+      "source": "dentvision-backend/src/modules/auth/auth.routes.ts"
+    },
+    {
+      "method": "POST",
+      "path": "/register",
+      "source": "dentvision-backend/src/modules/auth/auth.routes.ts"
+    },
+    {
+      "method": "POST",
+      "path": "/login",
+      "source": "dentvision-backend/src/modules/auth/auth.routes.ts"
+    },
+    {
+      "method": "POST",
+      "path": "/google",
+      "source": "dentvision-backend/src/modules/auth/auth.routes.ts"
+    },
+    {
+      "method": "POST",
+      "path": "/forgot-password",
+      "source": "dentvision-backend/src/modules/auth/auth.routes.ts"
+    },
+    {
+      "method": "POST",
+      "path": "/logout",
+      "source": "dentvision-backend/src/modules/auth/auth.routes.ts"
+    },
+    {
+      "method": "POST",
+      "path": "/refresh",
+      "source": "dentvision-backend/src/modules/auth/auth.routes.ts"
+    },
+    {
+      "method": "GET",
+      "path": "/invitations/lookup",
+      "source": "dentvision-backend/src/modules/auth/me.routes.ts"
+    },
+    {
+      "method": "POST",
+      "path": "/join-clinic",
+      "source": "dentvision-backend/src/modules/auth/me.routes.ts"
+    },
+    {
+      "method": "GET",
+      "path": "/me",
+      "source": "dentvision-backend/src/modules/auth/me.routes.ts"
+    },
+    {
+      "method": "GET",
+      "path": "/my-clinics",
+      "source": "dentvision-backend/src/modules/auth/me.routes.ts"
+    },
+    {
+      "method": "POST",
+      "path": "/invitations",
+      "source": "dentvision-backend/src/modules/auth/me.routes.ts"
+    },
+    {
+      "method": "GET",
+      "path": "/dashboard",
+      "source": "dentvision-backend/src/modules/bi/bi.routes.ts"
+    },
+    {
+      "method": "GET",
+      "path": "/mrr",
+      "source": "dentvision-backend/src/modules/bi/bi.routes.ts"
+    },
+    {
+      "method": "GET",
+      "path": "/churn",
+      "source": "dentvision-backend/src/modules/bi/bi.routes.ts"
+    },
+    {
+      "method": "GET",
+      "path": "/ltv",
+      "source": "dentvision-backend/src/modules/bi/bi.routes.ts"
+    },
+    {
+      "method": "GET",
+      "path": "/cac",
+      "source": "dentvision-backend/src/modules/bi/bi.routes.ts"
+    },
+    {
+      "method": "GET",
+      "path": "/unit-economics",
+      "source": "dentvision-backend/src/modules/bi/bi.routes.ts"
+    },
+    {
+      "method": "GET",
+      "path": "/cashflow",
+      "source": "dentvision-backend/src/modules/bi/bi.routes.ts"
+    },
+    {
+      "method": "GET",
+      "path": "/scenarios",
+      "source": "dentvision-backend/src/modules/bi/bi.routes.ts"
+    },
+    {
+      "method": "GET",
+      "path": "/partner-roi",
+      "source": "dentvision-backend/src/modules/bi/bi.routes.ts"
+    },
+    {
+      "method": "GET",
+      "path": "/partner-economics",
+      "source": "dentvision-backend/src/modules/bi/bi.routes.ts"
+    },
+    {
+      "method": "GET",
+      "path": "/iin-coverage",
+      "source": "dentvision-backend/src/modules/bi/bi.routes.ts"
+    },
+    {
+      "method": "GET",
+      "path": "/network",
+      "source": "dentvision-backend/src/modules/bi/bi.routes.ts"
+    },
+    {
+      "method": "GET",
+      "path": "/clinic",
+      "source": "dentvision-backend/src/modules/bi/bi.routes.ts"
+    },
+    {
+      "method": "GET",
+      "path": "/clinic/:clinicId",
+      "source": "dentvision-backend/src/modules/bi/bi.routes.ts"
+    },
+    {
+      "method": "GET",
+      "path": "/saas-metrics/history",
+      "source": "dentvision-backend/src/modules/bi/bi.routes.ts"
+    },
+    {
+      "method": "GET",
+      "path": "/customer-metrics/:clinicId/history",
+      "source": "dentvision-backend/src/modules/bi/bi.routes.ts"
+    },
+    {
+      "method": "GET",
+      "path": "/snapshots",
+      "source": "dentvision-backend/src/modules/bi/bi.routes.ts"
+    },
+    {
+      "method": "POST",
+      "path": "/cfo/chat",
+      "source": "dentvision-backend/src/modules/bi/bi.routes.ts"
+    },
+    {
+      "method": "GET",
+      "path": "${partner.refType}:${partner.refId}",
+      "source": "dentvision-backend/src/modules/bi/bi.service.ts"
+    },
+    {
+      "method": "GET",
+      "path": "/invoices",
+      "source": "dentvision-backend/src/modules/billing/billing.routes.ts"
+    },
+    {
+      "method": "POST",
+      "path": "/invoices",
+      "source": "dentvision-backend/src/modules/billing/billing.routes.ts"
+    },
+    {
+      "method": "PATCH",
+      "path": "/invoices/:id",
+      "source": "dentvision-backend/src/modules/billing/billing.routes.ts"
+    },
+    {
+      "method": "GET",
+      "path": "/invoices/:id",
+      "source": "dentvision-backend/src/modules/billing/billing.routes.ts"
+    },
+    {
+      "method": "POST",
+      "path": "/invoices/:id/pay",
+      "source": "dentvision-backend/src/modules/billing/billing.routes.ts"
+    },
+    {
+      "method": "POST",
+      "path": "/invoices/:id/refund",
+      "source": "dentvision-backend/src/modules/billing/billing.routes.ts"
+    },
+    {
+      "method": "POST",
+      "path": "/patients/:patientId/prepayment",
+      "source": "dentvision-backend/src/modules/billing/billing.routes.ts"
+    },
+    {
+      "method": "POST",
+      "path": "/patients/:patientId/prepayment/refund",
+      "source": "dentvision-backend/src/modules/billing/billing.routes.ts"
+    },
+    {
+      "method": "DELETE",
+      "path": "/invoices/:id",
+      "source": "dentvision-backend/src/modules/billing/billing.routes.ts"
+    },
+    {
+      "method": "GET",
+      "path": "/summary",
+      "source": "dentvision-backend/src/modules/billing/billing.routes.ts"
+    },
+    {
+      "method": "GET",
+      "path": "/my-payroll",
+      "source": "dentvision-backend/src/modules/billing/billing.routes.ts"
+    },
+    {
+      "method": "GET",
+      "path": "/reports",
+      "source": "dentvision-backend/src/modules/billing/billing.routes.ts"
+    },
+    {
+      "method": "POST",
+      "path": "/cron",
+      "source": "dentvision-backend/src/modules/billing/clinicBilling.routes.ts"
+    },
+    {
+      "method": "GET",
+      "path": "/me",
+      "source": "dentvision-backend/src/modules/billing/clinicBilling.routes.ts"
+    },
+    {
+      "method": "POST",
+      "path": "/checkout",
+      "source": "dentvision-backend/src/modules/billing/clinicBilling.routes.ts"
+    },
+    {
+      "method": "POST",
+      "path": "/confirm",
+      "source": "dentvision-backend/src/modules/billing/clinicBilling.routes.ts"
+    },
+    {
+      "method": "GET",
+      "path": "/payments/:id",
+      "source": "dentvision-backend/src/modules/billing/clinicBilling.routes.ts"
+    },
+    {
+      "method": "GET",
+      "path": "/:ownerType/:ownerId",
+      "source": "dentvision-backend/src/modules/billing/subscriptions.routes.ts"
+    },
+    {
+      "method": "POST",
+      "path": "/",
+      "source": "dentvision-backend/src/modules/billing/subscriptions.routes.ts"
+    },
+    {
+      "method": "POST",
+      "path": "/:id/workspace",
+      "source": "dentvision-backend/src/modules/branches/branches.routes.test.ts"
+    },
+    {
+      "method": "PATCH",
+      "path": "/:id/members/:userId/status",
+      "source": "dentvision-backend/src/modules/branches/branches.routes.test.ts"
+    },
+    {
+      "method": "GET",
+      "path": "/billing-quote",
+      "source": "dentvision-backend/src/modules/branches/branches.routes.ts"
+    },
+    {
+      "method": "GET",
+      "path": "/",
+      "source": "dentvision-backend/src/modules/branches/branches.routes.ts"
+    },
+    {
+      "method": "POST",
+      "path": "/",
+      "source": "dentvision-backend/src/modules/branches/branches.routes.ts"
+    },
+    {
+      "method": "PATCH",
+      "path": "/:id",
+      "source": "dentvision-backend/src/modules/branches/branches.routes.ts"
+    },
+    {
+      "method": "POST",
+      "path": "/:id/workspace",
+      "source": "dentvision-backend/src/modules/branches/branches.routes.ts"
+    },
+    {
+      "method": "GET",
+      "path": "/:id/members",
+      "source": "dentvision-backend/src/modules/branches/branches.routes.ts"
+    },
+    {
+      "method": "POST",
+      "path": "/:id/members/:userId",
+      "source": "dentvision-backend/src/modules/branches/branches.routes.ts"
+    },
+    {
+      "method": "PATCH",
+      "path": "/:id/members/:userId/status",
+      "source": "dentvision-backend/src/modules/branches/branches.routes.ts"
+    },
+    {
+      "method": "DELETE",
+      "path": "/:id/members/:userId",
+      "source": "dentvision-backend/src/modules/branches/branches.routes.ts"
+    },
+    {
+      "method": "POST",
+      "path": "/:id/default",
+      "source": "dentvision-backend/src/modules/branches/branches.routes.ts"
+    },
+    {
+      "method": "GET",
+      "path": "/",
+      "source": "dentvision-backend/src/modules/clinics/clinics.routes.ts"
+    },
+    {
+      "method": "GET",
+      "path": "/:id",
+      "source": "dentvision-backend/src/modules/clinics/clinics.routes.ts"
+    },
+    {
+      "method": "POST",
+      "path": "/",
+      "source": "dentvision-backend/src/modules/clinics/clinics.routes.ts"
+    },
+    {
+      "method": "PATCH",
+      "path": "/:id",
+      "source": "dentvision-backend/src/modules/clinics/clinics.routes.ts"
+    },
+    {
+      "method": "GET",
+      "path": "/:id/settings",
+      "source": "dentvision-backend/src/modules/clinics/clinics.routes.ts"
+    },
+    {
+      "method": "PUT",
+      "path": "/:id/settings",
+      "source": "dentvision-backend/src/modules/clinics/clinics.routes.ts"
+    },
+    {
+      "method": "POST",
+      "path": "/:id/invite",
+      "source": "dentvision-backend/src/modules/clinics/clinics.routes.ts"
+    },
+    {
+      "method": "POST",
+      "path": "/:id/staff",
+      "source": "dentvision-backend/src/modules/clinics/clinics.routes.ts"
+    },
+    {
+      "method": "PATCH",
+      "path": "/:id/staff/:userId",
+      "source": "dentvision-backend/src/modules/clinics/clinics.routes.ts"
+    },
+    {
+      "method": "DELETE",
+      "path": "/:id/staff/:userId",
+      "source": "dentvision-backend/src/modules/clinics/clinics.routes.ts"
+    },
+    {
+      "method": "GET",
+      "path": "/posts",
+      "source": "dentvision-backend/src/modules/community/community.routes.ts"
+    },
+    {
+      "method": "POST",
+      "path": "/posts",
+      "source": "dentvision-backend/src/modules/community/community.routes.ts"
+    },
+    {
+      "method": "POST",
+      "path": "/posts/:id/like",
+      "source": "dentvision-backend/src/modules/community/community.routes.ts"
+    },
+    {
+      "method": "POST",
+      "path": "/posts/:id/save",
+      "source": "dentvision-backend/src/modules/community/community.routes.ts"
+    },
+    {
+      "method": "GET",
+      "path": "/posts/:id/comments",
+      "source": "dentvision-backend/src/modules/community/community.routes.ts"
+    },
+    {
+      "method": "POST",
+      "path": "/posts/:id/comments",
+      "source": "dentvision-backend/src/modules/community/community.routes.ts"
+    },
+    {
+      "method": "GET",
+      "path": "/people",
+      "source": "dentvision-backend/src/modules/community/community.routes.ts"
+    },
+    {
+      "method": "GET",
+      "path": "/dm/unread-count",
+      "source": "dentvision-backend/src/modules/community/community.routes.ts"
+    },
+    {
+      "method": "GET",
+      "path": "/dm",
+      "source": "dentvision-backend/src/modules/community/community.routes.ts"
+    },
+    {
+      "method": "POST",
+      "path": "/dm/open",
+      "source": "dentvision-backend/src/modules/community/community.routes.ts"
+    },
+    {
+      "method": "GET",
+      "path": "/dm/:id/messages",
+      "source": "dentvision-backend/src/modules/community/community.routes.ts"
+    },
+    {
+      "method": "POST",
+      "path": "/dm/:id/messages",
+      "source": "dentvision-backend/src/modules/community/community.routes.ts"
+    },
+    {
+      "method": "GET",
+      "path": "/sessions",
+      "source": "dentvision-backend/src/modules/compliance/compliance.routes.ts"
+    },
+    {
+      "method": "POST",
+      "path": "/sessions/:id/expire",
+      "source": "dentvision-backend/src/modules/compliance/compliance.routes.ts"
+    },
+    {
+      "method": "POST",
+      "path": "/sessions/expire-all",
+      "source": "dentvision-backend/src/modules/compliance/compliance.routes.ts"
+    },
+    {
+      "method": "GET",
+      "path": "/consents",
+      "source": "dentvision-backend/src/modules/compliance/compliance.routes.ts"
+    },
+    {
+      "method": "GET",
+      "path": "/consents/required",
+      "source": "dentvision-backend/src/modules/compliance/compliance.routes.ts"
+    },
+    {
+      "method": "POST",
+      "path": "/consents",
+      "source": "dentvision-backend/src/modules/compliance/compliance.routes.ts"
+    },
+    {
+      "method": "GET",
+      "path": "/medical/:patientId",
+      "source": "dentvision-backend/src/modules/compliance/compliance.routes.ts"
+    },
+    {
+      "method": "POST",
+      "path": "/medical/log",
+      "source": "dentvision-backend/src/modules/compliance/compliance.routes.ts"
+    },
+    {
+      "method": "GET",
+      "path": "/ai",
+      "source": "dentvision-backend/src/modules/compliance/compliance.routes.ts"
+    },
+    {
+      "method": "POST",
+      "path": "/ai/:id/confirm",
+      "source": "dentvision-backend/src/modules/compliance/compliance.routes.ts"
+    },
+    {
+      "method": "GET",
+      "path": "/ai/stats",
+      "source": "dentvision-backend/src/modules/compliance/compliance.routes.ts"
+    },
+    {
+      "method": "POST",
+      "path": "/checks",
+      "source": "dentvision-backend/src/modules/compliance/compliance.routes.ts"
+    },
+    {
+      "method": "GET",
+      "path": "/checks",
+      "source": "dentvision-backend/src/modules/compliance/compliance.routes.ts"
+    },
+    {
+      "method": "GET",
+      "path": "/dashboard",
+      "source": "dentvision-backend/src/modules/compliance/compliance.routes.ts"
+    },
+    {
+      "method": "GET",
+      "path": "/chairs",
+      "source": "dentvision-backend/src/modules/crm/chairs.routes.ts"
+    },
+    {
+      "method": "POST",
+      "path": "/chairs",
+      "source": "dentvision-backend/src/modules/crm/chairs.routes.ts"
+    },
+    {
+      "method": "DELETE",
+      "path": "/chairs/:id",
+      "source": "dentvision-backend/src/modules/crm/chairs.routes.ts"
+    },
+    {
+      "method": "GET",
+      "path": "/:clinicId/treatment-plans",
+      "source": "dentvision-backend/src/modules/crm/crm.routes.ts"
+    },
+    {
+      "method": "POST",
+      "path": "/treatment-plans",
+      "source": "dentvision-backend/src/modules/crm/crm.routes.ts"
+    },
+    {
+      "method": "DELETE",
+      "path": "/treatment-plans/:id",
+      "source": "dentvision-backend/src/modules/crm/crm.routes.ts"
+    },
+    {
+      "method": "POST",
+      "path": "/treatment-plans/:id/approve",
+      "source": "dentvision-backend/src/modules/crm/crm.routes.ts"
+    },
+    {
+      "method": "POST",
+      "path": "/plan-releases/:releaseId/publish",
+      "source": "dentvision-backend/src/modules/crm/crm.routes.ts"
+    },
+    {
+      "method": "POST",
+      "path": "/plan-releases/:releaseId/withdraw",
+      "source": "dentvision-backend/src/modules/crm/crm.routes.ts"
+    },
+    {
+      "method": "POST",
+      "path": "/plan-releases/:releaseId/presentation/generate",
+      "source": "dentvision-backend/src/modules/crm/crm.routes.ts"
+    },
+    {
+      "method": "GET",
+      "path": "/plan-releases/:releaseId/presentation",
+      "source": "dentvision-backend/src/modules/crm/crm.routes.ts"
+    },
+    {
+      "method": "PATCH",
+      "path": "/presentations/:id/beats/:beatId",
+      "source": "dentvision-backend/src/modules/crm/crm.routes.ts"
+    },
+    {
+      "method": "POST",
+      "path": "/presentations/:id/publish",
+      "source": "dentvision-backend/src/modules/crm/crm.routes.ts"
+    },
+    {
+      "method": "GET",
+      "path": "/presentation-funnel",
+      "source": "dentvision-backend/src/modules/crm/crm.routes.ts"
+    },
+    {
+      "method": "GET",
+      "path": "/treatment-plans/:id/releases",
+      "source": "dentvision-backend/src/modules/crm/crm.routes.ts"
+    },
+    {
+      "method": "PATCH",
+      "path": "/treatment-plans/:id/stages/:stageId",
+      "source": "dentvision-backend/src/modules/crm/crm.routes.ts"
+    },
+    {
+      "method": "GET",
+      "path": "/waiting-list",
+      "source": "dentvision-backend/src/modules/crm/ops.routes.ts"
+    },
+    {
+      "method": "POST",
+      "path": "/waiting-list",
+      "source": "dentvision-backend/src/modules/crm/ops.routes.ts"
+    },
+    {
+      "method": "PATCH",
+      "path": "/waiting-list/:id",
+      "source": "dentvision-backend/src/modules/crm/ops.routes.ts"
+    },
+    {
+      "method": "DELETE",
+      "path": "/waiting-list/:id",
+      "source": "dentvision-backend/src/modules/crm/ops.routes.ts"
+    },
+    {
+      "method": "GET",
+      "path": "/expenses",
+      "source": "dentvision-backend/src/modules/crm/ops.routes.ts"
+    },
+    {
+      "method": "POST",
+      "path": "/expenses",
+      "source": "dentvision-backend/src/modules/crm/ops.routes.ts"
+    },
+    {
+      "method": "DELETE",
+      "path": "/expenses/:id",
+      "source": "dentvision-backend/src/modules/crm/ops.routes.ts"
+    },
+    {
+      "method": "GET",
+      "path": "/promotions",
+      "source": "dentvision-backend/src/modules/crm/ops.routes.ts"
+    },
+    {
+      "method": "POST",
+      "path": "/promotions",
+      "source": "dentvision-backend/src/modules/crm/ops.routes.ts"
+    },
+    {
+      "method": "DELETE",
+      "path": "/promotions/:id",
+      "source": "dentvision-backend/src/modules/crm/ops.routes.ts"
+    },
+    {
+      "method": "GET",
+      "path": "/price-list",
+      "source": "dentvision-backend/src/modules/crm/ops.routes.ts"
+    },
+    {
+      "method": "POST",
+      "path": "/price-list",
+      "source": "dentvision-backend/src/modules/crm/ops.routes.ts"
+    },
+    {
+      "method": "GET",
+      "path": "/bookings",
+      "source": "dentvision-backend/src/modules/crm/ops.routes.ts"
+    },
+    {
+      "method": "POST",
+      "path": "/bookings",
+      "source": "dentvision-backend/src/modules/crm/ops.routes.ts"
+    },
+    {
+      "method": "POST",
+      "path": "/bookings/:id/confirm",
+      "source": "dentvision-backend/src/modules/crm/ops.routes.ts"
+    },
+    {
+      "method": "DELETE",
+      "path": "/bookings/:id",
+      "source": "dentvision-backend/src/modules/crm/ops.routes.ts"
+    },
+    {
+      "method": "GET",
+      "path": "/waitlist",
+      "source": "dentvision-backend/src/modules/crm/reminders.routes.ts"
+    },
+    {
+      "method": "POST",
+      "path": "/waitlist",
+      "source": "dentvision-backend/src/modules/crm/reminders.routes.ts"
+    },
+    {
+      "method": "PATCH",
+      "path": "/waitlist/:id",
+      "source": "dentvision-backend/src/modules/crm/reminders.routes.ts"
+    },
+    {
+      "method": "GET",
+      "path": "/reminders/sent",
+      "source": "dentvision-backend/src/modules/crm/reminders.routes.ts"
+    },
+    {
+      "method": "POST",
+      "path": "/reminders/sent",
+      "source": "dentvision-backend/src/modules/crm/reminders.routes.ts"
+    },
+    {
+      "method": "POST",
+      "path": "/reminders/run",
+      "source": "dentvision-backend/src/modules/crm/reminders.routes.ts"
+    },
+    {
+      "method": "POST",
+      "path": "/reminders/cron",
+      "source": "dentvision-backend/src/modules/crm/reminders.routes.ts"
+    },
+    {
+      "method": "GET",
+      "path": "/",
+      "source": "dentvision-backend/src/modules/crm/treatmentCase.routes.ts"
+    },
+    {
+      "method": "GET",
+      "path": "/:id",
+      "source": "dentvision-backend/src/modules/crm/treatmentCase.routes.ts"
+    },
+    {
+      "method": "POST",
+      "path": "/",
+      "source": "dentvision-backend/src/modules/crm/treatmentCase.routes.ts"
+    },
+    {
+      "method": "PATCH",
+      "path": "/:id",
+      "source": "dentvision-backend/src/modules/crm/treatmentCase.routes.ts"
+    },
+    {
+      "method": "POST",
+      "path": "/:id/links",
+      "source": "dentvision-backend/src/modules/crm/treatmentCase.routes.ts"
+    },
+    {
+      "method": "DELETE",
+      "path": "/:id/links",
+      "source": "dentvision-backend/src/modules/crm/treatmentCase.routes.ts"
+    },
+    {
+      "method": "DELETE",
+      "path": "/:id",
+      "source": "dentvision-backend/src/modules/crm/treatmentCase.routes.ts"
+    },
+    {
+      "method": "POST",
+      "path": "/request",
+      "source": "dentvision-backend/src/modules/cross-clinic/cross-clinic.routes.ts"
+    },
+    {
+      "method": "GET",
+      "path": "/status/:receivingPatientId",
+      "source": "dentvision-backend/src/modules/cross-clinic/cross-clinic.routes.ts"
+    },
+    {
+      "method": "GET",
+      "path": "/history/:receivingPatientId",
+      "source": "dentvision-backend/src/modules/cross-clinic/cross-clinic.routes.ts"
+    },
+    {
+      "method": "GET",
+      "path": "/metrics",
+      "source": "dentvision-backend/src/modules/data/data.routes.ts"
+    },
+    {
+      "method": "POST",
+      "path": "/metrics",
+      "source": "dentvision-backend/src/modules/data/data.routes.ts"
+    },
+    {
+      "method": "GET",
+      "path": "/metrics/:key/value",
+      "source": "dentvision-backend/src/modules/data/data.routes.ts"
+    },
+    {
+      "method": "GET",
+      "path": "/dashboards",
+      "source": "dentvision-backend/src/modules/data/data.routes.ts"
+    },
+    {
+      "method": "POST",
+      "path": "/dashboards",
+      "source": "dentvision-backend/src/modules/data/data.routes.ts"
+    },
+    {
+      "method": "GET",
+      "path": "/wallet",
+      "source": "dentvision-backend/src/modules/dentcash/dentcash.routes.ts"
+    },
+    {
+      "method": "GET",
+      "path": "/transactions",
+      "source": "dentvision-backend/src/modules/dentcash/dentcash.routes.ts"
+    },
+    {
+      "method": "POST",
+      "path": "/quote",
+      "source": "dentvision-backend/src/modules/dentcash/dentcash.routes.ts"
+    },
+    {
+      "method": "POST",
+      "path": "/platform-rules",
+      "source": "dentvision-backend/src/modules/dentcash/dentcash.routes.ts"
+    },
+    {
+      "method": "GET",
+      "path": "/apps",
+      "source": "dentvision-backend/src/modules/developer/developer.routes.ts"
+    },
+    {
+      "method": "GET",
+      "path": "/apps/:id",
+      "source": "dentvision-backend/src/modules/developer/developer.routes.ts"
+    },
+    {
+      "method": "POST",
+      "path": "/apps",
+      "source": "dentvision-backend/src/modules/developer/developer.routes.ts"
+    },
+    {
+      "method": "POST",
+      "path": "/apps/:id/keys",
+      "source": "dentvision-backend/src/modules/developer/developer.routes.ts"
+    },
+    {
+      "method": "POST",
+      "path": "/webhooks",
+      "source": "dentvision-backend/src/modules/developer/developer.routes.ts"
+    },
+    {
+      "method": "GET",
+      "path": "/webhooks/:id/deliveries",
+      "source": "dentvision-backend/src/modules/developer/developer.routes.ts"
+    },
+    {
+      "method": "GET",
+      "path": "/ping",
+      "source": "dentvision-backend/src/modules/developer/v1.routes.ts"
+    },
+    {
+      "method": "POST",
+      "path": "/laboratories",
+      "source": "dentvision-backend/src/modules/diagnostics/diagnostics.routes.branchScope.test.ts"
+    },
+    {
+      "method": "POST",
+      "path": "/referrals/:id/status",
+      "source": "dentvision-backend/src/modules/diagnostics/diagnostics.routes.contract.test.ts"
+    },
+    {
+      "method": "PATCH",
+      "path": "/centers/:id/pricing",
+      "source": "dentvision-backend/src/modules/diagnostics/diagnostics.routes.contract.test.ts"
+    },
+    {
+      "method": "GET",
+      "path": "/referrals",
+      "source": "dentvision-backend/src/modules/diagnostics/diagnostics.routes.contract.test.ts"
+    },
+    {
+      "method": "POST",
+      "path": "/referrals/:id/mark-paid",
+      "source": "dentvision-backend/src/modules/diagnostics/diagnostics.routes.contract.test.ts"
+    },
+    {
+      "method": "DELETE",
+      "path": "/referrals/:id",
+      "source": "dentvision-backend/src/modules/diagnostics/diagnostics.routes.contract.test.ts"
+    },
+    {
+      "method": "POST",
+      "path": "/register",
+      "source": "dentvision-backend/src/modules/diagnostics/diagnostics.routes.ts"
+    },
+    {
+      "method": "GET",
+      "path": "/stats",
+      "source": "dentvision-backend/src/modules/diagnostics/diagnostics.routes.ts"
+    },
+    {
+      "method": "GET",
+      "path": "/commission-rules",
+      "source": "dentvision-backend/src/modules/diagnostics/diagnostics.routes.ts"
+    },
+    {
+      "method": "POST",
+      "path": "/commission-rules",
+      "source": "dentvision-backend/src/modules/diagnostics/diagnostics.routes.ts"
+    },
+    {
+      "method": "GET",
+      "path": "/centers",
+      "source": "dentvision-backend/src/modules/diagnostics/diagnostics.routes.ts"
+    },
+    {
+      "method": "GET",
+      "path": "/centers/:id",
+      "source": "dentvision-backend/src/modules/diagnostics/diagnostics.routes.ts"
+    },
+    {
+      "method": "POST",
+      "path": "/centers",
+      "source": "dentvision-backend/src/modules/diagnostics/diagnostics.routes.ts"
+    },
+    {
+      "method": "PATCH",
+      "path": "/centers/:id",
+      "source": "dentvision-backend/src/modules/diagnostics/diagnostics.routes.ts"
+    },
+    {
+      "method": "GET",
+      "path": "/laboratories",
+      "source": "dentvision-backend/src/modules/diagnostics/diagnostics.routes.ts"
+    },
+    {
+      "method": "GET",
+      "path": "/laboratories/:id",
+      "source": "dentvision-backend/src/modules/diagnostics/diagnostics.routes.ts"
+    },
+    {
+      "method": "POST",
+      "path": "/laboratories",
+      "source": "dentvision-backend/src/modules/diagnostics/diagnostics.routes.ts"
+    },
+    {
+      "method": "PATCH",
+      "path": "/laboratories/:id",
+      "source": "dentvision-backend/src/modules/diagnostics/diagnostics.routes.ts"
+    },
+    {
+      "method": "GET",
+      "path": "/registrations",
+      "source": "dentvision-backend/src/modules/diagnostics/diagnostics.routes.ts"
+    },
+    {
+      "method": "POST",
+      "path": "/registrations/:id/approve",
+      "source": "dentvision-backend/src/modules/diagnostics/diagnostics.routes.ts"
+    },
+    {
+      "method": "POST",
+      "path": "/registrations/:id/reject",
+      "source": "dentvision-backend/src/modules/diagnostics/diagnostics.routes.ts"
+    },
+    {
+      "method": "POST",
+      "path": "/seed-test-data",
+      "source": "dentvision-backend/src/modules/diagnostics/diagnostics.routes.ts"
+    },
+    {
+      "method": "GET",
+      "path": "/studies",
+      "source": "dentvision-backend/src/modules/diagnostics/diagnostics.routes.ts"
+    },
+    {
+      "method": "GET",
+      "path": "/lab-tests",
+      "source": "dentvision-backend/src/modules/diagnostics/diagnostics.routes.ts"
+    },
+    {
+      "method": "PATCH",
+      "path": "/centers/:id/pricing",
+      "source": "dentvision-backend/src/modules/diagnostics/diagnostics.routes.ts"
+    },
+    {
+      "method": "POST",
+      "path": "/centers/:id/pricing",
+      "source": "dentvision-backend/src/modules/diagnostics/diagnostics.routes.ts"
+    },
+    {
+      "method": "PATCH",
+      "path": "/laboratories/:id/pricing",
+      "source": "dentvision-backend/src/modules/diagnostics/diagnostics.routes.ts"
+    },
+    {
+      "method": "POST",
+      "path": "/laboratories/:id/pricing",
+      "source": "dentvision-backend/src/modules/diagnostics/diagnostics.routes.ts"
+    },
+    {
+      "method": "GET",
+      "path": "/referrals",
+      "source": "dentvision-backend/src/modules/diagnostics/diagnostics.routes.ts"
+    },
+    {
+      "method": "POST",
+      "path": "/referrals",
+      "source": "dentvision-backend/src/modules/diagnostics/diagnostics.routes.ts"
+    },
+    {
+      "method": "GET",
+      "path": "/referrals/:id",
+      "source": "dentvision-backend/src/modules/diagnostics/diagnostics.routes.ts"
+    },
+    {
+      "method": "PATCH",
+      "path": "/referrals/:id",
+      "source": "dentvision-backend/src/modules/diagnostics/diagnostics.routes.ts"
+    },
+    {
+      "method": "POST",
+      "path": "/referrals/:id/status",
+      "source": "dentvision-backend/src/modules/diagnostics/diagnostics.routes.ts"
+    },
+    {
+      "method": "POST",
+      "path": "/referrals/:id/mark-paid",
+      "source": "dentvision-backend/src/modules/diagnostics/diagnostics.routes.ts"
+    },
+    {
+      "method": "POST",
+      "path": "/centers/:id/cashier/collect",
+      "source": "dentvision-backend/src/modules/diagnostics/diagnostics.routes.ts"
+    },
+    {
+      "method": "POST",
+      "path": "/laboratories/:id/cashier/collect",
+      "source": "dentvision-backend/src/modules/diagnostics/diagnostics.routes.ts"
+    },
+    {
+      "method": "DELETE",
+      "path": "/referrals/:id",
+      "source": "dentvision-backend/src/modules/diagnostics/diagnostics.routes.ts"
+    },
+    {
+      "method": "POST",
+      "path": "/referrals/:id/files",
+      "source": "dentvision-backend/src/modules/diagnostics/diagnostics.routes.ts"
+    },
+    {
+      "method": "DELETE",
+      "path": "/referral-files/:id",
+      "source": "dentvision-backend/src/modules/diagnostics/diagnostics.routes.ts"
+    },
+    {
+      "method": "POST",
+      "path": "/referrals/:id/comments",
+      "source": "dentvision-backend/src/modules/diagnostics/diagnostics.routes.ts"
+    },
+    {
+      "method": "GET",
+      "path": "/dashboard",
+      "source": "dentvision-backend/src/modules/diagnostics/diagnostics.routes.ts"
+    },
+    {
+      "method": "POST",
+      "path": "/referrals/:id/ai-result",
+      "source": "dentvision-backend/src/modules/diagnostics/diagnostics.routes.ts"
+    },
+    {
+      "method": "POST",
+      "path": "/referrals/:id/confirm-ai-result",
+      "source": "dentvision-backend/src/modules/diagnostics/diagnostics.routes.ts"
+    },
+    {
+      "method": "POST",
+      "path": "/referrals/:id/results/sign",
+      "source": "dentvision-backend/src/modules/diagnostics/diagnostics.routes.ts"
+    },
+    {
+      "method": "POST",
+      "path": "/referrals/:id/results/sign",
+      "source": "dentvision-backend/src/modules/diagnostics/diagnostics.visibility.test.ts"
+    },
+    {
+      "method": "GET",
+      "path": "*",
+      "source": "dentvision-backend/src/modules/events/EventBus.ts"
+    },
+    {
+      "method": "GET",
+      "path": "/",
+      "source": "dentvision-backend/src/modules/files/files.routes.ts"
+    },
+    {
+      "method": "POST",
+      "path": "/documents",
+      "source": "dentvision-backend/src/modules/files/files.routes.ts"
+    },
+    {
+      "method": "POST",
+      "path": "/documents/:id/send-signature",
+      "source": "dentvision-backend/src/modules/files/files.routes.ts"
+    },
+    {
+      "method": "POST",
+      "path": "/documents/:id/sign",
+      "source": "dentvision-backend/src/modules/files/files.routes.ts"
+    },
+    {
+      "method": "POST",
+      "path": "/upload",
+      "source": "dentvision-backend/src/modules/files/files.routes.ts"
+    },
+    {
+      "method": "GET",
+      "path": "/:id/content",
+      "source": "dentvision-backend/src/modules/files/files.routes.ts"
+    },
+    {
+      "method": "GET",
+      "path": "/:id",
+      "source": "dentvision-backend/src/modules/files/files.routes.ts"
+    },
+    {
+      "method": "DELETE",
+      "path": "/:id",
+      "source": "dentvision-backend/src/modules/files/files.routes.ts"
+    },
+    {
+      "method": "POST",
+      "path": "/",
+      "source": "dentvision-backend/src/modules/finance/disputes.routes.ts"
+    },
+    {
+      "method": "GET",
+      "path": "/",
+      "source": "dentvision-backend/src/modules/finance/disputes.routes.ts"
+    },
+    {
+      "method": "POST",
+      "path": "/:id/status",
+      "source": "dentvision-backend/src/modules/finance/disputes.routes.ts"
+    },
+    {
+      "method": "GET",
+      "path": "/wallets",
+      "source": "dentvision-backend/src/modules/finance/finance.routes.ts"
+    },
+    {
+      "method": "GET",
+      "path": "/wallets/:ownerType/:ownerId",
+      "source": "dentvision-backend/src/modules/finance/finance.routes.ts"
+    },
+    {
+      "method": "GET",
+      "path": "/transactions",
+      "source": "dentvision-backend/src/modules/finance/finance.routes.ts"
+    },
+    {
+      "method": "GET",
+      "path": "/partner-economics/dashboard",
+      "source": "dentvision-backend/src/modules/finance/finance.routes.ts"
+    },
+    {
+      "method": "GET",
+      "path": "/partner-economics/reconciliation",
+      "source": "dentvision-backend/src/modules/finance/finance.routes.ts"
+    },
+    {
+      "method": "GET",
+      "path": "/partner-economics/transparency",
+      "source": "dentvision-backend/src/modules/finance/finance.routes.ts"
+    },
+    {
+      "method": "GET",
+      "path": "/ledger/health",
+      "source": "dentvision-backend/src/modules/finance/finance.routes.ts"
+    },
+    {
+      "method": "GET",
+      "path": "/commission-rules",
+      "source": "dentvision-backend/src/modules/finance/finance.routes.ts"
+    },
+    {
+      "method": "POST",
+      "path": "/commission-rules",
+      "source": "dentvision-backend/src/modules/finance/finance.routes.ts"
+    },
+    {
+      "method": "POST",
+      "path": "/sales",
+      "source": "dentvision-backend/src/modules/finance/finance.routes.ts"
+    },
+    {
+      "method": "POST",
+      "path": "/transactions/manual",
+      "source": "dentvision-backend/src/modules/finance/finance.routes.ts"
+    },
+    {
+      "method": "GET",
+      "path": "/payouts",
+      "source": "dentvision-backend/src/modules/finance/finance.routes.ts"
+    },
+    {
+      "method": "POST",
+      "path": "/payouts/:id/status",
+      "source": "dentvision-backend/src/modules/finance/finance.routes.ts"
+    },
+    {
+      "method": "GET",
+      "path": "/expenses",
+      "source": "dentvision-backend/src/modules/finance/finance.routes.ts"
+    },
+    {
+      "method": "POST",
+      "path": "/expenses",
+      "source": "dentvision-backend/src/modules/finance/finance.routes.ts"
+    },
+    {
+      "method": "GET",
+      "path": "/revenue-by-source",
+      "source": "dentvision-backend/src/modules/finance/finance.routes.ts"
+    },
+    {
+      "method": "POST",
+      "path": "/session",
+      "source": "dentvision-backend/src/modules/guest/guest.routes.ts"
+    },
+    {
+      "method": "POST",
+      "path": "/convert",
+      "source": "dentvision-backend/src/modules/guest/guest.routes.ts"
+    },
+    {
+      "method": "GET",
+      "path": "DIAGNOSTIC_CENTER:",
+      "source": "dentvision-backend/src/modules/iam/contexts.ts"
+    },
+    {
+      "method": "GET",
+      "path": "LABORATORY:",
+      "source": "dentvision-backend/src/modules/iam/contexts.ts"
+    },
+    {
+      "method": "GET",
+      "path": "/permissions",
+      "source": "dentvision-backend/src/modules/iam/iam.routes.ts"
+    },
+    {
+      "method": "GET",
+      "path": "/types",
+      "source": "dentvision-backend/src/modules/iam/iam.routes.ts"
+    },
+    {
+      "method": "GET",
+      "path": "/me/contexts",
+      "source": "dentvision-backend/src/modules/iam/iam.routes.ts"
+    },
+    {
+      "method": "POST",
+      "path": "/switch-context",
+      "source": "dentvision-backend/src/modules/iam/iam.routes.ts"
+    },
+    {
+      "method": "POST",
+      "path": "/invitations",
+      "source": "dentvision-backend/src/modules/iam/iam.routes.ts"
+    },
+    {
+      "method": "GET",
+      "path": "/invitations",
+      "source": "dentvision-backend/src/modules/iam/iam.routes.ts"
+    },
+    {
+      "method": "POST",
+      "path": "/invitations/:id/revoke",
+      "source": "dentvision-backend/src/modules/iam/iam.routes.ts"
+    },
+    {
+      "method": "GET",
+      "path": "/invitations/lookup",
+      "source": "dentvision-backend/src/modules/iam/iam.routes.ts"
+    },
+    {
+      "method": "POST",
+      "path": "/join-by-invite",
+      "source": "dentvision-backend/src/modules/iam/iam.routes.ts"
+    },
+    {
+      "method": "GET",
+      "path": "/roles",
+      "source": "dentvision-backend/src/modules/iam/iam.routes.ts"
+    },
+    {
+      "method": "POST",
+      "path": "/persons/:personId/roles",
+      "source": "dentvision-backend/src/modules/iam/iam.routes.ts"
+    },
+    {
+      "method": "DELETE",
+      "path": "/persons/:personId/roles/:roleId",
+      "source": "dentvision-backend/src/modules/iam/iam.routes.ts"
+    },
+    {
+      "method": "GET",
+      "path": "/",
+      "source": "dentvision-backend/src/modules/inventory/deductionRules.routes.ts"
+    },
+    {
+      "method": "GET",
+      "path": "/preview",
+      "source": "dentvision-backend/src/modules/inventory/deductionRules.routes.ts"
+    },
+    {
+      "method": "POST",
+      "path": "/",
+      "source": "dentvision-backend/src/modules/inventory/deductionRules.routes.ts"
+    },
+    {
+      "method": "DELETE",
+      "path": "/:id",
+      "source": "dentvision-backend/src/modules/inventory/deductionRules.routes.ts"
+    },
+    {
+      "method": "GET",
+      "path": "/",
+      "source": "dentvision-backend/src/modules/inventory/inventory.routes.ts"
+    },
+    {
+      "method": "GET",
+      "path": "/suggest",
+      "source": "dentvision-backend/src/modules/inventory/inventory.routes.ts"
+    },
+    {
+      "method": "POST",
+      "path": "/",
+      "source": "dentvision-backend/src/modules/inventory/inventory.routes.ts"
+    },
+    {
+      "method": "PATCH",
+      "path": "/:id",
+      "source": "dentvision-backend/src/modules/inventory/inventory.routes.ts"
+    },
+    {
+      "method": "POST",
+      "path": "/:id/adjust",
+      "source": "dentvision-backend/src/modules/inventory/inventory.routes.ts"
+    },
+    {
+      "method": "GET",
+      "path": "/:id/movements",
+      "source": "dentvision-backend/src/modules/inventory/inventory.routes.ts"
+    },
+    {
+      "method": "DELETE",
+      "path": "/:id",
+      "source": "dentvision-backend/src/modules/inventory/inventory.routes.ts"
+    },
+    {
+      "method": "GET",
+      "path": "/low-stock",
+      "source": "dentvision-backend/src/modules/inventory/inventory.routes.ts"
+    },
+    {
+      "method": "GET",
+      "path": "/",
+      "source": "dentvision-backend/src/modules/jobs/jobs.routes.ts"
+    },
+    {
+      "method": "GET",
+      "path": "/me/applications",
+      "source": "dentvision-backend/src/modules/jobs/jobs.routes.ts"
+    },
+    {
+      "method": "POST",
+      "path": "/employers/register",
+      "source": "dentvision-backend/src/modules/jobs/jobs.routes.ts"
+    },
+    {
+      "method": "POST",
+      "path": "/",
+      "source": "dentvision-backend/src/modules/jobs/jobs.routes.ts"
+    },
+    {
+      "method": "POST",
+      "path": "/:id/apply",
+      "source": "dentvision-backend/src/modules/jobs/jobs.routes.ts"
+    },
+    {
+      "method": "GET",
+      "path": "/",
+      "source": "dentvision-backend/src/modules/lab/lab.routes.ts"
+    },
+    {
+      "method": "POST",
+      "path": "/",
+      "source": "dentvision-backend/src/modules/lab/lab.routes.ts"
+    },
+    {
+      "method": "PATCH",
+      "path": "/:id/status",
+      "source": "dentvision-backend/src/modules/lab/lab.routes.ts"
+    },
+    {
+      "method": "DELETE",
+      "path": "/:id",
+      "source": "dentvision-backend/src/modules/lab/lab.routes.ts"
+    },
+    {
+      "method": "GET",
+      "path": "/dashboard",
+      "source": "dentvision-backend/src/modules/lab/labPlatform.routes.ts"
+    },
+    {
+      "method": "GET",
+      "path": "/orders",
+      "source": "dentvision-backend/src/modules/lab/labPlatform.routes.ts"
+    },
+    {
+      "method": "GET",
+      "path": "/orders/:id/lifecycle",
+      "source": "dentvision-backend/src/modules/lab/labPlatform.routes.ts"
+    },
+    {
+      "method": "PATCH",
+      "path": "/orders/:id/status",
+      "source": "dentvision-backend/src/modules/lab/labPlatform.routes.ts"
+    },
+    {
+      "method": "PATCH",
+      "path": "/orders/:id/technician",
+      "source": "dentvision-backend/src/modules/lab/labPlatform.routes.ts"
+    },
+    {
+      "method": "GET",
+      "path": "/team",
+      "source": "dentvision-backend/src/modules/lab/labPlatform.routes.ts"
+    },
+    {
+      "method": "POST",
+      "path": "/assign",
+      "source": "dentvision-backend/src/modules/lab/labPlatform.routes.ts"
+    },
+    {
+      "method": "GET",
+      "path": "/orders",
+      "source": "dentvision-backend/src/modules/lab/medicalLab.routes.ts"
+    },
+    {
+      "method": "POST",
+      "path": "/orders",
+      "source": "dentvision-backend/src/modules/lab/medicalLab.routes.ts"
+    },
+    {
+      "method": "GET",
+      "path": "/orders/:id",
+      "source": "dentvision-backend/src/modules/lab/medicalLab.routes.ts"
+    },
+    {
+      "method": "POST",
+      "path": "/orders/:id/status",
+      "source": "dentvision-backend/src/modules/lab/medicalLab.routes.ts"
+    },
+    {
+      "method": "POST",
+      "path": "/orders/:id/results",
+      "source": "dentvision-backend/src/modules/lab/medicalLab.routes.ts"
+    },
+    {
+      "method": "POST",
+      "path": "/orders/:id/verify",
+      "source": "dentvision-backend/src/modules/lab/medicalLab.routes.ts"
+    },
+    {
+      "method": "POST",
+      "path": "/orders/:id/interpretation",
+      "source": "dentvision-backend/src/modules/lab/medicalLab.routes.ts"
+    },
+    {
+      "method": "POST",
+      "path": "/onboard",
+      "source": "dentvision-backend/src/modules/legal/legal.partner.routes.ts"
+    },
+    {
+      "method": "GET",
+      "path": "/documents",
+      "source": "dentvision-backend/src/modules/legal/legal.partner.routes.ts"
+    },
+    {
+      "method": "POST",
+      "path": "/documents/regenerate",
+      "source": "dentvision-backend/src/modules/legal/legal.partner.routes.ts"
+    },
+    {
+      "method": "GET",
+      "path": "/documents/:id",
+      "source": "dentvision-backend/src/modules/legal/legal.partner.routes.ts"
+    },
+    {
+      "method": "POST",
+      "path": "/documents/:id/sign",
+      "source": "dentvision-backend/src/modules/legal/legal.partner.routes.ts"
+    },
+    {
+      "method": "GET",
+      "path": "/partner",
+      "source": "dentvision-backend/src/modules/legal/legal.partner.routes.ts"
+    },
+    {
+      "method": "PUT",
+      "path": "/partner",
+      "source": "dentvision-backend/src/modules/legal/legal.partner.routes.ts"
+    },
+    {
+      "method": "GET",
+      "path": "/invoices",
+      "source": "dentvision-backend/src/modules/legal/legal.partner.routes.ts"
+    },
+    {
+      "method": "GET",
+      "path": "/documents/:id/export",
+      "source": "dentvision-backend/src/modules/legal/legal.partner.routes.ts"
+    },
+    {
+      "method": "GET",
+      "path": "/history",
+      "source": "dentvision-backend/src/modules/legal/legal.partner.routes.ts"
+    },
+    {
+      "method": "GET",
+      "path": "/dashboard",
+      "source": "dentvision-backend/src/modules/legal/legal.routes.ts"
+    },
+    {
+      "method": "GET",
+      "path": "/templates",
+      "source": "dentvision-backend/src/modules/legal/legal.routes.ts"
+    },
+    {
+      "method": "POST",
+      "path": "/templates",
+      "source": "dentvision-backend/src/modules/legal/legal.routes.ts"
+    },
+    {
+      "method": "GET",
+      "path": "/templates/:id",
+      "source": "dentvision-backend/src/modules/legal/legal.routes.ts"
+    },
+    {
+      "method": "PUT",
+      "path": "/templates/:id",
+      "source": "dentvision-backend/src/modules/legal/legal.routes.ts"
+    },
+    {
+      "method": "POST",
+      "path": "/templates/:id/publish",
+      "source": "dentvision-backend/src/modules/legal/legal.routes.ts"
+    },
+    {
+      "method": "POST",
+      "path": "/templates/:id/archive",
+      "source": "dentvision-backend/src/modules/legal/legal.routes.ts"
+    },
+    {
+      "method": "GET",
+      "path": "/blocks",
+      "source": "dentvision-backend/src/modules/legal/legal.routes.ts"
+    },
+    {
+      "method": "POST",
+      "path": "/blocks",
+      "source": "dentvision-backend/src/modules/legal/legal.routes.ts"
+    },
+    {
+      "method": "PUT",
+      "path": "/blocks/:id",
+      "source": "dentvision-backend/src/modules/legal/legal.routes.ts"
+    },
+    {
+      "method": "DELETE",
+      "path": "/blocks/:id",
+      "source": "dentvision-backend/src/modules/legal/legal.routes.ts"
+    },
+    {
+      "method": "GET",
+      "path": "/partners",
+      "source": "dentvision-backend/src/modules/legal/legal.routes.ts"
+    },
+    {
+      "method": "POST",
+      "path": "/partners",
+      "source": "dentvision-backend/src/modules/legal/legal.routes.ts"
+    },
+    {
+      "method": "GET",
+      "path": "/partners/:id",
+      "source": "dentvision-backend/src/modules/legal/legal.routes.ts"
+    },
+    {
+      "method": "GET",
+      "path": "/documents",
+      "source": "dentvision-backend/src/modules/legal/legal.routes.ts"
+    },
+    {
+      "method": "POST",
+      "path": "/documents",
+      "source": "dentvision-backend/src/modules/legal/legal.routes.ts"
+    },
+    {
+      "method": "GET",
+      "path": "/documents/:id",
+      "source": "dentvision-backend/src/modules/legal/legal.routes.ts"
+    },
+    {
+      "method": "PUT",
+      "path": "/documents/:id/status",
+      "source": "dentvision-backend/src/modules/legal/legal.routes.ts"
+    },
+    {
+      "method": "POST",
+      "path": "/documents/:id/version",
+      "source": "dentvision-backend/src/modules/legal/legal.routes.ts"
+    },
+    {
+      "method": "GET",
+      "path": "/documents/:id/versions",
+      "source": "dentvision-backend/src/modules/legal/legal.routes.ts"
+    },
+    {
+      "method": "GET",
+      "path": "/documents/:id/audit",
+      "source": "dentvision-backend/src/modules/legal/legal.routes.ts"
+    },
+    {
+      "method": "GET",
+      "path": "/documents/:id/export",
+      "source": "dentvision-backend/src/modules/legal/legal.routes.ts"
+    },
+    {
+      "method": "GET",
+      "path": "/invoices",
+      "source": "dentvision-backend/src/modules/legal/legal.routes.ts"
+    },
+    {
+      "method": "POST",
+      "path": "/invoices",
+      "source": "dentvision-backend/src/modules/legal/legal.routes.ts"
+    },
+    {
+      "method": "GET",
+      "path": "/invoices/:id",
+      "source": "dentvision-backend/src/modules/legal/legal.routes.ts"
+    },
+    {
+      "method": "PUT",
+      "path": "/invoices/:id/status",
+      "source": "dentvision-backend/src/modules/legal/legal.routes.ts"
+    },
+    {
+      "method": "GET",
+      "path": "/audit",
+      "source": "dentvision-backend/src/modules/legal/legal.routes.ts"
+    },
+    {
+      "method": "GET",
+      "path": "/settings",
+      "source": "dentvision-backend/src/modules/legal/legal.routes.ts"
+    },
+    {
+      "method": "POST",
+      "path": "/ai/explain",
+      "source": "dentvision-backend/src/modules/legal/legal.routes.ts"
+    },
+    {
+      "method": "POST",
+      "path": "/ai/diff",
+      "source": "dentvision-backend/src/modules/legal/legal.routes.ts"
+    },
+    {
+      "method": "POST",
+      "path": "/ai/check",
+      "source": "dentvision-backend/src/modules/legal/legal.routes.ts"
+    },
+    {
+      "method": "GET",
+      "path": "/platform-settings",
+      "source": "dentvision-backend/src/modules/legal/legal.routes.ts"
+    },
+    {
+      "method": "PUT",
+      "path": "/platform-settings",
+      "source": "dentvision-backend/src/modules/legal/legal.routes.ts"
+    },
+    {
+      "method": "GET",
+      "path": "/context",
+      "source": "dentvision-backend/src/modules/marketing/marketing.routes.ts"
+    },
+    {
+      "method": "POST",
+      "path": "/content-plan",
+      "source": "dentvision-backend/src/modules/marketing/marketing.routes.ts"
+    },
+    {
+      "method": "GET",
+      "path": "/content-plans",
+      "source": "dentvision-backend/src/modules/marketing/marketing.routes.ts"
+    },
+    {
+      "method": "GET",
+      "path": "/content-plans/:id",
+      "source": "dentvision-backend/src/modules/marketing/marketing.routes.ts"
+    },
+    {
+      "method": "PATCH",
+      "path": "/content-ideas/:id",
+      "source": "dentvision-backend/src/modules/marketing/marketing.routes.ts"
+    },
+    {
+      "method": "DELETE",
+      "path": "/content-plans/:id",
+      "source": "dentvision-backend/src/modules/marketing/marketing.routes.ts"
+    },
+    {
+      "method": "GET",
+      "path": "/image-quota",
+      "source": "dentvision-backend/src/modules/marketing/marketing.routes.ts"
+    },
+    {
+      "method": "POST",
+      "path": "/content-ideas/:id/cover",
+      "source": "dentvision-backend/src/modules/marketing/marketing.routes.ts"
+    },
+    {
+      "method": "POST",
+      "path": "/content-ideas/:id/carousel",
+      "source": "dentvision-backend/src/modules/marketing/marketing.routes.ts"
+    },
+    {
+      "method": "POST",
+      "path": "/visits",
+      "source": "dentvision-backend/src/modules/medical/medical.routes.ts"
+    },
+    {
+      "method": "PATCH",
+      "path": "/visits/:id",
+      "source": "dentvision-backend/src/modules/medical/medical.routes.ts"
+    },
+    {
+      "method": "GET",
+      "path": "/visits/:patientId",
+      "source": "dentvision-backend/src/modules/medical/medical.routes.ts"
+    },
+    {
+      "method": "GET",
+      "path": "/visits",
+      "source": "dentvision-backend/src/modules/medical/medical.routes.ts"
+    },
+    {
+      "method": "GET",
+      "path": "/patients/:patientId/visits",
+      "source": "dentvision-backend/src/modules/medical/medical.routes.ts"
+    },
+    {
+      "method": "POST",
+      "path": "/treatment-plan",
+      "source": "dentvision-backend/src/modules/medical/medical.routes.ts"
+    },
+    {
+      "method": "PATCH",
+      "path": "/treatment-plan/:id",
+      "source": "dentvision-backend/src/modules/medical/medical.routes.ts"
+    },
+    {
+      "method": "GET",
+      "path": "/treatment-plan/:patientId",
+      "source": "dentvision-backend/src/modules/medical/medical.routes.ts"
+    },
+    {
+      "method": "POST",
+      "path": "/teeth",
+      "source": "dentvision-backend/src/modules/medical/medical.routes.ts"
+    },
+    {
+      "method": "GET",
+      "path": "/teeth/:patientId",
+      "source": "dentvision-backend/src/modules/medical/medical.routes.ts"
+    },
+    {
+      "method": "POST",
+      "path": "/teeth/findings",
+      "source": "dentvision-backend/src/modules/medical/medical.routes.ts"
+    },
+    {
+      "method": "POST",
+      "path": "/images",
+      "source": "dentvision-backend/src/modules/medical/medical.routes.ts"
+    },
+    {
+      "method": "GET",
+      "path": "/images/:patientId",
+      "source": "dentvision-backend/src/modules/medical/medical.routes.ts"
+    },
+    {
+      "method": "DELETE",
+      "path": "/images/:id",
+      "source": "dentvision-backend/src/modules/medical/medical.routes.ts"
+    },
+    {
+      "method": "GET",
+      "path": "/icd10",
+      "source": "dentvision-backend/src/modules/medical/medical.routes.ts"
+    },
+    {
+      "method": "GET",
+      "path": "/connect",
+      "source": "dentvision-backend/src/modules/meta-oauth/meta.routes.ts"
+    },
+    {
+      "method": "GET",
+      "path": "/callback",
+      "source": "dentvision-backend/src/modules/meta-oauth/meta.routes.ts"
+    },
+    {
+      "method": "DELETE",
+      "path": "/disconnect/:channel",
+      "source": "dentvision-backend/src/modules/meta-oauth/meta.routes.ts"
+    },
+    {
+      "method": "GET",
+      "path": "/status",
+      "source": "dentvision-backend/src/modules/meta-oauth/meta.routes.ts"
+    },
+    {
+      "method": "POST",
+      "path": "/refresh",
+      "source": "dentvision-backend/src/modules/meta-oauth/meta.routes.ts"
+    },
+    {
+      "method": "GET",
+      "path": "/:id",
+      "source": "dentvision-backend/src/modules/notifications/notifications.routes.test.ts"
+    },
+    {
+      "method": "GET",
+      "path": "/unread-count",
+      "source": "dentvision-backend/src/modules/notifications/notifications.routes.test.ts"
+    },
+    {
+      "method": "GET",
+      "path": "/preferences",
+      "source": "dentvision-backend/src/modules/notifications/notifications.routes.test.ts"
+    },
+    {
+      "method": "GET",
+      "path": "/types",
+      "source": "dentvision-backend/src/modules/notifications/notifications.routes.test.ts"
+    },
+    {
+      "method": "POST",
+      "path": "/:id/read",
+      "source": "dentvision-backend/src/modules/notifications/notifications.routes.test.ts"
+    },
+    {
+      "method": "GET",
+      "path": "/:id",
+      "source": "dentvision-backend/src/modules/notifications/notifications.routes.test.ts"
+    },
+    {
+      "method": "GET",
+      "path": "/",
+      "source": "dentvision-backend/src/modules/notifications/notifications.routes.ts"
+    },
+    {
+      "method": "GET",
+      "path": "/unread-count",
+      "source": "dentvision-backend/src/modules/notifications/notifications.routes.ts"
+    },
+    {
+      "method": "POST",
+      "path": "/",
+      "source": "dentvision-backend/src/modules/notifications/notifications.routes.ts"
+    },
+    {
+      "method": "POST",
+      "path": "/:id/read",
+      "source": "dentvision-backend/src/modules/notifications/notifications.routes.ts"
+    },
+    {
+      "method": "POST",
+      "path": "/read-all",
+      "source": "dentvision-backend/src/modules/notifications/notifications.routes.ts"
+    },
+    {
+      "method": "GET",
+      "path": "/preferences",
+      "source": "dentvision-backend/src/modules/notifications/notifications.routes.ts"
+    },
+    {
+      "method": "PUT",
+      "path": "/preferences",
+      "source": "dentvision-backend/src/modules/notifications/notifications.routes.ts"
+    },
+    {
+      "method": "GET",
+      "path": "/types",
+      "source": "dentvision-backend/src/modules/notifications/notifications.routes.ts"
+    },
+    {
+      "method": "GET",
+      "path": "/:id",
+      "source": "dentvision-backend/src/modules/notifications/notifications.routes.ts"
+    },
+    {
+      "method": "GET",
+      "path": "/overview",
+      "source": "dentvision-backend/src/modules/ops/ops.hub.routes.ts"
+    },
+    {
+      "method": "GET",
+      "path": "/clinics",
+      "source": "dentvision-backend/src/modules/ops/ops.hub.routes.ts"
+    },
+    {
+      "method": "POST",
+      "path": "/clinics/:id/plan",
+      "source": "dentvision-backend/src/modules/ops/ops.hub.routes.ts"
+    },
+    {
+      "method": "POST",
+      "path": "/clinics/:id/extend",
+      "source": "dentvision-backend/src/modules/ops/ops.hub.routes.ts"
+    },
+    {
+      "method": "POST",
+      "path": "/clinics/:id/suspend",
+      "source": "dentvision-backend/src/modules/ops/ops.hub.routes.ts"
+    },
+    {
+      "method": "POST",
+      "path": "/clinics/:id/activate",
+      "source": "dentvision-backend/src/modules/ops/ops.hub.routes.ts"
+    },
+    {
+      "method": "GET",
+      "path": "/school",
+      "source": "dentvision-backend/src/modules/ops/ops.hub.routes.ts"
+    },
+    {
+      "method": "POST",
+      "path": "/lecturers/:id/level",
+      "source": "dentvision-backend/src/modules/ops/ops.hub.routes.ts"
+    },
+    {
+      "method": "POST",
+      "path": "/automations/advance-supplier-reviews",
+      "source": "dentvision-backend/src/modules/ops/ops.hub.routes.ts"
+    },
+    {
+      "method": "POST",
+      "path": "/automations/verify-new-lecturers",
+      "source": "dentvision-backend/src/modules/ops/ops.hub.routes.ts"
+    },
+    {
+      "method": "POST",
+      "path": "/automations/extend-expiring-clinics",
+      "source": "dentvision-backend/src/modules/ops/ops.hub.routes.ts"
+    },
+    {
+      "method": "GET",
+      "path": "/",
+      "source": "dentvision-backend/src/modules/ops/ops.suppliers.routes.ts"
+    },
+    {
+      "method": "GET",
+      "path": "/:id",
+      "source": "dentvision-backend/src/modules/ops/ops.suppliers.routes.ts"
+    },
+    {
+      "method": "POST",
+      "path": "/:id/status",
+      "source": "dentvision-backend/src/modules/ops/ops.suppliers.routes.ts"
+    },
+    {
+      "method": "POST",
+      "path": "/:id/members",
+      "source": "dentvision-backend/src/modules/ops/ops.suppliers.routes.ts"
+    },
+    {
+      "method": "POST",
+      "path": "/self-service",
+      "source": "dentvision-backend/src/modules/organizations/organizations.routes.ts"
+    },
+    {
+      "method": "GET",
+      "path": "/me",
+      "source": "dentvision-backend/src/modules/organizations/organizations.routes.ts"
+    },
+    {
+      "method": "PATCH",
+      "path": "/me",
+      "source": "dentvision-backend/src/modules/organizations/organizations.routes.ts"
+    },
+    {
+      "method": "POST",
+      "path": "/me/legal",
+      "source": "dentvision-backend/src/modules/organizations/organizations.routes.ts"
+    },
+    {
+      "method": "POST",
+      "path": "/me/verification",
+      "source": "dentvision-backend/src/modules/organizations/organizations.routes.ts"
+    },
+    {
+      "method": "GET",
+      "path": "/verification/queue",
+      "source": "dentvision-backend/src/modules/organizations/organizations.routes.ts"
+    },
+    {
+      "method": "POST",
+      "path": "/:id/verification",
+      "source": "dentvision-backend/src/modules/organizations/organizations.routes.ts"
+    },
+    {
+      "method": "GET",
+      "path": "/",
+      "source": "dentvision-backend/src/modules/organizations/organizations.routes.ts"
+    },
+    {
+      "method": "GET",
+      "path": "/:id",
+      "source": "dentvision-backend/src/modules/organizations/organizations.routes.ts"
+    },
+    {
+      "method": "POST",
+      "path": "/",
+      "source": "dentvision-backend/src/modules/organizations/organizations.routes.ts"
+    },
+    {
+      "method": "PATCH",
+      "path": "/:id",
+      "source": "dentvision-backend/src/modules/organizations/organizations.routes.ts"
+    },
+    {
+      "method": "GET",
+      "path": "/tiers",
+      "source": "dentvision-backend/src/modules/partners/partners.routes.ts"
+    },
+    {
+      "method": "POST",
+      "path": "/tiers",
+      "source": "dentvision-backend/src/modules/partners/partners.routes.ts"
+    },
+    {
+      "method": "GET",
+      "path": "/",
+      "source": "dentvision-backend/src/modules/partners/partners.routes.ts"
+    },
+    {
+      "method": "GET",
+      "path": "/:id",
+      "source": "dentvision-backend/src/modules/partners/partners.routes.ts"
+    },
+    {
+      "method": "POST",
+      "path": "/",
+      "source": "dentvision-backend/src/modules/partners/partners.routes.ts"
+    },
+    {
+      "method": "POST",
+      "path": "/:id/tier",
+      "source": "dentvision-backend/src/modules/partners/partners.routes.ts"
+    },
+    {
+      "method": "POST",
+      "path": "/:id/kpis",
+      "source": "dentvision-backend/src/modules/partners/partners.routes.ts"
+    },
+    {
+      "method": "POST",
+      "path": "/:id/slas",
+      "source": "dentvision-backend/src/modules/partners/partners.routes.ts"
+    },
+    {
+      "method": "POST",
+      "path": "/:id/campaigns",
+      "source": "dentvision-backend/src/modules/partners/partners.routes.ts"
+    },
+    {
+      "method": "GET",
+      "path": "/",
+      "source": "dentvision-backend/src/modules/patient-conversation/patientConversation.routes.ts"
+    },
+    {
+      "method": "POST",
+      "path": "/message",
+      "source": "dentvision-backend/src/modules/patient-conversation/patientConversation.routes.ts"
+    },
+    {
+      "method": "POST",
+      "path": "/ticket",
+      "source": "dentvision-backend/src/modules/patient-conversation/patientConversation.routes.ts"
+    },
+    {
+      "method": "GET",
+      "path": "/stream",
+      "source": "dentvision-backend/src/modules/patient-conversation/patientConversation.routes.ts"
+    },
+    {
+      "method": "GET",
+      "path": "/conversations",
+      "source": "dentvision-backend/src/modules/patient-conversation/patientInbox.routes.ts"
+    },
+    {
+      "method": "GET",
+      "path": "/conversations/:id",
+      "source": "dentvision-backend/src/modules/patient-conversation/patientInbox.routes.ts"
+    },
+    {
+      "method": "POST",
+      "path": "/conversations/:id/claim",
+      "source": "dentvision-backend/src/modules/patient-conversation/patientInbox.routes.ts"
+    },
+    {
+      "method": "POST",
+      "path": "/conversations/:id/reply",
+      "source": "dentvision-backend/src/modules/patient-conversation/patientInbox.routes.ts"
+    },
+    {
+      "method": "POST",
+      "path": "/conversations/:id/resolve",
+      "source": "dentvision-backend/src/modules/patient-conversation/patientInbox.routes.ts"
+    },
+    {
+      "method": "POST",
+      "path": "/ticket",
+      "source": "dentvision-backend/src/modules/patient-conversation/patientInbox.routes.ts"
+    },
+    {
+      "method": "GET",
+      "path": "/stream",
+      "source": "dentvision-backend/src/modules/patient-conversation/patientInbox.routes.ts"
+    },
+    {
+      "method": "GET",
+      "path": "/escalations",
+      "source": "dentvision-backend/src/modules/patient-conversation/patientInbox.routes.ts"
+    },
+    {
+      "method": "POST",
+      "path": "/escalations/:id/resolve",
+      "source": "dentvision-backend/src/modules/patient-conversation/patientInbox.routes.ts"
+    },
+    {
+      "method": "POST",
+      "path": "/claim",
+      "source": "dentvision-backend/src/modules/patient-portal/patientPortal.routes.ts"
+    },
+    {
+      "method": "GET",
+      "path": "/me",
+      "source": "dentvision-backend/src/modules/patient-portal/patientPortal.routes.ts"
+    },
+    {
+      "method": "GET",
+      "path": "/appointments",
+      "source": "dentvision-backend/src/modules/patient-portal/patientPortal.routes.ts"
+    },
+    {
+      "method": "GET",
+      "path": "/treatments",
+      "source": "dentvision-backend/src/modules/patient-portal/patientPortal.routes.ts"
+    },
+    {
+      "method": "GET",
+      "path": "/treatment-plans",
+      "source": "dentvision-backend/src/modules/patient-portal/patientPortal.routes.ts"
+    },
+    {
+      "method": "GET",
+      "path": "/visits",
+      "source": "dentvision-backend/src/modules/patient-portal/patientPortal.routes.ts"
+    },
+    {
+      "method": "GET",
+      "path": "/invoices",
+      "source": "dentvision-backend/src/modules/patient-portal/patientPortal.routes.ts"
+    },
+    {
+      "method": "GET",
+      "path": "/documents",
+      "source": "dentvision-backend/src/modules/patient-portal/patientPortal.routes.ts"
+    },
+    {
+      "method": "GET",
+      "path": "/documents/:id/content",
+      "source": "dentvision-backend/src/modules/patient-portal/patientPortal.routes.ts"
+    },
+    {
+      "method": "GET",
+      "path": "/diagnostics",
+      "source": "dentvision-backend/src/modules/patient-portal/patientPortal.routes.ts"
+    },
+    {
+      "method": "PUT",
+      "path": "/me/profile",
+      "source": "dentvision-backend/src/modules/patient-portal/patientPortal.routes.ts"
+    },
+    {
+      "method": "GET",
+      "path": "/clinics",
+      "source": "dentvision-backend/src/modules/patient-portal/patientPortal.routes.ts"
+    },
+    {
+      "method": "POST",
+      "path": "/link",
+      "source": "dentvision-backend/src/modules/patient-portal/patientPortal.routes.ts"
+    },
+    {
+      "method": "POST",
+      "path": "/appointments/:id/cancel",
+      "source": "dentvision-backend/src/modules/patient-portal/patientPortal.routes.ts"
+    },
+    {
+      "method": "GET",
+      "path": "/available-slots",
+      "source": "dentvision-backend/src/modules/patient-portal/patientPortal.routes.ts"
+    },
+    {
+      "method": "POST",
+      "path": "/appointments/request",
+      "source": "dentvision-backend/src/modules/patient-portal/patientPortal.routes.ts"
+    },
+    {
+      "method": "GET",
+      "path": "/access-requests",
+      "source": "dentvision-backend/src/modules/patient-portal/patientPortal.routes.ts"
+    },
+    {
+      "method": "POST",
+      "path": "/access-requests/:grantId/approve",
+      "source": "dentvision-backend/src/modules/patient-portal/patientPortal.routes.ts"
+    },
+    {
+      "method": "POST",
+      "path": "/access-requests/:grantId/decline",
+      "source": "dentvision-backend/src/modules/patient-portal/patientPortal.routes.ts"
+    },
+    {
+      "method": "GET",
+      "path": "/access-grants",
+      "source": "dentvision-backend/src/modules/patient-portal/patientPortal.routes.ts"
+    },
+    {
+      "method": "POST",
+      "path": "/access-grants/:grantId/revoke",
+      "source": "dentvision-backend/src/modules/patient-portal/patientPortal.routes.ts"
+    },
+    {
+      "method": "GET",
+      "path": "/access-log",
+      "source": "dentvision-backend/src/modules/patient-portal/patientPortal.routes.ts"
+    },
+    {
+      "method": "GET",
+      "path": "/:releaseId",
+      "source": "dentvision-backend/src/modules/patient-presentation/patientPresentation.routes.ts"
+    },
+    {
+      "method": "GET",
+      "path": "/:releaseId/voice",
+      "source": "dentvision-backend/src/modules/patient-presentation/patientPresentation.routes.ts"
+    },
+    {
+      "method": "POST",
+      "path": "/:releaseId/track",
+      "source": "dentvision-backend/src/modules/patient-presentation/patientPresentation.routes.ts"
+    },
+    {
+      "method": "GET",
+      "path": "/",
+      "source": "dentvision-backend/src/modules/patient-presentation/patientPresentation.routes.ts"
+    },
+    {
+      "method": "GET",
+      "path": "solution-1",
+      "source": "dentvision-backend/src/modules/patient-presentation/presentationGenerator.test.ts"
+    },
+    {
+      "method": "GET",
+      "path": "solution-1",
+      "source": "dentvision-backend/src/modules/patient-presentation/presentationGenerator.test.ts"
+    },
+    {
+      "method": "GET",
+      "path": "solution-1",
+      "source": "dentvision-backend/src/modules/patient-presentation/presentationGenerator.test.ts"
+    },
+    {
+      "method": "GET",
+      "path": "/",
+      "source": "dentvision-backend/src/modules/patients/patients.routes.ts"
+    },
+    {
+      "method": "POST",
+      "path": "/",
+      "source": "dentvision-backend/src/modules/patients/patients.routes.ts"
+    },
+    {
+      "method": "GET",
+      "path": "/lookup",
+      "source": "dentvision-backend/src/modules/patients/patients.routes.ts"
+    },
+    {
+      "method": "GET",
+      "path": "/:id/summary",
+      "source": "dentvision-backend/src/modules/patients/patients.routes.ts"
+    },
+    {
+      "method": "GET",
+      "path": "/:id",
+      "source": "dentvision-backend/src/modules/patients/patients.routes.ts"
+    },
+    {
+      "method": "PATCH",
+      "path": "/:id",
+      "source": "dentvision-backend/src/modules/patients/patients.routes.ts"
+    },
+    {
+      "method": "DELETE",
+      "path": "/:id",
+      "source": "dentvision-backend/src/modules/patients/patients.routes.ts"
+    },
+    {
+      "method": "GET",
+      "path": "/:id/audit",
+      "source": "dentvision-backend/src/modules/patients/patients.routes.ts"
+    },
+    {
+      "method": "GET",
+      "path": "/:id/history",
+      "source": "dentvision-backend/src/modules/patients/patients.routes.ts"
+    },
+    {
+      "method": "GET",
+      "path": "/:id/images",
+      "source": "dentvision-backend/src/modules/patients/patients.routes.ts"
+    },
+    {
+      "method": "GET",
+      "path": "/:id/treatment-plan",
+      "source": "dentvision-backend/src/modules/patients/patients.routes.ts"
+    },
+    {
+      "method": "POST",
+      "path": "/:id/deposit",
+      "source": "dentvision-backend/src/modules/patients/patients.routes.ts"
+    },
+    {
+      "method": "GET",
+      "path": "/:id/assignments",
+      "source": "dentvision-backend/src/modules/patients/patients.routes.ts"
+    },
+    {
+      "method": "POST",
+      "path": "/:id/assignments",
+      "source": "dentvision-backend/src/modules/patients/patients.routes.ts"
+    },
+    {
+      "method": "DELETE",
+      "path": "/:id/assignments/:assignmentId",
+      "source": "dentvision-backend/src/modules/patients/patients.routes.ts"
+    },
+    {
+      "method": "GET",
+      "path": "content-length",
+      "source": "dentvision-backend/src/modules/payments/kaspi.provider.ts"
+    },
+    {
+      "method": "POST",
+      "path": "/",
+      "source": "dentvision-backend/src/modules/payments/payments.routes.ts"
+    },
+    {
+      "method": "POST",
+      "path": "/:id/refund",
+      "source": "dentvision-backend/src/modules/payments/payments.routes.ts"
+    },
+    {
+      "method": "GET",
+      "path": "/:id",
+      "source": "dentvision-backend/src/modules/payments/payments.routes.ts"
+    },
+    {
+      "method": "POST",
+      "path": "/:id/confirm",
+      "source": "dentvision-backend/src/modules/payments/payments.routes.ts"
+    },
+    {
+      "method": "POST",
+      "path": "/callbacks/kaspi",
+      "source": "dentvision-backend/src/modules/payments/payments.routes.ts"
+    },
+    {
+      "method": "POST",
+      "path": "/callbacks/kaspi/clinic/:clinicId",
+      "source": "dentvision-backend/src/modules/payments/payments.routes.ts"
+    },
+    {
+      "method": "POST",
+      "path": "/",
+      "source": "dentvision-backend/src/modules/payments/settlePaidPayment.test.ts"
+    },
+    {
+      "method": "POST",
+      "path": "/:id/refund",
+      "source": "dentvision-backend/src/modules/payments/settlePaidPayment.test.ts"
+    },
+    {
+      "method": "GET",
+      "path": "/",
+      "source": "dentvision-backend/src/modules/persons/persons.routes.ts"
+    },
+    {
+      "method": "GET",
+      "path": "/:id",
+      "source": "dentvision-backend/src/modules/persons/persons.routes.ts"
+    },
+    {
+      "method": "POST",
+      "path": "/",
+      "source": "dentvision-backend/src/modules/persons/persons.routes.ts"
+    },
+    {
+      "method": "PATCH",
+      "path": "/:id",
+      "source": "dentvision-backend/src/modules/persons/persons.routes.ts"
+    },
+    {
+      "method": "DELETE",
+      "path": "/:id",
+      "source": "dentvision-backend/src/modules/persons/persons.routes.ts"
+    },
+    {
+      "method": "GET",
+      "path": "/",
+      "source": "dentvision-backend/src/modules/profile/profile.routes.ts"
+    },
+    {
+      "method": "PUT",
+      "path": "/",
+      "source": "dentvision-backend/src/modules/profile/profile.routes.ts"
+    },
+    {
+      "method": "POST",
+      "path": "/professional/onboard",
+      "source": "dentvision-backend/src/modules/profile/profile.routes.ts"
+    },
+    {
+      "method": "POST",
+      "path": "/skills",
+      "source": "dentvision-backend/src/modules/profile/profile.routes.ts"
+    },
+    {
+      "method": "DELETE",
+      "path": "/skills/:id",
+      "source": "dentvision-backend/src/modules/profile/profile.routes.ts"
+    },
+    {
+      "method": "POST",
+      "path": "/certificates",
+      "source": "dentvision-backend/src/modules/profile/profile.routes.ts"
+    },
+    {
+      "method": "DELETE",
+      "path": "/certificates/:id",
+      "source": "dentvision-backend/src/modules/profile/profile.routes.ts"
+    },
+    {
+      "method": "POST",
+      "path": "/achievements",
+      "source": "dentvision-backend/src/modules/profile/profile.routes.ts"
+    },
+    {
+      "method": "DELETE",
+      "path": "/achievements/:id",
+      "source": "dentvision-backend/src/modules/profile/profile.routes.ts"
+    },
+    {
+      "method": "POST",
+      "path": "/portfolio",
+      "source": "dentvision-backend/src/modules/profile/profile.routes.ts"
+    },
+    {
+      "method": "DELETE",
+      "path": "/portfolio/:id",
+      "source": "dentvision-backend/src/modules/profile/profile.routes.ts"
+    },
+    {
+      "method": "POST",
+      "path": "/cases",
+      "source": "dentvision-backend/src/modules/profile/profile.routes.ts"
+    },
+    {
+      "method": "DELETE",
+      "path": "/cases/:id",
+      "source": "dentvision-backend/src/modules/profile/profile.routes.ts"
+    },
+    {
+      "method": "POST",
+      "path": "/diagnostics/center/:centerId/bookings/:bookingId/link-referral",
+      "source": "dentvision-backend/src/modules/public/diagnosticBookingReferral.routes.ts"
+    },
+    {
+      "method": "GET",
+      "path": "/diagnostics/center/:centerId/bookings/:bookingId/referral",
+      "source": "dentvision-backend/src/modules/public/diagnosticBookingReferral.routes.ts"
+    },
+    {
+      "method": "GET",
+      "path": "/clinics/discover",
+      "source": "dentvision-backend/src/modules/public/public.routes.ts"
+    },
+    {
+      "method": "GET",
+      "path": "/diagnostics/discover",
+      "source": "dentvision-backend/src/modules/public/public.routes.ts"
+    },
+    {
+      "method": "GET",
+      "path": "/clinic/:clinicId",
+      "source": "dentvision-backend/src/modules/public/public.routes.ts"
+    },
+    {
+      "method": "GET",
+      "path": "/clinic/:clinicId/slots",
+      "source": "dentvision-backend/src/modules/public/public.routes.ts"
+    },
+    {
+      "method": "POST",
+      "path": "/booking",
+      "source": "dentvision-backend/src/modules/public/public.routes.ts"
+    },
+    {
+      "method": "GET",
+      "path": "/document/:token",
+      "source": "dentvision-backend/src/modules/public/public.routes.ts"
+    },
+    {
+      "method": "POST",
+      "path": "/document/:token/sign",
+      "source": "dentvision-backend/src/modules/public/public.routes.ts"
+    },
+    {
+      "method": "GET",
+      "path": "/commercial-terms",
+      "source": "dentvision-backend/src/modules/public/public.routes.ts"
+    },
+    {
+      "method": "GET",
+      "path": "/commercial-documents",
+      "source": "dentvision-backend/src/modules/public/public.routes.ts"
+    },
+    {
+      "method": "GET",
+      "path": "/privacy",
+      "source": "dentvision-backend/src/modules/public/public.routes.ts"
+    },
+    {
+      "method": "GET",
+      "path": "/terms",
+      "source": "dentvision-backend/src/modules/public/public.routes.ts"
+    },
+    {
+      "method": "POST",
+      "path": "/diagnostics/order",
+      "source": "dentvision-backend/src/modules/public/publicDiagnosticsBooking.routes.ts"
+    },
+    {
+      "method": "GET",
+      "path": "/diagnostics/order/:id",
+      "source": "dentvision-backend/src/modules/public/publicDiagnosticsBooking.routes.ts"
+    },
+    {
+      "method": "GET",
+      "path": "/diagnostics/center/:centerId/bookings",
+      "source": "dentvision-backend/src/modules/public/publicDiagnosticsBooking.routes.ts"
+    },
+    {
+      "method": "PATCH",
+      "path": "/diagnostics/center/:centerId/bookings/:id",
+      "source": "dentvision-backend/src/modules/public/publicDiagnosticsBooking.routes.ts"
+    },
+    {
+      "method": "POST",
+      "path": "/scan",
+      "source": "dentvision-backend/src/modules/quality/quality.routes.ts"
+    },
+    {
+      "method": "GET",
+      "path": "/hub",
+      "source": "dentvision-backend/src/modules/school/school.routes.ts"
+    },
+    {
+      "method": "GET",
+      "path": "/courses",
+      "source": "dentvision-backend/src/modules/school/school.routes.ts"
+    },
+    {
+      "method": "GET",
+      "path": "/courses/:id",
+      "source": "dentvision-backend/src/modules/school/school.routes.ts"
+    },
+    {
+      "method": "POST",
+      "path": "/courses",
+      "source": "dentvision-backend/src/modules/school/school.routes.ts"
+    },
+    {
+      "method": "PUT",
+      "path": "/courses/:id",
+      "source": "dentvision-backend/src/modules/school/school.routes.ts"
+    },
+    {
+      "method": "DELETE",
+      "path": "/courses/:id",
+      "source": "dentvision-backend/src/modules/school/school.routes.ts"
+    },
+    {
+      "method": "POST",
+      "path": "/enrollments",
+      "source": "dentvision-backend/src/modules/school/school.routes.ts"
+    },
+    {
+      "method": "GET",
+      "path": "/enrollments",
+      "source": "dentvision-backend/src/modules/school/school.routes.ts"
+    },
+    {
+      "method": "PATCH",
+      "path": "/enrollments/:id",
+      "source": "dentvision-backend/src/modules/school/school.routes.ts"
+    },
+    {
+      "method": "GET",
+      "path": "/clinical-cases",
+      "source": "dentvision-backend/src/modules/school/school.routes.ts"
+    },
+    {
+      "method": "POST",
+      "path": "/clinical-cases",
+      "source": "dentvision-backend/src/modules/school/school.routes.ts"
+    },
+    {
+      "method": "PUT",
+      "path": "/clinical-cases/:id",
+      "source": "dentvision-backend/src/modules/school/school.routes.ts"
+    },
+    {
+      "method": "GET",
+      "path": "/library",
+      "source": "dentvision-backend/src/modules/school/school.routes.ts"
+    },
+    {
+      "method": "GET",
+      "path": "/live",
+      "source": "dentvision-backend/src/modules/school/school.routes.ts"
+    },
+    {
+      "method": "GET",
+      "path": "/webinars",
+      "source": "dentvision-backend/src/modules/school/school.routes.ts"
+    },
+    {
+      "method": "GET",
+      "path": "/office-courses",
+      "source": "dentvision-backend/src/modules/school/school.routes.ts"
+    },
+    {
+      "method": "GET",
+      "path": "/textbooks",
+      "source": "dentvision-backend/src/modules/school/school.routes.ts"
+    },
+    {
+      "method": "POST",
+      "path": "/commerce/register",
+      "source": "dentvision-backend/src/modules/school/school.routes.ts"
+    },
+    {
+      "method": "GET",
+      "path": "/certificates",
+      "source": "dentvision-backend/src/modules/school/school.routes.ts"
+    },
+    {
+      "method": "GET",
+      "path": "/lessons/:lessonId/exam",
+      "source": "dentvision-backend/src/modules/school/school.routes.ts"
+    },
+    {
+      "method": "POST",
+      "path": "/lessons/:lessonId/exam/submit",
+      "source": "dentvision-backend/src/modules/school/school.routes.ts"
+    },
+    {
+      "method": "POST",
+      "path": "/tutor",
+      "source": "dentvision-backend/src/modules/school/school.routes.ts"
+    },
+    {
+      "method": "POST",
+      "path": "/homework/review",
+      "source": "dentvision-backend/src/modules/school/school.routes.ts"
+    },
+    {
+      "method": "DELETE",
+      "path": "/clinical-cases/:id",
+      "source": "dentvision-backend/src/modules/school/school.routes.ts"
+    },
+    {
+      "method": "POST",
+      "path": "/library",
+      "source": "dentvision-backend/src/modules/school/school.routes.ts"
+    },
+    {
+      "method": "PUT",
+      "path": "/library/:id",
+      "source": "dentvision-backend/src/modules/school/school.routes.ts"
+    },
+    {
+      "method": "DELETE",
+      "path": "/library/:id",
+      "source": "dentvision-backend/src/modules/school/school.routes.ts"
+    },
+    {
+      "method": "POST",
+      "path": "/register",
+      "source": "dentvision-backend/src/modules/school-workspace/lecturer.routes.ts"
+    },
+    {
+      "method": "GET",
+      "path": "/me",
+      "source": "dentvision-backend/src/modules/school-workspace/lecturer.routes.ts"
+    },
+    {
+      "method": "PATCH",
+      "path": "/me",
+      "source": "dentvision-backend/src/modules/school-workspace/lecturer.routes.ts"
+    },
+    {
+      "method": "GET",
+      "path": "/courses",
+      "source": "dentvision-backend/src/modules/school-workspace/lecturer.routes.ts"
+    },
+    {
+      "method": "POST",
+      "path": "/courses",
+      "source": "dentvision-backend/src/modules/school-workspace/lecturer.routes.ts"
+    },
+    {
+      "method": "PATCH",
+      "path": "/courses/:id",
+      "source": "dentvision-backend/src/modules/school-workspace/lecturer.routes.ts"
+    },
+    {
+      "method": "DELETE",
+      "path": "/courses/:id",
+      "source": "dentvision-backend/src/modules/school-workspace/lecturer.routes.ts"
+    },
+    {
+      "method": "GET",
+      "path": "/wallet",
+      "source": "dentvision-backend/src/modules/school-workspace/lecturer.routes.ts"
+    },
+    {
+      "method": "POST",
+      "path": "/payouts",
+      "source": "dentvision-backend/src/modules/school-workspace/lecturer.routes.ts"
+    },
+    {
+      "method": "GET",
+      "path": "/analytics",
+      "source": "dentvision-backend/src/modules/school-workspace/lecturer.routes.ts"
+    },
+    {
+      "method": "GET",
+      "path": "X-DentVision-Context",
+      "source": "dentvision-backend/src/modules/shop/shop.routes.ts"
+    },
+    {
+      "method": "GET",
+      "path": "/products",
+      "source": "dentvision-backend/src/modules/shop/shop.routes.ts"
+    },
+    {
+      "method": "GET",
+      "path": "/products/:id",
+      "source": "dentvision-backend/src/modules/shop/shop.routes.ts"
+    },
+    {
+      "method": "POST",
+      "path": "/orders",
+      "source": "dentvision-backend/src/modules/shop/shop.routes.ts"
+    },
+    {
+      "method": "GET",
+      "path": "/orders",
+      "source": "dentvision-backend/src/modules/shop/shop.routes.ts"
+    },
+    {
+      "method": "POST",
+      "path": "/favorites",
+      "source": "dentvision-backend/src/modules/shop/shop.routes.ts"
+    },
+    {
+      "method": "GET",
+      "path": "/favorites",
+      "source": "dentvision-backend/src/modules/shop/shop.routes.ts"
+    },
+    {
+      "method": "GET",
+      "path": "/categories",
+      "source": "dentvision-backend/src/modules/shop/shop.routes.ts"
+    },
+    {
+      "method": "GET",
+      "path": "/suppliers",
+      "source": "dentvision-backend/src/modules/shop/shop.routes.ts"
+    },
+    {
+      "method": "GET",
+      "path": "/product-presets",
+      "source": "dentvision-backend/src/modules/shop/shop.routes.ts"
+    },
+    {
+      "method": "POST",
+      "path": "/product-presets/quick-add",
+      "source": "dentvision-backend/src/modules/shop/shop.routes.ts"
+    },
+    {
+      "method": "GET",
+      "path": "/banners",
+      "source": "dentvision-backend/src/modules/shop/shop.routes.ts"
+    },
+    {
+      "method": "GET",
+      "path": "/promotions",
+      "source": "dentvision-backend/src/modules/shop/shop.routes.ts"
+    },
+    {
+      "method": "GET",
+      "path": "/recommendations",
+      "source": "dentvision-backend/src/modules/shop/shop.routes.ts"
+    },
+    {
+      "method": "GET",
+      "path": "/categories/:slug",
+      "source": "dentvision-backend/src/modules/shop/shop.routes.ts"
+    },
+    {
+      "method": "GET",
+      "path": "/spec-templates",
+      "source": "dentvision-backend/src/modules/shop/shop.routes.ts"
+    },
+    {
+      "method": "GET",
+      "path": "/delivery-zones",
+      "source": "dentvision-backend/src/modules/shop/shop.routes.ts"
+    },
+    {
+      "method": "GET",
+      "path": "/delivery-calc",
+      "source": "dentvision-backend/src/modules/shop/shop.routes.ts"
+    },
+    {
+      "method": "GET",
+      "path": "/delivery-preview",
+      "source": "dentvision-backend/src/modules/shop/shop.routes.ts"
+    },
+    {
+      "method": "GET",
+      "path": "/products/:id/offers",
+      "source": "dentvision-backend/src/modules/shop/shop.routes.ts"
+    },
+    {
+      "method": "POST",
+      "path": "/products",
+      "source": "dentvision-backend/src/modules/shop/shop.routes.ts"
+    },
+    {
+      "method": "PATCH",
+      "path": "/products/:id",
+      "source": "dentvision-backend/src/modules/shop/shop.routes.ts"
+    },
+    {
+      "method": "DELETE",
+      "path": "/products/:id",
+      "source": "dentvision-backend/src/modules/shop/shop.routes.ts"
+    },
+    {
+      "method": "GET",
+      "path": "/reviews",
+      "source": "dentvision-backend/src/modules/shop/shop.routes.ts"
+    },
+    {
+      "method": "POST",
+      "path": "/reviews",
+      "source": "dentvision-backend/src/modules/shop/shop.routes.ts"
+    },
+    {
+      "method": "GET",
+      "path": "/products/:productId/reviews",
+      "source": "dentvision-backend/src/modules/shop/shop.routes.ts"
+    },
+    {
+      "method": "POST",
+      "path": "/product-presets/seed",
+      "source": "dentvision-backend/src/modules/shop/shop.routes.ts"
+    },
+    {
+      "method": "POST",
+      "path": "/categories",
+      "source": "dentvision-backend/src/modules/shop/shop.routes.ts"
+    },
+    {
+      "method": "DELETE",
+      "path": "/categories/:id",
+      "source": "dentvision-backend/src/modules/shop/shop.routes.ts"
+    },
+    {
+      "method": "POST",
+      "path": "/suppliers",
+      "source": "dentvision-backend/src/modules/shop/shop.routes.ts"
+    },
+    {
+      "method": "DELETE",
+      "path": "/suppliers/:id",
+      "source": "dentvision-backend/src/modules/shop/shop.routes.ts"
+    },
+    {
+      "method": "GET",
+      "path": "/admin/products",
+      "source": "dentvision-backend/src/modules/shop/shop.routes.ts"
+    },
+    {
+      "method": "POST",
+      "path": "/admin/products",
+      "source": "dentvision-backend/src/modules/shop/shop.routes.ts"
+    },
+    {
+      "method": "PATCH",
+      "path": "/admin/products/:id",
+      "source": "dentvision-backend/src/modules/shop/shop.routes.ts"
+    },
+    {
+      "method": "DELETE",
+      "path": "/admin/products/:id",
+      "source": "dentvision-backend/src/modules/shop/shop.routes.ts"
+    },
+    {
+      "method": "GET",
+      "path": "/admin/reviews",
+      "source": "dentvision-backend/src/modules/shop/shop.routes.ts"
+    },
+    {
+      "method": "PATCH",
+      "path": "/admin/reviews/:id",
+      "source": "dentvision-backend/src/modules/shop/shop.routes.ts"
+    },
+    {
+      "method": "GET",
+      "path": "/admin/stats",
+      "source": "dentvision-backend/src/modules/shop/shop.routes.ts"
+    },
+    {
+      "method": "GET",
+      "path": "/me",
+      "source": "dentvision-backend/src/modules/supplier-workspace/workspace.routes.ts"
+    },
+    {
+      "method": "PATCH",
+      "path": "/me",
+      "source": "dentvision-backend/src/modules/supplier-workspace/workspace.routes.ts"
+    },
+    {
+      "method": "POST",
+      "path": "/documents",
+      "source": "dentvision-backend/src/modules/supplier-workspace/workspace.routes.ts"
+    },
+    {
+      "method": "GET",
+      "path": "/dashboard",
+      "source": "dentvision-backend/src/modules/supplier-workspace/workspace.routes.ts"
+    },
+    {
+      "method": "GET",
+      "path": "/insights",
+      "source": "dentvision-backend/src/modules/supplier-workspace/workspace.routes.ts"
+    },
+    {
+      "method": "GET",
+      "path": "/orders",
+      "source": "dentvision-backend/src/modules/supplier-workspace/workspace.routes.ts"
+    },
+    {
+      "method": "PATCH",
+      "path": "/orders/:id/status",
+      "source": "dentvision-backend/src/modules/supplier-workspace/workspace.routes.ts"
+    },
+    {
+      "method": "POST",
+      "path": "/promotions",
+      "source": "dentvision-backend/src/modules/supplier-workspace/workspace.routes.ts"
+    },
+    {
+      "method": "GET",
+      "path": "/cashback-rules",
+      "source": "dentvision-backend/src/modules/supplier-workspace/workspace.routes.ts"
+    },
+    {
+      "method": "PUT",
+      "path": "/cashback-rules",
+      "source": "dentvision-backend/src/modules/supplier-workspace/workspace.routes.ts"
+    },
+    {
+      "method": "DELETE",
+      "path": "/cashback-rules/:id",
+      "source": "dentvision-backend/src/modules/supplier-workspace/workspace.routes.ts"
+    },
+    {
+      "method": "GET",
+      "path": "/products",
+      "source": "dentvision-backend/src/modules/supplier-workspace/workspace.routes.ts"
+    },
+    {
+      "method": "POST",
+      "path": "/products",
+      "source": "dentvision-backend/src/modules/supplier-workspace/workspace.routes.ts"
+    },
+    {
+      "method": "PATCH",
+      "path": "/products/:id",
+      "source": "dentvision-backend/src/modules/supplier-workspace/workspace.routes.ts"
+    },
+    {
+      "method": "DELETE",
+      "path": "/products/:id",
+      "source": "dentvision-backend/src/modules/supplier-workspace/workspace.routes.ts"
+    },
+    {
+      "method": "GET",
+      "path": "/wallet",
+      "source": "dentvision-backend/src/modules/supplier-workspace/workspace.routes.ts"
+    },
+    {
+      "method": "POST",
+      "path": "/payouts",
+      "source": "dentvision-backend/src/modules/supplier-workspace/workspace.routes.ts"
+    },
+    {
+      "method": "GET",
+      "path": "/analytics",
+      "source": "dentvision-backend/src/modules/supplier-workspace/workspace.routes.ts"
+    },
+    {
+      "method": "GET",
+      "path": "/delivery-zones",
+      "source": "dentvision-backend/src/modules/supplier-workspace/workspace.routes.ts"
+    },
+    {
+      "method": "POST",
+      "path": "/delivery-zones",
+      "source": "dentvision-backend/src/modules/supplier-workspace/workspace.routes.ts"
+    },
+    {
+      "method": "PUT",
+      "path": "/delivery-zones/:id",
+      "source": "dentvision-backend/src/modules/supplier-workspace/workspace.routes.ts"
+    },
+    {
+      "method": "DELETE",
+      "path": "/delivery-zones/:id",
+      "source": "dentvision-backend/src/modules/supplier-workspace/workspace.routes.ts"
+    },
+    {
+      "method": "GET",
+      "path": "/",
+      "source": "dentvision-backend/src/modules/suppliers/suppliers.routes.ts"
+    },
+    {
+      "method": "POST",
+      "path": "/register",
+      "source": "dentvision-backend/src/modules/suppliers/suppliers.routes.ts"
+    },
+    {
+      "method": "GET",
+      "path": "/:id",
+      "source": "dentvision-backend/src/modules/suppliers/suppliers.routes.ts"
+    },
+    {
+      "method": "POST",
+      "path": "/",
+      "source": "dentvision-backend/src/modules/suppliers/suppliers.routes.ts"
+    },
+    {
+      "method": "PATCH",
+      "path": "/:id",
+      "source": "dentvision-backend/src/modules/suppliers/suppliers.routes.ts"
+    },
+    {
+      "method": "POST",
+      "path": "/:id/status",
+      "source": "dentvision-backend/src/modules/suppliers/suppliers.routes.ts"
+    },
+    {
+      "method": "GET",
+      "path": "/:id/members",
+      "source": "dentvision-backend/src/modules/suppliers/suppliers.routes.ts"
+    },
+    {
+      "method": "POST",
+      "path": "/:id/members",
+      "source": "dentvision-backend/src/modules/suppliers/suppliers.routes.ts"
+    },
+    {
+      "method": "DELETE",
+      "path": "/:id/members/:userId",
+      "source": "dentvision-backend/src/modules/suppliers/suppliers.routes.ts"
+    },
+    {
+      "method": "POST",
+      "path": "/:id/documents",
+      "source": "dentvision-backend/src/modules/suppliers/suppliers.routes.ts"
+    },
+    {
+      "method": "GET",
+      "path": "/mine",
+      "source": "dentvision-backend/src/modules/support/support.routes.ts"
+    },
+    {
+      "method": "GET",
+      "path": "/staff",
+      "source": "dentvision-backend/src/modules/support/support.routes.ts"
+    },
+    {
+      "method": "GET",
+      "path": "/queue",
+      "source": "dentvision-backend/src/modules/support/support.routes.ts"
+    },
+    {
+      "method": "POST",
+      "path": "/tickets",
+      "source": "dentvision-backend/src/modules/support/support.routes.ts"
+    },
+    {
+      "method": "GET",
+      "path": "/tickets/:id",
+      "source": "dentvision-backend/src/modules/support/support.routes.ts"
+    },
+    {
+      "method": "POST",
+      "path": "/tickets/:id/messages",
+      "source": "dentvision-backend/src/modules/support/support.routes.ts"
+    },
+    {
+      "method": "PATCH",
+      "path": "/tickets/:id",
+      "source": "dentvision-backend/src/modules/support/support.routes.ts"
+    },
+    {
+      "method": "GET",
+      "path": "/",
+      "source": "dentvision-backend/src/modules/workflow/workflow.routes.ts"
+    },
+    {
+      "method": "POST",
+      "path": "/",
+      "source": "dentvision-backend/src/modules/workflow/workflow.routes.ts"
+    },
+    {
+      "method": "PATCH",
+      "path": "/:id",
+      "source": "dentvision-backend/src/modules/workflow/workflow.routes.ts"
+    },
+    {
+      "method": "POST",
+      "path": "/:id/run",
+      "source": "dentvision-backend/src/modules/workflow/workflow.routes.ts"
+    },
+    {
+      "method": "GET",
+      "path": "/:id/runs",
+      "source": "dentvision-backend/src/modules/workflow/workflow.routes.ts"
+    }
+  ],
+  "frontendApiFiles": [
+    "dentvision-backend/src/lib/aiQuota.test.ts",
+    "dentvision-backend/src/lib/authContext.test.ts",
+    "dentvision-backend/src/lib/authContext.ts",
+    "dentvision-backend/src/lib/branchAccessPolicy.test.ts",
+    "dentvision-backend/src/lib/branchAccessPolicy.ts",
+    "dentvision-backend/src/lib/branchAuthorization.test.ts",
+    "dentvision-backend/src/lib/branchAuthorization.ts",
+    "dentvision-backend/src/lib/branchConsistencyMigration.test.ts",
+    "dentvision-backend/src/lib/branchIsolationReleaseContract.test.ts",
+    "dentvision-backend/src/lib/branchScope.test.ts",
+    "dentvision-backend/src/lib/branchScope.ts",
+    "dentvision-backend/src/lib/clinicAccess.test.ts",
+    "dentvision-backend/src/lib/clinicAccess.ts",
+    "dentvision-backend/src/lib/clinicRoleAccessRegistry.test.ts",
+    "dentvision-backend/src/lib/clinicRoleAccessRegistry.ts",
+    "dentvision-backend/src/lib/clinicStaff.test.ts",
+    "dentvision-backend/src/lib/clinicStaff.ts",
+    "dentvision-backend/src/lib/cors.test.ts",
+    "dentvision-backend/src/lib/cors.ts",
+    "dentvision-backend/src/lib/crossClinicAccess.test.ts",
+    "dentvision-backend/src/lib/crossClinicAccess.ts",
+    "dentvision-backend/src/lib/dailyCounter.test.ts",
+    "dentvision-backend/src/lib/dailyCounter.ts",
+    "dentvision-backend/src/lib/diagnosticBranchScope.test.ts",
+    "dentvision-backend/src/lib/diagnosticBranchScope.ts",
+    "dentvision-backend/src/lib/diagnosticClinicalAuth.test.ts",
+    "dentvision-backend/src/lib/diagnosticClinicalAuth.ts",
+    "dentvision-backend/src/lib/diagnosticReferralBranchPolicy.test.ts",
+    "dentvision-backend/src/lib/diagnosticReferralBranchPolicy.ts",
+    "dentvision-backend/src/lib/events.ts",
+    "dentvision-backend/src/lib/fieldEncryption.test.ts",
+    "dentvision-backend/src/lib/fieldEncryption.ts",
+    "dentvision-backend/src/lib/financeBranchBoundary.test.ts",
+    "dentvision-backend/src/lib/financeBranchBoundary.ts",
+    "dentvision-backend/src/lib/financeBranchScope.test.ts",
+    "dentvision-backend/src/lib/financeBranchScope.ts",
+    "dentvision-backend/src/lib/financeWalletBoundary.test.ts",
+    "dentvision-backend/src/lib/financeWalletBoundary.ts",
+    "dentvision-backend/src/lib/guestAiQuota.ts",
+    "dentvision-backend/src/lib/helpers.test.ts",
+    "dentvision-backend/src/lib/helpers.ts",
+    "dentvision-backend/src/lib/idempotency.ts",
+    "dentvision-backend/src/lib/iin.test.ts",
+    "dentvision-backend/src/lib/iin.ts",
+    "dentvision-backend/src/lib/imageUrl.test.ts",
+    "dentvision-backend/src/lib/imageUrl.ts",
+    "dentvision-backend/src/lib/inventoryBranchScope.test.ts",
+    "dentvision-backend/src/lib/inventoryBranchScope.ts",
+    "dentvision-backend/src/lib/jobLock.test.ts",
+    "dentvision-backend/src/lib/jobLock.ts",
+    "dentvision-backend/src/lib/jwt.ts",
+    "dentvision-backend/src/lib/kzCities.ts",
+    "dentvision-backend/src/lib/loginGuard.ts",
+    "dentvision-backend/src/lib/money.test.ts",
+    "dentvision-backend/src/lib/money.ts",
+    "dentvision-backend/src/lib/orderStatus.ts",
+    "dentvision-backend/src/lib/orgContext.test.ts",
+    "dentvision-backend/src/lib/orgContext.ts",
+    "dentvision-backend/src/lib/pageParity.test.ts",
+    "dentvision-backend/src/lib/partnerRoleMatrix.test.ts",
+    "dentvision-backend/src/lib/password.ts",
+    "dentvision-backend/src/lib/patientAiQuota.ts",
+    "dentvision-backend/src/lib/patientAssignment.test.ts",
+    "dentvision-backend/src/lib/patientAssignment.ts",
+    "dentvision-backend/src/lib/patientBranchScope.test.ts",
+    "dentvision-backend/src/lib/patientBranchScope.ts",
+    "dentvision-backend/src/lib/patientIin.test.ts",
+    "dentvision-backend/src/lib/patientIin.ts",
+    "dentvision-backend/src/lib/permissions.community.test.ts",
+    "dentvision-backend/src/lib/permissions.pages.test.ts",
+    "dentvision-backend/src/lib/permissions.test.ts",
+    "dentvision-backend/src/lib/permissions.ts",
+    "dentvision-backend/src/lib/phi.test.ts",
+    "dentvision-backend/src/lib/phi.ts",
+    "dentvision-backend/src/lib/planOptions.test.ts",
+    "dentvision-backend/src/lib/planOptions.ts",
+    "dentvision-backend/src/lib/prisma.referral-economics.test.ts",
+    "dentvision-backend/src/lib/prisma.ts",
+    "dentvision-backend/src/lib/redis.ts",
+    "dentvision-backend/src/lib/resolvePermissions.test.ts",
+    "dentvision-backend/src/lib/resolvePermissions.ts",
+    "dentvision-backend/src/lib/roleAccessRegistry.test.ts",
+    "dentvision-backend/src/lib/roleAccessRegistry.ts",
+    "dentvision-backend/src/lib/roleMapping.test.ts",
+    "dentvision-backend/src/lib/sentry.test.ts",
+    "dentvision-backend/src/lib/sentry.ts",
+    "dentvision-backend/src/lib/sseTicket.test.ts",
+    "dentvision-backend/src/lib/sseTicket.ts",
+    "dentvision-backend/src/lib/staffCompensation.test.ts",
+    "dentvision-backend/src/lib/staffCompensation.ts",
+    "dentvision-backend/src/lib/storage.test.ts",
+    "dentvision-backend/src/lib/storage.ts",
+    "dentvision-backend/src/lib/syncMembership.test.ts",
+    "dentvision-backend/src/lib/syncMembership.ts",
+    "dentvision-backend/src/lib/treatmentCaseContext.ts",
+    "dentvision-backend/src/lib/treatmentCaseInheritance.ts",
+    "dentvision-backend/src/lib/treatmentPlanShape.test.ts",
+    "dentvision-backend/src/lib/treatmentPlanShape.ts",
+    "dentvision-backend/src/lib/triage.test.ts",
+    "dentvision-backend/src/lib/triage.ts",
+    "dentvision-backend/src/services/email.ts",
+    "dentvision-backend/src/services/messaging.ts",
+    "dentvision-backend/src/services/notification.service.ts",
+    "src/lib/aiActionPolicy.test.ts",
+    "src/lib/aiActionPolicy.ts",
+    "src/lib/aiPlatformMap.test.ts",
+    "src/lib/aiPlatformMap.ts",
+    "src/lib/clinic-timezone.ts",
+    "src/lib/clinicPrices.test.ts",
+    "src/lib/clinicPrices.ts",
+    "src/lib/clinicalCaseActions.test.ts",
+    "src/lib/clinicalCaseActions.ts",
+    "src/lib/clinicalCaseContext.test.ts",
+    "src/lib/clinicalCaseContext.ts",
+    "src/lib/clinicalTreatmentOrchestrator.test.ts",
+    "src/lib/clinicalTreatmentOrchestrator.ts",
+    "src/lib/dentcash.ts",
+    "src/lib/design-tokens.ts",
+    "src/lib/designTokens.test.ts",
+    "src/lib/field-mappings.ts",
+    "src/lib/financePeriod.test.ts",
+    "src/lib/financePeriod.ts",
+    "src/lib/googleSignIn.ts",
+    "src/lib/i18n.ts",
+    "src/lib/icd10-data.ts",
+    "src/lib/iin.ts",
+    "src/lib/image-upload.ts",
+    "src/lib/inventory-shop-match.test.ts",
+    "src/lib/inventory-shop-match.ts",
+    "src/lib/jobsAiQuery.test.ts",
+    "src/lib/jobsAiQuery.ts",
+    "src/lib/kz-cities.test.ts",
+    "src/lib/kz-cities.ts",
+    "src/lib/liveGreeting.test.ts",
+    "src/lib/liveGreeting.ts",
+    "src/lib/localStoragePrivacy.test.ts",
+    "src/lib/localStoragePrivacy.ts",
+    "src/lib/odontogram-plan-sync.test.ts",
+    "src/lib/odontogram-plan-sync.ts",
+    "src/lib/odontogram.test.ts",
+    "src/lib/odontogram.ts",
+    "src/lib/planEntitlements.test.ts",
+    "src/lib/planEntitlements.ts",
+    "src/lib/planOptionsRead.test.ts",
+    "src/lib/presentation/audioPersona.test.ts",
+    "src/lib/presentation/audioPersona.ts",
+    "src/lib/presentation/beats.ts",
+    "src/lib/presentation/director.test.ts",
+    "src/lib/presentation/director.ts",
+    "src/lib/presentation/planOptions.ts",
+    "src/lib/presentation/silentPersona.ts",
+    "src/lib/referralStatus.test.ts",
+    "src/lib/referralStatus.ts",
+    "src/lib/roleAccess.test.ts",
+    "src/lib/roleAccess.ts",
+    "src/lib/seed-data.ts",
+    "src/lib/sentry.test.ts",
+    "src/lib/sentry.ts",
+    "src/lib/service-catalog.ts",
+    "src/lib/syncQueue.test.ts",
+    "src/lib/syncQueue.ts",
+    "src/lib/treatment-plan-print.ts",
+    "src/lib/treatment-plan.test.ts",
+    "src/lib/treatment-plan.ts",
+    "src/lib/utils.test.ts",
+    "src/lib/utils.ts",
+    "src/lib/visitDictation.test.ts",
+    "src/lib/visitDictation.ts",
+    "src/lib/workspaceContext.test.ts",
+    "src/lib/workspaceContext.ts",
+    "src/services/websocket/SocketProvider.tsx",
+    "src/services/websocket/events.ts",
+    "src/services/websocket/index.ts",
+    "src/services/websocket/socket.ts"
+  ]
 }

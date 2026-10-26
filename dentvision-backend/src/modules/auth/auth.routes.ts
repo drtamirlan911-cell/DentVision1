@@ -26,6 +26,7 @@ import { expireSession } from '../compliance/session.service.js';
 import { checkLoginAttempts, recordFailedAttempt, resetAttempts } from '../../lib/loginGuard.js';
 import crypto from 'node:crypto';
 import { setCsrfCookie } from '../../middleware/csrf.js';
+import { createClinicForOwner, createClinicForOwnerInTransaction, normalizeClinicInput } from '../clinics/clinicCreation.service.js';
 
 function setAuthCookies(res: any, accessToken: string, refreshToken: string) {
   res.cookie('accessToken', accessToken, { httpOnly: true, secure: process.env.NODE_ENV === 'production', sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax', maxAge: 24 * 60 * 60 * 1000, path: '/' });
@@ -54,24 +55,134 @@ interface SignInUser {
   memberships: Array<{ id: string; role: string; clinicId: string; joinedAt: Date; clinic: unknown }>;
 }
 
-async function buildSignInPayload(user: SignInUser, req: any, res: any) {
-  const authContext = await resolveAuthContext(user.id, { clinicId: user.memberships[0]?.clinicId });
-  const clinicId = authContext.clinicId;
-  const activeMembership = user.memberships[0] ? { id: user.memberships[0].id, role: user.memberships[0].role, clinicId: user.memberships[0].clinicId, joinedAt: user.memberships[0].joinedAt, clinic: user.memberships[0].clinic } : null;
-  const session = await createSession(user.id, req.ip, req.headers['user-agent']);
+class AuthContextSwitchError extends Error {
+  constructor(message: string, readonly statusCode: number) { super(message); }
+}
+
+async function buildSignInPayload(user: SignInUser, req: any, res: any, requestedClinicId?: string | null, rotateSessionId?: string) {
+  // No explicit switch during login must keep the canonical default-context
+  // resolver available to non-clinic participants. Explicit null is only used
+  // when the caller intentionally clears an active clinic context.
+  const contextClinicId = requestedClinicId === undefined ? user.memberships[0]?.clinicId : requestedClinicId;
+  const authContext = contextClinicId === undefined
+    ? await resolveAuthContext(user.id)
+    : await resolveAuthContext(user.id, { clinicId: contextClinicId });
+  const clinicId = authContext.clinicId ?? undefined;
+  if (contextClinicId && clinicId !== contextClinicId) throw new AuthContextSwitchError('Нет доступа к выбранной клинике', 403);
+  const activeMembership = clinicId ? user.memberships.find((m) => m.clinicId === clinicId) || null : null;
+  if (clinicId && !activeMembership) throw new AuthContextSwitchError('Вы не являетесь участником выбранной клиники', 403);
+
   const effectivePermissions = await resolveUserPermissions(user.id, authContext.organizationId);
   const scopedRole = clinicId
     ? (await resolveClinicAccess(user.id, clinicId))?.role || user.role
-    : authContext.organizationId
-      ? await resolveOrganizationRoleKey(user.id, authContext.organizationId) || user.role
-      : user.role;
+    : authContext.organizationId ? await resolveOrganizationRoleKey(user.id, authContext.organizationId) || user.role : user.role;
+  const session = rotateSessionId
+    ? await prisma.$transaction(async (tx) => {
+        const nextSession = await createSession(user.id, req.ip, req.headers['user-agent'], tx);
+        const previousExpired = await expireSession(rotateSessionId, user.id, tx);
+        if (!previousExpired) throw new AuthContextSwitchError('Текущая сессия уже недействительна', 401);
+        await auditFromReq(req, {
+          action: 'auth.switch_clinic',
+          entity: 'clinic',
+          entityId: requestedClinicId || 'none',
+          details: { previousClinicId: req.user?.clinicId ?? null, selectedClinicId: requestedClinicId ?? null },
+        }, tx);
+        return nextSession;
+      })
+    : await createSession(user.id, req.ip, req.headers['user-agent']);
   const tokens = generateTokens({ sub: user.id, email: user.email, role: scopedRole as UserRole, ...authContext, sessionId: session.id });
   const { password: _password, memberships, ...userWithoutPassword } = user;
   setAuthCookies(res, tokens.accessToken, tokens.refreshToken);
-  return { user: { ...userWithoutPassword, clinicId, organizationId: authContext.organizationId, organizationOriginalId: authContext.organizationOriginalId, organizationType: authContext.organizationType, organizationName: authContext.organizationName, personType: authContext.personType, effectiveRole: scopedRole, name: `${user.firstName} ${user.lastName}`.trim() }, memberships: memberships.map((m) => ({ id: m.id, role: m.role, clinicId: m.clinicId, joinedAt: m.joinedAt, clinic: m.clinic })), activeMembership, permissions: effectivePermissions, pages: pagesForCaller(effectivePermissions, scopedRole), capabilities: capabilitiesForPermissions(effectivePermissions, scopedRole), effectiveRole: scopedRole, ...tokens };
+  return {
+    user: { ...userWithoutPassword, clinicId, organizationId: authContext.organizationId, organizationOriginalId: authContext.organizationOriginalId,
+      organizationType: authContext.organizationType, organizationName: authContext.organizationName, personType: authContext.personType,
+      effectiveRole: scopedRole, name: `${user.firstName} ${user.lastName}`.trim() },
+    memberships: memberships.map((m) => ({ id: m.id, role: m.role, clinicId: m.clinicId, joinedAt: m.joinedAt, clinic: m.clinic })),
+    activeMembership: activeMembership ? { id: activeMembership.id, role: activeMembership.role, clinicId: activeMembership.clinicId,
+      joinedAt: activeMembership.joinedAt, clinic: activeMembership.clinic } : null,
+    permissions: effectivePermissions, pages: pagesForCaller(effectivePermissions, scopedRole),
+    capabilities: capabilitiesForPermissions(effectivePermissions, scopedRole), effectiveRole: scopedRole, ...tokens,
+  };
+}
+
+async function findSignInUser(userId: string): Promise<SignInUser | null> {
+  return await prisma.user.findUnique({
+    where: { id: userId },
+    select: { id: true, email: true, firstName: true, lastName: true, role: true,
+      memberships: { select: { id: true, role: true, clinicId: true, joinedAt: true,
+        clinic: { select: { id: true, name: true, city: true, plan: true, logo: true, active: true } } }, orderBy: { joinedAt: 'asc' } },
+    },
+  }) as unknown as SignInUser | null;
 }
 
 export const authRouter = Router();
+
+authRouter.post('/switch-clinic', authenticate, async (req: AuthRequest, res) => {
+  const rawClinicId = req.body?.clinicId;
+  if (rawClinicId !== null && rawClinicId !== undefined && typeof rawClinicId !== 'string') {
+    return res.status(400).json({ ok: false, error: 'clinicId должен быть строкой или null' });
+  }
+  const clinicId = typeof rawClinicId === 'string' && rawClinicId.trim() ? rawClinicId.trim() : null;
+  const sessionId = req.user?.sessionId;
+  if (!sessionId) return res.status(401).json({ ok: false, error: 'Недействительная сессия' });
+  try {
+    if (clinicId) {
+      const membership = await prisma.clinicMember.findUnique({ where: { userId_clinicId: { userId: req.user!.id, clinicId } },
+        select: { clinic: { select: { id: true, active: true } } } });
+      if (!membership || !membership.clinic.active) return res.status(403).json({ ok: false, error: 'Нет доступа к выбранной клинике' });
+    }
+    const user = await findSignInUser(req.user!.id);
+    if (!user) return res.status(401).json({ ok: false, error: 'Пользователь не найден' });
+    const data = await buildSignInPayload(user, req, res, clinicId, sessionId);
+    return res.json({ ok: true, data } satisfies ApiResponse);
+  } catch (error) {
+    if (error instanceof AuthContextSwitchError) {
+      if (error.statusCode === 401) clearAuthCookies(res);
+      return res.status(error.statusCode).json({ ok: false, error: error.message });
+    }
+    clearAuthCookies(res);
+    console.error('[auth/switch-clinic]', error);
+    return res.status(500).json({ ok: false, error: 'Не удалось переключить клинику' });
+  }
+});
+
+authRouter.post('/clinics', authenticate, async (req: AuthRequest, res) => {
+  const input = normalizeClinicInput(req.body);
+  if (!input) return res.status(400).json({ ok: false, error: 'Укажите корректное название клиники и проверьте контактные поля' });
+  try {
+    const { clinic } = await createClinicForOwner(req.user!.id, input, {
+      action: 'clinic.create', entity: 'clinic', userId: req.user!.id, clinicId: req.user!.clinicId,
+      ip: req.ip || req.socket?.remoteAddress,
+    });
+    return res.status(201).json({ ok: true, data: clinic } satisfies ApiResponse);
+  } catch (error) {
+    console.error('[auth/clinics]', error);
+    return res.status(500).json({ ok: false, error: 'Ошибка при создании клиники' });
+  }
+});
+
+authRouter.post('/demo-clinic', authenticate, async (req: AuthRequest, res) => {
+  const input = normalizeClinicInput(req.body, 'Моя демо-клиника');
+  if (!input) return res.status(400).json({ ok: false, error: 'Проверьте название и контактные поля клиники' });
+  try {
+    const result = await prisma.$transaction(async (tx) => {
+      await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtext(${req.user!.id}))`;
+      const existing = await tx.clinicMember.findFirst({ where: { userId: req.user!.id, role: 'OWNER', clinic: { plan: 'DEMO', active: true } },
+        select: { clinic: true }, orderBy: { joinedAt: 'asc' } });
+      if (existing) return { clinic: existing.clinic, created: false };
+      const created = await createClinicForOwnerInTransaction(tx, req.user!.id, input, {
+        action: 'clinic.demo.create', entity: 'clinic', userId: req.user!.id, clinicId: req.user!.clinicId,
+        ip: req.ip || req.socket?.remoteAddress,
+      });
+      return { clinic: created.clinic, created: true };
+    });
+    return res.status(result.created ? 201 : 200).json({ ok: true, data: { clinic: result.clinic } } satisfies ApiResponse);
+  } catch (error) {
+    console.error('[auth/demo-clinic]', error);
+    return res.status(500).json({ ok: false, error: 'Не удалось подготовить демо-клинику' });
+  }
+});
+
 
 /**
  * Public registration creates an unscoped account only. Clinic/partner roles
