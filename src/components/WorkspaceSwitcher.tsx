@@ -81,7 +81,11 @@ export function WorkspaceSwitcher({ className }: { className?: string }) {
     if (!rect) return
     const width = Math.min(304, window.innerWidth - 24)
     const left = Math.max(12, Math.min(rect.left, window.innerWidth - width - 12))
-    const top = Math.min(rect.bottom + 8, window.innerHeight - 24)
+    const maxHeight = Math.min(560, window.innerHeight - 24)
+    const availableBelow = window.innerHeight - rect.bottom - 20
+    const top = availableBelow >= Math.min(maxHeight, 280)
+      ? rect.bottom + 8
+      : Math.max(12, rect.top - maxHeight - 8)
     setMenuPosition({ top, left, width })
   }
 
@@ -302,7 +306,7 @@ export function WorkspaceSwitcher({ className }: { className?: string }) {
     <div
       ref={menuRef}
       className="fixed z-[1000] rounded-2xl border border-bdr-strong bg-surface-raised shadow-elev-3 p-1.5 overflow-y-auto overscroll-contain"
-      style={{ top: menuPosition.top, left: menuPosition.left, width: menuPosition.width, maxHeight: Math.max(120, window.innerHeight - menuPosition.top - 12) }}
+      style={{ top: menuPosition.top, left: menuPosition.left, width: menuPosition.width, maxHeight: Math.min(560, window.innerHeight - menuPosition.top - 12) }}
       role="menu"
       aria-label="Рабочее пространство"
       data-testid="workspace-switcher-menu"

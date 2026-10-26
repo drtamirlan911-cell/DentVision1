@@ -1,4 +1,4 @@
-import { test, expect, type Page } from '@playwright/test';
+import { test, expect, type Page, type ConsoleMessage, type Response } from '@playwright/test';
 
 const BASE_URL = process.env.PLAYWRIGHT_UI_URL || 'http://localhost:3000';
 const API_BASE_URL = process.env.PLAYWRIGHT_API_URL || 'http://localhost:3001';
@@ -33,11 +33,28 @@ async function login(page: Page) {
 
 function collectRuntimeErrors(page: Page) {
   const errors: string[] = [];
-  page.on('pageerror', (error) => errors.push(`pageerror: ${error.message}`));
-  page.on('console', (message) => {
+  const onPageError = (error: Error) => errors.push(`pageerror: ${error.message}`);
+  const onConsole = (message: ConsoleMessage) => {
     if (message.type() === 'error') errors.push(`console: ${message.text()}`);
-  });
-  return errors;
+  };
+  const onResponse = (response: Response) => {
+    if (response.status() < 400) return;
+    const url = new URL(response.url());
+    if (url.pathname.startsWith('/api/')) {
+      errors.push(`http ${response.status()}: ${url.pathname}${url.search}`);
+    }
+  };
+  page.on('pageerror', onPageError);
+  page.on('console', onConsole);
+  page.on('response', onResponse);
+  return {
+    errors,
+    dispose: () => {
+      page.off('pageerror', onPageError);
+      page.off('console', onConsole);
+      page.off('response', onResponse);
+    },
+  };
 }
 
 test.describe('DentVision browser UX coverage', () => {
@@ -49,7 +66,7 @@ test.describe('DentVision browser UX coverage', () => {
   test('UX-001: every declared static route renders without runtime errors', async ({ page }) => {
     const failures: string[] = [];
     for (const route of ROUTES) {
-      const errors = collectRuntimeErrors(page);
+      const runtime = collectRuntimeErrors(page);
       try {
         await page.goto(`${BASE_URL}${route}`, { waitUntil: 'domcontentloaded', timeout: 20000 });
         await expect.poll(() => page.locator('body').innerText().catch(() => ''), {
@@ -76,9 +93,11 @@ test.describe('DentVision browser UX coverage', () => {
         if (/Application error|ChunkLoadError|Failed to fetch dynamically imported module/i.test(bodyText)) {
           failures.push(`${route}: application/chunk error visible`);
         }
-        if (errors.length) failures.push(`${route}: ${errors.join(' | ')}`);
+        if (runtime.errors.length) failures.push(`${route}: ${runtime.errors.join(' | ')}`);
       } catch (error) {
         failures.push(`${route}: navigation failed: ${error instanceof Error ? error.message : String(error)}`);
+      } finally {
+        runtime.dispose();
       }
     }
     expect(failures, failures.join('\n')).toEqual([]);

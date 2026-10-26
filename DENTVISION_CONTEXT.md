@@ -269,3 +269,5 @@ Do not repeat an audit when implementation can resolve the issue. Do not weaken 
 - The core gate completed 240 tests and skipped 5, but BRANCH-003 timed out because the created branch option was outside the visible viewport in the workspace picker. Browser UX independently reported HTTP 403 resource errors on `/crm/patients` and `/crm/treatment-plans`. These must be fixed rather than ignored.
 - Candidate change in `fix/workspace-switcher-menu-overflow-20261026` makes the whole picker scrollable and constrains its height to the viewport. Pending PR/CI; this is not yet a verified fix.
 - `RB-029` remains OPEN; no production database read/write, medical-history backfill, or deployment was performed.
+
+- Follow-up in PR [#328](https://github.com/drtamirlan911-cell/DentVision1/pull/328): the picker now opens above its trigger when necessary and scrolls the entire menu within the available height. The UX smoke collector was hardened to dispose per-route listeners and report the URL path/status for failing API responses. Exact-head CI remains pending.
