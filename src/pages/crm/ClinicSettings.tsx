@@ -353,8 +353,10 @@ export default function ClinicSettingsPage() {
               <button
                 key={t.id}
                 type="button"
+                aria-label={t.label}
+                aria-pressed={activeTab === t.id}
                 onClick={() => setActiveTab(t.id)}
-                className={`flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-xs font-medium transition-colors whitespace-nowrap ${
+                className={`flex min-h-11 shrink-0 items-center gap-1.5 px-3.5 py-2 rounded-lg text-xs font-medium transition-colors whitespace-nowrap ${
                   activeTab === t.id
                     ? 'bg-dv-gold/15 text-dv-gold'
                     : 'text-txt-muted hover:text-txt-primary hover:bg-white/[0.04]'
