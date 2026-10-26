@@ -15,9 +15,11 @@ describe('patient portal structured medical-history persistence contract', () =>
       "import { decryptPatientFields, encryptMedicalHistory, hmacIin } from '../../lib/phi.js';",
     );
     expect(patientPortalRoute).toContain(
-      'if (body.medicalHistory !== undefined) data.medicalHistory = encryptMedicalHistory(body.medicalHistory);',
+      'data.medicalHistory = encryptMedicalHistory(history);',
     );
     expect(patientPortalRoute).not.toContain('encryptField(String(body.medicalHistory))');
+    expect(patientPortalRoute).toContain("Object.prototype.hasOwnProperty.call(history, '__dentvisionEncryptedV1')");
+    expect(patientPortalRoute).toContain("history.startsWith('ENC:')");
   });
 
   it('keeps object JSON round-tripping in the shared encrypted envelope codec', () => {
