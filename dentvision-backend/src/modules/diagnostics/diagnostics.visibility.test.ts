@@ -27,6 +27,14 @@ describe('diagnostic result signing role boundary', () => {
     const block = source.slice(start, end > start ? end : start + 4000);
     expect(block).toContain("['RADIOLOGIST', 'DIAGNOSTIC_RADIOLOGIST'].includes(actorRole)");
     expect(block).toContain("['MEDICAL_LAB_VALIDATOR', 'MEDICAL_LAB_DOCTOR'].includes(actorRole)");
+    // Partner-specific roles map to shared JWT roles such as DOCTOR. Signing must
+    // still require an explicit canonical role scoped to the active organization.
+    expect(block).toContain("person: { userId: req.user!.id, organizationId: scopedOrganizationId }");
+    expect(block).toContain("scopeType: 'organization'");
+    expect(block).toContain("scopeId: scopedOrganizationId");
+    expect(block).toContain("role: { key: { in: ['radiologist', 'diagnostic_radiologist'] } }");
+    expect(block).toContain("role: { key: { in: ['medical_lab_validator', 'medical_lab_doctor'] } }");
+    expect(block).not.toContain("actorRole === 'DOCTOR'");;
     expect(block).not.toContain("['SUPERADMIN', 'OWNER', 'ADMIN', 'MANAGER', 'DIRECTOR'].includes(actorRole)");
     expect(block).not.toContain('/_(OWNER|ADMIN|MANAGER|DOCTOR|RADIOLOGIST|TECHNICIAN|VALIDATOR|QUALITY)$/');
   });
