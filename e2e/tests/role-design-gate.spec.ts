@@ -640,6 +640,15 @@ test.describe('DentVision exhaustive role/context/browser gate',()=>{
       localStorage.clear();
       sessionStorage.clear();
     });
+    // Storage cleanup does not reset the already-hydrated Zustand auth store.
+    // Clear cookies and reload so this anonymous matrix starts from a genuinely
+    // unauthenticated application instance rather than the preceding role test.
+    await page.context().clearCookies();
+    await page.reload({ waitUntil: 'domcontentloaded', timeout: 30000 });
+    await page.evaluate(() => {
+      localStorage.clear();
+      sessionStorage.clear();
+    });
     for (const route of ROUTES.filter((r) => !PUBLIC_ROUTES.includes(r) && r !== '/ai')) {
       await page.context().clearCookies();
       await page.goto(BASE_URL + route, { waitUntil: 'domcontentloaded', timeout: 30000 });
