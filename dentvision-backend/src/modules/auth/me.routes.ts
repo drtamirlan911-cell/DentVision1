@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import crypto from 'node:crypto';
+import type { UserRole } from '@prisma/client';
 import prisma from '../../lib/prisma.js';
 import { authenticate } from '../../middleware/auth.js';
 import type { AuthRequest, ApiResponse } from '../../types/index.js';
@@ -7,6 +7,7 @@ import { resolveUserPermissions } from '../../lib/resolvePermissions.js';
 import { resolveOrganizationRoleKey } from '../../lib/authContext.js';
 import { pagesForCaller, capabilitiesForPermissions } from '../../lib/permissions.js';
 import { syncPersonFromClinicMember } from '../../lib/syncMembership.js';
+import { createClinicInvitation } from './clinicInvitations.service.js';
 
 export const authMeRouter = Router();
 
@@ -178,7 +179,7 @@ authMeRouter.post('/invitations', authenticate, async (req: AuthRequest, res) =>
       return res.status(403).json({ ok: false, error: 'Недостаточно прав для создания приглашений' } satisfies ApiResponse);
     }
 
-    const roleMap: Record<string, string> = {
+    const roleMap: Record<string, UserRole> = {
       OWNER: 'OWNER',
       DIRECTOR: 'OWNER',
       ADMIN: 'ADMIN',
@@ -196,11 +197,9 @@ authMeRouter.post('/invitations', authenticate, async (req: AuthRequest, res) =>
 
     const expiresInDays = Math.min(30, Math.max(1, Number(req.body?.expiresInDays) || 7));
     const email = req.body?.email ? String(req.body.email).trim().toLowerCase() : null;
-    const code = crypto.randomBytes(5).toString('hex').toUpperCase();
     const expiresAt = new Date(Date.now() + expiresInDays * 24 * 60 * 60 * 1000);
+    const code = await createClinicInvitation({ clinicId, email, role, expiresAt });
 
-    // Invitation codes are currently issued by the clinic invitation contract;
-    // persistence can be introduced without changing the response contract.
     return res.status(201).json({
       ok: true,
       data: { code, clinicId, email, role, expiresAt },

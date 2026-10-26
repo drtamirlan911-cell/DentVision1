@@ -2132,3 +2132,11 @@ These changes are route/entry reconciliation only. Existing domain implementatio
 - Resolved the conflicting contract by retaining `supplier` as intentionally excluded in the parity baseline, while restoring the platform `support` screen to the `SUPERADMIN` page list.
 - Extended the dedicated permissions test to assert both sides: `SUPERADMIN` sees `support` and does not see `supplier`. No authorization middleware or tenant boundary was relaxed.
 - This was found in the all-tests run; exact-HEAD CI/E2E is required again for the correction. Release remains **NOT READY** until the run completes.
+
+
+## 2026-10-26 — Persist clinic invitations
+
+- Found a broken contract in `POST /api/auth/invitations`: it returned a generated code without inserting a `ClinicInvitation` row, while lookup/join reads the table. Such invitations could never be accepted.
+- Added `clinicInvitations.service.ts`; invitation creation now persists the clinic, normalized email, role, code and expiry before returning success, retrying only unique-code collisions.
+- Kept existing lookup/join handlers in place; their active-clinic checks, email match, atomic claim, and idempotent repeat acceptance remain authoritative.
+- Added focused tests for persistence, uniqueness-collision retry, and propagation of unrelated database failures. Exact-HEAD CI/E2E is required to verify this additional fix.
