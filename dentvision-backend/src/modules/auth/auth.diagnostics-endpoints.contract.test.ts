@@ -51,6 +51,11 @@ describe('auth and diagnostics endpoint security contracts', () => {
     expect(clinicCreation).toContain('await writeAuditLog({ ...audit, entityId: clinic.id }, tx)');
     expect(clinicCreation).toContain('return prisma.$transaction((tx) => createClinicForOwnerInTransaction(tx, userId, input, audit))');
   });
+  it('keeps the full canonical dashboard read model on platform diagnostics stats', () => {
+    expect(diagnostics).toContain("diagnosticsRouter.get('/stats', requireSuperadmin");
+    expect(diagnostics).toContain('svc.getDashboardStats({})');
+    expect(diagnostics).toContain('data: { ...base, byStatus }');
+  });
   it('writes commission-rule mutation and its audit event in one transaction', () => {
     expect(diagnostics).toContain('const rule = await prisma.$transaction(async (tx) => {');
     expect(diagnostics).toContain("await auditFromReq(req, { action: 'diagnostics.commission_rule.upsert', entity: 'commission_rule', entityId: savedRule.id }, tx)");

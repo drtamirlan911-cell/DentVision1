@@ -2116,3 +2116,11 @@ These changes are route/entry reconciliation only. Existing domain implementatio
 - Updated `docs/SYSTEM_MAP.md` to match the generator output for the two new handlers and router totals; no generator or release check was bypassed.
 - The Quality Gate run `40281118577` passed for HEAD `7ed6529f7daac3a83cd21a783133079d9c2eb3c7`. CI E2E was still running at the time of this log entry; the generated-map correction requires a new exact-HEAD CI run.
 - Release remains **NOT READY** until the new CI/E2E result and the required database/browser gates are green.
+
+
+## 2026-10-26 — Platform diagnostics stats contract
+
+- The superadmin `GET /api/diagnostics/stats` endpoint now builds on `diagnostics.service.ts::getDashboardStats({})`, preserving canonical pending/completed/overdue and recent-referral fields, and adds the platform-wide status-count map.
+- Added a route contract test to prevent the platform stats endpoint from drifting into a partial duplicate of the canonical dashboard read model.
+- Organization deletion remains deferred; after removing that extra route, `docs/SYSTEM_MAP.md` correctly returns to 689 unique handlers / 651 mounted registrations (one net new endpoint: password reset).
+- Exact-HEAD CI is running after this final test/source update. Release remains **NOT READY** until CI/E2E and required database/browser gates complete successfully.
