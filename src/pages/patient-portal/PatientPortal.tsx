@@ -28,6 +28,7 @@ import { Assistant } from './Assistant';
 export default function PatientPortal() {
   const { t } = useTranslation();
   const { user, isAuthenticated, loginWithGoogle, effectiveRole } = useAuth();
+  const isPatientContext = String(effectiveRole || user?.role || '').toUpperCase() === 'PATIENT';
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const queryClient = useQueryClient();
@@ -46,7 +47,7 @@ export default function PatientPortal() {
   const [linkState, setLinkState] = useState<'idle' | 'linking' | 'done' | 'failed'>('idle');
 
   useEffect(() => {
-    if (!isAuthenticated || !linkClinicId || linkState !== 'idle') return;
+    if (!isAuthenticated || !user || !isPatientContext || !linkClinicId || linkState !== 'idle') return;
     setLinkState('linking');
     api
       .linkPatientToClinic({ clinicId: linkClinicId, phone: linkPhone || undefined })
@@ -60,7 +61,7 @@ export default function PatientPortal() {
         }
       })
       .catch(() => setLinkState('failed'));
-  }, [isAuthenticated, linkClinicId, linkPhone, linkState, queryClient]);
+  }, [isAuthenticated, user, isPatientContext, linkClinicId, linkPhone, linkState, queryClient]);
 
   const tabs = useMemo(() => [
     { id: 'assistant' as PortalTab, label: t('patientPortal.tabs.assistant'), icon: <Sparkles size={14} /> },
@@ -74,8 +75,6 @@ export default function PatientPortal() {
   ], [t]);
 
   const portalReturnUrl = `/patient-portal${linkClinicId ? `?clinic=${encodeURIComponent(linkClinicId)}${linkPhone ? `&phone=${encodeURIComponent(linkPhone)}` : ''}` : ''}`;
-
-  const isPatientContext = String(effectiveRole || user?.role || '').toUpperCase() === 'PATIENT';
 
   // Do not expose the patient-facing surface in clinic/partner/platform contexts.
   if (isAuthenticated && user && !isPatientContext) {
