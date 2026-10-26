@@ -13,6 +13,7 @@ import { PageHeader } from '@/components/ui/ds/StatCard';
 import { PageLoader } from '@/components/ui/PageLoader';
 import { QueryError } from '@/components/ui/ds/QueryError';
 import * as api from '@/utils/api';
+import { useDiagnosticsOrgScope } from './orgScope';
 import { queryKeys } from '@/queries/keys';
 
 const STATUS_OPTS = [
@@ -69,6 +70,7 @@ const fadeUp = { hidden: { opacity: 0, y: 12 }, show: { opacity: 1, y: 0 } };
 export default function ReferralList() {
   const navigate = useNavigate();
   const { clinic, activeMembership } = useAuth();
+  const { clinicId: scopedClinicId, orgKind, orgId } = useDiagnosticsOrgScope();
   const toast = useToast();
   const queryClient = useQueryClient();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -78,10 +80,12 @@ export default function ReferralList() {
   const page = Number(searchParams.get('page')) || 1;
   const pageSize = 20;
 
-  const clinicId = clinic?.id || activeMembership?.clinicId || '';
-
+  // Receiving partners query with their own center/lab ID rather than a stale clinic membership.
+  const clinicId = orgKind ? '' : (clinic?.id || activeMembership?.clinicId || scopedClinicId || '');
   const params: Record<string, string> = {};
-  if (clinicId) params.clinicId = clinicId;
+  if (orgKind === 'CENTER' && orgId) params.centerId = orgId;
+  else if (orgKind === 'LAB' && orgId) params.labId = orgId;
+  else if (clinicId) params.clinicId = clinicId;
   if (statusFilter) params.status = statusFilter;
   if (search) params.search = search;
   params.limit = String(pageSize);
@@ -91,6 +95,7 @@ export default function ReferralList() {
     queryKey: queryKeys.diagnostics.referrals(params),
     queryFn: () => api.getDiagnosticReferrals(params),
     staleTime: 15_000,
+    enabled: Boolean(params.clinicId || params.centerId || params.labId),
   });
 
   const deleteMutation = useMutation({
@@ -124,11 +129,11 @@ export default function ReferralList() {
         title="Направления"
         subtitle={`${total} всего`}
         icon={<FileText size={22} />}
-        actions={
+        actions={!orgKind ? (
           <Button variant="primary" className="min-h-11" icon={<Plus size={16} />} onClick={() => navigate('/diagnostics/referrals/new')}>
             Новое направление
           </Button>
-        }
+        ) : undefined}
       />
 
       <div className="flex flex-col md:flex-row md:items-center gap-3">

@@ -8,6 +8,7 @@ import prisma from '../../lib/prisma.js';
 import { assertClinicOrgAccess, assertOrgAccess, resolveClinicAccess } from '../../lib/orgContext.js';
 import { IinValidationError } from '../../lib/patientIin.js';
 import { canAccessReferralBranch } from '../../lib/diagnosticReferralBranchPolicy.js';
+import { auditFromReq } from '../compliance/audit.service.js';
 import { DIAGNOSTIC_RESULT_SIGNER_ROLE_KEYS, LAB_RESULT_SIGNER_ROLE_KEYS, hasScopedPartnerSignerRole } from './signingAuthorization.js';
 
 export async function claimReferralPaid(referralId: string, data: { paid: boolean; paidAt?: Date; cost?: number }): Promise<boolean> { const result = await (prisma as any).referral.updateMany({ where: { id: referralId, paid: false }, data }); return result.count === 1; }
@@ -53,6 +54,76 @@ async function patientBranch(patientId: string | undefined, clinicId: string): P
 export const diagnosticsRouter = Router();
 diagnosticsRouter.post('/register', optionalAuth, async (req: AuthRequest, res) => { try { const data = await svc.createRegistrationRequest({ ...req.body, userId: (req.user as any)?.id }); return res.json({ ok: true, data } satisfies ApiResponse); } catch (e: any) { return res.status(500).json({ ok: false, error: e.message } satisfies ApiResponse); } });
 diagnosticsRouter.use(authenticate);
+
+diagnosticsRouter.get('/stats', requireSuperadmin, async (_req: AuthRequest, res) => {
+  try {
+    // Reuse the canonical diagnostics dashboard read model so the platform view
+    // includes pending/completed/overdue and recent referrals, not just totals.
+    const [base, groups] = await Promise.all([
+      svc.getDashboardStats({}),
+      prisma.referral.groupBy({ by: ['status'], _count: { _all: true } }),
+    ]);
+    const byStatus = groups.reduce<Record<string, number>>((result, group) => {
+      result[String(group.status).toUpperCase()] = group._count._all;
+      return result;
+    }, {});
+    return res.json({ ok: true, data: { ...base, byStatus } } satisfies ApiResponse);
+  } catch (error) {
+    console.error('[diagnostics/stats]', error);
+    return res.status(500).json({ ok: false, error: 'Не удалось получить статистику диагностики' } satisfies ApiResponse);
+  }
+});
+
+diagnosticsRouter.get('/commission-rules', requireSuperadmin, async (_req: AuthRequest, res) => {
+  try {
+    const rules = await prisma.commissionRule.findMany({ where: { domain: 'diagnostics' }, orderBy: [{ createdAt: 'desc' }, { id: 'asc' }] });
+    return res.json({ ok: true, data: rules } satisfies ApiResponse);
+  } catch (error) {
+    console.error('[diagnostics/commission-rules:list]', error);
+    return res.status(500).json({ ok: false, error: 'Не удалось получить правила комиссий' } satisfies ApiResponse);
+  }
+});
+
+diagnosticsRouter.post('/commission-rules', requireSuperadmin, async (req: AuthRequest, res) => {
+  const body = req.body && typeof req.body === 'object' ? req.body as Record<string, unknown> : {};
+  const centerId = typeof body.centerId === 'string' ? body.centerId.trim() : '';
+  const labId = typeof body.labId === 'string' ? body.labId.trim() : '';
+  if ((body.centerId !== undefined && body.centerId !== null && typeof body.centerId !== 'string') || (body.labId !== undefined && body.labId !== null && typeof body.labId !== 'string')) {
+    return res.status(400).json({ ok: false, error: 'centerId и labId должны быть строками' } satisfies ApiResponse);
+  }
+  if (centerId && labId) return res.status(400).json({ ok: false, error: 'Укажите либо центр, либо лабораторию, но не оба сразу' } satisfies ApiResponse);
+  if (!(typeof body.percentBps === 'number' || (typeof body.percentBps === 'string' && body.percentBps.trim().length > 0))) {
+    return res.status(400).json({ ok: false, error: 'percentBps должен быть целым числом от 0 до 10000' } satisfies ApiResponse);
+  }
+  const percentBps = Number(body.percentBps);
+  if (!Number.isInteger(percentBps) || percentBps < 0 || percentBps > 10_000) return res.status(400).json({ ok: false, error: 'percentBps должен быть целым числом от 0 до 10000' } satisfies ApiResponse);
+  if (body.description !== undefined && typeof body.description !== 'string') return res.status(400).json({ ok: false, error: 'description должен быть строкой' } satisfies ApiResponse);
+  const splitJson = { description: typeof body.description === 'string' ? body.description.trim().slice(0, 500) : '' };
+  const scopeId = centerId || labId || null;
+  try {
+    if (centerId && !(await prisma.diagnosticCenter.findUnique({ where: { id: centerId }, select: { id: true } }))) return res.status(404).json({ ok: false, error: 'Диагностический центр не найден' } satisfies ApiResponse);
+    if (labId && !(await prisma.laboratory.findUnique({ where: { id: labId }, select: { id: true } }))) return res.status(404).json({ ok: false, error: 'Лаборатория не найдена' } satisfies ApiResponse);
+    const rule = await prisma.$transaction(async (tx) => {
+      let savedRule;
+      if (scopeId !== null) {
+        savedRule = await tx.commissionRule.upsert({ where: { domain_scopeId: { domain: 'diagnostics', scopeId } },
+          update: { percentBps, splitJson }, create: { domain: 'diagnostics', scopeId, percentBps, splitJson } });
+      } else {
+        await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtext('commission-rules:diagnostics:global'))`;
+        const current = await tx.commissionRule.findFirst({ where: { domain: 'diagnostics', scopeId: null }, orderBy: { createdAt: 'desc' } });
+        savedRule = current
+          ? await tx.commissionRule.update({ where: { id: current.id }, data: { percentBps, splitJson } })
+          : await tx.commissionRule.create({ data: { domain: 'diagnostics', scopeId: null, percentBps, splitJson } });
+      }
+      await auditFromReq(req, { action: 'diagnostics.commission_rule.upsert', entity: 'commission_rule', entityId: savedRule.id }, tx);
+      return savedRule;
+    });
+    return res.status(201).json({ ok: true, data: rule } satisfies ApiResponse);
+  } catch (error) {
+    console.error('[diagnostics/commission-rules:create]', error);
+    return res.status(500).json({ ok: false, error: 'Не удалось сохранить правило комиссии' } satisfies ApiResponse);
+  }
+});
 diagnosticsRouter.get('/centers', async (req: AuthRequest, res) => { try { const { search, city } = req.query as any; return res.json({ ok: true, data: await svc.listCenters(search, city) } satisfies ApiResponse); } catch (e: any) { return res.status(500).json({ ok: false, error: e.message } satisfies ApiResponse); } });
 diagnosticsRouter.get('/centers/:id', async (req: AuthRequest, res) => { try { const data = await svc.getCenter(req.params.id as string); if (!data) return res.status(404).json({ ok: false, error: 'Center not found' } satisfies ApiResponse); return res.json({ ok: true, data } satisfies ApiResponse); } catch (e: any) { return res.status(500).json({ ok: false, error: e.message } satisfies ApiResponse); } });
 diagnosticsRouter.post('/centers', requireSuperadmin, async (req: AuthRequest, res) => { try { const { name, city, address, phone, email } = req.body as any; const normalizedName = String(name || '').trim(); if (!normalizedName) return res.status(400).json({ ok: false, error: 'Название диагностического центра обязательно' }); const data = await svc.createCenter({ name: normalizedName, city: city ? String(city).trim() : undefined, address: address ? String(address).trim() : undefined, phone: phone ? String(phone).trim() : undefined, email: email ? String(email).trim().toLowerCase() : undefined }); const ownerGranted = await svc.grantDiagnosticsAccess('DiagnosticCenter', data.id, req.user!.id, 'owner'); if (!ownerGranted) return res.status(500).json({ ok: false, error: 'Не удалось назначить владельца центра' }); return res.status(201).json({ ok: true, data: { entity: data, organizationType: 'DIAGNOSTIC_CENTER', organizationId: data.id, role: 'owner', verification: 'PENDING' } } satisfies ApiResponse); } catch (e: any) { return res.status(500).json({ ok: false, error: e.message } satisfies ApiResponse); } });

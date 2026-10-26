@@ -11,39 +11,8 @@ const compatRouter = Router();
 // session-context endpoints restore the long-standing API contract.
 compatRouter.use('/auth', authMeRouter);
 
-/**
- * Compatibility endpoint used by the web staff workspace.
- * The canonical clinic invitation contract is POST /api/clinics/:id/invite;
- * this legacy shape keeps existing clients working while applying the same
- * clinic membership authorization rules.
- */
-compatRouter.post('/auth/invitations', authenticate, async (req: any, res: Response) => {
-  try {
-    const clinicId = String(req.body?.clinicId || '').trim();
-    if (!clinicId) return res.status(400).json({ ok: false, error: 'clinicId обязателен' });
+// /api/auth/invitations is implemented once by authMeRouter above.
 
-    const membership = await prisma.clinicMember.findUnique({
-      where: { userId_clinicId: { userId: req.user!.id, clinicId } },
-    });
-    if (!membership) return res.status(403).json({ ok: false, error: 'Вы не являетесь участником этой клиники' });
-    if (!['OWNER', 'ADMIN'].includes(membership.role)) {
-      return res.status(403).json({ ok: false, error: 'Недостаточно прав для создания приглашений' });
-    }
-
-    const code = uid().slice(0, 8).toUpperCase();
-    const email = req.body?.email ? String(req.body.email).trim().toLowerCase() : null;
-    const role = String(req.body?.role || 'DOCTOR').toUpperCase();
-    const expiresInDays = Math.min(90, Math.max(1, Number(req.body?.expiresInDays) || 7));
-
-    return res.status(201).json({
-      ok: true,
-      data: { code, clinicId, email, role, expiresInDays },
-    });
-  } catch (error) {
-    console.error('[Compat] create invitation', error);
-    return res.status(500).json({ ok: false, error: 'Ошибка при создании приглашения' });
-  }
-});
 
 // Public service-access endpoint (no auth, used by public booking widget)
 compatRouter.get('/service-access/public/:clinicId', async (req: Request, res: Response) => {
