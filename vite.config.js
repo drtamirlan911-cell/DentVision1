@@ -49,5 +49,16 @@ export default defineConfig({
   server: {
     host: '127.0.0.1',
     port: 5000,
+    watch: {
+      // Playwright creates HTML reports/traces while Vite is serving the app.
+      // Ignore generated evidence so it cannot trigger recursive reload spam.
+      ignored: [
+        '**/e2e/test-results/**',
+        '**/e2e/visual-evidence/**',
+        '**/playwright-report/**',
+        '**/.playwright-cli/**',
+        '**/e2e-gate-logs/**',
+      ],
+    },
   },
 })

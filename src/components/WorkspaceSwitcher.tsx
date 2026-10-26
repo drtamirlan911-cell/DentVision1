@@ -65,7 +65,7 @@ export function WorkspaceSwitcher({ className }: { className?: string }) {
   const menuRef = useRef<HTMLDivElement>(null)
   const buttonRef = useRef<HTMLButtonElement>(null)
 
-  const { data: workspaces = [] } = useQuery<WorkspaceContext[]>({
+  const { data: workspaces = [], isLoading: workspacesLoading } = useQuery<WorkspaceContext[]>({
     queryKey: ['workspaces', user?.id],
     queryFn: async () => {
       const res = await api.getMyContexts()
@@ -139,12 +139,15 @@ export function WorkspaceSwitcher({ className }: { className?: string }) {
   const isGenericRoleLabel = (label?: string | null) =>
     !label?.trim() || /^(?:участник(?: экосистемы)?|member|participant|user|пользователь)$/i.test(label.trim())
   const activeRoleLabel = useMemo(() => {
-    if (!isGenericRoleLabel(current?.roleLabel)) return current?.roleLabel || roleInfo?.label || 'Участник экосистемы'
-    const fallbackRoles = [effectiveRole, (user as any)?.role, (user as any)?.platformRole, current?.roleKey, current?.role]
-    for (const candidate of fallbackRoles) {
+    // Prefer the application's canonical role vocabulary over stale labels saved
+    // in older workspace rows (for example, "Руководитель" vs "Владелец").
+    const canonicalCandidates = [current?.roleKey, effectiveRole, (user as any)?.role, (user as any)?.platformRole, current?.role]
+    for (const candidate of canonicalCandidates) {
+      if (!candidate) continue
       const label = getRoleDisplayLabel(candidate)
-      if (!isGenericRoleLabel(label)) return label
+      if (!isGenericRoleLabel(label) && label.toLowerCase() !== String(candidate).toLowerCase()) return label
     }
+    if (!isGenericRoleLabel(current?.roleLabel)) return current?.roleLabel || roleInfo?.label || 'Участник экосистемы'
     return roleInfo?.label || 'Участник экосистемы'
   }, [current, effectiveRole, user, roleInfo?.label])
 
@@ -184,7 +187,23 @@ export function WorkspaceSwitcher({ className }: { className?: string }) {
     [workspaces],
   )
 
-  if (!isAuthenticated || workspaces.length === 0) return null
+  if (!isAuthenticated) return null
+  if (workspacesLoading) return null
+  if (workspaces.length === 0) {
+    // Patients, students, platform support and other global participants may have
+    // no organization workspace, but their active role must still be visible.
+    return (
+      <div
+        data-testid="workspace-role-indicator"
+        role="status"
+        aria-label={`Роль: ${activeRoleLabel}`}
+        title={activeRoleLabel}
+        className={cn('flex min-h-11 items-center rounded-xl border border-bdr-strong bg-surface-raised px-3 text-xs font-semibold text-txt-primary', className)}
+      >
+        {activeRoleLabel}
+      </div>
+    )
+  }
 
   const Icon = TYPE_ICON[current?.scopeType || 'CLINIC'] || Building2
 

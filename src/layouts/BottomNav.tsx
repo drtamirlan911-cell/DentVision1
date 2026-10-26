@@ -18,6 +18,15 @@ interface BottomNavItem {
   requiresAuth?: boolean;
 }
 
+/** Keep consumer and non-clinic contexts out of the clinic CRM tab. */
+export function shouldShowClinicWorkspaceTab(
+  isAuthenticated: boolean,
+  isGuest: boolean,
+  canAccessSchedule: boolean,
+): boolean {
+  return !isAuthenticated || isGuest || canAccessSchedule;
+}
+
 export function BottomNav() {
   const navigate = useNavigate();
   const location = useLocation();
@@ -28,18 +37,25 @@ export function BottomNav() {
   const iam = useIam();
 
   const ITEMS: BottomNavItem[] = useMemo(() => {
+    const canAccessClinicWorkspace = shouldShowClinicWorkspaceTab(
+      isAuthenticated,
+      isGuest,
+      iam.canAccessPage('schedule'),
+    );
     const items: BottomNavItem[] = [
       { id: 'ai', label: t('nav.ai_short', 'ИИ'), icon: <Bot size={19} />, path: '/ai', color: '#A47B35' },
-      { id: 'crm', label: t('nav.crm', 'Клиника'), icon: <Stethoscope size={19} />, path: '/crm/schedule', color: '#A47B35', requiresAuth: true },
+      ...(canAccessClinicWorkspace ? [
+        { id: 'crm', label: t('nav.crm', 'Клиника'), icon: <Stethoscope size={19} />, path: '/crm/schedule', color: '#A47B35', requiresAuth: true },
+      ] : []),
       { id: 'shop', label: t('nav.market', 'Маркет'), icon: <ShoppingCart size={19} />, path: '/shop', color: '#A47B35' },
       { id: 'more', label: t('nav.more', 'Ещё'), icon: <MoreHorizontal size={20} />, color: '#A47B35' },
     ];
 
-    // `/diagnostics` is the authenticated workspace. Guests have a separate
-    // public discovery route at `/diagnostics/discover`; do not expose a tab
-    // that immediately redirects guests into login.
+    // Diagnostics is a first-class partner workspace. Place it next to CRM for
+    // clinic roles and before Market for partner-only roles.
     if (isAuthenticated && !isGuest && iam.canAccessPage('diagnostics')) {
-      items.splice(2, 0, {
+      const clinicTabIndex = items.findIndex((item) => item.id === 'crm');
+      items.splice(clinicTabIndex >= 0 ? clinicTabIndex + 1 : 1, 0, {
         id: 'diagnostics',
         label: t('nav.diagnostics', 'Диагностика'),
         icon: <Activity size={19} />,

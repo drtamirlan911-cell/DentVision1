@@ -6,8 +6,8 @@ const API_BASE_URL = process.env.VITE_API_URL || 'http://127.0.0.1:3001';
 const VISUAL_EVIDENCE_ROOT = process.env.VISUAL_EVIDENCE_DIR || 'e2e/visual-evidence';
 const PASSWORD = 'Test1234!';
 
-const PUBLIC_ROUTES = ['/', '/login', '/register', '/forgot-password', '/booking', '/demo', '/pricing', '/terms', '/privacy', '/jobs'];
-const AUTH_COMMON_ROUTES = ['/', '/help', '/notifications', '/profile'];
+const PUBLIC_ROUTES = ['/', '/login', '/register', '/forgot-password', '/booking', '/demo', '/pricing', '/terms', '/privacy', '/jobs', '/help', '/community'];
+const AUTH_COMMON_ROUTES = ['/', '/ai', '/help', '/notifications', '/profile'];
 const AUTHENTICATED_BASE_PAGES = ['shop','school','profile','settings','diagnostics','diagnostics-centers','diagnostics-labs','diagnostics-laboratories'] as const;
 const ROUTES = [
   '/ai','/analytics','/settings','/help','/notifications','/admin','/bi','/security','/audit','/agent-activity','/ai-approvals','/backup','/profile',
@@ -47,7 +47,7 @@ const ROLES: readonly Role[] = [
   { id:'dental-lab-owner', email:'dental-lab-owner@test.com', label:'Владелец зуботехнической лаборатории', family:'dental-lab', pages:['diagnostics','diagnostics-laboratories','diagnostics-results','diagnostics-settings','profile'], mustNotContain:[/Медицинская лаборатория|Диагностический центр/i], entry:/\/diagnostics\/lab/ },
   { id:'dental-technician', email:'dental-technician@test.com', label:'Зубной техник', family:'dental-lab', pages:['diagnostics','diagnostics-laboratories','diagnostics-results','profile'], mustNotContain:[/Настройки диагностического центра/i], entry:/\/diagnostics\/lab/ },
   { id:'superadmin', email:'superadmin@test.com', label:'Super Admin', family:'platform', pages:[...AUTHENTICATED_BASE_PAGES,...PLATFORM_SUPERADMIN_PAGES], mustNotContain:[/Пациент|Зубной техник/i], entry:/\/admin|\/ai/ },
-  { id:'support', email:'support@test.com', label:'Поддержка', family:'platform', pages:[...AUTHENTICATED_BASE_PAGES,'admin','analytics'], mustNotContain:[/Врач|Пациент/i], entry:/\/admin|\/analytics|\/profile/ },
+  { id:'support', email:'support@test.com', label:'Поддержка', family:'platform', pages:[...AUTHENTICATED_BASE_PAGES,'admin','analytics'], mustNotContain:[/Врач|Пациент/i], entry:/\/admin|\/analytics|\/help|\/profile/ },
   { id:'laboratory', email:'lab-a@test.com', label:'Лаборатория', family:'clinic', pages:[...AUTHENTICATED_BASE_PAGES,'lab','diagnostics-referrals','diagnostics-laboratories','diagnostics-results'], mustNotContain:[/Super Admin/i], entry:/\/ai|\/crm|\/diagnostics/ },
 ] as const;
 
@@ -351,7 +351,6 @@ async function waitForRouteReady(page: Page, role: Role, route: string) {
 async function auditRoute(page: Page, role: Role, route: string, shouldBeAllowed: boolean) {
   const expectedPath = new URL(BASE_URL + route).pathname;
   await page.goto(BASE_URL + route, { waitUntil: 'domcontentloaded', timeout: 30000 });
-  await waitForRouteReady(page, role, route);
   let current = new URL(page.url());
 
   if (!shouldBeAllowed) {
@@ -366,6 +365,10 @@ async function auditRoute(page: Page, role: Role, route: string, shouldBeAllowed
     expect(current.pathname, role.id + ' ' + route + ': forbidden route stayed open').not.toBe(expectedPath);
     return;
   }
+
+  // Only inspect DOM after access policy has confirmed the route is allowed.
+  await waitForRouteReady(page, role, route);
+  current = new URL(page.url());
 
   if (current.pathname === '/login') {
     await login(page, role.email);
@@ -485,6 +488,19 @@ test.describe('DentVision exhaustive role/context/browser gate',()=>{
       }).toMatch(/.{20,}/s);
       expect(new URL(page.url()).pathname, role.id + ': entry route unexpectedly returned to login').not.toBe('/login');
       expect(role.entry.test(page.url()),role.id+': incorrect post-login workspace '+page.url()).toBeTruthy();
+      // Workspace context is fetched asynchronously. Wait for the visible role identity
+      // rather than snapshotting the header before WorkspaceSwitcher has hydrated.
+      await expect.poll(() => page.evaluate(() => {
+        const switcher = document.querySelector('[data-testid="workspace-switcher-trigger"]');
+        const fallback = document.querySelector('[data-testid="workspace-role-indicator"]');
+        return (document.body?.innerText || '') + ' '
+          + (switcher?.getAttribute('aria-label') || '')
+          + ' ' + (fallback?.textContent || '');
+      }), {
+        timeout: 12000,
+        intervals: [100, 250, 500, 1000],
+        message: role.id + ': role identity was not rendered after workspace context resolution',
+      }).toContain(role.label);
       const identitySurface = await page.evaluate(() => {
         const body = document.body?.innerText || '';
         const accessible = Array.from(document.querySelectorAll('[title],[aria-label]'))
@@ -586,7 +602,12 @@ test.describe('DentVision exhaustive role/context/browser gate',()=>{
     test.skip(info.project.name !== 'role-1280', 'Tenant isolation is a data-scope contract; execute once per CI run');
     const problems=collectors(page);
     await login(page,'owner-a@test.com');
-    expect(await page.locator('body').innerText()).toContain('E2E Clinic A');
+    // Route changes can settle before the workspace context label is hydrated.
+    // Wait for the active tenant identity before starting the isolation assertions.
+    await expect.poll(() => page.locator('body').innerText().catch(() => ''), {
+      timeout: 10000,
+      message: 'Clinic A workspace identity did not hydrate after login',
+    }).toContain('E2E Clinic A');
     for(const route of ['/crm/patients','/crm/schedule','/crm/finance','/crm/inventory']){
       await page.goto(BASE_URL+route,{waitUntil:'domcontentloaded',timeout:30000});
       expect(await page.locator('body').innerText()).not.toContain('E2E Clinic B');

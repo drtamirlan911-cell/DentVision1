@@ -5,12 +5,12 @@
 ## Open
 
 ### RB-029 — Patient clinical history JSON is not encrypted at rest
-- **Status:** OPEN — implementation gap confirmed by source inspection
+- **Status:** OPEN — static inventory and migration design documented; codec implementation and audited backfill pending
 - **Priority:** P0
 - **Area:** PHI / clinical data protection
-- **Evidence:** `dentvision-backend/src/lib/phi.ts` encrypts `iin` and `medicalHistory` only when those values are strings. The canonical Patient write path in `dentvision-backend/src/modules/patients/patients.routes.ts` persists `medicalHistory` as a Prisma JSON object (`history as Prisma.InputJsonValue`); the PATCH path likewise merges and persists the object directly. The encrypted IIN path does not prove the clinical-history JSON is encrypted.
+- **Evidence:** the static inventory [`docs/security/RB-029_MEDICAL_HISTORY_ENCRYPTION_INVENTORY.md`](security/RB-029_MEDICAL_HISTORY_ENCRYPTION_INVENTORY.md), audited on exact `main` SHA `6581695e91eb70c638bc0b94efb10773d8882dd9`, found the same confirmed gap and traced the downstream consumers. A source sweep found 58 explicit `medicalHistory` references across 23 files and 85 textual Prisma Patient ORM call lines across 33 backend paths (including tests). The counts are static-reference counts, not unique endpoints or database row counts.
 - **Risk:** allergies, clinical notes, categories, source metadata and tooth/clinical details may remain readable in database backups or dumps, depending on their exact contents. Phone, email, address and notes also remain searchable plaintext fields by current design and require a documented threat-model decision.
-- **Required fix:** map all Patient write/read paths and downstream consumers first. Design field-level encryption or a compatible encrypted-at-rest storage strategy without breaking JSON queries, reports, AI context, clinical workflows, or historical records. Include an audited migration/backfill with dry-run, resumability, counts, integrity checks and rollback plan. Do not encrypt the entire JSON column blindly.
+- **Required fix:** implement the shared versioned history codec/repository and migrate all read/write/AI/event/portal/odontogram/cross-clinic consumers per the inventory. Run a read-only dry run and an audited, resumable, conflict-safe backfill with counts, integrity checks, PHI-free exception ledger and tested rollback. Do not encrypt the JSON column blindly.
 - **Verification:** tests must prove plaintext does not appear in persisted sensitive fields, API responses remain correctly decrypted for authorized roles, tenant/branch boundaries hold, legacy records remain readable during migration, and failed/missing keys fail closed in production.
 
 ### RB-030 — Offline appointment queue privacy redaction may drop required sync fields

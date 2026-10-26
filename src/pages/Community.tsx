@@ -49,7 +49,7 @@ export default function CommunityPage() {
   const { showToast } = useToast()
 
   const tabParam = params.get('tab')
-  const tab: Tab = tabParam === 'messages' || tabParam === 'saved' ? tabParam : 'feed'
+  const tab: Tab = isAuthenticated && (tabParam === 'messages' || tabParam === 'saved') ? tabParam : 'feed'
   const peerParam = params.get('dm')
 
   const [topic, setTopic] = useState('Все')
@@ -70,6 +70,11 @@ export default function CommunityPage() {
   const [dmPeer, setDmPeer] = useState<string | null>(peerParam)
 
   const setTab = (t: Tab) => {
+    if (!isAuthenticated && t !== 'feed') {
+      showToast('Войдите, чтобы открыть сообщения и сохранённые публикации', 'info')
+      navigate('/login')
+      return
+    }
     const next = new URLSearchParams(params)
     if (t === 'feed') next.delete('tab')
     else next.set('tab', t)

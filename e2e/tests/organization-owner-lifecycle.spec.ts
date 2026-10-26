@@ -5,6 +5,13 @@ const PASSWORD = 'Test1234!';
 const OWNER_EMAIL = 'owner-a@test.com';
 
 async function login(page: Page, role = 'owner') {
+  // Workspace creation switches the active JWT. Re-authentication must not reuse
+  // that scoped session or the login screen can redirect before credentials render.
+  await page.context().clearCookies();
+  if (page.url() !== 'about:blank') {
+    await page.evaluate(() => { localStorage.clear(); sessionStorage.clear(); }).catch(() => {});
+    await page.reload({ waitUntil: 'domcontentloaded' }).catch(() => {});
+  }
   await page.goto(`${BASE}/login?role=${role}`);
   await page.locator('input[autocomplete="username"]').fill(OWNER_EMAIL);
   await page.locator('input[autocomplete="current-password"]').fill(PASSWORD);

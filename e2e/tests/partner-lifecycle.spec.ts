@@ -49,6 +49,9 @@ test.describe('Partner operational lifecycle', () => {
     });
     expect(centerOnboard.status()).toBe(201);
     const centerPayload = await centerOnboard.json();
+    const centerOwnerRefreshToken = centerPayload.data?.refreshToken || centerPayload.refreshToken ||
+      (await api.storageState()).cookies.find((cookie) => cookie.name === 'refreshToken')?.value;
+    expect(centerOwnerRefreshToken).toBeTruthy();
     fixtureCenterId = centerPayload.data?.entityId;
     const centerAccessToken = centerPayload.data?.accessToken || centerPayload.accessToken;
     expect(centerAccessToken).toBeTruthy();
@@ -139,11 +142,11 @@ test.describe('Partner operational lifecycle', () => {
     centerRadiologistToken = (await switchedRadiologist.json()).data.accessToken;
     expect(centerRadiologistToken).toBeTruthy();
 
-    const state = await api.storageState();
-    const refreshCookie = state.cookies.find((cookie) => cookie.name === 'refreshToken');
-    expect(refreshCookie).toBeTruthy();
+    // Refresh the diagnostic-center owner's scoped token captured at onboarding.
+    // The shared APIRequestContext has since logged in the radiologist and its cookie
+    // jar now belongs to that second user.
     const refreshRes = await api.post(`${BASE}/api/auth/refresh`, {
-      data: { refreshToken: refreshCookie!.value },
+      data: { refreshToken: centerOwnerRefreshToken },
     });
     expect(refreshRes.status()).toBe(200);
     const refreshedPayload = await refreshRes.json();
