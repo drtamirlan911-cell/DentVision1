@@ -269,3 +269,11 @@ Do not repeat an audit when implementation can resolve the issue. Do not weaken 
 - Found the patient portal profile writer still used `encryptField(String(body.medicalHistory))`; object payloads would become `"[object Object]"` before encryption. Candidate branch `security/rb029-patient-portal-history-envelope-20261026` now uses the shared `encryptMedicalHistory` codec and rejects caller-supplied legacy ciphertext / reserved envelope payloads.
 - Added `dentvision-backend/src/modules/patient-portal/patientPortal.history.contract.test.ts` to pin the route-to-codec contract. Shared codec round-trip tests already exist in `dentvision-backend/src/lib/phi.test.ts`.
 - This is a narrow consumer-path fix; RB-029 remains OPEN pending exact-head CI, full reader/writer/concurrency audit, backup/rollback review, a read-only staging dry run and explicit reconciliation. No database was queried or modified; no backfill or deployment was performed.
+
+
+## 2026-10-26 — Full E2E evidence and branch-scope fixture correction
+
+- PR #329 exact-head CI run `40363016216` passed frontend lint, backend lint and `lint-test` (18 steps); the core E2E suite reported 237 passed, 5 skipped and 4 failed. All four failures were branch-management scenarios, and the shared helper failed after successful HTTP 201 creation/UI rendering because it listed the new organization-level branch through the legacy `?clinicId=` API scope.
+- Corrected `e2e/tests/branch-management.spec.ts` on this candidate using the organization-scoped setup and `/api/branches?organizationId=...` read already introduced on PR #328. This keeps assertions strict and verifies canonical persistence rather than treating an organization branch with nullable `clinic_id` as absent.
+- Exact-head CI must rerun; do not infer the later mobile/role gates passed based on the previous run. The E2E continuation on the superseded SHA was still running Browser UX when inspected.
+- RB-029 remains OPEN. No database query/write, backfill or deployment was performed.
