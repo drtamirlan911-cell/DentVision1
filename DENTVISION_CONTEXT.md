@@ -262,3 +262,10 @@ Do not repeat an audit when implementation can resolve the issue. Do not weaken 
 - Current verification branch: `security/doctor-agent-tenant-isolation-20261025`; prior candidate `277bc824aa8e6ec90fd3f280ac9b026a14570454` passed backend/frontend lint, 2,240 unit tests, Quality Gate, dedicated RB-034 IAM-context diagnostics, core E2E, Browser UX and mobile design; role/context was still running when its test policy was reviewed.
 - The next candidate corrects the anonymous route matrix for the documented public `/patient-portal` login/registration entry. It asserts the public entry and real login hand-off while preserving the authenticated non-patient redirect and guest denial at clinical APIs.
 - Fresh exact-HEAD CI is required after this change. RB-034 and release readiness remain OPEN/NOT READY until all required security, role/context, Visual Agent, business-owner and organization-owner gates pass together.
+
+## 2026-10-26 — RB-029 Patient Portal history writer follow-up
+
+- Audited current main `ac913cc3389a294d0b135a852b035ddddb1018ca` against the historical inventory in `docs/security/RB-029_MEDICAL_HISTORY_ENCRYPTION_INVENTORY.md`.
+- Found the patient portal profile writer still used `encryptField(String(body.medicalHistory))`; object payloads would become `"[object Object]"` before encryption. Candidate branch `security/rb029-patient-portal-history-envelope-20261026` now uses the shared `encryptMedicalHistory` codec and rejects caller-supplied legacy ciphertext / reserved envelope payloads.
+- Added `dentvision-backend/src/modules/patient-portal/patientPortal.history.contract.test.ts` to pin the route-to-codec contract. Shared codec round-trip tests already exist in `dentvision-backend/src/lib/phi.test.ts`.
+- This is a narrow consumer-path fix; RB-029 remains OPEN pending exact-head CI, full reader/writer/concurrency audit, backup/rollback review, a read-only staging dry run and explicit reconciliation. No database was queried or modified; no backfill or deployment was performed.
