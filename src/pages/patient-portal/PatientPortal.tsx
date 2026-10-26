@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { motion } from 'framer-motion';
-import { useNavigate, useSearchParams, Link } from 'react-router-dom';
+import { useNavigate, useSearchParams, Link, Navigate } from 'react-router-dom';
 import {
   Calendar, FileText, Receipt, Activity, LogIn, UserPlus,
   ClipboardList, FileImage, User, CheckCircle2, Sparkles,
@@ -27,11 +27,19 @@ import { Assistant } from './Assistant';
 
 export default function PatientPortal() {
   const { t } = useTranslation();
-  const { user, isAuthenticated, loginWithGoogle } = useAuth();
+  const { user, isAuthenticated, loginWithGoogle, activeWorkspace, effectiveRole } = useAuth();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const queryClient = useQueryClient();
   const [activeTab, setActiveTab] = useState<PortalTab>('assistant');
+  const activeScopeType = String(activeWorkspace?.scopeType || '').toUpperCase();
+  const activePersonType = String(activeWorkspace?.personType || '').toUpperCase();
+  const activeRole = String(activeWorkspace?.roleKey || effectiveRole || user?.role || '').toUpperCase();
+  // A patient identity in another active workspace is not sufficient. Require
+  // an explicit patient scope, or an unscoped PATIENT role for legacy accounts.
+  const isPatientContext = activeScopeType === 'PATIENT'
+    || (activeScopeType === 'PERSON' && activePersonType === 'PATIENT')
+    || (!activeScopeType && activeRole === 'PATIENT');
 
   // Arriving from a booking confirmation: the clinic and the phone used to book
   // come along in the query. `/link` attaches this account to the card
@@ -46,7 +54,7 @@ export default function PatientPortal() {
   const [linkState, setLinkState] = useState<'idle' | 'linking' | 'done' | 'failed'>('idle');
 
   useEffect(() => {
-    if (!isAuthenticated || !linkClinicId || linkState !== 'idle') return;
+    if (!isAuthenticated || !isPatientContext || !linkClinicId || linkState !== 'idle') return;
     setLinkState('linking');
     api
       .linkPatientToClinic({ clinicId: linkClinicId, phone: linkPhone || undefined })
@@ -60,7 +68,7 @@ export default function PatientPortal() {
         }
       })
       .catch(() => setLinkState('failed'));
-  }, [isAuthenticated, linkClinicId, linkPhone, linkState, queryClient]);
+  }, [isAuthenticated, isPatientContext, linkClinicId, linkPhone, linkState, queryClient]);
 
   const tabs = useMemo(() => [
     { id: 'assistant' as PortalTab, label: t('patientPortal.tabs.assistant'), icon: <Sparkles size={14} /> },
@@ -99,6 +107,8 @@ export default function PatientPortal() {
       </div>
     );
   }
+
+  if (!isPatientContext) return <Navigate to="/ai" replace />;
 
   return (
     <div className="p-4 sm:p-6 max-w-5xl mx-auto">

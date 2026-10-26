@@ -27,11 +27,11 @@
 11. Never create a competing roadmap, current-state file, release gate or product specification without a clearly different bounded purpose.
 12. Preserve all unfinished previous work while adding new priorities.
 
-## 2A. Current branch and release evidence — 2026-10-20
+## 2A. Current branch and release evidence — 2026-10-26
 
-- Active implementation branch: `security/payment-hardening-20261017`; pull request: [#307](https://github.com/drtamirlan911-cell/DentVision1/pull/307), still draft pending release verification.
+- Current candidate branch: `fix/auth-diagnostics-endpoints-20261025`; [PR #326](https://github.com/drtamirlan911-cell/DentVision1/pull/326) remains draft pending exact-head release verification. PR #323 remains a separate RB-034 security test branch and is not merged.
 - Production `main` was not changed by this release-gate work.
-- Previous candidate `0134e6881687f5c9de7efe1c6ebe10eaa544d651`: Quality Gate and Android passed; backend/frontend lint and unit/build jobs passed; core E2E, browser UX and mobile design gate passed. The role/context gate remained in progress in the latest connected status because the full route matrix was repeated across eight viewport projects.
+- Latest verified candidate before this fix batch: `8866b1fb988ac62a33dcc863905485ed6c964ba4` (PR #326). CI run [40283285265](https://github.com/drtamirlan911-cell/DentVision1/actions/runs/40283285265) passed backend/frontend lint, core E2E (240 passed, 5 skipped), Browser UX (4), mobile design (16), Visual Agent (48) and organization-owner lifecycle (7); it failed role/context (38 failures, 102 passed, 28 skipped) and business-owner journeys (2 failures, both navigation-related execution-context races). Follow-up changes are **UNVERIFIED** until a new exact-head CI passes. Do not merge or deploy.
 - Follow-up factors viewport-independent authorization/tenant checks into one exhaustive `role-1280` run while retaining role-specific critical-screen DOM/responsive audits and the required screenshot per role per viewport. SPA route discovery no longer sleeps before successful first reads. The existing 60-minute CI E2E-job limit remains in place.
 - This follow-up remains **UNVERIFIED** until the exact-head CI, role/context, Visual Agent, business-owner and organization-owner gates finish. Do not merge or mark release-ready on the older candidate evidence.
 - Render API health was observed returning HTTP 200 with database status `ok` on 2026-10-19; Vercel reported no runtime-error clusters for its queried 24-hour window. These observations do not close the application release blockers.

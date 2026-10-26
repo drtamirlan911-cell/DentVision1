@@ -28,6 +28,23 @@ describe('pagesForPermissions', () => {
     expect(support).not.toContain('schedule');
   });
 
+  it('keeps read-only billing from exposing cashier and finance pages', () => {
+    const pages = pagesForPermissions(['billing.read']);
+    expect(pages).toContain('pricelist');
+    expect(pages).not.toContain('cashier');
+    expect(pages).not.toContain('finance');
+    expect(pages).not.toContain('billing');
+  });
+
+  it('keeps BI out of clinic admin and manager roles', () => {
+    expect(pagesForCaller(permissionsForRole('ADMIN'), 'ADMIN')).not.toContain('bi');
+    expect(pagesForCaller(permissionsForRole('MANAGER'), 'MANAGER')).not.toContain('bi');
+  });
+
+  it('keeps the legacy laboratory role out of clinic scheduling', () => {
+    expect(pagesForCaller(permissionsForRole('LAB'), 'LAB')).not.toContain('schedule');
+  });
+
   it('expands the wildcard to every known page', () => {
     const all = new Set(Object.values(MODULE_PAGES).flat());
     expect(new Set(pagesForPermissions(['*']))).toEqual(all);

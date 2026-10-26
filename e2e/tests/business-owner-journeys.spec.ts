@@ -13,10 +13,18 @@ async function login(page: Page, role = 'owner') {
 }
 
 async function getAuthenticatedContexts(page: Page) {
-  const accessToken = await page.evaluate(() => {
-    try { return JSON.parse(sessionStorage.getItem('dv_tokens') || '{}')?.access || null; }
-    catch { return null; }
-  });
+  // Onboarding can navigate while the auth store is persisting its tokens.
+  // waitForFunction retries in the new document instead of racing page.evaluate().
+  const tokenHandle = await page.waitForFunction(() => {
+    try {
+      const token = JSON.parse(sessionStorage.getItem('dv_tokens') || '{}')?.access;
+      return typeof token === 'string' && token ? token : false;
+    } catch {
+      return false;
+    }
+  }, undefined, { timeout: 15000, polling: 100 });
+  const accessToken = await tokenHandle.jsonValue() as string;
+  await tokenHandle.dispose();
   expect(accessToken, 'browser session should contain an access token').toBeTruthy();
   const response = await page.request.get('/api/iam/me/contexts', {
     headers: { Authorization: `Bearer ${accessToken}` },

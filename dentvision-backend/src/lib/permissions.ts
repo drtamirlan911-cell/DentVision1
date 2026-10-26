@@ -76,7 +76,6 @@ const MATRIX: Record<string, RoleMatrixRow> = {
     academy:      ['read'],
     shop:         ['manage'],
     community:    ['read', 'write'],
-    bi:           ['read'],
   },
 
   MANAGER: {
@@ -92,7 +91,6 @@ const MATRIX: Record<string, RoleMatrixRow> = {
     diagnostics:  ['read'],
     shop:         ['read'],
     academy:      ['read'],
-    bi:           ['read'],
     dashboard:    ['read'],
   },
 
@@ -123,7 +121,6 @@ const MATRIX: Record<string, RoleMatrixRow> = {
 
   LAB: {
     patients:     ['read'],
-    appointments: ['read'],
     lab:          ['read', 'write'],
     inventory:    ['read'],
     shop:         ['read'],
@@ -343,7 +340,15 @@ export function pagesForPermissions(permissions: readonly string[]): string[] {
       for (const p of Object.values(MODULE_PAGES)) p.forEach((id) => pages.add(id));
       return Array.from(pages);
     }
-    const mod = perm.split('.')[0];
+    const [mod, action] = perm.split('.');
+    if (mod === 'billing') {
+      // Read-only billing grants price-list visibility, not cashier or finance access.
+      if (action === 'read') pages.add('pricelist');
+      else if (action === 'write' || action === 'delete' || action === 'manage') {
+        MODULE_PAGES.billing.forEach((p) => pages.add(p));
+      }
+      continue;
+    }
     const modPages = MODULE_PAGES[mod];
     if (modPages) modPages.forEach((p) => pages.add(p));
   }

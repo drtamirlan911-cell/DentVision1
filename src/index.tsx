@@ -272,7 +272,7 @@ if (container) {
                 <Route path="ai" element={<Suspense fallback={<PageLoader />}><AIWorkspaceIndex /></Suspense>} />
                 <Route path="analytics" element={guarded('analytics', <Analytics />)} />
                 <Route path="settings" element={guarded('settings', <SettingsPage />)} />
-                <Route path="help" element={<Suspense fallback={<PageLoader />}><Help /></Suspense>} />
+                <Route path="help" element={guarded('help', <Help />)} />
                 <Route path="notifications" element={guarded('notifications', <NotificationPreferences />)} />
                 <Route path="admin" element={guarded('admin', <SuperAdmin />)} />
                 {/* Platform console deep-links: these are SuperAdmin tabs, not separate pages. */}

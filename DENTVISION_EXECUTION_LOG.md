@@ -2147,3 +2147,12 @@ These changes are route/entry reconciliation only. Existing domain implementatio
 - Refreshed `.dentvision/api.json` and `.dentvision/routes.json` to include the new `POST /reset-password` handler.
 - Refreshed `.dentvision/tests.json` with the password-reset and clinic-invitation persistence regression suites, and updated the security inventory to include the password-reset service/audit references.
 - Inventory changes are generated-contract maintenance only; exact-HEAD CI remains the deciding verification.
+
+
+## 2026-10-26 — PR #326 role/context and onboarding follow-up
+
+- Starting point: PR #326 HEAD `8866b1fb988ac62a33dcc863905485ed6c964ba4`; exact merge-ref CI run [40283285265](https://github.com/drtamirlan911-cell/DentVision1/actions/runs/40283285265). Backend/frontend lint and core E2E passed; role/context and business-owner journeys failed. No production or `main` changes were made.
+- This candidate addresses the findings: require patient active context for authenticated patient data; guard Help; prevent `billing.read` from exposing cashier/finance pages; remove BI from clinic ADMIN/MANAGER; remove scheduling from legacy LAB; align Assistant lab coordination and the public patient login entry with role policy; fix the measured medical-card touch target; and wait through onboarding navigation before reading session tokens.
+- The role gate now records URLs for HTTP 400 responses. Loopback CORS origins are explicit in the isolated E2E environment; production CORS policy is unchanged.
+- Regression tests cover billing read-only pages, BI role boundaries and legacy LAB scheduling. No security assertion was deleted or weakened.
+- Verification at commit creation: **PENDING** exact-HEAD CI; do not merge PR #326 or close RB-034 based on this change alone.
