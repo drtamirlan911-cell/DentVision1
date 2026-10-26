@@ -265,7 +265,7 @@
 - **Verification:** local backend TypeScript passes; exact-head E2E required before closure.
 
 ### RB-034 — AI DoctorAgent cross-tenant patient/appointment IDOR
-- **Status:** IN PROGRESS — DoctorAgent remediation is present in main history; exact-head CI and the full role/context E2E gate are still required. Candidate E2E also exposed partner result-signing role normalization and a missing Bearer token in BIZ-009; database-scoped signer authorization and test-token repairs are awaiting fresh exact-head CI.
+- **Status:** IN PROGRESS — P0 release blocker. Current verification candidate is `88edf61c3dd1307aeeae762c866887f3c28d894d` in draft PR #323; fresh exact-head CI, Quality Gate and dedicated IAM-context checks are running. Do not close based on partial passes.
 - **Priority:** P0
 - **Area:** AI / Clinical Privacy / Tenant Isolation / IDOR
 - **Evidence:** historical source blob `d1a4947196b40965070e0cade276b1e866b53e0e` contained primary-key-only patient/appointment access in the named intents. The remediation commit `f1276fdb9ab2d7761f7e6c3f77e82eff752ac835` is an ancestor of fetched current `main` HEAD `6581695e91eb70c638bc0b94efb10773d8882dd9`; current source has clinic-scoped queries and a fail-closed active-clinic guard. Ancestry/source evidence confirms implementation presence, not end-to-end release closure.
@@ -279,6 +279,12 @@
 CI run `40223952465` on candidate `a539bad954795adbea59399e4bd6eae139ac7f6a` failed the full role/context design gate. Observed causes included the undersized Medical Card search target, disagreement between E2E and canonical policy for Community/partner settings/BI/assistant lab, broad Finance/Cashier page derivation from `billing.read`, absent Patient Portal role scoping, and the global-SUPERADMIN-to-Supplier exception. Backend/frontend lint, unit/type checks, Quality Gate and the dedicated RB-034 diagnostic passed.
 
 The remediation candidate narrows Finance/Cashier routes to billing write/delete/manage, requires active Supplier scope, guards Patient Portal by patient context, restores the 44px search target, and synchronizes E2E policy with the canonical role matrix without skipping assertions. **RB-034 remains OPEN** until fresh full security and role/context gates pass on the exact remediation HEAD.
+
+Latest exact-head follow-up (2026-10-26):
+- Candidate `277bc824aa8e6ec90fd3f280ac9b026a14570454` passed backend/frontend lint, 246 unit-test files / 2,240 tests, Quality Gate, dedicated RB-034 IAM-context diagnostics (23/23), core E2E, Browser UX and mobile design. The full role/context step was cancelled when a deterministic mismatch was identified in the anonymous-route test; therefore that candidate has no valid full-gate result.
+- Source confirms anonymous `/patient-portal` is intentionally a public login/registration entry. The role gate incorrectly treated it like a protected page that must redirect to `/login`. Candidate `88edf61c3dd1307aeeae762c866887f3c28d894d` now exercises the public entry and actual login handoff, asserting that `portal=patient` and the patient-portal `returnUrl` survive. This test correction does not skip the route, alter application authorization, or relax the guest denial on clinical APIs.
+- New exact-head CI run `40264963752`, Quality Gate `40264963741`, and RB-034 Context Diagnostic `40264963756` are pending/in progress at the time of this entry. Inspect all resulting checks and evidence artifacts before any status change.
+- **RB-034 remains OPEN; release remains NOT READY.**
 
 
 ### RB-029 — Patient clinical history JSON is not encrypted at rest

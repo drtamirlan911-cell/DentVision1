@@ -27,16 +27,17 @@
 11. Never create a competing roadmap, current-state file, release gate or product specification without a clearly different bounded purpose.
 12. Preserve all unfinished previous work while adding new priorities.
 
-## 2A. Current branch and release evidence — 2026-10-25
+## 2A. Current branch and release evidence — 2026-10-26
 
-- Product repository: drtamirlan911-cell/DentVision1; current verified main HEAD is 6581695e91eb70c638bc0b94efb10773d8882dd9.
-- Active P0 verification branch: security/doctor-agent-tenant-isolation-20261025; PR #323 is open/draft and targets main.
-- Candidate commit d632bff595a749f6e926269c5dbdc4ab4e707d8d is being verified. The dedicated RB-034 Context Diagnostic (run 40216825918) and Quality Gate (run 40216825923) passed on this SHA. The full CI run 40216825980 was still in progress at the last query; no release-ready claim is justified.
-- Earlier full E2E run 40210283358 exposed a diagnostic radiologist's result-signing request returning 403 and BIZ-009 calling /api/iam/me/contexts without forwarding the tab-scoped Bearer token. The next commit also admitted STUDENT in the general-role allow-list, which does not resolve the normalized-role mismatch robustly. The local follow-up replaces that check with an explicit database PersonRole scoped to the active organization and passes the onboarding access token in BIZ-009. Exact-head CI for the stronger follow-up is pending.
-- Local verification before the latest remote candidate: 245 unit-test files / 2,232 tests passed; frontend typecheck/lint passed; backend typecheck, lint and TypeScript build passed; focused signing/visibility tests passed 5/5; project-index validation passed; generated docs/SYSTEM_MAP.md matched its generator. These are local checks, not GitHub CI evidence for the current remote SHA.
-- RB-033 remains open. GitHub branch metadata showed main protection disabled and no required checks; repository-admin action and a merge-blocking test are still required.
-- Render confirms dentvision-api deploys from DentVision1/main. Its listed Render Postgres resource is the unrelated suspended romantic-invitations-db. DentVision uses Prisma/PostgreSQL, but the actual deployed database provider/host has not been established from available service metadata. Do not claim Neon or change database configuration until the deployed DATABASE_URL host/provider is verified without exposing credentials.
-- No production database, migration or production deployment was changed in this checkpoint.
+- Product repository: `drtamirlan911-cell/DentVision1`; verified current `main` HEAD remains `6581695e91eb70c638bc0b94efb10773d8882dd9`.
+- Active P0 verification branch: `security/doctor-agent-tenant-isolation-20261025`; draft PR #323 targets `main` and remains open.
+- Current exact candidate HEAD: `88edf61c3dd1307aeeae762c866887f3c28d894d` (`test(e2e): verify public patient portal login handoff`). It corrects a release-test contract mismatch: anonymous `/patient-portal` deliberately renders login/registration UI and the login button carries `portal=patient` plus `returnUrl`; the anonymous route matrix now verifies that handoff rather than incorrectly requiring an immediate redirect. The authenticated non-patient redirect and guest denial on clinical APIs remain unchanged. No assertions are skipped.
+- Previous candidate `277bc824aa8e6ec90fd3f280ac9b026a14570454` passed backend/frontend lint, all 2,240 unit tests across 246 files, Quality Gate, dedicated RB-034 IAM-context diagnostics (23 tests), core E2E, Browser UX and mobile design. Its exhaustive role/context run was superseded while in progress when the public patient-portal route mismatch was identified. That run is neither a role-gate pass nor a role-gate failure.
+- Exact-head checks for `88edf61c3dd1307aeeae762c866887f3c28d894d` have started: main CI run `40264963752`, Quality Gate `40264963741`, and dedicated RB-034 Context Diagnostic `40264963756`. Results are pending; release remains UNVERIFIED until the full exact-head CI and downstream role/context, Visual Agent, business-owner and organization-owner gates finish.
+- RB-034 stays OPEN. The DoctorAgent implementation commit `f1276fdb9ab2d7761f7e6c3f77e82eff752ac835` is already in `main` history, but implementation presence and partial gate results do not satisfy closure.
+- RB-029 remains the next P0: direct JSON-object Patient.medicalHistory writes bypass the string-only helper in `phi.ts`. Continue only after the RB-034 exact-head release gate is resolved; first inventory all reads/writes/AI/report/export consumers, then design versioned encryption and an audited resumable backfill. Do not blindly encrypt the Prisma JSON column.
+- RB-033 remains open: branch protection and required-check enforcement on `main` need a repository-admin action and verification against the real check names. Current repository metadata previously showed protection disabled.
+- No production database, migration or deployment was changed. Do not claim the deployed PostgreSQL provider/host without verifying its actual configuration; do not expose any connection credentials.
 
 ## 2B. Latest role-gate findings — 2026-10-20
 
