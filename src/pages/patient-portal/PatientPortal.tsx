@@ -27,8 +27,15 @@ import { Assistant } from './Assistant';
 
 export default function PatientPortal() {
   const { t } = useTranslation();
-  const { user, isAuthenticated, loginWithGoogle, effectiveRole } = useAuth();
-  const isPatientContext = String(effectiveRole || user?.role || '').toUpperCase() === 'PATIENT';
+  const { user, isAuthenticated, loginWithGoogle, activeWorkspace, effectiveRole } = useAuth();
+  const activeScopeType = String(activeWorkspace?.scopeType || '').toUpperCase();
+  const activePersonType = String(activeWorkspace?.personType || '').toUpperCase();
+  const activeRole = String(activeWorkspace?.roleKey || effectiveRole || user?.role || '').toUpperCase();
+  // A patient identity in another active workspace is not sufficient. Require
+  // explicit patient scope or an unscoped PATIENT role for legacy accounts.
+  const isPatientContext = activeScopeType === 'PATIENT'
+    || (activeScopeType === 'PERSON' && activePersonType === 'PATIENT')
+    || (!activeScopeType && activeRole === 'PATIENT');
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const queryClient = useQueryClient();

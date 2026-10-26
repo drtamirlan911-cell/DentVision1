@@ -39,10 +39,10 @@ export const ORG_ROLES: Record<string, RoleConfig> = {
   lab: { label: 'Лаборатория', icon: '🔬', pages: ['lab', 'shop', 'diagnostics', 'diagnostics-referrals', 'diagnostics-laboratories', 'diagnostics-results', 'profile'] },
   manager: { label: 'Менеджер', icon: '🧭', pages: ['dashboard', 'schedule', 'patients', 'analytics', 'inventory', 'staff', 'shop', 'profile'], canSeeReports: true, canAddStaff: true },
   intern: { label: 'Стажёр', icon: '🌱', pages: ['schedule', 'patients', 'visits', 'documents', 'school', 'profile'], ownDataOnly: true, readOnly: true },
-  student: { label: 'Студент', icon: '🎓', pages: ['school', 'profile'], ownDataOnly: true, readOnly: true },
+  student: { label: 'Студент', icon: '🎓', pages: ['school', 'profile', 'help', 'notifications'], ownDataOnly: true, readOnly: true },
   diagnostic_center: { label: 'Диагностический центр', icon: '🔬', pages: ['diagnostics', 'diagnostics-referrals', 'diagnostics-centers', 'diagnostics-results', 'diagnostics-calendar', 'diagnostics-statistics', 'diagnostics-settings', 'profile'] },
   lab_diagnostic: { label: 'Лаборатория', icon: '🔬', pages: ['diagnostics', 'diagnostics-referrals', 'diagnostics-laboratories', 'diagnostics-results', 'diagnostics-calendar', 'diagnostics-statistics', 'diagnostics-settings', 'profile'] },
-  patient: { label: 'Пациент', icon: 'patient', pages: ['profile', 'shop', 'school'] },
+  patient: { label: 'Пациент', icon: 'patient', pages: ['profile', 'shop', 'school', 'help', 'notifications'] },
 }
 
 const PARTNER_ROLE_LABELS: Record<string, string> = {
@@ -77,8 +77,8 @@ const PARTNER_ROLE_LABELS: Record<string, string> = {
 };
 
 export const PLATFORM_ROLES: Record<string, RoleConfig> = {
-  superadmin: { label: 'Super Admin', icon: '⚙️', pages: ['admin', 'audit', 'agent-activity', 'ai-approvals', 'backup', 'analytics', 'settings', 'security', 'quality', 'diagnostics', 'diagnostics-centers', 'diagnostics-labs', 'platform-finance', 'ai-governance', 'support', 'profile', 'bi'], canSeeSalary: false, canSeeSuperAdmin: true, canAddStaff: false, canSeeAudit: true, canBackup: true, canManageClinicSettings: true, canManageFinance: true },
-  support: { label: 'Поддержка', icon: '🛟', pages: ['help', 'analytics', 'settings', 'profile'] },
+  superadmin: { label: 'Super Admin', icon: '⚙️', pages: ['admin', 'audit', 'agent-activity', 'ai-approvals', 'backup', 'analytics', 'settings', 'security', 'quality', 'diagnostics', 'diagnostics-centers', 'diagnostics-labs', 'platform-finance', 'ai-governance', 'support', 'profile', 'bi', 'help', 'notifications'], canSeeSalary: false, canSeeSuperAdmin: true, canAddStaff: false, canSeeAudit: true, canBackup: true, canManageClinicSettings: true, canManageFinance: true },
+  support: { label: 'Поддержка', icon: '🛟', pages: ['help', 'analytics', 'settings', 'profile', 'notifications'] },
   developer: { label: 'Разработчик', icon: '🛠️', pages: ['admin', 'quality', 'analytics', 'settings', 'audit', 'agent-activity', 'ai-approvals', 'backup', 'profile', 'security'] },
   user: { label: 'Пользователь', icon: '👤', pages: ['shop', 'school', 'diagnostics', 'diagnostics-centers', 'diagnostics-labs', 'profile'] },
   verified: { label: 'Проверенный', icon: '✅', pages: ['shop', 'school', 'diagnostics', 'diagnostics-centers', 'diagnostics-labs', 'profile'] },

@@ -22,6 +22,29 @@ async function login(page: Page, role = 'owner') {
   await page.waitForURL(/\/ai(?:$|[?#])/, { timeout: 20000 });
 }
 
+async function getAuthenticatedContexts(page: Page) {
+  // Onboarding can navigate while the auth store is persisting its tokens.
+  // Wait in the active page context and forward the token explicitly: page.request
+  // is a separate client and does not automatically inherit sessionStorage.
+  const tokenHandle = await page.waitForFunction(() => {
+    try {
+      const token = JSON.parse(sessionStorage.getItem('dv_tokens') || '{}')?.access;
+      return typeof token === 'string' && token ? token : false;
+    } catch {
+      return false;
+    }
+  }, undefined, { timeout: 15000, polling: 100 });
+  const accessToken = await tokenHandle.jsonValue() as string;
+  await tokenHandle.dispose();
+  expect(accessToken, 'browser session should contain an access token').toBeTruthy();
+  const response = await page.request.get('/api/iam/me/contexts', {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+  const body = await response.text();
+  expect(response.ok(), `contexts request failed with HTTP ${response.status()}: ${body}`).toBeTruthy();
+  return JSON.parse(body);
+}
+
 async function submitAndCaptureOnboarding(page: Page): Promise<{ status: number; ok: boolean; body: any }> {
   type CapturedResponse = { status: number; ok: boolean; body: any };
   let resolveCapture!: (response: CapturedResponse) => void;
@@ -124,9 +147,7 @@ test.describe('DentVision business owner journeys', () => {
     expect(onboardingPayload.data?.organizationId).toBeTruthy();
     expect(onboardingPayload.data?.branchId).toBeTruthy();
 
-    const contextsResponse = await page.request.get('/api/iam/me/contexts');
-    expect(contextsResponse.ok()).toBeTruthy();
-    const contextsPayload = await contextsResponse.json();
+    const contextsPayload = await getAuthenticatedContexts(page);
     const context = (contextsPayload.data?.contexts || []).find(
       (item: { organizationId?: string; name?: string }) =>
         item.organizationId === onboardingPayload.data.organizationId || item.name === organizationName,

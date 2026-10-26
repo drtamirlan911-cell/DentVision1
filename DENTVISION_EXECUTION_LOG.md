@@ -2298,3 +2298,10 @@ These changes are route/entry reconciliation only. Existing domain implementatio
 - Reconciled PR #326 with the current main line after the RB-034 and RB-029 branches landed. Current-main role/page policy, public Community route, Patient Portal access guard, and scoped partner-signing authorization were retained rather than replaced with older branch copies.
 - Carried forward PR #326 auth/session and clinic-context updates, atomic clinic/organization/Person/PersonRole bootstrap, and SuperAdmin diagnostics commission-rule endpoints. Commission-rule persistence and the corresponding audit record remain within one transaction.
 - The merge-resolution commit requires fresh exact-head CI. Historic results for earlier candidates do not certify this tree. No production database query/write, migration, backfill, or deployment was performed.
+
+## 2026-10-26 — Restore remaining auth/diagnostics PR #326 changes after merge
+
+- Post-merge reconciliation against the retained PR #326 head found additional non-conflicting permission/UI/E2E changes to carry forward while preserving the newer RB-034 route and tenant guards from main.
+- Restored: notification pages for patient/student/support/platform roles; narrow read-only billing visibility to the price list; removal of LAB appointment access; medical/dental lab referral queues; clinic referral-create permission checks; patient-context scoping in the portal while preserving its anonymous login/registration entry; explicit E2E IAM-context bearer-token forwarding; and minimum 44px touch-target sizing for the empty Shop Orders action.
+- Updated the existing permission contract to assert that billing.read exposes the price list and that referral creation is available only on the intended roles. The generated system map was already reconciled in commit 6d50392e1815b06ca2a0855d40424df0004fdb16.
+- These follow-up changes require a fresh full CI run on their exact commit. They do not close RB-029 or RB-034, and no production database operation or deployment was performed.

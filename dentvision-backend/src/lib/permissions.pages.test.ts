@@ -52,6 +52,7 @@ describe('pagesForPermissions', () => {
 
   it('does not expose clinic-wide finance pages from read-only billing access', () => {
     const readOnlyPages = pagesForPermissions(['billing.read']);
+    expect(readOnlyPages).toContain('pricelist');
     expect(readOnlyPages).not.toContain('finance');
     expect(readOnlyPages).not.toContain('cashier');
     expect(readOnlyPages).not.toContain('billing');
@@ -81,6 +82,14 @@ describe('pagesForPermissions', () => {
     expect(pages).not.toContain('bi');
     expect(pages).not.toContain('schedule');
     expect(pages).not.toContain('patients');
+  });
+
+  it('keeps partner referral queues distinct from clinic referral creation', () => {
+    expect(pagesForCaller([], 'MEDICAL_LAB_OWNER')).toContain('diagnostics-referrals');
+    expect(pagesForCaller([], 'DENTAL_LAB_OWNER')).toContain('diagnostics-referrals');
+    for (const role of ['OWNER', 'DIRECTOR', 'ADMIN', 'DOCTOR', 'ASSISTANT']) {
+      expect(pagesForCaller(permissionsForRole(role), role)).toContain('diagnostics-referral-create');
+    }
   });
 
   it('keeps shop catalogue reads separate from campaign administration', () => {

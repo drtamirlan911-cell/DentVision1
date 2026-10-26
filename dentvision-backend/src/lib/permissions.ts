@@ -121,7 +121,6 @@ const MATRIX: Record<string, RoleMatrixRow> = {
 
   LAB: {
     patients:     ['read'],
-    appointments: ['read'],
     lab:          ['read', 'write'],
     inventory:    ['read'],
     shop:         ['read'],
@@ -296,7 +295,7 @@ export function permissionsForRole(role: string | null | undefined): PermissionK
  * `PLATFORM_ROLES.user` in the legacy config is exactly this set.
  */
 export const BASE_PAGES: readonly string[] = [
-  'shop', 'school', 'profile', 'settings', 'help',
+  'shop', 'school', 'profile', 'settings', 'help', 'notifications',
   'diagnostics', 'diagnostics-centers', 'diagnostics-labs', 'diagnostics-laboratories',
 ];
 
@@ -341,7 +340,7 @@ export function pagesForPermissions(permissions: readonly string[]): string[] {
       for (const p of Object.values(MODULE_PAGES)) p.forEach((id) => pages.add(id));
       return Array.from(pages);
     }
-    const mod = perm.split('.')[0];
+    const [mod, action] = perm.split('.');
     const modPages = MODULE_PAGES[mod];
     if (!modPages) continue;
 
@@ -356,8 +355,9 @@ export function pagesForPermissions(permissions: readonly string[]): string[] {
       continue;
     }
     if (mod === 'billing') {
-      const action = perm.split('.')[1];
-      if (action === 'write' || action === 'delete' || action === 'manage') {
+      // Read-only billing grants price-list visibility, not cashier or finance access.
+      if (action === 'read') pages.add('pricelist');
+      else if (action === 'write' || action === 'delete' || action === 'manage') {
         modPages.forEach((p) => pages.add(p));
       }
       continue;
@@ -380,8 +380,8 @@ export function pagesForPermissions(permissions: readonly string[]): string[] {
  */
 const PARTNER_ROLE_PAGES: Record<string, string[]> = {
   DIAGNOSTIC: ['diagnostics', 'diagnostics-referrals', 'diagnostics-centers', 'diagnostics-results', 'diagnostics-calendar', 'diagnostics-statistics', 'diagnostics-settings', 'profile'],
-  MEDICAL_LAB: ['diagnostics', 'diagnostics-laboratories', 'diagnostics-results', 'diagnostics-calendar', 'diagnostics-statistics', 'diagnostics-settings', 'profile'],
-  DENTAL_LAB: ['diagnostics', 'diagnostics-laboratories', 'diagnostics-results', 'diagnostics-settings', 'profile'],
+  MEDICAL_LAB: ['diagnostics', 'diagnostics-referrals', 'diagnostics-laboratories', 'diagnostics-results', 'diagnostics-calendar', 'diagnostics-statistics', 'diagnostics-settings', 'profile'],
+  DENTAL_LAB: ['diagnostics', 'diagnostics-referrals', 'diagnostics-laboratories', 'diagnostics-results', 'diagnostics-settings', 'profile'],
   SUPPLIER: ['supplier', 'shop', 'inventory', 'profile'],
   ACADEMY: ['school', 'profile'],
 };
@@ -401,14 +401,14 @@ const AI_APPROVAL_ROLES = new Set(['OWNER', 'DIRECTOR', 'ADMIN', 'DOCTOR', 'SUPE
 export function pagesForCaller(permissions: readonly string[], role: string | null | undefined): string[] {
   const resolvedRole = String(role || '').toUpperCase();
   if (resolvedRole === 'PATIENT') {
-    return ['profile', 'shop', 'school'];
+    return ['profile', 'shop', 'school', 'help', 'notifications'];
   }
 
   // STUDENT is a learner role, not an ecosystem partner workspace. Keep the
   // page surface aligned with the canonical STUDENT role matrix instead of
   // inheriting partner-oriented BASE_PAGES such as diagnostics/settings.
   if (resolvedRole === 'STUDENT') {
-    return ['shop', 'school', 'profile'];
+    return ['shop', 'school', 'profile', 'help', 'notifications'];
   }
 
   // Platform identities do not inherit clinic workflows from the permission
@@ -425,7 +425,7 @@ export function pagesForCaller(permissions: readonly string[], role: string | nu
   // read-oriented API grants must not make clinic BI, schedule, lab, or inventory
   // workspaces visible.
   if (resolvedRole === 'SUPPORT') {
-    return Array.from(new Set([...BASE_PAGES, 'analytics']));
+    return ['profile', 'settings', 'help', 'notifications', 'analytics'];
   }
 
   const partnerFamily = partnerPageFamily(resolvedRole);
@@ -459,6 +459,10 @@ export function pagesForCaller(permissions: readonly string[], role: string | nu
     ...(role ? pagesForRole(resolvedRole) : []),
     ...(AI_APPROVAL_ROLES.has(resolvedRole) ? ['ai-approvals'] : []),
   ]);
+
+  if (['OWNER', 'DIRECTOR', 'ADMIN', 'DOCTOR', 'ASSISTANT'].includes(resolvedRole)) {
+    pages.add('diagnostics-referral-create');
+  }
 
   // Read access supports embedded stock lookups; it does not grant clinical
   // users the full inventory management screen.

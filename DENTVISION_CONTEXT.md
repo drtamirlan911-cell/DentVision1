@@ -29,14 +29,14 @@
 
 ## 2A. Current branch and release evidence — 2026-10-26
 
-- Product repository: `drtamirlan911-cell/DentVision1`; current main before the PR #326 integration candidate: `da00bd02bea1bef5160d8a24e44fb93915132c36`.
-- PR #321 (bounded E2E output) and PR #323 (RB-034 tenant isolation / role-context regression coverage) are merged. PR #324 added the versioned medical-history encryption candidate; RB-029 remains OPEN pending independent rollout and release verification.
-- Current integration candidate: PR #326, `fix/auth-diagnostics-endpoints-20261025`. Its auth/session and clinic-context changes, atomic clinic/organization/Person/PersonRole bootstrap, and diagnostics commission-rule writes with audit records are being reconciled with the current main source.
-- The source merge preserves current main's role/page policy and scoped partner-signing helper while carrying over the new auth/diagnostics endpoint work. Fresh exact-head CI is required for the resulting merge commit; prior checks on `8866b1fb988ac62a33dcc863905485ed6c964ba4` do not verify the new head.
-- RB-034 remains OPEN until full exact-head CI, focused IAM-context tests and the complete role/context, Visual Agent and business/organization-owner gates pass together. No release-ready claim is made from partial historic results.
-- RB-029 remains OPEN. The structured-history envelope and guarded backfill implementation are present, but a staging dry run, backup/rollback review, concurrent-writer/consumer audit and exact-head gates remain outstanding. The backfill has not been run.
+- Product repository: `drtamirlan911-cell/DentVision1`. Always fetch the live `main` SHA at the start of a new task; at the start of this reconciliation the main checkpoint was `6d50392e1815b06ca2a0855d40424df0004fdb16`.
+- PR #321 (bounded E2E output and durable diagnostics), PR #323 (RB-034 tenant/role regression coverage), PR #324 (RB-029 structured medical-history encryption candidate), and PR #326 (auth/session and diagnostics audit-write fixes) are merged into `main`. The isolated Codespaces environment PR #322 remains intentionally open and must not be merged into the product branch.
+- The current reconciliation preserves the RB-034 scoped route/page policies while carrying forward the remaining #326 improvements: read-only billing only exposes the price list, partner referral queue visibility, diagnostic referral-create route gating, and explicit bearer-token forwarding when E2E code calls the IAM context API.
+- Fresh exact-head CI is required after this reconciliation; prior runs against earlier commits do not certify this tree. Quality Gate passed on `6d50392e1815b06ca2a0855d40424df0004fdb16`; frontend lint and backend lint passed on that SHA, but lint-test and complete E2E had not both completed successfully for it.
+- RB-034 remains OPEN until full exact-head CI, focused IAM-context diagnostics and the full role/context, Visual Agent, business-owner and organization-owner gates pass together. Do not infer release readiness from partial checks.
+- RB-029 remains OPEN. The versioned encrypted JSON envelope, compatibility decoding and guarded dry-run-first backfill are implemented, but the complete downstream consumer/concurrent-writer audit, staging dry run, backup/rollback review and exact-head gates remain outstanding. The backfill has not been run.
 - RB-033 remains open: main branch protection and required-check enforcement need repository-admin verification.
-- No production database, migration, backfill or production deployment was changed. The deployed database provider/host is still not inferred from unrelated service metadata; credentials must not be exposed.
+- No production database query/write, backfill, schema migration or production deployment was performed. Do not infer the deployed database provider/host from unrelated service metadata and never expose credentials.
 ## 2B. Latest role-gate findings — 2026-10-20
 
 - Last checked candidate: `794638197e17a0cbd46180ca1406c31e67839a1d`. Core E2E, browser UX, mobile design gate, Quality Gate, Android, Visual Agent, business-owner and organization-owner stages passed; role/context failed on route-policy, student landing and responsive UI findings. CLI smoke failed at installation/invocation; visual validation failure was downstream from incomplete role screenshots after serial-test abort.
