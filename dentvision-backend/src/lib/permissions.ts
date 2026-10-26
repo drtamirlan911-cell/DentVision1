@@ -366,13 +366,11 @@ export function pagesForPermissions(permissions: readonly string[]): string[] {
 }
 
 /**
- * Pages for a caller, from their effective permissions UNION their role.
+ * Resolve the caller's visible page surface from their active role and effective permissions.
  *
- * Never narrower than the role matrix alone. The DB permission graph is
- * additive to the matrix everywhere else (`requirePermission` allows when
- * either grants), and page visibility has to match: a Person seeded with a
- * couple of narrow keys must not silently revoke the pages their role has
- * always had.
+ * Low-level read permissions can support embedded lookups and APIs without
+ * granting an entire operational workspace. Platform roles also stay outside
+ * clinic CRM pages; page visibility is not a wildcard expansion of API grants.
  */
 const PARTNER_ROLE_PAGES: Record<string, string[]> = {
   DIAGNOSTIC: ['diagnostics', 'diagnostics-referrals', 'diagnostics-centers', 'diagnostics-results', 'diagnostics-calendar', 'diagnostics-statistics', 'diagnostics-settings', 'profile'],
@@ -407,6 +405,23 @@ export function pagesForCaller(permissions: readonly string[], role: string | nu
     return ['shop', 'school', 'profile'];
   }
 
+  // Platform identities do not inherit clinic workflows from the permission
+  // wildcard. Shared catalogue and diagnostic-directory pages remain available.
+  if (resolvedRole === 'SUPERADMIN') {
+    return Array.from(new Set([
+      ...BASE_PAGES,
+      'admin', 'audit', 'agent-activity', 'ai-approvals', 'backup', 'analytics',
+      'security', 'quality', 'platform-finance', 'ai-governance', 'support', 'bi',
+    ]));
+  }
+
+  // Support can open its support/admin and analytics surfaces, but its
+  // read-oriented API grants must not make clinic BI, schedule, lab, or inventory
+  // workspaces visible.
+  if (resolvedRole === 'SUPPORT') {
+    return Array.from(new Set([...BASE_PAGES, 'admin', 'analytics']));
+  }
+
   const partnerFamily = partnerPageFamily(resolvedRole);
   if (partnerFamily) {
     return Array.from(new Set([
@@ -422,8 +437,13 @@ export function pagesForCaller(permissions: readonly string[], role: string | nu
     ...(AI_APPROVAL_ROLES.has(resolvedRole) ? ['ai-approvals'] : []),
   ]);
 
-  // A platform wildcard is not an active Supplier organization membership.
-  if (resolvedRole === 'SUPERADMIN') pages.delete('supplier');
+  // Read access supports embedded stock lookups; it does not grant clinical
+  // users the full inventory management screen.
+  if (resolvedRole === 'DOCTOR' || resolvedRole === 'ASSISTANT') pages.delete('inventory');
+
+  // Managers may consume lab status data, but the full laboratory workbench is
+  // not part of their role's visible workspace contract.
+  if (resolvedRole === 'MANAGER') pages.delete('lab');
 
   return Array.from(pages);
 }
