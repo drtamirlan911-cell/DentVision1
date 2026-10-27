@@ -184,6 +184,30 @@ describe('structured medical history encryption', () => {
     expect(encryptMedicalHistory(stored)).toEqual(stored);
   });
 
+  it('rejects root-level client-supplied ciphertext/envelopes but permits nested clinical data', async () => {
+    const { isClientSuppliedEncryptedMedicalHistory } = await import('./phi.js');
+    expect(isClientSuppliedEncryptedMedicalHistory('ENC:untrusted')).toBe(true);
+    expect(isClientSuppliedEncryptedMedicalHistory({ __dentvisionEncryptedV1: 'ENC:untrusted' })).toBe(true);
+    expect(isClientSuppliedEncryptedMedicalHistory({ complaints: 'pain', detail: { __dentvisionEncryptedV1: 'ENC:data' } })).toBe(false);
+    expect(isClientSuppliedEncryptedMedicalHistory({ complaints: 'pain' })).toBe(false);
+  });
+
+  it('fails closed on malformed reserved medical-history envelopes', async () => {
+    const { encryptMedicalHistory, decryptMedicalHistory } = await import('./phi.js');
+    const malformed = { __dentvisionEncryptedV1: 'not-ciphertext' };
+    expect(() => decryptMedicalHistory(malformed)).toThrow(/Invalid medical-history encryption envelope/);
+    expect(() => encryptMedicalHistory(malformed)).toThrow(/Invalid medical-history encryption envelope/);
+    expect(() => decryptMedicalHistory({ __dentvisionEncryptedV1: 123 })).toThrow(/Invalid medical-history encryption envelope/);
+  });
+
+  it('fails closed on malformed reserved envelopes when the key is unavailable', async () => {
+    const { decryptPatientFields } = await import('./phi.js');
+    delete process.env.ENCRYPTION_KEY;
+    expect(() => decryptPatientFields({
+      medicalHistory: { __dentvisionEncryptedV1: 'not-ciphertext' },
+    })).toThrow(/Invalid medical-history encryption envelope/);
+  });
+
   it('leaves legacy plaintext JSON readable until the resumable backfill is run', async () => {
     const { decryptMedicalHistory } = await import('./phi.js');
     const original = { allergies: 'legacy allergy', teeth: { '11': { status: 'healthy' } } };

@@ -350,14 +350,16 @@ A phase is complete only when:
 - no duplicate competing source of truth was introduced;
 - `DENTVISION_EXECUTION_LOG.md` records what changed, commit, verification, and next action.
 
-## Current execution priority
-**Now — P0 security and release integrity:** verify RB-034 on branch security/doctor-agent-tenant-isolation-20261025. The exact candidate SHA must pass targeted DoctorAgent negative-path tests, TypeScript, backend lint, unit tests and the full role/context E2E gate before RB-034 can be closed. Keep main unchanged. The generated system map must match the generator on any candidate branch.
+## Current execution priority — reconciled 2026-10-26
+**Now — P0 security/release integrity:** complete fresh exact-HEAD CI for PR #328 (workspace picker, active IAM context and canonical organization-branch E2E). The prior core E2E evidence on PR #329 exposed a test helper that created an organization-scoped branch then queried it with the legacy clinic-scoped endpoint; the candidate updates the helper to list by canonical organization ID. This correction is not release evidence until a fresh full run passes. RB-034/RB-031/RB-032 remain open until the full role/context, WebKit/CORS, Visual Agent, business-owner and organization-owner gates pass together. Keep main unchanged until required checks complete and only merge the intended PRs.
 
-**Next — P0 data protection:** complete the full Patient.medicalHistory read/write/AI/report/export inventory for RB-029, then design a versioned encrypted-at-rest representation and resumable, audited legacy backfill. Do not encrypt the JSON column blindly. Repository-admin action for RB-033 (required branch checks on main) remains manual and release-blocking; verify actual required-check names and prove a failing check blocks merge.
+**Next — P0 data protection (RB-029):** the versioned encrypted JSON envelope codec, backwards-compatible reads, canonical Patient CRUD/odontogram writers and guarded dry-run-first backfill already exist on main. PR #329 corrects the Patient Portal structured-history writer; rejects caller-supplied ciphertext/envelopes at the Portal and canonical Patient create/update HTTP boundaries; minimizes PHI in durable PatientCreated AI events; and adds fail-closed envelope validation and regression contracts. The latest candidate's backend TypeScript gate exposed an event-payload typing issue; the follow-up also hardens the no-key malformed-envelope path and corrects the inventory. Fresh exact-head CI must pass before further closure work. After exact-head CI passes, complete the broader review of every Patient history reader/writer, AI/event/transcript/report/export copy and concurrent legacy writer; review backup/rollback; run only an explicitly verified read-only staging dry run; reconcile counts, round-trip and integrity. Never backfill production or deploy without explicit approval and verified rollback evidence.
+
+**Manual release control — RB-033:** required branch-check protection on main remains a repository-admin task. Read and record the exact required-check names and demonstrate a failing check blocks merge; do not assume this can be completed through application code.
 
 **After these P0 gates:** resume the business-owner lifecycle vertical slice (registration → organization → branches → staff/permissions → operations → economics), then partner transparency/Finance Hub, automated operations and product-wide UX/clinical/ecosystem hardening.
 
-The work proceeds in vertical slices: implement → targeted verify → full relevant gates → commit → update the persistent log → move to the next slice.
+The work proceeds in vertical slices: implement → targeted verify → full relevant gates → commit → update this plan and the persistent log → move to the next slice.
 
 ## Ecosystem support operations — inventory-first workstream (2026-10-23)
 

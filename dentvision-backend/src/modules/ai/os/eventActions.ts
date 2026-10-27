@@ -9,6 +9,7 @@
 
 import prisma from '../../../lib/prisma.js';
 import { CRMEvent } from '../../events/EventTypes.js';
+import { decryptMedicalHistory } from '../../../lib/phi.js';
 
 export interface EventActionResult {
   success: boolean;
@@ -26,41 +27,82 @@ export interface EventActionResult {
 
 // ─── Doctor Actions ───
 
+type PatientComplaintContext = { patientId: string; complaints: string[] } | null;
+
+async function loadPatientComplaintContext(event: CRMEvent, patientId: string): Promise<PatientComplaintContext> {
+  const patient = await prisma.patient.findFirst({
+    where: { id: patientId, clinicId: event.clinicId },
+    select: { medicalHistory: true, notes: true },
+  });
+  if (!patient) return null;
+
+  const decodedHistory = decryptMedicalHistory(patient.medicalHistory);
+  const history = decodedHistory && typeof decodedHistory === 'object' && !Array.isArray(decodedHistory)
+    ? decodedHistory as Record<string, unknown>
+    : {};
+  const raw = history.complaints ?? history.chiefComplaint ?? patient.notes;
+  const complaints = raw
+    ? (Array.isArray(raw)
+      ? raw.map(String).map((item) => item.trim()).filter(Boolean).slice(0, 12)
+      : [String(raw).trim().slice(0, 500)].filter(Boolean))
+    : [];
+
+  return { patientId, complaints };
+}
+
+// ─── Doctor Actions ───
+
 async function analyzeComplaints(event: CRMEvent): Promise<EventActionResult> {
-  const { patientId, complaints } = event.payload;
-  if (!patientId || !complaints) {
-    return { success: false, action: 'analyzeComplaints', agent: 'doctor', message: 'No patient or complaints' };
+  const patientId = typeof event.payload.patientId === 'string' ? event.payload.patientId : '';
+  if (!patientId) {
+    return { success: false, action: 'analyzeComplaints', agent: 'doctor', message: 'Patient context is missing' };
   }
 
-  const patient = await prisma.patient.findUnique({
-    where: { id: patientId as string },
-    select: { firstName: true, lastName: true },
-  });
+  const context = await loadPatientComplaintContext(event, patientId);
+  if (!context) {
+    return { success: false, action: 'analyzeComplaints', agent: 'doctor', message: 'Patient is not available in this clinic context' };
+  }
+  if (!context.complaints.length) {
+    return {
+      success: true,
+      action: 'analyzeComplaints',
+      agent: 'doctor',
+      message: 'No complaint analysis was generated. Open the patient record to review the available clinical context.',
+      data: { patientId },
+      timelineEntry: { action: 'Анализ жалоб', result: 'Жалобы не указаны' },
+    };
+  }
 
-  const complaintList = complaints as string[];
-  const possibleCauses = inferCauses(complaintList);
-
+  const possibleCauses = inferCauses(context.complaints);
   return {
     success: true,
     action: 'analyzeComplaints',
     agent: 'doctor',
-    message: `Пациент ${patient?.firstName} ${patient?.lastName}: жалобы — ${complaintList.join(', ')}. Возможные причины: ${possibleCauses.join(', ')}.`,
-    data: { possibleCauses, complaints: complaintList },
+    // Notification text is persisted; keep it free of patient names and clinical narrative.
+    message: 'Первичный анализ жалоб завершён. Откройте карточку пациента для просмотра результатов.',
+    data: { patientId, possibleCauses },
     timelineEntry: {
       action: 'Анализ жалоб',
-      result: `Возможные причины: ${possibleCauses.join(', ')}`,
+      result: 'Подготовлены возможные причины; подробности остаются в клиническом контексте.',
     },
   };
 }
 
 async function recommendExams(event: CRMEvent): Promise<EventActionResult> {
-  const { patientId, complaints } = event.payload;
-  const complaintList = (complaints as string[]) || [];
+  const patientId = typeof event.payload.patientId === 'string' ? event.payload.patientId : '';
+  if (!patientId) {
+    return { success: false, action: 'recommendExams', agent: 'doctor', message: 'Patient context is missing' };
+  }
 
+  const context = await loadPatientComplaintContext(event, patientId);
+  if (!context) {
+    return { success: false, action: 'recommendExams', agent: 'doctor', message: 'Patient is not available in this clinic context' };
+  }
+  const complaintList = context.complaints;
   const exams: string[] = [];
-  const hasPain = complaintList.some((c) => /бол/i.test(c));
-  const hasSwelling = complaintList.some((c) => /отёк|отек/i.test(c));
-  const hasTemperature = complaintList.some((c) => /температур/i.test(c));
+  const hasPain = complaintList.some((complaint) => /бол/i.test(complaint));
+  const hasSwelling = complaintList.some((complaint) => /отёк|отек/i.test(complaint));
+  const hasTemperature = complaintList.some((complaint) => /температур/i.test(complaint));
 
   if (hasPain || hasSwelling) exams.push('КЛКТ');
   if (hasSwelling && hasTemperature) exams.push('Общий анализ крови');
@@ -71,12 +113,12 @@ async function recommendExams(event: CRMEvent): Promise<EventActionResult> {
     action: 'recommendExams',
     agent: 'doctor',
     message: exams.length > 0
-      ? `Рекомендуемые обследования: ${exams.join(', ')}`
-      : 'Дополнительные обследования не требуются.',
-    data: { exams },
+      ? 'Рекомендации по обследованиям подготовлены. Откройте карточку пациента для просмотра.'
+      : 'Автоматические рекомендации по обследованиям не сформированы. Откройте карточку пациента для проверки.',
+    data: { patientId, exams },
     timelineEntry: {
       action: 'Рекомендация обследований',
-      result: exams.join(', ') || 'Не требуются',
+      result: exams.join(', ') || 'Нет предложений',
     },
   };
 }

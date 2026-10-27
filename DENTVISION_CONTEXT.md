@@ -262,3 +262,41 @@ Do not repeat an audit when implementation can resolve the issue. Do not weaken 
 - Current verification branch: `security/doctor-agent-tenant-isolation-20261025`; prior candidate `277bc824aa8e6ec90fd3f280ac9b026a14570454` passed backend/frontend lint, 2,240 unit tests, Quality Gate, dedicated RB-034 IAM-context diagnostics, core E2E, Browser UX and mobile design; role/context was still running when its test policy was reviewed.
 - The next candidate corrects the anonymous route matrix for the documented public `/patient-portal` login/registration entry. It asserts the public entry and real login hand-off while preserving the authenticated non-patient redirect and guest denial at clinical APIs.
 - Fresh exact-HEAD CI is required after this change. RB-034 and release readiness remain OPEN/NOT READY until all required security, role/context, Visual Agent, business-owner and organization-owner gates pass together.
+
+## 2026-10-26 — RB-029 Patient Portal history writer follow-up
+
+- Audited current main `ac913cc3389a294d0b135a852b035ddddb1018ca` against the historical inventory in `docs/security/RB-029_MEDICAL_HISTORY_ENCRYPTION_INVENTORY.md`.
+- Found the patient portal profile writer still used `encryptField(String(body.medicalHistory))`; object payloads would become `"[object Object]"` before encryption. Candidate branch `security/rb029-patient-portal-history-envelope-20261026` now uses the shared `encryptMedicalHistory` codec and rejects caller-supplied legacy ciphertext / reserved envelope payloads.
+- Added `dentvision-backend/src/modules/patient-portal/patientPortal.history.contract.test.ts` to pin the route-to-codec contract. Shared codec round-trip tests already exist in `dentvision-backend/src/lib/phi.test.ts`.
+- This is a narrow consumer-path fix; RB-029 remains OPEN pending exact-head CI, full reader/writer/concurrency audit, backup/rollback review, a read-only staging dry run and explicit reconciliation. No database was queried or modified; no backfill or deployment was performed.
+
+
+## 2026-10-26 — Full E2E evidence and branch-scope fixture correction
+
+- PR #329 exact-head CI run `40363016216` passed frontend lint, backend lint and `lint-test` (18 steps); the core E2E suite reported 237 passed, 5 skipped and 4 failed. All four failures were branch-management scenarios, and the shared helper failed after successful HTTP 201 creation/UI rendering because it listed the new organization-level branch through the legacy `?clinicId=` API scope.
+- Corrected `e2e/tests/branch-management.spec.ts` on this candidate using the organization-scoped setup and `/api/branches?organizationId=...` read already introduced on PR #328. This keeps assertions strict and verifies canonical persistence rather than treating an organization branch with nullable `clinic_id` as absent.
+- Exact-head CI must rerun; do not infer the later mobile/role gates passed based on the previous run. The E2E continuation on the superseded SHA was still running Browser UX when inspected.
+- RB-029 remains OPEN. No database query/write, backfill or deployment was performed.
+
+## 2026-10-26 — RB-029 API envelope-input guard
+
+- Further source review of the structured medical-history codec found that idempotent internal envelope handling must be paired with strict HTTP input guards. The canonical Patient create/upsert and PATCH routes could otherwise accept a client-supplied root `__dentvisionEncryptedV1` value and pass it through as if it were service-produced ciphertext.
+- Code candidate committed as `2368ff723efd5ea02349fd39dfec47c6ff87360e` on the existing RB-029 branch. It adds `isClientSuppliedEncryptedMedicalHistory` and applies it at Patient Portal profile update and canonical Patient create/update boundaries. Root `ENC:` values and reserved envelope markers are rejected; normal structured values and nested clinical fields remain supported.
+- Regression coverage added for the shared validator and all three route write boundaries. Await exact-head CI; RB-029 stays OPEN. No database access, backfill, staging write, or deployment performed.
+
+## 2026-10-26 — RB-029 malformed envelope fail-closed hardening
+
+- Source audit found that `decryptMedicalHistory()` recognized a V1 envelope only when `__dentvisionEncryptedV1` already contained an `ENC:`-prefixed string. A malformed value under this reserved root key could otherwise be returned as if it were legacy plaintext JSON.
+- Added explicit reserved-marker detection. Valid internal V1 envelopes remain idempotent; malformed reserved markers now throw a bounded, non-PHI error on both encode and decode. Added regression coverage for malformed string and numeric marker values.
+- Exact-head CI is required before this candidate is considered verified. No database was queried or modified, and no backfill, migration, staging operation or deployment was performed.
+
+## 2026-10-26 — CI correction: type-safe PatientCreated payload and no-key envelope guard
+
+- CI run `40381667033` for head `d6838bb87b1e4f8fa1b79d3e1639d9e3b3202a12` failed backend TypeScript at `aiEventBridge.ts(36,56)`: the payload interface lacked the index signature required by the durable event bus. The same head passed frontend lint, unit tests and Quality Gate.
+- The candidate now makes `PatientCreatedPayload` compatible with `Record<string, unknown>`, and `decryptPatientFields()` passes reserved markers through the shared fail-closed codec when the key is unavailable. A regression test covers malformed reserved markers in that no-key path. Fresh exact-head CI is required before verification.
+
+## 2026-10-26 — Reduce PHI in durable PatientCreated AI events
+
+- The legacy patient-created event no longer includes the complaint narrative. The durable AI event and queued AI Employee tasks now receive only `patientId` and `hasComplaints`; the action handler re-reads the patient using both patient ID and clinic ID, then decrypts history in memory.
+- AI action/notification text no longer echoes patient names or complaint text. Focused tests cover the non-PHI event rule contract, clinic-scoped lookup, and absence of raw complaint text in action results.
+- This is a scoped derivative-PHI improvement, not RB-029 closure. Other event payloads with clinical fields, notification/AI transcript retention and all-consumer/concurrency review remain open. Exact-head CI is pending; no database operation or backfill was run.
