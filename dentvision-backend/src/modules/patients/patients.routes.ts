@@ -88,7 +88,22 @@ patientsRouter.post('/', requirePermission('patient.write'), guardPatientCreate,
     if(existing){const existingBranch=await getPatientBranchId(existing.id,clinicId);if(context.scope.kind!=='organization'&&!canAccessPatientBranch(context,existingBranch))return res.status(404).json({ok:false,error:'Пациент не найден'});if(context.scope.kind==='organization'&&body.branchId!==undefined){if(!(await assertPatientBranchBelongsToClinic(String(body.branchId),clinicId)))return res.status(400).json({ok:false,error:'Недействующий филиал'});targetBranchId=String(body.branchId)}else targetBranchId=existingBranch;}
     const iinTouched=body.iin!==undefined||body.noIinReason!==undefined; let iinFields:PatientIinFields|undefined;if(!existing||iinTouched)iinFields=await buildPatientIinFields({iin:body.iin,noIinReason:body.noIinReason,clinicId,excludePatientId:existing?.id,birthDate:(body.dob||body.birthDate)??existing?.birthDate??null,gender:body.gender??existing?.gender??null,required:!existing});
     const data={firstName,lastName,phone:body.phone??existing?.phone??null,email:body.email??existing?.email??null,birthDate:(body.dob||body.birthDate)?new Date(body.dob||body.birthDate):existing?.birthDate??null,gender:body.gender??existing?.gender??null,address:body.address??existing?.address??null,notes:body.notes??existing?.notes??null,iin:iinFields?iinFields.iin:(existing as any)?.iin,iinHash:iinFields?.iinHash,noIinReason:iinFields?.noIinReason,medicalHistory:encryptMedicalHistory(history) as Prisma.InputJsonValue};
-    const patient=existing?await prisma.patient.update({where:{id:existing.id},data,include:{teeth:true}}):await prisma.patient.create({data:{...data,id,clinicId,iin:iinFields!.iin,iinHash:iinFields!.iinHash,noIinReason:iinFields!.noIinReason},include:{teeth:true}});if(targetBranchId)await setPatientBranch(patient.id,clinicId,targetBranchId);if(body.teeth)await syncTeeth(patient.id,body.teeth);const refreshed=await prisma.patient.findUnique({where:{id:patient.id},include:{teeth:true}});
+    let patient: any;
+    if(existing){
+      const updatedPatient=await prisma.$transaction(async(tx)=>{
+        const updated=await tx.patient.updateMany({where:{id:existing.id,clinicId,updatedAt:existing.updatedAt},data});
+        if(updated.count!==1)return null;
+        if(body.teeth)await syncTeeth(existing.id,body.teeth,tx);
+        return tx.patient.findUnique({where:{id:existing.id},include:{teeth:true}});
+      });
+      if(!updatedPatient)return res.status(409).json({ok:false,error:'Карточка пациента была изменена параллельно. Обновите данные и повторите.'} satisfies ApiResponse);
+      patient=updatedPatient;
+    }else{
+      patient=await prisma.patient.create({data:{...data,id,clinicId,iin:iinFields!.iin,iinHash:iinFields!.iinHash,noIinReason:iinFields!.noIinReason},include:{teeth:true}});
+      if(body.teeth)await syncTeeth(patient.id,body.teeth);
+    }
+    if(targetBranchId)await setPatientBranch(patient.id,clinicId,targetBranchId);
+    const refreshed=await prisma.patient.findUnique({where:{id:patient.id},include:{teeth:true}});
     if(!existing){publish('patient.created',{clinicId,patientId:patient.id,userId:req.user?.id,name:`${firstName} ${lastName}`.trim()});const patientCount=await prisma.patient.count({where:{clinicId,deletedAt:null}});if(patientCount===1)publishGrowthEvent({event:'FIRST_PATIENT_CREATED',userId:req.user?.id,clinicId,branchId:targetBranchId??undefined,entityId:patient.id,source:'patients.create'});}else await auditFromReq(req,{action:'patient.updated',entity:'patient',entityId:patient.id,details:{name:`${firstName} ${lastName}`.trim(),branchId:targetBranchId}});if(idempotencyKey){await completeIdempotencyKey(idempotencyKey,patient.id);completed=true;}return res.status(existing?200:201).json({ok:true,data:serializePatient(refreshed!)} satisfies ApiResponse);
   }catch(e){if(idempotencyKey&&!completed)await deleteIdempotencyKey(idempotencyKey).catch(()=>undefined);if(e instanceof IinValidationError)return res.status((e as any).code==='DUPLICATE'?409:400).json({ok:false,error:e.message});console.error('Upsert patient error:',e);return res.status(500).json({ok:false,error:'Ошибка при сохранении пациента'})}
 });

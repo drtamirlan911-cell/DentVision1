@@ -13,6 +13,7 @@ const patientCrudRoute = readFileSync(
 );
 
 const phi = readFileSync(resolve(process.cwd(), 'dentvision-backend/src/lib/phi.ts'), 'utf8');
+const teethStore = readFileSync(resolve(process.cwd(), 'dentvision-backend/src/modules/patients/teethStore.ts'), 'utf8');
 
 describe('patient portal structured medical-history persistence contract', () => {
   it('uses the canonical JSON history envelope encoder instead of coercing history to a string', () => {
@@ -28,6 +29,16 @@ describe('patient portal structured medical-history persistence contract', () =>
 
   it('rejects caller-supplied encrypted history markers in canonical Patient create/update APIs', () => {
     expect((patientCrudRoute.match(/isClientSuppliedEncryptedMedicalHistory\(body\.medicalHistory\)/g) || [])).toHaveLength(2);
+  });
+
+  it('guards concurrent clinical-history writers with row-version predicates', () => {
+    expect(patientCrudRoute).toContain('updatedAt:existing.updatedAt');
+    expect(patientCrudRoute).toContain('tx.patient.updateMany');
+    expect(patientPortalRoute).toContain('updatedAt: current.updatedAt');
+    expect(patientPortalRoute).toContain('patient.updateMany');
+    expect(teethStore).toContain('updatedAt: patient.updatedAt');
+    expect(teethStore).toContain("throw new Error('PATIENT_HISTORY_CONFLICT')");
+    expect(teethStore).toContain('await prisma.$transaction');
   });
 
   it('keeps object JSON round-tripping in the shared encrypted envelope codec', () => {

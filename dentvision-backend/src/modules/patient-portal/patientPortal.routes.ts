@@ -82,7 +82,18 @@ patientPortalRouter.put('/me/profile', ensurePatient, async (req: AuthRequest, r
       return res.status(400).json({ ok: false, error: 'Нет полей для обновления' });
     }
 
-    await (prisma as any).patient.update({ where: { id: pid }, data });
+    const current = await (prisma as any).patient.findFirst({
+      where: { id: pid },
+      select: { id: true, clinicId: true, updatedAt: true },
+    });
+    if (!current) return res.status(404).json({ ok: false, error: 'Карточка пациента не найдена' });
+    const updated = await (prisma as any).patient.updateMany({
+      where: { id: pid, clinicId: current.clinicId, updatedAt: current.updatedAt },
+      data,
+    });
+    if (updated.count !== 1) {
+      return res.status(409).json({ ok: false, error: 'Данные пациента изменились параллельно. Обновите страницу и повторите.' });
+    }
     return res.json({ ok: true, data: { updated: Object.keys(data) } });
   } catch (e: any) {
     return res.status(500).json({ ok: false, error: e.message });
