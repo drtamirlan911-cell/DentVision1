@@ -2,6 +2,13 @@
 
 **First-read file for every future DentVision AI/engineering session.**
 
+## Latest verified state — 2026-10-28
+- Active working PR: [#328](https://github.com/drtamirlan911-cell/DentVision1/pull/328), branch `fix/workspace-switcher-menu-overflow-20261026`.
+- Latest implementation candidate: `56ab3ecfe5d1f0d02cc8be00816151a69dd30dce`. It aligns ASSISTANT/LAB page visibility and the E2E role matrix with the existing IAM policy; exact-head CI is pending.
+- Last completed CI on the previous head `c06c1a02ad508d1ff07b94fd1c78ebab5e59307f`: run `40361059735` failed the role/context and Visual Agent gates. WebKit access-control/page errors and unnamed Clinic Settings controls remain open; no test was disabled.
+- Do not close RB-034 or RB-029 based on this UI-policy change. Keep `main` unchanged. No local checkout was available in this run, so local git status/tests could not be verified.
+
+
 ## 1. Repository identity
 - Product: DentVision — Dental Operating System / ecosystem.
 - Repository: `drtamirlan911-cell/DentVision1`.
