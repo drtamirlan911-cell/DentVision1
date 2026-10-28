@@ -135,6 +135,39 @@ describe('pagesForPermissions', () => {
     expect(pagesForCaller(permissionsForRole('OWNER'), 'OWNER')).toContain('inventory');
   });
 
+  it('keeps assistant and clinic laboratory page surfaces within their role contract', () => {
+    const assistant = pagesForCaller(permissionsForRole('ASSISTANT'), 'ASSISTANT');
+    expect(assistant).toContain('patients');
+    expect(assistant).toContain('visits');
+    for (const page of ['medical-card', 'dental-chart', 'treatment-plans', 'icd10']) {
+      expect(assistant).not.toContain(page);
+    }
+
+    const laboratory = pagesForCaller(permissionsForRole('LAB'), 'LAB');
+    expect(laboratory).toContain('lab');
+    expect(laboratory).toContain('diagnostics-referrals');
+    for (const page of ['patients', 'medical-card', 'visits', 'dental-chart', 'documents', 'treatment-plans', 'icd10']) {
+      expect(laboratory).not.toContain(page);
+    }
+  });
+
+  it('keeps read-only billing roles on the price list only', () => {
+    for (const role of ['DOCTOR', 'MANAGER']) {
+      const pages = pagesForCaller(permissionsForRole(role), role);
+      expect(pages).toContain('pricelist');
+      expect(pages).not.toContain('finance');
+      expect(pages).not.toContain('cashier');
+      expect(pages).not.toContain('billing');
+    }
+  });
+
+  it('keeps partner referral queues available without clinic referral creation', () => {
+    for (const role of ['MEDICAL_LAB_OWNER', 'MEDICAL_LAB_TECHNICIAN', 'DENTAL_LAB_OWNER', 'DENTAL_TECHNICIAN']) {
+      expect(pagesForCaller([], role)).toContain('diagnostics-referrals');
+      expect(pagesForCaller([], role)).not.toContain('diagnostics-referral-create');
+    }
+  });
+
   it('does not expose the laboratory workbench to manager-only read access', () => {
     expect(pagesForCaller(permissionsForRole('MANAGER'), 'MANAGER')).not.toContain('lab');
     expect(pagesForCaller(permissionsForRole('DOCTOR'), 'DOCTOR')).toContain('lab');

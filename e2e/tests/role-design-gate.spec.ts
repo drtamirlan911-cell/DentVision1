@@ -27,9 +27,9 @@ type Role = {
 
 const CLINIC_OWNER_PAGES = ['community','dashboard','schedule','patients','medical-card','visits','icd10','documents','finance','cashier','pricelist','lab','reminders','promotions','inventory','staff','audit','agent-activity','ai-approvals','backup','shop','school','analytics','settings','clinic-settings','billing','treatment-plans','dental-chart','diagnostics','diagnostics-referrals','diagnostics-referral-create','diagnostics-centers','diagnostics-labs','diagnostics-results','profile','bi','patient-inbox','workflow'];
 const CLINIC_ADMIN_PAGES = ['community','schedule','patients','medical-card','visits','icd10','documents','finance','cashier','pricelist','lab','reminders','promotions','inventory','staff','shop','school','analytics','settings','clinic-settings','billing','treatment-plans','dental-chart','diagnostics','diagnostics-referrals','diagnostics-referral-create','diagnostics-results','profile','patient-inbox','workflow','ai-approvals'];
-const CLINIC_DOCTOR_PAGES = ['community','schedule','patients','medical-card','visits','icd10','documents','lab','reminders','school','treatment-plans','dental-chart','diagnostics-referrals','diagnostics-referral-create','diagnostics-results','profile','ai-approvals'];
+const CLINIC_DOCTOR_PAGES = ['community','schedule','patients','medical-card','visits','icd10','pricelist','documents','lab','reminders','school','treatment-plans','dental-chart','diagnostics-referrals','diagnostics-referral-create','diagnostics-results','profile','ai-approvals'];
 const CLINIC_ASSISTANT_PAGES = ['community','schedule','patients','visits','documents','reminders','lab','shop','school','diagnostics-referrals','diagnostics-referral-create','diagnostics-results','profile'];
-const CLINIC_MANAGER_PAGES = ['dashboard','schedule','patients','analytics','inventory','staff','shop','profile'];
+const CLINIC_MANAGER_PAGES = ['dashboard','schedule','patients','analytics','inventory','staff','shop','pricelist','profile'];
 const PLATFORM_SUPERADMIN_PAGES = ['admin','audit','agent-activity','ai-approvals','backup','analytics','settings','security','quality','diagnostics','diagnostics-centers','diagnostics-labs','platform-finance','ai-governance','support','profile','bi'];
 
 const ROLES: readonly Role[] = [
@@ -42,10 +42,10 @@ const ROLES: readonly Role[] = [
   { id:'patient', email:'patient@dentvision.kz', label:'Пациент', family:'patient', pages:['patient-portal','profile','shop','school'], mustNotContain:[/CRM|Клиника|Super Admin|Диагностический центр|Медицинская лаборатория|зуботехническая/i], entry:/\/patient-portal/ },
   { id:'diagnostic-owner', email:'diagnostic-owner@test.com', label:'Владелец диагностического центра', family:'diagnostic', pages:[...AUTHENTICATED_BASE_PAGES,'diagnostics','diagnostics-referrals','diagnostics-centers','diagnostics-results','diagnostics-calendar','diagnostics-statistics','diagnostics-settings','profile'], mustNotContain:[/Врач|Стоматологическая клиника|Зуботехническая лаборатория/i], entry:/\/diagnostics\/center/ },
   { id:'diagnostic-operator', email:'diagnostic-operator@test.com', label:'Оператор диагностического центра', family:'diagnostic', pages:[...AUTHENTICATED_BASE_PAGES,'diagnostics','diagnostics-referrals','diagnostics-centers','diagnostics-results','diagnostics-calendar','profile'], mustNotContain:[/Настройки диагностического центра/i], entry:/\/diagnostics\/center/ },
-  { id:'medical-lab-owner', email:'medical-lab-owner@test.com', label:'Владелец медицинской лаборатории', family:'medical-lab', pages:[...AUTHENTICATED_BASE_PAGES,'diagnostics','diagnostics-laboratories','diagnostics-results','diagnostics-calendar','diagnostics-statistics','diagnostics-settings','profile'], mustNotContain:[/Врач|Зуботехническая лаборатория/i], entry:/\/diagnostics\/lab/ },
-  { id:'medical-lab-tech', email:'medical-lab-tech@test.com', label:'Лаборант', family:'medical-lab', pages:[...AUTHENTICATED_BASE_PAGES,'diagnostics','diagnostics-laboratories','diagnostics-results','profile'], mustNotContain:[/Настройки диагностического центра/i], entry:/\/diagnostics\/lab/ },
-  { id:'dental-lab-owner', email:'dental-lab-owner@test.com', label:'Владелец зуботехнической лаборатории', family:'dental-lab', pages:[...AUTHENTICATED_BASE_PAGES,'diagnostics','diagnostics-laboratories','diagnostics-results','diagnostics-settings','profile'], mustNotContain:[/Медицинская лаборатория|Диагностический центр/i], entry:/\/diagnostics\/lab/ },
-  { id:'dental-technician', email:'dental-technician@test.com', label:'Зубной техник', family:'dental-lab', pages:[...AUTHENTICATED_BASE_PAGES,'diagnostics','diagnostics-laboratories','diagnostics-results','profile'], mustNotContain:[/Настройки диагностического центра/i], entry:/\/diagnostics\/lab/ },
+  { id:'medical-lab-owner', email:'medical-lab-owner@test.com', label:'Владелец медицинской лаборатории', family:'medical-lab', pages:[...AUTHENTICATED_BASE_PAGES,'diagnostics','diagnostics-referrals','diagnostics-laboratories','diagnostics-results','diagnostics-calendar','diagnostics-statistics','diagnostics-settings','profile'], mustNotContain:[/Врач|Зуботехническая лаборатория/i], entry:/\/diagnostics\/lab/ },
+  { id:'medical-lab-tech', email:'medical-lab-tech@test.com', label:'Лаборант', family:'medical-lab', pages:[...AUTHENTICATED_BASE_PAGES,'diagnostics','diagnostics-referrals','diagnostics-laboratories','diagnostics-results','profile'], mustNotContain:[/Настройки диагностического центра/i], entry:/\/diagnostics\/lab/ },
+  { id:'dental-lab-owner', email:'dental-lab-owner@test.com', label:'Владелец зуботехнической лаборатории', family:'dental-lab', pages:[...AUTHENTICATED_BASE_PAGES,'diagnostics','diagnostics-referrals','diagnostics-laboratories','diagnostics-results','diagnostics-settings','profile'], mustNotContain:[/Медицинская лаборатория|Диагностический центр/i], entry:/\/diagnostics\/lab/ },
+  { id:'dental-technician', email:'dental-technician@test.com', label:'Зубной техник', family:'dental-lab', pages:[...AUTHENTICATED_BASE_PAGES,'diagnostics','diagnostics-referrals','diagnostics-laboratories','diagnostics-results','profile'], mustNotContain:[/Настройки диагностического центра/i], entry:/\/diagnostics\/lab/ },
   { id:'superadmin', email:'superadmin@test.com', label:'Super Admin', family:'platform', pages:[...AUTHENTICATED_BASE_PAGES,...PLATFORM_SUPERADMIN_PAGES], mustNotContain:[/Пациент|Зубной техник/i], entry:/\/admin|\/ai/ },
   { id:'support', email:'support@test.com', label:'Поддержка', family:'platform', pages:[...AUTHENTICATED_BASE_PAGES,'admin','analytics'], mustNotContain:[/Врач|Пациент/i], entry:/\/admin|\/analytics|\/help|\/profile/ },
   { id:'laboratory', email:'lab-a@test.com', label:'Лаборатория', family:'clinic', pages:[...AUTHENTICATED_BASE_PAGES,'lab','diagnostics-referrals','diagnostics-laboratories','diagnostics-results'], mustNotContain:[/Super Admin/i], entry:/\/ai|\/crm|\/diagnostics/ },
@@ -80,7 +80,7 @@ function pageId(route: string, role?: Role): string | null {
     '/crm/clinic-settings':'clinic-settings','/crm/billing':'billing','/crm/patient-inbox':'patient-inbox','/crm/visits':'visits','/crm/dental-chart':'dental-chart','/crm/treatment-plans':'treatment-plans',
     '/crm/pricelist':'pricelist','/crm/lab':'lab','/crm/inventory':'inventory','/crm/stock-rules':'inventory','/crm/documents':'documents','/crm/staff':'staff','/crm/reminders':'reminders','/crm/promotions':'promotions','/crm/marketing':'promotions','/crm/icd10':'icd10','/crm/workflow':'workflow','/crm/integrations/messaging':'clinic-settings',
     '/analytics':'analytics','/admin':'admin','/audit':'audit','/agent-activity':'agent-activity','/ai-approvals':'ai-approvals','/backup':'backup','/shop':'shop','/school':'school','/settings':'settings','/bi':'bi','/security':'security','/quality':'quality','/platform-finance':'platform-finance','/ai-governance':'ai-governance','/support':'support','/diagnostics':'diagnostics','/supplier':'supplier',
-    '/diagnostics/referrals':'diagnostics-referrals','/diagnostics/referrals/new':'diagnostics-referral-create','/diagnostics/centers':'diagnostics-centers','/diagnostics/labs':'diagnostics-labs','/diagnostics/laboratories':'diagnostics-labs','/diagnostics/results':'diagnostics-results','/diagnostics/calendar':'diagnostics-calendar','/diagnostics/statistics':'diagnostics-statistics','/diagnostics/settings':'diagnostics-settings',
+    '/diagnostics/referrals':'diagnostics-referrals','/diagnostics/referrals/new':'diagnostics-referral-create','/diagnostics/patients':'diagnostics-referrals','/diagnostics/centers':'diagnostics-centers','/diagnostics/labs':'diagnostics-labs','/diagnostics/laboratories':'diagnostics-labs','/diagnostics/results':'diagnostics-results','/diagnostics/calendar':'diagnostics-calendar','/diagnostics/statistics':'diagnostics-statistics','/diagnostics/settings':'diagnostics-settings',
     '/diagnostics/center':'diagnostics','/diagnostics/lab':'diagnostics','/community':'community','/patient-portal':'patient-portal','/diagnostics/workspace':'diagnostics','/diagnostics/center-dashboard':'diagnostics','/diagnostics/lab-dashboard':'diagnostics','/diagnostics/registrations':'admin','/diagnostics/registration-requests':'admin',
   };
   if (map[p]) return map[p];
@@ -641,14 +641,23 @@ test.describe('DentVision exhaustive role/context/browser gate',()=>{
       'Anonymous authorization matrix is viewport-independent; execute once per CI run',
     );
 
+    // Playwright starts each test at about:blank (an opaque origin), where
+    // WebKit throws when localStorage/sessionStorage are accessed. Clear defensively
+    // on every app navigation, then clear once on the real app origin before the matrix.
     await page.addInitScript(() => {
+      try {
+        localStorage.clear();
+        sessionStorage.clear();
+      } catch {
+        // about:blank has no storage origin; the app-origin cleanup below is authoritative.
+      }
+    });
+    await page.context().clearCookies();
+    await page.goto(BASE_URL + '/login', { waitUntil: 'domcontentloaded', timeout: 30000 });
+    await page.evaluate(() => {
       localStorage.clear();
       sessionStorage.clear();
     });
-    // Storage cleanup does not reset the already-hydrated Zustand auth store.
-    // Clear cookies and reload so this anonymous matrix starts from a genuinely
-    // unauthenticated application instance rather than the preceding role test.
-    await page.context().clearCookies();
     await page.reload({ waitUntil: 'domcontentloaded', timeout: 30000 });
     await page.evaluate(() => {
       localStorage.clear();

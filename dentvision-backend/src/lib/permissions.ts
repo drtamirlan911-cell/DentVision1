@@ -472,6 +472,18 @@ export function pagesForCaller(permissions: readonly string[], role: string | nu
   // not part of their role's visible workspace contract.
   if (resolvedRole === 'MANAGER') pages.delete('lab');
 
+  // ASSISTANT supports assigned operational patient work, not the full clinical
+  // chart, odontogram, treatment-plan or ICD-10 workspaces.
+  if (resolvedRole === 'ASSISTANT') {
+    for (const page of ['medical-card', 'dental-chart', 'treatment-plans', 'icd10']) pages.delete(page);
+  }
+
+  // Legacy clinic LAB uses lab/referral workflows; patient context is supplied
+  // through those workflows rather than the clinic-wide patient CRM pages.
+  if (resolvedRole === 'LAB') {
+    for (const page of ['patients', 'medical-card', 'visits', 'dental-chart', 'documents', 'treatment-plans', 'icd10']) pages.delete(page);
+  }
+
   return Array.from(pages);
 }
 
