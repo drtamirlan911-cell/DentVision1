@@ -189,17 +189,14 @@ export async function resolveClinicAccess(clinicId: string): Promise<ClinicAcces
 
   // Self-heal: period ended but cron hasn't flipped yet
   if (periodExpired && status !== 'expired' && status !== 'suspended') {
+    // Keep the clinic itself active so authenticated members can still read
+    // existing clinical/financial records. Write endpoints are gated by
+    // writeBlocked; expiry must not turn into a destructive hard lockout.
     status = 'expired';
-    await Promise.all([
-      prisma.subscription.update({
-        where: { ownerType_ownerId: { ownerType: 'CLINIC', ownerId: clinicId } },
-        data: { status: 'expired' },
-      }).catch(() => null),
-      prisma.clinic.update({
-        where: { id: clinicId },
-        data: { active: false },
-      }).catch(() => null),
-    ]);
+    await prisma.subscription.update({
+      where: { ownerType_ownerId: { ownerType: 'CLINIC', ownerId: clinicId } },
+      data: { status: 'expired' },
+    }).catch(() => null);
   }
 
   const expired =
@@ -246,7 +243,7 @@ export async function resolveClinicAccess(clinicId: string): Promise<ClinicAcces
     clinicPlan: clinic.plan,
     saasPlan,
     status: expired ? 'expired' : status,
-    active: clinic.active && !expired,
+    active: clinic.active && status !== 'suspended',
     expired,
     writeBlocked: expired,
     periodEnd,
