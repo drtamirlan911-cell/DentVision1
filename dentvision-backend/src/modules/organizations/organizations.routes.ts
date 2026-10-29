@@ -353,7 +353,7 @@ organizationsRouter.delete('/:id', async (req: AuthRequest, res) => {
   try {
     const id = String(req.params.id || '').trim();
     const manageableRoles = ['owner', 'org_owner', 'admin', 'org_admin', 'seller', 'lecturer', 'diagnostic_owner', 'medical_lab_owner', 'dental_lab_owner'];
-    const person = await prisma.person.findFirst({
+    const person = req.user?.role === 'SUPERADMIN' ? null : await prisma.person.findFirst({
       where: {
         userId: req.user!.id,
         organizationId: id,
@@ -362,8 +362,10 @@ organizationsRouter.delete('/:id', async (req: AuthRequest, res) => {
       },
       include: { organization: true },
     });
-    if (!person?.organization) return res.status(404).json({ ok: false, error: 'Организация не найдена или нет прав владельца' } satisfies ApiResponse);
-    const org = person.organization;
+    const org = req.user?.role === 'SUPERADMIN'
+      ? await prisma.organization.findFirst({ where: { id, archivedAt: null } })
+      : person?.organization;
+    if (!org) return res.status(404).json({ ok: false, error: 'Организация не найдена или нет прав владельца' } satisfies ApiResponse);
     const previousSettings = org.settings && typeof org.settings === 'object' && !Array.isArray(org.settings)
       ? org.settings as Record<string, unknown> : {};
     const archivedAt = new Date();
