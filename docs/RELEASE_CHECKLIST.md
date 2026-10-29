@@ -51,6 +51,8 @@
 5. Ask Jarvis: «что умеешь», «открой прайс» — guest AI counter decreases
 6. Guest → «Создать аккаунт» (RegistrationModal) → `POST /api/guest/convert` works
 7. Trial copy everywhere says **30 дней** (Login / Pricing / Demo)
+8. Trial lifecycle: a new clinic has an Enterprise `trialing` subscription with a 30-day `periodEnd`; after expiry, clinic data remains readable but clinic writes and public bookings/signatures return `SUBSCRIPTION_EXPIRED`. The SaaS renewal/checkout flow stays available.
+9. Before release, apply and verify the timestamped legacy-trial and organization-archive migrations on staging; confirm expired trial reads succeed and writes fail; confirm archive leaves the linked Clinic and clinical history intact.
 8. Shop: guests see catalog + city filter; no «Кабинет продавца» / «Мой кэшбэк»
 9. Sidebar: photo, alert bell (no noisy guest notification fetch), clinic switcher after login
 10. Favicon + `/robots.txt` + OG image present
