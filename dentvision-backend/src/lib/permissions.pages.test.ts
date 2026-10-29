@@ -143,10 +143,17 @@ describe('pagesForPermissions', () => {
       expect(assistant).not.toContain(page);
     }
 
+    const manager = pagesForCaller(permissionsForRole('MANAGER'), 'MANAGER');
+    expect(manager).toEqual(expect.arrayContaining(['patients', 'inventory', 'staff', 'analytics', 'pricelist']));
+    for (const page of ['medical-card', 'visits', 'dental-chart', 'documents', 'treatment-plans', 'icd10', 'clinic-settings', 'workflow', 'reminders', 'lab', 'diagnostics-referrals', 'diagnostics-calendar', 'diagnostics-statistics', 'diagnostics-settings']) {
+      expect(manager).not.toContain(page);
+    }
+
     const laboratory = pagesForCaller(permissionsForRole('LAB'), 'LAB');
     expect(laboratory).toContain('lab');
     expect(laboratory).toContain('diagnostics-referrals');
-    for (const page of ['patients', 'medical-card', 'visits', 'dental-chart', 'documents', 'treatment-plans', 'icd10']) {
+    expect(laboratory).toContain('diagnostics-laboratories');
+    for (const page of ['patients', 'medical-card', 'visits', 'dental-chart', 'documents', 'treatment-plans', 'icd10', 'inventory', 'diagnostics-calendar', 'diagnostics-statistics', 'diagnostics-settings']) {
       expect(laboratory).not.toContain(page);
     }
   });

@@ -325,6 +325,14 @@ Latest exact-head follow-up (2026-10-26):
 - **Required next action / owner:** repository administrator must enable protection/rules for `main`, require PR-based changes and the stable status checks used by the actual workflows (including `quality`, `lint-test`, `frontend-lint`, `backend-lint`, `e2e`, and the Android build check where applicable). Do not require guessed check names; select the exact names reported by GitHub for the required workflows.
 - **Closure criteria:** GitHub reports protection enabled and required checks enforced; a test PR demonstrates a failed required check blocks merge. The current connected read-only GitHub interface cannot apply this settings change, so it remains a manual admin action.
 
+### RB-035 — Patient API read routes lack explicit RBAC and IIN lookup returns cross-clinic identity data
+- **Status:** OPEN — confirmed by source review on candidate `a4ab7285c8fa69df42d220c48d83267b760c56d9`; not fixed by the current page-surface patch
+- **Priority:** P0
+- **Area:** PHI / RBAC / tenant isolation / financial authorization
+- **Evidence:** `dentvision-backend/src/modules/patients/patients.routes.ts` has no explicit `requirePermission` on the patient list and several direct-read routes (`/:id`, `/:id/summary`, `/:id/history`, `/:id/images`, `/:id/treatment-plan`, `/:id/audit`, `/:id/assignments`). `serializePatient()` returns decrypted IIN, medical history, allergies, tooth data and prepaid balance. `loadClinicPatient()` checks clinic/branch scope but does not replace a role permission check. The IIN lookup route returns the name, phone and email of a matching patient in a different clinic. `POST /:id/deposit` has a clinic-writable guard but no explicit billing permission.
+- **Required fix:** enforce explicit read permissions at each route; keep basic patient-list access separate from clinical-history access and redact fields by effective permission; enforce branch/assignment scope for direct reads; replace cross-clinic suggested PHI with a consent-governed minimal result; require a billing permission for deposit mutations. Add negative route tests for manager, LAB, assistant and cross-clinic callers.
+- **Verification:** no patient-route fix or regression test is included in this commit. Do not close this blocker or infer API security from frontend page guards.
+
 ## Closed
 
 ### RB-006 — Vercel build rate limit

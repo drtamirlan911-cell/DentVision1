@@ -237,7 +237,8 @@ A role with `diagnostics.write` does not automatically receive `billing.manage`.
 
 - `billing.read` exposes the read-only price list (`/crm/pricelist`) only; it does not expose Finance, Cashier or Billing administration. Doctor and Manager may use this read-only surface where the effective permission set grants it.
 - ASSISTANT may use patient list, visit, document, reminder and lab workflows needed for operational support, but must not receive the full Medical Card, odontogram, treatment-plan or ICD-10 page surfaces.
-- The legacy clinic `LAB` role may use laboratory and authorized referral workflows, but must not receive the clinic-wide patient CRM pages. Patient context embedded in a lab workflow is not permission to browse the clinic patient register.
+- MANAGER is an operational role: it may use assigned patient-list, schedule, inventory, staff, analytics and read-only price-list surfaces, but not the full clinical chart, visit history, odontogram, treatment plans, ICD-10, clinic settings or the full lab workbench.
+- The legacy clinic `LAB` role may use laboratory and authorized referral workflows, but must not receive clinic-wide patient or inventory registers. Patient context embedded in a lab workflow is not permission to browse the clinic patient register or stock.
 - Diagnostic-center, medical-laboratory and dental-laboratory partner roles may see their referral queue and their own operational workspace. Queue items and linked records must remain scoped server-side to the partner's authorized organization/referral; frontend page visibility is not an authorization boundary.
 
 ## Resource-state rules

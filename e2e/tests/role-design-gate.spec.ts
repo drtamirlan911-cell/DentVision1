@@ -6,7 +6,7 @@ const API_BASE_URL = process.env.VITE_API_URL || 'http://127.0.0.1:3001';
 const VISUAL_EVIDENCE_ROOT = process.env.VISUAL_EVIDENCE_DIR || 'e2e/visual-evidence';
 const PASSWORD = 'Test1234!';
 
-const PUBLIC_ROUTES = ['/', '/login', '/register', '/forgot-password', '/booking', '/demo', '/pricing', '/terms', '/privacy', '/jobs', '/help', '/community'];
+const PUBLIC_ROUTES = ['/', '/login', '/register', '/forgot-password', '/booking', '/demo', '/pricing', '/terms', '/privacy', '/jobs', '/help', '/community', '/shop'];
 const AUTH_COMMON_ROUTES = ['/', '/ai', '/help', '/notifications', '/profile'];
 const AUTHENTICATED_BASE_PAGES = ['shop','school','profile','settings','diagnostics','diagnostics-centers','diagnostics-labs','diagnostics-laboratories'] as const;
 const ROUTES = [
@@ -188,18 +188,38 @@ async function acceptPatientPortalConsents(page: Page) {
 }
 
 function collectors(page: Page) {
-  const problems={console:[] as string[],page:[] as string[],requests:[] as string[],server:[] as string[]};
+  const problems={console:[] as string[],page:[] as string[],requests:[] as string[],http:[] as string[],server:[] as string[]};
   page.on('console',m=>{if(m.type()==='error') problems.console.push(m.text())});
   page.on('pageerror',e=>problems.page.push(e.message));
   page.on('requestfailed',r=>problems.requests.push(r.method()+' '+r.url()+' :: '+(r.failure()?.errorText||'failed')));
-  page.on('response',r=>{if(r.status()>=500) problems.server.push(r.status()+' '+r.request().method()+' '+r.url())});
+  page.on('response',r=>{
+    const status=r.status();
+    if(status>=400){
+      try {
+        const url=new URL(r.url());
+        if(url.pathname.startsWith('/api/')) problems.http.push(status+' '+r.request().method()+' '+url.pathname);
+      } catch { /* non-URL browser responses have no API path to report */ }
+    }
+    if(status>=500) problems.server.push(status+' '+r.request().method()+' '+r.url());
+  });
   return problems;
 }
 
 async function shellAudit(page: Page, role: Role, route: string) {
   const result=await page.evaluate(()=>{
     const visible=(el:Element)=>{const h=el as HTMLElement,r=h.getBoundingClientRect(),s=getComputedStyle(h);return r.width>0&&r.height>0&&r.right>0&&r.left<innerWidth&&s.display!=='none'&&s.visibility!=='hidden'};
-    const controls=Array.from(document.querySelectorAll('button,a,input,select,textarea,[role="button"],[role="tab"],[role="menuitem"]')).filter(visible).map(el=>{const h=el as HTMLElement,r=h.getBoundingClientRect();return{name:(h.getAttribute('aria-label')||h.getAttribute('title')||h.getAttribute('placeholder')||h.innerText||'').replace(/\\s+/g,' ').trim(),w:r.width,h:r.height,disabled:(h as HTMLButtonElement).disabled}});
+    const accessibleName=(el:Element)=>{
+      const h=el as HTMLElement;
+      const labelledBy=(h.getAttribute('aria-labelledby')||'').split(/\s+/).filter(Boolean).map(id=>document.getElementById(id)?.textContent||'').join(' ');
+      const labels='labels' in h?Array.from((h as HTMLInputElement).labels||[]).map(label=>label.textContent||'').join(' '):'';
+      return (h.getAttribute('aria-label')||labelledBy||labels||h.getAttribute('title')||h.getAttribute('placeholder')||h.innerText||'').replace(/\s+/g,' ').trim();
+    };
+    const controls=Array.from(document.querySelectorAll('button,a,input,select,textarea,[role="button"],[role="tab"],[role="menuitem"]')).filter(visible).map(el=>{
+      const h=el as HTMLElement,r=h.getBoundingClientRect(),input=h as HTMLInputElement;
+      const labelRects=input instanceof HTMLInputElement&&['checkbox','radio'].includes(input.type)?Array.from(input.labels||[]).map(label=>label.getBoundingClientRect()):[];
+      const target=labelRects.find(rect=>rect.width>=36&&rect.height>=36)||r;
+      return{name:accessibleName(el),w:target.width,h:target.height,disabled:(h as HTMLButtonElement).disabled};
+    });
     const clipped=Array.from(document.querySelectorAll('h1,h2,h3,h4,h5,h6,button,a,[role="button"],[role="tab"]')).filter(visible).map(el=>{const h=el as HTMLElement;return{name:(h.innerText||'').trim(),sw:h.scrollWidth,cw:h.clientWidth}}).filter(x=>x.name&&x.sw>x.cw+2);
     const shellText=Array.from(document.querySelectorAll('header,aside,nav,[role="banner"],[role="navigation"],[role="complementary"],[data-testid="workspace-switcher-trigger"],[data-testid="workspace-switcher-menu"]')).filter(visible).map(el=>((el as HTMLElement).innerText||el.textContent||'').replace(/\\s+/g,' ').trim()).filter(Boolean).join(' ');
     return{text:document.body.innerText,shellText,scrollWidth:document.documentElement.scrollWidth,clientWidth:document.documentElement.clientWidth,bodyWidth:document.body.scrollWidth,controls,clipped,headings:Array.from(document.querySelectorAll('h1,h2')).filter(visible).map(x=>(x.textContent||'').trim()).filter(Boolean)};
@@ -220,13 +240,15 @@ async function inspectVisualSemantics(page: Page, role: Role, route: string) {
       return r.width > 0 && r.height > 0 && r.right > 0 && r.left < innerWidth && s.display !== 'none' && s.visibility !== 'hidden' && s.opacity !== '0';
     };
     const text = (el: Element) => (el.textContent || '').replace(/\\s+/g, ' ').trim();
+    const accessibleName = (el: Element) => {
+      const h = el as HTMLElement;
+      const labelledBy = (h.getAttribute('aria-labelledby') || '').split(/\s+/).filter(Boolean).map(id => document.getElementById(id)?.textContent || '').join(' ');
+      const labels = 'labels' in h ? Array.from((h as HTMLInputElement).labels || []).map(label => label.textContent || '').join(' ') : '';
+      return (h.getAttribute('aria-label') || labelledBy || labels || h.getAttribute('title') || h.getAttribute('placeholder') || text(el)).trim();
+    };
     const interactive = Array.from(document.querySelectorAll('button,a,[role="button"],[role="tab"],[role="menuitem"],input,select,textarea')).filter(visible);
     const headings = Array.from(document.querySelectorAll('h1,h2,h3')).filter(visible).map(text).filter(Boolean);
-    const iconOnly = interactive.filter(el => {
-      const h = el as HTMLElement;
-      const label = h.getAttribute('aria-label') || h.getAttribute('title') || h.getAttribute('placeholder') || '';
-      return !text(el) && !label;
-    });
+    const iconOnly = interactive.filter(el => !text(el) && !accessibleName(el));
     const suspicious = Array.from(document.querySelectorAll('[class*="truncate"],[class*="line-clamp"],[class*="ellipsis"]')).filter(visible)
       .map(el => ({text:text(el), rect:(el as HTMLElement).getBoundingClientRect().toJSON()}))
       .filter(x => x.text.length > 0);
@@ -257,6 +279,12 @@ async function inspectDialogsAndMenus(page: Page, role: Role, route: string) {
       const h = el as HTMLElement, r = h.getBoundingClientRect(), s = getComputedStyle(h);
       return r.width > 0 && r.height > 0 && s.display !== 'none' && s.visibility !== 'hidden';
     };
+    const isNamed = (el: Element) => {
+      const h = el as HTMLElement;
+      const labelledBy = (h.getAttribute('aria-labelledby') || '').split(/\s+/).filter(Boolean).map(id => document.getElementById(id)?.textContent || '').join(' ');
+      const labels = 'labels' in h ? Array.from((h as HTMLInputElement).labels || []).map(label => label.textContent || '').join(' ') : '';
+      return Boolean((h.getAttribute('aria-label') || labelledBy || labels || h.getAttribute('title') || h.getAttribute('placeholder') || h.innerText || '').trim());
+    };
     const overlays = Array.from(document.querySelectorAll('[role="dialog"],[aria-modal="true"],[role="menu"],[role="listbox"]')).filter(visible);
     return overlays.map(el => {
       const h = el as HTMLElement, r = h.getBoundingClientRect();
@@ -269,10 +297,7 @@ async function inspectDialogsAndMenus(page: Page, role: Role, route: string) {
         hasHeading: !!h.querySelector('h1,h2,h3,h4,h5,h6,[role="heading"]'),
         hasClose: !!close,
         interactive: interactive.length,
-        unnamed: interactive.filter(x => {
-          const e=x as HTMLElement;
-          return !(e.getAttribute('aria-label') || e.getAttribute('title') || e.getAttribute('placeholder') || e.innerText || '').trim();
-        }).length,
+        unnamed: interactive.filter(x => !isNamed(x)).length,
         overflow: h.scrollWidth > h.clientWidth + 2 || h.scrollHeight > h.clientHeight + 2
       };
     });
@@ -546,12 +571,12 @@ test.describe('DentVision exhaustive role/context/browser gate',()=>{
         expect(JSON.stringify(storage)).not.toMatch(/password/i);
         const token = await page.evaluate(() => Object.entries(localStorage).filter(([k]) => /token|auth/i.test(k)).map(([,v]) => String(v)).join(' '));
         expect(token).not.toMatch(/Test1234!/i);
-        expect(problems.console, role.id + ': console errors in responsive journeys').toEqual([]);
+        expect(problems.console, role.id + ': console errors in responsive journeys\nHTTP responses: ' + problems.http.slice(-20).join('\n')).toEqual([]);
         expect(problems.page, role.id + ': page errors in responsive journeys').toEqual([]);
         expect(problems.requests, role.id + ': failed requests in responsive journeys').toEqual([]);
         expect(problems.server, role.id + ': HTTP 5xx in responsive journeys').toEqual([]);
         await page.screenshot({ path: `${VISUAL_EVIDENCE_ROOT}/roles/${role.id}/${info.project.name}.png`, fullPage: true });
-        await fs.writeFile(`${VISUAL_EVIDENCE_ROOT}/roles/${role.id}/${info.project.name}-runtime.json`, JSON.stringify({ console: problems.console, page: problems.page, requests: problems.requests, server: problems.server }, null, 2), 'utf8');
+        await fs.writeFile(`${VISUAL_EVIDENCE_ROOT}/roles/${role.id}/${info.project.name}-runtime.json`, JSON.stringify({ console: problems.console, page: problems.page, requests: problems.requests, http: problems.http, server: problems.server }, null, 2), 'utf8');
         return;
       }
 
@@ -589,12 +614,12 @@ test.describe('DentVision exhaustive role/context/browser gate',()=>{
       expect(JSON.stringify(storage)).not.toMatch(/password/i);
       const token=await page.evaluate(()=>Object.entries(localStorage).filter(([k])=>/token|auth/i.test(k)).map(([,v])=>String(v)).join(' '));
       expect(token).not.toMatch(/Test1234!/i);
-      expect(problems.console,role.id+': console errors').toEqual([]);
+      expect(problems.console,role.id+': console errors\nHTTP responses: '+problems.http.slice(-20).join('\n')).toEqual([]);
       expect(problems.page,role.id+': page errors').toEqual([]);
       expect(problems.requests,role.id+': failed requests').toEqual([]);
       expect(problems.server,role.id+': HTTP 5xx responses').toEqual([]);
       await page.screenshot({path:`${VISUAL_EVIDENCE_ROOT}/roles/${role.id}/${info.project.name}.png`,fullPage:true});
-      await fs.writeFile(`${VISUAL_EVIDENCE_ROOT}/roles/${role.id}/${info.project.name}-runtime.json`, JSON.stringify({console:problems.console,page:problems.page,requests:problems.requests,server:problems.server}, null, 2), 'utf8');
+      await fs.writeFile(`${VISUAL_EVIDENCE_ROOT}/roles/${role.id}/${info.project.name}-runtime.json`, JSON.stringify({console:problems.console,page:problems.page,requests:problems.requests,http:problems.http,server:problems.server}, null, 2), 'utf8');
     });
   }
 
