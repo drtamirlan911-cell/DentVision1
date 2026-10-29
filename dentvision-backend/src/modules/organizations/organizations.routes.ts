@@ -444,6 +444,35 @@ organizationsRouter.delete('/:id', async (req: AuthRequest, res) => {
 
 organizationsRouter.use(requireSuperadmin);
 
+// Platform recovery path for an accidentally archived organization. Only the
+// organization context is restored; linked domain data was never changed.
+organizationsRouter.post('/:id/restore', async (req: AuthRequest, res) => {
+  try {
+    const id = String(req.params.id || '').trim();
+    const org = await prisma.organization.findUnique({ where: { id } });
+    if (!org) return res.status(404).json({ ok: false, error: 'Организация не найдена' } satisfies ApiResponse);
+    if (!org.archivedAt) return res.json({ ok: true, data: { organization: org, restored: false } } satisfies ApiResponse);
+    const old = org.settings && typeof org.settings === 'object' && !Array.isArray(org.settings)
+      ? org.settings as Record<string, unknown> : {};
+    const { archivePreviousLifecycle, archivedAt: _archivedAt, lifecycle: _lifecycle, ...settings } = old;
+    const restored = await prisma.organization.update({
+      where: { id },
+      data: {
+        archivedAt: null,
+        settings: {
+          ...settings,
+          lifecycle: typeof archivePreviousLifecycle === 'string' ? archivePreviousLifecycle : 'PENDING_VERIFICATION',
+        } as Prisma.InputJsonValue,
+      },
+    });
+    await auditFromReq(req, { action: 'organization.restored', entity: 'organization', entityId: id, details: { retained: true } });
+    return res.json({ ok: true, data: { organization: restored, restored: true, retained: true } } satisfies ApiResponse);
+  } catch (error) {
+    console.error('[organizations] restore error:', error);
+    return res.status(500).json({ ok: false, error: 'Не удалось восстановить организацию' } satisfies ApiResponse);
+  }
+});
+
 organizationsRouter.get('/verification/queue', async (req: AuthRequest, res) => {
   try {
     const organizations = await prisma.organization.findMany({ where: { archivedAt: null }, orderBy: { updatedAt: 'asc' } });
