@@ -184,7 +184,7 @@ export async function resolveClinicAccess(clinicId: string): Promise<ClinicAcces
 
   const now = new Date();
   const periodEnd = subscription?.periodEnd || null;
-  const periodExpired = periodEnd != null && periodEnd.getTime() < now.getTime();
+  const periodExpired = periodEnd != null && periodEnd.getTime() <= now.getTime();
   let status = subscription?.status || (clinic.active ? 'active' : 'suspended');
 
   // Self-heal: period ended but cron hasn't flipped yet
