@@ -286,37 +286,21 @@ This entry supersedes stale source-level claims below where explicitly noted, bu
 - **Verification:** local backend TypeScript passes; exact-head E2E required before closure.
 
 ### RB-034 — AI DoctorAgent cross-tenant patient/appointment IDOR
-- **Status:** IN PROGRESS — P0 release blocker. Current verification candidate is `88edf61c3dd1307aeeae762c866887f3c28d894d` in draft PR #323; fresh exact-head CI, Quality Gate and dedicated IAM-context checks are running. Do not close based on partial passes.
+- **Status:** OPEN — P0 release blocker; current-main unit CI passed, but end-to-end role/context evidence is incomplete
 - **Priority:** P0
 - **Area:** AI / Clinical Privacy / Tenant Isolation / IDOR
-- **Evidence:** historical source blob `d1a4947196b40965070e0cade276b1e866b53e0e` contained primary-key-only patient/appointment access in the named intents. The remediation commit `f1276fdb9ab2d7761f7e6c3f77e82eff752ac835` is an ancestor of fetched current `main` HEAD `6581695e91eb70c638bc0b94efb10773d8882dd9`; current source has clinic-scoped queries and a fail-closed active-clinic guard. Ancestry/source evidence confirms implementation presence, not end-to-end release closure.
-- **Risk:** an AI intent carrying a guessed/foreign ID could expose patient name, clinical context and decrypted IIN, or mutate another clinic's appointment. Frontend role hiding does not protect these server-side paths.
-- **5 Why / root cause:** patient and appointment identifiers are accepted from AI parameters → several legacy handlers query/update by primary key alone → clinic-scoped access is applied inconsistently across the same agent → handlers rely on upstream routing rather than proving ownership at the data boundary → no direct negative cross-tenant regression test covers these intents.
-- **Remediation and verification branch:** implementation commit `f1276fdb9ab2d7761f7e6c3f77e82eff752ac835` is already in current `main` history. Branch `security/doctor-agent-tenant-isolation-20261025` adds the isolated PostgreSQL/IAM diagnostic workflow and focused context E2E. The DoctorAgent regression suite checks missing active-clinic context across all 13 clinic-bound intents and rejects database reads/writes; focused local suite passes 25/25 and full local unit suite passes 244 files / 2,229 tests. Exact-head GitHub CI and role/context E2E are still required.
-- **Closure criteria:** targeted negative and same-tenant control tests, TypeScript/lint/unit checks, dedicated IAM-context E2E and the full role/context release gate must pass on the exact PR HEAD. Until fresh CI and E2E evidence is captured and reviewed, RB-034 remains a P0 release blocker even though the implementation commit is present in `main` history.
-
-#### Follow-up — exact-head release-gate audit (2026-10-26)
-
-CI run `40223952465` on candidate `a539bad954795adbea59399e4bd6eae139ac7f6a` failed the full role/context design gate. Observed causes included the undersized Medical Card search target, disagreement between E2E and canonical policy for Community/partner settings/BI/assistant lab, broad Finance/Cashier page derivation from `billing.read`, absent Patient Portal role scoping, and the global-SUPERADMIN-to-Supplier exception. Backend/frontend lint, unit/type checks, Quality Gate and the dedicated RB-034 diagnostic passed.
-
-The remediation candidate narrows Finance/Cashier routes to billing write/delete/manage, requires active Supplier scope, guards Patient Portal by patient context, restores the 44px search target, and synchronizes E2E policy with the canonical role matrix without skipping assertions. **RB-034 remains OPEN** until fresh full security and role/context gates pass on the exact remediation HEAD.
-
-Latest exact-head follow-up (2026-10-26):
-- Candidate `277bc824aa8e6ec90fd3f280ac9b026a14570454` passed backend/frontend lint, 246 unit-test files / 2,240 tests, Quality Gate, dedicated RB-034 IAM-context diagnostics (23/23), core E2E, Browser UX and mobile design. The full role/context step was cancelled when a deterministic mismatch was identified in the anonymous-route test; therefore that candidate has no valid full-gate result.
-- Source confirms anonymous `/patient-portal` is intentionally a public login/registration entry. The role gate incorrectly treated it like a protected page that must redirect to `/login`. Candidate `88edf61c3dd1307aeeae762c866887f3c28d894d` now exercises the public entry and actual login handoff, asserting that `portal=patient` and the patient-portal `returnUrl` survive. This test correction does not skip the route, alter application authorization, or relax the guest denial on clinical APIs.
-- New exact-head CI run `40264963752`, Quality Gate `40264963741`, and RB-034 Context Diagnostic `40264963756` are pending/in progress at the time of this entry. Inspect all resulting checks and evidence artifacts before any status change.
-- **RB-034 remains OPEN; release remains NOT READY.**
-
-
-### RB-029 — Patient clinical history JSON is not encrypted at rest
-- **Status:** OPEN — structured history encryption exists in current source; existing-row backfill and production verification remain unproven
+- **Current baseline:** this remediation branch was created from `main` commit `ac913cc3389a294d0b135a852b035ddddb1018ca`. Current source scopes DoctorAgent patient/appointment queries to the active clinic and includes cross-clinic security regression tests. Historical candidate SHAs and CI run IDs below are records of those candidates only, not evidence for the present branch.
+- **Risk:** an AI intent carrying a guessed/foreign ID could expose patient data or mutate another clinic's appointment if a handler lacks an ownership check. Frontend hiding is not a server-side boundary.
+- **Required verification:** run full unit/type/lint checks and the dedicated IAM-context, cross-tenant negative and same-tenant control E2E suites on the exact proposed merge commit. Review artifacts for every critical role/context. Do not close based on a passing historical candidate.
+- **Closure criteria:** fresh exact-head CI, full role/context gate and negative cross-tenant tests pass. Until then RB-034 remains OPEN and release remains NOT READY.
+### RB-029 — Patient clinical history JSON encryption and legacy-row backfill
+- **Status:** OPEN — current code supports structured encrypted history, but deployment/backfill evidence is outstanding
 - **Priority:** P0
 - **Area:** PHI / clinical data protection
-- **Correction to stale evidence:** current `dentvision-backend/src/lib/phi.ts` supports a versioned `__dentvisionEncryptedV1` envelope for structured JSON as well as legacy scalar values. Current Patient create/update paths call `encryptMedicalHistory` for structured history. The earlier assertion that the current helper encrypts only strings and writes objects in plaintext is no longer accurate for the inspected current source.
-- **Remaining risk:** legacy rows may still be plaintext until the guarded `db:backfill:medical-history` command is run against the intended database. Script existence and unit tests do not prove staging/production execution or zero remaining legacy plaintext rows.
-- **Required next action:** run a dry-run against a confirmed staging target, record preflight/round-trip counts, then execute the approved backfill and retain evidence of zero remaining unencrypted legacy values. Do not close without target identity and result logs.
-- **Closure criteria:** authorized API responses preserve structured data, wrong/missing keys fail closed, tenant/branch isolation passes, and a verified backfill report is attached.
-
+- **Current source evidence:** `dentvision-backend/src/lib/phi.ts` supports a versioned `__dentvisionEncryptedV1` envelope for structured medical-history JSON and compatible decoding of legacy scalar ciphertext. Patient CRUD and odontogram paths use the helpers; focused tests cover structured objects and legacy compatibility. The older statement that the current helper encrypts only strings and writes objects plaintext is stale and must not be used as current-main evidence.
+- **Remaining risk:** source changes do not prove historical rows in staging or production have been encrypted. Structured JSON may remain plaintext until the backfill is run against a verified target. Phone, email, address and general notes remain outside this particular field-level scope and need a separate threat-model decision.
+- **Required next action:** run the documented dry-run against an explicitly verified staging target, review backup/rollback and integrity counts, then obtain owner approval for the target-specific write run. Inspect reports for zero remaining unencrypted legacy rows and validate authorized read/merge round trips.
+- **Closure criteria:** exact-HEAD CI passes; the staging migration and reconciliation evidence is attached; production backfill is separately approved and verified before claiming production-at-rest completion. No production database operation is claimed here.
 ### RB-019 — Platform Kaspi API contract and network bounds
 - **Status:** OPEN — official provider contract not independently verified
 - **Priority:** P1
@@ -326,18 +310,14 @@ Latest exact-head follow-up (2026-10-26):
 - **Required next action:** verify the provider-issued contract for the actual merchant/gateway; constrain production API base URLs to approved hosts; verify signature canonicalization, amount/currency, timestamp/replay protection, idempotency, status transitions, timeouts and bounded response parsing. Do not label generic HMAC behavior as official Kaspi compatibility without primary contract evidence.
 - **Closure criteria:** contract evidence is retained, adapter semantics match it, and positive/negative callback tests pass on the exact target SHA.
 
-### RB-033 — Main branch protection and required release checks are disabled
-- **Status:** OPEN — repository administrator verification required; connected audit could not independently re-check current protection settings
+### RB-033 — Main branch protection and required release checks
+- **Status:** OPEN — current protection state could not be independently verified with the connected GitHub integration
 - **Priority:** P0
 - **Area:** Release governance / CI enforcement
-- **Evidence:** GitHub `GET /repos/drtamirlan911-cell/DentVision1/branches/main` returned `protected: false`, `protection.enabled: false`, `required_status_checks.enforcement_level: off`, and no required contexts. Existing GitHub issue #259 already describes this control gap.
-- **Root cause (5 Why):** direct pushes can bypass CI → no branch protection is active → no required-check policy is enforced → repository configuration does not encode the documented release contract → release governance depends on operator discipline rather than a technical control.
-- **Risk:** an unverified or insecure commit can reach `main` without mandatory checks; tenant isolation, PHI, payment and visual gates are not enforceable at the repository boundary.
-- **Required next action / owner:** repository administrator must enable protection/rules for `main`, require PR-based changes and the stable status checks used by the actual workflows (including `quality`, `lint-test`, `frontend-lint`, `backend-lint`, `e2e`, and the Android build check where applicable). Do not require guessed check names; select the exact names reported by GitHub for the required workflows.
-- **Closure criteria:** GitHub reports protection enabled and required checks enforced; a test PR demonstrates a failed required check blocks merge. The current connected read-only GitHub interface cannot apply this settings change, so it remains a manual admin action.
-
-## Closed
-
+- **Evidence:** the current session's branch-protection request was denied with HTTP 403 due to integration permissions. The older statement that this same request returned `protected: false` is historical evidence and has not been revalidated in this audit. Do not assume that main is protected or unprotected from the current read failure.
+- **Risk:** without required checks and PR policy, unverified code may reach main; read permission failure leaves the actual control state unknown.
+- **Required next action / owner:** repository administrator must inspect Settings → Rules/Branches and verify protection for `main`. Require PR-based changes and exact stable checks emitted by the current workflow; don't guess check names.
+- **Closure criteria:** an authorized inspection confirms required protections and a test PR demonstrates a failed required check blocks merge.
 ### RB-006 — Vercel build rate limit
 - **Status:** CLOSED — production deployment independently verified
 - **Priority:** P1
