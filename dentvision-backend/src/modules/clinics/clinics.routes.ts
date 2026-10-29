@@ -84,7 +84,7 @@ clinicsRouter.get('/', authenticate, async (req: AuthRequest, res) => {
     // not entered the canonical clinic model yet.
     if (req.user?.role !== 'SUPERADMIN') {
       const canonicalClinicPeople = await prisma.person.findMany({
-        where: { userId: req.user!.id, organization: { type: 'CLINIC' } },
+        where: { userId: req.user!.id, organization: { type: 'CLINIC', archivedAt: null } },
         select: {
           organization: { select: { id: true, originalId: true, archivedAt: true } },
           personRoles: { select: { scopeType: true, scopeId: true } },
