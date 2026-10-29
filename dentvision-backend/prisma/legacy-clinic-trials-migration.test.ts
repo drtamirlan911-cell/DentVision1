@@ -16,6 +16,8 @@ describe('legacy clinic trial migration', () => {
     expect(sql).toContain("ELSE 'trialing'");
     expect(sql).toContain('NOT EXISTS');
     expect(sql).toContain('s."ownerId" = c."id"');
+    expect(sql).toContain('FROM "subscriptions" AS s');
+    expect(sql).toContain('s."status" IN (\'active\', \'trialing\')');
     expect(sql).toContain('SET "active" = true');
     expect(sql).toContain('s."status" = \'expired\'');
     expect(sql).toContain('c."active" = false');
