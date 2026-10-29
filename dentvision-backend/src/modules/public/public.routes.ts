@@ -9,6 +9,7 @@ import { uid } from '../../lib/helpers.js';
 import { mergeClinicSettings } from '../clinics/clinicSettings.js';
 import { buildTimeSlots, filterAvailableSlots, isWorkingDay, splitPatientName } from './bookingSlots.js';
 import { getDocumentForSigning, signDocument } from '../files/documentSign.service.js';
+import { resolveClinicAccess } from '../billing/planEntitlements.js';
 
 const publicBookingLimiter = rateLimit({ windowMs: 60 * 1000, max: 8, standardHeaders: true, legacyHeaders: false, message: { ok: false, error: 'Слишком много заявок. Подождите минуту.' } });
 const documentSignLimiter = rateLimit({ windowMs: 60 * 1000, max: 20, standardHeaders: true, legacyHeaders: false, message: { ok: false, error: 'Слишком много попыток. Подождите минуту.' } });
@@ -123,6 +124,9 @@ publicRouter.post('/booking', publicBookingLimiter, async (req, res) => {
     if (phone.length < 10 || phone.length > 15) return res.status(400).json({ ok: false, error: 'Некорректный номер телефона' });
     if (!/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) return res.status(400).json({ ok: false, error: 'Некорректная дата' });
     const clinic = await prisma.clinic.findUnique({ where: { id: clinicId }, select: { id: true, settings: true } });
+    const subscriptionAccess = await resolveClinicAccess(clinicId);
+    if (!subscriptionAccess) return res.status(404).json({ ok: false, error: 'Клиника не найдена' });
+    if (subscriptionAccess.writeBlocked) return res.status(402).json({ ok: false, error: 'Пробный период завершён. Онлайн-запись недоступна до продления тарифа.', code: 'SUBSCRIPTION_EXPIRED' });
     if (!clinic) return res.status(404).json({ ok: false, error: 'Клиника не найдена' });
     const settings = mergeClinicSettings(clinic.settings); if (settings.onlineBookingEnabled === false) return res.status(403).json({ ok: false, error: 'Онлайн-запись временно недоступна' });
     const day = new Date(`${dateStr}T12:00:00.000Z`); if (!isWorkingDay(day, settings)) return res.status(400).json({ ok: false, error: 'Клиника не работает в выбранный день' });
@@ -143,7 +147,7 @@ const PRIVACY_POLICY = 'Политика конфиденциальности De
 const TERMS_OF_SERVICE = 'Пользовательское соглашение DentVision\n\n1. Предмет. Сервис предоставляет инструменты для управления стоматологической клиникой.\n2. Регистрация. Пользователь обязуется предоставлять достоверные данные.\n3. Обязанности. Клиника несёт ответственность за сохранность учётных данных.\n4. Оплата. Тарифы указаны на сайте. Списание происходит ежемесячно.\n5. Отказ от ответственности. Сервис предоставляется «как есть».\n6. Разрешение споров. Споры рассматриваются в суде г. Алматы по законодательству РК.\n7. Изменения. Администрация вправе изменять соглашение с уведомлением за 14 дней.';
 
 publicRouter.get('/document/:token', documentSignLimiter, async (req, res) => { try { const data = await getDocumentForSigning(req.params.token as string); if (!data) return res.status(404).json({ ok: false, error: 'Document not found' }); res.json({ ok: true, data }); } catch (e) { res.status(500).json({ ok: false, error: 'Failed to load document' }); } });
-publicRouter.post('/document/:token/sign', documentSignLimiter, async (req, res) => { try { const token = req.params.token as string; const existing = await getDocumentForSigning(token); if (!existing) return res.status(404).json({ ok: false, error: 'Document not found' }); const { signatureData, signedByName } = req.body || {}; const updated = await signDocument({ documentId: existing.documentId, token, signatureData, signedByName }); res.json({ ok: true, data: updated }); } catch (e: any) { res.status(e?.status || 500).json({ ok: false, error: e instanceof Error ? e.message : 'Failed to sign document' }); } });
+publicRouter.post('/document/:token/sign', documentSignLimiter, async (req, res) => { try { const token = req.params.token as string; const existing = await getDocumentForSigning(token); if (!existing) return res.status(404).json({ ok: false, error: 'Document not found' }); const linkedDocument = await prisma.document.findUnique({ where: { id: existing.documentId }, select: { clinicId: true } }); if (linkedDocument?.clinicId) { const access = await resolveClinicAccess(linkedDocument.clinicId); if (!access) return res.status(404).json({ ok: false, error: 'Clinic not found' }); if (access.writeBlocked) return res.status(402).json({ ok: false, error: 'Clinic subscription expired. The document is available read-only until renewal.', code: 'SUBSCRIPTION_EXPIRED' }); } const { signatureData, signedByName } = req.body || {}; const updated = await signDocument({ documentId: existing.documentId, token, signatureData, signedByName }); res.json({ ok: true, data: updated }); } catch (e: any) { res.status(e?.status || 500).json({ ok: false, error: e instanceof Error ? e.message : 'Failed to sign document' }); } });
 
 const COMMERCIAL_TERMS_VERSION = '1.2';
 const COMMERCIAL_TERMS_EFFECTIVE_DATE = '2026-09-17';
