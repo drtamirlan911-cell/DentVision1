@@ -26,6 +26,22 @@ WHERE c."plan" = 'DEMO'
       AND s."ownerId" = c."id"
   );
 
+-- Existing DEMO rows can also have a stale active subscription without a
+-- finite period. Normalize these to the same 30-day trial contract.
+UPDATE "subscriptions" AS s
+SET "plan" = 'enterprise',
+    "status" = CASE
+      WHEN c."createdAt" + INTERVAL '30 days' <= CURRENT_TIMESTAMP THEN 'expired'
+      ELSE 'trialing'
+    END,
+    "periodEnd" = c."createdAt" + INTERVAL '30 days',
+    "updatedAt" = CURRENT_TIMESTAMP
+FROM "clinics" AS c
+WHERE s."ownerType" = 'CLINIC'
+  AND s."ownerId" = c."id"
+  AND c."plan" = 'DEMO'
+  AND s."status" IN ('active', 'trialing');
+
 -- The previous expiry job set Clinic.active=false after periodEnd. Restore
 -- expired-trial clinics to active tenancy state so they remain readable;
 -- subscription.status='expired' continues to block writes at every write gate.
