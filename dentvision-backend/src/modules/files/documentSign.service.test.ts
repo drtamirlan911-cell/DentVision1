@@ -29,7 +29,7 @@ describe('createSignLink', () => {
     documentUpdate.mockResolvedValueOnce({});
     const { token, signUrl } = await createSignLink('doc-1');
     expect(token).toMatch(/^[a-z0-9]+$/);
-    expect(signUrl).toBe(`/sign/doc-1?token=${token}`);
+    expect(signUrl).toBe(`/sign/${token}`);
     expect(documentUpdate).toHaveBeenCalledWith({ where: { id: 'doc-1' }, data: { signToken: token } });
   });
 
