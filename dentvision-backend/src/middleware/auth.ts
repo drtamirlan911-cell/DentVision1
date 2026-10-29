@@ -131,12 +131,22 @@ export async function authenticate(req: AuthRequest, res: Response, next: NextFu
         const person = await prisma.person.findFirst({
           where: { userId: user.id, organizationId: payload.organizationId },
           include: {
-            organization: { select: { type: true, originalId: true } },
+            organization: { select: { type: true, originalId: true, archivedAt: true } },
             personRoles: { select: { scopeType: true, scopeId: true, role: { select: { key: true } } } },
             branchMemberships: { where: { active: true }, select: { branchId: true } },
           },
         });
         if (person?.organization) {
+          const requestPath = String(req.originalUrl || req.url || '').split('?')[0];
+          const canRecoverArchivedContext = [
+            '/api/iam/switch-context',
+            '/api/iam/me/contexts',
+            '/api/auth/refresh',
+            '/api/auth/logout',
+          ].includes(requestPath);
+          if (person.organization.archivedAt && user.role !== 'SUPERADMIN' && !canRecoverArchivedContext) {
+            return res.status(403).json({ ok: false, error: 'Контекст организации архивирован. Выберите другую организацию.', code: 'ORGANIZATION_ARCHIVED' });
+          }
           const scopedRole = resolveActivePersonRole(person.personRoles, payload.organizationId);
           if (!scopedRole) {
             return res.status(403).json({ ok: false, error: 'У вас нет активной роли в этой организации' });
