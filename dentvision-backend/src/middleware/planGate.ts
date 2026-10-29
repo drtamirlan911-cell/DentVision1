@@ -87,7 +87,7 @@ async function guardTreatmentPlanReferences(req: AuthRequest, res: Response): Pr
 }
 
 /** Attach resolved clinic access to req (SUPERADMIN bypasses write blocks). */
-export async function loadClinicAccess(req: AuthRequest, _res: Response, next: NextFunction) {
+export async function loadClinicAccess(req: AuthRequest, res: Response, next: NextFunction) {
   try {
     const clinicId = effectiveClinicId(req.user);
     if (!clinicId) return next();
@@ -103,7 +103,12 @@ export async function loadClinicAccess(req: AuthRequest, _res: Response, next: N
     next();
   } catch (e) {
     console.error('[planGate] loadClinicAccess', e);
-    next();
+    applyCorsHeaders(req, res);
+    return res.status(503).json({
+      ok: false,
+      error: 'Не удалось подтвердить доступ клиники. Повторите запрос.',
+      code: 'CLINIC_ACCESS_VALIDATION_UNAVAILABLE',
+    });
   }
 }
 

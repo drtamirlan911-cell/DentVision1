@@ -16,4 +16,10 @@ describe('plan gate treatment-plan reference boundary', () => {
     expect(source).toContain("code: 'TREATMENT_PLAN_NOT_FOUND'");
     expect(source).toContain("return false;");
   });
+
+  it('fails closed if clinic subscription access cannot be resolved', () => {
+    expect(source).toContain("code: 'CLINIC_ACCESS_VALIDATION_UNAVAILABLE'");
+    expect(source).toContain("return res.status(503).json({");
+    expect(source).not.toContain("console.error('[planGate] loadClinicAccess', e);\n    next();");
+  });
 });
