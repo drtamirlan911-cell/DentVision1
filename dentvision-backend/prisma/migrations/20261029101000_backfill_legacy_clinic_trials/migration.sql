@@ -40,7 +40,8 @@ FROM "clinics" AS c
 WHERE s."ownerType" = 'CLINIC'
   AND s."ownerId" = c."id"
   AND c."plan" = 'DEMO'
-  AND s."status" IN ('active', 'trialing');
+  AND s."status" IN ('active', 'trialing')
+  AND s."periodEnd" IS NULL;
 
 -- The previous expiry job set Clinic.active=false after periodEnd. Restore
 -- expired-trial clinics to active tenancy state so they remain readable;
@@ -51,5 +52,6 @@ FROM "subscriptions" AS s
 WHERE s."ownerType" = 'CLINIC'
   AND s."ownerId" = c."id"
   AND s."status" = 'expired'
-  AND s."periodEnd" IS NOT NULL
+  AND s."periodEnd" = c."createdAt" + INTERVAL '30 days'
+  AND c."plan" = 'DEMO'
   AND c."active" = false;
