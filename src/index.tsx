@@ -347,6 +347,7 @@ if (container) {
                   <Route path="center-dashboard" element={<Navigate to="/diagnostics/center" replace />} />
                   <Route path="lab-dashboard" element={<Navigate to="/diagnostics/lab" replace />} />
                 </Route>
+                <Route path="school/courses" element={guarded('school', <Navigate to="/school" replace />)} />
                 <Route path="school" element={guarded('school', <School />)} />
                 <Route path="school/course/:id" element={guarded('school', <SchoolCourse />)} />
                 <Route path="school/workspace" element={guarded('school', <SchoolWorkspace />)} />

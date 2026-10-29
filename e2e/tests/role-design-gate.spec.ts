@@ -322,7 +322,13 @@ async function inspectDialogsAndMenus(page: Page, role: Role, route: string) {
 }
 
 async function inspectForms(page: Page, role: Role, route: string) {
-  const issues=await page.locator('form:visible').evaluateAll(forms=>forms.flatMap(form=>Array.from(form.querySelectorAll('input,select,textarea')).map(el=>{const h=el as HTMLInputElement,id=h.id,label=id?document.querySelector('label[for="'+id+'"]')?.textContent:null;return{type:h.type,name:h.name,aria:h.getAttribute('aria-label'),placeholder:h.getAttribute('placeholder'),required:h.required,label:(label||'').trim()}})).filter(x=>!x.name&&!x.aria&&!x.placeholder&&!x.label&&x.type!=='hidden'));
+  const issues=await page.locator('form:visible').evaluateAll(forms=>forms.flatMap(form=>Array.from(form.querySelectorAll('input,select,textarea')).map(el=>{
+    const h=el as HTMLInputElement;
+    const explicitLabel=h.id?document.querySelector('label[for="'+h.id+'"]')?.textContent||'':'';
+    const associatedLabels='labels' in h?Array.from(h.labels||[]).map(label=>label.textContent||'').join(' '):'';
+    const label=(explicitLabel||associatedLabels).trim();
+    return {type:h.type,name:h.name,aria:h.getAttribute('aria-label'),placeholder:h.getAttribute('placeholder'),required:h.required,label};
+  })).filter(x=>!x.name&&!x.aria&&!x.placeholder&&!x.label&&x.type!=='hidden'));
   expect(issues,role.id+' '+route+': form controls without identification').toEqual([]);
 }
 

@@ -488,6 +488,13 @@ export function pagesForCaller(permissions: readonly string[], role: string | nu
     for (const page of ['patients', 'medical-card', 'visits', 'dental-chart', 'documents', 'treatment-plans', 'icd10', 'inventory']) pages.delete(page);
   }
 
+  // Clinic diagnostics.read supports referral/result workflows. It does not
+  // grant operations belonging to separate diagnostic/lab organizations.
+  // Partner roles returned above retain their own role-scoped page allowlists.
+  if (['OWNER', 'DIRECTOR', 'ADMIN', 'DOCTOR', 'ASSISTANT', 'MANAGER', 'LAB'].includes(resolvedRole)) {
+    for (const page of ['diagnostics-calendar', 'diagnostics-statistics', 'diagnostics-settings']) pages.delete(page);
+  }
+
   const pageAllowlist = ROLE_PAGE_ALLOWLIST[resolvedRole];
   if (pageAllowlist) {
     const allowed = new Set(pageAllowlist);

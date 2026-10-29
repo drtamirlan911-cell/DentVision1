@@ -98,7 +98,7 @@ interface OutletContext {
 
 export default function Patients() {
   const outlet = useOutletContext<OutletContext>() || ({} as OutletContext)
-  const { user, clinic: authClinic, roleInfo } = useAuth()
+  const { user, clinic: authClinic, roleInfo, role, effectiveRole } = useAuth()
   const readOnly = !!roleInfo?.readOnly
   const clinicId = outlet.clinic?.id || authClinic?.id || user?.clinicId || ''
   const clinic = (outlet.clinic?.id ? outlet.clinic : authClinic) || ({ id: clinicId } as Clinic)
@@ -239,6 +239,21 @@ export default function Patients() {
     return () => { cancelled = true }
   }, [selected?.id])
 
+  // The list API deliberately omits clinical details. Fetch the record only
+  // after selection and only for roles allowed to read a full medical card.
+  useEffect(() => {
+    const canReadClinicalChart = ['OWNER', 'DIRECTOR', 'ADMIN', 'DOCTOR', 'SUPERADMIN']
+      .includes(String(effectiveRole || role || user?.role || '').toUpperCase())
+    if (!selected?.id || !canReadClinicalChart) return
+    let cancelled = false
+    api.getPatient(selected.id).then((detail) => {
+      if (cancelled || !detail) return
+      setSelected(current => current?.id === detail.id ? { ...current, ...detail } as Patient : current)
+      setTeethState(detail.teeth || {})
+    }).catch(() => undefined)
+    return () => { cancelled = true }
+  }, [selected?.id, role, effectiveRole, user?.role])
+
   const mapPatientImageToUi = (img: any) => {
     const meta = img?.metadata && typeof img.metadata === 'object' ? img.metadata : null
     const fromMetaCategory = meta?.category ? String(meta.category) : null
@@ -344,11 +359,6 @@ export default function Patients() {
         // overwritten by one the system supplied.
         dob: f.dob || result.derived.birthDate || '',
         gender: f.gender || result.derived.gender || '',
-        // Contact identity the platform already holds for this person, so a
-        // patient does not dictate their name and number a second time.
-        name: f.name || result.suggested?.name || '',
-        phone: f.phone || result.suggested?.phone || '',
-        email: f.email || result.suggested?.email || '',
       }))
     } catch (err: any) {
       showToast(err?.message || 'Не удалось проверить ИИН', 'error')
@@ -562,9 +572,7 @@ export default function Patients() {
 
           {iinLookup && !iinLookup.existing && (
             <p className="text-xs text-success">
-              {iinLookup.suggested
-                ? 'ИИН проверен. Этот человек уже известен системе — ФИО и контакты подставлены, дата рождения и пол выведены из номера. Всё можно поправить.'
-                : 'ИИН проверен. Дата рождения и пол заполнены из номера — при необходимости их можно поправить.'}
+              {'ИИН проверен. Дата рождения и пол выведены из номера — при необходимости их можно поправить.'}
             </p>
           )}
 

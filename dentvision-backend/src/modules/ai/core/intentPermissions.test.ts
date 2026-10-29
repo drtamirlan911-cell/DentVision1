@@ -50,9 +50,10 @@ describe('intent gating enforces the action, not just the module', () => {
   });
 
   it('keeps PHI behind medical.read rather than patients.read', () => {
-    // LAB and SUPPORT are the narrow roles now: both can look a patient up,
-    // neither may open the card.
-    expect(roleMayRun('LAB', Intent.SEARCH_PATIENT)).toBe(true);
+    // LAB must receive patient context through authorized referral workflows,
+    // not the clinic-wide patient-search intent. SUPPORT keeps its distinct
+    // read-only lookup grant without access to the medical card.
+    expect(roleMayRun('LAB', Intent.SEARCH_PATIENT)).toBe(false);
     expect(roleMayRun('LAB', Intent.OPEN_MEDICAL_CARD)).toBe(false);
     expect(roleMayRun('SUPPORT', Intent.SEARCH_PATIENT)).toBe(true);
     expect(roleMayRun('SUPPORT', Intent.OPEN_MEDICAL_CARD)).toBe(false);

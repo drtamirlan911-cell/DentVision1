@@ -168,6 +168,26 @@ describe('pagesForPermissions', () => {
     }
   });
 
+  it('keeps diagnostic-center operations distinct from clinic diagnostic reads', () => {
+    for (const role of ['OWNER', 'DIRECTOR', 'ADMIN', 'DOCTOR', 'ASSISTANT', 'MANAGER', 'LAB']) {
+      const pages = pagesForCaller(permissionsForRole(role), role);
+      for (const page of ['diagnostics-calendar', 'diagnostics-statistics', 'diagnostics-settings']) {
+        expect(pages).not.toContain(page);
+      }
+    }
+
+    for (const role of ['OWNER', 'DIRECTOR', 'ADMIN', 'DOCTOR', 'ASSISTANT', 'LAB']) {
+      const pages = pagesForCaller(permissionsForRole(role), role);
+      expect(pages).toContain('diagnostics-referrals');
+      expect(pages).toContain('diagnostics-results');
+    }
+
+    const diagnosticOwner = pagesForCaller([], 'DIAGNOSTIC_OWNER');
+    expect(diagnosticOwner).toContain('diagnostics-calendar');
+    expect(diagnosticOwner).toContain('diagnostics-statistics');
+    expect(diagnosticOwner).toContain('diagnostics-settings');
+  });
+
   it('keeps partner referral queues available without clinic referral creation', () => {
     for (const role of ['MEDICAL_LAB_OWNER', 'MEDICAL_LAB_TECHNICIAN', 'DENTAL_LAB_OWNER', 'DENTAL_TECHNICIAN']) {
       expect(pagesForCaller([], role)).toContain('diagnostics-referrals');
