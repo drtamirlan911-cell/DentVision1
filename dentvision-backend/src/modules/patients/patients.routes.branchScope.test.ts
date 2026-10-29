@@ -48,6 +48,13 @@ describe('patients route branch scope contract', () => {
     expect(source).toContain("patientsRouter.post('/', requirePatientMutationPermission");
   });
 
+  it('omits prepaid balance from full patient responses without effective billing permission', () => {
+    expect(source).toContain('function serializePatient(p: any, includeBilling = true)');
+    expect(source).toContain('async function serializePatientForCaller(p: any, req: AuthRequest)');
+    expect(source).toContain("return serializePatient(p, includeBilling)");
+    expect(source).toContain('data:await serializePatientForCaller(p,req)');
+  });
+
   it('rejects zero, negative and non-finite patient deposits at the API boundary', () => {
     expect(source).toContain('if(!Number.isFinite(amount)||amount<=0)');
     expect(source).toContain("requirePermission('billing.write')");
