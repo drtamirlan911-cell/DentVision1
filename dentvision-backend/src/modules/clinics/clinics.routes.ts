@@ -69,13 +69,13 @@ clinicsRouter.get('/', authenticate, async (req: AuthRequest, res) => {
       const canonicalClinicPeople = await prisma.person.findMany({
         where: { userId: req.user!.id, organization: { type: 'CLINIC' } },
         select: {
-          organization: { select: { id: true, originalId: true } },
+          organization: { select: { id: true, originalId: true, archivedAt: true } },
           personRoles: { select: { scopeType: true, scopeId: true } },
         },
       });
       if (canonicalClinicPeople.length) {
         const clinicIds = canonicalClinicPeople
-          .filter((p) => p.organization?.originalId && p.personRoles.some((pr) =>
+          .filter((p) => p.organization?.originalId && !p.organization.archivedAt && p.personRoles.some((pr) =>
             pr.scopeType === 'organization' && pr.scopeId === p.organization?.id
           ))
           .map((p) => p.organization!.originalId!);
