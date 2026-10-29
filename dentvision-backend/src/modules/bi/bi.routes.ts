@@ -10,6 +10,7 @@
 import { Router } from 'express';
 import { authenticate } from '../../middleware/auth.js';
 import { requirePermission } from '../../middleware/rbac.js';
+import { loadClinicAccess, blockClinicWrites } from '../../middleware/planGate.js';
 import {
   getMRR,
   getChurn,
@@ -32,6 +33,8 @@ import type { AuthRequest, ApiResponse } from '../../types/index.js';
 
 export const biRouter = Router();
 biRouter.use(authenticate);
+biRouter.use(loadClinicAccess);
+biRouter.use(blockClinicWrites);
 
 // ═══════════════════════════════════════════════════════════════
 // CLINIC / PLATFORM BI — dual-mode
