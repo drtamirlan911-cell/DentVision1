@@ -18,8 +18,11 @@ describe('legacy clinic trial migration', () => {
     expect(sql).toContain('s."ownerId" = c."id"');
     expect(sql).toContain('FROM "subscriptions" AS s');
     expect(sql).toContain('s."status" IN (\'active\', \'trialing\')');
+    expect(sql).toContain('s."periodEnd" IS NULL');
     expect(sql).toContain('SET "active" = true');
     expect(sql).toContain('s."status" = \'expired\'');
+    expect(sql).toContain('s."periodEnd" = c."createdAt" + INTERVAL \'30 days\'');
+    expect(sql).toContain('c."plan" = \'DEMO\'');
     expect(sql).toContain('c."active" = false');
   });
 
