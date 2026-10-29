@@ -34,7 +34,7 @@ export async function createSignLink(documentId: string): Promise<{ token: strin
   if (!doc.signToken) {
     await prisma.document.update({ where: { id: documentId }, data: { signToken: token } });
   }
-  return { token, signUrl: `/sign/${documentId}?token=${token}` };
+  return { token, signUrl: `/sign/${token}` };
 }
 
 function decodeTextContent(url: string): string | null {
