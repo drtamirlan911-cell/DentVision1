@@ -71,7 +71,7 @@ describe('resolveAuthContext — preferred clinic', () => {
     organizationFindFirst.mockResolvedValueOnce({ id: ORG_ID });
     personFindFirst.mockResolvedValueOnce({ personType: 'CLINIC_STAFF', organizationId: ORG_ID, organization: clinicOrg, personRoles: activeClinicRole });
     const ctx = await resolveAuthContext(USER_ID, { clinicId: CLINIC_ID });
-    expect(organizationFindFirst).toHaveBeenCalledWith({ where: { originalType: 'Clinic', originalId: CLINIC_ID }, select: { id: true } });
+    expect(organizationFindFirst).toHaveBeenCalledWith({ where: { originalType: 'Clinic', originalId: CLINIC_ID }, select: { id: true, archivedAt: true } });
     expect(ctx.organizationId).toBe(ORG_ID);
     expect(ctx.clinicId).toBe(CLINIC_ID);
   });
