@@ -359,8 +359,8 @@ export async function runClinicReminders(opts: { hoursWindow?: number; hoursMin?
 export async function getChairs(_clinicId?: string): Promise<import('../types').Chair[]> { return collection(await apiRequest('/api/crm/chairs')); }
 export async function upsertChair(data: Partial<import('../types').Chair>): Promise<any> { return apiRequest('/api/crm/chairs', { method: 'POST', body: JSON.stringify(data) }); }
 export async function deleteChair(id: string): Promise<any> { return apiRequest(`/api/crm/chairs/${id}`, { method: 'DELETE' }); }
-export async function sendDocumentForSignature(id: string): Promise<any> { return apiRequest(`/api/documents/${id}/send-signature`, { method: 'POST', body: '{}' }); }
-export async function signDocument(id: string, payload: { signatureData?: string; signedByName?: string; token?: string }): Promise<any> { return apiRequest(`/api/documents/${id}/sign`, { method: 'POST', body: JSON.stringify(payload) }); }
+export async function sendDocumentForSignature(id: string): Promise<any> { return apiRequest(`/api/files/documents/${id}/send-signature`, { method: 'POST', body: '{}' }); }
+export async function signDocument(id: string, payload: { signatureData?: string; signedByName?: string; token?: string }): Promise<any> { return apiRequest(`/api/files/documents/${id}/sign`, { method: 'POST', body: JSON.stringify(payload) }); }
 export async function updateTreatmentPlanStage(planId: string, stageId: string, data: { status?: string; cost?: number; title?: string; appointmentId?: string; invoiceId?: string }): Promise<any> { return apiRequest(`/api/crm/treatment-plans/${planId}/stages/${stageId}`, { method: 'PATCH', body: JSON.stringify(data) }); }
 export async function deletePatient(id: string): Promise<any> { return apiRequest(`/api/patients/${id}`, { method: 'DELETE' }); }
 export async function deleteAppointment(id: string): Promise<any> { return apiRequest(`/api/appointments/${id}`, { method: 'DELETE' }); }
@@ -500,10 +500,10 @@ export async function adminGetReviews(approved?: boolean): Promise<any> { const 
 export async function adminUpdateReview(id: string, isApproved: boolean): Promise<any> { return apiRequest(`/api/shop/admin/reviews/${id}`, { method: 'PATCH', body: JSON.stringify({ isApproved }) }); }
 export async function getShopAdminStats(): Promise<any> { return apiRequest('/api/shop/admin/stats'); }
 export async function getShopDeliveryPreview(productIds: string): Promise<any> { return apiRequest(`/api/shop/delivery-preview?ids=${productIds}`); }
-export async function getSupplierDeliveryZones(): Promise<any> { return supplierFetch('/api/supplier/delivery-zones', 'GET'); }
-export async function createSupplierDeliveryZone(data: { name: string; cities?: string[]; cost?: number; freeFrom?: number; estimatedDays?: number }): Promise<any> { return supplierFetch('/api/supplier/delivery-zones', 'POST', { method: 'POST', body: JSON.stringify(data) }); }
-export async function updateSupplierDeliveryZone(id: string, data: any): Promise<any> { return supplierFetch(`/api/supplier/delivery-zones/${id}`, 'PUT', { method: 'PUT', body: JSON.stringify(data) }); }
-export async function deleteSupplierDeliveryZone(id: string): Promise<any> { return supplierFetch(`/api/supplier/delivery-zones/${id}`, 'DELETE', { method: 'DELETE' }); }
+export async function getSupplierDeliveryZones(): Promise<any> { return apiRequest('/api/supplier/delivery-zones'); }
+export async function createSupplierDeliveryZone(data: { name: string; cities?: string[]; cost?: number; freeFrom?: number; estimatedDays?: number }): Promise<any> { return apiRequest('/api/supplier/delivery-zones', { method: 'POST', body: JSON.stringify(data) }); }
+export async function updateSupplierDeliveryZone(id: string, data: any): Promise<any> { return apiRequest(`/api/supplier/delivery-zones/${id}`, { method: 'PUT', body: JSON.stringify(data) }); }
+export async function deleteSupplierDeliveryZone(id: string): Promise<any> { return apiRequest(`/api/supplier/delivery-zones/${id}`, { method: 'DELETE' }); }
 export async function createSchoolCourse(data: any): Promise<any> { return apiRequest('/api/school/courses', { method: 'POST', body: JSON.stringify(data) }); }
 export async function updateSchoolCourse(id: string, data: any): Promise<any> { return apiRequest(`/api/school/courses/${id}`, { method: 'PUT', body: JSON.stringify(data) }); }
 export async function deleteSchoolCourse(id: string): Promise<any> { return apiRequest(`/api/school/courses/${id}`, { method: 'DELETE' }); }
