@@ -5,9 +5,9 @@
 ## Summary
 
 - Mounted routers: **69**
-- Unique route handlers: **689**
-- Registered HTTP routes after mount: **651**
-- Routes without detected web/mobile consumer: **100**
+- Unique route handlers: **691**
+- Registered HTTP routes after mount: **653**
+- Routes without detected web/mobile consumer: **99**
 - Prisma models: **150**
 - Background jobs: **12**
 - Permission roles: **11**
@@ -50,7 +50,7 @@ Identity -> Active Workspace -> Organization -> Branch -> Role -> Permission -> 
 | /api/analytics | ecosystemRouter | 1 | 1 |
 | /api/compliance | complianceRouter | 14 | 2 |
 | /api/notifications | notificationsRouter | 9 | 0 |
-| /api/files | filesRouter | 8 | 3 |
+| /api/files | filesRouter | 8 | 1 |
 | /api/documents | filesRouter | 8 | 7 |
 | /api/audit | auditRouter | 2 | 0 |
 | /api/admin | adminRouter | 18 | 2 |
@@ -77,7 +77,7 @@ Identity -> Active Workspace -> Organization -> Branch -> Role -> Permission -> 
 | /api/ai-admin/webhook | webhookGatewayRouter | 0 | 0 |
 | /api/ai-governance | aiGovernanceRouter | 3 | 1 |
 | /api/meta | metaRouter | 5 | 2 |
-| /api/organizations | organizationsRouter | 11 | 2 |
+| /api/organizations | organizationsRouter | 13 | 3 |
 | /api/persons | personsRouter | 5 | 0 |
 | /api/branches | branchesRouter | 10 | 0 |
 | /api/patient-portal/ai | aiPatientRouter | 4 | 0 |
