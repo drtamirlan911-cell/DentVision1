@@ -71,7 +71,7 @@ const PARTNER_ROLE_PRIORITY: Record<string, number> = {
 
 export async function resolveOrganizationRoleKey(userId: string, organizationId: string): Promise<string | undefined> {
   const person = await prisma.person.findFirst({
-    where: { userId, organizationId },
+    where: { userId, organizationId, organization: { archivedAt: null } },
     select: {
       personRoles: {
         where: {
