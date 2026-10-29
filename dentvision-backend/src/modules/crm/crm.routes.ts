@@ -2,6 +2,7 @@ import { Router } from 'express';
 import prisma from '../../lib/prisma.js';
 import { authenticate } from '../../middleware/auth.js';
 import { requirePermission } from '../../middleware/rbac.js';
+import { requireClinicalChartRead } from '../../middleware/clinicalChartAccess.js';
 import type { AuthRequest, ApiResponse } from '../../types/index.js';
 import { uid } from '../../lib/helpers.js';
 import type { Prisma } from '@prisma/client';
@@ -62,7 +63,7 @@ function serializePlan(plan: {
 // TreatmentPlan table; plan metadata beyond the base columns (diagnosis,
 // stages, teeth, doctorId) is kept in the `items` JSON column to avoid a
 // schema migration against the production database.
-crmRouter.get('/:clinicId/treatment-plans', requirePermission('patient.read'), async (req: AuthRequest, res) => {
+crmRouter.get('/:clinicId/treatment-plans', requireClinicalChartRead, async (req: AuthRequest, res) => {
   try {
     const { clinicId: paramClinicId } = req.params as { clinicId: string };
     const clinicId = requireClinicScope(req, res, { paramClinicId });
@@ -87,7 +88,7 @@ crmRouter.get('/:clinicId/treatment-plans', requirePermission('patient.read'), a
   }
 });
 
-crmRouter.post('/treatment-plans', requirePermission('patient.write'), async (req: AuthRequest, res) => {
+crmRouter.post('/treatment-plans', requirePermission('patient.write', 'medical.read', 'medical.write'), async (req: AuthRequest, res) => {
   try {
     const {
       id, patientId, doctorId, title, diagnosis, status, totalBudget, teeth, stages, notes,
@@ -182,7 +183,7 @@ crmRouter.post('/treatment-plans', requirePermission('patient.write'), async (re
   }
 });
 
-crmRouter.delete('/treatment-plans/:id', requirePermission('patient.write'), async (req: AuthRequest, res) => {
+crmRouter.delete('/treatment-plans/:id', requirePermission('patient.write', 'medical.read', 'medical.write'), async (req: AuthRequest, res) => {
   try {
     const { id } = req.params as { id: string };
     const plan = await prisma.treatmentPlan.findUnique({

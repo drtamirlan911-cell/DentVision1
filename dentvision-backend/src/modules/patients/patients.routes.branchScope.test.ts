@@ -40,4 +40,16 @@ describe('patients route branch scope contract', () => {
     expect(source).not.toContain('clinicId:{not:clinicId}');
     expect(source).not.toContain('suggested:suggested?');
   });
+
+  it('requires medical read/write for patient mutation responses and clinical payloads', () => {
+    expect(source).toContain('function requirePatientMutationPermission');
+    expect(source).toContain("requirePermission('patient.write', 'medical.read', 'medical.write')");
+    expect(source).toContain("patientsRouter.patch('/:id',requirePatientMutationPermission");
+    expect(source).toContain("patientsRouter.post('/', requirePatientMutationPermission");
+  });
+
+  it('rejects zero, negative and non-finite patient deposits at the API boundary', () => {
+    expect(source).toContain('if(!Number.isFinite(amount)||amount<=0)');
+    expect(source).toContain("requirePermission('billing.write')");
+  });
 });
