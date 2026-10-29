@@ -170,7 +170,7 @@ export async function runSubscriptionCron(): Promise<SubscriptionCronResult> {
         const count = await notifyClinicOwners(
           clinicId,
           'Подписка истекла',
-          Пробный период клиники "${clinic.name}" истёк. Данные доступны только для чтения; оплатите тариф, чтобы возобновить изменения.`,
+          `Пробный период клиники "${clinic.name}" истёк. Данные доступны только для чтения; оплатите тариф, чтобы возобновить изменения.`,
         );
         await markSent(clinicId, key, { notifications: count });
         result.expired += 1;
