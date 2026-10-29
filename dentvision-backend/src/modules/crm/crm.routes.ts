@@ -501,7 +501,7 @@ crmRouter.patch('/treatment-plans/:id/stages/:stageId', requirePermission('patie
       return res.status(404).json({ ok: false, error: 'План не найден' } satisfies ApiResponse);
     }
     if (!assertSameClinic(req, res, plan.patient?.clinicId)) return;
-    await assertTreatmentPlanReferencesInClinic(plan.patient?.clinicId || '', { appointmentId, invoiceId });
+    await assertTreatmentPlanReferencesInClinic(plan.patient?.clinicId || '', { patientId: plan.patientId, appointmentId, invoiceId });
 
     const items = normalizePlanItems(plan.items);
     const stages = enrichStages([...items.stages!]);
