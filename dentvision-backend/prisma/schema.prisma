@@ -3581,6 +3581,7 @@ model Organization {
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+  archivedAt DateTime?
 
   // Relations
   persons     Person[]
@@ -3590,6 +3591,7 @@ model Organization {
   @@unique([originalType, originalId])
   @@index([type])
   @@index([name])
+  @@index([archivedAt])
   @@map("organizations")
 }
 
