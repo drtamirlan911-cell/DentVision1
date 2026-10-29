@@ -104,7 +104,11 @@ export async function requireClinicWritable(req: AuthRequest, res: Response, nex
     req.clinicAccess = access;
     assertClinicWritable(access);
     return next();
-  } catch (e) { return sendPlanError(req, res, e); }
+  } catch (e) {
+    if (e instanceof PlanGateError) return sendPlanError(req, res, e);
+    console.error('[planGate] requireClinicWritable', e);
+    return res.status(503).json({ ok: false, error: 'Не удалось проверить подписку клиники', code: 'CLINIC_ACCESS_UNVERIFIED' });
+  }
 }
 
 /** Block mutating HTTP methods when subscription is expired (reads stay open). */
@@ -128,15 +132,24 @@ export async function blockClinicWrites(req: AuthRequest, res: Response, next: N
 }
 
 export function requirePlanFeature(feature: PlanFeature) {
-  return (req: AuthRequest, res: Response, next: NextFunction) => {
+  return async (req: AuthRequest, res: Response, next: NextFunction) => {
+    if (req.user?.role === 'SUPERADMIN' || req.user?.isGuest) return next();
+    const clinicId = effectiveClinicId(req.user);
+    if (!clinicId) return next();
     try {
-      if (req.user?.role === 'SUPERADMIN') return next();
-      if (req.user?.isGuest) return next();
-      const access = req.clinicAccess;
-      if (!access) return next();
+      const access = req.clinicAccess || await resolveClinicAccess(clinicId);
+      if (!access) return res.status(503).json({ ok: false, error: 'Не удалось подтвердить доступ к клинике', code: 'CLINIC_ACCESS_UNVERIFIED' });
+      req.clinicAccess = access;
+      const readOnlyRequest = ['GET', 'HEAD', 'OPTIONS'].includes(req.method.toUpperCase());
+      if (access.writeBlocked && readOnlyRequest) return next();
+      if (access.writeBlocked) assertClinicWritable(access);
       assertFeature(access, feature);
-      next();
-    } catch (e) { return sendPlanError(req, res, e); }
+      return next();
+    } catch (e) {
+      if (e instanceof PlanGateError) return sendPlanError(req, res, e);
+      console.error('[planGate] requirePlanFeature', e);
+      return res.status(503).json({ ok: false, error: 'Не удалось проверить подписку клиники', code: 'CLINIC_ACCESS_UNVERIFIED' });
+    }
   };
 }
 
@@ -175,10 +188,12 @@ export async function guardAiAccess(req: AuthRequest, res: Response, next: NextF
     if (!clinicId) return next();
     if (process.env.DEMO_CLINIC_ID && clinicId === process.env.DEMO_CLINIC_ID) return next();
     const access = req.clinicAccess || (await resolveClinicAccess(clinicId));
-    if (!access) return next();
+    if (!access) return res.status(503).json({ ok: false, error: 'Не удалось подтвердить доступ к клинике', code: 'CLINIC_ACCESS_UNVERIFIED' });
     req.clinicAccess = access;
-    if (String(access.clinicPlan || '').toUpperCase() === 'DEMO') return next();
     const method = req.method.toUpperCase();
+    if (access.writeBlocked && ['GET', 'HEAD', 'OPTIONS'].includes(method)) return next();
+    if (access.writeBlocked) assertClinicWritable(access);
+    if (String(access.clinicPlan || '').toUpperCase() === 'DEMO' && !access.writeBlocked) return next();
     const path = String(req.path || req.url || '');
     const softRead = method === 'GET' && (/proactive|threads|history|digital-twin|briefing|memory/i.test(path));
     if (softRead) return next();
@@ -196,9 +211,16 @@ export async function guardAnalytics(req: AuthRequest, res: Response, next: Next
     const access = req.clinicAccess || (await resolveClinicAccess(clinicId));
     if (!access) return next();
     req.clinicAccess = access;
+    const readOnlyRequest = ['GET', 'HEAD', 'OPTIONS'].includes(req.method.toUpperCase());
+    if (access.writeBlocked && readOnlyRequest) return next();
+    if (access.writeBlocked) assertClinicWritable(access);
     assertFeature(access, 'analytics');
     next();
-  } catch (e) { return sendPlanError(req, res, e); }
+  } catch (e) {
+    if (e instanceof PlanGateError) return sendPlanError(req, res, e);
+    console.error('[planGate] guardAnalytics', e);
+    return res.status(503).json({ ok: false, error: 'Не удалось проверить подписку клиники', code: 'CLINIC_ACCESS_UNVERIFIED' });
+  }
 }
 
 export { sendPlanError, PlanGateError };
