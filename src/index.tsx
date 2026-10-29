@@ -156,6 +156,32 @@ if (container) {
                 <Route path="practice/finance" element={<Navigate to="/crm/cashier" replace />} />
                 <Route path="practice/team" element={<Navigate to="/crm/staff" replace />} />
                 <Route path="practice/branches" element={<Navigate to="/settings" replace />} />
+                {/* Canonical medical-organization paths alias existing, permission-guarded clinic workflows. */}
+                <Route path="medical" element={<Navigate to="/crm/schedule" replace />} />
+                <Route path="medical/today" element={<Navigate to="/crm/schedule" replace />} />
+                <Route path="medical/patients" element={<Navigate to="/crm/patients" replace />} />
+                <Route path="medical/appointments" element={<Navigate to="/crm/schedule" replace />} />
+                <Route path="medical/cases" element={<Navigate to="/crm/cases" replace />} />
+                <Route path="medical/diagnostics" element={<Navigate to="/diagnostics" replace />} />
+                <Route path="medical/laboratory" element={<Navigate to="/crm/lab" replace />} />
+                <Route path="medical/documents" element={<Navigate to="/crm/documents" replace />} />
+                <Route path="medical/team" element={<Navigate to="/crm/staff" replace />} />
+                <Route path="medical/branches" element={<Navigate to="/settings" replace />} />
+                <Route path="medical/finance" element={<Navigate to="/crm/cashier" replace />} />
+                <Route path="medical/analytics" element={<Navigate to="/analytics" replace />} />
+                <Route path="medical/settings" element={<Navigate to="/settings" replace />} />
+                {/* Canonical admin URLs route to existing guarded screens, not cloned pages. */}
+                <Route path="admin/organization" element={<Navigate to="/settings" replace />} />
+                <Route path="admin/branches" element={<Navigate to="/settings" replace />} />
+                <Route path="admin/members" element={<Navigate to="/crm/staff" replace />} />
+                <Route path="admin/roles" element={<Navigate to="/settings" replace />} />
+                <Route path="admin/permissions" element={<Navigate to="/settings" replace />} />
+                <Route path="admin/services" element={<Navigate to="/crm/clinic-settings" replace />} />
+                <Route path="admin/integrations" element={<Navigate to="/crm/integrations/messaging" replace />} />
+                <Route path="admin/billing" element={<Navigate to="/crm/billing" replace />} />
+                <Route path="admin/audit" element={<Navigate to="/audit" replace />} />
+                <Route path="admin/security" element={<Navigate to="/security" replace />} />
+                <Route path="admin/data" element={<Navigate to="/backup" replace />} />
                 <Route path="medical-lab" element={<Navigate to="/diagnostics/lab?workspace=medical-lab" replace />} />
                 <Route path="dental-lab" element={<Navigate to="/diagnostics/lab?workspace=dental-lab" replace />} />
                 <Route path="business" element={<Navigate to="/supplier" replace />} />
