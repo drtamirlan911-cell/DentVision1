@@ -402,7 +402,12 @@ organizationsRouter.delete('/:id', async (req: AuthRequest, res) => {
       where: { id },
       data: {
         archivedAt,
-        settings: { ...previousSettings, archivePreviousLifecycle: previousSettings.lifecycle || null, lifecycle: 'ARCHIVED', archivedAt: archivedAt.toISOString() },
+        settings: {
+          ...previousSettings,
+          archivePreviousLifecycle: typeof previousSettings.lifecycle === 'string' ? previousSettings.lifecycle : null,
+          lifecycle: 'ARCHIVED',
+          archivedAt: archivedAt.toISOString(),
+        } as Prisma.InputJsonValue,
       },
     });
     await auditFromReq(req, { action: 'organization.archived', entity: 'organization', entityId: id, details: { originalType: org.originalType, originalId: org.originalId, retained: true } });
