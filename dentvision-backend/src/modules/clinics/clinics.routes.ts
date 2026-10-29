@@ -10,7 +10,7 @@ import {
   publicClinicSettings,
   type ClinicSettingsPayload,
 } from './clinicSettings.js';
-import { guardUserCreate } from '../../middleware/planGate.js';
+import { guardUserCreate, loadClinicAccess, requireClinicWritable } from '../../middleware/planGate.js';
 import { upsertStaffCompensation } from '../../lib/staffCompensation.js';
 import { syncPersonFromClinicMember, removePersonFromClinicMember } from '../../lib/syncMembership.js';
 import { resolveClinicAccess } from '../../lib/orgContext.js';
@@ -217,7 +217,7 @@ clinicsRouter.post('/', authenticate, async (req: AuthRequest, res) => {
   }
 });
 
-clinicsRouter.patch('/:id', authenticate, async (req: AuthRequest, res) => {
+clinicsRouter.patch('/:id', authenticate, loadClinicAccess, requireClinicWritable, async (req: AuthRequest, res) => {
   try {
     const id = req.params.id as string;
     const { name, city, address, phone, logo, settings } = req.body as {
@@ -362,7 +362,7 @@ clinicsRouter.get('/:id/settings', authenticate, async (req: AuthRequest, res) =
   }
 });
 
-clinicsRouter.put('/:id/settings', authenticate, async (req: AuthRequest, res) => {
+clinicsRouter.put('/:id/settings', authenticate, loadClinicAccess, requireClinicWritable, async (req: AuthRequest, res) => {
   try {
     const id = req.params.id as string;
     const membership = await resolveClinicAccess(req.user!.id, id);
@@ -544,7 +544,7 @@ clinicsRouter.post('/:id/staff', authenticate, guardUserCreate, async (req: Auth
 });
 
 /** Update staff profile / role within clinic. */
-clinicsRouter.patch('/:id/staff/:userId', authenticate, async (req: AuthRequest, res) => {
+clinicsRouter.patch('/:id/staff/:userId', authenticate, loadClinicAccess, requireClinicWritable, async (req: AuthRequest, res) => {
   try {
     const clinicId = req.params.id as string;
     const userId = req.params.userId as string;
@@ -643,7 +643,7 @@ clinicsRouter.patch('/:id/staff/:userId', authenticate, async (req: AuthRequest,
  * Remove a staff member from the clinic (membership only — user account kept).
  * Guards: cannot remove self, cannot remove last OWNER, ADMIN cannot remove OWNER.
  */
-clinicsRouter.delete('/:id/staff/:userId', authenticate, async (req: AuthRequest, res) => {
+clinicsRouter.delete('/:id/staff/:userId', authenticate, loadClinicAccess, requireClinicWritable, async (req: AuthRequest, res) => {
   try {
     const clinicId = req.params.id as string;
     const targetUserId = req.params.userId as string;
