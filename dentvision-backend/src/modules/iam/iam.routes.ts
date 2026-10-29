@@ -217,7 +217,7 @@ iamRouter.get('/me/contexts', async (req: AuthRequest, res) => {
           (/^(diagnostic_|medical_lab_|dental_lab_|lab_coordinator|dental_technician|cad_designer|ceramist|orthodontic_technician|qc_specialist|lab_finance)/i.test(personRole.role.key) ||
             academyRolePattern.test(personRole.role.key)),
         )?.role.key;
-      if (activePerson?.organization && activeRole) {
+      if (activePerson?.organization && !activePerson.organization.archivedAt && activeRole) {
         const org = activePerson.organization;
         const scopeType = ({ CLINIC: 'CLINIC', DIAGNOSTIC_CENTER: 'DIAGNOSTIC_CENTER', LABORATORY: 'LABORATORY', SUPPLIER_COMPANY: 'SUPPLIER', SUPPLIER: 'SUPPLIER', ACADEMY: 'ACADEMY', PARTNER: 'PARTNER' } as Record<string, ScopeType>)[org.type];
         const scopeId = org.originalId || org.id;
