@@ -279,8 +279,13 @@ iamRouter.post('/switch-context', async (req: AuthRequest, res) => {
     if (!scopeType || !scopeId) return res.status(400).json({ ok: false, error: 'scopeType и scopeId обязательны' } satisfies ApiResponse);
     const requestedScopeType = String(scopeType).trim().toUpperCase();
     const base = { sub: user.id, email: user.email, role: user.role, sessionId: user.sessionId };
-    const org = (await prisma.organization.findUnique({ where: { id: scopeId } })) || (await prisma.organization.findFirst({ where: { originalId: scopeId, archivedAt: null } }));
+    const orgById = await prisma.organization.findUnique({ where: { id: scopeId } });
+    const org = orgById || await prisma.organization.findFirst({ where: { originalId: scopeId, archivedAt: null } });
     if (org?.archivedAt) return res.status(410).json({ ok: false, error: 'Организация архивирована', code: 'ORGANIZATION_ARCHIVED' } satisfies ApiResponse);
+    if (!org && !orgById) {
+      const archivedByOriginalId = await prisma.organization.findFirst({ where: { originalId: scopeId, archivedAt: { not: null } }, select: { id: true } });
+      if (archivedByOriginalId) return res.status(410).json({ ok: false, error: 'Организация архивирована', code: 'ORGANIZATION_ARCHIVED' } satisfies ApiResponse);
+    }
     if (org) {
       const expectedScopeTypes = new Set(
         org.type === 'SUPPLIER_COMPANY' ? ['SUPPLIER', 'SUPPLIER_COMPANY'] : [org.type],
