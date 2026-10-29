@@ -7,6 +7,7 @@ import { env } from '../../config.js';
 import type { AuthRequest, ApiResponse } from '../../types/index.js';
 import { runReminderCron } from '../../jobs/reminderCron.js';
 import { resolvePatientBranchContext, canAccessPatientBranch } from '../../lib/patientBranchScope.js';
+import { loadClinicAccess, blockClinicWrites } from '../../middleware/planGate.js';
 
 export const remindersRouter = Router();
 
@@ -19,7 +20,7 @@ function requireClinic(req: AuthRequest, res: any): string | null {
   return clinicId;
 }
 
-remindersRouter.get('/waitlist', authenticate, requirePermission('appointment.read'), async (req: AuthRequest, res) => {
+remindersRouter.get('/waitlist', authenticate, loadClinicAccess, blockClinicWrites, requirePermission('appointment.read'), async (req: AuthRequest, res) => {
   try {
     const clinicId = requireClinic(req, res);
     if (!clinicId) return;
@@ -44,7 +45,7 @@ remindersRouter.get('/waitlist', authenticate, requirePermission('appointment.re
   }
 });
 
-remindersRouter.post('/waitlist', authenticate, requirePermission('appointment.write'), async (req: AuthRequest, res) => {
+remindersRouter.post('/waitlist', authenticate, loadClinicAccess, blockClinicWrites, requirePermission('appointment.write'), async (req: AuthRequest, res) => {
   try {
     const clinicId = requireClinic(req, res);
     if (!clinicId) return;
@@ -80,7 +81,7 @@ remindersRouter.post('/waitlist', authenticate, requirePermission('appointment.w
   }
 });
 
-remindersRouter.patch('/waitlist/:id', authenticate, requirePermission('appointment.write'), async (req: AuthRequest, res) => {
+remindersRouter.patch('/waitlist/:id', authenticate, loadClinicAccess, blockClinicWrites, requirePermission('appointment.write'), async (req: AuthRequest, res) => {
   try {
     const clinicId = requireClinic(req, res);
     if (!clinicId) return;
@@ -109,7 +110,7 @@ remindersRouter.patch('/waitlist/:id', authenticate, requirePermission('appointm
   }
 });
 
-remindersRouter.get('/reminders/sent', authenticate, requirePermission('appointment.read'), async (req: AuthRequest, res) => {
+remindersRouter.get('/reminders/sent', authenticate, loadClinicAccess, blockClinicWrites, requirePermission('appointment.read'), async (req: AuthRequest, res) => {
   try {
     const clinicId = requireClinic(req, res);
     if (!clinicId) return;
@@ -127,7 +128,7 @@ remindersRouter.get('/reminders/sent', authenticate, requirePermission('appointm
   }
 });
 
-remindersRouter.post('/reminders/sent', authenticate, requirePermission('appointment.write'), async (req: AuthRequest, res) => {
+remindersRouter.post('/reminders/sent', authenticate, loadClinicAccess, blockClinicWrites, requirePermission('appointment.write'), async (req: AuthRequest, res) => {
   try {
     const clinicId = requireClinic(req, res);
     if (!clinicId) return;
@@ -154,7 +155,7 @@ remindersRouter.post('/reminders/sent', authenticate, requirePermission('appoint
 });
 
 /** Manual / Render cron: run reminder sender for caller's clinic. */
-remindersRouter.post('/reminders/run', authenticate, requirePermission('appointment.write'), async (req: AuthRequest, res) => {
+remindersRouter.post('/reminders/run', authenticate, loadClinicAccess, blockClinicWrites, requirePermission('appointment.write'), async (req: AuthRequest, res) => {
   try {
     const clinicId = requireClinic(req, res);
     if (!clinicId) return;
