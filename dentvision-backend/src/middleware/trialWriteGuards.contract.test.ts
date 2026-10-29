@@ -42,3 +42,30 @@ describe('trial read-only route coverage', () => {
     expect(route.indexOf('ensureClinicWritableForPatient')).toBeLessThan(route.indexOf('portalSvc.cancelAppointment'));
   });
 });
+
+
+describe('additional clinic-scoped mutation guards', () => {
+  it('gates workflow create, update and run operations', async () => {
+    const text = await source('dentvision-backend/src/modules/workflow/workflow.routes.ts');
+    expect(text).toContain('workflowRouter.use(loadClinicAccess)');
+    expect(text).toContain('workflowRouter.use(blockClinicWrites)');
+  });
+
+  it('gates cross-clinic access requests while preserving history reads', async () => {
+    const text = await source('dentvision-backend/src/modules/cross-clinic/cross-clinic.routes.ts');
+    expect(text).toContain('crossClinicRouter.use(loadClinicAccess)');
+    expect(text).toContain('crossClinicRouter.use(blockClinicWrites)');
+  });
+
+  it('gates clinic BI write operations but keeps GET reports available', async () => {
+    const text = await source('dentvision-backend/src/modules/bi/bi.routes.ts');
+    expect(text).toContain('biRouter.use(loadClinicAccess)');
+    expect(text).toContain('biRouter.use(blockClinicWrites)');
+  });
+
+  it('gates clinical inbox mutations after clinic subscription expiry', async () => {
+    const text = await source('dentvision-backend/src/modules/patient-conversation/patientInbox.routes.ts');
+    expect(text).toContain("patientInboxRouter.post('/conversations/:id/reply', authenticate, loadClinicAccess, blockClinicWrites");
+    expect(text).toContain("patientInboxRouter.post('/conversations/:id/resolve', authenticate, loadClinicAccess, blockClinicWrites");
+  });
+});
