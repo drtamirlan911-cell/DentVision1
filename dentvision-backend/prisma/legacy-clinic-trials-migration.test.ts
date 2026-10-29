@@ -5,7 +5,7 @@ import { describe, expect, it } from 'vitest';
 describe('legacy clinic trial migration', () => {
   it('assigns a 30-day trial to legacy DEMO clinics without resetting existing subscriptions', () => {
     const sql = readFileSync(
-      resolve(process.cwd(), 'dentvision-backend/prisma/migrations/20261029_backfill_legacy_clinic_trials/migration.sql'),
+      resolve(process.cwd(), 'dentvision-backend/prisma/migrations/20261029101000_backfill_legacy_clinic_trials/migration.sql'),
       'utf8',
     );
 
@@ -20,7 +20,7 @@ describe('legacy clinic trial migration', () => {
 
   it('adds only a nullable archive timestamp and an index without deleting organizations', () => {
     const sql = readFileSync(
-      resolve(process.cwd(), 'dentvision-backend/prisma/migrations/20261029_add_organization_soft_archive/migration.sql'),
+      resolve(process.cwd(), 'dentvision-backend/prisma/migrations/20261029100000_add_organization_soft_archive/migration.sql'),
       'utf8',
     );
 
