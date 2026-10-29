@@ -199,6 +199,13 @@ export async function resolveClinicAccess(clinicId: string): Promise<ClinicAcces
     }).catch(() => null);
   }
 
+  // The previous cron used to set Clinic.active=false at expiry. Restore
+  // active=true only for an explicitly expired subscription so existing records
+  // remain readable; status='suspended' continues to be a hard suspension.
+  if (status === 'expired' && !clinic.active) {
+    await prisma.clinic.update({ where: { id: clinicId }, data: { active: true } }).catch(() => null);
+  }
+
   const expired =
     status === 'expired' ||
     status === 'suspended' ||
@@ -243,7 +250,7 @@ export async function resolveClinicAccess(clinicId: string): Promise<ClinicAcces
     clinicPlan: clinic.plan,
     saasPlan,
     status: expired ? 'expired' : status,
-    active: clinic.active && status !== 'suspended',
+    active: status === 'expired' || (clinic.active && status !== 'suspended'),
     expired,
     writeBlocked: expired,
     periodEnd,
