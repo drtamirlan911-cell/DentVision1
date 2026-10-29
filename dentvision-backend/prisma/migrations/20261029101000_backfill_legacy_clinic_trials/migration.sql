@@ -55,3 +55,16 @@ WHERE s."ownerType" = 'CLINIC'
   AND s."periodEnd" = c."createdAt" + INTERVAL '30 days'
   AND c."plan" = 'DEMO'
   AND c."active" = false;
+
+-- The trial must use the same capability set as new trial signups. Upgrade
+-- only the legacy DEMO clinics whose 30-day trial end is anchored to the
+-- immutable createdAt date; paid subscriptions with a different period remain
+-- untouched.
+UPDATE "clinics" AS c
+SET "plan" = 'ENTERPRISE'
+FROM "subscriptions" AS s
+WHERE s."ownerType" = 'CLINIC'
+  AND s."ownerId" = c."id"
+  AND s."status" IN ('trialing', 'expired')
+  AND s."periodEnd" = c."createdAt" + INTERVAL '30 days'
+  AND c."plan" = 'DEMO';
