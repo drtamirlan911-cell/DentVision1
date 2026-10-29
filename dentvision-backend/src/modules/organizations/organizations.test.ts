@@ -125,3 +125,41 @@ describe('organization control-center authorization', () => {
     expect(helper).toContain("scopeId: organizationId");
   });
 });
+
+
+describe('organization soft archive and trial contracts', () => {
+  it('archives only the canonical Organization and never deletes linked clinical records', async () => {
+    const fs = await import('node:fs/promises');
+    const source = await fs.readFile(
+      resolve(process.cwd(), 'dentvision-backend/src/modules/organizations/organizations.routes.ts'),
+      'utf8',
+    );
+    const archiveStart = source.indexOf("organizationsRouter.delete('/:id'");
+    const archiveEnd = source.indexOf('organizationsRouter.use(requireSuperadmin)', archiveStart);
+    const archiveRoute = source.slice(archiveStart, archiveEnd);
+
+    expect(archiveRoute).toContain('archivedAt');
+    expect(archiveRoute).toContain("lifecycle: 'ARCHIVED'");
+    expect(archiveRoute).toContain("action: 'organization.archived'");
+    expect(archiveRoute).toContain('retained: true');
+    expect(archiveRoute).not.toContain('prisma.clinic.update');
+    expect(archiveRoute).not.toContain('prisma.clinic.delete');
+    expect(archiveRoute).not.toContain('prisma.patient.delete');
+  });
+
+  it('starts a finite Enterprise trial for self-service clinic organizations', async () => {
+    const fs = await import('node:fs/promises');
+    const source = await fs.readFile(
+      resolve(process.cwd(), 'dentvision-backend/src/modules/organizations/organizations.routes.ts'),
+      'utf8',
+    );
+    const clinicBlockStart = source.indexOf("if (type === 'clinic')");
+    const clinicBlockEnd = source.indexOf("} else if (type === 'academy')", clinicBlockStart);
+    const clinicBlock = source.slice(clinicBlockStart, clinicBlockEnd);
+
+    expect(clinicBlock).toContain('TRIAL_DAYS');
+    expect(clinicBlock).toContain("plan: 'ENTERPRISE'");
+    expect(clinicBlock).toContain("status: 'trialing'");
+    expect(clinicBlock).toContain('periodEnd');
+  });
+});
