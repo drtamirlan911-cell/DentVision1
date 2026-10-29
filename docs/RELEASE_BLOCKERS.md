@@ -2,6 +2,26 @@
 
 > Canonical working register for issues discovered during autonomous audit/release work. Items remain open until verified by tests/evidence.
 
+## Audit follow-up — 2026-10-29 (DentVision1 main audit D1–D10)
+
+This entry supersedes stale source-level claims below where explicitly noted, but does not close items that require live database, deployment, provider, branch-rule or end-to-end evidence.
+
+### Implemented on candidate branch `fix/d1-d10-trial-archive-signing-api-20261029`
+
+- **D1 — Trial and expiry:** both supported clinic-creation paths now create an Enterprise `trialing` subscription with `periodEnd = now + TRIAL_DAYS`; a backfill migration assigns legacy `DEMO` clinics without subscriptions a 30-day period from `clinics.createdAt`. Expiry marks the subscription `expired` without setting `Clinic.active = false`; designated read routes remain available and clinic write-gate middleware rejects writes. Public booking and public document signing also check expiry. Do not mark the release condition closed until migrations are applied on staging and post-expiry positive-read/negative-write tests pass.
+- **D2 — Organization archive:** archive is a soft update to `Organization.archivedAt` plus archived lifecycle metadata. It does not delete or deactivate the linked `Clinic`, branches, members, documents, patients or audit history. Active-context resolution and the workspace switcher reject archived contexts; an already issued token cannot continue using the archived context but may switch to another active context.
+- **D3 — Document signing:** staff API helpers now target `/api/files/documents/:id/...`; public sign links now use `/sign/:token`, matching the frontend route and token lookup.
+- **D4 — Frontend routes:** the legacy `/register` URL redirects to the existing registration flow at `/login?register=1`. This does **not** complete the requested canonical `/medical/*` and `/admin/*` screen-by-screen functionality matrix; redirects should not be mistaken for feature equivalence.
+- **D6 — Supplier delivery zones:** the four standalone helpers now use `apiRequest` and pass HTTP verbs in request options rather than as the supplier bearer token.
+- **D7 — Auth route ownership:** the current router mounting shows `/api/auth/invitations` and `/api/iam/invitations` serve different invitation models and scope contracts; this is not evidence of duplicate handlers that can safely be deleted.
+- **D8 — Schema/migration:** the candidate adds nullable `Organization.archivedAt`, an index, and timestamped SQL migrations. Neither migration has been applied to a live PostgreSQL database in this audit.
+- **D9 — Verification:** prior main-branch CI evidence is not evidence for this candidate. New branch CI and a non-cancelled E2E run are required before merge.
+
+### Still open pending evidence/ownership
+
+- **D5 / RB-029, RB-013, RB-018, RB-033 / payments:** production PHI backfill must be run and audited; production CORS/WS configuration and external WebSocket server authentication must be checked; GitHub branch protection requires repository-admin verification; official Kaspi integration requires the merchant-issued API contract and live callback verification. Static source review alone cannot close these.
+- **D10 — Master Spec and deployment:** a complete route/workflow matrix for all cabinets and all sections of the Master Spec, plus production environment and end-to-end verification, remains outstanding. This branch fixes specific confirmed defects rather than claiming every workflow is release-verified.
+
 ## Open
 
 ### RB-029 — Patient clinical history JSON is not encrypted at rest
@@ -66,13 +86,14 @@
 - **Verification:** round-trip, legacy ciphertext, cache and production fail-closed tests exist; exact-HEAD CI remains pending. Legacy rows already stored as plaintext are not automatically encrypted by this change and require a separately approved, audited backfill. No key rotation or format change was made.
 
 
-### RB-013 — Credentialed CORS allows untrusted origins
-- **Status:** IN PROGRESS
+### RB-013 — Credentialed CORS allowlist must match deployment
+- **Status:** OPEN — current source has a restrictive allowlist; actual production environment values have not been independently verified
 - **Priority:** P0
-- **Area:** API security / CORS
-- **Implemented on branch:** production CORS is restricted to explicit configured HTTPS origins plus Vercel preview hostnames ending in the configured team slug; wildcard/empty production configuration and localhost are rejected; Render production origin no longer includes localhost.
-- **Regression coverage:** `cors.test.ts` covers exact HTTPS origins, hostile suffixes, Vercel team slug, localhost, wildcard and missing-origin behavior. Exact-HEAD CI and intended preview-host configuration remain unverified.
-
+- **Area:** API / Browser Security
+- **Current evidence:** `dentvision-backend/src/lib/cors.ts` derives allowed origins from configured `CORS_ORIGIN`, `FRONTEND_URL` and explicitly scoped Vercel preview origins. The implementation rejects wildcard/invalid production origins and checks preview-team ownership. The stale claim that current code has a wildcard fallback is not supported by the source inspected for this audit.
+- **Risk:** a production environment could still configure an unintended origin; code review cannot prove actual Render/Vercel runtime values.
+- **Required next action:** inspect live production environment variables and run credentialed preflight tests against the real production and preview hostnames.
+- **Closure criteria:** production values match approved origins, disallowed lookalike origins are rejected, and exact deployed CORS tests pass.
 
 ### RB-014 — Access-token expiry and Kaspi production configuration
 - **Status:** IN PROGRESS
@@ -288,14 +309,13 @@ Latest exact-head follow-up (2026-10-26):
 
 
 ### RB-029 — Patient clinical history JSON is not encrypted at rest
-- **Status:** OPEN — implementation gap confirmed on current `main` by source inspection
+- **Status:** OPEN — structured history encryption exists in current source; existing-row backfill and production verification remain unproven
 - **Priority:** P0
 - **Area:** PHI / clinical data protection
-- **Evidence:** `dentvision-backend/src/lib/phi.ts` encrypts `medicalHistory` only when the value is a string. The current Patient upsert and PATCH paths in `dentvision-backend/src/modules/patients/patients.routes.ts` merge history as a JavaScript object and persist it as `Prisma.InputJsonValue`; serialization reads the object directly. Current-main file SHAs checked: `phi.ts` `da64d8174962a4ee52ac7c45d44f77a8789e8d89`, `patients.routes.ts` `c6f544c8e0a66e45daa0db3d26bdbb32b7a2ba75`.
-- **5 Why / root cause:** the data is stored as JSON → the encryption helper handles strings only → canonical write paths persist JSON objects directly → the read/consumer contract assumes a structured object → no compatible envelope, full consumer inventory or safe backfill has been implemented.
-- **Risk:** allergies, clinical notes, categories, source metadata and tooth/clinical details may remain readable in database backups/dumps. Phone, email, address and notes also require an explicit threat-model decision.
-- **Required next action:** map all Patient write/read paths, filters, reports, AI context and integrations before choosing an encrypted-at-rest representation. Design an audited migration/backfill with dry-run, resumability, progress counts, integrity checks, legacy compatibility and rollback. Do not encrypt the JSON column blindly.
-- **Closure criteria:** persisted sensitive values are not plaintext; authorized API responses preserve the structured history; tenant/branch isolation holds; legacy rows remain readable during migration; missing/wrong keys fail closed; migration dry-run and rollback are tested. No production backfill or key rotation is claimed.
+- **Correction to stale evidence:** current `dentvision-backend/src/lib/phi.ts` supports a versioned `__dentvisionEncryptedV1` envelope for structured JSON as well as legacy scalar values. Current Patient create/update paths call `encryptMedicalHistory` for structured history. The earlier assertion that the current helper encrypts only strings and writes objects in plaintext is no longer accurate for the inspected current source.
+- **Remaining risk:** legacy rows may still be plaintext until the guarded `db:backfill:medical-history` command is run against the intended database. Script existence and unit tests do not prove staging/production execution or zero remaining legacy plaintext rows.
+- **Required next action:** run a dry-run against a confirmed staging target, record preflight/round-trip counts, then execute the approved backfill and retain evidence of zero remaining unencrypted legacy values. Do not close without target identity and result logs.
+- **Closure criteria:** authorized API responses preserve structured data, wrong/missing keys fail closed, tenant/branch isolation passes, and a verified backfill report is attached.
 
 ### RB-019 — Platform Kaspi API contract and network bounds
 - **Status:** OPEN — official provider contract not independently verified
@@ -307,7 +327,7 @@ Latest exact-head follow-up (2026-10-26):
 - **Closure criteria:** contract evidence is retained, adapter semantics match it, and positive/negative callback tests pass on the exact target SHA.
 
 ### RB-033 — Main branch protection and required release checks are disabled
-- **Status:** OPEN — confirmed by GitHub branch metadata
+- **Status:** OPEN — repository administrator verification required; connected audit could not independently re-check current protection settings
 - **Priority:** P0
 - **Area:** Release governance / CI enforcement
 - **Evidence:** GitHub `GET /repos/drtamirlan911-cell/DentVision1/branches/main` returned `protected: false`, `protection.enabled: false`, `required_status_checks.enforcement_level: off`, and no required contexts. Existing GitHub issue #259 already describes this control gap.
