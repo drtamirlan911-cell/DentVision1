@@ -94,16 +94,16 @@ export async function loadClinicAccess(req: AuthRequest, _res: Response, next: N
   }
 }
 
-export function requireClinicWritable(req: AuthRequest, res: Response, next: NextFunction) {
+export async function requireClinicWritable(req: AuthRequest, res: Response, next: NextFunction) {
   try {
     if (req.user?.role === 'SUPERADMIN') return next();
-    const access = req.clinicAccess;
-    if (!access) {
-      if (!effectiveClinicId(req.user)) return res.status(400).json({ ok: false, error: 'Выберите клинику', code: 'CLINIC_REQUIRED' });
-      return next();
-    }
+    const clinicId = effectiveClinicId(req.user);
+    if (!clinicId) return res.status(400).json({ ok: false, error: 'Выберите клинику', code: 'CLINIC_REQUIRED' });
+    const access = req.clinicAccess || await resolveClinicAccess(clinicId);
+    if (!access) return res.status(403).json({ ok: false, error: 'Не удалось подтвердить доступ к клинике', code: 'CLINIC_ACCESS_UNVERIFIED' });
+    req.clinicAccess = access;
     assertClinicWritable(access);
-    next();
+    return next();
   } catch (e) { return sendPlanError(req, res, e); }
 }
 
@@ -112,7 +112,10 @@ export async function blockClinicWrites(req: AuthRequest, res: Response, next: N
   const method = req.method.toUpperCase();
   if (method === 'GET' || method === 'HEAD' || method === 'OPTIONS') return next();
   const cid = effectiveClinicId(req.user);
-  if (!req.clinicAccess && cid) {
+  // This middleware is also mounted on multi-tenant routers. Partner workspaces
+  // without a clinic subscription are left to their own authorization checks.
+  if (!cid) return next();
+  if (!req.clinicAccess) {
     try {
       const access = await resolveClinicAccess(cid);
       if (access) {
