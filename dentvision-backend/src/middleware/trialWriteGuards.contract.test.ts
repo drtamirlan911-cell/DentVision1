@@ -69,3 +69,20 @@ describe('additional clinic-scoped mutation guards', () => {
     expect(text).toContain("patientInboxRouter.post('/conversations/:id/resolve', authenticate, loadClinicAccess, blockClinicWrites");
   });
 });
+
+
+describe('trial backfill contract', () => {
+  it('upgrades only legacy 30-day DEMO trial rows to the same Enterprise capability set', async () => {
+    const text = await source('dentvision-backend/prisma/migrations/20261029101000_backfill_legacy_clinic_trials/migration.sql');
+    expect(text).toContain('SET "plan" = \'ENTERPRISE\'');
+    expect(text).toContain('s."periodEnd" = c."createdAt" + INTERVAL \'30 days\'');
+    expect(text).toContain('s."status" IN (\'trialing\', \'expired\')');
+  });
+
+  it('gates clinic-side diagnostics referral writes but permits partner completion workflows', async () => {
+    const text = await source('dentvision-backend/src/modules/diagnostics/diagnostics.routes.ts');
+    expect(text).toContain('ensureClinicSubscriptionWritableIfClinicActor');
+    expect(text).toContain('const isClinicActor = await assertClinicOrgAccess(req.user!, clinicId)');
+    expect(text).toContain("code: 'SUBSCRIPTION_EXPIRED'");
+  });
+});
