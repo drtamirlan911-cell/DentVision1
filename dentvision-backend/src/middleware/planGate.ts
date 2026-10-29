@@ -141,7 +141,7 @@ export function requirePlanFeature(feature: PlanFeature) {
       if (!access) return res.status(503).json({ ok: false, error: 'Не удалось подтвердить доступ к клинике', code: 'CLINIC_ACCESS_UNVERIFIED' });
       req.clinicAccess = access;
       const readOnlyRequest = ['GET', 'HEAD', 'OPTIONS'].includes(req.method.toUpperCase());
-      if (access.writeBlocked && readOnlyRequest) return next();
+      if (access.expired && access.status === 'expired' && access.active && readOnlyRequest) return next();
       if (access.writeBlocked) assertClinicWritable(access);
       assertFeature(access, feature);
       return next();
@@ -190,7 +190,7 @@ export async function guardAiAccess(req: AuthRequest, res: Response, next: NextF
     if (!access) return res.status(503).json({ ok: false, error: 'Не удалось подтвердить доступ к клинике', code: 'CLINIC_ACCESS_UNVERIFIED' });
     req.clinicAccess = access;
     const method = req.method.toUpperCase();
-    if (access.writeBlocked && ['GET', 'HEAD', 'OPTIONS'].includes(method)) return next();
+    if (access.expired && access.status === 'expired' && access.active && ['GET', 'HEAD', 'OPTIONS'].includes(method)) return next();
     if (access.writeBlocked) assertClinicWritable(access);
     if (process.env.DEMO_CLINIC_ID && clinicId === process.env.DEMO_CLINIC_ID) return next();
     if (String(access.clinicPlan || '').toUpperCase() === 'DEMO' && !access.writeBlocked) return next();
@@ -212,7 +212,7 @@ export async function guardAnalytics(req: AuthRequest, res: Response, next: Next
     if (!access) return res.status(503).json({ ok: false, error: 'Не удалось подтвердить доступ к клинике', code: 'CLINIC_ACCESS_UNVERIFIED' });
     req.clinicAccess = access;
     const readOnlyRequest = ['GET', 'HEAD', 'OPTIONS'].includes(req.method.toUpperCase());
-    if (access.writeBlocked && readOnlyRequest) return next();
+    if (access.expired && access.status === 'expired' && access.active && readOnlyRequest) return next();
     if (access.writeBlocked) assertClinicWritable(access);
     assertFeature(access, 'analytics');
     next();
