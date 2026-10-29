@@ -120,6 +120,7 @@ if (container) {
           <Providers>
             <Routes>
               <Route path="/login" element={<Suspense fallback={<PageLoader />}><Login /></Suspense>} />
+              <Route path="/register" element={<Navigate to="/login?register=1" replace />} />
               <Route path="/onboarding" element={<Suspense fallback={<PageLoader />}><Onboarding /></Suspense>} />
               <Route path="/organizations/new" element={<Navigate to="/onboarding?mode=create" replace />} />
               <Route path="/organizations/join" element={<Navigate to="/onboarding?mode=join" replace />} />
