@@ -2,12 +2,14 @@
 
 **First-read file for every future DentVision AI/engineering session.**
 
-## Latest verified state — 2026-10-28
+## Latest verified state — 2026-10-29
 - Active working PR: [#328](https://github.com/drtamirlan911-cell/DentVision1/pull/328), branch `fix/workspace-switcher-menu-overflow-20261026`.
-- Latest implementation candidate: `56ab3ecfe5d1f0d02cc8be00816151a69dd30dce`. It aligns ASSISTANT/LAB page visibility and the E2E role matrix with the existing IAM policy; exact-head CI is pending.
-- Last completed CI on the previous head `c06c1a02ad508d1ff07b94fd1c78ebab5e59307f`: run `40361059735` failed the role/context and Visual Agent gates. WebKit access-control/page errors and unnamed Clinic Settings controls remain open; no test was disabled.
-- Do not close RB-034 or RB-029 based on this UI-policy change. Keep `main` unchanged. No local checkout was available in this run, so local git status/tests could not be verified.
-
+- Parent HEAD before this follow-up: `a4ab7285c8fa69df42d220c48d83267b760c56d9`. Implementation commit: `2f4da1fec9a5a2e7381f340ad101ab9b9180ce72`. A documentation checkpoint follows the implementation commit; re-read PR #328 HEAD before any subsequent write.
+- Exact-head CI run [40633387317](https://github.com/drtamirlan911-cell/DentVision1/actions/runs/40633387317) completed with **failure** on `a4ab7285c8fa69df42d220c48d83267b760c56d9`: core E2E 241 passed/5 skipped; Browser UX 4 passed; mobile design 16 passed; business-owner journeys 11 passed; organization-owner lifecycle 7 passed; role/context 39 failed/101 passed/28 skipped; Visual Agent 3 failed/45 passed. No test was disabled.
+- Confirmed role-gate defects addressed in this candidate: MANAGER could reach the Medical Card; clinic LAB could reach the inventory workbench; anonymous-route policy contradicted the Master Spec's public `/shop` discovery route; private checkout/orders/favorites/supplier and School workspace routes were unguarded; accessibility audit ignored native label associations and measured a 16×16 checkbox instead of its labelled hit target.
+- The role-gate collector now records bounded API status/method/path for HTTP 4xx/5xx responses, without response bodies or query values, so remaining 403 console errors can be traced rather than suppressed. Exact-head CI for the new candidate is pending.
+- **P0 remains open:** RB-035 identifies missing explicit RBAC on patient read routes, PHI in patient-list/detail serialization, cross-clinic identity data in IIN lookup, and missing billing authorization on patient deposit. This patch does not fix those API routes. RB-029 and RB-034 remain open; RB-033 still requires repository-admin verification.
+- `main` remains `ac913cc3389a294d0b135a852b035ddddb1018ca`; no merge, deployment, database query, migration or backfill was performed. No local checkout is available in this runtime, so local `git status` and local tests could not be run. Remote branch/PR state was checked through GitHub.
 
 ## 1. Repository identity
 - Product: DentVision — Dental Operating System / ecosystem.

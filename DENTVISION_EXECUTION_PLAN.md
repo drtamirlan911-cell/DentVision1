@@ -3,6 +3,14 @@
 ## Purpose
 This document is the persistent execution contract for DentVision. It is the source of truth for what is being implemented, in what order, and what is considered complete. Progress must not live only in a chat session.
 
+## Current checkpoint — 2026-10-29
+
+- Active implementation PR: #328 on `fix/workspace-switcher-menu-overflow-20261026`; implementation commit `2f4da1fec9a5a2e7381f340ad101ab9b9180ce72` is a child of prior candidate `a4ab7285c8fa69df42d220c48d83267b760c56d9`. A documentation checkpoint follows; re-read PR #328 HEAD before any further write.
+- Immediate priority: verify exact-head CI for the manager/LAB page allowlists, private Shop/School route guards, public marketplace discovery policy, accessibility checks and bounded 4xx diagnostics. Do not merge into `main`.
+- Next P0 security priority: RB-035 patient API read-route RBAC and PHI minimization, cross-clinic IIN lookup disclosure, and patient-deposit billing authorization. Do not treat frontend page guards as backend authorization.
+- RB-029 medical-history encryption and RB-034 AI DoctorAgent tenant isolation remain open. RB-033 requires repository-admin verification.
+- The lower shared “Current execution priority” section still contains the previous candidate SHA because PR #329 independently edits that same section. This checkpoint is authoritative for this run; reconcile the shared priority block only after comparing both existing PR branches, without creating a new branch or PR.
+
 ## Operating rules
 1. `main` is the product source of truth unless a dedicated implementation branch is explicitly required.
 2. Existing canonical product/economics documents are authoritative; do not create competing rules.

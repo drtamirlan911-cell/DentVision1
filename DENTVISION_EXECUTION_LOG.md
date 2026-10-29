@@ -5,6 +5,15 @@ This log is the durable handoff between work sessions/agents. It records complet
 ## Historical record
 The complete pre-2026-09-14 execution history is preserved in the parent Git history at commit `ceb0a85560540d0bff2ecd154189280f8cd6d588`. The current file was accidentally shortened during the 2026-09-14 patient-scope repair; no historical source commit was rewritten.
 
+## Current execution checkpoint — 2026-10-29
+
+- Repository: `drtamirlan911-cell/DentVision1`; active working PR #328, branch `fix/workspace-switcher-menu-overflow-20261026`.
+- Parent candidate `a4ab7285c8fa69df42d220c48d83267b760c56d9` failed exact-head CI run [40633387317](https://github.com/drtamirlan911-cell/DentVision1/actions/runs/40633387317): role/context 39 failed, 101 passed, 28 skipped; Visual Agent 3 failed, 45 passed. Core E2E and the other listed gates passed. Failure evidence was reviewed from bounded role-context, Visual Agent and run-diagnostics artifacts.
+- Implementation commit: `2f4da1fec9a5a2e7381f340ad101ab9b9180ce72`. Changes: manager/LAB permissions and page allowlists; guards for authenticated Shop account actions and School workspace routes while preserving public `/shop` discovery; accessible-name/touch-target audit correction; bounded API 4xx path diagnostics; regression tests; IAM policy and RB-035 register updates.
+- Exact-head CI for the new candidate has not yet been verified. No local checkout was available, so local tests and `git status` were not run. No test was disabled.
+- **Residual P0:** RB-035 remains open for patient read-route RBAC, PHI serialization, cross-clinic IIN lookup and patient-deposit billing authorization. Those backend routes are unchanged. RB-029, RB-034 and RB-033 remain open.
+- Next: inspect exact-head CI and its bounded HTTP path diagnostics; then implement patient-route RBAC/redaction and financial guards with negative tests. Keep `main` unchanged and do not create a branch or PR.
+
 ## 2026-09-14 — Patient branch-scope repair and CI verification
 
 ### Implemented
