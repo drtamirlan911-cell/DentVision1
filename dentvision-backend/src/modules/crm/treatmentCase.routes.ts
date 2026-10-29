@@ -238,27 +238,29 @@ async function assertLinkTarget(target: LinkTarget, recordId: string, clinicId: 
   }
 }
 
-async function setLink(target: LinkTarget, recordId: string, caseId: string | null): Promise<void> {
+async function setLink(target: LinkTarget, recordId: string, clinicId: string, patientId: string, caseId: string | null): Promise<boolean> {
+  let changed = 0
   switch (target) {
     case 'appointment':
-      await prisma.$executeRawUnsafe(`UPDATE appointments SET "treatmentCaseId" = $1 WHERE id = $2`, caseId, recordId)
-      return
+      changed = await prisma.$executeRawUnsafe(`UPDATE appointments SET "treatmentCaseId" = $1 WHERE id = $2 AND "clinicId" = $3 AND "patientId" = $4`, caseId, recordId, clinicId, patientId)
+      break
     case 'labOrder':
-      await prisma.$executeRawUnsafe(`UPDATE lab_orders SET "treatmentCaseId" = $1 WHERE id = $2`, caseId, recordId)
-      return
+      changed = await prisma.$executeRawUnsafe(`UPDATE lab_orders SET "treatmentCaseId" = $1 WHERE id = $2 AND "clinicId" = $3 AND ("patientId" = $4 OR "patientId" IS NULL)`, caseId, recordId, clinicId, patientId)
+      break
     case 'invoice':
-      await prisma.$executeRawUnsafe(`UPDATE invoices SET "treatmentCaseId" = $1 WHERE id = $2`, caseId, recordId)
-      return
+      changed = await prisma.$executeRawUnsafe(`UPDATE invoices SET "treatmentCaseId" = $1 WHERE id = $2 AND "clinicId" = $3 AND ("patientId" = $4 OR "patientId" IS NULL)`, caseId, recordId, clinicId, patientId)
+      break
     case 'treatmentPlan':
-      await prisma.$executeRawUnsafe(`UPDATE treatment_plans SET "treatmentCaseId" = $1 WHERE id = $2`, caseId, recordId)
-      return
+      changed = await prisma.$executeRawUnsafe(`UPDATE treatment_plans SET "treatmentCaseId" = $1 WHERE id = $2 AND ("clinicId" = $3 OR "clinicId" IS NULL) AND "patientId" = $4`, caseId, recordId, clinicId, patientId)
+      break
     case 'referral':
-      await prisma.$executeRawUnsafe(`UPDATE referrals SET "treatmentCaseId" = $1 WHERE id = $2`, caseId, recordId)
-      return
+      changed = await prisma.$executeRawUnsafe(`UPDATE referrals SET "treatmentCaseId" = $1 WHERE id = $2 AND "clinicId" = $3 AND ("patientId" = $4 OR "patientId" IS NULL)`, caseId, recordId, clinicId, patientId)
+      break
     case 'visit':
-      await prisma.$executeRawUnsafe(`UPDATE visits SET "treatmentCaseId" = $1 WHERE id = $2`, caseId, recordId)
-      return
+      changed = await prisma.$executeRawUnsafe(`UPDATE visits SET "treatmentCaseId" = $1 WHERE id = $2 AND "patientId" = $4 AND EXISTS (SELECT 1 FROM patients p WHERE p.id = visits."patientId" AND p."clinicId" = $3)`, caseId, recordId, clinicId, patientId)
+      break
   }
+  return changed === 1
 }
 
 // POST /api/crm/cases/:id/links — attach an existing ecosystem record to the canonical case.
@@ -276,7 +278,8 @@ treatmentCaseRouter.post('/:id/links', loadClinicAccess, requirePermission('pati
       return res.status(404).json({ ok: false, error: 'Record not found in this case patient/clinic scope' })
     }
 
-    await setLink(target, recordId, existing.id)
+    const linked = await setLink(target, recordId, clinicId, existing.patientId, existing.id)
+    if (!linked) return res.status(404).json({ ok: false, error: 'Record not found in this case patient/clinic scope' })
     return res.json({ ok: true, data: { target, recordId, caseId: existing.id } })
   } catch (error) {
     console.error('[treatmentCaseRouter] link error:', error)
@@ -298,7 +301,8 @@ treatmentCaseRouter.delete('/:id/links', loadClinicAccess, requirePermission('pa
     if (!(await assertLinkTarget(target, recordId, clinicId, existing.patientId))) {
       return res.status(404).json({ ok: false, error: 'Record not found in this case patient/clinic scope' })
     }
-    await setLink(target, recordId, null)
+    const unlinked = await setLink(target, recordId, clinicId, existing.patientId, null)
+    if (!unlinked) return res.status(404).json({ ok: false, error: 'Record not found in this case patient/clinic scope' })
     return res.json({ ok: true, data: { target, recordId, caseId: existing.id, linked: false } })
   } catch (error) {
     console.error('[treatmentCaseRouter] unlink error:', error)

@@ -26,5 +26,8 @@ describe('treatment case branch isolation contract', () => {
     expect(source).toContain('clinicCase(req.params.id, clinicId, req)')
     expect(source).toContain('const patientBranch = branchScopedPatientFilter(req).patient?.branchId')
     expect(source).toContain('await assertLinkTarget(target, recordId, clinicId, existing.patientId)')
+    expect(source).toContain('async function setLink(target: LinkTarget, recordId: string, clinicId: string, patientId: string, caseId: string | null): Promise<boolean>')
+    expect(source).toContain('AND "clinicId" = $3 AND "patientId" = $4')
+    expect(source).toContain('if (!linked) return res.status(404)')
   })
 })
