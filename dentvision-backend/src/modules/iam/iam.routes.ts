@@ -82,7 +82,17 @@ iamRouter.get('/me/contexts', async (req: AuthRequest, res) => {
       return [];
     });
     const archivedOrganizationIds = new Set(persons.filter((person) => person.organization?.archivedAt).map((person) => person.organization!.id));
-    const archivedClinicIds = new Set(persons.filter((person) => person.organization?.archivedAt && person.organization.type === 'CLINIC' && person.organization.originalId).map((person) => person.organization!.originalId!));
+    const archivedClinicIds = new Set([
+      ...persons.filter((person) => person.organization?.archivedAt && person.organization.type === 'CLINIC' && person.organization.originalId).map((person) => person.organization!.originalId!),
+      ...(await prisma.organization.findMany({
+        where: {
+          originalType: 'Clinic',
+          originalId: { in: memberships.map((membership) => membership.clinicId) },
+          archivedAt: { not: null },
+        },
+        select: { originalId: true },
+      })).map((organization) => organization.originalId).filter((id): id is string => Boolean(id)),
+    ]);
     const contexts = buildWorkspaceContexts({ memberships, supplierMemberships, lecturer, diagnosticCenterMemberships, laboratoryMemberships, persons })
       .filter((context) => !archivedOrganizationIds.has(context.organizationId || '') && !(context.scopeType === 'CLINIC' && archivedClinicIds.has(context.scopeId)));
 
