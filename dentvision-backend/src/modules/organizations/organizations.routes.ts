@@ -156,6 +156,30 @@ organizationsRouter.post('/self-service', async (req: AuthRequest, res) => {
         const org = existing.organization;
         const settings = (org.settings && typeof org.settings === 'object' && !Array.isArray(org.settings)) ? org.settings as Record<string, unknown> : {};
         const originalId = String(org.originalId || '');
+        // Repair a legacy self-service clinic that predates trial bootstrap
+        // without resetting the clock on idempotent retries.
+        if (type === 'clinic' && originalId && settings.selfServiceType === 'clinic') {
+          const existingSubscription = await tx.subscription.findUnique({ where: { ownerType_ownerId: { ownerType: 'CLINIC', ownerId: originalId } } });
+          if (!existingSubscription) {
+            const originalClinic = await tx.clinic.findUnique({ where: { id: originalId }, select: { id: true, createdAt: true, plan: true } });
+            if (originalClinic) {
+              const periodEnd = new Date(originalClinic.createdAt);
+              periodEnd.setDate(periodEnd.getDate() + TRIAL_DAYS);
+              await tx.subscription.create({
+                data: {
+                  ownerType: 'CLINIC',
+                  ownerId: originalId,
+                  plan: 'enterprise',
+                  status: periodEnd.getTime() <= Date.now() ? 'expired' : 'trialing',
+                  periodEnd,
+                },
+              });
+              if (originalClinic.plan === 'DEMO') {
+                await tx.clinic.update({ where: { id: originalId }, data: { plan: 'ENTERPRISE' } });
+              }
+            }
+          }
+        }
         const defaultBranch = await tx.$queryRaw<Array<{ id: string }>>`
           SELECT "id" FROM "branches" WHERE "organization_id" = ${org.id} ORDER BY "isDefault" DESC, "created_at" ASC LIMIT 1
         `;
