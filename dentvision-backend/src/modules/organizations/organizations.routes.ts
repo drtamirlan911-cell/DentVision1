@@ -13,6 +13,7 @@ import { auditFromReq } from '../compliance/audit.service.js';
 import { createNotificationForMany, NOTIFICATION_TYPES } from '../../services/notification.service.js';
 import { ensureLegalTrustPackage, getLegalPartnerForContext } from '../legal/legal.trust.service.js';
 import { TRIAL_DAYS } from '../billing/clinicSubscription.service.js';
+import { resolveClinicAccess as resolveClinicSubscriptionAccess } from '../billing/planEntitlements.js';
 
 export const organizationsRouter = Router();
 
@@ -71,6 +72,34 @@ async function ensurePersonRole(
     create: { personId: person.id, roleId: role.id, scopeType: 'organization', scopeId: organizationId, scopeKey },
   });
   return person.id;
+}
+
+/** Expired clinic trials retain read access but cannot mutate the canonical organization context. */
+async function requireOrganizationClinicWritable(req: AuthRequest, res: any, next: any) {
+  if (req.user?.role === 'SUPERADMIN') return next();
+  const candidateId = String(
+    req.user?.organizationId ||
+    req.header('X-DentVision-Organization-Id') ||
+    req.header('X-DentVision-Workspace-Id') ||
+    req.user?.clinicId || '',
+  ).trim();
+  if (!candidateId) return next();
+  try {
+    const organization = await prisma.organization.findFirst({
+      where: { OR: [{ id: candidateId }, { originalType: 'Clinic', originalId: candidateId }] },
+      select: { type: true, originalId: true, archivedAt: true },
+    });
+    if (organization?.archivedAt) return res.status(404).json({ ok: false, error: 'Организация не найдена' });
+    const clinicId = organization?.type === 'CLINIC' ? organization.originalId : (!organization ? candidateId : null);
+    if (!clinicId) return next();
+    const access = await resolveClinicSubscriptionAccess(clinicId);
+    if (!access) return res.status(404).json({ ok: false, error: 'Клиника не найдена' });
+    if (access.writeBlocked) return res.status(402).json({ ok: false, error: 'Срок пробного периода завершён. Организационные изменения доступны только после продления подписки.', code: 'SUBSCRIPTION_EXPIRED', data: { upgradePath: '/crm/billing' } });
+    return next();
+  } catch (error) {
+    console.error('[organizations] subscription write guard', error);
+    return res.status(503).json({ ok: false, error: 'Не удалось проверить подписку организации', code: 'CLINIC_ACCESS_UNVERIFIED' });
+  }
 }
 
 async function currentOrganizationPerson(userId: string, requestedOrganizationId?: string | null) {
@@ -266,7 +295,7 @@ organizationsRouter.get('/me', async (req: AuthRequest, res) => {
   }
 });
 
-organizationsRouter.patch('/me', async (req: AuthRequest, res) => {
+organizationsRouter.patch('/me', requireOrganizationClinicWritable, async (req: AuthRequest, res) => {
   try {
     const requestedOrganizationId = String(
       req.user?.organizationId ||
@@ -297,7 +326,7 @@ organizationsRouter.patch('/me', async (req: AuthRequest, res) => {
   }
 });
 
-organizationsRouter.post('/me/legal', async (req: AuthRequest, res) => {
+organizationsRouter.post('/me/legal', requireOrganizationClinicWritable, async (req: AuthRequest, res) => {
   try {
     const requestedOrganizationId = String(
       req.user?.organizationId ||
@@ -322,7 +351,7 @@ organizationsRouter.post('/me/legal', async (req: AuthRequest, res) => {
   } catch (error) { return res.status(400).json({ ok: false, error: error instanceof Error ? error.message : 'Не удалось оформить юридический пакет' }); }
 });
 
-organizationsRouter.post('/me/verification', async (req: AuthRequest, res) => {
+organizationsRouter.post('/me/verification', requireOrganizationClinicWritable, async (req: AuthRequest, res) => {
   try {
     const requestedOrganizationId = String(
       req.user?.organizationId ||
