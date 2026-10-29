@@ -396,7 +396,7 @@ organizationsRouter.delete('/:id', async (req: AuthRequest, res) => {
       : person?.organization;
     if (!org) return res.status(404).json({ ok: false, error: 'Организация не найдена или нет прав владельца' } satisfies ApiResponse);
     const previousSettings = org.settings && typeof org.settings === 'object' && !Array.isArray(org.settings)
-      ? org.settings as Record<string, unknown> : {};
+      ? org.settings as Prisma.InputJsonObject : {};
     const archivedAt = new Date();
     const updated = await prisma.organization.update({
       where: { id },
