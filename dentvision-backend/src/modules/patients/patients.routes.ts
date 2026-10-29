@@ -9,7 +9,7 @@ import { auditFromReq } from '../compliance/audit.service.js';
 import { uid, paginate, paginatedResponse, stripHtmlTags } from '../../lib/helpers.js';
 import type { AuthRequest, ApiResponse } from '../../types/index.js';
 import type { Prisma } from '@prisma/client';
-import { loadClinicAccess, requireClinicWritable, guardPatientCreate } from '../../middleware/planGate.js';
+import { loadClinicAccess, blockClinicWrites, requireClinicWritable, guardPatientCreate } from '../../middleware/planGate.js';
 import { buildPatientIinFields, IinValidationError, type PatientIinFields } from '../../lib/patientIin.js';
 import { decryptField, decryptMedicalHistory, encryptMedicalHistory, hmacIin } from '../../lib/phi.js';
 import { normalizeIin, iinBirthDate, iinSex } from '../../lib/iin.js';
@@ -21,6 +21,7 @@ import { assertPatientBranchBelongsToClinic, canAccessPatientBranch, getPatientB
 export const patientsRouter = Router();
 patientsRouter.use(authenticate);
 patientsRouter.use(loadClinicAccess);
+patientsRouter.use(blockClinicWrites);
 
 function splitName(name?: string, firstName?: string, lastName?: string) {
   if (firstName || lastName) return { firstName: stripHtmlTags(firstName || name || 'Пациент') || 'Пациент', lastName: stripHtmlTags(lastName || '') || '-' };
