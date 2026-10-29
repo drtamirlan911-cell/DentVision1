@@ -12,6 +12,8 @@ export async function resolveOrgContext(user: AuthUser) {
   const organization = await prisma.organization.findUnique({ where: { id: orgId } });
   if (organization?.archivedAt) return { orgId, organization: null, person: null };
   if (!organization && user.clinicId) {
+    const archivedClinicOrganization = await prisma.organization.findFirst({ where: { originalType: 'Clinic', originalId: user.clinicId, archivedAt: { not: null } }, select: { id: true } });
+    if (archivedClinicOrganization) return { orgId: user.clinicId, organization: null, person: null };
     const clinic = await prisma.clinic.findUnique({ where: { id: user.clinicId } });
     if (clinic) return { orgId: user.clinicId, organization: { id: clinic.id, name: clinic.name, type: 'CLINIC' }, person: null };
   }
@@ -119,7 +121,7 @@ export async function hasOrgAccess(user: AuthUser | undefined | null, originalTy
 }
 
 export async function getUserPersons(userId: string) {
-  return prisma.person.findMany({ where: { userId }, include: { organization: { select: { id: true, name: true, type: true } } } });
+  return prisma.person.findMany({ where: { userId, organization: { archivedAt: null } }, include: { organization: { select: { id: true, name: true, type: true } } } });
 }
 
 export const PERSON_ROLE_MAP: Record<string, string> = {
