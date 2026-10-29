@@ -8,6 +8,12 @@ const compatibility = readFileSync(resolve(process.cwd(), 'dentvision-backend/sr
 const diagnostics = readFileSync(resolve(process.cwd(), 'dentvision-backend/src/modules/diagnostics/diagnostics.routes.ts'), 'utf8');
 
 describe('auth and diagnostics endpoint security contracts', () => {
+  it('hydrates the active clinic membership from the authenticated clinic scope, not the first membership', () => {
+    expect(authMe).toContain(`const activeMembership = user.clinicId
+    ? memberships.find((membership) => membership.clinicId === user.clinicId) || null
+    : null;`);
+    expect(authMe).not.toContain('const activeMembership = memberships[0] || null;');
+  });
   it('rotates only the current session on clinic switch and supports explicit context clearing', () => {
     expect((auth.match(/authRouter\.post\('\/switch-clinic'/g) || [])).toHaveLength(1);
     expect(auth).toContain("authRouter.post('/switch-clinic', authenticate");

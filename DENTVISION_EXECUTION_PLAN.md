@@ -3,6 +3,14 @@
 ## Purpose
 This document is the persistent execution contract for DentVision. It is the source of truth for what is being implemented, in what order, and what is considered complete. Progress must not live only in a chat session.
 
+## Current checkpoint — 2026-10-29
+
+- Active implementation PR: #328 on `fix/workspace-switcher-menu-overflow-20261026`; implementation commit `2f4da1fec9a5a2e7381f340ad101ab9b9180ce72` is a child of prior candidate `a4ab7285c8fa69df42d220c48d83267b760c56d9`. A documentation checkpoint follows; re-read PR #328 HEAD before any further write.
+- Immediate priority: verify exact-head CI for the manager/LAB page allowlists, private Shop/School route guards, public marketplace discovery policy, accessibility checks and bounded 4xx diagnostics. Do not merge into `main`.
+- Next P0 security priority: RB-035 patient API read-route RBAC and PHI minimization, cross-clinic IIN lookup disclosure, and patient-deposit billing authorization. Do not treat frontend page guards as backend authorization.
+- RB-029 medical-history encryption and RB-034 AI DoctorAgent tenant isolation remain open. RB-033 requires repository-admin verification.
+- The lower shared “Current execution priority” section still contains the previous candidate SHA because PR #329 independently edits that same section. This checkpoint is authoritative for this run; reconcile the shared priority block only after comparing both existing PR branches, without creating a new branch or PR.
+
 ## Operating rules
 1. `main` is the product source of truth unless a dedicated implementation branch is explicitly required.
 2. Existing canonical product/economics documents are authoritative; do not create competing rules.
@@ -351,9 +359,11 @@ A phase is complete only when:
 - `DENTVISION_EXECUTION_LOG.md` records what changed, commit, verification, and next action.
 
 ## Current execution priority
-**Now — P0 security and release integrity:** verify RB-034 on branch security/doctor-agent-tenant-isolation-20261025. The exact candidate SHA must pass targeted DoctorAgent negative-path tests, TypeScript, backend lint, unit tests and the full role/context E2E gate before RB-034 can be closed. Keep main unchanged. The generated system map must match the generator on any candidate branch.
+**Immediate verification dependency — existing PR #328:** the current IAM/page-surface candidate is `56ab3ecfe5d1f0d02cc8be00816151a69dd30dce` on `fix/workspace-switcher-menu-overflow-20261026`. It reconciles the ASSISTANT/LAB page surface and the role-gate policy oracle. Exact-head CI, role/context and Visual Agent evidence are pending; RB-031 and the unnamed Clinic Settings controls remain open. Keep `main` unchanged.
 
-**Next — P0 data protection:** complete the full Patient.medicalHistory read/write/AI/report/export inventory for RB-029, then design a versioned encrypted-at-rest representation and resumable, audited legacy backfill. Do not encrypt the JSON column blindly. Repository-admin action for RB-033 (required branch checks on main) remains manual and release-blocking; verify actual required-check names and prove a failing check blocks merge.
+**Now — P0 security and release integrity:** continue the dedicated RB-034 verification on the existing branch `security/doctor-agent-tenant-isolation-20261025` after the current role-gate candidate is checked. The exact candidate SHA must pass targeted DoctorAgent negative-path tests, TypeScript, backend lint, unit tests and the full role/context E2E gate before RB-034 can be closed. The PR #328 page-policy change alone does not close RB-034. The generated system map must match the generator on any candidate branch.
+
+**Next — P0 data protection:** continue RB-029 on the existing medical-history candidate. Complete the full Patient.medicalHistory read/write/AI/report/export inventory, verify encryption-envelope compatibility and concurrent writers, review backup/rollback, then run an approved read-only staging dry run with count/round-trip/integrity reconciliation. Do not run a production backfill or deployment without explicit approval. Repository-admin action for RB-033 (required branch checks on main) remains manual and release-blocking; verify actual required-check names and prove a failing check blocks merge.
 
 **After these P0 gates:** resume the business-owner lifecycle vertical slice (registration → organization → branches → staff/permissions → operations → economics), then partner transparency/Finance Hub, automated operations and product-wide UX/clinical/ecosystem hardening.
 

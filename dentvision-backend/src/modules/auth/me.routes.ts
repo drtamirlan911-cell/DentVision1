@@ -75,7 +75,9 @@ authMeRouter.get('/me', authenticate, async (req: AuthRequest, res) => {
     include: { clinic: { select: { id: true, name: true, city: true, plan: true, logo: true } } },
     orderBy: { joinedAt: 'asc' },
   });
-  const activeMembership = memberships[0] || null;
+  const activeMembership = user.clinicId
+    ? memberships.find((membership) => membership.clinicId === user.clinicId) || null
+    : null;
   const activeOrganization = user.organizationId
     ? await prisma.organization.findUnique({ where: { id: user.organizationId }, select: { name: true } })
     : null;

@@ -2,6 +2,15 @@
 
 **First-read file for every future DentVision AI/engineering session.**
 
+## Latest verified state — 2026-10-29
+- Active working PR: [#328](https://github.com/drtamirlan911-cell/DentVision1/pull/328), branch `fix/workspace-switcher-menu-overflow-20261026`.
+- Parent HEAD before this follow-up: `a4ab7285c8fa69df42d220c48d83267b760c56d9`. Implementation commit: `2f4da1fec9a5a2e7381f340ad101ab9b9180ce72`. A documentation checkpoint follows the implementation commit; re-read PR #328 HEAD before any subsequent write.
+- Exact-head CI run [40633387317](https://github.com/drtamirlan911-cell/DentVision1/actions/runs/40633387317) completed with **failure** on `a4ab7285c8fa69df42d220c48d83267b760c56d9`: core E2E 241 passed/5 skipped; Browser UX 4 passed; mobile design 16 passed; business-owner journeys 11 passed; organization-owner lifecycle 7 passed; role/context 39 failed/101 passed/28 skipped; Visual Agent 3 failed/45 passed. No test was disabled.
+- Confirmed role-gate defects addressed in this candidate: MANAGER could reach the Medical Card; clinic LAB could reach the inventory workbench; anonymous-route policy contradicted the Master Spec's public `/shop` discovery route; private checkout/orders/favorites/supplier and School workspace routes were unguarded; accessibility audit ignored native label associations and measured a 16×16 checkbox instead of its labelled hit target.
+- The role-gate collector now records bounded API status/method/path for HTTP 4xx/5xx responses, without response bodies or query values, so remaining 403 console errors can be traced rather than suppressed. Exact-head CI for the new candidate is pending.
+- **P0 remains open:** RB-035 identifies missing explicit RBAC on patient read routes, PHI in patient-list/detail serialization, cross-clinic identity data in IIN lookup, and missing billing authorization on patient deposit. This patch does not fix those API routes. RB-029 and RB-034 remain open; RB-033 still requires repository-admin verification.
+- `main` remains `ac913cc3389a294d0b135a852b035ddddb1018ca`; no merge, deployment, database query, migration or backfill was performed. No local checkout is available in this runtime, so local `git status` and local tests could not be run. Remote branch/PR state was checked through GitHub.
+
 ## 1. Repository identity
 - Product: DentVision — Dental Operating System / ecosystem.
 - Repository: `drtamirlan911-cell/DentVision1`.
@@ -262,3 +271,27 @@ Do not repeat an audit when implementation can resolve the issue. Do not weaken 
 - Current verification branch: `security/doctor-agent-tenant-isolation-20261025`; prior candidate `277bc824aa8e6ec90fd3f280ac9b026a14570454` passed backend/frontend lint, 2,240 unit tests, Quality Gate, dedicated RB-034 IAM-context diagnostics, core E2E, Browser UX and mobile design; role/context was still running when its test policy was reviewed.
 - The next candidate corrects the anonymous route matrix for the documented public `/patient-portal` login/registration entry. It asserts the public entry and real login hand-off while preserving the authenticated non-patient redirect and guest denial at clinical APIs.
 - Fresh exact-HEAD CI is required after this change. RB-034 and release readiness remain OPEN/NOT READY until all required security, role/context, Visual Agent, business-owner and organization-owner gates pass together.
+
+## Main CI follow-up — 2026-10-26
+
+- Inspected exact-head CI for `main` at `ac913cc3389a294d0b135a852b035ddddb1018ca`: backend lint, frontend lint, lint-test and Quality Gate passed; E2E was still running during this inspection.
+- The core gate completed 240 tests and skipped 5, but BRANCH-003 timed out because the created branch option was outside the visible viewport in the workspace picker. Browser UX independently reported HTTP 403 resource errors on `/crm/patients` and `/crm/treatment-plans`. These must be fixed rather than ignored.
+- Candidate change in `fix/workspace-switcher-menu-overflow-20261026` makes the whole picker scrollable and constrains its height to the viewport. Pending PR/CI; this is not yet a verified fix.
+- `RB-029` remains OPEN; no production database read/write, medical-history backfill, or deployment was performed.
+
+- Follow-up in PR [#328](https://github.com/drtamirlan911-cell/DentVision1/pull/328): the picker now opens above its trigger when necessary and scrolls the entire menu within the available height. The UX smoke collector was hardened to dispose per-route listeners and report the URL path/status for failing API responses. Exact-head CI remains pending.
+
+- BRANCH-003 follow-up: PR #328 removes the inner workspace-only scroll area so that one outer viewport scrolls both workspace and branch options. Await exact-head CI before marking the UI defect resolved.
+
+- PR #328 CI finding: the branch test helper previously used `clinicMember.findFirst({ userId })`, which could select an arbitrary membership rather than the E2E Clinic A fixture shown in the UI. Candidate correction resolves Clinic A by fixture name, confirms OWNER membership, then uses that clinic's canonical Organization ID for branch list assertions. This removes dependence on DB row order; exact-head rerun remains required.
+
+- PR #328 CI run `40345409642` confirmed the Browser UX 403 path as `GET /api/crm/{clinicId}/treatment-plans` from both Patients and Treatment Plans. Its route has both permission and clinic-scope 403 branches; next diagnostic candidate records only generic JSON `code` / `error` fields to identify the denial without logging arbitrary response or patient data.
+- In the same run, branch-management tests queried legacy `clinicId` after creating branches through the canonical Organization flow. Candidate test change now queries the canonical organization scope; rerun needed before treating branch picker as verified.
+
+- Latest PR #328 Core E2E identified two stale `clinic!.clinicId` references inside the branch-management fixture's subscription upsert; the new fixture queries `prisma.clinic` directly, so that property is undefined. Candidate correction consistently uses validated `ownerClinicId`. Await exact-head CI before marking this test block or the picker fix verified.
+
+- Scoped session-hydration candidate in PR #328: `/api/auth/me` previously returned the first clinic membership even when the JWT was scoped to another clinic. On page reload, frontend clinic ID could then disagree with token scope and trigger valid `CLINIC_MISMATCH` 403 responses. The candidate now returns only the membership matching authenticated `user.clinicId`, and returns null rather than another membership when the active token is not clinic-scoped. Exact-head CI/E2E remains pending.
+
+- UX diagnostics are non-blocking: API error status/path is recorded immediately; generic `code`/`error` fields are appended asynchronously with bounded lengths. The release gate no longer waits on arbitrary error-response bodies to finish.
+
+- CI wrapper review in PR #328 found that `quality-scripts/run-e2e-gate.sh` executed each release-gate command once into its durable log and then launched the same command a second time to produce filtered output. This duplicated browser work/side effects and overwrote the first exit status. Corrected the wrapper to summarize the existing log file instead; exact-head CI must verify the single-execution runner and all remaining gates.
