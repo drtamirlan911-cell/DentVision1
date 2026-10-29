@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import prisma from '../../lib/prisma.js';
 import { authenticate } from '../../middleware/auth.js';
+import { loadClinicAccess, blockClinicWrites } from '../../middleware/planGate.js';
 import type { AuthRequest } from '../../types/index.js';
 import { uid } from '../../lib/helpers.js';
 import { authorizeBranchScope } from '../../lib/branchAuthorization.js';
@@ -11,6 +12,8 @@ import { auditFromReq } from '../compliance/audit.service.js';
 
 export const branchesRouter = Router();
 branchesRouter.use(authenticate);
+branchesRouter.use(loadClinicAccess);
+branchesRouter.use(blockClinicWrites);
 
 type BranchRow = {
   id: string; organization_id: string | null; clinic_id: string | null; code: string; name: string;
