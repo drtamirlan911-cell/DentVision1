@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import prisma from '../../lib/prisma.js';
 import { authenticate } from '../../middleware/auth.js';
+import { loadClinicAccess, blockClinicWrites } from '../../middleware/planGate.js';
 import { requirePermission } from '../../middleware/rbac.js';
 import { runWorkflow } from './workflow.engine.js';
 import type { AuthRequest, ApiResponse } from '../../types/index.js';
@@ -9,6 +10,8 @@ import type { AuthRequest, ApiResponse } from '../../types/index.js';
 export const workflowRouter = Router();
 
 workflowRouter.use(authenticate);
+workflowRouter.use(loadClinicAccess);
+workflowRouter.use(blockClinicWrites);
 
 /** Resolve the caller's own clinic id; never trust a query param without superadmin. */
 function ownScope(req: AuthRequest, queryScope?: string): string | null {
