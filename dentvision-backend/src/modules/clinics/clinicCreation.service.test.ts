@@ -1,7 +1,6 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { normalizeClinicInput, createClinicForOwnerInTransaction } from './clinicCreation.service.js';
 import { TRIAL_DAYS } from '../billing/clinicSubscription.service.js';
-import { vi } from 'vitest';
 
 describe('clinic creation input contract', () => {
   it('keeps only supported profile fields and trims whitespace', () => {
@@ -40,16 +39,19 @@ describe('clinic creation trial bootstrap', () => {
         personRole: { upsert: vi.fn().mockResolvedValue({}) },
       };
       await createClinicForOwnerInTransaction(tx as any, 'user-1', { name: 'Test clinic' });
+      const generatedClinicId = tx.clinic.create.mock.calls[0][0].data.id;
+      const expectedPeriodEnd = new Date(now);
+      expectedPeriodEnd.setDate(expectedPeriodEnd.getDate() + TRIAL_DAYS);
       expect(tx.clinic.create).toHaveBeenCalledWith(expect.objectContaining({
         data: expect.objectContaining({ plan: 'ENTERPRISE', active: true }),
       }));
       expect(tx.subscription.create).toHaveBeenCalledWith({
         data: {
           ownerType: 'CLINIC',
-          ownerId: 'clinic-1',
+          ownerId: generatedClinicId,
           plan: 'enterprise',
           status: 'trialing',
-          periodEnd: new Date(now.getTime() + TRIAL_DAYS * 24 * 60 * 60 * 1000),
+          periodEnd: expectedPeriodEnd,
         },
       });
     } finally {
