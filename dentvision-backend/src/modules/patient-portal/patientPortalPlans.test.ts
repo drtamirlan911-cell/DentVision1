@@ -182,7 +182,7 @@ describe('patient portal read-only trial guard', () => {
     const end = source.indexOf('\n', start);
     const route = source.slice(start, end);
     expect(route).toContain('ensureClinicWritableForPatient');
-    expect(route).toContain('SUBSCRIPTION_EXPIRED');
+    expect(source).toContain("code: 'SUBSCRIPTION_EXPIRED'");
     expect(route.indexOf('ensureClinicWritableForPatient')).toBeLessThan(route.indexOf('portalSvc.cancelAppointment'));
   });
 });
