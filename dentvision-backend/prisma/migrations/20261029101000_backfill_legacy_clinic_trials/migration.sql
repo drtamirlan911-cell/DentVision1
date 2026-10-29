@@ -25,3 +25,15 @@ WHERE c."plan" = 'DEMO'
     WHERE s."ownerType" = 'CLINIC'
       AND s."ownerId" = c."id"
   );
+
+-- The previous expiry job set Clinic.active=false after periodEnd. Restore
+-- expired-trial clinics to active tenancy state so they remain readable;
+-- subscription.status='expired' continues to block writes at every write gate.
+UPDATE "clinics" AS c
+SET "active" = true
+FROM "subscriptions" AS s
+WHERE s."ownerType" = 'CLINIC'
+  AND s."ownerId" = c."id"
+  AND s."status" = 'expired'
+  AND s."periodEnd" IS NOT NULL
+  AND c."active" = false;
