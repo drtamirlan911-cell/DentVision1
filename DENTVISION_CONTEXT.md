@@ -346,3 +346,8 @@ Do not repeat an audit when implementation can resolve the issue. Do not weaken 
 - Root `package.json` does not declare Zod as a direct dependency. Do not upgrade the backend to Zod 4 based only on the manifest. First inspect lockfile resolution, all backend Zod APIs/refinements/transforms, schema inference/type usage, and the exact CI failure that motivated the compatibility check.
 - No Zod upgrade, lockfile edit, application-code change, test run, or CI rerun is claimed in this checkpoint. Preserve the existing Zod 3 contract until a compatibility audit supports a minimal patch.
 - Release state remains NOT READY. PR #330 remains the only active integration target; `main` must remain unchanged. Do not merge, deploy, run staging/production migrations, or perform PHI backfill without the documented gates and approvals.
+
+
+### Zod lockfile resolution — 2026-10-30
+- Follow-up inspection of `dentvision-backend/package-lock.json` (lockfileVersion 3) confirms `node_modules/zod` resolves to `3.25.76`, within the declared `^3.24.2` range. This is the repository's committed lockfile resolution at the active branch ref.
+- GitHub code search returned no indexed source matches for the attempted Zod queries; this is a search-index limitation, not evidence that the backend has no Zod consumers. Continue the API-usage audit using the repository tree/source files before changing dependencies.
