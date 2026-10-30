@@ -27,6 +27,11 @@ async function requireTargetClinicWritable(req: AuthRequest, res: any, next: any
   const clinicId = String(req.params.id || '').trim();
   if (!clinicId) return res.status(400).json({ ok: false, error: 'Клиника не указана', code: 'CLINIC_REQUIRED' });
   try {
+    const archivedOrganization = await prisma.organization.findFirst({
+      where: { originalType: 'Clinic', originalId: clinicId, archivedAt: { not: null } },
+      select: { id: true },
+    });
+    if (archivedOrganization) return res.status(404).json({ ok: false, error: 'Клиника не найдена', code: 'ORGANIZATION_ARCHIVED' });
     const access = await resolveClinicSubscriptionAccess(clinicId);
     if (!access) return res.status(404).json({ ok: false, error: 'Клиника не найдена' });
     if (access.writeBlocked) return res.status(402).json({ ok: false, error: 'Срок пробного периода завершён. Данные доступны только для чтения; продлите подписку.', code: 'SUBSCRIPTION_EXPIRED', data: { upgradePath: '/crm/billing' } });
@@ -102,7 +107,13 @@ clinicsRouter.get('/', authenticate, async (req: AuthRequest, res) => {
           where: { userId: req.user!.id },
           select: { clinicId: true },
         })).map(m => m.clinicId);
-        where.id = { in: memberClinicIds.length ? memberClinicIds : ['none'] };
+        const archivedRows = memberClinicIds.length ? await prisma.organization.findMany({
+          where: { originalType: 'Clinic', originalId: { in: memberClinicIds }, archivedAt: { not: null } },
+          select: { originalId: true },
+        }) : [];
+        const archivedClinicIds = new Set(archivedRows.map((row) => row.originalId).filter((id): id is string => Boolean(id)));
+        const visibleClinicIds = memberClinicIds.filter((id) => !archivedClinicIds.has(id));
+        where.id = { in: visibleClinicIds.length ? visibleClinicIds : ['none'] };
       }
     }
 
