@@ -2466,3 +2466,21 @@ These changes are route/entry reconciliation only. Existing domain implementatio
 ### Zod lockfile resolution — 2026-10-30
 - Follow-up inspection of `dentvision-backend/package-lock.json` (lockfileVersion 3) confirms `node_modules/zod` resolves to `3.25.76`, within the declared `^3.24.2` range. This is the repository's committed lockfile resolution at the active branch ref.
 - GitHub code search returned no indexed source matches for the attempted Zod queries; this is a search-index limitation, not evidence that the backend has no Zod consumers. Continue the API-usage audit using the repository tree/source files before changing dependencies.
+
+
+## 2026-10-30 — Role gate, Academy course and Safari network diagnostics
+
+### Historical artifact inspected
+- Inspected compact E2E failure summary, role-gate log, Visual Agent checkpoint and visual failure evidence for run 41041393534. Artifact manifest says PR merge ref tested SHA ffd3bf805a2beebfd5a6ba2cc81818149ae5a681; associated PR head was dec269318de4b7fd090d898315f7b58aaac63988. Do not attribute these failures to today's HEAD without a new run.
+- Role/context: 103 passed, 37 failed, 28 skipped. Visual Agent: 45 passed, 3 failed. Core E2E 243 passed / 5 skipped; Browser UX 4 passed; mobile design 16 passed; business-owner 11 passed; organization-owner 7 passed; Playwright CLI smoke and visual-release gate passed.
+- Laboratory role produced repeated 403 responses for GET /api/patients, /api/lab-orders, /api/medical/visits, /api/files, /api/crm/promotions, /api/crm/bookings, and /api/crm/waiting-list. Visual Agent also recorded repeated Laboratory 403 console failures at desktop/tablet/mobile.
+- Academy/School: historical role artifacts show 404 GET /api/school/courses/e2e. A deterministic general-audience e2e fixture was added later; fresh exact-head verification is needed to prove this is fixed.
+- Safari/WebKit: role-mobile-safari page-error assertions failed across multiple roles. Error-context artifacts explicitly list API requests rejected due to access-control checks, including guest session, IAM contexts, AI proactive and diagnostics referrals. Capture exact request/OPTIONS/response headers; do not classify as harmless browser noise, suppress errors, or broaden production CORS without evidence.
+- Visual sizing: user reported an Academy/School Course control at approximately 92×16 px. This exact geometry was not found in inspected historical text diagnostics; it remains user-reported pending fresh screenshot/DOM geometry. RB-003's 36px minimum interactive target rule must not be weakened.
+
+### Current exact-head status at inspection
+- PR #330 branch HEAD: fd0b34730c0f65877b18908353a3afdede94c22f; base/main unchanged.
+- Quality Gate run 41099779415: passed.
+- CI run 41099779548: E2E job was still initializing containers; test steps had not started. Frontend lint, backend lint and lint/unit job were also in progress.
+- RB-034 diagnostic 41099779647: still in progress.
+- No current-head role gate, Academy fixture, Safari or access-control outcome is claimed yet. Poll the same runs, inspect exact-head artifacts, and fix confirmed source causes. Keep RB-003, RB-025 and RB-031 open.
