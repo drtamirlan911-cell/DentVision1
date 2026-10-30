@@ -32,13 +32,26 @@ async function enforceTargetClinicTrial(req: AuthRequest, res: any, next: any) {
       clinicId ||= target.clinic_id || '';
       organizationId ||= target.organization_id || '';
     }
-    if (!clinicId && organizationId) {
+    if (organizationId) {
       const organization = await prisma.organization.findUnique({ where: { id: organizationId }, select: { type: true, originalId: true, archivedAt: true } });
-      if (organization?.archivedAt) return res.status(404).json({ ok: false, error: 'Организация не найдена' });
-      if (organization?.type === 'CLINIC') clinicId = organization.originalId || '';
+      if (!organization || organization.archivedAt) return res.status(404).json({ ok: false, error: 'Организация не найдена' });
+      if (organization.type === 'CLINIC') {
+        const organizationClinicId = String(organization.originalId || '').trim();
+        if (!organizationClinicId || (clinicId && clinicId !== organizationClinicId)) {
+          return res.status(403).json({ ok: false, error: 'Клиника не соответствует организации' });
+        }
+        clinicId = organizationClinicId;
+      } else if (clinicId) {
+        return res.status(403).json({ ok: false, error: 'Нельзя смешивать клинический и партнёрский контексты' });
+      }
     }
     if (!clinicId && !organizationId) clinicId = String(req.user?.clinicId || '').trim();
     if (!clinicId) return next(); // non-clinic partners use their own billing contract
+    const archivedClinicOrganization = await prisma.organization.findFirst({
+      where: { originalType: 'Clinic', originalId: clinicId, archivedAt: { not: null } },
+      select: { id: true },
+    });
+    if (archivedClinicOrganization) return res.status(404).json({ ok: false, error: 'Клиника не найдена', code: 'ORGANIZATION_ARCHIVED' });
     const access = await resolveClinicSubscriptionAccess(clinicId);
     if (!access) return res.status(404).json({ ok: false, error: 'Клиника не найдена' });
     if (access.writeBlocked) return res.status(402).json({ ok: false, error: 'Срок пробного периода завершён. Филиалы и сотрудники доступны только для чтения; продлите подписку.', code: 'SUBSCRIPTION_EXPIRED', data: { upgradePath: '/crm/billing' } });
@@ -111,6 +124,8 @@ async function membership(userId: string, clinicId: string): Promise<MemberScope
 async function organizationMembership(userId: string, organizationId: string): Promise<OrganizationRoleRow | null> {
   const user = await prisma.user.findUnique({ where: { id: userId }, select: { role: true } });
   if (user?.role === 'SUPERADMIN') return { role_key: 'owner' };
+  const activeOrganization = await prisma.organization.findFirst({ where: { id: organizationId, archivedAt: null }, select: { id: true } });
+  if (!activeOrganization) return null;
   const rows = await prisma.$queryRaw<OrganizationRoleRow[]>`
     SELECT r."key" AS role_key
     FROM "persons" p
@@ -154,6 +169,11 @@ async function organizationPerson(userId: string, organizationId: string) {
   return prisma.person.findFirst({ where: { userId, organizationId }, select: { id: true } });
 }
 async function authorizeMemberBranch(userId: string, clinicId: string, branch: BranchRow, mutation = false) {
+  const archivedOrganization = await prisma.organization.findFirst({
+    where: { originalType: 'Clinic', originalId: clinicId, archivedAt: { not: null } },
+    select: { id: true },
+  });
+  if (archivedOrganization) return { allowed: false as const, status: 404, error: 'Клиника не найдена' };
   const member = await membership(userId, clinicId);
   if (!member) return { allowed: false as const, status: 403, error: 'Вы не являетесь участником этой клиники' };
   if (member.branch_id && member.branch_active === false) return { allowed: false as const, status: 403, error: 'Доступ сотрудника к филиалу отключён' };
