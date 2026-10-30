@@ -118,4 +118,21 @@ describe('trial backfill contract', () => {
     expect(text).toContain("if (!archivedOrganization) return { clinic: candidate.clinic, created: false };");
   });
 
+
+  it('hides archived clinic memberships from legacy /me and /my-clinics discovery', async () => {
+    const text = await source('dentvision-backend/src/modules/auth/me.routes.ts');
+    expect(text).toContain('excludeArchivedClinicMemberships(allMemberships)');
+    expect(text).toContain("originalType: 'Clinic', originalId: { in: clinicIds }, archivedAt: { not: null }");
+    expect(text).toContain("where: { id: user.organizationId, archivedAt: null }");
+  });
+
+  it('blocks clinic invitation creation and new joins after archive or trial expiry', async () => {
+    const text = await source('dentvision-backend/src/modules/auth/me.routes.ts');
+    expect(text).toContain('ensureClinicContextWritableForInvitation(clinicId, res)');
+    expect(text).toContain("where: { originalType: 'Clinic', originalId: invitation.clinicId, archivedAt: { not: null } }");
+    expect(text).toContain('const subscription = await tx.subscription.findUnique');
+    expect(text).toContain("subscription.status === 'expired'");
+    expect(text).toContain("new ClinicInvitationError('Пробный период клиники завершён. Присоединение временно недоступно.', 402)");
+  });
+
 });
