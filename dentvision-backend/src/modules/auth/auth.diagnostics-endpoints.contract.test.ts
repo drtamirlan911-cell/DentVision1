@@ -20,12 +20,17 @@ describe('auth and diagnostics endpoint security contracts', () => {
     expect(auth).toContain('previousClinicId: req.user?.clinicId ?? null');
     expect(auth).not.toContain('expireAllSessions(user.id)');
   });
-  it('uses shared transactional clinic creation and fixes the self-service plan at DEMO', () => {
+  it('uses shared transactional clinic creation and keeps the 30-day Enterprise trial idempotent', () => {
     expect(auth).toContain("authRouter.post('/clinics', authenticate");
     expect(auth).toContain("authRouter.post('/demo-clinic', authenticate");
     expect(auth).toContain('createClinicForOwner(req.user!.id, input, {');
     expect(auth).toContain('createClinicForOwnerInTransaction(tx, req.user!.id, input, {');
-    expect(readFileSync(resolve(process.cwd(), 'dentvision-backend/src/modules/clinics/clinicCreation.service.ts'), 'utf8')).toContain("plan: 'DEMO'");
+    expect(auth).toContain("clinic: { plan: { in: ['DEMO', 'ENTERPRISE'] }, active: true }");
+    const clinicCreation = readFileSync(resolve(process.cwd(), 'dentvision-backend/src/modules/clinics/clinicCreation.service.ts'), 'utf8');
+    expect(clinicCreation).toContain("plan: 'ENTERPRISE'");
+    expect(clinicCreation).toContain("plan: 'enterprise'");
+    expect(clinicCreation).toContain("status: 'trialing'");
+    expect(clinicCreation).toContain('TRIAL_DAYS');
   });
   it('claims invitations atomically, restricts invitation email and synchronizes canonical IAM', () => {
     expect((authMe.match(/authMeRouter\.post\('\/join-clinic'/g) || [])).toHaveLength(1);
