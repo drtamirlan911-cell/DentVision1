@@ -445,3 +445,10 @@ Historical priority notes retained from parallel branches; they do not supersede
 - Implemented targeted fixes in the existing #330 branch: gate data queries by effective permissions, use `lab.read` for lab-order reads and `lab.write` for status transitions, hide create/edit/delete controls when permissions do not allow them, use the dedicated PATCH status endpoint, label the file input, and seed the general-audience `e2e` Academy course.
 - These changes are **UNVERIFIED** until a fresh full CI/E2E run on the new exact HEAD completes. Isolated `401 GET /api/auth/me` errors in the prior artifact remain open for follow-up. Do not relax assertions or treat this as release-ready.
 - Preserve #330 as the only active code target; do not touch `main`, do not create a replacement branch/PR, and do not run staging/production migrations or deployments.
+
+
+## 2026-10-31 — D1 expiry consistency correction (PR #330)
+- [x] Centralize the distinction between subscription entitlement expiry and Clinic tenancy activity: expired subscription no longer writes `Clinic.active=false`; explicit suspension remains separate.
+- [x] Cover the service transition and the superadmin subscription API route with regression tests.
+- [ ] Re-run exact-head CI, full role/context, Visual Agent, business-owner and organization-owner release gates.
+- [ ] After approval, validate D1 migrations and expired-clinic positive GET / negative mutation behavior on staging; do not run production migrations or PHI backfills from this candidate.

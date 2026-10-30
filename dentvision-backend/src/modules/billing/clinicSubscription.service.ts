@@ -153,6 +153,18 @@ export async function assertClinicBillingAccess(userId: string, clinicId: string
   throw err;
 }
 
+/**
+ * Subscription expiry is an entitlement state, not a clinic-tenancy deletion.
+ * Keep Clinic.active unchanged for expired subscriptions so authenticated users
+ * can continue reading existing records; explicit suspension remains distinct.
+ */
+export function clinicTenancyUpdateForSubscription(clinicPlan: ClinicPlan, status: string): Prisma.ClinicUpdateInput {
+  return {
+    plan: clinicPlan,
+    ...(status === 'expired' ? {} : { active: status !== 'suspended' }),
+  };
+}
+
 /** Bootstrap Enterprise trial for a newly created clinic. */
 export async function startClinicTrial(clinicId: string, days = TRIAL_DAYS) {
   const periodEnd = new Date();
@@ -196,7 +208,7 @@ export async function upsertClinicSubscription(
   // not allow nesting inside a caller's already-open interactive transaction.
   const clinic = await db.clinic.update({
     where: { id: clinicId },
-    data: { plan: clinicPlan, active: status !== 'expired' && status !== 'suspended' },
+    data: clinicTenancyUpdateForSubscription(clinicPlan, status),
   });
   const subscription = await db.subscription.upsert({
     where: { ownerType_ownerId: { ownerType: 'CLINIC' as WalletOwnerType, ownerId: clinicId } },

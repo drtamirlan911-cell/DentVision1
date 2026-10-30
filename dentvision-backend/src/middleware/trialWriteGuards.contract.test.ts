@@ -89,6 +89,18 @@ describe('additional clinic-scoped mutation guards', () => {
   });
 
 describe('trial backfill contract', () => {
+  it('does not deactivate Clinic tenancy when an administrative subscription update marks it expired', async () => {
+    const text = await source('dentvision-backend/src/modules/billing/subscriptions.routes.ts');
+    expect(text).toContain('clinicTenancyUpdateForSubscription(clinicPlan as any, sub.status)');
+    expect(text).not.toContain("active: status !== 'expired' && status !== 'suspended'");
+  });
+
+  it('keeps expired and explicitly suspended tenant lifecycle updates distinct', async () => {
+    const text = await source('dentvision-backend/src/modules/billing/clinicSubscription.service.ts');
+    expect(text).toContain("...(status === 'expired' ? {} : { active: status !== 'suspended' })");
+    expect(text).toContain('data: clinicTenancyUpdateForSubscription(clinicPlan, status)');
+  });
+
   it('upgrades only legacy 30-day DEMO trial rows to the same Enterprise capability set', async () => {
     const text = await source('dentvision-backend/prisma/migrations/20261029101000_backfill_legacy_clinic_trials/migration.sql');
     expect(text).toContain('SET "plan" = \'ENTERPRISE\'');

@@ -1,6 +1,7 @@
 /**
  * Subscription expiry cron — notify clinic owners at 14 / 7 / 1 days,
- * mark expired subscriptions, soft-suspend clinics.
+ * mark expired subscriptions while keeping clinic tenancy/read access intact.
+ * Explicit suspension remains a separate subscription status.
  */
 import prisma from '../lib/prisma.js';
 import { withJobLock } from '../lib/jobLock.js';

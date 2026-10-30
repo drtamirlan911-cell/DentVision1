@@ -2557,3 +2557,20 @@ These changes are route/entry reconciliation only. Existing domain implementatio
 
 ### Verification
 - Exact-head CI, Quality Gate, RB-034 diagnostic and Vercel Preview are required for the new commit. No staging/production database operation, migration, PHI backfill, merge to `main` or production deployment was performed.
+
+
+## 2026-10-31 — D1: preserve clinic tenancy on subscription expiry
+
+### Finding
+- The trial expiry cron already changed only `Subscription.status`, and `resolveClinicAccess()` applies the read-only/write-blocked entitlement state.
+- A follow-up source trace found two remaining paths that could set `Clinic.active=false` for `status='expired'`: the shared `upsertClinicSubscription()` service and superadmin `POST /api/subscriptions`. This could reintroduce hard tenancy deactivation during an administrative expiry operation.
+
+### Implementation
+- Added one shared `clinicTenancyUpdateForSubscription()` helper. Expiry changes the clinic plan without updating `Clinic.active`; explicit suspension sets `active=false`; active/trialing/renewal status sets `active=true`.
+- Updated both the shared subscription service and superadmin subscription route to use the helper, with the route using the persisted subscription status returned by Prisma rather than trusting only the request body.
+- Corrected the subscription cron module description so it no longer claims expiry soft-suspends the clinic.
+- Added runtime tests for expired-versus-suspended service updates and route-level source contract assertions.
+
+### Verification boundary
+- The preceding exact-head CI [41141555818](https://github.com/drtamirlan911-cell/DentVision1/actions/runs/41141555818) had Core E2E, Browser UX and Mobile Design pass; Quality Gate [41141555859](https://github.com/drtamirlan911-cell/DentVision1/actions/runs/41141555859) and RB-034 [41141555708](https://github.com/drtamirlan911-cell/DentVision1/actions/runs/41141555708) passed. Role/Context remained in progress at the last status read; no result is claimed.
+- The new commit triggers fresh exact-head CI. No staging/production DB query/write, migration, backfill, PHI operation, Render environment change, main merge or production deployment was performed. D1 remains open until exact-head release gates and approved staging positive-read/negative-write checks pass; overall release remains NOT READY.
