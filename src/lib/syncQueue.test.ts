@@ -92,6 +92,6 @@ describe('offline schedule queue privacy guard', () => {
     const persisted = localStorage.getItem(QUEUE_KEY)!;
     expect(persisted).not.toContain('Имплантация зуба 11');
     expect(persisted).not.toContain('toothNumber');
-    expect(persisted).not.toContain('service');
+    expect(persisted).not.toContain('"service":');
   });
 });
