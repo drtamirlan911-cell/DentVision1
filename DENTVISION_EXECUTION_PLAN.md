@@ -436,3 +436,12 @@ Historical priority notes retained from parallel branches; they do not supersede
 ### Preserved 329 branch change
 
 **Manual release control — RB-033:** required branch-check protection on main remains a repository-admin task. Read and record the exact required-check names and demonstrate a failing check blocks merge; do not assume this can be completed through application code.
+
+
+## 2026-10-30 — Role/E2E failure repair
+
+- Inspected the exact-head CI artifacts for run [41041393534](https://github.com/drtamirlan911-cell/DentVision1/actions/runs/41041393534), not only the summary. The role/context gate had 103 passed, 37 failed, 28 skipped; Visual Agent had 45 passed and 3 failed. Core, Browser UX, mobile design, business-owner and organization-owner gates passed.
+- Confirmed causes: permission-incompatible background queries in `useDataQuery` created 403 console errors for the LAB role; clinic lab-order endpoints required unrelated patient/appointment permissions; the diagnostics referral file input lacked an accessible name; the role matrix visited a nonexistent Academy course ID.
+- Implemented targeted fixes in the existing #330 branch: gate data queries by effective permissions, use `lab.read` for lab-order reads and `lab.write` for status transitions, hide create/edit/delete controls when permissions do not allow them, use the dedicated PATCH status endpoint, label the file input, and seed the general-audience `e2e` Academy course.
+- These changes are **UNVERIFIED** until a fresh full CI/E2E run on the new exact HEAD completes. Isolated `401 GET /api/auth/me` errors in the prior artifact remain open for follow-up. Do not relax assertions or treat this as release-ready.
+- Preserve #330 as the only active code target; do not touch `main`, do not create a replacement branch/PR, and do not run staging/production migrations or deployments.

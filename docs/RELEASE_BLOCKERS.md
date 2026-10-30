@@ -451,3 +451,10 @@ Parallel-branch evidence retained during integration; reconcile against the curr
 - Latest candidate HEAD after integration follow-up fixes: `415e4a9dc938de0d3c71cd6b795fd4f9c7f0e8cb`. Exact-head CI [41034452583](https://github.com/drtamirlan911-cell/DentVision1/actions/runs/41034452583) was pending at this checkpoint; Quality Gate [41034452312](https://github.com/drtamirlan911-cell/DentVision1/actions/runs/41034452312) and RB-034 diagnostic [41034452343](https://github.com/drtamirlan911-cell/DentVision1/actions/runs/41034452343) were in progress.
 - No database migration/backfill, production write, or deployment was performed. D1/D2 staging verification, RB-029 staging work, D5 provider/production checks, D9 full CI/E2E, and D10 workflow parity remain open.
 
+
+
+## E2E role/context follow-up — 2026-10-30
+
+- Baseline [CI 41041393534](https://github.com/drtamirlan911-cell/DentVision1/actions/runs/41041393534) failed Role/context (103 passed, 37 failed, 28 skipped) and Visual Agent (45 passed, 3 failed). Core E2E, Browser UX, mobile design, business-owner and organization-owner lifecycle gates passed.
+- Targeted fixes are implemented on the existing PR #330 branch: permission-aware query enablement, lab-specific read/status authorization, role-appropriate Lab UI actions, an accessible label for the diagnostic file input, and a deterministic Academy course fixture for the route matrix.
+- **Not closed:** these fixes require a new exact-head CI/E2E run. The prior artifact also contained isolated `401 GET /api/auth/me` responses that still need diagnosis. Do not mark RB-035 or release readiness complete based on these changes alone.

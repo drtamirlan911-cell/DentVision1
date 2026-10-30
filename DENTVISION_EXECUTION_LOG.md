@@ -2426,3 +2426,23 @@ These changes are route/entry reconciliation only. Existing domain implementatio
 - Release remains NOT READY pending exact-head full CI/E2E/role/owner gates, staging migration and post-expiry read/write evidence, RB-029 consumer/concurrency and approved staging dry run, production CORS/WebSocket, official Kaspi contract/callback, branch protection and D10 Master Spec workflow parity. No staging/production database operation, backfill, or deployment was performed.
 - Next: inspect the exact latest-head CI results; fix only confirmed failures without weakening security assertions; update this log with the resulting exact HEAD and evidence.
 
+
+
+## 2026-10-30 — Role/context and Visual Agent triage
+
+### Evidence reviewed
+- PR #330 exact baseline `dec269318de4b7fd090d898315f7b58aaac63988`; CI run [41041393534](https://github.com/drtamirlan911-cell/DentVision1/actions/runs/41041393534), Quality Gate [41041393650](https://github.com/drtamirlan911-cell/DentVision1/actions/runs/41041393650), RB-034 diagnostic [41041393557](https://github.com/drtamirlan911-cell/DentVision1/actions/runs/41041393557).
+- CI failed only in the E2E job: Role/context 103 passed / 37 failed / 28 skipped; Visual Agent 45 passed / 3 failed. Core E2E 243 passed / 5 skipped; Browser UX 4 passed; mobile design 16 passed; business-owner 11 passed; organization-owner lifecycle 7 passed; CLI smoke and visual release gate passed.
+- Artifact findings: repeated 403s for restricted clinic resources came from unconditional `useDataQuery` queries; the clinic lab API required `patient.read` and `appointment.read` despite the canonical LAB role owning `lab.read` / `lab.write`; the diagnostics referral file input had no accessible name; the role matrix requested missing Academy course `e2e`. Separate 401s from `/api/auth/me` remain unexplained.
+
+### Implemented on the existing #330 branch
+- Added accessible name and form name to `FileUploader` input.
+- Gated CRM collection queries by the active context's effective permission set; unauthorized background requests are no longer issued.
+- Changed classic lab-order read/status permissions to `lab.read` / `lab.write`, preserving appointment-write restrictions for order creation/deletion and existing branch scoping.
+- Updated the Lab screen to show create/edit/delete controls only where permitted and to use the dedicated status PATCH endpoint for permitted status changes.
+- Added deterministic general-audience Academy fixture `e2e` to match the existing role-matrix course route.
+
+### Verification state / next step
+- Code commits: `3fc41805a03c2d0e3a8f21babfa8c904cb2e1f5e`, `7357b67d8eac427c9b4e16ca4d153aec7a6bc3d3`, `0a2c819cd3b13f2e38017fbe5a0e948754b6d277`, `035fe8305385822fe907ff01ab0cdb61989ba1df`, `53c3ebfabe6c49ed16420056104eaff1204c18e3`, `55e581e1fbecb2840a084f951a89bb636303f46b`, `99a70f12e2b94a6c1bb4c8060e3c39b554dbb55a`.
+- Fresh lint, unit, E2E and Visual Agent results are not yet available for these changes. Do not claim the failures are resolved until exact-head CI confirms.
+- Next: inspect fresh CI for remaining `401 /api/auth/me` or any 403/404, correct only confirmed defects, then rerun full CI. `main` unchanged; no database migrations, backfills or deployment.
