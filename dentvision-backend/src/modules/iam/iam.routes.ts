@@ -6,6 +6,7 @@ import { generateTokens } from '../../lib/jwt.js';
 import { resolveUserPermissions } from '../../lib/resolvePermissions.js';
 import { uid } from '../../lib/helpers.js';
 import { resolveClinicAccess } from '../../lib/orgContext.js';
+import { resolveClinicAccess as resolveClinicSubscriptionAccess } from '../billing/planEntitlements.js';
 import { buildWorkspaceContexts, roleLabelFor, userRoleForPartnerRole } from './contexts.js';
 import type { ScopeType } from './contexts.js';
 import {
@@ -33,6 +34,37 @@ export async function canManageRolesFor(
     return !!access && CLINIC_MANAGER_ROLES.includes(String(access.role).toUpperCase());
   }
   return canManageMembers(user.id, org, false);
+}
+
+
+/** Expired clinic trials keep IAM reads/context switching, but block staff-role mutations. */
+export async function ensureClinicSubscriptionWritableForOrganization(
+  req: AuthRequest,
+  res: any,
+  organization: { id: string; type: string; originalId: string | null } | null,
+): Promise<boolean> {
+  if (req.user?.role === 'SUPERADMIN' || !organization || String(organization.type).toUpperCase() !== 'CLINIC') return true;
+  const clinicId = String(organization.originalId || '').trim();
+  if (!clinicId) {
+    res.status(503).json({ ok: false, error: 'Не удалось определить клинику для проверки подписки', code: 'CLINIC_ACCESS_UNVERIFIED' });
+    return false;
+  }
+  try {
+    const access = await resolveClinicSubscriptionAccess(clinicId);
+    if (!access) {
+      res.status(503).json({ ok: false, error: 'Не удалось проверить подписку клиники', code: 'CLINIC_ACCESS_UNVERIFIED' });
+      return false;
+    }
+    if (access.writeBlocked) {
+      res.status(402).json({ ok: false, error: 'Клиника работает в режиме только для чтения после окончания пробного периода.', code: 'SUBSCRIPTION_EXPIRED' });
+      return false;
+    }
+    return true;
+  } catch (error) {
+    console.error('[iam] clinic subscription write gate', error);
+    res.status(503).json({ ok: false, error: 'Не удалось проверить подписку клиники', code: 'CLINIC_ACCESS_UNVERIFIED' });
+    return false;
+  }
 }
 
 export const iamRouter = Router();
@@ -578,6 +610,7 @@ iamRouter.post('/persons/:personId/roles', async (req: AuthRequest, res) => {
     if (!person) return res.status(404).json({ ok: false, error: 'Персона не найдена' } satisfies ApiResponse);
     const allowed = await canManageRolesFor(req.user!, person.organization);
     if (!allowed) return res.status(403).json({ ok: false, error: 'Недостаточно прав для назначения роли' } satisfies ApiResponse);
+    if (!(await ensureClinicSubscriptionWritableForOrganization(req, res, person.organization))) return;
     const role = await prisma.role.findUnique({ where: { id: roleId } });
     if (!role) return res.status(404).json({ ok: false, error: 'Роль не найдена' } satisfies ApiResponse);
     if (String(role.key).toUpperCase() === 'SUPERADMIN' && req.user!.role !== 'SUPERADMIN') {
@@ -621,6 +654,7 @@ iamRouter.delete('/persons/:personId/roles/:roleId', async (req: AuthRequest, re
     if (!person) return res.status(404).json({ ok: false, error: 'Персона не найдена' } satisfies ApiResponse);
     const allowed = await canManageRolesFor(req.user!, person.organization);
     if (!allowed) return res.status(403).json({ ok: false, error: 'Недостаточно прав для удаления роли' } satisfies ApiResponse);
+    if (!(await ensureClinicSubscriptionWritableForOrganization(req, res, person.organization))) return;
     const scopeKey = person.organization ? `organization:${person.organization.id}` : 'platform';
     await prisma.personRole.deleteMany({ where: { personId, roleId, scopeKey } });
     await auditFromReq(req, { action: 'person_role.removed', entity: 'person_role', entityId: `${personId}:${roleId}`, details: { personId, roleId } });
