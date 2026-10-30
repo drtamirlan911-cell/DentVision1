@@ -186,6 +186,7 @@ test.describe('Здоровье: медицинские записи', () => {
 
 test.describe('ИИН: межклиническая идентичность не раскрывается без согласия', () => {
   const SHARED_IIN = makeIin();
+  const CONSENT_IIN = makeIin();
 
   test.beforeAll(async () => {
     // Clinic B knows this person; clinic A has never seen them.
@@ -240,9 +241,15 @@ test.describe('ИИН: межклиническая идентичность н�
   });
 
   test('совпадение ИИН в другой клинике не открывает историю без одобрения пациента', async () => {
+    const remote = await ctx.post('/api/patients', {
+      headers: auth(ownerB),
+      data: { iin: CONSENT_IIN, firstName: 'Удалённый', lastName: 'Пациент', phone: '+77010003333' },
+    });
+    expect(remote.ok(), await remote.text()).toBeTruthy();
+
     const created = await ctx.post('/api/patients', {
       headers: auth(ownerA),
-      data: { iin: SHARED_IIN, firstName: 'Свой', lastName: 'Пациент', phone: '+77010002222' },
+      data: { iin: CONSENT_IIN, firstName: 'Свой', lastName: 'Пациент', phone: '+77010002222' },
     });
     expect(created.ok(), await created.text()).toBeTruthy();
     const ownPatientId = ((await created.json()).data || {}).id as string;
