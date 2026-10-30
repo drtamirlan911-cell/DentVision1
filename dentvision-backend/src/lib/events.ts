@@ -17,7 +17,7 @@ export interface GrowthEventPayload {
 }
 
 export interface DomainEventMap {
-  'patient.created': { clinicId: string; patientId: string; userId?: string; name?: string };
+  'patient.created': { clinicId: string; patientId: string; userId?: string; hasComplaints: boolean };
   'patient.deleted': { clinicId: string; patientId: string; userId?: string };
   'appointment.created': { clinicId: string; appointmentId: string; patientId: string; doctorId: string | null; userId?: string };
   'supplier.status_changed': { supplierId: string; status: string; from?: string; to?: string; userId?: string };
