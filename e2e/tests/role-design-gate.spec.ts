@@ -100,16 +100,22 @@ function pageId(route: string, role?: Role): string | null {
 }
 
 async function login(page: Page, email: string) {
-  // Each role must start from a clean authentication state. Partner-context
-  // tests intentionally mint scoped tokens, so reusing that state can make
-  // the next role appear logged out or land in the previous workspace.
+  // Clear persisted identity before the React auth initializer runs. Clearing
+  // after goto previously allowed stale tokens to emit /auth/me 401 responses.
   await page.context().clearCookies();
-  await page.goto(BASE_URL + '/login?role=owner', {waitUntil:'domcontentloaded',timeout:30000});
-  await page.evaluate(() => {
-    localStorage.clear();
-    sessionStorage.clear();
+  await page.addInitScript(() => {
+    if (window.location.pathname === '/login') {
+      localStorage.clear();
+      sessionStorage.clear();
+    }
   });
-  await page.reload({waitUntil:'domcontentloaded',timeout:30000});
+  const guestSessionRequests: string[] = [];
+  const captureGuestSession = (request: any) => {
+    const url = new URL(request.url());
+    if (url.pathname === '/api/guest/session') guestSessionRequests.push(request.method() + ' ' + url.pathname);
+  };
+  page.on('request', captureGuestSession);
+  await page.goto(BASE_URL + '/login?role=owner', {waitUntil:'domcontentloaded',timeout:30000});
   await page.locator('input[autocomplete="username"]').fill(email);
   await page.locator('input[autocomplete="current-password"]').fill(PASSWORD);
   await page.getByRole('button',{name:'Войти в DentVision'}).click();
@@ -124,6 +130,8 @@ async function login(page: Page, email: string) {
     timeout: 10000,
     message: email + ': authenticated workspace did not render',
   }).toMatch(/.{20,}/s);
+  page.off('request', captureGuestSession);
+  expect(guestSessionRequests, email + ': guest session must not race authenticated login').toEqual([]);
 }
 
 async function activatePartnerWorkspace(page: Page, role: Role) {
@@ -381,6 +389,25 @@ async function waitForRouteReady(page: Page, role: Role, route: string) {
 
 async function auditRoute(page: Page, role: Role, route: string, shouldBeAllowed: boolean) {
   const expectedPath = new URL(BASE_URL + route).pathname;
+  const routeUrl = new URL(route, BASE_URL);
+  const restrictedPatientDeepLink = shouldBeAllowed
+    && routeUrl.pathname === '/crm/patients'
+    && routeUrl.searchParams.has('patient')
+    && !role.pages.includes('medical-card');
+  const restrictedPatientReads: string[] = [];
+  const captureRestrictedPatientRead = (request: any) => {
+    const segments = new URL(request.url()).pathname.split('/').filter(Boolean);
+    const patientDetail = segments[0] === 'api' && segments[1] === 'patients'
+      && segments.length === 3 && segments[2] !== 'lookup';
+    const patientSubresource = segments[0] === 'api' && segments[1] === 'patients'
+      && segments.length === 4 && ['summary', 'history', 'images', 'treatment-plan', 'audit'].includes(segments[3]);
+    const medicalSubresource = segments[0] === 'api' && segments[1] === 'medical'
+      && ['cards', 'images'].includes(segments[2]) && segments.length === 4;
+    if (patientDetail || patientSubresource || medicalSubresource) {
+      restrictedPatientReads.push(request.method() + ' /' + segments.join('/'));
+    }
+  };
+  if (restrictedPatientDeepLink) page.on('request', captureRestrictedPatientRead);
   await page.goto(BASE_URL + route, { waitUntil: 'domcontentloaded', timeout: 30000 });
   let current = new URL(page.url());
 
@@ -399,6 +426,11 @@ async function auditRoute(page: Page, role: Role, route: string, shouldBeAllowed
 
   // Only inspect DOM after access policy has confirmed the route is allowed.
   await waitForRouteReady(page, role, route);
+  // Finance is a lazy-loaded route alias into the Admin shell; wait for its
+  // redirect/chunks to settle before the next full-document navigation.
+  if (role.id === 'superadmin' && route === '/platform-finance') {
+    await page.waitForLoadState('networkidle', { timeout: 5000 }).catch(() => {});
+  }
   current = new URL(page.url());
 
   if (current.pathname === '/login') {
@@ -417,6 +449,10 @@ async function auditRoute(page: Page, role: Role, route: string, shouldBeAllowed
   await inspectForms(page, role, route);
   await inspectDialogsAndMenus(page, role, route);
   await inspectVisualSemantics(page, role, route);
+  if (restrictedPatientDeepLink) {
+    page.off('request', captureRestrictedPatientRead);
+    expect(restrictedPatientReads, role.id + ' must not fetch clinical/financial data from a patient-list deep link').toEqual([]);
+  }
 }
 
 test('partner context switch applies the scoped application role to the session token', async ({ page }, info) => {
@@ -562,6 +598,9 @@ test.describe('DentVision exhaustive role/context/browser gate',()=>{
             timeout: 10000,
             message: role.id + ' ' + route + ': responsive critical screen did not render',
           }).toMatch(/.{20,}/s);
+          // Do not tear down page-owned API/lazy-module requests by immediately
+          // navigating to the next route. Any failed request remains a hard gate.
+          await page.waitForLoadState('networkidle', { timeout: 3000 }).catch(() => {});
           expect(new URL(page.url()).pathname, role.id + ' ' + route + ': responsive allowed screen redirected to login').not.toBe('/login');
           await shellAudit(page, role, route);
           await inspectForms(page, role, route);

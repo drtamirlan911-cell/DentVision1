@@ -229,8 +229,14 @@ export default function Patients() {
       if (p) {
         setSelected(p)
         setTeethState((p as any).teeth || {})
-        void usePatientStore.getState().openPatient(p.id)
+        void usePatientStore.getState().openPatient(p.id, {
+          clinicalChart: canReadClinicalChart,
+          billingSummary: canReadPatientSummary,
+        })
       }
+    } else if (!canReadClinicalChart) {
+      // Clear any patient context left by a previous privileged workspace.
+      usePatientStore.getState().closePatient()
     }
     if (tab) {
       const allowed = tab === 'info'
@@ -300,14 +306,15 @@ export default function Patients() {
   }
 
   useEffect(() => {
-    if (!selected?.id) {
+    if (!selected?.id || !canReadClinicalChart) {
       setPhotos([])
+      setPhotosLoading(false)
       return
     }
     loadPhotos(selected.id)
     // loadPhotos defined inline, varies per render
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selected?.id])
+  }, [selected?.id, canReadClinicalChart])
 
   useEffect(() => {
     const iin = normalizeIin(search)

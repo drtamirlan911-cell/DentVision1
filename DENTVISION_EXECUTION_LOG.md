@@ -2506,3 +2506,22 @@ These changes are route/entry reconciliation only. Existing domain implementatio
 ### Verification and release limits
 - New exact-head CI, Quality Gate, role/context, Visual Agent and RB-034 outcomes are required before treating the source/test follow-up as verified. Keep RB-003, RB-031, RB-035 and overall release status open until their respective gates pass.
 - No production/staging database migration, backfill, PHI write, branch merge to `main`, or production deployment was performed.
+
+
+## 2026-10-31 — Role/context gate: patient-context permission boundary and navigation races
+
+### Evidence
+- Exact pre-change PR #330 head: `b113defae674d8e4028af8e25151c412b608b4d2`; base/main: `ac913cc3389a294d0b135a852b035ddddb1018ca`.
+- Role/context CI run [41108599612](https://github.com/drtamirlan911-cell/DentVision1/actions/runs/41108599612) reported the role gate failure while Frontend Lint, Backend Lint, Quality Gate, RB-034 diagnostic and Visual Agent passed.
+- Traces proved the Assistant's three 403 responses were expected backend denials, not CORS: the test opened `/crm/patients?patient=...`; `Patients.tsx` called the shared patient context loader, which fetched `GET /api/patients/:id` and `GET /api/patients/:id/summary`. The first requires clinical-chart access; the summary additionally requires `billing.read`. The role matrix explicitly allows the Assistant patient register but not the full medical card. Do not grant broader permissions or suppress these 403s.
+- The same trace identified redundant guest-session creation on auth/protected routes and full-page navigation that could cancel pending WebKit API/lazy-module requests. Existing CORS responses for the observed origin included the expected allow-origin header; RB-031 is not closed by this analysis.
+
+### Changes applied in this commit
+- Guest sessions are now initialized only on genuine guest surfaces (including the public AI entry), never on login/registration/patient-portal screens or protected paths.
+- The shared patient context store now fails closed by default: clinical chart requests require an explicit chart-read grant, financial summary requests require an explicit billing-summary grant, and closing/switching patient context invalidates pending responses.
+- The patient register passes its effective role access to the shared store and no longer fetches medical images for roles without clinical-chart access. The Medical Card route passes explicit permissions and no longer opens the same patient twice during initial query hydration.
+- Added unit coverage for operational-only context, billing-summary denial and stale response invalidation. Strengthened the role gate to assert that an Assistant/Manager-style patient-list deep link issues no clinical/financial detail requests; login now proves it does not create a guest session, and navigation waits for route-owned requests/lazy chunks to settle without suppressing failures.
+
+### Verification status
+- Changes are committed to the existing PR #330 branch only. Exact-head lint, unit tests, role/context E2E, WebKit and Vercel preview are pending. No permissions were broadened; no API error or request-failure collector was suppressed.
+- RB-029, RB-031, RB-034, D1–D10 production/staging proof and overall release readiness remain open. No staging/production database operation, migration, merge to main or production deployment was performed.
