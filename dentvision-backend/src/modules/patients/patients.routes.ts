@@ -144,9 +144,29 @@ patientsRouter.post('/', requirePatientMutationPermission, guardPatientCreate, a
     if(existing){const existingBranch=await getPatientBranchId(existing.id,clinicId);if(context.scope.kind!=='organization'&&!canAccessPatientBranch(context,existingBranch))return res.status(404).json({ok:false,error:'Пациент не найден'});if(context.scope.kind==='organization'&&body.branchId!==undefined){if(!(await assertPatientBranchBelongsToClinic(String(body.branchId),clinicId)))return res.status(400).json({ok:false,error:'Недействующий филиал'});targetBranchId=String(body.branchId)}else targetBranchId=existingBranch;}
     const iinTouched=body.iin!==undefined||body.noIinReason!==undefined; let iinFields:PatientIinFields|undefined;if(!existing||iinTouched)iinFields=await buildPatientIinFields({iin:body.iin,noIinReason:body.noIinReason,clinicId,excludePatientId:existing?.id,birthDate:(body.dob||body.birthDate)??existing?.birthDate??null,gender:body.gender??existing?.gender??null,required:!existing});
     const data={firstName,lastName,phone:body.phone??existing?.phone??null,email:body.email??existing?.email??null,birthDate:(body.dob||body.birthDate)?new Date(body.dob||body.birthDate):existing?.birthDate??null,gender:body.gender??existing?.gender??null,address:body.address??existing?.address??null,notes:body.notes??existing?.notes??null,iin:iinFields?iinFields.iin:(existing as any)?.iin,iinHash:iinFields?.iinHash,noIinReason:iinFields?.noIinReason,medicalHistory:encryptMedicalHistory(history) as Prisma.InputJsonValue};
-    const patient=existing?await prisma.patient.update({where:{id:existing.id},data,include:{teeth:true}}):await prisma.patient.create({data:{...data,id,clinicId,iin:iinFields!.iin,iinHash:iinFields!.iinHash,noIinReason:iinFields!.noIinReason},include:{teeth:true}});if(targetBranchId)await setPatientBranch(patient.id,clinicId,targetBranchId);if(body.teeth)await syncTeeth(patient.id,body.teeth);const refreshed=await prisma.patient.findUnique({where:{id:patient.id},include:{teeth:true}});
+    let patient: any;
+    if (existing) {
+      await prisma.$transaction(async (tx) => {
+        const updated = await tx.patient.updateMany({
+          where: { id: existing.id, clinicId, updatedAt:existing.updatedAt },
+          data,
+        });
+        if (updated.count !== 1) throw new Error('PATIENT_HISTORY_CONFLICT');
+        if (body.teeth) await syncTeeth(existing.id, body.teeth, tx);
+      });
+      patient = await prisma.patient.findFirst({ where: { id: existing.id, clinicId }, include: { teeth: true } });
+      if (!patient) throw new Error('PATIENT_NOT_FOUND_AFTER_UPDATE');
+    } else {
+      patient = await prisma.patient.create({
+        data: { ...data, id, clinicId, iin: iinFields!.iin, iinHash: iinFields!.iinHash, noIinReason: iinFields!.noIinReason },
+        include: { teeth: true },
+      });
+      if (body.teeth) await syncTeeth(patient.id, body.teeth);
+    }
+    if (targetBranchId) await setPatientBranch(patient.id, clinicId, targetBranchId);
+    const refreshed = await prisma.patient.findUnique({ where: { id: patient.id }, include: { teeth: true } });
     if(!existing){const c=history.complaints??history.chiefComplaint??body.complaints??body.chiefComplaint;publish('patient.created',{clinicId,patientId:patient.id,userId:req.user?.id,hasComplaints:Boolean(c)});const patientCount=await prisma.patient.count({where:{clinicId,deletedAt:null}});if(patientCount===1)publishGrowthEvent({event:'FIRST_PATIENT_CREATED',userId:req.user?.id,clinicId,branchId:targetBranchId??undefined,entityId:patient.id,source:'patients.create'});}else await auditFromReq(req,{action:'patient.updated',entity:'patient',entityId:patient.id,details:{name:`${firstName} ${lastName}`.trim(),branchId:targetBranchId}});if(idempotencyKey){await completeIdempotencyKey(idempotencyKey,patient.id);completed=true;}return res.status(existing?200:201).json({ok:true,data:await serializePatientForCaller(refreshed!,req)} satisfies ApiResponse);
-  }catch(e){if(idempotencyKey&&!completed)await deleteIdempotencyKey(idempotencyKey).catch(()=>undefined);if(e instanceof IinValidationError)return res.status((e as any).code==='DUPLICATE'?409:400).json({ok:false,error:e.message});console.error('Upsert patient error:',e);return res.status(500).json({ok:false,error:'Ошибка при сохранении пациента'})}
+  }catch(e){if(idempotencyKey&&!completed)await deleteIdempotencyKey(idempotencyKey).catch(()=>undefined);if(e instanceof Error&&e.message==='PATIENT_HISTORY_CONFLICT')return res.status(409).json({ok:false,error:'Данные пациента изменились параллельно. Обновите страницу и повторите.'} satisfies ApiResponse);if(e instanceof IinValidationError)return res.status((e as any).code==='DUPLICATE'?409:400).json({ok:false,error:e.message});console.error('Upsert patient error:',e);return res.status(500).json({ok:false,error:'Ошибка при сохранении пациента'})}
 });
 
 patientsRouter.get('/lookup',requirePermission('patient.read'),async(req:AuthRequest,res)=>{try{const clinicId=req.user?.clinicId;if(!clinicId)return res.status(400).json({ok:false,error:'Клиника не указана'} satisfies ApiResponse);const iin=normalizeIin(req.query.iin);if(iin.length!==12)return res.status(400).json({ok:false,error:'ИИН должен состоять из 12 цифр'} satisfies ApiResponse);const hash=hmacIin(iin);const existing=await prisma.patient.findFirst({where:await scopedPatientWhere(req,clinicId,{iinHash:hash,deletedAt:null}),select:{id:true,firstName:true,lastName:true,phone:true}});await auditFromReq(req,{action:'patient.iin_lookup',entity:'patient',entityId:existing?.id||null,details:{found:!!existing}});return res.json({ok:true,data:{derived:{birthDate:iinBirthDate(iin),gender:iinSex(iin)},existing:existing?{id:existing.id,name:`${existing.firstName} ${existing.lastName}`.trim(),phone:existing.phone||''}:null}} satisfies ApiResponse)}catch(e){console.error('Patient IIN lookup error:',e);return res.status(500).json({ok:false,error:'Не удалось проверить ИИН'} satisfies ApiResponse)}});
