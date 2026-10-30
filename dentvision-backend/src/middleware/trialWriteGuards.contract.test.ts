@@ -126,12 +126,26 @@ describe('trial backfill contract', () => {
     expect(text).toContain("where: { id: user.organizationId, archivedAt: null }");
   });
 
+  it('reserves organization archive for owner-level roles, not generic administrators', async () => {
+    const text = await source('dentvision-backend/src/modules/organizations/organizations.routes.ts');
+    const match = text.match(/const archiveOwnerRoles = \\[([^\\]]+)\\]/);
+    expect(match).not.toBeNull();
+    const roles = [...(match?.[1] || '').matchAll(/'([^']+)'/g)].map((entry) => entry[1]);
+    expect(roles).toEqual([
+      'owner', 'org_owner', 'seller', 'lecturer',
+      'diagnostic_owner', 'medical_lab_owner', 'dental_lab_owner',
+    ]);
+    const archiveRoute = text.slice(text.indexOf("organizationsRouter.delete('/:id'"), text.indexOf('organizationsRouter.use(requireSuperadmin)'));
+    expect(archiveRoute).toContain('role: { key: { in: archiveOwnerRoles } }');
+  });
+
   it('blocks clinic invitation creation and new joins after archive or trial expiry', async () => {
     const text = await source('dentvision-backend/src/modules/auth/me.routes.ts');
     expect(text).toContain('ensureClinicContextWritableForInvitation(clinicId, res)');
     expect(text).toContain("where: { originalType: 'Clinic', originalId: invitation.clinicId, archivedAt: { not: null } }");
     expect(text).toContain('const subscription = await tx.subscription.findUnique');
-    expect(text).toContain("subscription.status === 'expired'");
+    expect(text).toContain("subscription?.status === 'expired'");
+    expect(text).toContain("subscription?.status === 'suspended'");
     expect(text).toContain("invitation.clinic.plan === 'DEMO'");
     expect(text).toContain('TRIAL_DAYS * 24 * 60 * 60 * 1000');
     expect(text).toContain("new ClinicInvitationError('Пробный период клиники завершён. Присоединение временно недоступно.', 402)");
@@ -143,15 +157,24 @@ describe('trial backfill contract', () => {
     expect(text).toContain("where: { originalType: 'Clinic', originalId: clinicId, archivedAt: { not: null } }");
     expect(text).toContain("code: 'ORGANIZATION_ARCHIVED'");
     expect(text).toContain('resolveClinicSubscriptionAccess(clinicId)');
-    expect(text.indexOf('const archivedOrganization')).toBeLessThan(text.indexOf("if (req.user?.role === 'SUPERADMIN') return next();"));
-    expect(text.indexOf('const membership = await resolveClinicAccess')).toBeLessThan(text.indexOf('resolveClinicSubscriptionAccess(clinicId)'));
+    const guardStart = text.indexOf('async function requireTargetClinicWritable');
+    const guardEnd = text.indexOf('function normalizeStaffRole', guardStart);
+    const guard = text.slice(guardStart, guardEnd);
+    const archiveCheck = guard.indexOf('const archivedOrganization');
+    const superadminBypass = guard.indexOf("if (req.user?.role === 'SUPERADMIN')");
+    const membershipCheck = guard.indexOf('const membership = await resolveClinicAccess');
+    const subscriptionCheck = guard.indexOf('resolveClinicSubscriptionAccess(clinicId)');
+    expect(archiveCheck).toBeGreaterThanOrEqual(0);
+    expect(superadminBypass).toBeGreaterThan(archiveCheck);
+    expect(membershipCheck).toBeGreaterThanOrEqual(0);
+    expect(membershipCheck).toBeLessThan(subscriptionCheck);
   });
 
   it('filters archived legacy clinics and enforces branch target tenant consistency', async () => {
     const clinics = await source('dentvision-backend/src/modules/clinics/clinics.routes.ts');
     expect(clinics).toContain("originalType: 'Clinic', originalId: { in: memberClinicIds }, archivedAt: { not: null }");
     const branches = await source('dentvision-backend/src/modules/branches/branches.routes.ts');
-    expect(branches).toContain("if (clinicId && clinicId !== organizationClinicId)");
+    expect(branches).toContain("if (!organizationClinicId || (clinicId && clinicId !== organizationClinicId))");
     expect(branches).toContain("organizationId = String(req.user?.organizationId || '').trim()");
     expect(branches).toContain("originalType: 'Clinic', originalId: clinicId, archivedAt: { not: null }");
     expect(branches).toContain("if (!activeOrganization) return null");

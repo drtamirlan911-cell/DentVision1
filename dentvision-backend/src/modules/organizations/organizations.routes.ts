@@ -405,13 +405,15 @@ organizationsRouter.post('/me/verification', requireOrganizationClinicWritable, 
 organizationsRouter.delete('/:id', async (req: AuthRequest, res) => {
   try {
     const id = String(req.params.id || '').trim();
-    const manageableRoles = ['owner', 'org_owner', 'admin', 'org_admin', 'seller', 'lecturer', 'diagnostic_owner', 'medical_lab_owner', 'dental_lab_owner'];
+    // Organization lifecycle/archiving is owner governance, not routine ADMIN work.
+    // seller/lecturer are the initial scoped owner roles for self-service Supplier/Academy contexts.
+    const archiveOwnerRoles = ['owner', 'org_owner', 'seller', 'lecturer', 'diagnostic_owner', 'medical_lab_owner', 'dental_lab_owner'];
     const person = req.user?.role === 'SUPERADMIN' ? null : await prisma.person.findFirst({
       where: {
         userId: req.user!.id,
         organizationId: id,
         organization: { archivedAt: null },
-        personRoles: { some: { scopeType: 'organization', scopeId: id, role: { key: { in: manageableRoles } } } },
+        personRoles: { some: { scopeType: 'organization', scopeId: id, role: { key: { in: archiveOwnerRoles } } } },
       },
       include: { organization: true },
     });

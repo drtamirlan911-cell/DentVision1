@@ -274,3 +274,15 @@ Do not repeat an audit when implementation can resolve the issue. Do not weaken 
 - Current verification branch: `security/doctor-agent-tenant-isolation-20261025`; prior candidate `277bc824aa8e6ec90fd3f280ac9b026a14570454` passed backend/frontend lint, 2,240 unit tests, Quality Gate, dedicated RB-034 IAM-context diagnostics, core E2E, Browser UX and mobile design; role/context was still running when its test policy was reviewed.
 - The next candidate corrects the anonymous route matrix for the documented public `/patient-portal` login/registration entry. It asserts the public entry and real login hand-off while preserving the authenticated non-patient redirect and guest denial at clinical APIs.
 - Fresh exact-HEAD CI is required after this change. RB-034 and release readiness remain OPEN/NOT READY until all required security, role/context, Visual Agent, business-owner and organization-owner gates pass together.
+
+
+## 2026-10-30 — PR #330 exact-head re-audit and correction checkpoint
+
+- Active remote candidate remains `fix/d1-d10-trial-archive-signing-api-20261029`, PR #330. Reviewed pre-correction HEAD: `6b02e31eba480084ba57d481b130fcafafe037f5`; `main`: `ac913cc3389a294d0b135a852b035ddddb1018ca`. Local checkout was not mounted; local git status is unknown and must not be described as clean.
+- Exact-head run 41004898403: backend/frontend lint, TypeScript/build, system-map validation and Quality Gate passed; unit tests were 2,316/2,326 with 10 failures. Three were stale static assertions in the trial/archive contract test; seven were Express referral middleware mocks without `method`. Candidate test updates correct the assertions/fixtures without relaxing runtime guards.
+- Organization archive permission was rechecked against the canonical IAM matrix. Generic clinic `admin` / `org_admin` are daily-admin roles, not organization owners; the candidate removes them from the archive allow-list while retaining self-service Supplier/Academy owner roles and specialized partner-owner roles.
+- Exact-head E2E remains failed/incomplete: core 240 pass / 5 skipped / BRANCH-003 viewport timeout; Browser UX 3 pass / one failure with 403 on `/crm/patients` and `/crm/treatment-plans`; mobile design gate succeeded (15 pass, one flaky WebKit navigation); role/context was cancelled and downstream gates skipped. The failing API paths behind the 403 are not present in the compact artifact and remain unresolved.
+- PR #328 (workspace picker), #329 (RB-029 portal PHI envelope), and #322 (Codespaces) remain open on their own branches. Their refs were rechecked; no changes were copied, merged, closed or overwritten.
+- No merge, staging/production migration, production DB write or deployment. Release remains NOT READY.
+- Next checkpoint: validate the new corrective commit by exact-head CI; then resolve the 403s from endpoint-level backend/browser evidence, and independently complete staging/production release gates.
+

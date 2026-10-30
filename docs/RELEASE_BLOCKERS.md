@@ -34,6 +34,16 @@ This entry supersedes stale source-level claims below where explicitly noted, bu
 - **D5 / Kaspi:** `docs/KASPI_CLINIC_SETUP.md` explicitly labels the sample HMAC callback as DentVision's adapter contract for a compatible third-party gateway, not the official Kaspi Pay/acquiring contract. Direct integration remains unverified until the merchant-issued technical specification and live callback are checked. Clinic-cash manual confirmation must never confirm platform SaaS/Academy/Shop payments.
 - **D9/D10 remain OPEN.** The new exact-head CI after these commits is pending. Both migrations remain unapplied to staging; no live DB/backfill, production CORS/WebSocket inspection, official Kaspi verification, branch-protection proof, full Master Spec workflow matrix or deployment has been performed.
 
+### Exact-head candidate follow-up — 2026-10-30
+
+- Exact-head CI [41004898403](https://github.com/drtamirlan911-cell/DentVision1/actions/runs/41004898403) on pre-correction PR #330 HEAD `6b02e31eba480084ba57d481b130fcafafe037f5`: lint/build/type/system-map, Quality Gate [41004898300](https://github.com/drtamirlan911-cell/DentVision1/actions/runs/41004898300) and RB-034 diagnostic [41004898478](https://github.com/drtamirlan911-cell/DentVision1/actions/runs/41004898478) passed; unit suite failed 10/2,326 (2,316 passed). Three failures were stale source-contract assertions; seven were referral-access test fixtures omitting Express `req.method`. Candidate corrections preserve the runtime expiry and tenant-access gates; exact-head rerun is required.
+- IAM source review found generic `admin` / `org_admin` in the organization archive allow-list despite the canonical IAM matrix describing ADMIN as a daily operational role, not owner governance. The candidate restricts archive to scoped owner-level roles and adds a regression contract. Do not close until exact-head tests pass.
+- E2E run 41004898403 is **not passed**: core 240 passed / 5 skipped / one BRANCH-003 viewport timeout; browser UX 3 passed / one failure with 403 resources on `/crm/patients` and `/crm/treatment-plans`; mobile design gate succeeded with 15 passed / one flaky WebKit navigation; role/context was cancelled and downstream gates skipped. The failing API request URLs behind the 403s were not captured in the compact artifact. Preserve the security assertion and investigate the actual endpoints. BRANCH-003 belongs to the separately maintained PR #328; do not copy that branch without its own verification.
+- Compact evidence inspected: artifact 12956934527 (2,249 B), 12954883562 (7,605 B), 12956065610 (10,396 B). Bulk traces/HTML/screenshot packages were not ingested.
+- Parallel PRs were preserved: #328 open at `966512b54a2937472732e2c94d23fd819de2edb0` (CI failed, Quality Gate passed); #329 open at `c2e5951ba631da1762bd3380c3bbc35c51953770` (CI cancelled, Quality Gate passed); #322 open draft. No sibling branch edits.
+- D9 remains OPEN; D10 remains OPEN. No staging/production migrations, PHI backfill, production CORS/WebSocket or official Kaspi verification was performed. Release remains NOT READY.
+
+
 ## Open
 
 ### RB-029 — Patient clinical history JSON is not encrypted at rest
