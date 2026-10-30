@@ -26,14 +26,12 @@ async function requireTargetClinicWritable(req: AuthRequest, res: any, next: any
   const clinicId = String(req.params.id || '').trim();
   if (!clinicId) return res.status(400).json({ ok: false, error: 'Клиника не указана', code: 'CLINIC_REQUIRED' });
   try {
-    if (req.user?.role === 'SUPERADMIN') {
-      const archivedOrganization = await prisma.organization.findFirst({
-        where: { originalType: 'Clinic', originalId: clinicId, archivedAt: { not: null } },
-        select: { id: true },
-      });
-      if (archivedOrganization) return res.status(404).json({ ok: false, error: 'Клиника не найдена', code: 'ORGANIZATION_ARCHIVED' });
-      return next();
-    }
+    const archivedOrganization = await prisma.organization.findFirst({
+      where: { originalType: 'Clinic', originalId: clinicId, archivedAt: { not: null } },
+      select: { id: true },
+    });
+    if (archivedOrganization) return res.status(404).json({ ok: false, error: 'Клиника не найдена', code: 'ORGANIZATION_ARCHIVED' });
+    if (req.user?.role === 'SUPERADMIN') return next();
     const membership = await resolveClinicAccess(req.user!.id, clinicId);
     if (!membership) return res.status(403).json({ ok: false, error: 'Вы не являетесь участником этой клиники' });
     const access = await resolveClinicSubscriptionAccess(clinicId);
