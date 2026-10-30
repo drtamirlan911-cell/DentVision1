@@ -2461,3 +2461,8 @@ These changes are route/entry reconciliation only. Existing domain implementatio
 - Keep the existing Zod 3 dependency contract for now. Inspect the lockfile's resolved Zod version, all Zod imports and used APIs (including preprocess/refine/superRefine/transform/coerce/default/optional behavior and inferred types), then map the exact CI diagnostic to the affected source.
 - If the failure is caused by an API incompatibility, implement the smallest source-compatible correction and add focused regression tests. If a Zod 4 migration is actually required, treat it as a separately verified dependency migration rather than silently changing the major version.
 - No Zod upgrade, lockfile modification, code change, test run, or CI rerun is claimed here. No staging/production database action or deployment was performed. `main` remains untouched; PR #330 remains the active target and release remains NOT READY.
+
+
+### Zod lockfile resolution — 2026-10-30
+- Follow-up inspection of `dentvision-backend/package-lock.json` (lockfileVersion 3) confirms `node_modules/zod` resolves to `3.25.76`, within the declared `^3.24.2` range. This is the repository's committed lockfile resolution at the active branch ref.
+- GitHub code search returned no indexed source matches for the attempted Zod queries; this is a search-index limitation, not evidence that the backend has no Zod consumers. Continue the API-usage audit using the repository tree/source files before changing dependencies.
