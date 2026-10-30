@@ -85,4 +85,24 @@ describe('trial backfill contract', () => {
     expect(text).toContain('const isClinicActor = await assertClinicOrgAccess(req.user!, clinicId)');
     expect(text).toContain("code: 'SUBSCRIPTION_EXPIRED'");
   });
+
+  it('preserves expired-clinic diagnostics referral reads while blocking referral mutations', async () => {
+    const text = await source('dentvision-backend/src/modules/diagnostics/diagnostics.routes.ts');
+    expect(text).toContain("const isWriteRequest = !['GET', 'HEAD', 'OPTIONS'].includes(req.method.toUpperCase());");
+    expect(text).toContain('if (isWriteRequest && !(await ensureClinicSubscriptionWritableIfClinicActor');
+  });
+
+  it('gates clinic IAM role assignment and removal after trial expiry', async () => {
+    const text = await source('dentvision-backend/src/modules/iam/iam.routes.ts');
+    expect(text).toContain('ensureClinicSubscriptionWritableForOrganization');
+    const assignStart = text.indexOf("iamRouter.post('/persons/:personId/roles'");
+    const assignEnd = text.indexOf("iamRouter.delete('/persons/:personId/roles/:roleId'", assignStart);
+    const assignRoute = text.slice(assignStart, assignEnd);
+    expect(assignRoute.indexOf('ensureClinicSubscriptionWritableForOrganization')).toBeGreaterThan(-1);
+    expect(assignRoute.indexOf('ensureClinicSubscriptionWritableForOrganization')).toBeLessThan(assignRoute.indexOf('personRole.upsert'));
+    const removeRoute = text.slice(assignEnd);
+    expect(removeRoute.indexOf('ensureClinicSubscriptionWritableForOrganization')).toBeGreaterThan(-1);
+    expect(removeRoute.indexOf('ensureClinicSubscriptionWritableForOrganization')).toBeLessThan(removeRoute.indexOf('personRole.deleteMany'));
+  });
+
 });
