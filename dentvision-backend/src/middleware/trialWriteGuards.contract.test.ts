@@ -135,4 +135,22 @@ describe('trial backfill contract', () => {
     expect(text).toContain("new ClinicInvitationError('Пробный период клиники завершён. Присоединение временно недоступно.', 402)");
   });
 
+
+  it('rejects archived target clinics before clinic settings or staff mutations', async () => {
+    const text = await source('dentvision-backend/src/modules/clinics/clinics.routes.ts');
+    expect(text).toContain("where: { originalType: 'Clinic', originalId: clinicId, archivedAt: { not: null } }");
+    expect(text).toContain("code: 'ORGANIZATION_ARCHIVED'");
+    expect(text).toContain('resolveClinicSubscriptionAccess(clinicId)');
+  });
+
+  it('filters archived legacy clinics and enforces branch target tenant consistency', async () => {
+    const clinics = await source('dentvision-backend/src/modules/clinics/clinics.routes.ts');
+    expect(clinics).toContain("originalType: 'Clinic', originalId: { in: memberClinicIds }, archivedAt: { not: null }");
+    const branches = await source('dentvision-backend/src/modules/branches/branches.routes.ts');
+    expect(branches).toContain("if (clinicId && clinicId !== organizationClinicId)");
+    expect(branches).toContain("organizationId = String(req.user?.organizationId || '').trim()");
+    expect(branches).toContain("originalType: 'Clinic', originalId: clinicId, archivedAt: { not: null }");
+    expect(branches).toContain("if (!activeOrganization) return null");
+  });
+
 });
