@@ -440,3 +440,14 @@ Parallel-branch evidence retained during integration; reconcile against the curr
 
 - **Derivative-PHI event minimization (candidate branch `security/rb029-patient-portal-history-envelope-20261026`):** PatientCreated's durable AI event and AI Employee task payload now contain only a patient ID and a complaint-presence boolean; actions re-read and decrypt the clinic-scoped Patient record in memory, and notification messages omit complaint text and patient names. This closes only that duplication path. Other clinical event payloads, AI transcripts, concurrency and full consumer audits remain open; RB-029 stays OPEN pending exact-head gates and an approved staging/rollback procedure.
 
+
+
+## 2026-10-30 — Parallel candidate integration checkpoint
+
+- PR #328 workspace-picker/role-access changes and PR #329 patient-history envelope changes have been integrated into the existing PR #330 candidate branch through history-preserving merge commits `091604d78d6457a0ae5e97a83ae96059c0dde945` and `a3138609fb147cbee0a8cfeab3ffd397ceb6212d`.
+- Original PRs #328 and #329 remain open at their original heads; temporary integration PRs #331/#332 are closed as merged into the #330 working branch. `main` remains unchanged.
+- RB-029 remains OPEN. The candidate now rejects caller-supplied legacy/envelope ciphertext at Patient create/update and Portal profile write boundaries, uses the shared structured JSON history encoder, guards concurrent writes with row-version predicates, and minimizes the PatientCreated event payload. These source-level changes do not close the remaining full consumer/concurrency audit, backup/rollback review, approved read-only staging dry run, count/round-trip/integrity reconciliation, or any required release gate.
+- RB-035 remains OPEN for patient read-route authorization, PHI serialization, cross-clinic IIN lookup disclosure and patient-deposit billing authorization; the #328 UI/page-policy changes do not close these backend risks.
+- Latest candidate HEAD after integration follow-up fixes: `415e4a9dc938de0d3c71cd6b795fd4f9c7f0e8cb`. Exact-head CI [41034452583](https://github.com/drtamirlan911-cell/DentVision1/actions/runs/41034452583) was pending at this checkpoint; Quality Gate [41034452312](https://github.com/drtamirlan911-cell/DentVision1/actions/runs/41034452312) and RB-034 diagnostic [41034452343](https://github.com/drtamirlan911-cell/DentVision1/actions/runs/41034452343) were in progress.
+- No database migration/backfill, production write, or deployment was performed. D1/D2 staging verification, RB-029 staging work, D5 provider/production checks, D9 full CI/E2E, and D10 workflow parity remain open.
+
