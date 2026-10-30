@@ -106,4 +106,16 @@ describe('trial backfill contract', () => {
     expect(removeRoute.indexOf('ensureClinicSubscriptionWritableForOrganization')).toBeLessThan(removeRoute.indexOf('personRole.deleteMany'));
   });
 
+
+  it('does not reuse archived organization contexts during self-service onboarding retries', async () => {
+    const text = await source('dentvision-backend/src/modules/organizations/organizations.routes.ts');
+    expect(text).toContain('organization: { archivedAt: null }');
+  });
+
+  it('does not return an archived clinic from demo-clinic idempotency lookup', async () => {
+    const text = await source('dentvision-backend/src/modules/auth/auth.routes.ts');
+    expect(text).toContain("archivedAt: { not: null }");
+    expect(text).toContain("if (!archivedOrganization) return { clinic: candidate.clinic, created: false };");
+  });
+
 });
