@@ -36,12 +36,14 @@ describe('patients route branch scope contract', () => {
     expect(source).toContain("patientsRouter.get('/:id/summary',requireClinicalChartRead,requirePermission('billing.read')");
   });
 
-  it('returns only a safe contact suggestion for a cross-clinic IIN match', () => {
-    expect(source).toContain('const suggested=!existing?await prisma.patient.findFirst');
-    expect(source).toContain('select:{firstName:true,lastName:true,phone:true,email:true}');
-    expect(source).toContain('suggested:suggested?{name:');
-    expect(source).not.toContain('suggested?{id:');
-    expect(source).not.toContain('suggested?{clinicId:');
+  it('keeps IIN lookup inside the active clinic and never reveals cross-clinic identity', () => {
+    const lookupStart = source.indexOf("patientsRouter.get('/lookup'");
+    const summaryStart = source.indexOf("patientsRouter.get('/:id/summary'", lookupStart);
+    const lookupRoute = source.slice(lookupStart, summaryStart);
+    expect(lookupRoute).toContain('scopedPatientWhere');
+    expect(lookupRoute).toContain('auditFromReq');
+    expect(lookupRoute).not.toContain('clinicId:{not:clinicId}');
+    expect(lookupRoute).not.toContain('suggested');
   });
 
   it('requires medical read/write for patient mutation responses and clinical payloads', () => {

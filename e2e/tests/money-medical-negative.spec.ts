@@ -184,7 +184,7 @@ test.describe('Здоровье: медицинские записи', () => {
   });
 });
 
-test.describe('ИИН: справочник подставляет контакты, но не медицину', () => {
+test.describe('ИИН: межклиническая идентичность не раскрывается без согласия', () => {
   const SHARED_IIN = makeIin();
 
   test.beforeAll(async () => {
@@ -202,55 +202,67 @@ test.describe('ИИН: справочник подставляет контак�
     expect(created.ok(), await created.text()).toBeTruthy();
   });
 
-  test('клиника A получает ФИО, телефон и почту, чтобы не спрашивать дважды', async () => {
+  test('клиника A не получает контакты человека, известного клинике B', async () => {
     const res = await ctx.get(`/api/patients/lookup?iin=${SHARED_IIN}`, { headers: auth(ownerA) });
 
     expect(res.status()).toBe(200);
     const data = (await res.json()).data;
-    expect(data.suggested).toMatchObject({
-      name: 'Известный Платформе',
-      phone: '+77010001111',
-      email: 'known@test.dentvision',
-    });
+    expect(data.existing).toBeNull();
+    expect(data).not.toHaveProperty('suggested');
+    expect(data).not.toHaveProperty('sourceClinic');
   });
 
-  // The line the product draws: contact identity is shared, a handle on
-  // someone else's record is not.
-  test('но не идентификатор чужой записи и не название клиники', async () => {
-    const res = await ctx.get(`/api/patients/lookup?iin=${SHARED_IIN}`, { headers: auth(ownerA) });
+  test('результат неотличим по структуре от ИИН без совпадения в другой клинике', async () => {
+    const unknownIin = makeIin();
+    const [knownElsewhere, unknown] = await Promise.all([
+      ctx.get(`/api/patients/lookup?iin=${SHARED_IIN}`, { headers: auth(ownerA) }),
+      ctx.get(`/api/patients/lookup?iin=${unknownIin}`, { headers: auth(ownerA) }),
+    ]);
 
-    const data = (await res.json()).data;
-    expect(data.suggested).not.toHaveProperty('id');
-    expect(data.suggested).not.toHaveProperty('clinicId');
-    expect(data.existing).toBeNull();
+    expect(knownElsewhere.status()).toBe(200);
+    expect(unknown.status()).toBe(200);
+    const knownData = (await knownElsewhere.json()).data;
+    const unknownData = (await unknown.json()).data;
+    expect(knownData.existing).toBeNull();
+    expect(unknownData.existing).toBeNull();
+    expect(Object.keys(knownData).sort()).toEqual(Object.keys(unknownData).sort());
+    expect(knownData).not.toHaveProperty('suggested');
   });
 
   test('дата рождения и пол выводятся из самого номера', async () => {
     const res = await ctx.get(`/api/patients/lookup?iin=${SHARED_IIN}`, { headers: auth(ownerA) });
 
+    expect(res.status()).toBe(200);
     const data = (await res.json()).data;
     expect(data.derived.birthDate).toBe('1990-01-01');
     expect(data.derived.gender).toBe('male');
+    expect(data.existing).toBeNull();
   });
 
-  // Nothing clinical leaks through the contact lookup: the patient's own
-  // consent is still the only way in, and clinic A must not reach B's records.
-  test('медицинские записи чужой клиники по-прежнему недоступны', async () => {
+  test('совпадение ИИН в другой клинике не открывает историю без одобрения пациента', async () => {
     const created = await ctx.post('/api/patients', {
       headers: auth(ownerA),
-      data: { iin: makeIin(), firstName: 'Свой', lastName: 'Пациент', phone: '+77010002222' },
+      data: { iin: SHARED_IIN, firstName: 'Свой', lastName: 'Пациент', phone: '+77010002222' },
     });
-    expect(created.ok()).toBeTruthy();
+    expect(created.ok(), await created.text()).toBeTruthy();
     const ownPatientId = ((await created.json()).data || {}).id as string;
 
-    // The cross-clinic route answers the same whether or not history exists.
-    const res = await ctx.get(`/api/cross-clinic/history/${ownPatientId}`, { headers: auth(ownerA) });
+    // The request is intentionally non-enumerating: the response is identical
+    // whether the source clinic has a linked portal user or not.
+    const requested = await ctx.post('/api/cross-clinic/request', {
+      headers: auth(ownerA),
+      data: { receivingPatientId: ownPatientId },
+    });
+    expect(requested.status()).toBe(200);
+    expect((await requested.json()).data).toEqual({ requested: true });
 
-    expect(res.status()).toBeLessThan(500);
-    if (res.ok()) {
-      const blocks = (await res.json()).data;
-      expect(Array.isArray(blocks) ? blocks : []).toHaveLength(0);
-    }
+    const status = await ctx.get(`/api/cross-clinic/status/${ownPatientId}`, { headers: auth(ownerA) });
+    expect(status.status()).toBe(200);
+    expect((await status.json()).data.status).toBe('none');
+
+    const history = await ctx.get(`/api/cross-clinic/history/${ownPatientId}`, { headers: auth(ownerA) });
+    expect(history.status()).toBe(200);
+    expect((await history.json()).data).toEqual([]);
   });
 });
 
