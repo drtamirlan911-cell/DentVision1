@@ -69,7 +69,7 @@ describe('offline schedule queue privacy guard', () => {
         clinicId: 'clinic-opaque-id',
         patientId: 'patient-opaque-id',
         doctorId: 'doctor-opaque-id',
-        service: 'service-catalog-opaque-id',
+        service: 'Имплантация зуба 11',
         serviceId: 'service-catalog-opaque-id',
         serviceName: 'Имплантация зуба 11',
         toothNumber: '11',
@@ -86,11 +86,12 @@ describe('offline schedule queue privacy guard', () => {
     const payload = queue[0].payload as Record<string, unknown>;
     expect(payload).not.toHaveProperty('serviceName');
     expect(payload).not.toHaveProperty('toothNumber');
-    expect(payload.service).toBe('service-catalog-opaque-id');
+    expect(payload).not.toHaveProperty('service');
     expect(payload.serviceId).toBe('service-catalog-opaque-id');
 
     const persisted = localStorage.getItem(QUEUE_KEY)!;
     expect(persisted).not.toContain('Имплантация зуба 11');
     expect(persisted).not.toContain('toothNumber');
+    expect(persisted).not.toContain('service');
   });
 });
