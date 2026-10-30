@@ -79,6 +79,11 @@ This entry supersedes stale source-level claims below where explicitly noted, bu
 - Run `40361059735` on `c06c1a02ad508d1ff07b94fd1c78ebab5e59307f` still failed the role/context gate. The runner uses UI origin `http://127.0.0.1:3000` and API base `http://127.0.0.1:3001`; the development CORS allowlist includes both loopback UI origins and the current workspace headers. This does not yet identify whether WebKit is rejecting a preflight/header, receiving an error without CORS headers, or hitting a network/route failure.
 - Candidate `56ab3ecfe5d1f0d02cc8be00816151a69dd30dce` changes IAM page policy and anonymous test setup only; it does not claim to resolve RB-031. Inspect the next run's request/OPTIONS response headers and bounded console excerpt before changing CORS rules. Do not suppress the error collector or broaden production CORS.
 
+#### Follow-up — WebKit request evidence (2026-10-30, run 41092300195)
+- Inspected the failed role-mobile-safari traces. Many API requests returned HTTP 200 with `Access-Control-Allow-Origin: http://127.0.0.1:3000`, matching the page Origin. A smaller set of requests had no response status/headers (status -1), while the trace recorded `Load request cancelled` for guest-session and other in-flight requests.
+- The failed request/page-error summary names `/api/ai/proactive` and related calls, but the trace does not yet establish a rejected preflight or a missing/incorrect CORS response header for those requests. Identical-origin API calls often succeed.
+- **Status remains OPEN.** Do not broaden production CORS, suppress request/page errors, or classify these failures as harmless. Capture the exact failing request lifecycle/OPTIONS exchange on a fresh exact-head run and fix the actual cancellation/network cause.
+
 ### RB-032 — Successful-path E2E DOM dumps inflate role/visual artifacts
 - **Status:** IN PROGRESS — artifact policy corrected in the follow-up; exact-HEAD verification pending
 - **Priority:** P1
@@ -221,6 +226,11 @@ This entry supersedes stale source-level claims below where explicitly noted, bu
 - **Latest exact-head evidence (run `39970030360`):** Visual Agent reported a patient-portal booking anchor at 149×24 with no design-system classes, and the diagnostics `Все` action at approximately 36px. Source inspection found the shared `Button asChild` passed a React Fragment to Radix `Slot`, so variant/size/className were not forwarded to the anchor; `DiagnosticsDashboard.tsx` used the extra-small variant for `Все`.
 - **Follow-up in current candidate:** forward loading/icon/text into the actual slotted child element, add a regression test for link class/variant propagation, and set the diagnostics action to `min-h-11`.
 - **Verification:** exact-head Visual Agent and role matrix must prove no undersized controls across critical mobile/tablet widths and role contexts, including keyboard/touch interactions and screenshots. Keep the 36px assertion unchanged.
+
+#### Follow-up — Academy course breadcrumb target (2026-10-30)
+- Exact-head role gate run 41092300195 inspected the authenticated `/school/course/e2e` view and measured the visible `Academy OS` breadcrumb button at 92×16px across 11 role-1280 failures.
+- The source button is the breadcrumb navigation back to `/school`. The follow-up sets a 36px minimum height and maintains the breadcrumb row alignment with internal horizontal padding and a matching negative left margin.
+- The role gate's 36px minimum remains unchanged. Re-run the exact-head role and Visual Agent gates and inspect screenshots/DOM geometry before marking RB-003 fixed.
 
 ### RB-004 — Full visual/design release evidence
 - **Status:** OPEN
@@ -427,13 +437,13 @@ Parallel-branch evidence retained during integration; reconcile against the curr
 
 ### Preserved 328 branch change
 
-### RB-035 — Patient API read routes lack explicit RBAC and IIN lookup returns cross-clinic identity data
-- **Status:** OPEN — confirmed by source review on candidate `a4ab7285c8fa69df42d220c48d83267b760c56d9`; not fixed by the current page-surface patch
+### RB-035 — Patient API authorization, PHI serialization, IIN lookup and deposit boundary
+- **Status:** IN PROGRESS — source guards are present on the current candidate; exact-head negative regression verification is pending
 - **Priority:** P0
 - **Area:** PHI / RBAC / tenant isolation / financial authorization
-- **Evidence:** `dentvision-backend/src/modules/patients/patients.routes.ts` has no explicit `requirePermission` on the patient list and several direct-read routes (`/:id`, `/:id/summary`, `/:id/history`, `/:id/images`, `/:id/treatment-plan`, `/:id/audit`, `/:id/assignments`). `serializePatient()` returns decrypted IIN, medical history, allergies, tooth data and prepaid balance. `loadClinicPatient()` checks clinic/branch scope but does not replace a role permission check. The IIN lookup route returns the name, phone and email of a matching patient in a different clinic. `POST /:id/deposit` has a clinic-writable guard but no explicit billing permission.
-- **Required fix:** enforce explicit read permissions at each route; keep basic patient-list access separate from clinical-history access and redact fields by effective permission; enforce branch/assignment scope for direct reads; replace cross-clinic suggested PHI with a consent-governed minimal result; require a billing permission for deposit mutations. Add negative route tests for manager, LAB, assistant and cross-clinic callers.
-- **Verification:** no patient-route fix or regression test is included in this commit. Do not close this blocker or infer API security from frontend page guards.
+- **Current source evidence:** `GET /api/patients` and IIN lookup require `patient.read`; the IIN lookup is restricted to the active clinic via `scopedPatientWhere` and does not return cross-clinic identity/contact data. Full chart, history, images and treatment-plan reads use the clinical-chart permission guard; audit and assignment reads add their respective permissions. Patient serialization includes prepaid balance only when the caller has a billing permission. `POST /:id/deposit` explicitly requires `billing.write`, before clinic/branch-scoped patient loading.
+- **Regression coverage:** existing negative E2E cases cover manager/assistant full-chart denial, clinic LAB denial for patient list/IIN lookup/full chart, and non-enumerating cross-clinic IIN behavior. This follow-up adds manager/assistant deposit denial with a before/after balance assertion and a LAB deposit-denial assertion. Exact-head CI must verify these cases before this blocker can be closed.
+- **Remaining:** verify all direct read and mutation routes against the canonical IAM matrix, retain clinic/branch/assignment scope and field-level PHI redaction, and pass the exact-head negative tests. Do not close this blocker based on frontend page visibility or source inspection alone.
 
 
 ### Preserved 329 branch change

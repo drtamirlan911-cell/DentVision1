@@ -177,7 +177,34 @@ test.describe('Здоровье: медицинские записи', () => {
     expect(assistant.status()).toBe(403);
   });
 
-  test('clinic LAB cannot browse the patient register, IIN lookup or a full chart', async () => {
+  test('менеджер и ассистент не пополняют баланс пациента без billing.write', async () => {
+    const created = await ctx.post('/api/patients', {
+      headers: auth(ownerA),
+      data: { iin: makeIin(), firstName: 'RB035', lastName: 'DepositBoundary', phone: '+77010004445' },
+    });
+    expect(created.ok(), await created.text()).toBeTruthy();
+    const patientId = ((await created.json()).data || {}).id as string;
+
+    const beforeResponse = await ctx.get(`/api/patients/${patientId}`, { headers: auth(ownerA) });
+    expect(beforeResponse.status(), await beforeResponse.text()).toBe(200);
+    const beforeData = (await beforeResponse.json()).data;
+    expect(beforeData).toHaveProperty('prepaidBalance');
+    const beforeBalance = Number(beforeData.prepaidBalance);
+
+    const [manager, assistant] = await Promise.all([
+      ctx.post(`/api/patients/${patientId}/deposit`, { headers: auth(managerA), data: { amount: 1000 } }),
+      ctx.post(`/api/patients/${patientId}/deposit`, { headers: auth(assistantA), data: { amount: 1000 } }),
+    ]);
+    expect(manager.status()).toBe(403);
+    expect(assistant.status()).toBe(403);
+
+    const afterResponse = await ctx.get(`/api/patients/${patientId}`, { headers: auth(ownerA) });
+    expect(afterResponse.status(), await afterResponse.text()).toBe(200);
+    const afterData = (await afterResponse.json()).data;
+    expect(Number(afterData.prepaidBalance)).toBe(beforeBalance);
+  });
+
+  test('clinic LAB cannot browse the patient register, IIN lookup, chart or patient balance', async () => {
     const clinicsRes = await ctx.get('/api/auth/my-clinics', { headers: auth(ownerA) });
     expect(clinicsRes.status()).toBe(200);
     const clinics = (await clinicsRes.json()).data;
@@ -193,14 +220,16 @@ test.describe('Здоровье: медицинские записи', () => {
     expect(staff.status(), await staff.text()).toBe(201);
     const labToken = await signIn(email, password);
 
-    const [list, lookup, chart] = await Promise.all([
+    const [list, lookup, chart, deposit] = await Promise.all([
       ctx.get('/api/patients', { headers: auth(labToken) }),
       ctx.get(`/api/patients/lookup?iin=${makeIin()}`, { headers: auth(labToken) }),
       ctx.get(`/api/patients/${MISSING_ID}`, { headers: auth(labToken) }),
+      ctx.post(`/api/patients/${MISSING_ID}/deposit`, { headers: auth(labToken), data: { amount: 1000 } }),
     ]);
     expect(list.status()).toBe(403);
     expect(lookup.status()).toBe(403);
     expect(chart.status()).toBe(403);
+    expect(deposit.status()).toBe(403);
   });
 
   test('визиты несуществующего пациента — не 500', async () => {

@@ -2484,3 +2484,25 @@ These changes are route/entry reconciliation only. Existing domain implementatio
 - CI run 41099779548: E2E job was still initializing containers; test steps had not started. Frontend lint, backend lint and lint/unit job were also in progress.
 - RB-034 diagnostic 41099779647: still in progress.
 - No current-head role gate, Academy fixture, Safari or access-control outcome is claimed yet. Poll the same runs, inspect exact-head artifacts, and fix confirmed source causes. Keep RB-003, RB-025 and RB-031 open.
+
+## 2026-10-30 — Exact-head role-gate follow-up and bounded fixes
+
+### Baseline and evidence
+- Repository: `drtamirlan911-cell/DentVision1`; active target remains PR #330 on `fix/d1-d10-trial-archive-signing-api-20261029`. The live pre-change PR head was `77fc9c81fbc276621ad1a4d03a753e4733819722`; `main` remains `ac913cc3389a294d0b135a852b035ddddb1018ca`.
+- Compared `0fea50855c22d0f211d549879edac35c16f160b4` with the live pre-change head: intervening commits changed only `DENTVISION_CONTEXT.md`, `DENTVISION_EXECUTION_LOG.md` and `docs/RELEASE_BLOCKERS.md`; the frontend/backend implementation under test was unchanged.
+- CI run [41092300195](https://github.com/drtamirlan911-cell/DentVision1/actions/runs/41092300195) tested code head `0fea50855c22d0f211d549879edac35c16f160b4`. Frontend lint, backend lint, core E2E, Browser UX, mobile design, Visual Agent, business-owner journeys, organization-owner lifecycle, Playwright CLI smoke and visual evidence validation passed. The role/context gate failed: 113 passed, 27 failed, 28 skipped. Its 27 failures reduced to 11 repeated touch-target failures on `/school/course/e2e` and 16 Safari/WebKit request/page-error failures.
+- The Academy breadcrumb button was measured at 92×16px. The role gate explicitly enforces 36px minimum targets; this requirement is not weakened.
+- WebKit traces show many same-origin API calls returning 200 with the expected ACAO header, plus a bounded set of requests with no response status/headers and `Load request cancelled`. The evidence does not prove a rejected preflight or invalid CORS header. RB-031 remains OPEN; do not broaden production CORS or suppress the network collector.
+- The same CI run's generated System Map validation found the tracked snapshot stale by two facts: routes without a detected web/mobile consumer 99→98, and `/api/lab-orders` detected consumers 1→0. Running `npm run system-map --prefix dentvision-backend` in an isolated worktree on the exact unchanged code regenerated precisely those two values.
+- Local isolated-worktree `npm test` on code head `0fea5085` completed with 260 files, 2,367 tests passed and zero failures. This is not a substitute for the new exact-head CI after this follow-up.
+- Vercel deployment `dpl_6mymyhU2mUnB4SWovL1zbBWbEUWX` for `dent-vision1` built successfully from `0fea5085` (24 seconds); the only build diagnostic was the non-blocking 696KB main-chunk warning. This is not a deployment of the follow-up changes.
+
+### Changes in this follow-up
+- Increased the School course breadcrumb navigation hit area to at least 36px using `min-h-9`, retaining the text/icon and route action.
+- Refreshed `docs/SYSTEM_MAP.md` to the two verified generator outputs; no route, endpoint or permission code was changed for this documentation correction.
+- Added E2E negative coverage that Manager and Assistant cannot deposit patient funds and that the patient prepaid balance remains unchanged; added an explicit clinic-LAB denial assertion for the deposit endpoint.
+- Reconciled RB-035's source evidence with the current route guards and kept it IN PROGRESS pending exact-head CI; recorded the precise unresolved WebKit evidence under RB-031.
+
+### Verification and release limits
+- New exact-head CI, Quality Gate, role/context, Visual Agent and RB-034 outcomes are required before treating the source/test follow-up as verified. Keep RB-003, RB-031, RB-035 and overall release status open until their respective gates pass.
+- No production/staging database migration, backfill, PHI write, branch merge to `main`, or production deployment was performed.
