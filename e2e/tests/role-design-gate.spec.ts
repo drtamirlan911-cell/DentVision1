@@ -6,6 +6,10 @@ const API_BASE_URL = process.env.VITE_API_URL || 'http://127.0.0.1:3001';
 const VISUAL_EVIDENCE_ROOT = process.env.VISUAL_EVIDENCE_DIR || 'e2e/visual-evidence';
 const PASSWORD = 'Test1234!';
 
+// Track finite app API and web-font requests so full-document E2E navigation
+// never tears down work owned by the route being audited.
+const pendingCriticalRequestsByPage = new WeakMap<Page, Map<any, string>>();
+
 const PUBLIC_ROUTES = ['/', '/login', '/register', '/forgot-password', '/booking', '/demo', '/pricing', '/terms', '/privacy', '/jobs', '/help', '/community', '/shop'];
 const AUTH_COMMON_ROUTES = ['/', '/ai', '/help', '/notifications', '/profile'];
 const AUTHENTICATED_BASE_PAGES = ['shop','school','profile','settings','diagnostics','diagnostics-centers','diagnostics-labs','diagnostics-laboratories'] as const;
@@ -99,6 +103,30 @@ function pageId(route: string, role?: Role): string | null {
   return null;
 }
 
+async function waitForRouteActivity(page: Page, roleId: string, route: string) {
+  const pending = pendingCriticalRequestsByPage.get(page);
+  if (pending) {
+    try {
+      await expect.poll(() => pending.size, {
+        timeout: 20000,
+        intervals: [50, 100, 250, 500, 1000],
+        message: roleId + ' ' + route + ': route-owned API/font requests did not settle',
+      }).toBe(0);
+    } catch (error) {
+      const active = [...pending.values()];
+      throw new Error(roleId + ' ' + route + ': pending route-owned requests: ' + active.join('; ') + '. ' + String(error));
+    }
+  }
+  try {
+    await page.evaluate(async () => {
+      await document.fonts.ready;
+      return document.fonts.status;
+    });
+  } catch (error) {
+    throw new Error(roleId + ' ' + route + ': web fonts did not settle: ' + String(error));
+  }
+}
+
 async function login(page: Page, email: string) {
   // Clear persisted identity before the React auth initializer runs. Clearing
   // after goto previously allowed stale tokens to emit /auth/me 401 responses.
@@ -130,6 +158,7 @@ async function login(page: Page, email: string) {
     timeout: 10000,
     message: email + ': authenticated workspace did not render',
   }).toMatch(/.{20,}/s);
+  await waitForRouteActivity(page, email, 'post-login');
   page.off('request', captureGuestSession);
   expect(guestSessionRequests, email + ': guest session must not race authenticated login').toEqual([]);
 }
@@ -177,6 +206,7 @@ async function activatePartnerWorkspace(page: Page, role: Role) {
     timeout: 15000,
     message: role.id + ': scoped workspace did not render',
   }).toContain(role.label);
+  await waitForRouteActivity(page, role.id, 'partner-context');
 }
 
 async function acceptPatientPortalConsents(page: Page) {
@@ -197,9 +227,23 @@ async function acceptPatientPortalConsents(page: Page) {
 
 function collectors(page: Page) {
   const problems={console:[] as string[],page:[] as string[],requests:[] as string[],http:[] as string[],server:[] as string[]};
+  const pending = new Map<any, string>();
+  pendingCriticalRequestsByPage.set(page, pending);
+  page.on('request', request => {
+    try {
+      const url = new URL(request.url());
+      if (url.pathname.startsWith('/api/') || ['fonts.gstatic.com', 'fonts.googleapis.com'].includes(url.hostname)) {
+        pending.set(request, request.method() + ' ' + url.origin + url.pathname);
+      }
+    } catch { /* non-URL browser requests are outside this gate */ }
+  });
+  page.on('requestfinished', request => pending.delete(request));
   page.on('console',m=>{if(m.type()==='error') problems.console.push(m.text())});
   page.on('pageerror',e=>problems.page.push(e.message));
-  page.on('requestfailed',r=>problems.requests.push(r.method()+' '+r.url()+' :: '+(r.failure()?.errorText||'failed')));
+  page.on('requestfailed',r=>{
+    pending.delete(r);
+    problems.requests.push(r.method()+' '+r.url()+' :: '+(r.failure()?.errorText||'failed'));
+  });
   page.on('response',r=>{
     const status=r.status();
     if(status>=400){
@@ -421,6 +465,7 @@ async function auditRoute(page: Page, role: Role, route: string, shouldBeAllowed
     }).not.toBe(expectedPath);
     current = new URL(page.url());
     expect(current.pathname, role.id + ' ' + route + ': forbidden route stayed open').not.toBe(expectedPath);
+    await waitForRouteActivity(page, role.id, route + ' forbidden redirect');
     return;
   }
 
@@ -439,6 +484,7 @@ async function auditRoute(page: Page, role: Role, route: string, shouldBeAllowed
     await waitForRouteReady(page, role, route);
     current = new URL(page.url());
   }
+  await waitForRouteActivity(page, role.id, route);
 
   // DOM content, route policy and visual semantics are asserted live in-browser. Do not
   // persist full HTML/text for every passing route: this checkpoint uploads role evidence
@@ -598,9 +644,9 @@ test.describe('DentVision exhaustive role/context/browser gate',()=>{
             timeout: 10000,
             message: role.id + ' ' + route + ': responsive critical screen did not render',
           }).toMatch(/.{20,}/s);
-          // Do not tear down page-owned API/lazy-module requests by immediately
-          // navigating to the next route. Any failed request remains a hard gate.
-          await page.waitForLoadState('networkidle', { timeout: 3000 }).catch(() => {});
+          // Await the exact API and web-font requests started by this route.
+          // A timeout is a hard failure with the still-pending request paths.
+          await waitForRouteActivity(page, role.id, route);
           expect(new URL(page.url()).pathname, role.id + ' ' + route + ': responsive allowed screen redirected to login').not.toBe('/login');
           await shellAudit(page, role, route);
           await inspectForms(page, role, route);
@@ -612,6 +658,7 @@ test.describe('DentVision exhaustive role/context/browser gate',()=>{
         }
 
         await page.goto(BASE_URL + '/', { waitUntil: 'domcontentloaded', timeout: 30000 });
+        await waitForRouteActivity(page, role.id, '/');
         const storage = await page.evaluate(() => ({ localStorage: Object.keys(localStorage), sessionStorage: Object.keys(sessionStorage) }));
         expect(JSON.stringify(storage)).not.toMatch(/password/i);
         const token = await page.evaluate(() => Object.entries(localStorage).filter(([k]) => /token|auth/i.test(k)).map(([,v]) => String(v)).join(' '));
@@ -641,10 +688,12 @@ test.describe('DentVision exhaustive role/context/browser gate',()=>{
       // Full route authorization/DOM audits remain exhaustive; history integrity is viewport-independent.
       const historyRoute = '/profile';
       await page.goto(BASE_URL + historyRoute, { waitUntil: 'domcontentloaded', timeout: 30000 });
+      await waitForRouteActivity(page, role.id, historyRoute);
       await expect.poll(() => page.locator('body').innerText().catch(() => ''), {
         timeout: 10000, message: role.id + ': profile did not render for browser-history check',
       }).toMatch(/.{20,}/s);
       await page.reload({ waitUntil: 'domcontentloaded', timeout: 30000 });
+      await waitForRouteActivity(page, role.id, historyRoute + ' reload');
       await expect.poll(() => page.locator('body').innerText().catch(() => ''), {
         timeout: 10000, message: role.id + ': profile did not render after reload',
       }).toMatch(/.{20,}/s);
@@ -652,9 +701,11 @@ test.describe('DentVision exhaustive role/context/browser gate',()=>{
       await page.goBack({ waitUntil: 'domcontentloaded', timeout: 30000 }).catch(() => {});
       await page.goForward({ waitUntil: 'domcontentloaded', timeout: 30000 }).catch(() => {});
       expect(new URL(page.url()).pathname, role.id + ': browser forward did not restore target route').toBe(historyRoute);
+      await waitForRouteActivity(page, role.id, historyRoute + ' history-forward');
       await shellAudit(page, role, historyRoute);
 
       await page.goto(BASE_URL+'/',{waitUntil:'domcontentloaded',timeout:30000});
+      await waitForRouteActivity(page, role.id, '/');
       const storage=await page.evaluate(()=>({localStorage:Object.keys(localStorage),sessionStorage:Object.keys(sessionStorage)}));
       expect(JSON.stringify(storage)).not.toMatch(/password/i);
       const token=await page.evaluate(()=>Object.entries(localStorage).filter(([k])=>/token|auth/i.test(k)).map(([,v])=>String(v)).join(' '));

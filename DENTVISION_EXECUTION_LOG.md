@@ -2540,3 +2540,20 @@ These changes are route/entry reconciliation only. Existing domain implementatio
 - Reviewed the initial guard placement for information disclosure. The expiry check must not run before owner authorization, or a caller without access to an organization could learn whether its clinic trial has expired.
 - Moved the clinic trial check into the archive handler after the existing scoped owner lookup, using the resolved target organization's `originalId`. For a clinic, a missing subscription/access state fails closed (503/404), and an expired trial blocks the archive write (402). Non-clinic organization archive and platform SUPERADMIN recovery semantics remain unchanged.
 - Updated the regression contract to enforce the order: owner authorization → target clinic subscription check → Organization soft-archive write. The existing soft archive still changes only the Organization lifecycle; linked clinic data remains retained.
+
+
+## 2026-10-31 — Role/context E2E: prevent navigation-aborted API/font requests
+
+### Exact-head evidence
+- PR #330 head tested: `a12a099b7c2ed4c25bb2388d74b3c0087bbde583`; GitHub Actions CI [41118472818](https://github.com/drtamirlan911-cell/DentVision1/actions/runs/41118472818) completed with frontend/backend lint, TypeScript/build and unit suite green; Role/Context failed with 128 passed, 4 failed and 8 flaky.
+- The failed requests were not a CORS allowlist failure. Playwright recorded `Load request cancelled` for route-owned `/api/ai/threads/active`, `/api/ai/briefing`, `/api/ai/proactive`, `/api/ai/history`, and Google font resources after the next full-document navigation began.
+- The prior gate waited for `networkidle` for only 3 seconds and swallowed its timeout. It then navigated away despite outstanding API/font work. The backend access JWT defaults to 15 minutes; the exhaustive route traversal can outlast that TTL and produce a stale `401 GET /api/auth/me` during history/session restoration.
+
+### Changes in this follow-up
+- E2E collectors now track in-flight app API and Google font requests. Route readiness waits for those requests to finish and for `document.fonts.ready`; a 20-second timeout fails with still-pending request paths. Failed requests remain recorded and fail the gate.
+- Removed the swallowed 3-second `networkidle` wait from responsive role journeys. The same deterministic settlement check now runs after login, partner context activation, exhaustive route loads, browser-history reloads and final workspace navigation.
+- Increased `JWT_EXPIRES_IN` to 120 minutes and `JWT_REFRESH_EXPIRES_IN` to 24 hours only in the disposable GitHub Actions E2E job environment. Production JWT TTL/configuration is unchanged.
+- No API/network assertion was removed, no 401/403 was allowlisted, and no application permission was widened.
+
+### Verification
+- Exact-head CI, Quality Gate, RB-034 diagnostic and Vercel Preview are required for the new commit. No staging/production database operation, migration, PHI backfill, merge to `main` or production deployment was performed.

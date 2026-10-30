@@ -97,6 +97,10 @@ jobs:
       RATE_LIMIT_GUEST_SESSION_MAX: '1000'
       JWT_SECRET: e2e-ci-jwt-secret-not-for-production-use-only-000000
       JWT_REFRESH_SECRET: e2e-ci-refresh-secret-not-for-production-000000
+      # The exhaustive role/context gate can outlast the production 15-minute
+      # access token. Extend only the disposable CI database session lifetime.
+      JWT_EXPIRES_IN: 120m
+      JWT_REFRESH_EXPIRES_IN: 24h
       KASPI_CALLBACK_SECRET: e2e-ci-kaspi-callback-secret-not-for-prod-0000
       PAYMENTS_SANDBOX: 'true'
       PLAYWRIGHT_UI_URL: http://127.0.0.1:3000
