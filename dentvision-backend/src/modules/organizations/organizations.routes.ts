@@ -147,7 +147,7 @@ organizationsRouter.post('/self-service', async (req: AuthRequest, res) => {
 
     const result = await prisma.$transaction(async (tx) => {
       await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`dentvision.onboarding:${idempotencyKey}`}))`;
-      const existingPeople = await tx.person.findMany({ where: { userId: req.user!.id, organizationId: { not: null } }, include: { organization: true } });
+      const existingPeople = await tx.person.findMany({ where: { userId: req.user!.id, organizationId: { not: null }, organization: { archivedAt: null } }, include: { organization: true } });
       const existing = existingPeople.find((person) => {
         const settings = person.organization?.settings;
         return settings && typeof settings === 'object' && !Array.isArray(settings) && (settings as any).onboardingKey === idempotencyKey;
