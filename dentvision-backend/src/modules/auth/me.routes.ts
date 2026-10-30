@@ -8,8 +8,44 @@ import { resolveOrganizationRoleKey } from '../../lib/authContext.js';
 import { pagesForCaller, capabilitiesForPermissions } from '../../lib/permissions.js';
 import { syncPersonFromClinicMember } from '../../lib/syncMembership.js';
 import { createClinicInvitation } from './clinicInvitations.service.js';
+import { resolveClinicAccess as resolveClinicSubscriptionAccess } from '../billing/planEntitlements.js';
 
 export const authMeRouter = Router();
+
+/** Filter soft-archived clinic contexts from legacy auth discovery responses. */
+async function excludeArchivedClinicMemberships<T extends { clinicId: string }>(memberships: T[]): Promise<T[]> {
+  const clinicIds = [...new Set(memberships.map((membership) => membership.clinicId).filter(Boolean))];
+  if (!clinicIds.length) return memberships;
+  const archivedRows = await prisma.organization.findMany({
+    where: { originalType: 'Clinic', originalId: { in: clinicIds }, archivedAt: { not: null } },
+    select: { originalId: true },
+  });
+  const archivedClinicIds = new Set(archivedRows.map((row) => row.originalId).filter((id): id is string => Boolean(id)));
+  return memberships.filter((membership) => !archivedClinicIds.has(membership.clinicId));
+}
+
+/** Staff invitations are clinic writes; fail closed if archive/trial state cannot be verified. */
+async function ensureClinicContextWritableForInvitation(clinicId: string, res: any): Promise<boolean> {
+  const archived = await prisma.organization.findFirst({
+    where: { originalType: 'Clinic', originalId: clinicId, archivedAt: { not: null } },
+    select: { id: true },
+  });
+  if (archived) {
+    res.status(410).json({ ok: false, error: 'Организация архивирована', code: 'ORGANIZATION_ARCHIVED' });
+    return false;
+  }
+  const access = await resolveClinicSubscriptionAccess(clinicId);
+  if (!access) {
+    res.status(503).json({ ok: false, error: 'Не удалось проверить подписку клиники', code: 'CLINIC_ACCESS_UNVERIFIED' });
+    return false;
+  }
+  if (access.writeBlocked) {
+    res.status(402).json({ ok: false, error: 'Клиника работает в режиме только для чтения после окончания пробного периода.', code: 'SUBSCRIPTION_EXPIRED' });
+    return false;
+  }
+  return true;
+}
+
 
 class ClinicInvitationError extends Error {
   constructor(message: string, readonly statusCode: number) { super(message); }
@@ -25,6 +61,11 @@ authMeRouter.get('/invitations/lookup', async (req, res) => {
     if (!invitation || !invitation.clinic.active || invitation.usedAt || (invitation.expiresAt && invitation.expiresAt <= now)) {
       return res.status(404).json({ ok: false, error: 'Приглашение недействительно или истекло' } satisfies ApiResponse);
     }
+    const archivedOrganization = await prisma.organization.findFirst({
+      where: { originalType: 'Clinic', originalId: invitation.clinicId, archivedAt: { not: null } },
+      select: { id: true },
+    });
+    if (archivedOrganization) return res.status(404).json({ ok: false, error: 'Приглашение недействительно или истекло' } satisfies ApiResponse);
     return res.json({ ok: true, data: { clinicId: invitation.clinicId, clinic: { id: invitation.clinic.id, name: invitation.clinic.name }, role: invitation.role } } satisfies ApiResponse);
   } catch (error) {
     console.error('[auth/invitations/lookup]', error);
@@ -43,6 +84,11 @@ authMeRouter.post('/join-clinic', authenticate, async (req: AuthRequest, res) =>
         clinic: { select: { id: true, name: true, active: true } } } });
       const now = new Date();
       if (!invitation || !invitation.clinic.active || (invitation.expiresAt && invitation.expiresAt <= now)) throw new ClinicInvitationError('Приглашение недействительно или истекло', 404);
+      const archivedOrganization = await tx.organization.findFirst({
+        where: { originalType: 'Clinic', originalId: invitation.clinicId, archivedAt: { not: null } },
+        select: { id: true },
+      });
+      if (archivedOrganization) throw new ClinicInvitationError('Организация архивирована', 410);
       if (invitation.email && invitation.email.trim().toLowerCase() !== user.email.trim().toLowerCase()) throw new ClinicInvitationError('Приглашение предназначено для другого email', 403);
       const existingMembership = await tx.clinicMember.findUnique({ where: { userId_clinicId: { userId: user.id, clinicId: invitation.clinicId } },
         select: { id: true, role: true, clinicId: true, userId: true } });
@@ -50,6 +96,15 @@ authMeRouter.post('/join-clinic', authenticate, async (req: AuthRequest, res) =>
         if (invitation.usedBy !== user.id || !existingMembership) throw new ClinicInvitationError('Приглашение уже использовано', 409);
         return { clinic: invitation.clinic, membership: existingMembership };
       }
+      const subscription = await tx.subscription.findUnique({
+        where: { ownerType_ownerId: { ownerType: 'CLINIC', ownerId: invitation.clinicId } },
+        select: { status: true, periodEnd: true },
+      });
+      if (subscription && (
+        subscription.status === 'expired' ||
+        subscription.status === 'suspended' ||
+        (subscription.periodEnd && subscription.periodEnd <= now)
+      )) throw new ClinicInvitationError('Пробный период клиники завершён. Присоединение временно недоступно.', 402);
       const claimed = await tx.clinicInvitation.updateMany({ where: { id: invitation.id, usedAt: null, OR: [{ expiresAt: null }, { expiresAt: { gt: now } }] },
         data: { usedAt: now, usedBy: user.id } });
       if (claimed.count !== 1) throw new ClinicInvitationError('Приглашение уже использовано или истекло', 409);
@@ -70,14 +125,15 @@ authMeRouter.post('/join-clinic', authenticate, async (req: AuthRequest, res) =>
 
 authMeRouter.get('/me', authenticate, async (req: AuthRequest, res) => {
   const user = req.user!;
-  const memberships = await prisma.clinicMember.findMany({
+  const allMemberships = await prisma.clinicMember.findMany({
     where: { userId: user.id },
     include: { clinic: { select: { id: true, name: true, city: true, plan: true, logo: true } } },
     orderBy: { joinedAt: 'asc' },
   });
+  const memberships = await excludeArchivedClinicMemberships(allMemberships);
   const activeMembership = memberships[0] || null;
   const activeOrganization = user.organizationId
-    ? await prisma.organization.findUnique({ where: { id: user.organizationId }, select: { name: true } })
+    ? await prisma.organization.findFirst({ where: { id: user.organizationId, archivedAt: null }, select: { name: true } })
     : null;
 
   // `/me` is also the session-hydration contract used by the frontend. It must
@@ -141,11 +197,12 @@ authMeRouter.get('/me', authenticate, async (req: AuthRequest, res) => {
 });
 
 authMeRouter.get('/my-clinics', authenticate, async (req: AuthRequest, res) => {
-  const memberships = await prisma.clinicMember.findMany({
+  const allMemberships = await prisma.clinicMember.findMany({
     where: { userId: req.user!.id },
     include: { clinic: { select: { id: true, name: true, city: true, plan: true, logo: true } } },
     orderBy: { joinedAt: 'asc' },
   });
+  const memberships = await excludeArchivedClinicMemberships(allMemberships);
 
   return res.json({
     ok: true,
@@ -178,6 +235,7 @@ authMeRouter.post('/invitations', authenticate, async (req: AuthRequest, res) =>
     if (!['OWNER', 'ADMIN'].includes(membership.role)) {
       return res.status(403).json({ ok: false, error: 'Недостаточно прав для создания приглашений' } satisfies ApiResponse);
     }
+    if (!(await ensureClinicContextWritableForInvitation(clinicId, res))) return;
 
     const roleMap: Record<string, UserRole> = {
       OWNER: 'OWNER',
