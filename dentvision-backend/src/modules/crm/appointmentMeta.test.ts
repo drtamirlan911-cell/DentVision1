@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { findScheduleConflicts, timesOverlap } from './appointmentMeta.js'
+import { buildMeta, findScheduleConflicts, timesOverlap } from './appointmentMeta.js'
 
 type Candidate = {
   id: string
@@ -126,3 +126,21 @@ describe('findScheduleConflicts', () => {
     expect(conflicts).toEqual([])
   })
 })
+
+
+describe('buildMeta offline service identifiers', () => {
+  it('restores a canonical service key when the offline payload omits the human-readable label', () => {
+    const meta = buildMeta({ serviceId: 'service-catalog-opaque-id' });
+    expect(meta.serviceName).toBe('service-catalog-opaque-id');
+    expect(meta.reason).toBe('service-catalog-opaque-id');
+  });
+
+  it('does not replace an existing canonical service label on a partial offline update', () => {
+    const meta = buildMeta(
+      { serviceId: 'service-catalog-opaque-id' },
+      { serviceName: 'Existing service label', reason: 'Existing service label' },
+    );
+    expect(meta.serviceName).toBe('Existing service label');
+    expect(meta.reason).toBe('Existing service label');
+  });
+});
