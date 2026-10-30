@@ -349,10 +349,10 @@ if (container) {
                 <Route path="crm/integrations/messaging" element={guarded('clinic-settings', <IntegrationsMessaging />)} />
                 <Route path="shop" element={<Suspense fallback={<PageLoader />}><Shop /></Suspense>} />
                 <Route path="shop/:id" element={<Suspense fallback={<PageLoader />}><ShopProduct /></Suspense>} />
-                <Route path="shop/checkout" element={<Suspense fallback={<PageLoader />}><ShopCheckout /></Suspense>} />
-                <Route path="shop/orders" element={<Suspense fallback={<PageLoader />}><ShopOrders /></Suspense>} />
-                <Route path="shop/favorites" element={<Suspense fallback={<PageLoader />}><ShopFavorites /></Suspense>} />
-                <Route path="shop/suppliers" element={<Suspense fallback={<PageLoader />}><ShopSuppliers /></Suspense>} />
+                <Route path="shop/checkout" element={guarded('shop', <ShopCheckout />)} />
+                <Route path="shop/orders" element={guarded('shop', <ShopOrders />)} />
+                <Route path="shop/favorites" element={guarded('shop', <ShopFavorites />)} />
+                <Route path="shop/suppliers" element={guarded('shop', <ShopSuppliers />)} />
                 <Route path="diagnostics" element={guarded('diagnostics', <DiagnosticsLayout />)}>
                   <Route index element={<Suspense fallback={<PageLoader />}><DiagnosticsDashboard /></Suspense>} />
                   <Route path="referrals" element={guarded('diagnostics-referrals', <ReferralList />)} />
@@ -374,9 +374,10 @@ if (container) {
                   <Route path="center-dashboard" element={<Navigate to="/diagnostics/center" replace />} />
                   <Route path="lab-dashboard" element={<Navigate to="/diagnostics/lab" replace />} />
                 </Route>
-                <Route path="school" element={<Suspense fallback={<PageLoader />}><School /></Suspense>} />
-                <Route path="school/course/:id" element={<Suspense fallback={<PageLoader />}><SchoolCourse /></Suspense>} />
-                <Route path="school/workspace" element={<Suspense fallback={<PageLoader />}><SchoolWorkspace /></Suspense>} />
+                <Route path="school/courses" element={guarded('school', <Navigate to="/school" replace />)} />
+                <Route path="school" element={guarded('school', <School />)} />
+                <Route path="school/course/:id" element={guarded('school', <SchoolCourse />)} />
+                <Route path="school/workspace" element={guarded('school', <SchoolWorkspace />)} />
                 <Route path="school-workspace" element={<Navigate to="/school/workspace" replace />} />
                 <Route path="admin/shop" element={guarded('admin', <ShopAdmin />)} />
                 <Route path="admin/school" element={guarded('admin', <SchoolAdmin />)} />
