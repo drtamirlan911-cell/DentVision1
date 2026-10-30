@@ -128,7 +128,7 @@ describe('trial backfill contract', () => {
 
   it('reserves organization archive for owner-level roles, not generic administrators', async () => {
     const text = await source('dentvision-backend/src/modules/organizations/organizations.routes.ts');
-    const match = text.match(/const archiveOwnerRoles = \\[([^\\]]+)\\]/);
+    const match = text.match(/const archiveOwnerRoles = \[([^\]]+)\]/);
     expect(match).not.toBeNull();
     const roles = [...(match?.[1] || '').matchAll(/'([^']+)'/g)].map((entry) => entry[1]);
     expect(roles).toEqual([
