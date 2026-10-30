@@ -1,6 +1,8 @@
 import { Router, Response } from 'express'
 import type { AuthRequest } from '../../types/index.js'
 import { loadClinicAccess, blockClinicWrites } from '../../middleware/planGate.js'
+import { requirePermission } from '../../middleware/rbac.js'
+import { requireClinicalChartRead } from '../../middleware/clinicalChartAccess.js'
 import { getClinicId } from '../../lib/orgContext.js'
 import prisma from '../../lib/prisma.js'
 import { CaseStatus } from '@prisma/client'
@@ -29,7 +31,7 @@ async function clinicCase(caseId: string, clinicId: string) {
 }
 
 // GET /api/crm/cases?patientId=...
-treatmentCaseRouter.get('/', loadClinicAccess, blockClinicWrites, async (req: AuthRequest, res: Response) => {
+treatmentCaseRouter.get('/', loadClinicAccess, requireClinicalChartRead, blockClinicWrites, async (req: AuthRequest, res: Response) => {
   try {
     const clinicId = effectiveClinicId(req)
     if (!clinicId) return res.status(403).json({ ok: false, error: 'Clinic context is required' })
@@ -52,7 +54,7 @@ treatmentCaseRouter.get('/', loadClinicAccess, blockClinicWrites, async (req: Au
 })
 
 // GET /api/crm/cases/:id — canonical case plus its linked ecosystem records.
-treatmentCaseRouter.get('/:id', loadClinicAccess, blockClinicWrites, async (req: AuthRequest, res: Response) => {
+treatmentCaseRouter.get('/:id', loadClinicAccess, requireClinicalChartRead, requirePermission('billing.read'), blockClinicWrites, async (req: AuthRequest, res: Response) => {
   try {
     const clinicId = effectiveClinicId(req)
     if (!clinicId) return res.status(403).json({ ok: false, error: 'Clinic context is required' })
@@ -122,7 +124,7 @@ treatmentCaseRouter.get('/:id', loadClinicAccess, blockClinicWrites, async (req:
 })
 
 // POST /api/crm/cases
-treatmentCaseRouter.post('/', loadClinicAccess, blockClinicWrites, async (req: AuthRequest, res: Response) => {
+treatmentCaseRouter.post('/', loadClinicAccess, requirePermission('patient.write', 'medical.read', 'medical.write'), blockClinicWrites, async (req: AuthRequest, res: Response) => {
   try {
     const { patientId, title, description, status, chiefComplaint, diagnosisCodes } = req.body
     const clinicId = effectiveClinicId(req)
@@ -152,7 +154,7 @@ treatmentCaseRouter.post('/', loadClinicAccess, blockClinicWrites, async (req: A
 })
 
 // PATCH /api/crm/cases/:id
-treatmentCaseRouter.patch('/:id', loadClinicAccess, blockClinicWrites, async (req: AuthRequest, res: Response) => {
+treatmentCaseRouter.patch('/:id', loadClinicAccess, requirePermission('patient.write', 'medical.read', 'medical.write'), blockClinicWrites, async (req: AuthRequest, res: Response) => {
   try {
     const clinicId = effectiveClinicId(req)
     if (!clinicId) return res.status(403).json({ ok: false, error: 'Clinic context is required' })
@@ -258,7 +260,7 @@ async function setLink(target: LinkTarget, recordId: string, caseId: string | nu
 }
 
 // POST /api/crm/cases/:id/links — attach an existing ecosystem record to the canonical case.
-treatmentCaseRouter.post('/:id/links', loadClinicAccess, blockClinicWrites, async (req: AuthRequest, res: Response) => {
+treatmentCaseRouter.post('/:id/links', loadClinicAccess, requirePermission('patient.write', 'medical.read', 'medical.write'), blockClinicWrites, async (req: AuthRequest, res: Response) => {
   try {
     const clinicId = effectiveClinicId(req)
     if (!clinicId) return res.status(403).json({ ok: false, error: 'Clinic context is required' })
@@ -281,7 +283,7 @@ treatmentCaseRouter.post('/:id/links', loadClinicAccess, blockClinicWrites, asyn
 })
 
 // DELETE /api/crm/cases/:id/links — unlink an ecosystem record without deleting it.
-treatmentCaseRouter.delete('/:id/links', loadClinicAccess, blockClinicWrites, async (req: AuthRequest, res: Response) => {
+treatmentCaseRouter.delete('/:id/links', loadClinicAccess, requirePermission('patient.write', 'medical.read', 'medical.write'), blockClinicWrites, async (req: AuthRequest, res: Response) => {
   try {
     const clinicId = effectiveClinicId(req)
     if (!clinicId) return res.status(403).json({ ok: false, error: 'Clinic context is required' })
@@ -300,7 +302,7 @@ treatmentCaseRouter.delete('/:id/links', loadClinicAccess, blockClinicWrites, as
 })
 
 // DELETE /api/crm/cases/:id — archive, never hard-delete a clinical case.
-treatmentCaseRouter.delete('/:id', loadClinicAccess, blockClinicWrites, async (req: AuthRequest, res: Response) => {
+treatmentCaseRouter.delete('/:id', loadClinicAccess, requirePermission('medical.manage'), blockClinicWrites, async (req: AuthRequest, res: Response) => {
   try {
     const clinicId = effectiveClinicId(req)
     if (!clinicId) return res.status(403).json({ ok: false, error: 'Clinic context is required' })
