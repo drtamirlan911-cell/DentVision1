@@ -23,7 +23,7 @@ vi.mock('../../lib/prisma.js', () => ({
   },
 }));
 
-import { canManageRolesFor, ensureClinicSubscriptionWritableForOrganization } from './iam.routes.js';
+import { canManageRolesFor, canAssignPlatformScope, ensureClinicSubscriptionWritableForOrganization } from './iam.routes.js';
 
 const USER_ID = 'user-1';
 
@@ -162,5 +162,31 @@ describe('ensureClinicSubscriptionWritableForOrganization', () => {
     const result = await ensureClinicSubscriptionWritableForOrganization({ user: { role: 'SUPERADMIN' } } as any, res, clinic);
     expect(result).toBe(true);
     expect(clinicSubscriptionAccess).not.toHaveBeenCalled();
+  });
+});
+
+
+describe('organization role scope policy', () => {
+  it('allows platform-scoped role assignment only for SUPERADMIN', () => {
+    expect(canAssignPlatformScope('SUPERADMIN')).toBe(true);
+    expect(canAssignPlatformScope('OWNER')).toBe(false);
+    expect(canAssignPlatformScope('ADMIN')).toBe(false);
+  });
+
+  it('rejects role management for an archived organization before checking membership', async () => {
+    const result = await canManageRolesFor(
+      { id: USER_ID, role: 'OWNER' },
+      { id: 'org-archived', type: 'DIAGNOSTIC_CENTER', originalId: 'center-archived', archivedAt: new Date('2026-10-01T00:00:00.000Z') },
+    );
+    expect(result).toBe(false);
+    expect(diagnosticCenterMemberFindFirst).not.toHaveBeenCalled();
+  });
+
+  it('does not allow SUPERADMIN role management to mutate an archived organization context', async () => {
+    const result = await canManageRolesFor(
+      { id: USER_ID, role: 'SUPERADMIN' },
+      { id: 'org-archived', type: 'CLINIC', originalId: 'clinic-archived', archivedAt: new Date('2026-10-01T00:00:00.000Z') },
+    );
+    expect(result).toBe(false);
   });
 });
