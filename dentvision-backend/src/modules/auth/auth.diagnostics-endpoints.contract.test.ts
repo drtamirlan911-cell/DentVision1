@@ -25,7 +25,8 @@ describe('auth and diagnostics endpoint security contracts', () => {
     expect(auth).toContain("authRouter.post('/demo-clinic', authenticate");
     expect(auth).toContain('createClinicForOwner(req.user!.id, input, {');
     expect(auth).toContain('createClinicForOwnerInTransaction(tx, req.user!.id, input, {');
-    expect(auth).toContain("clinic: { plan: { in: ['DEMO', 'ENTERPRISE'] }, active: true }");
+    expect(auth).toContain("clinicMember.findMany({ where: { userId: req.user!.id, role: 'OWNER', clinic: { plan: { in: ['DEMO', 'ENTERPRISE'] }, active: true } }");
+    expect(auth).toContain("where: { originalType: 'Clinic', originalId: candidate.clinic.id, archivedAt: { not: null } }");
     const clinicCreation = readFileSync(resolve(process.cwd(), 'dentvision-backend/src/modules/clinics/clinicCreation.service.ts'), 'utf8');
     expect(clinicCreation).toContain("plan: 'ENTERPRISE'");
     expect(clinicCreation).toContain("plan: 'enterprise'");
