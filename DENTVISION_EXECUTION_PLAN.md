@@ -3,6 +3,14 @@
 ## Purpose
 This document is the persistent execution contract for DentVision. It is the source of truth for what is being implemented, in what order, and what is considered complete. Progress must not live only in a chat session.
 
+## Current checkpoint — 2026-10-29
+
+- Active implementation PR: #328 on `fix/workspace-switcher-menu-overflow-20261026`; implementation commit `2f4da1fec9a5a2e7381f340ad101ab9b9180ce72` is a child of prior candidate `a4ab7285c8fa69df42d220c48d83267b760c56d9`. A documentation checkpoint follows; re-read PR #328 HEAD before any further write.
+- Immediate priority: verify exact-head CI for the manager/LAB page allowlists, private Shop/School route guards, public marketplace discovery policy, accessibility checks and bounded 4xx diagnostics. Do not merge into `main`.
+- Next P0 security priority: RB-035 patient API read-route RBAC and PHI minimization, cross-clinic IIN lookup disclosure, and patient-deposit billing authorization. Do not treat frontend page guards as backend authorization.
+- RB-029 medical-history encryption and RB-034 AI DoctorAgent tenant isolation remain open. RB-033 requires repository-admin verification.
+- The lower shared “Current execution priority” section still contains the previous candidate SHA because PR #329 independently edits that same section. This checkpoint is authoritative for this run; reconcile the shared priority block only after comparing both existing PR branches, without creating a new branch or PR.
+
 ## Operating rules
 1. `main` is the product source of truth unless a dedicated implementation branch is explicitly required.
 2. Existing canonical product/economics documents are authoritative; do not create competing rules.
@@ -363,7 +371,7 @@ The candidate implements the 30-day Enterprise trial/backfill and read-only expi
 
 **Next sequence:** (1) inspect the new exact-head CI and fix only confirmed failures without removing assertions; (2) obtain staging approval, apply both timestamped migrations and verify migration counts/rollback; (3) prove expired-clinic GET/read access and rejected write/public-booking/signing paths with authenticated E2E; (4) finish RB-029 consumer/concurrent-writer audit and read-only staging dry run; (5) verify production CORS/WebSocket and the merchant-issued Kaspi contract; (6) complete the D10 route-to-workflow matrix from the Master Spec. Keep every item open until its evidence exists.
 
-The work proceeds in vertical slices: implement → targeted verify → full relevant gates → commit → update the persistent log → move to the next slice.
+The work proceeds in vertical slices: implement → targeted verify → full relevant gates → commit → update this plan and the persistent log → move to the next slice.
 
 ## Ecosystem support operations — inventory-first workstream (2026-10-23)
 
@@ -400,3 +408,29 @@ This checkpoint supersedes the older CI evidence in the priority notes above. Co
 - Parallel candidates preserved: #328 open (CI failed, Quality Gate passed); #329 open (CI cancelled, Quality Gate passed; RB-029 staging/backfill still open); #322 open draft. No branch/PR creation, merge, deployment, DB migration or production write.
 - Next: exact-head correction CI; endpoint-level tracing and least-privilege diagnosis for CRM 403s; complete full E2E/role/owner gates; then approved staging verification of trial/archive migrations, PHI backfill dry run, production CORS/WebSocket, official Kaspi contract/callback, branch protection and D10 workflow parity. All remain release blockers until evidenced.
 
+
+
+## Integration reconciliation — 2026-10-30
+
+Historical priority notes retained from parallel branches; they do not supersede the current D1–D10 priority.
+
+### Preserved 329 branch change
+
+## Current execution priority — reconciled 2026-10-26
+**Now — P0 security/release integrity:** complete fresh exact-HEAD CI for PR #328 (workspace picker, active IAM context and canonical organization-branch E2E). The prior core E2E evidence on PR #329 exposed a test helper that created an organization-scoped branch then queried it with the legacy clinic-scoped endpoint; the candidate updates the helper to list by canonical organization ID. This correction is not release evidence until a fresh full run passes. RB-034/RB-031/RB-032 remain open until the full role/context, WebKit/CORS, Visual Agent, business-owner and organization-owner gates pass together. Keep main unchanged until required checks complete and only merge the intended PRs.
+
+**Next — P0 data protection (RB-029):** the versioned encrypted JSON envelope codec, backwards-compatible reads, canonical Patient CRUD/odontogram writers and guarded dry-run-first backfill already exist on main. PR #329 corrects the Patient Portal structured-history writer; rejects caller-supplied ciphertext/envelopes at the Portal and canonical Patient create/update HTTP boundaries; minimizes PHI in durable PatientCreated AI events; and adds fail-closed envelope validation and regression contracts. The latest candidate's backend TypeScript gate exposed an event-payload typing issue; the follow-up also hardens the no-key malformed-envelope path and corrects the inventory. Fresh exact-head CI must pass before further closure work. After exact-head CI passes, complete the broader review of every Patient history reader/writer, AI/event/transcript/report/export copy and concurrent legacy writer; review backup/rollback; run only an explicitly verified read-only staging dry run; reconcile counts, round-trip and integrity. Never backfill production or deploy without explicit approval and verified rollback evidence.
+
+### Preserved 328 branch change
+
+**Immediate verification dependency — existing PR #328:** the current IAM/page-surface candidate is `56ab3ecfe5d1f0d02cc8be00816151a69dd30dce` on `fix/workspace-switcher-menu-overflow-20261026`. It reconciles the ASSISTANT/LAB page surface and the role-gate policy oracle. Exact-head CI, role/context and Visual Agent evidence are pending; RB-031 and the unnamed Clinic Settings controls remain open. Keep `main` unchanged.
+
+**Now — P0 security and release integrity:** continue the dedicated RB-034 verification on the existing branch `security/doctor-agent-tenant-isolation-20261025` after the current role-gate candidate is checked. The exact candidate SHA must pass targeted DoctorAgent negative-path tests, TypeScript, backend lint, unit tests and the full role/context E2E gate before RB-034 can be closed. The PR #328 page-policy change alone does not close RB-034. The generated system map must match the generator on any candidate branch.
+
+### Preserved 328 branch change
+
+**Next — P0 data protection:** continue RB-029 on the existing medical-history candidate. Complete the full Patient.medicalHistory read/write/AI/report/export inventory, verify encryption-envelope compatibility and concurrent writers, review backup/rollback, then run an approved read-only staging dry run with count/round-trip/integrity reconciliation. Do not run a production backfill or deployment without explicit approval. Repository-admin action for RB-033 (required branch checks on main) remains manual and release-blocking; verify actual required-check names and prove a failing check blocks merge.
+
+### Preserved 329 branch change
+
+**Manual release control — RB-033:** required branch-check protection on main remains a repository-admin task. Read and record the exact required-check names and demonstrate a failing check blocks merge; do not assume this can be completed through application code.
