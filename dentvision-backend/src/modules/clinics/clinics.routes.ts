@@ -23,7 +23,6 @@ export const clinicsRouter = Router();
 
 /** Enforce the subscription of the clinic addressed by :id, not just the JWT's selected clinic. */
 async function requireTargetClinicWritable(req: AuthRequest, res: any, next: any) {
-  if (req.user?.role === 'SUPERADMIN') return next();
   const clinicId = String(req.params.id || '').trim();
   if (!clinicId) return res.status(400).json({ ok: false, error: 'Клиника не указана', code: 'CLINIC_REQUIRED' });
   try {
@@ -32,6 +31,7 @@ async function requireTargetClinicWritable(req: AuthRequest, res: any, next: any
       select: { id: true },
     });
     if (archivedOrganization) return res.status(404).json({ ok: false, error: 'Клиника не найдена', code: 'ORGANIZATION_ARCHIVED' });
+    if (req.user?.role === 'SUPERADMIN') return next();
     const access = await resolveClinicSubscriptionAccess(clinicId);
     if (!access) return res.status(404).json({ ok: false, error: 'Клиника не найдена' });
     if (access.writeBlocked) return res.status(402).json({ ok: false, error: 'Срок пробного периода завершён. Данные доступны только для чтения; продлите подписку.', code: 'SUBSCRIPTION_EXPIRED', data: { upgradePath: '/crm/billing' } });
