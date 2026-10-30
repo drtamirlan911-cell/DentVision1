@@ -18,7 +18,6 @@ branchesRouter.use(blockClinicWrites);
 
 /** Enforce the plan for the organization a branch mutation actually targets, even when the caller has another active workspace selected. */
 async function enforceTargetClinicTrial(req: AuthRequest, res: any, next: any) {
-  if (req.user?.role === 'SUPERADMIN') return next();
   try {
     let clinicId = String(req.body?.clinicId || req.query.clinicId || '').trim();
     let organizationId = String(req.body?.organizationId || req.query.organizationId || '').trim();
@@ -55,6 +54,7 @@ async function enforceTargetClinicTrial(req: AuthRequest, res: any, next: any) {
       select: { id: true },
     });
     if (archivedClinicOrganization) return res.status(404).json({ ok: false, error: 'Клиника не найдена', code: 'ORGANIZATION_ARCHIVED' });
+    if (req.user?.role === 'SUPERADMIN') return next();
     const access = await resolveClinicSubscriptionAccess(clinicId);
     if (!access) return res.status(404).json({ ok: false, error: 'Клиника не найдена' });
     if (access.writeBlocked) return res.status(402).json({ ok: false, error: 'Срок пробного периода завершён. Филиалы и сотрудники доступны только для чтения; продлите подписку.', code: 'SUBSCRIPTION_EXPIRED', data: { upgradePath: '/crm/billing' } });
