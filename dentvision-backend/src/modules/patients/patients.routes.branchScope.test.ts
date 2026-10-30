@@ -18,7 +18,7 @@ describe('patients route branch scope contract', () => {
   it('checks the branch before direct patient access and mutations', () => {
     expect(source).toContain('loadClinicPatient(req,res)');
     expect(source).toContain('canAccessPatientBranch(context,patientBranchId)');
-    expect(source).toMatch(/setPatientBranch\\s*\\(\\s*patient\\.id\\s*,\\s*clinicId\\s*,\\s*targetBranchId\\s*\\)/);
+    expect(source).toMatch(/setPatientBranch\s*\(\s*patient\.id\s*,\s*clinicId\s*,\s*targetBranchId\s*\)/);
   });
 
   it('requires patient permission and returns a minimized list payload', () => {
