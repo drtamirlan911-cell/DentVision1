@@ -21,6 +21,7 @@ const ACCOUNTS = {
   ownerA: { email: 'owner-a@test.com', password: 'Test1234!' },
   doctorA: { email: 'doctor-a@test.com', password: 'Test1234!' },
   assistantA: { email: 'assistant-a@test.com', password: 'Test1234!' },
+  managerA: { email: 'manager-a@test.com', password: 'Test1234!' },
   ownerB: { email: 'owner-b@test.com', password: 'Test1234!' },
   superadmin: { email: 'superadmin@test.com', password: 'Test1234!' },
 };
@@ -32,6 +33,7 @@ let ctx: APIRequestContext;
 let ownerA: string;
 let doctorA: string;
 let assistantA: string;
+let managerA: string;
 let ownerB: string;
 let superadmin: string;
 
@@ -51,6 +53,7 @@ test.beforeAll(async () => {
   ownerA = await signIn(ACCOUNTS.ownerA.email, ACCOUNTS.ownerA.password);
   doctorA = await signIn(ACCOUNTS.doctorA.email, ACCOUNTS.doctorA.password);
   assistantA = await signIn(ACCOUNTS.assistantA.email, ACCOUNTS.assistantA.password);
+  managerA = await signIn(ACCOUNTS.managerA.email, ACCOUNTS.managerA.password);
   ownerB = await signIn(ACCOUNTS.ownerB.email, ACCOUNTS.ownerB.password);
   superadmin = await signIn(ACCOUNTS.superadmin.email, ACCOUNTS.superadmin.password);
 });
@@ -156,6 +159,48 @@ test.describe('Здоровье: медицинские записи', () => {
     });
 
     expect(res.status()).toBe(403);
+  });
+
+  test('менеджер и ассистент не читают полную медицинскую карту', async () => {
+    const created = await ctx.post('/api/patients', {
+      headers: auth(ownerA),
+      data: { iin: makeIin(), firstName: 'RB035', lastName: 'ChartBoundary', phone: '+77010004444' },
+    });
+    expect(created.ok(), await created.text()).toBeTruthy();
+    const patientId = ((await created.json()).data || {}).id as string;
+
+    const [manager, assistant] = await Promise.all([
+      ctx.get(`/api/patients/${patientId}`, { headers: auth(managerA) }),
+      ctx.get(`/api/patients/${patientId}`, { headers: auth(assistantA) }),
+    ]);
+    expect(manager.status()).toBe(403);
+    expect(assistant.status()).toBe(403);
+  });
+
+  test('clinic LAB cannot browse the patient register, IIN lookup or a full chart', async () => {
+    const clinicsRes = await ctx.get('/api/auth/my-clinics', { headers: auth(ownerA) });
+    expect(clinicsRes.status()).toBe(200);
+    const clinics = (await clinicsRes.json()).data;
+    const clinicId = Array.isArray(clinics) ? clinics[0]?.id : clinics?.id;
+    expect(clinicId).toBeTruthy();
+
+    const email = `rb035-lab-${Date.now()}@test.dentvision`;
+    const password = 'Test1234!';
+    const staff = await ctx.post(`/api/clinics/${clinicId}/staff`, {
+      headers: auth(ownerA),
+      data: { email, password, firstName: 'RB035', lastName: 'Lab', role: 'lab' },
+    });
+    expect(staff.status(), await staff.text()).toBe(201);
+    const labToken = await signIn(email, password);
+
+    const [list, lookup, chart] = await Promise.all([
+      ctx.get('/api/patients', { headers: auth(labToken) }),
+      ctx.get(`/api/patients/lookup?iin=${makeIin()}`, { headers: auth(labToken) }),
+      ctx.get(`/api/patients/${MISSING_ID}`, { headers: auth(labToken) }),
+    ]);
+    expect(list.status()).toBe(403);
+    expect(lookup.status()).toBe(403);
+    expect(chart.status()).toBe(403);
   });
 
   test('визиты несуществующего пациента — не 500', async () => {
