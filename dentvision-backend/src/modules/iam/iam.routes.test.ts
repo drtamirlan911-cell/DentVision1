@@ -1,13 +1,16 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { userFindUnique, organizationFindFirst, personFindFirst, clinicMemberFindUnique, diagnosticCenterMemberFindFirst, laboratoryMemberFindFirst } = vi.hoisted(() => ({
+const { userFindUnique, organizationFindFirst, personFindFirst, clinicMemberFindUnique, diagnosticCenterMemberFindFirst, laboratoryMemberFindFirst, clinicSubscriptionAccess } = vi.hoisted(() => ({
   userFindUnique: vi.fn(),
   organizationFindFirst: vi.fn(),
   personFindFirst: vi.fn(),
   clinicMemberFindUnique: vi.fn(),
   diagnosticCenterMemberFindFirst: vi.fn(),
   laboratoryMemberFindFirst: vi.fn(),
+  clinicSubscriptionAccess: vi.fn(),
 }));
+
+vi.mock('../billing/planEntitlements.js', () => ({ resolveClinicAccess: clinicSubscriptionAccess }));
 
 vi.mock('../../lib/prisma.js', () => ({
   default: {
@@ -20,7 +23,7 @@ vi.mock('../../lib/prisma.js', () => ({
   },
 }));
 
-import { canManageRolesFor } from './iam.routes.js';
+import { canManageRolesFor, ensureClinicSubscriptionWritableForOrganization } from './iam.routes.js';
 
 const USER_ID = 'user-1';
 
@@ -31,6 +34,7 @@ beforeEach(() => {
   clinicMemberFindUnique.mockReset();
   diagnosticCenterMemberFindFirst.mockReset();
   laboratoryMemberFindFirst.mockReset();
+  clinicSubscriptionAccess.mockReset();
 });
 
 describe('canManageRolesFor', () => {
@@ -118,5 +122,45 @@ describe('canManageRolesFor', () => {
       { id: 'org-1', type: 'LABORATORY', originalId: 'lab-1' },
     );
     expect(result).toBe(true);
+  });
+});
+
+
+describe('ensureClinicSubscriptionWritableForOrganization', () => {
+  const clinic = { id: 'org-1', type: 'CLINIC', originalId: 'clinic-1' };
+
+  it('allows non-clinic organization mutations without a clinic subscription lookup', async () => {
+    const res = { status: vi.fn().mockReturnThis(), json: vi.fn().mockReturnThis() };
+    const result = await ensureClinicSubscriptionWritableForOrganization({ user: { role: 'OWNER' } } as any, res, {
+      id: 'org-2', type: 'DIAGNOSTIC_CENTER', originalId: 'center-1',
+    });
+    expect(result).toBe(true);
+    expect(clinicSubscriptionAccess).not.toHaveBeenCalled();
+  });
+
+  it('blocks expired clinic staff-role mutations with SUBSCRIPTION_EXPIRED', async () => {
+    clinicSubscriptionAccess.mockResolvedValueOnce({ writeBlocked: true });
+    const res = { status: vi.fn().mockReturnThis(), json: vi.fn().mockReturnThis() };
+    const result = await ensureClinicSubscriptionWritableForOrganization({ user: { role: 'OWNER' } } as any, res, clinic);
+    expect(result).toBe(false);
+    expect(clinicSubscriptionAccess).toHaveBeenCalledWith('clinic-1');
+    expect(res.status).toHaveBeenCalledWith(402);
+    expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ code: 'SUBSCRIPTION_EXPIRED' }));
+  });
+
+  it('fails closed when the clinic subscription cannot be verified', async () => {
+    clinicSubscriptionAccess.mockRejectedValueOnce(new Error('database unavailable'));
+    const res = { status: vi.fn().mockReturnThis(), json: vi.fn().mockReturnThis() };
+    const result = await ensureClinicSubscriptionWritableForOrganization({ user: { role: 'OWNER' } } as any, res, clinic);
+    expect(result).toBe(false);
+    expect(res.status).toHaveBeenCalledWith(503);
+    expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ code: 'CLINIC_ACCESS_UNVERIFIED' }));
+  });
+
+  it('keeps SUPERADMIN recovery independent of clinic subscription state', async () => {
+    const res = { status: vi.fn().mockReturnThis(), json: vi.fn().mockReturnThis() };
+    const result = await ensureClinicSubscriptionWritableForOrganization({ user: { role: 'SUPERADMIN' } } as any, res, clinic);
+    expect(result).toBe(true);
+    expect(clinicSubscriptionAccess).not.toHaveBeenCalled();
   });
 });
