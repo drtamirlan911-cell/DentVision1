@@ -1,15 +1,12 @@
-# DentVision — Session Bootstrap / Current Context
-
-**First-read file for every future DentVision AI/engineering session.**
-
-## Latest verified state — 2026-10-29
-- Active working PR: [#328](https://github.com/drtamirlan911-cell/DentVision1/pull/328), branch `fix/workspace-switcher-menu-overflow-20261026`.
-- Parent HEAD before this follow-up: `a4ab7285c8fa69df42d220c48d83267b760c56d9`. Implementation commit: `2f4da1fec9a5a2e7381f340ad101ab9b9180ce72`. A documentation checkpoint follows the implementation commit; re-read PR #328 HEAD before any subsequent write.
-- Exact-head CI run [40633387317](https://github.com/drtamirlan911-cell/DentVision1/actions/runs/40633387317) completed with **failure** on `a4ab7285c8fa69df42d220c48d83267b760c56d9`: core E2E 241 passed/5 skipped; Browser UX 4 passed; mobile design 16 passed; business-owner journeys 11 passed; organization-owner lifecycle 7 passed; role/context 39 failed/101 passed/28 skipped; Visual Agent 3 failed/45 passed. No test was disabled.
-- Confirmed role-gate defects addressed in this candidate: MANAGER could reach the Medical Card; clinic LAB could reach the inventory workbench; anonymous-route policy contradicted the Master Spec's public `/shop` discovery route; private checkout/orders/favorites/supplier and School workspace routes were unguarded; accessibility audit ignored native label associations and measured a 16×16 checkbox instead of its labelled hit target.
-- The role-gate collector now records bounded API status/method/path for HTTP 4xx/5xx responses, without response bodies or query values, so remaining 403 console errors can be traced rather than suppressed. Exact-head CI for the new candidate is pending.
-- **P0 remains open:** RB-035 identifies missing explicit RBAC on patient read routes, PHI in patient-list/detail serialization, cross-clinic identity data in IIN lookup, and missing billing authorization on patient deposit. This patch does not fix those API routes. RB-029 and RB-034 remain open; RB-033 still requires repository-admin verification.
-- `main` remains `ac913cc3389a294d0b135a852b035ddddb1018ca`; no merge, deployment, database query, migration or backfill was performed. No local checkout is available in this runtime, so local `git status` and local tests could not be run. Remote branch/PR state was checked through GitHub.
+## Latest verified state — 2026-10-30
+- Active implementation candidate: PR [#330](https://github.com/drtamirlan911-cell/DentVision1/pull/330), branch `fix/d1-d10-trial-archive-signing-api-20261029`.
+- Current exact branch HEAD at this checkpoint: `415e4a9dc938de0d3c71cd6b795fd4f9c7f0e8cb`. Base/main remains `ac913cc3389a294d0b135a852b035ddddb1018ca`.
+- The candidate now contains both parallel workstreams through history-preserving merge commits: PR #328 workspace picker/RBAC work (merge commit `091604d78d6457a0ae5e97a83ae96059c0dde945`) and PR #329 patient-history envelope work (merge commit `a3138609fb147cbee0a8cfeab3ffd397ceb6212d`). The original source PRs #328 and #329 remain open at their original heads and their branches were not rewritten.
+- Temporary integration PRs #331 and #332 were closed as merged into the #330 working branch. Neither targeted `main`.
+- Follow-up fixes on the integrated branch: corrected the trial/archive contract regex syntax; combined archived-membership filtering with active-clinic session hydration; combined clinical-chart/route permission checks with the 30-day write guard; combined patient-portal JSON-history encryption and client-ciphertext rejection with trial write checks and optimistic concurrency; minimized PatientCreated event payload to patient/clinic/user IDs plus `hasComplaints`; fixed the confirmed `_res` reference and stale CRM security assertion from #328.
+- Exact-head CI for `415e4a9`: CI run [41034452583](https://github.com/drtamirlan911-cell/DentVision1/actions/runs/41034452583) is pending; Quality Gate [41034452312](https://github.com/drtamirlan911-cell/DentVision1/actions/runs/41034452312) and RB-034 diagnostic [41034452343](https://github.com/drtamirlan911-cell/DentVision1/actions/runs/41034452343) are in progress. No passing result is inferred.
+- Release remains NOT READY: full non-cancelled E2E/role/owner gates, staging trial/archive migration verification, RB-029 consumer/concurrency and read-only staging dry run, production CORS/WebSocket, official Kaspi contract/callback, branch protection, and D10 workflow parity remain open.
+- `main` was not changed. No staging/production database operation, backfill, or deployment was performed. No local checkout was available, so local `git status` and local tests are not claimed.
 
 ## 1. Repository identity
 - Product: DentVision — Dental Operating System / ecosystem.
