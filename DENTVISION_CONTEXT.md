@@ -337,3 +337,12 @@ Do not repeat an audit when implementation can resolve the issue. Do not weaken 
 - The prior run also recorded isolated `401 GET /api/auth/me` errors for some sessions. These are not yet explained or marked fixed; inspect the next exact-head artifacts. Do not weaken the gate or suppress 4xx diagnostics.
 - Code commits in this follow-up: `3fc41805a03c2d0e3a8f21babfa8c904cb2e1f5e` (accessible file input), `7357b67d8eac427c9b4e16ca4d153aec7a6bc3d3` and `99a70f12e2b94a6c1bb4c8060e3c39b554dbb55a` (permission-gated queries), `0a2c819cd3b13f2e38017fbe5a0e948754b6d277` (lab API RBAC), `035fe8305385822fe907ff01ab0cdb61989ba1df` / `53c3ebfabe6c49ed16420056104eaff1204c18e3` (lab UI/status API), and `55e581e1fbecb2840a084f951a89bb636303f46b` (general Academy fixture). The final current code head before this documentation-only commit is `99a70f12e2b94a6c1bb4c8060e3c39b554dbb55a`.
 - Next action: verify the live PR head, run fresh exact-head CI, inspect remaining 401/403/404 artifacts, and fix only confirmed causes. No test has yet verified these new changes. `main` remains unchanged; no staging/production migration, PHI backfill or deployment was performed.
+
+
+## 2026-10-30 — Zod compatibility investigation handoff
+
+- User requested that progress/findings be committed to the repository rather than left only in chat. This checkpoint is recorded on the existing PR #330 branch; no new branch or PR is created.
+- Source inspected at the active branch ref: `dentvision-backend/package.json` declares `zod: ^3.24.2` and backend TypeScript `^5.7.3`. This is evidence of the currently declared dependency range only; it does not establish the installed lockfile version or compatibility with Zod 4.
+- Root `package.json` does not declare Zod as a direct dependency. Do not upgrade the backend to Zod 4 based only on the manifest. First inspect lockfile resolution, all backend Zod APIs/refinements/transforms, schema inference/type usage, and the exact CI failure that motivated the compatibility check.
+- No Zod upgrade, lockfile edit, application-code change, test run, or CI rerun is claimed in this checkpoint. Preserve the existing Zod 3 contract until a compatibility audit supports a minimal patch.
+- Release state remains NOT READY. PR #330 remains the only active integration target; `main` must remain unchanged. Do not merge, deploy, run staging/production migrations, or perform PHI backfill without the documented gates and approvals.
