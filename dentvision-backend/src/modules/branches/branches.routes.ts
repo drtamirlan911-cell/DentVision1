@@ -45,7 +45,10 @@ async function enforceTargetClinicTrial(req: AuthRequest, res: any, next: any) {
         return res.status(403).json({ ok: false, error: 'Нельзя смешивать клинический и партнёрский контексты' });
       }
     }
-    if (!clinicId && !organizationId) clinicId = String(req.user?.clinicId || '').trim();
+    if (!clinicId && !organizationId) {
+      organizationId = String(req.user?.organizationId || '').trim();
+      if (!organizationId) clinicId = String(req.user?.clinicId || '').trim();
+    }
     if (!clinicId) return next(); // non-clinic partners use their own billing contract
     const archivedClinicOrganization = await prisma.organization.findFirst({
       where: { originalType: 'Clinic', originalId: clinicId, archivedAt: { not: null } },
