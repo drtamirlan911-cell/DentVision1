@@ -65,8 +65,17 @@ export default function FileUploader({ referralId, onUpload, files, onDelete, di
         <Upload size={20} className="mx-auto text-txt-muted mb-1" />
         <p className="text-xs text-txt-muted">{t('diagnostics.file_upload')}</p>
         <p className="text-[10px] text-txt-ghost mt-0.5">{t('diagnostics.file_upload_hint')}</p>
-        <input ref={ref} type="file" multiple accept={ALLOWED} onChange={e => { handleFiles(e.target.files); e.target.value = ''; }}
-          className="hidden" disabled={disabled} />
+        <input
+          ref={ref}
+          type="file"
+          name="diagnosticAttachments"
+          aria-label="Прикрепить файлы к направлению"
+          multiple
+          accept={ALLOWED}
+          onChange={e => { handleFiles(e.target.files); e.target.value = ''; }}
+          className="hidden"
+          disabled={disabled}
+        />
       </div>
 
       {uploading.length > 0 && (
