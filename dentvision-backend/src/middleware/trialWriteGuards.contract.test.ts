@@ -153,4 +153,18 @@ describe('trial backfill contract', () => {
     expect(branches).toContain("if (!activeOrganization) return null");
   });
 
+
+  it('blocks patient portal writes and booking lookup for archived clinics while preserving reads', async () => {
+    const text = await source('dentvision-backend/src/modules/patient-portal/patientPortal.routes.ts');
+    expect(text).toContain('async function isClinicOrganizationArchived');
+    expect(text).toContain("code: 'ORGANIZATION_ARCHIVED'");
+    expect(text).toContain("if (await isClinicOrganizationArchived(clinicId)) return res.status(404)");
+    expect(text).toContain("if (!clinicId || await isClinicOrganizationArchived(clinicId))");
+  });
+
+  it('blocks public document signing for archived clinic contexts', async () => {
+    const text = await source('dentvision-backend/src/modules/public/public.routes.ts');
+    expect(text).toContain("if (await isClinicOrganizationArchived(linkedDocument.clinicId)) return res.status(404)");
+  });
+
 });
