@@ -141,6 +141,7 @@ describe('trial backfill contract', () => {
     expect(text).toContain("where: { originalType: 'Clinic', originalId: clinicId, archivedAt: { not: null } }");
     expect(text).toContain("code: 'ORGANIZATION_ARCHIVED'");
     expect(text).toContain('resolveClinicSubscriptionAccess(clinicId)');
+    expect(text.indexOf('const archivedOrganization')).toBeLessThan(text.indexOf("if (req.user?.role === 'SUPERADMIN') return next();"));
   });
 
   it('filters archived legacy clinics and enforces branch target tenant consistency', async () => {
@@ -151,6 +152,11 @@ describe('trial backfill contract', () => {
     expect(branches).toContain("organizationId = String(req.user?.organizationId || '').trim()");
     expect(branches).toContain("originalType: 'Clinic', originalId: clinicId, archivedAt: { not: null }");
     expect(branches).toContain("if (!activeOrganization) return null");
+    const branchGuardStart = branches.indexOf('async function enforceTargetClinicTrial');
+    const archivedIndex = branches.indexOf('if (archivedClinicOrganization)', branchGuardStart);
+    const superadminIndex = branches.indexOf("if (req.user?.role === 'SUPERADMIN') return next();", branchGuardStart);
+    expect(archivedIndex).toBeGreaterThan(branchGuardStart);
+    expect(archivedIndex).toBeLessThan(superadminIndex);
   });
 
 
