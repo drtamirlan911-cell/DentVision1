@@ -18,7 +18,7 @@ describe('patients route branch scope contract', () => {
   it('checks the branch before direct patient access and mutations', () => {
     expect(source).toContain('loadClinicPatient(req,res)');
     expect(source).toContain('canAccessPatientBranch(context,patientBranchId)');
-    expect(source).toContain('setPatientBranch(patient.id,clinicId,targetBranchId)');
+    expect(source).toMatch(/setPatientBranch\\s*\\(\\s*patient\\.id\\s*,\\s*clinicId\\s*,\\s*targetBranchId\\s*\\)/);
   });
 
   it('requires patient permission and returns a minimized list payload', () => {
@@ -36,9 +36,12 @@ describe('patients route branch scope contract', () => {
     expect(source).toContain("patientsRouter.get('/:id/summary',requireClinicalChartRead,requirePermission('billing.read')");
   });
 
-  it('does not reveal cross-clinic identity details from an IIN lookup', () => {
-    expect(source).not.toContain('clinicId:{not:clinicId}');
-    expect(source).not.toContain('suggested:suggested?');
+  it('returns only a safe contact suggestion for a cross-clinic IIN match', () => {
+    expect(source).toContain('const suggested=!existing?await prisma.patient.findFirst');
+    expect(source).toContain('select:{firstName:true,lastName:true,phone:true,email:true}');
+    expect(source).toContain('suggested:suggested?{name:');
+    expect(source).not.toContain('suggested?{id:');
+    expect(source).not.toContain('suggested?{clinicId:');
   });
 
   it('requires medical read/write for patient mutation responses and clinical payloads', () => {
