@@ -78,7 +78,19 @@ export function useDataQuery(clinicId?: string | null): UseDataQueryReturn {
   // Чеки и расходы закрыты правом finance.manage. Без этой проверки браузер
   // врача и ассистента слал два заведомо отказных запроса на каждой странице
   // CRM: данные всё равно не приходили, а консоль была постоянно красной.
-  const { roleInfo } = useAuth();
+  const { roleInfo, permissions } = useAuth();
+  const granted = new Set(permissions || []);
+  const can = (...keys: string[]) => granted.has('*') || keys.some((key) => granted.has(key));
+  const canPatients = can('patients.read', 'patient.read');
+  const canAppointments = can('appointments.read', 'appointment.read');
+  const canLab = can('lab.read', 'lab.write');
+  const canInventory = can('inventory.read', 'inventory.write');
+  const canPromotions = can('shop.manage', 'shop.write', 'shop.delete');
+  const canVisits = can('patient.read', 'patients.read');
+  const canDocuments = can('patient.read', 'patients.read');
+  const canBookings = can('appointment.read', 'appointments.read');
+  const canWaitingList = can('appointment.read', 'appointments.read');
+  const canStaff = can('staff.read', 'staff.write', 'staff.manage');
   const canFinance = Boolean(roleInfo?.canManageFinance);
 
   // ─── Queries ───
@@ -91,7 +103,7 @@ export function useDataQuery(clinicId?: string | null): UseDataQueryReturn {
   const appointmentsQ = useQuery({
     queryKey: [...queryKeys.appointments, safeClinicId],
     queryFn: () => api.getAppointments(safeClinicId),
-    enabled,
+    enabled: enabled && canAppointments,
   });
 
   const receiptsQ = useQuery({
@@ -103,7 +115,7 @@ export function useDataQuery(clinicId?: string | null): UseDataQueryReturn {
   const labOrdersQ = useQuery({
     queryKey: [...queryKeys.labOrders, safeClinicId],
     queryFn: () => api.getLabOrders(safeClinicId),
-    enabled,
+    enabled: enabled && canLab,
   });
 
   const expensesQ = useQuery({
@@ -115,43 +127,43 @@ export function useDataQuery(clinicId?: string | null): UseDataQueryReturn {
   const inventoryQ = useQuery({
     queryKey: [...queryKeys.inventory, safeClinicId],
     queryFn: () => api.getInventory(safeClinicId),
-    enabled,
+    enabled: enabled && canInventory,
   });
 
   const promotionsQ = useQuery({
     queryKey: [...queryKeys.promotions, safeClinicId],
     queryFn: () => api.getPromotions(safeClinicId),
-    enabled,
+    enabled: enabled && canPromotions,
   });
 
   const bookingsQ = useQuery({
     queryKey: [...queryKeys.bookings, safeClinicId],
     queryFn: () => api.getBookings(safeClinicId),
-    enabled,
+    enabled: enabled && canBookings,
   });
 
   const visitsQ = useQuery({
     queryKey: queryKeys.visits(''),
     queryFn: () => api.getVisits(safeClinicId, ''),
-    enabled,
+    enabled: enabled && canVisits,
   });
 
   const documentsQ = useQuery({
     queryKey: [...queryKeys.documents, safeClinicId],
     queryFn: () => api.getDocuments(safeClinicId, ''),
-    enabled,
+    enabled: enabled && canDocuments,
   });
 
   const waitingListQ = useQuery({
     queryKey: [...queryKeys.waitingList, safeClinicId],
     queryFn: () => api.getWaitingList(safeClinicId),
-    enabled,
+    enabled: enabled && canWaitingList,
   });
 
   const staffQ = useQuery({
     queryKey: [...queryKeys.users, safeClinicId],
     queryFn: () => api.getClinicStaff(safeClinicId),
-    enabled,
+    enabled: enabled && canStaff,
   });
 
   // ─── Optimistic Mutations: Patients ───
