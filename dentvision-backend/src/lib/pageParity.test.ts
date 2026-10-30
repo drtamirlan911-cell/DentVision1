@@ -80,8 +80,9 @@ const LEGACY_PLATFORM_PAGES: Record<string, { role: string; permissions: string[
       'ai-governance', 'support', 'profile', 'bi', 'supplier'],
   },
   diagnostic_center: {
-    // A centre member's Person resolves to an org role; ADMIN is representative.
-    role: 'ADMIN',
+    // A diagnostic centre is a partner organization, not a clinic ADMIN.
+    // Keep the parity assertion on its scoped partner role.
+    role: 'DIAGNOSTIC_OWNER',
     permissions: [],
     pages: ['diagnostics', 'diagnostics-referrals', 'diagnostics-centers', 'diagnostics-results',
       'diagnostics-calendar', 'diagnostics-statistics', 'diagnostics-settings', 'profile'],
