@@ -3,13 +3,15 @@
 ## Purpose
 This document is the persistent execution contract for DentVision. It is the source of truth for what is being implemented, in what order, and what is considered complete. Progress must not live only in a chat session.
 
-## Current checkpoint — 2026-10-29
+## Current checkpoint — 2026-10-30
 
-- Active implementation PR: #328 on `fix/workspace-switcher-menu-overflow-20261026`; implementation commit `2f4da1fec9a5a2e7381f340ad101ab9b9180ce72` is a child of prior candidate `a4ab7285c8fa69df42d220c48d83267b760c56d9`. A documentation checkpoint follows; re-read PR #328 HEAD before any further write.
-- Immediate priority: verify exact-head CI for the manager/LAB page allowlists, private Shop/School route guards, public marketplace discovery policy, accessibility checks and bounded 4xx diagnostics. Do not merge into `main`.
-- Next P0 security priority: RB-035 patient API read-route RBAC and PHI minimization, cross-clinic IIN lookup disclosure, and patient-deposit billing authorization. Do not treat frontend page guards as backend authorization.
-- RB-029 medical-history encryption and RB-034 AI DoctorAgent tenant isolation remain open. RB-033 requires repository-admin verification.
-- The lower shared “Current execution priority” section still contains the previous candidate SHA because PR #329 independently edits that same section. This checkpoint is authoritative for this run; reconcile the shared priority block only after comparing both existing PR branches, without creating a new branch or PR.
+- Active implementation PR remains #330 on `fix/d1-d10-trial-archive-signing-api-20261029`; current exact HEAD is `415e4a9dc938de0d3c71cd6b795fd4f9c7f0e8cb`, based on main `ac913cc3389a294d0b135a852b035ddddb1018ca`.
+- The user explicitly authorized integration of #328 and #329 into the existing #330 working branch. Both were integrated with history-preserving merge commits; their original branches/PRs remain open and unchanged. Temporary integration PRs #331 and #332 were closed as merged into #330, never into main.
+- #328 integration merge commit: `091604d78d6457a0ae5e97a83ae96059c0dde945`, with parent history from #330 and #328. #329 integration merge commit: `a3138609fb147cbee0a8cfeab3ffd397ceb6212d`, with parent history from the already-integrated #328/#330 line and #329.
+- Conflict resolution preserved the D1–D10 trial/archive guards, active clinic context and archived-membership filtering, clinical-chart/route permissions, workspace picker and role policy, PHI envelope encryption, patient writer ciphertext rejection, and optimistic concurrency. PatientCreated events now carry a boolean complaint-presence hint, not patient names or complaint text.
+- Corrected two known #328 CI failures in the integrated branch: `planGate.ts` now passes `res` rather than undefined `_res`; the CRM treatment-plan security contract now asserts the actual clinic- and patient-scoped reference validation.
+- Exact-head CI [41034452583](https://github.com/drtamirlan911-cell/DentVision1/actions/runs/41034452583) is pending; Quality Gate [41034452312](https://github.com/drtamirlan911-cell/DentVision1/actions/runs/41034452312) and RB-034 diagnostic [41034452343](https://github.com/drtamirlan911-cell/DentVision1/actions/runs/41034452343) are in progress. Do not treat integration as verified until the exact latest HEAD completes all required gates.
+- Main remains unchanged. No staging or production migration, PHI backfill, database write, or deployment has been performed.
 
 ## Operating rules
 1. `main` is the product source of truth unless a dedicated implementation branch is explicitly required.
