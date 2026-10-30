@@ -4,6 +4,7 @@
 import type { Response, NextFunction } from 'express';
 import type { AuthRequest } from '../types/index.js';
 import { applyCorsHeaders } from '../lib/cors.js';
+import prisma from '../lib/prisma.js';
 import { getClinicId } from '../lib/orgContext.js';
 import {
   PlanGateError,
@@ -38,8 +39,8 @@ function sendTreatmentPlanReferenceError(req: AuthRequest, res: Response, error:
   applyCorsHeaders(req, res);
   const messages: Record<string, string> = {
     DOCTOR_OUTSIDE_CLINIC: 'Указанный врач не относится к выбранной клинике',
-    APPOINTMENT_OUTSIDE_CLINIC: 'Указанная запись не относится к выбранной клинике',
-    INVOICE_OUTSIDE_CLINIC: 'Указанный счёт не относится к выбранной клинике',
+    APPOINTMENT_OUTSIDE_CLINIC: 'Указанная запись не относится к выбранному пациенту или клинике',
+    INVOICE_OUTSIDE_CLINIC: 'Указанный счёт не относится к выбранному пациенту или клинике',
   };
   return res.status(403).json({ ok: false, error: messages[error.code] || 'Ссылка на объект другой клиники запрещена', code: error.code });
 }
@@ -55,10 +56,22 @@ async function guardTreatmentPlanReferences(req: AuthRequest, res: Response): Pr
       const doctorId = typeof req.body?.doctorId === 'string' ? req.body.doctorId : null;
       await assertTreatmentPlanDoctorInClinic(doctorId, clinicId);
     }
-    if (req.method === 'PATCH' && /^\/treatment-plans\/[^/]+\/stages\/[^/]+$/.test(path)) {
+    const stagePath = req.method === 'PATCH' ? path.match(/^\/treatment-plans\/([^/]+)\/stages\/[^/]+$/) : null;
+    if (stagePath) {
+      // Resolve the patient from the stored, clinic-scoped plan. Never trust a
+      // client-supplied patientId when validating linked appointment/invoice IDs.
+      const plan = await prisma.treatmentPlan.findFirst({
+        where: { id: stagePath[1], patient: { clinicId } },
+        select: { id: true, patientId: true },
+      });
+      if (!plan) {
+        applyCorsHeaders(req, res);
+        res.status(404).json({ ok: false, error: 'План лечения не найден', code: 'TREATMENT_PLAN_NOT_FOUND' });
+        return false;
+      }
       const appointmentId = typeof req.body?.appointmentId === 'string' ? req.body.appointmentId : null;
       const invoiceId = typeof req.body?.invoiceId === 'string' ? req.body.invoiceId : null;
-      await assertTreatmentPlanReferencesInClinic(clinicId, { appointmentId, invoiceId });
+      await assertTreatmentPlanReferencesInClinic(clinicId, { patientId: plan.patientId, appointmentId, invoiceId });
     }
     return true;
   } catch (error) {
@@ -74,7 +87,7 @@ async function guardTreatmentPlanReferences(req: AuthRequest, res: Response): Pr
 }
 
 /** Attach resolved clinic access to req (SUPERADMIN bypasses write blocks). */
-export async function loadClinicAccess(req: AuthRequest, _res: Response, next: NextFunction) {
+export async function loadClinicAccess(req: AuthRequest, res: Response, next: NextFunction) {
   try {
     const clinicId = effectiveClinicId(req.user);
     if (!clinicId) return next();
@@ -90,7 +103,12 @@ export async function loadClinicAccess(req: AuthRequest, _res: Response, next: N
     next();
   } catch (e) {
     console.error('[planGate] loadClinicAccess', e);
-    next();
+    applyCorsHeaders(req, res);
+    return res.status(503).json({
+      ok: false,
+      error: 'Не удалось подтвердить доступ клиники. Повторите запрос.',
+      code: 'CLINIC_ACCESS_VALIDATION_UNAVAILABLE',
+    });
   }
 }
 
