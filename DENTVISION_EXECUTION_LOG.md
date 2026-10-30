@@ -2446,3 +2446,18 @@ These changes are route/entry reconciliation only. Existing domain implementatio
 - Code commits: `3fc41805a03c2d0e3a8f21babfa8c904cb2e1f5e`, `7357b67d8eac427c9b4e16ca4d153aec7a6bc3d3`, `0a2c819cd3b13f2e38017fbe5a0e948754b6d277`, `035fe8305385822fe907ff01ab0cdb61989ba1df`, `53c3ebfabe6c49ed16420056104eaff1204c18e3`, `55e581e1fbecb2840a084f951a89bb636303f46b`, `99a70f12e2b94a6c1bb4c8060e3c39b554dbb55a`.
 - Fresh lint, unit, E2E and Visual Agent results are not yet available for these changes. Do not claim the failures are resolved until exact-head CI confirms.
 - Next: inspect fresh CI for remaining `401 /api/auth/me` or any 403/404, correct only confirmed defects, then rerun full CI. `main` unchanged; no database migrations, backfills or deployment.
+
+
+## 2026-10-30 — Zod compatibility investigation checkpoint
+
+### Repository evidence
+- Continued on the existing repository `drtamirlan911-cell/DentVision1` and branch `fix/d1-d10-trial-archive-signing-api-20261029` / PR #330. No replacement branch or PR was created.
+- Read `README.md`, `docs/DENTVISION_MASTER_SPEC.md`, `docs/RELEASE_BLOCKERS.md`, `DENTVISION_CONTEXT.md`, `DENTVISION_EXECUTION_PLAN.md`, and `DENTVISION_EXECUTION_LOG.md` before recording this checkpoint.
+- The Master Spec v5.0 remains the normative product/system specification. The existing Context and Execution Log are the persistent current-state/evidence records; no competing status document was created.
+- `dentvision-backend/package.json` declares `zod: ^3.24.2` and backend TypeScript `^5.7.3`. The root package manifest has no direct Zod dependency. This confirms declared ranges, not the actual lockfile-resolved version or runtime compatibility.
+- The prior chat checkpoint said the remaining concern involved Zod compatibility, but did not include the exact failing diagnostic or a completed API-usage audit. Therefore no Zod major upgrade or compatibility claim is justified yet.
+
+### Decision / next work
+- Keep the existing Zod 3 dependency contract for now. Inspect the lockfile's resolved Zod version, all Zod imports and used APIs (including preprocess/refine/superRefine/transform/coerce/default/optional behavior and inferred types), then map the exact CI diagnostic to the affected source.
+- If the failure is caused by an API incompatibility, implement the smallest source-compatible correction and add focused regression tests. If a Zod 4 migration is actually required, treat it as a separately verified dependency migration rather than silently changing the major version.
+- No Zod upgrade, lockfile modification, code change, test run, or CI rerun is claimed here. No staging/production database action or deployment was performed. `main` remains untouched; PR #330 remains the active target and release remains NOT READY.
