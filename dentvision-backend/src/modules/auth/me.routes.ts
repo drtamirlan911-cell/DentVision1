@@ -136,7 +136,9 @@ authMeRouter.get('/me', authenticate, async (req: AuthRequest, res) => {
     orderBy: { joinedAt: 'asc' },
   });
   const memberships = await excludeArchivedClinicMemberships(allMemberships);
-  const activeMembership = memberships[0] || null;
+  const activeMembership = user.clinicId
+    ? memberships.find((membership) => membership.clinicId === user.clinicId) || null
+    : null;
   const activeOrganization = user.organizationId
     ? await prisma.organization.findFirst({ where: { id: user.organizationId, archivedAt: null }, select: { name: true } })
     : null;
