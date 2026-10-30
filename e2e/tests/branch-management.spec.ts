@@ -182,10 +182,17 @@ test.describe('Canonical organization branch management', () => {
     const trigger = page.getByTestId('workspace-switcher-trigger');
     await expect(trigger).toBeVisible({ timeout: 15000 });
     await trigger.click();
-    await expect(page.getByTestId('workspace-switcher-menu')).toBeVisible();
+    const workspaceMenu = page.getByTestId('workspace-switcher-menu');
+    await expect(workspaceMenu).toBeVisible();
 
     const branchOption = () => page.getByRole('button', { name: new RegExp(branchName) });
-    await branchOption().click();
+    // Workspace contexts are listed before branches. Scroll the actual menu
+    // container to the branch section instead of asking Playwright to scroll an
+    // off-screen descendant through the document viewport.
+    await expect(branchOption()).toBeAttached({ timeout: 15000 });
+    await workspaceMenu.evaluate((element) => { element.scrollTop = element.scrollHeight; });
+    await expect(branchOption()).toBeInViewport({ timeout: 5000 });
+    await branchOption().click({ timeout: 15000 });
     await expect(page.getByTestId('workspace-switcher-menu')).toBeHidden();
 
     // The trigger displays the organization/workspace name, not the selected
