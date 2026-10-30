@@ -95,6 +95,7 @@ describe('trial backfill contract', () => {
   it('gates clinic IAM role assignment and removal after trial expiry', async () => {
     const text = await source('dentvision-backend/src/modules/iam/iam.routes.ts');
     expect(text).toContain('ensureClinicSubscriptionWritableForOrganization');
+    expect(text).toContain("effectiveScopeType === 'platform' && !canAssignPlatformScope(req.user!.role)");
     const assignStart = text.indexOf("iamRouter.post('/persons/:personId/roles'");
     const assignEnd = text.indexOf("iamRouter.delete('/persons/:personId/roles/:roleId'", assignStart);
     const assignRoute = text.slice(assignStart, assignEnd);
