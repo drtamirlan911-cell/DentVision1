@@ -48,6 +48,13 @@ async function enforceTargetClinicTrial(req: AuthRequest, res: any, next: any) {
       organizationId = String(req.user?.organizationId || '').trim();
       if (!organizationId) clinicId = String(req.user?.clinicId || '').trim();
     }
+    if (req.user?.role !== 'SUPERADMIN' && organizationId) {
+      const member = await organizationMembership(req.user!.id, organizationId);
+      if (!member) return res.status(403).json({ ok: false, error: 'Вы не являетесь участником этой организации' });
+    } else if (req.user?.role !== 'SUPERADMIN' && clinicId) {
+      const member = await membership(req.user!.id, clinicId);
+      if (!member) return res.status(403).json({ ok: false, error: 'Вы не являетесь участником этой клиники' });
+    }
     if (!clinicId) return next(); // non-clinic partners use their own billing contract
     const archivedClinicOrganization = await prisma.organization.findFirst({
       where: { originalType: 'Clinic', originalId: clinicId, archivedAt: { not: null } },
