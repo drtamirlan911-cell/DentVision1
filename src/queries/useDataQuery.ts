@@ -97,7 +97,7 @@ export function useDataQuery(clinicId?: string | null): UseDataQueryReturn {
   const patientsQ = useQuery({
     queryKey: [...queryKeys.patients, safeClinicId],
     queryFn: () => api.getPatients(safeClinicId),
-    enabled,
+    enabled: enabled && canPatients,
   });
 
   const appointmentsQ = useQuery({
