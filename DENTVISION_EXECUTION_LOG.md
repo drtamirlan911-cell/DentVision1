@@ -2525,3 +2525,12 @@ These changes are route/entry reconciliation only. Existing domain implementatio
 ### Verification status
 - Changes are committed to the existing PR #330 branch only. Exact-head lint, unit tests, role/context E2E, WebKit and Vercel preview are pending. No permissions were broadened; no API error or request-failure collector was suppressed.
 - RB-029, RB-031, RB-034, D1–D10 production/staging proof and overall release readiness remain open. No staging/production database operation, migration, merge to main or production deployment was performed.
+
+
+## 2026-10-31 — Apply expired-trial read-only policy to organization archive
+
+- Re-audited the D1/D2 source against the user's explicit policy: after 30 days, the clinic remains readable but all clinic-scoped business/organization mutations are blocked; organization archive must remain a soft archive and retain the linked data.
+- Found that `DELETE /api/organizations/:id` enforced owner-level authorization and correctly soft-archived only the Organization row, but did not run the clinic trial write guard. This left one organization-context mutation outside the read-only expiry boundary.
+- Updated the existing `requireOrganizationClinicWritable` guard to resolve `req.params.id` first when present, so it checks the target Organization/Clinic rather than relying on a different active workspace header. Applied this guard to organization archive before the owner-role check. SUPERADMIN recovery remains available; non-clinic organizations are unaffected by the clinic subscription gate.
+- Added a regression contract proving the target ID is checked and archive is gated by the same `SUBSCRIPTION_EXPIRED` policy. The soft archive remains unchanged: only `Organization.archivedAt/settings` are updated; Clinic, branches, memberships, patients, documents and audit history are retained.
+- Exact-head CI and route tests pending. No staging/production DB operation, migration, PHI backfill, merge or production deployment was performed.

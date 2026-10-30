@@ -71,6 +71,17 @@ describe('additional clinic-scoped mutation guards', () => {
 });
 
 
+
+  it('keeps clinic organization archive read-only after the 30-day trial expires', async () => {
+    const text = await source('dentvision-backend/src/modules/organizations/organizations.routes.ts');
+    const guardStart = text.indexOf('async function requireOrganizationClinicWritable');
+    const guardEnd = text.indexOf('async function currentOrganizationPerson', guardStart);
+    const guard = text.slice(guardStart, guardEnd);
+    expect(guard.indexOf('req.params.id')).toBeLessThan(guard.indexOf('req.user?.organizationId'));
+    expect(text).toContain("organizationsRouter.delete('/:id', requireOrganizationClinicWritable, async");
+    expect(guard).toContain("code: 'SUBSCRIPTION_EXPIRED'");
+  });
+
 describe('trial backfill contract', () => {
   it('upgrades only legacy 30-day DEMO trial rows to the same Enterprise capability set', async () => {
     const text = await source('dentvision-backend/prisma/migrations/20261029101000_backfill_legacy_clinic_trials/migration.sql');

@@ -77,7 +77,10 @@ async function ensurePersonRole(
 /** Expired clinic trials retain read access but cannot mutate the canonical organization context. */
 async function requireOrganizationClinicWritable(req: AuthRequest, res: any, next: any) {
   if (req.user?.role === 'SUPERADMIN') return next();
+  // The archive route is parameterized: check the target organization, not
+  // merely whichever organization happens to be active in the caller's token.
   const candidateId = String(
+    req.params.id ||
     req.user?.organizationId ||
     req.header('X-DentVision-Organization-Id') ||
     req.header('X-DentVision-Workspace-Id') ||
@@ -402,7 +405,7 @@ organizationsRouter.post('/me/verification', requireOrganizationClinicWritable, 
 
 // Soft-archive only the canonical organization context. The original Clinic,
 // branches, memberships, documents, and clinical history remain intact.
-organizationsRouter.delete('/:id', async (req: AuthRequest, res) => {
+organizationsRouter.delete('/:id', requireOrganizationClinicWritable, async (req: AuthRequest, res) => {
   try {
     const id = String(req.params.id || '').trim();
     // Organization lifecycle/archiving is owner governance, not routine ADMIN work.
