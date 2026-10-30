@@ -8,6 +8,7 @@ import {
   CLINIC_SAAS_PLANS,
   clinicPlanToSaas,
   type SaasPlanId,
+  TRIAL_DAYS,
 } from './clinicSubscription.service.js';
 
 export type PlanFeature =
@@ -174,7 +175,7 @@ function daysUntil(date: Date | null | undefined, now = new Date()): number | nu
 export async function resolveClinicAccess(clinicId: string): Promise<ClinicAccessState | null> {
   const clinic = await prisma.clinic.findUnique({
     where: { id: clinicId },
-    select: { id: true, name: true, plan: true, active: true },
+    select: { id: true, name: true, plan: true, active: true, createdAt: true },
   });
   if (!clinic) return null;
 
@@ -183,9 +184,17 @@ export async function resolveClinicAccess(clinicId: string): Promise<ClinicAcces
   });
 
   const now = new Date();
-  const periodEnd = subscription?.periodEnd || null;
+  // If the legacy DEMO backfill has not run yet, the clinic creation timestamp
+  // still provides a bounded trial. This prevents a missing subscription row
+  // from silently turning an old DEMO clinic into an unlimited writable tenant.
+  const legacyDemoPeriodEnd = clinic.plan === 'DEMO'
+    ? new Date(clinic.createdAt.getTime() + TRIAL_DAYS * 24 * 60 * 60 * 1000)
+    : null;
+  const periodEnd = subscription?.periodEnd ?? legacyDemoPeriodEnd;
   const periodExpired = periodEnd != null && periodEnd.getTime() <= now.getTime();
-  let status = subscription?.status || (clinic.active ? 'active' : 'suspended');
+  let status = subscription?.status || (legacyDemoPeriodEnd
+    ? (periodExpired ? 'expired' : 'trialing')
+    : (clinic.active ? 'active' : 'suspended'));
 
   // Self-heal: period ended but cron hasn't flipped yet
   if (periodExpired && status !== 'expired' && status !== 'suspended') {
@@ -193,10 +202,12 @@ export async function resolveClinicAccess(clinicId: string): Promise<ClinicAcces
     // existing clinical/financial records. Write endpoints are gated by
     // writeBlocked; expiry must not turn into a destructive hard lockout.
     status = 'expired';
-    await prisma.subscription.update({
-      where: { ownerType_ownerId: { ownerType: 'CLINIC', ownerId: clinicId } },
-      data: { status: 'expired' },
-    }).catch(() => null);
+    if (subscription) {
+      await prisma.subscription.update({
+        where: { ownerType_ownerId: { ownerType: 'CLINIC', ownerId: clinicId } },
+        data: { status: 'expired' },
+      }).catch(() => null);
+    }
   }
 
   // The previous cron used to set Clinic.active=false at expiry. Restore
