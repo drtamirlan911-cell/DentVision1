@@ -167,7 +167,7 @@ authRouter.post('/demo-clinic', authenticate, async (req: AuthRequest, res) => {
   try {
     const result = await prisma.$transaction(async (tx) => {
       await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtext(${req.user!.id}))`;
-      const existing = await tx.clinicMember.findFirst({ where: { userId: req.user!.id, role: 'OWNER', clinic: { plan: 'DEMO', active: true } },
+      const existing = await tx.clinicMember.findFirst({ where: { userId: req.user!.id, role: 'OWNER', clinic: { plan: { in: ['DEMO', 'ENTERPRISE'] }, active: true } },
         select: { clinic: true }, orderBy: { joinedAt: 'asc' } });
       if (existing) return { clinic: existing.clinic, created: false };
       const created = await createClinicForOwnerInTransaction(tx, req.user!.id, input, {
