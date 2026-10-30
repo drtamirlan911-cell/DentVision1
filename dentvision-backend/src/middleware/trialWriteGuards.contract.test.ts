@@ -132,6 +132,8 @@ describe('trial backfill contract', () => {
     expect(text).toContain("where: { originalType: 'Clinic', originalId: invitation.clinicId, archivedAt: { not: null } }");
     expect(text).toContain('const subscription = await tx.subscription.findUnique');
     expect(text).toContain("subscription.status === 'expired'");
+    expect(text).toContain("invitation.clinic.plan === 'DEMO'");
+    expect(text).toContain('TRIAL_DAYS * 24 * 60 * 60 * 1000');
     expect(text).toContain("new ClinicInvitationError('Пробный период клиники завершён. Присоединение временно недоступно.', 402)");
   });
 
