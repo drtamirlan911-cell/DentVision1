@@ -2534,3 +2534,9 @@ These changes are route/entry reconciliation only. Existing domain implementatio
 - Updated the existing `requireOrganizationClinicWritable` guard to resolve `req.params.id` first when present, so it checks the target Organization/Clinic rather than relying on a different active workspace header. Applied this guard to organization archive before the owner-role check. SUPERADMIN recovery remains available; non-clinic organizations are unaffected by the clinic subscription gate.
 - Added a regression contract proving the target ID is checked and archive is gated by the same `SUBSCRIPTION_EXPIRED` policy. The soft archive remains unchanged: only `Organization.archivedAt/settings` are updated; Clinic, branches, memberships, patients, documents and audit history are retained.
 - Exact-head CI and route tests pending. No staging/production DB operation, migration, PHI backfill, merge or production deployment was performed.
+
+
+### D2 archive guard ordering refinement
+- Reviewed the initial guard placement for information disclosure. The expiry check must not run before owner authorization, or a caller without access to an organization could learn whether its clinic trial has expired.
+- Moved the clinic trial check into the archive handler after the existing scoped owner lookup, using the resolved target organization's `originalId`. For a clinic, a missing subscription/access state fails closed (503/404), and an expired trial blocks the archive write (402). Non-clinic organization archive and platform SUPERADMIN recovery semantics remain unchanged.
+- Updated the regression contract to enforce the order: owner authorization → target clinic subscription check → Organization soft-archive write. The existing soft archive still changes only the Organization lifecycle; linked clinic data remains retained.

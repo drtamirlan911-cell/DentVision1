@@ -77,10 +77,7 @@ async function ensurePersonRole(
 /** Expired clinic trials retain read access but cannot mutate the canonical organization context. */
 async function requireOrganizationClinicWritable(req: AuthRequest, res: any, next: any) {
   if (req.user?.role === 'SUPERADMIN') return next();
-  // The archive route is parameterized: check the target organization, not
-  // merely whichever organization happens to be active in the caller's token.
   const candidateId = String(
-    req.params.id ||
     req.user?.organizationId ||
     req.header('X-DentVision-Organization-Id') ||
     req.header('X-DentVision-Workspace-Id') ||
@@ -405,7 +402,7 @@ organizationsRouter.post('/me/verification', requireOrganizationClinicWritable, 
 
 // Soft-archive only the canonical organization context. The original Clinic,
 // branches, memberships, documents, and clinical history remain intact.
-organizationsRouter.delete('/:id', requireOrganizationClinicWritable, async (req: AuthRequest, res) => {
+organizationsRouter.delete('/:id', async (req: AuthRequest, res) => {
   try {
     const id = String(req.params.id || '').trim();
     // Organization lifecycle/archiving is owner governance, not routine ADMIN work.
@@ -424,6 +421,27 @@ organizationsRouter.delete('/:id', requireOrganizationClinicWritable, async (req
       ? await prisma.organization.findFirst({ where: { id, archivedAt: null } })
       : person?.organization;
     if (!org) return res.status(404).json({ ok: false, error: 'Организация не найдена или нет прав владельца' } satisfies ApiResponse);
+
+    // Resolve owner authorization before subscription status. This avoids
+    // exposing another tenant's trial state to a caller who cannot archive it.
+    if (req.user?.role !== 'SUPERADMIN' && org.type === 'CLINIC') {
+      const clinicId = String(org.originalId || '').trim();
+      if (!clinicId) return res.status(503).json({ ok: false, error: 'Не удалось подтвердить клинику организации', code: 'CLINIC_ACCESS_UNVERIFIED' } satisfies ApiResponse);
+      try {
+        const access = await resolveClinicSubscriptionAccess(clinicId);
+        if (!access) return res.status(404).json({ ok: false, error: 'Клиника не найдена' } satisfies ApiResponse);
+        if (access.writeBlocked) return res.status(402).json({
+          ok: false,
+          error: 'Срок пробного периода завершён. Данные доступны только для чтения; продлите подписку перед изменением организации.',
+          code: 'SUBSCRIPTION_EXPIRED',
+          data: { upgradePath: '/crm/billing' },
+        } satisfies ApiResponse);
+      } catch (error) {
+        console.error('[organizations] archive subscription guard', error);
+        return res.status(503).json({ ok: false, error: 'Не удалось проверить подписку организации', code: 'CLINIC_ACCESS_UNVERIFIED' } satisfies ApiResponse);
+      }
+    }
+
     const previousSettings = org.settings && typeof org.settings === 'object' && !Array.isArray(org.settings)
       ? org.settings as Prisma.InputJsonObject : {};
     const archivedAt = new Date();

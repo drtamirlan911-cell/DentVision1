@@ -72,14 +72,20 @@ describe('additional clinic-scoped mutation guards', () => {
 
 
 
-  it('keeps clinic organization archive read-only after the 30-day trial expires', async () => {
+  it('keeps clinic organization archive read-only after the 30-day trial expires without exposing another tenant trial state', async () => {
     const text = await source('dentvision-backend/src/modules/organizations/organizations.routes.ts');
-    const guardStart = text.indexOf('async function requireOrganizationClinicWritable');
-    const guardEnd = text.indexOf('async function currentOrganizationPerson', guardStart);
-    const guard = text.slice(guardStart, guardEnd);
-    expect(guard.indexOf('req.params.id')).toBeLessThan(guard.indexOf('req.user?.organizationId'));
-    expect(text).toContain("organizationsRouter.delete('/:id', requireOrganizationClinicWritable, async");
-    expect(guard).toContain("code: 'SUBSCRIPTION_EXPIRED'");
+    const routeStart = text.indexOf("organizationsRouter.delete('/:id'");
+    const routeEnd = text.indexOf('\n});', routeStart);
+    const route = text.slice(routeStart, routeEnd);
+    const ownerCheck = route.indexOf("if (!org) return res.status(404)");
+    const subscriptionCheck = route.indexOf('resolveClinicSubscriptionAccess(clinicId)');
+    const archiveWrite = route.indexOf('prisma.organization.update');
+    expect(ownerCheck).toBeGreaterThan(-1);
+    expect(subscriptionCheck).toBeGreaterThan(ownerCheck);
+    expect(archiveWrite).toBeGreaterThan(subscriptionCheck);
+    expect(route).toContain("org.type === 'CLINIC'");
+    expect(route).toContain("req.user?.role !== 'SUPERADMIN'");
+    expect(route).toContain("code: 'SUBSCRIPTION_EXPIRED'");
   });
 
 describe('trial backfill contract', () => {
