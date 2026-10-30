@@ -55,6 +55,7 @@ This entry supersedes stale source-level claims below where explicitly noted, bu
 - **Risk:** until a backfill runs against an explicitly verified target, existing structured history rows may remain plaintext at rest. Phone, email, address and notes also remain searchable plaintext fields by current design and require a separate documented threat-model decision.
 - **Required fix:** complete the audit of all readers, writers, filters, exports/reports, AI/event copies, portal/odontogram/cross-clinic consumers and concurrent legacy writers; review a backup and rollback plan; run a read-only staging dry run; verify count/round-trip/integrity reconciliation before any approved write.
 - **Verification:** focused PHI/odontogram/backfill tests passed 63/63 on an earlier candidate, not this merged exact head. Fresh exact-head CI and consumer/security review remain required. No production database query, backfill, schema migration or deployment has been performed.
+- **Patient-history API write-boundary follow-up (candidate branch `security/rb029-patient-portal-history-envelope-20261026`, code commit `2368ff723efd5ea02349fd39dfec47c6ff87360e`):** the Portal profile writer previously coerced structured JSON into a string, and the canonical Patient create/upsert + PATCH writers also needed to reject caller-supplied root `ENC:` ciphertext / `__dentvisionEncryptedV1` envelopes. The candidate uses `encryptMedicalHistory` for Portal writes and a shared input guard at all three HTTP write boundaries, with regression coverage. Follow-up also minimizes the complaint narrative in durable PatientCreated AI events and rejects malformed reserved envelopes when decryption keys are unavailable. Exact-head CI and the broader reader/writer/concurrency, backup/rollback, and staging dry-run review remain pending. RB-029 remains OPEN; no database read/write, backfill, or deployment was performed.
 ### RB-030 — Offline appointment queue privacy redaction may drop required sync fields
 - **Status:** OPEN — behavior requires end-to-end verification
 - **Priority:** P1
@@ -65,7 +66,7 @@ This entry supersedes stale source-level claims below where explicitly noted, bu
 
 
 ### RB-031 — WebKit role-gate API calls fail with access-control/network errors
-- **Status:** IN PROGRESS — exact-HEAD verification pending
+- **Status:** OPEN — the latest completed exact-head run still reports WebKit access-control/page errors; the current IAM candidate does not change CORS policy, so closure is pending a fresh run and request/OPTIONS-header evidence
 - **Priority:** P1
 - **Area:** CI browser compatibility / API connectivity
 - **Observed:** run `39355354936` passed Chromium-based core E2E, Browser UX and mobile design, but the WebKit responsive role gate collected repeated page errors for `/api/guest/session` and `/api/ai/proactive` when calling `http://localhost:3001`. They are counted as runtime errors and must not be suppressed as harmless noise.
@@ -73,6 +74,10 @@ This entry supersedes stale source-level claims below where explicitly noted, bu
 - **Latest exact-head evidence (2026-10-23):** run `39970030360` on `f681f4b8f0784a1f8553da5612c58634593b2ab9` still failed the role/context gate. WebKit reported page errors for `/api/guest/session` and `/api/ai/proactive` at `http://127.0.0.1:3001` due to access-control checks. The browser page origin remained `http://localhost:3000`; changing only the API host did not establish a consistent loopback-origin setup. CORS failures remain real failures; do not suppress the collector.
 - **Follow-up in current candidate:** align the CI page origin to `http://127.0.0.1:3000`, keep the API at `http://127.0.0.1:3001`, update direct probes to use the same API base, and leave production CORS rules unchanged.
 - **Remaining:** exact-head CI must show no WebKit page/request/server errors and explicit CORS policy tests must pass. If it fails, inspect the exact request/OPTIONS response headers and browser console before changing policy.
+
+#### Follow-up — latest completed exact-head evidence (reviewed 2026-10-28)
+- Run `40361059735` on `c06c1a02ad508d1ff07b94fd1c78ebab5e59307f` still failed the role/context gate. The runner uses UI origin `http://127.0.0.1:3000` and API base `http://127.0.0.1:3001`; the development CORS allowlist includes both loopback UI origins and the current workspace headers. This does not yet identify whether WebKit is rejecting a preflight/header, receiving an error without CORS headers, or hitting a network/route failure.
+- Candidate `56ab3ecfe5d1f0d02cc8be00816151a69dd30dce` changes IAM page policy and anonymous test setup only; it does not claim to resolve RB-031. Inspect the next run's request/OPTIONS response headers and bounded console excerpt before changing CORS rules. Do not suppress the error collector or broaden production CORS.
 
 ### RB-032 — Successful-path E2E DOM dumps inflate role/visual artifacts
 - **Status:** IN PROGRESS — artifact policy corrected in the follow-up; exact-HEAD verification pending
@@ -229,6 +234,11 @@ This entry supersedes stale source-level claims below where explicitly noted, bu
 - **Priority:** P0
 - **Area:** E2E / RBAC / UX
 - **Required:** complete CI rerun after each root-cause fix; verify neighboring scenarios and negative authorization paths.
+
+#### Follow-up — role-surface reconciliation (2026-10-28)
+- Run `40361059735` on the previous PR #328 head failed the role/context gate for mismatches between the backend page set and the E2E role oracle: ASSISTANT Medical Card, clinic LAB patient CRM, read-only price list, partner referral queues, and the `/diagnostics/patients` alias. The same artifact showed anonymous storage access failing on the opaque initial origin.
+- Candidate commit `56ab3ecfe5d1f0d02cc8be00816151a69dd30dce` restricts the ASSISTANT/LAB page surfaces, aligns the allowed price-list/referral-queue policy, maps the route alias, and fixes the anonymous setup without removing assertions. Exact-head CI is pending.
+- Remaining in the previous artifact: owner/admin Clinic Settings unnamed controls and role-wide WebKit page/console errors. These remain blockers and must be fixed at their source.
 
 ### RB-007 — Mobile laboratory drawer visual regression
 - **Status:** FIXED — pending CI visual recheck
@@ -409,3 +419,24 @@ When a new blocker is discovered:
 4. Move it to Closed only with the fixing commit/run.
 
 This file is the source of truth for deferred release blockers; they must not exist only in chat notes.
+
+
+## Integration reconciliation — 2026-10-30
+
+Parallel-branch evidence retained during integration; reconcile against the current source before closing any blocker.
+
+### Preserved 328 branch change
+
+### RB-035 — Patient API read routes lack explicit RBAC and IIN lookup returns cross-clinic identity data
+- **Status:** OPEN — confirmed by source review on candidate `a4ab7285c8fa69df42d220c48d83267b760c56d9`; not fixed by the current page-surface patch
+- **Priority:** P0
+- **Area:** PHI / RBAC / tenant isolation / financial authorization
+- **Evidence:** `dentvision-backend/src/modules/patients/patients.routes.ts` has no explicit `requirePermission` on the patient list and several direct-read routes (`/:id`, `/:id/summary`, `/:id/history`, `/:id/images`, `/:id/treatment-plan`, `/:id/audit`, `/:id/assignments`). `serializePatient()` returns decrypted IIN, medical history, allergies, tooth data and prepaid balance. `loadClinicPatient()` checks clinic/branch scope but does not replace a role permission check. The IIN lookup route returns the name, phone and email of a matching patient in a different clinic. `POST /:id/deposit` has a clinic-writable guard but no explicit billing permission.
+- **Required fix:** enforce explicit read permissions at each route; keep basic patient-list access separate from clinical-history access and redact fields by effective permission; enforce branch/assignment scope for direct reads; replace cross-clinic suggested PHI with a consent-governed minimal result; require a billing permission for deposit mutations. Add negative route tests for manager, LAB, assistant and cross-clinic callers.
+- **Verification:** no patient-route fix or regression test is included in this commit. Do not close this blocker or infer API security from frontend page guards.
+
+
+### Preserved 329 branch change
+
+- **Derivative-PHI event minimization (candidate branch `security/rb029-patient-portal-history-envelope-20261026`):** PatientCreated's durable AI event and AI Employee task payload now contain only a patient ID and a complaint-presence boolean; actions re-read and decrypt the clinic-scoped Patient record in memory, and notification messages omit complaint text and patient names. This closes only that duplication path. Other clinical event payloads, AI transcripts, concurrency and full consumer audits remain open; RB-029 stays OPEN pending exact-head gates and an approved staging/rollback procedure.
+
