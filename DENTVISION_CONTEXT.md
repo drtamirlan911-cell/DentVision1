@@ -351,3 +351,10 @@ Do not repeat an audit when implementation can resolve the issue. Do not weaken 
 ### Zod lockfile resolution — 2026-10-30
 - Follow-up inspection of `dentvision-backend/package-lock.json` (lockfileVersion 3) confirms `node_modules/zod` resolves to `3.25.76`, within the declared `^3.24.2` range. This is the repository's committed lockfile resolution at the active branch ref.
 - GitHub code search returned no indexed source matches for the attempted Zod queries; this is a search-index limitation, not evidence that the backend has no Zod consumers. Continue the API-usage audit using the repository tree/source files before changing dependencies.
+
+
+## 2026-10-30 — Latest role/Academy/Safari evidence handoff
+- Historical run 41041393534 artifacts were inspected. Laboratory had repeated 403 responses on patient, lab-order, medical-visit, file and CRM read endpoints; Academy/School course route returned 404 for /api/school/courses/e2e; WebKit role journeys had access-control page errors on guest-session, IAM-context, AI-proactive and diagnostics-referral requests. Historical role gate: 103 pass / 37 fail / 28 skipped; Visual Agent: 45 pass / 3 fail.
+- User-reported Academy/School Course interactive control measures about 92×16 px. Historical text artifacts do not verify that exact element/geometry; locate it in fresh screenshot and DOM geometry before editing. Do not reduce the 36px target rule.
+- Current PR #330 head at inspection: fd0b34730c0f65877b18908353a3afdede94c22f. Quality Gate 41099779415 passed; CI 41099779548 and RB-034 diagnostic 41099779647 were still running. E2E had not started, so current-head role/Safari results remain unknown.
+- Next: inspect fresh exact-head artifacts, validate Academy fixture, capture Safari request + OPTIONS/preflight + CORS response headers, and resolve least-privilege causes for any 403s. Keep RB-003/RB-025/RB-031 open. No main merge, deployment, or database operation.
