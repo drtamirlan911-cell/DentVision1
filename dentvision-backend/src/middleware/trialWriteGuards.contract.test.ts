@@ -24,9 +24,9 @@ describe('trial read-only route coverage', () => {
 
   it('gates all treatment-case mutations as well as preserving read-only GETs', async () => {
     const text = await source('dentvision-backend/src/modules/crm/treatmentCase.routes.ts');
-    expect(text).toContain("treatmentCaseRouter.post('/', loadClinicAccess, blockClinicWrites");
-    expect(text).toContain("treatmentCaseRouter.patch('/:id', loadClinicAccess, blockClinicWrites");
-    expect(text).toContain("treatmentCaseRouter.delete('/:id', loadClinicAccess, blockClinicWrites");
+    expect(text).toContain("treatmentCaseRouter.post('/', loadClinicAccess, requirePermission('patient.write', 'medical.read', 'medical.write'), blockClinicWrites");
+    expect(text).toContain("treatmentCaseRouter.patch('/:id', loadClinicAccess, requirePermission('patient.write', 'medical.read', 'medical.write'), blockClinicWrites");
+    expect(text).toContain("treatmentCaseRouter.delete('/:id', loadClinicAccess, requirePermission('medical.manage'), blockClinicWrites");
   });
 
   it('does not lazily create clinic chairs on GET after the trial expires', async () => {
