@@ -2,7 +2,7 @@ import { Router } from 'express';
 import prisma from '../../lib/prisma.js';
 import { authenticate } from '../../middleware/auth.js';
 import { requireConsent } from '../../middleware/consentGate.js';
-import { decryptPatientFields, encryptField, hmacIin } from '../../lib/phi.js';
+import { decryptPatientFields, encryptMedicalHistory, hmacIin, isClientSuppliedEncryptedMedicalHistory } from '../../lib/phi.js';
 import { resolvePatientForUser } from './patientLink.js';
 import { isStorageKey, keyFromStorageUrl, signedDownloadUrl, storageConfigured } from '../../lib/storage.js';
 import * as crossClinicSvc from '../cross-clinic/cross-clinic.service.js';
@@ -61,7 +61,47 @@ patientPortalRouter.get('/invoices', ensurePatient, async (req: AuthRequest, res
 patientPortalRouter.get('/documents', ensurePatient, async (req: AuthRequest, res) => { try { return res.json({ ok: true, data: await portalSvc.getDocuments(resolvePatientId(req)) }); } catch (e: any) { return res.status(500).json({ ok: false, error: e.message }); } });
 patientPortalRouter.get('/documents/:id/content', ensurePatient, async (req: AuthRequest, res) => { try { const pid = resolvePatientId(req); const doc = await (prisma as any).document.findFirst({ where: { id: req.params.id, patientId: pid }, select: { url: true, type: true, name: true } }); if (!doc) return res.status(404).json({ ok: false, error: 'Документ не найден' }); const url = String(doc.url || ''); if (url.startsWith('data:text/plain')) { const base64Match = url.match(/;base64,(.+)$/); const content = base64Match ? Buffer.from(base64Match[1], 'base64').toString('utf-8') : decodeURIComponent(url.replace(/^data:text\/plain;charset=utf-8,/, '')); res.setHeader('Content-Type', 'text/plain; charset=utf-8'); res.setHeader('Content-Disposition', `attachment; filename="${encodeURIComponent(doc.name || 'document')}.txt"`); return res.send(content); } if (url.startsWith('http://') || url.startsWith('https://')) return res.redirect(url); if (isStorageKey(url)) { if (!storageConfigured()) return res.status(503).json({ ok: false, error: 'Файловое хранилище не настроено' }); return res.redirect(await signedDownloadUrl(keyFromStorageUrl(url))); } return res.status(410).json({ ok: false, error: 'Документ недоступен для скачивания' }); } catch (e: any) { return res.status(500).json({ ok: false, error: e.message }); } });
 patientPortalRouter.get('/diagnostics', ensurePatient, async (req: AuthRequest, res) => { try { return res.json({ ok: true, data: await portalSvc.getDiagnostics(resolvePatientId(req)) }); } catch (e: any) { return res.status(500).json({ ok: false, error: e.message }); } });
-patientPortalRouter.put('/me/profile', ensurePatient, async (req: AuthRequest, res) => { try { const pid = resolvePatientId(req); const clinicId = pid ? await resolvePatientClinicId(pid) : null; if (!clinicId) return res.status(404).json({ ok: false, error: 'Клиника не найдена' }); if (!(await ensureClinicWritableForPatient(req, res, clinicId))) return; const body = req.body || {}; const data: Record<string, unknown> = {}; if (body.phone !== undefined) data.phone = String(body.phone); if (body.email !== undefined) data.email = String(body.email); if (body.address !== undefined) data.address = String(body.address); if (body.medicalHistory !== undefined) data.medicalHistory = encryptField(String(body.medicalHistory)); if (Object.keys(data).length === 0) return res.status(400).json({ ok: false, error: 'Нет полей для обновления' }); await (prisma as any).patient.update({ where: { id: pid }, data }); return res.json({ ok: true, data: { updated: Object.keys(data) } }); } catch (e: any) { return res.status(500).json({ ok: false, error: e.message }); } });
+patientPortalRouter.put('/me/profile', ensurePatient, async (req: AuthRequest, res) => {
+  try {
+    const pid = resolvePatientId(req);
+    const clinicId = pid ? await resolvePatientClinicId(pid) : null;
+    if (!clinicId) return res.status(404).json({ ok: false, error: 'Клиника не найдена' });
+    if (!(await ensureClinicWritableForPatient(req, res, clinicId))) return;
+
+    const body = req.body || {};
+    const data: Record<string, unknown> = {};
+    if (body.phone !== undefined) data.phone = String(body.phone);
+    if (body.email !== undefined) data.email = String(body.email);
+    if (body.address !== undefined) data.address = String(body.address);
+    if (body.medicalHistory !== undefined) {
+      const history = body.medicalHistory;
+      if (isClientSuppliedEncryptedMedicalHistory(history)) {
+        return res.status(400).json({ ok: false, error: 'Передайте медицинскую историю в исходном формате' });
+      }
+      data.medicalHistory = encryptMedicalHistory(history);
+    }
+
+    if (Object.keys(data).length === 0) {
+      return res.status(400).json({ ok: false, error: 'Нет полей для обновления' });
+    }
+
+    const current = await (prisma as any).patient.findFirst({
+      where: { id: pid },
+      select: { id: true, clinicId: true, updatedAt: true },
+    });
+    if (!current) return res.status(404).json({ ok: false, error: 'Карточка пациента не найдена' });
+    const updated = await (prisma as any).patient.updateMany({
+      where: { id: pid, clinicId: current.clinicId, updatedAt: current.updatedAt },
+      data,
+    });
+    if (updated.count !== 1) {
+      return res.status(409).json({ ok: false, error: 'Данные пациента изменились параллельно. Обновите страницу и повторите.' });
+    }
+    return res.json({ ok: true, data: { updated: Object.keys(data) } });
+  } catch (e: any) {
+    return res.status(500).json({ ok: false, error: e.message });
+  }
+});
 patientPortalRouter.get('/clinics', async (req: AuthRequest, res) => { try { const search = String(req.query.search || '').trim(); if (!search || search.length < 2) return res.json({ ok: true, data: [] }); const clinics = await (prisma as any).clinic.findMany({ where: { name: { contains: search, mode: 'insensitive' } }, select: { id: true, name: true, city: true }, take: 50 }); const archivedRows = clinics.length ? await prisma.organization.findMany({ where: { originalType: 'Clinic', originalId: { in: clinics.map((clinic: any) => clinic.id) }, archivedAt: { not: null } }, select: { originalId: true } }) : []; const archivedIds = new Set(archivedRows.map((row) => row.originalId)); return res.json({ ok: true, data: clinics.filter((clinic: any) => !archivedIds.has(clinic.id)).slice(0, 10) }); } catch (e: any) { return res.status(500).json({ ok: false, error: e.message }); } });
 patientPortalRouter.post('/link', async (req: AuthRequest, res) => { try { const body = req.body || {}; const clinicId = body.clinicId as string; if (!clinicId) return res.status(400).json({ ok: false, error: 'clinicId обязателен' }); if (await isClinicOrganizationArchived(clinicId)) return res.status(404).json({ ok: false, error: 'Клиника не найдена' }); const clinic = await (prisma as any).clinic.findUnique({ where: { id: clinicId }, select: { id: true, name: true } }); if (!clinic) return res.status(404).json({ ok: false, error: 'Клиника не найдена' }); const phoneHint = typeof body.phone === 'string' ? body.phone : null; const match = await resolvePatientForUser(req.user!, { clinicId: clinic.id, phoneHint }); if (match) return res.json({ ok: true, data: { patientId: match.id, clinicName: clinic.name, alreadyLinked: match.via === 'userId', linkedExisting: match.via !== 'userId', matchedBy: match.via } }); return res.status(403).json({ ok: false, error: 'Не найдено существующее приглашение или карточка пациента для этой клиники' }); } catch (e: any) { return res.status(500).json({ ok: false, error: e.message }); } });
 patientPortalRouter.post('/appointments/:id/cancel', ensurePatient, async (req: AuthRequest, res) => { try { const patientId = resolvePatientId(req); const clinicId = patientId ? await resolvePatientClinicId(patientId) : null; if (!clinicId) return res.status(404).json({ ok: false, error: 'Клиника не найдена' }); if (!(await ensureClinicWritableForPatient(req, res, clinicId))) return; const result = await portalSvc.cancelAppointment(patientId, String(req.params.id)); return res.json({ ok: true, data: result }); } catch (e: any) { if (e instanceof portalSvc.PortalActionError) return res.status(e.code === 'NOT_FOUND' ? 404 : 400).json({ ok: false, error: e.message }); return res.status(500).json({ ok: false, error: e.message }); } });
