@@ -15,7 +15,7 @@ export function registerSubscribers(): void {
   registered = true;
   registerAIEventBridge();
 
-  subscribe('patient.created', async ({ clinicId, patientId, userId, name }) => {
+  subscribe('patient.created', async ({ clinicId, patientId, userId, hasComplaints }) => {
     await prisma.auditLog.create({
       data: {
         id: uid(),
@@ -24,7 +24,7 @@ export function registerSubscribers(): void {
         action: 'patient.created',
         entity: 'patient',
         entityId: patientId,
-        details: name ? { name } : undefined,
+        details: { hasComplaints },
       },
     });
   });
