@@ -24,8 +24,9 @@ const CLINIC_MANAGER_ROLES = ['OWNER', 'ADMIN', 'DIRECTOR'];
 
 export async function canManageRolesFor(
   user: { id: string; role: string },
-  org: { id: string; type: string; originalId: string | null } | null,
+  org: { id: string; type: string; originalId: string | null; archivedAt?: Date | null } | null,
 ): Promise<boolean> {
+  if (org?.archivedAt) return false;
   if (user.role === 'SUPERADMIN') return true;
   if (!org) return false;
   if (org.type === 'CLINIC') {
@@ -65,6 +66,10 @@ export async function ensureClinicSubscriptionWritableForOrganization(
     res.status(503).json({ ok: false, error: 'Не удалось проверить подписку клиники', code: 'CLINIC_ACCESS_UNVERIFIED' });
     return false;
   }
+}
+
+export function canAssignPlatformScope(userRole: string): boolean {
+  return String(userRole).toUpperCase() === 'SUPERADMIN';
 }
 
 export const iamRouter = Router();
@@ -627,6 +632,9 @@ iamRouter.post('/persons/:personId/roles', async (req: AuthRequest, res) => {
     }
     if (effectiveScopeType === 'organization' && scopeId && scopeId !== canonicalOrganizationId) {
       return res.status(403).json({ ok: false, error: 'scopeId не соответствует организации Person' } satisfies ApiResponse);
+    }
+    if (effectiveScopeType === 'platform' && !canAssignPlatformScope(req.user!.role)) {
+      return res.status(403).json({ ok: false, error: 'Platform-scoped roles can be assigned only by SUPERADMIN' } satisfies ApiResponse);
     }
     if (effectiveScopeType === 'platform' && scopeId) {
       return res.status(400).json({ ok: false, error: 'Для platform-роли scopeId должен отсутствовать' } satisfies ApiResponse);
