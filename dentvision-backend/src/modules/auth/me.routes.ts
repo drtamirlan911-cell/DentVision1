@@ -9,6 +9,7 @@ import { pagesForCaller, capabilitiesForPermissions } from '../../lib/permission
 import { syncPersonFromClinicMember } from '../../lib/syncMembership.js';
 import { createClinicInvitation } from './clinicInvitations.service.js';
 import { resolveClinicAccess as resolveClinicSubscriptionAccess } from '../billing/planEntitlements.js';
+import { TRIAL_DAYS } from '../billing/clinicSubscription.service.js';
 
 export const authMeRouter = Router();
 
@@ -81,7 +82,7 @@ authMeRouter.post('/join-clinic', authenticate, async (req: AuthRequest, res) =>
     if (!user) return res.status(401).json({ ok: false, error: 'Пользователь не найден' } satisfies ApiResponse);
     const joined = await prisma.$transaction(async (tx) => {
       const invitation = await tx.clinicInvitation.findUnique({ where: { code }, select: { id: true, clinicId: true, email: true, role: true, expiresAt: true, usedAt: true, usedBy: true,
-        clinic: { select: { id: true, name: true, active: true } } } });
+        clinic: { select: { id: true, name: true, active: true, plan: true, createdAt: true } } } });
       const now = new Date();
       if (!invitation || !invitation.clinic.active || (invitation.expiresAt && invitation.expiresAt <= now)) throw new ClinicInvitationError('Приглашение недействительно или истекло', 404);
       const archivedOrganization = await tx.organization.findFirst({
@@ -100,11 +101,15 @@ authMeRouter.post('/join-clinic', authenticate, async (req: AuthRequest, res) =>
         where: { ownerType_ownerId: { ownerType: 'CLINIC', ownerId: invitation.clinicId } },
         select: { status: true, periodEnd: true },
       });
-      if (subscription && (
-        subscription.status === 'expired' ||
-        subscription.status === 'suspended' ||
-        (subscription.periodEnd && subscription.periodEnd <= now)
-      )) throw new ClinicInvitationError('Пробный период клиники завершён. Присоединение временно недоступно.', 402);
+      const legacyDemoPeriodEnd = invitation.clinic.plan === 'DEMO'
+        ? new Date(invitation.clinic.createdAt.getTime() + TRIAL_DAYS * 24 * 60 * 60 * 1000)
+        : null;
+      const periodEnd = subscription?.periodEnd ?? legacyDemoPeriodEnd;
+      if (
+        subscription?.status === 'expired' ||
+        subscription?.status === 'suspended' ||
+        (periodEnd && periodEnd <= now)
+      ) throw new ClinicInvitationError('Пробный период клиники завершён. Присоединение временно недоступно.', 402);
       const claimed = await tx.clinicInvitation.updateMany({ where: { id: invitation.id, usedAt: null, OR: [{ expiresAt: null }, { expiresAt: { gt: now } }] },
         data: { usedAt: now, usedBy: user.id } });
       if (claimed.count !== 1) throw new ClinicInvitationError('Приглашение уже использовано или истекло', 409);
