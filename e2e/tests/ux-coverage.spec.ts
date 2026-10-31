@@ -33,9 +33,31 @@ async function login(page: Page) {
 
 function collectRuntimeErrors(page: Page) {
   const errors: string[] = [];
+  const pendingConsoleDetails: Promise<void>[] = [];
   const onPageError = (error: Error) => errors.push(`pageerror: ${error.message}`);
   const onConsole = (message: ConsoleMessage) => {
-    if (message.type() === 'error') errors.push(`console: ${message.text()}`);
+    if (message.type() !== 'error') return;
+    const messageText = message.text();
+    const index = errors.push(`console: ${messageText}`) - 1;
+
+    // React supplies the component-owner stack as console arguments; text()
+    // alone drops those %s arguments and hides the component that created the list.
+    if (/Each child in a list should have a unique ["']key["'] prop/i.test(messageText)) {
+      pendingConsoleDetails.push(
+        Promise.all(message.args().map(async (argument) => {
+          try {
+            const value: unknown = await argument.jsonValue();
+            if (typeof value === 'string') return value.slice(0, 1200);
+            return JSON.stringify(value).slice(0, 1200);
+          } catch {
+            return '[console argument unavailable]';
+          }
+        })).then((details) => {
+          const useful = details.filter((detail) => detail && detail !== 'undefined');
+          if (useful.length) errors[index] = `${errors[index]} | React details: ${useful.join(' | ')}`;
+        }),
+      );
+    }
   };
   const onResponse = (response: Response) => {
     const status = response.status();
@@ -65,6 +87,7 @@ function collectRuntimeErrors(page: Page) {
   page.on('response', onResponse);
   return {
     errors,
+    flush: async () => { await Promise.all(pendingConsoleDetails); },
     dispose: () => {
       page.off('pageerror', onPageError);
       page.off('console', onConsole);
@@ -109,6 +132,7 @@ test.describe('DentVision browser UX coverage', () => {
         if (/Application error|ChunkLoadError|Failed to fetch dynamically imported module/i.test(bodyText)) {
           failures.push(`${route}: application/chunk error visible`);
         }
+        await runtime.flush();
         if (runtime.errors.length) failures.push(`${route}: ${runtime.errors.join(' | ')}`);
       } catch (error) {
         failures.push(`${route}: navigation failed: ${error instanceof Error ? error.message : String(error)}`);
