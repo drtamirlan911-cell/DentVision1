@@ -2606,3 +2606,10 @@ These changes are route/entry reconciliation only. Existing domain implementatio
 ### Verification boundary
 - Fresh exact-head CI, Role/Context, Quality Gate, RB-034 and Vercel Preview remain pending. The WebKit `GET /api/diagnostics/laboratories` access-control error is still open until exact request/OPTIONS header evidence is captured; no CORS policy was changed.
 - D1/D2 staging proof, RB-029 PHI staging/backfill review, D5 provider/production checks, D9 exact-head gates and D10 workflow parity remain open. No migration, production DB write, Render variable change, main merge or production deployment was performed.
+
+
+### Unit-test harness correction — PlanAccessBanner dismiss regression
+
+- Exact-head CI [41173435676](https://github.com/drtamirlan911-cell/DentVision1/actions/runs/41173435676) reached the new frontend test suite after backend/frontend lint, TypeScript and build succeeded. The full run reported **2,378 tests passed across 261 files**; the only unit-suite load failure was the new `PlanAccessBanner.test.tsx` mock replacing the entire `react-i18next` module and omitting the `initReactI18next` export imported by shared `src/lib/i18n.ts`.
+- Updated the test to a partial mock that retains all real module exports and overrides only `useTranslation`. The target-size assertions remain unchanged; no application code or i18n bootstrap is modified.
+- The same exact-head run had Core E2E pass; Browser UX was in progress at the last status read. A fresh exact-head run is required after the mock correction.

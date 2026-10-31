@@ -2,11 +2,15 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { render, screen } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 
-vi.mock('react-i18next', () => ({
-  useTranslation: () => ({
-    t: (key: string) => key === 'common.hide' ? 'Скрыть' : key,
-  }),
-}))
+vi.mock('react-i18next', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('react-i18next')>()
+  return {
+    ...actual,
+    useTranslation: () => ({
+      t: (key: string) => key === 'common.hide' ? 'Скрыть' : key,
+    }),
+  }
+})
 
 import { PlanAccessBanner, type PlanEntitlementsSnapshot } from './PlanAccessBanner'
 

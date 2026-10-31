@@ -470,3 +470,8 @@ Historical priority notes retained from parallel branches; they do not supersede
 - [ ] Re-run exact-head CI and verify Role/Context, Visual Agent, Business Owner and Organization Owner.
 - [ ] Capture the exact WebKit OPTIONS/request headers for `/api/diagnostics/laboratories`; no speculative CORS changes.
 - [ ] Keep D1/D2 staging, RB-029, D5, D9 and D10 release evidence open until explicitly verified.
+
+
+## 2026-10-31 — PlanAccessBanner test harness fix
+- [x] Preserve real `react-i18next` exports in the dismiss-target regression test; only stub `useTranslation`.
+- [ ] Re-run full unit and exact-head release gates after this mock-only correction.

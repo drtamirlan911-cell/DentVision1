@@ -377,3 +377,7 @@ Do not repeat an audit when implementation can resolve the issue. Do not weaken 
 - The existing PR #330 candidate now scopes E2E request draining to the active document and same-origin lazy JS loads, separates old-document navigation aborts from genuine same-document failures, and removes request draining after a forbidden-route redirect.
 - PlanAccessBanner dismiss targets now meet the 36×36 minimum. Normal patient-card selection passes the same least-privilege chart/billing access options as the deep-link path.
 - No authorization was broadened. The WebKit diagnostics laboratories access-control error, D1/D2 staging verification, RB-029, D5, D9 and D10 remain open. Overall release remains NOT READY.
+
+
+## 2026-10-31 — PlanAccessBanner unit-test mock correction
+- CI `41173435676` confirmed 2,378 tests passed; only the added PlanAccessBanner suite failed during module import because its mock omitted `initReactI18next`. The test now uses a partial `react-i18next` mock preserving real exports and overriding only `useTranslation`. The next exact-head run must confirm the suite.
