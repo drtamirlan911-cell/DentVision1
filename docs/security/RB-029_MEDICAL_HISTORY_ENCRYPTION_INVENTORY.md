@@ -5,7 +5,7 @@
 - Patient `PATCH /api/patients/:id` now uses `updatedAt` compare-and-set in a Prisma transaction and returns 409 for a stale snapshot. Tooth mirroring and branch assignment are included in that transaction; the branch is validated before any patient write.
 - `POST /api/patients` already used row-version predicates for existing rows. The Patient Portal profile writer uses `updatedAt` in its update predicate. `teethStore.ts` has its own row-version guard and transactional tooth/history write. Their full behavior remains subject to exact-head tests.
 - Patient deposits now use database-side `prepaidBalance.increment`, avoiding concurrent read/overwrite arithmetic.
-- The AI transcript surface remains separate and open: `AIMessage.content` is a plaintext string and `AISession.messages` is JSON. Session access is scoped by authenticated user/workspace, but transcript PHI encryption, retention and deletion policy are not solved by the Patient history envelope.
+- AI transcript content is encrypted at application level for new writes: `AIMessage.content`, `AIMessage.prevUserText` and the `AISession.messages` mirror use the shared `ENC:` field cipher; `/threads/active` decrypts for the authenticated owner. See the current follow-up reconciliation below. Legacy plaintext rows, explicit learned-memory content policy, retention/deletion and staging backfill remain open.
 - Source commit `b77552f8078382beabc376ad2af37ba2cb60abff`; test-contract correction `8e7989b5d01eb973220df70b331e5912342f281e`. Exact-head CI must pass before treating the changes as verified. No staging/production database read/write or PHI backfill was performed.
 
 
@@ -105,3 +105,16 @@ The checklist below predates the shared V1 codec and compatible writers/readers.
 ## Remaining boundaries
 
 This inventory does **not** establish that every separate Patient field is encrypted. `phone`, `email`, `address`, `notes`, IIN blind index/search behavior, images/documents/storage URLs, visit and treatment-plan fields, AI messages/events and backup copies have their own privacy/data-retention properties. They require their own explicit decisions. RB-029 remains **OPEN / P0** until the codec, all compatible consumers, audited backfill, key operations and exact production evidence are complete.
+
+
+## AI transcript and thread-history reconciliation — 2026-10-31
+
+A re-check of the current PR source corrects the earlier statement that AI transcripts were stored as plaintext:
+
+- `AIService.saveMessage()` writes `AIMessage.content` through `encryptAiTranscriptText()`; the helper uses the shared fail-closed `phi.ts` field cipher and rejects malformed `ENC:` markers.
+- `syncSessionMessages()` encrypts both `AIMessage.content` and `prevUserText` before mirroring the transcript to `AISession.messages`. `GET /api/ai/threads/active` decrypts both the JSON mirror and the normalized AIMessage fallback.
+- Learning/few-shot reads decrypt before model use; feedback updates re-encrypt text. Existing tests cover ciphertext round-trip, legacy plaintext compatibility, malformed markers, production missing-key behavior and feedback/few-shot handling.
+- **New findings addressed in this follow-up:** `GET /api/ai/threads` is now filtered by the active `aiSessionScope(req)`; legacy `GET /api/ai/history` now requires explicit authentication, filters by active workspace, decrypts message content while preserving the response shape, and bounds pagination.
+- Added regression coverage for encrypted/legacy transcript reads, malformed ciphertext fail-closed behavior, pagination boundaries and source-level route auth/workspace scope.
+- `AIMemory.value` remains a separate JSON store. The current context cache stores verified user/workspace identifiers, role/name, active page/entity IDs, workflow keys and recent tool names/timestamps, not patient medicalHistory by construction. However, explicit free-form learned preferences can retain user-provided phrases; prevention of patient-identifying/clinical content in those preferences still needs a separate policy and tests.
+- **RB-029 remains OPEN / P0.** These source changes do not complete legacy-row backfill, backup/restore proof, key-rotation proof, full PHI-consumer review, retention/deletion acceptance or approved staging dry-run. No database backfill was executed.

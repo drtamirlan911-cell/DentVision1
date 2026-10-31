@@ -552,3 +552,11 @@ Parallel-branch evidence retained during integration; reconcile against the curr
 - Stock restoration is transactional and guarded by a compare-and-set status claim. The buyer UI exposes cancellation for eligible cash orders and a retry action if DentCash reversal remains pending. The E2E scenario asserts buyer isolation and exact stock restoration; unit tests cover unsupported states, payment intents and concurrent transition loss.
 - Payment settlement and supplier lifecycle writes now compare-and-set the prior order status to avoid a race that could overwrite a cancellation.
 - **Status: implemented in source; OPEN pending exact-head CI/E2E success.** Online/Kaspi cancellation and actual provider refunds are intentionally not exposed; they require a verified merchant refund/void contract and reconciliation path. Do not claim full Shop cancellation acceptance until that path exists.
+
+
+## RB-029 follow-up — AI transcript/history access boundary (2026-10-31)
+
+- Corrected the inventory: current source encrypts new `AIMessage.content` and `prevUserText`, and mirrors encrypted content into `AISession.messages`. `/threads/active` decrypts for the authenticated owner. Learning/few-shot reads decrypt and feedback writes encrypt.
+- Scoped `GET /api/ai/threads` to the active workspace. Protected legacy `GET /api/ai/history` with explicit authentication, active-workspace filtering, transcript decryption and bounded pagination.
+- Added tests for encrypted/legacy message reads, malformed ciphertext fail-closed behavior, history limits and route authentication/workspace scope.
+- **Status remains OPEN / P0:** legacy plaintext backfill, free-form learned-memory policy, all derivative PHI surfaces, backup/key rotation/retention, staging dry-run and production reconciliation remain unverified. No database backfill was executed.

@@ -10,6 +10,7 @@ import { orchestrate, orchestratorEnabled, isProviderUnavailableError } from './
 import type { AIResponse } from './types/ai.types.js';
 import { prisma } from '../../lib/prisma.js';
 import { decryptAiTranscriptText, encryptAiTranscriptText } from './lib/transcriptEncryption.js';
+import { decryptStoredThreadMessages, parseAiHistoryPagination } from './lib/threadHistory.js';
 import { logAIInteraction } from './lib/auditLogger.js';
 import { guardAiAccess } from '../../middleware/planGate.js';
 import { consumeGuestAi, guestAiRemaining } from '../../lib/guestAiQuota.js';
@@ -670,7 +671,7 @@ aiRouter.post('/query/stream', async (req: AuthRequest, res) => {
 aiRouter.get('/threads', authenticate, async (req: AuthRequest, res) => {
   try {
     const sessions = await prisma.aISession.findMany({
-      where: { userId: req.user!.id },
+      where: { userId: req.user!.id, clinicId: aiSessionScope(req) },
       orderBy: { updatedAt: 'desc' },
       take: 20,
       select: { id: true, clinicId: true, updatedAt: true, createdAt: true },
@@ -834,10 +835,9 @@ aiRouter.post('/action', authenticate, async (req: AuthRequest, res) => {
   res.json({ ok: true, data: { type: 'data', data: params, label: action } });
 });
 
-aiRouter.get('/history', async (req: AuthRequest, res) => {
+aiRouter.get('/history', authenticate, async (req: AuthRequest, res) => {
   try {
-    const limit = parseInt(req.query.limit as string) || 20;
-    const offset = parseInt(req.query.offset as string) || 0;
+    const { limit, offset } = parseAiHistoryPagination(req.query.limit, req.query.offset);
 
     const sessions = await prisma.aISession.findMany({
       where: { userId: req.user!.id, clinicId: aiSessionScope(req) },
@@ -853,7 +853,13 @@ aiRouter.get('/history', async (req: AuthRequest, res) => {
       },
     });
 
-    res.json({ ok: true, data: sessions });
+    res.json({
+      ok: true,
+      data: sessions.map((session) => ({
+        ...session,
+        messages: decryptStoredThreadMessages(session.messages),
+      })),
+    });
   } catch (error) {
     console.error('[AI History Error]', error);
     res.status(500).json({ ok: false, error: 'History fetch failed' });

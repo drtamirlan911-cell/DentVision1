@@ -524,3 +524,14 @@ Historical priority notes retained from parallel branches; they do not supersede
 - [x] Guard payment settlement and supplier status writes with compare-and-set order-state transitions.
 - [ ] Pass exact-head unit, E2E, browser UX, role/context and visual release gates.
 - [ ] Implement provider-backed cancellation/refund for online/Kaspi payments after the official merchant contract and callback semantics are verified.
+
+
+## RB-029 AI history API follow-up — 2026-10-31
+
+- [x] Filter AI thread enumeration by the active workspace scope.
+- [x] Require authentication on the legacy AI history route.
+- [x] Decrypt transcript content on the history response and bound pagination.
+- [x] Add regression tests for encrypted/legacy reads, malformed ciphertext, pagination and route scope.
+- [ ] Audit and restrict PHI in free-form learned preferences and all AIMemory writers.
+- [ ] Complete legacy transcript and Patient medicalHistory dry-run/backfill only after approved backup/restore and staging evidence.
+- [ ] Keep RB-029 OPEN until all consumers, keys, retention, backup and data reconciliation evidence are reviewed.

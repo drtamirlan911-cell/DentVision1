@@ -427,3 +427,8 @@ Do not repeat an audit when implementation can resolve the issue. Do not weaken 
 ## Current execution follow-up — 2026-10-31
 
 PR #330 remains the sole integration branch. SHOP-013 buyer cancellation source work is added for unpaid cash-on-delivery orders only; online-payment cancellation remains blocked pending verified provider refund support. Do not merge until the updated exact-head CI/E2E and all release gates pass. Production, staging databases and PHI backfill remain untouched.
+
+
+## RB-029 AI history boundary follow-up — 2026-10-31
+
+AI transcript persistence already uses application-layer encryption for new AIMessage rows and AISession message mirrors. PR #330 further scopes thread listing by active workspace and adds authentication/decryption/bounded pagination to the legacy history endpoint. RB-029 remains OPEN: explicit learned preferences can retain free-form phrases, Patient medicalHistory legacy rows need approved dry-run/backfill, and backup/key/retention and downstream PHI audits remain incomplete.

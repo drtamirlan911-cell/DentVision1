@@ -2663,3 +2663,8 @@ These changes are route/entry reconciliation only. Existing domain implementatio
 ## 2026-10-31 — Master Spec compliance follow-up: SHOP-013
 
 Implemented buyer-side cancellation for pending cash-on-delivery Shop orders: order-owner check, safe-state/payment-intent guard, compare-and-set transition, atomic stock restoration, DentCash reversal retry marker, buyer UI action, unit tests and E2E stock/ownership assertions. Payment settlement and supplier status mutations now guard concurrent order-state races. This is not full online-payment cancellation; provider-backed void/refund remains open. Await exact-head CI before closing.
+
+
+## 2026-10-31 — RB-029 AI thread history boundary
+
+Source review corrected the earlier inventory statement: AIMessage transcript text and the AISession.messages mirror are encrypted on new writes; active thread reads decrypt. Fixed active-workspace scope on thread enumeration and added authentication, decryption and bounded pagination to the legacy AI history API. Added regression tests for stored transcript normalization and route scope. RB-029 stays OPEN pending learned-memory PHI policy, legacy data backfill, backup/key rotation, retention and staging evidence.

@@ -131,3 +131,8 @@ This audit changes documentation only. It does not claim staging/production vali
 - Added a visible cancel/retry action to `/shop/orders`, unit tests and SHOP-013 E2E coverage including buyer isolation and stock restoration.
 - Payment settlement now claims `pending → paid` with compare-and-set before writing sale rows; supplier status transitions also use compare-and-set, preventing a late callback or competing actor from overwriting a winning cancellation.
 - **Not closed yet:** exact-head CI/E2E must pass. Online/Kaspi, payment-processing, unknown-outcome, paid and supplier-accepted cancellations remain blocked until provider-backed void/refund semantics are implemented and verified. Marketplace section remains PARTIAL.
+
+
+## Follow-up — RB-029 AI transcript/history API boundary (2026-10-31)
+
+The initial compliance matrix remains a baseline assessment, not a claim of current full closure. A current-source review found that transcript encryption already exists in `AIMessage` and the `AISession.messages` mirror; the stale statement that those columns are wholly plaintext is corrected in `docs/security/RB-029_MEDICAL_HISTORY_ENCRYPTION_INVENTORY.md`. This follow-up additionally scopes thread enumeration to the active workspace and protects/decrypts the legacy history route. RB-029 remains OPEN pending full Patient-history downstream audit, learned-memory PHI policy, legacy-data backfill, backup/key-rotation and staging/production evidence.
