@@ -14,6 +14,7 @@ type RequestLedger = {
   requestIds: WeakMap<object, number>
   requestEpochs: WeakMap<object, number>
   byIdentity: Map<string, number[]>
+  lastActivityAt: number
 }
 
 // Keep request drains scoped to the active main document. Late lifecycle events
@@ -115,21 +116,27 @@ function pageId(route: string, role?: Role): string | null {
 
 async function waitForRouteActivity(page: Page, roleId: string, route: string) {
   const ledger = pendingCriticalRequestsByPage.get(page);
-  if (ledger) {
+  const quietPeriodMs = 700;
+  const drainCurrentDocument = async () => {
+    if (!ledger) return;
     const currentPending = () => [...ledger.pending.values()].filter((entry) => entry.epoch === ledger.epoch);
+    const isQuiet = () => currentPending().length === 0 && Date.now() - ledger.lastActivityAt >= quietPeriodMs;
     try {
-      await expect.poll(() => currentPending().length, {
+      await expect.poll(isQuiet, {
         timeout: 20000,
         intervals: [50, 100, 250, 500, 1000],
-        message: roleId + ' ' + route + ': current-document API/lazy-module requests did not settle',
-      }).toBe(0);
+        message: roleId + ' ' + route + ': current-document API/lazy-module requests did not settle or remain idle for ' + quietPeriodMs + 'ms',
+      }).toBe(true);
     } catch (error) {
       const active = currentPending().map((entry) => entry.label);
-      throw new Error(roleId + ' ' + route + ': pending current-document requests: ' + active.join('; ') + '. ' + String(error));
+      const quietForMs = Math.max(0, Date.now() - ledger.lastActivityAt);
+      throw new Error(roleId + ' ' + route + ': pending current-document requests: ' + active.join('; ') + '; request quiet for ' + quietForMs + 'ms (requires ' + quietPeriodMs + 'ms). ' + String(error));
     }
-  }
-  // Font rendering is useful for snapshots, but an external font CDN must not
-  // hold the security matrix indefinitely. App scripts and APIs still drain.
+  };
+
+  // Wait for document fonts, then require a quiet window for finite app requests.
+  // React Query and the workspace bridges can start their first requests just
+  // after DOMContentLoaded; a zero-pending snapshot alone races that startup.
   try {
     await Promise.race([
       page.evaluate(async () => { await document.fonts.ready; }),
@@ -138,6 +145,7 @@ async function waitForRouteActivity(page: Page, roleId: string, route: string) {
   } catch (error) {
     throw new Error(roleId + ' ' + route + ': document readiness failed: ' + String(error));
   }
+  await drainCurrentDocument();
 }
 
 async function login(page: Page, email: string) {
@@ -255,6 +263,7 @@ function collectors(page: Page) {
     requestIds: new WeakMap(),
     requestEpochs: new WeakMap(),
     byIdentity: new Map(),
+    lastActivityAt: Date.now(),
   };
   pendingCriticalRequestsByPage.set(page, ledger);
   const identity = (request: any) => request.method() + ' ' + request.url();
@@ -273,6 +282,8 @@ function collectors(page: Page) {
     if (id === undefined) id = ledger.byIdentity.get(key)?.find(candidate => ledger.pending.has(candidate));
     if (id === undefined) return;
 
+    const activeEntry = ledger.pending.get(id);
+    if (activeEntry?.epoch === ledger.epoch) ledger.lastActivityAt = Date.now();
     ledger.pending.delete(id);
     const queue = ledger.byIdentity.get(key);
     if (queue) {
@@ -296,6 +307,7 @@ function collectors(page: Page) {
 
     if (mainDocumentNavigation) {
       ledger.epoch += 1;
+      ledger.lastActivityAt = Date.now();
       const staleIds = new Set<number>();
       for (const [id, entry] of ledger.pending) {
         if (entry.epoch < ledger.epoch) {
@@ -323,6 +335,7 @@ function collectors(page: Page) {
       const lazyModule = request.resourceType() === 'script' && url.origin === uiOrigin;
       if (!finiteApi && !lazyModule) return;
 
+      ledger.lastActivityAt = Date.now();
       const id = ++ledger.sequence;
       const key = identity(request);
       ledger.pending.set(id, {
@@ -336,6 +349,11 @@ function collectors(page: Page) {
     } catch { /* non-URL browser requests are outside this gate */ }
   });
 
+  page.on('framenavigated', frame => {
+    try {
+      if (frame.parentFrame() === null) ledger.lastActivityAt = Date.now();
+    } catch { /* detached frames do not affect main-document readiness */ }
+  });
   page.on('requestfinished', finishPending);
   page.on('console', m => { if (m.type() === 'error') problems.console.push(m.text()); });
   page.on('pageerror', e => problems.page.push(e.message));
