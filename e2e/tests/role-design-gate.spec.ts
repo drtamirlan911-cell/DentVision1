@@ -285,9 +285,13 @@ function collectors(page: Page) {
   page.on('request', request => {
     let mainDocumentNavigation = false;
     try {
+      const requestFrame = request.frame();
+      // Compare frame hierarchy rather than wrapper object identity. Playwright
+      // may expose different Frame wrappers for the request and Page accessors;
+      // the top-level document is reliably identified by having no parent frame.
       mainDocumentNavigation = request.isNavigationRequest()
         && request.resourceType() === 'document'
-        && request.frame() === page.mainFrame();
+        && requestFrame.parentFrame() === null;
     } catch { /* detached-frame and service-worker requests are not main navigation */ }
 
     if (mainDocumentNavigation) {
@@ -304,7 +308,6 @@ function collectors(page: Page) {
         if (remaining.length) ledger.byIdentity.set(key, remaining);
         else ledger.byIdentity.delete(key);
       }
-      ledger.requestIds = new WeakMap();
     }
 
     try { ledger.requestEpochs.set(request, ledger.epoch); } catch { /* request wrapper unavailable */ }
