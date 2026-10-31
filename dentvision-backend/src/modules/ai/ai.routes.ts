@@ -9,6 +9,7 @@ import { improveResponseWithLLM } from './core/llm.service.js';
 import { orchestrate, orchestratorEnabled, isProviderUnavailableError } from './os/orchestrator.js';
 import type { AIResponse } from './types/ai.types.js';
 import { prisma } from '../../lib/prisma.js';
+import { decryptAiTranscriptText, encryptAiTranscriptText } from './lib/transcriptEncryption.js';
 import { logAIInteraction } from './lib/auditLogger.js';
 import { guardAiAccess } from '../../middleware/planGate.js';
 import { consumeGuestAi, guestAiRemaining } from '../../lib/guestAiQuota.js';
@@ -131,34 +132,50 @@ async function resolveUserSessionId(req: AuthRequest, requested?: string): Promi
 async function syncSessionMessages(sessionId: string, userId: string | undefined, clinicId: string | undefined) {
   if (!userId) return;
   try {
+    const scopeKey = clinicId || DEMO_CLINIC_ID || 'platform';
+    const ownedSession = await prisma.aISession.findFirst({
+      where: { id: sessionId, userId, clinicId: scopeKey },
+      select: { id: true },
+    });
+    if (!ownedSession) return;
+
     const rows = await prisma.aIMessage.findMany({
       where: { sessionId },
       orderBy: { createdAt: 'asc' },
       take: 80,
-      select: { id: true, role: true, content: true, createdAt: true },
+      select: { id: true, role: true, content: true, prevUserText: true, createdAt: true },
     });
-    const messages = rows.map((r) => ({
-      id: r.id,
-      role: r.role,
-      content: r.content,
-      timestamp: r.createdAt.toISOString(),
+    const normalized = rows.map((row) => ({
+      row,
+      content: encryptAiTranscriptText(row.content),
+      prevUserText: row.prevUserText == null ? null : encryptAiTranscriptText(row.prevUserText),
     }));
-    await prisma.aISession.upsert({
-      where: { id: sessionId },
-      create: {
-        id: sessionId,
-        userId,
-        clinicId: clinicId || DEMO_CLINIC_ID || 'platform',
-        messages,
-        context: {},
-      },
-      update: { messages },
+    const messages = normalized.map(({ row, content }) => ({
+      id: row.id,
+      role: row.role,
+      content,
+      timestamp: row.createdAt.toISOString(),
+    }));
+
+    await prisma.$transaction(async (tx) => {
+      for (const item of normalized) {
+        if (item.content !== item.row.content || item.prevUserText !== item.row.prevUserText) {
+          await tx.aIMessage.updateMany({
+            where: { id: item.row.id, content: item.row.content, prevUserText: item.row.prevUserText },
+            data: { content: item.content, prevUserText: item.prevUserText },
+          });
+        }
+      }
+      await tx.aISession.upsert({
+        where: { id: sessionId },
+        create: { id: sessionId, userId, clinicId: scopeKey, messages, context: {} },
+        update: { messages },
+      });
     });
   } catch (err) {
-    console.error('[AI] syncSessionMessages', err);
+    console.error('[AI] syncSessionMessages failed; transcript payload omitted');
   }
 }
-
 interface ProcessedResponse extends AIResponse {
   toolsUsed?: string[];
   /** Model id that answered; absent when a deterministic path did. */
@@ -679,11 +696,14 @@ aiRouter.get('/threads/active', authenticate, async (req: AuthRequest, res) => {
   try {
     const sessionId = await resolveUserSessionId(req);
     const session = await prisma.aISession.findFirst({
-      where: { id: sessionId, userId: req.user!.id },
+      where: { id: sessionId, userId: req.user!.id, clinicId: aiSessionScope(req) },
     });
     let messages: Array<{ id: string; role: string; content: string; timestamp?: string }> = [];
     if (Array.isArray(session?.messages) && (session!.messages as any[]).length) {
-      messages = session!.messages as any;
+      messages = (session!.messages as any[]).map((message) => ({
+        ...message,
+        content: decryptAiTranscriptText(String(message.content ?? '')),
+      }));
     } else {
       const rows = await prisma.aIMessage.findMany({
         where: { sessionId },
@@ -693,7 +713,7 @@ aiRouter.get('/threads/active', authenticate, async (req: AuthRequest, res) => {
       messages = rows.map((r) => ({
         id: r.id,
         role: r.role,
-        content: r.content,
+        content: decryptAiTranscriptText(r.content),
         timestamp: r.createdAt.toISOString(),
       }));
     }
@@ -708,8 +728,12 @@ aiRouter.get('/threads/active', authenticate, async (req: AuthRequest, res) => {
       },
     });
   } catch (error) {
-    console.error('[AI] threads active', error);
-    return res.json({ ok: true, data: { threadId: null, messages: [], turnCount: 0, entities: {} } });
+    console.error('[AI] threads active unavailable', error);
+    return res.status(503).json({
+      ok: false,
+      error: 'История AI временно недоступна',
+      code: 'AI_TRANSCRIPT_UNAVAILABLE',
+    });
   }
 });
 
