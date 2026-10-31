@@ -8,7 +8,7 @@ const PASSWORD = 'Test1234!';
 
 // Track finite app API and web-font requests so full-document E2E navigation
 // never tears down work owned by the route being audited.
-const pendingCriticalRequestsByPage = new WeakMap<Page, Map<any, string>>();
+const pendingCriticalRequestsByPage = new WeakMap<Page, Map<string, { count: number; label: string }>>();
 
 const PUBLIC_ROUTES = ['/', '/login', '/register', '/forgot-password', '/booking', '/demo', '/pricing', '/terms', '/privacy', '/jobs', '/help', '/community', '/shop'];
 const AUTH_COMMON_ROUTES = ['/', '/ai', '/help', '/notifications', '/profile'];
@@ -113,7 +113,8 @@ async function waitForRouteActivity(page: Page, roleId: string, route: string) {
         message: roleId + ' ' + route + ': route-owned API/font requests did not settle',
       }).toBe(0);
     } catch (error) {
-      const active = [...pending.values()];
+      const active = [...pending.values()]
+        .map(({ label, count }) => count > 1 ? label + ' (' + count + ')' : label);
       throw new Error(roleId + ' ' + route + ': pending route-owned requests: ' + active.join('; ') + '. ' + String(error));
     }
   }
@@ -227,21 +228,41 @@ async function acceptPatientPortalConsents(page: Page) {
 
 function collectors(page: Page) {
   const problems={console:[] as string[],page:[] as string[],requests:[] as string[],http:[] as string[],server:[] as string[]};
-  const pending = new Map<any, string>();
+  // Key request lifecycle entries by stable HTTP identity, not Playwright
+  // Request-wrapper object identity. Counts preserve concurrent duplicate
+  // requests to the same URL; completion/failure decrements exactly one call.
+  const pending = new Map<string, { count: number; label: string }>();
   pendingCriticalRequestsByPage.set(page, pending);
+  const requestIdentity = (request: any) => request.method() + ' ' + request.url();
+  const finishPending = (request: any) => {
+    const key = requestIdentity(request);
+    const current = pending.get(key);
+    if (!current) return;
+    if (current.count <= 1) pending.delete(key);
+    else pending.set(key, { ...current, count: current.count - 1 });
+  };
   page.on('request', request => {
     try {
       const url = new URL(request.url());
+      const accept = String(request.headers()?.accept || '').toLowerCase();
+      // EventSource/SSE is intentionally long-lived and is not a finite route
+      // load. Its failures are still collected below as request failures.
+      if (request.resourceType() === 'eventsource' || accept.includes('text/event-stream')) return;
       if (url.pathname.startsWith('/api/') || ['fonts.gstatic.com', 'fonts.googleapis.com'].includes(url.hostname)) {
-        pending.set(request, request.method() + ' ' + url.origin + url.pathname);
+        const key = requestIdentity(request);
+        const current = pending.get(key);
+        pending.set(key, {
+          count: (current?.count || 0) + 1,
+          label: request.method() + ' ' + url.origin + url.pathname,
+        });
       }
     } catch { /* non-URL browser requests are outside this gate */ }
   });
-  page.on('requestfinished', request => pending.delete(request));
+  page.on('requestfinished', finishPending);
   page.on('console',m=>{if(m.type()==='error') problems.console.push(m.text())});
   page.on('pageerror',e=>problems.page.push(e.message));
   page.on('requestfailed',r=>{
-    pending.delete(r);
+    finishPending(r);
     problems.requests.push(r.method()+' '+r.url()+' :: '+(r.failure()?.errorText||'failed'));
   });
   page.on('response',r=>{

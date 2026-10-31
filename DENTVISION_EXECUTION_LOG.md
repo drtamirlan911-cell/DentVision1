@@ -2574,3 +2574,16 @@ These changes are route/entry reconciliation only. Existing domain implementatio
 ### Verification boundary
 - The preceding exact-head CI [41141555818](https://github.com/drtamirlan911-cell/DentVision1/actions/runs/41141555818) had Core E2E, Browser UX and Mobile Design pass; Quality Gate [41141555859](https://github.com/drtamirlan911-cell/DentVision1/actions/runs/41141555859) and RB-034 [41141555708](https://github.com/drtamirlan911-cell/DentVision1/actions/runs/41141555708) passed. Role/Context remained in progress at the last status read; no result is claimed.
 - The new commit triggers fresh exact-head CI. No staging/production DB query/write, migration, backfill, PHI operation, Render environment change, main merge or production deployment was performed. D1 remains open until exact-head release gates and approved staging positive-read/negative-write checks pass; overall release remains NOT READY.
+
+
+## 2026-10-31 — Role/Context request tracker: exact-head investigation
+
+### Evidence
+- CI [41143882152](https://github.com/drtamirlan911-cell/DentVision1/actions/runs/41143882152) completed with unit/lint/Core E2E/Browser UX/Mobile Design/Visual Agent/business-owner/organization-owner steps passing, but Role/Context failed. Quality Gate [41143881924](https://github.com/drtamirlan911-cell/DentVision1/actions/runs/41143881924) and RB-034 [41143882023](https://github.com/drtamirlan911-cell/DentVision1/actions/runs/41143882023) passed.
+- Downloaded and inspected the role checkpoint and nested Playwright trace. APIs named in the pending-request assertion had HTTP 200 responses and body snapshots; observed durations were approximately 80–170 ms. The gate retained those requests beyond their completion, indicating its tracking/reconciliation mechanism was the defect rather than a confirmed API service delay.
+- The source used a JavaScript `Map` keyed by Playwright Request wrapper objects. A fresh exact-head patch now keys lifecycle counts by stable HTTP method + full URL, increments for concurrent duplicates, and decrements on both request-finished and request-failed. EventSource/SSE is not required to drain because it is long-lived; failed requests continue to be separately reported and asserted.
+
+### Remaining release checks
+- The same Role/Context summary also contained forbidden-route redirect failures (notably `/support`, `/bi` and `/security`). These may be genuine policy/route defects and must be independently rechecked after the tracker is corrected. No authorization assertion has been removed or relaxed.
+- New exact-head CI is required. No staging/production database operation, migration, PHI operation, Render environment change, `main` merge or production deployment was performed.
+- PR #330 remains draft; overall release remains NOT READY.

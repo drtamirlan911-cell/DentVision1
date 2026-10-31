@@ -452,3 +452,10 @@ Historical priority notes retained from parallel branches; they do not supersede
 - [x] Cover the service transition and the superadmin subscription API route with regression tests.
 - [ ] Re-run exact-head CI, full role/context, Visual Agent, business-owner and organization-owner release gates.
 - [ ] After approval, validate D1 migrations and expired-clinic positive GET / negative mutation behavior on staging; do not run production migrations or PHI backfills from this candidate.
+
+
+## 2026-10-31 — Role/Context test-harness lifecycle fix
+- [x] Inspect exact-head artifacts and verify that requests recorded as pending actually returned HTTP 200 with bodies in the nested Playwright network trace.
+- [x] Replace object-key pending tracking with method+URL counters that safely reconcile duplicate requests and request-finished/request-failed events; exclude only EventSource/SSE from finite request draining.
+- [ ] Re-run exact-head full CI. Re-evaluate route-policy/forbidden-redirect failures without weakening IAM assertions.
+- [ ] Keep PR #330 draft and overall release NOT READY until the complete current-head gate set passes and remaining D1/RB evidence is closed.
