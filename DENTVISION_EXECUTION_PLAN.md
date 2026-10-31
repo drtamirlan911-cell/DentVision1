@@ -559,5 +559,5 @@ Historical priority notes retained from parallel branches; they do not supersede
 - [x] Retain the exhaustive role-1280 route/permission matrix for all declared and discovered routes across all 16 roles.
 - [x] Retain all eight role viewport projects and all required per-role/per-viewport screenshots; keep Mobile Design and Visual Agent gates separate and unchanged.
 - [x] Restrict repeated route journeys on additional viewports to representative role-specific workflows; keep request-failure, HTTP, console/page-error, tenant-isolation and 36px target assertions intact.
-- [x] Add request resource type, elapsed age and response status/content-type diagnostics to failed drain reports, with response-body completion reconciliation.
+- [x] Add request resource type, elapsed age and response status/content-type/timing diagnostics to failed drain reports, retaining the Playwright request lifecycle as the sole completion authority.
 - [ ] Re-run full exact-head CI and verify Role/Context, Visual Agent, Business Owner, Organization Owner, Playwright CLI and final visual-release gates before closing RB-024/RB-025.

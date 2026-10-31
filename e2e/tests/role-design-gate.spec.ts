@@ -144,8 +144,11 @@ async function waitForRouteActivity(page: Page, roleId: string, route: string) {
         const response = entry.responseStatus === undefined
           ? 'no-response'
           : 'HTTP ' + entry.responseStatus + (entry.responseContentType ? ' ' + entry.responseContentType : '');
+        const responseDelay = entry.responseAt === undefined
+          ? ''
+          : ', responseAfter=' + (entry.responseAt - entry.startedAt) + 'ms';
         return entry.label + ' [resource=' + entry.resourceType
-          + ', age=' + (now - entry.startedAt) + 'ms, ' + response + ']';
+          + ', age=' + (now - entry.startedAt) + 'ms, ' + response + responseDelay + ']';
       });
       const quietForMs = Math.max(0, now - ledger.lastActivityAt);
       throw new Error(roleId + ' ' + route + ': pending current-document requests: ' + active.join('; ') + '; request quiet for ' + quietForMs + 'ms (requires ' + quietPeriodMs + 'ms). ' + String(error));
@@ -416,13 +419,6 @@ function collectors(page: Page) {
     }
     if (status >= 500) problems.server.push(status + ' ' + request.method() + ' ' + response.url());
 
-    // Some Playwright/browser combinations expose distinct Request wrappers to
-    // response and requestfinished handlers. Use the completed response body as
-    // a second completion signal; a failed body still reaches requestfailed and
-    // remains a hard failure in problems.requests.
-    void response.finished().then(error => {
-      if (!error) finishPending(request);
-    }).catch(() => { /* requestfailed remains the authoritative failure signal */ });
   });
   return problems;
 }
