@@ -442,3 +442,13 @@ New short/session/long AIMemory writes are now encrypted in a versioned JSON env
 ## CI role-gate follow-up — 2026-10-31
 
 CI 41186233177 exposed a browser-gate environment issue: role-1280 reported pending Vite lazy-module source requests and finite API requests at the 20-second drain boundary. The next run will serve the compiled frontend using vite preview rather than on-demand transforms. Route coverage and 700 ms network quiet criterion are unchanged; RB-024 remains open pending exact-head verification.
+
+
+## 2026-11-01 — Exact-head Role/Context E2E analysis
+
+- Verified PR #330 head `75b0efd27c90971e3b91e71eb085c02a643d75b8`; CI run [41191847670](https://github.com/drtamirlan911-cell/DentVision1/actions/runs/41191847670) ended `cancelled`. Its Role/Context gate ran about 48 minutes and reported 127 passed, 7 flaky and 6 failed.
+- The six final failures were reported by the request-drain wait: pending current-document API and lazy-loaded script requests (including `/api/auth/me`, AI history/thread endpoints, notifications, DentCash wallet and frontend chunks). The compact checkpoint classified these as UI/WAIT; this evidence alone does not prove API 4xx/5xx or CORS failures. HTTP, requestfailed, console, page-error, RBAC and tenant assertions remain separate hard checks.
+- Core E2E, Browser UX and Mobile Design completed successfully; Visual Agent also completed successfully. Quality Gate [41191847732](https://github.com/drtamirlan911-cell/DentVision1/actions/runs/41191847732) and RB-034 diagnostic [41191847668](https://github.com/drtamirlan911-cell/DentVision1/actions/runs/41191847668) passed. The overall CI workflow is not green.
+- The full 16-role × declared/discovered-route authorization and screen matrix remains on `role-1280`. This follow-up reduces only repeated responsive-route samples on the other viewport projects; all 8 role viewport projects, 16×8 screenshot evidence requirements, 36px hit-target checks, failed-request checks, HTTP checks, page/console errors and tenant-boundary assertions remain in place. Mobile Design and Visual Agent remain separate.
+- Added request resource type, age and response status/content-type diagnostics to the drain failure message. A successfully completed response body is also a completion signal for the request ledger; failed response bodies still flow through the existing `requestfailed` hard-failure assertion.
+- **Verification pending:** run the complete exact-head CI after this change. RB-024/RB-025 remain open until the same full role, visual, owner and release gates pass. Release remains NOT READY; no staging/production database, PHI, migration, deployment or `main` merge was performed.

@@ -569,3 +569,12 @@ Parallel-branch evidence retained during integration; reconcile against the curr
 - Malformed/unsupported encrypted envelopes fail closed; production writes without ENCRYPTION_KEY fail before Prisma persistence. Unit tests cover the three write scopes, encrypted round-trip, legacy read compatibility, listing, invalid envelope and missing production key.
 - Removed cross-workspace mirroring of explicit free-form learned facts: only generic style preferences are user-global; explicit preferences remain clinic-scoped.
 - Status remains OPEN / P0: existing AIMemory rows still need a protected dry-run/backfill, and retention/deletion, key-rotation, direct-consumer and staging/production evidence are not complete.
+
+
+## 2026-11-01 — Exact-head Role/Context wait-gate follow-up (PR #330)
+
+- On head `75b0efd27c90971e3b91e71eb085c02a643d75b8`, CI [41191847670](https://github.com/drtamirlan911-cell/DentVision1/actions/runs/41191847670) ended cancelled. Role/Context recorded 127 passed, 7 flaky and 6 failed after approximately 48 minutes; the six final failures were request-drain wait signatures for pending current-document API/lazy-script requests.
+- The run's compact checkpoint labels these failures UI/WAIT. It does not, by itself, establish an endpoint 403/401, CORS rejection or backend outage. Preserve and inspect the separate HTTP, requestfailed, page-error and console collectors. Do not suppress or relax those assertions.
+- Core E2E, Browser UX, Mobile Design and Visual Agent completed successfully. Quality Gate [41191847732](https://github.com/drtamirlan911-cell/DentVision1/actions/runs/41191847732) and RB-034 [41191847668](https://github.com/drtamirlan911-cell/DentVision1/actions/runs/41191847668) passed; overall CI did not.
+- The test-only correction keeps exhaustive all-role/all-route authorization on role-1280, all eight role viewport projects and screenshot-manifest requirements, while limiting redundant responsive route re-visits on the other viewport projects. It adds pending request resource/age/response metadata and completion reconciliation without weakening requestfailed or HTTP assertions.
+- **Status: verification pending; RB-024 and RB-025 remain OPEN/IN PROGRESS.** Require a fresh full CI on the resulting exact HEAD, including Visual Agent, Business Owner, Organization Owner and final visual evidence. Release remains NOT READY. No production/staging data, PHI, migrations, secrets, deployment or main merge touched.

@@ -2678,3 +2678,14 @@ Added versioned encrypted JSON storage for all new MemoryEngine scopes, decoded 
 ## 2026-10-31 — CI browser-gate failure analysis
 
 Exact-head CI 41186233177: frontend/backend lint passed; Quality Gate and RB-034 Diagnostic passed; E2E failed in role-1280 with 15 current-document request-drain errors (lazy `/src/**/*.tsx` modules and finite API calls still pending at 20 seconds). Generated system map was also stale by one Shop endpoint (692 unique handlers / 654 registered routes; Shop 38 handlers). Updated the generated map and changed E2E frontend serving from Vite dev to production `vite preview`; role/route assertions and 700 ms quiet interval unchanged. Next exact-head CI is required; RB-024 remains open.
+
+
+## 2026-11-01 — PR #330 Role/Context exact-head failure analysis and test-gate correction
+
+Inspected CI run [41191847670](https://github.com/drtamirlan911-cell/DentVision1/actions/runs/41191847670) and its role-context checkpoint artifact on head `75b0efd27c90971e3b91e71eb085c02a643d75b8`. The Role/Context run lasted about 48 minutes and recorded 127 passed, 7 flaky and 6 failed. Failure signatures were request-drain waits for current-document API/lazy-module requests; the compact checkpoint categorized them as UI/WAIT. Do not describe these as confirmed endpoint authorization failures or CORS defects without their HTTP/requestfailed evidence.
+
+Core E2E, Browser UX, Mobile Design and Visual Agent completed successfully on that run. Quality Gate [41191847732](https://github.com/drtamirlan911-cell/DentVision1/actions/runs/41191847732) and RB-034 [41191847668](https://github.com/drtamirlan911-cell/DentVision1/actions/runs/41191847668) passed, but overall CI was cancelled and release is not ready.
+
+Updated the role-gate test design without removing security checks: full authorization and declared/discovered route coverage remains exhaustive for all 16 roles on role-1280; the other seven viewport projects retain three representative workflow routes per applicable role plus the required screenshots. All eight role viewport projects and the visual release manifest requirements remain. The existing Mobile Design and Visual Agent gates remain unchanged. Request-ledger diagnostics now include resource type, pending age and response status/content type; response-body completion is reconciled as a second finish signal, while requestfailed, HTTP 4xx/5xx, console/page errors, tenant isolation and RBAC assertions remain hard failures.
+
+Next required action: execute full CI on the new exact HEAD, inspect all role/visual/business-owner/organization-owner gate results, then update blocker state only from exact-head evidence. RB-024/RB-025 remain open. No production/staging database operation, PHI backfill, migration, deployment or main merge.

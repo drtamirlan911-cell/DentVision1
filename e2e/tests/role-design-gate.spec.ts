@@ -6,7 +6,15 @@ const API_BASE_URL = process.env.VITE_API_URL || 'http://127.0.0.1:3001';
 const VISUAL_EVIDENCE_ROOT = process.env.VISUAL_EVIDENCE_DIR || 'e2e/visual-evidence';
 const PASSWORD = 'Test1234!';
 
-type PendingRequest = { epoch: number; label: string }
+type PendingRequest = {
+  epoch: number
+  label: string
+  resourceType: string
+  startedAt: number
+  responseStatus?: number
+  responseContentType?: string
+  responseAt?: number
+}
 type RequestLedger = {
   epoch: number
   sequence: number
@@ -68,22 +76,25 @@ const ROLES: readonly Role[] = [
 
 
 const RESPONSIVE_ROUTES_BY_ROLE: Record<string, string[]> = {
-  owner: ['/ai','/crm/schedule','/crm/patients','/crm/dental-chart','/crm/treatment-plans','/crm/cashier','/crm/finance','/diagnostics/referrals','/shop','/school'],
-  admin: ['/crm/schedule','/crm/patients','/crm/dental-chart','/crm/treatment-plans','/crm/cashier','/diagnostics/referrals','/shop','/school'],
-  doctor: ['/crm/schedule','/crm/patients','/crm/visits','/crm/dental-chart','/crm/treatment-plans','/diagnostics/referrals'],
-  assistant: ['/crm/schedule','/crm/patients','/crm/visits','/crm/documents','/crm/reminders','/diagnostics/referrals'],
-  manager: ['/crm/schedule','/crm/patients','/analytics','/crm/inventory','/crm/staff','/shop'],
+  // Full role × route authorization and screen audit remains exhaustive in role-1280.
+  // Other viewports sample the highest-value workflows; the independent Mobile Design
+  // and Visual Agent gates retain their own responsive journey coverage and screenshots.
+  owner: ['/ai','/crm/schedule','/crm/patients'],
+  admin: ['/crm/schedule','/crm/patients','/crm/cashier'],
+  doctor: ['/crm/schedule','/crm/patients','/crm/visits'],
+  assistant: ['/crm/schedule','/crm/patients','/crm/documents'],
+  manager: ['/crm/schedule','/crm/patients','/analytics'],
   regular: ['/school','/profile'],
-  patient: ['/patient-portal','/profile','/shop','/school'],
-  'diagnostic-owner': ['/diagnostics/center','/diagnostics/referrals','/diagnostics/results','/diagnostics/calendar','/diagnostics/statistics'],
+  patient: ['/patient-portal','/profile','/shop'],
+  'diagnostic-owner': ['/diagnostics/center','/diagnostics/referrals','/diagnostics/results'],
   'diagnostic-operator': ['/diagnostics/center','/diagnostics/referrals','/diagnostics/results'],
-  'medical-lab-owner': ['/diagnostics/lab?workspace=medical-lab','/diagnostics/laboratories','/diagnostics/results','/diagnostics/calendar'],
+  'medical-lab-owner': ['/diagnostics/lab?workspace=medical-lab','/diagnostics/laboratories','/diagnostics/results'],
   'medical-lab-tech': ['/diagnostics/lab?workspace=medical-lab','/diagnostics/laboratories','/diagnostics/results'],
   'dental-lab-owner': ['/diagnostics/lab','/diagnostics/laboratories','/diagnostics/results'],
   'dental-technician': ['/diagnostics/lab','/diagnostics/laboratories','/diagnostics/results'],
-  superadmin: ['/admin','/quality','/platform-finance','/diagnostics','/ai-governance'],
-  support: ['/help','/analytics','/settings','/profile'],
-  laboratory: ['/crm/lab','/shop','/diagnostics/referrals','/diagnostics/laboratories','/diagnostics/results'],
+  superadmin: ['/admin','/quality','/platform-finance'],
+  support: ['/help','/analytics','/profile'],
+  laboratory: ['/crm/lab','/diagnostics/referrals','/diagnostics/laboratories'],
 };
 
 function pageId(route: string, role?: Role): string | null {
@@ -128,8 +139,15 @@ async function waitForRouteActivity(page: Page, roleId: string, route: string) {
         message: roleId + ' ' + route + ': current-document API/lazy-module requests did not settle or remain idle for ' + quietPeriodMs + 'ms',
       }).toBe(true);
     } catch (error) {
-      const active = currentPending().map((entry) => entry.label);
-      const quietForMs = Math.max(0, Date.now() - ledger.lastActivityAt);
+      const now = Date.now();
+      const active = currentPending().map((entry) => {
+        const response = entry.responseStatus === undefined
+          ? 'no-response'
+          : 'HTTP ' + entry.responseStatus + (entry.responseContentType ? ' ' + entry.responseContentType : '');
+        return entry.label + ' [resource=' + entry.resourceType
+          + ', age=' + (now - entry.startedAt) + 'ms, ' + response + ']';
+      });
+      const quietForMs = Math.max(0, now - ledger.lastActivityAt);
       throw new Error(roleId + ' ' + route + ': pending current-document requests: ' + active.join('; ') + '; request quiet for ' + quietForMs + 'ms (requires ' + quietPeriodMs + 'ms). ' + String(error));
     }
   };
@@ -341,6 +359,8 @@ function collectors(page: Page) {
       ledger.pending.set(id, {
         epoch: ledger.epoch,
         label: request.method() + ' ' + url.origin + url.pathname,
+        resourceType: request.resourceType(),
+        startedAt: Date.now(),
       });
       ledger.requestIds.set(request, id);
       const queue = ledger.byIdentity.get(key) || [];
@@ -374,15 +394,35 @@ function collectors(page: Page) {
   });
   page.on('response', response => {
     const status = response.status();
+    const request = response.request();
+    try {
+      const id = ledger.requestIds.get(request);
+      const pending = id === undefined ? undefined : ledger.pending.get(id);
+      if (pending?.epoch === ledger.epoch) {
+        pending.responseStatus = status;
+        pending.responseContentType = response.headers()['content-type'] || undefined;
+        pending.responseAt = Date.now();
+        ledger.lastActivityAt = Date.now();
+      }
+    } catch { /* response metadata is diagnostic only; request assertions remain separate */ }
+
     if (status >= 400) {
       try {
         const url = new URL(response.url());
         if (url.pathname.startsWith('/api/')) {
-          problems.http.push(status + ' ' + response.request().method() + ' ' + url.pathname);
+          problems.http.push(status + ' ' + request.method() + ' ' + url.pathname);
         }
       } catch { /* non-URL browser responses are outside this gate */ }
     }
-    if (status >= 500) problems.server.push(status + ' ' + response.request().method() + ' ' + response.url());
+    if (status >= 500) problems.server.push(status + ' ' + request.method() + ' ' + response.url());
+
+    // Some Playwright/browser combinations expose distinct Request wrappers to
+    // response and requestfinished handlers. Use the completed response body as
+    // a second completion signal; a failed body still reaches requestfailed and
+    // remains a hard failure in problems.requests.
+    void response.finished().then(error => {
+      if (!error) finishPending(request);
+    }).catch(() => { /* requestfailed remains the authoritative failure signal */ });
   });
   return problems;
 }

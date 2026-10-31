@@ -552,3 +552,12 @@ Historical priority notes retained from parallel branches; they do not supersede
 - [x] Synchronize generated docs/SYSTEM_MAP.md with current route inventory (692 unique handlers, 654 mounted HTTP registrations; Shop router 38 handlers).
 - [x] Change browser-gate frontend host from Vite on-demand dev server to a built production bundle served by vite preview.
 - [ ] Verify the next exact-head full CI completes the same exhaustive role/context route and responsive gates; do not close RB-024 from the configuration change alone.
+
+
+## 2026-11-01 — Role/Context gate efficiency and diagnostics
+
+- [x] Retain the exhaustive role-1280 route/permission matrix for all declared and discovered routes across all 16 roles.
+- [x] Retain all eight role viewport projects and all required per-role/per-viewport screenshots; keep Mobile Design and Visual Agent gates separate and unchanged.
+- [x] Restrict repeated route journeys on additional viewports to representative role-specific workflows; keep request-failure, HTTP, console/page-error, tenant-isolation and 36px target assertions intact.
+- [x] Add request resource type, elapsed age and response status/content-type diagnostics to failed drain reports, with response-body completion reconciliation.
+- [ ] Re-run full exact-head CI and verify Role/Context, Visual Agent, Business Owner, Organization Owner, Playwright CLI and final visual-release gates before closing RB-024/RB-025.
