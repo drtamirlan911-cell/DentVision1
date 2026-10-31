@@ -5,6 +5,17 @@ This log is the durable handoff between work sessions/agents. It records complet
 ## Historical record
 The complete pre-2026-09-14 execution history is preserved in the parent Git history at commit `ceb0a85560540d0bff2ecd154189280f8cd6d588`. The current file was accidentally shortened during the 2026-09-14 patient-scope repair; no historical source commit was rewritten.
 
+## 2026-10-31 — Patient history concurrency and atomic deposit follow-up
+
+- Repository: `drtamirlan911-cell/DentVision1`; updated only the existing PR #330 branch `fix/d1-d10-trial-archive-signing-api-20261029`.
+- Source commit: `b77552f8078382beabc376ad2af37ba2cb60abff` (parent `45fe9ba5f573d8311d6b96e4e83f8260bffbf3f9`).
+- `PATCH /api/patients/:id` previously decrypted/merged an existing medical-history snapshot and wrote it with unconditional `patient.update`. Concurrent chart edits could be silently overwritten. The route now uses an `updatedAt` compare-and-set inside a transaction, returns 409 on stale writes, and commits Tooth-row mirroring plus validated branch reassignment in that same transaction.
+- Branch validity is checked before the patient mutation; the branch SQL helper now accepts a Prisma transaction client.
+- Patient deposit now uses DB-side `prepaidBalance.increment` rather than fetching and writing an absolute balance, and rejects non-integer/unsafe amounts. This prevents lost updates from concurrent deposits.
+- Added source-contract regression assertions for PATCH concurrency/transaction coupling and atomic deposit arithmetic.
+- Verification: changes are committed remotely. No local checkout/test execution is available; fresh exact-head CI/Quality/RB-034 runs are required. Previous CI `41179352197` was still in Role/Context before this change and is superseded. No staging/production migration, PHI backfill, database write, deployment or merge to main.
+- Next: inspect full exact-head gates; resolve regressions without weakening permission, tenant or privacy assertions. RB-029/RB-035 remain OPEN pending broader tests and approved staging verification.
+
 ## Current execution checkpoint — 2026-10-29
 
 - Repository: `drtamirlan911-cell/DentVision1`; active working PR #328, branch `fix/workspace-switcher-menu-overflow-20261026`.

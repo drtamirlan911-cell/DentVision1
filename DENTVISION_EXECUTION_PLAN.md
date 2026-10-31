@@ -3,6 +3,13 @@
 ## Purpose
 This document is the persistent execution contract for DentVision. It is the source of truth for what is being implemented, in what order, and what is considered complete. Progress must not live only in a chat session.
 
+## Latest implementation checkpoint — 2026-10-31
+- Continue only on existing PR #330 / `fix/d1-d10-trial-archive-signing-api-20261029`; source implementation commit `b77552f8078382beabc376ad2af37ba2cb60abff` is based on prior exact branch HEAD `45fe9ba5f573d8311d6b96e4e83f8260bffbf3f9`. Main remains `ac913cc3389a294d0b135a852b035ddddb1018ca`.
+- Fixed a confirmed stale-snapshot race in `PATCH /api/patients/:id`: use `updatedAt` compare-and-set and return 409 when another writer changed the row. The same transaction now persists the odontogram mirror and any validated organization-level branch reassignment.
+- Fixed concurrent deposit arithmetic with Prisma atomic integer increment; reject unsafe/non-integer amounts.
+- Regression source contracts added. No local build/test claim; exact-head CI is required after the branch update.
+- Next: run exact-head CI/Quality/RB-034; inspect all stages. Then continue RB-029 reader/writer audit, offline queue end-to-end test, WebKit request evidence and D10 workflow matrix. No production/staging DB changes or merge to main.
+
 ## Current checkpoint — 2026-10-30
 
 - Active implementation PR remains #330 on `fix/d1-d10-trial-archive-signing-api-20261029`; the 2026-10-30 role-gate follow-up was based on live pre-change HEAD `77fc9c81fbc276621ad1a4d03a753e4733819722`, on main `ac913cc3389a294d0b135a852b035ddddb1018ca`. The follow-up records the 36px School breadcrumb correction, exact generated System Map values and RB-035 deposit-denial regressions. Always resolve the live PR #330 head before the next change.
