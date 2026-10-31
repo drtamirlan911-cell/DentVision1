@@ -204,6 +204,69 @@ test.describe('Здоровье: медицинские записи', () => {
     expect(Number(afterData.prepaidBalance)).toBe(beforeBalance);
   });
 
+  test('parallel patient-history PATCH requests never silently overwrite accepted writes', async () => {
+    const created = await ctx.post('/api/patients', {
+      headers: auth(ownerA),
+      data: {
+        iin: makeIin(),
+        firstName: 'RB029',
+        lastName: 'ConcurrentPatch',
+        medicalHistory: { concurrencyBaseline: true },
+      },
+    });
+    expect(created.ok(), await created.text()).toBeTruthy();
+    const patientId = ((await created.json()).data || {}).id as string;
+    const markers = Array.from({ length: 6 }, (_, index) => `rb029ConcurrentMarker${index}`);
+
+    const updates = await Promise.all(markers.map((marker) => ctx.patch(`/api/patients/${patientId}`, {
+      headers: auth(ownerA),
+      data: { medicalHistory: { [marker]: `accepted-${marker}` } },
+    })));
+    const statuses = updates.map((response) => response.status());
+    for (const status of statuses) expect([200, 409]).toContain(status);
+    expect(statuses.some((status) => status === 200)).toBeTruthy();
+
+    const final = await ctx.get(`/api/patients/${patientId}`, { headers: auth(ownerA) });
+    expect(final.status(), await final.text()).toBe(200);
+    const history = ((await final.json()).data || {}).medicalHistory || {};
+    updates.forEach((response, index) => {
+      if (response.status() === 200) {
+        expect(history[markers[index]], `accepted chart write ${markers[index]} was lost`).toBe(`accepted-${markers[index]}`);
+      }
+    });
+  });
+
+  test('parallel patient deposits are additive and fractional KZT amounts are rejected', async () => {
+    const created = await ctx.post('/api/patients', {
+      headers: auth(ownerA),
+      data: { iin: makeIin(), firstName: 'RB035', lastName: 'ConcurrentDeposit' },
+    });
+    expect(created.ok(), await created.text()).toBeTruthy();
+    const patientId = ((await created.json()).data || {}).id as string;
+
+    const beforeResponse = await ctx.get(`/api/patients/${patientId}`, { headers: auth(ownerA) });
+    expect(beforeResponse.status(), await beforeResponse.text()).toBe(200);
+    const beforeBalance = Number(((await beforeResponse.json()).data || {}).prepaidBalance);
+
+    const fractional = await ctx.post(`/api/patients/${patientId}/deposit`, {
+      headers: auth(ownerA),
+      data: { amount: 100.5 },
+    });
+    expect(fractional.status(), await fractional.text()).toBe(400);
+
+    const amounts = [101, 203, 307, 409];
+    const deposits = await Promise.all(amounts.map((amount) => ctx.post(`/api/patients/${patientId}/deposit`, {
+      headers: auth(ownerA),
+      data: { amount },
+    })));
+    for (const response of deposits) expect(response.status(), await response.text()).toBe(200);
+
+    const afterResponse = await ctx.get(`/api/patients/${patientId}`, { headers: auth(ownerA) });
+    expect(afterResponse.status(), await afterResponse.text()).toBe(200);
+    const afterBalance = Number(((await afterResponse.json()).data || {}).prepaidBalance);
+    expect(afterBalance).toBe(beforeBalance + amounts.reduce((sum, amount) => sum + amount, 0));
+  });
+
   test('clinic LAB cannot browse the patient register, IIN lookup, chart or patient balance', async () => {
     const clinicsRes = await ctx.get('/api/auth/my-clinics', { headers: auth(ownerA) });
     expect(clinicsRes.status()).toBe(200);
