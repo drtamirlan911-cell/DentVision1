@@ -49,7 +49,7 @@ describe('AI stored thread history boundary', () => {
   });
 
   it('requires authentication and the active workspace scope on the history routes', () => {
-    const source = readFileSync(resolve(process.cwd(), 'src/modules/ai/ai.routes.ts'), 'utf8');
+    const source = readFileSync(resolve(process.cwd(), 'dentvision-backend/src/modules/ai/ai.routes.ts'), 'utf8');
     const threadStart = source.indexOf("aiRouter.get('/threads', authenticate");
     const threadEnd = source.indexOf("aiRouter.get('/threads/active'", threadStart);
     const threadRoute = source.slice(threadStart, threadEnd);
