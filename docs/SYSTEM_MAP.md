@@ -5,9 +5,9 @@
 ## Summary
 
 - Mounted routers: **69**
-- Unique route handlers: **689**
-- Registered HTTP routes after mount: **651**
-- Routes without detected web/mobile consumer: **100**
+- Unique route handlers: **692**
+- Registered HTTP routes after mount: **654**
+- Routes without detected web/mobile consumer: **98**
 - Prisma models: **150**
 - Background jobs: **12**
 - Permission roles: **11**
@@ -36,7 +36,7 @@ Identity -> Active Workspace -> Organization -> Branch -> Role -> Permission -> 
 | /api/inventory | inventoryRouter | 8 | 0 |
 | /api/stock-rules | stockRulesRouter | 4 | 0 |
 | /api/marketing | marketingRouter | 9 | 0 |
-| /api/shop | shopRouter | 37 | 1 |
+| /api/shop | shopRouter | 38 | 1 |
 | /api/suppliers | suppliersRouter | 10 | 3 |
 | /api/supplier | supplierWorkspaceRouter | 22 | 0 |
 | /api/lecturer | lecturerRouter | 10 | 0 |
@@ -50,7 +50,7 @@ Identity -> Active Workspace -> Organization -> Branch -> Role -> Permission -> 
 | /api/analytics | ecosystemRouter | 1 | 1 |
 | /api/compliance | complianceRouter | 14 | 2 |
 | /api/notifications | notificationsRouter | 9 | 0 |
-| /api/files | filesRouter | 8 | 3 |
+| /api/files | filesRouter | 8 | 1 |
 | /api/documents | filesRouter | 8 | 7 |
 | /api/audit | auditRouter | 2 | 0 |
 | /api/admin | adminRouter | 18 | 2 |
@@ -59,7 +59,7 @@ Identity -> Active Workspace -> Organization -> Branch -> Role -> Permission -> 
 | /api/crm | remindersRouter | 7 | 4 |
 | /api/crm/cases | treatmentCaseRouter | 7 | 0 |
 | /api/crm | chairsRouter | 3 | 0 |
-| /api/lab-orders | labRouter | 4 | 1 |
+| /api/lab-orders | labRouter | 4 | 0 |
 | /api/community | communityRouter | 12 | 0 |
 | /api/public | publicRouter | 11 | 6 |
 | /api/profile | profileRouter | 13 | 1 |
@@ -77,7 +77,7 @@ Identity -> Active Workspace -> Organization -> Branch -> Role -> Permission -> 
 | /api/ai-admin/webhook | webhookGatewayRouter | 0 | 0 |
 | /api/ai-governance | aiGovernanceRouter | 3 | 1 |
 | /api/meta | metaRouter | 5 | 2 |
-| /api/organizations | organizationsRouter | 11 | 2 |
+| /api/organizations | organizationsRouter | 13 | 3 |
 | /api/persons | personsRouter | 5 | 0 |
 | /api/branches | branchesRouter | 10 | 0 |
 | /api/patient-portal/ai | aiPatientRouter | 4 | 0 |

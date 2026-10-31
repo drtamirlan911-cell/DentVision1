@@ -1,6 +1,7 @@
 /**
  * Subscription expiry cron — notify clinic owners at 14 / 7 / 1 days,
- * mark expired subscriptions, soft-suspend clinics.
+ * mark expired subscriptions while keeping clinic tenancy/read access intact.
+ * Explicit suspension remains a separate subscription status.
  */
 import prisma from '../lib/prisma.js';
 import { withJobLock } from '../lib/jobLock.js';
@@ -167,17 +168,10 @@ export async function runSubscriptionCron(): Promise<SubscriptionCronResult> {
         }).catch((err: any) => {
           if (String(err?.code) !== 'P2021') throw err;
         });
-        await prisma.clinic.update({
-          where: { id: clinicId },
-          data: { active: false },
-        }).catch((err: any) => {
-          if (String(err?.code) !== 'P2021') throw err;
-        });
-
         const count = await notifyClinicOwners(
           clinicId,
           'Подписка истекла',
-          `Подписка клиники "${clinic.name}" истекла. Доступ заблокирован, пока не будет оплачен новый период.`,
+          `Пробный период клиники "${clinic.name}" истёк. Данные доступны только для чтения; оплатите тариф, чтобы возобновить изменения.`,
         );
         await markSent(clinicId, key, { notifications: count });
         result.expired += 1;

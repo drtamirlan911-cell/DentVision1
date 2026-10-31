@@ -126,15 +126,14 @@ supplierWorkspaceRouter.patch('/orders/:id/status', requireSupplierWrite, async 
 
     let order;
     if (status === 'cancelled') {
-      // Restore stock atomically with the status flip so a cancelled order does
-      // not keep its reserved inventory (audit F-1).
-      //
-      // `owned` comes from getSupplierOrders(), which maps raw Order.items
-      // (product_id/quantity) into { productId, qty, ... } and filters to only
-      // this supplier's own lines (supplierDashboard.ts) — the raw field names
-      // never appear here, so restoring by product_id/quantity would silently
-      // never match and leave every cancelled order's stock un-restored.
+      // Claim before restoring stock; concurrent buyer/payment transitions
+      // cannot both win and restore the same reservation.
       order = await prisma.$transaction(async (tx) => {
+        const claimed = await tx.order.updateMany({
+          where: { id: owned.id, status: owned.status },
+          data: { status, cancelledAt: new Date(), cancelReason: 'supplier_requested' },
+        });
+        if (claimed.count === 0) return null;
         const items = Array.isArray(owned.items) ? (owned.items as any[]) : [];
         for (const item of items) {
           if (item.productId && item.qty) {
@@ -144,11 +143,17 @@ supplierWorkspaceRouter.patch('/orders/:id/status', requireSupplierWrite, async 
             });
           }
         }
-        return tx.order.update({ where: { id: owned.id }, data: { status } });
+        return tx.order.findUnique({ where: { id: owned.id } });
       });
     } else {
-      order = await prisma.order.update({ where: { id: owned.id }, data: { status } });
+      const claimed = await prisma.order.updateMany({
+        where: { id: owned.id, status: owned.status },
+        data: { status },
+      });
+      if (claimed.count === 0) return res.status(409).json({ ok: false, error: 'Статус заказа уже изменился' } satisfies ApiResponse);
+      order = await prisma.order.findUnique({ where: { id: owned.id } });
     }
+    if (!order) return res.status(409).json({ ok: false, error: 'Статус заказа уже изменился' } satisfies ApiResponse);
 
     if (status === 'delivered' || status === 'completed') {
       const { releaseOrderCashback } = await import('../dentcash/cashback.engine.js');

@@ -283,7 +283,7 @@ export default function ReferralForm() {
           <Input label="Email" type="email" value={form.patientEmail} onChange={e => update('patientEmail', e.target.value)} />
         </div>
         <div className="flex items-center gap-4 mt-3">
-          <label className="flex items-center gap-2 text-sm text-txt-secondary cursor-pointer">
+          <label className="flex min-h-9 items-center gap-2 text-sm text-txt-secondary cursor-pointer">
             <input type="checkbox" checked={form.pregnancy} onChange={e => update('pregnancy', e.target.checked)}
               className="accent-dv-gold w-4 h-4" />
             Беременность

@@ -10,7 +10,10 @@ export async function resolveOrgContext(user: AuthUser) {
   if (!orgId) return { orgId: null, organization: null, person: null };
 
   const organization = await prisma.organization.findUnique({ where: { id: orgId } });
+  if (organization?.archivedAt) return { orgId, organization: null, person: null };
   if (!organization && user.clinicId) {
+    const archivedClinicOrganization = await prisma.organization.findFirst({ where: { originalType: 'Clinic', originalId: user.clinicId, archivedAt: { not: null } }, select: { id: true } });
+    if (archivedClinicOrganization) return { orgId: user.clinicId, organization: null, person: null };
     const clinic = await prisma.clinic.findUnique({ where: { id: user.clinicId } });
     if (clinic) return { orgId: user.clinicId, organization: { id: clinic.id, name: clinic.name, type: 'CLINIC' }, person: null };
   }
@@ -22,19 +25,25 @@ export function getClinicId(user: AuthUser): string | undefined { return user.cl
 
 export async function assertOrgAccess(user: AuthUser, orgId: string): Promise<boolean> {
   if (user.role === 'SUPERADMIN') return true;
-  const person = await prisma.person.findFirst({
-    where: {
-      userId: user.id,
-      organizationId: orgId,
-      personRoles: { some: { scopeType: 'organization', scopeId: orgId } },
-    },
-    select: { id: true },
+  // Resolve canonical ids and legacy clinic ids before allowing a membership
+  // fallback: archived organization contexts must not remain accessible through
+  // an older ClinicMember record.
+  const organization = await prisma.organization.findFirst({
+    where: { OR: [{ id: orgId }, { originalType: 'Clinic', originalId: orgId }] },
+    select: { id: true, archivedAt: true },
   });
-  if (person) return true;
-  // Once an organization exists, legacy ClinicMember must not bypass the
-  // canonical organization-scoped PersonRole boundary.
-  const organization = await prisma.organization.findUnique({ where: { id: orgId }, select: { id: true } });
-  if (organization) return false;
+  if (organization?.archivedAt) return false;
+  if (organization) {
+    const person = await prisma.person.findFirst({
+      where: {
+        userId: user.id,
+        organizationId: organization.id,
+        personRoles: { some: { scopeType: 'organization', scopeId: organization.id } },
+      },
+      select: { id: true },
+    });
+    return Boolean(person);
+  }
   const member = await prisma.clinicMember.findUnique({ where: { userId_clinicId: { userId: user.id, clinicId: orgId } } });
   return Boolean(member);
 }
@@ -48,8 +57,9 @@ export async function isClinicMember(userId: string, clinicId: string): Promise<
   // canonicalized to an Organization.
   const organization = await prisma.organization.findFirst({
     where: { originalType: 'Clinic', originalId: clinicId },
-    select: { id: true },
+    select: { id: true, archivedAt: true },
   });
+  if (organization?.archivedAt) return false;
   if (organization) {
     return Boolean(await prisma.person.findFirst({
       where: {
@@ -70,14 +80,14 @@ export async function isClinicMember(userId: string, clinicId: string): Promise<
 
 export async function resolveOrganizationIdForClinic(clinicId: string): Promise<string | null> {
   if (!clinicId) return null;
-  const organization = await prisma.organization.findFirst({ where: { originalType: 'Clinic', originalId: clinicId }, select: { id: true } });
+  const organization = await prisma.organization.findFirst({ where: { originalType: 'Clinic', originalId: clinicId, archivedAt: null }, select: { id: true } });
   return organization?.id ?? null;
 }
 
 /** Resolve membership using the unified Person model first, then legacy ClinicMember. */
 export async function resolveAnyClinicMembership(userId: string): Promise<{ clinicId: string; role: string } | null> {
   const person = await prisma.person.findFirst({
-    where: { userId, organization: { type: 'CLINIC' } },
+    where: { userId, organization: { type: 'CLINIC', archivedAt: null } },
     orderBy: { createdAt: 'asc' },
     include: { organization: { select: { id: true, originalId: true } }, personRoles: { include: { role: true } } },
   });
@@ -105,13 +115,13 @@ export async function resolveAnyClinicMembership(userId: string): Promise<{ clin
 export async function hasOrgAccess(user: AuthUser | undefined | null, originalType: string, originalId: string): Promise<boolean> {
   if (!user || !originalId) return false;
   if (user.role === 'SUPERADMIN') return true;
-  const organization = await prisma.organization.findFirst({ where: { originalType, originalId }, select: { id: true } });
+  const organization = await prisma.organization.findFirst({ where: { originalType, originalId, archivedAt: null }, select: { id: true } });
   if (!organization) return false;
   return assertOrgAccess(user, organization.id);
 }
 
 export async function getUserPersons(userId: string) {
-  return prisma.person.findMany({ where: { userId }, include: { organization: { select: { id: true, name: true, type: true } } } });
+  return prisma.person.findMany({ where: { userId, organization: { archivedAt: null } }, include: { organization: { select: { id: true, name: true, type: true } } } });
 }
 
 export const PERSON_ROLE_MAP: Record<string, string> = {
@@ -146,7 +156,8 @@ export async function resolveClinicAccess(userId: string, clinicId: string): Pro
   if (!clinicId) return null;
   const user = await prisma.user.findUnique({ where: { id: userId }, select: { role: true } });
   if (user?.role === 'SUPERADMIN') return { role: 'SUPERADMIN' };
-  const org = await prisma.organization.findFirst({ where: { originalType: 'Clinic', originalId: clinicId } });
+  const org = await prisma.organization.findFirst({ where: { originalType: 'Clinic', originalId: clinicId }, select: { id: true, archivedAt: true } });
+  if (org?.archivedAt) return null;
   if (org) {
     const person = await prisma.person.findFirst({
       where: {

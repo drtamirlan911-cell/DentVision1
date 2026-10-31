@@ -8,6 +8,7 @@ import {
   CLINIC_SAAS_PLANS,
   clinicPlanToSaas,
   type SaasPlanId,
+  TRIAL_DAYS,
 } from './clinicSubscription.service.js';
 
 export type PlanFeature =
@@ -174,7 +175,7 @@ function daysUntil(date: Date | null | undefined, now = new Date()): number | nu
 export async function resolveClinicAccess(clinicId: string): Promise<ClinicAccessState | null> {
   const clinic = await prisma.clinic.findUnique({
     where: { id: clinicId },
-    select: { id: true, name: true, plan: true, active: true },
+    select: { id: true, name: true, plan: true, active: true, createdAt: true },
   });
   if (!clinic) return null;
 
@@ -183,23 +184,51 @@ export async function resolveClinicAccess(clinicId: string): Promise<ClinicAcces
   });
 
   const now = new Date();
-  const periodEnd = subscription?.periodEnd || null;
-  const periodExpired = periodEnd != null && periodEnd.getTime() < now.getTime();
-  let status = subscription?.status || (clinic.active ? 'active' : 'suspended');
+  // Every trial must have a finite 30-day deadline. Legacy DEMO clinics use
+  // Clinic.createdAt; a canonical trialing subscription with a missing
+  // periodEnd uses Subscription.createdAt. This avoids an unlimited trial
+  // without backdating a later trial bootstrap to the clinic's original date.
+  const legacyTrialAnchor =
+    clinic.plan === 'DEMO'
+      ? clinic.createdAt
+      : subscription?.status === 'trialing'
+        ? subscription.createdAt
+        : null;
+  const legacyTrialPeriodEnd = legacyTrialAnchor
+    ? new Date(legacyTrialAnchor.getTime() + TRIAL_DAYS * 24 * 60 * 60 * 1000)
+    : null;
+  const periodEnd = subscription?.periodEnd ?? legacyTrialPeriodEnd;
+  const periodExpired = periodEnd != null && periodEnd.getTime() <= now.getTime();
+  let status = subscription?.status || (legacyTrialPeriodEnd
+    ? (periodExpired ? 'expired' : 'trialing')
+    : (clinic.active ? 'active' : 'suspended'));
 
-  // Self-heal: period ended but cron hasn't flipped yet
+  // Self-heal legacy trial rows with a missing periodEnd so both the request
+  // gate and the scheduled reminder/expiry job use the same fixed deadline.
+  const subscriptionRepair: { status?: string; periodEnd?: Date } = {};
+  if (subscription && !subscription.periodEnd && legacyTrialPeriodEnd) {
+    subscriptionRepair.periodEnd = legacyTrialPeriodEnd;
+  }
+
+  // Self-heal: period ended but cron hasn't flipped yet. Keep Clinic.active
+  // unchanged so authenticated members retain read-only access to records.
   if (periodExpired && status !== 'expired' && status !== 'suspended') {
     status = 'expired';
-    await Promise.all([
-      prisma.subscription.update({
-        where: { ownerType_ownerId: { ownerType: 'CLINIC', ownerId: clinicId } },
-        data: { status: 'expired' },
-      }).catch(() => null),
-      prisma.clinic.update({
-        where: { id: clinicId },
-        data: { active: false },
-      }).catch(() => null),
-    ]);
+    if (subscription) subscriptionRepair.status = 'expired';
+  }
+
+  if (subscription && Object.keys(subscriptionRepair).length > 0) {
+    await prisma.subscription.update({
+      where: { ownerType_ownerId: { ownerType: 'CLINIC', ownerId: clinicId } },
+      data: subscriptionRepair,
+    }).catch(() => null);
+  }
+
+  // The previous cron used to set Clinic.active=false at expiry. Restore
+  // active=true only for an explicitly expired subscription so existing records
+  // remain readable; status='suspended' continues to be a hard suspension.
+  if (status === 'expired' && !clinic.active) {
+    await prisma.clinic.update({ where: { id: clinicId }, data: { active: true } }).catch(() => null);
   }
 
   const expired =
@@ -246,7 +275,7 @@ export async function resolveClinicAccess(clinicId: string): Promise<ClinicAcces
     clinicPlan: clinic.plan,
     saasPlan,
     status: expired ? 'expired' : status,
-    active: clinic.active && !expired,
+    active: status === 'expired' || (clinic.active && status !== 'suspended'),
     expired,
     writeBlocked: expired,
     periodEnd,

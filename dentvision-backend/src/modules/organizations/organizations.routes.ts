@@ -12,6 +12,8 @@ import { resolveAuthContext, resolveOrganizationRoleKey } from '../../lib/authCo
 import { auditFromReq } from '../compliance/audit.service.js';
 import { createNotificationForMany, NOTIFICATION_TYPES } from '../../services/notification.service.js';
 import { ensureLegalTrustPackage, getLegalPartnerForContext } from '../legal/legal.trust.service.js';
+import { TRIAL_DAYS } from '../billing/clinicSubscription.service.js';
+import { resolveClinicAccess as resolveClinicSubscriptionAccess } from '../billing/planEntitlements.js';
 
 export const organizationsRouter = Router();
 
@@ -72,6 +74,34 @@ async function ensurePersonRole(
   return person.id;
 }
 
+/** Expired clinic trials retain read access but cannot mutate the canonical organization context. */
+async function requireOrganizationClinicWritable(req: AuthRequest, res: any, next: any) {
+  if (req.user?.role === 'SUPERADMIN') return next();
+  const candidateId = String(
+    req.user?.organizationId ||
+    req.header('X-DentVision-Organization-Id') ||
+    req.header('X-DentVision-Workspace-Id') ||
+    req.user?.clinicId || '',
+  ).trim();
+  if (!candidateId) return next();
+  try {
+    const organization = await prisma.organization.findFirst({
+      where: { OR: [{ id: candidateId }, { originalType: 'Clinic', originalId: candidateId }] },
+      select: { type: true, originalId: true, archivedAt: true },
+    });
+    if (organization?.archivedAt) return res.status(404).json({ ok: false, error: 'Организация не найдена' });
+    const clinicId = organization?.type === 'CLINIC' ? organization.originalId : (!organization ? candidateId : null);
+    if (!clinicId) return next();
+    const access = await resolveClinicSubscriptionAccess(clinicId);
+    if (!access) return res.status(404).json({ ok: false, error: 'Клиника не найдена' });
+    if (access.writeBlocked) return res.status(402).json({ ok: false, error: 'Срок пробного периода завершён. Организационные изменения доступны только после продления подписки.', code: 'SUBSCRIPTION_EXPIRED', data: { upgradePath: '/crm/billing' } });
+    return next();
+  } catch (error) {
+    console.error('[organizations] subscription write guard', error);
+    return res.status(503).json({ ok: false, error: 'Не удалось проверить подписку организации', code: 'CLINIC_ACCESS_UNVERIFIED' });
+  }
+}
+
 async function currentOrganizationPerson(userId: string, requestedOrganizationId?: string | null) {
   const organizationId = String(requestedOrganizationId || '').trim();
   return prisma.person.findFirst({
@@ -79,6 +109,7 @@ async function currentOrganizationPerson(userId: string, requestedOrganizationId
       userId,
       organizationId: { not: null },
       ...(organizationId ? { organizationId } : {}),
+      organization: { archivedAt: null },
       personRoles: {
         some: organizationId
           ? { scopeType: 'organization', scopeId: organizationId }
@@ -116,7 +147,7 @@ organizationsRouter.post('/self-service', async (req: AuthRequest, res) => {
 
     const result = await prisma.$transaction(async (tx) => {
       await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`dentvision.onboarding:${idempotencyKey}`}))`;
-      const existingPeople = await tx.person.findMany({ where: { userId: req.user!.id, organizationId: { not: null } }, include: { organization: true } });
+      const existingPeople = await tx.person.findMany({ where: { userId: req.user!.id, organizationId: { not: null }, organization: { archivedAt: null } }, include: { organization: true } });
       const existing = existingPeople.find((person) => {
         const settings = person.organization?.settings;
         return settings && typeof settings === 'object' && !Array.isArray(settings) && (settings as any).onboardingKey === idempotencyKey;
@@ -125,6 +156,30 @@ organizationsRouter.post('/self-service', async (req: AuthRequest, res) => {
         const org = existing.organization;
         const settings = (org.settings && typeof org.settings === 'object' && !Array.isArray(org.settings)) ? org.settings as Record<string, unknown> : {};
         const originalId = String(org.originalId || '');
+        // Repair a legacy self-service clinic that predates trial bootstrap
+        // without resetting the clock on idempotent retries.
+        if (type === 'clinic' && originalId && settings.selfServiceType === 'clinic') {
+          const existingSubscription = await tx.subscription.findUnique({ where: { ownerType_ownerId: { ownerType: 'CLINIC', ownerId: originalId } } });
+          if (!existingSubscription) {
+            const originalClinic = await tx.clinic.findUnique({ where: { id: originalId }, select: { id: true, createdAt: true, plan: true } });
+            if (originalClinic) {
+              const periodEnd = new Date(originalClinic.createdAt);
+              periodEnd.setDate(periodEnd.getDate() + TRIAL_DAYS);
+              await tx.subscription.create({
+                data: {
+                  ownerType: 'CLINIC',
+                  ownerId: originalId,
+                  plan: 'enterprise',
+                  status: periodEnd.getTime() <= Date.now() ? 'expired' : 'trialing',
+                  periodEnd,
+                },
+              });
+              if (originalClinic.plan === 'DEMO') {
+                await tx.clinic.update({ where: { id: originalId }, data: { plan: 'ENTERPRISE' } });
+              }
+            }
+          }
+        }
         const defaultBranch = await tx.$queryRaw<Array<{ id: string }>>`
           SELECT "id" FROM "branches" WHERE "organization_id" = ${org.id} ORDER BY "isDefault" DESC, "created_at" ASC LIMIT 1
         `;
@@ -136,7 +191,10 @@ organizationsRouter.post('/self-service', async (req: AuthRequest, res) => {
 
       if (type === 'clinic') {
         entityId = uid();
-        entity = await tx.clinic.create({ data: { id: entityId, name, city, address, phone, plan: 'DEMO', active: true } });
+        const periodEnd = new Date();
+        periodEnd.setDate(periodEnd.getDate() + TRIAL_DAYS);
+        entity = await tx.clinic.create({ data: { id: entityId, name, city, address, phone, plan: 'ENTERPRISE', active: true } });
+        await tx.subscription.create({ data: { ownerType: 'CLINIC', ownerId: entityId, plan: 'enterprise', status: 'trialing', periodEnd } });
         organizationId = uid();
         await tx.organization.create({ data: { id: organizationId, name, type: 'CLINIC' as any, taxId, address, phone, email, originalType: 'Clinic', originalId: entityId, settings: { lifecycle: 'PENDING_VERIFICATION', verification: 'PENDING', ecosystemVisible: false, legal: { status: 'PENDING' }, onboardingKey: idempotencyKey, selfServiceType: type } as any } });
         await tx.clinicMember.create({ data: { userId: req.user!.id, clinicId: entityId, role: 'OWNER' } });
@@ -261,7 +319,7 @@ organizationsRouter.get('/me', async (req: AuthRequest, res) => {
   }
 });
 
-organizationsRouter.patch('/me', async (req: AuthRequest, res) => {
+organizationsRouter.patch('/me', requireOrganizationClinicWritable, async (req: AuthRequest, res) => {
   try {
     const requestedOrganizationId = String(
       req.user?.organizationId ||
@@ -292,7 +350,7 @@ organizationsRouter.patch('/me', async (req: AuthRequest, res) => {
   }
 });
 
-organizationsRouter.post('/me/legal', async (req: AuthRequest, res) => {
+organizationsRouter.post('/me/legal', requireOrganizationClinicWritable, async (req: AuthRequest, res) => {
   try {
     const requestedOrganizationId = String(
       req.user?.organizationId ||
@@ -317,7 +375,7 @@ organizationsRouter.post('/me/legal', async (req: AuthRequest, res) => {
   } catch (error) { return res.status(400).json({ ok: false, error: error instanceof Error ? error.message : 'Не удалось оформить юридический пакет' }); }
 });
 
-organizationsRouter.post('/me/verification', async (req: AuthRequest, res) => {
+organizationsRouter.post('/me/verification', requireOrganizationClinicWritable, async (req: AuthRequest, res) => {
   try {
     const requestedOrganizationId = String(
       req.user?.organizationId ||
@@ -342,11 +400,105 @@ organizationsRouter.post('/me/verification', async (req: AuthRequest, res) => {
   } catch (error) { return res.status(400).json({ ok: false, error: 'Не удалось завершить подпись организации' }); }
 });
 
+// Soft-archive only the canonical organization context. The original Clinic,
+// branches, memberships, documents, and clinical history remain intact.
+organizationsRouter.delete('/:id', async (req: AuthRequest, res) => {
+  try {
+    const id = String(req.params.id || '').trim();
+    // Organization lifecycle/archiving is owner governance, not routine ADMIN work.
+    // seller/lecturer are the initial scoped owner roles for self-service Supplier/Academy contexts.
+    const archiveOwnerRoles = ['owner', 'org_owner', 'seller', 'lecturer', 'diagnostic_owner', 'medical_lab_owner', 'dental_lab_owner'];
+    const person = req.user?.role === 'SUPERADMIN' ? null : await prisma.person.findFirst({
+      where: {
+        userId: req.user!.id,
+        organizationId: id,
+        organization: { archivedAt: null },
+        personRoles: { some: { scopeType: 'organization', scopeId: id, role: { key: { in: archiveOwnerRoles } } } },
+      },
+      include: { organization: true },
+    });
+    const org = req.user?.role === 'SUPERADMIN'
+      ? await prisma.organization.findFirst({ where: { id, archivedAt: null } })
+      : person?.organization;
+    if (!org) return res.status(404).json({ ok: false, error: 'Организация не найдена или нет прав владельца' } satisfies ApiResponse);
+
+    // Resolve owner authorization before subscription status. This avoids
+    // exposing another tenant's trial state to a caller who cannot archive it.
+    if (req.user?.role !== 'SUPERADMIN' && org.type === 'CLINIC') {
+      const clinicId = String(org.originalId || '').trim();
+      if (!clinicId) return res.status(503).json({ ok: false, error: 'Не удалось подтвердить клинику организации', code: 'CLINIC_ACCESS_UNVERIFIED' } satisfies ApiResponse);
+      try {
+        const access = await resolveClinicSubscriptionAccess(clinicId);
+        if (!access) return res.status(404).json({ ok: false, error: 'Клиника не найдена' } satisfies ApiResponse);
+        if (access.writeBlocked) return res.status(402).json({
+          ok: false,
+          error: 'Срок пробного периода завершён. Данные доступны только для чтения; продлите подписку перед изменением организации.',
+          code: 'SUBSCRIPTION_EXPIRED',
+          data: { upgradePath: '/crm/billing' },
+        } satisfies ApiResponse);
+      } catch (error) {
+        console.error('[organizations] archive subscription guard', error);
+        return res.status(503).json({ ok: false, error: 'Не удалось проверить подписку организации', code: 'CLINIC_ACCESS_UNVERIFIED' } satisfies ApiResponse);
+      }
+    }
+
+    const previousSettings = org.settings && typeof org.settings === 'object' && !Array.isArray(org.settings)
+      ? org.settings as Prisma.InputJsonObject : {};
+    const archivedAt = new Date();
+    const updated = await prisma.organization.update({
+      where: { id },
+      data: {
+        archivedAt,
+        settings: {
+          ...previousSettings,
+          archivePreviousLifecycle: typeof previousSettings.lifecycle === 'string' ? previousSettings.lifecycle : null,
+          lifecycle: 'ARCHIVED',
+          archivedAt: archivedAt.toISOString(),
+        } as Prisma.InputJsonValue,
+      },
+    });
+    await auditFromReq(req, { action: 'organization.archived', entity: 'organization', entityId: id, details: { originalType: org.originalType, originalId: org.originalId, retained: true } });
+    return res.json({ ok: true, data: { organization: updated, archived: true, retained: true } } satisfies ApiResponse);
+  } catch (error) {
+    console.error('[organizations] archive error:', error);
+    return res.status(500).json({ ok: false, error: 'Не удалось архивировать организацию' } satisfies ApiResponse);
+  }
+});
+
 organizationsRouter.use(requireSuperadmin);
+
+// Platform recovery path for an accidentally archived organization. Only the
+// organization context is restored; linked domain data was never changed.
+organizationsRouter.post('/:id/restore', async (req: AuthRequest, res) => {
+  try {
+    const id = String(req.params.id || '').trim();
+    const org = await prisma.organization.findUnique({ where: { id } });
+    if (!org) return res.status(404).json({ ok: false, error: 'Организация не найдена' } satisfies ApiResponse);
+    if (!org.archivedAt) return res.json({ ok: true, data: { organization: org, restored: false } } satisfies ApiResponse);
+    const old = org.settings && typeof org.settings === 'object' && !Array.isArray(org.settings)
+      ? org.settings as Record<string, unknown> : {};
+    const { archivePreviousLifecycle, archivedAt: _archivedAt, lifecycle: _lifecycle, ...settings } = old;
+    const restored = await prisma.organization.update({
+      where: { id },
+      data: {
+        archivedAt: null,
+        settings: {
+          ...settings,
+          lifecycle: typeof archivePreviousLifecycle === 'string' ? archivePreviousLifecycle : 'PENDING_VERIFICATION',
+        } as Prisma.InputJsonValue,
+      },
+    });
+    await auditFromReq(req, { action: 'organization.restored', entity: 'organization', entityId: id, details: { retained: true } });
+    return res.json({ ok: true, data: { organization: restored, restored: true, retained: true } } satisfies ApiResponse);
+  } catch (error) {
+    console.error('[organizations] restore error:', error);
+    return res.status(500).json({ ok: false, error: 'Не удалось восстановить организацию' } satisfies ApiResponse);
+  }
+});
 
 organizationsRouter.get('/verification/queue', async (req: AuthRequest, res) => {
   try {
-    const organizations = await prisma.organization.findMany({ orderBy: { updatedAt: 'asc' } });
+    const organizations = await prisma.organization.findMany({ where: { archivedAt: null }, orderBy: { updatedAt: 'asc' } });
     const data = organizations
       .map((org) => {
         const settings = (org.settings && typeof org.settings === 'object' && !Array.isArray(org.settings)) ? org.settings as Record<string, unknown> : {};
@@ -390,6 +542,7 @@ organizationsRouter.get('/', async (req: AuthRequest, res) => {
     const where: Record<string, unknown> = {};
     if (type) where.type = type;
     if (search) where.name = { contains: search, mode: 'insensitive' };
+    if (req.query.includeArchived !== 'true') where.archivedAt = null;
     const { skip, take } = paginate(page, limit);
     const [data, total] = await Promise.all([
       prisma.organization.findMany({ where, skip, take, orderBy: { name: 'asc' } }),

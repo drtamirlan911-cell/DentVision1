@@ -1,16 +1,20 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { decryptMedicalHistory } from '../../lib/phi.js';
 
-const { patientFindFirst, patientUpdate, toothUpsert } = vi.hoisted(() => ({
+const TEST_UPDATED_AT = new Date('2026-10-26T12:00:00.000Z');
+
+const { patientFindFirst, patientUpdateMany, toothUpsert, transaction } = vi.hoisted(() => ({
   patientFindFirst: vi.fn(),
-  patientUpdate: vi.fn(),
+  patientUpdateMany: vi.fn(),
   toothUpsert: vi.fn(),
+  transaction: vi.fn(),
 }));
 
 vi.mock('../../lib/prisma.js', () => ({
   default: {
-    patient: { findFirst: patientFindFirst, update: patientUpdate },
+    patient: { findFirst: patientFindFirst, updateMany: patientUpdateMany },
     tooth: { upsert: toothUpsert },
+    $transaction: transaction,
   },
 }));
 
@@ -18,15 +22,19 @@ const { applyToothFindings, isValidFdi, normalizeSurfaceFindings, syncTeeth } = 
 
 /** Decode the persisted envelope before asserting the domain-level teeth map. */
 function writtenTeeth(): Record<string, any> {
-  const stored = patientUpdate.mock.calls[0][0].data.medicalHistory;
+  const stored = patientUpdateMany.mock.calls[0][0].data.medicalHistory;
   const decoded = decryptMedicalHistory(stored);
   return (decoded as any).teeth;
 }
 
 beforeEach(() => {
-  patientFindFirst.mockReset().mockResolvedValue({ id: 'p1', medicalHistory: {} });
-  patientUpdate.mockReset().mockResolvedValue({});
+  patientFindFirst.mockReset().mockResolvedValue({ id: 'p1', medicalHistory: {}, updatedAt: TEST_UPDATED_AT });
+  patientUpdateMany.mockReset().mockResolvedValue({ count: 1 });
   toothUpsert.mockReset().mockResolvedValue({});
+  transaction.mockReset().mockImplementation(async (work: any) => work({
+    patient: { updateMany: patientUpdateMany },
+    tooth: { upsert: toothUpsert },
+  }));
 });
 
 describe('isValidFdi', () => {
@@ -36,7 +44,7 @@ describe('isValidFdi', () => {
 
 describe('applyToothFindings', () => {
   it('reports before → after for every tooth it touched', async () => {
-    patientFindFirst.mockResolvedValue({ id: 'p1', medicalHistory: { teeth: { 16: { status: 'healthy' } } } });
+    patientFindFirst.mockResolvedValue({ id: 'p1', updatedAt: TEST_UPDATED_AT, medicalHistory: { teeth: { 16: { status: 'healthy' } } } });
 
     const changes = await applyToothFindings('p1', 'c1', [{ tooth: 16, status: 'caries', surfaces: ['O'] }]);
 
@@ -46,6 +54,7 @@ describe('applyToothFindings', () => {
   it('leaves teeth it was not told about exactly as they were', async () => {
     patientFindFirst.mockResolvedValue({
       id: 'p1',
+      updatedAt: TEST_UPDATED_AT,
       medicalHistory: { teeth: { 16: { status: 'healthy' }, 26: { status: 'crown', surfaces: {} } } },
     });
 
@@ -57,6 +66,7 @@ describe('applyToothFindings', () => {
   it('keeps unrelated fields of a tooth it does update', async () => {
     patientFindFirst.mockResolvedValue({
       id: 'p1',
+      updatedAt: TEST_UPDATED_AT,
       medicalHistory: { teeth: { 16: { status: 'healthy', diagnosis: 'K02.1' } } },
     });
 
@@ -68,6 +78,7 @@ describe('applyToothFindings', () => {
   it('merges new surfaces onto existing ones', async () => {
     patientFindFirst.mockResolvedValue({
       id: 'p1',
+      updatedAt: TEST_UPDATED_AT,
       medicalHistory: { teeth: { 16: { status: 'caries', surfaces: { M: 'caries' } } } },
     });
 
@@ -82,6 +93,7 @@ describe('applyToothFindings', () => {
       // A tooth that is gone cannot keep caries on a surface it no longer has.
       patientFindFirst.mockResolvedValue({
         id: 'p1',
+        updatedAt: TEST_UPDATED_AT,
         medicalHistory: { teeth: { 16: { status: 'caries', surfaces: { O: 'caries' } } } },
       });
 
@@ -111,7 +123,7 @@ describe('applyToothFindings', () => {
     const changes = await applyToothFindings('p1', 'c1', [{ tooth: 99, status: 'caries' }]);
 
     expect(changes).toEqual([]);
-    expect(patientUpdate).not.toHaveBeenCalled();
+    expect(patientUpdateMany).not.toHaveBeenCalled();
     expect(toothUpsert).not.toHaveBeenCalled();
   });
 
@@ -121,6 +133,24 @@ describe('applyToothFindings', () => {
     expect(toothUpsert).toHaveBeenCalledWith(
       expect.objectContaining({ where: { patientId_number: { patientId: 'p1', number: 16 } } }),
     );
+  });
+
+
+  it('rejects a stale chart write without updating the Tooth mirror', async () => {
+    patientFindFirst.mockResolvedValue({
+      id: 'p1',
+      updatedAt: TEST_UPDATED_AT,
+      medicalHistory: { teeth: { 16: { status: 'healthy' } } },
+    });
+    patientUpdateMany.mockResolvedValue({ count: 0 });
+
+    await expect(applyToothFindings('p1', 'c1', [{ tooth: 16, status: 'caries' }])).rejects.toThrow(
+      'PATIENT_HISTORY_CONFLICT',
+    );
+    expect(patientUpdateMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: { id: 'p1', clinicId: 'c1', updatedAt: TEST_UPDATED_AT },
+    }));
+    expect(toothUpsert).not.toHaveBeenCalled();
   });
 
   it('refuses a patient from another clinic', async () => {
@@ -135,7 +165,7 @@ describe('applyToothFindings', () => {
   });
 
   it('survives a patient whose medicalHistory has never been set', async () => {
-    patientFindFirst.mockResolvedValue({ id: 'p1', medicalHistory: null });
+    patientFindFirst.mockResolvedValue({ id: 'p1', updatedAt: TEST_UPDATED_AT, medicalHistory: null });
 
     await expect(applyToothFindings('p1', 'c1', [{ tooth: 16, status: 'caries' }])).resolves.toEqual([
       { tooth: 16, before: 'healthy', after: 'caries' },

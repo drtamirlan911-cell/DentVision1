@@ -2,6 +2,7 @@ import { Router } from 'express';
 import prisma from '../../lib/prisma.js';
 import { authenticate } from '../../middleware/auth.js';
 import { requirePermission } from '../../middleware/rbac.js';
+import { requireClinicalChartRead } from '../../middleware/clinicalChartAccess.js';
 import type { AuthRequest, ApiResponse } from '../../types/index.js';
 import { uid } from '../../lib/helpers.js';
 import type { Prisma } from '@prisma/client';
@@ -18,6 +19,7 @@ import {
 import * as planRelease from '../patient-presentation/planRelease.service.js';
 import * as presentation from '../patient-presentation/presentation.service.js';
 import { linkStageReferences } from './planStageLinks.js';
+import { assertTreatmentPlanDoctorInClinic, assertTreatmentPlanReferencesInClinic, TreatmentPlanReferenceError } from './treatmentPlanSecurity.js';
 import { auditFromReq } from '../compliance/audit.service.js';
 
 export const crmRouter = Router();
@@ -62,7 +64,7 @@ function serializePlan(plan: {
 // TreatmentPlan table; plan metadata beyond the base columns (diagnosis,
 // stages, teeth, doctorId) is kept in the `items` JSON column to avoid a
 // schema migration against the production database.
-crmRouter.get('/:clinicId/treatment-plans', requirePermission('patient.read'), async (req: AuthRequest, res) => {
+crmRouter.get('/:clinicId/treatment-plans', requireClinicalChartRead, async (req: AuthRequest, res) => {
   try {
     const { clinicId: paramClinicId } = req.params as { clinicId: string };
     const clinicId = requireClinicScope(req, res, { paramClinicId });
@@ -87,7 +89,7 @@ crmRouter.get('/:clinicId/treatment-plans', requirePermission('patient.read'), a
   }
 });
 
-crmRouter.post('/treatment-plans', requirePermission('patient.write'), async (req: AuthRequest, res) => {
+crmRouter.post('/treatment-plans', requirePermission('patient.write', 'medical.read', 'medical.write'), async (req: AuthRequest, res) => {
   try {
     const {
       id, patientId, doctorId, title, diagnosis, status, totalBudget, teeth, stages, notes,
@@ -113,6 +115,7 @@ crmRouter.post('/treatment-plans', requirePermission('patient.write'), async (re
       return res.status(404).json({ ok: false, error: 'Пациент не найден' } satisfies ApiResponse);
     }
     if (!assertSameClinic(req, res, patient.clinicId)) return;
+    await assertTreatmentPlanDoctorInClinic(doctorId, patient.clinicId);
 
     const normalizedStages = enrichStages(stages || []);
     const computedTotal = planTotal(normalizedStages);
@@ -177,12 +180,15 @@ crmRouter.post('/treatment-plans', requirePermission('patient.write'), async (re
 
     return res.status(201).json({ ok: true, data: serializePlan(plan) } satisfies ApiResponse);
   } catch (error) {
+    if (error instanceof TreatmentPlanReferenceError) {
+      return res.status(400).json({ ok: false, error: 'План содержит ссылку на запись вне текущей клиники' } satisfies ApiResponse);
+    }
     console.error('[CRM] Upsert treatment plan error:', error);
     return res.status(500).json({ ok: false, error: 'Не удалось сохранить план лечения' } satisfies ApiResponse);
   }
 });
 
-crmRouter.delete('/treatment-plans/:id', requirePermission('patient.write'), async (req: AuthRequest, res) => {
+crmRouter.delete('/treatment-plans/:id', requirePermission('patient.write', 'medical.read', 'medical.write'), async (req: AuthRequest, res) => {
   try {
     const { id } = req.params as { id: string };
     const plan = await prisma.treatmentPlan.findUnique({
@@ -454,7 +460,7 @@ crmRouter.get('/presentation-funnel', requirePermission('patient.read'), async (
 });
 
 /** Version history for one plan, superseded and withdrawn versions included. */
-crmRouter.get('/treatment-plans/:id/releases', requirePermission('patient.read'), async (req: AuthRequest, res) => {
+crmRouter.get('/treatment-plans/:id/releases', requireClinicalChartRead, async (req: AuthRequest, res) => {
   try {
     const id = String(req.params.id);
     const plan = await prisma.treatmentPlan.findUnique({
@@ -475,7 +481,7 @@ crmRouter.get('/treatment-plans/:id/releases', requirePermission('patient.read')
 });
 
 /** Update a single stage — drives plan workflow (Spec §5.4.7). */
-crmRouter.patch('/treatment-plans/:id/stages/:stageId', requirePermission('patient.write'), async (req: AuthRequest, res) => {
+crmRouter.patch('/treatment-plans/:id/stages/:stageId', requirePermission('patient.write', 'medical.read', 'medical.write'), async (req: AuthRequest, res) => {
   try {
     const id = req.params.id as string;
     const stageId = req.params.stageId as string;
@@ -495,6 +501,7 @@ crmRouter.patch('/treatment-plans/:id/stages/:stageId', requirePermission('patie
       return res.status(404).json({ ok: false, error: 'План не найден' } satisfies ApiResponse);
     }
     if (!assertSameClinic(req, res, plan.patient?.clinicId)) return;
+    await assertTreatmentPlanReferencesInClinic(plan.patient?.clinicId || '', { patientId: plan.patientId, appointmentId, invoiceId });
 
     const items = normalizePlanItems(plan.items);
     const stages = enrichStages([...items.stages!]);
@@ -544,6 +551,9 @@ crmRouter.patch('/treatment-plans/:id/stages/:stageId', requirePermission('patie
 
     return res.json({ ok: true, data: serializePlan(updated) } satisfies ApiResponse);
   } catch (error) {
+    if (error instanceof TreatmentPlanReferenceError) {
+      return res.status(400).json({ ok: false, error: 'Этап содержит ссылку на запись вне текущей клиники' } satisfies ApiResponse);
+    }
     console.error('[CRM] Patch stage error:', error);
     return res.status(500).json({ ok: false, error: 'Не удалось обновить этап' } satisfies ApiResponse);
   }

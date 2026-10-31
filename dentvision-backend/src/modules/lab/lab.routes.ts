@@ -18,7 +18,7 @@ labRouter.use('/platform', labPlatformRouter);
 labRouter.use('/medical-laboratory', medicalLabLifecycleRouter);
 
 labRouter.use(authenticate);
-labRouter.use(requirePermission('patient.read'));
+labRouter.use(requirePermission('lab.read'));
 labRouter.use(loadClinicAccess);
 labRouter.use(blockClinicWrites);
 
@@ -127,7 +127,7 @@ function buildMeta(body: Partial<LabOrderMeta>, existing: LabOrderMeta = {}): La
   };
 }
 
-labRouter.get('/', requirePermission('appointment.read'), async (req: AuthRequest, res) => {
+labRouter.get('/', requirePermission('lab.read'), async (req: AuthRequest, res) => {
   try {
     const clinicId = req.user!.clinicId;
     if (!clinicId) return res.status(400).json({ ok: false, error: 'Клиника не указана' } satisfies ApiResponse);
@@ -211,7 +211,7 @@ labRouter.post('/', requirePermission('appointment.write'), async (req: AuthRequ
   } catch (error) { console.error('[Lab] upsert error:', error); return res.status(500).json({ ok: false, error: 'Не удалось сохранить заказ лаборатории' } satisfies ApiResponse); }
 });
 
-labRouter.patch('/:id/status', requirePermission('appointment.write'), async (req: AuthRequest, res) => {
+labRouter.patch('/:id/status', requirePermission('lab.write'), async (req: AuthRequest, res) => {
   try {
     const clinicId = req.user!.clinicId;
     if (!clinicId) return res.status(400).json({ ok: false, error: 'Клиника не указана' } satisfies ApiResponse);

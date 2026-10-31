@@ -1,17 +1,19 @@
-import { Router } from 'express';
+import { Router, type NextFunction, type Response } from 'express';
 import { createHash } from 'node:crypto';
 import prisma from '../../lib/prisma.js';
 import { syncTeeth } from './teethStore.js';
 import { authenticate } from '../../middleware/auth.js';
 import { requirePermission } from '../../middleware/rbac.js';
+import { resolveUserPermissions } from '../../lib/resolvePermissions.js';
+import { requireClinicalChartRead } from '../../middleware/clinicalChartAccess.js';
 import { publish, publishGrowthEvent } from '../../lib/events.js';
 import { auditFromReq } from '../compliance/audit.service.js';
 import { uid, paginate, paginatedResponse, stripHtmlTags } from '../../lib/helpers.js';
 import type { AuthRequest, ApiResponse } from '../../types/index.js';
 import type { Prisma } from '@prisma/client';
-import { loadClinicAccess, requireClinicWritable, guardPatientCreate } from '../../middleware/planGate.js';
+import { loadClinicAccess, blockClinicWrites, requireClinicWritable, guardPatientCreate } from '../../middleware/planGate.js';
 import { buildPatientIinFields, IinValidationError, type PatientIinFields } from '../../lib/patientIin.js';
-import { decryptField, decryptMedicalHistory, encryptMedicalHistory, hmacIin } from '../../lib/phi.js';
+import { decryptField, decryptMedicalHistory, encryptMedicalHistory, hmacIin, isClientSuppliedEncryptedMedicalHistory } from '../../lib/phi.js';
 import { normalizeIin, iinBirthDate, iinSex } from '../../lib/iin.js';
 import { ensurePatientAssignment, revokePatientAssignment, isAssignmentRole } from '../../lib/patientAssignment.js';
 import { isClinicMember } from '../../lib/orgContext.js';
@@ -21,6 +23,7 @@ import { assertPatientBranchBelongsToClinic, canAccessPatientBranch, getPatientB
 export const patientsRouter = Router();
 patientsRouter.use(authenticate);
 patientsRouter.use(loadClinicAccess);
+patientsRouter.use(blockClinicWrites);
 
 function splitName(name?: string, firstName?: string, lastName?: string) {
   if (firstName || lastName) return { firstName: stripHtmlTags(firstName || name || 'Пациент') || 'Пациент', lastName: stripHtmlTags(lastName || '') || '-' };
@@ -29,7 +32,7 @@ function splitName(name?: string, firstName?: string, lastName?: string) {
   return parts.length === 1 ? { firstName: parts[0], lastName: '-' } : { firstName: parts[0], lastName: parts.slice(1).join(' ') };
 }
 
-function serializePatient(p: any) {
+function serializePatient(p: any, includeBilling = true) {
   const decodedHistory = decryptMedicalHistory(p.medicalHistory);
   const history = (decodedHistory && typeof decodedHistory === 'object' && !Array.isArray(decodedHistory) ? decodedHistory : {}) as Record<string, unknown>;
   const teeth: Record<string, unknown> = {};
@@ -41,7 +44,58 @@ function serializePatient(p: any) {
     if (existing && typeof existing === 'object') { const e = existing as Record<string, unknown>; if (!e.status && t.condition) e.status = t.condition; if (!e.surfaces && surfaces) e.surfaces = surfaces; }
     else teeth[key] = { status: t.condition || 'healthy', diagnosis: t.diagnosis, notes: surfaces ? null : t.notes, ...(surfaces ? { surfaces } : {}) };
   }
-  return { id:p.id, clinicId:p.clinicId, name:`${p.firstName} ${p.lastName}`.trim(), firstName:p.firstName, lastName:p.lastName, phone:p.phone||'', email:p.email||'', dob:p.birthDate?p.birthDate.toISOString().slice(0,10):'', birthDate:p.birthDate, gender:p.gender||'', address:p.address||'', notes:p.notes||'', iin:decryptField(p.iin??null)||'', noIinReason:p.noIinReason||'', prepaidBalance:Number(p.prepaidBalance||0), category:(history.category as string)||'regular', source:(history.source as string)||'', allergies:(history.allergies as string)||'', tags:Array.isArray(history.tags)?history.tags:[], teeth, medicalHistory:history, createdAt:p.createdAt, updatedAt:p.updatedAt };
+  return { id:p.id, clinicId:p.clinicId, name:`${p.firstName} ${p.lastName}`.trim(), firstName:p.firstName, lastName:p.lastName, phone:p.phone||'', email:p.email||'', dob:p.birthDate?p.birthDate.toISOString().slice(0,10):'', birthDate:p.birthDate, gender:p.gender||'', address:p.address||'', notes:p.notes||'', iin:decryptField(p.iin??null)||'', noIinReason:p.noIinReason||'', ...(includeBilling ? { prepaidBalance:Number(p.prepaidBalance||0) } : {}), category:(history.category as string)||'regular', source:(history.source as string)||'', allergies:(history.allergies as string)||'', tags:Array.isArray(history.tags)?history.tags:[], teeth, medicalHistory:history, createdAt:p.createdAt, updatedAt:p.updatedAt };
+}
+
+
+async function serializePatientForCaller(p: any, req: AuthRequest) {
+  const permissions = await resolveUserPermissions(
+    req.user!.id,
+    req.user?.organizationId || req.user?.clinicId,
+    String(req.user?.role || ''),
+  );
+  const includeBilling = permissions.some((key) =>
+    ['*', 'billing.read', 'billing.write', 'billing.delete', 'billing.manage'].includes(key),
+  );
+  return serializePatient(p, includeBilling);
+}
+
+function serializePatientList(p: any, includeBilling: boolean) {
+  const decodedHistory = decryptMedicalHistory(p.medicalHistory);
+  const history = (decodedHistory && typeof decodedHistory === 'object' && !Array.isArray(decodedHistory) ? decodedHistory : {}) as Record<string, unknown>;
+  return {
+    id: p.id,
+    clinicId: p.clinicId,
+    name: `${p.firstName} ${p.lastName}`.trim(),
+    firstName: p.firstName,
+    lastName: p.lastName,
+    phone: p.phone || '',
+    email: p.email || '',
+    dob: p.birthDate ? p.birthDate.toISOString().slice(0, 10) : '',
+    birthDate: p.birthDate,
+    gender: p.gender || '',
+    ...(includeBilling ? { prepaidBalance: Number(p.prepaidBalance || 0) } : {}),
+    category: (history.category as string) || 'regular',
+    source: (history.source as string) || '',
+    createdAt: p.createdAt,
+    updatedAt: p.updatedAt,
+  };
+}
+
+function requirePatientMutationPermission(req: AuthRequest, res: Response, next: NextFunction) {
+  const body = req.body && typeof req.body === 'object' ? req.body as Record<string, unknown> : {};
+  const hasClinicalFields = ['medicalHistory', 'allergies', 'teeth', 'notes'].some((key) =>
+    Object.prototype.hasOwnProperty.call(body, key),
+  );
+
+  // Mutation responses contain the full patient DTO. Require chart read for
+  // each mutation; clinical payload changes also need medical.write.
+  if (req.method.toUpperCase() === 'POST') {
+    return requirePermission('patient.write', 'medical.read', 'medical.write')(req, res, next);
+  }
+  return hasClinicalFields
+    ? requirePermission('patient.write', 'medical.read', 'medical.write')(req, res, next)
+    : requirePermission('patient.write', 'medical.read')(req, res, next);
 }
 
 async function branchContext(req: AuthRequest, clinicId: string) {
@@ -62,48 +116,156 @@ async function getScopedWhere(clinicId: string, branchIds: readonly string[], ex
 
 async function loadClinicPatient(req:AuthRequest,res:any){const clinicId=req.user?.clinicId;if(!clinicId){res.status(400).json({ok:false,error:'Клиника не указана'});return null}const p=await prisma.patient.findFirst({where:{id:req.params.id,clinicId},select:{id:true}});if(!p){res.status(404).json({ok:false,error:'Пациент не найден'});return null}const context=await branchContext(req,clinicId);const patientBranchId=await getPatientBranchId(p.id,clinicId);if(context.scope.kind!=='organization'&&!canAccessPatientBranch(context,patientBranchId)){res.status(404).json({ok:false,error:'Пациент не найден'});return null}return{clinicId,patientId:p.id,context,branchId:patientBranchId};}
 
-patientsRouter.get('/', async (req: AuthRequest, res) => {
+patientsRouter.get('/', requirePermission('patient.read'), async (req: AuthRequest, res) => {
   try {
     const clinicId=req.user?.clinicId; if(!clinicId) return res.status(400).json({ok:false,error:'Клиника не указана'} satisfies ApiResponse);
+    const effectivePermissions = await resolveUserPermissions(req.user!.id, req.user?.organizationId || clinicId, String(req.user?.role || ''));
+    const canReadBilling = effectivePermissions.some((key) => ['*', 'billing.read', 'billing.write', 'billing.delete', 'billing.manage'].includes(key));
     const page=parseInt(req.query.page as string)||1, limit=Math.min(parseInt(req.query.limit as string)||100,500), search=(req.query.search as string)||''; const {skip,take}=paginate(page,limit);
     const iin=normalizeIin(search), iinHash=iin.length===12?hmacIin(iin):null;
     const whereBase:Prisma.PatientWhereInput=iinHash?{iinHash}:search?{OR:[{firstName:{contains:search,mode:'insensitive'}},{lastName:{contains:search,mode:'insensitive'}},{phone:{contains:search,mode:'insensitive'}},{email:{contains:search,mode:'insensitive'}}]}:{};
     const where=await scopedPatientWhere(req,clinicId,whereBase);
-    const [rows,total]=await Promise.all([prisma.patient.findMany({where,skip,take,include:{teeth:true},orderBy:{createdAt:'desc'}}),prisma.patient.count({where})]);
-    return res.json({ok:true,data:paginatedResponse(rows.map(serializePatient),total,page,limit)} satisfies ApiResponse);
+    const [rows,total]=await Promise.all([prisma.patient.findMany({where,skip,take,orderBy:{createdAt:'desc'}}),prisma.patient.count({where})]);
+    return res.json({ok:true,data:paginatedResponse(rows.map((patient) => serializePatientList(patient, canReadBilling)),total,page,limit)} satisfies ApiResponse);
   } catch(e){console.error('List patients error:',e);return res.status(500).json({ok:false,error:'Ошибка при получении списка пациентов'} satisfies ApiResponse)}
 });
 
-patientsRouter.post('/', requirePermission('patient.write'), guardPatientCreate, async (req: AuthRequest,res) => {
+patientsRouter.post('/', requirePatientMutationPermission, guardPatientCreate, async (req: AuthRequest,res) => {
   let idempotencyKey:string|undefined, completed=false;
   try {
     const clinicId=req.user?.clinicId; if(!clinicId) return res.status(400).json({ok:false,error:'Клиника не указана'} satisfies ApiResponse);
-    const context=await branchContext(req,clinicId); const body=req.body||{}, {firstName,lastName}=splitName(body.name,body.firstName,body.lastName), id=body.id||uid();
+    const context=await branchContext(req,clinicId); const body=req.body||{}; if(body.medicalHistory!==undefined&&isClientSuppliedEncryptedMedicalHistory(body.medicalHistory))return res.status(400).json({ok:false,error:'Передайте медицинскую историю в исходном формате'} satisfies ApiResponse); const {firstName,lastName}=splitName(body.name,body.firstName,body.lastName), id=body.id||uid();
     let targetBranchId:string|null=context.branchId;
     if(context.scope.kind==='organization'){if(body.branchId!==undefined){if(!(await assertPatientBranchBelongsToClinic(String(body.branchId),clinicId)))return res.status(400).json({ok:false,error:'Недействующий филиал'} satisfies ApiResponse);targetBranchId=String(body.branchId);}else{const branches=await prisma.$queryRaw<Array<{id:string}>>`SELECT id FROM branches WHERE clinic_id=${clinicId} AND active=true ORDER BY "isDefault" DESC, "created_at" ASC LIMIT 1`;targetBranchId=branches[0]?.id??null;}}
     else if(!targetBranchId)return res.status(403).json({ok:false,error:'Сотруднику не назначен филиал'} satisfies ApiResponse);
     const history:Record<string,unknown>={...(body.medicalHistory&&typeof body.medicalHistory==='object'?body.medicalHistory:{})}; for(const k of ['category','source','allergies','tags','teeth'])if(body[k])history[k]=body[k];
-    if(!body.id){idempotencyKey=req.headers['idempotency-key'] as string|undefined;if(!idempotencyKey)idempotencyKey=`server-${createHash('sha256').update(`${req.user!.id}:${clinicId}:${JSON.stringify(body)}`).digest('hex').slice(0,32)}`;const r=await reserveIdempotencyKey(idempotencyKey);if(r.status==='in_flight')return res.status(409).json({ok:false,error:'Пациент уже создаётся, повторите позже'} satisfies ApiResponse);if(r.status==='exists'){const prior=await prisma.patient.findUnique({where:{id:r.resultId},include:{teeth:true}});if(prior){const priorBranch=await getPatientBranchId(prior.id,clinicId);if(context.scope.kind!=='organization'&&!canAccessPatientBranch(context,priorBranch))return res.status(404).json({ok:false,error:'Пациент не найден'});return res.json({ok:true,data:serializePatient(prior)} satisfies ApiResponse)}await deleteIdempotencyKey(idempotencyKey)}}
+    if(!body.id){idempotencyKey=req.headers['idempotency-key'] as string|undefined;if(!idempotencyKey)idempotencyKey=`server-${createHash('sha256').update(`${req.user!.id}:${clinicId}:${JSON.stringify(body)}`).digest('hex').slice(0,32)}`;const r=await reserveIdempotencyKey(idempotencyKey);if(r.status==='in_flight')return res.status(409).json({ok:false,error:'Пациент уже создаётся, повторите позже'} satisfies ApiResponse);if(r.status==='exists'){const prior=await prisma.patient.findUnique({where:{id:r.resultId},include:{teeth:true}});if(prior){const priorBranch=await getPatientBranchId(prior.id,clinicId);if(context.scope.kind!=='organization'&&!canAccessPatientBranch(context,priorBranch))return res.status(404).json({ok:false,error:'Пациент не найден'});return res.json({ok:true,data:await serializePatientForCaller(prior,req)} satisfies ApiResponse)}await deleteIdempotencyKey(idempotencyKey)}}
     const existing=body.id?await prisma.patient.findFirst({where:{id:body.id,clinicId}}):null;
     if(existing){const existingBranch=await getPatientBranchId(existing.id,clinicId);if(context.scope.kind!=='organization'&&!canAccessPatientBranch(context,existingBranch))return res.status(404).json({ok:false,error:'Пациент не найден'});if(context.scope.kind==='organization'&&body.branchId!==undefined){if(!(await assertPatientBranchBelongsToClinic(String(body.branchId),clinicId)))return res.status(400).json({ok:false,error:'Недействующий филиал'});targetBranchId=String(body.branchId)}else targetBranchId=existingBranch;}
     const iinTouched=body.iin!==undefined||body.noIinReason!==undefined; let iinFields:PatientIinFields|undefined;if(!existing||iinTouched)iinFields=await buildPatientIinFields({iin:body.iin,noIinReason:body.noIinReason,clinicId,excludePatientId:existing?.id,birthDate:(body.dob||body.birthDate)??existing?.birthDate??null,gender:body.gender??existing?.gender??null,required:!existing});
     const data={firstName,lastName,phone:body.phone??existing?.phone??null,email:body.email??existing?.email??null,birthDate:(body.dob||body.birthDate)?new Date(body.dob||body.birthDate):existing?.birthDate??null,gender:body.gender??existing?.gender??null,address:body.address??existing?.address??null,notes:body.notes??existing?.notes??null,iin:iinFields?iinFields.iin:(existing as any)?.iin,iinHash:iinFields?.iinHash,noIinReason:iinFields?.noIinReason,medicalHistory:encryptMedicalHistory(history) as Prisma.InputJsonValue};
-    const patient=existing?await prisma.patient.update({where:{id:existing.id},data,include:{teeth:true}}):await prisma.patient.create({data:{...data,id,clinicId,iin:iinFields!.iin,iinHash:iinFields!.iinHash,noIinReason:iinFields!.noIinReason},include:{teeth:true}});if(targetBranchId)await setPatientBranch(patient.id,clinicId,targetBranchId);if(body.teeth)await syncTeeth(patient.id,body.teeth);const refreshed=await prisma.patient.findUnique({where:{id:patient.id},include:{teeth:true}});
-    if(!existing){const c=history.complaints??history.chiefComplaint??body.complaints??body.chiefComplaint;publish('patient.created',{clinicId,patientId:patient.id,userId:req.user?.id,name:`${firstName} ${lastName}`.trim(),...(c?{complaints:Array.isArray(c)?c.map(String).slice(0,12):[String(c).slice(0,500)]}: {})});const patientCount=await prisma.patient.count({where:{clinicId,deletedAt:null}});if(patientCount===1)publishGrowthEvent({event:'FIRST_PATIENT_CREATED',userId:req.user?.id,clinicId,branchId:targetBranchId??undefined,entityId:patient.id,source:'patients.create'});}else await auditFromReq(req,{action:'patient.updated',entity:'patient',entityId:patient.id,details:{name:`${firstName} ${lastName}`.trim(),branchId:targetBranchId}});if(idempotencyKey){await completeIdempotencyKey(idempotencyKey,patient.id);completed=true;}return res.status(existing?200:201).json({ok:true,data:serializePatient(refreshed!)} satisfies ApiResponse);
-  }catch(e){if(idempotencyKey&&!completed)await deleteIdempotencyKey(idempotencyKey).catch(()=>undefined);if(e instanceof IinValidationError)return res.status((e as any).code==='DUPLICATE'?409:400).json({ok:false,error:e.message});console.error('Upsert patient error:',e);return res.status(500).json({ok:false,error:'Ошибка при сохранении пациента'})}
+    let patient: any;
+    if (existing) {
+      await prisma.$transaction(async (tx) => {
+        const updated = await tx.patient.updateMany({
+          where: { id: existing.id, clinicId, updatedAt:existing.updatedAt },
+          data,
+        });
+        if (updated.count !== 1) throw new Error('PATIENT_HISTORY_CONFLICT');
+        if (body.teeth) await syncTeeth(existing.id, body.teeth, tx);
+      });
+      patient = await prisma.patient.findFirst({ where: { id: existing.id, clinicId }, include: { teeth: true } });
+      if (!patient) throw new Error('PATIENT_NOT_FOUND_AFTER_UPDATE');
+    } else {
+      patient = await prisma.patient.create({
+        data: { ...data, id, clinicId, iin: iinFields!.iin, iinHash: iinFields!.iinHash, noIinReason: iinFields!.noIinReason },
+        include: { teeth: true },
+      });
+      if (body.teeth) await syncTeeth(patient.id, body.teeth);
+    }
+    if (targetBranchId) await setPatientBranch(patient.id, clinicId, targetBranchId);
+    const refreshed = await prisma.patient.findUnique({ where: { id: patient.id }, include: { teeth: true } });
+    if(!existing){const c=history.complaints??history.chiefComplaint??body.complaints??body.chiefComplaint;publish('patient.created',{clinicId,patientId:patient.id,userId:req.user?.id,hasComplaints:Boolean(c)});const patientCount=await prisma.patient.count({where:{clinicId,deletedAt:null}});if(patientCount===1)publishGrowthEvent({event:'FIRST_PATIENT_CREATED',userId:req.user?.id,clinicId,branchId:targetBranchId??undefined,entityId:patient.id,source:'patients.create'});}else await auditFromReq(req,{action:'patient.updated',entity:'patient',entityId:patient.id,details:{name:`${firstName} ${lastName}`.trim(),branchId:targetBranchId}});if(idempotencyKey){await completeIdempotencyKey(idempotencyKey,patient.id);completed=true;}return res.status(existing?200:201).json({ok:true,data:await serializePatientForCaller(refreshed!,req)} satisfies ApiResponse);
+  }catch(e){if(idempotencyKey&&!completed)await deleteIdempotencyKey(idempotencyKey).catch(()=>undefined);if(e instanceof Error&&e.message==='PATIENT_HISTORY_CONFLICT')return res.status(409).json({ok:false,error:'Данные пациента изменились параллельно. Обновите страницу и повторите.'} satisfies ApiResponse);if(e instanceof IinValidationError)return res.status((e as any).code==='DUPLICATE'?409:400).json({ok:false,error:e.message});console.error('Upsert patient error:',e);return res.status(500).json({ok:false,error:'Ошибка при сохранении пациента'})}
 });
 
-patientsRouter.get('/lookup',requirePermission('patient.read'),async(req:AuthRequest,res)=>{try{const clinicId=req.user?.clinicId;if(!clinicId)return res.status(400).json({ok:false,error:'Клиника не указана'} satisfies ApiResponse);const iin=normalizeIin(req.query.iin);if(iin.length!==12)return res.status(400).json({ok:false,error:'ИИН должен состоять из 12 цифр'} satisfies ApiResponse);const hash=hmacIin(iin);const existing=await prisma.patient.findFirst({where:await scopedPatientWhere(req,clinicId,{iinHash:hash,deletedAt:null}),select:{id:true,firstName:true,lastName:true,phone:true}});const suggested=!existing?await prisma.patient.findFirst({where:{iinHash:hash,deletedAt:null,clinicId:{not:clinicId}},orderBy:{updatedAt:'desc'},select:{firstName:true,lastName:true,phone:true,email:true}}):null;await auditFromReq(req,{action:'patient.iin_lookup',entity:'patient',entityId:existing?.id||null,details:{found:!!existing,suggested:!!suggested}});return res.json({ok:true,data:{derived:{birthDate:iinBirthDate(iin),gender:iinSex(iin)},existing:existing?{id:existing.id,name:`${existing.firstName} ${existing.lastName}`.trim(),phone:existing.phone||''}:null,suggested:suggested?{name:`${suggested.firstName} ${suggested.lastName}`.trim(),phone:suggested.phone||'',email:suggested.email||''}:null}} satisfies ApiResponse)}catch(e){console.error('Patient IIN lookup error:',e);return res.status(500).json({ok:false,error:'Не удалось проверить ИИН'} satisfies ApiResponse)}});
+patientsRouter.get('/lookup',requirePermission('patient.read'),async(req:AuthRequest,res)=>{try{const clinicId=req.user?.clinicId;if(!clinicId)return res.status(400).json({ok:false,error:'Клиника не указана'} satisfies ApiResponse);const iin=normalizeIin(req.query.iin);if(iin.length!==12)return res.status(400).json({ok:false,error:'ИИН должен состоять из 12 цифр'} satisfies ApiResponse);const hash=hmacIin(iin);const existing=await prisma.patient.findFirst({where:await scopedPatientWhere(req,clinicId,{iinHash:hash,deletedAt:null}),select:{id:true,firstName:true,lastName:true,phone:true}});await auditFromReq(req,{action:'patient.iin_lookup',entity:'patient',entityId:existing?.id||null,details:{found:!!existing}});return res.json({ok:true,data:{derived:{birthDate:iinBirthDate(iin),gender:iinSex(iin)},existing:existing?{id:existing.id,name:`${existing.firstName} ${existing.lastName}`.trim(),phone:existing.phone||''}:null}} satisfies ApiResponse)}catch(e){console.error('Patient IIN lookup error:',e);return res.status(500).json({ok:false,error:'Не удалось проверить ИИН'} satisfies ApiResponse)}});
 
-patientsRouter.get('/:id/summary',async(req:AuthRequest,res)=>{try{const clinicId=req.user?.clinicId;if(!clinicId)return res.status(400).json({ok:false,error:'Клиника не указана'} satisfies ApiResponse);const s=await loadClinicPatient(req,res);if(!s)return;const p=await prisma.patient.findFirst({where:{id:s.patientId,clinicId},include:{teeth:true}});if(!p)return res.status(404).json({ok:false,error:'Пациент не найден'} satisfies ApiResponse);const now=new Date();const [nextAppt,openPlans,unpaid,paid]=await Promise.all([prisma.appointment.findFirst({where:{patientId:p.id,clinicId,date:{gte:now},status:{notIn:['cancelled','no_show','completed']}},orderBy:[{date:'asc'},{time:'asc'}]}),prisma.treatmentPlan.count({where:{patientId:p.id,status:{in:['draft','proposed','accepted','in_progress','active']}}}),prisma.invoice.aggregate({where:{clinicId,patientId:p.id,status:{in:['pending','unpaid','partial','overdue']}},_sum:{amount:true}}),prisma.invoice.aggregate({where:{clinicId,patientId:p.id,status:'paid'},_sum:{amount:true}})]);return res.json({ok:true,data:{patient:serializePatient(p),balance:unpaid._sum.amount||0,paidTotal:paid._sum.amount||0,openPlans,nextVisit:nextAppt?{id:nextAppt.id,date:nextAppt.date.toISOString().slice(0,10),time:nextAppt.time,status:nextAppt.status,service:nextAppt.type}:null}} satisfies ApiResponse)}catch(e){console.error('Patient summary error:',e);return res.status(500).json({ok:false,error:'Не удалось получить сводку пациента'} satisfies ApiResponse)}});
+patientsRouter.get('/:id/summary',requireClinicalChartRead,requirePermission('billing.read'),async(req:AuthRequest,res)=>{try{const clinicId=req.user?.clinicId;if(!clinicId)return res.status(400).json({ok:false,error:'Клиника не указана'} satisfies ApiResponse);const s=await loadClinicPatient(req,res);if(!s)return;const p=await prisma.patient.findFirst({where:{id:s.patientId,clinicId},include:{teeth:true}});if(!p)return res.status(404).json({ok:false,error:'Пациент не найден'} satisfies ApiResponse);const now=new Date();const [nextAppt,openPlans,unpaid,paid]=await Promise.all([prisma.appointment.findFirst({where:{patientId:p.id,clinicId,date:{gte:now},status:{notIn:['cancelled','no_show','completed']}},orderBy:[{date:'asc'},{time:'asc'}]}),prisma.treatmentPlan.count({where:{patientId:p.id,status:{in:['draft','proposed','accepted','in_progress','active']}}}),prisma.invoice.aggregate({where:{clinicId,patientId:p.id,status:{in:['pending','unpaid','partial','overdue']}},_sum:{amount:true}}),prisma.invoice.aggregate({where:{clinicId,patientId:p.id,status:'paid'},_sum:{amount:true}})]);return res.json({ok:true,data:{patient:serializePatient(p),balance:unpaid._sum.amount||0,paidTotal:paid._sum.amount||0,openPlans,nextVisit:nextAppt?{id:nextAppt.id,date:nextAppt.date.toISOString().slice(0,10),time:nextAppt.time,status:nextAppt.status,service:nextAppt.type}:null}} satisfies ApiResponse)}catch(e){console.error('Patient summary error:',e);return res.status(500).json({ok:false,error:'Не удалось получить сводку пациента'} satisfies ApiResponse)}});
 
-patientsRouter.get('/:id',async(req:AuthRequest,res)=>{try{const clinicId=req.user?.clinicId;if(!clinicId)return res.status(400).json({ok:false,error:'Клиника не указана'} satisfies ApiResponse);const s=await loadClinicPatient(req,res);if(!s)return;const p=await prisma.patient.findFirst({where:{id:s.patientId,clinicId},include:{visits:{orderBy:{date:'desc'}},appointments:{orderBy:{date:'desc'}},teeth:{orderBy:{number:'asc'}},treatmentPlans:{orderBy:{createdAt:'desc'}},images:{orderBy:{createdAt:'desc'}},documents:{orderBy:{createdAt:'desc'}}}});if(!p)return res.status(404).json({ok:false,error:'Пациент не найден'} satisfies ApiResponse);await auditFromReq(req,{action:'patient.viewed',entity:'patient',entityId:p.id,details:{branchId:s.branchId}});return res.json({ok:true,data:serializePatient(p)} satisfies ApiResponse)}catch(e){console.error('Get patient error:',e);return res.status(500).json({ok:false,error:'Ошибка при получении пациента'} satisfies ApiResponse)}});
+patientsRouter.get('/:id',requireClinicalChartRead,async(req:AuthRequest,res)=>{try{const clinicId=req.user?.clinicId;if(!clinicId)return res.status(400).json({ok:false,error:'Клиника не указана'} satisfies ApiResponse);const s=await loadClinicPatient(req,res);if(!s)return;const p=await prisma.patient.findFirst({where:{id:s.patientId,clinicId},include:{visits:{orderBy:{date:'desc'}},appointments:{orderBy:{date:'desc'}},teeth:{orderBy:{number:'asc'}},treatmentPlans:{orderBy:{createdAt:'desc'}},images:{orderBy:{createdAt:'desc'}},documents:{orderBy:{createdAt:'desc'}}}});if(!p)return res.status(404).json({ok:false,error:'Пациент не найден'} satisfies ApiResponse);await auditFromReq(req,{action:'patient.viewed',entity:'patient',entityId:p.id,details:{branchId:s.branchId}});return res.json({ok:true,data:await serializePatientForCaller(p,req)} satisfies ApiResponse)}catch(e){console.error('Get patient error:',e);return res.status(500).json({ok:false,error:'Ошибка при получении пациента'} satisfies ApiResponse)}});
 
-patientsRouter.patch('/:id',requirePermission('patient.write'),requireClinicWritable,async(req:AuthRequest,res)=>{try{const clinicId=req.user?.clinicId;if(!clinicId)return res.status(400).json({ok:false,error:'Клиника не указана'} satisfies ApiResponse);const s=await loadClinicPatient(req,res);if(!s)return;const existing=await prisma.patient.findFirst({where:{id:s.patientId,clinicId}});if(!existing)return res.status(404).json({ok:false,error:'Пациент не найден'} satisfies ApiResponse);const body=req.body||{},names=(body.name||body.firstName||body.lastName)?splitName(body.name,body.firstName,body.lastName):{firstName:existing.firstName,lastName:existing.lastName};const decodedPrev=decryptMedicalHistory(existing.medicalHistory);const prev=(decodedPrev&&typeof decodedPrev==='object'&&!Array.isArray(decodedPrev)?decodedPrev:{}) as Record<string,unknown>;const history={...prev,...(body.medicalHistory&&typeof body.medicalHistory==='object'?body.medicalHistory:{}),...(body.category!==undefined?{category:body.category}:{}),...(body.source!==undefined?{source:body.source}:{}),...(body.allergies!==undefined?{allergies:body.allergies}:{}),...(body.teeth!==undefined?{teeth:body.teeth}: {})};const p=await prisma.patient.update({where:{id:existing.id},data:{firstName:names.firstName,lastName:names.lastName,...(body.phone!==undefined?{phone:body.phone||null}:{}),...(body.email!==undefined?{email:body.email||null}:{}),...((body.dob||body.birthDate)!==undefined?{birthDate:(body.dob||body.birthDate)?new Date(body.dob||body.birthDate):null}:{}),...(body.gender!==undefined?{gender:body.gender||null}:{}),...(body.notes!==undefined?{notes:body.notes||null}:{}),...(body.address!==undefined?{address:body.address||null}:{}),medicalHistory:encryptMedicalHistory(history) as Prisma.InputJsonValue},include:{teeth:true}});if(body.branchId!==undefined&&s.context.scope.kind==='organization'){if(!(await assertPatientBranchBelongsToClinic(String(body.branchId),clinicId)))return res.status(400).json({ok:false,error:'Недействующий филиал'});await setPatientBranch(p.id,clinicId,String(body.branchId));}if(body.teeth)await syncTeeth(p.id,body.teeth);const fresh=await prisma.patient.findUnique({where:{id:p.id},include:{teeth:true}});await auditFromReq(req,{action:'patient.updated',entity:'patient',entityId:p.id,details:{branchId:body.branchId??s.branchId}});return res.json({ok:true,data:serializePatient(fresh!)} satisfies ApiResponse)}catch(e){console.error('Update patient error:',e);return res.status(500).json({ok:false,error:'Ошибка при обновлении пациента'} satisfies ApiResponse)}});
+patientsRouter.patch('/:id', requirePatientMutationPermission, requireClinicWritable, async (req: AuthRequest, res) => {
+  try {
+    const clinicId = req.user?.clinicId;
+    if (!clinicId) return res.status(400).json({ ok: false, error: 'Клиника не указана' } satisfies ApiResponse);
+
+    const scope = await loadClinicPatient(req, res);
+    if (!scope) return;
+    const existing = await prisma.patient.findFirst({ where: { id: scope.patientId, clinicId } });
+    if (!existing) return res.status(404).json({ ok: false, error: 'Пациент не найден' } satisfies ApiResponse);
+
+    const body = req.body || {};
+    if (body.medicalHistory !== undefined && isClientSuppliedEncryptedMedicalHistory(body.medicalHistory)) {
+      return res.status(400).json({ ok: false, error: 'Передайте медицинскую историю в исходном формате' } satisfies ApiResponse);
+    }
+
+    // Validate branch movement before mutating the patient. The branch change,
+    // patient update and odontogram mirror then commit or roll back together.
+    let targetBranchId: string | null = null;
+    if (body.branchId !== undefined && scope.context.scope.kind === 'organization') {
+      targetBranchId = String(body.branchId);
+      if (!(await assertPatientBranchBelongsToClinic(targetBranchId, clinicId))) {
+        return res.status(400).json({ ok: false, error: 'Недействующий филиал' } satisfies ApiResponse);
+      }
+    }
+
+    const names = (body.name || body.firstName || body.lastName)
+      ? splitName(body.name, body.firstName, body.lastName)
+      : { firstName: existing.firstName, lastName: existing.lastName };
+    const decodedPrev = decryptMedicalHistory(existing.medicalHistory);
+    const prev = (decodedPrev && typeof decodedPrev === 'object' && !Array.isArray(decodedPrev)
+      ? decodedPrev
+      : {}) as Record<string, unknown>;
+    const history = {
+      ...prev,
+      ...(body.medicalHistory && typeof body.medicalHistory === 'object' ? body.medicalHistory : {}),
+      ...(body.category !== undefined ? { category: body.category } : {}),
+      ...(body.source !== undefined ? { source: body.source } : {}),
+      ...(body.allergies !== undefined ? { allergies: body.allergies } : {}),
+      ...(body.teeth !== undefined ? { teeth: body.teeth } : {}),
+    };
+    const data = {
+      firstName: names.firstName,
+      lastName: names.lastName,
+      ...(body.phone !== undefined ? { phone: body.phone || null } : {}),
+      ...(body.email !== undefined ? { email: body.email || null } : {}),
+      ...((body.dob || body.birthDate) !== undefined
+        ? { birthDate: (body.dob || body.birthDate) ? new Date(body.dob || body.birthDate) : null }
+        : {}),
+      ...(body.gender !== undefined ? { gender: body.gender || null } : {}),
+      ...(body.notes !== undefined ? { notes: body.notes || null } : {}),
+      ...(body.address !== undefined ? { address: body.address || null } : {}),
+      medicalHistory: encryptMedicalHistory(history) as Prisma.InputJsonValue,
+    };
+
+    await prisma.$transaction(async (tx) => {
+      const updated = await tx.patient.updateMany({
+        where: { id: existing.id, clinicId, updatedAt: existing.updatedAt },
+        data,
+      });
+      if (updated.count !== 1) throw new Error('PATIENT_HISTORY_CONFLICT');
+      if (body.teeth) await syncTeeth(existing.id, body.teeth, tx);
+      if (targetBranchId) await setPatientBranch(existing.id, clinicId, targetBranchId, tx);
+    });
+
+    const fresh = await prisma.patient.findFirst({
+      where: { id: existing.id, clinicId },
+      include: { teeth: true },
+    });
+    if (!fresh) return res.status(404).json({ ok: false, error: 'Пациент не найден' } satisfies ApiResponse);
+    await auditFromReq(req, {
+      action: 'patient.updated',
+      entity: 'patient',
+      entityId: fresh.id,
+      details: { branchId: targetBranchId ?? scope.branchId },
+    });
+    return res.json({ ok: true, data: await serializePatientForCaller(fresh, req) } satisfies ApiResponse);
+  } catch (error) {
+    if (error instanceof Error && error.message === 'PATIENT_HISTORY_CONFLICT') {
+      return res.status(409).json({
+        ok: false,
+        error: 'Данные пациента изменились параллельно. Обновите страницу и повторите.',
+      } satisfies ApiResponse);
+    }
+    console.error('Update patient error:', error);
+    return res.status(500).json({ ok: false, error: 'Ошибка при обновлении пациента' } satisfies ApiResponse);
+  }
+});
 
 patientsRouter.delete('/:id',requirePermission('patient.delete'),requireClinicWritable,async(req:AuthRequest,res)=>{try{const clinicId=req.user?.clinicId;if(!clinicId)return res.status(400).json({ok:false,error:'Клиника не указана'} satisfies ApiResponse);const s=await loadClinicPatient(req,res);if(!s)return;const p=await prisma.patient.findFirst({where:{id:s.patientId,clinicId}});if(!p)return res.status(404).json({ok:false,error:'Пациент не найден'} satisfies ApiResponse);await prisma.patient.delete({where:{id:p.id}});publish('patient.deleted',{clinicId,patientId:p.id,userId:req.user?.id});return res.json({ok:true,data:{id:p.id}} satisfies ApiResponse)}catch(e){console.error('Delete patient error:',e);return res.status(500).json({ok:false,error:'Ошибка при удалении пациента'} satisfies ApiResponse)}});
 
-patientsRouter.get('/:id/audit',async(req:AuthRequest,res)=>{
+patientsRouter.get('/:id/audit',requireClinicalChartRead,requirePermission('audit.read'),async(req:AuthRequest,res)=>{
   try {
     const s=await loadClinicPatient(req,res);
     if(!s)return;
@@ -120,16 +282,45 @@ patientsRouter.get('/:id/audit',async(req:AuthRequest,res)=>{
   }
 });
 
-patientsRouter.get('/:id/history',async(req:AuthRequest,res)=>{try{const s=await loadClinicPatient(req,res);if(!s)return;const page=parseInt(req.query.page as string)||1,limit=parseInt(req.query.limit as string)||20,{skip,take}=paginate(page,limit),where={patientId:s.patientId};const [rows,total]=await Promise.all([prisma.visit.findMany({where,skip,take,orderBy:{date:'desc'}}),prisma.visit.count({where})]);return res.json({ok:true,data:paginatedResponse(rows,total,page,limit)} satisfies ApiResponse)}catch(e){return res.status(500).json({ok:false,error:'Ошибка при получении истории визитов'} satisfies ApiResponse)}});
+patientsRouter.get('/:id/history',requireClinicalChartRead,async(req:AuthRequest,res)=>{try{const s=await loadClinicPatient(req,res);if(!s)return;const page=parseInt(req.query.page as string)||1,limit=parseInt(req.query.limit as string)||20,{skip,take}=paginate(page,limit),where={patientId:s.patientId};const [rows,total]=await Promise.all([prisma.visit.findMany({where,skip,take,orderBy:{date:'desc'}}),prisma.visit.count({where})]);return res.json({ok:true,data:paginatedResponse(rows,total,page,limit)} satisfies ApiResponse)}catch(e){return res.status(500).json({ok:false,error:'Ошибка при получении истории визитов'} satisfies ApiResponse)}});
 
-patientsRouter.get('/:id/images',async(req:AuthRequest,res)=>{try{const s=await loadClinicPatient(req,res);if(!s)return;const images=await prisma.patientImage.findMany({where:{patientId:s.patientId},orderBy:{createdAt:'desc'}});return res.json({ok:true,data:images} satisfies ApiResponse)}catch(e){return res.status(500).json({ok:false,error:'Ошибка при получении изображений пациента'} satisfies ApiResponse)}});
+patientsRouter.get('/:id/images',requireClinicalChartRead,async(req:AuthRequest,res)=>{try{const s=await loadClinicPatient(req,res);if(!s)return;const images=await prisma.patientImage.findMany({where:{patientId:s.patientId},orderBy:{createdAt:'desc'}});return res.json({ok:true,data:images} satisfies ApiResponse)}catch(e){return res.status(500).json({ok:false,error:'Ошибка при получении изображений пациента'} satisfies ApiResponse)}});
 
-patientsRouter.get('/:id/treatment-plan',async(req:AuthRequest,res)=>{try{const s=await loadClinicPatient(req,res);if(!s)return;return res.json({ok:true,data:await prisma.treatmentPlan.findMany({where:{patientId:s.patientId},orderBy:{createdAt:'desc'}})} satisfies ApiResponse)}catch(e){return res.status(500).json({ok:false,error:'Ошибка при получении планов лечения'} satisfies ApiResponse)}});
+patientsRouter.get('/:id/treatment-plan',requireClinicalChartRead,async(req:AuthRequest,res)=>{try{const s=await loadClinicPatient(req,res);if(!s)return;return res.json({ok:true,data:await prisma.treatmentPlan.findMany({where:{patientId:s.patientId},orderBy:{createdAt:'desc'}})} satisfies ApiResponse)}catch(e){return res.status(500).json({ok:false,error:'Ошибка при получении планов лечения'} satisfies ApiResponse)}});
 
-patientsRouter.post('/:id/deposit',requireClinicWritable,async(req:AuthRequest,res)=>{try{const s=await loadClinicPatient(req,res);if(!s)return;const amount=Number(req.body?.amount||0);if(!amount||Number.isNaN(amount))return res.status(400).json({ok:false,error:'Укажите сумму'} satisfies ApiResponse);const p=await prisma.patient.findFirst({where:{id:s.patientId,clinicId:s.clinicId}});if(!p)return res.status(404).json({ok:false,error:'Пациент не найден'} satisfies ApiResponse);const next=Math.max(0,Number(p.prepaidBalance||0)+amount),updated=await prisma.patient.update({where:{id:p.id},data:{prepaidBalance:next},include:{teeth:true}});await auditFromReq(req,{action:'patient.deposit',entity:'patient',entityId:p.id,details:{amount,previousBalance:p.prepaidBalance,newBalance:next}});return res.json({ok:true,data:serializePatient(updated)} satisfies ApiResponse)}catch(e){return res.status(500).json({ok:false,error:'Не удалось пополнить баланс'} satisfies ApiResponse)}});
+patientsRouter.post('/:id/deposit', requirePermission('billing.write'), requireClinicWritable, async (req: AuthRequest, res) => {
+  try {
+    const scope = await loadClinicPatient(req, res);
+    if (!scope) return;
+    const amount = Number(req.body?.amount ?? 0);
+    if (!Number.isSafeInteger(amount) || amount <= 0) {
+      return res.status(400).json({ ok: false, error: 'Сумма должна быть положительным целым числом' } satisfies ApiResponse);
+    }
+
+    // Use a database-side increment. Reading the current balance and writing
+    // an absolute value loses one deposit when two cashiers submit together.
+    const updated = await prisma.patient.update({
+      where: { id: scope.patientId },
+      data: { prepaidBalance: { increment: amount } },
+      select: { id: true, prepaidBalance: true },
+    });
+    const next = Number(updated.prepaidBalance || 0);
+    const previousBalance = next - amount;
+    await auditFromReq(req, {
+      action: 'patient.deposit',
+      entity: 'patient',
+      entityId: updated.id,
+      details: { amount, previousBalance, newBalance: next },
+    });
+    return res.json({ ok: true, data: { id: updated.id, prepaidBalance: next } } satisfies ApiResponse);
+  } catch (error) {
+    console.error('Patient deposit error:', error);
+    return res.status(500).json({ ok: false, error: 'Не удалось пополнить баланс' } satisfies ApiResponse);
+  }
+});
 
 async function serializeAssignments(rows:any[]){if(!rows.length)return[];const users=await prisma.user.findMany({where:{id:{in:rows.map(r=>r.userId)}},select:{id:true,firstName:true,lastName:true,role:true,spec:true}});const m=new Map(users.map(u=>[u.id,u]));return rows.map(r=>{const u=m.get(r.userId);return{id:r.id,userId:r.userId,role:r.role,createdAt:r.createdAt,name:u?`${u.firstName} ${u.lastName}`.trim():'Сотрудник удалён',spec:u?.spec||null,systemRole:u?.role||null}})}
 
-patientsRouter.get('/:id/assignments',async(req:AuthRequest,res)=>{try{const s=await loadClinicPatient(req,res);if(!s)return;const rows=await prisma.patientAssignment.findMany({where:{patientId:s.patientId,clinicId:s.clinicId,active:true},orderBy:{createdAt:'asc'},select:{id:true,userId:true,role:true,createdAt:true}});return res.json({ok:true,data:await serializeAssignments(rows)} satisfies ApiResponse)}catch(e){return res.status(500).json({ok:false,error:'Не удалось загрузить ответственных'} satisfies ApiResponse)}});
+patientsRouter.get('/:id/assignments',requirePermission('patient.read'),async(req:AuthRequest,res)=>{try{const s=await loadClinicPatient(req,res);if(!s)return;const rows=await prisma.patientAssignment.findMany({where:{patientId:s.patientId,clinicId:s.clinicId,active:true},orderBy:{createdAt:'asc'},select:{id:true,userId:true,role:true,createdAt:true}});return res.json({ok:true,data:await serializeAssignments(rows)} satisfies ApiResponse)}catch(e){return res.status(500).json({ok:false,error:'Не удалось загрузить ответственных'} satisfies ApiResponse)}});
 patientsRouter.post('/:id/assignments',requirePermission('patient.write'),requireClinicWritable,async(req:AuthRequest,res)=>{try{const s=await loadClinicPatient(req,res);if(!s)return;const userId=String(req.body?.userId||''),role=req.body?.role;if(!userId)return res.status(400).json({ok:false,error:'Укажите сотрудника'} satisfies ApiResponse);if(role!==undefined&&!isAssignmentRole(role))return res.status(400).json({ok:false,error:'Неизвестная роль'} satisfies ApiResponse);if(!(await isClinicMember(userId,s.clinicId)))return res.status(400).json({ok:false,error:'Сотрудник не работает в этой клинике'} satisfies ApiResponse);const written=await ensurePatientAssignment({clinicId:s.clinicId,patientId:s.patientId,userId,role});if(!written)return res.status(500).json({ok:false,error:'Не удалось назначить ответственного'} satisfies ApiResponse);await auditFromReq(req,{action:'patient.assignment.added',entity:'patient',entityId:s.patientId,details:{userId,role:role||'treating_doctor'}});const rows=await prisma.patientAssignment.findMany({where:{patientId:s.patientId,clinicId:s.clinicId,active:true},orderBy:{createdAt:'asc'},select:{id:true,userId:true,role:true,createdAt:true}});return res.status(201).json({ok:true,data:await serializeAssignments(rows)} satisfies ApiResponse)}catch(e){return res.status(500).json({ok:false,error:'Не удалось назначить ответственного'} satisfies ApiResponse)}});
 patientsRouter.delete('/:id/assignments/:assignmentId',requirePermission('patient.write'),requireClinicWritable,async(req:AuthRequest,res)=>{try{const s=await loadClinicPatient(req,res);if(!s)return;const revoked=await revokePatientAssignment(s.clinicId,req.params.assignmentId);if(!revoked)return res.status(404).json({ok:false,error:'Назначение не найдено'} satisfies ApiResponse);await auditFromReq(req,{action:'patient.assignment.removed',entity:'patient',entityId:s.patientId,details:{assignmentId:req.params.assignmentId}});return res.json({ok:true,data:{id:req.params.assignmentId}} satisfies ApiResponse)}catch(e){return res.status(500).json({ok:false,error:'Не удалось снять ответственного'} satisfies ApiResponse)}});

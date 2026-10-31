@@ -98,7 +98,17 @@ interface OutletContext {
 
 export default function Patients() {
   const outlet = useOutletContext<OutletContext>() || ({} as OutletContext)
-  const { user, clinic: authClinic, roleInfo } = useAuth()
+  const { user, clinic: authClinic, roleInfo, role, effectiveRole, permissions, pages } = useAuth()
+  const activeRole = String(effectiveRole || role || user?.role || '').toUpperCase()
+  const chartRole = ['OWNER', 'DIRECTOR', 'ADMIN', 'DOCTOR', 'SUPERADMIN', 'CASHIER'].includes(activeRole)
+  const canReadClinicalChart = chartRole
+  const permissionList = Array.isArray(permissions) ? permissions : []
+  const permissionsNotLoaded = permissionList.length === 0
+  const canReadBilling = permissionList.includes('*') || permissionList.some(key => ['billing.read', 'billing.write', 'billing.manage', 'billing.delete'].includes(key)) || (permissionsNotLoaded && chartRole)
+  const canWriteBilling = permissionList.includes('*') || permissionList.some(key => ['billing.write', 'billing.manage'].includes(key)) || (permissionsNotLoaded && ['OWNER', 'DIRECTOR', 'ADMIN', 'SUPERADMIN', 'CASHIER'].includes(activeRole))
+  const canReadPatientSummary = canReadClinicalChart && canReadBilling
+  const canEditPatient = permissionList.includes('*') || permissionList.some(key => ['patients.write', 'patient.write'].includes(key)) || (permissionsNotLoaded && ['OWNER', 'DIRECTOR', 'ADMIN', 'DOCTOR', 'SUPERADMIN', 'CASHIER'].includes(activeRole))
+  const canAccessDiagnostics = (Array.isArray(pages) && pages.some(page => ['diagnostics-referrals', 'diagnostics-results', 'diagnostics-referral-create'].includes(page))) || ((!Array.isArray(pages) || pages.length === 0) && ['OWNER', 'DIRECTOR', 'ADMIN', 'DOCTOR', 'ASSISTANT', 'LAB'].includes(activeRole))
   const readOnly = !!roleInfo?.readOnly
   const clinicId = outlet.clinic?.id || authClinic?.id || user?.clinicId || ''
   const clinic = (outlet.clinic?.id ? outlet.clinic : authClinic) || ({ id: clinicId } as Clinic)
@@ -155,13 +165,13 @@ export default function Patients() {
   const [ccRequesting, setCcRequesting] = useState(false)
 
   useEffect(() => {
-    if (!selected?.id) { setCcStatus(null); return }
+    if (!selected?.id || !canReadClinicalChart) { setCcStatus(null); return }
     let cancelled = false
     api.getCrossClinicStatus(selected.id).then((res) => {
       if (!cancelled) setCcStatus(res.status)
     }).catch(() => { if (!cancelled) setCcStatus(null) })
     return () => { cancelled = true }
-  }, [selected?.id])
+  }, [selected?.id, canReadClinicalChart])
 
   const requestCrossClinicHistory = useCallback(async () => {
     if (!selected?.id || ccRequesting) return
@@ -180,15 +190,15 @@ export default function Patients() {
   }, [selected?.id, ccRequesting, showToast])
 
   useEffect(() => {
-    if (selected?.id && activeTab === 'diagnostics') {
+    if (selected?.id && activeTab === 'diagnostics' && canAccessDiagnostics) {
       api.getDiagnosticReferrals({ patientId: selected.id, limit: '20' }).then((res: any) => {
         setPatientReferrals(res?.items || res?.data || []);
       }).catch(() => setPatientReferrals([]));
     }
-  }, [selected?.id, activeTab])
+  }, [selected?.id, activeTab, canAccessDiagnostics])
 
   useEffect(() => {
-    if (!clinic?.id) return
+    if (!clinic?.id || !canReadClinicalChart) return
     let cancelled = false
     ;(async () => {
       try {
@@ -203,7 +213,7 @@ export default function Patients() {
       } catch { /* ignore */ }
     })()
     return () => { cancelled = true }
-  }, [clinic?.id])
+  }, [clinic?.id, canReadClinicalChart])
 
   const recallList = useMemo(
     () => getRecallCandidates(patients, appointments, receipts, { inactiveDays: 180, openPlanPatientIds: openPlanIds }),
@@ -219,14 +229,26 @@ export default function Patients() {
       if (p) {
         setSelected(p)
         setTeethState((p as any).teeth || {})
-        void usePatientStore.getState().openPatient(p.id)
+        void usePatientStore.getState().openPatient(p.id, {
+          clinicalChart: canReadClinicalChart,
+          billingSummary: canReadPatientSummary,
+        })
       }
+    } else if (!canReadClinicalChart) {
+      // Clear any patient context left by a previous privileged workspace.
+      usePatientStore.getState().closePatient()
     }
-    if (tab) setActiveTab(tab)
-  }, [params, patients])
+    if (tab) {
+      const allowed = tab === 'info'
+        || (canReadClinicalChart && ['odontogram', 'photos', 'history'].includes(tab))
+        || (canReadPatientSummary && tab === 'payment')
+        || (canAccessDiagnostics && tab === 'diagnostics')
+      setActiveTab(allowed ? tab : 'info')
+    }
+  }, [params, patients, canReadClinicalChart, canReadPatientSummary, canAccessDiagnostics])
 
   useEffect(() => {
-    if (!selected?.id) { setPatientSummary(null); return }
+    if (!selected?.id || !canReadPatientSummary) { setPatientSummary(null); return }
     let cancelled = false
     ;(async () => {
       try {
@@ -237,7 +259,20 @@ export default function Patients() {
       }
     })()
     return () => { cancelled = true }
-  }, [selected?.id])
+  }, [selected?.id, canReadPatientSummary])
+
+  // The list API deliberately omits clinical details. Fetch the record only
+  // after selection and only for roles allowed to read a full medical card.
+  useEffect(() => {
+    if (!selected?.id || !canReadClinicalChart) return
+    let cancelled = false
+    api.getPatient(selected.id).then((detail) => {
+      if (cancelled || !detail) return
+      setSelected(current => current?.id === detail.id ? { ...current, ...detail } as Patient : current)
+      setTeethState(detail.teeth || {})
+    }).catch(() => undefined)
+    return () => { cancelled = true }
+  }, [selected?.id, canReadClinicalChart])
 
   const mapPatientImageToUi = (img: any) => {
     const meta = img?.metadata && typeof img.metadata === 'object' ? img.metadata : null
@@ -271,14 +306,15 @@ export default function Patients() {
   }
 
   useEffect(() => {
-    if (!selected?.id) {
+    if (!selected?.id || !canReadClinicalChart) {
       setPhotos([])
+      setPhotosLoading(false)
       return
     }
     loadPhotos(selected.id)
     // loadPhotos defined inline, varies per render
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selected?.id])
+  }, [selected?.id, canReadClinicalChart])
 
   useEffect(() => {
     const iin = normalizeIin(search)
@@ -344,11 +380,6 @@ export default function Patients() {
         // overwritten by one the system supplied.
         dob: f.dob || result.derived.birthDate || '',
         gender: f.gender || result.derived.gender || '',
-        // Contact identity the platform already holds for this person, so a
-        // patient does not dictate their name and number a second time.
-        name: f.name || result.suggested?.name || '',
-        phone: f.phone || result.suggested?.phone || '',
-        email: f.email || result.suggested?.email || '',
       }))
     } catch (err: any) {
       showToast(err?.message || 'Не удалось проверить ИИН', 'error')
@@ -562,9 +593,7 @@ export default function Patients() {
 
           {iinLookup && !iinLookup.existing && (
             <p className="text-xs text-success">
-              {iinLookup.suggested
-                ? 'ИИН проверен. Этот человек уже известен системе — ФИО и контакты подставлены, дата рождения и пол выведены из номера. Всё можно поправить.'
-                : 'ИИН проверен. Дата рождения и пол заполнены из номера — при необходимости их можно поправить.'}
+              {'ИИН проверен. Дата рождения и пол выведены из номера — при необходимости их можно поправить.'}
             </p>
           )}
 
@@ -707,7 +736,7 @@ export default function Patients() {
   }
 
   const depositModal = (
-    <Modal open={depositOpen} onClose={() => setDepositOpen(false)} title="Пополнить баланс" size="sm">
+    <Modal open={depositOpen && canWriteBilling} onClose={() => setDepositOpen(false)} title="Пополнить баланс" size="sm">
       <div className="space-y-4">
         <p className="text-sm text-txt-secondary m-0">
           Текущий баланс: <span className="font-bold text-dv-gold">{tg(Number(selected?.prepaidBalance || 0))}</span>
@@ -884,7 +913,10 @@ export default function Patients() {
                       setSelected(p)
                       setTeethState(p.teeth || {})
                       setActiveTab('info')
-                      void usePatientStore.getState().openPatient(p.id)
+                      void usePatientStore.getState().openPatient(p.id, {
+                        clinicalChart: canReadClinicalChart,
+                        billingSummary: canReadPatientSummary,
+                      })
                     }}
                   >
                     <div className="flex items-start justify-between mb-3">
@@ -948,11 +980,17 @@ export default function Patients() {
 
   const PATIENT_TABS = [
     { id: 'info', label: 'Карта', icon: <FileText size={14} /> },
-    { id: 'odontogram', label: 'Одонтограмма', icon: <Smile size={14} /> },
-    { id: 'payment', label: 'Оплата', icon: <CreditCard size={14} /> },
-    { id: 'photos', label: 'Фотопротокол', icon: <Camera size={14} /> },
-    { id: 'history', label: 'История', icon: <History size={14} /> },
-    { id: 'diagnostics', label: 'Диагностика', icon: <Microscope size={14} /> },
+    ...(canReadClinicalChart ? [
+      { id: 'odontogram', label: 'Одонтограмма', icon: <Smile size={14} /> },
+      { id: 'photos', label: 'Фотопротокол', icon: <Camera size={14} /> },
+      { id: 'history', label: 'История', icon: <History size={14} /> },
+    ] : []),
+    ...(canReadPatientSummary ? [
+      { id: 'payment', label: 'Оплата', icon: <CreditCard size={14} /> },
+    ] : []),
+    ...(canAccessDiagnostics ? [
+      { id: 'diagnostics', label: 'Диагностика', icon: <Microscope size={14} /> },
+    ] : []),
   ]
 
   return (
@@ -965,40 +1003,40 @@ export default function Patients() {
           К списку
         </Button>
         <div className="flex flex-wrap gap-2 justify-start sm:justify-end">
-          <Button
+          {canReadClinicalChart && (<Button
             variant="outline"
             icon={<FileText size={16} />}
             className="min-h-[44px] sm:min-h-0"
             onClick={() => navigate(`/crm/medical-card?patient=${selected.id}`)}
           >
             Медкарта
-          </Button>
-          <Button
+          </Button>)}
+          {canReadClinicalChart && (<Button
             variant="outline"
             icon={<FileText size={16} />}
             className="min-h-[44px] sm:min-h-0"
             onClick={() => navigate(`/crm/treatment-plans?patient=${selected.id}`)}
           >
             План лечения
-          </Button>
-          <Button
+          </Button>)}
+          {canAccessDiagnostics && (<Button
             variant="outline"
             icon={<Microscope size={16} />}
             className="min-h-[44px] sm:min-h-0"
             onClick={() => navigate(`/diagnostics/referrals/new?patientId=${selected.id}&patientName=${encodeURIComponent(selected.name)}&patientPhone=${selected.phone || ''}`)}
           >
             Диагностика
-          </Button>
-          <Button variant="secondary" icon={<FileText size={16} />} className="min-h-[44px] sm:min-h-0" onClick={() => openEdit(selected)}>
+          </Button>)}
+          {canEditPatient && (<Button variant="secondary" icon={<FileText size={16} />} className="min-h-[44px] sm:min-h-0" onClick={() => openEdit(selected)}>
             Редактировать
-          </Button>
+          </Button>)}
           {/*
             Records older than the IIN requirement carry neither a number nor a
             stated reason. Flagged rather than force-fixed: the directory fills
             in as records are touched, which is how the platform accumulates
             IINs by working instead of by a one-off migration.
           */}
-          {!selected.iin && !(selected as any).noIinReason && (
+          {canEditPatient && !selected.iin && !(selected as any).noIinReason && (
             <Button
               variant="outline"
               icon={<AlertTriangle size={16} />}
@@ -1008,7 +1046,7 @@ export default function Patients() {
               ИИН не указан
             </Button>
           )}
-          {selected.iin && ccStatus === 'none' && (
+          {canReadClinicalChart && selected.iin && ccStatus === 'none' && (
             <Button
               variant="outline"
               icon={<Send size={16} />}
@@ -1019,12 +1057,12 @@ export default function Patients() {
               Запросить историю из других клиник
             </Button>
           )}
-          {selected.iin && ccStatus === 'pending' && (
+          {canReadClinicalChart && selected.iin && ccStatus === 'pending' && (
             <Button variant="outline" icon={<Send size={16} />} className="min-h-[44px] sm:min-h-0" disabled>
               Запрос отправлен пациенту
             </Button>
           )}
-          {selected.iin && ccStatus === 'declined' && (
+          {canReadClinicalChart && selected.iin && ccStatus === 'declined' && (
             <Button
               variant="outline"
               icon={<Send size={16} />}
@@ -1035,7 +1073,7 @@ export default function Patients() {
               Запросить повторно
             </Button>
           )}
-          {selected.iin && ccStatus === 'approved' && (
+          {canReadClinicalChart && selected.iin && ccStatus === 'approved' && (
             <Button
               variant="outline"
               icon={<FileText size={16} />}
@@ -1133,7 +1171,7 @@ export default function Patients() {
             </div>
           </Card>
 
-          <AiInsightCard patientId={selected.id} />
+          {canReadClinicalChart && <AiInsightCard patientId={selected.id} />}
         </div>
 
         {/* Right panel */}
@@ -1346,13 +1384,13 @@ export default function Patients() {
                         <p className="text-xs text-txt-muted mb-1">Предоплата / баланс</p>
                         <p className="text-lg font-bold text-dv-gold">{tg(Number(selected.prepaidBalance || 0))}</p>
                       </div>
-                      <Button
+                      {canWriteBilling && (<Button
                         variant="secondary"
                         size="sm"
                         onClick={() => { setDepositAmount('10000'); setDepositOpen(true) }}
                       >
                         Пополнить баланс
-                      </Button>
+                      </Button>)}
                     </div>
                   </div>
 

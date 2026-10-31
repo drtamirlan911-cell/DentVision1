@@ -1,6 +1,8 @@
 import { Router, Response } from 'express'
 import type { AuthRequest } from '../../types/index.js'
-import { loadClinicAccess } from '../../middleware/planGate.js'
+import { loadClinicAccess, blockClinicWrites } from '../../middleware/planGate.js'
+import { requirePermission } from '../../middleware/rbac.js'
+import { requireClinicalChartRead } from '../../middleware/clinicalChartAccess.js'
 import { getClinicId } from '../../lib/orgContext.js'
 import prisma from '../../lib/prisma.js'
 import { CaseStatus } from '@prisma/client'
@@ -21,15 +23,21 @@ function effectiveClinicId(req: AuthRequest): string | undefined {
   return getClinicId(req.user!)
 }
 
-async function clinicCase(caseId: string, clinicId: string) {
+async function clinicCase(caseId: string, clinicId: string, req?: AuthRequest) {
+  const patientBranch = req ? branchScopedPatientFilter(req).patient?.branchId : undefined
   return prisma.treatmentCase.findFirst({
-    where: { id: caseId, clinicId, deletedAt: null },
+    where: {
+      id: caseId,
+      clinicId,
+      deletedAt: null,
+      ...(patientBranch ? { patient: { branchId: patientBranch } } : {}),
+    },
     include: { patient: { select: { id: true, firstName: true, lastName: true, phone: true } } },
   })
 }
 
 // GET /api/crm/cases?patientId=...
-treatmentCaseRouter.get('/', loadClinicAccess, async (req: AuthRequest, res: Response) => {
+treatmentCaseRouter.get('/', loadClinicAccess, requireClinicalChartRead, blockClinicWrites, async (req: AuthRequest, res: Response) => {
   try {
     const clinicId = effectiveClinicId(req)
     if (!clinicId) return res.status(403).json({ ok: false, error: 'Clinic context is required' })
@@ -52,12 +60,12 @@ treatmentCaseRouter.get('/', loadClinicAccess, async (req: AuthRequest, res: Res
 })
 
 // GET /api/crm/cases/:id — canonical case plus its linked ecosystem records.
-treatmentCaseRouter.get('/:id', loadClinicAccess, async (req: AuthRequest, res: Response) => {
+treatmentCaseRouter.get('/:id', loadClinicAccess, requireClinicalChartRead, requirePermission('billing.read'), blockClinicWrites, async (req: AuthRequest, res: Response) => {
   try {
     const clinicId = effectiveClinicId(req)
     if (!clinicId) return res.status(403).json({ ok: false, error: 'Clinic context is required' })
 
-    const caseRow = await clinicCase(req.params.id, clinicId)
+    const caseRow = await clinicCase(req.params.id, clinicId, req)
     if (!caseRow) return res.status(404).json({ ok: false, error: 'Treatment case not found' })
 
     const caseId = caseRow.id
@@ -122,7 +130,7 @@ treatmentCaseRouter.get('/:id', loadClinicAccess, async (req: AuthRequest, res: 
 })
 
 // POST /api/crm/cases
-treatmentCaseRouter.post('/', loadClinicAccess, async (req: AuthRequest, res: Response) => {
+treatmentCaseRouter.post('/', loadClinicAccess, requirePermission('patient.write', 'medical.read', 'medical.write'), blockClinicWrites, async (req: AuthRequest, res: Response) => {
   try {
     const { patientId, title, description, status, chiefComplaint, diagnosisCodes } = req.body
     const clinicId = effectiveClinicId(req)
@@ -130,8 +138,9 @@ treatmentCaseRouter.post('/', loadClinicAccess, async (req: AuthRequest, res: Re
       return res.status(400).json({ ok: false, error: 'patientId, title, and clinic context are required' })
     }
 
+    const patientBranch = branchScopedPatientFilter(req).patient?.branchId
     const patient = await prisma.patient.findFirst({
-      where: { id: patientId, clinicId, deletedAt: null },
+      where: { id: patientId, clinicId, deletedAt: null, ...(patientBranch ? { branchId: patientBranch } : {}) },
       select: { id: true },
     })
     if (!patient) return res.status(404).json({ ok: false, error: 'Patient not found in the active clinic' })
@@ -152,11 +161,11 @@ treatmentCaseRouter.post('/', loadClinicAccess, async (req: AuthRequest, res: Re
 })
 
 // PATCH /api/crm/cases/:id
-treatmentCaseRouter.patch('/:id', loadClinicAccess, async (req: AuthRequest, res: Response) => {
+treatmentCaseRouter.patch('/:id', loadClinicAccess, requirePermission('patient.write', 'medical.read', 'medical.write'), blockClinicWrites, async (req: AuthRequest, res: Response) => {
   try {
     const clinicId = effectiveClinicId(req)
     if (!clinicId) return res.status(403).json({ ok: false, error: 'Clinic context is required' })
-    const existing = await clinicCase(req.params.id, clinicId)
+    const existing = await clinicCase(req.params.id, clinicId, req)
     if (!existing) return res.status(404).json({ ok: false, error: 'Treatment case not found' })
 
     const { title, description, status, chiefComplaint, diagnosisCodes, metadata } = req.body || {}
@@ -234,35 +243,37 @@ async function assertLinkTarget(target: LinkTarget, recordId: string, clinicId: 
   }
 }
 
-async function setLink(target: LinkTarget, recordId: string, caseId: string | null): Promise<void> {
+async function setLink(target: LinkTarget, recordId: string, clinicId: string, patientId: string, caseId: string | null): Promise<boolean> {
+  let changed = 0
   switch (target) {
     case 'appointment':
-      await prisma.$executeRawUnsafe(`UPDATE appointments SET "treatmentCaseId" = $1 WHERE id = $2`, caseId, recordId)
-      return
+      changed = await prisma.$executeRawUnsafe(`UPDATE appointments SET "treatmentCaseId" = $1 WHERE id = $2 AND "clinicId" = $3 AND "patientId" = $4`, caseId, recordId, clinicId, patientId)
+      break
     case 'labOrder':
-      await prisma.$executeRawUnsafe(`UPDATE lab_orders SET "treatmentCaseId" = $1 WHERE id = $2`, caseId, recordId)
-      return
+      changed = await prisma.$executeRawUnsafe(`UPDATE lab_orders SET "treatmentCaseId" = $1 WHERE id = $2 AND "clinicId" = $3 AND ("patientId" = $4 OR "patientId" IS NULL)`, caseId, recordId, clinicId, patientId)
+      break
     case 'invoice':
-      await prisma.$executeRawUnsafe(`UPDATE invoices SET "treatmentCaseId" = $1 WHERE id = $2`, caseId, recordId)
-      return
+      changed = await prisma.$executeRawUnsafe(`UPDATE invoices SET "treatmentCaseId" = $1 WHERE id = $2 AND "clinicId" = $3 AND ("patientId" = $4 OR "patientId" IS NULL)`, caseId, recordId, clinicId, patientId)
+      break
     case 'treatmentPlan':
-      await prisma.$executeRawUnsafe(`UPDATE treatment_plans SET "treatmentCaseId" = $1 WHERE id = $2`, caseId, recordId)
-      return
+      changed = await prisma.$executeRawUnsafe(`UPDATE treatment_plans SET "treatmentCaseId" = $1 WHERE id = $2 AND ("clinicId" = $3 OR "clinicId" IS NULL) AND "patientId" = $4`, caseId, recordId, clinicId, patientId)
+      break
     case 'referral':
-      await prisma.$executeRawUnsafe(`UPDATE referrals SET "treatmentCaseId" = $1 WHERE id = $2`, caseId, recordId)
-      return
+      changed = await prisma.$executeRawUnsafe(`UPDATE referrals SET "treatmentCaseId" = $1 WHERE id = $2 AND "clinicId" = $3 AND ("patientId" = $4 OR "patientId" IS NULL)`, caseId, recordId, clinicId, patientId)
+      break
     case 'visit':
-      await prisma.$executeRawUnsafe(`UPDATE visits SET "treatmentCaseId" = $1 WHERE id = $2`, caseId, recordId)
-      return
+      changed = await prisma.$executeRawUnsafe(`UPDATE visits SET "treatmentCaseId" = $1 WHERE id = $2 AND "patientId" = $4 AND EXISTS (SELECT 1 FROM patients p WHERE p.id = visits."patientId" AND p."clinicId" = $3)`, caseId, recordId, clinicId, patientId)
+      break
   }
+  return changed > 0
 }
 
 // POST /api/crm/cases/:id/links — attach an existing ecosystem record to the canonical case.
-treatmentCaseRouter.post('/:id/links', loadClinicAccess, async (req: AuthRequest, res: Response) => {
+treatmentCaseRouter.post('/:id/links', loadClinicAccess, requirePermission('patient.write', 'medical.read', 'medical.write'), blockClinicWrites, async (req: AuthRequest, res: Response) => {
   try {
     const clinicId = effectiveClinicId(req)
     if (!clinicId) return res.status(403).json({ ok: false, error: 'Clinic context is required' })
-    const existing = await clinicCase(req.params.id, clinicId)
+    const existing = await clinicCase(req.params.id, clinicId, req)
     if (!existing) return res.status(404).json({ ok: false, error: 'Treatment case not found' })
 
     const target = String(req.body?.target || '') as LinkTarget
@@ -272,7 +283,8 @@ treatmentCaseRouter.post('/:id/links', loadClinicAccess, async (req: AuthRequest
       return res.status(404).json({ ok: false, error: 'Record not found in this case patient/clinic scope' })
     }
 
-    await setLink(target, recordId, existing.id)
+    const linked = await setLink(target, recordId, clinicId, existing.patientId, existing.id)
+    if (!linked) return res.status(404).json({ ok: false, error: 'Record not found in this case patient/clinic scope' })
     return res.json({ ok: true, data: { target, recordId, caseId: existing.id } })
   } catch (error) {
     console.error('[treatmentCaseRouter] link error:', error)
@@ -281,17 +293,21 @@ treatmentCaseRouter.post('/:id/links', loadClinicAccess, async (req: AuthRequest
 })
 
 // DELETE /api/crm/cases/:id/links — unlink an ecosystem record without deleting it.
-treatmentCaseRouter.delete('/:id/links', loadClinicAccess, async (req: AuthRequest, res: Response) => {
+treatmentCaseRouter.delete('/:id/links', loadClinicAccess, requirePermission('patient.write', 'medical.read', 'medical.write'), blockClinicWrites, async (req: AuthRequest, res: Response) => {
   try {
     const clinicId = effectiveClinicId(req)
     if (!clinicId) return res.status(403).json({ ok: false, error: 'Clinic context is required' })
-    const existing = await clinicCase(req.params.id, clinicId)
+    const existing = await clinicCase(req.params.id, clinicId, req)
     if (!existing) return res.status(404).json({ ok: false, error: 'Treatment case not found' })
 
     const target = String(req.body?.target || '') as LinkTarget
     const recordId = String(req.body?.recordId || '')
     if (!LINK_TARGETS.includes(target) || !recordId) return res.status(400).json({ ok: false, error: 'target and recordId are required' })
-    await setLink(target, recordId, null)
+    if (!(await assertLinkTarget(target, recordId, clinicId, existing.patientId))) {
+      return res.status(404).json({ ok: false, error: 'Record not found in this case patient/clinic scope' })
+    }
+    const unlinked = await setLink(target, recordId, clinicId, existing.patientId, null)
+    if (!unlinked) return res.status(404).json({ ok: false, error: 'Record not found in this case patient/clinic scope' })
     return res.json({ ok: true, data: { target, recordId, caseId: existing.id, linked: false } })
   } catch (error) {
     console.error('[treatmentCaseRouter] unlink error:', error)
@@ -300,11 +316,11 @@ treatmentCaseRouter.delete('/:id/links', loadClinicAccess, async (req: AuthReque
 })
 
 // DELETE /api/crm/cases/:id — archive, never hard-delete a clinical case.
-treatmentCaseRouter.delete('/:id', loadClinicAccess, async (req: AuthRequest, res: Response) => {
+treatmentCaseRouter.delete('/:id', loadClinicAccess, requirePermission('medical.manage'), blockClinicWrites, async (req: AuthRequest, res: Response) => {
   try {
     const clinicId = effectiveClinicId(req)
     if (!clinicId) return res.status(403).json({ ok: false, error: 'Clinic context is required' })
-    const existing = await clinicCase(req.params.id, clinicId)
+    const existing = await clinicCase(req.params.id, clinicId, req)
     if (!existing) return res.status(404).json({ ok: false, error: 'Treatment case not found' })
 
     await prisma.treatmentCase.update({ where: { id: existing.id }, data: { deletedAt: new Date(), status: CaseStatus.archived } })

@@ -6,7 +6,22 @@ const API_BASE_URL = process.env.VITE_API_URL || 'http://127.0.0.1:3001';
 const VISUAL_EVIDENCE_ROOT = process.env.VISUAL_EVIDENCE_DIR || 'e2e/visual-evidence';
 const PASSWORD = 'Test1234!';
 
-const PUBLIC_ROUTES = ['/', '/login', '/register', '/forgot-password', '/booking', '/demo', '/pricing', '/terms', '/privacy', '/jobs', '/help', '/community'];
+type PendingRequest = { epoch: number; label: string }
+type RequestLedger = {
+  epoch: number
+  sequence: number
+  pending: Map<number, PendingRequest>
+  requestIds: WeakMap<object, number>
+  requestEpochs: WeakMap<object, number>
+  byIdentity: Map<string, number[]>
+  lastActivityAt: number
+}
+
+// Keep request drains scoped to the active main document. Late lifecycle events
+// from a previous page must not be attributed to the route loaded after goto().
+const pendingCriticalRequestsByPage = new WeakMap<Page, RequestLedger>();
+
+const PUBLIC_ROUTES = ['/', '/login', '/register', '/forgot-password', '/booking', '/demo', '/pricing', '/terms', '/privacy', '/jobs', '/help', '/community', '/shop'];
 const AUTH_COMMON_ROUTES = ['/', '/ai', '/help', '/notifications', '/profile'];
 const AUTHENTICATED_BASE_PAGES = ['shop','school','profile','settings','diagnostics','diagnostics-centers','diagnostics-labs','diagnostics-laboratories'] as const;
 const ROUTES = [
@@ -27,9 +42,9 @@ type Role = {
 
 const CLINIC_OWNER_PAGES = ['community','dashboard','schedule','patients','medical-card','visits','icd10','documents','finance','cashier','pricelist','lab','reminders','promotions','inventory','staff','audit','agent-activity','ai-approvals','backup','shop','school','analytics','settings','clinic-settings','billing','treatment-plans','dental-chart','diagnostics','diagnostics-referrals','diagnostics-referral-create','diagnostics-centers','diagnostics-labs','diagnostics-results','profile','bi','patient-inbox','workflow'];
 const CLINIC_ADMIN_PAGES = ['community','schedule','patients','medical-card','visits','icd10','documents','finance','cashier','pricelist','lab','reminders','promotions','inventory','staff','shop','school','analytics','settings','clinic-settings','billing','treatment-plans','dental-chart','diagnostics','diagnostics-referrals','diagnostics-referral-create','diagnostics-results','profile','patient-inbox','workflow','ai-approvals'];
-const CLINIC_DOCTOR_PAGES = ['community','schedule','patients','medical-card','visits','icd10','documents','lab','reminders','school','treatment-plans','dental-chart','diagnostics-referrals','diagnostics-referral-create','diagnostics-results','profile','ai-approvals'];
+const CLINIC_DOCTOR_PAGES = ['community','schedule','patients','medical-card','visits','icd10','pricelist','documents','lab','reminders','school','treatment-plans','dental-chart','diagnostics-referrals','diagnostics-referral-create','diagnostics-results','profile','ai-approvals'];
 const CLINIC_ASSISTANT_PAGES = ['community','schedule','patients','visits','documents','reminders','lab','shop','school','diagnostics-referrals','diagnostics-referral-create','diagnostics-results','profile'];
-const CLINIC_MANAGER_PAGES = ['dashboard','schedule','patients','analytics','inventory','staff','shop','profile'];
+const CLINIC_MANAGER_PAGES = ['dashboard','schedule','patients','analytics','inventory','staff','shop','pricelist','profile'];
 const PLATFORM_SUPERADMIN_PAGES = ['admin','audit','agent-activity','ai-approvals','backup','analytics','settings','security','quality','diagnostics','diagnostics-centers','diagnostics-labs','platform-finance','ai-governance','support','profile','bi'];
 
 const ROLES: readonly Role[] = [
@@ -42,10 +57,10 @@ const ROLES: readonly Role[] = [
   { id:'patient', email:'patient@dentvision.kz', label:'Пациент', family:'patient', pages:['patient-portal','profile','shop','school'], mustNotContain:[/CRM|Клиника|Super Admin|Диагностический центр|Медицинская лаборатория|зуботехническая/i], entry:/\/patient-portal/ },
   { id:'diagnostic-owner', email:'diagnostic-owner@test.com', label:'Владелец диагностического центра', family:'diagnostic', pages:[...AUTHENTICATED_BASE_PAGES,'diagnostics','diagnostics-referrals','diagnostics-centers','diagnostics-results','diagnostics-calendar','diagnostics-statistics','diagnostics-settings','profile'], mustNotContain:[/Врач|Стоматологическая клиника|Зуботехническая лаборатория/i], entry:/\/diagnostics\/center/ },
   { id:'diagnostic-operator', email:'diagnostic-operator@test.com', label:'Оператор диагностического центра', family:'diagnostic', pages:[...AUTHENTICATED_BASE_PAGES,'diagnostics','diagnostics-referrals','diagnostics-centers','diagnostics-results','diagnostics-calendar','profile'], mustNotContain:[/Настройки диагностического центра/i], entry:/\/diagnostics\/center/ },
-  { id:'medical-lab-owner', email:'medical-lab-owner@test.com', label:'Владелец медицинской лаборатории', family:'medical-lab', pages:[...AUTHENTICATED_BASE_PAGES,'diagnostics','diagnostics-laboratories','diagnostics-results','diagnostics-calendar','diagnostics-statistics','diagnostics-settings','profile'], mustNotContain:[/Врач|Зуботехническая лаборатория/i], entry:/\/diagnostics\/lab/ },
-  { id:'medical-lab-tech', email:'medical-lab-tech@test.com', label:'Лаборант', family:'medical-lab', pages:[...AUTHENTICATED_BASE_PAGES,'diagnostics','diagnostics-laboratories','diagnostics-results','profile'], mustNotContain:[/Настройки диагностического центра/i], entry:/\/diagnostics\/lab/ },
-  { id:'dental-lab-owner', email:'dental-lab-owner@test.com', label:'Владелец зуботехнической лаборатории', family:'dental-lab', pages:[...AUTHENTICATED_BASE_PAGES,'diagnostics','diagnostics-laboratories','diagnostics-results','diagnostics-settings','profile'], mustNotContain:[/Медицинская лаборатория|Диагностический центр/i], entry:/\/diagnostics\/lab/ },
-  { id:'dental-technician', email:'dental-technician@test.com', label:'Зубной техник', family:'dental-lab', pages:[...AUTHENTICATED_BASE_PAGES,'diagnostics','diagnostics-laboratories','diagnostics-results','profile'], mustNotContain:[/Настройки диагностического центра/i], entry:/\/diagnostics\/lab/ },
+  { id:'medical-lab-owner', email:'medical-lab-owner@test.com', label:'Владелец медицинской лаборатории', family:'medical-lab', pages:[...AUTHENTICATED_BASE_PAGES,'diagnostics','diagnostics-referrals','diagnostics-laboratories','diagnostics-results','diagnostics-calendar','diagnostics-statistics','diagnostics-settings','profile'], mustNotContain:[/Врач|Зуботехническая лаборатория/i], entry:/\/diagnostics\/lab/ },
+  { id:'medical-lab-tech', email:'medical-lab-tech@test.com', label:'Лаборант', family:'medical-lab', pages:[...AUTHENTICATED_BASE_PAGES,'diagnostics','diagnostics-referrals','diagnostics-laboratories','diagnostics-results','profile'], mustNotContain:[/Настройки диагностического центра/i], entry:/\/diagnostics\/lab/ },
+  { id:'dental-lab-owner', email:'dental-lab-owner@test.com', label:'Владелец зуботехнической лаборатории', family:'dental-lab', pages:[...AUTHENTICATED_BASE_PAGES,'diagnostics','diagnostics-referrals','diagnostics-laboratories','diagnostics-results','diagnostics-settings','profile'], mustNotContain:[/Медицинская лаборатория|Диагностический центр/i], entry:/\/diagnostics\/lab/ },
+  { id:'dental-technician', email:'dental-technician@test.com', label:'Зубной техник', family:'dental-lab', pages:[...AUTHENTICATED_BASE_PAGES,'diagnostics','diagnostics-referrals','diagnostics-laboratories','diagnostics-results','profile'], mustNotContain:[/Настройки диагностического центра/i], entry:/\/diagnostics\/lab/ },
   { id:'superadmin', email:'superadmin@test.com', label:'Super Admin', family:'platform', pages:[...AUTHENTICATED_BASE_PAGES,...PLATFORM_SUPERADMIN_PAGES], mustNotContain:[/Пациент|Зубной техник/i], entry:/\/admin|\/ai/ },
   { id:'support', email:'support@test.com', label:'Поддержка', family:'platform', pages:[...AUTHENTICATED_BASE_PAGES,'admin','analytics'], mustNotContain:[/Врач|Пациент/i], entry:/\/admin|\/analytics|\/help|\/profile/ },
   { id:'laboratory', email:'lab-a@test.com', label:'Лаборатория', family:'clinic', pages:[...AUTHENTICATED_BASE_PAGES,'lab','diagnostics-referrals','diagnostics-laboratories','diagnostics-results'], mustNotContain:[/Super Admin/i], entry:/\/ai|\/crm|\/diagnostics/ },
@@ -80,7 +95,7 @@ function pageId(route: string, role?: Role): string | null {
     '/crm/clinic-settings':'clinic-settings','/crm/billing':'billing','/crm/patient-inbox':'patient-inbox','/crm/visits':'visits','/crm/dental-chart':'dental-chart','/crm/treatment-plans':'treatment-plans',
     '/crm/pricelist':'pricelist','/crm/lab':'lab','/crm/inventory':'inventory','/crm/stock-rules':'inventory','/crm/documents':'documents','/crm/staff':'staff','/crm/reminders':'reminders','/crm/promotions':'promotions','/crm/marketing':'promotions','/crm/icd10':'icd10','/crm/workflow':'workflow','/crm/integrations/messaging':'clinic-settings',
     '/analytics':'analytics','/admin':'admin','/audit':'audit','/agent-activity':'agent-activity','/ai-approvals':'ai-approvals','/backup':'backup','/shop':'shop','/school':'school','/settings':'settings','/bi':'bi','/security':'security','/quality':'quality','/platform-finance':'platform-finance','/ai-governance':'ai-governance','/support':'support','/diagnostics':'diagnostics','/supplier':'supplier',
-    '/diagnostics/referrals':'diagnostics-referrals','/diagnostics/referrals/new':'diagnostics-referral-create','/diagnostics/centers':'diagnostics-centers','/diagnostics/labs':'diagnostics-labs','/diagnostics/laboratories':'diagnostics-labs','/diagnostics/results':'diagnostics-results','/diagnostics/calendar':'diagnostics-calendar','/diagnostics/statistics':'diagnostics-statistics','/diagnostics/settings':'diagnostics-settings',
+    '/diagnostics/referrals':'diagnostics-referrals','/diagnostics/referrals/new':'diagnostics-referral-create','/diagnostics/patients':'diagnostics-referrals','/diagnostics/centers':'diagnostics-centers','/diagnostics/labs':'diagnostics-labs','/diagnostics/laboratories':'diagnostics-labs','/diagnostics/results':'diagnostics-results','/diagnostics/calendar':'diagnostics-calendar','/diagnostics/statistics':'diagnostics-statistics','/diagnostics/settings':'diagnostics-settings',
     '/diagnostics/center':'diagnostics','/diagnostics/lab':'diagnostics','/community':'community','/patient-portal':'patient-portal','/diagnostics/workspace':'diagnostics','/diagnostics/center-dashboard':'diagnostics','/diagnostics/lab-dashboard':'diagnostics','/diagnostics/registrations':'admin','/diagnostics/registration-requests':'admin',
   };
   if (map[p]) return map[p];
@@ -99,17 +114,57 @@ function pageId(route: string, role?: Role): string | null {
   return null;
 }
 
+async function waitForRouteActivity(page: Page, roleId: string, route: string) {
+  const ledger = pendingCriticalRequestsByPage.get(page);
+  const quietPeriodMs = 700;
+  const drainCurrentDocument = async () => {
+    if (!ledger) return;
+    const currentPending = () => [...ledger.pending.values()].filter((entry) => entry.epoch === ledger.epoch);
+    const isQuiet = () => currentPending().length === 0 && Date.now() - ledger.lastActivityAt >= quietPeriodMs;
+    try {
+      await expect.poll(isQuiet, {
+        timeout: 20000,
+        intervals: [50, 100, 250, 500, 1000],
+        message: roleId + ' ' + route + ': current-document API/lazy-module requests did not settle or remain idle for ' + quietPeriodMs + 'ms',
+      }).toBe(true);
+    } catch (error) {
+      const active = currentPending().map((entry) => entry.label);
+      const quietForMs = Math.max(0, Date.now() - ledger.lastActivityAt);
+      throw new Error(roleId + ' ' + route + ': pending current-document requests: ' + active.join('; ') + '; request quiet for ' + quietForMs + 'ms (requires ' + quietPeriodMs + 'ms). ' + String(error));
+    }
+  };
+
+  // Wait for document fonts, then require a quiet window for finite app requests.
+  // React Query and the workspace bridges can start their first requests just
+  // after DOMContentLoaded; a zero-pending snapshot alone races that startup.
+  try {
+    await Promise.race([
+      page.evaluate(async () => { await document.fonts.ready; }),
+      page.waitForTimeout(3000),
+    ]);
+  } catch (error) {
+    throw new Error(roleId + ' ' + route + ': document readiness failed: ' + String(error));
+  }
+  await drainCurrentDocument();
+}
+
 async function login(page: Page, email: string) {
-  // Each role must start from a clean authentication state. Partner-context
-  // tests intentionally mint scoped tokens, so reusing that state can make
-  // the next role appear logged out or land in the previous workspace.
+  // Clear persisted identity before the React auth initializer runs. Clearing
+  // after goto previously allowed stale tokens to emit /auth/me 401 responses.
   await page.context().clearCookies();
-  await page.goto(BASE_URL + '/login?role=owner', {waitUntil:'domcontentloaded',timeout:30000});
-  await page.evaluate(() => {
-    localStorage.clear();
-    sessionStorage.clear();
+  await page.addInitScript(() => {
+    if (window.location.pathname === '/login') {
+      localStorage.clear();
+      sessionStorage.clear();
+    }
   });
-  await page.reload({waitUntil:'domcontentloaded',timeout:30000});
+  const guestSessionRequests: string[] = [];
+  const captureGuestSession = (request: any) => {
+    const url = new URL(request.url());
+    if (url.pathname === '/api/guest/session') guestSessionRequests.push(request.method() + ' ' + url.pathname);
+  };
+  page.on('request', captureGuestSession);
+  await page.goto(BASE_URL + '/login?role=owner', {waitUntil:'domcontentloaded',timeout:30000});
   await page.locator('input[autocomplete="username"]').fill(email);
   await page.locator('input[autocomplete="current-password"]').fill(PASSWORD);
   await page.getByRole('button',{name:'Войти в DentVision'}).click();
@@ -124,6 +179,9 @@ async function login(page: Page, email: string) {
     timeout: 10000,
     message: email + ': authenticated workspace did not render',
   }).toMatch(/.{20,}/s);
+  await waitForRouteActivity(page, email, 'post-login');
+  page.off('request', captureGuestSession);
+  expect(guestSessionRequests, email + ': guest session must not race authenticated login').toEqual([]);
 }
 
 async function activatePartnerWorkspace(page: Page, role: Role) {
@@ -169,6 +227,7 @@ async function activatePartnerWorkspace(page: Page, role: Role) {
     timeout: 15000,
     message: role.id + ': scoped workspace did not render',
   }).toContain(role.label);
+  await waitForRouteActivity(page, role.id, 'partner-context');
 }
 
 async function acceptPatientPortalConsents(page: Page) {
@@ -188,18 +247,161 @@ async function acceptPatientPortalConsents(page: Page) {
 }
 
 function collectors(page: Page) {
-  const problems={console:[] as string[],page:[] as string[],requests:[] as string[],server:[] as string[]};
-  page.on('console',m=>{if(m.type()==='error') problems.console.push(m.text())});
-  page.on('pageerror',e=>problems.page.push(e.message));
-  page.on('requestfailed',r=>problems.requests.push(r.method()+' '+r.url()+' :: '+(r.failure()?.errorText||'failed')));
-  page.on('response',r=>{if(r.status()>=500) problems.server.push(r.status()+' '+r.request().method()+' '+r.url())});
+  const problems = {
+    console: [] as string[],
+    page: [] as string[],
+    requests: [] as string[],
+    navigationCancellations: [] as string[],
+    http: [] as string[],
+    server: [] as string[],
+  };
+  const uiOrigin = new URL(BASE_URL).origin;
+  const ledger: RequestLedger = {
+    epoch: 0,
+    sequence: 0,
+    pending: new Map(),
+    requestIds: new WeakMap(),
+    requestEpochs: new WeakMap(),
+    byIdentity: new Map(),
+    lastActivityAt: Date.now(),
+  };
+  pendingCriticalRequestsByPage.set(page, ledger);
+  const identity = (request: any) => request.method() + ' ' + request.url();
+
+  const finishPending = (request: any) => {
+    const key = identity(request);
+    let id: number | undefined;
+    let requestEpoch: number | undefined;
+    try {
+      id = ledger.requestIds.get(request);
+      requestEpoch = ledger.requestEpochs.get(request);
+    } catch { /* request wrapper unavailable */ }
+    // A previous-document completion must never decrement a same-URL request
+    // started by the current document.
+    if (id === undefined && requestEpoch !== undefined && requestEpoch < ledger.epoch) return;
+    if (id === undefined) id = ledger.byIdentity.get(key)?.find(candidate => ledger.pending.has(candidate));
+    if (id === undefined) return;
+
+    const activeEntry = ledger.pending.get(id);
+    if (activeEntry?.epoch === ledger.epoch) ledger.lastActivityAt = Date.now();
+    ledger.pending.delete(id);
+    const queue = ledger.byIdentity.get(key);
+    if (queue) {
+      const index = queue.indexOf(id);
+      if (index >= 0) queue.splice(index, 1);
+      if (queue.length === 0) ledger.byIdentity.delete(key);
+    }
+  };
+
+  page.on('request', request => {
+    let mainDocumentNavigation = false;
+    try {
+      const requestFrame = request.frame();
+      // Compare frame hierarchy rather than wrapper object identity. Playwright
+      // may expose different Frame wrappers for the request and Page accessors;
+      // the top-level document is reliably identified by having no parent frame.
+      mainDocumentNavigation = request.isNavigationRequest()
+        && request.resourceType() === 'document'
+        && requestFrame.parentFrame() === null;
+    } catch { /* detached-frame and service-worker requests are not main navigation */ }
+
+    if (mainDocumentNavigation) {
+      ledger.epoch += 1;
+      ledger.lastActivityAt = Date.now();
+      const staleIds = new Set<number>();
+      for (const [id, entry] of ledger.pending) {
+        if (entry.epoch < ledger.epoch) {
+          ledger.pending.delete(id);
+          staleIds.add(id);
+        }
+      }
+      for (const [key, queue] of ledger.byIdentity) {
+        const remaining = queue.filter(id => !staleIds.has(id));
+        if (remaining.length) ledger.byIdentity.set(key, remaining);
+        else ledger.byIdentity.delete(key);
+      }
+    }
+
+    try { ledger.requestEpochs.set(request, ledger.epoch); } catch { /* request wrapper unavailable */ }
+
+    try {
+      const url = new URL(request.url());
+      const accept = String(request.headers()?.accept || '').toLowerCase();
+      if (request.resourceType() === 'eventsource'
+        || accept.includes('text/event-stream')
+        || url.pathname === '/api/ai/query/stream') return;
+
+      const finiteApi = url.pathname.startsWith('/api/');
+      const lazyModule = request.resourceType() === 'script' && url.origin === uiOrigin;
+      if (!finiteApi && !lazyModule) return;
+
+      ledger.lastActivityAt = Date.now();
+      const id = ++ledger.sequence;
+      const key = identity(request);
+      ledger.pending.set(id, {
+        epoch: ledger.epoch,
+        label: request.method() + ' ' + url.origin + url.pathname,
+      });
+      ledger.requestIds.set(request, id);
+      const queue = ledger.byIdentity.get(key) || [];
+      queue.push(id);
+      ledger.byIdentity.set(key, queue);
+    } catch { /* non-URL browser requests are outside this gate */ }
+  });
+
+  page.on('framenavigated', frame => {
+    try {
+      if (frame.parentFrame() === null) ledger.lastActivityAt = Date.now();
+    } catch { /* detached frames do not affect main-document readiness */ }
+  });
+  page.on('requestfinished', finishPending);
+  page.on('console', m => { if (m.type() === 'error') problems.console.push(m.text()); });
+  page.on('pageerror', e => problems.page.push(e.message));
+  page.on('requestfailed', request => {
+    finishPending(request);
+    const errorText = request.failure()?.errorText || 'failed';
+    let requestEpoch: number | undefined;
+    try { requestEpoch = ledger.requestEpochs.get(request); } catch { /* request wrapper unavailable */ }
+    const expectedNavigationAbort = requestEpoch !== undefined
+      && requestEpoch < ledger.epoch
+      && /ERR_ABORTED|Load request cancelled/i.test(errorText);
+
+    if (expectedNavigationAbort) {
+      problems.navigationCancellations.push(request.method() + ' ' + request.url() + ' :: ' + errorText);
+      return;
+    }
+    problems.requests.push(request.method() + ' ' + request.url() + ' :: ' + errorText);
+  });
+  page.on('response', response => {
+    const status = response.status();
+    if (status >= 400) {
+      try {
+        const url = new URL(response.url());
+        if (url.pathname.startsWith('/api/')) {
+          problems.http.push(status + ' ' + response.request().method() + ' ' + url.pathname);
+        }
+      } catch { /* non-URL browser responses are outside this gate */ }
+    }
+    if (status >= 500) problems.server.push(status + ' ' + response.request().method() + ' ' + response.url());
+  });
   return problems;
 }
 
 async function shellAudit(page: Page, role: Role, route: string) {
   const result=await page.evaluate(()=>{
     const visible=(el:Element)=>{const h=el as HTMLElement,r=h.getBoundingClientRect(),s=getComputedStyle(h);return r.width>0&&r.height>0&&r.right>0&&r.left<innerWidth&&s.display!=='none'&&s.visibility!=='hidden'};
-    const controls=Array.from(document.querySelectorAll('button,a,input,select,textarea,[role="button"],[role="tab"],[role="menuitem"]')).filter(visible).map(el=>{const h=el as HTMLElement,r=h.getBoundingClientRect();return{name:(h.getAttribute('aria-label')||h.getAttribute('title')||h.getAttribute('placeholder')||h.innerText||'').replace(/\\s+/g,' ').trim(),w:r.width,h:r.height,disabled:(h as HTMLButtonElement).disabled}});
+    const accessibleName=(el:Element)=>{
+      const h=el as HTMLElement;
+      const labelledBy=(h.getAttribute('aria-labelledby')||'').split(/\s+/).filter(Boolean).map(id=>document.getElementById(id)?.textContent||'').join(' ');
+      const labels='labels' in h?Array.from((h as HTMLInputElement).labels||[]).map(label=>label.textContent||'').join(' '):'';
+      return (h.getAttribute('aria-label')||labelledBy||labels||h.getAttribute('title')||h.getAttribute('placeholder')||h.innerText||'').replace(/\s+/g,' ').trim();
+    };
+    const controls=Array.from(document.querySelectorAll('button,a,input,select,textarea,[role="button"],[role="tab"],[role="menuitem"]')).filter(visible).map(el=>{
+      const h=el as HTMLElement,r=h.getBoundingClientRect(),input=h as HTMLInputElement;
+      const labelRects=input instanceof HTMLInputElement&&['checkbox','radio'].includes(input.type)?Array.from(input.labels||[]).map(label=>label.getBoundingClientRect()):[];
+      const target=labelRects.find(rect=>rect.width>=36&&rect.height>=36)||r;
+      return{name:accessibleName(el),w:target.width,h:target.height,disabled:(h as HTMLButtonElement).disabled};
+    });
     const clipped=Array.from(document.querySelectorAll('h1,h2,h3,h4,h5,h6,button,a,[role="button"],[role="tab"]')).filter(visible).map(el=>{const h=el as HTMLElement;return{name:(h.innerText||'').trim(),sw:h.scrollWidth,cw:h.clientWidth}}).filter(x=>x.name&&x.sw>x.cw+2);
     const shellText=Array.from(document.querySelectorAll('header,aside,nav,[role="banner"],[role="navigation"],[role="complementary"],[data-testid="workspace-switcher-trigger"],[data-testid="workspace-switcher-menu"]')).filter(visible).map(el=>((el as HTMLElement).innerText||el.textContent||'').replace(/\\s+/g,' ').trim()).filter(Boolean).join(' ');
     return{text:document.body.innerText,shellText,scrollWidth:document.documentElement.scrollWidth,clientWidth:document.documentElement.clientWidth,bodyWidth:document.body.scrollWidth,controls,clipped,headings:Array.from(document.querySelectorAll('h1,h2')).filter(visible).map(x=>(x.textContent||'').trim()).filter(Boolean)};
@@ -220,13 +422,15 @@ async function inspectVisualSemantics(page: Page, role: Role, route: string) {
       return r.width > 0 && r.height > 0 && r.right > 0 && r.left < innerWidth && s.display !== 'none' && s.visibility !== 'hidden' && s.opacity !== '0';
     };
     const text = (el: Element) => (el.textContent || '').replace(/\\s+/g, ' ').trim();
+    const accessibleName = (el: Element) => {
+      const h = el as HTMLElement;
+      const labelledBy = (h.getAttribute('aria-labelledby') || '').split(/\s+/).filter(Boolean).map(id => document.getElementById(id)?.textContent || '').join(' ');
+      const labels = 'labels' in h ? Array.from((h as HTMLInputElement).labels || []).map(label => label.textContent || '').join(' ') : '';
+      return (h.getAttribute('aria-label') || labelledBy || labels || h.getAttribute('title') || h.getAttribute('placeholder') || text(el)).trim();
+    };
     const interactive = Array.from(document.querySelectorAll('button,a,[role="button"],[role="tab"],[role="menuitem"],input,select,textarea')).filter(visible);
     const headings = Array.from(document.querySelectorAll('h1,h2,h3')).filter(visible).map(text).filter(Boolean);
-    const iconOnly = interactive.filter(el => {
-      const h = el as HTMLElement;
-      const label = h.getAttribute('aria-label') || h.getAttribute('title') || h.getAttribute('placeholder') || '';
-      return !text(el) && !label;
-    });
+    const iconOnly = interactive.filter(el => !text(el) && !accessibleName(el));
     const suspicious = Array.from(document.querySelectorAll('[class*="truncate"],[class*="line-clamp"],[class*="ellipsis"]')).filter(visible)
       .map(el => ({text:text(el), rect:(el as HTMLElement).getBoundingClientRect().toJSON()}))
       .filter(x => x.text.length > 0);
@@ -257,6 +461,12 @@ async function inspectDialogsAndMenus(page: Page, role: Role, route: string) {
       const h = el as HTMLElement, r = h.getBoundingClientRect(), s = getComputedStyle(h);
       return r.width > 0 && r.height > 0 && s.display !== 'none' && s.visibility !== 'hidden';
     };
+    const isNamed = (el: Element) => {
+      const h = el as HTMLElement;
+      const labelledBy = (h.getAttribute('aria-labelledby') || '').split(/\s+/).filter(Boolean).map(id => document.getElementById(id)?.textContent || '').join(' ');
+      const labels = 'labels' in h ? Array.from((h as HTMLInputElement).labels || []).map(label => label.textContent || '').join(' ') : '';
+      return Boolean((h.getAttribute('aria-label') || labelledBy || labels || h.getAttribute('title') || h.getAttribute('placeholder') || h.innerText || '').trim());
+    };
     const overlays = Array.from(document.querySelectorAll('[role="dialog"],[aria-modal="true"],[role="menu"],[role="listbox"]')).filter(visible);
     return overlays.map(el => {
       const h = el as HTMLElement, r = h.getBoundingClientRect();
@@ -269,10 +479,7 @@ async function inspectDialogsAndMenus(page: Page, role: Role, route: string) {
         hasHeading: !!h.querySelector('h1,h2,h3,h4,h5,h6,[role="heading"]'),
         hasClose: !!close,
         interactive: interactive.length,
-        unnamed: interactive.filter(x => {
-          const e=x as HTMLElement;
-          return !(e.getAttribute('aria-label') || e.getAttribute('title') || e.getAttribute('placeholder') || e.innerText || '').trim();
-        }).length,
+        unnamed: interactive.filter(x => !isNamed(x)).length,
         overflow: h.scrollWidth > h.clientWidth + 2 || h.scrollHeight > h.clientHeight + 2
       };
     });
@@ -297,7 +504,13 @@ async function inspectDialogsAndMenus(page: Page, role: Role, route: string) {
 }
 
 async function inspectForms(page: Page, role: Role, route: string) {
-  const issues=await page.locator('form:visible').evaluateAll(forms=>forms.flatMap(form=>Array.from(form.querySelectorAll('input,select,textarea')).map(el=>{const h=el as HTMLInputElement,id=h.id,label=id?document.querySelector('label[for="'+id+'"]')?.textContent:null;return{type:h.type,name:h.name,aria:h.getAttribute('aria-label'),placeholder:h.getAttribute('placeholder'),required:h.required,label:(label||'').trim()}})).filter(x=>!x.name&&!x.aria&&!x.placeholder&&!x.label&&x.type!=='hidden'));
+  const issues=await page.locator('form:visible').evaluateAll(forms=>forms.flatMap(form=>Array.from(form.querySelectorAll('input,select,textarea')).map(el=>{
+    const h=el as HTMLInputElement;
+    const explicitLabel=h.id?document.querySelector('label[for="'+h.id+'"]')?.textContent||'':'';
+    const associatedLabels='labels' in h?Array.from(h.labels||[]).map(label=>label.textContent||'').join(' '):'';
+    const label=(explicitLabel||associatedLabels).trim();
+    return {type:h.type,name:h.name,aria:h.getAttribute('aria-label'),placeholder:h.getAttribute('placeholder'),required:h.required,label};
+  })).filter(x=>!x.name&&!x.aria&&!x.placeholder&&!x.label&&x.type!=='hidden'));
   expect(issues,role.id+' '+route+': form controls without identification').toEqual([]);
 }
 
@@ -350,6 +563,25 @@ async function waitForRouteReady(page: Page, role: Role, route: string) {
 
 async function auditRoute(page: Page, role: Role, route: string, shouldBeAllowed: boolean) {
   const expectedPath = new URL(BASE_URL + route).pathname;
+  const routeUrl = new URL(route, BASE_URL);
+  const restrictedPatientDeepLink = shouldBeAllowed
+    && routeUrl.pathname === '/crm/patients'
+    && routeUrl.searchParams.has('patient')
+    && !role.pages.includes('medical-card');
+  const restrictedPatientReads: string[] = [];
+  const captureRestrictedPatientRead = (request: any) => {
+    const segments = new URL(request.url()).pathname.split('/').filter(Boolean);
+    const patientDetail = segments[0] === 'api' && segments[1] === 'patients'
+      && segments.length === 3 && segments[2] !== 'lookup';
+    const patientSubresource = segments[0] === 'api' && segments[1] === 'patients'
+      && segments.length === 4 && ['summary', 'history', 'images', 'treatment-plan', 'audit'].includes(segments[3]);
+    const medicalSubresource = segments[0] === 'api' && segments[1] === 'medical'
+      && ['cards', 'images'].includes(segments[2]) && segments.length === 4;
+    if (patientDetail || patientSubresource || medicalSubresource) {
+      restrictedPatientReads.push(request.method() + ' /' + segments.join('/'));
+    }
+  };
+  if (restrictedPatientDeepLink) page.on('request', captureRestrictedPatientRead);
   await page.goto(BASE_URL + route, { waitUntil: 'domcontentloaded', timeout: 30000 });
   let current = new URL(page.url());
 
@@ -363,11 +595,18 @@ async function auditRoute(page: Page, role: Role, route: string, shouldBeAllowed
     }).not.toBe(expectedPath);
     current = new URL(page.url());
     expect(current.pathname, role.id + ' ' + route + ': forbidden route stayed open').not.toBe(expectedPath);
+    // No protected page rendered. Do not drain background requests from the
+    // old shell after a successful authorization redirect.
     return;
   }
 
   // Only inspect DOM after access policy has confirmed the route is allowed.
   await waitForRouteReady(page, role, route);
+  // Finance is a lazy-loaded route alias into the Admin shell; wait for its
+  // redirect/chunks to settle before the next full-document navigation.
+  if (role.id === 'superadmin' && route === '/platform-finance') {
+    await page.waitForLoadState('networkidle', { timeout: 5000 }).catch(() => {});
+  }
   current = new URL(page.url());
 
   if (current.pathname === '/login') {
@@ -376,6 +615,7 @@ async function auditRoute(page: Page, role: Role, route: string, shouldBeAllowed
     await waitForRouteReady(page, role, route);
     current = new URL(page.url());
   }
+  await waitForRouteActivity(page, role.id, route);
 
   // DOM content, route policy and visual semantics are asserted live in-browser. Do not
   // persist full HTML/text for every passing route: this checkpoint uploads role evidence
@@ -386,6 +626,10 @@ async function auditRoute(page: Page, role: Role, route: string, shouldBeAllowed
   await inspectForms(page, role, route);
   await inspectDialogsAndMenus(page, role, route);
   await inspectVisualSemantics(page, role, route);
+  if (restrictedPatientDeepLink) {
+    page.off('request', captureRestrictedPatientRead);
+    expect(restrictedPatientReads, role.id + ' must not fetch clinical/financial data from a patient-list deep link').toEqual([]);
+  }
 }
 
 test('partner context switch applies the scoped application role to the session token', async ({ page }, info) => {
@@ -531,6 +775,9 @@ test.describe('DentVision exhaustive role/context/browser gate',()=>{
             timeout: 10000,
             message: role.id + ' ' + route + ': responsive critical screen did not render',
           }).toMatch(/.{20,}/s);
+          // Await the exact API and web-font requests started by this route.
+          // A timeout is a hard failure with the still-pending request paths.
+          await waitForRouteActivity(page, role.id, route);
           expect(new URL(page.url()).pathname, role.id + ' ' + route + ': responsive allowed screen redirected to login').not.toBe('/login');
           await shellAudit(page, role, route);
           await inspectForms(page, role, route);
@@ -542,16 +789,17 @@ test.describe('DentVision exhaustive role/context/browser gate',()=>{
         }
 
         await page.goto(BASE_URL + '/', { waitUntil: 'domcontentloaded', timeout: 30000 });
+        await waitForRouteActivity(page, role.id, '/');
         const storage = await page.evaluate(() => ({ localStorage: Object.keys(localStorage), sessionStorage: Object.keys(sessionStorage) }));
         expect(JSON.stringify(storage)).not.toMatch(/password/i);
         const token = await page.evaluate(() => Object.entries(localStorage).filter(([k]) => /token|auth/i.test(k)).map(([,v]) => String(v)).join(' '));
         expect(token).not.toMatch(/Test1234!/i);
-        expect(problems.console, role.id + ': console errors in responsive journeys').toEqual([]);
+        expect(problems.console, role.id + ': console errors in responsive journeys\nHTTP responses: ' + problems.http.slice(-20).join('\n')).toEqual([]);
         expect(problems.page, role.id + ': page errors in responsive journeys').toEqual([]);
         expect(problems.requests, role.id + ': failed requests in responsive journeys').toEqual([]);
         expect(problems.server, role.id + ': HTTP 5xx in responsive journeys').toEqual([]);
         await page.screenshot({ path: `${VISUAL_EVIDENCE_ROOT}/roles/${role.id}/${info.project.name}.png`, fullPage: true });
-        await fs.writeFile(`${VISUAL_EVIDENCE_ROOT}/roles/${role.id}/${info.project.name}-runtime.json`, JSON.stringify({ console: problems.console, page: problems.page, requests: problems.requests, server: problems.server }, null, 2), 'utf8');
+        await fs.writeFile(`${VISUAL_EVIDENCE_ROOT}/roles/${role.id}/${info.project.name}-runtime.json`, JSON.stringify({ console: problems.console, page: problems.page, requests: problems.requests, navigationCancellations: problems.navigationCancellations, http: problems.http, server: problems.server }, null, 2), 'utf8');
         return;
       }
 
@@ -571,10 +819,12 @@ test.describe('DentVision exhaustive role/context/browser gate',()=>{
       // Full route authorization/DOM audits remain exhaustive; history integrity is viewport-independent.
       const historyRoute = '/profile';
       await page.goto(BASE_URL + historyRoute, { waitUntil: 'domcontentloaded', timeout: 30000 });
+      await waitForRouteActivity(page, role.id, historyRoute);
       await expect.poll(() => page.locator('body').innerText().catch(() => ''), {
         timeout: 10000, message: role.id + ': profile did not render for browser-history check',
       }).toMatch(/.{20,}/s);
       await page.reload({ waitUntil: 'domcontentloaded', timeout: 30000 });
+      await waitForRouteActivity(page, role.id, historyRoute + ' reload');
       await expect.poll(() => page.locator('body').innerText().catch(() => ''), {
         timeout: 10000, message: role.id + ': profile did not render after reload',
       }).toMatch(/.{20,}/s);
@@ -582,19 +832,21 @@ test.describe('DentVision exhaustive role/context/browser gate',()=>{
       await page.goBack({ waitUntil: 'domcontentloaded', timeout: 30000 }).catch(() => {});
       await page.goForward({ waitUntil: 'domcontentloaded', timeout: 30000 }).catch(() => {});
       expect(new URL(page.url()).pathname, role.id + ': browser forward did not restore target route').toBe(historyRoute);
+      await waitForRouteActivity(page, role.id, historyRoute + ' history-forward');
       await shellAudit(page, role, historyRoute);
 
       await page.goto(BASE_URL+'/',{waitUntil:'domcontentloaded',timeout:30000});
+      await waitForRouteActivity(page, role.id, '/');
       const storage=await page.evaluate(()=>({localStorage:Object.keys(localStorage),sessionStorage:Object.keys(sessionStorage)}));
       expect(JSON.stringify(storage)).not.toMatch(/password/i);
       const token=await page.evaluate(()=>Object.entries(localStorage).filter(([k])=>/token|auth/i.test(k)).map(([,v])=>String(v)).join(' '));
       expect(token).not.toMatch(/Test1234!/i);
-      expect(problems.console,role.id+': console errors').toEqual([]);
+      expect(problems.console,role.id+': console errors\nHTTP responses: '+problems.http.slice(-20).join('\n')).toEqual([]);
       expect(problems.page,role.id+': page errors').toEqual([]);
       expect(problems.requests,role.id+': failed requests').toEqual([]);
       expect(problems.server,role.id+': HTTP 5xx responses').toEqual([]);
       await page.screenshot({path:`${VISUAL_EVIDENCE_ROOT}/roles/${role.id}/${info.project.name}.png`,fullPage:true});
-      await fs.writeFile(`${VISUAL_EVIDENCE_ROOT}/roles/${role.id}/${info.project.name}-runtime.json`, JSON.stringify({console:problems.console,page:problems.page,requests:problems.requests,server:problems.server}, null, 2), 'utf8');
+      await fs.writeFile(`${VISUAL_EVIDENCE_ROOT}/roles/${role.id}/${info.project.name}-runtime.json`, JSON.stringify({console:problems.console,page:problems.page,requests:problems.requests,navigationCancellations:problems.navigationCancellations,http:problems.http,server:problems.server}, null, 2), 'utf8');
     });
   }
 
@@ -641,14 +893,23 @@ test.describe('DentVision exhaustive role/context/browser gate',()=>{
       'Anonymous authorization matrix is viewport-independent; execute once per CI run',
     );
 
+    // Playwright starts each test at about:blank (an opaque origin), where
+    // WebKit throws when localStorage/sessionStorage are accessed. Clear defensively
+    // on every app navigation, then clear once on the real app origin before the matrix.
     await page.addInitScript(() => {
+      try {
+        localStorage.clear();
+        sessionStorage.clear();
+      } catch {
+        // about:blank has no storage origin; the app-origin cleanup below is authoritative.
+      }
+    });
+    await page.context().clearCookies();
+    await page.goto(BASE_URL + '/login', { waitUntil: 'domcontentloaded', timeout: 30000 });
+    await page.evaluate(() => {
       localStorage.clear();
       sessionStorage.clear();
     });
-    // Storage cleanup does not reset the already-hydrated Zustand auth store.
-    // Clear cookies and reload so this anonymous matrix starts from a genuinely
-    // unauthenticated application instance rather than the preceding role test.
-    await page.context().clearCookies();
     await page.reload({ waitUntil: 'domcontentloaded', timeout: 30000 });
     await page.evaluate(() => {
       localStorage.clear();

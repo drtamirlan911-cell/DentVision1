@@ -1,22 +1,16 @@
 /**
- * Patient-consented, cross-clinic access to **medical history**.
+ * Patient-consented, cross-clinic access to medical history.
  *
- * `requestAccess` collapses "check" and "request" into one action with a
- * constant response (see its doc comment): nothing clinical is revealed until
- * the patient grants it, and a refusal is indistinguishable from "no records
- * elsewhere".
+ * There is deliberately no cross-clinic identity/contact lookup in
+ * GET /api/patients/lookup: that endpoint is scoped to the active clinic and
+ * returns only a local patient match plus demographics derived from the
+ * submitted IIN. It never confirms whether another clinic has a matching
+ * patient or returns remote contact details.
  *
- * That guarantee is about clinical data, and only clinical data. It used to be
- * stated more broadly here — that no free-standing "does this IIN exist
- * elsewhere" lookup exists at all — and that is no longer accurate:
- * `GET /api/patients/lookup` deliberately returns a person's name, phone and
- * email from any clinic on the platform, so a patient never has to dictate
- * their own contact details twice. That was an explicit product decision, and
- * it does mean the lookup confirms a person is known to the platform.
- *
- * The line now sits between contact identity and everything clinical. Nothing
- * in this file loosens: visits, plans, images and diagnoses still require the
- * patient's consent, and that consent is what this module exists to obtain.
+ * Cross-clinic matching happens only inside requestAccess after the receiving
+ * clinic has created its own local patient record. The response is constant
+ * regardless of whether a remote match exists. A grant is usable only after
+ * the patient explicitly approves it, and revoked/expired grants are ignored.
  */
 import prisma from '../../lib/prisma.js';
 import { uid } from '../../lib/helpers.js';

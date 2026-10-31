@@ -102,6 +102,12 @@ async function upsertProducts() {
 async function upsertAcademyFixtures() {
   const fixtures = [
     {
+      id: 'e2e',
+      title: 'E2E General Academy Course',
+      audience: 'GENERAL',
+      description: 'General-audience deterministic E2E Academy fixture used by the role route matrix',
+    },
+    {
       title: 'E2E Professional Dentistry Course',
       audience: 'PROFESSIONAL',
       description: 'Professional-only deterministic E2E Academy fixture',
@@ -130,7 +136,7 @@ async function upsertAcademyFixtures() {
 
     await prisma.course.create({
       data: {
-        id: randomUUID(),
+        id: 'id' in fixture ? fixture.id : randomUUID(),
         title: fixture.title,
         description: fixture.description,
         author: 'DentVision E2E',

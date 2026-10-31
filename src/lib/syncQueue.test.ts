@@ -59,4 +59,39 @@ describe('offline schedule queue privacy guard', () => {
       status: 'scheduled',
     });
   });
+
+  it('redacts procedure labels and tooth numbers but retains opaque service IDs for sync', () => {
+    localStorage.setItem(QUEUE_KEY, JSON.stringify([{
+      id: 'queue-treatment',
+      kind: 'upsert',
+      payload: {
+        id: 'appointment-opaque-id',
+        clinicId: 'clinic-opaque-id',
+        patientId: 'patient-opaque-id',
+        doctorId: 'doctor-opaque-id',
+        service: 'Имплантация зуба 11',
+        serviceId: 'service-catalog-opaque-id',
+        serviceName: 'Имплантация зуба 11',
+        toothNumber: '11',
+        date: '2026-10-20',
+        time: '10:00',
+        status: 'scheduled',
+      },
+      enqueuedAt: '2026-10-20T00:00:00.000Z',
+      attempts: 0,
+    }]));
+
+    const queue = getSyncQueue();
+    expect(queue).toHaveLength(1);
+    const payload = queue[0].payload as Record<string, unknown>;
+    expect(payload).not.toHaveProperty('serviceName');
+    expect(payload).not.toHaveProperty('toothNumber');
+    expect(payload).not.toHaveProperty('service');
+    expect(payload.serviceId).toBe('service-catalog-opaque-id');
+
+    const persisted = localStorage.getItem(QUEUE_KEY)!;
+    expect(persisted).not.toContain('Имплантация зуба 11');
+    expect(persisted).not.toContain('toothNumber');
+    expect(persisted).not.toContain('"service":');
+  });
 });

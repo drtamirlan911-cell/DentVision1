@@ -2,12 +2,15 @@ import { Router } from 'express';
 import prisma from '../../lib/prisma.js';
 import { authenticate } from '../../middleware/auth.js';
 import { requireClinicScope } from '../../lib/clinicAccess.js';
+import { loadClinicAccess, blockClinicWrites } from '../../middleware/planGate.js';
 import type { AuthRequest, ApiResponse } from '../../types/index.js';
 import * as svc from './cross-clinic.service.js';
 
 export const crossClinicRouter = Router();
 
 crossClinicRouter.use(authenticate);
+crossClinicRouter.use(loadClinicAccess);
+crossClinicRouter.use(blockClinicWrites);
 
 /**
  * Clinic staff request access to a walk-in's history at other clinics.

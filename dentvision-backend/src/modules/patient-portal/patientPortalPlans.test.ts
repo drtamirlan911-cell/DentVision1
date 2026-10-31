@@ -168,3 +168,21 @@ describe('getTreatments', () => {
     expect(await getTreatmentPlans('patient-1')).toEqual([]);
   });
 });
+
+
+describe('patient portal read-only trial guard', () => {
+  it('checks clinic write access before patient appointment cancellation', async () => {
+    const fs = await import('node:fs/promises');
+    const { resolve } = await import('node:path');
+    const source = await fs.readFile(
+      resolve(process.cwd(), 'dentvision-backend/src/modules/patient-portal/patientPortal.routes.ts'),
+      'utf8',
+    );
+    const start = source.indexOf("patientPortalRouter.post('/appointments/:id/cancel'");
+    const end = source.indexOf('\n', start);
+    const route = source.slice(start, end);
+    expect(route).toContain('ensureClinicWritableForPatient');
+    expect(source).toContain("code: 'SUBSCRIPTION_EXPIRED'");
+    expect(route.indexOf('ensureClinicWritableForPatient')).toBeLessThan(route.indexOf('portalSvc.cancelAppointment'));
+  });
+});

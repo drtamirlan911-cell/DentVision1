@@ -77,11 +77,21 @@ describe('permissionsForRole', () => {
     expect(p).not.toContain('billing.manage');
   });
 
-  it('LAB has lab write + patient read', () => {
+  it('MANAGER has operational permissions without clinical-chart or clinic-settings grants', () => {
+    const p = permissionsForRole('MANAGER');
+    expect(p).toContain('patients.read');
+    expect(p).toContain('inventory.write');
+    expect(p).toContain('billing.read');
+    expect(p).not.toContain('medical.read');
+    expect(p).not.toContain('settings.manage');
+  });
+
+  it('LAB has lab/referral permissions but no clinic-wide patient or inventory grants', () => {
     const p = permissionsForRole('LAB');
     expect(p).toContain('lab.write');
-    expect(p).toContain('patients.read');
+    expect(p).not.toContain('patients.read');
     expect(p).not.toContain('patients.write');
+    expect(p).not.toContain('inventory.read');
   });
 
   it('STUDENT has academy read but no clinic-data access', () => {

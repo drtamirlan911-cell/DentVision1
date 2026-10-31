@@ -1,7 +1,46 @@
 # DentVision — Master Execution Plan
 
+## Latest compliance checkpoint — 2026-10-31
+
+- Full 24-section Master Spec 5.0 audit recorded in docs/MASTER_SPEC_COMPLIANCE_AUDIT.md, audited HEAD 1284de604b638937ee2939f3f198f8674a5fa6d4.
+- Result: 18 sections PARTIAL, 4 OPEN, 2 GUIDANCE; no section certified fully compliant end-to-end. PR #330 remains OPEN / DRAFT and release NOT READY.
+- Confirmed gaps include Shop cancellation (SHOP-013 returns 404), incomplete independent dental-lab owner workflow proof, public organization/professional profile route aliases, open accepted-paid-settled/medical-analysis finance, real 32-tooth WebGL/3D odontogram, PHI transcript/backfill and Android runtime.
+- Exact-head CI 41183045451 remains IN PROGRESS at Role/Context; core E2E, Browser UX and Mobile Design passed. Quality Gate 41183045517 and RB-034 diagnostic 41183045421 passed, but do not close remaining release gates.
+- Next priority: finish role/visual/owner/Playwright gates, then implement or explicitly defer every confirmed D10 workflow gap and close staging/security/provider evidence. No main merge or live environment operation.
+
+
+
 ## Purpose
 This document is the persistent execution contract for DentVision. It is the source of truth for what is being implemented, in what order, and what is considered complete. Progress must not live only in a chat session.
+
+## Latest implementation checkpoint — 2026-10-31 (concurrent E2E added)
+- Existing PR #330 only. Patient concurrency implementation `b77552f8078382beabc376ad2af37ba2cb60abff`, matcher correction `8e7989b5d01eb973220df70b331e5912342f281e`, and E2E coverage commit `dda18b4239bb9a23d18cec872bcb0074079b65ab`.
+- New isolated-database E2E cases exercise simultaneous Patient PATCH writes and simultaneous balance deposits. Every accepted PATCH marker must remain in the final chart; deposit total must equal the sum of all increments; fractional amount is rejected.
+- Previous exact-head CI `41181068689` reached 2,382 passed / 3 failed due three stale assertions in one source-contract file; matchers corrected. The concurrent E2E cases were then added, so a fresh full CI is mandatory.
+- Next: verify all current-head CI jobs; then continue transcript PHI policy, D1/D2/D8 staging, RB-029 complete readers/backfill, RB-030 offline schedule E2E, RB-031 WebKit evidence and D10 workflow matrix. No tests disabled or permissions weakened; no live DB operation or main merge.
+
+## Latest implementation checkpoint — 2026-10-31 (test matcher correction)
+- Existing PR #330 only; source commit `b77552f8078382beabc376ad2af37ba2cb60abff`, source-contract test correction `8e7989b5d01eb973220df70b331e5912342f281e`. Main/base remains unchanged.
+- Current Patient PATCH now rejects stale snapshots with 409 via `updatedAt` CAS; patient update, teeth mirror and branch reassignment are transactionally coupled. Deposit writes use DB-side integer increment.
+- The first run after the source commit found three stale expectations in one static source-contract test (2,382 passed / 3 failed); route assertions have been made whitespace-tolerant and the negative matcher now distinguishes the update operation from the API response.
+- Exact-head CI/Quality/RB-034 must pass on the final documentation checkpoint. Preserve all IAM and tenant assertions; do not skip tests. AI transcript PHI, RB-029 broader consumers/staging, RB-030 offline E2E, RB-031 WebKit, RB-033 branch rules and D10 workflow parity remain open.
+
+## Latest implementation checkpoint — 2026-10-31
+- Continue only on existing PR #330 / `fix/d1-d10-trial-archive-signing-api-20261029`; source implementation commit `b77552f8078382beabc376ad2af37ba2cb60abff` is based on prior exact branch HEAD `45fe9ba5f573d8311d6b96e4e83f8260bffbf3f9`. Main remains `ac913cc3389a294d0b135a852b035ddddb1018ca`.
+- Fixed a confirmed stale-snapshot race in `PATCH /api/patients/:id`: use `updatedAt` compare-and-set and return 409 when another writer changed the row. The same transaction now persists the odontogram mirror and any validated organization-level branch reassignment.
+- Fixed concurrent deposit arithmetic with Prisma atomic integer increment; reject unsafe/non-integer amounts.
+- Regression source contracts added. No local build/test claim; exact-head CI is required after the branch update.
+- Next: run exact-head CI/Quality/RB-034; inspect all stages. Then continue RB-029 reader/writer audit, offline queue end-to-end test, WebKit request evidence and D10 workflow matrix. No production/staging DB changes or merge to main.
+
+## Current checkpoint — 2026-10-30
+
+- Active implementation PR remains #330 on `fix/d1-d10-trial-archive-signing-api-20261029`; the 2026-10-30 role-gate follow-up was based on live pre-change HEAD `77fc9c81fbc276621ad1a4d03a753e4733819722`, on main `ac913cc3389a294d0b135a852b035ddddb1018ca`. The follow-up records the 36px School breadcrumb correction, exact generated System Map values and RB-035 deposit-denial regressions. Always resolve the live PR #330 head before the next change.
+- The user explicitly authorized integration of #328 and #329 into the existing #330 working branch. Both were integrated with history-preserving merge commits; their original branches/PRs remain open and unchanged. Temporary integration PRs #331 and #332 were closed as merged into #330, never into main.
+- #328 integration merge commit: `091604d78d6457a0ae5e97a83ae96059c0dde945`, with parent history from #330 and #328. #329 integration merge commit: `a3138609fb147cbee0a8cfeab3ffd397ceb6212d`, with parent history from the already-integrated #328/#330 line and #329.
+- Conflict resolution preserved the D1–D10 trial/archive guards, active clinic context and archived-membership filtering, clinical-chart/route permissions, workspace picker and role policy, PHI envelope encryption, patient writer ciphertext rejection, and optimistic concurrency. PatientCreated events now carry a boolean complaint-presence hint, not patient names or complaint text.
+- Corrected two known #328 CI failures in the integrated branch: `planGate.ts` now passes `res` rather than undefined `_res`; the CRM treatment-plan security contract now asserts the actual clinic- and patient-scoped reference validation.
+- Exact-head CI [41034452583](https://github.com/drtamirlan911-cell/DentVision1/actions/runs/41034452583) is pending; Quality Gate [41034452312](https://github.com/drtamirlan911-cell/DentVision1/actions/runs/41034452312) and RB-034 diagnostic [41034452343](https://github.com/drtamirlan911-cell/DentVision1/actions/runs/41034452343) are in progress. Do not treat integration as verified until the exact latest HEAD completes all required gates.
+- Main remains unchanged. No staging or production migration, PHI backfill, database write, or deployment has been performed.
 
 ## Operating rules
 1. `main` is the product source of truth unless a dedicated implementation branch is explicitly required.
@@ -351,13 +390,19 @@ A phase is complete only when:
 - `DENTVISION_EXECUTION_LOG.md` records what changed, commit, verification, and next action.
 
 ## Current execution priority
-**Now — P0 security and release integrity:** verify RB-034 on branch security/doctor-agent-tenant-isolation-20261025. The exact candidate SHA must pass targeted DoctorAgent negative-path tests, TypeScript, backend lint, unit tests and the full role/context E2E gate before RB-034 can be closed. Keep main unchanged. The generated system map must match the generator on any candidate branch.
+**Now — P0 candidate D1–D10 plus integrated #328/#329 work, existing PR #330 only:** continue on `fix/d1-d10-trial-archive-signing-api-20261029`, current exact HEAD `415e4a9dc938de0d3c71cd6b795fd4f9c7f0e8cb`, based on `main` at `ac913cc3389a294d0b135a852b035ddddb1018ca`. The user authorized integrating #328 and #329; both histories are preserved in merge commits on this branch. Their original PRs remain open and unchanged. Do not merge to main until exact-head CI/E2E and all release gates pass.
 
-**Next — P0 data protection:** complete the full Patient.medicalHistory read/write/AI/report/export inventory for RB-029, then design a versioned encrypted-at-rest representation and resumable, audited legacy backfill. Do not encrypt the JSON column blindly. Repository-admin action for RB-033 (required branch checks on main) remains manual and release-blocking; verify actual required-check names and prove a failing check blocks merge.
+The candidate implements the 30-day Enterprise trial/backfill and read-only expiry behavior (D1), organization soft archive (D2), document-signing route/token alignment (D3), guarded route aliases (D4), supplier helper correction (D6), invitation-route ownership reconciliation (D7), and the nullable archive/backfill migrations (D8). D9 is still open because the full CI/E2E gate has not passed. D10 remains open because aliases and route existence do not prove every Master Spec workflow is functionally complete. D5 remains open for PHI staging backfill, production CORS/WebSocket verification, official Kaspi contract/callback validation and repository-admin branch protection.
 
-**After these P0 gates:** resume the business-owner lifecycle vertical slice (registration → organization → branches → staff/permissions → operations → economics), then partner transparency/Finance Hub, automated operations and product-wide UX/clinical/ecosystem hardening.
+**Latest confirmed candidate fix:** `/api/auth/demo-clinic` searched only for `Clinic.plan = DEMO`, while the shared creation service now creates `ENTERPRISE` trials and the legacy migration upgrades eligible DEMO rows to ENTERPRISE. That mismatch could create a second clinic/trial on repeat calls. The existing-clinic lookup now recognizes both DEMO and ENTERPRISE; archive-aware IAM test contracts were aligned and explicit archived-organization denial tests were added. Commits: `c83cbd010f59399d4d1647366f3a6752e8e892a6`, `e6c3147604f21acf0bf8766048f802540c54c015`, `411ae782f2bdb9964c4c8e5b40378c267ae8aaa1`.
 
-The work proceeds in vertical slices: implement → targeted verify → full relevant gates → commit → update the persistent log → move to the next slice.
+**Verification gate:** the last full candidate run was [40870315832](https://github.com/drtamirlan911-cell/DentVision1/actions/runs/40870315832), on PR merge ref `51a4e1f8dcc53b6284932127f482ccbb48d46c80` for head `469b32d3403614a67151b649de9bf73f03ef9d15). Frontend lint, backend lint, Quality Gate and RB-034 context diagnostic passed. Unit tests had 2,301 passed / 4 failed in `orgContext.test.ts` and `auth.diagnostics-endpoints.contract.test.ts`. E2E's overall job was cancelled after core and Browser UX sub-gates failed: branch-picker option outside viewport; 403 resources on `/crm/patients` and `/crm/treatment-plans`. Mobile design gate passed. The fixes above require a new exact-head run; the prior run is not evidence for the new head.
+
+**Parallel work preserved:** original PR #328 remains open at its original head `966512b54a2937472732e2c94d23fd819de2edb0` on `fix/workspace-switcher-menu-overflow-20261026`; original PR #329 remains open at its original head `c2e5951ba631da1762bd3380c3bbc35c51953770` on `security/rb029-patient-portal-history-envelope-20261026`. Both histories are now ancestors of the #330 candidate through the integration merge commits; neither source branch was rewritten or closed. Temporary integration PRs #331/#332 are closed as merged into the #330 branch. PR #322 remains an isolated Codespaces draft and is not part of this integration. PR #326 is already merged.
+
+**Next sequence:** (1) inspect the new exact-head CI and fix only confirmed failures without removing assertions; (2) obtain staging approval, apply both timestamped migrations and verify migration counts/rollback; (3) prove expired-clinic GET/read access and rejected write/public-booking/signing paths with authenticated E2E; (4) finish RB-029 consumer/concurrent-writer audit and read-only staging dry run; (5) verify production CORS/WebSocket and the merchant-issued Kaspi contract; (6) complete the D10 route-to-workflow matrix from the Master Spec. Keep every item open until its evidence exists.
+
+The work proceeds in vertical slices: implement → targeted verify → full relevant gates → commit → update this plan and the persistent log → move to the next slice.
 
 ## Ecosystem support operations — inventory-first workstream (2026-10-23)
 
@@ -382,3 +427,128 @@ Canonical design: `docs/operations/DENTVISION_ECOSYSTEM_SUPPORT_OPERATIONS.md`. 
 - [ ] SUP-15 assign primary/backup operational owners and rehearse incident recovery.
 
 Definition of DONE for each SUP item: exact code path + owning service + authorization scope + tests + current CI/runtime evidence + known limitations. A route, screen or document alone is insufficient. Update this existing plan and the execution log; do not create another status register.
+
+
+## 2026-10-30 — Current exact-head continuation (PR #330)
+
+This checkpoint supersedes the older CI evidence in the priority notes above. Continue only on `fix/d1-d10-trial-archive-signing-api-20261029` / existing PR #330. The pre-correction candidate reviewed for this pass was `6b02e31eba480084ba57d481b130fcafafe037f5`; `main` was `ac913cc3389a294d0b135a852b035ddddb1018ca`. The local checkout is not mounted, so local `git status` remains unverified.
+
+- Exact-head run [41004898403](https://github.com/drtamirlan911-cell/DentVision1/actions/runs/41004898403): frontend/backend lint, TypeScript/build, generated inventory checks, Quality Gate and RB-034 diagnostic passed; unit tests were 2,316/2,326 with 10 failures.
+- Corrective candidate: update three brittle trial/archive source-contract assertions; add Express `method: 'GET'` to referral-access test requests (runtime access middleware unchanged); restrict organization archive to scoped owner-level roles rather than generic `admin` / `org_admin`, per IAM matrix, with a regression contract. Re-run exact-head CI before accepting.
+- E2E 41004898403 is not green: core 240 passed / 5 skipped / BRANCH-003 failed because the branch option was outside viewport; browser UX 3 passed / one test failed on 403 resources at `/crm/patients` and `/crm/treatment-plans`; mobile design gate passed with 15 passed / one flaky WebKit attempt; role/context was cancelled and later gates skipped. Do not disable assertions. PR #328 owns the separate workspace-picker remediation; preserve it.
+- Parallel candidates preserved: #328 open (CI failed, Quality Gate passed); #329 open (CI cancelled, Quality Gate passed; RB-029 staging/backfill still open); #322 open draft. No branch/PR creation, merge, deployment, DB migration or production write.
+- Next: exact-head correction CI; endpoint-level tracing and least-privilege diagnosis for CRM 403s; complete full E2E/role/owner gates; then approved staging verification of trial/archive migrations, PHI backfill dry run, production CORS/WebSocket, official Kaspi contract/callback, branch protection and D10 workflow parity. All remain release blockers until evidenced.
+
+
+
+## Integration reconciliation — 2026-10-30
+
+Historical priority notes retained from parallel branches; they do not supersede the current D1–D10 priority.
+
+### Preserved 329 branch change
+
+## Current execution priority — reconciled 2026-10-26
+**Now — P0 security/release integrity:** complete fresh exact-HEAD CI for PR #328 (workspace picker, active IAM context and canonical organization-branch E2E). The prior core E2E evidence on PR #329 exposed a test helper that created an organization-scoped branch then queried it with the legacy clinic-scoped endpoint; the candidate updates the helper to list by canonical organization ID. This correction is not release evidence until a fresh full run passes. RB-034/RB-031/RB-032 remain open until the full role/context, WebKit/CORS, Visual Agent, business-owner and organization-owner gates pass together. Keep main unchanged until required checks complete and only merge the intended PRs.
+
+**Next — P0 data protection (RB-029):** the versioned encrypted JSON envelope codec, backwards-compatible reads, canonical Patient CRUD/odontogram writers and guarded dry-run-first backfill already exist on main. PR #329 corrects the Patient Portal structured-history writer; rejects caller-supplied ciphertext/envelopes at the Portal and canonical Patient create/update HTTP boundaries; minimizes PHI in durable PatientCreated AI events; and adds fail-closed envelope validation and regression contracts. The latest candidate's backend TypeScript gate exposed an event-payload typing issue; the follow-up also hardens the no-key malformed-envelope path and corrects the inventory. Fresh exact-head CI must pass before further closure work. After exact-head CI passes, complete the broader review of every Patient history reader/writer, AI/event/transcript/report/export copy and concurrent legacy writer; review backup/rollback; run only an explicitly verified read-only staging dry run; reconcile counts, round-trip and integrity. Never backfill production or deploy without explicit approval and verified rollback evidence.
+
+### Preserved 328 branch change
+
+**Immediate verification dependency — existing PR #328:** the current IAM/page-surface candidate is `56ab3ecfe5d1f0d02cc8be00816151a69dd30dce` on `fix/workspace-switcher-menu-overflow-20261026`. It reconciles the ASSISTANT/LAB page surface and the role-gate policy oracle. Exact-head CI, role/context and Visual Agent evidence are pending; RB-031 and the unnamed Clinic Settings controls remain open. Keep `main` unchanged.
+
+**Now — P0 security and release integrity:** continue the dedicated RB-034 verification on the existing branch `security/doctor-agent-tenant-isolation-20261025` after the current role-gate candidate is checked. The exact candidate SHA must pass targeted DoctorAgent negative-path tests, TypeScript, backend lint, unit tests and the full role/context E2E gate before RB-034 can be closed. The PR #328 page-policy change alone does not close RB-034. The generated system map must match the generator on any candidate branch.
+
+### Preserved 328 branch change
+
+**Next — P0 data protection:** continue RB-029 on the existing medical-history candidate. Complete the full Patient.medicalHistory read/write/AI/report/export inventory, verify encryption-envelope compatibility and concurrent writers, review backup/rollback, then run an approved read-only staging dry run with count/round-trip/integrity reconciliation. Do not run a production backfill or deployment without explicit approval. Repository-admin action for RB-033 (required branch checks on main) remains manual and release-blocking; verify actual required-check names and prove a failing check blocks merge.
+
+### Preserved 329 branch change
+
+**Manual release control — RB-033:** required branch-check protection on main remains a repository-admin task. Read and record the exact required-check names and demonstrate a failing check blocks merge; do not assume this can be completed through application code.
+
+
+## 2026-10-30 — Role/E2E failure repair
+
+- Inspected the exact-head CI artifacts for run [41041393534](https://github.com/drtamirlan911-cell/DentVision1/actions/runs/41041393534), not only the summary. The role/context gate had 103 passed, 37 failed, 28 skipped; Visual Agent had 45 passed and 3 failed. Core, Browser UX, mobile design, business-owner and organization-owner gates passed.
+- Confirmed causes: permission-incompatible background queries in `useDataQuery` created 403 console errors for the LAB role; clinic lab-order endpoints required unrelated patient/appointment permissions; the diagnostics referral file input lacked an accessible name; the role matrix visited a nonexistent Academy course ID.
+- Implemented targeted fixes in the existing #330 branch: gate data queries by effective permissions, use `lab.read` for lab-order reads and `lab.write` for status transitions, hide create/edit/delete controls when permissions do not allow them, use the dedicated PATCH status endpoint, label the file input, and seed the general-audience `e2e` Academy course.
+- These changes are **UNVERIFIED** until a fresh full CI/E2E run on the new exact HEAD completes. Isolated `401 GET /api/auth/me` errors in the prior artifact remain open for follow-up. Do not relax assertions or treat this as release-ready.
+- Preserve #330 as the only active code target; do not touch `main`, do not create a replacement branch/PR, and do not run staging/production migrations or deployments.
+
+
+## 2026-10-31 — D1 expiry consistency correction (PR #330)
+- [x] Centralize the distinction between subscription entitlement expiry and Clinic tenancy activity: expired subscription no longer writes `Clinic.active=false`; explicit suspension remains separate.
+- [x] Cover the service transition and the superadmin subscription API route with regression tests.
+- [ ] Re-run exact-head CI, full role/context, Visual Agent, business-owner and organization-owner release gates.
+- [ ] After approval, validate D1 migrations and expired-clinic positive GET / negative mutation behavior on staging; do not run production migrations or PHI backfills from this candidate.
+
+
+## 2026-10-31 — Role/Context test-harness lifecycle fix
+- [x] Inspect exact-head artifacts and verify that requests recorded as pending actually returned HTTP 200 with bodies in the nested Playwright network trace.
+- [x] Replace object-key pending tracking with method+URL counters that safely reconcile duplicate requests and request-finished/request-failed events; exclude only EventSource/SSE from finite request draining.
+- [ ] Re-run exact-head full CI. Re-evaluate route-policy/forbidden-redirect failures without weakening IAM assertions.
+- [ ] Keep PR #330 draft and overall release NOT READY until the complete current-head gate set passes and remaining D1/RB evidence is closed.
+
+
+## 2026-10-31 — Role/Context lifecycle and accessibility follow-up
+- [x] Track finite API and same-origin lazy-module requests per main-document epoch; don't attribute prior-document completions to the route loaded after navigation.
+- [x] Keep current-document network/API/page/server errors as hard failures; record only old-document navigation aborts separately.
+- [x] Stop draining prior-shell requests after the protected-route redirect has been proven.
+- [x] Increase all PlanAccessBanner dismiss targets to 36×36 and add a regression test for the three dismissible states.
+- [x] Pass the already-computed least-privilege clinical/billing options when a patient is selected by ordinary list click.
+- [ ] Re-run exact-head CI and verify Role/Context, Visual Agent, Business Owner and Organization Owner.
+- [ ] Capture the exact WebKit OPTIONS/request headers for `/api/diagnostics/laboratories`; no speculative CORS changes.
+- [ ] Keep D1/D2 staging, RB-029, D5, D9 and D10 release evidence open until explicitly verified.
+
+
+## 2026-10-31 — PlanAccessBanner test harness fix
+- [x] Preserve real `react-i18next` exports in the dismiss-target regression test; only stub `useTranslation`.
+- [ ] Re-run full unit and exact-head release gates after this mock-only correction.
+
+ 
+## 2026-10-31 — D1 null trial-deadline repair (PR #330)
+ 
+- Re-audited the 30-day expiry contract after confirming canonical CLINIC authentication hydrates the linked legacy clinic ID before `planGate`; the earlier organizationId concern was not a confirmed bypass.
+- Confirmed a separate edge case: a non-DEMO clinic subscription with `status='trialing'` and `periodEnd=NULL` had no finite deadline. The privileged subscription upsert route accepts an omitted periodEnd, and the access resolver previously fell back to Clinic.createdAt only for legacy DEMO clinics.
+- The resolver now uses `Subscription.createdAt + 30 days` for a trialing subscription with no periodEnd, persists the derived deadline, and still uses Clinic.createdAt for legacy DEMO rows. Existing explicit periodEnd values are never reset.
+- The legacy-trial migration now backfills non-DEMO trialing rows with null periodEnd from Subscription.createdAt. Regression tests cover expired and still-active windows plus migration SQL. The existing migration remains unapplied in staging/production.
+- Parent candidate `0093f7e974b7cb6f0b79c7734125a99394b78fcb`: Quality Gate and RB-034 passed; lint/unit/build, Core E2E, Browser UX and Mobile Design passed. Role/Context was still running when this follow-up superseded the parent run; its result is not claimed. The diagnostic collector also preserves React console arguments so any future missing-key warning retains its component-owner stack.
+- Fresh exact-head CI, Quality Gate and RB-034 are required for the resulting commit. D1 remains OPEN until approved staging verification proves post-expiry positive reads and rejected writes.
+- No staging/production migration, database write, PHI backfill, Render environment change, merge to main or production deployment was performed.
+
+
+## Follow-up execution slice — 2026-10-31
+
+- [x] Add buyer cancellation for pre-fulfilment, unpaid cash-on-delivery orders with owner-scoped API and transactional stock restoration.
+- [x] Add retryable DentCash refund marker and visible Shop Orders cancellation/retry controls.
+- [x] Guard payment settlement and supplier status writes with compare-and-set order-state transitions.
+- [ ] Pass exact-head unit, E2E, browser UX, role/context and visual release gates.
+- [ ] Implement provider-backed cancellation/refund for online/Kaspi payments after the official merchant contract and callback semantics are verified.
+
+
+## RB-029 AI history API follow-up — 2026-10-31
+
+- [x] Filter AI thread enumeration by the active workspace scope.
+- [x] Require authentication on the legacy AI history route.
+- [x] Decrypt transcript content on the history response and bound pagination.
+- [x] Add regression tests for encrypted/legacy reads, malformed ciphertext, pagination and route scope.
+- [ ] Audit and restrict PHI in free-form learned preferences and all AIMemory writers.
+- [ ] Complete legacy transcript and Patient medicalHistory dry-run/backfill only after approved backup/restore and staging evidence.
+- [ ] Keep RB-029 OPEN until all consumers, keys, retention, backup and data reconciliation evidence are reviewed.
+
+
+## RB-029 AI memory protection follow-up — 2026-10-31
+
+- [x] Encrypt all new MemoryEngine short/session/long JSON values with the shared PHI field cipher and versioned envelope.
+- [x] Decode encrypted values on all MemoryEngine read paths and preserve legacy plaintext compatibility.
+- [x] Fail closed on malformed envelopes and production writes without ENCRYPTION_KEY.
+- [x] Keep explicit free-form learned preferences clinic-scoped; only generic style preferences are global.
+- [ ] Inventory/backfill existing plaintext AIMemory records after approved staging dry-run and backup/restore proof.
+- [ ] Complete retention/deletion, key-rotation and direct-consumer review; RB-029 stays OPEN until verified.
+
+
+## CI browser-server stabilization — 2026-10-31
+
+- [x] Synchronize generated docs/SYSTEM_MAP.md with current route inventory (692 unique handlers, 654 mounted HTTP registrations; Shop router 38 handlers).
+- [x] Change browser-gate frontend host from Vite on-demand dev server to a built production bundle served by vite preview.
+- [ ] Verify the next exact-head full CI completes the same exhaustive role/context route and responsive gates; do not close RB-024 from the configuration change alone.

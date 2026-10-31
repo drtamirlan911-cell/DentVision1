@@ -1,5 +1,6 @@
-import { describe, expect, it } from 'vitest';
-import { normalizeClinicInput } from './clinicCreation.service.js';
+import { describe, expect, it, vi } from 'vitest';
+import { normalizeClinicInput, createClinicForOwnerInTransaction } from './clinicCreation.service.js';
+import { TRIAL_DAYS } from '../billing/clinicSubscription.service.js';
 
 describe('clinic creation input contract', () => {
   it('keeps only supported profile fields and trims whitespace', () => {
@@ -18,5 +19,43 @@ describe('clinic creation input contract', () => {
   it('uses a fixed demo name and does not accept a client subscription plan', () => {
     expect(normalizeClinicInput({ plan: 'ENTERPRISE' }, 'Моя демо-клиника')).toEqual({ name: 'Моя демо-клиника' });
     expect(normalizeClinicInput({ name: ' ', plan: 'PRO' }, 'Моя демо-клиника')?.name).toBe('Моя демо-клиника');
+  });
+});
+
+describe('clinic creation trial bootstrap', () => {
+  it('creates an Enterprise subscription ending exactly 30 days after creation', async () => {
+    const now = new Date('2026-10-29T12:00:00.000Z');
+    vi.useFakeTimers();
+    vi.setSystemTime(now);
+    try {
+      const tx = {
+        role: { findUnique: vi.fn().mockResolvedValue({ id: 'role-owner' }) },
+        user: { findUnique: vi.fn().mockResolvedValue({ firstName: 'Owner', lastName: 'Test', phone: null, email: 'owner@example.test', spec: null }) },
+        clinic: { create: vi.fn().mockResolvedValue({ id: 'clinic-1', plan: 'ENTERPRISE', active: true }) },
+        subscription: { create: vi.fn().mockResolvedValue({ id: 'subscription-1' }) },
+        clinicMember: { create: vi.fn().mockResolvedValue({}) },
+        organization: { upsert: vi.fn().mockResolvedValue({ id: 'organization-1', name: 'Test clinic' }) },
+        person: { upsert: vi.fn().mockResolvedValue({ id: 'person-1' }) },
+        personRole: { upsert: vi.fn().mockResolvedValue({}) },
+      };
+      await createClinicForOwnerInTransaction(tx as any, 'user-1', { name: 'Test clinic' });
+      const generatedClinicId = tx.clinic.create.mock.calls[0][0].data.id;
+      const expectedPeriodEnd = new Date(now);
+      expectedPeriodEnd.setDate(expectedPeriodEnd.getDate() + TRIAL_DAYS);
+      expect(tx.clinic.create).toHaveBeenCalledWith(expect.objectContaining({
+        data: expect.objectContaining({ plan: 'ENTERPRISE', active: true }),
+      }));
+      expect(tx.subscription.create).toHaveBeenCalledWith({
+        data: {
+          ownerType: 'CLINIC',
+          ownerId: generatedClinicId,
+          plan: 'enterprise',
+          status: 'trialing',
+          periodEnd: expectedPeriodEnd,
+        },
+      });
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

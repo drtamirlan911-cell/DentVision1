@@ -97,6 +97,10 @@ jobs:
       RATE_LIMIT_GUEST_SESSION_MAX: '1000'
       JWT_SECRET: e2e-ci-jwt-secret-not-for-production-use-only-000000
       JWT_REFRESH_SECRET: e2e-ci-refresh-secret-not-for-production-000000
+      # The exhaustive role/context gate can outlast the production 15-minute
+      # access token. Extend only the disposable CI database session lifetime.
+      JWT_EXPIRES_IN: 120m
+      JWT_REFRESH_EXPIRES_IN: 24h
       KASPI_CALLBACK_SECRET: e2e-ci-kaspi-callback-secret-not-for-prod-0000
       PAYMENTS_SANDBOX: 'true'
       PLAYWRIGHT_UI_URL: http://127.0.0.1:3000
@@ -143,8 +147,10 @@ jobs:
           done
           echo "Backend did not become healthy in time" >&2
           exit 1
+      - name: Build frontend for browser gates
+        run: npm run build
       - name: Start frontend
-        run: nohup npm run dev -- --host 0.0.0.0 --port 3000 > /tmp/frontend.log 2>&1 &
+        run: nohup npm run preview -- --host 0.0.0.0 --port 3000 --strictPort > /tmp/frontend.log 2>&1 &
       - name: Wait for frontend
         run: |
           for i in $(seq 1 30); do

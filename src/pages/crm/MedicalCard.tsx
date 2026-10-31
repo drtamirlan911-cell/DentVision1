@@ -14,6 +14,7 @@ import { PageHeader } from '../../components/ui/ds/StatCard';
 import { Tabs } from '../../components/ui/ds/Misc';
 import type { Patient, MedicalCard as MedicalCardType, Visit, Clinic, User as UserType, RoleInfo } from '../../types';
 import { usePatientStore } from '@/store/patient.store';
+import { useAuthStore } from '@/store/auth.store';
 import { useWorkspaceStore } from '@/store/workspace.store';
 import { AiInsightCard } from '@/components/patient/AiInsightCard';
 import * as api from '@/utils/api';
@@ -53,6 +54,12 @@ interface MedicalCardForm {
 
 export default function MedicalCard() {
   const { clinic, user } = useOutletContext<OutletContext>();
+  const permissions = useAuthStore((state) => state.permissions);
+  const canReadClinicalChart = permissions.includes('*')
+    || ((permissions.includes('patients.read') || permissions.includes('patient.read'))
+      && permissions.includes('medical.read'));
+  const canReadBillingSummary = permissions.includes('*')
+    || permissions.some((key) => ['billing.read', 'billing.write', 'billing.manage', 'billing.delete'].includes(key));
   const navigate = useNavigate();
   const [params] = useSearchParams();
   const { patients, medicalCards, upsertMedicalCard, visits, doctors } = useDataQuery(clinic?.id);
@@ -61,10 +68,7 @@ export default function MedicalCard() {
 
   useEffect(() => {
     const pid = params.get('patient');
-    if (pid) {
-      setSelectedPatientId(pid);
-      void usePatientStore.getState().openPatient(pid);
-    }
+    if (pid) setSelectedPatientId(pid);
   }, [params]);
 
   // Context engine (Stage 10): the AI kernel fills a missing patientId
@@ -75,8 +79,15 @@ export default function MedicalCard() {
   }, [selectedPatientId]);
 
   useEffect(() => {
-    if (selectedPatientId) void usePatientStore.getState().openPatient(selectedPatientId);
-  }, [selectedPatientId]);
+    if (selectedPatientId) {
+      void usePatientStore.getState().openPatient(selectedPatientId, {
+        clinicalChart: canReadClinicalChart,
+        billingSummary: canReadBillingSummary,
+      });
+    } else {
+      usePatientStore.getState().closePatient();
+    }
+  }, [selectedPatientId, canReadClinicalChart, canReadBillingSummary]);
 
   const [searchQuery, setSearchQuery] = useState('');
   const [editing, setEditing] = useState(false);

@@ -5,6 +5,7 @@ import path from 'node:path';
 import prisma from '../../lib/prisma.js';
 import { authenticate } from '../../middleware/auth.js';
 import { requirePermission } from '../../middleware/rbac.js';
+import { loadClinicAccess, blockClinicWrites } from '../../middleware/planGate.js';
 import type { AuthRequest } from '../../types/index.js';
 import type { ApiResponse } from '../../types/index.js';
 import { uid } from '../../lib/helpers.js';
@@ -16,6 +17,8 @@ import { isAcceptedFilePayload } from './fileValidation.js';
 const filesRouter = Router();
 
 filesRouter.use(authenticate);
+filesRouter.use(loadClinicAccess);
+filesRouter.use(blockClinicWrites);
 
 const storage = multer.memoryStorage();
 const MAX_CONCURRENT_MEMORY_UPLOADS = 2;

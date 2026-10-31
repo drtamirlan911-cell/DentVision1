@@ -12,7 +12,12 @@ vi.mock('../../lib/prisma.js', () => ({
   },
 }));
 
-import { assertClinicMemberAccess, assertClinicBillingAccess, getClinicSubscriptionAmountMinor } from './clinicSubscription.service.js';
+import {
+  assertClinicMemberAccess,
+  assertClinicBillingAccess,
+  getClinicSubscriptionAmountMinor,
+  upsertClinicSubscription,
+} from './clinicSubscription.service.js';
 
 describe('assertClinicMemberAccess', () => {
   it('rejects a missing clinicId with 400', async () => {
@@ -97,5 +102,37 @@ describe('canonical clinic subscription pricing', () => {
     ['', 1],
   ])('rejects invalid plan/months (%s, %s)', (plan, months) => {
     expect(getClinicSubscriptionAmountMinor(plan, months)).toBeNull();
+  });
+});
+
+
+describe('clinic subscription expiry keeps tenant lifecycle separate', () => {
+  it('preserves Clinic.active when the subscription status becomes expired', async () => {
+    const db = {
+      clinic: { update: vi.fn().mockResolvedValue({ id: 'c1', active: true }) },
+      subscription: { upsert: vi.fn().mockResolvedValue({ id: 's1', status: 'expired' }) },
+    };
+    await upsertClinicSubscription({
+      clinicId: 'c1', saasPlan: 'enterprise', clinicPlan: 'ENTERPRISE' as any,
+      status: 'expired', periodEnd: new Date('2026-10-01T00:00:00.000Z'),
+    }, db as any);
+    expect(db.clinic.update).toHaveBeenCalledWith({
+      where: { id: 'c1' }, data: { plan: 'ENTERPRISE' },
+    });
+    expect(db.subscription.upsert).toHaveBeenCalledOnce();
+  });
+
+  it('keeps explicit suspension distinct from subscription expiry', async () => {
+    const db = {
+      clinic: { update: vi.fn().mockResolvedValue({ id: 'c1', active: false }) },
+      subscription: { upsert: vi.fn().mockResolvedValue({ id: 's1', status: 'suspended' }) },
+    };
+    await upsertClinicSubscription({
+      clinicId: 'c1', saasPlan: 'enterprise', clinicPlan: 'ENTERPRISE' as any,
+      status: 'suspended', periodEnd: new Date('2026-10-01T00:00:00.000Z'),
+    }, db as any);
+    expect(db.clinic.update).toHaveBeenCalledWith({
+      where: { id: 'c1' }, data: { plan: 'ENTERPRISE', active: false },
+    });
   });
 });

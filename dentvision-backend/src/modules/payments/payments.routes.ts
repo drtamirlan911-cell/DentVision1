@@ -98,11 +98,19 @@ async function settleOrderPayment(
   if (!payment.refId) return false;
   const order = await db.order.findUnique({ where: { id: payment.refId } });
   if (!order) return false;
-  // Idempotent no-op for already-paid / non-payable states. In particular a
-  // cancelled order must never be resurrected by a late callback (audit F-2).
-  if (order.status === 'paid' || !canTransitionOrder(order.status, 'paid')) {
-    return true;
-  }
+  // An already-paid order is an idempotent success. A cancelled, supplier-
+  // accepted or otherwise non-payable state must not accept a new sale.
+  if (order.status === 'paid') return true;
+  if (!canTransitionOrder(order.status, 'paid')) return false;
+
+  // Claim status before sale/partner ledger writes. The settlement caller
+  // passes a transaction client, so this compare-and-set rolls back with them.
+  const prevMeta = (order.meta && typeof order.meta === 'object' ? order.meta : {}) as Record<string, unknown>;
+  const transitioned = await db.order.updateMany({
+    where: { id: order.id, status: order.status },
+    data: { status: 'paid', paymentStatus: 'paid', meta: { ...prevMeta, paymentId: payment.id, paidAt: new Date().toISOString() } },
+  });
+  if (transitioned.count === 0) return false;
 
   const items = Array.isArray(order.items) ? (order.items as any[]) : [];
   const bySupplier = new Map<string, number>();
@@ -161,14 +169,6 @@ async function settleOrderPayment(
     }
   }
 
-  const prevMeta = (order.meta && typeof order.meta === 'object' ? order.meta : {}) as Record<string, unknown>;
-  await db.order.update({
-    where: { id: order.id },
-    data: {
-      status: 'paid',
-      meta: { ...prevMeta, paymentId: payment.id, paidAt: new Date().toISOString() },
-    },
-  });
   return true;
 }
 

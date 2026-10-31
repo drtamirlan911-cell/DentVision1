@@ -21,6 +21,7 @@ const ACCOUNTS = {
   ownerA: { email: 'owner-a@test.com', password: 'Test1234!' },
   doctorA: { email: 'doctor-a@test.com', password: 'Test1234!' },
   assistantA: { email: 'assistant-a@test.com', password: 'Test1234!' },
+  managerA: { email: 'manager-a@test.com', password: 'Test1234!' },
   ownerB: { email: 'owner-b@test.com', password: 'Test1234!' },
   superadmin: { email: 'superadmin@test.com', password: 'Test1234!' },
 };
@@ -32,6 +33,7 @@ let ctx: APIRequestContext;
 let ownerA: string;
 let doctorA: string;
 let assistantA: string;
+let managerA: string;
 let ownerB: string;
 let superadmin: string;
 
@@ -51,6 +53,7 @@ test.beforeAll(async () => {
   ownerA = await signIn(ACCOUNTS.ownerA.email, ACCOUNTS.ownerA.password);
   doctorA = await signIn(ACCOUNTS.doctorA.email, ACCOUNTS.doctorA.password);
   assistantA = await signIn(ACCOUNTS.assistantA.email, ACCOUNTS.assistantA.password);
+  managerA = await signIn(ACCOUNTS.managerA.email, ACCOUNTS.managerA.password);
   ownerB = await signIn(ACCOUNTS.ownerB.email, ACCOUNTS.ownerB.password);
   superadmin = await signIn(ACCOUNTS.superadmin.email, ACCOUNTS.superadmin.password);
 });
@@ -158,6 +161,140 @@ test.describe('Здоровье: медицинские записи', () => {
     expect(res.status()).toBe(403);
   });
 
+  test('менеджер и ассистент не читают полную медицинскую карту', async () => {
+    const created = await ctx.post('/api/patients', {
+      headers: auth(ownerA),
+      data: { iin: makeIin(), firstName: 'RB035', lastName: 'ChartBoundary', phone: '+77010004444' },
+    });
+    expect(created.ok(), await created.text()).toBeTruthy();
+    const patientId = ((await created.json()).data || {}).id as string;
+
+    const [manager, assistant] = await Promise.all([
+      ctx.get(`/api/patients/${patientId}`, { headers: auth(managerA) }),
+      ctx.get(`/api/patients/${patientId}`, { headers: auth(assistantA) }),
+    ]);
+    expect(manager.status()).toBe(403);
+    expect(assistant.status()).toBe(403);
+  });
+
+  test('менеджер и ассистент не пополняют баланс пациента без billing.write', async () => {
+    const created = await ctx.post('/api/patients', {
+      headers: auth(ownerA),
+      data: { iin: makeIin(), firstName: 'RB035', lastName: 'DepositBoundary', phone: '+77010004445' },
+    });
+    expect(created.ok(), await created.text()).toBeTruthy();
+    const patientId = ((await created.json()).data || {}).id as string;
+
+    const beforeResponse = await ctx.get(`/api/patients/${patientId}`, { headers: auth(ownerA) });
+    expect(beforeResponse.status(), await beforeResponse.text()).toBe(200);
+    const beforeData = (await beforeResponse.json()).data;
+    expect(beforeData).toHaveProperty('prepaidBalance');
+    const beforeBalance = Number(beforeData.prepaidBalance);
+
+    const [manager, assistant] = await Promise.all([
+      ctx.post(`/api/patients/${patientId}/deposit`, { headers: auth(managerA), data: { amount: 1000 } }),
+      ctx.post(`/api/patients/${patientId}/deposit`, { headers: auth(assistantA), data: { amount: 1000 } }),
+    ]);
+    expect(manager.status()).toBe(403);
+    expect(assistant.status()).toBe(403);
+
+    const afterResponse = await ctx.get(`/api/patients/${patientId}`, { headers: auth(ownerA) });
+    expect(afterResponse.status(), await afterResponse.text()).toBe(200);
+    const afterData = (await afterResponse.json()).data;
+    expect(Number(afterData.prepaidBalance)).toBe(beforeBalance);
+  });
+
+  test('parallel patient-history PATCH requests never silently overwrite accepted writes', async () => {
+    const created = await ctx.post('/api/patients', {
+      headers: auth(ownerA),
+      data: {
+        iin: makeIin(),
+        firstName: 'RB029',
+        lastName: 'ConcurrentPatch',
+        medicalHistory: { concurrencyBaseline: true },
+      },
+    });
+    expect(created.ok(), await created.text()).toBeTruthy();
+    const patientId = ((await created.json()).data || {}).id as string;
+    const markers = Array.from({ length: 6 }, (_, index) => `rb029ConcurrentMarker${index}`);
+
+    const updates = await Promise.all(markers.map((marker) => ctx.patch(`/api/patients/${patientId}`, {
+      headers: auth(ownerA),
+      data: { medicalHistory: { [marker]: `accepted-${marker}` } },
+    })));
+    const statuses = updates.map((response) => response.status());
+    for (const status of statuses) expect([200, 409]).toContain(status);
+    expect(statuses.some((status) => status === 200)).toBeTruthy();
+
+    const final = await ctx.get(`/api/patients/${patientId}`, { headers: auth(ownerA) });
+    expect(final.status(), await final.text()).toBe(200);
+    const history = ((await final.json()).data || {}).medicalHistory || {};
+    updates.forEach((response, index) => {
+      if (response.status() === 200) {
+        expect(history[markers[index]], `accepted chart write ${markers[index]} was lost`).toBe(`accepted-${markers[index]}`);
+      }
+    });
+  });
+
+  test('parallel patient deposits are additive and fractional KZT amounts are rejected', async () => {
+    const created = await ctx.post('/api/patients', {
+      headers: auth(ownerA),
+      data: { iin: makeIin(), firstName: 'RB035', lastName: 'ConcurrentDeposit' },
+    });
+    expect(created.ok(), await created.text()).toBeTruthy();
+    const patientId = ((await created.json()).data || {}).id as string;
+
+    const beforeResponse = await ctx.get(`/api/patients/${patientId}`, { headers: auth(ownerA) });
+    expect(beforeResponse.status(), await beforeResponse.text()).toBe(200);
+    const beforeBalance = Number(((await beforeResponse.json()).data || {}).prepaidBalance);
+
+    const fractional = await ctx.post(`/api/patients/${patientId}/deposit`, {
+      headers: auth(ownerA),
+      data: { amount: 100.5 },
+    });
+    expect(fractional.status(), await fractional.text()).toBe(400);
+
+    const amounts = [101, 203, 307, 409];
+    const deposits = await Promise.all(amounts.map((amount) => ctx.post(`/api/patients/${patientId}/deposit`, {
+      headers: auth(ownerA),
+      data: { amount },
+    })));
+    for (const response of deposits) expect(response.status(), await response.text()).toBe(200);
+
+    const afterResponse = await ctx.get(`/api/patients/${patientId}`, { headers: auth(ownerA) });
+    expect(afterResponse.status(), await afterResponse.text()).toBe(200);
+    const afterBalance = Number(((await afterResponse.json()).data || {}).prepaidBalance);
+    expect(afterBalance).toBe(beforeBalance + amounts.reduce((sum, amount) => sum + amount, 0));
+  });
+
+  test('clinic LAB cannot browse the patient register, IIN lookup, chart or patient balance', async () => {
+    const clinicsRes = await ctx.get('/api/auth/my-clinics', { headers: auth(ownerA) });
+    expect(clinicsRes.status()).toBe(200);
+    const clinics = (await clinicsRes.json()).data;
+    const clinicId = Array.isArray(clinics) ? clinics[0]?.id : clinics?.id;
+    expect(clinicId).toBeTruthy();
+
+    const email = `rb035-lab-${Date.now()}@test.dentvision`;
+    const password = 'Test1234!';
+    const staff = await ctx.post(`/api/clinics/${clinicId}/staff`, {
+      headers: auth(ownerA),
+      data: { email, password, firstName: 'RB035', lastName: 'Lab', role: 'lab' },
+    });
+    expect(staff.status(), await staff.text()).toBe(201);
+    const labToken = await signIn(email, password);
+
+    const [list, lookup, chart, deposit] = await Promise.all([
+      ctx.get('/api/patients', { headers: auth(labToken) }),
+      ctx.get(`/api/patients/lookup?iin=${makeIin()}`, { headers: auth(labToken) }),
+      ctx.get(`/api/patients/${MISSING_ID}`, { headers: auth(labToken) }),
+      ctx.post(`/api/patients/${MISSING_ID}/deposit`, { headers: auth(labToken), data: { amount: 1000 } }),
+    ]);
+    expect(list.status()).toBe(403);
+    expect(lookup.status()).toBe(403);
+    expect(chart.status()).toBe(403);
+    expect(deposit.status()).toBe(403);
+  });
+
   test('визиты несуществующего пациента — не 500', async () => {
     const res = await ctx.get(`/api/medical/visits/${MISSING_ID}`, { headers: auth(doctorA) });
 
@@ -184,8 +321,9 @@ test.describe('Здоровье: медицинские записи', () => {
   });
 });
 
-test.describe('ИИН: справочник подставляет контакты, но не медицину', () => {
+test.describe('ИИН: межклиническая идентичность не раскрывается без согласия', () => {
   const SHARED_IIN = makeIin();
+  const CONSENT_IIN = makeIin();
 
   test.beforeAll(async () => {
     // Clinic B knows this person; clinic A has never seen them.
@@ -202,55 +340,73 @@ test.describe('ИИН: справочник подставляет контак�
     expect(created.ok(), await created.text()).toBeTruthy();
   });
 
-  test('клиника A получает ФИО, телефон и почту, чтобы не спрашивать дважды', async () => {
+  test('клиника A не получает контакты человека, известного клинике B', async () => {
     const res = await ctx.get(`/api/patients/lookup?iin=${SHARED_IIN}`, { headers: auth(ownerA) });
 
     expect(res.status()).toBe(200);
     const data = (await res.json()).data;
-    expect(data.suggested).toMatchObject({
-      name: 'Известный Платформе',
-      phone: '+77010001111',
-      email: 'known@test.dentvision',
-    });
+    expect(data.existing).toBeNull();
+    expect(data).not.toHaveProperty('suggested');
+    expect(data).not.toHaveProperty('sourceClinic');
   });
 
-  // The line the product draws: contact identity is shared, a handle on
-  // someone else's record is not.
-  test('но не идентификатор чужой записи и не название клиники', async () => {
-    const res = await ctx.get(`/api/patients/lookup?iin=${SHARED_IIN}`, { headers: auth(ownerA) });
+  test('результат неотличим по структуре от ИИН без совпадения в другой клинике', async () => {
+    const unknownIin = makeIin();
+    const [knownElsewhere, unknown] = await Promise.all([
+      ctx.get(`/api/patients/lookup?iin=${SHARED_IIN}`, { headers: auth(ownerA) }),
+      ctx.get(`/api/patients/lookup?iin=${unknownIin}`, { headers: auth(ownerA) }),
+    ]);
 
-    const data = (await res.json()).data;
-    expect(data.suggested).not.toHaveProperty('id');
-    expect(data.suggested).not.toHaveProperty('clinicId');
-    expect(data.existing).toBeNull();
+    expect(knownElsewhere.status()).toBe(200);
+    expect(unknown.status()).toBe(200);
+    const knownData = (await knownElsewhere.json()).data;
+    const unknownData = (await unknown.json()).data;
+    expect(knownData.existing).toBeNull();
+    expect(unknownData.existing).toBeNull();
+    expect(Object.keys(knownData).sort()).toEqual(Object.keys(unknownData).sort());
+    expect(knownData).not.toHaveProperty('suggested');
   });
 
   test('дата рождения и пол выводятся из самого номера', async () => {
     const res = await ctx.get(`/api/patients/lookup?iin=${SHARED_IIN}`, { headers: auth(ownerA) });
 
+    expect(res.status()).toBe(200);
     const data = (await res.json()).data;
     expect(data.derived.birthDate).toBe('1990-01-01');
     expect(data.derived.gender).toBe('male');
+    expect(data.existing).toBeNull();
   });
 
-  // Nothing clinical leaks through the contact lookup: the patient's own
-  // consent is still the only way in, and clinic A must not reach B's records.
-  test('медицинские записи чужой клиники по-прежнему недоступны', async () => {
+  test('совпадение ИИН в другой клинике не открывает историю без одобрения пациента', async () => {
+    const remote = await ctx.post('/api/patients', {
+      headers: auth(ownerB),
+      data: { iin: CONSENT_IIN, firstName: 'Удалённый', lastName: 'Пациент', phone: '+77010003333' },
+    });
+    expect(remote.ok(), await remote.text()).toBeTruthy();
+
     const created = await ctx.post('/api/patients', {
       headers: auth(ownerA),
-      data: { iin: makeIin(), firstName: 'Свой', lastName: 'Пациент', phone: '+77010002222' },
+      data: { iin: CONSENT_IIN, firstName: 'Свой', lastName: 'Пациент', phone: '+77010002222' },
     });
-    expect(created.ok()).toBeTruthy();
+    expect(created.ok(), await created.text()).toBeTruthy();
     const ownPatientId = ((await created.json()).data || {}).id as string;
 
-    // The cross-clinic route answers the same whether or not history exists.
-    const res = await ctx.get(`/api/cross-clinic/history/${ownPatientId}`, { headers: auth(ownerA) });
+    // The request is intentionally non-enumerating: the response is identical
+    // whether the source clinic has a linked portal user or not.
+    const requested = await ctx.post('/api/cross-clinic/request', {
+      headers: auth(ownerA),
+      data: { receivingPatientId: ownPatientId },
+    });
+    expect(requested.status()).toBe(200);
+    expect((await requested.json()).data).toEqual({ requested: true });
 
-    expect(res.status()).toBeLessThan(500);
-    if (res.ok()) {
-      const blocks = (await res.json()).data;
-      expect(Array.isArray(blocks) ? blocks : []).toHaveLength(0);
-    }
+    const status = await ctx.get(`/api/cross-clinic/status/${ownPatientId}`, { headers: auth(ownerA) });
+    expect(status.status()).toBe(200);
+    expect((await status.json()).data.status).toBe('none');
+
+    const history = await ctx.get(`/api/cross-clinic/history/${ownPatientId}`, { headers: auth(ownerA) });
+    expect(history.status()).toBe(200);
+    expect((await history.json()).data).toEqual([]);
   });
 });
 

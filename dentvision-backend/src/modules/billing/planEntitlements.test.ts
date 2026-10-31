@@ -46,8 +46,10 @@ describe('planEntitlements gate logic', () => {
     expect(entitlementsForPlan('DEMO').maxPatients).toBeNull()
   })
 
-  it('blocks writes when subscription expired', () => {
-    const access = baseAccess({ writeBlocked: true, expired: true, status: 'expired' })
+  it('keeps an expired clinic readable while blocking writes', () => {
+    const access = baseAccess({ active: true, writeBlocked: true, expired: true, status: 'expired' })
+    expect(access.active).toBe(true)
+    expect(access.writeBlocked).toBe(true)
     expect(() => assertClinicWritable(access)).toThrow(PlanGateError)
     try {
       assertClinicWritable(access)

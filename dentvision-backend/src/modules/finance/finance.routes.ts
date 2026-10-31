@@ -2,6 +2,7 @@ import { Router } from 'express';
 import type { Prisma, WalletOwnerType } from '@prisma/client';
 import prisma from '../../lib/prisma.js';
 import { authenticate } from '../../middleware/auth.js';
+import { loadClinicAccess, blockClinicWrites } from '../../middleware/planGate.js';
 import { requirePermission } from '../../middleware/rbac.js';
 import { serializeBigInt, parseTengeToMinor } from '../../lib/money.js';
 import type { ExpenseCategory } from '@prisma/client';
@@ -24,6 +25,8 @@ import { auditFromReq } from '../compliance/audit.service.js';
 export const financeRouter = Router();
 
 financeRouter.use(authenticate);
+financeRouter.use(loadClinicAccess);
+financeRouter.use(blockClinicWrites);
 
 const OWNER_TYPES = ['CLINIC', 'SUPPLIER', 'ACADEMY', 'LECTURER', 'PARTNER', 'PLATFORM', 'GATEWAY'];
 

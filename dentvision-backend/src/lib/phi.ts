@@ -69,9 +69,29 @@ export function decryptField(value: string | null): string | null {
 const MEDICAL_HISTORY_ENVELOPE = '__dentvisionEncryptedV1' as const;
 type EncryptedMedicalHistoryEnvelope = { __dentvisionEncryptedV1: string };
 
-function isEncryptedMedicalHistoryEnvelope(value: unknown): value is EncryptedMedicalHistoryEnvelope {
+/**
+ * Reject root-level ciphertext/envelope values at untrusted HTTP write boundaries.
+ * The codec remains idempotent for trusted internal round-trips, so routes must
+ * not let clients replay a ciphertext envelope or poison a Patient JSONB row.
+ */
+export function isClientSuppliedEncryptedMedicalHistory(value: unknown): boolean {
+  if (typeof value === 'string' && value.startsWith(MARKER)) return true;
   if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
-  const candidate = (value as Record<string, unknown>)[MEDICAL_HISTORY_ENVELOPE];
+  return Object.prototype.hasOwnProperty.call(value, MEDICAL_HISTORY_ENVELOPE);
+}
+
+function hasMedicalHistoryEnvelopeMarker(value: unknown): value is Record<string, unknown> {
+  return Boolean(
+    value
+    && typeof value === 'object'
+    && !Array.isArray(value)
+    && Object.prototype.hasOwnProperty.call(value, MEDICAL_HISTORY_ENVELOPE),
+  );
+}
+
+function isEncryptedMedicalHistoryEnvelope(value: unknown): value is EncryptedMedicalHistoryEnvelope {
+  if (!hasMedicalHistoryEnvelopeMarker(value)) return false;
+  const candidate = value[MEDICAL_HISTORY_ENVELOPE];
   return typeof candidate === 'string' && candidate.startsWith(MARKER);
 }
 
@@ -82,7 +102,10 @@ function isEncryptedMedicalHistoryEnvelope(value: unknown): value is EncryptedMe
  */
 export function encryptMedicalHistory(value: unknown): unknown {
   if (value == null) return value;
-  if (isEncryptedMedicalHistoryEnvelope(value)) return value;
+  if (hasMedicalHistoryEnvelopeMarker(value)) {
+    if (isEncryptedMedicalHistoryEnvelope(value)) return value;
+    throw new Error('[phi] Invalid medical-history encryption envelope');
+  }
   // Older patient-portal writes store a scalar ENC: value in this JSON column.
   if (typeof value === 'string' && value.startsWith(MARKER)) return value;
   if (!canEncrypt()) {
@@ -103,7 +126,11 @@ export function encryptMedicalHistory(value: unknown): unknown {
 /** Decode current envelopes and legacy scalar ciphertext; leave old plaintext JSON untouched. */
 export function decryptMedicalHistory(value: unknown): unknown {
   if (value == null) return value;
+  const hasEnvelope = hasMedicalHistoryEnvelopeMarker(value);
   const isEnvelope = isEncryptedMedicalHistoryEnvelope(value);
+  if (hasEnvelope && !isEnvelope) {
+    throw new Error('[phi] Invalid medical-history encryption envelope');
+  }
   const ciphertext = isEnvelope
     ? value[MEDICAL_HISTORY_ENVELOPE]
     : typeof value === 'string' && value.startsWith(MARKER) ? value : null;
@@ -185,7 +212,10 @@ export function decryptPatientFields<T extends Record<string, unknown> | null>(
   if (!canEncrypt()) {
     if (process.env.NODE_ENV === 'production') throw new Error('[phi] Patient-field decryption unavailable in production');
     const history = (data as Record<string, unknown>).medicalHistory;
-    if (isEncryptedMedicalHistoryEnvelope(history) || (typeof history === 'string' && history.startsWith(MARKER))) {
+    if (hasMedicalHistoryEnvelopeMarker(history) || (typeof history === 'string' && history.startsWith(MARKER))) {
+      // The codec distinguishes malformed reserved envelopes from valid
+      // ciphertext and fails closed when the matching key is unavailable.
+      decryptMedicalHistory(history);
       throw new Error('[phi] Medical-history decryption unavailable without the matching ENCRYPTION_KEY');
     }
     return data;
