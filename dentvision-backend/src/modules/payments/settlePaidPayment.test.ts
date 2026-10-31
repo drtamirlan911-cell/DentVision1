@@ -290,6 +290,23 @@ describe('Shop order settlement compare-and-set', () => {
     expect(recordSaleTx).not.toHaveBeenCalled();
   });
 
+  it('treats an already-paid order as an idempotent success without posting another sale', async () => {
+    const db = {
+      order: {
+        findUnique: vi.fn().mockResolvedValue({ id: 'order-already-paid', status: 'paid', items: [], meta: {} }),
+        updateMany: vi.fn(),
+      },
+      transaction: { findFirst: vi.fn() },
+    } as any;
+    const settled = await settlePaidPayment({
+      id: 'payment-repeat-confirm', refType: 'order', refId: 'order-already-paid',
+      domain: 'shop', sellerType: null, sellerId: null, amount: 1000n, meta: null,
+    }, db);
+    expect(settled).toBe(true);
+    expect(db.order.updateMany).not.toHaveBeenCalled();
+    expect(recordSaleTx).not.toHaveBeenCalled();
+  });
+
   it('does not attempt to revive an order already cancelled before a late payment callback', async () => {
     const db = {
       order: {

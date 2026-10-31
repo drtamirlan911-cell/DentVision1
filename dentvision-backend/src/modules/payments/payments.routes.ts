@@ -98,11 +98,10 @@ async function settleOrderPayment(
   if (!payment.refId) return false;
   const order = await db.order.findUnique({ where: { id: payment.refId } });
   if (!order) return false;
-  // Idempotent no-op for already-paid / non-payable states. A cancelled,
-  // supplier-accepted or otherwise terminal order cannot receive this sale.
-  if (order.status === 'paid' || !canTransitionOrder(order.status, 'paid')) {
-    return false;
-  }
+  // An already-paid order is an idempotent success. A cancelled, supplier-
+  // accepted or otherwise non-payable state must not accept a new sale.
+  if (order.status === 'paid') return true;
+  if (!canTransitionOrder(order.status, 'paid')) return false;
 
   // Claim status before sale/partner ledger writes. The settlement caller
   // passes a transaction client, so this compare-and-set rolls back with them.
