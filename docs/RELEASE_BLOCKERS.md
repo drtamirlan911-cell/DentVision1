@@ -456,6 +456,11 @@ Parallel-branch evidence retained during integration; reconcile against the curr
 - **Remaining:** verify all direct read and mutation routes against the canonical IAM matrix, retain clinic/branch/assignment scope and field-level PHI redaction, and pass the exact-head negative tests. Do not close this blocker based on frontend page visibility or source inspection alone.
 
 
+- **Patient PATCH concurrency follow-up (candidate commits `b77552f8078382beabc376ad2af37ba2cb60abff` and `8e7989b5d01eb973220df70b331e5912342f281e`):** source adds `updatedAt` compare-and-set and wraps the patient update, odontogram mirror and validated branch change in one transaction; branch validation precedes mutation. Patient deposits now use atomic integer increment. The first exact-head CI `41181068689` reached 2,382 passing tests but had 3 failures in `patients.routes.branchScope.test.ts` because old source assertions expected minified route declarations and incorrectly rejected `prepaidBalance: next` in the JSON response. The matcher corrections are committed; a fresh exact-head run is required. This is not a closed blocker.
+- **AI transcript PHI remains open:** AI messages are persisted in `AIMessage.content` and `AISession.messages`. They are scoped to user/workspace for retrieval, but the Patient JSON envelope does not encrypt these transcript copies; retention/deletion and encrypted-at-rest handling require a separate approved design.
+
+
+
 ### Preserved 329 branch change
 
 - **Derivative-PHI event minimization (candidate branch `security/rb029-patient-portal-history-envelope-20261026`):** PatientCreated's durable AI event and AI Employee task payload now contain only a patient ID and a complaint-presence boolean; actions re-read and decrypt the clinic-scoped Patient record in memory, and notification messages omit complaint text and patient names. This closes only that duplication path. Other clinical event payloads, AI transcripts, concurrency and full consumer audits remain open; RB-029 stays OPEN pending exact-head gates and an approved staging/rollback procedure.

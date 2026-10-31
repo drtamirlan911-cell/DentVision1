@@ -5,6 +5,13 @@ This log is the durable handoff between work sessions/agents. It records complet
 ## Historical record
 The complete pre-2026-09-14 execution history is preserved in the parent Git history at commit `ceb0a85560540d0bff2ecd154189280f8cd6d588`. The current file was accidentally shortened during the 2026-09-14 patient-scope repair; no historical source commit was rewritten.
 
+## 2026-10-31 — Test matcher correction and RB-029 inventory reconciliation
+
+- Follow-up commit `8e7989b5d01eb973220df70b331e5912342f281e` changes only three brittle matcher assertions in `patients.routes.branchScope.test.ts`: PATCH/deposit route declaration checks tolerate normalized whitespace, and the negative matcher no longer mistakes the successful response's `prepaidBalance: next` field for an unsafe absolute database write.
+- First exact-head run `41181068689` on source commit `b77552f8078382beabc376ad2af37ba2cb60abff`: 2,382 tests passed, 3 failed in that one source-contract file. Frontend lint, backend lint, Quality Gate and RB-034 diagnostic passed; E2E had started and was not a complete pass.
+- Updated `docs/security/RB-029_MEDICAL_HISTORY_ENCRYPTION_INVENTORY.md` to record the current Patient PATCH CAS/transaction behavior and the still-open AI transcript PHI surface (`AIMessage.content`, `AISession.messages`).
+- Fresh exact-head CI/Quality/RB-034 verification is required. No test was disabled; no staging/production migration, PHI backfill, database write, deployment or merge to main.
+
 ## 2026-10-31 — Patient history concurrency and atomic deposit follow-up
 
 - Repository: `drtamirlan911-cell/DentVision1`; updated only the existing PR #330 branch `fix/d1-d10-trial-archive-signing-api-20261029`.

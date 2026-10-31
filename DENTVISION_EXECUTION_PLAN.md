@@ -3,6 +3,12 @@
 ## Purpose
 This document is the persistent execution contract for DentVision. It is the source of truth for what is being implemented, in what order, and what is considered complete. Progress must not live only in a chat session.
 
+## Latest implementation checkpoint — 2026-10-31 (test matcher correction)
+- Existing PR #330 only; source commit `b77552f8078382beabc376ad2af37ba2cb60abff`, source-contract test correction `8e7989b5d01eb973220df70b331e5912342f281e`. Main/base remains unchanged.
+- Current Patient PATCH now rejects stale snapshots with 409 via `updatedAt` CAS; patient update, teeth mirror and branch reassignment are transactionally coupled. Deposit writes use DB-side integer increment.
+- The first run after the source commit found three stale expectations in one static source-contract test (2,382 passed / 3 failed); route assertions have been made whitespace-tolerant and the negative matcher now distinguishes the update operation from the API response.
+- Exact-head CI/Quality/RB-034 must pass on the final documentation checkpoint. Preserve all IAM and tenant assertions; do not skip tests. AI transcript PHI, RB-029 broader consumers/staging, RB-030 offline E2E, RB-031 WebKit, RB-033 branch rules and D10 workflow parity remain open.
+
 ## Latest implementation checkpoint — 2026-10-31
 - Continue only on existing PR #330 / `fix/d1-d10-trial-archive-signing-api-20261029`; source implementation commit `b77552f8078382beabc376ad2af37ba2cb60abff` is based on prior exact branch HEAD `45fe9ba5f573d8311d6b96e4e83f8260bffbf3f9`. Main remains `ac913cc3389a294d0b135a852b035ddddb1018ca`.
 - Fixed a confirmed stale-snapshot race in `PATCH /api/patients/:id`: use `updatedAt` compare-and-set and return 409 when another writer changed the row. The same transaction now persists the odontogram mirror and any validated organization-level branch reassignment.
