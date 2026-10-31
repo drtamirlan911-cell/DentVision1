@@ -411,6 +411,7 @@ export async function createPayment(payload: { amount: number; domain?: string; 
 export async function getPayment(paymentId: string): Promise<any> { return apiRequest(`/api/payments/${paymentId}`); }
 export async function confirmPayment(paymentId: string): Promise<any> { return apiRequest(`/api/payments/${paymentId}/confirm`, { method: 'POST', body: JSON.stringify({}) }); }
 export async function getShopOrders(clinicId: string): Promise<any> { return collection(await apiRequest('/api/shop/orders')); }
+export async function cancelShopOrder(orderId: string): Promise<any> { return apiRequest(`/api/shop/orders/${encodeURIComponent(orderId)}/cancel`, { method: 'PATCH', body: JSON.stringify({}) }); }
 export async function createShopReview(data: any): Promise<any> { return apiRequest('/api/shop/reviews', { method: 'POST', body: JSON.stringify(data) }); }
 export async function getShopReviews(productId: string): Promise<any> { try { const raw = await apiRequest(`/api/shop/products/${productId}/reviews`); return Array.isArray(raw) ? raw : (raw?.data ?? []); } catch { return []; } }
 export async function toggleShopFavorite(data: any): Promise<any> { return apiRequest('/api/shop/favorites', { method: 'POST', body: JSON.stringify(data) }); }

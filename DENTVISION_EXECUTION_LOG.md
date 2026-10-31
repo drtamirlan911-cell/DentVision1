@@ -2658,3 +2658,8 @@ These changes are route/entry reconciliation only. Existing domain implementatio
 - Confirmed gaps include Shop cancellation (SHOP-013 returns 404), incomplete independent dental-lab owner workflow proof, public organization/professional profile route aliases, open accepted-paid-settled/medical-analysis finance, real 32-tooth WebGL/3D odontogram, PHI transcript/backfill and Android runtime.
 - Exact-head CI 41183045451 remains IN PROGRESS at Role/Context; core E2E, Browser UX and Mobile Design passed. Quality Gate 41183045517 and RB-034 diagnostic 41183045421 passed, but do not close remaining release gates.
 - Next priority: finish role/visual/owner/Playwright gates, then implement or explicitly defer every confirmed D10 workflow gap and close staging/security/provider evidence. No main merge or live environment operation.
+
+
+## 2026-10-31 — Master Spec compliance follow-up: SHOP-013
+
+Implemented buyer-side cancellation for pending cash-on-delivery Shop orders: order-owner check, safe-state/payment-intent guard, compare-and-set transition, atomic stock restoration, DentCash reversal retry marker, buyer UI action, unit tests and E2E stock/ownership assertions. Payment settlement and supplier status mutations now guard concurrent order-state races. This is not full online-payment cancellation; provider-backed void/refund remains open. Await exact-head CI before closing.

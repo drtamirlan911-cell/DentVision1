@@ -422,3 +422,8 @@ Do not repeat an audit when implementation can resolve the issue. Do not weaken 
 - Parent candidate `0093f7e974b7cb6f0b79c7734125a99394b78fcb`: Quality Gate and RB-034 passed; lint/unit/build, Core E2E, Browser UX and Mobile Design passed. Role/Context was still running when this follow-up superseded the parent run; its result is not claimed. The diagnostic collector also preserves React console arguments so any future missing-key warning retains its component-owner stack.
 - Fresh exact-head CI, Quality Gate and RB-034 are required for the resulting commit. D1 remains OPEN until approved staging verification proves post-expiry positive reads and rejected writes.
 - No staging/production migration, database write, PHI backfill, Render environment change, merge to main or production deployment was performed.
+
+
+## Current execution follow-up — 2026-10-31
+
+PR #330 remains the sole integration branch. SHOP-013 buyer cancellation source work is added for unpaid cash-on-delivery orders only; online-payment cancellation remains blocked pending verified provider refund support. Do not merge until the updated exact-head CI/E2E and all release gates pass. Production, staging databases and PHI backfill remain untouched.

@@ -544,3 +544,11 @@ Parallel-branch evidence retained during integration; reconcile against the curr
 - Explicit missing capability recorded: Shop order cancellation currently returns 404 in SHOP-013. The audit also records missing independent dental-lab owner E2E proof, public participant profile redirects, accepted-paid-settled / medical-analysis settlement gap, 32-tooth WebGL/3D odontogram, PHI transcript/backfill and Android runtime evidence.
 - Current exact-head CI 41183045451 is still running at Role/Context; core E2E, Browser UX and Mobile Design passed. Quality Gate 41183045517 and RB-034 diagnostic 41183045421 passed. This is not full release verification.
 - This is a source/test audit only. No staging/production migration, PHI backfill, payment-provider callback, branch-rule change, Android device test or merge was performed.
+
+
+## Marketplace buyer cancellation follow-up — 2026-10-31
+
+- **SHOP-013 source implementation added on PR #330:** `PATCH /api/shop/orders/:id/cancel` is scoped to the authenticated order owner and only permits unpaid `cash` orders while status is `pending`. It rejects payment-intent, processing, unknown, paid and non-pending states; non-owners receive 404.
+- Stock restoration is transactional and guarded by a compare-and-set status claim. The buyer UI exposes cancellation for eligible cash orders and a retry action if DentCash reversal remains pending. The E2E scenario asserts buyer isolation and exact stock restoration; unit tests cover unsupported states, payment intents and concurrent transition loss.
+- Payment settlement and supplier lifecycle writes now compare-and-set the prior order status to avoid a race that could overwrite a cancellation.
+- **Status: implemented in source; OPEN pending exact-head CI/E2E success.** Online/Kaspi cancellation and actual provider refunds are intentionally not exposed; they require a verified merchant refund/void contract and reconciliation path. Do not claim full Shop cancellation acceptance until that path exists.

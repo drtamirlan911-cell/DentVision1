@@ -3,7 +3,7 @@
 **Audit date:** 2026-10-31  
 **Repository:** drtamirlan911-cell/DentVision1  
 **Audited branch:** fix/d1-d10-trial-archive-signing-api-20261029  
-**Audited HEAD:** 1284de604b638937ee2939f3f198f8674a5fa6d4  
+**Audited baseline HEAD:** 1284de604b638937ee2939f3f198f8674a5fa6d4 (follow-up source baseline: PR HEAD 63469c181d68c9320ea0f7eec761be856b7cf834)  
 **PR:** #330 — OPEN / DRAFT  
 **Base / main:** ac913cc3389a294d0b135a852b035ddddb1018ca  
 **Normative specification:** docs/DENTVISION_MASTER_SPEC.md, Version 5.0, 2026-09-17
@@ -17,7 +17,7 @@ At this HEAD, **18 of 24 sections are PARTIAL, 4 are OPEN against their acceptan
 Main reasons:
 - several participant workflows are only partially verified, especially the independent dental-laboratory owner workflow and employer/job lifecycle;
 - canonical target routes often redirect to older/shared screens, and some public resource routes do not provide the resource-specific destination described by the spec;
-- the test suite explicitly records a missing Shop capability (order cancellation returns 404);
+- the baseline test suite explicitly recorded missing Shop buyer cancellation (404); a restricted cash-on-delivery cancellation has since been added on the follow-up branch, but remains pending exact-head verification and does not cover provider-backed online refunds;
 - financial lifecycle and medical-analysis settlement evidence remains open;
 - PHI encryption/backfill and AI transcript handling are not fully closed;
 - a real WebGL/3D 32-tooth odontogram is still listed as unfinished;
@@ -57,7 +57,7 @@ The repository tree contained 1,945 entries at the audited tree. This was a sour
 | 6 | Canonical route architecture | **PARTIAL** | src/index.tsx declares many target routes and legacy aliases. Several target paths are redirects rather than resource-specific experiences: /organizations and /organizations/:organizationId redirect to /settings; /professionals/:professionalId redirects to /profile; /services/:serviceId redirects to /shop. Medical/dental-lab subroutes frequently collapse to a shared workspace or older CRM destination. docs/SYSTEM_MAP.md reports 98 backend route handlers without a detected web/mobile consumer. These may include intentional service/webhook endpoints, but each needs an owner/contract or explicit exclusion; route existence alone does not prove functional parity. |
 | 7 | Cabinet specifications by participant | **PARTIAL** | Fourteen role labels are present in .dentvision/roles.json; role-design E2E includes clinic, patient, diagnostic, medical-lab, dental-lab, platform and support roles. E2E covers business-owner onboarding/staff/branch actions, diagnostic and medical-lab partner lifecycles, Academy course enrollment, Marketplace orders and clinical flows. A full independent dental-lab owner chain (case intake → production routing → technician workbench → QC/remake → delivery → invoice/settlement) is not demonstrated. A dedicated end-to-end employer/job-seeker lifecycle is also not present in the inspected E2E suite. |
 | 8 | Organization management | **PARTIAL** | Organization profile, branches, membership/roles, invitations, legal/verification, archive/restore and supplier/lecturer controls exist. The full cross-organization Control Center from §8 is not proven: departments, rooms/workstations, modality/equipment capacity, holidays, integration lifecycle, SLA/escalation rules and exception governance need workflow-level verification for each supported organization type. |
-| 9 | Workflow-first interface rule | **PARTIAL** | Clinic schedule/queue, diagnostics referrals/worklists, medical-lab lifecycle and supplier order state machine have real domain endpoints. Dental lab status transitions and production event persistence exist in clinic lab-order code, but this is not equivalent to a fully verified independent dental-lab cabinet. Marketplace E2E explicitly documents that user-facing Shop order cancellation is missing: e2e/tests/marketplace.spec.ts, test SHOP-013, expects PATCH /api/shop/orders/:id/cancel to return 404. |
+| 9 | Workflow-first interface rule | **PARTIAL** | Clinic schedule/queue, diagnostics referrals/worklists, medical-lab lifecycle and supplier order state machine have real domain endpoints. Dental lab status transitions and production event persistence exist in clinic lab-order code, but this is not equivalent to a fully verified independent dental-lab cabinet. Baseline commit 1284de6 recorded SHOP-013 as a missing buyer cancellation (404). The follow-up adds a buyer-owned, pending cash-on-delivery cancellation with stock restoration; exact-head E2E is still required, and provider-backed online void/refund remains absent. |
 | 10 | Domain-specific benchmark principles | **GUIDANCE** | The spec documents maturity expectations for dental practice, dental lab, diagnostics/radiology and medical lab. These are design/operational standards, not a standalone shipped module. The actual gap is assessed under cabinet, lab and workflow sections above. |
 | 11 | Cross-organization ecosystem workflows | **PARTIAL** | e2e/tests/partner-lifecycle.spec.ts tests diagnostic referral → accept/process/result → clinic visibility and medical-lab order → lifecycle/result/delivery. Academy has course enrollment/progress/completion tests; Marketplace has order creation/price validation. Dental-lab partner-owned case handoff and complete commercial settlement, supplier fulfillment-to-payout and all consent/provenance steps are not proven as complete cross-org flows. |
 | 12 | Clinical graph and diagnostics | **PARTIAL** | Patient, visit/diagnosis, treatment case, appointment, treatment plan, lab order, document, payment and patient-presentation code exists. e2e/tests/clinical-core.spec.ts covers patient → treatment case → appointment → close → patient summary. Full imaging/DICOM acquisition/viewer/report/signing, AI finding confirmation and the full outcome loop are not evidenced end-to-end. The real 32-tooth WebGL/3D odontogram is explicitly still open; current Odontogram3D.tsx is an SVG-based chart, not a 3D WebGL scene. |
@@ -121,3 +121,13 @@ Quality Gate and RB-034 diagnostic passed on audited HEAD, but full CI/E2E seque
 10. Re-run D10 and all release gates on one exact final HEAD before changing PR #330 from Draft.
 
 This audit changes documentation only. It does not claim staging/production validation, database migration/backfill, provider certification, Android device runtime, deployment or merge to main.
+
+
+## Follow-up — buyer Shop order cancellation (2026-10-31)
+
+- The baseline audit at commit `1284de604b638937ee2939f3f198f8674a5fa6d4` explicitly found SHOP-013 absent. The follow-up source baseline was PR HEAD `63469c181d68c9320ea0f7eec761be856b7cf834`.
+- Added a buyer-owned cancellation route for **pending cash-on-delivery orders only**, before supplier acceptance and before any online-payment intent. Ownership is scoped by order ID and authenticated buyer ID; another buyer receives 404.
+- Stock reservation is restored in the same DB transaction as a compare-and-set transition to `cancelled`; repeated calls do not restore stock twice. DentCash spend/earn reversal uses the existing order-refund service; a pending-refund marker allows a retry without another stock restoration.
+- Added a visible cancel/retry action to `/shop/orders`, unit tests and SHOP-013 E2E coverage including buyer isolation and stock restoration.
+- Payment settlement now claims `pending → paid` with compare-and-set before writing sale rows; supplier status transitions also use compare-and-set, preventing a late callback or competing actor from overwriting a winning cancellation.
+- **Not closed yet:** exact-head CI/E2E must pass. Online/Kaspi, payment-processing, unknown-outcome, paid and supplier-accepted cancellations remain blocked until provider-backed void/refund semantics are implemented and verified. Marketplace section remains PARTIAL.

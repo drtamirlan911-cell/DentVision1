@@ -515,3 +515,12 @@ Historical priority notes retained from parallel branches; they do not supersede
 - Parent candidate `0093f7e974b7cb6f0b79c7734125a99394b78fcb`: Quality Gate and RB-034 passed; lint/unit/build, Core E2E, Browser UX and Mobile Design passed. Role/Context was still running when this follow-up superseded the parent run; its result is not claimed. The diagnostic collector also preserves React console arguments so any future missing-key warning retains its component-owner stack.
 - Fresh exact-head CI, Quality Gate and RB-034 are required for the resulting commit. D1 remains OPEN until approved staging verification proves post-expiry positive reads and rejected writes.
 - No staging/production migration, database write, PHI backfill, Render environment change, merge to main or production deployment was performed.
+
+
+## Follow-up execution slice — 2026-10-31
+
+- [x] Add buyer cancellation for pre-fulfilment, unpaid cash-on-delivery orders with owner-scoped API and transactional stock restoration.
+- [x] Add retryable DentCash refund marker and visible Shop Orders cancellation/retry controls.
+- [x] Guard payment settlement and supplier status writes with compare-and-set order-state transitions.
+- [ ] Pass exact-head unit, E2E, browser UX, role/context and visual release gates.
+- [ ] Implement provider-backed cancellation/refund for online/Kaspi payments after the official merchant contract and callback semantics are verified.

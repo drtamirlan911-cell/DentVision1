@@ -268,6 +268,47 @@ describe('claimPaymentForSettlement — double-confirm race guard', () => {
 });
 
 
+describe('Shop order settlement compare-and-set', () => {
+  it('does not post a sale when cancellation or another transition wins the order status race', async () => {
+    const db = {
+      order: {
+        findUnique: vi.fn().mockResolvedValue({ id: 'order-cancel-race', status: 'pending', items: [], meta: { source: 'checkout' } }),
+        updateMany: vi.fn().mockResolvedValue({ count: 0 }),
+      },
+      transaction: { findFirst: vi.fn() },
+    } as any;
+    const settled = await settlePaidPayment({
+      id: 'payment-cancel-race', refType: 'order', refId: 'order-cancel-race',
+      domain: 'shop', sellerType: null, sellerId: null, amount: 1000n, meta: null,
+    }, db);
+    expect(settled).toBe(false);
+    expect(db.order.updateMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: { id: 'order-cancel-race', status: 'pending' },
+      data: expect.objectContaining({ status: 'paid', paymentStatus: 'paid' }),
+    }));
+    expect(db.transaction.findFirst).not.toHaveBeenCalled();
+    expect(recordSaleTx).not.toHaveBeenCalled();
+  });
+
+  it('does not attempt to revive an order already cancelled before a late payment callback', async () => {
+    const db = {
+      order: {
+        findUnique: vi.fn().mockResolvedValue({ id: 'order-already-cancelled', status: 'cancelled', items: [], meta: {} }),
+        updateMany: vi.fn(),
+      },
+      transaction: { findFirst: vi.fn() },
+    } as any;
+    const settled = await settlePaidPayment({
+      id: 'payment-late-callback', refType: 'order', refId: 'order-already-cancelled',
+      domain: 'shop', sellerType: null, sellerId: null, amount: 1000n, meta: null,
+    }, db);
+    expect(settled).toBe(false);
+    expect(db.order.updateMany).not.toHaveBeenCalled();
+    expect(recordSaleTx).not.toHaveBeenCalled();
+  });
+});
+
+
 describe('Academy settlement source-of-truth contract', () => {
   it('derives course payment amount and seller identity from the canonical course', () => {
     const source = readFileSync(
