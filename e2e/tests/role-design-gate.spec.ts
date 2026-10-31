@@ -6,9 +6,19 @@ const API_BASE_URL = process.env.VITE_API_URL || 'http://127.0.0.1:3001';
 const VISUAL_EVIDENCE_ROOT = process.env.VISUAL_EVIDENCE_DIR || 'e2e/visual-evidence';
 const PASSWORD = 'Test1234!';
 
-// Track finite app API and web-font requests so full-document E2E navigation
-// never tears down work owned by the route being audited.
-const pendingCriticalRequestsByPage = new WeakMap<Page, Map<string, { count: number; label: string }>>();
+type PendingRequest = { epoch: number; label: string }
+type RequestLedger = {
+  epoch: number
+  sequence: number
+  pending: Map<number, PendingRequest>
+  requestIds: WeakMap<object, number>
+  requestEpochs: WeakMap<object, number>
+  byIdentity: Map<string, number[]>
+}
+
+// Keep request drains scoped to the active main document. Late lifecycle events
+// from a previous page must not be attributed to the route loaded after goto().
+const pendingCriticalRequestsByPage = new WeakMap<Page, RequestLedger>();
 
 const PUBLIC_ROUTES = ['/', '/login', '/register', '/forgot-password', '/booking', '/demo', '/pricing', '/terms', '/privacy', '/jobs', '/help', '/community', '/shop'];
 const AUTH_COMMON_ROUTES = ['/', '/ai', '/help', '/notifications', '/profile'];
@@ -104,27 +114,29 @@ function pageId(route: string, role?: Role): string | null {
 }
 
 async function waitForRouteActivity(page: Page, roleId: string, route: string) {
-  const pending = pendingCriticalRequestsByPage.get(page);
-  if (pending) {
+  const ledger = pendingCriticalRequestsByPage.get(page);
+  if (ledger) {
+    const currentPending = () => [...ledger.pending.values()].filter((entry) => entry.epoch === ledger.epoch);
     try {
-      await expect.poll(() => pending.size, {
+      await expect.poll(() => currentPending().length, {
         timeout: 20000,
         intervals: [50, 100, 250, 500, 1000],
-        message: roleId + ' ' + route + ': route-owned API/font requests did not settle',
+        message: roleId + ' ' + route + ': current-document API/lazy-module requests did not settle',
       }).toBe(0);
     } catch (error) {
-      const active = [...pending.values()]
-        .map(({ label, count }) => count > 1 ? label + ' (' + count + ')' : label);
-      throw new Error(roleId + ' ' + route + ': pending route-owned requests: ' + active.join('; ') + '. ' + String(error));
+      const active = currentPending().map((entry) => entry.label);
+      throw new Error(roleId + ' ' + route + ': pending current-document requests: ' + active.join('; ') + '. ' + String(error));
     }
   }
+  // Font rendering is useful for snapshots, but an external font CDN must not
+  // hold the security matrix indefinitely. App scripts and APIs still drain.
   try {
-    await page.evaluate(async () => {
-      await document.fonts.ready;
-      return document.fonts.status;
-    });
+    await Promise.race([
+      page.evaluate(async () => { await document.fonts.ready; }),
+      page.waitForTimeout(3000),
+    ]);
   } catch (error) {
-    throw new Error(roleId + ' ' + route + ': web fonts did not settle: ' + String(error));
+    throw new Error(roleId + ' ' + route + ': document readiness failed: ' + String(error));
   }
 }
 
@@ -227,53 +239,129 @@ async function acceptPatientPortalConsents(page: Page) {
 }
 
 function collectors(page: Page) {
-  const problems={console:[] as string[],page:[] as string[],requests:[] as string[],http:[] as string[],server:[] as string[]};
-  // Key request lifecycle entries by stable HTTP identity, not Playwright
-  // Request-wrapper object identity. Counts preserve concurrent duplicate
-  // requests to the same URL; completion/failure decrements exactly one call.
-  const pending = new Map<string, { count: number; label: string }>();
-  pendingCriticalRequestsByPage.set(page, pending);
-  const requestIdentity = (request: any) => request.method() + ' ' + request.url();
-  const finishPending = (request: any) => {
-    const key = requestIdentity(request);
-    const current = pending.get(key);
-    if (!current) return;
-    if (current.count <= 1) pending.delete(key);
-    else pending.set(key, { ...current, count: current.count - 1 });
+  const problems = {
+    console: [] as string[],
+    page: [] as string[],
+    requests: [] as string[],
+    navigationCancellations: [] as string[],
+    http: [] as string[],
+    server: [] as string[],
   };
+  const uiOrigin = new URL(BASE_URL).origin;
+  const ledger: RequestLedger = {
+    epoch: 0,
+    sequence: 0,
+    pending: new Map(),
+    requestIds: new WeakMap(),
+    requestEpochs: new WeakMap(),
+    byIdentity: new Map(),
+  };
+  pendingCriticalRequestsByPage.set(page, ledger);
+  const identity = (request: any) => request.method() + ' ' + request.url();
+
+  const finishPending = (request: any) => {
+    const key = identity(request);
+    let id: number | undefined;
+    let requestEpoch: number | undefined;
+    try {
+      id = ledger.requestIds.get(request);
+      requestEpoch = ledger.requestEpochs.get(request);
+    } catch { /* request wrapper unavailable */ }
+    // A previous-document completion must never decrement a same-URL request
+    // started by the current document.
+    if (id === undefined && requestEpoch !== undefined && requestEpoch < ledger.epoch) return;
+    if (id === undefined) id = ledger.byIdentity.get(key)?.find(candidate => ledger.pending.has(candidate));
+    if (id === undefined) return;
+
+    ledger.pending.delete(id);
+    const queue = ledger.byIdentity.get(key);
+    if (queue) {
+      const index = queue.indexOf(id);
+      if (index >= 0) queue.splice(index, 1);
+      if (queue.length === 0) ledger.byIdentity.delete(key);
+    }
+  };
+
   page.on('request', request => {
+    let mainDocumentNavigation = false;
+    try {
+      mainDocumentNavigation = request.isNavigationRequest()
+        && request.resourceType() === 'document'
+        && request.frame() === page.mainFrame();
+    } catch { /* detached-frame and service-worker requests are not main navigation */ }
+
+    if (mainDocumentNavigation) {
+      ledger.epoch += 1;
+      const staleIds = new Set<number>();
+      for (const [id, entry] of ledger.pending) {
+        if (entry.epoch < ledger.epoch) {
+          ledger.pending.delete(id);
+          staleIds.add(id);
+        }
+      }
+      for (const [key, queue] of ledger.byIdentity) {
+        const remaining = queue.filter(id => !staleIds.has(id));
+        if (remaining.length) ledger.byIdentity.set(key, remaining);
+        else ledger.byIdentity.delete(key);
+      }
+      ledger.requestIds = new WeakMap();
+    }
+
+    try { ledger.requestEpochs.set(request, ledger.epoch); } catch { /* request wrapper unavailable */ }
+
     try {
       const url = new URL(request.url());
       const accept = String(request.headers()?.accept || '').toLowerCase();
-      // EventSource/SSE is intentionally long-lived and is not a finite route
-      // load. Its failures are still collected below as request failures.
-      if (request.resourceType() === 'eventsource' || accept.includes('text/event-stream')) return;
-      if (url.pathname.startsWith('/api/') || ['fonts.gstatic.com', 'fonts.googleapis.com'].includes(url.hostname)) {
-        const key = requestIdentity(request);
-        const current = pending.get(key);
-        pending.set(key, {
-          count: (current?.count || 0) + 1,
-          label: request.method() + ' ' + url.origin + url.pathname,
-        });
-      }
+      if (request.resourceType() === 'eventsource'
+        || accept.includes('text/event-stream')
+        || url.pathname === '/api/ai/query/stream') return;
+
+      const finiteApi = url.pathname.startsWith('/api/');
+      const lazyModule = request.resourceType() === 'script' && url.origin === uiOrigin;
+      if (!finiteApi && !lazyModule) return;
+
+      const id = ++ledger.sequence;
+      const key = identity(request);
+      ledger.pending.set(id, {
+        epoch: ledger.epoch,
+        label: request.method() + ' ' + url.origin + url.pathname,
+      });
+      ledger.requestIds.set(request, id);
+      const queue = ledger.byIdentity.get(key) || [];
+      queue.push(id);
+      ledger.byIdentity.set(key, queue);
     } catch { /* non-URL browser requests are outside this gate */ }
   });
+
   page.on('requestfinished', finishPending);
-  page.on('console',m=>{if(m.type()==='error') problems.console.push(m.text())});
-  page.on('pageerror',e=>problems.page.push(e.message));
-  page.on('requestfailed',r=>{
-    finishPending(r);
-    problems.requests.push(r.method()+' '+r.url()+' :: '+(r.failure()?.errorText||'failed'));
-  });
-  page.on('response',r=>{
-    const status=r.status();
-    if(status>=400){
-      try {
-        const url=new URL(r.url());
-        if(url.pathname.startsWith('/api/')) problems.http.push(status+' '+r.request().method()+' '+url.pathname);
-      } catch { /* non-URL browser responses have no API path to report */ }
+  page.on('console', m => { if (m.type() === 'error') problems.console.push(m.text()); });
+  page.on('pageerror', e => problems.page.push(e.message));
+  page.on('requestfailed', request => {
+    finishPending(request);
+    const errorText = request.failure()?.errorText || 'failed';
+    let requestEpoch: number | undefined;
+    try { requestEpoch = ledger.requestEpochs.get(request); } catch { /* request wrapper unavailable */ }
+    const expectedNavigationAbort = requestEpoch !== undefined
+      && requestEpoch < ledger.epoch
+      && /ERR_ABORTED|Load request cancelled/i.test(errorText);
+
+    if (expectedNavigationAbort) {
+      problems.navigationCancellations.push(request.method() + ' ' + request.url() + ' :: ' + errorText);
+      return;
     }
-    if(status>=500) problems.server.push(status+' '+r.request().method()+' '+r.url());
+    problems.requests.push(request.method() + ' ' + request.url() + ' :: ' + errorText);
+  });
+  page.on('response', response => {
+    const status = response.status();
+    if (status >= 400) {
+      try {
+        const url = new URL(response.url());
+        if (url.pathname.startsWith('/api/')) {
+          problems.http.push(status + ' ' + response.request().method() + ' ' + url.pathname);
+        }
+      } catch { /* non-URL browser responses are outside this gate */ }
+    }
+    if (status >= 500) problems.server.push(status + ' ' + response.request().method() + ' ' + response.url());
   });
   return problems;
 }
@@ -486,7 +574,8 @@ async function auditRoute(page: Page, role: Role, route: string, shouldBeAllowed
     }).not.toBe(expectedPath);
     current = new URL(page.url());
     expect(current.pathname, role.id + ' ' + route + ': forbidden route stayed open').not.toBe(expectedPath);
-    await waitForRouteActivity(page, role.id, route + ' forbidden redirect');
+    // No protected page rendered. Do not drain background requests from the
+    // old shell after a successful authorization redirect.
     return;
   }
 
@@ -689,7 +778,7 @@ test.describe('DentVision exhaustive role/context/browser gate',()=>{
         expect(problems.requests, role.id + ': failed requests in responsive journeys').toEqual([]);
         expect(problems.server, role.id + ': HTTP 5xx in responsive journeys').toEqual([]);
         await page.screenshot({ path: `${VISUAL_EVIDENCE_ROOT}/roles/${role.id}/${info.project.name}.png`, fullPage: true });
-        await fs.writeFile(`${VISUAL_EVIDENCE_ROOT}/roles/${role.id}/${info.project.name}-runtime.json`, JSON.stringify({ console: problems.console, page: problems.page, requests: problems.requests, http: problems.http, server: problems.server }, null, 2), 'utf8');
+        await fs.writeFile(`${VISUAL_EVIDENCE_ROOT}/roles/${role.id}/${info.project.name}-runtime.json`, JSON.stringify({ console: problems.console, page: problems.page, requests: problems.requests, navigationCancellations: problems.navigationCancellations, http: problems.http, server: problems.server }, null, 2), 'utf8');
         return;
       }
 
@@ -736,7 +825,7 @@ test.describe('DentVision exhaustive role/context/browser gate',()=>{
       expect(problems.requests,role.id+': failed requests').toEqual([]);
       expect(problems.server,role.id+': HTTP 5xx responses').toEqual([]);
       await page.screenshot({path:`${VISUAL_EVIDENCE_ROOT}/roles/${role.id}/${info.project.name}.png`,fullPage:true});
-      await fs.writeFile(`${VISUAL_EVIDENCE_ROOT}/roles/${role.id}/${info.project.name}-runtime.json`, JSON.stringify({console:problems.console,page:problems.page,requests:problems.requests,http:problems.http,server:problems.server}, null, 2), 'utf8');
+      await fs.writeFile(`${VISUAL_EVIDENCE_ROOT}/roles/${role.id}/${info.project.name}-runtime.json`, JSON.stringify({console:problems.console,page:problems.page,requests:problems.requests,navigationCancellations:problems.navigationCancellations,http:problems.http,server:problems.server}, null, 2), 'utf8');
     });
   }
 

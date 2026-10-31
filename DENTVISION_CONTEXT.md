@@ -370,3 +370,10 @@ Do not repeat an audit when implementation can resolve the issue. Do not weaken 
 - Role/Context failed because its request tracker retained many API requests as pending. The checkpoint artifact [13022010150] and nested Playwright network trace [13022011243] show these calls returned HTTP 200 and response bodies, commonly in ~80–170 ms. The correction uses stable method+URL counters (including duplicate request counts) and excludes only long-lived EventSource/SSE from the finite-request drain check.
 - This is a test-harness correction only. Authorization/redirect failures separately listed in the role run (including `/support`, `/bi`, `/security`) are not treated as resolved and will be rechecked on the next exact-head run.
 - No `main` merge, production deploy, migration, database change, PHI operation or Render environment edit.
+
+
+## 2026-10-31 — Role/Context and patient-selection follow-up
+- Exact-head CI `41169303762` on `d0a5bc6c030fc3adcac4e13ee9cedffb2cc3e9f9` passed Core E2E, Browser UX, Mobile, Visual Agent, Business Owner, Organization Owner, CLI smoke and visual evidence. Quality Gate and RB-034 passed. Role/Context was the only failed stage.
+- The existing PR #330 candidate now scopes E2E request draining to the active document and same-origin lazy JS loads, separates old-document navigation aborts from genuine same-document failures, and removes request draining after a forbidden-route redirect.
+- PlanAccessBanner dismiss targets now meet the 36×36 minimum. Normal patient-card selection passes the same least-privilege chart/billing access options as the deep-link path.
+- No authorization was broadened. The WebKit diagnostics laboratories access-control error, D1/D2 staging verification, RB-029, D5, D9 and D10 remain open. Overall release remains NOT READY.

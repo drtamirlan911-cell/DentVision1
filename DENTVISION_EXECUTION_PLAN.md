@@ -459,3 +459,14 @@ Historical priority notes retained from parallel branches; they do not supersede
 - [x] Replace object-key pending tracking with method+URL counters that safely reconcile duplicate requests and request-finished/request-failed events; exclude only EventSource/SSE from finite request draining.
 - [ ] Re-run exact-head full CI. Re-evaluate route-policy/forbidden-redirect failures without weakening IAM assertions.
 - [ ] Keep PR #330 draft and overall release NOT READY until the complete current-head gate set passes and remaining D1/RB evidence is closed.
+
+
+## 2026-10-31 — Role/Context lifecycle and accessibility follow-up
+- [x] Track finite API and same-origin lazy-module requests per main-document epoch; don't attribute prior-document completions to the route loaded after navigation.
+- [x] Keep current-document network/API/page/server errors as hard failures; record only old-document navigation aborts separately.
+- [x] Stop draining prior-shell requests after the protected-route redirect has been proven.
+- [x] Increase all PlanAccessBanner dismiss targets to 36×36 and add a regression test for the three dismissible states.
+- [x] Pass the already-computed least-privilege clinical/billing options when a patient is selected by ordinary list click.
+- [ ] Re-run exact-head CI and verify Role/Context, Visual Agent, Business Owner and Organization Owner.
+- [ ] Capture the exact WebKit OPTIONS/request headers for `/api/diagnostics/laboratories`; no speculative CORS changes.
+- [ ] Keep D1/D2 staging, RB-029, D5, D9 and D10 release evidence open until explicitly verified.

@@ -913,7 +913,10 @@ export default function Patients() {
                       setSelected(p)
                       setTeethState(p.teeth || {})
                       setActiveTab('info')
-                      void usePatientStore.getState().openPatient(p.id)
+                      void usePatientStore.getState().openPatient(p.id, {
+                        clinicalChart: canReadClinicalChart,
+                        billingSummary: canReadPatientSummary,
+                      })
                     }}
                   >
                     <div className="flex items-start justify-between mb-3">

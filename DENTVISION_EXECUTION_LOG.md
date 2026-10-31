@@ -2587,3 +2587,22 @@ These changes are route/entry reconciliation only. Existing domain implementatio
 - The same Role/Context summary also contained forbidden-route redirect failures (notably `/support`, `/bi` and `/security`). These may be genuine policy/route defects and must be independently rechecked after the tracker is corrected. No authorization assertion has been removed or relaxed.
 - New exact-head CI is required. No staging/production database operation, migration, PHI operation, Render environment change, `main` merge or production deployment was performed.
 - PR #330 remains draft; overall release remains NOT READY.
+
+
+## 2026-10-31 — Role/Context navigation epoch and UI accessibility correction
+
+### Exact-head evidence
+- CI [41169303762](https://github.com/drtamirlan911-cell/DentVision1/actions/runs/41169303762) on `d0a5bc6c030fc3adcac4e13ee9cedffb2cc3e9f9` completed with Core E2E, Browser UX, Mobile, Visual Agent, Business Owner, Organization Owner, Playwright CLI smoke and visual evidence passing. Quality Gate [41169303785](https://github.com/drtamirlan911-cell/DentVision1/actions/runs/41169303785) and RB-034 [41169303780](https://github.com/drtamirlan911-cell/DentVision1/actions/runs/41169303780) passed. The only failed stage was Role/Context.
+- Role failure artifacts confirmed the pending request ledger crossed full-document navigation boundaries. CRM/layout requests from a previous document were attributed to a later allowed or forbidden route; the forbidden-route branch also waited for previous-shell requests after redirect. Mobile Safari additionally reported lazy chart module import failures when document navigation raced same-origin script chunks.
+- One real accessibility defect was independent of the harness: PlanAccessBanner “Скрыть” rendered at 26×26 px on `/crm/billing`, below the 36×36 release threshold.
+- The ordinary patient-list card click called `openPatient(p.id)` without scoped access options, although the deep-link path already supplied clinical and billing access. This prevented an authorized doctor from loading the medical context on ordinary selection.
+
+### Candidate correction
+- E2E request tracking now advances a document epoch on main-frame navigation, clears only stale drain entries, tracks same-origin lazy JavaScript modules alongside finite API requests, and records old-document `ERR_ABORTED` / `Load request cancelled` separately. Current-document request failures, API 4xx/5xx, page errors and server errors remain hard failures.
+- Forbidden-route verification asserts the redirect and returns without draining requests from the replaced shell. Third-party font readiness is bounded; the streaming AI endpoint is excluded from finite request drains.
+- All three dismissible PlanAccessBanner states now use a minimum 36×36 target. A new component regression test covers the hard-limit, approaching-limit and expiring-soon branches.
+- Normal patient-card selection now passes the same computed `clinicalChart` and `billingSummary` options as deep-link selection. No role or API permission was added.
+
+### Verification boundary
+- Fresh exact-head CI, Role/Context, Quality Gate, RB-034 and Vercel Preview remain pending. The WebKit `GET /api/diagnostics/laboratories` access-control error is still open until exact request/OPTIONS header evidence is captured; no CORS policy was changed.
+- D1/D2 staging proof, RB-029 PHI staging/backfill review, D5 provider/production checks, D9 exact-head gates and D10 workflow parity remain open. No migration, production DB write, Render variable change, main merge or production deployment was performed.
