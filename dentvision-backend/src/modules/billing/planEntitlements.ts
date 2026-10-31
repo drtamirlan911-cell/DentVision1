@@ -199,7 +199,7 @@ export async function resolveClinicAccess(clinicId: string): Promise<ClinicAcces
     : null;
   const periodEnd = subscription?.periodEnd ?? legacyTrialPeriodEnd;
   const periodExpired = periodEnd != null && periodEnd.getTime() <= now.getTime();
-  let status = subscription?.status || (legacyDemoPeriodEnd
+  let status = subscription?.status || (legacyTrialPeriodEnd
     ? (periodExpired ? 'expired' : 'trialing')
     : (clinic.active ? 'active' : 'suspended'));
 
