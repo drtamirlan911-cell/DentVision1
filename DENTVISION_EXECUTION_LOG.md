@@ -2668,3 +2668,8 @@ Implemented buyer-side cancellation for pending cash-on-delivery Shop orders: or
 ## 2026-10-31 — RB-029 AI thread history boundary
 
 Source review corrected the earlier inventory statement: AIMessage transcript text and the AISession.messages mirror are encrypted on new writes; active thread reads decrypt. Fixed active-workspace scope on thread enumeration and added authentication, decryption and bounded pagination to the legacy AI history API. Added regression tests for stored transcript normalization and route scope. RB-029 stays OPEN pending learned-memory PHI policy, legacy data backfill, backup/key rotation, retention and staging evidence.
+
+
+## 2026-10-31 — RB-029 AI memory at-rest encryption
+
+Added versioned encrypted JSON storage for all new MemoryEngine scopes, decoded all MemoryEngine read paths, preserved legacy read compatibility, and added fail-closed tests for malformed envelopes and missing production keys. Restricted global preference mirroring to generic style preferences; explicit free-form facts remain clinic-scoped. Existing plaintext AIMemory rows still require an approved backfill; RB-029 remains OPEN.

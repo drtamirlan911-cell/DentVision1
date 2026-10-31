@@ -535,3 +535,13 @@ Historical priority notes retained from parallel branches; they do not supersede
 - [ ] Audit and restrict PHI in free-form learned preferences and all AIMemory writers.
 - [ ] Complete legacy transcript and Patient medicalHistory dry-run/backfill only after approved backup/restore and staging evidence.
 - [ ] Keep RB-029 OPEN until all consumers, keys, retention, backup and data reconciliation evidence are reviewed.
+
+
+## RB-029 AI memory protection follow-up — 2026-10-31
+
+- [x] Encrypt all new MemoryEngine short/session/long JSON values with the shared PHI field cipher and versioned envelope.
+- [x] Decode encrypted values on all MemoryEngine read paths and preserve legacy plaintext compatibility.
+- [x] Fail closed on malformed envelopes and production writes without ENCRYPTION_KEY.
+- [x] Keep explicit free-form learned preferences clinic-scoped; only generic style preferences are global.
+- [ ] Inventory/backfill existing plaintext AIMemory records after approved staging dry-run and backup/restore proof.
+- [ ] Complete retention/deletion, key-rotation and direct-consumer review; RB-029 stays OPEN until verified.

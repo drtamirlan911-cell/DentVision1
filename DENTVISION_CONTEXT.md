@@ -432,3 +432,8 @@ PR #330 remains the sole integration branch. SHOP-013 buyer cancellation source 
 ## RB-029 AI history boundary follow-up — 2026-10-31
 
 AI transcript persistence already uses application-layer encryption for new AIMessage rows and AISession message mirrors. PR #330 further scopes thread listing by active workspace and adds authentication/decryption/bounded pagination to the legacy history endpoint. RB-029 remains OPEN: explicit learned preferences can retain free-form phrases, Patient medicalHistory legacy rows need approved dry-run/backfill, and backup/key/retention and downstream PHI audits remain incomplete.
+
+
+## RB-029 AI memory protection follow-up — 2026-10-31
+
+New short/session/long AIMemory writes are now encrypted in a versioned JSON envelope through MemoryEngine; reads decrypt and legacy plaintext remains supported for staged backfill. Explicit free-form learned facts no longer mirror across clinics; generic style preferences remain global. Existing records are not backfilled; RB-029 remains OPEN.

@@ -136,3 +136,8 @@ This audit changes documentation only. It does not claim staging/production vali
 ## Follow-up — RB-029 AI transcript/history API boundary (2026-10-31)
 
 The initial compliance matrix remains a baseline assessment, not a claim of current full closure. A current-source review found that transcript encryption already exists in `AIMessage` and the `AISession.messages` mirror; the stale statement that those columns are wholly plaintext is corrected in `docs/security/RB-029_MEDICAL_HISTORY_ENCRYPTION_INVENTORY.md`. This follow-up additionally scopes thread enumeration to the active workspace and protects/decrypts the legacy history route. RB-029 remains OPEN pending full Patient-history downstream audit, learned-memory PHI policy, legacy-data backfill, backup/key-rotation and staging/production evidence.
+
+
+## Follow-up — RB-029 AI memory at-rest protection (2026-10-31)
+
+The AI memory follow-up extends current-source transcript protections: new short/session/long AIMemory.value writes are encrypted in a versioned JSON envelope and decoded by every MemoryEngine read API. Explicit free-form learned preferences no longer cross clinic scope; only generic style preferences are global. Existing plaintext memory records remain compatible and require a separately approved dry-run/backfill, so RB-029 remains OPEN.

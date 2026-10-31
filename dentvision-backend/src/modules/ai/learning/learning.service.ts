@@ -70,10 +70,10 @@ async function savePrefs(userId: string, clinicId: string | null | undefined, ba
   const cid = clinicKey(clinicId);
   const trimmed = { items: bag.items.slice(0, MAX_PREFS) };
   await memoryEngine.setLongTerm(PREFS_KEY, trimmed, userId, cid);
-  // Mirror style prefs globally so they follow the user across clinics
+  // Only generic style preferences are user-global. Explicit free-form facts stay clinic-scoped so patient/clinic context cannot follow the user into another clinic.
   if (cid !== GLOBAL_CLINIC) {
     const styleOnly = {
-      items: trimmed.items.filter((i) => i.source === 'style' || i.source === 'explicit'),
+      items: trimmed.items.filter((i) => i.source === 'style'),
     };
     if (styleOnly.items.length) {
       await memoryEngine.setLongTerm(PREFS_KEY, styleOnly, userId, GLOBAL_CLINIC);

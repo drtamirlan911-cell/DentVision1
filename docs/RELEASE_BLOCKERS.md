@@ -560,3 +560,11 @@ Parallel-branch evidence retained during integration; reconcile against the curr
 - Scoped `GET /api/ai/threads` to the active workspace. Protected legacy `GET /api/ai/history` with explicit authentication, active-workspace filtering, transcript decryption and bounded pagination.
 - Added tests for encrypted/legacy message reads, malformed ciphertext fail-closed behavior, history limits and route authentication/workspace scope.
 - **Status remains OPEN / P0:** legacy plaintext backfill, free-form learned-memory policy, all derivative PHI surfaces, backup/key rotation/retention, staging dry-run and production reconciliation remain unverified. No database backfill was executed.
+
+
+## RB-029 follow-up — AI memory at-rest encryption (2026-10-31)
+
+- New AIMemory.value writes through MemoryEngine for short/session/long scopes now use a versioned JSON encryption envelope backed by the shared phi.ts cipher. All corresponding read paths, including getAllByScope, decrypt before returning values. Legacy plaintext JSON remains read-compatible pending approved backfill.
+- Malformed/unsupported encrypted envelopes fail closed; production writes without ENCRYPTION_KEY fail before Prisma persistence. Unit tests cover the three write scopes, encrypted round-trip, legacy read compatibility, listing, invalid envelope and missing production key.
+- Removed cross-workspace mirroring of explicit free-form learned facts: only generic style preferences are user-global; explicit preferences remain clinic-scoped.
+- Status remains OPEN / P0: existing AIMemory rows still need a protected dry-run/backfill, and retention/deletion, key-rotation, direct-consumer and staging/production evidence are not complete.
