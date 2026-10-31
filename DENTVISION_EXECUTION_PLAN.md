@@ -3,6 +3,12 @@
 ## Purpose
 This document is the persistent execution contract for DentVision. It is the source of truth for what is being implemented, in what order, and what is considered complete. Progress must not live only in a chat session.
 
+## Latest implementation checkpoint — 2026-10-31 (concurrent E2E added)
+- Existing PR #330 only. Patient concurrency implementation `b77552f8078382beabc376ad2af37ba2cb60abff`, matcher correction `8e7989b5d01eb973220df70b331e5912342f281e`, and E2E coverage commit `dda18b4239bb9a23d18cec872bcb0074079b65ab`.
+- New isolated-database E2E cases exercise simultaneous Patient PATCH writes and simultaneous balance deposits. Every accepted PATCH marker must remain in the final chart; deposit total must equal the sum of all increments; fractional amount is rejected.
+- Previous exact-head CI `41181068689` reached 2,382 passed / 3 failed due three stale assertions in one source-contract file; matchers corrected. The concurrent E2E cases were then added, so a fresh full CI is mandatory.
+- Next: verify all current-head CI jobs; then continue transcript PHI policy, D1/D2/D8 staging, RB-029 complete readers/backfill, RB-030 offline schedule E2E, RB-031 WebKit evidence and D10 workflow matrix. No tests disabled or permissions weakened; no live DB operation or main merge.
+
 ## Latest implementation checkpoint — 2026-10-31 (test matcher correction)
 - Existing PR #330 only; source commit `b77552f8078382beabc376ad2af37ba2cb60abff`, source-contract test correction `8e7989b5d01eb973220df70b331e5912342f281e`. Main/base remains unchanged.
 - Current Patient PATCH now rejects stale snapshots with 409 via `updatedAt` CAS; patient update, teeth mirror and branch reassignment are transactionally coupled. Deposit writes use DB-side integer increment.

@@ -461,6 +461,11 @@ Parallel-branch evidence retained during integration; reconcile against the curr
 
 
 
+- **Concurrent behavior E2E added (2026-10-31):** `e2e/tests/money-medical-negative.spec.ts` now launches parallel PATCH updates with distinct history markers and verifies every HTTP-200 write remains in the final decoded chart (HTTP 409 conflicts are accepted); it also sends parallel deposits and checks the final balance equals the sum, while rejecting a fractional KZT amount. Commit `dda18b4239bb9a23d18cec872bcb0074079b65ab`. These scenarios are pending exact-head CI; they have not been run locally.
+- **Matcher correction:** commit `8e7989b5d01eb973220df70b331e5912342f281e` updates only brittle source-contract assertions after run `41181068689` reported 2,382 passing tests and 3 mismatches in `patients.routes.branchScope.test.ts`. The new exact-head run is the required verification.
+
+
+
 ### Preserved 329 branch change
 
 - **Derivative-PHI event minimization (candidate branch `security/rb029-patient-portal-history-envelope-20261026`):** PatientCreated's durable AI event and AI Employee task payload now contain only a patient ID and a complaint-presence boolean; actions re-read and decrypt the clinic-scoped Patient record in memory, and notification messages omit complaint text and patient names. This closes only that duplication path. Other clinical event payloads, AI transcripts, concurrency and full consumer audits remain open; RB-029 stays OPEN pending exact-head gates and an approved staging/rollback procedure.

@@ -5,6 +5,13 @@ This log is the durable handoff between work sessions/agents. It records complet
 ## Historical record
 The complete pre-2026-09-14 execution history is preserved in the parent Git history at commit `ceb0a85560540d0bff2ecd154189280f8cd6d588`. The current file was accidentally shortened during the 2026-09-14 patient-scope repair; no historical source commit was rewritten.
 
+## 2026-10-31 — Concurrent patient-history and deposit E2E coverage
+
+- Commit `dda18b4239bb9a23d18cec872bcb0074079b65ab` adds two isolated-database E2E scenarios in `e2e/tests/money-medical-negative.spec.ts`: concurrent PATCH updates must not lose any accepted history marker; concurrent patient deposits must be additive; fractional KZT values must be rejected.
+- Source implementation remains `b77552f8078382beabc376ad2af37ba2cb60abff`; brittle route source-contract assertions were corrected in `8e7989b5d01eb973220df70b331e5912342f281e` after CI `41181068689` reported only three test expectation mismatches (2,382 passed / 3 failed). No source checks or authorization assertions were removed.
+- RB-029 inventory now records Patient PATCH CAS/transaction behavior and AI transcript PHI as a distinct unresolved persistence surface.
+- Fresh exact-head CI/Quality/RB-034 is required because the previous run did not include the final matcher/E2E changes. No local test execution, staging/production DB operation, backfill, deployment or main merge.
+
 ## 2026-10-31 — Test matcher correction and RB-029 inventory reconciliation
 
 - Follow-up commit `8e7989b5d01eb973220df70b331e5912342f281e` changes only three brittle matcher assertions in `patients.routes.branchScope.test.ts`: PATCH/deposit route declaration checks tolerate normalized whitespace, and the negative matcher no longer mistakes the successful response's `prepaidBalance: next` field for an unsafe absolute database write.
