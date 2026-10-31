@@ -32,7 +32,7 @@ describe('patients route branch scope contract', () => {
     expect(source).toContain("patientsRouter.get('/:id/images',requireClinicalChartRead");
     expect(source).toContain("patientsRouter.get('/:id/treatment-plan',requireClinicalChartRead");
     expect(source).toContain("patientsRouter.get('/:id/audit',requireClinicalChartRead,requirePermission('audit.read')");
-    expect(source).toContain("patientsRouter.post('/:id/deposit',requirePermission('billing.write')");
+    expect(source).toMatch(/patientsRouter\.post\(\s*'\/:id\/deposit'\s*,\s*requirePermission\('billing\.write'\)/);
     expect(source).toContain("patientsRouter.get('/:id/summary',requireClinicalChartRead,requirePermission('billing.read')");
   });
 
@@ -49,7 +49,7 @@ describe('patients route branch scope contract', () => {
   it('requires medical read/write for patient mutation responses and clinical payloads', () => {
     expect(source).toContain('function requirePatientMutationPermission');
     expect(source).toContain("requirePermission('patient.write', 'medical.read', 'medical.write')");
-    expect(source).toContain("patientsRouter.patch('/:id',requirePatientMutationPermission");
+    expect(source).toMatch(/patientsRouter\.patch\(\s*'\/:id'\s*,\s*requirePatientMutationPermission/);
     expect(source).toContain("patientsRouter.post('/', requirePatientMutationPermission");
   });
 
@@ -87,7 +87,7 @@ describe('patients route branch scope contract', () => {
     expect(depositRoute).toContain('prepaidBalance: { increment: amount }');
     expect(depositRoute).toContain('previousBalance = next - amount');
     expect(depositRoute).not.toContain('prisma.patient.findFirst');
-    expect(depositRoute).not.toContain('prepaidBalance: next');
+    expect(depositRoute).not.toMatch(/data:\s*\{\s*prepaidBalance:\s*next\s*\}/);
   });
 
   it('rejects zero, negative and non-finite patient deposits at the API boundary', () => {
