@@ -65,6 +65,69 @@ describe('expired clinic access', () => {
     expect(db.subscriptionUpdate).not.toHaveBeenCalled();
   });
 
+
+  it('bounds a non-DEMO trialing subscription with no periodEnd from Subscription.createdAt', async () => {
+    const createdAt = new Date('2020-01-01T00:00:00.000Z');
+    const expectedEnd = new Date('2020-01-31T00:00:00.000Z');
+    db.clinicFindUnique.mockResolvedValue({
+      id: 'c1', name: 'Enterprise trial', plan: 'ENTERPRISE', active: true,
+      createdAt: new Date('2019-01-01T00:00:00.000Z'),
+    });
+    db.subscriptionFindUnique.mockResolvedValue({
+      ownerType: 'CLINIC',
+      ownerId: 'c1',
+      plan: 'enterprise',
+      status: 'trialing',
+      periodEnd: null,
+      createdAt,
+    });
+
+    const access = await resolveClinicAccess('c1');
+
+    expect(access).toMatchObject({
+      active: true,
+      expired: true,
+      writeBlocked: true,
+      status: 'expired',
+      periodEnd: expectedEnd,
+    });
+    expect(db.subscriptionUpdate).toHaveBeenCalledWith({
+      where: { ownerType_ownerId: { ownerType: 'CLINIC', ownerId: 'c1' } },
+      data: { periodEnd: expectedEnd, status: 'expired' },
+    });
+  });
+
+  it('keeps a recent non-DEMO trial writable only until 30 days after Subscription.createdAt', async () => {
+    const createdAt = new Date('2099-01-01T00:00:00.000Z');
+    const expectedEnd = new Date('2099-01-31T00:00:00.000Z');
+    db.clinicFindUnique.mockResolvedValue({
+      id: 'c1', name: 'Enterprise trial', plan: 'ENTERPRISE', active: true,
+      createdAt: new Date('2020-01-01T00:00:00.000Z'),
+    });
+    db.subscriptionFindUnique.mockResolvedValue({
+      ownerType: 'CLINIC',
+      ownerId: 'c1',
+      plan: 'enterprise',
+      status: 'trialing',
+      periodEnd: null,
+      createdAt,
+    });
+
+    const access = await resolveClinicAccess('c1');
+
+    expect(access).toMatchObject({
+      active: true,
+      expired: false,
+      writeBlocked: false,
+      status: 'trialing',
+      periodEnd: expectedEnd,
+    });
+    expect(db.subscriptionUpdate).toHaveBeenCalledWith({
+      where: { ownerType_ownerId: { ownerType: 'CLINIC', ownerId: 'c1' } },
+      data: { periodEnd: expectedEnd },
+    });
+  });
+
   it('keeps a legacy DEMO clinic writable only until its 30-day createdAt deadline when no subscription exists', async () => {
     db.clinicFindUnique.mockResolvedValue({
       id: 'c1', name: 'Recent demo', plan: 'DEMO', active: true,

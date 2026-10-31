@@ -68,3 +68,21 @@ WHERE s."ownerType" = 'CLINIC'
   AND s."status" IN ('trialing', 'expired')
   AND s."periodEnd" = c."createdAt" + INTERVAL '30 days'
   AND c."plan" = 'DEMO';
+
+ 
+-- A canonical or manually bootstrapped trial may predate the deadline
+-- backfill and have status=trialing with periodEnd=NULL. Bound it from the
+-- subscription's own creation timestamp without resetting paid/active rows.
+UPDATE "subscriptions" AS s
+SET "status" = CASE
+      WHEN s."createdAt" + INTERVAL '30 days' <= CURRENT_TIMESTAMP THEN 'expired'
+      ELSE 'trialing'
+    END,
+    "periodEnd" = s."createdAt" + INTERVAL '30 days',
+    "updatedAt" = CURRENT_TIMESTAMP
+FROM "clinics" AS c
+WHERE s."ownerType" = 'CLINIC'
+  AND s."ownerId" = c."id"
+  AND s."status" = 'trialing'
+  AND s."periodEnd" IS NULL
+  AND c."plan" <> 'DEMO';

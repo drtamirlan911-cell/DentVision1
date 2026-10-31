@@ -24,6 +24,10 @@ describe('legacy clinic trial migration', () => {
     expect(sql).toContain('s."periodEnd" = c."createdAt" + INTERVAL \'30 days\'');
     expect(sql).toContain('c."plan" = \'DEMO\'');
     expect(sql).toContain('c."active" = false');
+    expect(sql).toContain('s."status" = \'trialing\'');
+    expect(sql).toContain('s."createdAt" + INTERVAL \'30 days\'');
+    expect(sql).toContain('s."periodEnd" IS NULL');
+    expect(sql).toContain('c."plan" <> \'DEMO\'');
   });
 
   it('adds only a nullable archive timestamp and an index without deleting organizations', () => {

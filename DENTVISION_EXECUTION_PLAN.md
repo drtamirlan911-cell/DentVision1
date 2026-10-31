@@ -475,3 +475,14 @@ Historical priority notes retained from parallel branches; they do not supersede
 ## 2026-10-31 — PlanAccessBanner test harness fix
 - [x] Preserve real `react-i18next` exports in the dismiss-target regression test; only stub `useTranslation`.
 - [ ] Re-run full unit and exact-head release gates after this mock-only correction.
+
+ 
+## 2026-10-31 — D1 null trial-deadline repair (PR #330)
+ 
+- Re-audited the 30-day expiry contract after confirming canonical CLINIC authentication hydrates the linked legacy clinic ID before `planGate`; the earlier organizationId concern was not a confirmed bypass.
+- Confirmed a separate edge case: a non-DEMO clinic subscription with `status='trialing'` and `periodEnd=NULL` had no finite deadline. The privileged subscription upsert route accepts an omitted periodEnd, and the access resolver previously fell back to Clinic.createdAt only for legacy DEMO clinics.
+- The resolver now uses `Subscription.createdAt + 30 days` for a trialing subscription with no periodEnd, persists the derived deadline, and still uses Clinic.createdAt for legacy DEMO rows. Existing explicit periodEnd values are never reset.
+- The legacy-trial migration now backfills non-DEMO trialing rows with null periodEnd from Subscription.createdAt. Regression tests cover expired and still-active windows plus migration SQL. The existing migration remains unapplied in staging/production.
+- Parent candidate `0093f7e974b7cb6f0b79c7734125a99394b78fcb`: Quality Gate and RB-034 passed; lint/unit/build, Core E2E, Browser UX and Mobile Design passed. Role/Context was still running when this follow-up superseded the parent run; its result is not claimed. The diagnostic collector also preserves React console arguments so any future missing-key warning retains its component-owner stack.
+- Fresh exact-head CI, Quality Gate and RB-034 are required for the resulting commit. D1 remains OPEN until approved staging verification proves post-expiry positive reads and rejected writes.
+- No staging/production migration, database write, PHI backfill, Render environment change, merge to main or production deployment was performed.
