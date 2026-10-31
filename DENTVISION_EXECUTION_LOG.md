@@ -2310,3 +2310,22 @@ These changes are route/entry reconciliation only. Existing domain implementatio
 
 - CI run [40338265481](https://github.com/drtamirlan911-cell/DentVision1/actions/runs/40338265481) on `40528bd5bfaba03dd8e1791a1f54168fac55befe` passed backend-lint, frontend-lint and Quality Gate. The unit-test stage reached 2,283/2,284; its only failure was an obsolete exact array expectation in `permissions.pages.test.ts` that omitted `help` and `notifications` from the restored STUDENT common page set.
 - Updated the test expectation to the intended five-page set rather than rolling back the access-policy change. Fresh exact-head CI/E2E remains required for the correction commit.
+
+
+## 2026-10-31 — Consolidate OpenAI response-polish provider transport
+
+### Implemented on isolated branch
+- Branch: `fix/openai-shared-provider-polish-20261031`, based on `main` at `ac913cc3389a294d0b135a852b035ddddb1018ca`.
+- Updated `dentvision-backend/src/modules/ai/core/llm.service.ts` so the deterministic router's optional response-polish call uses the shared `providerFetch` adapter rather than issuing its own raw `fetch`.
+- This aligns timeout, retry, and terminal provider-error handling with the existing AI orchestrator; provider errors continue to return `null`, preserving the verified deterministic response.
+- The Responses API `reasoning` field is now sent only when the selected model reports `supportsReasoning`.
+- Token accounting uses provider-reported `usage.total_tokens` when available and the existing local estimate only as a fallback.
+- Added focused `llm.service.test.ts` coverage for missing API key, shared request contract, model-dependent reasoning, provider token usage/fallback estimation, and deterministic fallback on provider failure.
+
+### Verification status
+- Implementation and test commits are on the isolated branch. Exact-head backend CI/unit/type/lint verification is **PENDING**; no pass is claimed before GitHub Actions completes on the final PR head.
+- This change does not alter AI tools, IAM, tenant/branch scoping, clinical approval, economic rules, database schema, or frontend behavior.
+- No OpenAI key was created or exposed; no Render/Vercel environment variable was changed; no staging/production database operation, merge to `main`, or deployment was performed.
+
+### Next action
+- Run and inspect exact-head CI and relevant AI/security release gates. Keep the change isolated until all required checks pass; separately verify whether the live backend has a valid `OPENAI_API_KEY` without exposing its value before claiming provider availability.
