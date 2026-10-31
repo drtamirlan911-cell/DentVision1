@@ -147,8 +147,10 @@ jobs:
           done
           echo "Backend did not become healthy in time" >&2
           exit 1
+      - name: Build frontend for browser gates
+        run: npm run build
       - name: Start frontend
-        run: nohup npm run dev -- --host 0.0.0.0 --port 3000 > /tmp/frontend.log 2>&1 &
+        run: nohup npm run preview -- --host 0.0.0.0 --port 3000 --strictPort > /tmp/frontend.log 2>&1 &
       - name: Wait for frontend
         run: |
           for i in $(seq 1 30); do

@@ -393,6 +393,7 @@ This entry supersedes stale source-level claims below where explicitly noted, bu
 - **Coverage preserved:** mobile design gate and Visual Agent remain separate; the visual release manifest still receives its required role screenshot for every viewport. The 36px interactive-control threshold and authorization assertions are unchanged. The CI already specifies a 60-minute E2E job timeout and that bound remains in place.
 - **Remaining:** verify the new exact HEAD completes core E2E, browser UX, mobile, role/context, Visual Agent, business-owner and organization-owner gates; inspect the compact failure summary before resolving this blocker.
 
+- **Latest failure evidence (2026-10-31, CI 41186233177):** frontend/backend lint passed; the exhaustive role-1280 run recorded 15 failures because current-document lazy source modules (`/src/**/*.tsx`) and several finite `/api/*` requests were still pending at the 20-second drain boundary. The workflow was still using Vite's on-demand dev server for browser gates. This is a test-environment delivery/settling failure, not permission to weaken the gate; the next exact-head attempt builds the frontend once and serves the production bundle through `vite preview`, retaining all role/route assertions and the 700 ms quiet-window check. **Verification pending.**
 ### RB-025 — Role gate exposed auth/route and responsive UI regressions
 - **Status:** IN PROGRESS — exact-HEAD CI verification pending
 - **Priority:** P0

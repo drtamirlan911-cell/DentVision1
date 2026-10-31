@@ -437,3 +437,8 @@ AI transcript persistence already uses application-layer encryption for new AIMe
 ## RB-029 AI memory protection follow-up — 2026-10-31
 
 New short/session/long AIMemory writes are now encrypted in a versioned JSON envelope through MemoryEngine; reads decrypt and legacy plaintext remains supported for staged backfill. Explicit free-form learned facts no longer mirror across clinics; generic style preferences remain global. Existing records are not backfilled; RB-029 remains OPEN.
+
+
+## CI role-gate follow-up — 2026-10-31
+
+CI 41186233177 exposed a browser-gate environment issue: role-1280 reported pending Vite lazy-module source requests and finite API requests at the 20-second drain boundary. The next run will serve the compiled frontend using vite preview rather than on-demand transforms. Route coverage and 700 ms network quiet criterion are unchanged; RB-024 remains open pending exact-head verification.

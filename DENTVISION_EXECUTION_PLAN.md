@@ -545,3 +545,10 @@ Historical priority notes retained from parallel branches; they do not supersede
 - [x] Keep explicit free-form learned preferences clinic-scoped; only generic style preferences are global.
 - [ ] Inventory/backfill existing plaintext AIMemory records after approved staging dry-run and backup/restore proof.
 - [ ] Complete retention/deletion, key-rotation and direct-consumer review; RB-029 stays OPEN until verified.
+
+
+## CI browser-server stabilization — 2026-10-31
+
+- [x] Synchronize generated docs/SYSTEM_MAP.md with current route inventory (692 unique handlers, 654 mounted HTTP registrations; Shop router 38 handlers).
+- [x] Change browser-gate frontend host from Vite on-demand dev server to a built production bundle served by vite preview.
+- [ ] Verify the next exact-head full CI completes the same exhaustive role/context route and responsive gates; do not close RB-024 from the configuration change alone.

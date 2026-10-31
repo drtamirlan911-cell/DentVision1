@@ -2673,3 +2673,8 @@ Source review corrected the earlier inventory statement: AIMessage transcript te
 ## 2026-10-31 — RB-029 AI memory at-rest encryption
 
 Added versioned encrypted JSON storage for all new MemoryEngine scopes, decoded all MemoryEngine read paths, preserved legacy read compatibility, and added fail-closed tests for malformed envelopes and missing production keys. Restricted global preference mirroring to generic style preferences; explicit free-form facts remain clinic-scoped. Existing plaintext AIMemory rows still require an approved backfill; RB-029 remains OPEN.
+
+
+## 2026-10-31 — CI browser-gate failure analysis
+
+Exact-head CI 41186233177: frontend/backend lint passed; Quality Gate and RB-034 Diagnostic passed; E2E failed in role-1280 with 15 current-document request-drain errors (lazy `/src/**/*.tsx` modules and finite API calls still pending at 20 seconds). Generated system map was also stale by one Shop endpoint (692 unique handlers / 654 registered routes; Shop 38 handlers). Updated the generated map and changed E2E frontend serving from Vite dev to production `vite preview`; role/route assertions and 700 ms quiet interval unchanged. Next exact-head CI is required; RB-024 remains open.
