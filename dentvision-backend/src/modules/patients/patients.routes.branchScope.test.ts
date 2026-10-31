@@ -60,8 +60,38 @@ describe('patients route branch scope contract', () => {
     expect(source).toContain('data:await serializePatientForCaller(p,req)');
   });
 
+
+  it('uses optimistic concurrency for PATCH and commits chart/branch writes with the patient row', () => {
+    const patchStart = source.indexOf("patientsRouter.patch('/:id'");
+    const deleteStart = source.indexOf("patientsRouter.delete('/:id'", patchStart);
+    const patchRoute = source.slice(patchStart, deleteStart);
+    expect(patchStart).toBeGreaterThanOrEqual(0);
+    expect(deleteStart).toBeGreaterThan(patchStart);
+    expect(patchRoute).toContain('await prisma.$transaction(async (tx) =>');
+    expect(patchRoute).toContain('tx.patient.updateMany');
+    expect(patchRoute).toContain('updatedAt: existing.updatedAt');
+    expect(patchRoute).toContain("throw new Error('PATIENT_HISTORY_CONFLICT')");
+    expect(patchRoute).toContain('syncTeeth(existing.id, body.teeth, tx)');
+    expect(patchRoute).toContain('setPatientBranch(existing.id, clinicId, targetBranchId, tx)');
+    expect(patchRoute).toContain('res.status(409)');
+    expect(patchRoute).not.toContain('prisma.patient.update(');
+    expect(patchRoute.indexOf('assertPatientBranchBelongsToClinic')).toBeGreaterThanOrEqual(0);
+    expect(patchRoute.indexOf('assertPatientBranchBelongsToClinic')).toBeLessThan(patchRoute.indexOf('prisma.$transaction'));
+  });
+
+  it('uses atomic integer increments for patient deposits', () => {
+    const depositStart = source.indexOf("patientsRouter.post('/:id/deposit'");
+    const assignmentsStart = source.indexOf('async function serializeAssignments', depositStart);
+    const depositRoute = source.slice(depositStart, assignmentsStart);
+    expect(depositRoute).toContain('Number.isSafeInteger(amount)');
+    expect(depositRoute).toContain('prepaidBalance: { increment: amount }');
+    expect(depositRoute).toContain('previousBalance = next - amount');
+    expect(depositRoute).not.toContain('prisma.patient.findFirst');
+    expect(depositRoute).not.toContain('prepaidBalance: next');
+  });
+
   it('rejects zero, negative and non-finite patient deposits at the API boundary', () => {
-    expect(source).toContain('if(!Number.isFinite(amount)||amount<=0)');
+    expect(source).toContain('Number.isSafeInteger(amount)');
     expect(source).toContain("requirePermission('billing.write')");
   });
 });
