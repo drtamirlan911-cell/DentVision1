@@ -93,8 +93,8 @@ describe('improveResponseWithLLM', () => {
         }),
       }),
     );
-    const requestBody = providerFetch.mock.calls[0][1].body as Record<string, unknown>;
-    expect(requestBody).not.toHaveProperty('reasoning');
+    const [, options] = providerFetch.mock.calls[0] as unknown as [string, { body: Record<string, unknown> }];
+    expect(options.body).not.toHaveProperty('reasoning');
     expect(recordModelUsage).toHaveBeenCalledWith('mini', 42);
     expect(preferClinicCurrency).toHaveBeenCalledWith('Готовый ответ', 'KZT');
   });
@@ -110,8 +110,8 @@ describe('improveResponseWithLLM', () => {
 
     await improveResponseWithLLM('Объясни подробно', response, context);
 
-    const requestBody = providerFetch.mock.calls[0][1].body as Record<string, unknown>;
-    expect(requestBody.reasoning).toEqual({ effort: 'medium' });
+    const [, options] = providerFetch.mock.calls[0] as unknown as [string, { body: Record<string, unknown> }];
+    expect(options.body.reasoning).toEqual({ effort: 'medium' });
   });
 
   it('uses the local token estimate when the provider omits usage metadata', async () => {
