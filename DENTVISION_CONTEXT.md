@@ -1,3 +1,11 @@
+## Latest compliance checkpoint — 2026-10-31
+
+- Full 24-section Master Spec 5.0 audit recorded in docs/MASTER_SPEC_COMPLIANCE_AUDIT.md, audited HEAD 1284de604b638937ee2939f3f198f8674a5fa6d4.
+- Result: 18 sections PARTIAL, 4 OPEN, 2 GUIDANCE; no section certified fully compliant end-to-end. PR #330 remains OPEN / DRAFT and release NOT READY.
+- Confirmed gaps include Shop cancellation (SHOP-013 returns 404), incomplete independent dental-lab owner workflow proof, public organization/professional profile route aliases, open accepted-paid-settled/medical-analysis finance, real 32-tooth WebGL/3D odontogram, PHI transcript/backfill and Android runtime.
+- Exact-head CI 41183045451 remains IN PROGRESS at Role/Context; core E2E, Browser UX and Mobile Design passed. Quality Gate 41183045517 and RB-034 diagnostic 41183045421 passed, but do not close remaining release gates.
+- Next priority: finish role/visual/owner/Playwright gates, then implement or explicitly defer every confirmed D10 workflow gap and close staging/security/provider evidence. No main merge or live environment operation.
+
 ## Latest verified state — 2026-10-31 (patient concurrency E2E added)
 - Repository: `drtamirlan911-cell/DentVision1`; PR #330 remains OPEN / DRAFT on `fix/d1-d10-trial-archive-signing-api-20261029`; main/base remains `ac913cc3389a294d0b135a852b035ddddb1018ca`.
 - Patient concurrency/deposit implementation commit: `b77552f8078382beabc376ad2af37ba2cb60abff`; source matcher correction: `8e7989b5d01eb973220df70b331e5912342f281e`; isolated E2E scenarios: `dda18b4239bb9a23d18cec872bcb0074079b65ab`. The implementation adds Patient PATCH `updatedAt` compare-and-set, transactional Patient/Tooth/branch writes, branch validation before mutation and atomic integer deposits. E2E scenarios assert accepted concurrent chart edits are not lost and concurrent deposits sum correctly; fractional amounts are rejected.

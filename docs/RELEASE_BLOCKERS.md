@@ -535,3 +535,12 @@ Parallel-branch evidence retained during integration; reconcile against the curr
 - Parent candidate `0093f7e974b7cb6f0b79c7734125a99394b78fcb`: Quality Gate and RB-034 passed; lint/unit/build, Core E2E, Browser UX and Mobile Design passed. Role/Context was still running when this follow-up superseded the parent run; its result is not claimed. The diagnostic collector also preserves React console arguments so any future missing-key warning retains its component-owner stack.
 - Fresh exact-head CI, Quality Gate and RB-034 are required for the resulting commit. D1 remains OPEN until approved staging verification proves post-expiry positive reads and rejected writes.
 - No staging/production migration, database write, PHI backfill, Render environment change, merge to main or production deployment was performed.
+
+
+## 2026-10-31 — Master Spec 5.0 compliance audit (PR #330)
+
+- Added docs/MASTER_SPEC_COMPLIANCE_AUDIT.md, a section-by-section review of all 24 Master Spec 5.0 sections against source, schema, generated inventories, E2E tests and exact-head CI.
+- Audit outcome at HEAD 1284de604b638937ee2939f3f198f8674a5fa6d4: 18 PARTIAL, 4 OPEN, 2 GUIDANCE; no section is certified end-to-end. Release remains NOT READY; PR #330 stays Draft.
+- Explicit missing capability recorded: Shop order cancellation currently returns 404 in SHOP-013. The audit also records missing independent dental-lab owner E2E proof, public participant profile redirects, accepted-paid-settled / medical-analysis settlement gap, 32-tooth WebGL/3D odontogram, PHI transcript/backfill and Android runtime evidence.
+- Current exact-head CI 41183045451 is still running at Role/Context; core E2E, Browser UX and Mobile Design passed. Quality Gate 41183045517 and RB-034 diagnostic 41183045421 passed. This is not full release verification.
+- This is a source/test audit only. No staging/production migration, PHI backfill, payment-provider callback, branch-rule change, Android device test or merge was performed.
