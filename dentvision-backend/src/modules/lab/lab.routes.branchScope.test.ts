@@ -13,7 +13,7 @@ describe('dental lab branch isolation contract', () => {
 
   it('scopes list, transactional upsert, status and delete operations', () => {
     expect(source).toContain('where: { clinicId, ...branchScopedLabOrder(req) }');
-    const upsertStart = source.indexOf("labRouter.post('/')");
+    const upsertStart = source.indexOf("labRouter.post('/',");
     const statusStart = source.indexOf("labRouter.patch('/:id/status'", upsertStart);
     const upsert = source.slice(upsertStart, statusStart);
     expect(upsert).toContain('FOR UPDATE');
