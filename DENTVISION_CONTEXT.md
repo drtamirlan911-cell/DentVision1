@@ -461,3 +461,11 @@ CI 41186233177 exposed a browser-gate environment issue: role-1280 reported pend
 - SaaS subscription checkout remains available after expiry. Provider-backed API settlement and authenticated provider callbacks remain available to finish already-paid external transactions; the clinic cannot create new clinic operational/payment intents or manually settle a static cash payment while read-only.
 - Added isolated route regression tests for expired clinic cashier denial, allowed renewal checkout, expired static-confirm denial and expired clinic refund denial. Exact-head CI is pending.
 - D1 remains OPEN pending exact-head CI and approved staging proof of post-expiry reads/blocked writes. No staging/production database, migration, payment account or live callback was touched.
+
+
+## 2026-11-01 — Payment source-contract matcher correction
+
+- Exact-head CI [41255902538](https://github.com/drtamirlan911-cell/DentVision1/actions/runs/41255902538) on `ac67ddb67b3f3f64a94a9ece701c9d8adbd127d6` passed frontend/backend lint, production build, TypeScript, generated-index validation, SYSTEM_MAP reconciliation, Quality Gate and RB-034.
+- Unit tests reported 2,415 passed / 1 failed. The failure was `refund.service.test.ts`'s source-shape assertion still searching for the former inline `if (meta.clinicId && ...)` implementation after clinic scoping had been extracted into `clinicPaymentScope()`. The new runtime payment-route tests themselves passed (24/24).
+- Updated the source-contract assertion to verify the current helper recognizes server-selected clinic provider/reference scope, and that clinic billing authorization runs before the generic payer-owner fallback. No runtime permission check was relaxed or removed.
+- A fresh exact-head full CI is mandatory. Release remains NOT READY; no staging/production operation or `main` merge was performed.

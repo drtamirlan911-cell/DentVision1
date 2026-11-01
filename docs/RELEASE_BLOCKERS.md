@@ -587,3 +587,11 @@ Parallel-branch evidence retained during integration; reconcile against the curr
 - **Preserved exception:** subscription checkout stays available so the owner can renew. Authenticated provider callbacks and provider-backed API settlement remain available to complete transactions already paid externally; they cannot create new clinic cashier work.
 - **Regression coverage:** route tests cover expired clinic cashier denial, allowed SaaS renewal, expired static-confirm denial and expired clinic refund denial.
 - **Status:** exact-head verification pending; D1 remains OPEN until full CI and approved staging positive-read/negative-write verification pass. No staging/production DB, migration or live payment was run.
+
+
+## D1 follow-up — exact-head source-contract matcher (2026-11-01)
+
+- CI [41255902538](https://github.com/drtamirlan911-cell/DentVision1/actions/runs/41255902538) on `ac67ddb67b3f3f64a94a9ece701c9d8adbd127d6` passed frontend/backend lint, build, TypeScript, index/System Map validation, Quality Gate and RB-034. Vitest reported 2,415 passed / 1 failed.
+- The single failing test was a stale source-shape assertion in `refund.service.test.ts` that expected the clinic scope condition inline after production code had correctly moved that decision into `clinicPaymentScope()`. The new payment route runtime tests passed 24/24.
+- Updated the matcher to assert the helper's clinic-provider/reference detection and that billing authorization precedes the generic payer fallback. No runtime permission behavior was weakened.
+- **Verification pending:** fresh exact-head full CI, including the complete E2E/role/visual/owner/CLI sequence. D1 remains OPEN pending approved staging positive-read/negative-write proof.

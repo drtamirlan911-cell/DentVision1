@@ -2698,3 +2698,10 @@ The specialized `/api/payments` router is not mounted with `blockClinicWrites`, 
 Added clinic-payment scope detection and a fail-closed subscription write guard. New clinic cashier payment intents, clinic-owned refunds and staff static confirmations now return `402 SUBSCRIPTION_EXPIRED` after the write deadline. SaaS subscription checkout remains available. Provider-backed API settlement and authenticated callbacks remain available only to complete transactions already paid externally; they cannot create new clinic cashier work.
 
 Added runtime route tests for all boundaries. Exact-head CI is required. D1 remains OPEN pending full CI and approved staging verification. No staging/production database, migration, PHI, live provider callback or production payment operation was performed.
+
+
+## 2026-11-01 — Exact-head payment source-contract matcher correction
+
+CI run [41255902538](https://github.com/drtamirlan911-cell/DentVision1/actions/runs/41255902538) on `ac67ddb67b3f3f64a94a9ece701c9d8adbd127d6` showed: frontend ESLint PASS; backend TypeScript and ESLint PASS; production build/typecheck/project-index/system-map/command-center audit PASS; current Quality Gate and RB-034 PASS. Vitest reached 2,415 passed / 1 failed. The one failure was a static source contract in `refund.service.test.ts` asserting the superseded inline clinic-scope expression. The implementation now uses `clinicPaymentScope(payment)`, then requires `canManageClinicBillingMutation` before generic payer ownership. The new `payments.routes.creation-security.test.ts` runtime file passed all 24 tests.
+
+Updated that contract test to assert the current helper/authorization ordering instead of matching the old source layout. No authorization assertion or runtime guard was weakened. The CI E2E job had only reached Playwright browser installation when this correction was prepared; it must be rerun on the corrected exact HEAD. D1 remains OPEN pending fresh CI and approved staging evidence. No staging/production DB/migration, PHI, payment provider, deployment or main merge was performed.
