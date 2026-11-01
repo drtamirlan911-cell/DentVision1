@@ -8,6 +8,7 @@ import { assertClinicOrgAccess } from '../../lib/orgContext.js';
 import { resolveClinicAccess as resolveClinicSubscriptionAccess } from '../billing/planEntitlements.js';
 import { uid } from '../../lib/helpers.js';
 import { ensureDentalLabOrderEventsTable } from './dentalLabOrderEvents.js';
+import { canLabMemberChangeStatus, isLabManagerRole, validateLabQualityControl } from './labPlatform.authorization.js';
 
 export const labPlatformRouter = Router();
 labPlatformRouter.use(authenticate);
@@ -22,14 +23,21 @@ type LabMeta = {
   remakeOfId?: string;
   appointmentId?: string;
   tryInDate?: string;
+  qualityControl?: { checks: Record<string, boolean>; passed: boolean; note: string | null; checkedByUserId: string; checkedAt: string };
 };
 
 const STATUS_FLOW: Record<string, string[]> = {
-  pending: ['sent', 'cancelled'], sent: ['in_progress', 'delayed', 'cancelled'],
-  in_progress: ['try_in', 'adjustment', 'ready', 'remake', 'delayed', 'cancelled'],
-  try_in: ['adjustment', 'ready', 'remake'], adjustment: ['ready', 'remake'],
-  ready: ['delivered', 'remake'], delivered: [], remake: ['in_progress', 'delayed', 'cancelled'],
-  delayed: ['in_progress', 'cancelled'], cancelled: [],
+  pending: ['sent', 'cancelled'],
+  sent: ['in_progress', 'delayed', 'cancelled'],
+  in_progress: ['try_in', 'adjustment', 'qc', 'remake', 'delayed', 'cancelled'],
+  try_in: ['adjustment', 'qc', 'remake'],
+  adjustment: ['try_in', 'qc', 'remake'],
+  qc: ['ready', 'remake'],
+  ready: ['delivered', 'remake'],
+  delivered: [],
+  remake: ['in_progress', 'delayed', 'cancelled'],
+  delayed: ['in_progress', 'cancelled'],
+  cancelled: [],
 };
 
 async function requireClinicAssignmentWritable(req: AuthRequest, res: any, clinicId: string): Promise<boolean> {
@@ -94,6 +102,7 @@ function serialize(order: any) {
     doctorId: order.doctorId || null, type: order.type || '', material: meta.material || '', toothNumber: meta.toothNumber || '',
     shade: meta.shade || '', notes: order.notes || '', deadline: order.deadline, price: order.price, status: order.status,
     technicianId: meta.technicianId || null, remakeOfId: meta.remakeOfId || null, appointmentId: meta.appointmentId || null,
+    qualityControl: meta.qualityControl || null,
     treatmentCaseId: (order as any).treatmentCaseId ?? null,
     createdAt: order.createdAt, updatedAt: order.updatedAt,
   };
@@ -159,6 +168,10 @@ labPlatformRouter.patch('/orders/:id/status', async (req: AuthRequest, res) => {
     const next = String(req.body?.status || '');
     const existing = await prisma.labOrder.findFirst({ where: { id: req.params.id, files: { path: ['meta', 'laboratoryId'], equals: membership.labId } } });
     if (!existing) return res.status(404).json({ ok: false, error: 'Заказ не найден в этой лаборатории' } satisfies ApiResponse);
+    const existingMeta = metaOf(existing.files);
+    if (!canLabMemberChangeStatus({ role: membership.role, userId: req.user!.id, assignedTechnicianId: existingMeta.technicianId, nextStatus: next })) {
+      return res.status(403).json({ ok: false, error: 'Это действие недоступно вашей роли лаборатории' } satisfies ApiResponse);
+    }
     if (!STATUS_FLOW[existing.status]?.includes(next)) return res.status(409).json({ ok: false, error: `Переход ${existing.status} → ${next} недоступен` } satisfies ApiResponse);
     const order = await prisma.labOrder.update({ where: { id: existing.id }, data: { status: next as any } });
     await appendEvent(order, existing.status, order.status, req.user!.id, req.body?.note ? String(req.body.note) : undefined);
@@ -171,6 +184,7 @@ labPlatformRouter.patch('/orders/:id/technician', async (req: AuthRequest, res) 
   try {
     const membership = await resolveLab(req);
     if (!membership) return res.status(403).json({ ok: false, error: 'Нет доступа к кабинету лаборатории' } satisfies ApiResponse);
+    if (!isLabManagerRole(membership.role)) return res.status(403).json({ ok: false, error: 'Назначать техников может только владелец или менеджер лаборатории' } satisfies ApiResponse);
     const technicianId = req.body?.technicianId ? String(req.body.technicianId) : null;
     if (technicianId) {
       const technician = await prisma.laboratoryMember.findFirst({ where: { labId: membership.labId, userId: technicianId } });
@@ -182,6 +196,31 @@ labPlatformRouter.patch('/orders/:id/technician', async (req: AuthRequest, res) 
     const order = await prisma.labOrder.update({ where: { id: existing.id }, data: { files: { ...(existing.files as object || {}), meta: { ...meta, technicianId: technicianId || undefined } } } });
     return res.json({ ok: true, data: serialize({ ...order, treatmentCaseId: await caseIdOf(order.id) }) } satisfies ApiResponse);
   } catch (error) { console.error('[LabPlatform] technician error:', error); return res.status(500).json({ ok: false, error: 'Не удалось назначить техника' } satisfies ApiResponse); }
+});
+
+labPlatformRouter.patch('/orders/:id/qc', async (req: AuthRequest, res) => {
+  try {
+    const membership = await resolveLab(req);
+    if (!membership) return res.status(403).json({ ok: false, error: 'Нет доступа к кабинету лаборатории' } satisfies ApiResponse);
+    if (!isLabManagerRole(membership.role)) return res.status(403).json({ ok: false, error: 'Подтверждать QC может только владелец или менеджер лаборатории' } satisfies ApiResponse);
+    const existing = await prisma.labOrder.findFirst({ where: { id: req.params.id, files: { path: ['meta', 'laboratoryId'], equals: membership.labId } } });
+    if (!existing) return res.status(404).json({ ok: false, error: 'Заказ не найден в этой лаборатории' } satisfies ApiResponse);
+    if (existing.status !== 'qc') return res.status(409).json({ ok: false, error: 'Заказ должен находиться на этапе контроля качества' } satisfies ApiResponse);
+    const submission = validateLabQualityControl(req.body?.checks, req.body?.note);
+    if (!submission) return res.status(400).json({ ok: false, error: 'Заполните все пункты QC; при несоответствии укажите замечание' } satisfies ApiResponse);
+    const nextStatus = submission.passed ? 'ready' : 'remake';
+    const meta = metaOf(existing.files);
+    const qualityControl = { ...submission, checkedByUserId: req.user!.id, checkedAt: new Date().toISOString() };
+    const currentFiles = existing.files && typeof existing.files === 'object' && !Array.isArray(existing.files) ? existing.files as Record<string, unknown> : {};
+    const order = await prisma.labOrder.update({
+      where: { id: existing.id },
+      data: { status: nextStatus as any, files: { ...currentFiles, meta: { ...meta, qualityControl } } },
+    });
+    const eventNote = submission.passed ? 'QC подтверждён владельцем лаборатории' : `QC не пройден: ${submission.note}`;
+    await appendEvent(order, existing.status, nextStatus, req.user!.id, eventNote);
+    publish(submission.passed ? 'labOrder.qc_passed' : 'labOrder.qc_failed', { clinicId: order.clinicId, labOrderId: order.id, status: nextStatus, previousStatus: existing.status, userId: req.user?.id, laboratoryId: membership.labId });
+    return res.json({ ok: true, data: serialize({ ...order, treatmentCaseId: await caseIdOf(order.id) }) } satisfies ApiResponse);
+  } catch (error) { console.error('[LabPlatform] QC error:', error); return res.status(500).json({ ok: false, error: 'Не удалось сохранить результат контроля качества' } satisfies ApiResponse); }
 });
 
 labPlatformRouter.get('/team', async (req: AuthRequest, res) => {

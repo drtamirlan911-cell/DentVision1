@@ -38,16 +38,17 @@ interface LabOrderMeta {
 }
 
 export const VALID_STATUSES = [
-  'pending', 'sent', 'in_progress', 'try_in', 'adjustment',
+  'pending', 'sent', 'in_progress', 'try_in', 'adjustment', 'qc',
   'ready', 'delivered', 'remake', 'delayed', 'cancelled',
 ] as const;
 
 export const DENTAL_LAB_TRANSITIONS: Record<string, readonly string[]> = {
   pending: ['sent', 'cancelled', 'delayed'],
   sent: ['in_progress', 'cancelled', 'delayed'],
-  in_progress: ['try_in', 'adjustment', 'ready', 'remake', 'delayed', 'cancelled'],
-  try_in: ['adjustment', 'ready', 'remake', 'delayed', 'cancelled'],
-  adjustment: ['try_in', 'ready', 'remake', 'delayed', 'cancelled'],
+  in_progress: ['try_in', 'adjustment', 'qc', 'remake', 'delayed', 'cancelled'],
+  try_in: ['adjustment', 'qc', 'remake', 'delayed', 'cancelled'],
+  adjustment: ['try_in', 'qc', 'remake', 'delayed', 'cancelled'],
+  qc: ['ready', 'remake'],
   ready: ['delivered', 'remake', 'delayed', 'cancelled'],
   delivered: ['remake'],
   remake: ['in_progress', 'ready', 'delayed', 'cancelled'],

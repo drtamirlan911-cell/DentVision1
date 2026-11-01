@@ -92,6 +92,7 @@ enum LabOrderStatus {
   sent
   try_in
   adjustment
+  qc
   ready
   remake
   delayed
