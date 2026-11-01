@@ -54,7 +54,7 @@ describe('patients route branch scope contract', () => {
   });
 
   it('omits prepaid balance from full patient responses without effective billing permission', () => {
-    expect(source).toContain('function serializePatient(p: any, includeBilling = true)');
+    expect(source).toContain('function serializePatient(p: any, includeBilling = false)');
     expect(source).toContain('async function serializePatientForCaller(p: any, req: AuthRequest)');
     expect(source).toContain("return serializePatient(p, includeBilling)");
     expect(source).toContain('data:await serializePatientForCaller(p,req)');
@@ -73,7 +73,7 @@ describe('patients route branch scope contract', () => {
 
   it('does not expose patient prepaid balance from billing.read alone', () => {
     expect(source).toContain("function canReadPatientBalance(permissions: readonly string[])");
-    expect(source).toContain("grants.has('billing.read') && grants.has('medical.manage')");
+    expect(source).toContain("(grants.has('medical.manage') && grants.has('billing.read'))");
     expect(source).toContain("function serializePatient(p: any, includeBilling = false)");
     expect(source).toContain('canReadPatientBalance(permissions)');
     expect(source).toContain('canReadPatientBalance(effectivePermissions)');
