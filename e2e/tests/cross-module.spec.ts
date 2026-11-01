@@ -196,7 +196,8 @@ test.describe('Cross-Module Workflow: referral → center → result → lab →
         headers: auth(doctorToken),
         data: { status },
       });
-      expect(statusRes.status()).toBe(200);
+      const responseBody = await statusRes.json().catch(() => ({}));
+      expect(statusRes.status(), `CROSS-006 ${status}: ${JSON.stringify(responseBody)}`).toBe(200);
     }
     const listRes = await api.get(`${BASE_URL}/api/lab-orders`, { headers: auth(doctorToken) });
     const orders = (await listRes.json()).data;

@@ -155,9 +155,9 @@ test.describe('Lab Order Workflow', () => {
         headers: auth(ownerToken),
         data: { status },
       });
-      expect(res.status()).toBe(200);
-      const body = await res.json();
-      expect((body.data || body).status).toBe(status);
+      const responseBody = await res.json().catch(() => ({}));
+      expect(res.status(), `LAB-006 ${status}: ${JSON.stringify(responseBody)}`).toBe(200);
+      expect((responseBody.data || responseBody).status).toBe(status);
     }
   });
 

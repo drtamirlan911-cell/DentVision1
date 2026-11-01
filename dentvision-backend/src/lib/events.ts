@@ -33,6 +33,8 @@ export interface DomainEventMap {
   'labOrder.created': { clinicId: string; labOrderId: string; patientId?: string; doctorId?: string; treatmentCaseId?: string; userId?: string };
   'labOrder.status_changed': { clinicId: string; labOrderId: string; patientId?: string; doctorId?: string; treatmentCaseId?: string; status: string; previousStatus?: string; userId?: string };
   'labOrder.assigned': { clinicId: string; labOrderId: string; laboratoryId: string; laboratoryName: string; patientId?: string; doctorId?: string; treatmentCaseId?: string; userId?: string };
+  'labOrder.qc_passed': { clinicId: string; labOrderId: string; laboratoryId: string; status: string; previousStatus: string; userId?: string };
+  'labOrder.qc_failed': { clinicId: string; labOrderId: string; laboratoryId: string; status: string; previousStatus: string; userId?: string };
   'medicalLabOrder.created': { orderId: string; clinicId: string; patientId?: string | null; treatmentCaseId?: string | null; labId?: string | null; userId?: string };
   'medicalLabOrder.status_changed': { orderId: string; clinicId: string; fromStatus: string; toStatus: string; userId?: string };
   'medicalLabResult.ready': { orderId: string; clinicId: string; patientId?: string | null; treatmentCaseId?: string | null; userId?: string };
