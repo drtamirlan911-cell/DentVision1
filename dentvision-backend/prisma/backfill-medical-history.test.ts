@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { classifyMedicalHistory, parseBackfillOptions } from './backfill-medical-history.js';
+import { classifyMedicalHistory, isStructuredMedicalHistoryRoot, parseBackfillOptions } from './backfill-medical-history.js';
 
 describe('medical-history backfill safeguards', () => {
   it('defaults to a read-only dry run', () => {
@@ -38,6 +38,16 @@ describe('medical-history backfill safeguards', () => {
   it('rejects invalid batch sizes', () => {
     expect(() => parseBackfillOptions(['--batch-size=0'], {})).toThrow(/--batch-size/);
     expect(() => parseBackfillOptions(['--batch-size=1001'], {})).toThrow(/--batch-size/);
+  });
+
+  it('only accepts structured object roots for plaintext/envelope history backfill', () => {
+    expect(isStructuredMedicalHistoryRoot({ allergies: 'penicillin' })).toBe(true);
+    expect(isStructuredMedicalHistoryRoot({})).toBe(true);
+    expect(isStructuredMedicalHistoryRoot([])).toBe(false);
+    expect(isStructuredMedicalHistoryRoot('legacy plaintext')).toBe(false);
+    expect(isStructuredMedicalHistoryRoot(42)).toBe(false);
+    expect(isStructuredMedicalHistoryRoot(false)).toBe(false);
+    expect(isStructuredMedicalHistoryRoot(null)).toBe(false);
   });
 
   it('distinguishes plaintext JSON, new envelopes, legacy ciphertext, and null', () => {
