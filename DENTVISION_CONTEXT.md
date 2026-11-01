@@ -543,3 +543,11 @@ PARTNER-003 verifies only the current basic handoff and production path. It does
 - The write pass repeats the check defensively. Historical patient-portal scalar `ENC:` values remain separately read-compatible.
 - Added pure tests for object acceptance and array/string/number/boolean/null rejection. Code/test commits `325923cdef473a26cad9f88f8973174c0c78efe7`, `aa99f16c6aaff1f26d516451cd6c80b687885842`.
 - This guards data integrity but does not close RB-029: exception ledger, full reader/writer and key-rotation review, verified backup/restore, approved staging dry run/backfill and reconciliation remain outstanding. No database or PHI operation was executed.
+
+
+## 2026-11-01 — D2 archive retention E2E
+
+- Added \`ORG-009\` to the existing organization-owner lifecycle suite. It creates a one-off clinic and patient, archives only its canonical Organization context, checks that the archived context is hidden and the prior owner token is denied, then uses SUPERADMIN to confirm the linked Clinic and patient count remain and to restore the context.
+- The test avoids shared E2E Clinic A and has a finally-based restore attempt if an assertion fails.
+- Test commits: \`65e9c3d49959301d87f704a2216e6e8f6ab4139f\` and \`d062acd90082f6d1bcf3b406508418e32133d9c7\`.
+- Exact-head CI must verify the test. D2 remains OPEN pending E2E and approved staging migration/retention evidence; no database migration or live archive/restore was executed.
