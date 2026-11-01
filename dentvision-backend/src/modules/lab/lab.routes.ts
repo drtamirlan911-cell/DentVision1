@@ -229,28 +229,41 @@ labRouter.patch('/:id/status', requirePermission('lab.write'), async (req: AuthR
     if (!clinicId) return res.status(400).json({ ok: false, error: 'Клиника не указана' } satisfies ApiResponse);
     const { status } = req.body as { status?: string };
     if (!status || !VALID_STATUSES.includes(status as typeof VALID_STATUSES[number])) return res.status(400).json({ ok: false, error: `Недопустимый статус. Допустимые: ${VALID_STATUSES.join(', ')}` } satisfies ApiResponse);
-    const owned = await prisma.labOrder.findFirst({ where: { id: req.params.id as string, clinicId, ...branchScopedLabOrder(req) }, select: { id: true, status: true, patientId: true, doctorId: true, files: true } });
-    if (!owned) return res.status(404).json({ ok: false, error: 'Заказ лаборатории не найден' } satisfies ApiResponse);
-    const ownedMeta = (owned.files as { meta?: LabOrderMeta } | null)?.meta || {};
-    if (ownedMeta.laboratoryId) return res.status(409).json({ ok: false, error: 'Заказ передан внешней лаборатории. Статусом управляет кабинет лаборатории.', code: 'LAB_PARTNER_WORKFLOW_OWNED' } satisfies ApiResponse);
-    if (owned.status !== status && !isDentalLabTransitionAllowed(owned.status, status)) return res.status(400).json({ ok: false, error: `Недопустимый переход ${owned.status} → ${status}` } satisfies ApiResponse);
     await ensureDentalLabOrderEventsTable();
-    const order = await prisma.$transaction(async (tx) => {
-      const order = await tx.labOrder.update({ where: { id: req.params.id as string }, data: { status: status as any } });
-      await tx.$executeRawUnsafe(`INSERT INTO "dental_lab_order_events" ("id","labOrderId","clinicId","fromStatus","toStatus","actorUserId","createdAt") VALUES ($1,$2,$3,$4,$5,$6,CURRENT_TIMESTAMP)`, uid(), order.id, clinicId, owned.status, order.status, req.user!.id);
-      if (order.status === 'delivered' && owned.status !== 'delivered') {
-        const meta = (order.files as { meta?: LabOrderMeta } | null)?.meta || {};
-        const partnerId = meta.laboratoryId || null;
-        const branchId = order.patientId ? (await tx.patient.findUnique({ where: { id: order.patientId }, select: { branchId: true } }))?.branchId ?? null : null;
+    const outcome = await prisma.$transaction(async (tx) => {
+      const orderId = String(req.params.id);
+      await tx.$queryRaw<Array<{ id: string }>>`SELECT "id" FROM "lab_orders" WHERE "id"=${orderId} AND "clinicId"=${clinicId} FOR UPDATE`;
+      const existing = await tx.labOrder.findFirst({ where: { id: orderId, clinicId, ...branchScopedLabOrder(req) } });
+      if (!existing) return { kind: 'not_found' as const };
+      const existingMeta = (existing.files as { meta?: LabOrderMeta } | null)?.meta || {};
+      if (existingMeta.laboratoryId) return { kind: 'partner_owned' as const };
+      if (existing.status !== status && !isDentalLabTransitionAllowed(existing.status, status)) {
+        return { kind: 'invalid_transition' as const, fromStatus: existing.status };
+      }
+
+      const order = await tx.labOrder.update({ where: { id: orderId }, data: { status: status as any } });
+      await tx.$executeRawUnsafe(
+        `INSERT INTO "dental_lab_order_events" ("id","labOrderId","clinicId","fromStatus","toStatus","actorUserId","createdAt") VALUES ($1,$2,$3,$4,$5,$6,CURRENT_TIMESTAMP)`,
+        uid(), order.id, clinicId, existing.status, order.status, req.user!.id,
+      );
+      if (order.status === 'delivered' && existing.status !== 'delivered') {
+        const partnerId = existingMeta.laboratoryId || null;
+        const branchId = order.patientId
+          ? (await tx.patient.findUnique({ where: { id: order.patientId }, select: { branchId: true } }))?.branchId ?? null
+          : null;
         const grossMinor = order.price != null ? tengeToMinor(Number(order.price) || 0) : 0n;
         if (partnerId && grossMinor > 0n) {
           await recordPartnerEconomics({ vertical: 'DENTAL_LAB', partnerId, grossMinor, operationId: order.id, branchId }, tx);
         }
       }
-      return order;
+      return { kind: 'updated' as const, order, previousStatus: existing.status };
     });
-    await writeAuditLog({ action: 'LAB_ORDER_STATUS_CHANGED', entity: 'lab_order', entityId: order.id, details: { workflow: 'dental-laboratory', queueKey: 'lab-orders', fromStatus: owned.status, toStatus: order.status, patientId: owned.patientId || null }, userId: req.user!.id, clinicId });
-    publish('labOrder.status_changed', { clinicId, labOrderId: order.id, patientId: owned.patientId || undefined, doctorId: owned.doctorId || undefined, status: order.status, previousStatus: owned.status, userId: req.user?.id });
+    if (outcome.kind === 'not_found') return res.status(404).json({ ok: false, error: 'Заказ лаборатории не найден' } satisfies ApiResponse);
+    if (outcome.kind === 'partner_owned') return res.status(409).json({ ok: false, error: 'Заказ передан внешней лаборатории. Статусом управляет кабинет лаборатории.', code: 'LAB_PARTNER_WORKFLOW_OWNED' } satisfies ApiResponse);
+    if (outcome.kind === 'invalid_transition') return res.status(400).json({ ok: false, error: `Недопустимый переход ${outcome.fromStatus} → ${status}` } satisfies ApiResponse);
+    const order = outcome.order;
+    await writeAuditLog({ action: 'LAB_ORDER_STATUS_CHANGED', entity: 'lab_order', entityId: order.id, details: { workflow: 'dental-laboratory', queueKey: 'lab-orders', fromStatus: outcome.previousStatus, toStatus: order.status, patientId: order.patientId || null }, userId: req.user!.id, clinicId });
+    publish('labOrder.status_changed', { clinicId, labOrderId: order.id, patientId: order.patientId || undefined, doctorId: order.doctorId || undefined, status: order.status, previousStatus: outcome.previousStatus, userId: req.user?.id });
     return res.json({ ok: true, data: serializeLabOrder(order) } satisfies ApiResponse);
   } catch (error) { console.error('[Lab] status update error:', error); return res.status(500).json({ ok: false, error: 'Не удалось обновить статус заказа' } satisfies ApiResponse); }
 });

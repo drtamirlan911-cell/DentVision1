@@ -154,9 +154,12 @@ export default function Lab() {
     setSubmitting(true)
     try {
       const newOrder = { ...form, ...(editOrder ? { id: editOrder.id } : {}), clinicId: clinic?.id, status: (editOrder?.status || 'pending') as LabOrderStatus }
-      await upsertLabOrder(newOrder as LabOrder)
+      const savedOrder = await upsertLabOrder(newOrder as LabOrder)
       showToast(editOrder ? 'Заказ обновлён' : 'Заказ создан', 'success')
-      if ((form.labType === 'crown' || form.labType === 'bridge') && form.material) printWorkOrder(newOrder)
+      if ((form.labType === 'crown' || form.labType === 'bridge') && form.material) {
+        const savedData = savedOrder?.data || savedOrder
+        printWorkOrder({ ...newOrder, ...(savedData && typeof savedData === 'object' ? savedData : {}) } as LabOrder)
+      }
       setModalOpen(false)
     } catch { showToast('Ошибка сохранения', 'error') } finally { setSubmitting(false) }
   }

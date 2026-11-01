@@ -144,11 +144,6 @@ async function caseIdOf(orderId: string): Promise<string | null> {
   return rows[0]?.treatmentCaseId ?? null;
 }
 
-async function appendEvent(order: { id: string; clinicId: string }, fromStatus: string | null, toStatus: string, actorUserId: string, note?: string) {
-  await ensureDentalLabOrderEventsTable();
-  await prisma.$executeRawUnsafe(`INSERT INTO "dental_lab_order_events" ("id","labOrderId","clinicId","fromStatus","toStatus","note","actorUserId","createdAt") VALUES ($1,$2,$3,$4,$5,$6,$7,CURRENT_TIMESTAMP)`, uid(), order.id, order.clinicId, fromStatus, toStatus, note ?? null, actorUserId);
-}
-
 async function ordersForLab(labId: string, status?: string) {
   const rows = await prisma.labOrder.findMany({
     where: { ...(status ? { status: status as any } : {}), files: { path: ['meta', 'laboratoryId'], equals: labId } },
@@ -223,17 +218,28 @@ labPlatformRouter.patch('/orders/:id/status', async (req: AuthRequest, res) => {
     const membership = await resolveLab(req);
     if (!membership) return res.status(403).json({ ok: false, error: 'Нет доступа к кабинету лаборатории' } satisfies ApiResponse);
     const next = String(req.body?.status || '');
-    const existing = await prisma.labOrder.findFirst({ where: { id: req.params.id, files: { path: ['meta', 'laboratoryId'], equals: membership.labId } } });
-    if (!existing) return res.status(404).json({ ok: false, error: 'Заказ не найден в этой лаборатории' } satisfies ApiResponse);
-    const existingMeta = metaOf(existing.files);
-    if (!canLabMemberChangeStatus({ role: membership.role, userId: req.user!.id, assignedTechnicianId: existingMeta.technicianId, nextStatus: next })) {
-      return res.status(403).json({ ok: false, error: 'Это действие недоступно вашей роли лаборатории' } satisfies ApiResponse);
-    }
-    if (!STATUS_FLOW[existing.status]?.includes(next)) return res.status(409).json({ ok: false, error: `Переход ${existing.status} → ${next} недоступен` } satisfies ApiResponse);
-    const order = await prisma.labOrder.update({ where: { id: existing.id }, data: { status: next as any } });
-    await appendEvent(order, existing.status, order.status, req.user!.id, req.body?.note ? String(req.body.note) : undefined);
-    publish('labOrder.status_changed', { clinicId: order.clinicId, labOrderId: order.id, patientId: order.patientId || undefined, doctorId: order.doctorId || undefined, treatmentCaseId: await caseIdOf(order.id) || undefined, status: order.status, previousStatus: existing.status, userId: req.user?.id });
-    return res.json({ ok: true, data: serialize({ ...order, treatmentCaseId: await caseIdOf(order.id) }) } satisfies ApiResponse);
+    await ensureDentalLabOrderEventsTable();
+    const outcome = await prisma.$transaction(async (tx) => {
+      const orderId = String(req.params.id);
+      await tx.$queryRaw<Array<{ id: string }>>`SELECT "id" FROM "lab_orders" WHERE "id"=${orderId} FOR UPDATE`;
+      const existing = await tx.labOrder.findFirst({ where: { id: orderId, files: { path: ['meta', 'laboratoryId'], equals: membership.labId } } });
+      if (!existing) return { kind: 'not_found' as const };
+      const existingMeta = metaOf(existing.files);
+      if (!canLabMemberChangeStatus({ role: membership.role, userId: req.user!.id, assignedTechnicianId: existingMeta.technicianId, nextStatus: next })) {
+        return { kind: 'forbidden' as const };
+      }
+      if (!STATUS_FLOW[existing.status]?.includes(next)) return { kind: 'invalid_transition' as const, fromStatus: existing.status };
+      const order = await tx.labOrder.update({ where: { id: existing.id }, data: { status: next as any } });
+      await appendEventInTransaction(tx, order, existing.status, order.status, req.user!.id, req.body?.note ? String(req.body.note) : undefined);
+      return { kind: 'updated' as const, order, previousStatus: existing.status };
+    });
+    if (outcome.kind === 'not_found') return res.status(404).json({ ok: false, error: 'Заказ не найден в этой лаборатории' } satisfies ApiResponse);
+    if (outcome.kind === 'forbidden') return res.status(403).json({ ok: false, error: 'Это действие недоступно вашей роли лаборатории' } satisfies ApiResponse);
+    if (outcome.kind === 'invalid_transition') return res.status(409).json({ ok: false, error: `Переход ${outcome.fromStatus} → ${next} недоступен` } satisfies ApiResponse);
+    const order = outcome.order;
+    const treatmentCaseId = await caseIdOf(order.id) || undefined;
+    publish('labOrder.status_changed', { clinicId: order.clinicId, labOrderId: order.id, patientId: order.patientId || undefined, doctorId: order.doctorId || undefined, treatmentCaseId, status: order.status, previousStatus: outcome.previousStatus, userId: req.user?.id });
+    return res.json({ ok: true, data: serialize({ ...order, treatmentCaseId }) } satisfies ApiResponse);
   } catch (error) { console.error('[LabPlatform] status error:', error); return res.status(500).json({ ok: false, error: 'Не удалось изменить статус заказа' } satisfies ApiResponse); }
 });
 
@@ -243,14 +249,32 @@ labPlatformRouter.patch('/orders/:id/technician', async (req: AuthRequest, res) 
     if (!membership) return res.status(403).json({ ok: false, error: 'Нет доступа к кабинету лаборатории' } satisfies ApiResponse);
     if (!isLabManagerRole(membership.role)) return res.status(403).json({ ok: false, error: 'Назначать техников может только владелец или менеджер лаборатории' } satisfies ApiResponse);
     const technicianId = req.body?.technicianId ? String(req.body.technicianId) : null;
-    if (technicianId) {
-      const technician = await prisma.laboratoryMember.findFirst({ where: { labId: membership.labId, userId: technicianId } });
-      if (!technician) return res.status(400).json({ ok: false, error: 'Сотрудник не состоит в этой лаборатории' } satisfies ApiResponse);
-    }
-    const existing = await prisma.labOrder.findFirst({ where: { id: req.params.id, files: { path: ['meta', 'laboratoryId'], equals: membership.labId } } });
-    if (!existing) return res.status(404).json({ ok: false, error: 'Заказ не найден в этой лаборатории' } satisfies ApiResponse);
-    const meta = metaOf(existing.files);
-    const order = await prisma.labOrder.update({ where: { id: existing.id }, data: { files: { ...(existing.files as object || {}), meta: { ...meta, technicianId: technicianId || undefined } } } });
+    await ensureDentalLabOrderEventsTable();
+    const outcome = await prisma.$transaction(async (tx) => {
+      const orderId = String(req.params.id);
+      await tx.$queryRaw<Array<{ id: string }>>`SELECT "id" FROM "lab_orders" WHERE "id"=${orderId} FOR UPDATE`;
+      const existing = await tx.labOrder.findFirst({ where: { id: orderId, files: { path: ['meta', 'laboratoryId'], equals: membership.labId } } });
+      if (!existing) return { kind: 'not_found' as const };
+      if (technicianId) {
+        const technician = await tx.laboratoryMember.findFirst({ where: { labId: membership.labId, userId: technicianId } });
+        if (!technician) return { kind: 'invalid_technician' as const };
+      }
+      const meta = metaOf(existing.files);
+      if ((meta.technicianId || null) === technicianId) return { kind: 'unchanged' as const, order: existing };
+      const currentFiles = existing.files && typeof existing.files === 'object' && !Array.isArray(existing.files)
+        ? existing.files as Record<string, unknown>
+        : {};
+      const order = await tx.labOrder.update({
+        where: { id: existing.id },
+        data: { files: { ...currentFiles, meta: { ...meta, technicianId: technicianId || undefined } } },
+      });
+      const eventNote = technicianId ? 'Назначен ответственный зубной техник' : 'Ответственный зубной техник снят с заказа';
+      await appendEventInTransaction(tx, order, existing.status, existing.status, req.user!.id, eventNote);
+      return { kind: 'updated' as const, order };
+    });
+    if (outcome.kind === 'not_found') return res.status(404).json({ ok: false, error: 'Заказ не найден в этой лаборатории' } satisfies ApiResponse);
+    if (outcome.kind === 'invalid_technician') return res.status(400).json({ ok: false, error: 'Сотрудник не состоит в этой лаборатории' } satisfies ApiResponse);
+    const order = outcome.order;
     return res.json({ ok: true, data: serialize({ ...order, treatmentCaseId: await caseIdOf(order.id) }) } satisfies ApiResponse);
   } catch (error) { console.error('[LabPlatform] technician error:', error); return res.status(500).json({ ok: false, error: 'Не удалось назначить техника' } satisfies ApiResponse); }
 });
