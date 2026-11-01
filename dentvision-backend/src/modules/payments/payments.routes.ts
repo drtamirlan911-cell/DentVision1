@@ -500,10 +500,18 @@ async function assertPaymentOwner(
 ) {
   const meta = (payment.meta || {}) as { userId?: string; clinicId?: string; merchantScope?: string };
 
-  // Clinic scope is derived from the immutable server-selected provider and
-  // canonical reference type, not from client metadata alone.
-  const clinicId = clinicPaymentScope(payment);
-  if (clinicId) return canManageClinicBillingMutation(req.user!, clinicId);
+  // Clinic scope is derived from the immutable provider/reference type, not
+  // from client-writable metadata alone. Legacy clinic payment records without
+  // a recoverable clinicId must fail closed rather than fall through to userId.
+  const clinicScopedPayment = payment.provider === 'clinic_kaspi'
+    || meta.merchantScope === 'clinic'
+    || payment.refType === 'appointment'
+    || payment.refType === 'crm_invoice';
+  if (clinicScopedPayment) {
+    const clinicId = clinicPaymentScope(payment);
+    if (!clinicId) return false;
+    return canManageClinicBillingMutation(req.user!, clinicId);
+  }
 
   // Orders are canonical ownership records. Historical payment metadata was
   // client-writable before the metadata hardening, so it must never override an

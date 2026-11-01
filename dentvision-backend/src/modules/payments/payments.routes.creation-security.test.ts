@@ -690,6 +690,28 @@ describe('trial-expired clinic payment boundary', () => {
   });
 });
 
+describe('legacy clinic payment ownership without scope metadata', () => {
+  it('fails closed when a clinic payment has no clinicId even if legacy userId matches', async () => {
+    m.paymentFindUnique.mockResolvedValue({
+      id: 'legacy-clinic-payment-missing-scope',
+      provider: 'clinic_kaspi',
+      externalId: 'legacy-clinic-external',
+      amount: 10000n,
+      status: 'pending',
+      refType: 'crm_invoice',
+      refId: 'legacy-invoice',
+      meta: { userId: 'authenticated-user', merchantScope: 'clinic' },
+    });
+
+    const { response, body } = await postConfirm('legacy-clinic-payment-missing-scope');
+    expect(response.status).toBe(403);
+    expect(body.ok).toBe(false);
+    expect(m.providerStatus).not.toHaveBeenCalled();
+    expect(m.loadClinicPaymentsConfig).not.toHaveBeenCalled();
+    expect(m.transaction).not.toHaveBeenCalled();
+  });
+});
+
 describe('legacy platform payment ownership', () => {
   it('uses the canonical order owner instead of a client-writable legacy userId when confirming an order payment', async () => {
     m.paymentFindUnique.mockResolvedValueOnce({

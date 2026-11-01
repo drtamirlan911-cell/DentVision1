@@ -595,3 +595,10 @@ Parallel-branch evidence retained during integration; reconcile against the curr
 - The single failing test was a stale source-shape assertion in `refund.service.test.ts` that expected the clinic scope condition inline after production code had correctly moved that decision into `clinicPaymentScope()`. The new payment route runtime tests passed 24/24.
 - Updated the matcher to assert the helper's clinic-provider/reference detection and that billing authorization precedes the generic payer fallback. No runtime permission behavior was weakened.
 - **Verification pending:** fresh exact-head full CI, including the complete E2E/role/visual/owner/CLI sequence. D1 remains OPEN pending approved staging positive-read/negative-write proof.
+
+
+## D1/payment hardening follow-up — legacy clinic payment without scope metadata (2026-11-01)
+
+- **Finding:** a legacy payment marked clinic-scoped by `provider=clinic_kaspi`, `merchantScope=clinic`, `refType=appointment` or `refType=crm_invoice`, but missing `meta.clinicId`, could fall through to generic `meta.userId` ownership.
+- **Fix in PR #330:** clinic-scoped payment ownership is now evaluated before generic user ownership; missing clinic scope fails closed with 403. Added route-level regression coverage.
+- **Status:** pending exact-head CI. No payment or financial database rows were changed.

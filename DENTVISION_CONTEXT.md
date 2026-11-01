@@ -469,3 +469,8 @@ CI 41186233177 exposed a browser-gate environment issue: role-1280 reported pend
 - Unit tests reported 2,415 passed / 1 failed. The failure was `refund.service.test.ts`'s source-shape assertion still searching for the former inline `if (meta.clinicId && ...)` implementation after clinic scoping had been extracted into `clinicPaymentScope()`. The new runtime payment-route tests themselves passed (24/24).
 - Updated the source-contract assertion to verify the current helper recognizes server-selected clinic provider/reference scope, and that clinic billing authorization runs before the generic payer-owner fallback. No runtime permission check was relaxed or removed.
 - A fresh exact-head full CI is mandatory. Release remains NOT READY; no staging/production operation or `main` merge was performed.
+
+
+## 2026-11-01 — legacy clinic-payment scope fail-closed
+
+A second edge case was found in historical clinic payment ownership: when a payment was clearly clinic-scoped by its immutable provider/reference/merchant marker but its legacy metadata lacked `clinicId`, the scope helper returned null and generic `meta.userId` ownership could be considered. Updated `assertPaymentOwner` to recognize clinic-scoped records first and reject any record that cannot resolve its clinic scope. Added a route regression test for a legacy `clinic_kaspi` payment with a matching userId but missing clinicId. Exact-head CI is required; no financial rows were modified.
