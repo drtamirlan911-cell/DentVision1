@@ -127,8 +127,13 @@ describe('D1 clinic-to-dental-lab assignment boundary', () => {
     const assignStart = text.indexOf("labPlatformRouter.post('/assign'");
     const assignEnd = text.indexOf('\n});', assignStart);
     const route = text.slice(assignStart, assignEnd);
-    expect(route.indexOf('requireClinicAssignmentWritable')).toBeLessThan(route.indexOf('prisma.labOrder.findFirst'));
-    expect(route.indexOf('branchScopedClinicLabOrder')).toBeGreaterThan(route.indexOf('prisma.labOrder.findFirst'));
+    const subscriptionGuard = route.indexOf('requireClinicAssignmentWritable');
+    const rowLock = route.indexOf('FOR UPDATE');
+    const scopedLookup = route.indexOf('tx.labOrder.findFirst');
+    expect(subscriptionGuard).toBeGreaterThanOrEqual(0);
+    expect(rowLock).toBeGreaterThan(subscriptionGuard);
+    expect(scopedLookup).toBeGreaterThan(rowLock);
+    expect(route.slice(scopedLookup)).toContain('...branchScopedClinicLabOrder(req)');
   });
 
   it('does not put laboratory-owned dashboard/status/technician workflows behind clinic trial middleware', async () => {

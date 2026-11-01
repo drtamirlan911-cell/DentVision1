@@ -19,9 +19,27 @@ describe('dental lab order event schema contract', () => {
     expect(clinic).toContain("import { ensureDentalLabOrderEventsTable } from './dentalLabOrderEvents.js'");
     expect(clinic).toContain('await ensureDentalLabOrderEventsTable()');
     expect(partner).toContain("import { ensureDentalLabOrderEventsTable } from './dentalLabOrderEvents.js'");
-    const start = partner.indexOf('async function appendEvent');
-    const end = partner.indexOf('async function ordersForLab', start);
-    expect(partner.slice(start, end)).toContain('await ensureDentalLabOrderEventsTable()');
+    const writerStart = partner.indexOf('async function appendEventInTransaction');
+    const writerEnd = partner.indexOf('function serialize', writerStart);
+    const writer = partner.slice(writerStart, writerEnd);
+    expect(writer).toContain('tx.$executeRawUnsafe');
+
+    const eventRoutes = [
+      "labPlatformRouter.post('/assign'",
+      "labPlatformRouter.patch('/orders/:id/status'",
+      "labPlatformRouter.patch('/orders/:id/technician'",
+      "labPlatformRouter.patch('/orders/:id/qc'",
+    ];
+    for (const routeStart of eventRoutes) {
+      const start = partner.indexOf(routeStart);
+      const end = partner.indexOf('\\n});', start);
+      const route = partner.slice(start, end);
+      const bootstrap = route.indexOf('await ensureDentalLabOrderEventsTable()');
+      const transaction = route.indexOf('prisma.$transaction');
+      expect(start, routeStart).toBeGreaterThanOrEqual(0);
+      expect(bootstrap, routeStart).toBeGreaterThanOrEqual(0);
+      expect(transaction, routeStart).toBeGreaterThan(bootstrap);
+    }
   });
 
   it('has a forward migration for existing historical tables', () => {

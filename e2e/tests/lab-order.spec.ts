@@ -104,12 +104,12 @@ test.describe('Lab Order Workflow', () => {
     expect(orders.some((o: any) => o.id === orderId)).toBe(true);
   });
 
-  test('LAB-003: Update lab order via POST with id in body → 201 + changes persisted', async () => {
+  test('LAB-003: Update lab order via POST with id in body → 200 + changes persisted', async () => {
     const created = await (await createLabOrder(api, ownerToken)).json();
     const orderId = (created.data || created).id;
 
     const updateRes = await createLabOrder(api, ownerToken, { id: orderId, material: 'e-max', shade: 'B1' });
-    expect(updateRes.status()).toBe(201);
+    expect(updateRes.status()).toBe(200);
     const updated = await updateRes.json();
     const order = updated.data || updated;
     expect(order.id).toBe(orderId);
