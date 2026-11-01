@@ -2768,3 +2768,14 @@ Added route-contract tests covering all write routes and the laboratory-context 
 - Corrected the Operating Directive, Master Spec implication, Execution Plan and Settlement Payment Contract. Commission recognition follows successful commercial settlement only; delivery remains an operational status. No new Kaspi payment or callback was invented. D10 remains OPEN until an approved invoice/payment/settlement/payout/refund/chargeback workflow exists.
 - Added RB-036 for the premature delivery-recognition defect. Historical DENTAL_LAB wallet/ledger records were not modified; read-only reconciliation against external payment evidence is required before any separately approved correction.
 - No staging/production DB operation, migration, PHI backfill, deployment, environment change, merge to main or local test execution was performed. No local checkout is mounted.
+
+
+## 2026-11-01 — RB-035 patient balance DTO boundary correction
+
+- Active repository remains `drtamirlan911-cell/DentVision1`, existing PR #330 branch `fix/d1-d10-trial-archive-signing-api-20261029`. No sibling branch or main-branch changes.
+- Confirmed the canonical IAM contract: `billing.read` grants read-only price-list access; it is not by itself authorization to see a patient's prepaid cash balance. MANAGER has `billing.read` without `medical.manage`; DOCTOR has the care-specific combination `billing.read` + `medical.manage`.
+- The existing shared `canReadPatientBalance()` predicate now governs caller-aware full DTO and patient-list serialization. `serializePatient()` is fail-closed by default (`includeBilling = false`); the patient summary route also uses `serializePatientForCaller()` rather than bypassing caller-specific field authorization.
+- Added negative E2E coverage: MANAGER can still list the patient but must not receive `prepaidBalance`; DOCTOR receives the care-relevant balance only with the documented clinical+billing permission pair. Added a route contract locking the exact permission predicate and fail-closed serializer default.
+- Implementation/test commits: `76c76548d625460e294ed96599dd56cbcb1492e3`, `a09a1afdb1600c27a5f7fe7e69753e0d935c92ef`, `f1d512ce676cd253c7bb23a4c173d008e045e5c0`. Release-blocker note recorded in `docs/RELEASE_BLOCKERS.md` commit `e4c5e216f1061141246a89fa49ccae96b92dde17`.
+- Previous complete exact-head CI `41285849836` passed all jobs on prior HEAD `20e14ef97ae0c89be96f798ab009f0b7fc132d65`, including Role/Context, Visual Agent, Business Owner, Organization Owner and final visual-evidence checks. A later source/doc head requires its own exact-head verification; RB-035 remains OPEN pending this verification.
+- No staging/production DB query or write, migration, PHI backfill, Render environment change, production deployment, payment-provider operation or merge to `main` was performed.
