@@ -525,3 +525,13 @@ PARTNER-003 verifies only the current basic handoff and production path. It does
 - Canonical policy is settlement-first. There is no approved dental-lab invoice/payment/settlement contract or callback; no replacement Kaspi/platform payment path was invented. D10 remains OPEN pending the full commercial lifecycle and owner/manager/technician matrix.
 - Existing financial history is preserved untouched. Historical DENTAL_LAB rows require read-only reconciliation against external proof of payment before any separately approved corrective action.
 - No staging/production DB operation, migration, PHI backfill, environment change, deployment or main merge was performed. Local checkout is not mounted; local git status/tests are not claimed.
+
+
+## 2026-11-01 — RB-035 patient prepaid-balance field boundary
+
+- `billing.read` is read-only price-list capability under the IAM Matrix; do not use it alone to reveal a patient's prepaid balance.
+- Current field rule: allow balance for `billing.write`, `billing.delete`, `billing.manage` or SUPERADMIN wildcard; otherwise allow only when both `medical.manage` and `billing.read` are present for care-related clinical context.
+- Patient full-DTO serializer defaults to hiding `prepaidBalance`; caller-aware serialization is used for the patient summary route as well. Patient-list serialization shares the same policy.
+- New E2E checks operational MANAGER list access without balance disclosure and DOCTOR access under the explicit care-specific permission pair. Route-contract test locks the fail-closed default and permission expression.
+- Code/test commits: `76c76548d625460e294ed96599dd56cbcb1492e3`, `a09a1afdb1600c27a5f7fe7e69753e0d935c92ef`, `f1d512ce676cd253c7bb23a4c173d008e045e5c0`. Release blocker and execution log updated; exact-head CI for the resulting documentation head is still required.
+- RB-035 stays OPEN until exact-head E2E and the remaining patient-route/IAM/tenant/branch negative matrix pass. No staging/production query, database write, migration, PHI backfill or production deployment was executed.
