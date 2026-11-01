@@ -1,5 +1,16 @@
 # DentVision — Master Execution Plan
 
+## Latest implementation checkpoint — 2026-11-01 (RB-029 / RB-035 / role-gate corrections)
+
+- This checkpoint is based on live PR #330 branch \`fix/d1-d10-trial-archive-signing-api-20261029\`, HEAD \`45900d0d33b507bb0bb492d2d23b0243a615ec25\`. Base/main remains \`ac913cc3389a294d0b135a852b035ddddb1018ca\`; no merge.
+- Corrected two stale RB-035 source-contract matchers exposed by CI \`41312419249\`; runtime permissions and balance serialization remain unchanged and fail-closed.
+- Added shared object-root validation to PHI helpers and reject scalar/array medical-history writes in Patient Portal PUT, Patient POST and Patient PATCH. Existing scalar \`ENC:\` is legacy read compatibility only. Added unit and route-contract tests.
+- Corrected one Safari Role/Context collector race based on the Playwright trace: only explicit request-cancellation signatures are deferred briefly; expected navigation cancellation requires an actual main-document epoch advance. Otherwise the request remains a hard failure.
+- Exact parent CI \`41312419249\` results are not carried forward as proof: 2,432/2,434 unit tests passed; Core E2E/Browser UX/Mobile/Visual Agent/Business Owner/Organization Owner/CLI/visual-evidence and Quality/RB-034 passed; Role/Context had one PATIENT Safari cancellation race. The two unit matcher failures and Safari race have source/test fixes, but need exact final-head verification.
+- CI \`41333100207\` started on code/test HEAD \`5bfd700\`; frontend/backend lint, Quality Gate \`41333100271\` and RB-034 \`41333100268\` passed. E2E was cancelled by subsequent documentation pushes and is not counted as a pass.
+- Next: run and inspect a complete non-cancelled CI/Quality/RB-034 on the exact final documentation HEAD. Then continue D1/D2/D8 staging proof, RB-029 full consumer/backfill/key/backup audit, RB-030 real offline→reconnect E2E, RB-031 WebKit/CORS evidence, RB-033 branch protection, RB-035 full route/role matrix, Kaspi/production verification and remaining D10 Master Spec workflow parity.
+- Release remains NOT READY; PR #330 stays OPEN/DRAFT. No staging/production DB query/write, migration, PHI backfill, payment-provider action, environment/secret change, deployment or main merge was performed.
+
 ## Latest implementation checkpoint — 2026-11-01 (D10 settlement-boundary correction)
 
 - Continue only on existing PR #330 / `fix/d1-d10-trial-archive-signing-api-20261029`; this update is based on exact live HEAD `b43b3c01b229b21c1fa2cda7d149c55486bb4e42`. Base/main remains `ac913cc3389a294d0b135a852b035ddddb1018ca`.
