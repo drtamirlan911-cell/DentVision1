@@ -177,6 +177,45 @@ test.describe('Здоровье: медицинские записи', () => {
     expect(assistant.status()).toBe(403);
   });
 
+  test('billing.read alone does not expose patient prepaid balance; doctor gets care-related balance', async () => {
+    const created = await ctx.post('/api/patients', {
+      headers: auth(ownerA),
+      data: {
+        iin: makeIin(),
+        firstName: 'RB035',
+        lastName: 'BalanceBoundary',
+        phone: '+77010004446',
+      },
+    });
+    expect(created.ok(), await created.text()).toBeTruthy();
+    const patientId = ((await created.json()).data || {}).id as string;
+
+    const deposit = await ctx.post(`/api/patients/${patientId}/deposit`, {
+      headers: auth(ownerA),
+      data: { amount: 3500 },
+    });
+    expect(deposit.status(), await deposit.text()).toBe(200);
+
+    const [managerList, doctorList] = await Promise.all([
+      ctx.get('/api/patients', { headers: auth(managerA), params: { search: 'BalanceBoundary' } }),
+      ctx.get('/api/patients', { headers: auth(doctorA), params: { search: 'BalanceBoundary' } }),
+    ]);
+    expect(managerList.status(), await managerList.text()).toBe(200);
+    expect(doctorList.status(), await doctorList.text()).toBe(200);
+
+    const managerPayload = (await managerList.json()).data;
+    const doctorPayload = (await doctorList.json()).data;
+    const managerRows = Array.isArray(managerPayload?.data) ? managerPayload.data : [];
+    const doctorRows = Array.isArray(doctorPayload?.data) ? doctorPayload.data : [];
+    const managerPatient = managerRows.find((row: any) => row.id === patientId);
+    const doctorPatient = doctorRows.find((row: any) => row.id === patientId);
+
+    expect(managerPatient, 'manager must retain the patient directory row').toBeTruthy();
+    expect(managerPatient).not.toHaveProperty('prepaidBalance');
+    expect(doctorPatient, 'doctor must retain authorized clinical patient context').toBeTruthy();
+    expect(doctorPatient).toHaveProperty('prepaidBalance', 3500);
+  });
+
   test('менеджер и ассистент не пополняют баланс пациента без billing.write', async () => {
     const created = await ctx.post('/api/patients', {
       headers: auth(ownerA),
