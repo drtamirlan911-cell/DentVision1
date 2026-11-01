@@ -58,7 +58,15 @@ export function registerAIEventBridge(): void {
   });
 
   subscribe('labOrder.status_changed', async ({ clinicId, labOrderId, patientId, doctorId, status, previousStatus, userId }) => {
-    if (!['completed', 'delivered', 'ready'].includes(status)) return;
+    if (!['completed', 'delivered', 'ready', 'remake'].includes(status)) return;
+    const needsRemake = status === 'remake';
+    const notificationTitle = needsRemake ? 'Лабораторная работа требует переделки' : 'Лабораторный заказ готов';
+    const doctorMessage = needsRemake
+      ? 'Контроль качества не пройден. Требуется согласовать переделку с лабораторией.'
+      : 'Лабораторный заказ готов к просмотру.';
+    const operationsMessage = needsRemake
+      ? 'Лабораторная работа не прошла контроль качества. Требуется следующий шаг клиники.'
+      : 'Готовая лабораторная работа требует следующего шага.';
     const order = await prisma.labOrder.findFirst({
       where: { id: labOrderId, clinicId },
       select: { status: true, doctorId: true, patientId: true },
@@ -80,13 +88,13 @@ export function registerAIEventBridge(): void {
             id: notificationId,
             userId: targetDoctorId,
             type: 'workflow',
-            title: 'Лабораторный заказ готов',
-            message: 'Лабораторный заказ готов к просмотру.',
+            title: notificationTitle,
+            message: doctorMessage,
             link: `/lab?order=${encodeURIComponent(labOrderId)}`,
           },
           update: {
-            title: 'Лабораторный заказ готов',
-            message: 'Лабораторный заказ готов к просмотру.',
+            title: notificationTitle,
+            message: doctorMessage,
             link: `/lab?order=${encodeURIComponent(labOrderId)}`,
             read: false,
           },
@@ -115,26 +123,28 @@ export function registerAIEventBridge(): void {
           id: notificationId,
           userId: opsUserId,
           type: 'workflow',
-          title: 'Лабораторный заказ готов',
-          message: 'Готовая лабораторная работа требует следующего шага.',
+          title: notificationTitle,
+          message: operationsMessage,
           link: `/lab?order=${encodeURIComponent(labOrderId)}`,
         },
         update: {
-          title: 'Лабораторный заказ готов',
-          message: 'Готовая лабораторная работа требует следующего шага.',
+          title: notificationTitle,
+          message: operationsMessage,
           link: `/lab?order=${encodeURIComponent(labOrderId)}`,
           read: false,
         },
       });
     }));
 
-    await aiEventBus.publish(EventType.LabOrderCompleted, {
-      labOrderId,
-      patientId: patientId || order?.patientId || '',
-      doctorId: targetDoctorId || '',
-      status: order?.status || status,
-      previousStatus,
-    }, { clinicId, userId: userId || targetDoctorId || 'system', source: 'crm.labOrder.status_changed' });
+    if (!needsRemake) {
+      await aiEventBus.publish(EventType.LabOrderCompleted, {
+        labOrderId,
+        patientId: patientId || order?.patientId || '',
+        doctorId: targetDoctorId || '',
+        status: order?.status || status,
+        previousStatus,
+      }, { clinicId, userId: userId || targetDoctorId || 'system', source: 'crm.labOrder.status_changed' });
+    }
   });
 
   subscribe('diagnostics.result_ready', async ({ referralId, resultId, clinicId, centerId, doctorId, patientName, studyType, userId }) => {

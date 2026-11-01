@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import type { Prisma } from '@prisma/client';
 import prisma from '../../lib/prisma.js';
 import { authenticate } from '../../middleware/auth.js';
 import { requirePermission } from '../../middleware/rbac.js';
@@ -95,6 +96,35 @@ function metaOf(files: unknown): LabMeta {
   return raw?.meta && typeof raw.meta === 'object' ? raw.meta : {};
 }
 
+function isVerifiedDentalLabSettings(value: unknown): boolean {
+  const settings = value && typeof value === 'object' && !Array.isArray(value)
+    ? value as Record<string, unknown>
+    : {};
+  const legal = settings.legal && typeof settings.legal === 'object' && !Array.isArray(settings.legal)
+    ? settings.legal as Record<string, unknown>
+    : {};
+  return settings.laboratoryType === 'DENTAL_LAB'
+    && settings.selfServiceType === 'dental_lab'
+    && settings.lifecycle === 'ACTIVE'
+    && settings.verification === 'VERIFIED'
+    && settings.ecosystemVisible === true
+    && legal.status === 'READY';
+}
+
+async function appendEventInTransaction(
+  tx: Prisma.TransactionClient,
+  order: { id: string; clinicId: string },
+  fromStatus: string | null,
+  toStatus: string,
+  actorUserId: string,
+  note?: string,
+) {
+  await tx.$executeRawUnsafe(
+    `INSERT INTO "dental_lab_order_events" ("id","labOrderId","clinicId","fromStatus","toStatus","note","actorUserId","createdAt") VALUES ($1,$2,$3,$4,$5,$6,$7,CURRENT_TIMESTAMP)`,
+    uid(), order.id, order.clinicId, fromStatus, toStatus, note ?? null, actorUserId,
+  );
+}
+
 function serialize(order: any) {
   const meta = metaOf(order.files);
   return {
@@ -127,6 +157,32 @@ async function ordersForLab(labId: string, status?: string) {
   });
   return Promise.all(rows.map(async (order) => serialize({ ...order, treatmentCaseId: await caseIdOf(order.id) })));
 }
+
+labPlatformRouter.get('/available-laboratories', requirePermission('appointment.write'), async (req: AuthRequest, res) => {
+  try {
+    const clinicId = req.user?.clinicId;
+    if (!clinicId || !(await assertClinicOrgAccess(req.user!, clinicId))) {
+      return res.status(403).json({ ok: false, error: 'Нет доступа к выбранной клинике' } satisfies ApiResponse);
+    }
+    const organizations = await prisma.organization.findMany({
+      where: { type: 'LABORATORY', originalType: 'Laboratory', archivedAt: null },
+      select: { originalId: true, settings: true },
+    });
+    const eligibleIds = organizations
+      .filter((organization) => organization.originalId && isVerifiedDentalLabSettings(organization.settings))
+      .map((organization) => organization.originalId as string);
+    if (eligibleIds.length === 0) return res.json({ ok: true, data: [] } satisfies ApiResponse);
+    const laboratories = await prisma.laboratory.findMany({
+      where: { id: { in: eligibleIds }, active: true },
+      select: { id: true, name: true, city: true, address: true, phone: true, rating: true },
+      orderBy: [{ rating: 'desc' }, { name: 'asc' }],
+    });
+    return res.json({ ok: true, data: laboratories } satisfies ApiResponse);
+  } catch (error) {
+    console.error('[LabPlatform] available laboratories error:', error);
+    return res.status(500).json({ ok: false, error: 'Не удалось загрузить список зуботехнических лабораторий' } satisfies ApiResponse);
+  }
+});
 
 labPlatformRouter.get('/dashboard', async (req: AuthRequest, res) => {
   try {
@@ -204,23 +260,51 @@ labPlatformRouter.patch('/orders/:id/qc', async (req: AuthRequest, res) => {
     const membership = await resolveLab(req);
     if (!membership) return res.status(403).json({ ok: false, error: 'Нет доступа к кабинету лаборатории' } satisfies ApiResponse);
     if (!isLabManagerRole(membership.role)) return res.status(403).json({ ok: false, error: 'Подтверждать QC может только владелец или менеджер лаборатории' } satisfies ApiResponse);
-    const existing = await prisma.labOrder.findFirst({ where: { id: req.params.id, files: { path: ['meta', 'laboratoryId'], equals: membership.labId } } });
-    if (!existing) return res.status(404).json({ ok: false, error: 'Заказ не найден в этой лаборатории' } satisfies ApiResponse);
-    if (existing.status !== 'qc') return res.status(409).json({ ok: false, error: 'Заказ должен находиться на этапе контроля качества' } satisfies ApiResponse);
     const submission = validateLabQualityControl(req.body?.checks, req.body?.note);
     if (!submission) return res.status(400).json({ ok: false, error: 'Заполните все пункты QC; при несоответствии укажите замечание' } satisfies ApiResponse);
     const nextStatus = submission.passed ? 'ready' : 'remake';
-    const meta = metaOf(existing.files);
     const qualityControl = { ...submission, checkedByUserId: req.user!.id, checkedAt: new Date().toISOString() };
-    const currentFiles = existing.files && typeof existing.files === 'object' && !Array.isArray(existing.files) ? existing.files as Record<string, unknown> : {};
-    const order = await prisma.labOrder.update({
-      where: { id: existing.id },
-      data: { status: nextStatus as any, files: { ...currentFiles, meta: { ...meta, qualityControl } } },
-    });
     const eventNote = submission.passed ? 'QC подтверждён владельцем лаборатории' : `QC не пройден: ${submission.note}`;
-    await appendEvent(order, existing.status, nextStatus, req.user!.id, eventNote);
-    publish(submission.passed ? 'labOrder.qc_passed' : 'labOrder.qc_failed', { clinicId: order.clinicId, labOrderId: order.id, status: nextStatus, previousStatus: existing.status, userId: req.user?.id, laboratoryId: membership.labId });
-    return res.json({ ok: true, data: serialize({ ...order, treatmentCaseId: await caseIdOf(order.id) }) } satisfies ApiResponse);
+
+    await ensureDentalLabOrderEventsTable();
+    const outcome = await prisma.$transaction(async (tx) => {
+      await tx.$queryRaw<Array<{ id: string }>>`SELECT "id" FROM "lab_orders" WHERE "id"=${req.params.id} FOR UPDATE`;
+      const existing = await tx.labOrder.findFirst({ where: { id: req.params.id, files: { path: ['meta', 'laboratoryId'], equals: membership.labId } } });
+      if (!existing) return { kind: 'not_found' as const };
+      if (existing.status !== 'qc') return { kind: 'invalid_status' as const };
+      const meta = metaOf(existing.files);
+      const currentFiles = existing.files && typeof existing.files === 'object' && !Array.isArray(existing.files)
+        ? existing.files as Record<string, unknown>
+        : {};
+      const order = await tx.labOrder.update({
+        where: { id: existing.id },
+        data: { status: nextStatus as any, files: { ...currentFiles, meta: { ...meta, qualityControl } } },
+      });
+      await appendEventInTransaction(tx, order, existing.status, nextStatus, req.user!.id, eventNote);
+      return { kind: 'updated' as const, order, previousStatus: existing.status };
+    });
+    if (outcome.kind === 'not_found') return res.status(404).json({ ok: false, error: 'Заказ не найден в этой лаборатории' } satisfies ApiResponse);
+    if (outcome.kind === 'invalid_status') return res.status(409).json({ ok: false, error: 'Заказ должен находиться на этапе контроля качества' } satisfies ApiResponse);
+
+    const order = outcome.order;
+    const treatmentCaseId = await caseIdOf(order.id) || undefined;
+    // Publish the canonical transition as well as the QC-specific event. The
+    // shared bridge persists the clinic's notification and AI workflow signal.
+    publish('labOrder.status_changed', {
+      clinicId: order.clinicId,
+      labOrderId: order.id,
+      patientId: order.patientId || undefined,
+      doctorId: order.doctorId || undefined,
+      treatmentCaseId,
+      status: nextStatus,
+      previousStatus: outcome.previousStatus,
+      userId: req.user?.id,
+    });
+    publish(submission.passed ? 'labOrder.qc_passed' : 'labOrder.qc_failed', {
+      clinicId: order.clinicId, labOrderId: order.id, status: nextStatus,
+      previousStatus: outcome.previousStatus, userId: req.user?.id, laboratoryId: membership.labId,
+    });
+    return res.json({ ok: true, data: serialize({ ...order, treatmentCaseId }) } satisfies ApiResponse);
   } catch (error) { console.error('[LabPlatform] QC error:', error); return res.status(500).json({ ok: false, error: 'Не удалось сохранить результат контроля качества' } satisfies ApiResponse); }
 });
 
@@ -241,13 +325,44 @@ labPlatformRouter.post('/assign', requirePermission('appointment.write'), async 
     const orderId = String(req.body?.orderId || ''), laboratoryId = String(req.body?.laboratoryId || '');
     if (!orderId || !laboratoryId) return res.status(400).json({ ok: false, error: 'orderId и laboratoryId обязательны' } satisfies ApiResponse);
     const lab = await prisma.laboratory.findUnique({ where: { id: laboratoryId }, select: { id: true, name: true, active: true } });
-    if (!lab || !lab.active) return res.status(404).json({ ok: false, error: 'Активная лаборатория не найдена' } satisfies ApiResponse);
-    const existing = await prisma.labOrder.findFirst({ where: { id: orderId, clinicId, ...branchScopedClinicLabOrder(req) } });
-    if (!existing) return res.status(404).json({ ok: false, error: 'Заказ не найден в вашей клинике' } satisfies ApiResponse);
-    const meta = metaOf(existing.files);
-    const order = await prisma.labOrder.update({ where: { id: existing.id }, data: { labName: lab.name, files: { ...(existing.files as object || {}), meta: { ...meta, laboratoryId: lab.id } } } });
-    await appendEvent(order, null, order.status, req.user!.id, `Передан в лабораторию: ${lab.name}`);
-    publish('labOrder.assigned', { clinicId, labOrderId: order.id, laboratoryId: lab.id, laboratoryName: lab.name, patientId: order.patientId || undefined, doctorId: order.doctorId || undefined, treatmentCaseId: await caseIdOf(order.id) || undefined, userId: req.user?.id });
-    return res.json({ ok: true, data: serialize({ ...order, treatmentCaseId: await caseIdOf(order.id) }) } satisfies ApiResponse);
+    if (!lab || !lab.active) return res.status(404).json({ ok: false, error: 'Активная зуботехническая лаборатория не найдена', code: 'LAB_PARTNER_NOT_AVAILABLE' } satisfies ApiResponse);
+    const organization = await prisma.organization.findFirst({
+      where: { type: 'LABORATORY', originalType: 'Laboratory', originalId: lab.id, archivedAt: null },
+      select: { settings: true },
+    });
+    if (!organization || !isVerifiedDentalLabSettings(organization.settings)) {
+      return res.status(404).json({ ok: false, error: 'Лаборатория не прошла проверку или не опубликована как зуботехнический партнёр.', code: 'LAB_PARTNER_NOT_AVAILABLE' } satisfies ApiResponse);
+    }
+
+    await ensureDentalLabOrderEventsTable();
+    const outcome = await prisma.$transaction(async (tx) => {
+      await tx.$queryRaw<Array<{ id: string }>>`SELECT "id" FROM "lab_orders" WHERE "id"=${orderId} AND "clinicId"=${clinicId} FOR UPDATE`;
+      const existing = await tx.labOrder.findFirst({ where: { id: orderId, clinicId, ...branchScopedClinicLabOrder(req) } });
+      if (!existing) return { kind: 'not_found' as const };
+      const meta = metaOf(existing.files);
+      if (meta.laboratoryId === lab.id) return { kind: 'idempotent' as const, order: existing };
+      if (meta.laboratoryId) return { kind: 'already_assigned' as const };
+      if (existing.status !== 'pending') return { kind: 'invalid_status' as const };
+
+      const currentFiles = existing.files && typeof existing.files === 'object' && !Array.isArray(existing.files)
+        ? existing.files as Record<string, unknown>
+        : {};
+      const order = await tx.labOrder.update({
+        where: { id: existing.id },
+        data: { labName: lab.name, files: { ...currentFiles, meta: { ...meta, laboratoryId: lab.id } } },
+      });
+      await appendEventInTransaction(tx, order, null, order.status, req.user!.id, `Передан в лабораторию: ${lab.name}`);
+      return { kind: 'assigned' as const, order };
+    });
+
+    if (outcome.kind === 'not_found') return res.status(404).json({ ok: false, error: 'Заказ не найден в вашей клинике' } satisfies ApiResponse);
+    if (outcome.kind === 'already_assigned') return res.status(409).json({ ok: false, error: 'Заказ уже передан другой лаборатории. Переназначение без закрытия текущего цикла запрещено.', code: 'LAB_ORDER_ALREADY_ASSIGNED' } satisfies ApiResponse);
+    if (outcome.kind === 'invalid_status') return res.status(409).json({ ok: false, error: 'Передать можно только новый заказ со статусом «Ожидает».', code: 'LAB_ORDER_NOT_ASSIGNABLE' } satisfies ApiResponse);
+
+    const order = outcome.order;
+    if (outcome.kind === 'assigned') {
+      publish('labOrder.assigned', { clinicId, labOrderId: order.id, laboratoryId: lab.id, laboratoryName: lab.name, patientId: order.patientId || undefined, doctorId: order.doctorId || undefined, treatmentCaseId: await caseIdOf(order.id) || undefined, userId: req.user?.id });
+    }
+    return res.json({ ok: true, data: { ...serialize({ ...order, treatmentCaseId: await caseIdOf(order.id) }), assignmentIdempotent: outcome.kind === 'idempotent' } } satisfies ApiResponse);
   } catch (error) { console.error('[LabPlatform] assign error:', error); return res.status(500).json({ ok: false, error: 'Не удалось передать заказ лаборатории' } satisfies ApiResponse); }
 });

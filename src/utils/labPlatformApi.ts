@@ -49,6 +49,15 @@ export interface LabPlatformDashboard {
   priority: LabPlatformOrder[];
 }
 
+export interface AvailableDentalLab {
+  id: string;
+  name: string;
+  city?: string | null;
+  address?: string | null;
+  phone?: string | null;
+  rating?: number | null;
+}
+export const getAvailableDentalLabs = () => request<AvailableDentalLab[]>('/available-laboratories');
 export const getLabPlatformDashboard = () => request<LabPlatformDashboard>('/dashboard');
 export const getLabPlatformOrders = (status?: string) => request<LabPlatformOrder[]>(status ? `/orders?status=${encodeURIComponent(status)}` : '/orders');
 export const updateLabPlatformOrderStatus = (id: string, status: string) => request<LabPlatformOrder>(`/orders/${id}/status`, { method: 'PATCH', body: JSON.stringify({ status }) });
