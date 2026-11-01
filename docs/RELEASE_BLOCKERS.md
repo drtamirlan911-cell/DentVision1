@@ -610,3 +610,11 @@ Parallel-branch evidence retained during integration; reconcile against the curr
 - Payment boundary: clinic cashier creation/refunds/static confirmation are gated; historical clinic-marked payments without clinicId fail closed; SaaS renewal checkout and externally paid provider settlement remain available.
 - Parent 4a808de7 passed Quality Gate, RB-034 and frontend/backend lint but had one obsolete source-contract assertion (2,416 passed / 1 failed), corrected in b96b4d6e. Parent E2E was cancelled after a newer commit superseded it.
 - D1 remains OPEN pending full exact-head CI/E2E and approved staging positive-read/negative-write verification. No staging/production database, PHI, migration, live payment or provider callback was touched.
+ 
+## D1 follow-up — clinic-to-dental-laboratory assignment bypass (2026-11-01)
+
+- **Finding:** `POST /api/lab-orders/platform/assign` is mounted in the partner router before clinic-level `blockClinicWrites`. The clinic-originated mutation previously checked only a JWT clinicId and order ownership; it did not require the clinic permission, revalidate clinic membership, enforce branch visibility or check trial expiry.
+- **Fix in PR #330:** assignment now requires `appointment.write`, validates membership with `assertClinicOrgAccess`, applies the live subscription write gate (402 `SUBSCRIPTION_EXPIRED`), scopes the source order to assigned branches and rejects inactive laboratories.
+- **Preserved partner behavior:** laboratory-owned dashboard reads, status transitions and technician assignment remain available for existing accepted work. These operations must not be frozen merely because the originating clinic's trial expires.
+- **Regression coverage:** source-contract tests assert the clinic-side guard and ensure the laboratory work paths stay separate.
+- **Status:** exact-head CI and staging proof pending; D1 remains OPEN.

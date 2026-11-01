@@ -1,8 +1,11 @@
 import { Router } from 'express';
 import prisma from '../../lib/prisma.js';
 import { authenticate } from '../../middleware/auth.js';
+import { requirePermission } from '../../middleware/rbac.js';
 import type { AuthRequest, ApiResponse } from '../../types/index.js';
 import { publish } from '../../lib/events.js';
+import { assertClinicOrgAccess } from '../../lib/orgContext.js';
+import { resolveClinicAccess as resolveClinicSubscriptionAccess } from '../billing/planEntitlements.js';
 import { uid } from '../../lib/helpers.js';
 
 export const labPlatformRouter = Router();
@@ -27,6 +30,47 @@ const STATUS_FLOW: Record<string, string[]> = {
   ready: ['delivered', 'remake'], delivered: [], remake: ['in_progress', 'delayed', 'cancelled'],
   delayed: ['in_progress', 'cancelled'], cancelled: [],
 };
+
+async function requireClinicAssignmentWritable(req: AuthRequest, res: any, clinicId: string): Promise<boolean> {
+  if (!req.user?.id || !(await assertClinicOrgAccess(req.user, clinicId))) {
+    res.status(403).json({ ok: false, error: 'Нет доступа к этой клинике' });
+    return false;
+  }
+  try {
+    const access = await resolveClinicSubscriptionAccess(clinicId);
+    if (!access) {
+      res.status(404).json({ ok: false, error: 'Клиника не найдена', code: 'CLINIC_ACCESS_UNVERIFIED' });
+      return false;
+    }
+    if (access.writeBlocked) {
+      res.status(402).json({
+        ok: false,
+        error: 'Срок подписки клиники завершён. Передача новых заказов в лабораторию доступна после продления.',
+        code: 'SUBSCRIPTION_EXPIRED',
+        data: { upgradePath: '/crm/billing' },
+      });
+      return false;
+    }
+    return true;
+  } catch (error) {
+    console.error('[LabPlatform] clinic assignment subscription guard failed:', error);
+    res.status(503).json({
+      ok: false,
+      error: 'Не удалось проверить подписку клиники',
+      code: 'CLINIC_ACCESS_UNVERIFIED',
+    });
+    return false;
+  }
+}
+
+function branchScopedClinicLabOrder(req: AuthRequest): Record<string, unknown> {
+  const role = String(req.user?.role || '').toUpperCase();
+  if (['SUPERADMIN', 'OWNER', 'ADMIN'].includes(role)) return {};
+  const branchIds = (req.user?.branchIds ?? []).filter(Boolean);
+  return branchIds.length > 0
+    ? { patient: { branchId: { in: branchIds } } }
+    : { patient: { branchId: '__NO_BRANCH_ACCESS__' } };
+}
 
 async function resolveLab(req: AuthRequest) {
   const user = req.user;
@@ -147,15 +191,16 @@ labPlatformRouter.get('/team', async (req: AuthRequest, res) => {
   } catch (error) { console.error('[LabPlatform] team error:', error); return res.status(500).json({ ok: false, error: 'Не удалось загрузить команду' } satisfies ApiResponse); }
 });
 
-labPlatformRouter.post('/assign', async (req: AuthRequest, res) => {
+labPlatformRouter.post('/assign', requirePermission('appointment.write'), async (req: AuthRequest, res) => {
   try {
     const clinicId = req.user?.clinicId;
     if (!clinicId) return res.status(403).json({ ok: false, error: 'Действие доступно из клиники' } satisfies ApiResponse);
+    if (!(await requireClinicAssignmentWritable(req, res, clinicId))) return;
     const orderId = String(req.body?.orderId || ''), laboratoryId = String(req.body?.laboratoryId || '');
     if (!orderId || !laboratoryId) return res.status(400).json({ ok: false, error: 'orderId и laboratoryId обязательны' } satisfies ApiResponse);
-    const lab = await prisma.laboratory.findUnique({ where: { id: laboratoryId }, select: { id: true, name: true } });
-    if (!lab) return res.status(404).json({ ok: false, error: 'Лаборатория не найдена' } satisfies ApiResponse);
-    const existing = await prisma.labOrder.findFirst({ where: { id: orderId, clinicId } });
+    const lab = await prisma.laboratory.findUnique({ where: { id: laboratoryId }, select: { id: true, name: true, active: true } });
+    if (!lab || !lab.active) return res.status(404).json({ ok: false, error: 'Активная лаборатория не найдена' } satisfies ApiResponse);
+    const existing = await prisma.labOrder.findFirst({ where: { id: orderId, clinicId, ...branchScopedClinicLabOrder(req) } });
     if (!existing) return res.status(404).json({ ok: false, error: 'Заказ не найден в вашей клинике' } satisfies ApiResponse);
     const meta = metaOf(existing.files);
     const order = await prisma.labOrder.update({ where: { id: existing.id }, data: { labName: lab.name, files: { ...(existing.files as object || {}), meta: { ...meta, laboratoryId: lab.id } } } });

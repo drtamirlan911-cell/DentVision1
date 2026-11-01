@@ -88,6 +88,32 @@ describe('additional clinic-scoped mutation guards', () => {
     expect(route).toContain("code: 'SUBSCRIPTION_EXPIRED'");
   });
 
+describe('D1 clinic-to-dental-lab assignment boundary', () => {
+  it('requires appointment.write, clinic membership, live trial access and branch scope before assignment', async () => {
+    const text = await source('dentvision-backend/src/modules/lab/labPlatform.routes.ts');
+    expect(text).toContain("labPlatformRouter.post('/assign', requirePermission('appointment.write')");
+    expect(text).toContain('requireClinicAssignmentWritable(req, res, clinicId)');
+    expect(text).toContain('assertClinicOrgAccess(req.user, clinicId)');
+    expect(text).toContain('resolveClinicSubscriptionAccess(clinicId)');
+    expect(text).toContain("code: 'SUBSCRIPTION_EXPIRED'");
+    expect(text).toContain('...branchScopedClinicLabOrder(req)');
+    expect(text).toContain("if (!lab || !lab.active)");
+    const assignStart = text.indexOf("labPlatformRouter.post('/assign'");
+    const assignEnd = text.indexOf('\n});', assignStart);
+    const route = text.slice(assignStart, assignEnd);
+    expect(route.indexOf('requireClinicAssignmentWritable')).toBeLessThan(route.indexOf('prisma.labOrder.findFirst'));
+    expect(route.indexOf('branchScopedClinicLabOrder')).toBeGreaterThan(route.indexOf('prisma.labOrder.findFirst'));
+  });
+
+  it('does not put laboratory-owned dashboard/status/technician workflows behind clinic trial middleware', async () => {
+    const text = await source('dentvision-backend/src/modules/lab/labPlatform.routes.ts');
+    expect(text).toContain("labPlatformRouter.get('/dashboard'");
+    expect(text).toContain("labPlatformRouter.patch('/orders/:id/status'");
+    expect(text).toContain("labPlatformRouter.patch('/orders/:id/technician'");
+    expect(text).toContain('async function resolveLab(req: AuthRequest)');
+  });
+});
+
 describe('additional D1 clinical write guard boundaries', () => {
   it('blocks organization-scoped dashboard creation after trial expiry', async () => {
     const text = await source('dentvision-backend/src/modules/data/data.routes.ts');

@@ -2719,3 +2719,8 @@ A second edge case was found in historical clinic payment ownership: when a paym
 - Personal session revocation, consent management and medical-file access audit logging remain available as privacy/security/audit operations.
 - Added route regressions. The prior unit run on 4a808de7 had 2,416 passed and one stale source-contract assertion, corrected in b96b4d6e. Latest exact-head CI is required.
 - D1 remains OPEN pending exact-head full CI and approved staging positive-read/negative-write verification. No database, PHI, staging migration, live payment or callback was run.
+## 2026-11-01 — D1 clinic → dental laboratory assignment bypass
+
+Source review found that `labPlatformRouter` is intentionally mounted before clinic `loadClinicAccess` / `blockClinicWrites`, so a laboratory owner can continue processing an already-assigned case after the clinic trial expires. Its sibling `POST /platform/assign`, however, is a clinic-originated write and had only checked the caller's clinicId and the existence of the LabOrder; it did not require `appointment.write`, confirm clinic membership, check subscription write access or enforce branch visibility.
+Added `requirePermission('appointment.write')`, a fail-closed clinic-membership + subscription helper, branch-scoped order lookup, and an active-laboratory check specifically to `/platform/assign`. Laboratory dashboard, status and technician workflows are intentionally not gated, preserving completion of existing partner work.
+Added contract regressions for the clinic assignment boundary and for preserving laboratory-owned work. D1 remains OPEN pending exact-head CI and approved staging verification; no database, PHI, migration or live partner workflow was touched.

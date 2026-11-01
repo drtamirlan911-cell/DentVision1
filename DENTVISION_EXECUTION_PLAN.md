@@ -582,3 +582,13 @@ Historical priority notes retained from parallel branches; they do not supersede
 - [x] Add route/source-contract regressions.
 - [ ] Pass full exact-head CI/E2E on current PR #330 HEAD.
 - [ ] Obtain approved staging migration/backfill dry run and prove expired-clinic positive reads / negative writes. D1 stays OPEN until both are verified.
+ 
+## D1 — clinic-to-dental-laboratory assignment (2026-11-01)
+
+- [x] Require clinic permission before outbound lab assignment.
+- [x] Resolve the active clinic membership and 30-day subscription write state.
+- [x] Enforce current branch visibility for the source lab order.
+- [x] Reject assignment to inactive laboratories.
+- [x] Preserve lab-owner status/technician work on already-assigned cases.
+- [x] Add contract regressions for both clinic assignment and partner completion boundaries.
+- [ ] Pass latest exact-head CI/E2E and approved staging positive-read/negative-write verification; D1 remains OPEN.

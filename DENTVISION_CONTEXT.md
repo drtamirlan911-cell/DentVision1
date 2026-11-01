@@ -484,3 +484,9 @@ CI 41186233177 exposed a browser-gate environment issue: role-1280 reported pend
 ## 2026-11-01 — legacy clinic-payment scope fail-closed
 
 A second edge case was found in historical clinic payment ownership: when a payment was clearly clinic-scoped by its immutable provider/reference/merchant marker but its legacy metadata lacked `clinicId`, the scope helper returned null and generic `meta.userId` ownership could be considered. Updated `assertPaymentOwner` to recognize clinic-scoped records first and reject any record that cannot resolve its clinic scope. Added a route regression test for a legacy `clinic_kaspi` payment with a matching userId but missing clinicId. Exact-head CI is required; no financial rows were modified.
+
+## 2026-11-01 — D1 clinic → dental laboratory assignment bypass
+
+Source review found that `labPlatformRouter` is intentionally mounted before clinic `loadClinicAccess` / `blockClinicWrites`, so a laboratory owner can continue processing an already-assigned case after the clinic trial expires. Its sibling `POST /platform/assign`, however, is a clinic-originated write and had only checked the caller's clinicId and the existence of the LabOrder; it did not require `appointment.write`, confirm clinic membership, check subscription write access or enforce branch visibility.
+Added `requirePermission('appointment.write')`, a fail-closed clinic-membership + subscription helper, branch-scoped order lookup, and an active-laboratory check specifically to `/platform/assign`. Laboratory dashboard, status and technician workflows are intentionally not gated, preserving completion of existing partner work.
+Added contract regressions for the clinic assignment boundary and for preserving laboratory-owned work. D1 remains OPEN pending exact-head CI and approved staging verification; no database, PHI, migration or live partner workflow was touched.
