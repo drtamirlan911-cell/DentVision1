@@ -200,10 +200,10 @@ test.describe('DentVision organization owner lifecycle', () => {
         headers: auth(clinicToken),
       });
       expect(archived.status(), await archived.text()).toBe(200);
+      archiveSucceeded = true;
       const archiveData = (await archived.json()).data;
       expect(archiveData.archived).toBe(true);
       expect(archiveData.retained).toBe(true);
-      archiveSucceeded = true;
 
       const archivedContexts = await api.get('/api/iam/me/contexts', { headers: auth(clinicToken) });
       expect(archivedContexts.status(), await archivedContexts.text()).toBe(200);
