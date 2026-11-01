@@ -592,3 +592,13 @@ Historical priority notes retained from parallel branches; they do not supersede
 - [x] Preserve lab-owner status/technician work on already-assigned cases.
 - [x] Add contract regressions for both clinic assignment and partner completion boundaries.
 - [ ] Pass latest exact-head CI/E2E and approved staging positive-read/negative-write verification; D1 remains OPEN.
+
+ 
+## D1 — medical-laboratory clinic-side write boundary (2026-11-01)
+
+- [x] Block new clinic-originated medical-lab orders after trial expiry.
+- [x] Block clinic-side status, result, verification and interpretation writes after expiry.
+- [x] Require the active clinic context; reject a body clinicId override.
+- [x] Preserve reads and already-assigned laboratory-context partner processing.
+- [x] Add source-contract coverage for all mutation paths and the partner exception.
+- [ ] Pass exact-head CI/E2E and approved staging positive-read/negative-write verification; D1 remains OPEN.

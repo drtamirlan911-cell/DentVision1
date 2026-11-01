@@ -88,6 +88,32 @@ describe('additional clinic-scoped mutation guards', () => {
     expect(route).toContain("code: 'SUBSCRIPTION_EXPIRED'");
   });
 
+describe('D1 medical-lab clinic write boundary', () => {
+  it('guards medical-lab order creation and every clinic-side mutation after trial expiry', async () => {
+    const text = await source('dentvision-backend/src/modules/lab/medicalLab.routes.ts');
+    expect(text).toContain('ensureClinicSubscriptionWritableIfClinicActor(req, res, clinicId)');
+    expect(text).toContain('req.body?.clinicId && String(req.body.clinicId) !== clinicId');
+    const writeRoutes = [
+      "medicalLabLifecycleRouter.post('/orders/:id/status'",
+      "medicalLabLifecycleRouter.post('/orders/:id/results'",
+      "medicalLabLifecycleRouter.post('/orders/:id/verify'",
+      "medicalLabLifecycleRouter.post('/orders/:id/interpretation'",
+    ];
+    for (const routeStart of writeRoutes) {
+      const start = text.indexOf(routeStart);
+      const nextRoute = text.indexOf('medicalLabLifecycleRouter.', start + routeStart.length);
+      const route = text.slice(start, nextRoute > -1 ? nextRoute : undefined);
+      expect(route).toContain('ensureClinicSubscriptionWritableIfClinicActor(req, res, order.clinicId)');
+    }
+  });
+
+  it('preserves laboratory-context processing after the originating clinic expires', async () => {
+    const text = await source('dentvision-backend/src/modules/lab/medicalLab.routes.ts');
+    expect(text).toContain("if ((user as any)?.organizationType === 'LABORATORY')");
+    expect(text).toContain("if (req.user?.role === 'SUPERADMIN' || (req.user as any)?.organizationType === 'LABORATORY') return true;");
+  });
+});
+
 describe('D1 clinic-to-dental-lab assignment boundary', () => {
   it('requires appointment.write, clinic membership, live trial access and branch scope before assignment', async () => {
     const text = await source('dentvision-backend/src/modules/lab/labPlatform.routes.ts');

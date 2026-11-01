@@ -618,3 +618,11 @@ Parallel-branch evidence retained during integration; reconcile against the curr
 - **Preserved partner behavior:** laboratory-owned dashboard reads, status transitions and technician assignment remain available for existing accepted work. These operations must not be frozen merely because the originating clinic's trial expires.
 - **Regression coverage:** source-contract tests assert the clinic-side guard and ensure the laboratory work paths stay separate.
 - **Status:** exact-head CI and staging proof pending; D1 remains OPEN.
+
+ 
+## D1 follow-up — medical-laboratory clinic writes (2026-11-01)
+
+- **Finding:** `medicalLabLifecycleRouter` is mounted before the clinic plan middleware. Clinic-originated creation at `POST /orders` and clinic-side status/results/verify/interpretation mutations could persist after subscription expiry.
+- **Fix in PR #330:** the create route now derives clinicId only from the active authenticated clinic context, rejects a body-supplied different clinicId and applies the 30-day subscription write check. All clinic-side mutation routes apply the same check after tenant/branch authorization.
+- **Partner exception:** an active `organizationType=LABORATORY` context may continue processing existing assigned specimens/results after the originating clinic expires; GET/read routes remain available. This preserves cross-organization workflow completion without permitting new clinic business writes.
+- **Verification:** source-contract assertions added; exact-head CI pending. D1 remains OPEN pending approved staging positive-read/negative-write proof.
