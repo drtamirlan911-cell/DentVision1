@@ -9,7 +9,7 @@ import { assertClinicOrgAccess } from '../../lib/orgContext.js';
 import { resolveClinicAccess as resolveClinicSubscriptionAccess } from '../billing/planEntitlements.js';
 import { uid } from '../../lib/helpers.js';
 import { ensureDentalLabOrderEventsTable } from './dentalLabOrderEvents.js';
-import { canLabMemberChangeStatus, isLabManagerRole, validateLabQualityControl } from './labPlatform.authorization.js';
+import { canLabMemberChangeStatus, canLabMemberReadOrders, isLabManagerRole, labMemberOrderReadScope, validateLabQualityControl } from './labPlatform.authorization.js';
 
 export const labPlatformRouter = Router();
 labPlatformRouter.use(authenticate);
@@ -144,9 +144,11 @@ async function caseIdOf(orderId: string): Promise<string | null> {
   return rows[0]?.treatmentCaseId ?? null;
 }
 
-async function ordersForLab(labId: string, status?: string) {
+async function ordersForLab(labId: string, role: string, userId: string, status?: string) {
+  const readScope = labMemberOrderReadScope({ role, userId, labId });
+  if (!readScope) return null;
   const rows = await prisma.labOrder.findMany({
-    where: { ...(status ? { status: status as any } : {}), files: { path: ['meta', 'laboratoryId'], equals: labId } },
+    where: { ...(status ? { status: status as any } : {}), ...readScope },
     include: { patient: { select: { firstName: true, lastName: true } }, clinic: { select: { id: true, name: true } } },
     orderBy: [{ deadline: 'asc' }, { createdAt: 'desc' }], take: 500,
   });
@@ -182,8 +184,9 @@ labPlatformRouter.get('/available-laboratories', requirePermission('appointment.
 labPlatformRouter.get('/dashboard', async (req: AuthRequest, res) => {
   try {
     const membership = await resolveLab(req);
-    if (!membership) return res.status(403).json({ ok: false, error: 'Нет доступа к кабинету лаборатории' } satisfies ApiResponse);
-    const orders = await ordersForLab(membership.labId);
+    if (!membership || !canLabMemberReadOrders(membership.role)) return res.status(403).json({ ok: false, error: 'Нет доступа к кабинету лаборатории' } satisfies ApiResponse);
+    const orders = await ordersForLab(membership.labId, membership.role, req.user!.id);
+    if (!orders) return res.status(403).json({ ok: false, error: 'Нет доступа к производственной очереди' } satisfies ApiResponse);
     const now = Date.now();
     const active = orders.filter((o) => !['delivered', 'cancelled'].includes(o.status));
     const dueSoon = active.filter((o) => o.deadline && new Date(o.deadline).getTime() <= now + 48 * 60 * 60 * 1000);
@@ -196,17 +199,21 @@ labPlatformRouter.get('/dashboard', async (req: AuthRequest, res) => {
 labPlatformRouter.get('/orders', async (req: AuthRequest, res) => {
   try {
     const membership = await resolveLab(req);
-    if (!membership) return res.status(403).json({ ok: false, error: 'Нет доступа к кабинету лаборатории' } satisfies ApiResponse);
+    if (!membership || !canLabMemberReadOrders(membership.role)) return res.status(403).json({ ok: false, error: 'Нет доступа к кабинету лаборатории' } satisfies ApiResponse);
     const status = req.query.status ? String(req.query.status) : undefined;
-    return res.json({ ok: true, data: await ordersForLab(membership.labId, status) } satisfies ApiResponse);
+    const orders = await ordersForLab(membership.labId, membership.role, req.user!.id, status);
+    if (!orders) return res.status(403).json({ ok: false, error: 'Нет доступа к производственной очереди' } satisfies ApiResponse);
+    return res.json({ ok: true, data: orders } satisfies ApiResponse);
   } catch (error) { console.error('[LabPlatform] orders error:', error); return res.status(500).json({ ok: false, error: 'Не удалось загрузить заказы лаборатории' } satisfies ApiResponse); }
 });
 
 labPlatformRouter.get('/orders/:id/lifecycle', async (req: AuthRequest, res) => {
   try {
     const membership = await resolveLab(req);
-    if (!membership) return res.status(403).json({ ok: false, error: 'Нет доступа к кабинету лаборатории' } satisfies ApiResponse);
-    const existing = await prisma.labOrder.findFirst({ where: { id: req.params.id, files: { path: ['meta', 'laboratoryId'], equals: membership.labId } } });
+    if (!membership || !canLabMemberReadOrders(membership.role)) return res.status(403).json({ ok: false, error: 'Нет доступа к кабинету лаборатории' } satisfies ApiResponse);
+    const readScope = labMemberOrderReadScope({ role: membership.role, userId: req.user!.id, labId: membership.labId });
+    if (!readScope) return res.status(403).json({ ok: false, error: 'Нет доступа к истории производственных работ' } satisfies ApiResponse);
+    const existing = await prisma.labOrder.findFirst({ where: { id: req.params.id, ...readScope } });
     if (!existing) return res.status(404).json({ ok: false, error: 'Заказ не найден в этой лаборатории' } satisfies ApiResponse);
     const events = await prisma.$queryRawUnsafe(`SELECT * FROM "dental_lab_order_events" WHERE "labOrderId"=$1 ORDER BY "createdAt" ASC`, existing.id);
     return res.json({ ok: true, data: { order: serialize({ ...existing, treatmentCaseId: await caseIdOf(existing.id) }), events } } satisfies ApiResponse);
@@ -335,7 +342,7 @@ labPlatformRouter.patch('/orders/:id/qc', async (req: AuthRequest, res) => {
 labPlatformRouter.get('/team', async (req: AuthRequest, res) => {
   try {
     const membership = await resolveLab(req);
-    if (!membership) return res.status(403).json({ ok: false, error: 'Нет доступа к кабинету лаборатории' } satisfies ApiResponse);
+    if (!membership || !isLabManagerRole(membership.role)) return res.status(403).json({ ok: false, error: 'Список сотрудников доступен только владельцу или менеджеру лаборатории' } satisfies ApiResponse);
     const members = await prisma.laboratoryMember.findMany({ where: { labId: membership.labId }, include: { user: true } });
     return res.json({ ok: true, data: members.map((m: any) => ({ id: m.userId, role: m.role, firstName: m.user.firstName, lastName: m.user.lastName, email: m.user.email, avatar: m.user.avatar })) } satisfies ApiResponse);
   } catch (error) { console.error('[LabPlatform] team error:', error); return res.status(500).json({ ok: false, error: 'Не удалось загрузить команду' } satisfies ApiResponse); }

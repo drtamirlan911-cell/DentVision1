@@ -33,6 +33,7 @@ test.describe('Partner operational lifecycle', () => {
   let fixtureDentalLabId = '';
   let fixtureAlternativeDentalLabId = '';
   let dentalTechnicianId = '';
+  let dentalTechnicianToken = '';
 
   test.beforeAll(async ({ playwright }) => {
     api = await playwright.request.newContext();
@@ -247,13 +248,45 @@ test.describe('Partner operational lifecycle', () => {
     expect(alternativeDentalClaims.organizationId).toBeTruthy();
     await approveDentalPartner(alternativeDentalClaims.organizationId);
 
-    const dentalTechnician = await createTestUser({ email: `dental-technician-${Date.now()}@test.dentvision`, firstName: 'Dental', lastName: 'Technician' });
+    const dentalTechnician = await createTestUser({ email: `dental-technician-${Date.now()}@test.dentvision`, firstName: 'Dental', lastName: 'Technician', role: 'STUDENT' as any });
     dentalTechnicianId = dentalTechnician.id;
     await prisma.laboratoryMember.upsert({
       where: { labId_userId: { labId: fixtureDentalLabId, userId: dentalTechnicianId } },
       update: { role: 'technician' },
       create: { id: randomUUID(), labId: fixtureDentalLabId, userId: dentalTechnicianId, role: 'technician' },
     });
+    const technicianPerson = await prisma.person.upsert({
+      where: { userId_organizationId: { userId: dentalTechnicianId, organizationId: dentalLabClaims.organizationId! } },
+      update: { fullName: 'Dental Technician', personType: 'STAFF', email: dentalTechnician.email },
+      create: {
+        id: randomUUID(), fullName: 'Dental Technician', personType: 'STAFF',
+        organizationId: dentalLabClaims.organizationId!, userId: dentalTechnicianId, email: dentalTechnician.email,
+      },
+    });
+    const technicianRole = await prisma.role.findUnique({ where: { key: 'dental_technician' }, select: { id: true } });
+    expect(technicianRole?.id).toBeTruthy();
+    const technicianScopeKey = `organization:${dentalLabClaims.organizationId}`;
+    await prisma.personRole.upsert({
+      where: { personId_roleId_scopeKey: { personId: technicianPerson.id, roleId: technicianRole!.id, scopeKey: technicianScopeKey } },
+      update: { scopeType: 'organization', scopeId: dentalLabClaims.organizationId },
+      create: {
+        id: randomUUID(), personId: technicianPerson.id, roleId: technicianRole!.id,
+        scopeType: 'organization', scopeId: dentalLabClaims.organizationId, scopeKey: technicianScopeKey,
+      },
+    });
+    const dentalTechnicianBaseToken = await login(api, dentalTechnician.email);
+    const technicianContextsRes = await api.get(`${BASE}/api/iam/me/contexts`, { headers: auth(dentalTechnicianBaseToken) });
+    expect(technicianContextsRes.status()).toBe(200);
+    const technicianContexts = (await technicianContextsRes.json()).data?.contexts || [];
+    const technicianContext = technicianContexts.find((item: any) => item.scopeType === 'LABORATORY' && item.organizationId === dentalLabClaims.organizationId);
+    expect(technicianContext).toBeTruthy();
+    const switchedTechnician = await api.post(`${BASE}/api/iam/switch-context`, {
+      headers: auth(dentalTechnicianBaseToken),
+      data: { scopeType: technicianContext.scopeType, scopeId: technicianContext.scopeId, branchId: technicianContext.branchId },
+    });
+    expect(switchedTechnician.status()).toBe(200);
+    dentalTechnicianToken = (await switchedTechnician.json()).data.accessToken;
+    expect(JSON.parse(Buffer.from(dentalTechnicianToken.split('.')[1], 'base64url').toString('utf8')).role).toBe('DENTAL_TECHNICIAN');
 
     const patient = await api.post(`${BASE}/api/patients`, {
       headers: auth(ownerToken),
@@ -265,6 +298,8 @@ test.describe('Partner operational lifecycle', () => {
 
   test.afterAll(async () => {
     if (dentalTechnicianId) {
+      await prisma.personRole.deleteMany({ where: { person: { userId: dentalTechnicianId } } }).catch(() => {});
+      await prisma.person.deleteMany({ where: { userId: dentalTechnicianId } }).catch(() => {});
       await prisma.laboratoryMember.deleteMany({ where: { userId: dentalTechnicianId } }).catch(() => {});
       await prisma.user.delete({ where: { id: dentalTechnicianId } }).catch(() => {});
     }
@@ -447,11 +482,22 @@ test.describe('Partner operational lifecycle', () => {
     expect(clinicCannotAdvancePartnerOrder.status(), JSON.stringify(clinicBlockedBody)).toBe(409);
     expect(clinicBlockedBody.code).toBe('LAB_PARTNER_WORKFLOW_OWNED');
 
+    const unrelatedOrderRes = await api.post(`${BASE}/api/lab-orders`, {
+      headers: auth(ownerToken),
+      data: { patientId, patientName: 'Unassigned to technician', labType: 'inlay', material: 'ceramic', toothNumber: '16', price: 25000 },
+    });
+    expect(unrelatedOrderRes.status()).toBe(201);
+    const unrelatedOrder = (await unrelatedOrderRes.json()).data;
+    const unrelatedAssignment = await api.post(`${BASE}/api/lab-orders/platform/assign`, {
+      headers: auth(ownerToken), data: { orderId: unrelatedOrder.id, laboratoryId: fixtureDentalLabId },
+    });
+    expect(unrelatedAssignment.status()).toBe(200);
+
     const dashboard = await api.get(`${BASE}/api/lab-orders/platform/dashboard`, { headers: auth(dentalLabOwnerToken) });
     expect(dashboard.status()).toBe(200);
     const dashboardData = (await dashboard.json()).data;
     expect(dashboardData.lab.id).toBe(fixtureDentalLabId);
-    expect(dashboardData.totals.all).toBeGreaterThanOrEqual(1);
+    expect(dashboardData.totals.all).toBeGreaterThanOrEqual(2);
 
     const team = await api.get(`${BASE}/api/lab-orders/platform/team`, { headers: auth(dentalLabOwnerToken) });
     expect(team.status()).toBe(200);
@@ -464,15 +510,39 @@ test.describe('Partner operational lifecycle', () => {
     expect(technician.status()).toBe(200);
     expect((await technician.json()).data.technicianId).toBe(dentalTechnicianId);
 
-    for (const status of ['sent', 'in_progress', 'try_in', 'adjustment', 'qc']) {
+    const technicianOrders = await api.get(`${BASE}/api/lab-orders/platform/orders`, { headers: auth(dentalTechnicianToken) });
+    expect(technicianOrders.status()).toBe(200);
+    const technicianOrderRows = (await technicianOrders.json()).data || [];
+    expect(technicianOrderRows.map((item: any) => item.id)).toEqual([order.id]);
+    const technicianDashboard = await api.get(`${BASE}/api/lab-orders/platform/dashboard`, { headers: auth(dentalTechnicianToken) });
+    expect(technicianDashboard.status()).toBe(200);
+    expect((await technicianDashboard.json()).data.totals.all).toBe(1);
+    const technicianTeam = await api.get(`${BASE}/api/lab-orders/platform/team`, { headers: auth(dentalTechnicianToken) });
+    expect(technicianTeam.status()).toBe(403);
+    const technicianCannotReadOtherLifecycle = await api.get(`${BASE}/api/lab-orders/platform/orders/${unrelatedOrder.id}/lifecycle`, { headers: auth(dentalTechnicianToken) });
+    expect(technicianCannotReadOtherLifecycle.status()).toBe(404);
+
+    const sent = await api.patch(`${BASE}/api/lab-orders/platform/orders/${order.id}/status`, {
+      headers: auth(dentalLabOwnerToken), data: { status: 'sent', note: 'PARTNER-003 accepted by manager' },
+    });
+    expect(sent.status()).toBe(200);
+    for (const status of ['in_progress', 'try_in', 'adjustment', 'qc']) {
       const res = await api.patch(`${BASE}/api/lab-orders/platform/orders/${order.id}/status`, {
-        headers: auth(dentalLabOwnerToken),
-        data: { status, note: `PARTNER-003 ${status}` },
+        headers: auth(dentalTechnicianToken),
+        data: { status, note: `PARTNER-003 technician ${status}` },
       });
       expect(res.status()).toBe(200);
       expect((await res.json()).data.status).toBe(status);
     }
-
+    const technicianCannotDeliver = await api.patch(`${BASE}/api/lab-orders/platform/orders/${order.id}/status`, {
+      headers: auth(dentalTechnicianToken), data: { status: 'delivered' },
+    });
+    expect(technicianCannotDeliver.status()).toBe(403);
+    const technicianCannotApproveQc = await api.patch(`${BASE}/api/lab-orders/platform/orders/${order.id}/qc`, {
+      headers: auth(dentalTechnicianToken),
+      data: { checks: { fit: true, margins: true, shade: true, occlusion: true, surface: true, documentation: true }, note: 'technician cannot approve QC' },
+    });
+    expect(technicianCannotApproveQc.status()).toBe(403);
     const qcBypass = await api.patch(`${BASE}/api/lab-orders/platform/orders/${order.id}/status`, {
       headers: auth(dentalLabOwnerToken), data: { status: 'ready' },
     });

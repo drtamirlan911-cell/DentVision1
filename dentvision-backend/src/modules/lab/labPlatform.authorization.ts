@@ -1,10 +1,34 @@
 const LAB_MANAGER_ROLES = new Set(['owner', 'admin', 'manager', 'director', 'lab_manager']);
-const LAB_TECHNICIAN_ROLES = new Set(['technician', 'dental_technician', 'lab_technician']);
+const LAB_TECHNICIAN_ROLES = new Set(['technician', 'dental_technician', 'lab_technician', 'cad_designer', 'ceramist', 'orthodontic_technician']);
 const TECHNICIAN_PROGRESS_STATUSES = new Set(['in_progress', 'try_in', 'adjustment', 'qc', 'delayed']);
 export const LAB_QC_CHECK_KEYS = ['fit', 'margins', 'shade', 'occlusion', 'surface', 'documentation'] as const;
 
 export function isLabManagerRole(role: unknown): boolean {
   return LAB_MANAGER_ROLES.has(String(role || '').trim().toLowerCase());
+}
+
+export function isLabTechnicianRole(role: unknown): boolean {
+  return LAB_TECHNICIAN_ROLES.has(String(role || '').trim().toLowerCase());
+}
+
+/** Managers read the organization queue; production roles read assigned work only. */
+export function canLabMemberReadOrders(role: unknown): boolean {
+  return isLabManagerRole(role) || isLabTechnicianRole(role);
+}
+
+/** A technician's order queries include both the lab and assigned-user scope. */
+export function labMemberOrderReadScope(input: { role: unknown; userId: string; labId: string }): Record<string, unknown> | null {
+  const labOrder = { path: ['meta', 'laboratoryId'], equals: input.labId };
+  if (isLabManagerRole(input.role)) return { files: labOrder };
+  if (isLabTechnicianRole(input.role) && input.userId) {
+    return {
+      AND: [
+        { files: labOrder },
+        { files: { path: ['meta', 'technicianId'], equals: input.userId } },
+      ],
+    };
+  }
+  return null;
 }
 
 export function canLabMemberChangeStatus(input: { role: unknown; userId: string; assignedTechnicianId?: string | null; nextStatus: string }): boolean {
