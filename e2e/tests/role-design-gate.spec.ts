@@ -14,6 +14,8 @@ type PendingRequest = {
   responseStatus?: number
   responseContentType?: string
   responseAt?: number
+  initiatorFrameUrl?: string
+  referer?: string
 }
 type RequestLedger = {
   epoch: number
@@ -148,8 +150,10 @@ async function waitForRouteActivity(page: Page, roleId: string, route: string) {
         const responseDelay = entry.responseAt === undefined
           ? ''
           : ', responseAfter=' + (entry.responseAt - entry.startedAt) + 'ms';
+        const frame = entry.initiatorFrameUrl ? ', frame=' + entry.initiatorFrameUrl : '';
+        const referer = entry.referer ? ', referer=' + entry.referer : '';
         return entry.label + ' [resource=' + entry.resourceType
-          + ', age=' + (now - entry.startedAt) + 'ms, ' + response + responseDelay + ']';
+          + ', age=' + (now - entry.startedAt) + 'ms, ' + response + responseDelay + frame + referer + ']';
       });
       const quietForMs = Math.max(0, now - ledger.lastActivityAt);
       throw new Error(roleId + ' ' + route + ': pending current-document requests: ' + active.join('; ') + '; request quiet for ' + quietForMs + 'ms (requires ' + quietPeriodMs + 'ms). ' + String(error));
@@ -346,13 +350,17 @@ function collectors(page: Page) {
       }
     }
 
-    // A late request event from the page being replaced can arrive after the new
-    // document request has advanced the epoch. Its same-origin Referer still
-    // identifies the old document, so do not attribute it to the new route drain.
+    // A late same-origin script request from the page being replaced can arrive
+    // after the new document request has advanced the epoch. Script requests to
+    // the UI origin retain the full same-origin Referer path. API requests often
+    // cross the UI/API origin boundary and expose only the origin, so they must
+    // remain tracked rather than being filtered by a path comparison.
     let previousDocumentRequest = false;
     try {
+      const requestUrl = new URL(request.url());
+      const isUiScript = request.resourceType() === 'script' && requestUrl.origin === uiOrigin;
       const referer = request.headers()?.referer;
-      if (!mainDocumentNavigation && referer && ledger.documentUrl) {
+      if (isUiScript && !mainDocumentNavigation && referer && ledger.documentUrl) {
         const refererUrl = new URL(referer);
         const activeDocumentUrl = new URL(ledger.documentUrl);
         previousDocumentRequest = refererUrl.origin === uiOrigin
@@ -382,11 +390,15 @@ function collectors(page: Page) {
       ledger.lastActivityAt = Date.now();
       const id = ++ledger.sequence;
       const key = identity(request);
+      let initiatorFrameUrl: string | undefined;
+      try { initiatorFrameUrl = request.frame().url(); } catch { /* service-worker requests have no frame */ }
       ledger.pending.set(id, {
         epoch: ledger.epoch,
         label: request.method() + ' ' + url.origin + url.pathname,
         resourceType: request.resourceType(),
         startedAt: Date.now(),
+        initiatorFrameUrl,
+        referer: request.headers()?.referer,
       });
       ledger.requestIds.set(request, id);
       const queue = ledger.byIdentity.get(key) || [];
