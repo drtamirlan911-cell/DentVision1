@@ -86,7 +86,10 @@ describe('refundPayment', () => {
     expect(routeSource).toContain("payment.refType === 'crm_invoice'");
     expect(clinicBoundary).toBeGreaterThan(clinicScopeResolver);
     expect(genericOwnerCheck).toBeGreaterThan(clinicBoundary);
-    expect(routeSource).toContain("if (clinicId) return canManageClinicBillingMutation(req.user!, clinicId);");
+    expect(routeSource).toContain('const clinicScopedPayment = payment.provider === \'clinic_kaspi\'');
+    expect(routeSource).toContain('if (clinicScopedPayment)');
+    expect(routeSource).toContain('if (!clinicId) return false;');
+    expect(routeSource).toContain('return canManageClinicBillingMutation(req.user!, clinicId);');
     const clinicCashStart = routeSource.indexOf("if (isClinicCashier)");
     const clinicCashEnd = routeSource.indexOf("// Platform Kaspi", clinicCashStart);
     const clinicCashBlock = routeSource.slice(clinicCashStart, clinicCashEnd);
