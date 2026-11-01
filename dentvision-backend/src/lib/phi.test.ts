@@ -184,6 +184,18 @@ describe('structured medical history encryption', () => {
     expect(encryptMedicalHistory(stored)).toEqual(stored);
   });
 
+  it('accepts only structured object roots for new patient medical-history writes', async () => {
+    const { isStructuredMedicalHistoryRoot } = await import('./phi.js');
+    expect(isStructuredMedicalHistoryRoot({})).toBe(true);
+    expect(isStructuredMedicalHistoryRoot({ allergies: ['penicillin'] })).toBe(true);
+    expect(isStructuredMedicalHistoryRoot(Object.create(null))).toBe(true);
+    expect(isStructuredMedicalHistoryRoot([])).toBe(false);
+    expect(isStructuredMedicalHistoryRoot('medical history')).toBe(false);
+    expect(isStructuredMedicalHistoryRoot(42)).toBe(false);
+    expect(isStructuredMedicalHistoryRoot(false)).toBe(false);
+    expect(isStructuredMedicalHistoryRoot(null)).toBe(false);
+  });
+
   it('rejects root-level client-supplied ciphertext/envelopes but permits nested clinical data', async () => {
     const { isClientSuppliedEncryptedMedicalHistory } = await import('./phi.js');
     expect(isClientSuppliedEncryptedMedicalHistory('ENC:untrusted')).toBe(true);
