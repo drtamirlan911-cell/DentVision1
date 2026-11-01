@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import prisma from '../../lib/prisma.js';
 import { authenticate } from '../../middleware/auth.js';
+import { loadClinicAccess, blockClinicWrites } from '../../middleware/planGate.js';
 import { requirePermission } from '../../middleware/rbac.js';
 import type { AuthRequest, ApiResponse } from '../../types/index.js';
 import {
@@ -178,7 +179,7 @@ complianceRouter.get('/ai', async (req: AuthRequest, res) => {
   }
 });
 
-complianceRouter.post('/ai/:id/confirm', requirePermission('medical.write'), async (req: AuthRequest, res) => {
+complianceRouter.post('/ai/:id/confirm', requirePermission('medical.write'), loadClinicAccess, blockClinicWrites, async (req: AuthRequest, res) => {
   try {
     const isSuper = req.user!.role === 'SUPERADMIN';
     if (!isSuper && !req.user!.clinicId) return res.status(403).json({ ok: false, error: 'Клиника не определена' } satisfies ApiResponse);

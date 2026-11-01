@@ -88,6 +88,24 @@ describe('additional clinic-scoped mutation guards', () => {
     expect(route).toContain("code: 'SUBSCRIPTION_EXPIRED'");
   });
 
+describe('additional D1 clinical write guard boundaries', () => {
+  it('blocks organization-scoped dashboard creation after trial expiry', async () => {
+    const text = await source('dentvision-backend/src/modules/data/data.routes.ts');
+    expect(text).toContain("dataRouter.post('/dashboards', loadClinicAccess, blockClinicWrites");
+    expect(text).toContain('if (!assertSameClinic(req, res, clinicId)) return;');
+  });
+
+  it('blocks medical AI action confirmation while preserving consent and session controls', async () => {
+    const text = await source('dentvision-backend/src/modules/compliance/compliance.routes.ts');
+    expect(text).toContain("complianceRouter.post('/ai/:id/confirm', requirePermission('medical.write'), loadClinicAccess, blockClinicWrites");
+    const consentStart = text.indexOf("complianceRouter.post('/consents'");
+    const consentEnd = text.indexOf("complianceRouter.get('/medical", consentStart);
+    const consentRoute = text.slice(consentStart, consentEnd);
+    expect(consentRoute).not.toContain('blockClinicWrites');
+    expect(text).toContain("complianceRouter.post('/sessions/:id/expire'");
+  });
+});
+
 describe('trial backfill contract', () => {
   it('does not deactivate Clinic tenancy when an administrative subscription update marks it expired', async () => {
     const text = await source('dentvision-backend/src/modules/billing/subscriptions.routes.ts');

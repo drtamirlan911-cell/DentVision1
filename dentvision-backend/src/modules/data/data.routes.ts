@@ -4,6 +4,7 @@ import { authenticate } from '../../middleware/auth.js';
 import { requirePermission } from '../../middleware/rbac.js';
 import { computeMetricByKey, computationExists } from './data.service.js';
 import { assertSameClinic } from '../../lib/clinicAccess.js';
+import { loadClinicAccess, blockClinicWrites } from '../../middleware/planGate.js';
 import type { AuthRequest, ApiResponse } from '../../types/index.js';
 
 // Data Intelligence API (Phase 10): metric registry, metric values, dashboards.
@@ -64,7 +65,7 @@ dataRouter.get('/dashboards', async (req: AuthRequest, res) => {
   return res.json({ ok: true, data: dashboards } satisfies ApiResponse);
 });
 
-dataRouter.post('/dashboards', async (req: AuthRequest, res) => {
+dataRouter.post('/dashboards', loadClinicAccess, blockClinicWrites, async (req: AuthRequest, res) => {
   try {
     const { name, layout, scopeId } = req.body || {};
     const clinicId = scopeId || req.user?.clinicId;
