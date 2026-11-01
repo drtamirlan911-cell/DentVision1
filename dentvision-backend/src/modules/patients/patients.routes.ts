@@ -13,7 +13,7 @@ import type { AuthRequest, ApiResponse } from '../../types/index.js';
 import type { Prisma } from '@prisma/client';
 import { loadClinicAccess, blockClinicWrites, requireClinicWritable, guardPatientCreate } from '../../middleware/planGate.js';
 import { buildPatientIinFields, IinValidationError, type PatientIinFields } from '../../lib/patientIin.js';
-import { decryptField, decryptMedicalHistory, encryptMedicalHistory, hmacIin, isClientSuppliedEncryptedMedicalHistory } from '../../lib/phi.js';
+import { decryptField, decryptMedicalHistory, encryptMedicalHistory, hmacIin, isClientSuppliedEncryptedMedicalHistory, isStructuredMedicalHistoryRoot } from '../../lib/phi.js';
 import { normalizeIin, iinBirthDate, iinSex } from '../../lib/iin.js';
 import { ensurePatientAssignment, revokePatientAssignment, isAssignmentRole } from '../../lib/patientAssignment.js';
 import { isClinicMember } from '../../lib/orgContext.js';
@@ -141,7 +141,10 @@ patientsRouter.post('/', requirePatientMutationPermission, guardPatientCreate, a
   let idempotencyKey:string|undefined, completed=false;
   try {
     const clinicId=req.user?.clinicId; if(!clinicId) return res.status(400).json({ok:false,error:'Клиника не указана'} satisfies ApiResponse);
-    const context=await branchContext(req,clinicId); const body=req.body||{}; if(body.medicalHistory!==undefined&&isClientSuppliedEncryptedMedicalHistory(body.medicalHistory))return res.status(400).json({ok:false,error:'Передайте медицинскую историю в исходном формате'} satisfies ApiResponse); const {firstName,lastName}=splitName(body.name,body.firstName,body.lastName), id=body.id||uid();
+    const context=await branchContext(req,clinicId); const body=req.body||{};
+    if(body.medicalHistory!==undefined&&isClientSuppliedEncryptedMedicalHistory(body.medicalHistory))return res.status(400).json({ok:false,error:'Передайте медицинскую историю в исходном формате'} satisfies ApiResponse);
+    if(body.medicalHistory!==undefined&&body.medicalHistory!==null&&!isStructuredMedicalHistoryRoot(body.medicalHistory))return res.status(400).json({ok:false,error:'Медицинская история должна быть объектом'} satisfies ApiResponse);
+    const {firstName,lastName}=splitName(body.name,body.firstName,body.lastName), id=body.id||uid();
     let targetBranchId:string|null=context.branchId;
     if(context.scope.kind==='organization'){if(body.branchId!==undefined){if(!(await assertPatientBranchBelongsToClinic(String(body.branchId),clinicId)))return res.status(400).json({ok:false,error:'Недействующий филиал'} satisfies ApiResponse);targetBranchId=String(body.branchId);}else{const branches=await prisma.$queryRaw<Array<{id:string}>>`SELECT id FROM branches WHERE clinic_id=${clinicId} AND active=true ORDER BY "isDefault" DESC, "created_at" ASC LIMIT 1`;targetBranchId=branches[0]?.id??null;}}
     else if(!targetBranchId)return res.status(403).json({ok:false,error:'Сотруднику не назначен филиал'} satisfies ApiResponse);
@@ -195,6 +198,9 @@ patientsRouter.patch('/:id', requirePatientMutationPermission, requireClinicWrit
     const body = req.body || {};
     if (body.medicalHistory !== undefined && isClientSuppliedEncryptedMedicalHistory(body.medicalHistory)) {
       return res.status(400).json({ ok: false, error: 'Передайте медицинскую историю в исходном формате' } satisfies ApiResponse);
+    }
+    if (body.medicalHistory !== undefined && body.medicalHistory !== null && !isStructuredMedicalHistoryRoot(body.medicalHistory)) {
+      return res.status(400).json({ ok: false, error: 'Медицинская история должна быть объектом' } satisfies ApiResponse);
     }
 
     // Validate branch movement before mutating the patient. The branch change,
