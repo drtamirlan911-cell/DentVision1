@@ -369,7 +369,7 @@ test.describe('Partner operational lifecycle', () => {
     expect(technician.status()).toBe(200);
     expect((await technician.json()).data.technicianId).toBe(dentalTechnicianId);
 
-    for (const status of ['sent', 'in_progress', 'try_in', 'adjustment', 'ready', 'delivered']) {
+    for (const status of ['sent', 'in_progress', 'try_in', 'adjustment', 'qc']) {
       const res = await api.patch(`${BASE}/api/lab-orders/platform/orders/${order.id}/status`, {
         headers: auth(dentalLabOwnerToken),
         data: { status, note: `PARTNER-003 ${status}` },
@@ -378,12 +378,26 @@ test.describe('Partner operational lifecycle', () => {
       expect((await res.json()).data.status).toBe(status);
     }
 
+    const qc = await api.patch(`${BASE}/api/lab-orders/platform/orders/${order.id}/qc`, {
+      headers: auth(dentalLabOwnerToken),
+      data: { checks: { fit: true, margins: true, shade: true, occlusion: true, surface: true, documentation: true }, note: 'PARTNER-003 QC approved' },
+    });
+    expect(qc.status()).toBe(200);
+    expect((await qc.json()).data.status).toBe('ready');
+
+    const delivered = await api.patch(`${BASE}/api/lab-orders/platform/orders/${order.id}/status`, {
+      headers: auth(dentalLabOwnerToken),
+      data: { status: 'delivered', note: 'PARTNER-003 delivered after QC' },
+    });
+    expect(delivered.status()).toBe(200);
+    expect((await delivered.json()).data.status).toBe('delivered');
+
     const lifecycle = await api.get(`${BASE}/api/lab-orders/platform/orders/${order.id}/lifecycle`, {
       headers: auth(dentalLabOwnerToken),
     });
     expect(lifecycle.status()).toBe(200);
     const lifecycleData = (await lifecycle.json()).data;
-    expect(lifecycleData.events.length).toBeGreaterThanOrEqual(7);
+    expect(lifecycleData.events.length).toBeGreaterThanOrEqual(8);
     expect(lifecycleData.events[0].fromStatus).toBeNull();
     expect(lifecycleData.events[0].note).toContain('Передан в лабораторию');
 
