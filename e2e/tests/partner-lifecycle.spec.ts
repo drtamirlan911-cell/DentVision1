@@ -29,6 +29,9 @@ test.describe('Partner operational lifecycle', () => {
   let centerRadiologistToken = '';
   let centerRadiologistId = '';
   let labOwnerToken = '';
+  let dentalLabOwnerToken = '';
+  let fixtureDentalLabId = '';
+  let dentalTechnicianId = '';
 
   test.beforeAll(async ({ playwright }) => {
     api = await playwright.request.newContext();
@@ -188,6 +191,30 @@ test.describe('Partner operational lifecycle', () => {
     expect(labAccessToken).toBeTruthy();
     labOwnerToken = labAccessToken;
 
+    const dentalLabOwner = await createTestUser({ email: `dental-lab-owner-${Date.now()}@test.dentvision`, firstName: 'Dental Lab', lastName: 'Owner' });
+    const dentalLabBaseToken = await login(api, dentalLabOwner.email);
+    const dentalLabOnboard = await api.post(`${BASE}/api/organizations/self-service`, {
+      headers: auth(dentalLabBaseToken),
+      data: { type: 'dental_lab', name: `E2E Dental Lab ${Date.now()}`, city: 'Тараз' },
+    });
+    expect(dentalLabOnboard.status()).toBe(201);
+    const dentalLabPayload = await dentalLabOnboard.json();
+    fixtureDentalLabId = dentalLabPayload.data?.entityId;
+    dentalLabOwnerToken = dentalLabPayload.data?.accessToken || dentalLabPayload.accessToken;
+    expect(fixtureDentalLabId).toBeTruthy();
+    expect(dentalLabOwnerToken).toBeTruthy();
+    const dentalLabClaims = JSON.parse(Buffer.from(dentalLabOwnerToken.split('.')[1], 'base64url').toString('utf8')) as { role?: string; organizationType?: string };
+    expect(dentalLabClaims.role).toBe('DENTAL_LAB_OWNER');
+    expect(dentalLabClaims.organizationType).toBe('LABORATORY');
+
+    const dentalTechnician = await createTestUser({ email: `dental-technician-${Date.now()}@test.dentvision`, firstName: 'Dental', lastName: 'Technician' });
+    dentalTechnicianId = dentalTechnician.id;
+    await prisma.laboratoryMember.upsert({
+      where: { labId_userId: { labId: fixtureDentalLabId, userId: dentalTechnicianId } },
+      update: { role: 'technician' },
+      create: { id: randomUUID(), labId: fixtureDentalLabId, userId: dentalTechnicianId, role: 'technician' },
+    });
+
     const patient = await api.post(`${BASE}/api/patients`, {
       headers: auth(ownerToken),
       data: { iin: makeIin(), firstName: 'Partner', lastName: 'Lifecycle', phone: `+7700${Date.now() % 10000000}` },
@@ -197,6 +224,10 @@ test.describe('Partner operational lifecycle', () => {
   });
 
   test.afterAll(async () => {
+    if (dentalTechnicianId) {
+      await prisma.laboratoryMember.deleteMany({ where: { userId: dentalTechnicianId } }).catch(() => {});
+      await prisma.user.delete({ where: { id: dentalTechnicianId } }).catch(() => {});
+    }
     if (centerRadiologistId) {
       await prisma.diagnosticCenterMember.deleteMany({ where: { userId: centerRadiologistId } }).catch(() => {});
       await prisma.personRole.deleteMany({ where: { person: { userId: centerRadiologistId } } }).catch(() => {});
@@ -294,4 +325,79 @@ test.describe('Partner operational lifecycle', () => {
     expect(read.status()).toBe(200);
     expect((await read.json()).data.order.status).toBe('verified');
   });
+  test('PARTNER-003: dental lab owner → clinic assignment → technician → production → delivery → tenant isolation', async () => {
+    expect(fixtureDentalLabId).toBeTruthy();
+    expect(dentalLabOwnerToken).toBeTruthy();
+
+    const createOrder = await api.post(`${BASE}/api/lab-orders`, {
+      headers: auth(ownerToken),
+      data: {
+        patientId,
+        patientName: 'Dental Lab Partner Lifecycle',
+        labType: 'crown',
+        material: 'zirconia',
+        toothNumber: '36',
+        shade: 'A2',
+        price: 45000,
+        dueDate: new Date(Date.now() + 48 * 60 * 60 * 1000).toISOString(),
+      },
+    });
+    expect(createOrder.status()).toBe(201);
+    const order = (await createOrder.json()).data;
+    expect(order.status).toBe('pending');
+
+    const assignment = await api.post(`${BASE}/api/lab-orders/platform/assign`, {
+      headers: auth(ownerToken),
+      data: { orderId: order.id, laboratoryId: fixtureDentalLabId },
+    });
+    expect(assignment.status()).toBe(200);
+
+    const dashboard = await api.get(`${BASE}/api/lab-orders/platform/dashboard`, { headers: auth(dentalLabOwnerToken) });
+    expect(dashboard.status()).toBe(200);
+    const dashboardData = (await dashboard.json()).data;
+    expect(dashboardData.lab.id).toBe(fixtureDentalLabId);
+    expect(dashboardData.totals.all).toBeGreaterThanOrEqual(1);
+
+    const team = await api.get(`${BASE}/api/lab-orders/platform/team`, { headers: auth(dentalLabOwnerToken) });
+    expect(team.status()).toBe(200);
+    expect((await team.json()).data.some((member: any) => member.id === dentalTechnicianId)).toBe(true);
+
+    const technician = await api.patch(`${BASE}/api/lab-orders/platform/orders/${order.id}/technician`, {
+      headers: auth(dentalLabOwnerToken),
+      data: { technicianId: dentalTechnicianId },
+    });
+    expect(technician.status()).toBe(200);
+    expect((await technician.json()).data.technicianId).toBe(dentalTechnicianId);
+
+    for (const status of ['sent', 'in_progress', 'try_in', 'adjustment', 'ready', 'delivered']) {
+      const res = await api.patch(`${BASE}/api/lab-orders/platform/orders/${order.id}/status`, {
+        headers: auth(dentalLabOwnerToken),
+        data: { status, note: `PARTNER-003 ${status}` },
+      });
+      expect(res.status()).toBe(200);
+      expect((await res.json()).data.status).toBe(status);
+    }
+
+    const lifecycle = await api.get(`${BASE}/api/lab-orders/platform/orders/${order.id}/lifecycle`, {
+      headers: auth(dentalLabOwnerToken),
+    });
+    expect(lifecycle.status()).toBe(200);
+    const lifecycleData = (await lifecycle.json()).data;
+    expect(lifecycleData.events.length).toBeGreaterThanOrEqual(7);
+    expect(lifecycleData.events[0].fromStatus).toBeNull();
+    expect(lifecycleData.events[0].note).toContain('Передан в лабораторию');
+
+    const clinicRead = await api.get(`${BASE}/api/lab-orders`, { headers: auth(ownerToken) });
+    expect(clinicRead.status()).toBe(200);
+    const clinicOrder = ((await clinicRead.json()).data || []).find((item: any) => item.id === order.id);
+    expect(clinicOrder).toBeTruthy();
+    expect(clinicOrder.status).toBe('delivered');
+    expect(clinicOrder.laboratoryId).toBe(fixtureDentalLabId);
+
+    const otherLabRead = await api.get(`${BASE}/api/lab-orders/platform/orders/${order.id}/lifecycle`, {
+      headers: auth(labOwnerToken),
+    });
+    expect(otherLabRead.status()).toBe(404);
+  });
+
 });
