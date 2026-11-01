@@ -59,7 +59,7 @@ This entry supersedes stale source-level claims below where explicitly noted, bu
 - **Priority:** P0
 - **Area:** PHI / clinical data protection
 - **Evidence:** the static inventory [`docs/security/RB-029_MEDICAL_HISTORY_ENCRYPTION_INVENTORY.md`](security/RB-029_MEDICAL_HISTORY_ENCRYPTION_INVENTORY.md) found 58 explicit `medicalHistory` references across 23 files and 85 textual Prisma Patient ORM-call lines across 33 backend paths. The candidate adds a versioned `__dentvisionEncryptedV1` JSON envelope, decode-before-read/merge, encrypt-before-write for canonical Patient CRUD and odontogram paths, and decoding in AI tool/event consumers. The Prisma JSON column is unchanged.
-- **Compatibility / migration:** legacy plaintext JSON and the previous patient-portal scalar `ENC:` format remain readable during rollout. The guarded `db:backfill:medical-history` command defaults to dry-run, performs a complete preflight, validates existing ciphertext, and uses bounded JSONB compare-and-set updates; production writes require explicit matching target confirmations. It is not called at startup.
+- **Compatibility / migration:** legacy plaintext JSON and the previous patient-portal scalar `ENC:` format remain readable during rollout. The guarded `db:backfill:medical-history` command defaults to dry-run, validates existing ciphertext and structured object roots, counts unsupported non-object roots and aborts before any write if present, then uses bounded JSONB compare-and-set updates; production writes require explicit matching target confirmations. It is not called at startup.
 - **Risk:** until a backfill runs against an explicitly verified target, existing structured history rows may remain plaintext at rest. Phone, email, address and notes also remain searchable plaintext fields by current design and require a separate documented threat-model decision.
 - **Required fix:** complete the audit of all readers, writers, filters, exports/reports, AI/event copies, portal/odontogram/cross-clinic consumers and concurrent legacy writers; review a backup and rollback plan; run a read-only staging dry run; verify count/round-trip/integrity reconciliation before any approved write.
 - **Verification:** focused PHI/odontogram/backfill tests passed 63/63 on an earlier candidate, not this merged exact head. Fresh exact-head CI and consumer/security review remain required. No production database query, backfill, schema migration or deployment has been performed.
@@ -71,6 +71,14 @@ This entry supersedes stale source-level claims below where explicitly noted, bu
 - Branch reassignment is validated before any patient mutation. The branch SQL helper now accepts a transaction client so a failed chart/teeth write cannot leave a partially moved patient.
 - The patient deposit route now uses a database-side integer increment rather than read-then-write arithmetic, preventing concurrent cash deposits from overwriting one another. Non-integer and unsafe amounts are rejected at the API boundary.
 - Source/test changes are in implementation commit `b77552f8078382beabc376ad2af37ba2cb60abff` on the existing PR #330 branch. Exact-head CI is required; no local test run or staging/production operation is claimed. RB-029 and RB-035 remain OPEN pending broader test matrices and staging evidence.
+
+
+#### Follow-up — medical-history backfill root-shape guard (2026-11-01)
+
+- **Finding:** the backfill classified every non-null value that was not an \`ENC:\` scalar or new envelope as plaintext. That would include JSON arrays and scalar roots; serializing these as encrypted history would preserve bytes but not restore the documented structured Patient DTO contract.
+- **Fix in PR #330:** the preflight now requires plaintext history and decrypted versioned envelopes to have an object root. Unsupported roots are counted without logging patient content/identifiers and the run aborts before dry-run success or write mode. The write pass repeats the root-shape guard defensively. The historical patient-portal scalar \`ENC:\` compatibility path remains separately readable and is not rewritten.
+- **Tests:** added pure root-shape contract coverage for object vs array/string/number/boolean/null. Exact-head CI remains required; no DB query or backfill was run.
+- **Remaining:** a per-record PHI-free exception ledger, approved staging dry run, backup/restore drill, reconciliation and key lifecycle evidence are still required. RB-029 remains OPEN.
 
 
 ### RB-030 — Offline appointment queue privacy redaction may drop required sync fields
