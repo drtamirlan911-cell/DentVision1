@@ -82,6 +82,13 @@ This entry supersedes stale source-level claims below where explicitly noted, bu
 - **Remaining:** a per-record PHI-free exception ledger, approved staging dry run, backup/restore drill, reconciliation and key lifecycle evidence are still required. RB-029 remains OPEN.
 
 
+#### Follow-up — structured medical-history root enforcement (2026-11-01)
+
+- **Finding:** the Patient Portal profile writer encrypted arbitrary JSON roots, including strings and arrays. The canonical Patient create/PATCH writers also accepted non-object roots and normalized them inconsistently. Such rows would be classified by the guarded backfill as unsupported roots and violate the structured Patient DTO contract.
+- **Fix in PR #330:** shared \`isStructuredMedicalHistoryRoot()\` now accepts JSON object roots only. Patient Portal \`PUT /api/patient-portal/me/profile\`, Patient \`POST /api/patients\` and Patient \`PATCH /api/patients/:id\` reject scalar and array history values before encrypting or merging. Null remains supported as no-history; root-level client ciphertext/envelopes remain rejected. Legacy scalar \`ENC:\` rows remain read-compatible and are not reintroduced as client writes.
+- **Regression coverage:** shared PHI unit tests cover object/null acceptance and array/string/number/boolean rejection; Patient route and Patient Portal route contracts lock the write boundary. Exact-head CI remains required.
+- **Remaining:** all consumers/concurrent legacy writers, exception ledger, approved staging dry run, backup/restore, key rotation and data reconciliation remain open. No database operation or PHI backfill was run; RB-029 remains OPEN.
+
 ### RB-030 — Offline appointment queue privacy redaction may drop required sync fields
 - **Status:** OPEN — behavior requires end-to-end verification
 - **Priority:** P1
@@ -411,6 +418,13 @@ This entry supersedes stale source-level claims below where explicitly noted, bu
 - **Remaining:** verify the new exact HEAD completes core E2E, browser UX, mobile, role/context, Visual Agent, business-owner and organization-owner gates; inspect the compact failure summary before resolving this blocker.
 
 - **Latest failure evidence (2026-10-31, CI 41186233177):** frontend/backend lint passed; the exhaustive role-1280 run recorded 15 failures because current-document lazy source modules (`/src/**/*.tsx`) and several finite `/api/*` requests were still pending at the 20-second drain boundary. The workflow was still using Vite's on-demand dev server for browser gates. This is a test-environment delivery/settling failure, not permission to weaken the gate; the next exact-head attempt builds the frontend once and serves the production bundle through `vite preview`, retaining all role/route assertions and the 700 ms quiet-window check. **Verification pending.**
+#### Follow-up — WebKit cancellation/navigation race (2026-11-01)
+
+- Exact-head run \`41312419249\` completed Role/Context with 139 passed and one failed; the only failure was PATIENT on \`role-mobile-safari\`, where \`GET /api/patient-portal/conversation\` reported \`Load request cancelled\`. Trace showed nearby HTTP 200 responses and a new main-document navigation to \`/profile\` three milliseconds after the cancelled request.
+- The request-failed event could arrive before Playwright emitted the replacing main-document request, so the old request retained the current document epoch and was misclassified as a live-route failure.
+- The fix defers only \`ERR_ABORTED\` / \`Load request cancelled\` for 75 ms and recognizes a navigation cancellation only if the main-document epoch actually advances. Without a new navigation it remains a hard failed-request assertion; no failed-request, HTTP, CORS, authorization or tenant checks are suppressed.
+- Exact-head verification remains pending; RB-024/RB-025 remain OPEN until the complete role gate and visual evidence pass on the same final SHA.
+
 ### RB-025 — Role gate exposed auth/route and responsive UI regressions
 - **Status:** IN PROGRESS — exact-HEAD CI verification pending
 - **Priority:** P0
@@ -422,6 +436,11 @@ This entry supersedes stale source-level claims below where explicitly noted, bu
 - **Latest exact-head evidence:** run `39970030360` on `f681f4b8f0784a1f8553da5612c58634593b2ab9` completed and failed 58 role-gate attempts. Many repeated WebKit failures share the RB-031 access-control cluster. The owner identity surface displayed `Руководитель` while canonical `docs/DENTVISION_IAM_ROLE_MATRIX.md` specifies OWNER — `Владелец`. Visual Agent separately failed three attempts because of undersized controls tracked under RB-003.
 - **Follow-up in current candidate:** align CI loopback hostnames, use the canonical `Владелец` label for the owner role without changing permissions, and fix shared Button `asChild` class forwarding plus the diagnostics action target size. Exact-head verification is pending.
 - **Remaining:** rerun role/context, Visual Agent and visual evidence validation on the same final SHA; verify visible role labels, public/protected route matrix, cross-tenant/branch isolation and per-role/per-viewport evidence. Do not close until exact-head gates pass.
+
+#### Follow-up — exact-head role evidence (2026-11-01)
+
+- On HEAD \`c9b8136cce44275629021d715074b83a0f05b941\`, Role/Context executed 168 tests: 139 passed, 28 skipped according to the viewport coverage policy, and one PATIENT Safari request-cancellation race failed. The 36px, role, route, page/console, HTTP and server assertions remained enabled.
+- Visual Agent, Business Owner, Organization Owner, Playwright CLI and visual release evidence all completed successfully on the same run. Core E2E, Browser UX and Mobile Design passed. Overall CI remained red because of the two stale RB-035 source matchers and the single Role/Context cancellation race. The current candidate fixes both causes; fresh exact-head verification is required.
 
 ### RB-026 — Playwright CLI smoke never reaches browser checks
 - **Status:** IN PROGRESS — exact-HEAD workflow verification pending
@@ -473,6 +492,7 @@ Parallel-branch evidence retained during integration; reconcile against the curr
 - **Atomic balance follow-up:** patient deposits now use `prepaidBalance: { increment: amount }` and reject non-integer/unsafe values. This removes the read-then-write race in which simultaneous deposits could overwrite one another. A route-contract regression assertion was added; exact-head CI and an isolated concurrency scenario remain required.
 - **Patient-balance field authorization correction (commits `76c76548d625460e294ed96599dd56cbcb1492e3`, `a09a1afdb1600c27a5f7fe7e69753e0d935c92ef`, `f1d512ce676cd253c7bb23a4c173d008e045e5c0`; exact-head CI pending):** the prior serializers treated `billing.read` as sufficient to return `prepaidBalance`, conflicting with the IAM Matrix definition of `billing.read` as price-list only. The shared `canReadPatientBalance()` policy now permits explicit billing write/delete/manage or SUPERADMIN wildcard, or the care-specific combination `medical.manage` + `billing.read`. `serializePatient()` defaults to hiding the field, and the summary route now uses caller-aware serialization rather than bypassing it. New negative E2E asserts MANAGER can still list patients without the balance while DOCTOR receives it only through the care-specific permission combination; a route contract locks both the permission predicate and fail-closed default. The latest exact-head CI must pass before acceptance.
 - **Remaining:** verify all direct read and mutation routes against the canonical IAM matrix, retain clinic/branch/assignment scope and field-level PHI redaction, and pass the exact-head negative tests. Do not close this blocker based on frontend page visibility or source inspection alone.
+- **Exact-head evidence:** CI `41312419249` on HEAD `c9b8136cce44275629021d715074b83a0f05b941` passed 2,432/2,434 unit tests; the two failures were stale source-contract matchers expecting the old `includeBilling=true` default and reversed permission-pair order. Corrected in commit `e34ff872e042e8545c8e175b4820bd46bc7fe64e` without runtime permission changes. Core E2E, Browser UX, Mobile Design, Visual Agent, Business Owner, Organization Owner, Playwright CLI, visual evidence, Quality Gate and RB-034 passed on that parent SHA; Role/Context had one Safari cancellation race. Fresh exact-head CI is required.
 
 
 - **Patient PATCH concurrency follow-up (candidate commits `b77552f8078382beabc376ad2af37ba2cb60abff` and `8e7989b5d01eb973220df70b331e5912342f281e`):** source adds `updatedAt` compare-and-set and wraps the patient update, odontogram mirror and validated branch change in one transaction; branch validation precedes mutation. Patient deposits now use atomic integer increment. The first exact-head CI `41181068689` reached 2,382 passing tests but had 3 failures in `patients.routes.branchScope.test.ts` because old source assertions expected minified route declarations and incorrectly rejected `prepaidBalance: next` in the JSON response. The matcher corrections are committed; a fresh exact-head run is required. This is not a closed blocker.
