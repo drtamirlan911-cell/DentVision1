@@ -1,6 +1,15 @@
 # DentVision — Master Execution Plan
 
-## Latest compliance checkpoint — 2026-10-31
+## Latest implementation checkpoint — 2026-11-01 (D10 lab handoff hardening)
+
+- Continue only on existing PR #330 / `fix/d1-d10-trial-archive-signing-api-20261029`; current implementation HEAD at checkpoint `e777520e3fffa29e2eb6e8d89423e0890c9c7bdd`. Base/main remains `ac913cc3389a294d0b135a852b035ddddb1018ca`.
+- Implemented clinic ↔ independent dental-lab handoff controls in `8dacdb0`: verified published partner discovery, pending-only assignment, idempotent repeat assignment, cross-partner reassignment denial, clinic edit/delete/direct-assignment/status guards, durable QC ready/remake event routing and CRM transfer controls.
+- Hardened clinic and partner status transitions/technician assignment under database row locks and transactional lifecycle history in `e777520`; persisted server IDs now feed the work-order print path.
+- Quality Gate `41262145807`, RB-034 `41262145784`, Vercel preview, frontend lint, backend typecheck/lint, frontend/backend build and Command Center audit passed on `e777520`. CI `41262145782` stopped before unit tests because the generated System Map had 694 route handlers while the committed snapshot still had 693; snapshot correction is part of the next docs commit. E2E was still in progress and is not counted as passed.
+- Next: run exact-head CI after System Map/document updates; resolve all unit/E2E/role/visual/owner failures without reducing tenant/RBAC assertions. Keep D10 PARTIAL until the whole independent lab workflow (services/pricing, invoice/settlement/payout, delivery/dispatch, owner/manager/technician matrix and AI exceptions) is proven.
+- D1 staging expiry/backfill, RB-029 PHI readers/backfill/AI transcripts, RB-030 offline E2E, RB-031 WebKit/CORS, RB-033 branch protection, RB-035 negative IAM matrix, Kaspi contract/callback, production CORS/WebSocket and Android device runtime remain OPEN. No live DB operation, deployment or main merge.
+
+## Latest compliance checkpoint — 2026-10-31## Latest compliance checkpoint — 2026-10-31
 
 - Full 24-section Master Spec 5.0 audit recorded in docs/MASTER_SPEC_COMPLIANCE_AUDIT.md, audited HEAD 1284de604b638937ee2939f3f198f8674a5fa6d4.
 - Result: 18 sections PARTIAL, 4 OPEN, 2 GUIDANCE; no section certified fully compliant end-to-end. PR #330 remains OPEN / DRAFT and release NOT READY.

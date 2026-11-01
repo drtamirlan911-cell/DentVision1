@@ -2,7 +2,15 @@
 
 > Canonical working register for issues discovered during autonomous audit/release work. Items remain open until verified by tests/evidence.
 
-## Audit follow-up — 2026-10-29 (DentVision1 main audit D1–D10)
+
+
+## Candidate follow-up — 2026-11-01 (D10 dental-lab handoff)
+
+- PR #330 candidate commits `8dacdb0` and `e777520` harden the clinic ↔ dental-lab handoff: only verified/public dental-lab partners can be selected; same-lab assignment is idempotent; reassignment and clinic-side edit/delete/status mutation after handoff are rejected; status/QC/technician events are written transactionally; QC ready/remake events notify the clinic; CRM removes clinic lifecycle controls after transfer.
+- Regression E2E assertions were added for eligibility filtering, medical-lab exclusion, assignment idempotency, cross-lab reassignment, direct-assignment denial, clinic edit/delete denial and QC-ready notification. They are not yet counted as passed at this checkpoint.
+- Exact-head evidence on `e777520`: Quality Gate and RB-034 passed; frontend/backend lint, TypeScript, build and Command Center audit passed; Vercel preview passed. CI unit tests were skipped because `docs/SYSTEM_MAP.md` still said 693 handlers while the generator reported 694. E2E remained in progress. The System Map snapshot is corrected in this documentation update; exact-head rerun is mandatory.
+- D10 remains OPEN; remaining work includes full independent lab services/pricing, invoicing/settlement/payout, delivery/dispatch, complete owner/manager/technician authorization matrix, AI exception coverage and the rest of Master Spec 5.0. Release remains NOT READY. No live DB operation, migration, deployment or merge to main.
+## Audit follow-up — 2026-10-29## Audit follow-up — 2026-10-29 (DentVision1 main audit D1–D10)
 
 This entry supersedes stale source-level claims below where explicitly noted, but does not close items that require live database, deployment, provider, branch-rule or end-to-end evidence.
 

@@ -2,7 +2,27 @@
 
 This log is the durable handoff between work sessions/agents. It records completed work, evidence, blockers, and the exact next action.
 
-## Historical record
+## 2026-11-01 — Dental-lab handoff ownership, QC notifications and transactional lifecycle
+
+- Repository: `drtamirlan911-cell/DentVision1`; updated only the existing PR #330 branch `fix/d1-d10-trial-archive-signing-api-20261029`. Main remains `ac913cc3389a294d0b135a852b035ddddb1018ca`; no merge.
+- Implementation commit `8dacdb03cc05adec5eba78a55ea7b797a12f2eb1`:
+  - Clinic `POST /api/lab-orders` can no longer set partner/technician metadata directly or create non-pending orders. An edit cannot mutate a delegated order or bypass the dedicated status endpoint.
+  - Clinic `DELETE /api/lab-orders/:id` now refuses partner-owned orders and preserves the cross-organization history.
+  - Clinic partner discovery exposes only active, verified, legally ready, ecosystem-visible dental laboratories; medical labs are excluded.
+  - Assignment is row-locked and idempotent for the same partner; reassignment to a different lab and assignment of non-pending orders are rejected.
+  - QC transitions are atomic with the durable event record and publish the canonical `labOrder.status_changed` event; ready/remake notifications reach the clinic/doctor/operations through the AI Event Bridge. Remake is not falsely emitted as a completion.
+  - CRM exposes the verified dental-lab picker and disables local lifecycle/edit/delete controls after handoff. The print flow consumes the persisted order returned by the server.
+  - E2E contracts added for partner filtering, repeat assignment, reassignment denial, clinic edit/delete/direct-assignment denial and QC clinic notification.
+- Follow-up commit `e777520e3fffa29e2eb6e8d89423e0890c9c7bdd`:
+  - Clinic status transition, partner status transition, technician assignment and their event-history inserts now run under one LabOrder row lock/transaction. This closes the read-then-write race between concurrent lifecycle actors.
+  - Same-technician assignment is idempotent; changed technician assignment is recorded in lifecycle history.
+  - Work-order printing now uses the server-created ID instead of a client-only temporary ID.
+- Exact-head CI evidence on `e777520`: Quality Gate `41262145807` passed; RB-034 focused diagnostic `41262145784` passed; Vercel preview status passed. Frontend lint and backend TypeScript/ESLint passed; production build, frontend/backend TypeScript and Command Center audit passed. CI `41262145782` failed only at generated System Map reconciliation (snapshot 693 unique route handlers vs generator 694); unit tests were skipped because the required docs snapshot was stale. E2E was still active in its isolated DB setup; the new partner assertions have not yet been reported as passing.
+- `docs/SYSTEM_MAP.md` snapshot is corrected to 694. Fresh exact-head CI/Quality/RB-034 is required after the documentation commit. Do not convert an E2E-in-progress or skipped unit suite into a pass.
+- D10 remains PARTIAL/OPEN; the work closes only the clinic-to-dental-lab assignment and ownership subflow. Catalogue/pricing, invoicing/settlement/payout, delivery/dispatch, complete technician/manager negative matrix, AI exception coverage and overall Master Spec parity remain outstanding.
+- No local checkout/test execution is claimed. No staging/production DB write, migration, PHI backfill, provider account change, production deployment or merge to main was performed.
+
+## Historical record## Historical record
 The complete pre-2026-09-14 execution history is preserved in the parent Git history at commit `ceb0a85560540d0bff2ecd154189280f8cd6d588`. The current file was accidentally shortened during the 2026-09-14 patient-scope repair; no historical source commit was rewritten.
 
 ## 2026-10-31 — Concurrent patient-history and deposit E2E coverage
