@@ -642,3 +642,14 @@ Parallel-branch evidence retained during integration; reconcile against the curr
 - **Fix in PR #330:** introduced one shared runtime reconciler, used by both clinic and partner writers, and an additive forward migration that guarantees note and nullable fromStatus. No live DB migration was run.
 - **Acceptance added:** PARTNER-003 tests independent dental-lab organization onboarding, real clinic LabOrder assignment, lab owner dashboard, technician assignment, status transitions through delivered, event history, clinic visibility and denial from a different lab.
 - **Remaining D10 gaps:** QC sign-off/remake control, shipping/dispatch, services/pricing, independent invoice/settlement/payout, durable notifications, AI exceptions and full owner/technician policy remain OPEN. PARTNER-003 is a partial slice, not overall D10 closure.
+
+
+### RB-036 — Dental-lab economics recognized on delivery without commercial settlement
+- **Status:** IN PROGRESS — the delivery-triggered writers are removed in the current PR #330 candidate; exact-head CI/E2E verification is pending.
+- **Priority:** P1
+- **Area:** Partner Finance / wallet and ledger integrity / D10
+- **Evidence:** the prior `labOrder.status_changed → delivered` subscriber called `recordDentalLabOrderEconomics`, which wrote a completed `partner_economics` transaction and partner/platform wallet/ledger entries. The clinic-side status route also contained a redundant delivery writer. Both contradicted the canonical rule in `docs/business/DENTVISION_PARTNER_ECONOMICS.md`: commission is earned only on successful commercial settlement.
+- **Fix in PR #330 candidate:** remove both delivery-triggered financial writers and the obsolete delivery-only economics helper/test. PARTNER-003 now checks that a delivered order has no `DENTAL_LAB` partner-economics transaction or ledger snapshot.
+- **Required next action:** pass exact-head CI/E2E; keep economics disabled until a commercially approved invoice/payment/settlement contract and verified callback/reconciliation path exist. Enforce partner ownership, exact amount, idempotency and clinic/branch scope when that future workflow is designed.
+- **Historical data:** do not automatically delete, reverse, backfill or mutate existing DENTAL_LAB wallet/ledger rows. Reconcile them read-only against external payment evidence before any separately approved correction.
+- **Closure criteria:** exact-head negative E2E confirms delivery alone creates no DENTAL_LAB transaction/ledger write; approved settlement recognition remains a separate D10 deliverable. D10 overall remains OPEN.

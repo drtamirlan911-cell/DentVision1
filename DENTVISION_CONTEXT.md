@@ -515,3 +515,13 @@ Implemented and added to the exact-head E2E suite: a clinic creates a canonical 
 The event-log schema is reconciled with one shared runtime helper used by clinic and partner writers. The helper adds the note column when absent and makes the initial fromStatus nullable. A forward migration records the same correction for already-deployed schemas. The migration has not been applied to any live database.
 
 PARTNER-003 verifies only the current basic handoff and production path. It does not prove QC sign-off, remake authorization, shipping/dispatch, service catalogue/pricing administration, independent invoice/settlement/payout, durable idempotent notifications, AI exception surfacing, or the complete owner/manager/technician permission matrix. D10 remains OPEN.
+
+## 2026-11-01 — D10 delivery/settlement boundary correction (candidate update; CI pending)
+
+- Active target remains the existing PR #330 / `fix/d1-d10-trial-archive-signing-api-20261029`; parent HEAD `b43b3c01b229b21c1fa2cda7d149c55486bb4e42`, base/main `ac913cc3389a294d0b135a852b035ddddb1018ca`.
+- Parent HEAD CI `41280138666`, Quality Gate `41280138667` and RB-034 `41280138692` passed. These results predate this update; exact-head checks must rerun.
+- Removed commission/wallet/ledger writes from the delivered status subscriber and the dead duplicate clinic route block. Removed the obsolete delivery-only `recordDentalLabOrderEconomics` service and its unit test.
+- PARTNER-003 adds a DB-level negative assertion: delivery must not create a DENTAL_LAB `partner_economics` transaction or attached ledger entries.
+- Canonical policy is settlement-first. There is no approved dental-lab invoice/payment/settlement contract or callback; no replacement Kaspi/platform payment path was invented. D10 remains OPEN pending the full commercial lifecycle and owner/manager/technician matrix.
+- Existing financial history is preserved untouched. Historical DENTAL_LAB rows require read-only reconciliation against external proof of payment before any separately approved corrective action.
+- No staging/production DB operation, migration, PHI backfill, environment change, deployment or main merge was performed. Local checkout is not mounted; local git status/tests are not claimed.

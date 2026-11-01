@@ -2757,3 +2757,14 @@ Added route-contract tests covering all write routes and the laboratory-context 
 - Added a focused unit contract test for the DDL repair and common helper usage.
 - This closes only the basic independent lab handoff/production slice, not the complete DENTVISION_LAB_PLATFORM_EXECUTION definition of done.
 - D10 remains OPEN: QC sign-off, remake authorization, shipping/dispatch, services/pricing, independent invoice/settlement/payout, durable notifications, AI exceptions and role policy still need implementation and E2E evidence. No live migration or financial operation was run.
+
+
+## 2026-11-01 — D10 delivery is not commercial settlement (candidate update; CI pending)
+
+- Repository: `drtamirlan911-cell/DentVision1`; only existing PR #330 branch `fix/d1-d10-trial-archive-signing-api-20261029` is updated. Parent HEAD `b43b3c01b229b21c1fa2cda7d149c55486bb4e42`; main remains `ac913cc3389a294d0b135a852b035ddddb1018ca`.
+- Parent exact-head CI `41280138666`, Quality Gate `41280138667` and RB-034 `41280138692` passed. New correction requires its own exact-head CI before acceptance.
+- Removed the `labOrder.status_changed → delivered` economics subscriber; removed the dead duplicate writer in the clinic status route and its now-unused imports. Deleted `dental-lab-economics.service.ts` and its unit test because they encoded delivery as an earned economic event.
+- Added PARTNER-003 E2E assertion that after partner delivery and event-queue drain, the order has no `partner_economics` transaction of type `DENTAL_LAB` and no attached ledger entries.
+- Corrected the Operating Directive, Master Spec implication, Execution Plan and Settlement Payment Contract. Commission recognition follows successful commercial settlement only; delivery remains an operational status. No new Kaspi payment or callback was invented. D10 remains OPEN until an approved invoice/payment/settlement/payout/refund/chargeback workflow exists.
+- Added RB-036 for the premature delivery-recognition defect. Historical DENTAL_LAB wallet/ledger records were not modified; read-only reconciliation against external payment evidence is required before any separately approved correction.
+- No staging/production DB operation, migration, PHI backfill, deployment, environment change, merge to main or local test execution was performed. No local checkout is mounted.

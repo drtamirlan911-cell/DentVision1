@@ -20,4 +20,4 @@ Regression coverage: `dentvision-backend/src/modules/diagnostics/settlement.paym
 
 No payment callback is invented for medical-analysis or dental-lab operations. Those domains must use their existing payment/settlement lifecycle before economics recognition is moved to `paid/settled`.
 
-Dental-lab economics therefore remains recognized at `delivered` until a real payment callback/reconciliation path is identified and wired.
+Dental-lab economics is **not** recognized at `delivered`. Delivery records operational completion only and must not create a `DENTAL_LAB` `partner_economics` transaction or mutate partner/platform wallets or ledger. Recognition remains disabled until an approved invoice/payment/settlement contract supplies verifiable successful settlement evidence with idempotency, partner ownership, exact amount and clinic/branch scope. Refunds and chargebacks must follow the same approved financial contract. Historical rows are read-only until reconciled against external payment evidence; do not auto-delete, reverse or backfill them. D10 remains OPEN.

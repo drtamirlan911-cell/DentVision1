@@ -5,7 +5,6 @@ import { subscribe } from '../lib/events.js';
 import { uid } from '../lib/helpers.js';
 import { ensurePatientAssignment } from '../lib/patientAssignment.js';
 import { applyCanonicalReferralEconomics } from '../modules/finance/referral-economics.service.js';
-import { recordDentalLabOrderEconomics } from '../modules/finance/dental-lab-economics.service.js';
 import { registerAIEventBridge } from './aiEventBridge.js';
 
 let registered = false;
@@ -112,11 +111,6 @@ export function registerSubscribers(): void {
         details: { from: previousStatus || null, to: status },
       },
     });
-  });
-
-  subscribe('labOrder.status_changed', async ({ labOrderId, status }) => {
-    if (status !== 'delivered') return;
-    await recordDentalLabOrderEconomics(labOrderId);
   });
 
   const reconcileReferralEconomics = async ({ referralId }: { referralId: string }) => {

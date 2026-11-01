@@ -79,7 +79,7 @@ Examples include:
 - Clinic owner → organization/branch → staff → operational/financial value.
 - Diagnostic center → service → first referral → result → economics.
 - Medical laboratory → analysis → referral → result → settlement.
-- Dental laboratory → order → production → delivered → economics recognition.
+- Dental laboratory → order → production → QC → delivery → invoice/payment/settlement → economics recognition only after successful commercial settlement.
 - Supplier → catalog → legitimate order → fulfillment.
 - Academy/lecturer → course → enrollment → learning/certificate/revenue.
 - Student → course/case → first completed learning action.
@@ -202,7 +202,7 @@ This protocol is mandatory when using an AI agent or tool to inspect long E2E ru
 ### P1 — Economics and partner operations
 - Accepted → paid → settled durable lifecycle.
 - Medical-analysis economics/settlement.
-- Dental-lab delivered recognition until real paid/settled callback exists.
+- Do not recognize dental-lab economics on delivery or write partner/platform wallet/ledger rows until an approved invoice/payment/settlement workflow provides verifiable successful settlement evidence.
 - Ledger/reconciliation and Finance Hub transparency.
 - Partner owner/branch/staff operational lifecycles.
 

@@ -597,6 +597,16 @@ test.describe('Partner operational lifecycle', () => {
     expect(delivered.status()).toBe(200);
     expect((await delivered.json()).data.status).toBe('delivered');
 
+    // Delivery confirms operational completion, not a commercial settlement.
+    // Allow the in-process event queue to drain, then assert there is no partner
+    // economics transaction (and therefore no delivery-triggered ledger snapshot).
+    await new Promise((resolve) => setTimeout(resolve, 500));
+    const deliveryEconomics = await prisma.transaction.findMany({
+      where: { type: 'partner_economics', refType: 'DENTAL_LAB', refId: order.id },
+      include: { ledgerEntries: true },
+    });
+    expect(deliveryEconomics, 'delivered dental-lab orders must not create economics before settlement').toHaveLength(0);
+
     const lifecycle = await api.get(`${BASE}/api/lab-orders/platform/orders/${order.id}/lifecycle`, {
       headers: auth(dentalLabOwnerToken),
     });

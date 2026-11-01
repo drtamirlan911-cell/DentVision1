@@ -4,11 +4,9 @@ import { authenticate } from '../../middleware/auth.js';
 import { requirePermission } from '../../middleware/rbac.js';
 import type { AuthRequest, ApiResponse } from '../../types/index.js';
 import { uid } from '../../lib/helpers.js';
-import { tengeToMinor } from '../../lib/money.js';
 import { loadClinicAccess, blockClinicWrites } from '../../middleware/planGate.js';
 import { isClinicMember, resolveClinicAccess } from '../../lib/orgContext.js';
 import { publish } from '../../lib/events.js';
-import { recordPartnerEconomics } from '../finance/partner-economics.service.js';
 import { labPlatformRouter } from './labPlatform.routes.js';
 import { medicalLabLifecycleRouter } from './medicalLab.routes.js';
 import { writeAuditLog } from '../compliance/audit.service.js';
@@ -246,16 +244,6 @@ labRouter.patch('/:id/status', requirePermission('lab.write'), async (req: AuthR
         `INSERT INTO "dental_lab_order_events" ("id","labOrderId","clinicId","fromStatus","toStatus","actorUserId","createdAt") VALUES ($1,$2,$3,$4,$5,$6,CURRENT_TIMESTAMP)`,
         uid(), order.id, clinicId, existing.status, order.status, req.user!.id,
       );
-      if (order.status === 'delivered' && existing.status !== 'delivered') {
-        const partnerId = existingMeta.laboratoryId || null;
-        const branchId = order.patientId
-          ? (await tx.patient.findUnique({ where: { id: order.patientId }, select: { branchId: true } }))?.branchId ?? null
-          : null;
-        const grossMinor = order.price != null ? tengeToMinor(Number(order.price) || 0) : 0n;
-        if (partnerId && grossMinor > 0n) {
-          await recordPartnerEconomics({ vertical: 'DENTAL_LAB', partnerId, grossMinor, operationId: order.id, branchId }, tx);
-        }
-      }
       return { kind: 'updated' as const, order, previousStatus: existing.status };
     });
     if (outcome.kind === 'not_found') return res.status(404).json({ ok: false, error: 'Заказ лаборатории не найден' } satisfies ApiResponse);

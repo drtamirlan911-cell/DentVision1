@@ -1,13 +1,14 @@
 # DentVision — Master Execution Plan
 
-## Latest implementation checkpoint — 2026-11-01 (D10 lab handoff hardening)
+## Latest implementation checkpoint — 2026-11-01 (D10 settlement-boundary correction)
 
-- Continue only on existing PR #330 / `fix/d1-d10-trial-archive-signing-api-20261029`; current implementation HEAD at checkpoint `e777520e3fffa29e2eb6e8d89423e0890c9c7bdd`. Base/main remains `ac913cc3389a294d0b135a852b035ddddb1018ca`.
-- Implemented clinic ↔ independent dental-lab handoff controls in `8dacdb0`: verified published partner discovery, pending-only assignment, idempotent repeat assignment, cross-partner reassignment denial, clinic edit/delete/direct-assignment/status guards, durable QC ready/remake event routing and CRM transfer controls.
-- Hardened clinic and partner status transitions/technician assignment under database row locks and transactional lifecycle history in `e777520`; persisted server IDs now feed the work-order print path.
-- Quality Gate `41262145807`, RB-034 `41262145784`, Vercel preview, frontend lint, backend typecheck/lint, frontend/backend build and Command Center audit passed on `e777520`. CI `41262145782` stopped before unit tests because the generated System Map had 694 route handlers while the committed snapshot still had 693; snapshot correction is part of the next docs commit. E2E was still in progress and is not counted as passed.
-- Next: run exact-head CI after System Map/document updates; resolve all unit/E2E/role/visual/owner failures without reducing tenant/RBAC assertions. Keep D10 PARTIAL until the whole independent lab workflow (services/pricing, invoice/settlement/payout, delivery/dispatch, owner/manager/technician matrix and AI exceptions) is proven.
-- D1 staging expiry/backfill, RB-029 PHI readers/backfill/AI transcripts, RB-030 offline E2E, RB-031 WebKit/CORS, RB-033 branch protection, RB-035 negative IAM matrix, Kaspi contract/callback, production CORS/WebSocket and Android device runtime remain OPEN. No live DB operation, deployment or main merge.
+- Continue only on existing PR #330 / `fix/d1-d10-trial-archive-signing-api-20261029`; this update is based on exact live HEAD `b43b3c01b229b21c1fa2cda7d149c55486bb4e42`. Base/main remains `ac913cc3389a294d0b135a852b035ddddb1018ca`.
+- Parent-head verification: CI `41280138666`, Quality Gate `41280138667` and RB-034 `41280138692` passed. This evidence is for the parent HEAD only; the settlement-boundary correction below requires a fresh exact-head run.
+- Confirmed P1 mismatch: `subscribers.ts` recognized DENTAL_LAB economics on `labOrder.status_changed → delivered`; the clinic route also contained a dead duplicate writer. Both delivery-triggered paths are removed, together with the obsolete delivery-only recognition helper and its unit test.
+- PARTNER-003 now asserts that delivery produces no `partner_economics` transaction or attached ledger entries for the order. Delivery remains operational completion; the commercial flow remains invoice → verified payment/settlement → economics recognition.
+- Updated the Operating Directive, Master Spec wording, Execution Plan, Settlement Payment Contract and Release Blockers to agree with canonical `docs/business/DENTVISION_PARTNER_ECONOMICS.md`: commission is earned only on successful commercial settlement. D10 remains OPEN until an approved invoice/payment/settlement/payout/refund/chargeback workflow is implemented and tested.
+- Historical DENTAL_LAB transactions and wallets are not deleted, reversed, backfilled or altered. They require read-only reconciliation against external payment evidence before any separately approved financial correction.
+- Next: inspect exact-head CI/E2E, then continue D1/D2/D8 staging proof, RB-029 PHI reader/backfill evidence, RB-030 offline E2E, RB-031 WebKit/CORS, RB-033 branch protection, RB-035 authorization matrix, Kaspi/production checks and remaining D10 workflow parity. No live DB operation, migration, PHI backfill, environment change, deployment or main merge.
 
 ## Latest compliance checkpoint — 2026-10-31## Latest compliance checkpoint — 2026-10-31
 
@@ -97,7 +98,7 @@ Evidence recorded in `DENTVISION_CONTEXT.md` and `DENTVISION_EXECUTION_LOG.md`; 
 - [x] Complete accepted → paid → settled integration/concurrency tests with immutable rule/version verification at the durable ledger boundary.
 - [x] Wire the real medical-analysis paid/settled operational lifecycle using the existing `Referral + Laboratory + LaboratoryTest + Payment` domain; do not create a duplicate order model.
 - [x] Complete the ledger/reconciliation surface and connect Finance Hub to the durable economics transactions end-to-end.
-- [x] Keep dental-lab recognition at the existing `delivered` boundary until a real paid/settled callback exists.
+- [x] Keep dental-lab economics disabled on delivery; do not recognize commission until an approved commercial payment/settlement path provides verified paid/settled evidence.
 
 ### Phase 2 — Partner onboarding, transparency and Finance Hub
 **Status:** IN PROGRESS
@@ -109,7 +110,7 @@ Evidence recorded in `DENTVISION_CONTEXT.md` and `DENTVISION_EXECUTION_LOG.md`; 
 - [x] Verify the durable Partner Economics dashboard transparency surface shows applicable commission, gross value, deductions/cost, partner net payout, payout status and economics rule/version reference.
 - [x] Diagnostic centers see branch economics and platform deductions through durable branch-filtered Partner Economics transparency/dashboard data.
 - [x] Analysis laboratories see per-analysis economics through durable Partner Economics transactions and Finance Hub transparency.
-- [x] Dental laboratories see per-order/service economics through delivered-boundary Partner Economics transactions and Finance Hub transparency.
+- [ ] Dental laboratories see per-order/service economics only through verified settlement-backed Partner Economics snapshots and Finance Hub transparency; the independent invoice/payment/settlement flow is still OPEN.
 - [x] Expose platform revenue, partner payout, cost, contribution and margin by partner/type/branch/period through durable transparency/dashboard aggregation.
 - [x] Add discrepancy, low-margin and loss alerts from immutable economics rows.
 - [x] Preserve historical calculations when economics rules change.
@@ -265,7 +266,7 @@ The branch vertical slice is not complete until an isolated E2E workflow proves:
 
 ### Phase 3 — Automated operations
 **Status:** QUEUED
-- [x] Trigger economics automatically at supported settlement boundaries: medical-analysis payment settlement, dental-lab `delivered`, and diagnostic paid settlement; each is idempotent and ledger-backed.
+- [x] Trigger economics only at supported settlement boundaries: medical-analysis payment settlement and diagnostic paid settlement. Dental-lab delivery is not settlement; DENTAL_LAB recognition stays disabled until an approved invoice/payment/settlement path exists.
 - [x] Automate payout readiness and notifications.
 - [x] Implement full and partial payment refunds where a durable Finance Core ledger transaction exists; unsupported payment domains fail closed rather than mutating money without a reversal.
 - [x] Handle supported cancellation/refund boundaries with full/partial Finance Core reversals; unsupported domains fail closed rather than mutating financial state without a durable reversal.
@@ -355,7 +356,7 @@ Every partner type must be tested from first contact to daily operation in an is
 - [ ] Manage branches and technicians/staff.
 - [x] Receive lab order.
 - [x] Process order through existing statuses.
-- [x] Verify `delivered` economics recognition.
+- [x] Verify delivery does not create a DENTAL_LAB partner-economics transaction or ledger snapshot before settlement (PARTNER-003 negative E2E).
 - [x] Verify remake/cancel/delay behavior does not create premature economics.
 - [x] Verify clinic-side visibility and financial records.
 
@@ -619,6 +620,7 @@ Historical priority notes retained from parallel branches; they do not supersede
 - [x] Additive migration prepared for previously created event tables; live migration not run.
 - [x] PARTNER-003 covers clinic assignment to independent dental-lab owner.
 - [x] Cover dashboard/orders, team visibility, technician assignment and production progression to delivered.
+- [x] Assert delivered creates no DENTAL_LAB partner-economics transaction/ledger before verified settlement.
 - [x] Verify durable event history, final clinic visibility and cross-laboratory isolation.
 - [ ] Add QC checklist and authorized sign-off.
 - [ ] Add explicit remake authorization / feedback loop.
