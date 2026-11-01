@@ -439,18 +439,31 @@ function collectors(page: Page) {
     let requestEpoch: number | undefined;
     try { requestEpoch = ledger.requestEpochs.get(request); } catch { /* request wrapper unavailable */ }
     const belongsToPreviousDocument = requestEpoch !== undefined && requestEpoch < ledger.epoch;
-    const expectedNavigationAbort = belongsToPreviousDocument
-      && /ERR_ABORTED|Load request cancelled/i.test(errorText);
+    const navigationAbort = /ERR_ABORTED|Load request cancelled/i.test(errorText);
+    const failureLabel = request.method() + ' ' + request.url() + ' :: ' + errorText;
 
     if (belongsToPreviousDocument) {
-      if (expectedNavigationAbort) {
-        problems.navigationCancellations.push(request.method() + ' ' + request.url() + ' :: ' + errorText);
-      }
+      if (navigationAbort) problems.navigationCancellations.push(failureLabel);
       // This request belongs to the document already replaced. Its lifecycle
       // completion must not create a false failure for the active route.
       return;
     }
-    problems.requests.push(request.method() + ' ' + request.url() + ' :: ' + errorText);
+
+    if (navigationAbort && requestEpoch !== undefined) {
+      // WebKit can emit requestfailed a few milliseconds before Playwright
+      // emits the replacing main-frame document request. Defer only this
+      // explicit cancellation signature, then classify it by the document
+      // epoch. A real cancellation without a subsequent document navigation
+      // remains a hard failed-request error.
+      const failedEpoch = requestEpoch;
+      setTimeout(() => {
+        if (ledger.epoch > failedEpoch) problems.navigationCancellations.push(failureLabel);
+        else problems.requests.push(failureLabel);
+      }, 75);
+      return;
+    }
+
+    problems.requests.push(failureLabel);
   });
   page.on('response', response => {
     const status = response.status();
