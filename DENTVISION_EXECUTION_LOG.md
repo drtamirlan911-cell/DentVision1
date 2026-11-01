@@ -2779,3 +2779,12 @@ Added route-contract tests covering all write routes and the laboratory-context 
 - Implementation/test commits: `76c76548d625460e294ed96599dd56cbcb1492e3`, `a09a1afdb1600c27a5f7fe7e69753e0d935c92ef`, `f1d512ce676cd253c7bb23a4c173d008e045e5c0`. Release-blocker note recorded in `docs/RELEASE_BLOCKERS.md` commit `e4c5e216f1061141246a89fa49ccae96b92dde17`.
 - Previous complete exact-head CI `41285849836` passed all jobs on prior HEAD `20e14ef97ae0c89be96f798ab009f0b7fc132d65`, including Role/Context, Visual Agent, Business Owner, Organization Owner and final visual-evidence checks. A later source/doc head requires its own exact-head verification; RB-035 remains OPEN pending this verification.
 - No staging/production DB query or write, migration, PHI backfill, Render environment change, production deployment, payment-provider operation or merge to `main` was performed.
+
+
+## 2026-11-01 — RB-029 backfill root-shape fail-closed correction
+
+- Source audit found that `db:backfill:medical-history` classified all non-null values outside the versioned envelope / legacy scalar `ENC:` as plaintext. That included JSON arrays and scalar roots even though canonical Patient history serializers require a structured object.
+- Added `isStructuredMedicalHistoryRoot()`. Preflight now validates new encrypted-envelope payloads after decryption and accepts plaintext rows for encryption only when the root is a JSON object. Unsupported roots are counted without logging patient content or record identifiers; any count aborts before dry-run success or write mode. The write pass repeats the guard to catch values changed after preflight. Legacy scalar `ENC:` patient-portal values remain compatibility-readable and are not rewritten.
+- Added unit coverage for accepted object roots and rejected array/string/number/boolean/null roots.
+- Code/test commits: `325923cdef473a26cad9f88f8973174c0c78efe7` and `aa99f16c6aaff1f26d516451cd6c80b687885842`; release blocker update commit: `d790ddf9475d844b259a291c26e142cb2f0d24bb`.
+- Exact-head CI is required for the final resulting branch HEAD. The new preflight was not run against staging/production; no patient rows were read/written by this change, no migration or PHI backfill was performed. RB-029 remains OPEN pending full consumer/key/backup review and approved staging evidence.
