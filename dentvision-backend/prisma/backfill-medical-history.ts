@@ -9,7 +9,7 @@ const ENVELOPE_KEY = '__dentvisionEncryptedV1';
 type Target = 'staging' | 'production';
 type Options = { apply: boolean; target: Target | null; batchSize: number };
 type Row = { id: string; medicalHistory: Prisma.JsonValue | null };
-type Counts = { scanned: number; plaintext: number; envelope: number; legacyCiphertext: number; nullValues: number };
+type Counts = { scanned: number; plaintext: number; envelope: number; legacyCiphertext: number; nullValues: number; unsupportedRoots: number };
 const DEFAULT_BATCH_SIZE = 250;
 const MAX_BATCH_SIZE = 1000;
 
@@ -36,6 +36,15 @@ export function parseBackfillOptions(args: string[], env: NodeJS.ProcessEnv): Op
     throw new Error('Production write also requires --allow-production and --confirm-production-write=I_HAVE_BACKUP_AND_APPROVAL');
   }
   return { apply: true, target, batchSize };
+}
+
+/**
+ * Structured Patient.medicalHistory is stored as a JSON object. Legacy scalar
+ * ENC: values are handled separately for patient-portal compatibility; other
+ * scalar/array roots must be accounted for, not silently normalized/encrypted.
+ */
+export function isStructuredMedicalHistoryRoot(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === 'object' && !Array.isArray(value);
 }
 
 export function classifyMedicalHistory(value: unknown): 'null' | 'plaintext' | 'envelope' | 'legacy-ciphertext' {
@@ -83,7 +92,7 @@ async function* batches(batchSize: number): AsyncGenerator<Row[]> {
 }
 
 function newCounts(): Counts {
-  return { scanned: 0, plaintext: 0, envelope: 0, legacyCiphertext: 0, nullValues: 0 };
+  return { scanned: 0, plaintext: 0, envelope: 0, legacyCiphertext: 0, nullValues: 0, unsupportedRoots: 0 };
 }
 
 async function preflight(batchSize: number): Promise<Counts> {
@@ -94,13 +103,20 @@ async function preflight(batchSize: number): Promise<Counts> {
       const kind = classifyMedicalHistory(row.medicalHistory);
       if (kind === 'null') { counts.nullValues += 1; continue; }
       if (kind === 'envelope') {
-        decryptMedicalHistory(row.medicalHistory);
-        counts.envelope += 1;
+        const decoded = decryptMedicalHistory(row.medicalHistory);
+        if (!isStructuredMedicalHistoryRoot(decoded)) counts.unsupportedRoots += 1;
+        else counts.envelope += 1;
         continue;
       }
       if (kind === 'legacy-ciphertext') {
+        // Earlier Patient Portal clients encrypted a scalar string. Preserve it
+        // unchanged; the compatibility reader remains responsible for decoding it.
         decryptMedicalHistory(row.medicalHistory);
         counts.legacyCiphertext += 1;
+        continue;
+      }
+      if (!isStructuredMedicalHistoryRoot(row.medicalHistory)) {
+        counts.unsupportedRoots += 1;
         continue;
       }
       const encrypted = encryptMedicalHistory(row.medicalHistory);
@@ -121,6 +137,9 @@ async function applyBackfill(batchSize: number): Promise<number> {
     for (const row of rows) {
       scanned += 1;
       if (classifyMedicalHistory(row.medicalHistory) !== 'plaintext') continue;
+      if (!isStructuredMedicalHistoryRoot(row.medicalHistory)) {
+        throw new Error('Unsupported medical-history root detected during write pass; stop and rerun preflight. No patient content or identifiers were logged.');
+      }
       const encrypted = encryptMedicalHistory(row.medicalHistory);
       if (classifyMedicalHistory(encrypted) !== 'envelope' ||
           !isDeepStrictEqual(decryptMedicalHistory(encrypted), row.medicalHistory)) {
@@ -153,7 +172,11 @@ async function main(): Promise<void> {
   const counts = await preflight(options.batchSize);
   console.log('[medical-history-backfill] preflight scanned=' + counts.scanned +
     ' plaintext=' + counts.plaintext + ' envelope=' + counts.envelope +
-    ' legacyCiphertext=' + counts.legacyCiphertext + ' null=' + counts.nullValues);
+    ' legacyCiphertext=' + counts.legacyCiphertext + ' null=' + counts.nullValues +
+    ' unsupportedRoots=' + counts.unsupportedRoots);
+  if (counts.unsupportedRoots > 0) {
+    throw new Error('Preflight found unsupported non-object medical-history roots; no rows were written. Review and disposition these values before rerunning.');
+  }
   if (!options.apply) {
     console.log('[medical-history-backfill] dry run complete; no rows changed');
     return;
