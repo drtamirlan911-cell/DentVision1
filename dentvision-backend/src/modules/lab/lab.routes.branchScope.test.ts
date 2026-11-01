@@ -28,10 +28,10 @@ describe('dental lab branch isolation contract', () => {
     expect(status).toContain('...branchScopedLabOrder(req)');
 
     const deleteStart = statusEnd;
-    const delete = source.slice(deleteStart);
-    expect(delete).toContain('FOR UPDATE');
-    expect(delete).toContain('...branchScopedLabOrder(req)');
-    expect(delete).toContain("if (meta.laboratoryId) return 'partner_owned' as const");
+    const deletedOrder = source.slice(deleteStart);
+    expect(deletedOrder).toContain('FOR UPDATE');
+    expect(deletedOrder).toContain('...branchScopedLabOrder(req)');
+    expect(deletedOrder).toContain("if (meta.laboratoryId) return 'partner_owned' as const");
   });
 
   it('rejects patient writes outside assigned branches', () => {
