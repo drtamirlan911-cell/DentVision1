@@ -2729,3 +2729,11 @@ Added contract regressions for the clinic assignment boundary and for preserving
 Source audit found the medical-laboratory child router is mounted before the parent clinic plan middleware. Its clinic-originated POST /orders plus clinic-side status/results/verify/interpretation mutations could write after expiry. The same endpoints are also used by the active LABORATORY organization context to process existing partner work.
 Added a clinic-actor subscription guard to new medical-lab order creation and to every order mutation after its scoped access check. Order creation now requires the currently active clinic context; a body clinicId cannot override it. Active LABORATORY context and SUPERADMIN remain able to complete already-assigned partner workflows; GET/read routes remain open.
 Added route-contract tests covering all write routes and the laboratory-context exception. D1 remains OPEN pending exact-head CI and approved staging verification. No database, PHI, migration, live specimen, or partner workflow was operated.
+ 
+## 2026-11-01 — D10 partner-owned Dental Lab acceptance slice
+
+- Added a single shared runtime event-table helper and a forward migration to reconcile historic dental_lab_order_events schemas: note is guaranteed to exist and fromStatus is nullable for the initial assignment event. Both clinic and partner event writers now call the shared helper.
+- Added PARTNER-003 E2E in partner-lifecycle.spec.ts: clinic order creation and assignment, independent dental-lab owner dashboard, team visibility, technician assignment, production status transitions through delivered, lifecycle event history, clinic visibility and cross-laboratory denial.
+- Added a focused unit contract test for the DDL repair and common helper usage.
+- This closes only the basic independent lab handoff/production slice, not the complete DENTVISION_LAB_PLATFORM_EXECUTION definition of done.
+- D10 remains OPEN: QC sign-off, remake authorization, shipping/dispatch, services/pricing, independent invoice/settlement/payout, durable notifications, AI exceptions and role policy still need implementation and E2E evidence. No live migration or financial operation was run.

@@ -626,3 +626,11 @@ Parallel-branch evidence retained during integration; reconcile against the curr
 - **Fix in PR #330:** the create route now derives clinicId only from the active authenticated clinic context, rejects a body-supplied different clinicId and applies the 30-day subscription write check. All clinic-side mutation routes apply the same check after tenant/branch authorization.
 - **Partner exception:** an active `organizationType=LABORATORY` context may continue processing existing assigned specimens/results after the originating clinic expires; GET/read routes remain available. This preserves cross-organization workflow completion without permitting new clinic business writes.
 - **Verification:** source-contract assertions added; exact-head CI pending. D1 remains OPEN pending approved staging positive-read/negative-write proof.
+
+ 
+## D10 follow-up — PARTNER-003 and event history reliability (2026-11-01)
+
+- **Event schema finding:** historical dental_lab_order_events migrations/runtime creation declared fromStatus NOT NULL and omitted note, while initial clinic-to-lab assignment writes fromStatus=null plus a note. Partner event insertion previously did not ensure the table before its first write.
+- **Fix in PR #330:** introduced one shared runtime reconciler, used by both clinic and partner writers, and an additive forward migration that guarantees note and nullable fromStatus. No live DB migration was run.
+- **Acceptance added:** PARTNER-003 tests independent dental-lab organization onboarding, real clinic LabOrder assignment, lab owner dashboard, technician assignment, status transitions through delivered, event history, clinic visibility and denial from a different lab.
+- **Remaining D10 gaps:** QC sign-off/remake control, shipping/dispatch, services/pricing, independent invoice/settlement/payout, durable notifications, AI exceptions and full owner/technician policy remain OPEN. PARTNER-003 is a partial slice, not overall D10 closure.

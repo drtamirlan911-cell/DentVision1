@@ -77,3 +77,6 @@
 | P1 | Guest convert only upgrades `@guest.local` users | Shipped |
 
 Full clinic Kaspi guide: [`docs/KASPI_CLINIC_SETUP.md`](./KASPI_CLINIC_SETUP.md).
+
+ 
+- [ ] Dental Laboratory full partner workflow: PARTNER-003 covers basic owner handoff/production/delivery only. QC/remake, shipping, services/pricing, finance settlement/payout, notifications/AI exceptions and RBAC matrix remain required before D10 can close.

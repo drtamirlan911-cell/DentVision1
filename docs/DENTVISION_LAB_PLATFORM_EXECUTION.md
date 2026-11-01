@@ -166,3 +166,11 @@ Marketplace / Academy / Jobs / Community depth
 ```
 
 The work must extend existing `LabOrder`, `Laboratory`, `LaboratoryMember`, event, notification, inventory and AI infrastructure rather than creating parallel sources of truth.
+
+## 2026-11-01 execution checkpoint — PARTNER-003
+
+Implemented and added to the exact-head E2E suite: a clinic creates a canonical LabOrder and assigns it to an independent dental-lab organization; the dental-lab owner sees it in the partner dashboard, sees the team, assigns a technician, progresses the order through sent → in production → try-in → adjustment → ready → delivered, reads the durable event history, and the originating clinic sees the delivered status. A different laboratory is denied access.
+
+The event-log schema is reconciled with one shared runtime helper used by clinic and partner writers. The helper adds the note column when absent and makes the initial fromStatus nullable. A forward migration records the same correction for already-deployed schemas. The migration has not been applied to any live database.
+
+PARTNER-003 verifies only the current basic handoff and production path. It does not prove QC sign-off, remake authorization, shipping/dispatch, service catalogue/pricing administration, independent invoice/settlement/payout, durable idempotent notifications, AI exception surfacing, or the complete owner/manager/technician permission matrix. D10 remains OPEN.

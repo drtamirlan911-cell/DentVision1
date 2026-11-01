@@ -602,3 +602,19 @@ Historical priority notes retained from parallel branches; they do not supersede
 - [x] Preserve reads and already-assigned laboratory-context partner processing.
 - [x] Add source-contract coverage for all mutation paths and the partner exception.
 - [ ] Pass exact-head CI/E2E and approved staging positive-read/negative-write verification; D1 remains OPEN.
+
+ 
+## D10 — Dental Laboratory PARTNER-003 (2026-11-01)
+
+- [x] Shared event-table reconciler repairs note / nullable fromStatus for both clinic and partner writers.
+- [x] Additive migration prepared for previously created event tables; live migration not run.
+- [x] PARTNER-003 covers clinic assignment to independent dental-lab owner.
+- [x] Cover dashboard/orders, team visibility, technician assignment and production progression to delivered.
+- [x] Verify durable event history, final clinic visibility and cross-laboratory isolation.
+- [ ] Add QC checklist and authorized sign-off.
+- [ ] Add explicit remake authorization / feedback loop.
+- [ ] Add dispatch, shipping, pickup tracking and proof of delivery.
+- [ ] Add independent services catalogue and pricing management.
+- [ ] Complete invoice → payment → settlement → payout for the laboratory.
+- [ ] Verify durable idempotent notifications and AI operational exception summaries.
+- [ ] Complete owner/manager/technician RBAC and desktop/mobile acceptance. D10 remains OPEN.

@@ -141,3 +141,10 @@ The initial compliance matrix remains a baseline assessment, not a claim of curr
 ## Follow-up — RB-029 AI memory at-rest protection (2026-10-31)
 
 The AI memory follow-up extends current-source transcript protections: new short/session/long AIMemory.value writes are encrypted in a versioned JSON envelope and decoded by every MemoryEngine read API. Explicit free-form learned preferences no longer cross clinic scope; only generic style preferences are global. Existing plaintext memory records remain compatible and require a separately approved dry-run/backfill, so RB-029 remains OPEN.
+
+ 
+## D10 — Dental Laboratory PARTNER-003 evidence (2026-11-01)
+
+The source now includes a separate dental-lab partner workspace with dashboard, incoming assigned orders, technician assignment, production status transitions and lifecycle history. PARTNER-003 adds E2E for clinic → independent dental-lab owner → technician → production → delivered → clinic visibility, with cross-laboratory access denial. A shared event-table reconciler and forward migration address the mismatch between historic NOT NULL/no-note DDL and initial assignment events that require nullable fromStatus and note.
+
+**Compliance status remains PARTIAL.** The complete cabinet contract is not yet satisfied: QC checklist/sign-off, remake authorization, shipping/dispatch, services/pricing management, independent invoicing and settlement/payout, durable idempotent clinic notifications, AI operational exception surfacing and detailed owner/manager/technician RBAC remain open. Exact-head CI/E2E and approved staging migration evidence are still required. No migration has been executed against a live database.
