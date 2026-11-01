@@ -280,12 +280,27 @@ test.describe('Partner operational lifecycle', () => {
     const technicianContexts = (await technicianContextsRes.json()).data?.contexts || [];
     const technicianContext = technicianContexts.find((item: any) => item.scopeType === 'LABORATORY' && item.organizationId === dentalLabClaims.organizationId);
     expect(technicianContext).toBeTruthy();
+    const technicianBranch = technicianContext.branchId || (await prisma.branch.findFirst({
+      where: { organizationId: dentalLabClaims.organizationId!, active: true },
+      orderBy: [{ isDefault: 'desc' }, { createdAt: 'asc' }],
+      select: { id: true },
+    }))?.id;
+    expect(technicianBranch).toBeTruthy();
+    // Context switching validates branch membership independently from the
+    // organization-scoped PersonRole. Grant this technician the actual branch
+    // assignment; the route must continue to reject unrelated branches.
+    await prisma.branchMember.upsert({
+      where: { personId_branchId: { personId: technicianPerson.id, branchId: technicianBranch! } },
+      update: { active: true },
+      create: { id: randomUUID(), personId: technicianPerson.id, branchId: technicianBranch!, active: true },
+    });
     const switchedTechnician = await api.post(`${BASE}/api/iam/switch-context`, {
       headers: auth(dentalTechnicianBaseToken),
-      data: { scopeType: technicianContext.scopeType, scopeId: technicianContext.scopeId, branchId: technicianContext.branchId },
+      data: { scopeType: technicianContext.scopeType, scopeId: technicianContext.scopeId, branchId: technicianBranch },
     });
-    expect(switchedTechnician.status()).toBe(200);
-    dentalTechnicianToken = (await switchedTechnician.json()).data.accessToken;
+    const switchedTechnicianBody = await switchedTechnician.json();
+    expect(switchedTechnician.status(), JSON.stringify(switchedTechnicianBody)).toBe(200);
+    dentalTechnicianToken = switchedTechnicianBody.data.accessToken;
     expect(JSON.parse(Buffer.from(dentalTechnicianToken.split('.')[1], 'base64url').toString('utf8')).role).toBe('DENTAL_TECHNICIAN');
 
     const patient = await api.post(`${BASE}/api/patients`, {
