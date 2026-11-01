@@ -61,6 +61,16 @@ describe('patients route branch scope contract', () => {
   });
 
 
+  it('does not treat billing.read alone as permission to view a patient cash balance', () => {
+    expect(source).toContain('function canReadPatientBalance(permissions: readonly string[])');
+    expect(source).toContain("grants.has('billing.write')");
+    expect(source).toContain("grants.has('billing.delete')");
+    expect(source).toContain("grants.has('billing.manage')");
+    expect(source).toContain("(grants.has('medical.manage') && grants.has('billing.read'))");
+    expect(source).toContain('canReadPatientBalance(permissions)');
+    expect(source).toContain('canReadPatientBalance(effectivePermissions)');
+  });
+
   it('uses optimistic concurrency for PATCH and commits chart/branch writes with the patient row', () => {
     const patchStart = source.indexOf("patientsRouter.patch('/:id'");
     const deleteStart = source.indexOf("patientsRouter.delete('/:id'", patchStart);
