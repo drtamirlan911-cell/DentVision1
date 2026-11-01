@@ -71,6 +71,15 @@ describe('patients route branch scope contract', () => {
     expect(source).toContain('canReadPatientBalance(effectivePermissions)');
   });
 
+  it('does not expose patient prepaid balance from billing.read alone', () => {
+    expect(source).toContain("function canReadPatientBalance(permissions: readonly string[])");
+    expect(source).toContain("grants.has('billing.read') && grants.has('medical.manage')");
+    expect(source).toContain("function serializePatient(p: any, includeBilling = false)");
+    expect(source).toContain('canReadPatientBalance(permissions)');
+    expect(source).toContain('canReadPatientBalance(effectivePermissions)');
+    expect(source).toContain('patient:await serializePatientForCaller(p,req)');
+  });
+
   it('uses optimistic concurrency for PATCH and commits chart/branch writes with the patient row', () => {
     const patchStart = source.indexOf("patientsRouter.patch('/:id'");
     const deleteStart = source.indexOf("patientsRouter.delete('/:id'", patchStart);
