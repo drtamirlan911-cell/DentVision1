@@ -2689,3 +2689,12 @@ Core E2E, Browser UX, Mobile Design and Visual Agent completed successfully on t
 Updated the role-gate test design without removing security checks: full authorization and declared/discovered route coverage remains exhaustive for all 16 roles on role-1280; the other seven viewport projects retain three representative workflow routes per applicable role plus the required screenshots. All eight role viewport projects and the visual release manifest requirements remain. The existing Mobile Design and Visual Agent gates remain unchanged. Request-ledger diagnostics now include resource type, pending age and response status/content type/timing. Completion remains driven by the Playwright request lifecycle events; requestfailed, HTTP 4xx/5xx, console/page errors, tenant isolation and RBAC assertions remain hard failures.
 
 Next required action: execute full CI on the new exact HEAD, inspect all role/visual/business-owner/organization-owner gate results, then update blocker state only from exact-head evidence. RB-024/RB-025 remain open. No production/staging database operation, PHI backfill, migration, deployment or main merge.
+
+
+## 2026-11-01 — D1 direct payment API write-guard correction
+
+The specialized `/api/payments` router is not mounted with `blockClinicWrites`, because it handles platform, Shop, Academy and subscription payments as well as clinic cashier payments. Its clinic-cashier branch verified membership and referenced invoice/appointment ownership but omitted subscription write access. Clinic-scoped refunds and staff-entered static confirmation also lacked the trial guard.
+
+Added clinic-payment scope detection and a fail-closed subscription write guard. New clinic cashier payment intents, clinic-owned refunds and staff static confirmations now return `402 SUBSCRIPTION_EXPIRED` after the write deadline. SaaS subscription checkout remains available. Provider-backed API settlement and authenticated callbacks remain available only to complete transactions already paid externally; they cannot create new clinic cashier work.
+
+Added runtime route tests for all boundaries. Exact-head CI is required. D1 remains OPEN pending full CI and approved staging verification. No staging/production database, migration, PHI, live provider callback or production payment operation was performed.

@@ -561,3 +561,13 @@ Historical priority notes retained from parallel branches; they do not supersede
 - [x] Restrict repeated route journeys on additional viewports to representative role-specific workflows; keep request-failure, HTTP, console/page-error, tenant-isolation and 36px target assertions intact.
 - [x] Add request resource type, elapsed age and response status/content-type/timing diagnostics to failed drain reports, retaining the Playwright request lifecycle as the sole completion authority.
 - [ ] Re-run full exact-head CI and verify Role/Context, Visual Agent, Business Owner, Organization Owner, Playwright CLI and final visual-release gates before closing RB-024/RB-025.
+
+
+## D1 — direct payment endpoint parity (2026-11-01)
+
+- [x] Audit specialty `/api/payments` branch separate from router-level `blockClinicWrites`.
+- [x] Block new clinic cashier payment intents on expired/suspended subscription.
+- [x] Block clinic-scoped refund and staff-entered static confirmation while read-only.
+- [x] Preserve SaaS renewal checkout and provider-backed settlement/callbacks for already-paid transactions.
+- [x] Add route-level regression tests for expired clinic payments and allowed subscription renewal.
+- [ ] Pass exact-head CI and approved staging post-expiry positive-read/negative-write verification; D1 remains OPEN until both exist.

@@ -24,6 +24,7 @@ const m = vi.hoisted(() => ({
   assertOrgAccess: vi.fn(),
   resolveClinicMemberAccess: vi.fn(),
   assertClinicOrgAccess: vi.fn(),
+  resolveClinicSubscriptionAccess: vi.fn(),
   resolveOrganizationIdForClinic: vi.fn(),
   reserveIdempotencyKey: vi.fn(),
   completeIdempotencyKey: vi.fn(),
@@ -79,6 +80,9 @@ vi.mock('../../lib/orgContext.js', () => ({
 vi.mock('../../lib/resolvePermissions.js', () => ({
   resolveUserPermissions: vi.fn(async () => ['billing.manage']),
 }));
+vi.mock('../billing/planEntitlements.js', () => ({
+  resolveClinicAccess: m.resolveClinicSubscriptionAccess,
+}));
 vi.mock('../billing/clinicSubscription.service.js', () => ({
   assertClinicBillingAccess: m.assertClinicBillingAccess,
   getClinicSubscriptionAmountMinor: (plan: string, months: unknown) => {
@@ -130,6 +134,7 @@ beforeEach(() => {
   m.completeIdempotencyKey.mockResolvedValue(undefined);
   m.deleteIdempotencyKey.mockResolvedValue(undefined);
   m.assertClinicBillingAccess.mockResolvedValue({ role: 'OWNER' });
+  m.resolveClinicSubscriptionAccess.mockResolvedValue({ writeBlocked: false });
   m.assertOrgAccess.mockResolvedValue(true);
   m.assertClinicOrgAccess.mockResolvedValue(true);
   m.resolveOrganizationIdForClinic.mockImplementation((clinicId: string) => clinicId);
@@ -180,6 +185,15 @@ async function postConfirm(paymentId: string) {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({}),
+  });
+  return { response, body: await response.json() as any };
+}
+
+async function postRefund(paymentId: string) {
+  const response = await fetch(`${baseUrl}/api/payments/${paymentId}/refund`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Idempotency-Key': 'refund-read-only-test' },
+    body: JSON.stringify({ amountMinor: '10000', reason: 'test' }),
   });
   return { response, body: await response.json() as any };
 }
@@ -618,6 +632,63 @@ describe('clinic static payment confirmation policy', () => {
   });
 });
 
+
+describe('trial-expired clinic payment boundary', () => {
+  it('blocks new clinic cashier payment requests while preserving SaaS renewal checkout', async () => {
+    m.resolveClinicSubscriptionAccess.mockResolvedValue({ writeBlocked: true });
+
+    const clinicPayment = await postPayment({
+      amountMinor: '10000', domain: 'crm', refType: 'crm_invoice',
+      refId: 'invoice-1', clinicId: 'clinic-owned',
+    });
+    expect(clinicPayment.response.status).toBe(402);
+    expect(clinicPayment.body.code).toBe('SUBSCRIPTION_EXPIRED');
+    expect(m.reserveIdempotencyKey).not.toHaveBeenCalled();
+    expect(m.createClinicKaspiPayment).not.toHaveBeenCalled();
+    expect(m.paymentCreate).not.toHaveBeenCalled();
+
+    const renewal = await postPayment({
+      amountMinor: '3990000', refType: 'subscription', refId: 'clinic-owned',
+      meta: { saasPlan: 'professional', months: 1 },
+    });
+    expect(renewal.response.status).toBe(201);
+    expect(renewal.body.ok).toBe(true);
+    expect(m.providerCreate).toHaveBeenCalled();
+  });
+
+  it('blocks staff-entered static confirmation for an expired clinic', async () => {
+    m.resolveClinicSubscriptionAccess.mockResolvedValue({ writeBlocked: true });
+    m.paymentFindUnique.mockResolvedValue({
+      id: 'payment-static-expired', provider: 'clinic_kaspi',
+      externalId: 'clinic-external-expired', amount: 10000n, status: 'pending',
+      refType: 'crm_invoice', refId: 'invoice-expired',
+      meta: { clinicId: 'clinic-owned', merchantScope: 'clinic' },
+    });
+    m.loadClinicPaymentsConfig.mockResolvedValue({
+      clinic: { id: 'clinic-owned', name: 'Test Clinic' }, cfg: { mode: 'static' },
+    });
+
+    const { response, body } = await postConfirm('payment-static-expired');
+    expect(response.status).toBe(402);
+    expect(body.code).toBe('SUBSCRIPTION_EXPIRED');
+    expect(m.transaction).not.toHaveBeenCalled();
+    expect(m.auditFromReq).not.toHaveBeenCalled();
+  });
+
+  it('blocks clinic payment refunds after expiry', async () => {
+    m.resolveClinicSubscriptionAccess.mockResolvedValue({ writeBlocked: true });
+    m.paymentFindUnique.mockResolvedValue({
+      id: 'payment-clinic-refund-expired', provider: 'clinic_kaspi',
+      externalId: 'clinic-refund-expired', amount: 10000n, status: 'paid',
+      refType: 'crm_invoice', refId: 'invoice-expired',
+      meta: { clinicId: 'clinic-owned', merchantScope: 'clinic' },
+    });
+
+    const { response, body } = await postRefund('payment-clinic-refund-expired');
+    expect(response.status).toBe(402);
+    expect(body.code).toBe('SUBSCRIPTION_EXPIRED');
+  });
+});
 
 describe('legacy platform payment ownership', () => {
   it('uses the canonical order owner instead of a client-writable legacy userId when confirming an order payment', async () => {

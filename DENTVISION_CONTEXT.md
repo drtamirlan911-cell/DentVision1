@@ -452,3 +452,12 @@ CI 41186233177 exposed a browser-gate environment issue: role-1280 reported pend
 - The full 16-role × declared/discovered-route authorization and screen matrix remains on `role-1280`. This follow-up reduces only repeated responsive-route samples on the other viewport projects; all 8 role viewport projects, 16×8 screenshot evidence requirements, 36px hit-target checks, failed-request checks, HTTP checks, page/console errors and tenant-boundary assertions remain in place. Mobile Design and Visual Agent remain separate.
 - Added request resource type, pending age and response status/content-type/timing diagnostics to the drain failure message. Completion remains driven only by the Playwright request lifecycle events; requestfailed and HTTP status assertions remain independent hard failures.
 - **Verification pending:** run the complete exact-head CI after this change. RB-024/RB-025 remain open until the same full role, visual, owner and release gates pass. Release remains NOT READY; no staging/production database, PHI, migration, deployment or `main` merge was performed.
+
+
+## 2026-11-01 — D1 direct clinic-payment API boundary
+
+- Source audit against the 30-day read-only contract found a bypass in `POST /api/payments`: clinic cashier payment creation verified clinic membership/role and invoice/appointment ownership, but did not resolve subscription write access. Direct API callers could therefore create new clinic payment intents after trial expiry even though CRM/invoice routes had `blockClinicWrites`.
+- Added a shared clinic-payment scope resolver and subscription write guard. The guard blocks new clinic cashier payment intents, clinic-owned refunds and staff-entered static-mode confirmations with `402 SUBSCRIPTION_EXPIRED`; ownership checks run before revealing trial state.
+- SaaS subscription checkout remains available after expiry. Provider-backed API settlement and authenticated provider callbacks remain available to finish already-paid external transactions; the clinic cannot create new clinic operational/payment intents or manually settle a static cash payment while read-only.
+- Added isolated route regression tests for expired clinic cashier denial, allowed renewal checkout, expired static-confirm denial and expired clinic refund denial. Exact-head CI is pending.
+- D1 remains OPEN pending exact-head CI and approved staging proof of post-expiry reads/blocked writes. No staging/production database, migration, payment account or live callback was touched.

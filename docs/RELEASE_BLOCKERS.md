@@ -578,3 +578,12 @@ Parallel-branch evidence retained during integration; reconcile against the curr
 - Core E2E, Browser UX, Mobile Design and Visual Agent completed successfully. Quality Gate [41191847732](https://github.com/drtamirlan911-cell/DentVision1/actions/runs/41191847732) and RB-034 [41191847668](https://github.com/drtamirlan911-cell/DentVision1/actions/runs/41191847668) passed; overall CI did not.
 - The test-only correction keeps exhaustive all-role/all-route authorization on role-1280, all eight role viewport projects and screenshot-manifest requirements, while limiting redundant responsive route re-visits on the other viewport projects. It adds pending request resource/age/response metadata without changing the Playwright request-completion lifecycle or weakening requestfailed/HTTP assertions.
 - **Status: verification pending; RB-024 and RB-025 remain OPEN/IN PROGRESS.** Require a fresh full CI on the resulting exact HEAD, including Visual Agent, Business Owner, Organization Owner and final visual evidence. Release remains NOT READY. No production/staging data, PHI, migrations, secrets, deployment or main merge touched.
+
+
+## D1 follow-up — direct clinic-payment endpoint bypass (2026-11-01)
+
+- **Finding:** the specialized `/api/payments` router was not covered by clinic operational router-level `blockClinicWrites`. Its clinic-cashier branch verified scoped role and invoice/appointment ownership, but new clinic payment-intent creation could proceed after trial expiry. Clinic-scoped refund and staff-entered static confirmation also lacked a subscription write check.
+- **Fix in PR #330:** added clinic payment-scope resolution and the plan-entitlement write guard to clinic cashier create, clinic-owned refund and staff static confirmation paths. Ownership is checked first; expired/suspended clinic contexts receive `402 SUBSCRIPTION_EXPIRED`.
+- **Preserved exception:** subscription checkout stays available so the owner can renew. Authenticated provider callbacks and provider-backed API settlement remain available to complete transactions already paid externally; they cannot create new clinic cashier work.
+- **Regression coverage:** route tests cover expired clinic cashier denial, allowed SaaS renewal, expired static-confirm denial and expired clinic refund denial.
+- **Status:** exact-head verification pending; D1 remains OPEN until full CI and approved staging positive-read/negative-write verification pass. No staging/production DB, migration or live payment was run.
