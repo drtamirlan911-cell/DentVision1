@@ -80,6 +80,13 @@ describe('patients route branch scope contract', () => {
     expect(source).toContain('patient:await serializePatientForCaller(p,req)');
   });
 
+  it('rejects scalar and array medical-history roots on create and PATCH', () => {
+    expect(source).toContain('isStructuredMedicalHistoryRoot');
+    expect(source).toContain('body.medicalHistory!==null&&!isStructuredMedicalHistoryRoot(body.medicalHistory)');
+    expect(source).toContain('body.medicalHistory !== null && !isStructuredMedicalHistoryRoot(body.medicalHistory)');
+    expect(source).toContain("Медицинская история должна быть объектом");
+  });
+
   it('uses optimistic concurrency for PATCH and commits chart/branch writes with the patient row', () => {
     const patchStart = source.indexOf("patientsRouter.patch('/:id'");
     const deleteStart = source.indexOf("patientsRouter.delete('/:id'", patchStart);
