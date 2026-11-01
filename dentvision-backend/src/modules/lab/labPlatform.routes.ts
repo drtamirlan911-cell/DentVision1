@@ -7,6 +7,7 @@ import { publish } from '../../lib/events.js';
 import { assertClinicOrgAccess } from '../../lib/orgContext.js';
 import { resolveClinicAccess as resolveClinicSubscriptionAccess } from '../billing/planEntitlements.js';
 import { uid } from '../../lib/helpers.js';
+import { ensureDentalLabOrderEventsTable } from './dentalLabOrderEvents.js';
 
 export const labPlatformRouter = Router();
 labPlatformRouter.use(authenticate);
@@ -104,6 +105,7 @@ async function caseIdOf(orderId: string): Promise<string | null> {
 }
 
 async function appendEvent(order: { id: string; clinicId: string }, fromStatus: string | null, toStatus: string, actorUserId: string, note?: string) {
+  await ensureDentalLabOrderEventsTable();
   await prisma.$executeRawUnsafe(`INSERT INTO "dental_lab_order_events" ("id","labOrderId","clinicId","fromStatus","toStatus","note","actorUserId","createdAt") VALUES ($1,$2,$3,$4,$5,$6,$7,CURRENT_TIMESTAMP)`, uid(), order.id, order.clinicId, fromStatus, toStatus, note ?? null, actorUserId);
 }
 
