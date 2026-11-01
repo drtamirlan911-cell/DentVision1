@@ -2710,3 +2710,12 @@ Updated that contract test to assert the current helper/authorization ordering i
 ## 2026-11-01 — legacy clinic-payment scope fail-closed
 
 A second edge case was found in historical clinic payment ownership: when a payment was clearly clinic-scoped by its immutable provider/reference/merchant marker but its legacy metadata lacked `clinicId`, the scope helper returned null and generic `meta.userId` ownership could be considered. Updated `assertPaymentOwner` to recognize clinic-scoped records first and reject any record that cannot resolve its clinic scope. Added a route regression test for a legacy `clinic_kaspi` payment with a matching userId but missing clinicId. Exact-head CI is required; no financial rows were modified.
+
+## 2026-11-01 — D1 complete clinic write-surface follow-up
+
+- Added subscription write guards to clinic cashier payment-intent creation, clinic-owned refunds and staff-entered static cashier confirmation. SaaS renewal checkout remains available; authenticated callbacks and provider-backed API settlement may complete already-paid transactions.
+- Clinic-scoped historical payments now fail closed if the provider/reference/merchant marker identifies a clinic payment but metadata lacks clinicId; generic legacy userId cannot authorize them.
+- Extended the audit beyond CRM: scoped dashboard creation (POST /api/data/dashboards) and doctor confirmation of a medical AI action (POST /api/compliance/ai/:id/confirm) now apply loadClinicAccess and blockClinicWrites. The medical permission check runs first.
+- Personal session revocation, consent management and medical-file access audit logging remain available as privacy/security/audit operations.
+- Added route regressions. The prior unit run on 4a808de7 had 2,416 passed and one stale source-contract assertion, corrected in b96b4d6e. Latest exact-head CI is required.
+- D1 remains OPEN pending exact-head full CI and approved staging positive-read/negative-write verification. No database, PHI, staging migration, live payment or callback was run.

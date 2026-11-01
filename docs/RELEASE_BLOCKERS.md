@@ -602,3 +602,11 @@ Parallel-branch evidence retained during integration; reconcile against the curr
 - **Finding:** a legacy payment marked clinic-scoped by `provider=clinic_kaspi`, `merchantScope=clinic`, `refType=appointment` or `refType=crm_invoice`, but missing `meta.clinicId`, could fall through to generic `meta.userId` ownership.
 - **Fix in PR #330:** clinic-scoped payment ownership is now evaluated before generic user ownership; missing clinic scope fails closed with 403. Added route-level regression coverage.
 - **Status:** pending exact-head CI. No payment or financial database rows were changed.
+
+## D1 follow-up — full clinic write-surface audit (2026-11-01)
+
+- Additional routes found outside the common guard: POST /api/data/dashboards creates organization-scoped dashboards; POST /api/compliance/ai/:id/confirm commits a doctor-confirmed clinical AI action.
+- Fix in PR #330: both routes now apply loadClinicAccess and blockClinicWrites; the medical permission check on AI confirmation runs before subscription state is disclosed. Personal session revocation, consent management and medical-file audit logging intentionally remain available.
+- Payment boundary: clinic cashier creation/refunds/static confirmation are gated; historical clinic-marked payments without clinicId fail closed; SaaS renewal checkout and externally paid provider settlement remain available.
+- Parent 4a808de7 passed Quality Gate, RB-034 and frontend/backend lint but had one obsolete source-contract assertion (2,416 passed / 1 failed), corrected in b96b4d6e. Parent E2E was cancelled after a newer commit superseded it.
+- D1 remains OPEN pending full exact-head CI/E2E and approved staging positive-read/negative-write verification. No staging/production database, PHI, migration, live payment or provider callback was touched.

@@ -1,3 +1,13 @@
+## Latest verified state — 2026-11-01 (D1 clinic write-surface audit)
+
+- Repository: drtamirlan911-cell/DentVision1. PR #330 remains OPEN / DRAFT on branch fix/d1-d10-trial-archive-signing-api-20261029. Exact HEAD: b96b4d6e65a15315e5647460f3b54e6d07dd493c. Base/main remains ac913cc3389a294d0b135a852b035ddddb1018ca; main is unchanged.
+- D1 code follow-ups: ac67ddb6 guards clinic cashier payment-intent creation, clinic-owned refunds and manual static confirmations. 528b5964 aligns the route contract test. 4a808de7 makes legacy clinic payments fail closed when clinic scope metadata is missing. 46e02bfa gates scoped dashboard creation and doctor confirmation of medical AI actions. b96b4d6e aligns the structural contract assertion to the fail-closed ownership sequence.
+- Personal session revocation, consent changes and medical-file access audit logging remain available as privacy/security/audit operations. Diagnostic and laboratory partner actors may complete authorized existing referral workflows; clinic-originated referral mutations remain gated.
+- Archived organization context is excluded during auth-context resolution; tests confirm archived clinic membership cannot restore a legacy ClinicMember context.
+- On parent 4a808de7, Quality Gate, RB-034, frontend lint and backend lint passed. Unit tests had 2,416 passed and one failed source-contract expectation in refund.service.test.ts; the assertion was corrected in b96b4d6e. The parent E2E run was cancelled when a later commit superseded it. Vercel for the newest commit was pending when checked; a fresh exact-head CI is required.
+- D1 remains OPEN: no approved staging migration/backfill or post-expiry positive-read/negative-write verification has been run. No staging/production database, PHI, provider account, production secret, live callback, main merge or production deployment was touched.
+- Other open blockers: RB-029 PHI consumer/backfill/key/retention evidence; RB-030 offline sync E2E; RB-031 WebKit/CORS evidence; RB-033 main branch protection; RB-035 patient/IAM negative matrix; D5 official Kaspi and production CORS/WebSocket verification; D9 full exact-head CI; D10 remaining Master Spec 5.0 workflow gaps, including independent dental-lab owner lifecycle, settlement flows, public profiles and the real 32-tooth WebGL odontogram.
+- Release status: NOT READY. Keep PR #330 Draft. Do not merge to main.
 ## Latest compliance checkpoint — 2026-10-31
 
 - Full 24-section Master Spec 5.0 audit recorded in docs/MASTER_SPEC_COMPLIANCE_AUDIT.md, audited HEAD 1284de604b638937ee2939f3f198f8674a5fa6d4.

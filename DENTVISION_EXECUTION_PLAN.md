@@ -571,3 +571,14 @@ Historical priority notes retained from parallel branches; they do not supersede
 - [x] Preserve SaaS renewal checkout and provider-backed settlement/callbacks for already-paid transactions.
 - [x] Add route-level regression tests for expired clinic payments and allowed subscription renewal.
 - [ ] Pass exact-head CI and approved staging post-expiry positive-read/negative-write verification; D1 remains OPEN until both exist.
+
+## D1 — complete clinic write-surface follow-up (2026-11-01)
+
+- [x] Guard clinic cashier payment-intent creation, clinic-owned refunds and manual static confirmations.
+- [x] Preserve SaaS subscription renewal checkout and callbacks/API settlement of already-paid transactions.
+- [x] Fail closed for legacy clinic payments missing clinic scope metadata.
+- [x] Guard scoped dashboard creation and doctor confirmation of clinical AI actions.
+- [x] Preserve personal session, consent and medical-file access audit operations.
+- [x] Add route/source-contract regressions.
+- [ ] Pass full exact-head CI/E2E on current PR #330 HEAD.
+- [ ] Obtain approved staging migration/backfill dry run and prove expired-clinic positive reads / negative writes. D1 stays OPEN until both are verified.
