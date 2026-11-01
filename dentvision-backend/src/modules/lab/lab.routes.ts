@@ -38,17 +38,18 @@ interface LabOrderMeta {
 }
 
 export const VALID_STATUSES = [
-  'pending', 'sent', 'in_progress', 'try_in', 'adjustment', 'qc',
+  'pending', 'sent', 'in_progress', 'try_in', 'adjustment',
   'ready', 'delivered', 'remake', 'delayed', 'cancelled',
 ] as const;
 
 export const DENTAL_LAB_TRANSITIONS: Record<string, readonly string[]> = {
   pending: ['sent', 'cancelled', 'delayed'],
   sent: ['in_progress', 'cancelled', 'delayed'],
-  in_progress: ['try_in', 'adjustment', 'qc', 'remake', 'delayed', 'cancelled'],
-  try_in: ['adjustment', 'qc', 'remake', 'delayed', 'cancelled'],
-  adjustment: ['try_in', 'qc', 'remake', 'delayed', 'cancelled'],
-  qc: ['ready', 'remake'],
+  // Clinic-owned/internal lab orders may complete locally. Once assigned to an
+  // external laboratory, status ownership moves to labPlatformRouter.
+  in_progress: ['try_in', 'adjustment', 'ready', 'remake', 'delayed', 'cancelled'],
+  try_in: ['adjustment', 'ready', 'remake', 'delayed', 'cancelled'],
+  adjustment: ['ready', 'remake', 'delayed', 'cancelled'],
   ready: ['delivered', 'remake', 'delayed', 'cancelled'],
   delivered: ['remake'],
   remake: ['in_progress', 'ready', 'delayed', 'cancelled'],
@@ -194,8 +195,10 @@ labRouter.patch('/:id/status', requirePermission('lab.write'), async (req: AuthR
     if (!clinicId) return res.status(400).json({ ok: false, error: 'Клиника не указана' } satisfies ApiResponse);
     const { status } = req.body as { status?: string };
     if (!status || !VALID_STATUSES.includes(status as typeof VALID_STATUSES[number])) return res.status(400).json({ ok: false, error: `Недопустимый статус. Допустимые: ${VALID_STATUSES.join(', ')}` } satisfies ApiResponse);
-    const owned = await prisma.labOrder.findFirst({ where: { id: req.params.id as string, clinicId, ...branchScopedLabOrder(req) }, select: { id: true, status: true, patientId: true, doctorId: true } });
+    const owned = await prisma.labOrder.findFirst({ where: { id: req.params.id as string, clinicId, ...branchScopedLabOrder(req) }, select: { id: true, status: true, patientId: true, doctorId: true, files: true } });
     if (!owned) return res.status(404).json({ ok: false, error: 'Заказ лаборатории не найден' } satisfies ApiResponse);
+    const ownedMeta = (owned.files as { meta?: LabOrderMeta } | null)?.meta || {};
+    if (ownedMeta.laboratoryId) return res.status(409).json({ ok: false, error: 'Заказ передан внешней лаборатории. Статусом управляет кабинет лаборатории.', code: 'LAB_PARTNER_WORKFLOW_OWNED' } satisfies ApiResponse);
     if (owned.status !== status && !isDentalLabTransitionAllowed(owned.status, status)) return res.status(400).json({ ok: false, error: `Недопустимый переход ${owned.status} → ${status}` } satisfies ApiResponse);
     await ensureDentalLabOrderEventsTable();
     const order = await prisma.$transaction(async (tx) => {

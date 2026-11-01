@@ -352,6 +352,13 @@ test.describe('Partner operational lifecycle', () => {
     });
     expect(assignment.status()).toBe(200);
 
+    const clinicCannotAdvancePartnerOrder = await api.patch(`${BASE}/api/lab-orders/${order.id}/status`, {
+      headers: auth(ownerToken), data: { status: 'sent' },
+    });
+    const clinicBlockedBody = await clinicCannotAdvancePartnerOrder.json();
+    expect(clinicCannotAdvancePartnerOrder.status(), JSON.stringify(clinicBlockedBody)).toBe(409);
+    expect(clinicBlockedBody.code).toBe('LAB_PARTNER_WORKFLOW_OWNED');
+
     const dashboard = await api.get(`${BASE}/api/lab-orders/platform/dashboard`, { headers: auth(dentalLabOwnerToken) });
     expect(dashboard.status()).toBe(200);
     const dashboardData = (await dashboard.json()).data;
@@ -377,6 +384,11 @@ test.describe('Partner operational lifecycle', () => {
       expect(res.status()).toBe(200);
       expect((await res.json()).data.status).toBe(status);
     }
+
+    const qcBypass = await api.patch(`${BASE}/api/lab-orders/platform/orders/${order.id}/status`, {
+      headers: auth(dentalLabOwnerToken), data: { status: 'ready' },
+    });
+    expect(qcBypass.status()).toBe(409);
 
     const qc = await api.patch(`${BASE}/api/lab-orders/platform/orders/${order.id}/qc`, {
       headers: auth(dentalLabOwnerToken),

@@ -32,7 +32,8 @@ const STATUS_FLOW: Record<string, string[]> = {
   in_progress: ['try_in', 'adjustment', 'qc', 'remake', 'delayed', 'cancelled'],
   try_in: ['adjustment', 'qc', 'remake'],
   adjustment: ['try_in', 'qc', 'remake'],
-  qc: ['ready', 'remake'],
+  // QC outcome must be recorded only through the manager-only /qc endpoint.
+  qc: [],
   ready: ['delivered', 'remake'],
   delivered: [],
   remake: ['in_progress', 'delayed', 'cancelled'],
