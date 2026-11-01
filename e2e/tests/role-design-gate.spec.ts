@@ -322,14 +322,18 @@ function collectors(page: Page) {
 
   page.on('request', request => {
     let mainDocumentNavigation = false;
+    let requestFrameUrl: string | undefined;
+    let isMainFrameRequest = false;
     try {
       const requestFrame = request.frame();
+      requestFrameUrl = requestFrame.url();
       // Compare frame hierarchy rather than wrapper object identity. Playwright
       // may expose different Frame wrappers for the request and Page accessors;
       // the top-level document is reliably identified by having no parent frame.
+      isMainFrameRequest = requestFrame.parentFrame() === null;
       mainDocumentNavigation = request.isNavigationRequest()
         && request.resourceType() === 'document'
-        && requestFrame.parentFrame() === null;
+        && isMainFrameRequest;
     } catch { /* detached-frame and service-worker requests are not main navigation */ }
 
     if (mainDocumentNavigation) {
@@ -350,25 +354,36 @@ function collectors(page: Page) {
       }
     }
 
-    // A late same-origin script request from the page being replaced can arrive
-    // after the new document request has advanced the epoch. Script requests to
-    // the UI origin retain the full same-origin Referer path. API requests often
-    // cross the UI/API origin boundary and expose only the origin, so they must
-    // remain tracked rather than being filtered by a path comparison.
+    // Browser lifecycle events from a document being replaced may be delivered
+    // after the next document has already navigated. This applies to API fetches
+    // as well as lazy chunks: API Referer headers are sometimes origin-only, but
+    // Playwright still gives us the originating main-frame URL. Scope the ledger
+    // to the active document so a late /ai request cannot block a subsequent
+    // /help or /crm route. Child-frame requests remain tracked conservatively.
     let previousDocumentRequest = false;
     try {
       const requestUrl = new URL(request.url());
+      const activeDocumentUrl = ledger.documentUrl ? new URL(ledger.documentUrl) : null;
+      const sourceDocumentUrl = requestFrameUrl ? new URL(requestFrameUrl) : null;
+      if (!mainDocumentNavigation && isMainFrameRequest && activeDocumentUrl && sourceDocumentUrl) {
+        previousDocumentRequest = sourceDocumentUrl.origin === activeDocumentUrl.origin
+          && (sourceDocumentUrl.pathname !== activeDocumentUrl.pathname
+            || sourceDocumentUrl.search !== activeDocumentUrl.search);
+      }
+
+      // Fall back to the full same-origin Referer for UI scripts when a frame
+      // URL is unavailable. Never infer an API's document path from an
+      // origin-only cross-origin Referer.
       const isUiScript = request.resourceType() === 'script' && requestUrl.origin === uiOrigin;
       const referer = request.headers()?.referer;
-      if (isUiScript && !mainDocumentNavigation && referer && ledger.documentUrl) {
+      if (!previousDocumentRequest && !sourceDocumentUrl && isUiScript && !mainDocumentNavigation && referer && activeDocumentUrl) {
         const refererUrl = new URL(referer);
-        const activeDocumentUrl = new URL(ledger.documentUrl);
         previousDocumentRequest = refererUrl.origin === uiOrigin
           && activeDocumentUrl.origin === uiOrigin
           && (refererUrl.pathname !== activeDocumentUrl.pathname
             || refererUrl.search !== activeDocumentUrl.search);
       }
-    } catch { /* missing or opaque referrers retain conservative tracking */ }
+    } catch { /* missing or opaque frame/referer metadata retains conservative tracking */ }
 
     if (previousDocumentRequest) {
       try { ledger.requestEpochs.set(request, Math.max(0, ledger.epoch - 1)); } catch { /* request wrapper unavailable */ }
@@ -423,12 +438,16 @@ function collectors(page: Page) {
     const errorText = request.failure()?.errorText || 'failed';
     let requestEpoch: number | undefined;
     try { requestEpoch = ledger.requestEpochs.get(request); } catch { /* request wrapper unavailable */ }
-    const expectedNavigationAbort = requestEpoch !== undefined
-      && requestEpoch < ledger.epoch
+    const belongsToPreviousDocument = requestEpoch !== undefined && requestEpoch < ledger.epoch;
+    const expectedNavigationAbort = belongsToPreviousDocument
       && /ERR_ABORTED|Load request cancelled/i.test(errorText);
 
-    if (expectedNavigationAbort) {
-      problems.navigationCancellations.push(request.method() + ' ' + request.url() + ' :: ' + errorText);
+    if (belongsToPreviousDocument) {
+      if (expectedNavigationAbort) {
+        problems.navigationCancellations.push(request.method() + ' ' + request.url() + ' :: ' + errorText);
+      }
+      // This request belongs to the document already replaced. Its lifecycle
+      // completion must not create a false failure for the active route.
       return;
     }
     problems.requests.push(request.method() + ' ' + request.url() + ' :: ' + errorText);
@@ -436,10 +455,13 @@ function collectors(page: Page) {
   page.on('response', response => {
     const status = response.status();
     const request = response.request();
+    let responseBelongsToPreviousDocument = false;
     try {
+      const requestEpoch = ledger.requestEpochs.get(request);
+      responseBelongsToPreviousDocument = requestEpoch !== undefined && requestEpoch < ledger.epoch;
       const id = ledger.requestIds.get(request);
       const pending = id === undefined ? undefined : ledger.pending.get(id);
-      if (pending?.epoch === ledger.epoch) {
+      if (!responseBelongsToPreviousDocument && pending?.epoch === ledger.epoch) {
         pending.responseStatus = status;
         pending.responseContentType = response.headers()['content-type'] || undefined;
         pending.responseAt = Date.now();
@@ -447,6 +469,7 @@ function collectors(page: Page) {
       }
     } catch { /* response metadata is diagnostic only; request assertions remain separate */ }
 
+    if (responseBelongsToPreviousDocument) return;
     if (status >= 400) {
       try {
         const url = new URL(response.url());
