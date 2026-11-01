@@ -535,3 +535,11 @@ PARTNER-003 verifies only the current basic handoff and production path. It does
 - New E2E checks operational MANAGER list access without balance disclosure and DOCTOR access under the explicit care-specific permission pair. Route-contract test locks the fail-closed default and permission expression.
 - Code/test commits: `76c76548d625460e294ed96599dd56cbcb1492e3`, `a09a1afdb1600c27a5f7fe7e69753e0d935c92ef`, `f1d512ce676cd253c7bb23a4c173d008e045e5c0`. Release blocker and execution log updated; exact-head CI for the resulting documentation head is still required.
 - RB-035 stays OPEN until exact-head E2E and the remaining patient-route/IAM/tenant/branch negative matrix pass. No staging/production query, database write, migration, PHI backfill or production deployment was executed.
+
+
+## 2026-11-01 — RB-029 backfill root-shape guard
+
+- The medical-history backfill no longer treats every non-null JSON value as a valid structured history object. Plaintext rows and decrypted versioned envelopes must have object roots; unsupported array/scalar roots are counted without PHI/identifiers and abort the full preflight before any write.
+- The write pass repeats the check defensively. Historical patient-portal scalar `ENC:` values remain separately read-compatible.
+- Added pure tests for object acceptance and array/string/number/boolean/null rejection. Code/test commits `325923cdef473a26cad9f88f8973174c0c78efe7`, `aa99f16c6aaff1f26d516451cd6c80b687885842`.
+- This guards data integrity but does not close RB-029: exception ledger, full reader/writer and key-rotation review, verified backup/restore, approved staging dry run/backfill and reconciliation remain outstanding. No database or PHI operation was executed.
