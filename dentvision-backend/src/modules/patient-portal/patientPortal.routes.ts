@@ -2,7 +2,7 @@ import { Router } from 'express';
 import prisma from '../../lib/prisma.js';
 import { authenticate } from '../../middleware/auth.js';
 import { requireConsent } from '../../middleware/consentGate.js';
-import { decryptPatientFields, encryptMedicalHistory, hmacIin, isClientSuppliedEncryptedMedicalHistory } from '../../lib/phi.js';
+import { decryptPatientFields, encryptMedicalHistory, hmacIin, isClientSuppliedEncryptedMedicalHistory, isStructuredMedicalHistoryRoot } from '../../lib/phi.js';
 import { resolvePatientForUser } from './patientLink.js';
 import { isStorageKey, keyFromStorageUrl, signedDownloadUrl, storageConfigured } from '../../lib/storage.js';
 import * as crossClinicSvc from '../cross-clinic/cross-clinic.service.js';
@@ -77,6 +77,9 @@ patientPortalRouter.put('/me/profile', ensurePatient, async (req: AuthRequest, r
       const history = body.medicalHistory;
       if (isClientSuppliedEncryptedMedicalHistory(history)) {
         return res.status(400).json({ ok: false, error: 'Передайте медицинскую историю в исходном формате' });
+      }
+      if (history !== null && !isStructuredMedicalHistoryRoot(history)) {
+        return res.status(400).json({ ok: false, error: 'Медицинская история должна быть объектом' });
       }
       data.medicalHistory = encryptMedicalHistory(history);
     }
