@@ -301,7 +301,12 @@ test.describe('Partner operational lifecycle', () => {
     const switchedTechnicianBody = await switchedTechnician.json();
     expect(switchedTechnician.status(), JSON.stringify(switchedTechnicianBody)).toBe(200);
     dentalTechnicianToken = switchedTechnicianBody.data.accessToken;
-    expect(JSON.parse(Buffer.from(dentalTechnicianToken.split('.')[1], 'base64url').toString('utf8')).role).toBe('DENTAL_TECHNICIAN');
+    const dentalTechnicianClaims = JSON.parse(Buffer.from(dentalTechnicianToken.split('.')[1], 'base64url').toString('utf8')) as { role?: string; organizationType?: string; organizationId?: string };
+    // The canonical PersonRole remains dental_technician; the legacy JWT enum
+    // compatibility claim is LAB and must never be used as the partner role key.
+    expect(dentalTechnicianClaims.role).toBe('LAB');
+    expect(dentalTechnicianClaims.organizationType).toBe('LABORATORY');
+    expect(dentalTechnicianClaims.organizationId).toBe(dentalLabClaims.organizationId);
 
     const patient = await api.post(`${BASE}/api/patients`, {
       headers: auth(ownerToken),
