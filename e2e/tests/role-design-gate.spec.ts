@@ -22,6 +22,7 @@ type RequestLedger = {
   requestIds: WeakMap<object, number>
   requestEpochs: WeakMap<object, number>
   byIdentity: Map<string, number[]>
+  documentUrl: string | null
   lastActivityAt: number
 }
 
@@ -284,6 +285,7 @@ function collectors(page: Page) {
     requestIds: new WeakMap(),
     requestEpochs: new WeakMap(),
     byIdentity: new Map(),
+    documentUrl: null,
     lastActivityAt: Date.now(),
   };
   pendingCriticalRequestsByPage.set(page, ledger);
@@ -328,6 +330,7 @@ function collectors(page: Page) {
 
     if (mainDocumentNavigation) {
       ledger.epoch += 1;
+      ledger.documentUrl = request.url();
       ledger.lastActivityAt = Date.now();
       const staleIds = new Set<number>();
       for (const [id, entry] of ledger.pending) {
@@ -343,6 +346,26 @@ function collectors(page: Page) {
       }
     }
 
+    // A late request event from the page being replaced can arrive after the new
+    // document request has advanced the epoch. Its same-origin Referer still
+    // identifies the old document, so do not attribute it to the new route drain.
+    let previousDocumentRequest = false;
+    try {
+      const referer = request.headers()?.referer;
+      if (!mainDocumentNavigation && referer && ledger.documentUrl) {
+        const refererUrl = new URL(referer);
+        const activeDocumentUrl = new URL(ledger.documentUrl);
+        previousDocumentRequest = refererUrl.origin === uiOrigin
+          && activeDocumentUrl.origin === uiOrigin
+          && (refererUrl.pathname !== activeDocumentUrl.pathname
+            || refererUrl.search !== activeDocumentUrl.search);
+      }
+    } catch { /* missing or opaque referrers retain conservative tracking */ }
+
+    if (previousDocumentRequest) {
+      try { ledger.requestEpochs.set(request, Math.max(0, ledger.epoch - 1)); } catch { /* request wrapper unavailable */ }
+      return;
+    }
     try { ledger.requestEpochs.set(request, ledger.epoch); } catch { /* request wrapper unavailable */ }
 
     try {
@@ -374,7 +397,10 @@ function collectors(page: Page) {
 
   page.on('framenavigated', frame => {
     try {
-      if (frame.parentFrame() === null) ledger.lastActivityAt = Date.now();
+      if (frame.parentFrame() === null) {
+        ledger.documentUrl = frame.url();
+        ledger.lastActivityAt = Date.now();
+      }
     } catch { /* detached frames do not affect main-document readiness */ }
   });
   page.on('requestfinished', finishPending);
