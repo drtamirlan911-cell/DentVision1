@@ -32,6 +32,15 @@ function splitName(name?: string, firstName?: string, lastName?: string) {
   return parts.length === 1 ? { firstName: parts[0], lastName: '-' } : { firstName: parts[0], lastName: parts.slice(1).join(' ') };
 }
 
+function canReadPatientBalance(permissions: readonly string[]): boolean {
+  const grants = new Set(permissions);
+  return grants.has('*')
+    || grants.has('billing.write')
+    || grants.has('billing.delete')
+    || grants.has('billing.manage')
+    || (grants.has('medical.manage') && grants.has('billing.read'));
+}
+
 function serializePatient(p: any, includeBilling = true) {
   const decodedHistory = decryptMedicalHistory(p.medicalHistory);
   const history = (decodedHistory && typeof decodedHistory === 'object' && !Array.isArray(decodedHistory) ? decodedHistory : {}) as Record<string, unknown>;
@@ -54,9 +63,7 @@ async function serializePatientForCaller(p: any, req: AuthRequest) {
     req.user?.organizationId || req.user?.clinicId,
     String(req.user?.role || ''),
   );
-  const includeBilling = permissions.some((key) =>
-    ['*', 'billing.read', 'billing.write', 'billing.delete', 'billing.manage'].includes(key),
-  );
+  const includeBilling = canReadPatientBalance(permissions);
   return serializePatient(p, includeBilling);
 }
 
@@ -120,7 +127,7 @@ patientsRouter.get('/', requirePermission('patient.read'), async (req: AuthReque
   try {
     const clinicId=req.user?.clinicId; if(!clinicId) return res.status(400).json({ok:false,error:'Клиника не указана'} satisfies ApiResponse);
     const effectivePermissions = await resolveUserPermissions(req.user!.id, req.user?.organizationId || clinicId, String(req.user?.role || ''));
-    const canReadBilling = effectivePermissions.some((key) => ['*', 'billing.read', 'billing.write', 'billing.delete', 'billing.manage'].includes(key));
+    const canReadBilling = canReadPatientBalance(effectivePermissions);
     const page=parseInt(req.query.page as string)||1, limit=Math.min(parseInt(req.query.limit as string)||100,500), search=(req.query.search as string)||''; const {skip,take}=paginate(page,limit);
     const iin=normalizeIin(search), iinHash=iin.length===12?hmacIin(iin):null;
     const whereBase:Prisma.PatientWhereInput=iinHash?{iinHash}:search?{OR:[{firstName:{contains:search,mode:'insensitive'}},{lastName:{contains:search,mode:'insensitive'}},{phone:{contains:search,mode:'insensitive'}},{email:{contains:search,mode:'insensitive'}}]}:{};
