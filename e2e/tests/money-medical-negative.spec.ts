@@ -204,6 +204,36 @@ test.describe('Здоровье: медицинские записи', () => {
     expect(Number(afterData.prepaidBalance)).toBe(beforeBalance);
   });
 
+  test('manager patient list hides prepaid balance while doctor retains care-relevant balance', async () => {
+    const created = await ctx.post('/api/patients', {
+      headers: auth(ownerA),
+      data: { iin: makeIin(), firstName: 'RB035', lastName: 'BalanceFieldBoundary', phone: '+77010004446' },
+    });
+    expect(created.ok(), await created.text()).toBeTruthy();
+    const patientId = ((await created.json()).data || {}).id as string;
+
+    const deposit = await ctx.post(`/api/patients/${patientId}/deposit`, {
+      headers: auth(ownerA),
+      data: { amount: 12500 },
+    });
+    expect(deposit.status(), await deposit.text()).toBe(200);
+
+    const [managerList, doctorChart] = await Promise.all([
+      ctx.get('/api/patients?limit=200', { headers: auth(managerA) }),
+      ctx.get(`/api/patients/${patientId}`, { headers: auth(doctorA) }),
+    ]);
+    expect(managerList.status(), await managerList.text()).toBe(200);
+    const listPayload = (await managerList.json()).data;
+    const managerRows = Array.isArray(listPayload) ? listPayload : (listPayload?.data || []);
+    const managerPatient = managerRows.find((patient: any) => patient.id === patientId);
+    expect(managerPatient, 'manager must retain permitted patient-directory access').toBeTruthy();
+    expect(managerPatient).not.toHaveProperty('prepaidBalance');
+
+    expect(doctorChart.status(), await doctorChart.text()).toBe(200);
+    const doctorPatient = (await doctorChart.json()).data;
+    expect(Number(doctorPatient.prepaidBalance)).toBe(12500);
+  });
+
   test('parallel patient-history PATCH requests never silently overwrite accepted writes', async () => {
     const created = await ctx.post('/api/patients', {
       headers: auth(ownerA),
