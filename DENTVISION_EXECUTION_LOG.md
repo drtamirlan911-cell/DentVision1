@@ -2788,3 +2788,11 @@ Added route-contract tests covering all write routes and the laboratory-context 
 - Added unit coverage for accepted object roots and rejected array/string/number/boolean/null roots.
 - Code/test commits: `325923cdef473a26cad9f88f8973174c0c78efe7` and `aa99f16c6aaff1f26d516451cd6c80b687885842`; release blocker update commit: `d790ddf9475d844b259a291c26e142cb2f0d24bb`.
 - Exact-head CI is required for the final resulting branch HEAD. The new preflight was not run against staging/production; no patient rows were read/written by this change, no migration or PHI backfill was performed. RB-029 remains OPEN pending full consumer/key/backup review and approved staging evidence.
+
+
+## 2026-11-01 — D2 isolated archive/retention E2E
+
+- Source review confirms the organization archive handler writes only \`Organization.archivedAt\` and lifecycle metadata. It does not update \`Clinic.active\`, delete the legacy Clinic, or delete branches, memberships, patients, documents or audit rows. Archived Organization contexts are excluded from workspace enumeration; the authentication middleware blocks existing scoped tokens except on explicit context-recovery paths.
+- Added \`ORG-009\` to \`e2e/tests/organization-owner-lifecycle.spec.ts\`. It creates a separate clinic through \`/api/auth/clinics\`, creates a patient under its clinic context, soft-archives its canonical Organization, verifies the archived context disappears and the old clinic token cannot read the clinic, checks through SUPERADMIN that the Clinic and patient count remain, and restores the Organization. The test uses a uniquely created clinic rather than shared E2E Clinic A; a \`finally\` cleanup attempts restoration if an assertion fails.
+- Regression-test commit: \`65e9c3d49959301d87f704a2216e6e8f6ab4139f\`; archive-cleanup ordering fix: \`d062acd90082f6d1bcf3b406508418e32133d9c7\`. Release blocker and checklist updates are recorded in commits \`30486eeae946163f9730d6575c3bac9c66c62c62\` and \`45e1953719415c4b2ebab2ddf8dc13077d33b4b5\`.
+- Exact-head CI must pass this E2E. D2 remains OPEN pending this test and approved staging migration/retention proof. No staging/production database operation, migration, archive or restore was executed by this audit.
