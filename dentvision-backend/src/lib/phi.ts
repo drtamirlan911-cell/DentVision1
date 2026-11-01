@@ -100,6 +100,18 @@ function isEncryptedMedicalHistoryEnvelope(value: unknown): value is EncryptedMe
  * changing the PostgreSQL JSON column or the API's decoded object shape.
  * Legacy plaintext JSON is read-compatible; already-encrypted values are idempotent.
  */
+/**
+ * Patient.medicalHistory is a structured JSON object (or null when no history
+ * exists). Arrays and scalar roots cannot be merged or round-tripped through
+ * the canonical Patient DTO and must be rejected at every write boundary.
+ */
+export function isStructuredMedicalHistoryRoot(value: unknown): value is Record<string, unknown> {
+  return value !== null
+    && typeof value === 'object'
+    && !Array.isArray(value)
+    && (Object.getPrototypeOf(value) === Object.prototype || Object.getPrototypeOf(value) === null);
+}
+
 export function encryptMedicalHistory(value: unknown): unknown {
   if (value == null) return value;
   if (hasMedicalHistoryEnvelopeMarker(value)) {
