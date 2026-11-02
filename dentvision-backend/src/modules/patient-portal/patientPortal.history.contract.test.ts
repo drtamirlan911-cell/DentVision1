@@ -17,8 +17,17 @@ const teethStore = readFileSync(resolve(process.cwd(), 'dentvision-backend/src/m
 
 describe('patient portal structured medical-history persistence contract', () => {
   it('uses the canonical JSON history envelope encoder instead of coercing history to a string', () => {
-    expect(patientPortalRoute).toContain(
-      "import { decryptPatientFields, encryptMedicalHistory, hmacIin, isClientSuppliedEncryptedMedicalHistory } from '../../lib/phi.js';",
+    const phiImport = patientPortalRoute.match(
+      /import\\s*\\{([^}]+)\\}\\s*from\\s*['"]\\.\\.\\/\\.\\.\\/lib\\/phi\\.js['"]/,
+    );
+    expect(phiImport).not.toBeNull();
+    expect(phiImport?.[1].split(',').map((name) => name.trim())).toEqual(
+      expect.arrayContaining([
+        'decryptPatientFields',
+        'encryptMedicalHistory',
+        'hmacIin',
+        'isClientSuppliedEncryptedMedicalHistory',
+      ]),
     );
     expect(patientPortalRoute).toContain(
       'data.medicalHistory = encryptMedicalHistory(history);',
