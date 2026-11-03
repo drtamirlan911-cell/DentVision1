@@ -1,5 +1,22 @@
 # DentVision — Persistent Execution Log
 
+## 2026-11-03 — Exact-head CI/E2E completion and release-blocker reconciliation
+
+- Revalidated existing PR #330 only: branch `fix/d1-d10-trial-archive-signing-api-20261029`, code/test HEAD `de0dffcadf0dca77beaf61cb647729ad849d35b8`, base/main `ac913cc3389a294d0b135a852b035ddddb1018ca`; 333 commits ahead, 0 behind, 164 changed files. PR remains OPEN / DRAFT. No new branch or PR.
+- Exact-head CI `41387485129` passed all four jobs (frontend-lint, backend-lint, lint-test, E2E). Quality Gate `41387485180`, RB-034 `41387485168` and Vercel preview status passed. Unit suite: 2,437/2,437 tests in 270 files. Build, TypeScript, Command Center and generated System Map checks passed.
+- E2E job passed on merge ref `330/merge` (synthetic merge `f44da33f2db45b6a60400fa0457a1186d6d40dd3`). Gate results: Core 249 passed / 5 skipped; Browser UX 4; Mobile Design 16; Role/Context 140 passed / 28 skipped; Visual Agent 48; Business Owner 11; Organization Owner 8; Playwright CLI smoke and Visual Release Gate returned status 0. Compact diagnostics: 359 lines scanned, zero unique failure signatures.
+- Confirmed source/test state for RB-036: delivery subscriber no longer writes dental-lab economics; obsolete delivery-only helper is removed; PARTNER-003 verifies after delivery that no DENTAL_LAB `partner_economics` transaction or ledger entries exist. Exact-head E2E passed. RB-036 is resolved as the premature-recognition defect; D10 remains OPEN/PARTIAL because the independent dental-lab commercial settlement and broader partner workflow are not implemented.
+- D1/D2 remain open pending approved staging migration, expired-clinic read/write and archive-retention verification. RB-029, RB-030, RB-031, RB-033 and RB-035 remain open pending PHI/backfill, offline-sync, WebKit/production CORS, branch protection and complete negative authorization evidence.
+- Rechecked all open PRs: #328 head `966512b54a2937472732e2c94d23fd819de2edb0` (CI failure / Quality success); #329 `c2e5951ba631da1762bd3380c3bbc35c51953770` (CI cancelled / Quality success); #322 `f4fb1f5b8e2729a4cda00207593bc0d9e20d866a` (CI failure / Quality success, base SHA differs from current main); #333 `3ec32abf57d37f3c00e0fbb195a6956be6dec510` (CI cancelled / Quality success). No parallel branch was changed.
+- Branch protection: GitHub rulesets read returned an empty list; classic main branch-protection read returned 403, so RB-033 is not verified and still requires repository-admin confirmation. Issue #259 remains open; branch inventory issue #311 remains open.
+- No staging/production database operation, migration, PHI backfill, live payment-provider call, environment/secret change, production deployment or main merge. Local `git status` remains unverified because no local checkout is mounted.
+- This log update is documentation-only. Its resulting new HEAD must receive its own CI; the successful evidence above belongs to code/test HEAD `de0dffcadf0dca77beaf61cb647729ad849d35b8`.
+
+### Next action
+
+Continue source-only RB-029 reader/writer/concurrent-writer review and RB-035 route-level negative authorization matrix. Prepare D1/D2 staging runbook for all pending migrations but do not execute it until the staging target, backup/rollback and operator window are verified. Then address RB-030, RB-031, RB-033, Kaspi evidence and remaining D10 workflows.
+
+
 This log is the durable handoff between work sessions/agents. It records completed work, evidence, blockers, and the exact next action.
 
 ## 2026-11-01 — Dental-lab handoff ownership, QC notifications and transactional lifecycle

@@ -1,5 +1,25 @@
 # DentVision — Master Execution Plan
 
+## Latest exact-head verification checkpoint — 2026-11-03
+
+- Verified code/test HEAD `de0dffcadf0dca77beaf61cb647729ad849d35b8` on the existing PR #330 branch; base/main remains `ac913cc3389a294d0b135a852b035ddddb1018ca`. PR #330 remains OPEN / DRAFT, 333 commits ahead / 0 behind.
+- Exact-head CI `41387485129`, Quality Gate `41387485180`, RB-034 `41387485168` and Vercel preview status all passed. CI jobs frontend-lint, backend-lint, lint-test and E2E passed. Unit suite: 2,437/2,437 across 270 files; E2E: Core 249/5 skipped, Browser UX 4, Mobile 16, Role/Context 140/28 skipped, Visual Agent 48, Business Owner 11, Organization Owner 8, Playwright CLI smoke and Visual Release Gate passed. E2E compact digest found zero failure signatures.
+- PARTNER-003's database-level negative assertion passed: after delivery, the order has no DENTAL_LAB `partner_economics` transaction or ledger entries. RB-036 is resolved as the premature delivery-recognition defect. Do not enable recognition until a separately approved dental-lab invoice/payment/settlement/payout/refund/chargeback contract and verified callback exist. D10 remains OPEN/PARTIAL.
+- D1/D2 remain OPEN pending approved staging migrations and positive-read/negative-write/archive-retention proof. RB-029, RB-030, RB-031, RB-033 and RB-035 remain open for their respective PHI/backfill, offline sync, WebKit/production CORS, repository protection and full authorization evidence.
+- Master Spec 5.0 classification remains 18 PARTIAL / 4 OPEN / 2 GUIDANCE. No production readiness claim.
+- This checkpoint's documentation-only commit must itself receive a fresh exact-head CI run; the successful run above belongs to code/test HEAD `de0dffcadf0dca77beaf61cb647729ad849d35b8`. No live DB/provider/environment action or main merge.
+
+## Next execution order after documentation checkpoint
+
+1. Continue RB-029 reader/writer/concurrent-writer inventory and exception-ledger design; keep all PHI operations read-only until approved backup/restore and staging dry run.
+2. Complete RB-035 route-level negative authorization matrix by role, tenant, branch, revoked/expired session and patient financial-field visibility.
+3. Prepare D1/D2 staging verification plan for all four pending migrations; do not apply without verified staging target, backup and explicit operator window.
+4. Resolve RB-030 offline sync contract and add a real offline→reconnect persistence assertion.
+5. Capture exact WebKit OPTIONS/request lifecycle and production CORS/WebSocket evidence for RB-031.
+6. Obtain repository-admin confirmation for RB-033 and official merchant-issued Kaspi contract/callback evidence.
+7. Continue D10 dental-lab QC/remake, dispatch, service/pricing, commercial settlement and complete partner RBAC; retain the 18/4/2 Master Spec audit classification until each section has evidence.
+
+
 ## Latest implementation checkpoint — 2026-11-01 (RB-029 / RB-035 / role-gate corrections)
 
 - This checkpoint is based on live PR #330 branch \`fix/d1-d10-trial-archive-signing-api-20261029\`, HEAD \`45900d0d33b507bb0bb492d2d23b0243a615ec25\`. Base/main remains \`ac913cc3389a294d0b135a852b035ddddb1018ca\`; no merge.

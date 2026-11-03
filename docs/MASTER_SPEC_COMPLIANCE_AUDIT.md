@@ -155,3 +155,14 @@ The existing audited classification remains **18 PARTIAL / 4 OPEN / 2 GUIDANCE**
 
 Exact-head evidence on `e777520`: Quality Gate and RB-034 passed; frontend lint, backend TypeScript/ESLint, build/type checks and Command Center audit passed; Vercel preview passed. CI unit tests did not run because the generated system-map gate found the committed snapshot stale (693 vs 694 unique route handlers). E2E remained in progress at the time of this addendum. Therefore section 13 (Laboratory domain contracts) and section 11 (Cross-organization ecosystem workflows) remain PARTIAL, D10 remains OPEN, and the audit-wide result is unchanged until exact-head tests and all remaining acceptance criteria are reviewed.
 
+
+
+## Exact-head verification follow-up — 2026-11-03
+
+- Re-audited the existing PR #330 code/test HEAD `de0dffcadf0dca77beaf61cb647729ad849d35b8` against the 2026-11-02 exact-head evidence. CI `41387485129`, Quality Gate `41387485180`, RB-034 `41387485168` and Vercel preview status passed. Unit tests: 2,437/2,437 across 270 files. All E2E gate commands returned status 0; compact failure diagnostics found zero unique failure signatures.
+- The exact E2E results include Core 249 passed / 5 skipped, Browser UX 4, Mobile Design 16, Role/Context 140 passed / 28 skipped, Visual Agent 48, Business Owner 11 and Organization Owner 8; Playwright CLI smoke and Visual Release Gate passed.
+- PARTNER-003 now proves that delivery alone does not create a DENTAL_LAB `partner_economics` transaction or ledger entries. This resolves the specific premature-recognition defect RB-036; it does not implement the commercial settlement workflow.
+- Master Spec 5.0 classification remains **18 PARTIAL / 4 OPEN / 2 GUIDANCE**. No section is newly certified fully compliant. Dental-lab QC/remake, dispatch, services/pricing, invoice/payment/settlement/payout, durable notifications, AI exceptions and full owner/manager/technician RBAC remain incomplete.
+- D1/D2 staging proof, RB-029 PHI readers/backfill/backup/key lifecycle, RB-030 offline sync, RB-031 WebKit/production CORS/WebSocket, RB-033 branch protection, RB-035 full negative authorization matrix, official Kaspi contract/callback and remaining D10 workflow parity remain release blockers.
+- No staging/production database operation, migration, PHI backfill, payment-provider operation, environment change, deployment or main merge was performed. The documentation-only follow-up must receive its own exact-head CI before it is treated as the final PR head.
+
