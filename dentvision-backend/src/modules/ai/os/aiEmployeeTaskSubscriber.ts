@@ -65,7 +65,9 @@ export function registerAiEmployeeTaskSubscriber(): void {
               sourceEventId: event.id,
               sourceEventType: event.type,
               action: action.action,
-              actionPayload: event.payload,
+              // sourceEventId/sourceEventType retain provenance. Do not duplicate
+              // the event's potentially clinical payload into another durable JSONB row.
+              actionPayload: null,
               risk,
               status,
               metadata: {

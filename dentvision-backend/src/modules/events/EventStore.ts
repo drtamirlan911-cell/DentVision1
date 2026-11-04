@@ -1,6 +1,7 @@
 import { Prisma } from '@prisma/client';
 import prisma from '../../lib/prisma.js';
 import { CRMEvent } from './EventTypes.js';
+import { decodeDurableEventPayload, encodeDurableEventPayload } from './eventPayloadEncryption.js';
 
 export class EventStore {
   async save(event: CRMEvent): Promise<void> {
@@ -12,7 +13,7 @@ export class EventStore {
           source: event.source,
           clinicId: event.clinicId,
           userId: event.userId,
-          payload: event.payload as unknown as Prisma.InputJsonValue,
+          payload: encodeDurableEventPayload(event.payload) as unknown as Prisma.InputJsonValue,
           status: 'pending',
         },
       });
@@ -72,7 +73,7 @@ export class EventStore {
           source: row.source,
           clinicId: row.clinicId,
           userId: row.userId,
-          payload: (row.payload ?? {}) as Record<string, unknown>,
+          payload: decodeDurableEventPayload(row.payload),
         }));
       });
     } catch (err) {
@@ -162,7 +163,10 @@ export class EventStore {
     ]);
 
     return {
-      events,
+      events: events.map((event) => ({
+        ...event,
+        payload: decodeDurableEventPayload(event.payload),
+      })),
       pagination: {
         page,
         limit,
@@ -173,7 +177,8 @@ export class EventStore {
   }
 
   async getEventById(id: string) {
-    return prisma.aIEvent.findUnique({ where: { id } });
+    const event = await prisma.aIEvent.findUnique({ where: { id } });
+    return event ? { ...event, payload: decodeDurableEventPayload(event.payload) } : null;
   }
 
   async getStats(clinicId?: string) {

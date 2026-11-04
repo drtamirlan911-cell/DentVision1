@@ -125,21 +125,34 @@ async function recommendExams(event: CRMEvent): Promise<EventActionResult> {
 
 async function notifyDoctorPatientArrived(event: CRMEvent): Promise<EventActionResult> {
   const { patientId, doctorId } = event.payload;
+  if (typeof patientId !== 'string' || !event.clinicId) {
+    return { success: false, action: 'notifyDoctorPatientArrived', agent: 'doctor', message: 'Patient context is missing' };
+  }
 
-  const patient = await prisma.patient.findUnique({
-    where: { id: patientId as string },
-    select: { firstName: true, lastName: true },
+  const patient = await prisma.patient.findFirst({
+    where: { id: patientId, clinicId: event.clinicId },
+    select: { id: true },
   });
+  if (!patient) {
+    return { success: false, action: 'notifyDoctorPatientArrived', agent: 'doctor', message: 'Patient is not available in this clinic context' };
+  }
+
+  const doctorMembership = typeof doctorId === 'string'
+    ? await prisma.clinicMember.findFirst({
+      where: { clinicId: event.clinicId, userId: doctorId, role: 'DOCTOR' },
+      select: { userId: true },
+    })
+    : null;
 
   return {
     success: true,
     action: 'notifyDoctorPatientArrived',
     agent: 'doctor',
-    message: `Пациент ${patient?.firstName} ${patient?.lastName} ожидает в приёмной.`,
-    notifyUserIds: doctorId ? [doctorId as string] : [],
+    message: 'Пациент ожидает в приёмной. Откройте расписание для просмотра.',
+    notifyUserIds: doctorMembership?.userId ? [doctorMembership.userId] : [],
     timelineEntry: {
       action: 'Уведомление врачу',
-      result: `Пациент ${patient?.firstName} ${patient?.lastName} ожидает`,
+      result: 'Пациент ожидает в приёмной',
     },
   };
 }
@@ -190,7 +203,7 @@ async function generateTreatmentRecommendations(event: CRMEvent): Promise<EventA
     success: true,
     action: 'generateTreatmentRecommendations',
     agent: 'doctor',
-    message: `Рекомендации по диагнозу${diagnosisCode ? ` (${diagnosisCode})` : ''}: ${recommendations.join('; ')}`,
+    message: 'Рекомендации по лечению подготовлены. Откройте карточку пациента для просмотра.',
     data: { recommendations, diagnosis, diagnosisCode },
     timelineEntry: {
       action: 'Рекомендации по лечению',
@@ -214,7 +227,7 @@ async function generateMedicalDocumentation(event: CRMEvent): Promise<EventActio
     success: true,
     action: 'generateMedicalDocumentation',
     agent: 'doctor',
-    message: `Сформирована документация: ${docs.join(', ')}. Диагноз: ${diagnosis}. Лечение: ${treatmentList.join(', ')}.`,
+    message: 'Медицинская документация подготовлена. Откройте карточку пациента для просмотра.',
     data: { patientId, appointmentId, documents: docs, treatmentList },
     timelineEntry: {
       action: 'Формирование документации',
@@ -431,7 +444,7 @@ async function checkRequiredMaterials(event: CRMEvent): Promise<EventActionResul
     action: 'checkRequiredMaterials',
     agent: 'supply',
     message: materials.length > 0
-      ? `Для лечения потребуется: ${materials.join(', ')}`
+      ? 'Подготовлены рекомендации по материалам. Откройте рабочее пространство для просмотра.'
       : 'Материалы уточняются.',
     data: { materials, diagnosis },
     timelineEntry: {

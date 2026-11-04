@@ -67,11 +67,6 @@ export interface AppointmentBookedPayload {
 
 export interface DiagnosticBookingPayload {
   bookingId: string;
-  centerId: string;
-  studyId: string;
-  patientName: string;
-  date: string;
-  time: string;
   status: string;
   previousStatus?: string;
 }
@@ -79,11 +74,6 @@ export interface DiagnosticBookingPayload {
 export interface DiagnosticResultReadyPayload {
   referralId: string;
   resultId: string;
-  clinicId: string;
-  centerId: string;
-  doctorId: string;
-  patientName: string;
-  studyType: string;
 }
 
 export interface DiagnosisSavedPayload {

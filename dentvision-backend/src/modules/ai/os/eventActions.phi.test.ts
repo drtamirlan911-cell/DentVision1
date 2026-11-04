@@ -1,9 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { findFirst } = vi.hoisted(() => ({ findFirst: vi.fn() }));
+const { findFirst, clinicMemberFindFirst } = vi.hoisted(() => ({ findFirst: vi.fn(), clinicMemberFindFirst: vi.fn() }));
 
 vi.mock('../../../lib/prisma.js', () => ({
-  default: { patient: { findFirst } },
+  default: { patient: { findFirst }, clinicMember: { findFirst: clinicMemberFindFirst } },
 }));
 
 import { encryptMedicalHistory } from '../../../lib/phi.js';
@@ -32,6 +32,7 @@ describe('AI patient-created events keep clinical narrative out of durable paylo
     process.env.NODE_ENV = 'test';
     process.env.ENCRYPTION_KEY = 'phi-event-test-key-that-is-long-enough-123456';
     findFirst.mockReset();
+    clinicMemberFindFirst.mockReset();
   });
 
   afterEach(() => {
@@ -66,6 +67,46 @@ describe('AI patient-created events keep clinical narrative out of durable paylo
     expect(result.message).toContain('Откройте карточку пациента');
     expect(result.data).toHaveProperty('patientId', 'patient-a');
     expect(result.data).not.toHaveProperty('complaints');
+  });
+
+  it('scopes patient-arrived lookup and direct notification to the same clinic', async () => {
+    findFirst.mockResolvedValue({ id: 'patient-a' });
+    clinicMemberFindFirst.mockResolvedValue({ userId: 'doctor-a' });
+    const action = getActionHandler('notifyDoctorPatientArrived');
+    expect(action).toBeTypeOf('function');
+    const event = {
+      ...patientCreatedEvent(),
+      type: EventType.PatientArrived,
+      payload: { patientId: 'patient-a', doctorId: 'doctor-a' },
+    };
+    const result = await action!(event);
+    expect(findFirst).toHaveBeenCalledWith({ where: { id: 'patient-a', clinicId: 'clinic-a' }, select: { id: true } });
+    expect(clinicMemberFindFirst).toHaveBeenCalledWith({ where: { clinicId: 'clinic-a', userId: 'doctor-a', role: 'DOCTOR' }, select: { userId: true } });
+    expect(result.notifyUserIds).toEqual(['doctor-a']);
+    expect(result.message).toBe('Пациент ожидает в приёмной. Откройте расписание для просмотра.');
+    expect(JSON.stringify(result)).not.toContain('Иван Петров');
+  });
+
+  it('does not send a patient-arrived notification to a doctor outside the clinic', async () => {
+    findFirst.mockResolvedValue({ id: 'patient-a' });
+    clinicMemberFindFirst.mockResolvedValue(null);
+    const action = getActionHandler('notifyDoctorPatientArrived');
+    const event = { ...patientCreatedEvent(), type: EventType.PatientArrived, payload: { patientId: 'patient-a', doctorId: 'doctor-from-another-clinic' } };
+    const result = await action!(event);
+    expect(result.notifyUserIds).toEqual([]);
+    expect(JSON.stringify(result)).not.toContain('doctor-from-another-clinic');
+  });
+
+  it('keeps diagnosis and treatment narrative out of persisted notification messages', async () => {
+    const diagnosis = 'private diagnosis narrative alpha';
+    const recommendation = getActionHandler('generateTreatmentRecommendations');
+    const documentation = getActionHandler('generateMedicalDocumentation');
+    const recommendationResult = await recommendation!({ ...patientCreatedEvent(), type: EventType.DiagnosisSaved, payload: { patientId: 'patient-a', diagnosis, diagnosisCode: 'PRIVATE-1' } });
+    const documentationResult = await documentation!({ ...patientCreatedEvent(), type: EventType.TreatmentCompleted, payload: { patientId: 'patient-a', appointmentId: 'appointment-a', diagnosis, treatments: ['private treatment'] } });
+    expect(recommendationResult.message).not.toContain(diagnosis);
+    expect(recommendationResult.message).not.toContain('PRIVATE-1');
+    expect(documentationResult.message).not.toContain(diagnosis);
+    expect(documentationResult.message).not.toContain('private treatment');
   });
 
   it('generates exam recommendations from the encrypted scoped history without copying the narrative', async () => {
