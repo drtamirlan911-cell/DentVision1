@@ -284,7 +284,7 @@ PATIENT_TOOLS.askClinicStaff = {
     await logAIAction(
       ctx.userId,
       'ai-patient.askClinicStaff',
-      { question, reason: args.reason, urgency: args.urgency },
+      { handoffRequested: true, urgency: (args.urgency as string) || null },
       undefined,
       ctx.patientId,
     ).catch(() => undefined);

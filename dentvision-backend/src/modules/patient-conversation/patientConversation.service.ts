@@ -9,6 +9,7 @@
 
 import prisma from '../../lib/prisma.js';
 import { uid } from '../../lib/helpers.js';
+import { decryptField, encryptField } from '../../lib/phi.js';
 import type { PatientConversationAuthorType, PatientConversationStatus } from '@prisma/client';
 
 export class ConversationError extends Error {
@@ -29,6 +30,31 @@ export interface ConversationSummary {
 }
 
 const OPEN_STATUSES: PatientConversationStatus[] = ['WAITING', 'LIVE'];
+const ENCRYPTED_TEXT_PREFIX = 'ENC:';
+
+/** New patient/clinic conversation text must never silently fall back to plaintext. */
+function encryptConversationText(value: string): string {
+  const encrypted = encryptField(value);
+  if (!encrypted || !encrypted.startsWith(ENCRYPTED_TEXT_PREFIX)) {
+    throw new Error('[phi] Patient conversation encryption did not produce ciphertext');
+  }
+  return encrypted;
+}
+
+/** Legacy unmarked rows remain readable until the separately approved backfill. */
+function decryptConversationText(value: string | null | undefined): string {
+  if (value == null) return '';
+  return decryptField(value) ?? '';
+}
+
+function decodeConversation<T extends { escalationReason?: string | null }>(conversation: T): T {
+  if (typeof conversation.escalationReason !== 'string') return conversation;
+  return { ...conversation, escalationReason: decryptConversationText(conversation.escalationReason) } as T;
+}
+
+function decodeMessage<T extends { body: string }>(message: T): T {
+  return { ...message, body: decryptConversationText(message.body) };
+}
 
 /**
  * Finds the patient's open thread at this clinic, or opens one.
@@ -46,11 +72,18 @@ export async function getOrOpenConversation(
     where: { patientUserId, clinicId, status: { in: OPEN_STATUSES } },
     orderBy: { createdAt: 'desc' },
   });
-  if (existing) return existing;
+  if (existing) return decodeConversation(existing);
 
-  return prisma.patientConversation.create({
-    data: { id: uid(), patientUserId, clinicId, status: 'WAITING', escalationReason },
+  const created = await prisma.patientConversation.create({
+    data: {
+      id: uid(),
+      patientUserId,
+      clinicId,
+      status: 'WAITING',
+      escalationReason: encryptConversationText(escalationReason),
+    },
   });
+  return decodeConversation(created);
 }
 
 /** The patient's current thread at this clinic, open or not — null if none exists yet. */
@@ -58,18 +91,20 @@ export async function getCurrentConversation(
   patientUserId: string,
   clinicId: string,
 ): Promise<ConversationSummary | null> {
-  return prisma.patientConversation.findFirst({
+  const conversation = await prisma.patientConversation.findFirst({
     where: { patientUserId, clinicId },
     orderBy: { createdAt: 'desc' },
   });
+  return conversation ? decodeConversation(conversation) : null;
 }
 
 export async function getMessages(conversationId: string) {
-  return prisma.patientConversationMessage.findMany({
+  const messages = await prisma.patientConversationMessage.findMany({
     where: { conversationId },
     orderBy: { createdAt: 'asc' },
     select: { id: true, authorType: true, authorUserId: true, body: true, createdAt: true },
   });
+  return messages.map(decodeMessage);
 }
 
 /**
@@ -90,7 +125,13 @@ export async function appendMessage(
   const now = new Date();
   const [message] = await prisma.$transaction([
     prisma.patientConversationMessage.create({
-      data: { id: uid(), conversationId, authorType, authorUserId: authorUserId || null, body: trimmed },
+      data: {
+        id: uid(),
+        conversationId,
+        authorType,
+        authorUserId: authorUserId || null,
+        body: encryptConversationText(trimmed),
+      },
     }),
     prisma.patientConversation.update({
       where: { id: conversationId },
@@ -100,12 +141,12 @@ export async function appendMessage(
           : { lastPatientMessageAt: now },
     }),
   ]);
-  return message;
+  return decodeMessage(message);
 }
 
 /** Staff-side list, newest activity first — the shape an inbox renders directly. */
 export async function listForClinic(clinicId: string, status?: PatientConversationStatus) {
-  return prisma.patientConversation.findMany({
+  const conversations = await prisma.patientConversation.findMany({
     where: { clinicId, ...(status ? { status } : {}) },
     orderBy: [{ lastPatientMessageAt: 'desc' }, { createdAt: 'desc' }],
     include: {
@@ -113,6 +154,7 @@ export async function listForClinic(clinicId: string, status?: PatientConversati
       assignedTo: { select: { id: true, firstName: true, lastName: true } },
     },
   });
+  return conversations.map(decodeConversation);
 }
 
 /**
@@ -136,7 +178,7 @@ async function requireClinicConversation(clinicId: string, conversationId: strin
   if (!conversation || conversation.clinicId !== clinicId) {
     throw new ConversationError('Диалог не найден', 'NOT_FOUND');
   }
-  return conversation;
+  return decodeConversation(conversation);
 }
 
 export async function getThreadForClinic(clinicId: string, conversationId: string) {
@@ -160,7 +202,7 @@ export async function replyAsStaff(
 
 export async function resolveConversation(clinicId: string, conversationId: string) {
   await requireClinicConversation(clinicId, conversationId);
-  return prisma.patientConversation.update({
+  const conversation = await prisma.patientConversation.update({
     where: { id: conversationId },
     data: { status: 'RESOLVED', resolvedAt: new Date() },
     // Same include as listForClinic — the Android client's row model
@@ -172,6 +214,7 @@ export async function resolveConversation(clinicId: string, conversationId: stri
       assignedTo: { select: { id: true, firstName: true, lastName: true } },
     },
   });
+  return decodeConversation(conversation);
 }
 
 /** "Взять в работу" without necessarily replying yet — claims the thread so it drops off everyone else's unclaimed list. */
@@ -180,7 +223,7 @@ export async function claimConversation(clinicId: string, conversationId: string
   if (conversation.status === 'RESOLVED') {
     throw new ConversationError('Диалог уже закрыт', 'FORBIDDEN');
   }
-  return prisma.patientConversation.update({
+  const updated = await prisma.patientConversation.update({
     where: { id: conversationId },
     data: { status: 'LIVE', assignedToUserId: staffUserId },
     include: {
@@ -188,4 +231,5 @@ export async function claimConversation(clinicId: string, conversationId: string
       assignedTo: { select: { id: true, firstName: true, lastName: true } },
     },
   });
+  return decodeConversation(updated);
 }

@@ -6,9 +6,9 @@
  * the question is worse than one that never offered — the patient has spent its
  * attempt and got nothing.
  *
- * OWNER and ADMIN of the clinic holding the patient's card get the question
- * in the bell they already watch, and the same escalation opens (or reuses)
- * a `PatientConversation` thread.
+ * OWNER and ADMIN of the clinic holding the patient's card receive a generic
+ * notification linking to the scoped inbox. The question and handoff reason
+ * stay in the protected conversation thread, not in notification storage.
  */
 
 import prisma from '../../lib/prisma.js';
@@ -32,13 +32,6 @@ export interface EscalationResult {
   conversationId: string;
 }
 
-const URGENCY_PREFIX: Record<string, string> = {
-  emergency: '🚨 СРОЧНО — ',
-  urgent: 'Срочный вопрос — ',
-  soon: '',
-  routine: '',
-};
-
 export async function escalateToClinic(input: EscalationInput): Promise<EscalationResult> {
   const [clinic, patient] = await Promise.all([
     (prisma as any).clinic.findUnique({
@@ -49,7 +42,7 @@ export async function escalateToClinic(input: EscalationInput): Promise<Escalati
     // when the patient does not belong to the target clinic.
     (prisma as any).patient.findFirst({
       where: { id: input.patientId, clinicId: input.clinicId },
-      select: { firstName: true, lastName: true, phone: true },
+      select: { id: true },
     }),
   ]);
 
@@ -65,9 +58,6 @@ export async function escalateToClinic(input: EscalationInput): Promise<Escalati
     select: { userId: true },
   });
 
-  const patientName = [patient.firstName, patient.lastName].filter(Boolean).join(' ') || 'Пациент';
-  const prefix = URGENCY_PREFIX[input.urgency || 'routine'] ?? '';
-
   const conversation = await convo.getOrOpenConversation(input.patientUserId, input.clinicId, input.reason);
   await convo.appendMessage(conversation.id, 'PATIENT', input.question);
   clinicInboxHub.broadcast(input.clinicId, { type: 'escalation', conversationId: conversation.id, urgency: input.urgency || null });
@@ -79,12 +69,8 @@ export async function escalateToClinic(input: EscalationInput): Promise<Escalati
         userId: m.userId,
         clinicId: input.clinicId,
         type: 'patient_question',
-        title: `${prefix}Вопрос от пациента: ${patientName}`,
-        message: [
-          `«${input.question.slice(0, 400)}»`,
-          patient.phone ? `Телефон: ${patient.phone}` : null,
-          `Ассистент передал вопрос: ${input.reason}`,
-        ].filter(Boolean).join('\n'),
+        title: 'Вопрос пациента требует ответа',
+        message: 'Пациент передал обращение через ассистента. Откройте инбокс, чтобы прочитать и ответить.',
         link: `/crm/patient-inbox/${conversation.id}`,
       })),
     );
