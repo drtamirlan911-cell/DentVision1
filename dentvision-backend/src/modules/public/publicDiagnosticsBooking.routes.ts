@@ -164,10 +164,6 @@ publicDiagnosticsBookingRouter.post('/diagnostics/order', limiter, async (req, r
     await emit('diagnostics.booking.created', {
       centerId,
       bookingId: row.id,
-      studyId: row.studyId,
-      patientName: row.patientName,
-      date,
-      time: row.time,
       status: row.status,
       userId: 'system',
     });
@@ -175,7 +171,7 @@ publicDiagnosticsBookingRouter.post('/diagnostics/order', limiter, async (req, r
     await notifyCenterStaff(
       centerId,
       'Новая заявка на диагностику',
-      `${row.patientName} · ${study.name} · ${date} ${time}`,
+      'Поступила новая заявка на диагностику. Откройте раздел диагностики для подробностей.',
     );
 
     return res.status(201).json({
@@ -323,10 +319,6 @@ publicDiagnosticsBookingRouter.patch('/diagnostics/center/:centerId/bookings/:id
     await emit('diagnostics.booking.status_changed', {
       centerId,
       bookingId: updated.id,
-      studyId: updated.studyId,
-      patientName: updated.patientName,
-      date: updated.date.toISOString().slice(0, 10),
-      time: updated.time,
       status: updated.status,
       previousStatus: current.status,
       userId: req.user?.id || 'system',
@@ -336,7 +328,7 @@ publicDiagnosticsBookingRouter.patch('/diagnostics/center/:centerId/bookings/:id
       await notifyCenterStaff(
         centerId,
         requestedStatus === 'confirmed' ? 'Заявка на диагностику подтверждена' : 'Заявка на диагностику отклонена',
-        `${updated.patientName} · ${updated.date.toISOString().slice(0, 10)} ${updated.time}`,
+        'Статус заявки на диагностику изменён. Откройте раздел диагностики для подробностей.',
       );
     }
 
