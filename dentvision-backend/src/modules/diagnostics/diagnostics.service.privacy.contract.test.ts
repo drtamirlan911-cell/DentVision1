@@ -33,24 +33,24 @@ const publicBookingSource = readFileSync(
 describe('public diagnostic booking event and notification PHI contract', () => {
   it('publishes only opaque booking references and lifecycle status', () => {
     const eventPayloads = [...publicBookingSource.matchAll(
-      /await emit\('diagnostics\\.booking\\.(?:created|status_changed)',\\s*\\{([\\s\\S]*?)\\}\\);/g,
+      /await emit\('diagnostics\.booking\.(?:created|status_changed)',\s*\{([\s\S]*?)\}\);/g,
     )].map((match) => match[1]);
 
     expect(eventPayloads).toHaveLength(2);
     for (const payload of eventPayloads) {
-      expect(payload).toMatch(/\\bbookingId\\s*:/);
-      expect(payload).not.toMatch(/\\b(?:patientName|patientPhone|studyId|date|time|notes)\\s*:/);
+      expect(payload).toMatch(/\bbookingId\s*:/);
+      expect(payload).not.toMatch(/\b(?:patientName|patientPhone|studyId|date|time|notes)\s*:/);
     }
   });
 
   it('keeps persisted staff notification bodies generic', () => {
     const notificationCalls = [...publicBookingSource.matchAll(
-      /await notifyCenterStaff\\([\\s\\S]*?\\);/g,
+      /await notifyCenterStaff\([\s\S]*?\);/g,
     )].map((match) => match[0]);
 
     expect(notificationCalls).toHaveLength(2);
-    expect(notificationCalls.join('\\n')).not.toMatch(
-      /\\bpatientName\\b|\\bpatientPhone\\b|\\bstudyId\\b|\\bstudy\\.name\\b|updated\\.date/,
+    expect(notificationCalls.join('\n')).not.toMatch(
+      /\bpatientName\b|\bpatientPhone\b|\bstudyId\b|\bstudy\.name\b|updated\.date/,
     );
   });
 });
