@@ -429,7 +429,7 @@ export async function runAiAction(p: AiPrincipal, inv: AiInvocation): Promise<Ke
           patientId: p.patientId,
           status: 'denied',
           denyReason: 'OUT_OF_PATIENT_SCOPE',
-          argsRedacted: redactArgs(args, contextFields, p.surface)
+          argsRedacted: redactArgs(args, contextFields, p.surface),
         });
         return { status: 'denied', reason: 'OUT_OF_PATIENT_SCOPE', error: 'Этот пациент не в вашей зоне ответственности', activityId };
       }
@@ -466,7 +466,7 @@ export async function runAiAction(p: AiPrincipal, inv: AiInvocation): Promise<Ke
           patientId: p.patientId,
           status: 'denied',
           denyReason: 'INVALID_APPROVAL',
-          argsRedacted: redactArgs(args, contextFields, p.surface)
+          argsRedacted: redactArgs(args, contextFields, p.surface),
         });
         return { status: 'denied', reason: 'INVALID_APPROVAL', error: 'Подтверждение недействительно или уже использовано', activityId };
       }
@@ -519,7 +519,7 @@ export async function runAiAction(p: AiPrincipal, inv: AiInvocation): Promise<Ke
         organizationId,
         patientId: p.patientId,
         status: 'pending_approval',
-        argsRedacted: redactArgs(args, contextFields, p.surface)
+        argsRedacted: redactArgs(args, contextFields, p.surface),
         resultSummary: summary,
         approvalId,
       });
@@ -568,7 +568,7 @@ export async function runAiAction(p: AiPrincipal, inv: AiInvocation): Promise<Ke
         patientId: p.patientId,
         status: 'denied',
         denyReason: 'NO_CLINIC',
-        argsRedacted: redactArgs(args, contextFields, p.surface)
+        argsRedacted: redactArgs(args, contextFields, p.surface),
         durationMs,
       });
       return { status: 'denied', reason: 'NO_CLINIC', error: 'Нет активной клиники — выберите рабочее пространство', activityId };
@@ -586,7 +586,7 @@ export async function runAiAction(p: AiPrincipal, inv: AiInvocation): Promise<Ke
       patientId: p.patientId,
       status: 'denied',
       denyReason: 'EXEC_ERROR',
-      argsRedacted: redactArgs(args, contextFields, p.surface)
+      argsRedacted: redactArgs(args, contextFields, p.surface),
       durationMs,
     });
     return { status: 'denied', reason: 'EXEC_ERROR', error: 'Ошибка выполнения инструмента', activityId };
@@ -605,7 +605,7 @@ export async function runAiAction(p: AiPrincipal, inv: AiInvocation): Promise<Ke
     organizationId,
     patientId: p.patientId,
     status: toolResult.ok ? 'ok' : 'tool_error',
-    argsRedacted: redactArgs(args, contextFields, p.surface)
+    argsRedacted: redactArgs(args, contextFields, p.surface),
     resultSummary: toolResult.ok ? undefined : toolResult.error,
     durationMs,
     approvalId: inv.approvalId || undefined,
