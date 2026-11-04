@@ -43,6 +43,7 @@ import { resolveOrganizationIdForClinic } from '../../../lib/orgContext.js';
 import { resolveAiToolAccess } from './access.js';
 import { TOOLS, type ToolContext } from './tools.js';
 import { TOOL_PERMISSIONS } from './toolPermissions.js';
+import { encryptAiApprovalParams, getAiApprovalSummary } from './approvalPrivacy.js';
 import { SURFACE_TOOLS, HIGH_RISK_TOOLS, TOOL_PATIENT_ARG, sanitizeArgs, toolExistsAnywhere } from './dataScope.js';
 import { SKILLS, skillPermissionSatisfied } from './skills.js';
 import { executePatientTool } from '../../ai-patient/patientTools.js';
@@ -63,25 +64,6 @@ function isPhiTool(tool: string): boolean {
   return (TOOL_PERMISSIONS[tool] || '').startsWith('medical.');
 }
 
-/**
- * A tool's own `needsConfirmation.summary` (built with a DB-resolved patient
- * name) never survives into the confirm round-trip's `params` — only the raw
- * arguments do. Good enough for an approval to be actioned from without a
- * second DB round-trip here; the Approval Center can resolve names for
- * display when it needs to.
- */
-function buildApprovalSummary(tool: string, args: Record<string, unknown>): string {
-  switch (tool) {
-    case 'createInvoice':
-      return `Счёт на ${args.amount ?? '?'} для пациента ${args.patientId ?? '?'}`;
-    case 'createTreatmentPlan':
-      return `План лечения «${args.title ?? '?'}» для пациента ${args.patientId ?? '?'}`;
-    case 'cancelAppointment':
-      return `Отмена записи ${args.appointmentId ?? '?'}${args.reason ? ` — ${args.reason}` : ''}`;
-    default:
-      return tool;
-  }
-}
 
 /** What an action was based on, beyond what the row itself already says. */
 export interface EvidenceEntry {
@@ -473,7 +455,7 @@ export async function runAiAction(p: AiPrincipal, inv: AiInvocation): Promise<Ke
       // Valid, approved reference — fall through to step 7.
     } else {
       const approvalId = uid();
-      const summary = buildApprovalSummary(inv.tool, args);
+      const summary = getAiApprovalSummary(inv.tool);
       try {
         await prisma.aiApproval.create({
           data: {
@@ -484,7 +466,7 @@ export async function runAiAction(p: AiPrincipal, inv: AiInvocation): Promise<Ke
             surface: p.surface,
             agentId: p.agentId || null,
             tool: inv.tool,
-            params: args as never,
+            params: encryptAiApprovalParams(args) as never,
             summary,
             requiredPermission: TOOL_PERMISSIONS[inv.tool] || null,
             riskLevel: 'high',
@@ -499,7 +481,7 @@ export async function runAiAction(p: AiPrincipal, inv: AiInvocation): Promise<Ke
             {
               type: 'ai_approval_requested',
               title: 'Требуется подтверждение действия ИИ',
-              message: summary,
+              message: 'Новое действие ИИ ожидает подтверждения. Откройте Центр подтверждений.',
               link: '/agent-activity',
             },
             { roles: ['OWNER', 'DIRECTOR', 'ADMIN'] },

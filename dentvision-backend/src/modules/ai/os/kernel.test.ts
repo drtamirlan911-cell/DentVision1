@@ -74,6 +74,7 @@ vi.mock('./tools.js', () => ({
 }));
 
 import { runAiAction } from './kernel.js';
+import { decryptAiApprovalParams, getAiApprovalSummary } from './approvalPrivacy.js';
 
 const PRINCIPAL = { surface: 'staff' as const, userId: 'user-1', requestedClinicId: 'clinic-1' };
 
@@ -197,25 +198,39 @@ describe('runAiAction — high-risk approval gate', () => {
   });
 
   it('creates a durable approval instead of executing when a high-risk tool is actually confirmed', async () => {
-    const result = await runAiAction(PRINCIPAL, { tool: 'cancelAppointment', args: { appointmentId: 'a1', confirmed: true } });
+    const actionArgs = { appointmentId: 'appointment-phi-1', reason: 'Клиническая причина отмены', confirmed: true };
+    const result = await runAiAction(PRINCIPAL, { tool: 'cancelAppointment', args: actionArgs });
 
     expect(result.status).toBe('pending_approval');
     expect(cancelTool).not.toHaveBeenCalled();
     expect(approvalCreate).toHaveBeenCalledTimes(1);
-    expect(approvalCreate.mock.calls[0][0].data).toMatchObject({
+    const saved = approvalCreate.mock.calls[0][0].data;
+    expect(saved).toMatchObject({
       tool: 'cancelAppointment',
       requestedByUserId: 'user-1',
       clinicId: 'clinic-1',
       riskLevel: 'high',
       status: 'pending',
     });
+    expect(saved.params).toMatch(/^ENC:/);
+    expect(saved.params).not.toContain('appointment-phi-1');
+    expect(saved.params).not.toContain('Клиническая причина отмены');
+    expect(decryptAiApprovalParams(saved.params)).toEqual(actionArgs);
+    expect(saved.summary).toBe(getAiApprovalSummary('cancelAppointment'));
+    expect(saved.summary).not.toContain('appointment-phi-1');
+    expect(saved.summary).not.toContain('Клиническая причина отмены');
     expect(createNotificationForClinic).toHaveBeenCalledWith(
       'clinic-1',
-      expect.objectContaining({ type: 'ai_approval_requested' }),
+      expect.objectContaining({
+        type: 'ai_approval_requested',
+        message: 'Новое действие ИИ ожидает подтверждения. Откройте Центр подтверждений.',
+      }),
       { roles: ['OWNER', 'DIRECTOR', 'ADMIN'] },
     );
-    // The gate itself is still recorded, distinctly from a denial.
-    expect(activityCreate.mock.calls[0][0].data).toMatchObject({ status: 'pending_approval' });
+    expect(activityCreate.mock.calls[0][0].data).toMatchObject({
+      status: 'pending_approval',
+      resultSummary: getAiApprovalSummary('cancelAppointment'),
+    });
   });
 
   it('executes once re-entered with a reference to a genuinely approved row', async () => {

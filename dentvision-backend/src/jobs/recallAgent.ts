@@ -17,6 +17,7 @@ import { withJobLock } from '../lib/jobLock.js';
 import { uid } from '../lib/helpers.js';
 import { buildClinicLoadPlan } from '../modules/ai/core/clinicLoadPlan.js';
 import { TOOL_PERMISSIONS } from '../modules/ai/os/toolPermissions.js';
+import { encryptAiApprovalParams, getAiApprovalSummary } from '../modules/ai/os/approvalPrivacy.js';
 import { runAiEmployeeHeartbeat } from './aiEmployeeHeartbeat.js';
 
 const INACTIVE_DAYS = 90;
@@ -60,8 +61,8 @@ async function proposeForClinic(clinicId: string): Promise<boolean> {
       surface: 'staff',
       agentId: null,
       tool: 'getRecallList',
-      params: { inactiveDays: INACTIVE_DAYS, limit } as never,
-      summary: `${recall.length} пациентов не были в клинике более ${INACTIVE_DAYS} дней — проверить список для реактивации`,
+      params: encryptAiApprovalParams({ inactiveDays: INACTIVE_DAYS, limit }) as never,
+      summary: getAiApprovalSummary('getRecallList'),
       requiredPermission: TOOL_PERMISSIONS.getRecallList || null,
       riskLevel: 'standard',
       status: 'pending',

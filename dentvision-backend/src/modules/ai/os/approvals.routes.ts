@@ -17,6 +17,13 @@ import { auditFromReq } from '../../compliance/audit.service.js';
 import { resolveAiToolAccess } from './access.js';
 import { runAiAction } from './kernel.js';
 import { buildApprovalFilter } from './activityQuery.js';
+import {
+  decryptAiApprovalDecisionNote,
+  decryptAiApprovalParams,
+  encryptAiApprovalDecisionNote,
+  getAiApprovalSummary,
+  redactAiApprovalParams,
+} from './approvalPrivacy.js';
 import { listAiEmployeeTasks, transitionAiEmployeeTask } from './aiEmployeeTasks.js';
 import type { AiSurface } from './kernel.types.js';
 
@@ -30,7 +37,7 @@ router.get('/', authenticate, async (req: AuthRequest, res) => {
     }
     const status = req.query.status as string | undefined;
     const clinicId = req.user.clinicId || (req.query.clinicId as string) || null;
-    const { where } = await buildApprovalFilter(req.user.id, clinicId);
+    const { where, canReadPhi } = await buildApprovalFilter(req.user.id, clinicId);
     const finalWhere = status ? { ...where, status } : where;
 
     const approvals = await prisma.aiApproval.findMany({
@@ -38,7 +45,18 @@ router.get('/', authenticate, async (req: AuthRequest, res) => {
       orderBy: { createdAt: 'desc' },
       take: 100,
     });
-    return res.json({ ok: true, data: approvals });
+    const safeApprovals = approvals.map((approval) => ({
+      ...approval,
+      params: redactAiApprovalParams(
+        approval.tool,
+        decryptAiApprovalParams(approval.params),
+        canReadPhi,
+      ),
+      // Legacy summaries may already contain identifiers or clinical free text.
+      summary: getAiApprovalSummary(approval.tool),
+      decisionNote: canReadPhi ? decryptAiApprovalDecisionNote(approval.decisionNote) : null,
+    }));
+    return res.json({ ok: true, data: safeApprovals });
   } catch (error) {
     console.error('[AI Approvals] list failed:', error);
     return res.status(500).json({ ok: false, error: 'Не удалось получить список подтверждений' });
@@ -140,7 +158,10 @@ router.post('/:id/approve', authenticate, async (req: AuthRequest, res) => {
       return res.status(403).json({ ok: false, error: 'Нельзя самому подтвердить собственный запрос такого уровня риска' });
     }
 
-    const decisionNote = typeof req.body?.note === 'string' ? req.body.note : null;
+    // Decrypt after clinic scope and the current tool permission are verified.
+    const approvalParams = decryptAiApprovalParams(approval.params);
+    const rawDecisionNote = typeof req.body?.note === 'string' ? req.body.note.trim().slice(0, 1000) : '';
+    const decisionNote = encryptAiApprovalDecisionNote(rawDecisionNote || null);
     await prisma.aiApproval.update({
       where: { id: approval.id },
       data: { status: 'approved', decidedByUserId: req.user.id, decidedAt: new Date(), decisionNote },
@@ -153,7 +174,7 @@ router.post('/:id/approve', authenticate, async (req: AuthRequest, res) => {
         requestedClinicId: approval.clinicId,
         agentId: approval.agentId || undefined,
       },
-      { tool: approval.tool, args: approval.params as Record<string, unknown>, approvalId: approval.id },
+      { tool: approval.tool, args: approvalParams, approvalId: approval.id },
     );
 
     await prisma.aiApproval.update({
@@ -197,7 +218,8 @@ router.post('/:id/reject', authenticate, async (req: AuthRequest, res) => {
       return res.status(403).json({ ok: false, error: 'Недостаточно прав' });
     }
 
-    const decisionNote = typeof req.body?.note === 'string' ? req.body.note : null;
+    const rawDecisionNote = typeof req.body?.note === 'string' ? req.body.note.trim().slice(0, 1000) : '';
+    const decisionNote = encryptAiApprovalDecisionNote(rawDecisionNote || null);
     await prisma.aiApproval.update({
       where: { id: approval.id },
       data: { status: 'rejected', decidedByUserId: req.user.id, decidedAt: new Date(), decisionNote },

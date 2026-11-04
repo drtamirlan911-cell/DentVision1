@@ -26,6 +26,8 @@ export interface ActivityVisibility {
 
 export interface ApprovalVisibility {
   where: Prisma.AiApprovalWhereInput;
+  /** Whether PHI-bearing approval arguments/notes may be returned to this caller. */
+  canReadPhi: boolean;
 }
 
 interface VisibilityTier {
@@ -92,14 +94,14 @@ export async function buildActivityFilter(userId: string, clinicId: string | nul
 /** Same visibility ladder as `buildActivityFilter`, keyed to `AiApproval`'s own field names. */
 export async function buildApprovalFilter(userId: string, clinicId: string | null): Promise<ApprovalVisibility> {
   const tier = await resolveVisibilityTier(userId, clinicId);
-  if (!tier) return { where: DENY_ALL };
-  if (tier.isPlatform) return { where: {} };
+  if (!tier) return { where: DENY_ALL, canReadPhi: false };
+  if (tier.isPlatform) return { where: {}, canReadPhi: true };
 
   const or: Prisma.AiApprovalWhereInput[] = [{ requestedByUserId: userId }];
   if (tier.canReadWide && tier.resolvedClinicId) or.push({ clinicId: tier.resolvedClinicId });
   if (tier.canReadWide && tier.organizationId) or.push({ organizationId: tier.organizationId });
 
-  return { where: { OR: or } };
+  return { where: { OR: or }, canReadPhi: tier.canReadPhi };
 }
 
 /**

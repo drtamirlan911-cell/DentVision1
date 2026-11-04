@@ -75,6 +75,32 @@ describe('buildActivityFilter', () => {
   });
 });
 
+describe('buildApprovalFilter PHI visibility', () => {
+  it('denies PHI approval payloads for a caller with bi.read but no medical.read', async () => {
+    userFindUnique.mockResolvedValueOnce({ role: 'MANAGER' });
+    resolveClinicAccess.mockResolvedValueOnce({ role: 'MANAGER' });
+    resolveUserPermissions.mockResolvedValueOnce(['bi.read']);
+    const { where, canReadPhi } = await buildApprovalFilter(USER_ID, CLINIC_ID);
+    expect(where).toEqual({ OR: [{ requestedByUserId: USER_ID }, { clinicId: CLINIC_ID }, { organizationId: ORG_ID }] });
+    expect(canReadPhi).toBe(false);
+  });
+
+  it('allows PHI approval payloads only when medical.read is present', async () => {
+    userFindUnique.mockResolvedValueOnce({ role: 'DOCTOR' });
+    resolveClinicAccess.mockResolvedValueOnce({ role: 'DOCTOR' });
+    resolveUserPermissions.mockResolvedValueOnce(['medical.read']);
+    const { canReadPhi } = await buildApprovalFilter(USER_ID, CLINIC_ID);
+    expect(canReadPhi).toBe(true);
+  });
+
+  it('grants platform visibility, including PHI, to SUPERADMIN', async () => {
+    userFindUnique.mockResolvedValueOnce({ role: 'SUPERADMIN' });
+    const { where, canReadPhi } = await buildApprovalFilter(USER_ID, null);
+    expect(where).toEqual({});
+    expect(canReadPhi).toBe(true);
+  });
+});
+
 describe('redactPhiRows', () => {
   const rows = [
     { id: 'a1', sensitivity: 'phi', argsRedacted: { patientId: 'p1' }, resultSummary: 'saw patient' },
