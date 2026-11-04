@@ -81,7 +81,7 @@ describe('getOrOpenConversation', () => {
 
   it('opens a new thread when none is open', async () => {
     conversationFindFirst.mockResolvedValueOnce(null);
-    conversationCreate.mockImplementationOnce(async ({ data }) => ({ id: 'new', ...data }));
+    conversationCreate.mockImplementationOnce(async ({ data }) => ({ ...data, id: 'new' }));
     const result = await getOrOpenConversation('user-1', 'clinic-1', 'private escalation reason');
     expect(result.id).toBe('new');
     const storedReason = conversationCreate.mock.calls[0][0].data.escalationReason;

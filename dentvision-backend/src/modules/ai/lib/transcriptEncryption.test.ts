@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { decryptAiTranscriptText, encryptAiTranscriptText } from './transcriptEncryption.js';
+import { decryptAiTranscriptText, encryptAiTranscriptInput, encryptAiTranscriptText } from './transcriptEncryption.js';
 
 const originalNodeEnv = process.env.NODE_ENV;
 const originalKey = process.env.ENCRYPTION_KEY;
@@ -22,6 +22,14 @@ describe('AI transcript encryption', () => {
     expect(stored).toMatch(/^ENC:/);
     expect(stored).not.toContain('боли');
     expect(decryptAiTranscriptText(stored)).toBe(plaintext);
+  });
+
+  it('encrypts literal client input beginning with ENC: as plaintext', () => {
+    const literal = 'ENC:not-a-ciphertext-supplied-by-client';
+    const stored = encryptAiTranscriptInput(literal);
+    expect(stored).toMatch(/^ENC:/);
+    expect(stored).not.toBe(literal);
+    expect(decryptAiTranscriptText(stored)).toBe(literal);
   });
 
   it('keeps valid ciphertext idempotent across transcript mirrors', () => {

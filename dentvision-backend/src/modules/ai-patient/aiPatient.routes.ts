@@ -13,6 +13,7 @@ import { uid } from '../../lib/helpers.js';
 import { authenticate } from '../../middleware/auth.js';
 import { resolvePatientForUser } from '../patient-portal/patientLink.js';
 import { runPatientTurn } from './patientAgent.js';
+import { decryptAiTranscriptText, encryptAiTranscriptInput } from '../ai/lib/transcriptEncryption.js';
 import { consumePatientAi, patientAiRemaining, PATIENT_AI_DAILY_LIMIT } from '../../lib/patientAiQuota.js';
 import type { AuthRequest } from '../../types/index.js';
 
@@ -101,7 +102,10 @@ aiPatientRouter.get('/history', async (req: AuthRequest, res) => {
       take: 100,
       select: { id: true, role: true, content: true, createdAt: true },
     });
-    return res.json({ ok: true, data: rows });
+    return res.json({
+      ok: true,
+      data: rows.map((row) => ({ ...row, content: decryptAiTranscriptText(row.content) })),
+    });
   } catch (e: any) {
     return res.status(500).json({ ok: false, error: e.message });
   }
@@ -143,7 +147,10 @@ aiPatientRouter.post('/chat', async (req: AuthRequest, res) => {
       take: HISTORY_TURNS,
       select: { role: true, content: true },
     });
-    const history = priorRows.reverse().map((m: any) => ({ role: m.role, content: m.content }));
+    const history = priorRows.reverse().map((m: any) => ({
+      role: m.role,
+      content: decryptAiTranscriptText(m.content),
+    }));
 
     const result = await runPatientTurn(text, history, {
       userId: req.user.id,
@@ -161,17 +168,24 @@ aiPatientRouter.post('/chat', async (req: AuthRequest, res) => {
     }
 
     await prisma.aIMessage.create({
-      data: { id: uid(), sessionId, role: 'user', content: text, userId: req.user.id, clinicId: match.clinicId },
+      data: {
+        id: uid(),
+        sessionId,
+        role: 'user',
+        content: encryptAiTranscriptInput(text),
+        userId: req.user.id,
+        clinicId: match.clinicId,
+      },
     });
     await prisma.aIMessage.create({
       data: {
         id: uid(),
         sessionId,
         role: 'assistant',
-        content: result.reply,
+        content: encryptAiTranscriptInput(result.reply),
         userId: req.user.id,
         clinicId: match.clinicId,
-        prevUserText: text,
+        prevUserText: encryptAiTranscriptInput(text),
       },
     });
 

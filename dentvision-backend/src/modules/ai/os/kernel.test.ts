@@ -270,7 +270,30 @@ describe('runAiAction — patient surface', () => {
     );
     // No staff identity/permission resolution for this surface at all.
     expect(resolveAiToolAccess).not.toHaveBeenCalled();
-    expect(activityCreate.mock.calls[0][0].data).toMatchObject({ actorRole: 'PATIENT', patientId: 'patient-1' });
+    expect(activityCreate.mock.calls[0][0].data).toMatchObject({
+      actorRole: 'PATIENT',
+      patientId: 'patient-1',
+      argsRedacted: {},
+    });
+  });
+
+  it('does not persist patient symptoms or free text in AI activity arguments', async () => {
+    const args = {
+      painLevel: 9,
+      swelling: 'spreading',
+      question: 'Сильная боль после операции',
+      reason: 'Нужна срочная оценка врача',
+      serviceName: 'лечение острого пульпита',
+    };
+    const result = await runAiAction(PATIENT_PRINCIPAL, { tool: 'getMyAppointments', args });
+    expect(result.status).toBe('ok');
+    const activity = activityCreate.mock.calls[0][0].data;
+    expect(activity.argsRedacted).toEqual({});
+    expect(activity.patientId).toBe('patient-1');
+    const persistedActivity = JSON.stringify(activity);
+    for (const value of ['spreading', 'Сильная боль после операции', 'Нужна срочная оценка врача', 'лечение острого пульпита']) {
+      expect(persistedActivity).not.toContain(value);
+    }
   });
 
   it('refuses a staff-only tool from the patient surface — the surface gate, not a permission check', async () => {
