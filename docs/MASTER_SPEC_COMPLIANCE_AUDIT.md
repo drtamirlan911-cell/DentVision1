@@ -1,5 +1,13 @@
 # Master Spec 5.0 — compliance audit
 
+## Follow-up source evidence — 2026-11-05
+
+- New-write PHI controls have advanced since the 2026-10-31 audit baseline: patient-clinic conversation text, AI transcript messages/session mirrors, AI Approval params/decision notes and new AI Event payloads are encrypted at application level; diagnostic/patient event payloads and notifications are minimized. These are source-level implementation facts, not proof of historical-row or backup encryption.
+- The same source review identified an unresolved derivative-data surface: `EventStore.markCompleted()` persists `AIEvent.result` without the event payload codec and `markFailed()` persists raw `AIEvent.error`; readers decode only `payload`. RB-029 remains OPEN until result/error and other memory/realtime/notification/export/backup paths are audited.
+- Candidate RB-035 correction commit `8ada4be8efb6ed09dba630ca344ef5f7049b5d09` scopes personal AI Activity/Approval rows to a verified active tenant before using that tenant's `medical.read` permission. Its regression tests and exact-head CI are pending; no RB-035 closure is claimed.
+- The Master Spec classification remains **18 PARTIAL / 4 OPEN / 2 GUIDANCE**. No section is newly certified fully compliant. Staging/production, backfill, key rotation, branch-protection and provider evidence remain outside this source-only run.
+
+
 **Audit date:** 2026-10-31  
 **Repository:** drtamirlan911-cell/DentVision1  
 **Audited branch:** fix/d1-d10-trial-archive-signing-api-20261029  

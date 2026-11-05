@@ -1,5 +1,15 @@
 # DentVision — Master Execution Plan
 
+## Latest implementation checkpoint — 2026-11-05 (RB-035 tenant-scoped AI visibility)
+
+- Existing PR #330 only; starting HEAD `0299ab57243092479716d87af6b2e8878612e23a`, base/main `ac913cc3389a294d0b135a852b035ddddb1018ca`. The branch is 342 commits ahead / 0 behind at the start of this checkpoint. No new branch/PR and no merge.
+- Candidate commit `8ada4be8efb6ed09dba630ca344ef5f7049b5d09` narrows the personal-row branch in `buildActivityFilter` and `buildApprovalFilter` to the verified active clinic/organization. Without a verified tenant, only unscoped personal rows can match and `canReadPhi` is false; SUPERADMIN platform access is unchanged. This prevents an own-actor/requester row from another clinic bypassing the active-context PHI permission.
+- Added regression coverage for own-row scoping and unverified clinic context. Hardened AI approval decision-note encryption/decryption to fail closed. Files: `activityQuery.ts`, `activityQuery.test.ts`, `approvalPrivacy.ts`.
+- Parent HEAD `0299ab...` passed CI 41840005056 (all four jobs), Quality Gate 41840005038, RB-034 41840005059 and Vercel preview. Unit suite 2,483/2,483 across 279 files; E2E gates passed with one recovered flaky patient-portal conversation request. These are parent-head results only; the new code commit still needs exact-head verification.
+- Next order: (1) verify exact-head CI and the targeted filter tests; (2) continue RB-029 EventStore result/error, AI memory, realtime/notification/export, key rotation, backup/restore and legacy backfill inventory; (3) complete RB-035 negative matrix; (4) prepare, but do not run, D1/D2 staging validation until target/backup/rollback/operator approval exists; (5) RB-030, RB-031, RB-033, Kaspi and D10 workflow parity.
+- Release remains NOT READY. Do not merge main or touch staging/production.
+
+
 ## Latest exact-head verification checkpoint — 2026-11-03
 
 - Verified code/test HEAD `de0dffcadf0dca77beaf61cb647729ad849d35b8` on the existing PR #330 branch; base/main remains `ac913cc3389a294d0b135a852b035ddddb1018ca`. PR #330 remains OPEN / DRAFT, 333 commits ahead / 0 behind.

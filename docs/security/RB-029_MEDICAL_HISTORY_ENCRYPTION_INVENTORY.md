@@ -1,5 +1,26 @@
 # RB-029 — Patient.medicalHistory encryption inventory and migration design
 
+## RB-029 source reconciliation — 2026-11-05
+
+### New-write controls verified in source
+- `PatientConversation.escalationReason` and `PatientConversationMessage.body` are encrypted with the shared field cipher; clinic/patient conversation readers decode after the route resolves the owning clinic or patient thread. On-call and escalation notifications no longer interpolate patient names or clinical free text.
+- New AI transcript writes encrypt `AIMessage.content` and `prevUserText`; `AISession.messages` mirrors are written as encrypted text and decrypted only for the authenticated, workspace-scoped history reader. Legacy plaintext remains readable during rollout.
+- AI Approval Center encrypts new `AiApproval.params` and decision notes, replaces legacy summaries with static non-interpolated summaries, and redacts patient-linked params unless `medical.read` is present. Personal approval visibility is additionally tenant-scoped by candidate commit `8ada4be8efb6ed09dba630ca344ef5f7049b5d09`; exact-head verification is pending.
+- AI Event OS new `payload` JSONB writes use `eventPayloadEncryption.ts`; readers decode that field. Patient-created and diagnostic bridges carry opaque IDs/status or non-clinical routing hints; AI Employee task rows retain source provenance without duplicating raw event payload.
+- Patient/odontogram structured-history writes, Patient Portal writes and Patient PATCH concurrency guards remain as previously recorded. None of these source changes proves historical database rows or backups have been encrypted.
+
+### Confirmed remaining source review
+- `dentvision-backend/src/modules/events/EventStore.ts`: `markCompleted()` stores `AIEvent.result` directly; `markFailed()` stores raw `AIEvent.error`; `getEvents()` and `getEventById()` decode `payload` only. Determine whether results/errors contain patient-linked or clinical content. If they can, minimize/encrypt at write and decode only behind the same tenant/permission boundary; add legacy compatibility and negative tests.
+- Continue inventory of `memoryEngine` long-term/session values, few-shot examples, realtime streams, notifications, audit/error logs, exports, Android/browser caches and backup/restore. Confirm ownership, tenant scope, retention, deletion and whether any derived PHI is persisted outside the protected transcript codec.
+- Explicit key ID/versioning, rotation, old-key decryption, restore testing and a PHI-free exception ledger remain absent or unverified.
+- Historical plaintext `AIMessage`, `AISession`, `Patient.medicalHistory`, `PatientConversation`, `AiApproval` and legacy AI Event rows require a read-only inventory and separately approved staging backfill/retention plan. Do not mutate production or historical financial/clinical records during source review.
+
+### Verification boundary
+- Parent HEAD `0299ab57243092479716d87af6b2e8878612e23a`: CI 41840005056 passed (2,483 tests / 279 files; all four jobs), Quality Gate 41840005038 and RB-034 41840005059 passed. E2E completed all gates with one recovered flaky patient-portal conversation request.
+- Candidate tenant-scope code commit `8ada4be8efb6ed09dba630ca344ef5f7049b5d09` is not covered by that parent CI. Fresh exact-head CI and the focused `activityQuery` regression tests are required before this change is considered verified.
+- No staging/production query, migration, PHI backfill, backup restore, key rotation or live provider operation was performed.
+
+
 ## Candidate follow-up — 2026-10-31
 
 - Patient `PATCH /api/patients/:id` now uses `updatedAt` compare-and-set in a Prisma transaction and returns 409 for a stale snapshot. Tooth mirroring and branch assignment are included in that transaction; the branch is validated before any patient write.
