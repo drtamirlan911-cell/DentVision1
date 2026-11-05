@@ -1,5 +1,3 @@
-## Exact-head verification — 2026-11-03 (PR #330)
-
 ## Exact-head verification — 2026-11-05 (PR #330, source checkpoint)
 
 - Starting PR #330 state: OPEN / DRAFT / mergeable on `fix/d1-d10-trial-archive-signing-api-20261029`, HEAD `0299ab57243092479716d87af6b2e8878612e23a`, base/main `ac913cc3389a294d0b135a852b035ddddb1018ca`, 342 commits ahead / 0 behind, 193 changed files. No merge or main write.
@@ -11,6 +9,8 @@
 - Other open PRs preserved: #328, #329, #322 and #333. 252 branch names were enumerated. No local checkout is mounted, so local `git status` is not claimed.
 - Release remains NOT READY. No staging/production DB operation, migration, PHI backfill, payment-provider call, secret/environment change, production deployment or main merge.
 
+
+## Exact-head verification — 2026-11-03 (PR #330)
 
 - **Verified code/test HEAD:** `de0dffcadf0dca77beaf61cb647729ad849d35b8` on `fix/d1-d10-trial-archive-signing-api-20261029`; base/main `ac913cc3389a294d0b135a852b035ddddb1018ca`. PR #330 remains OPEN / DRAFT. GitHub compare reports 333 commits ahead, 0 behind; 164 changed files. No merge.
 - **Exact-head CI:** [CI 41387485129](https://github.com/drtamirlan911-cell/DentVision1/actions/runs/41387485129) completed SUCCESS. All four jobs passed: frontend-lint, backend-lint, lint-test and E2E. Lint-test reports 270 test files and 2,437/2,437 tests passed; build, TypeScript, Command Center and generated System Map validation passed.
