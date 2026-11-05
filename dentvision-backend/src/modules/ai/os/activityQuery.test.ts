@@ -40,14 +40,19 @@ describe('buildActivityFilter', () => {
     expect(resolveClinicAccess).not.toHaveBeenCalled();
   });
 
-  it('narrows a caller with no bi.read to their own actions only', async () => {
+  it('narrows a caller with no bi.read to their own actions only inside the active tenant', async () => {
     userFindUnique.mockResolvedValueOnce({ role: 'DOCTOR' });
     resolveClinicAccess.mockResolvedValueOnce({ role: 'DOCTOR' });
     resolveUserPermissions.mockResolvedValueOnce(['medical.read', 'appointments.read']);
 
     const { where, canReadPhi } = await buildActivityFilter(USER_ID, CLINIC_ID);
 
-    expect(where).toEqual({ OR: [{ actorUserId: USER_ID }] });
+    expect(where).toEqual({
+      OR: [{
+        actorUserId: USER_ID,
+        OR: [{ clinicId: CLINIC_ID }, { organizationId: ORG_ID }],
+      }],
+    });
     expect(canReadPhi).toBe(true);
   });
 
@@ -59,19 +64,26 @@ describe('buildActivityFilter', () => {
     const { where, canReadPhi } = await buildActivityFilter(USER_ID, CLINIC_ID);
 
     expect(where).toEqual({
-      OR: [{ actorUserId: USER_ID }, { clinicId: CLINIC_ID }, { organizationId: ORG_ID }],
+      OR: [
+        { actorUserId: USER_ID, OR: [{ clinicId: CLINIC_ID }, { organizationId: ORG_ID }] },
+        { clinicId: CLINIC_ID },
+        { organizationId: ORG_ID },
+      ],
     });
     expect(canReadPhi).toBe(false);
   });
 
-  it('drops the clinic/org branches when clinic membership does not verify', async () => {
+  it('drops tenant access and PHI visibility when clinic membership does not verify', async () => {
     userFindUnique.mockResolvedValueOnce({ role: 'MANAGER' });
     resolveClinicAccess.mockResolvedValueOnce(null);
-    resolveUserPermissions.mockResolvedValueOnce(['bi.read']);
+    resolveUserPermissions.mockResolvedValueOnce(['bi.read', 'medical.read']);
 
-    const { where } = await buildActivityFilter(USER_ID, 'someone-elses-clinic');
+    const { where, canReadPhi } = await buildActivityFilter(USER_ID, 'someone-elses-clinic');
 
-    expect(where).toEqual({ OR: [{ actorUserId: USER_ID }] });
+    expect(where).toEqual({
+      OR: [{ actorUserId: USER_ID, clinicId: null, organizationId: null }],
+    });
+    expect(canReadPhi).toBe(false);
   });
 });
 
@@ -81,7 +93,13 @@ describe('buildApprovalFilter PHI visibility', () => {
     resolveClinicAccess.mockResolvedValueOnce({ role: 'MANAGER' });
     resolveUserPermissions.mockResolvedValueOnce(['bi.read']);
     const { where, canReadPhi } = await buildApprovalFilter(USER_ID, CLINIC_ID);
-    expect(where).toEqual({ OR: [{ requestedByUserId: USER_ID }, { clinicId: CLINIC_ID }, { organizationId: ORG_ID }] });
+    expect(where).toEqual({
+      OR: [
+        { requestedByUserId: USER_ID, OR: [{ clinicId: CLINIC_ID }, { organizationId: ORG_ID }] },
+        { clinicId: CLINIC_ID },
+        { organizationId: ORG_ID },
+      ],
+    });
     expect(canReadPhi).toBe(false);
   });
 
@@ -91,6 +109,19 @@ describe('buildApprovalFilter PHI visibility', () => {
     resolveUserPermissions.mockResolvedValueOnce(['medical.read']);
     const { canReadPhi } = await buildApprovalFilter(USER_ID, CLINIC_ID);
     expect(canReadPhi).toBe(true);
+  });
+
+  it('does not expose a requesters own approvals from another clinic or grant PHI without a verified active clinic', async () => {
+    userFindUnique.mockResolvedValueOnce({ role: 'DOCTOR' });
+    resolveClinicAccess.mockResolvedValueOnce(null);
+    resolveUserPermissions.mockResolvedValueOnce(['medical.read', 'bi.read']);
+
+    const { where, canReadPhi } = await buildApprovalFilter(USER_ID, 'someone-elses-clinic');
+
+    expect(where).toEqual({
+      OR: [{ requestedByUserId: USER_ID, clinicId: null, organizationId: null }],
+    });
+    expect(canReadPhi).toBe(false);
   });
 
   it('grants platform visibility, including PHI, to SUPERADMIN', async () => {
@@ -221,7 +252,11 @@ describe('buildActivityFilter / buildApprovalFilter — no N+1 (Stage 12 perf gu
     const { where } = await buildApprovalFilter(USER_ID, CLINIC_ID);
 
     expect(where).toEqual({
-      OR: [{ requestedByUserId: USER_ID }, { clinicId: CLINIC_ID }, { organizationId: ORG_ID }],
+      OR: [
+        { requestedByUserId: USER_ID, OR: [{ clinicId: CLINIC_ID }, { organizationId: ORG_ID }] },
+        { clinicId: CLINIC_ID },
+        { organizationId: ORG_ID },
+      ],
     });
     expect(userFindUnique).toHaveBeenCalledTimes(1);
     expect(resolveClinicAccess).toHaveBeenCalledTimes(1);

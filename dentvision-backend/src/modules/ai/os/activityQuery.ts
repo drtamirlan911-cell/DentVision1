@@ -4,10 +4,11 @@
  * Visibility is a different question from "may this tool run" (that's
  * `access.ts` + the kernel) — it's "whose recorded activity may this caller
  * see". A DOCTOR with no `bi.read` still gets to see their own AI actions
- * (accountability shouldn't require a reporting permission); `bi.read`
- * widens that to the whole clinic (and, when the caller's permission graph
- * is organization-scoped, the whole organization); only SUPERADMIN sees the
- * platform tier. `assigned_team` (teamKey) has no producer yet — Stage 9
+ * inside the active tenant (accountability shouldn't require a reporting
+ * permission); a personal row from another clinic must not bypass that
+ * tenant boundary. `bi.read` widens visibility to the whole active clinic
+ * and, when the caller's permission graph is organization-scoped, that
+ * organization; only SUPERADMIN sees the platform tier. `assigned_team` (teamKey) has no producer yet — Stage 9
  * is what starts stamping it on activity rows — so that branch is omitted
  * here rather than shipped as dead code that always evaluates to nothing.
  */
@@ -84,11 +85,23 @@ export async function buildActivityFilter(userId: string, clinicId: string | nul
   if (!tier) return { where: DENY_ALL, canReadPhi: false };
   if (tier.isPlatform) return { where: {}, canReadPhi: true };
 
-  const or: Prisma.AgentActivityWhereInput[] = [{ actorUserId: userId }];
+  // Personal visibility is tenant-scoped too. Otherwise a user with
+  // medical.read in Clinic A could see their own PHI-bearing activity from
+  // Clinic B and have it unredacted by Clinic A's permission.
+  const ownScope: Prisma.AgentActivityWhereInput = tier.resolvedClinicId
+    ? {
+        actorUserId: userId,
+        OR: [
+          { clinicId: tier.resolvedClinicId },
+          ...(tier.organizationId ? [{ organizationId: tier.organizationId }] : []),
+        ],
+      }
+    : { actorUserId: userId, clinicId: null, organizationId: null };
+  const or: Prisma.AgentActivityWhereInput[] = [ownScope];
   if (tier.canReadWide && tier.resolvedClinicId) or.push({ clinicId: tier.resolvedClinicId });
   if (tier.canReadWide && tier.organizationId) or.push({ organizationId: tier.organizationId });
 
-  return { where: { OR: or }, canReadPhi: tier.canReadPhi };
+  return { where: { OR: or }, canReadPhi: Boolean(tier.resolvedClinicId && tier.canReadPhi) };
 }
 
 /** Same visibility ladder as `buildActivityFilter`, keyed to `AiApproval`'s own field names. */
@@ -97,11 +110,22 @@ export async function buildApprovalFilter(userId: string, clinicId: string | nul
   if (!tier) return { where: DENY_ALL, canReadPhi: false };
   if (tier.isPlatform) return { where: {}, canReadPhi: true };
 
-  const or: Prisma.AiApprovalWhereInput[] = [{ requestedByUserId: userId }];
+  // A requester's own approval is still tenant data. Keep it inside the
+  // verified active clinic/organization before applying the PHI permission.
+  const ownScope: Prisma.AiApprovalWhereInput = tier.resolvedClinicId
+    ? {
+        requestedByUserId: userId,
+        OR: [
+          { clinicId: tier.resolvedClinicId },
+          ...(tier.organizationId ? [{ organizationId: tier.organizationId }] : []),
+        ],
+      }
+    : { requestedByUserId: userId, clinicId: null, organizationId: null };
+  const or: Prisma.AiApprovalWhereInput[] = [ownScope];
   if (tier.canReadWide && tier.resolvedClinicId) or.push({ clinicId: tier.resolvedClinicId });
   if (tier.canReadWide && tier.organizationId) or.push({ organizationId: tier.organizationId });
 
-  return { where: { OR: or }, canReadPhi: tier.canReadPhi };
+  return { where: { OR: or }, canReadPhi: Boolean(tier.resolvedClinicId && tier.canReadPhi) };
 }
 
 /**

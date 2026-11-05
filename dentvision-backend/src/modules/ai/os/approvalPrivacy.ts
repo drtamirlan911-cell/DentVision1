@@ -31,12 +31,22 @@ export function decryptAiApprovalParams(value: unknown): Record<string, unknown>
 }
 
 export function encryptAiApprovalDecisionNote(note: string | null): string | null {
-  return note == null ? null : encryptField(note);
+  if (note == null) return null;
+  const encrypted = encryptField(note);
+  if (!encrypted?.startsWith(MARKER)) {
+    throw new Error('[ai approvals] Decision note encryption unavailable');
+  }
+  return encrypted;
 }
 
 /** Legacy plaintext decision notes remain compatible; encrypted notes fail closed. */
 export function decryptAiApprovalDecisionNote(note: string | null): string | null {
-  return note == null ? null : decryptField(note);
+  if (note == null) return null;
+  const decrypted = decryptField(note);
+  if (note.startsWith(MARKER) && (decrypted === note || decrypted?.startsWith(MARKER))) {
+    throw new Error('[ai approvals] Decision note decryption unavailable');
+  }
+  return decrypted;
 }
 
 /** Static summaries never interpolate patient identifiers, titles or free text. */
