@@ -1,25 +1,23 @@
 # DentVision — Release Blockers & Deferred Work Register
 
-## Current source/security checkpoint — 2026-11-05
+## Current source/security checkpoint — 2026-11-05 (latest update)
 
 ### RB-035 — personal AI activity/approval tenant boundary
-- **Status: OPEN / P1 follow-up.** Source review found that `buildActivityFilter` and `buildApprovalFilter` included a caller's own actor/requester rows without constraining them to the verified active clinic, while PHI redaction was computed from the current clinic permission set. This could expose the caller's own PHI-bearing row from a different clinic.
-- Candidate fix: commit `8ada4be8efb6ed09dba630ca344ef5f7049b5d09` scopes personal rows to the verified active clinic/organization and forces `canReadPhi=false` when no clinic context is verified; SUPERADMIN platform access and existing `bi.read` widening remain unchanged. New regression tests cover valid active-tenant scope and invalid clinic context. Exact-head CI is pending.
-- This is one closure item only. RB-035 still requires the complete negative matrix for patient routes, roles, clinics, organizations, branches, expired/revoked sessions and patient financial-field visibility.
+- **Narrow source defect: FIXED; parent exact-head CI VERIFIED.** Commit `8ada4be8efb6ed09dba630ca344ef5f7049b5d09` scopes personal Agent Activity and AI Approval rows to the verified active clinic/organization and denies PHI when clinic membership cannot be verified. SUPERADMIN platform visibility and existing `bi.read` widening remain unchanged. Parent HEAD `3a7e299d3eb126010f01ae75980a7b529b51bae6` passed CI [41969627116](https://github.com/drtamirlan911-cell/DentVision1/actions/runs/41969627116), including the new regression tests.
+- **Overall status: OPEN.** The complete patient-route/role/tenant/branch/expired-session/revoked-session and patient financial-field negative matrix is still required. Do not close RB-035 based only on this visibility fix.
 
 ### RB-029 — derivative PHI persistence
-- **Status: OPEN / P0.** Source now encrypts new patient-clinic conversation body/reason, AI transcript `AIMessage.content` / `prevUserText`, `AISession.messages` mirrors, AI approval params/decision notes and AI Event payload JSONB. Diagnostic and patient event payloads/notifications are minimized; AI Employee task rows no longer copy raw event payloads.
-- **New residual source finding:** `EventStore.markCompleted()` writes `AIEvent.result` directly and `markFailed()` writes raw `AIEvent.error`; `getEvents` / `getEventById` decode the payload only. Verify whether result/error can carry PHI, then encrypt/minimize and test every reader before RB-029 can close.
-- Still open: legacy plaintext inventory/backfill and retention, AI memory/learning policy, realtime/notification/export copies, key versioning/rotation, verified backup/restore, staging dry run, reconciliation and rollback evidence. No historical backfill was run.
+- **Status: OPEN / P0.** New patient-clinic conversation body/reason, AI transcript text/session mirrors, AI Approval params/decision notes and AI Event payload JSONB are encrypted at application level; diagnostic/patient event payloads and notifications are minimized; AI Employee task rows no longer duplicate raw event payloads.
+- **New source correction prepared in code commit `3aa6d0f7af24fbbbb5ed49bc7fac0c75fa2f8bfe`:** new `AIEvent.result` JSON and `AIEvent.error` strings are encrypted before persistence. `getEvents()` / `getEventById()` decode them; legacy plaintext result/error values remain readable. Regression tests cover encrypted persistence, reader round-trip, legacy compatibility and fail-closed decryption. Exact-head CI for this new commit is PENDING; parent-head success does not verify it.
+- Historical plaintext event/result/error rows have not been counted or backfilled. Still open: full memory/learning, realtime/notification/export and audit/error-log inventory; retention/deletion; key versioning/rotation; verified backup/restore; PHI-free exception ledger; approved staging dry run/backfill/reconciliation/rollback. No historical PHI write was performed.
 
 ### Other release blockers
 - D1/D2: all four pending migrations and post-expiry read/negative-write/archive-retention proof require approved staging.
 - RB-030: real offline appointment edit → reconnect → sync persistence E2E.
 - RB-031: WebKit OPTIONS/request lifecycle plus production CORS/WebSocket verification.
-- RB-033: branch protection not verified; rulesets list empty and classic protection read returns 403, so repository-admin confirmation is required.
-- RB-036: resolved only for the premature delivered-triggered DENTAL_LAB economics write; D10 remains OPEN/PARTIAL pending independent lab invoice/payment/settlement/payout/refund/chargeback and full partner lifecycle.
+- RB-033: branch protection is not verified; rulesets list was empty and classic protection read returned 403, so repository-admin confirmation is required.
+- RB-036: resolved only for premature delivered-triggered DENTAL_LAB economics; D10 remains OPEN/PARTIAL pending independent lab invoice/payment/settlement/payout/refund/chargeback and full partner lifecycle.
 - Master Spec 5.0 remains 18 PARTIAL / 4 OPEN / 2 GUIDANCE. Release status NOT READY.
-
 
 > Canonical working register for issues discovered during autonomous audit/release work. Items remain open until verified by tests/evidence.
 

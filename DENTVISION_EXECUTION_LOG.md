@@ -1,3 +1,26 @@
+## 2026-11-05 — RB-029 EventStore result/error encryption and RB-035 verification
+
+- Repository: `drtamirlan911-cell/DentVision1`. Existing PR #330 only; branch `fix/d1-d10-trial-archive-signing-api-20261029`. Parent HEAD `3a7e299d3eb126010f01ae75980a7b529b51bae6`, base/main `ac913cc3389a294d0b135a852b035ddddb1018ca`, compare 345 ahead / 0 behind. PR remains OPEN / DRAFT / mergeable. No new branch or PR.
+- Rechecked remote branches and open PRs: 252 branch names across three pages; open PRs #330, #333, #328, #329 and #322. No other branch/PR was modified. Issue #311 remains the integration inventory; #259 remains the branch-protection blocker.
+- Local `git status` is unverified because no local checkout is mounted. This run used remote GitHub refs and files only; no local uncommitted-work claim is made.
+- Re-read the canonical operating directive, Context, Execution Plan, Execution Log, Product DNA, Master Spec 5.0, generated System Map, Release Blockers, IAM role matrix, auth/RBAC/security audits, Kaspi setup, settlement contract and partner economics. All requested paths exist; no path substitution was needed. The normative product/security and dental-lab settlement boundaries are consistent.
+- Parent exact-head CI [41969627116](https://github.com/drtamirlan911-cell/DentVision1/actions/runs/41969627116) passed all four jobs on `3a7e299d3eb126010f01ae75980a7b529b51bae6`: 2,484/2,484 unit tests across 279 files; frontend lint, backend TypeScript/ESLint, build, Prisma generation, Command Center and System Map validation passed. E2E gates passed: Core 249/5 skipped, Browser UX 4, Mobile Design 16, Role/Context 140/28 skipped, Visual Agent 48, Business Owner 11, Organization Owner 8, Playwright CLI smoke and Visual Release Gate. Quality Gate [41969627078](https://github.com/drtamirlan911-cell/DentVision1/actions/runs/41969627078), RB-034 [41969627059](https://github.com/drtamirlan911-cell/DentVision1/actions/runs/41969627059) and Vercel Preview status passed. Supabase Preview was skipped; no production deployment is inferred.
+- RB-035 correction `8ada4be8efb6ed09dba630ca344ef5f7049b5d09` is present in the verified parent HEAD. `buildActivityFilter` and `buildApprovalFilter` now scope personal actor/requester rows to the verified active clinic/organization and deny PHI when clinic membership cannot be verified. SUPERADMIN platform access and existing `bi.read` widening are preserved. Regression tests passed in the parent exact-head CI. Overall RB-035 remains open for the full negative matrix.
+- Confirmed RB-029 residual source boundary in `EventStore.ts`: `markCompleted()` persisted `AIEvent.result` JSON directly; `markFailed()` persisted raw `AIEvent.error` from the orchestrator. Current orchestrator result summaries contain only action/agent/success, but arbitrary result writers and exception text lacked a durable at-rest boundary.
+- Code commit `3aa6d0f7af24fbbbb5ed49bc7fac0c75fa2f8bfe` was created as a child of the parent HEAD: new result JSON is encrypted using `encodeDurableEventPayload`; new error strings use the shared field cipher; list/detail readers decode result/error; legacy plaintext remains readable. Tests cover ciphertext/no plaintext at rest, encrypted round-trip through list/detail, legacy compatibility and fail-closed decryption. The branch ref has not yet been moved at the time this checkpoint was authored; exact-head CI is pending after the code and docs are advanced together.
+- RB-029 remains OPEN / P0. No historical event/result/error rows were queried, changed or backfilled. Remaining work: memory/learning retention, realtime/notification/export, audit/error logs, full reader/writer inventory, key versioning/rotation, backup/restore, legacy plaintext count and approved staging dry run/backfill/reconciliation.
+- D1/D2 four migrations and post-expiry read/negative-write/archive-retention proof remain staging blockers. RB-030 offline sync, RB-031 WebKit/production CORS/WebSocket, RB-033 repository protection, official Kaspi merchant/callback, Android runtime and D10 workflow parity remain open. RB-036 is resolved only for premature delivered-triggered dental-lab economics; D10 remains OPEN/PARTIAL.
+- No staging/production DB operation, migration, PHI backfill, payment-provider call, secret/environment change, production deployment or main merge was performed.
+
+### Next exact actions
+
+1. Move the prepared code commit and documentation checkpoint to the existing PR #330 branch with an expected-HEAD lease; re-read the PR head and compare immediately.
+2. Run exact-head CI/Quality/RB-034; inspect EventStore encryption tests and bounded E2E diagnostics. Do not infer a pass from the parent CI.
+3. Continue RB-029 memory/learning, realtime/notification/export, historical plaintext, key lifecycle and backup/restore inventory.
+4. Complete the RB-035 patient/role/tenant/branch/revoked-session negative matrix; prepare D1/D2 staging runbook without executing it before approval.
+5. Keep PR #330 Draft and main unchanged until release blockers and Master Spec workflows are evidenced.
+
+
 # DentVision — Persistent Execution Log
 
 ## 2026-11-05 — RB-035 AI activity/approval tenant boundary and RB-029 handoff

@@ -1,6 +1,14 @@
+## Latest implementation checkpoint — 2026-11-05 (RB-029 EventStore derivative encryption; RB-035 parent-head verification)
+
+- Existing PR #330 only; parent HEAD `3a7e299d3eb126010f01ae75980a7b529b51bae6`, base/main `ac913cc3389a294d0b135a852b035ddddb1018ca`, 345 commits ahead / 0 behind. The personal AI Activity/Approval tenant-scope fix `8ada4be8efb6ed09dba630ca344ef5f7049b5d09` is included and verified by exact-parent CI.
+- Parent exact-head CI `41969627116` passed all four jobs; 2,484/2,484 tests across 279 files. Core, Browser UX, Mobile Design, Role/Context, Visual Agent, Business Owner, Organization Owner, Playwright CLI and Visual Release gates passed. Quality Gate `41969627078`, RB-034 `41969627059` and Vercel Preview passed.
+- Source review found that EventStore persisted `AIEvent.result` JSON and raw `AIEvent.error` without the durable-event at-rest boundary. Code commit `3aa6d0f7af24fbbbb5ed49bc7fac0c75fa2f8bfe` encrypts new result/error writes, decodes them in list/detail readers, preserves legacy plaintext compatibility and adds regression coverage. Exact-head CI for this code commit is PENDING; parent CI is not evidence for it.
+- Next order: (1) verify the new exact-head CI/Quality/RB-034 and focused EventStore tests; (2) continue RB-029 memory/learning, realtime/notification/export, legacy plaintext, key rotation and backup/restore inventory; (3) complete RB-035 negative authorization matrix; (4) prepare but do not execute D1/D2 staging validation without approved target/backup/rollback/operator window; (5) RB-030, RB-031, RB-033, Kaspi and D10 parity.
+- Release remains NOT READY. No merge, staging/production DB operation, PHI backfill, provider call, environment change or deployment.
+
 # DentVision — Master Execution Plan
 
-## Latest implementation checkpoint — 2026-11-05 (RB-035 tenant-scoped AI visibility)
+## Previous implementation checkpoint — 2026-11-05 (RB-035 tenant-scoped AI visibility; superseded by the latest checkpoint below)
 
 - Existing PR #330 only; starting HEAD `0299ab57243092479716d87af6b2e8878612e23a`, base/main `ac913cc3389a294d0b135a852b035ddddb1018ca`. The branch is 342 commits ahead / 0 behind at the start of this checkpoint. No new branch/PR and no merge.
 - Candidate commit `8ada4be8efb6ed09dba630ca344ef5f7049b5d09` narrows the personal-row branch in `buildActivityFilter` and `buildApprovalFilter` to the verified active clinic/organization. Without a verified tenant, only unscoped personal rows can match and `canReadPhi` is false; SUPERADMIN platform access is unchanged. This prevents an own-actor/requester row from another clinic bypassing the active-context PHI permission.

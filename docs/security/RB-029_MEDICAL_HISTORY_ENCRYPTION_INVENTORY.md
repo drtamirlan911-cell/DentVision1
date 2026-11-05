@@ -1,25 +1,23 @@
 # RB-029 — Patient.medicalHistory encryption inventory and migration design
 
-## RB-029 source reconciliation — 2026-11-05
+## RB-029 source reconciliation — 2026-11-05 (latest)
 
 ### New-write controls verified in source
-- `PatientConversation.escalationReason` and `PatientConversationMessage.body` are encrypted with the shared field cipher; clinic/patient conversation readers decode after the route resolves the owning clinic or patient thread. On-call and escalation notifications no longer interpolate patient names or clinical free text.
-- New AI transcript writes encrypt `AIMessage.content` and `prevUserText`; `AISession.messages` mirrors are written as encrypted text and decrypted only for the authenticated, workspace-scoped history reader. Legacy plaintext remains readable during rollout.
-- AI Approval Center encrypts new `AiApproval.params` and decision notes, replaces legacy summaries with static non-interpolated summaries, and redacts patient-linked params unless `medical.read` is present. Personal approval visibility is additionally tenant-scoped by candidate commit `8ada4be8efb6ed09dba630ca344ef5f7049b5d09`; exact-head verification is pending.
-- AI Event OS new `payload` JSONB writes use `eventPayloadEncryption.ts`; readers decode that field. Patient-created and diagnostic bridges carry opaque IDs/status or non-clinical routing hints; AI Employee task rows retain source provenance without duplicating raw event payload.
-- Patient/odontogram structured-history writes, Patient Portal writes and Patient PATCH concurrency guards remain as previously recorded. None of these source changes proves historical database rows or backups have been encrypted.
+- Patient-clinic conversation body/reason, new AI transcript text/session mirrors, AI Approval params/decision notes and AI Event payload JSONB have application-level encryption on new writes. Diagnostic/patient event payloads and durable notifications are minimized; AI Employee tasks retain source provenance without duplicating raw event payload.
+- Personal Agent Activity/AI Approval visibility is tenant-scoped by commit `8ada4be8efb6ed09dba630ca344ef5f7049b5d09`; exact parent HEAD CI [41969627116](https://github.com/drtamirlan911-cell/DentVision1/actions/runs/41969627116) passed the regression tests.
+- EventStore derivative fields were a confirmed gap: `markCompleted()` persisted `AIEvent.result` JSON without encryption and `markFailed()` persisted raw `AIEvent.error`. Code commit `3aa6d0f7af24fbbbb5ed49bc7fac0c75fa2f8bfe` encrypts new result JSON with the durable-event codec and error strings with the shared field cipher. `getEvents()` and `getEventById()` decode both fields. Existing plaintext object/string rows remain read-compatible. New tests verify ciphertext at rest, list/detail round-trip, legacy reads and fail-closed decryption. Exact-head CI for this code commit is pending.
+- Current `EventOrchestrator` completion result is a compact action/agent/success summary. The error path receives an exception message; encrypting the durable field protects future/provider/database error text as well.
 
 ### Confirmed remaining source review
-- `dentvision-backend/src/modules/events/EventStore.ts`: `markCompleted()` stores `AIEvent.result` directly; `markFailed()` stores raw `AIEvent.error`; `getEvents()` and `getEventById()` decode `payload` only. Determine whether results/errors contain patient-linked or clinical content. If they can, minimize/encrypt at write and decode only behind the same tenant/permission boundary; add legacy compatibility and negative tests.
-- Continue inventory of `memoryEngine` long-term/session values, few-shot examples, realtime streams, notifications, audit/error logs, exports, Android/browser caches and backup/restore. Confirm ownership, tenant scope, retention, deletion and whether any derived PHI is persisted outside the protected transcript codec.
+- Historical plaintext `AIEvent.payload/result/error` rows have not been counted or backfilled. Do not run a historical query/backfill or mutate production without a separately approved staging target, tested backup/restore, exception ledger, key availability and rollback plan.
+- Continue inventory of MemoryEngine/AI learning values, few-shot examples, realtime streams, notifications, audit/error logs, exports, Android/browser caches and backup/restore. Confirm ownership, tenant scope, retention, deletion and whether derived PHI is persisted outside the protected codecs.
 - Explicit key ID/versioning, rotation, old-key decryption, restore testing and a PHI-free exception ledger remain absent or unverified.
-- Historical plaintext `AIMessage`, `AISession`, `Patient.medicalHistory`, `PatientConversation`, `AiApproval` and legacy AI Event rows require a read-only inventory and separately approved staging backfill/retention plan. Do not mutate production or historical financial/clinical records during source review.
+- Historical plaintext `AIMessage`, `AISession`, `Patient.medicalHistory`, `PatientConversation`, `AiApproval` and legacy AI Event rows require a read-only inventory and separately approved staging backfill/retention plan.
 
 ### Verification boundary
-- Parent HEAD `0299ab57243092479716d87af6b2e8878612e23a`: CI 41840005056 passed (2,483 tests / 279 files; all four jobs), Quality Gate 41840005038 and RB-034 41840005059 passed. E2E completed all gates with one recovered flaky patient-portal conversation request.
-- Candidate tenant-scope code commit `8ada4be8efb6ed09dba630ca344ef5f7049b5d09` is not covered by that parent CI. Fresh exact-head CI and the focused `activityQuery` regression tests are required before this change is considered verified.
+- Parent HEAD `3a7e299d3eb126010f01ae75980a7b529b51bae6`: CI [41969627116](https://github.com/drtamirlan911-cell/DentVision1/actions/runs/41969627116) passed all four jobs; 2,484/2,484 tests across 279 files. E2E gates Core 249/5 skipped, Browser UX 4, Mobile Design 16, Role/Context 140/28 skipped, Visual Agent 48, Business Owner 11, Organization Owner 8, Playwright CLI and Visual Release passed. Quality Gate [41969627078](https://github.com/drtamirlan911-cell/DentVision1/actions/runs/41969627078), RB-034 [41969627059](https://github.com/drtamirlan911-cell/DentVision1/actions/runs/41969627059) and Vercel Preview passed.
+- Parent CI verifies the RB-035 personal-row tenant fix, not the new EventStore result/error code commit `3aa6d0f7af24fbbbb5ed49bc7fac0c75fa2f8bfe`. A fresh exact-head CI is required.
 - No staging/production query, migration, PHI backfill, backup restore, key rotation or live provider operation was performed.
-
 
 ## Candidate follow-up — 2026-10-31
 

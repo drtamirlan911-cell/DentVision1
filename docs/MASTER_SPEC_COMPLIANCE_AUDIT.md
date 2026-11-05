@@ -1,12 +1,12 @@
 # Master Spec 5.0 — compliance audit
 
-## Follow-up source evidence — 2026-11-05
+## Follow-up source evidence — 2026-11-05 (latest)
 
-- New-write PHI controls have advanced since the 2026-10-31 audit baseline: patient-clinic conversation text, AI transcript messages/session mirrors, AI Approval params/decision notes and new AI Event payloads are encrypted at application level; diagnostic/patient event payloads and notifications are minimized. These are source-level implementation facts, not proof of historical-row or backup encryption.
-- The same source review identified an unresolved derivative-data surface: `EventStore.markCompleted()` persists `AIEvent.result` without the event payload codec and `markFailed()` persists raw `AIEvent.error`; readers decode only `payload`. RB-029 remains OPEN until result/error and other memory/realtime/notification/export/backup paths are audited.
-- Candidate RB-035 correction commit `8ada4be8efb6ed09dba630ca344ef5f7049b5d09` scopes personal AI Activity/Approval rows to a verified active tenant before using that tenant's `medical.read` permission. Its regression tests and exact-head CI are pending; no RB-035 closure is claimed.
-- The Master Spec classification remains **18 PARTIAL / 4 OPEN / 2 GUIDANCE**. No section is newly certified fully compliant. Staging/production, backfill, key rotation, branch-protection and provider evidence remain outside this source-only run.
-
+- RB-035 personal Agent Activity/AI Approval rows are now scoped to a verified active clinic/organization; PHI is denied without verified clinic membership. Commit `8ada4be8efb6ed09dba630ca344ef5f7049b5d09` is included in parent HEAD `3a7e299d3eb126010f01ae75980a7b529b51bae6`; exact-head CI [41969627116](https://github.com/drtamirlan911-cell/DentVision1/actions/runs/41969627116) passed 2,484/2,484 unit tests and all E2E gates. This resolves one RB-035 visibility defect only; the full negative matrix remains open.
+- New-write PHI controls include patient-clinic conversation text/reasons, AI transcript/session mirrors, AI Approval params/decision notes and AI Event payload JSONB encryption, plus minimized diagnostic/patient event and notification payloads.
+- EventStore `AIEvent.result` and `AIEvent.error` were a remaining durable derivative-data boundary. Code commit `3aa6d0f7af24fbbbb5ed49bc7fac0c75fa2f8bfe` encrypts new result/error writes and decodes them in list/detail readers while retaining legacy plaintext compatibility. Regression tests were added; exact-head CI for this commit is pending.
+- RB-029 remains OPEN / P0 pending historical plaintext inventory/backfill and retention, AI memory/learning, realtime/notification/export and audit/error-log review, key versioning/rotation, verified backup/restore and approved staging evidence. No production/staging data was changed.
+- The Master Spec classification remains **18 PARTIAL / 4 OPEN / 2 GUIDANCE**. No section is newly certified fully compliant. D1/D2 staging, RB-030 offline sync, RB-031 WebKit/production CORS, RB-033 repository protection, full RB-035 negative matrix, official Kaspi evidence and D10 workflow parity remain open.
 
 **Audit date:** 2026-10-31  
 **Repository:** drtamirlan911-cell/DentVision1  
