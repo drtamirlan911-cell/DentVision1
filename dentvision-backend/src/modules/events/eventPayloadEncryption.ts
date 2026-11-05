@@ -55,3 +55,27 @@ export function decodeDurableEventPayload(value: unknown): Record<string, unknow
   }
   return parsed as Record<string, unknown>;
 }
+
+
+/**
+ * AIEvent.result and AIEvent.error are durable derivatives of event processing.
+ * Encrypt new values at rest; preserve legacy plaintext reads during rollout.
+ */
+export function encodeDurableEventError(error: string): string {
+  const encrypted = encryptField(error);
+  if (!encrypted || !encrypted.startsWith('ENC:')) {
+    throw new Error('[EventPayload] Error encryption did not produce ciphertext');
+  }
+  return encrypted;
+}
+
+export function decodeDurableEventError(value: string | null): string | null {
+  if (value == null) return null;
+  if (!value.startsWith('ENC:')) return value;
+
+  const decrypted = decryptField(value);
+  if (decrypted == null || decrypted === value) {
+    throw new Error('[EventPayload] Error decryption unavailable');
+  }
+  return decrypted;
+}

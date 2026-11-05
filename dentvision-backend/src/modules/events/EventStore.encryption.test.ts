@@ -17,6 +17,7 @@ const {
   }));
   return {
     create: vi.fn(),
+    update: vi.fn(),
     findMany: vi.fn(),
     count: vi.fn(),
     findUnique: vi.fn(),
@@ -28,13 +29,13 @@ const {
 
 vi.mock('../../lib/prisma.js', () => ({
   default: {
-    aIEvent: { create, findMany, count, findUnique },
+    aIEvent: { create, update, findMany, count, findUnique },
     $transaction: transaction,
   },
 }));
 
 import { eventStore } from './EventStore.js';
-import { encodeDurableEventPayload } from './eventPayloadEncryption.js';
+import { encodeDurableEventError, encodeDurableEventPayload } from './eventPayloadEncryption.js';
 
 const originalNodeEnv = process.env.NODE_ENV;
 const originalEncryptionKey = process.env.ENCRYPTION_KEY;
@@ -70,6 +71,24 @@ describe('EventStore encrypted payload persistence', () => {
     expect(stored).not.toContain('private diagnosis alpha');
   });
 
+  it('encrypts completion results and failure messages before persistence', async () => {
+    update.mockResolvedValue({});
+    const privateResult = { patientName: 'Иван Петров', diagnosis: 'private diagnosis beta' };
+
+    await eventStore.markCompleted('event-completed', privateResult);
+    const storedResult = update.mock.calls[0][0].data.result as string;
+    expect(storedResult).toMatch(/^ENC:/);
+    expect(storedResult).not.toContain('Иван Петров');
+    expect(storedResult).not.toContain('private diagnosis beta');
+
+    findUnique.mockResolvedValueOnce({ retries: 0, maxRetries: 3 });
+    await eventStore.markFailed('event-failed', 'Patient Иван Петров: private diagnosis beta');
+    const storedError = update.mock.calls[1][0].data.error as string;
+    expect(storedError).toMatch(/^ENC:/);
+    expect(storedError).not.toContain('Иван Петров');
+    expect(storedError).not.toContain('private diagnosis beta');
+  });
+
   it('decrypts a claimed event before subscribers receive it', async () => {
     queryRaw.mockResolvedValue([{
       id: 'event-a',
@@ -88,19 +107,34 @@ describe('EventStore encrypted payload persistence', () => {
 
   it('decodes encrypted payloads returned by event list and detail readers', async () => {
     const stored = encodeDurableEventPayload(payload);
-    findMany.mockResolvedValue([{ id: 'event-a', payload: stored }]);
+    const result = { patientName: 'Иван Петров', diagnosis: 'private diagnosis alpha' };
+    const storedResult = encodeDurableEventPayload(result);
+    const error = 'Patient Иван Петров: private diagnosis alpha';
+    const storedError = encodeDurableEventError(error);
+    findMany.mockResolvedValue([{ id: 'event-a', payload: stored, result: storedResult, error: storedError }]);
     count.mockResolvedValue(1);
-    findUnique.mockResolvedValue({ id: 'event-a', payload: stored });
+    findUnique.mockResolvedValue({ id: 'event-a', payload: stored, result: storedResult, error: storedError });
     const listed = await eventStore.getEvents({ clinicId: 'clinic-a' });
     const detailed = await eventStore.getEventById('event-a');
     expect(listed.events[0].payload).toEqual(payload);
+    expect(listed.events[0].result).toEqual(result);
+    expect(listed.events[0].error).toBe(error);
     expect(detailed?.payload).toEqual(payload);
+    expect(detailed?.result).toEqual(result);
+    expect(detailed?.error).toBe(error);
   });
 
   it('keeps pre-encryption object rows readable', async () => {
-    findMany.mockResolvedValue([{ id: 'legacy-event', payload }]);
+    const legacyResult = { action: 'legacy', success: true };
+    findMany.mockResolvedValue([{ id: 'legacy-event', payload, result: legacyResult, error: 'Legacy failure detail' }]);
     count.mockResolvedValue(1);
+    findUnique.mockResolvedValue({ id: 'legacy-event', payload, result: legacyResult, error: 'Legacy failure detail' });
     const listed = await eventStore.getEvents({ clinicId: 'clinic-a' });
+    const detailed = await eventStore.getEventById('legacy-event');
     expect(listed.events[0].payload).toEqual(payload);
+    expect(listed.events[0].result).toEqual(legacyResult);
+    expect(listed.events[0].error).toBe('Legacy failure detail');
+    expect(detailed?.result).toEqual(legacyResult);
+    expect(detailed?.error).toBe('Legacy failure detail');
   });
 });

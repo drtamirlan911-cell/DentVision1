@@ -26,6 +26,26 @@ describe('durable AI event payload encryption', () => {
     expect(decodeDurableEventPayload(stored)).toEqual(payload);
   });
 
+  it('encrypts event failure text and preserves legacy plaintext errors', async () => {
+    const { encodeDurableEventError, decodeDurableEventError } = await import('./eventPayloadEncryption.js');
+    const error = 'Patient Иван Петров: private diagnosis alpha';
+    const stored = encodeDurableEventError(error);
+    expect(stored).toMatch(/^ENC:/);
+    expect(stored).not.toContain('Иван Петров');
+    expect(stored).not.toContain('private diagnosis alpha');
+    expect(decodeDurableEventError(stored)).toBe(error);
+    expect(decodeDurableEventError('Legacy failure detail')).toBe('Legacy failure detail');
+    expect(decodeDurableEventError(null)).toBeNull();
+  });
+
+  it('fails closed when encrypted event errors cannot be decrypted', async () => {
+    const { encodeDurableEventError, decodeDurableEventError } = await import('./eventPayloadEncryption.js');
+    const stored = encodeDurableEventError('private failure');
+    process.env.NODE_ENV = 'production';
+    delete process.env.ENCRYPTION_KEY;
+    expect(() => decodeDurableEventError(stored)).toThrow(/Decryption unavailable in production|Error decryption unavailable/);
+  });
+
   it('keeps legacy plaintext JSON object rows readable', async () => {
     const { decodeDurableEventPayload } = await import('./eventPayloadEncryption.js');
     const legacy = { patientName: 'Legacy Patient', studyType: 'CBCT' };
