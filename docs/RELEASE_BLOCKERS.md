@@ -395,6 +395,13 @@ This entry supersedes stale source-level claims below where explicitly noted, bu
 - **Remaining risk:** source changes do not prove historical rows in staging or production have been encrypted. Structured JSON may remain plaintext until the backfill is run against a verified target. Phone, email, address and general notes remain outside this particular field-level scope and need a separate threat-model decision.
 - **Required next action:** run the documented dry-run against an explicitly verified staging target, review backup/rollback and integrity counts, then obtain owner approval for the target-specific write run. Inspect reports for zero remaining unencrypted legacy rows and validate authorized read/merge round trips.
 - **Closure criteria:** exact-HEAD CI passes; the staging migration and reconciliation evidence is attached; production backfill is separately approved and verified before claiming production-at-rest completion. No production database operation is claimed here.
+
+#### EventStore derivative encryption — 2026-11-06
+
+- Code commit `3aa6d0f7af24fbbbb5ed49bc7fac0c75fa2f8bfe` encrypts new `AIEvent.result` JSON and `AIEvent.error` strings and decodes them in list/detail readers while preserving legacy plaintext compatibility.
+- Exact-head CI `41975258101` did not verify this code: the focused `EventStore.encryption.test.ts` suite failed during mock initialization because `update` was omitted from the top-level destructuring. 2,482 tests passed and 278 test files passed; one suite did not run.
+- The current correction adds the already-defined `update` mock to the destructuring. Exact-head CI must pass before this derivative-field protection is accepted. RB-029 remains OPEN/P0; historical data and production/staging databases were not touched.
+
 ### RB-019 — Platform Kaspi API contract and network bounds
 - **Status:** OPEN — official provider contract not independently verified
 - **Priority:** P1
@@ -504,6 +511,14 @@ Parallel-branch evidence retained during integration; reconcile against the curr
 
 ### RB-035 — Patient API authorization, PHI serialization, IIN lookup and deposit boundary
 - **Status:** IN PROGRESS — source guards are present on the current candidate; exact-head negative regression verification is pending
+
+#### AI Event notification recipient scope — 2026-11-06
+
+- **Finding:** `AGENT_ROLES.doctor` includes `DOCTOR` and `ASSISTANT`, while doctor-agent results can contain clinical recommendations, diagnosis-related values and image URLs. `resolveRecipients()` uses organization role membership but does not verify active `PatientAssignment` or an exact assigned appointment.
+- **Additional fail-open edge:** an explicit empty `notifyUserIds` array is treated like no override and falls through to organization-wide role resolution.
+- **Boundary:** the SSE manager does filter events to the resolved target user IDs; the defect is that the recipient set is not sufficiently authorized. This is not described as an unfiltered SSE broadcast.
+- **Required fix:** exclude ASSISTANT from clinical-result notifications; resolve DOCTOR recipients only through active patient assignment or a verified appointment assignment within the same clinic/branch; treat an explicitly supplied empty list as no recipients; add negative tests for assistants, unassigned doctors, cross-clinic/branch IDs and empty recipients. Keep RB-035 OPEN until exact-head tests pass.
+
 - **Priority:** P0
 - **Area:** PHI / RBAC / tenant isolation / financial authorization
 - **Current source evidence:** `GET /api/patients` and IIN lookup require `patient.read`; the IIN lookup is restricted to the active clinic via `scopedPatientWhere` and does not return cross-clinic identity/contact data. Full chart, history, images and treatment-plan reads use the clinical-chart permission guard; audit and assignment reads add their respective permissions. Patient prepaid balance is a restricted field: `billing.read` alone is only the read-only price-list capability; balance serialization requires `billing.write`, `billing.delete`, `billing.manage`, SUPERADMIN wildcard, or the care-specific combination `medical.manage` + `billing.read`. `POST /:id/deposit` explicitly requires `billing.write`, before clinic/branch-scoped patient loading.

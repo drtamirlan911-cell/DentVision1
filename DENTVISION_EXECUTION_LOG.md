@@ -1,3 +1,25 @@
+## 2026-11-06 — Exact-head CI triage and RB-035 AI notification recipient audit
+
+- Repository: `drtamirlan911-cell/DentVision1`; existing PR #330 only, branch `fix/d1-d10-trial-archive-signing-api-20261029`. Starting HEAD `e8877e81b105daedccba00a305f6b13d715c9b35`, base/main `ac913cc3389a294d0b135a852b035ddddb1018ca`; 347 ahead / 0 behind, 193 changed files. Remote branch inventory: 252 names. Open PRs #333, #330, #329, #328 and #322; all other branches/PRs preserved. No new branch/PR or main merge.
+- Local `git status` cannot be verified because no checkout is mounted. Remote refs and files were checked.
+- Canonical docs were read at their current paths: operating directive, Context, Execution Plan/Log, Product DNA, Master Spec 5.0, System Map, Release Blockers, IAM matrix, auth/RBAC/security policy, Kaspi setup, settlement contract, partner economics and RB-029 inventory. No path substitution was needed.
+- Current branch metadata reports `protected=false` and `protection.enabled=false` for main and the working branch. RB-033 remains open pending administrator confirmation and required-check configuration.
+- Exact-head CI [41975258101](https://github.com/drtamirlan911-cell/DentVision1/actions/runs/41975258101) failed only in `lint-test`: 278 test files passed, 2,482 tests passed; `EventStore.encryption.test.ts` failed to initialize because `update` was not destructured from the existing `vi.hoisted` mock factory. Frontend/backend lint, TypeScript/build, Prisma generation, Command Center, System Map and the full E2E gate job passed. E2E completed Core, Browser UX, Mobile Design, Role/Context, Visual Agent, Business Owner, Organization Owner, Playwright CLI and Visual Release checks.
+- Quality Gate [41975258095](https://github.com/drtamirlan911-cell/DentVision1/actions/runs/41975258095) and RB-034 [41975258087](https://github.com/drtamirlan911-cell/DentVision1/actions/runs/41975258087) passed; Vercel Preview status succeeded. The overall CI remains failed.
+- The test-only correction adds `update` to the test file's top-level mock destructuring. It does not remove or relax a test. Exact-head rerun is required before EventStore result/error encryption is accepted.
+- Source audit of RB-035 found that the doctor agent's notification role list includes ASSISTANT as well as DOCTOR. Clinical result objects can carry possible causes, examination recommendations, diagnoses, treatment recommendations and image URLs. Recipient lookup is limited to the active clinic's organization role graph but does not check patient assignments. SSE itself filters to target user IDs; the problem is the overbroad target set. Also, an explicit empty `notifyUserIds` array falls through to role-based recipients. This is a confirmed recipient authorization gap; code and negative tests are still pending.
+- RB-029 remains OPEN/P0. EventStore new result/error writes are encrypted; legacy plaintext compatibility remains. The failed unit suite did not execute its EventStore encryption tests. Historical rows were not read or changed; no backfill, migration, key rotation, backup restore, staging/production DB operation, provider call, secret/environment change or deployment occurred.
+- D1/D2, RB-030, RB-031, RB-033, full RB-035, official Kaspi evidence, Android runtime and D10 parity remain open. Release NOT READY.
+
+### Next actions
+1. Add the missing `update` destructuring entry and commit this fix plus docs to existing PR #330 with an expected-HEAD lease.
+2. Run exact-head CI, Quality Gate and RB-034; verify the EventStore tests actually execute.
+3. Fix doctor-agent notification recipients using active patient assignment/verified appointment scope; exclude ASSISTANT from clinical result recipients and make empty explicit recipients fail closed. Add targeted negative tests.
+4. Continue RB-029 source inventory and prepare (do not execute) D1/D2 staging validation pending approved target/backup/rollback/operator window.
+5. Keep PR #330 Draft and main unchanged.
+
+---
+
 ## 2026-11-05 — RB-029 EventStore result/error encryption and RB-035 verification
 
 - Repository: `drtamirlan911-cell/DentVision1`. Existing PR #330 only; branch `fix/d1-d10-trial-archive-signing-api-20261029`. Parent HEAD `3a7e299d3eb126010f01ae75980a7b529b51bae6`, base/main `ac913cc3389a294d0b135a852b035ddddb1018ca`, compare 345 ahead / 0 behind. PR remains OPEN / DRAFT / mergeable. No new branch or PR.

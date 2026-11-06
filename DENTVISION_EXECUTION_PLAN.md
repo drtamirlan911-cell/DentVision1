@@ -1,3 +1,23 @@
+## Latest implementation checkpoint — 2026-11-06 (EventStore test correction; RB-035 recipient-scope finding)
+
+- Existing PR #330 only; branch `fix/d1-d10-trial-archive-signing-api-20261029`; starting HEAD `e8877e81b105daedccba00a305f6b13d715c9b35`; base/main `ac913cc3389a294d0b135a852b035ddddb1018ca`; 347 commits ahead / 0 behind, 193 changed files. No branch/PR creation and no merge.
+- Exact-head CI `41975258101`: lint, TypeScript/build, generated System Map and complete E2E gates passed; unit-test job failed only because `EventStore.encryption.test.ts` could not initialize its mock (`update is not defined`). 2,482 tests passed; 278 files passed and one suite failed before running.
+- Quality Gate `41975258095` and RB-034 `41975258087` passed; Vercel Preview status was SUCCESS. Overall CI remains FAILED until the exact-head rerun passes.
+- Correction: add the already-created `update` mock to the test file's `vi.hoisted` destructuring. No tests/assertions are removed. The EventStore encryption tests have not yet been verified.
+- RB-029 remains OPEN/P0. New EventStore result/error writes are encrypted and list/detail readers decode them, but exact-head unit evidence, historical plaintext inventory/backfill, AI memory/learning, notification/export, key rotation and backup/restore remain outstanding.
+- RB-035 recipient-scope finding: clinical doctor-agent results are currently routed to organization DOCTOR and ASSISTANT roles, with no PatientAssignment filter; explicit empty notifyUserIds falls through to role resolution. SSE delivery is target-filtered, but the resolved target set is overbroad. Fix and negative tests are next.
+- RB-033: GitHub branch metadata reports `protected=false` / `protection.enabled=false` for main; repository-admin must establish required protection. Release remains NOT READY.
+
+## Next execution order
+
+1. Push the test mock correction plus checkpoint docs to PR #330 with expected-HEAD lease; run exact-head CI/Quality/RB-034.
+2. Implement and test the RB-035 AI notification recipient restriction; wait for exact-head CI completion before another push.
+3. Continue RB-029 PHI inventory and key/backup/backfill plan; keep historical data read-only.
+4. Prepare D1/D2 staging proof only after verified target, backup/rollback and operator window. Then RB-030, RB-031, RB-033, Kaspi and remaining D10.
+5. Keep PR #330 Draft; do not merge main or deploy.
+
+---
+
 ## Latest implementation checkpoint — 2026-11-05 (RB-029 EventStore derivative encryption; RB-035 parent-head verification)
 
 - Existing PR #330 only; parent HEAD `3a7e299d3eb126010f01ae75980a7b529b51bae6`, base/main `ac913cc3389a294d0b135a852b035ddddb1018ca`, 345 commits ahead / 0 behind. The personal AI Activity/Approval tenant-scope fix `8ada4be8efb6ed09dba630ca344ef5f7049b5d09` is included and verified by exact-parent CI.

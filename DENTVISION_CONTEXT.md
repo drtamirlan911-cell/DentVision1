@@ -1,3 +1,26 @@
+## Exact-head update — 2026-11-06 (PR #330; EventStore test harness; RB-035 recipient scope)
+
+- Repository: `drtamirlan911-cell/DentVision1`. Continue only on existing PR #330 / branch `fix/d1-d10-trial-archive-signing-api-20261029`; PR is OPEN / DRAFT / mergeable. Exact starting HEAD `e8877e81b105daedccba00a305f6b13d715c9b35`; base/main `ac913cc3389a294d0b135a852b035ddddb1018ca`; compare is 347 commits ahead / 0 behind with 193 changed files. No new branch/PR and no main merge.
+- Remote branch inventory: 252 names across three pages. Current open PRs are #333, #330, #329, #328 and #322. The other PR heads remain unchanged. Local `git status` is NOT verified because no local checkout is mounted.
+- GitHub branch metadata currently reports `protected=false` and `protection.enabled=false` for both `main` and this working branch. RB-033 remains OPEN; repository-admin confirmation and required-check policy still need to be established.
+- Exact-head CI [41975258101](https://github.com/drtamirlan911-cell/DentVision1/actions/runs/41975258101) completed FAILURE on `e8877e81b105daedccba00a305f6b13d715c9b35`. Frontend lint, backend lint/TypeScript, build, Prisma generation, Command Center and generated System Map validation passed. The full E2E job passed Core, Browser UX, Mobile Design, Role/Context, Visual Agent, Business Owner, Organization Owner, Playwright CLI smoke and Visual Release evidence checks. The only failed job was `lint-test`: 278 test files passed; 2,482 tests passed; `EventStore.encryption.test.ts` failed during module mock initialization with `ReferenceError: update is not defined`, before its tests ran.
+- Root cause is confirmed in the test: `vi.hoisted()` returns an `update` mock and `vi.mock()` references it, but the top-level destructuring omitted `update`. The correction in this checkpoint adds that existing mock to the destructuring only; no test, assertion or security check is removed.
+- Exact-head Quality Gate [41975258095](https://github.com/drtamirlan911-cell/DentVision1/actions/runs/41975258095) PASSED; RB-034 diagnostic [41975258087](https://github.com/drtamirlan911-cell/DentVision1/actions/runs/41975258087) PASSED; Vercel Preview status was SUCCESS. These do not override the failed unit-test job.
+- RB-029 code commit `3aa6d0f7af24fbbbb5ed49bc7fac0c75fa2f8bfe` encrypts new `AIEvent.result` and `AIEvent.error` writes and decodes them in list/detail readers, preserving legacy plaintext reads. Because the focused test file failed to initialize, the encryption regression tests are NOT yet verified. RB-029 remains OPEN / P0; no historical PHI rows were queried or changed, and no backfill, key rotation, backup restore or staging/production operation was run.
+- New RB-035 source finding: `AGENT_ROLES.doctor` includes both `DOCTOR` and `ASSISTANT`; doctor-agent actions can place clinical recommendations, diagnosis-related data and image URLs in notification data. Recipient resolution is organization-role based and does not check `PatientAssignment`. The SSE manager filters to the supplied target user IDs, but that target set is too broad; an empty `notifyUserIds` list also falls through to role-based resolution. This is a confirmed recipient-scope gap, not evidence that the SSE stream is unfiltered. Fix and negative tests remain pending.
+- Release remains NOT READY. D1/D2 staging migration and expired-clinic read/negative-write/archive-retention proof; RB-029 full consumer/key/backfill evidence; RB-030 offline sync; RB-031 WebKit/production CORS/WebSocket; RB-033 branch protection; RB-035 full route/role/tenant/branch matrix; official Kaspi contract/callback; Android runtime and D10 workflow parity remain open.
+- No staging/production DB operation, migration, PHI backfill, payment-provider call, secret/environment change, production deployment or main merge was performed.
+
+### Next exact actions
+
+1. Commit the mock destructuring correction and this checkpoint only to the existing PR #330 branch using an expected-HEAD lease.
+2. Run exact-head CI, Quality Gate and RB-034. Confirm the EventStore encryption tests execute and pass; do not reuse the failed-head or parent-head evidence.
+3. Fix the RB-035 AI notification recipient boundary: exclude assistants from clinical-agent results, require patient assignment/verified appointment scope for doctor recipients, and treat an explicitly empty recipient list as no recipients. Add negative tests for unassigned doctors and assistants.
+4. Continue RB-029 reader/writer/concurrent-writer inventory, key lifecycle, backup/restore and approved staging runbook. Keep historical PHI read-only until approval.
+5. Keep PR #330 Draft and main unchanged until all release gates and Master Spec workflows have evidence.
+
+---
+
 ## Exact-head update — 2026-11-05 (PR #330; RB-035 verified, RB-029 EventStore hardening prepared)
 
 - Repository: `drtamirlan911-cell/DentVision1`. Continue only on the existing PR #330 branch `fix/d1-d10-trial-archive-signing-api-20261029`; PR remains OPEN / DRAFT. Parent HEAD before this checkpoint: `3a7e299d3eb126010f01ae75980a7b529b51bae6`; base/main: `ac913cc3389a294d0b135a852b035ddddb1018ca`; compare: 345 commits ahead / 0 behind. No new branch/PR and no main merge.

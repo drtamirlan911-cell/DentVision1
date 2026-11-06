@@ -1,3 +1,10 @@
+## Exact-head verification update — 2026-11-06
+
+- EventStore new-write handling for `AIEvent.result` and `AIEvent.error` is implemented in commit `3aa6d0f7af24fbbbb5ed49bc7fac0c75fa2f8bfe`; list/detail readers decode encrypted values and preserve legacy plaintext compatibility.
+- CI `41975258101` on exact HEAD `e8877e81b105daedccba00a305f6b13d715c9b35` did not verify the change: the EventStore test suite failed before execution because the test mock's `update` value was omitted from destructuring. The remaining unit tests passed (2,482 tests / 278 files); full E2E, lint, build, TypeScript and System Map checks passed.
+- The correction adds the existing `update` mock to the destructuring; exact-head CI rerun is required. Do not mark EventStore derivative encryption verified until that suite executes and passes.
+- Historical `AIEvent.payload/result/error` rows have not been queried, counted, backfilled or changed. Key versioning/rotation, backup/restore, exception ledger and staging reconciliation remain open. No staging/production database operation occurred.
+
 # RB-029 — Patient.medicalHistory encryption inventory and migration design
 
 ## RB-029 source reconciliation — 2026-11-05 (latest)
