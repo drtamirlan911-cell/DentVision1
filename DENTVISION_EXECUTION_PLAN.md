@@ -1,3 +1,10 @@
+## Current implementation checkpoint — 2026-11-06 (recipient test fixture correction)
+
+- Existing PR #330 only; baseline HEAD `1da8313edb413a44a4cfae79799108e0a76cec2c`; branch `fix/d1-d10-trial-archive-signing-api-20261029`; base main `ac913cc3389a294d0b135a852b035ddddb1018ca`; 349 ahead / 0 behind.
+- Candidate `1da8313e` source change implements the doctor recipient boundary. CI confirmed frontend/backend lint and TypeScript/build/Prisma/Command Center/System Map success; Quality Gate and RB-034 passed. Unit suite had 2,494 passes and one new test failure.
+- The one failure was caused by a mock returning doctor-a and doctor-b even though the code's Prisma where-clause requested only doctor-b. Corrected the mock in the targeted test to return only doctor-b. No application behavior or security assertion was relaxed.
+- Exact-head CI/E2E for the child commit is required. RB-035 remains OPEN until exact-head checks and the complete negative access matrix pass. Keep PR Draft; no merge/deployment.
+
 ## Current implementation checkpoint — 2026-11-06 (RB-035 clinical AI recipient authorization)
 
 - Existing PR #330 only; branch `fix/d1-d10-trial-archive-signing-api-20261029`; starting HEAD `90635b7beef04102bed3a13d28868ae206d16cfb`; main `ac913cc3389a294d0b135a852b035ddddb1018ca`; 348 ahead / 0 behind.

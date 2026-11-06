@@ -1,3 +1,12 @@
+## Exact-head update — 2026-11-06 (recipient-security test fixture correction)
+
+- Existing PR #330 / branch `fix/d1-d10-trial-archive-signing-api-20261029`; baseline HEAD `1da8313edb413a44a4cfae79799108e0a76cec2c`; base main `ac913cc3389a294d0b135a852b035ddddb1018ca`; 349 commits ahead / 0 behind. PR stays OPEN / DRAFT; no new branch/PR or merge.
+- Baseline CI [42240853564](https://github.com/drtamirlan911-cell/DentVision1/actions/runs/42240853564): frontend lint and backend lint passed; TypeScript/build/Prisma/Command Center/System Map passed. Unit tests: 2,494 passed, 1 failed in the new `eventOrchestrator.recipients.security.test.ts`; full E2E was still in progress at this checkpoint. Quality Gate [42240853773](https://github.com/drtamirlan911-cell/DentVision1/actions/runs/42240853773) and RB-034 [42240853724](https://github.com/drtamirlan911-cell/DentVision1/actions/runs/42240853724) passed.
+- Failure analysis: the explicit-recipient test asked for `doctor-b`, but the test's `patientAssignmentFindMany` mock returned both doctor-a and doctor-b without applying Prisma's `userId in ['doctor-b']` filter. Production resolver correctly sends the requested list into the DB query; the mock's unfiltered response made the fake doctor-a row appear assigned and returnable.
+- Correction is test-only: the affected case now returns only `doctor-b`, accurately modelling the DB filter. No production code, assertion, role restriction or authorization check was weakened.
+- Exact-head CI must rerun on the child commit. Keep RB-035 OPEN pending the full unit/E2E result and broader route/role/tenant/branch/session matrix.
+- No staging/production database work, migration, PHI backfill, payment provider call, secret change, deployment or main merge.
+
 ## Exact-head checkpoint — 2026-11-06 (current CI verified; RB-035 clinical recipient boundary)
 
 - Repository: `drtamirlan911-cell/DentVision1`; continue only on existing PR #330 / branch `fix/d1-d10-trial-archive-signing-api-20261029`. Starting HEAD: `90635b7beef04102bed3a13d28868ae206d16cfb`; base/main: `ac913cc3389a294d0b135a852b035ddddb1018ca`; compare: 348 ahead / 0 behind. PR #330 remains OPEN / DRAFT. No new branch/PR and no merge.

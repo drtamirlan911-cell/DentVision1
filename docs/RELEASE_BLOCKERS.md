@@ -1,3 +1,9 @@
+## RB-035 exact-head test follow-up — 2026-11-06
+
+- Candidate source fix is implemented in PR #330 but not yet accepted as verified. Exact baseline `1da8313edb413a44a4cfae79799108e0a76cec2c` had 2,494 unit tests pass and one new recipient test fail because its Prisma mock did not apply the explicit `userId in ['doctor-b']` predicate. The production resolver passes that predicate to Prisma; the fixture returned both doctor rows.
+- Corrected the test fixture to return only the filtered doctor-b row. This is test-only and does not relax any security assertion or change runtime code. Exact-head CI and E2E for the child commit are mandatory before accepting the fix.
+- RB-035 remains OPEN for exact-head verification and the broader patient-route/role/tenant/branch/expired-session/revoked-session/financial-field matrix.
+
 ## Current exact-head checkpoint — 2026-11-06
 
 ### RB-035 — clinical AI notification recipient authorization

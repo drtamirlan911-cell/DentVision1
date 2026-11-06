@@ -142,6 +142,8 @@ describe('clinical AI notification recipient authorization', () => {
   });
 
   it('intersects explicit recipients with the active treating-doctor assignment', async () => {
+    // Prisma applies `userId in [...]`; the mock must return only that filtered row.
+    patientAssignmentFindMany.mockResolvedValueOnce([{ userId: 'doctor-b' }]);
     await expect(resolveRecipients(event(), result({ patientId: 'patient-a' }, ['doctor-b']))).resolves.toEqual([]);
     expect(patientAssignmentFindMany).toHaveBeenCalledWith({
       where: {

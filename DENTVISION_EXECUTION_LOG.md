@@ -1,3 +1,9 @@
+## 2026-11-06 — RB-035 recipient security test fixture correction
+
+- Exact candidate `1da8313edb413a44a4cfae79799108e0a76cec2c` is on existing PR #330. CI run [42240853564](https://github.com/drtamirlan911-cell/DentVision1/actions/runs/42240853564): frontend and backend lint passed, as did TypeScript/build/Prisma/Command Center/System Map; unit suite produced 2,494 passes and one failure. Quality Gate [42240853773](https://github.com/drtamirlan911-cell/DentVision1/actions/runs/42240853773) and RB-034 [42240853724](https://github.com/drtamirlan911-cell/DentVision1/actions/runs/42240853724) passed. E2E job remained in progress when inspected.
+- Failure was in the new explicit recipient negative test: fake PatientAssignment query returned both doctors although the actual query filtered for only doctor-b. This falsely allowed doctor-a into the simulated result. The test fixture now returns only doctor-b for that call, matching Prisma behavior; production code unchanged.
+- Child commit must receive exact-head unit and E2E verification. No authorization test removed/relaxed. PR remains Draft; main unchanged; no staging/production DB, migration, PHI backfill, payment call, secret change or deploy.
+
 ## 2026-11-06 — Current-head CI verified; RB-035 clinical recipient boundary correction
 
 - Rechecked PR #330 and remote refs. Starting HEAD `90635b7beef04102bed3a13d28868ae206d16cfb`, branch `fix/d1-d10-trial-archive-signing-api-20261029`, base main `ac913cc3389a294d0b135a852b035ddddb1018ca`; 348 ahead / 0 behind, 193 changed files. PR OPEN / DRAFT. Other open PR heads #333, #328, #329 and #322 were inspected and left untouched.
