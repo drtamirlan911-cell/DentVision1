@@ -1,3 +1,13 @@
+## 2026-11-06 — Current-head CI verified; RB-035 clinical recipient boundary correction
+
+- Rechecked PR #330 and remote refs. Starting HEAD `90635b7beef04102bed3a13d28868ae206d16cfb`, branch `fix/d1-d10-trial-archive-signing-api-20261029`, base main `ac913cc3389a294d0b135a852b035ddddb1018ca`; 348 ahead / 0 behind, 193 changed files. PR OPEN / DRAFT. Other open PR heads #333, #328, #329 and #322 were inspected and left untouched.
+- Local `git status` cannot be established because no local checkout is mounted. No local changes are claimed.
+- Exact-head CI [42162267260](https://github.com/drtamirlan911-cell/DentVision1/actions/runs/42162267260): e2e, backend-lint, lint-test and frontend-lint all SUCCESS. E2E passed Core, Browser UX, Mobile Design, Role/Context, Visual Agent, Business Owner, Organization Owner, Playwright CLI smoke and Visual Release evidence. Quality Gate [42162267180](https://github.com/drtamirlan911-cell/DentVision1/actions/runs/42162267180), RB-034 [42162267129](https://github.com/drtamirlan911-cell/DentVision1/actions/runs/42162267129), Vercel SUCCESS.
+- EventStore mock correction is present in `90635b7`; current exact-head CI clears the prior `update is not defined` setup failure.
+- Source finding in `eventOrchestrator.ts`: doctor agent included ASSISTANT; an explicit empty `notifyUserIds` fell back to organization-wide roles; clinical patient result data and links were then sent to the resolved audience. IAM matrix requires doctor recipients to be assigned/authorized and branch-scoped.
+- Candidate correction and regression test coverage are recorded in accompanying Context/Plan/Release Blocker updates. New candidate exact-head CI is pending; do not close RB-035 until it passes and the broader negative matrix passes.
+- No new branch/PR, main merge, staging/production DB operation, migration, PHI backfill, payment operation, secret/environment change or deployment.
+
 ## 2026-11-06 — Exact-head CI triage and RB-035 AI notification recipient audit
 
 - Repository: `drtamirlan911-cell/DentVision1`; existing PR #330 only, branch `fix/d1-d10-trial-archive-signing-api-20261029`. Starting HEAD `e8877e81b105daedccba00a305f6b13d715c9b35`, base/main `ac913cc3389a294d0b135a852b035ddddb1018ca`; 347 ahead / 0 behind, 193 changed files. Remote branch inventory: 252 names. Open PRs #333, #330, #329, #328 and #322; all other branches/PRs preserved. No new branch/PR or main merge.

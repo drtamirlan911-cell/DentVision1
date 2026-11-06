@@ -1,3 +1,11 @@
+## Current implementation checkpoint — 2026-11-06 (RB-035 clinical AI recipient authorization)
+
+- Existing PR #330 only; branch `fix/d1-d10-trial-archive-signing-api-20261029`; starting HEAD `90635b7beef04102bed3a13d28868ae206d16cfb`; main `ac913cc3389a294d0b135a852b035ddddb1018ca`; 348 ahead / 0 behind.
+- Exact-head CI `42162267260`, Quality Gate `42162267180`, RB-034 `42162267129` and Vercel passed. All four CI jobs passed, including full E2E/role/visual/owner/Playwright gates. EventStore mock correction is verified at that HEAD.
+- RB-035 remains OPEN. Candidate correction: doctor-agent notifications require a non-deleted clinic patient, active `treating_doctor` assignment, current organization-scoped DOCTOR role and existing branch-scope helper approval. ASSISTANT removed; explicit empty lists deny all; explicit IDs are intersected with verified assignments; conflicting/missing patient context denies delivery.
+- Added recipient-security regression cases for assigned, unassigned, wrong-branch, explicit-empty, mismatched explicit recipient, missing/cross-clinic, conflicting patient ID and missing patient context. Verify on candidate exact HEAD before marking fixed.
+- Continue RB-029 historical PHI/key/backup evidence, D1/D2 approved staging plan, RB-030/031/033, Kaspi and D10. Keep PR Draft; no main merge or deployment. Local tests/status unavailable because no checkout is mounted.
+
 ## Latest implementation checkpoint — 2026-11-06 (EventStore test correction; RB-035 recipient-scope finding)
 
 - Existing PR #330 only; branch `fix/d1-d10-trial-archive-signing-api-20261029`; starting HEAD `e8877e81b105daedccba00a305f6b13d715c9b35`; base/main `ac913cc3389a294d0b135a852b035ddddb1018ca`; 347 commits ahead / 0 behind, 193 changed files. No branch/PR creation and no merge.

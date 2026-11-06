@@ -1,3 +1,19 @@
+## Current exact-head checkpoint — 2026-11-06
+
+### RB-035 — clinical AI notification recipient authorization
+- **Status: OPEN until candidate exact-head CI and the full negative matrix pass.** Source review confirmed doctor-agent notifications included ASSISTANT, empty explicit `notifyUserIds: []` triggered broad role lookup, and patient-linked result data/links went to that audience.
+- Candidate correction in existing PR #330: clinical doctor recipients are limited to active clinic-scoped `PatientAssignment(role='treating_doctor')`, current organization-scoped DOCTOR PersonRole and canonical branch helper approval. ASSISTANT removed; empty explicit lists deny all; explicit recipient IDs intersect the active assignment; missing/branchless/conflicting patient contexts deny delivery.
+- Regression coverage: assigned same-branch doctor; unassigned doctor; wrong branch; empty explicit recipient; explicit recipient not assigned; missing/cross-clinic patient; conflicting patient IDs; no patient context. Candidate CI is pending.
+- Baseline HEAD `90635b7beef04102bed3a13d28868ae206d16cfb` CI [42162267260](https://github.com/drtamirlan911-cell/DentVision1/actions/runs/42162267260), Quality Gate [42162267180](https://github.com/drtamirlan911-cell/DentVision1/actions/runs/42162267180) and RB-034 [42162267129](https://github.com/drtamirlan911-cell/DentVision1/actions/runs/42162267129) passed. This baseline does not verify the recipient correction.
+- The broader patient-route/role/tenant/branch/expired-session/revoked-session and financial-field matrix remains OPEN.
+
+### Other blockers
+- RB-029 remains OPEN/P0 for legacy PHI inventory/backfill, memory/learning, notification/export/audit/error-log review, retention, key rotation and backup/restore.
+- D1/D2 four migrations and post-expiry/archive proof require approved staging. RB-030 offline sync; RB-031 WebKit/CORS/WebSocket; RB-033 branch protection; official Kaspi contract/callback; Android runtime remain OPEN.
+- RB-036 premature delivered-triggered dental-lab economics is resolved in code/E2E; D10 remains OPEN/PARTIAL for QC, remake, dispatch, services/pricing, invoice/payment/settlement/payout/refund/chargeback and partner lifecycle. Delivery must not recognize commission or mutate wallets.
+- Master Spec 5.0 compliance remains recorded as 18 PARTIAL / 4 OPEN / 2 GUIDANCE. Release NOT READY.
+- No staging/production DB operation, migration, PHI backfill, payment-provider call, secret/environment change, production deployment or main merge.
+
 # DentVision — Release Blockers & Deferred Work Register
 
 ## Current source/security checkpoint — 2026-11-05 (latest update)
