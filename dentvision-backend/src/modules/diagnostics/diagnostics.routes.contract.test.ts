@@ -45,7 +45,7 @@ describe('diagnostics route contract', () => {
 
   it('requires doctor-only clinical authorization on AI confirmation and clinic result signing', () => {
     expect(source).toContain("req.user!.role !== 'DOCTOR'");
-    expect(source).toContain("await assertClinicDoctorSignoff({ userId: req.user!.id, clinicId: referral.clinicId, assignedDoctorId: referral.doctorId })");
+    expect(source).toContain("await assertClinicDoctorSignoff({ userId: req.user!.id, clinicId: referral.clinicId, branchId: referral.branchId, assignedDoctorId: referral.doctorId })");
     expect(source).toContain("const signerScope = clinicAccess ? 'clinic' : diagnosticPartnerAccess ? 'diagnostic_center' : 'laboratory'");
     expect(source).toContain("req.user!.role !== 'SUPERADMIN' && await referralBranchAllowed(req.user!, referral)");
     expect(source).toContain("if (signerScope === 'clinic')");
