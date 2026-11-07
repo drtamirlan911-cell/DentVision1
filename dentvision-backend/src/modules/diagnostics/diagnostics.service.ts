@@ -1,5 +1,6 @@
 import prisma from '../../lib/prisma.js';
-import { isClinicMember, resolveClinicAccess, resolveOrganizationIdForClinic } from '../../lib/orgContext.js';
+import { resolveOrganizationIdForClinic } from '../../lib/orgContext.js';
+import { assertClinicDoctorSignoff } from './clinicalSignoffAuthorization.js';
 import { uid } from '../../lib/helpers.js';
 import { writeAuditLog } from '../compliance/audit.service.js';
 import { simpleChat } from '../ai/llm/client.js';
@@ -590,11 +591,12 @@ export async function saveAndSignResult(data: {
   if (!data.doctorId) throw new Error('Пользователь обязателен для подписания результата');
   const partnerSigner = data.signerScope === 'diagnostic_center' || data.signerScope === 'laboratory';
   if (!partnerSigner) {
-    if (referral.doctorId && referral.doctorId !== data.doctorId) throw new Error('Подписать результат может только назначенный врач');
-    if (referral.clinicId) {
-      const access = await resolveClinicAccess(data.doctorId, referral.clinicId);
-      if (!access || !['DOCTOR', 'OWNER', 'DIRECTOR'].includes(String(access.role).toUpperCase())) throw new Error('Пользователь не имеет права подписывать диагностический результат');
-    }
+    await assertClinicDoctorSignoff({
+      userId: data.doctorId,
+      clinicId: referral.clinicId,
+      branchId: referral.branchId,
+      assignedDoctorId: referral.doctorId,
+    });
   }
   const result = await prisma.diagnosticResult.upsert({
     where: { referralId: data.referralId },
@@ -701,28 +703,12 @@ export async function confirmAiResult(referralId: string, userId: string) {
   if (!referral.result.aiGenerated) throw new Error('Результат не является AI-результатом');
   if (referral.result.signedAt) throw new Error('Результат уже подтверждён');
 
-  const organizationId = await resolveOrganizationIdForClinic(referral.clinicId);
-  const canonicalAccess = organizationId
-    ? await prisma.person.findFirst({
-        where: {
-          userId,
-          organizationId,
-          personRoles: {
-            some: {
-              scopeType: 'organization',
-              scopeId: organizationId,
-              role: { key: { in: ['owner', 'org_owner', 'admin', 'org_admin', 'doctor'] } },
-            },
-          },
-        },
-        select: { id: true },
-      })
-    : null;
-  const authorized = referral.doctorId === userId || Boolean(canonicalAccess) ||
-    (!organizationId && await isClinicMember(userId, referral.clinicId));
-  if (!authorized) {
-    throw new Error('Только врач или уполномоченный сотрудник клиники может подтвердить AI-результат');
-  }
+  await assertClinicDoctorSignoff({
+    userId,
+    clinicId: referral.clinicId,
+    branchId: referral.branchId,
+    assignedDoctorId: referral.doctorId,
+  });
 
   const now = new Date();
   const result = await prisma.diagnosticResult.update({
