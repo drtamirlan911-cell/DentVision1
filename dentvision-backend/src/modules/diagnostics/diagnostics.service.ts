@@ -1,5 +1,5 @@
 import prisma from '../../lib/prisma.js';
-import { resolveClinicAccess, resolveOrganizationIdForClinic } from '../../lib/orgContext.js';
+import { resolveOrganizationIdForClinic } from '../../lib/orgContext.js';
 import { assertClinicDoctorSignoff } from './clinicalSignoffAuthorization.js';
 import { uid } from '../../lib/helpers.js';
 import { writeAuditLog } from '../compliance/audit.service.js';
