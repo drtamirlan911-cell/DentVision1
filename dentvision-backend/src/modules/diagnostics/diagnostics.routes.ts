@@ -369,7 +369,7 @@ diagnosticsRouter.post('/referrals/:id/results/sign', requireReferralAccess(true
     const signerScope = clinicAccess ? 'clinic' : diagnosticPartnerAccess ? 'diagnostic_center' : 'laboratory';
     if (signerScope === 'clinic') {
       if (req.user!.role !== 'DOCTOR') return res.status(403).json({ ok: false, error: 'Подписать клинический результат может только врач' } satisfies ApiResponse);
-      await assertClinicDoctorSignoff({ userId: req.user!.id, clinicId: referral.clinicId, assignedDoctorId: referral.doctorId });
+      await assertClinicDoctorSignoff({ userId: req.user!.id, clinicId: referral.clinicId, branchId: referral.branchId, assignedDoctorId: referral.doctorId });
     }
 
     const reportText = String(req.body?.reportText || '').trim();
