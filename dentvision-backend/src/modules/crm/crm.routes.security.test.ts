@@ -12,7 +12,7 @@ describe('CRM treatment-plan route security contracts', () => {
 
   it('validates doctor and linked appointment/invoice references against the patient clinic', () => {
     expect(source).toContain('await assertTreatmentPlanDoctorInClinic(doctorId, patient.clinicId)');
-    expect(source).toContain("await assertTreatmentPlanReferencesInClinic(plan.patient?.clinicId || '', { appointmentId, invoiceId })");
+    expect(source).toContain("await assertTreatmentPlanReferencesInClinic(plan.patient?.clinicId || '', { patientId: plan.patientId, appointmentId, invoiceId })");
     expect(source).toContain('TreatmentPlanReferenceError');
   });
 });
