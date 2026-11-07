@@ -47,6 +47,7 @@ describe('diagnostics route contract', () => {
     expect(source).toContain("req.user!.role !== 'DOCTOR'");
     expect(source).toContain("await assertClinicDoctorSignoff({ userId: req.user!.id, clinicId: referral.clinicId, assignedDoctorId: referral.doctorId })");
     expect(source).toContain("const signerScope = clinicAccess ? 'clinic' : diagnosticPartnerAccess ? 'diagnostic_center' : 'laboratory'");
+    expect(source).toContain("req.user!.role !== 'SUPERADMIN' && await referralBranchAllowed(req.user!, referral)");
     expect(source).toContain("if (signerScope === 'clinic')");
   });
 
