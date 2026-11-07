@@ -1,9 +1,10 @@
-## Exact-head verification update — 2026-11-06
+## Exact-head verification update — 2026-11-07
 
-- EventStore new-write handling for `AIEvent.result` and `AIEvent.error` is implemented in commit `3aa6d0f7af24fbbbb5ed49bc7fac0c75fa2f8bfe`; list/detail readers decode encrypted values and preserve legacy plaintext compatibility.
-- CI `41975258101` on exact HEAD `e8877e81b105daedccba00a305f6b13d715c9b35` did not verify the change: the EventStore test suite failed before execution because the test mock's `update` value was omitted from destructuring. The remaining unit tests passed (2,482 tests / 278 files); full E2E, lint, build, TypeScript and System Map checks passed.
-- The correction adds the existing `update` mock to the destructuring; exact-head CI rerun is required. Do not mark EventStore derivative encryption verified until that suite executes and passes.
-- Historical `AIEvent.payload/result/error` rows have not been queried, counted, backfilled or changed. Key versioning/rotation, backup/restore, exception ledger and staging reconciliation remain open. No staging/production database operation occurred.
+- EventStore new-write encryption is merged in PR #330 at commit `0de83c7331bc062444cd4d6701948cb97f6f44f5`.
+- Exact merged-head verification: CI [42344016473](https://github.com/drtamirlan911-cell/DentVision1/actions/runs/42344016473), Quality Gate [42344016403](https://github.com/drtamirlan911-cell/DentVision1/actions/runs/42344016403), RB-034 [42344016344](https://github.com/drtamirlan911-cell/DentVision1/actions/runs/42344016344) all succeeded.
+- `EventStore.save()` encrypts new `AIEvent.payload`; `markCompleted()` encrypts new `AIEvent.result`; `markFailed()` encrypts new `AIEvent.error`. `claimPending()`, `getEvents()` and `getEventById()` decode values. The merged CI executed the EventStore encryption tests, including persistence ciphertext, list/detail round-trip, legacy plaintext reads and fail-closed decryption.
+- This closes the **new-write source correction only**. Historical plaintext `AIEvent.payload/result/error` rows have not been counted or backfilled. Memory/learning, few-shot examples, realtime streams, notifications, exports, audit/error logs, Android/browser caches, retention/deletion, key versioning/rotation, old-key decryption, backup/restore, exception ledger and staging reconciliation remain open.
+- No historical database query, migration, staging/production backfill, backup restore or key rotation was performed. RB-029 remains OPEN / P0.
 
 # RB-029 — Patient.medicalHistory encryption inventory and migration design
 
