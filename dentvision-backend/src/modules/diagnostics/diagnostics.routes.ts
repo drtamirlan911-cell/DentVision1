@@ -350,7 +350,10 @@ diagnosticsRouter.post('/referrals/:id/results/sign', requireReferralAccess(true
   try {
     const referral = await prisma.referral.findUnique({ where: { id: req.params.id }, select: { clinicId: true, doctorId: true, branchId: true, centerId: true, labId: true } });
     if (!referral) return res.status(404).json({ ok: false, error: 'Referral not found' } satisfies ApiResponse);
-    const clinicAccess = await referralBranchAllowed(req.user!, referral);
+    // SUPERADMIN bypasses operational branch middleware, but that bypass is not
+    // proof of clinical clinic membership. It may still act as a partner signer
+    // only when an explicit scoped radiologist/laboratory role is present.
+    const clinicAccess = req.user!.role !== 'SUPERADMIN' && await referralBranchAllowed(req.user!, referral);
     const diagnosticPartnerAccess = referral.centerId ? sameOrgContext(req.user, 'DiagnosticCenter', referral.centerId) : false;
     const laboratoryPartnerAccess = referral.labId ? sameOrgContext(req.user, 'Laboratory', referral.labId) : false;
     const partnerAccess = diagnosticPartnerAccess || laboratoryPartnerAccess;
