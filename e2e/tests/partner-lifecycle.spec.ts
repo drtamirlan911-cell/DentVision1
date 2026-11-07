@@ -20,6 +20,7 @@ test.describe('Partner operational lifecycle', () => {
   let ownerToken = '';
   let superadminToken = '';
   let doctorToken = '';
+  let crossClinicDoctorToken = '';
   let patientId = '';
   let doctorId = '';
   const prisma = new PrismaClient();
@@ -43,6 +44,7 @@ test.describe('Partner operational lifecycle', () => {
     ownerToken = await login(api, 'owner-a@test.com');
     superadminToken = await login(api, 'superadmin@test.com');
     doctorToken = await login(api, 'doctor-a@test.com');
+    crossClinicDoctorToken = await login(api, 'doctor-b@test.com');
 
     const me = await api.get(`${BASE}/api/auth/me`, { headers: auth(doctorToken) });
     const body = await me.json();
@@ -483,7 +485,7 @@ test.describe('Partner operational lifecycle', () => {
     await prisma.diagnosticResult.create({
       data: { referralId: aiReferral.id, reportText: 'RB037 AI draft', aiGenerated: true },
     });
-    for (const token of [ownerToken, ...operationalTokens, superadminToken]) {
+    for (const token of [ownerToken, ...operationalTokens, superadminToken, crossClinicDoctorToken]) {
       const denied = await api.post(`${BASE}/api/diagnostics/referrals/${aiReferral.id}/confirm-ai-result`, {
         headers: auth(token),
       });
