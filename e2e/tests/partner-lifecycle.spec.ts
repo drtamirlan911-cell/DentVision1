@@ -530,7 +530,7 @@ test.describe('Partner operational lifecycle', () => {
     expect(storedResult?.signedAt).toBeTruthy();
     expect(await prisma.visit.count({ where: { patientId } })).toBe(visitsBefore + 1);
     const createdVisit = await prisma.visit.findFirst({
-      where: { patientId, doctorId, diagnosis: signedConclusion },
+      where: { patientId, doctorId, notes: { contains: signReferral.id.slice(0, 8) } },
       select: { id: true },
     });
     expect(createdVisit?.id).toBeTruthy();
