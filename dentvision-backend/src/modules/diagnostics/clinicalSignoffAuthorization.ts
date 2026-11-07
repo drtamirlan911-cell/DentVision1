@@ -16,7 +16,8 @@ export async function assertClinicDoctorSignoff(input: {
 }): Promise<void> {
   const userId = String(input.userId || '').trim();
   const clinicId = String(input.clinicId || '').trim();
-  if (!userId || !clinicId) throw new ClinicalSignoffAuthorizationError();
+  const branchId = String(input.branchId || '').trim();
+  if (!userId || !clinicId || !branchId) throw new ClinicalSignoffAuthorizationError('Для клинической подписи обязательны врач, клиника и филиал направления');
   if (input.assignedDoctorId && input.assignedDoctorId !== userId) {
     throw new ClinicalSignoffAuthorizationError('Подписать результат может только назначенный врач');
   }
@@ -40,7 +41,7 @@ export async function assertClinicDoctorSignoff(input: {
       branchIds: [],
       clinicId,
     },
-    { clinicId, branchId: input.branchId || null },
+    { clinicId, branchId },
   );
   if (!branchAllowed) {
     throw new ClinicalSignoffAuthorizationError('У врача нет доступа к филиалу направления');
