@@ -1,4 +1,5 @@
 import { resolveClinicAccess } from '../../lib/orgContext.js';
+import { canAccessReferralBranch } from '../../lib/diagnosticReferralBranchPolicy.js';
 
 export class ClinicalSignoffAuthorizationError extends Error {
   constructor(message = 'Подтверждать и подписывать клинический результат может только уполномоченный врач') {
@@ -10,6 +11,7 @@ export class ClinicalSignoffAuthorizationError extends Error {
 export async function assertClinicDoctorSignoff(input: {
   userId: string;
   clinicId: string | null | undefined;
+  branchId: string | null | undefined;
   assignedDoctorId?: string | null;
 }): Promise<void> {
   const userId = String(input.userId || '').trim();
@@ -24,5 +26,23 @@ export async function assertClinicDoctorSignoff(input: {
   const access = await resolveClinicAccess(userId, clinicId);
   if (!access || String(access.role).toUpperCase() !== 'DOCTOR') {
     throw new ClinicalSignoffAuthorizationError();
+  }
+
+  // Re-check the persisted clinic membership's branch assignment at the
+  // service boundary. The route guard is still required, but must not be the
+  // only protection if another internal caller invokes this service later.
+  const branchAllowed = await canAccessReferralBranch(
+    {
+      id: userId,
+      role: 'DOCTOR',
+      organizationId: null,
+      assignedBranchId: null,
+      branchIds: [],
+      clinicId,
+    },
+    { clinicId, branchId: input.branchId || null },
+  );
+  if (!branchAllowed) {
+    throw new ClinicalSignoffAuthorizationError('У врача нет доступа к филиалу направления');
   }
 }
