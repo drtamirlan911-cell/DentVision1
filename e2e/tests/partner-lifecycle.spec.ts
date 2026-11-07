@@ -20,6 +20,7 @@ test.describe('Partner operational lifecycle', () => {
   let ownerToken = '';
   let superadminToken = '';
   let doctorToken = '';
+  let crossClinicDoctorToken = '';
   let patientId = '';
   let doctorId = '';
   const prisma = new PrismaClient();
@@ -34,12 +35,16 @@ test.describe('Partner operational lifecycle', () => {
   let fixtureAlternativeDentalLabId = '';
   let dentalTechnicianId = '';
   let dentalTechnicianToken = '';
+  const rb037UserIds: string[] = [];
+  const rb037ReferralIds: string[] = [];
+  const rb037VisitIds: string[] = [];
 
   test.beforeAll(async ({ playwright }) => {
     api = await playwright.request.newContext();
     ownerToken = await login(api, 'owner-a@test.com');
     superadminToken = await login(api, 'superadmin@test.com');
     doctorToken = await login(api, 'doctor-a@test.com');
+    crossClinicDoctorToken = await login(api, 'doctor-b@test.com');
 
     const me = await api.get(`${BASE}/api/auth/me`, { headers: auth(doctorToken) });
     const body = await me.json();
@@ -317,6 +322,18 @@ test.describe('Partner operational lifecycle', () => {
   });
 
   test.afterAll(async () => {
+    if (rb037VisitIds.length) {
+      await prisma.visit.deleteMany({ where: { id: { in: rb037VisitIds } } }).catch(() => {});
+    }
+    if (rb037ReferralIds.length) {
+      await prisma.referral.deleteMany({ where: { id: { in: rb037ReferralIds } } }).catch(() => {});
+    }
+    for (const userId of rb037UserIds) {
+      await prisma.clinicMember.deleteMany({ where: { userId } }).catch(() => {});
+      await prisma.personRole.deleteMany({ where: { person: { userId } } }).catch(() => {});
+      await prisma.person.deleteMany({ where: { userId } }).catch(() => {});
+      await prisma.user.delete({ where: { id: userId } }).catch(() => {});
+    }
     if (dentalTechnicianId) {
       await prisma.personRole.deleteMany({ where: { person: { userId: dentalTechnicianId } } }).catch(() => {});
       await prisma.person.deleteMany({ where: { userId: dentalTechnicianId } }).catch(() => {});
@@ -389,6 +406,137 @@ test.describe('Partner operational lifecycle', () => {
     const clinicReferral = (await clinicRead.json()).data;
     expect(clinicReferral.id).toBe(referral.id);
     expect(clinicReferral.result || clinicReferral.results || clinicReferral.reportText).toBeTruthy();
+  });
+
+  test('RB-037: clinic diagnostic confirmation and signing are doctor-only', async () => {
+    const clinic = await prisma.clinic.findFirst({ where: { name: 'E2E Clinic A' }, select: { id: true } });
+    expect(clinic?.id).toBeTruthy();
+    const clinicId = clinic!.id;
+    const branchRows = await prisma.$queryRaw<Array<{ id: string }>>`SELECT id FROM branches WHERE clinic_id = ${clinicId} AND "isDefault" = true LIMIT 1`;
+    const branchId = branchRows[0]?.id;
+    expect(branchId).toBeTruthy();
+
+    const operationalRoles = [
+      { role: 'ADMIN', roleKey: 'admin' },
+      { role: 'MANAGER', roleKey: 'manager' },
+      { role: 'ASSISTANT', roleKey: 'assistant' },
+    ] as const;
+    const operationalTokens: string[] = [];
+    const organization = await prisma.organization.findFirst({
+      where: { originalType: 'Clinic', originalId: clinicId },
+      select: { id: true },
+    });
+
+    for (const entry of operationalRoles) {
+      const email = `rb037-${entry.role.toLowerCase()}-${randomUUID()}@test.dentvision`;
+      const user = await createTestUser({ email, firstName: 'RB037', lastName: entry.role, role: entry.role as any });
+      rb037UserIds.push(user.id);
+      await prisma.clinicMember.create({
+        data: { userId: user.id, clinicId, role: entry.role as any },
+      });
+      await prisma.$executeRaw`UPDATE "clinic_members" SET branch_id = ${branchId} WHERE "userId" = ${user.id} AND "clinicId" = ${clinicId}`;
+
+      if (organization) {
+        const person = await prisma.person.create({
+          data: {
+            id: randomUUID(),
+            fullName: `RB037 ${entry.role}`,
+            personType: 'CLINIC_STAFF',
+            organizationId: organization.id,
+            userId: user.id,
+          },
+        });
+        const role = await prisma.role.findUnique({ where: { key: entry.roleKey }, select: { id: true } });
+        expect(role?.id, `missing seeded clinic role ${entry.roleKey}`).toBeTruthy();
+        await prisma.personRole.create({
+          data: {
+            id: randomUUID(),
+            personId: person.id,
+            roleId: role!.id,
+            scopeType: 'organization',
+            scopeId: organization.id,
+            scopeKey: `organization:${organization.id}`,
+          },
+        });
+      }
+      operationalTokens.push(await login(api, email));
+    }
+
+    const createReferral = async (suffix: string) => {
+      const referral = await prisma.referral.create({
+        data: {
+          clinicId,
+          branchId,
+          patientId,
+          doctorId,
+          patientName: `RB037 ${suffix}`,
+          category: 'CBCT',
+          studyType: 'CBCT',
+          status: 'DRAFT',
+        },
+      });
+      rb037ReferralIds.push(referral.id);
+      return referral;
+    };
+
+    // AI confirmation: operational users and SUPERADMIN cannot acknowledge
+    // an AI draft or move the referral into COMPLETED.
+    const aiReferral = await createReferral('AI confirmation');
+    await prisma.diagnosticResult.create({
+      data: { referralId: aiReferral.id, reportText: 'RB037 AI draft', aiGenerated: true },
+    });
+    for (const token of [ownerToken, ...operationalTokens, superadminToken, crossClinicDoctorToken]) {
+      const denied = await api.post(`${BASE}/api/diagnostics/referrals/${aiReferral.id}/confirm-ai-result`, {
+        headers: auth(token),
+      });
+      expect(denied.status(), `non-doctor token must be denied AI confirmation`).toBe(403);
+    }
+    const unsignedAi = await prisma.diagnosticResult.findUnique({ where: { referralId: aiReferral.id } });
+    const unchangedAiReferral = await prisma.referral.findUnique({ where: { id: aiReferral.id } });
+    expect(unsignedAi?.signedAt).toBeNull();
+    expect(unchangedAiReferral?.status).toBe('DRAFT');
+
+    const confirmed = await api.post(`${BASE}/api/diagnostics/referrals/${aiReferral.id}/confirm-ai-result`, {
+      headers: auth(doctorToken),
+    });
+    expect(confirmed.status(), JSON.stringify(await confirmed.json())).toBe(200);
+    const confirmedResult = await prisma.diagnosticResult.findUnique({ where: { referralId: aiReferral.id } });
+    expect(confirmedResult?.signedBy).toBe(doctorId);
+    expect(confirmedResult?.signedAt).toBeTruthy();
+
+    // Clinical chart signing: denied actors must not create a DiagnosticResult,
+    // complete the referral, or insert a Visit. The assigned clinic doctor can.
+    const signReferral = await createReferral('result signing');
+    const visitsBefore = await prisma.visit.count({ where: { patientId } });
+    for (const token of [ownerToken, ...operationalTokens, superadminToken, crossClinicDoctorToken]) {
+      const denied = await api.post(`${BASE}/api/diagnostics/referrals/${signReferral.id}/results/sign`, {
+        headers: auth(token),
+        data: { reportText: 'Unauthorized RB037 report', conclusion: 'Must not be stored' },
+      });
+      expect(denied.status(), `non-doctor token must be denied result signing`).toBe(403);
+    }
+    expect(await prisma.diagnosticResult.findUnique({ where: { referralId: signReferral.id } })).toBeNull();
+    expect((await prisma.referral.findUnique({ where: { id: signReferral.id } }))?.status).toBe('DRAFT');
+    expect(await prisma.visit.count({ where: { patientId } })).toBe(visitsBefore);
+
+    const signedConclusion = `RB037 doctor verified ${randomUUID()}`;
+    const signed = await api.post(`${BASE}/api/diagnostics/referrals/${signReferral.id}/results/sign`, {
+      headers: auth(doctorToken),
+      data: { reportText: 'Authorized RB037 report', conclusion: signedConclusion },
+    });
+    const signedBody = await signed.json();
+    expect(signed.status(), JSON.stringify(signedBody)).toBe(200);
+    expect(signedBody.data.patientRecordUpdated).toBe(true);
+    const storedResult = await prisma.diagnosticResult.findUnique({ where: { referralId: signReferral.id } });
+    expect(storedResult?.signedBy).toBe(doctorId);
+    expect(storedResult?.signedAt).toBeTruthy();
+    expect(await prisma.visit.count({ where: { patientId } })).toBe(visitsBefore + 1);
+    const createdVisit = await prisma.visit.findFirst({
+      where: { patientId, doctorId, notes: { contains: signReferral.id.slice(0, 8) } },
+      select: { id: true },
+    });
+    expect(createdVisit?.id).toBeTruthy();
+    if (createdVisit?.id) rb037VisitIds.push(createdVisit.id);
   });
 
   test('PARTNER-002: medical laboratory order → full lifecycle → result → delivered', async () => {
