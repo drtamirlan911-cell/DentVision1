@@ -104,12 +104,12 @@ test.describe('Lab Order Workflow', () => {
     expect(orders.some((o: any) => o.id === orderId)).toBe(true);
   });
 
-  test('LAB-003: Update lab order via POST with id in body → 201 + changes persisted', async () => {
+  test('LAB-003: Update lab order via POST with id in body → 200 + changes persisted', async () => {
     const created = await (await createLabOrder(api, ownerToken)).json();
     const orderId = (created.data || created).id;
 
     const updateRes = await createLabOrder(api, ownerToken, { id: orderId, material: 'e-max', shade: 'B1' });
-    expect(updateRes.status()).toBe(201);
+    expect(updateRes.status()).toBe(200);
     const updated = await updateRes.json();
     const order = updated.data || updated;
     expect(order.id).toBe(orderId);
@@ -155,9 +155,9 @@ test.describe('Lab Order Workflow', () => {
         headers: auth(ownerToken),
         data: { status },
       });
-      expect(res.status()).toBe(200);
-      const body = await res.json();
-      expect((body.data || body).status).toBe(status);
+      const responseBody = await res.json().catch(() => ({}));
+      expect(res.status(), `LAB-006 ${status}: ${JSON.stringify(responseBody)}`).toBe(200);
+      expect((responseBody.data || responseBody).status).toBe(status);
     }
   });
 

@@ -18,11 +18,18 @@ interface PatientContextData {
   address?: string
 }
 
+interface PatientReadAccess {
+  /** Read the clinical chart, images and medical-card details. Defaults to false. */
+  clinicalChart?: boolean
+  /** Read the financial/appointment summary. Defaults to false. */
+  billingSummary?: boolean
+}
+
 interface PatientState {
   selectedPatient: string | null
   patientData: PatientContextData | null
   loading: boolean
-  openPatient: (id: string) => Promise<void>
+  openPatient: (id: string, access?: PatientReadAccess) => Promise<void>
   closePatient: () => void
 }
 
@@ -34,20 +41,32 @@ function splitAllergies(raw: unknown): string[] | undefined {
   return undefined
 }
 
+// Invalidate in-flight loads when the selected patient or workspace changes.
+let patientLoadVersion = 0
+
 export const usePatientStore = create<PatientState>((set) => ({
   selectedPatient: null,
   patientData: null,
   loading: false,
 
-  openPatient: async (id) => {
+  openPatient: async (id, access) => {
     if (!id) return
-    set({ selectedPatient: id, loading: true })
+    const requestVersion = ++patientLoadVersion
+    const canReadClinicalChart = access?.clinicalChart === true
+    const canReadBillingSummary = access?.billingSummary === true
+
+    // Fail closed: an operational patient selection may keep its ID in context,
+    // but it must not fetch chart, medical-card or financial data.
+    set({ selectedPatient: id, loading: canReadClinicalChart, patientData: null })
+    if (!canReadClinicalChart) return
+
     try {
       const [patient, summary, card] = await Promise.all([
         api.getPatient(id).catch(() => null),
-        api.getPatientSummary(id).catch(() => null),
+        canReadBillingSummary ? api.getPatientSummary(id).catch(() => null) : Promise.resolve(null),
         api.getMedicalCard(id).catch(() => null),
       ])
+      if (requestVersion !== patientLoadVersion) return
 
       const history = (patient as any)?.medicalHistory || card || {}
       const name =
@@ -61,6 +80,7 @@ export const usePatientStore = create<PatientState>((set) => ({
         (patient as any)?.allergies ?? history.allergies ?? (card as any)?.allergies,
       )
 
+      if (requestVersion !== patientLoadVersion) return
       set({
         selectedPatient: id,
         loading: false,
@@ -88,9 +108,12 @@ export const usePatientStore = create<PatientState>((set) => ({
         set((s) => s.patientData ? { patientData: { ...s.patientData, debt: explicitDebt } } : {})
       }
     } catch {
-      set({ loading: false, patientData: null })
+      if (requestVersion === patientLoadVersion) set({ loading: false, patientData: null })
     }
   },
 
-  closePatient: () => set({ selectedPatient: null, patientData: null, loading: false }),
+  closePatient: () => {
+    patientLoadVersion += 1
+    set({ selectedPatient: null, patientData: null, loading: false })
+  },
 }))

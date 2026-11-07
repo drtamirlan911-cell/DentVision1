@@ -16,13 +16,14 @@ import {
 } from '../crm/appointmentMeta.js';
 import { metaFromClosedVisit } from '../crm/payroll.js';
 import { resolveDeductionPlan, applyDeductionPlan } from '../inventory/deductionRules.js';
-import { loadClinicAccess, requireClinicWritable } from '../../middleware/planGate.js';
+import { loadClinicAccess, blockClinicWrites, requireClinicWritable } from '../../middleware/planGate.js';
 import { isClinicMember } from '../../lib/orgContext.js';
 
 export const appointmentsRouter = Router();
 
 appointmentsRouter.use(authenticate);
 appointmentsRouter.use(loadClinicAccess);
+appointmentsRouter.use(blockClinicWrites);
 
 const patientSelect = { id: true, firstName: true, lastName: true, phone: true } as const;
 

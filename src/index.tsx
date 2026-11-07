@@ -120,6 +120,7 @@ if (container) {
           <Providers>
             <Routes>
               <Route path="/login" element={<Suspense fallback={<PageLoader />}><Login /></Suspense>} />
+              <Route path="/register" element={<Navigate to="/login?register=1" replace />} />
               <Route path="/onboarding" element={<Suspense fallback={<PageLoader />}><Onboarding /></Suspense>} />
               <Route path="/organizations/new" element={<Navigate to="/onboarding?mode=create" replace />} />
               <Route path="/organizations/join" element={<Navigate to="/onboarding?mode=join" replace />} />
@@ -155,6 +156,32 @@ if (container) {
                 <Route path="practice/finance" element={<Navigate to="/crm/cashier" replace />} />
                 <Route path="practice/team" element={<Navigate to="/crm/staff" replace />} />
                 <Route path="practice/branches" element={<Navigate to="/settings" replace />} />
+                {/* Canonical medical-organization paths alias existing, permission-guarded clinic workflows. */}
+                <Route path="medical" element={<Navigate to="/crm/schedule" replace />} />
+                <Route path="medical/today" element={<Navigate to="/crm/schedule" replace />} />
+                <Route path="medical/patients" element={<Navigate to="/crm/patients" replace />} />
+                <Route path="medical/appointments" element={<Navigate to="/crm/schedule" replace />} />
+                <Route path="medical/cases" element={<Navigate to="/crm/cases" replace />} />
+                <Route path="medical/diagnostics" element={<Navigate to="/diagnostics" replace />} />
+                <Route path="medical/laboratory" element={<Navigate to="/crm/lab" replace />} />
+                <Route path="medical/documents" element={<Navigate to="/crm/documents" replace />} />
+                <Route path="medical/team" element={<Navigate to="/crm/staff" replace />} />
+                <Route path="medical/branches" element={<Navigate to="/settings" replace />} />
+                <Route path="medical/finance" element={<Navigate to="/crm/cashier" replace />} />
+                <Route path="medical/analytics" element={<Navigate to="/analytics" replace />} />
+                <Route path="medical/settings" element={<Navigate to="/settings" replace />} />
+                {/* Canonical admin URLs route to existing guarded screens, not cloned pages. */}
+                <Route path="admin/organization" element={<Navigate to="/settings" replace />} />
+                <Route path="admin/branches" element={<Navigate to="/settings" replace />} />
+                <Route path="admin/members" element={<Navigate to="/crm/staff" replace />} />
+                <Route path="admin/roles" element={<Navigate to="/settings" replace />} />
+                <Route path="admin/permissions" element={<Navigate to="/settings" replace />} />
+                <Route path="admin/services" element={<Navigate to="/crm/clinic-settings" replace />} />
+                <Route path="admin/integrations" element={<Navigate to="/crm/integrations/messaging" replace />} />
+                <Route path="admin/billing" element={<Navigate to="/crm/billing" replace />} />
+                <Route path="admin/audit" element={<Navigate to="/audit" replace />} />
+                <Route path="admin/security" element={<Navigate to="/security" replace />} />
+                <Route path="admin/data" element={<Navigate to="/backup" replace />} />
                 <Route path="medical-lab" element={<Navigate to="/diagnostics/lab?workspace=medical-lab" replace />} />
                 <Route path="dental-lab" element={<Navigate to="/diagnostics/lab?workspace=dental-lab" replace />} />
                 <Route path="business" element={<Navigate to="/supplier" replace />} />
@@ -322,10 +349,10 @@ if (container) {
                 <Route path="crm/integrations/messaging" element={guarded('clinic-settings', <IntegrationsMessaging />)} />
                 <Route path="shop" element={<Suspense fallback={<PageLoader />}><Shop /></Suspense>} />
                 <Route path="shop/:id" element={<Suspense fallback={<PageLoader />}><ShopProduct /></Suspense>} />
-                <Route path="shop/checkout" element={<Suspense fallback={<PageLoader />}><ShopCheckout /></Suspense>} />
-                <Route path="shop/orders" element={<Suspense fallback={<PageLoader />}><ShopOrders /></Suspense>} />
-                <Route path="shop/favorites" element={<Suspense fallback={<PageLoader />}><ShopFavorites /></Suspense>} />
-                <Route path="shop/suppliers" element={<Suspense fallback={<PageLoader />}><ShopSuppliers /></Suspense>} />
+                <Route path="shop/checkout" element={guarded('shop', <ShopCheckout />)} />
+                <Route path="shop/orders" element={guarded('shop', <ShopOrders />)} />
+                <Route path="shop/favorites" element={guarded('shop', <ShopFavorites />)} />
+                <Route path="shop/suppliers" element={guarded('shop', <ShopSuppliers />)} />
                 <Route path="diagnostics" element={guarded('diagnostics', <DiagnosticsLayout />)}>
                   <Route index element={<Suspense fallback={<PageLoader />}><DiagnosticsDashboard /></Suspense>} />
                   <Route path="referrals" element={guarded('diagnostics-referrals', <ReferralList />)} />
@@ -347,9 +374,10 @@ if (container) {
                   <Route path="center-dashboard" element={<Navigate to="/diagnostics/center" replace />} />
                   <Route path="lab-dashboard" element={<Navigate to="/diagnostics/lab" replace />} />
                 </Route>
-                <Route path="school" element={<Suspense fallback={<PageLoader />}><School /></Suspense>} />
-                <Route path="school/course/:id" element={<Suspense fallback={<PageLoader />}><SchoolCourse /></Suspense>} />
-                <Route path="school/workspace" element={<Suspense fallback={<PageLoader />}><SchoolWorkspace /></Suspense>} />
+                <Route path="school/courses" element={guarded('school', <Navigate to="/school" replace />)} />
+                <Route path="school" element={guarded('school', <School />)} />
+                <Route path="school/course/:id" element={guarded('school', <SchoolCourse />)} />
+                <Route path="school/workspace" element={guarded('school', <SchoolWorkspace />)} />
                 <Route path="school-workspace" element={<Navigate to="/school/workspace" replace />} />
                 <Route path="admin/shop" element={guarded('admin', <ShopAdmin />)} />
                 <Route path="admin/school" element={guarded('admin', <SchoolAdmin />)} />

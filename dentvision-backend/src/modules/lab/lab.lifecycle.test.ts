@@ -11,6 +11,13 @@ describe('dental laboratory lifecycle', () => {
     expect(isDentalLabTransitionAllowed('ready', 'delivered')).toBe(true);
   });
 
+  it('keeps clinic-owned legacy orders on the local path while making QC a partner sign-off state', () => {
+    expect(isDentalLabTransitionAllowed('in_progress', 'ready')).toBe(true);
+    expect(isDentalLabTransitionAllowed('try_in', 'ready')).toBe(true);
+    expect(isDentalLabTransitionAllowed('qc', 'ready')).toBe(false);
+    expect(DENTAL_LAB_TRANSITIONS).not.toHaveProperty('qc');
+  });
+
   it('allows remake without treating remake as delivery', () => {
     expect(isDentalLabTransitionAllowed('ready', 'remake')).toBe(true);
     expect(isDentalLabTransitionAllowed('delivered', 'remake')).toBe(true);

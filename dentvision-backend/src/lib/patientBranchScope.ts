@@ -1,3 +1,4 @@
+import type { Prisma } from '@prisma/client';
 import prisma from './prisma.js';
 
 export type PatientBranchScope =
@@ -95,8 +96,15 @@ export async function assertPatientBranchBelongsToClinic(branchId: string, clini
   return rows.length > 0;
 }
 
-export async function setPatientBranch(patientId: string, clinicId: string, branchId: string): Promise<void> {
-  await prisma.$executeRaw`
+type PatientBranchWriteClient = Pick<Prisma.TransactionClient, '$executeRaw'>;
+
+export async function setPatientBranch(
+  patientId: string,
+  clinicId: string,
+  branchId: string,
+  client: PatientBranchWriteClient = prisma,
+): Promise<void> {
+  await client.$executeRaw`
     UPDATE patients
     SET branch_id = ${branchId}, "updatedAt" = NOW()
     WHERE id = ${patientId} AND "clinicId" = ${clinicId}

@@ -4,7 +4,7 @@ import prisma from '../../lib/prisma.js';
 import { authenticate } from '../../middleware/auth.js';
 import { requirePermission } from '../../middleware/rbac.js';
 import type { AuthRequest, ApiResponse } from '../../types/index.js';
-import { assertClinicBillingAccess } from './clinicSubscription.service.js';
+import { assertClinicBillingAccess, clinicTenancyUpdateForSubscription } from './clinicSubscription.service.js';
 import { assertOrgAccess } from '../../lib/orgContext.js';
 import { auditFromReq } from '../compliance/audit.service.js';
 
@@ -99,10 +99,7 @@ subscriptionsRouter.post('/', requirePermission('finance.manage'), async (req: A
         plan === 'enterprise' ? 'ENTERPRISE' : plan === 'professional' ? 'PRO' : plan === 'starter' ? 'STANDARD' : 'DEMO';
       await prisma.clinic.update({
         where: { id: ownerId },
-        data: {
-          plan: clinicPlan as any,
-          active: status !== 'expired' && status !== 'suspended',
-        },
+        data: clinicTenancyUpdateForSubscription(clinicPlan as any, sub.status),
       });
     }
     await auditFromReq(req, {

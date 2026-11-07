@@ -1,4 +1,4 @@
-import { test, expect, type Page } from '@playwright/test';
+import { test, expect, type Page, type ConsoleMessage, type Response } from '@playwright/test';
 
 const BASE_URL = process.env.PLAYWRIGHT_UI_URL || 'http://localhost:3000';
 const API_BASE_URL = process.env.PLAYWRIGHT_API_URL || 'http://localhost:3001';
@@ -33,11 +33,67 @@ async function login(page: Page) {
 
 function collectRuntimeErrors(page: Page) {
   const errors: string[] = [];
-  page.on('pageerror', (error) => errors.push(`pageerror: ${error.message}`));
-  page.on('console', (message) => {
-    if (message.type() === 'error') errors.push(`console: ${message.text()}`);
-  });
-  return errors;
+  const pendingConsoleDetails: Promise<void>[] = [];
+  const onPageError = (error: Error) => errors.push(`pageerror: ${error.message}`);
+  const onConsole = (message: ConsoleMessage) => {
+    if (message.type() !== 'error') return;
+    const messageText = message.text();
+    const index = errors.push(`console: ${messageText}`) - 1;
+
+    // React supplies the component-owner stack as console arguments; text()
+    // alone drops those %s arguments and hides the component that created the list.
+    if (/Each child in a list should have a unique ["']key["'] prop/i.test(messageText)) {
+      pendingConsoleDetails.push(
+        Promise.all(message.args().map(async (argument) => {
+          try {
+            const value: unknown = await argument.jsonValue();
+            if (typeof value === 'string') return value.slice(0, 1200);
+            return JSON.stringify(value).slice(0, 1200);
+          } catch {
+            return '[console argument unavailable]';
+          }
+        })).then((details) => {
+          const useful = details.filter((detail) => detail && detail !== 'undefined');
+          if (useful.length) errors[index] = `${errors[index]} | React details: ${useful.join(' | ')}`;
+        }),
+      );
+    }
+  };
+  const onResponse = (response: Response) => {
+    const status = response.status();
+    if (status < 400) return;
+    let url: URL;
+    try {
+      url = new URL(response.url());
+    } catch {
+      return;
+    }
+    if (!url.pathname.startsWith('/api/')) return;
+
+    // Record the status/path synchronously so an incomplete response body can
+    // never stall the route gate. Attach only bounded generic code/error fields
+    // asynchronously; never serialize arbitrary response data or patient data.
+    const index = errors.push(`http ${status}: ${url.pathname}${url.search}`) - 1;
+    void response.json().then((payload: unknown) => {
+      const record = payload && typeof payload === 'object' ? payload as Record<string, unknown> : {};
+      const code = typeof record.code === 'string' ? record.code.slice(0, 80) : '';
+      const message = typeof record.error === 'string' ? record.error.slice(0, 120) : '';
+      const detail = [code, message].filter(Boolean).join(': ');
+      if (detail) errors[index] = `${errors[index]} (${detail})`;
+    }).catch(() => {});
+  };
+  page.on('pageerror', onPageError);
+  page.on('console', onConsole);
+  page.on('response', onResponse);
+  return {
+    errors,
+    flush: async () => { await Promise.all(pendingConsoleDetails); },
+    dispose: () => {
+      page.off('pageerror', onPageError);
+      page.off('console', onConsole);
+      page.off('response', onResponse);
+    },
+  };
 }
 
 test.describe('DentVision browser UX coverage', () => {
@@ -49,7 +105,7 @@ test.describe('DentVision browser UX coverage', () => {
   test('UX-001: every declared static route renders without runtime errors', async ({ page }) => {
     const failures: string[] = [];
     for (const route of ROUTES) {
-      const errors = collectRuntimeErrors(page);
+      const runtime = collectRuntimeErrors(page);
       try {
         await page.goto(`${BASE_URL}${route}`, { waitUntil: 'domcontentloaded', timeout: 20000 });
         await expect.poll(() => page.locator('body').innerText().catch(() => ''), {
@@ -76,9 +132,12 @@ test.describe('DentVision browser UX coverage', () => {
         if (/Application error|ChunkLoadError|Failed to fetch dynamically imported module/i.test(bodyText)) {
           failures.push(`${route}: application/chunk error visible`);
         }
-        if (errors.length) failures.push(`${route}: ${errors.join(' | ')}`);
+        await runtime.flush();
+        if (runtime.errors.length) failures.push(`${route}: ${runtime.errors.join(' | ')}`);
       } catch (error) {
         failures.push(`${route}: navigation failed: ${error instanceof Error ? error.message : String(error)}`);
+      } finally {
+        runtime.dispose();
       }
     }
     expect(failures, failures.join('\n')).toEqual([]);

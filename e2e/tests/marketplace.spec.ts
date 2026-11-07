@@ -305,26 +305,42 @@ test.describe('Marketplace (Shop) API', () => {
     expect(orderTotal).toBeGreaterThanOrEqual(expectedTotal);
   });
 
-  // ─── SHOP-013: Cancel order → 200 + status=cancelled ──────────────────────
-  test('SHOP-013: Cancel order → route not implemented (404)', async () => {
-    // The backend does not have a user-facing cancel endpoint.
-    // Order cancellation is only available via supplier workspace.
+  // ─── SHOP-013: Buyer cancels an unpaid cash order → 200 + stock restored ─
+  test('SHOP-013: Buyer can cancel own unpaid cash order before supplier acceptance', async () => {
     const product = await findExistingProduct(api);
     const createRes = await api.post(`${BASE_URL}/api/shop/orders`, {
       headers: orderHeaders(ownerToken),
-      data: {
-        items: [{ product_id: product.id, quantity: 1 }],
-      },
+      data: { items: [{ product_id: product.id, quantity: 1 }], payment_method: 'cash' },
     });
     expect(createRes.status()).toBe(201);
     const created = await createRes.json();
     const orderId = created.data.id;
+    expect(created.data.status).toBe('pending');
 
-    const res = await api.patch(`${BASE_URL}/api/shop/orders/${orderId}/cancel`, {
+    const afterCheckoutRes = await api.get(`${BASE_URL}/api/shop/products/${product.id}`);
+    expect(afterCheckoutRes.status()).toBe(200);
+    const afterCheckout = await afterCheckoutRes.json();
+    const stockAfterCheckout = Number(afterCheckout.data.stock);
+
+    const otherBuyer = await api.patch(`${BASE_URL}/api/shop/orders/${orderId}/cancel`, {
+      headers: authHeaders(doctorToken),
+    });
+    expect(otherBuyer.status()).toBe(404);
+
+    const cancelRes = await api.patch(`${BASE_URL}/api/shop/orders/${orderId}/cancel`, {
       headers: authHeaders(ownerToken),
     });
-    // Route does not exist → 404
-    expect(res.status()).toBe(404);
+    expect(cancelRes.status()).toBe(200);
+    const cancelled = await cancelRes.json();
+    expect(cancelled.ok).toBe(true);
+    expect(cancelled.data.status).toBe('cancelled');
+    expect(cancelled.data.cancelReason).toBe('buyer_requested');
+    expect(cancelled.data.cancelledAt).toBeTruthy();
+
+    const restoredProductRes = await api.get(`${BASE_URL}/api/shop/products/${product.id}`);
+    expect(restoredProductRes.status()).toBe(200);
+    const restoredProduct = await restoredProductRes.json();
+    expect(Number(restoredProduct.data.stock)).toBe(stockAfterCheckout + 1);
   });
 
   // ─── SHOP-014: Supplier product listing → 200 ────────────────────────────

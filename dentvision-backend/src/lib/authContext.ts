@@ -38,12 +38,12 @@ type PersonWithContextRole = {
   userId: string;
   organizationId: string | null;
   personType: string;
-  organization: { id: string; type: string; originalId: string | null; name: string } | null;
+  organization: { id: string; type: string; originalId: string | null; name: string; archivedAt: Date | null } | null;
   personRoles: Array<{ scopeType: string | null; scopeId: string | null; role: { key: string } }>;
 };
 
 function contextFromPerson(person: PersonWithContextRole, organizationId: string): AuthTokenContext | null {
-  if (!person.organization) return null;
+  if (!person.organization || person.organization.archivedAt) return null;
   if (!resolveActivePersonRole(person.personRoles, organizationId)) return null;
 
   const org = person.organization;
@@ -71,7 +71,7 @@ const PARTNER_ROLE_PRIORITY: Record<string, number> = {
 
 export async function resolveOrganizationRoleKey(userId: string, organizationId: string): Promise<string | undefined> {
   const person = await prisma.person.findFirst({
-    where: { userId, organizationId },
+    where: { userId, organizationId, organization: { archivedAt: null } },
     select: {
       personRoles: {
         where: {
@@ -94,7 +94,7 @@ async function contextForOrganization(userId: string, organizationId: string): P
   const person = await prisma.person.findFirst({
     where: { userId, organizationId },
     include: {
-      organization: { select: { id: true, type: true, originalId: true, name: true } },
+      organization: { select: { id: true, type: true, originalId: true, name: true, archivedAt: true } },
       personRoles: { select: { scopeType: true, scopeId: true, role: { select: { key: true } } } },
     },
   });
@@ -105,8 +105,9 @@ async function contextForOrganization(userId: string, organizationId: string): P
 async function contextForClinic(userId: string, clinicId: string): Promise<AuthTokenContext | null> {
   const org = await prisma.organization.findFirst({
     where: { originalType: 'Clinic', originalId: clinicId },
-    select: { id: true },
+    select: { id: true, archivedAt: true },
   });
+  if (org?.archivedAt) return null;
   if (org) {
     const viaOrg = await contextForOrganization(userId, org.id);
     if (viaOrg) return viaOrg;
@@ -154,7 +155,8 @@ export async function resolveAuthContext(
 
     // If the clinic is represented by a unified Person without an active role,
     // do not continue into an unrelated default organization.
-    const clinicOrg = await prisma.organization.findFirst({ where: { originalType: 'Clinic', originalId: preferred.clinicId }, select: { id: true } });
+    const clinicOrg = await prisma.organization.findFirst({ where: { originalType: 'Clinic', originalId: preferred.clinicId }, select: { id: true, archivedAt: true } });
+    if (clinicOrg?.archivedAt) return {};
     if (clinicOrg) {
       const unifiedPerson = await prisma.person.findFirst({ where: { userId, organizationId: clinicOrg.id }, select: { id: true } });
       if (unifiedPerson) return {};
@@ -177,9 +179,9 @@ export async function resolveAuthContext(
   // Default scope — a clinic the user belongs to takes precedence over other
   // organization types, matching the legacy "first membership" behaviour.
   const clinicPeople = await prisma.person.findMany({
-    where: { userId, organization: { type: 'CLINIC' } },
+    where: { userId, organization: { type: 'CLINIC', archivedAt: null } },
     include: {
-      organization: { select: { id: true, type: true, originalId: true, name: true } },
+      organization: { select: { id: true, type: true, originalId: true, name: true, archivedAt: true } },
       personRoles: { select: { scopeType: true, scopeId: true, role: { select: { key: true } } } },
     },
     orderBy: { createdAt: 'asc' },
@@ -202,7 +204,7 @@ export async function resolveAuthContext(
   const people = await prisma.person.findMany({
     where: { userId },
     include: {
-      organization: { select: { id: true, type: true, originalId: true, name: true } },
+      organization: { select: { id: true, type: true, originalId: true, name: true, archivedAt: true } },
       personRoles: { select: { scopeType: true, scopeId: true, role: { select: { key: true } } } },
     },
     orderBy: { createdAt: 'asc' },

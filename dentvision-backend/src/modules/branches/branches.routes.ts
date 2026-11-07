@@ -1,16 +1,76 @@
 import { Router } from 'express';
 import prisma from '../../lib/prisma.js';
 import { authenticate } from '../../middleware/auth.js';
+import { loadClinicAccess, blockClinicWrites } from '../../middleware/planGate.js';
 import type { AuthRequest } from '../../types/index.js';
 import { uid } from '../../lib/helpers.js';
 import { authorizeBranchScope } from '../../lib/branchAuthorization.js';
 import type { RoleScope } from '../../lib/roleAccessRegistry.js';
 import { resolveOrganizationIdForClinic } from '../../lib/orgContext.js';
 import { canCreateClinicBranch, isBranchBillingOrganizationType, quoteBranchSubscription } from '../finance/branchBillingPolicy.js';
+import { resolveClinicAccess as resolveClinicSubscriptionAccess } from '../billing/planEntitlements.js';
 import { auditFromReq } from '../compliance/audit.service.js';
 
 export const branchesRouter = Router();
 branchesRouter.use(authenticate);
+branchesRouter.use(loadClinicAccess);
+branchesRouter.use(blockClinicWrites);
+
+/** Enforce the plan for the organization a branch mutation actually targets, even when the caller has another active workspace selected. */
+async function enforceTargetClinicTrial(req: AuthRequest, res: any, next: any) {
+  try {
+    let clinicId = String(req.body?.clinicId || req.query.clinicId || '').trim();
+    let organizationId = String(req.body?.organizationId || req.query.organizationId || '').trim();
+    const branchId = String(req.params.id || '').trim();
+    if (branchId) {
+      const rows = await prisma.$queryRaw<Array<{ clinic_id: string | null; organization_id: string | null }>>`
+        SELECT "clinic_id", "organization_id" FROM "branches" WHERE "id" = ${branchId} LIMIT 1
+      `;
+      const target = rows[0];
+      if (!target) return res.status(404).json({ ok: false, error: 'Филиал не найден' });
+      clinicId ||= target.clinic_id || '';
+      organizationId ||= target.organization_id || '';
+    }
+    if (organizationId) {
+      const organization = await prisma.organization.findUnique({ where: { id: organizationId }, select: { type: true, originalId: true, archivedAt: true } });
+      if (!organization || organization.archivedAt) return res.status(404).json({ ok: false, error: 'Организация не найдена' });
+      if (organization.type === 'CLINIC') {
+        const organizationClinicId = String(organization.originalId || '').trim();
+        if (!organizationClinicId || (clinicId && clinicId !== organizationClinicId)) {
+          return res.status(403).json({ ok: false, error: 'Клиника не соответствует организации' });
+        }
+        clinicId = organizationClinicId;
+      } else if (clinicId) {
+        return res.status(403).json({ ok: false, error: 'Нельзя смешивать клинический и партнёрский контексты' });
+      }
+    }
+    if (!clinicId && !organizationId) {
+      organizationId = String(req.user?.organizationId || '').trim();
+      if (!organizationId) clinicId = String(req.user?.clinicId || '').trim();
+    }
+    if (req.user?.role !== 'SUPERADMIN' && organizationId) {
+      const member = await organizationMembership(req.user!.id, organizationId);
+      if (!member) return res.status(403).json({ ok: false, error: 'Вы не являетесь участником этой организации' });
+    } else if (req.user?.role !== 'SUPERADMIN' && clinicId) {
+      const member = await membership(req.user!.id, clinicId);
+      if (!member) return res.status(403).json({ ok: false, error: 'Вы не являетесь участником этой клиники' });
+    }
+    if (!clinicId) return next(); // non-clinic partners use their own billing contract
+    const archivedClinicOrganization = await prisma.organization.findFirst({
+      where: { originalType: 'Clinic', originalId: clinicId, archivedAt: { not: null } },
+      select: { id: true },
+    });
+    if (archivedClinicOrganization) return res.status(404).json({ ok: false, error: 'Клиника не найдена', code: 'ORGANIZATION_ARCHIVED' });
+    if (req.user?.role === 'SUPERADMIN') return next();
+    const access = await resolveClinicSubscriptionAccess(clinicId);
+    if (!access) return res.status(404).json({ ok: false, error: 'Клиника не найдена' });
+    if (access.writeBlocked) return res.status(402).json({ ok: false, error: 'Срок пробного периода завершён. Филиалы и сотрудники доступны только для чтения; продлите подписку.', code: 'SUBSCRIPTION_EXPIRED', data: { upgradePath: '/crm/billing' } });
+    return next();
+  } catch (error) {
+    console.error('[branches] target clinic write guard', error);
+    return res.status(503).json({ ok: false, error: 'Не удалось проверить подписку клиники', code: 'CLINIC_ACCESS_UNVERIFIED' });
+  }
+}
 
 type BranchRow = {
   id: string; organization_id: string | null; clinic_id: string | null; code: string; name: string;
@@ -74,6 +134,8 @@ async function membership(userId: string, clinicId: string): Promise<MemberScope
 async function organizationMembership(userId: string, organizationId: string): Promise<OrganizationRoleRow | null> {
   const user = await prisma.user.findUnique({ where: { id: userId }, select: { role: true } });
   if (user?.role === 'SUPERADMIN') return { role_key: 'owner' };
+  const activeOrganization = await prisma.organization.findFirst({ where: { id: organizationId, archivedAt: null }, select: { id: true } });
+  if (!activeOrganization) return null;
   const rows = await prisma.$queryRaw<OrganizationRoleRow[]>`
     SELECT r."key" AS role_key
     FROM "persons" p
@@ -117,6 +179,11 @@ async function organizationPerson(userId: string, organizationId: string) {
   return prisma.person.findFirst({ where: { userId, organizationId }, select: { id: true } });
 }
 async function authorizeMemberBranch(userId: string, clinicId: string, branch: BranchRow, mutation = false) {
+  const archivedOrganization = await prisma.organization.findFirst({
+    where: { originalType: 'Clinic', originalId: clinicId, archivedAt: { not: null } },
+    select: { id: true },
+  });
+  if (archivedOrganization) return { allowed: false as const, status: 404, error: 'Клиника не найдена' };
   const member = await membership(userId, clinicId);
   if (!member) return { allowed: false as const, status: 403, error: 'Вы не являетесь участником этой клиники' };
   if (member.branch_id && member.branch_active === false) return { allowed: false as const, status: 403, error: 'Доступ сотрудника к филиалу отключён' };
@@ -207,7 +274,7 @@ branchesRouter.get('/', async (req: AuthRequest, res) => {
   } catch (error) { console.error('[branches] list', error); return res.status(500).json({ ok: false, error: 'Не удалось получить филиалы' }); }
 });
 
-branchesRouter.post('/', async (req: AuthRequest, res) => {
+branchesRouter.post('/', enforceTargetClinicTrial, async (req: AuthRequest, res) => {
   const { clinicId, organizationId, code, name, city, address, phone, settings } = req.body as { clinicId?: string; organizationId?: string; code?: string; name?: string; city?: string; address?: string; phone?: string; settings?: unknown };
   if (!name) return res.status(400).json({ ok: false, error: 'name обязателен' });
   try {
@@ -312,7 +379,7 @@ branchesRouter.post('/', async (req: AuthRequest, res) => {
   }
 });
 
-branchesRouter.patch('/:id', async (req: AuthRequest, res) => {
+branchesRouter.patch('/:id', enforceTargetClinicTrial, async (req: AuthRequest, res) => {
   const branchId = String(req.params.id);
   const { name, code, city, address, phone, active, settings } = req.body as { name?: string; code?: string; city?: string; address?: string; phone?: string; active?: boolean; settings?: unknown };
   try {
@@ -393,7 +460,7 @@ branchesRouter.get('/:id/members', async (req: AuthRequest, res) => {
   } catch(error){console.error('[branches] members list',error);return res.status(500).json({ok:false,error:'Не удалось получить сотрудников филиала'});}
 });
 
-branchesRouter.post('/:id/members/:userId', async (req: AuthRequest, res) => {
+branchesRouter.post('/:id/members/:userId', enforceTargetClinicTrial, async (req: AuthRequest, res) => {
   const branchId=String(req.params.id), userId=String(req.params.userId);
   try {
     const branch=await loadBranch(branchId);
@@ -418,7 +485,7 @@ branchesRouter.post('/:id/members/:userId', async (req: AuthRequest, res) => {
   }catch(error){console.error('[branches] assign member',error);return res.status(500).json({ok:false,error:'Не удалось назначить сотрудника'});}
 });
 
-branchesRouter.patch('/:id/members/:userId/status', async (req: AuthRequest, res) => {
+branchesRouter.patch('/:id/members/:userId/status', enforceTargetClinicTrial, async (req: AuthRequest, res) => {
   const branchId=String(req.params.id), userId=String(req.params.userId);
   const body = req.body as { active?: boolean };
   if (typeof body.active !== 'boolean') return res.status(400).json({ok:false,error:'active обязателен'});
@@ -452,7 +519,7 @@ branchesRouter.patch('/:id/members/:userId/status', async (req: AuthRequest, res
     return res.json({ok:true,data:{userId,branchId,active}});
   }catch(error){console.error('[branches] member status',error);return res.status(500).json({ok:false,error:'Не удалось изменить доступ сотрудника'});}
 });
-branchesRouter.delete('/:id/members/:userId', async (req: AuthRequest, res) => {
+branchesRouter.delete('/:id/members/:userId', enforceTargetClinicTrial, async (req: AuthRequest, res) => {
   const branchId=String(req.params.id), userId=String(req.params.userId);
   try {
     const branch=await loadBranch(branchId);
@@ -475,7 +542,7 @@ branchesRouter.delete('/:id/members/:userId', async (req: AuthRequest, res) => {
   }catch(error){console.error('[branches] unassign member',error);return res.status(500).json({ok:false,error:'Не удалось убрать сотрудника из филиала'});}
 });
 
-branchesRouter.post('/:id/default', async (req: AuthRequest, res) => {
+branchesRouter.post('/:id/default', enforceTargetClinicTrial, async (req: AuthRequest, res) => {
   const branchId = String(req.params.id);
   try {
     const branch = await loadBranch(branchId);

@@ -6,6 +6,7 @@ import { generateTokens } from '../../lib/jwt.js';
 import { resolveUserPermissions } from '../../lib/resolvePermissions.js';
 import { uid } from '../../lib/helpers.js';
 import { resolveClinicAccess } from '../../lib/orgContext.js';
+import { resolveClinicAccess as resolveClinicSubscriptionAccess } from '../billing/planEntitlements.js';
 import { buildWorkspaceContexts, roleLabelFor, userRoleForPartnerRole } from './contexts.js';
 import type { ScopeType } from './contexts.js';
 import {
@@ -23,8 +24,9 @@ const CLINIC_MANAGER_ROLES = ['OWNER', 'ADMIN', 'DIRECTOR'];
 
 export async function canManageRolesFor(
   user: { id: string; role: string },
-  org: { id: string; type: string; originalId: string | null } | null,
+  org: { id: string; type: string; originalId: string | null; archivedAt?: Date | null } | null,
 ): Promise<boolean> {
+  if (org?.archivedAt) return false;
   if (user.role === 'SUPERADMIN') return true;
   if (!org) return false;
   if (org.type === 'CLINIC') {
@@ -33,6 +35,41 @@ export async function canManageRolesFor(
     return !!access && CLINIC_MANAGER_ROLES.includes(String(access.role).toUpperCase());
   }
   return canManageMembers(user.id, org, false);
+}
+
+
+/** Expired clinic trials keep IAM reads/context switching, but block staff-role mutations. */
+export async function ensureClinicSubscriptionWritableForOrganization(
+  req: AuthRequest,
+  res: any,
+  organization: { id: string; type: string; originalId: string | null } | null,
+): Promise<boolean> {
+  if (req.user?.role === 'SUPERADMIN' || !organization || String(organization.type).toUpperCase() !== 'CLINIC') return true;
+  const clinicId = String(organization.originalId || '').trim();
+  if (!clinicId) {
+    res.status(503).json({ ok: false, error: 'Не удалось определить клинику для проверки подписки', code: 'CLINIC_ACCESS_UNVERIFIED' });
+    return false;
+  }
+  try {
+    const access = await resolveClinicSubscriptionAccess(clinicId);
+    if (!access) {
+      res.status(503).json({ ok: false, error: 'Не удалось проверить подписку клиники', code: 'CLINIC_ACCESS_UNVERIFIED' });
+      return false;
+    }
+    if (access.writeBlocked) {
+      res.status(402).json({ ok: false, error: 'Клиника работает в режиме только для чтения после окончания пробного периода.', code: 'SUBSCRIPTION_EXPIRED' });
+      return false;
+    }
+    return true;
+  } catch (error) {
+    console.error('[iam] clinic subscription write gate', error);
+    res.status(503).json({ ok: false, error: 'Не удалось проверить подписку клиники', code: 'CLINIC_ACCESS_UNVERIFIED' });
+    return false;
+  }
+}
+
+export function canAssignPlatformScope(userRole: string): boolean {
+  return String(userRole).toUpperCase() === 'SUPERADMIN';
 }
 
 export const iamRouter = Router();
@@ -76,12 +113,25 @@ iamRouter.get('/me/contexts', async (req: AuthRequest, res) => {
     // enforced by context switching endpoints.
     const persons = await prisma.person.findMany({
       where: { userId },
-      include: { organization: { select: { id: true, name: true, type: true, logo: true, originalId: true } }, personRoles: { include: { role: true } } },
+      include: { organization: { select: { id: true, name: true, type: true, logo: true, originalId: true, archivedAt: true } }, personRoles: { include: { role: true } } },
     }).catch((error) => {
       console.error('IAM contexts: canonical person read failed; using legacy memberships', error);
       return [];
     });
-    const contexts = buildWorkspaceContexts({ memberships, supplierMemberships, lecturer, diagnosticCenterMemberships, laboratoryMemberships, persons });
+    const archivedOrganizationIds = new Set(persons.filter((person) => person.organization?.archivedAt).map((person) => person.organization!.id));
+    const archivedClinicIds = new Set([
+      ...persons.filter((person) => person.organization?.archivedAt && person.organization.type === 'CLINIC' && person.organization.originalId).map((person) => person.organization!.originalId!),
+      ...(await prisma.organization.findMany({
+        where: {
+          originalType: 'Clinic',
+          originalId: { in: memberships.map((membership) => membership.clinicId) },
+          archivedAt: { not: null },
+        },
+        select: { originalId: true },
+      })).map((organization) => organization.originalId).filter((id): id is string => Boolean(id)),
+    ]);
+    const contexts = buildWorkspaceContexts({ memberships, supplierMemberships, lecturer, diagnosticCenterMemberships, laboratoryMemberships, persons })
+      .filter((context) => !archivedOrganizationIds.has(context.organizationId || '') && !(context.scopeType === 'CLINIC' && archivedClinicIds.has(context.scopeId)));
 
     // Canonical partner workspaces must remain discoverable from PersonRole
     // even when a legacy DiagnosticCenterMember/LaboratoryMember row is absent
@@ -91,7 +141,7 @@ iamRouter.get('/me/contexts', async (req: AuthRequest, res) => {
     const academyRolePattern = /^(lecturer|academy_)/i;
     for (const person of persons) {
       const org = person.organization;
-      if (!org) continue;
+      if (!org || org.archivedAt) continue;
       const scopedRole = person.personRoles
         ?.find((personRole) =>
           personRole.scopeType === 'organization' &&
@@ -131,7 +181,7 @@ iamRouter.get('/me/contexts', async (req: AuthRequest, res) => {
       include: {
         role: true,
         person: {
-          include: { organization: { select: { id: true, name: true, type: true, logo: true, originalId: true } } },
+          include: { organization: { select: { id: true, name: true, type: true, logo: true, originalId: true, archivedAt: true } } },
         },
       },
     }).catch((error) => {
@@ -158,7 +208,7 @@ iamRouter.get('/me/contexts', async (req: AuthRequest, res) => {
       include: {
         role: true,
         person: {
-          include: { organization: { select: { id: true, name: true, type: true, logo: true, originalId: true } } },
+          include: { organization: { select: { id: true, name: true, type: true, logo: true, originalId: true, archivedAt: true } } },
         },
       },
     }).catch((error) => {
@@ -167,7 +217,7 @@ iamRouter.get('/me/contexts', async (req: AuthRequest, res) => {
     });
     for (const assignment of [...canonicalPartnerAssignments, ...canonicalAssignments]) {
       const org = assignment.person.organization;
-      if (!org || !assignment.scopeId) continue;
+      if (!org || org.archivedAt || !assignment.scopeId) continue;
       if (assignment.scopeId !== org.id) continue;
       const scopeType = ({ DIAGNOSTIC_CENTER: 'DIAGNOSTIC_CENTER', LABORATORY: 'LABORATORY' } as Record<string, ScopeType>)[org.type];
       if (!scopeType) continue;
@@ -214,7 +264,7 @@ iamRouter.get('/me/contexts', async (req: AuthRequest, res) => {
           (/^(diagnostic_|medical_lab_|dental_lab_|lab_coordinator|dental_technician|cad_designer|ceramist|orthodontic_technician|qc_specialist|lab_finance)/i.test(personRole.role.key) ||
             academyRolePattern.test(personRole.role.key)),
         )?.role.key;
-      if (activePerson?.organization && activeRole) {
+      if (activePerson?.organization && !activePerson.organization.archivedAt && activeRole) {
         const org = activePerson.organization;
         const scopeType = ({ CLINIC: 'CLINIC', DIAGNOSTIC_CENTER: 'DIAGNOSTIC_CENTER', LABORATORY: 'LABORATORY', SUPPLIER_COMPANY: 'SUPPLIER', SUPPLIER: 'SUPPLIER', ACADEMY: 'ACADEMY', PARTNER: 'PARTNER' } as Record<string, ScopeType>)[org.type];
         const scopeId = org.originalId || org.id;
@@ -276,7 +326,13 @@ iamRouter.post('/switch-context', async (req: AuthRequest, res) => {
     if (!scopeType || !scopeId) return res.status(400).json({ ok: false, error: 'scopeType и scopeId обязательны' } satisfies ApiResponse);
     const requestedScopeType = String(scopeType).trim().toUpperCase();
     const base = { sub: user.id, email: user.email, role: user.role, sessionId: user.sessionId };
-    const org = (await prisma.organization.findUnique({ where: { id: scopeId } })) || (await prisma.organization.findFirst({ where: { originalId: scopeId } }));
+    const orgById = await prisma.organization.findUnique({ where: { id: scopeId } });
+    const org = orgById || await prisma.organization.findFirst({ where: { originalId: scopeId, archivedAt: null } });
+    if (org?.archivedAt) return res.status(410).json({ ok: false, error: 'Организация архивирована', code: 'ORGANIZATION_ARCHIVED' } satisfies ApiResponse);
+    if (!org && !orgById) {
+      const archivedByOriginalId = await prisma.organization.findFirst({ where: { originalId: scopeId, archivedAt: { not: null } }, select: { id: true } });
+      if (archivedByOriginalId) return res.status(410).json({ ok: false, error: 'Организация архивирована', code: 'ORGANIZATION_ARCHIVED' } satisfies ApiResponse);
+    }
     if (org) {
       const expectedScopeTypes = new Set(
         org.type === 'SUPPLIER_COMPANY' ? ['SUPPLIER', 'SUPPLIER_COMPANY'] : [org.type],
@@ -559,6 +615,7 @@ iamRouter.post('/persons/:personId/roles', async (req: AuthRequest, res) => {
     if (!person) return res.status(404).json({ ok: false, error: 'Персона не найдена' } satisfies ApiResponse);
     const allowed = await canManageRolesFor(req.user!, person.organization);
     if (!allowed) return res.status(403).json({ ok: false, error: 'Недостаточно прав для назначения роли' } satisfies ApiResponse);
+    if (!(await ensureClinicSubscriptionWritableForOrganization(req, res, person.organization))) return;
     const role = await prisma.role.findUnique({ where: { id: roleId } });
     if (!role) return res.status(404).json({ ok: false, error: 'Роль не найдена' } satisfies ApiResponse);
     if (String(role.key).toUpperCase() === 'SUPERADMIN' && req.user!.role !== 'SUPERADMIN') {
@@ -575,6 +632,9 @@ iamRouter.post('/persons/:personId/roles', async (req: AuthRequest, res) => {
     }
     if (effectiveScopeType === 'organization' && scopeId && scopeId !== canonicalOrganizationId) {
       return res.status(403).json({ ok: false, error: 'scopeId не соответствует организации Person' } satisfies ApiResponse);
+    }
+    if (effectiveScopeType === 'platform' && !canAssignPlatformScope(req.user!.role)) {
+      return res.status(403).json({ ok: false, error: 'Platform-scoped roles can be assigned only by SUPERADMIN' } satisfies ApiResponse);
     }
     if (effectiveScopeType === 'platform' && scopeId) {
       return res.status(400).json({ ok: false, error: 'Для platform-роли scopeId должен отсутствовать' } satisfies ApiResponse);
@@ -602,6 +662,7 @@ iamRouter.delete('/persons/:personId/roles/:roleId', async (req: AuthRequest, re
     if (!person) return res.status(404).json({ ok: false, error: 'Персона не найдена' } satisfies ApiResponse);
     const allowed = await canManageRolesFor(req.user!, person.organization);
     if (!allowed) return res.status(403).json({ ok: false, error: 'Недостаточно прав для удаления роли' } satisfies ApiResponse);
+    if (!(await ensureClinicSubscriptionWritableForOrganization(req, res, person.organization))) return;
     const scopeKey = person.organization ? `organization:${person.organization.id}` : 'platform';
     await prisma.personRole.deleteMany({ where: { personId, roleId, scopeKey } });
     await auditFromReq(req, { action: 'person_role.removed', entity: 'person_role', entityId: `${personId}:${roleId}`, details: { personId, roleId } });

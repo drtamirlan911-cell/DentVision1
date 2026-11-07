@@ -12,11 +12,14 @@ import { publish } from '../../lib/events.js';
 import { reserveIdempotencyKey, completeIdempotencyKey, deleteIdempotencyKey } from '../../lib/idempotency.js';
 import type { AuthRequest, ApiResponse } from '../../types/index.js';
 import { WaitingListStatus } from '@prisma/client';
+import { loadClinicAccess, blockClinicWrites } from '../../middleware/planGate.js';
 
 import { splitPatientName } from '../public/bookingSlots.js';
 
 export const crmOpsRouter = Router();
 crmOpsRouter.use(authenticate);
+crmOpsRouter.use(loadClinicAccess);
+crmOpsRouter.use(blockClinicWrites);
 
 function requireClinic(req: AuthRequest, res: any): string | null {
   const clinicId = req.user?.clinicId;

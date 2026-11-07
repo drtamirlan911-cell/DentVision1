@@ -71,6 +71,10 @@ export function buildMeta(body: Record<string, unknown>, existing?: AppointmentM
   for (const key of keys) {
     if (body[key] !== undefined) (base as any)[key] = body[key];
   }
+  // Offline privacy sanitization removes human-readable `service` labels but
+  // retains the opaque clinic price-list serviceId so a new appointment can
+  // still be synchronized and rendered through the clinic's canonical price list.
+  if (body.serviceId && !base.serviceName) base.serviceName = String(body.serviceId);
   if (body.service && !base.serviceName) base.serviceName = String(body.service);
   if (body.serviceId && !base.reason) base.reason = String(body.serviceId);
   if (body.chairId === '' || body.chairId === null) {

@@ -9,15 +9,16 @@
  * module exists to prevent.
  */
 
+import type { Prisma } from '@prisma/client';
 import prisma from '../../lib/prisma.js';
 import { decryptMedicalHistory, encryptMedicalHistory } from '../../lib/phi.js';
 import { uid } from '../../lib/helpers.js';
 
 export type ToothMap = Record<string, unknown>;
 
-/** Mirror the FDI map into `Tooth` rows. */
-export async function syncTeeth(patientId: string, teeth: ToothMap | undefined): Promise<void> {
-  if (!teeth || typeof teeth !== 'object') return;
+type ToothWriteClient = Pick<Prisma.TransactionClient, 'tooth'>;
+
+async function syncTeethWith(client: ToothWriteClient, patientId: string, teeth: ToothMap): Promise<void> {
   for (const [num, val] of Object.entries(teeth)) {
     const number = parseInt(num, 10);
     if (!Number.isFinite(number)) continue;
@@ -28,12 +29,22 @@ export async function syncTeeth(patientId: string, teeth: ToothMap | undefined):
     if (typeof entry === 'object' && entry?.surfaces && typeof entry.surfaces === 'object') {
       notes = JSON.stringify({ surfaces: entry.surfaces, note: typeof notes === 'string' ? notes : null });
     }
-    await prisma.tooth.upsert({
+    await client.tooth.upsert({
       where: { patientId_number: { patientId, number } },
       create: { id: uid(), patientId, number, condition, diagnosis, notes },
       update: { condition, diagnosis, notes },
     });
   }
+}
+
+/** Mirror the FDI map into `Tooth` rows; callers may supply a transaction client. */
+export async function syncTeeth(
+  patientId: string,
+  teeth: ToothMap | undefined,
+  client: ToothWriteClient = prisma,
+): Promise<void> {
+  if (!teeth || typeof teeth !== 'object') return;
+  await syncTeethWith(client, patientId, teeth);
 }
 
 export interface ToothFinding {
@@ -105,7 +116,7 @@ export async function applyToothFindings(
 ): Promise<Array<{ tooth: number; before: string; after: string }>> {
   const patient = await prisma.patient.findFirst({
     where: { id: patientId, clinicId },
-    select: { id: true, medicalHistory: true },
+    select: { id: true, medicalHistory: true, updatedAt: true },
   });
   if (!patient) throw new Error('PATIENT_NOT_FOUND');
 
@@ -145,11 +156,14 @@ export async function applyToothFindings(
   if (changes.length === 0) return changes;
 
   history.teeth = teeth;
-  await prisma.patient.update({
-    where: { id: patientId },
-    data: { medicalHistory: encryptMedicalHistory(history) as any },
+  await prisma.$transaction(async (tx) => {
+    const updated = await tx.patient.updateMany({
+      where: { id: patientId, clinicId, updatedAt: patient.updatedAt },
+      data: { medicalHistory: encryptMedicalHistory(history) as any },
+    });
+    if (updated.count !== 1) throw new Error('PATIENT_HISTORY_CONFLICT');
+    await syncTeeth(patientId, teeth, tx);
   });
-  await syncTeeth(patientId, teeth);
 
   return changes;
 }

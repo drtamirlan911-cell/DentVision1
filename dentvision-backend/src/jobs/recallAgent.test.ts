@@ -19,6 +19,7 @@ vi.mock('../lib/prisma.js', () => ({
 vi.mock('../modules/ai/core/clinicLoadPlan.js', () => ({ buildClinicLoadPlan }));
 
 import { sweepOverdueRecalls } from './recallAgent.js';
+import { decryptAiApprovalParams, getAiApprovalSummary } from '../modules/ai/os/approvalPrivacy.js';
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -47,9 +48,12 @@ describe('sweepOverdueRecalls', () => {
         riskLevel: 'standard',
         status: 'pending',
         requiredPermission: 'patients.read',
-        params: { inactiveDays: 90, limit: 2 },
       }),
     });
+    const saved = approvalCreate.mock.calls[0][0].data;
+    expect(saved.params).toMatch(/^ENC:/);
+    expect(decryptAiApprovalParams(saved.params)).toEqual({ inactiveDays: 90, limit: 2 });
+    expect(saved.summary).toBe(getAiApprovalSummary('getRecallList'));
   });
 
   it('never proposes a mutating action itself — only the read-only getRecallList tool', async () => {

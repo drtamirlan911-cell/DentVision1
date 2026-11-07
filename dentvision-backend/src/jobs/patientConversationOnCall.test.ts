@@ -65,6 +65,11 @@ describe('runOnCallCheck', () => {
     expect(dispatchNotifications).toHaveBeenCalledWith([
       expect.objectContaining({ userId: 'owner-1', clinicId: 'clinic-1', type: 'patient_question' }),
     ]);
+    const notification = dispatchNotifications.mock.calls[0][0][0];
+    expect(notification.title).toBe('Пациент ожидает ответа (15+ мин)');
+    expect(notification.title).not.toContain('Асель');
+    expect(notification.message).not.toContain('Асель');
+    expect(conversationFindMany.mock.calls[0][0]).not.toHaveProperty('include');
     expect(conversationUpdate).toHaveBeenCalledWith({
       where: { id: 'c1' },
       data: { onCallNotifiedAt: expect.any(Date) },

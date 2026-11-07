@@ -130,7 +130,15 @@ export function AIConversationSync() {
     if (!isAuthenticated) return
     void loadProactiveAlerts()
 
-    const refresh = () => void loadProactiveAlerts()
+    // A document becomes hidden immediately before full-page navigation or
+    // tab suspension. Starting a cross-origin fetch in that state makes WebKit
+    // report an access-control failure when the browser cancels the request.
+    // Refresh only while visible; focus/visibility restoration will refresh it
+    // when the user returns, without creating work that is about to be aborted.
+    const refresh = () => {
+      if (document.visibilityState !== 'visible') return
+      void loadProactiveAlerts()
+    }
     const interval = window.setInterval(refresh, 30_000)
     window.addEventListener('focus', refresh)
     document.addEventListener('visibilitychange', refresh)

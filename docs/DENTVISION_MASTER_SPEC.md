@@ -738,7 +738,7 @@ Dentrix demonstrates the value of multi-location scheduling, centralized billing
 
 Labtrac emphasizes a unified incoming case inbox, digital/analog order intake, configurable production flows, technician workbenches, traceability, quality checkpoints and analytics. 3Shape LMS similarly emphasizes case management, client history, configurable production lines, scheduling, billing, barcode traceability and clinic collaboration. Dandy emphasizes connected scan/order workflows, live case status, design approval and clinic-lab collaboration. citeturn0search3turn0search6turn0search2
 
-**DentVision implication:** the dental lab must be a real manufacturing operating system: inbox → production planning → technician workbench → QC → delivery → financial recognition, with digital files and communication attached to the case.
+**DentVision implication:** the dental lab must be a real manufacturing operating system: inbox → production planning → technician workbench → QC → delivery → invoice/settlement → financial recognition only after successful commercial settlement, with digital files and communication attached to the case.
 
 ### Diagnostic/radiology benchmarks
 

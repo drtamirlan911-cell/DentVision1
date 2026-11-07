@@ -11,6 +11,7 @@ import {
   type ClinicSettingsPayload,
 } from './clinicSettings.js';
 import { guardUserCreate } from '../../middleware/planGate.js';
+import { resolveClinicAccess as resolveClinicSubscriptionAccess } from '../billing/planEntitlements.js';
 import { upsertStaffCompensation } from '../../lib/staffCompensation.js';
 import { syncPersonFromClinicMember, removePersonFromClinicMember } from '../../lib/syncMembership.js';
 import { resolveClinicAccess } from '../../lib/orgContext.js';
@@ -19,6 +20,29 @@ import { ClinicPaymentsError, validateClinicGatewayUrl } from '../payments/clini
 import { createClinicForOwner, normalizeClinicInput } from './clinicCreation.service.js';
 
 export const clinicsRouter = Router();
+
+/** Enforce the subscription of the clinic addressed by :id, not just the JWT's selected clinic. */
+async function requireTargetClinicWritable(req: AuthRequest, res: any, next: any) {
+  const clinicId = String(req.params.id || '').trim();
+  if (!clinicId) return res.status(400).json({ ok: false, error: 'Клиника не указана', code: 'CLINIC_REQUIRED' });
+  try {
+    const archivedOrganization = await prisma.organization.findFirst({
+      where: { originalType: 'Clinic', originalId: clinicId, archivedAt: { not: null } },
+      select: { id: true },
+    });
+    if (archivedOrganization) return res.status(404).json({ ok: false, error: 'Клиника не найдена', code: 'ORGANIZATION_ARCHIVED' });
+    if (req.user?.role === 'SUPERADMIN') return next();
+    const membership = await resolveClinicAccess(req.user!.id, clinicId);
+    if (!membership) return res.status(403).json({ ok: false, error: 'Вы не являетесь участником этой клиники' });
+    const access = await resolveClinicSubscriptionAccess(clinicId);
+    if (!access) return res.status(404).json({ ok: false, error: 'Клиника не найдена' });
+    if (access.writeBlocked) return res.status(402).json({ ok: false, error: 'Срок пробного периода завершён. Данные доступны только для чтения; продлите подписку.', code: 'SUBSCRIPTION_EXPIRED', data: { upgradePath: '/crm/billing' } });
+    return next();
+  } catch (error) {
+    console.error('[clinic] subscription write guard', error);
+    return res.status(503).json({ ok: false, error: 'Не удалось проверить подписку клиники', code: 'CLINIC_ACCESS_UNVERIFIED' });
+  }
+}
 
 function normalizeStaffRole(role?: string): 'OWNER' | 'ADMIN' | 'DOCTOR' | 'ASSISTANT' | 'MANAGER' | 'LAB' | 'STUDENT' {
   const raw = String(role || 'DOCTOR').toLowerCase();
@@ -67,15 +91,15 @@ clinicsRouter.get('/', authenticate, async (req: AuthRequest, res) => {
     // not entered the canonical clinic model yet.
     if (req.user?.role !== 'SUPERADMIN') {
       const canonicalClinicPeople = await prisma.person.findMany({
-        where: { userId: req.user!.id, organization: { type: 'CLINIC' } },
+        where: { userId: req.user!.id, organization: { type: 'CLINIC', archivedAt: null } },
         select: {
-          organization: { select: { id: true, originalId: true } },
+          organization: { select: { id: true, originalId: true, archivedAt: true } },
           personRoles: { select: { scopeType: true, scopeId: true } },
         },
       });
       if (canonicalClinicPeople.length) {
         const clinicIds = canonicalClinicPeople
-          .filter((p) => p.organization?.originalId && p.personRoles.some((pr) =>
+          .filter((p) => p.organization?.originalId && !p.organization.archivedAt && p.personRoles.some((pr) =>
             pr.scopeType === 'organization' && pr.scopeId === p.organization?.id
           ))
           .map((p) => p.organization!.originalId!);
@@ -85,7 +109,13 @@ clinicsRouter.get('/', authenticate, async (req: AuthRequest, res) => {
           where: { userId: req.user!.id },
           select: { clinicId: true },
         })).map(m => m.clinicId);
-        where.id = { in: memberClinicIds.length ? memberClinicIds : ['none'] };
+        const archivedRows = memberClinicIds.length ? await prisma.organization.findMany({
+          where: { originalType: 'Clinic', originalId: { in: memberClinicIds }, archivedAt: { not: null } },
+          select: { originalId: true },
+        }) : [];
+        const archivedClinicIds = new Set(archivedRows.map((row) => row.originalId).filter((id): id is string => Boolean(id)));
+        const visibleClinicIds = memberClinicIds.filter((id) => !archivedClinicIds.has(id));
+        where.id = { in: visibleClinicIds.length ? visibleClinicIds : ['none'] };
       }
     }
 
@@ -217,7 +247,7 @@ clinicsRouter.post('/', authenticate, async (req: AuthRequest, res) => {
   }
 });
 
-clinicsRouter.patch('/:id', authenticate, async (req: AuthRequest, res) => {
+clinicsRouter.patch('/:id', authenticate, requireTargetClinicWritable, async (req: AuthRequest, res) => {
   try {
     const id = req.params.id as string;
     const { name, city, address, phone, logo, settings } = req.body as {
@@ -362,7 +392,7 @@ clinicsRouter.get('/:id/settings', authenticate, async (req: AuthRequest, res) =
   }
 });
 
-clinicsRouter.put('/:id/settings', authenticate, async (req: AuthRequest, res) => {
+clinicsRouter.put('/:id/settings', authenticate, requireTargetClinicWritable, async (req: AuthRequest, res) => {
   try {
     const id = req.params.id as string;
     const membership = await resolveClinicAccess(req.user!.id, id);
@@ -411,7 +441,7 @@ clinicsRouter.put('/:id/settings', authenticate, async (req: AuthRequest, res) =
   }
 });
 
-clinicsRouter.post('/:id/invite', authenticate, guardUserCreate, async (req: AuthRequest, res) => {
+clinicsRouter.post('/:id/invite', authenticate, requireTargetClinicWritable, guardUserCreate, async (req: AuthRequest, res) => {
   try {
     const id = req.params.id as string;
 
@@ -439,7 +469,7 @@ clinicsRouter.post('/:id/invite', authenticate, guardUserCreate, async (req: Aut
 });
 
 /** Create or attach a staff member to the clinic (manual add). */
-clinicsRouter.post('/:id/staff', authenticate, guardUserCreate, async (req: AuthRequest, res) => {
+clinicsRouter.post('/:id/staff', authenticate, requireTargetClinicWritable, guardUserCreate, async (req: AuthRequest, res) => {
   try {
     const clinicId = req.params.id as string;
     const gate = await assertCanManageStaff(req.user!.id, clinicId);
@@ -544,7 +574,7 @@ clinicsRouter.post('/:id/staff', authenticate, guardUserCreate, async (req: Auth
 });
 
 /** Update staff profile / role within clinic. */
-clinicsRouter.patch('/:id/staff/:userId', authenticate, async (req: AuthRequest, res) => {
+clinicsRouter.patch('/:id/staff/:userId', authenticate, requireTargetClinicWritable, async (req: AuthRequest, res) => {
   try {
     const clinicId = req.params.id as string;
     const userId = req.params.userId as string;
@@ -643,7 +673,7 @@ clinicsRouter.patch('/:id/staff/:userId', authenticate, async (req: AuthRequest,
  * Remove a staff member from the clinic (membership only — user account kept).
  * Guards: cannot remove self, cannot remove last OWNER, ADMIN cannot remove OWNER.
  */
-clinicsRouter.delete('/:id/staff/:userId', authenticate, async (req: AuthRequest, res) => {
+clinicsRouter.delete('/:id/staff/:userId', authenticate, requireTargetClinicWritable, async (req: AuthRequest, res) => {
   try {
     const clinicId = req.params.id as string;
     const targetUserId = req.params.userId as string;

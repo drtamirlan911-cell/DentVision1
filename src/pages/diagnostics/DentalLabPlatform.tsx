@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/ds/Button';
 import { PageHeader } from '@/components/ui/ds/StatCard';
 import { QueryError } from '@/components/ui/ds/QueryError';
 import { Tabs } from '@/components/ui/ds/Misc';
-import { getLabPlatformDashboard, getLabPlatformOrders, getLabPlatformTeam, updateLabPlatformOrderStatus, type LabPlatformOrder } from '@/utils/labPlatformApi';
+import { getLabPlatformDashboard, getLabPlatformOrders, getLabPlatformTeam, updateLabPlatformOrderStatus, updateLabPlatformQualityControl, type LabPlatformOrder } from '@/utils/labPlatformApi';
 import { useEcosystemUrlContext } from '@/hooks/useEcosystemUrlContext';
 import EcosystemRelationRail from '@/components/ecosystem/EcosystemRelationRail';
 
@@ -17,14 +17,17 @@ const STAGES = [
   { id: 'in_progress', label: 'В работе' },
   { id: 'try_in', label: 'Примерка' },
   { id: 'adjustment', label: 'Коррекция' },
+  { id: 'qc', label: 'Контроль качества' },
   { id: 'ready', label: 'Готово' },
   { id: 'delivered', label: 'Выдано' },
+  { id: 'remake', label: 'Переделка' },
+  { id: 'delayed', label: 'Задержано' },
 ] as const;
 
 const NEXT: Record<string, string[]> = {
-  pending: ['sent'], sent: ['in_progress'], in_progress: ['try_in', 'adjustment', 'ready', 'remake', 'delayed'],
-  try_in: ['adjustment', 'ready', 'remake'], adjustment: ['ready', 'remake'], ready: ['delivered', 'remake'],
-  remake: ['in_progress'], delayed: ['in_progress'],
+  pending: ['sent'], sent: ['in_progress'], in_progress: ['try_in', 'adjustment', 'qc', 'remake', 'delayed'],
+  try_in: ['adjustment', 'qc', 'remake'], adjustment: ['qc', 'remake'], qc: [], ready: ['delivered', 'remake'],
+  delivered: [], remake: ['in_progress'], delayed: ['in_progress'],
 };
 
 function Status({ status }: { status: string }) {
@@ -33,7 +36,43 @@ function Status({ status }: { status: string }) {
   return <Badge variant={tone as any}>{label}</Badge>;
 }
 
-function OrderCard({ order, onStatus }: { order: LabPlatformOrder; onStatus: (id: string, status: string) => void }) {
+const QC_CHECKS = [
+  { id: 'fit', label: 'Посадка и контакт' },
+  { id: 'margins', label: 'Краевое прилегание' },
+  { id: 'shade', label: 'Цвет и эстетика' },
+  { id: 'occlusion', label: 'Окклюзия' },
+  { id: 'surface', label: 'Поверхность и полировка' },
+  { id: 'documentation', label: 'Комплектность и маркировка' },
+] as const;
+
+function QualityControlForm({ busy, onSubmit }: { busy: boolean; onSubmit: (checks: Record<string, boolean>, note: string) => void }) {
+  const [values, setValues] = useState<Record<string, string>>({});
+  const [note, setNote] = useState('');
+  const complete = QC_CHECKS.every((check) => values[check.id] === 'pass' || values[check.id] === 'fail');
+  const passed = complete && QC_CHECKS.every((check) => values[check.id] === 'pass');
+  const checks = Object.fromEntries(QC_CHECKS.map((check) => [check.id, values[check.id] === 'pass']));
+  return (
+    <div className="space-y-3 rounded-xl border border-dv-gold/30 bg-surface-2 p-3">
+      <div><p className="text-xs font-semibold text-txt-primary">Контроль качества</p><p className="mt-1 text-[11px] text-txt-muted">Каждый пункт требует явной оценки.</p></div>
+      <div className="space-y-2">
+        {QC_CHECKS.map((check) => (
+          <label key={check.id} className="flex items-center justify-between gap-2 text-xs">
+            <span className="text-txt-secondary">{check.label}</span>
+            <select aria-label={check.label} value={values[check.id] || ''} onChange={(event) => setValues((current) => ({ ...current, [check.id]: event.target.value }))} className="max-w-[150px] rounded-lg border border-bdr-subtle bg-surface-1 px-2 py-1.5 text-xs">
+              <option value="">Не проверено</option>
+              <option value="pass">Соответствует</option>
+              <option value="fail">Не соответствует</option>
+            </select>
+          </label>
+        ))}
+      </div>
+      <textarea value={note} onChange={(event) => setNote(event.target.value)} rows={2} maxLength={2000} placeholder="Замечание обязательно при несоответствии" className="w-full rounded-lg border border-bdr-subtle bg-surface-1 p-2 text-xs text-txt-primary" />
+      <Button size="sm" variant="primary" className="w-full" disabled={!complete || busy || (!passed && !note.trim())} onClick={() => onSubmit(checks, note)}>{passed ? 'Подтвердить QC' : 'Зафиксировать брак и отправить на переделку'}</Button>
+    </div>
+  );
+}
+
+function OrderCard({ order, onStatus, onQc, canManageQc, qcBusy }: { order: LabPlatformOrder; onStatus: (id: string, status: string) => void; onQc: (id: string, checks: Record<string, boolean>, note: string) => void; canManageQc: boolean; qcBusy: boolean }) {
   const next = NEXT[order.status] || [];
   const primary = next.find((s) => !['remake', 'delayed'].includes(s));
   return (
@@ -50,7 +89,8 @@ function OrderCard({ order, onStatus }: { order: LabPlatformOrder; onStatus: (id
         <div className="rounded-lg bg-surface-2 p-2"><span className="text-txt-muted">Материал</span><div className="mt-1 truncate font-medium">{order.material || '—'}</div></div>
       </div>
       {order.deadline && <div className="flex items-center gap-2 text-xs text-txt-muted"><Clock3 size={13} /> Дедлайн {new Date(order.deadline).toLocaleString('ru-RU', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}</div>}
-      {primary && <Button size="sm" variant="secondary" className="w-full" onClick={() => onStatus(order.id, primary)}>{primary === 'delivered' ? 'Передать клинике' : 'Следующий этап'} <ArrowRight size={14} /></Button>}
+      {order.status === 'qc' && (canManageQc ? <QualityControlForm busy={qcBusy} onSubmit={(checks, note) => onQc(order.id, checks, note)} /> : <p className="rounded-lg bg-surface-2 p-3 text-xs text-txt-muted">Ожидает подтверждения QC владельцем или менеджером лаборатории.</p>)}
+      {primary && order.status !== 'qc' && <Button size="sm" variant="secondary" className="w-full" onClick={() => onStatus(order.id, primary)}>{primary === 'delivered' ? 'Передать клинике' : 'Следующий этап'} <ArrowRight size={14} /></Button>}
     </Card>
   );
 }
@@ -64,6 +104,8 @@ export default function DentalLabPlatform() {
   const orders = useQuery({ queryKey: ['lab-platform', 'orders', filter], queryFn: () => getLabPlatformOrders(filter), refetchInterval: 30_000 });
   const team = useQuery({ queryKey: ['lab-platform', 'team'], queryFn: getLabPlatformTeam, enabled: tab === 'team' });
   const statusMutation = useMutation({ mutationFn: ({ id, status }: { id: string; status: string }) => updateLabPlatformOrderStatus(id, status), onSuccess: () => { qc.invalidateQueries({ queryKey: ['lab-platform'] }); } });
+  const qcMutation = useMutation({ mutationFn: ({ id, checks, note }: { id: string; checks: Record<string, boolean>; note: string }) => updateLabPlatformQualityControl(id, checks, note), onSuccess: () => { qc.invalidateQueries({ queryKey: ['lab-platform'] }); } });
+  const canManageQc = ['owner', 'admin', 'manager', 'director', 'lab_manager'].includes(String(dashboard.data?.membershipRole || '').toLowerCase());
 
   const grouped = useMemo(() => {
     const map: Record<string, LabPlatformOrder[]> = {};
@@ -105,19 +147,19 @@ export default function DentalLabPlatform() {
       {tab === 'board' && <>
         <div className="flex gap-2 overflow-x-auto pb-1">
           <Button size="sm" variant={!filter ? 'secondary' : 'ghost'} onClick={() => setFilter(undefined)}>Все</Button>
-          {STAGES.slice(0, 6).map((stage) => <Button key={stage.id} size="sm" variant={filter === stage.id ? 'secondary' : 'ghost'} onClick={() => setFilter(stage.id)}>{stage.label} {d.byStatus[stage.id] || 0}</Button>)}
+          {STAGES.map((stage) => <Button key={stage.id} size="sm" variant={filter === stage.id ? 'secondary' : 'ghost'} onClick={() => setFilter(stage.id)}>{stage.label} {d.byStatus[stage.id] || 0}</Button>)}
         </div>
         <div className="grid gap-4 xl:grid-cols-4 2xl:grid-cols-6">
-          {(filter ? [{ id: filter, label: STAGES.find((s) => s.id === filter)?.label || filter }] : STAGES.slice(0, 6)).map((stage) => (
+          {(filter ? [{ id: filter, label: STAGES.find((s) => s.id === filter)?.label || filter }] : STAGES).map((stage) => (
             <section key={stage.id} className="min-w-0 space-y-3 rounded-2xl bg-surface-0/60 p-2">
               <div className="flex items-center justify-between px-1"><h3 className="text-xs font-semibold text-txt-secondary">{stage.label}</h3><Badge variant="outline">{grouped[stage.id]?.length || 0}</Badge></div>
-              {(grouped[stage.id] || []).slice(0, 20).map((order) => <OrderCard key={order.id} order={order} onStatus={(id, status) => statusMutation.mutate({ id, status })} />)}
+              {(grouped[stage.id] || []).slice(0, 20).map((order) => <OrderCard key={order.id} order={order} canManageQc={canManageQc} qcBusy={qcMutation.isPending} onQc={(id, checks, note) => qcMutation.mutate({ id, checks, note })} onStatus={(id, status) => statusMutation.mutate({ id, status })} />)}
               {!grouped[stage.id]?.length && <div className="rounded-xl border border-dashed border-bdr-subtle p-5 text-center text-xs text-txt-muted">Нет работ</div>}
             </section>
           ))}
         </div>
       </>}
-      {tab === 'priority' && <div className="grid gap-3 lg:grid-cols-2">{d.priority.map((order) => <OrderCard key={order.id} order={order} onStatus={(id, status) => statusMutation.mutate({ id, status })} />)}{!d.priority.length && <Card padding="lg"><p className="text-sm text-txt-muted">Критических работ сейчас нет.</p></Card>}</div>}
+      {tab === 'priority' && <div className="grid gap-3 lg:grid-cols-2">{d.priority.map((order) => <OrderCard key={order.id} order={order} canManageQc={canManageQc} qcBusy={qcMutation.isPending} onQc={(id, checks, note) => qcMutation.mutate({ id, checks, note })} onStatus={(id, status) => statusMutation.mutate({ id, status })} />)}{!d.priority.length && <Card padding="lg"><p className="text-sm text-txt-muted">Критических работ сейчас нет.</p></Card>}</div>}
       {tab === 'team' && <Card padding="md"><div className="divide-y divide-bdr-subtle">{(team.data || []).map((member) => <div key={member.id} className="flex items-center justify-between py-3"><div><p className="text-sm font-medium">{member.firstName} {member.lastName}</p><p className="text-xs text-txt-muted">{member.email}</p></div><Badge variant="outline">{member.role || 'Сотрудник'}</Badge></div>)}{!team.data?.length && <p className="py-6 text-center text-sm text-txt-muted">Команда пока не загружена.</p>}</div></Card>}
     </div>
   );

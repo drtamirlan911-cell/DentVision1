@@ -38,18 +38,30 @@ export interface LabPlatformOrder {
   appointmentId?: string | null;
   createdAt: string;
   updatedAt: string;
+  qualityControl?: { checks: Record<string, boolean>; passed: boolean; note: string | null; checkedByUserId: string; checkedAt: string } | null;
 }
 
 export interface LabPlatformDashboard {
   lab: { id: string; name: string; city?: string | null; address?: string | null; phone?: string | null; email?: string | null };
+  membershipRole: string;
   totals: { all: number; active: number; dueSoon: number; overdue: number };
   byStatus: Record<string, number>;
   priority: LabPlatformOrder[];
 }
 
+export interface AvailableDentalLab {
+  id: string;
+  name: string;
+  city?: string | null;
+  address?: string | null;
+  phone?: string | null;
+  rating?: number | null;
+}
+export const getAvailableDentalLabs = () => request<AvailableDentalLab[]>('/available-laboratories');
 export const getLabPlatformDashboard = () => request<LabPlatformDashboard>('/dashboard');
 export const getLabPlatformOrders = (status?: string) => request<LabPlatformOrder[]>(status ? `/orders?status=${encodeURIComponent(status)}` : '/orders');
 export const updateLabPlatformOrderStatus = (id: string, status: string) => request<LabPlatformOrder>(`/orders/${id}/status`, { method: 'PATCH', body: JSON.stringify({ status }) });
 export const assignLabTechnician = (id: string, technicianId: string | null) => request<LabPlatformOrder>(`/orders/${id}/technician`, { method: 'PATCH', body: JSON.stringify({ technicianId }) });
+export const updateLabPlatformQualityControl = (id: string, checks: Record<string, boolean>, note?: string) => request<LabPlatformOrder>(`/orders/${id}/qc`, { method: 'PATCH', body: JSON.stringify({ checks, note }) });
 export const getLabPlatformTeam = () => request<Array<{ id: string; role?: string; firstName: string; lastName: string; email: string; avatar?: string | null }>>('/team');
 export const assignClinicLabOrder = (orderId: string, laboratoryId: string) => request<LabPlatformOrder>('/assign', { method: 'POST', body: JSON.stringify({ orderId, laboratoryId }) });

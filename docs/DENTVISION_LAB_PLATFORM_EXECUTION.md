@@ -166,3 +166,27 @@ Marketplace / Academy / Jobs / Community depth
 ```
 
 The work must extend existing `LabOrder`, `Laboratory`, `LaboratoryMember`, event, notification, inventory and AI infrastructure rather than creating parallel sources of truth.
+
+## 2026-11-01 execution checkpoint — PARTNER-003
+
+Implemented and added to the exact-head E2E suite: a clinic creates a canonical LabOrder and assigns it to an independent dental-lab organization; the dental-lab owner sees it in the partner dashboard, sees the team, assigns a technician, progresses the order through sent → in production → try-in → adjustment → ready → delivered, reads the durable event history, and the originating clinic sees the delivered status. A different laboratory is denied access.
+
+The event-log schema is reconciled with one shared runtime helper used by clinic and partner writers. The helper adds the note column when absent and makes the initial fromStatus nullable. A forward migration records the same correction for already-deployed schemas. The migration has not been applied to any live database.
+
+PARTNER-003 verifies only the current basic handoff and production path. It does not prove QC sign-off, remake authorization, shipping/dispatch, service catalogue/pricing administration, independent invoice/settlement/payout, durable idempotent notifications, AI exception surfacing, or the complete owner/manager/technician permission matrix. D10 remains OPEN.
+
+## 2026-11-01 follow-up — PARTNER-003 handoff ownership and clinic notification hardening
+
+Implemented on the existing PR #330 candidate in commits `8dacdb03cc05adec5eba78a55ea7b797a12f2eb1` and `e777520e3fffa29e2eb6e8d89423e0890c9c7bdd`:
+
+- Clinic discovery now returns only active dental labs whose canonical Organization is explicitly marked `DENTAL_LAB`, onboarding type `dental_lab`, lifecycle `ACTIVE`, verification `VERIFIED`, ecosystem-visible and legal-ready. Medical analysis labs do not enter this dental partner selector.
+- The clinic can assign a pending canonical LabOrder to a real verified dental lab. Repeating the same assignment is idempotent and does not add duplicate history; assigning another lab after handoff is rejected.
+- Clinic POST edit, DELETE and status operations reject partner-owned orders; direct assignment metadata through the generic clinic POST is rejected. The CRM shows delegated ownership, keeps view/print and removes local status/edit/delete controls after transfer.
+- Clinic and partner lifecycle status updates, QC updates, technician assignment and event-log writes are serialized using a LabOrder row lock and a single database transaction. Changed technician assignments are added to the event history.
+- QC now publishes the canonical clinic status event. QC pass produces the ready notification; QC fail produces a remake notification and is not classified as a completed order. Notifications remain idempotent per order/recipient.
+- The E2E suite now asserts verified partner filtering, medical-lab exclusion, same-partner idempotency, reassignment rejection, clinic mutation/deletion denial, direct assignment denial and durable notification after QC pass.
+
+**Verification state at this checkpoint:** Quality Gate `41262145807`, RB-034 `41262145784`, Vercel preview, frontend lint, backend TypeScript/ESLint, build/type checks and Command Center audit passed on `e777520`. CI `41262145782` failed at the generated System Map snapshot check because the file said 693 unique route handlers and the generator said 694; unit tests were skipped by that gate. The E2E job was still executing in its isolated environment. These new E2E assertions are not claimed as passed until a non-cancelled exact-head run completes.
+
+**D10 remains PARTIAL/OPEN.** This closes a security/ownership subflow only; the Definition of Done still requires full independent lab service/pricing management, invoice/settlement/payout, delivery/dispatch, complete role matrix, AI exception handling, desktop/mobile UX and end-to-end acceptance. The schema migration remains unapplied to live databases.
+

@@ -9,6 +9,7 @@ import { contextManager } from './context.manager.js';
 import { prisma } from '../../../lib/prisma.js';
 import { timeGreetingInTz } from '../lib/timezone.js';
 import { permissionsSatisfy } from '../../../lib/permissions.js';
+import { encryptAiTranscriptText, decryptAiTranscriptText } from '../lib/transcriptEncryption.js';
 
 /**
  * Permission required by each intent the deterministic router can execute.
@@ -152,19 +153,19 @@ export class AIService {
     const params = extractIntentParams(text, intent);
 
     // Save user message
-    await this.saveMessage(sessionId, 'user', text);
+    await this.saveMessage(sessionId, 'user', text, context);
 
     // UNKNOWN must never look like a permissions error — handle first.
     if (intent === Intent.UNKNOWN || !intent) {
       if (context.isGuest) {
         const message = guestWelcomeMessage();
-        await this.saveMessage(sessionId, 'assistant', message);
+        await this.saveMessage(sessionId, 'assistant', message, context);
         return { message, intent: 'GUEST_WELCOME', suggestions: guestSuggestions() };
       }
       const message =
         'На связи. Могу дать сводку дня, открыть расписание, выручку, долги или склад.\n\n' +
         'Например: «Что важно сегодня?», «Покажи расписание», «Проверь долги».';
-      await this.saveMessage(sessionId, 'assistant', message);
+      await this.saveMessage(sessionId, 'assistant', message, context);
       return {
         message,
         intent: Intent.UNKNOWN,
@@ -177,7 +178,7 @@ export class AIService {
     if (navAction) {
       if (context.isGuest && ['OpenSchedule', 'OpenCashier', 'OpenFinance', 'OpenPatients'].includes(navAction)) {
         const message = guestProductPitch('Для расписания и кассы нужна клиника — войдите или откройте демо.');
-        await this.saveMessage(sessionId, 'assistant', message);
+        await this.saveMessage(sessionId, 'assistant', message, context);
         return {
           message,
           intent,
@@ -193,21 +194,21 @@ export class AIService {
           ? guestSuggestions()
           : ['Показать расписание', 'Проверить долги', 'Показать выручку'],
       };
-      await this.saveMessage(sessionId, 'assistant', response.message);
+      await this.saveMessage(sessionId, 'assistant', response.message, context);
       return response;
     }
 
     // Greeting / login: Jarvis briefing for clinic users; guests get product concierge.
     if (context.isGuest && isGreetingText(text)) {
       const message = guestWelcomeMessage();
-      await this.saveMessage(sessionId, 'assistant', message);
+      await this.saveMessage(sessionId, 'assistant', message, context);
       return { message, intent: 'GUEST_WELCOME', suggestions: guestSuggestions() };
     }
 
     if (!context.isGuest && (isGreetingText(text) || isBriefingAsk(text) || intent === Intent.MORNING_BRIEFING)) {
       try {
         const briefing = await agentRouter.route(context, 'MORNING_BRIEFING', params);
-        await this.saveMessage(sessionId, 'assistant', briefing.message);
+        await this.saveMessage(sessionId, 'assistant', briefing.message, context);
         return briefing;
       } catch (e) {
         console.warn('[AI] briefing fallback', e);
@@ -225,14 +226,14 @@ export class AIService {
       const message = guestProductPitch(
         'Сводка клиники, расписание и долги доступны после входа. Пока могу рассказать о возможностях DentVision или открыть демо.',
       );
-      await this.saveMessage(sessionId, 'assistant', message);
+      await this.saveMessage(sessionId, 'assistant', message, context);
       return { message, intent: 'GUEST_GATE', suggestions: guestSuggestions() };
     }
 
     if (context.isGuest) {
       // Allow marketplace / school style intents via agents if any remain
       const response = await agentRouter.route(context, intent, params);
-      await this.saveMessage(sessionId, 'assistant', response.message);
+      await this.saveMessage(sessionId, 'assistant', response.message, context);
       return { ...response, suggestions: response.suggestions?.length ? response.suggestions : guestSuggestions() };
     }
 
@@ -246,7 +247,7 @@ export class AIService {
     const response = await agentRouter.route(context, intent, params);
 
     // Save assistant message
-    await this.saveMessage(sessionId, 'assistant', response.message);
+    await this.saveMessage(sessionId, 'assistant', response.message, context);
 
     // Save session memory
     await this.saveSessionMemory(context, sessionId);
@@ -277,13 +278,20 @@ export class AIService {
       where: { sessionId },
       orderBy: { createdAt: 'asc' },
       take: 20,
+      select: { role: true, content: true },
     });
-    // Could restore context from messages
+    // Keep the read path compatible with legacy plaintext and new ciphertext.
+    for (const message of messages) decryptAiTranscriptText(message.content);
   }
 
-  private async saveMessage(sessionId: string, role: string, content: string): Promise<void> {
+  private async saveMessage(sessionId: string, role: string, content: string, context: AIContext): Promise<void> {
     await prisma.aIMessage.create({
-      data: { id: crypto.randomUUID(), sessionId, role: role as any, content },
+      data: {
+        id: crypto.randomUUID(), sessionId, role: role as any,
+        content: encryptAiTranscriptText(content),
+        userId: context.isGuest ? null : context.userId || null,
+        clinicId: context.isGuest ? null : context.clinicId || null,
+      },
     });
   }
 

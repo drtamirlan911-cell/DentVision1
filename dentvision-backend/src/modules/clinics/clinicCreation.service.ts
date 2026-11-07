@@ -2,6 +2,7 @@ import type { Prisma } from '@prisma/client';
 import prisma from '../../lib/prisma.js';
 import { uid } from '../../lib/helpers.js';
 import { writeAuditLog, type AuditInput } from '../compliance/audit.service.js';
+import { TRIAL_DAYS } from '../billing/clinicSubscription.service.js';
 
 export interface ClinicCreationInput {
   name: string;
@@ -43,8 +44,13 @@ export async function createClinicForOwnerInTransaction(
   if (!ownerRole || !ownerUser) throw new Error('Clinic owner IAM bootstrap prerequisites are missing');
 
   const clinicId = uid();
+  const periodEnd = new Date();
+  periodEnd.setDate(periodEnd.getDate() + TRIAL_DAYS);
   const clinic = await tx.clinic.create({
-    data: { id: clinicId, name: input.name, city: input.city || null, address: input.address || null, phone: input.phone || null, plan: 'DEMO' },
+    data: { id: clinicId, name: input.name, city: input.city || null, address: input.address || null, phone: input.phone || null, plan: 'ENTERPRISE', active: true },
+  });
+  await tx.subscription.create({
+    data: { ownerType: 'CLINIC', ownerId: clinicId, plan: 'enterprise', status: 'trialing', periodEnd },
   });
   await tx.clinicMember.create({ data: { id: uid(), userId, clinicId, role: 'OWNER' } });
 

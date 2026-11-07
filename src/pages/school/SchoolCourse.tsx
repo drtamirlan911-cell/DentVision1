@@ -258,7 +258,7 @@ export default function SchoolCourse() {
         <div className="flex flex-wrap items-center gap-2 text-xs text-txt-muted min-w-0 overflow-hidden">
           <button
             onClick={() => navigate('/school')}
-            className="flex items-center gap-1 bg-transparent border-none text-dv-gold cursor-pointer font-inherit text-xs shrink-0"
+            className="flex min-h-9 items-center gap-1 rounded-md bg-transparent border-none px-2 -ml-2 text-dv-gold cursor-pointer font-inherit text-xs shrink-0"
           >
             <ArrowLeft size={14} /> Academy OS
           </button>

@@ -3,7 +3,7 @@ import { decryptMedicalHistory } from '../lib/phi.js';
 import { createHash } from 'node:crypto';
 import { subscribe } from '../lib/events.js';
 import { eventBus as aiEventBus } from '../modules/events/index.js';
-import { EventType } from '../modules/events/EventTypes.js';
+import { EventType, type PatientCreatedPayload } from '../modules/events/EventTypes.js';
 
 let registered = false;
 
@@ -20,18 +20,24 @@ export function registerAIEventBridge(): void {
   if (registered) return;
   registered = true;
 
-  subscribe('patient.created', async ({ clinicId, patientId, userId, name }) => {
+  subscribe('patient.created', async ({ clinicId, patientId, userId }) => {
     const patient = await prisma.patient.findFirst({ where: { id: patientId, clinicId }, select: { medicalHistory: true, notes: true } });
     const decodedHistory = decryptMedicalHistory(patient?.medicalHistory);
     const history = decodedHistory && typeof decodedHistory === 'object' && !Array.isArray(decodedHistory) ? decodedHistory as Record<string, unknown> : {};
     const raw = history.complaints ?? history.chiefComplaint ?? patient?.notes;
-    const complaints = raw ? (Array.isArray(raw) ? raw.map(String).slice(0, 12) : [String(raw).slice(0, 500)]) : [];
-    await aiEventBus.publish(EventType.PatientCreated, {
-      patientId,
-      firstName: name?.split(/\s+/)[0] || 'Пациент',
-      lastName: name?.split(/\s+/).slice(1).join(' ') || '',
-      ...(complaints.length ? { complaints } : {}),
-    }, { clinicId, userId: userId || 'system', source: 'crm.patient.created' });
+    const hasComplaints = Array.isArray(raw)
+      ? raw.some((complaint) => Boolean(String(complaint).trim()))
+      : Boolean(raw && String(raw).trim());
+
+    // Persist routing metadata only. The action handlers re-read and decode the
+    // clinic-scoped Patient row when work executes; complaint text never enters
+    // the durable event payload or AI Employee task payload.
+    const payload: PatientCreatedPayload = { patientId, hasComplaints };
+    await aiEventBus.publish(EventType.PatientCreated, payload, {
+      clinicId,
+      userId: userId || 'system',
+      source: 'crm.patient.created',
+    });
   });
 
   subscribe('patient.deleted', async ({ clinicId, patientId, userId }) => {
@@ -52,7 +58,15 @@ export function registerAIEventBridge(): void {
   });
 
   subscribe('labOrder.status_changed', async ({ clinicId, labOrderId, patientId, doctorId, status, previousStatus, userId }) => {
-    if (!['completed', 'delivered', 'ready'].includes(status)) return;
+    if (!['completed', 'delivered', 'ready', 'remake'].includes(status)) return;
+    const needsRemake = status === 'remake';
+    const notificationTitle = needsRemake ? 'Лабораторная работа требует переделки' : 'Лабораторный заказ готов';
+    const doctorMessage = needsRemake
+      ? 'Контроль качества не пройден. Требуется согласовать переделку с лабораторией.'
+      : 'Лабораторный заказ готов к просмотру.';
+    const operationsMessage = needsRemake
+      ? 'Лабораторная работа не прошла контроль качества. Требуется следующий шаг клиники.'
+      : 'Готовая лабораторная работа требует следующего шага.';
     const order = await prisma.labOrder.findFirst({
       where: { id: labOrderId, clinicId },
       select: { status: true, doctorId: true, patientId: true },
@@ -74,13 +88,13 @@ export function registerAIEventBridge(): void {
             id: notificationId,
             userId: targetDoctorId,
             type: 'workflow',
-            title: 'Лабораторный заказ готов',
-            message: 'Лабораторный заказ готов к просмотру.',
+            title: notificationTitle,
+            message: doctorMessage,
             link: `/lab?order=${encodeURIComponent(labOrderId)}`,
           },
           update: {
-            title: 'Лабораторный заказ готов',
-            message: 'Лабораторный заказ готов к просмотру.',
+            title: notificationTitle,
+            message: doctorMessage,
             link: `/lab?order=${encodeURIComponent(labOrderId)}`,
             read: false,
           },
@@ -109,31 +123,33 @@ export function registerAIEventBridge(): void {
           id: notificationId,
           userId: opsUserId,
           type: 'workflow',
-          title: 'Лабораторный заказ готов',
-          message: 'Готовая лабораторная работа требует следующего шага.',
+          title: notificationTitle,
+          message: operationsMessage,
           link: `/lab?order=${encodeURIComponent(labOrderId)}`,
         },
         update: {
-          title: 'Лабораторный заказ готов',
-          message: 'Готовая лабораторная работа требует следующего шага.',
+          title: notificationTitle,
+          message: operationsMessage,
           link: `/lab?order=${encodeURIComponent(labOrderId)}`,
           read: false,
         },
       });
     }));
 
-    await aiEventBus.publish(EventType.LabOrderCompleted, {
-      labOrderId,
-      patientId: patientId || order?.patientId || '',
-      doctorId: targetDoctorId || '',
-      status: order?.status || status,
-      previousStatus,
-    }, { clinicId, userId: userId || targetDoctorId || 'system', source: 'crm.labOrder.status_changed' });
+    if (!needsRemake) {
+      await aiEventBus.publish(EventType.LabOrderCompleted, {
+        labOrderId,
+        patientId: patientId || order?.patientId || '',
+        doctorId: targetDoctorId || '',
+        status: order?.status || status,
+        previousStatus,
+      }, { clinicId, userId: userId || targetDoctorId || 'system', source: 'crm.labOrder.status_changed' });
+    }
   });
 
-  subscribe('diagnostics.result_ready', async ({ referralId, resultId, clinicId, centerId, doctorId, patientName, studyType, userId }) => {
+  subscribe('diagnostics.result_ready', async ({ referralId, resultId, clinicId, centerId, doctorId, userId }) => {
     // Enforce the clinic boundary before delivering the proactive notification.
-    // The AI Event OS receives routing metadata only; report text/files remain in the protected referral API.
+    // The durable event and notification retain identifiers only; patient names, study types and report data stay in the protected referral API.
     if (doctorId) {
       const doctorMembership = await prisma.clinicMember.findFirst({
         where: { clinicId, userId: doctorId, role: 'DOCTOR' },
@@ -148,12 +164,12 @@ export function registerAIEventBridge(): void {
             userId: doctorId,
             type: 'workflow',
             title: 'Результат диагностики готов',
-            message: `${studyType || 'Исследование'} по направлению готово к просмотру.`,
+            message: 'Результат диагностики готов к просмотру. Откройте направление для подробностей.',
             link: `/diagnostics/referrals/${referralId}`,
           },
           update: {
             title: 'Результат диагностики готов',
-            message: `${studyType || 'Исследование'} по направлению готово к просмотру.`,
+            message: 'Результат диагностики готов к просмотру. Откройте направление для подробностей.',
             link: `/diagnostics/referrals/${referralId}`,
             read: false,
           },
@@ -164,22 +180,18 @@ export function registerAIEventBridge(): void {
     await aiEventBus.publish(EventType.DiagnosticResultReady, {
       referralId,
       resultId,
-      centerId,
-      doctorId,
-      patientName,
-      studyType,
     }, { clinicId, userId: userId || doctorId || 'system', source: 'diagnostics.result_ready' });
   });
 
-  subscribe('diagnostics.booking.created', async ({ centerId, bookingId, studyId, patientName, date, time, status, userId }) => {
+  subscribe('diagnostics.booking.created', async ({ centerId, bookingId, status, userId }) => {
     await aiEventBus.publish(EventType.DiagnosticBookingCreated, {
-      bookingId, centerId, studyId, patientName, date, time, status,
+      bookingId, status,
     }, { clinicId: centerId, userId: userId || 'system', source: 'diagnostics.booking.created' });
   });
 
-  subscribe('diagnostics.booking.status_changed', async ({ centerId, bookingId, studyId, patientName, date, time, status, previousStatus, userId }) => {
+  subscribe('diagnostics.booking.status_changed', async ({ centerId, bookingId, status, previousStatus, userId }) => {
     await aiEventBus.publish(EventType.DiagnosticBookingStatusChanged, {
-      bookingId, centerId, studyId, patientName, date, time, status, previousStatus,
+      bookingId, status, previousStatus,
     }, { clinicId: centerId, userId: userId || 'system', source: 'diagnostics.booking.status_changed' });
   });
 

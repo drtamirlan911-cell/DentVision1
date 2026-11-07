@@ -1,9 +1,165 @@
+## 2026-11-06 — RB-035 recipient security test fixture correction
+
+- Exact candidate `1da8313edb413a44a4cfae79799108e0a76cec2c` is on existing PR #330. CI run [42240853564](https://github.com/drtamirlan911-cell/DentVision1/actions/runs/42240853564): frontend and backend lint passed, as did TypeScript/build/Prisma/Command Center/System Map; unit suite produced 2,494 passes and one failure. Quality Gate [42240853773](https://github.com/drtamirlan911-cell/DentVision1/actions/runs/42240853773) and RB-034 [42240853724](https://github.com/drtamirlan911-cell/DentVision1/actions/runs/42240853724) passed. E2E job remained in progress when inspected.
+- Failure was in the new explicit recipient negative test: fake PatientAssignment query returned both doctors although the actual query filtered for only doctor-b. This falsely allowed doctor-a into the simulated result. The test fixture now returns only doctor-b for that call, matching Prisma behavior; production code unchanged.
+- Child commit must receive exact-head unit and E2E verification. No authorization test removed/relaxed. PR remains Draft; main unchanged; no staging/production DB, migration, PHI backfill, payment call, secret change or deploy.
+
+## 2026-11-06 — Current-head CI verified; RB-035 clinical recipient boundary correction
+
+- Rechecked PR #330 and remote refs. Starting HEAD `90635b7beef04102bed3a13d28868ae206d16cfb`, branch `fix/d1-d10-trial-archive-signing-api-20261029`, base main `ac913cc3389a294d0b135a852b035ddddb1018ca`; 348 ahead / 0 behind, 193 changed files. PR OPEN / DRAFT. Other open PR heads #333, #328, #329 and #322 were inspected and left untouched.
+- Local `git status` cannot be established because no local checkout is mounted. No local changes are claimed.
+- Exact-head CI [42162267260](https://github.com/drtamirlan911-cell/DentVision1/actions/runs/42162267260): e2e, backend-lint, lint-test and frontend-lint all SUCCESS. E2E passed Core, Browser UX, Mobile Design, Role/Context, Visual Agent, Business Owner, Organization Owner, Playwright CLI smoke and Visual Release evidence. Quality Gate [42162267180](https://github.com/drtamirlan911-cell/DentVision1/actions/runs/42162267180), RB-034 [42162267129](https://github.com/drtamirlan911-cell/DentVision1/actions/runs/42162267129), Vercel SUCCESS.
+- EventStore mock correction is present in `90635b7`; current exact-head CI clears the prior `update is not defined` setup failure.
+- Source finding in `eventOrchestrator.ts`: doctor agent included ASSISTANT; an explicit empty `notifyUserIds` fell back to organization-wide roles; clinical patient result data and links were then sent to the resolved audience. IAM matrix requires doctor recipients to be assigned/authorized and branch-scoped.
+- Candidate correction and regression test coverage are recorded in accompanying Context/Plan/Release Blocker updates. New candidate exact-head CI is pending; do not close RB-035 until it passes and the broader negative matrix passes.
+- No new branch/PR, main merge, staging/production DB operation, migration, PHI backfill, payment operation, secret/environment change or deployment.
+
+## 2026-11-06 — Exact-head CI triage and RB-035 AI notification recipient audit
+
+- Repository: `drtamirlan911-cell/DentVision1`; existing PR #330 only, branch `fix/d1-d10-trial-archive-signing-api-20261029`. Starting HEAD `e8877e81b105daedccba00a305f6b13d715c9b35`, base/main `ac913cc3389a294d0b135a852b035ddddb1018ca`; 347 ahead / 0 behind, 193 changed files. Remote branch inventory: 252 names. Open PRs #333, #330, #329, #328 and #322; all other branches/PRs preserved. No new branch/PR or main merge.
+- Local `git status` cannot be verified because no checkout is mounted. Remote refs and files were checked.
+- Canonical docs were read at their current paths: operating directive, Context, Execution Plan/Log, Product DNA, Master Spec 5.0, System Map, Release Blockers, IAM matrix, auth/RBAC/security policy, Kaspi setup, settlement contract, partner economics and RB-029 inventory. No path substitution was needed.
+- Current branch metadata reports `protected=false` and `protection.enabled=false` for main and the working branch. RB-033 remains open pending administrator confirmation and required-check configuration.
+- Exact-head CI [41975258101](https://github.com/drtamirlan911-cell/DentVision1/actions/runs/41975258101) failed only in `lint-test`: 278 test files passed, 2,482 tests passed; `EventStore.encryption.test.ts` failed to initialize because `update` was not destructured from the existing `vi.hoisted` mock factory. Frontend/backend lint, TypeScript/build, Prisma generation, Command Center, System Map and the full E2E gate job passed. E2E completed Core, Browser UX, Mobile Design, Role/Context, Visual Agent, Business Owner, Organization Owner, Playwright CLI and Visual Release checks.
+- Quality Gate [41975258095](https://github.com/drtamirlan911-cell/DentVision1/actions/runs/41975258095) and RB-034 [41975258087](https://github.com/drtamirlan911-cell/DentVision1/actions/runs/41975258087) passed; Vercel Preview status succeeded. The overall CI remains failed.
+- The test-only correction adds `update` to the test file's top-level mock destructuring. It does not remove or relax a test. Exact-head rerun is required before EventStore result/error encryption is accepted.
+- Source audit of RB-035 found that the doctor agent's notification role list includes ASSISTANT as well as DOCTOR. Clinical result objects can carry possible causes, examination recommendations, diagnoses, treatment recommendations and image URLs. Recipient lookup is limited to the active clinic's organization role graph but does not check patient assignments. SSE itself filters to target user IDs; the problem is the overbroad target set. Also, an explicit empty `notifyUserIds` array falls through to role-based recipients. This is a confirmed recipient authorization gap; code and negative tests are still pending.
+- RB-029 remains OPEN/P0. EventStore new result/error writes are encrypted; legacy plaintext compatibility remains. The failed unit suite did not execute its EventStore encryption tests. Historical rows were not read or changed; no backfill, migration, key rotation, backup restore, staging/production DB operation, provider call, secret/environment change or deployment occurred.
+- D1/D2, RB-030, RB-031, RB-033, full RB-035, official Kaspi evidence, Android runtime and D10 parity remain open. Release NOT READY.
+
+### Next actions
+1. Add the missing `update` destructuring entry and commit this fix plus docs to existing PR #330 with an expected-HEAD lease.
+2. Run exact-head CI, Quality Gate and RB-034; verify the EventStore tests actually execute.
+3. Fix doctor-agent notification recipients using active patient assignment/verified appointment scope; exclude ASSISTANT from clinical result recipients and make empty explicit recipients fail closed. Add targeted negative tests.
+4. Continue RB-029 source inventory and prepare (do not execute) D1/D2 staging validation pending approved target/backup/rollback/operator window.
+5. Keep PR #330 Draft and main unchanged.
+
+---
+
+## 2026-11-05 — RB-029 EventStore result/error encryption and RB-035 verification
+
+- Repository: `drtamirlan911-cell/DentVision1`. Existing PR #330 only; branch `fix/d1-d10-trial-archive-signing-api-20261029`. Parent HEAD `3a7e299d3eb126010f01ae75980a7b529b51bae6`, base/main `ac913cc3389a294d0b135a852b035ddddb1018ca`, compare 345 ahead / 0 behind. PR remains OPEN / DRAFT / mergeable. No new branch or PR.
+- Rechecked remote branches and open PRs: 252 branch names across three pages; open PRs #330, #333, #328, #329 and #322. No other branch/PR was modified. Issue #311 remains the integration inventory; #259 remains the branch-protection blocker.
+- Local `git status` is unverified because no local checkout is mounted. This run used remote GitHub refs and files only; no local uncommitted-work claim is made.
+- Re-read the canonical operating directive, Context, Execution Plan, Execution Log, Product DNA, Master Spec 5.0, generated System Map, Release Blockers, IAM role matrix, auth/RBAC/security audits, Kaspi setup, settlement contract and partner economics. All requested paths exist; no path substitution was needed. The normative product/security and dental-lab settlement boundaries are consistent.
+- Parent exact-head CI [41969627116](https://github.com/drtamirlan911-cell/DentVision1/actions/runs/41969627116) passed all four jobs on `3a7e299d3eb126010f01ae75980a7b529b51bae6`: 2,484/2,484 unit tests across 279 files; frontend lint, backend TypeScript/ESLint, build, Prisma generation, Command Center and System Map validation passed. E2E gates passed: Core 249/5 skipped, Browser UX 4, Mobile Design 16, Role/Context 140/28 skipped, Visual Agent 48, Business Owner 11, Organization Owner 8, Playwright CLI smoke and Visual Release Gate. Quality Gate [41969627078](https://github.com/drtamirlan911-cell/DentVision1/actions/runs/41969627078), RB-034 [41969627059](https://github.com/drtamirlan911-cell/DentVision1/actions/runs/41969627059) and Vercel Preview status passed. Supabase Preview was skipped; no production deployment is inferred.
+- RB-035 correction `8ada4be8efb6ed09dba630ca344ef5f7049b5d09` is present in the verified parent HEAD. `buildActivityFilter` and `buildApprovalFilter` now scope personal actor/requester rows to the verified active clinic/organization and deny PHI when clinic membership cannot be verified. SUPERADMIN platform access and existing `bi.read` widening are preserved. Regression tests passed in the parent exact-head CI. Overall RB-035 remains open for the full negative matrix.
+- Confirmed RB-029 residual source boundary in `EventStore.ts`: `markCompleted()` persisted `AIEvent.result` JSON directly; `markFailed()` persisted raw `AIEvent.error` from the orchestrator. Current orchestrator result summaries contain only action/agent/success, but arbitrary result writers and exception text lacked a durable at-rest boundary.
+- Code commit `3aa6d0f7af24fbbbb5ed49bc7fac0c75fa2f8bfe` was created as a child of the parent HEAD: new result JSON is encrypted using `encodeDurableEventPayload`; new error strings use the shared field cipher; list/detail readers decode result/error; legacy plaintext remains readable. Tests cover ciphertext/no plaintext at rest, encrypted round-trip through list/detail, legacy compatibility and fail-closed decryption. The branch ref has not yet been moved at the time this checkpoint was authored; exact-head CI is pending after the code and docs are advanced together.
+- RB-029 remains OPEN / P0. No historical event/result/error rows were queried, changed or backfilled. Remaining work: memory/learning retention, realtime/notification/export, audit/error logs, full reader/writer inventory, key versioning/rotation, backup/restore, legacy plaintext count and approved staging dry run/backfill/reconciliation.
+- D1/D2 four migrations and post-expiry read/negative-write/archive-retention proof remain staging blockers. RB-030 offline sync, RB-031 WebKit/production CORS/WebSocket, RB-033 repository protection, official Kaspi merchant/callback, Android runtime and D10 workflow parity remain open. RB-036 is resolved only for premature delivered-triggered dental-lab economics; D10 remains OPEN/PARTIAL.
+- No staging/production DB operation, migration, PHI backfill, payment-provider call, secret/environment change, production deployment or main merge was performed.
+
+### Next exact actions
+
+1. Move the prepared code commit and documentation checkpoint to the existing PR #330 branch with an expected-HEAD lease; re-read the PR head and compare immediately.
+2. Run exact-head CI/Quality/RB-034; inspect EventStore encryption tests and bounded E2E diagnostics. Do not infer a pass from the parent CI.
+3. Continue RB-029 memory/learning, realtime/notification/export, historical plaintext, key lifecycle and backup/restore inventory.
+4. Complete the RB-035 patient/role/tenant/branch/revoked-session negative matrix; prepare D1/D2 staging runbook without executing it before approval.
+5. Keep PR #330 Draft and main unchanged until release blockers and Master Spec workflows are evidenced.
+
+
 # DentVision — Persistent Execution Log
+
+## 2026-11-05 — RB-035 AI activity/approval tenant boundary and RB-029 handoff
+
+- Repository: `drtamirlan911-cell/DentVision1`. Continued only on the existing PR #330 branch `fix/d1-d10-trial-archive-signing-api-20261029`; no new branch or PR. At start of this run PR #330 was OPEN / DRAFT / mergeable, HEAD `0299ab57243092479716d87af6b2e8878612e23a`, base/main `ac913cc3389a294d0b135a852b035ddddb1018ca`, compare 342 ahead / 0 behind, 193 changed files. Main was not modified.
+- Branch/PR safety check: 252 branch names were enumerated across the complete paged listing. Other open PRs were read-only checked and left unchanged: #328 `966512b54a2937472732e2c94d23fd819de2edb0`, #329 `c2e5951ba631da1762bd3380c3bbc35c51953770`, #322 `f4fb1f5b8e2729a4cda00207593bc0d9e20d866a` (its recorded base SHA differs from current main), and #333 `3ec32abf57d37f3c00e0fbb195a6956be6dec510`. Open integration issue #311 and main-protection issue #259 remain open.
+- Local `git status` is NOT verified: this execution environment has no mounted local checkout. Remote PR/branch refs were read. No other branch was changed.
+- Canonical documents and their current paths were rechecked: `DENTVISION_OPERATING_DIRECTIVE.md`, `DENTVISION_CONTEXT.md`, `DENTVISION_EXECUTION_PLAN.md`, `DENTVISION_EXECUTION_LOG.md`, `docs/00_CONSTITUTION/02_PRODUCT_DNA.md`, `docs/DENTVISION_MASTER_SPEC.md`, `docs/SYSTEM_MAP.md`, `docs/RELEASE_BLOCKERS.md`, `docs/DENTVISION_IAM_ROLE_MATRIX.md`, `docs/compliance/AUTH_SECURITY_AUDIT.md`, `docs/compliance/RBAC_AUDIT.md`, `docs/compliance/SECURITY_POLICY.md`, `docs/KASPI_CLINIC_SETUP.md`, `docs/finance/SETTLEMENT_PAYMENT_CONTRACT.md`, and `docs/business/DENTVISION_PARTNER_ECONOMICS.md`. No path substitution was needed.
+- Exact-head evidence for the starting code HEAD `0299ab57243092479716d87af6b2e8878612e23a`: CI [41840005056](https://github.com/drtamirlan911-cell/DentVision1/actions/runs/41840005056) PASSED all four jobs; Quality Gate [41840005038](https://github.com/drtamirlan911-cell/DentVision1/actions/runs/41840005038) PASSED; RB-034 [41840005059](https://github.com/drtamirlan911-cell/DentVision1/actions/runs/41840005059) PASSED; Vercel preview status SUCCESS (not production). Lint-test log confirms 2,483/2,483 tests across 279 files, Prisma generation, production build, TypeScript, Command Center and generated System Map validation passed.
+- Bounded E2E artifact review for run 41840005056: Core 249 passed / 5 skipped; Browser UX 4 passed; Mobile Design 16 passed; Role/Context 139 passed / 28 skipped / 1 flaky retry; Visual Agent 48 passed; Business Owner 11 passed; Organization Owner 8 passed; Playwright CLI smoke and Visual Release Gate passed. All nine gate commands returned status 0. The one flaky signature was a patient-portal `GET /api/patient-portal/conversation` request that remained pending for ~20 seconds; the gate recovered on retry. This is a reliability follow-up, not evidence of a 4xx/5xx or CORS failure. The artifact contained 208 responsive, 256 role and 1,284 Visual Agent evidence images.
+- Four commits after prior checkpoint `d04c71d27cd68d924a8a39e98c638589bd724944` were source-reviewed: patient-clinic conversation body/reason encryption and generic durable notifications; AI transcript encryption for new `AIMessage.content` / `prevUserText` and encrypted `AISession.messages` mirrors; a kernel syntax correction; and encrypted/scoped AI approval params, static summaries and `medical.read` disclosure gating. These improve PHI at rest but do not close RB-029.
+- Confirmed RB-035 source defect: both Agent Activity and AI Approval visibility included every row matching the caller's own actor/requester ID regardless of clinic, while PHI disclosure was decided once from the currently active clinic. A user with `medical.read` in Clinic A could therefore retrieve their own PHI-bearing activity/approval from Clinic B without a verified Clinic B context. Candidate fix commit `8ada4be8efb6ed09dba630ca344ef5f7049b5d09` scopes personal rows to the verified active clinic/organization, denies PHI visibility without a verified clinic (except SUPERADMIN), preserves the existing clinic/org-wide `bi.read` rules, and adds regression tests. Approval decision-note encryption/decryption now also fails closed if ciphertext cannot be produced or decoded.
+- Code files in `8ada4be8efb6ed09dba630ca344ef5f7049b5d09`: `dentvision-backend/src/modules/ai/os/activityQuery.ts`, `activityQuery.test.ts`, and `approvalPrivacy.ts`. Targeted tests and exact-head CI for this new commit are PENDING; no pass is inferred from the parent run.
+- RB-029 remains OPEN. New event payload writes are encrypted and patient/diagnostic bridge payloads are minimized; AI Employee tasks no longer duplicate raw event payloads; patient-clinic conversation content and AI transcripts are encrypted for new writes; approval params/decision notes are encrypted. Residual source finding: `EventStore.markCompleted()` stores `AIEvent.result` directly and `markFailed()` stores raw `AIEvent.error`; current event readers decode `payload` but not `result/error`. Review/encrypt or minimize those fields and their consumers before closure. Also open: legacy plaintext counts/backfill, AI memory/learning retention, realtime/notification/export paths, key version/rotation, backup/restore and approved staging dry run/reconciliation.
+- D1/D2 remain OPEN pending approved staging validation of all four migrations (`20261029100000_add_organization_soft_archive`, `20261029101000_backfill_legacy_clinic_trials`, `20261101090000_reconcile_dental_lab_order_events`, `20261101110000_add_dental_lab_qc_status`) plus post-expiry read/negative-write and archive-retention proof. RB-030 offline sync, RB-031 WebKit/production CORS/WebSocket, RB-033 branch protection, RB-035 full negative matrix and D10 workflow parity remain open. RB-036 remains resolved only for premature delivery-triggered dental-lab economics; D10 remains OPEN/PARTIAL.
+- Branch protection remains unverified: rulesets returned an empty list and the classic main protection endpoint returned 403 (Resource not accessible by integration). Repository-admin confirmation is still required.
+- No staging/production database operation, migration, PHI backfill, live Kaspi/payment-provider call, secret/environment change, production deployment or main merge was performed.
+
+### Next exact actions
+1. Advance only the prepared code + documentation commits to the existing PR #330 branch with an expected-HEAD lease; verify the new PR HEAD before any further write.
+2. Run exact-head CI/Quality/RB-034 and inspect targeted `activityQuery` tests plus bounded E2E diagnostics. Do not infer a pass until all jobs complete.
+3. Continue RB-029 review at `EventStore.result/error`, AI memory/learning, realtime/notification/export, key rotation and backup/restore; keep historical backfill read-only until staging approval.
+4. Complete RB-035 patient/role/tenant/branch/revoked-session negative matrix; prepare D1/D2 staging runbook but do not execute without verified target, backup/rollback and operator approval.
+5. Keep PR #330 Draft and main unchanged until every release gate and Master Spec workflow has evidence.
+
+
+## 2026-11-03 — Exact-head CI/E2E completion and release-blocker reconciliation
+
+- Revalidated existing PR #330 only: branch `fix/d1-d10-trial-archive-signing-api-20261029`, code/test HEAD `de0dffcadf0dca77beaf61cb647729ad849d35b8`, base/main `ac913cc3389a294d0b135a852b035ddddb1018ca`; 333 commits ahead, 0 behind, 164 changed files. PR remains OPEN / DRAFT. No new branch or PR.
+- Exact-head CI `41387485129` passed all four jobs (frontend-lint, backend-lint, lint-test, E2E). Quality Gate `41387485180`, RB-034 `41387485168` and Vercel preview status passed. Unit suite: 2,437/2,437 tests in 270 files. Build, TypeScript, Command Center and generated System Map checks passed.
+- E2E job passed on merge ref `330/merge` (synthetic merge `f44da33f2db45b6a60400fa0457a1186d6d40dd3`). Gate results: Core 249 passed / 5 skipped; Browser UX 4; Mobile Design 16; Role/Context 140 passed / 28 skipped; Visual Agent 48; Business Owner 11; Organization Owner 8; Playwright CLI smoke and Visual Release Gate returned status 0. Compact diagnostics: 359 lines scanned, zero unique failure signatures.
+- Confirmed source/test state for RB-036: delivery subscriber no longer writes dental-lab economics; obsolete delivery-only helper is removed; PARTNER-003 verifies after delivery that no DENTAL_LAB `partner_economics` transaction or ledger entries exist. Exact-head E2E passed. RB-036 is resolved as the premature-recognition defect; D10 remains OPEN/PARTIAL because the independent dental-lab commercial settlement and broader partner workflow are not implemented.
+- D1/D2 remain open pending approved staging migration, expired-clinic read/write and archive-retention verification. RB-029, RB-030, RB-031, RB-033 and RB-035 remain open pending PHI/backfill, offline-sync, WebKit/production CORS, branch protection and complete negative authorization evidence.
+- Rechecked all open PRs: #328 head `966512b54a2937472732e2c94d23fd819de2edb0` (CI failure / Quality success); #329 `c2e5951ba631da1762bd3380c3bbc35c51953770` (CI cancelled / Quality success); #322 `f4fb1f5b8e2729a4cda00207593bc0d9e20d866a` (CI failure / Quality success, base SHA differs from current main); #333 `3ec32abf57d37f3c00e0fbb195a6956be6dec510` (CI cancelled / Quality success). No parallel branch was changed.
+- Branch protection: GitHub rulesets read returned an empty list; classic main branch-protection read returned 403, so RB-033 is not verified and still requires repository-admin confirmation. Issue #259 remains open; branch inventory issue #311 remains open.
+- No staging/production database operation, migration, PHI backfill, live payment-provider call, environment/secret change, production deployment or main merge. Local `git status` remains unverified because no local checkout is mounted.
+- This log update is documentation-only. Its resulting new HEAD must receive its own CI; the successful evidence above belongs to code/test HEAD `de0dffcadf0dca77beaf61cb647729ad849d35b8`.
+
+### Next action
+
+Continue source-only RB-029 reader/writer/concurrent-writer review and RB-035 route-level negative authorization matrix. Prepare D1/D2 staging runbook for all pending migrations but do not execute it until the staging target, backup/rollback and operator window are verified. Then address RB-030, RB-031, RB-033, Kaspi evidence and remaining D10 workflows.
+
 
 This log is the durable handoff between work sessions/agents. It records completed work, evidence, blockers, and the exact next action.
 
-## Historical record
+## 2026-11-01 — Dental-lab handoff ownership, QC notifications and transactional lifecycle
+
+- Repository: `drtamirlan911-cell/DentVision1`; updated only the existing PR #330 branch `fix/d1-d10-trial-archive-signing-api-20261029`. Main remains `ac913cc3389a294d0b135a852b035ddddb1018ca`; no merge.
+- Implementation commit `8dacdb03cc05adec5eba78a55ea7b797a12f2eb1`:
+  - Clinic `POST /api/lab-orders` can no longer set partner/technician metadata directly or create non-pending orders. An edit cannot mutate a delegated order or bypass the dedicated status endpoint.
+  - Clinic `DELETE /api/lab-orders/:id` now refuses partner-owned orders and preserves the cross-organization history.
+  - Clinic partner discovery exposes only active, verified, legally ready, ecosystem-visible dental laboratories; medical labs are excluded.
+  - Assignment is row-locked and idempotent for the same partner; reassignment to a different lab and assignment of non-pending orders are rejected.
+  - QC transitions are atomic with the durable event record and publish the canonical `labOrder.status_changed` event; ready/remake notifications reach the clinic/doctor/operations through the AI Event Bridge. Remake is not falsely emitted as a completion.
+  - CRM exposes the verified dental-lab picker and disables local lifecycle/edit/delete controls after handoff. The print flow consumes the persisted order returned by the server.
+  - E2E contracts added for partner filtering, repeat assignment, reassignment denial, clinic edit/delete/direct-assignment denial and QC clinic notification.
+- Follow-up commit `e777520e3fffa29e2eb6e8d89423e0890c9c7bdd`:
+  - Clinic status transition, partner status transition, technician assignment and their event-history inserts now run under one LabOrder row lock/transaction. This closes the read-then-write race between concurrent lifecycle actors.
+  - Same-technician assignment is idempotent; changed technician assignment is recorded in lifecycle history.
+  - Work-order printing now uses the server-created ID instead of a client-only temporary ID.
+- Exact-head CI evidence on `e777520`: Quality Gate `41262145807` passed; RB-034 focused diagnostic `41262145784` passed; Vercel preview status passed. Frontend lint and backend TypeScript/ESLint passed; production build, frontend/backend TypeScript and Command Center audit passed. CI `41262145782` failed only at generated System Map reconciliation (snapshot 693 unique route handlers vs generator 694); unit tests were skipped because the required docs snapshot was stale. E2E was still active in its isolated DB setup; the new partner assertions have not yet been reported as passing.
+- `docs/SYSTEM_MAP.md` snapshot is corrected to 694. Fresh exact-head CI/Quality/RB-034 is required after the documentation commit. Do not convert an E2E-in-progress or skipped unit suite into a pass.
+- D10 remains PARTIAL/OPEN; the work closes only the clinic-to-dental-lab assignment and ownership subflow. Catalogue/pricing, invoicing/settlement/payout, delivery/dispatch, complete technician/manager negative matrix, AI exception coverage and overall Master Spec parity remain outstanding.
+- No local checkout/test execution is claimed. No staging/production DB write, migration, PHI backfill, provider account change, production deployment or merge to main was performed.
+
+## Historical record## Historical record
 The complete pre-2026-09-14 execution history is preserved in the parent Git history at commit `ceb0a85560540d0bff2ecd154189280f8cd6d588`. The current file was accidentally shortened during the 2026-09-14 patient-scope repair; no historical source commit was rewritten.
+
+## 2026-10-31 — Concurrent patient-history and deposit E2E coverage
+
+- Commit `dda18b4239bb9a23d18cec872bcb0074079b65ab` adds two isolated-database E2E scenarios in `e2e/tests/money-medical-negative.spec.ts`: concurrent PATCH updates must not lose any accepted history marker; concurrent patient deposits must be additive; fractional KZT values must be rejected.
+- Source implementation remains `b77552f8078382beabc376ad2af37ba2cb60abff`; brittle route source-contract assertions were corrected in `8e7989b5d01eb973220df70b331e5912342f281e` after CI `41181068689` reported only three test expectation mismatches (2,382 passed / 3 failed). No source checks or authorization assertions were removed.
+- RB-029 inventory now records Patient PATCH CAS/transaction behavior and AI transcript PHI as a distinct unresolved persistence surface.
+- Fresh exact-head CI/Quality/RB-034 is required because the previous run did not include the final matcher/E2E changes. No local test execution, staging/production DB operation, backfill, deployment or main merge.
+
+## 2026-10-31 — Test matcher correction and RB-029 inventory reconciliation
+
+- Follow-up commit `8e7989b5d01eb973220df70b331e5912342f281e` changes only three brittle matcher assertions in `patients.routes.branchScope.test.ts`: PATCH/deposit route declaration checks tolerate normalized whitespace, and the negative matcher no longer mistakes the successful response's `prepaidBalance: next` field for an unsafe absolute database write.
+- First exact-head run `41181068689` on source commit `b77552f8078382beabc376ad2af37ba2cb60abff`: 2,382 tests passed, 3 failed in that one source-contract file. Frontend lint, backend lint, Quality Gate and RB-034 diagnostic passed; E2E had started and was not a complete pass.
+- Updated `docs/security/RB-029_MEDICAL_HISTORY_ENCRYPTION_INVENTORY.md` to record the current Patient PATCH CAS/transaction behavior and the still-open AI transcript PHI surface (`AIMessage.content`, `AISession.messages`).
+- Fresh exact-head CI/Quality/RB-034 verification is required. No test was disabled; no staging/production migration, PHI backfill, database write, deployment or merge to main.
+
+## 2026-10-31 — Patient history concurrency and atomic deposit follow-up
+
+- Repository: `drtamirlan911-cell/DentVision1`; updated only the existing PR #330 branch `fix/d1-d10-trial-archive-signing-api-20261029`.
+- Source commit: `b77552f8078382beabc376ad2af37ba2cb60abff` (parent `45fe9ba5f573d8311d6b96e4e83f8260bffbf3f9`).
+- `PATCH /api/patients/:id` previously decrypted/merged an existing medical-history snapshot and wrote it with unconditional `patient.update`. Concurrent chart edits could be silently overwritten. The route now uses an `updatedAt` compare-and-set inside a transaction, returns 409 on stale writes, and commits Tooth-row mirroring plus validated branch reassignment in that same transaction.
+- Branch validity is checked before the patient mutation; the branch SQL helper now accepts a Prisma transaction client.
+- Patient deposit now uses DB-side `prepaidBalance.increment` rather than fetching and writing an absolute balance, and rejects non-integer/unsafe amounts. This prevents lost updates from concurrent deposits.
+- Added source-contract regression assertions for PATCH concurrency/transaction coupling and atomic deposit arithmetic.
+- Verification: changes are committed remotely. No local checkout/test execution is available; fresh exact-head CI/Quality/RB-034 runs are required. Previous CI `41179352197` was still in Role/Context before this change and is superseded. No staging/production migration, PHI backfill, database write, deployment or merge to main.
+- Next: inspect full exact-head gates; resolve regressions without weakening permission, tenant or privacy assertions. RB-029/RB-035 remain OPEN pending broader tests and approved staging verification.
+
+## Current execution checkpoint — 2026-10-29
+
+- Repository: `drtamirlan911-cell/DentVision1`; active working PR #328, branch `fix/workspace-switcher-menu-overflow-20261026`.
+- Parent candidate `a4ab7285c8fa69df42d220c48d83267b760c56d9` failed exact-head CI run [40633387317](https://github.com/drtamirlan911-cell/DentVision1/actions/runs/40633387317): role/context 39 failed, 101 passed, 28 skipped; Visual Agent 3 failed, 45 passed. Core E2E and the other listed gates passed. Failure evidence was reviewed from bounded role-context, Visual Agent and run-diagnostics artifacts.
+- Implementation commit: `2f4da1fec9a5a2e7381f340ad101ab9b9180ce72`. Changes: manager/LAB permissions and page allowlists; guards for authenticated Shop account actions and School workspace routes while preserving public `/shop` discovery; accessible-name/touch-target audit correction; bounded API 4xx path diagnostics; regression tests; IAM policy and RB-035 register updates.
+- Exact-head CI for the new candidate has not yet been verified. No local checkout was available, so local tests and `git status` were not run. No test was disabled.
+- **Residual P0:** RB-035 remains open for patient read-route RBAC, PHI serialization, cross-clinic IIN lookup and patient-deposit billing authorization. Those backend routes are unchanged. RB-029, RB-034 and RB-033 remain open.
+- Next: inspect exact-head CI and its bounded HTTP path diagnostics; then implement patient-route RBAC/redaction and financial guards with negative tests. Keep `main` unchanged and do not create a branch or PR.
 
 ## 2026-09-14 — Patient branch-scope repair and CI verification
 
@@ -2310,3 +2466,454 @@ These changes are route/entry reconciliation only. Existing domain implementatio
 
 - CI run [40338265481](https://github.com/drtamirlan911-cell/DentVision1/actions/runs/40338265481) on `40528bd5bfaba03dd8e1791a1f54168fac55befe` passed backend-lint, frontend-lint and Quality Gate. The unit-test stage reached 2,283/2,284; its only failure was an obsolete exact array expectation in `permissions.pages.test.ts` that omitted `help` and `notifications` from the restored STUDENT common page set.
 - Updated the test expectation to the intended five-page set rather than rolling back the access-policy change. Fresh exact-head CI/E2E remains required for the correction commit.
+
+
+## 2026-10-30 — Resume D1–D10 candidate, fix trial idempotency and archive-aware IAM contracts
+- Repository: `drtamirlan911-cell/DentVision1`. Active branch: `fix/d1-d10-trial-archive-signing-api-20261029`. Existing PR: [#330](https://github.com/drtamirlan911-cell/DentVision1/pull/330), open/draft. Live `main` ref was verified as `ac913cc3389a294d0b135a852b035ddddb1018ca`; PR #330 is based on it. No branch/PR was created, no main merge, no production deployment.
+- **Remote/local state:** PR #330's pre-documentation code/test head was `411ae782f2bdb9964c4c8e5b40378c267ae8aaa1`. A local checkout was not mounted, so local `git status` and uncommitted local changes could not be inspected. Remote PR heads, base SHA and open PR states were verified; do not claim the local tree is clean.
+- **Confirmed D1 defect:** `clinicCreation.service.ts` creates Enterprise `trialing` subscriptions with a 30-day `periodEnd`; the legacy migration upgrades eligible DEMO clinics to ENTERPRISE. However, `POST /api/auth/demo-clinic` still searched only `Clinic.plan = DEMO`. Once a clinic was created/upgraded to ENTERPRISE, a repeat request could miss it and create a second clinic/trial.
+- **Fix commit `c83cbd010f59399d4d1647366f3a6752e8e892a6`:** the existing-clinic lookup now recognizes both DEMO and ENTERPRISE, preserving legacy compatibility and preventing the new Enterprise trial from escaping the idempotency check.
+- **IAM test-contract fix commit `e6c3147604f21acf0bf8766048f802540c54c015`:** aligned mocks with the archive-aware Organization lookup; legacy fallback is tested only when no canonical Organization exists; added negative assertions that archived Organization/Clinic contexts are denied even if a legacy ClinicMember row exists; a roleless canonical Person now fails closed instead of falling through to an unrelated legacy membership. No authorization guard was relaxed.
+- **Trial contract commit `411ae782f2bdb9964c4c8e5b40378c267ae8aaa1`:** replaced the obsolete DEMO expectation with Enterprise/trialing/30-day assertions and the DEMO/ENTERPRISE idempotency contract.
+- **Prior exact candidate CI:** [run 40870315832](https://github.com/drtamirlan911-cell/DentVision1/actions/runs/40870315832), PR merge ref `51a4e1f8dcc53b6284932127f482ccbb48d46c80`, head `469b32d3403614a67151b649de9bf73f03ef9d15`. Frontend lint, backend lint, Quality Gate and RB-034 context diagnostic passed. Unit tests reported 2,301 passed / 4 failed in two files: three `orgContext.test.ts` stale mocks/expectations and one obsolete `DEMO` assertion in `auth.diagnostics-endpoints.contract.test.ts`. These contracts were updated in the commits above; no new exact-head result is claimed yet.
+- **Bounded E2E artifact review:** run 40870315832's compact digest and only the core + Browser UX checkpoint artifacts were inspected. Core reported 240 passed / 5 skipped / 1 failed: BRANCH-003 could not click the created branch option because it remained outside the viewport. Browser UX reported 3 passed / 1 failed: 403 resources on `/crm/patients` and `/crm/treatment-plans`. Mobile design passed 16/16. Overall E2E job was cancelled. Full traces, successful DOM dumps and bulk screenshots were not ingested.
+- **Parallel PR state:** #328 remains open and its own CI run 40843992280 has a TypeScript error at `planGate.ts(102,51)` (undefined `_res`), one stale CRM security contract assertion and cancelled E2E; do not treat its picker/403 changes as verified. #329 remains open; Quality Gate and lint/unit stages passed, E2E cancelled, and RB-029 staging/backfill evidence remains open. #322 remains an isolated Codespaces draft with failed CI and a Vercel build-rate-limit status. #326 is already merged. No sibling branch was modified.
+- **Canonical documentation reviewed:** Operating Directive; Product DNA; Master Spec v5.0; System Map; IAM Role Matrix; Release Blockers; Kaspi Clinic Setup; Partner Economics; Release Checklist; RB-029 inventory. The Release Checklist is dated 2026-07-22 and lists Neon for `DATABASE_URL`, but that is not live-provider evidence. RB-029 inventory predates the open #329 envelope work. Kaspi setup explicitly warns that its sample HMAC callback is not the official Kaspi API contract. Partner Economics remains the sole policy source and was not changed.
+- **Documentation updates in this pass:** Execution Plan commit `737396937c287564c124fa56642789826c49bfe2`; Release Blockers commit `91402a4908f63f839e342b27f6a04de75336198b`; Context commit `ee6b6a2243f9dd3727558037383f33a0ca285b90`. The Execution Plan's stale current-priority pointer to `security/doctor-agent-tenant-isolation-20261025` was replaced with the current #330 D1–D10 sequence; Context and Release Blockers now record exact branch/PR/CI evidence and remaining live/staging gates.
+- **Remaining blockers:** new exact-head CI after these code/test/documentation commits; non-cancelled full role/context and E2E gates; staging application/validation of the archive and legacy-trial migrations; authenticated post-expiry read-positive/write-negative tests; RB-029 consumer/concurrent-writer audit and approved staging dry run/backfill; production CORS/WebSocket configuration; official Kaspi merchant contract and callback verification; main branch-protection proof; D10 route-to-workflow coverage for the Master Spec. No staging or production database operation was performed.
+- **Next action:** inspect the newest exact-head CI run for this branch. Fix only new confirmed failures, preserve all negative security assertions, and do not merge/deploy or integrate #328/#329 without separate verification and authorization.
+## 2026-10-30 — Exact-head CI triage and archive-owner authorization
+- Repository: `drtamirlan911-cell/DentVision1`. Active remote branch: `fix/d1-d10-trial-archive-signing-api-20261029`; existing PR [#330](https://github.com/drtamirlan911-cell/DentVision1/pull/330). Reviewed base/head before this correction: `6b02e31eba480084ba57d481b130fcafafe037f5`; `main` remained `ac913cc3389a294d0b135a852b035ddddb1018ca`.
+- No local checkout was mounted, so local `git status` and uncommitted local changes could not be inspected. Remote branch/PR refs were checked. No branch or PR was created; no sibling branch was modified; no merge, deployment, staging migration or production DB operation was performed.
+- Exact-head CI: [run 41004898403](https://github.com/drtamirlan911-cell/DentVision1/actions/runs/41004898403), candidate head `6b02e31eba480084ba57d481b130fcafafe037f5`. Backend lint, frontend lint, Prisma generate, build, TypeScript, project-index/system-map validation, Quality Gate [41004898300](https://github.com/drtamirlan911-cell/DentVision1/actions/runs/41004898300), and RB-034 diagnostic [41004898478](https://github.com/drtamirlan911-cell/DentVision1/actions/runs/41004898478) passed. Unit tests: 2,316 passed / 10 failed / 2,326 total.
+- The 10 failures were triaged into **test-contract/fixture defects**, not ten confirmed application defects:
+  - `trialWriteGuards.contract.test.ts`: three brittle source-string/order assertions no longer matched the current optional-chained expiry condition, the nested archive-before-SUPERADMIN clinic guard, and the stricter organization/clinic consistency check. The test now asserts the current security invariants.
+  - `referralAccess.test.ts`: seven middleware assertions failed because Express request mocks omitted `req.method`; the current middleware correctly reads the HTTP method before applying the trial write gate. The test fixtures now supply `method: 'GET'` for read-only access checks. The runtime middleware and access policy were not weakened.
+- IAM review found the organization archive route's generic `admin` / `org_admin` allowance conflicted with `docs/DENTVISION_IAM_ROLE_MATRIX.md`: clinic ADMIN is a daily operational role; organization-wide ownership governance is not included. The candidate narrows archive permission to owner-level scoped roles and preserves the self-service Supplier/Academy creator roles (`seller` / `lecturer`) and specialized partner-owner roles. A regression contract pins the allow-list. Exact-head tests are still required before treating this fix as verified.
+- Bounded E2E evidence from run 41004898403:
+  - Core: 240 passed, 5 skipped, 1 failed. BRANCH-003 failed because the branch option was visible/enabled/stable but outside the viewport, causing the click to time out. This belongs to the separate workspace-picker workstream in PR #328; that branch was not copied or modified.
+  - Browser UX: 3 passed, 1 failed. Authenticated visits to `/crm/patients` and `/crm/treatment-plans` produced HTTP 403 resource errors. The compact evidence does not preserve the failing API request URLs, so the authorization root cause remains OPEN; do not suppress the assertion or grant broader access without endpoint-level evidence.
+  - Mobile design gate: 15 passed and one WebKit internal-navigation attempt was marked flaky; the gate step succeeded. The role/context gate was cancelled, and downstream Visual Agent/business-owner/organization-owner/CLI/visual-release gates were skipped.
+  - Reviewed only the compact digest, core checkpoint and browser-UX checkpoint. Artifacts: digest 12956934527 (2,249 bytes), core 12954883562 (7,605 bytes), browser UX 12956065610 (10,396 bytes). Large traces/screenshots/HTML reports were not bulk-ingested.
+- Parallel PRs remain isolated: #328 remains open at `966512b54a2937472732e2c94d23fd819de2edb0` (CI 40843992280 failed; Quality Gate 40843992282 passed); #329 remains open at `c2e5951ba631da1762bd3380c3bbc35c51953770` (CI 40451827086 cancelled; Quality Gate 40451827042 passed); #322 remains an open draft. No sibling status was changed.
+- Release is **NOT READY**. Outstanding evidence includes successful exact-head unit/CI/E2E/role-context/owner gates; endpoint-level diagnosis for the two 403s; staging migration and 30-day read-positive/write-negative verification; RB-029 consumer/concurrency review and approved staging dry run; production CORS/WebSocket and merchant-issued Kaspi contract/callback verification; branch protection/ruleset proof; and D10 Master Spec route-to-workflow coverage.
+- Next: run exact tests for the corrections, then inspect the new exact-head CI and only proceed after capturing the new head SHA and preserving the separate PR #328/#329/#322 work.
+## 2026-10-26 — Main CI follow-up: workspace picker overflow
+- Current main under verification: `ac913cc3389a294d0b135a852b035ddddb1018ca`; CI run [40338995671](https://github.com/drtamirlan911-cell/DentVision1/actions/runs/40338995671) passed backend/frontend lint and lint-test, while E2E was still running when inspected.
+- Completed E2E checkpoints reported 240 core tests passed and 5 skipped, with BRANCH-003 failing after a 180-second timeout because a newly created branch option remained outside the viewport in the workspace switcher. Browser UX also reported HTTP 403 resource errors on `/crm/patients` and `/crm/treatment-plans`; these are real diagnostics and must not be suppressed. Role/context gate was still running at inspection time.
+- Candidate fix: keep the entire workspace/branch picker scrollable within the remaining viewport height. The existing branch-management E2E remains the regression check; no assertion or role policy was weakened.
+- Verification: candidate PR required; no local Vercel sandbox was available because the Hobby snapshot-storage limit was reached. Do not treat this candidate as verified until exact-head CI/E2E passes and the 403s are independently resolved.
+- Follow-up in PR [#328](https://github.com/drtamirlan911-cell/DentVision1/pull/328): the viewport fix now also positions the menu above its trigger when insufficient room remains below. The UX coverage collector now unregisters per-route listeners and logs failing API response status + path, so the two 403s can be diagnosed without weakening assertions.
+- Follow-up candidate after reviewing the original BRANCH-003 trace: removed the nested scroll container around the workspace-only list. The branch picker now has one outer scroll viewport for both workspace options and the branch list, avoiding competing nested scrolling. Verification remains pending exact-head CI.
+## 2026-10-26 — Branch-management E2E query-scope correction
+- PR [#328](https://github.com/drtamirlan911-cell/DentVision1/pull/328) exact-head run `40345409642` passed frontend lint, backend lint and Quality Gate, but Core E2E failed in all four branch-management tests before the actual branch-picker assertion.
+- Confirmed a second source of nondeterminism in the E2E helper: `clinicMember.findFirst({ where: { userId } })` selected an arbitrary clinic membership, rather than the known `E2E Clinic A` fixture that the Settings page was displaying. This made the test's subscription target and legacy clinic scope depend on database row order.
+- Candidate correction: resolve `E2E Clinic A` by its seeded name, assert the owner membership for that exact clinic, then resolve its canonical Organization ID and use `/api/branches?organizationId=...` for list/archive assertions. This keeps the test anchored to the same domain object as the UI; no authorization rule or assertion was weakened.
+- Verification pending: rerun Core E2E to confirm the helper reaches BRANCH-003 and validate the single-scroll picker fix; Browser UX response diagnostics from this run are being reviewed independently before another push.
+- The PR #328 Browser UX artifact in run `40345409642` now identifies the exact 403 route: `GET /api/crm/f3f71d34-307a-45f9-ad80-65c658e71928/treatment-plans`, called from both `/crm/patients` and `/crm/treatment-plans`. The CRM route applies `requirePermission('patient.read')` and then `requireClinicScope`; the artifact had status/path but not the JSON reason, so the next candidate collects only the API response's generic `code` and `error` fields (never arbitrary response data) to distinguish permission denial from clinic-context mismatch.
+- The same exact-head Core E2E run failed the four branch-management tests at the helper's list query. The helper did not identify the intended seeded clinic deterministically; the correction now targets E2E Clinic A by name, verifies OWNER membership, and uses that clinic's canonical Organization ID. Exact-head rerun remains mandatory.
+- Exact-head CI run [40348240324](https://github.com/drtamirlan911-cell/DentVision1/actions/runs/40348240324) confirmed the deterministic clinic lookup was correct but two subscription upsert fields still referred to the old optional relation `clinic!.clinicId`. Prisma failed in `beforeAll` with `Argument ownerId is missing`, preventing the four branch-management tests from exercising the UI. Candidate correction replaces both stale references with the already asserted `ownerClinicId`; no production code or test assertion is relaxed. The next full CI rerun is required.
+## 2026-10-26 — Fix scoped session hydration of active clinic
+- Root cause identified by source inspection for the exact-head Browser UX 403s: `authMeRouter.get('/me')` always returned `memberships[0]` as `activeMembership`, regardless of the active clinic scope resolved from the request JWT. On a full route navigation/session restore, frontend `restoreSession` resolves the active workspace from the token but constructs `clinic.id` from this unrelated first membership; CRM treatment-plan reads then correctly reject the mismatched clinic parameter.
+- Candidate fix in PR [#328](https://github.com/drtamirlan911-cell/DentVision1/pull/328): choose the `ClinicMember` matching authenticated `req.user.clinicId`; return null when the token is not clinic-scoped or no matching membership exists (do not silently fall back to another clinic). Added a security contract to pin this behavior.
+- Verification pending: the current CI had frontend/backend lint and unit test gates passing before this change; a fresh exact-head CI/E2E run must confirm the CRM 403s are gone and branch-management tests reach the workspace-picker assertions. No permission or tenant-scope check was loosened.
+- Follow-up to the diagnostic collector: API status/path is recorded synchronously; bounded JSON `code`/`error` enrichment is now non-blocking. This prevents an incomplete/streaming error response from hanging the UX gate while preserving the error signal and avoiding arbitrary response data.
+## 2026-10-26 — Prevent duplicate execution in E2E gate wrapper
+- During PR #328 exact-head CI review, `quality-scripts/run-e2e-gate.sh` was found to invoke each gate twice: first in the background with output captured to a durable log, then again through `tee | awk` to print bounded output. The second invocation doubled the browser/test work and replaced the status of the first invocation.
+- Corrected the wrapper to run the gate once, preserve the original `wait` exit code, and apply the existing bounded-output filter to the captured log file. Heartbeats and complete diagnostic logs remain in place.
+- Verification status: pending exact-head CI. Pre-correction run [40351462316](https://github.com/drtamirlan911-cell/DentVision1/actions/runs/40351462316) had backend/frontend lint, unit tests, core E2E, Browser UX and mobile design gate successful; role/context was still in progress after more than 40 minutes. Do not treat that superseded run as final release evidence.
+## 2026-10-28 — IAM page-surface policy reconciliation (PR #328)
+- Starting exact head: `c06c1a02ad508d1ff07b94fd1c78ebab5e59307f`; implementation commit: `56ab3ecfe5d1f0d02cc8be00816151a69dd30dce` on the existing branch `fix/workspace-switcher-menu-overflow-20261026` (existing PR #328). No new branch or PR; `main` is unchanged.
+- Changed files: `dentvision-backend/src/lib/permissions.ts`, `dentvision-backend/src/lib/permissions.pages.test.ts`, `e2e/tests/role-design-gate.spec.ts`, `docs/DENTVISION_IAM_ROLE_MATRIX.md`.
+- Corrected the default ASSISTANT page surface so it does not inherit the full Medical Card, odontogram, treatment-plan or ICD-10 workspaces from broad read permissions. Restricted the legacy clinic LAB page surface away from the clinic-wide patient CRM while retaining lab/referral workflows.
+- Reconciled the E2E role oracle with the existing permission contract: read-only billing roles may see the price list but not Finance/Cashier/Billing administration; medical/dental laboratory partners may see their referral queue; `/diagnostics/patients` is evaluated under the referral-queue page policy. The anonymous route matrix now avoids storage access on the opaque initial `about:blank` origin without skipping protected-route assertions.
+- Added focused backend page-policy tests and kept all E2E route/negative assertions enabled.
+- Verification: no local checkout was available, so local `git status` and local test execution could not be performed. The last completed PR #328 CI run `40361059735` on the previous SHA `c06c1a02ad508d1ff07b94fd1c78ebab5e59307f` failed the role/context and Visual Agent gates; frontend/backend lint and unit tests on the new exact head remain unverified pending CI. Do not treat this candidate as release-ready until exact-head CI and role/context/Visual Agent gates complete.
+- Residual risks: RB-031 WebKit access-control/page errors remain unresolved; owner/admin Clinic Settings still has unnamed controls; RB-034 and RB-029 remain open; RB-033 still requires repository-admin verification. UI page visibility is not a substitute for server-side authorization.
+- Next: inspect the new exact-head CI and its bounded role/visual artifacts, fix root causes without suppressing assertions, then resume the dedicated RB-034 verification per the execution plan.
+## 2026-10-26 — RB-029 patient portal history writer correction
+- Starting evidence: current main `ac913cc3389a294d0b135a852b035ddddb1018ca` had a remaining writer outside the canonical CRM/odontogram paths. `PUT /api/patient-portal/me/profile` called `encryptField(String(body.medicalHistory))`; an incoming JSON object was coerced to `"[object Object]"` and stored in the Patient JSON column, breaking the structured-history contract.
+- Candidate branch: `security/rb029-patient-portal-history-envelope-20261026`. The route now uses `encryptMedicalHistory(body.medicalHistory)` to preserve the JSON value shape and rejects client-supplied `ENC:` scalar values and the reserved `__dentvisionEncryptedV1` envelope marker, avoiding untrusted ciphertext being stored as if it had been produced by the service.
+- Added `dentvision-backend/src/modules/patient-portal/patientPortal.history.contract.test.ts` to pin the route's use of the shared encoder and the reserved-input guard. The shared `phi.test.ts` suite already covers structured object encryption/round-trip and legacy scalar decoding.
+- Reconciled `docs/security/RB-029_MEDICAL_HISTORY_ENCRYPTION_INVENTORY.md` so it records the original finding as historical and identifies the candidate follow-up without claiming it is merged.
+- Verification: not yet verified by exact-head CI. This corrects one source path only. RB-029 remains OPEN pending full downstream consumer/concurrent-writer audit, backup/rollback review, read-only staging dry run and count/round-trip/integrity reconciliation. No production or staging database operation, backfill, schema migration or deployment was performed.
+## 2026-10-26 — E2E failure triage: organization branch persistence query
+- Exact-head CI run `40363016216` on PR #329 passed backend lint, frontend lint and all `lint-test` steps. `Run E2E suite` completed with 237 passed, 5 skipped, 4 failed.
+- All four failures were `BRANCH-001`, `BRANCH-002`, `BRANCH-003`, and `BRANCH-004`, and each stopped inside the common `createBranch()` helper at the lookup after it had received HTTP 201 and confirmed the new row was visible in the organization settings UI.
+- Root cause: the base-branch helper then queried `/api/branches?clinicId=<ownerClinicId>`, a deliberately clinic-scoped listing contract; the UI created the branch through `/api/branches` with `organizationId`, and organization branches can have `clinic_id = null`. The test was querying the wrong scope, not seeing the just-created organization branch.
+- Candidate correction: updated `e2e/tests/branch-management.spec.ts` from the existing PR #328 canonical organization fixture/query change (`/api/branches?organizationId=<ownerOrganizationId>`), keeping the branch persistence assertions and negative-path checks strict. Commit: `bf83fff0f4d1b611e5cbf8528561f1744082ba97`.
+- Verification: the new exact-head CI has been triggered; no result yet. Any subsequent role/context failures must be diagnosed separately, not masked. No application authorization policy or CORS check was relaxed; no database/backfill/deployment was performed.
+## 2026-10-26 — RB-029 HTTP history-envelope input validation
+- Static review found a second write-boundary issue adjacent to the Patient Portal string-coercion bug: canonical Patient create/upsert and PATCH accepted caller-supplied root `__dentvisionEncryptedV1` markers. Since the codec is intentionally idempotent for trusted stored envelopes, the route boundary must reject client-supplied ciphertext rather than treating it as service-produced data.
+- Implementation commit: `2368ff723efd5ea02349fd39dfec47c6ff87360e` on existing branch `security/rb029-patient-portal-history-envelope-20261026`. The shared predicate rejects root `ENC:` strings / reserved envelope markers at Patient Portal profile update, Patient create/upsert and Patient PATCH. Normal nested structured history remains valid.
+- Added unit coverage for the shared predicate and route-source contracts for all three write boundaries. This is not yet verified by exact-head CI. RB-029 stays OPEN pending the full downstream/concurrency audit, backup/rollback review and approved read-only staging dry run. No database was queried or modified, and no backfill or deployment was run.
+## 2026-10-26 — RB-029 malformed envelope fail-closed hardening
+- Source audit found that `decryptMedicalHistory()` recognized a V1 envelope only when `__dentvisionEncryptedV1` already contained an `ENC:`-prefixed string. A malformed value under this reserved root key could otherwise be returned as if it were legacy plaintext JSON.
+- Added explicit reserved-marker detection. Valid internal V1 envelopes remain idempotent; malformed reserved markers now throw a bounded, non-PHI error on both encode and decode. Added regression coverage for malformed string and numeric marker values.
+- Verification pending exact-head CI. No database read/write, backfill, migration, staging operation or deployment was performed.
+## 2026-10-26 — Reduce PHI in durable PatientCreated AI events
+- Audit found that `aiEventBridge.ts` copied complaint text and patient names into the durable `ai_events.payload`; `aiEmployeeTaskSubscriber` then persisted that payload as a task's action input. Complaint text was consequently duplicated outside the encrypted `Patient.medicalHistory` field.
+- The event now persists only the patient ID and a boolean complaint-presence hint. AI event actions re-read the patient under both patient ID and clinic ID, decrypt the structured history in memory, and avoid echoing names/raw complaint text into persisted notification messages. The patient-created rule no longer accepts complaint text as its trigger.
+- Added regression tests for the safe payload contract, clinic-scoped lookup and absence of raw complaint text in action results. Other clinical event payload types and AI transcript retention remain part of the RB-029 downstream audit. Exact-head CI pending; no database read/write, backfill, migration or deployment was performed.
+## 2026-10-26 — Correct PHI payload typing and missing-key envelope handling
+- CI run [40381667033](https://github.com/drtamirlan911-cell/DentVision1/actions/runs/40381667033) on head `d6838bb87b1e4f8fa1b79d3e1639d9e3b3202a12` passed frontend lint, unit tests and Quality Gate, but backend TypeScript failed because `PatientCreatedPayload` was not structurally compatible with the event bus's `Record<string, unknown>` contract. Updated the payload interface to extend that record contract.
+- Static review found the no-key fallback in `decryptPatientFields()` detected only well-formed envelopes, allowing a malformed reserved marker to pass through unchanged in non-production. It now delegates reserved markers to `decryptMedicalHistory()`, which fails closed; regression coverage was added.
+- Corrected stale RB-029 inventory rows that still described historical pre-codec writers/readers as current behavior. All-consumer, atomic read/modify/write, exact-head CI, staging dry run and backup/rollback review remain open. No database operation, backfill, migration, staging write or deployment was performed.
+
+## 2026-10-30 — Integrate PR #328 and #329 into the existing #330 candidate
+
+- Target repository/branch: `drtamirlan911-cell/DentVision1`, `fix/d1-d10-trial-archive-signing-api-20261029`, PR #330. `main` remained `ac913cc3389a294d0b135a852b035ddddb1018ca`.
+- Explicit user decision: integrate #328 and #329 into the existing #330 working branch, preserving all original branches and PRs. No merge to main was authorized or performed.
+- PR #328 was integrated with history-preserving merge commit `091604d78d6457a0ae5e97a83ae96059c0dde945`; its parents include the prior #330 candidate and source head `966512b54a2937472732e2c94d23fd819de2edb0`. 22 source-only files were overlaid from #328; shared documents and code were reconciled first.
+- PR #329 was integrated with history-preserving merge commit `a3138609fb147cbee0a8cfeab3ffd397ceb6212d`; its parents include the already-integrated #328/#330 line and source head `c2e5951ba631da1762bd3380c3bbc35c51953770`. 11 source-only files were overlaid from #329; shared documents and code were reconciled first.
+- Shared-file reconciliation: preserve #330's 30-day trial/archive guards; combine #328's active-clinic membership selection with #330's archived-membership filter; combine #328 clinical-chart and route permissions with #330 trial write guards; combine #329 Patient Portal structured-history encryption, caller-ciphertext rejection and optimistic concurrency with #330's clinic-trial write guard and archived-clinic filtering. The patient CRUD routes retain #328's branch/RBAC scoping and add #329's ciphertext rejection. PatientCreated now emits only clinicId, patientId, userId and `hasComplaints`, avoiding patient name and complaint text in durable AI events.
+- Fixed confirmed integrated-branch regressions: corrected `guardTreatmentPlanReferences(req, _res)` to use the actual `res` response argument; updated the CRM security contract to assert the actual patient-scoped reference validation; fixed an invalid regular-expression literal in the trial/archive contract test.
+- Temporary integration PRs #331 and #332 were closed as merged into the #330 working branch. Original PRs #328 and #329 remain OPEN and their original branch heads remain unchanged. PR #330 remains OPEN/DRAFT.
+- Latest exact candidate HEAD after the above corrections: `415e4a9dc938de0d3c71cd6b795fd4f9c7f0e8cb`. CI [41034452583](https://github.com/drtamirlan911-cell/DentVision1/actions/runs/41034452583) was pending; Quality Gate [41034452312](https://github.com/drtamirlan911-cell/DentVision1/actions/runs/41034452312) and RB-034 diagnostic [41034452343](https://github.com/drtamirlan911-cell/DentVision1/actions/runs/41034452343) were in progress. No passing status is claimed.
+- Release remains NOT READY pending exact-head full CI/E2E/role/owner gates, staging migration and post-expiry read/write evidence, RB-029 consumer/concurrency and approved staging dry run, production CORS/WebSocket, official Kaspi contract/callback, branch protection and D10 Master Spec workflow parity. No staging/production database operation, backfill, or deployment was performed.
+- Next: inspect the exact latest-head CI results; fix only confirmed failures without weakening security assertions; update this log with the resulting exact HEAD and evidence.
+
+
+
+## 2026-10-30 — Role/context and Visual Agent triage
+
+### Evidence reviewed
+- PR #330 exact baseline `dec269318de4b7fd090d898315f7b58aaac63988`; CI run [41041393534](https://github.com/drtamirlan911-cell/DentVision1/actions/runs/41041393534), Quality Gate [41041393650](https://github.com/drtamirlan911-cell/DentVision1/actions/runs/41041393650), RB-034 diagnostic [41041393557](https://github.com/drtamirlan911-cell/DentVision1/actions/runs/41041393557).
+- CI failed only in the E2E job: Role/context 103 passed / 37 failed / 28 skipped; Visual Agent 45 passed / 3 failed. Core E2E 243 passed / 5 skipped; Browser UX 4 passed; mobile design 16 passed; business-owner 11 passed; organization-owner lifecycle 7 passed; CLI smoke and visual release gate passed.
+- Artifact findings: repeated 403s for restricted clinic resources came from unconditional `useDataQuery` queries; the clinic lab API required `patient.read` and `appointment.read` despite the canonical LAB role owning `lab.read` / `lab.write`; the diagnostics referral file input had no accessible name; the role matrix requested missing Academy course `e2e`. Separate 401s from `/api/auth/me` remain unexplained.
+
+### Implemented on the existing #330 branch
+- Added accessible name and form name to `FileUploader` input.
+- Gated CRM collection queries by the active context's effective permission set; unauthorized background requests are no longer issued.
+- Changed classic lab-order read/status permissions to `lab.read` / `lab.write`, preserving appointment-write restrictions for order creation/deletion and existing branch scoping.
+- Updated the Lab screen to show create/edit/delete controls only where permitted and to use the dedicated status PATCH endpoint for permitted status changes.
+- Added deterministic general-audience Academy fixture `e2e` to match the existing role-matrix course route.
+
+### Verification state / next step
+- Code commits: `3fc41805a03c2d0e3a8f21babfa8c904cb2e1f5e`, `7357b67d8eac427c9b4e16ca4d153aec7a6bc3d3`, `0a2c819cd3b13f2e38017fbe5a0e948754b6d277`, `035fe8305385822fe907ff01ab0cdb61989ba1df`, `53c3ebfabe6c49ed16420056104eaff1204c18e3`, `55e581e1fbecb2840a084f951a89bb636303f46b`, `99a70f12e2b94a6c1bb4c8060e3c39b554dbb55a`.
+- Fresh lint, unit, E2E and Visual Agent results are not yet available for these changes. Do not claim the failures are resolved until exact-head CI confirms.
+- Next: inspect fresh CI for remaining `401 /api/auth/me` or any 403/404, correct only confirmed defects, then rerun full CI. `main` unchanged; no database migrations, backfills or deployment.
+
+
+## 2026-10-30 — Zod compatibility investigation checkpoint
+
+### Repository evidence
+- Continued on the existing repository `drtamirlan911-cell/DentVision1` and branch `fix/d1-d10-trial-archive-signing-api-20261029` / PR #330. No replacement branch or PR was created.
+- Read `README.md`, `docs/DENTVISION_MASTER_SPEC.md`, `docs/RELEASE_BLOCKERS.md`, `DENTVISION_CONTEXT.md`, `DENTVISION_EXECUTION_PLAN.md`, and `DENTVISION_EXECUTION_LOG.md` before recording this checkpoint.
+- The Master Spec v5.0 remains the normative product/system specification. The existing Context and Execution Log are the persistent current-state/evidence records; no competing status document was created.
+- `dentvision-backend/package.json` declares `zod: ^3.24.2` and backend TypeScript `^5.7.3`. The root package manifest has no direct Zod dependency. This confirms declared ranges, not the actual lockfile-resolved version or runtime compatibility.
+- The prior chat checkpoint said the remaining concern involved Zod compatibility, but did not include the exact failing diagnostic or a completed API-usage audit. Therefore no Zod major upgrade or compatibility claim is justified yet.
+
+### Decision / next work
+- Keep the existing Zod 3 dependency contract for now. Inspect the lockfile's resolved Zod version, all Zod imports and used APIs (including preprocess/refine/superRefine/transform/coerce/default/optional behavior and inferred types), then map the exact CI diagnostic to the affected source.
+- If the failure is caused by an API incompatibility, implement the smallest source-compatible correction and add focused regression tests. If a Zod 4 migration is actually required, treat it as a separately verified dependency migration rather than silently changing the major version.
+- No Zod upgrade, lockfile modification, code change, test run, or CI rerun is claimed here. No staging/production database action or deployment was performed. `main` remains untouched; PR #330 remains the active target and release remains NOT READY.
+
+
+### Zod lockfile resolution — 2026-10-30
+- Follow-up inspection of `dentvision-backend/package-lock.json` (lockfileVersion 3) confirms `node_modules/zod` resolves to `3.25.76`, within the declared `^3.24.2` range. This is the repository's committed lockfile resolution at the active branch ref.
+- GitHub code search returned no indexed source matches for the attempted Zod queries; this is a search-index limitation, not evidence that the backend has no Zod consumers. Continue the API-usage audit using the repository tree/source files before changing dependencies.
+
+
+## 2026-10-30 — Role gate, Academy course and Safari network diagnostics
+
+### Historical artifact inspected
+- Inspected compact E2E failure summary, role-gate log, Visual Agent checkpoint and visual failure evidence for run 41041393534. Artifact manifest says PR merge ref tested SHA ffd3bf805a2beebfd5a6ba2cc81818149ae5a681; associated PR head was dec269318de4b7fd090d898315f7b58aaac63988. Do not attribute these failures to today's HEAD without a new run.
+- Role/context: 103 passed, 37 failed, 28 skipped. Visual Agent: 45 passed, 3 failed. Core E2E 243 passed / 5 skipped; Browser UX 4 passed; mobile design 16 passed; business-owner 11 passed; organization-owner 7 passed; Playwright CLI smoke and visual-release gate passed.
+- Laboratory role produced repeated 403 responses for GET /api/patients, /api/lab-orders, /api/medical/visits, /api/files, /api/crm/promotions, /api/crm/bookings, and /api/crm/waiting-list. Visual Agent also recorded repeated Laboratory 403 console failures at desktop/tablet/mobile.
+- Academy/School: historical role artifacts show 404 GET /api/school/courses/e2e. A deterministic general-audience e2e fixture was added later; fresh exact-head verification is needed to prove this is fixed.
+- Safari/WebKit: role-mobile-safari page-error assertions failed across multiple roles. Error-context artifacts explicitly list API requests rejected due to access-control checks, including guest session, IAM contexts, AI proactive and diagnostics referrals. Capture exact request/OPTIONS/response headers; do not classify as harmless browser noise, suppress errors, or broaden production CORS without evidence.
+- Visual sizing: user reported an Academy/School Course control at approximately 92×16 px. This exact geometry was not found in inspected historical text diagnostics; it remains user-reported pending fresh screenshot/DOM geometry. RB-003's 36px minimum interactive target rule must not be weakened.
+
+### Current exact-head status at inspection
+- PR #330 branch HEAD: fd0b34730c0f65877b18908353a3afdede94c22f; base/main unchanged.
+- Quality Gate run 41099779415: passed.
+- CI run 41099779548: E2E job was still initializing containers; test steps had not started. Frontend lint, backend lint and lint/unit job were also in progress.
+- RB-034 diagnostic 41099779647: still in progress.
+- No current-head role gate, Academy fixture, Safari or access-control outcome is claimed yet. Poll the same runs, inspect exact-head artifacts, and fix confirmed source causes. Keep RB-003, RB-025 and RB-031 open.
+
+## 2026-10-30 — Exact-head role-gate follow-up and bounded fixes
+
+### Baseline and evidence
+- Repository: `drtamirlan911-cell/DentVision1`; active target remains PR #330 on `fix/d1-d10-trial-archive-signing-api-20261029`. The live pre-change PR head was `77fc9c81fbc276621ad1a4d03a753e4733819722`; `main` remains `ac913cc3389a294d0b135a852b035ddddb1018ca`.
+- Compared `0fea50855c22d0f211d549879edac35c16f160b4` with the live pre-change head: intervening commits changed only `DENTVISION_CONTEXT.md`, `DENTVISION_EXECUTION_LOG.md` and `docs/RELEASE_BLOCKERS.md`; the frontend/backend implementation under test was unchanged.
+- CI run [41092300195](https://github.com/drtamirlan911-cell/DentVision1/actions/runs/41092300195) tested code head `0fea50855c22d0f211d549879edac35c16f160b4`. Frontend lint, backend lint, core E2E, Browser UX, mobile design, Visual Agent, business-owner journeys, organization-owner lifecycle, Playwright CLI smoke and visual evidence validation passed. The role/context gate failed: 113 passed, 27 failed, 28 skipped. Its 27 failures reduced to 11 repeated touch-target failures on `/school/course/e2e` and 16 Safari/WebKit request/page-error failures.
+- The Academy breadcrumb button was measured at 92×16px. The role gate explicitly enforces 36px minimum targets; this requirement is not weakened.
+- WebKit traces show many same-origin API calls returning 200 with the expected ACAO header, plus a bounded set of requests with no response status/headers and `Load request cancelled`. The evidence does not prove a rejected preflight or invalid CORS header. RB-031 remains OPEN; do not broaden production CORS or suppress the network collector.
+- The same CI run's generated System Map validation found the tracked snapshot stale by two facts: routes without a detected web/mobile consumer 99→98, and `/api/lab-orders` detected consumers 1→0. Running `npm run system-map --prefix dentvision-backend` in an isolated worktree on the exact unchanged code regenerated precisely those two values.
+- Local isolated-worktree `npm test` on code head `0fea5085` completed with 260 files, 2,367 tests passed and zero failures. This is not a substitute for the new exact-head CI after this follow-up.
+- Vercel deployment `dpl_6mymyhU2mUnB4SWovL1zbBWbEUWX` for `dent-vision1` built successfully from `0fea5085` (24 seconds); the only build diagnostic was the non-blocking 696KB main-chunk warning. This is not a deployment of the follow-up changes.
+
+### Changes in this follow-up
+- Increased the School course breadcrumb navigation hit area to at least 36px using `min-h-9`, retaining the text/icon and route action.
+- Refreshed `docs/SYSTEM_MAP.md` to the two verified generator outputs; no route, endpoint or permission code was changed for this documentation correction.
+- Added E2E negative coverage that Manager and Assistant cannot deposit patient funds and that the patient prepaid balance remains unchanged; added an explicit clinic-LAB denial assertion for the deposit endpoint.
+- Reconciled RB-035's source evidence with the current route guards and kept it IN PROGRESS pending exact-head CI; recorded the precise unresolved WebKit evidence under RB-031.
+
+### Verification and release limits
+- New exact-head CI, Quality Gate, role/context, Visual Agent and RB-034 outcomes are required before treating the source/test follow-up as verified. Keep RB-003, RB-031, RB-035 and overall release status open until their respective gates pass.
+- No production/staging database migration, backfill, PHI write, branch merge to `main`, or production deployment was performed.
+
+
+## 2026-10-31 — Role/context gate: patient-context permission boundary and navigation races
+
+### Evidence
+- Exact pre-change PR #330 head: `b113defae674d8e4028af8e25151c412b608b4d2`; base/main: `ac913cc3389a294d0b135a852b035ddddb1018ca`.
+- Role/context CI run [41108599612](https://github.com/drtamirlan911-cell/DentVision1/actions/runs/41108599612) reported the role gate failure while Frontend Lint, Backend Lint, Quality Gate, RB-034 diagnostic and Visual Agent passed.
+- Traces proved the Assistant's three 403 responses were expected backend denials, not CORS: the test opened `/crm/patients?patient=...`; `Patients.tsx` called the shared patient context loader, which fetched `GET /api/patients/:id` and `GET /api/patients/:id/summary`. The first requires clinical-chart access; the summary additionally requires `billing.read`. The role matrix explicitly allows the Assistant patient register but not the full medical card. Do not grant broader permissions or suppress these 403s.
+- The same trace identified redundant guest-session creation on auth/protected routes and full-page navigation that could cancel pending WebKit API/lazy-module requests. Existing CORS responses for the observed origin included the expected allow-origin header; RB-031 is not closed by this analysis.
+
+### Changes applied in this commit
+- Guest sessions are now initialized only on genuine guest surfaces (including the public AI entry), never on login/registration/patient-portal screens or protected paths.
+- The shared patient context store now fails closed by default: clinical chart requests require an explicit chart-read grant, financial summary requests require an explicit billing-summary grant, and closing/switching patient context invalidates pending responses.
+- The patient register passes its effective role access to the shared store and no longer fetches medical images for roles without clinical-chart access. The Medical Card route passes explicit permissions and no longer opens the same patient twice during initial query hydration.
+- Added unit coverage for operational-only context, billing-summary denial and stale response invalidation. Strengthened the role gate to assert that an Assistant/Manager-style patient-list deep link issues no clinical/financial detail requests; login now proves it does not create a guest session, and navigation waits for route-owned requests/lazy chunks to settle without suppressing failures.
+
+### Verification status
+- Changes are committed to the existing PR #330 branch only. Exact-head lint, unit tests, role/context E2E, WebKit and Vercel preview are pending. No permissions were broadened; no API error or request-failure collector was suppressed.
+- RB-029, RB-031, RB-034, D1–D10 production/staging proof and overall release readiness remain open. No staging/production database operation, migration, merge to main or production deployment was performed.
+
+
+## 2026-10-31 — Apply expired-trial read-only policy to organization archive
+
+- Re-audited the D1/D2 source against the user's explicit policy: after 30 days, the clinic remains readable but all clinic-scoped business/organization mutations are blocked; organization archive must remain a soft archive and retain the linked data.
+- Found that `DELETE /api/organizations/:id` enforced owner-level authorization and correctly soft-archived only the Organization row, but did not run the clinic trial write guard. This left one organization-context mutation outside the read-only expiry boundary.
+- Updated the existing `requireOrganizationClinicWritable` guard to resolve `req.params.id` first when present, so it checks the target Organization/Clinic rather than relying on a different active workspace header. Applied this guard to organization archive before the owner-role check. SUPERADMIN recovery remains available; non-clinic organizations are unaffected by the clinic subscription gate.
+- Added a regression contract proving the target ID is checked and archive is gated by the same `SUBSCRIPTION_EXPIRED` policy. The soft archive remains unchanged: only `Organization.archivedAt/settings` are updated; Clinic, branches, memberships, patients, documents and audit history are retained.
+- Exact-head CI and route tests pending. No staging/production DB operation, migration, PHI backfill, merge or production deployment was performed.
+
+
+### D2 archive guard ordering refinement
+- Reviewed the initial guard placement for information disclosure. The expiry check must not run before owner authorization, or a caller without access to an organization could learn whether its clinic trial has expired.
+- Moved the clinic trial check into the archive handler after the existing scoped owner lookup, using the resolved target organization's `originalId`. For a clinic, a missing subscription/access state fails closed (503/404), and an expired trial blocks the archive write (402). Non-clinic organization archive and platform SUPERADMIN recovery semantics remain unchanged.
+- Updated the regression contract to enforce the order: owner authorization → target clinic subscription check → Organization soft-archive write. The existing soft archive still changes only the Organization lifecycle; linked clinic data remains retained.
+
+
+## 2026-10-31 — Role/context E2E: prevent navigation-aborted API/font requests
+
+### Exact-head evidence
+- PR #330 head tested: `a12a099b7c2ed4c25bb2388d74b3c0087bbde583`; GitHub Actions CI [41118472818](https://github.com/drtamirlan911-cell/DentVision1/actions/runs/41118472818) completed with frontend/backend lint, TypeScript/build and unit suite green; Role/Context failed with 128 passed, 4 failed and 8 flaky.
+- The failed requests were not a CORS allowlist failure. Playwright recorded `Load request cancelled` for route-owned `/api/ai/threads/active`, `/api/ai/briefing`, `/api/ai/proactive`, `/api/ai/history`, and Google font resources after the next full-document navigation began.
+- The prior gate waited for `networkidle` for only 3 seconds and swallowed its timeout. It then navigated away despite outstanding API/font work. The backend access JWT defaults to 15 minutes; the exhaustive route traversal can outlast that TTL and produce a stale `401 GET /api/auth/me` during history/session restoration.
+
+### Changes in this follow-up
+- E2E collectors now track in-flight app API and Google font requests. Route readiness waits for those requests to finish and for `document.fonts.ready`; a 20-second timeout fails with still-pending request paths. Failed requests remain recorded and fail the gate.
+- Removed the swallowed 3-second `networkidle` wait from responsive role journeys. The same deterministic settlement check now runs after login, partner context activation, exhaustive route loads, browser-history reloads and final workspace navigation.
+- Increased `JWT_EXPIRES_IN` to 120 minutes and `JWT_REFRESH_EXPIRES_IN` to 24 hours only in the disposable GitHub Actions E2E job environment. Production JWT TTL/configuration is unchanged.
+- No API/network assertion was removed, no 401/403 was allowlisted, and no application permission was widened.
+
+### Verification
+- Exact-head CI, Quality Gate, RB-034 diagnostic and Vercel Preview are required for the new commit. No staging/production database operation, migration, PHI backfill, merge to `main` or production deployment was performed.
+
+
+## 2026-10-31 — D1: preserve clinic tenancy on subscription expiry
+
+### Finding
+- The trial expiry cron already changed only `Subscription.status`, and `resolveClinicAccess()` applies the read-only/write-blocked entitlement state.
+- A follow-up source trace found two remaining paths that could set `Clinic.active=false` for `status='expired'`: the shared `upsertClinicSubscription()` service and superadmin `POST /api/subscriptions`. This could reintroduce hard tenancy deactivation during an administrative expiry operation.
+
+### Implementation
+- Added one shared `clinicTenancyUpdateForSubscription()` helper. Expiry changes the clinic plan without updating `Clinic.active`; explicit suspension sets `active=false`; active/trialing/renewal status sets `active=true`.
+- Updated both the shared subscription service and superadmin subscription route to use the helper, with the route using the persisted subscription status returned by Prisma rather than trusting only the request body.
+- Corrected the subscription cron module description so it no longer claims expiry soft-suspends the clinic.
+- Added runtime tests for expired-versus-suspended service updates and route-level source contract assertions.
+
+### Verification boundary
+- The preceding exact-head CI [41141555818](https://github.com/drtamirlan911-cell/DentVision1/actions/runs/41141555818) had Core E2E, Browser UX and Mobile Design pass; Quality Gate [41141555859](https://github.com/drtamirlan911-cell/DentVision1/actions/runs/41141555859) and RB-034 [41141555708](https://github.com/drtamirlan911-cell/DentVision1/actions/runs/41141555708) passed. Role/Context remained in progress at the last status read; no result is claimed.
+- The new commit triggers fresh exact-head CI. No staging/production DB query/write, migration, backfill, PHI operation, Render environment change, main merge or production deployment was performed. D1 remains open until exact-head release gates and approved staging positive-read/negative-write checks pass; overall release remains NOT READY.
+
+
+## 2026-10-31 — Role/Context request tracker: exact-head investigation
+
+### Evidence
+- CI [41143882152](https://github.com/drtamirlan911-cell/DentVision1/actions/runs/41143882152) completed with unit/lint/Core E2E/Browser UX/Mobile Design/Visual Agent/business-owner/organization-owner steps passing, but Role/Context failed. Quality Gate [41143881924](https://github.com/drtamirlan911-cell/DentVision1/actions/runs/41143881924) and RB-034 [41143882023](https://github.com/drtamirlan911-cell/DentVision1/actions/runs/41143882023) passed.
+- Downloaded and inspected the role checkpoint and nested Playwright trace. APIs named in the pending-request assertion had HTTP 200 responses and body snapshots; observed durations were approximately 80–170 ms. The gate retained those requests beyond their completion, indicating its tracking/reconciliation mechanism was the defect rather than a confirmed API service delay.
+- The source used a JavaScript `Map` keyed by Playwright Request wrapper objects. A fresh exact-head patch now keys lifecycle counts by stable HTTP method + full URL, increments for concurrent duplicates, and decrements on both request-finished and request-failed. EventSource/SSE is not required to drain because it is long-lived; failed requests continue to be separately reported and asserted.
+
+### Remaining release checks
+- The same Role/Context summary also contained forbidden-route redirect failures (notably `/support`, `/bi` and `/security`). These may be genuine policy/route defects and must be independently rechecked after the tracker is corrected. No authorization assertion has been removed or relaxed.
+- New exact-head CI is required. No staging/production database operation, migration, PHI operation, Render environment change, `main` merge or production deployment was performed.
+- PR #330 remains draft; overall release remains NOT READY.
+
+
+## 2026-10-31 — Role/Context navigation epoch and UI accessibility correction
+
+### Exact-head evidence
+- CI [41169303762](https://github.com/drtamirlan911-cell/DentVision1/actions/runs/41169303762) on `d0a5bc6c030fc3adcac4e13ee9cedffb2cc3e9f9` completed with Core E2E, Browser UX, Mobile, Visual Agent, Business Owner, Organization Owner, Playwright CLI smoke and visual evidence passing. Quality Gate [41169303785](https://github.com/drtamirlan911-cell/DentVision1/actions/runs/41169303785) and RB-034 [41169303780](https://github.com/drtamirlan911-cell/DentVision1/actions/runs/41169303780) passed. The only failed stage was Role/Context.
+- Role failure artifacts confirmed the pending request ledger crossed full-document navigation boundaries. CRM/layout requests from a previous document were attributed to a later allowed or forbidden route; the forbidden-route branch also waited for previous-shell requests after redirect. Mobile Safari additionally reported lazy chart module import failures when document navigation raced same-origin script chunks.
+- One real accessibility defect was independent of the harness: PlanAccessBanner “Скрыть” rendered at 26×26 px on `/crm/billing`, below the 36×36 release threshold.
+- The ordinary patient-list card click called `openPatient(p.id)` without scoped access options, although the deep-link path already supplied clinical and billing access. This prevented an authorized doctor from loading the medical context on ordinary selection.
+
+### Candidate correction
+- E2E request tracking now advances a document epoch on main-frame navigation, clears only stale drain entries, tracks same-origin lazy JavaScript modules alongside finite API requests, and records old-document `ERR_ABORTED` / `Load request cancelled` separately. Current-document request failures, API 4xx/5xx, page errors and server errors remain hard failures.
+- Forbidden-route verification asserts the redirect and returns without draining requests from the replaced shell. Third-party font readiness is bounded; the streaming AI endpoint is excluded from finite request drains.
+- All three dismissible PlanAccessBanner states now use a minimum 36×36 target. A new component regression test covers the hard-limit, approaching-limit and expiring-soon branches.
+- Normal patient-card selection now passes the same computed `clinicalChart` and `billingSummary` options as deep-link selection. No role or API permission was added.
+
+### Verification boundary
+- Fresh exact-head CI, Role/Context, Quality Gate, RB-034 and Vercel Preview remain pending. The WebKit `GET /api/diagnostics/laboratories` access-control error is still open until exact request/OPTIONS header evidence is captured; no CORS policy was changed.
+- D1/D2 staging proof, RB-029 PHI staging/backfill review, D5 provider/production checks, D9 exact-head gates and D10 workflow parity remain open. No migration, production DB write, Render variable change, main merge or production deployment was performed.
+
+
+### Unit-test harness correction — PlanAccessBanner dismiss regression
+
+- Exact-head CI [41173435676](https://github.com/drtamirlan911-cell/DentVision1/actions/runs/41173435676) reached the new frontend test suite after backend/frontend lint, TypeScript and build succeeded. The full run reported **2,378 tests passed across 261 files**; the only unit-suite load failure was the new `PlanAccessBanner.test.tsx` mock replacing the entire `react-i18next` module and omitting the `initReactI18next` export imported by shared `src/lib/i18n.ts`.
+- Updated the test to a partial mock that retains all real module exports and overrides only `useTranslation`. The target-size assertions remain unchanged; no application code or i18n bootstrap is modified.
+- The same exact-head run had Core E2E pass; Browser UX was in progress at the last status read. A fresh exact-head run is required after the mock correction.
+
+ 
+## 2026-10-31 — D1 null trial-deadline repair (PR #330)
+ 
+- Re-audited the 30-day expiry contract after confirming canonical CLINIC authentication hydrates the linked legacy clinic ID before `planGate`; the earlier organizationId concern was not a confirmed bypass.
+- Confirmed a separate edge case: a non-DEMO clinic subscription with `status='trialing'` and `periodEnd=NULL` had no finite deadline. The privileged subscription upsert route accepts an omitted periodEnd, and the access resolver previously fell back to Clinic.createdAt only for legacy DEMO clinics.
+- The resolver now uses `Subscription.createdAt + 30 days` for a trialing subscription with no periodEnd, persists the derived deadline, and still uses Clinic.createdAt for legacy DEMO rows. Existing explicit periodEnd values are never reset.
+- The legacy-trial migration now backfills non-DEMO trialing rows with null periodEnd from Subscription.createdAt. Regression tests cover expired and still-active windows plus migration SQL. The existing migration remains unapplied in staging/production.
+- Parent candidate `0093f7e974b7cb6f0b79c7734125a99394b78fcb`: Quality Gate and RB-034 passed; lint/unit/build, Core E2E, Browser UX and Mobile Design passed. Role/Context was still running when this follow-up superseded the parent run; its result is not claimed. The diagnostic collector also preserves React console arguments so any future missing-key warning retains its component-owner stack.
+- Fresh exact-head CI, Quality Gate and RB-034 are required for the resulting commit. D1 remains OPEN until approved staging verification proves post-expiry positive reads and rejected writes.
+- No staging/production migration, database write, PHI backfill, Render environment change, merge to main or production deployment was performed.
+
+
+## 2026-10-31 — Master Spec 5.0 compliance audit
+
+- Full 24-section Master Spec 5.0 audit recorded in docs/MASTER_SPEC_COMPLIANCE_AUDIT.md, audited HEAD 1284de604b638937ee2939f3f198f8674a5fa6d4.
+- Result: 18 sections PARTIAL, 4 OPEN, 2 GUIDANCE; no section certified fully compliant end-to-end. PR #330 remains OPEN / DRAFT and release NOT READY.
+- Confirmed gaps include Shop cancellation (SHOP-013 returns 404), incomplete independent dental-lab owner workflow proof, public organization/professional profile route aliases, open accepted-paid-settled/medical-analysis finance, real 32-tooth WebGL/3D odontogram, PHI transcript/backfill and Android runtime.
+- Exact-head CI 41183045451 remains IN PROGRESS at Role/Context; core E2E, Browser UX and Mobile Design passed. Quality Gate 41183045517 and RB-034 diagnostic 41183045421 passed, but do not close remaining release gates.
+- Next priority: finish role/visual/owner/Playwright gates, then implement or explicitly defer every confirmed D10 workflow gap and close staging/security/provider evidence. No main merge or live environment operation.
+
+
+## 2026-10-31 — Master Spec compliance follow-up: SHOP-013
+
+Implemented buyer-side cancellation for pending cash-on-delivery Shop orders: order-owner check, safe-state/payment-intent guard, compare-and-set transition, atomic stock restoration, DentCash reversal retry marker, buyer UI action, unit tests and E2E stock/ownership assertions. Payment settlement and supplier status mutations now guard concurrent order-state races. This is not full online-payment cancellation; provider-backed void/refund remains open. Await exact-head CI before closing.
+
+
+## 2026-10-31 — RB-029 AI thread history boundary
+
+Source review corrected the earlier inventory statement: AIMessage transcript text and the AISession.messages mirror are encrypted on new writes; active thread reads decrypt. Fixed active-workspace scope on thread enumeration and added authentication, decryption and bounded pagination to the legacy AI history API. Added regression tests for stored transcript normalization and route scope. RB-029 stays OPEN pending learned-memory PHI policy, legacy data backfill, backup/key rotation, retention and staging evidence.
+
+
+## 2026-10-31 — RB-029 AI memory at-rest encryption
+
+Added versioned encrypted JSON storage for all new MemoryEngine scopes, decoded all MemoryEngine read paths, preserved legacy read compatibility, and added fail-closed tests for malformed envelopes and missing production keys. Restricted global preference mirroring to generic style preferences; explicit free-form facts remain clinic-scoped. Existing plaintext AIMemory rows still require an approved backfill; RB-029 remains OPEN.
+
+
+## 2026-10-31 — CI browser-gate failure analysis
+
+Exact-head CI 41186233177: frontend/backend lint passed; Quality Gate and RB-034 Diagnostic passed; E2E failed in role-1280 with 15 current-document request-drain errors (lazy `/src/**/*.tsx` modules and finite API calls still pending at 20 seconds). Generated system map was also stale by one Shop endpoint (692 unique handlers / 654 registered routes; Shop 38 handlers). Updated the generated map and changed E2E frontend serving from Vite dev to production `vite preview`; role/route assertions and 700 ms quiet interval unchanged. Next exact-head CI is required; RB-024 remains open.
+
+
+## 2026-11-01 — PR #330 Role/Context exact-head failure analysis and test-gate correction
+
+Inspected CI run [41191847670](https://github.com/drtamirlan911-cell/DentVision1/actions/runs/41191847670) and its role-context checkpoint artifact on head `75b0efd27c90971e3b91e71eb085c02a643d75b8`. The Role/Context run lasted about 48 minutes and recorded 127 passed, 7 flaky and 6 failed. Failure signatures were request-drain waits for current-document API/lazy-module requests; the compact checkpoint categorized them as UI/WAIT. Do not describe these as confirmed endpoint authorization failures or CORS defects without their HTTP/requestfailed evidence.
+
+Core E2E, Browser UX, Mobile Design and Visual Agent completed successfully on that run. Quality Gate [41191847732](https://github.com/drtamirlan911-cell/DentVision1/actions/runs/41191847732) and RB-034 [41191847668](https://github.com/drtamirlan911-cell/DentVision1/actions/runs/41191847668) passed, but overall CI was cancelled and release is not ready.
+
+Updated the role-gate test design without removing security checks: full authorization and declared/discovered route coverage remains exhaustive for all 16 roles on role-1280; the other seven viewport projects retain three representative workflow routes per applicable role plus the required screenshots. All eight role viewport projects and the visual release manifest requirements remain. The existing Mobile Design and Visual Agent gates remain unchanged. Request-ledger diagnostics now include resource type, pending age and response status/content type/timing. Completion remains driven by the Playwright request lifecycle events; requestfailed, HTTP 4xx/5xx, console/page errors, tenant isolation and RBAC assertions remain hard failures.
+
+Next required action: execute full CI on the new exact HEAD, inspect all role/visual/business-owner/organization-owner gate results, then update blocker state only from exact-head evidence. RB-024/RB-025 remain open. No production/staging database operation, PHI backfill, migration, deployment or main merge.
+
+
+## 2026-11-01 — D1 direct payment API write-guard correction
+
+The specialized `/api/payments` router is not mounted with `blockClinicWrites`, because it handles platform, Shop, Academy and subscription payments as well as clinic cashier payments. Its clinic-cashier branch verified membership and referenced invoice/appointment ownership but omitted subscription write access. Clinic-scoped refunds and staff-entered static confirmation also lacked the trial guard.
+
+Added clinic-payment scope detection and a fail-closed subscription write guard. New clinic cashier payment intents, clinic-owned refunds and staff static confirmations now return `402 SUBSCRIPTION_EXPIRED` after the write deadline. SaaS subscription checkout remains available. Provider-backed API settlement and authenticated callbacks remain available only to complete transactions already paid externally; they cannot create new clinic cashier work.
+
+Added runtime route tests for all boundaries. Exact-head CI is required. D1 remains OPEN pending full CI and approved staging verification. No staging/production database, migration, PHI, live provider callback or production payment operation was performed.
+
+
+## 2026-11-01 — Exact-head payment source-contract matcher correction
+
+CI run [41255902538](https://github.com/drtamirlan911-cell/DentVision1/actions/runs/41255902538) on `ac67ddb67b3f3f64a94a9ece701c9d8adbd127d6` showed: frontend ESLint PASS; backend TypeScript and ESLint PASS; production build/typecheck/project-index/system-map/command-center audit PASS; current Quality Gate and RB-034 PASS. Vitest reached 2,415 passed / 1 failed. The one failure was a static source contract in `refund.service.test.ts` asserting the superseded inline clinic-scope expression. The implementation now uses `clinicPaymentScope(payment)`, then requires `canManageClinicBillingMutation` before generic payer ownership. The new `payments.routes.creation-security.test.ts` runtime file passed all 24 tests.
+
+Updated that contract test to assert the current helper/authorization ordering instead of matching the old source layout. No authorization assertion or runtime guard was weakened. The CI E2E job had only reached Playwright browser installation when this correction was prepared; it must be rerun on the corrected exact HEAD. D1 remains OPEN pending fresh CI and approved staging evidence. No staging/production DB/migration, PHI, payment provider, deployment or main merge was performed.
+
+
+## 2026-11-01 — legacy clinic-payment scope fail-closed
+
+A second edge case was found in historical clinic payment ownership: when a payment was clearly clinic-scoped by its immutable provider/reference/merchant marker but its legacy metadata lacked `clinicId`, the scope helper returned null and generic `meta.userId` ownership could be considered. Updated `assertPaymentOwner` to recognize clinic-scoped records first and reject any record that cannot resolve its clinic scope. Added a route regression test for a legacy `clinic_kaspi` payment with a matching userId but missing clinicId. Exact-head CI is required; no financial rows were modified.
+
+## 2026-11-01 — D1 complete clinic write-surface follow-up
+
+- Added subscription write guards to clinic cashier payment-intent creation, clinic-owned refunds and staff-entered static cashier confirmation. SaaS renewal checkout remains available; authenticated callbacks and provider-backed API settlement may complete already-paid transactions.
+- Clinic-scoped historical payments now fail closed if the provider/reference/merchant marker identifies a clinic payment but metadata lacks clinicId; generic legacy userId cannot authorize them.
+- Extended the audit beyond CRM: scoped dashboard creation (POST /api/data/dashboards) and doctor confirmation of a medical AI action (POST /api/compliance/ai/:id/confirm) now apply loadClinicAccess and blockClinicWrites. The medical permission check runs first.
+- Personal session revocation, consent management and medical-file access audit logging remain available as privacy/security/audit operations.
+- Added route regressions. The prior unit run on 4a808de7 had 2,416 passed and one stale source-contract assertion, corrected in b96b4d6e. Latest exact-head CI is required.
+- D1 remains OPEN pending exact-head full CI and approved staging positive-read/negative-write verification. No database, PHI, staging migration, live payment or callback was run.
+## 2026-11-01 — D1 clinic → dental laboratory assignment bypass
+
+Source review found that `labPlatformRouter` is intentionally mounted before clinic `loadClinicAccess` / `blockClinicWrites`, so a laboratory owner can continue processing an already-assigned case after the clinic trial expires. Its sibling `POST /platform/assign`, however, is a clinic-originated write and had only checked the caller's clinicId and the existence of the LabOrder; it did not require `appointment.write`, confirm clinic membership, check subscription write access or enforce branch visibility.
+Added `requirePermission('appointment.write')`, a fail-closed clinic-membership + subscription helper, branch-scoped order lookup, and an active-laboratory check specifically to `/platform/assign`. Laboratory dashboard, status and technician workflows are intentionally not gated, preserving completion of existing partner work.
+Added contract regressions for the clinic assignment boundary and for preserving laboratory-owned work. D1 remains OPEN pending exact-head CI and approved staging verification; no database, PHI, migration or live partner workflow was touched.
+## 2026-11-01 — D1 medical-laboratory clinic-side write boundary
+
+Source audit found the medical-laboratory child router is mounted before the parent clinic plan middleware. Its clinic-originated POST /orders plus clinic-side status/results/verify/interpretation mutations could write after expiry. The same endpoints are also used by the active LABORATORY organization context to process existing partner work.
+Added a clinic-actor subscription guard to new medical-lab order creation and to every order mutation after its scoped access check. Order creation now requires the currently active clinic context; a body clinicId cannot override it. Active LABORATORY context and SUPERADMIN remain able to complete already-assigned partner workflows; GET/read routes remain open.
+Added route-contract tests covering all write routes and the laboratory-context exception. D1 remains OPEN pending exact-head CI and approved staging verification. No database, PHI, migration, live specimen, or partner workflow was operated.
+ 
+## 2026-11-01 — D10 partner-owned Dental Lab acceptance slice
+
+- Added a single shared runtime event-table helper and a forward migration to reconcile historic dental_lab_order_events schemas: note is guaranteed to exist and fromStatus is nullable for the initial assignment event. Both clinic and partner event writers now call the shared helper.
+- Added PARTNER-003 E2E in partner-lifecycle.spec.ts: clinic order creation and assignment, independent dental-lab owner dashboard, team visibility, technician assignment, production status transitions through delivered, lifecycle event history, clinic visibility and cross-laboratory denial.
+- Added a focused unit contract test for the DDL repair and common helper usage.
+- This closes only the basic independent lab handoff/production slice, not the complete DENTVISION_LAB_PLATFORM_EXECUTION definition of done.
+- D10 remains OPEN: QC sign-off, remake authorization, shipping/dispatch, services/pricing, independent invoice/settlement/payout, durable notifications, AI exceptions and role policy still need implementation and E2E evidence. No live migration or financial operation was run.
+
+
+## 2026-11-01 — D10 delivery is not commercial settlement (candidate update; CI pending)
+
+- Repository: `drtamirlan911-cell/DentVision1`; only existing PR #330 branch `fix/d1-d10-trial-archive-signing-api-20261029` is updated. Parent HEAD `b43b3c01b229b21c1fa2cda7d149c55486bb4e42`; main remains `ac913cc3389a294d0b135a852b035ddddb1018ca`.
+- Parent exact-head CI `41280138666`, Quality Gate `41280138667` and RB-034 `41280138692` passed. New correction requires its own exact-head CI before acceptance.
+- Removed the `labOrder.status_changed → delivered` economics subscriber; removed the dead duplicate writer in the clinic status route and its now-unused imports. Deleted `dental-lab-economics.service.ts` and its unit test because they encoded delivery as an earned economic event.
+- Added PARTNER-003 E2E assertion that after partner delivery and event-queue drain, the order has no `partner_economics` transaction of type `DENTAL_LAB` and no attached ledger entries.
+- Corrected the Operating Directive, Master Spec implication, Execution Plan and Settlement Payment Contract. Commission recognition follows successful commercial settlement only; delivery remains an operational status. No new Kaspi payment or callback was invented. D10 remains OPEN until an approved invoice/payment/settlement/payout/refund/chargeback workflow exists.
+- Added RB-036 for the premature delivery-recognition defect. Historical DENTAL_LAB wallet/ledger records were not modified; read-only reconciliation against external payment evidence is required before any separately approved correction.
+- No staging/production DB operation, migration, PHI backfill, deployment, environment change, merge to main or local test execution was performed. No local checkout is mounted.
+
+
+## 2026-11-01 — RB-035 patient balance DTO boundary correction
+
+- Active repository remains `drtamirlan911-cell/DentVision1`, existing PR #330 branch `fix/d1-d10-trial-archive-signing-api-20261029`. No sibling branch or main-branch changes.
+- Confirmed the canonical IAM contract: `billing.read` grants read-only price-list access; it is not by itself authorization to see a patient's prepaid cash balance. MANAGER has `billing.read` without `medical.manage`; DOCTOR has the care-specific combination `billing.read` + `medical.manage`.
+- The existing shared `canReadPatientBalance()` predicate now governs caller-aware full DTO and patient-list serialization. `serializePatient()` is fail-closed by default (`includeBilling = false`); the patient summary route also uses `serializePatientForCaller()` rather than bypassing caller-specific field authorization.
+- Added negative E2E coverage: MANAGER can still list the patient but must not receive `prepaidBalance`; DOCTOR receives the care-relevant balance only with the documented clinical+billing permission pair. Added a route contract locking the exact permission predicate and fail-closed serializer default.
+- Implementation/test commits: `76c76548d625460e294ed96599dd56cbcb1492e3`, `a09a1afdb1600c27a5f7fe7e69753e0d935c92ef`, `f1d512ce676cd253c7bb23a4c173d008e045e5c0`. Release-blocker note recorded in `docs/RELEASE_BLOCKERS.md` commit `e4c5e216f1061141246a89fa49ccae96b92dde17`.
+- Previous complete exact-head CI `41285849836` passed all jobs on prior HEAD `20e14ef97ae0c89be96f798ab009f0b7fc132d65`, including Role/Context, Visual Agent, Business Owner, Organization Owner and final visual-evidence checks. A later source/doc head requires its own exact-head verification; RB-035 remains OPEN pending this verification.
+- No staging/production DB query or write, migration, PHI backfill, Render environment change, production deployment, payment-provider operation or merge to `main` was performed.
+
+
+## 2026-11-01 — RB-029 backfill root-shape fail-closed correction
+
+- Source audit found that `db:backfill:medical-history` classified all non-null values outside the versioned envelope / legacy scalar `ENC:` as plaintext. That included JSON arrays and scalar roots even though canonical Patient history serializers require a structured object.
+- Added `isStructuredMedicalHistoryRoot()`. Preflight now validates new encrypted-envelope payloads after decryption and accepts plaintext rows for encryption only when the root is a JSON object. Unsupported roots are counted without logging patient content or record identifiers; any count aborts before dry-run success or write mode. The write pass repeats the guard to catch values changed after preflight. Legacy scalar `ENC:` patient-portal values remain compatibility-readable and are not rewritten.
+- Added unit coverage for accepted object roots and rejected array/string/number/boolean/null roots.
+- Code/test commits: `325923cdef473a26cad9f88f8973174c0c78efe7` and `aa99f16c6aaff1f26d516451cd6c80b687885842`; release blocker update commit: `d790ddf9475d844b259a291c26e142cb2f0d24bb`.
+- Exact-head CI is required for the final resulting branch HEAD. The new preflight was not run against staging/production; no patient rows were read/written by this change, no migration or PHI backfill was performed. RB-029 remains OPEN pending full consumer/key/backup review and approved staging evidence.
+
+
+## 2026-11-01 — D2 isolated archive/retention E2E
+
+- Source review confirms the organization archive handler writes only \`Organization.archivedAt\` and lifecycle metadata. It does not update \`Clinic.active\`, delete the legacy Clinic, or delete branches, memberships, patients, documents or audit rows. Archived Organization contexts are excluded from workspace enumeration; the authentication middleware blocks existing scoped tokens except on explicit context-recovery paths.
+- Added \`ORG-009\` to \`e2e/tests/organization-owner-lifecycle.spec.ts\`. It creates a separate clinic through \`/api/auth/clinics\`, creates a patient under its clinic context, soft-archives its canonical Organization, verifies the archived context disappears and the old clinic token cannot read the clinic, checks through SUPERADMIN that the Clinic and patient count remain, and restores the Organization. The test uses a uniquely created clinic rather than shared E2E Clinic A; a \`finally\` cleanup attempts restoration if an assertion fails.
+- Regression-test commit: \`65e9c3d49959301d87f704a2216e6e8f6ab4139f\`; archive-cleanup ordering fix: \`d062acd90082f6d1bcf3b406508418e32133d9c7\`. Release blocker and checklist updates are recorded in commits \`30486eeae946163f9730d6575c3bac9c66c62c62\` and \`45e1953719415c4b2ebab2ddf8dc13077d33b4b5\`.
+- Exact-head CI must pass this E2E. D2 remains OPEN pending this test and approved staging migration/retention proof. No staging/production database operation, migration, archive or restore was executed by this audit.
+
+
+## 2026-11-01 — RB-035 test correction, RB-029 structured-root guard and Safari role-gate race
+
+- Work continued only on existing PR #330 / \`fix/d1-d10-trial-archive-signing-api-20261029\`; parent code HEAD was \`c9b8136cce44275629021d715074b83a0f05b941\`. Base/main remains \`ac913cc3389a294d0b135a852b035ddddb1018ca\`.
+- Exact-head CI \`41312419249\` on that parent passed 2,432/2,434 unit tests. Both failures were stale source assertions in \`patients.routes.branchScope.test.ts\`: the Patient DTO serializer's fail-closed default is \`includeBilling=false\`, and the clinical permission pair is written \`medical.manage\` + \`billing.read\`. Corrected only those matchers in \`e34ff872e042e8545c8e175b4820bd46bc7fe64e\`; runtime authorization policy was not changed.
+- The same CI passed frontend/backend lint, Quality Gate \`41312419241\`, RB-034 diagnostic \`41312419332\`, Core E2E, Browser UX and Mobile Design. Visual Agent, Business Owner, Organization Owner, Playwright CLI and final visual evidence also passed. Role/Context had 139 passed / 28 viewport-policy skips / one PATIENT Safari failure.
+- Trace analysis established that \`GET /api/patient-portal/conversation\` returned HTTP 200 in neighbouring requests and one WebKit request-failed event \`Load request cancelled\` arrived 3ms before the replacement main-document navigation to \`/profile\`. No 401/CORS/HTTP/page/console error was identified. Corrected the test collector so only explicit \`ERR_ABORTED\` / \`Load request cancelled\` signatures are deferred 75ms and treated as navigation cancellation only when the main-document epoch actually advances; otherwise the request remains a hard failure. Commit: \`5bfd7001674531eace48bbb007cdcaffca291709\`.
+- RB-029 writer audit found Patient Portal \`PUT /me/profile\` encrypted arbitrary scalar/array JSON roots; Patient create/PATCH writers also normalized unsupported roots. Added shared \`isStructuredMedicalHistoryRoot()\` and reject non-object roots (arrays/string/number/boolean) before encryption/merge in Patient Portal PUT, Patient POST and Patient PATCH. Null remains accepted for no history; root-level caller ciphertext/envelopes remain rejected; legacy scalar \`ENC:\` remains read-compatible. Added shared PHI unit tests plus Patient and Patient Portal route contracts. Commits: \`c23498387da9d69a40309ab4373ffcf613ec1cc1\`, \`ac1e2dc47b8f6800aebe30bfb581e6db53275848\`, \`540e683f16b51ddd04711fdb61653bb90345b0fd\`, \`eea087264010e2562f08cebbc49fabfbc80dec50\`, \`49865850d7d16004dbfbb097d4611f8fd398001e\`, \`47b520d2b9c0aa87969c1fc708368e2c5350379d\`.
+- Release Blockers now records these findings and why the parent-head CI is not closure evidence. RB-029, RB-035, RB-024 and RB-025 remain OPEN pending the next exact-head run and their remaining staging/security proof.
+- No staging/production DB query/write, migration, PHI backfill, live archive/restore, provider payment, environment/secret change, production deployment or main merge was performed.
+- Next: inspect all new exact-head CI jobs and artifacts, fix only verified failures without weakening assertions, then continue D1/D2/D8 staging proof, RB-029 consumer/backfill evidence, RB-030 offline queue E2E, RB-031 WebKit/CORS, RB-033 branch protection, full RB-035 authorization matrix and remaining D10 workflow parity.
+
+## 2026-11-07 — Stack AI response-polish provider adapter on D1–D10 candidate
+
+- Reconciled the independent provider-polish change from `fix/openai-shared-provider-polish-20261031` onto the current D1–D10 integration head as `integration/ai-provider-polish-d1d10-20261107`.
+- Kept the source branch and PR #333 unchanged; only the two AI implementation/test files are being ported here. The existing D1–D10 execution log was preserved and this compact entry was appended rather than attempting a blind merge of two diverged historical logs.
+- The implementation now uses the existing `providerFetch` adapter, sends reasoning settings only when supported by the selected model, and records provider-reported token usage with the existing estimate as fallback. Deterministic fallback remains intact.
+- This is not a claim of exact-head verification. Fresh CI, AI regression tests and the full release/E2E gates are required before merge. No provider key, environment variable, database, deployment or production behavior was changed.

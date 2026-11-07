@@ -25,6 +25,7 @@ import { assertClinicOrgAccess, assertOrgAccess, resolveClinicAccess, resolveCli
 import { permissionsSatisfy } from '../../lib/permissions.js';
 import { resolveUserPermissions } from '../../lib/resolvePermissions.js';
 import { assertClinicBillingAccess, getClinicSubscriptionAmountMinor, isSaasPlanId } from '../billing/clinicSubscription.service.js';
+import { resolveClinicAccess as resolveClinicSubscriptionAccess } from '../billing/planEntitlements.js';
 import { canTransitionOrder } from '../../lib/orderStatus.js';
 import { auditFromReq, writeAuditLog } from '../compliance/audit.service.js';
 import { reserveIdempotencyKey, completeIdempotencyKey, deleteIdempotencyKey } from '../../lib/idempotency.js';
@@ -98,11 +99,19 @@ async function settleOrderPayment(
   if (!payment.refId) return false;
   const order = await db.order.findUnique({ where: { id: payment.refId } });
   if (!order) return false;
-  // Idempotent no-op for already-paid / non-payable states. In particular a
-  // cancelled order must never be resurrected by a late callback (audit F-2).
-  if (order.status === 'paid' || !canTransitionOrder(order.status, 'paid')) {
-    return true;
-  }
+  // An already-paid order is an idempotent success. A cancelled, supplier-
+  // accepted or otherwise non-payable state must not accept a new sale.
+  if (order.status === 'paid') return true;
+  if (!canTransitionOrder(order.status, 'paid')) return false;
+
+  // Claim status before sale/partner ledger writes. The settlement caller
+  // passes a transaction client, so this compare-and-set rolls back with them.
+  const prevMeta = (order.meta && typeof order.meta === 'object' ? order.meta : {}) as Record<string, unknown>;
+  const transitioned = await db.order.updateMany({
+    where: { id: order.id, status: order.status },
+    data: { status: 'paid', paymentStatus: 'paid', meta: { ...prevMeta, paymentId: payment.id, paidAt: new Date().toISOString() } },
+  });
+  if (transitioned.count === 0) return false;
 
   const items = Array.isArray(order.items) ? (order.items as any[]) : [];
   const bySupplier = new Map<string, number>();
@@ -161,14 +170,6 @@ async function settleOrderPayment(
     }
   }
 
-  const prevMeta = (order.meta && typeof order.meta === 'object' ? order.meta : {}) as Record<string, unknown>;
-  await db.order.update({
-    where: { id: order.id },
-    data: {
-      status: 'paid',
-      meta: { ...prevMeta, paymentId: payment.id, paidAt: new Date().toISOString() },
-    },
-  });
   return true;
 }
 
@@ -431,6 +432,46 @@ async function claimPaymentForSettlement(
 
 const CLINIC_PAYMENT_STAFF_ROLES = new Set(['OWNER', 'DIRECTOR', 'ADMIN', 'MANAGER', 'CASHIER', 'SUPERADMIN']);
 
+function clinicPaymentScope(payment: { provider: string; meta: unknown; refType: string | null; refId: string | null }): string | null {
+  const meta = (payment.meta || {}) as { clinicId?: string; merchantScope?: string };
+  if (!meta.clinicId) return null;
+  const clinicScoped = payment.provider === 'clinic_kaspi'
+    || meta.merchantScope === 'clinic'
+    || payment.refType === 'appointment'
+    || payment.refType === 'crm_invoice';
+  return clinicScoped ? String(meta.clinicId) : null;
+}
+
+/** Clinic cashier mutations use the same 30-day write boundary as CRM modules. */
+async function requireClinicPaymentWritable(req: AuthRequest, res: any, clinicId: string): Promise<boolean> {
+  if (req.user?.role === 'SUPERADMIN') return true;
+  try {
+    const access = await resolveClinicSubscriptionAccess(clinicId);
+    if (!access) {
+      res.status(404).json({ ok: false, error: 'Клиника не найдена', code: 'CLINIC_ACCESS_UNVERIFIED' });
+      return false;
+    }
+    if (access.writeBlocked) {
+      res.status(402).json({
+        ok: false,
+        error: 'Срок подписки клиники завершён. Клинические финансовые изменения доступны после продления тарифа.',
+        code: 'SUBSCRIPTION_EXPIRED',
+        data: { upgradePath: '/crm/billing' },
+      });
+      return false;
+    }
+    return true;
+  } catch (error) {
+    console.error('[payments] clinic subscription write guard', error);
+    res.status(503).json({
+      ok: false,
+      error: 'Не удалось проверить подписку клиники',
+      code: 'CLINIC_ACCESS_UNVERIFIED',
+    });
+    return false;
+  }
+}
+
 async function assertClinicPaymentStaffAccess(userId: string, clinicId: string): Promise<boolean> {
   if (!userId || !clinicId) return false;
   try {
@@ -459,11 +500,17 @@ async function assertPaymentOwner(
 ) {
   const meta = (payment.meta || {}) as { userId?: string; clinicId?: string; merchantScope?: string };
 
-  // Clinic scope is derived from the immutable server-selected provider, not
-  // the client-writable meta fields. This also protects historic clinic
-  // records whose metadata may have been written before this validation.
-  if (meta.clinicId && (payment.provider === 'clinic_kaspi' || meta.merchantScope === 'clinic' || payment.refType === 'appointment' || payment.refType === 'crm_invoice')) {
-    return canManageClinicBillingMutation(req.user!, meta.clinicId);
+  // Clinic scope is derived from the immutable provider/reference type, not
+  // from client-writable metadata alone. Legacy clinic payment records without
+  // a recoverable clinicId must fail closed rather than fall through to userId.
+  const clinicScopedPayment = payment.provider === 'clinic_kaspi'
+    || meta.merchantScope === 'clinic'
+    || payment.refType === 'appointment'
+    || payment.refType === 'crm_invoice';
+  if (clinicScopedPayment) {
+    const clinicId = clinicPaymentScope(payment);
+    if (!clinicId) return false;
+    return canManageClinicBillingMutation(req.user!, clinicId);
   }
 
   // Orders are canonical ownership records. Historical payment metadata was
@@ -763,6 +810,9 @@ paymentsRouter.post('/', authenticate, async (req: AuthRequest, res) => {
       if (!(await assertClinicPaymentStaffAccess(req.user!.id, clinicId))) {
         return res.status(403).json({ ok: false, error: 'Нет доступа к кассе этой клиники' } satisfies ApiResponse);
       }
+      // Renewal checkout is platform-owned and handled below; clinic cashier
+      // payment creation is a clinic mutation and must obey the read-only gate.
+      if (!(await requireClinicPaymentWritable(req, res, clinicId))) return;
 
       // A referenced clinical object must belong to this exact clinic. A valid
       // cashier role alone must not allow cross-clinic payment via a substituted refId.
@@ -916,6 +966,8 @@ paymentsRouter.post('/:id/refund', authenticate, async (req: AuthRequest, res) =
     if (!(await assertPaymentOwner(req, payment))) {
       return res.status(403).json({ ok: false, error: 'Нет доступа к платежу' } satisfies ApiResponse);
     }
+    const clinicId = clinicPaymentScope(payment);
+    if (clinicId && !(await requireClinicPaymentWritable(req, res, clinicId))) return;
 
     const idempotencyKey = String(req.headers['idempotency-key'] || '').trim();
     if (!idempotencyKey) {
@@ -1053,6 +1105,9 @@ paymentsRouter.post('/:id/confirm', authenticate, async (req: AuthRequest, res) 
       if (clinicPayMode !== 'static' && clinicPayMode !== 'api') {
         return res.status(409).json({ ok: false, error: 'Способ оплаты клиники не настроен; подтверждение запрещено' } satisfies ApiResponse);
       }
+      // Static staff confirmation is a clinic write. API-mode settlement
+      // remains available when the provider confirms an already-paid payment.
+      if (clinicPayMode === 'static' && !(await requireClinicPaymentWritable(req, res, meta.clinicId))) return;
     }
 
     let providerStatus: 'pending' | 'paid' | 'failed' | 'expired' = 'pending';

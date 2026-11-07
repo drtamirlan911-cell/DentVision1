@@ -394,9 +394,9 @@ export async function createReferral(data: {
       status: (data.centerId || data.labId) ? 'SENT' : 'DRAFT',
     },
   });
-  await writeAuditLog({ action: 'REFERRAL_CREATED', entity: 'referral', entityId: referral.id, details: { category: data.category, studyType: data.studyType }, userId, clinicId: data.clinicId });
-  publish('referral.created', { referralId: referral.id, clinicId: data.clinicId || '', centerId: data.centerId || '', doctorId: userId, patientName: data.patientName || '', studyType: data.studyType || '', status: (data.centerId || data.labId) ? 'SENT' : 'DRAFT', userId });
-  if (data.centerId) await createNotificationForCenter(data.centerId, { type: NOTIFICATION_TYPES.REFERRAL_SENT, title: 'Новое направление', message: `${data.patientName || 'Пациент'} — ${data.studyType || 'исследование'}`, link: `/center-workspace?tab=referrals` });
+  await writeAuditLog({ action: 'REFERRAL_CREATED', entity: 'referral', entityId: referral.id, details: { status: (data.centerId || data.labId) ? 'SENT' : 'DRAFT' }, userId, clinicId: data.clinicId });
+  publish('referral.created', { referralId: referral.id, clinicId: data.clinicId || '', centerId: data.centerId || '', doctorId: userId, status: (data.centerId || data.labId) ? 'SENT' : 'DRAFT', userId });
+  if (data.centerId) await createNotificationForCenter(data.centerId, { type: NOTIFICATION_TYPES.REFERRAL_SENT, title: 'Новое направление', message: 'Новое направление поступило. Откройте рабочую очередь для подробностей.', link: `/center-workspace?tab=referrals` });
   return referral;
 }
 
@@ -430,11 +430,11 @@ export async function changeReferralStatus(id: string, status: ReferralStatus, u
   if (status === 'COMPLETED' && cost !== undefined) { update.cost = cost; update.paid = false; }
   if (status === 'CANCELLED') { update.cancelledAt = new Date(); update.cancelReason = reason; }
   const updatedReferral = await prisma.referral.update({ where: { id }, data: update });
-  if (status === 'SENT' && updatedReferral.centerId) await createNotificationForCenter(updatedReferral.centerId, { type: NOTIFICATION_TYPES.REFERRAL_SENT, title: 'Новое направление', message: `${updatedReferral.patientName || 'Пациент'} — ${updatedReferral.studyType || 'исследование'}`, link: `/center-workspace?tab=referrals` });
-  if (status === 'ACCEPTED' && updatedReferral.doctorId) await createNotification({ userId: updatedReferral.doctorId, type: NOTIFICATION_TYPES.REFERRAL_ACCEPTED, title: 'Направление принято', message: `#${id.slice(0, 8)}: ${updatedReferral.patientName} — ${updatedReferral.studyType}. Стоимость: ${Number(updatedReferral.cost || 0).toLocaleString()} ₸`, link: `/diagnostics/referrals/${id}` });
-  if (status === 'COMPLETED' && updatedReferral.doctorId) await createNotification({ userId: updatedReferral.doctorId, type: NOTIFICATION_TYPES.REFERRAL_RESULT, title: 'Результат диагностики готов', message: `Направление #${id.slice(0, 8)}: ${updatedReferral.patientName} — ${updatedReferral.studyType}. Результат готов к просмотру.`, link: `/diagnostics/referrals/${id}` });
-  await writeAuditLog({ action: 'REFERRAL_STATUS_CHANGED', entity: 'referral', entityId: id, details: { status, reason }, userId, clinicId: updatedReferral.clinicId });
-  publish(`referral.${status.toLowerCase()}` as any, { referralId: id, clinicId: updatedReferral.clinicId || '', centerId: updatedReferral.centerId || '', doctorId: updatedReferral.doctorId || '', patientName: updatedReferral.patientName || '', studyType: updatedReferral.studyType || '', status, userId, cost: updatedReferral.cost, platformFee: updatedReferral.platformFee });
+  if (status === 'SENT' && updatedReferral.centerId) await createNotificationForCenter(updatedReferral.centerId, { type: NOTIFICATION_TYPES.REFERRAL_SENT, title: 'Новое направление', message: 'Новое направление поступило. Откройте рабочую очередь для подробностей.', link: `/center-workspace?tab=referrals` });
+  if (status === 'ACCEPTED' && updatedReferral.doctorId) await createNotification({ userId: updatedReferral.doctorId, type: NOTIFICATION_TYPES.REFERRAL_ACCEPTED, title: 'Направление принято', message: 'Направление принято. Откройте карточку направления для деталей.', link: `/diagnostics/referrals/${id}` });
+  if (status === 'COMPLETED' && updatedReferral.doctorId) await createNotification({ userId: updatedReferral.doctorId, type: NOTIFICATION_TYPES.REFERRAL_RESULT, title: 'Результат диагностики готов', message: 'Результат диагностики готов к просмотру. Откройте направление для подробностей.', link: `/diagnostics/referrals/${id}` });
+  await writeAuditLog({ action: 'REFERRAL_STATUS_CHANGED', entity: 'referral', entityId: id, details: { status }, userId, clinicId: updatedReferral.clinicId });
+  publish(`referral.${status.toLowerCase()}` as any, { referralId: id, clinicId: updatedReferral.clinicId || '', centerId: updatedReferral.centerId || '', doctorId: updatedReferral.doctorId || '', status, userId, cost: updatedReferral.cost, platformFee: updatedReferral.platformFee });
   return updatedReferral;
 }
 
@@ -450,7 +450,7 @@ export async function deleteReferral(id: string, userId: string) {
 
 export async function uploadReferralFile(data: { referralId: string; fileName: string; fileData: string; fileType: string; fileSize?: number; uploadedBy: string; }) {
   const file = await prisma.referralFile.create({ data: { id: uid(), referralId: data.referralId, fileName: data.fileName, fileUrl: data.fileData, fileType: data.fileType, fileSize: data.fileSize, uploadedBy: data.uploadedBy } });
-  await writeAuditLog({ action: 'FILE_UPLOADED', entity: 'referral', entityId: data.referralId, details: { fileName: data.fileName, fileType: data.fileType }, userId: data.uploadedBy });
+  await writeAuditLog({ action: 'FILE_UPLOADED', entity: 'referral', entityId: data.referralId, details: { fileType: data.fileType }, userId: data.uploadedBy });
   return file;
 }
 
@@ -458,7 +458,7 @@ export async function deleteReferralFile(id: string, userId: string) {
   const file = await prisma.referralFile.findUnique({ where: { id } });
   if (!file) throw new Error('File not found');
   await prisma.referralFile.delete({ where: { id } });
-  await writeAuditLog({ action: 'FILE_DELETED', entity: 'referral', entityId: file.referralId, details: { fileName: file.fileName }, userId });
+  await writeAuditLog({ action: 'FILE_DELETED', entity: 'referral', entityId: file.referralId, userId });
 }
 
 // ─── Comments ───
@@ -560,7 +560,7 @@ async function upsertResult(referralId: string, aiContent: string, userId: strin
     action: 'AI_DIAGNOSTIC_RESULT_GENERATED',
     entity: 'referral',
     entityId: referralId,
-    details: { workflow: 'diagnostics', queueKey: 'worklist', resultId: result.id, category: referral?.category || null, studyType: referral?.studyType || null, requiresConfirmation: true },
+    details: { workflow: 'diagnostics', queueKey: 'worklist', resultId: result.id, requiresConfirmation: true },
     userId,
     clinicId: referral?.clinicId || undefined,
   });
@@ -574,7 +574,7 @@ async function aiAnalyzeLabResult(referralId: string, referral: any, _userId: st
   const summary = '🔬 Показатели считаны с приложенного бланка. Требуется подтверждение врача для внесения в карту пациента.';
   const result = await prisma.diagnosticResult.upsert({ where: { referralId }, update: { reportText: aiContent, aiGenerated: true, aiSawSource: true, aiSummary: summary }, create: { id: uid(), referralId, reportText: aiContent, aiGenerated: true, aiSawSource: true, aiSummary: summary } });
   await writeAuditLog({ action: 'AI_LAB_RESULT_GENERATED', entity: 'referral', entityId: referralId, details: { workflow: 'medical-laboratory', queueKey: 'worklist', resultId: result.id, requiresConfirmation: true }, userId: _userId, clinicId: referral.clinicId || undefined });
-  if (referral.doctorId && referral.clinicId) await dispatchNotifications([{ userId: referral.doctorId, clinicId: referral.clinicId, type: 'workflow', title: 'AI обнаружил лабораторные данные', message: `Направление #${referralId.slice(0, 8)} — ${referral.patientName}. Показатели извлечены. Проверьте и подтвердите внесение в карту пациента.`, link: `/diagnostics/referrals/${referralId}` }]);
+  if (referral.doctorId && referral.clinicId) await dispatchNotifications([{ userId: referral.doctorId, clinicId: referral.clinicId, type: 'workflow', title: 'AI обнаружил лабораторные данные', message: 'Результаты лабораторного исследования подготовлены. Требуется проверка и подтверждение врача.', link: `/diagnostics/referrals/${referralId}` }]);
   return result;
 }
 
@@ -669,18 +669,18 @@ export async function saveAndSignResult(data: {
   }
   if (notifyUserIds.size > 0) {
     const title = 'Результат диагностики подтверждён';
-    const message = `Врач ${referral.doctorName || 'доктор'} подтвердил результат по направлению #${referral.id.slice(0, 8)} (${referral.patientName}). Данные автоматически внесены в карту пациента.`;
+    const message = 'Результат по направлению подтверждён врачом и внесён в карту пациента.';
     await dispatchNotifications(Array.from(notifyUserIds).map((userId) => ({ userId, clinicId: referral.clinicId || undefined, type: 'workflow' as const, title, message, link: `/diagnostics/referrals/${referral.id}` })));
   }
   await writeAuditLog({
     action: 'RESULT_SIGNED',
     entity: 'referral',
     entityId: data.referralId,
-    details: { studyType: referral.studyType, signedBy: data.doctorId, signerScope: data.signerScope || 'clinic' },
+    details: { signedBy: data.doctorId, signerScope: data.signerScope || 'clinic' },
     userId: data.doctorId,
     clinicId: referral.clinicId,
   });
-  publish('diagnostics.result_ready', { referralId: data.referralId, resultId: result.id, clinicId: referral.clinicId || '', centerId: referral.centerId || '', doctorId: data.doctorId, patientName: referral.patientName || '', studyType: referral.studyType || '', userId: data.doctorId });
+  publish('diagnostics.result_ready', { referralId: data.referralId, resultId: result.id, clinicId: referral.clinicId || '', centerId: referral.centerId || '', doctorId: data.doctorId, userId: data.doctorId });
   return result;
 }
 

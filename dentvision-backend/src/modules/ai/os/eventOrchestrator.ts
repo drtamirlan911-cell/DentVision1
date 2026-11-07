@@ -6,6 +6,7 @@ import { matchEventRules, EventRule, EventRuleAction } from './eventRules.js';
 import { getActionHandler, EventActionResult } from './eventActions.js';
 import { sseManager } from '../ai.notifications.routes.js';
 import prisma from '../../../lib/prisma.js';
+import { canAccessPatientBranch, resolvePatientBranchContext } from '../../../lib/patientBranchScope.js';
 import { simpleChat } from '../llm/client.js';
 import { isProviderUnavailableError } from '../lib/providerFetch.js';
 
@@ -32,7 +33,7 @@ const AI_PROVIDER_COOLDOWN_MS = 5 * 60 * 1000;
 let aiProviderUnavailableUntil = 0;
 
 const AGENT_ROLES: Record<string, string[]> = {
-  doctor: ['DOCTOR', 'ASSISTANT'],
+  doctor: ['DOCTOR'],
   reception: ['ADMIN', 'ASSISTANT'],
   finance: ['CASHIER', 'OWNER', 'MANAGER'],
   ceo: ['OWNER', 'SUPERADMIN'],
@@ -239,18 +240,100 @@ export class EventOrchestrator extends EventEmitter {
     action: EventRuleAction,
     result: EventActionResult,
   ): Promise<string[]> {
-    if (result.notifyUserIds?.length) return [...new Set(result.notifyUserIds)];
+    const hasExplicitRecipients = result.notifyUserIds !== undefined;
+    const requestedUserIds = hasExplicitRecipients
+      ? [...new Set((result.notifyUserIds || []).filter((id): id is string => typeof id === 'string' && id.length > 0))]
+      : null;
+
+    // An explicit empty list is a deny-all instruction, never a request to
+    // broaden delivery to every organization member with the agent role.
+    if (hasExplicitRecipients && !requestedUserIds?.length) return [];
+    if (!event.clinicId) return [];
+
+    if (action.agent.toLowerCase() === 'doctor') {
+      const resultPatientId = typeof result.data?.patientId === 'string' ? result.data.patientId : null;
+      const eventPatientId = typeof event.payload.patientId === 'string' ? event.payload.patientId : null;
+
+      // Conflicting patient identities are untrusted; do not guess which chart
+      // the clinical result belongs to.
+      if (resultPatientId && eventPatientId && resultPatientId !== eventPatientId) return [];
+      const patientId = resultPatientId || eventPatientId;
+      if (!patientId) return [];
+
+      const patient = await prisma.patient.findFirst({
+        where: { id: patientId, clinicId: event.clinicId, deletedAt: null },
+        select: { id: true, branchId: true },
+      });
+      // Branchless records cannot be proven inside an assigned branch scope.
+      if (!patient?.branchId) return [];
+
+      const organization = await prisma.organization.findFirst({
+        where: {
+          originalType: 'Clinic',
+          originalId: event.clinicId,
+          archivedAt: null,
+        },
+        select: { id: true },
+      });
+      if (!organization) return [];
+
+      const assignments = await prisma.patientAssignment.findMany({
+        where: {
+          clinicId: event.clinicId,
+          patientId,
+          role: 'treating_doctor',
+          active: true,
+          ...(requestedUserIds ? { userId: { in: requestedUserIds } } : {}),
+        },
+        select: { userId: true },
+        take: 50,
+      });
+      const assignedUserIds = [...new Set(
+        assignments.map((assignment) => assignment.userId).filter((id): id is string => Boolean(id)),
+      )];
+      if (!assignedUserIds.length) return [];
+
+      // Confirm the doctor role still exists in this exact organization. A
+      // stale assignment must not survive role removal or role downgrade.
+      const doctors = await prisma.person.findMany({
+        where: {
+          organizationId: organization.id,
+          userId: { in: assignedUserIds },
+          personRoles: {
+            some: {
+              scopeType: 'organization',
+              scopeId: organization.id,
+              scopeKey: `organization:${organization.id}`,
+              role: { key: 'doctor' },
+            },
+          },
+        },
+        select: { userId: true },
+        take: 50,
+      });
+
+      const currentDoctorIds = [...new Set(
+        doctors.map((person) => person.userId).filter((id): id is string => Boolean(id)),
+      )];
+      const branchChecks = await Promise.all(currentDoctorIds.map(async (userId) => {
+        const branchContext = await resolvePatientBranchContext(userId, event.clinicId!, 'DOCTOR');
+        return canAccessPatientBranch(branchContext, patient.branchId) ? userId : null;
+      }));
+      return branchChecks.filter((id): id is string => Boolean(id));
+    }
+
+    if (hasExplicitRecipients) return requestedUserIds || [];
 
     const roles = AGENT_ROLES[action.agent] || [];
-    if (!roles.length || !event.clinicId) return [];
+    if (!roles.length) return [];
 
-    // Resolve recipients through the canonical Organization → Person → PersonRole
-    // graph. Legacy ClinicMember is intentionally not used here: AI notifications
-    // must follow the same scoped organization boundary as the active workspace.
+    // Resolve non-clinical employee recipients through the canonical
+    // Organization → Person → PersonRole graph.
     const organization = await prisma.organization.findFirst({
       where: {
         originalType: 'Clinic',
         originalId: event.clinicId,
+        archivedAt: null,
       },
       select: { id: true },
     });
@@ -265,8 +348,7 @@ export class EventOrchestrator extends EventEmitter {
       } else if (key === 'admin') {
         roleKeys.add('admin');
         roleKeys.add('org_admin');
-      }
-      else if (key === 'manager') roleKeys.add('manager');
+      } else if (key === 'manager') roleKeys.add('manager');
       else if (key === 'doctor') roleKeys.add('doctor');
       else if (key === 'assistant') roleKeys.add('assistant');
       else if (key === 'cashier') roleKeys.add('cashier');

@@ -43,6 +43,7 @@ import { resolveOrganizationIdForClinic } from '../../../lib/orgContext.js';
 import { resolveAiToolAccess } from './access.js';
 import { TOOLS, type ToolContext } from './tools.js';
 import { TOOL_PERMISSIONS } from './toolPermissions.js';
+import { encryptAiApprovalParams, getAiApprovalSummary } from './approvalPrivacy.js';
 import { SURFACE_TOOLS, HIGH_RISK_TOOLS, TOOL_PATIENT_ARG, sanitizeArgs, toolExistsAnywhere } from './dataScope.js';
 import { SKILLS, skillPermissionSatisfied } from './skills.js';
 import { executePatientTool } from '../../ai-patient/patientTools.js';
@@ -63,25 +64,6 @@ function isPhiTool(tool: string): boolean {
   return (TOOL_PERMISSIONS[tool] || '').startsWith('medical.');
 }
 
-/**
- * A tool's own `needsConfirmation.summary` (built with a DB-resolved patient
- * name) never survives into the confirm round-trip's `params` — only the raw
- * arguments do. Good enough for an approval to be actioned from without a
- * second DB round-trip here; the Approval Center can resolve names for
- * display when it needs to.
- */
-function buildApprovalSummary(tool: string, args: Record<string, unknown>): string {
-  switch (tool) {
-    case 'createInvoice':
-      return `Счёт на ${args.amount ?? '?'} для пациента ${args.patientId ?? '?'}`;
-    case 'createTreatmentPlan':
-      return `План лечения «${args.title ?? '?'}» для пациента ${args.patientId ?? '?'}`;
-    case 'cancelAppointment':
-      return `Отмена записи ${args.appointmentId ?? '?'}${args.reason ? ` — ${args.reason}` : ''}`;
-    default:
-      return tool;
-  }
-}
 
 /** What an action was based on, beyond what the row itself already says. */
 export interface EvidenceEntry {
@@ -256,7 +238,16 @@ async function recordEvidence(
  * tagged `_source` so the Activity Center can show the id did not come from
  * the model, exactly as Stage 10 requires.
  */
-function redactArgs(args: Record<string, unknown>, contextFields: string[] = []): Record<string, unknown> {
+function redactArgs(
+  args: Record<string, unknown>,
+  contextFields: string[] = [],
+  surface?: AiPrincipal['surface'],
+): Record<string, unknown> {
+  // Patient tool arguments contain symptoms, diagnoses, free-text questions
+  // and appointment details. The activity row already records tool + patient +
+  // tenant + outcome; raw patient arguments add PHI without audit value.
+  if (surface === 'patient') return {};
+
   const json = JSON.stringify(args ?? {});
   const base = json.length <= 2000 ? args : { _truncated: true, preview: json.slice(0, 2000) };
   if (contextFields.length === 0) return base;
@@ -346,7 +337,7 @@ export async function runAiAction(p: AiPrincipal, inv: AiInvocation): Promise<Ke
       patientId: p.patientId,
       status: 'denied',
       denyReason: 'NOT_ALLOWED',
-      argsRedacted: redactArgs(args),
+      argsRedacted: redactArgs(args, [], p.surface),
     });
     return { status: 'denied', reason: 'NOT_ALLOWED', error: 'Действие недоступно для вашей роли', activityId };
   }
@@ -375,7 +366,7 @@ export async function runAiAction(p: AiPrincipal, inv: AiInvocation): Promise<Ke
         patientId: p.patientId,
         status: 'denied',
         denyReason: 'NOT_IN_SKILL',
-        argsRedacted: redactArgs(args),
+        argsRedacted: redactArgs(args, [], p.surface),
       });
       return { status: 'denied', reason: 'NOT_IN_SKILL', error: 'Действие недоступно в рамках этого skill', activityId };
     }
@@ -420,7 +411,7 @@ export async function runAiAction(p: AiPrincipal, inv: AiInvocation): Promise<Ke
           patientId: p.patientId,
           status: 'denied',
           denyReason: 'OUT_OF_PATIENT_SCOPE',
-          argsRedacted: redactArgs(args, contextFields),
+          argsRedacted: redactArgs(args, contextFields, p.surface),
         });
         return { status: 'denied', reason: 'OUT_OF_PATIENT_SCOPE', error: 'Этот пациент не в вашей зоне ответственности', activityId };
       }
@@ -457,14 +448,14 @@ export async function runAiAction(p: AiPrincipal, inv: AiInvocation): Promise<Ke
           patientId: p.patientId,
           status: 'denied',
           denyReason: 'INVALID_APPROVAL',
-          argsRedacted: redactArgs(args, contextFields),
+          argsRedacted: redactArgs(args, contextFields, p.surface),
         });
         return { status: 'denied', reason: 'INVALID_APPROVAL', error: 'Подтверждение недействительно или уже использовано', activityId };
       }
       // Valid, approved reference — fall through to step 7.
     } else {
       const approvalId = uid();
-      const summary = buildApprovalSummary(inv.tool, args);
+      const summary = getAiApprovalSummary(inv.tool);
       try {
         await prisma.aiApproval.create({
           data: {
@@ -475,7 +466,7 @@ export async function runAiAction(p: AiPrincipal, inv: AiInvocation): Promise<Ke
             surface: p.surface,
             agentId: p.agentId || null,
             tool: inv.tool,
-            params: args as never,
+            params: encryptAiApprovalParams(args) as never,
             summary,
             requiredPermission: TOOL_PERMISSIONS[inv.tool] || null,
             riskLevel: 'high',
@@ -490,7 +481,7 @@ export async function runAiAction(p: AiPrincipal, inv: AiInvocation): Promise<Ke
             {
               type: 'ai_approval_requested',
               title: 'Требуется подтверждение действия ИИ',
-              message: summary,
+              message: 'Новое действие ИИ ожидает подтверждения. Откройте Центр подтверждений.',
               link: '/agent-activity',
             },
             { roles: ['OWNER', 'DIRECTOR', 'ADMIN'] },
@@ -510,7 +501,7 @@ export async function runAiAction(p: AiPrincipal, inv: AiInvocation): Promise<Ke
         organizationId,
         patientId: p.patientId,
         status: 'pending_approval',
-        argsRedacted: redactArgs(args, contextFields),
+        argsRedacted: redactArgs(args, contextFields, p.surface),
         resultSummary: summary,
         approvalId,
       });
@@ -559,7 +550,7 @@ export async function runAiAction(p: AiPrincipal, inv: AiInvocation): Promise<Ke
         patientId: p.patientId,
         status: 'denied',
         denyReason: 'NO_CLINIC',
-        argsRedacted: redactArgs(args, contextFields),
+        argsRedacted: redactArgs(args, contextFields, p.surface),
         durationMs,
       });
       return { status: 'denied', reason: 'NO_CLINIC', error: 'Нет активной клиники — выберите рабочее пространство', activityId };
@@ -577,7 +568,7 @@ export async function runAiAction(p: AiPrincipal, inv: AiInvocation): Promise<Ke
       patientId: p.patientId,
       status: 'denied',
       denyReason: 'EXEC_ERROR',
-      argsRedacted: redactArgs(args, contextFields),
+      argsRedacted: redactArgs(args, contextFields, p.surface),
       durationMs,
     });
     return { status: 'denied', reason: 'EXEC_ERROR', error: 'Ошибка выполнения инструмента', activityId };
@@ -596,7 +587,7 @@ export async function runAiAction(p: AiPrincipal, inv: AiInvocation): Promise<Ke
     organizationId,
     patientId: p.patientId,
     status: toolResult.ok ? 'ok' : 'tool_error',
-    argsRedacted: redactArgs(args, contextFields),
+    argsRedacted: redactArgs(args, contextFields, p.surface),
     resultSummary: toolResult.ok ? undefined : toolResult.error,
     durationMs,
     approvalId: inv.approvalId || undefined,

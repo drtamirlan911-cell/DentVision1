@@ -8,6 +8,7 @@
  */
 import prisma from '../../../lib/prisma.js';
 import { memoryEngine } from '../memory/memory.engine.js';
+import { decryptAiTranscriptText, encryptAiTranscriptText } from '../lib/transcriptEncryption.js';
 
 const GLOBAL_CLINIC = '__global__';
 const PREFS_KEY = 'user_prefs';
@@ -69,10 +70,10 @@ async function savePrefs(userId: string, clinicId: string | null | undefined, ba
   const cid = clinicKey(clinicId);
   const trimmed = { items: bag.items.slice(0, MAX_PREFS) };
   await memoryEngine.setLongTerm(PREFS_KEY, trimmed, userId, cid);
-  // Mirror style prefs globally so they follow the user across clinics
+  // Only generic style preferences are user-global. Explicit free-form facts stay clinic-scoped so patient/clinic context cannot follow the user into another clinic.
   if (cid !== GLOBAL_CLINIC) {
     const styleOnly = {
-      items: trimmed.items.filter((i) => i.source === 'style' || i.source === 'explicit'),
+      items: trimmed.items.filter((i) => i.source === 'style'),
     };
     if (styleOnly.items.length) {
       await memoryEngine.setLongTerm(PREFS_KEY, styleOnly, userId, GLOBAL_CLINIC);
@@ -298,11 +299,11 @@ export async function getPositiveFewShots(
       select: { content: true, prevUserText: true },
     });
     const scored = rows
-      .map((r) => ({
-        user: String(r.prevUserText || ''),
-        assistant: String(r.content || '').slice(0, 600),
-        score: overlapScore(query, String(r.prevUserText || '')),
-      }))
+      .map((r) => {
+        const user = decryptAiTranscriptText(r.prevUserText);
+        const assistant = decryptAiTranscriptText(r.content).slice(0, 600);
+        return { user, assistant, score: overlapScore(query, user) };
+      })
       .filter((r) => r.user && r.assistant && r.score >= 0.12)
       .sort((a, b) => b.score - a.score)
       .slice(0, MAX_FEW_SHOTS);
@@ -354,61 +355,79 @@ export async function recordMessageFeedback(opts: {
 }): Promise<{ ok: boolean; messageId?: string }> {
   const rating = opts.rating === 'down' ? 'down' : 'up';
   let messageId = opts.messageId || undefined;
+  const clinicId = clinicKey(opts.clinicId);
 
   try {
+    let row: { id: string; content: string; prevUserText: string | null } | null = null;
+
     if (messageId) {
+      // A message ID is not an authorization credential. Verify its owning
+      // session belongs to the caller's current organization before updating.
+      row = await prisma.aIMessage.findFirst({
+        where: {
+          id: messageId,
+          ...(opts.sessionId ? { sessionId: opts.sessionId } : {}),
+          session: { is: { userId: opts.userId, clinicId } },
+        },
+        select: { id: true, content: true, prevUserText: true },
+      });
+      if (!row) return { ok: false };
+    } else if (opts.sessionId && opts.assistantText) {
+      const ownedSession = await prisma.aISession.findFirst({
+        where: { id: opts.sessionId, userId: opts.userId, clinicId },
+        select: { id: true },
+      });
+      if (!ownedSession) return { ok: false };
+
+      const candidates = await prisma.aIMessage.findMany({
+        where: { sessionId: opts.sessionId, role: 'assistant' },
+        orderBy: { createdAt: 'desc' },
+        take: 80,
+        select: { id: true, content: true, prevUserText: true },
+      });
+      const expected = opts.assistantText.slice(0, 5000);
+      row = candidates.find((candidate) => decryptAiTranscriptText(candidate.content).slice(0, 5000) === expected) || null;
+    }
+
+    if (row) {
+      messageId = row.id;
+      const previousUserText = opts.userText
+        ? opts.userText.slice(0, 2000)
+        : row.prevUserText
+          ? decryptAiTranscriptText(row.prevUserText)
+          : null;
       await prisma.aIMessage.update({
-        where: { id: messageId },
+        where: { id: row.id },
         data: {
+          // Re-encode legacy plaintext while touching the row.
+          content: encryptAiTranscriptText(decryptAiTranscriptText(row.content)),
+          prevUserText: previousUserText ? encryptAiTranscriptText(previousUserText) : null,
           feedback: rating,
           feedbackAt: new Date(),
-          ...(opts.userText ? { prevUserText: opts.userText.slice(0, 2000) } : {}),
-          ...(opts.userId ? { userId: opts.userId } : {}),
-          ...(opts.clinicId !== undefined ? { clinicId: clinicKey(opts.clinicId) } : {}),
+          userId: opts.userId,
+          clinicId,
         },
       });
-    } else if (opts.sessionId && opts.assistantText) {
-      const row = await prisma.aIMessage.findFirst({
-        where: {
+    } else if (!opts.messageId && opts.sessionId && opts.assistantText) {
+      // Create a feedback-anchored row only after proving session ownership.
+      messageId = crypto.randomUUID();
+      await prisma.aIMessage.create({
+        data: {
+          id: messageId,
           sessionId: opts.sessionId,
           role: 'assistant',
-          content: opts.assistantText.slice(0, 5000),
+          content: encryptAiTranscriptText(String(opts.assistantText).slice(0, 8000)),
+          feedback: rating,
+          feedbackAt: new Date(),
+          prevUserText: opts.userText ? encryptAiTranscriptText(opts.userText.slice(0, 2000)) : null,
+          userId: opts.userId,
+          clinicId,
         },
-        orderBy: { createdAt: 'desc' },
       });
-      if (row) {
-        messageId = row.id;
-        await prisma.aIMessage.update({
-          where: { id: row.id },
-          data: {
-            feedback: rating,
-            feedbackAt: new Date(),
-            prevUserText: opts.userText?.slice(0, 2000) || row.prevUserText,
-            userId: opts.userId,
-            clinicId: clinicKey(opts.clinicId),
-          },
-        });
-      } else {
-        // Create a feedback-anchored row so learning still works without exact match
-        messageId = crypto.randomUUID();
-        await prisma.aIMessage.create({
-          data: {
-            id: messageId,
-            sessionId: opts.sessionId,
-            role: 'assistant',
-            content: String(opts.assistantText).slice(0, 8000),
-            feedback: rating,
-            feedbackAt: new Date(),
-            prevUserText: opts.userText?.slice(0, 2000) || null,
-            userId: opts.userId,
-            clinicId: clinicKey(opts.clinicId),
-          },
-        });
-      }
     }
 
     if (rating === 'up' && opts.userText) {
-      // Reinforce style from liked answers: prefer whatever length the assistant used
+      // Reinforce response style without persisting a quoted prompt or possible PHI.
       const len = String(opts.assistantText || '').length;
       if (len > 0 && len < 320) {
         await upsertPref(opts.userId, opts.clinicId, {
@@ -431,7 +450,7 @@ export async function recordMessageFeedback(opts: {
       await upsertPref(opts.userId, opts.clinicId, {
         key: 'feedback_avoid',
         label: 'Избегать',
-        value: `Похожий ответ на «${opts.userText.slice(0, 80)}» не зашёл — уточняй и предлагай альтернативу`,
+        value: 'Похожий ответ не подошёл — уточняй запрос и предлагай альтернативу',
         source: 'feedback',
       });
     }

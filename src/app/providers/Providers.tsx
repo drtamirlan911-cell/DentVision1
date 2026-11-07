@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { SocketProvider } from '@/services/websocket'
-import { BrowserRouter } from 'react-router-dom'
+import { BrowserRouter, useLocation } from 'react-router-dom'
 import { useAuthStore } from '@/store/auth.store'
 import { useGuestStore } from '@/store/guest.store'
 
@@ -20,15 +20,22 @@ interface ProvidersProps {
 }
 
 function GuestInitializer({ children }: { children: React.ReactNode }) {
+  const pathname = useLocation().pathname
   const isAuthenticated = useAuthStore((s) => !!s.user)
   const isGuest = useGuestStore((s) => s.isGuest)
   const initGuest = useGuestStore((s) => s.initGuest)
+  const isGuestRoute = useGuestStore((s) => s.isGuestRoute)
+  const requiresAuth = useGuestStore((s) => s.requiresAuth)
+  const isAuthEntryRoute = /^\/(?:login|register|forgot-password|reset-password|patient-portal)(?:\/|$)/i.test(pathname)
+  const needsGuestSession = pathname === '/' || pathname === '/ai' || isGuestRoute(pathname)
 
   useEffect(() => {
-    if (!isAuthenticated && !isGuest) {
-      initGuest()
+    // Auth entry and protected deep links must not start an anonymous session:
+    // the request races login/session restore and is abandoned on navigation.
+    if (!isAuthenticated && !isGuest && needsGuestSession && !isAuthEntryRoute && !requiresAuth(pathname)) {
+      void initGuest()
     }
-  }, [isAuthenticated, isGuest, initGuest])
+  }, [isAuthenticated, isGuest, needsGuestSession, isAuthEntryRoute, requiresAuth, pathname, initGuest])
 
   return <>{children}</>
 }

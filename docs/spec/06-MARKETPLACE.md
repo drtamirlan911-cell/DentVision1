@@ -152,3 +152,12 @@ draft → placed → paid → packing → shipped → delivered → closed
 - [ ] Статусы заказа прозрачны как трекинг посылки
 - [ ] AI Buyer assist работает на реальных остатках и истории закупок
 - [ ] Нет «мертвых» товаров без seller и stock semantics
+
+
+## 6.7.1 Buyer cancellation safety
+
+- A buyer may cancel an order only while it is still `pending`, before supplier acceptance, and only when the payment method is cash on delivery with no payment intent.
+- Cancellation must atomically claim the status transition and restore reserved stock exactly once; the buyer must own the order.
+- DentCash spend/earn reversal must be idempotent and retryable.
+- Online-payment, payment-processing, unknown-outcome or paid orders must not use stock-only cancellation. They require a provider-confirmed void/refund and reconciliation workflow before buyer cancellation is enabled.
+- This restricted capability is an initial safe slice, not completion of all Marketplace cancellation/refund acceptance criteria.

@@ -1,4 +1,5 @@
-import { test, expect, type Page } from '@playwright/test';
+import { test, expect, type Page, request } from '@playwright/test';
+import { makeIin } from '../helpers/iin';
 
 const BASE = process.env.PLAYWRIGHT_UI_URL || 'http://localhost:3000';
 const PASSWORD = 'Test1234!';
@@ -134,6 +135,109 @@ test.describe('DentVision organization owner lifecycle', () => {
       await expect(page).not.toHaveURL(/\/login/);
       await page.reload();
       await expect(page).not.toHaveURL(/\/login/);
+    }
+  });
+
+  test('ORG-009: clinic archive hides only the organization context and retains clinic clinical data', async () => {
+    const api = await request.newContext({
+      baseURL: process.env.PLAYWRIGHT_BASE_URL || 'http://localhost:3001',
+    });
+    let organizationId: string | null = null;
+    let clinicId: string | null = null;
+    let superadminToken: string | null = null;
+    let archiveSucceeded = false;
+    const auth = (token: string) => ({ Authorization: `Bearer ${token}` });
+
+    try {
+      const signIn = async (email: string) => {
+        const response = await api.post('/api/auth/login', { data: { email, password: PASSWORD } });
+        expect(response.status(), await response.text()).toBe(200);
+        const data = (await response.json()).data;
+        return String(data.accessToken || data.tokens?.accessToken || '');
+      };
+      const ownerToken = await signIn(OWNER_EMAIL);
+      superadminToken = await signIn('superadmin@test.com');
+      expect(ownerToken).toBeTruthy();
+      expect(superadminToken).toBeTruthy();
+
+      const createdClinic = await api.post('/api/auth/clinics', {
+        headers: auth(ownerToken),
+        data: { name: `E2E Archive Retention ${Date.now()}`, city: 'Тараз' },
+      });
+      expect(createdClinic.status(), await createdClinic.text()).toBe(201);
+      clinicId = String(((await createdClinic.json()).data || {}).id || '');
+      expect(clinicId).toBeTruthy();
+
+      const contextsResponse = await api.get('/api/iam/me/contexts', { headers: auth(ownerToken) });
+      expect(contextsResponse.status(), await contextsResponse.text()).toBe(200);
+      const contexts = (await contextsResponse.json()).data?.contexts || [];
+      const clinicContext = contexts.find((context: any) =>
+        context.scopeType === 'CLINIC' && context.scopeId === clinicId,
+      );
+      organizationId = String(clinicContext?.organizationId || '');
+      expect(organizationId, 'new clinic must have a canonical Organization context').toBeTruthy();
+
+      const switched = await api.post('/api/iam/switch-context', {
+        headers: auth(ownerToken),
+        data: { scopeType: 'CLINIC', scopeId: clinicId },
+      });
+      expect(switched.status(), await switched.text()).toBe(200);
+      const clinicToken = String((await switched.json()).data?.accessToken || '');
+      expect(clinicToken).toBeTruthy();
+
+      const patient = await api.post('/api/patients', {
+        headers: auth(clinicToken),
+        data: {
+          iin: makeIin(),
+          firstName: 'D2 Archive',
+          lastName: 'Retention',
+          phone: '+77010004447',
+        },
+      });
+      expect(patient.status(), await patient.text()).toBe(201);
+
+      const archived = await api.delete(`/api/organizations/${organizationId}`, {
+        headers: auth(clinicToken),
+      });
+      expect(archived.status(), await archived.text()).toBe(200);
+      archiveSucceeded = true;
+      const archiveData = (await archived.json()).data;
+      expect(archiveData.archived).toBe(true);
+      expect(archiveData.retained).toBe(true);
+
+      const archivedContexts = await api.get('/api/iam/me/contexts', { headers: auth(clinicToken) });
+      expect(archivedContexts.status(), await archivedContexts.text()).toBe(200);
+      const remainingContexts = (await archivedContexts.json()).data?.contexts || [];
+      expect(remainingContexts.some((context: any) => context.organizationId === organizationId)).toBe(false);
+
+      const ownerRead = await api.get(`/api/clinics/${clinicId}`, { headers: auth(clinicToken) });
+      expect(ownerRead.status()).toBe(403);
+
+      // Platform recovery/read access proves the Clinic row and patient history
+      // were retained; archive must never delete or deactivate the legacy Clinic.
+      const retainedClinic = await api.get(`/api/clinics/${clinicId}`, { headers: auth(superadminToken) });
+      expect(retainedClinic.status(), await retainedClinic.text()).toBe(200);
+      const retainedData = (await retainedClinic.json()).data;
+      expect(retainedData.id).toBe(clinicId);
+      expect(retainedData._count?.patients).toBe(1);
+
+      const restored = await api.post(`/api/organizations/${organizationId}/restore`, {
+        headers: auth(superadminToken),
+      });
+      expect(restored.status(), await restored.text()).toBe(200);
+      archiveSucceeded = false;
+
+      const restoredContexts = await api.get('/api/iam/me/contexts', { headers: auth(ownerToken) });
+      expect(restoredContexts.status(), await restoredContexts.text()).toBe(200);
+      const afterRestore = (await restoredContexts.json()).data?.contexts || [];
+      expect(afterRestore.some((context: any) => context.organizationId === organizationId)).toBe(true);
+    } finally {
+      if (archiveSucceeded && organizationId && superadminToken) {
+        await api.post(`/api/organizations/${organizationId}/restore`, {
+          headers: auth(superadminToken),
+        }).catch(() => null);
+      }
+      await api.dispose();
     }
   });
 

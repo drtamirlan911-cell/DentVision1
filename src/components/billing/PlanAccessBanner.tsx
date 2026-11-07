@@ -122,7 +122,7 @@ export function PlanAccessBanner({
         <button
           type="button"
           onClick={dismiss}
-          className="p-1.5 rounded-lg text-txt-muted hover:text-txt-primary hover:bg-white/5"
+          className="inline-flex min-h-9 min-w-9 items-center justify-center rounded-lg p-0 text-txt-muted hover:text-txt-primary hover:bg-white/5"
           aria-label={t('common.hide')}
         >
           <X size={14} />
@@ -149,7 +149,7 @@ export function PlanAccessBanner({
         <button
           type="button"
           onClick={dismiss}
-          className="p-1.5 rounded-lg text-txt-muted hover:text-txt-primary hover:bg-white/5"
+          className="inline-flex min-h-9 min-w-9 items-center justify-center rounded-lg p-0 text-txt-muted hover:text-txt-primary hover:bg-white/5"
           aria-label={t('common.hide')}
         >
           <X size={14} />
@@ -171,7 +171,7 @@ export function PlanAccessBanner({
         <button
           type="button"
           onClick={dismiss}
-          className="p-1.5 rounded-lg text-txt-muted hover:text-txt-primary hover:bg-white/5"
+          className="inline-flex min-h-9 min-w-9 items-center justify-center rounded-lg p-0 text-txt-muted hover:text-txt-primary hover:bg-white/5"
           aria-label={t('common.hide')}
         >
           <X size={14} />

@@ -185,9 +185,21 @@ describe('getHistory', () => {
     expect(accessLogCreate).toHaveBeenCalledTimes(1);
   });
 
-  it('returns an empty array when there are no approved grants', async () => {
+  it('reads only approved, non-revoked, non-expired grants for the exact receiving patient', async () => {
     grantFindMany.mockResolvedValueOnce([]);
     const result = await getHistory(RECEIVING_CLINIC_ID, RECEIVING_PATIENT_ID, REQUESTED_BY);
     expect(result).toEqual([]);
+    expect(grantFindMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: expect.objectContaining({
+        receivingClinicId: RECEIVING_CLINIC_ID,
+        receivingPatientId: RECEIVING_PATIENT_ID,
+        status: 'APPROVED',
+        revokedAt: null,
+        OR: expect.arrayContaining([
+          { expiresAt: null },
+          { expiresAt: { gt: expect.any(Date) } },
+        ]),
+      }),
+    }));
   });
 });

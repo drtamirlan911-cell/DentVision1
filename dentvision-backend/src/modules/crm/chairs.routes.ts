@@ -42,7 +42,8 @@ chairsRouter.get('/chairs', async (req: AuthRequest, res) => {
     const clinicId = requireClinic(req, res);
     if (!clinicId) return;
 
-    await ensureDefaultChairs(clinicId);
+    // A GET must stay observational after the subscription expires.
+    if (req.clinicAccess?.writeBlocked !== true) await ensureDefaultChairs(clinicId);
     const rows = await prisma.chair.findMany({
       where: { clinicId, active: true },
       orderBy: { sortOrder: 'asc' },

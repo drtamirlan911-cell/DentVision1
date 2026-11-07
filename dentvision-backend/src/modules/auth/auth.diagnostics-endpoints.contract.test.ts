@@ -8,6 +8,12 @@ const compatibility = readFileSync(resolve(process.cwd(), 'dentvision-backend/sr
 const diagnostics = readFileSync(resolve(process.cwd(), 'dentvision-backend/src/modules/diagnostics/diagnostics.routes.ts'), 'utf8');
 
 describe('auth and diagnostics endpoint security contracts', () => {
+  it('hydrates the active clinic membership from the authenticated clinic scope, not the first membership', () => {
+    expect(authMe).toContain(`const activeMembership = user.clinicId
+    ? memberships.find((membership) => membership.clinicId === user.clinicId) || null
+    : null;`);
+    expect(authMe).not.toContain('const activeMembership = memberships[0] || null;');
+  });
   it('rotates only the current session on clinic switch and supports explicit context clearing', () => {
     expect((auth.match(/authRouter\.post\('\/switch-clinic'/g) || [])).toHaveLength(1);
     expect(auth).toContain("authRouter.post('/switch-clinic', authenticate");
@@ -20,12 +26,18 @@ describe('auth and diagnostics endpoint security contracts', () => {
     expect(auth).toContain('previousClinicId: req.user?.clinicId ?? null');
     expect(auth).not.toContain('expireAllSessions(user.id)');
   });
-  it('uses shared transactional clinic creation and fixes the self-service plan at DEMO', () => {
+  it('uses shared transactional clinic creation and keeps the 30-day Enterprise trial idempotent', () => {
     expect(auth).toContain("authRouter.post('/clinics', authenticate");
     expect(auth).toContain("authRouter.post('/demo-clinic', authenticate");
     expect(auth).toContain('createClinicForOwner(req.user!.id, input, {');
     expect(auth).toContain('createClinicForOwnerInTransaction(tx, req.user!.id, input, {');
-    expect(readFileSync(resolve(process.cwd(), 'dentvision-backend/src/modules/clinics/clinicCreation.service.ts'), 'utf8')).toContain("plan: 'DEMO'");
+    expect(auth).toContain("clinicMember.findMany({ where: { userId: req.user!.id, role: 'OWNER', clinic: { plan: { in: ['DEMO', 'ENTERPRISE'] }, active: true } }");
+    expect(auth).toContain("where: { originalType: 'Clinic', originalId: candidate.clinic.id, archivedAt: { not: null } }");
+    const clinicCreation = readFileSync(resolve(process.cwd(), 'dentvision-backend/src/modules/clinics/clinicCreation.service.ts'), 'utf8');
+    expect(clinicCreation).toContain("plan: 'ENTERPRISE'");
+    expect(clinicCreation).toContain("plan: 'enterprise'");
+    expect(clinicCreation).toContain("status: 'trialing'");
+    expect(clinicCreation).toContain('TRIAL_DAYS');
   });
   it('claims invitations atomically, restricts invitation email and synchronizes canonical IAM', () => {
     expect((authMe.match(/authMeRouter\.post\('\/join-clinic'/g) || [])).toHaveLength(1);

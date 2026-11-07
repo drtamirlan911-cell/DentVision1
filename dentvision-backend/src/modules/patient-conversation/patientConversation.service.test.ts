@@ -1,4 +1,4 @@
-import { describe, expect, it, vi, beforeEach } from 'vitest';
+import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
 
 const {
   conversationFindFirst,
@@ -37,8 +37,10 @@ vi.mock('../../lib/prisma.js', () => ({
   },
 }));
 
+import { decryptField, encryptField } from '../../lib/phi.js';
 import {
   getOrOpenConversation,
+  getMessages,
   appendMessage,
   getThreadForClinic,
   replyAsStaff,
@@ -53,8 +55,20 @@ import {
  * turn into a PHI leak.
  */
 
+const originalNodeEnv = process.env.NODE_ENV;
+const originalEncryptionKey = process.env.ENCRYPTION_KEY;
+
 beforeEach(() => {
   vi.clearAllMocks();
+  process.env.NODE_ENV = 'test';
+  process.env.ENCRYPTION_KEY = 'dentvision-patient-conversation-test-key-2026-11-04';
+});
+
+afterEach(() => {
+  if (originalNodeEnv === undefined) delete process.env.NODE_ENV;
+  else process.env.NODE_ENV = originalNodeEnv;
+  if (originalEncryptionKey === undefined) delete process.env.ENCRYPTION_KEY;
+  else process.env.ENCRYPTION_KEY = originalEncryptionKey;
 });
 
 describe('getOrOpenConversation', () => {
@@ -67,11 +81,15 @@ describe('getOrOpenConversation', () => {
 
   it('opens a new thread when none is open', async () => {
     conversationFindFirst.mockResolvedValueOnce(null);
-    conversationCreate.mockResolvedValueOnce({ id: 'new', status: 'WAITING' });
-    const result = await getOrOpenConversation('user-1', 'clinic-1', 'reason');
+    conversationCreate.mockImplementationOnce(async ({ data }) => ({ ...data, id: 'new' }));
+    const result = await getOrOpenConversation('user-1', 'clinic-1', 'private escalation reason');
     expect(result.id).toBe('new');
+    const storedReason = conversationCreate.mock.calls[0][0].data.escalationReason;
+    expect(storedReason).toMatch(/^ENC:/);
+    expect(storedReason).not.toContain('private escalation reason');
+    expect(result.escalationReason).toBe('private escalation reason');
     expect(conversationCreate).toHaveBeenCalledWith(
-      expect.objectContaining({ data: expect.objectContaining({ status: 'WAITING', escalationReason: 'reason' }) }),
+      expect.objectContaining({ data: expect.objectContaining({ status: 'WAITING', escalationReason: storedReason }) }),
     );
   });
 
@@ -94,9 +112,13 @@ describe('appendMessage', () => {
   });
 
   it('a patient message touches lastPatientMessageAt and nothing about status', async () => {
-    messageCreate.mockResolvedValueOnce({ id: 'm1' });
+    messageCreate.mockImplementationOnce(async ({ data }) => ({ id: 'm1', ...data }));
     conversationUpdate.mockResolvedValueOnce({});
-    await appendMessage('c1', 'PATIENT', 'когда мой приём?');
+    const result = await appendMessage('c1', 'PATIENT', 'когда мой приём?');
+    const storedBody = messageCreate.mock.calls[0][0].data.body;
+    expect(storedBody).toMatch(/^ENC:/);
+    expect(storedBody).not.toContain('когда мой приём?');
+    expect(result.body).toBe('когда мой приём?');
     expect(conversationUpdate).toHaveBeenCalledWith(
       expect.objectContaining({
         data: expect.objectContaining({ lastPatientMessageAt: expect.any(Date) }),
@@ -106,10 +128,37 @@ describe('appendMessage', () => {
     expect(call.data.status).toBeUndefined();
   });
 
-  it('a staff reply claims the thread into LIVE and assigns the replying staff member', async () => {
-    messageCreate.mockResolvedValueOnce({ id: 'm2' });
+  it('re-encrypts literal client text that begins with the storage marker', async () => {
+    const literal = 'ENC:not-a-ciphertext-supplied-by-client';
+    messageCreate.mockImplementationOnce(async ({ data }) => ({ id: 'm3', ...data }));
     conversationUpdate.mockResolvedValueOnce({});
-    await appendMessage('c1', 'STAFF', 'сейчас перезвоним', 'staff-1');
+    const result = await appendMessage('c1', 'PATIENT', literal);
+    const storedBody = messageCreate.mock.calls[0][0].data.body;
+    expect(storedBody).toMatch(/^ENC:/);
+    expect(storedBody).not.toBe(literal);
+    expect(decryptField(storedBody)).toBe(literal);
+    expect(result.body).toBe(literal);
+  });
+
+  it('decrypts new encrypted messages and preserves legacy plaintext on reads', async () => {
+    messageFindMany.mockResolvedValueOnce([
+      { id: 'm-encrypted', body: encryptField('private clinical message')! },
+      { id: 'm-legacy', body: 'legacy message' },
+    ]);
+    const messages = await getMessages('c1');
+    expect(messages.map((message) => message.body)).toEqual([
+      'private clinical message',
+      'legacy message',
+    ]);
+  });
+
+  it('a staff reply claims the thread into LIVE and assigns the replying staff member', async () => {
+    messageCreate.mockImplementationOnce(async ({ data }) => ({ id: 'm2', ...data }));
+    conversationUpdate.mockResolvedValueOnce({});
+    const result = await appendMessage('c1', 'STAFF', 'сейчас перезвоним', 'staff-1');
+    const storedBody = messageCreate.mock.calls[0][0].data.body;
+    expect(storedBody).toMatch(/^ENC:/);
+    expect(result.body).toBe('сейчас перезвоним');
     expect(conversationUpdate).toHaveBeenCalledWith(
       expect.objectContaining({
         data: expect.objectContaining({ status: 'LIVE', assignedToUserId: 'staff-1', lastStaffMessageAt: expect.any(Date) }),
@@ -119,6 +168,20 @@ describe('appendMessage', () => {
 });
 
 describe('cross-clinic isolation', () => {
+  it('decodes the staff thread response while keeping persisted values encrypted', async () => {
+    conversationFindUnique.mockResolvedValueOnce({
+      id: 'c1',
+      clinicId: 'clinic-A',
+      escalationReason: encryptField('private handoff reason')!,
+    });
+    messageFindMany.mockResolvedValueOnce([
+      { id: 'm1', body: encryptField('private patient question')! },
+    ]);
+    const result = await getThreadForClinic('clinic-A', 'c1');
+    expect(result.conversation.escalationReason).toBe('private handoff reason');
+    expect(result.messages[0].body).toBe('private patient question');
+  });
+
   it('getThreadForClinic 404s on a conversation that exists but belongs to another clinic', async () => {
     conversationFindUnique.mockResolvedValueOnce({ id: 'c1', clinicId: 'clinic-B' });
     await expect(getThreadForClinic('clinic-A', 'c1')).rejects.toMatchObject({ code: 'NOT_FOUND' });

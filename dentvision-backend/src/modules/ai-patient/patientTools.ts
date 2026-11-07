@@ -235,7 +235,7 @@ PATIENT_TOOLS.assessUrgency = {
     await logAIAction(
       ctx.userId,
       'ai-patient.assessUrgency',
-      { answers, verdict },
+      { assessmentCompleted: true },
       undefined,
       ctx.patientId,
     ).catch(() => undefined);
@@ -284,7 +284,7 @@ PATIENT_TOOLS.askClinicStaff = {
     await logAIAction(
       ctx.userId,
       'ai-patient.askClinicStaff',
-      { question, reason: args.reason, urgency: args.urgency },
+      { handoffRequested: true },
       undefined,
       ctx.patientId,
     ).catch(() => undefined);
@@ -370,7 +370,7 @@ PATIENT_TOOLS.requestAppointment = {
     await logAIAction(
       ctx.userId,
       'ai-patient.requestAppointment',
-      { date, time, doctorId: args.doctorId, serviceName: args.serviceName },
+      { requestSubmitted: true },
       undefined,
       ctx.patientId,
     ).catch(() => undefined);

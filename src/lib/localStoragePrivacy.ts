@@ -3,6 +3,9 @@ const SENSITIVE_PATIENT_KEYS = new Set([
   'patientphone', 'phone', 'phonenumber', 'mobile', 'telephone',
   'patientname', 'patientemail', 'email', 'address', 'dob', 'dateofbirth',
   'diagnosis', 'clinicalnotes', 'medicalnotes', 'notes', 'reason',
+  // Procedure labels and tooth numbers reveal clinical details even after names and notes are removed.
+  // `service` can be a human-readable treatment label; `serviceId` is the opaque sync key.
+  'service', 'servicename', 'toothnumber',
 ]);
 
 function normalizedKey(key: string): string {

@@ -29,10 +29,6 @@ export async function runOnCallCheck(thresholdMs = DEFAULT_THRESHOLD_MS): Promis
       lastPatientMessageAt: { lte: cutoff },
       OR: [{ onCallNotifiedAt: null }, { onCallNotifiedAt: { lte: cutoff } }],
     },
-    include: {
-      clinic: { select: { id: true, name: true } },
-      patientUser: { select: { firstName: true, lastName: true } },
-    },
     take: 200,
   }).catch((err: any) => {
     if (String(err?.code) === 'P2021') return [];
@@ -52,16 +48,12 @@ export async function runOnCallCheck(thresholdMs = DEFAULT_THRESHOLD_MS): Promis
     if (!members.length) continue;
 
     const minutes = Math.round(thresholdMs / 60_000);
-    const patientName = [conversation.patientUser.firstName, conversation.patientUser.lastName]
-      .filter(Boolean)
-      .join(' ') || 'Пациент';
-
     await dispatchNotifications(
       members.map((m) => ({
         userId: m.userId,
         clinicId: conversation.clinicId,
         type: 'patient_question',
-        title: `⏰ Без ответа ${minutes}+ мин — ${patientName}`,
+        title: `Пациент ожидает ответа (${minutes}+ мин)`,
         message: 'Пациент ждёт ответа в диалоге. Откройте инбокс, чтобы ответить.',
         link: `/crm/patient-inbox/${conversation.id}`,
       })),

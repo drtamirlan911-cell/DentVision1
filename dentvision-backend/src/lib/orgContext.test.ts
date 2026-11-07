@@ -38,13 +38,14 @@ beforeEach(() => {
 describe('assertClinicOrgAccess', () => {
   it('translates a domain Clinic.id to the canonical Organization.id', async () => {
     organizationFindFirst.mockResolvedValueOnce({ id: 'org-1' });
+    organizationFindFirst.mockResolvedValueOnce({ id: 'org-1', archivedAt: null });
     personFindFirst.mockResolvedValueOnce({ id: 'person-1' });
 
     const result = await assertClinicOrgAccess({ id: USER_ID, role: 'DOCTOR' } as any, CLINIC_ID);
 
     expect(result).toBe(true);
     expect(organizationFindFirst).toHaveBeenCalledWith(
-      expect.objectContaining({ where: { originalType: 'Clinic', originalId: CLINIC_ID }, select: { id: true } }),
+      expect.objectContaining({ where: { originalType: 'Clinic', originalId: CLINIC_ID, archivedAt: null }, select: { id: true } }),
     );
     expect(personFindFirst).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -56,14 +57,26 @@ describe('assertClinicOrgAccess', () => {
 
   it('keeps the legacy ClinicMember fallback when no canonical Organization exists', async () => {
     organizationFindFirst.mockResolvedValueOnce(null);
-    personFindFirst.mockResolvedValueOnce(null);
-    organizationFindUnique.mockResolvedValueOnce(null);
+    organizationFindFirst.mockResolvedValueOnce(null);
     clinicMemberFindUnique.mockResolvedValueOnce({ id: 'member-1' });
 
     const result = await assertClinicOrgAccess({ id: USER_ID, role: 'DOCTOR' } as any, CLINIC_ID);
 
     expect(result).toBe(true);
   });
+
+  it('rejects an archived clinic even when a legacy ClinicMember row exists', async () => {
+    organizationFindFirst.mockResolvedValueOnce(null);
+    organizationFindFirst.mockResolvedValueOnce({ id: 'org-archived', archivedAt: new Date('2026-10-01T00:00:00.000Z') });
+    clinicMemberFindUnique.mockResolvedValueOnce({ id: 'legacy-member' });
+
+    const result = await assertClinicOrgAccess({ id: USER_ID, role: 'DOCTOR' } as any, CLINIC_ID);
+
+    expect(result).toBe(false);
+    expect(personFindFirst).not.toHaveBeenCalled();
+    expect(clinicMemberFindUnique).not.toHaveBeenCalled();
+  });
+
 });
 
 describe('assertOrgAccess', () => {
@@ -75,6 +88,7 @@ describe('assertOrgAccess', () => {
   });
 
   it('admits a Person-only member (no ClinicMember row)', async () => {
+    organizationFindFirst.mockResolvedValueOnce({ id: 'org-1', archivedAt: null });
     personFindFirst.mockResolvedValueOnce({ id: 'person-1' });
     const result = await assertOrgAccess({ id: USER_ID, role: 'DOCTOR' } as any, CLINIC_ID);
     expect(result).toBe(true);
@@ -82,20 +96,30 @@ describe('assertOrgAccess', () => {
   });
 
   it('falls back to legacy ClinicMember only when the canonical Organization does not exist', async () => {
-    personFindFirst.mockResolvedValueOnce(null);
-    organizationFindUnique.mockResolvedValueOnce(null);
+    organizationFindFirst.mockResolvedValueOnce(null);
     clinicMemberFindUnique.mockResolvedValueOnce({ id: 'member-1' });
     const result = await assertOrgAccess({ id: USER_ID, role: 'DOCTOR' } as any, CLINIC_ID);
     expect(result).toBe(true);
   });
 
   it('rejects a user with neither a Person nor a ClinicMember row', async () => {
-    personFindFirst.mockResolvedValueOnce(null);
-    organizationFindUnique.mockResolvedValueOnce(null);
+    organizationFindFirst.mockResolvedValueOnce(null);
     clinicMemberFindUnique.mockResolvedValueOnce(null);
     const result = await assertOrgAccess({ id: USER_ID, role: 'DOCTOR' } as any, CLINIC_ID);
     expect(result).toBe(false);
   });
+
+  it('rejects an archived canonical organization without falling back to legacy membership', async () => {
+    organizationFindFirst.mockResolvedValueOnce({ id: 'org-archived', archivedAt: new Date('2026-10-01T00:00:00.000Z') });
+    clinicMemberFindUnique.mockResolvedValueOnce({ id: 'legacy-member' });
+
+    const result = await assertOrgAccess({ id: USER_ID, role: 'DOCTOR' } as any, 'org-archived');
+
+    expect(result).toBe(false);
+    expect(personFindFirst).not.toHaveBeenCalled();
+    expect(clinicMemberFindUnique).not.toHaveBeenCalled();
+  });
+
 });
 
 describe('resolveClinicAccess', () => {
@@ -186,20 +210,21 @@ describe('resolveAnyClinicMembership', () => {
     const result = await resolveAnyClinicMembership(USER_ID);
     expect(result).toEqual({ clinicId: CLINIC_ID, role: 'OWNER' });
     expect(personFindFirst).toHaveBeenCalledWith(
-      expect.objectContaining({ where: { userId: USER_ID, organization: { type: 'CLINIC' } } }),
+      expect.objectContaining({ where: { userId: USER_ID, organization: { type: 'CLINIC', archivedAt: null } } }),
     );
     expect(clinicMemberFindFirst).not.toHaveBeenCalled();
   });
 
-  it('falls through to the legacy membership when the Person has no PersonRole', async () => {
-    // Was: default to org_admin -> ADMIN. Same fail-open as resolveClinicAccess.
+  it('fails closed when a canonical Person has no scoped PersonRole', async () => {
     personFindFirst.mockResolvedValueOnce({ organization: { id: 'org-1', originalId: CLINIC_ID }, personRoles: [] });
-    clinicMemberFindFirst.mockResolvedValueOnce({ clinicId: CLINIC_ID, role: 'DOCTOR' });
+    personFindFirst.mockResolvedValueOnce({ id: 'person-1' });
     const result = await resolveAnyClinicMembership(USER_ID);
-    expect(result).toEqual({ clinicId: CLINIC_ID, role: 'DOCTOR' });
+    expect(result).toBeNull();
+    expect(clinicMemberFindFirst).not.toHaveBeenCalled();
   });
 
-  it('falls back to the oldest legacy ClinicMember when no Person row exists', async () => {
+  it('falls back to the oldest legacy ClinicMember when no canonical Person row exists', async () => {
+    personFindFirst.mockResolvedValueOnce(null);
     personFindFirst.mockResolvedValueOnce(null);
     clinicMemberFindFirst.mockResolvedValueOnce({ clinicId: CLINIC_ID, role: 'LAB' });
     const result = await resolveAnyClinicMembership(USER_ID);
@@ -208,6 +233,7 @@ describe('resolveAnyClinicMembership', () => {
   });
 
   it('returns null when the user has no clinic membership at all', async () => {
+    personFindFirst.mockResolvedValueOnce(null);
     personFindFirst.mockResolvedValueOnce(null);
     clinicMemberFindFirst.mockResolvedValueOnce(null);
     const result = await resolveAnyClinicMembership(USER_ID);

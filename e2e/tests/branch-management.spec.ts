@@ -6,6 +6,7 @@ const OWNER_EMAIL = 'owner-a@test.com';
 const PASSWORD = ['Test', '1234!'].join('');
 const prisma = new PrismaClient();
 let ownerClinicId = '';
+let ownerOrganizationId = '';
 
 async function login(page: Page) {
   await page.goto(`${BASE}/login?role=owner`);
@@ -56,7 +57,7 @@ async function createBranch(page: Page, name: string) {
   expect(createResponse.status(), `Branch creation returned HTTP ${createResponse.status()}: ${JSON.stringify(createBody)}`).toBe(201);
   await expect(branchRow(page, name)).toBeVisible({ timeout: 15000 });
 
-  const response = await page.request.get(`/api/branches?clinicId=${encodeURIComponent(ownerClinicId)}`, {
+  const response = await page.request.get(`/api/branches?organizationId=${encodeURIComponent(ownerOrganizationId)}`, {
     headers: await bearerHeaders(page),
   });
   expect(response.ok(), `Branch listing returned HTTP ${response.status()}: ${await response.text()}`).toBeTruthy();
@@ -70,14 +71,28 @@ async function createBranch(page: Page, name: string) {
 
 test.describe('Canonical organization branch management', () => {
   test.beforeAll(async () => {
-    const owner = await prisma.user.findUnique({ where: { email: OWNER_EMAIL }, select: { id: true } });
-    const clinic = owner ? await prisma.clinicMember.findFirst({ where: { userId: owner.id }, select: { clinicId: true } }) : null;
-    expect(clinic?.clinicId).toBeTruthy();
-    ownerClinicId = clinic!.clinicId;
+    const [owner, clinic] = await Promise.all([
+      prisma.user.findUnique({ where: { email: OWNER_EMAIL }, select: { id: true } }),
+      prisma.clinic.findFirst({ where: { name: 'E2E Clinic A' }, select: { id: true } }),
+    ]);
+    expect(owner?.id, 'E2E owner fixture must exist').toBeTruthy();
+    expect(clinic?.id, 'E2E Clinic A fixture must exist').toBeTruthy();
+    ownerClinicId = clinic!.id;
+    const membership = await prisma.clinicMember.findUnique({
+      where: { userId_clinicId: { userId: owner!.id, clinicId: ownerClinicId } },
+      select: { role: true },
+    });
+    expect(membership?.role, 'E2E owner must be a member of E2E Clinic A').toBe('OWNER');
+    const organization = await prisma.organization.findFirst({
+      where: { originalType: 'Clinic', originalId: ownerClinicId },
+      select: { id: true },
+    });
+    expect(organization?.id, 'E2E Clinic A must have a canonical Organization').toBeTruthy();
+    ownerOrganizationId = organization!.id;
     await prisma.subscription.upsert({
-      where: { ownerType_ownerId: { ownerType: 'CLINIC', ownerId: clinic!.clinicId } },
+      where: { ownerType_ownerId: { ownerType: 'CLINIC', ownerId: ownerClinicId } },
       update: { plan: 'NETWORK', status: 'active', periodEnd: null },
-      create: { ownerType: 'CLINIC', ownerId: clinic!.clinicId, plan: 'NETWORK', status: 'active', periodEnd: null },
+      create: { ownerType: 'CLINIC', ownerId: ownerClinicId, plan: 'NETWORK', status: 'active', periodEnd: null },
     });
   });
 
@@ -91,7 +106,7 @@ test.describe('Canonical organization branch management', () => {
     await createBranch(page, firstName);
     await createBranch(page, secondName);
 
-    const raw = await page.request.get(`/api/branches?clinicId=${encodeURIComponent(ownerClinicId)}`, { headers: await bearerHeaders(page) });
+    const raw = await page.request.get(`/api/branches?organizationId=${encodeURIComponent(ownerOrganizationId)}`, { headers: await bearerHeaders(page) });
     expect(raw.ok()).toBeTruthy();
     const payload = await raw.json();
     const branches = Array.isArray(payload) ? payload : payload?.data ?? [];
@@ -150,7 +165,7 @@ test.describe('Canonical organization branch management', () => {
     await page.getByRole('button', { name: 'Архивировать', exact: true }).click();
     await expect(branchRow(page, branchName)).toContainText('Архив', { timeout: 15000 });
 
-    const raw = await page.request.get(`/api/branches?clinicId=${encodeURIComponent(ownerClinicId)}`, { headers: await bearerHeaders(page) });
+    const raw = await page.request.get(`/api/branches?organizationId=${encodeURIComponent(ownerOrganizationId)}`, { headers: await bearerHeaders(page) });
     const payload = await raw.json();
     const branches = Array.isArray(payload) ? payload : payload?.data ?? [];
     const archived = branches.find((item: { id?: string }) => item.id === branchId);
@@ -167,10 +182,17 @@ test.describe('Canonical organization branch management', () => {
     const trigger = page.getByTestId('workspace-switcher-trigger');
     await expect(trigger).toBeVisible({ timeout: 15000 });
     await trigger.click();
-    await expect(page.getByTestId('workspace-switcher-menu')).toBeVisible();
+    const workspaceMenu = page.getByTestId('workspace-switcher-menu');
+    await expect(workspaceMenu).toBeVisible();
 
     const branchOption = () => page.getByRole('button', { name: new RegExp(branchName) });
-    await branchOption().click();
+    // Workspace contexts are listed before branches. Scroll the actual menu
+    // container to the branch section instead of asking Playwright to scroll an
+    // off-screen descendant through the document viewport.
+    await expect(branchOption()).toBeAttached({ timeout: 15000 });
+    await workspaceMenu.evaluate((element) => { element.scrollTop = element.scrollHeight; });
+    await expect(branchOption()).toBeInViewport({ timeout: 5000 });
+    await branchOption().click({ timeout: 15000 });
     await expect(page.getByTestId('workspace-switcher-menu')).toBeHidden();
 
     // The trigger displays the organization/workspace name, not the selected

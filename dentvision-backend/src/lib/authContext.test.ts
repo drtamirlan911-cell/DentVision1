@@ -51,6 +51,13 @@ describe('resolveAuthContext — preferred organization', () => {
     expect(ctx).toEqual({});
   });
 
+  it('does not resolve an archived organization for an existing member', async () => {
+    personFindFirst.mockResolvedValueOnce({ personType: 'CLINIC_STAFF', organizationId: ORG_ID, organization: { ...clinicOrg, archivedAt: new Date() }, personRoles: activeClinicRole });
+    personFindFirst.mockResolvedValueOnce({ id: 'person-1' });
+    const ctx = await resolveAuthContext(USER_ID, { organizationId: ORG_ID });
+    expect(ctx).toEqual({});
+  });
+
   it('fails closed when the unified Person remains but its organization role is revoked', async () => {
     personFindFirst.mockResolvedValueOnce({ personType: 'CLINIC_STAFF', organizationId: ORG_ID, organization: clinicOrg, personRoles: [] });
     personFindFirst.mockResolvedValueOnce({ id: 'person-1' });
@@ -64,9 +71,16 @@ describe('resolveAuthContext — preferred clinic', () => {
     organizationFindFirst.mockResolvedValueOnce({ id: ORG_ID });
     personFindFirst.mockResolvedValueOnce({ personType: 'CLINIC_STAFF', organizationId: ORG_ID, organization: clinicOrg, personRoles: activeClinicRole });
     const ctx = await resolveAuthContext(USER_ID, { clinicId: CLINIC_ID });
-    expect(organizationFindFirst).toHaveBeenCalledWith({ where: { originalType: 'Clinic', originalId: CLINIC_ID }, select: { id: true } });
+    expect(organizationFindFirst).toHaveBeenCalledWith({ where: { originalType: 'Clinic', originalId: CLINIC_ID }, select: { id: true, archivedAt: true } });
     expect(ctx.organizationId).toBe(ORG_ID);
     expect(ctx.clinicId).toBe(CLINIC_ID);
+  });
+
+  it('does not fall back to a legacy membership for an archived organization', async () => {
+    organizationFindFirst.mockResolvedValueOnce({ id: ORG_ID, archivedAt: new Date() });
+    const ctx = await resolveAuthContext(USER_ID, { clinicId: CLINIC_ID });
+    expect(ctx).toEqual({});
+    expect(clinicMemberFindUnique).not.toHaveBeenCalled();
   });
 
   it('falls back to a legacy membership when no Person exists yet', async () => {

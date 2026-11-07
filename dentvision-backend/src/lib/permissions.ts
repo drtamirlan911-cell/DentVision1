@@ -81,12 +81,10 @@ const MATRIX: Record<string, RoleMatrixRow> = {
   MANAGER: {
     patients:     ['read'],
     appointments: ['read'],
-    medical:      ['read'],
     billing:      ['read'],
     inventory:    ['read', 'write'],
     lab:          ['read'],
     staff:        ['read'],
-    settings:     ['manage'],
     analytics:    ['read'],
     diagnostics:  ['read'],
     shop:         ['read'],
@@ -120,9 +118,8 @@ const MATRIX: Record<string, RoleMatrixRow> = {
   },
 
   LAB: {
-    patients:     ['read'],
+    // Clinic LAB receives patient context through authorized referrals, not the clinic-wide patient or inventory registers.
     lab:          ['read', 'write'],
-    inventory:    ['read'],
     shop:         ['read'],
     diagnostics:  ['read'],
   },
@@ -398,6 +395,13 @@ function partnerPageFamily(role: string): string | undefined {
 
 const AI_APPROVAL_ROLES = new Set(['OWNER', 'DIRECTOR', 'ADMIN', 'DOCTOR', 'SUPERADMIN']);
 
+// Low-level read permissions can support embedded lookups; they must not expand
+// the visible workspace beyond the role contract used by the release gate.
+const ROLE_PAGE_ALLOWLIST: Record<string, string[]> = {
+  MANAGER: [...BASE_PAGES, 'dashboard', 'schedule', 'patients', 'analytics', 'inventory', 'staff', 'pricelist'],
+  LAB: [...BASE_PAGES, 'lab', 'diagnostics-referrals', 'diagnostics-laboratories', 'diagnostics-results'],
+};
+
 export function pagesForCaller(permissions: readonly string[], role: string | null | undefined): string[] {
   const resolvedRole = String(role || '').toUpperCase();
   if (resolvedRole === 'PATIENT') {
@@ -471,6 +475,31 @@ export function pagesForCaller(permissions: readonly string[], role: string | nu
   // Managers may consume lab status data, but the full laboratory workbench is
   // not part of their role's visible workspace contract.
   if (resolvedRole === 'MANAGER') pages.delete('lab');
+
+  // ASSISTANT supports assigned operational patient work, not the full clinical
+  // chart, odontogram, treatment-plan or ICD-10 workspaces.
+  if (resolvedRole === 'ASSISTANT') {
+    for (const page of ['medical-card', 'dental-chart', 'treatment-plans', 'icd10']) pages.delete(page);
+  }
+
+  // Legacy clinic LAB uses lab/referral workflows; patient context is supplied
+  // through those workflows rather than the clinic-wide patient CRM pages.
+  if (resolvedRole === 'LAB') {
+    for (const page of ['patients', 'medical-card', 'visits', 'dental-chart', 'documents', 'treatment-plans', 'icd10', 'inventory']) pages.delete(page);
+  }
+
+  // Clinic diagnostics.read supports referral/result workflows. It does not
+  // grant operations belonging to separate diagnostic/lab organizations.
+  // Partner roles returned above retain their own role-scoped page allowlists.
+  if (['OWNER', 'DIRECTOR', 'ADMIN', 'DOCTOR', 'ASSISTANT', 'MANAGER', 'LAB'].includes(resolvedRole)) {
+    for (const page of ['diagnostics-calendar', 'diagnostics-statistics', 'diagnostics-settings']) pages.delete(page);
+  }
+
+  const pageAllowlist = ROLE_PAGE_ALLOWLIST[resolvedRole];
+  if (pageAllowlist) {
+    const allowed = new Set(pageAllowlist);
+    return Array.from(pages).filter((page) => allowed.has(page));
+  }
 
   return Array.from(pages);
 }

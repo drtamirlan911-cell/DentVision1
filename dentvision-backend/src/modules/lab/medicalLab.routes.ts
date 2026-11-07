@@ -6,6 +6,7 @@ import type { AuthRequest, ApiResponse } from '../../types/index.js';
 import { uid } from '../../lib/helpers.js';
 import { tengeToMinor } from '../../lib/money.js';
 import { assertClinicOrgAccess } from '../../lib/orgContext.js';
+import { resolveClinicAccess as resolveClinicSubscriptionAccess } from '../billing/planEntitlements.js';
 import { publish } from '../../lib/events.js';
 
 export const medicalLabLifecycleRouter = Router();
@@ -59,6 +60,37 @@ async function getOrder(id: string): Promise<OrderRow | null> {
     SELECT "id","clinicId","patientId","treatmentCaseId","labId","orderedByUserId","status","priority","notes","specimenType","collectedAt","receivedAt","resultReadyAt","verifiedAt","interpretation","metadata","createdAt","updatedAt"
     FROM "medical_lab_orders" WHERE "id" = $1 LIMIT 1`, id);
   return rows[0] ?? null;
+}
+
+/** Clinic-originated writes obey trial expiry; laboratory-context work may finish an already-assigned order. */
+async function ensureClinicSubscriptionWritableIfClinicActor(req: AuthRequest, res: any, clinicId: string): Promise<boolean> {
+  if (req.user?.role === 'SUPERADMIN' || (req.user as any)?.organizationType === 'LABORATORY') return true;
+  try {
+    const isClinicActor = await assertClinicOrgAccess(req.user!, clinicId);
+    if (!isClinicActor) {
+      res.status(403).json({ ok: false, error: 'Нет доступа к клинике' });
+      return false;
+    }
+    const access = await resolveClinicSubscriptionAccess(clinicId);
+    if (!access) {
+      res.status(503).json({ ok: false, error: 'Не удалось проверить подписку клиники', code: 'CLINIC_ACCESS_UNVERIFIED' });
+      return false;
+    }
+    if (access.writeBlocked) {
+      res.status(402).json({
+        ok: false,
+        error: 'Клиника работает в режиме только для чтения после окончания пробного периода.',
+        code: 'SUBSCRIPTION_EXPIRED',
+        data: { upgradePath: '/crm/billing' },
+      });
+      return false;
+    }
+    return true;
+  } catch (error) {
+    console.error('[medical-lab] clinic subscription write gate', error);
+    res.status(503).json({ ok: false, error: 'Не удалось проверить подписку клиники', code: 'CLINIC_ACCESS_UNVERIFIED' });
+    return false;
+  }
 }
 
 async function canAccessOrder(user: AuthRequest['user'], order: OrderRow, write = false): Promise<boolean> {
@@ -128,8 +160,11 @@ medicalLabLifecycleRouter.get('/orders', async (req: AuthRequest, res) => {
 
 medicalLabLifecycleRouter.post('/orders', requirePermission('patient.read'), async (req: AuthRequest, res) => {
   try {
-    const clinicId = String(req.user?.clinicId || req.body?.clinicId || '');
-    if (!clinicId || !(await assertClinicOrgAccess(req.user!, clinicId))) return res.status(403).json({ ok: false, error: 'Нет доступа к клинике' });
+    const clinicId = String(req.user?.clinicId || '');
+    if ((req.user as any)?.organizationType === 'LABORATORY' || !clinicId) return res.status(403).json({ ok: false, error: 'Действие доступно из клиники' });
+    if (req.body?.clinicId && String(req.body.clinicId) !== clinicId) return res.status(403).json({ ok: false, error: 'Нельзя создать направление в другом активном контексте' });
+    if (!(await assertClinicOrgAccess(req.user!, clinicId))) return res.status(403).json({ ok: false, error: 'Нет доступа к клинике' });
+    if (!(await ensureClinicSubscriptionWritableIfClinicActor(req, res, clinicId))) return;
     const { patientId = null, treatmentCaseId = null, labId = null, priority = 'routine', notes = null, specimenType = null, tests = [], metadata = null } = req.body || {};
     if (patientId) {
       const role = String(req.user?.role || '').toUpperCase();
@@ -190,6 +225,7 @@ medicalLabLifecycleRouter.post('/orders/:id/status', async (req: AuthRequest, re
     const order = await getOrder(req.params.id as string);
     if (!order) return res.status(404).json({ ok: false, error: 'Направление не найдено' });
     if (!(await canAccessOrder(req.user!, order, true))) return res.status(403).json({ ok: false, error: 'Нет доступа' });
+    if (!(await ensureClinicSubscriptionWritableIfClinicActor(req, res, order.clinicId))) return;
     const next = String(req.body?.status || '');
     if (!STATUSES.includes(next as any) || !isMedicalLabTransitionAllowed(order.status, next)) return res.status(400).json({ ok: false, error: `Недопустимый переход ${order.status} → ${next}` });
     if (next === 'sample_collected') await prisma.$executeRawUnsafe(`UPDATE "medical_lab_orders" SET "status"=$1,"collectedAt"=CURRENT_TIMESTAMP,"updatedAt"=CURRENT_TIMESTAMP WHERE "id"=$2`, next, order.id);
@@ -208,6 +244,7 @@ medicalLabLifecycleRouter.post('/orders/:id/results', async (req: AuthRequest, r
     const order = await getOrder(req.params.id as string);
     if (!order) return res.status(404).json({ ok: false, error: 'Направление не найдено' });
     if (!(await canAccessOrder(req.user!, order, true))) return res.status(403).json({ ok: false, error: 'Нет доступа' });
+    if (!(await ensureClinicSubscriptionWritableIfClinicActor(req, res, order.clinicId))) return;
     const rows = Array.isArray(req.body?.results) ? req.body.results : [];
     if (!rows.length) return res.status(400).json({ ok: false, error: 'Результаты не переданы' });
     for (const result of rows) {
@@ -228,6 +265,7 @@ medicalLabLifecycleRouter.post('/orders/:id/verify', async (req: AuthRequest, re
     const order = await getOrder(req.params.id as string);
     if (!order) return res.status(404).json({ ok: false, error: 'Направление не найдено' });
     if (!(await canAccessOrder(req.user!, order, true))) return res.status(403).json({ ok: false, error: 'Нет доступа' });
+    if (!(await ensureClinicSubscriptionWritableIfClinicActor(req, res, order.clinicId))) return;
     if (order.status !== 'result_ready') return res.status(400).json({ ok: false, error: 'Результат ещё не готов к верификации' });
     await prisma.$executeRawUnsafe(`UPDATE "medical_lab_order_tests" SET "verifiedAt"=CURRENT_TIMESTAMP,"verifiedByUserId"=$1,"updatedAt"=CURRENT_TIMESTAMP WHERE "orderId"=$2`, req.user!.id, order.id);
     await prisma.$executeRawUnsafe(`UPDATE "medical_lab_orders" SET "status"='verified',"verifiedAt"=CURRENT_TIMESTAMP,"updatedAt"=CURRENT_TIMESTAMP WHERE "id"=$1`, order.id);
@@ -242,6 +280,7 @@ medicalLabLifecycleRouter.post('/orders/:id/interpretation', async (req: AuthReq
     const order = await getOrder(req.params.id as string);
     if (!order) return res.status(404).json({ ok: false, error: 'Направление не найдено' });
     if (!(await canAccessOrder(req.user!, order, true))) return res.status(403).json({ ok: false, error: 'Нет доступа' });
+    if (!(await ensureClinicSubscriptionWritableIfClinicActor(req, res, order.clinicId))) return;
     const interpretation = String(req.body?.interpretation || '').trim();
     if (!interpretation) return res.status(400).json({ ok: false, error: 'Интерпретация не может быть пустой' });
     await prisma.$executeRawUnsafe(`UPDATE "medical_lab_orders" SET "interpretation"=$1,"updatedAt"=CURRENT_TIMESTAMP WHERE "id"=$2`, interpretation, order.id);

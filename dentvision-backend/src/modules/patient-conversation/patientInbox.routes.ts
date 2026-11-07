@@ -7,6 +7,7 @@
 
 import { Router } from 'express';
 import { authenticate } from '../../middleware/auth.js';
+import { loadClinicAccess, blockClinicWrites } from '../../middleware/planGate.js';
 import { requireClinicScope } from '../../lib/clinicAccess.js';
 import { resolveClinicAccess } from '../../lib/orgContext.js';
 import { issueSseTicket, consumeSseTicket } from '../../lib/sseTicket.js';
@@ -41,7 +42,7 @@ async function requireInboxAccess(req: AuthRequest, res: any): Promise<string | 
 // `.use(authenticate)` in front of /stream rejected every SSE connection
 // before the route's own (ticket-based) check ever ran, since `EventSource`
 // carries neither an Authorization header nor a cross-origin cookie.
-patientInboxRouter.get('/conversations', authenticate, async (req: AuthRequest, res) => {
+patientInboxRouter.get('/conversations', authenticate, loadClinicAccess, blockClinicWrites, async (req: AuthRequest, res) => {
   try {
     const clinicId = await requireInboxAccess(req, res);
     if (!clinicId) return;
@@ -53,7 +54,7 @@ patientInboxRouter.get('/conversations', authenticate, async (req: AuthRequest, 
   }
 });
 
-patientInboxRouter.get('/conversations/:id', authenticate, async (req: AuthRequest, res) => {
+patientInboxRouter.get('/conversations/:id', authenticate, loadClinicAccess, blockClinicWrites, async (req: AuthRequest, res) => {
   try {
     const clinicId = await requireInboxAccess(req, res);
     if (!clinicId) return;
@@ -65,7 +66,7 @@ patientInboxRouter.get('/conversations/:id', authenticate, async (req: AuthReque
   }
 });
 
-patientInboxRouter.post('/conversations/:id/claim', authenticate, async (req: AuthRequest, res) => {
+patientInboxRouter.post('/conversations/:id/claim', authenticate, loadClinicAccess, blockClinicWrites, async (req: AuthRequest, res) => {
   try {
     const clinicId = await requireInboxAccess(req, res);
     if (!clinicId) return;
@@ -79,7 +80,7 @@ patientInboxRouter.post('/conversations/:id/claim', authenticate, async (req: Au
   }
 });
 
-patientInboxRouter.post('/conversations/:id/reply', authenticate, async (req: AuthRequest, res) => {
+patientInboxRouter.post('/conversations/:id/reply', authenticate, loadClinicAccess, blockClinicWrites, async (req: AuthRequest, res) => {
   try {
     const clinicId = await requireInboxAccess(req, res);
     if (!clinicId) return;
@@ -97,7 +98,7 @@ patientInboxRouter.post('/conversations/:id/reply', authenticate, async (req: Au
   }
 });
 
-patientInboxRouter.post('/conversations/:id/resolve', authenticate, async (req: AuthRequest, res) => {
+patientInboxRouter.post('/conversations/:id/resolve', authenticate, loadClinicAccess, blockClinicWrites, async (req: AuthRequest, res) => {
   try {
     const clinicId = await requireInboxAccess(req, res);
     if (!clinicId) return;
@@ -114,7 +115,7 @@ patientInboxRouter.post('/conversations/:id/resolve', authenticate, async (req: 
  * POST /api/patient-inbox/ticket
  * Mint a short-lived, one-time ticket for the /stream connection below.
  */
-patientInboxRouter.post('/ticket', authenticate, (req: AuthRequest, res) => {
+patientInboxRouter.post('/ticket', authenticate, loadClinicAccess, blockClinicWrites, (req: AuthRequest, res) => {
   res.json({ ok: true, data: { ticket: issueSseTicket(req.user!.id, SSE_SCOPE) } });
 });
 
@@ -157,7 +158,7 @@ patientInboxRouter.get('/stream', async (req, res) => {
 // nothing wrote or read them.
 
 /** What is still waiting on a human. Clinic-scoped in the query. */
-patientInboxRouter.get('/escalations', authenticate, async (req: AuthRequest, res) => {
+patientInboxRouter.get('/escalations', authenticate, loadClinicAccess, blockClinicWrites, async (req: AuthRequest, res) => {
   try {
     const clinicId = await requireInboxAccess(req, res);
     if (!clinicId) return;
@@ -172,7 +173,7 @@ patientInboxRouter.get('/escalations', authenticate, async (req: AuthRequest, re
 });
 
 /** Close one out, recording who did it — the end state the model always had. */
-patientInboxRouter.post('/escalations/:id/resolve', authenticate, async (req: AuthRequest, res) => {
+patientInboxRouter.post('/escalations/:id/resolve', authenticate, loadClinicAccess, blockClinicWrites, async (req: AuthRequest, res) => {
   try {
     const clinicId = await requireInboxAccess(req, res);
     if (!clinicId) return;

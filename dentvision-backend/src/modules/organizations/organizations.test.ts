@@ -125,3 +125,58 @@ describe('organization control-center authorization', () => {
     expect(helper).toContain("scopeId: organizationId");
   });
 });
+
+
+describe('organization soft archive and trial contracts', () => {
+  it('archives only the canonical Organization and never deletes linked clinical records', async () => {
+    const fs = await import('node:fs/promises');
+    const source = await fs.readFile(
+      resolve(process.cwd(), 'dentvision-backend/src/modules/organizations/organizations.routes.ts'),
+      'utf8',
+    );
+    const archiveStart = source.indexOf("organizationsRouter.delete('/:id'");
+    const archiveEnd = source.indexOf('organizationsRouter.use(requireSuperadmin)', archiveStart);
+    const archiveRoute = source.slice(archiveStart, archiveEnd);
+
+    expect(archiveRoute).toContain('archivedAt');
+    expect(archiveRoute).toContain("lifecycle: 'ARCHIVED'");
+    expect(archiveRoute).toContain("action: 'organization.archived'");
+    expect(archiveRoute).toContain('retained: true');
+    expect(archiveRoute).not.toContain('prisma.clinic.update');
+    expect(archiveRoute).not.toContain('prisma.clinic.delete');
+    expect(archiveRoute).not.toContain('prisma.patient.delete');
+  });
+
+  it('starts a finite Enterprise trial for self-service clinic organizations', async () => {
+    const fs = await import('node:fs/promises');
+    const source = await fs.readFile(
+      resolve(process.cwd(), 'dentvision-backend/src/modules/organizations/organizations.routes.ts'),
+      'utf8',
+    );
+    const clinicBlockStart = source.indexOf("if (type === 'clinic')");
+    const clinicBlockEnd = source.indexOf("} else if (type === 'diagnostic_center')", clinicBlockStart);
+    const clinicBlock = source.slice(clinicBlockStart, clinicBlockEnd);
+
+    expect(clinicBlock).toContain('TRIAL_DAYS');
+    expect(clinicBlock).toContain("plan: 'ENTERPRISE'");
+    expect(clinicBlock).toContain("status: 'trialing'");
+    expect(clinicBlock).toContain('periodEnd');
+  });
+});
+
+  it('allows a superadmin to restore an archived organization context', async () => {
+    const fs = await import('node:fs/promises');
+    const source = await fs.readFile(
+      resolve(process.cwd(), 'dentvision-backend/src/modules/organizations/organizations.routes.ts'),
+      'utf8',
+    );
+    const superadminGate = source.indexOf('organizationsRouter.use(requireSuperadmin)');
+    const restore = source.indexOf("organizationsRouter.post('/:id/restore'", superadminGate);
+    expect(superadminGate).toBeGreaterThan(-1);
+    expect(restore).toBeGreaterThan(superadminGate);
+    const restoreRoute = source.slice(restore, source.indexOf("organizationsRouter.get('/verification/queue'", restore));
+    expect(restoreRoute).toContain('archivedAt: null');
+    expect(restoreRoute).toContain("action: 'organization.restored'");
+    expect(restoreRoute).not.toContain('prisma.clinic.update');
+    expect(restoreRoute).not.toContain('prisma.patient.delete');
+  });

@@ -19,6 +19,7 @@
 
 import { env } from '../../../config.js';
 import prisma from '../../../lib/prisma.js';
+import { encryptAiTranscriptText } from '../lib/transcriptEncryption.js';
 import { agentsForRole } from './registry.js';
 import { resolveAiToolAccess } from './access.js';
 import { executeTool, toolSchemasFor, localizeNavKeysInMessage, type ToolContext } from './tools.js';
@@ -309,10 +310,10 @@ async function saveMessage(
         id,
         sessionId,
         role,
-        content,
+        content: encryptAiTranscriptText(content),
         userId: meta?.userId || null,
         clinicId: meta?.clinicId || null,
-        prevUserText: meta?.prevUserText || null,
+        prevUserText: meta?.prevUserText ? encryptAiTranscriptText(meta.prevUserText) : null,
       },
     });
     return id;

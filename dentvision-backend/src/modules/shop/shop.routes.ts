@@ -12,6 +12,7 @@ import { productCreateSchema, productUpdateSchema, productDataFromBody } from '.
 import { reserveIdempotencyKey, completeIdempotencyKey, deleteIdempotencyKey } from '../../lib/idempotency.js';
 import { normalizeCheckoutItems } from './checkout.validation.js';
 import { compensateDeterministicCheckoutFailure } from './checkout.compensation.js';
+import { cancelBuyerShopOrder } from './buyerOrderCancellation.js';
 import { assertCheckoutSupplierEligibility } from './supplierIntegrity.js';
 import { auditFromReq } from '../compliance/audit.service.js';
 import { audiencesFromProductTags, canExposeCatalogItem, resolveActiveContentContext } from '../../iam/contentCatalogAccess.js';
@@ -519,14 +520,17 @@ shopRouter.post('/orders', authenticate, async (req: AuthRequest, res) => {
             meta: { userId: req.user!.id, payment_method: method, state: 'provider_pending' },
           },
         });
-        const updated = await tx.order.update({
-          where: { id: orderId },
+        const claimed = await tx.order.updateMany({
+          where: { id: orderId, status: 'pending', paymentStatus: 'pending' },
           data: {
             total: finalTotal, status: 'payment_processing',
             meta: { delivery_address, delivery_method, payment_method, notes, goodsTotal, deliveryCost,
               dentCashMinor: spent.toString(), dentCashTenge: Number(spent) / 100, paymentId: pay.id },
           },
         });
+        if (claimed.count === 0) throw new Error('SHOP_ORDER_STATE_CONFLICT');
+        const updated = await tx.order.findUnique({ where: { id: orderId } });
+        if (!updated) throw new Error('SHOP_ORDER_STATE_CONFLICT');
         return { pay, order: updated };
       });
       order = intent.order;
@@ -655,6 +659,9 @@ shopRouter.post('/orders', authenticate, async (req: AuthRequest, res) => {
     if (msg.startsWith('STOCK_UNAVAILABLE:')) {
       return res.status(409).json({ ok: false, error: 'Недостаточно товара на складе' });
     }
+    if (msg === 'SHOP_ORDER_STATE_CONFLICT') {
+      return res.status(409).json({ ok: false, error: 'Заказ уже изменил статус. Обновите список заказов.' });
+    }
     res.status(500).json({ ok: false, error: 'Failed to create order' });
   }
 });
@@ -698,6 +705,58 @@ shopRouter.get('/orders', authenticate, async (req: AuthRequest, res) => {
     res.json({ ok: true, data: paginatedResponse(data, total, page, limit) });
   } catch (error) {
     res.status(500).json({ ok: false, error: 'Failed to fetch orders' });
+  }
+});
+
+shopRouter.patch('/orders/:id/cancel', authenticate, async (req: AuthRequest, res) => {
+  try {
+    const result = await cancelBuyerShopOrder(String(req.params.id), req.user!.id);
+    if (result.kind === 'not_found') return res.status(404).json({ ok: false, error: 'Заказ не найден' });
+    if (result.kind === 'not_cancellable') {
+      return res.status(409).json({ ok: false, error: 'Покупатель может отменить только неоплаченный заказ с оплатой наличными до начала обработки. Заказы с онлайн-платежом требуют отдельного возврата.' });
+    }
+    if (result.kind === 'conflict') return res.status(409).json({ ok: false, error: 'Статус заказа уже изменился. Обновите список заказов.' });
+
+    const currentOrder = result.order as any;
+    const currentMeta = currentOrder.meta && typeof currentOrder.meta === 'object' && !Array.isArray(currentOrder.meta)
+      ? currentOrder.meta as Record<string, unknown> : {};
+    const cancellation = currentMeta.cancellation && typeof currentMeta.cancellation === 'object' && !Array.isArray(currentMeta.cancellation)
+      ? currentMeta.cancellation as Record<string, unknown> : {};
+    const shouldProcessRefund = result.kind === 'cancelled' || cancellation.refundPending === true;
+    if (!shouldProcessRefund) return res.json({ ok: true, data: currentOrder, refundPending: false });
+
+    let updatedOrder = currentOrder;
+    try {
+      const { reverseCashback } = await import('../dentcash/refund.service.js');
+      await reverseCashback({ refType: 'order', refId: currentOrder.id, reason: 'buyer_cancelled', callerId: req.user!.id });
+      updatedOrder = await prisma.order.update({
+        where: { id: currentOrder.id },
+        data: { meta: { ...currentMeta, cancellation: { ...cancellation, refundPending: false, refundCompletedAt: new Date().toISOString() } } },
+      });
+    } catch (refundError) {
+      console.error('[shop buyer order cancellation refund]', refundError);
+      updatedOrder = await prisma.order.update({
+        where: { id: currentOrder.id },
+        data: { meta: { ...currentMeta, cancellation: { ...cancellation, refundPending: true } } },
+      });
+      await auditFromReq(req, {
+        action: 'shop.order.cancel_refund_pending', entity: 'order', entityId: currentOrder.id,
+        details: { workflow: 'procurement', queueKey: 'orders', status: 'cancelled', refundPending: true },
+      }).catch(() => {});
+      return res.status(202).json({ ok: true, data: updatedOrder, refundPending: true });
+    }
+    await auditFromReq(req, {
+      action: result.kind === 'already_cancelled' ? 'shop.order.cancel_refund_retried' : 'shop.order.cancelled',
+      entity: 'order', entityId: updatedOrder.id,
+      details: { workflow: 'procurement', queueKey: 'orders', status: 'cancelled', refundPending: false },
+    }).catch(() => {});
+    return res.json({ ok: true, data: updatedOrder, refundPending: false });
+  } catch (error) {
+    if (String((error as Error)?.message || '').startsWith('SHOP_ORDER_')) {
+      return res.status(409).json({ ok: false, error: 'Не удалось безопасно восстановить резерв заказа. Обратитесь в поддержку.' });
+    }
+    console.error('[shop buyer order cancellation]', error);
+    return res.status(500).json({ ok: false, error: 'Не удалось отменить заказ' });
   }
 });
 

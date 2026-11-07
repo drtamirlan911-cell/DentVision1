@@ -81,7 +81,11 @@ export function WorkspaceSwitcher({ className }: { className?: string }) {
     if (!rect) return
     const width = Math.min(304, window.innerWidth - 24)
     const left = Math.max(12, Math.min(rect.left, window.innerWidth - width - 12))
-    const top = Math.min(rect.bottom + 8, window.innerHeight - 24)
+    const maxHeight = Math.min(560, window.innerHeight - 24)
+    const availableBelow = window.innerHeight - rect.bottom - 20
+    const top = availableBelow >= Math.min(maxHeight, 280)
+      ? rect.bottom + 8
+      : Math.max(12, rect.top - maxHeight - 8)
     setMenuPosition({ top, left, width })
   }
 
@@ -301,8 +305,8 @@ export function WorkspaceSwitcher({ className }: { className?: string }) {
   const menu = open ? createPortal(
     <div
       ref={menuRef}
-      className="fixed z-[1000] rounded-2xl border border-bdr-strong bg-surface-raised shadow-elev-3 p-1.5"
-      style={{ top: menuPosition.top, left: menuPosition.left, width: menuPosition.width, maxHeight: 'calc(100vh - 24px)' }}
+      className="fixed z-[1000] rounded-2xl border border-bdr-strong bg-surface-raised shadow-elev-3 p-1.5 overflow-y-auto overscroll-contain"
+      style={{ top: menuPosition.top, left: menuPosition.left, width: menuPosition.width, maxHeight: Math.min(560, window.innerHeight - menuPosition.top - 12) }}
       role="menu"
       aria-label="Рабочее пространство"
       data-testid="workspace-switcher-menu"
@@ -311,7 +315,7 @@ export function WorkspaceSwitcher({ className }: { className?: string }) {
         <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-txt-muted">Рабочее пространство</p>
         <p className="text-[11px] text-txt-secondary mt-0.5">Выберите контекст DentVision</p>
       </div>
-      <div className="max-h-[min(60vh,26rem)] overflow-y-auto space-y-1">
+      <div className="space-y-1">
         {grouped.map((group) => (
           <div key={group.label}>
             {grouped.length > 1 && <p className="px-2 py-1.5 text-[10px] font-semibold uppercase tracking-wider text-txt-muted">{group.label}</p>}
