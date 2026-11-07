@@ -43,6 +43,20 @@ describe('diagnostics route contract', () => {
     expect((billingSection.match(/if \(!canManagePartnerBilling\(req\.user\)\)/g) || [])).toHaveLength(3);
   });
 
+  it('requires doctor-only clinical authorization on AI confirmation and clinic result signing', () => {
+    expect(source).toContain("req.user!.role !== 'DOCTOR'");
+    expect(source).toContain("await assertClinicDoctorSignoff({ userId: req.user!.id, clinicId: referral.clinicId, assignedDoctorId: referral.doctorId })");
+    expect(source).toContain("const signerScope = clinicAccess ? 'clinic' : diagnosticPartnerAccess ? 'diagnostic_center' : 'laboratory'");
+    expect(source).toContain("if (signerScope === 'clinic')");
+  });
+
+  it('keeps partner result signing distinct from clinic chart authorship', () => {
+    expect(source).toContain("if (!clinicAccess && partnerAccess && !partnerCanSign)");
+    expect(source).toContain("patientRecordUpdated: signerScope === 'clinic'");
+    expect(source).toContain("hasScopedPartnerSignerRole(req.user!, DIAGNOSTIC_RESULT_SIGNER_ROLE_KEYS)");
+    expect(source).toContain("hasScopedPartnerSignerRole(req.user!, LAB_RESULT_SIGNER_ROLE_KEYS)");
+  });
+
   it('keeps partner pricing and cashier handlers unique', () => {
     expect((source.match(/diagnosticsRouter\.patch\('\/centers\/:id\/pricing'/g) || [])).toHaveLength(1);
     expect((source.match(/diagnosticsRouter\.post\('\/centers\/:id\/pricing'/g) || [])).toHaveLength(1);
