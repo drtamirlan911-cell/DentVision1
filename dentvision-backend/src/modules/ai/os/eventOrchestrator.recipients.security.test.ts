@@ -79,7 +79,11 @@ function resolveRecipients(sourceEvent: CRMEvent, sourceResult: EventActionResul
 describe('clinical AI notification recipient authorization', () => {
   beforeEach(() => {
     organizationFindFirst.mockReset().mockResolvedValue({ id: 'organization-a' });
-    personFindMany.mockReset().mockResolvedValue([{ userId: 'doctor-a' }, { userId: 'doctor-b' }]);
+    personFindMany.mockReset().mockImplementation(async (query: { where?: { userId?: { in?: string[] } } }) => {
+      const doctors = [{ userId: 'doctor-a' }, { userId: 'doctor-b' }];
+      const allowedUserIds = query.where?.userId?.in;
+      return allowedUserIds ? doctors.filter((doctor) => allowedUserIds.includes(doctor.userId)) : doctors;
+    });
     patientFindFirst.mockReset().mockResolvedValue({ id: 'patient-a', branchId: 'branch-a' });
     patientAssignmentFindMany.mockReset().mockResolvedValue([{ userId: 'doctor-a' }, { userId: 'doctor-b' }]);
     resolvePatientBranchContext.mockReset().mockImplementation(async (userId: string) => ({
