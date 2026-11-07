@@ -594,6 +594,7 @@ export async function saveAndSignResult(data: {
     await assertClinicDoctorSignoff({
       userId: data.doctorId,
       clinicId: referral.clinicId,
+      branchId: referral.branchId,
       assignedDoctorId: referral.doctorId,
     });
   }
@@ -705,6 +706,7 @@ export async function confirmAiResult(referralId: string, userId: string) {
   await assertClinicDoctorSignoff({
     userId,
     clinicId: referral.clinicId,
+    branchId: referral.branchId,
     assignedDoctorId: referral.doctorId,
   });
 
