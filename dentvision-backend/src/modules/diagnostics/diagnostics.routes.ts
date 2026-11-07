@@ -365,10 +365,10 @@ diagnosticsRouter.post('/referrals/:id/results/sign', requireReferralAccess(true
     if (!clinicAccess && !partnerAccess) return res.status(403).json({ ok: false, error: 'Нет доступа к направлению' } satisfies ApiResponse);
     if (!clinicAccess && partnerAccess && !partnerCanSign) return res.status(403).json({ ok: false, error: 'Недостаточно прав для подписания результата' } satisfies ApiResponse);
 
-    // Prefer clinic signing when the caller has valid clinic/branch access.
-    // SUPERADMIN and operational clinic roles are still rejected by the
-    // service-level doctor-only check; they must not fall through to a
-    // partner signer path merely because the referral also names a partner.
+    // Prefer clinic signing only when the caller has real clinic/branch access.
+    // SUPERADMIN's operational bypass is not treated as clinic membership;
+    // a partner result can still be signed only with an explicit scoped partner
+    // signer role and never writes a clinic Visit.
     const signerScope = clinicAccess ? 'clinic' : diagnosticPartnerAccess ? 'diagnostic_center' : 'laboratory';
     if (signerScope === 'clinic') {
       if (req.user!.role !== 'DOCTOR') return res.status(403).json({ ok: false, error: 'Подписать клинический результат может только врач' } satisfies ApiResponse);
