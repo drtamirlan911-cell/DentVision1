@@ -96,6 +96,18 @@ This entry supersedes stale source-level claims below where explicitly noted, bu
 
 ## Open
 
+### RB-037 — Clinical diagnostic confirmation/signing is not doctor-only
+- **Status:** OPEN — P0; current-main source review confirms non-clinical clinic roles can confirm or sign clinical diagnostic results. No code fix or regression gate is merged yet.
+- **Area:** Diagnostics / clinical authorship / patient medical record.
+- **Evidence (main at `2ff887f4944cb1eb8c0e05001fbcc44ef9abde09`):
+  - `POST /referrals/:id/confirm-ai-result` uses `requireReferralAccess()`; `confirmAiResult()` authorizes organization roles `owner`, `org_owner`, `admin`, `org_admin`, and `doctor`, with a legacy clinic-membership fallback.
+  - `POST /referrals/:id/results/sign` uses clinic referral access, and `saveAndSignResult()` accepts `DOCTOR`, `OWNER`, and `DIRECTOR` for clinic-side signing. For non-partner signers, it completes the referral and writes a Visit into the patient chart.
+  - Master Spec §12 states that AI diagnostic output remains assistive until the required professional confirmation step. Operational clinic membership must not itself confer clinical authorship.
+- **Required policy:** clinic-side AI-result confirmation and patient-record signing require an authenticated DOCTOR with active clinic and branch access (and assigned-referral/clinical assignment constraints where applicable). OWNER, ADMIN, DIRECTOR, MANAGER, ASSISTANT, CASHIER and SUPERADMIN must not gain clinical-signing authority from operational/platform privileges alone. Partner diagnostic-center/laboratory signers retain only their separately scoped signer roles and must not write into the clinic patient chart.
+- **Required regression matrix:** deny non-doctor clinic roles on both endpoints; allow an authorized doctor in the correct clinic/branch; deny another clinic/branch; deny SUPERADMIN without clinical assignment; preserve allowed partner signing without clinic-chart insertion.
+- **Release gate:** exact-head unit + E2E negative matrix, role/tenant/branch checks, audit attribution, and verification that rejected callers cannot complete referrals or create Visit rows. RB-037 stays OPEN until these pass.
+
+
 ### RB-029 — Patient clinical history JSON is not encrypted at rest
 - **Status:** OPEN — versioned application-layer encrypted JSON envelope and compatibility paths implemented on the current candidate; staging dry run and release verification remain outstanding
 - **Priority:** P0
