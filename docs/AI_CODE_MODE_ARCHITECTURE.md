@@ -14,7 +14,8 @@ The current architecture already has:
 - role/persona/agent selection and a bounded tool loop in `os/orchestrator.ts`;
 - a canonical tool catalog in `os/tools.ts`;
 - DB-verified access resolution in `os/access.ts`;
-- a governance kernel (`runAiAction`) with surface checks, argument sanitization, permission checks, approval handling, execution, activity and evidence recording;
+- a separate governance kernel (`runAiAction`) with surface checks, argument sanitization, permission checks, approval handling, execution, activity and evidence recording;
+- **important current-path distinction:** the staff `orchestrator.ts` and `/action` / `/confirm` routes currently call `executeTool` after DB-verified `resolveAiToolAccess`; they do not all route through `runAiAction`. The kernel exists, but is not yet proven to be the single execution boundary for every AI surface. This is a convergence gap, not a reason to assume Code Mode inherits kernel protections.
 - separate staff, admin and patient tool surfaces;
 - deterministic fallback when the model/provider is unavailable.
 
@@ -55,6 +56,8 @@ User request
 ```
 
 ### 3.1 Capability facade
+
+Before pilot implementation, reconcile the current staff direct path, confirmation endpoints and the separate kernel into one tested host-side execution boundary. Choose whether the canonical adapter delegates to `runAiAction` or safely consolidates equivalent existing `executeTool` checks; do not assume the kernel protects paths that do not call it. Direct and Code Mode paths must have parity tests for the same allowed/denied scenarios.
 
 The sandbox receives only typed functions selected for the current request, for example:
 - `getSchedule({ from, to })`
@@ -116,7 +119,7 @@ Every capability call must:
 1. carry a server-generated trace/run ID;
 2. bind to the verified principal and active context;
 3. pass the existing surface/tool allow-list;
-4. pass current organization/clinic/branch and permission checks;
+4. pass the same current organization/clinic/branch and permission checks as the canonical direct path;
 5. use the canonical domain handler rather than a new query implementation;
 6. return only the minimum fields required for the plan;
 7. record allow/deny/error outcome and result provenance.
@@ -124,7 +127,8 @@ Every capability call must:
 The runtime itself must be recorded as an AI activity. Each underlying tool call remains independently auditable; one top-level code-run log is not a substitute for per-tool activity/evidence.
 
 Do not weaken or bypass:
-- `runAiAction` and its denial/evidence behavior;
+- the existing direct-path `resolveAiToolAccess` + `executeTool` checks;
+- `runAiAction` and its denial/evidence behavior on surfaces that currently use it;
 - `resolveAiToolAccess` and canonical IAM;
 - `SURFACE_TOOLS`, `TOOL_PERMISSIONS`, `HIGH_RISK_TOOLS` and patient-scope policy;
 - active organization/branch context;
@@ -197,12 +201,13 @@ The pilot is not ready until all are true:
 
 ## 10. Immediate implementation sequence
 
-1. Keep current direct orchestration unchanged.
-2. Add a generated capability inventory/test that cross-checks registry entries against permission, sensitivity, scope and side-effect metadata; fail CI on unclassified tools.
-3. Build an offline benchmark harness using synthetic fixtures; do not add a sandbox runtime dependency yet.
-4. Prototype the host-side read-only capability facade behind tests, with no public route and no model access.
-5. Evaluate candidate sandbox runtimes against §3.2 and §5.
-6. Only after review, add a disabled-by-default feature flag and staging-only pilot.
+1. Keep current direct orchestration unchanged while auditing it.
+2. Reconcile the direct staff `executeTool` path, `/action`, `/confirm` and the separate `runAiAction` kernel into one documented, tested host-side execution boundary; preserve existing permission and approval semantics.
+3. Add a generated capability inventory/test that cross-checks registry entries against permission, sensitivity, scope and side-effect metadata; fail CI on unclassified tools.
+4. Build an offline benchmark harness using synthetic fixtures; do not add a sandbox runtime dependency yet.
+5. Prototype the host-side read-only capability facade behind tests, with no public route and no model access.
+6. Evaluate candidate sandbox runtimes against §3.2 and §5.
+7. Only after review, add a disabled-by-default feature flag and staging-only pilot.
 
 ## 11. References
 
