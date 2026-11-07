@@ -1,3 +1,24 @@
+## Exact-head checkpoint — 2026-11-07 (current main)
+
+### RB-037 — clinical diagnostic sign-off
+- **Status: OPEN / P0.** Current `main` still contains the authorization gap described below. Candidate PR #341 is rebuilt on current `main`; its current exact HEAD is `b1450bac3525481a5df65c4abdbbfd9884ce0d3a`, and CI / Quality Gate are running.
+- Candidate policy requires an organization-scoped `DOCTOR` PersonRole, the referral's assigned doctor, and persisted clinic/branch membership. It checks the complete scoped role set instead of treating one primary role as the only role, preserving the Master Spec 5.0 `OWNER + DOCTOR` case. A legacy ClinicMember `DOCTOR` fallback is used only when the clinic has no canonical Organization. Missing clinic/branch context and archived organizations fail closed.
+- Clinic-side confirmation/signing route guards rely on this service-level scoped-role check; platform/operational roles alone do not confer clinical authorship. Partner diagnostic-center/laboratory signers remain separately scoped and do not create a clinic Visit.
+- E2E includes negative cases for OWNER, ADMIN, MANAGER, ASSISTANT, SUPERADMIN without clinical membership and a doctor from another clinic; it also includes an OWNER + DOCTOR positive case. The latest exact-head run has not completed. Do not merge or close RB-037 until CI, Quality Gate and the full E2E matrix pass.
+- Previous candidate PR #339 was closed after exact-head unit tests exposed missing-branch validation and an outdated route-contract assertion. PR #341 contains the corrections and an expanded multi-role regression.
+
+### RB-029 — EventStore derivative-PHI new-write controls
+- **Merged and exact-head verified in PR #330** at merge commit `0de83c7331bc062444cd4d6701948cb97f6f44f5`. Exact merged-head CI [42344016473](https://github.com/drtamirlan911-cell/DentVision1/actions/runs/42344016473), Quality Gate [42344016403](https://github.com/drtamirlan911-cell/DentVision1/actions/runs/42344016403) and RB-034 [42344016344](https://github.com/drtamirlan911-cell/DentVision1/actions/runs/42344016344) succeeded.
+- `EventStore.save()` encrypts new `AIEvent.payload`; `markCompleted()` encrypts new `AIEvent.result`; `markFailed()` encrypts new `AIEvent.error`. Claim/list/detail readers decode these values and retain compatibility with legacy plaintext rows. The EventStore encryption regression suite is part of the successful merged-head CI.
+- **RB-029 remains OPEN / P0.** Historical plaintext `AIEvent.payload/result/error` rows have not been counted or backfilled. Memory/learning, few-shot examples, realtime streams, notifications, exports, audit/error logs, Android/browser caches, retention/deletion, key ID/versioning and rotation, verified backup/restore, exception ledger and approved staging dry-run/reconciliation/rollback remain outstanding. No production/staging query or backfill was performed.
+
+### Other release blockers
+- D1/D2 migration and post-expiry/archive retention evidence still require approved staging.
+- RB-030 offline appointment edit/reconnect/sync E2E; RB-031 WebKit OPTIONS/CORS/WebSocket evidence; RB-033 branch protection verification; official Kaspi merchant contract/callback; Android runtime remain OPEN.
+- RB-036 resolved only for premature delivered-triggered dental-lab economics; D10 remains OPEN/PARTIAL for full independent lab operations and financial lifecycle.
+- Master Spec 5.0 remains 18 PARTIAL / 4 OPEN / 2 GUIDANCE. Release remains NOT READY.
+- No live database/backfill, production deployment, secret change or payment-provider operation was performed in this checkpoint.
+
 ## RB-035 exact-head test follow-up — 2026-11-06
 
 - Candidate source fix is implemented in PR #330 but not yet accepted as verified. Exact baseline `1da8313edb413a44a4cfae79799108e0a76cec2c` had 2,494 unit tests pass and one new recipient test fail because its Prisma mock did not apply the explicit `userId in ['doctor-b']` predicate. The production resolver passes that predicate to Prisma; the fixture returned both doctor rows.
