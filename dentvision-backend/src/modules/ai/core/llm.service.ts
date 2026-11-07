@@ -10,18 +10,30 @@ import {
   estimateTokens,
   recordModelUsage,
 } from '../lib/modelRouter.js';
+import { providerFetch } from '../lib/providerFetch.js';
 import type { AIContext, AIResponse } from '../types/ai.types.js';
 
 const OPENAI_RESPONSES_URL = 'https://api.openai.com/v1/responses';
+const REQUEST_TIMEOUT_MS = 20_000;
 
 function rolePrompt(role: string): string {
   return rolePromptFor(role);
+}
+
+interface PolishResponse {
+  output_text?: unknown;
+  usage?: {
+    total_tokens?: number;
+  };
 }
 
 /**
  * Uses a cheap model only to write the natural-language response.
  * Data access and actions stay in the deterministic agent layer,
  * so an LLM cannot execute an unconfirmed CRM operation.
+ *
+ * All Responses API requests use the shared provider adapter so retry,
+ * timeout and terminal-provider-error behavior stays consistent.
  */
 export async function improveResponseWithLLM(
   userText: string,
@@ -56,33 +68,39 @@ export async function improveResponseWithLLM(
   });
 
   try {
-    const result = await fetch(OPENAI_RESPONSES_URL, {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${env.OPENAI_API_KEY}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
+    const payload = await providerFetch<PolishResponse>(OPENAI_RESPONSES_URL, {
+      apiKey: env.OPENAI_API_KEY,
+      body: {
         model: choice.model,
         instructions,
         input,
-        reasoning: { effort: choice.reasoningEffort },
+        ...(choice.supportsReasoning
+          ? { reasoning: { effort: choice.reasoningEffort } }
+          : {}),
         max_output_tokens: choice.maxOutputTokens,
-      }),
-      signal: AbortSignal.timeout(20_000),
+      },
+      timeoutMs: REQUEST_TIMEOUT_MS,
     });
 
-    if (!result.ok) {
-      console.warn(`[AI] OpenAI response failed: ${result.status} model=${choice.model}`);
-      return null;
-    }
-
-    const payload = await result.json() as { output_text?: unknown };
     const text = typeof payload.output_text === 'string' ? payload.output_text.trim() : '';
-    await recordModelUsage(choice.tier, estimateTokens(instructions, input, text));
-    return text ? preferClinicCurrency(text, currencyCode) : null;
+    if (!text) return null;
+
+    const reportedTokens = payload.usage?.total_tokens;
+    const tokens = Number.isFinite(reportedTokens) && (reportedTokens as number) > 0
+      ? (reportedTokens as number)
+      : estimateTokens(instructions, input, text);
+    await recordModelUsage(choice.tier, tokens);
+
+    return preferClinicCurrency(text, currencyCode);
   } catch (error) {
-    console.warn('[AI] OpenAI request failed; using deterministic response', error);
+    const status =
+      error && typeof error === 'object' && 'status' in error
+        ? (error as { status?: number }).status
+        : undefined;
+    console.warn(
+      '[AI] OpenAI request failed; using deterministic response',
+      status ? { status } : undefined,
+    );
     return null;
   }
 }
