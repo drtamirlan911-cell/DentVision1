@@ -38,6 +38,8 @@ test.describe('Partner operational lifecycle', () => {
   const rb037UserIds: string[] = [];
   const rb037ReferralIds: string[] = [];
   const rb037VisitIds: string[] = [];
+  const rb037PersonRoleIds: string[] = [];
+  const rb037PersonIds: string[] = [];
 
   test.beforeAll(async ({ playwright }) => {
     api = await playwright.request.newContext();
@@ -328,6 +330,12 @@ test.describe('Partner operational lifecycle', () => {
     if (rb037ReferralIds.length) {
       await prisma.referral.deleteMany({ where: { id: { in: rb037ReferralIds } } }).catch(() => {});
     }
+    if (rb037PersonRoleIds.length) {
+      await prisma.personRole.deleteMany({ where: { id: { in: rb037PersonRoleIds } } }).catch(() => {});
+    }
+    if (rb037PersonIds.length) {
+      await prisma.person.deleteMany({ where: { id: { in: rb037PersonIds } } }).catch(() => {});
+    }
     for (const userId of rb037UserIds) {
       await prisma.clinicMember.deleteMany({ where: { userId } }).catch(() => {});
       await prisma.personRole.deleteMany({ where: { person: { userId } } }).catch(() => {});
@@ -462,13 +470,13 @@ test.describe('Partner operational lifecycle', () => {
       operationalTokens.push(await login(api, email));
     }
 
-    const createReferral = async (suffix: string) => {
+    const createReferral = async (suffix: string, assignedDoctorId = doctorId) => {
       const referral = await prisma.referral.create({
         data: {
           clinicId,
           branchId,
           patientId,
-          doctorId,
+          doctorId: assignedDoctorId,
           patientName: `RB037 ${suffix}`,
           category: 'CBCT',
           studyType: 'CBCT',
@@ -537,6 +545,88 @@ test.describe('Partner operational lifecycle', () => {
     });
     expect(createdVisit?.id).toBeTruthy();
     if (createdVisit?.id) rb037VisitIds.push(createdVisit.id);
+
+    // Master Spec 5.0 allows OWNER + DOCTOR in the same clinic context.
+    // A management-primary user must retain clinical actions only when a
+    // separate scoped DOCTOR PersonRole and branch assignment exist.
+    expect(organization?.id).toBeTruthy();
+    const ownerUser = await prisma.user.findUnique({
+      where: { email: 'owner-a@test.com' },
+      select: { id: true },
+    });
+    expect(ownerUser?.id).toBeTruthy();
+    let ownerPerson = await prisma.person.findFirst({
+      where: { userId: ownerUser!.id, organizationId: organization!.id },
+      select: { id: true },
+    });
+    if (!ownerPerson) {
+      ownerPerson = await prisma.person.create({
+        data: {
+          id: randomUUID(),
+          fullName: 'RB037 Owner Doctor',
+          personType: 'DOCTOR',
+          organizationId: organization!.id,
+          userId: ownerUser!.id,
+        },
+        select: { id: true },
+      });
+      rb037PersonIds.push(ownerPerson.id);
+    }
+    const doctorRole = await prisma.role.findUnique({ where: { key: 'doctor' }, select: { id: true } });
+    expect(doctorRole?.id).toBeTruthy();
+    const ownerDoctorRole = await prisma.personRole.findFirst({
+      where: {
+        personId: ownerPerson!.id,
+        roleId: doctorRole!.id,
+        scopeType: 'organization',
+        scopeId: organization!.id,
+      },
+      select: { id: true },
+    });
+    if (!ownerDoctorRole) {
+      const createdRole = await prisma.personRole.create({
+        data: {
+          id: randomUUID(),
+          personId: ownerPerson!.id,
+          roleId: doctorRole!.id,
+          scopeType: 'organization',
+          scopeId: organization!.id,
+          scopeKey: `organization:${organization!.id}`,
+        },
+        select: { id: true },
+      });
+      rb037PersonRoleIds.push(createdRole.id);
+    }
+
+    const ownerDoctorAiReferral = await createReferral('owner plus doctor AI confirmation', ownerUser!.id);
+    await prisma.diagnosticResult.create({
+      data: { referralId: ownerDoctorAiReferral.id, reportText: 'RB037 owner-doctor AI draft', aiGenerated: true },
+    });
+    const ownerDoctorConfirmation = await api.post(`${BASE}/api/diagnostics/referrals/${ownerDoctorAiReferral.id}/confirm-ai-result`, {
+      headers: auth(ownerToken),
+    });
+    expect(ownerDoctorConfirmation.status(), JSON.stringify(await ownerDoctorConfirmation.json())).toBe(200);
+    const ownerDoctorAiResult = await prisma.diagnosticResult.findUnique({ where: { referralId: ownerDoctorAiReferral.id } });
+    expect(ownerDoctorAiResult?.signedBy).toBe(ownerUser!.id);
+
+    const ownerDoctorSignReferral = await createReferral('owner plus doctor clinical signing', ownerUser!.id);
+    const ownerVisitsBefore = await prisma.visit.count({ where: { patientId } });
+    const ownerDoctorSign = await api.post(`${BASE}/api/diagnostics/referrals/${ownerDoctorSignReferral.id}/results/sign`, {
+      headers: auth(ownerToken),
+      data: { reportText: 'Authorized owner-doctor report', conclusion: 'Owner with scoped doctor role' },
+    });
+    const ownerDoctorSignBody = await ownerDoctorSign.json();
+    expect(ownerDoctorSign.status(), JSON.stringify(ownerDoctorSignBody)).toBe(200);
+    expect(ownerDoctorSignBody.data.patientRecordUpdated).toBe(true);
+    const ownerDoctorResult = await prisma.diagnosticResult.findUnique({ where: { referralId: ownerDoctorSignReferral.id } });
+    expect(ownerDoctorResult?.signedBy).toBe(ownerUser!.id);
+    expect(await prisma.visit.count({ where: { patientId } })).toBe(ownerVisitsBefore + 1);
+    const ownerDoctorVisit = await prisma.visit.findFirst({
+      where: { patientId, doctorId: ownerUser!.id, notes: { contains: ownerDoctorSignReferral.id.slice(0, 8) } },
+      select: { id: true },
+    });
+    expect(ownerDoctorVisit?.id).toBeTruthy();
+    if (ownerDoctorVisit?.id) rb037VisitIds.push(ownerDoctorVisit.id);
   });
 
   test('PARTNER-002: medical laboratory order → full lifecycle → result → delivered', async () => {
