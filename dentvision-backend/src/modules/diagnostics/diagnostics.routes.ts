@@ -335,7 +335,6 @@ diagnosticsRouter.get('/dashboard', async (req: AuthRequest, res) => { try { con
 diagnosticsRouter.post('/referrals/:id/ai-result', requireReferralAccess(), async (req: AuthRequest, res) => { try { const data = await svc.aiGenerateResult(req.params.id, req.user!.id); return res.json({ ok: true, data: { result: data, requiresDoctorConfirmation: true } } satisfies ApiResponse); } catch (e: any) { return res.status(422).json({ ok: false, error: e.message } satisfies ApiResponse); } });
 diagnosticsRouter.post('/referrals/:id/confirm-ai-result', requireReferralAccess(), async (req: AuthRequest, res) => {
   try {
-    if (req.user!.role !== 'DOCTOR') return res.status(403).json({ ok: false, error: 'Подтвердить AI-результат может только врач' } satisfies ApiResponse);
     const referral = await prisma.referral.findUnique({ where: { id: req.params.id }, select: { clinicId: true, branchId: true, doctorId: true } });
     if (!referral) return res.status(404).json({ ok: false, error: 'Referral not found' } satisfies ApiResponse);
     await assertClinicDoctorSignoff({ userId: req.user!.id, clinicId: referral.clinicId, branchId: referral.branchId, assignedDoctorId: referral.doctorId });
@@ -371,7 +370,6 @@ diagnosticsRouter.post('/referrals/:id/results/sign', requireReferralAccess(true
     // signer role and never writes a clinic Visit.
     const signerScope = clinicAccess ? 'clinic' : diagnosticPartnerAccess ? 'diagnostic_center' : 'laboratory';
     if (signerScope === 'clinic') {
-      if (req.user!.role !== 'DOCTOR') return res.status(403).json({ ok: false, error: 'Подписать клинический результат может только врач' } satisfies ApiResponse);
       await assertClinicDoctorSignoff({ userId: req.user!.id, clinicId: referral.clinicId, branchId: referral.branchId, assignedDoctorId: referral.doctorId });
     }
 
