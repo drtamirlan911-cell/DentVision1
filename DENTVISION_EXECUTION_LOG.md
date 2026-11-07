@@ -2910,3 +2910,10 @@ Added route-contract tests covering all write routes and the laboratory-context 
 - Release Blockers now records these findings and why the parent-head CI is not closure evidence. RB-029, RB-035, RB-024 and RB-025 remain OPEN pending the next exact-head run and their remaining staging/security proof.
 - No staging/production DB query/write, migration, PHI backfill, live archive/restore, provider payment, environment/secret change, production deployment or main merge was performed.
 - Next: inspect all new exact-head CI jobs and artifacts, fix only verified failures without weakening assertions, then continue D1/D2/D8 staging proof, RB-029 consumer/backfill evidence, RB-030 offline queue E2E, RB-031 WebKit/CORS, RB-033 branch protection, full RB-035 authorization matrix and remaining D10 workflow parity.
+
+## 2026-11-07 — Stack AI response-polish provider adapter on D1–D10 candidate
+
+- Reconciled the independent provider-polish change from `fix/openai-shared-provider-polish-20261031` onto the current D1–D10 integration head as `integration/ai-provider-polish-d1d10-20261107`.
+- Kept the source branch and PR #333 unchanged; only the two AI implementation/test files are being ported here. The existing D1–D10 execution log was preserved and this compact entry was appended rather than attempting a blind merge of two diverged historical logs.
+- The implementation now uses the existing `providerFetch` adapter, sends reasoning settings only when supported by the selected model, and records provider-reported token usage with the existing estimate as fallback. Deterministic fallback remains intact.
+- This is not a claim of exact-head verification. Fresh CI, AI regression tests and the full release/E2E gates are required before merge. No provider key, environment variable, database, deployment or production behavior was changed.
