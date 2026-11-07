@@ -336,9 +336,9 @@ diagnosticsRouter.post('/referrals/:id/ai-result', requireReferralAccess(), asyn
 diagnosticsRouter.post('/referrals/:id/confirm-ai-result', requireReferralAccess(), async (req: AuthRequest, res) => {
   try {
     if (req.user!.role !== 'DOCTOR') return res.status(403).json({ ok: false, error: 'Подтвердить AI-результат может только врач' } satisfies ApiResponse);
-    const referral = await prisma.referral.findUnique({ where: { id: req.params.id }, select: { clinicId: true, doctorId: true } });
+    const referral = await prisma.referral.findUnique({ where: { id: req.params.id }, select: { clinicId: true, branchId: true, doctorId: true } });
     if (!referral) return res.status(404).json({ ok: false, error: 'Referral not found' } satisfies ApiResponse);
-    await assertClinicDoctorSignoff({ userId: req.user!.id, clinicId: referral.clinicId, assignedDoctorId: referral.doctorId });
+    await assertClinicDoctorSignoff({ userId: req.user!.id, clinicId: referral.clinicId, branchId: referral.branchId, assignedDoctorId: referral.doctorId });
     const data = await svc.confirmAiResult(req.params.id, req.user!.id);
     return res.json({ ok: true, data } satisfies ApiResponse);
   } catch (e: any) {
