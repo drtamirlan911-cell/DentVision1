@@ -99,7 +99,7 @@ export async function loadClinicAccess(req: AuthRequest, res: Response, next: Ne
       access.approaching = { patients: false, users: false, ai: false };
     }
     if (access) req.clinicAccess = access;
-    if (!(await guardTreatmentPlanReferences(req, _res))) return;
+    if (!(await guardTreatmentPlanReferences(req, res))) return;
     next();
   } catch (e) {
     console.error('[planGate] loadClinicAccess', e);
