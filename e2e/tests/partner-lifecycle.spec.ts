@@ -36,6 +36,7 @@ test.describe('Partner operational lifecycle', () => {
   let dentalTechnicianToken = '';
   const rb037UserIds: string[] = [];
   const rb037ReferralIds: string[] = [];
+  const rb037VisitIds: string[] = [];
 
   test.beforeAll(async ({ playwright }) => {
     api = await playwright.request.newContext();
@@ -319,6 +320,9 @@ test.describe('Partner operational lifecycle', () => {
   });
 
   test.afterAll(async () => {
+    if (rb037VisitIds.length) {
+      await prisma.visit.deleteMany({ where: { id: { in: rb037VisitIds } } }).catch(() => {});
+    }
     if (rb037ReferralIds.length) {
       await prisma.referral.deleteMany({ where: { id: { in: rb037ReferralIds } } }).catch(() => {});
     }
@@ -513,9 +517,10 @@ test.describe('Partner operational lifecycle', () => {
     expect((await prisma.referral.findUnique({ where: { id: signReferral.id } }))?.status).toBe('DRAFT');
     expect(await prisma.visit.count({ where: { patientId } })).toBe(visitsBefore);
 
+    const signedConclusion = `RB037 doctor verified ${randomUUID()}`;
     const signed = await api.post(`${BASE}/api/diagnostics/referrals/${signReferral.id}/results/sign`, {
       headers: auth(doctorToken),
-      data: { reportText: 'Authorized RB037 report', conclusion: 'Doctor verified' },
+      data: { reportText: 'Authorized RB037 report', conclusion: signedConclusion },
     });
     const signedBody = await signed.json();
     expect(signed.status(), JSON.stringify(signedBody)).toBe(200);
@@ -524,6 +529,12 @@ test.describe('Partner operational lifecycle', () => {
     expect(storedResult?.signedBy).toBe(doctorId);
     expect(storedResult?.signedAt).toBeTruthy();
     expect(await prisma.visit.count({ where: { patientId } })).toBe(visitsBefore + 1);
+    const createdVisit = await prisma.visit.findFirst({
+      where: { patientId, doctorId, diagnosis: signedConclusion },
+      select: { id: true },
+    });
+    expect(createdVisit?.id).toBeTruthy();
+    if (createdVisit?.id) rb037VisitIds.push(createdVisit.id);
   });
 
   test('PARTNER-002: medical laboratory order → full lifecycle → result → delivered', async () => {
