@@ -11,6 +11,7 @@ import { IinValidationError } from '../../lib/patientIin.js';
 import { canAccessReferralBranch } from '../../lib/diagnosticReferralBranchPolicy.js';
 import { auditFromReq } from '../compliance/audit.service.js';
 import { DIAGNOSTIC_RESULT_SIGNER_ROLE_KEYS, LAB_RESULT_SIGNER_ROLE_KEYS, hasScopedPartnerSignerRole } from './signingAuthorization.js';
+import { assertClinicDoctorSignoff, ClinicalSignoffAuthorizationError } from './clinicalSignoffAuthorization.js';
 
 export async function claimReferralPaid(referralId: string, data: { paid: boolean; paidAt?: Date; cost?: number }): Promise<boolean> { const result = await (prisma as any).referral.updateMany({ where: { id: referralId, paid: false }, data }); return result.count === 1; }
 
@@ -332,12 +333,61 @@ diagnosticsRouter.delete('/referral-files/:id', async (req: AuthRequest, res) =>
 diagnosticsRouter.post('/referrals/:id/comments', requireReferralAccess(true), async (req: AuthRequest, res) => { try { const text = String(req.body?.text || '').trim(); if (!text) return res.status(400).json({ ok: false, error: 'Комментарий не может быть пустым' }); return res.status(201).json({ ok: true, data: await svc.addComment(req.params.id, req.user!.id, text) } satisfies ApiResponse); } catch (e: any) { return res.status(400).json({ ok: false, error: e.message } satisfies ApiResponse); } });
 diagnosticsRouter.get('/dashboard', async (req: AuthRequest, res) => { try { const q = req.query as Record<string, string | undefined>; const scope = await authorizeReferralListScope(req.user, { clinicId: q.clinicId, centerId: q.centerId, labId: q.labId }); if (scope.ok === false) return res.status(scope.status || 403).json({ ok: false, error: scope.error || 'Нет доступа' }); return res.json({ ok: true, data: await svc.getDashboardStats({ clinicId: q.clinicId, centerId: q.centerId, labId: q.labId }) } satisfies ApiResponse); } catch (e: any) { return res.status(500).json({ ok: false, error: e.message } satisfies ApiResponse); } });
 diagnosticsRouter.post('/referrals/:id/ai-result', requireReferralAccess(), async (req: AuthRequest, res) => { try { const data = await svc.aiGenerateResult(req.params.id, req.user!.id); return res.json({ ok: true, data: { result: data, requiresDoctorConfirmation: true } } satisfies ApiResponse); } catch (e: any) { return res.status(422).json({ ok: false, error: e.message } satisfies ApiResponse); } });
-diagnosticsRouter.post('/referrals/:id/confirm-ai-result', requireReferralAccess(), async (req: AuthRequest, res) => { try { const data = await svc.confirmAiResult(req.params.id, req.user!.id); return res.json({ ok: true, data } satisfies ApiResponse); } catch (e: any) { return res.status(400).json({ ok: false, error: e.message } satisfies ApiResponse); } });
-diagnosticsRouter.post('/referrals/:id/results/sign', requireReferralAccess(true), async (req: AuthRequest, res) => { try { const referral = await prisma.referral.findUnique({ where: { id: req.params.id }, select: { clinicId: true, doctorId: true, branchId: true, centerId: true, labId: true } }); if (!referral) return res.status(404).json({ ok: false, error: 'Referral not found' }); const clinicAccess = await referralBranchAllowed(req.user!, referral); const diagnosticPartnerAccess = referral.centerId ? sameOrgContext(req.user, 'DiagnosticCenter', referral.centerId) : false; const laboratoryPartnerAccess = referral.labId ? sameOrgContext(req.user, 'Laboratory', referral.labId) : false; const partnerAccess = diagnosticPartnerAccess || laboratoryPartnerAccess; const partnerCanSign = diagnosticPartnerAccess
+diagnosticsRouter.post('/referrals/:id/confirm-ai-result', requireReferralAccess(), async (req: AuthRequest, res) => {
+  try {
+    if (req.user!.role !== 'DOCTOR') return res.status(403).json({ ok: false, error: 'Подтвердить AI-результат может только врач' } satisfies ApiResponse);
+    const referral = await prisma.referral.findUnique({ where: { id: req.params.id }, select: { clinicId: true, branchId: true, doctorId: true } });
+    if (!referral) return res.status(404).json({ ok: false, error: 'Referral not found' } satisfies ApiResponse);
+    await assertClinicDoctorSignoff({ userId: req.user!.id, clinicId: referral.clinicId, branchId: referral.branchId, assignedDoctorId: referral.doctorId });
+    const data = await svc.confirmAiResult(req.params.id, req.user!.id);
+    return res.json({ ok: true, data } satisfies ApiResponse);
+  } catch (e: any) {
+    if (e instanceof ClinicalSignoffAuthorizationError) return res.status(403).json({ ok: false, error: e.message } satisfies ApiResponse);
+    return res.status(400).json({ ok: false, error: e.message } satisfies ApiResponse);
+  }
+});
+diagnosticsRouter.post('/referrals/:id/results/sign', requireReferralAccess(true), async (req: AuthRequest, res) => {
+  try {
+    const referral = await prisma.referral.findUnique({ where: { id: req.params.id }, select: { clinicId: true, doctorId: true, branchId: true, centerId: true, labId: true } });
+    if (!referral) return res.status(404).json({ ok: false, error: 'Referral not found' } satisfies ApiResponse);
+    // SUPERADMIN bypasses operational branch middleware, but that bypass is not
+    // proof of clinical clinic membership. It may still act as a partner signer
+    // only when an explicit scoped radiologist/laboratory role is present.
+    const clinicAccess = req.user!.role !== 'SUPERADMIN' && await referralBranchAllowed(req.user!, referral);
+    const diagnosticPartnerAccess = referral.centerId ? sameOrgContext(req.user, 'DiagnosticCenter', referral.centerId) : false;
+    const laboratoryPartnerAccess = referral.labId ? sameOrgContext(req.user, 'Laboratory', referral.labId) : false;
+    const partnerAccess = diagnosticPartnerAccess || laboratoryPartnerAccess;
+    const partnerCanSign = diagnosticPartnerAccess
       ? await hasScopedPartnerSignerRole(req.user!, DIAGNOSTIC_RESULT_SIGNER_ROLE_KEYS)
       : laboratoryPartnerAccess
         ? await hasScopedPartnerSignerRole(req.user!, LAB_RESULT_SIGNER_ROLE_KEYS)
         : false;
-    if (!clinicAccess && !partnerAccess) return res.status(403).json({ ok: false, error: 'Нет доступа к направлению' });
-    if (partnerAccess && !clinicAccess && !partnerCanSign) return res.status(403).json({ ok: false, error: 'Недостаточно прав для подписания результата' }); const reportText = String(req.body?.reportText || '').trim(); if (!reportText) return res.status(400).json({ ok: false, error: 'reportText обязателен' }); const signerScope = diagnosticPartnerAccess ? 'diagnostic_center' : laboratoryPartnerAccess ? 'laboratory' : 'clinic'; const result = await svc.saveAndSignResult({ referralId: req.params.id, reportText, conclusion: req.body?.conclusion ? String(req.body.conclusion) : undefined, doctorId: req.user!.id, signerScope }); return res.json({ ok: true, data: { result, patientRecordUpdated: signerScope === 'clinic' } } satisfies ApiResponse); } catch (e: any) { return res.status(400).json({ ok: false, error: e.message } satisfies ApiResponse); } });
+    if (!clinicAccess && !partnerAccess) return res.status(403).json({ ok: false, error: 'Нет доступа к направлению' } satisfies ApiResponse);
+    if (!clinicAccess && partnerAccess && !partnerCanSign) return res.status(403).json({ ok: false, error: 'Недостаточно прав для подписания результата' } satisfies ApiResponse);
+
+    // Prefer clinic signing only when the caller has real clinic/branch access.
+    // SUPERADMIN's operational bypass is not treated as clinic membership;
+    // a partner result can still be signed only with an explicit scoped partner
+    // signer role and never writes a clinic Visit.
+    const signerScope = clinicAccess ? 'clinic' : diagnosticPartnerAccess ? 'diagnostic_center' : 'laboratory';
+    if (signerScope === 'clinic') {
+      if (req.user!.role !== 'DOCTOR') return res.status(403).json({ ok: false, error: 'Подписать клинический результат может только врач' } satisfies ApiResponse);
+      await assertClinicDoctorSignoff({ userId: req.user!.id, clinicId: referral.clinicId, branchId: referral.branchId, assignedDoctorId: referral.doctorId });
+    }
+
+    const reportText = String(req.body?.reportText || '').trim();
+    if (!reportText) return res.status(400).json({ ok: false, error: 'reportText обязателен' } satisfies ApiResponse);
+    const result = await svc.saveAndSignResult({
+      referralId: req.params.id,
+      reportText,
+      conclusion: req.body?.conclusion ? String(req.body.conclusion) : undefined,
+      doctorId: req.user!.id,
+      signerScope,
+    });
+    return res.json({ ok: true, data: { result, patientRecordUpdated: signerScope === 'clinic' } } satisfies ApiResponse);
+  } catch (e: any) {
+    if (e instanceof ClinicalSignoffAuthorizationError) return res.status(403).json({ ok: false, error: e.message } satisfies ApiResponse);
+    return res.status(400).json({ ok: false, error: e.message } satisfies ApiResponse);
+  }
+});
 export default diagnosticsRouter;
