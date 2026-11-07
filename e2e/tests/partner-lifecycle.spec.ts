@@ -508,7 +508,7 @@ test.describe('Partner operational lifecycle', () => {
     // complete the referral, or insert a Visit. The assigned clinic doctor can.
     const signReferral = await createReferral('result signing');
     const visitsBefore = await prisma.visit.count({ where: { patientId } });
-    for (const token of [ownerToken, ...operationalTokens, superadminToken]) {
+    for (const token of [ownerToken, ...operationalTokens, superadminToken, crossClinicDoctorToken]) {
       const denied = await api.post(`${BASE}/api/diagnostics/referrals/${signReferral.id}/results/sign`, {
         headers: auth(token),
         data: { reportText: 'Unauthorized RB037 report', conclusion: 'Must not be stored' },
