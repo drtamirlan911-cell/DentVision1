@@ -496,6 +496,9 @@ export default function Schedule() {
     if (!patientId || !form.time) { showToast('Выберите пациента и время', 'warning'); return }
     if (!form.doctorId) { showToast('Выберите врача', 'warning'); return }
     const chair = chairs.find((c) => c.id === form.chairId)
+    const selectedServiceChanged = Boolean(selectedService) && (
+      !editAppt || selectedService!.id !== appointmentServiceId(editAppt)
+    )
     const payload = {
       ...form,
       id: editAppt?.id || gid(),
@@ -504,9 +507,11 @@ export default function Schedule() {
       patientId,
       ...(selectedService ? {
         serviceId: selectedService.id,
-        serviceName: selectedService.name,
-        servicePrice: selectedService.clinicPrice,
-        reason: selectedService.name,
+        ...(selectedServiceChanged ? {
+          serviceName: selectedService.name,
+          servicePrice: selectedService.clinicPrice,
+          reason: selectedService.name,
+        } : {}),
       } : editAppt ? {} : { serviceId: form.service }),
       diagnosis: form.diagnosis,
       toothNumber: form.toothNumber,
