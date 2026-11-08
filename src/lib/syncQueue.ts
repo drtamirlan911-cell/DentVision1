@@ -71,6 +71,48 @@ export function getSyncQueue(): SyncQueueItem[] {
   return loadQueue()
 }
 
+const OFFLINE_CLINICAL_FIELDS = [
+  'notes',
+  'diagnosis',
+  'toothNumber',
+  'reason',
+] as const
+
+function comparableOfflineValue(value: unknown): string {
+  return value == null ? '' : String(value).trim()
+}
+
+/**
+ * Clinical/free-text fields are intentionally stripped before localStorage.
+ * Refuse to queue an edit that changes one of those fields rather than telling
+ * the clinician it was saved when the durable payload cannot contain it.
+ */
+export function assertQueueableAppointmentChange(
+  data: Partial<Appointment> & { id: string },
+  existing?: Partial<Appointment> | null,
+): void {
+  for (const field of OFFLINE_CLINICAL_FIELDS) {
+    if (!Object.prototype.hasOwnProperty.call(data, field)) continue
+    if (comparableOfflineValue(data[field]) !== comparableOfflineValue(existing?.[field])) {
+      throw new Error('Клинические заметки, диагноз, номер зуба и свободное описание можно сохранить только при подключении к сети')
+    }
+  }
+
+  // Human-readable service labels are removed from browser storage. The
+  // canonical opaque catalog ID is sufficient when the operation changes the
+  // selected service; free-text labels without that ID must not be dropped.
+  if (!data.serviceId) {
+    for (const field of ['service', 'serviceName'] as const) {
+      if (
+        Object.prototype.hasOwnProperty.call(data, field)
+        && comparableOfflineValue(data[field]) !== comparableOfflineValue(existing?.[field])
+      ) {
+        throw new Error('Изменение названия услуги можно сохранить только при подключении к сети')
+      }
+    }
+  }
+}
+
 export function enqueueAppointmentUpsert(data: Partial<Appointment> & SyncQueueContext & { force?: boolean; id: string }): void {
   // The newest intent for an appointment supersedes every queued operation
   // for that ID. This prevents a stale delete from replaying before a later edit.
