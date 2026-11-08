@@ -144,6 +144,45 @@ describe('offline appointment queue replay', () => {
     expect(queue[0].payload.time).toBe('11:30');
   });
 
+
+  it('keeps a queued create before a delete for an appointment not yet on the server', () => {
+    enqueueAppointmentUpsert({
+      id: 'appointment-create-then-delete',
+      clinicId: 'clinic-1',
+      patientId: 'patient-1',
+      doctorId: 'doctor-1',
+      date: '2026-11-08',
+      time: '15:00',
+    });
+    enqueueAppointmentDelete('appointment-create-then-delete', 'clinic-1');
+
+    const queue = getSyncQueue();
+    expect(queue.map((item) => item.kind)).toEqual(['upsert', 'delete']);
+    expect(queue[0].payload.id).toBe(queue[1].payload.id);
+  });
+
+  it('defers a delete until its preceding queued upsert succeeds', async () => {
+    apiUpsertAppointment.mockRejectedValueOnce(new Error('temporary network failure'));
+    enqueueAppointmentUpsert({
+      id: 'appointment-create-then-delete',
+      clinicId: 'clinic-1',
+      patientId: 'patient-1',
+      doctorId: 'doctor-1',
+      date: '2026-11-08',
+      time: '15:30',
+    });
+    enqueueAppointmentDelete('appointment-create-then-delete', 'clinic-1');
+
+    await expect(flushSyncQueue('clinic-1')).resolves.toEqual({ flushed: 0, remaining: 2 });
+    expect(apiDeleteAppointment).not.toHaveBeenCalled();
+    expect(getSyncQueue().map((item) => item.kind)).toEqual(['upsert', 'delete']);
+
+    await expect(flushSyncQueue('clinic-1')).resolves.toEqual({ flushed: 2, remaining: 0 });
+    expect(apiUpsertAppointment).toHaveBeenCalledTimes(2);
+    expect(apiDeleteAppointment).toHaveBeenCalledWith('appointment-create-then-delete');
+    expect(getSyncQueue()).toEqual([]);
+  });
+
   it('does not send queue items while the browser is offline', async () => {
     vi.stubGlobal('navigator', { onLine: false });
     enqueueAppointmentUpsert({
