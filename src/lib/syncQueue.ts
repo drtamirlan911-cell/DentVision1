@@ -10,6 +10,18 @@ import { sanitizeForLocalStorage } from './localStoragePrivacy'
 const QUEUE_KEY = 'dv_schedule_sync_queue_v1'
 const CACHE_PREFIX = 'dv_schedule_context_day_v2_'
 
+let queueItemSequence = 0
+
+function createQueueItemId(prefix: 'uq' | 'del', appointmentId: string): string {
+  // Date.now() alone can collide when two edits for the same appointment are
+  // queued in one millisecond. The queue merge uses item IDs to distinguish
+  // operations created while a replay is in flight, so each ID must be unique.
+  const unique = typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
+    ? crypto.randomUUID()
+    : `${Date.now().toString(36)}_${(++queueItemSequence).toString(36)}`
+  return `${prefix}_${appointmentId}_${unique}`
+}
+
 export type SyncQueueContext = {
   clinicId: string
   organizationId: string | null
@@ -139,7 +151,7 @@ export function enqueueAppointmentUpsert(data: Partial<Appointment> & SyncQueueC
   // for that ID. This prevents a stale delete from replaying before a later edit.
   const q = loadQueue().filter((i) => i.payload.id !== data.id)
   q.push({
-    id: `uq_${data.id}_${Date.now()}`,
+    id: createQueueItemId('uq', data.id),
     kind: 'upsert',
     payload: data,
     enqueuedAt: new Date().toISOString(),
@@ -157,7 +169,7 @@ export function enqueueAppointmentDelete(id: string, context: SyncQueueContext):
   const q = current.filter((item) => item.payload.id !== id)
   if (pendingUpsert) q.push(pendingUpsert)
   q.push({
-    id: `del_${id}_${Date.now()}`,
+    id: createQueueItemId('del', id),
     kind: 'delete',
     payload: { id, ...context } as any,
     enqueuedAt: new Date().toISOString(),
