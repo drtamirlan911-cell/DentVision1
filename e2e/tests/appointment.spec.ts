@@ -296,9 +296,11 @@ test.describe('Appointment Workflow', () => {
         status: 'scheduled',
         // The edit form requires a catalog service; keep the service unchanged
         // so the E2E exercises time-only offline sync rather than service edits.
+        // Keep the opaque catalog ID as the persisted service key. The
+        // backend derives the initial service value from this key; writing a
+        // display label here would leave the edit select without a matching option.
         service: 's1',
         serviceId: 's1',
-        serviceName: 'Первичная консультация',
         servicePrice: 3000,
         reason: 'Первичная консультация',
       },
@@ -327,7 +329,9 @@ test.describe('Appointment Workflow', () => {
       await expect(page.getByText('Appt Patient', { exact: true })).toBeVisible({ timeout: 30_000 });
       await page.getByText('Appt Patient', { exact: true }).last().click();
       await expect(page.getByRole('heading', { name: 'Редактировать запись' })).toBeVisible();
-      await expect(page.getByLabel('Услуга из прайса')).toHaveValue('s1');
+      const serviceSelect = page.getByLabel('Услуга из прайса');
+      await expect(serviceSelect.locator('option[value="s1"]')).toHaveCount(1, { timeout: 30_000 });
+      await expect(serviceSelect).toHaveValue('s1');
 
       await page.getByLabel('Время').selectOption('11:30');
       await context.setOffline(true);
