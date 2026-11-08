@@ -150,6 +150,9 @@ export async function flushSyncQueue(activeContext: SyncQueueContext | null): Pr
   if (
     !activeContext?.clinicId
     || !activeContext.workspaceId
+    || !activeContext.userId
+    || !activeContext.roleKey
+    || !Object.prototype.hasOwnProperty.call(activeContext, 'organizationId')
     || !Object.prototype.hasOwnProperty.call(activeContext, 'workspaceBranchId')
   ) return { flushed: 0, remaining: queued.length }
   if (flushing) return { flushed: 0, remaining: queued.length }
