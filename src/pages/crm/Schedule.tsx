@@ -99,9 +99,21 @@ export default function Schedule() {
     const workspaceBranchId = context
       ? context.branchId
       : activeWorkspace?.branchId ?? null
-    if (!clinicId || !workspaceId) return null
-    return { clinicId, workspaceId, workspaceBranchId }
-  }, [clinicId, activeWorkspace?.id, activeWorkspace?.branchId])
+    const organizationId = context
+      ? context.organizationId
+      : activeWorkspace?.organizationId ?? null
+    const userId = user?.id || ''
+    const roleKey = context?.roleKey || activeWorkspace?.roleKey || ''
+    if (!clinicId || !workspaceId || !userId || !roleKey) return null
+    return { clinicId, organizationId, workspaceId, workspaceBranchId, userId, roleKey }
+  }, [
+    clinicId,
+    user?.id,
+    activeWorkspace?.id,
+    activeWorkspace?.branchId,
+    activeWorkspace?.organizationId,
+    activeWorkspace?.roleKey,
+  ])
   // Payment: admin / owner (руководитель) only — not doctors
   const canTakePayment = canAcceptPayment(role) || !!roleInfo?.canManageClinicSettings
   const {
