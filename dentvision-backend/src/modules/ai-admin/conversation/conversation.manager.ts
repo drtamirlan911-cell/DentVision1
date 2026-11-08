@@ -1,6 +1,7 @@
 import prisma from '../../../lib/prisma.js'
 import type { AiAdminSession, AiAdminMessage } from '@prisma/client'
 import type { Channel } from '../webhook/types.js'
+import { decryptAiAdminJson, decryptAiAdminText, encryptAiAdminJson, encryptAiAdminText } from './phi.js'
 
 interface GetOrCreateSessionParams {
   clinicId: string
@@ -42,11 +43,19 @@ export async function getRecentMessages(
   sessionId: string,
   limit = 20,
 ): Promise<AiAdminMessage[]> {
-  return prisma.aiAdminMessage.findMany({
+  const messages = await prisma.aiAdminMessage.findMany({
     where: { sessionId },
     orderBy: { createdAt: 'desc' },
     take: limit,
-  }).then((msgs) => msgs.reverse())
+  })
+
+  return messages.reverse().map((message) => ({
+    ...message,
+    content: decryptAiAdminText(message.content),
+    toolResult: message.toolResult == null
+      ? message.toolResult
+      : decryptAiAdminJson(message.toolResult) as any,
+  }))
 }
 
 export async function saveMessage(params: {
@@ -58,7 +67,15 @@ export async function saveMessage(params: {
   tokensUsed?: number
   latencyMs?: number
 }): Promise<void> {
-  await prisma.aiAdminMessage.create({ data: params as any })
+  await prisma.aiAdminMessage.create({
+    data: {
+      ...params,
+      content: encryptAiAdminText(params.content),
+      toolResult: params.toolResult == null
+        ? undefined
+        : encryptAiAdminJson(params.toolResult) as any,
+    } as any,
+  })
 }
 
 export async function markEscalated(
@@ -75,8 +92,8 @@ export async function markEscalated(
     data: {
       sessionId,
       clinicId: session.clinicId,
-      reason,
-      lastUserMessage,
+      reason: encryptAiAdminText(reason),
+      lastUserMessage: encryptAiAdminText(lastUserMessage),
     },
   })
 
@@ -84,6 +101,6 @@ export async function markEscalated(
   await notifyClinicOwners(
     session.clinicId,
     'Требуется помощь администратора',
-    `Пациент в ${session.channel} ожидает ответа. Причина: ${reason}`,
+    `Пациент в ${session.channel} ожидает ответа. Откройте очередь эскалаций для подробностей.`,
   )
 }
