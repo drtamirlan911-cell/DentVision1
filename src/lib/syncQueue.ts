@@ -61,7 +61,10 @@ function loadQueue(): SyncQueueItem[] {
 function saveQueue(items: SyncQueueItem[]): void {
   try {
     localStorage.setItem(QUEUE_KEY, JSON.stringify(items.slice(-100).map(sanitizeQueueItem)))
-  } catch { /* ignore */ }
+  } catch {
+    // Never report a change as queued unless it was durably persisted.
+    throw new Error('Не удалось сохранить офлайн-изменение на этом устройстве')
+  }
 }
 
 export function getSyncQueue(): SyncQueueItem[] {
@@ -255,8 +258,14 @@ export function startSyncQueueListener(
   onFlush?: (r: { flushed: number; remaining: number }) => void,
 ): () => void {
   const handler = async () => {
-    const r = await flushSyncQueue(activeContext)
-    onFlush?.(r)
+    try {
+      const r = await flushSyncQueue(activeContext)
+      onFlush?.(r)
+    } catch {
+      // Keep the queue visible; never emit a success callback when the durable
+      // local write failed after replay.
+      onFlush?.({ flushed: 0, remaining: getSyncQueue().length })
+    }
   }
   window.addEventListener('online', handler)
   // Opportunistic flush
