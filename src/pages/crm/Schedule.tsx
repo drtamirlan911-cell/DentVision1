@@ -127,6 +127,21 @@ export default function Schedule() {
 
   const { services: pricedServices } = useClinicPriceList(clinicId)
 
+  const appointmentServiceId = useCallback((appointment: Appointment): string => {
+    if (appointment.serviceId) return appointment.serviceId
+    if (appointment.service && pricedServices.some((service) => service.id === appointment.service)) return appointment.service
+    return pricedServices.find((service) =>
+      service.name === appointment.serviceName || service.name === appointment.service || service.name === appointment.reason
+    )?.id || ''
+  }, [pricedServices])
+  const appointmentServiceLabel = useCallback((appointment: Appointment): string => {
+    const catalogService = pricedServices.find((service) =>
+      service.id === appointment.serviceId || service.id === appointment.service
+    )
+    return catalogService?.name || appointment.serviceName || appointment.service || appointment.reason || ''
+  }, [pricedServices])
+
+
   const queryClient = useQueryClient()
   const chairsQ = useQuery({
     queryKey: [...queryKeys.chairs, clinicId],
@@ -411,20 +426,6 @@ export default function Schedule() {
     [pricedServices],
   )
   const selectedService = pricedServices.find(s => s.id === form.service)
-  const appointmentServiceId = useCallback((appointment: Appointment): string => {
-    if (appointment.serviceId) return appointment.serviceId
-    if (appointment.service && pricedServices.some((service) => service.id === appointment.service)) return appointment.service
-    return pricedServices.find((service) =>
-      service.name === appointment.serviceName || service.name === appointment.service || service.name === appointment.reason
-    )?.id || ''
-  }, [pricedServices])
-  const appointmentServiceLabel = useCallback((appointment: Appointment): string => {
-    const catalogService = pricedServices.find((service) =>
-      service.id === appointment.serviceId || service.id === appointment.service
-    )
-    return catalogService?.name || appointment.serviceName || appointment.service || appointment.reason || ''
-  }, [pricedServices])
-
   // Тот же прайс, что и при записи. Раньше список собирался только из строк,
   // которые клиника явно сохранила, — у новой клиники он был пуст, и добавить
   // услугу при закрытии приёма было не из чего.
