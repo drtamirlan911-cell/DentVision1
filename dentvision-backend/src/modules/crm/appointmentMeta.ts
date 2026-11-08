@@ -125,7 +125,9 @@ export function serializeAppointment(row: {
     status,
     type: row.type,
     notes: row.notes || '',
-    service: meta.serviceId || meta.serviceName || row.type || '',
+    // Preserve the legacy human-readable `service` response for existing API consumers.
+    // New clients use `serviceId` for catalog selection and can resolve its label when needed.
+    service: meta.serviceName || row.type || '',
     serviceId: meta.serviceId || '',
     serviceName: meta.serviceName || row.type || '',
     servicePrice: meta.servicePrice ?? 0,

@@ -153,7 +153,7 @@ describe('buildMeta offline service identifiers', () => {
       date: new Date('2026-11-08T00:00:00.000Z'), time: '10:00', duration: 30,
       status: 'pending', type: 'Первичная консультация', notes: null, meta,
     });
-    expect(result.service).toBe('s1');
+    expect(result.service).toBe('Первичная консультация');
     expect(result.serviceId).toBe('s1');
     expect(result.serviceName).toBe('Первичная консультация');
   });
