@@ -14,6 +14,7 @@ import { queryKeys } from '@/queries/keys'
 import * as api from '@/utils/api'
 import {
   cacheDayAppointments,
+  enqueueAppointmentDelete,
   enqueueAppointmentUpsert,
   flushSyncQueue,
   getSyncQueue,
@@ -161,9 +162,12 @@ export default function Schedule() {
     const onOn = () => setOffline(false)
     window.addEventListener('offline', onOff)
     window.addEventListener('online', onOn)
-    const stop = startSyncQueueListener((r) => {
+    const stop = startSyncQueueListener(clinicId, (r) => {
       setPendingSync(getSyncQueue().length)
-      if (r.flushed > 0) showToast(`Синхронизировано: ${r.flushed}`, 'success')
+      if (r.flushed > 0) {
+        void queryClient.invalidateQueries({ queryKey: [...queryKeys.appointments, clinicId] })
+        showToast(`Синхронизировано: ${r.flushed}`, 'success')
+      }
     })
     setPendingSync(getSyncQueue().length)
     return () => {
@@ -171,7 +175,7 @@ export default function Schedule() {
       window.removeEventListener('online', onOn)
       stop()
     }
-  }, [])
+  }, [clinicId, queryClient])
 
   useEffect(() => {
     const patientId = searchParams.get('patient')
@@ -199,16 +203,34 @@ export default function Schedule() {
     return liveAppointments
   }, [liveAppointments, clinic?.id, selDate])
 
+  const applyQueuedAppointmentToCache = (data: Partial<Appointment> & { id: string }) => {
+    const key = [...queryKeys.appointments, clinicId]
+    const previous = queryClient.getQueryData<Appointment[]>(key) || liveAppointments || []
+    const index = previous.findIndex((appointment) => appointment.id === data.id)
+    const next = [...previous]
+    const merged = { ...(index >= 0 ? next[index] : {}), ...data, clinicId } as Appointment
+    if (index >= 0) next[index] = merged
+    else next.push(merged)
+    queryClient.setQueryData<Appointment[]>(key, next)
+    if (clinic?.id) {
+      cacheDayAppointments(clinic.id, selDate, next.filter((appointment) => String(appointment.date).slice(0, 10) === selDate))
+    }
+  }
+
   const upsertAppointment = async (data: Partial<Appointment> & { force?: boolean; id?: string }) => {
     try {
       const result = await upsertAppointmentApi(data)
       setPendingSync(getSyncQueue().length)
       return result
     } catch (err) {
-      if (isLikelyOffline(err) && data.id) {
-        enqueueAppointmentUpsert({ ...data, id: data.id } as any)
+      if (isLikelyOffline(err) && data.id && clinic?.id) {
+        const queued = { ...data, clinicId: clinic.id, id: data.id }
+        enqueueAppointmentUpsert(queued as any)
+        // useDataQuery rolls its optimistic mutation back on a rejected request.
+        // Reapply the local change after queuing so the offline schedule stays live.
+        applyQueuedAppointmentToCache(queued)
         setPendingSync(getSyncQueue().length)
-        showToast('Нет сети — запись в очереди синка', 'warning')
+        showToast('Нет сети — запись сохранена в очереди синхронизации', 'warning')
         return data
       }
       throw err
@@ -453,7 +475,28 @@ export default function Schedule() {
     }
     setDragged(null)
   }
-  const handleDelete = async (): Promise<void> => { if (!editAppt) return; await deleteAppointment(editAppt.id); showToast('Запись удалена', 'success'); setModalOpen(false) }
+  const handleDelete = async (): Promise<void> => {
+    if (!editAppt) return
+    try {
+      await deleteAppointment(editAppt.id)
+      showToast('Запись удалена', 'success')
+      setModalOpen(false)
+    } catch (err) {
+      if (isLikelyOffline(err) && clinic?.id) {
+        enqueueAppointmentDelete(editAppt.id, clinic.id)
+        const key = [...queryKeys.appointments, clinic.id]
+        const previous = queryClient.getQueryData<Appointment[]>(key) || liveAppointments || []
+        const next = previous.filter((appointment) => appointment.id !== editAppt.id)
+        queryClient.setQueryData<Appointment[]>(key, next)
+        cacheDayAppointments(clinic.id, selDate, next.filter((appointment) => String(appointment.date).slice(0, 10) === selDate))
+        setPendingSync(getSyncQueue().length)
+        showToast('Нет сети — удаление поставлено в очередь синхронизации', 'warning')
+        setModalOpen(false)
+        return
+      }
+      showToast((err as Error)?.message || 'Не удалось удалить запись', 'error')
+    }
+  }
 
   const openCloseVisit = (appt: Appointment) => {
     setCloseAppt(appt)
@@ -905,9 +948,14 @@ export default function Schedule() {
               variant="secondary"
               size="sm"
               onClick={async () => {
-                const r = await flushSyncQueue()
+                const r = await flushSyncQueue(clinicId)
                 setPendingSync(getSyncQueue().length)
-                showToast(r.flushed ? `Синхронизировано: ${r.flushed}` : 'Нечего синхронизировать', r.flushed ? 'success' : 'info')
+                if (r.flushed > 0) {
+                  await queryClient.invalidateQueries({ queryKey: [...queryKeys.appointments, clinicId] })
+                  showToast(`Синхронизировано: ${r.flushed}`, 'success')
+                } else {
+                  showToast(r.remaining > 0 ? 'Нет записей для синхронизации в этой клинике' : 'Нечего синхронизировать', 'info')
+                }
               }}
             >
               Синхронизировать
