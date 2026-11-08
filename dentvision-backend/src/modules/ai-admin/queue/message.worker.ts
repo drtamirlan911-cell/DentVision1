@@ -82,12 +82,12 @@ async function poll(): Promise<void> {
         await completeMessage(message.id)
       } catch (error) {
         const detail = error instanceof Error ? error.message : String(error)
-        console.error(`[ai-admin] Message ${message.id} failed:`, detail)
+        console.warn(`[ai-admin] Message ${message.id} failed; diagnostic detail stored encrypted`)
         await failMessage(message.id, detail.slice(0, 2000))
       }
     }))
   } catch (error) {
-    console.error('[ai-admin] Durable worker poll failed:', error)
+    console.error('[ai-admin] Durable worker poll failed')
   } finally {
     polling = false
   }
