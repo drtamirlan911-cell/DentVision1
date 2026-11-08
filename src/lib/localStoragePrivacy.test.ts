@@ -35,6 +35,23 @@ describe('localStorage patient-data privacy guard', () => {
     expect(containsSensitivePatientData(safe)).toBe(false);
   });
 
+  it('preserves opaque reference IDs that contain timestamp digits while still redacting phone text', () => {
+    const safe = sanitizeForLocalStorage({
+      id: 'uq_rb030-1794144690926-opaque',
+      appointmentId: 'rb030-1794144690926',
+      patientId: 'patient-1794144690926',
+      doctorId: 'doctor-1794144690926',
+      displayLabel: 'Call +7 777 123 45 67',
+    });
+    expect(safe).toEqual({
+      id: 'uq_rb030-1794144690926-opaque',
+      appointmentId: 'rb030-1794144690926',
+      patientId: 'patient-1794144690926',
+      doctorId: 'doctor-1794144690926',
+    });
+    expect(containsSensitivePatientData(safe)).toBe(false);
+  });
+
   it('recognizes patient-scoped autosave keys', () => {
     expect(isPatientScopedDraftKey('patient-intake')).toBe(true);
     expect(isPatientScopedDraftKey('medical-card-draft')).toBe(true);
