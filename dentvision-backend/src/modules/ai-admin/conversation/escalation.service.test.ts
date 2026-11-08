@@ -1,4 +1,4 @@
-import { describe, expect, it, vi, beforeEach } from 'vitest';
+import { afterEach, describe, expect, it, vi, beforeEach } from 'vitest';
 
 /**
  * An escalation carries `lastUserMessage` — a patient's own words — so the
@@ -22,6 +22,11 @@ const { prismaMock, notifyClinicOwners } = vi.hoisted(() => ({
 vi.mock('../../../lib/prisma.js', () => ({ default: prismaMock }));
 vi.mock('../../billing/clinicSubscription.service.js', () => ({ notifyClinicOwners }));
 
+import { encryptAiAdminText } from './phi.js';
+
+const originalNodeEnv = process.env.NODE_ENV;
+const originalEncryptionKey = process.env.ENCRYPTION_KEY;
+
 const {
   DEFAULT_ESCALATION_REMINDER_MS,
   EscalationError,
@@ -32,11 +37,20 @@ const {
 } = await import('./escalation.service.js');
 
 beforeEach(() => {
+  process.env.NODE_ENV = 'test';
+  process.env.ENCRYPTION_KEY = 'ai-admin-escalation-test-key-at-least-32-chars';
   vi.clearAllMocks();
   prismaMock.aiAdminEscalation.findMany.mockResolvedValue([]);
   prismaMock.aiAdminEscalation.updateMany.mockResolvedValue({ count: 1 });
   prismaMock.aiAdminEscalation.findUnique.mockResolvedValue({ id: 'e1' });
   notifyClinicOwners.mockResolvedValue(undefined);
+});
+
+afterEach(() => {
+  if (originalNodeEnv === undefined) delete process.env.NODE_ENV;
+  else process.env.NODE_ENV = originalNodeEnv;
+  if (originalEncryptionKey === undefined) delete process.env.ENCRYPTION_KEY;
+  else process.env.ENCRYPTION_KEY = originalEncryptionKey;
 });
 
 describe('listing what is still open', () => {
@@ -57,6 +71,27 @@ describe('listing what is still open', () => {
     // fetched at all, which is the part that matters.
     await listEscalations('clinic-1');
     expect(prismaMock.aiAdminEscalation.findMany.mock.calls[0][0].where.clinicId).toBe('clinic-1');
+  });
+
+  it('decrypts newly encrypted escalation text while keeping legacy rows readable', async () => {
+    prismaMock.aiAdminEscalation.findMany.mockResolvedValueOnce([
+      {
+        id: 'encrypted',
+        reason: encryptAiAdminText('Private patient reason'),
+        lastUserMessage: encryptAiAdminText('Patient private message'),
+      },
+      {
+        id: 'legacy',
+        reason: 'legacy reason',
+        lastUserMessage: 'legacy patient message',
+      },
+    ]);
+
+    const rows = await listEscalations('clinic-1');
+    expect(rows[0].reason).toBe('Private patient reason');
+    expect(rows[0].lastUserMessage).toBe('Patient private message');
+    expect(rows[1].reason).toBe('legacy reason');
+    expect(rows[1].lastUserMessage).toBe('legacy patient message');
   });
 
   it('caps how much it will return', async () => {
@@ -134,7 +169,7 @@ describe('chasing escalations nobody picked up', () => {
     expect(notifyClinicOwners).toHaveBeenCalledWith(
       'clinic-1',
       expect.stringMatching(/без ответа/i),
-      expect.stringContaining('сложный вопрос'),
+      expect.stringContaining('очередь эскалаций'),
     );
   });
 

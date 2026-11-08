@@ -9,6 +9,7 @@ export interface AIInteractionLogParams {
   tokenCount?: number;
   latencyMs?: number;
   status: 'success' | 'error';
+  /** Accepted for call-site compatibility, but never persisted: provider errors may echo PHI. */
   errorMessage?: string;
 }
 
@@ -28,11 +29,11 @@ export async function logAIInteraction(params: AIInteractionLogParams): Promise<
           tokenCount: params.tokenCount ?? null,
           latencyMs: params.latencyMs ?? null,
           status: params.status,
-          errorMessage: params.errorMessage || null,
+          errorPresent: params.status === 'error' && Boolean(params.errorMessage),
         },
       },
     });
   } catch (err) {
-    console.error('[AuditLogger] failed to log AI interaction:', err);
+    console.error('[AuditLogger] failed to log AI interaction');
   }
 }

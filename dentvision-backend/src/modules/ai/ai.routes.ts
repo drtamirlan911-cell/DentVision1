@@ -508,7 +508,7 @@ aiRouter.post('/query', validate(querySchema), async (req: AuthRequest, res) => 
       },
     });
   } catch (error) {
-    console.error('[AI] query', error);
+    console.error('[AI] query failed');
     logAIInteraction({
       userId: req.user?.id || 'guest',
       clinicId: req.user?.clinicId || undefined,
@@ -649,7 +649,7 @@ aiRouter.post('/query/stream', async (req: AuthRequest, res) => {
     })}\n\n`);
     res.end();
   } catch (error) {
-    console.error('[AI Stream Error]', error);
+    console.error('[AI Stream] request failed');
     logAIInteraction({
       userId: req.user?.id || 'guest',
       clinicId: req.user?.clinicId || undefined,

@@ -145,7 +145,7 @@ export async function runLLMOrchestrator(input: OrchestratorInput): Promise<Orch
       await saveMessage({ sessionId: session.id, role: 'ASSISTANT', content: responseText, tokensUsed: totalTokens })
       return { responseText, toolsCalled, tokensUsed: totalTokens, escalated }
     } catch (err) {
-      console.error('[orchestrator] LLM error:', err)
+      console.error('[orchestrator] AI Admin provider request failed')
       const fallback = 'Извините, произошла ошибка. Пожалуйста, позвоните нам.'
       await saveMessage({ sessionId: session.id, role: 'ASSISTANT', content: fallback })
       return { responseText: fallback, toolsCalled, tokensUsed: totalTokens, escalated }

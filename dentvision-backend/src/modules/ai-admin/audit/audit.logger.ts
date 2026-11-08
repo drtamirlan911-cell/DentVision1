@@ -4,7 +4,9 @@ import { uid } from '../../../lib/helpers.js'
 interface AuditParams {
   sessionId: string
   clinicId: string
+  /** Used only to record presence; message text may contain PHI. */
   userMessage: string
+  /** Used only to record presence; response text may contain PHI. */
   assistantMessage: string
   toolsCalled: string[]
   tokensUsed: number
@@ -21,9 +23,11 @@ export async function logAudit(params: AuditParams): Promise<void> {
         action: params.escalated ? 'AI_ADMIN_ESCALATED' : 'AI_ADMIN_CONVERSATION',
         entityType: 'ai_admin_session',
         entityId: params.sessionId,
+        // Keep operational telemetry, never duplicate patient conversation text
+        // into the general-purpose audit log JSONB column.
         details: {
-          userMessage: params.userMessage.slice(0, 500),
-          assistantMessage: params.assistantMessage.slice(0, 500),
+          userMessagePresent: params.userMessage.length > 0,
+          assistantResponsePresent: params.assistantMessage.length > 0,
           toolsCalled: params.toolsCalled,
           tokensUsed: params.tokensUsed,
           latencyMs: params.latencyMs,
