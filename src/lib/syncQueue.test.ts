@@ -122,12 +122,13 @@ describe('offline appointment queue replay', () => {
   it('keeps only the newest operation for an appointment ID', () => {
     enqueueAppointmentUpsert({
       id: 'appointment-1',
+      clinicId: 'clinic-1',
       patientId: 'patient-1',
       doctorId: 'doctor-1',
       date: '2026-11-08',
       time: '10:00',
     });
-    enqueueAppointmentDelete('appointment-1');
+    enqueueAppointmentDelete('appointment-1', 'clinic-1');
     enqueueAppointmentUpsert({
       id: 'appointment-1',
       patientId: 'patient-1',
@@ -146,13 +147,14 @@ describe('offline appointment queue replay', () => {
     vi.stubGlobal('navigator', { onLine: false });
     enqueueAppointmentUpsert({
       id: 'appointment-offline',
+      clinicId: 'clinic-opaque-id',
       patientId: 'patient-1',
       doctorId: 'doctor-1',
       date: '2026-11-08',
       time: '12:00',
     });
 
-    await expect(flushSyncQueue()).resolves.toEqual({ flushed: 0, remaining: 1 });
+    await expect(flushSyncQueue('clinic-opaque-id')).resolves.toEqual({ flushed: 0, remaining: 1 });
     expect(apiUpsertAppointment).not.toHaveBeenCalled();
     expect(apiDeleteAppointment).not.toHaveBeenCalled();
   });
@@ -168,9 +170,9 @@ describe('offline appointment queue replay', () => {
       date: '2026-11-08',
       time: '13:30',
     });
-    enqueueAppointmentDelete('appointment-delete');
+    enqueueAppointmentDelete('appointment-delete', 'clinic-opaque-id');
 
-    await expect(flushSyncQueue()).resolves.toEqual({ flushed: 2, remaining: 0 });
+    await expect(flushSyncQueue('clinic-opaque-id')).resolves.toEqual({ flushed: 2, remaining: 0 });
     expect(apiUpsertAppointment).toHaveBeenCalledTimes(1);
     expect(apiUpsertAppointment).toHaveBeenCalledWith(expect.objectContaining({
       id: 'appointment-edit',
@@ -186,24 +188,58 @@ describe('offline appointment queue replay', () => {
     expect(getSyncQueue()).toEqual([]);
   });
 
+
+  it('never replays another clinic queue item in the current clinic context', async () => {
+    enqueueAppointmentUpsert({
+      id: 'appointment-clinic-a',
+      clinicId: 'clinic-a',
+      patientId: 'patient-a',
+      doctorId: 'doctor-a',
+      date: '2026-11-08',
+      time: '09:00',
+    });
+    enqueueAppointmentDelete('appointment-clinic-b', 'clinic-b');
+
+    await expect(flushSyncQueue('clinic-a')).resolves.toEqual({ flushed: 1, remaining: 1 });
+    expect(apiUpsertAppointment).toHaveBeenCalledTimes(1);
+    expect(apiDeleteAppointment).not.toHaveBeenCalled();
+    expect(getSyncQueue().map((item) => item.payload.clinicId)).toEqual(['clinic-b']);
+  });
+
+  it('fails closed and keeps the queue when no active clinic context is supplied', async () => {
+    enqueueAppointmentUpsert({
+      id: 'appointment-no-context',
+      clinicId: 'clinic-a',
+      patientId: 'patient-a',
+      doctorId: 'doctor-a',
+      date: '2026-11-08',
+      time: '09:00',
+    });
+
+    await expect(flushSyncQueue('')).resolves.toEqual({ flushed: 0, remaining: 1 });
+    expect(apiUpsertAppointment).not.toHaveBeenCalled();
+    expect(getSyncQueue()).toHaveLength(1);
+  });
+
   it('retains failed operations for the next reconnect without persisting raw errors', async () => {
     apiUpsertAppointment.mockRejectedValueOnce(new Error('Patient name and diagnosis echoed by API'));
     enqueueAppointmentUpsert({
       id: 'appointment-retry',
+      clinicId: 'clinic-opaque-id',
       patientId: 'patient-1',
       doctorId: 'doctor-1',
       date: '2026-11-08',
       time: '14:00',
     });
 
-    await expect(flushSyncQueue()).resolves.toEqual({ flushed: 0, remaining: 1 });
+    await expect(flushSyncQueue('clinic-opaque-id')).resolves.toEqual({ flushed: 0, remaining: 1 });
     const failed = getSyncQueue();
     expect(failed).toHaveLength(1);
     expect(failed[0].attempts).toBe(1);
     expect(failed[0]).not.toHaveProperty('lastError');
     expect(localStorage.getItem(QUEUE_KEY)).not.toContain('Patient name and diagnosis');
 
-    await expect(flushSyncQueue()).resolves.toEqual({ flushed: 1, remaining: 0 });
+    await expect(flushSyncQueue('clinic-opaque-id')).resolves.toEqual({ flushed: 1, remaining: 0 });
     expect(apiUpsertAppointment).toHaveBeenCalledTimes(2);
     expect(getSyncQueue()).toEqual([]);
   });
