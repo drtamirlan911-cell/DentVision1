@@ -211,6 +211,7 @@ export default function Schedule() {
     activeSyncContext?.workspaceBranchId,
     activeSyncContext?.userId,
     activeSyncContext?.roleKey,
+    activeSyncContext,
   ])
 
   useEffect(() => {
