@@ -203,8 +203,9 @@ export default function Schedule() {
     return liveAppointments
   }, [liveAppointments, clinic?.id, selDate])
 
-  const applyQueuedAppointmentToCache = (data: Partial<Appointment> & { id: string }) => {
+  const applyQueuedAppointmentToCache = async (data: Partial<Appointment> & { id: string }) => {
     const key = [...queryKeys.appointments, clinicId]
+    await queryClient.cancelQueries({ queryKey: key })
     const previous = queryClient.getQueryData<Appointment[]>(key) || liveAppointments || []
     const index = previous.findIndex((appointment) => appointment.id === data.id)
     const next = [...previous]
@@ -228,7 +229,7 @@ export default function Schedule() {
         enqueueAppointmentUpsert(queued as any)
         // useDataQuery rolls its optimistic mutation back on a rejected request.
         // Reapply the local change after queuing so the offline schedule stays live.
-        applyQueuedAppointmentToCache(queued)
+        await applyQueuedAppointmentToCache(queued)
         setPendingSync(getSyncQueue().length)
         showToast('Нет сети — запись сохранена в очереди синхронизации', 'warning')
         return data
@@ -485,6 +486,7 @@ export default function Schedule() {
       if (isLikelyOffline(err) && clinic?.id) {
         enqueueAppointmentDelete(editAppt.id, clinic.id)
         const key = [...queryKeys.appointments, clinic.id]
+        await queryClient.cancelQueries({ queryKey: key })
         const previous = queryClient.getQueryData<Appointment[]>(key) || liveAppointments || []
         const next = previous.filter((appointment) => appointment.id !== editAppt.id)
         queryClient.setQueryData<Appointment[]>(key, next)
