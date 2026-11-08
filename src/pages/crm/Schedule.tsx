@@ -14,12 +14,14 @@ import { queryKeys } from '@/queries/keys'
 import * as api from '@/utils/api'
 import {
   cacheDayAppointments,
+  enqueueAppointmentDelete,
   enqueueAppointmentUpsert,
   flushSyncQueue,
   getSyncQueue,
   isLikelyOffline,
   readCachedDayAppointments,
   startSyncQueueListener,
+  type SyncQueueContext,
 } from '@/lib/syncQueue'
 import { useAuth, canAcceptPayment } from '@/store/auth.store'
 import { useIam } from '@/iam/useIam'
@@ -80,7 +82,7 @@ const fadeUp = { hidden: { opacity: 0, y: 8 }, show: { opacity: 1, y: 0 } }
 
 export default function Schedule() {
   const outlet = useOutletContext<{ clinic?: Clinic; user?: UserType; roleInfo?: RoleInfo }>() || {}
-  const { user, roleInfo, clinic: authClinic, role } = useAuth()
+  const { user, roleInfo, clinic: authClinic, role, activeWorkspace } = useAuth()
   const iam = useIam()
   // Match Staff / IntelligenceLayout: prefer outlet + auth clinic over JWT claim alone.
   // Appointments API is JWT-scoped (works even with a stale user.clinicId), but
@@ -89,6 +91,29 @@ export default function Schedule() {
   const clinicId = outlet.clinic?.id || authClinic?.id || user?.clinicId || ''
   const clinic = clinicId ? { id: clinicId } : null
   const activeClinic = outlet.clinic || authClinic || (clinicId ? { id: clinicId } : null)
+  // Offline work is bound to the complete IAM context. A clinic match alone
+  // is not sufficient when a user can switch branch/workspace before reconnect.
+  const activeSyncContext = useMemo<SyncQueueContext | null>(() => {
+    const context = api.getWorkspaceContext()
+    const workspaceId = context?.workspaceId || activeWorkspace?.id || ''
+    const workspaceBranchId = context
+      ? context.branchId
+      : activeWorkspace?.branchId ?? null
+    const organizationId = context
+      ? context.organizationId
+      : activeWorkspace?.organizationId ?? null
+    const userId = user?.id || ''
+    const roleKey = context?.roleKey || activeWorkspace?.roleKey || ''
+    if (!clinicId || !workspaceId || !userId || !roleKey) return null
+    return { clinicId, organizationId, workspaceId, workspaceBranchId, userId, roleKey }
+  }, [
+    clinicId,
+    user?.id,
+    activeWorkspace?.id,
+    activeWorkspace?.branchId,
+    activeWorkspace?.organizationId,
+    activeWorkspace?.roleKey,
+  ])
   // Payment: admin / owner (руководитель) only — not doctors
   const canTakePayment = canAcceptPayment(role) || !!roleInfo?.canManageClinicSettings
   const {
@@ -161,9 +186,15 @@ export default function Schedule() {
     const onOn = () => setOffline(false)
     window.addEventListener('offline', onOff)
     window.addEventListener('online', onOn)
-    const stop = startSyncQueueListener((r) => {
+    const stop = startSyncQueueListener(activeSyncContext, (r) => {
       setPendingSync(getSyncQueue().length)
-      if (r.flushed > 0) showToast(`Синхронизировано: ${r.flushed}`, 'success')
+      if (r.flushed > 0) {
+        void queryClient.invalidateQueries({ queryKey: [...queryKeys.appointments, clinicId] })
+        showToast(`Синхронизировано: ${r.flushed}`, 'success')
+      } else if (r.remaining > 0 && activeSyncContext) {
+        // Remaining work may belong to another branch/workspace; keep it queued.
+        setPendingSync(r.remaining)
+      }
     })
     setPendingSync(getSyncQueue().length)
     return () => {
@@ -171,7 +202,15 @@ export default function Schedule() {
       window.removeEventListener('online', onOn)
       stop()
     }
-  }, [])
+  }, [
+    clinicId,
+    queryClient,
+    activeSyncContext?.organizationId,
+    activeSyncContext?.workspaceId,
+    activeSyncContext?.workspaceBranchId,
+    activeSyncContext?.userId,
+    activeSyncContext?.roleKey,
+  ])
 
   useEffect(() => {
     const patientId = searchParams.get('patient')
@@ -186,18 +225,58 @@ export default function Schedule() {
 
   useEffect(() => {
     if (clinic?.id && liveAppointments.length) {
-      cacheDayAppointments(clinic.id, selDate, liveAppointments.filter((a) => a.date === selDate))
+      cacheDayAppointments(activeSyncContext, selDate, liveAppointments.filter((a) => a.date === selDate))
     }
-  }, [clinic?.id, selDate, liveAppointments])
+  }, [clinic?.id, activeSyncContext, selDate, liveAppointments])
 
   const appointments = useMemo(() => {
     if (liveAppointments.length) return liveAppointments
     if (clinic?.id) {
-      const cached = readCachedDayAppointments(clinic.id, selDate)
+      const cached = readCachedDayAppointments(activeSyncContext, selDate)
       if (cached?.length) return cached
     }
     return liveAppointments
-  }, [liveAppointments, clinic?.id, selDate])
+  }, [liveAppointments, clinic?.id, activeSyncContext, selDate])
+
+  const applyQueuedAppointmentToCache = async (data: Partial<Appointment> & { id: string }) => {
+    const key = [...queryKeys.appointments, clinicId]
+    await queryClient.cancelQueries({ queryKey: key })
+    const cachedCurrentDay = activeSyncContext
+      ? readCachedDayAppointments(activeSyncContext, selDate)
+      : null
+    const previous = queryClient.getQueryData<Appointment[]>(key)
+      ?? (liveAppointments.length > 0 ? liveAppointments : cachedCurrentDay ?? [])
+    const index = previous.findIndex((appointment) => appointment.id === data.id)
+    const previousDate = index >= 0 ? String(previous[index].date || '').slice(0, 10) : ''
+    const next = [...previous]
+    const merged = { ...(index >= 0 ? next[index] : {}), ...data, clinicId } as Appointment
+    if (index >= 0) next[index] = merged
+    else next.push(merged)
+    queryClient.setQueryData<Appointment[]>(key, next)
+    if (clinic?.id) {
+      // Keep both sides of an offline reschedule visible after a reload.
+      // The localStorage serializer still strips all patient/clinical fields.
+      const affectedDates = new Set([
+        selDate,
+        previousDate,
+        String(merged.date || '').slice(0, 10),
+      ].filter(Boolean))
+      for (const date of affectedDates) {
+        // Preserve cached appointments already known for the destination day
+        // when only the source day is available offline.
+        const byId = new Map(
+          (readCachedDayAppointments(activeSyncContext, date) || [])
+            .map((appointment) => [appointment.id, appointment]),
+        )
+        for (const appointment of next) {
+          const appointmentDate = String(appointment.date || '').slice(0, 10)
+          if (appointmentDate === date) byId.set(appointment.id, appointment)
+          else byId.delete(appointment.id)
+        }
+        cacheDayAppointments(activeSyncContext, date, [...byId.values()])
+      }
+    }
+  }
 
   const upsertAppointment = async (data: Partial<Appointment> & { force?: boolean; id?: string }) => {
     try {
@@ -205,11 +284,14 @@ export default function Schedule() {
       setPendingSync(getSyncQueue().length)
       return result
     } catch (err) {
-      if (isLikelyOffline(err) && data.id) {
-        enqueueAppointmentUpsert({ ...data, id: data.id } as any)
+      if (isLikelyOffline(err) && data.id && clinic?.id && activeSyncContext) {
+        const queued = { ...data, ...activeSyncContext, id: data.id }
+        enqueueAppointmentUpsert(queued as any)
+        // useDataQuery rolls its optimistic mutation back on a rejected request.
+        // Reapply the local change after queuing so the offline schedule stays live.
+        await applyQueuedAppointmentToCache(queued)
         setPendingSync(getSyncQueue().length)
-        showToast('Нет сети — запись в очереди синка', 'warning')
-        return data
+        return { ...data, __queuedOffline: true }
       }
       throw err
     }
@@ -404,8 +486,12 @@ export default function Schedule() {
     }
     setSubmitting(true)
     try {
-      await upsertAppointment(payload as any)
-      showToast(editAppt ? 'Запись обновлена' : 'Запись создана. Оплата: Касса → К оплате', 'success')
+      const saved = await upsertAppointment(payload as any)
+      if ((saved as any)?.__queuedOffline) {
+        showToast('Запись сохранена на устройстве и отправится после восстановления сети', 'warning')
+      } else {
+        showToast(editAppt ? 'Запись обновлена' : 'Запись создана. Оплата: Касса → К оплате', 'success')
+      }
       setModalOpen(false)
     } catch (err: any) {
       const msg = String(err?.message || '')
@@ -414,8 +500,10 @@ export default function Schedule() {
           message: `${msg}\n\nСохранить запись всё равно (овербукинг)?`,
           retry: async () => {
             try {
-              await upsertAppointment({ ...payload, force: true } as any)
-              showToast('Запись сохранена с овербукингом', 'warning')
+              const saved = await upsertAppointment({ ...payload, force: true } as any)
+              showToast((saved as any)?.__queuedOffline
+                ? 'Запись сохранена на устройстве и отправится после восстановления сети'
+                : 'Запись сохранена с овербукингом', 'warning')
               setModalOpen(false)
             } catch {
               showToast('Ошибка сохранения', 'error')
@@ -434,8 +522,10 @@ export default function Schedule() {
     e.preventDefault()
     if (!dragged) return
     try {
-      await upsertAppointment({ ...dragged, time: timeSlot, date: selDate, doctorId: doctorId || dragged.doctorId })
-      showToast('Запись перенесена', 'success')
+      const saved = await upsertAppointment({ ...dragged, time: timeSlot, date: selDate, doctorId: doctorId || dragged.doctorId })
+      showToast((saved as any)?.__queuedOffline
+        ? 'Перенос сохранён на устройстве и отправится после восстановления сети'
+        : 'Запись перенесена', (saved as any)?.__queuedOffline ? 'warning' : 'success')
     } catch (err: any) {
       const msg = String(err?.message || '')
       if (msg.includes('Конфликт') || msg.includes('конфликт')) {
@@ -443,8 +533,10 @@ export default function Schedule() {
         setOverbookConfirm({
           message: `${msg}\n\nПеренести всё равно?`,
           retry: async () => {
-            await upsertAppointment({ ...d, time: timeSlot, date: selDate, doctorId: doctorId || d.doctorId, force: true })
-            showToast('Перенесено с овербукингом', 'warning')
+            const saved = await upsertAppointment({ ...d, time: timeSlot, date: selDate, doctorId: doctorId || d.doctorId, force: true })
+            showToast((saved as any)?.__queuedOffline
+              ? 'Перенос сохранён на устройстве и отправится после восстановления сети'
+              : 'Перенесено с овербукингом', 'warning')
           },
         })
       } else {
@@ -453,7 +545,35 @@ export default function Schedule() {
     }
     setDragged(null)
   }
-  const handleDelete = async (): Promise<void> => { if (!editAppt) return; await deleteAppointment(editAppt.id); showToast('Запись удалена', 'success'); setModalOpen(false) }
+  const handleDelete = async (): Promise<void> => {
+    if (!editAppt) return
+    try {
+      await deleteAppointment(editAppt.id)
+      showToast('Запись удалена', 'success')
+      setModalOpen(false)
+    } catch (err) {
+      if (isLikelyOffline(err) && clinic?.id && activeSyncContext) {
+        try {
+          enqueueAppointmentDelete(editAppt.id, activeSyncContext)
+          const key = [...queryKeys.appointments, clinic.id]
+          await queryClient.cancelQueries({ queryKey: key })
+          const cachedCurrentDay = readCachedDayAppointments(activeSyncContext, selDate)
+          const previous = queryClient.getQueryData<Appointment[]>(key)
+            ?? (liveAppointments.length > 0 ? liveAppointments : cachedCurrentDay ?? [])
+          const next = previous.filter((appointment) => appointment.id !== editAppt.id)
+          queryClient.setQueryData<Appointment[]>(key, next)
+          cacheDayAppointments(activeSyncContext, selDate, next.filter((appointment) => String(appointment.date).slice(0, 10) === selDate))
+          setPendingSync(getSyncQueue().length)
+          showToast('Нет сети — удаление поставлено в очередь синхронизации', 'warning')
+          setModalOpen(false)
+        } catch (persistError) {
+          showToast((persistError as Error)?.message || 'Не удалось сохранить удаление на устройстве', 'error')
+        }
+        return
+      }
+      showToast((err as Error)?.message || 'Не удалось удалить запись', 'error')
+    }
+  }
 
   const openCloseVisit = (appt: Appointment) => {
     setCloseAppt(appt)
@@ -700,8 +820,10 @@ export default function Schedule() {
     const next = idx >= 0 && idx < chain.length - 1 ? chain[idx + 1] : null
     if (!next) return
     try {
-      await upsertAppointment({ ...appt, status: next })
-      showToast(`Статус: ${STATUS_CFG[next]?.label || next}`, 'success')
+      const saved = await upsertAppointment({ ...appt, status: next })
+      showToast((saved as any)?.__queuedOffline
+        ? 'Изменение статуса сохранено на устройстве и отправится после восстановления сети'
+        : `Статус: ${STATUS_CFG[next]?.label || next}`, (saved as any)?.__queuedOffline ? 'warning' : 'success')
     } catch {
       showToast('Не удалось сменить статус', 'error')
     }
@@ -905,9 +1027,19 @@ export default function Schedule() {
               variant="secondary"
               size="sm"
               onClick={async () => {
-                const r = await flushSyncQueue()
-                setPendingSync(getSyncQueue().length)
-                showToast(r.flushed ? `Синхронизировано: ${r.flushed}` : 'Нечего синхронизировать', r.flushed ? 'success' : 'info')
+                try {
+                  const r = await flushSyncQueue(activeSyncContext)
+                  setPendingSync(getSyncQueue().length)
+                  if (r.flushed > 0) {
+                    await queryClient.invalidateQueries({ queryKey: [...queryKeys.appointments, clinicId] })
+                    showToast(`Синхронизировано: ${r.flushed}`, 'success')
+                  } else {
+                    showToast(r.remaining > 0 ? 'Нет записей для синхронизации в этой клинике' : 'Нечего синхронизировать', 'info')
+                  }
+                } catch {
+                  setPendingSync(getSyncQueue().length)
+                  showToast('Не удалось завершить синхронизацию. Повторите попытку.', 'error')
+                }
               }}
             >
               Синхронизировать
@@ -1065,8 +1197,10 @@ export default function Schedule() {
                                       e.preventDefault()
                                       if (!dragged) return
                                       try {
-                                        await upsertAppointment({ ...dragged, time, date: selDate, chairId: chair.id, chairName: chair.name })
-                                        showToast('Перенесено на кресло', 'success')
+                                        const saved = await upsertAppointment({ ...dragged, time, date: selDate, chairId: chair.id, chairName: chair.name })
+                                        showToast((saved as any)?.__queuedOffline
+                                          ? 'Перенос сохранён на устройстве и отправится после восстановления сети'
+                                          : 'Перенесено на кресло', (saved as any)?.__queuedOffline ? 'warning' : 'success')
                                       } catch (err: any) {
                                         const msg = String(err?.message || '')
                                         if (msg.includes('Конфликт') || msg.includes('конфликт')) {
@@ -1074,8 +1208,10 @@ export default function Schedule() {
                                           setOverbookConfirm({
                                             message: `${msg}\n\nПеренести всё равно?`,
                                             retry: async () => {
-                                              await upsertAppointment({ ...d, time, date: selDate, chairId: chair.id, chairName: chair.name, force: true })
-                                              showToast('Перенесено с овербукингом', 'warning')
+                                              const saved = await upsertAppointment({ ...d, time, date: selDate, chairId: chair.id, chairName: chair.name, force: true })
+                                              showToast((saved as any)?.__queuedOffline
+                                                ? 'Перенос сохранён на устройстве и отправится после восстановления сети'
+                                                : 'Перенесено с овербукингом', 'warning')
                                             },
                                           })
                                         } else {
