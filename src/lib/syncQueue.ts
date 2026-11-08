@@ -13,7 +13,7 @@ const CACHE_PREFIX = 'dv_schedule_day_'
 export type SyncQueueContext = {
   clinicId: string
   workspaceId: string
-  branchId: string | null
+  workspaceBranchId: string | null
 }
 
 export type SyncQueueItem = {
@@ -157,7 +157,7 @@ export async function flushSyncQueue(activeContext: SyncQueueContext | null): Pr
       if (
         item.payload.clinicId !== activeContext.clinicId
         || item.payload.workspaceId !== activeContext.workspaceId
-        || (item.payload.branchId ?? null) !== (activeContext.branchId ?? null)
+        || (item.payload.workspaceBranchId ?? null) !== (activeContext.workspaceBranchId ?? null)
       ) {
         remaining.push(item)
         continue
