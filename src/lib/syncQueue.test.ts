@@ -450,6 +450,60 @@ describe('offline appointment queue replay', () => {
   });
 
 
+
+  it('refuses to queue changed clinical text that the local privacy sanitizer would remove', async () => {
+    const existing = {
+      id: 'appointment-clinical',
+      notes: 'Existing notes',
+      diagnosis: 'K04.7',
+      toothNumber: '36',
+      reason: 'Existing service',
+      service: 'service-id-1',
+      serviceName: 'Existing service',
+    } as any;
+
+    expect(() => assertQueueableAppointmentChange({
+      id: existing.id,
+      notes: 'New clinical note',
+    }, existing)).toThrow(/можно сохранить только при подключении/);
+    expect(() => assertQueueableAppointmentChange({
+      id: existing.id,
+      diagnosis: 'K04.8',
+    }, existing)).toThrow(/можно сохранить только при подключении/);
+    expect(() => assertQueueableAppointmentChange({
+      id: existing.id,
+      toothNumber: '37',
+    }, existing)).toThrow(/можно сохранить только при подключении/);
+    expect(() => assertQueueableAppointmentChange({
+      id: existing.id,
+      reason: 'New free-text clinical reason',
+    }, existing)).toThrow(/можно сохранить только при подключении/);
+  });
+
+  it('allows ordinary schedule changes and catalog service IDs while preserving existing clinical text', () => {
+    const existing = {
+      id: 'appointment-operational',
+      notes: 'Existing notes',
+      diagnosis: 'K04.7',
+      toothNumber: '36',
+      reason: 'Existing service',
+      service: 'service-id-1',
+      serviceName: 'Existing service',
+    } as any;
+
+    expect(() => assertQueueableAppointmentChange({
+      id: existing.id,
+      date: '2026-11-09',
+      time: '11:30',
+      doctorId: 'doctor-2',
+      serviceId: 'service-id-2',
+      notes: 'Existing notes',
+      diagnosis: 'K04.7',
+      toothNumber: '36',
+      reason: 'Existing service',
+    }, existing)).not.toThrow();
+  });
+
   it('preserves a newer offline edit enqueued while reconnect replay is in flight', async () => {
     let finishFirstRequest: (() => void) | undefined;
     apiUpsertAppointment.mockImplementationOnce(() => new Promise((resolve) => {
