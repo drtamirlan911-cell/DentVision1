@@ -295,33 +295,42 @@ export default function Schedule() {
     }
   }
 
+  const queueOfflineAppointment = async (data: Partial<Appointment> & { force?: boolean; id?: string }) => {
+    if (!data.id || !clinic?.id || !activeSyncContext) {
+      throw new Error('Для офлайн-сохранения требуется активный контекст клиники и рабочего места')
+    }
+    const existing = liveAppointments.find((appointment) => appointment.id === data.id)
+      || (editAppt?.id === data.id ? editAppt : null)
+    const existingForQueue = existing && !existing.serviceId
+      ? {
+        ...existing,
+        serviceId: pricedServices.find((service) =>
+          service.id === existing.service || service.name === existing.service ||
+          service.name === existing.serviceName || service.name === existing.reason
+        )?.id,
+      }
+      : existing
+    assertQueueableAppointmentChange(data as Partial<Appointment> & { id: string }, existingForQueue)
+    const queued = { ...data, ...activeSyncContext, id: data.id }
+    enqueueAppointmentUpsert(queued as any)
+    // Apply the safe local edit only after the sanitized queue is durably written.
+    await applyQueuedAppointmentToCache(queued)
+    setPendingSync(getSyncQueue().length)
+    return { ...data, __queuedOffline: true }
+  }
+
   const upsertAppointment = async (data: Partial<Appointment> & { force?: boolean; id?: string }) => {
+    // Do not start a request that cannot complete while the browser is explicitly
+    // offline. Queue synchronously against the current IAM context instead.
+    if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+      return queueOfflineAppointment(data)
+    }
     try {
       const result = await upsertAppointmentApi(data)
       setPendingSync(getSyncQueue().length)
       return result
     } catch (err) {
-      if (isLikelyOffline(err) && data.id && clinic?.id && activeSyncContext) {
-        const existing = liveAppointments.find((appointment) => appointment.id === data.id)
-          || (editAppt?.id === data.id ? editAppt : null)
-        const existingForQueue = existing && !existing.serviceId
-          ? {
-            ...existing,
-            serviceId: pricedServices.find((service) =>
-              service.id === existing.service || service.name === existing.service ||
-              service.name === existing.serviceName || service.name === existing.reason
-            )?.id,
-          }
-          : existing
-        assertQueueableAppointmentChange(data as Partial<Appointment> & { id: string }, existingForQueue)
-        const queued = { ...data, ...activeSyncContext, id: data.id }
-        enqueueAppointmentUpsert(queued as any)
-        // useDataQuery rolls its optimistic mutation back on a rejected request.
-        // Reapply the local change after queuing so the offline schedule stays live.
-        await applyQueuedAppointmentToCache(queued)
-        setPendingSync(getSyncQueue().length)
-        return { ...data, __queuedOffline: true }
-      }
+      if (isLikelyOffline(err)) return queueOfflineAppointment(data)
       throw err
     }
   }
