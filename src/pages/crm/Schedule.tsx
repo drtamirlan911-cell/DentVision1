@@ -553,18 +553,22 @@ export default function Schedule() {
       setModalOpen(false)
     } catch (err) {
       if (isLikelyOffline(err) && clinic?.id && activeSyncContext) {
-        enqueueAppointmentDelete(editAppt.id, activeSyncContext)
-        const key = [...queryKeys.appointments, clinic.id]
-        await queryClient.cancelQueries({ queryKey: key })
-        const cachedCurrentDay = readCachedDayAppointments(activeSyncContext, selDate)
-        const previous = queryClient.getQueryData<Appointment[]>(key)
-          ?? (liveAppointments.length > 0 ? liveAppointments : cachedCurrentDay ?? [])
-        const next = previous.filter((appointment) => appointment.id !== editAppt.id)
-        queryClient.setQueryData<Appointment[]>(key, next)
-        cacheDayAppointments(activeSyncContext, selDate, next.filter((appointment) => String(appointment.date).slice(0, 10) === selDate))
-        setPendingSync(getSyncQueue().length)
-        showToast('Нет сети — удаление поставлено в очередь синхронизации', 'warning')
-        setModalOpen(false)
+        try {
+          enqueueAppointmentDelete(editAppt.id, activeSyncContext)
+          const key = [...queryKeys.appointments, clinic.id]
+          await queryClient.cancelQueries({ queryKey: key })
+          const cachedCurrentDay = readCachedDayAppointments(activeSyncContext, selDate)
+          const previous = queryClient.getQueryData<Appointment[]>(key)
+            ?? (liveAppointments.length > 0 ? liveAppointments : cachedCurrentDay ?? [])
+          const next = previous.filter((appointment) => appointment.id !== editAppt.id)
+          queryClient.setQueryData<Appointment[]>(key, next)
+          cacheDayAppointments(activeSyncContext, selDate, next.filter((appointment) => String(appointment.date).slice(0, 10) === selDate))
+          setPendingSync(getSyncQueue().length)
+          showToast('Нет сети — удаление поставлено в очередь синхронизации', 'warning')
+          setModalOpen(false)
+        } catch (persistError) {
+          showToast((persistError as Error)?.message || 'Не удалось сохранить удаление на устройстве', 'error')
+        }
         return
       }
       showToast((err as Error)?.message || 'Не удалось удалить запись', 'error')
