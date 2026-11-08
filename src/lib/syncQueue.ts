@@ -119,16 +119,17 @@ function purgeLegacyScheduleDayCaches(): void {
 }
 
 function dayCacheKey(context: SyncQueueContext, date: string): string {
-  return [
-    CACHE_PREFIX,
+  // Encode one canonical tuple; delimiter-joining opaque IDs can collide when
+  // an upstream identifier itself contains the delimiter.
+  return `${CACHE_PREFIX}${encodeURIComponent(JSON.stringify([
     context.clinicId,
-    context.organizationId ?? 'no-organization',
+    context.organizationId,
     context.workspaceId,
-    context.workspaceBranchId ?? 'all-branches',
+    context.workspaceBranchId,
     context.userId,
     context.roleKey,
     date,
-  ].map((part) => encodeURIComponent(String(part))).join('_')
+  ]))}`
 }
 
 export function cacheDayAppointments(context: SyncQueueContext | null, date: string, appointments: Appointment[]): void {
