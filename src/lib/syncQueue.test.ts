@@ -512,6 +512,24 @@ describe('offline appointment queue replay', () => {
     }, existing)).not.toThrow();
   });
 
+  it('allows the canonical catalog label for an unchanged service ID on an existing appointment', () => {
+    const existing = {
+      id: 'appointment-catalog-label',
+      serviceId: 's1',
+      service: 's1',
+      serviceName: 'Первичная консультация',
+      reason: 'Первичная консультация',
+    } as any
+
+    expect(() => assertQueueableAppointmentChange({
+      id: existing.id,
+      serviceId: 's1',
+      serviceName: 'Первичная консультация',
+      reason: 'Первичная консультация',
+      time: '11:30',
+    }, existing)).not.toThrow()
+  })
+
   it('allows a new appointment with a catalog service ID but not arbitrary free text', () => {
     expect(() => assertQueueableAppointmentChange({
       id: 'new-appointment',

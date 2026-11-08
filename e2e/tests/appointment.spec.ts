@@ -297,6 +297,7 @@ test.describe('Appointment Workflow', () => {
         // The edit form requires a catalog service; keep the service unchanged
         // so the E2E exercises time-only offline sync rather than service edits.
         service: 's1',
+        serviceId: 's1',
         serviceName: 'Первичная консультация',
         servicePrice: 3000,
         reason: 'Первичная консультация',
@@ -326,6 +327,7 @@ test.describe('Appointment Workflow', () => {
       await expect(page.getByText('Appt Patient', { exact: true })).toBeVisible({ timeout: 30_000 });
       await page.getByText('Appt Patient', { exact: true }).last().click();
       await expect(page.getByRole('heading', { name: 'Редактировать запись' })).toBeVisible();
+      await expect(page.getByLabel('Услуга из прайса')).toHaveValue('s1');
 
       await page.getByLabel('Время').selectOption('11:30');
       await context.setOffline(true);
@@ -341,7 +343,9 @@ test.describe('Appointment Workflow', () => {
       expect(queued[0].payload.id).toBe(appointmentId);
       expect(queued[0].payload.time).toBe('11:30');
       expect(queued[0].payload.clinicId).toBeTruthy();
+      expect(queued[0].payload.serviceId).toBe('s1');
       expect(JSON.stringify(queued)).not.toContain('Appt Patient');
+      expect(JSON.stringify(queued)).not.toContain('Первичная консультация');
 
       await context.setOffline(false);
       await expect.poll(async () => page.evaluate(() => {
@@ -359,6 +363,7 @@ test.describe('Appointment Workflow', () => {
         ? rows.find((appointment: any) => appointment.id === appointmentId)
         : null;
       expect(persisted?.time).toContain('11:30');
+      expect(persisted?.serviceId).toBe('s1');
     } finally {
       await context.setOffline(false).catch(() => {});
       await cleanupAppointment(request, ownerToken, appointmentId);

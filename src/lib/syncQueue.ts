@@ -119,10 +119,9 @@ export function assertQueueableAppointmentChange(
     throw new Error('Свободное описание записи можно сохранить только при подключении к сети')
   }
 
-  // Human-readable service labels are removed from browser storage. A new
-  // appointment may be queued with its opaque catalog ID; changing a service
-  // on an existing appointment is refused above because its canonical label
-  // cannot safely be reconstructed by the current server mapper.
+  // Human-readable service labels are removed from browser storage. The
+  // opaque catalog ID round-trips through appointment metadata so the client
+  // can resolve the label after reconnect without persisting clinical text.
   if (!nextServiceId) {
     for (const field of ['service', 'serviceName'] as const) {
       if (
