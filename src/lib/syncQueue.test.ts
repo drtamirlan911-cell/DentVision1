@@ -478,6 +478,13 @@ describe('offline appointment queue replay', () => {
       id: existing.id,
       reason: 'New free-text clinical reason',
     }, existing)).toThrow(/можно сохранить только при подключении/);
+
+    expect(() => assertQueueableAppointmentChange({
+      id: existing.id,
+      serviceId: 'service-id-2',
+      serviceName: 'New catalog treatment',
+      reason: 'New catalog treatment',
+    }, existing)).toThrow(/Изменение услуги в существующей записи/);
   });
 
   it('allows ordinary schedule changes and catalog service IDs while preserving existing clinical text', () => {
@@ -502,6 +509,26 @@ describe('offline appointment queue replay', () => {
       toothNumber: '36',
       reason: 'Existing service',
     }, existing)).not.toThrow();
+  });
+
+  it('allows a new appointment with a catalog service ID but not arbitrary free text', () => {
+    expect(() => assertQueueableAppointmentChange({
+      id: 'new-appointment',
+      patientId: 'patient-1',
+      doctorId: 'doctor-1',
+      serviceId: 'catalog-service-1',
+      serviceName: 'Implant placement',
+      reason: 'Implant placement',
+      date: '2026-11-09',
+      time: '10:00',
+    })).not.toThrow();
+
+    expect(() => assertQueueableAppointmentChange({
+      id: 'new-appointment-free-text',
+      patientId: 'patient-1',
+      doctorId: 'doctor-1',
+      reason: 'Free text clinical description',
+    })).toThrow(/Свободное описание записи/);
   });
 
   it('preserves a newer offline edit enqueued while reconnect replay is in flight', async () => {
