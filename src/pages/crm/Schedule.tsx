@@ -21,6 +21,7 @@ import {
   isLikelyOffline,
   readCachedDayAppointments,
   startSyncQueueListener,
+  type SyncQueueContext,
 } from '@/lib/syncQueue'
 import { useAuth, canAcceptPayment } from '@/store/auth.store'
 import { useIam } from '@/iam/useIam'
@@ -81,7 +82,7 @@ const fadeUp = { hidden: { opacity: 0, y: 8 }, show: { opacity: 1, y: 0 } }
 
 export default function Schedule() {
   const outlet = useOutletContext<{ clinic?: Clinic; user?: UserType; roleInfo?: RoleInfo }>() || {}
-  const { user, roleInfo, clinic: authClinic, role } = useAuth()
+  const { user, roleInfo, clinic: authClinic, role, activeWorkspace } = useAuth()
   const iam = useIam()
   // Match Staff / IntelligenceLayout: prefer outlet + auth clinic over JWT claim alone.
   // Appointments API is JWT-scoped (works even with a stale user.clinicId), but
@@ -90,6 +91,17 @@ export default function Schedule() {
   const clinicId = outlet.clinic?.id || authClinic?.id || user?.clinicId || ''
   const clinic = clinicId ? { id: clinicId } : null
   const activeClinic = outlet.clinic || authClinic || (clinicId ? { id: clinicId } : null)
+  // Offline work is bound to the complete IAM context. A clinic match alone
+  // is not sufficient when a user can switch branch/workspace before reconnect.
+  const activeSyncContext = useMemo<SyncQueueContext | null>(() => {
+    const context = api.getWorkspaceContext()
+    const workspaceId = context?.workspaceId || activeWorkspace?.id || ''
+    const workspaceBranchId = context
+      ? context.branchId
+      : activeWorkspace?.branchId ?? null
+    if (!clinicId || !workspaceId) return null
+    return { clinicId, workspaceId, workspaceBranchId }
+  }, [clinicId, activeWorkspace?.id, activeWorkspace?.branchId])
   // Payment: admin / owner (руководитель) only — not doctors
   const canTakePayment = canAcceptPayment(role) || !!roleInfo?.canManageClinicSettings
   const {
@@ -162,11 +174,14 @@ export default function Schedule() {
     const onOn = () => setOffline(false)
     window.addEventListener('offline', onOff)
     window.addEventListener('online', onOn)
-    const stop = startSyncQueueListener(clinicId, (r) => {
+    const stop = startSyncQueueListener(activeSyncContext, (r) => {
       setPendingSync(getSyncQueue().length)
       if (r.flushed > 0) {
         void queryClient.invalidateQueries({ queryKey: [...queryKeys.appointments, clinicId] })
         showToast(`Синхронизировано: ${r.flushed}`, 'success')
+      } else if (r.remaining > 0 && activeSyncContext) {
+        // Remaining work may belong to another branch/workspace; keep it queued.
+        setPendingSync(r.remaining)
       }
     })
     setPendingSync(getSyncQueue().length)
@@ -175,7 +190,7 @@ export default function Schedule() {
       window.removeEventListener('online', onOn)
       stop()
     }
-  }, [clinicId, queryClient])
+  }, [clinicId, queryClient, activeSyncContext?.workspaceId, activeSyncContext?.workspaceBranchId])
 
   useEffect(() => {
     const patientId = searchParams.get('patient')
@@ -238,8 +253,8 @@ export default function Schedule() {
       setPendingSync(getSyncQueue().length)
       return result
     } catch (err) {
-      if (isLikelyOffline(err) && data.id && clinic?.id) {
-        const queued = { ...data, clinicId: clinic.id, id: data.id }
+      if (isLikelyOffline(err) && data.id && clinic?.id && activeSyncContext) {
+        const queued = { ...data, ...activeSyncContext, id: data.id }
         enqueueAppointmentUpsert(queued as any)
         // useDataQuery rolls its optimistic mutation back on a rejected request.
         // Reapply the local change after queuing so the offline schedule stays live.
@@ -506,8 +521,8 @@ export default function Schedule() {
       showToast('Запись удалена', 'success')
       setModalOpen(false)
     } catch (err) {
-      if (isLikelyOffline(err) && clinic?.id) {
-        enqueueAppointmentDelete(editAppt.id, clinic.id)
+      if (isLikelyOffline(err) && clinic?.id && activeSyncContext) {
+        enqueueAppointmentDelete(editAppt.id, activeSyncContext)
         const key = [...queryKeys.appointments, clinic.id]
         await queryClient.cancelQueries({ queryKey: key })
         const previous = queryClient.getQueryData<Appointment[]>(key) || liveAppointments || []
@@ -975,7 +990,7 @@ export default function Schedule() {
               variant="secondary"
               size="sm"
               onClick={async () => {
-                const r = await flushSyncQueue(clinicId)
+                const r = await flushSyncQueue(activeSyncContext)
                 setPendingSync(getSyncQueue().length)
                 if (r.flushed > 0) {
                   await queryClient.invalidateQueries({ queryKey: [...queryKeys.appointments, clinicId] })
