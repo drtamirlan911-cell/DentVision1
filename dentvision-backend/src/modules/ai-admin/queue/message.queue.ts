@@ -59,7 +59,7 @@ export async function failMessage(id: string, error: string): Promise<void> {
   await prisma.$executeRaw(Prisma.sql`
     UPDATE ${QUEUE_TABLE}
     SET status = CASE WHEN attempts >= ${MAX_ATTEMPTS} THEN 'failed' ELSE 'pending' END,
-        error = ${encryptAiAdminText(error)}
+        error = ${encryptAiAdminText(error)},
         updated_at = NOW()
     WHERE id = CAST(${id} AS uuid)
   `)
