@@ -1,10 +1,12 @@
-## Exact-head verification update — 2026-11-07
+## Exact-head verification update — 2026-11-08
 
-- EventStore new-write encryption is merged in PR #330 at commit `0de83c7331bc062444cd4d6701948cb97f6f44f5`.
-- Exact merged-head verification: CI [42344016473](https://github.com/drtamirlan911-cell/DentVision1/actions/runs/42344016473), Quality Gate [42344016403](https://github.com/drtamirlan911-cell/DentVision1/actions/runs/42344016403), RB-034 [42344016344](https://github.com/drtamirlan911-cell/DentVision1/actions/runs/42344016344) all succeeded.
-- `EventStore.save()` encrypts new `AIEvent.payload`; `markCompleted()` encrypts new `AIEvent.result`; `markFailed()` encrypts new `AIEvent.error`. `claimPending()`, `getEvents()` and `getEventById()` decode values. The merged CI executed the EventStore encryption tests, including persistence ciphertext, list/detail round-trip, legacy plaintext reads and fail-closed decryption.
-- This closes the **new-write source correction only**. Historical plaintext `AIEvent.payload/result/error` rows have not been counted or backfilled. Memory/learning, few-shot examples, realtime streams, notifications, exports, audit/error logs, Android/browser caches, retention/deletion, key versioning/rotation, old-key decryption, backup/restore, exception ledger and staging reconciliation remain open.
-- No historical database query, migration, staging/production backfill, backup restore or key rotation was performed. RB-029 remains OPEN / P0.
+- AI Admin derivative-PHI candidate PR #343 is open and awaiting exact-head CI / Quality Gate. It is based on current `main` and changes only the AI Admin queue, conversation, escalation, audit and provider-error persistence/read paths plus regression tests.
+- New incoming webhook message payloads are encrypted before PostgreSQL JSONB persistence; worker claim decrypts and normalizes `receivedAt` as a Date. Legacy object-shaped queue payloads remain readable. Queue processing error details are encrypted.
+- New `AiAdminMessage.content` and `toolResult` values are encrypted; `getRecentMessages()` decrypts them before AI context construction. New `AiAdminEscalation.reason` and `lastUserMessage` are encrypted and decrypted for the clinic escalation queue. Owner notifications contain generic queue links, not patient text.
+- AI Admin general audit rows retain operational metadata (session, tools, token count, latency, message-presence flags) and no longer duplicate user/assistant text. Worker/orchestrator error logs no longer print provider exception contents.
+- Tests cover new-write ciphertext, round-trip, plaintext compatibility, wrong-key fail-closed behavior, queue normalization, escalation reads and audit minimization. These are candidate tests until exact-head CI succeeds.
+- No Prisma schema or migration changes; no database queries, backfill, staging/production write, provider call, backup/restore or key rotation.
+- `AiAdminSession.externalUserId` remains a searchable external contact identifier because encrypting it safely requires a separate deterministic blind-index plus ciphertext storage design. Existing plaintext AI Admin queue/message/escalation/audit rows remain historical data and are not backfilled. RB-029 remains OPEN / P0.
 
 # RB-029 — Patient.medicalHistory encryption inventory and migration design
 
