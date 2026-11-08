@@ -325,7 +325,7 @@ test.describe('Appointment Workflow', () => {
       await context.setOffline(true);
       await page.getByRole('button', { name: 'Сохранить' }).click();
 
-      await expect(page.getByText('Нет сети — запись сохранена в очереди синхронизации')).toBeVisible();
+      await expect(page.getByText('Запись сохранена на устройстве и отправится после восстановления сети')).toBeVisible();
       const queued = await page.evaluate(() => {
         const rows = JSON.parse(localStorage.getItem('dv_schedule_sync_queue_v1') || '[]');
         return rows;
