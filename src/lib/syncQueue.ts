@@ -10,10 +10,16 @@ import { sanitizeForLocalStorage } from './localStoragePrivacy'
 const QUEUE_KEY = 'dv_schedule_sync_queue_v1'
 const CACHE_PREFIX = 'dv_schedule_day_'
 
+export type SyncQueueContext = {
+  clinicId: string
+  workspaceId: string
+  branchId: string | null
+}
+
 export type SyncQueueItem = {
   id: string
   kind: 'upsert' | 'delete'
-  payload: Partial<Appointment> & { force?: boolean; id: string }
+  payload: Partial<Appointment> & SyncQueueContext & { force?: boolean; id: string }
   enqueuedAt: string
   attempts: number
   lastError?: string
@@ -59,7 +65,7 @@ export function getSyncQueue(): SyncQueueItem[] {
   return loadQueue()
 }
 
-export function enqueueAppointmentUpsert(data: Partial<Appointment> & { force?: boolean; id: string }): void {
+export function enqueueAppointmentUpsert(data: Partial<Appointment> & SyncQueueContext & { force?: boolean; id: string }): void {
   // The newest intent for an appointment supersedes every queued operation
   // for that ID. This prevents a stale delete from replaying before a later edit.
   const q = loadQueue().filter((i) => i.payload.id !== data.id)
@@ -73,7 +79,7 @@ export function enqueueAppointmentUpsert(data: Partial<Appointment> & { force?: 
   saveQueue(q)
 }
 
-export function enqueueAppointmentDelete(id: string, clinicId: string): void {
+export function enqueueAppointmentDelete(id: string, context: SyncQueueContext): void {
   const current = loadQueue()
   const forAppointment = current.filter((item) => item.payload.id === id)
   const pendingUpsert = forAppointment.find((item) => item.kind === 'upsert')
@@ -84,7 +90,7 @@ export function enqueueAppointmentDelete(id: string, clinicId: string): void {
   q.push({
     id: `del_${id}_${Date.now()}`,
     kind: 'delete',
-    payload: { id, clinicId } as any,
+    payload: { id, ...context } as any,
     enqueuedAt: new Date().toISOString(),
     attempts: 0,
   })
@@ -127,12 +133,16 @@ export function isLikelyOffline(err?: unknown): boolean {
 
 let flushing = false
 
-export async function flushSyncQueue(activeClinicId: string): Promise<{ flushed: number; remaining: number }> {
+export async function flushSyncQueue(activeContext: SyncQueueContext | null): Promise<{ flushed: number; remaining: number }> {
   const queued = loadQueue()
-  // The API derives its tenant from the active authenticated session, not from
-  // a client-supplied clinicId. Never replay another clinic's queue under the
-  // currently active clinic, and fail closed when the context is unavailable.
-  if (!activeClinicId) return { flushed: 0, remaining: queued.length }
+  // The API derives tenant/workspace/branch from the active authenticated
+  // session. A queued operation may only replay in the exact same context.
+  // Legacy rows without a workspace/branch contract remain queued (fail closed).
+  if (
+    !activeContext?.clinicId
+    || !activeContext.workspaceId
+    || !Object.prototype.hasOwnProperty.call(activeContext, 'branchId')
+  ) return { flushed: 0, remaining: queued.length }
   if (flushing) return { flushed: 0, remaining: queued.length }
   if (typeof navigator !== 'undefined' && !navigator.onLine) {
     return { flushed: 0, remaining: loadQueue().length }
@@ -144,7 +154,11 @@ export async function flushSyncQueue(activeClinicId: string): Promise<{ flushed:
     const remaining: SyncQueueItem[] = []
     const failedUpserts = new Set<string>()
     for (const item of q) {
-      if (item.payload.clinicId !== activeClinicId) {
+      if (
+        item.payload.clinicId !== activeContext.clinicId
+        || item.payload.workspaceId !== activeContext.workspaceId
+        || (item.payload.branchId ?? null) !== (activeContext.branchId ?? null)
+      ) {
         remaining.push(item)
         continue
       }
@@ -178,11 +192,11 @@ export async function flushSyncQueue(activeClinicId: string): Promise<{ flushed:
 }
 
 export function startSyncQueueListener(
-  clinicId: string,
+  activeContext: SyncQueueContext | null,
   onFlush?: (r: { flushed: number; remaining: number }) => void,
 ): () => void {
   const handler = async () => {
-    const r = await flushSyncQueue(clinicId)
+    const r = await flushSyncQueue(activeContext)
     onFlush?.(r)
   }
   window.addEventListener('online', handler)
