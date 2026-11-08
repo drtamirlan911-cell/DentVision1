@@ -208,13 +208,27 @@ export default function Schedule() {
     await queryClient.cancelQueries({ queryKey: key })
     const previous = queryClient.getQueryData<Appointment[]>(key) || liveAppointments || []
     const index = previous.findIndex((appointment) => appointment.id === data.id)
+    const previousDate = index >= 0 ? String(previous[index].date || '').slice(0, 10) : ''
     const next = [...previous]
     const merged = { ...(index >= 0 ? next[index] : {}), ...data, clinicId } as Appointment
     if (index >= 0) next[index] = merged
     else next.push(merged)
     queryClient.setQueryData<Appointment[]>(key, next)
     if (clinic?.id) {
-      cacheDayAppointments(clinic.id, selDate, next.filter((appointment) => String(appointment.date).slice(0, 10) === selDate))
+      // Keep both sides of an offline reschedule visible after a reload.
+      // The localStorage serializer still strips all patient/clinical fields.
+      const affectedDates = new Set([
+        selDate,
+        previousDate,
+        String(merged.date || '').slice(0, 10),
+      ].filter(Boolean))
+      for (const date of affectedDates) {
+        cacheDayAppointments(
+          clinic.id,
+          date,
+          next.filter((appointment) => String(appointment.date).slice(0, 10) === date),
+        )
+      }
     }
   }
 
