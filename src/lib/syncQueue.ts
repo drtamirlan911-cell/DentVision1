@@ -75,7 +75,6 @@ const OFFLINE_CLINICAL_FIELDS = [
   'notes',
   'diagnosis',
   'toothNumber',
-  'reason',
 ] as const
 
 function comparableOfflineValue(value: unknown): string {
@@ -94,14 +93,37 @@ export function assertQueueableAppointmentChange(
   for (const field of OFFLINE_CLINICAL_FIELDS) {
     if (!Object.prototype.hasOwnProperty.call(data, field)) continue
     if (comparableOfflineValue(data[field]) !== comparableOfflineValue(existing?.[field])) {
-      throw new Error('Клинические заметки, диагноз, номер зуба и свободное описание можно сохранить только при подключении к сети')
+      throw new Error('Клинические заметки, диагноз и номер зуба можно сохранить только при подключении к сети')
     }
   }
 
-  // Human-readable service labels are removed from browser storage. The
-  // canonical opaque catalog ID is sufficient when the operation changes the
-  // selected service; free-text labels without that ID must not be dropped.
-  if (!data.serviceId) {
+  const nextServiceId = comparableOfflineValue((data as any).serviceId)
+  const currentServiceId = comparableOfflineValue((existing as any)?.serviceId || existing?.service)
+  const serviceChanged = Boolean(nextServiceId) && nextServiceId !== currentServiceId
+
+  if (existing && serviceChanged) {
+    throw new Error('Изменение услуги в существующей записи можно сохранить только при подключении к сети')
+  }
+
+  const nextReason = comparableOfflineValue(data.reason)
+  const currentReason = comparableOfflineValue(existing?.reason)
+  const reasonChanged = Object.prototype.hasOwnProperty.call(data, 'reason') && nextReason !== currentReason
+  const catalogDerivedReason = Boolean(nextServiceId)
+    && Boolean(nextReason)
+    && (
+      nextReason === comparableOfflineValue(data.serviceName)
+      || nextReason === nextServiceId
+    )
+
+  if (reasonChanged && (!catalogDerivedReason || existing)) {
+    throw new Error('Свободное описание записи можно сохранить только при подключении к сети')
+  }
+
+  // Human-readable service labels are removed from browser storage. A new
+  // appointment may be queued with its opaque catalog ID; changing a service
+  // on an existing appointment is refused above because its canonical label
+  // cannot safely be reconstructed by the current server mapper.
+  if (!nextServiceId) {
     for (const field of ['service', 'serviceName'] as const) {
       if (
         Object.prototype.hasOwnProperty.call(data, field)
