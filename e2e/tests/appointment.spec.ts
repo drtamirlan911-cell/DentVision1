@@ -280,6 +280,85 @@ test.describe('Appointment Workflow', () => {
     await cleanupAppointment(request, ownerToken, appt2.id);
   });
 
+
+  test('RB-030: offline appointment edit queues locally and persists after reconnect', async ({ request, page, context }) => {
+    const date = futureDate(1);
+    const createRes = await request.post(`${BASE}/api/appointments`, {
+      headers: { Authorization: `Bearer ${ownerToken}` },
+      data: {
+        id: `rb030-${Date.now()}`,
+        patientId,
+        doctorId,
+        date,
+        time: '10:00',
+        duration: 30,
+        type: 'checkup',
+        status: 'scheduled',
+      },
+    });
+    expect(createRes.status()).toBe(201);
+    const created = await apiPayload(createRes);
+    const appointmentId = created.id as string;
+
+    try {
+      const loginRes = await request.post(`${BASE}/api/auth/login`, {
+        data: { email: 'owner-a@test.com', password: 'Test1234!' },
+      });
+      expect(loginRes.status()).toBe(200);
+      const loginBody = await apiPayload(loginRes);
+      const tokens = loginBody.tokens || loginBody;
+      expect(tokens.accessToken).toBeTruthy();
+      expect(tokens.refreshToken).toBeTruthy();
+
+      await page.addInitScript(({ access, refresh }) => {
+        sessionStorage.setItem('dv_tokens', JSON.stringify({ access, refresh }));
+      }, { access: tokens.accessToken, refresh: tokens.refreshToken });
+
+      await page.goto(`${process.env.PLAYWRIGHT_UI_URL || 'http://localhost:3000'}/crm/schedule`);
+      await expect(page.getByText('Расписание', { exact: true })).toBeVisible({ timeout: 60_000 });
+      await page.getByLabel('Дата').fill(date);
+      await expect(page.getByText('Appt Patient', { exact: true })).toBeVisible({ timeout: 30_000 });
+      await page.getByText('Appt Patient', { exact: true }).last().click();
+      await expect(page.getByRole('heading', { name: 'Редактировать запись' })).toBeVisible();
+
+      await page.getByLabel('Время').selectOption('11:30');
+      await context.setOffline(true);
+      await page.getByRole('button', { name: 'Сохранить' }).click();
+
+      await expect(page.getByText('Нет сети — запись сохранена в очереди синхронизации')).toBeVisible();
+      const queued = await page.evaluate(() => {
+        const rows = JSON.parse(localStorage.getItem('dv_schedule_sync_queue_v1') || '[]');
+        return rows;
+      });
+      expect(queued).toHaveLength(1);
+      expect(queued[0].kind).toBe('upsert');
+      expect(queued[0].payload.id).toBe(appointmentId);
+      expect(queued[0].payload.time).toBe('11:30');
+      expect(queued[0].payload.clinicId).toBeTruthy();
+      expect(JSON.stringify(queued)).not.toContain('Appt Patient');
+
+      await context.setOffline(false);
+      await expect.poll(async () => page.evaluate(() => {
+        return JSON.parse(localStorage.getItem('dv_schedule_sync_queue_v1') || '[]').length;
+      }), { timeout: 30_000 }).toBe(0);
+
+      const listRes = await request.get(
+        `${BASE}/api/appointments?from=${date}&to=${date}`,
+        { headers: { Authorization: `Bearer ${ownerToken}` } },
+      );
+      expect(listRes.status()).toBe(200);
+      const listBody = await apiPayload(listRes);
+      const rows = listBody.data || listBody;
+      const persisted = Array.isArray(rows)
+        ? rows.find((appointment: any) => appointment.id === appointmentId)
+        : null;
+      expect(persisted?.time).toContain('11:30');
+    } finally {
+      await context.setOffline(false).catch(() => {});
+      await cleanupAppointment(request, ownerToken, appointmentId);
+    }
+  });
+
   test('APPT-010: Appointment for non-existent patient → 400/404', async ({ request }) => {
     const res = await request.post(`${BASE}/api/appointments`, {
       headers: { Authorization: `Bearer ${ownerToken}` },
