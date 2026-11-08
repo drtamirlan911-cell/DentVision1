@@ -13,6 +13,7 @@ import { snapDuration } from '@/lib/clinicPrices'
 import { queryKeys } from '@/queries/keys'
 import * as api from '@/utils/api'
 import {
+  assertQueueableAppointmentChange,
   cacheDayAppointments,
   enqueueAppointmentDelete,
   enqueueAppointmentUpsert,
@@ -285,6 +286,9 @@ export default function Schedule() {
       return result
     } catch (err) {
       if (isLikelyOffline(err) && data.id && clinic?.id && activeSyncContext) {
+        const existing = liveAppointments.find((appointment) => appointment.id === data.id)
+          || (editAppt?.id === data.id ? editAppt : null)
+        assertQueueableAppointmentChange(data as Partial<Appointment> & { id: string }, existing)
         const queued = { ...data, ...activeSyncContext, id: data.id }
         enqueueAppointmentUpsert(queued as any)
         // useDataQuery rolls its optimistic mutation back on a rejected request.
