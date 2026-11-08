@@ -74,7 +74,13 @@ export function enqueueAppointmentUpsert(data: Partial<Appointment> & { force?: 
 }
 
 export function enqueueAppointmentDelete(id: string, clinicId: string): void {
-  const q = loadQueue().filter((i) => i.payload.id !== id)
+  const current = loadQueue()
+  const forAppointment = current.filter((item) => item.payload.id === id)
+  const pendingUpsert = forAppointment.find((item) => item.kind === 'upsert')
+  // If this appointment has never reached the server, preserve its queued
+  // upsert and append the delete. Replay will create it before cancelling it.
+  const q = current.filter((item) => item.payload.id !== id)
+  if (pendingUpsert) q.push(pendingUpsert)
   q.push({
     id: `del_${id}_${Date.now()}`,
     kind: 'delete',
@@ -136,8 +142,15 @@ export async function flushSyncQueue(activeClinicId: string): Promise<{ flushed:
   try {
     const q = queued
     const remaining: SyncQueueItem[] = []
+    const failedUpserts = new Set<string>()
     for (const item of q) {
       if (item.payload.clinicId !== activeClinicId) {
+        remaining.push(item)
+        continue
+      }
+      // Do not execute a queued delete when its create/update operation failed
+      // earlier in this same replay. The next reconnect retries in order.
+      if (item.kind === 'delete' && failedUpserts.has(item.payload.id)) {
         remaining.push(item)
         continue
       }
@@ -149,6 +162,7 @@ export async function flushSyncQueue(activeClinicId: string): Promise<{ flushed:
         }
         flushed += 1
       } catch (err: any) {
+        if (item.kind === 'upsert') failedUpserts.add(item.payload.id)
         remaining.push({
           ...item,
           attempts: item.attempts + 1,
