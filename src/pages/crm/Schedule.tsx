@@ -1,4 +1,4 @@
-﻿import React, { useState, useMemo, useEffect } from 'react'
+﻿import React, { useState, useMemo, useEffect, useCallback } from 'react'
 import { useNavigate, useSearchParams, useOutletContext } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
@@ -328,7 +328,7 @@ export default function Schedule() {
       })
     }
     return list
-  }, [appointments, selDate, ownDataOnly, user, selectedDoctorFilter, patients, searchAppts, pricedServices])
+  }, [appointments, selDate, ownDataOnly, user, selectedDoctorFilter, patients, searchAppts, appointmentServiceLabel])
 
   const dayWaitList = useMemo(
     () => waitingList.filter(w => {
@@ -366,7 +366,7 @@ export default function Schedule() {
       map[d] = list.sort((a, b) => a.time.localeCompare(b.time))
     }
     return map
-  }, [appointments, weekDates, ownDataOnly, user, selectedDoctorFilter, patients, searchAppts, pricedServices])
+  }, [appointments, weekDates, ownDataOnly, user, selectedDoctorFilter, patients, searchAppts, appointmentServiceLabel])
 
   const doctorColumns = useMemo(() => {
     let list =
@@ -411,19 +411,19 @@ export default function Schedule() {
     [pricedServices],
   )
   const selectedService = pricedServices.find(s => s.id === form.service)
-  const appointmentServiceId = (appointment: Appointment): string => {
+  const appointmentServiceId = useCallback((appointment: Appointment): string => {
     if (appointment.serviceId) return appointment.serviceId
     if (appointment.service && pricedServices.some((service) => service.id === appointment.service)) return appointment.service
     return pricedServices.find((service) =>
       service.name === appointment.serviceName || service.name === appointment.service || service.name === appointment.reason
     )?.id || ''
-  }
-  const appointmentServiceLabel = (appointment: Appointment): string => {
+  }, [pricedServices])
+  const appointmentServiceLabel = useCallback((appointment: Appointment): string => {
     const catalogService = pricedServices.find((service) =>
       service.id === appointment.serviceId || service.id === appointment.service
     )
     return catalogService?.name || appointment.serviceName || appointment.service || appointment.reason || ''
-  }
+  }, [pricedServices])
 
   // Тот же прайс, что и при записи. Раньше список собирался только из строк,
   // которые клиника явно сохранила, — у новой клиники он был пуст, и добавить
