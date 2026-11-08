@@ -1,9 +1,11 @@
-## Exact-head verification update — 2026-11-06
+## Exact-head verification update — 2026-11-08
 
-- EventStore new-write handling for `AIEvent.result` and `AIEvent.error` is implemented in commit `3aa6d0f7af24fbbbb5ed49bc7fac0c75fa2f8bfe`; list/detail readers decode encrypted values and preserve legacy plaintext compatibility.
-- CI `41975258101` on exact HEAD `e8877e81b105daedccba00a305f6b13d715c9b35` did not verify the change: the EventStore test suite failed before execution because the test mock's `update` value was omitted from destructuring. The remaining unit tests passed (2,482 tests / 278 files); full E2E, lint, build, TypeScript and System Map checks passed.
-- The correction adds the existing `update` mock to the destructuring; exact-head CI rerun is required. Do not mark EventStore derivative encryption verified until that suite executes and passes.
-- Historical `AIEvent.payload/result/error` rows have not been queried, counted, backfilled or changed. Key versioning/rotation, backup/restore, exception ledger and staging reconciliation remain open. No staging/production database operation occurred.
+- AI Admin new-write PHI protections were merged in PR #343 at `6d2d0b4c875f5b915ec7eb92ea6e3a7c12e07455`. Exact-head CI [42465473760](https://github.com/drtamirlan911-cell/DentVision1/actions/runs/42465473760) and Quality Gate [42465473744](https://github.com/drtamirlan911-cell/DentVision1/actions/runs/42465473744) succeeded.
+- The merged code encrypts WhatsApp/Instagram webhook payloads before queue persistence and queue error details; encrypts new AI Admin message content, tool-result JSON, and escalation reason/last user message; and decrypts these on worker, conversation-history and escalation-queue read paths. Legacy plaintext text and object-shaped queue JSONB remain readable.
+- General AI Admin audit details now retain operational metadata only instead of duplicating message content. Owner escalation notifications are generic. The common AI ActionLog records an error-presence indicator instead of exception text; query/stream and AI Admin worker/orchestrator logs no longer print raw provider exceptions.
+- Exact-head test evidence: 2,536 unit tests across 288 files passed; TypeScript, build, frontend/backend lint, core E2E, Browser UX, Mobile Design, Role/Context, Visual Agent, Business Owner, Organization Owner, Playwright CLI, visual release evidence and Quality Gate all passed.
+- No Prisma schema/migration changes or historical backfill were performed. No live/staging database query or write, external provider call, secret change, key rotation, backup/restore or deployment was performed.
+- `AiAdminSession.externalUserId` remains a searchable external contact identifier. Existing plaintext AI Admin queue/message/escalation/audit and historical `AIActionLog` rows remain uncounted and unbackfilled; safe blind-index/ciphertext design, retention/deletion, key versioning/rotation, old-key handling, backup/restore and approved staging reconciliation remain open. RB-029 remains OPEN / P0.
 
 # RB-029 — Patient.medicalHistory encryption inventory and migration design
 

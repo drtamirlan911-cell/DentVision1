@@ -1,3 +1,25 @@
+## Exact-head checkpoint — 2026-11-08 (current main)
+
+### RB-037 — clinical diagnostic sign-off
+- **Status: RESOLVED in code and exact-head CI.** PR #341 merged at `21641389dafcd478aef6ff79be55177ec4b51016`.
+- Exact-head CI [42374982404](https://github.com/drtamirlan911-cell/DentVision1/actions/runs/42374982404) and Quality Gate [42374982372](https://github.com/drtamirlan911-cell/DentVision1/actions/runs/42374982372) succeeded. CI jobs passed: backend/frontend lint, unit/lint-test, core E2E, browser UX, mobile design (16), role/context (139 passed / 28 skipped), visual agent (48), business owner (11), organization owner (8), Playwright CLI and visual release validation.
+- Clinic-side AI-result confirmation and patient-chart signing require an organization-scoped `DOCTOR` PersonRole, referral assignment and persisted clinic/branch access. Authorization checks the complete scoped role set, preserving the Master Spec 5.0 `OWNER + DOCTOR` case; the ordinary OWNER, ADMIN, DIRECTOR, MANAGER, ASSISTANT and SUPERADMIN without clinic clinical membership remain denied. Missing clinic/branch context and archived organizations fail closed.
+- Partner diagnostic-center and laboratory signing remain separately scoped and do not create a clinic Visit. Rejected callers are verified not to sign, complete referrals or create Visit rows.
+
+### RB-029 — PHI encryption and historical-data protection
+- **Status: OPEN / P0.** EventStore new-write controls are merged and exact-head verified in PR #330 at `0de83c7331bc062444cd4d6701948cb97f6f44f5`; CI [42344016473](https://github.com/drtamirlan911-cell/DentVision1/actions/runs/42344016473), Quality Gate [42344016403](https://github.com/drtamirlan911-cell/DentVision1/actions/runs/42344016403) and RB-034 [42344016344](https://github.com/drtamirlan911-cell/DentVision1/actions/runs/42344016344) passed.
+- **AI Admin new-write controls: MERGED and exact-head verified** in PR #343 at `6d2d0b4c875f5b915ec7eb92ea6e3a7c12e07455`. CI [42465473760](https://github.com/drtamirlan911-cell/DentVision1/actions/runs/42465473760) and Quality Gate [42465473744](https://github.com/drtamirlan911-cell/DentVision1/actions/runs/42465473744) passed. The exact head passed 2,536 unit tests across 288 files, TypeScript/build, backend/frontend lint, core E2E, Browser UX, Mobile Design, Role/Context, Visual Agent, Business Owner, Organization Owner, Playwright CLI and visual evidence validation.
+- The merged AI Admin controls encrypt new WhatsApp/Instagram queue payloads and queue errors; `AiAdminMessage.content` and tool-result JSON; `AiAdminEscalation.reason` and `lastUserMessage`. Readers decrypt those values while keeping legacy plaintext/object rows readable. General AI Admin audit no longer duplicates conversation text, owner alerts are generic, and worker/orchestrator/provider plus `/api/ai/query` error paths no longer persist/log raw exception text.
+- No Prisma schema/migration change or historical backfill was included. `AiAdminSession.externalUserId` remains a searchable external contact identifier; protecting it requires a separate blind-index/ciphertext design and schema change. This item remains open.
+- Historical plaintext `AIEvent.payload/result/error`, `AIMessage`, `AISession`, `Patient.medicalHistory`, `PatientConversation`, `AiApproval`, AI Admin queue/message/escalation/audit rows have not been counted or backfilled. Broader Memory/learning, few-shot, realtime, notification/export/audit/error-log, Android/browser-cache, retention/deletion, key versioning/rotation, old-key handling, backup/restore, exception ledger and approved staging reconciliation/rollback remain outstanding. No production/staging query or backfill was performed.
+
+### Other release blockers
+- D1/D2 migration and post-expiry/archive retention evidence still require approved staging.
+- RB-030 offline appointment edit/reconnect/sync E2E; RB-031 WebKit OPTIONS/CORS/WebSocket evidence; RB-033 branch protection verification; official Kaspi merchant contract/callback; Android runtime remain OPEN.
+- RB-036 resolved only for premature delivered-triggered dental-lab economics; D10 remains OPEN/PARTIAL for full independent lab operations and financial lifecycle.
+- Master Spec 5.0 compliance remains 18 PARTIAL / 4 OPEN / 2 GUIDANCE in the current register. Release remains NOT READY.
+- No live database/backfill, production deployment, secret change or payment-provider operation was performed in this checkpoint.
+
 ## RB-035 exact-head test follow-up — 2026-11-06
 
 - Candidate source fix is implemented in PR #330 but not yet accepted as verified. Exact baseline `1da8313edb413a44a4cfae79799108e0a76cec2c` had 2,494 unit tests pass and one new recipient test fail because its Prisma mock did not apply the explicit `userId in ['doctor-b']` predicate. The production resolver passes that predicate to Prisma; the fixture returned both doctor rows.
