@@ -302,7 +302,6 @@ test.describe('Appointment Workflow', () => {
         service: 's1',
         serviceId: 's1',
         servicePrice: 3000,
-        reason: 'Первичная консультация',
       },
     });
     expect(createRes.status()).toBe(201);
@@ -368,6 +367,7 @@ test.describe('Appointment Workflow', () => {
         : null;
       expect(persisted?.time).toContain('11:30');
       expect(persisted?.serviceId).toBe('s1');
+      expect(persisted?.reason).toBe('checkup');
     } finally {
       await context.setOffline(false).catch(() => {});
       await cleanupAppointment(request, ownerToken, appointmentId);
