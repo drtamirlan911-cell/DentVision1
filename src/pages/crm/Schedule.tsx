@@ -1023,13 +1023,18 @@ export default function Schedule() {
               variant="secondary"
               size="sm"
               onClick={async () => {
-                const r = await flushSyncQueue(activeSyncContext)
-                setPendingSync(getSyncQueue().length)
-                if (r.flushed > 0) {
-                  await queryClient.invalidateQueries({ queryKey: [...queryKeys.appointments, clinicId] })
-                  showToast(`Синхронизировано: ${r.flushed}`, 'success')
-                } else {
-                  showToast(r.remaining > 0 ? 'Нет записей для синхронизации в этой клинике' : 'Нечего синхронизировать', 'info')
+                try {
+                  const r = await flushSyncQueue(activeSyncContext)
+                  setPendingSync(getSyncQueue().length)
+                  if (r.flushed > 0) {
+                    await queryClient.invalidateQueries({ queryKey: [...queryKeys.appointments, clinicId] })
+                    showToast(`Синхронизировано: ${r.flushed}`, 'success')
+                  } else {
+                    showToast(r.remaining > 0 ? 'Нет записей для синхронизации в этой клинике' : 'Нечего синхронизировать', 'info')
+                  }
+                } catch {
+                  setPendingSync(getSyncQueue().length)
+                  showToast('Не удалось завершить синхронизацию. Повторите попытку.', 'error')
                 }
               }}
             >
