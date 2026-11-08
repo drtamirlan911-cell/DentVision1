@@ -1,15 +1,36 @@
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { getSyncQueue } from './syncQueue';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+
+const { apiUpsertAppointment, apiDeleteAppointment } = vi.hoisted(() => ({
+  apiUpsertAppointment: vi.fn(),
+  apiDeleteAppointment: vi.fn(),
+}));
+
+vi.mock('../utils/api', () => ({
+  upsertAppointment: apiUpsertAppointment,
+  deleteAppointment: apiDeleteAppointment,
+}));
+
+import {
+  enqueueAppointmentDelete,
+  enqueueAppointmentUpsert,
+  flushSyncQueue,
+  getSyncQueue,
+} from './syncQueue';
 
 const QUEUE_KEY = 'dv_schedule_sync_queue_v1';
 
 describe('offline schedule queue privacy guard', () => {
   beforeEach(() => {
     localStorage.clear();
+    vi.clearAllMocks();
+    apiUpsertAppointment.mockResolvedValue({ ok: true });
+    apiDeleteAppointment.mockResolvedValue({ ok: true });
+    vi.stubGlobal('navigator', { onLine: true });
   });
 
   afterEach(() => {
     localStorage.clear();
+    vi.unstubAllGlobals();
   });
 
   it('scrubs legacy patient data and does not persist raw API error text', () => {
@@ -93,5 +114,97 @@ describe('offline schedule queue privacy guard', () => {
     expect(persisted).not.toContain('Имплантация зуба 11');
     expect(persisted).not.toContain('toothNumber');
     expect(persisted).not.toContain('"service":');
+  });
+});
+
+
+describe('offline appointment queue replay', () => {
+  it('keeps only the newest operation for an appointment ID', () => {
+    enqueueAppointmentUpsert({
+      id: 'appointment-1',
+      patientId: 'patient-1',
+      doctorId: 'doctor-1',
+      date: '2026-11-08',
+      time: '10:00',
+    });
+    enqueueAppointmentDelete('appointment-1');
+    enqueueAppointmentUpsert({
+      id: 'appointment-1',
+      patientId: 'patient-1',
+      doctorId: 'doctor-1',
+      date: '2026-11-08',
+      time: '11:30',
+    });
+
+    const queue = getSyncQueue();
+    expect(queue).toHaveLength(1);
+    expect(queue[0].kind).toBe('upsert');
+    expect(queue[0].payload.time).toBe('11:30');
+  });
+
+  it('does not send queue items while the browser is offline', async () => {
+    vi.stubGlobal('navigator', { onLine: false });
+    enqueueAppointmentUpsert({
+      id: 'appointment-offline',
+      patientId: 'patient-1',
+      doctorId: 'doctor-1',
+      date: '2026-11-08',
+      time: '12:00',
+    });
+
+    await expect(flushSyncQueue()).resolves.toEqual({ flushed: 0, remaining: 1 });
+    expect(apiUpsertAppointment).not.toHaveBeenCalled();
+    expect(apiDeleteAppointment).not.toHaveBeenCalled();
+  });
+
+  it('replays appointment edits and deletes, then clears the queue', async () => {
+    enqueueAppointmentUpsert({
+      id: 'appointment-edit',
+      clinicId: 'clinic-opaque-id',
+      patientId: 'patient-opaque-id',
+      doctorId: 'doctor-opaque-id',
+      patientName: 'Sensitive patient name',
+      notes: 'Sensitive clinical note',
+      date: '2026-11-08',
+      time: '13:30',
+    });
+    enqueueAppointmentDelete('appointment-delete');
+
+    await expect(flushSyncQueue()).resolves.toEqual({ flushed: 2, remaining: 0 });
+    expect(apiUpsertAppointment).toHaveBeenCalledTimes(1);
+    expect(apiUpsertAppointment).toHaveBeenCalledWith(expect.objectContaining({
+      id: 'appointment-edit',
+      clinicId: 'clinic-opaque-id',
+      patientId: 'patient-opaque-id',
+      doctorId: 'doctor-opaque-id',
+      date: '2026-11-08',
+      time: '13:30',
+    }));
+    expect(apiUpsertAppointment.mock.calls[0][0]).not.toHaveProperty('patientName');
+    expect(apiUpsertAppointment.mock.calls[0][0]).not.toHaveProperty('notes');
+    expect(apiDeleteAppointment).toHaveBeenCalledWith('appointment-delete');
+    expect(getSyncQueue()).toEqual([]);
+  });
+
+  it('retains failed operations for the next reconnect without persisting raw errors', async () => {
+    apiUpsertAppointment.mockRejectedValueOnce(new Error('Patient name and diagnosis echoed by API'));
+    enqueueAppointmentUpsert({
+      id: 'appointment-retry',
+      patientId: 'patient-1',
+      doctorId: 'doctor-1',
+      date: '2026-11-08',
+      time: '14:00',
+    });
+
+    await expect(flushSyncQueue()).resolves.toEqual({ flushed: 0, remaining: 1 });
+    const failed = getSyncQueue();
+    expect(failed).toHaveLength(1);
+    expect(failed[0].attempts).toBe(1);
+    expect(failed[0]).not.toHaveProperty('lastError');
+    expect(localStorage.getItem(QUEUE_KEY)).not.toContain('Patient name and diagnosis');
+
+    await expect(flushSyncQueue()).resolves.toEqual({ flushed: 1, remaining: 0 });
+    expect(apiUpsertAppointment).toHaveBeenCalledTimes(2);
+    expect(getSyncQueue()).toEqual([]);
   });
 });
