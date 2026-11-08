@@ -119,6 +119,19 @@ describe('offline schedule queue privacy guard', () => {
 
 
 describe('offline appointment queue replay', () => {
+  beforeEach(() => {
+    localStorage.clear();
+    vi.clearAllMocks();
+    apiUpsertAppointment.mockResolvedValue({ ok: true });
+    apiDeleteAppointment.mockResolvedValue({ ok: true });
+    vi.stubGlobal('navigator', { onLine: true });
+  });
+
+  afterEach(() => {
+    localStorage.clear();
+    vi.unstubAllGlobals();
+  });
+
   it('keeps only the newest operation for an appointment ID', () => {
     enqueueAppointmentUpsert({
       id: 'appointment-1',
