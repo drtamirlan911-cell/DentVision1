@@ -60,7 +60,9 @@ export function getSyncQueue(): SyncQueueItem[] {
 }
 
 export function enqueueAppointmentUpsert(data: Partial<Appointment> & { force?: boolean; id: string }): void {
-  const q = loadQueue().filter((i) => !(i.kind === 'upsert' && i.payload.id === data.id))
+  // The newest intent for an appointment supersedes every queued operation
+  // for that ID. This prevents a stale delete from replaying before a later edit.
+  const q = loadQueue().filter((i) => i.payload.id !== data.id)
   q.push({
     id: `uq_${data.id}_${Date.now()}`,
     kind: 'upsert',
