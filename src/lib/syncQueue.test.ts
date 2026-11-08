@@ -348,6 +348,29 @@ describe('offline appointment queue replay', () => {
     expect(getSyncQueue()).toHaveLength(1);
   });
 
+
+  it('fails closed when identity or role is missing from active context', async () => {
+    enqueueAppointmentUpsert({
+      id: 'appointment-incomplete-context',
+      ...workspaceContext('clinic-a'),
+      patientId: 'patient-a',
+      doctorId: 'doctor-a',
+      date: '2026-11-08',
+      time: '09:00',
+    });
+    const incomplete = {
+      clinicId: 'clinic-a',
+      organizationId: 'organization-clinic-a',
+      workspaceId: 'workspace-clinic-a',
+      workspaceBranchId: null,
+      roleKey: 'owner',
+    } as any;
+
+    await expect(flushSyncQueue(incomplete)).resolves.toEqual({ flushed: 0, remaining: 1 });
+    expect(apiUpsertAppointment).not.toHaveBeenCalled();
+    expect(getSyncQueue()).toHaveLength(1);
+  });
+
   it('fails closed and keeps the queue when no active clinic context is supplied', async () => {
     enqueueAppointmentUpsert({
       id: 'appointment-no-context',
