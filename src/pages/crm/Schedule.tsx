@@ -205,18 +205,18 @@ export default function Schedule() {
 
   useEffect(() => {
     if (clinic?.id && liveAppointments.length) {
-      cacheDayAppointments(clinic.id, selDate, liveAppointments.filter((a) => a.date === selDate))
+      cacheDayAppointments(activeSyncContext, selDate, liveAppointments.filter((a) => a.date === selDate))
     }
-  }, [clinic?.id, selDate, liveAppointments])
+  }, [clinic?.id, activeSyncContext, selDate, liveAppointments])
 
   const appointments = useMemo(() => {
     if (liveAppointments.length) return liveAppointments
     if (clinic?.id) {
-      const cached = readCachedDayAppointments(clinic.id, selDate)
+      const cached = readCachedDayAppointments(activeSyncContext, selDate)
       if (cached?.length) return cached
     }
     return liveAppointments
-  }, [liveAppointments, clinic?.id, selDate])
+  }, [liveAppointments, clinic?.id, activeSyncContext, selDate])
 
   const applyQueuedAppointmentToCache = async (data: Partial<Appointment> & { id: string }) => {
     const key = [...queryKeys.appointments, clinicId]
@@ -239,7 +239,7 @@ export default function Schedule() {
       ].filter(Boolean))
       for (const date of affectedDates) {
         cacheDayAppointments(
-          clinic.id,
+          activeSyncContext,
           date,
           next.filter((appointment) => String(appointment.date).slice(0, 10) === date),
         )
@@ -528,7 +528,7 @@ export default function Schedule() {
         const previous = queryClient.getQueryData<Appointment[]>(key) || liveAppointments || []
         const next = previous.filter((appointment) => appointment.id !== editAppt.id)
         queryClient.setQueryData<Appointment[]>(key, next)
-        cacheDayAppointments(clinic.id, selDate, next.filter((appointment) => String(appointment.date).slice(0, 10) === selDate))
+        cacheDayAppointments(activeSyncContext, selDate, next.filter((appointment) => String(appointment.date).slice(0, 10) === selDate))
         setPendingSync(getSyncQueue().length)
         showToast('Нет сети — удаление поставлено в очередь синхронизации', 'warning')
         setModalOpen(false)
