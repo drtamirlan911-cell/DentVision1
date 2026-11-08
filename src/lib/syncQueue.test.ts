@@ -23,7 +23,10 @@ const workspaceContext = (
   clinicId: string,
   workspaceId = `workspace-${clinicId}`,
   workspaceBranchId: string | null = null,
-) => ({ clinicId, workspaceId, workspaceBranchId });
+  userId = `user-${clinicId}`,
+  roleKey = 'owner',
+  organizationId: string | null = `organization-${clinicId}`,
+) => ({ clinicId, organizationId, workspaceId, workspaceBranchId, userId, roleKey });
 
 describe('offline schedule queue privacy guard', () => {
   beforeEach(() => {
@@ -328,6 +331,7 @@ describe('offline appointment queue replay', () => {
       payload: {
         id: 'legacy-branchless-appointment',
         clinicId: 'clinic-a',
+        organizationId: 'organization-clinic-a',
         workspaceId: 'workspace-a',
         patientId: 'patient-a',
         doctorId: 'doctor-a',
@@ -391,6 +395,39 @@ describe('offline appointment queue replay', () => {
     await expect(replay).resolves.toEqual({ flushed: 1, remaining: 1 });
     expect(getSyncQueue()).toHaveLength(1);
     expect(getSyncQueue()[0].payload.time).toBe('12:30');
+  });
+
+
+  it('does not replay when the active user changes in the same clinic/workspace/branch', async () => {
+    enqueueAppointmentUpsert({
+      id: 'appointment-user-a',
+      ...workspaceContext('clinic-a', 'workspace-a', 'branch-a', 'user-a'),
+      patientId: 'patient-a',
+      doctorId: 'doctor-a',
+      date: '2026-11-08',
+      time: '10:00',
+    });
+
+    await expect(flushSyncQueue(workspaceContext('clinic-a', 'workspace-a', 'branch-a', 'user-b')))
+      .resolves.toEqual({ flushed: 0, remaining: 1 });
+    expect(apiUpsertAppointment).not.toHaveBeenCalled();
+    expect(getSyncQueue()).toHaveLength(1);
+  });
+
+  it('does not replay when the active role changes for the same user/workspace', async () => {
+    enqueueAppointmentUpsert({
+      id: 'appointment-role-owner',
+      ...workspaceContext('clinic-a', 'workspace-a', 'branch-a', 'user-a', 'owner'),
+      patientId: 'patient-a',
+      doctorId: 'doctor-a',
+      date: '2026-11-08',
+      time: '10:30',
+    });
+
+    await expect(flushSyncQueue(workspaceContext('clinic-a', 'workspace-a', 'branch-a', 'user-a', 'doctor')))
+      .resolves.toEqual({ flushed: 0, remaining: 1 });
+    expect(apiUpsertAppointment).not.toHaveBeenCalled();
+    expect(getSyncQueue()).toHaveLength(1);
   });
 
   it('retains failed operations for the next reconnect without persisting raw errors', async () => {
