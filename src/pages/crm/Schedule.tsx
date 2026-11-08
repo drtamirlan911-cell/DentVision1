@@ -231,8 +231,7 @@ export default function Schedule() {
         // Reapply the local change after queuing so the offline schedule stays live.
         await applyQueuedAppointmentToCache(queued)
         setPendingSync(getSyncQueue().length)
-        showToast('Нет сети — запись сохранена в очереди синхронизации', 'warning')
-        return data
+        return { ...data, __queuedOffline: true }
       }
       throw err
     }
@@ -427,8 +426,12 @@ export default function Schedule() {
     }
     setSubmitting(true)
     try {
-      await upsertAppointment(payload as any)
-      showToast(editAppt ? 'Запись обновлена' : 'Запись создана. Оплата: Касса → К оплате', 'success')
+      const saved = await upsertAppointment(payload as any)
+      if ((saved as any)?.__queuedOffline) {
+        showToast('Запись сохранена на устройстве и отправится после восстановления сети', 'warning')
+      } else {
+        showToast(editAppt ? 'Запись обновлена' : 'Запись создана. Оплата: Касса → К оплате', 'success')
+      }
       setModalOpen(false)
     } catch (err: any) {
       const msg = String(err?.message || '')
@@ -437,8 +440,10 @@ export default function Schedule() {
           message: `${msg}\n\nСохранить запись всё равно (овербукинг)?`,
           retry: async () => {
             try {
-              await upsertAppointment({ ...payload, force: true } as any)
-              showToast('Запись сохранена с овербукингом', 'warning')
+              const saved = await upsertAppointment({ ...payload, force: true } as any)
+              showToast((saved as any)?.__queuedOffline
+                ? 'Запись сохранена на устройстве и отправится после восстановления сети'
+                : 'Запись сохранена с овербукингом', 'warning')
               setModalOpen(false)
             } catch {
               showToast('Ошибка сохранения', 'error')
@@ -457,8 +462,10 @@ export default function Schedule() {
     e.preventDefault()
     if (!dragged) return
     try {
-      await upsertAppointment({ ...dragged, time: timeSlot, date: selDate, doctorId: doctorId || dragged.doctorId })
-      showToast('Запись перенесена', 'success')
+      const saved = await upsertAppointment({ ...dragged, time: timeSlot, date: selDate, doctorId: doctorId || dragged.doctorId })
+      showToast((saved as any)?.__queuedOffline
+        ? 'Перенос сохранён на устройстве и отправится после восстановления сети'
+        : 'Запись перенесена', (saved as any)?.__queuedOffline ? 'warning' : 'success')
     } catch (err: any) {
       const msg = String(err?.message || '')
       if (msg.includes('Конфликт') || msg.includes('конфликт')) {
@@ -466,8 +473,10 @@ export default function Schedule() {
         setOverbookConfirm({
           message: `${msg}\n\nПеренести всё равно?`,
           retry: async () => {
-            await upsertAppointment({ ...d, time: timeSlot, date: selDate, doctorId: doctorId || d.doctorId, force: true })
-            showToast('Перенесено с овербукингом', 'warning')
+            const saved = await upsertAppointment({ ...d, time: timeSlot, date: selDate, doctorId: doctorId || d.doctorId, force: true })
+            showToast((saved as any)?.__queuedOffline
+              ? 'Перенос сохранён на устройстве и отправится после восстановления сети'
+              : 'Перенесено с овербукингом', 'warning')
           },
         })
       } else {
@@ -745,8 +754,10 @@ export default function Schedule() {
     const next = idx >= 0 && idx < chain.length - 1 ? chain[idx + 1] : null
     if (!next) return
     try {
-      await upsertAppointment({ ...appt, status: next })
-      showToast(`Статус: ${STATUS_CFG[next]?.label || next}`, 'success')
+      const saved = await upsertAppointment({ ...appt, status: next })
+      showToast((saved as any)?.__queuedOffline
+        ? 'Изменение статуса сохранено на устройстве и отправится после восстановления сети'
+        : `Статус: ${STATUS_CFG[next]?.label || next}`, (saved as any)?.__queuedOffline ? 'warning' : 'success')
     } catch {
       showToast('Не удалось сменить статус', 'error')
     }
@@ -1115,8 +1126,10 @@ export default function Schedule() {
                                       e.preventDefault()
                                       if (!dragged) return
                                       try {
-                                        await upsertAppointment({ ...dragged, time, date: selDate, chairId: chair.id, chairName: chair.name })
-                                        showToast('Перенесено на кресло', 'success')
+                                        const saved = await upsertAppointment({ ...dragged, time, date: selDate, chairId: chair.id, chairName: chair.name })
+                                        showToast((saved as any)?.__queuedOffline
+                                          ? 'Перенос сохранён на устройстве и отправится после восстановления сети'
+                                          : 'Перенесено на кресло', (saved as any)?.__queuedOffline ? 'warning' : 'success')
                                       } catch (err: any) {
                                         const msg = String(err?.message || '')
                                         if (msg.includes('Конфликт') || msg.includes('конфликт')) {
@@ -1124,8 +1137,10 @@ export default function Schedule() {
                                           setOverbookConfirm({
                                             message: `${msg}\n\nПеренести всё равно?`,
                                             retry: async () => {
-                                              await upsertAppointment({ ...d, time, date: selDate, chairId: chair.id, chairName: chair.name, force: true })
-                                              showToast('Перенесено с овербукингом', 'warning')
+                                              const saved = await upsertAppointment({ ...d, time, date: selDate, chairId: chair.id, chairName: chair.name, force: true })
+                                              showToast((saved as any)?.__queuedOffline
+                                                ? 'Перенос сохранён на устройстве и отправится после восстановления сети'
+                                                : 'Перенесено с овербукингом', 'warning')
                                             },
                                           })
                                         } else {
