@@ -315,7 +315,7 @@ test.describe('Appointment Workflow', () => {
       }, { access: tokens.accessToken, refresh: tokens.refreshToken });
 
       await page.goto(`${process.env.PLAYWRIGHT_UI_URL || 'http://localhost:3000'}/crm/schedule`);
-      await expect(page.getByText('Расписание', { exact: true })).toBeVisible({ timeout: 60_000 });
+      await expect(page.getByRole('heading', { name: 'Расписание' })).toBeVisible({ timeout: 60_000 });
       await page.getByLabel('Дата').fill(date);
       await expect(page.getByText('Appt Patient', { exact: true })).toBeVisible({ timeout: 30_000 });
       await page.getByText('Appt Patient', { exact: true }).last().click();
