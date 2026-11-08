@@ -294,6 +294,12 @@ test.describe('Appointment Workflow', () => {
         duration: 30,
         type: 'checkup',
         status: 'scheduled',
+        // The edit form requires a catalog service; keep the service unchanged
+        // so the E2E exercises time-only offline sync rather than service edits.
+        service: 's1',
+        serviceName: 'Первичная консультация',
+        servicePrice: 3000,
+        reason: 'Первичная консультация',
       },
     });
     expect(createRes.status()).toBe(201);
