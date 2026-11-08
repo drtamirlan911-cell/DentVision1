@@ -380,7 +380,8 @@ describe('offline appointment queue replay', () => {
     });
 
     const replay = flushSyncQueue(workspaceContext('clinic-a', 'workspace-a', null));
-    await vi.waitFor(() => expect(apiUpsertAppointment).toHaveBeenCalledTimes(1));
+    // flushSyncQueue reaches the first API request synchronously before awaiting it.
+    expect(apiUpsertAppointment).toHaveBeenCalledTimes(1);
 
     enqueueAppointmentUpsert({
       id: 'appointment-concurrent',
