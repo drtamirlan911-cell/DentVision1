@@ -11,10 +11,12 @@ vi.mock('../utils/api', () => ({
 }));
 
 import {
+  cacheDayAppointments,
   enqueueAppointmentDelete,
   enqueueAppointmentUpsert,
   flushSyncQueue,
   getSyncQueue,
+  readCachedDayAppointments,
 } from './syncQueue';
 
 const QUEUE_KEY = 'dv_schedule_sync_queue_v1';
@@ -126,6 +128,49 @@ describe('offline schedule queue privacy guard', () => {
   });
 });
 
+
+
+describe('offline schedule cache IAM privacy', () => {
+  it('purges clinic/date-only legacy caches that have no workspace or branch identity', () => {
+    const legacyKey = 'dv_schedule_day_clinic-a_2026-11-08';
+    localStorage.setItem(legacyKey, JSON.stringify({
+      savedAt: new Date().toISOString(),
+      appointments: [{ id: 'legacy-appt', patientName: 'Legacy sensitive name' }],
+    }));
+
+    expect(readCachedDayAppointments(workspaceContext('clinic-a'), '2026-11-08')).toBeNull();
+    expect(localStorage.getItem(legacyKey)).toBeNull();
+  });
+
+  it('keeps the offline day cache isolated by organization, workspace, branch, user and role', () => {
+    const date = '2026-11-08';
+    const doctorContext = workspaceContext('clinic-a', 'workspace-a', 'branch-a', 'doctor-a', 'doctor');
+    const ownerContext = workspaceContext('clinic-a', 'workspace-a', 'branch-a', 'owner-a', 'owner');
+    const appointment = {
+      id: 'appointment-opaque-id',
+      clinicId: 'clinic-a',
+      patientId: 'patient-opaque-id',
+      doctorId: 'doctor-a',
+      date,
+      time: '10:00',
+      patientName: 'Sensitive patient name',
+      notes: 'Sensitive clinical note',
+      diagnosis: 'Sensitive diagnosis',
+    } as any;
+
+    cacheDayAppointments(doctorContext, date, [appointment]);
+
+    expect(readCachedDayAppointments(doctorContext, date)).toHaveLength(1);
+    expect(readCachedDayAppointments(ownerContext, date)).toBeNull();
+    const stored = Object.keys(localStorage)
+      .filter((key) => key.startsWith('dv_schedule_context_day_v2_'))
+      .map((key) => localStorage.getItem(key) || '')
+      .join('');
+    expect(stored).not.toContain('Sensitive patient name');
+    expect(stored).not.toContain('Sensitive clinical note');
+    expect(stored).not.toContain('Sensitive diagnosis');
+  });
+});
 
 describe('offline appointment queue replay', () => {
   beforeEach(() => {
