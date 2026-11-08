@@ -320,6 +320,30 @@ describe('offline appointment queue replay', () => {
     expect(getSyncQueue()).toHaveLength(1);
   });
 
+
+  it('does not replay legacy queue rows with workspace but no explicit branch context', async () => {
+    localStorage.setItem(QUEUE_KEY, JSON.stringify([{
+      id: 'legacy-branchless-queue-item',
+      kind: 'upsert',
+      payload: {
+        id: 'legacy-branchless-appointment',
+        clinicId: 'clinic-a',
+        workspaceId: 'workspace-a',
+        patientId: 'patient-a',
+        doctorId: 'doctor-a',
+        date: '2026-11-08',
+        time: '09:00',
+      },
+      enqueuedAt: new Date().toISOString(),
+      attempts: 0,
+    }]));
+
+    await expect(flushSyncQueue(workspaceContext('clinic-a', 'workspace-a', null)))
+      .resolves.toEqual({ flushed: 0, remaining: 1 });
+    expect(apiUpsertAppointment).not.toHaveBeenCalled();
+    expect(getSyncQueue()).toHaveLength(1);
+  });
+
   it('fails closed and keeps the queue when no active clinic context is supplied', async () => {
     enqueueAppointmentUpsert({
       id: 'appointment-no-context',
@@ -333,6 +357,40 @@ describe('offline appointment queue replay', () => {
     await expect(flushSyncQueue(null)).resolves.toEqual({ flushed: 0, remaining: 1 });
     expect(apiUpsertAppointment).not.toHaveBeenCalled();
     expect(getSyncQueue()).toHaveLength(1);
+  });
+
+
+  it('preserves a newer offline edit enqueued while reconnect replay is in flight', async () => {
+    let finishFirstRequest: (() => void) | undefined;
+    apiUpsertAppointment.mockImplementationOnce(() => new Promise((resolve) => {
+      finishFirstRequest = () => resolve({ ok: true });
+    }));
+
+    enqueueAppointmentUpsert({
+      id: 'appointment-concurrent',
+      ...workspaceContext('clinic-a', 'workspace-a', null),
+      patientId: 'patient-a',
+      doctorId: 'doctor-a',
+      date: '2026-11-08',
+      time: '10:00',
+    });
+
+    const replay = flushSyncQueue(workspaceContext('clinic-a', 'workspace-a', null));
+    await vi.waitFor(() => expect(apiUpsertAppointment).toHaveBeenCalledTimes(1));
+
+    enqueueAppointmentUpsert({
+      id: 'appointment-concurrent',
+      ...workspaceContext('clinic-a', 'workspace-a', null),
+      patientId: 'patient-a',
+      doctorId: 'doctor-a',
+      date: '2026-11-08',
+      time: '12:30',
+    });
+    finishFirstRequest?.();
+
+    await expect(replay).resolves.toEqual({ flushed: 1, remaining: 1 });
+    expect(getSyncQueue()).toHaveLength(1);
+    expect(getSyncQueue()[0].payload.time).toBe('12:30');
   });
 
   it('retains failed operations for the next reconnect without persisting raw errors', async () => {
