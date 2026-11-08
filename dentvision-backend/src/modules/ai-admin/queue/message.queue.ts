@@ -2,6 +2,7 @@ import prisma from '../../../lib/prisma.js'
 import { Prisma } from '@prisma/client'
 import { randomUUID } from 'node:crypto'
 import type { NormalizedMessage } from '../webhook/types.js'
+import { decodeQueuedAiAdminMessage, encryptAiAdminText, encryptAiAdminJson } from '../conversation/phi.js'
 
 const QUEUE_TABLE = Prisma.raw(['ai_admin', 'queue_messages'].join('_'))
 
@@ -9,7 +10,9 @@ const MAX_ATTEMPTS = 3
 
 export async function enqueueMessage(msg: NormalizedMessage): Promise<void> {
   const id = randomUUID()
-  const payload = JSON.stringify(msg)
+  // JSONB stores a scalar ciphertext string. The decoder remains compatible
+  // with legacy object-shaped payloads already waiting in the queue.
+  const payload = JSON.stringify(encryptAiAdminJson(msg))
 
   await prisma.$executeRaw(Prisma.sql`
     INSERT INTO ${QUEUE_TABLE}
@@ -22,7 +25,7 @@ export async function enqueueMessage(msg: NormalizedMessage): Promise<void> {
 
 export async function claimMessages(limit = 10): Promise<Array<{ id: string; payload: NormalizedMessage; attempts: number }>> {
   return prisma.$transaction(async (tx) => {
-    const rows = await tx.$queryRaw<Array<{ id: string; payload: NormalizedMessage; attempts: number }>>(Prisma.sql`
+    const rows = await tx.$queryRaw<Array<{ id: string; payload: unknown; attempts: number }>>(Prisma.sql`
       SELECT id, payload, attempts
       FROM ${QUEUE_TABLE}
       WHERE status = 'pending' AND attempts < ${MAX_ATTEMPTS}
@@ -37,7 +40,11 @@ export async function claimMessages(limit = 10): Promise<Array<{ id: string; pay
       SET status = 'processing', attempts = attempts + 1, updated_at = NOW()
       WHERE id IN (${Prisma.join(rows.map((r) => r.id))})
     `)
-    return rows
+
+    return rows.map((row) => ({
+      ...row,
+      payload: decodeQueuedAiAdminMessage(row.payload),
+    }))
   })
 }
 
@@ -52,7 +59,7 @@ export async function failMessage(id: string, error: string): Promise<void> {
   await prisma.$executeRaw(Prisma.sql`
     UPDATE ${QUEUE_TABLE}
     SET status = CASE WHEN attempts >= ${MAX_ATTEMPTS} THEN 'failed' ELSE 'pending' END,
-        error = ${error},
+        error = ${encryptAiAdminText(error)}
         updated_at = NOW()
     WHERE id = CAST(${id} AS uuid)
   `)
