@@ -161,7 +161,9 @@ export async function flushSyncQueue(activeContext: SyncQueueContext | null): Pr
     const failedUpserts = new Set<string>()
     for (const item of q) {
       if (
-        item.payload.clinicId !== activeContext.clinicId
+        !Object.prototype.hasOwnProperty.call(item.payload, 'workspaceId')
+        || !Object.prototype.hasOwnProperty.call(item.payload, 'workspaceBranchId')
+        || item.payload.clinicId !== activeContext.clinicId
         || item.payload.workspaceId !== activeContext.workspaceId
         || (item.payload.workspaceBranchId ?? null) !== (activeContext.workspaceBranchId ?? null)
       ) {
@@ -190,8 +192,23 @@ export async function flushSyncQueue(activeContext: SyncQueueContext | null): Pr
         })
       }
     }
-    saveQueue(remaining)
-    return { flushed, remaining: remaining.length }
+    // Queue mutations can arrive while network requests are in flight.
+    // Merge the latest storage snapshot instead of overwriting those newer
+    // operations with the batch that was loaded before replay began.
+    const latest = loadQueue()
+    const snapshotIds = new Set(q.map((item) => item.id))
+    const concurrent = latest.filter((item) => !snapshotIds.has(item.id))
+    const concurrentUpserts = new Set(
+      concurrent.filter((item) => item.kind === 'upsert').map((item) => item.payload.id),
+    )
+    // A new edit for the same appointment supersedes an older failed attempt.
+    const merged = [
+      ...remaining.filter((item) => !concurrentUpserts.has(item.payload.id)),
+      ...concurrent,
+    ]
+    const unique = Array.from(new Map(merged.map((item) => [item.id, item])).values())
+    saveQueue(unique)
+    return { flushed, remaining: unique.length }
   } finally {
     flushing = false
   }
