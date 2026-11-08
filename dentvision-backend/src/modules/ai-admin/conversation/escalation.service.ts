@@ -25,6 +25,7 @@
  */
 
 import prisma from '../../../lib/prisma.js';
+import { decryptAiAdminText } from './phi.js';
 
 export class EscalationError extends Error {
   constructor(
@@ -49,8 +50,16 @@ export interface EscalationFilters {
  * carries a patient's own words in `lastUserMessage`, so reading another
  * clinic's queue would be a PHI leak, not an inconvenience.
  */
+function decodeEscalation<T extends { reason: string; lastUserMessage: string }>(row: T): T {
+  return {
+    ...row,
+    reason: decryptAiAdminText(row.reason),
+    lastUserMessage: decryptAiAdminText(row.lastUserMessage),
+  };
+}
+
 export async function listEscalations(clinicId: string, filters: EscalationFilters = {}) {
-  return prisma.aiAdminEscalation.findMany({
+  const rows = await prisma.aiAdminEscalation.findMany({
     where: {
       clinicId,
       ...(filters.includeResolved ? {} : { resolvedAt: null }),
@@ -58,6 +67,7 @@ export async function listEscalations(clinicId: string, filters: EscalationFilte
     orderBy: { createdAt: 'desc' },
     take: Math.min(filters.take ?? 50, 200),
   });
+  return rows.map(decodeEscalation);
 }
 
 /** How many people are currently waiting — the number a badge would show. */
@@ -87,7 +97,8 @@ export async function resolveEscalation(
   if (count === 0) {
     throw new EscalationError('NOT_FOUND', 'Эскалация не найдена или уже закрыта');
   }
-  return prisma.aiAdminEscalation.findUnique({ where: { id: escalationId } });
+  const row = await prisma.aiAdminEscalation.findUnique({ where: { id: escalationId } });
+  return row ? decodeEscalation(row) : null;
 }
 
 /** Re-notify an escalation nobody has picked up in this long. */
@@ -130,7 +141,7 @@ export async function runEscalationReminders(
       await notifyClinicOwners(
         escalation.clinicId,
         'Эскалация всё ещё без ответа',
-        `Пациент ждёт больше ${minutes} мин. Причина: ${escalation.reason}`,
+        `Пациент ждёт больше ${minutes} мин. Откройте очередь эскалаций для подробностей.`,
       );
       renotified += 1;
     } catch (error) {
