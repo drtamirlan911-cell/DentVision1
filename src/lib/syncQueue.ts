@@ -141,7 +141,7 @@ export async function flushSyncQueue(activeContext: SyncQueueContext | null): Pr
   if (
     !activeContext?.clinicId
     || !activeContext.workspaceId
-    || !Object.prototype.hasOwnProperty.call(activeContext, 'branchId')
+    || !Object.prototype.hasOwnProperty.call(activeContext, 'workspaceBranchId')
   ) return { flushed: 0, remaining: queued.length }
   if (flushing) return { flushed: 0, remaining: queued.length }
   if (typeof navigator !== 'undefined' && !navigator.onLine) {
