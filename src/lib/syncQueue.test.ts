@@ -11,6 +11,7 @@ vi.mock('../utils/api', () => ({
 }));
 
 import {
+  assertQueueableAppointmentChange,
   cacheDayAppointments,
   enqueueAppointmentDelete,
   enqueueAppointmentUpsert,
