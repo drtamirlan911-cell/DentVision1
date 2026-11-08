@@ -189,7 +189,7 @@ describe('offline appointment queue replay', () => {
 
 
   it('surfaces localStorage persistence failures instead of claiming an edit was queued', () => {
-    const setItem = vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
+    const setItem = vi.spyOn(localStorage, 'setItem').mockImplementation(() => {
       throw new Error('QuotaExceededError with sensitive provider details');
     });
 
@@ -488,7 +488,7 @@ describe('offline appointment queue replay', () => {
     }, existing)).toThrow(/Изменение услуги в существующей записи/);
   });
 
-  it('allows ordinary schedule changes and catalog service IDs while preserving existing clinical text', () => {
+  it('allows ordinary schedule changes with an unchanged catalog service ID while preserving existing clinical text', () => {
     const existing = {
       id: 'appointment-operational',
       notes: 'Existing notes',
@@ -504,7 +504,7 @@ describe('offline appointment queue replay', () => {
       date: '2026-11-09',
       time: '11:30',
       doctorId: 'doctor-2',
-      serviceId: 'service-id-2',
+      serviceId: 'service-id-1',
       notes: 'Existing notes',
       diagnosis: 'K04.7',
       toothNumber: '36',
