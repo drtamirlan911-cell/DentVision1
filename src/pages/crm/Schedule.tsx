@@ -202,7 +202,15 @@ export default function Schedule() {
       window.removeEventListener('online', onOn)
       stop()
     }
-  }, [clinicId, queryClient, activeSyncContext?.workspaceId, activeSyncContext?.workspaceBranchId])
+  }, [
+    clinicId,
+    queryClient,
+    activeSyncContext?.organizationId,
+    activeSyncContext?.workspaceId,
+    activeSyncContext?.workspaceBranchId,
+    activeSyncContext?.userId,
+    activeSyncContext?.roleKey,
+  ])
 
   useEffect(() => {
     const patientId = searchParams.get('patient')
