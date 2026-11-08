@@ -12,8 +12,11 @@ const CACHE_PREFIX = 'dv_schedule_day_'
 
 export type SyncQueueContext = {
   clinicId: string
+  organizationId: string | null
   workspaceId: string
   workspaceBranchId: string | null
+  userId: string
+  roleKey: string
 }
 
 export type SyncQueueItem = {
@@ -161,11 +164,15 @@ export async function flushSyncQueue(activeContext: SyncQueueContext | null): Pr
     const failedUpserts = new Set<string>()
     for (const item of q) {
       if (
-        !Object.prototype.hasOwnProperty.call(item.payload, 'workspaceId')
+        !Object.prototype.hasOwnProperty.call(item.payload, 'organizationId')
+        || !Object.prototype.hasOwnProperty.call(item.payload, 'workspaceId')
         || !Object.prototype.hasOwnProperty.call(item.payload, 'workspaceBranchId')
         || item.payload.clinicId !== activeContext.clinicId
+        || (item.payload.organizationId ?? null) !== (activeContext.organizationId ?? null)
         || item.payload.workspaceId !== activeContext.workspaceId
         || (item.payload.workspaceBranchId ?? null) !== (activeContext.workspaceBranchId ?? null)
+        || item.payload.userId !== activeContext.userId
+        || item.payload.roleKey !== activeContext.roleKey
       ) {
         remaining.push(item)
         continue
