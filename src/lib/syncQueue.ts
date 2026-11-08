@@ -8,7 +8,7 @@ import * as api from '../utils/api'
 import { sanitizeForLocalStorage } from './localStoragePrivacy'
 
 const QUEUE_KEY = 'dv_schedule_sync_queue_v1'
-const CACHE_PREFIX = 'dv_schedule_day_'
+const CACHE_PREFIX = 'dv_schedule_context_day_v2_'
 
 export type SyncQueueContext = {
   clinicId: string
@@ -100,12 +100,37 @@ export function enqueueAppointmentDelete(id: string, context: SyncQueueContext):
   saveQueue(q)
 }
 
+let legacyScheduleCachePurged = false
+
+function purgeLegacyScheduleDayCaches(): void {
+  if (legacyScheduleCachePurged || typeof localStorage === 'undefined') return
+  legacyScheduleCachePurged = true
+  try {
+    for (let index = localStorage.length - 1; index >= 0; index -= 1) {
+      const key = localStorage.key(index)
+      // Older keys were clinic/date-only and could be reused after a user,
+      // role or branch switch. They cannot be safely assigned to a context.
+      if (key?.startsWith('dv_schedule_day_')) localStorage.removeItem(key)
+    }
+  } catch { /* browser storage may be unavailable */ }
+}
+
 function dayCacheKey(context: SyncQueueContext, date: string): string {
-  return `${CACHE_PREFIX}${context.clinicId}_${context.workspaceId}_${context.workspaceBranchId ?? 'all'}_${date}`
+  return [
+    CACHE_PREFIX,
+    context.clinicId,
+    context.organizationId ?? 'no-organization',
+    context.workspaceId,
+    context.workspaceBranchId ?? 'all-branches',
+    context.userId,
+    context.roleKey,
+    date,
+  ].map((part) => encodeURIComponent(String(part))).join('_')
 }
 
 export function cacheDayAppointments(context: SyncQueueContext | null, date: string, appointments: Appointment[]): void {
-  if (!context?.clinicId || !context.workspaceId) return
+  if (!context?.clinicId || !context.workspaceId || !context.userId || !context.roleKey) return
+  purgeLegacyScheduleDayCaches()
   try {
     localStorage.setItem(
       dayCacheKey(context, date),
@@ -118,7 +143,8 @@ export function cacheDayAppointments(context: SyncQueueContext | null, date: str
 }
 
 export function readCachedDayAppointments(context: SyncQueueContext | null, date: string): Appointment[] | null {
-  if (!context?.clinicId || !context.workspaceId) return null
+  if (!context?.clinicId || !context.workspaceId || !context.userId || !context.roleKey) return null
+  purgeLegacyScheduleDayCaches()
   try {
     const key = dayCacheKey(context, date)
     const raw = localStorage.getItem(key)
