@@ -186,6 +186,24 @@ describe('offline appointment queue replay', () => {
     vi.unstubAllGlobals();
   });
 
+
+  it('surfaces localStorage persistence failures instead of claiming an edit was queued', () => {
+    const setItem = vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
+      throw new Error('QuotaExceededError with sensitive provider details');
+    });
+
+    expect(() => enqueueAppointmentUpsert({
+      id: 'appointment-storage-failure',
+      ...workspaceContext('clinic-a'),
+      patientId: 'patient-a',
+      doctorId: 'doctor-a',
+      date: '2026-11-08',
+      time: '10:00',
+    })).toThrow('Не удалось сохранить офлайн-изменение на этом устройстве');
+    expect(localStorage.getItem(QUEUE_KEY)).toBeNull();
+    setItem.mockRestore();
+  });
+
   it('keeps only the newest operation for an appointment ID', () => {
     enqueueAppointmentUpsert({
       id: 'appointment-1',
