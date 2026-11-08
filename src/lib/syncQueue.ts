@@ -73,12 +73,12 @@ export function enqueueAppointmentUpsert(data: Partial<Appointment> & { force?: 
   saveQueue(q)
 }
 
-export function enqueueAppointmentDelete(id: string): void {
+export function enqueueAppointmentDelete(id: string, clinicId: string): void {
   const q = loadQueue().filter((i) => i.payload.id !== id)
   q.push({
     id: `del_${id}_${Date.now()}`,
     kind: 'delete',
-    payload: { id } as any,
+    payload: { id, clinicId } as any,
     enqueuedAt: new Date().toISOString(),
     attempts: 0,
   })
@@ -121,17 +121,26 @@ export function isLikelyOffline(err?: unknown): boolean {
 
 let flushing = false
 
-export async function flushSyncQueue(): Promise<{ flushed: number; remaining: number }> {
-  if (flushing) return { flushed: 0, remaining: loadQueue().length }
+export async function flushSyncQueue(activeClinicId: string): Promise<{ flushed: number; remaining: number }> {
+  const queued = loadQueue()
+  // The API derives its tenant from the active authenticated session, not from
+  // a client-supplied clinicId. Never replay another clinic's queue under the
+  // currently active clinic, and fail closed when the context is unavailable.
+  if (!activeClinicId) return { flushed: 0, remaining: queued.length }
+  if (flushing) return { flushed: 0, remaining: queued.length }
   if (typeof navigator !== 'undefined' && !navigator.onLine) {
     return { flushed: 0, remaining: loadQueue().length }
   }
   flushing = true
   let flushed = 0
   try {
-    const q = loadQueue()
+    const q = queued
     const remaining: SyncQueueItem[] = []
     for (const item of q) {
+      if (item.payload.clinicId !== activeClinicId) {
+        remaining.push(item)
+        continue
+      }
       try {
         if (item.kind === 'delete') {
           await api.deleteAppointment(item.payload.id)
@@ -154,9 +163,12 @@ export async function flushSyncQueue(): Promise<{ flushed: number; remaining: nu
   }
 }
 
-export function startSyncQueueListener(onFlush?: (r: { flushed: number; remaining: number }) => void): () => void {
+export function startSyncQueueListener(
+  clinicId: string,
+  onFlush?: (r: { flushed: number; remaining: number }) => void,
+): () => void {
   const handler = async () => {
-    const r = await flushSyncQueue()
+    const r = await flushSyncQueue(clinicId)
     onFlush?.(r)
   }
   window.addEventListener('online', handler)
