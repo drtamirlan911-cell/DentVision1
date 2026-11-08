@@ -97,10 +97,15 @@ export function enqueueAppointmentDelete(id: string, context: SyncQueueContext):
   saveQueue(q)
 }
 
-export function cacheDayAppointments(clinicId: string, date: string, appointments: Appointment[]): void {
+function dayCacheKey(context: SyncQueueContext, date: string): string {
+  return `${CACHE_PREFIX}${context.clinicId}_${context.workspaceId}_${context.workspaceBranchId ?? 'all'}_${date}`
+}
+
+export function cacheDayAppointments(context: SyncQueueContext | null, date: string, appointments: Appointment[]): void {
+  if (!context?.clinicId || !context.workspaceId) return
   try {
     localStorage.setItem(
-      `${CACHE_PREFIX}${clinicId}_${date}`,
+      dayCacheKey(context, date),
       JSON.stringify({
         savedAt: new Date().toISOString(),
         appointments: appointments.map((appointment) => sanitizeForLocalStorage(appointment)),
@@ -109,9 +114,10 @@ export function cacheDayAppointments(clinicId: string, date: string, appointment
   } catch { /* ignore */ }
 }
 
-export function readCachedDayAppointments(clinicId: string, date: string): Appointment[] | null {
+export function readCachedDayAppointments(context: SyncQueueContext | null, date: string): Appointment[] | null {
+  if (!context?.clinicId || !context.workspaceId) return null
   try {
-    const key = `${CACHE_PREFIX}${clinicId}_${date}`
+    const key = dayCacheKey(context, date)
     const raw = localStorage.getItem(key)
     if (!raw) return null
     const parsed = JSON.parse(raw)
