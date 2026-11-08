@@ -131,6 +131,7 @@ describe('offline appointment queue replay', () => {
     enqueueAppointmentDelete('appointment-1', 'clinic-1');
     enqueueAppointmentUpsert({
       id: 'appointment-1',
+      clinicId: 'clinic-1',
       patientId: 'patient-1',
       doctorId: 'doctor-1',
       date: '2026-11-08',
