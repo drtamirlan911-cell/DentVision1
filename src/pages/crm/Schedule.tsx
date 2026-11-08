@@ -241,7 +241,11 @@ export default function Schedule() {
   const applyQueuedAppointmentToCache = async (data: Partial<Appointment> & { id: string }) => {
     const key = [...queryKeys.appointments, clinicId]
     await queryClient.cancelQueries({ queryKey: key })
-    const previous = queryClient.getQueryData<Appointment[]>(key) || liveAppointments || []
+    const cachedCurrentDay = activeSyncContext
+      ? readCachedDayAppointments(activeSyncContext, selDate)
+      : null
+    const previous = queryClient.getQueryData<Appointment[]>(key)
+      ?? (liveAppointments.length > 0 ? liveAppointments : cachedCurrentDay ?? [])
     const index = previous.findIndex((appointment) => appointment.id === data.id)
     const previousDate = index >= 0 ? String(previous[index].date || '').slice(0, 10) : ''
     const next = [...previous]
@@ -258,11 +262,18 @@ export default function Schedule() {
         String(merged.date || '').slice(0, 10),
       ].filter(Boolean))
       for (const date of affectedDates) {
-        cacheDayAppointments(
-          activeSyncContext,
-          date,
-          next.filter((appointment) => String(appointment.date).slice(0, 10) === date),
+        // Preserve cached appointments already known for the destination day
+        // when only the source day is available offline.
+        const byId = new Map(
+          (readCachedDayAppointments(activeSyncContext, date) || [])
+            .map((appointment) => [appointment.id, appointment]),
         )
+        for (const appointment of next) {
+          const appointmentDate = String(appointment.date || '').slice(0, 10)
+          if (appointmentDate === date) byId.set(appointment.id, appointment)
+          else byId.delete(appointment.id)
+        }
+        cacheDayAppointments(activeSyncContext, date, [...byId.values()])
       }
     }
   }
@@ -545,7 +556,9 @@ export default function Schedule() {
         enqueueAppointmentDelete(editAppt.id, activeSyncContext)
         const key = [...queryKeys.appointments, clinic.id]
         await queryClient.cancelQueries({ queryKey: key })
-        const previous = queryClient.getQueryData<Appointment[]>(key) || liveAppointments || []
+        const cachedCurrentDay = readCachedDayAppointments(activeSyncContext, selDate)
+        const previous = queryClient.getQueryData<Appointment[]>(key)
+          ?? (liveAppointments.length > 0 ? liveAppointments : cachedCurrentDay ?? [])
         const next = previous.filter((appointment) => appointment.id !== editAppt.id)
         queryClient.setQueryData<Appointment[]>(key, next)
         cacheDayAppointments(activeSyncContext, selDate, next.filter((appointment) => String(appointment.date).slice(0, 10) === selDate))
