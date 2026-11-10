@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { buildMeta, findScheduleConflicts, timesOverlap } from './appointmentMeta.js'
+import { buildMeta, findScheduleConflicts, serializeAppointment, timesOverlap } from './appointmentMeta.js'
 
 type Candidate = {
   id: string
@@ -129,18 +129,32 @@ describe('findScheduleConflicts', () => {
 
 
 describe('buildMeta offline service identifiers', () => {
-  it('restores a canonical service key when the offline payload omits the human-readable label', () => {
+  it('stores an opaque catalog key without copying it into readable labels', () => {
     const meta = buildMeta({ serviceId: 'service-catalog-opaque-id' });
-    expect(meta.serviceName).toBe('service-catalog-opaque-id');
-    expect(meta.reason).toBe('service-catalog-opaque-id');
+    expect(meta.serviceId).toBe('service-catalog-opaque-id');
+    expect(meta.serviceName).toBeUndefined();
+    expect(meta.reason).toBeUndefined();
   });
 
-  it('does not replace an existing canonical service label on a partial offline update', () => {
+  it('preserves existing readable labels when an offline update carries only the key', () => {
     const meta = buildMeta(
       { serviceId: 'service-catalog-opaque-id' },
-      { serviceName: 'Existing service label', reason: 'Existing service label' },
+      { serviceId: 'service-catalog-opaque-id', serviceName: 'Existing service label', reason: 'Existing service label' },
     );
+    expect(meta.serviceId).toBe('service-catalog-opaque-id');
     expect(meta.serviceName).toBe('Existing service label');
     expect(meta.reason).toBe('Existing service label');
+  });
+
+  it('round-trips the key separately from the readable service label', () => {
+    const meta = buildMeta({ serviceId: 's1', serviceName: 'Первичная консультация', reason: 'Первичная консультация' });
+    const result = serializeAppointment({
+      id: 'appointment-1', clinicId: 'clinic-1', patientId: 'patient-1', doctorId: 'doctor-1',
+      date: new Date('2026-11-08T00:00:00.000Z'), time: '10:00', duration: 30,
+      status: 'pending', type: 'Первичная консультация', notes: null, meta,
+    });
+    expect(result.service).toBe('Первичная консультация');
+    expect(result.serviceId).toBe('s1');
+    expect(result.serviceName).toBe('Первичная консультация');
   });
 });

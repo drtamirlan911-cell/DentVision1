@@ -8,6 +8,15 @@ const SENSITIVE_PATIENT_KEYS = new Set([
   'service', 'servicename', 'toothnumber',
 ]);
 
+// These fields are opaque application/database references, not patient contact
+// text. A generated ID may contain a timestamp whose digits resemble a phone
+// number; running the generic text detector on it would destroy the queue key.
+const OPAQUE_IDENTIFIER_KEYS = new Set([
+  'id', 'appointmentid', 'queueid', 'recordid', 'patientid', 'doctorid',
+  'clinicid', 'organizationid', 'workspaceid', 'workspacebranchid',
+  'userid', 'branchid', 'serviceid', 'sessionid',
+]);
+
 function normalizedKey(key: string): string {
   return key.replace(/[^a-z0-9]/gi, '').toLowerCase();
 }
@@ -26,8 +35,9 @@ export function containsSensitivePatientData(value: unknown): boolean {
   if (Array.isArray(value)) return value.some(containsSensitivePatientData);
   if (!value || typeof value !== 'object') return false;
   for (const [key, child] of Object.entries(value as Record<string, unknown>)) {
-    if (SENSITIVE_PATIENT_KEYS.has(normalizedKey(key))) return true;
-    if (containsSensitivePatientData(child)) return true;
+    const normalized = normalizedKey(key);
+    if (SENSITIVE_PATIENT_KEYS.has(normalized)) return true;
+    if (!OPAQUE_IDENTIFIER_KEYS.has(normalized) && containsSensitivePatientData(child)) return true;
   }
   return false;
 }
@@ -47,12 +57,14 @@ export function sanitizeForLocalStorage<T>(value: T): T {
   if (!value || typeof value !== 'object') return value;
   const result: Record<string, unknown> = {};
   for (const [key, child] of Object.entries(value as Record<string, unknown>)) {
-    if (SENSITIVE_PATIENT_KEYS.has(normalizedKey(key))) continue;
+    const normalized = normalizedKey(key);
+    if (SENSITIVE_PATIENT_KEYS.has(normalized)) continue;
+    const isOpaqueIdentifier = OPAQUE_IDENTIFIER_KEYS.has(normalized);
     // A generic field (e.g. label/description) can still contain an IIN or
-    // phone number. Do not preserve such values just because the property name
-    // is not obviously patient-related.
-    if (typeof child === 'string' && containsSensitiveIdentifierText(child)) continue;
-    if (typeof child === 'number' && containsSensitiveIdentifierText(String(child))) continue;
+    // phone number. Opaque reference fields are exempt: they are required to
+    // replay the queue and are not contact data.
+    if (!isOpaqueIdentifier && typeof child === 'string' && containsSensitiveIdentifierText(child)) continue;
+    if (!isOpaqueIdentifier && typeof child === 'number' && containsSensitiveIdentifierText(String(child))) continue;
     result[key] = sanitizeForLocalStorage(child);
   }
   return result as T;

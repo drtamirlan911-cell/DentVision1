@@ -8,12 +8,33 @@ import * as api from '../utils/api'
 import { sanitizeForLocalStorage } from './localStoragePrivacy'
 
 const QUEUE_KEY = 'dv_schedule_sync_queue_v1'
-const CACHE_PREFIX = 'dv_schedule_day_'
+const CACHE_PREFIX = 'dv_schedule_context_day_v2_'
+
+let queueItemSequence = 0
+
+function createQueueItemId(prefix: 'uq' | 'del', appointmentId: string): string {
+  // Date.now() alone can collide when two edits for the same appointment are
+  // queued in one millisecond. The queue merge uses item IDs to distinguish
+  // operations created while a replay is in flight, so each ID must be unique.
+  const unique = typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
+    ? crypto.randomUUID()
+    : `${Date.now().toString(36)}_${(++queueItemSequence).toString(36)}`
+  return `${prefix}_${appointmentId}_${unique}`
+}
+
+export type SyncQueueContext = {
+  clinicId: string
+  organizationId: string | null
+  workspaceId: string
+  workspaceBranchId: string | null
+  userId: string
+  roleKey: string
+}
 
 export type SyncQueueItem = {
   id: string
   kind: 'upsert' | 'delete'
-  payload: Partial<Appointment> & { force?: boolean; id: string }
+  payload: Partial<Appointment> & SyncQueueContext & { force?: boolean; id: string }
   enqueuedAt: string
   attempts: number
   lastError?: string
@@ -52,17 +73,85 @@ function loadQueue(): SyncQueueItem[] {
 function saveQueue(items: SyncQueueItem[]): void {
   try {
     localStorage.setItem(QUEUE_KEY, JSON.stringify(items.slice(-100).map(sanitizeQueueItem)))
-  } catch { /* ignore */ }
+  } catch {
+    // Never report a change as queued unless it was durably persisted.
+    throw new Error('Не удалось сохранить офлайн-изменение на этом устройстве')
+  }
 }
 
 export function getSyncQueue(): SyncQueueItem[] {
   return loadQueue()
 }
 
-export function enqueueAppointmentUpsert(data: Partial<Appointment> & { force?: boolean; id: string }): void {
-  const q = loadQueue().filter((i) => !(i.kind === 'upsert' && i.payload.id === data.id))
+const OFFLINE_CLINICAL_FIELDS = [
+  'notes',
+  'diagnosis',
+  'toothNumber',
+] as const
+
+function comparableOfflineValue(value: unknown): string {
+  return value == null ? '' : String(value).trim()
+}
+
+/**
+ * Clinical/free-text fields are intentionally stripped before localStorage.
+ * Refuse to queue an edit that changes one of those fields rather than telling
+ * the clinician it was saved when the durable payload cannot contain it.
+ */
+export function assertQueueableAppointmentChange(
+  data: Partial<Appointment> & { id: string },
+  existing?: Partial<Appointment> | null,
+): void {
+  for (const field of OFFLINE_CLINICAL_FIELDS) {
+    if (!Object.prototype.hasOwnProperty.call(data, field)) continue
+    if (comparableOfflineValue(data[field]) !== comparableOfflineValue(existing?.[field])) {
+      throw new Error('Клинические заметки, диагноз и номер зуба можно сохранить только при подключении к сети')
+    }
+  }
+
+  const nextServiceId = comparableOfflineValue((data as any).serviceId)
+  const currentServiceId = comparableOfflineValue((existing as any)?.serviceId || existing?.service)
+  const serviceChanged = Boolean(nextServiceId) && nextServiceId !== currentServiceId
+
+  if (existing && serviceChanged) {
+    throw new Error('Изменение услуги в существующей записи можно сохранить только при подключении к сети')
+  }
+
+  const nextReason = comparableOfflineValue(data.reason)
+  const currentReason = comparableOfflineValue(existing?.reason)
+  const reasonChanged = Object.prototype.hasOwnProperty.call(data, 'reason') && nextReason !== currentReason
+  const catalogDerivedReason = Boolean(nextServiceId)
+    && Boolean(nextReason)
+    && (
+      nextReason === comparableOfflineValue(data.serviceName)
+      || nextReason === nextServiceId
+    )
+
+  if (reasonChanged && (!catalogDerivedReason || existing)) {
+    throw new Error('Свободное описание записи можно сохранить только при подключении к сети')
+  }
+
+  // Human-readable service labels are removed from browser storage. The
+  // opaque catalog ID round-trips through appointment metadata so the client
+  // can resolve the label after reconnect without persisting clinical text.
+  if (!nextServiceId) {
+    for (const field of ['service', 'serviceName'] as const) {
+      if (
+        Object.prototype.hasOwnProperty.call(data, field)
+        && comparableOfflineValue(data[field]) !== comparableOfflineValue(existing?.[field])
+      ) {
+        throw new Error('Изменение названия услуги можно сохранить только при подключении к сети')
+      }
+    }
+  }
+}
+
+export function enqueueAppointmentUpsert(data: Partial<Appointment> & SyncQueueContext & { force?: boolean; id: string }): void {
+  // The newest intent for an appointment supersedes every queued operation
+  // for that ID. This prevents a stale delete from replaying before a later edit.
+  const q = loadQueue().filter((i) => i.payload.id !== data.id)
   q.push({
-    id: `uq_${data.id}_${Date.now()}`,
+    id: createQueueItemId('uq', data.id),
     kind: 'upsert',
     payload: data,
     enqueuedAt: new Date().toISOString(),
@@ -71,22 +160,59 @@ export function enqueueAppointmentUpsert(data: Partial<Appointment> & { force?: 
   saveQueue(q)
 }
 
-export function enqueueAppointmentDelete(id: string): void {
-  const q = loadQueue().filter((i) => i.payload.id !== id)
+export function enqueueAppointmentDelete(id: string, context: SyncQueueContext): void {
+  const current = loadQueue()
+  const forAppointment = current.filter((item) => item.payload.id === id)
+  const pendingUpsert = forAppointment.find((item) => item.kind === 'upsert')
+  // If this appointment has never reached the server, preserve its queued
+  // upsert and append the delete. Replay will create it before cancelling it.
+  const q = current.filter((item) => item.payload.id !== id)
+  if (pendingUpsert) q.push(pendingUpsert)
   q.push({
-    id: `del_${id}_${Date.now()}`,
+    id: createQueueItemId('del', id),
     kind: 'delete',
-    payload: { id } as any,
+    payload: { id, ...context } as any,
     enqueuedAt: new Date().toISOString(),
     attempts: 0,
   })
   saveQueue(q)
 }
 
-export function cacheDayAppointments(clinicId: string, date: string, appointments: Appointment[]): void {
+let legacyScheduleCachePurged = false
+
+function purgeLegacyScheduleDayCaches(): void {
+  if (legacyScheduleCachePurged || typeof localStorage === 'undefined') return
+  legacyScheduleCachePurged = true
+  try {
+    for (let index = localStorage.length - 1; index >= 0; index -= 1) {
+      const key = localStorage.key(index)
+      // Older keys were clinic/date-only and could be reused after a user,
+      // role or branch switch. They cannot be safely assigned to a context.
+      if (key?.startsWith('dv_schedule_day_')) localStorage.removeItem(key)
+    }
+  } catch { /* browser storage may be unavailable */ }
+}
+
+function dayCacheKey(context: SyncQueueContext, date: string): string {
+  // Encode one canonical tuple; delimiter-joining opaque IDs can collide when
+  // an upstream identifier itself contains the delimiter.
+  return `${CACHE_PREFIX}${encodeURIComponent(JSON.stringify([
+    context.clinicId,
+    context.organizationId,
+    context.workspaceId,
+    context.workspaceBranchId,
+    context.userId,
+    context.roleKey,
+    date,
+  ]))}`
+}
+
+export function cacheDayAppointments(context: SyncQueueContext | null, date: string, appointments: Appointment[]): void {
+  if (!context?.clinicId || !context.workspaceId || !context.userId || !context.roleKey) return
+  purgeLegacyScheduleDayCaches()
   try {
     localStorage.setItem(
-      `${CACHE_PREFIX}${clinicId}_${date}`,
+      dayCacheKey(context, date),
       JSON.stringify({
         savedAt: new Date().toISOString(),
         appointments: appointments.map((appointment) => sanitizeForLocalStorage(appointment)),
@@ -95,9 +221,11 @@ export function cacheDayAppointments(clinicId: string, date: string, appointment
   } catch { /* ignore */ }
 }
 
-export function readCachedDayAppointments(clinicId: string, date: string): Appointment[] | null {
+export function readCachedDayAppointments(context: SyncQueueContext | null, date: string): Appointment[] | null {
+  if (!context?.clinicId || !context.workspaceId || !context.userId || !context.roleKey) return null
+  purgeLegacyScheduleDayCaches()
   try {
-    const key = `${CACHE_PREFIX}${clinicId}_${date}`
+    const key = dayCacheKey(context, date)
     const raw = localStorage.getItem(key)
     if (!raw) return null
     const parsed = JSON.parse(raw)
@@ -119,17 +247,50 @@ export function isLikelyOffline(err?: unknown): boolean {
 
 let flushing = false
 
-export async function flushSyncQueue(): Promise<{ flushed: number; remaining: number }> {
-  if (flushing) return { flushed: 0, remaining: loadQueue().length }
+export async function flushSyncQueue(activeContext: SyncQueueContext | null): Promise<{ flushed: number; remaining: number }> {
+  const queued = loadQueue()
+  // The API derives tenant/workspace/branch from the active authenticated
+  // session. A queued operation may only replay in the exact same context.
+  // Legacy rows without a workspace/branch contract remain queued (fail closed).
+  if (
+    !activeContext?.clinicId
+    || !activeContext.workspaceId
+    || !activeContext.userId
+    || !activeContext.roleKey
+    || !Object.prototype.hasOwnProperty.call(activeContext, 'organizationId')
+    || !Object.prototype.hasOwnProperty.call(activeContext, 'workspaceBranchId')
+  ) return { flushed: 0, remaining: queued.length }
+  if (flushing) return { flushed: 0, remaining: queued.length }
   if (typeof navigator !== 'undefined' && !navigator.onLine) {
     return { flushed: 0, remaining: loadQueue().length }
   }
   flushing = true
   let flushed = 0
   try {
-    const q = loadQueue()
+    const q = queued
     const remaining: SyncQueueItem[] = []
+    const failedUpserts = new Set<string>()
     for (const item of q) {
+      if (
+        !Object.prototype.hasOwnProperty.call(item.payload, 'organizationId')
+        || !Object.prototype.hasOwnProperty.call(item.payload, 'workspaceId')
+        || !Object.prototype.hasOwnProperty.call(item.payload, 'workspaceBranchId')
+        || item.payload.clinicId !== activeContext.clinicId
+        || (item.payload.organizationId ?? null) !== (activeContext.organizationId ?? null)
+        || item.payload.workspaceId !== activeContext.workspaceId
+        || (item.payload.workspaceBranchId ?? null) !== (activeContext.workspaceBranchId ?? null)
+        || item.payload.userId !== activeContext.userId
+        || item.payload.roleKey !== activeContext.roleKey
+      ) {
+        remaining.push(item)
+        continue
+      }
+      // Do not execute a queued delete when its create/update operation failed
+      // earlier in this same replay. The next reconnect retries in order.
+      if (item.kind === 'delete' && failedUpserts.has(item.payload.id)) {
+        remaining.push(item)
+        continue
+      }
       try {
         if (item.kind === 'delete') {
           await api.deleteAppointment(item.payload.id)
@@ -138,6 +299,7 @@ export async function flushSyncQueue(): Promise<{ flushed: number; remaining: nu
         }
         flushed += 1
       } catch (err: any) {
+        if (item.kind === 'upsert') failedUpserts.add(item.payload.id)
         remaining.push({
           ...item,
           attempts: item.attempts + 1,
@@ -145,17 +307,41 @@ export async function flushSyncQueue(): Promise<{ flushed: number; remaining: nu
         })
       }
     }
-    saveQueue(remaining)
-    return { flushed, remaining: remaining.length }
+    // Queue mutations can arrive while network requests are in flight.
+    // Merge the latest storage snapshot instead of overwriting those newer
+    // operations with the batch that was loaded before replay began.
+    const latest = loadQueue()
+    const snapshotIds = new Set(q.map((item) => item.id))
+    const concurrent = latest.filter((item) => !snapshotIds.has(item.id))
+    const concurrentUpserts = new Set(
+      concurrent.filter((item) => item.kind === 'upsert').map((item) => item.payload.id),
+    )
+    // A new edit for the same appointment supersedes an older failed attempt.
+    const merged = [
+      ...remaining.filter((item) => !concurrentUpserts.has(item.payload.id)),
+      ...concurrent,
+    ]
+    const unique = Array.from(new Map(merged.map((item) => [item.id, item])).values())
+    saveQueue(unique)
+    return { flushed, remaining: unique.length }
   } finally {
     flushing = false
   }
 }
 
-export function startSyncQueueListener(onFlush?: (r: { flushed: number; remaining: number }) => void): () => void {
+export function startSyncQueueListener(
+  activeContext: SyncQueueContext | null,
+  onFlush?: (r: { flushed: number; remaining: number }) => void,
+): () => void {
   const handler = async () => {
-    const r = await flushSyncQueue()
-    onFlush?.(r)
+    try {
+      const r = await flushSyncQueue(activeContext)
+      onFlush?.(r)
+    } catch {
+      // Keep the queue visible; never emit a success callback when the durable
+      // local write failed after replay.
+      onFlush?.({ flushed: 0, remaining: getSyncQueue().length })
+    }
   }
   window.addEventListener('online', handler)
   // Opportunistic flush

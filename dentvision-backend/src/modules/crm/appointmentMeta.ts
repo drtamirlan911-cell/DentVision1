@@ -1,6 +1,7 @@
 import type { AppointmentStatus } from '@prisma/client';
 
 export interface AppointmentMeta {
+  serviceId?: string;
   serviceName?: string;
   servicePrice?: number;
   matCost?: number;
@@ -65,18 +66,16 @@ export function parseMeta(raw: unknown): AppointmentMeta {
 export function buildMeta(body: Record<string, unknown>, existing?: AppointmentMeta): AppointmentMeta {
   const base = { ...(existing || {}) };
   const keys: (keyof AppointmentMeta)[] = [
-    'serviceName', 'servicePrice', 'matCost', 'discount', 'paymentStatus', 'diagnosis', 'toothNumber',
+    'serviceId', 'serviceName', 'servicePrice', 'matCost', 'discount', 'paymentStatus', 'diagnosis', 'toothNumber',
     'receiptId', 'reason', 'flowStatus', 'chairId', 'chairName', 'inventoryDeducted', 'services',
   ];
   for (const key of keys) {
     if (body[key] !== undefined) (base as any)[key] = body[key];
   }
-  // Offline privacy sanitization removes human-readable `service` labels but
-  // retains the opaque clinic price-list serviceId so a new appointment can
-  // still be synchronized and rendered through the clinic's canonical price list.
-  if (body.serviceId && !base.serviceName) base.serviceName = String(body.serviceId);
-  if (body.service && !base.serviceName) base.serviceName = String(body.service);
-  if (body.serviceId && !base.reason) base.reason = String(body.serviceId);
+  // Keep the opaque catalog key separate from the human-readable procedure label.
+  // Offline queue payloads retain serviceId while intentionally stripping labels.
+  if (body.serviceName && !base.serviceName) base.serviceName = String(body.serviceName);
+  else if (body.service && !body.serviceId && !base.serviceName) base.serviceName = String(body.service);
   if (body.chairId === '' || body.chairId === null) {
     delete base.chairId;
     delete base.chairName;
@@ -126,7 +125,10 @@ export function serializeAppointment(row: {
     status,
     type: row.type,
     notes: row.notes || '',
+    // Preserve the legacy human-readable `service` response for existing API consumers.
+    // New clients use `serviceId` for catalog selection and can resolve its label when needed.
     service: meta.serviceName || row.type || '',
+    serviceId: meta.serviceId || '',
     serviceName: meta.serviceName || row.type || '',
     servicePrice: meta.servicePrice ?? 0,
     matCost: meta.matCost ?? 0,

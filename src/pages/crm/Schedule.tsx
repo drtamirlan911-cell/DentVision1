@@ -1,4 +1,4 @@
-﻿import React, { useState, useMemo, useEffect } from 'react'
+﻿import React, { useState, useMemo, useEffect, useCallback } from 'react'
 import { useNavigate, useSearchParams, useOutletContext } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
@@ -13,13 +13,16 @@ import { snapDuration } from '@/lib/clinicPrices'
 import { queryKeys } from '@/queries/keys'
 import * as api from '@/utils/api'
 import {
+  assertQueueableAppointmentChange,
   cacheDayAppointments,
+  enqueueAppointmentDelete,
   enqueueAppointmentUpsert,
   flushSyncQueue,
   getSyncQueue,
   isLikelyOffline,
   readCachedDayAppointments,
   startSyncQueueListener,
+  type SyncQueueContext,
 } from '@/lib/syncQueue'
 import { useAuth, canAcceptPayment } from '@/store/auth.store'
 import { useIam } from '@/iam/useIam'
@@ -80,7 +83,7 @@ const fadeUp = { hidden: { opacity: 0, y: 8 }, show: { opacity: 1, y: 0 } }
 
 export default function Schedule() {
   const outlet = useOutletContext<{ clinic?: Clinic; user?: UserType; roleInfo?: RoleInfo }>() || {}
-  const { user, roleInfo, clinic: authClinic, role } = useAuth()
+  const { user, roleInfo, clinic: authClinic, role, activeWorkspace } = useAuth()
   const iam = useIam()
   // Match Staff / IntelligenceLayout: prefer outlet + auth clinic over JWT claim alone.
   // Appointments API is JWT-scoped (works even with a stale user.clinicId), but
@@ -89,6 +92,29 @@ export default function Schedule() {
   const clinicId = outlet.clinic?.id || authClinic?.id || user?.clinicId || ''
   const clinic = clinicId ? { id: clinicId } : null
   const activeClinic = outlet.clinic || authClinic || (clinicId ? { id: clinicId } : null)
+  // Offline work is bound to the complete IAM context. A clinic match alone
+  // is not sufficient when a user can switch branch/workspace before reconnect.
+  const activeSyncContext = useMemo<SyncQueueContext | null>(() => {
+    const context = api.getWorkspaceContext()
+    const workspaceId = context?.workspaceId || activeWorkspace?.id || ''
+    const workspaceBranchId = context
+      ? context.branchId
+      : activeWorkspace?.branchId ?? null
+    const organizationId = context
+      ? context.organizationId
+      : activeWorkspace?.organizationId ?? null
+    const userId = user?.id || ''
+    const roleKey = context?.roleKey || activeWorkspace?.roleKey || ''
+    if (!clinicId || !workspaceId || !userId || !roleKey) return null
+    return { clinicId, organizationId, workspaceId, workspaceBranchId, userId, roleKey }
+  }, [
+    clinicId,
+    user?.id,
+    activeWorkspace?.id,
+    activeWorkspace?.branchId,
+    activeWorkspace?.organizationId,
+    activeWorkspace?.roleKey,
+  ])
   // Payment: admin / owner (руководитель) only — not doctors
   const canTakePayment = canAcceptPayment(role) || !!roleInfo?.canManageClinicSettings
   const {
@@ -100,6 +126,21 @@ export default function Schedule() {
   } = useDataQuery(clinicId)
 
   const { services: pricedServices } = useClinicPriceList(clinicId)
+
+  const appointmentServiceId = useCallback((appointment: Appointment): string => {
+    if (appointment.serviceId) return appointment.serviceId
+    if (appointment.service && pricedServices.some((service) => service.id === appointment.service)) return appointment.service
+    return pricedServices.find((service) =>
+      service.name === appointment.serviceName || service.name === appointment.service || service.name === appointment.reason
+    )?.id || ''
+  }, [pricedServices])
+  const appointmentServiceLabel = useCallback((appointment: Appointment): string => {
+    const catalogService = pricedServices.find((service) =>
+      service.id === appointment.serviceId || service.id === appointment.service
+    )
+    return catalogService?.name || appointment.serviceName || appointment.service || appointment.reason || ''
+  }, [pricedServices])
+
 
   const queryClient = useQueryClient()
   const chairsQ = useQuery({
@@ -161,9 +202,15 @@ export default function Schedule() {
     const onOn = () => setOffline(false)
     window.addEventListener('offline', onOff)
     window.addEventListener('online', onOn)
-    const stop = startSyncQueueListener((r) => {
+    const stop = startSyncQueueListener(activeSyncContext, (r) => {
       setPendingSync(getSyncQueue().length)
-      if (r.flushed > 0) showToast(`Синхронизировано: ${r.flushed}`, 'success')
+      if (r.flushed > 0) {
+        void queryClient.invalidateQueries({ queryKey: [...queryKeys.appointments, clinicId] })
+        showToast(`Синхронизировано: ${r.flushed}`, 'success')
+      } else if (r.remaining > 0 && activeSyncContext) {
+        // Remaining work may belong to another branch/workspace; keep it queued.
+        setPendingSync(r.remaining)
+      }
     })
     setPendingSync(getSyncQueue().length)
     return () => {
@@ -171,7 +218,16 @@ export default function Schedule() {
       window.removeEventListener('online', onOn)
       stop()
     }
-  }, [])
+  }, [
+    clinicId,
+    queryClient,
+    activeSyncContext?.organizationId,
+    activeSyncContext?.workspaceId,
+    activeSyncContext?.workspaceBranchId,
+    activeSyncContext?.userId,
+    activeSyncContext?.roleKey,
+    activeSyncContext,
+  ])
 
   useEffect(() => {
     const patientId = searchParams.get('patient')
@@ -186,31 +242,95 @@ export default function Schedule() {
 
   useEffect(() => {
     if (clinic?.id && liveAppointments.length) {
-      cacheDayAppointments(clinic.id, selDate, liveAppointments.filter((a) => a.date === selDate))
+      cacheDayAppointments(activeSyncContext, selDate, liveAppointments.filter((a) => a.date === selDate))
     }
-  }, [clinic?.id, selDate, liveAppointments])
+  }, [clinic?.id, activeSyncContext, selDate, liveAppointments])
 
   const appointments = useMemo(() => {
     if (liveAppointments.length) return liveAppointments
     if (clinic?.id) {
-      const cached = readCachedDayAppointments(clinic.id, selDate)
+      const cached = readCachedDayAppointments(activeSyncContext, selDate)
       if (cached?.length) return cached
     }
     return liveAppointments
-  }, [liveAppointments, clinic?.id, selDate])
+  }, [liveAppointments, clinic?.id, activeSyncContext, selDate])
+
+  const applyQueuedAppointmentToCache = async (data: Partial<Appointment> & { id: string }) => {
+    const key = [...queryKeys.appointments, clinicId]
+    await queryClient.cancelQueries({ queryKey: key })
+    const cachedCurrentDay = activeSyncContext
+      ? readCachedDayAppointments(activeSyncContext, selDate)
+      : null
+    const previous = queryClient.getQueryData<Appointment[]>(key)
+      ?? (liveAppointments.length > 0 ? liveAppointments : cachedCurrentDay ?? [])
+    const index = previous.findIndex((appointment) => appointment.id === data.id)
+    const previousDate = index >= 0 ? String(previous[index].date || '').slice(0, 10) : ''
+    const next = [...previous]
+    const merged = { ...(index >= 0 ? next[index] : {}), ...data, clinicId } as Appointment
+    if (index >= 0) next[index] = merged
+    else next.push(merged)
+    queryClient.setQueryData<Appointment[]>(key, next)
+    if (clinic?.id) {
+      // Keep both sides of an offline reschedule visible after a reload.
+      // The localStorage serializer still strips all patient/clinical fields.
+      const affectedDates = new Set([
+        selDate,
+        previousDate,
+        String(merged.date || '').slice(0, 10),
+      ].filter(Boolean))
+      for (const date of affectedDates) {
+        // Preserve cached appointments already known for the destination day
+        // when only the source day is available offline.
+        const byId = new Map(
+          (readCachedDayAppointments(activeSyncContext, date) || [])
+            .map((appointment) => [appointment.id, appointment]),
+        )
+        for (const appointment of next) {
+          const appointmentDate = String(appointment.date || '').slice(0, 10)
+          if (appointmentDate === date) byId.set(appointment.id, appointment)
+          else byId.delete(appointment.id)
+        }
+        cacheDayAppointments(activeSyncContext, date, [...byId.values()])
+      }
+    }
+  }
+
+  const queueOfflineAppointment = async (data: Partial<Appointment> & { force?: boolean; id?: string }) => {
+    if (!data.id || !clinic?.id || !activeSyncContext) {
+      throw new Error('Для офлайн-сохранения требуется активный контекст клиники и рабочего места')
+    }
+    const existing = liveAppointments.find((appointment) => appointment.id === data.id)
+      || (editAppt?.id === data.id ? editAppt : null)
+    const existingForQueue = existing && !existing.serviceId
+      ? {
+        ...existing,
+        serviceId: pricedServices.find((service) =>
+          service.id === existing.service || service.name === existing.service ||
+          service.name === existing.serviceName || service.name === existing.reason
+        )?.id,
+      }
+      : existing
+    assertQueueableAppointmentChange(data as Partial<Appointment> & { id: string }, existingForQueue)
+    const queued = { ...data, ...activeSyncContext, id: data.id }
+    enqueueAppointmentUpsert(queued as any)
+    // Apply the safe local edit only after the sanitized queue is durably written.
+    await applyQueuedAppointmentToCache(queued)
+    setPendingSync(getSyncQueue().length)
+    return { ...data, __queuedOffline: true }
+  }
 
   const upsertAppointment = async (data: Partial<Appointment> & { force?: boolean; id?: string }) => {
+    // Do not start a request that cannot complete while the browser is explicitly
+    // offline. Queue synchronously against the current IAM context instead.
+    if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+      return queueOfflineAppointment(data)
+    }
     try {
       const result = await upsertAppointmentApi(data)
       setPendingSync(getSyncQueue().length)
       return result
     } catch (err) {
-      if (isLikelyOffline(err) && data.id) {
-        enqueueAppointmentUpsert({ ...data, id: data.id } as any)
-        setPendingSync(getSyncQueue().length)
-        showToast('Нет сети — запись в очереди синка', 'warning')
-        return data
-      }
+      if (isLikelyOffline(err)) return queueOfflineAppointment(data)
       throw err
     }
   }
@@ -228,11 +348,11 @@ export default function Schedule() {
       const q = searchAppts.toLowerCase()
       list = list.filter(a => {
         const p = patients.find(pt => pt.id === a.patientId)
-        return p?.name?.toLowerCase().includes(q) || a.notes?.toLowerCase().includes(q) || a.service?.toLowerCase().includes(q)
+        return p?.name?.toLowerCase().includes(q) || a.notes?.toLowerCase().includes(q) || appointmentServiceLabel(a).toLowerCase().includes(q)
       })
     }
     return list
-  }, [appointments, selDate, ownDataOnly, user, selectedDoctorFilter, patients, searchAppts])
+  }, [appointments, selDate, ownDataOnly, user, selectedDoctorFilter, patients, searchAppts, appointmentServiceLabel])
 
   const dayWaitList = useMemo(
     () => waitingList.filter(w => {
@@ -264,13 +384,13 @@ export default function Schedule() {
         const q = searchAppts.toLowerCase()
         list = list.filter(a => {
           const p = patients.find(pt => pt.id === a.patientId)
-          return p?.name?.toLowerCase().includes(q) || a.notes?.toLowerCase().includes(q) || a.service?.toLowerCase().includes(q)
+          return p?.name?.toLowerCase().includes(q) || a.notes?.toLowerCase().includes(q) || appointmentServiceLabel(a).toLowerCase().includes(q)
         })
       }
       map[d] = list.sort((a, b) => a.time.localeCompare(b.time))
     }
     return map
-  }, [appointments, weekDates, ownDataOnly, user, selectedDoctorFilter, patients, searchAppts])
+  }, [appointments, weekDates, ownDataOnly, user, selectedDoctorFilter, patients, searchAppts, appointmentServiceLabel])
 
   const doctorColumns = useMemo(() => {
     let list =
@@ -315,7 +435,6 @@ export default function Schedule() {
     [pricedServices],
   )
   const selectedService = pricedServices.find(s => s.id === form.service)
-
   // Тот же прайс, что и при записи. Раньше список собирался только из строк,
   // которые клиника явно сохранила, — у новой клиники он был пуст, и добавить
   // услугу при закрытии приёма было не из чего.
@@ -344,7 +463,7 @@ export default function Schedule() {
     setForm({
       patientId: a.patientId || '',
       doctorId: a.doctorId || '',
-      service: a.service || a.reason || '',
+      service: appointmentServiceId(a),
       time: a.time,
       status: a.status,
       notes: a.notes || '',
@@ -386,16 +505,23 @@ export default function Schedule() {
     if (!patientId || !form.time) { showToast('Выберите пациента и время', 'warning'); return }
     if (!form.doctorId) { showToast('Выберите врача', 'warning'); return }
     const chair = chairs.find((c) => c.id === form.chairId)
+    const selectedServiceChanged = Boolean(selectedService) && (
+      !editAppt || selectedService!.id !== appointmentServiceId(editAppt)
+    )
     const payload = {
       ...form,
       id: editAppt?.id || gid(),
       clinicId: clinic?.id,
       date: selDate,
       patientId,
-      serviceId: form.service,
-      serviceName: selectedService?.name || form.service,
-      servicePrice: selectedService?.clinicPrice || 0,
-      reason: selectedService?.name || form.service,
+      ...(selectedService ? {
+        serviceId: selectedService.id,
+        ...(selectedServiceChanged ? {
+          serviceName: selectedService.name,
+          servicePrice: selectedService.clinicPrice,
+          reason: selectedService.name,
+        } : {}),
+      } : editAppt ? {} : { serviceId: form.service }),
       diagnosis: form.diagnosis,
       toothNumber: form.toothNumber,
       chairId: form.chairId || '',
@@ -404,8 +530,12 @@ export default function Schedule() {
     }
     setSubmitting(true)
     try {
-      await upsertAppointment(payload as any)
-      showToast(editAppt ? 'Запись обновлена' : 'Запись создана. Оплата: Касса → К оплате', 'success')
+      const saved = await upsertAppointment(payload as any)
+      if ((saved as any)?.__queuedOffline) {
+        showToast('Запись сохранена на устройстве и отправится после восстановления сети', 'warning')
+      } else {
+        showToast(editAppt ? 'Запись обновлена' : 'Запись создана. Оплата: Касса → К оплате', 'success')
+      }
       setModalOpen(false)
     } catch (err: any) {
       const msg = String(err?.message || '')
@@ -414,8 +544,10 @@ export default function Schedule() {
           message: `${msg}\n\nСохранить запись всё равно (овербукинг)?`,
           retry: async () => {
             try {
-              await upsertAppointment({ ...payload, force: true } as any)
-              showToast('Запись сохранена с овербукингом', 'warning')
+              const saved = await upsertAppointment({ ...payload, force: true } as any)
+              showToast((saved as any)?.__queuedOffline
+                ? 'Запись сохранена на устройстве и отправится после восстановления сети'
+                : 'Запись сохранена с овербукингом', 'warning')
               setModalOpen(false)
             } catch {
               showToast('Ошибка сохранения', 'error')
@@ -434,8 +566,10 @@ export default function Schedule() {
     e.preventDefault()
     if (!dragged) return
     try {
-      await upsertAppointment({ ...dragged, time: timeSlot, date: selDate, doctorId: doctorId || dragged.doctorId })
-      showToast('Запись перенесена', 'success')
+      const saved = await upsertAppointment({ ...dragged, time: timeSlot, date: selDate, doctorId: doctorId || dragged.doctorId })
+      showToast((saved as any)?.__queuedOffline
+        ? 'Перенос сохранён на устройстве и отправится после восстановления сети'
+        : 'Запись перенесена', (saved as any)?.__queuedOffline ? 'warning' : 'success')
     } catch (err: any) {
       const msg = String(err?.message || '')
       if (msg.includes('Конфликт') || msg.includes('конфликт')) {
@@ -443,8 +577,10 @@ export default function Schedule() {
         setOverbookConfirm({
           message: `${msg}\n\nПеренести всё равно?`,
           retry: async () => {
-            await upsertAppointment({ ...d, time: timeSlot, date: selDate, doctorId: doctorId || d.doctorId, force: true })
-            showToast('Перенесено с овербукингом', 'warning')
+            const saved = await upsertAppointment({ ...d, time: timeSlot, date: selDate, doctorId: doctorId || d.doctorId, force: true })
+            showToast((saved as any)?.__queuedOffline
+              ? 'Перенос сохранён на устройстве и отправится после восстановления сети'
+              : 'Перенесено с овербукингом', 'warning')
           },
         })
       } else {
@@ -453,14 +589,42 @@ export default function Schedule() {
     }
     setDragged(null)
   }
-  const handleDelete = async (): Promise<void> => { if (!editAppt) return; await deleteAppointment(editAppt.id); showToast('Запись удалена', 'success'); setModalOpen(false) }
+  const handleDelete = async (): Promise<void> => {
+    if (!editAppt) return
+    try {
+      await deleteAppointment(editAppt.id)
+      showToast('Запись удалена', 'success')
+      setModalOpen(false)
+    } catch (err) {
+      if (isLikelyOffline(err) && clinic?.id && activeSyncContext) {
+        try {
+          enqueueAppointmentDelete(editAppt.id, activeSyncContext)
+          const key = [...queryKeys.appointments, clinic.id]
+          await queryClient.cancelQueries({ queryKey: key })
+          const cachedCurrentDay = readCachedDayAppointments(activeSyncContext, selDate)
+          const previous = queryClient.getQueryData<Appointment[]>(key)
+            ?? (liveAppointments.length > 0 ? liveAppointments : cachedCurrentDay ?? [])
+          const next = previous.filter((appointment) => appointment.id !== editAppt.id)
+          queryClient.setQueryData<Appointment[]>(key, next)
+          cacheDayAppointments(activeSyncContext, selDate, next.filter((appointment) => String(appointment.date).slice(0, 10) === selDate))
+          setPendingSync(getSyncQueue().length)
+          showToast('Нет сети — удаление поставлено в очередь синхронизации', 'warning')
+          setModalOpen(false)
+        } catch (persistError) {
+          showToast((persistError as Error)?.message || 'Не удалось сохранить удаление на устройстве', 'error')
+        }
+        return
+      }
+      showToast((err as Error)?.message || 'Не удалось удалить запись', 'error')
+    }
+  }
 
   const openCloseVisit = (appt: Appointment) => {
     setCloseAppt(appt)
     setCloseNotes(appt.notes || '')
     // Услугу записи разворачиваем через прайс: в `appt.service` лежит код
     // («s3»), и без разворачивания он попадал в строку закрытия как название.
-    const booked = pricedServices.find((x) => x.id === appt.service)
+    const booked = pricedServices.find((x) => x.id === appt.serviceId || x.id === appt.service)
     if (booked) {
       setCloseServices([{
         code: booked.id,
@@ -470,7 +634,7 @@ export default function Schedule() {
       }])
     } else if (appt.serviceName || appt.service) {
       setCloseServices([{
-        name: String(appt.serviceName || appt.service),
+        name: appointmentServiceLabel(appt),
         price: Number(appt.servicePrice || 0),
         matCost: Number((appt as any).matCost || 0),
       }])
@@ -530,7 +694,7 @@ export default function Schedule() {
     if (!appt) return 0
     const price = Number(appt.servicePrice || 0)
     if (price > 0) return price
-    const fromCatalog = pricedServices.find((s) => s.id === appt.service || s.name === appt.service || s.name === appt.serviceName)
+    const fromCatalog = pricedServices.find((s) => s.id === appt.serviceId || s.id === appt.service || s.name === appt.service || s.name === appt.serviceName)
     return Number(fromCatalog?.clinicPrice || 0)
   }
 
@@ -629,7 +793,7 @@ export default function Schedule() {
     const rows = dayAppts.map((a) => {
       const p = patients.find((x) => x.id === a.patientId)
       const d = doctors.find((x) => x.id === a.doctorId)
-      return `<tr><td>${a.time || ''}</td><td>${d?.name || '—'}</td><td>${p?.name || a.patientName || '—'}</td><td>${a.service || a.reason || '—'}</td><td>${p?.phone || a.patientPhone || '—'}</td></tr>`
+      return `<tr><td>${a.time || ''}</td><td>${d?.name || '—'}</td><td>${p?.name || a.patientName || '—'}</td><td>${appointmentServiceLabel(a) || '—'}</td><td>${p?.phone || a.patientPhone || '—'}</td></tr>`
     }).join('')
     const html = `<!doctype html><html><head><meta charset="utf-8"/><title>Расписание ${selDate}</title>
       <style>body{font-family:sans-serif;padding:24px} table{width:100%;border-collapse:collapse;margin-top:16px} th,td{border:1px solid #333;padding:8px;text-align:left} th{background:#eee}</style></head>
@@ -700,8 +864,10 @@ export default function Schedule() {
     const next = idx >= 0 && idx < chain.length - 1 ? chain[idx + 1] : null
     if (!next) return
     try {
-      await upsertAppointment({ ...appt, status: next })
-      showToast(`Статус: ${STATUS_CFG[next]?.label || next}`, 'success')
+      const saved = await upsertAppointment({ ...appt, status: next })
+      showToast((saved as any)?.__queuedOffline
+        ? 'Изменение статуса сохранено на устройстве и отправится после восстановления сети'
+        : `Статус: ${STATUS_CFG[next]?.label || next}`, (saved as any)?.__queuedOffline ? 'warning' : 'success')
     } catch {
       showToast('Не удалось сменить статус', 'error')
     }
@@ -779,7 +945,7 @@ export default function Schedule() {
           <span className="text-xs font-semibold text-txt-primary truncate">{patient?.name || 'Пациент'}</span>
           <span className="text-2xs font-bold whitespace-nowrap" style={{ color: sc.dot }}>{appt.time}</span>
         </div>
-        <div className="text-2xs text-txt-muted mt-0.5 truncate">{appt.service || appt.reason || '—'}</div>
+        <div className="text-2xs text-txt-muted mt-0.5 truncate">{appointmentServiceLabel(appt) || '—'}</div>
         {(diagShort || toothLabel) && (
           <div className="flex items-center gap-1 mt-0.5">
             {diagShort && <span className="text-2xs text-dv-gold/70 font-medium">{diagShort}</span>}
@@ -905,9 +1071,19 @@ export default function Schedule() {
               variant="secondary"
               size="sm"
               onClick={async () => {
-                const r = await flushSyncQueue()
-                setPendingSync(getSyncQueue().length)
-                showToast(r.flushed ? `Синхронизировано: ${r.flushed}` : 'Нечего синхронизировать', r.flushed ? 'success' : 'info')
+                try {
+                  const r = await flushSyncQueue(activeSyncContext)
+                  setPendingSync(getSyncQueue().length)
+                  if (r.flushed > 0) {
+                    await queryClient.invalidateQueries({ queryKey: [...queryKeys.appointments, clinicId] })
+                    showToast(`Синхронизировано: ${r.flushed}`, 'success')
+                  } else {
+                    showToast(r.remaining > 0 ? 'Нет записей для синхронизации в этой клинике' : 'Нечего синхронизировать', 'info')
+                  }
+                } catch {
+                  setPendingSync(getSyncQueue().length)
+                  showToast('Не удалось завершить синхронизацию. Повторите попытку.', 'error')
+                }
               }}
             >
               Синхронизировать
@@ -1065,8 +1241,10 @@ export default function Schedule() {
                                       e.preventDefault()
                                       if (!dragged) return
                                       try {
-                                        await upsertAppointment({ ...dragged, time, date: selDate, chairId: chair.id, chairName: chair.name })
-                                        showToast('Перенесено на кресло', 'success')
+                                        const saved = await upsertAppointment({ ...dragged, time, date: selDate, chairId: chair.id, chairName: chair.name })
+                                        showToast((saved as any)?.__queuedOffline
+                                          ? 'Перенос сохранён на устройстве и отправится после восстановления сети'
+                                          : 'Перенесено на кресло', (saved as any)?.__queuedOffline ? 'warning' : 'success')
                                       } catch (err: any) {
                                         const msg = String(err?.message || '')
                                         if (msg.includes('Конфликт') || msg.includes('конфликт')) {
@@ -1074,8 +1252,10 @@ export default function Schedule() {
                                           setOverbookConfirm({
                                             message: `${msg}\n\nПеренести всё равно?`,
                                             retry: async () => {
-                                              await upsertAppointment({ ...d, time, date: selDate, chairId: chair.id, chairName: chair.name, force: true })
-                                              showToast('Перенесено с овербукингом', 'warning')
+                                              const saved = await upsertAppointment({ ...d, time, date: selDate, chairId: chair.id, chairName: chair.name, force: true })
+                                              showToast((saved as any)?.__queuedOffline
+                                                ? 'Перенос сохранён на устройстве и отправится после восстановления сети'
+                                                : 'Перенесено с овербукингом', 'warning')
                                             },
                                           })
                                         } else {
@@ -1340,7 +1520,7 @@ export default function Schedule() {
                 }))
               }
             }}
-            options={serviceOptions} required />
+            options={serviceOptions} required={!editAppt} />
 
           <div className={cn('grid grid-cols-1 gap-2', editAppt ? 'sm:grid-cols-3' : 'sm:grid-cols-2')}>
             <Select label="Время" value={form.time} onChange={e => setForm({ ...form, time: e.target.value })} options={HOURS.map(h => ({ value: h, label: h }))} required />
