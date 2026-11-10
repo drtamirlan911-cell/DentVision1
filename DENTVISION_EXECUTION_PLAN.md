@@ -1,3 +1,13 @@
+## Current implementation checkpoint — 2026-11-10 (RB-030 merged)
+
+- RB-030 offline appointment edit/reconnect/sync is implemented and merged through existing PR #345. Merge commit on `main`: `4c779b371c1c6a049630913a214ee27f3f8bd41b`; verified PR head: `3577a57d46d58c0fbfbbd26a6bf8696c85cb0a8b`.
+- Exact-head evidence on PR #345: CI [42511766232](https://github.com/drtamirlan911-cell/DentVision1/actions/runs/42511766232), Quality Gate [42511766117](https://github.com/drtamirlan911-cell/DentVision1/actions/runs/42511766117), Vercel Preview SUCCESS. 2,561 unit tests / 288 files passed. E2E gates passed: Core 251, Browser UX 4, Mobile Design 16, Role Design 140, Visual Agent 48, Business Owner 11, Organization Owner 8, Playwright CLI smoke and Visual Release Gate.
+- The sanitizer's timestamp-ID false positive is fixed with explicit opaque-reference-field handling and regression coverage; generic phone/IIN text and clinical/PHI fields remain redacted. Queue replay remains scoped to the complete active IAM context and fails closed on mismatch.
+- Offline boundary: edits to clinical notes, diagnosis, tooth number, free-text reason and service changes on an existing appointment require a network connection. Do not expand the offline claim beyond the verified safe fields.
+- PR #344 was closed as superseded, with its branch retained. Do not create a replacement branch or PR for RB-030.
+- **Next sequence:** (1) continue RB-029 historical PHI reader/writer inventory, key lifecycle, backup/restore and approved staging plan; (2) complete RB-035 patient-route/role/tenant/branch/revoked-session negative matrix; (3) prepare D1/D2 staging migration/retention validation only after staging target, backup/rollback and operator approval are verified; (4) gather RB-031 WebKit OPTIONS/CORS/WebSocket evidence; (5) obtain repository-admin proof for RB-033 branch protection; (6) verify official Kaspi merchant contract/callback, Android runtime and remaining D10 independent lab lifecycle.
+- Release remains NOT READY. No staging/production DB operation, migration, PHI backfill, provider operation, environment/secret change or production deployment was performed.
+
 ## Current implementation checkpoint — 2026-11-06 (recipient test fixture correction)
 
 - Existing PR #330 only; baseline HEAD `1da8313edb413a44a4cfae79799108e0a76cec2c`; branch `fix/d1-d10-trial-archive-signing-api-20261029`; base main `ac913cc3389a294d0b135a852b035ddddb1018ca`; 349 ahead / 0 behind.
