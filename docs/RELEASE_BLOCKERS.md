@@ -1,3 +1,21 @@
+## Exact-head checkpoint — 2026-11-10 (RB-030 merged)
+
+### RB-030 — offline appointment edit / reconnect / sync
+- **Status: RESOLVED in code and exact-head verification.** PR [#345](https://github.com/drtamirlan911-cell/DentVision1/pull/345) was merged to `main` as `4c779b371c1c6a049630913a214ee27f3f8bd41b`. The duplicate PR #344 was closed as superseded; its remote branch and history were retained.
+- Verified PR head: `3577a57d46d58c0fbfbbd26a6bf8696c85cb0a8b`. CI [42511766232](https://github.com/drtamirlan911-cell/DentVision1/actions/runs/42511766232), Quality Gate [42511766117](https://github.com/drtamirlan911-cell/DentVision1/actions/runs/42511766117), and Vercel Preview all succeeded.
+- Exact-head unit suite: **2,561 tests across 288 files passed**. E2E: Core 251; Browser UX 4; Mobile Design 16; Role Design 140; Visual Agent 48; Business Owner 11; Organization Owner 8; Playwright CLI smoke and Visual Release Gate passed.
+- The sanitizer now exempts opaque reference/context fields from generic phone-number text detection. This prevents timestamp-shaped appointment IDs from being stripped while generic text containing phone/IIN patterns and all configured clinical/PHI fields remain redacted. Regression coverage exercises timestamp-like IDs and phone-text redaction.
+- Offline replay remains bound to clinic, organization, workspace, branch, user and role; missing or changed context fails closed. Queue ordering/retry, create→delete sequencing, concurrent edits, scoped day cache and reconnect persistence are covered.
+- **Offline boundary remains explicit:** changes to notes, diagnosis, tooth number, free-text reason, and service changes on an existing appointment require a network connection. Do not tell the clinician these fields were saved offline. Local browser storage is not a PHI store.
+- No Prisma schema/migration, staging/production DB operation, historical PHI backfill, external provider operation, secret change or production deployment was performed.
+
+### Remaining release blockers
+- RB-029 remains OPEN / P0 for full historical PHI inventory/backfill, key lifecycle, backup/restore and approved staging evidence.
+- D1/D2 approved staging migration and retention proof remain OPEN.
+- RB-031 WebKit OPTIONS/CORS/WebSocket evidence; RB-033 branch-protection verification; RB-035 full authorization matrix; official Kaspi merchant contract/callback; Android runtime; D10 independent dental-lab lifecycle remain OPEN/PARTIAL.
+- Master Spec 5.0 compliance remains 18 PARTIAL / 4 OPEN / 2 GUIDANCE. Release remains NOT READY.
+- This checkpoint supersedes older RB-030 OPEN statements below; those entries are retained as historical audit evidence.
+
 ## Exact-head checkpoint — 2026-11-08 (current main)
 
 ### RB-037 — clinical diagnostic sign-off
@@ -15,7 +33,7 @@
 
 ### Other release blockers
 - D1/D2 migration and post-expiry/archive retention evidence still require approved staging.
-- RB-030 offline appointment edit/reconnect/sync E2E; RB-031 WebKit OPTIONS/CORS/WebSocket evidence; RB-033 branch protection verification; official Kaspi merchant contract/callback; Android runtime remain OPEN.
+- RB-031 WebKit OPTIONS/CORS/WebSocket evidence; RB-033 branch protection verification; official Kaspi merchant contract/callback; Android runtime remain OPEN.
 - RB-036 resolved only for premature delivered-triggered dental-lab economics; D10 remains OPEN/PARTIAL for full independent lab operations and financial lifecycle.
 - Master Spec 5.0 compliance remains 18 PARTIAL / 4 OPEN / 2 GUIDANCE in the current register. Release remains NOT READY.
 - No live database/backfill, production deployment, secret change or payment-provider operation was performed in this checkpoint.
