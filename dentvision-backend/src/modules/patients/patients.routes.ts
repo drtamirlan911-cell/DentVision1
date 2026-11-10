@@ -219,18 +219,9 @@ patientsRouter.patch('/:id', requirePatientMutationPermission, requireClinicWrit
     const names = (body.name || body.firstName || body.lastName)
       ? splitName(body.name, body.firstName, body.lastName)
       : { firstName: existing.firstName, lastName: existing.lastName };
-    const decodedPrev = decryptMedicalHistory(existing.medicalHistory);
-    const prev = (decodedPrev && typeof decodedPrev === 'object' && !Array.isArray(decodedPrev)
-      ? decodedPrev
-      : {}) as Record<string, unknown>;
-    const history = {
-      ...prev,
-      ...(body.medicalHistory && typeof body.medicalHistory === 'object' ? body.medicalHistory : {}),
-      ...(body.category !== undefined ? { category: body.category } : {}),
-      ...(body.source !== undefined ? { source: body.source } : {}),
-      ...(body.allergies !== undefined ? { allergies: body.allergies } : {}),
-      ...(body.teeth !== undefined ? { teeth: body.teeth } : {}),
-    };
+    // Use the same merge contract as the collection upsert. In particular,
+    // a partial PATCH must not silently replace a legacy scalar history with {}.
+    const history = mergePatientMedicalHistory(existing.medicalHistory, body);
     const data = {
       firstName: names.firstName,
       lastName: names.lastName,
@@ -272,6 +263,12 @@ patientsRouter.patch('/:id', requirePatientMutationPermission, requireClinicWrit
       return res.status(409).json({
         ok: false,
         error: 'Данные пациента изменились параллельно. Обновите страницу и повторите.',
+      } satisfies ApiResponse);
+    }
+    if (error instanceof Error && error.message === 'PATIENT_HISTORY_LEGACY_SCALAR') {
+      return res.status(409).json({
+        ok: false,
+        error: 'Старая текстовая медицинская история требует явной нормализации перед изменением.',
       } satisfies ApiResponse);
     }
     console.error('Update patient error:', error);
