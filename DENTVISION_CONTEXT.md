@@ -1,3 +1,14 @@
+## Exact-head update — 2026-11-10 (RB-030 merged)
+
+- Repository: `drtamirlan911-cell/DentVision1`; current product changes are merged to `main`. PR #345 merged as `4c779b371c1c6a049630913a214ee27f3f8bd41b`; its verified PR head was `3577a57d46d58c0fbfbbd26a6bf8696c85cb0a8b`.
+- RB-030 is resolved for the implemented offline appointment scope. Exact PR-head CI [42511766232](https://github.com/drtamirlan911-cell/DentVision1/actions/runs/42511766232) and Quality Gate [42511766117](https://github.com/drtamirlan911-cell/DentVision1/actions/runs/42511766117) passed; Vercel Preview passed. Unit suite: 2,561 / 2,561 tests across 288 files. E2E gates: Core 251, Browser UX 4, Mobile Design 16, Role Design 140, Visual Agent 48, Business Owner 11, Organization Owner 8; Playwright CLI smoke and Visual Release Gate passed.
+- Root cause: generic phone-number detection treated a timestamp-containing generated appointment ID as phone text and removed the required queue `id`. The sanitizer now exempts opaque reference/context keys while retaining redaction for generic text, configured clinical fields and PHI. A regression test covers timestamp-like IDs plus phone-text redaction.
+- Queue replay is tied to the full IAM tuple (clinic, organization, workspace, branch, user, role); invalid or mismatched context fails closed. Queue ordering, retries, create→delete, concurrent edits, cache isolation and reconnect persistence are covered.
+- Offline support does **not** include changed clinical notes, diagnosis, tooth number, free-text reason, or changing the service on an existing appointment. Those edits require network access. No PHI is persisted to the browser queue/cache.
+- Duplicate PR #344 was closed as superseded by #345; its branch and history were deliberately retained. PR #322 (isolated Codespaces environment) remains out of product-release merge scope.
+- Other release blockers remain: RB-029 historical PHI/key/backup and staging evidence; D1/D2 approved staging; RB-031 WebKit/production CORS/WebSocket; RB-033 branch protection; RB-035 full patient/IAM/tenant/branch negative matrix; official Kaspi contract/callback; Android runtime; D10 independent dental-lab lifecycle. Master Spec 5.0 remains 18 PARTIAL / 4 OPEN / 2 GUIDANCE; release NOT READY.
+- No staging/production DB query/write, migration, PHI backfill, provider operation, secret change or production deployment occurred.
+
 ## Exact-head update — 2026-11-06 (recipient-security test fixture correction)
 
 - Existing PR #330 / branch `fix/d1-d10-trial-archive-signing-api-20261029`; baseline HEAD `1da8313edb413a44a4cfae79799108e0a76cec2c`; base main `ac913cc3389a294d0b135a852b035ddddb1018ca`; 349 commits ahead / 0 behind. PR stays OPEN / DRAFT; no new branch/PR or merge.
