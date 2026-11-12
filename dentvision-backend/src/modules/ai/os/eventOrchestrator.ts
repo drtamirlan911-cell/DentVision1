@@ -29,6 +29,10 @@ const DEFAULT_CONFIG: EventOrchestratorConfig = {
   logLevel: 'info',
 };
 
+function safeErrorKind(error: unknown): 'Error' | 'NonError' {
+  return error instanceof Error ? 'Error' : 'NonError';
+}
+
 const AI_PROVIDER_COOLDOWN_MS = 5 * 60 * 1000;
 let aiProviderUnavailableUntil = 0;
 
@@ -111,7 +115,7 @@ async function enrichEmployeeResult(
       aiProviderUnavailableUntil = Date.now() + AI_PROVIDER_COOLDOWN_MS;
       console.warn('[EventOrchestrator] AI provider unavailable; deterministic DailySummary will be used until cooldown expires');
     } else {
-      console.warn('[EventOrchestrator] AI employee reasoning failed; using deterministic result', error);
+      console.warn('[EventOrchestrator] AI employee reasoning failed; using deterministic result (' + safeErrorKind(error) + ')');
     }
     return result;
   }
@@ -430,7 +434,7 @@ export class EventOrchestrator extends EventEmitter {
                 },
               })
               .catch((error) => {
-                console.warn('[EventOrchestrator] notification persistence failed', error);
+                console.warn('[EventOrchestrator] notification persistence failed (' + safeErrorKind(error) + ')');
                 return null;
               }),
           ),
@@ -445,7 +449,7 @@ export class EventOrchestrator extends EventEmitter {
           targetUserIds: targets,
         });
       } catch (error) {
-        console.warn('[EventOrchestrator] proactive delivery failed', error);
+        console.warn('[EventOrchestrator] proactive delivery failed (' + safeErrorKind(error) + ')');
       }
     }
   }
@@ -475,12 +479,12 @@ export class EventOrchestrator extends EventEmitter {
 
       return enrichEmployeeResult(event, action, result);
     } catch (error) {
-      console.error(`[EventOrchestrator] Action ${action.action} failed:`, error);
+      console.error(`[EventOrchestrator] Action ${action.action} failed (${safeErrorKind(error)})`);
       return {
         success: false,
         action: action.action,
         agent: action.agent,
-        message: error instanceof Error ? error.message : String(error),
+        message: 'Не удалось выполнить действие. Проверьте данные и повторите позже.',
       };
     }
   }

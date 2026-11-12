@@ -58,7 +58,7 @@ patientConversationRouter.get('/', authenticate, async (req: AuthRequest, res) =
       },
     });
   } catch (e: any) {
-    return res.status(500).json({ ok: false, error: e.message });
+    return res.status(500).json({ ok: false, error: 'Не удалось загрузить диалог. Попробуйте позже.' });
   }
 });
 
@@ -83,7 +83,7 @@ patientConversationRouter.post('/message', authenticate, async (req: AuthRequest
     patientConversationHub.broadcast(conversation.id, { type: 'message', message });
     return res.json({ ok: true, data: message });
   } catch (e: any) {
-    return res.status(500).json({ ok: false, error: e.message });
+    return res.status(500).json({ ok: false, error: 'Не удалось отправить сообщение. Попробуйте позже.' });
   }
 });
 

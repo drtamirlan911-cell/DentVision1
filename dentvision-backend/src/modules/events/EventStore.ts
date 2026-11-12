@@ -3,6 +3,10 @@ import prisma from '../../lib/prisma.js';
 import { CRMEvent } from './EventTypes.js';
 import { decodeDurableEventError, decodeDurableEventPayload, encodeDurableEventError, encodeDurableEventPayload } from './eventPayloadEncryption.js';
 
+function safeErrorKind(error: unknown): 'Error' | 'NonError' {
+  return error instanceof Error ? 'Error' : 'NonError';
+}
+
 export class EventStore {
   async save(event: CRMEvent): Promise<void> {
     try {
@@ -18,7 +22,7 @@ export class EventStore {
         },
       });
     } catch (err) {
-      console.error('[EventStore] Failed to save event:', err);
+      console.error('[EventStore] Failed to save event (' + safeErrorKind(err) + ')');
       throw err;
     }
   }
@@ -30,7 +34,7 @@ export class EventStore {
         data: { status: 'processing', processingAt: new Date() },
       });
     } catch (err) {
-      console.error('[EventStore] Failed to mark processing:', err);
+      console.error('[EventStore] Failed to mark processing (' + safeErrorKind(err) + ')');
     }
   }
 
@@ -77,7 +81,7 @@ export class EventStore {
         }));
       });
     } catch (err) {
-      console.error('[EventStore] Failed to claim pending events:', err);
+      console.error('[EventStore] Failed to claim pending events (' + safeErrorKind(err) + ')');
       return [];
     }
   }
@@ -99,7 +103,7 @@ export class EventStore {
       });
       return result.count;
     } catch (err) {
-      console.error('[EventStore] Failed to recover stale events:', err);
+      console.error('[EventStore] Failed to recover stale events (' + safeErrorKind(err) + ')');
       return 0;
     }
   }
@@ -116,7 +120,7 @@ export class EventStore {
         },
       });
     } catch (err) {
-      console.error('[EventStore] Failed to mark completed:', err);
+      console.error('[EventStore] Failed to mark completed (' + safeErrorKind(err) + ')');
     }
   }
 
@@ -134,7 +138,7 @@ export class EventStore {
         },
       });
     } catch (err) {
-      console.error('[EventStore] Failed to mark failed:', err);
+      console.error('[EventStore] Failed to mark failed (' + safeErrorKind(err) + ')');
     }
   }
 

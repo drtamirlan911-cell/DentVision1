@@ -50,7 +50,7 @@ patientInboxRouter.get('/conversations', authenticate, loadClinicAccess, blockCl
     const list = await convo.listForClinic(clinicId, status || undefined);
     return res.json({ ok: true, data: list });
   } catch (e: any) {
-    return res.status(500).json({ ok: false, error: e.message });
+    return res.status(500).json({ ok: false, error: 'Не удалось загрузить список диалогов. Попробуйте позже.' });
   }
 });
 
@@ -62,7 +62,7 @@ patientInboxRouter.get('/conversations/:id', authenticate, loadClinicAccess, blo
     return res.json({ ok: true, data: thread });
   } catch (e: any) {
     if (e?.code === 'NOT_FOUND') return res.status(404).json({ ok: false, error: e.message });
-    return res.status(500).json({ ok: false, error: e.message });
+    return res.status(500).json({ ok: false, error: 'Не удалось загрузить диалог. Попробуйте позже.' });
   }
 });
 
@@ -76,7 +76,7 @@ patientInboxRouter.post('/conversations/:id/claim', authenticate, loadClinicAcce
   } catch (e: any) {
     if (e?.code === 'NOT_FOUND') return res.status(404).json({ ok: false, error: e.message });
     if (e?.code === 'FORBIDDEN') return res.status(409).json({ ok: false, error: e.message });
-    return res.status(500).json({ ok: false, error: e.message });
+    return res.status(500).json({ ok: false, error: 'Не удалось принять диалог. Попробуйте позже.' });
   }
 });
 
@@ -94,7 +94,7 @@ patientInboxRouter.post('/conversations/:id/reply', authenticate, loadClinicAcce
   } catch (e: any) {
     if (e?.code === 'NOT_FOUND') return res.status(404).json({ ok: false, error: e.message });
     if (e?.code === 'FORBIDDEN') return res.status(409).json({ ok: false, error: e.message });
-    return res.status(500).json({ ok: false, error: e.message });
+    return res.status(500).json({ ok: false, error: 'Не удалось отправить ответ. Попробуйте позже.' });
   }
 });
 
@@ -107,7 +107,7 @@ patientInboxRouter.post('/conversations/:id/resolve', authenticate, loadClinicAc
     return res.json({ ok: true, data: conversation });
   } catch (e: any) {
     if (e?.code === 'NOT_FOUND') return res.status(404).json({ ok: false, error: e.message });
-    return res.status(500).json({ ok: false, error: e.message });
+    return res.status(500).json({ ok: false, error: 'Не удалось завершить диалог. Попробуйте позже.' });
   }
 });
 
@@ -168,7 +168,7 @@ patientInboxRouter.get('/escalations', authenticate, loadClinicAccess, blockClin
     });
     return res.json({ ok: true, data });
   } catch (e: any) {
-    return res.status(500).json({ ok: false, error: e.message });
+    return res.status(500).json({ ok: false, error: 'Не удалось загрузить очередь обращений. Попробуйте позже.' });
   }
 });
 
@@ -181,6 +181,6 @@ patientInboxRouter.post('/escalations/:id/resolve', authenticate, loadClinicAcce
     return res.json({ ok: true, data });
   } catch (e: any) {
     if (e instanceof EscalationError) return res.status(404).json({ ok: false, error: e.message });
-    return res.status(500).json({ ok: false, error: e.message });
+    return res.status(500).json({ ok: false, error: 'Не удалось обработать обращение. Попробуйте позже.' });
   }
 });

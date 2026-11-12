@@ -44,11 +44,15 @@ export interface DomainEventMap {
 }
 
 export type DomainEventName = keyof DomainEventMap;
+function safeErrorKind(error: unknown): 'Error' | 'NonError' {
+  return error instanceof Error ? 'Error' : 'NonError';
+}
+
 const emitter = new EventEmitter();
 emitter.setMaxListeners(50);
 
 export function publish<E extends DomainEventName>(event: E, payload: DomainEventMap[E]): void {
-  setImmediate(() => { try { emitter.emit(event, payload); } catch (err) { console.error(`[events] emit failed for "${event}":`, err); } });
+  setImmediate(() => { try { emitter.emit(event, payload); } catch (err) { console.error(`[events] emit failed for "${event}" (${safeErrorKind(err)})`); } });
 }
 
 export function publishGrowthEvent(payload: GrowthEventPayload): void {
@@ -59,7 +63,7 @@ export const emit = publish;
 
 export function subscribe<E extends DomainEventName>(event: E, handler: (payload: DomainEventMap[E]) => void | Promise<void>): void {
   emitter.on(event, (payload: DomainEventMap[E]) => {
-    Promise.resolve().then(() => handler(payload)).catch((err) => console.error(`[events] handler failed for "${event}":`, err));
+    Promise.resolve().then(() => handler(payload)).catch((err) => console.error(`[events] handler failed for "${event}" (${safeErrorKind(err)})`));
   });
 }
 

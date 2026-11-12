@@ -7,6 +7,7 @@ const {
   patientAssignmentFindMany,
   resolvePatientBranchContext,
   canAccessPatientBranch,
+  getActionHandler,
 } = vi.hoisted(() => ({
   organizationFindFirst: vi.fn(),
   personFindMany: vi.fn(),
@@ -14,6 +15,7 @@ const {
   patientAssignmentFindMany: vi.fn(),
   resolvePatientBranchContext: vi.fn(),
   canAccessPatientBranch: vi.fn(),
+  getActionHandler: vi.fn(),
 }));
 
 vi.mock('../../../lib/prisma.js', () => ({
@@ -33,7 +35,7 @@ vi.mock('../../events/index.js', () => ({
   eventStore: { markProcessing: vi.fn(), markCompleted: vi.fn(), markFailed: vi.fn() },
 }));
 vi.mock('./eventRules.js', () => ({ matchEventRules: vi.fn() }));
-vi.mock('./eventActions.js', () => ({ getActionHandler: vi.fn() }));
+vi.mock('./eventActions.js', () => ({ getActionHandler }));
 vi.mock('../ai.notifications.routes.js', () => ({ sseManager: { broadcast: vi.fn() } }));
 vi.mock('../llm/client.js', () => ({ simpleChat: vi.fn() }));
 vi.mock('../lib/providerFetch.js', () => ({ isProviderUnavailableError: vi.fn(() => false) }));
@@ -78,6 +80,7 @@ function resolveRecipients(sourceEvent: CRMEvent, sourceResult: EventActionResul
 
 describe('clinical AI notification recipient authorization', () => {
   beforeEach(() => {
+    getActionHandler.mockReset();
     organizationFindFirst.mockReset().mockResolvedValue({ id: 'organization-a' });
     personFindMany.mockReset().mockImplementation(async (query: { where?: { userId?: { in?: string[] } } }) => {
       const doctors = [{ userId: 'doctor-a' }, { userId: 'doctor-b' }];
@@ -173,6 +176,26 @@ describe('clinical AI notification recipient authorization', () => {
       resolveRecipients(event({ patientId: 'patient-a' }), result({ patientId: 'patient-b' })),
     ).resolves.toEqual([]);
     expect(patientFindFirst).not.toHaveBeenCalled();
+  });
+
+  it('does not expose PHI-bearing action exception text in notifications or logs', async () => {
+    const privateErrorText = 'Patient Jane Doe: private diagnosis narrative';
+    getActionHandler.mockReturnValueOnce(async () => {
+      throw new Error(privateErrorText);
+    });
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    try {
+      const orchestrator = new EventOrchestrator({ logLevel: 'silent' }) as unknown as {
+        executeAction: (event: CRMEvent, action: EventRuleAction) => Promise<EventActionResult>;
+      };
+      const response = await orchestrator.executeAction(event(), action);
+      expect(response.message).toBe('Не удалось выполнить действие. Проверьте данные и повторите позже.');
+      expect(response.message).not.toContain(privateErrorText);
+      expect(consoleError).toHaveBeenCalledWith('[EventOrchestrator] Action analyzeComplaints failed (Error)');
+      expect(JSON.stringify(consoleError.mock.calls)).not.toContain(privateErrorText);
+    } finally {
+      consoleError.mockRestore();
+    }
   });
 
   it('does not fall back to organization-wide doctors when a patient id is absent', async () => {

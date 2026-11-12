@@ -138,4 +138,25 @@ describe('EventStore encrypted payload persistence', () => {
     expect(detailed?.result).toEqual(legacyResult);
     expect(detailed?.error).toBe('Legacy failure detail');
   });
+
+  it('does not write raw event exception text to application logs', async () => {
+    const privateError = new Error('patient Jane Doe: private diagnosis narrative');
+    create.mockRejectedValueOnce(privateError);
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    try {
+      await expect(eventStore.save({
+        id: 'event-failed',
+        type: 'PatientCreated' as any,
+        timestamp: new Date('2026-11-10T00:00:00.000Z'),
+        source: 'test',
+        clinicId: 'clinic-a',
+        userId: 'user-a',
+        payload,
+      })).rejects.toBe(privateError);
+      expect(consoleError).toHaveBeenCalledWith('[EventStore] Failed to save event (Error)');
+      expect(JSON.stringify(consoleError.mock.calls)).not.toContain(privateError.message);
+    } finally {
+      consoleError.mockRestore();
+    }
+  });
 });
