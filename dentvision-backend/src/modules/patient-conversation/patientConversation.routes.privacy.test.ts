@@ -13,13 +13,13 @@ const staffRoute = readFileSync(
 
 describe('patient conversation error privacy', () => {
   it('does not expose raw internal errors in patient-facing 500 responses', () => {
-    expect(patientRoute).not.toMatch(/status\\(500\\)\\.json\\(\\{\\s*ok:\\s*false,\\s*error:\\s*e\\.message/);
+    expect(patientRoute).not.toMatch(/status\(500\)\.json\(\{\s*ok:\s*false,\s*error:\s*e\.message/);
     expect(patientRoute).toContain('Не удалось загрузить диалог. Попробуйте позже.');
     expect(patientRoute).toContain('Не удалось отправить сообщение. Попробуйте позже.');
   });
 
   it('does not expose raw internal errors in staff inbox 500 responses', () => {
-    expect(staffRoute).not.toMatch(/status\\(500\\)\\.json\\(\\{\\s*ok:\\s*false,\\s*error:\\s*e\\.message/);
+    expect(staffRoute).not.toMatch(/status\(500\)\.json\(\{\s*ok:\s*false,\s*error:\s*e\.message/);
     expect(staffRoute).toContain('Не удалось загрузить список диалогов. Попробуйте позже.');
     expect(staffRoute).toContain('Не удалось обработать обращение. Попробуйте позже.');
   });
