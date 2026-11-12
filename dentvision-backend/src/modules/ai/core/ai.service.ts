@@ -11,6 +11,10 @@ import { timeGreetingInTz } from '../lib/timezone.js';
 import { permissionsSatisfy } from '../../../lib/permissions.js';
 import { encryptAiTranscriptText, decryptAiTranscriptText } from '../lib/transcriptEncryption.js';
 
+function safeErrorKind(error: unknown): 'Error' | 'NonError' {
+  return error instanceof Error ? 'Error' : 'NonError';
+}
+
 /**
  * Permission required by each intent the deterministic router can execute.
  *
@@ -211,7 +215,7 @@ export class AIService {
         await this.saveMessage(sessionId, 'assistant', briefing.message, context);
         return briefing;
       } catch (e) {
-        console.warn('[AI] briefing fallback', e);
+        console.warn('[AI] briefing fallback (' + safeErrorKind(e) + ')');
       }
     }
 

@@ -10,6 +10,10 @@ import prisma from '../../../lib/prisma.js';
 import { memoryEngine } from '../memory/memory.engine.js';
 import { decryptAiTranscriptText, encryptAiTranscriptText } from '../lib/transcriptEncryption.js';
 
+function safeErrorKind(error: unknown): 'Error' | 'NonError' {
+  return error instanceof Error ? 'Error' : 'NonError';
+}
+
 const GLOBAL_CLINIC = '__global__';
 const PREFS_KEY = 'user_prefs';
 const TWIN_CACHE_KEY = 'twin_summary_v1';
@@ -252,7 +256,7 @@ async function getTwinBlock(userId: string, clinicId?: string | null, isGuest?: 
     }
     return text;
   } catch (e) {
-    console.warn('[AI learning] twin summary failed', e);
+    console.warn('[AI learning] twin summary failed (' + safeErrorKind(e) + ')');
     return '';
   }
 }
@@ -310,7 +314,7 @@ export async function getPositiveFewShots(
     return scored.map(({ user, assistant }) => ({ user, assistant }));
   } catch (e) {
     // Schema may not be migrated yet — fail soft
-    console.warn('[AI learning] few-shot lookup failed', e);
+    console.warn('[AI learning] few-shot lookup failed (' + safeErrorKind(e) + ')');
     return [];
   }
 }
@@ -457,7 +461,7 @@ export async function recordMessageFeedback(opts: {
 
     return { ok: true, messageId };
   } catch (e) {
-    console.error('[AI learning] record feedback failed', e);
+    console.error('[AI learning] record feedback failed (' + safeErrorKind(e) + ')');
     return { ok: false };
   }
 }
