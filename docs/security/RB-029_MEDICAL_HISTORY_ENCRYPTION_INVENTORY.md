@@ -1,3 +1,25 @@
+## Exact-main audit checkpoint — 2026-11-12
+
+This is a source-only review of the current `main` tree. No connected database was queried and no backfill, migration, key change, or production/staging operation was run.
+
+### Verified implementation present on main
+- Patient collection upsert and PATCH both call `mergePatientMedicalHistory()`, encrypt the complete structured result through `encryptMedicalHistory()`, and use optimistic concurrency (`updatedAt`) before committing the patient row. Collection upsert and PATCH keep Tooth-row synchronization in the same transaction.
+- `mergePatientMedicalHistory.test.ts` covers teeth-only partial updates preserving allergies, complaints, chronic diseases and tags; partial history object merges; explicit clear semantics; legacy scalar fail-closed behavior; and invalid roots.
+- `teethStore.applyToothFindings()` decrypts and merges the existing history, then conditionally updates by `updatedAt` and mirrors Tooth rows in one transaction. `syncTeeth()` itself only mirrors supplied chart state and does not independently overwrite the Patient JSON history.
+- Patient Portal, cross-clinic, AI patient-card, AI transcript and AI memory paths have dedicated codec handling documented above. This does not establish full retention/deletion or downstream-consumer closure.
+- The medical-history backfill script defaults to dry-run, requires an explicit matching target for staging writes and stronger confirmation for production, performs a full preflight, refuses unsupported roots, validates encryption round-trips, uses bounded keyset batches, compares the original JSONB value in the UPDATE predicate, and skips already-encrypted values on rerun. Its tests cover command safeguards and classification. The script has not been executed against staging or production.
+- `phi.ts` currently encrypts the complete structured history in a V1 envelope using the shared AES-256-GCM field cipher and fails closed for missing production key, malformed envelopes, failed authentication and invalid JSON. Legacy plaintext object reads remain enabled for backfill compatibility.
+
+### Remaining verified blockers (do not mark RB-029 resolved)
+1. Ciphertext envelope has no explicit algorithm/key ID metadata or keyring/rotation protocol. Current helper derives a single key from `ENCRYPTION_KEY`; key rotation and mixed-key reads are not implemented or evidenced.
+2. Historical Patient plaintext JSON and AIMemory plaintext JSON have not been counted or backfilled on an approved staging database. The script's dry-run and apply controls are source-level safeguards only, not execution evidence.
+3. No approved staging snapshot/count report, backup restore rehearsal, rollback evidence, exception-ledger disposition, or production reconciliation exists in the reviewed evidence.
+4. The inventory's wider downstream/derivative PHI review, transcript/memory retention/deletion proof, exports/backups, and formal acceptance remain incomplete.
+5. The source inventory still needs a complete consumer/serializer/ORM sweep tied to exact test evidence; the presence of a codec call in a route does not prove every reader, export, report or provider boundary is safe.
+
+### Decision
+RB-029 remains **OPEN / P0**. Do not run the backfill or change encryption keys until the key lifecycle, approved staging target, backup/restore, rollback, operator approval and exact verification plan are signed off. No clinical payloads, patient identifiers or secret values belong in CI logs or this document.
+
 ## Exact-head verification update — 2026-11-08
 
 - AI Admin new-write PHI protections were merged in PR #343 at `6d2d0b4c875f5b915ec7eb92ea6e3a7c12e07455`. Exact-head CI [42465473760](https://github.com/drtamirlan911-cell/DentVision1/actions/runs/42465473760) and Quality Gate [42465473744](https://github.com/drtamirlan911-cell/DentVision1/actions/runs/42465473744) succeeded.
