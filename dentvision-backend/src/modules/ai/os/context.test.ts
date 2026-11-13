@@ -227,14 +227,11 @@ describe('buildAiContext', () => {
 });
 
 describe('AI partner workspace proactive context', () => {
-  it('keeps partner workspace explicit when no clinic scope exists', async () => {
+  it('keeps partner workspace explicit and never guesses a clinic when no active clinic is supplied', async () => {
     const source = readFileSync(resolve(process.cwd(), 'dentvision-backend/src/modules/ai/core/digitalTwin.ts'), 'utf8');
-    expect(source).toContain('organizationType?: string | null');
-    expect(source).toContain("organizationType !== 'CLINIC'");
-    expect(source).toContain('type: \'workspace\'');
-    const partnerGuard = source.indexOf("else if (organizationType && organizationType !== 'CLINIC')");
-    const legacyFallback = source.indexOf("const access = await resolveAnyClinicMembership(userId)");
-    expect(partnerGuard).toBeGreaterThanOrEqual(0);
-    expect(legacyFallback).toBeGreaterThan(partnerGuard);
+    expect(source).toContain('const activeClinicId = clinicId || null');
+    expect(source).not.toContain('resolveAnyClinicMembership');
+    expect(source).toContain("if (!clinicId) {");
+    expect(source).toContain("type: 'workspace'");
   });
 });

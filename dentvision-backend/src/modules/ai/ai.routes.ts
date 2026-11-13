@@ -1095,7 +1095,6 @@ aiRouter.get('/digital-twin', optionalAuth, async (req: AuthRequest, res) => {
     const clinicId = activeAiClinicId(req.user);
     const twin = await buildDigitalTwin(req.user.id, clinicId, {
       isGuest: req.user?.isGuest === true,
-      organizationType: req.user?.organizationType || null,
     });
     if (!twin) {
       return res.status(404).json({ ok: false, error: 'Пользователь не найден' });
@@ -1134,7 +1133,6 @@ aiRouter.get('/twin/proactive', optionalAuth, async (req: AuthRequest, res) => {
     const { buildDigitalTwin, buildProactiveAlerts, buildContextualSuggestions } = await import('./core/digitalTwin.js');
     const twin = await buildDigitalTwin(userId, clinicId || null, {
       isGuest: false,
-      organizationType: req.user?.organizationType || null,
     });
     if (!twin) return res.json({ ok: true, data: { suggestions: [], feed: [] } });
 

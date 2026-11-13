@@ -1,3 +1,14 @@
+## 2026-11-13 — RB-029 Codex P1/P2 findings corrected in PR #346 candidate
+
+- Continued on the existing PR #346 branch security/rb029-fewshot-workspace-isolation-20261113, based on exact prior head e814fbba6a17539d2d0c2cbbf09b50ffa4670367. No new branch or PR was created.
+- Fixed the authentication fallback identified by Codex: after payload.organizationId resolves to a verified active organization/person context, a retained legacy payload.clinicId is no longer applied as the active clinic.
+- Fixed the Digital Twin fallback: buildDigitalTwin() no longer calls resolveAnyClinicMembership() when the caller omits an active clinic. Clinic-specific data requires explicit active clinic scope plus resolveClinicAccess.
+- Regression tests added/updated for partner organization + stale clinic claims, explicit/no-clinic Digital Twin scope, and AI partner workspace contract.
+- Local verification on this candidate worktree: full Vitest suite 2,612/2,612 passed (294 files); focused AI/auth suite 35/35 passed; frontend TypeScript, backend TypeScript build, frontend lint (13 warnings / 0 errors), targeted backend ESLint and diff check passed.
+- These results are local evidence only. Fresh exact-head GitHub CI/E2E, Quality Gate and Codex re-review must run after the candidate is pushed. PR #346 is not merged; main is unchanged.
+- Vercel Sandbox snapshot persistence could not be enabled: Vercel API returned HTTP 402 because the Hobby plan exceeded Snapshot Storage. Existing snapshots were retained; no old snapshots or worktrees were deleted. Commit/push to the existing GitHub PR branch remains the durable recovery path.
+- No staging/production DB read/write, migration, historical PHI backfill, key/secret mutation, provider action or production deployment occurred. RB-029 remains OPEN/P0.
+
 ## 2026-11-13 — RB-029 legacy clinic claim isolation in partner AI context
 
 - Continued on existing PR #346 / `security/rb029-fewshot-workspace-isolation-20261113`; starting head `b8d5a56013d2310352142d4c42e0ec4545781151`; no new branch or PR.

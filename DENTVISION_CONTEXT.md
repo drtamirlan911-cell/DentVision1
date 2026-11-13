@@ -1,3 +1,14 @@
+## Current implementation checkpoint — 2026-11-13 (RB-029 Codex review findings addressed in candidate)
+
+- Continue on the existing PR #346 / security/rb029-fewshot-workspace-isolation-20261113; no replacement branch or PR. Base main is 93472635f1788f27f4bb6666909ea0a82b339471; candidate changes are based on PR head e814fbba6a17539d2d0c2cbbf09b50ffa4670367. Main remains unchanged.
+- Addressed the new Codex P1: a verified active partner organization now blocks the legacy JWT clinicId fallback in authentication. A retained clinic claim cannot overwrite a verified diagnostic/laboratory/supplier organization context.
+- Addressed the new Codex P2: buildDigitalTwin() no longer resolves an arbitrary clinic membership when no active clinic ID is supplied. Clinic-derived name/KPIs are produced only after explicit active clinic scope and successful resolveClinicAccess; digital-twin routes pass the active scope only.
+- Added regression coverage for verified organization vs. stale clinic claim, missing/explicit clinic twin behavior, and updated the AI context contract test. Existing few-shot, memory, thread lifecycle and branch-scope tests remain included.
+- Local exact-worktree verification: full unit suite 2,612/2,612 passed across 294 files; focused AI/auth suite 35/35 passed; root TypeScript typecheck passed; backend TypeScript build passed; root lint passed (13 warnings, 0 errors); targeted backend ESLint passed; git diff --check passed.
+- Pending after push: exact-new-HEAD GitHub CI (including full E2E/Browser UX/Mobile/Role/Visual/Owner gates), Quality Gate, and Codex review. Do not merge until all exact-head gates pass and no unresolved security findings remain.
+- RB-029 remains OPEN/P0 for historical PHI inventory/backfill, external contact identifier protection, key versioning/rotation, retention/export/backup, restore/rollback, exception ledger and approved staging reconciliation. D1/D2, RB-031, RB-033, RB-035, official Kaspi, Android runtime and D10 remain open/partial. Release NOT READY.
+- No staging/production DB was queried or changed; no migration, PHI backfill, key/secret change, provider operation or production deployment performed.
+
 ## Exact-head update — 2026-11-13 (RB-029 active clinic scope)
 
 - Existing PR #346 / branch `security/rb029-fewshot-workspace-isolation-20261113`; starting HEAD `b8d5a56013d2310352142d4c42e0ec4545781151`; base/main remains unchanged. Do not create another PR or merge to main while exact-head checks are pending.

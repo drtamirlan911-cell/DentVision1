@@ -1,3 +1,11 @@
+## Candidate source update — 2026-11-13 (PR #346 Codex P1/P2 findings)
+
+### RB-029 — active workspace scope / Digital Twin
+- Candidate source corrections implemented; exact-new-head CI pending. The authentication middleware now preserves a verified active organization when a legacy JWT also carries a clinicId. The Digital Twin no longer infers an arbitrary clinic membership when the active clinic scope is absent.
+- Regression coverage includes verified partner organization vs. stale clinic claim, no-active-clinic Digital Twin behavior and explicit clinic scope. Local verification: 2,612/2,612 unit tests across 294 files; frontend typecheck, backend TypeScript build, frontend lint (13 warnings / 0 errors), targeted backend ESLint and diff check passed.
+- PR #346 remains OPEN and unmerged pending a fresh exact-head GitHub CI/E2E run, Quality Gate and Codex re-review.
+- RB-029 remains OPEN / P0. Historical PHI inventory/backfill, AiAdminSession.externalUserId protection, key versioning/rotation and old-key handling, retention/deletion/export/backup, restore/rollback, PHI-free exception ledger and approved staging reconciliation remain outstanding. No staging/production data was accessed or changed.
+
 ## Exact-head checkpoint — 2026-11-10 (RB-030 merged)
 
 ### RB-030 — offline appointment edit / reconnect / sync

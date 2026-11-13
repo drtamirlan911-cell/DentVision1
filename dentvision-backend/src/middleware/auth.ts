@@ -63,6 +63,11 @@ function normalizeScopedRole(roleKey: string): UserRole | undefined {
 }
 
 /** Merge canonical BranchMember assignments with legacy clinic memberships. */
+export function shouldUseLegacyClinicFallback(effectiveOrganizationId?: string | null, effectiveClinicId?: string | null): boolean {
+  // A verified active organization is authoritative even when an old JWT still carries clinicId.
+  return !effectiveOrganizationId && !effectiveClinicId;
+}
+
 export function mergeBranchIds(unifiedBranchIds: readonly string[], legacyBranchIds: readonly string[]): string[] {
   return Array.from(new Set([...unifiedBranchIds, ...legacyBranchIds].filter(Boolean)));
 }
@@ -169,7 +174,7 @@ export async function authenticate(req: AuthRequest, res: Response, next: NextFu
         }
       }
 
-      if (!effectiveClinicId && payload.clinicId) {
+      if (shouldUseLegacyClinicFallback(effectiveOrgId, effectiveClinicId) && payload.clinicId) {
         const activeMember = user.memberships?.find((m) => m.clinicId === payload.clinicId);
         if (activeMember) {
           const requestPath = String(req.originalUrl || req.url || '').split('?')[0];
