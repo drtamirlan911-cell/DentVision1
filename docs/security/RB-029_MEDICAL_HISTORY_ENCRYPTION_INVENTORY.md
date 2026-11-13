@@ -171,6 +171,18 @@ The checklist below predates the shared V1 codec and compatible writers/readers.
 This inventory does **not** establish that every separate Patient field is encrypted. `phone`, `email`, `address`, `notes`, IIN blind index/search behavior, images/documents/storage URLs, visit and treatment-plan fields, AI messages/events and backup copies have their own privacy/data-retention properties. They require their own explicit decisions. RB-029 remains **OPEN / P0** until the codec, all compatible consumers, audited backfill, key operations and exact production evidence are complete.
 
 
+## AI thread lifecycle candidate — 2026-11-13 (PR #346)
+
+The candidate implementation adds user-controlled persisted-thread deletion and makes “Новый диалог” create a distinct server-side session.
+
+- `DELETE /api/ai/threads/:threadId` derives both the user and active workspace scope from the authenticated token. It never accepts an owner or tenant identifier from the request body. Missing, foreign-user and foreign-workspace IDs return the same not-found response.
+- Deletion and creation of the replacement empty `AISession` occur in one database transaction. Existing `AIMessage` rows are removed through the established session foreign-key cascade; no clinical Patient, Visit, EventStore or audit records are erased by this endpoint.
+- Session snapshot synchronization updates the scoped parent row first and no longer uses `upsert`. This serializes concurrent synchronization against deletion and prevents a late sync from recreating a deleted session. Child transcript re-encryption proceeds only while the scoped session still exists.
+- A stale or foreign `sessionId` on a new query no longer redirects the user to the latest different transcript; the server creates a fresh session in the authenticated active workspace.
+- The web UI creates a new persisted conversation separately from deleting one. The delete control uses an explicit confirmation and opens a fresh empty conversation after the server confirms deletion. Session identifiers are refreshed in the workspace/clinic client storage keys.
+
+These are **candidate source changes** until exact-head CI, Quality Gate and merge are complete. They do not close the remaining historical PHI inventory/backfill, other derived-PHI surfaces, retention/export/backup policy, key versioning/rotation, backup/restore or approved staging evidence. No database migration, staging/production query or write, PHI backfill, or production deployment is performed by this change.
+
 ## AI transcript and thread-history reconciliation — 2026-10-31
 
 A re-check of the current PR source corrects the earlier statement that AI transcripts were stored as plaintext:

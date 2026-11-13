@@ -9,6 +9,8 @@ import { improveResponseWithLLM } from './core/llm.service.js';
 import { orchestrate, orchestratorEnabled, isProviderUnavailableError } from './os/orchestrator.js';
 import type { AIResponse } from './types/ai.types.js';
 import { prisma } from '../../lib/prisma.js';
+import type { Prisma } from '@prisma/client';
+import { deleteAiThreadAndCreateNext, resolveScopedAiSessionId, updateExistingAiSessionSnapshot } from './lib/threadLifecycle.js';
 import { decryptAiTranscriptText, encryptAiTranscriptText } from './lib/transcriptEncryption.js';
 import { decryptStoredThreadMessages, parseAiHistoryPagination } from './lib/threadHistory.js';
 import { logAIInteraction } from './lib/auditLogger.js';
@@ -114,20 +116,12 @@ function aiAccessInput(req: AuthRequest) {
 async function resolveUserSessionId(req: AuthRequest, requested?: string): Promise<string> {
   if (!req.user?.id || req.user.isGuest) return requested && requested.length >= 8 ? requested : crypto.randomUUID();
 
-  const userId = req.user.id;
-  const scopeKey = aiSessionScope(req);
-
-  if (requested) {
-    const owned = await prisma.aISession.findFirst({ where: { id: requested, userId, clinicId: scopeKey }, select: { id: true } });
-    if (owned) return owned.id;
-  }
-
-  const existing = await prisma.aISession.findFirst({ where: { userId, clinicId: scopeKey }, orderBy: { updatedAt: 'desc' }, select: { id: true } });
-  if (existing) return existing.id;
-
-  const id = crypto.randomUUID();
-  await prisma.aISession.create({ data: { id, userId, clinicId: scopeKey, messages: [], context: {} } });
-  return id;
+  return resolveScopedAiSessionId(prisma, {
+    userId: req.user.id,
+    clinicId: aiSessionScope(req),
+    requested,
+    createId: crypto.randomUUID(),
+  });
 }
 
 async function syncSessionMessages(sessionId: string, userId: string | undefined, clinicId: string | undefined) {
@@ -159,6 +153,14 @@ async function syncSessionMessages(sessionId: string, userId: string | undefined
     }));
 
     await prisma.$transaction(async (tx) => {
+      const sessionStillOwned = await updateExistingAiSessionSnapshot(tx, {
+        sessionId,
+        userId,
+        clinicId: scopeKey,
+        messages: messages as Prisma.InputJsonValue,
+      });
+      if (!sessionStillOwned) return;
+
       for (const item of normalized) {
         if (item.content !== item.row.content || item.prevUserText !== item.row.prevUserText) {
           await tx.aIMessage.updateMany({
@@ -167,11 +169,6 @@ async function syncSessionMessages(sessionId: string, userId: string | undefined
           });
         }
       }
-      await tx.aISession.upsert({
-        where: { id: sessionId },
-        create: { id: sessionId, userId, clinicId: scopeKey, messages, context: {} },
-        update: { messages },
-      });
     });
   } catch (err) {
     console.error('[AI] syncSessionMessages failed; transcript payload omitted');
@@ -735,6 +732,32 @@ aiRouter.get('/threads/active', authenticate, async (req: AuthRequest, res) => {
       error: 'История AI временно недоступна',
       code: 'AI_TRANSCRIPT_UNAVAILABLE',
     });
+  }
+});
+
+aiRouter.delete('/threads/:threadId', authenticate, async (req: AuthRequest, res) => {
+  const threadId = String(req.params.threadId || '');
+  if (threadId.length < 8 || threadId.length > 128) {
+    return res.status(400).json({ ok: false, error: 'Некорректный идентификатор диалога' });
+  }
+
+  try {
+    const nextSessionId = await deleteAiThreadAndCreateNext(prisma, {
+      threadId,
+      userId: req.user!.id,
+      clinicId: aiSessionScope(req),
+      nextSessionId: crypto.randomUUID(),
+    });
+    if (!nextSessionId) {
+      return res.status(404).json({ ok: false, error: 'Диалог не найден' });
+    }
+    return res.json({
+      ok: true,
+      data: { deleted: true, nextSessionId, sessionId: nextSessionId, threadId: nextSessionId },
+    });
+  } catch (error) {
+    console.error('[AI] thread deletion failed');
+    return res.status(500).json({ ok: false, error: 'Не удалось удалить диалог' });
   }
 });
 

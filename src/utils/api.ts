@@ -470,6 +470,7 @@ export async function getPresentationFunnel(): Promise<PresentationFunnelStage[]
 export async function getAiThreads(): Promise<any> { return apiRequest('/api/ai/threads'); }
 export async function getActiveAiThread(): Promise<any | null> { return apiRequestOptional('/api/ai/threads/active'); }
 export async function startNewAiThread(): Promise<any> { return apiRequest('/api/ai/threads/new', { method: 'POST', body: '{}' }); }
+export async function deleteAiThread(threadId: string): Promise<any> { return apiRequest(`/api/ai/threads/${encodeURIComponent(threadId)}`, { method: 'DELETE' }); }
 export async function getServiceAccess(clinicId: string): Promise<Record<string, boolean>> { return Promise.resolve({}); }
 export async function setServiceAccess(clinicId: string, service: string, enabled: boolean): Promise<any> { return Promise.resolve({ ok: true }); }
 export async function setServiceAccessBulk(clinicId: string, services: Record<string, boolean>): Promise<any> { return Promise.resolve({ ok: true }); }
@@ -566,6 +567,19 @@ export async function biCfoChat(question: string): Promise<{ reply: string }> { 
 export interface AIChatResponse { reply: string; skill: string; source?: string; data?: Record<string, unknown>; recommendations?: Array<Record<string, unknown>>; actions: Array<{ type: string; label: string; confidence: number; params?: Record<string, unknown>; requiresConfirmation?: boolean }>; suggestions: string[]; proactive: Array<{ type: string; category: string; text: string; priority: number; action?: { type: string } }>; conversationContext: { turnCount: number; entities: Record<string, unknown> }; sessionId?: string; messageId?: string; learnedHint?: string; learnedLabels?: string[]; activePersona?: string; activePersonaLabel?: string; aiRequestsLeft?: number; }
 export function getAiSessionId(userId?: string | null, clinicId?: string | null): string { const key = aiSessionStorageKey(userId, clinicId); try { const existing = localStorage.getItem(key); if (existing && existing.length >= 8) return existing; } catch { } const id = (typeof crypto !== 'undefined' && crypto.randomUUID) ? crypto.randomUUID() : `sess_${Date.now()}_${Math.random().toString(36).slice(2)}`; try { localStorage.setItem(key, id); } catch { } return id; }
 export function aiSessionStorageKey(userId?: string | null, clinicId?: string | null): string { return `dv_ai_session_${userId || 'guest'}_${clinicId || 'none'}`; }
+export function rememberAiSessionId(sessionId: string, options: { userId?: string | null; workspaceId?: string | null; clinicId?: string | null } = {}): void {
+  if (!sessionId || sessionId.length < 8) return;
+  const userId = options.userId || 'guest';
+  const keys = new Set<string>();
+  if (options.workspaceId) {
+    keys.add(`dv_ai_workspace_session_v1_${userId}_${options.workspaceId}`);
+    keys.add(aiSessionStorageKey(userId, options.workspaceId));
+  }
+  if (options.clinicId) keys.add(aiSessionStorageKey(userId, options.clinicId));
+  try {
+    for (const key of keys) localStorage.setItem(key, sessionId);
+  } catch { /* browser storage may be unavailable */ }
+}
 export function aiThreadStorageKey(userId?: string | null, clinicId?: string | null): string { return `dv_ai_thread_${userId || 'guest'}_${clinicId || 'none'}`; }
 export function clearAiSessionId(userId?: string | null, clinicId?: string | null): void { try { localStorage.removeItem(aiSessionStorageKey(userId, clinicId)); } catch { } try { localStorage.removeItem(`dv_ai_session_${userId || 'guest'}`); } catch { } }
 export async function aiChat(message: string, history: Array<{ role: string; content: string }> = [], opts?: { sessionId?: string; userId?: string | null; clinicId?: string | null; pathname?: string | null; focusType?: string | null; focusId?: string | null }): Promise<AIChatResponse> {
