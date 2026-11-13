@@ -32,12 +32,18 @@ describe('AI learned preference workspace isolation', () => {
       source: 'explicit',
     });
 
-    expect(memory.setLongTerm).toHaveBeenCalledTimes(1);
+    expect(memory.setLongTerm).toHaveBeenCalledTimes(2);
     expect(memory.setLongTerm).toHaveBeenCalledWith(
       'user_prefs',
       expect.objectContaining({ items: [expect.objectContaining({ source: 'explicit' })] }),
       'user-1',
       'clinic-1',
+    );
+    expect(memory.setLongTerm).toHaveBeenCalledWith(
+      'user_prefs',
+      { items: [] },
+      'user-1',
+      '__global__',
     );
   });
 
@@ -61,7 +67,13 @@ describe('AI learned preference workspace isolation', () => {
     );
 
     expect(learned).toEqual([]);
-    expect(memory.setLongTerm).not.toHaveBeenCalled();
+    expect(memory.setLongTerm).toHaveBeenCalledTimes(1);
+    expect(memory.setLongTerm).toHaveBeenCalledWith(
+      'user_prefs',
+      { items: [] },
+      'user-1',
+      '__global__',
+    );
   });
 
   it('filters historical unscoped facts out of global preferences', async () => {
@@ -176,7 +188,7 @@ describe('AI learned preference workspace isolation', () => {
     );
   });
 
-  it('persists only generic style preferences in the global bucket', async () => {
+  it('does not persist an explicit fact in the global bucket without an active clinic', async () => {
     await upsertPref('user-1', null, {
       key: 'fact_patient_case',
       label: 'Факт / правило',
