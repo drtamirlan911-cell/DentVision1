@@ -9,12 +9,14 @@ import { improveResponseWithLLM } from './core/llm.service.js';
 import { orchestrate, orchestratorEnabled, isProviderUnavailableError } from './os/orchestrator.js';
 import type { AIResponse } from './types/ai.types.js';
 import { prisma } from '../../lib/prisma.js';
+import type { Prisma } from '@prisma/client';
+import { deleteAiThreadAndCreateNext, lockExistingAiSessionForSync, resolveScopedAiSessionId, updateExistingAiSessionSnapshot } from './lib/threadLifecycle.js';
 import { decryptAiTranscriptText, encryptAiTranscriptText } from './lib/transcriptEncryption.js';
 import { decryptStoredThreadMessages, parseAiHistoryPagination } from './lib/threadHistory.js';
 import { logAIInteraction } from './lib/auditLogger.js';
 import { guardAiAccess } from '../../middleware/planGate.js';
 import { consumeGuestAi, guestAiRemaining } from '../../lib/guestAiQuota.js';
-import { buildAiContext } from './os/context.js';
+import { activeAiClinicId, buildAiContext } from './os/context.js';
 import multer from 'multer';
 import { transcribeAudio, isTranscriptionFailed, MAX_AUDIO_BYTES } from './lib/transcription.js';
 
@@ -94,7 +96,8 @@ function aiSessionScope(req: AuthRequest): string {
   }
   if (user?.supplierId) return 'supplier:' + user.supplierId;
   if (user?.lecturerId) return 'lecturer:' + user.lecturerId;
-  if (user?.clinicId) return 'clinic:' + user.clinicId;
+  const activeClinicId = activeAiClinicId(user);
+  if (activeClinicId) return 'clinic:' + activeClinicId;
   if (user?.organizationId) return 'org:' + user.organizationId;
   return 'user:' + (user?.id || 'platform');
 }
@@ -102,7 +105,7 @@ function aiSessionScope(req: AuthRequest): string {
 function aiAccessInput(req: AuthRequest) {
   return {
     userId: req.user!.id,
-    clinicId: req.user?.clinicId ?? null,
+    clinicId: activeAiClinicId(req.user),
     organizationId: req.user?.organizationId ?? null,
     organizationType: req.user?.organizationType ?? null,
     supplierId: req.user?.supplierId ?? null,
@@ -114,51 +117,47 @@ function aiAccessInput(req: AuthRequest) {
 async function resolveUserSessionId(req: AuthRequest, requested?: string): Promise<string> {
   if (!req.user?.id || req.user.isGuest) return requested && requested.length >= 8 ? requested : crypto.randomUUID();
 
-  const userId = req.user.id;
-  const scopeKey = aiSessionScope(req);
-
-  if (requested) {
-    const owned = await prisma.aISession.findFirst({ where: { id: requested, userId, clinicId: scopeKey }, select: { id: true } });
-    if (owned) return owned.id;
-  }
-
-  const existing = await prisma.aISession.findFirst({ where: { userId, clinicId: scopeKey }, orderBy: { updatedAt: 'desc' }, select: { id: true } });
-  if (existing) return existing.id;
-
-  const id = crypto.randomUUID();
-  await prisma.aISession.create({ data: { id, userId, clinicId: scopeKey, messages: [], context: {} } });
-  return id;
+  return resolveScopedAiSessionId(prisma, {
+    userId: req.user.id,
+    clinicId: aiSessionScope(req),
+    requested,
+    createId: crypto.randomUUID(),
+  });
 }
 
 async function syncSessionMessages(sessionId: string, userId: string | undefined, clinicId: string | undefined) {
   if (!userId) return;
   try {
     const scopeKey = clinicId || DEMO_CLINIC_ID || 'platform';
-    const ownedSession = await prisma.aISession.findFirst({
-      where: { id: sessionId, userId, clinicId: scopeKey },
-      select: { id: true },
-    });
-    if (!ownedSession) return;
-
-    const rows = await prisma.aIMessage.findMany({
-      where: { sessionId },
-      orderBy: { createdAt: 'asc' },
-      take: 80,
-      select: { id: true, role: true, content: true, prevUserText: true, createdAt: true },
-    });
-    const normalized = rows.map((row) => ({
-      row,
-      content: encryptAiTranscriptText(row.content),
-      prevUserText: row.prevUserText == null ? null : encryptAiTranscriptText(row.prevUserText),
-    }));
-    const messages = normalized.map(({ row, content }) => ({
-      id: row.id,
-      role: row.role,
-      content,
-      timestamp: row.createdAt.toISOString(),
-    }));
-
     await prisma.$transaction(async (tx) => {
+      // Acquire the scoped parent-row lock before reading the mirror source.
+      // Concurrent syncs therefore read the committed message set in turn,
+      // and a concurrent delete either wins first or cascades after this commit.
+      const sessionLocked = await lockExistingAiSessionForSync(tx, {
+        sessionId,
+        userId,
+        clinicId: scopeKey,
+      });
+      if (!sessionLocked) return;
+
+      const rows = await tx.aIMessage.findMany({
+        where: { sessionId },
+        orderBy: { createdAt: 'asc' },
+        take: 80,
+        select: { id: true, role: true, content: true, prevUserText: true, createdAt: true },
+      });
+      const normalized = rows.map((row) => ({
+        row,
+        content: encryptAiTranscriptText(row.content),
+        prevUserText: row.prevUserText == null ? null : encryptAiTranscriptText(row.prevUserText),
+      }));
+      const messages = normalized.map(({ row, content }) => ({
+        id: row.id,
+        role: row.role,
+        content,
+        timestamp: row.createdAt.toISOString(),
+      }));
+
       for (const item of normalized) {
         if (item.content !== item.row.content || item.prevUserText !== item.row.prevUserText) {
           await tx.aIMessage.updateMany({
@@ -167,10 +166,12 @@ async function syncSessionMessages(sessionId: string, userId: string | undefined
           });
         }
       }
-      await tx.aISession.upsert({
-        where: { id: sessionId },
-        create: { id: sessionId, userId, clinicId: scopeKey, messages, context: {} },
-        update: { messages },
+
+      await updateExistingAiSessionSnapshot(tx, {
+        sessionId,
+        userId,
+        clinicId: scopeKey,
+        messages: messages as Prisma.InputJsonValue,
       });
     });
   } catch (err) {
@@ -343,7 +344,7 @@ async function processQuery(
   const queueKey = typeof body.queueKey === 'string' ? body.queueKey : undefined;
 
   const userId = req.user?.id || 'guest';
-  const clinicId = isGuest ? null : (req.user!.clinicId || null);
+  const clinicId = activeAiClinicId(req.user);
 
   // The verified entity focus (Stage 10 context engine) — kernel.ts substitutes
   // a missing patientId argument from this. Guests have no clinic-scoped entity.
@@ -458,7 +459,7 @@ async function processQuery(
 
   const context = {
     userId,
-    clinicId: isGuest ? '' : (clinicId || DEMO_CLINIC_ID),
+    clinicId: clinicId || '',
     role: isGuest ? 'guest' : (req.user?.role || 'guest'),
     isGuest,
     sessionId,
@@ -482,7 +483,7 @@ aiRouter.post('/query', validate(querySchema), async (req: AuthRequest, res) => 
     const toolsUsed = response.toolsUsed || [];
     logAIInteraction({
       userId: req.user?.id || 'guest',
-      clinicId: req.user?.clinicId || undefined,
+      clinicId: activeAiClinicId(req.user) || undefined,
       sessionId,
       // Real id, so the audit can answer "what generated this?". A
       // deterministic shortcut answers without any model at all.
@@ -511,7 +512,7 @@ aiRouter.post('/query', validate(querySchema), async (req: AuthRequest, res) => 
     console.error('[AI] query failed');
     logAIInteraction({
       userId: req.user?.id || 'guest',
-      clinicId: req.user?.clinicId || undefined,
+      clinicId: activeAiClinicId(req.user) || undefined,
       sessionId: req.body?.sessionId || undefined,
       model: 'unknown',
       toolsCalled: [],
@@ -613,7 +614,7 @@ aiRouter.post('/query/stream', async (req: AuthRequest, res) => {
     const toolsUsed = response.toolsUsed || [];
     logAIInteraction({
       userId: req.user?.id || 'guest',
-      clinicId: req.user?.clinicId || undefined,
+      clinicId: activeAiClinicId(req.user) || undefined,
       sessionId,
       // Real id, so the audit can answer "what generated this?". A
       // deterministic shortcut answers without any model at all.
@@ -652,7 +653,7 @@ aiRouter.post('/query/stream', async (req: AuthRequest, res) => {
     console.error('[AI Stream] request failed');
     logAIInteraction({
       userId: req.user?.id || 'guest',
-      clinicId: req.user?.clinicId || undefined,
+      clinicId: activeAiClinicId(req.user) || undefined,
       sessionId: req.body?.sessionId || undefined,
       model: 'unknown',
       toolsCalled: [],
@@ -735,6 +736,32 @@ aiRouter.get('/threads/active', authenticate, async (req: AuthRequest, res) => {
       error: 'История AI временно недоступна',
       code: 'AI_TRANSCRIPT_UNAVAILABLE',
     });
+  }
+});
+
+aiRouter.delete('/threads/:threadId', authenticate, async (req: AuthRequest, res) => {
+  const threadId = String(req.params.threadId || '');
+  if (threadId.length < 8 || threadId.length > 128) {
+    return res.status(400).json({ ok: false, error: 'Некорректный идентификатор диалога' });
+  }
+
+  try {
+    const nextSessionId = await deleteAiThreadAndCreateNext(prisma, {
+      threadId,
+      userId: req.user!.id,
+      clinicId: aiSessionScope(req),
+      nextSessionId: crypto.randomUUID(),
+    });
+    if (!nextSessionId) {
+      return res.status(404).json({ ok: false, error: 'Диалог не найден' });
+    }
+    return res.json({
+      ok: true,
+      data: { deleted: true, nextSessionId, sessionId: nextSessionId, threadId: nextSessionId },
+    });
+  } catch (error) {
+    console.error('[AI] thread deletion failed');
+    return res.status(500).json({ ok: false, error: 'Не удалось удалить диалог' });
   }
 });
 
@@ -892,7 +919,7 @@ aiRouter.post('/greeting', async (req: AuthRequest, res) => {
       clientTimeZoneFromRequest,
       DEFAULT_CLINIC_TZ,
     } = await import('./lib/timezone.js');
-    const clinicId = req.user?.clinicId || DEMO_CLINIC_ID;
+    const clinicId = activeAiClinicId(req.user) || ((!req.user || req.user.isGuest) ? DEMO_CLINIC_ID : '');
     let clinicTz: string | null = null;
     if (clinicId) {
       const clinic = await prisma.clinic.findUnique({
@@ -936,7 +963,7 @@ aiRouter.get('/proactive', optionalAuth, async (req: AuthRequest, res) => {
     const { buildProactiveAlerts } = await import('./core/digitalTwin.js');
     const alerts = await buildProactiveAlerts({
       userId: req.user?.id || 'guest',
-      clinicId: req.user?.isGuest ? null : (req.user?.clinicId || null),
+      clinicId: activeAiClinicId(req.user),
       role: req.user?.isGuest ? 'GUEST' : (req.user?.role || 'guest'),
       isGuest: req.user?.isGuest === true,
       organizationType: req.user?.organizationType || null,
@@ -956,7 +983,7 @@ aiRouter.get('/briefing', authenticate, async (req: AuthRequest, res) => {
       return res.status(403).json({ ok: false, error: 'Briefing requires clinic user' });
     }
     const { buildJarvisBriefing } = await import('./core/jarvisBriefing.js');
-    const clinicId = req.user.clinicId || null;
+    const clinicId = activeAiClinicId(req.user);
     const activeWorkspace = await buildAiContext(req, {}).then((ctx) => ctx?.workspace ?? null).catch(() => null);
     const clinic = clinicId
       ? await prisma.clinic.findUnique({
@@ -1065,9 +1092,9 @@ aiRouter.get('/digital-twin', optionalAuth, async (req: AuthRequest, res) => {
     if (!req.user?.id) {
       return res.json({ ok: true, data: { twin: buildGuestPlatformTwin(null), preferences: [] } });
     }
-    const twin = await buildDigitalTwin(req.user.id, req.user?.clinicId || null, {
+    const clinicId = activeAiClinicId(req.user);
+    const twin = await buildDigitalTwin(req.user.id, clinicId, {
       isGuest: req.user?.isGuest === true,
-      organizationType: req.user?.organizationType || null,
     });
     if (!twin) {
       return res.status(404).json({ ok: false, error: 'Пользователь не найден' });
@@ -1076,8 +1103,8 @@ aiRouter.get('/digital-twin', optionalAuth, async (req: AuthRequest, res) => {
     let enrichedTwin = twin as Record<string, unknown>;
     try {
       const { getTwinEventOSData, enrichTwinWithEventOS } = await import('./core/digitalTwinEventOS.js');
-      if (req.user?.clinicId) {
-        const eventOSData = await getTwinEventOSData(req.user.clinicId);
+      if (clinicId) {
+        const eventOSData = await getTwinEventOSData(clinicId);
         enrichedTwin = enrichTwinWithEventOS(twin as Record<string, unknown>, eventOSData);
       }
     } catch { /* optional */ }
@@ -1085,7 +1112,7 @@ aiRouter.get('/digital-twin', optionalAuth, async (req: AuthRequest, res) => {
     let preferences: Array<{ key: string; label: string; value: string; source: string }> = [];
     try {
       const learning = await import('./learning/learning.service.js');
-      preferences = await learning.listPrefs(req.user.id, req.user?.clinicId || null);
+      preferences = await learning.listPrefs(req.user.id, clinicId);
     } catch { /* optional */ }
     res.json({ ok: true, data: { twin: enrichedTwin, preferences } });
   } catch (error) {
@@ -1100,13 +1127,12 @@ aiRouter.get('/twin/proactive', optionalAuth, async (req: AuthRequest, res) => {
     const screen = String(req.query.screen || '').trim();
 
     const userId = req.user?.id;
-    const clinicId = req.user?.clinicId;
+    const clinicId = activeAiClinicId(req.user);
     if (!userId) return res.json({ ok: true, data: { suggestions: [], feed: [] } });
 
     const { buildDigitalTwin, buildProactiveAlerts, buildContextualSuggestions } = await import('./core/digitalTwin.js');
     const twin = await buildDigitalTwin(userId, clinicId || null, {
       isGuest: false,
-      organizationType: req.user?.organizationType || null,
     });
     if (!twin) return res.json({ ok: true, data: { suggestions: [], feed: [] } });
 
@@ -1239,7 +1265,7 @@ aiRouter.get('/insights', authenticate, requirePermission('medical.read'), async
   try {
     const entityType = String(req.query.entityType || '');
     const entityId = String(req.query.entityId || '');
-    const clinicId = req.user?.clinicId;
+    const clinicId = activeAiClinicId(req.user);
     if (!clinicId) {
       return res.status(400).json({ ok: false, error: 'Клиника не указана' });
     }
@@ -1268,7 +1294,7 @@ aiRouter.get('/insights', authenticate, requirePermission('medical.read'), async
 
 aiRouter.post('/insights/:id/dismiss', authenticate, async (req: AuthRequest, res) => {
   try {
-    const clinicId = req.user?.clinicId;
+    const clinicId = activeAiClinicId(req.user);
     if (!clinicId) {
       return res.status(400).json({ ok: false, error: 'Клиника не указана' });
     }

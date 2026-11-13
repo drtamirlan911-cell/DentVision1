@@ -1,3 +1,20 @@
+## Candidate source update — 2026-11-13 (PR #346 AI history hydrator race)
+
+### RB-029 — AI thread hydration lifecycle
+- Candidate fix: the independent AIConversationSync /api/ai/history hydrator now shares the AI store's conversation generation with loadConversation(). A late history response from a previous thread is discarded after new-chat/delete/reset or workspace teardown; the conditional commit is generation-checked by the store.
+- Regression coverage reproduces a pending old history request, creates a new server-backed thread, then resolves the old request and proves old messages are not restored.
+- Local verification on the candidate: 2,613/2,613 unit tests across 295 files, targeted AIConversationSync 1/1, AI thread lifecycle 6/6, TypeScript, frontend/backend build, frontend lint (13 warnings / 0 errors), Release Gate 6/6 and diff check all passed.
+- Exact-new-head GitHub CI/E2E, Quality Gate and Codex re-review are pending after publication. PR #346 remains open/unmerged.
+- RB-029 remains OPEN/P0 for historical PHI inventory/backfill, AiAdminSession.externalUserId protection, key versioning/rotation and old-key handling, retention/deletion/export/backup, restore/rollback, PHI-free exception ledger and approved staging reconciliation. No staging/production data was accessed or changed.
+
+## Candidate source update — 2026-11-13 (PR #346 Codex P1/P2 findings)
+
+### RB-029 — active workspace scope / Digital Twin
+- Candidate source corrections implemented; exact-new-head CI pending. The authentication middleware now preserves a verified active organization when a legacy JWT also carries a clinicId. The Digital Twin no longer infers an arbitrary clinic membership when the active clinic scope is absent.
+- Regression coverage includes verified partner organization vs. stale clinic claim, no-active-clinic Digital Twin behavior and explicit clinic scope. Local verification: 2,612/2,612 unit tests across 294 files; frontend typecheck, backend TypeScript build, frontend lint (13 warnings / 0 errors), targeted backend ESLint and diff check passed.
+- PR #346 remains OPEN and unmerged pending a fresh exact-head GitHub CI/E2E run, Quality Gate and Codex re-review.
+- RB-029 remains OPEN / P0. Historical PHI inventory/backfill, AiAdminSession.externalUserId protection, key versioning/rotation and old-key handling, retention/deletion/export/backup, restore/rollback, PHI-free exception ledger and approved staging reconciliation remain outstanding. No staging/production data was accessed or changed.
+
 ## Exact-head checkpoint — 2026-11-10 (RB-030 merged)
 
 ### RB-030 — offline appointment edit / reconnect / sync
@@ -11,6 +28,15 @@
 
 ### Remaining release blockers
 - RB-029 remains OPEN / P0 for full historical PHI inventory/backfill, key lifecycle, backup/restore and approved staging evidence.
+- RB-029 candidate PR [#346](https://github.com/drtamirlan911-cell/DentVision1/pull/346) adds exact-clinic AI few-shot isolation, blocks unscoped free-form learning/global fact replay, and disables clinic-derived digital-twin fallback without an active clinic. Keep this pending exact-head CI/Quality Gate and merge; it does not close the remaining historical-data/key/retention/backup/staging requirements.
+- RB-029 AI thread lifecycle candidate in PR [#346](https://github.com/drtamirlan911-cell/DentVision1/pull/346) now adds an owner + active-workspace-scoped `DELETE /api/ai/threads/:threadId`, atomic deletion plus replacement-session creation, a confirmed web delete action, and a server-backed New Chat action. Session snapshot sync no longer uses `upsert` (preventing a deleted session from being recreated), and stale/foreign requested session IDs create a fresh session rather than falling back to another transcript. This is candidate source only until exact-head CI/Quality Gate pass and merge; it does not close historical PHI/backfill, key lifecycle, backup/restore, retention/export or staging requirements.
+## RB-029 active-workspace scope follow-up — 2026-11-13 (PR #346)
+
+A read-only source review found that partner tokens can retain a legacy `clinicId` for compatibility. Although the context builder recognized non-clinic organizations, some AI routes and the branch resolver still read the raw claim. This could feed an old clinic into few-shot/learning retrieval, deterministic AI context, digital-twin/proactive endpoints, insights, or branch context while a partner workspace is active.
+
+The candidate centralizes the effective clinic scope in `activeAiClinicId()`: guest and partner workspaces resolve to `null`; only a verified clinic context uses its clinic ID. The helper is used for AI tool access, memory/few-shot learning, orchestrator and deterministic context, greeting/briefing, digital twin, proactive context, insights, and audit metadata. Authenticated non-clinic users no longer fall back to `DEMO_CLINIC_ID`. Branch context must match the active organization or active clinic; stale `branchIds` / `assignedBranchId` claims alone cannot reattach a clinic branch.
+
+Regression tests cover partner tokens retaining a legacy clinic ID and clinic branch claims. These are candidate source changes pending exact-head unit, lint, Quality Gate and full E2E. No database, staging, production, PHI backfill, key or deployment operation was performed.
 - D1/D2 approved staging migration and retention proof remain OPEN.
 - RB-031 WebKit OPTIONS/CORS/WebSocket evidence; RB-033 branch-protection verification; RB-035 full authorization matrix; official Kaspi merchant contract/callback; Android runtime; D10 independent dental-lab lifecycle remain OPEN/PARTIAL.
 - Master Spec 5.0 compliance remains 18 PARTIAL / 4 OPEN / 2 GUIDANCE. Release remains NOT READY.

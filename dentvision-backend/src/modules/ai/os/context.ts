@@ -56,10 +56,23 @@ export interface AiRequestContext {
 
 const RECENT_EVENTS_LIMIT = 5;
 
+/** True when the token represents an explicitly active partner workspace. */
+export function isNonClinicAiWorkspace(user?: AuthRequest['user'] | null): boolean {
+  if (!user || user.isGuest) return false;
+  return Boolean(user.organizationId && user.organizationType && user.organizationType !== 'CLINIC')
+    || Boolean(user.supplierId || user.lecturerId);
+}
+
+/** Legacy clinic claims do not define scope after switching to a partner workspace. */
+export function activeAiClinicId(user?: AuthRequest['user'] | null): string | null {
+  if (!user || user.isGuest || isNonClinicAiWorkspace(user)) return null;
+  return user.clinicId || null;
+}
+
 export async function buildAiContext(req: AuthRequest, hints: ContextHints = {}): Promise<AiRequestContext> {
   const user = req.user!;
-  const activeIsNonClinic = Boolean(user.organizationId && user.organizationType && user.organizationType !== 'CLINIC') || Boolean(user.supplierId || user.lecturerId);
-  const clinicId = activeIsNonClinic ? null : (user.clinicId || null);
+  const activeIsNonClinic = isNonClinicAiWorkspace(user);
+  const clinicId = activeAiClinicId(user);
   const organizationId = activeIsNonClinic ? (user.organizationId || null) : (clinicId ? await resolveOrganizationIdForClinic(clinicId) : (user.organizationId || null));
   let availableWorkspaces: AiRequestContext['availableWorkspaces'] = [];
   try {
@@ -89,10 +102,8 @@ export async function buildAiContext(req: AuthRequest, hints: ContextHints = {})
       const branchAllowed = Boolean(
         candidate
         && (
-          (user.organizationId && candidate.organizationId === user.organizationId)
-          || (user.clinicId && candidate.clinicId === user.clinicId)
-          || (user.branchIds || []).includes(candidate.id)
-          || candidate.id === user.assignedBranchId
+          (organizationId && candidate.organizationId === organizationId)
+          || (clinicId && candidate.clinicId === clinicId)
         ),
       );
       if (branchAllowed) branch = candidate;
