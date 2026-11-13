@@ -12,6 +12,10 @@ The current-main AI-learning review identified three cross-workspace context bou
 
 Regression coverage in PR #346 checks exact-clinic few-shot selection, no-clinic fail-closed behavior, unscoped learning suppression, filtering of historical global facts, and no clinic twin without an active clinic. These are **candidate source changes only** until the final exact-head CI and Quality Gate pass and the PR is merged. They do not count or backfill existing AIMemory/transcript/event rows and do not close retention, deletion, key lifecycle, export, backup/restore or staging evidence requirements.
 
+### AI thread deletion acceptance gap — 2026-11-13
+
+The data-privacy spec requires users to delete an AI thread. The current backend exposes scoped list/read/create routes and memory-fact deletion, but no `DELETE /api/ai/threads/:id` route was found. The web client's `clearConversation()` resets only local Zustand state; it does not delete the persisted `AISession`/cascaded `AIMessage` records, and the stored session ID remains available to `getAiSessionId()`. Therefore the visible “Новый диалог” action is not proof of a deleted server-side thread and may continue using the prior session. Treat user-facing thread deletion, ownership/workspace-scoped server deletion, and new-thread/session-key reset as OPEN until implemented and tested. Do not interpret this as permission to erase regulated clinical records without a retention/legal policy.
+
 ### Verified implementation present on main
 - Patient collection upsert and PATCH both call `mergePatientMedicalHistory()`, encrypt the complete structured result through `encryptMedicalHistory()`, and use optimistic concurrency (`updatedAt`) before committing the patient row. Collection upsert and PATCH keep Tooth-row synchronization in the same transaction.
 - `mergePatientMedicalHistory.test.ts` covers teeth-only partial updates preserving allergies, complaints, chronic diseases and tags; partial history object merges; explicit clear semantics; legacy scalar fail-closed behavior; and invalid roots.
