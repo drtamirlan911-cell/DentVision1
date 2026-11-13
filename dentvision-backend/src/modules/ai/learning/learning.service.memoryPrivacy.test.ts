@@ -79,12 +79,7 @@ describe('AI learned preference workspace isolation', () => {
       source: 'explicit',
     });
 
-    expect(memory.setLongTerm).toHaveBeenCalledWith(
-      'user_prefs',
-      { items: [] },
-      'user-1',
-      '__global__',
-    );
+    expect(memory.setLongTerm).not.toHaveBeenCalled();
   });
 
   it('keeps generic style preferences portable across workspaces', async () => {
