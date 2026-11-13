@@ -1,3 +1,13 @@
+## Current implementation checkpoint — 2026-11-13 (RB-029 independent AI history hydrator race)
+
+- Continued on the existing PR #346 branch security/rb029-fewshot-workspace-isolation-20261113, based on published head cd5966fbbb8823cefdf5645c6ad01d681c58848b. Main remains unchanged; no new PR or replacement branch.
+- Addressed the latest Codex P2: AIConversationSync independently hydrates /api/ai/history, so it could previously write an old transcript after a new chat was created even though loadConversation() had a generation guard. Both hydration paths now share the same conversation generation. AIConversationSync checks the generation before committing the history response and cancels its work on workspace switch/unmount.
+- Added an integration-style component regression test that holds /api/ai/history pending, starts a new persisted conversation, then resolves the old history response and asserts the new session remains empty.
+- Local verification on this exact candidate worktree: full unit suite 2,613/2,613 across 295 files; AIConversationSync component regression 1/1; AI thread lifecycle tests 6/6; frontend TypeScript; frontend production build; backend TypeScript build; frontend lint (13 warnings / 0 errors); Release Gate 6/6; git diff --check all passed. Frontend Vite reports existing large-chunk and mixed Welcome import warnings only.
+- Pending after publication: exact-new-head GitHub CI/E2E (including browser, mobile, role, visual and owner gates), Quality Gate and Codex re-review. Do not merge until all exact-head gates pass and no P0/P1/P2 findings remain.
+- RB-029 remains OPEN/P0 for historical PHI inventory/backfill, external contact identifier protection, key versioning/rotation, retention/export/backup, restore/rollback, exception ledger and approved staging reconciliation. D1/D2, RB-031, RB-033, RB-035, official Kaspi, Android runtime and D10 remain open/partial. Release NOT READY.
+- No staging/production DB was queried or changed; no migration, PHI backfill, key/secret change, provider operation or production deployment performed.
+
 ## Current implementation checkpoint — 2026-11-13 (RB-029 Codex review findings addressed in candidate)
 
 - Continue on the existing PR #346 / security/rb029-fewshot-workspace-isolation-20261113; no replacement branch or PR. Base main is 93472635f1788f27f4bb6666909ea0a82b339471; candidate changes are based on PR head e814fbba6a17539d2d0c2cbbf09b50ffa4670367. Main remains unchanged.

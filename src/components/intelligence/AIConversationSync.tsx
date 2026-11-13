@@ -50,7 +50,7 @@ function normaliseMessages(raw: unknown): StoredMessage[] {
 export function AIConversationSync() {
   const { isAuthenticated, user } = useAuth()
   const activeWorkspace = useWorkspaceStore((s) => s.activeWorkspace)
-  const setMessages = useAIStore((s) => s.setMessages)
+  const setMessagesIfGenerationCurrent = useAIStore((s) => s.setMessagesIfGenerationCurrent)
   const loadProactiveAlerts = useAIStore((s) => s.loadProactiveAlerts)
   const hydratedWorkspace = useRef<string | null>(null)
   const loadingWorkspace = useRef<string | null>(null)
@@ -65,12 +65,18 @@ export function AIConversationSync() {
     loadingWorkspace.current = workspaceId
     const clinicId = (user as any)?.clinicId as string | null
     const storageKey = workspaceSessionKey(user.id, workspaceId)
+    const generation = useAIStore.getState().getConversationLoadGeneration()
+    let cancelled = false
+    const isCurrent = () => !cancelled
+      && useAIStore.getState().getConversationLoadGeneration() === generation
 
     const activate = async () => {
       let sessionId: string | null = null
       try {
         sessionId = localStorage.getItem(storageKey)
       } catch { /* storage may be unavailable */ }
+
+      if (!isCurrent()) return
 
       if (!sessionId) {
         try {
@@ -83,14 +89,18 @@ export function AIConversationSync() {
               workspaceRole: activeWorkspace.roleLabel,
             }),
           })
+          if (!isCurrent()) return
           sessionId = String(
             created?.sessionId || created?.data?.sessionId || created?.threadId || created?.data?.threadId || '',
           ) || null
           if (sessionId) localStorage.setItem(storageKey, sessionId)
         } catch {
+          if (!isCurrent()) return
           sessionId = null
         }
       }
+
+      if (!isCurrent()) return
 
       if (sessionId) {
         // aiChat() reads this stable key when no explicit sessionId is supplied.
@@ -100,31 +110,38 @@ export function AIConversationSync() {
         } catch { /* ignore */ }
       }
 
-      // Do not display an existing transcript until we have resolved this exact
-      // workspace session. This prevents a temporary API failure from leaking
-      // the previous workspace's conversation into the new workspace.
+      // The workspace history endpoint is an independent hydrator. Its response
+      // must be discarded if a new thread, deletion, reset or workspace switch
+      // invalidated this generation while the request was in flight.
       let messages: StoredMessage[] = []
       if (sessionId) {
         try {
           const history = await apiRequest('/api/ai/history')
+          if (!isCurrent()) return
           const sessions = Array.isArray(history) ? history : history?.data || []
           const selected = Array.isArray(sessions)
             ? sessions.find((s: any) => String(s?.id || '') === sessionId)
             : null
           messages = normaliseMessages(selected?.messages)
         } catch {
+          if (!isCurrent()) return
           messages = []
         }
       }
 
-      setMessages(messages as any)
+      if (!setMessagesIfGenerationCurrent(messages as any, generation)) return
       hydratedWorkspace.current = workspaceId
     }
 
     void activate().finally(() => {
-      if (loadingWorkspace.current === workspaceId) loadingWorkspace.current = null
+      if (!cancelled && loadingWorkspace.current === workspaceId) loadingWorkspace.current = null
     })
-  }, [activeWorkspace, isAuthenticated, setMessages, user])
+
+    return () => {
+      cancelled = true
+      if (loadingWorkspace.current === workspaceId) loadingWorkspace.current = null
+    }
+  }, [activeWorkspace, isAuthenticated, setMessagesIfGenerationCurrent, user])
 
   useEffect(() => {
     if (!isAuthenticated) return

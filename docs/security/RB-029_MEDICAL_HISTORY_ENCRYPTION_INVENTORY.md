@@ -1,3 +1,10 @@
+### AI thread lifecycle — independent hydrator generation guard — 2026-11-13
+
+- A second frontend hydration path was found in AIConversationSync: it separately reads /api/ai/history and previously called setMessages() without checking the active conversation generation. A response started before a new chat could therefore restore an old transcript after loadConversation() had correctly discarded its own stale response.
+- The candidate now shares one generation counter between loadConversation() and AIConversationSync. The component captures the generation before async activation, rechecks after thread creation/history fetch, conditionally commits through the store, and cancels the effect on workspace switch/unmount.
+- AIConversationSync.test.tsx reproduces the late /api/ai/history response after a new persisted thread is created. Local full suite: 2,613/2,613 tests across 295 files; focused component test 1/1; exact-new-head GitHub CI/E2E and Codex re-review pending.
+- This closes only the frontend transcript hydration race. RB-029 remains OPEN/P0 for the full historical PHI/key/backup/restore/staging scope described below; no database operation or backfill was run.
+
 ## Exact-main audit checkpoint — 2026-11-12
 
 This is a source-only review of the current `main` tree. No connected database was queried and no backfill, migration, key change, or production/staging operation was run.

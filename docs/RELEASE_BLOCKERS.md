@@ -1,3 +1,12 @@
+## Candidate source update — 2026-11-13 (PR #346 AI history hydrator race)
+
+### RB-029 — AI thread hydration lifecycle
+- Candidate fix: the independent AIConversationSync /api/ai/history hydrator now shares the AI store's conversation generation with loadConversation(). A late history response from a previous thread is discarded after new-chat/delete/reset or workspace teardown; the conditional commit is generation-checked by the store.
+- Regression coverage reproduces a pending old history request, creates a new server-backed thread, then resolves the old request and proves old messages are not restored.
+- Local verification on the candidate: 2,613/2,613 unit tests across 295 files, targeted AIConversationSync 1/1, AI thread lifecycle 6/6, TypeScript, frontend/backend build, frontend lint (13 warnings / 0 errors), Release Gate 6/6 and diff check all passed.
+- Exact-new-head GitHub CI/E2E, Quality Gate and Codex re-review are pending after publication. PR #346 remains open/unmerged.
+- RB-029 remains OPEN/P0 for historical PHI inventory/backfill, AiAdminSession.externalUserId protection, key versioning/rotation and old-key handling, retention/deletion/export/backup, restore/rollback, PHI-free exception ledger and approved staging reconciliation. No staging/production data was accessed or changed.
+
 ## Candidate source update — 2026-11-13 (PR #346 Codex P1/P2 findings)
 
 ### RB-029 — active workspace scope / Digital Twin

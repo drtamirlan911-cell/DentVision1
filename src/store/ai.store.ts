@@ -19,6 +19,7 @@ interface AIState {
   messages: Message[]; suggestions: SuggestionChip[]; proactiveAlerts: ProactiveAlert[]; progress: number; sessionId: string | null; errorMessage: string | null
   executePrompt: (text: string) => Promise<void>; sendConfirmation: (confirmed: boolean, data?: any) => Promise<void>
   loadConversation: () => Promise<void>; loadProactiveAlerts: () => Promise<void>
+  getConversationLoadGeneration: () => number; setMessagesIfGenerationCurrent: (msgs: Message[], generation: number) => boolean
   startNewConversation: (isAuthenticated: boolean, storageContext?: AIStorageContext) => Promise<void>
   deleteConversation: (storageContext?: AIStorageContext) => Promise<void>
   clearConversation: () => void; setSuggestions: (suggestions: SuggestionChip[]) => void; setSuggestionsFromStrings: (labels: string[]) => void
@@ -33,6 +34,12 @@ export const useAIStore = create<AIState>((set, get) => ({
   status: 'idle', currentIntent: null, currentAction: null, query: '', conversationContext: [], messages: [], suggestions: [], proactiveAlerts: [], progress: 0, sessionId: null, errorMessage: null,
   setAIStatus: status => set({ status }), setCurrentIntent: currentIntent => set({ currentIntent }), setCurrentAction: currentAction => set({ currentAction }), setQuery: query => set({ query }),
   addMessage: msg => set(state => ({ messages: [...state.messages, msg] })), setMessages: messages => set({ messages }),
+  getConversationLoadGeneration: () => conversationLoadGeneration,
+  setMessagesIfGenerationCurrent: (messages, generation) => {
+    if (generation !== conversationLoadGeneration) return false;
+    set({ messages });
+    return true;
+  },
   setSuggestions: suggestions => set({ suggestions }), setSuggestionsFromStrings: labels => set({ suggestions: labels.map((label, i) => ({ id: `s-${i}`, label })) }),
   addProactiveAlert: alert => set(state => ({ proactiveAlerts: [...state.proactiveAlerts, alert].sort((a,b) => b.priority-a.priority).slice(0,8) })),
   setProactiveAlerts: alerts => set({ proactiveAlerts: alerts }),
