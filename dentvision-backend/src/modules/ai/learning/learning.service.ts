@@ -95,9 +95,8 @@ async function savePrefs(userId: string, clinicId: string | null | undefined, ba
   if (cid === GLOBAL_CLINIC) {
     // No active clinic means free-form facts and workspace habits have no safe
     // tenant to belong to. Persist only generic response-style preferences.
-    if (styleOnly.items.length) {
-      await memoryEngine.setLongTerm(PREFS_KEY, styleOnly, userId, GLOBAL_CLINIC);
-    }
+    // Write the empty list too, so deleting the last global style is durable.
+    await memoryEngine.setLongTerm(PREFS_KEY, styleOnly, userId, GLOBAL_CLINIC);
     return;
   }
 

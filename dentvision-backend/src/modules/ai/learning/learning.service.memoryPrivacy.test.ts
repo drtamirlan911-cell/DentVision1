@@ -157,6 +157,25 @@ describe('AI learned preference workspace isolation', () => {
     );
   });
 
+  it('persists an empty global bucket when the final global style preference is deleted', async () => {
+    const style = {
+      key: 'style_length',
+      label: 'Стиль ответа',
+      value: 'Отвечай кратко',
+      source: 'style' as const,
+      updatedAt: '2026-11-13T00:00:00.000Z',
+    };
+    memory.getLongTerm.mockResolvedValue({ items: [style] });
+
+    await expect(deletePref('user-1', null, 'style_length')).resolves.toBe(true);
+    expect(memory.setLongTerm).toHaveBeenCalledWith(
+      'user_prefs',
+      { items: [] },
+      'user-1',
+      '__global__',
+    );
+  });
+
   it('persists only generic style preferences in the global bucket', async () => {
     await upsertPref('user-1', null, {
       key: 'fact_patient_case',
