@@ -13,7 +13,11 @@ afterEach(() => {
   if (originalEncryptionKey === undefined) delete process.env.ENCRYPTION_KEY;
   else process.env.ENCRYPTION_KEY = originalEncryptionKey;
 });
-const row = { id: 'session-1', clinicId: 'clinic-1', channel: 'WHATSAPP', externalUserId: '77010000000', externalUserIdCiphertext: null, externalUserIdHash: null };
+const row = {
+  id: 'session-1', clinicId: 'clinic-1', channel: 'WHATSAPP', externalUserId: '77010000000',
+  externalUserIdCiphertext: null, externalUserIdHash: null, patientName: 'Test Patient', patientPhone: '77010000000',
+  patientNameCiphertext: null, patientPhoneCiphertext: null,
+};
 
 describe('AI Admin external-identity backfill safeguards', () => {
   it('defaults to a read-only dry run', () => {
@@ -34,18 +38,25 @@ describe('AI Admin external-identity backfill safeguards', () => {
     expect(() => parseAiAdminExternalIdBackfillOptions(['--batch-size=0'], {})).toThrow(/batch-size/);
     expect(() => parseAiAdminExternalIdBackfillOptions(['--batch-size=1001'], {})).toThrow(/batch-size/);
   });
-  it('encrypts and verifies legacy identifiers without exposing them in stored fields', () => {
+  it('encrypts external IDs and patient metadata without exposing plaintext', () => {
     const prepared = prepareAiAdminExternalIdBackfillRow(row);
-    expect(prepared.ciphertext).toMatch(/^ENC:/);
-    expect(prepared.hash).toMatch(/^v1:[a-f0-9]{64}$/);
-    expect(prepared.ciphertext).not.toContain(row.externalUserId);
-    expect(prepared.hash).not.toContain(row.externalUserId);
+    expect(prepared.externalUserIdCiphertext).toMatch(/^ENC:/);
+    expect(prepared.externalUserIdHash).toMatch(/^v1:[a-f0-9]{64}$/);
+    expect(prepared.patientNameCiphertext).toMatch(/^ENC:/);
+    expect(prepared.patientPhoneCiphertext).toMatch(/^ENC:/);
+    expect(prepared.patientNameCiphertext).not.toContain(row.patientName);
+    expect(prepared.patientPhoneCiphertext).not.toContain(row.patientPhone);
+  });
+  it('handles legacy patient metadata when external ID is absent', () => {
+    const prepared = prepareAiAdminExternalIdBackfillRow({ ...row, externalUserId: null });
+    expect(prepared.externalUserIdHash).toBeNull();
+    expect(prepared.patientNameCiphertext).toMatch(/^ENC:/);
   });
   it('rejects mismatched existing blind indexes', () => {
     expect(() => prepareAiAdminExternalIdBackfillRow({ ...row, externalUserIdHash: 'v1:wrong' })).toThrow(/does not match/);
   });
   it('rejects ciphertext that decrypts to a different identity', () => {
     const other = prepareAiAdminExternalIdBackfillRow({ ...row, externalUserId: '77010000001' });
-    expect(() => prepareAiAdminExternalIdBackfillRow({ ...row, externalUserIdCiphertext: other.ciphertext })).toThrow(/round-trip/);
+    expect(() => prepareAiAdminExternalIdBackfillRow({ ...row, externalUserIdCiphertext: other.externalUserIdCiphertext })).toThrow(/round-trip/);
   });
 });

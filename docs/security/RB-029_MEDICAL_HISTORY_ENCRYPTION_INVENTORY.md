@@ -226,3 +226,5 @@ A re-check of the current PR source corrects the earlier statement that AI trans
 - Lookup uses a deterministic HMAC-SHA256 blind index scoped by channel and clinic; the raw identifier is not included. Rotating ENCRYPTION_KEY changes the index and requires a coordinated reindex; key versioning and old-key support remain open.
 - The bounded backfill command defaults to dry-run, emits counts only, validates ciphertext round-trips, uses keyset batches and compare-and-set updates. Writes require matching command/environment target confirmation; production additionally requires --allow-production and --confirm-production-write=I_HAVE_BACKUP_AND_APPROVAL.
 - This is candidate source code, not a merged or deployed control. No staging/production migration, database query, backfill, key rotation or backup/restore was run. RB-029 remains OPEN / P0.
+
+- Follow-up audit found a second plaintext PHI path: the AI booking tool copied patientName/patientPhone onto AiAdminSession. The candidate removes that duplicate write and extends the same backfill to preserve legacy values only in ciphertext columns. No staging/production database operation was run.

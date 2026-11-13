@@ -8,3 +8,7 @@ ALTER TABLE "ai_admin_sessions"
 
 CREATE UNIQUE INDEX "ai_admin_sessions_channel_externalUserIdHash_clinicId_key"
   ON "ai_admin_sessions"("channel", "externalUserIdHash", "clinicId");
+
+ALTER TABLE "ai_admin_sessions"
+  ADD COLUMN "patientNameCiphertext" TEXT,
+  ADD COLUMN "patientPhoneCiphertext" TEXT;

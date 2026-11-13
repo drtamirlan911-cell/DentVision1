@@ -3523,6 +3523,8 @@ model AiAdminSession {
   externalUserIdHash       String?
   patientName              String?
   patientPhone   String?
+  patientNameCiphertext String?
+  patientPhoneCiphertext String?
   status         AiAdminSessionStatus  @default(ACTIVE)
   lastMessageAt  DateTime              @default(now())
   createdAt      DateTime              @default(now())

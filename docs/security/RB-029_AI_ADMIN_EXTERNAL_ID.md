@@ -16,3 +16,5 @@
 
 ## Evidence boundary
 Candidate source code only. No staging/production database query, migration, backfill, key rotation or backup/restore operation was run. RB-029 remains OPEN / P0.
+
+- Legacy patientName and patientPhone session copies are now included in the same guarded backfill into dedicated ciphertext columns. The booking tool no longer duplicates these values onto AiAdminSession.
