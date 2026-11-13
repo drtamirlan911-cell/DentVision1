@@ -1,12 +1,42 @@
 ## Current implementation checkpoint — 2026-11-14 (RB-029 AI Admin datasource-target guard; PR #347)
 
-- Active work continues on the existing PR #347 / `security/rb029-ai-admin-external-id-20261114`; no replacement branch or PR was created. Base remains `main`; exact published head: `a632394653994786049013eb05e9845133d8667e`.
+- Active work continues on the existing PR #347 / `security/rb029-ai-admin-external-id-20261114`; no replacement branch or PR was created. Base is `main`; exact published code head before this documentation reconciliation: `a632394653994786049013eb05e9845133d8667e`; documentation-only checkpoint commit: `ddcad40fcf7bbc0f2db403ea2ab12a38836745f4`.
 - Addressed the Codex P2 in the AI Admin external-identity backfill: the prior staging/production label could disagree with Prisma's actual `DATABASE_URL`. Write mode now requires the actual `DATABASE_URL` to exactly match a separate target-specific expected connection string: `AI_ADMIN_EXTERNAL_ID_BACKFILL_STAGING_DATABASE_URL` or `AI_ADMIN_EXTERNAL_ID_BACKFILL_PRODUCTION_DATABASE_URL`. Missing/mismatched values fail closed; connection strings are never logged.
 - Added regression cases for valid staging binding, staging label with a production datasource, and missing expected datasource configuration. Updated `docs/security/RB-029_AI_ADMIN_EXTERNAL_ID.md` with the operator runbook.
 - Exact local verification on this patch: focused backfill tests 11/11; backend `tsc --noEmit`; changed-file ESLint; `git diff --check` passed. The earlier local attempt lacked backend dependencies/Prisma generation; after installing backend dependencies and generating the client, the focused suite passed.
-- Exact-head GitHub CI and Quality Gate have been triggered for `a6323946`; CI was queued and Quality Gate in progress at publication. Codex re-review was explicitly requested. Do not merge until exact-head CI/E2E, Quality Gate, preview and Codex review are green with no unresolved P0/P1/P2 findings.
+- Exact-head GitHub CI and Quality Gate were triggered for the code commit `a6323946`; a documentation-only follow-up commit now requires fresh exact-head gates. Codex re-review was explicitly requested. Do not merge until exact-head CI/E2E, Quality Gate, preview and Codex review are green with no unresolved P0/P1/P2 findings.
 - RB-029 remains OPEN/P0: historical PHI inventory/backfill, key versioning/rotation and old-key handling, retention/deletion/export, backup/restore/rollback, exception ledger and approved staging evidence remain outstanding. No staging/production database connection, query, migration, backfill, key change or production deployment was performed.
 - Master Spec 5.0 remains the normative product contract; the repository's current compliance audit remains 18 PARTIAL / 4 OPEN / 2 GUIDANCE. D1/D2, RB-031, RB-033, RB-035, official Kaspi evidence, Android runtime and D10 independent dental-lab lifecycle remain open/partial. Release NOT READY.
+
+## 2026-11-13 — RB-029 independent AI history hydrator race closed in candidate
+
+- Continued on existing PR #346 after exact-head Codex review identified a second hydrator in AIConversationSync. This component independently fetches /api/ai/history and could overwrite a new thread after the loadConversation() generation guard had been added.
+- Added a shared conversation generation getter and conditional message commit to the AI store. AIConversationSync captures the generation before activation, checks it after asynchronous thread/history requests, and only commits messages when the generation is still current. The effect cleanup cancels pending work on workspace switch/unmount and does not clear a newer activation.
+- Added AIConversationSync.test.tsx: defer the old history response, create a new server thread while it is pending, resolve the old response, and verify the new thread/messages remain unchanged.
+- Local verification: full Vitest suite 2,613/2,613 passed (295 files); AIConversationSync race test 1/1; AI thread lifecycle tests 6/6; frontend typecheck, frontend Vite build, backend TypeScript build, frontend lint (13 warnings / 0 errors), Release Gate (6/6) and diff check passed.
+- These are local results on the candidate based on published PR head cd5966fbbb8823cefdf5645c6ad01d681c58848b. Fresh exact-head GitHub CI/E2E, Quality Gate and Codex re-review remain required after the new push. PR #346 remains OPEN and unmerged; main remains unchanged.
+- Existing Vite warnings remain: one mixed Welcome.tsx import and chunks over 500 kB. They do not fail the production build and are not caused by this race fix.
+- Vercel Sandbox snapshot persistence remains unavailable on the current Hobby plan (HTTP 402 Snapshot Storage limit). Old snapshots/worktrees were not deleted; GitHub PR branch remains the durable recovery path.
+- No staging/production DB read/write, migration, historical PHI backfill, key/secret mutation, provider action or production deployment occurred. RB-029 remains OPEN/P0.
+
+## 2026-11-13 — RB-029 Codex P1/P2 findings corrected in PR #346 candidate
+
+- Continued on the existing PR #346 branch security/rb029-fewshot-workspace-isolation-20261113, based on exact prior head e814fbba6a17539d2d0c2cbbf09b50ffa4670367. No new branch or PR was created.
+- Fixed the authentication fallback identified by Codex: after payload.organizationId resolves to a verified active organization/person context, a retained legacy payload.clinicId is no longer applied as the active clinic.
+- Fixed the Digital Twin fallback: buildDigitalTwin() no longer calls resolveAnyClinicMembership() when the caller omits an active clinic. Clinic-specific data requires explicit active clinic scope plus resolveClinicAccess.
+- Regression tests added/updated for partner organization + stale clinic claims, explicit/no-clinic Digital Twin scope, and AI partner workspace contract.
+- Local verification on this candidate worktree: full Vitest suite 2,612/2,612 passed (294 files); focused AI/auth suite 35/35 passed; frontend TypeScript, backend TypeScript build, frontend lint (13 warnings / 0 errors), targeted backend ESLint and diff check passed.
+- These results are local evidence only. Fresh exact-head GitHub CI/E2E, Quality Gate and Codex re-review must run after the candidate is pushed. PR #346 is not merged; main is unchanged.
+- Vercel Sandbox snapshot persistence could not be enabled: Vercel API returned HTTP 402 because the Hobby plan exceeded Snapshot Storage. Existing snapshots were retained; no old snapshots or worktrees were deleted. Commit/push to the existing GitHub PR branch remains the durable recovery path.
+- No staging/production DB read/write, migration, historical PHI backfill, key/secret mutation, provider action or production deployment occurred. RB-029 remains OPEN/P0.
+
+## 2026-11-13 — RB-029 legacy clinic claim isolation in partner AI context
+
+- Continued on existing PR #346 / `security/rb029-fewshot-workspace-isolation-20261113`; starting head `b8d5a56013d2310352142d4c42e0ec4545781151`; no new branch or PR.
+- Read-only source reconciliation found a mismatch: `buildAiContext()` recognized a non-clinic active workspace, but some AI routes still read `req.user.clinicId` directly for learning/few-shot, deterministic fallback context, digital twin, proactive suggestions, insights, and audit metadata. The branch resolver also accepted stale `branchIds` / `assignedBranchId` without matching the active parent workspace.
+- Candidate correction exports one `activeAiClinicId()` resolver, uses it across AI endpoints and tool access, prevents authenticated partner contexts from falling back to `DEMO_CLINIC_ID`, and allows branch context only when it matches the active clinic or organization. Regression coverage exercises partner tokens with legacy clinic and branch claims.
+- Full exact-head CI/Quality/E2E must be rerun after the candidate push. The previous role/context retry does not verify this child commit.
+- RB-029 remains OPEN/P0. No connected DB was queried or changed; no staging/production migration, PHI backfill, key change, provider operation, secret change, deployment or main merge performed.
 
 ## 2026-11-10 — RB-030 offline appointment sync merged
 

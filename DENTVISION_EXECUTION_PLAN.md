@@ -1,12 +1,42 @@
 ## Current implementation checkpoint — 2026-11-14 (RB-029 AI Admin datasource-target guard; PR #347)
 
-- Active work continues on the existing PR #347 / `security/rb029-ai-admin-external-id-20261114`; no replacement branch or PR was created. Base remains `main`; exact published head: `a632394653994786049013eb05e9845133d8667e`.
+- Active work continues on the existing PR #347 / `security/rb029-ai-admin-external-id-20261114`; no replacement branch or PR was created. Base is `main`; exact published code head before this documentation reconciliation: `a632394653994786049013eb05e9845133d8667e`; documentation-only checkpoint commit: `ddcad40fcf7bbc0f2db403ea2ab12a38836745f4`.
 - Addressed the Codex P2 in the AI Admin external-identity backfill: the prior staging/production label could disagree with Prisma's actual `DATABASE_URL`. Write mode now requires the actual `DATABASE_URL` to exactly match a separate target-specific expected connection string: `AI_ADMIN_EXTERNAL_ID_BACKFILL_STAGING_DATABASE_URL` or `AI_ADMIN_EXTERNAL_ID_BACKFILL_PRODUCTION_DATABASE_URL`. Missing/mismatched values fail closed; connection strings are never logged.
 - Added regression cases for valid staging binding, staging label with a production datasource, and missing expected datasource configuration. Updated `docs/security/RB-029_AI_ADMIN_EXTERNAL_ID.md` with the operator runbook.
 - Exact local verification on this patch: focused backfill tests 11/11; backend `tsc --noEmit`; changed-file ESLint; `git diff --check` passed. The earlier local attempt lacked backend dependencies/Prisma generation; after installing backend dependencies and generating the client, the focused suite passed.
-- Exact-head GitHub CI and Quality Gate have been triggered for `a6323946`; CI was queued and Quality Gate in progress at publication. Codex re-review was explicitly requested. Do not merge until exact-head CI/E2E, Quality Gate, preview and Codex review are green with no unresolved P0/P1/P2 findings.
+- Exact-head GitHub CI and Quality Gate were triggered for the code commit `a6323946`; a documentation-only follow-up commit now requires fresh exact-head gates. Codex re-review was explicitly requested. Do not merge until exact-head CI/E2E, Quality Gate, preview and Codex review are green with no unresolved P0/P1/P2 findings.
 - RB-029 remains OPEN/P0: historical PHI inventory/backfill, key versioning/rotation and old-key handling, retention/deletion/export, backup/restore/rollback, exception ledger and approved staging evidence remain outstanding. No staging/production database connection, query, migration, backfill, key change or production deployment was performed.
 - Master Spec 5.0 remains the normative product contract; the repository's current compliance audit remains 18 PARTIAL / 4 OPEN / 2 GUIDANCE. D1/D2, RB-031, RB-033, RB-035, official Kaspi evidence, Android runtime and D10 independent dental-lab lifecycle remain open/partial. Release NOT READY.
+
+## Current implementation checkpoint — 2026-11-13 (RB-029 independent AI history hydrator race)
+
+- Continued on the existing PR #346 branch security/rb029-fewshot-workspace-isolation-20261113, based on published head cd5966fbbb8823cefdf5645c6ad01d681c58848b. Main remains unchanged; no new PR or replacement branch.
+- Addressed the latest Codex P2: AIConversationSync independently hydrates /api/ai/history, so it could previously write an old transcript after a new chat was created even though loadConversation() had a generation guard. Both hydration paths now share the same conversation generation. AIConversationSync checks the generation before committing the history response and cancels its work on workspace switch/unmount.
+- Added an integration-style component regression test that holds /api/ai/history pending, starts a new persisted conversation, then resolves the old history response and asserts the new session remains empty.
+- Local verification on this exact candidate worktree: full unit suite 2,613/2,613 across 295 files; AIConversationSync component regression 1/1; AI thread lifecycle tests 6/6; frontend TypeScript; frontend production build; backend TypeScript build; frontend lint (13 warnings / 0 errors); Release Gate 6/6; git diff --check all passed. Frontend Vite reports existing large-chunk and mixed Welcome import warnings only.
+- Pending after publication: exact-new-head GitHub CI/E2E (including browser, mobile, role, visual and owner gates), Quality Gate and Codex re-review. Do not merge until all exact-head gates pass and no P0/P1/P2 findings remain.
+- RB-029 remains OPEN/P0 for historical PHI inventory/backfill, external contact identifier protection, key versioning/rotation, retention/export/backup, restore/rollback, exception ledger and approved staging reconciliation. D1/D2, RB-031, RB-033, RB-035, official Kaspi, Android runtime and D10 remain open/partial. Release NOT READY.
+- No staging/production DB was queried or changed; no migration, PHI backfill, key/secret change, provider operation or production deployment performed.
+
+## Current implementation checkpoint — 2026-11-13 (RB-029 Codex review findings addressed in candidate)
+
+- Continue on the existing PR #346 / security/rb029-fewshot-workspace-isolation-20261113; no replacement branch or PR. Base main is 93472635f1788f27f4bb6666909ea0a82b339471; candidate changes are based on PR head e814fbba6a17539d2d0c2cbbf09b50ffa4670367. Main remains unchanged.
+- Addressed the new Codex P1: a verified active partner organization now blocks the legacy JWT clinicId fallback in authentication. A retained clinic claim cannot overwrite a verified diagnostic/laboratory/supplier organization context.
+- Addressed the new Codex P2: buildDigitalTwin() no longer resolves an arbitrary clinic membership when no active clinic ID is supplied. Clinic-derived name/KPIs are produced only after explicit active clinic scope and successful resolveClinicAccess; digital-twin routes pass the active scope only.
+- Added regression coverage for verified organization vs. stale clinic claim, missing/explicit clinic twin behavior, and updated the AI context contract test. Existing few-shot, memory, thread lifecycle and branch-scope tests remain included.
+- Local exact-worktree verification: full unit suite 2,612/2,612 passed across 294 files; focused AI/auth suite 35/35 passed; root TypeScript typecheck passed; backend TypeScript build passed; root lint passed (13 warnings, 0 errors); targeted backend ESLint passed; git diff --check passed.
+- Pending after push: exact-new-HEAD GitHub CI (including full E2E/Browser UX/Mobile/Role/Visual/Owner gates), Quality Gate, and Codex review. Do not merge until all exact-head gates pass and no unresolved security findings remain.
+- RB-029 remains OPEN/P0 for historical PHI inventory/backfill, external contact identifier protection, key versioning/rotation, retention/export/backup, restore/rollback, exception ledger and approved staging reconciliation. D1/D2, RB-031, RB-033, RB-035, official Kaspi, Android runtime and D10 remain open/partial. Release NOT READY.
+- No staging/production DB was queried or changed; no migration, PHI backfill, key/secret change, provider operation or production deployment performed.
+
+## Current implementation checkpoint — 2026-11-13 (RB-029 active workspace scope; candidate pending)
+
+- Continue only on existing PR #346 / `security/rb029-fewshot-workspace-isolation-20261113`; active-clinic scope fix is a child of `b8d5a56013d2310352142d4c42e0ec4545781151`. Main remains unchanged.
+- Source review confirmed that a partner token may retain a legacy clinicId. Raw claim reads in AI learning, few-shot, deterministic fallback, digital twin, proactive routes, insights, audit metadata and branch resolution could therefore reattach clinic state.
+- Candidate uses `activeAiClinicId()` consistently, returns null for guest/partner contexts, removes authenticated fallback to the demo clinic, and only exposes branch context matched to the active organization/clinic. Regression tests cover stale clinic and branch claims.
+- **Next:** push with expected-HEAD lease; rerun exact-head CI, Quality Gate and all E2E role/visual/owner gates. Review Codex findings. Do not merge until every gate passes.
+- RB-029 remains OPEN/P0 for historical PHI inventory/backfill, key versioning/rotation, retention/export/backup and approved staging evidence. D1/D2, RB-031, RB-033, RB-035, official Kaspi, Android runtime and D10 remain open. Release NOT READY.
+- No staging/production data operation, migration, PHI backfill, key change, provider operation, secret change or production deployment performed.
 
 ## Current implementation checkpoint — 2026-11-10 (RB-030 merged)
 
