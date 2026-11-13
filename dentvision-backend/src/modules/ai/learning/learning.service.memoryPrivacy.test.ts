@@ -67,13 +67,7 @@ describe('AI learned preference workspace isolation', () => {
     );
 
     expect(learned).toEqual([]);
-    expect(memory.setLongTerm).toHaveBeenCalledTimes(1);
-    expect(memory.setLongTerm).toHaveBeenCalledWith(
-      'user_prefs',
-      { items: [] },
-      'user-1',
-      '__global__',
-    );
+    expect(memory.setLongTerm).not.toHaveBeenCalled();
   });
 
   it('filters historical unscoped facts out of global preferences', async () => {
@@ -196,7 +190,13 @@ describe('AI learned preference workspace isolation', () => {
       source: 'explicit',
     });
 
-    expect(memory.setLongTerm).not.toHaveBeenCalled();
+    expect(memory.setLongTerm).toHaveBeenCalledTimes(1);
+    expect(memory.setLongTerm).toHaveBeenCalledWith(
+      'user_prefs',
+      { items: [] },
+      'user-1',
+      '__global__',
+    );
   });
 
   it('keeps generic style preferences portable across workspaces', async () => {
