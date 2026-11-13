@@ -134,7 +134,7 @@ export const useAIStore = create<AIState>((set, get) => ({
   },
 
   clearConversation: () => { conversationLoadGeneration += 1; set({messages:[],conversationContext:[],currentIntent:null,currentAction:null,status:'idle',errorMessage:null,query:'',sessionId:null}); },
-  resetAI: () => { conversationLoadGeneration += 1; set({status:'idle',currentIntent:null,currentAction:null,messages:[],conversationContext:[],suggestions:[],proactiveAlerts:[],progress:0,errorMessage:null,query:'',sessionId:null}); },
+  resetAI: () => { conversationLoadGeneration += 1; set({status:'idle',currentIntent:null,currentAction:null,messages:[],conversationContext:[],suggestions:[],proactiveAlerts:[],progress:0,errorMessage:null,query:''}); },
 }))
 
 export const useAiStore = useAIStore

@@ -92,34 +92,56 @@ async function savePrefs(
   changedKey?: string,
 ): Promise<void> {
   const cid = clinicKey(clinicId);
-  const styleOnly = {
-    // Keep the portable style bucket independent of the clinic-fact limit.
-    items: bag.items.filter((item) => item.source === 'style').slice(0, MAX_PREFS),
-  };
 
   if (cid === GLOBAL_CLINIC) {
     // No active clinic means free-form facts and workspace habits have no safe
     // tenant to belong to. Persist only generic response-style preferences.
     // Write the empty list too, so deleting the last global style is durable.
+    const styleOnly = {
+      items: bag.items.filter((item) => item.source === 'style').slice(0, MAX_PREFS),
+    };
     await memoryEngine.setLongTerm(PREFS_KEY, styleOnly, userId, GLOBAL_CLINIC);
     return;
   }
 
-  const local = (await memoryEngine.getLongTerm(PREFS_KEY, userId, cid)) as UserPrefsBag | null;
-  const localKeys = new Set(Array.isArray(local?.items) ? local.items.map((item) => item.key) : []);
+  const [local, global] = await Promise.all([
+    memoryEngine.getLongTerm(PREFS_KEY, userId, cid) as Promise<UserPrefsBag | null>,
+    memoryEngine.getLongTerm(PREFS_KEY, userId, GLOBAL_CLINIC) as Promise<UserPrefsBag | null>,
+  ]);
+  const localItems = Array.isArray(local?.items) ? local.items : [];
+  const globalItems = Array.isArray(global?.items)
+    ? global.items.filter((item) => item.source === 'style')
+    : [];
+  const localKeys = new Set(localItems.map((item) => item.key));
+
   const clinicOnly = {
     // Do not copy inherited global styles into this clinic when an unrelated
     // fact/habit is saved. Preserve existing local styles and an explicitly
-    // changed style, while keeping portable styles in the global bucket.
+    // changed style.
     items: bag.items
       .filter((item) => item.source !== 'style' || localKeys.has(item.key) || item.key === changedKey)
       .slice(0, MAX_PREFS),
   };
 
+  // Start from the actual global bucket, not the merged view returned by
+  // loadPrefs. A clinic-local style override must never overwrite a portable
+  // global style during an unrelated fact/habit save.
+  const globalByKey = new Map(globalItems.map((item) => [item.key, item]));
+  const changedItem = changedKey ? bag.items.find((item) => item.key === changedKey) : undefined;
+  if (changedItem?.source === 'style') globalByKey.set(changedItem.key, changedItem);
+
+  // deletePref removes a key from the merged bag; remove it from the global
+  // bucket as well so deleting a portable style is durable across workspaces.
+  const remainingStyleKeys = new Set(
+    bag.items.filter((item) => item.source === 'style').map((item) => item.key),
+  );
+  for (const key of globalByKey.keys()) {
+    if (!remainingStyleKeys.has(key)) globalByKey.delete(key);
+  }
+  const globalStyleOnly = { items: [...globalByKey.values()].slice(0, MAX_PREFS) };
+
   await memoryEngine.setLongTerm(PREFS_KEY, clinicOnly, userId, cid);
-  // Persist even an empty style bucket so deleting the final portable
-  // preference cannot leave a stale global value that reappears on next read.
-  await memoryEngine.setLongTerm(PREFS_KEY, styleOnly, userId, GLOBAL_CLINIC);
+  await memoryEngine.setLongTerm(PREFS_KEY, globalStyleOnly, userId, GLOBAL_CLINIC);
 }
 
 export async function upsertPref(

@@ -233,6 +233,46 @@ describe('AI learned preference workspace isolation', () => {
     );
   });
 
+  it('does not overwrite a portable global style with a clinic-local override during a fact save', async () => {
+    const localStyle = {
+      key: 'style_length',
+      label: 'Стиль ответа',
+      value: 'Локальный стиль клиники',
+      source: 'style' as const,
+      updatedAt: '2026-11-13T00:00:00.000Z',
+    };
+    const globalStyle = {
+      key: 'style_length',
+      label: 'Стиль ответа',
+      value: 'Глобальный стиль',
+      source: 'style' as const,
+      updatedAt: '2026-11-12T00:00:00.000Z',
+    };
+    memory.getLongTerm.mockImplementation(async (_key, _userId, scope) => (
+      scope === 'clinic-1' ? { items: [localStyle] } : scope === '__global__' ? { items: [globalStyle] } : null
+    ));
+
+    await upsertPref('user-1', 'clinic-1', {
+      key: 'fact_clinic_rule',
+      label: 'Факт / правило',
+      value: 'Keep this fact in clinic one',
+      source: 'explicit',
+    });
+
+    expect(memory.setLongTerm).toHaveBeenCalledWith(
+      'user_prefs',
+      { items: [localStyle, expect.objectContaining({ key: 'fact_clinic_rule' })] },
+      'user-1',
+      'clinic-1',
+    );
+    expect(memory.setLongTerm).toHaveBeenCalledWith(
+      'user_prefs',
+      { items: [globalStyle] },
+      'user-1',
+      '__global__',
+    );
+  });
+
   it('does not truncate portable styles when the clinic has many local facts', async () => {
     const style = {
       key: 'style_length',
