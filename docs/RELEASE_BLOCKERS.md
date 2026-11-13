@@ -12,6 +12,7 @@
 ### Remaining release blockers
 - RB-029 remains OPEN / P0 for full historical PHI inventory/backfill, key lifecycle, backup/restore and approved staging evidence.
 - RB-029 candidate PR [#346](https://github.com/drtamirlan911-cell/DentVision1/pull/346) adds exact-clinic AI few-shot isolation, blocks unscoped free-form learning/global fact replay, and disables clinic-derived digital-twin fallback without an active clinic. Keep this pending exact-head CI/Quality Gate and merge; it does not close the remaining historical-data/key/retention/backup/staging requirements.
+- RB-029 still has an AI thread deletion/new-chat gap: `docs/spec/11-DATA-PRIVACY-SECURITY.md` requires thread deletion, but backend has no user/workspace-scoped thread DELETE endpoint and the current web “Новый диалог” action only clears local state while preserving the stored session ID. This remains OPEN; it is not part of PR #346's code change.
 - D1/D2 approved staging migration and retention proof remain OPEN.
 - RB-031 WebKit OPTIONS/CORS/WebSocket evidence; RB-033 branch-protection verification; RB-035 full authorization matrix; official Kaspi merchant contract/callback; Android runtime; D10 independent dental-lab lifecycle remain OPEN/PARTIAL.
 - Master Spec 5.0 compliance remains 18 PARTIAL / 4 OPEN / 2 GUIDANCE. Release remains NOT READY.
