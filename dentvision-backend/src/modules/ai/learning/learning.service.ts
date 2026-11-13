@@ -61,11 +61,19 @@ function slugKey(raw: string): string {
 async function loadPrefs(userId: string, clinicId?: string | null): Promise<UserPrefsBag> {
   const cid = clinicKey(clinicId);
   const raw = (await memoryEngine.getLongTerm(PREFS_KEY, userId, cid)) as UserPrefsBag | null;
-  if (raw && Array.isArray(raw.items)) return raw;
-  // Also merge global prefs when clinic-scoped
+  if (raw && Array.isArray(raw.items)) {
+    // The global bucket is portable only for generic response-style settings.
+    return cid === GLOBAL_CLINIC
+      ? { items: raw.items.filter((item) => item.source === 'style') }
+      : raw;
+  }
+  // Merge only generic style preferences into a clinic workspace. Historical
+  // unscoped facts/habits are not safe to replay in another clinic.
   if (cid !== GLOBAL_CLINIC) {
     const global = (await memoryEngine.getLongTerm(PREFS_KEY, userId, GLOBAL_CLINIC)) as UserPrefsBag | null;
-    if (global?.items?.length) return global;
+    if (global?.items?.length) {
+      return { items: global.items.filter((item) => item.source === 'style') };
+    }
   }
   return { items: [] };
 }
@@ -73,15 +81,21 @@ async function loadPrefs(userId: string, clinicId?: string | null): Promise<User
 async function savePrefs(userId: string, clinicId: string | null | undefined, bag: UserPrefsBag): Promise<void> {
   const cid = clinicKey(clinicId);
   const trimmed = { items: bag.items.slice(0, MAX_PREFS) };
+  const styleOnly = {
+    items: trimmed.items.filter((item) => item.source === 'style'),
+  };
+
+  if (cid === GLOBAL_CLINIC) {
+    // No active clinic means free-form facts and workspace habits have no safe
+    // tenant to belong to. Persist only generic response-style preferences.
+    await memoryEngine.setLongTerm(PREFS_KEY, styleOnly, userId, GLOBAL_CLINIC);
+    return;
+  }
+
   await memoryEngine.setLongTerm(PREFS_KEY, trimmed, userId, cid);
-  // Only generic style preferences are user-global. Explicit free-form facts stay clinic-scoped so patient/clinic context cannot follow the user into another clinic.
-  if (cid !== GLOBAL_CLINIC) {
-    const styleOnly = {
-      items: trimmed.items.filter((i) => i.source === 'style'),
-    };
-    if (styleOnly.items.length) {
-      await memoryEngine.setLongTerm(PREFS_KEY, styleOnly, userId, GLOBAL_CLINIC);
-    }
+  // Only generic style preferences are portable across clinic workspaces.
+  if (styleOnly.items.length) {
+    await memoryEngine.setLongTerm(PREFS_KEY, styleOnly, userId, GLOBAL_CLINIC);
   }
 }
 
@@ -138,7 +152,7 @@ export async function learnFromUserUtterance(
     t.match(/(?:запомни|запомните|please remember|remember)\s*[,:]?\s*(.+)$/i)
     || t.match(/(?:хочу чтобы ты|сделай так чтобы|всегда)\s+(.+)/i);
 
-  if (remember?.[1]) {
+  if (remember?.[1] && clinicId?.trim()) {
     const value = remember[1].replace(/[.!?]+$/, '').trim().slice(0, 200);
     if (value.length >= 3) {
       learned.push(await upsertPref(userId, clinicId, {
@@ -182,8 +196,8 @@ export async function learnFromUserUtterance(
     }));
   }
 
-  if (/\b(сначала\s+(касса|выручк|долг|расписан|пациент))/i.test(t)
-    || /\b(приоритет[еа]?\s*[:—-]?\s*(касса|выручка|долги|расписание))/i.test(t)) {
+  if (clinicId?.trim() && (/\b(сначала\s+(касса|выручк|долг|расписан|пациент))/i.test(t)
+    || /\b(приоритет[еа]?\s*[:—-]?\s*(касса|выручка|долги|расписание))/i.test(t))) {
     const m = t.match(/(касса|выручк\w*|долг\w*|расписан\w*|пациент\w*)/i);
     if (m) {
       learned.push(await upsertPref(userId, clinicId, {
@@ -204,7 +218,7 @@ export async function learnFromToolsUsed(
   clinicId: string | null | undefined,
   toolsUsed: string[],
 ): Promise<void> {
-  if (!userId || userId === 'guest' || !toolsUsed?.length) return;
+  if (!userId || userId === 'guest' || !clinicId?.trim() || !toolsUsed?.length) return;
   const nav = toolsUsed.filter((t) => t === 'navigate' || t.startsWith('get_') || t.startsWith('list_'));
   if (!nav.length) return;
   const top = nav[0];
