@@ -1,7 +1,25 @@
+import { createHmac } from 'node:crypto';
 import { decryptField, encryptField } from '../../../lib/phi.js';
 import type { NormalizedMessage } from '../webhook/types.js';
 
 const ENCRYPTED_PREFIX = 'ENC:';
+
+export interface AiAdminExternalUserIdentity { clinicId: string; channel: string; externalUserId: string }
+
+export function hashAiAdminExternalUserId(identity: AiAdminExternalUserIdentity): string {
+  const externalUserId = identity.externalUserId.trim();
+  if (!identity.clinicId || !identity.channel || !externalUserId || externalUserId.length > 256) {
+    throw new Error('[phi] AI Admin external identity is invalid');
+  }
+  const configuredKey = process.env.ENCRYPTION_KEY;
+  if (!configuredKey || configuredKey.length < 32) {
+    if (process.env.NODE_ENV === 'production') throw new Error('[phi] ENCRYPTION_KEY is required for AI Admin external identity indexing');
+  }
+  const masterKey = configuredKey && configuredKey.length >= 32 ? configuredKey : 'dev-only-ai-admin-index-key-not-for-production';
+  const indexKey = createHmac('sha256', masterKey).update('dentvision:ai-admin:external-user-id:index-key:v1').digest();
+  const scopedIdentity = JSON.stringify([identity.channel, identity.clinicId, externalUserId]);
+  return 'v1:' + createHmac('sha256', indexKey).update(scopedIdentity).digest('hex');
+}
 
 /** AI Admin durable message text must never silently fall back to plaintext. */
 export function encryptAiAdminText(value: string): string {

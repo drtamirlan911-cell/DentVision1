@@ -3516,9 +3516,12 @@ model AiAdminSession {
   clinicId       String
   configId       String
   config         ClinicMessengerConfig @relation(fields: [configId], references: [id])
-  channel        AiAdminChannel
-  externalUserId String
-  patientName    String?
+  channel                  AiAdminChannel
+  // Legacy plaintext identifier retained only for the staged backfill.
+  externalUserId           String?
+  externalUserIdCiphertext String?
+  externalUserIdHash       String?
+  patientName              String?
   patientPhone   String?
   status         AiAdminSessionStatus  @default(ACTIVE)
   lastMessageAt  DateTime              @default(now())
@@ -3526,7 +3529,9 @@ model AiAdminSession {
 
   messages AiAdminMessage[]
 
+  // Keep the legacy uniqueness constraint until all plaintext rows are backfilled.
   @@unique([channel, externalUserId, clinicId])
+  @@unique([channel, externalUserIdHash, clinicId])
   @@index([clinicId, status])
   @@index([lastMessageAt])
   @@map("ai_admin_sessions")

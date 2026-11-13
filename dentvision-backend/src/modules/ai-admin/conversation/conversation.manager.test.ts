@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 const { prismaMock, notifyClinicOwners } = vi.hoisted(() => ({
   prismaMock: {
     aiAdminMessage: { create: vi.fn(), findMany: vi.fn() },
-    aiAdminSession: { update: vi.fn() },
+    aiAdminSession: { findFirst: vi.fn(), findUnique: vi.fn(), create: vi.fn(), update: vi.fn(), updateMany: vi.fn() },
     aiAdminEscalation: { create: vi.fn() },
   },
   notifyClinicOwners: vi.fn(),
@@ -12,7 +12,7 @@ const { prismaMock, notifyClinicOwners } = vi.hoisted(() => ({
 vi.mock('../../../lib/prisma.js', () => ({ default: prismaMock }));
 vi.mock('../../billing/clinicSubscription.service.js', () => ({ notifyClinicOwners }));
 
-import { getRecentMessages, markEscalated, saveMessage } from './conversation.manager.js';
+import { getOrCreateSession, getRecentMessages, markEscalated, saveMessage } from './conversation.manager.js';
 import { encryptAiAdminJson, encryptAiAdminText } from './phi.js';
 
 const originalNodeEnv = process.env.NODE_ENV;
@@ -24,6 +24,10 @@ beforeEach(() => {
   vi.clearAllMocks();
   prismaMock.aiAdminMessage.create.mockResolvedValue({});
   prismaMock.aiAdminMessage.findMany.mockResolvedValue([]);
+  prismaMock.aiAdminSession.findFirst.mockResolvedValue(null);
+  prismaMock.aiAdminSession.findUnique.mockResolvedValue(null);
+  prismaMock.aiAdminSession.create.mockResolvedValue({ id: 'session-1', clinicId: 'clinic-1', channel: 'WHATSAPP' });
+  prismaMock.aiAdminSession.updateMany.mockResolvedValue({ count: 1 });
   prismaMock.aiAdminSession.update.mockResolvedValue({
     id: 'session-1',
     clinicId: 'clinic-1',
@@ -93,5 +97,45 @@ describe('AI Admin message persistence', () => {
     expect(JSON.stringify(data)).not.toContain('private diagnosis alpha');
     expect(notifyClinicOwners.mock.calls[0][2]).not.toContain('Ivan Petrov');
     expect(notifyClinicOwners.mock.calls[0][2]).not.toContain('private diagnosis alpha');
+  });
+});
+
+
+describe('AI Admin external contact identity persistence', () => {
+  const identity = { clinicId: 'clinic-1', configId: 'config-1', channel: 'WHATSAPP' as const, externalUserId: '77010000000' };
+  it('stores only ciphertext and a scoped blind index', async () => {
+    await getOrCreateSession(identity);
+    const data = prismaMock.aiAdminSession.create.mock.calls[0][0].data;
+    expect(data.externalUserId).toBeNull();
+    expect(data.externalUserIdCiphertext).toMatch(/^ENC:/);
+    expect(data.externalUserIdHash).toMatch(/^v1:[a-f0-9]{64}$/);
+    expect(data.externalUserIdCiphertext).not.toContain(identity.externalUserId);
+  });
+  it('reuses an encrypted session by the clinic-scoped blind index', async () => {
+    prismaMock.aiAdminSession.findFirst.mockResolvedValueOnce({ id: 'existing', externalUserId: null, externalUserIdCiphertext: 'ENC:value' });
+    prismaMock.aiAdminSession.update.mockResolvedValueOnce({ id: 'existing' });
+    await getOrCreateSession(identity);
+    expect(prismaMock.aiAdminSession.findFirst.mock.calls[0][0].where.externalUserIdHash).toMatch(/^v1:/);
+    expect(prismaMock.aiAdminSession.create).not.toHaveBeenCalled();
+  });
+  it('fails closed on an incomplete blind-index row', async () => {
+    prismaMock.aiAdminSession.findFirst.mockResolvedValueOnce({ id: 'bad', externalUserId: identity.externalUserId, externalUserIdCiphertext: null });
+    await expect(getOrCreateSession(identity)).rejects.toThrow(/guarded backfill is required/);
+  });
+  it('migrates a legacy plaintext row with compare-and-set', async () => {
+    prismaMock.aiAdminSession.findFirst.mockResolvedValueOnce(null).mockResolvedValueOnce({ id: 'legacy' });
+    prismaMock.aiAdminSession.findUnique.mockResolvedValueOnce({ id: 'legacy', externalUserId: null });
+    await getOrCreateSession(identity);
+    expect(prismaMock.aiAdminSession.updateMany).toHaveBeenCalledWith({
+      where: { id: 'legacy', externalUserId: identity.externalUserId, externalUserIdHash: null },
+      data: expect.objectContaining({ externalUserId: null, externalUserIdCiphertext: expect.stringMatching(/^ENC:/), externalUserIdHash: expect.stringMatching(/^v1:/) }),
+    });
+  });
+  it('recovers a concurrent create collision by reading the blind-index winner', async () => {
+    prismaMock.aiAdminSession.create.mockRejectedValueOnce({ code: 'P2002' });
+    prismaMock.aiAdminSession.findFirst.mockResolvedValueOnce(null).mockResolvedValueOnce(null).mockResolvedValueOnce({ id: 'winner' });
+    prismaMock.aiAdminSession.update.mockResolvedValueOnce({ id: 'winner' });
+    await getOrCreateSession(identity);
+    expect(prismaMock.aiAdminSession.update).toHaveBeenCalledWith({ where: { id: 'winner' }, data: expect.objectContaining({ status: 'ACTIVE' }) });
   });
 });

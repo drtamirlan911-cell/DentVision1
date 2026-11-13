@@ -1,7 +1,7 @@
 import prisma from '../../../lib/prisma.js'
 import type { AiAdminSession, AiAdminMessage } from '@prisma/client'
 import type { Channel } from '../webhook/types.js'
-import { decryptAiAdminJson, decryptAiAdminText, encryptAiAdminJson, encryptAiAdminText } from './phi.js'
+import { decryptAiAdminJson, decryptAiAdminText, encryptAiAdminJson, encryptAiAdminText, hashAiAdminExternalUserId } from './phi.js'
 
 interface GetOrCreateSessionParams {
   clinicId: string
@@ -10,33 +10,71 @@ interface GetOrCreateSessionParams {
   externalUserId: string
 }
 
-export async function getOrCreateSession(
-  params: GetOrCreateSessionParams,
-): Promise<AiAdminSession> {
-  const existing = await prisma.aiAdminSession.findFirst({
-    where: {
-      channel: params.channel,
-      externalUserId: params.externalUserId,
-      clinicId: params.clinicId,
-    },
-  })
+function isUniqueConstraintError(error: unknown): boolean {
+  return Boolean(error && typeof error === 'object' && 'code' in error && error.code === 'P2002');
+}
 
+export async function getOrCreateSession(params: GetOrCreateSessionParams): Promise<AiAdminSession> {
+  const externalUserId = params.externalUserId.trim();
+  if (!externalUserId || externalUserId.length > 256) throw new Error('[phi] AI Admin external identity is invalid');
+  const externalUserIdHash = hashAiAdminExternalUserId({ ...params, externalUserId });
+  const now = new Date();
+  const byHash = { channel: params.channel, externalUserIdHash, clinicId: params.clinicId };
+
+  const existing = await prisma.aiAdminSession.findFirst({ where: byHash });
   if (existing) {
+    if (existing.externalUserId != null || !existing.externalUserIdCiphertext) {
+      throw new Error('[phi] AI Admin external identity row is incomplete; guarded backfill is required');
+    }
     return prisma.aiAdminSession.update({
-      where: { id: existing.id },
-      data: { status: 'ACTIVE', lastMessageAt: new Date() },
-    })
+      where: { id: existing.id }, data: { status: 'ACTIVE', lastMessageAt: now },
+    });
   }
 
-  return prisma.aiAdminSession.create({
-    data: {
-      clinicId: params.clinicId,
-      configId: params.configId,
-      channel: params.channel,
-      externalUserId: params.externalUserId,
-      status: 'ACTIVE',
-    },
-  })
+  const legacy = await prisma.aiAdminSession.findFirst({
+    where: { channel: params.channel, externalUserId, externalUserIdHash: null, clinicId: params.clinicId },
+  });
+  if (legacy) {
+    const migrated = await prisma.aiAdminSession.updateMany({
+      where: { id: legacy.id, externalUserId, externalUserIdHash: null },
+      data: {
+        externalUserId: null,
+        externalUserIdCiphertext: encryptAiAdminText(externalUserId),
+        externalUserIdHash,
+        status: 'ACTIVE',
+        lastMessageAt: now,
+      },
+    });
+    if (migrated.count === 1) {
+      const row = await prisma.aiAdminSession.findUnique({ where: { id: legacy.id } });
+      if (row) return row;
+    }
+    const winner = await prisma.aiAdminSession.findFirst({ where: byHash });
+    if (winner) return prisma.aiAdminSession.update({
+      where: { id: winner.id }, data: { status: 'ACTIVE', lastMessageAt: now },
+    });
+  }
+
+  try {
+    return await prisma.aiAdminSession.create({
+      data: {
+        clinicId: params.clinicId,
+        configId: params.configId,
+        channel: params.channel,
+        externalUserId: null,
+        externalUserIdCiphertext: encryptAiAdminText(externalUserId),
+        externalUserIdHash,
+        status: 'ACTIVE',
+      },
+    });
+  } catch (error) {
+    if (!isUniqueConstraintError(error)) throw error;
+    const winner = await prisma.aiAdminSession.findFirst({ where: byHash });
+    if (!winner) throw error;
+    return prisma.aiAdminSession.update({
+      where: { id: winner.id }, data: { status: 'ACTIVE', lastMessageAt: now },
+    });
+  }
 }
 
 export async function getRecentMessages(

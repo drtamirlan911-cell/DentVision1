@@ -1,6 +1,35 @@
+### AI thread lifecycle — independent hydrator generation guard — 2026-11-13
+
+- A second frontend hydration path was found in AIConversationSync: it separately reads /api/ai/history and previously called setMessages() without checking the active conversation generation. A response started before a new chat could therefore restore an old transcript after loadConversation() had correctly discarded its own stale response.
+- The candidate now shares one generation counter between loadConversation() and AIConversationSync. The component captures the generation before async activation, rechecks after thread creation/history fetch, conditionally commits through the store, and cancels the effect on workspace switch/unmount.
+- AIConversationSync.test.tsx reproduces the late /api/ai/history response after a new persisted thread is created. Local full suite: 2,613/2,613 tests across 295 files; focused component test 1/1; exact-new-head GitHub CI/E2E and Codex re-review pending.
+- This closes only the frontend transcript hydration race. RB-029 remains OPEN/P0 for the full historical PHI/key/backup/restore/staging scope described below; no database operation or backfill was run.
+
 ## Exact-main audit checkpoint — 2026-11-12
 
 This is a source-only review of the current `main` tree. No connected database was queried and no backfill, migration, key change, or production/staging operation was run.
+
+### RB-029 active-workspace scope follow-up — 2026-11-13 (PR #346)
+
+A read-only source review found that partner tokens can retain a legacy `clinicId` for compatibility. Although the context builder recognized non-clinic organizations, some AI routes and the branch resolver still read the raw claim. This could feed an old clinic into few-shot/learning retrieval, deterministic AI context, digital-twin/proactive endpoints, insights, or branch context while a partner workspace is active.
+
+The candidate centralizes the effective clinic scope in `activeAiClinicId()`: guest and partner workspaces resolve to `null`; only a verified clinic context uses its clinic ID. The helper is used for AI tool access, memory/few-shot learning, orchestrator and deterministic context, greeting/briefing, digital twin, proactive context, insights, and audit metadata. Authenticated non-clinic users no longer fall back to `DEMO_CLINIC_ID`. Branch context must match the active organization or active clinic; stale `branchIds` / `assignedBranchId` claims alone cannot reattach a clinic branch.
+
+Regression tests cover partner tokens retaining a legacy clinic ID and clinic branch claims. These are candidate source changes pending exact-head unit, lint, Quality Gate and full E2E. No database, staging, production, PHI backfill, key or deployment operation was performed.
+
+## Candidate follow-up — 2026-11-13 (PR #346; exact-head gates pending)
+
+The current-main AI-learning review identified three cross-workspace context boundaries that were not covered by the previous transcript/memory codec checks:
+
+- AI few-shot retrieval selected positively rated `AIMessage` rows from the active clinic **and** the global/null clinic buckets. Transcript content can contain confidential clinical context. The candidate restricts the query to the exact active clinic and disables retrieval without an active clinic.
+- Free-form learned facts and clinic-specific habits could be stored under the shared `__global__` memory scope when no clinic was active; clinic preference loading could then replay legacy global facts/habits. The candidate permits global portability only for generic style preferences, filters historical global items to `source='style'`, and prevents unscoped facts/habits from being persisted.
+- The learning path generated a clinic digital-twin block without passing the active organization type into the twin resolver. With no clinic ID, that resolver could fall back to an arbitrary clinic membership. The candidate skips clinic-derived twin generation whenever there is no explicit active clinic.
+
+Regression coverage in PR #346 checks exact-clinic few-shot selection, no-clinic fail-closed behavior, unscoped learning suppression, filtering of historical global facts, and no clinic twin without an active clinic. These are **candidate source changes only** until the final exact-head CI and Quality Gate pass and the PR is merged. They do not count or backfill existing AIMemory/transcript/event rows and do not close retention, deletion, key lifecycle, export, backup/restore or staging evidence requirements.
+
+### AI thread deletion acceptance gap — 2026-11-13
+
+The data-privacy spec requires users to delete an AI thread. The current backend exposes scoped list/read/create routes and memory-fact deletion, but no `DELETE /api/ai/threads/:id` route was found. The web client's `clearConversation()` resets only local Zustand state; it does not delete the persisted `AISession`/cascaded `AIMessage` records, and the stored session ID remains available to `getAiSessionId()`. Therefore the visible “Новый диалог” action is not proof of a deleted server-side thread and may continue using the prior session. Treat user-facing thread deletion, ownership/workspace-scoped server deletion, and new-thread/session-key reset as OPEN until implemented and tested. Do not interpret this as permission to erase regulated clinical records without a retention/legal policy.
 
 ### Verified implementation present on main
 - Patient collection upsert and PATCH both call `mergePatientMedicalHistory()`, encrypt the complete structured result through `encryptMedicalHistory()`, and use optimistic concurrency (`updatedAt`) before committing the patient row. Collection upsert and PATCH keep Tooth-row synchronization in the same transaction.
@@ -157,6 +186,18 @@ The checklist below predates the shared V1 codec and compatible writers/readers.
 This inventory does **not** establish that every separate Patient field is encrypted. `phone`, `email`, `address`, `notes`, IIN blind index/search behavior, images/documents/storage URLs, visit and treatment-plan fields, AI messages/events and backup copies have their own privacy/data-retention properties. They require their own explicit decisions. RB-029 remains **OPEN / P0** until the codec, all compatible consumers, audited backfill, key operations and exact production evidence are complete.
 
 
+## AI thread lifecycle candidate — 2026-11-13 (PR #346)
+
+The candidate implementation adds user-controlled persisted-thread deletion and makes “Новый диалог” create a distinct server-side session.
+
+- `DELETE /api/ai/threads/:threadId` derives both the user and active workspace scope from the authenticated token. It never accepts an owner or tenant identifier from the request body. Missing, foreign-user and foreign-workspace IDs return the same not-found response.
+- Deletion and creation of the replacement empty `AISession` occur in one database transaction. Existing `AIMessage` rows are removed through the established session foreign-key cascade; no clinical Patient, Visit, EventStore or audit records are erased by this endpoint.
+- Session snapshot synchronization updates the scoped parent row first and no longer uses `upsert`. This serializes concurrent synchronization against deletion and prevents a late sync from recreating a deleted session. Child transcript re-encryption proceeds only while the scoped session still exists.
+- A stale or foreign `sessionId` on a new query no longer redirects the user to the latest different transcript; the server creates a fresh session in the authenticated active workspace.
+- The web UI creates a new persisted conversation separately from deleting one. The delete control uses an explicit confirmation and opens a fresh empty conversation after the server confirms deletion. Session identifiers are refreshed in the workspace/clinic client storage keys.
+
+These are **candidate source changes** until exact-head CI, Quality Gate and merge are complete. They do not close the remaining historical PHI inventory/backfill, other derived-PHI surfaces, retention/export/backup policy, key versioning/rotation, backup/restore or approved staging evidence. No database migration, staging/production query or write, PHI backfill, or production deployment is performed by this change.
+
 ## AI transcript and thread-history reconciliation — 2026-10-31
 
 A re-check of the current PR source corrects the earlier statement that AI transcripts were stored as plaintext:
@@ -177,3 +218,11 @@ A re-check of the current PR source corrects the earlier statement that AI trans
 - Added unit tests for all three write scopes, no known plaintext PHI-like string in stored JSON, encrypted round-trip, legacy reads, listing decode, malformed envelopes and missing production key.
 - Explicit free-form learned preferences are no longer copied into the user-global memory scope. Only generic style preferences are mirrored globally; explicit facts remain within the active clinic key.
 - STILL OPEN: existing AIMemory JSON rows have not been dry-run or backfilled; retention/deletion, key rotation, direct database consumers and a full preference lifecycle audit still require evidence. No database migration or backfill was executed.
+
+
+## AI Admin external contact identifier — candidate implementation (2026-11-14)
+
+- New AiAdminSession writes store the WhatsApp/Instagram external identifier in externalUserIdCiphertext using the existing fail-closed AI Admin AES-GCM text codec. The legacy externalUserId column is nullable and remains only for staged migration compatibility.
+- Lookup uses a deterministic HMAC-SHA256 blind index scoped by channel and clinic; the raw identifier is not included. Rotating ENCRYPTION_KEY changes the index and requires a coordinated reindex; key versioning and old-key support remain open.
+- The bounded backfill command defaults to dry-run, emits counts only, validates ciphertext round-trips, uses keyset batches and compare-and-set updates. Writes require matching command/environment target confirmation; production additionally requires --allow-production and --confirm-production-write=I_HAVE_BACKUP_AND_APPROVAL.
+- This is candidate source code, not a merged or deployed control. No staging/production migration, database query, backfill, key rotation or backup/restore was run. RB-029 remains OPEN / P0.

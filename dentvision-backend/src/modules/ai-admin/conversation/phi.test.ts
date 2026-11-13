@@ -5,6 +5,7 @@ import {
   decryptAiAdminText,
   encryptAiAdminJson,
   encryptAiAdminText,
+  hashAiAdminExternalUserId,
 } from './phi.js';
 
 const originalNodeEnv = process.env.NODE_ENV;
@@ -20,6 +21,29 @@ afterEach(() => {
   else process.env.NODE_ENV = originalNodeEnv;
   if (originalEncryptionKey === undefined) delete process.env.ENCRYPTION_KEY;
   else process.env.ENCRYPTION_KEY = originalEncryptionKey;
+});
+
+describe('AI Admin external identity blind index', () => {
+  it('is deterministic and scoped to clinic and channel', () => {
+    const identity = { clinicId: 'clinic-a', channel: 'WHATSAPP', externalUserId: '77010000000' };
+    const hash = hashAiAdminExternalUserId(identity);
+    expect(hash).toMatch(/^v1:[a-f0-9]{64}$/);
+    expect(hashAiAdminExternalUserId({ ...identity, externalUserId: ' 77010000000 ' })).toBe(hash);
+    expect(hashAiAdminExternalUserId({ ...identity, clinicId: 'clinic-b' })).not.toBe(hash);
+    expect(hashAiAdminExternalUserId({ ...identity, channel: 'INSTAGRAM' })).not.toBe(hash);
+  });
+  it('fails closed in production without the index key', () => {
+    const previous = process.env.ENCRYPTION_KEY;
+    process.env.NODE_ENV = 'production';
+    delete process.env.ENCRYPTION_KEY;
+    try {
+      expect(() => hashAiAdminExternalUserId({ clinicId: 'clinic-a', channel: 'WHATSAPP', externalUserId: '77010000000' })).toThrow(/ENCRYPTION_KEY is required/);
+    } finally {
+      if (previous === undefined) delete process.env.ENCRYPTION_KEY;
+      else process.env.ENCRYPTION_KEY = previous;
+      process.env.NODE_ENV = 'test';
+    }
+  });
 });
 
 describe('AI Admin at-rest encryption', () => {
