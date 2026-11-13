@@ -4,6 +4,7 @@ const apiMocks = vi.hoisted(() => ({
   startNewAiThread: vi.fn(),
   deleteAiThread: vi.fn(),
   rememberAiSessionId: vi.fn(),
+  clearAiSessionId: vi.fn(),
 }));
 
 vi.mock('@/utils/api', () => apiMocks);
@@ -49,6 +50,7 @@ describe('AI conversation lifecycle', () => {
     await useAIStore.getState().startNewConversation(false);
 
     expect(apiMocks.startNewAiThread).not.toHaveBeenCalled();
+    expect(apiMocks.clearAiSessionId).toHaveBeenCalledWith('guest');
     expect(useAIStore.getState().messages).toEqual([]);
     expect(useAIStore.getState().sessionId).toBeNull();
   });

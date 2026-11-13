@@ -84,6 +84,12 @@ export const useAIStore = create<AIState>((set, get) => ({
     const current = get();
     if (current.status === 'thinking' || current.status === 'executing' || current.status === 'confirmation') return;
     if (!isAuthenticated) {
+      const storageScopes = new Set([storageContext?.workspaceId, storageContext?.clinicId].filter((scope): scope is string => !!scope));
+      if (storageScopes.size) {
+        for (const scope of storageScopes) api.clearAiSessionId('guest', scope);
+      } else {
+        api.clearAiSessionId('guest');
+      }
       set({ messages: [], conversationContext: [], suggestions: [], currentIntent: null, currentAction: null, status: 'idle', errorMessage: null, query: '', sessionId: null });
       return;
     }
