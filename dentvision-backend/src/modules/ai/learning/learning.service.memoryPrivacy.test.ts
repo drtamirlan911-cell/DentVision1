@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 const memory = vi.hoisted(() => ({
   getLongTerm: vi.fn(),
   setLongTerm: vi.fn(),
+  getSession: vi.fn(),
 }));
 
 vi.mock('../../../lib/prisma.js', () => ({ default: {} }));
@@ -10,14 +11,16 @@ vi.mock('../memory/memory.engine.js', () => ({
   memoryEngine: {
     getLongTerm: memory.getLongTerm,
     setLongTerm: memory.setLongTerm,
+    getSession: memory.getSession,
   },
 }));
 
-import { learnFromUserUtterance, listPrefs, upsertPref } from './learning.service.js';
+import { buildLearningContext, learnFromUserUtterance, listPrefs, upsertPref } from './learning.service.js';
 
 beforeEach(() => {
   memory.getLongTerm.mockReset().mockResolvedValue({ items: [] });
   memory.setLongTerm.mockReset().mockResolvedValue(undefined);
+  memory.getSession.mockReset().mockResolvedValue(null);
 });
 
 describe('AI learned preference workspace isolation', () => {
@@ -36,6 +39,18 @@ describe('AI learned preference workspace isolation', () => {
       'user-1',
       'clinic-1',
     );
+  });
+
+  it('does not inject a clinic-derived digital twin without an active clinic', async () => {
+    const context = await buildLearningContext({
+      userId: 'user-1',
+      clinicId: null,
+      isGuest: false,
+      query: 'Покажи расписание',
+    });
+
+    expect(context.twinBlock).toBe('');
+    expect(memory.getSession).not.toHaveBeenCalled();
   });
 
   it('does not learn free-form facts without an active clinic scope', async () => {
