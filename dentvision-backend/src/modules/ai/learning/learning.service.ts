@@ -102,10 +102,9 @@ async function savePrefs(userId: string, clinicId: string | null | undefined, ba
   }
 
   await memoryEngine.setLongTerm(PREFS_KEY, trimmed, userId, cid);
-  // Only generic style preferences are portable across clinic workspaces.
-  if (styleOnly.items.length) {
-    await memoryEngine.setLongTerm(PREFS_KEY, styleOnly, userId, GLOBAL_CLINIC);
-  }
+  // Persist even an empty style bucket so deleting the final portable
+  // preference cannot leave a stale global value that reappears on next read.
+  await memoryEngine.setLongTerm(PREFS_KEY, styleOnly, userId, GLOBAL_CLINIC);
 }
 
 export async function upsertPref(

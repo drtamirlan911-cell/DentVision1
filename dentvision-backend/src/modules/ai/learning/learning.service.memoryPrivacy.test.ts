@@ -15,7 +15,7 @@ vi.mock('../memory/memory.engine.js', () => ({
   },
 }));
 
-import { buildLearningContext, learnFromUserUtterance, listPrefs, upsertPref } from './learning.service.js';
+import { buildLearningContext, deletePref, learnFromUserUtterance, listPrefs, upsertPref } from './learning.service.js';
 
 beforeEach(() => {
   memory.getLongTerm.mockReset().mockResolvedValue({ items: [] });
@@ -132,6 +132,29 @@ describe('AI learned preference workspace isolation', () => {
     ));
 
     await expect(listPrefs('user-1', 'clinic-1')).resolves.toEqual([style]);
+  });
+
+  it('permanently deletes the final global style preference from a clinic workspace', async () => {
+    const style = {
+      key: 'style_length',
+      label: 'Стиль ответа',
+      value: 'Отвечай кратко',
+      source: 'style' as const,
+      updatedAt: '2026-11-13T00:00:00.000Z',
+    };
+    memory.getLongTerm.mockImplementation(async (_key, _userId, scope) => (
+      scope === 'clinic-1' ? { items: [] }
+        : scope === '__global__' ? { items: [style] }
+          : null
+    ));
+
+    await expect(deletePref('user-1', 'clinic-1', 'style_length')).resolves.toBe(true);
+    expect(memory.setLongTerm).toHaveBeenCalledWith(
+      'user_prefs',
+      { items: [] },
+      'user-1',
+      '__global__',
+    );
   });
 
   it('persists only generic style preferences in the global bucket', async () => {
