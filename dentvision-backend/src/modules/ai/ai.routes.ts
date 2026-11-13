@@ -10,7 +10,7 @@ import { orchestrate, orchestratorEnabled, isProviderUnavailableError } from './
 import type { AIResponse } from './types/ai.types.js';
 import { prisma } from '../../lib/prisma.js';
 import type { Prisma } from '@prisma/client';
-import { deleteAiThreadAndCreateNext, resolveScopedAiSessionId, updateExistingAiSessionSnapshot } from './lib/threadLifecycle.js';
+import { deleteAiThreadAndCreateNext, lockExistingAiSessionForSync, resolveScopedAiSessionId, updateExistingAiSessionSnapshot } from './lib/threadLifecycle.js';
 import { decryptAiTranscriptText, encryptAiTranscriptText } from './lib/transcriptEncryption.js';
 import { decryptStoredThreadMessages, parseAiHistoryPagination } from './lib/threadHistory.js';
 import { logAIInteraction } from './lib/auditLogger.js';
@@ -128,38 +128,34 @@ async function syncSessionMessages(sessionId: string, userId: string | undefined
   if (!userId) return;
   try {
     const scopeKey = clinicId || DEMO_CLINIC_ID || 'platform';
-    const ownedSession = await prisma.aISession.findFirst({
-      where: { id: sessionId, userId, clinicId: scopeKey },
-      select: { id: true },
-    });
-    if (!ownedSession) return;
-
-    const rows = await prisma.aIMessage.findMany({
-      where: { sessionId },
-      orderBy: { createdAt: 'asc' },
-      take: 80,
-      select: { id: true, role: true, content: true, prevUserText: true, createdAt: true },
-    });
-    const normalized = rows.map((row) => ({
-      row,
-      content: encryptAiTranscriptText(row.content),
-      prevUserText: row.prevUserText == null ? null : encryptAiTranscriptText(row.prevUserText),
-    }));
-    const messages = normalized.map(({ row, content }) => ({
-      id: row.id,
-      role: row.role,
-      content,
-      timestamp: row.createdAt.toISOString(),
-    }));
-
     await prisma.$transaction(async (tx) => {
-      const sessionStillOwned = await updateExistingAiSessionSnapshot(tx, {
+      // Acquire the scoped parent-row lock before reading the mirror source.
+      // Concurrent syncs therefore read the committed message set in turn,
+      // and a concurrent delete either wins first or cascades after this commit.
+      const sessionLocked = await lockExistingAiSessionForSync(tx, {
         sessionId,
         userId,
         clinicId: scopeKey,
-        messages: messages as Prisma.InputJsonValue,
       });
-      if (!sessionStillOwned) return;
+      if (!sessionLocked) return;
+
+      const rows = await tx.aIMessage.findMany({
+        where: { sessionId },
+        orderBy: { createdAt: 'asc' },
+        take: 80,
+        select: { id: true, role: true, content: true, prevUserText: true, createdAt: true },
+      });
+      const normalized = rows.map((row) => ({
+        row,
+        content: encryptAiTranscriptText(row.content),
+        prevUserText: row.prevUserText == null ? null : encryptAiTranscriptText(row.prevUserText),
+      }));
+      const messages = normalized.map(({ row, content }) => ({
+        id: row.id,
+        role: row.role,
+        content,
+        timestamp: row.createdAt.toISOString(),
+      }));
 
       for (const item of normalized) {
         if (item.content !== item.row.content || item.prevUserText !== item.row.prevUserText) {
@@ -169,6 +165,13 @@ async function syncSessionMessages(sessionId: string, userId: string | undefined
           });
         }
       }
+
+      await updateExistingAiSessionSnapshot(tx, {
+        sessionId,
+        userId,
+        clinicId: scopeKey,
+        messages: messages as Prisma.InputJsonValue,
+      });
     });
   } catch (err) {
     console.error('[AI] syncSessionMessages failed; transcript payload omitted');

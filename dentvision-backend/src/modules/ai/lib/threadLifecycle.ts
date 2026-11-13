@@ -34,6 +34,22 @@ export async function resolveScopedAiSessionId(
 }
 
 /**
+ * Acquire a write lock on the owner/workspace-scoped session before reading
+ * transcript rows. This prevents two concurrent snapshots from overwriting
+ * each other with a stale pre-transaction message list.
+ */
+export async function lockExistingAiSessionForSync(
+  tx: Prisma.TransactionClient,
+  input: { sessionId: string; userId: string; clinicId: string },
+): Promise<boolean> {
+  const locked = await tx.aISession.updateMany({
+    where: { id: input.sessionId, userId: input.userId, clinicId: input.clinicId },
+    data: { updatedAt: new Date() },
+  });
+  return locked.count === 1;
+}
+
+/**
  * Update the parent row before touching transcript children. The UPDATE locks
  * the session row so a concurrent DELETE either wins first (count=0) or waits
  * until this transaction commits and then cascades the child messages.

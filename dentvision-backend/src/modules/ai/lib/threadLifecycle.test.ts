@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Prisma, PrismaClient } from '@prisma/client';
 import {
   deleteAiThreadAndCreateNext,
+  lockExistingAiSessionForSync,
   resolveScopedAiSessionId,
   updateExistingAiSessionSnapshot,
 } from './threadLifecycle.js';
@@ -74,6 +75,27 @@ describe('AI thread lifecycle workspace boundaries', () => {
       select: { id: true },
     });
     expect(create).not.toHaveBeenCalled();
+  });
+
+  it('locks only the matching owner and active workspace before snapshot reads', async () => {
+    updateMany.mockResolvedValueOnce({ count: 1 });
+
+    await expect(lockExistingAiSessionForSync(tx, {
+      sessionId: 'session-123', userId: USER_ID, clinicId: SCOPE,
+    })).resolves.toBe(true);
+
+    expect(updateMany).toHaveBeenCalledWith({
+      where: { id: 'session-123', userId: USER_ID, clinicId: SCOPE },
+      data: { updatedAt: expect.any(Date) },
+    });
+  });
+
+  it('does not sync a transcript when the scoped session no longer exists', async () => {
+    updateMany.mockResolvedValueOnce({ count: 0 });
+
+    await expect(lockExistingAiSessionForSync(tx, {
+      sessionId: 'deleted-session-123', userId: USER_ID, clinicId: SCOPE,
+    })).resolves.toBe(false);
   });
 
   it('updates the mirror only for the matching owner and active workspace', async () => {
