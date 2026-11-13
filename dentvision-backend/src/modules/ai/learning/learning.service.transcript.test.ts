@@ -66,6 +66,21 @@ describe('AI learning transcript handling', () => {
     }]);
   });
 
+  it('queries few-shot examples only from the exact active clinic', async () => {
+    await getPositiveFewShots('user-1', 'clinic-1', 'Покажи расписание врача');
+
+    const query = db.messageFindMany.mock.calls[0][0];
+    expect(query.where.clinicId).toBe('clinic-1');
+    expect(query.where).not.toHaveProperty('OR');
+  });
+
+  it('disables few-shot reuse when there is no active clinic scope', async () => {
+    const result = await getPositiveFewShots('user-1', null, 'Покажи расписание врача');
+
+    expect(result).toEqual([]);
+    expect(db.messageFindMany).not.toHaveBeenCalled();
+  });
+
   it('only updates a feedback target owned by the active user and workspace', async () => {
     db.messageFindFirst.mockResolvedValue(null);
 
