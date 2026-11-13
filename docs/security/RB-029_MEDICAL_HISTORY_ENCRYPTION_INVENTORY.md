@@ -2,6 +2,16 @@
 
 This is a source-only review of the current `main` tree. No connected database was queried and no backfill, migration, key change, or production/staging operation was run.
 
+### Candidate follow-up — 2026-11-13 (PR #346; exact-head gates pending)
+
+The current-main AI-learning review identified three cross-workspace context boundaries that were not covered by the previous transcript/memory codec checks:
+
+- AI few-shot retrieval selected positively rated `AIMessage` rows from the active clinic **and** the global/null clinic buckets. Transcript content can contain confidential clinical context. The candidate restricts the query to the exact active clinic and disables retrieval without an active clinic.
+- Free-form learned facts and clinic-specific habits could be stored under the shared `__global__` memory scope when no clinic was active; clinic preference loading could then replay legacy global facts/habits. The candidate permits global portability only for generic style preferences, filters historical global items to `source='style'`, and prevents unscoped facts/habits from being persisted.
+- The learning path generated a clinic digital-twin block without passing the active organization type into the twin resolver. With no clinic ID, that resolver could fall back to an arbitrary clinic membership. The candidate skips clinic-derived twin generation whenever there is no explicit active clinic.
+
+Regression coverage in PR #346 checks exact-clinic few-shot selection, no-clinic fail-closed behavior, unscoped learning suppression, filtering of historical global facts, and no clinic twin without an active clinic. These are **candidate source changes only** until the final exact-head CI and Quality Gate pass and the PR is merged. They do not count or backfill existing AIMemory/transcript/event rows and do not close retention, deletion, key lifecycle, export, backup/restore or staging evidence requirements.
+
 ### Verified implementation present on main
 - Patient collection upsert and PATCH both call `mergePatientMedicalHistory()`, encrypt the complete structured result through `encryptMedicalHistory()`, and use optimistic concurrency (`updatedAt`) before committing the patient row. Collection upsert and PATCH keep Tooth-row synchronization in the same transaction.
 - `mergePatientMedicalHistory.test.ts` covers teeth-only partial updates preserving allergies, complaints, chronic diseases and tags; partial history object merges; explicit clear semantics; legacy scalar fail-closed behavior; and invalid roots.
