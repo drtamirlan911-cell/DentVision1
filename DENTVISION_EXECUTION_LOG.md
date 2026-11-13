@@ -1,3 +1,11 @@
+## 2026-11-13 — RB-029 legacy clinic claim isolation in partner AI context
+
+- Continued on existing PR #346 / `security/rb029-fewshot-workspace-isolation-20261113`; starting head `b8d5a56013d2310352142d4c42e0ec4545781151`; no new branch or PR.
+- Read-only source reconciliation found a mismatch: `buildAiContext()` recognized a non-clinic active workspace, but some AI routes still read `req.user.clinicId` directly for learning/few-shot, deterministic fallback context, digital twin, proactive suggestions, insights, and audit metadata. The branch resolver also accepted stale `branchIds` / `assignedBranchId` without matching the active parent workspace.
+- Candidate correction exports one `activeAiClinicId()` resolver, uses it across AI endpoints and tool access, prevents authenticated partner contexts from falling back to `DEMO_CLINIC_ID`, and allows branch context only when it matches the active clinic or organization. Regression coverage exercises partner tokens with legacy clinic and branch claims.
+- Full exact-head CI/Quality/E2E must be rerun after the candidate push. The previous role/context retry does not verify this child commit.
+- RB-029 remains OPEN/P0. No connected DB was queried or changed; no staging/production migration, PHI backfill, key change, provider operation, secret change, deployment or main merge performed.
+
 ## 2026-11-10 — RB-030 offline appointment sync merged
 
 - Continued only on the existing RB-030 branch / PR #345; no replacement branch or PR was created. PR #345 merged to `main` as `4c779b371c1c6a049630913a214ee27f3f8bd41b`. Verified PR head: `3577a57d46d58c0fbfbbd26a6bf8696c85cb0a8b`.

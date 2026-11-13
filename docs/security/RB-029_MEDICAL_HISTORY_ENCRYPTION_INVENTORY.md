@@ -2,7 +2,15 @@
 
 This is a source-only review of the current `main` tree. No connected database was queried and no backfill, migration, key change, or production/staging operation was run.
 
-### Candidate follow-up — 2026-11-13 (PR #346; exact-head gates pending)
+### RB-029 active-workspace scope follow-up — 2026-11-13 (PR #346)
+
+A read-only source review found that partner tokens can retain a legacy `clinicId` for compatibility. Although the context builder recognized non-clinic organizations, some AI routes and the branch resolver still read the raw claim. This could feed an old clinic into few-shot/learning retrieval, deterministic AI context, digital-twin/proactive endpoints, insights, or branch context while a partner workspace is active.
+
+The candidate centralizes the effective clinic scope in `activeAiClinicId()`: guest and partner workspaces resolve to `null`; only a verified clinic context uses its clinic ID. The helper is used for AI tool access, memory/few-shot learning, orchestrator and deterministic context, greeting/briefing, digital twin, proactive context, insights, and audit metadata. Authenticated non-clinic users no longer fall back to `DEMO_CLINIC_ID`. Branch context must match the active organization or active clinic; stale `branchIds` / `assignedBranchId` claims alone cannot reattach a clinic branch.
+
+Regression tests cover partner tokens retaining a legacy clinic ID and clinic branch claims. These are candidate source changes pending exact-head unit, lint, Quality Gate and full E2E. No database, staging, production, PHI backfill, key or deployment operation was performed.
+
+## Candidate follow-up — 2026-11-13 (PR #346; exact-head gates pending)
 
 The current-main AI-learning review identified three cross-workspace context boundaries that were not covered by the previous transcript/memory codec checks:
 

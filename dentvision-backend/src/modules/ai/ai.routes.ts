@@ -16,7 +16,7 @@ import { decryptStoredThreadMessages, parseAiHistoryPagination } from './lib/thr
 import { logAIInteraction } from './lib/auditLogger.js';
 import { guardAiAccess } from '../../middleware/planGate.js';
 import { consumeGuestAi, guestAiRemaining } from '../../lib/guestAiQuota.js';
-import { buildAiContext } from './os/context.js';
+import { activeAiClinicId, buildAiContext } from './os/context.js';
 import multer from 'multer';
 import { transcribeAudio, isTranscriptionFailed, MAX_AUDIO_BYTES } from './lib/transcription.js';
 
@@ -96,7 +96,8 @@ function aiSessionScope(req: AuthRequest): string {
   }
   if (user?.supplierId) return 'supplier:' + user.supplierId;
   if (user?.lecturerId) return 'lecturer:' + user.lecturerId;
-  if (user?.clinicId) return 'clinic:' + user.clinicId;
+  const activeClinicId = activeAiClinicId(user);
+  if (activeClinicId) return 'clinic:' + activeClinicId;
   if (user?.organizationId) return 'org:' + user.organizationId;
   return 'user:' + (user?.id || 'platform');
 }
@@ -104,7 +105,7 @@ function aiSessionScope(req: AuthRequest): string {
 function aiAccessInput(req: AuthRequest) {
   return {
     userId: req.user!.id,
-    clinicId: req.user?.clinicId ?? null,
+    clinicId: activeAiClinicId(req.user),
     organizationId: req.user?.organizationId ?? null,
     organizationType: req.user?.organizationType ?? null,
     supplierId: req.user?.supplierId ?? null,
@@ -343,7 +344,7 @@ async function processQuery(
   const queueKey = typeof body.queueKey === 'string' ? body.queueKey : undefined;
 
   const userId = req.user?.id || 'guest';
-  const clinicId = isGuest ? null : (req.user!.clinicId || null);
+  const clinicId = activeAiClinicId(req.user);
 
   // The verified entity focus (Stage 10 context engine) — kernel.ts substitutes
   // a missing patientId argument from this. Guests have no clinic-scoped entity.
@@ -458,7 +459,7 @@ async function processQuery(
 
   const context = {
     userId,
-    clinicId: isGuest ? '' : (clinicId || DEMO_CLINIC_ID),
+    clinicId: clinicId || '',
     role: isGuest ? 'guest' : (req.user?.role || 'guest'),
     isGuest,
     sessionId,
@@ -482,7 +483,7 @@ aiRouter.post('/query', validate(querySchema), async (req: AuthRequest, res) => 
     const toolsUsed = response.toolsUsed || [];
     logAIInteraction({
       userId: req.user?.id || 'guest',
-      clinicId: req.user?.clinicId || undefined,
+      clinicId: activeAiClinicId(req.user) || undefined,
       sessionId,
       // Real id, so the audit can answer "what generated this?". A
       // deterministic shortcut answers without any model at all.
@@ -511,7 +512,7 @@ aiRouter.post('/query', validate(querySchema), async (req: AuthRequest, res) => 
     console.error('[AI] query failed');
     logAIInteraction({
       userId: req.user?.id || 'guest',
-      clinicId: req.user?.clinicId || undefined,
+      clinicId: activeAiClinicId(req.user) || undefined,
       sessionId: req.body?.sessionId || undefined,
       model: 'unknown',
       toolsCalled: [],
@@ -613,7 +614,7 @@ aiRouter.post('/query/stream', async (req: AuthRequest, res) => {
     const toolsUsed = response.toolsUsed || [];
     logAIInteraction({
       userId: req.user?.id || 'guest',
-      clinicId: req.user?.clinicId || undefined,
+      clinicId: activeAiClinicId(req.user) || undefined,
       sessionId,
       // Real id, so the audit can answer "what generated this?". A
       // deterministic shortcut answers without any model at all.
@@ -652,7 +653,7 @@ aiRouter.post('/query/stream', async (req: AuthRequest, res) => {
     console.error('[AI Stream] request failed');
     logAIInteraction({
       userId: req.user?.id || 'guest',
-      clinicId: req.user?.clinicId || undefined,
+      clinicId: activeAiClinicId(req.user) || undefined,
       sessionId: req.body?.sessionId || undefined,
       model: 'unknown',
       toolsCalled: [],
@@ -918,7 +919,7 @@ aiRouter.post('/greeting', async (req: AuthRequest, res) => {
       clientTimeZoneFromRequest,
       DEFAULT_CLINIC_TZ,
     } = await import('./lib/timezone.js');
-    const clinicId = req.user?.clinicId || DEMO_CLINIC_ID;
+    const clinicId = activeAiClinicId(req.user) || ((!req.user || req.user.isGuest) ? DEMO_CLINIC_ID : '');
     let clinicTz: string | null = null;
     if (clinicId) {
       const clinic = await prisma.clinic.findUnique({
@@ -962,7 +963,7 @@ aiRouter.get('/proactive', optionalAuth, async (req: AuthRequest, res) => {
     const { buildProactiveAlerts } = await import('./core/digitalTwin.js');
     const alerts = await buildProactiveAlerts({
       userId: req.user?.id || 'guest',
-      clinicId: req.user?.isGuest ? null : (req.user?.clinicId || null),
+      clinicId: activeAiClinicId(req.user),
       role: req.user?.isGuest ? 'GUEST' : (req.user?.role || 'guest'),
       isGuest: req.user?.isGuest === true,
       organizationType: req.user?.organizationType || null,
@@ -982,7 +983,7 @@ aiRouter.get('/briefing', authenticate, async (req: AuthRequest, res) => {
       return res.status(403).json({ ok: false, error: 'Briefing requires clinic user' });
     }
     const { buildJarvisBriefing } = await import('./core/jarvisBriefing.js');
-    const clinicId = req.user.clinicId || null;
+    const clinicId = activeAiClinicId(req.user);
     const activeWorkspace = await buildAiContext(req, {}).then((ctx) => ctx?.workspace ?? null).catch(() => null);
     const clinic = clinicId
       ? await prisma.clinic.findUnique({
@@ -1091,7 +1092,8 @@ aiRouter.get('/digital-twin', optionalAuth, async (req: AuthRequest, res) => {
     if (!req.user?.id) {
       return res.json({ ok: true, data: { twin: buildGuestPlatformTwin(null), preferences: [] } });
     }
-    const twin = await buildDigitalTwin(req.user.id, req.user?.clinicId || null, {
+    const clinicId = activeAiClinicId(req.user);
+    const twin = await buildDigitalTwin(req.user.id, clinicId, {
       isGuest: req.user?.isGuest === true,
       organizationType: req.user?.organizationType || null,
     });
@@ -1102,8 +1104,8 @@ aiRouter.get('/digital-twin', optionalAuth, async (req: AuthRequest, res) => {
     let enrichedTwin = twin as Record<string, unknown>;
     try {
       const { getTwinEventOSData, enrichTwinWithEventOS } = await import('./core/digitalTwinEventOS.js');
-      if (req.user?.clinicId) {
-        const eventOSData = await getTwinEventOSData(req.user.clinicId);
+      if (clinicId) {
+        const eventOSData = await getTwinEventOSData(clinicId);
         enrichedTwin = enrichTwinWithEventOS(twin as Record<string, unknown>, eventOSData);
       }
     } catch { /* optional */ }
@@ -1111,7 +1113,7 @@ aiRouter.get('/digital-twin', optionalAuth, async (req: AuthRequest, res) => {
     let preferences: Array<{ key: string; label: string; value: string; source: string }> = [];
     try {
       const learning = await import('./learning/learning.service.js');
-      preferences = await learning.listPrefs(req.user.id, req.user?.clinicId || null);
+      preferences = await learning.listPrefs(req.user.id, clinicId);
     } catch { /* optional */ }
     res.json({ ok: true, data: { twin: enrichedTwin, preferences } });
   } catch (error) {
@@ -1126,7 +1128,7 @@ aiRouter.get('/twin/proactive', optionalAuth, async (req: AuthRequest, res) => {
     const screen = String(req.query.screen || '').trim();
 
     const userId = req.user?.id;
-    const clinicId = req.user?.clinicId;
+    const clinicId = activeAiClinicId(req.user);
     if (!userId) return res.json({ ok: true, data: { suggestions: [], feed: [] } });
 
     const { buildDigitalTwin, buildProactiveAlerts, buildContextualSuggestions } = await import('./core/digitalTwin.js');
@@ -1265,7 +1267,7 @@ aiRouter.get('/insights', authenticate, requirePermission('medical.read'), async
   try {
     const entityType = String(req.query.entityType || '');
     const entityId = String(req.query.entityId || '');
-    const clinicId = req.user?.clinicId;
+    const clinicId = activeAiClinicId(req.user);
     if (!clinicId) {
       return res.status(400).json({ ok: false, error: 'Клиника не указана' });
     }
@@ -1294,7 +1296,7 @@ aiRouter.get('/insights', authenticate, requirePermission('medical.read'), async
 
 aiRouter.post('/insights/:id/dismiss', authenticate, async (req: AuthRequest, res) => {
   try {
-    const clinicId = req.user?.clinicId;
+    const clinicId = activeAiClinicId(req.user);
     if (!clinicId) {
       return res.status(400).json({ ok: false, error: 'Клиника не указана' });
     }

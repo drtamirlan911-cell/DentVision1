@@ -1,3 +1,12 @@
+## Current implementation checkpoint — 2026-11-13 (RB-029 active workspace scope; candidate pending)
+
+- Continue only on existing PR #346 / `security/rb029-fewshot-workspace-isolation-20261113`; active-clinic scope fix is a child of `b8d5a56013d2310352142d4c42e0ec4545781151`. Main remains unchanged.
+- Source review confirmed that a partner token may retain a legacy clinicId. Raw claim reads in AI learning, few-shot, deterministic fallback, digital twin, proactive routes, insights, audit metadata and branch resolution could therefore reattach clinic state.
+- Candidate uses `activeAiClinicId()` consistently, returns null for guest/partner contexts, removes authenticated fallback to the demo clinic, and only exposes branch context matched to the active organization/clinic. Regression tests cover stale clinic and branch claims.
+- **Next:** push with expected-HEAD lease; rerun exact-head CI, Quality Gate and all E2E role/visual/owner gates. Review Codex findings. Do not merge until every gate passes.
+- RB-029 remains OPEN/P0 for historical PHI inventory/backfill, key versioning/rotation, retention/export/backup and approved staging evidence. D1/D2, RB-031, RB-033, RB-035, official Kaspi, Android runtime and D10 remain open. Release NOT READY.
+- No staging/production data operation, migration, PHI backfill, key change, provider operation, secret change or production deployment performed.
+
 ## Current implementation checkpoint — 2026-11-10 (RB-030 merged)
 
 - RB-030 offline appointment edit/reconnect/sync is implemented and merged through existing PR #345. Merge commit on `main`: `4c779b371c1c6a049630913a214ee27f3f8bd41b`; verified PR head: `3577a57d46d58c0fbfbbd26a6bf8696c85cb0a8b`.

@@ -1,3 +1,10 @@
+## Exact-head update — 2026-11-13 (RB-029 active clinic scope)
+
+- Existing PR #346 / branch `security/rb029-fewshot-workspace-isolation-20261113`; starting HEAD `b8d5a56013d2310352142d4c42e0ec4545781151`; base/main remains unchanged. Do not create another PR or merge to main while exact-head checks are pending.
+- New RB-029 source finding: a partner token may retain a legacy clinicId. Several AI paths still consumed that raw claim after the active context became a partner workspace. This could bleed old clinic memory/few-shot examples, branch context, or clinic data into partner AI context.
+- Candidate fix centralizes `activeAiClinicId()`, applies it across AI routes, tool access, learning, twin/proactive/insights and audit paths, removes authenticated non-clinic fallback to DEMO_CLINIC_ID, and prevents stale branch claims from attaching a clinic branch to a partner context. Regression tests cover stale clinic and branch claims.
+- The current Role/Context retry is superseded by this security fix; a fresh exact-head CI and Quality Gate are required. Release remains NOT READY. No merge, staging/production data operation, migration, PHI backfill, key change, provider action or deployment.
+
 ## Exact-head update — 2026-11-10 (RB-030 merged)
 
 - Repository: `drtamirlan911-cell/DentVision1`; current product changes are merged to `main`. PR #345 merged as `4c779b371c1c6a049630913a214ee27f3f8bd41b`; its verified PR head was `3577a57d46d58c0fbfbbd26a6bf8696c85cb0a8b`.
