@@ -261,7 +261,7 @@ describe('AI learned preference workspace isolation', () => {
 
     expect(memory.setLongTerm).toHaveBeenCalledWith(
       'user_prefs',
-      { items: [localStyle, expect.objectContaining({ key: 'fact_clinic_rule' })] },
+      { items: [expect.objectContaining({ key: 'fact_clinic_rule' }), localStyle] },
       'user-1',
       'clinic-1',
     );
