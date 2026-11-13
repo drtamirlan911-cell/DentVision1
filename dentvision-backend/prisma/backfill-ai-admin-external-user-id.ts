@@ -32,6 +32,21 @@ export function parseAiAdminExternalIdBackfillOptions(args: string[], env: NodeJ
   if (target === 'production' && (!args.includes('--allow-production') || read('--confirm-production-write') !== 'I_HAVE_BACKUP_AND_APPROVAL')) {
     throw new Error('Production write also requires --allow-production and --confirm-production-write=I_HAVE_BACKUP_AND_APPROVAL');
   }
+
+  // Bind the operator target confirmation to Prisma's actual datasource URL.
+  // Never log either URL: both may contain database credentials.
+  const expectedDatabaseUrlEnv = target === 'staging'
+    ? 'AI_ADMIN_EXTERNAL_ID_BACKFILL_STAGING_DATABASE_URL'
+    : 'AI_ADMIN_EXTERNAL_ID_BACKFILL_PRODUCTION_DATABASE_URL';
+  const actualDatabaseUrl = env.DATABASE_URL?.trim();
+  const expectedDatabaseUrl = env[expectedDatabaseUrlEnv]?.trim();
+  if (!actualDatabaseUrl || !expectedDatabaseUrl) {
+    throw new Error('Write mode requires DATABASE_URL and ' + expectedDatabaseUrlEnv);
+  }
+  if (actualDatabaseUrl !== expectedDatabaseUrl) {
+    throw new Error('DATABASE_URL does not match the configured ' + target + ' backfill database');
+  }
+
   return { apply: true, target, batchSize };
 }
 

@@ -27,12 +27,44 @@ describe('AI Admin external-identity backfill safeguards', () => {
     expect(() => parseAiAdminExternalIdBackfillOptions(['--apply', '--target=staging'], { AI_ADMIN_EXTERNAL_ID_BACKFILL_TARGET: 'staging' })).toThrow(/--confirm-target/);
     expect(() => parseAiAdminExternalIdBackfillOptions(['--apply', '--target=staging', '--confirm-target=staging'], { AI_ADMIN_EXTERNAL_ID_BACKFILL_TARGET: 'production' })).toThrow(/must match/);
   });
-  it('allows staging writes only when command and environment agree', () => {
-    expect(parseAiAdminExternalIdBackfillOptions(['--apply', '--target=staging', '--confirm-target=staging'], { AI_ADMIN_EXTERNAL_ID_BACKFILL_TARGET: 'staging' })).toMatchObject({ apply: true, target: 'staging' });
+  it('allows staging writes only when command, environment, and actual Prisma datasource agree', () => {
+    const stagingUrl = 'postgresql://staging.example.test/dentvision';
+    expect(parseAiAdminExternalIdBackfillOptions(
+      ['--apply', '--target=staging', '--confirm-target=staging'],
+      {
+        AI_ADMIN_EXTERNAL_ID_BACKFILL_TARGET: 'staging',
+        DATABASE_URL: stagingUrl,
+        AI_ADMIN_EXTERNAL_ID_BACKFILL_STAGING_DATABASE_URL: stagingUrl,
+      },
+    )).toMatchObject({ apply: true, target: 'staging' });
+  });
+  it('rejects a staging confirmation when DATABASE_URL points to another database', () => {
+    expect(() => parseAiAdminExternalIdBackfillOptions(
+      ['--apply', '--target=staging', '--confirm-target=staging'],
+      {
+        AI_ADMIN_EXTERNAL_ID_BACKFILL_TARGET: 'staging',
+        DATABASE_URL: 'postgresql://production.example.test/dentvision',
+        AI_ADMIN_EXTERNAL_ID_BACKFILL_STAGING_DATABASE_URL: 'postgresql://staging.example.test/dentvision',
+      },
+    )).toThrow(/does not match the configured staging backfill database/);
+  });
+  it('requires a target-specific expected datasource URL before any write', () => {
+    expect(() => parseAiAdminExternalIdBackfillOptions(
+      ['--apply', '--target=staging', '--confirm-target=staging'],
+      { AI_ADMIN_EXTERNAL_ID_BACKFILL_TARGET: 'staging', DATABASE_URL: 'postgresql://staging.example.test/dentvision' },
+    )).toThrow(/AI_ADMIN_EXTERNAL_ID_BACKFILL_STAGING_DATABASE_URL/);
   });
   it('requires additional confirmation for production writes', () => {
     expect(() => parseAiAdminExternalIdBackfillOptions(['--apply', '--target=production', '--confirm-target=production'], { AI_ADMIN_EXTERNAL_ID_BACKFILL_TARGET: 'production' })).toThrow(/--allow-production/);
-    expect(parseAiAdminExternalIdBackfillOptions(['--apply', '--target=production', '--confirm-target=production', '--allow-production', '--confirm-production-write=I_HAVE_BACKUP_AND_APPROVAL'], { AI_ADMIN_EXTERNAL_ID_BACKFILL_TARGET: 'production' })).toMatchObject({ apply: true, target: 'production' });
+    const productionUrl = 'postgresql://production.example.test/dentvision';
+    expect(parseAiAdminExternalIdBackfillOptions(
+      ['--apply', '--target=production', '--confirm-target=production', '--allow-production', '--confirm-production-write=I_HAVE_BACKUP_AND_APPROVAL'],
+      {
+        AI_ADMIN_EXTERNAL_ID_BACKFILL_TARGET: 'production',
+        DATABASE_URL: productionUrl,
+        AI_ADMIN_EXTERNAL_ID_BACKFILL_PRODUCTION_DATABASE_URL: productionUrl,
+      },
+    )).toMatchObject({ apply: true, target: 'production' });
   });
   it('rejects invalid batch sizes', () => {
     expect(() => parseAiAdminExternalIdBackfillOptions(['--batch-size=0'], {})).toThrow(/batch-size/);
