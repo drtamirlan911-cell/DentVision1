@@ -61,21 +61,28 @@ function slugKey(raw: string): string {
 async function loadPrefs(userId: string, clinicId?: string | null): Promise<UserPrefsBag> {
   const cid = clinicKey(clinicId);
   const raw = (await memoryEngine.getLongTerm(PREFS_KEY, userId, cid)) as UserPrefsBag | null;
-  if (raw && Array.isArray(raw.items)) {
+  const localItems = raw && Array.isArray(raw.items) ? raw.items : [];
+
+  if (cid === GLOBAL_CLINIC) {
     // The global bucket is portable only for generic response-style settings.
-    return cid === GLOBAL_CLINIC
-      ? { items: raw.items.filter((item) => item.source === 'style') }
-      : raw;
+    return { items: localItems.filter((item) => item.source === 'style') };
   }
-  // Merge only generic style preferences into a clinic workspace. Historical
-  // unscoped facts/habits are not safe to replay in another clinic.
-  if (cid !== GLOBAL_CLINIC) {
-    const global = (await memoryEngine.getLongTerm(PREFS_KEY, userId, GLOBAL_CLINIC)) as UserPrefsBag | null;
-    if (global?.items?.length) {
-      return { items: global.items.filter((item) => item.source === 'style') };
-    }
-  }
-  return { items: [] };
+
+  // Keep all facts and habits from this exact clinic, then add only portable
+  // generic style settings from the global bucket. Clinic-local settings win
+  // on duplicate keys; historical global facts/habits never cross workspaces.
+  const global = (await memoryEngine.getLongTerm(PREFS_KEY, userId, GLOBAL_CLINIC)) as UserPrefsBag | null;
+  const globalStyles = Array.isArray(global?.items)
+    ? global.items.filter((item) => item.source === 'style')
+    : [];
+  const localKeys = new Set(localItems.map((item) => item.key));
+
+  return {
+    items: [
+      ...localItems,
+      ...globalStyles.filter((item) => !localKeys.has(item.key)),
+    ],
+  };
 }
 
 async function savePrefs(userId: string, clinicId: string | null | undefined, bag: UserPrefsBag): Promise<void> {

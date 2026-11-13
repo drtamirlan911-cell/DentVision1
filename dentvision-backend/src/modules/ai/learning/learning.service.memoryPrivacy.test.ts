@@ -86,6 +86,54 @@ describe('AI learned preference workspace isolation', () => {
     await expect(listPrefs('user-1', 'clinic-2')).resolves.toEqual([style]);
   });
 
+  it('merges exact-clinic facts with portable global style settings only', async () => {
+    const clinicFact = {
+      key: 'fact_clinic_rule',
+      label: 'Факт / правило',
+      value: 'Keep this clinic-specific instruction',
+      source: 'explicit' as const,
+      updatedAt: '2026-11-13T00:00:00.000Z',
+    };
+    const style = {
+      key: 'style_length',
+      label: 'Стиль ответа',
+      value: 'Отвечай кратко',
+      source: 'style' as const,
+      updatedAt: '2026-11-13T00:00:00.000Z',
+    };
+    const oldGlobalFact = {
+      key: 'fact_other_clinic',
+      label: 'Факт / правило',
+      value: 'Do not expose this fact to another clinic',
+      source: 'explicit' as const,
+      updatedAt: '2026-11-13T00:00:00.000Z',
+    };
+    memory.getLongTerm.mockImplementation(async (_key, _userId, scope) => (
+      scope === 'clinic-1' ? { items: [clinicFact] }
+        : scope === '__global__' ? { items: [style, oldGlobalFact] }
+          : null
+    ));
+
+    await expect(listPrefs('user-1', 'clinic-1')).resolves.toEqual([clinicFact, style]);
+  });
+
+  it('loads global style settings when the active clinic bucket exists but is empty', async () => {
+    const style = {
+      key: 'style_length',
+      label: 'Стиль ответа',
+      value: 'Отвечай кратко',
+      source: 'style' as const,
+      updatedAt: '2026-11-13T00:00:00.000Z',
+    };
+    memory.getLongTerm.mockImplementation(async (_key, _userId, scope) => (
+      scope === 'clinic-1' ? { items: [] }
+        : scope === '__global__' ? { items: [style] }
+          : null
+    ));
+
+    await expect(listPrefs('user-1', 'clinic-1')).resolves.toEqual([style]);
+  });
+
   it('persists only generic style preferences in the global bucket', async () => {
     await upsertPref('user-1', null, {
       key: 'fact_patient_case',
