@@ -285,16 +285,18 @@ export async function getPositiveFewShots(
   query: string,
 ): Promise<FewShotExample[]> {
   if (!userId || userId === 'guest') return [];
+  // Few-shot transcript text may contain clinical or otherwise confidential
+  // context. Reuse it only inside the exact active clinic; a null/global
+  // workspace is not an authorization boundary for another clinic.
+  const activeClinicId = clinicId?.trim();
+  if (!activeClinicId) return [];
+
   try {
     const rows = await prisma.aIMessage.findMany({
       where: {
         feedback: 'up',
         role: 'assistant',
-        OR: [
-          { clinicId: clinicKey(clinicId) },
-          { clinicId: GLOBAL_CLINIC },
-          { clinicId: null },
-        ],
+        clinicId: activeClinicId,
         userId,
         prevUserText: { not: null },
       },
