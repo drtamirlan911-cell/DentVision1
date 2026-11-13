@@ -27,6 +27,8 @@ interface AIState {
   setAIStatus: (status: AIStatus) => void; setCurrentIntent: (intent: string | null) => void; setCurrentAction: (action: string | null) => void; setQuery: (query: string) => void; resetAI: () => void
 }
 
+let conversationLoadGeneration = 0;
+
 export const useAIStore = create<AIState>((set, get) => ({
   status: 'idle', currentIntent: null, currentAction: null, query: '', conversationContext: [], messages: [], suggestions: [], proactiveAlerts: [], progress: 0, sessionId: null, errorMessage: null,
   setAIStatus: status => set({ status }), setCurrentIntent: currentIntent => set({ currentIntent }), setCurrentAction: currentAction => set({ currentAction }), setQuery: query => set({ query }),
@@ -39,8 +41,10 @@ export const useAIStore = create<AIState>((set, get) => ({
   setProgress: progress => set({ progress }), setErrorMessage: errorMessage => set({ errorMessage }),
 
   loadConversation: async () => {
+    const generation = ++conversationLoadGeneration;
     try {
-      const res = await api.getActiveAiThread()
+      const res = await api.getActiveAiThread();
+      if (generation !== conversationLoadGeneration) return;
       const raw = Array.isArray(res?.messages) ? res.messages : Array.isArray(res?.data?.messages) ? res.data.messages : []
       const sessionId = res?.sessionId || res?.data?.sessionId || res?.threadId || res?.data?.threadId || null
       if (!raw.length) { if (sessionId) set({ sessionId }); return }
@@ -83,6 +87,7 @@ export const useAIStore = create<AIState>((set, get) => ({
   startNewConversation: async (isAuthenticated, storageContext) => {
     const current = get();
     if (current.status === 'thinking' || current.status === 'executing' || current.status === 'confirmation') return;
+    conversationLoadGeneration += 1;
     if (!isAuthenticated) {
       const storageScopes = new Set([storageContext?.workspaceId, storageContext?.clinicId].filter((scope): scope is string => !!scope));
       if (storageScopes.size) {
@@ -112,6 +117,7 @@ export const useAIStore = create<AIState>((set, get) => ({
     const current = get();
     if (current.status === 'thinking' || current.status === 'executing' || current.status === 'confirmation') return;
 
+    conversationLoadGeneration += 1;
     set({ status: 'thinking', errorMessage: null });
     try {
       const deleted = await api.deleteAiThread(sessionId);
@@ -127,8 +133,8 @@ export const useAIStore = create<AIState>((set, get) => ({
     }
   },
 
-  clearConversation: () => set({messages:[],conversationContext:[],currentIntent:null,currentAction:null,status:'idle',errorMessage:null,query:'',sessionId:null}),
-  resetAI: () => set({status:'idle',currentIntent:null,currentAction:null,messages:[],conversationContext:[],suggestions:[],proactiveAlerts:[],progress:0,errorMessage:null,query:''}),
+  clearConversation: () => { conversationLoadGeneration += 1; set({messages:[],conversationContext:[],currentIntent:null,currentAction:null,status:'idle',errorMessage:null,query:'',sessionId:null}); },
+  resetAI: () => { conversationLoadGeneration += 1; set({status:'idle',currentIntent:null,currentAction:null,messages:[],conversationContext:[],suggestions:[],proactiveAlerts:[],progress:0,errorMessage:null,query:'',sessionId:null}); },
 }))
 
 export const useAiStore = useAIStore

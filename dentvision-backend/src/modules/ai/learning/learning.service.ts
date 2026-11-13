@@ -85,11 +85,16 @@ async function loadPrefs(userId: string, clinicId?: string | null): Promise<User
   };
 }
 
-async function savePrefs(userId: string, clinicId: string | null | undefined, bag: UserPrefsBag): Promise<void> {
+async function savePrefs(
+  userId: string,
+  clinicId: string | null | undefined,
+  bag: UserPrefsBag,
+  changedKey?: string,
+): Promise<void> {
   const cid = clinicKey(clinicId);
-  const trimmed = { items: bag.items.slice(0, MAX_PREFS) };
   const styleOnly = {
-    items: trimmed.items.filter((item) => item.source === 'style'),
+    // Keep the portable style bucket independent of the clinic-fact limit.
+    items: bag.items.filter((item) => item.source === 'style').slice(0, MAX_PREFS),
   };
 
   if (cid === GLOBAL_CLINIC) {
@@ -100,7 +105,18 @@ async function savePrefs(userId: string, clinicId: string | null | undefined, ba
     return;
   }
 
-  await memoryEngine.setLongTerm(PREFS_KEY, trimmed, userId, cid);
+  const local = (await memoryEngine.getLongTerm(PREFS_KEY, userId, cid)) as UserPrefsBag | null;
+  const localKeys = new Set(Array.isArray(local?.items) ? local.items.map((item) => item.key) : []);
+  const clinicOnly = {
+    // Do not copy inherited global styles into this clinic when an unrelated
+    // fact/habit is saved. Preserve existing local styles and an explicitly
+    // changed style, while keeping portable styles in the global bucket.
+    items: bag.items
+      .filter((item) => item.source !== 'style' || localKeys.has(item.key) || item.key === changedKey)
+      .slice(0, MAX_PREFS),
+  };
+
+  await memoryEngine.setLongTerm(PREFS_KEY, clinicOnly, userId, cid);
   // Persist even an empty style bucket so deleting the final portable
   // preference cannot leave a stale global value that reappears on next read.
   await memoryEngine.setLongTerm(PREFS_KEY, styleOnly, userId, GLOBAL_CLINIC);
@@ -119,7 +135,7 @@ export async function upsertPref(
   const idx = bag.items.findIndex((i) => i.key === next.key);
   if (idx >= 0) bag.items[idx] = next;
   else bag.items.unshift(next);
-  await savePrefs(userId, clinicId, bag);
+  await savePrefs(userId, clinicId, bag, next.key);
   return next;
 }
 

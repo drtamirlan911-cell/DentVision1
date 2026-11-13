@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const apiMocks = vi.hoisted(() => ({
+  getActiveAiThread: vi.fn(),
   startNewAiThread: vi.fn(),
   deleteAiThread: vi.fn(),
   rememberAiSessionId: vi.fn(),
@@ -44,6 +45,25 @@ describe('AI conversation lifecycle', () => {
     expect(apiMocks.rememberAiSessionId).toHaveBeenCalledWith('new-session-123', {
       userId: 'user-1', workspaceId: 'workspace-1', clinicId: 'clinic-1',
     });
+  });
+
+  it('ignores late active-thread hydration after a new conversation starts', async () => {
+    let resolveLoad!: (value: unknown) => void;
+    apiMocks.getActiveAiThread.mockReturnValue(new Promise((resolve) => { resolveLoad = resolve; }));
+    const pendingLoad = useAIStore.getState().loadConversation();
+
+    apiMocks.startNewAiThread.mockResolvedValue({ sessionId: 'new-session-123' });
+    await useAIStore.getState().startNewConversation(true);
+
+    resolveLoad({
+      sessionId: 'old-session-123',
+      messages: [{ id: 'old-persisted', role: 'user', content: 'old persisted transcript' }],
+    });
+    await pendingLoad;
+
+    expect(useAIStore.getState().sessionId).toBe('new-session-123');
+    expect(useAIStore.getState().messages).toEqual([]);
+    expect(useAIStore.getState().conversationContext).toEqual([]);
   });
 
   it('keeps guest new-chat local and does not create an authenticated server thread', async () => {

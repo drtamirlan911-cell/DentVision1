@@ -199,6 +199,74 @@ describe('AI learned preference workspace isolation', () => {
     );
   });
 
+
+  it('does not copy inherited global styles into clinic-local fact writes', async () => {
+    const style = {
+      key: 'style_length',
+      label: 'Стиль ответа',
+      value: 'Отвечай кратко',
+      source: 'style' as const,
+      updatedAt: '2026-11-13T00:00:00.000Z',
+    };
+    memory.getLongTerm.mockImplementation(async (_key, _userId, scope) => (
+      scope === 'clinic-1' ? { items: [] } : scope === '__global__' ? { items: [style] } : null
+    ));
+
+    await upsertPref('user-1', 'clinic-1', {
+      key: 'fact_clinic_rule',
+      label: 'Факт / правило',
+      value: 'Keep this fact in clinic one',
+      source: 'explicit',
+    });
+
+    expect(memory.setLongTerm).toHaveBeenCalledWith(
+      'user_prefs',
+      { items: [expect.objectContaining({ key: 'fact_clinic_rule' })] },
+      'user-1',
+      'clinic-1',
+    );
+    expect(memory.setLongTerm).toHaveBeenCalledWith(
+      'user_prefs',
+      { items: [style] },
+      'user-1',
+      '__global__',
+    );
+  });
+
+  it('does not truncate portable styles when the clinic has many local facts', async () => {
+    const style = {
+      key: 'style_length',
+      label: 'Стиль ответа',
+      value: 'Отвечай кратко',
+      source: 'style' as const,
+      updatedAt: '2026-11-13T00:00:00.000Z',
+    };
+    const localFacts = Array.from({ length: 40 }, (_, index) => ({
+      key: `fact_${index}`,
+      label: 'Факт / правило',
+      value: `Clinic fact ${index}`,
+      source: 'explicit' as const,
+      updatedAt: '2026-11-13T00:00:00.000Z',
+    }));
+    memory.getLongTerm.mockImplementation(async (_key, _userId, scope) => (
+      scope === 'clinic-1' ? { items: localFacts } : scope === '__global__' ? { items: [style] } : null
+    ));
+
+    await upsertPref('user-1', 'clinic-1', {
+      key: 'fact_new',
+      label: 'Факт / правило',
+      value: 'A new clinic fact',
+      source: 'explicit',
+    });
+
+    expect(memory.setLongTerm).toHaveBeenCalledWith(
+      'user_prefs',
+      { items: [style] },
+      'user-1',
+      '__global__',
+    );
+  });
+
   it('keeps generic style preferences portable across workspaces', async () => {
     await upsertPref('user-1', 'clinic-1', {
       key: 'style_length',
