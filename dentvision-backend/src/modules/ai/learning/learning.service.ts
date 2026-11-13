@@ -258,6 +258,9 @@ function formatTwinBlock(twin: any): string {
 
 async function getTwinBlock(userId: string, clinicId?: string | null, isGuest?: boolean): Promise<string> {
   if (!userId || userId === 'guest' || isGuest) return '';
+  // A clinic-derived digital twin must never infer a clinic from arbitrary
+  // memberships when the caller has no active clinic workspace.
+  if (!clinicId?.trim()) return '';
   const cid = clinicKey(clinicId);
   try {
     const cached = (await memoryEngine.getSession(TWIN_CACHE_KEY, userId, cid)) as { at?: number; text?: string } | null;
