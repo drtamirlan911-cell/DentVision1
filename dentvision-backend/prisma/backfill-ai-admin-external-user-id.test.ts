@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { decryptAiAdminText } from '../src/modules/ai-admin/conversation/phi.js';
-import { parseAiAdminExternalIdBackfillOptions, prepareAiAdminExternalIdBackfillRow } from './backfill-ai-admin-external-user-id.js';
+import { decryptAiAdminJson, decryptAiAdminText, encryptAiAdminText } from '../src/modules/ai-admin/conversation/phi.js';
+import { parseAiAdminExternalIdBackfillOptions, prepareAiAdminEscalationBackfillRow, prepareAiAdminExternalIdBackfillRow, prepareAiAdminMessageBackfillRow } from './backfill-ai-admin-external-user-id.js';
 
 const envNames = ['NODE_ENV', 'ENCRYPTION_KEY', 'AI_ADMIN_PHI_KEYRING_JSON', 'AI_ADMIN_PHI_ACTIVE_KEY_ID', 'AI_ADMIN_EXTERNAL_ID_INDEX_KEYRING_JSON', 'AI_ADMIN_EXTERNAL_ID_ACTIVE_INDEX_KEY_ID', 'AI_ADMIN_EXTERNAL_ID_STRICT_WRITE', 'AI_ADMIN_EXTERNAL_ID_LEGACY_WORKERS_DRAINED'];
 const originalEnv = Object.fromEntries(envNames.map((name) => [name, process.env[name]]));
@@ -116,6 +116,38 @@ describe('AI Admin external-identity backfill safeguards', () => {
     expect(prepared.externalUserIdHash).toBeNull();
     expect(prepared.patientNameCiphertext).toMatch(/^ENC:v2:/);
   });
+
+  it('backfills historical AI Admin message content and PHI-bearing tool results', () => {
+    const content = 'Patient Test Person asks about diagnosis alpha';
+    const toolResult = { patientName: 'Test Person', patientPhone: '77010000000', diagnosis: 'private diagnosis' };
+    const prepared = prepareAiAdminMessageBackfillRow({
+      id: 'message-1',
+      content,
+      toolResult,
+    });
+    expect(prepared.content).toMatch(/^ENC:v2:/);
+    expect(decryptAiAdminText(prepared.content)).toBe(content);
+    expect(prepared.toolResult).toMatch(/^ENC:v2:/);
+    expect(decryptAiAdminJson(prepared.toolResult)).toEqual(toolResult);
+    expect(JSON.stringify(prepared)).not.toContain('Test Person');
+    expect(JSON.stringify(prepared)).not.toContain('private diagnosis');
+  });
+
+  it('backfills historical AI Admin escalation messages', () => {
+    const reason = 'patient requested a clinician call';
+    const lastUserMessage = 'My name is Test Person and I have diagnosis alpha';
+    const prepared = prepareAiAdminEscalationBackfillRow({
+      id: 'escalation-1',
+      reason,
+      lastUserMessage: encryptAiAdminText(lastUserMessage),
+    });
+    expect(prepared.reason).toMatch(/^ENC:v2:/);
+    expect(prepared.lastUserMessage).toMatch(/^ENC:v2:/);
+    expect(decryptAiAdminText(prepared.reason)).toBe(reason);
+    expect(decryptAiAdminText(prepared.lastUserMessage)).toBe(lastUserMessage);
+    expect(JSON.stringify(prepared)).not.toContain('Test Person');
+  });
+
   it('rejects mismatched existing blind indexes', () => {
     expect(() => prepareAiAdminExternalIdBackfillRow({ ...row, externalUserIdHash: 'v1:wrong' })).toThrow(/does not match/);
   });
