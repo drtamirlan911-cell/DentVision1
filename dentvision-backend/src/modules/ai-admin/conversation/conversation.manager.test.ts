@@ -109,7 +109,7 @@ describe('AI Admin external contact identity persistence', () => {
     await getOrCreateSession(identity);
     const data = prismaMock.aiAdminSession.create.mock.calls[0][0].data;
     expect(data.externalUserId).toBe(identity.externalUserId);
-    expect(data.externalUserIdCiphertext).toMatch(/^ENC:v2:/
+    expect(data.externalUserIdCiphertext).toMatch(/^ENC:v2:/);
     expect(data.externalUserIdHash).toBe(hashAiAdminExternalUserId(identity));
     expect(data.externalUserIdCiphertext).not.toContain(identity.externalUserId);
   });
@@ -119,7 +119,7 @@ describe('AI Admin external contact identity persistence', () => {
     await getOrCreateSession(identity);
     const data = prismaMock.aiAdminSession.create.mock.calls[0][0].data;
     expect(data.externalUserId).toBeNull();
-    expect(data.externalUserIdCiphertext).toMatch(/^ENC:/);
+    expect(data.externalUserIdCiphertext).toMatch(/^ENC:v2:/);
     expect(data.externalUserIdHash).toBe(hashAiAdminExternalUserId(identity));
     expect(data.externalUserIdCiphertext).not.toContain(identity.externalUserId);
   });

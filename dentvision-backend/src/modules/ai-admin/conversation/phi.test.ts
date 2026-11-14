@@ -42,7 +42,7 @@ describe('AI Admin external identity blind index', () => {
     process.env.NODE_ENV = 'production';
     delete process.env.ENCRYPTION_KEY;
     try {
-      expect(() => hashAiAdminExternalUserId({ clinicId: 'clinic-a', channel: 'WHATSAPP', externalUserId: '77010000000' })).toThrow(/ENCRYPTION_KEY is required/);
+      expect(() => hashAiAdminExternalUserId({ clinicId: 'clinic-a', channel: 'WHATSAPP', externalUserId: '77010000000' })).toThrow(/keyring or ENCRYPTION_KEY is required/);
     } finally {
       if (previous === undefined) delete process.env.ENCRYPTION_KEY;
       else process.env.ENCRYPTION_KEY = previous;
@@ -93,7 +93,7 @@ describe('AI Admin at-rest encryption', () => {
   it('encrypts JSONB values as a ciphertext scalar and preserves the object shape on read', () => {
     const source = { patientName: 'Ivan Petrov', diagnosis: 'private diagnosis beta', tooth: '36' };
     const stored = encryptAiAdminJson(source);
-    expect(stored).toMatch(/^ENC:/);
+    expect(stored).toMatch(/^ENC:v2:/);
     expect(stored).not.toContain('Ivan Petrov');
     expect(decryptAiAdminJson(stored)).toEqual(source);
   });
@@ -109,7 +109,7 @@ describe('AI Admin at-rest encryption', () => {
   it('fails closed when a ciphertext is read with a different key', () => {
     const stored = encryptAiAdminText('private');
     process.env.ENCRYPTION_KEY = 'a-different-ai-admin-encryption-key-32-chars';
-    expect(() => decryptAiAdminText(stored)).toThrow(/Unable to decrypt encrypted field/);
+    expect(() => decryptAiAdminText(stored)).toThrow(/ciphertext authentication failed/);
   });
 
   it('decrypts queue rows and restores receivedAt as a Date', () => {

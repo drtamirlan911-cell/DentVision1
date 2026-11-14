@@ -151,6 +151,6 @@ describe('AI Admin external-identity backfill safeguards', () => {
 
   it('rejects ciphertext that decrypts to a different identity', () => {
     const other = prepareAiAdminExternalIdBackfillRow({ ...row, externalUserId: '77010000001' });
-    expect(() => prepareAiAdminExternalIdBackfillRow({ ...row, externalUserIdCiphertext: other.externalUserIdCiphertext })).toThrow(/round-trip/);
+    expect(() => prepareAiAdminExternalIdBackfillRow({ ...row, externalUserIdCiphertext: other.externalUserIdCiphertext })).toThrow(/does not match the legacy value/);
   });
 });
