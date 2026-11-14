@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 
-const { agentActivityFindMany, resolveOrganizationIdForClinic, organizationFindUnique, clinicFindUnique, supplierFindUnique, lecturerFindUnique, clinicMemberFindMany, supplierMemberFindMany, diagnosticCenterMemberFindMany, laboratoryMemberFindMany, personFindMany } = vi.hoisted(() => ({
+const { agentActivityFindMany, resolveOrganizationIdForClinic, organizationFindUnique, clinicFindUnique, supplierFindUnique, lecturerFindUnique, clinicMemberFindMany, supplierMemberFindMany, diagnosticCenterMemberFindMany, laboratoryMemberFindMany, personFindMany, personFindFirst, branchFindUnique } = vi.hoisted(() => ({
   agentActivityFindMany: vi.fn(),
   resolveOrganizationIdForClinic: vi.fn(),
   organizationFindUnique: vi.fn(),
@@ -14,6 +14,8 @@ const { agentActivityFindMany, resolveOrganizationIdForClinic, organizationFindU
   diagnosticCenterMemberFindMany: vi.fn(),
   laboratoryMemberFindMany: vi.fn(),
   personFindMany: vi.fn(),
+  personFindFirst: vi.fn(),
+  branchFindUnique: vi.fn(),
 }));
 
 vi.mock('../../../lib/prisma.js', () => ({
@@ -21,13 +23,14 @@ vi.mock('../../../lib/prisma.js', () => ({
     agentActivity: { findMany: agentActivityFindMany },
     organization: { findUnique: organizationFindUnique },
     clinic: { findUnique: clinicFindUnique },
+    branch: { findUnique: branchFindUnique },
     supplier: { findUnique: supplierFindUnique },
     lecturer: { findUnique: lecturerFindUnique },
     clinicMember: { findMany: clinicMemberFindMany },
     supplierMember: { findMany: supplierMemberFindMany },
     diagnosticCenterMember: { findMany: diagnosticCenterMemberFindMany },
     laboratoryMember: { findMany: laboratoryMemberFindMany },
-    person: { findMany: personFindMany },
+    person: { findMany: personFindMany, findFirst: personFindFirst },
   },
 }));
 vi.mock('../../../lib/orgContext.js', () => ({
@@ -35,7 +38,7 @@ vi.mock('../../../lib/orgContext.js', () => ({
   resolveClinicAccess: vi.fn().mockResolvedValue({ role: 'DOCTOR' }),
 }));
 
-import { buildAiContext } from './context.js';
+import { activeAiClinicId, buildAiContext } from './context.js';
 
 function req(overrides: Record<string, unknown> = {}) {
   return {
@@ -63,6 +66,8 @@ beforeEach(() => {
   diagnosticCenterMemberFindMany.mockResolvedValue([]);
   laboratoryMemberFindMany.mockResolvedValue([]);
   personFindMany.mockResolvedValue([]);
+  personFindFirst.mockResolvedValue(null);
+  branchFindUnique.mockResolvedValue(null);
 });
 
 describe('buildAiContext', () => {
@@ -81,6 +86,56 @@ describe('buildAiContext', () => {
     }));
 
     expect(ctx.workspace).toBeNull();
+  });
+
+  it('returns no clinic scope for a partner or guest token with a legacy clinicId', () => {
+    expect(activeAiClinicId(req().user)).toBe('clinic-1');
+    expect(activeAiClinicId(req({
+      organizationId: 'org-supplier',
+      organizationType: 'SUPPLIER_COMPANY',
+      supplierId: 'supplier-1',
+    }).user)).toBeNull();
+    expect(activeAiClinicId(req({ isGuest: true }).user)).toBeNull();
+  });
+
+  it('does not reuse a legacy clinic branch in a partner workspace', async () => {
+    organizationFindUnique.mockResolvedValueOnce({
+      id: 'org-supplier',
+      name: 'Supplier',
+      type: 'SUPPLIER_COMPANY',
+      originalId: 'supplier-1',
+    });
+    personFindFirst.mockResolvedValueOnce({
+      personRoles: [{
+        scopeType: 'organization',
+        scopeId: 'org-supplier',
+        role: { key: 'supplier' },
+      }],
+    });
+    branchFindUnique.mockResolvedValueOnce({
+      id: 'legacy-clinic-branch',
+      name: 'Legacy Clinic Branch',
+      code: 'OLD',
+      organizationId: 'org-old-clinic',
+      clinicId: 'clinic-1',
+    });
+
+    const ctx = await buildAiContext(req({
+      clinicId: 'clinic-1',
+      organizationId: 'org-supplier',
+      organizationType: 'SUPPLIER_COMPANY',
+      supplierId: 'supplier-1',
+      branchId: 'legacy-clinic-branch',
+      branchIds: ['legacy-clinic-branch'],
+      assignedBranchId: 'legacy-clinic-branch',
+    }), {});
+
+    expect(ctx.clinicId).toBeNull();
+    expect(ctx.organizationId).toBe('org-supplier');
+    expect(ctx.workspace).toMatchObject({ scopeType: 'SUPPLIER', scopeId: 'supplier-1' });
+    expect(ctx.branch).toBeNull();
+    expect(resolveOrganizationIdForClinic).not.toHaveBeenCalled();
+    expect(clinicFindUnique).not.toHaveBeenCalled();
   });
 
   it('accepts omitted UI hints for server-side callers', async () => {
@@ -172,14 +227,11 @@ describe('buildAiContext', () => {
 });
 
 describe('AI partner workspace proactive context', () => {
-  it('keeps partner workspace explicit when no clinic scope exists', async () => {
+  it('keeps partner workspace explicit and never guesses a clinic when no active clinic is supplied', async () => {
     const source = readFileSync(resolve(process.cwd(), 'dentvision-backend/src/modules/ai/core/digitalTwin.ts'), 'utf8');
-    expect(source).toContain('organizationType?: string | null');
-    expect(source).toContain("organizationType !== 'CLINIC'");
-    expect(source).toContain('type: \'workspace\'');
-    const partnerGuard = source.indexOf("else if (organizationType && organizationType !== 'CLINIC')");
-    const legacyFallback = source.indexOf("const access = await resolveAnyClinicMembership(userId)");
-    expect(partnerGuard).toBeGreaterThanOrEqual(0);
-    expect(legacyFallback).toBeGreaterThan(partnerGuard);
+    expect(source).toContain('const activeClinicId = clinicId || null');
+    expect(source).not.toContain('resolveAnyClinicMembership');
+    expect(source).toContain("if (!clinicId) {");
+    expect(source).toContain("type: 'workspace'");
   });
 });

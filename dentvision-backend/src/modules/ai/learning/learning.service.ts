@@ -61,28 +61,87 @@ function slugKey(raw: string): string {
 async function loadPrefs(userId: string, clinicId?: string | null): Promise<UserPrefsBag> {
   const cid = clinicKey(clinicId);
   const raw = (await memoryEngine.getLongTerm(PREFS_KEY, userId, cid)) as UserPrefsBag | null;
-  if (raw && Array.isArray(raw.items)) return raw;
-  // Also merge global prefs when clinic-scoped
-  if (cid !== GLOBAL_CLINIC) {
-    const global = (await memoryEngine.getLongTerm(PREFS_KEY, userId, GLOBAL_CLINIC)) as UserPrefsBag | null;
-    if (global?.items?.length) return global;
+  const localItems = raw && Array.isArray(raw.items) ? raw.items : [];
+
+  if (cid === GLOBAL_CLINIC) {
+    // The global bucket is portable only for generic response-style settings.
+    return { items: localItems.filter((item) => item.source === 'style') };
   }
-  return { items: [] };
+
+  // Keep all facts and habits from this exact clinic, then add only portable
+  // generic style settings from the global bucket. Clinic-local settings win
+  // on duplicate keys; historical global facts/habits never cross workspaces.
+  const global = (await memoryEngine.getLongTerm(PREFS_KEY, userId, GLOBAL_CLINIC)) as UserPrefsBag | null;
+  const globalStyles = Array.isArray(global?.items)
+    ? global.items.filter((item) => item.source === 'style')
+    : [];
+  const localKeys = new Set(localItems.map((item) => item.key));
+
+  return {
+    items: [
+      ...localItems,
+      ...globalStyles.filter((item) => !localKeys.has(item.key)),
+    ],
+  };
 }
 
-async function savePrefs(userId: string, clinicId: string | null | undefined, bag: UserPrefsBag): Promise<void> {
+async function savePrefs(
+  userId: string,
+  clinicId: string | null | undefined,
+  bag: UserPrefsBag,
+  changedKey?: string,
+): Promise<void> {
   const cid = clinicKey(clinicId);
-  const trimmed = { items: bag.items.slice(0, MAX_PREFS) };
-  await memoryEngine.setLongTerm(PREFS_KEY, trimmed, userId, cid);
-  // Only generic style preferences are user-global. Explicit free-form facts stay clinic-scoped so patient/clinic context cannot follow the user into another clinic.
-  if (cid !== GLOBAL_CLINIC) {
+
+  if (cid === GLOBAL_CLINIC) {
+    // No active clinic means free-form facts and workspace habits have no safe
+    // tenant to belong to. Persist only generic response-style preferences.
+    // Write the empty list too, so deleting the last global style is durable.
     const styleOnly = {
-      items: trimmed.items.filter((i) => i.source === 'style'),
+      items: bag.items.filter((item) => item.source === 'style').slice(0, MAX_PREFS),
     };
-    if (styleOnly.items.length) {
-      await memoryEngine.setLongTerm(PREFS_KEY, styleOnly, userId, GLOBAL_CLINIC);
-    }
+    await memoryEngine.setLongTerm(PREFS_KEY, styleOnly, userId, GLOBAL_CLINIC);
+    return;
   }
+
+  const [local, global] = await Promise.all([
+    memoryEngine.getLongTerm(PREFS_KEY, userId, cid) as Promise<UserPrefsBag | null>,
+    memoryEngine.getLongTerm(PREFS_KEY, userId, GLOBAL_CLINIC) as Promise<UserPrefsBag | null>,
+  ]);
+  const localItems = Array.isArray(local?.items) ? local.items : [];
+  const globalItems = Array.isArray(global?.items)
+    ? global.items.filter((item) => item.source === 'style')
+    : [];
+  const localKeys = new Set(localItems.map((item) => item.key));
+
+  const clinicOnly = {
+    // Do not copy inherited global styles into this clinic when an unrelated
+    // fact/habit is saved. Preserve existing local styles and an explicitly
+    // changed style.
+    items: bag.items
+      .filter((item) => item.source !== 'style' || localKeys.has(item.key) || item.key === changedKey)
+      .slice(0, MAX_PREFS),
+  };
+
+  // Start from the actual global bucket, not the merged view returned by
+  // loadPrefs. A clinic-local style override must never overwrite a portable
+  // global style during an unrelated fact/habit save.
+  const globalByKey = new Map(globalItems.map((item) => [item.key, item]));
+  const changedItem = changedKey ? bag.items.find((item) => item.key === changedKey) : undefined;
+  if (changedItem?.source === 'style') globalByKey.set(changedItem.key, changedItem);
+
+  // deletePref removes a key from the merged bag; remove it from the global
+  // bucket as well so deleting a portable style is durable across workspaces.
+  const remainingStyleKeys = new Set(
+    bag.items.filter((item) => item.source === 'style').map((item) => item.key),
+  );
+  for (const key of globalByKey.keys()) {
+    if (!remainingStyleKeys.has(key)) globalByKey.delete(key);
+  }
+  const globalStyleOnly = { items: [...globalByKey.values()].slice(0, MAX_PREFS) };
+
+  await memoryEngine.setLongTerm(PREFS_KEY, clinicOnly, userId, cid);
+  await memoryEngine.setLongTerm(PREFS_KEY, globalStyleOnly, userId, GLOBAL_CLINIC);
 }
 
 export async function upsertPref(
@@ -98,7 +157,7 @@ export async function upsertPref(
   const idx = bag.items.findIndex((i) => i.key === next.key);
   if (idx >= 0) bag.items[idx] = next;
   else bag.items.unshift(next);
-  await savePrefs(userId, clinicId, bag);
+  await savePrefs(userId, clinicId, bag, next.key);
   return next;
 }
 
@@ -138,7 +197,7 @@ export async function learnFromUserUtterance(
     t.match(/(?:запомни|запомните|please remember|remember)\s*[,:]?\s*(.+)$/i)
     || t.match(/(?:хочу чтобы ты|сделай так чтобы|всегда)\s+(.+)/i);
 
-  if (remember?.[1]) {
+  if (remember?.[1] && clinicId?.trim()) {
     const value = remember[1].replace(/[.!?]+$/, '').trim().slice(0, 200);
     if (value.length >= 3) {
       learned.push(await upsertPref(userId, clinicId, {
@@ -182,8 +241,8 @@ export async function learnFromUserUtterance(
     }));
   }
 
-  if (/\b(сначала\s+(касса|выручк|долг|расписан|пациент))/i.test(t)
-    || /\b(приоритет[еа]?\s*[:—-]?\s*(касса|выручка|долги|расписание))/i.test(t)) {
+  if (clinicId?.trim() && (/\b(сначала\s+(касса|выручк|долг|расписан|пациент))/i.test(t)
+    || /\b(приоритет[еа]?\s*[:—-]?\s*(касса|выручка|долги|расписание))/i.test(t))) {
     const m = t.match(/(касса|выручк\w*|долг\w*|расписан\w*|пациент\w*)/i);
     if (m) {
       learned.push(await upsertPref(userId, clinicId, {
@@ -204,7 +263,7 @@ export async function learnFromToolsUsed(
   clinicId: string | null | undefined,
   toolsUsed: string[],
 ): Promise<void> {
-  if (!userId || userId === 'guest' || !toolsUsed?.length) return;
+  if (!userId || userId === 'guest' || !clinicId?.trim() || !toolsUsed?.length) return;
   const nav = toolsUsed.filter((t) => t === 'navigate' || t.startsWith('get_') || t.startsWith('list_'));
   if (!nav.length) return;
   const top = nav[0];
@@ -242,6 +301,9 @@ function formatTwinBlock(twin: any): string {
 
 async function getTwinBlock(userId: string, clinicId?: string | null, isGuest?: boolean): Promise<string> {
   if (!userId || userId === 'guest' || isGuest) return '';
+  // A clinic-derived digital twin must never infer a clinic from arbitrary
+  // memberships when the caller has no active clinic workspace.
+  if (!clinicId?.trim()) return '';
   const cid = clinicKey(clinicId);
   try {
     const cached = (await memoryEngine.getSession(TWIN_CACHE_KEY, userId, cid)) as { at?: number; text?: string } | null;
@@ -285,16 +347,18 @@ export async function getPositiveFewShots(
   query: string,
 ): Promise<FewShotExample[]> {
   if (!userId || userId === 'guest') return [];
+  // Few-shot transcript text may contain clinical or otherwise confidential
+  // context. Reuse it only inside the exact active clinic; a null/global
+  // workspace is not an authorization boundary for another clinic.
+  const activeClinicId = clinicId?.trim();
+  if (!activeClinicId) return [];
+
   try {
     const rows = await prisma.aIMessage.findMany({
       where: {
         feedback: 'up',
         role: 'assistant',
-        OR: [
-          { clinicId: clinicKey(clinicId) },
-          { clinicId: GLOBAL_CLINIC },
-          { clinicId: null },
-        ],
+        clinicId: activeClinicId,
         userId,
         prevUserText: { not: null },
       },

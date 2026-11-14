@@ -4,7 +4,7 @@
  * admins are not treated as dentists.
  */
 import prisma from '../../../lib/prisma.js';
-import { resolveClinicAccess, resolveAnyClinicMembership } from '../../../lib/orgContext.js';
+import { resolveClinicAccess } from '../../../lib/orgContext.js';
 
 type TwinRole =
   | 'OWNER'
@@ -107,7 +107,7 @@ export function buildGuestPlatformTwin(user?: {
 export async function buildDigitalTwin(
   userId: string,
   clinicId?: string | null,
-  opts?: { isGuest?: boolean; organizationType?: string | null },
+  opts?: { isGuest?: boolean },
 ) {
   const user = await prisma.user.findUnique({
     where: { id: userId },
@@ -134,22 +134,12 @@ export async function buildDigitalTwin(
     ? (user.profileMeta as Record<string, unknown>)
     : {};
 
-  let activeClinicId: string | null = clinicId || null;
-  let resolvedRole: string | undefined;
-  const organizationType = String(opts?.organizationType || '').toUpperCase() || null;
-  if (clinicId) {
-    resolvedRole = (await resolveClinicAccess(userId, clinicId))?.role;
-  } else if (organizationType && organizationType !== 'CLINIC') {
-    // Active non-clinic workspaces must not silently fall back to an arbitrary
-    // clinic membership. That would make the digital twin contradict the
-    // canonical Active Workspace and could expose the wrong tenant's workload.
-    activeClinicId = null;
-    resolvedRole = undefined;
-  } else {
-    const access = await resolveAnyClinicMembership(userId);
-    activeClinicId = access?.clinicId || null;
-    resolvedRole = access?.role;
-  }
+  // Only an explicit active clinic may contribute clinical data to the twin.
+  // A missing clinicId is not permission to guess from any historical membership.
+  const activeClinicId = clinicId || null;
+  const resolvedRole = activeClinicId
+    ? (await resolveClinicAccess(userId, activeClinicId))?.role
+    : undefined;
   const role = normalizeRole(resolvedRole || user.role);
   const roleLabel = ROLE_LABEL_RU[role] || String(role);
 

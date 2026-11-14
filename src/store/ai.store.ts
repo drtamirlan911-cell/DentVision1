@@ -2,6 +2,8 @@ import { create } from 'zustand'
 import * as api from '@/utils/api'
 import { normalizeAlertTone } from '@/utils/alertTone'
 
+export type AIStorageContext = { userId?: string | null; workspaceId?: string | null; clinicId?: string | null };
+
 export type AIStatus = 'idle' | 'thinking' | 'executing' | 'result' | 'confirmation' | 'error'
 export type ContextFocus = 'workspace' | 'patient' | 'appointment' | 'product' | 'course' | 'analytics' | 'invoice' | 'lab'
 
@@ -17,16 +19,27 @@ interface AIState {
   messages: Message[]; suggestions: SuggestionChip[]; proactiveAlerts: ProactiveAlert[]; progress: number; sessionId: string | null; errorMessage: string | null
   executePrompt: (text: string) => Promise<void>; sendConfirmation: (confirmed: boolean, data?: any) => Promise<void>
   loadConversation: () => Promise<void>; loadProactiveAlerts: () => Promise<void>
+  getConversationLoadGeneration: () => number; setMessagesIfGenerationCurrent: (msgs: Message[], generation: number) => boolean
+  startNewConversation: (isAuthenticated: boolean, storageContext?: AIStorageContext) => Promise<void>
+  deleteConversation: (storageContext?: AIStorageContext) => Promise<void>
   clearConversation: () => void; setSuggestions: (suggestions: SuggestionChip[]) => void; setSuggestionsFromStrings: (labels: string[]) => void
   addMessage: (msg: Message) => void; setMessages: (msgs: Message[]) => void; addProactiveAlert: (alert: ProactiveAlert) => void; setProactiveAlerts: (alerts: ProactiveAlert[]) => void
   acknowledgeAlert: (id: string) => void; resolveAlert: (id: string) => void; setProgress: (progress: number) => void; setErrorMessage: (msg: string | null) => void
   setAIStatus: (status: AIStatus) => void; setCurrentIntent: (intent: string | null) => void; setCurrentAction: (action: string | null) => void; setQuery: (query: string) => void; resetAI: () => void
 }
 
+let conversationLoadGeneration = 0;
+
 export const useAIStore = create<AIState>((set, get) => ({
   status: 'idle', currentIntent: null, currentAction: null, query: '', conversationContext: [], messages: [], suggestions: [], proactiveAlerts: [], progress: 0, sessionId: null, errorMessage: null,
   setAIStatus: status => set({ status }), setCurrentIntent: currentIntent => set({ currentIntent }), setCurrentAction: currentAction => set({ currentAction }), setQuery: query => set({ query }),
   addMessage: msg => set(state => ({ messages: [...state.messages, msg] })), setMessages: messages => set({ messages }),
+  getConversationLoadGeneration: () => conversationLoadGeneration,
+  setMessagesIfGenerationCurrent: (messages, generation) => {
+    if (generation !== conversationLoadGeneration) return false;
+    set({ messages });
+    return true;
+  },
   setSuggestions: suggestions => set({ suggestions }), setSuggestionsFromStrings: labels => set({ suggestions: labels.map((label, i) => ({ id: `s-${i}`, label })) }),
   addProactiveAlert: alert => set(state => ({ proactiveAlerts: [...state.proactiveAlerts, alert].sort((a,b) => b.priority-a.priority).slice(0,8) })),
   setProactiveAlerts: alerts => set({ proactiveAlerts: alerts }),
@@ -35,8 +48,10 @@ export const useAIStore = create<AIState>((set, get) => ({
   setProgress: progress => set({ progress }), setErrorMessage: errorMessage => set({ errorMessage }),
 
   loadConversation: async () => {
+    const generation = ++conversationLoadGeneration;
     try {
-      const res = await api.getActiveAiThread()
+      const res = await api.getActiveAiThread();
+      if (generation !== conversationLoadGeneration) return;
       const raw = Array.isArray(res?.messages) ? res.messages : Array.isArray(res?.data?.messages) ? res.data.messages : []
       const sessionId = res?.sessionId || res?.data?.sessionId || res?.threadId || res?.data?.threadId || null
       if (!raw.length) { if (sessionId) set({ sessionId }); return }
@@ -76,8 +91,57 @@ export const useAIStore = create<AIState>((set, get) => ({
     } catch { /* proactive AI must never block the workspace */ }
   },
 
-  clearConversation: () => set({messages:[],conversationContext:[],currentIntent:null,currentAction:null,status:'idle',errorMessage:null,query:'',sessionId:null}),
-  resetAI: () => set({status:'idle',currentIntent:null,currentAction:null,messages:[],conversationContext:[],suggestions:[],proactiveAlerts:[],progress:0,errorMessage:null,query:''}),
+  startNewConversation: async (isAuthenticated, storageContext) => {
+    const current = get();
+    if (current.status === 'thinking' || current.status === 'executing' || current.status === 'confirmation') return;
+    conversationLoadGeneration += 1;
+    if (!isAuthenticated) {
+      const storageScopes = new Set([storageContext?.workspaceId, storageContext?.clinicId].filter((scope): scope is string => !!scope));
+      if (storageScopes.size) {
+        for (const scope of storageScopes) api.clearAiSessionId('guest', scope);
+      } else {
+        api.clearAiSessionId('guest');
+      }
+      set({ messages: [], conversationContext: [], suggestions: [], currentIntent: null, currentAction: null, status: 'idle', errorMessage: null, query: '', sessionId: null });
+      return;
+    }
+
+    set({ status: 'thinking', errorMessage: null });
+    try {
+      const created = await api.startNewAiThread();
+      const sessionId = created?.sessionId || created?.data?.sessionId || created?.threadId || created?.data?.threadId;
+      if (typeof sessionId !== 'string' || sessionId.length < 8) throw new Error('Сервер не вернул идентификатор нового диалога');
+      api.rememberAiSessionId(sessionId, storageContext);
+      set({ messages: [], conversationContext: [], suggestions: [], currentIntent: null, currentAction: null, status: 'idle', errorMessage: null, query: '', sessionId });
+    } catch (error) {
+      set({ status: 'error', errorMessage: error instanceof Error ? error.message : 'Не удалось создать новый диалог' });
+    }
+  },
+
+  deleteConversation: async (storageContext) => {
+    const sessionId = get().sessionId;
+    if (!sessionId) return;
+    const current = get();
+    if (current.status === 'thinking' || current.status === 'executing' || current.status === 'confirmation') return;
+
+    conversationLoadGeneration += 1;
+    set({ status: 'thinking', errorMessage: null });
+    try {
+      const deleted = await api.deleteAiThread(sessionId);
+      const nextSessionId = deleted?.nextSessionId || deleted?.sessionId || deleted?.threadId || deleted?.data?.nextSessionId || deleted?.data?.sessionId || deleted?.data?.threadId;
+      const confirmed = deleted?.deleted === true || deleted?.data?.deleted === true;
+      if (!confirmed || typeof nextSessionId !== 'string' || nextSessionId.length < 8) {
+        throw new Error('Сервер не подтвердил удаление диалога');
+      }
+      api.rememberAiSessionId(nextSessionId, storageContext);
+      set({ messages: [], conversationContext: [], suggestions: [], currentIntent: null, currentAction: null, status: 'idle', errorMessage: null, query: '', sessionId: nextSessionId });
+    } catch (error) {
+      set({ status: 'error', errorMessage: error instanceof Error ? error.message : 'Не удалось удалить диалог' });
+    }
+  },
+
+  clearConversation: () => { conversationLoadGeneration += 1; set({messages:[],conversationContext:[],currentIntent:null,currentAction:null,status:'idle',errorMessage:null,query:'',sessionId:null}); },
+  resetAI: () => { conversationLoadGeneration += 1; set({status:'idle',currentIntent:null,currentAction:null,messages:[],conversationContext:[],suggestions:[],proactiveAlerts:[],progress:0,errorMessage:null,query:''}); },
 }))
 
 export const useAiStore = useAIStore
