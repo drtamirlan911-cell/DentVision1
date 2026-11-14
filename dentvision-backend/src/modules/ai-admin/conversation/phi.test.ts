@@ -1,3 +1,4 @@
+import { createHmac } from 'node:crypto';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { encryptField } from '../../../lib/phi.js';
 import {
@@ -62,6 +63,27 @@ describe('AI Admin at-rest encryption', () => {
     process.env.AI_ADMIN_EXTERNAL_ID_ACTIVE_INDEX_KEY_ID = 'current';
     expect(getAiAdminExternalUserIdHashes(identity)).toContain(oldHash);
     expect(hashAiAdminExternalUserId(identity)).toMatch(/^v2:current:/);
+  });
+
+  it('preserves the exact historic development fallback for legacy ciphertext and blind indexes', () => {
+    const previous = process.env.ENCRYPTION_KEY;
+    delete process.env.ENCRYPTION_KEY;
+    const identity = { clinicId: 'clinic-dev', channel: 'WHATSAPP', externalUserId: '77010000000' };
+    try {
+      const legacyCiphertext = encryptField('old development payload');
+      expect(decryptAiAdminText(legacyCiphertext)).toBe('old development payload');
+      const oldMaster = 'dev-only-ai-admin-index-key-not-for-production';
+      const oldIndexKey = createHmac('sha256', oldMaster)
+        .update('dentvision:ai-admin:external-user-id:index-key:v1')
+        .digest();
+      const oldHash = 'v1:' + createHmac('sha256', oldIndexKey)
+        .update(JSON.stringify([identity.channel, identity.clinicId, identity.externalUserId]))
+        .digest('hex');
+      expect(getAiAdminExternalUserIdHashes(identity)).toContain(oldHash);
+    } finally {
+      if (previous === undefined) delete process.env.ENCRYPTION_KEY;
+      else process.env.ENCRYPTION_KEY = previous;
+    }
   });
 
   it('reads old unversioned ciphertext and supports active-key rotation', () => {

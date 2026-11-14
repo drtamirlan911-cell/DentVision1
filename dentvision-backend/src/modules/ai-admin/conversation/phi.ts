@@ -11,6 +11,8 @@ const ENCRYPTED_PREFIX = 'ENC:';
 const VERSIONED_PREFIX = 'ENC:v2:';
 const LEGACY_INDEX_PREFIX = 'v1:';
 const DEV_KEY = 'dev-only-ai-admin-key-not-for-production';
+const DEV_LEGACY_FIELD_KEY = 'dev-only-key-not-for-production';
+const DEV_LEGACY_INDEX_KEY = 'dev-only-ai-admin-index-key-not-for-production';
 const KEY_MIN_LENGTH = 32;
 const KEY_ID_PATTERN = /^[a-zA-Z0-9][a-zA-Z0-9._-]{0,63}$/;
 const CIPHER_ALGORITHM = 'aes-256-gcm';
@@ -20,13 +22,13 @@ const CIPHER_TAG_LENGTH = 16;
 export interface AiAdminExternalUserIdentity { clinicId: string; channel: string; externalUserId: string }
 type SecretKeyring = { keys: Map<string, string>; activeKeyId: string };
 
-function configuredFallbackSecret(): string {
+function configuredFallbackSecret(developmentFallback = DEV_KEY): string {
   const configured = process.env.ENCRYPTION_KEY;
   if (configured && configured.length >= KEY_MIN_LENGTH) return configured;
   if (process.env.NODE_ENV === 'production') {
     throw new Error('[phi] A configured AI Admin keyring or ENCRYPTION_KEY is required in production');
   }
-  return DEV_KEY;
+  return developmentFallback;
 }
 
 function parseKeyring(raw: string, envName: string): Map<string, string> {
@@ -47,11 +49,11 @@ function parseKeyring(raw: string, envName: string): Map<string, string> {
   return keys;
 }
 
-function resolveKeyring(ringEnvName: string, activeEnvName: string): SecretKeyring {
+function resolveKeyring(ringEnvName: string, activeEnvName: string, developmentFallback = DEV_KEY): SecretKeyring {
   const raw = process.env[ringEnvName];
   const keys = raw
     ? parseKeyring(raw, ringEnvName)
-    : new Map<string, string>([['legacy', configuredFallbackSecret()]]);
+    : new Map<string, string>([['legacy', configuredFallbackSecret(developmentFallback)]]);
   const requestedActiveKeyId = process.env[activeEnvName];
   const activeKeyId = requestedActiveKeyId || (keys.size === 1 ? keys.keys().next().value : undefined);
   if (!activeKeyId || !keys.has(activeKeyId)) {
@@ -74,7 +76,12 @@ function getLegacyEncryptionSecret(): string {
     const legacy = parseKeyring(ringEnv, 'AI_ADMIN_PHI_KEYRING_JSON').get('legacy');
     if (legacy) return legacy;
   }
-  return configuredFallbackSecret();
+  const configured = process.env.ENCRYPTION_KEY;
+  if (configured && configured.length >= KEY_MIN_LENGTH) return configured;
+  if (process.env.NODE_ENV === 'production') {
+    throw new Error('[phi] ENCRYPTION_KEY is required to decrypt legacy AI Admin ciphertext');
+  }
+  return DEV_LEGACY_FIELD_KEY;
 }
 
 function decryptLegacyAiAdminText(value: string): string {
@@ -99,7 +106,7 @@ export function hashAiAdminExternalUserId(identity: AiAdminExternalUserIdentity)
   if (!identity.clinicId || !identity.channel || !externalUserId || externalUserId.length > 256) {
     throw new Error('[phi] AI Admin external identity is invalid');
   }
-  const keyring = resolveKeyring('AI_ADMIN_EXTERNAL_ID_INDEX_KEYRING_JSON', 'AI_ADMIN_EXTERNAL_ID_ACTIVE_INDEX_KEY_ID');
+  const keyring = resolveKeyring('AI_ADMIN_EXTERNAL_ID_INDEX_KEYRING_JSON', 'AI_ADMIN_EXTERNAL_ID_ACTIVE_INDEX_KEY_ID', DEV_LEGACY_INDEX_KEY);
   const secret = keyring.keys.get(keyring.activeKeyId)!;
   const indexKey = createHmac('sha256', secret)
     .update('dentvision:ai-admin:external-user-id:index-key:v2:' + keyring.activeKeyId)
