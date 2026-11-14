@@ -67,7 +67,14 @@ describe('AI Admin external-identity backfill safeguards', () => {
     )).toThrow(/AI_ADMIN_EXTERNAL_ID_BACKFILL_STAGING_DATABASE_URL/);
   });
   it('requires additional confirmation for production writes', () => {
-    expect(() => parseAiAdminExternalIdBackfillOptions(['--apply', '--target=production', '--confirm-target=production'], { AI_ADMIN_EXTERNAL_ID_BACKFILL_TARGET: 'production' })).toThrow(/--allow-production/);
+    expect(() => parseAiAdminExternalIdBackfillOptions(
+      ['--apply', '--target=production', '--confirm-target=production'],
+      {
+        AI_ADMIN_EXTERNAL_ID_BACKFILL_TARGET: 'production',
+        AI_ADMIN_EXTERNAL_ID_STRICT_WRITE: 'true',
+        AI_ADMIN_EXTERNAL_ID_LEGACY_WORKERS_DRAINED: 'I_HAVE_DRAINED_ALL_LEGACY_WORKERS',
+      },
+    )).toThrow(/--allow-production/);
     const productionUrl = 'postgresql://production.example.test/dentvision';
     expect(parseAiAdminExternalIdBackfillOptions(
       ['--apply', '--target=production', '--confirm-target=production', '--allow-production', '--confirm-production-write=I_HAVE_BACKUP_AND_APPROVAL'],
