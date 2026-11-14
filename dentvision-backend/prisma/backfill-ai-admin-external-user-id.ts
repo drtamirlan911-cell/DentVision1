@@ -29,6 +29,10 @@ export function parseAiAdminExternalIdBackfillOptions(args: string[], env: NodeJ
   if (target !== 'staging' && target !== 'production') throw new Error('Write mode requires --target=staging or --target=production');
   if (read('--confirm-target') !== target) throw new Error('--confirm-target must match --target');
   if (env.AI_ADMIN_EXTERNAL_ID_BACKFILL_TARGET !== target) throw new Error('AI_ADMIN_EXTERNAL_ID_BACKFILL_TARGET must match the confirmed target');
+  if (env.AI_ADMIN_EXTERNAL_ID_STRICT_WRITE !== 'true') throw new Error('Backfill writes require AI_ADMIN_EXTERNAL_ID_STRICT_WRITE=true after the compatibility rollout');
+  if (env.AI_ADMIN_EXTERNAL_ID_LEGACY_WORKERS_DRAINED !== 'I_HAVE_DRAINED_ALL_LEGACY_WORKERS') {
+    throw new Error('Backfill writes require explicit confirmation that all legacy workers are drained');
+  }
   if (target === 'production' && (!args.includes('--allow-production') || read('--confirm-production-write') !== 'I_HAVE_BACKUP_AND_APPROVAL')) {
     throw new Error('Production write also requires --allow-production and --confirm-production-write=I_HAVE_BACKUP_AND_APPROVAL');
   }
