@@ -136,7 +136,7 @@ describe('AI Admin external contact identity persistence', () => {
     expect(prismaMock.aiAdminSession.create).not.toHaveBeenCalled();
   });
   it('reuses an encrypted session by the clinic-scoped blind index', async () => {
-    prismaMock.aiAdminSession.findFirst.mockResolvedValueOnce({ id: 'existing', externalUserId: null, externalUserIdCiphertext: 'ENC:value', externalUserIdHash: hashAiAdminExternalUserId(identity) });
+    prismaMock.aiAdminSession.findFirst.mockResolvedValueOnce({ id: 'existing', externalUserId: identity.externalUserId, externalUserIdCiphertext: 'ENC:value', externalUserIdHash: hashAiAdminExternalUserId(identity) });
     prismaMock.aiAdminSession.update.mockResolvedValueOnce({ id: 'existing' });
     await getOrCreateSession(identity);
     expect(prismaMock.aiAdminSession.findFirst.mock.calls[0][0].where.externalUserIdHash).toMatch(/^v1:/);
@@ -166,6 +166,32 @@ describe('AI Admin external contact identity persistence', () => {
     expect(prismaMock.aiAdminSession.updateMany).toHaveBeenCalledWith({
       where: { id: 'legacy', externalUserId: identity.externalUserId, externalUserIdHash: null },
       data: expect.objectContaining({ externalUserId: null, externalUserIdCiphertext: expect.stringMatching(/^ENC:/), externalUserIdHash: hash }),
+    });
+  });
+  it('adopts a legacy worker row when its plaintext unique key wins a concurrent create', async () => {
+    const hash = hashAiAdminExternalUserId(identity);
+    prismaMock.aiAdminSession.create.mockRejectedValueOnce({ code: 'P2002' });
+    prismaMock.aiAdminSession.findFirst
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce({ id: 'legacy-winner', externalUserId: identity.externalUserId, channel: identity.channel, clinicId: identity.clinicId });
+    prismaMock.aiAdminSession.findUnique.mockResolvedValueOnce({
+      id: 'legacy-winner',
+      externalUserId: identity.externalUserId,
+      externalUserIdCiphertext: 'ENC:legacy',
+      externalUserIdHash: hash,
+    });
+
+    await getOrCreateSession(identity);
+
+    expect(prismaMock.aiAdminSession.updateMany).toHaveBeenCalledWith({
+      where: { id: 'legacy-winner', externalUserId: identity.externalUserId, externalUserIdHash: null },
+      data: expect.objectContaining({
+        externalUserId: identity.externalUserId,
+        externalUserIdCiphertext: expect.stringMatching(/^ENC:/),
+        externalUserIdHash: hash,
+      }),
     });
   });
   it('recovers a concurrent create collision by reading the blind-index winner', async () => {
