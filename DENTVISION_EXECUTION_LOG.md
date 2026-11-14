@@ -1,3 +1,11 @@
+## Current continuation — 2026-11-14 (RB-029 rolling-deploy compatibility)
+
+- PR #347 review found that legacy webhook workers could not locate hash-only sessions during a rolling deploy. The existing branch now dual-writes the legacy identifier with ciphertext and blind index by default; legacy workers continue to find the same row.
+- Strict ciphertext-only writes require AI_ADMIN_EXTERNAL_ID_STRICT_WRITE=true and AI_ADMIN_EXTERNAL_ID_LEGACY_WORKERS_DRAINED=I_HAVE_DRAINED_ALL_LEGACY_WORKERS. Backfill apply requires the same acknowledgement and exact target DATABASE_URL binding.
+- Compatibility mode intentionally retains plaintext until every old worker is verified drained and the strict cutover/backfill is run. No worker drain, staging/production database operation, migration, backfill, key rotation or restore was performed. RB-029 remains OPEN / P0.
+- The previous exact-head CI found one clock-dependent DEMO trial test. It is now fixed with a frozen pre-deadline check and a second assertion at the exact expiry boundary; entitlement business logic is unchanged. New exact-head CI, E2E, Quality Gate, Vercel and Codex review are required.
+- Release remains NOT READY. Keep PR #347 open until all exact-head gates and review pass.
+
 ## Current implementation checkpoint — 2026-11-14 (RB-029 AI Admin datasource-target guard; PR #347)
 
 - Active work continues on the existing PR #347 / `security/rb029-ai-admin-external-id-20261114`; no replacement branch or PR was created. Base is `main`; exact published code head before this documentation reconciliation: `a632394653994786049013eb05e9845133d8667e`; documentation-only checkpoint commit: `ddcad40fcf7bbc0f2db403ea2ab12a38836745f4`.

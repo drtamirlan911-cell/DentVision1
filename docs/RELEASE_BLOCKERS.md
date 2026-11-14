@@ -6,6 +6,7 @@
 - Local verification on the candidate: 2,613/2,613 unit tests across 295 files, targeted AIConversationSync 1/1, AI thread lifecycle 6/6, TypeScript, frontend/backend build, frontend lint (13 warnings / 0 errors), Release Gate 6/6 and diff check all passed.
 - Exact-new-head GitHub CI/E2E, Quality Gate and Codex re-review are pending after publication. PR #346 remains open/unmerged.
 - RB-029 remains OPEN/P0 for historical PHI inventory/backfill, AiAdminSession.externalUserId protection, key versioning/rotation and old-key handling, retention/deletion/export/backup, restore/rollback, PHI-free exception ledger and approved staging reconciliation. No staging/production data was accessed or changed.
+- PR #347 defaults to compatibility dual-writes so legacy webhook workers can still resolve sessions. Strict hash-only writes and backfill now require explicit confirmation that every legacy worker has been drained; no cutover/backfill has been performed.
 
 ## Candidate source update — 2026-11-13 (PR #346 Codex P1/P2 findings)
 
