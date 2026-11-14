@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { encryptField } from '../../../lib/phi.js';
 import {
   decodeQueuedAiAdminMessage,
   decryptAiAdminJson,
@@ -6,28 +7,32 @@ import {
   encryptAiAdminJson,
   encryptAiAdminText,
   hashAiAdminExternalUserId,
+  getAiAdminExternalUserIdHashes,
+  isAiAdminTextEncryptedWithActiveKey,
 } from './phi.js';
 
-const originalNodeEnv = process.env.NODE_ENV;
-const originalEncryptionKey = process.env.ENCRYPTION_KEY;
+const envNames = ['NODE_ENV', 'ENCRYPTION_KEY', 'AI_ADMIN_PHI_KEYRING_JSON', 'AI_ADMIN_PHI_ACTIVE_KEY_ID', 'AI_ADMIN_EXTERNAL_ID_INDEX_KEYRING_JSON', 'AI_ADMIN_EXTERNAL_ID_ACTIVE_INDEX_KEY_ID'];
+const originalEnv = Object.fromEntries(envNames.map((name) => [name, process.env[name]]));
 
 beforeEach(() => {
   process.env.NODE_ENV = 'test';
   process.env.ENCRYPTION_KEY = 'ai-admin-test-encryption-key-at-least-32-chars';
+  for (const name of envNames.slice(2)) delete process.env[name];
 });
 
 afterEach(() => {
-  if (originalNodeEnv === undefined) delete process.env.NODE_ENV;
-  else process.env.NODE_ENV = originalNodeEnv;
-  if (originalEncryptionKey === undefined) delete process.env.ENCRYPTION_KEY;
-  else process.env.ENCRYPTION_KEY = originalEncryptionKey;
+  for (const name of envNames) {
+    const value = originalEnv[name];
+    if (value === undefined) delete process.env[name];
+    else process.env[name] = value;
+  }
 });
 
 describe('AI Admin external identity blind index', () => {
   it('is deterministic and scoped to clinic and channel', () => {
     const identity = { clinicId: 'clinic-a', channel: 'WHATSAPP', externalUserId: '77010000000' };
     const hash = hashAiAdminExternalUserId(identity);
-    expect(hash).toMatch(/^v1:[a-f0-9]{64}$/);
+    expect(hash).toMatch(/^v2:legacy:[a-f0-9]{64}$/);
     expect(hashAiAdminExternalUserId({ ...identity, externalUserId: ' 77010000000 ' })).toBe(hash);
     expect(hashAiAdminExternalUserId({ ...identity, clinicId: 'clinic-b' })).not.toBe(hash);
     expect(hashAiAdminExternalUserId({ ...identity, channel: 'INSTAGRAM' })).not.toBe(hash);
@@ -47,10 +52,39 @@ describe('AI Admin external identity blind index', () => {
 });
 
 describe('AI Admin at-rest encryption', () => {
+  it('retains old blind-index versions while writing with the active key', () => {
+    const identity = { clinicId: 'clinic-a', channel: 'WHATSAPP', externalUserId: '77010000000' };
+    const oldHash = getAiAdminExternalUserIdHashes(identity).find((value) => value.startsWith('v1:'));
+    process.env.AI_ADMIN_EXTERNAL_ID_INDEX_KEYRING_JSON = JSON.stringify({
+      legacy: process.env.ENCRYPTION_KEY,
+      current: 'new-ai-admin-index-key-with-at-least-32-chars',
+    });
+    process.env.AI_ADMIN_EXTERNAL_ID_ACTIVE_INDEX_KEY_ID = 'current';
+    expect(getAiAdminExternalUserIdHashes(identity)).toContain(oldHash);
+    expect(hashAiAdminExternalUserId(identity)).toMatch(/^v2:current:/);
+  });
+
+  it('reads old unversioned ciphertext and supports active-key rotation', () => {
+    const oldSecret = process.env.ENCRYPTION_KEY!;
+    const legacy = encryptField('legacy encrypted message');
+    expect(decryptAiAdminText(legacy)).toBe('legacy encrypted message');
+    const oldVersion = encryptAiAdminText('old version');
+    process.env.AI_ADMIN_PHI_KEYRING_JSON = JSON.stringify({
+      legacy: oldSecret,
+      current: 'new-ai-admin-phi-key-with-at-least-32-chars',
+    });
+    process.env.AI_ADMIN_PHI_ACTIVE_KEY_ID = 'current';
+    expect(decryptAiAdminText(oldVersion)).toBe('old version');
+    const current = encryptAiAdminText('current version');
+    expect(current).toMatch(/^ENC:v2:current:/);
+    expect(isAiAdminTextEncryptedWithActiveKey(current)).toBe(true);
+    expect(isAiAdminTextEncryptedWithActiveKey(oldVersion)).toBe(false);
+  });
+
   it('encrypts patient messages and round-trips them', () => {
     const source = 'Patient Ivan Petrov: private diagnosis alpha';
     const stored = encryptAiAdminText(source);
-    expect(stored).toMatch(/^ENC:/);
+    expect(stored).toMatch(/^ENC:v2:legacy:/);
     expect(stored).not.toContain('Ivan Petrov');
     expect(stored).not.toContain('private diagnosis alpha');
     expect(decryptAiAdminText(stored)).toBe(source);

@@ -1,7 +1,7 @@
 import { resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import prisma from '../src/lib/prisma.js';
-import { decryptAiAdminText, encryptAiAdminText, hashAiAdminExternalUserId } from '../src/modules/ai-admin/conversation/phi.js';
+import { decryptAiAdminText, encryptAiAdminText, getAiAdminExternalUserIdHashes, hashAiAdminExternalUserId, isAiAdminTextEncryptedWithActiveKey } from '../src/modules/ai-admin/conversation/phi.js';
 
 type Target = 'staging' | 'production';
 type Options = { apply: boolean; target: Target | null; batchSize: number };
@@ -55,26 +55,42 @@ export function parseAiAdminExternalIdBackfillOptions(args: string[], env: NodeJ
 }
 
 function encryptAndVerify(value: string | null, existing: string | null, label: string): string | null {
-  if (value === null || value === '') {
-    if (existing) decryptAiAdminText(existing);
-    return existing;
+  if (!existing && (value === null || value === '')) return null;
+  const plaintext = existing ? decryptAiAdminText(existing) : value!;
+  if (value !== null && value !== '' && plaintext !== value) {
+    throw new Error(label + ' ciphertext does not match the legacy value');
   }
-  const ciphertext = existing ?? encryptAiAdminText(value);
-  if (decryptAiAdminText(ciphertext) !== value) throw new Error(label + ' ciphertext failed round-trip validation');
+  const ciphertext = existing && isAiAdminTextEncryptedWithActiveKey(existing)
+    ? existing
+    : encryptAiAdminText(plaintext);
+  if (decryptAiAdminText(ciphertext) !== plaintext) {
+    throw new Error(label + ' ciphertext failed round-trip validation');
+  }
   return ciphertext;
 }
 
 export function prepareAiAdminExternalIdBackfillRow(row: Row): Prepared {
-  const externalUserId = row.externalUserId?.trim() || null;
-  const externalUserIdHash = externalUserId
-    ? hashAiAdminExternalUserId({ clinicId: row.clinicId, channel: row.channel, externalUserId })
+  const decryptedExternalUserId = row.externalUserIdCiphertext
+    ? decryptAiAdminText(row.externalUserIdCiphertext)
+    : null;
+  const externalUserId = row.externalUserId?.trim() || decryptedExternalUserId?.trim() || null;
+  const externalIdentity = externalUserId
+    ? { clinicId: row.clinicId, channel: row.channel, externalUserId }
+    : null;
+  const externalUserIdHash = externalIdentity
+    ? hashAiAdminExternalUserId(externalIdentity)
     : row.externalUserIdHash;
-  if (row.externalUserIdHash && externalUserIdHash && row.externalUserIdHash !== externalUserIdHash) {
-    throw new Error('Existing external identifier blind index does not match the legacy value');
+
+  if (row.externalUserIdHash && externalIdentity) {
+    const readableHashes = getAiAdminExternalUserIdHashes(externalIdentity);
+    if (!readableHashes.includes(row.externalUserIdHash)) {
+      throw new Error('Existing external identifier blind index does not match the readable keyring');
+    }
   }
   if (!externalUserId && Boolean(row.externalUserIdCiphertext) !== Boolean(row.externalUserIdHash)) {
     throw new Error('External identifier ciphertext/index pair is incomplete');
   }
+
   const externalUserIdCiphertext = encryptAndVerify(externalUserId, row.externalUserIdCiphertext, 'External identifier');
   const patientNameCiphertext = encryptAndVerify(row.patientName, row.patientNameCiphertext, 'Patient name');
   const patientPhoneCiphertext = encryptAndVerify(row.patientPhone, row.patientPhoneCiphertext, 'Patient phone');
@@ -83,7 +99,16 @@ export function prepareAiAdminExternalIdBackfillRow(row: Row): Prepared {
 
 async function fetchBatch(batchSize: number, cursorId?: string): Promise<Row[]> {
   return prisma.aiAdminSession.findMany({
-    where: { OR: [{ externalUserId: { not: null } }, { patientName: { not: null } }, { patientPhone: { not: null } }] },
+    where: {
+      OR: [
+        { externalUserId: { not: null } },
+        { externalUserIdCiphertext: { not: null } },
+        { patientName: { not: null } },
+        { patientPhone: { not: null } },
+        { patientNameCiphertext: { not: null } },
+        { patientPhoneCiphertext: { not: null } },
+      ],
+    },
     select: {
       id: true, clinicId: true, channel: true,
       externalUserId: true, externalUserIdCiphertext: true, externalUserIdHash: true,
@@ -128,6 +153,14 @@ async function applyBackfill(batchSize: number): Promise<number> {
     for (const row of rows) {
       scanned += 1;
       const prepared = prepareAiAdminExternalIdBackfillRow(row);
+      const needsUpdate = row.externalUserId !== null
+        || row.patientName !== null
+        || row.patientPhone !== null
+        || prepared.externalUserIdCiphertext !== row.externalUserIdCiphertext
+        || prepared.externalUserIdHash !== row.externalUserIdHash
+        || prepared.patientNameCiphertext !== row.patientNameCiphertext
+        || prepared.patientPhoneCiphertext !== row.patientPhoneCiphertext;
+      if (!needsUpdate) continue;
       const changed = await prisma.aiAdminSession.updateMany({
         where: {
           id: row.id, externalUserId: row.externalUserId, externalUserIdCiphertext: row.externalUserIdCiphertext,
@@ -166,7 +199,7 @@ async function applyBackfill(batchSize: number): Promise<number> {
 
 function assertKeyAndRoundTrip(): void {
   const sample = 'ai-admin-external-id-backfill-check';
-  if (decryptAiAdminText(encryptAiAdminText(sample)) !== sample) throw new Error('AI Admin external-identity encryption key failed round-trip validation');
+  if (decryptAiAdminText(encryptAiAdminText(sample)) !== sample) throw new Error('AI Admin encryption keyring failed round-trip validation');
 }
 
 async function main(): Promise<void> {

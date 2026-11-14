@@ -13,18 +13,15 @@ vi.mock('../../../lib/prisma.js', () => ({ default: prismaMock }));
 vi.mock('../../billing/clinicSubscription.service.js', () => ({ notifyClinicOwners }));
 
 import { getOrCreateSession, getRecentMessages, markEscalated, saveMessage } from './conversation.manager.js';
-import { encryptAiAdminJson, encryptAiAdminText, hashAiAdminExternalUserId } from './phi.js';
+import { encryptAiAdminJson, encryptAiAdminText, getAiAdminExternalUserIdHashes, hashAiAdminExternalUserId } from './phi.js';
 
-const originalNodeEnv = process.env.NODE_ENV;
-const originalEncryptionKey = process.env.ENCRYPTION_KEY;
-const originalStrictWrite = process.env.AI_ADMIN_EXTERNAL_ID_STRICT_WRITE;
-const originalWorkersDrained = process.env.AI_ADMIN_EXTERNAL_ID_LEGACY_WORKERS_DRAINED;
+const envNames = ['NODE_ENV', 'ENCRYPTION_KEY', 'AI_ADMIN_PHI_KEYRING_JSON', 'AI_ADMIN_PHI_ACTIVE_KEY_ID', 'AI_ADMIN_EXTERNAL_ID_INDEX_KEYRING_JSON', 'AI_ADMIN_EXTERNAL_ID_ACTIVE_INDEX_KEY_ID', 'AI_ADMIN_EXTERNAL_ID_STRICT_WRITE', 'AI_ADMIN_EXTERNAL_ID_LEGACY_WORKERS_DRAINED'];
+const originalEnv = Object.fromEntries(envNames.map((name) => [name, process.env[name]]));
 
 beforeEach(() => {
   process.env.NODE_ENV = 'test';
   process.env.ENCRYPTION_KEY = 'ai-admin-conversation-test-key-at-least-32-chars';
-  delete process.env.AI_ADMIN_EXTERNAL_ID_STRICT_WRITE;
-  delete process.env.AI_ADMIN_EXTERNAL_ID_LEGACY_WORKERS_DRAINED;
+  for (const name of envNames.slice(2)) delete process.env[name];
   vi.clearAllMocks();
   prismaMock.aiAdminMessage.create.mockResolvedValue({});
   prismaMock.aiAdminMessage.findMany.mockResolvedValue([]);
@@ -42,14 +39,11 @@ beforeEach(() => {
 });
 
 afterEach(() => {
-  if (originalNodeEnv === undefined) delete process.env.NODE_ENV;
-  else process.env.NODE_ENV = originalNodeEnv;
-  if (originalEncryptionKey === undefined) delete process.env.ENCRYPTION_KEY;
-  else process.env.ENCRYPTION_KEY = originalEncryptionKey;
-  if (originalStrictWrite === undefined) delete process.env.AI_ADMIN_EXTERNAL_ID_STRICT_WRITE;
-  else process.env.AI_ADMIN_EXTERNAL_ID_STRICT_WRITE = originalStrictWrite;
-  if (originalWorkersDrained === undefined) delete process.env.AI_ADMIN_EXTERNAL_ID_LEGACY_WORKERS_DRAINED;
-  else process.env.AI_ADMIN_EXTERNAL_ID_LEGACY_WORKERS_DRAINED = originalWorkersDrained;
+  for (const name of envNames) {
+    const value = originalEnv[name];
+    if (value === undefined) delete process.env[name];
+    else process.env[name] = value;
+  }
 });
 
 describe('AI Admin message persistence', () => {
@@ -63,8 +57,8 @@ describe('AI Admin message persistence', () => {
     });
 
     const data = prismaMock.aiAdminMessage.create.mock.calls[0][0].data;
-    expect(data.content).toMatch(/^ENC:/);
-    expect(data.toolResult).toMatch(/^ENC:/);
+    expect(data.content).toMatch(/^ENC:v2:/);
+    expect(data.toolResult).toMatch(/^ENC:v2:/);
     expect(JSON.stringify(data)).not.toContain('Ivan Petrov');
     expect(JSON.stringify(data)).not.toContain('private diagnosis beta');
   });
@@ -99,8 +93,8 @@ describe('AI Admin message persistence', () => {
     await markEscalated('session-1', reason, lastUserMessage);
 
     const data = prismaMock.aiAdminEscalation.create.mock.calls[0][0].data;
-    expect(data.reason).toMatch(/^ENC:/);
-    expect(data.lastUserMessage).toMatch(/^ENC:/);
+    expect(data.reason).toMatch(/^ENC:v2:/);
+    expect(data.lastUserMessage).toMatch(/^ENC:v2:/);
     expect(JSON.stringify(data)).not.toContain('Ivan Petrov');
     expect(JSON.stringify(data)).not.toContain('private diagnosis alpha');
     expect(notifyClinicOwners.mock.calls[0][2]).not.toContain('Ivan Petrov');
@@ -115,7 +109,7 @@ describe('AI Admin external contact identity persistence', () => {
     await getOrCreateSession(identity);
     const data = prismaMock.aiAdminSession.create.mock.calls[0][0].data;
     expect(data.externalUserId).toBe(identity.externalUserId);
-    expect(data.externalUserIdCiphertext).toMatch(/^ENC:/);
+    expect(data.externalUserIdCiphertext).toMatch(/^ENC:v2:/
     expect(data.externalUserIdHash).toBe(hashAiAdminExternalUserId(identity));
     expect(data.externalUserIdCiphertext).not.toContain(identity.externalUserId);
   });
@@ -139,11 +133,29 @@ describe('AI Admin external contact identity persistence', () => {
     prismaMock.aiAdminSession.findFirst.mockResolvedValueOnce({ id: 'existing', externalUserId: identity.externalUserId, externalUserIdCiphertext: 'ENC:value', externalUserIdHash: hashAiAdminExternalUserId(identity) });
     prismaMock.aiAdminSession.update.mockResolvedValueOnce({ id: 'existing' });
     await getOrCreateSession(identity);
-    expect(prismaMock.aiAdminSession.findFirst.mock.calls[0][0].where.externalUserIdHash).toMatch(/^v1:/);
+    expect(prismaMock.aiAdminSession.findFirst.mock.calls[0][0].where.externalUserIdHash.in).toContain(hashAiAdminExternalUserId(identity));
     expect(prismaMock.aiAdminSession.create).not.toHaveBeenCalled();
   });
+  it('finds an existing v1 session index and upgrades it without creating a duplicate', async () => {
+    const oldHash = getAiAdminExternalUserIdHashes(identity).find((value) => value.startsWith('v1:'))!;
+    prismaMock.aiAdminSession.findFirst.mockResolvedValueOnce({
+      id: 'old-index',
+      externalUserId: identity.externalUserId,
+      externalUserIdCiphertext: 'ENC:legacy-payload',
+      externalUserIdHash: oldHash,
+      channel: identity.channel,
+      clinicId: identity.clinicId,
+    });
+    await getOrCreateSession(identity);
+    expect(prismaMock.aiAdminSession.updateMany).toHaveBeenCalledWith({
+      where: { id: 'old-index', externalUserIdHash: oldHash },
+      data: { externalUserIdHash: hashAiAdminExternalUserId(identity) },
+    });
+    expect(prismaMock.aiAdminSession.create).not.toHaveBeenCalled();
+  });
+
   it('fails closed on an incomplete blind-index row', async () => {
-    prismaMock.aiAdminSession.findFirst.mockResolvedValueOnce({ id: 'bad', externalUserId: identity.externalUserId, externalUserIdCiphertext: null });
+    prismaMock.aiAdminSession.findFirst.mockResolvedValueOnce({ id: 'bad', externalUserId: identity.externalUserId, externalUserIdCiphertext: null, externalUserIdHash: hashAiAdminExternalUserId(identity), channel: identity.channel, clinicId: identity.clinicId });
     await expect(getOrCreateSession(identity)).rejects.toThrow(/guarded backfill is required/);
   });
   it('migrates a legacy plaintext row with compare-and-set', async () => {

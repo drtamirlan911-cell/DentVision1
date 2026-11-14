@@ -1,7 +1,7 @@
 import prisma from '../../../lib/prisma.js'
 import type { AiAdminSession, AiAdminMessage } from '@prisma/client'
 import type { Channel } from '../webhook/types.js'
-import { decryptAiAdminJson, decryptAiAdminText, encryptAiAdminJson, encryptAiAdminText, hashAiAdminExternalUserId } from './phi.js'
+import { decryptAiAdminJson, decryptAiAdminText, encryptAiAdminJson, encryptAiAdminText, getAiAdminExternalUserIdHashes, hashAiAdminExternalUserId } from './phi.js'
 
 interface GetOrCreateSessionParams {
   clinicId: string
@@ -43,6 +43,44 @@ async function activateSession(row: AiAdminSession, hash: string, now: Date, str
   return prisma.aiAdminSession.update({ where: { id: row.id }, data: { status: 'ACTIVE', lastMessageAt: now } });
 }
 
+async function activateWithCurrentIndex(
+  row: AiAdminSession,
+  hash: string,
+  readableHashes: string[],
+  now: Date,
+  strict: boolean,
+): Promise<AiAdminSession> {
+  let indexedRow = row;
+  if (row.externalUserIdHash !== hash) {
+    if (!row.externalUserIdHash || !readableHashes.includes(row.externalUserIdHash)) {
+      throw new Error('[phi] AI Admin external identity index uses an unavailable key');
+    }
+    try {
+      const changed = await prisma.aiAdminSession.updateMany({
+        where: { id: row.id, externalUserIdHash: row.externalUserIdHash },
+        data: { externalUserIdHash: hash },
+      });
+      if (changed.count === 1) {
+        indexedRow = { ...row, externalUserIdHash: hash };
+      } else {
+        const latest = await prisma.aiAdminSession.findUnique({ where: { id: row.id } });
+        if (!latest || latest.externalUserIdHash !== hash || !latest.externalUserIdCiphertext) {
+          throw new Error('[phi] AI Admin external identity index changed concurrently');
+        }
+        indexedRow = latest;
+      }
+    } catch (error) {
+      if (!isUniqueConstraintError(error)) throw error;
+      const winner = await prisma.aiAdminSession.findFirst({
+        where: { channel: row.channel, clinicId: row.clinicId, externalUserIdHash: hash },
+      });
+      if (!winner) throw error;
+      indexedRow = winner;
+    }
+  }
+  return activateSession(indexedRow, hash, now, strict);
+}
+
 async function migrateLegacySession(
   legacy: AiAdminSession, externalUserId: string, hash: string, now: Date, strict: boolean,
 ): Promise<AiAdminSession | null> {
@@ -70,12 +108,14 @@ export async function getOrCreateSession(params: GetOrCreateSessionParams): Prom
   const externalUserId = params.externalUserId.trim();
   if (!externalUserId || externalUserId.length > 256) throw new Error('[phi] AI Admin external identity is invalid');
   const strict = strictExternalIdWriteMode();
-  const hash = hashAiAdminExternalUserId({ ...params, externalUserId });
+  const identity = { clinicId: params.clinicId, channel: params.channel, externalUserId };
+  const hash = hashAiAdminExternalUserId(identity);
+  const readableHashes = getAiAdminExternalUserIdHashes(identity);
   const now = new Date();
-  const byHash = { channel: params.channel, externalUserIdHash: hash, clinicId: params.clinicId };
+  const byHash = { channel: params.channel, externalUserIdHash: { in: readableHashes }, clinicId: params.clinicId };
 
   const existing = await prisma.aiAdminSession.findFirst({ where: byHash });
-  if (existing) return activateSession(existing, hash, now, strict);
+  if (existing) return activateWithCurrentIndex(existing, hash, readableHashes, now, strict);
 
   const legacyWhere = { channel: params.channel, externalUserId, externalUserIdHash: null, clinicId: params.clinicId };
   const legacy = await prisma.aiAdminSession.findFirst({ where: legacyWhere });
@@ -100,7 +140,7 @@ export async function getOrCreateSession(params: GetOrCreateSessionParams): Prom
   } catch (error) {
     if (!isUniqueConstraintError(error)) throw error;
     const winner = await prisma.aiAdminSession.findFirst({ where: byHash });
-    if (winner) return activateSession(winner, hash, now, strict);
+    if (winner) return activateWithCurrentIndex(winner, hash, readableHashes, now, strict);
     const legacyWinner = await prisma.aiAdminSession.findFirst({ where: legacyWhere });
     if (legacyWinner) {
       const migrated = await migrateLegacySession(legacyWinner, externalUserId, hash, now, strict);
