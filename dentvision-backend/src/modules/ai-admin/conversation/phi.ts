@@ -121,7 +121,7 @@ export function getAiAdminExternalUserIdHashes(identity: AiAdminExternalUserIden
   if (!identity.clinicId || !identity.channel || !externalUserId || externalUserId.length > 256) {
     throw new Error('[phi] AI Admin external identity is invalid');
   }
-  const keyring = resolveKeyring('AI_ADMIN_EXTERNAL_ID_INDEX_KEYRING_JSON', 'AI_ADMIN_EXTERNAL_ID_ACTIVE_INDEX_KEY_ID');
+  const keyring = resolveKeyring('AI_ADMIN_EXTERNAL_ID_INDEX_KEYRING_JSON', 'AI_ADMIN_EXTERNAL_ID_ACTIVE_INDEX_KEY_ID', DEV_LEGACY_INDEX_KEY);
   const scopedIdentity = JSON.stringify([identity.channel, identity.clinicId, externalUserId]);
   const hashes: string[] = [];
   const activeSecret = keyring.keys.get(keyring.activeKeyId)!;
