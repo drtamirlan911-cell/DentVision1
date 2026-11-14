@@ -13,14 +13,18 @@ vi.mock('../../../lib/prisma.js', () => ({ default: prismaMock }));
 vi.mock('../../billing/clinicSubscription.service.js', () => ({ notifyClinicOwners }));
 
 import { getOrCreateSession, getRecentMessages, markEscalated, saveMessage } from './conversation.manager.js';
-import { encryptAiAdminJson, encryptAiAdminText } from './phi.js';
+import { encryptAiAdminJson, encryptAiAdminText, hashAiAdminExternalUserId } from './phi.js';
 
 const originalNodeEnv = process.env.NODE_ENV;
 const originalEncryptionKey = process.env.ENCRYPTION_KEY;
+const originalStrictWrite = process.env.AI_ADMIN_EXTERNAL_ID_STRICT_WRITE;
+const originalWorkersDrained = process.env.AI_ADMIN_EXTERNAL_ID_LEGACY_WORKERS_DRAINED;
 
 beforeEach(() => {
   process.env.NODE_ENV = 'test';
   process.env.ENCRYPTION_KEY = 'ai-admin-conversation-test-key-at-least-32-chars';
+  delete process.env.AI_ADMIN_EXTERNAL_ID_STRICT_WRITE;
+  delete process.env.AI_ADMIN_EXTERNAL_ID_LEGACY_WORKERS_DRAINED;
   vi.clearAllMocks();
   prismaMock.aiAdminMessage.create.mockResolvedValue({});
   prismaMock.aiAdminMessage.findMany.mockResolvedValue([]);
@@ -42,6 +46,10 @@ afterEach(() => {
   else process.env.NODE_ENV = originalNodeEnv;
   if (originalEncryptionKey === undefined) delete process.env.ENCRYPTION_KEY;
   else process.env.ENCRYPTION_KEY = originalEncryptionKey;
+  if (originalStrictWrite === undefined) delete process.env.AI_ADMIN_EXTERNAL_ID_STRICT_WRITE;
+  else process.env.AI_ADMIN_EXTERNAL_ID_STRICT_WRITE = originalStrictWrite;
+  if (originalWorkersDrained === undefined) delete process.env.AI_ADMIN_EXTERNAL_ID_LEGACY_WORKERS_DRAINED;
+  else process.env.AI_ADMIN_EXTERNAL_ID_LEGACY_WORKERS_DRAINED = originalWorkersDrained;
 });
 
 describe('AI Admin message persistence', () => {
@@ -103,16 +111,32 @@ describe('AI Admin message persistence', () => {
 
 describe('AI Admin external contact identity persistence', () => {
   const identity = { clinicId: 'clinic-1', configId: 'config-1', channel: 'WHATSAPP' as const, externalUserId: '77010000000' };
-  it('stores only ciphertext and a scoped blind index', async () => {
+  it('dual-writes the legacy identifier with ciphertext/index during rolling compatibility', async () => {
+    await getOrCreateSession(identity);
+    const data = prismaMock.aiAdminSession.create.mock.calls[0][0].data;
+    expect(data.externalUserId).toBe(identity.externalUserId);
+    expect(data.externalUserIdCiphertext).toMatch(/^ENC:/);
+    expect(data.externalUserIdHash).toBe(hashAiAdminExternalUserId(identity));
+    expect(data.externalUserIdCiphertext).not.toContain(identity.externalUserId);
+  });
+  it('stores only ciphertext after explicit strict cutover', async () => {
+    process.env.AI_ADMIN_EXTERNAL_ID_STRICT_WRITE = 'true';
+    process.env.AI_ADMIN_EXTERNAL_ID_LEGACY_WORKERS_DRAINED = 'I_HAVE_DRAINED_ALL_LEGACY_WORKERS';
     await getOrCreateSession(identity);
     const data = prismaMock.aiAdminSession.create.mock.calls[0][0].data;
     expect(data.externalUserId).toBeNull();
     expect(data.externalUserIdCiphertext).toMatch(/^ENC:/);
-    expect(data.externalUserIdHash).toMatch(/^v1:[a-f0-9]{64}$/);
+    expect(data.externalUserIdHash).toBe(hashAiAdminExternalUserId(identity));
     expect(data.externalUserIdCiphertext).not.toContain(identity.externalUserId);
   });
+  it('refuses strict mode unless legacy workers are explicitly drained', async () => {
+    process.env.AI_ADMIN_EXTERNAL_ID_STRICT_WRITE = 'true';
+    await expect(getOrCreateSession(identity)).rejects.toThrow(/legacy workers are drained/);
+    expect(prismaMock.aiAdminSession.findFirst).not.toHaveBeenCalled();
+    expect(prismaMock.aiAdminSession.create).not.toHaveBeenCalled();
+  });
   it('reuses an encrypted session by the clinic-scoped blind index', async () => {
-    prismaMock.aiAdminSession.findFirst.mockResolvedValueOnce({ id: 'existing', externalUserId: null, externalUserIdCiphertext: 'ENC:value' });
+    prismaMock.aiAdminSession.findFirst.mockResolvedValueOnce({ id: 'existing', externalUserId: null, externalUserIdCiphertext: 'ENC:value', externalUserIdHash: hashAiAdminExternalUserId(identity) });
     prismaMock.aiAdminSession.update.mockResolvedValueOnce({ id: 'existing' });
     await getOrCreateSession(identity);
     expect(prismaMock.aiAdminSession.findFirst.mock.calls[0][0].where.externalUserIdHash).toMatch(/^v1:/);
@@ -123,17 +147,31 @@ describe('AI Admin external contact identity persistence', () => {
     await expect(getOrCreateSession(identity)).rejects.toThrow(/guarded backfill is required/);
   });
   it('migrates a legacy plaintext row with compare-and-set', async () => {
-    prismaMock.aiAdminSession.findFirst.mockResolvedValueOnce(null).mockResolvedValueOnce({ id: 'legacy' });
-    prismaMock.aiAdminSession.findUnique.mockResolvedValueOnce({ id: 'legacy', externalUserId: null });
+    const hash = hashAiAdminExternalUserId(identity);
+    prismaMock.aiAdminSession.findFirst.mockResolvedValueOnce(null).mockResolvedValueOnce({ id: 'legacy', externalUserId: identity.externalUserId, channel: identity.channel, clinicId: identity.clinicId });
+    prismaMock.aiAdminSession.findUnique.mockResolvedValueOnce({ id: 'legacy', externalUserId: identity.externalUserId, externalUserIdCiphertext: 'ENC:legacy', externalUserIdHash: hash });
     await getOrCreateSession(identity);
     expect(prismaMock.aiAdminSession.updateMany).toHaveBeenCalledWith({
       where: { id: 'legacy', externalUserId: identity.externalUserId, externalUserIdHash: null },
-      data: expect.objectContaining({ externalUserId: null, externalUserIdCiphertext: expect.stringMatching(/^ENC:/), externalUserIdHash: expect.stringMatching(/^v1:/) }),
+      data: expect.objectContaining({ externalUserId: identity.externalUserId, externalUserIdCiphertext: expect.stringMatching(/^ENC:/), externalUserIdHash: hash }),
+    });
+  });
+  it('clears a legacy plaintext identifier only after strict cutover is acknowledged', async () => {
+    process.env.AI_ADMIN_EXTERNAL_ID_STRICT_WRITE = 'true';
+    process.env.AI_ADMIN_EXTERNAL_ID_LEGACY_WORKERS_DRAINED = 'I_HAVE_DRAINED_ALL_LEGACY_WORKERS';
+    const hash = hashAiAdminExternalUserId(identity);
+    prismaMock.aiAdminSession.findFirst.mockResolvedValueOnce(null).mockResolvedValueOnce({ id: 'legacy', externalUserId: identity.externalUserId, channel: identity.channel, clinicId: identity.clinicId });
+    prismaMock.aiAdminSession.findUnique.mockResolvedValueOnce({ id: 'legacy', externalUserId: null, externalUserIdCiphertext: 'ENC:legacy', externalUserIdHash: hash });
+    await getOrCreateSession(identity);
+    expect(prismaMock.aiAdminSession.updateMany).toHaveBeenCalledWith({
+      where: { id: 'legacy', externalUserId: identity.externalUserId, externalUserIdHash: null },
+      data: expect.objectContaining({ externalUserId: null, externalUserIdCiphertext: expect.stringMatching(/^ENC:/), externalUserIdHash: hash }),
     });
   });
   it('recovers a concurrent create collision by reading the blind-index winner', async () => {
     prismaMock.aiAdminSession.create.mockRejectedValueOnce({ code: 'P2002' });
-    prismaMock.aiAdminSession.findFirst.mockResolvedValueOnce(null).mockResolvedValueOnce(null).mockResolvedValueOnce({ id: 'winner' });
+    const hash = hashAiAdminExternalUserId(identity);
+    prismaMock.aiAdminSession.findFirst.mockResolvedValueOnce(null).mockResolvedValueOnce(null).mockResolvedValueOnce({ id: 'winner', externalUserId: identity.externalUserId, externalUserIdCiphertext: 'ENC:value', externalUserIdHash: hash });
     prismaMock.aiAdminSession.update.mockResolvedValueOnce({ id: 'winner' });
     await getOrCreateSession(identity);
     expect(prismaMock.aiAdminSession.update).toHaveBeenCalledWith({ where: { id: 'winner' }, data: expect.objectContaining({ status: 'ACTIVE' }) });
