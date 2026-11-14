@@ -1,3 +1,21 @@
+## Current continuation — 2026-11-14 (RB-029 rolling-deploy compatibility)
+
+- PR #347 review found that legacy webhook workers could not locate hash-only sessions during a rolling deploy. The existing branch now dual-writes the legacy identifier with ciphertext and blind index by default; legacy workers continue to find the same row.
+- Strict ciphertext-only writes require AI_ADMIN_EXTERNAL_ID_STRICT_WRITE=true and AI_ADMIN_EXTERNAL_ID_LEGACY_WORKERS_DRAINED=I_HAVE_DRAINED_ALL_LEGACY_WORKERS. Backfill apply requires the same acknowledgement and exact target DATABASE_URL binding.
+- Compatibility mode intentionally retains plaintext until every old worker is verified drained and the strict cutover/backfill is run. No worker drain, staging/production database operation, migration, backfill, key rotation or restore was performed. RB-029 remains OPEN / P0.
+- The previous exact-head CI found one clock-dependent DEMO trial test. It is now fixed with a frozen pre-deadline check and a second assertion at the exact expiry boundary; entitlement business logic is unchanged. New exact-head CI, E2E, Quality Gate, Vercel and Codex review are required.
+- Release remains NOT READY. Keep PR #347 open until all exact-head gates and review pass.
+
+## Current implementation checkpoint — 2026-11-14 (RB-029 AI Admin datasource-target guard; PR #347)
+
+- Active work continues on the existing PR #347 / `security/rb029-ai-admin-external-id-20261114`; no replacement branch or PR was created. Base is `main`; exact published code head before this documentation reconciliation: `a632394653994786049013eb05e9845133d8667e`; documentation-only checkpoint commit: `ddcad40fcf7bbc0f2db403ea2ab12a38836745f4`.
+- Addressed the Codex P2 in the AI Admin external-identity backfill: the prior staging/production label could disagree with Prisma's actual `DATABASE_URL`. Write mode now requires the actual `DATABASE_URL` to exactly match a separate target-specific expected connection string: `AI_ADMIN_EXTERNAL_ID_BACKFILL_STAGING_DATABASE_URL` or `AI_ADMIN_EXTERNAL_ID_BACKFILL_PRODUCTION_DATABASE_URL`. Missing/mismatched values fail closed; connection strings are never logged.
+- Added regression cases for valid staging binding, staging label with a production datasource, and missing expected datasource configuration. Updated `docs/security/RB-029_AI_ADMIN_EXTERNAL_ID.md` with the operator runbook.
+- Exact local verification on this patch: focused backfill tests 11/11; backend `tsc --noEmit`; changed-file ESLint; `git diff --check` passed. The earlier local attempt lacked backend dependencies/Prisma generation; after installing backend dependencies and generating the client, the focused suite passed.
+- Exact-head GitHub CI and Quality Gate were triggered for the code commit `a6323946`; a documentation-only follow-up commit now requires fresh exact-head gates. Codex re-review was explicitly requested. Do not merge until exact-head CI/E2E, Quality Gate, preview and Codex review are green with no unresolved P0/P1/P2 findings.
+- RB-029 remains OPEN/P0: historical PHI inventory/backfill, key versioning/rotation and old-key handling, retention/deletion/export, backup/restore/rollback, exception ledger and approved staging evidence remain outstanding. No staging/production database connection, query, migration, backfill, key change or production deployment was performed.
+- Master Spec 5.0 remains the normative product contract; the repository's current compliance audit remains 18 PARTIAL / 4 OPEN / 2 GUIDANCE. D1/D2, RB-031, RB-033, RB-035, official Kaspi evidence, Android runtime and D10 independent dental-lab lifecycle remain open/partial. Release NOT READY.
+
 ## 2026-11-13 — RB-029 independent AI history hydrator race closed in candidate
 
 - Continued on existing PR #346 after exact-head Codex review identified a second hydrator in AIConversationSync. This component independently fetches /api/ai/history and could overwrite a new thread after the loadConversation() generation guard had been added.

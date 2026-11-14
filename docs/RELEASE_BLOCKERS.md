@@ -6,6 +6,7 @@
 - Local verification on the candidate: 2,613/2,613 unit tests across 295 files, targeted AIConversationSync 1/1, AI thread lifecycle 6/6, TypeScript, frontend/backend build, frontend lint (13 warnings / 0 errors), Release Gate 6/6 and diff check all passed.
 - Exact-new-head GitHub CI/E2E, Quality Gate and Codex re-review are pending after publication. PR #346 remains open/unmerged.
 - RB-029 remains OPEN/P0 for historical PHI inventory/backfill, AiAdminSession.externalUserId protection, key versioning/rotation and old-key handling, retention/deletion/export/backup, restore/rollback, PHI-free exception ledger and approved staging reconciliation. No staging/production data was accessed or changed.
+- PR #347 defaults to compatibility dual-writes so legacy webhook workers can still resolve sessions. Strict hash-only writes and backfill now require explicit confirmation that every legacy worker has been drained; no cutover/backfill has been performed.
 
 ## Candidate source update — 2026-11-13 (PR #346 Codex P1/P2 findings)
 
@@ -838,3 +839,13 @@ Parallel-branch evidence retained during integration; reconcile against the curr
 - **Environment boundary:** local `git status` cannot be claimed because this execution has no mounted local checkout. Remote branch/PR refs were checked. No staging/production DB operation, migration, PHI backfill, payment-provider call, environment/secret change, deployment or main merge was performed.
 - **Next priority:** continue RB-029 source inventory and RB-035 negative authorization review; prepare D1/D2 staging verification only after an approved staging target, backup/rollback and operator window are available. Keep PR #330 Draft until all release blockers and Master Spec workflows are evidenced.
 
+
+
+## RB-029 candidate — AI Admin external contact identifiers (2026-11-14)
+
+- Candidate branch security/rb029-ai-admin-external-id-20261114 encrypts new AiAdminSession external identifiers, adds a clinic/channel-scoped HMAC blind index, and keeps the old plaintext column nullable only for staged migration compatibility.
+- First-contact legacy migration uses compare-and-set. The bounded backfill command defaults to dry-run, logs counts only, validates encryption round-trips, and requires matching target/environment confirmation for writes; production additionally requires backup/approval confirmation.
+- This candidate is not merged or deployed. No staging/production database query, migration, backfill, key rotation or backup/restore was run. RB-029 remains OPEN / P0; key rotation/reindex, old-key handling, retention/deletion and backup/restore remain open.
+- Codex P2 datasource binding is addressed in the candidate: write mode requires Prisma's actual DATABASE_URL to exactly match AI_ADMIN_EXTERNAL_ID_BACKFILL_STAGING_DATABASE_URL or AI_ADMIN_EXTERNAL_ID_BACKFILL_PRODUCTION_DATABASE_URL for the selected target. Missing or mismatched values fail closed; URLs are never logged. Regression coverage includes staging/production mismatch and missing expected URL; focused tests 11/11, backend TypeScript, changed-file ESLint and diff check passed locally. Exact-head GitHub CI, Quality Gate and Codex re-review remain pending.
+
+- 2026-11-14 audit addendum: book_appointment.tool.ts also wrote patientName/patientPhone into AiAdminSession in plaintext. The candidate now stops this duplicate write and extends the guarded backfill to encrypt legacy copies into dedicated ciphertext fields; RB-029 remains open until staging reconciliation.

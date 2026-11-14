@@ -218,3 +218,14 @@ A re-check of the current PR source corrects the earlier statement that AI trans
 - Added unit tests for all three write scopes, no known plaintext PHI-like string in stored JSON, encrypted round-trip, legacy reads, listing decode, malformed envelopes and missing production key.
 - Explicit free-form learned preferences are no longer copied into the user-global memory scope. Only generic style preferences are mirrored globally; explicit facts remain within the active clinic key.
 - STILL OPEN: existing AIMemory JSON rows have not been dry-run or backfilled; retention/deletion, key rotation, direct database consumers and a full preference lifecycle audit still require evidence. No database migration or backfill was executed.
+
+
+## AI Admin external contact identifier — candidate implementation (2026-11-14)
+
+- WhatsApp/Instagram external identifiers are stored as AES-GCM ciphertext with a clinic/channel-scoped HMAC-SHA256 blind index.
+- **Compatibility-first rollout:** ciphertext and blind index are written alongside the legacy externalUserId by default. This lets pre-upgrade webhook workers locate the same row and prevents split conversations during rolling deployment. Plaintext remains intentionally present in this phase; RB-029 is not closed.
+- Ciphertext-only strict mode requires AI_ADMIN_EXTERNAL_ID_STRICT_WRITE=true and AI_ADMIN_EXTERNAL_ID_LEGACY_WORKERS_DRAINED=I_HAVE_DRAINED_ALL_LEGACY_WORKERS. The acknowledgement is required before any worker may create a hash-only session or before the backfill can write.
+- Backfill defaults to dry-run. Apply additionally requires strict mode, worker-drain acknowledgement, command/environment target confirmation, target-specific DATABASE_URL binding and production backup/approval confirmation. It clears legacy plaintext only after the staged cutover.
+- Rotating ENCRYPTION_KEY changes the blind index and requires a coordinated reindex; key versioning and old-key support remain open.
+- The Prisma migration is additive and preserves the legacy unique constraint during rollout. Do not remove the legacy column/index until reconciliation proves zero plaintext rows and approved rollback/restore evidence exists.
+- Evidence boundary: candidate source only. No staging/production migration, database query, backfill, worker drain, key rotation or backup/restore was performed. RB-029 remains OPEN / P0.
