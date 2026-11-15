@@ -104,6 +104,35 @@ async function requireOrganizationClinicWritable(req: AuthRequest, res: any, nex
   }
 }
 
+export function organizationLegalOwnerRoleKeys(orgType: string): string[] {
+  switch (String(orgType || '').toUpperCase()) {
+    case 'CLINIC': return ['owner', 'org_owner'];
+    case 'DIAGNOSTIC_CENTER': return ['diagnostic_owner'];
+    case 'LABORATORY': return ['medical_lab_owner', 'dental_lab_owner'];
+    case 'SUPPLIER_COMPANY':
+    case 'SUPPLIER': return ['seller'];
+    case 'ACADEMY': return ['lecturer'];
+    case 'EMPLOYER': return ['employer_owner'];
+    case 'PARTNER': return ['org_owner'];
+    default: return [];
+  }
+}
+
+async function hasOrganizationLegalOwnerAuthority(userId: string, organizationId: string, organizationType: string): Promise<boolean> {
+  const roleKeys = organizationLegalOwnerRoleKeys(organizationType);
+  if (!roleKeys.length) return false;
+  const assignment = await prisma.personRole.findFirst({
+    where: {
+      scopeType: 'organization',
+      scopeId: organizationId,
+      person: { userId, organizationId },
+      role: { key: { in: roleKeys } },
+    },
+    select: { id: true },
+  });
+  return Boolean(assignment);
+}
+
 async function currentOrganizationPerson(userId: string, requestedOrganizationId?: string | null) {
   const organizationId = String(requestedOrganizationId || '').trim();
   return prisma.person.findFirst({
@@ -383,6 +412,9 @@ organizationsRouter.post('/me/legal', requireOrganizationClinicWritable, async (
     const person = await currentOrganizationPerson(req.user!.id, requestedOrganizationId);
     if (!person?.organization) return res.status(404).json({ ok: false, error: 'У вас нет организации' });
     const org = person.organization; const body = req.body || {};
+    if (!(await hasOrganizationLegalOwnerAuthority(req.user!.id, org.id, org.type))) {
+      return res.status(403).json({ ok: false, error: 'Юридические документы может оформлять только уполномоченный владелец организации', code: 'ORGANIZATION_LEGAL_OWNER_REQUIRED' });
+    }
     const legalName = String(body.legalName || org.name).trim(); const bin = String(body.bin || org.taxId || '').trim();
     const director = String(body.director || `${req.user!.firstName} ${req.user!.lastName}`).trim(); const address = String(body.address || org.address || '').trim(); const iban = String(body.iban || '').trim();
     if (!legalName || !bin || !director || !address || !iban) return res.status(400).json({ ok: false, error: 'Заполните юридическое наименование, БИН/ИИН, руководителя, юридический адрес и IBAN.' });
@@ -407,7 +439,11 @@ organizationsRouter.post('/me/verification', requireOrganizationClinicWritable, 
     ).trim();
     const person = await currentOrganizationPerson(req.user!.id, requestedOrganizationId);
     if (!person?.organization) return res.status(404).json({ ok: false, error: 'У вас нет организации' });
-    const org = person.organization; const partner = await getLegalPartnerForContext(req.user!.id, org.id);
+    const org = person.organization;
+    if (!(await hasOrganizationLegalOwnerAuthority(req.user!.id, org.id, org.type))) {
+      return res.status(403).json({ ok: false, error: 'Юридическую подпись может подтвердить только уполномоченный владелец организации', code: 'ORGANIZATION_LEGAL_OWNER_REQUIRED' });
+    }
+    const partner = await getLegalPartnerForContext(req.user!.id, org.id);
     if (!partner) return res.status(400).json({ ok: false, error: 'Сначала заполните юридические реквизиты и сформируйте документы.' });
     const docs = await prisma.legalDocument.findMany({ where: { partnerId: partner.id } });
     const unsigned = docs.filter((d) => String(d.ecpStatus || '') !== 'signed');
