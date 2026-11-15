@@ -218,7 +218,7 @@ authRouter.post('/join-clinic', authenticate, async (req: AuthRequest, res) => {
       }
 
       const existing = await tx.clinicMember.findUnique({ where: { userId_clinicId: membershipKey } });
-      if (existing?.active) {
+      if (existing) {
         return {
           ok: true as const,
           alreadyMember: true,
@@ -227,10 +227,8 @@ authRouter.post('/join-clinic', authenticate, async (req: AuthRequest, res) => {
         };
       }
 
-      const membership = await tx.clinicMember.upsert({
-        where: { userId_clinicId: membershipKey },
-        update: { role: invitation.role, active: true },
-        create: { ...membershipKey, role: invitation.role, active: true },
+      const membership = await tx.clinicMember.create({
+        data: { ...membershipKey, role: invitation.role },
       });
       return {
         ok: true as const,
@@ -251,10 +249,15 @@ authRouter.post('/join-clinic', authenticate, async (req: AuthRequest, res) => {
       }
     }
     try {
-      await auditFromReq(req, 'clinic.invitation.accepted', 'clinic_member', req.user!.id, {
-        clinicId: outcome.clinic.id,
-        role: outcome.role,
-        alreadyMember: outcome.alreadyMember,
+      await auditFromReq(req, {
+        action: 'clinic.invitation.accepted',
+        entity: 'clinic_member',
+        entityId: req.user!.id,
+        details: {
+          clinicId: outcome.clinic.id,
+          role: outcome.role,
+          alreadyMember: outcome.alreadyMember,
+        },
       });
     } catch (auditError) {
       console.error('[auth/join-clinic] audit write deferred', auditError);
