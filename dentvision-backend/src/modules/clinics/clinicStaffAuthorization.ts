@@ -24,18 +24,16 @@ export function authorizeClinicStaffMutation(
   const isSuperadmin = input.isSuperadmin === true || actorRole === 'SUPERADMIN';
   const isOwner = actorRole === 'OWNER';
 
-  if (isSuperadmin) return { ok: true };
-  if (currentRole === 'OWNER' && !isOwner) {
+  if (!isSuperadmin && currentRole === 'OWNER' && !isOwner) {
     return { ok: false, status: 403, code: 'OWNER_REQUIRED' };
   }
-  if (nextRole === 'OWNER' && !isOwner) {
+  if (!isSuperadmin && nextRole === 'OWNER' && !isOwner) {
     return { ok: false, status: 403, code: 'OWNER_REQUIRED' };
   }
-  if (currentRole === 'OWNER' && nextRole !== 'OWNER') {
-    if (!isOwner) return { ok: false, status: 403, code: 'OWNER_REQUIRED' };
-    if (!Number.isInteger(input.ownerCount) || Number(input.ownerCount) <= 1) {
-      return { ok: false, status: 409, code: 'LAST_OWNER' };
-    }
+  // Even platform operators must not leave a live clinic without an owner.
+  if (currentRole === 'OWNER' && nextRole !== 'OWNER' &&
+      (!Number.isInteger(input.ownerCount) || Number(input.ownerCount) <= 1)) {
+    return { ok: false, status: 409, code: 'LAST_OWNER' };
   }
 
   return { ok: true };
