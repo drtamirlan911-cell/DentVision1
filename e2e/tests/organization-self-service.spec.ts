@@ -25,7 +25,7 @@ test.describe('Universal organization self-service onboarding', () => {
     expect(token).toBeTruthy();
     expect(refreshToken).toBeTruthy();
 
-    const types = ['clinic', 'dental_lab', 'medical_lab', 'diagnostic_center', 'supplier', 'academy'] as const;
+    const types = ['clinic', 'dental_lab', 'medical_lab', 'diagnostic_center', 'supplier', 'academy', 'employer'] as const;
 
     try {
       for (const type of types) {
@@ -58,6 +58,7 @@ test.describe('Universal organization self-service onboarding', () => {
           diagnostic_center: '/diagnostics/center',
           supplier: '/supplier',
           academy: '/school',
+          employer: '/jobs?view=employer',
         }[type];
         expect(body.data.nextPath, type + ' workspace').toBe(expectedNextPath);
 
@@ -83,6 +84,7 @@ test.describe('Universal organization self-service onboarding', () => {
           diagnostic_center: 'diagnostic_owner',
           supplier: 'seller',
           academy: 'lecturer',
+          employer: 'employer_owner',
         }[type];
         const scopedOwner = await prisma.personRole.findFirst({
           where: {
@@ -131,6 +133,7 @@ test.describe('Universal organization self-service onboarding', () => {
           diagnostic_center: 'DIAGNOSTIC_CENTER',
           supplier: 'SUPPLIER',
           academy: 'ACADEMY',
+          employer: 'EMPLOYER',
         }[type];
         expect(activeWorkspace.scopeType, `${type} AI scope type`).toBe(expectedScopeType);
       }
