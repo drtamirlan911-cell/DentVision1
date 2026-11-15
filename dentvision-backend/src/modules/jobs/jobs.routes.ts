@@ -4,7 +4,6 @@ import { authenticate, optionalAuth } from '../../middleware/auth.js';
 import { requirePermission } from '../../middleware/rbac.js';
 import { auditFromReq } from '../compliance/audit.service.js';
 import { uid } from '../../lib/helpers.js';
-import { ensureLegalTrustPackage } from '../legal/legal.trust.service.js';
 import type { AuthRequest, ApiResponse } from '../../types/index.js';
 
 const SEED = [
@@ -238,85 +237,19 @@ jobsRouter.get('/me/applications', authenticate, async (req: AuthRequest, res) =
  * unified Organization + Person context; existing clinic-linked vacancies
  * continue to work unchanged.
  */
-jobsRouter.post('/employers/register', authenticate, async (req: AuthRequest, res) => {
-  try {
-    const name = String(req.body?.name || '').trim();
-    if (!name) return res.status(400).json({ ok: false, error: 'Название работодателя обязательно' } satisfies ApiResponse);
-
-    const existingPerson = await prisma.person.findFirst({
-      where: { userId: req.user!.id, originalType: 'JobEmployer' },
-      include: { organization: true },
-    });
-    if (existingPerson) {
-      return res.json({
-        ok: true,
-        data: { organization: existingPerson.organization, person: existingPerson, verification: 'PENDING', reused: true },
-      } satisfies ApiResponse);
-    }
-
-    const phone = req.body?.phone ? String(req.body.phone).trim() : null;
-    const email = req.body?.email ? String(req.body.email).trim().toLowerCase() : req.user!.email || null;
-    const org = await prisma.organization.create({
-      data: {
-        id: uid(),
-        name,
-        type: 'CORPORATE',
-        originalType: 'JobEmployer',
-        originalId: uid(),
-        address: req.body?.address ? String(req.body.address).trim() : null,
-        phone,
-        email,
-        taxId: req.body?.bin ? String(req.body.bin).trim() : null,
-      },
-    });
-
-    const person = await prisma.person.create({
-      data: {
-        id: uid(),
-        fullName: [req.user!.firstName, req.user!.lastName].filter(Boolean).join(' ') || req.user!.email,
-        personType: 'STAFF',
-        organizationId: org.id,
-        userId: req.user!.id,
-        phone: phone || undefined,
-        email: req.user!.email,
-        originalType: 'JobEmployer',
-        originalId: org.originalId!,
-      },
-    });
-
-    const ownerRole = await prisma.role.findUnique({ where: { key: 'owner' } });
-    if (ownerRole) {
-      await prisma.personRole.create({ data: { personId: person.id, roleId: ownerRole.id } });
-    }
-
-    const legal = await ensureLegalTrustPackage({
-      userId: req.user!.id,
-      organizationId: org.id,
-      type: 'CORPORATE',
-      legalName: name,
-      bin: req.body?.bin ? String(req.body.bin).trim() : null,
-      director: [req.user!.firstName, req.user!.lastName].filter(Boolean).join(' '),
-      address: org.address,
-      phone: org.phone,
-      email: org.email,
-      commission: 0,
-    });
-
-    return res.status(201).json({
-      ok: true,
-      data: {
-        organization: org,
-        person,
-        organizationType: 'EMPLOYER',
-        role: 'owner',
-        verification: 'PENDING',
-        legal: { partnerId: legal.partner.id, documents: legal.documents },
-      },
-    } satisfies ApiResponse);
-  } catch (error) {
-    console.error('Employer self-service register error:', error);
-    return res.status(500).json({ ok: false, error: 'Не удалось создать профиль работодателя' } satisfies ApiResponse);
-  }
+/**
+ * Compatibility response for the former unscoped employer bootstrap.
+ * Employer creation now uses the canonical Organization self-service flow so
+ * PersonRole, active workspace, branch membership and onboarding lifecycle are
+ * persisted atomically. Do not recreate the legacy CORPORATE/owner graph here.
+ */
+jobsRouter.post('/employers/register', authenticate, async (_req: AuthRequest, res) => {
+  return res.status(410).json({
+    ok: false,
+    error: 'Регистрация работодателя перенесена в единое создание организации',
+    code: 'EMPLOYER_ONBOARDING_MOVED',
+    data: { nextPath: '/onboarding?mode=create&kind=employer', endpoint: '/api/organizations/self-service' },
+  } satisfies ApiResponse);
 });
 
 jobsRouter.post('/', authenticate, async (req: AuthRequest, res) => {
