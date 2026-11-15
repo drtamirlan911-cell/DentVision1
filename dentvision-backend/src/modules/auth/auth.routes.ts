@@ -146,6 +146,129 @@ authRouter.post('/switch-clinic', authenticate, async (req: AuthRequest, res) =>
   }
 });
 
+authRouter.get('/invitations/lookup', async (req, res) => {
+  const code = String(req.query.code || '').trim().toUpperCase();
+  if (!/^[A-F0-9]{10}$/.test(code)) {
+    return res.status(404).json({ ok: false, error: 'Приглашение не найдено', code: 'INVITATION_NOT_FOUND' });
+  }
+  try {
+    const invitation = await prisma.clinicInvitation.findUnique({
+      where: { code },
+      include: { clinic: { select: { id: true, name: true, city: true, active: true } } },
+    });
+    const now = new Date();
+    if (!invitation || invitation.usedAt || (invitation.expiresAt && invitation.expiresAt <= now) || !invitation.clinic.active) {
+      return res.status(404).json({ ok: false, error: 'Приглашение не найдено или истекло', code: 'INVITATION_NOT_FOUND' });
+    }
+    const maskedEmail = invitation.email
+      ? invitation.email.replace(/^(.).+(@.*)$/, '$1***$2')
+      : null;
+    return res.json({
+      ok: true,
+      data: {
+        clinicId: invitation.clinic.id,
+        clinicName: invitation.clinic.name,
+        city: invitation.clinic.city,
+        role: invitation.role,
+        email: maskedEmail,
+        expiresAt: invitation.expiresAt?.toISOString() || null,
+      },
+    } satisfies ApiResponse);
+  } catch (error) {
+    console.error('[auth/invitations/lookup]', error);
+    return res.status(500).json({ ok: false, error: 'Не удалось проверить приглашение' });
+  }
+});
+
+authRouter.post('/join-clinic', authenticate, async (req: AuthRequest, res) => {
+  const code = String(req.body?.code || '').trim().toUpperCase();
+  if (!/^[A-F0-9]{10}$/.test(code)) {
+    return res.status(400).json({ ok: false, error: 'Введите корректный код приглашения', code: 'INVALID_INVITATION_CODE' });
+  }
+  const now = new Date();
+  try {
+    const outcome = await prisma.$transaction(async (tx) => {
+      const invitation = await tx.clinicInvitation.findUnique({
+        where: { code },
+        include: { clinic: { select: { id: true, name: true, city: true, active: true } } },
+      });
+      if (!invitation || !invitation.clinic.active) {
+        return { ok: false as const, status: 404, code: 'INVITATION_NOT_FOUND', error: 'Приглашение не найдено' };
+      }
+      if (invitation.usedAt) {
+        return { ok: false as const, status: 410, code: 'INVITATION_USED', error: 'Приглашение уже использовано' };
+      }
+      if (invitation.expiresAt && invitation.expiresAt <= now) {
+        return { ok: false as const, status: 410, code: 'INVITATION_EXPIRED', error: 'Срок действия приглашения истёк' };
+      }
+      if (invitation.email && invitation.email.toLowerCase() !== String(req.user!.email || '').toLowerCase()) {
+        return { ok: false as const, status: 403, code: 'INVITATION_EMAIL_MISMATCH', error: 'Приглашение предназначено для другого адреса электронной почты' };
+      }
+
+      const membershipKey = { userId: req.user!.id, clinicId: invitation.clinicId };
+      const existing = await tx.clinicMember.findUnique({ where: { userId_clinicId: membershipKey } });
+      if (existing?.active) {
+        return {
+          ok: true as const,
+          alreadyMember: true,
+          clinic: invitation.clinic,
+          role: existing.role,
+        };
+      }
+
+      const claimed = await tx.clinicInvitation.updateMany({
+        where: {
+          id: invitation.id,
+          usedAt: null,
+          OR: [{ expiresAt: null }, { expiresAt: { gt: now } }],
+        },
+        data: { usedAt: now, usedBy: req.user!.id },
+      });
+      if (claimed.count !== 1) {
+        return { ok: false as const, status: 410, code: 'INVITATION_USED', error: 'Приглашение уже использовано или истекло' };
+      }
+
+      const membership = await tx.clinicMember.upsert({
+        where: { userId_clinicId: membershipKey },
+        update: { role: invitation.role, active: true },
+        create: { ...membershipKey, role: invitation.role, active: true },
+      });
+      return {
+        ok: true as const,
+        alreadyMember: false,
+        clinic: invitation.clinic,
+        role: membership.role,
+      };
+    });
+
+    if (outcome.ok === false) {
+      return res.status(outcome.status).json({ ok: false, error: outcome.error, code: outcome.code });
+    }
+    if (!outcome.alreadyMember) {
+      try {
+        await syncPersonFromClinicMember(outcome.clinic.id, req.user!.id, outcome.role);
+      } catch (syncError) {
+        console.error('[auth/join-clinic] membership sync deferred', syncError);
+      }
+      await auditFromReq(req, 'clinic.invitation.accepted', 'clinic_member', req.user!.id, {
+        clinicId: outcome.clinic.id,
+        role: outcome.role,
+      });
+    }
+    return res.json({
+      ok: true,
+      data: {
+        clinic: { id: outcome.clinic.id, name: outcome.clinic.name, city: outcome.clinic.city },
+        membership: { role: outcome.role },
+        alreadyMember: outcome.alreadyMember,
+      },
+    } satisfies ApiResponse);
+  } catch (error) {
+    console.error('[auth/join-clinic]', error);
+    return res.status(500).json({ ok: false, error: 'Не удалось принять приглашение' });
+  }
+});
+
 authRouter.post('/clinics', authenticate, async (req: AuthRequest, res) => {
   const input = normalizeClinicInput(req.body);
   if (!input) return res.status(400).json({ ok: false, error: 'Укажите корректное название клиники и проверьте контактные поля' });
