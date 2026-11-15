@@ -67,6 +67,9 @@ const PARTNER_ROLE_PRIORITY: Record<string, number> = {
   DIAGNOSTIC_MANAGER: 70,
   MEDICAL_LAB_MANAGER: 70,
   DENTAL_LAB_MANAGER: 70,
+  EMPLOYER_OWNER: 100,
+  EMPLOYER_RECRUITER: 70,
+  EMPLOYER_VIEWER: 40,
 };
 
 export async function resolveOrganizationRoleKey(userId: string, organizationId: string): Promise<string | undefined> {
