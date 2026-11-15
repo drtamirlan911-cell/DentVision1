@@ -2516,6 +2516,7 @@ model JobVacancy {
 
   @@index([status, city])
   @@index([userId])
+  @@index([employerOrganizationId])
   @@map("job_vacancies")
 }
 
