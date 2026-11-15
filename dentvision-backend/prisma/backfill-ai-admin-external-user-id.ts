@@ -2,7 +2,7 @@ import { resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { Prisma } from '@prisma/client';
 import prisma from '../src/lib/prisma.js';
-import { decryptAiAdminJson, decryptAiAdminText, encryptAiAdminJson, encryptAiAdminText, getAiAdminExternalUserIdHashes, hashAiAdminExternalUserId, isAiAdminTextEncryptedWithActiveKey } from '../src/modules/ai-admin/conversation/phi.js';
+import { decodeQueuedAiAdminMessage, decryptAiAdminJson, decryptAiAdminText, encryptAiAdminJson, encryptAiAdminText, getAiAdminExternalUserIdHashes, hashAiAdminExternalUserId, isAiAdminTextEncryptedWithActiveKey } from '../src/modules/ai-admin/conversation/phi.js';
 
 type Target = 'staging' | 'production';
 type Options = { apply: boolean; target: Target | null; batchSize: number };
@@ -18,6 +18,8 @@ type Prepared = {
 };
 type MessageRow = { id: string; content: string; toolResult: unknown };
 type EscalationRow = { id: string; reason: string; lastUserMessage: string };
+type QueueRow = { id: string; payload: unknown; error: string | null };
+const QUEUE_TABLE = Prisma.raw('ai_admin_queue_messages');
 const DEFAULT_BATCH_SIZE = 250;
 const MAX_BATCH_SIZE = 1000;
 function logInfo(message: string): void { process.stdout.write(message + '\n'); }
@@ -37,7 +39,19 @@ export function parseAiAdminExternalIdBackfillOptions(args: string[], env: NodeJ
   }
   if (env.AI_ADMIN_EXTERNAL_ID_STRICT_WRITE !== 'true') throw new Error('Backfill writes require AI_ADMIN_EXTERNAL_ID_STRICT_WRITE=true after the compatibility rollout');
   if (env.AI_ADMIN_EXTERNAL_ID_LEGACY_WORKERS_DRAINED !== 'I_HAVE_DRAINED_ALL_LEGACY_WORKERS') {
-    throw new Error('Backfill writes require explicit confirmation that all legacy workers are drained');
+    throw new Error('Backfill writes require explicit confirmation that all legacy webhook workers are drained');
+  }
+  if (
+    env.AI_ADMIN_PHI_V2_WRITE_ENABLED !== 'true'
+    || env.AI_ADMIN_PHI_V2_READERS_DEPLOYED !== 'I_HAVE_DEPLOYED_ALL_V2_READERS'
+  ) {
+    throw new Error('Backfill writes require the v2 reader rollout and explicit v2 writer acknowledgement');
+  }
+  if (
+    env.AI_ADMIN_QUEUE_PHI_ENCRYPTION_ENABLED !== 'true'
+    || env.AI_ADMIN_QUEUE_LEGACY_WORKERS_DRAINED !== 'I_HAVE_DRAINED_ALL_LEGACY_WORKERS'
+  ) {
+    throw new Error('Backfill writes require encrypted queue rollout and explicit legacy queue-worker drain acknowledgement');
   }
 
   // Bind the operator target confirmation to Prisma's actual datasource URL.
@@ -58,8 +72,8 @@ export function parseAiAdminExternalIdBackfillOptions(args: string[], env: NodeJ
 }
 
 function encryptAndVerify(value: string | null, existing: string | null, label: string): string | null {
-  if (!existing && (value === null || value === '')) return null;
-  const plaintext = existing ? decryptAiAdminText(existing) : value!;
+  if (value === null && existing === null) return null;
+  const plaintext = existing !== null ? decryptAiAdminText(existing) : value ?? '';
   if (value !== null && plaintext !== value) {
     throw new Error(label + ' ciphertext does not match the legacy value');
   }
@@ -115,6 +129,19 @@ export function prepareAiAdminEscalationBackfillRow(row: EscalationRow): { reaso
   return {
     reason: reencryptStoredText(row.reason, 'AI Admin escalation reason'),
     lastUserMessage: reencryptStoredText(row.lastUserMessage, 'AI Admin escalation last user message'),
+  };
+}
+
+export function prepareAiAdminQueueBackfillRow(row: QueueRow): { payload: string; error: string | null } {
+  const normalized = decodeQueuedAiAdminMessage(row.payload);
+  const payload = encryptAiAdminJson(normalized);
+  const verified = decodeQueuedAiAdminMessage(payload);
+  if (JSON.stringify(verified) !== JSON.stringify(normalized)) {
+    throw new Error('AI Admin queue payload failed key-rotation round-trip validation');
+  }
+  return {
+    payload,
+    error: row.error === null ? null : encryptAndVerify(row.error, null, 'AI Admin queue error'),
   };
 }
 
@@ -186,7 +213,38 @@ async function fetchEscalationBatch(batchSize: number, cursorId?: string): Promi
   }) as Promise<EscalationRow[]>;
 }
 
-async function preflightHistoryRows(batchSize: number): Promise<{ messages: number; escalations: number }> {
+async function fetchQueueBatch(batchSize: number, cursorId?: string): Promise<QueueRow[]> {
+  if (cursorId) {
+    return prisma.$queryRaw<QueueRow[]>(Prisma.sql`
+      SELECT id::text AS id, payload, error
+      FROM ${QUEUE_TABLE}
+      WHERE id > CAST(${cursorId} AS uuid)
+      ORDER BY id ASC
+      LIMIT ${batchSize}
+    `);
+  }
+  return prisma.$queryRaw<QueueRow[]>(Prisma.sql`
+    SELECT id::text AS id, payload, error
+    FROM ${QUEUE_TABLE}
+    ORDER BY id ASC
+    LIMIT ${batchSize}
+  `);
+}
+
+async function preflightQueueRows(batchSize: number): Promise<number> {
+  let cursorId: string | undefined;
+  let scanned = 0;
+  while (true) {
+    const rows = await fetchQueueBatch(batchSize, cursorId);
+    if (!rows.length) break;
+    for (const row of rows) { prepareAiAdminQueueBackfillRow(row); scanned += 1; }
+    cursorId = rows[rows.length - 1].id;
+    if (rows.length < batchSize) break;
+  }
+  return scanned;
+}
+
+async function preflightHistoryRows(batchSize: number): Promise<{ messages: number; escalations: number; queueMessages: number }> {
   let messageCursor: string | undefined;
   let messages = 0;
   while (true) {
@@ -206,10 +264,11 @@ async function preflightHistoryRows(batchSize: number): Promise<{ messages: numb
     escalationCursor = rows[rows.length - 1].id;
     if (rows.length < batchSize) break;
   }
-  return { messages, escalations };
+  const queueMessages = await preflightQueueRows(batchSize);
+  return { messages, escalations, queueMessages };
 }
 
-async function preflight(batchSize: number): Promise<{ scanned: number; ready: number; messages: number; escalations: number }> {
+async function preflight(batchSize: number): Promise<{ scanned: number; ready: number; messages: number; escalations: number; queueMessages: number }> {
   const incompleteIndexPairs = await prisma.aiAdminSession.count({
     where: {
       externalUserId: null,
@@ -271,6 +330,55 @@ async function applyMessageBackfill(batchSize: number): Promise<number> {
   return updated;
 }
 
+async function applyQueueBackfill(batchSize: number): Promise<number> {
+  let cursorId: string | undefined;
+  let updated = 0;
+  while (true) {
+    const rows = await fetchQueueBatch(batchSize, cursorId);
+    if (!rows.length) break;
+    for (const row of rows) {
+      const prepared = prepareAiAdminQueueBackfillRow(row);
+      const oldPayload = JSON.stringify(row.payload);
+      const newPayload = JSON.stringify(prepared.payload);
+      if (oldPayload === newPayload && row.error === prepared.error) continue;
+      const changed = await prisma.$executeRaw(Prisma.sql`
+        UPDATE ${QUEUE_TABLE}
+        SET payload = ${newPayload}::jsonb,
+            error = ${prepared.error},
+            updated_at = NOW()
+        WHERE id = CAST(${row.id} AS uuid)
+          AND payload = ${oldPayload}::jsonb
+          AND error IS NOT DISTINCT FROM ${row.error}
+      `);
+      if (changed !== 1) {
+        const latestRows = await prisma.$queryRaw<QueueRow[]>(Prisma.sql`
+          SELECT id::text AS id, payload, error
+          FROM ${QUEUE_TABLE}
+          WHERE id = CAST(${row.id} AS uuid)
+          LIMIT 1
+        `);
+        const latest = latestRows[0];
+        if (
+          !latest
+          || typeof latest.payload !== 'string'
+          || !isAiAdminTextEncryptedWithActiveKey(latest.payload)
+          || (latest.error !== null && !isAiAdminTextEncryptedWithActiveKey(latest.error))
+        ) {
+          throw new Error('Concurrent AI Admin queue payload change detected; stopped before processing more rows');
+        }
+        decodeQueuedAiAdminMessage(latest.payload);
+        if (latest.error !== null) decryptAiAdminText(latest.error);
+        continue;
+      }
+      updated += 1;
+    }
+    cursorId = rows[rows.length - 1].id;
+    logInfo('[ai-admin-external-id-backfill] queue progress updated=' + updated);
+    if (rows.length < batchSize) break;
+  }
+  return updated;
+}
+
 async function applyEscalationBackfill(batchSize: number): Promise<number> {
   let cursorId: string | undefined;
   let updated = 0;
@@ -302,7 +410,7 @@ async function applyEscalationBackfill(batchSize: number): Promise<number> {
   return updated;
 }
 
-async function applyBackfill(batchSize: number): Promise<{ sessions: number; messages: number; escalations: number }> {
+async function applyBackfill(batchSize: number): Promise<{ sessions: number; messages: number; escalations: number; queueMessages: number }> {
   let cursorId: string | undefined;
   let scanned = 0;
   let updated = 0;
@@ -357,6 +465,7 @@ async function applyBackfill(batchSize: number): Promise<{ sessions: number; mes
     sessions: updated,
     messages: await applyMessageBackfill(batchSize),
     escalations: await applyEscalationBackfill(batchSize),
+    queueMessages: await applyQueueBackfill(batchSize),
   };
 }
 
@@ -371,10 +480,10 @@ async function main(): Promise<void> {
   logInfo('[ai-admin-external-id-backfill] mode=' + (options.apply ? 'APPLY' : 'DRY-RUN') + ' batchSize=' + options.batchSize + (options.target ? ' target=' + options.target : ''));
   logInfo('[ai-admin-external-id-backfill] preflight started; no contact identifiers are logged');
   const counts = await preflight(options.batchSize);
-  logInfo('[ai-admin-external-id-backfill] preflight sessions=' + counts.scanned + ' messages=' + counts.messages + ' escalations=' + counts.escalations + ' ready=' + counts.ready);
+  logInfo('[ai-admin-external-id-backfill] preflight sessions=' + counts.scanned + ' messages=' + counts.messages + ' escalations=' + counts.escalations + ' queueMessages=' + counts.queueMessages + ' ready=' + counts.ready);
   if (!options.apply) { logInfo('[ai-admin-external-id-backfill] dry-run complete; no rows were changed'); return; }
   const updated = await applyBackfill(options.batchSize);
-  logInfo('[ai-admin-external-id-backfill] complete sessions=' + updated.sessions + ' messages=' + updated.messages + ' escalations=' + updated.escalations);
+  logInfo('[ai-admin-external-id-backfill] complete sessions=' + updated.sessions + ' messages=' + updated.messages + ' escalations=' + updated.escalations + ' queueMessages=' + updated.queueMessages);
 }
 if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {
   main().catch((error: unknown) => {
