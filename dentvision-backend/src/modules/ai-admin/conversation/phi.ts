@@ -18,6 +18,7 @@ const KEY_ID_PATTERN = /^[a-zA-Z0-9][a-zA-Z0-9._-]{0,63}$/;
 const CIPHER_ALGORITHM = 'aes-256-gcm';
 const CIPHER_IV_LENGTH = 12;
 const CIPHER_TAG_LENGTH = 16;
+const V2_WRITE_ACK = 'I_HAVE_DEPLOYED_ALL_V2_READERS';
 
 export interface AiAdminExternalUserIdentity { clinicId: string; channel: string; externalUserId: string }
 type SecretKeyring = { keys: Map<string, string>; activeKeyId: string };
@@ -71,17 +72,28 @@ function deriveLegacyEncryptionKey(secret: string): Buffer {
 }
 
 function getLegacyEncryptionSecret(): string {
-  const ringEnv = process.env.AI_ADMIN_PHI_KEYRING_JSON;
-  if (ringEnv) {
-    const legacy = parseKeyring(ringEnv, 'AI_ADMIN_PHI_KEYRING_JSON').get('legacy');
-    if (legacy) return legacy;
-  }
+  // Unversioned ENC rows must remain compatible with pre-v2 workers.
   const configured = process.env.ENCRYPTION_KEY;
   if (configured && configured.length >= KEY_MIN_LENGTH) return configured;
   if (process.env.NODE_ENV === 'production') {
-    throw new Error('[phi] ENCRYPTION_KEY is required to decrypt legacy AI Admin ciphertext');
+    throw new Error('[phi] ENCRYPTION_KEY is required to read legacy AI Admin ciphertext');
   }
   return DEV_LEGACY_FIELD_KEY;
+}
+
+export function isAiAdminPhiV2WriteEnabled(): boolean {
+  if (process.env.AI_ADMIN_PHI_V2_WRITE_ENABLED !== 'true') return false;
+  if (process.env.AI_ADMIN_PHI_V2_READERS_DEPLOYED !== V2_WRITE_ACK) {
+    throw new Error('[phi] v2 ciphertext writes require explicit confirmation that all v2 readers are deployed');
+  }
+  return true;
+}
+
+function encryptLegacyAiAdminText(value: string): string {
+  const iv = randomBytes(16);
+  const cipher = createCipheriv(CIPHER_ALGORITHM, deriveLegacyEncryptionKey(getLegacyEncryptionSecret()), iv);
+  const ciphertext = Buffer.concat([cipher.update(value, 'utf8'), cipher.final()]);
+  return ENCRYPTED_PREFIX + iv.toString('hex') + ':' + cipher.getAuthTag().toString('hex') + ':' + ciphertext.toString('hex');
 }
 
 function decryptLegacyAiAdminText(value: string): string {
@@ -150,6 +162,8 @@ export function getAiAdminExternalUserIdHashes(identity: AiAdminExternalUserIden
 
 export function encryptAiAdminText(value: string): string {
   if (typeof value !== 'string') throw new Error('[phi] AI Admin text must be a string');
+  // Stage 1 keeps the historical ENC envelope so older readers survive rolling deployment.
+  if (!isAiAdminPhiV2WriteEnabled()) return encryptLegacyAiAdminText(value);
   const keyring = resolveKeyring('AI_ADMIN_PHI_KEYRING_JSON', 'AI_ADMIN_PHI_ACTIVE_KEY_ID');
   const secret = keyring.keys.get(keyring.activeKeyId)!;
   const key = deriveVersionedEncryptionKey(secret, keyring.activeKeyId);

@@ -1,6 +1,6 @@
 import { createHmac } from 'node:crypto';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { encryptField } from '../../../lib/phi.js';
+import { decryptField, encryptField } from '../../../lib/phi.js';
 import {
   decodeQueuedAiAdminMessage,
   decryptAiAdminJson,
@@ -12,13 +12,15 @@ import {
   isAiAdminTextEncryptedWithActiveKey,
 } from './phi.js';
 
-const envNames = ['NODE_ENV', 'ENCRYPTION_KEY', 'AI_ADMIN_PHI_KEYRING_JSON', 'AI_ADMIN_PHI_ACTIVE_KEY_ID', 'AI_ADMIN_EXTERNAL_ID_INDEX_KEYRING_JSON', 'AI_ADMIN_EXTERNAL_ID_ACTIVE_INDEX_KEY_ID'];
+const envNames = ['NODE_ENV', 'ENCRYPTION_KEY', 'AI_ADMIN_PHI_KEYRING_JSON', 'AI_ADMIN_PHI_ACTIVE_KEY_ID', 'AI_ADMIN_EXTERNAL_ID_INDEX_KEYRING_JSON', 'AI_ADMIN_EXTERNAL_ID_ACTIVE_INDEX_KEY_ID', 'AI_ADMIN_PHI_V2_WRITE_ENABLED', 'AI_ADMIN_PHI_V2_READERS_DEPLOYED'];
 const originalEnv = Object.fromEntries(envNames.map((name) => [name, process.env[name]]));
 
 beforeEach(() => {
   process.env.NODE_ENV = 'test';
   process.env.ENCRYPTION_KEY = 'ai-admin-test-encryption-key-at-least-32-chars';
-  for (const name of envNames.slice(2)) delete process.env[name];
+  process.env.AI_ADMIN_PHI_V2_WRITE_ENABLED = 'true';
+  process.env.AI_ADMIN_PHI_V2_READERS_DEPLOYED = 'I_HAVE_DEPLOYED_ALL_V2_READERS';
+  for (const name of envNames.slice(2, 6)) delete process.env[name];
 });
 
 afterEach(() => {
@@ -84,6 +86,20 @@ describe('AI Admin at-rest encryption', () => {
       if (previous === undefined) delete process.env.ENCRYPTION_KEY;
       else process.env.ENCRYPTION_KEY = previous;
     }
+  });
+
+  it('keeps legacy writes enabled until v2 readers are explicitly deployed', () => {
+    process.env.AI_ADMIN_PHI_V2_WRITE_ENABLED = 'false';
+    const stored = encryptAiAdminText('legacy-compatible payload');
+    expect(stored).toMatch(/^ENC:[a-f0-9]+:[a-f0-9]+:[a-f0-9]*$/);
+    expect(decryptField(stored)).toBe('legacy-compatible payload');
+    expect(decryptAiAdminText(stored)).toBe('legacy-compatible payload');
+  });
+
+  it('refuses to enable v2 writes without the deployment acknowledgement', () => {
+    process.env.AI_ADMIN_PHI_V2_WRITE_ENABLED = 'true';
+    process.env.AI_ADMIN_PHI_V2_READERS_DEPLOYED = 'not-confirmed';
+    expect(() => encryptAiAdminText('blocked')).toThrow(/all v2 readers are deployed/);
   });
 
   it('reads old unversioned ciphertext and supports active-key rotation', () => {
