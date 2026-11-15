@@ -76,8 +76,9 @@ describe('AI Admin durable webhook queue encryption', () => {
     process.env.AI_ADMIN_QUEUE_PHI_ENCRYPTION_ENABLED = 'false';
     await enqueueMessage(message);
     const values = valuesOf(executeRaw.mock.calls[0][0]);
-    const stored = values.find((value) => typeof value === 'string' && value.includes('wamid.1'));
-    expect(stored).toBeTruthy();
+    const expectedPayload = JSON.stringify(message);
+    const stored = values.find((value) => value === expectedPayload);
+    expect(stored).toBe(expectedPayload);
     const parsed = JSON.parse(stored as string);
     expect(parsed).toMatchObject({ channel: 'WHATSAPP', externalUserId: message.externalUserId, text: message.text, externalMessageId: message.externalMessageId });
   });
