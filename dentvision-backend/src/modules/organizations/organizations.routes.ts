@@ -47,7 +47,7 @@ function selfServiceRoleKey(type: SelfServiceType): string {
 
 function selfServiceType(value: unknown): SelfServiceType | null {
   const key = String(value || '').trim().toLowerCase() as SelfServiceType;
-  return key in SELF_SERVICE_TYPES ? key : null;
+  return Object.prototype.hasOwnProperty.call(SELF_SERVICE_TYPES, key) ? key : null;
 }
 
 async function ensurePersonRole(
@@ -388,7 +388,7 @@ organizationsRouter.post('/me/legal', requireOrganizationClinicWritable, async (
     if (!legalName || !bin || !director || !address || !iban) return res.status(400).json({ ok: false, error: 'Заполните юридическое наименование, БИН/ИИН, руководителя, юридический адрес и IBAN.' });
     const orgSettings = (org.settings && typeof org.settings === 'object' && !Array.isArray(org.settings)) ? org.settings as Record<string, unknown> : {};
     const laboratoryType = String(orgSettings.laboratoryType || '').toUpperCase();
-    const type = org.type === 'DIAGNOSTIC_CENTER' ? 'DIAGNOSTIC_CENTER' : org.type === 'LABORATORY' ? (laboratoryType === 'DENTAL_LAB' ? 'DENTAL_LAB' : 'LABORATORY') : org.type === 'CLINIC' ? 'CLINIC' : org.type === 'ACADEMY' ? 'EDUCATION_CENTER' : org.type === 'SUPPLIER_COMPANY' ? 'SUPPLIER' : org.type === 'EMPLOYER' ? 'CORPORATE' : 'CORPORATE';
+    const type = org.type === 'DIAGNOSTIC_CENTER' ? 'DIAGNOSTIC_CENTER' : org.type === 'LABORATORY' ? (laboratoryType === 'DENTAL_LAB' ? 'DENTAL_LAB' : 'LABORATORY') : org.type === 'CLINIC' ? 'CLINIC' : org.type === 'ACADEMY' ? 'EDUCATION_CENTER' : org.type === 'SUPPLIER_COMPANY' ? 'SUPPLIER' : 'CORPORATE';
     const pkg = await ensureLegalTrustPackage({ userId: req.user!.id, organizationId: org.id, type, legalName, bin, director, address, iban, phone: org.phone, email: org.email || req.user!.email });
     const settings = (org.settings && typeof org.settings === 'object' && !Array.isArray(org.settings)) ? org.settings as Record<string, unknown> : {};
     const updated = await prisma.organization.update({ where: { id: org.id }, data: { taxId: bin, address, settings: { ...settings, lifecycle: 'SIGNATURE_PENDING', verification: 'SUBMITTED', ecosystemVisible: false, legal: { status: 'DOCUMENTS_READY', partnerId: pkg.partner.id, ownerSigned: false, platformSigned: false } } } });
@@ -429,7 +429,7 @@ organizationsRouter.delete('/:id', async (req: AuthRequest, res) => {
     const id = String(req.params.id || '').trim();
     // Organization lifecycle/archiving is owner governance, not routine ADMIN work.
     // seller/lecturer are the initial scoped owner roles for self-service Supplier/Academy contexts.
-    const archiveOwnerRoles = ['owner', 'org_owner', 'seller', 'lecturer', 'diagnostic_owner', 'medical_lab_owner', 'dental_lab_owner'];
+    const archiveOwnerRoles = ['owner', 'org_owner', 'seller', 'lecturer', 'diagnostic_owner', 'medical_lab_owner', 'dental_lab_owner', 'employer_owner'];
     const person = req.user?.role === 'SUPERADMIN' ? null : await prisma.person.findFirst({
       where: {
         userId: req.user!.id,
