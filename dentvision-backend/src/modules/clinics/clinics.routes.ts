@@ -602,6 +602,13 @@ clinicsRouter.patch('/:id/staff/:userId', authenticate, requireTargetClinicWrita
     }
 
     const body = req.body || {};
+    if (body.password != null) {
+      return res.status(400).json({
+        ok: false,
+        error: 'Пароль сотрудника меняется только через безопасную процедуру восстановления',
+        code: 'PASSWORD_RESET_REQUIRED',
+      } satisfies ApiResponse);
+    }
     const nextRole = body.role != null ? normalizeStaffRole(body.role) : member.role;
     const ownerCount = member.role === 'OWNER' && nextRole !== 'OWNER'
       ? await prisma.clinicMember.count({ where: { clinicId, role: 'OWNER' } })
@@ -633,9 +640,6 @@ clinicsRouter.patch('/:id/staff/:userId', authenticate, requireTargetClinicWrita
     if (lastName !== undefined) userData.lastName = lastName;
     if (body.phone !== undefined) userData.phone = body.phone || null;
     if (body.spec !== undefined) userData.spec = body.spec || null;
-    if (body.password && String(body.password).length >= 6) {
-      userData.password = await hashPassword(String(body.password));
-    }
 
     if (Object.keys(userData).length) {
       await prisma.user.update({ where: { id: userId }, data: userData as any });
