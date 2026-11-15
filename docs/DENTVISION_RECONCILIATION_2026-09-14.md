@@ -1,5 +1,8 @@
 # DentVision — Implementation Reconciliation
 
+> **Historical reconciliation — 2026-09-14 / PR #275.** The branch, run IDs, missing `confirmAiResult` service, and all “current” status labels below describe a past source revision. They are not an active release state and several conclusions have since changed. Current source evidence is in `docs/SYSTEM_AUDIT.md` (2026-11-15). Do not reopen old findings without reproducing them against the current source and exact-head tests. RB-037, for example, is now resolved in merged code and exact-head evidence; the current audit records its proof.
+
+
 **Date:** 2026-09-14  
 **Reference branch:** `feat/iam-role-matrix-v2`  
 **PR:** #275  
