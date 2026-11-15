@@ -148,7 +148,7 @@ authRouter.post('/switch-clinic', authenticate, async (req: AuthRequest, res) =>
 
 authRouter.get('/invitations/lookup', async (req, res) => {
   const code = String(req.query.code || '').trim().toUpperCase();
-  if (!/^[A-F0-9]{10}$/.test(code)) {
+  if (!/^[A-F0-9]{16}$/.test(code)) {
     return res.status(404).json({ ok: false, error: 'Приглашение не найдено', code: 'INVITATION_NOT_FOUND' });
   }
   try {
@@ -160,9 +160,8 @@ authRouter.get('/invitations/lookup', async (req, res) => {
     if (!invitation || invitation.usedAt || (invitation.expiresAt && invitation.expiresAt <= now) || !invitation.clinic.active) {
       return res.status(404).json({ ok: false, error: 'Приглашение не найдено или истекло', code: 'INVITATION_NOT_FOUND' });
     }
-    const maskedEmail = invitation.email
-      ? invitation.email.replace(/^(.).+(@.*)$/, '$1***$2')
-      : null;
+    const emailParts = invitation.email?.split('@') || [];
+    const maskedEmail = emailParts.length === 2 ? `${emailParts[0].slice(0, 1)}***@${emailParts[1]}` : null;
     return res.json({
       ok: true,
       data: {
@@ -182,7 +181,7 @@ authRouter.get('/invitations/lookup', async (req, res) => {
 
 authRouter.post('/join-clinic', authenticate, async (req: AuthRequest, res) => {
   const code = String(req.body?.code || '').trim().toUpperCase();
-  if (!/^[A-F0-9]{10}$/.test(code)) {
+  if (!/^[A-F0-9]{16}$/.test(code)) {
     return res.status(400).json({ ok: false, error: 'Введите корректный код приглашения', code: 'INVALID_INVITATION_CODE' });
   }
   const now = new Date();
