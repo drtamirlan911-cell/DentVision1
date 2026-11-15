@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate, Navigate } from 'react-router-dom';
-import { BriefcaseBusiness, Users, Clock3, Plus, ArrowLeft, RefreshCw } from 'lucide-react';
+import { BriefcaseBusiness, Users, Plus, ArrowLeft, RefreshCw } from 'lucide-react';
 import { Card } from '@/components/ui/ds/Card';
 import { Badge } from '@/components/ui/ds/Badge';
 import { Button } from '@/components/ui/ds/Button';
@@ -162,7 +162,7 @@ export default function JobsEmployerWorkspace() {
     <main className="mx-auto max-w-7xl space-y-6 p-4 md:p-6">
       <PageHeader
         title="Кабинет работодателя"
-        subtitle={user?.name || 'Вакансии и подбор специалистов'}
+        subtitle={[user?.firstName, user?.lastName].filter(Boolean).join(' ') || 'Вакансии и подбор специалистов'}
         icon={<BriefcaseBusiness size={20} />}
         actions={
           <div className="flex flex-wrap gap-2">
