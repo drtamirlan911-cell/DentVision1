@@ -28,6 +28,9 @@ const DIAGNOSTIC_ORG_TYPES: Record<string, 'DiagnosticCenter' | 'Laboratory'> = 
 /** Roles a diagnostics invite may carry, in that module's own vocabulary. */
 export const DIAGNOSTIC_INVITE_ROLES = ['admin', 'manager', 'radiologist', 'operator'] as const;
 
+/** Employer invitations grant scoped hiring access, never ownership or platform roles. */
+export const EMPLOYER_INVITE_ROLES = ['employer_recruiter', 'employer_viewer'] as const;
+
 /** Roles that may invite others into the organization. */
 const MEMBER_MANAGER_ROLES = ['owner', 'admin'];
 
@@ -78,6 +81,11 @@ export function normalizeDiagnosticInviteRole(role?: string): string {
   return (DIAGNOSTIC_INVITE_ROLES as readonly string[]).includes(wanted) ? wanted : 'operator';
 }
 
+export function normalizeEmployerInviteRole(role?: string): string {
+  const wanted = String(role || '').toLowerCase();
+  return (EMPLOYER_INVITE_ROLES as readonly string[]).includes(wanted) ? wanted : 'employer_viewer';
+}
+
 /** Eight hex characters, the same shape clinic invitations already use. */
 export function generateInviteCode(): string {
   return crypto.randomBytes(4).toString('hex').toUpperCase();
@@ -115,6 +123,19 @@ export async function canManageMembers(
     return !!member && MEMBER_MANAGER_ROLES.includes(String(member.role).toLowerCase());
   }
 
+  if (org.type === 'EMPLOYER') {
+    const owner = await prisma.personRole.findFirst({
+      where: {
+        scopeType: 'organization',
+        scopeId: org.id,
+        person: { userId },
+        role: { key: 'employer_owner' },
+      },
+      select: { id: true },
+    });
+    return !!owner;
+  }
+
   return false;
 }
 
@@ -131,6 +152,12 @@ export async function isAlreadyMember(
   if (org.type === 'LABORATORY') {
     return !!(await prisma.laboratoryMember.findFirst({ where: { labId: entityId, userId } }));
   }
+  if (org.type === 'EMPLOYER') {
+    return !!(await prisma.personRole.findFirst({
+      where: { scopeType: 'organization', scopeId: org.id, person: { userId } },
+      select: { id: true },
+    }));
+  }
   return false;
 }
 
@@ -141,6 +168,16 @@ export async function createInvitation(input: {
   expiresInDays?: number;
   createdBy: string;
 }) {
+  const organization = await prisma.organization.findUnique({
+    where: { id: input.organizationId },
+    select: { id: true, type: true, archivedAt: true },
+  });
+  if (!organization || organization.archivedAt) {
+    throw Object.assign(new Error('Организация не найдена'), { status: 404 });
+  }
+  const role = organization.type === 'EMPLOYER'
+    ? normalizeEmployerInviteRole(input.role)
+    : normalizeDiagnosticInviteRole(input.role);
   const days = Number(input.expiresInDays) > 0 ? Number(input.expiresInDays) : 7;
 
   return prisma.organizationInvitation.create({
@@ -148,7 +185,7 @@ export async function createInvitation(input: {
       id: uid(),
       organizationId: input.organizationId,
       email: input.email?.trim() || null,
-      role: normalizeDiagnosticInviteRole(input.role),
+      role,
       code: generateInviteCode(),
       expiresAt: new Date(Date.now() + days * 24 * 60 * 60 * 1000),
       createdBy: input.createdBy,
@@ -177,25 +214,87 @@ export async function acceptInvitation(
 ): Promise<AcceptResult> {
   const invitation = await prisma.organizationInvitation.findUnique({
     where: { code },
-    include: { organization: { select: { id: true, name: true, type: true, originalId: true } } },
+    include: { organization: { select: { id: true, name: true, type: true, originalId: true, archivedAt: true } } },
   });
 
   const rejection = rejectInvitation(invitation, { userEmail: user.email });
   if (rejection) throw Object.assign(new Error(rejection.error), { status: rejection.status });
 
   const org = invitation!.organization;
+  if (org.archivedAt) throw Object.assign(new Error('Организация архивирована'), { status: 404 });
   const entityType = DIAGNOSTIC_ORG_TYPES[org.type];
-  if (!entityType) {
-    // Refuse rather than half-join: there is no membership table to write for
-    // the other organization types yet, and marking the code used would burn it
-    // without granting anything.
-    throw Object.assign(new Error('Этот тип организации пока не поддерживает приглашения'), { status: 400 });
-  }
-
   const entityId = org.originalId || org.id;
 
   if (await isAlreadyMember(user.id, org)) {
     throw Object.assign(new Error('Вы уже состоите в этой организации'), { status: 409 });
+  }
+
+  if (org.type === 'EMPLOYER') {
+    if (!(EMPLOYER_INVITE_ROLES as readonly string[]).includes(invitation!.role)) {
+      throw Object.assign(new Error('Недопустимая роль приглашения работодателя'), { status: 400 });
+    }
+    const granted = await prisma.$transaction(async (tx) => {
+      const account = await tx.user.findUnique({
+        where: { id: user.id },
+        select: { id: true, firstName: true, lastName: true, email: true },
+      });
+      if (!account) throw Object.assign(new Error('Пользователь не найден'), { status: 404 });
+      const existingPerson = await tx.person.findFirst({
+        where: { userId: user.id, organizationId: org.id },
+        select: { id: true },
+      });
+      const personId = existingPerson?.id || uid();
+      if (!existingPerson) {
+        await tx.person.create({
+          data: {
+            id: personId,
+            fullName: [account.firstName, account.lastName].filter(Boolean).join(' ') || account.email || 'Сотрудник',
+            personType: 'STAFF',
+            organizationId: org.id,
+            userId: account.id,
+            email: account.email,
+            originalType: 'OrganizationInvite',
+            originalId: `${org.id}:${user.id}`,
+          },
+        });
+      }
+      const role = await tx.role.findUnique({ where: { key: invitation!.role } });
+      if (!role) throw Object.assign(new Error('Роль приглашения не найдена'), { status: 500 });
+      const scopeKey = `organization:${org.id}`;
+      await tx.personRole.upsert({
+        where: { personId_roleId_scopeKey: { personId, roleId: role.id, scopeKey } },
+        update: { scopeType: 'organization', scopeId: org.id },
+        create: { id: uid(), personId, roleId: role.id, scopeType: 'organization', scopeId: org.id, scopeKey },
+      });
+      const branch = await tx.branch.findFirst({
+        where: { organizationId: org.id, active: true },
+        orderBy: [{ isDefault: 'desc' }, { createdAt: 'asc' }],
+        select: { id: true },
+      });
+      if (branch) {
+        await tx.branchMember.upsert({
+          where: { personId_branchId: { personId, branchId: branch.id } },
+          update: {},
+          create: { id: uid(), personId, branchId: branch.id },
+        });
+      }
+      const claimed = await tx.organizationInvitation.updateMany({
+        where: { code, usedAt: null, revokedAt: null },
+        data: { usedAt: new Date(), usedBy: user.id },
+      });
+      if (claimed.count !== 1) {
+        throw Object.assign(new Error('Приглашение уже использовано'), { status: 409 });
+      }
+      return true;
+    });
+    if (!granted) throw Object.assign(new Error('Не удалось выдать доступ к организации'), { status: 500 });
+    return { organizationId: org.id, organizationName: org.name, organizationType: org.type, entityId: org.id, role: invitation!.role };
+  }
+
+  if (!entityType) {
+    // Refuse rather than half-join: there is no membership table to write for
+    // unsupported organization types, and marking the code used would burn it.
+    throw Object.assign(new Error('Этот тип организации пока не поддерживает приглашения'), { status: 400 });
   }
 
   const granted = await grantDiagnosticsAccess(entityType, entityId, user.id, invitation!.role);
@@ -210,9 +309,6 @@ export async function acceptInvitation(
     data: { usedAt: new Date(), usedBy: user.id },
   });
   if (claimed.count !== 1) {
-    // Another concurrent accept won the one-time claim. Membership upsert is
-    // idempotent, so no duplicate membership was created; report the invite as
-    // consumed rather than issuing a second success response.
     throw Object.assign(new Error('Приглашение уже использовано'), { status: 409 });
   }
 
