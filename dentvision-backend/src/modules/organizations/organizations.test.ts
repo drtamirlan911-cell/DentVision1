@@ -176,7 +176,7 @@ describe('organization verification queue lifecycle', () => {
     const queueRoute = source.slice(queueStart, queueEnd);
     expect(queueStart).toBeGreaterThan(-1);
     expect(queueRoute).toContain("['SUBMITTED', 'OWNER_SIGNED', 'PENDING']");
-    expect(queueRoute).toContain("verificationReviewedAt");
+    expect(queueRoute).toContain("String(settings.verification || 'PENDING').toUpperCase()");
     const approvalStart = queueEnd;
     const approvalEnd = source.indexOf('organizationsRouter.get(', approvalStart);
     const approvalRoute = source.slice(approvalStart, approvalEnd);
