@@ -266,7 +266,7 @@ iamRouter.get('/me/contexts', async (req: AuthRequest, res) => {
         )?.role.key;
       if (activePerson?.organization && !activePerson.organization.archivedAt && activeRole) {
         const org = activePerson.organization;
-        const scopeType = ({ CLINIC: 'CLINIC', DIAGNOSTIC_CENTER: 'DIAGNOSTIC_CENTER', LABORATORY: 'LABORATORY', SUPPLIER_COMPANY: 'SUPPLIER', SUPPLIER: 'SUPPLIER', ACADEMY: 'ACADEMY', PARTNER: 'PARTNER' } as Record<string, ScopeType>)[org.type];
+        const scopeType = ({ CLINIC: 'CLINIC', DIAGNOSTIC_CENTER: 'DIAGNOSTIC_CENTER', LABORATORY: 'LABORATORY', SUPPLIER_COMPANY: 'SUPPLIER', SUPPLIER: 'SUPPLIER', ACADEMY: 'ACADEMY', PARTNER: 'PARTNER', EMPLOYER: 'EMPLOYER' } as Record<string, ScopeType>)[org.type];
         const scopeId = org.originalId || org.id;
         const id = scopeType ? (scopeType + ':' + scopeId) : null;
         if (scopeType && id && !contexts.some((context) => context.id === id)) {
@@ -371,7 +371,7 @@ iamRouter.post('/switch-context', async (req: AuthRequest, res) => {
             where: { personId: person.id, scopeType: 'organization', scopeId: org.id },
             include: { role: true },
           });
-          const orgManager = roleRows.some((pr) => ['owner', 'org_owner', 'admin', 'org_admin'].includes(pr.role.key.toLowerCase()));
+          const orgManager = roleRows.some((pr) => ['owner', 'org_owner', 'admin', 'org_admin', 'employer_owner'].includes(pr.role.key.toLowerCase()));
           const assigned = await prisma.branchMember.findUnique({ where: { personId_branchId: { personId: person.id, branchId } } });
           if (!orgManager && !assigned) return res.status(403).json({ ok: false, error: 'У вас нет доступа к выбранному филиалу' });
           selectedBranchId = branchId;
