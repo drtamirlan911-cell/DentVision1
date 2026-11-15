@@ -1,4 +1,6 @@
 import { describe, expect, it } from 'vitest';
+import { readFile } from 'node:fs/promises';
+import { resolve } from 'node:path';
 import { authorizeClinicStaffMutation } from './clinicStaffAuthorization.js';
 
 describe('clinic staff owner governance', () => {
@@ -60,5 +62,34 @@ describe('clinic staff owner governance', () => {
       currentMemberRole: 'DOCTOR',
       nextMemberRole: 'MANAGER',
     })).toEqual({ ok: true });
+  });
+});
+
+
+describe('clinic staff route wiring', () => {
+  it('checks owner authority before creating a clinic owner', async () => {
+    const source = await readFile(resolve(process.cwd(), 'dentvision-backend/src/modules/clinics/clinics.routes.ts'), 'utf8');
+    const start = source.indexOf("clinicsRouter.post('/:id/staff'");
+    const end = source.indexOf("clinicsRouter.patch('/:id/staff/:userId'", start);
+    const route = source.slice(start, end);
+    const guard = route.indexOf('authorizeClinicStaffMutation');
+    const create = route.indexOf('prisma.clinicMember.create');
+    expect(guard).toBeGreaterThan(-1);
+    expect(create).toBeGreaterThan(guard);
+    expect(route).toContain('nextMemberRole: role');
+  });
+
+  it('checks owner authority before profile/password changes and protects the last owner', async () => {
+    const source = await readFile(resolve(process.cwd(), 'dentvision-backend/src/modules/clinics/clinics.routes.ts'), 'utf8');
+    const start = source.indexOf("clinicsRouter.patch('/:id/staff/:userId'");
+    const end = source.indexOf("clinicsRouter.delete('/:id/staff/:userId'", start);
+    const route = source.slice(start, end);
+    const guard = route.indexOf('authorizeClinicStaffMutation');
+    const userWrite = route.indexOf('prisma.user.update');
+    expect(guard).toBeGreaterThan(-1);
+    expect(userWrite).toBeGreaterThan(guard);
+    expect(route).toContain("prisma.clinicMember.count({ where: { clinicId, role: 'OWNER' } })");
+    expect(route).toContain('currentMemberRole: member.role');
+    expect(route).toContain('nextMemberRole: nextRole');
   });
 });
