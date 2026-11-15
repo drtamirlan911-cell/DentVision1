@@ -164,6 +164,27 @@ describe('organization legal-signature authority', () => {
   });
 });
 
+describe('organization verification queue lifecycle', () => {
+  it('keeps owner-signed organizations visible for platform countersignature', async () => {
+    const fs = await import('node:fs/promises');
+    const source = await fs.readFile(
+      resolve(process.cwd(), 'dentvision-backend/src/modules/organizations/organizations.routes.ts'),
+      'utf8',
+    );
+    const queueStart = source.indexOf("organizationsRouter.get('/verification/queue'");
+    const queueEnd = source.indexOf("organizationsRouter.post('/:id/verification'", queueStart);
+    const queueRoute = source.slice(queueStart, queueEnd);
+    expect(queueStart).toBeGreaterThan(-1);
+    expect(queueRoute).toContain("['SUBMITTED', 'OWNER_SIGNED', 'PENDING']");
+    expect(queueRoute).toContain("verificationReviewedAt");
+    const approvalStart = queueEnd;
+    const approvalEnd = source.indexOf('organizationsRouter.get(', approvalStart);
+    const approvalRoute = source.slice(approvalStart, approvalEnd);
+    expect(approvalRoute).toContain("legal.ownerSigned !== true");
+    expect(approvalRoute).toContain("platformSigned: true");
+  });
+});
+
 describe('organization control-center authorization', () => {
   it('requires an explicit organization-scoped PersonRole', async () => {
     const fs = await import('node:fs/promises');
