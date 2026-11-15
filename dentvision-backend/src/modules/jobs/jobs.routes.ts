@@ -25,6 +25,8 @@ type JobEmployerScope = {
   employerOrganizationId: string | null;
   clinicId: string | null;
   clinicName: string;
+  verificationStatus: string;
+  canPublish: boolean;
 };
 
 async function activeJobEmployerScope(req: AuthRequest): Promise<JobEmployerScope | null> {
@@ -32,16 +34,25 @@ async function activeJobEmployerScope(req: AuthRequest): Promise<JobEmployerScop
   if (organizationId) {
     const organization = await prisma.organization.findFirst({
       where: { id: organizationId, archivedAt: null },
-      select: { id: true, name: true, type: true, originalId: true },
+      select: { id: true, name: true, type: true, originalId: true, settings: true },
     });
     if (!organization) return null;
     if (organization.type === 'EMPLOYER') {
-      return { employerOrganizationId: organization.id, clinicId: null, clinicName: organization.name };
+      const settings = organization.settings && typeof organization.settings === 'object' && !Array.isArray(organization.settings)
+        ? organization.settings as Record<string, unknown> : {};
+      const legal = settings.legal && typeof settings.legal === 'object' && !Array.isArray(settings.legal)
+        ? settings.legal as Record<string, unknown> : {};
+      const verificationStatus = String(settings.verification || 'PENDING').toUpperCase();
+      const canPublish = verificationStatus === 'APPROVED'
+        && settings.lifecycle === 'ACTIVE_VERIFIED'
+        && legal.ownerSigned === true
+        && legal.platformSigned === true;
+      return { employerOrganizationId: organization.id, clinicId: null, clinicName: organization.name, verificationStatus, canPublish };
     }
     if (organization.type === 'CLINIC') {
       const clinicId = String(organization.originalId || req.user?.clinicId || '').trim();
       if (!clinicId) return null;
-      return { employerOrganizationId: null, clinicId, clinicName: organization.name };
+      return { employerOrganizationId: null, clinicId, clinicName: organization.name, verificationStatus: 'APPROVED', canPublish: true };
     }
     return null;
   }
@@ -52,7 +63,7 @@ async function activeJobEmployerScope(req: AuthRequest): Promise<JobEmployerScop
   if (!clinicId) return null;
   const clinic = await prisma.clinic.findUnique({ where: { id: clinicId }, select: { id: true, name: true, active: true } });
   if (!clinic?.active) return null;
-  return { employerOrganizationId: null, clinicId: clinic.id, clinicName: clinic.name };
+  return { employerOrganizationId: null, clinicId: clinic.id, clinicName: clinic.name, verificationStatus: 'APPROVED', canPublish: true };
 }
 
 function ownedVacancyWhere(scope: JobEmployerScope): Prisma.JobVacancyWhereInput {
@@ -96,6 +107,25 @@ jobsRouter.get('/', optionalAuth, async (req, res) => {
   }
 });
 
+jobsRouter.get('/employer/status', authenticate, requirePermission('jobs.read'), async (req: AuthRequest, res) => {
+  try {
+    const scope = await activeJobEmployerScope(req);
+    if (!scope) return res.status(403).json({ ok: false, error: 'Рабочий контекст работодателя не подтверждён', code: 'EMPLOYER_CONTEXT_REQUIRED' } satisfies ApiResponse);
+    return res.json({
+      ok: true,
+      data: {
+        organizationType: scope.employerOrganizationId ? 'EMPLOYER' : 'CLINIC',
+        organizationName: scope.clinicName,
+        verificationStatus: scope.verificationStatus,
+        canPublish: scope.canPublish,
+      },
+    } satisfies ApiResponse);
+  } catch (error) {
+    console.error('Employer workspace status error:', error);
+    return res.status(500).json({ ok: false, error: 'Не удалось проверить статус работодателя' } satisfies ApiResponse);
+  }
+});
+
 jobsRouter.get('/employer/vacancies', authenticate, requirePermission('jobs.read'), async (req: AuthRequest, res) => {
   try {
     const scope = await activeJobEmployerScope(req);
@@ -115,6 +145,7 @@ jobsRouter.get('/employer/resumes', authenticate, requirePermission('jobs.read')
   try {
     const scope = await activeJobEmployerScope(req);
     if (!scope) return res.status(403).json({ ok: false, error: 'Поиск кандидатов доступен только из контекста работодателя или клиники', code: 'EMPLOYER_CONTEXT_REQUIRED' } satisfies ApiResponse);
+    if (scope.employerOrganizationId && !scope.canPublish) return res.status(409).json({ ok: false, error: 'Доступ к поиску кандидатов откроется после юридической проверки работодателя', code: 'EMPLOYER_VERIFICATION_REQUIRED' } satisfies ApiResponse);
     const resumes = await prisma.jobVacancy.findMany({
       where: { kind: 'resume', status: 'open' },
       select: { id: true, title: true, clinicName: true, city: true, salary: true, employmentType: true, description: true, tags: true, createdAt: true },
@@ -154,6 +185,7 @@ jobsRouter.post('/employer/vacancies', authenticate, requirePermission('jobs.wri
   try {
     const scope = await activeJobEmployerScope(req);
     if (!scope) return res.status(403).json({ ok: false, error: 'Публикация вакансии доступна только из активного контекста работодателя или клиники', code: 'EMPLOYER_CONTEXT_REQUIRED' } satisfies ApiResponse);
+    if (scope.employerOrganizationId && !scope.canPublish) return res.status(409).json({ ok: false, error: 'Публикация вакансий доступна после юридической проверки работодателя и активации организации', code: 'EMPLOYER_VERIFICATION_REQUIRED', data: { verificationStatus: scope.verificationStatus, nextPath: '/organizations' } } satisfies ApiResponse);
     const title = String(req.body?.title || '').trim();
     const city = String(req.body?.city || '').trim();
     if (!title || !city) return res.status(400).json({ ok: false, error: 'title и city обязательны' } satisfies ApiResponse);
