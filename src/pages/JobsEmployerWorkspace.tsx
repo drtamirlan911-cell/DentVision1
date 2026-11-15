@@ -14,10 +14,9 @@ import {
   getEmployerVacancies,
   getEmployerVacancyApplications,
   updateEmployerApplicationStatus,
-  type JobVacancy,
 } from '@/utils/api';
 
-type EmployerVacancy = JobVacancy & { id: string; title: string; city: string; status: string };
+type EmployerVacancy = { id: string; title: string; city: string; status: string; applicationsCount?: number };
 type EmployerApplication = {
   id: string;
   vacancyId: string;
