@@ -276,6 +276,32 @@ test.describe('Employer workspace and scoped Jobs lifecycle', () => {
       });
       expect(crossTenantRead.status()).toBe(404);
 
+      // Public discovery must stop exposing an employer vacancy immediately
+      // when verification/legal activation is revoked, even if its row remains open.
+      await prisma.organization.update({
+        where: { id: ownerOrganizationId },
+        data: { settings: {
+          ...pendingSettings,
+          lifecycle: 'SUSPENDED',
+          verification: 'SUSPENDED',
+          ecosystemVisible: false,
+          legal: { ...pendingLegal, ownerSigned: true, platformSigned: true },
+        } as any },
+      });
+      const hiddenWhileSuspended = await api.get(`${API}/api/jobs`);
+      expect(hiddenWhileSuspended.status()).toBe(200);
+      expect((await hiddenWhileSuspended.json()).some((item: any) => item.id === vacancyId)).toBe(false);
+
+      await prisma.organization.update({
+        where: { id: ownerOrganizationId },
+        data: { settings: {
+          ...pendingSettings,
+          lifecycle: 'ACTIVE_VERIFIED',
+          verification: 'APPROVED',
+          ecosystemVisible: true,
+          legal: { ...pendingLegal, ownerSigned: true, platformSigned: true },
+        } as any },
+      });
       const publicList = await api.get(`${API}/api/jobs`);
       expect(publicList.status()).toBe(200);
       const publicRows = await publicList.json();
