@@ -534,7 +534,7 @@ organizationsRouter.get('/verification/queue', requireSuperadmin, async (req: Au
         const settings = (org.settings && typeof org.settings === 'object' && !Array.isArray(org.settings)) ? org.settings as Record<string, unknown> : {};
         return { ...org, verification: String(settings.verification || 'PENDING').toUpperCase() };
       })
-      .filter((org) => org.verification === 'SUBMITTED' || org.verification === 'PENDING');
+      .filter((org) => ['SUBMITTED', 'OWNER_SIGNED', 'PENDING'].includes(org.verification));
     return res.json({ ok: true, data } satisfies ApiResponse);
   } catch (error) {
     console.error('[organizations] verification queue error:', error);
