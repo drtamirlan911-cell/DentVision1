@@ -480,11 +480,16 @@ clinicsRouter.post('/:id/invite', authenticate, requireTargetClinicWritable, gua
       return res.status(400).json({ ok: false, error: 'Укажите корректный email для приглашения', code: 'INVALID_INVITATION_EMAIL' } satisfies ApiResponse);
     }
     const code = await createClinicInvitation({ clinicId, email, role: role as UserRole, expiresAt });
-    await auditFromReq(req, 'clinic.invitation.created', 'clinic_invitation', code, {
-      clinicId,
-      role,
-      emailBound: Boolean(email),
-      expiresAt: expiresAt.toISOString(),
+    await auditFromReq(req, {
+      action: 'clinic.invitation.created',
+      entity: 'clinic_invitation',
+      entityId: code,
+      details: {
+        clinicId,
+        role,
+        emailBound: Boolean(email),
+        expiresAt: expiresAt.toISOString(),
+      },
     });
     return res.status(201).json({
       ok: true,
