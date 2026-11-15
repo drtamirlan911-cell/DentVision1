@@ -1,5 +1,8 @@
 # DentVision — Continuation State
 
+> **Historical continuation snapshot — 2026-09-14.** Branch `feat/iam-role-matrix-v2` / PR #275 and the listed next steps describe a historical repository state. This is not the active branch/release checkpoint and must not be used to resume work or infer current blockers. Use `DENTVISION_CONTEXT.md`, `DENTVISION_EXECUTION_PLAN.md`, `DENTVISION_EXECUTION_LOG.md`, `docs/RELEASE_BLOCKERS.md` and the current `docs/SYSTEM_AUDIT.md` source reconciliation instead.
+
+
 Updated: 2026-09-14
 Branch: `feat/iam-role-matrix-v2`
 PR: #275
