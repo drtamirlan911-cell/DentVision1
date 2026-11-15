@@ -15,6 +15,7 @@ vi.mock('../../lib/prisma.js', () => ({
     academy: { findUnique: vi.fn() },
     person: { findFirst: vi.fn() },
     personRole: { findFirst: vi.fn() },
+    supplierMember: { findUnique: vi.fn() },
   },
 }));
 
@@ -119,11 +120,25 @@ describe('organization legal-signature authority', () => {
     expect(organizationLegalOwnerRoleKeys('CLINIC')).toEqual(['owner', 'org_owner']);
     expect(organizationLegalOwnerRoleKeys('DIAGNOSTIC_CENTER')).toEqual(['diagnostic_owner']);
     expect(organizationLegalOwnerRoleKeys('LABORATORY')).toEqual(['medical_lab_owner', 'dental_lab_owner']);
-    expect(organizationLegalOwnerRoleKeys('SUPPLIER_COMPANY')).toEqual(['seller']);
+    expect(organizationLegalOwnerRoleKeys('SUPPLIER_COMPANY')).toEqual([]);
     expect(organizationLegalOwnerRoleKeys('ACADEMY')).toEqual([]);
     expect(organizationLegalOwnerRoleKeys('UNKNOWN')).toEqual([]);
     expect(organizationLegalOwnerRoleKeys('EMPLOYER')).not.toContain('employer_recruiter');
     expect(organizationLegalOwnerRoleKeys('EMPLOYER')).not.toContain('employer_viewer');
+  });
+
+  it('grants supplier legal authority only to SupplierMember owners, not every seller', async () => {
+    vi.mocked(prisma.organization.findUnique).mockResolvedValue({
+      originalType: 'Supplier',
+      originalId: 'supplier-1',
+    } as any);
+    vi.mocked(prisma.supplierMember.findUnique).mockResolvedValue({ role: 'owner' } as any);
+    vi.mocked(prisma.person.findFirst).mockResolvedValue({ id: 'person-1' } as any);
+    vi.mocked(prisma.personRole.findFirst).mockResolvedValue({ id: 'role-1' } as any);
+
+    expect(await hasOrganizationLegalOwnerAuthority('owner-1', 'org-1', 'SUPPLIER_COMPANY')).toBe(true);
+    vi.mocked(prisma.supplierMember.findUnique).mockResolvedValue({ role: 'manager' } as any);
+    expect(await hasOrganizationLegalOwnerAuthority('manager-2', 'org-1', 'SUPPLIER_COMPANY')).toBe(false);
   });
 
   it('grants Academy legal authority only to the recorded Academy owner, not every lecturer', async () => {
