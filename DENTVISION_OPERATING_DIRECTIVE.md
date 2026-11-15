@@ -25,16 +25,19 @@ Clinics are one first-class participant type, not the default center of the plat
 
 ## Source-of-truth hierarchy
 
-1. Current repository code and current CI/runtime evidence.
-2. `DENTVISION_CONTEXT.md` — current bootstrap and verified state.
-3. `DENTVISION_EXECUTION_PLAN.md` — execution order and definition of done.
-4. `DENTVISION_EXECUTION_LOG.md` — durable history/evidence.
-5. `docs/00_CONSTITUTION/02_PRODUCT_DNA.md` — constitutional product/design quality law.
-6. `docs/DENTVISION_MASTER_SPEC.md` — single normative Product/System source of truth.
-7. `DENTVISION_SUPERAPP_BLUEPRINT.md` — retained reference blueprint; it must not compete with the Master Spec.
-8. `docs/business/DENTVISION_PARTNER_ECONOMICS.md` — sole canonical economics policy.
+This ordering is aligned with `docs/DENTVISION_MASTER_SPEC.md` §22 and `docs/spec/README.md`:
 
-Historical audits and stale state snapshots are not release evidence.
+1. Current repository code plus current exact-HEAD CI/runtime evidence — what actually exists and works.
+2. `docs/00_CONSTITUTION/02_PRODUCT_DNA.md` — constitutional product and quality law.
+3. `docs/DENTVISION_MASTER_SPEC.md` — the single normative Product/System source of truth.
+4. `DENTVISION_EXECUTION_PLAN.md` — execution order and Definition of Done.
+5. `DENTVISION_CONTEXT.md` — verified current state only; stale checkpoints are historical.
+6. `DENTVISION_EXECUTION_LOG.md` — durable implementation history and evidence.
+7. `docs/business/DENTVISION_PARTNER_ECONOMICS.md` — canonical economics policy.
+8. Bounded technical, IAM, security, legal, integration and domain contracts — they may constrain implementation but must not redefine product direction.
+9. Generated inventories such as `docs/SYSTEM_MAP.md` — source-derived facts, not normative product requirements.
+
+`DENTVISION_SUPERAPP_BLUEPRINT.md` is a retained reference blueprint below the Master Spec; it is not a competing source of truth. Historical audits and stale state snapshots are not release evidence.
 
 ## Product model
 
