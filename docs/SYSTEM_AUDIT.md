@@ -1,5 +1,109 @@
 # DentVision System Audit
 
+## Current source reconciliation — 2026-11-15
+
+**Audited repository:** `drtamirlan911-cell/DentVision1`  
+**Main source snapshot:** `4bbd61a339d5f3c4d40d1d5990f633a7b9a87864`  
+**Normative product target:** `docs/DENTVISION_MASTER_SPEC.md` v5.0  
+**Method:** read-only source comparison across the canonical product/AI/CRM/Marketplace/School/Community/Jobs specs, IAM and branch contracts, legal/economics/security documents, route tree, representative frontend workspaces, backend routers/services, Prisma-linked model usage, E2E suites, Android source inventory, generated System Map and exact-main GitHub CI/Quality Gate.
+
+This checkpoint supersedes the September 28 baseline and the October/November historical matrices below where they conflict with the current source. It does not certify production deployment, staging data migration, live payment-provider behavior, or Android device runtime.
+
+### 1. Current technical inventory and verification boundary
+
+| Evidence | Current source result | What it proves / does not prove |
+|---|---:|---|
+| Backend routers mounted | 69 | Server module breadth; not completeness of workflows |
+| Unique route handlers | 695 | Backend API inventory |
+| Registered HTTP routes | 655 | Mounted endpoint inventory |
+| Routes without a detected web/mobile consumer | 98 | Potential integration/consumer gap; requires per-route triage |
+| Prisma models | 150 | Persistence model count; not data integrity or runtime evidence |
+| Background jobs | 12 | Scheduled/worker inventory |
+| Frontend route declarations in `src/index.tsx` | 248 | Static route declarations |
+| Route declarations using `<Navigate>` | 162 | Redirect/alias declarations; not all are defects |
+| Markdown documents in repository tree | 102 | Documentation inventory as of the audited source tree |
+
+**Exact-main release evidence:** CI [43496476996](https://github.com/drtamirlan911-cell/DentVision1/actions/runs/43496476996) and Quality Gate [43496477034](https://github.com/drtamirlan911-cell/DentVision1/actions/runs/43496477034) both completed successfully on the audited main SHA. This is strong automated source/CI evidence. It does not mean all product requirements are complete or that production/staging/device/provider operations were performed.
+
+### 2. Cabinet-by-cabinet implementation classification
+
+Status vocabulary: **Implemented slice** means a real workflow with source and test evidence exists; **Partial** means the cabinet has working components but misses one or more Master Spec Definition-of-Done stages; **Not verified** means available evidence is insufficient. No cabinet is marked complete merely because its route renders.
+
+| Participant / cabinet | Confirmed implementation in current source | Current classification | Remaining material gaps |
+|---|---|---|---|
+| Clinic owner / director | CRM pages for schedule, patients, cases, staff, inventory, billing/cashier, documents, treatment plans, marketing and settings; clinic owner E2E journeys | **Partial** | One owner Command Center across operations, approvals, branches and partner bottlenecks; full branch-level visibility for every clinical/financial record; end-to-end growth and reconciliation |
+| Doctor | Patient/clinical case, visit, treatment-plan, dental-chart and diagnostic referral surfaces; clinical AI tools; doctor-scoped diagnostic sign-off | **Partial** | Full clinical graph continuity, confirmed specialist AI workflows, full imaging/3D and offline/mobile parity; not all treatment stages are proven by one E2E journey |
+| Reception / administrator | Schedule, patient inbox, reminders, patient creation and appointment APIs; Reception persona and appointment tools | **Partial** | Durable communications/WhatsApp status and exception queue, waitlist/no-show automation, fully demonstrated role-specific scope across web/mobile |
+| Diagnostic center / radiologist | Diagnostics workspace with referrals, calendar, results, services, payments/cashier, finance/team tabs; AI result draft and doctor/partner signing contracts | **Partial** | Complete modality/equipment/room worklists, acquisition and viewer, RIS/PACS/DICOM interoperability, complete radiology SLA/report/economics lifecycle |
+| Medical laboratory | Separate workspace; order/result detail, sample collection/receipt, processing, result, verification and interpretation endpoints | **Partial** | Canonical accession and chain-of-custody, explicit QC/reject/recollect/release gates, equipment/reagent inventory and validated settlement; current lifecycle does not yet prove the full Master Spec specimen state machine |
+| Dental laboratory / technician | Independent partner workspace, assigned work orders, technician assignment, production states, event history, QC checklist/sign-off, remake/delay states; PARTNER-003 E2E | **Partial — QC implemented** | Remake authorization/feedback closure, dispatch/shipping/pickup tracking and proof of delivery, independent services/pricing, invoice/payment/settlement/payout/refund, complete owner/manager/technician/designer/QC/finance matrix and mobile acceptance |
+| Supplier / manufacturer | Supplier workspace with product/catalog CRUD, stock, orders/status, promotions, analytics, wallet/payout request, delivery zones and insights | **Partial** | Full seller onboarding/KYB to verified catalog publication, complete fulfillment/returns/refunds, provider-backed settlement and partner-margin/ledger reconciliation; manufacturer is currently grouped into supplier UX |
+| Academy owner / lecturer | Learner School catalogue, courses, webinars, office courses, textbooks, enrolments, exams, certificates, tutor/homework review; lecturer workspace for offers/profile/payouts | **Partial** | Distinct academy-owner operating centre, cohort/student/assessment/content pipeline, complete live/practical/certificate verification, finance settlement and organization-wide progress evidence |
+| Student / professional learner | School course discovery, enrolment, lesson/exam/certificate surfaces and professional profile connections | **Partial** | A complete learning-to-credential-to-profile-to-job loop, independently verified certificate trust and progress lifecycle |
+| Patient / buyer | Patient portal, treatment presentation, booking, Shop orders/favorites, profile and notifications; consumer context policy for Academy/Shop | **Partial** | One personal command center for appointments/results/payments/messages/orders, patient access/export/consent/deletion lifecycle and complete consumer audience-negative tests |
+| Employer / recruiter | Employer self-service registration API and basic Jobs listing/application APIs; Employer is an onboarding intent | **Incomplete / Partial** | The frontend employer intent currently routes to `/jobs`; vacancy creation is not demonstrably gated by an employer/recruiter workspace. Backend Jobs router has only list, own applications, employer register, generic create and apply handlers. Missing employer inbox, application status pipeline, interviews, offers, hired/rejected, vacancy edit/close, recruiter permissions and hiring E2E |
+| Job seeker / candidate | Jobs listing/search/city filter, resume-style post, application and own-application listing | **Partial** | Candidate profile/preferences, saved jobs, matching/alerts, messages and complete application-state lifecycle |
+| Community participant | Feed, thread/media-kind posts, likes, saves, comments, DM unread/conversations/messages | **Partial** | Follow graph, nested thread/reply model, stories, media upload/moderation/consent and professional-discovery controls are not proven as a coherent social network |
+| Marketplace buyer | Catalog/product, checkout, orders, favorites, supplier directory and buyer cancellation | **Partial** | Cancellation is intentionally restricted to pending COD/no-payment-intent orders; provider-confirmed void/refund for paid/processing online orders, multi-seller fulfillment/returns and full CRM procurement reconciliation remain incomplete |
+| Finance / partner finance | Wallets, transactions, partner economics dashboards/reconciliation/transparency, ledger health, commission rules, payouts and expenses | **Partial** | Complete accepted → paid → settled evidence for medical analysis and dental lab, provider callbacks, refunds/chargebacks and reconciled organization-specific commercial ledgers |
+| Platform Superadmin | Admin console, platform finance, BI, security/compliance, audit, AI governance, ops/support surfaces | **Partial** | Complete control-plane negative authorization tests, verified administrative runbooks and audited live legal/verification/payment operations |
+| Legal / trust operations | Legal routes, template/document/partner/consent structures, partner agreement/DPA/NDA/SLA and signature evidence concepts | **Partial / runtime not verified** | Versioned auto-package issuance, authority proof, Kazakhstan-compatible electronic-signature provider verification, renewal/suspension/termination and live legal-evidence lifecycle |
+| Android | Native Kotlin app with repositories/APIs and screens across CRM, diagnostics, Shop, School, Jobs, Community, supplier, finance, profile and AI; separate Android CI builds preview APK | **Broad surface; parity/runtime not verified** | Actual install/device-runtime test, role/context journeys, parity against each web capability, offline support boundaries, device-specific accessibility and final release evidence |
+
+### 3. Confirmed information-architecture breaks
+
+The Master Spec allows canonical route aliases when they lead to the same real workflow; it does not allow an alias to masquerade as an implemented capability.
+
+The current `src/index.tsx` route tree declares 248 routes, including 162 redirects. Several target routes that represent distinct public/discovery entities currently redirect to generic destinations:
+
+- `/organizations` and `/organizations/:organizationId` redirect to `/settings`, so the Master Spec organization discovery/public profile contract is not delivered at those canonical destinations.
+- `/professionals/:professionalId` redirects to `/profile`, so a public professional detail route is not implemented there.
+- `/services/:serviceId` redirects to `/shop`, not a service-specific detail destination.
+- Many `/medical-lab/*`, `/dental-lab/*`, `/academy/*`, `/employer/*` and `/business/*` declarations intentionally consolidate to a workspace route. They must be counted as implemented only when the selected workspace exposes the relevant queue/tab/action—not just because the redirect resolves.
+
+Do not mechanically create a separate page for every target route. Reconcile each path to one canonical workspace, tab, entity view or explicitly gated capability; preserve one source of domain truth.
+
+### 4. Cross-cabinet findings
+
+**Identity / onboarding.** `src/pages/Onboarding.tsx` is a real unified entry supporting creation of clinic, diagnostic center, medical lab, dental lab, supplier and academy organizations, plus personal professional, patient, jobs, student and employer intents, invite lookup and join. This is a significant implementation, not an absent feature. The remaining gaps are the incomplete Master Spec organization taxonomy (e.g. medical organization/professional group/manufacturer as distinct first-class types), and the employer intent's route/API integration into an employer workspace and recruiter lifecycle. `src/components/OrganizationOnboarding.tsx` is an older narrower CENTER/LAB flow and must remain a domain-specific adapter, not be confused with the unified entry.
+
+**Active context / IAM.** The unified Person/PersonRole/Organization foundation and partner role registry exist. The branch contract explicitly states that branch management is ahead of branch propagation to all clinical/operational records; branch objects alone are not proof of cross-branch isolation for patients, appointments, inventory, billing, lab orders and analytics. The full negative matrix remains a release requirement.
+
+**AI operating layer.** The eight operational personas and a registry/orchestrator/tool execution path exist in source, including streamed provider responses and confirmation-aware actions. This is beyond a decorative chatbot. It does not prove every role-specific task has an active tool and E2E path, that every domain receives its own queue-aware AI, or that the entire AI agent DAG/governance/long-term memory contract is complete. Legacy clinic-only fallbacks and all persisted PHI readers/writers remain subject to the RB-029 scope audit.
+
+**Clinical graph.** Clinic → diagnostics and clinic → dental-lab handoff are represented by shared entities and partner workflows. Clinical continuity is not yet proven for every chain in Master Spec §12 (diagnosis → imaging/AI findings → plan approval → procedures → lab/materials → payment → follow-up/outcome).
+
+**Economics.** Financial surfaces exist, and the canonical policy correctly prohibits recognizing dental-lab commission at delivery alone. Dental-lab delivery is operational completion, not a settlement event. The medical-analysis and dental-lab settlement paths still need durable provider-backed evidence and reconciliation.
+
+### 5. Release and security posture
+
+- **RB-037 clinical diagnostic sign-off:** resolved in merged code and exact-head CI/E2E; do not leave older lower sections marking it open. Current evidence is recorded in `docs/security/RB-037_CLINICAL_DIAGNOSTIC_SIGNOFF.md` and the reconciled blocker register.
+- **RB-029 PHI:** remains P0/open. New-write encryption improvements and guarded backfill utilities do not prove historical inventory, key lifecycle, retention/export/deletion, backup/restore, rollback and approved staging reconciliation. No historical PHI backfill was executed as part of this audit.
+- **D1/D2 trial/archive, RB-031 WebKit/CORS/WebSocket, RB-033 repository branch protection, RB-035 full role/tenant/branch/session negative matrix, official Kaspi merchant contract/callback, Android device runtime, and D10 remaining lab operations** remain open/partial pending their specific evidence. Do not close them using an unrelated main CI pass.
+- Main CI and Quality Gate are green on the audited SHA; PR #347's separate PHI branch has its own independent, still-running exact-head CI at the time this audit was prepared. Do not mix those results.
+- No production/staging database, medical record, key, secret, payment provider, live contract or deployed runtime was modified or queried.
+
+### 6. Audit conclusions and execution priority
+
+**The repository is a substantial platform foundation, but it does not yet meet all Master Spec 5.0 Definition-of-Done requirements.** The main gaps are end-to-end workflow depth, first-class partner operations, employer/job lifecycle, public discovery, role/branch isolation, full financial settlement and measured runtime parity—not merely missing screens.
+
+Execution order:
+
+1. Keep RB-029/P0, active-context IAM and all clinical/financial write boundaries fail-closed; complete historical PHI inventory and approved staging plan before backfill.
+2. Complete the partner/branch negative IAM matrix and verify WebKit, CORS/WebSocket and repository protection separately.
+3. Close medical-lab chain-of-custody/validation/release and diagnostic-center modality/worklist/report lifecycle.
+4. Finish dental-lab remake, delivery logistics, service/pricing, invoice/settlement/payout and durable notifications; preserve the settlement-only economics boundary.
+5. Complete employer/recruiter onboarding, permissions and application pipeline; correct vacancy publication authorization before expanding Jobs.
+6. Complete Marketplace refund/fulfillment and Academy economics/credential lifecycle.
+7. Reconcile public organization/professional/service discovery routes with real pages or explicit product decisions.
+8. Verify Android preview install/runtime and compare the same role/workflow matrix with web.
+9. Finish route/visual/accessibility/performance and all remaining release evidence on one exact final HEAD.
+
+A document-only source audit does not qualify any cabinet as production-ready. Use the Master Spec DoD chain for every new closure claim.
+
+---
+
+
 **Date:** 2026-09-28  
 **Audited ref:** `refactor/master-spec-v5-organization-scope`  
 **Audited HEAD:** `b976272185cd7222c479a3bb0d237ec1523c2505`
