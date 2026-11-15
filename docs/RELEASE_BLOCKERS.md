@@ -1,3 +1,15 @@
+## Current source reconciliation — 2026-11-15
+
+- Audited main snapshot: `4bbd61a339d5f3c4d40d1d5990f633a7b9a87864`. Exact-main CI [43496476996](https://github.com/drtamirlan911-cell/DentVision1/actions/runs/43496476996) and Quality Gate [43496477034](https://github.com/drtamirlan911-cell/DentVision1/actions/runs/43496477034) passed. These automated results do not certify staging/production, payment-provider or Android device runtime.
+- RB-037 is **RESOLVED** in merged PR #341; see `docs/security/RB-037_CLINICAL_DIAGNOSTIC_SIGNOFF.md`. The old lower duplicate OPEN block has been reconciled. Reopen only on new source regression.
+- Dental-laboratory QC is **implemented**: six-point validation, manager-only sign-off, failure-note requirement, QC pass → ready / fail → remake; unit tests and PARTNER-003 E2E cover technician denial, bypass denial and owner/manager sign-off. D10 remains **OPEN/PARTIAL** for full remake closure, dispatch/shipping/proof of delivery, independent services/pricing, invoice/payment/settlement/payout/refunds, durable AI/notification exceptions and full owner/manager/technician/mobile matrix. See `docs/DENTVISION_LAB_PLATFORM_EXECUTION.md`.
+- Master Spec compliance is **not a single refreshed numeric score**. The 18 PARTIAL / 4 OPEN / 2 GUIDANCE classification belongs to the 2026-10/11 historical audit snapshot. Current cabinet-level source classifications and remaining evidence are in `docs/SYSTEM_AUDIT.md`.
+- RB-029 remains P0/open. PR #347 is a separate candidate branch and does not close historic PHI inventory/backfill, key rotation, retention/export/deletion, backup/restore, exception disposition or approved staging reconciliation.
+- Remaining release blockers include D1/D2 staging migration/retention evidence, RB-031 WebKit/CORS/WebSocket, RB-033 repository protection, RB-035 full negative authorization matrix, official Kaspi merchant contract/callback, D10 partner lifecycle/settlement, Android device runtime and the real 32-tooth WebGL/3D odontogram.
+- No staging/production database, PHI, secret/key, live payment provider, production deployment or live contract was accessed or modified in this audit.
+
+---
+
 ## Candidate source update — 2026-11-13 (PR #346 AI history hydrator race)
 
 ### RB-029 — AI thread hydration lifecycle
