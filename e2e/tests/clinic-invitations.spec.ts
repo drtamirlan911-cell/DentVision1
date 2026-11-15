@@ -58,12 +58,12 @@ test.describe('Clinic invitation lifecycle', () => {
     });
     organizationId = organization?.id || null;
 
-    const deniedOwnerInvite = await api.post(`${BASE_URL}/api/clinics/${clinicId}/invite`, {
+    const ownerDelegatedInvite = await api.post(`${BASE_URL}/api/clinics/${clinicId}/invite`, {
       headers: ownerHeaders,
       data: { email: adminEmail, role: 'OWNER', expiresInDays: 7 },
     });
     // The creator is the owner, so owner-to-owner delegation is allowed.
-    expect(deniedOwnerInvite.status()).toBe(201);
+    expect(ownerDelegatedInvite.status()).toBe(201);
 
     const adminCreate = await api.post(`${BASE_URL}/api/clinics/${clinicId}/staff`, {
       headers: ownerHeaders,
