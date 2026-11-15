@@ -16,7 +16,7 @@ vi.mock('../../lib/prisma.js', () => ({
 }));
 
 import prisma from '../../lib/prisma.js';
-import { organizationLegalOwnerRoleKeys } from './organizations.routes.js';
+import { organizationLegalOwnerRoleKeys } from '../../lib/organizationLegalAccess.js';
 
 describe('Organization model', () => {
   it('has required fields', () => {
@@ -138,6 +138,23 @@ describe('organization legal-signature authority', () => {
     expect(verifyRoute).toContain('hasOrganizationLegalOwnerAuthority(req.user!.id, org.id, org.type)');
     expect(legalRoute).toContain('ORGANIZATION_LEGAL_OWNER_REQUIRED');
     expect(verifyRoute).toContain('ORGANIZATION_LEGAL_OWNER_REQUIRED');
+
+    const partnerSource = await fs.readFile(
+      resolve(process.cwd(), 'dentvision-backend/src/modules/legal/legal.partner.routes.ts'),
+      'utf8',
+    );
+    for (const routeStart of [
+      "router.post('/onboard'",
+      "router.post('/documents/regenerate'",
+      "router.post('/documents/:id/sign'",
+      "router.put('/partner'",
+    ]) {
+      const start = partnerSource.indexOf(routeStart);
+      expect(start, routeStart).toBeGreaterThanOrEqual(0);
+      const routeText = partnerSource.slice(start, start + 1800);
+      expect(routeText).toContain('hasOrganizationLegalOwnerAuthority');
+      expect(routeText).toContain('ORGANIZATION_LEGAL_OWNER_REQUIRED');
+    }
   });
 });
 
