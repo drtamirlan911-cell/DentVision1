@@ -113,6 +113,9 @@ World-class bar · AI-reachable · single source of truth · automation path · 
 
 ## 14.6 Spec Completeness Checklist (v1.0)
 
+> **Interpretation — scope sign-off, not implementation acceptance.** The checked boxes below record that the product scope/personas/pillars were defined and accepted in this specification. They do not mean that the corresponding feature is implemented, production-ready, or verified end-to-end. Current code-to-spec status is maintained in `docs/SYSTEM_AUDIT.md`; release blockers and required evidence are maintained in `docs/RELEASE_BLOCKERS.md`. A feature is complete only when it passes the cabinet Definition of Done in `docs/DENTVISION_MASTER_SPEC.md` §21 and exact-head release gates.
+
+
 - [x] Primary users: Врач, Владелец, Админ, Покупатель
 - [x] First-run: AI greeting + chat + functional sidebar + 15s collapse
 - [x] Priority pillars: CRM → Marketplace → School
