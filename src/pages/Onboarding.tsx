@@ -18,7 +18,7 @@ const TYPES: Array<{ id: Kind; label: string; createLabel: string; description: 
   { id: 'dental_lab', label: 'Зуботехническая лаборатория', createLabel: 'зуботехническую лабораторию', description: 'Кейсы, производство, QC и доставка', icon: Factory, nextPath: '/diagnostics/lab' },
   { id: 'supplier', label: 'Поставщик / производитель', createLabel: 'поставщика / производителя', description: 'Каталог, заказы, fulfillment и выплаты', icon: Store, nextPath: '/supplier' },
   { id: 'academy', label: 'Академия / образовательный центр', createLabel: 'академию / образовательный центр', description: 'Курсы, студенты, преподаватели и сертификаты', icon: GraduationCap, nextPath: '/school' },
-  { id: 'employer', label: 'Работодатель', createLabel: 'профиль работодателя', description: 'Организация, вакансии, рекрутеры и найм специалистов', icon: BriefcaseBusiness, nextPath: '/jobs?view=employer' },
+  { id: 'employer', label: 'Работодатель', createLabel: 'профиль работодателя', description: 'Организация, вакансии, рекрутеры и найм специалистов', icon: BriefcaseBusiness, nextPath: '/employer' },
 ]
 
 const PERSONAL_INTENTS = [
