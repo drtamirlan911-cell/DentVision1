@@ -77,6 +77,13 @@ test.describe('Clinic invitation lifecycle', () => {
     const adminBody = await adminLogin.json();
     const adminToken = adminBody.data?.accessToken || adminBody.accessToken;
     const adminHeaders = { Authorization: `Bearer ${adminToken}` };
+    const ownerInviteCode = (await ownerDelegatedInvite.json()).data.code;
+    const existingMemberJoin = await api.post(`${BASE_URL}/api/auth/join-clinic`, {
+      headers: adminHeaders,
+      data: { code: ownerInviteCode },
+    });
+    expect(existingMemberJoin.status()).toBe(200);
+    expect((await existingMemberJoin.json()).data.membership.role).toBe('ADMIN');
 
     const adminOwnerInvite = await api.post(`${BASE_URL}/api/clinics/${clinicId}/invite`, {
       headers: adminHeaders,
