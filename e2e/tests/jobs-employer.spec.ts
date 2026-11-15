@@ -71,6 +71,49 @@ test.describe('Employer workspace and scoped Jobs lifecycle', () => {
       const ownerToken = employer.accessToken;
       expect(ownerToken).toBeTruthy();
 
+      const blockedUntilVerified = await api.post(`${API}/api/jobs/employer/vacancies`, {
+        headers: auth(ownerToken),
+        data: { title: 'Premature vacancy', city: 'Тараз' },
+      });
+      expect(blockedUntilVerified.status()).toBe(409);
+      expect((await blockedUntilVerified.json()).code).toBe('EMPLOYER_VERIFICATION_REQUIRED');
+
+      const candidateToken = await registerUser(api, candidateEmail);
+      const deniedQueue = await api.get(`${API}/api/organizations/verification/queue`, {
+        headers: auth(candidateToken),
+      });
+      expect(deniedQueue.status()).toBe(403);
+      const deniedApproval = await api.post(`${API}/api/organizations/${ownerOrganizationId}/verification`, {
+        headers: auth(candidateToken),
+        data: { status: 'APPROVED' },
+      });
+      expect(deniedApproval.status()).toBe(403);
+
+      // Isolated E2E fixture: simulate the platform approval result only in
+      // the temporary CI database; no real legal signature or production org
+      // is changed. Approval requires owner and platform signatures.
+      const pendingOrg = await prisma.organization.findUnique({
+        where: { id: ownerOrganizationId },
+        select: { settings: true },
+      });
+      const pendingSettings = pendingOrg?.settings && typeof pendingOrg.settings === 'object' && !Array.isArray(pendingOrg.settings)
+        ? pendingOrg.settings as Record<string, unknown> : {};
+      const pendingLegal = pendingSettings.legal && typeof pendingSettings.legal === 'object' && !Array.isArray(pendingSettings.legal)
+        ? pendingSettings.legal as Record<string, unknown> : {};
+      await prisma.organization.update({
+        where: { id: ownerOrganizationId },
+        data: { settings: {
+          ...pendingSettings,
+          lifecycle: 'ACTIVE_VERIFIED',
+          verification: 'APPROVED',
+          ecosystemVisible: true,
+          legal: { ...pendingLegal, ownerSigned: true, platformSigned: true },
+        } as any },
+      });
+      const approvedStatus = await api.get(`${API}/api/jobs/employer/status`, { headers: auth(ownerToken) });
+      expect(approvedStatus.status()).toBe(200);
+      expect((await approvedStatus.json()).data.canPublish).toBe(true);
+
       const created = await api.post(`${API}/api/jobs/employer/vacancies`, {
         headers: auth(ownerToken),
         data: {
@@ -95,7 +138,6 @@ test.describe('Employer workspace and scoped Jobs lifecycle', () => {
       });
       expect(legacyCreate.status()).toBe(403);
 
-      const candidateToken = await registerUser(api, candidateEmail);
       const selfApply = await api.post(`${API}/api/jobs/${vacancyId}/apply`, {
         headers: auth(ownerToken),
         data: { coverNote: 'Owner cannot apply to own vacancy' },
