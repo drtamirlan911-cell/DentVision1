@@ -143,8 +143,11 @@ describe('organization legal-signature authority', () => {
       resolve(process.cwd(), 'dentvision-backend/src/modules/legal/legal.partner.routes.ts'),
       'utf8',
     );
+    const ownerGuardStart = partnerSource.indexOf('async function requireLegalOwner');
+    const ownerGuard = partnerSource.slice(ownerGuardStart, partnerSource.indexOf('async function resolveRequestPartner', ownerGuardStart));
+    expect(ownerGuard).toContain('hasOrganizationLegalOwnerAuthority');
+    expect(ownerGuard).toContain('ORGANIZATION_LEGAL_OWNER_REQUIRED');
     for (const routeStart of [
-      "router.post('/onboard'",
       "router.post('/documents/regenerate'",
       "router.post('/documents/:id/sign'",
       "router.put('/partner'",
@@ -152,9 +155,12 @@ describe('organization legal-signature authority', () => {
       const start = partnerSource.indexOf(routeStart);
       expect(start, routeStart).toBeGreaterThanOrEqual(0);
       const routeText = partnerSource.slice(start, start + 1800);
-      expect(routeText).toContain('hasOrganizationLegalOwnerAuthority');
-      expect(routeText).toContain('ORGANIZATION_LEGAL_OWNER_REQUIRED');
+      expect(routeText).toContain('requireLegalOwner(req, res)');
     }
+    const onboardStart = partnerSource.indexOf("router.post('/onboard'");
+    const onboardRoute = partnerSource.slice(onboardStart, onboardStart + 2600);
+    expect(onboardRoute).toContain('hasOrganizationLegalOwnerAuthority');
+    expect(onboardRoute).toContain('ORGANIZATION_LEGAL_OWNER_REQUIRED');
   });
 });
 
