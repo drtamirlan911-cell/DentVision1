@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import { Prisma } from '@prisma/client';
 import prisma from '../../lib/prisma.js';
 import { authenticate, optionalAuth } from '../../middleware/auth.js';
 import { requirePermission } from '../../middleware/rbac.js';
@@ -54,7 +55,7 @@ async function activeJobEmployerScope(req: AuthRequest): Promise<JobEmployerScop
   return { employerOrganizationId: null, clinicId: clinic.id, clinicName: clinic.name };
 }
 
-function ownedVacancyWhere(scope: JobEmployerScope): Record<string, unknown> {
+function ownedVacancyWhere(scope: JobEmployerScope): Prisma.JobVacancyWhereInput {
   return scope.employerOrganizationId
     ? { employerOrganizationId: scope.employerOrganizationId }
     : { clinicId: scope.clinicId, employerOrganizationId: null };
@@ -232,15 +233,6 @@ jobsRouter.get('/me/applications', authenticate, async (req: AuthRequest, res) =
 });
 
 /**
- * Employer self-service bootstrap.
- *
- * Jobs historically used `clinicName` on each vacancy and therefore had no
- * employer workspace. This endpoint introduces the missing organization
- * boundary without changing existing JobVacancy rows. The employer is a
- * unified Organization + Person context; existing clinic-linked vacancies
- * continue to work unchanged.
- */
-/**
  * Compatibility response for the former unscoped employer bootstrap.
  * Employer creation now uses the canonical Organization self-service flow so
  * PersonRole, active workspace, branch membership and onboarding lifecycle are
@@ -292,7 +284,8 @@ jobsRouter.post('/', authenticate, async (req: AuthRequest, res) => {
 jobsRouter.post('/:id/apply', authenticate, async (req: AuthRequest, res) => {
   try {
     const vacancy = await prisma.jobVacancy.findUnique({ where: { id: req.params.id as string } });
-    if (!vacancy) return res.status(404).json({ ok: false, error: 'Вакансия не найдена' } satisfies ApiResponse);
+    if (!vacancy || vacancy.kind !== 'vacancy' || vacancy.status !== 'open') return res.status(404).json({ ok: false, error: 'Вакансия недоступна' } satisfies ApiResponse);
+    if (vacancy.userId === req.user!.id) return res.status(409).json({ ok: false, error: 'Нельзя откликнуться на собственную вакансию' } satisfies ApiResponse);
     const existing = await prisma.jobApplication.findFirst({ where: { vacancyId: vacancy.id, userId: req.user!.id } });
     if (existing) return res.json(existing);
     const application = await prisma.jobApplication.create({
