@@ -183,8 +183,6 @@ jobsRouter.get('/employer/vacancies/:id/applications', authenticate, requirePerm
       select: { id: true },
     });
     if (!vacancy) return res.status(404).json({ ok: false, error: 'Вакансия не найдена' } satisfies ApiResponse);
-    if (vacancy.kind !== 'vacancy' || vacancy.status !== 'open') return res.status(404).json({ ok: false, error: 'Вакансия недоступна' } satisfies ApiResponse);
-    if (vacancy.userId === req.user!.id) return res.status(409).json({ ok: false, error: 'Нельзя откликнуться на собственную вакансию' } satisfies ApiResponse);
     const applications = await prisma.jobApplication.findMany({
       where: { vacancyId: vacancy.id },
       include: { user: { select: { id: true, firstName: true, lastName: true, email: true } } },
