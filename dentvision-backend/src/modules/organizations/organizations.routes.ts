@@ -518,7 +518,7 @@ organizationsRouter.post('/:id/restore', async (req: AuthRequest, res) => {
   }
 });
 
-organizationsRouter.get('/verification/queue', async (req: AuthRequest, res) => {
+organizationsRouter.get('/verification/queue', requireSuperadmin, async (req: AuthRequest, res) => {
   try {
     const organizations = await prisma.organization.findMany({ where: { archivedAt: null }, orderBy: { updatedAt: 'asc' } });
     const data = organizations
@@ -534,7 +534,7 @@ organizationsRouter.get('/verification/queue', async (req: AuthRequest, res) => 
   }
 });
 
-organizationsRouter.post('/:id/verification', async (req: AuthRequest, res) => {
+organizationsRouter.post('/:id/verification', requireSuperadmin, async (req: AuthRequest, res) => {
   try {
     const id = String(req.params.id); const status = String(req.body?.status || '').toUpperCase();
     const org = await prisma.organization.findUnique({ where: { id } }); if (!org) return res.status(404).json({ ok: false, error: 'Организация не найдена' });
