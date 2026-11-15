@@ -95,6 +95,8 @@ export default function JobsPage() {
         navigate('/onboarding?mode=create&kind=employer')
         return
       }
+      navigate('/employer')
+      return
     }
     setPostKind(kind)
     setForm({
@@ -256,7 +258,7 @@ export default function JobsPage() {
       >
         <div className="space-y-3">
           <div className="flex gap-2 mb-1">
-            <Button className="min-h-11" size="sm" variant={postKind === 'vacancy' ? 'primary' : 'secondary'} onClick={() => setPostKind('vacancy')}>
+            <Button className="min-h-11" size="sm" variant={postKind === 'vacancy' ? 'primary' : 'secondary'} onClick={() => { setPostOpen(false); openPost('vacancy') }}>
               Вакансия
             </Button>
             <Button className="min-h-11" size="sm" variant={postKind === 'resume' ? 'primary' : 'secondary'} onClick={() => setPostKind('resume')}>
