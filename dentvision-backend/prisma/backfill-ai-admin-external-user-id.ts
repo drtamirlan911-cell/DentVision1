@@ -1,5 +1,6 @@
 import { resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
+import { Prisma } from '@prisma/client';
 import prisma from '../src/lib/prisma.js';
 import { decryptAiAdminJson, decryptAiAdminText, encryptAiAdminJson, encryptAiAdminText, getAiAdminExternalUserIdHashes, hashAiAdminExternalUserId, isAiAdminTextEncryptedWithActiveKey } from '../src/modules/ai-admin/conversation/phi.js';
 
@@ -59,7 +60,7 @@ export function parseAiAdminExternalIdBackfillOptions(args: string[], env: NodeJ
 function encryptAndVerify(value: string | null, existing: string | null, label: string): string | null {
   if (!existing && (value === null || value === '')) return null;
   const plaintext = existing ? decryptAiAdminText(existing) : value!;
-  if (value !== null && value !== '' && plaintext !== value) {
+  if (value !== null && plaintext !== value) {
     throw new Error(label + ' ciphertext does not match the legacy value');
   }
   const ciphertext = existing && isAiAdminTextEncryptedWithActiveKey(existing)
@@ -89,6 +90,18 @@ function reencryptStoredJson(value: unknown, label: string): unknown {
     throw new Error(label + ' failed key-rotation round-trip validation');
   }
   return ciphertext;
+}
+
+export function buildAiAdminMessageBackfillWhere(row: MessageRow) {
+  return {
+    id: row.id,
+    content: row.content,
+    // toolResult is nullable JSONB. DbNull matches SQL NULL; non-null values use
+    // an exact JSON equality predicate so concurrent tool writes cannot be lost.
+    toolResult: row.toolResult === null
+      ? Prisma.DbNull
+      : { equals: row.toolResult as Prisma.InputJsonValue },
+  };
 }
 
 export function prepareAiAdminMessageBackfillRow(row: MessageRow): { content: string; toolResult: unknown } {
@@ -234,7 +247,7 @@ async function applyMessageBackfill(batchSize: number): Promise<number> {
         && JSON.stringify(row.toolResult) === JSON.stringify(prepared.toolResult)
       ) continue;
       const changed = await prisma.aiAdminMessage.updateMany({
-        where: { id: row.id, content: row.content },
+        where: buildAiAdminMessageBackfillWhere(row),
         data: { content: prepared.content, toolResult: prepared.toolResult as any },
       });
       if (changed.count !== 1) {

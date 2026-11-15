@@ -1,6 +1,7 @@
+import { Prisma } from '@prisma/client';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { decryptAiAdminJson, decryptAiAdminText, encryptAiAdminText } from '../src/modules/ai-admin/conversation/phi.js';
-import { parseAiAdminExternalIdBackfillOptions, prepareAiAdminEscalationBackfillRow, prepareAiAdminExternalIdBackfillRow, prepareAiAdminMessageBackfillRow } from './backfill-ai-admin-external-user-id.js';
+import { buildAiAdminMessageBackfillWhere, parseAiAdminExternalIdBackfillOptions, prepareAiAdminEscalationBackfillRow, prepareAiAdminExternalIdBackfillRow, prepareAiAdminMessageBackfillRow } from './backfill-ai-admin-external-user-id.js';
 
 const envNames = ['NODE_ENV', 'ENCRYPTION_KEY', 'AI_ADMIN_PHI_KEYRING_JSON', 'AI_ADMIN_PHI_ACTIVE_KEY_ID', 'AI_ADMIN_EXTERNAL_ID_INDEX_KEYRING_JSON', 'AI_ADMIN_EXTERNAL_ID_ACTIVE_INDEX_KEY_ID', 'AI_ADMIN_EXTERNAL_ID_STRICT_WRITE', 'AI_ADMIN_EXTERNAL_ID_LEGACY_WORKERS_DRAINED'];
 const originalEnv = Object.fromEntries(envNames.map((name) => [name, process.env[name]]));
@@ -111,10 +112,37 @@ describe('AI Admin external-identity backfill safeguards', () => {
     expect(prepared.patientNameCiphertext).not.toContain(row.patientName);
     expect(prepared.patientPhoneCiphertext).not.toContain(row.patientPhone);
   });
+  it('rejects a ciphertext that disagrees with an explicitly empty legacy value', () => {
+
+    expect(() => prepareAiAdminExternalIdBackfillRow({
+      ...row,
+      patientName: '',
+      patientNameCiphertext: encryptAiAdminText('unexpected stored value'),
+    })).toThrow(/ciphertext does not match the legacy value/);
+  });
+
   it('handles legacy patient metadata when external ID is absent', () => {
     const prepared = prepareAiAdminExternalIdBackfillRow({ ...row, externalUserId: null });
     expect(prepared.externalUserIdHash).toBeNull();
     expect(prepared.patientNameCiphertext).toMatch(/^ENC:v2:/);
+  });
+
+  it('uses content and toolResult together as the message backfill compare-and-set guard', () => {
+    const row = {
+      id: 'message-compare-set',
+      content: 'previous encrypted text',
+      toolResult: { status: 'old result', patientName: 'Test Person' },
+    };
+    expect(buildAiAdminMessageBackfillWhere(row)).toEqual({
+      id: row.id,
+      content: row.content,
+      toolResult: { equals: row.toolResult },
+    });
+    expect(buildAiAdminMessageBackfillWhere({ ...row, toolResult: null })).toEqual({
+      id: row.id,
+      content: row.content,
+      toolResult: Prisma.DbNull,
+    });
   });
 
   it('backfills historical AI Admin message content and PHI-bearing tool results', () => {
