@@ -626,6 +626,7 @@ export async function aiBriefing(): Promise<AIChatResponse> { const tz = clientT
 export async function getJobs(params: Record<string, string> = {}): Promise<any[]> { const q = new URLSearchParams(); Object.entries(params).forEach(([k, v]) => { if (v) q.set(k, v); }); return apiRequest(`/api/jobs?${q}`); }
 export async function createJob(data: any): Promise<any> { return apiRequest('/api/jobs', { method: 'POST', body: JSON.stringify(data) }); }
 export async function createEmployerVacancy(data: any): Promise<any> { return apiRequest('/api/jobs/employer/vacancies', { method: 'POST', body: JSON.stringify(data) }); }
+export async function getEmployerStatus(): Promise<{ organizationType: string; organizationName: string; verificationStatus: string; canPublish: boolean }> { return apiRequest('/api/jobs/employer/status'); }
 export async function getEmployerVacancies(): Promise<any[]> { const data = await apiRequest('/api/jobs/employer/vacancies'); return Array.isArray(data) ? data : []; }
 export async function getEmployerResumes(): Promise<any[]> { const data = await apiRequest('/api/jobs/employer/resumes'); return Array.isArray(data) ? data : []; }
 export async function getEmployerVacancyApplications(id: string): Promise<any[]> { const data = await apiRequest(`/api/jobs/employer/vacancies/${encodeURIComponent(id)}/applications`); return Array.isArray(data) ? data : []; }
