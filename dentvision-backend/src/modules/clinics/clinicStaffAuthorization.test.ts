@@ -91,5 +91,8 @@ describe('clinic staff route wiring', () => {
     expect(route).toContain("prisma.clinicMember.count({ where: { clinicId, role: 'OWNER' } })");
     expect(route).toContain('currentMemberRole: member.role');
     expect(route).toContain('nextMemberRole: nextRole');
+    expect(route).toContain('if (body.password != null)');
+    expect(route).toContain("code: 'PASSWORD_RESET_REQUIRED'");
+    expect(route).not.toContain('userData.password');
   });
 });
