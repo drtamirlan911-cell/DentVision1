@@ -21,6 +21,12 @@ afterEach(() => {
     else process.env[name] = value;
   }
 });
+const rolloutAcknowledgements = {
+  AI_ADMIN_PHI_V2_WRITE_ENABLED: 'true',
+  AI_ADMIN_PHI_V2_READERS_DEPLOYED: 'I_HAVE_DEPLOYED_ALL_V2_READERS',
+  AI_ADMIN_QUEUE_PHI_ENCRYPTION_ENABLED: 'true',
+  AI_ADMIN_QUEUE_LEGACY_WORKERS_DRAINED: 'I_HAVE_DRAINED_ALL_LEGACY_WORKERS',
+};
 const row = {
   id: 'session-1', clinicId: 'clinic-1', channel: 'WHATSAPP', externalUserId: '77010000000',
   externalUserIdCiphertext: null, externalUserIdHash: null, patientName: 'Test Patient', patientPhone: '77010000000',
@@ -41,6 +47,7 @@ describe('AI Admin external-identity backfill safeguards', () => {
       ['--apply', '--target=staging', '--confirm-target=staging'],
       {
         AI_ADMIN_EXTERNAL_ID_BACKFILL_TARGET: 'staging',
+        ...rolloutAcknowledgements,
         AI_ADMIN_EXTERNAL_ID_STRICT_WRITE: 'true',
         AI_ADMIN_EXTERNAL_ID_LEGACY_WORKERS_DRAINED: 'I_HAVE_DRAINED_ALL_LEGACY_WORKERS',
         DATABASE_URL: stagingUrl,
@@ -53,6 +60,7 @@ describe('AI Admin external-identity backfill safeguards', () => {
       ['--apply', '--target=staging', '--confirm-target=staging'],
       {
         AI_ADMIN_EXTERNAL_ID_BACKFILL_TARGET: 'staging',
+        ...rolloutAcknowledgements,
         AI_ADMIN_EXTERNAL_ID_STRICT_WRITE: 'true',
         AI_ADMIN_EXTERNAL_ID_LEGACY_WORKERS_DRAINED: 'I_HAVE_DRAINED_ALL_LEGACY_WORKERS',
         DATABASE_URL: 'postgresql://production.example.test/dentvision',
@@ -71,6 +79,7 @@ describe('AI Admin external-identity backfill safeguards', () => {
       ['--apply', '--target=production', '--confirm-target=production'],
       {
         AI_ADMIN_EXTERNAL_ID_BACKFILL_TARGET: 'production',
+        ...rolloutAcknowledgements,
         AI_ADMIN_EXTERNAL_ID_STRICT_WRITE: 'true',
         AI_ADMIN_EXTERNAL_ID_LEGACY_WORKERS_DRAINED: 'I_HAVE_DRAINED_ALL_LEGACY_WORKERS',
       },
@@ -80,6 +89,7 @@ describe('AI Admin external-identity backfill safeguards', () => {
       ['--apply', '--target=production', '--confirm-target=production', '--allow-production', '--confirm-production-write=I_HAVE_BACKUP_AND_APPROVAL'],
       {
         AI_ADMIN_EXTERNAL_ID_BACKFILL_TARGET: 'production',
+        ...rolloutAcknowledgements,
         AI_ADMIN_EXTERNAL_ID_STRICT_WRITE: 'true',
         AI_ADMIN_EXTERNAL_ID_LEGACY_WORKERS_DRAINED: 'I_HAVE_DRAINED_ALL_LEGACY_WORKERS',
         DATABASE_URL: productionUrl,
@@ -105,7 +115,7 @@ describe('AI Admin external-identity backfill safeguards', () => {
     expect(() => parseAiAdminExternalIdBackfillOptions(
       ['--apply', '--target=staging', '--confirm-target=staging'],
       { ...baseEnv, AI_ADMIN_EXTERNAL_ID_STRICT_WRITE: 'true' },
-    )).toThrow(/legacy workers are drained/);
+    )).toThrow(/all legacy webhook workers are drained/);
   });
   it('rejects invalid batch sizes', () => {
     expect(() => parseAiAdminExternalIdBackfillOptions(['--batch-size=0'], {})).toThrow(/batch-size/);
