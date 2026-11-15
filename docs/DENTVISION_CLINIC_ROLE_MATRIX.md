@@ -6,7 +6,7 @@ Canonical clinic workspace roles are implemented through the existing `Person â†
 
 | Role | Scope | Primary responsibility | Explicit boundary |
 |---|---|---|---|
-| OWNER | Organization | Full clinic governance, clinical sign-off, finance, staff and settings | Must remain tenant-scoped; no platform-wide governance |
+| OWNER | Organization | Full clinic governance, finance, staff and settings; clinical sign-off only when a separate active organization-scoped DOCTOR capability is also granted | OWNER alone is not a clinical author and cannot confirm/sign clinical diagnostic results; see RB-037 sign-off contract |
 | ADMIN | Organization | Administration, billing, staff, operations | Cannot clinically sign off treatment |
 | MANAGER | Branch | Branch operations, staff coordination, inventory and analytics | No clinical sign-off; no organization-wide ownership |
 | DOCTOR | Assigned | Diagnosis, treatment, medical records, treatment-plan sign-off | No staff/organization management; no billing management |
