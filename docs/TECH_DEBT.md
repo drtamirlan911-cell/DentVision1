@@ -1,5 +1,8 @@
 # DentVision V2 — Technical Debt
 
+> **Historical inventory — 2026-07-17.** File sizes, mock/stub lists, security claims and architecture debt below reflect an older codebase. They have not been revalidated against current routes/services/tests and must not be executed as an active deletion/refactor queue. In particular, do not delete files or replace working API paths on the basis of this snapshot. Use current source inspection, `docs/SYSTEM_AUDIT.md`, and `docs/RELEASE_BLOCKERS.md` to establish whether a debt item still exists.
+
+
 **Date:** 2026-07-17
 
 ---
