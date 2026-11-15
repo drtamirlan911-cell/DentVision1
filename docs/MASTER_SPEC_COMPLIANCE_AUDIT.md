@@ -1,3 +1,17 @@
+## Current-status and audit-authority notice — 2026-11-15
+
+This file is a **historical section-by-section audit snapshot**, not a live current-state register. Its baseline is dated 2026-10-31 with follow-up evidence through 2026-11-05, and its recorded classification `18 PARTIAL / 4 OPEN / 2 GUIDANCE` must not be repeated as a verified 2026-11-15 score.
+
+For the current source comparison against Master Spec 5.0—including the current cabinet-by-cabinet status, route aliases/public discovery gaps, onboarding, AI, partner lifecycles, finance, Android and exact-main CI evidence—use `docs/SYSTEM_AUDIT.md` under **Current source reconciliation — 2026-11-15**. The current audit supersedes this historical matrix only where it explicitly reconciles a changed implementation or stale claim.
+
+Two material status corrections are recorded in the current audit branch:
+- RB-037 clinic diagnostic sign-off is resolved in merged code and exact-head CI/E2E; see `docs/security/RB-037_CLINICAL_DIAGNOSTIC_SIGNOFF.md`.
+- Dental-laboratory QC has an implemented six-point checklist and manager-only sign-off covered by unit and PARTNER-003 E2E evidence; D10 remains open for the rest of the independent lab workflow.
+
+Do not infer release readiness from this historical matrix or from the successful main CI alone. Open P0/security, live-data, payment-provider, staging, device-runtime and remaining cabinet workflow gates retain their own evidence requirements.
+
+---
+
 # Master Spec 5.0 — compliance audit
 
 ## Follow-up source evidence — 2026-11-05 (latest)
