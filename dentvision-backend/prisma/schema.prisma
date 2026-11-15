@@ -3570,7 +3570,7 @@ model AiAdminEscalation {
 model Organization {
   id       String  @id @default(uuid())
   name     String
-  type     String // CLINIC | ACADEMY | LABORATORY | DIAGNOSTIC_CENTER | SUPPLIER_COMPANY | PARTNER
+  type     String // CLINIC | ACADEMY | LABORATORY | DIAGNOSTIC_CENTER | SUPPLIER_COMPANY | EMPLOYER | PARTNER
   taxId    String?
   address  String?
   phone    String?
