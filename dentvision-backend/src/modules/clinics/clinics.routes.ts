@@ -18,6 +18,7 @@ import { resolveClinicAccess } from '../../lib/orgContext.js';
 import { auditFromReq } from '../compliance/audit.service.js';
 import { ClinicPaymentsError, validateClinicGatewayUrl } from '../payments/clinicPayments.js';
 import { createClinicForOwner, normalizeClinicInput } from './clinicCreation.service.js';
+import { authorizeClinicStaffMutation } from './clinicStaffAuthorization.js';
 
 export const clinicsRouter = Router();
 
@@ -479,6 +480,18 @@ clinicsRouter.post('/:id/staff', authenticate, requireTargetClinicWritable, guar
     const email = String(body.email || body.login || '').trim().toLowerCase();
     const password = String(body.password || '');
     const role = normalizeStaffRole(body.role);
+    const ownerDecision = authorizeClinicStaffMutation({
+      actorRole: gate.membership.role,
+      nextMemberRole: role,
+      isSuperadmin: req.user?.role === 'SUPERADMIN',
+    });
+    if (!ownerDecision.ok) {
+      return res.status(ownerDecision.status).json({
+        ok: false,
+        error: ownerDecision.code === 'OWNER_REQUIRED' ? 'Только владелец клиники может назначать другого владельца' : 'Нельзя удалить последнего владельца клиники',
+        code: ownerDecision.code,
+      } satisfies ApiResponse);
+    }
     const rawName = String(body.name || '').trim();
     const parts = rawName.split(/\s+/).filter(Boolean);
     const firstName = String(body.firstName || parts[0] || 'Сотрудник').trim();
@@ -589,6 +602,27 @@ clinicsRouter.patch('/:id/staff/:userId', authenticate, requireTargetClinicWrita
     }
 
     const body = req.body || {};
+    const nextRole = body.role != null ? normalizeStaffRole(body.role) : member.role;
+    const ownerCount = member.role === 'OWNER' && nextRole !== 'OWNER'
+      ? await prisma.clinicMember.count({ where: { clinicId, role: 'OWNER' } })
+      : undefined;
+    const ownerDecision = authorizeClinicStaffMutation({
+      actorRole: gate.membership.role,
+      currentMemberRole: member.role,
+      nextMemberRole: nextRole,
+      ownerCount,
+      isSuperadmin: req.user?.role === 'SUPERADMIN',
+    });
+    if (!ownerDecision.ok) {
+      return res.status(ownerDecision.status).json({
+        ok: false,
+        error: ownerDecision.code === 'LAST_OWNER'
+          ? 'Нельзя понизить последнего владельца клиники'
+          : 'Изменять профиль владельца или назначать нового владельца может только владелец клиники',
+        code: ownerDecision.code,
+      } satisfies ApiResponse);
+    }
+
     const rawName = body.name != null ? String(body.name).trim() : '';
     const parts = rawName.split(/\s+/).filter(Boolean);
     const firstName = body.firstName != null ? String(body.firstName) : parts[0];
@@ -607,12 +641,9 @@ clinicsRouter.patch('/:id/staff/:userId', authenticate, requireTargetClinicWrita
       await prisma.user.update({ where: { id: userId }, data: userData as any });
     }
 
-    let role = member.role;
+    const role = nextRole;
     const memberData: Record<string, unknown> = {};
-    if (body.role != null) {
-      role = normalizeStaffRole(body.role);
-      memberData.role = role;
-    }
+    if (body.role != null) memberData.role = role;
     if (body.commissionPercent != null && Number.isFinite(Number(body.commissionPercent))) {
       memberData.commissionPercent = Math.min(100, Math.max(0, Math.round(Number(body.commissionPercent))));
     }
