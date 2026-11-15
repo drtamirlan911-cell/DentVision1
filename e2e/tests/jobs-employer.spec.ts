@@ -107,13 +107,16 @@ test.describe('Employer workspace and scoped Jobs lifecycle', () => {
       const candidateContexts = await api.get(`${API}/api/iam/me/contexts`, { headers: auth(candidateToken) });
       expect(candidateContexts.status()).toBe(200);
       const employerContext = ((await candidateContexts.json()).data.contexts || []).find(
-        (ctx: any) => ctx.scopeType === 'EMPLOYER' && ctx.scopeId === ownerOrganizationId && ctx.roleKey === 'employer_recruiter',
+        (ctx: any) => ctx.scopeType === 'EMPLOYER'
+          && ctx.organizationId === ownerOrganizationId
+          && ctx.scopeId === employer.entityId
+          && ctx.roleKey === 'employer_recruiter',
       );
-      expect(employerContext).toBeTruthy();
+      expect(employerContext, 'canonical employer context must expose Organization.id and source entity scope separately').toBeTruthy();
 
       const candidateSwitch = await api.post(`${API}/api/iam/switch-context`, {
         headers: auth(candidateToken),
-        data: { scopeType: 'EMPLOYER', scopeId: ownerOrganizationId },
+        data: { scopeType: employerContext.scopeType, scopeId: employerContext.scopeId },
       });
       expect(candidateSwitch.status()).toBe(200);
       const recruiterToken = (await candidateSwitch.json()).data.accessToken;
