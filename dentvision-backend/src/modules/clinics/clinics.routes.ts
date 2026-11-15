@@ -453,7 +453,12 @@ clinicsRouter.post('/:id/invite', authenticate, requireTargetClinicWritable, gua
       return res.status(403).json({ ok: false, error: 'Недостаточно прав для создания приглашений' } satisfies ApiResponse);
     }
 
-    const role = normalizeStaffRole(req.body?.role);
+    const rawRole = String(req.body?.role || 'DOCTOR').trim().toLowerCase();
+    const allowedInviteRoles = new Set(['owner', 'director', 'admin', 'cashier', 'doctor', 'assistant', 'manager', 'lab', 'laboratory', 'student', 'intern']);
+    if (!allowedInviteRoles.has(rawRole)) {
+      return res.status(400).json({ ok: false, error: 'Недопустимая роль для приглашения', code: 'INVALID_INVITATION_ROLE' } satisfies ApiResponse);
+    }
+    const role = normalizeStaffRole(rawRole);
     const ownerDecision = authorizeClinicStaffMutation({
       actorRole: membership.role,
       nextMemberRole: role,
@@ -471,6 +476,9 @@ clinicsRouter.post('/:id/invite', authenticate, requireTargetClinicWritable, gua
     const expiresInDays = Number.isFinite(rawDays) ? Math.max(1, Math.min(90, Math.floor(rawDays))) : 7;
     const expiresAt = new Date(Date.now() + expiresInDays * 24 * 60 * 60 * 1000);
     const email = String(req.body?.email || '').trim().toLowerCase() || null;
+    if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      return res.status(400).json({ ok: false, error: 'Укажите корректный email для приглашения', code: 'INVALID_INVITATION_EMAIL' } satisfies ApiResponse);
+    }
     const code = await createClinicInvitation({ clinicId, email, role: role as UserRole, expiresAt });
     await auditFromReq(req, 'clinic.invitation.created', 'clinic_invitation', code, {
       clinicId,
