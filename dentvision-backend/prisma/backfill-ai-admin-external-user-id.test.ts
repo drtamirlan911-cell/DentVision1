@@ -71,7 +71,7 @@ describe('AI Admin external-identity backfill safeguards', () => {
   it('requires a target-specific expected datasource URL before any write', () => {
     expect(() => parseAiAdminExternalIdBackfillOptions(
       ['--apply', '--target=staging', '--confirm-target=staging'],
-      { AI_ADMIN_EXTERNAL_ID_BACKFILL_TARGET: 'staging', AI_ADMIN_EXTERNAL_ID_STRICT_WRITE: 'true', AI_ADMIN_EXTERNAL_ID_LEGACY_WORKERS_DRAINED: 'I_HAVE_DRAINED_ALL_LEGACY_WORKERS', DATABASE_URL: 'postgresql://staging.example.test/dentvision' },
+      { AI_ADMIN_EXTERNAL_ID_BACKFILL_TARGET: 'staging', ...rolloutAcknowledgements, AI_ADMIN_EXTERNAL_ID_STRICT_WRITE: 'true', AI_ADMIN_EXTERNAL_ID_LEGACY_WORKERS_DRAINED: 'I_HAVE_DRAINED_ALL_LEGACY_WORKERS', DATABASE_URL: 'postgresql://staging.example.test/dentvision' },
     )).toThrow(/AI_ADMIN_EXTERNAL_ID_BACKFILL_STAGING_DATABASE_URL/);
   });
   it('requires additional confirmation for production writes', () => {
