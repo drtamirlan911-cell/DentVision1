@@ -1,3 +1,11 @@
+## 2026-11-15 — RB-029 staged AI Admin writes and retained queue backfill candidate
+
+- Continued on existing PR #347 / security/rb029-ai-admin-external-id-20261114; no new branch or PR.
+- Codex P1 findings: v2 writes could be read by old workers during rolling deployment; retained ai_admin_queue_messages rows (including completed payloads and error strings) were omitted from historical backfill.
+- New writer defaults to legacy ENC format until all v2 readers are explicitly acknowledged. Queue payloads remain the historical object-shaped JSONB contract until the queue-specific legacy-worker drain is acknowledged. Enabling v2 or queue encryption without its acknowledgement fails closed.
+- Backfill candidate now scans all retained queue rows, validates payload shape, encrypts payload and error and uses exact compare-and-set guards. Added regression tests for legacy reader compatibility and queue payload/error conversion.
+- Candidate only: fresh exact-head CI, Quality Gate, Codex and Preview evidence is required. No live DB, migration, staging/production backfill, worker drain, key rotation, backup/restore, secret update or production deployment was performed.
+- RB-029 remains OPEN/P0. Historical Patient/AI derivative PHI inventory, approved staging reconciliation/backfill, backup/restore and retention/export evidence remain outstanding. Release NOT READY.
 ## Current continuation — 2026-11-14 (RB-029 rolling-deploy compatibility)
 
 - PR #347 review found that legacy webhook workers could not locate hash-only sessions during a rolling deploy. The existing branch now dual-writes the legacy identifier with ciphertext and blind index by default; legacy workers continue to find the same row.
