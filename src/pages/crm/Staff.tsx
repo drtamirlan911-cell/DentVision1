@@ -724,12 +724,12 @@ export default function Staff() {
           </div>
 
           <div className="flex flex-col sm:flex-row gap-2 mt-5">
-            {canManage && (
+            {canManageMember(profileModal) && (
               <Button className="w-full sm:flex-1 min-h-11" icon={<Edit size={16} />} onClick={() => { setProfileModal(null); openEditStaff(profileModal) }}>
                 Редактировать
               </Button>
             )}
-            {canManage && profileModal.id !== user?.id && (
+            {canManageMember(profileModal) && profileModal.id !== user?.id && (
               <Button
                 className="w-full sm:w-auto min-h-11"
                 variant="danger"
@@ -916,7 +916,7 @@ export default function Staff() {
                     </div>
 
                     {/* Actions */}
-                    {canManage && (
+                    {canManageMember(member) && (
                       <div className="mt-3 flex flex-col sm:flex-row gap-2">
                         <Button
                           variant="ghost"
