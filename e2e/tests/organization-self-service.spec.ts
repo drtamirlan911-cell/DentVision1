@@ -58,7 +58,7 @@ test.describe('Universal organization self-service onboarding', () => {
           diagnostic_center: '/diagnostics/center',
           supplier: '/supplier',
           academy: '/school',
-          employer: '/jobs?view=employer',
+          employer: '/employer',
         }[type];
         expect(body.data.nextPath, type + ' workspace').toBe(expectedNextPath);
 
