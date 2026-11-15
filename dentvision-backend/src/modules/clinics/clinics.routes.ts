@@ -485,7 +485,7 @@ clinicsRouter.post('/:id/staff', authenticate, requireTargetClinicWritable, guar
       nextMemberRole: role,
       isSuperadmin: req.user?.role === 'SUPERADMIN',
     });
-    if (!ownerDecision.ok) {
+    if (ownerDecision.ok === false) {
       return res.status(ownerDecision.status).json({
         ok: false,
         error: ownerDecision.code === 'OWNER_REQUIRED' ? 'Только владелец клиники может назначать другого владельца' : 'Нельзя удалить последнего владельца клиники',
@@ -613,7 +613,7 @@ clinicsRouter.patch('/:id/staff/:userId', authenticate, requireTargetClinicWrita
       ownerCount,
       isSuperadmin: req.user?.role === 'SUPERADMIN',
     });
-    if (!ownerDecision.ok) {
+    if (ownerDecision.ok === false) {
       return res.status(ownerDecision.status).json({
         ok: false,
         error: ownerDecision.code === 'LAST_OWNER'
