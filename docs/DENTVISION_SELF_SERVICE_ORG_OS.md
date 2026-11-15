@@ -138,3 +138,14 @@ Self-service organization onboarding is complete only when:
 ## Product decision
 
 This document supersedes any flow that requires a DentVision employee to manually create a clinic, diagnostic center, laboratory, seller, academy, or employer as part of normal onboarding. Platform review may still be required for regulated verification or trust/safety, but it is not the user's setup dependency.
+
+
+## Current implementation reconciliation — 2026-11-15
+
+The unified web entry `src/pages/Onboarding.tsx` already supports self-service creation of clinic, diagnostic center, medical lab, dental lab, supplier and academy organizations; personal professional, patient, jobs, student and employer intents; invite lookup and organization join. Do not describe organization onboarding as wholly absent.
+
+**Employer remains incomplete as a first-class organization workspace.** The personal employer intent currently navigates to `/jobs`. The backend `POST /api/jobs/employers/register` creates an Organization with `type: CORPORATE` and `originalType: JobEmployer`, but the canonical IAM scope map in `dentvision-backend/src/modules/iam/contexts.ts` does not map CORPORATE/JobEmployer to an employer workspace. The created PersonRole is not created with the organization-scoped `scopeType/scopeId/scopeKey` that the canonical context resolver expects. The employer registration result also is not wired into the current Jobs UI's generic posting flow.
+
+The generic `POST /api/jobs` currently accepts authenticated vacancy/resume creation and stores only `userId`/optional `clinicId`; the JobVacancy model has no employer Organization relation. Full employer-owned vacancy control, recruiter role authorization, application review, interview/offer/hire statuses and organization-scoped hiring audit are not proven. Treat these as open implementation and authorization gaps; do not close them by adding a generic route alias or by trusting `clinicName` text.
+
+A complete employer slice requires a canonical Employer organization scope and role, vacancy ownership/recruiter authorization, explicit application state machine and a vertical E2E journey from onboarding through hire/invite. Preserve candidate self-service resume creation as a separate action with its own privacy controls.
