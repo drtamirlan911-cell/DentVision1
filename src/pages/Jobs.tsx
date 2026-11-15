@@ -14,7 +14,7 @@ import { PageHeader } from '@/components/ui/ds/StatCard'
 import { Modal } from '@/components/ui/ds/Modal'
 import { CityFilter } from '@/components/ui/CityFilter'
 import { useAuth } from '@/store/auth.store'
-import { applyToJob, createJob, getJobs, getMyJobApplications } from '@/utils/api'
+import { applyToJob, createJob, createEmployerVacancy, getJobs, getMyJobApplications } from '@/utils/api'
 import { useToast } from '@/components/ui/ds/Toast'
 
 type PostKind = 'vacancy' | 'resume'
@@ -31,7 +31,7 @@ const EMPTY_FORM = {
 
 export default function JobsPage() {
   const navigate = useNavigate()
-  const { user, clinic, isAuthenticated } = useAuth()
+  const { user, clinic, isAuthenticated, activeWorkspace } = useAuth()
   const { showToast } = useToast()
   const [search, setSearch] = useState(() => {
     try {
@@ -88,10 +88,18 @@ export default function JobsPage() {
       navigate('/login')
       return
     }
+    if (kind === 'vacancy') {
+      const hasEmployerContext = activeWorkspace?.scopeType === 'EMPLOYER';
+      const hasClinicContext = activeWorkspace?.scopeType === 'CLINIC' || !!clinic?.id;
+      if (!hasEmployerContext && !hasClinicContext) {
+        navigate('/onboarding?mode=create&kind=employer')
+        return
+      }
+    }
     setPostKind(kind)
     setForm({
       ...EMPTY_FORM,
-      clinicName: kind === 'vacancy' ? (clinic?.name || '') : (user?.name || ''),
+      clinicName: kind === 'vacancy' ? (activeWorkspace?.name || clinic?.name || '') : (user?.name || ''),
       city: city || clinic?.city || '',
       employmentType: kind === 'resume' ? 'Ищу работу' : 'Полная занятость',
     })
@@ -109,16 +117,16 @@ export default function JobsPage() {
     }
     setSaving(true)
     try {
-      await createJob({
+      const payload = {
         title: form.title.trim(),
-        clinicName: form.clinicName.trim() || undefined,
         city: form.city.trim(),
         salary: form.salary.trim() || undefined,
-        employmentType: form.employmentType,
+        employmentType: postKind === 'resume' ? 'Ищу работу' : form.employmentType,
         description: form.description.trim() || undefined,
         tags: form.tags.split(',').map((t) => t.trim()).filter(Boolean),
-        kind: postKind,
-      })
+      }
+      if (postKind === 'resume') await createJob({ ...payload, kind: 'resume' })
+      else await createEmployerVacancy(payload)
       showToast(postKind === 'resume' ? 'Резюме опубликовано' : 'Вакансия размещена', 'success')
       setPostOpen(false)
       setForm({ ...EMPTY_FORM })
