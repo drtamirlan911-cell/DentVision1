@@ -174,8 +174,7 @@ export default function Staff() {
   const filtered = filter === 'all' ? staff : staff.filter(s => s.role === filter)
 
   const canManage = !!roleInfo?.canAddStaff || iam.can('canManageClinicSettings')
-  const actorClinicRole = String(activeMembership?.role || role || '').toUpperCase()
-  const canGrantOwner = actorClinicRole === 'OWNER' || actorClinicRole === 'SUPERADMIN'
+  const canGrantOwner = String(activeMembership?.role || '').toUpperCase() === 'OWNER' || String(role || '').toUpperCase() === 'SUPERADMIN'
   const staffRoleOptions = canGrantOwner ? ROLE_OPTIONS : ROLE_OPTIONS.filter((option) => option.value !== 'director')
   const inviteRoleOptions = canGrantOwner ? INVITE_ROLE_OPTIONS : INVITE_ROLE_OPTIONS.filter((option) => option.value !== 'director')
   const canManageMember = (member: UserType | null) => canManage && !!member && (!isOwnerStaff(member.role) || canGrantOwner)
