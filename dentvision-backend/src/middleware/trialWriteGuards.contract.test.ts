@@ -237,7 +237,7 @@ describe('trial backfill contract', () => {
     const roles = [...(match?.[1] || '').matchAll(/'([^']+)'/g)].map((entry) => entry[1]);
     expect(roles).toEqual([
       'owner', 'org_owner', 'seller', 'lecturer',
-      'diagnostic_owner', 'medical_lab_owner', 'dental_lab_owner',
+      'diagnostic_owner', 'medical_lab_owner', 'dental_lab_owner', 'employer_owner',
     ]);
     const archiveRoute = text.slice(text.indexOf("organizationsRouter.delete('/:id'"), text.indexOf('organizationsRouter.use(requireSuperadmin)'));
     expect(archiveRoute).toContain('role: { key: { in: archiveOwnerRoles } }');
