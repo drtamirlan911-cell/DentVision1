@@ -317,6 +317,7 @@ export const MODULE_PAGES: Record<string, string[]> = {
   academy:      ['school'],
   shop:         ['shop', 'promotions'],
   community:    ['community'],
+  jobs:         ['jobs', 'employer'],
   audit:        ['audit'],
   admin:        ['admin'],
   bi:           ['bi'],
