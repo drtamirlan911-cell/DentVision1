@@ -43,6 +43,7 @@ async function cleanupOrganization(organizationId: string) {
     await prisma.branchMember.deleteMany({ where: { branchId: { in: branchIds } } });
     await prisma.branch.deleteMany({ where: { id: { in: branchIds } } });
   }
+  await prisma.organizationInvitation.deleteMany({ where: { organizationId } });
   await prisma.personRole.deleteMany({ where: { scopeType: 'organization', scopeId: organizationId } });
   await prisma.person.deleteMany({ where: { organizationId } });
   await prisma.organization.deleteMany({ where: { id: organizationId } });
@@ -71,6 +72,19 @@ test.describe('Employer workspace and scoped Jobs lifecycle', () => {
       const ownerToken = employer.accessToken;
       expect(ownerToken).toBeTruthy();
 
+      const recruiterInvite = await api.post(`${API}/api/iam/invitations`, {
+        headers: auth(ownerToken),
+        data: { organizationId: ownerOrganizationId, role: 'employer_recruiter', email: candidateEmail, expiresInDays: 7 },
+      });
+      expect(recruiterInvite.status()).toBe(201);
+      const inviteData = (await recruiterInvite.json()).data;
+      expect(inviteData.role).toBe('employer_recruiter');
+      const ownerInviteList = await api.get(`${API}/api/iam/invitations?organizationId=${ownerOrganizationId}`, {
+        headers: auth(ownerToken),
+      });
+      expect(ownerInviteList.status()).toBe(200);
+      expect((await ownerInviteList.json()).data.some((item: any) => item.id === inviteData.id)).toBe(true);
+
       const blockedUntilVerified = await api.post(`${API}/api/jobs/employer/vacancies`, {
         headers: auth(ownerToken),
         data: { title: 'Premature vacancy', city: 'Тараз' },
@@ -79,6 +93,42 @@ test.describe('Employer workspace and scoped Jobs lifecycle', () => {
       expect((await blockedUntilVerified.json()).code).toBe('EMPLOYER_VERIFICATION_REQUIRED');
 
       const candidateToken = await registerUser(api, candidateEmail);
+      const inviteLookup = await api.get(`${API}/api/iam/invitations/lookup?code=${encodeURIComponent(inviteData.code)}`, {
+        headers: auth(candidateToken),
+      });
+      expect(inviteLookup.status()).toBe(200);
+      expect((await inviteLookup.json()).data.role).toBe('employer_recruiter');
+      const joined = await api.post(`${API}/api/iam/join-by-invite`, {
+        headers: auth(candidateToken),
+        data: { code: inviteData.code },
+      });
+      expect(joined.status()).toBe(201);
+
+      const candidateContexts = await api.get(`${API}/api/iam/me/contexts`, { headers: auth(candidateToken) });
+      expect(candidateContexts.status()).toBe(200);
+      const employerContext = ((await candidateContexts.json()).data.contexts || []).find(
+        (ctx: any) => ctx.scopeType === 'EMPLOYER' && ctx.scopeId === ownerOrganizationId && ctx.roleKey === 'employer_recruiter',
+      );
+      expect(employerContext).toBeTruthy();
+
+      const candidateSwitch = await api.post(`${API}/api/iam/switch-context`, {
+        headers: auth(candidateToken),
+        data: { scopeType: 'EMPLOYER', scopeId: ownerOrganizationId },
+      });
+      expect(candidateSwitch.status()).toBe(200);
+      const recruiterToken = (await candidateSwitch.json()).data.accessToken;
+      expect(recruiterToken).toBeTruthy();
+
+      const recruiterCanReadEmployerQueue = await api.get(`${API}/api/jobs/employer/vacancies`, {
+        headers: auth(recruiterToken),
+      });
+      expect(recruiterCanReadEmployerQueue.status()).toBe(200);
+      const recruiterCannotInvite = await api.post(`${API}/api/iam/invitations`, {
+        headers: auth(recruiterToken),
+        data: { organizationId: ownerOrganizationId, role: 'employer_viewer', email: otherOwnerEmail },
+      });
+      expect(recruiterCannotInvite.status()).toBe(403);
+
       const deniedQueue = await api.get(`${API}/api/organizations/verification/queue`, {
         headers: auth(candidateToken),
       });
@@ -188,7 +238,7 @@ test.describe('Employer workspace and scoped Jobs lifecycle', () => {
       const application = await apply.json();
 
       const applications = await api.get(`${API}/api/jobs/employer/vacancies/${vacancyId}/applications`, {
-        headers: auth(ownerToken),
+        headers: auth(recruiterToken),
       });
       expect(applications.status()).toBe(200);
       const rows = (await applications.json()).data as Array<{ id: string; status: string }>;
@@ -196,14 +246,14 @@ test.describe('Employer workspace and scoped Jobs lifecycle', () => {
       expect(rows.find((row) => row.id === application.id)?.status).toBe('new');
 
       const invalidTransition = await api.patch(`${API}/api/jobs/employer/applications/${application.id}/status`, {
-        headers: auth(ownerToken),
+        headers: auth(recruiterToken),
         data: { status: 'hired' },
       });
       expect(invalidTransition.status()).toBe(409);
 
       for (const status of ['reviewing', 'interview', 'offer', 'hired']) {
         const transition = await api.patch(`${API}/api/jobs/employer/applications/${application.id}/status`, {
-          headers: auth(ownerToken),
+          headers: auth(recruiterToken),
           data: { status },
         });
         expect(transition.status(), `application transition to ${status}`).toBe(200);
