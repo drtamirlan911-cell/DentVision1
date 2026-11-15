@@ -144,9 +144,13 @@ jobsRouter.get('/employer/vacancies', authenticate, requirePermission('jobs.read
     if (!scope) return res.status(403).json({ ok: false, error: 'Переключитесь в рабочий контекст работодателя или клиники', code: 'EMPLOYER_CONTEXT_REQUIRED' } satisfies ApiResponse);
     const vacancies = await prisma.jobVacancy.findMany({
       where: { ...ownedVacancyWhere(scope), kind: 'vacancy' },
+      include: { _count: { select: { applications: true } } },
       orderBy: { createdAt: 'desc' },
     });
-    return res.json({ ok: true, data: vacancies } satisfies ApiResponse);
+    return res.json({
+      ok: true,
+      data: vacancies.map(({ _count, ...vacancy }) => ({ ...vacancy, applicationsCount: _count.applications })),
+    } satisfies ApiResponse);
   } catch (error) {
     console.error('Employer vacancy list error:', error);
     return res.status(500).json({ ok: false, error: 'Не удалось загрузить вакансии работодателя' } satisfies ApiResponse);
