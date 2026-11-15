@@ -19,7 +19,8 @@ export type ScopeType =
   | 'SUPPLIER'
   | 'LECTURER'
   | 'ACADEMY'
-  | 'PARTNER';
+  | 'PARTNER'
+  | 'EMPLOYER';
 
 export interface WorkspaceContext {
   id: string;
@@ -48,6 +49,7 @@ const ORG_TYPE_TO_SCOPE: Record<string, ScopeType> = {
   SUPPLIER: 'SUPPLIER',
   ACADEMY: 'ACADEMY',
   PARTNER: 'PARTNER',
+  EMPLOYER: 'EMPLOYER',
 };
 
 const PERSON_TYPE_TO_SCOPE: Record<string, ScopeType> = {
@@ -104,6 +106,9 @@ const ROLE_LABELS: Record<string, string> = {
   support: 'Поддержка',
   superadmin: 'Платформа',
   member: 'Участник',
+  employer_owner: 'Владелец работодателя',
+  employer_recruiter: 'Рекрутер',
+  employer_viewer: 'Наблюдатель работодателя',
 };
 
 export function roleLabelFor(roleKey: string | null | undefined): string {
@@ -124,6 +129,7 @@ const PARTNER_ROLE_TO_USER_ROLE: Record<string, UserRole> = {
   quality: 'ADMIN', diagnostic_quality: 'ADMIN', medical_lab_quality: 'ADMIN', qc_specialist: 'ADMIN',
   cashier: 'CASHIER', seller: 'ASSISTANT', supplier_rep: 'ASSISTANT', supplier: 'ASSISTANT', support: 'SUPPORT',
   student: 'STUDENT', lecturer: 'STUDENT', member: 'PATIENT',
+  employer_owner: 'OWNER', employer_recruiter: 'MANAGER', employer_viewer: 'ASSISTANT',
 };
 
 export function userRoleForPartnerRole(roleKey: string | null | undefined, fallback: UserRole): UserRole {
