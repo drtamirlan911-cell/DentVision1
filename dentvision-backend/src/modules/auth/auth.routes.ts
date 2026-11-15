@@ -249,10 +249,15 @@ authRouter.post('/join-clinic', authenticate, async (req: AuthRequest, res) => {
       } catch (syncError) {
         console.error('[auth/join-clinic] membership sync deferred', syncError);
       }
+    }
+    try {
       await auditFromReq(req, 'clinic.invitation.accepted', 'clinic_member', req.user!.id, {
         clinicId: outcome.clinic.id,
         role: outcome.role,
+        alreadyMember: outcome.alreadyMember,
       });
+    } catch (auditError) {
+      console.error('[auth/join-clinic] audit write deferred', auditError);
     }
     return res.json({
       ok: true,
