@@ -261,17 +261,16 @@ describe('trial backfill contract', () => {
     expect(text).toContain("where: { id: user.organizationId, archivedAt: null }");
   });
 
-  it('reserves organization archive for owner-level roles, not generic administrators', async () => {
+  it('reserves organization archive for canonical legal owners, not generic administrators or operational staff', async () => {
     const text = await source('dentvision-backend/src/modules/organizations/organizations.routes.ts');
-    const match = text.match(/const archiveOwnerRoles = \[([^\]]+)\]/);
-    expect(match).not.toBeNull();
-    const roles = [...(match?.[1] || '').matchAll(/'([^']+)'/g)].map((entry) => entry[1]);
-    expect(roles).toEqual([
-      'owner', 'org_owner', 'seller', 'lecturer',
-      'diagnostic_owner', 'medical_lab_owner', 'dental_lab_owner', 'employer_owner',
-    ]);
-    const archiveRoute = text.slice(text.indexOf("organizationsRouter.delete('/:id'"), text.indexOf('organizationsRouter.use(requireSuperadmin)'));
-    expect(archiveRoute).toContain('role: { key: { in: archiveOwnerRoles } }');
+    const archiveStart = text.indexOf("organizationsRouter.delete('/:id'");
+    const archiveEnd = text.indexOf('organizationsRouter.use(requireSuperadmin)', archiveStart);
+    const archiveRoute = text.slice(archiveStart, archiveEnd);
+    expect(archiveRoute).toContain('hasOrganizationLegalOwnerAuthority(req.user!.id, org.id, org.type)');
+    expect(archiveRoute).not.toContain('archiveOwnerRoles');
+    const access = await source('dentvision-backend/src/lib/organizationLegalAccess.ts');
+    expect(access).toContain("membership?.role || '').toLowerCase() !== 'owner'");
+    expect(access).toContain("academy?.ownerId !== userId");
   });
 
   it('blocks clinic invitation creation and new joins after archive or trial expiry', async () => {
