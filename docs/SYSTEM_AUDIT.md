@@ -83,6 +83,19 @@ Do not mechanically create a separate page for every target route. Reconcile eac
 - Main CI and Quality Gate are green on the audited SHA; PR #347's separate PHI branch has its own independent, still-running exact-head CI at the time this audit was prepared. Do not mix those results.
 - No production/staging database, medical record, key, secret, payment provider, live contract or deployed runtime was modified or queried.
 
+### 5A.1 Candidate remediation overlay — PR #348 (not merged)
+
+The preceding Jobs/employer gap analysis is correct for the audited `main` baseline SHA, but the same audit branch now contains a candidate implementation that addresses the structural gap. Do not continue repeating the old main-baseline finding as the current branch state.
+
+- Employer self-service creates an `EMPLOYER` Organization and returns the canonical organization context.
+- Employer owner/recruiter/viewer roles and scoped invitations are wired into IAM.
+- Job vacancies have an additive `employerOrganizationId` relation; employer listing, candidate discovery, application reads and constrained application transitions are organization-scoped and audited.
+- A dedicated employer workspace is mounted at `/employer`; the E2E candidate covers onboarding, invitation, authorization boundaries, legal activation, pipeline and cross-employer isolation.
+- Publication/candidate discovery require verified lifecycle and legal owner/platform signature state. The repository's legal templates are still DRAFT, so the gate is intentionally closed until authorized legal approval and signature evidence exist.
+- Candidate verification on the previous PR #348 HEAD: backend/frontend lint, lint-test and Quality Gate passed; the E2E job's first suite failed while later role/context and visual/owner gates were still in progress. The documentation-only follow-up changes require a fresh exact-HEAD CI. Employer status therefore remains **candidate implemented / E2E not yet certified**.
+
+This overlay does not change the historical main-baseline inventory above, and it does not authorize merging PR #348 or activating real employers before legal review.
+
 ### 5A. Additional cross-cutting findings — documents, Jobs and AI Employee
 
 **Legal documents and partner activation.** The repository contains 16 Legal Engine Markdown files: the registry, patient personal-data/AI consents, partner agreements, DPA, NDA, SLA, marketplace offer and public policies. The inspected registry and templates declare `status: DRAFT` and `requires_legal_review: true`. These are template assets, not approved/effective agreements or proof of a valid signature/consent workflow. The legal partner lifecycle must remain a release blocker until counsel approves applicable versions, published-only template selection is verified, signer authority/evidence is tested, and an appropriate Kazakhstan-compliant signature/acceptance method is approved. Never auto-promote a draft to published/approved in code.
