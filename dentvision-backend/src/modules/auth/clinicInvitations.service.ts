@@ -13,7 +13,7 @@ export async function createClinicInvitation(input: {
   expiresAt: Date;
 }): Promise<string> {
   for (let attempt = 0; attempt < 3; attempt += 1) {
-    const code = crypto.randomBytes(5).toString('hex').toUpperCase();
+    const code = crypto.randomBytes(8).toString('hex').toUpperCase();
     try {
       await prisma.clinicInvitation.create({
         data: { clinicId: input.clinicId, email: input.email, role: input.role, code, expiresAt: input.expiresAt },
