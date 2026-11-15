@@ -2501,11 +2501,13 @@ model JobVacancy {
   status         String @default("open")
   kind           String @default("vacancy")
 
-  userId   String?
-  clinicId String?
+  userId                  String?
+  clinicId                String?
+  employerOrganizationId  String?
 
-  user   User?   @relation(fields: [userId], references: [id], onDelete: SetNull)
-  clinic Clinic? @relation(fields: [clinicId], references: [id], onDelete: SetNull)
+  user                  User?         @relation(fields: [userId], references: [id], onDelete: SetNull)
+  clinic                Clinic?       @relation(fields: [clinicId], references: [id], onDelete: SetNull)
+  employerOrganization  Organization? @relation("EmployerJobVacancies", fields: [employerOrganizationId], references: [id], onDelete: SetNull)
 
   applications JobApplication[]
 
@@ -3588,6 +3590,7 @@ model Organization {
   persons     Person[]
   invitations OrganizationInvitation[]
   branches     Branch[]
+  employerVacancies JobVacancy[] @relation("EmployerJobVacancies")
 
   @@unique([originalType, originalId])
   @@index([type])
