@@ -12,11 +12,14 @@ vi.mock('../../lib/prisma.js', () => ({
       update: vi.fn(),
       delete: vi.fn(),
     },
+    academy: { findUnique: vi.fn() },
+    person: { findFirst: vi.fn() },
+    personRole: { findFirst: vi.fn() },
   },
 }));
 
 import prisma from '../../lib/prisma.js';
-import { organizationLegalOwnerRoleKeys } from '../../lib/organizationLegalAccess.js';
+import { hasOrganizationLegalOwnerAuthority, organizationLegalOwnerRoleKeys } from '../../lib/organizationLegalAccess.js';
 
 describe('Organization model', () => {
   it('has required fields', () => {
@@ -117,10 +120,36 @@ describe('organization legal-signature authority', () => {
     expect(organizationLegalOwnerRoleKeys('DIAGNOSTIC_CENTER')).toEqual(['diagnostic_owner']);
     expect(organizationLegalOwnerRoleKeys('LABORATORY')).toEqual(['medical_lab_owner', 'dental_lab_owner']);
     expect(organizationLegalOwnerRoleKeys('SUPPLIER_COMPANY')).toEqual(['seller']);
-    expect(organizationLegalOwnerRoleKeys('ACADEMY')).toEqual(['lecturer']);
+    expect(organizationLegalOwnerRoleKeys('ACADEMY')).toEqual([]);
     expect(organizationLegalOwnerRoleKeys('UNKNOWN')).toEqual([]);
     expect(organizationLegalOwnerRoleKeys('EMPLOYER')).not.toContain('employer_recruiter');
     expect(organizationLegalOwnerRoleKeys('EMPLOYER')).not.toContain('employer_viewer');
+  });
+
+  it('grants Academy legal authority only to the recorded Academy owner, not every lecturer', async () => {
+    vi.mocked(prisma.organization.findUnique).mockResolvedValue({
+      originalType: 'Academy',
+      originalId: 'academy-1',
+    } as any);
+    vi.mocked(prisma.academy.findUnique).mockResolvedValue({ ownerId: 'owner-1' } as any);
+    vi.mocked(prisma.person.findFirst).mockResolvedValue({ id: 'person-1' } as any);
+    vi.mocked(prisma.personRole.findFirst).mockResolvedValue({ id: 'role-1' } as any);
+
+    expect(await hasOrganizationLegalOwnerAuthority('owner-1', 'org-1', 'ACADEMY')).toBe(true);
+    expect(await hasOrganizationLegalOwnerAuthority('lecturer-2', 'org-1', 'ACADEMY')).toBe(false);
+  });
+
+  it('uses the same owner-authority contract for organization archival', async () => {
+    const fs = await import('node:fs/promises');
+    const source = await fs.readFile(
+      resolve(process.cwd(), 'dentvision-backend/src/modules/organizations/organizations.routes.ts'),
+      'utf8',
+    );
+    const archiveStart = source.indexOf("organizationsRouter.delete('/:id'");
+    const archiveEnd = source.indexOf('organizationsRouter.use(requireSuperadmin)', archiveStart);
+    const archiveRoute = source.slice(archiveStart, archiveEnd);
+    expect(archiveRoute).toContain('hasOrganizationLegalOwnerAuthority(req.user!.id, org.id, org.type)');
+    expect(archiveRoute).not.toContain('archiveOwnerRoles');
   });
 
   it('requires the owner-authority check before legal package creation and owner signature', async () => {
