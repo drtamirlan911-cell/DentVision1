@@ -197,7 +197,7 @@ export interface CommercialTermsResponse { version:string; effectiveDate:string;
 export async function getPublicCommercialTerms():Promise<CommercialTermsResponse>{ const res=await apiRequest('/api/public/commercial-terms'); return res.data??res; }
 export async function getPublicCommercialDocuments(type?:string):Promise<any[]>{ const res=await apiRequest(`/api/public/commercial-documents${type?`?type=${encodeURIComponent(type)}`:''}`); return res.data??res??[]; }
 
-export type SelfServiceOrganizationType = 'clinic' | 'dental_lab' | 'medical_lab' | 'diagnostic_center' | 'supplier' | 'academy';
+export type SelfServiceOrganizationType = 'clinic' | 'dental_lab' | 'medical_lab' | 'diagnostic_center' | 'supplier' | 'academy' | 'employer';
 export async function createSelfServiceOrganization(data: { type: SelfServiceOrganizationType; name: string; city?: string; address?: string; phone?: string; email?: string; taxId?: string }): Promise<any> { return apiRequest('/api/organizations/self-service', { method: 'POST', body: JSON.stringify(data) }); }
 export async function joinClinic(data: { code?: string; clinicId?: string }): Promise<any> { return apiRequest('/api/auth/join-clinic', { method: 'POST', body: JSON.stringify(data) }); }
 export async function lookupInvitation(code: string): Promise<any> { return apiRequest(`/api/auth/invitations/lookup?code=${encodeURIComponent(code)}`); }
