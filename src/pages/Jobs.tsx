@@ -165,6 +165,11 @@ export default function JobsPage() {
             <Button className="min-h-11" size="sm" variant="secondary" onClick={() => navigate('/', { state: { aiQuery: 'Найди вакансии ортодонта' } })}>
               Спросить AI
             </Button>
+            {(activeWorkspace?.scopeType === 'EMPLOYER' || activeWorkspace?.scopeType === 'CLINIC') && (
+              <Button className="min-h-11" size="sm" variant="secondary" onClick={() => navigate('/employer')}>
+                Кабинет работодателя
+              </Button>
+            )}
             {user && (
               <Button className="min-h-11" size="sm" onClick={() => openPost('vacancy')}>
                 <Plus size={14} className="mr-1.5" />
