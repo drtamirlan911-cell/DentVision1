@@ -1,14 +1,18 @@
 import { Prisma } from '@prisma/client';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { decryptAiAdminJson, decryptAiAdminText, encryptAiAdminText } from '../src/modules/ai-admin/conversation/phi.js';
-import { buildAiAdminMessageBackfillWhere, parseAiAdminExternalIdBackfillOptions, prepareAiAdminEscalationBackfillRow, prepareAiAdminExternalIdBackfillRow, prepareAiAdminMessageBackfillRow } from './backfill-ai-admin-external-user-id.js';
+import { decodeQueuedAiAdminMessage, decryptAiAdminJson, decryptAiAdminText, encryptAiAdminJson, encryptAiAdminText } from '../src/modules/ai-admin/conversation/phi.js';
+import { buildAiAdminMessageBackfillWhere, parseAiAdminExternalIdBackfillOptions, prepareAiAdminEscalationBackfillRow, prepareAiAdminExternalIdBackfillRow, prepareAiAdminMessageBackfillRow, prepareAiAdminQueueBackfillRow } from './backfill-ai-admin-external-user-id.js';
 
-const envNames = ['NODE_ENV', 'ENCRYPTION_KEY', 'AI_ADMIN_PHI_KEYRING_JSON', 'AI_ADMIN_PHI_ACTIVE_KEY_ID', 'AI_ADMIN_EXTERNAL_ID_INDEX_KEYRING_JSON', 'AI_ADMIN_EXTERNAL_ID_ACTIVE_INDEX_KEY_ID', 'AI_ADMIN_EXTERNAL_ID_STRICT_WRITE', 'AI_ADMIN_EXTERNAL_ID_LEGACY_WORKERS_DRAINED'];
+const envNames = ['NODE_ENV', 'ENCRYPTION_KEY', 'AI_ADMIN_PHI_KEYRING_JSON', 'AI_ADMIN_PHI_ACTIVE_KEY_ID', 'AI_ADMIN_EXTERNAL_ID_INDEX_KEYRING_JSON', 'AI_ADMIN_EXTERNAL_ID_ACTIVE_INDEX_KEY_ID', 'AI_ADMIN_EXTERNAL_ID_STRICT_WRITE', 'AI_ADMIN_EXTERNAL_ID_LEGACY_WORKERS_DRAINED', 'AI_ADMIN_PHI_V2_WRITE_ENABLED', 'AI_ADMIN_PHI_V2_READERS_DEPLOYED', 'AI_ADMIN_QUEUE_PHI_ENCRYPTION_ENABLED', 'AI_ADMIN_QUEUE_LEGACY_WORKERS_DRAINED'];
 const originalEnv = Object.fromEntries(envNames.map((name) => [name, process.env[name]]));
 beforeEach(() => {
   process.env.NODE_ENV = 'test';
   process.env.ENCRYPTION_KEY = 'ai-admin-external-id-backfill-test-key-32-chars';
   for (const name of envNames.slice(2)) delete process.env[name];
+  process.env.AI_ADMIN_PHI_V2_WRITE_ENABLED = 'true';
+  process.env.AI_ADMIN_PHI_V2_READERS_DEPLOYED = 'I_HAVE_DEPLOYED_ALL_V2_READERS';
+  process.env.AI_ADMIN_QUEUE_PHI_ENCRYPTION_ENABLED = 'true';
+  process.env.AI_ADMIN_QUEUE_LEGACY_WORKERS_DRAINED = 'I_HAVE_DRAINED_ALL_LEGACY_WORKERS';
 });
 afterEach(() => {
   for (const name of envNames) {
@@ -89,6 +93,10 @@ describe('AI Admin external-identity backfill safeguards', () => {
       AI_ADMIN_EXTERNAL_ID_BACKFILL_TARGET: 'staging',
       DATABASE_URL: stagingUrl,
       AI_ADMIN_EXTERNAL_ID_BACKFILL_STAGING_DATABASE_URL: stagingUrl,
+      AI_ADMIN_PHI_V2_WRITE_ENABLED: 'true',
+      AI_ADMIN_PHI_V2_READERS_DEPLOYED: 'I_HAVE_DEPLOYED_ALL_V2_READERS',
+      AI_ADMIN_QUEUE_PHI_ENCRYPTION_ENABLED: 'true',
+      AI_ADMIN_QUEUE_LEGACY_WORKERS_DRAINED: 'I_HAVE_DRAINED_ALL_LEGACY_WORKERS',
     };
     expect(() => parseAiAdminExternalIdBackfillOptions(
       ['--apply', '--target=staging', '--confirm-target=staging'],
@@ -174,6 +182,45 @@ describe('AI Admin external-identity backfill safeguards', () => {
     expect(decryptAiAdminText(prepared.reason)).toBe(reason);
     expect(decryptAiAdminText(prepared.lastUserMessage)).toBe(lastUserMessage);
     expect(JSON.stringify(prepared)).not.toContain('Test Person');
+  });
+
+  it('backfills retained queue payloads and errors, including completed rows', () => {
+    const legacyPayload = {
+      channel: 'WHATSAPP' as const,
+      channelAccountId: 'account-1',
+      externalUserId: '77010000000',
+      text: 'Patient Queue Person reports diagnosis beta',
+      externalMessageId: 'wamid-legacy-1',
+      receivedAt: new Date('2026-11-08T08:00:00.000Z'),
+    };
+    const prepared = prepareAiAdminQueueBackfillRow({
+      id: 'queue-row-1',
+      payload: legacyPayload,
+      error: 'Provider error includes Patient Queue Person',
+    });
+    expect(prepared.payload).toMatch(/^ENC:v2:/);
+    expect(decodeQueuedAiAdminMessage(prepared.payload)).toEqual(legacyPayload);
+    expect(prepared.error).toMatch(/^ENC:v2:/);
+    expect(decryptAiAdminText(prepared.error)).toBe('Provider error includes Patient Queue Person');
+    expect(JSON.stringify(prepared)).not.toContain('Queue Person');
+    expect(JSON.stringify(prepared)).not.toContain('diagnosis beta');
+  });
+
+  it('keeps null queue errors null while encrypting retained payloads', () => {
+    const prepared = prepareAiAdminQueueBackfillRow({
+      id: 'queue-row-2',
+      payload: {
+        channel: 'INSTAGRAM',
+        channelAccountId: 'account-2',
+        externalUserId: 'ig-user-1',
+        text: 'private queue message',
+        externalMessageId: 'ig-message-1',
+        receivedAt: '2026-11-08T08:00:00.000Z',
+      },
+      error: null,
+    });
+    expect(prepared.payload).toMatch(/^ENC:v2:/);
+    expect(prepared.error).toBeNull();
   });
 
   it('rejects mismatched existing blind indexes', () => {
