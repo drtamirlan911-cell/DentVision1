@@ -83,6 +83,23 @@ Do not mechanically create a separate page for every target route. Reconcile eac
 - Main CI and Quality Gate are green on the audited SHA; PR #347's separate PHI branch has its own independent, still-running exact-head CI at the time this audit was prepared. Do not mix those results.
 - No production/staging database, medical record, key, secret, payment provider, live contract or deployed runtime was modified or queried.
 
+### 5A. Additional cross-cutting findings — documents, Jobs and AI Employee
+
+**Legal documents and partner activation.** The repository contains 16 Legal Engine Markdown files: the registry, patient personal-data/AI consents, partner agreements, DPA, NDA, SLA, marketplace offer and public policies. The inspected registry and templates declare `status: DRAFT` and `requires_legal_review: true`. These are template assets, not approved/effective agreements or proof of a valid signature/consent workflow. The legal partner lifecycle must remain a release blocker until counsel approves applicable versions, published-only template selection is verified, signer authority/evidence is tested, and an appropriate Kazakhstan-compliant signature/acceptance method is approved. Never auto-promote a draft to published/approved in code.
+
+**Jobs / employer identity is a structural gap, not just missing tabs.** Current `JobEmployer` bootstrap creates an Organization with `type: CORPORATE`, `originalType: JobEmployer`, a Person, and a PersonRole. However:
+- `dentvision-backend/src/modules/iam/contexts.ts` does not map `CORPORATE` / `JobEmployer` to a first-class employer scope.
+- The employer bootstrap creates PersonRole without organization `scopeType`, `scopeId` or canonical `scopeKey`, while the current organization-context resolver expects organization-scoped roles.
+- `JobVacancy` has only `userId` and optional `clinicId`; it does not have a canonical employer Organization relation/owner field.
+- Generic authenticated `POST /api/jobs` creates a vacancy or resume from caller-supplied `clinicName` without a verified employer/recruiter context. The backend has no employer-owned vacancy inbox, application status mutation, interview, offer or hire lifecycle endpoints.
+- The frontend employer intent routes to `/jobs`, and current generic post UI does not prove integration with `/api/jobs/employers/register`.
+
+This requires a bounded identity/schema/API/UI/E2E implementation before claiming an employer workspace. Do not fix by trusting a clinic/company name string or adding a global role fallback. Preserve candidate resume posting as a separate, privacy-scoped capability.
+
+**AI Employee work queue exists, but is not ecosystem-wide.** The durable `ai_employee_tasks` table/migrations, service, event subscriber, idempotency index, clinic-scoped approval routes and frontend API/panel component exist. The subscriber preserves event provenance and intentionally avoids copying the raw event payload into another JSONB row. However the task input/table require `clinicId`, the subscriber ignores events without `event.clinicId`, and both task API endpoints require `req.user.clinicId`. This does not provide first-class work queues for independent diagnostic centers, medical/dental laboratories, suppliers, academies or employers. The task panel/component exists, but mounting as the default home surface in every participant workspace is not proven by the audited route component. Keep classification **implemented clinic slice / ecosystem coverage partial**.
+
+**Document-age reconciliation.** `docs/AI_REPORT.md`, `docs/REFACTOR_PLAN.md` and `docs/TECH_DEBT.md` originate from July 2026 and contain pre-migration architecture/backlog claims that no longer match current paths/runtime; the AI report and the June/July technical debt list must not be used as live defect inventories. `docs/CONTINUATION_STATE.md` is a September 14 checkpoint for branch `feat/iam-role-matrix-v2` / PR #275 and is historical, not the active continuation source. The October/November RBAC, auth and compliance audit tables also contain historical gap rows; each requires current-source revalidation before reopening a defect.
+
 ### 6. Audit conclusions and execution priority
 
 **The repository is a substantial platform foundation, but it does not yet meet all Master Spec 5.0 Definition-of-Done requirements.** The main gaps are end-to-end workflow depth, first-class partner operations, employer/job lifecycle, public discovery, role/branch isolation, full financial settlement and measured runtime parity—not merely missing screens.
