@@ -163,6 +163,37 @@ describe('additional D1 clinical write guard boundaries', () => {
   });
 });
 
+describe('Jobs clinic write boundary', () => {
+  it('blocks expired clinic vacancy and pipeline mutations without applying clinic trials to independent employers', async () => {
+    const text = await source('dentvision-backend/src/modules/jobs/jobs.routes.ts');
+    expect(text).toContain("import { resolveClinicAccess } from '../billing/planEntitlements.js'");
+    expect(text).toContain('async function ensureJobWriteAllowed(scope: JobEmployerScope, res: Response)');
+    expect(text).toContain('if (!scope.clinicId) return true');
+    expect(text).toContain('if (access.writeBlocked)');
+    expect(text).toContain("code: 'SUBSCRIPTION_EXPIRED'");
+    const vacancyRoute = text.indexOf("jobsRouter.post('/employer/vacancies'");
+    const vacancyGuard = text.indexOf('ensureJobWriteAllowed(scope, res)', vacancyRoute);
+    const vacancyWrite = text.indexOf('prisma.jobVacancy.create', vacancyRoute);
+    expect(vacancyGuard).toBeGreaterThan(vacancyRoute);
+    expect(vacancyGuard).toBeLessThan(vacancyWrite);
+    const applicationRoute = text.indexOf("jobsRouter.patch('/employer/applications/:id/status'");
+    const applicationGuard = text.indexOf('ensureJobWriteAllowed(scope, res)', applicationRoute);
+    const applicationWrite = text.indexOf('prisma.jobApplication.updateMany', applicationRoute);
+    expect(applicationGuard).toBeGreaterThan(applicationRoute);
+    expect(applicationGuard).toBeLessThan(applicationWrite);
+  });
+
+  it('hides employer vacancies from public discovery when organization verification or legal activation is revoked', async () => {
+    const text = await source('dentvision-backend/src/modules/jobs/jobs.routes.ts');
+    expect(text).toContain("path: ['lifecycle'], equals: 'ACTIVE_VERIFIED'");
+    expect(text).toContain("path: ['verification'], equals: 'APPROVED'");
+    expect(text).toContain("path: ['ecosystemVisible'], equals: true");
+    expect(text).toContain("path: ['legal', 'ownerSigned'], equals: true");
+    expect(text).toContain("path: ['legal', 'platformSigned'], equals: true");
+    expect(text).toContain('archivedAt: null');
+  });
+});
+
 describe('trial backfill contract', () => {
   it('does not deactivate Clinic tenancy when an administrative subscription update marks it expired', async () => {
     const text = await source('dentvision-backend/src/modules/billing/subscriptions.routes.ts');
