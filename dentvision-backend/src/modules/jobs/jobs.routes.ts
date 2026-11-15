@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { Prisma } from '@prisma/client';
+import type { Prisma } from '@prisma/client';
 import prisma from '../../lib/prisma.js';
 import { authenticate, optionalAuth } from '../../middleware/auth.js';
 import { requirePermission } from '../../middleware/rbac.js';
@@ -52,7 +52,19 @@ async function activeJobEmployerScope(req: AuthRequest): Promise<JobEmployerScop
     if (organization.type === 'CLINIC') {
       const clinicId = String(organization.originalId || req.user?.clinicId || '').trim();
       if (!clinicId) return null;
-      return { employerOrganizationId: null, clinicId, clinicName: organization.name, verificationStatus: 'APPROVED', canPublish: true };
+      const settings = organization.settings && typeof organization.settings === 'object' && !Array.isArray(organization.settings)
+        ? organization.settings as Record<string, unknown> : {};
+      const verificationStatus = String(settings.verification || 'LEGACY_ACTIVE').toUpperCase();
+      const legal = settings.legal && typeof settings.legal === 'object' && !Array.isArray(settings.legal)
+        ? settings.legal as Record<string, unknown> : {};
+      const hasExplicitVerification = Object.prototype.hasOwnProperty.call(settings, 'verification');
+      const canPublish = !hasExplicitVerification || (
+        verificationStatus === 'APPROVED'
+        && settings.lifecycle === 'ACTIVE_VERIFIED'
+        && legal.ownerSigned === true
+        && legal.platformSigned === true
+      );
+      return { employerOrganizationId: null, clinicId, clinicName: organization.name, verificationStatus, canPublish };
     }
     return null;
   }
