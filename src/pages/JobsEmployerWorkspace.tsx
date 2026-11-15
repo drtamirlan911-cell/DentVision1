@@ -12,11 +12,13 @@ import { useToast } from '@/components/ui/ds/Toast';
 import {
   createEmployerVacancy,
   getEmployerVacancies,
+  getEmployerStatus,
   getEmployerVacancyApplications,
   updateEmployerApplicationStatus,
 } from '@/utils/api';
 
 type EmployerVacancy = { id: string; title: string; city: string; status: string; applicationsCount?: number };
+type EmployerStatus = { organizationType: string; organizationName: string; verificationStatus: string; canPublish: boolean };
 type EmployerApplication = {
   id: string;
   vacancyId: string;
@@ -58,6 +60,7 @@ export default function JobsEmployerWorkspace() {
   const toast = useToast();
   const { isAuthenticated, loading: authLoading, user } = useAuth();
   const [vacancies, setVacancies] = useState<EmployerVacancy[]>([]);
+  const [workspaceStatus, setWorkspaceStatus] = useState<EmployerStatus | null>(null);
   const [applications, setApplications] = useState<EmployerApplication[]>([]);
   const [selectedVacancyId, setSelectedVacancyId] = useState('');
   const [loading, setLoading] = useState(true);
@@ -75,13 +78,15 @@ export default function JobsEmployerWorkspace() {
   const loadVacancies = useCallback(async () => {
     setLoading(true);
     try {
-      const list = await getEmployerVacancies();
+      const [list, status] = await Promise.all([getEmployerVacancies(), getEmployerStatus()]);
       setVacancies(list as EmployerVacancy[]);
+      setWorkspaceStatus(status);
       setSelectedVacancyId((current) => current && list.some((item: EmployerVacancy) => item.id === current)
         ? current
         : (list[0]?.id || ''));
     } catch (error: any) {
       setVacancies([]);
+      setWorkspaceStatus(null);
       setApplications([]);
       toast.error(error?.message || 'Нет доступа к кабинету работодателя');
     } finally {
@@ -169,13 +174,25 @@ export default function JobsEmployerWorkspace() {
             <Button variant="secondary" className="min-h-11" onClick={() => navigate('/jobs')}>
               <ArrowLeft size={15} /> Рынок вакансий
             </Button>
-            <Button className="min-h-11" onClick={() => setShowForm((value) => !value)}>
+            <Button className="min-h-11" disabled={workspaceStatus?.canPublish !== true} onClick={() => setShowForm((value) => !value)}>
               <Plus size={15} /> Новая вакансия
             </Button>
           </div>
         }
       />
 
+      {!workspaceStatus?.canPublish && (
+        <Card padding="md" className="border border-amber-500/30 bg-amber-500/[0.04]">
+          <p className="font-medium text-txt-primary">Публикация пока недоступна</p>
+          <p className="mt-1 text-sm text-txt-secondary">
+            Статус проверки организации: {workspaceStatus?.verificationStatus || 'не подтверждён'}.
+            Вакансии и поиск кандидатов откроются после юридической проверки, подписи владельца и активации DentVision.
+          </p>
+          <Button size="sm" variant="secondary" className="mt-3" onClick={() => navigate('/settings')}>
+            Открыть документы организации
+          </Button>
+        </Card>
+      )}
       {showForm && (
         <Card padding="lg" className="space-y-3">
           <h2 className="font-semibold text-txt-primary">Новая вакансия</h2>
