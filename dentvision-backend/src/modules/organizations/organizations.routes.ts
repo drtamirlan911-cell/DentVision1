@@ -4,6 +4,7 @@ import type { Prisma, UserRole } from '@prisma/client';
 import prisma from '../../lib/prisma.js';
 import { authenticate } from '../../middleware/auth.js';
 import { requireSuperadmin } from '../../middleware/rbac.js';
+import { hasOrganizationLegalOwnerAuthority } from '../../lib/organizationLegalAccess.js';
 import type { AuthRequest, ApiResponse } from '../../types/index.js';
 import { uid, paginate, paginatedResponse } from '../../lib/helpers.js';
 import branchesRouter from '../branches/branches.routes.js';
@@ -102,35 +103,6 @@ async function requireOrganizationClinicWritable(req: AuthRequest, res: any, nex
     console.error('[organizations] subscription write guard', error);
     return res.status(503).json({ ok: false, error: 'Не удалось проверить подписку организации', code: 'CLINIC_ACCESS_UNVERIFIED' });
   }
-}
-
-export function organizationLegalOwnerRoleKeys(orgType: string): string[] {
-  switch (String(orgType || '').toUpperCase()) {
-    case 'CLINIC': return ['owner', 'org_owner'];
-    case 'DIAGNOSTIC_CENTER': return ['diagnostic_owner'];
-    case 'LABORATORY': return ['medical_lab_owner', 'dental_lab_owner'];
-    case 'SUPPLIER_COMPANY':
-    case 'SUPPLIER': return ['seller'];
-    case 'ACADEMY': return ['lecturer'];
-    case 'EMPLOYER': return ['employer_owner'];
-    case 'PARTNER': return ['org_owner'];
-    default: return [];
-  }
-}
-
-async function hasOrganizationLegalOwnerAuthority(userId: string, organizationId: string, organizationType: string): Promise<boolean> {
-  const roleKeys = organizationLegalOwnerRoleKeys(organizationType);
-  if (!roleKeys.length) return false;
-  const assignment = await prisma.personRole.findFirst({
-    where: {
-      scopeType: 'organization',
-      scopeId: organizationId,
-      person: { userId, organizationId },
-      role: { key: { in: roleKeys } },
-    },
-    select: { id: true },
-  });
-  return Boolean(assignment);
 }
 
 async function currentOrganizationPerson(userId: string, requestedOrganizationId?: string | null) {
