@@ -110,10 +110,13 @@ jobsRouter.get('/employer/vacancies', authenticate, requirePermission('jobs.read
   }
 });
 
-jobsRouter.get('/employer/resumes', authenticate, requirePermission('jobs.read'), async (_req: AuthRequest, res) => {
+jobsRouter.get('/employer/resumes', authenticate, requirePermission('jobs.read'), async (req: AuthRequest, res) => {
   try {
+    const scope = await activeJobEmployerScope(req);
+    if (!scope) return res.status(403).json({ ok: false, error: 'Поиск кандидатов доступен только из контекста работодателя или клиники', code: 'EMPLOYER_CONTEXT_REQUIRED' } satisfies ApiResponse);
     const resumes = await prisma.jobVacancy.findMany({
       where: { kind: 'resume', status: 'open' },
+      select: { id: true, title: true, clinicName: true, city: true, salary: true, employmentType: true, description: true, tags: true, createdAt: true },
       orderBy: { createdAt: 'desc' },
     });
     return res.json({ ok: true, data: resumes } satisfies ApiResponse);
