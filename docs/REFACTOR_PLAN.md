@@ -1,5 +1,8 @@
 # DentVision V2 — Refactor Plan
 
+> **Historical snapshot — 2026-07-17.** This phased plan was written before the current architecture, CI gates, React Query migration, AI OS, unified IAM and later security hardening. Its unchecked Phase 1 items and old file references are not a live backlog or evidence that those defects still exist. Revalidate each item against current source before reopening it. Current product direction: `docs/DENTVISION_MASTER_SPEC.md`; current findings: `docs/SYSTEM_AUDIT.md`; release blockers: `docs/RELEASE_BLOCKERS.md`; sequencing: `DENTVISION_EXECUTION_PLAN.md`.
+
+
 **Date:** 2026-07-17
 **Rule:** Evolutionary refactoring only. No rewrites. No breaking APIs. No deleting working code.
 
