@@ -205,16 +205,6 @@ authRouter.post('/join-clinic', authenticate, async (req: AuthRequest, res) => {
       }
 
       const membershipKey = { userId: req.user!.id, clinicId: invitation.clinicId };
-      const existing = await tx.clinicMember.findUnique({ where: { userId_clinicId: membershipKey } });
-      if (existing?.active) {
-        return {
-          ok: true as const,
-          alreadyMember: true,
-          clinic: invitation.clinic,
-          role: existing.role,
-        };
-      }
-
       const claimed = await tx.clinicInvitation.updateMany({
         where: {
           id: invitation.id,
@@ -225,6 +215,16 @@ authRouter.post('/join-clinic', authenticate, async (req: AuthRequest, res) => {
       });
       if (claimed.count !== 1) {
         return { ok: false as const, status: 410, code: 'INVITATION_USED', error: 'Приглашение уже использовано или истекло' };
+      }
+
+      const existing = await tx.clinicMember.findUnique({ where: { userId_clinicId: membershipKey } });
+      if (existing?.active) {
+        return {
+          ok: true as const,
+          alreadyMember: true,
+          clinic: invitation.clinic,
+          role: existing.role,
+        };
       }
 
       const membership = await tx.clinicMember.upsert({
