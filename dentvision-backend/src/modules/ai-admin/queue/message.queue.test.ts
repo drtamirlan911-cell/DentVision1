@@ -25,22 +25,27 @@ import {
   failMessage,
 } from './message.queue.js';
 
-const originalNodeEnv = process.env.NODE_ENV;
-const originalEncryptionKey = process.env.ENCRYPTION_KEY;
+const envNames = ['NODE_ENV', 'ENCRYPTION_KEY', 'AI_ADMIN_PHI_V2_WRITE_ENABLED', 'AI_ADMIN_PHI_V2_READERS_DEPLOYED', 'AI_ADMIN_QUEUE_PHI_ENCRYPTION_ENABLED', 'AI_ADMIN_QUEUE_LEGACY_WORKERS_DRAINED'];
+const originalEnv = Object.fromEntries(envNames.map((name) => [name, process.env[name]]));
 
 beforeEach(() => {
   process.env.NODE_ENV = 'test';
   process.env.ENCRYPTION_KEY = 'ai-admin-queue-test-key-at-least-32-characters';
+  process.env.AI_ADMIN_PHI_V2_WRITE_ENABLED = 'true';
+  process.env.AI_ADMIN_PHI_V2_READERS_DEPLOYED = 'I_HAVE_DEPLOYED_ALL_V2_READERS';
+  process.env.AI_ADMIN_QUEUE_PHI_ENCRYPTION_ENABLED = 'true';
+  process.env.AI_ADMIN_QUEUE_LEGACY_WORKERS_DRAINED = 'I_HAVE_DRAINED_ALL_LEGACY_WORKERS';
   vi.clearAllMocks();
   executeRaw.mockResolvedValue(1);
   txExecuteRaw.mockResolvedValue(1);
 });
 
 afterEach(() => {
-  if (originalNodeEnv === undefined) delete process.env.NODE_ENV;
-  else process.env.NODE_ENV = originalNodeEnv;
-  if (originalEncryptionKey === undefined) delete process.env.ENCRYPTION_KEY;
-  else process.env.ENCRYPTION_KEY = originalEncryptionKey;
+  for (const name of envNames) {
+    const value = originalEnv[name];
+    if (value === undefined) delete process.env[name];
+    else process.env[name] = value;
+  }
 });
 
 const message = {
@@ -65,6 +70,22 @@ describe('AI Admin durable webhook queue encryption', () => {
     expect(stored).toBeTruthy();
     expect(stored).not.toContain('Ivan Petrov');
     expect(stored).not.toContain('private diagnosis alpha');
+  });
+
+  it('keeps legacy object-shaped queue writes during the compatibility rollout', async () => {
+    process.env.AI_ADMIN_QUEUE_PHI_ENCRYPTION_ENABLED = 'false';
+    await enqueueMessage(message);
+    const values = valuesOf(executeRaw.mock.calls[0][0]);
+    const stored = values.find((value) => typeof value === 'string' && value.includes('wamid.1'));
+    expect(stored).toBeTruthy();
+    const parsed = JSON.parse(stored as string);
+    expect(parsed).toMatchObject({ channel: 'WHATSAPP', externalUserId: message.externalUserId, text: message.text, externalMessageId: message.externalMessageId });
+  });
+
+  it('refuses queue encryption until legacy queue workers are drained', async () => {
+    process.env.AI_ADMIN_QUEUE_LEGACY_WORKERS_DRAINED = '';
+    await expect(enqueueMessage(message)).rejects.toThrow(/legacy queue workers are drained/);
+    expect(executeRaw).not.toHaveBeenCalled();
   });
 
   it('decrypts new queue rows before the worker receives them', async () => {

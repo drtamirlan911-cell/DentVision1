@@ -15,13 +15,17 @@ vi.mock('../../billing/clinicSubscription.service.js', () => ({ notifyClinicOwne
 import { getOrCreateSession, getRecentMessages, markEscalated, saveMessage } from './conversation.manager.js';
 import { encryptAiAdminJson, encryptAiAdminText, getAiAdminExternalUserIdHashes, hashAiAdminExternalUserId } from './phi.js';
 
-const envNames = ['NODE_ENV', 'ENCRYPTION_KEY', 'AI_ADMIN_PHI_KEYRING_JSON', 'AI_ADMIN_PHI_ACTIVE_KEY_ID', 'AI_ADMIN_EXTERNAL_ID_INDEX_KEYRING_JSON', 'AI_ADMIN_EXTERNAL_ID_ACTIVE_INDEX_KEY_ID', 'AI_ADMIN_EXTERNAL_ID_STRICT_WRITE', 'AI_ADMIN_EXTERNAL_ID_LEGACY_WORKERS_DRAINED'];
+const envNames = ['NODE_ENV', 'ENCRYPTION_KEY', 'AI_ADMIN_PHI_KEYRING_JSON', 'AI_ADMIN_PHI_ACTIVE_KEY_ID', 'AI_ADMIN_EXTERNAL_ID_INDEX_KEYRING_JSON', 'AI_ADMIN_EXTERNAL_ID_ACTIVE_INDEX_KEY_ID', 'AI_ADMIN_EXTERNAL_ID_STRICT_WRITE', 'AI_ADMIN_EXTERNAL_ID_LEGACY_WORKERS_DRAINED', 'AI_ADMIN_PHI_V2_WRITE_ENABLED', 'AI_ADMIN_PHI_V2_READERS_DEPLOYED'];
 const originalEnv = Object.fromEntries(envNames.map((name) => [name, process.env[name]]));
 
 beforeEach(() => {
   process.env.NODE_ENV = 'test';
   process.env.ENCRYPTION_KEY = 'ai-admin-conversation-test-key-at-least-32-chars';
-  for (const name of envNames.slice(2)) delete process.env[name];
+  process.env.AI_ADMIN_PHI_V2_WRITE_ENABLED = 'true';
+  process.env.AI_ADMIN_PHI_V2_READERS_DEPLOYED = 'I_HAVE_DEPLOYED_ALL_V2_READERS';
+  for (const name of envNames.slice(2, 6)) delete process.env[name];
+  delete process.env.AI_ADMIN_EXTERNAL_ID_STRICT_WRITE;
+  delete process.env.AI_ADMIN_EXTERNAL_ID_LEGACY_WORKERS_DRAINED;
   vi.clearAllMocks();
   prismaMock.aiAdminMessage.create.mockResolvedValue({});
   prismaMock.aiAdminMessage.findMany.mockResolvedValue([]);
