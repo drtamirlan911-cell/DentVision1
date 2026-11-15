@@ -103,6 +103,16 @@ describe('AI Admin at-rest encryption', () => {
     expect(isAiAdminTextEncryptedWithActiveKey(oldVersion)).toBe(false);
   });
 
+  it('round-trips empty messages in both versioned and legacy ciphertext formats', () => {
+    const versioned = encryptAiAdminText('');
+    expect(versioned).toMatch(/^ENC:v2:legacy:/);
+    expect(decryptAiAdminText(versioned)).toBe('');
+
+    const legacy = encryptField('');
+    expect(legacy).toMatch(/^ENC:/);
+    expect(decryptAiAdminText(legacy)).toBe('');
+  });
+
   it('encrypts patient messages and round-trips them', () => {
     const source = 'Patient Ivan Petrov: private diagnosis alpha';
     const stored = encryptAiAdminText(source);

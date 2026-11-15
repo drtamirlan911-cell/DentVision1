@@ -86,7 +86,10 @@ function getLegacyEncryptionSecret(): string {
 
 function decryptLegacyAiAdminText(value: string): string {
   const parts = value.slice(ENCRYPTED_PREFIX.length).split(':');
-  if (parts.length !== 3 || !parts.every((part) => /^[a-fA-F0-9]+$/.test(part))) {
+  if (parts.length !== 3
+    || !/^[a-fA-F0-9]+$/.test(parts[0])
+    || !/^[a-fA-F0-9]+$/.test(parts[1])
+    || !/^(?:[a-fA-F0-9]{2})*$/.test(parts[2])) {
     throw new Error('[phi] AI Admin legacy ciphertext has an invalid format');
   }
   try {
@@ -173,7 +176,7 @@ export function decryptAiAdminText(value: string | null | undefined): string {
     || !KEY_ID_PATTERN.test(parts[2])
     || !/^[A-Za-z0-9_-]+$/.test(parts[3])
     || !/^[A-Za-z0-9_-]+$/.test(parts[4])
-    || !/^[A-Za-z0-9_-]+$/.test(parts[5])
+    || !/^[A-Za-z0-9_-]*$/.test(parts[5])
   ) {
     throw new Error('[phi] AI Admin versioned ciphertext has an invalid format');
   }
