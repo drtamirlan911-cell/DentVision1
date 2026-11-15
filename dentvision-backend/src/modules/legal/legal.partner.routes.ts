@@ -6,6 +6,7 @@ import { writeAuditLog } from './legal.audit.js';
 import { onboardPartner, buildDocumentContent } from './legal.service.js';
 import { ensureLegalTrustPackage, getLegalPartnerForContext } from './legal.trust.service.js';
 import { resolveAnyClinicMembership } from '../../lib/orgContext.js';
+import { hasOrganizationLegalOwnerAuthority } from '../../lib/organizationLegalAccess.js';
 
 const router = Router();
 
@@ -28,6 +29,23 @@ async function resolveLegalOrganizationId(req: any): Promise<string | null> {
   return organization?.id || null;
 }
 
+async function requireLegalOwner(req: any, res: any): Promise<boolean> {
+  const organizationId = String(req.legalOrganizationId || '').trim();
+  if (!organizationId) {
+    res.status(403).json({ ok: false, error: 'Выберите организацию для юридического действия', code: 'ORGANIZATION_CONTEXT_REQUIRED' });
+    return false;
+  }
+  const organization = await prisma.organization.findFirst({
+    where: { id: organizationId, archivedAt: null },
+    select: { id: true, type: true },
+  });
+  if (!organization || !(await hasOrganizationLegalOwnerAuthority(req.user.id, organization.id, organization.type))) {
+    res.status(403).json({ ok: false, error: 'Юридические действия доступны только уполномоченному владельцу организации', code: 'ORGANIZATION_LEGAL_OWNER_REQUIRED' });
+    return false;
+  }
+  return true;
+}
+
 async function resolveRequestPartner(req: any) {
   const organizationId = await resolveLegalOrganizationId(req);
   const scoped = await getLegalPartnerForContext(req.user.id, organizationId);
@@ -46,8 +64,11 @@ router.post('/onboard', async (req: any, res, next) => {
     const existing = await getLegalPartnerForContext(req.user.id, organizationId);
     if (existing) return res.json({ ok: true, data: existing });
 
-    const organization = await prisma.organization.findUnique({ where: { id: organizationId } });
+    const organization = await prisma.organization.findFirst({ where: { id: organizationId, archivedAt: null } });
     if (!organization) return res.status(400).json({ ok: false, error: 'Организация не найдена' });
+    if (!(await hasOrganizationLegalOwnerAuthority(req.user.id, organization.id, organization.type))) {
+      return res.status(403).json({ ok: false, error: 'Юридический пакет может создать только уполномоченный владелец организации', code: 'ORGANIZATION_LEGAL_OWNER_REQUIRED' });
+    }
 
     const clinic = organization.originalType === 'Clinic' && organization.originalId
       ? await prisma.clinic.findUnique({ where: { id: organization.originalId } })
@@ -133,6 +154,7 @@ router.get('/documents', async (req: any, res, next) => {
 
 router.post('/documents/regenerate', async (req: any, res, next) => {
   try {
+    if (!(await requireLegalOwner(req, res))) return;
     const partner = await prisma.legalPartner.findUnique({ where: { id: req.partner.id } });
     if (!partner) return res.status(404).json({ ok: false, error: 'Partner not found' });
     const docs = await prisma.legalDocument.findMany({ where: { partnerId: req.partner.id } });
@@ -192,6 +214,7 @@ router.get('/documents/:id', async (req: any, res, next) => {
 
 router.post('/documents/:id/sign', async (req: any, res, next) => {
   try {
+    if (!(await requireLegalOwner(req, res))) return;
     const doc = await prisma.legalDocument.findFirst({
       where: { id: req.params.id, partnerId: req.partner.id },
     });
@@ -299,6 +322,7 @@ router.get('/partner', async (req: any, res, next) => {
 
 router.put('/partner', async (req: any, res, next) => {
   try {
+    if (!(await requireLegalOwner(req, res))) return;
     const allowed = ['legalName', 'bin', 'director', 'address', 'iban', 'phone', 'email'];
     const updates: Record<string, any> = {};
     for (const key of allowed) {
