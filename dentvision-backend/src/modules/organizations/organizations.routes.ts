@@ -28,6 +28,7 @@ const SELF_SERVICE_TYPES = {
   diagnostic_center: { orgType: 'DIAGNOSTIC_CENTER', nextPath: '/diagnostics/center' },
   academy: { orgType: 'ACADEMY', nextPath: '/school' },
   supplier: { orgType: 'SUPPLIER_COMPANY', nextPath: '/supplier' },
+  employer: { orgType: 'EMPLOYER', nextPath: '/jobs?view=employer' },
 } as const;
 
 type SelfServiceType = keyof typeof SELF_SERVICE_TYPES;
@@ -40,6 +41,7 @@ function selfServiceRoleKey(type: SelfServiceType): string {
     case 'dental_lab': return 'dental_lab_owner';
     case 'supplier': return 'seller';
     case 'academy': return 'lecturer';
+    case 'employer': return 'employer_owner';
   }
 }
 
@@ -215,11 +217,31 @@ organizationsRouter.post('/self-service', async (req: AuthRequest, res) => {
         entity = await tx.supplier.create({ data: { id: entityId, name, kind: 'SUPPLIER', bin: taxId, legalAddress: address, contactPerson: `${req.user!.firstName} ${req.user!.lastName}`.trim() || null, phone, email, status: 'pending', commissionRate: 800, members: { create: { userId: req.user!.id, role: 'owner' } } } });
         organizationId = uid();
         await tx.organization.create({ data: { id: organizationId, name, type: 'SUPPLIER_COMPANY' as any, taxId, address, phone, email, originalType: 'Supplier', originalId: entityId, settings: { lifecycle: 'PENDING_VERIFICATION', verification: 'PENDING', ecosystemVisible: false, legal: { status: 'PENDING' }, onboardingKey: idempotencyKey, selfServiceType: type } as any } });
-      } else {
+      } else if (type === 'academy') {
         entityId = uid();
         entity = await tx.academy.create({ data: { id: entityId, name, city: city || null, ownerId: req.user!.id } });
         organizationId = uid();
         await tx.organization.create({ data: { id: organizationId, name, type: 'ACADEMY' as any, taxId, address, phone, email, originalType: 'Academy', originalId: entityId, settings: { lifecycle: 'PENDING_VERIFICATION', verification: 'PENDING', ecosystemVisible: false, legal: { status: 'PENDING' }, onboardingKey: idempotencyKey, selfServiceType: type } as any } });
+      } else {
+        // Employer is a first-class organization workspace, not a clinicName field
+        // or a platform-global job poster. The canonical owner role is scoped
+        // below by ensurePersonRole() and the initial branch is assigned to that owner.
+        entityId = uid();
+        organizationId = uid();
+        entity = await tx.organization.create({
+          data: {
+            id: organizationId,
+            name,
+            type: 'EMPLOYER',
+            taxId,
+            address,
+            phone,
+            email,
+            originalType: 'JobEmployer',
+            originalId: entityId,
+            settings: { lifecycle: 'PENDING_VERIFICATION', verification: 'PENDING', ecosystemVisible: false, legal: { status: 'PENDING' }, onboardingKey: idempotencyKey, selfServiceType: type, hiringEnabled: false } as any,
+          },
+        });
       }
 
       const scopedRoleKey = selfServiceRoleKey(type);
@@ -366,7 +388,7 @@ organizationsRouter.post('/me/legal', requireOrganizationClinicWritable, async (
     if (!legalName || !bin || !director || !address || !iban) return res.status(400).json({ ok: false, error: 'Заполните юридическое наименование, БИН/ИИН, руководителя, юридический адрес и IBAN.' });
     const orgSettings = (org.settings && typeof org.settings === 'object' && !Array.isArray(org.settings)) ? org.settings as Record<string, unknown> : {};
     const laboratoryType = String(orgSettings.laboratoryType || '').toUpperCase();
-    const type = org.type === 'DIAGNOSTIC_CENTER' ? 'DIAGNOSTIC_CENTER' : org.type === 'LABORATORY' ? (laboratoryType === 'DENTAL_LAB' ? 'DENTAL_LAB' : 'LABORATORY') : org.type === 'CLINIC' ? 'CLINIC' : org.type === 'ACADEMY' ? 'EDUCATION_CENTER' : org.type === 'SUPPLIER_COMPANY' ? 'SUPPLIER' : 'CORPORATE';
+    const type = org.type === 'DIAGNOSTIC_CENTER' ? 'DIAGNOSTIC_CENTER' : org.type === 'LABORATORY' ? (laboratoryType === 'DENTAL_LAB' ? 'DENTAL_LAB' : 'LABORATORY') : org.type === 'CLINIC' ? 'CLINIC' : org.type === 'ACADEMY' ? 'EDUCATION_CENTER' : org.type === 'SUPPLIER_COMPANY' ? 'SUPPLIER' : org.type === 'EMPLOYER' ? 'CORPORATE' : 'CORPORATE';
     const pkg = await ensureLegalTrustPackage({ userId: req.user!.id, organizationId: org.id, type, legalName, bin, director, address, iban, phone: org.phone, email: org.email || req.user!.email });
     const settings = (org.settings && typeof org.settings === 'object' && !Array.isArray(org.settings)) ? org.settings as Record<string, unknown> : {};
     const updated = await prisma.organization.update({ where: { id: org.id }, data: { taxId: bin, address, settings: { ...settings, lifecycle: 'SIGNATURE_PENDING', verification: 'SUBMITTED', ecosystemVisible: false, legal: { status: 'DOCUMENTS_READY', partnerId: pkg.partner.id, ownerSigned: false, platformSigned: false } } } });
