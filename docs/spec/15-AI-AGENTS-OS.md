@@ -307,30 +307,28 @@ Registry — единственный источник правды о том, �
 
 ## 15.19 Mapping to Current Implementation
 
-Текущее состояние кода относительно этой главы (для инженеров):
+**Source reconciliation — 2026-11-15.** This section describes the code currently present on the audit candidate branch. It is not a production deployment claim. For cabinet-level completeness use `docs/SYSTEM_AUDIT.md`; for release blockers use `docs/RELEASE_BLOCKERS.md`.
 
-| Слой AI OS | Сейчас в коде | Gap |
-|------------|---------------|-----|
-| Orchestrator | `dentvision-backend/src/modules/ai/core/ai.service.ts` + `agent.router.ts` (intent → agent) | Нет DAG-декомпозиции, нет параллельных цепочек, нет merge/conflict resolution |
-| Clinical | `DoctorAgent` (поиск пациента, запись, карта, план, CBCT-заглушка) | Нет отдельных Diagnosis/CBCT/Surgery/Prosthodontic/Orthodontic агентов |
-| Business | `OwnerAgent` (выручка, должники, счета) | Нет CEO/Marketing/HR агентов |
-| Marketplace | `functions/shop.school.functions.ts` (частично) | Нет Procurement/Supplier/Logistics |
-| Education | School exam engine + tutor endpoint | Нет Course Builder/Mentor/Certification агентов |
-| Compliance | — | Слой отсутствует целиком |
-| Security | RBAC middleware (не агент) | Нет Fraud Detection |
-| Communication | Чат (текст) | Нет Voice/Translator/Call |
-| Automation | Reminders UI (клиентский) | Нет Workflow/Scheduler агентов на сервере |
-| Knowledge | `memory.engine.ts` (session/long memory) | Нет Knowledge Graph / Research агентов |
-| Infrastructure | — | Слой отсутствует целиком |
-| Registry | Хардкод-регистрация в `ai.service.ts` | Нет декларативного каталога со схемой §15.18 |
-| Lifecycle | Нет явных состояний | Внедрять при переходе на DAG-оркестрацию |
+| AI OS layer | Current source implementation | Verified boundary / remaining gap |
+|------------|-------------------------------|-----------------------------------|
+| Orchestrator | `dentvision-backend/src/modules/ai/os/orchestrator.ts`; deterministic fallback in `core/ai.service.ts` | Real role-filtered tool planning, bounded sequential tool rounds, persona resolution and merged response. Full DAG decomposition, parallel agent chains and conflict-resolution graph are not implemented. |
+| Registry | `dentvision-backend/src/modules/ai/os/registry.ts` | Central typed registry defines agent IDs, domains, mandates, role access, allowed tools and persona tags. It replaces the old hard-coded-only description below; it is not yet a dynamic externally managed registry. |
+| Operational personas | `dentvision-backend/src/modules/ai/os/persona.ts`; `orchestrator.ts` | Eight operational personas (Doctor, Reception, Analyst, Finance, Supply, Education, Marketing, CEO) resolve by explicit call, intent, stage and role. Guest is a safe fallback persona. Persona resolution does not imply every persona workflow is complete. |
+| Clinical | Registry entries `agent.clinical.*`; `tools.ts`; clinical domain services | Patient, treatment-planner, dental, radiology, endodontic, orthopedic, orthodontic and lab-oriented agent definitions exist. Specialist depth, imaging/CBCT acquisition and full clinical DAG handoff remain partial. |
+| Business | Registry entries `agent.business.finance`, `analytics`, `marketing`, `ceo` | Finance/analytics and CEO brief paths exist; Marketing has a registered persona/tool surface. Full autonomous business workflows, approval coverage and outcome measurement remain partial. |
+| Marketplace / Supply | Registry entries in the marketplace domain; supplier/shop services and workspace routes | Product, supplier, stock, order and seller operations exist. Procurement recommendations, logistics orchestration and complete return/refund/settlement flows remain partial. |
+| Education | Registry education agents; School course, exam, tutor and lecturer services | Learner/course/tutor primitives exist. Course Builder, Mentor and Certification agent depth and complete academy-owner lifecycle remain partial. |
+| Compliance | Clinical safety rules, permission checks, confirmation gates and legal/compliance domain code | Safety controls exist outside a complete dedicated AI Compliance Agent. The autonomous compliance layer described in §15.8 is not complete. |
+| Security | RBAC middleware, scoped registry tool exposure, organization/branch context and audit services | Authorization is enforced by platform services; a dedicated fraud-detection agent and full tenant/role negative matrix are not complete. |
+| Communication | AI chat, provider streaming, notification and conversation services | Text interaction exists. Full voice, translation and call workflows are not implemented as the documented agent layer. |
+| Automation | Reminder/workflow jobs, event subscribers and clinic-scoped AI Employee task/approval paths | Durable automation exists in selected domains. A universal scheduler/workflow agent and ecosystem-wide non-clinic task queues are not proven. |
+| Knowledge / Memory | `dentvision-backend/src/modules/ai/memory/memory.engine.ts`, learning services and scoped retrieval | Session/long-term memory and learning primitives exist. A complete knowledge graph/research-agent layer, full deletion/retention lifecycle and historical PHI protection remain open under RB-029. |
+| Infrastructure | Platform deployment, observability and operational services | No autonomous infrastructure-agent layer matching §15.13 is verified. |
+| Lifecycle | `orchestrator.ts` request flow and confirmation-aware tool execution | Understand → plan/select tools → execute → verify/correct → merge → respond is implemented as a bounded request flow. A persisted universal IDLE…LEARN state machine and multi-agent DAG lifecycle are not implemented. |
 
-Приоритет внедрения (соответствует фазам §4.10):
+**Interpretation rule:** a registered agent or visible persona is not proof of an end-to-end cabinet workflow. Verify each capability against its real tool, permission scope, persisted outcome, audit event, failure path and E2E evidence. The current implementation is a meaningful AI OS foundation, not full completion of every capability in §§15–16.
 
-1. **Registry + lifecycle skeleton** — декларативный каталог агентов вместо хардкода (Phase B).
-2. **Orchestrator DAG** — параллельные цепочки + merge (Phase B/C).
-3. **Compliance Layer** — обязателен до любых автономных клинических/финансовых действий (Phase C).
-4. **Clinical specialists** — Diagnosis/CBCT по мере multimodal (Phase D).
+**Release boundary:** do not close RB-029, RB-034, RB-035 or any clinical/financial safety blocker merely because the orchestrator or registry exists. The exact negative authorization matrix, historical PHI inventory/key lifecycle, and staging/production evidence remain independent gates.
 
 ---
 
