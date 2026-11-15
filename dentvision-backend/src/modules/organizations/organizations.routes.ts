@@ -28,7 +28,7 @@ const SELF_SERVICE_TYPES = {
   diagnostic_center: { orgType: 'DIAGNOSTIC_CENTER', nextPath: '/diagnostics/center' },
   academy: { orgType: 'ACADEMY', nextPath: '/school' },
   supplier: { orgType: 'SUPPLIER_COMPANY', nextPath: '/supplier' },
-  employer: { orgType: 'EMPLOYER', nextPath: '/jobs?view=employer' },
+  employer: { orgType: 'EMPLOYER', nextPath: '/employer' },
 } as const;
 
 type SelfServiceType = keyof typeof SELF_SERVICE_TYPES;
