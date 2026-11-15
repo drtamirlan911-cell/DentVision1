@@ -8,7 +8,7 @@ import { useToast } from '@/components/ui/ds/Toast'
 import { useAuth } from '@/store/auth.store'
 import * as api from '@/utils/api'
 
-type Kind = 'clinic' | 'diagnostic_center' | 'medical_lab' | 'dental_lab' | 'supplier' | 'academy'
+type Kind = 'clinic' | 'diagnostic_center' | 'medical_lab' | 'dental_lab' | 'supplier' | 'academy' | 'employer'
 type Mode = 'intent' | 'create' | 'join'
 
 const TYPES: Array<{ id: Kind; label: string; createLabel: string; description: string; icon: typeof Building2; nextPath: string }> = [
@@ -18,6 +18,7 @@ const TYPES: Array<{ id: Kind; label: string; createLabel: string; description: 
   { id: 'dental_lab', label: 'Зуботехническая лаборатория', createLabel: 'зуботехническую лабораторию', description: 'Кейсы, производство, QC и доставка', icon: Factory, nextPath: '/diagnostics/lab' },
   { id: 'supplier', label: 'Поставщик / производитель', createLabel: 'поставщика / производителя', description: 'Каталог, заказы, fulfillment и выплаты', icon: Store, nextPath: '/supplier' },
   { id: 'academy', label: 'Академия / образовательный центр', createLabel: 'академию / образовательный центр', description: 'Курсы, студенты, преподаватели и сертификаты', icon: GraduationCap, nextPath: '/school' },
+  { id: 'employer', label: 'Работодатель', createLabel: 'профиль работодателя', description: 'Организация, вакансии, рекрутеры и найм специалистов', icon: BriefcaseBusiness, nextPath: '/jobs?view=employer' },
 ]
 
 const PERSONAL_INTENTS = [
@@ -122,7 +123,7 @@ export default function Onboarding() {
           </div>
           <div className="grid gap-3 sm:grid-cols-3">
             {PERSONAL_INTENTS.map(intent => { const Icon = intent.icon; return (
-              <button key={intent.id} type="button" onClick={() => window.location.assign(intent.nextPath)} className="group min-h-32 rounded-2xl border border-bdr-subtle bg-surface-1 p-4 text-left transition hover:border-dv-gold/40 hover:bg-dv-gold/[0.03]">
+              <button key={intent.id} type="button" onClick={() => { if (intent.id === 'employer') { setKind('employer'); setMode('create') } else { window.location.assign(intent.nextPath) } }} className="group min-h-32 rounded-2xl border border-bdr-subtle bg-surface-1 p-4 text-left transition hover:border-dv-gold/40 hover:bg-dv-gold/[0.03]">
                 <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-surface-2 text-dv-gold"><Icon size={17} /></span>
                 <span className="mt-3 block text-sm font-semibold text-txt-primary">{intent.label}</span>
                 <span className="mt-1 block text-xs leading-5 text-txt-muted">{intent.description}</span>
