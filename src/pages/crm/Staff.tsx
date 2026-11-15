@@ -33,6 +33,8 @@ const ROLE_OPTIONS = [
   { value: 'director', label: 'Руководитель' },
 ]
 
+const isOwnerStaff = (role?: string) => ['owner', 'director'].includes(String(role || '').toLowerCase());
+
 const INVITE_ROLE_OPTIONS = [
   { value: 'doctor', label: 'Врач' },
   { value: 'assistant', label: 'Ассистент' },
@@ -172,6 +174,11 @@ export default function Staff() {
   const filtered = filter === 'all' ? staff : staff.filter(s => s.role === filter)
 
   const canManage = !!roleInfo?.canAddStaff || iam.can('canManageClinicSettings')
+  const actorClinicRole = String(activeMembership?.role || role || '').toUpperCase()
+  const canGrantOwner = actorClinicRole === 'OWNER' || actorClinicRole === 'SUPERADMIN'
+  const staffRoleOptions = canGrantOwner ? ROLE_OPTIONS : ROLE_OPTIONS.filter((option) => option.value !== 'director')
+  const inviteRoleOptions = canGrantOwner ? INVITE_ROLE_OPTIONS : INVITE_ROLE_OPTIONS.filter((option) => option.value !== 'director')
+  const canManageMember = (member: UserType | null) => canManage && !!member && (!isOwnerStaff(member.role) || canGrantOwner)
 
   const handleInvite = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -239,7 +246,6 @@ export default function Staff() {
           phone: form.phone || undefined,
           role: form.role,
           spec: form.spec || undefined,
-          password: form.password && form.password.length >= 6 ? form.password : undefined,
           commissionPercent: Number(form.commissionPercent) || 0,
           baseSalary: Number(form.baseSalary) || 0,
           payType: form.payType || 'commission',
@@ -384,7 +390,7 @@ export default function Staff() {
             label="Роль *"
             value={inviteForm.role}
             onChange={e => setInviteForm({ ...inviteForm, role: e.target.value })}
-            options={INVITE_ROLE_OPTIONS}
+            options={inviteRoleOptions}
           />
           <div className={cn(
             'p-3 rounded-lg border text-xs text-txt-secondary',
@@ -432,7 +438,7 @@ export default function Staff() {
           label="Роль *"
           value={form.role}
           onChange={e => setForm({ ...form, role: e.target.value })}
-          options={ROLE_OPTIONS}
+          options={staffRoleOptions}
         />
 
         <Select
@@ -653,14 +659,9 @@ export default function Staff() {
             />
           )}
           {editingStaff && (
-            <Input
-              label="Новый пароль (необязательно)"
-              type="password"
-              value={form.password}
-              onChange={e => setForm({ ...form, password: e.target.value })}
-              placeholder="Оставьте пустым, чтобы не менять"
-              icon={<Lock size={16} />}
-            />
+            <p className="text-xs text-txt-muted rounded-lg border border-bdr-subtle bg-surface-2 p-3">
+              Пароль нельзя менять из кабинета клиники. Сотрудник использует безопасную процедуру восстановления доступа.
+            </p>
           )}
         </div>
 
