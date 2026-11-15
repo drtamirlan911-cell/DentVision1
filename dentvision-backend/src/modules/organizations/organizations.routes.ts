@@ -436,21 +436,13 @@ organizationsRouter.delete('/:id', async (req: AuthRequest, res) => {
   try {
     const id = String(req.params.id || '').trim();
     // Organization lifecycle/archiving is owner governance, not routine ADMIN work.
-    // seller/lecturer are the initial scoped owner roles for self-service Supplier/Academy contexts.
-    const archiveOwnerRoles = ['owner', 'org_owner', 'seller', 'lecturer', 'diagnostic_owner', 'medical_lab_owner', 'dental_lab_owner', 'employer_owner'];
-    const person = req.user?.role === 'SUPERADMIN' ? null : await prisma.person.findFirst({
-      where: {
-        userId: req.user!.id,
-        organizationId: id,
-        organization: { archivedAt: null },
-        personRoles: { some: { scopeType: 'organization', scopeId: id, role: { key: { in: archiveOwnerRoles } } } },
-      },
-      include: { organization: true },
-    });
-    const org = req.user?.role === 'SUPERADMIN'
-      ? await prisma.organization.findFirst({ where: { id, archivedAt: null } })
-      : person?.organization;
+    // Use the same canonical legal-owner contract as document signing. In
+    // particular, an Academy lecturer is not automatically the Academy owner.
+    const org = await prisma.organization.findFirst({ where: { id, archivedAt: null } });
     if (!org) return res.status(404).json({ ok: false, error: 'Организация не найдена или нет прав владельца' } satisfies ApiResponse);
+    if (req.user?.role !== 'SUPERADMIN' && !(await hasOrganizationLegalOwnerAuthority(req.user!.id, org.id, org.type))) {
+      return res.status(404).json({ ok: false, error: 'Организация не найдена или нет прав владельца' } satisfies ApiResponse);
+    }
 
     // Resolve owner authorization before subscription status. This avoids
     // exposing another tenant's trial state to a caller who cannot archive it.
