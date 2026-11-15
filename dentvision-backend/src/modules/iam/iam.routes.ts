@@ -137,7 +137,7 @@ iamRouter.get('/me/contexts', async (req: AuthRequest, res) => {
     // even when a legacy DiagnosticCenterMember/LaboratoryMember row is absent
     // or temporarily stale. Only an organization-scoped PersonRole for this
     // exact user + organization can materialize the context.
-    const partnerRolePattern = /^(diagnostic_|medical_lab_|dental_lab_|lab_coordinator|dental_technician|cad_designer|ceramist|orthodontic_technician|qc_specialist|lab_finance)/i;
+    const partnerRolePattern = /^(diagnostic_|medical_lab_|dental_lab_|employer_|lab_coordinator|dental_technician|cad_designer|ceramist|orthodontic_technician|qc_specialist|lab_finance)/i;
     const academyRolePattern = /^(lecturer|academy_)/i;
     for (const person of persons) {
       const org = person.organization;
@@ -149,7 +149,7 @@ iamRouter.get('/me/contexts', async (req: AuthRequest, res) => {
           partnerRolePattern.test(personRole.role.key),
         )?.role.key;
       if (!scopedRole) continue;
-      const scopeType = ({ DIAGNOSTIC_CENTER: 'DIAGNOSTIC_CENTER', LABORATORY: 'LABORATORY' } as Record<string, ScopeType>)[org.type];
+      const scopeType = ({ DIAGNOSTIC_CENTER: 'DIAGNOSTIC_CENTER', LABORATORY: 'LABORATORY', EMPLOYER: 'EMPLOYER' } as Record<string, ScopeType>)[org.type];
       if (!scopeType) continue;
       const scopeId = org.originalId || org.id;
       const id = scopeType + ':' + scopeId;
@@ -200,7 +200,7 @@ iamRouter.get('/me/contexts', async (req: AuthRequest, res) => {
               'medical_lab_technician', 'medical_lab_validator', 'medical_lab_doctor', 'medical_lab_finance',
               'medical_lab_quality', 'dental_lab_owner', 'dental_lab_admin', 'dental_lab_manager',
               'lab_coordinator', 'dental_technician', 'cad_designer', 'ceramist', 'orthodontic_technician',
-              'qc_specialist', 'lab_finance',
+              'qc_specialist', 'lab_finance', 'employer_owner', 'employer_recruiter', 'employer_viewer',
             ],
           },
         },
@@ -219,7 +219,7 @@ iamRouter.get('/me/contexts', async (req: AuthRequest, res) => {
       const org = assignment.person.organization;
       if (!org || org.archivedAt || !assignment.scopeId) continue;
       if (assignment.scopeId !== org.id) continue;
-      const scopeType = ({ DIAGNOSTIC_CENTER: 'DIAGNOSTIC_CENTER', LABORATORY: 'LABORATORY' } as Record<string, ScopeType>)[org.type];
+      const scopeType = ({ DIAGNOSTIC_CENTER: 'DIAGNOSTIC_CENTER', LABORATORY: 'LABORATORY', EMPLOYER: 'EMPLOYER' } as Record<string, ScopeType>)[org.type];
       if (!scopeType) continue;
       const scopeId = org.originalId || org.id;
       const id = scopeType + ':' + scopeId;
@@ -261,7 +261,7 @@ iamRouter.get('/me/contexts', async (req: AuthRequest, res) => {
         ?.find((personRole) =>
           personRole.scopeType === 'organization' &&
           personRole.scopeId === activeOrgId &&
-          (/^(diagnostic_|medical_lab_|dental_lab_|lab_coordinator|dental_technician|cad_designer|ceramist|orthodontic_technician|qc_specialist|lab_finance)/i.test(personRole.role.key) ||
+          (/^(diagnostic_|medical_lab_|dental_lab_|employer_|lab_coordinator|dental_technician|cad_designer|ceramist|orthodontic_technician|qc_specialist|lab_finance)/i.test(personRole.role.key) ||
             academyRolePattern.test(personRole.role.key)),
         )?.role.key;
       if (activePerson?.organization && !activePerson.organization.archivedAt && activeRole) {
