@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const db = vi.hoisted(() => ({
   clinicFindUnique: vi.fn(),
@@ -21,6 +21,8 @@ vi.mock('../../lib/prisma.js', () => ({
 }));
 
 import { resolveClinicAccess } from './planEntitlements.js';
+
+afterEach(() => { vi.useRealTimers(); });
 
 beforeEach(() => {
   Object.values(db).forEach((mock) => mock.mockReset());
@@ -129,6 +131,8 @@ describe('expired clinic access', () => {
   });
 
   it('keeps a legacy DEMO clinic writable only until its 30-day createdAt deadline when no subscription exists', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-11-13T12:00:00.000Z'));
     db.clinicFindUnique.mockResolvedValue({
       id: 'c1', name: 'Recent demo', plan: 'DEMO', active: true,
       createdAt: new Date('2026-10-15T00:00:00.000Z'),
