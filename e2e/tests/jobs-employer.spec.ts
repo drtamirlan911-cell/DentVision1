@@ -138,6 +138,42 @@ test.describe('Employer workspace and scoped Jobs lifecycle', () => {
       });
       expect(legacyCreate.status()).toBe(403);
 
+      const resume = await api.post(`${API}/api/jobs`, {
+        headers: auth(candidateToken),
+        data: {
+          title: 'Врач-терапевт ищет работу',
+          city: 'Тараз',
+          salary: 'От 350 000 ₸',
+          employmentType: 'Полная занятость',
+          description: 'Пять лет опыта; кандидат сам опубликовал резюме.',
+          tags: ['Терапия'],
+          kind: 'resume',
+        },
+      });
+      expect(resume.status()).toBe(201);
+      const resumeData = await resume.json();
+      expect(resumeData.data.kind).toBe('resume');
+
+      const candidateLookup = await api.get(`${API}/api/jobs/employer/resumes`, {
+        headers: auth(candidateToken),
+      });
+      expect(candidateLookup.status()).toBe(403);
+
+      const employerCandidateLookup = await api.get(`${API}/api/jobs/employer/resumes`, {
+        headers: auth(ownerToken),
+      });
+      expect(employerCandidateLookup.status()).toBe(200);
+      const candidateRows = (await employerCandidateLookup.json()).data as Array<Record<string, unknown>>;
+      const discoveredResume = candidateRows.find((item) => item.id === resumeData.data.id);
+      expect(discoveredResume).toBeTruthy();
+      expect(discoveredResume).not.toHaveProperty('userId');
+      expect(discoveredResume).not.toHaveProperty('email');
+
+      const publicListBeforeApply = await api.get(`${API}/api/jobs`);
+      expect(publicListBeforeApply.status()).toBe(200);
+      const publicVacancies = await publicListBeforeApply.json();
+      expect(publicVacancies.some((item: any) => item.id === resumeData.data.id)).toBe(false);
+
       const selfApply = await api.post(`${API}/api/jobs/${vacancyId}/apply`, {
         headers: auth(ownerToken),
         data: { coverNote: 'Owner cannot apply to own vacancy' },
