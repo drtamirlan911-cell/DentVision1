@@ -1,3 +1,29 @@
+## Current execution checkpoint — 2026-11-15 (Master Spec cabinet reconciliation)
+
+The 2026-11-15 source comparison is recorded in `docs/SYSTEM_AUDIT.md`; do not create another roadmap or duplicate specification. This section supersedes the 2026-11-13 sequencing only where the verified current source requires it.
+
+### Confirmed status corrections
+
+- RB-037 clinic diagnostic confirmation/signing is resolved in merged PR #341 and exact-head CI/E2E; retain the regression contract.
+- Dental Laboratory QC checklist and manager-only pass/fail sign-off exist in current code and are covered by unit and PARTNER-003 E2E checks. D10 remains open for remake closure, dispatch/shipping/proof of delivery, services/pricing, invoice/payment/settlement/payout, durable AI/notification exceptions and full RBAC/mobile proof.
+- Unified onboarding already supports clinic, diagnostic center, medical lab, dental lab, supplier and academy creation plus personal professional/patient/jobs/student/employer intents and invitation join. Remaining participant gaps must not be described as “no onboarding”.
+- Main SHA `4bbd61a339d5f3c4d40d1d5990f633a7b9a87864` passed CI [43496476996](https://github.com/drtamirlan911-cell/DentVision1/actions/runs/43496476996) and Quality Gate [43496477034](https://github.com/drtamirlan911-cell/DentVision1/actions/runs/43496477034). This is not a full product/release certification.
+
+### Next execution order from verified gaps
+
+1. RB-029 P0: finish full PHI reader/writer/derived-copy inventory, key lifecycle, retention/export/deletion, backup/restore and approved staging dry-run/reconciliation. Keep all historic data untouched until a separately approved run.
+2. Complete current role/context/tenant/branch/session negative authorization matrix and exact WebKit/CORS/WebSocket and repository branch-protection evidence.
+3. Complete diagnostics worklist/modality/report workflow and medical-lab specimen accession/QC/validation/release/settlement.
+4. Complete dental-lab remake authorization/feedback, shipping/proof of delivery, services/pricing, invoice/payment/settlement/payout/refund and idempotent cross-cabinet notifications.
+5. Fix Jobs employer onboarding/ownership/recruiter authorization and application pipeline before presenting it as an HH-class hiring market.
+6. Complete Marketplace provider-backed online cancellation/refunds and end-to-end CRM procurement reconciliation.
+7. Finish Academy owner/cohort/content/assessment/certificate/finance and Community follow/nested-thread/media-consent/moderation flows.
+8. Reconcile organization/professional/service public discovery routes to actual detail pages or an explicit accepted IA decision.
+9. Verify Android preview install/runtime and role/workflow parity on a device; implement real 32-tooth WebGL/3D odontogram.
+10. Run the full Master Spec matrix and visual/browser/mobile gates on one exact final HEAD.
+
+Continue the required loop: `Inspect → implement → test → fix → verify → document → continue`. No feature is DONE from route or model existence alone.
+
 ## Current implementation checkpoint — 2026-11-13 (RB-029 independent AI history hydrator race)
 
 - Continued on the existing PR #346 branch security/rb029-fewshot-workspace-isolation-20261113, based on published head cd5966fbbb8823cefdf5645c6ad01d681c58848b. Main remains unchanged; no new PR or replacement branch.
