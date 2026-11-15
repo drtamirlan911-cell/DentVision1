@@ -163,16 +163,13 @@ This entry supersedes stale source-level claims below where explicitly noted, bu
 ## Open
 
 ### RB-037 — Clinical diagnostic confirmation/signing is not doctor-only
-- **Status:** OPEN — P0; current-main source review confirms non-clinical clinic roles can confirm or sign clinical diagnostic results. No code fix or regression gate is merged yet.
-- **Area:** Diagnostics / clinical authorship / patient medical record.
-- **Evidence (main at `2ff887f4944cb1eb8c0e05001fbcc44ef9abde09`):
-  - `POST /referrals/:id/confirm-ai-result` uses `requireReferralAccess()`; `confirmAiResult()` authorizes organization roles `owner`, `org_owner`, `admin`, `org_admin`, and `doctor`, with a legacy clinic-membership fallback.
-  - `POST /referrals/:id/results/sign` uses clinic referral access, and `saveAndSignResult()` accepts `DOCTOR`, `OWNER`, and `DIRECTOR` for clinic-side signing. For non-partner signers, it completes the referral and writes a Visit into the patient chart.
-  - Master Spec §12 states that AI diagnostic output remains assistive until the required professional confirmation step. Operational clinic membership must not itself confer clinical authorship.
-- **Required policy:** clinic-side AI-result confirmation and patient-record signing require an authenticated DOCTOR with active clinic and branch access (and assigned-referral/clinical assignment constraints where applicable). OWNER, ADMIN, DIRECTOR, MANAGER, ASSISTANT, CASHIER and SUPERADMIN must not gain clinical-signing authority from operational/platform privileges alone. Partner diagnostic-center/laboratory signers retain only their separately scoped signer roles and must not write into the clinic patient chart.
-- **Required regression matrix:** deny non-doctor clinic roles on both endpoints; allow an authorized doctor in the correct clinic/branch; deny another clinic/branch; deny SUPERADMIN without clinical assignment; preserve allowed partner signing without clinic-chart insertion.
-- **Release gate:** exact-head unit + E2E negative matrix, role/tenant/branch checks, audit attribution, and verification that rejected callers cannot complete referrals or create Visit rows. RB-037 stays OPEN until these pass.
 
+- **Status: RESOLVED in code and exact-head verification.** The former source finding below is historical and is superseded by PR #341, merged as `21641389dafcd478aef6ff79be55177ec4b51016`.
+- Clinic-side `POST /api/diagnostics/referrals/:id/confirm-ai-result` and `POST /api/diagnostics/referrals/:id/results/sign` now require `assertClinicDoctorSignoff`: current organization-scoped DOCTOR role, clinic/branch access, and assigned-referral policy. The authorized `OWNER + DOCTOR` compound context remains supported only when the separate scoped DOCTOR role exists.
+- Operational OWNER/ADMIN/DIRECTOR/MANAGER/ASSISTANT/CASHIER and SUPERADMIN without clinical clinic assignment are denied. Partner diagnostic-center and medical-laboratory signers use separate scoped role keys and cannot create a clinic Visit.
+- Regression evidence: `dentvision-backend/src/modules/diagnostics/clinicalSignoffAuthorization.test.ts`, `dentvision-backend/src/modules/diagnostics/diagnostics.routes.contract.test.ts`, and `e2e/tests/partner-lifecycle.spec.ts` (RB-037 scenario). The E2E asserts denied actors do not sign results, complete referrals or create Visits.
+- Exact merged-candidate evidence: CI [42374982404](https://github.com/drtamirlan911-cell/DentVision1/actions/runs/42374982404) and Quality Gate [42374982372](https://github.com/drtamirlan911-cell/DentVision1/actions/runs/42374982372) passed. The current `main` snapshot `4bbd61a339d5f3c4d40d1d5990f633a7b9a87864` also passed CI [43496476996](https://github.com/drtamirlan911-cell/DentVision1/actions/runs/43496476996) and Quality Gate [43496477034](https://github.com/drtamirlan911-cell/DentVision1/actions/runs/43496477034).
+- Do not reopen this item based on the archived source finding at `2ff887f`; revisit only if a new regression is found in the canonical service/route boundary.
 
 ### RB-029 — Patient clinical history JSON is not encrypted at rest
 - **Status:** OPEN — versioned application-layer encrypted JSON envelope and compatibility paths implemented on the current candidate; staging dry run and release verification remain outstanding
