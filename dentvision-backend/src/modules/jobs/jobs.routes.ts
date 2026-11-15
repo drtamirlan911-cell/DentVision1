@@ -1,9 +1,10 @@
-import { Router } from 'express';
+import { Router, type Response } from 'express';
 import type { Prisma } from '@prisma/client';
 import prisma from '../../lib/prisma.js';
 import { authenticate, optionalAuth } from '../../middleware/auth.js';
 import { requirePermission } from '../../middleware/rbac.js';
 import { auditFromReq } from '../compliance/audit.service.js';
+import { resolveClinicAccess } from '../billing/planEntitlements.js';
 import { uid } from '../../lib/helpers.js';
 import type { AuthRequest, ApiResponse } from '../../types/index.js';
 
@@ -84,6 +85,20 @@ function ownedVacancyWhere(scope: JobEmployerScope): Prisma.JobVacancyWhereInput
     : { clinicId: scope.clinicId, employerOrganizationId: null };
 }
 
+async function ensureJobWriteAllowed(scope: JobEmployerScope, res: Response): Promise<boolean> {
+  if (!scope.clinicId) return true;
+  const access = await resolveClinicAccess(scope.clinicId);
+  if (!access) {
+    res.status(503).json({ ok: false, error: 'Не удалось проверить доступ клиники', code: 'CLINIC_ACCESS_UNVERIFIED' } satisfies ApiResponse);
+    return false;
+  }
+  if (access.writeBlocked) {
+    res.status(402).json({ ok: false, error: 'Публикация и изменение вакансий недоступны после окончания пробного периода клиники.', code: 'SUBSCRIPTION_EXPIRED' } satisfies ApiResponse);
+    return false;
+  }
+  return true;
+}
+
 const APPLICATION_TRANSITIONS: Record<string, readonly string[]> = {
   new: ['reviewing', 'rejected'],
   reviewing: ['interview', 'rejected'],
@@ -104,7 +119,30 @@ jobsRouter.get('/', optionalAuth, async (req, res) => {
   try {
     await ensureSeed();
     const { q, city } = req.query as Record<string, string | undefined>;
-    const where: Record<string, unknown> = { status: 'open', kind: 'vacancy' };
+    const where: Prisma.JobVacancyWhereInput = {
+      status: 'open',
+      kind: 'vacancy',
+      OR: [
+        // Legacy clinic vacancies remain public under the clinic's own lifecycle.
+        { employerOrganizationId: null },
+        // Employer vacancies are discoverable only while the organization is
+        // active, verified, visible and both required legal signatures remain effective.
+        {
+          employerOrganization: {
+            is: {
+              archivedAt: null,
+              AND: [
+                { settings: { path: ['lifecycle'], equals: 'ACTIVE_VERIFIED' } },
+                { settings: { path: ['verification'], equals: 'APPROVED' } },
+                { settings: { path: ['ecosystemVisible'], equals: true } },
+                { settings: { path: ['legal', 'ownerSigned'], equals: true } },
+                { settings: { path: ['legal', 'platformSigned'], equals: true } },
+              ],
+            },
+          },
+        },
+      ],
+    };
     if (city && city !== 'all') where.city = city;
     if (q) where.OR = [
       { title: { contains: q, mode: 'insensitive' } },
@@ -200,6 +238,7 @@ jobsRouter.post('/employer/vacancies', authenticate, requirePermission('jobs.wri
     const scope = await activeJobEmployerScope(req);
     if (!scope) return res.status(403).json({ ok: false, error: 'Публикация вакансии доступна только из активного контекста работодателя или клиники', code: 'EMPLOYER_CONTEXT_REQUIRED' } satisfies ApiResponse);
     if (scope.employerOrganizationId && !scope.canPublish) return res.status(409).json({ ok: false, error: 'Публикация вакансий доступна после юридической проверки работодателя и активации организации', code: 'EMPLOYER_VERIFICATION_REQUIRED', data: { verificationStatus: scope.verificationStatus, nextPath: '/organizations' } } satisfies ApiResponse);
+    if (!(await ensureJobWriteAllowed(scope, res))) return;
     const title = String(req.body?.title || '').trim();
     const city = String(req.body?.city || '').trim();
     if (!title || !city) return res.status(400).json({ ok: false, error: 'title и city обязательны' } satisfies ApiResponse);
@@ -246,6 +285,7 @@ jobsRouter.patch('/employer/applications/:id/status', authenticate, requirePermi
       ? application.vacancy.employerOrganizationId === scope.employerOrganizationId
       : application.vacancy.clinicId === scope.clinicId && !application.vacancy.employerOrganizationId;
     if (!owned) return res.status(404).json({ ok: false, error: 'Отклик не найден' } satisfies ApiResponse);
+    if (!(await ensureJobWriteAllowed(scope, res))) return;
     const nextStatus = String(req.body?.status || '').trim().toLowerCase();
     if (!(APPLICATION_TRANSITIONS[application.status] || []).includes(nextStatus)) {
       return res.status(409).json({ ok: false, error: 'Недопустимый переход статуса отклика', code: 'INVALID_APPLICATION_TRANSITION', data: { currentStatus: application.status, requestedStatus: nextStatus } } satisfies ApiResponse);
