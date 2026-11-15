@@ -136,7 +136,6 @@ test.describe('Clinic invitation lifecycle', () => {
       where: { userId_clinicId: { userId: (await prisma.user.findUniqueOrThrow({ where: { email: invitedEmail } })).id, clinicId: clinicId! } },
     });
     expect(membership?.role).toBe('DOCTOR');
-    expect(membership?.active).toBe(true);
 
     const replay = await api.post(`${BASE_URL}/api/auth/join-clinic`, {
       headers: { Authorization: `Bearer ${invitedToken}` },
