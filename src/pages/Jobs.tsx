@@ -101,7 +101,7 @@ export default function JobsPage() {
     setPostKind(kind)
     setForm({
       ...EMPTY_FORM,
-      clinicName: kind === 'vacancy' ? (activeWorkspace?.name || clinic?.name || '') : (user?.name || ''),
+      clinicName: user?.name || '',
       city: city || clinic?.city || '',
       employmentType: kind === 'resume' ? 'Ищу работу' : 'Полная занятость',
     })
