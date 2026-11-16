@@ -565,6 +565,30 @@ Additional implementation now in the branch:
 - Mobile workspace switching copy no longer tells non-clinic users to “create a clinic”; it uses organization-neutral terminology.
 - AI optional sidecars no longer invalidate the authenticated session when their best-effort requests receive an authorization error.
 
+## 9.2 Jobs employer vertical slice — candidate branch PR #348
+
+This section records candidate-branch implementation, not the audited `main` baseline above and not a production/release certification. The branch remains a Draft pull request until exact-head checks and review are complete.
+
+**Implemented in the candidate source**
+- Employer onboarding creates a first-class `EMPLOYER` Organization through the canonical self-service Organization flow and issues an active organization context.
+- Employer access is organization-scoped. The owner/recruiter/viewer role family is governed by the existing IAM permission model; invitations cannot grant owner or platform roles.
+- Vacancy publication and employer candidate discovery require the employer lifecycle/verification state and the required owner/platform signature flags. Public employer vacancy discovery independently checks active lifecycle, verification, ecosystem visibility and both legal signature flags.
+- The employer workspace supports status display, vacancy creation/listing, per-vacancy applicant inbox and valid application-stage transitions: `new → reviewing → interview → offer → hired`, with rejection available from the allowed stages.
+- Candidate resume publication remains a separate `kind=resume` flow. The employer resume API returns a limited field projection rather than candidate email/user identifiers.
+- Vacancy creation and application-status changes now write their audit events inside the same Prisma transaction as the business mutation. Dedicated route tests assert that both operations pass the transaction client to `auditFromReq`; exact-head CI remains the verification gate for this latest change.
+
+**Evidence and remaining limits**
+- `e2e/tests/jobs-employer.spec.ts` contains `JOBS-EMPLOYER-001`: employer onboarding, recruiter invitation/context, legal activation gate, vacancy creation, candidate resume publication/discovery, application pipeline, cross-employer isolation and public-visibility revocation.
+- Candidate discovery is not yet matching: `GET /api/jobs/employer/resumes` returns open resumes ordered by creation time, not a relevance-ranked or vacancy-specific match. The current `JobsEmployerWorkspace` does not consume `getEmployerResumes()`, so this API is not yet an integrated candidate-discovery UI.
+- `JobApplication` persists a status string; the current data model does not establish separate interview scheduling/calendar records or structured offer/acceptance/contract records. The `interview` and `offer` values are pipeline statuses, not completed interview/offer workflows.
+- Vacancy edit, close/archive and a complete vacancy lifecycle are not present in the current employer route/UI slice.
+- Messaging, candidate-facing status notifications and a complete communication/consent lifecycle are not proven by the current Jobs E2E.
+- The E2E legal activation step changes settings directly in its isolated CI database. It proves the publication gate but does not prove real signer-authority verification, an effective legal-package lifecycle or a Kazakhstan electronic-signature provider. The legal/trust release blocker above remains open.
+
+**Classification:** the employer vertical slice has advanced from the main-baseline `Incomplete / Partial` description to **Partial with a verified source/E2E candidate implementation**. It is not a complete Professional/Jobs cabinet under Master Spec §20–21 until the remaining discovery, interview/offer, vacancy-lifecycle, communication, audit and mobile acceptance criteria are closed.
+
+---
+
 ## 9. Audit conclusion
 
 The current application is **a substantial but incomplete DentVision platform foundation**.
