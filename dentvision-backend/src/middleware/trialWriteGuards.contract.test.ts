@@ -173,12 +173,12 @@ describe('Jobs clinic write boundary', () => {
     expect(text).toContain("code: 'SUBSCRIPTION_EXPIRED'");
     const vacancyRoute = text.indexOf("jobsRouter.post('/employer/vacancies'");
     const vacancyGuard = text.indexOf('ensureJobWriteAllowed(scope, res)', vacancyRoute);
-    const vacancyWrite = text.indexOf('prisma.jobVacancy.create', vacancyRoute);
+    const vacancyWrite = text.indexOf('jobVacancy.create', vacancyRoute);
     expect(vacancyGuard).toBeGreaterThan(vacancyRoute);
     expect(vacancyGuard).toBeLessThan(vacancyWrite);
     const applicationRoute = text.indexOf("jobsRouter.patch('/employer/applications/:id/status'");
     const applicationGuard = text.indexOf('ensureJobWriteAllowed(scope, res)', applicationRoute);
-    const applicationWrite = text.indexOf('prisma.jobApplication.updateMany', applicationRoute);
+    const applicationWrite = text.indexOf('jobApplication.updateMany', applicationRoute);
     expect(applicationGuard).toBeGreaterThan(applicationRoute);
     expect(applicationGuard).toBeLessThan(applicationWrite);
   });
