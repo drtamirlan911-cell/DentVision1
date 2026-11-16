@@ -11,10 +11,10 @@ import retrofit2.http.Path
 import retrofit2.http.Query
 
 /**
- * `dentvision-backend/src/modules/jobs/jobs.routes.ts`. Ответы общих Jobs
- * маршрутов плоские, не `ApiEnvelope`. `POST /api/jobs` разрешён только
- * для резюме; публикация вакансии идёт через отдельный legal-gated employer
- * endpoint и пока не подключена в Android. Список открыт гостю, запись требует входа.
+ * `dentvision-backend/src/modules/jobs/jobs.routes.ts`. Список, отклики
+ * и свои отклики возвращаются плоскими ответами; создание резюме обёрнуто
+ * в `ApiEnvelope`. `POST /api/jobs` разрешён только для резюме; публикация
+ * вакансии идёт через legal-gated employer endpoint, пока не подключённый в Android.
  */
 interface JobsApi {
     @GET("api/jobs")
@@ -24,7 +24,7 @@ interface JobsApi {
     suspend fun myApplications(): List<JobApplication>
 
     @POST("api/jobs")
-    suspend fun create(@Body body: CreateJobRequest): JobVacancy
+    suspend fun create(@Body body: CreateJobRequest): ApiEnvelope<JobVacancy>
 
     @POST("api/jobs/{id}/apply")
     suspend fun apply(@Path("id") id: String, @Body body: ApplyJobRequest): JobApplication
