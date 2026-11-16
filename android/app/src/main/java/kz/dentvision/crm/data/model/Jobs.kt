@@ -29,7 +29,7 @@ data class JobApplication(
     val createdAt: String? = null,
 )
 
-/** Тело candidate-only `POST /api/jobs`; employer vacancies use the legal-gated `/api/jobs/employer/vacancies` endpoint. */
+/** Тело `POST /api/jobs`: этот маршрут создаёт только резюме; вакансии публикуются через проверяемый маршрут работодателя. */
 @Serializable
 data class CreateJobRequest(
     val title: String,
