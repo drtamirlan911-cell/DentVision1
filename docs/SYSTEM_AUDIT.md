@@ -577,6 +577,11 @@ This section records candidate-branch implementation, not the audited `main` bas
 - Candidate resume publication remains a separate `kind=resume` flow. The employer resume API returns a limited field projection rather than candidate email/user identifiers.
 - Vacancy creation and application-status changes now write their audit events inside the same Prisma transaction as the business mutation. Dedicated route tests assert that both operations pass the transaction client to `auditFromReq`; exact-head CI remains the verification gate for this latest change.
 
+**Android parity correction (candidate branch)**
+- The Android Jobs screen exposes the public market, text/city search, own applications, application submission and candidate resume publication. It does not yet implement the employer workspace, verification status, employer vacancy inbox or pipeline.
+- Source review found that the former Android post form also exposed a “Вакансия” choice but sent it to generic `POST /api/jobs`. That route deliberately rejects vacancy creation; only candidate resumes are accepted there. The Android form is now explicitly resume-only, its generic request defaults to `kind=resume`, and the non-persisted free-text “your name” field was removed because the backend derives the candidate name from the authenticated account.
+- Added `JobsRequestContractTest` to protect the mobile generic-post contract. This is a safety correction, **not** completion of the Android employer cabinet. A mobile employer workspace must later bind to the active Organization context and use the verification-gated employer endpoints; it must not bypass legal/RBAC gates.
+
 **Evidence and remaining limits**
 - `e2e/tests/jobs-employer.spec.ts` contains `JOBS-EMPLOYER-001`: employer onboarding, recruiter invitation/context, legal activation gate, vacancy creation, candidate resume publication/discovery, application pipeline, cross-employer isolation and public-visibility revocation.
 - Candidate discovery is not yet matching: `GET /api/jobs/employer/resumes` returns open resumes ordered by creation time, not a relevance-ranked or vacancy-specific match. The current `JobsEmployerWorkspace` does not consume `getEmployerResumes()`, so this API is not yet an integrated candidate-discovery UI.
