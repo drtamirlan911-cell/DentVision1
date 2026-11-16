@@ -580,6 +580,7 @@ This section records candidate-branch implementation, not the audited `main` bas
 **Android parity correction (candidate branch)**
 - The Android Jobs screen exposes the public market, text/city search, own applications, application submission and candidate resume publication. It does not yet implement the employer workspace, verification status, employer vacancy inbox or pipeline.
 - Source review found that the former Android post form also exposed a “Вакансия” choice but sent it to generic `POST /api/jobs`. That route deliberately rejects vacancy creation; only candidate resumes are accepted there. The Android form is now explicitly resume-only, its generic request defaults to `kind=resume`, and the non-persisted free-text “your name” field was removed because the backend derives the candidate name from the authenticated account.
+- A second response-contract mismatch was corrected: the resume-create route returns `{ ok, data }`, unlike the flat Jobs list/apply routes. Android now decodes the `ApiEnvelope<JobVacancy>` and unwraps it via `apiCall`; a decoder contract test covers the actual response shape.
 - Added `JobsRequestContractTest` to protect the mobile generic-post contract. This is a safety correction, **not** completion of the Android employer cabinet. A mobile employer workspace must later bind to the active Organization context and use the verification-gated employer endpoints; it must not bypass legal/RBAC gates.
 
 **Evidence and remaining limits**
