@@ -2,10 +2,7 @@ package kz.dentvision.crm.data.model
 
 import kotlinx.serialization.Serializable
 
-/**
- * `dentvision-backend/src/modules/jobs/jobs.routes.ts` — все ответы плоские,
- * не через `ApiEnvelope` (`res.json(list)`/`res.json(vacancy)` напрямую).
- */
+/** Payload карточки Jobs; используется и в плоском списке, и внутри ApiEnvelope создания резюме. */
 @Serializable
 data class JobVacancy(
     val id: String,
@@ -17,7 +14,7 @@ data class JobVacancy(
     val description: String = "",
     val tags: List<String> = emptyList(),
     val status: String = "open",
-    val kind: String = "resume",
+    val kind: String = "vacancy",
     val createdAt: String? = null,
 )
 
@@ -42,7 +39,7 @@ data class CreateJobRequest(
     val employmentType: String? = null,
     val description: String? = null,
     val tags: List<String> = emptyList(),
-    val kind: String = "vacancy",
+    val kind: String = "resume",
 )
 
 /** Тело `POST /api/jobs/:id/apply` — `coverNote` необязателен на сервере. */
