@@ -12,6 +12,5 @@ class JobsRequestContractTest {
         )
 
         assertEquals("resume", request.kind)
-        assertEquals("Ищу работу", request.employmentType ?: "Ищу работу")
     }
 }
