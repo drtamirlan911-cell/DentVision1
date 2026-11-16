@@ -7,6 +7,7 @@ import kotlinx.serialization.json.JsonElement
 import kz.dentvision.crm.data.api.ApiClient
 import kz.dentvision.crm.data.api.ApiEnvelope
 import kz.dentvision.crm.data.api.ApiException
+import kz.dentvision.crm.data.api.apiCall
 import kz.dentvision.crm.data.model.ApplyJobRequest
 import kz.dentvision.crm.data.model.CreateJobRequest
 import kz.dentvision.crm.data.model.JobApplication
@@ -30,7 +31,7 @@ class JobsRepository(private val api: ApiClient = ServiceLocator.api) {
 
     suspend fun myApplications(): List<JobApplication> = call { api.jobs.myApplications() }
 
-    suspend fun create(request: CreateJobRequest): JobVacancy = call { api.jobs.create(request) }
+    suspend fun create(request: CreateJobRequest): JobVacancy = apiCall { api.jobs.create(request) }
 
     suspend fun apply(vacancyId: String, coverNote: String = ""): JobApplication =
         call { api.jobs.apply(vacancyId, ApplyJobRequest(coverNote)) }
