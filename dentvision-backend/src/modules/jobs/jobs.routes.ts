@@ -246,28 +246,31 @@ jobsRouter.post('/employer/vacancies', authenticate, requirePermission('jobs.wri
     const title = String(req.body?.title || '').trim();
     const city = String(req.body?.city || '').trim();
     if (!title || !city) return res.status(400).json({ ok: false, error: 'title и city обязательны' } satisfies ApiResponse);
-    const vacancy = await prisma.jobVacancy.create({
-      data: {
-        id: uid(),
-        title,
-        clinicName: scope.clinicName,
-        city,
-        salary: req.body?.salary ? String(req.body.salary) : '',
-        employmentType: req.body?.employmentType ? String(req.body.employmentType) : 'Полная занятость',
-        description: req.body?.description ? String(req.body.description) : '',
-        tags: Array.isArray(req.body?.tags) ? req.body.tags : [],
-        status: 'open',
-        kind: 'vacancy',
-        userId: req.user!.id,
-        clinicId: scope.clinicId,
-        employerOrganizationId: scope.employerOrganizationId,
-      },
-    });
-    await auditFromReq(req, {
-      action: 'jobs.vacancy.created',
-      entity: 'job_vacancy',
-      entityId: vacancy.id,
-      details: { employerOrganizationId: scope.employerOrganizationId, clinicId: scope.clinicId },
+    const vacancy = await prisma.$transaction(async (tx) => {
+      const created = await tx.jobVacancy.create({
+        data: {
+          id: uid(),
+          title,
+          clinicName: scope.clinicName,
+          city,
+          salary: req.body?.salary ? String(req.body.salary) : '',
+          employmentType: req.body?.employmentType ? String(req.body.employmentType) : 'Полная занятость',
+          description: req.body?.description ? String(req.body.description) : '',
+          tags: Array.isArray(req.body?.tags) ? req.body.tags : [],
+          status: 'open',
+          kind: 'vacancy',
+          userId: req.user!.id,
+          clinicId: scope.clinicId,
+          employerOrganizationId: scope.employerOrganizationId,
+        },
+      });
+      await auditFromReq(req, {
+        action: 'jobs.vacancy.created',
+        entity: 'job_vacancy',
+        entityId: created.id,
+        details: { employerOrganizationId: scope.employerOrganizationId, clinicId: scope.clinicId },
+      }, tx);
+      return created;
     });
     return res.status(201).json({ ok: true, data: vacancy } satisfies ApiResponse);
   } catch (error) {
@@ -294,18 +297,23 @@ jobsRouter.patch('/employer/applications/:id/status', authenticate, requirePermi
     if (!(APPLICATION_TRANSITIONS[application.status] || []).includes(nextStatus)) {
       return res.status(409).json({ ok: false, error: 'Недопустимый переход статуса отклика', code: 'INVALID_APPLICATION_TRANSITION', data: { currentStatus: application.status, requestedStatus: nextStatus } } satisfies ApiResponse);
     }
-    const changed = await prisma.jobApplication.updateMany({
-      where: { id: application.id, status: application.status },
-      data: { status: nextStatus },
+    const updated = await prisma.$transaction(async (tx) => {
+      const changed = await tx.jobApplication.updateMany({
+        where: { id: application.id, status: application.status },
+        data: { status: nextStatus },
+      });
+      if (changed.count !== 1) return null;
+      const result = await tx.jobApplication.findUnique({ where: { id: application.id } });
+      if (!result) throw new Error('Updated Jobs application could not be read inside transaction');
+      await auditFromReq(req, {
+        action: 'jobs.application.status_changed',
+        entity: 'job_application',
+        entityId: application.id,
+        details: { vacancyId: application.vacancyId, from: application.status, to: nextStatus },
+      }, tx);
+      return result;
     });
-    if (changed.count !== 1) return res.status(409).json({ ok: false, error: 'Отклик изменился параллельно. Обновите список.', code: 'APPLICATION_CONFLICT' } satisfies ApiResponse);
-    const updated = await prisma.jobApplication.findUnique({ where: { id: application.id } });
-    await auditFromReq(req, {
-      action: 'jobs.application.status_changed',
-      entity: 'job_application',
-      entityId: application.id,
-      details: { vacancyId: application.vacancyId, from: application.status, to: nextStatus },
-    });
+    if (!updated) return res.status(409).json({ ok: false, error: 'Отклик изменился параллельно. Обновите список.', code: 'APPLICATION_CONFLICT' } satisfies ApiResponse);
     return res.json({ ok: true, data: updated } satisfies ApiResponse);
   } catch (error) {
     console.error('Update employer application error:', error);
