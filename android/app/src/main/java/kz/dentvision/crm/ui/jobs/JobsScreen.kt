@@ -26,6 +26,7 @@ import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -310,7 +311,6 @@ private fun VacancyCard(vacancy: JobVacancy, applied: Boolean, onApply: () -> Un
 @Composable
 private fun PostJobForm(defaultCity: String, onSubmit: (CreateJobRequest, (Boolean, String?) -> Unit) -> Unit) {
     var title by remember { mutableStateOf("") }
-    var clinicName by remember { mutableStateOf("") }
     var city by remember { mutableStateOf(defaultCity) }
     var salary by remember { mutableStateOf("") }
     var description by remember { mutableStateOf("") }
@@ -340,13 +340,6 @@ private fun PostJobForm(defaultCity: String, onSubmit: (CreateJobRequest, (Boole
             value = title,
             onValueChange = { title = it; error = null },
             label = { Text("Желаемая должность") },
-            singleLine = true,
-            modifier = Modifier.fillMaxWidth().padding(top = 12.dp),
-        )
-        OutlinedTextField(
-            value = clinicName,
-            onValueChange = { clinicName = it },
-            label = { Text("Ваше имя") },
             singleLine = true,
             modifier = Modifier.fillMaxWidth().padding(top = 12.dp),
         )
@@ -413,7 +406,6 @@ private fun PostJobForm(defaultCity: String, onSubmit: (CreateJobRequest, (Boole
                 onSubmit(
                     CreateJobRequest(
                         title = title.trim(),
-                        clinicName = clinicName.trim().ifBlank { null },
                         city = city.trim(),
                         salary = salary.trim().ifBlank { null },
                         employmentType = "Ищу работу",
