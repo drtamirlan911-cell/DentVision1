@@ -17,7 +17,7 @@ data class JobVacancy(
     val description: String = "",
     val tags: List<String> = emptyList(),
     val status: String = "open",
-    val kind: String = "vacancy",
+    val kind: String = "resume",
     val createdAt: String? = null,
 )
 
@@ -32,7 +32,7 @@ data class JobApplication(
     val createdAt: String? = null,
 )
 
-/** Тело `POST /api/jobs` — `kind` различает вакансию и резюме («ищу работу»). */
+/** Тело candidate-only `POST /api/jobs`; employer vacancies use the legal-gated `/api/jobs/employer/vacancies` endpoint. */
 @Serializable
 data class CreateJobRequest(
     val title: String,
