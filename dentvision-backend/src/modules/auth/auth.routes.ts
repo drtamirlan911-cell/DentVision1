@@ -27,6 +27,7 @@ import { expireSession } from '../compliance/session.service.js';
 import { checkLoginAttempts, recordFailedAttempt, resetAttempts } from '../../lib/loginGuard.js';
 import { setCsrfCookie } from '../../middleware/csrf.js';
 import { createClinicForOwner, createClinicForOwnerInTransaction, normalizeClinicInput } from '../clinics/clinicCreation.service.js';
+import { TRIAL_DAYS } from '../billing/clinicSubscription.service.js';
 
 function setAuthCookies(res: any, accessToken: string, refreshToken: string) {
   res.cookie('accessToken', accessToken, { httpOnly: true, secure: process.env.NODE_ENV === 'production', sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax', maxAge: 24 * 60 * 60 * 1000, path: '/' });
@@ -160,6 +161,13 @@ authRouter.get('/invitations/lookup', async (req, res) => {
     if (!invitation || invitation.usedAt || (invitation.expiresAt && invitation.expiresAt <= now) || !invitation.clinic.active) {
       return res.status(404).json({ ok: false, error: 'Приглашение не найдено или истекло', code: 'INVITATION_NOT_FOUND' });
     }
+    const archivedOrganization = await prisma.organization.findFirst({
+      where: { originalType: 'Clinic', originalId: invitation.clinicId, archivedAt: { not: null } },
+      select: { id: true },
+    });
+    if (archivedOrganization) {
+      return res.status(404).json({ ok: false, error: 'Приглашение не найдено или истекло', code: 'INVITATION_NOT_FOUND' });
+    }
     const emailParts = invitation.email?.split('@') || [];
     const maskedEmail = emailParts.length === 2 ? `${emailParts[0].slice(0, 1)}***@${emailParts[1]}` : null;
     return res.json({
@@ -189,7 +197,7 @@ authRouter.post('/join-clinic', authenticate, async (req: AuthRequest, res) => {
     const outcome = await prisma.$transaction(async (tx) => {
       const invitation = await tx.clinicInvitation.findUnique({
         where: { code },
-        include: { clinic: { select: { id: true, name: true, city: true, active: true } } },
+        include: { clinic: { select: { id: true, name: true, city: true, active: true, plan: true, createdAt: true } } },
       });
       if (!invitation || !invitation.clinic.active) {
         return { ok: false as const, status: 404, code: 'INVITATION_NOT_FOUND', error: 'Приглашение не найдено' };
@@ -200,8 +208,51 @@ authRouter.post('/join-clinic', authenticate, async (req: AuthRequest, res) => {
       if (invitation.expiresAt && invitation.expiresAt <= now) {
         return { ok: false as const, status: 410, code: 'INVITATION_EXPIRED', error: 'Срок действия приглашения истёк' };
       }
-      if (invitation.email && invitation.email.toLowerCase() !== String(req.user!.email || '').toLowerCase()) {
-        return { ok: false as const, status: 403, code: 'INVITATION_EMAIL_MISMATCH', error: 'Приглашение предназначено для другого адреса электронной почты' };
+
+      const user = await tx.user.findUnique({
+        where: { id: req.user!.id },
+        select: { id: true, email: true },
+      });
+      if (!user) {
+        return { ok: false as const, status: 401, code: 'USER_NOT_FOUND', error: 'Пользователь не найден' };
+      }
+
+      const archivedOrganization = await tx.organization.findFirst({
+        where: { originalType: 'Clinic', originalId: invitation.clinicId, archivedAt: { not: null } },
+        select: { id: true },
+      });
+      if (archivedOrganization) {
+        return { ok: false as const, status: 410, code: 'ORGANIZATION_ARCHIVED', error: 'Организация архивирована' };
+      }
+
+      if (invitation.email && invitation.email.trim().toLowerCase() !== user.email.trim().toLowerCase()) {
+        return {
+          ok: false as const,
+          status: 403,
+          code: 'INVITATION_EMAIL_MISMATCH',
+          error: 'Приглашение предназначено для другого адреса электронной почты',
+        };
+      }
+
+      const subscription = await tx.subscription.findUnique({
+        where: { ownerType_ownerId: { ownerType: 'CLINIC', ownerId: invitation.clinicId } },
+        select: { status: true, periodEnd: true },
+      });
+      const legacyDemoPeriodEnd = invitation.clinic.plan === 'DEMO'
+        ? new Date(invitation.clinic.createdAt.getTime() + TRIAL_DAYS * 24 * 60 * 60 * 1000)
+        : null;
+      const periodEnd = subscription?.periodEnd ?? legacyDemoPeriodEnd;
+      if (
+        subscription?.status === 'expired' ||
+        subscription?.status === 'suspended' ||
+        (periodEnd && periodEnd <= now)
+      ) {
+        return {
+          ok: false as const,
+          status: 402,
+          code: 'SUBSCRIPTION_EXPIRED',
+          error: 'Пробный период клиники завершён. Присоединение временно недоступно.',
+        };
       }
 
       const membershipKey = { userId: req.user!.id, clinicId: invitation.clinicId };
