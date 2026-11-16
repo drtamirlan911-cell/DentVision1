@@ -119,36 +119,40 @@ jobsRouter.get('/', optionalAuth, async (req, res) => {
   try {
     await ensureSeed();
     const { q, city } = req.query as Record<string, string | undefined>;
-    const where: Prisma.JobVacancyWhereInput = {
-      status: 'open',
-      kind: 'vacancy',
-      OR: [
-        // Legacy clinic vacancies remain public under the clinic's own lifecycle.
-        { employerOrganizationId: null },
-        // Employer vacancies are discoverable only while the organization is
-        // active, verified, visible and both required legal signatures remain effective.
-        {
-          employerOrganization: {
-            is: {
-              archivedAt: null,
-              AND: [
-                { settings: { path: ['lifecycle'], equals: 'ACTIVE_VERIFIED' } },
-                { settings: { path: ['verification'], equals: 'APPROVED' } },
-                { settings: { path: ['ecosystemVisible'], equals: true } },
-                { settings: { path: ['legal', 'ownerSigned'], equals: true } },
-                { settings: { path: ['legal', 'platformSigned'], equals: true } },
-              ],
+    const filters: Prisma.JobVacancyWhereInput[] = [
+      { status: 'open', kind: 'vacancy' },
+      {
+        OR: [
+          // Legacy clinic vacancies remain public under the clinic's own lifecycle.
+          { employerOrganizationId: null },
+          // Employer vacancies are discoverable only while the organization is
+          // active, verified, visible and both required legal signatures remain effective.
+          {
+            employerOrganization: {
+              is: {
+                archivedAt: null,
+                AND: [
+                  { settings: { path: ['lifecycle'], equals: 'ACTIVE_VERIFIED' } },
+                  { settings: { path: ['verification'], equals: 'APPROVED' } },
+                  { settings: { path: ['ecosystemVisible'], equals: true } },
+                  { settings: { path: ['legal', 'ownerSigned'], equals: true } },
+                  { settings: { path: ['legal', 'platformSigned'], equals: true } },
+                ],
+              },
             },
           },
-        },
-      ],
-    };
-    if (city && city !== 'all') where.city = city;
-    if (q) where.OR = [
-      { title: { contains: q, mode: 'insensitive' } },
-      { clinicName: { contains: q, mode: 'insensitive' } },
-      { description: { contains: q, mode: 'insensitive' } },
+        ],
+      },
     ];
+    if (city && city !== 'all') filters.push({ city });
+    if (q) filters.push({
+      OR: [
+        { title: { contains: q, mode: 'insensitive' } },
+        { clinicName: { contains: q, mode: 'insensitive' } },
+        { description: { contains: q, mode: 'insensitive' } },
+      ],
+    });
+    const where: Prisma.JobVacancyWhereInput = { AND: filters };
     const list = await prisma.jobVacancy.findMany({ where, orderBy: { createdAt: 'desc' } });
     return res.json(list);
   } catch (error) {
