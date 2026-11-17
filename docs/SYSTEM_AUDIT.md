@@ -585,7 +585,7 @@ This section records candidate-branch implementation, not the audited `main` bas
 
 **Evidence and remaining limits**
 - `e2e/tests/jobs-employer.spec.ts` contains `JOBS-EMPLOYER-001`: employer onboarding, recruiter invitation/context, legal activation gate, vacancy creation, candidate resume publication/discovery, application pipeline, cross-employer isolation and public-visibility revocation.
-- Candidate discovery is not yet matching: `GET /api/jobs/employer/resumes` returns open resumes ordered by creation time, not a relevance-ranked or vacancy-specific match. The current `JobsEmployerWorkspace` does not consume `getEmployerResumes()`, so this API is not yet an integrated candidate-discovery UI.
+- Candidate discovery is now integrated into the verified web employer workspace: it loads open resumes and supports client-side filtering by title, name field, city, description and tags. It deliberately does not expose candidate email/user IDs in the resume catalogue. However, this is not AI matching: `GET /api/jobs/employer/resumes` still returns all open resumes ordered by creation time, without vacancy-specific ranking, server-side filters, saved searches or candidate contact/consent workflow.
 - `JobApplication` persists a status string; the current data model does not establish separate interview scheduling/calendar records or structured offer/acceptance/contract records. The `interview` and `offer` values are pipeline statuses, not completed interview/offer workflows.
 - Vacancy edit, close/archive and a complete vacancy lifecycle are not present in the current employer route/UI slice.
 - Messaging, candidate-facing status notifications and a complete communication/consent lifecycle are not proven by the current Jobs E2E.
