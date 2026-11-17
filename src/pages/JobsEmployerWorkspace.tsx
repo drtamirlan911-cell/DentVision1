@@ -13,12 +13,24 @@ import {
   createEmployerVacancy,
   getEmployerVacancies,
   getEmployerStatus,
+  getEmployerResumes,
   getEmployerVacancyApplications,
   updateEmployerApplicationStatus,
 } from '@/utils/api';
 
 type EmployerVacancy = { id: string; title: string; city: string; status: string; applicationsCount?: number };
 type EmployerStatus = { organizationType: string; organizationName: string; verificationStatus: string; canPublish: boolean };
+type EmployerResume = {
+  id: string;
+  title: string;
+  clinicName?: string;
+  city: string;
+  salary?: string;
+  employmentType?: string;
+  description?: string;
+  tags?: string[];
+  createdAt?: string;
+};
 type EmployerApplication = {
   id: string;
   vacancyId: string;
@@ -62,6 +74,9 @@ export default function JobsEmployerWorkspace() {
   const [vacancies, setVacancies] = useState<EmployerVacancy[]>([]);
   const [workspaceStatus, setWorkspaceStatus] = useState<EmployerStatus | null>(null);
   const [applications, setApplications] = useState<EmployerApplication[]>([]);
+  const [resumes, setResumes] = useState<EmployerResume[]>([]);
+  const [resumeQuery, setResumeQuery] = useState('');
+  const [resumesLoading, setResumesLoading] = useState(false);
   const [selectedVacancyId, setSelectedVacancyId] = useState('');
   const [loading, setLoading] = useState(true);
   const [appsLoading, setAppsLoading] = useState(false);
@@ -74,6 +89,18 @@ export default function JobsEmployerWorkspace() {
     () => vacancies.find((item) => item.id === selectedVacancyId) || null,
     [vacancies, selectedVacancyId],
   );
+
+  const visibleResumes = useMemo(() => {
+    const query = resumeQuery.trim().toLocaleLowerCase();
+    if (!query) return resumes;
+    return resumes.filter((resume) => [
+      resume.title,
+      resume.clinicName,
+      resume.city,
+      resume.description,
+      ...(resume.tags || []),
+    ].some((value) => String(value || '').toLocaleLowerCase().includes(query)));
+  }, [resumes, resumeQuery]);
 
   const loadVacancies = useCallback(async () => {
     setLoading(true);
@@ -111,6 +138,23 @@ export default function JobsEmployerWorkspace() {
     }
   }, [toast]);
 
+  const loadResumes = useCallback(async () => {
+    if (workspaceStatus?.canPublish !== true) {
+      setResumes([]);
+      return;
+    }
+    setResumesLoading(true);
+    try {
+      const list = await getEmployerResumes();
+      setResumes(list as EmployerResume[]);
+    } catch (error: any) {
+      setResumes([]);
+      toast.error(error?.message || 'Не удалось загрузить резюме специалистов');
+    } finally {
+      setResumesLoading(false);
+    }
+  }, [toast, workspaceStatus?.canPublish]);
+
   useEffect(() => {
     if (isAuthenticated) void loadVacancies();
   }, [isAuthenticated, loadVacancies]);
@@ -119,6 +163,11 @@ export default function JobsEmployerWorkspace() {
     if (selectedVacancyId) void loadApplications(selectedVacancyId);
     else setApplications([]);
   }, [selectedVacancyId, loadApplications]);
+
+  useEffect(() => {
+    if (workspaceStatus?.canPublish === true) void loadResumes();
+    else setResumes([]);
+  }, [workspaceStatus?.canPublish, loadResumes]);
 
   if (authLoading) return <div className="p-8 text-sm text-txt-muted">Загружаем кабинет работодателя…</div>;
   if (!isAuthenticated) return <Navigate to="/login?returnUrl=%2Femployer" replace />;
@@ -289,6 +338,64 @@ export default function JobsEmployerWorkspace() {
           )}
         </Card>
       </div>
+
+      {workspaceStatus?.canPublish === true && (
+        <Card padding="md" className="space-y-3">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div>
+              <h2 className="font-semibold text-txt-primary">База резюме специалистов</h2>
+              <p className="text-xs text-txt-muted">Открытые резюме, опубликованные кандидатами в DentVision Jobs</p>
+            </div>
+            <Button size="sm" variant="ghost" onClick={() => void loadResumes()} disabled={resumesLoading}>
+              <RefreshCw size={14} /> Обновить
+            </Button>
+          </div>
+          <Input
+            label="Поиск кандидатов"
+            value={resumeQuery}
+            onChange={(event) => setResumeQuery(event.target.value)}
+            placeholder="Специальность, город, навыки…"
+          />
+          {resumesLoading ? (
+            <div className="py-8 text-center text-sm text-txt-muted">Загружаем резюме…</div>
+          ) : visibleResumes.length === 0 ? (
+            <EmptyState
+              icon={<Users size={26} />}
+              title={resumeQuery.trim() ? 'Кандидаты не найдены' : 'Открытых резюме пока нет'}
+              description={resumeQuery.trim() ? 'Измените поисковый запрос.' : 'Новые резюме появятся здесь после публикации кандидатами.'}
+            />
+          ) : (
+            <div className="grid gap-3 md:grid-cols-2">
+              {visibleResumes.map((resume) => (
+                <article key={resume.id} className="rounded-xl border border-bdr-subtle p-3">
+                  <div className="flex flex-wrap items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <h3 className="font-medium text-txt-primary">{resume.title}</h3>
+                      {resume.clinicName && <p className="mt-1 text-xs text-txt-muted">{resume.clinicName}</p>}
+                    </div>
+                    <Badge>Резюме</Badge>
+                  </div>
+                  <div className="mt-2 flex flex-wrap gap-3 text-xs text-txt-muted">
+                    {resume.city && <span>{resume.city}</span>}
+                    {resume.salary && <span>{resume.salary}</span>}
+                    {resume.employmentType && <span>{resume.employmentType}</span>}
+                    {resume.createdAt && <span>{String(resume.createdAt).slice(0, 10)}</span>}
+                  </div>
+                  {resume.description && (
+                    <p className="mt-3 whitespace-pre-wrap text-sm text-txt-secondary">{resume.description}</p>
+                  )}
+                  {!!resume.tags?.length && (
+                    <div className="mt-3 flex flex-wrap gap-1.5">
+                      {resume.tags.map((tag) => <Badge key={tag} variant="outline" size="xs">{tag}</Badge>)}
+                    </div>
+                  )}
+                </article>
+              ))}
+            </div>
+          )}
+          <p className="text-xs text-txt-muted">Контактные данные и идентификаторы кандидатов не раскрываются в каталоге резюме.</p>
+        </Card>
+      )}
     </main>
   );
 }
