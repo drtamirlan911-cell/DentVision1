@@ -8,6 +8,7 @@ const mocks = vi.hoisted(() => ({
   organizationFindFirst: vi.fn(),
   legalPartnerFindUnique: vi.fn(),
   getLegalPartnerForContext: vi.fn(),
+  ensureLegalTrustPackage: vi.fn(),
   hasOrganizationLegalOwnerAuthority: vi.fn(),
 }));
 
@@ -34,7 +35,7 @@ vi.mock('./legal.service.js', () => ({
   buildDocumentContent: vi.fn(),
 }));
 vi.mock('./legal.trust.service.js', () => ({
-  ensureLegalTrustPackage: vi.fn(),
+  ensureLegalTrustPackage: mocks.ensureLegalTrustPackage,
   getLegalPartnerForContext: mocks.getLegalPartnerForContext,
 }));
 vi.mock('../../lib/orgContext.js', () => ({ resolveAnyClinicMembership: vi.fn() }));
@@ -43,6 +44,7 @@ vi.mock('../../lib/organizationLegalAccess.js', () => ({
 }));
 
 import { hasOrganizationLegalOwnerAuthority } from '../../lib/organizationLegalAccess.js';
+import { ensureLegalTrustPackage } from './legal.trust.service.js';
 import { legalPartnerRouter } from './legal.partner.routes.js';
 
 let server: Server;
@@ -78,6 +80,7 @@ beforeEach(() => {
     email: 'clinic@example.test',
   });
   mocks.hasOrganizationLegalOwnerAuthority.mockResolvedValue(false);
+  mocks.ensureLegalTrustPackage.mockResolvedValue({ partner: { id: 'new-partner' }, documents: [] });
   mocks.legalPartnerFindUnique.mockResolvedValue({
     id: 'legacy-partner',
     legalName: 'Legacy legal entity',
@@ -119,5 +122,36 @@ describe('legal partner organization context isolation', () => {
     expect(response.status).toBe(403);
     expect((await response.json()).code).toBe('ORGANIZATION_LEGAL_OWNER_REQUIRED');
     expect(hasOrganizationLegalOwnerAuthority).toHaveBeenCalledWith('user-1', 'org-1', 'CLINIC');
+  });
+
+  it.each([
+    { organizationType: 'DIAGNOSTIC_CENTER', settings: {}, expected: 'DIAGNOSTIC_CENTER' },
+    { organizationType: 'LABORATORY', settings: { laboratoryType: 'DENTAL_LAB' }, expected: 'DENTAL_LAB' },
+    { organizationType: 'SUPPLIER_COMPANY', settings: {}, expected: 'SUPPLIER' },
+    { organizationType: 'ACADEMY', settings: {}, expected: 'EDUCATION_CENTER' },
+    { organizationType: 'EMPLOYER', settings: {}, expected: 'EMPLOYER' },
+  ])('keeps the legal package type aligned with $organizationType', async ({ organizationType, settings, expected }) => {
+    mocks.organizationFindFirst.mockResolvedValueOnce({
+      id: 'org-1',
+      name: 'Organization',
+      type: organizationType,
+      settings,
+      taxId: '',
+      address: '',
+      phone: '',
+      email: '',
+    });
+    mocks.hasOrganizationLegalOwnerAuthority.mockResolvedValueOnce(true);
+
+    const response = await fetch(`${baseUrl}/onboard`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({}),
+    });
+
+    expect(response.status).toBe(200);
+    expect(ensureLegalTrustPackage).toHaveBeenCalledWith(
+      expect.objectContaining({ organizationId: 'org-1', type: expected }),
+    );
   });
 });
