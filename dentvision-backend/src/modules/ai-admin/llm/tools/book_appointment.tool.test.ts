@@ -74,6 +74,8 @@ describe('bookAppointment', () => {
     const result = await bookAppointment(BASE_ARGS, SESSION);
 
     expect(result.success).toBe(true);
+    // Patient metadata must not be duplicated into the AI Admin session row.
+    expect(sessionUpdate).not.toHaveBeenCalled();
     expect(appointmentCreate).toHaveBeenCalledWith(
       expect.objectContaining({ data: expect.objectContaining({ doctorId: 'doc-1' }) }),
     );

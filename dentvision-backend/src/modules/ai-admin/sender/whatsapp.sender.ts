@@ -23,7 +23,7 @@ export async function sendWhatsApp({ externalUserId, text, accessToken, phoneNum
   )
 
   if (!response.ok) {
-    const err = await response.text()
-    throw new Error(`WhatsApp send failed: ${response.status} ${err}`)
+    // Provider error bodies may echo recipient IDs or message content.
+    throw new Error(`WhatsApp send failed with HTTP ${response.status}`)
   }
 }

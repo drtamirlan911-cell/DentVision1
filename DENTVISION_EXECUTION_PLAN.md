@@ -1,39 +1,54 @@
-## Current execution checkpoint — 2026-11-15 (Master Spec cabinet reconciliation)
+## Current execution checkpoint — 2026-11-17 (Master Spec v5.0)
 
-The 2026-11-15 source comparison is recorded in `docs/SYSTEM_AUDIT.md`; do not create another roadmap or duplicate specification. This section supersedes the 2026-11-13 sequencing only where the verified current source requires it.
+The current cabinet evidence is in `docs/SYSTEM_AUDIT.md`; operational release/security blockers are in `docs/RELEASE_BLOCKERS.md`. Do not create duplicate roadmaps or infer completion from routes, models or screenshots alone.
 
-### Candidate branch update — 2026-11-17 (PR #348)
-
-The existing PR #348 branch has progressed beyond the audited main baseline in the Jobs/employer and organization-legal slices. The detailed evidence and remaining Definition-of-Done gaps are in `docs/SYSTEM_AUDIT.md`.
-
-- Employer vertical slice: first-class EMPLOYER Organization, owner/recruiter/viewer IAM, invitation/context flow, employer workspace, legal publication gate, scoped vacancies/applicant inbox/status transitions, candidate resume lifecycle and candidate-visible application tracking are implemented in the candidate branch.
-- Jobs integrity hardening: public search retains legal visibility predicates; clinic-scoped vacancy discovery and employer context require an active clinic; candidate double-submit is serialized with a transaction-scoped PostgreSQL advisory lock; all relevant mutations and audit records share a transaction. Exact-head E2E is pending.
-- Android Jobs: candidate resume creation is separated from employer vacancy publication and the response envelope is decoded correctly. Android employer workspace and owned-resume visibility controls remain open.
-- Legal identity: legal packages now follow Organization type, mutations require the scoped legal owner, active Organization contexts do not fall back to unscoped legacy packages, and existing package responses require owner authorization. Employer/Partner approved templates and legal readiness remain open.
-- Current PR HEAD at checkpoint: `d72e54f9cff5ac16d61cbbad9cf58afa3093fbae`; PR #348 remains Draft/open. Exact-head CI/Android/Quality/RB-034 must all pass before review/merge. Superseded cancelled runs are not evidence of pass or failure.
-- This candidate work does **not** reorder the P0 security plan: RB-029 / PR #347 remains separate and open. No production/staging data, PHI, payment provider or live legal agreement was touched.
-
-### Confirmed status corrections
-
-- RB-037 clinic diagnostic confirmation/signing is resolved in merged PR #341 and exact-head CI/E2E; retain the regression contract.
-- Dental Laboratory QC checklist and manager-only pass/fail sign-off exist in current code and are covered by unit and PARTNER-003 E2E checks. D10 remains open for remake closure, dispatch/shipping/proof of delivery, services/pricing, invoice/payment/settlement/payout, durable AI/notification exceptions and full RBAC/mobile proof.
-- Unified onboarding already supports clinic, diagnostic center, medical lab, dental lab, supplier and academy creation plus personal professional/patient/jobs/student/employer intents and invitation join. Remaining participant gaps must not be described as “no onboarding”.
-- Main SHA `4bbd61a339d5f3c4d40d1d5990f633a7b9a87864` passed CI [43496476996](https://github.com/drtamirlan911-cell/DentVision1/actions/runs/43496476996) and Quality Gate [43496477034](https://github.com/drtamirlan911-cell/DentVision1/actions/runs/43496477034). This is not a full product/release certification.
+### Repository and integration state
+- `main` is `462c6fcc1994c345b51feabff5f2357debdfffba`; PR #347 is merged. RB-029 implementation is present in main, but its operational data/key/retention/backup/staging closure remains P0 and open.
+- PR #348 remains the existing ecosystem-parity remediation line. It now incorporates current main history and preserves the employer/Jobs and organization-legal changes. The combined branch needs fresh CI/E2E, Android and RB-034 checks.
+- Pre-sync candidate Quality Gate [44126395133](https://github.com/drtamirlan911-cell/DentVision1/actions/runs/44126395133) and Vercel Preview passed. Full CI/E2E and RB-034 were not verified on that pre-sync SHA.
+- Confirmed Jobs fix: advisory locking uses Prisma `$executeRaw`, not `$queryRaw`, to avoid deserializing PostgreSQL `void`. The onboarding E2E checks persisted Organization/Branch context after redirect.
+- Release remains **NOT READY** until P0/P1 gates and applicable cabinet Definition-of-Done sequences are evidenced.
 
 ### Next execution order from verified gaps
+1. **RB-029 / P0:** finish reader/writer/derived-copy inventory, compatibility-worker drain and strict-write cutover plan, key lifecycle/rotation/old-key handling, retention/export/deletion, backup/restore/rollback and approved staging dry-run/reconciliation. Do not run historical PHI writes without explicit target/backup approval.
+2. **IAM/security:** finish RB-035 role × organization × clinic × branch × active/revoked/expired-session negative matrix; verify RB-031 WebKit/CORS/WebSocket evidence and RB-033 main branch protection with repository-admin evidence.
+3. **Diagnostic center and medical laboratory:** complete modality/worklist/reporting and sample accession → chain-of-custody → QC → validation → release, with role gates, result delivery, audit and finance.
+4. **Dental laboratory / D10:** close remake authorization/feedback, dispatch/shipping/proof of delivery, services/pricing, invoices, payment/settlement/payout/refunds, durable notifications and full owner/manager/technician/designer/QC/finance/mobile matrix.
+5. **Employer / Jobs:** keep legal publication closed until approved employer template and signer evidence exist; finish vacancy edit/close, actual interview scheduling, formal offers/contracts, candidate communication/consent, vacancy-specific matching and Android employer workspace.
+6. **Marketplace / Supplier:** complete seller KYB and publication, multi-seller fulfillment, paid-order provider void/refund, returns, payout and CRM procurement reconciliation.
+7. **Academy / Community:** finish academy owner/cohort/content/assessment/certificate/finance loop and community follow/nested-thread/media-consent/moderation workflows.
+8. **Public discovery and clinical UX:** resolve organization/professional/service public detail routes; implement and verify the actual 32-tooth WebGL/3D odontogram with accessible 2D fallback.
+9. **Mobile parity:** verify install/runtime on physical Android devices and role/workflow parity; keep offline PHI boundary explicit.
+10. Run the complete Master Spec matrix on one exact final HEAD: onboarding → context → permission → home → queue → entity → workflow → persistence → notification → finance/outcome → audit → mobile → E2E.
 
-1. RB-029 P0: finish full PHI reader/writer/derived-copy inventory, key lifecycle, retention/export/deletion, backup/restore and approved staging dry-run/reconciliation. Keep all historic data untouched until a separately approved run.
-2. Complete current role/context/tenant/branch/session negative authorization matrix and exact WebKit/CORS/WebSocket and repository branch-protection evidence.
-3. Complete diagnostics worklist/modality/report workflow and medical-lab specimen accession/QC/validation/release/settlement.
-4. Complete dental-lab remake authorization/feedback, shipping/proof of delivery, services/pricing, invoice/payment/settlement/payout/refund and idempotent cross-cabinet notifications.
-5. Fix Jobs employer onboarding/ownership/recruiter authorization and application pipeline before presenting it as an HH-class hiring market.
-6. Complete Marketplace provider-backed online cancellation/refunds and end-to-end CRM procurement reconciliation.
-7. Finish Academy owner/cohort/content/assessment/certificate/finance and Community follow/nested-thread/media-consent/moderation flows.
-8. Reconcile organization/professional/service public discovery routes to actual detail pages or an explicit accepted IA decision.
-9. Verify Android preview install/runtime and role/workflow parity on a device; implement real 32-tooth WebGL/3D odontogram.
-10. Run the full Master Spec matrix and visual/browser/mobile gates on one exact final HEAD.
+Continue the required loop: `Inspect → implement → test → fix → verify → document → continue`.
 
-Continue the required loop: `Inspect → implement → test → fix → verify → document → continue`. No feature is DONE from route or model existence alone.
+
+## 2026-11-15 — RB-029 staged AI Admin writes and retained queue backfill candidate
+
+- Continued on existing PR #347 / security/rb029-ai-admin-external-id-20261114; no new branch or PR.
+- Codex P1 findings: v2 writes could be read by old workers during rolling deployment; retained ai_admin_queue_messages rows (including completed payloads and error strings) were omitted from historical backfill.
+- New writer defaults to legacy ENC format until all v2 readers are explicitly acknowledged. Queue payloads remain the historical object-shaped JSONB contract until the queue-specific legacy-worker drain is acknowledged. Enabling v2 or queue encryption without its acknowledgement fails closed.
+- Backfill candidate now scans all retained queue rows, validates payload shape, encrypts payload and error and uses exact compare-and-set guards. Added regression tests for legacy reader compatibility and queue payload/error conversion.
+- Candidate only: fresh exact-head CI, Quality Gate, Codex and Preview evidence is required. No live DB, migration, staging/production backfill, worker drain, key rotation, backup/restore, secret update or production deployment was performed.
+- RB-029 remains OPEN/P0. Historical Patient/AI derivative PHI inventory, approved staging reconciliation/backfill, backup/restore and retention/export evidence remain outstanding. Release NOT READY.
+## Current continuation — 2026-11-14 (RB-029 rolling-deploy compatibility)
+
+- PR #347 review found that legacy webhook workers could not locate hash-only sessions during a rolling deploy. The existing branch now dual-writes the legacy identifier with ciphertext and blind index by default; legacy workers continue to find the same row.
+- Strict ciphertext-only writes require AI_ADMIN_EXTERNAL_ID_STRICT_WRITE=true and AI_ADMIN_EXTERNAL_ID_LEGACY_WORKERS_DRAINED=I_HAVE_DRAINED_ALL_LEGACY_WORKERS. Backfill apply requires the same acknowledgement and exact target DATABASE_URL binding.
+- Compatibility mode intentionally retains plaintext until every old worker is verified drained and the strict cutover/backfill is run. No worker drain, staging/production database operation, migration, backfill, key rotation or restore was performed. RB-029 remains OPEN / P0.
+- The previous exact-head CI found one clock-dependent DEMO trial test. It is now fixed with a frozen pre-deadline check and a second assertion at the exact expiry boundary; entitlement business logic is unchanged. New exact-head CI, E2E, Quality Gate, Vercel and Codex review are required.
+- Release remains NOT READY. Keep PR #347 open until all exact-head gates and review pass.
+
+## Current implementation checkpoint — 2026-11-14 (RB-029 AI Admin datasource-target guard; PR #347)
+
+- Active work continues on the existing PR #347 / `security/rb029-ai-admin-external-id-20261114`; no replacement branch or PR was created. Base is `main`; exact published code head before this documentation reconciliation: `a632394653994786049013eb05e9845133d8667e`; documentation-only checkpoint commit: `ddcad40fcf7bbc0f2db403ea2ab12a38836745f4`.
+- Addressed the Codex P2 in the AI Admin external-identity backfill: the prior staging/production label could disagree with Prisma's actual `DATABASE_URL`. Write mode now requires the actual `DATABASE_URL` to exactly match a separate target-specific expected connection string: `AI_ADMIN_EXTERNAL_ID_BACKFILL_STAGING_DATABASE_URL` or `AI_ADMIN_EXTERNAL_ID_BACKFILL_PRODUCTION_DATABASE_URL`. Missing/mismatched values fail closed; connection strings are never logged.
+- Added regression cases for valid staging binding, staging label with a production datasource, and missing expected datasource configuration. Updated `docs/security/RB-029_AI_ADMIN_EXTERNAL_ID.md` with the operator runbook.
+- Exact local verification on this patch: focused backfill tests 11/11; backend `tsc --noEmit`; changed-file ESLint; `git diff --check` passed. The earlier local attempt lacked backend dependencies/Prisma generation; after installing backend dependencies and generating the client, the focused suite passed.
+- Exact-head GitHub CI and Quality Gate were triggered for the code commit `a6323946`; a documentation-only follow-up commit now requires fresh exact-head gates. Codex re-review was explicitly requested. Do not merge until exact-head CI/E2E, Quality Gate, preview and Codex review are green with no unresolved P0/P1/P2 findings.
+- RB-029 remains OPEN/P0: historical PHI inventory/backfill, key versioning/rotation and old-key handling, retention/deletion/export, backup/restore/rollback, exception ledger and approved staging evidence remain outstanding. No staging/production database connection, query, migration, backfill, key change or production deployment was performed.
+- Master Spec 5.0 remains the normative product contract; the repository's current compliance audit remains 18 PARTIAL / 4 OPEN / 2 GUIDANCE. D1/D2, RB-031, RB-033, RB-035, official Kaspi evidence, Android runtime and D10 independent dental-lab lifecycle remain open/partial. Release NOT READY.
 
 ## Current implementation checkpoint — 2026-11-13 (RB-029 independent AI history hydrator race)
 

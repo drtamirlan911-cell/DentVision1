@@ -35,6 +35,20 @@ export function parseBackfillOptions(args: string[], env: NodeJS.ProcessEnv): Op
        read('--confirm-production-write') !== 'I_HAVE_BACKUP_AND_APPROVAL')) {
     throw new Error('Production write also requires --allow-production and --confirm-production-write=I_HAVE_BACKUP_AND_APPROVAL');
   }
+
+  // Bind the named target to Prisma's actual datasource. Never log either URL.
+  const expectedDatabaseUrlEnv = target === 'staging'
+    ? 'MEDICAL_HISTORY_BACKFILL_STAGING_DATABASE_URL'
+    : 'MEDICAL_HISTORY_BACKFILL_PRODUCTION_DATABASE_URL';
+  const actualDatabaseUrl = env.DATABASE_URL?.trim();
+  const expectedDatabaseUrl = env[expectedDatabaseUrlEnv]?.trim();
+  if (!actualDatabaseUrl || !expectedDatabaseUrl) {
+    throw new Error('Write mode requires DATABASE_URL and ' + expectedDatabaseUrlEnv);
+  }
+  if (actualDatabaseUrl !== expectedDatabaseUrl) {
+    throw new Error('DATABASE_URL does not match the configured ' + target + ' medical-history backfill database');
+  }
+
   return { apply: true, target, batchSize };
 }
 

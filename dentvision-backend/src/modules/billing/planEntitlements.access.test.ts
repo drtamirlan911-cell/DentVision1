@@ -130,9 +130,9 @@ describe('expired clinic access', () => {
     });
   });
 
-  it('keeps a legacy DEMO clinic writable only until its 30-day createdAt deadline when no subscription exists', async () => {
+  it('keeps a legacy DEMO clinic writable immediately before its 30-day createdAt deadline', async () => {
     vi.useFakeTimers();
-    vi.setSystemTime(new Date('2026-11-13T12:00:00.000Z'));
+    vi.setSystemTime(new Date('2026-11-13T23:59:59.999Z'));
     db.clinicFindUnique.mockResolvedValue({
       id: 'c1', name: 'Recent demo', plan: 'DEMO', active: true,
       createdAt: new Date('2026-10-15T00:00:00.000Z'),
@@ -146,6 +146,26 @@ describe('expired clinic access', () => {
       expired: false,
       writeBlocked: false,
       status: 'trialing',
+      periodEnd: new Date('2026-11-14T00:00:00.000Z'),
+    });
+  });
+
+  it('expires a legacy DEMO clinic at the exact 30-day createdAt deadline', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-11-14T00:00:00.000Z'));
+    db.clinicFindUnique.mockResolvedValue({
+      id: 'c1', name: 'Recent demo', plan: 'DEMO', active: true,
+      createdAt: new Date('2026-10-15T00:00:00.000Z'),
+    });
+    db.subscriptionFindUnique.mockResolvedValue(null);
+
+    const access = await resolveClinicAccess('c1');
+
+    expect(access).toMatchObject({
+      active: true,
+      expired: true,
+      writeBlocked: true,
+      status: 'expired',
       periodEnd: new Date('2026-11-14T00:00:00.000Z'),
     });
   });

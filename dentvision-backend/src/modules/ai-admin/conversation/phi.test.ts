@@ -1,32 +1,138 @@
+import { createHmac } from 'node:crypto';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { decryptField, encryptField } from '../../../lib/phi.js';
 import {
   decodeQueuedAiAdminMessage,
   decryptAiAdminJson,
   decryptAiAdminText,
   encryptAiAdminJson,
   encryptAiAdminText,
+  hashAiAdminExternalUserId,
+  getAiAdminExternalUserIdHashes,
+  isAiAdminTextEncryptedWithActiveKey,
 } from './phi.js';
 
-const originalNodeEnv = process.env.NODE_ENV;
-const originalEncryptionKey = process.env.ENCRYPTION_KEY;
+const envNames = ['NODE_ENV', 'ENCRYPTION_KEY', 'AI_ADMIN_PHI_KEYRING_JSON', 'AI_ADMIN_PHI_ACTIVE_KEY_ID', 'AI_ADMIN_EXTERNAL_ID_INDEX_KEYRING_JSON', 'AI_ADMIN_EXTERNAL_ID_ACTIVE_INDEX_KEY_ID', 'AI_ADMIN_PHI_V2_WRITE_ENABLED', 'AI_ADMIN_PHI_V2_READERS_DEPLOYED'];
+const originalEnv = Object.fromEntries(envNames.map((name) => [name, process.env[name]]));
 
 beforeEach(() => {
   process.env.NODE_ENV = 'test';
   process.env.ENCRYPTION_KEY = 'ai-admin-test-encryption-key-at-least-32-chars';
+  process.env.AI_ADMIN_PHI_V2_WRITE_ENABLED = 'true';
+  process.env.AI_ADMIN_PHI_V2_READERS_DEPLOYED = 'I_HAVE_DEPLOYED_ALL_V2_READERS';
+  for (const name of envNames.slice(2, 6)) delete process.env[name];
 });
 
 afterEach(() => {
-  if (originalNodeEnv === undefined) delete process.env.NODE_ENV;
-  else process.env.NODE_ENV = originalNodeEnv;
-  if (originalEncryptionKey === undefined) delete process.env.ENCRYPTION_KEY;
-  else process.env.ENCRYPTION_KEY = originalEncryptionKey;
+  for (const name of envNames) {
+    const value = originalEnv[name];
+    if (value === undefined) delete process.env[name];
+    else process.env[name] = value;
+  }
+});
+
+describe('AI Admin external identity blind index', () => {
+  it('is deterministic and scoped to clinic and channel', () => {
+    const identity = { clinicId: 'clinic-a', channel: 'WHATSAPP', externalUserId: '77010000000' };
+    const hash = hashAiAdminExternalUserId(identity);
+    expect(hash).toMatch(/^v2:legacy:[a-f0-9]{64}$/);
+    expect(hashAiAdminExternalUserId({ ...identity, externalUserId: ' 77010000000 ' })).toBe(hash);
+    expect(hashAiAdminExternalUserId({ ...identity, clinicId: 'clinic-b' })).not.toBe(hash);
+    expect(hashAiAdminExternalUserId({ ...identity, channel: 'INSTAGRAM' })).not.toBe(hash);
+  });
+  it('fails closed in production without the index key', () => {
+    const previous = process.env.ENCRYPTION_KEY;
+    process.env.NODE_ENV = 'production';
+    delete process.env.ENCRYPTION_KEY;
+    try {
+      expect(() => hashAiAdminExternalUserId({ clinicId: 'clinic-a', channel: 'WHATSAPP', externalUserId: '77010000000' })).toThrow(/keyring or ENCRYPTION_KEY is required/);
+    } finally {
+      if (previous === undefined) delete process.env.ENCRYPTION_KEY;
+      else process.env.ENCRYPTION_KEY = previous;
+      process.env.NODE_ENV = 'test';
+    }
+  });
 });
 
 describe('AI Admin at-rest encryption', () => {
+  it('retains old blind-index versions while writing with the active key', () => {
+    const identity = { clinicId: 'clinic-a', channel: 'WHATSAPP', externalUserId: '77010000000' };
+    const oldHash = getAiAdminExternalUserIdHashes(identity).find((value) => value.startsWith('v1:'));
+    process.env.AI_ADMIN_EXTERNAL_ID_INDEX_KEYRING_JSON = JSON.stringify({
+      legacy: process.env.ENCRYPTION_KEY,
+      current: 'new-ai-admin-index-key-with-at-least-32-chars',
+    });
+    process.env.AI_ADMIN_EXTERNAL_ID_ACTIVE_INDEX_KEY_ID = 'current';
+    expect(getAiAdminExternalUserIdHashes(identity)).toContain(oldHash);
+    expect(hashAiAdminExternalUserId(identity)).toMatch(/^v2:current:/);
+  });
+
+  it('preserves the exact historic development fallback for legacy ciphertext and blind indexes', () => {
+    const previous = process.env.ENCRYPTION_KEY;
+    delete process.env.ENCRYPTION_KEY;
+    const identity = { clinicId: 'clinic-dev', channel: 'WHATSAPP', externalUserId: '77010000000' };
+    try {
+      const legacyCiphertext = encryptField('old development payload');
+      expect(decryptAiAdminText(legacyCiphertext)).toBe('old development payload');
+      const oldMaster = 'dev-only-ai-admin-index-key-not-for-production';
+      const oldIndexKey = createHmac('sha256', oldMaster)
+        .update('dentvision:ai-admin:external-user-id:index-key:v1')
+        .digest();
+      const oldHash = 'v1:' + createHmac('sha256', oldIndexKey)
+        .update(JSON.stringify([identity.channel, identity.clinicId, identity.externalUserId]))
+        .digest('hex');
+      expect(getAiAdminExternalUserIdHashes(identity)).toContain(oldHash);
+    } finally {
+      if (previous === undefined) delete process.env.ENCRYPTION_KEY;
+      else process.env.ENCRYPTION_KEY = previous;
+    }
+  });
+
+  it('keeps legacy writes enabled until v2 readers are explicitly deployed', () => {
+    process.env.AI_ADMIN_PHI_V2_WRITE_ENABLED = 'false';
+    const stored = encryptAiAdminText('legacy-compatible payload');
+    expect(stored).toMatch(/^ENC:[a-f0-9]+:[a-f0-9]+:[a-f0-9]*$/);
+    expect(decryptField(stored)).toBe('legacy-compatible payload');
+    expect(decryptAiAdminText(stored)).toBe('legacy-compatible payload');
+  });
+
+  it('refuses to enable v2 writes without the deployment acknowledgement', () => {
+    process.env.AI_ADMIN_PHI_V2_WRITE_ENABLED = 'true';
+    process.env.AI_ADMIN_PHI_V2_READERS_DEPLOYED = 'not-confirmed';
+    expect(() => encryptAiAdminText('blocked')).toThrow(/all v2 readers are deployed/);
+  });
+
+  it('reads old unversioned ciphertext and supports active-key rotation', () => {
+    const oldSecret = process.env.ENCRYPTION_KEY!;
+    const legacy = encryptField('legacy encrypted message');
+    expect(decryptAiAdminText(legacy)).toBe('legacy encrypted message');
+    const oldVersion = encryptAiAdminText('old version');
+    process.env.AI_ADMIN_PHI_KEYRING_JSON = JSON.stringify({
+      legacy: oldSecret,
+      current: 'new-ai-admin-phi-key-with-at-least-32-chars',
+    });
+    process.env.AI_ADMIN_PHI_ACTIVE_KEY_ID = 'current';
+    expect(decryptAiAdminText(oldVersion)).toBe('old version');
+    const current = encryptAiAdminText('current version');
+    expect(current).toMatch(/^ENC:v2:current:/);
+    expect(isAiAdminTextEncryptedWithActiveKey(current)).toBe(true);
+    expect(isAiAdminTextEncryptedWithActiveKey(oldVersion)).toBe(false);
+  });
+
+  it('round-trips empty messages in both versioned and legacy ciphertext formats', () => {
+    const versioned = encryptAiAdminText('');
+    expect(versioned).toMatch(/^ENC:v2:legacy:/);
+    expect(decryptAiAdminText(versioned)).toBe('');
+
+    const legacy = encryptField('');
+    expect(legacy).toMatch(/^ENC:/);
+    expect(decryptAiAdminText(legacy)).toBe('');
+  });
+
   it('encrypts patient messages and round-trips them', () => {
     const source = 'Patient Ivan Petrov: private diagnosis alpha';
     const stored = encryptAiAdminText(source);
-    expect(stored).toMatch(/^ENC:/);
+    expect(stored).toMatch(/^ENC:v2:legacy:/);
     expect(stored).not.toContain('Ivan Petrov');
     expect(stored).not.toContain('private diagnosis alpha');
     expect(decryptAiAdminText(stored)).toBe(source);
@@ -35,7 +141,7 @@ describe('AI Admin at-rest encryption', () => {
   it('encrypts JSONB values as a ciphertext scalar and preserves the object shape on read', () => {
     const source = { patientName: 'Ivan Petrov', diagnosis: 'private diagnosis beta', tooth: '36' };
     const stored = encryptAiAdminJson(source);
-    expect(stored).toMatch(/^ENC:/);
+    expect(stored).toMatch(/^ENC:v2:/);
     expect(stored).not.toContain('Ivan Petrov');
     expect(decryptAiAdminJson(stored)).toEqual(source);
   });
@@ -51,7 +157,7 @@ describe('AI Admin at-rest encryption', () => {
   it('fails closed when a ciphertext is read with a different key', () => {
     const stored = encryptAiAdminText('private');
     process.env.ENCRYPTION_KEY = 'a-different-ai-admin-encryption-key-32-chars';
-    expect(() => decryptAiAdminText(stored)).toThrow(/Unable to decrypt encrypted field/);
+    expect(() => decryptAiAdminText(stored)).toThrow(/ciphertext authentication failed/);
   });
 
   it('decrypts queue rows and restores receivedAt as a Date', () => {

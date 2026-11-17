@@ -43,13 +43,6 @@ export interface EscalationFilters {
   take?: number;
 }
 
-/**
- * What is still waiting on somebody, newest first.
- *
- * Scoped by clinic at the query, never filtered afterwards: an escalation
- * carries a patient's own words in `lastUserMessage`, so reading another
- * clinic's queue would be a PHI leak, not an inconvenience.
- */
 function decodeEscalation<T extends { reason: string; lastUserMessage: string }>(row: T): T {
   return {
     ...row,
@@ -70,21 +63,10 @@ export async function listEscalations(clinicId: string, filters: EscalationFilte
   return rows.map(decodeEscalation);
 }
 
-/** How many people are currently waiting — the number a badge would show. */
 export async function countOpenEscalations(clinicId: string): Promise<number> {
   return prisma.aiAdminEscalation.count({ where: { clinicId, resolvedAt: null } });
 }
 
-/**
- * Close one out.
- *
- * `updateMany` scoped by both id and clinic rather than `update` by id: it
- * cannot touch another clinic's row even if an id is guessed, and a zero count
- * tells us so without a second read.
- *
- * Already-resolved rows are excluded from the match, so resolving twice reports
- * not-found instead of quietly rewriting who resolved it and when.
- */
 export async function resolveEscalation(
   clinicId: string,
   escalationId: string,
@@ -101,7 +83,6 @@ export async function resolveEscalation(
   return row ? decodeEscalation(row) : null;
 }
 
-/** Re-notify an escalation nobody has picked up in this long. */
 export const DEFAULT_ESCALATION_REMINDER_MS = 15 * 60 * 1000;
 
 export interface EscalationReminderResult {
@@ -109,17 +90,6 @@ export interface EscalationReminderResult {
   renotified: number;
 }
 
-/**
- * Chase escalations that have gone unanswered.
- *
- * Deliberately the same shape and threshold as `patientConversationOnCall`:
- * the two are the same promise to the same person — someone is waiting and a
- * human has to arrive — and having them behave differently would be a
- * difference nobody could justify to a patient.
- *
- * Reuses `notifyClinicOwners`, the same channel the first notification used, so
- * a reminder cannot arrive somewhere the original did not.
- */
 export async function runEscalationReminders(
   thresholdMs = DEFAULT_ESCALATION_REMINDER_MS,
 ): Promise<EscalationReminderResult> {
@@ -144,10 +114,9 @@ export async function runEscalationReminders(
         `Пациент ждёт больше ${minutes} мин. Откройте очередь эскалаций для подробностей.`,
       );
       renotified += 1;
-    } catch (error) {
-      // One clinic's notification channel failing must not stop the rest of
-      // the queue from being chased.
-      console.warn('[EscalationReminder] notify failed:', error);
+    } catch {
+      // Provider error details can contain patient content.
+      console.warn('[EscalationReminder] notify failed');
     }
   }
 

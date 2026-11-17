@@ -120,10 +120,7 @@ export async function bookAppointment(
       doctorId,
     })
 
-    await prisma.aiAdminSession.update({
-      where: { id: session.id },
-      data: { patientName: args.patient_name, patientPhone: args.patient_phone },
-    })
+    // Patient details already live on the patient record; do not duplicate PHI on AiAdminSession.
 
     const dateStr = slotTime.toLocaleString('ru-RU', {
       weekday: 'long', day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit',

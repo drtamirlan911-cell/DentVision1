@@ -1,9 +1,9 @@
 # DentVision System Audit
 
-## Current source reconciliation — 2026-11-15
+## Current source reconciliation — 2026-11-17
 
 **Audited repository:** `drtamirlan911-cell/DentVision1`  
-**Main source snapshot:** `4bbd61a339d5f3c4d40d1d5990f633a7b9a87864`  
+**Main source snapshot:** `462c6fcc1994c345b51feabff5f2357debdfffba` (includes merged PR #347 and isolated Codespaces PR #322)  
 **Normative product target:** `docs/DENTVISION_MASTER_SPEC.md` v5.0  
 **Method:** read-only source comparison across the canonical product/AI/CRM/Marketplace/School/Community/Jobs specs, IAM and branch contracts, legal/economics/security documents, route tree, representative frontend workspaces, backend routers/services, Prisma-linked model usage, E2E suites, Android source inventory, generated System Map and exact-main GitHub CI/Quality Gate.
 
@@ -21,9 +21,9 @@ This checkpoint supersedes the September 28 baseline and the October/November hi
 | Background jobs | 12 | Scheduled/worker inventory |
 | Frontend route declarations in `src/index.tsx` | 248 | Static route declarations |
 | Route declarations using `<Navigate>` | 162 | Redirect/alias declarations; not all are defects |
-| Markdown documents in repository tree | 102 | Documentation inventory as of the audited source tree |
+| Markdown documents in repository tree | 104 | Documentation inventory as of the audited source tree |
 
-**Exact-main release evidence:** CI [43496476996](https://github.com/drtamirlan911-cell/DentVision1/actions/runs/43496476996) and Quality Gate [43496477034](https://github.com/drtamirlan911-cell/DentVision1/actions/runs/43496477034) both completed successfully on the audited main SHA. This is strong automated source/CI evidence. It does not mean all product requirements are complete or that production/staging/device/provider operations were performed.
+**Historical exact-main evidence:** CI [43496476996](https://github.com/drtamirlan911-cell/DentVision1/actions/runs/43496476996) and Quality Gate [43496477034](https://github.com/drtamirlan911-cell/DentVision1/actions/runs/43496477034) passed on the previous baseline `4bbd61a`. PR #347's own exact-head CI and Quality Gate passed before its merge. An exact-head CI/Quality Gate run for current main `462c6fc` was not independently verified in this checkpoint; these checks do not certify production/staging/device/provider operations.
 
 ### 2. Cabinet-by-cabinet implementation classification
 
@@ -80,7 +80,7 @@ Do not mechanically create a separate page for every target route. Reconcile eac
 - **RB-037 clinical diagnostic sign-off:** resolved in merged code and exact-head CI/E2E; do not leave older lower sections marking it open. Current evidence is recorded in `docs/security/RB-037_CLINICAL_DIAGNOSTIC_SIGNOFF.md` and the reconciled blocker register.
 - **RB-029 PHI:** remains P0/open. New-write encryption improvements and guarded backfill utilities do not prove historical inventory, key lifecycle, retention/export/deletion, backup/restore, rollback and approved staging reconciliation. No historical PHI backfill was executed as part of this audit.
 - **D1/D2 trial/archive, RB-031 WebKit/CORS/WebSocket, RB-033 repository branch protection, RB-035 full role/tenant/branch/session negative matrix, official Kaspi merchant contract/callback, Android device runtime, and D10 remaining lab operations** remain open/partial pending their specific evidence. Do not close them using an unrelated main CI pass.
-- Main CI and Quality Gate are green on the audited SHA; PR #347's separate PHI branch has its own independent, still-running exact-head CI at the time this audit was prepared. Do not mix those results.
+- PR #347 is now merged into main; its source protections and guarded backfill tools are present. RB-029 remains P0/open until worker drain/strict cutover, historical PHI inventory/backfill, key lifecycle, retention/export/deletion, backup/restore and staging reconciliation have operational evidence.
 - No production/staging database, medical record, key, secret, payment provider, live contract or deployed runtime was modified or queried.
 
 ### 5A.1 Candidate remediation overlay — PR #348 (not merged)
@@ -95,6 +95,15 @@ The preceding Jobs/employer gap analysis is correct for the audited `main` basel
 - Candidate verification on the previous PR #348 HEAD: backend/frontend lint, lint-test and Quality Gate passed; the E2E job's first suite failed while later role/context and visual/owner gates were still in progress. The documentation-only follow-up changes require a fresh exact-HEAD CI. Employer status therefore remains **candidate implemented / E2E not yet certified**.
 
 This overlay does not change the historical main-baseline inventory above, and it does not authorize merging PR #348 or activating real employers before legal review.
+
+
+### 5A.2 Latest candidate correction — PR #348 (2026-11-17)
+
+- On pre-sync HEAD `f05a38ccdefc292c90008f3411f2fe601e84709f`, Quality Gate [44126395133](https://github.com/drtamirlan911-cell/DentVision1/actions/runs/44126395133) passed and Vercel Preview was SUCCESS. Full CI/E2E, Android and RB-034 were not verified on that exact SHA.
+- The concurrent Jobs application E2E exposed a real runtime defect: `pg_advisory_xact_lock` returns PostgreSQL `void`; using Prisma `$queryRaw` caused deserialization failure and HTTP 500. The route now uses `$executeRaw`; the route contract test matches Prisma semantics and the employer E2E still verifies duplicate submission behavior.
+- Partner onboarding E2E now waits for HTTP 201 and verifies the persisted canonical IAM context, organization scope, owner role and default branch after navigation. It tests durable state rather than a response-body timing assumption.
+- The candidate branch is being reconciled with merged main history without dropping the EMPLOYER Organization/vacancy relation or legal-owner controls. Fresh exact-head CI/E2E/Android/RB-034 evidence is required after synchronization.
+- Candidate remains **Partial / not release-certified**: approved employer/partner legal templates, interview scheduling, formal offer/contract records, vacancy edit/close, consent-aware candidate communications, vacancy-specific matching and Android employer workspace remain incomplete.
 
 ### 5A. Additional cross-cutting findings — documents, Jobs and AI Employee
 
