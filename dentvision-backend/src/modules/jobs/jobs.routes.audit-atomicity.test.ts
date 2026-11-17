@@ -24,6 +24,7 @@ const mocks = vi.hoisted(() => {
     vacancyFindUnique: vi.fn(),
     vacancyFindMany: vi.fn(),
     applicationFindUnique: vi.fn(),
+    applicationFindMany: vi.fn(),
     transaction: vi.fn(async (callback: (client: typeof tx) => Promise<unknown>) => callback(tx)),
     auditFromReq: vi.fn(),
   };
@@ -36,7 +37,10 @@ vi.mock('../../lib/prisma.js', () => ({
       findUnique: mocks.vacancyFindUnique,
       findMany: mocks.vacancyFindMany,
     },
-    jobApplication: { findUnique: mocks.applicationFindUnique },
+    jobApplication: {
+      findUnique: mocks.applicationFindUnique,
+      findMany: mocks.applicationFindMany,
+    },
     $transaction: mocks.transaction,
   },
 }));
@@ -131,6 +135,22 @@ beforeEach(() => {
       clinicId: null,
     },
   });
+  mocks.applicationFindMany.mockResolvedValue([{
+    id: 'application-1',
+    vacancyId: 'vacancy-1',
+    coverNote: 'Clinical experience',
+    status: 'interview',
+    createdAt: new Date('2026-11-17T02:00:00.000Z'),
+    vacancy: {
+      id: 'vacancy-1',
+      title: 'Dentist',
+      clinicName: 'Verified Clinic',
+      city: 'Тараз',
+      salary: '400 000 ₸',
+      employmentType: 'Полная занятость',
+      status: 'open',
+    },
+  }]);
   mocks.tx.jobVacancy.create.mockResolvedValue({ id: 'vacancy-1', title: 'Dentist' });
   mocks.tx.jobVacancy.findFirst.mockResolvedValue({ id: 'resume-1', status: 'open' });
   mocks.tx.jobVacancy.findUnique.mockResolvedValue({ id: 'resume-1', status: 'closed', kind: 'resume' });
@@ -147,6 +167,39 @@ beforeEach(() => {
 });
 
 describe('Jobs mutation audit atomicity', () => {
+  it('returns the authenticated candidate own applications with a limited vacancy summary', async () => {
+    const response = await fetch(`${baseUrl}/api/jobs/me/applications`);
+
+    expect(response.status).toBe(200);
+    const applications = await response.json();
+    expect(applications).toEqual([
+      expect.objectContaining({
+        id: 'application-1',
+        vacancyId: 'vacancy-1',
+        status: 'interview',
+        vacancy: expect.objectContaining({
+          id: 'vacancy-1',
+          title: 'Dentist',
+          clinicName: 'Verified Clinic',
+          city: 'Тараз',
+        }),
+      }),
+    ]);
+    expect(applications[0]).not.toHaveProperty('userId');
+    expect(applications[0]).not.toHaveProperty('user');
+    expect(applications[0].vacancy).not.toHaveProperty('employerOrganizationId');
+    expect(mocks.applicationFindMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: { userId: 'employer-owner' },
+      select: expect.objectContaining({
+        id: true,
+        status: true,
+        vacancy: expect.objectContaining({
+          select: expect.objectContaining({ title: true, city: true }),
+        }),
+      }),
+    }));
+  });
+
   it('lists only the current candidate own resumes', async () => {
     const response = await fetch(`${baseUrl}/api/jobs/me/resumes`);
 
