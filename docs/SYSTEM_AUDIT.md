@@ -604,7 +604,8 @@ This section records candidate-branch implementation, not the audited `main` bas
 - Legal partner onboarding, document regeneration, partner data mutation and document signing now require explicit legal-owner authority in the active Organization scope. Generic clinic administration or ordinary membership does not implicitly confer signing rights.
 - Owner resolution is type-specific: clinic owner/org-owner; diagnostic-center owner; medical/dental laboratory owner; employer owner; partner org-owner; supplier owner membership plus scoped seller identity; Academy canonical `ownerId` plus scoped lecturer identity.
 - A legacy unscoped legal partner record is no longer used as a fallback when an active Organization context exists. This prevents an owner of Organization A from accidentally reading or mutating an unrelated legacy legal package while operating in A. Legacy unscoped reads remain possible only when no Organization context can be resolved; write routes still require a resolved Organization and authorized owner.
-- Contract test `legal.partner.routes.context.test.ts` verifies that an active Organization with no mapped legal package is denied instead of falling back to a legacy partner record.
+- The `/onboard` endpoint now checks organization legal-owner authority **before** returning an already-existing legal package; previously, the existing-package fast path could disclose the package to any authenticated organization member. Regression coverage verifies the denial.
+- Contract test `legal.partner.routes.context.test.ts` verifies both organization-context isolation and the owner check before returning an existing package.
 - This is an authorization correction, **not** legal-readiness certification. The legal registry documents remain drafts pending counsel approval, actual signer-authority verification, effective consent/versioning and Kazakhstan EDS/provider integration.
 
 ---
