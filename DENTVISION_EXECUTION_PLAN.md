@@ -2,6 +2,17 @@
 
 The 2026-11-15 source comparison is recorded in `docs/SYSTEM_AUDIT.md`; do not create another roadmap or duplicate specification. This section supersedes the 2026-11-13 sequencing only where the verified current source requires it.
 
+### Candidate branch update — 2026-11-17 (PR #348)
+
+The existing PR #348 branch has progressed beyond the audited main baseline in the Jobs/employer and organization-legal slices. The detailed evidence and remaining Definition-of-Done gaps are in `docs/SYSTEM_AUDIT.md`.
+
+- Employer vertical slice: first-class EMPLOYER Organization, owner/recruiter/viewer IAM, invitation/context flow, employer workspace, legal publication gate, scoped vacancies/applicant inbox/status transitions, candidate resume lifecycle and candidate-visible application tracking are implemented in the candidate branch.
+- Jobs integrity hardening: public search retains legal visibility predicates; clinic-scoped vacancy discovery and employer context require an active clinic; candidate double-submit is serialized with a transaction-scoped PostgreSQL advisory lock; all relevant mutations and audit records share a transaction. Exact-head E2E is pending.
+- Android Jobs: candidate resume creation is separated from employer vacancy publication and the response envelope is decoded correctly. Android employer workspace and owned-resume visibility controls remain open.
+- Legal identity: legal packages now follow Organization type, mutations require the scoped legal owner, active Organization contexts do not fall back to unscoped legacy packages, and existing package responses require owner authorization. Employer/Partner approved templates and legal readiness remain open.
+- Current PR HEAD at checkpoint: `d72e54f9cff5ac16d61cbbad9cf58afa3093fbae`; PR #348 remains Draft/open. Exact-head CI/Android/Quality/RB-034 must all pass before review/merge. Superseded cancelled runs are not evidence of pass or failure.
+- This candidate work does **not** reorder the P0 security plan: RB-029 / PR #347 remains separate and open. No production/staging data, PHI, payment provider or live legal agreement was touched.
+
 ### Confirmed status corrections
 
 - RB-037 clinic diagnostic confirmation/signing is resolved in merged PR #341 and exact-head CI/E2E; retain the regression contract.
