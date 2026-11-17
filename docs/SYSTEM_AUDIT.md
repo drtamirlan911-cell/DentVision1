@@ -599,6 +599,14 @@ This section records candidate-branch implementation, not the audited `main` bas
 
 **Classification:** the employer vertical slice has advanced from the main-baseline `Incomplete / Partial` description to **Partial with a verified source/E2E candidate implementation**. It is not a complete Professional/Jobs cabinet under Master Spec §20–21 until the remaining discovery, interview/offer, vacancy-lifecycle, communication, audit and mobile acceptance criteria are closed.
 
+## 9.3 Organization-scoped legal authority — candidate branch
+
+- Legal partner onboarding, document regeneration, partner data mutation and document signing now require explicit legal-owner authority in the active Organization scope. Generic clinic administration or ordinary membership does not implicitly confer signing rights.
+- Owner resolution is type-specific: clinic owner/org-owner; diagnostic-center owner; medical/dental laboratory owner; employer owner; partner org-owner; supplier owner membership plus scoped seller identity; Academy canonical `ownerId` plus scoped lecturer identity.
+- A legacy unscoped legal partner record is no longer used as a fallback when an active Organization context exists. This prevents an owner of Organization A from accidentally reading or mutating an unrelated legacy legal package while operating in A. Legacy unscoped reads remain possible only when no Organization context can be resolved; write routes still require a resolved Organization and authorized owner.
+- Contract test `legal.partner.routes.context.test.ts` verifies that an active Organization with no mapped legal package is denied instead of falling back to a legacy partner record.
+- This is an authorization correction, **not** legal-readiness certification. The legal registry documents remain drafts pending counsel approval, actual signer-authority verification, effective consent/versioning and Kazakhstan EDS/provider integration.
+
 ---
 
 ## 9. Audit conclusion
