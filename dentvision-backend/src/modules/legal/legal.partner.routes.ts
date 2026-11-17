@@ -57,19 +57,17 @@ async function resolveRequestPartner(req: any) {
 
 router.post('/onboard', async (req: any, res, next) => {
   try {
-    const { organizationId } = await resolveRequestPartner(req);
+    const { partner: existing, organizationId } = await resolveRequestPartner(req);
     if (!organizationId) {
       return res.status(400).json({ ok: false, error: 'Выберите рабочую организацию перед оформлением юридического пакета.' });
     }
 
-    const existing = await getLegalPartnerForContext(req.user.id, organizationId);
-    if (existing) return res.json({ ok: true, data: existing });
-
     const organization = await prisma.organization.findFirst({ where: { id: organizationId, archivedAt: null } });
     if (!organization) return res.status(400).json({ ok: false, error: 'Организация не найдена' });
     if (!(await hasOrganizationLegalOwnerAuthority(req.user.id, organization.id, organization.type))) {
-      return res.status(403).json({ ok: false, error: 'Юридический пакет может создать только уполномоченный владелец организации', code: 'ORGANIZATION_LEGAL_OWNER_REQUIRED' });
+      return res.status(403).json({ ok: false, error: 'Юридический пакет может просматривать и создавать только уполномоченный владелец организации', code: 'ORGANIZATION_LEGAL_OWNER_REQUIRED' });
     }
+    if (existing) return res.json({ ok: true, data: existing });
 
     const clinic = organization.originalType === 'Clinic' && organization.originalId
       ? await prisma.clinic.findUnique({ where: { id: organization.originalId } })
