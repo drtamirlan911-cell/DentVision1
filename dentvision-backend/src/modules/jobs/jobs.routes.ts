@@ -343,6 +343,7 @@ jobsRouter.get('/me/resumes', authenticate, async (req: AuthRequest, res) => {
         description: true,
         tags: true,
         status: true,
+        kind: true,
         createdAt: true,
         updatedAt: true,
       },
