@@ -1,6 +1,6 @@
 ## Current exact candidate checkpoint — 2026-11-17
 
-- Canonical repository: `drtamirlan911-cell/DentVision1`. Work remains on existing PR #348, branch `audit/ecosystem-parity-remediation-2026-11-15`, base `main`; current published HEAD: `91b82afdbcb0cba93f8737cebd2914ce1eb09ea5`.
+- Canonical repository: `drtamirlan911-cell/DentVision1`. Work remains on existing PR #348, branch `audit/ecosystem-parity-remediation-2026-11-15`, base `main`; current published HEAD: `2be1420ba3cf39022b2a870f8bfd3d76c5ca6934`.
 - PR #348 remains **OPEN / DRAFT / mergeable**. No merge, main edit, production deploy, staging data operation or legal approval was performed.
 - Current exact-HEAD GitHub CI, Android, Quality Gate and RB-034 runs have been queued; earlier runs were cancelled by newer commits during the same remediation batch. Do not treat cancelled superseded runs as test failures, and do not claim the current HEAD is green until all current exact-HEAD gates complete.
 - Candidate Jobs corrections now include: employer Organization workspace and scoped hiring pipeline; public vacancy employer-signature/lifecycle gate; clinic-active validation for legacy clinic vacancies; concurrent duplicate application serialization with a transaction-scoped PostgreSQL advisory lock; transactionally audited resume/application/vacancy mutations; Android candidate-only resume posting with correct `ApiEnvelope` decoding. Android employer cabinet and several Jobs Definition-of-Done workflows remain incomplete.
