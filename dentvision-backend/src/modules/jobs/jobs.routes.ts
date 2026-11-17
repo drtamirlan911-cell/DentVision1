@@ -323,10 +323,33 @@ jobsRouter.patch('/employer/applications/:id/status', authenticate, requirePermi
 
 jobsRouter.get('/me/applications', authenticate, async (req: AuthRequest, res) => {
   try {
-    const apps = await prisma.jobApplication.findMany({ where: { userId: req.user!.id }, orderBy: { createdAt: 'desc' } });
+    const apps = await prisma.jobApplication.findMany({
+      where: { userId: req.user!.id },
+      select: {
+        id: true,
+        vacancyId: true,
+        coverNote: true,
+        status: true,
+        createdAt: true,
+        updatedAt: true,
+        vacancy: {
+          select: {
+            id: true,
+            title: true,
+            clinicName: true,
+            city: true,
+            salary: true,
+            employmentType: true,
+            status: true,
+          },
+        },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
     return res.json(apps);
   } catch (error) {
-    return res.status(500).json({ ok: false, error: 'Ошибка' } satisfies ApiResponse);
+    console.error('List candidate applications error:', error);
+    return res.status(500).json({ ok: false, error: 'Не удалось загрузить ваши отклики' } satisfies ApiResponse);
   }
 });
 
