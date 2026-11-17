@@ -5,7 +5,12 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vites
 
 const mocks = vi.hoisted(() => {
   const tx = {
-    jobVacancy: { create: vi.fn() },
+    jobVacancy: {
+      create: vi.fn(),
+      findFirst: vi.fn(),
+      findUnique: vi.fn(),
+      updateMany: vi.fn(),
+    },
     jobApplication: {
       updateMany: vi.fn(),
       findUnique: vi.fn(),
@@ -17,6 +22,7 @@ const mocks = vi.hoisted(() => {
     tx,
     organizationFindFirst: vi.fn(),
     vacancyFindUnique: vi.fn(),
+    vacancyFindMany: vi.fn(),
     applicationFindUnique: vi.fn(),
     transaction: vi.fn(async (callback: (client: typeof tx) => Promise<unknown>) => callback(tx)),
     auditFromReq: vi.fn(),
@@ -26,7 +32,10 @@ const mocks = vi.hoisted(() => {
 vi.mock('../../lib/prisma.js', () => ({
   default: {
     organization: { findFirst: mocks.organizationFindFirst },
-    jobVacancy: { findUnique: mocks.vacancyFindUnique },
+    jobVacancy: {
+      findUnique: mocks.vacancyFindUnique,
+      findMany: mocks.vacancyFindMany,
+    },
     jobApplication: { findUnique: mocks.applicationFindUnique },
     $transaction: mocks.transaction,
   },
@@ -98,6 +107,13 @@ beforeEach(() => {
   });
   mocks.transaction.mockImplementation(async (callback) => callback(mocks.tx));
   mocks.auditFromReq.mockResolvedValue(undefined);
+  mocks.vacancyFindMany.mockResolvedValue([{
+    id: 'resume-1',
+    title: 'Dentist',
+    city: 'Тараз',
+    status: 'open',
+    kind: 'resume',
+  }]);
   mocks.vacancyFindUnique.mockResolvedValue({
     id: 'vacancy-1',
     title: 'Dentist',
@@ -116,6 +132,9 @@ beforeEach(() => {
     },
   });
   mocks.tx.jobVacancy.create.mockResolvedValue({ id: 'vacancy-1', title: 'Dentist' });
+  mocks.tx.jobVacancy.findFirst.mockResolvedValue({ id: 'resume-1', status: 'open' });
+  mocks.tx.jobVacancy.findUnique.mockResolvedValue({ id: 'resume-1', status: 'closed', kind: 'resume' });
+  mocks.tx.jobVacancy.updateMany.mockResolvedValue({ count: 1 });
   mocks.tx.jobApplication.updateMany.mockResolvedValue({ count: 1 });
   mocks.tx.jobApplication.findFirst.mockResolvedValue(null);
   mocks.tx.jobApplication.create.mockResolvedValue({
@@ -128,6 +147,87 @@ beforeEach(() => {
 });
 
 describe('Jobs mutation audit atomicity', () => {
+  it('lists only the current candidate own resumes', async () => {
+    const response = await fetch(`${baseUrl}/api/jobs/me/resumes`);
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual(expect.arrayContaining([
+      expect.objectContaining({ id: 'resume-1', kind: 'resume' }),
+    ]));
+    expect(mocks.vacancyFindMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: { userId: 'employer-owner', kind: 'resume' },
+    }));
+  });
+
+  it('changes candidate resume visibility and audits the change in one transaction', async () => {
+    const response = await fetch(`${baseUrl}/api/jobs/me/resumes/resume-1/status`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status: 'closed' }),
+    });
+
+    expect(response.status).toBe(200);
+    expect(mocks.transaction).toHaveBeenCalledTimes(1);
+    expect(mocks.tx.jobVacancy.updateMany).toHaveBeenCalledWith({
+      where: { id: 'resume-1', userId: 'employer-owner', kind: 'resume' },
+      data: { status: 'closed' },
+    });
+    expect(auditFromReq).toHaveBeenCalledWith(
+      expect.any(Object),
+      expect.objectContaining({
+        action: 'jobs.resume.visibility_changed',
+        entity: 'job_vacancy',
+        entityId: 'resume-1',
+        details: { from: 'open', to: 'closed' },
+      }),
+      mocks.tx,
+    );
+  });
+
+  it('does not audit a resume visibility request when its status is unchanged', async () => {
+    mocks.tx.jobVacancy.findFirst.mockResolvedValueOnce({ id: 'resume-1', status: 'closed' });
+
+    const response = await fetch(`${baseUrl}/api/jobs/me/resumes/resume-1/status`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status: 'closed' }),
+    });
+
+    expect(response.status).toBe(200);
+    expect(auditFromReq).not.toHaveBeenCalled();
+  });
+
+  it('does not allow candidate resume status changes for a different owner or a vacancy', async () => {
+    mocks.tx.jobVacancy.findFirst.mockResolvedValueOnce(null);
+
+    const response = await fetch(`${baseUrl}/api/jobs/me/resumes/another-users-resume/status`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status: 'closed' }),
+    });
+
+    expect(response.status).toBe(404);
+    expect(mocks.tx.jobVacancy.updateMany).not.toHaveBeenCalled();
+    expect(auditFromReq).not.toHaveBeenCalled();
+  });
+
+  it('fails candidate resume visibility changes when the audit write fails inside the transaction', async () => {
+    mocks.auditFromReq.mockRejectedValueOnce(new Error('audit storage unavailable'));
+
+    const response = await fetch(`${baseUrl}/api/jobs/me/resumes/resume-1/status`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status: 'closed' }),
+    });
+
+    expect(response.status).toBe(500);
+    expect(auditFromReq).toHaveBeenCalledWith(
+      expect.any(Object),
+      expect.objectContaining({ action: 'jobs.resume.visibility_changed' }),
+      mocks.tx,
+    );
+  });
+
   it('creates a candidate resume and its audit record in one transaction', async () => {
     mocks.tx.jobVacancy.create.mockResolvedValueOnce({
       id: 'resume-1',
