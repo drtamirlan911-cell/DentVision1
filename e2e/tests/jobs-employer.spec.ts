@@ -276,6 +276,21 @@ test.describe('Employer workspace and scoped Jobs lifecycle', () => {
       expect(apply.status()).toBe(201);
       const application = await apply.json();
 
+      const candidateOwnApplications = await api.get(`${API}/api/jobs/me/applications`, {
+        headers: auth(candidateToken),
+      });
+      expect(candidateOwnApplications.status()).toBe(200);
+      const candidateApplicationRows = await candidateOwnApplications.json() as Array<Record<string, any>>;
+      const candidateApplication = candidateApplicationRows.find((row) => row.id === application.id);
+      expect(candidateApplication?.status).toBe('new');
+      expect(candidateApplication?.vacancy).toMatchObject({
+        id: vacancyId,
+        title: 'Врач-стоматолог-терапевт',
+        city: 'Тараз',
+      });
+      expect(candidateApplication).not.toHaveProperty('userId');
+      expect(candidateApplication?.vacancy).not.toHaveProperty('employerOrganizationId');
+
       const applications = await api.get(`${API}/api/jobs/employer/vacancies/${vacancyId}/applications`, {
         headers: auth(recruiterToken),
       });
@@ -297,6 +312,13 @@ test.describe('Employer workspace and scoped Jobs lifecycle', () => {
         });
         expect(transition.status(), `application transition to ${status}`).toBe(200);
         expect((await transition.json()).data.status).toBe(status);
+
+        const candidatePipeline = await api.get(`${API}/api/jobs/me/applications`, {
+          headers: auth(candidateToken),
+        });
+        expect(candidatePipeline.status()).toBe(200);
+        const refreshedRows = await candidatePipeline.json() as Array<Record<string, any>>;
+        expect(refreshedRows.find((row) => row.id === application.id)?.status).toBe(status);
       }
 
       const otherRegistrationToken = await registerUser(api, otherOwnerEmail);
