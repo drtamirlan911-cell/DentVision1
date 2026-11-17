@@ -53,6 +53,11 @@ async function activeJobEmployerScope(req: AuthRequest): Promise<JobEmployerScop
     if (organization.type === 'CLINIC') {
       const clinicId = String(organization.originalId || req.user?.clinicId || '').trim();
       if (!clinicId) return null;
+      const clinic = await prisma.clinic.findUnique({
+        where: { id: clinicId },
+        select: { id: true, name: true, active: true },
+      });
+      if (!clinic?.active) return null;
       const settings = organization.settings && typeof organization.settings === 'object' && !Array.isArray(organization.settings)
         ? organization.settings as Record<string, unknown> : {};
       const verificationStatus = String(settings.verification || 'LEGACY_ACTIVE').toUpperCase();
@@ -65,7 +70,7 @@ async function activeJobEmployerScope(req: AuthRequest): Promise<JobEmployerScop
         && legal.ownerSigned === true
         && legal.platformSigned === true
       );
-      return { employerOrganizationId: null, clinicId, clinicName: organization.name, verificationStatus, canPublish };
+      return { employerOrganizationId: null, clinicId: clinic.id, clinicName: organization.name || clinic.name, verificationStatus, canPublish };
     }
     return null;
   }
@@ -123,8 +128,11 @@ jobsRouter.get('/', optionalAuth, async (req, res) => {
       { status: 'open', kind: 'vacancy' },
       {
         OR: [
-          // Legacy clinic vacancies remain public under the clinic's own lifecycle.
-          { employerOrganizationId: null },
+          // Legacy clinic vacancies remain public only while their clinic is active.
+          { employerOrganizationId: null, clinic: { is: { active: true } } },
+          // Keep only platform seed listings that have no clinic or user owner.
+          // Unscoped legacy user-created vacancies must not remain publicly discoverable.
+          { employerOrganizationId: null, clinicId: null, userId: null },
           // Employer vacancies are discoverable only while the organization is
           // active, verified, visible and both required legal signatures remain effective.
           {
