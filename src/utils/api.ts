@@ -633,6 +633,13 @@ export async function getEmployerVacancyApplications(id: string): Promise<any[]>
 export async function updateEmployerApplicationStatus(id: string, status: string): Promise<any> { return apiRequest(`/api/jobs/employer/applications/${encodeURIComponent(id)}/status`, { method: 'PATCH', body: JSON.stringify({ status }) }); }
 export async function applyToJob(id: string, coverNote = ''): Promise<any> { return apiRequest(`/api/jobs/${id}/apply`, { method: 'POST', body: JSON.stringify({ coverNote }) }); }
 export async function getMyJobApplications(): Promise<any[]> { return apiRequest('/api/jobs/me/applications'); }
+export async function getMyJobResumes(): Promise<any[]> { return apiRequest('/api/jobs/me/resumes'); }
+export async function updateMyJobResumeStatus(id: string, status: 'open' | 'closed'): Promise<any> {
+  return apiRequest(`/api/jobs/me/resumes/${encodeURIComponent(id)}/status`, {
+    method: 'PATCH',
+    body: JSON.stringify({ status }),
+  });
+}
 export async function getCommunityPosts(topic?: string, opts?: { saved?: boolean }): Promise<any[]> { const params = new URLSearchParams(); if (topic && topic !== 'Все') params.set('topic', topic); if (opts?.saved) params.set('saved', '1'); const q = params.toString() ? `?${params.toString()}` : ''; return apiRequest(`/api/community/posts${q}`); }
 export async function createCommunityPost(data: { content: string; tags?: string[]; kind?: string }): Promise<any> { return apiRequest('/api/community/posts', { method: 'POST', body: JSON.stringify(data) }); }
 export async function likeCommunityPost(id: string): Promise<any> { return apiRequest(`/api/community/posts/${id}/like`, { method: 'POST' }); }
