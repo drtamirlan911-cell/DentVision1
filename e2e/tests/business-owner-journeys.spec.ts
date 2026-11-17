@@ -46,56 +46,24 @@ async function getAuthenticatedContexts(page: Page) {
 }
 
 async function submitAndCaptureOnboarding(page: Page): Promise<{ status: number; ok: boolean; body: any }> {
-  type CapturedResponse = { status: number; ok: boolean; body: any };
-  let resolveCapture!: (response: CapturedResponse) => void;
-  let rejectCapture!: (error: unknown) => void;
-  const capturedResponse = new Promise<CapturedResponse>((resolve, reject) => {
-    resolveCapture = resolve;
-    rejectCapture = reject;
-  });
-  const routePattern = "**/api/organizations/self-service**";
+  const [response] = await Promise.all([
+    page.waitForResponse(
+      (candidate) =>
+        candidate.url().includes('/api/organizations/self-service') &&
+        candidate.request().method() === 'POST',
+      { timeout: 15000 },
+    ),
+    page.getByRole('button', { name: 'Создать и открыть workspace' }).click(),
+  ]);
 
-  // Keep the route installed until the in-flight POST has been fulfilled. The
-  // UI navigates after this response, so unroute-after-click races the handler
-  // and can auto-continue the request before route.fulfill() executes.
-  await page.route(routePattern, async (route) => {
-    if (route.request().method() !== "POST") {
-      await route.continue();
-      return;
-    }
-
-    try {
-      const upstream = await route.fetch();
-      const rawBody = await upstream.body();
-      let body: any = null;
-      try {
-        body = JSON.parse(rawBody.toString("utf8"));
-      } catch {
-        body = null;
-      }
-      const captured = { status: upstream.status(), ok: upstream.ok(), body };
-      await route.fulfill({ response: upstream, body: rawBody });
-      resolveCapture(captured);
-    } catch (error) {
-      rejectCapture(error);
-      await route.abort().catch(() => {});
-    }
-  });
-
-  let timeoutId: ReturnType<typeof setTimeout> | undefined;
+  let body: any = null;
   try {
-    const clickPromise = page.getByRole("button", { name: "Создать и открыть workspace" }).click();
-    // If capture times out before the click action settles, mark its rejection handled;
-    // awaiting clickPromise below still propagates the original failure when appropriate.
-    clickPromise.catch(() => {});
-    timeoutId = setTimeout(() => rejectCapture(new Error("Timed out waiting for self-service onboarding response")), 15000);
-    const captured = await capturedResponse;
-    await clickPromise;
-    return captured;
-  } finally {
-    if (timeoutId) clearTimeout(timeoutId);
-    await page.unroute(routePattern);
+    body = await response.json();
+  } catch {
+    // Keep the raw HTTP status observable even if an endpoint returns non-JSON.
   }
+
+  return { status: response.status(), ok: response.ok(), body };
 }
 
 test.describe('DentVision business owner journeys', () => {

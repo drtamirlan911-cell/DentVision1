@@ -53,7 +53,7 @@ let baseUrl = '';
 beforeAll(async () => {
   const app = express();
   app.use(express.json());
-  app.use('/api/legal/partner', legalPartnerRouter);
+  app.use('/api/partner/legal', legalPartnerRouter);
   server = app.listen(0, '127.0.0.1');
   await new Promise<void>((resolve) => server.once('listening', resolve));
   const address = server.address();
@@ -101,7 +101,7 @@ beforeEach(() => {
 
 describe('legal partner organization context isolation', () => {
   it('does not fall back to an unscoped legacy partner when an organization is active', async () => {
-    const response = await fetch(`${baseUrl}/partner`);
+    const response = await fetch(`${baseUrl}/api/partner/legal/partner`);
 
     expect(response.status).toBe(403);
     expect((await response.json()).error).toBe('Доступ только для партнёров платформы');
@@ -113,7 +113,7 @@ describe('legal partner organization context isolation', () => {
   it('does not return an existing legal package before checking owner authority', async () => {
     mocks.getLegalPartnerForContext.mockResolvedValueOnce({ id: 'org-1-partner', legalName: 'Sensitive entity' });
 
-    const response = await fetch(`${baseUrl}/onboard`, {
+    const response = await fetch(`${baseUrl}/api/partner/legal/onboard`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({}),
@@ -143,7 +143,7 @@ describe('legal partner organization context isolation', () => {
     });
     mocks.hasOrganizationLegalOwnerAuthority.mockResolvedValueOnce(true);
 
-    const response = await fetch(`${baseUrl}/onboard`, {
+    const response = await fetch(`${baseUrl}/api/partner/legal/onboard`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({}),
