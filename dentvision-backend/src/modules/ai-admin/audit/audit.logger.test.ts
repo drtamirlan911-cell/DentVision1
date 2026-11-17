@@ -36,4 +36,26 @@ describe('AI Admin audit minimization', () => {
     expect(JSON.stringify(details)).not.toContain('private diagnosis alpha');
     expect(JSON.stringify(details)).not.toContain('treatment result');
   });
+
+  it('does not emit raw ORM error details into operational logs', async () => {
+    const sensitiveDetail = 'patient=Test Person diagnosis=private marker';
+    create.mockRejectedValueOnce(new Error(sensitiveDetail));
+    const log = vi.spyOn(console, 'error').mockImplementation(() => {});
+    try {
+      await logAudit({
+        sessionId: 'session-1',
+        clinicId: 'clinic-1',
+        userMessage: 'message',
+        assistantMessage: 'response',
+        toolsCalled: [],
+        tokensUsed: 0,
+        latencyMs: 10,
+        escalated: false,
+      });
+      expect(log).toHaveBeenCalledWith('[audit] Failed to log AI admin event');
+      expect(JSON.stringify(log.mock.calls)).not.toContain(sensitiveDetail);
+    } finally {
+      log.mockRestore();
+    }
+  });
 });

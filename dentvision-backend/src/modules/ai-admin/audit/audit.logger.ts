@@ -34,7 +34,8 @@ export async function logAudit(params: AuditParams): Promise<void> {
         },
       },
     })
-  } catch (err) {
-    console.error('[audit] Failed to log AI admin event:', err)
+  } catch {
+    // ORM error text can contain query values; keep this channel PHI-free.
+    console.error('[audit] Failed to log AI admin event')
   }
 }

@@ -67,8 +67,6 @@ describe('listing what is still open', () => {
   });
 
   it('scopes by clinic in the query, never after the fact', async () => {
-    // Filtering in memory would mean another clinic's patient messages were
-    // fetched at all, which is the part that matters.
     await listEscalations('clinic-1');
     expect(prismaMock.aiAdminEscalation.findMany.mock.calls[0][0].where.clinicId).toBe('clinic-1');
   });
@@ -127,21 +125,15 @@ describe('resolving', () => {
 
   it('refuses when nothing matched, rather than reporting success', async () => {
     prismaMock.aiAdminEscalation.updateMany.mockResolvedValue({ count: 0 });
-    await expect(resolveEscalation('other-clinic', 'e1', 'user-9')).rejects.toBeInstanceOf(
-      EscalationError,
-    );
+    await expect(resolveEscalation('other-clinic', 'e1', 'user-9')).rejects.toBeInstanceOf(EscalationError);
   });
 
   it('will not resolve the same escalation twice', async () => {
-    // `resolvedAt: null` is in the match, so a second attempt finds nothing and
-    // the original resolver and timestamp are not overwritten.
     await resolveEscalation('clinic-1', 'e1', 'user-9');
     expect(prismaMock.aiAdminEscalation.updateMany.mock.calls[0][0].where.resolvedAt).toBeNull();
 
     prismaMock.aiAdminEscalation.updateMany.mockResolvedValue({ count: 0 });
-    await expect(resolveEscalation('clinic-1', 'e1', 'user-2')).rejects.toMatchObject({
-      code: 'NOT_FOUND',
-    });
+    await expect(resolveEscalation('clinic-1', 'e1', 'user-2')).rejects.toMatchObject({ code: 'NOT_FOUND' });
   });
 });
 
@@ -173,17 +165,23 @@ describe('chasing escalations nobody picked up', () => {
     );
   });
 
-  it('keeps going when one clinic’s notification fails', async () => {
+  it('keeps going when one clinic’s notification fails without logging provider details', async () => {
+    const sensitiveDetail = 'smtp error patient=Test Person private diagnosis';
     prismaMock.aiAdminEscalation.findMany.mockResolvedValue([
       { id: 'e1', clinicId: 'clinic-1', reason: 'a' },
       { id: 'e2', clinicId: 'clinic-2', reason: 'b' },
       { id: 'e3', clinicId: 'clinic-3', reason: 'c' },
     ]);
-    notifyClinicOwners.mockRejectedValueOnce(new Error('smtp down'));
-
-    const result = await runEscalationReminders();
-    // One channel being down must not silence the other two clinics.
-    expect(result).toEqual({ checked: 3, renotified: 2 });
+    notifyClinicOwners.mockRejectedValueOnce(new Error(sensitiveDetail));
+    const log = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    try {
+      const result = await runEscalationReminders();
+      expect(result).toEqual({ checked: 3, renotified: 2 });
+      expect(log).toHaveBeenCalledWith('[EscalationReminder] notify failed');
+      expect(JSON.stringify(log.mock.calls)).not.toContain(sensitiveDetail);
+    } finally {
+      log.mockRestore();
+    }
   });
 
   it('uses the same threshold as the patient inbox on-call sweep', async () => {

@@ -23,7 +23,8 @@
     "system-map": "tsx src/scripts/system-map.ts",
     "db:seed:e2e": "tsx prisma/seed-e2e.ts && tsx prisma/seed-permissions.ts && tsx prisma/seed-e2e-branches.ts && tsx prisma/normalize-e2e-catalog.ts && tsx prisma/seed-e2e-referral-branch.ts",
     "prestart": "tsx prisma/recover-failed-migrations.ts",
-    "db:backfill:medical-history": "tsx prisma/backfill-medical-history.ts"
+    "db:backfill:medical-history": "tsx prisma/backfill-medical-history.ts",
+    "db:backfill:ai-admin-external-user-id": "tsx prisma/backfill-ai-admin-external-user-id.ts"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"

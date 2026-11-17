@@ -18,7 +18,7 @@ export async function sendInstagram({ externalUserId, text, accessToken }: SendP
   )
 
   if (!response.ok) {
-    const err = await response.text()
-    throw new Error(`Instagram send failed: ${response.status} ${err}`)
+    // Provider error bodies may echo recipient IDs or message content.
+    throw new Error(`Instagram send failed with HTTP ${response.status}`)
   }
 }

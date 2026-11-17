@@ -2,17 +2,28 @@ import prisma from '../../../lib/prisma.js'
 import { Prisma } from '@prisma/client'
 import { randomUUID } from 'node:crypto'
 import type { NormalizedMessage } from '../webhook/types.js'
-import { decodeQueuedAiAdminMessage, encryptAiAdminText, encryptAiAdminJson } from '../conversation/phi.js'
+import { decodeQueuedAiAdminMessage, encryptAiAdminText, encryptAiAdminJson, isAiAdminPhiV2WriteEnabled } from '../conversation/phi.js'
 
 const QUEUE_TABLE = Prisma.raw(['ai_admin', 'queue_messages'].join('_'))
 
 const MAX_ATTEMPTS = 3
+const LEGACY_QUEUE_DRAIN_ACK = 'I_HAVE_DRAINED_ALL_LEGACY_WORKERS';
+
+function shouldEncryptQueuePayload(): boolean {
+  if (process.env.AI_ADMIN_QUEUE_PHI_ENCRYPTION_ENABLED !== 'true') return false;
+  if (process.env.AI_ADMIN_QUEUE_LEGACY_WORKERS_DRAINED !== LEGACY_QUEUE_DRAIN_ACK) {
+    throw new Error('[phi] Queue payload encryption requires explicit confirmation that all legacy queue workers are drained');
+  }
+  if (!isAiAdminPhiV2WriteEnabled()) {
+    throw new Error('[phi] Queue payload encryption requires the v2 reader rollout to be enabled');
+  }
+  return true;
+}
 
 export async function enqueueMessage(msg: NormalizedMessage): Promise<void> {
   const id = randomUUID()
-  // JSONB stores a scalar ciphertext string. The decoder remains compatible
-  // with legacy object-shaped payloads already waiting in the queue.
-  const payload = JSON.stringify(encryptAiAdminJson(msg))
+  // Preserve the historical object-shaped JSONB contract until legacy queue workers are drained.
+  const payload = JSON.stringify(shouldEncryptQueuePayload() ? encryptAiAdminJson(msg) : msg)
 
   await prisma.$executeRaw(Prisma.sql`
     INSERT INTO ${QUEUE_TABLE}

@@ -55,8 +55,10 @@ webhookGatewayRouter.post('/whatsapp', async (req: Request, res: Response) => {
     for (const msg of messages) {
       await enqueueMessage(msg)
     }
-  } catch (err) {
-    console.error('[webhook/wa] Error processing webhook:', err)
+  } catch {
+    // Webhook/provider exceptions may contain patient text or contact details.
+    // Operational logs retain the failure event, never the exception payload.
+    console.error('[webhook/wa] Error processing webhook')
   }
 })
 
@@ -95,7 +97,7 @@ webhookGatewayRouter.post('/instagram', async (req: Request, res: Response) => {
     for (const msg of messages) {
       await enqueueMessage(msg)
     }
-  } catch (err) {
-    console.error('[webhook/ig] Error processing webhook:', err)
+  } catch {
+    console.error('[webhook/ig] Error processing webhook')
   }
 })
