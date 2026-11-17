@@ -14,10 +14,21 @@ import { PageHeader } from '@/components/ui/ds/StatCard'
 import { Modal } from '@/components/ui/ds/Modal'
 import { CityFilter } from '@/components/ui/CityFilter'
 import { useAuth } from '@/store/auth.store'
-import { applyToJob, createJob, createEmployerVacancy, getJobs, getMyJobApplications } from '@/utils/api'
+import { applyToJob, createJob, createEmployerVacancy, getJobs, getMyJobApplications, getMyJobResumes, updateMyJobResumeStatus } from '@/utils/api'
 import { useToast } from '@/components/ui/ds/Toast'
 
 type PostKind = 'vacancy' | 'resume'
+type JobResume = {
+  id: string;
+  title: string;
+  city: string;
+  salary?: string;
+  employmentType?: string;
+  description?: string;
+  tags?: string[];
+  status: 'open' | 'closed' | string;
+  createdAt?: string;
+}
 
 const EMPTY_FORM = {
   title: '',
@@ -43,6 +54,8 @@ export default function JobsPage() {
   const [city, setCity] = useState('')
   const [vacancies, setVacancies] = useState<any[]>([])
   const [applied, setApplied] = useState<string[]>([])
+  const [myResumes, setMyResumes] = useState<JobResume[]>([])
+  const [resumeBusyId, setResumeBusyId] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
 
   const [postOpen, setPostOpen] = useState(false)
@@ -66,8 +79,15 @@ export default function JobsPage() {
       })
       setVacancies(Array.isArray(list) ? list : [])
       if (isAuthenticated) {
-        const apps = await getMyJobApplications().catch(() => [])
+        const [apps, resumes] = await Promise.all([
+          getMyJobApplications().catch(() => []),
+          getMyJobResumes().catch(() => []),
+        ])
         setApplied((apps || []).map((a: any) => a.vacancyId))
+        setMyResumes(Array.isArray(resumes) ? resumes : [])
+      } else {
+        setApplied([])
+        setMyResumes([])
       }
     } catch {
       setVacancies([])
@@ -141,6 +161,20 @@ export default function JobsPage() {
     }
   }
 
+  const changeResumeVisibility = async (resume: JobResume) => {
+    const nextStatus = resume.status === 'open' ? 'closed' : 'open'
+    setResumeBusyId(resume.id)
+    try {
+      await updateMyJobResumeStatus(resume.id, nextStatus)
+      setMyResumes((current) => current.map((item) => item.id === resume.id ? { ...item, status: nextStatus } : item))
+      showToast(nextStatus === 'open' ? 'Резюме снова видно работодателям' : 'Резюме снято с публикации', 'success')
+    } catch (e: any) {
+      showToast(e?.message || 'Не удалось изменить видимость резюме', 'error')
+    } finally {
+      setResumeBusyId(null)
+    }
+  }
+
   const onApply = async (id: string) => {
     if (!isAuthenticated) {
       showToast('Войдите, чтобы откликнуться', 'info')
@@ -173,10 +207,16 @@ export default function JobsPage() {
               </Button>
             )}
             {user && (
-              <Button className="min-h-11" size="sm" onClick={() => openPost('vacancy')}>
-                <Plus size={14} className="mr-1.5" />
-                Разместить
-              </Button>
+              <>
+                <Button className="min-h-11" size="sm" variant="secondary" onClick={() => openPost('resume')}>
+                  <Plus size={14} className="mr-1.5" />
+                  Опубликовать резюме
+                </Button>
+                <Button className="min-h-11" size="sm" onClick={() => openPost('vacancy')}>
+                  <Plus size={14} className="mr-1.5" />
+                  Разместить вакансию
+                </Button>
+              </>
             )}
           </div>
         }
@@ -247,6 +287,53 @@ export default function JobsPage() {
             </Card>
           ))}
         </div>
+      )}
+
+      {isAuthenticated && (
+        <Card className="border border-bdr-subtle">
+          <CardContent className="p-4 space-y-3">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div>
+                <h2 className="text-sm font-semibold text-txt-primary">Мои резюме</h2>
+                <p className="text-xs text-txt-muted">Управляйте видимостью резюме для работодателей</p>
+              </div>
+              <Button className="min-h-11" size="sm" variant="secondary" onClick={() => openPost('resume')}>
+                <Plus size={14} className="mr-1.5" /> Новое резюме
+              </Button>
+            </div>
+            {myResumes.length === 0 ? (
+              <p className="text-sm text-txt-muted">Вы ещё не публиковали резюме.</p>
+            ) : (
+              <div className="space-y-2">
+                {myResumes.map((resume) => (
+                  <div key={resume.id} className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-bdr-subtle p-3">
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium text-txt-primary">{resume.title}</p>
+                      <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-txt-muted">
+                        {resume.city && <span>{resume.city}</span>}
+                        {resume.salary && <span>{resume.salary}</span>}
+                        <Badge variant="outline" size="xs">
+                          {resume.status === 'open' ? 'Опубликовано' : 'Скрыто'}
+                        </Badge>
+                      </div>
+                    </div>
+                    <Button
+                      className="min-h-11"
+                      size="sm"
+                      variant="secondary"
+                      loading={resumeBusyId === resume.id}
+                      disabled={!!resumeBusyId}
+                      onClick={() => void changeResumeVisibility(resume)}
+                    >
+                      {resume.status === 'open' ? 'Снять с публикации' : 'Опубликовать'}
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            )}
+            <p className="text-xs text-txt-muted">Скрытые резюме остаются в вашем аккаунте, но не показываются работодателям.</p>
+          </CardContent>
+        </Card>
       )}
 
       <Modal
