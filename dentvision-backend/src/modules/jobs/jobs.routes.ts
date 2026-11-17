@@ -355,22 +355,31 @@ jobsRouter.post('/', authenticate, async (req: AuthRequest, res) => {
     if (!normalizedTitle) return res.status(400).json({ ok: false, error: 'title обязателен' } satisfies ApiResponse);
     if (!String(city || '').trim()) return res.status(400).json({ ok: false, error: 'city обязателен' } satisfies ApiResponse);
 
-    const resume = await prisma.jobVacancy.create({
-      data: {
-        id: uid(),
-        title: normalizedTitle,
-        clinicName: [req.user!.firstName, req.user!.lastName].filter(Boolean).join(' ') || req.user!.email || 'Кандидат',
-        city: String(city).trim(),
-        salary: salary ? String(salary) : '',
-        employmentType: employmentType ? String(employmentType) : 'Ищу работу',
-        description: description ? String(description) : '',
-        tags: Array.isArray(tags) ? tags : (typeof tags === 'string' ? tags.split(',').map((t: string) => t.trim()).filter(Boolean) : []),
-        status: 'open',
-        userId: req.user!.id,
-        clinicId: null,
-        employerOrganizationId: null,
-        kind: 'resume',
-      },
+    const resume = await prisma.$transaction(async (tx) => {
+      const created = await tx.jobVacancy.create({
+        data: {
+          id: uid(),
+          title: normalizedTitle,
+          clinicName: [req.user!.firstName, req.user!.lastName].filter(Boolean).join(' ') || req.user!.email || 'Кандидат',
+          city: String(city).trim(),
+          salary: salary ? String(salary) : '',
+          employmentType: employmentType ? String(employmentType) : 'Ищу работу',
+          description: description ? String(description) : '',
+          tags: Array.isArray(tags) ? tags : (typeof tags === 'string' ? tags.split(',').map((t: string) => t.trim()).filter(Boolean) : []),
+          status: 'open',
+          userId: req.user!.id,
+          clinicId: null,
+          employerOrganizationId: null,
+          kind: 'resume',
+        },
+      });
+      await auditFromReq(req, {
+        action: 'jobs.resume.created',
+        entity: 'job_vacancy',
+        entityId: created.id,
+        details: { kind: 'resume' },
+      }, tx);
+      return created;
     });
     return res.status(201).json({ ok: true, data: resume } satisfies ApiResponse);
   } catch (error) {
@@ -384,16 +393,27 @@ jobsRouter.post('/:id/apply', authenticate, async (req: AuthRequest, res) => {
     const vacancy = await prisma.jobVacancy.findUnique({ where: { id: req.params.id as string } });
     if (!vacancy || vacancy.kind !== 'vacancy' || vacancy.status !== 'open') return res.status(404).json({ ok: false, error: 'Вакансия недоступна' } satisfies ApiResponse);
     if (vacancy.userId === req.user!.id) return res.status(409).json({ ok: false, error: 'Нельзя откликнуться на собственную вакансию' } satisfies ApiResponse);
-    const existing = await prisma.jobApplication.findFirst({ where: { vacancyId: vacancy.id, userId: req.user!.id } });
-    if (existing) return res.json(existing);
-    const application = await prisma.jobApplication.create({
-      data: {
-        id: uid(), vacancyId: vacancy.id, userId: req.user!.id,
-        userName: [req.user!.firstName, req.user!.lastName].filter(Boolean).join(' ') || req.user!.email,
-        coverNote: req.body?.coverNote || '', status: 'new',
-      },
+    const result = await prisma.$transaction(async (tx) => {
+      const existing = await tx.jobApplication.findFirst({
+        where: { vacancyId: vacancy.id, userId: req.user!.id },
+      });
+      if (existing) return { application: existing, created: false };
+      const application = await tx.jobApplication.create({
+        data: {
+          id: uid(), vacancyId: vacancy.id, userId: req.user!.id,
+          userName: [req.user!.firstName, req.user!.lastName].filter(Boolean).join(' ') || req.user!.email,
+          coverNote: req.body?.coverNote || '', status: 'new',
+        },
+      });
+      await auditFromReq(req, {
+        action: 'jobs.application.created',
+        entity: 'job_application',
+        entityId: application.id,
+        details: { vacancyId: vacancy.id },
+      }, tx);
+      return { application, created: true };
     });
-    return res.status(201).json(application);
+    return res.status(result.created ? 201 : 200).json(result.application);
   } catch (error) {
     console.error('Apply job error:', error);
     return res.status(500).json({ ok: false, error: 'Не удалось откликнуться' } satisfies ApiResponse);
