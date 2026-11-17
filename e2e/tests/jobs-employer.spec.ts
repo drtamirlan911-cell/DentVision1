@@ -269,12 +269,22 @@ test.describe('Employer workspace and scoped Jobs lifecycle', () => {
       });
       expect(selfApply.status()).toBe(409);
 
-      const apply = await api.post(`${API}/api/jobs/${vacancyId}/apply`, {
-        headers: auth(candidateToken),
-        data: { coverNote: 'Опыт работы 5 лет, терапия и эндодонтия.' },
-      });
-      expect(apply.status()).toBe(201);
-      const application = await apply.json();
+      // Simulate a double tap / network retry: both requests must resolve to
+      // one durable application and one audit event, not duplicate rows.
+      const applyResponses = await Promise.all([
+        api.post(`${API}/api/jobs/${vacancyId}/apply`, {
+          headers: auth(candidateToken),
+          data: { coverNote: 'Опыт работы 5 лет, терапия и эндодонтия.' },
+        }),
+        api.post(`${API}/api/jobs/${vacancyId}/apply`, {
+          headers: auth(candidateToken),
+          data: { coverNote: 'Опыт работы 5 лет, терапия и эндодонтия.' },
+        }),
+      ]);
+      expect(applyResponses.map((response) => response.status()).sort()).toEqual([200, 201]);
+      const applicationResponses = await Promise.all(applyResponses.map((response) => response.json()));
+      expect(applicationResponses[0].id).toBe(applicationResponses[1].id);
+      const application = applicationResponses.find((item) => item.status === 'new');
 
       const candidateOwnApplications = await api.get(`${API}/api/jobs/me/applications`, {
         headers: auth(candidateToken),
