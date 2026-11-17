@@ -29,6 +29,25 @@ async function resolveLegalOrganizationId(req: any): Promise<string | null> {
   return organization?.id || null;
 }
 
+function legalPartnerTypeForOrganization(organization: { type: string; settings?: unknown }): string | null {
+  const settings = organization.settings && typeof organization.settings === 'object' && !Array.isArray(organization.settings)
+    ? organization.settings as Record<string, unknown> : {};
+  switch (String(organization.type || '').toUpperCase()) {
+    case 'CLINIC': return 'CLINIC';
+    case 'CORPORATE': return 'CORPORATE';
+    case 'DIAGNOSTIC_CENTER': return 'DIAGNOSTIC_CENTER';
+    case 'LABORATORY': return String(settings.laboratoryType || '').toUpperCase() === 'DENTAL_LAB' ? 'DENTAL_LAB' : 'LABORATORY';
+    case 'SUPPLIER_COMPANY':
+    case 'SUPPLIER': return 'SUPPLIER';
+    case 'ACADEMY': return 'EDUCATION_CENTER';
+    // These organization types do not yet have an approved document template.
+    // Preserve their true domain type; never silently generate a clinic agreement.
+    case 'EMPLOYER': return 'EMPLOYER';
+    case 'PARTNER': return 'PARTNER';
+    default: return null;
+  }
+}
+
 async function requireLegalOwner(req: any, res: any): Promise<boolean> {
   const organizationId = String(req.legalOrganizationId || '').trim();
   if (!organizationId) {
@@ -74,10 +93,14 @@ router.post('/onboard', async (req: any, res, next) => {
       : null;
     const defaultName = organization.name || clinic?.name || `${req.user.firstName} ${req.user.lastName}`;
 
+    const legalPartnerType = legalPartnerTypeForOrganization(organization);
+    if (!legalPartnerType) {
+      return res.status(422).json({ ok: false, error: 'Для этого типа организации пока не настроен юридический профиль', code: 'LEGAL_ORGANIZATION_TYPE_UNSUPPORTED' });
+    }
     const partner = await ensureLegalTrustPackage({
       userId: req.user.id,
       organizationId,
-      type: organization.type === 'CORPORATE' ? 'CORPORATE' : 'CLINIC',
+      type: legalPartnerType,
       legalName: req.body.legalName || defaultName,
       bin: req.body.bin || organization.taxId || '',
       director: req.body.director || `${req.user.firstName} ${req.user.lastName}`,
