@@ -1,3 +1,13 @@
+## Current exact candidate checkpoint — 2026-11-17
+
+- Canonical repository: `drtamirlan911-cell/DentVision1`. Work remains on existing PR #348, branch `audit/ecosystem-parity-remediation-2026-11-15`, base `main`; current published HEAD: `91b82afdbcb0cba93f8737cebd2914ce1eb09ea5`.
+- PR #348 remains **OPEN / DRAFT / mergeable**. No merge, main edit, production deploy, staging data operation or legal approval was performed.
+- Current exact-HEAD GitHub CI, Android, Quality Gate and RB-034 runs have been queued; earlier runs were cancelled by newer commits during the same remediation batch. Do not treat cancelled superseded runs as test failures, and do not claim the current HEAD is green until all current exact-HEAD gates complete.
+- Candidate Jobs corrections now include: employer Organization workspace and scoped hiring pipeline; public vacancy employer-signature/lifecycle gate; clinic-active validation for legacy clinic vacancies; concurrent duplicate application serialization with a transaction-scoped PostgreSQL advisory lock; transactionally audited resume/application/vacancy mutations; Android candidate-only resume posting with correct `ApiEnvelope` decoding. Android employer cabinet and several Jobs Definition-of-Done workflows remain incomplete.
+- Candidate legal corrections now include organization-type-specific package mapping, type-scoped legal owner authorization, no legacy unscoped partner fallback under an active Organization, and owner authorization before returning an existing legal package. Employer/Partner legal agreement templates are not yet approved/available; the legal/trust release blocker remains open.
+- Candidate documentation reconciliation is in `docs/SYSTEM_AUDIT.md`. Main-baseline findings remain historical; candidate implementation must be judged by exact-head tests and review, not by the main snapshot.
+- Keep PR #347 / RB-029 separate. RB-029 remains P0/open and is still ahead of product breadth in the execution plan. Do not merge PR #348 merely because its individual Jobs/legal slices pass.
+
 ## Current ecosystem audit checkpoint — 2026-11-15
 
 - Canonical repository: `drtamirlan911-cell/DentVision1`. Audited main baseline: `4bbd61a339d5f3c4d40d1d5990f633a7b9a87864`; main CI [43496476996](https://github.com/drtamirlan911-cell/DentVision1/actions/runs/43496476996) and Quality Gate [43496477034](https://github.com/drtamirlan911-cell/DentVision1/actions/runs/43496477034) passed. These checks do not certify production/staging/device/provider runtime.
