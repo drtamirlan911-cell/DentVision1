@@ -489,6 +489,10 @@ jobsRouter.post('/:id/apply', authenticate, async (req: AuthRequest, res) => {
     if (!vacancy || vacancy.kind !== 'vacancy' || vacancy.status !== 'open') return res.status(404).json({ ok: false, error: 'Вакансия недоступна' } satisfies ApiResponse);
     if (vacancy.userId === req.user!.id) return res.status(409).json({ ok: false, error: 'Нельзя откликнуться на собственную вакансию' } satisfies ApiResponse);
     const result = await prisma.$transaction(async (tx) => {
+      // Serialize retries for this vacancy/candidate pair. The transaction-scoped
+      // PostgreSQL advisory lock avoids duplicate applications without requiring
+      // a destructive cleanup/unique-index migration over existing records.
+      await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtextextended(${`jobs-application:${vacancy.id}:${req.user!.id}`}, 0))`;
       const existing = await tx.jobApplication.findFirst({
         where: { vacancyId: vacancy.id, userId: req.user!.id },
       });
