@@ -9,11 +9,14 @@ const mocks = vi.hoisted(() => {
     jobApplication: {
       updateMany: vi.fn(),
       findUnique: vi.fn(),
+      findFirst: vi.fn(),
+      create: vi.fn(),
     },
   };
   return {
     tx,
     organizationFindFirst: vi.fn(),
+    vacancyFindUnique: vi.fn(),
     applicationFindUnique: vi.fn(),
     transaction: vi.fn(async (callback: (client: typeof tx) => Promise<unknown>) => callback(tx)),
     auditFromReq: vi.fn(),
@@ -23,7 +26,7 @@ const mocks = vi.hoisted(() => {
 vi.mock('../../lib/prisma.js', () => ({
   default: {
     organization: { findFirst: mocks.organizationFindFirst },
-    jobVacancy: {},
+    jobVacancy: { findUnique: mocks.vacancyFindUnique },
     jobApplication: { findUnique: mocks.applicationFindUnique },
     $transaction: mocks.transaction,
   },
@@ -95,6 +98,13 @@ beforeEach(() => {
   });
   mocks.transaction.mockImplementation(async (callback) => callback(mocks.tx));
   mocks.auditFromReq.mockResolvedValue(undefined);
+  mocks.vacancyFindUnique.mockResolvedValue({
+    id: 'vacancy-1',
+    title: 'Dentist',
+    kind: 'vacancy',
+    status: 'open',
+    userId: 'different-employer',
+  });
   mocks.applicationFindUnique.mockResolvedValue({
     id: 'application-1',
     status: 'new',
@@ -107,10 +117,126 @@ beforeEach(() => {
   });
   mocks.tx.jobVacancy.create.mockResolvedValue({ id: 'vacancy-1', title: 'Dentist' });
   mocks.tx.jobApplication.updateMany.mockResolvedValue({ count: 1 });
+  mocks.tx.jobApplication.findFirst.mockResolvedValue(null);
+  mocks.tx.jobApplication.create.mockResolvedValue({
+    id: 'application-2',
+    vacancyId: 'vacancy-1',
+    userId: 'employer-owner',
+    status: 'new',
+  });
   mocks.tx.jobApplication.findUnique.mockResolvedValue({ id: 'application-1', status: 'reviewing' });
 });
 
 describe('Jobs mutation audit atomicity', () => {
+  it('creates a candidate resume and its audit record in one transaction', async () => {
+    mocks.tx.jobVacancy.create.mockResolvedValueOnce({
+      id: 'resume-1',
+      title: 'Dentist',
+      kind: 'resume',
+    });
+
+    const response = await fetch(`${baseUrl}/api/jobs`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ title: 'Dentist', city: 'Тараз', kind: 'resume' }),
+    });
+
+    expect(response.status).toBe(201);
+    expect(mocks.transaction).toHaveBeenCalledTimes(1);
+    expect(auditFromReq).toHaveBeenCalledWith(
+      expect.any(Object),
+      expect.objectContaining({
+        action: 'jobs.resume.created',
+        entity: 'job_vacancy',
+        entityId: 'resume-1',
+        details: { kind: 'resume' },
+      }),
+      mocks.tx,
+    );
+  });
+
+  it('creates a candidate application and its audit record in one transaction', async () => {
+    const response = await fetch(`${baseUrl}/api/jobs/vacancy-1/apply`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ coverNote: 'Five years of clinical experience' }),
+    });
+
+    expect(response.status).toBe(201);
+    expect(mocks.transaction).toHaveBeenCalledTimes(1);
+    expect(mocks.tx.jobApplication.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        vacancyId: 'vacancy-1',
+        userId: 'employer-owner',
+        status: 'new',
+      }),
+    });
+    expect(auditFromReq).toHaveBeenCalledWith(
+      expect.any(Object),
+      expect.objectContaining({
+        action: 'jobs.application.created',
+        entity: 'job_application',
+        entityId: 'application-2',
+        details: { vacancyId: 'vacancy-1' },
+      }),
+      mocks.tx,
+    );
+  });
+
+  it('returns an existing application without writing a duplicate audit event', async () => {
+    mocks.tx.jobApplication.findFirst.mockResolvedValueOnce({
+      id: 'application-existing',
+      vacancyId: 'vacancy-1',
+      userId: 'employer-owner',
+      status: 'new',
+    });
+
+    const response = await fetch(`${baseUrl}/api/jobs/vacancy-1/apply`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ coverNote: 'Retry' }),
+    });
+
+    expect(response.status).toBe(200);
+    expect((await response.json()).id).toBe('application-existing');
+    expect(mocks.tx.jobApplication.create).not.toHaveBeenCalled();
+    expect(auditFromReq).not.toHaveBeenCalled();
+  });
+
+  it('fails candidate resume creation when the audit write fails inside the transaction', async () => {
+    mocks.auditFromReq.mockRejectedValueOnce(new Error('audit storage unavailable'));
+
+    const response = await fetch(`${baseUrl}/api/jobs`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ title: 'Dentist', city: 'Тараз', kind: 'resume' }),
+    });
+
+    expect(response.status).toBe(500);
+    expect(mocks.auditFromReq).toHaveBeenCalledWith(
+      expect.any(Object),
+      expect.objectContaining({ action: 'jobs.resume.created' }),
+      mocks.tx,
+    );
+  });
+
+  it('fails candidate application creation when the audit write fails inside the transaction', async () => {
+    mocks.auditFromReq.mockRejectedValueOnce(new Error('audit storage unavailable'));
+
+    const response = await fetch(`${baseUrl}/api/jobs/vacancy-1/apply`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ coverNote: 'Apply' }),
+    });
+
+    expect(response.status).toBe(500);
+    expect(mocks.auditFromReq).toHaveBeenCalledWith(
+      expect.any(Object),
+      expect.objectContaining({ action: 'jobs.application.created' }),
+      mocks.tx,
+    );
+  });
+
   it('creates a vacancy and its audit record through the same transaction client', async () => {
     const response = await fetch(`${baseUrl}/api/jobs/employer/vacancies`, {
       method: 'POST',
