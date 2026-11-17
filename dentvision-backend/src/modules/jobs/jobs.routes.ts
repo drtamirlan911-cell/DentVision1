@@ -330,6 +330,77 @@ jobsRouter.get('/me/applications', authenticate, async (req: AuthRequest, res) =
   }
 });
 
+jobsRouter.get('/me/resumes', authenticate, async (req: AuthRequest, res) => {
+  try {
+    const resumes = await prisma.jobVacancy.findMany({
+      where: { userId: req.user!.id, kind: 'resume' },
+      select: {
+        id: true,
+        title: true,
+        city: true,
+        salary: true,
+        employmentType: true,
+        description: true,
+        tags: true,
+        status: true,
+        createdAt: true,
+        updatedAt: true,
+      },
+      orderBy: { updatedAt: 'desc' },
+    });
+    return res.json(resumes);
+  } catch (error) {
+    console.error('List candidate resumes error:', error);
+    return res.status(500).json({ ok: false, error: 'Не удалось загрузить ваши резюме' } satisfies ApiResponse);
+  }
+});
+
+jobsRouter.patch('/me/resumes/:id/status', authenticate, async (req: AuthRequest, res) => {
+  try {
+    const status = String(req.body?.status || '').trim().toLowerCase();
+    if (status !== 'open' && status !== 'closed') {
+      return res.status(400).json({
+        ok: false,
+        error: 'Статус резюме должен быть open или closed',
+        code: 'INVALID_RESUME_STATUS',
+      } satisfies ApiResponse);
+    }
+
+    const updated = await prisma.$transaction(async (tx) => {
+      const owned = await tx.jobVacancy.findFirst({
+        where: { id: String(req.params.id), userId: req.user!.id, kind: 'resume' },
+        select: { id: true, status: true },
+      });
+      if (!owned) return null;
+
+      const changed = await tx.jobVacancy.updateMany({
+        where: { id: owned.id, userId: req.user!.id, kind: 'resume' },
+        data: { status },
+      });
+      if (changed.count !== 1) return null;
+
+      const result = await tx.jobVacancy.findUnique({ where: { id: owned.id } });
+      if (!result) throw new Error('Updated candidate resume could not be read inside transaction');
+
+      if (owned.status !== status) {
+        await auditFromReq(req, {
+          action: 'jobs.resume.visibility_changed',
+          entity: 'job_vacancy',
+          entityId: owned.id,
+          details: { from: owned.status, to: status },
+        }, tx);
+      }
+      return result;
+    });
+
+    if (!updated) return res.status(404).json({ ok: false, error: 'Резюме не найдено' } satisfies ApiResponse);
+    return res.json(updated);
+  } catch (error) {
+    console.error('Update candidate resume visibility error:', error);
+    return res.status(500).json({ ok: false, error: 'Не удалось изменить видимость резюме' } satisfies ApiResponse);
+  }
+});
+
 /**
  * Compatibility response for the former unscoped employer bootstrap.
  * Employer creation now uses the canonical Organization self-service flow so
