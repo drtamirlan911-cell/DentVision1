@@ -89,6 +89,10 @@ describe('public Jobs search visibility', () => {
       Array.isArray(clause.OR) && clause.OR.some((item: any) => item.employerOrganization),
     );
     expect(visibility).toBeDefined();
+    expect(visibility?.OR).toEqual(expect.arrayContaining([
+      { employerOrganizationId: null, clinic: { is: { active: true } } },
+      { employerOrganizationId: null, clinicId: null, userId: null },
+    ]));
 
     const employerGate = visibility?.OR.find((item: any) => item.employerOrganization)?.employerOrganization.is;
     expect(employerGate).toMatchObject({
