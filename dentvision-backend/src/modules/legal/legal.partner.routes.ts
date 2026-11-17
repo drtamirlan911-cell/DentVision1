@@ -48,10 +48,11 @@ async function requireLegalOwner(req: any, res: any): Promise<boolean> {
 
 async function resolveRequestPartner(req: any) {
   const organizationId = await resolveLegalOrganizationId(req);
-  const scoped = await getLegalPartnerForContext(req.user.id, organizationId);
-  if (scoped) return { partner: scoped, organizationId };
-  const legacy = await getLegalPartnerForContext(req.user.id);
-  return { partner: legacy, organizationId };
+  // Never fall back from an active organization to an unrelated legacy partner
+  // record. Legacy unscoped records remain readable only when no organization
+  // context can be resolved; write actions still require an authorized owner.
+  const partner = await getLegalPartnerForContext(req.user.id, organizationId);
+  return { partner, organizationId };
 }
 
 router.post('/onboard', async (req: any, res, next) => {
