@@ -500,7 +500,7 @@ jobsRouter.post('/:id/apply', authenticate, async (req: AuthRequest, res) => {
       // Serialize retries for this vacancy/candidate pair. The transaction-scoped
       // PostgreSQL advisory lock avoids duplicate applications without requiring
       // a destructive cleanup/unique-index migration over existing records.
-      await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtext(${vacancy.id}), hashtext(${req.user!.id}))`;
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${vacancy.id}), hashtext(${req.user!.id}))`;
       const existing = await tx.jobApplication.findFirst({
         where: { vacancyId: vacancy.id, userId: req.user!.id },
       });

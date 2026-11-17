@@ -5,7 +5,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vites
 
 const mocks = vi.hoisted(() => {
   const tx = {
-    $queryRaw: vi.fn(),
+    $executeRaw: vi.fn(),
     jobVacancy: {
       create: vi.fn(),
       findFirst: vi.fn(),
@@ -114,7 +114,7 @@ beforeEach(() => {
   });
   mocks.clinicFindUnique.mockResolvedValue({ id: 'clinic-1', name: 'Legacy Clinic', active: true });
   mocks.transaction.mockImplementation(async (callback) => callback(mocks.tx));
-  mocks.tx.$queryRaw.mockResolvedValue([{ pg_advisory_xact_lock: null }]);
+  mocks.tx.$executeRaw.mockResolvedValue(0);
   mocks.auditFromReq.mockResolvedValue(undefined);
   mocks.vacancyFindMany.mockResolvedValue([{
     id: 'resume-1',
@@ -342,8 +342,8 @@ describe('Jobs mutation audit atomicity', () => {
 
     expect(response.status).toBe(201);
     expect(mocks.transaction).toHaveBeenCalledTimes(1);
-    expect(mocks.tx.$queryRaw).toHaveBeenCalledTimes(1);
-    expect(mocks.tx.$queryRaw.mock.invocationCallOrder[0]).toBeLessThan(
+    expect(mocks.tx.$executeRaw).toHaveBeenCalledTimes(1);
+    expect(mocks.tx.$executeRaw.mock.invocationCallOrder[0]).toBeLessThan(
       mocks.tx.jobApplication.findFirst.mock.invocationCallOrder[0],
     );
     expect(mocks.tx.jobApplication.create).toHaveBeenCalledWith({
