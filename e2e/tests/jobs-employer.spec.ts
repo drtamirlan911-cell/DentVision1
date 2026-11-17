@@ -207,10 +207,46 @@ test.describe('Employer workspace and scoped Jobs lifecycle', () => {
       const resumeData = await resume.json();
       expect(resumeData.data.kind).toBe('resume');
 
+      const ownResumes = await api.get(`${API}/api/jobs/me/resumes`, {
+        headers: auth(candidateToken),
+      });
+      expect(ownResumes.status()).toBe(200);
+      const ownResumeRows = await ownResumes.json() as Array<Record<string, unknown>>;
+      expect(ownResumeRows.some((item) => item.id === resumeData.data.id)).toBe(true);
+      expect(ownResumeRows.find((item) => item.id === resumeData.data.id)).not.toHaveProperty('userId');
+      expect(ownResumeRows.find((item) => item.id === resumeData.data.id)).not.toHaveProperty('email');
+
+      const foreignOwnerCannotHideCandidateResume = await api.patch(
+        `${API}/api/jobs/me/resumes/${resumeData.data.id}/status`,
+        { headers: auth(ownerToken), data: { status: 'closed' } },
+      );
+      expect(foreignOwnerCannotHideCandidateResume.status()).toBe(404);
+
+      const closeOwnResume = await api.patch(
+        `${API}/api/jobs/me/resumes/${resumeData.data.id}/status`,
+        { headers: auth(candidateToken), data: { status: 'closed' } },
+      );
+      expect(closeOwnResume.status()).toBe(200);
+      expect((await closeOwnResume.json()).status).toBe('closed');
+
       const candidateLookup = await api.get(`${API}/api/jobs/employer/resumes`, {
         headers: auth(candidateToken),
       });
       expect(candidateLookup.status()).toBe(403);
+
+      const employerCandidateLookupWhileClosed = await api.get(`${API}/api/jobs/employer/resumes`, {
+        headers: auth(ownerToken),
+      });
+      expect(employerCandidateLookupWhileClosed.status()).toBe(200);
+      expect(((await employerCandidateLookupWhileClosed.json()).data as Array<Record<string, unknown>>)
+        .some((item) => item.id === resumeData.data.id)).toBe(false);
+
+      const reopenOwnResume = await api.patch(
+        `${API}/api/jobs/me/resumes/${resumeData.data.id}/status`,
+        { headers: auth(candidateToken), data: { status: 'open' } },
+      );
+      expect(reopenOwnResume.status()).toBe(200);
+      expect((await reopenOwnResume.json()).status).toBe('open');
 
       const employerCandidateLookup = await api.get(`${API}/api/jobs/employer/resumes`, {
         headers: auth(ownerToken),
