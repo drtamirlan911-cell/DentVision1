@@ -39,13 +39,18 @@ describe('auth and diagnostics endpoint security contracts', () => {
     expect(clinicCreation).toContain("status: 'trialing'");
     expect(clinicCreation).toContain('TRIAL_DAYS');
   });
-  it('claims invitations atomically, restricts invitation email and synchronizes canonical IAM', () => {
-    expect((authMe.match(/authMeRouter\.post\('\/join-clinic'/g) || [])).toHaveLength(1);
-    expect((authMe.match(/authMeRouter\.get\('\/invitations\/lookup'/g) || [])).toHaveLength(1);
-    expect(authMe).toContain('usedAt: null');
-    expect(authMe).toContain('data: { usedAt: now, usedBy: user.id }');
-    expect(authMe).toContain('invitation.email.trim().toLowerCase() !== user.email.trim().toLowerCase()');
-    expect(authMe).toContain('syncPersonFromClinicMember(joined.clinic.id, user.id, String(joined.membership.role))');
+  it('keeps invitation lookup and one-time acceptance on a single canonical auth route', () => {
+    expect((auth.match(/authRouter\.post\('\/join-clinic'/g) || [])).toHaveLength(1);
+    expect((auth.match(/authRouter\.get\('\/invitations\/lookup'/g) || [])).toHaveLength(1);
+    expect(auth).toContain('usedAt: null');
+    expect(auth).toContain('data: { usedAt: now, usedBy: req.user!.id }');
+    expect(auth).toContain("code: 'INVITATION_EMAIL_MISMATCH'");
+    expect(auth).toContain('syncPersonFromClinicMember(outcome.clinic.id, req.user!.id, outcome.role)');
+    expect(auth).toContain("ownerType: 'CLINIC', ownerId: invitation.clinicId");
+    expect(auth).toContain("code: 'ORGANIZATION_ARCHIVED'");
+    expect(auth).toContain("code: 'SUBSCRIPTION_EXPIRED'");
+    expect(authMe).not.toContain("authMeRouter.post('/join-clinic'");
+    expect(authMe).not.toContain("authMeRouter.get('/invitations/lookup'");
     expect(compatibility).not.toContain("compatRouter.post('/auth/invitations'");
   });
   it('protects global diagnostics data and rules with requireSuperadmin', () => {

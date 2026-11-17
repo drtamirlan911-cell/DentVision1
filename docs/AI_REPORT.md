@@ -1,5 +1,8 @@
 # DentVision V2 — AI System Report
 
+> **Historical report — 2026-07-17.** This report predates the current backend AI OS, LLM/provider adapter, streaming route, persistent thread lifecycle, 8 operational personas, tool/approval kernel, memory/event integrations and durable clinic-scoped AI Employee task ledger. Its “new AI not deployed / no LLM / no streaming” statements are not current implementation facts. Do not use its recommendations as a current backlog without source revalidation. Current contract: `docs/spec/04-AI-INTELLIGENCE.md`, `docs/spec/15-AI-AGENTS-OS.md`, `docs/spec/16-AI-STRATEGY.md`; current implementation classification: `docs/SYSTEM_AUDIT.md` (2026-11-15).
+
+
 **Date:** 2026-07-17
 
 ---

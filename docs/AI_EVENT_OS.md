@@ -1,5 +1,8 @@
 # DentVision AI Event OS — Architecture & Reference
 
+> **Implementation reference reconciliation — 2026-11-15.** This is an architecture overview, not a runtime inventory generated from code. The current backend source root is `dentvision-backend/src/modules/`, not repository-root `src/modules/`. The runtime architecture and current gaps are governed by Master Spec v5.0 and `docs/SYSTEM_AUDIT.md`; verify every module path and environment variable against current code before using this document as a deployment guide. In particular, do not copy example model identifiers or provider settings from this historical overview as current defaults.
+
+
 ## Overview
 
 DentVision AI Event OS is a proactive AI operating system for dental clinics.
@@ -18,12 +21,12 @@ CRM Events → Event Bus → Event Orchestrator → Rules Engine → AI Agents �
 
 ## Components
 
-### 1. Event Bus (`src/modules/events/`)
+### 1. Event Bus (`dentvision-backend/src/modules/events/`)
 - **EventBus.ts** — Redis Streams with in-memory fallback
 - **EventStore.ts** — Prisma persistence for audit trail
 - **EventTypes.ts** — 20+ CRM event types
 
-### 2. Event Orchestrator (`src/modules/ai/os/eventOrchestrator.ts`)
+### 2. Event Orchestrator (`dentvision-backend/src/modules/ai/os/eventOrchestrator.ts`)
 - Subscribes to all events via EventBus
 - Matches events against rules
 - Executes actions with concurrency control
@@ -40,7 +43,7 @@ CRM Events → Event Bus → Event Orchestrator → Rules Engine → AI Agents �
 - Direct Prisma DB queries for real-time data
 - Error handling and timeout management
 
-### 5. AI Agents (`src/modules/ai/agents/`)
+### 5. AI Agents (`dentvision-backend/src/modules/ai/agents/`)
 
 | Agent | Domain | Events |
 |-------|--------|--------|

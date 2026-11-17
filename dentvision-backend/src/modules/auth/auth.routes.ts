@@ -27,6 +27,7 @@ import { expireSession } from '../compliance/session.service.js';
 import { checkLoginAttempts, recordFailedAttempt, resetAttempts } from '../../lib/loginGuard.js';
 import { setCsrfCookie } from '../../middleware/csrf.js';
 import { createClinicForOwner, createClinicForOwnerInTransaction, normalizeClinicInput } from '../clinics/clinicCreation.service.js';
+import { TRIAL_DAYS } from '../billing/clinicSubscription.service.js';
 
 function setAuthCookies(res: any, accessToken: string, refreshToken: string) {
   res.cookie('accessToken', accessToken, { httpOnly: true, secure: process.env.NODE_ENV === 'production', sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax', maxAge: 24 * 60 * 60 * 1000, path: '/' });
@@ -143,6 +144,186 @@ authRouter.post('/switch-clinic', authenticate, async (req: AuthRequest, res) =>
     clearAuthCookies(res);
     console.error('[auth/switch-clinic]', error);
     return res.status(500).json({ ok: false, error: 'Не удалось переключить клинику' });
+  }
+});
+
+authRouter.get('/invitations/lookup', async (req, res) => {
+  const code = String(req.query.code || '').trim().toUpperCase();
+  if (!/^[A-F0-9]{16}$/.test(code)) {
+    return res.status(404).json({ ok: false, error: 'Приглашение не найдено', code: 'INVITATION_NOT_FOUND' });
+  }
+  try {
+    const invitation = await prisma.clinicInvitation.findUnique({
+      where: { code },
+      include: { clinic: { select: { id: true, name: true, city: true, active: true } } },
+    });
+    const now = new Date();
+    if (!invitation || invitation.usedAt || (invitation.expiresAt && invitation.expiresAt <= now) || !invitation.clinic.active) {
+      return res.status(404).json({ ok: false, error: 'Приглашение не найдено или истекло', code: 'INVITATION_NOT_FOUND' });
+    }
+    const archivedOrganization = await prisma.organization.findFirst({
+      where: { originalType: 'Clinic', originalId: invitation.clinicId, archivedAt: { not: null } },
+      select: { id: true },
+    });
+    if (archivedOrganization) {
+      return res.status(404).json({ ok: false, error: 'Приглашение не найдено или истекло', code: 'INVITATION_NOT_FOUND' });
+    }
+    const emailParts = invitation.email?.split('@') || [];
+    const maskedEmail = emailParts.length === 2 ? `${emailParts[0].slice(0, 1)}***@${emailParts[1]}` : null;
+    return res.json({
+      ok: true,
+      data: {
+        clinicId: invitation.clinic.id,
+        clinicName: invitation.clinic.name,
+        city: invitation.clinic.city,
+        role: invitation.role,
+        email: maskedEmail,
+        expiresAt: invitation.expiresAt?.toISOString() || null,
+      },
+    } satisfies ApiResponse);
+  } catch (error) {
+    console.error('[auth/invitations/lookup]', error);
+    return res.status(500).json({ ok: false, error: 'Не удалось проверить приглашение' });
+  }
+});
+
+authRouter.post('/join-clinic', authenticate, async (req: AuthRequest, res) => {
+  const code = String(req.body?.code || '').trim().toUpperCase();
+  if (!/^[A-F0-9]{16}$/.test(code)) {
+    return res.status(400).json({ ok: false, error: 'Введите корректный код приглашения', code: 'INVALID_INVITATION_CODE' });
+  }
+  const now = new Date();
+  try {
+    const outcome = await prisma.$transaction(async (tx) => {
+      const invitation = await tx.clinicInvitation.findUnique({
+        where: { code },
+        include: { clinic: { select: { id: true, name: true, city: true, active: true, plan: true, createdAt: true } } },
+      });
+      if (!invitation || !invitation.clinic.active) {
+        return { ok: false as const, status: 404, code: 'INVITATION_NOT_FOUND', error: 'Приглашение не найдено' };
+      }
+      if (invitation.usedAt) {
+        return { ok: false as const, status: 410, code: 'INVITATION_USED', error: 'Приглашение уже использовано' };
+      }
+      if (invitation.expiresAt && invitation.expiresAt <= now) {
+        return { ok: false as const, status: 410, code: 'INVITATION_EXPIRED', error: 'Срок действия приглашения истёк' };
+      }
+
+      const user = await tx.user.findUnique({
+        where: { id: req.user!.id },
+        select: { id: true, email: true },
+      });
+      if (!user) {
+        return { ok: false as const, status: 401, code: 'USER_NOT_FOUND', error: 'Пользователь не найден' };
+      }
+
+      const archivedOrganization = await tx.organization.findFirst({
+        where: { originalType: 'Clinic', originalId: invitation.clinicId, archivedAt: { not: null } },
+        select: { id: true },
+      });
+      if (archivedOrganization) {
+        return { ok: false as const, status: 410, code: 'ORGANIZATION_ARCHIVED', error: 'Организация архивирована' };
+      }
+
+      if (invitation.email && invitation.email.trim().toLowerCase() !== user.email.trim().toLowerCase()) {
+        return {
+          ok: false as const,
+          status: 403,
+          code: 'INVITATION_EMAIL_MISMATCH',
+          error: 'Приглашение предназначено для другого адреса электронной почты',
+        };
+      }
+
+      const subscription = await tx.subscription.findUnique({
+        where: { ownerType_ownerId: { ownerType: 'CLINIC', ownerId: invitation.clinicId } },
+        select: { status: true, periodEnd: true },
+      });
+      const legacyDemoPeriodEnd = invitation.clinic.plan === 'DEMO'
+        ? new Date(invitation.clinic.createdAt.getTime() + TRIAL_DAYS * 24 * 60 * 60 * 1000)
+        : null;
+      const periodEnd = subscription?.periodEnd ?? legacyDemoPeriodEnd;
+      if (
+        subscription?.status === 'expired' ||
+        subscription?.status === 'suspended' ||
+        (periodEnd && periodEnd <= now)
+      ) {
+        return {
+          ok: false as const,
+          status: 402,
+          code: 'SUBSCRIPTION_EXPIRED',
+          error: 'Пробный период клиники завершён. Присоединение временно недоступно.',
+        };
+      }
+
+      const membershipKey = { userId: req.user!.id, clinicId: invitation.clinicId };
+      const claimed = await tx.clinicInvitation.updateMany({
+        where: {
+          id: invitation.id,
+          usedAt: null,
+          OR: [{ expiresAt: null }, { expiresAt: { gt: now } }],
+        },
+        data: { usedAt: now, usedBy: req.user!.id },
+      });
+      if (claimed.count !== 1) {
+        return { ok: false as const, status: 410, code: 'INVITATION_USED', error: 'Приглашение уже использовано или истекло' };
+      }
+
+      const existing = await tx.clinicMember.findUnique({ where: { userId_clinicId: membershipKey } });
+      if (existing) {
+        return {
+          ok: true as const,
+          alreadyMember: true,
+          clinic: invitation.clinic,
+          role: existing.role,
+        };
+      }
+
+      const membership = await tx.clinicMember.create({
+        data: { ...membershipKey, role: invitation.role },
+      });
+      return {
+        ok: true as const,
+        alreadyMember: false,
+        clinic: invitation.clinic,
+        role: membership.role,
+      };
+    });
+
+    if (outcome.ok === false) {
+      return res.status(outcome.status).json({ ok: false, error: outcome.error, code: outcome.code });
+    }
+    if (!outcome.alreadyMember) {
+      try {
+        await syncPersonFromClinicMember(outcome.clinic.id, req.user!.id, outcome.role);
+      } catch (syncError) {
+        console.error('[auth/join-clinic] membership sync deferred', syncError);
+      }
+    }
+    try {
+      await auditFromReq(req, {
+        action: 'clinic.invitation.accepted',
+        entity: 'clinic_member',
+        entityId: req.user!.id,
+        details: {
+          clinicId: outcome.clinic.id,
+          role: outcome.role,
+          alreadyMember: outcome.alreadyMember,
+        },
+      });
+    } catch (auditError) {
+      console.error('[auth/join-clinic] audit write deferred', auditError);
+    }
+    return res.json({
+      ok: true,
+      data: {
+        clinic: { id: outcome.clinic.id, name: outcome.clinic.name, city: outcome.clinic.city },
+        membership: { role: outcome.role },
+        alreadyMember: outcome.alreadyMember,
+      },
+    } satisfies ApiResponse);
+  } catch (error) {
+    console.error('[auth/join-clinic]', error);
+    return res.status(500).json({ ok: false, error: 'Не удалось принять приглашение' });
   }
 });
 

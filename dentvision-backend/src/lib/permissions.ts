@@ -14,7 +14,7 @@ type Module =
   | 'patients' | 'appointments' | 'medical' | 'billing' | 'inventory'
   | 'lab' | 'staff' | 'settings' | 'analytics' | 'diagnostics'
   | 'academy' | 'shop' | 'community' | 'audit' | 'admin' | 'bi'
-  | 'profile' | 'backup' | 'security' | 'dashboard' | 'platform';
+  | 'profile' | 'backup' | 'security' | 'dashboard' | 'platform' | 'jobs';
 
 // ─── Actions ───
 type Action = 'read' | 'write' | 'delete' | 'manage';
@@ -59,6 +59,7 @@ const MATRIX: Record<string, RoleMatrixRow> = {
     bi:           ['read'],
     backup:       ['read'],
     dashboard:    ['read'],
+    jobs:         ['read', 'write', 'manage'],
   },
 
   ADMIN: {
@@ -76,6 +77,7 @@ const MATRIX: Record<string, RoleMatrixRow> = {
     academy:      ['read'],
     shop:         ['manage'],
     community:    ['read', 'write'],
+    jobs:         ['read', 'write'],
   },
 
   MANAGER: {
@@ -90,6 +92,7 @@ const MATRIX: Record<string, RoleMatrixRow> = {
     shop:         ['read'],
     academy:      ['read'],
     dashboard:    ['read'],
+    jobs:         ['read', 'write'],
   },
 
   DOCTOR: {
@@ -215,6 +218,9 @@ export const PERMISSIONS = {
   BI_PLATFORM: 'admin.read',
   BI_FINANCE: 'billing.manage',
   BACKUP_READ: 'backup.read',
+  JOBS_READ: 'jobs.read',
+  JOBS_WRITE: 'jobs.write',
+  JOBS_MANAGE: 'jobs.manage',
 } as const;
 
 /**
@@ -311,6 +317,7 @@ export const MODULE_PAGES: Record<string, string[]> = {
   academy:      ['school'],
   shop:         ['shop', 'promotions'],
   community:    ['community'],
+  jobs:         ['jobs', 'employer'],
   audit:        ['audit'],
   admin:        ['admin'],
   bi:           ['bi'],

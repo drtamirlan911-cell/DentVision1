@@ -1,5 +1,8 @@
 # RBAC Audit
 
+> **Historical audit snapshot — revalidation required.** This file's original implementation/gap table reflects an older `UserRole`-centric model and is not the current IAM source of truth. Use `docs/DENTVISION_IAM_ROLE_MATRIX.md` and the current Person → PersonRole → Role → Permission contract for normative role/scope rules. Current cabinet-by-cabinet evidence is in `docs/SYSTEM_AUDIT.md` (2026-11-15). Do not treat unreviewed rows below as current defects or as proof of closure.
+
+
 ## Current Implementation
 
 - Backend: `permissions.ts` with `roleHasPermission()` + `requirePermission()` middleware

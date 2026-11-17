@@ -1,8 +1,11 @@
-import { Router } from 'express';
+import { Router, type Response } from 'express';
+import type { Prisma } from '@prisma/client';
 import prisma from '../../lib/prisma.js';
 import { authenticate, optionalAuth } from '../../middleware/auth.js';
+import { requirePermission } from '../../middleware/rbac.js';
+import { auditFromReq } from '../compliance/audit.service.js';
+import { resolveClinicAccess } from '../billing/planEntitlements.js';
 import { uid } from '../../lib/helpers.js';
-import { ensureLegalTrustPackage } from '../legal/legal.trust.service.js';
 import type { AuthRequest, ApiResponse } from '../../types/index.js';
 
 const SEED = [
@@ -19,6 +22,97 @@ const SEED = [
 
 export const jobsRouter = Router();
 
+type JobEmployerScope = {
+  employerOrganizationId: string | null;
+  clinicId: string | null;
+  clinicName: string;
+  verificationStatus: string;
+  canPublish: boolean;
+};
+
+async function activeJobEmployerScope(req: AuthRequest): Promise<JobEmployerScope | null> {
+  const organizationId = String(req.user?.organizationId || '').trim();
+  if (organizationId) {
+    const organization = await prisma.organization.findFirst({
+      where: { id: organizationId, archivedAt: null },
+      select: { id: true, name: true, type: true, originalId: true, settings: true },
+    });
+    if (!organization) return null;
+    if (organization.type === 'EMPLOYER') {
+      const settings = organization.settings && typeof organization.settings === 'object' && !Array.isArray(organization.settings)
+        ? organization.settings as Record<string, unknown> : {};
+      const legal = settings.legal && typeof settings.legal === 'object' && !Array.isArray(settings.legal)
+        ? settings.legal as Record<string, unknown> : {};
+      const verificationStatus = String(settings.verification || 'PENDING').toUpperCase();
+      const canPublish = verificationStatus === 'APPROVED'
+        && settings.lifecycle === 'ACTIVE_VERIFIED'
+        && legal.ownerSigned === true
+        && legal.platformSigned === true;
+      return { employerOrganizationId: organization.id, clinicId: null, clinicName: organization.name, verificationStatus, canPublish };
+    }
+    if (organization.type === 'CLINIC') {
+      const clinicId = String(organization.originalId || req.user?.clinicId || '').trim();
+      if (!clinicId) return null;
+      const clinic = await prisma.clinic.findUnique({
+        where: { id: clinicId },
+        select: { id: true, name: true, active: true },
+      });
+      if (!clinic?.active) return null;
+      const settings = organization.settings && typeof organization.settings === 'object' && !Array.isArray(organization.settings)
+        ? organization.settings as Record<string, unknown> : {};
+      const verificationStatus = String(settings.verification || 'LEGACY_ACTIVE').toUpperCase();
+      const legal = settings.legal && typeof settings.legal === 'object' && !Array.isArray(settings.legal)
+        ? settings.legal as Record<string, unknown> : {};
+      const hasExplicitVerification = Object.prototype.hasOwnProperty.call(settings, 'verification');
+      const canPublish = !hasExplicitVerification || (
+        verificationStatus === 'APPROVED'
+        && settings.lifecycle === 'ACTIVE_VERIFIED'
+        && legal.ownerSigned === true
+        && legal.platformSigned === true
+      );
+      return { employerOrganizationId: null, clinicId: clinic.id, clinicName: organization.name || clinic.name, verificationStatus, canPublish };
+    }
+    return null;
+  }
+
+  // Legacy clinic JWTs remain supported only for the clinic domain. Other
+  // organization types must switch through the canonical Organization context.
+  const clinicId = String(req.user?.clinicId || '').trim();
+  if (!clinicId) return null;
+  const clinic = await prisma.clinic.findUnique({ where: { id: clinicId }, select: { id: true, name: true, active: true } });
+  if (!clinic?.active) return null;
+  return { employerOrganizationId: null, clinicId: clinic.id, clinicName: clinic.name, verificationStatus: 'APPROVED', canPublish: true };
+}
+
+function ownedVacancyWhere(scope: JobEmployerScope): Prisma.JobVacancyWhereInput {
+  return scope.employerOrganizationId
+    ? { employerOrganizationId: scope.employerOrganizationId }
+    : { clinicId: scope.clinicId, employerOrganizationId: null };
+}
+
+async function ensureJobWriteAllowed(scope: JobEmployerScope, res: Response): Promise<boolean> {
+  if (!scope.clinicId) return true;
+  const access = await resolveClinicAccess(scope.clinicId);
+  if (!access) {
+    res.status(503).json({ ok: false, error: 'Не удалось проверить доступ клиники', code: 'CLINIC_ACCESS_UNVERIFIED' } satisfies ApiResponse);
+    return false;
+  }
+  if (access.writeBlocked) {
+    res.status(402).json({ ok: false, error: 'Публикация и изменение вакансий недоступны после окончания пробного периода клиники.', code: 'SUBSCRIPTION_EXPIRED' } satisfies ApiResponse);
+    return false;
+  }
+  return true;
+}
+
+const APPLICATION_TRANSITIONS: Record<string, readonly string[]> = {
+  new: ['reviewing', 'rejected'],
+  reviewing: ['interview', 'rejected'],
+  interview: ['offer', 'rejected'],
+  offer: ['hired', 'rejected'],
+  hired: [],
+  rejected: [],
+};
+
 async function ensureSeed() {
   const count = await prisma.jobVacancy.count();
   if (count === 0) {
@@ -30,13 +124,43 @@ jobsRouter.get('/', optionalAuth, async (req, res) => {
   try {
     await ensureSeed();
     const { q, city } = req.query as Record<string, string | undefined>;
-    const where: Record<string, unknown> = { status: 'open' };
-    if (city && city !== 'all') where.city = city;
-    if (q) where.OR = [
-      { title: { contains: q, mode: 'insensitive' } },
-      { clinicName: { contains: q, mode: 'insensitive' } },
-      { description: { contains: q, mode: 'insensitive' } },
+    const filters: Prisma.JobVacancyWhereInput[] = [
+      { status: 'open', kind: 'vacancy' },
+      {
+        OR: [
+          // Legacy clinic vacancies remain public only while their clinic is active.
+          { employerOrganizationId: null, clinic: { is: { active: true } } },
+          // Keep only platform seed listings that have no clinic or user owner.
+          // Unscoped legacy user-created vacancies must not remain publicly discoverable.
+          { employerOrganizationId: null, clinicId: null, userId: null },
+          // Employer vacancies are discoverable only while the organization is
+          // active, verified, visible and both required legal signatures remain effective.
+          {
+            employerOrganization: {
+              is: {
+                archivedAt: null,
+                AND: [
+                  { settings: { path: ['lifecycle'], equals: 'ACTIVE_VERIFIED' } },
+                  { settings: { path: ['verification'], equals: 'APPROVED' } },
+                  { settings: { path: ['ecosystemVisible'], equals: true } },
+                  { settings: { path: ['legal', 'ownerSigned'], equals: true } },
+                  { settings: { path: ['legal', 'platformSigned'], equals: true } },
+                ],
+              },
+            },
+          },
+        ],
+      },
     ];
+    if (city && city !== 'all') filters.push({ city });
+    if (q) filters.push({
+      OR: [
+        { title: { contains: q, mode: 'insensitive' } },
+        { clinicName: { contains: q, mode: 'insensitive' } },
+        { description: { contains: q, mode: 'insensitive' } },
+      ],
+    });
+    const where: Prisma.JobVacancyWhereInput = { AND: filters };
     const list = await prisma.jobVacancy.findMany({ where, orderBy: { createdAt: 'desc' } });
     return res.json(list);
   } catch (error) {
@@ -45,143 +169,358 @@ jobsRouter.get('/', optionalAuth, async (req, res) => {
   }
 });
 
+jobsRouter.get('/employer/status', authenticate, requirePermission('jobs.read'), async (req: AuthRequest, res) => {
+  try {
+    const scope = await activeJobEmployerScope(req);
+    if (!scope) return res.status(403).json({ ok: false, error: 'Рабочий контекст работодателя не подтверждён', code: 'EMPLOYER_CONTEXT_REQUIRED' } satisfies ApiResponse);
+    return res.json({
+      ok: true,
+      data: {
+        organizationType: scope.employerOrganizationId ? 'EMPLOYER' : 'CLINIC',
+        organizationName: scope.clinicName,
+        verificationStatus: scope.verificationStatus,
+        canPublish: scope.canPublish,
+      },
+    } satisfies ApiResponse);
+  } catch (error) {
+    console.error('Employer workspace status error:', error);
+    return res.status(500).json({ ok: false, error: 'Не удалось проверить статус работодателя' } satisfies ApiResponse);
+  }
+});
+
+jobsRouter.get('/employer/vacancies', authenticate, requirePermission('jobs.read'), async (req: AuthRequest, res) => {
+  try {
+    const scope = await activeJobEmployerScope(req);
+    if (!scope) return res.status(403).json({ ok: false, error: 'Переключитесь в рабочий контекст работодателя или клиники', code: 'EMPLOYER_CONTEXT_REQUIRED' } satisfies ApiResponse);
+    const vacancies = await prisma.jobVacancy.findMany({
+      where: { ...ownedVacancyWhere(scope), kind: 'vacancy' },
+      include: { _count: { select: { applications: true } } },
+      orderBy: { createdAt: 'desc' },
+    });
+    return res.json({
+      ok: true,
+      data: vacancies.map(({ _count, ...vacancy }) => ({ ...vacancy, applicationsCount: _count.applications })),
+    } satisfies ApiResponse);
+  } catch (error) {
+    console.error('Employer vacancy list error:', error);
+    return res.status(500).json({ ok: false, error: 'Не удалось загрузить вакансии работодателя' } satisfies ApiResponse);
+  }
+});
+
+jobsRouter.get('/employer/resumes', authenticate, requirePermission('jobs.read'), async (req: AuthRequest, res) => {
+  try {
+    const scope = await activeJobEmployerScope(req);
+    if (!scope) return res.status(403).json({ ok: false, error: 'Поиск кандидатов доступен только из контекста работодателя или клиники', code: 'EMPLOYER_CONTEXT_REQUIRED' } satisfies ApiResponse);
+    if (scope.employerOrganizationId && !scope.canPublish) return res.status(409).json({ ok: false, error: 'Доступ к поиску кандидатов откроется после юридической проверки работодателя', code: 'EMPLOYER_VERIFICATION_REQUIRED' } satisfies ApiResponse);
+    const resumes = await prisma.jobVacancy.findMany({
+      where: { kind: 'resume', status: 'open' },
+      select: { id: true, title: true, clinicName: true, city: true, salary: true, employmentType: true, description: true, tags: true, createdAt: true },
+      orderBy: { createdAt: 'desc' },
+    });
+    return res.json({ ok: true, data: resumes } satisfies ApiResponse);
+  } catch (error) {
+    console.error('Employer resume discovery error:', error);
+    return res.status(500).json({ ok: false, error: 'Не удалось загрузить резюме' } satisfies ApiResponse);
+  }
+});
+
+jobsRouter.get('/employer/vacancies/:id/applications', authenticate, requirePermission('jobs.read'), async (req: AuthRequest, res) => {
+  try {
+    const scope = await activeJobEmployerScope(req);
+    if (!scope) return res.status(403).json({ ok: false, error: 'Рабочий контекст работодателя не подтверждён', code: 'EMPLOYER_CONTEXT_REQUIRED' } satisfies ApiResponse);
+    const vacancy = await prisma.jobVacancy.findFirst({
+      where: { id: String(req.params.id), ...ownedVacancyWhere(scope), kind: 'vacancy' },
+      select: { id: true },
+    });
+    if (!vacancy) return res.status(404).json({ ok: false, error: 'Вакансия не найдена' } satisfies ApiResponse);
+    const applications = await prisma.jobApplication.findMany({
+      where: { vacancyId: vacancy.id },
+      include: { user: { select: { id: true, firstName: true, lastName: true, email: true } } },
+      orderBy: { createdAt: 'desc' },
+    });
+    return res.json({ ok: true, data: applications } satisfies ApiResponse);
+  } catch (error) {
+    console.error('Employer applications error:', error);
+    return res.status(500).json({ ok: false, error: 'Не удалось загрузить отклики' } satisfies ApiResponse);
+  }
+});
+
+jobsRouter.post('/employer/vacancies', authenticate, requirePermission('jobs.write'), async (req: AuthRequest, res) => {
+  try {
+    const scope = await activeJobEmployerScope(req);
+    if (!scope) return res.status(403).json({ ok: false, error: 'Публикация вакансии доступна только из активного контекста работодателя или клиники', code: 'EMPLOYER_CONTEXT_REQUIRED' } satisfies ApiResponse);
+    if (scope.employerOrganizationId && !scope.canPublish) return res.status(409).json({ ok: false, error: 'Публикация вакансий доступна после юридической проверки работодателя и активации организации', code: 'EMPLOYER_VERIFICATION_REQUIRED', data: { verificationStatus: scope.verificationStatus, nextPath: '/organizations' } } satisfies ApiResponse);
+    if (!(await ensureJobWriteAllowed(scope, res))) return;
+    const title = String(req.body?.title || '').trim();
+    const city = String(req.body?.city || '').trim();
+    if (!title || !city) return res.status(400).json({ ok: false, error: 'title и city обязательны' } satisfies ApiResponse);
+    const vacancy = await prisma.$transaction(async (tx) => {
+      const created = await tx.jobVacancy.create({
+        data: {
+          id: uid(),
+          title,
+          clinicName: scope.clinicName,
+          city,
+          salary: req.body?.salary ? String(req.body.salary) : '',
+          employmentType: req.body?.employmentType ? String(req.body.employmentType) : 'Полная занятость',
+          description: req.body?.description ? String(req.body.description) : '',
+          tags: Array.isArray(req.body?.tags) ? req.body.tags : [],
+          status: 'open',
+          kind: 'vacancy',
+          userId: req.user!.id,
+          clinicId: scope.clinicId,
+          employerOrganizationId: scope.employerOrganizationId,
+        },
+      });
+      await auditFromReq(req, {
+        action: 'jobs.vacancy.created',
+        entity: 'job_vacancy',
+        entityId: created.id,
+        details: { employerOrganizationId: scope.employerOrganizationId, clinicId: scope.clinicId },
+      }, tx);
+      return created;
+    });
+    return res.status(201).json({ ok: true, data: vacancy } satisfies ApiResponse);
+  } catch (error) {
+    console.error('Create employer vacancy error:', error);
+    return res.status(500).json({ ok: false, error: 'Не удалось разместить вакансию' } satisfies ApiResponse);
+  }
+});
+
+jobsRouter.patch('/employer/applications/:id/status', authenticate, requirePermission('jobs.write'), async (req: AuthRequest, res) => {
+  try {
+    const scope = await activeJobEmployerScope(req);
+    if (!scope) return res.status(403).json({ ok: false, error: 'Рабочий контекст работодателя не подтверждён', code: 'EMPLOYER_CONTEXT_REQUIRED' } satisfies ApiResponse);
+    const application = await prisma.jobApplication.findUnique({
+      where: { id: String(req.params.id) },
+      include: { vacancy: true },
+    });
+    if (!application || application.vacancy.kind !== 'vacancy') return res.status(404).json({ ok: false, error: 'Отклик не найден' } satisfies ApiResponse);
+    const owned = scope.employerOrganizationId
+      ? application.vacancy.employerOrganizationId === scope.employerOrganizationId
+      : application.vacancy.clinicId === scope.clinicId && !application.vacancy.employerOrganizationId;
+    if (!owned) return res.status(404).json({ ok: false, error: 'Отклик не найден' } satisfies ApiResponse);
+    if (!(await ensureJobWriteAllowed(scope, res))) return;
+    const nextStatus = String(req.body?.status || '').trim().toLowerCase();
+    if (!(APPLICATION_TRANSITIONS[application.status] || []).includes(nextStatus)) {
+      return res.status(409).json({ ok: false, error: 'Недопустимый переход статуса отклика', code: 'INVALID_APPLICATION_TRANSITION', data: { currentStatus: application.status, requestedStatus: nextStatus } } satisfies ApiResponse);
+    }
+    const updated = await prisma.$transaction(async (tx) => {
+      const changed = await tx.jobApplication.updateMany({
+        where: { id: application.id, status: application.status },
+        data: { status: nextStatus },
+      });
+      if (changed.count !== 1) return null;
+      const result = await tx.jobApplication.findUnique({ where: { id: application.id } });
+      if (!result) throw new Error('Updated Jobs application could not be read inside transaction');
+      await auditFromReq(req, {
+        action: 'jobs.application.status_changed',
+        entity: 'job_application',
+        entityId: application.id,
+        details: { vacancyId: application.vacancyId, from: application.status, to: nextStatus },
+      }, tx);
+      return result;
+    });
+    if (!updated) return res.status(409).json({ ok: false, error: 'Отклик изменился параллельно. Обновите список.', code: 'APPLICATION_CONFLICT' } satisfies ApiResponse);
+    return res.json({ ok: true, data: updated } satisfies ApiResponse);
+  } catch (error) {
+    console.error('Update employer application error:', error);
+    return res.status(500).json({ ok: false, error: 'Не удалось изменить статус отклика' } satisfies ApiResponse);
+  }
+});
+
 jobsRouter.get('/me/applications', authenticate, async (req: AuthRequest, res) => {
   try {
-    const apps = await prisma.jobApplication.findMany({ where: { userId: req.user!.id }, orderBy: { createdAt: 'desc' } });
+    const apps = await prisma.jobApplication.findMany({
+      where: { userId: req.user!.id },
+      select: {
+        id: true,
+        vacancyId: true,
+        coverNote: true,
+        status: true,
+        createdAt: true,
+        updatedAt: true,
+        vacancy: {
+          select: {
+            id: true,
+            title: true,
+            clinicName: true,
+            city: true,
+            salary: true,
+            employmentType: true,
+            status: true,
+          },
+        },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
     return res.json(apps);
   } catch (error) {
-    return res.status(500).json({ ok: false, error: 'Ошибка' } satisfies ApiResponse);
+    console.error('List candidate applications error:', error);
+    return res.status(500).json({ ok: false, error: 'Не удалось загрузить ваши отклики' } satisfies ApiResponse);
+  }
+});
+
+jobsRouter.get('/me/resumes', authenticate, async (req: AuthRequest, res) => {
+  try {
+    const resumes = await prisma.jobVacancy.findMany({
+      where: { userId: req.user!.id, kind: 'resume' },
+      select: {
+        id: true,
+        title: true,
+        city: true,
+        salary: true,
+        employmentType: true,
+        description: true,
+        tags: true,
+        status: true,
+        kind: true,
+        createdAt: true,
+        updatedAt: true,
+      },
+      orderBy: { updatedAt: 'desc' },
+    });
+    return res.json(resumes);
+  } catch (error) {
+    console.error('List candidate resumes error:', error);
+    return res.status(500).json({ ok: false, error: 'Не удалось загрузить ваши резюме' } satisfies ApiResponse);
+  }
+});
+
+jobsRouter.patch('/me/resumes/:id/status', authenticate, async (req: AuthRequest, res) => {
+  try {
+    const status = String(req.body?.status || '').trim().toLowerCase();
+    if (status !== 'open' && status !== 'closed') {
+      return res.status(400).json({
+        ok: false,
+        error: 'Статус резюме должен быть open или closed',
+        code: 'INVALID_RESUME_STATUS',
+      } satisfies ApiResponse);
+    }
+
+    const updated = await prisma.$transaction(async (tx) => {
+      const owned = await tx.jobVacancy.findFirst({
+        where: { id: String(req.params.id), userId: req.user!.id, kind: 'resume' },
+        select: { id: true, status: true },
+      });
+      if (!owned) return null;
+
+      const changed = await tx.jobVacancy.updateMany({
+        where: { id: owned.id, userId: req.user!.id, kind: 'resume' },
+        data: { status },
+      });
+      if (changed.count !== 1) return null;
+
+      const result = await tx.jobVacancy.findUnique({ where: { id: owned.id } });
+      if (!result) throw new Error('Updated candidate resume could not be read inside transaction');
+
+      if (owned.status !== status) {
+        await auditFromReq(req, {
+          action: 'jobs.resume.visibility_changed',
+          entity: 'job_vacancy',
+          entityId: owned.id,
+          details: { from: owned.status, to: status },
+        }, tx);
+      }
+      return result;
+    });
+
+    if (!updated) return res.status(404).json({ ok: false, error: 'Резюме не найдено' } satisfies ApiResponse);
+    return res.json(updated);
+  } catch (error) {
+    console.error('Update candidate resume visibility error:', error);
+    return res.status(500).json({ ok: false, error: 'Не удалось изменить видимость резюме' } satisfies ApiResponse);
   }
 });
 
 /**
- * Employer self-service bootstrap.
- *
- * Jobs historically used `clinicName` on each vacancy and therefore had no
- * employer workspace. This endpoint introduces the missing organization
- * boundary without changing existing JobVacancy rows. The employer is a
- * unified Organization + Person context; existing clinic-linked vacancies
- * continue to work unchanged.
+ * Compatibility response for the former unscoped employer bootstrap.
+ * Employer creation now uses the canonical Organization self-service flow so
+ * PersonRole, active workspace, branch membership and onboarding lifecycle are
+ * persisted atomically. Do not recreate the legacy CORPORATE/owner graph here.
  */
-jobsRouter.post('/employers/register', authenticate, async (req: AuthRequest, res) => {
-  try {
-    const name = String(req.body?.name || '').trim();
-    if (!name) return res.status(400).json({ ok: false, error: 'Название работодателя обязательно' } satisfies ApiResponse);
-
-    const existingPerson = await prisma.person.findFirst({
-      where: { userId: req.user!.id, originalType: 'JobEmployer' },
-      include: { organization: true },
-    });
-    if (existingPerson) {
-      return res.json({
-        ok: true,
-        data: { organization: existingPerson.organization, person: existingPerson, verification: 'PENDING', reused: true },
-      } satisfies ApiResponse);
-    }
-
-    const phone = req.body?.phone ? String(req.body.phone).trim() : null;
-    const email = req.body?.email ? String(req.body.email).trim().toLowerCase() : req.user!.email || null;
-    const org = await prisma.organization.create({
-      data: {
-        id: uid(),
-        name,
-        type: 'CORPORATE',
-        originalType: 'JobEmployer',
-        originalId: uid(),
-        address: req.body?.address ? String(req.body.address).trim() : null,
-        phone,
-        email,
-        taxId: req.body?.bin ? String(req.body.bin).trim() : null,
-      },
-    });
-
-    const person = await prisma.person.create({
-      data: {
-        id: uid(),
-        fullName: [req.user!.firstName, req.user!.lastName].filter(Boolean).join(' ') || req.user!.email,
-        personType: 'STAFF',
-        organizationId: org.id,
-        userId: req.user!.id,
-        phone: phone || undefined,
-        email: req.user!.email,
-        originalType: 'JobEmployer',
-        originalId: org.originalId!,
-      },
-    });
-
-    const ownerRole = await prisma.role.findUnique({ where: { key: 'owner' } });
-    if (ownerRole) {
-      await prisma.personRole.create({ data: { personId: person.id, roleId: ownerRole.id } });
-    }
-
-    const legal = await ensureLegalTrustPackage({
-      userId: req.user!.id,
-      organizationId: org.id,
-      type: 'CORPORATE',
-      legalName: name,
-      bin: req.body?.bin ? String(req.body.bin).trim() : null,
-      director: [req.user!.firstName, req.user!.lastName].filter(Boolean).join(' '),
-      address: org.address,
-      phone: org.phone,
-      email: org.email,
-      commission: 0,
-    });
-
-    return res.status(201).json({
-      ok: true,
-      data: {
-        organization: org,
-        person,
-        organizationType: 'EMPLOYER',
-        role: 'owner',
-        verification: 'PENDING',
-        legal: { partnerId: legal.partner.id, documents: legal.documents },
-      },
-    } satisfies ApiResponse);
-  } catch (error) {
-    console.error('Employer self-service register error:', error);
-    return res.status(500).json({ ok: false, error: 'Не удалось создать профиль работодателя' } satisfies ApiResponse);
-  }
+jobsRouter.post('/employers/register', authenticate, async (_req: AuthRequest, res) => {
+  return res.status(410).json({
+    ok: false,
+    error: 'Регистрация работодателя перенесена в единое создание организации',
+    code: 'EMPLOYER_ONBOARDING_MOVED',
+    data: { nextPath: '/onboarding?mode=create&kind=employer', endpoint: '/api/organizations/self-service' },
+  } satisfies ApiResponse);
 });
 
 jobsRouter.post('/', authenticate, async (req: AuthRequest, res) => {
   try {
-    const { title, clinicName, city, salary, employmentType, description, tags, kind } = req.body || {};
-    if (!title) return res.status(400).json({ ok: false, error: 'title обязателен' } satisfies ApiResponse);
+    const { title, city, salary, employmentType, description, tags, kind } = req.body || {};
+    if (kind !== 'resume') {
+      return res.status(403).json({ ok: false, error: 'Вакансии публикуются только из подтверждённого контекста работодателя или клиники', code: 'EMPLOYER_CONTEXT_REQUIRED', data: { nextPath: '/onboarding?kind=employer' } } satisfies ApiResponse);
+    }
+    const normalizedTitle = String(title || '').trim();
+    if (!normalizedTitle) return res.status(400).json({ ok: false, error: 'title обязателен' } satisfies ApiResponse);
+    if (!String(city || '').trim()) return res.status(400).json({ ok: false, error: 'city обязателен' } satisfies ApiResponse);
 
-    const vacancy = await prisma.jobVacancy.create({
-      data: {
-        id: uid(), title: String(title),
-        clinicName: clinicName || [req.user!.firstName, req.user!.lastName].filter(Boolean).join(' ') || 'Клиника',
-        city: city || '', salary: salary || '',
-        employmentType: employmentType || (kind === 'resume' ? 'Ищу работу' : 'Полная занятость'),
-        description: description || '',
-        tags: Array.isArray(tags) ? tags : (typeof tags === 'string' ? tags.split(',').map((t: string) => t.trim()).filter(Boolean) : []),
-        status: 'open', userId: req.user!.id, clinicId: req.user!.clinicId || null,
-        kind: kind === 'resume' ? 'resume' : 'vacancy',
-      },
+    const resume = await prisma.$transaction(async (tx) => {
+      const created = await tx.jobVacancy.create({
+        data: {
+          id: uid(),
+          title: normalizedTitle,
+          clinicName: [req.user!.firstName, req.user!.lastName].filter(Boolean).join(' ') || req.user!.email || 'Кандидат',
+          city: String(city).trim(),
+          salary: salary ? String(salary) : '',
+          employmentType: employmentType ? String(employmentType) : 'Ищу работу',
+          description: description ? String(description) : '',
+          tags: Array.isArray(tags) ? tags : (typeof tags === 'string' ? tags.split(',').map((t: string) => t.trim()).filter(Boolean) : []),
+          status: 'open',
+          userId: req.user!.id,
+          clinicId: null,
+          employerOrganizationId: null,
+          kind: 'resume',
+        },
+      });
+      await auditFromReq(req, {
+        action: 'jobs.resume.created',
+        entity: 'job_vacancy',
+        entityId: created.id,
+        details: { kind: 'resume' },
+      }, tx);
+      return created;
     });
-    return res.status(201).json(vacancy);
+    return res.status(201).json({ ok: true, data: resume } satisfies ApiResponse);
   } catch (error) {
-    console.error('Create job error:', error);
-    return res.status(500).json({ ok: false, error: 'Не удалось разместить объявление' } satisfies ApiResponse);
+    console.error('Create resume error:', error);
+    return res.status(500).json({ ok: false, error: 'Не удалось разместить резюме' } satisfies ApiResponse);
   }
 });
 
 jobsRouter.post('/:id/apply', authenticate, async (req: AuthRequest, res) => {
   try {
     const vacancy = await prisma.jobVacancy.findUnique({ where: { id: req.params.id as string } });
-    if (!vacancy) return res.status(404).json({ ok: false, error: 'Вакансия не найдена' } satisfies ApiResponse);
-    const existing = await prisma.jobApplication.findFirst({ where: { vacancyId: vacancy.id, userId: req.user!.id } });
-    if (existing) return res.json(existing);
-    const application = await prisma.jobApplication.create({
-      data: {
-        id: uid(), vacancyId: vacancy.id, userId: req.user!.id,
-        userName: [req.user!.firstName, req.user!.lastName].filter(Boolean).join(' ') || req.user!.email,
-        coverNote: req.body?.coverNote || '', status: 'new',
-      },
+    if (!vacancy || vacancy.kind !== 'vacancy' || vacancy.status !== 'open') return res.status(404).json({ ok: false, error: 'Вакансия недоступна' } satisfies ApiResponse);
+    if (vacancy.userId === req.user!.id) return res.status(409).json({ ok: false, error: 'Нельзя откликнуться на собственную вакансию' } satisfies ApiResponse);
+    const result = await prisma.$transaction(async (tx) => {
+      // Serialize retries for this vacancy/candidate pair. The transaction-scoped
+      // PostgreSQL advisory lock avoids duplicate applications without requiring
+      // a destructive cleanup/unique-index migration over existing records.
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${vacancy.id}), hashtext(${req.user!.id}))`;
+      const existing = await tx.jobApplication.findFirst({
+        where: { vacancyId: vacancy.id, userId: req.user!.id },
+      });
+      if (existing) return { application: existing, created: false };
+      const application = await tx.jobApplication.create({
+        data: {
+          id: uid(), vacancyId: vacancy.id, userId: req.user!.id,
+          userName: [req.user!.firstName, req.user!.lastName].filter(Boolean).join(' ') || req.user!.email,
+          coverNote: req.body?.coverNote || '', status: 'new',
+        },
+      });
+      await auditFromReq(req, {
+        action: 'jobs.application.created',
+        entity: 'job_application',
+        entityId: application.id,
+        details: { vacancyId: vacancy.id },
+      }, tx);
+      return { application, created: true };
     });
-    return res.status(201).json(application);
+    return res.status(result.created ? 201 : 200).json(result.application);
   } catch (error) {
     console.error('Apply job error:', error);
     return res.status(500).json({ ok: false, error: 'Не удалось откликнуться' } satisfies ApiResponse);

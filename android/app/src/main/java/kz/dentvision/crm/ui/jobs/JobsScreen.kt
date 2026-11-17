@@ -98,7 +98,7 @@ fun JobsScreen(
                 containerColor = DvTheme.colors.gold,
                 contentColor = DvTheme.colors.goldOn,
             ) {
-                Icon(Icons.Filled.Add, contentDescription = "Разместить объявление")
+                Icon(Icons.Filled.Add, contentDescription = "Создать резюме")
             }
         },
     ) { padding ->
@@ -307,17 +307,12 @@ private fun VacancyCard(vacancy: JobVacancy, applied: Boolean, onApply: () -> Un
     }
 }
 
-private val EMPLOYMENT_TYPES = listOf("Полная занятость", "Частичная занятость", "Подработка", "Ищу работу")
-
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 private fun PostJobForm(defaultCity: String, onSubmit: (CreateJobRequest, (Boolean, String?) -> Unit) -> Unit) {
-    var isResume by remember { mutableStateOf(false) }
     var title by remember { mutableStateOf("") }
-    var clinicName by remember { mutableStateOf("") }
     var city by remember { mutableStateOf(defaultCity) }
     var salary by remember { mutableStateOf("") }
-    var employmentType by remember { mutableStateOf(EMPLOYMENT_TYPES.first()) }
     var description by remember { mutableStateOf("") }
     var tags by remember { mutableStateOf("") }
     var saving by remember { mutableStateOf(false) }
@@ -331,25 +326,20 @@ private fun PostJobForm(defaultCity: String, onSubmit: (CreateJobRequest, (Boole
             .padding(20.dp),
     ) {
         Text(
-            text = if (isResume) "Объявление о поиске работы" else "Разместить вакансию",
+            text = "Создать резюме",
             style = MaterialTheme.typography.titleMedium,
             color = DvTheme.colors.textPrimary,
         )
-        Row(modifier = Modifier.padding(top = 12.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            FilterChip(selected = !isResume, onClick = { isResume = false }, label = { Text("Вакансия") })
-            FilterChip(selected = isResume, onClick = { isResume = true }, label = { Text("Ищу работу") })
-        }
+        Text(
+            text = "В мобильной версии доступна публикация резюме. Для размещения вакансии нужен подтверждённый кабинет работодателя; мобильный кабинет работодателя пока не реализован.",
+            style = MaterialTheme.typography.bodySmall,
+            color = DvTheme.colors.textSecondary,
+            modifier = Modifier.padding(top = 8.dp),
+        )
         OutlinedTextField(
             value = title,
             onValueChange = { title = it; error = null },
-            label = { Text(if (isResume) "Желаемая должность" else "Должность") },
-            singleLine = true,
-            modifier = Modifier.fillMaxWidth().padding(top = 12.dp),
-        )
-        OutlinedTextField(
-            value = clinicName,
-            onValueChange = { clinicName = it },
-            label = { Text(if (isResume) "Ваше имя" else "Клиника / компания") },
+            label = { Text("Желаемая должность") },
             singleLine = true,
             modifier = Modifier.fillMaxWidth().padding(top = 12.dp),
         )
@@ -377,22 +367,11 @@ private fun PostJobForm(defaultCity: String, onSubmit: (CreateJobRequest, (Boole
             singleLine = true,
             modifier = Modifier.fillMaxWidth().padding(top = 12.dp),
         )
-        if (!isResume) {
-            FlowRow(
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
-                modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
-            ) {
-                EMPLOYMENT_TYPES.forEach { type ->
-                    FilterChip(selected = employmentType == type, onClick = { employmentType = type }, label = { Text(type) })
-                }
-            }
-        }
         OutlinedTextField(
             value = description,
             onValueChange = { description = it },
             label = { Text("Описание") },
-            placeholder = { Text(if (isResume) "Опыт, специализация, что ищете…" else "Требования, условия, оборудование…") },
+            placeholder = { Text("Опыт, специализация, что ищете…") },
             minLines = 3,
             modifier = Modifier.fillMaxWidth().padding(top = 12.dp),
         )
@@ -427,13 +406,12 @@ private fun PostJobForm(defaultCity: String, onSubmit: (CreateJobRequest, (Boole
                 onSubmit(
                     CreateJobRequest(
                         title = title.trim(),
-                        clinicName = clinicName.trim().ifBlank { null },
                         city = city.trim(),
                         salary = salary.trim().ifBlank { null },
-                        employmentType = if (isResume) "Ищу работу" else employmentType,
+                        employmentType = "Ищу работу",
                         description = description.trim().ifBlank { null },
                         tags = tags.split(",").map { it.trim() }.filter { it.isNotEmpty() },
-                        kind = if (isResume) "resume" else "vacancy",
+                        kind = "resume",
                     ),
                 ) { success, submitError ->
                     saving = false
@@ -442,7 +420,7 @@ private fun PostJobForm(defaultCity: String, onSubmit: (CreateJobRequest, (Boole
             },
             modifier = Modifier.fillMaxWidth().padding(top = 16.dp, bottom = 8.dp),
         ) {
-            Text(if (saving) "Публикация…" else "Опубликовать")
+            Text(if (saving) "Публикация…" else "Опубликовать резюме")
         }
     }
 }

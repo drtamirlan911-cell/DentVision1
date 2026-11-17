@@ -1,3 +1,14 @@
+## Current release reconciliation — 2026-11-17
+
+- Current main: `462c6fcc1994c345b51feabff5f2357debdfffba`; PR #347 is merged as `ad2b8651432073ba3c1426a59f3b31f704479557`. Its AI Admin external-identifier source changes, guarded backfill and supporting migration are now in main; PR #322 adds isolated Codespaces development infrastructure only.
+- **RB-029 remains P0 / OPEN.** Merging source does not mean strict-write cutover, legacy-worker drain, historical PHI inventory/backfill, key rotation, retention/export/deletion, verified backup/restore, rollback or approved staging reconciliation has happened. No historical data operation was run.
+- PR #348 remains the existing candidate for employer/Jobs and organization-legal parity. Pre-sync HEAD `f05a38ccdefc292c90008f3411f2fe601e84709f` had Quality Gate [44126395133](https://github.com/drtamirlan911-cell/DentVision1/actions/runs/44126395133) and Vercel Preview SUCCESS; full CI/E2E, Android and RB-034 on the exact post-sync HEAD remain unverified.
+- Candidate corrections: advisory lock now uses Prisma `$executeRaw` for PostgreSQL `void`; onboarding E2E checks persisted Organization/Branch context after redirect. This does not close the remaining Jobs workflow or legal-template gaps.
+- **Release remains NOT READY.** D1/D2 staging, RB-031, RB-033, RB-035, approved legal templates/EDS, official Kaspi evidence, Android runtime, diagnostic/medical-lab workflow depth, D10 settlement and the 32-tooth WebGL odontogram remain open/partial.
+- No staging/production DB, PHI, secret/key, payment provider, legal signature or production deployment was accessed or modified.
+
+---
+
 ## Candidate source update — 2026-11-13 (PR #346 AI history hydrator race)
 
 ### RB-029 — AI thread hydration lifecycle
@@ -841,11 +852,11 @@ Parallel-branch evidence retained during integration; reconcile against the curr
 
 
 
-## RB-029 candidate — AI Admin external contact identifiers (2026-11-14)
+## RB-029 — AI Admin external contact identifiers (source merged; operations open)
 
-- Candidate branch security/rb029-ai-admin-external-id-20261114 encrypts new AiAdminSession external identifiers, adds a clinic/channel-scoped HMAC blind index, and keeps the old plaintext column nullable only for staged migration compatibility.
+- PR #347 (`security/rb029-ai-admin-external-id-20261114`) merged this source to main. It encrypts new AiAdminSession external identifiers, adds a clinic/channel-scoped HMAC blind index, and keeps the old plaintext column nullable for staged migration compatibility.
 - First-contact legacy migration uses compare-and-set. The bounded backfill command defaults to dry-run, logs counts only, validates encryption round-trips, and requires matching target/environment confirmation for writes; production additionally requires backup/approval confirmation.
-- This candidate is not merged or deployed. No staging/production database query, migration, backfill, key rotation or backup/restore was run. RB-029 remains OPEN / P0; key rotation/reindex, old-key handling, retention/deletion and backup/restore remain open.
+- The source is merged but not operationally deployed/cut over. No staging/production database query, migration, backfill, key rotation or backup/restore was run. RB-029 remains OPEN / P0; legacy-worker drain, strict-write cutover, key rotation/reindex, old-key handling, retention/deletion and backup/restore remain open.
 - Codex P2 datasource binding is addressed in the candidate: write mode requires Prisma's actual DATABASE_URL to exactly match AI_ADMIN_EXTERNAL_ID_BACKFILL_STAGING_DATABASE_URL or AI_ADMIN_EXTERNAL_ID_BACKFILL_PRODUCTION_DATABASE_URL for the selected target. Missing or mismatched values fail closed; URLs are never logged. Regression coverage includes staging/production mismatch and missing expected URL; focused tests 11/11, backend TypeScript, changed-file ESLint and diff check passed locally. Exact-head GitHub CI, Quality Gate and Codex re-review remain pending.
 
 - 2026-11-14 audit addendum: book_appointment.tool.ts also wrote patientName/patientPhone into AiAdminSession in plaintext. The candidate now stops this duplicate write and extends the guarded backfill to encrypt legacy copies into dedicated ciphertext fields; RB-029 remains open until staging reconciliation.

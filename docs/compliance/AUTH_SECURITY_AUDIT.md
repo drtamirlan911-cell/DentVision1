@@ -1,5 +1,8 @@
 # Auth & Security Audit
 
+> **Historical pre-compliance snapshot.** The first table below describes a state before the later `Post-Compliance Improvements`; it is not current implementation status. In particular, the session-tracking “missing” row is superseded by the stated `UserSession` model and compliance session endpoints. Revalidate MFA, email/phone verification and login-history claims against current code before using them as a release backlog. Current release evidence belongs in `docs/RELEASE_BLOCKERS.md` and `docs/SYSTEM_AUDIT.md`.
+
+
 ## Current State (Pre-Compliance)
 
 | Component | Status | Notes |

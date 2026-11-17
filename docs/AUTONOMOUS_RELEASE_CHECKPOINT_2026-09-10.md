@@ -1,5 +1,8 @@
 # DentVision autonomous release checkpoint — 2026-09-10
 
+> **Historical release snapshot — 2026-09-10.** The deployment branch, Vercel rate-limit state, issues #258/#266 and open gates below belong to September 10 and are not verified current conditions. Do not infer current deployment status or blockers from this file. Current exact-SHA CI, Quality Gate and system reconciliation are recorded in `DENTVISION_CONTEXT.md`, `docs/RELEASE_BLOCKERS.md` and `docs/SYSTEM_AUDIT.md`.
+
+
 ## Source of truth
 - `main` is the canonical release branch.
 - Stale PR work is not merged unless it is based on current `main` and passes validation.

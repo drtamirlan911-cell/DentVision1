@@ -22,7 +22,7 @@ describe('createClinicInvitation', () => {
 
   it('persists the invite code and its exact clinic, email, role and expiry', async () => {
     const code = await createClinicInvitation(input);
-    expect(code).toMatch(/^[0-9A-F]{10}$/);
+    expect(code).toMatch(/^[0-9A-F]{16}$/);
     expect(prismaMock.clinicInvitation.create).toHaveBeenCalledWith({
       data: { ...input, code },
     });
@@ -31,7 +31,7 @@ describe('createClinicInvitation', () => {
   it('retries unique-code collisions and persists the next candidate', async () => {
     prismaMock.clinicInvitation.create.mockRejectedValueOnce({ code: 'P2002' });
     const code = await createClinicInvitation(input);
-    expect(code).toMatch(/^[0-9A-F]{10}$/);
+    expect(code).toMatch(/^[0-9A-F]{16}$/);
     expect(prismaMock.clinicInvitation.create).toHaveBeenCalledTimes(2);
     expect(prismaMock.clinicInvitation.create.mock.calls[1][0].data).toMatchObject({
       clinicId: input.clinicId, email: input.email, role: input.role, expiresAt: input.expiresAt, code,

@@ -56,8 +56,15 @@ export function RequirePage({
   const supplierWorkspace = pageId === 'supplier' &&
     String(activeWorkspace?.scopeType || '').toUpperCase() === 'SUPPLIER'
 
+  const employerWorkspace = pageId === 'employer' &&
+    ['EMPLOYER', 'CLINIC'].includes(String(activeWorkspace?.scopeType || '').toUpperCase())
+
   // Supplier is a separate organization workspace. Never let a clinic,
   // platform, or generic role's page permissions accidentally expose it.
+  if (pageId === 'employer' && !employerWorkspace) {
+    return <Navigate to="/ai" replace />
+  }
+
   if (pageId === 'supplier' && !supplierWorkspace) {
     // Do not fall back to a clinic route: platform-wide permissions do not create
     // a clinic or supplier workspace.

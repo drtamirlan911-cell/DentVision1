@@ -1,48 +1,39 @@
 # RB-037 — Clinical diagnostic confirmation and signing authorization
 
-**Status:** OPEN — P0  
-**Audit base:** `main` at `2ff887f4944cb1eb8c0e05001fbcc44ef9abde09` (2026-11-07)  
-**Scope:** source and authorization-contract review only. No clinical data, database, migration, deployment, or runtime behavior was changed.
+**Status:** RESOLVED in code and exact-head CI/E2E  
+**Merged implementation:** PR #341, merge commit `21641389dafcd478aef6ff79be55177ec4b51016`  
+**Current main snapshot reviewed:** `4bbd61a339d5f3c4d40d1d5990f633a7b9a87864` (2026-11-13)  
+**Scope:** clinic-side AI result confirmation and patient-chart signing, with partner signer separation.
 
-## Finding
+## Former finding
 
-Clinical diagnostic confirmation and signing currently accept non-doctor clinic roles. This allows operational authority to be used as clinical authorship.
+The historical audit found that operational clinic roles could confirm AI diagnostic drafts or sign results as though they were clinical authors. That finding was valid for the old audited source revision; it is not the current implementation state.
 
-### AI result confirmation
+## Current authorization contract
 
-Route: `POST /api/diagnostics/referrals/:id/confirm-ai-result`
+Clinic-side confirmation and signing call the shared `assertClinicDoctorSignoff` boundary. It verifies the caller's current organization-scoped DOCTOR role, active clinic/branch access, and assigned-referral constraints. The Master Spec's compound `OWNER + DOCTOR` case is preserved only when the user independently holds the scoped DOCTOR capability.
 
-- The route is guarded by `requireReferralAccess()`, which permits authorized clinic organization members.
-- `confirmAiResult()` accepts organization-scoped role keys `owner`, `org_owner`, `admin`, `org_admin`, and `doctor`; when no canonical organization exists, it falls back to clinic membership.
-- The action records the caller as confirmer and completes the referral.
+Operational OWNER, ADMIN, DIRECTOR, MANAGER, ASSISTANT and CASHIER roles do not gain clinical authorship from their operational rights. SUPERADMIN platform authority alone is not clinical assignment and does not permit clinic-side confirmation/signing.
 
-### Signed diagnostic result
+Diagnostic-center and medical-laboratory signing remain distinct. The caller must hold a specific organization-scoped partner signer role (`radiologist`, `medical_lab_validator` or `medical_lab_doctor`) in the referral's destination organization. Partner signing does not create a clinic Visit or attribute the result to a clinic doctor.
 
-Route: `POST /api/diagnostics/referrals/:id/results/sign`
+## Implementation evidence
 
-- Clinic referral access is broader than clinical signer authority.
-- `saveAndSignResult()` accepts `DOCTOR`, `OWNER`, and `DIRECTOR` as clinic-side signers.
-- A non-partner signer causes the referral to be completed and a Visit to be written into the patient's clinical chart.
-- The current implementation therefore allows OWNER/DIRECTOR operational roles to perform a clinical-signing operation without proving that the caller has the DOCTOR role.
+- `dentvision-backend/src/modules/diagnostics/clinicalSignoffAuthorization.ts` — canonical clinic-doctor signoff guard.
+- `dentvision-backend/src/modules/diagnostics/clinicalSignoffAuthorization.test.ts` — role, assignment, branch, archived organization, missing context and legacy compatibility tests.
+- `dentvision-backend/src/modules/diagnostics/diagnostics.routes.ts` — guard applied to AI confirmation and clinic-side result signing.
+- `dentvision-backend/src/modules/diagnostics/signingAuthorization.ts` — separately scoped partner signer roles.
+- `e2e/tests/partner-lifecycle.spec.ts` — RB-037 end-to-end negative and positive journeys. Rejected callers are checked for no signature, no referral completion and no Visit insertion.
 
-## Required authorization contract
+## Verification evidence
 
-1. Clinic-side confirmation and signing require an authenticated DOCTOR with current clinic and branch access.
-2. Enforce assigned-referral and active clinical assignment constraints where applicable; an arbitrary clinic member must not sign.
-3. OWNER, ADMIN, DIRECTOR, MANAGER, ASSISTANT, CASHIER and SUPERADMIN must not acquire clinical-signing authority solely from operational or platform privileges.
-4. Diagnostic-center and medical-laboratory signers retain only their separately scoped signer roles. Partner signing must not create a clinic Visit or masquerade as a clinic doctor.
-5. Every successful signature must retain the real authenticated signer identity and the existing audit event. Denied requests must not complete referrals, create diagnostic signatures or write Visit rows.
+- Merged PR #341 exact-head CI: [42374982404](https://github.com/drtamirlan911-cell/DentVision1/actions/runs/42374982404).
+- Merged PR #341 Quality Gate: [42374982372](https://github.com/drtamirlan911-cell/DentVision1/actions/runs/42374982372).
+- Current main exact-head CI: [43496476996](https://github.com/drtamirlan911-cell/DentVision1/actions/runs/43496476996).
+- Current main Quality Gate: [43496477034](https://github.com/drtamirlan911-cell/DentVision1/actions/runs/43496477034).
 
-## Required regression matrix
+All four runs are reported successful by GitHub. The implementation is not permission to loosen future checks; any change to clinical signer policy must retain the same canonical service boundary and both positive and negative tests.
 
-- OWNER, ADMIN, DIRECTOR, MANAGER, ASSISTANT and CASHIER are denied on both clinic-side endpoints unless the authenticated clinical context independently resolves to DOCTOR under the canonical policy.
-- Correctly assigned DOCTOR in the same clinic and branch can confirm/sign.
-- DOCTOR from another clinic or branch is denied.
-- SUPERADMIN without clinical assignment is denied.
-- Partner signer roles continue to work only within their diagnostic-center/laboratory scope and do not write to the clinic patient chart.
-- Negative cases assert no DiagnosticResult signature, no referral completion, no Visit creation and no false audit attribution.
+## Reopen criteria
 
-## Release gate
-
-RB-037 remains OPEN/P0 until the policy is implemented in the canonical service boundary and the exact-head unit/E2E role, clinic, branch and audit matrix passes. Master Spec §12 says AI diagnostic output is assistive until the required professional confirmation step; operational clinic membership alone is not clinical authorization.
-
+Reopen RB-037 only if a new source review or regression shows one of these conditions: a non-doctor clinic role can confirm/sign; a doctor from another clinic/branch can sign; an unassigned doctor can sign; a platform admin can sign without clinical assignment; a partner signer can create a clinic Visit; or a denied request mutates the diagnostic result/referral/chart.

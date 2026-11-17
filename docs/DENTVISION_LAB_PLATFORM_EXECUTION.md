@@ -173,7 +173,7 @@ Implemented and added to the exact-head E2E suite: a clinic creates a canonical 
 
 The event-log schema is reconciled with one shared runtime helper used by clinic and partner writers. The helper adds the note column when absent and makes the initial fromStatus nullable. A forward migration records the same correction for already-deployed schemas. The migration has not been applied to any live database.
 
-PARTNER-003 verifies only the current basic handoff and production path. It does not prove QC sign-off, remake authorization, shipping/dispatch, service catalogue/pricing administration, independent invoice/settlement/payout, durable idempotent notifications, AI exception surfacing, or the complete owner/manager/technician permission matrix. D10 remains OPEN.
+PARTNER-003's original checkpoint above predates later QC implementation and must be read as a historical snapshot, not current status. The 2026-11-15 source reconciliation below supersedes its QC finding. The remaining D10 gaps are still open.
 
 ## 2026-11-01 follow-up — PARTNER-003 handoff ownership and clinic notification hardening
 
@@ -190,3 +190,27 @@ Implemented on the existing PR #330 candidate in commits `8dacdb03cc05adec5eba78
 
 **D10 remains PARTIAL/OPEN.** This closes a security/ownership subflow only; the Definition of Done still requires full independent lab service/pricing management, invoice/settlement/payout, delivery/dispatch, complete role matrix, AI exception handling, desktop/mobile UX and end-to-end acceptance. The schema migration remains unapplied to live databases.
 
+
+
+## 2026-11-15 current-source reconciliation — QC implemented; D10 remains open
+
+A read-only comparison of `main` at `4bbd61a339d5f3c4d40d1d5990f633a7b9a87864` confirms that the earlier “QC not implemented” statement is stale:
+
+- `src/pages/diagnostics/DentalLabPlatform.tsx` presents six QC checks: fit/contact, margins, shade, occlusion, surface/polish and documentation/labeling. All checks must be completed; a failed check requires a non-empty note. The UI exposes QC submission only to owner/admin/manager/lab-manager roles.
+- `dentvision-backend/src/modules/lab/labPlatform.routes.ts` exposes `PATCH /api/lab-orders/platform/orders/:id/qc`. The server independently enforces the lab-manager policy, validates the complete checklist and note, records the actor/time, and transitions to `ready` on pass or `remake` on failure. Ordinary status updates cannot bypass the QC state.
+- `dentvision-backend/src/modules/lab/labPlatform.authorization.test.ts` covers manager identification, technician production-only permissions, denial of technician ready/delivered/remake transitions, checklist completeness and mandatory failure reason.
+- `e2e/tests/partner-lifecycle.spec.ts` PARTNER-003 covers technician QC denial (403), technician attempt to bypass QC via status update (409), authorized manager QC pass (200 → ready), and delivery only after QC. It also asserts that delivery does not create dental-lab partner economics before a separate successful settlement.
+
+**Current classification:** QC checklist and pass/sign-off path are implemented in source and covered by the partner lifecycle suite. A QC-failure-to-remake path is represented in code and unit validation, but the full end-to-end remake authorization/feedback lifecycle remains to be verified. Do not describe the whole dental-laboratory cabinet as complete.
+
+**Remaining D10 gaps:**
+
+1. Explicit remake request, authorization, feedback, rework ownership and closed-loop clinic acceptance.
+2. Dispatch/shipping/pickup, tracking and proof-of-delivery.
+3. Independent laboratory services catalogue and pricing administration.
+4. Invoice → payment → settlement → payout, with refunds/chargebacks and idempotent financial reconciliation.
+5. Durable, idempotent notifications across every material transition and AI operational exception summaries.
+6. Complete owner/admin/manager/coordinator/technician/designer/QC/finance permission matrix, including branch scope and negative E2E tests.
+7. Full desktop/mobile acceptance and exact-head CI/E2E evidence for the final integrated workflow.
+
+No production/staging database, migration, payment provider, secret or live partner data was accessed or changed during this reconciliation. D10 remains OPEN/PARTIAL until all remaining lifecycle and release gates pass.

@@ -12,10 +12,15 @@ vi.mock('../../lib/prisma.js', () => ({
       update: vi.fn(),
       delete: vi.fn(),
     },
+    academy: { findUnique: vi.fn() },
+    person: { findFirst: vi.fn() },
+    personRole: { findFirst: vi.fn() },
+    supplierMember: { findUnique: vi.fn() },
   },
 }));
 
 import prisma from '../../lib/prisma.js';
+import { hasOrganizationLegalOwnerAuthority, organizationLegalOwnerRoleKeys } from '../../lib/organizationLegalAccess.js';
 
 describe('Organization model', () => {
   it('has required fields', () => {
@@ -31,7 +36,7 @@ describe('Organization model', () => {
   });
 
   it('supports all org types', () => {
-    const types = ['CLINIC', 'ACADEMY', 'LABORATORY', 'DIAGNOSTIC_CENTER', 'SUPPLIER_COMPANY', 'PARTNER'];
+    const types = ['CLINIC', 'ACADEMY', 'LABORATORY', 'DIAGNOSTIC_CENTER', 'SUPPLIER_COMPANY', 'EMPLOYER', 'PARTNER'];
     for (const t of types) {
       const org = { name: 'Test', type: t };
       expect(types).toContain(org.type);
@@ -106,6 +111,121 @@ describe('organization branch physical schema contract', () => {
 
     expect(branchControl).toContain('ORDER BY "isDefault" DESC, "created_at" ASC');
     expect(branchControl).not.toContain('ORDER BY "isDefault" DESC, "createdAt" ASC');
+  });
+});
+
+describe('organization legal-signature authority', () => {
+  it('grants legal owner authority only to the scoped founding-owner role for each organization type', () => {
+    expect(organizationLegalOwnerRoleKeys('EMPLOYER')).toEqual(['employer_owner']);
+    expect(organizationLegalOwnerRoleKeys('CLINIC')).toEqual(['owner', 'org_owner']);
+    expect(organizationLegalOwnerRoleKeys('DIAGNOSTIC_CENTER')).toEqual(['diagnostic_owner']);
+    expect(organizationLegalOwnerRoleKeys('LABORATORY')).toEqual(['medical_lab_owner', 'dental_lab_owner']);
+    expect(organizationLegalOwnerRoleKeys('SUPPLIER_COMPANY')).toEqual([]);
+    expect(organizationLegalOwnerRoleKeys('ACADEMY')).toEqual([]);
+    expect(organizationLegalOwnerRoleKeys('UNKNOWN')).toEqual([]);
+    expect(organizationLegalOwnerRoleKeys('EMPLOYER')).not.toContain('employer_recruiter');
+    expect(organizationLegalOwnerRoleKeys('EMPLOYER')).not.toContain('employer_viewer');
+  });
+
+  it('grants supplier legal authority only to SupplierMember owners, not every seller', async () => {
+    vi.mocked(prisma.organization.findUnique).mockResolvedValue({
+      originalType: 'Supplier',
+      originalId: 'supplier-1',
+    } as any);
+    vi.mocked(prisma.supplierMember.findUnique).mockResolvedValue({ role: 'owner' } as any);
+    vi.mocked(prisma.person.findFirst).mockResolvedValue({ id: 'person-1' } as any);
+    vi.mocked(prisma.personRole.findFirst).mockResolvedValue({ id: 'role-1' } as any);
+
+    expect(await hasOrganizationLegalOwnerAuthority('owner-1', 'org-1', 'SUPPLIER_COMPANY')).toBe(true);
+    vi.mocked(prisma.supplierMember.findUnique).mockResolvedValue({ role: 'manager' } as any);
+    expect(await hasOrganizationLegalOwnerAuthority('manager-2', 'org-1', 'SUPPLIER_COMPANY')).toBe(false);
+  });
+
+  it('grants Academy legal authority only to the recorded Academy owner, not every lecturer', async () => {
+    vi.mocked(prisma.organization.findUnique).mockResolvedValue({
+      originalType: 'Academy',
+      originalId: 'academy-1',
+    } as any);
+    vi.mocked(prisma.academy.findUnique).mockResolvedValue({ ownerId: 'owner-1' } as any);
+    vi.mocked(prisma.person.findFirst).mockResolvedValue({ id: 'person-1' } as any);
+    vi.mocked(prisma.personRole.findFirst).mockResolvedValue({ id: 'role-1' } as any);
+
+    expect(await hasOrganizationLegalOwnerAuthority('owner-1', 'org-1', 'ACADEMY')).toBe(true);
+    expect(await hasOrganizationLegalOwnerAuthority('lecturer-2', 'org-1', 'ACADEMY')).toBe(false);
+  });
+
+  it('uses the same owner-authority contract for organization archival', async () => {
+    const fs = await import('node:fs/promises');
+    const source = await fs.readFile(
+      resolve(process.cwd(), 'dentvision-backend/src/modules/organizations/organizations.routes.ts'),
+      'utf8',
+    );
+    const archiveStart = source.indexOf("organizationsRouter.delete('/:id'");
+    const archiveEnd = source.indexOf('organizationsRouter.use(requireSuperadmin)', archiveStart);
+    const archiveRoute = source.slice(archiveStart, archiveEnd);
+    expect(archiveRoute).toContain('hasOrganizationLegalOwnerAuthority(req.user!.id, org.id, org.type)');
+    expect(archiveRoute).not.toContain('archiveOwnerRoles');
+  });
+
+  it('requires the owner-authority check before legal package creation and owner signature', async () => {
+    const fs = await import('node:fs/promises');
+    const source = await fs.readFile(
+      resolve(process.cwd(), 'dentvision-backend/src/modules/organizations/organizations.routes.ts'),
+      'utf8',
+    );
+    const legalStart = source.indexOf("organizationsRouter.post('/me/legal'");
+    const verifyStart = source.indexOf("organizationsRouter.post('/me/verification'");
+    const verifyEnd = source.indexOf('// Soft-archive only', verifyStart);
+    const legalRoute = source.slice(legalStart, verifyStart);
+    const verifyRoute = source.slice(verifyStart, verifyEnd);
+    expect(legalRoute).toContain('hasOrganizationLegalOwnerAuthority(req.user!.id, org.id, org.type)');
+    expect(verifyRoute).toContain('hasOrganizationLegalOwnerAuthority(req.user!.id, org.id, org.type)');
+    expect(legalRoute).toContain('ORGANIZATION_LEGAL_OWNER_REQUIRED');
+    expect(verifyRoute).toContain('ORGANIZATION_LEGAL_OWNER_REQUIRED');
+
+    const partnerSource = await fs.readFile(
+      resolve(process.cwd(), 'dentvision-backend/src/modules/legal/legal.partner.routes.ts'),
+      'utf8',
+    );
+    const ownerGuardStart = partnerSource.indexOf('async function requireLegalOwner');
+    const ownerGuard = partnerSource.slice(ownerGuardStart, partnerSource.indexOf('async function resolveRequestPartner', ownerGuardStart));
+    expect(ownerGuard).toContain('hasOrganizationLegalOwnerAuthority');
+    expect(ownerGuard).toContain('ORGANIZATION_LEGAL_OWNER_REQUIRED');
+    for (const routeStart of [
+      "router.post('/documents/regenerate'",
+      "router.post('/documents/:id/sign'",
+      "router.put('/partner'",
+    ]) {
+      const start = partnerSource.indexOf(routeStart);
+      expect(start, routeStart).toBeGreaterThanOrEqual(0);
+      const routeText = partnerSource.slice(start, start + 1800);
+      expect(routeText).toContain('requireLegalOwner(req, res)');
+    }
+    const onboardStart = partnerSource.indexOf("router.post('/onboard'");
+    const onboardRoute = partnerSource.slice(onboardStart, onboardStart + 2600);
+    expect(onboardRoute).toContain('hasOrganizationLegalOwnerAuthority');
+    expect(onboardRoute).toContain('ORGANIZATION_LEGAL_OWNER_REQUIRED');
+  });
+});
+
+describe('organization verification queue lifecycle', () => {
+  it('keeps owner-signed organizations visible for platform countersignature', async () => {
+    const fs = await import('node:fs/promises');
+    const source = await fs.readFile(
+      resolve(process.cwd(), 'dentvision-backend/src/modules/organizations/organizations.routes.ts'),
+      'utf8',
+    );
+    const queueStart = source.indexOf("organizationsRouter.get('/verification/queue'");
+    const queueEnd = source.indexOf("organizationsRouter.post('/:id/verification'", queueStart);
+    const queueRoute = source.slice(queueStart, queueEnd);
+    expect(queueStart).toBeGreaterThan(-1);
+    expect(queueRoute).toContain("['SUBMITTED', 'OWNER_SIGNED', 'PENDING']");
+    expect(queueRoute).toContain("String(settings.verification || 'PENDING').toUpperCase()");
+    const approvalStart = queueEnd;
+    const approvalEnd = source.indexOf('organizationsRouter.get(', approvalStart);
+    const approvalRoute = source.slice(approvalStart, approvalEnd);
+    expect(approvalRoute).toContain("legal.ownerSigned !== true");
+    expect(approvalRoute).toContain("platformSigned: true");
   });
 });
 

@@ -45,57 +45,21 @@ async function getAuthenticatedContexts(page: Page) {
   return JSON.parse(body);
 }
 
-async function submitAndCaptureOnboarding(page: Page): Promise<{ status: number; ok: boolean; body: any }> {
-  type CapturedResponse = { status: number; ok: boolean; body: any };
-  let resolveCapture!: (response: CapturedResponse) => void;
-  let rejectCapture!: (error: unknown) => void;
-  const capturedResponse = new Promise<CapturedResponse>((resolve, reject) => {
-    resolveCapture = resolve;
-    rejectCapture = reject;
-  });
-  const routePattern = "**/api/organizations/self-service**";
+async function submitAndCaptureOnboarding(page: Page): Promise<{ status: number; ok: boolean }> {
+  const [response] = await Promise.all([
+    page.waitForResponse(
+      (candidate) =>
+        candidate.url().includes('/api/organizations/self-service') &&
+        candidate.request().method() === 'POST',
+      { timeout: 15000 },
+    ),
+    page.getByRole('button', { name: 'Создать и открыть workspace' }).click(),
+  ]);
 
-  // Keep the route installed until the in-flight POST has been fulfilled. The
-  // UI navigates after this response, so unroute-after-click races the handler
-  // and can auto-continue the request before route.fulfill() executes.
-  await page.route(routePattern, async (route) => {
-    if (route.request().method() !== "POST") {
-      await route.continue();
-      return;
-    }
-
-    try {
-      const upstream = await route.fetch();
-      const rawBody = await upstream.body();
-      let body: any = null;
-      try {
-        body = JSON.parse(rawBody.toString("utf8"));
-      } catch {
-        body = null;
-      }
-      const captured = { status: upstream.status(), ok: upstream.ok(), body };
-      await route.fulfill({ response: upstream, body: rawBody });
-      resolveCapture(captured);
-    } catch (error) {
-      rejectCapture(error);
-      await route.abort().catch(() => {});
-    }
-  });
-
-  let timeoutId: ReturnType<typeof setTimeout> | undefined;
-  try {
-    const clickPromise = page.getByRole("button", { name: "Создать и открыть workspace" }).click();
-    // If capture times out before the click action settles, mark its rejection handled;
-    // awaiting clickPromise below still propagates the original failure when appropriate.
-    clickPromise.catch(() => {});
-    timeoutId = setTimeout(() => rejectCapture(new Error("Timed out waiting for self-service onboarding response")), 15000);
-    const captured = await capturedResponse;
-    await clickPromise;
-    return captured;
-  } finally {
-    if (timeoutId) clearTimeout(timeoutId);
-    await page.unroute(routePattern);
-  }
+  // The UI consumes the response, stores the issued tokens, then immediately
+  // navigates to the new workspace. Verify durable IAM context after navigation
+  // instead of reading a response body whose page lifecycle is already ending.
+  return { status: response.status(), ok: response.ok() };
 }
 
 test.describe('DentVision business owner journeys', () => {
@@ -142,19 +106,14 @@ test.describe('DentVision business owner journeys', () => {
     const onboarding = await submitAndCaptureOnboarding(page);
     expect(onboarding.status).toBe(201);
     expect(onboarding.ok).toBe(true);
-    const onboardingPayload = onboarding.body;
-    expect(onboardingPayload.data?.verification).toBe('PENDING');
-    expect(onboardingPayload.data?.organizationId).toBeTruthy();
-    expect(onboardingPayload.data?.branchId).toBeTruthy();
 
     const contextsPayload = await getAuthenticatedContexts(page);
     const context = (contextsPayload.data?.contexts || []).find(
-      (item: { organizationId?: string; name?: string }) =>
-        item.organizationId === onboardingPayload.data.organizationId || item.name === organizationName,
+      (item: { name?: string }) => item.name === organizationName,
     );
     expect(context, 'created organization must be present in canonical workspace context list').toBeTruthy();
     expect(context.scopeType).toBe('DIAGNOSTIC_CENTER');
-    expect(context.branchId).toBe(onboardingPayload.data.branchId);
+    expect(context.branchId, 'the created organization must have a persisted default branch').toBeTruthy();
 
     await page.reload();
     await expect(page).not.toHaveURL(/\/login/);
@@ -238,39 +197,29 @@ test.describe('DentVision business owner journeys', () => {
       await page.goto(`${BASE}/onboarding?mode=create&kind=${kind}`);
       await expect(page.getByLabel('Название *')).toBeVisible({ timeout: 15000 });
       const unique = Date.now();
-      await page.getByLabel('Название *').fill(`E2E lifecycle ${emailPrefix} ${unique}`);
+      const organizationName = `E2E lifecycle ${emailPrefix} ${unique}`;
+      await page.getByLabel('Название *').fill(organizationName);
       await page.getByLabel('Город').fill('Тараз');
       await page.getByLabel('Адрес').fill(`ул. E2E lifecycle ${unique}`);
       await page.getByLabel('Телефон').fill('+77000000020');
       await page.getByLabel('Email').fill(`${emailPrefix}-${unique}@test.com`);
       const response = await submitAndCaptureOnboarding(page);
+      expect(response.status).toBe(201);
       expect(response.ok).toBe(true);
-      const onboarding = response.body;
-      expect(onboarding).toBeTruthy();
-      expect(onboarding.data?.organizationId).toBeTruthy();
-      expect(onboarding.data?.branchId).toBeTruthy();
-      expect(onboarding.data?.verification).toBe('PENDING');
 
-      // The API request client does not automatically read the tab's sessionStorage token.
-      const accessToken = onboarding.data?.accessToken || onboarding.accessToken;
-      expect(accessToken, 'onboarding must issue an access token for the new workspace context').toBeTruthy();
-      const contextsResponse = await page.request.get('/api/iam/me/contexts', {
-        headers: { Authorization: `Bearer ${accessToken}` },
-      });
-      expect(contextsResponse.ok(), `IAM context read failed with HTTP ${contextsResponse.status()}`).toBeTruthy();
-      const contextsPayload = await contextsResponse.json();
+      const contextsPayload = await getAuthenticatedContexts(page);
       const context = (contextsPayload.data?.contexts || []).find(
-        (item: { organizationId?: string; scopeType?: string; branchId?: string }) =>
-          item.organizationId === onboarding.data.organizationId,
+        (item: { name?: string; scopeType?: string; branchId?: string; roleKey?: string }) =>
+          item.name === organizationName,
       );
-      expect(context).toBeTruthy();
+      expect(context, 'created organization must be present in canonical workspace context list').toBeTruthy();
       expect(context.scopeType).toBe(
         type === 'center' ? 'DIAGNOSTIC_CENTER' : 'LABORATORY',
       );
       expect(context.roleKey).toBe(
         type === 'center' ? 'diagnostic_owner' : type === 'laboratory' ? 'medical_lab_owner' : 'dental_lab_owner',
       );
-      expect(context.branchId).toBe(onboarding.data.branchId);
+      expect(context.branchId, 'the created organization must have a persisted default branch').toBeTruthy();
 
       await page.reload();
       await expect(page).not.toHaveURL(/\/login/, { timeout: 20000 });

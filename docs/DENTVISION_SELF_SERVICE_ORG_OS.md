@@ -138,3 +138,19 @@ Self-service organization onboarding is complete only when:
 ## Product decision
 
 This document supersedes any flow that requires a DentVision employee to manually create a clinic, diagnostic center, laboratory, seller, academy, or employer as part of normal onboarding. Platform review may still be required for regulated verification or trust/safety, but it is not the user's setup dependency.
+
+
+## Current implementation reconciliation — 2026-11-15
+
+The unified web entry `src/pages/Onboarding.tsx` already supports self-service creation of clinic, diagnostic center, medical lab, dental lab, supplier and academy organizations; personal professional, patient, jobs, student and employer intents; invite lookup and organization join. Do not describe organization onboarding as wholly absent.
+
+**Employer workspace — candidate implementation on PR #348; not yet merged or release-certified.** The former `CORPORATE/JobEmployer` mismatch described in the historical main-source audit is addressed on `audit/ecosystem-parity-remediation-2026-11-15`:
+
+- Unified self-service onboarding creates a first-class `EMPLOYER` Organization and returns an active employer context; the employer intent now has a dedicated `/employer` destination.
+- IAM maps the employer organization context and defines owner, recruiter and read-only viewer permissions. Invitations are organization-scoped; owner/platform roles cannot be granted through the recruiter invitation path.
+- `JobVacancy.employerOrganizationId` and an additive migration bind employer vacancies to their owning Organization. Employer endpoints scope vacancy lists, candidate discovery, application reads and status transitions to the active employer context and record audit events.
+- The application pipeline supports constrained transitions: new → reviewing → interview → offer → hired, with rejection exits and concurrency protection.
+- Employer publication and candidate discovery are blocked until verification and the required legal state are satisfied. The legal templates in this repository remain DRAFT pending authorized Kazakhstan legal review; do not bypass this gate or mark draft documents approved.
+- `src/pages/JobsEmployerWorkspace.tsx` provides the dedicated employer UI; `e2e/tests/jobs-employer.spec.ts` covers onboarding, invitations, role boundaries, legal activation, application lifecycle and tenant isolation.
+
+**Verification boundary:** this is a PR #348 candidate, not merged main functionality. The first exact-head E2E run exposed a test assertion that confused the Organization primary key with the canonical source-entity scope ID; the test now checks both returned identifiers independently and switches using the canonical context. No IAM assertion was weakened. The corrected test and documentation updates require a fresh exact-head CI/E2E run. Treat employer workflow as **implemented candidate / exact-head E2E pending**, not DONE. Candidate resume creation remains a separate user-scoped capability.

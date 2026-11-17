@@ -1,5 +1,148 @@
 # DentVision System Audit
 
+## Current source reconciliation — 2026-11-17
+
+**Audited repository:** `drtamirlan911-cell/DentVision1`  
+**Main source snapshot:** `462c6fcc1994c345b51feabff5f2357debdfffba` (includes merged PR #347 and isolated Codespaces PR #322)  
+**Normative product target:** `docs/DENTVISION_MASTER_SPEC.md` v5.0  
+**Method:** read-only source comparison across the canonical product/AI/CRM/Marketplace/School/Community/Jobs specs, IAM and branch contracts, legal/economics/security documents, route tree, representative frontend workspaces, backend routers/services, Prisma-linked model usage, E2E suites, Android source inventory, generated System Map and exact-main GitHub CI/Quality Gate.
+
+This checkpoint supersedes the September 28 baseline and the October/November historical matrices below where they conflict with the current source. It does not certify production deployment, staging data migration, live payment-provider behavior, or Android device runtime.
+
+### 1. Current technical inventory and verification boundary
+
+| Evidence | Current source result | What it proves / does not prove |
+|---|---:|---|
+| Backend routers mounted | 69 | Server module breadth; not completeness of workflows |
+| Unique route handlers | 695 | Backend API inventory |
+| Registered HTTP routes | 655 | Mounted endpoint inventory |
+| Routes without a detected web/mobile consumer | 98 | Potential integration/consumer gap; requires per-route triage |
+| Prisma models | 150 | Persistence model count; not data integrity or runtime evidence |
+| Background jobs | 12 | Scheduled/worker inventory |
+| Frontend route declarations in `src/index.tsx` | 248 | Static route declarations |
+| Route declarations using `<Navigate>` | 162 | Redirect/alias declarations; not all are defects |
+| Markdown documents in repository tree | 104 | Documentation inventory as of the audited source tree |
+
+**Historical exact-main evidence:** CI [43496476996](https://github.com/drtamirlan911-cell/DentVision1/actions/runs/43496476996) and Quality Gate [43496477034](https://github.com/drtamirlan911-cell/DentVision1/actions/runs/43496477034) passed on the previous baseline `4bbd61a`. PR #347's own exact-head CI and Quality Gate passed before its merge. An exact-head CI/Quality Gate run for current main `462c6fc` was not independently verified in this checkpoint; these checks do not certify production/staging/device/provider operations.
+
+### 2. Cabinet-by-cabinet implementation classification
+
+Status vocabulary: **Implemented slice** means a real workflow with source and test evidence exists; **Partial** means the cabinet has working components but misses one or more Master Spec Definition-of-Done stages; **Not verified** means available evidence is insufficient. No cabinet is marked complete merely because its route renders.
+
+| Participant / cabinet | Confirmed implementation in current source | Current classification | Remaining material gaps |
+|---|---|---|---|
+| Clinic owner / director | CRM pages for schedule, patients, cases, staff, inventory, billing/cashier, documents, treatment plans, marketing and settings; clinic owner E2E journeys | **Partial** | One owner Command Center across operations, approvals, branches and partner bottlenecks; full branch-level visibility for every clinical/financial record; end-to-end growth and reconciliation |
+| Doctor | Patient/clinical case, visit, treatment-plan, dental-chart and diagnostic referral surfaces; clinical AI tools; doctor-scoped diagnostic sign-off | **Partial** | Full clinical graph continuity, confirmed specialist AI workflows, full imaging/3D and offline/mobile parity; not all treatment stages are proven by one E2E journey |
+| Reception / administrator | Schedule, patient inbox, reminders, patient creation and appointment APIs; Reception persona and appointment tools | **Partial** | Durable communications/WhatsApp status and exception queue, waitlist/no-show automation, fully demonstrated role-specific scope across web/mobile |
+| Diagnostic center / radiologist | Diagnostics workspace with referrals, calendar, results, services, payments/cashier, finance/team tabs; AI result draft and doctor/partner signing contracts | **Partial** | Complete modality/equipment/room worklists, acquisition and viewer, RIS/PACS/DICOM interoperability, complete radiology SLA/report/economics lifecycle |
+| Medical laboratory | Separate workspace; order/result detail, sample collection/receipt, processing, result, verification and interpretation endpoints | **Partial** | Canonical accession and chain-of-custody, explicit QC/reject/recollect/release gates, equipment/reagent inventory and validated settlement; current lifecycle does not yet prove the full Master Spec specimen state machine |
+| Dental laboratory / technician | Independent partner workspace, assigned work orders, technician assignment, production states, event history, QC checklist/sign-off, remake/delay states; PARTNER-003 E2E | **Partial — QC implemented** | Remake authorization/feedback closure, dispatch/shipping/pickup tracking and proof of delivery, independent services/pricing, invoice/payment/settlement/payout/refund, complete owner/manager/technician/designer/QC/finance matrix and mobile acceptance |
+| Supplier / manufacturer | Supplier workspace with product/catalog CRUD, stock, orders/status, promotions, analytics, wallet/payout request, delivery zones and insights | **Partial** | Full seller onboarding/KYB to verified catalog publication, complete fulfillment/returns/refunds, provider-backed settlement and partner-margin/ledger reconciliation; manufacturer is currently grouped into supplier UX |
+| Academy owner / lecturer | Learner School catalogue, courses, webinars, office courses, textbooks, enrolments, exams, certificates, tutor/homework review; lecturer workspace for offers/profile/payouts | **Partial** | Distinct academy-owner operating centre, cohort/student/assessment/content pipeline, complete live/practical/certificate verification, finance settlement and organization-wide progress evidence |
+| Student / professional learner | School course discovery, enrolment, lesson/exam/certificate surfaces and professional profile connections | **Partial** | A complete learning-to-credential-to-profile-to-job loop, independently verified certificate trust and progress lifecycle |
+| Patient / buyer | Patient portal, treatment presentation, booking, Shop orders/favorites, profile and notifications; consumer context policy for Academy/Shop | **Partial** | One personal command center for appointments/results/payments/messages/orders, patient access/export/consent/deletion lifecycle and complete consumer audience-negative tests |
+| Employer / recruiter | Employer self-service registration API and basic Jobs listing/application APIs; Employer is an onboarding intent | **Incomplete / Partial** | The frontend employer intent currently routes to `/jobs`; vacancy creation is not demonstrably gated by an employer/recruiter workspace. Backend Jobs router has only list, own applications, employer register, generic create and apply handlers. Missing employer inbox, application status pipeline, interviews, offers, hired/rejected, vacancy edit/close, recruiter permissions and hiring E2E |
+| Job seeker / candidate | Jobs listing/search/city filter, resume-style post, application and own-application listing | **Partial** | Candidate profile/preferences, saved jobs, matching/alerts, messages and complete application-state lifecycle |
+| Community participant | Feed, thread/media-kind posts, likes, saves, comments, DM unread/conversations/messages | **Partial** | Follow graph, nested thread/reply model, stories, media upload/moderation/consent and professional-discovery controls are not proven as a coherent social network |
+| Marketplace buyer | Catalog/product, checkout, orders, favorites, supplier directory and buyer cancellation | **Partial** | Cancellation is intentionally restricted to pending COD/no-payment-intent orders; provider-confirmed void/refund for paid/processing online orders, multi-seller fulfillment/returns and full CRM procurement reconciliation remain incomplete |
+| Finance / partner finance | Wallets, transactions, partner economics dashboards/reconciliation/transparency, ledger health, commission rules, payouts and expenses | **Partial** | Complete accepted → paid → settled evidence for medical analysis and dental lab, provider callbacks, refunds/chargebacks and reconciled organization-specific commercial ledgers |
+| Platform Superadmin | Admin console, platform finance, BI, security/compliance, audit, AI governance, ops/support surfaces | **Partial** | Complete control-plane negative authorization tests, verified administrative runbooks and audited live legal/verification/payment operations |
+| Legal / trust operations | Legal routes, template/document/partner/consent structures, partner agreement/DPA/NDA/SLA and signature evidence concepts | **Partial / runtime not verified** | Versioned auto-package issuance, authority proof, Kazakhstan-compatible electronic-signature provider verification, renewal/suspension/termination and live legal-evidence lifecycle |
+| Android | Native Kotlin app with repositories/APIs and screens across CRM, diagnostics, Shop, School, Jobs, Community, supplier, finance, profile and AI; separate Android CI builds preview APK | **Broad surface; parity/runtime not verified** | Actual install/device-runtime test, role/context journeys, parity against each web capability, offline support boundaries, device-specific accessibility and final release evidence |
+
+### 3. Confirmed information-architecture breaks
+
+The Master Spec allows canonical route aliases when they lead to the same real workflow; it does not allow an alias to masquerade as an implemented capability.
+
+The current `src/index.tsx` route tree declares 248 routes, including 162 redirects. Several target routes that represent distinct public/discovery entities currently redirect to generic destinations:
+
+- `/organizations` and `/organizations/:organizationId` redirect to `/settings`, so the Master Spec organization discovery/public profile contract is not delivered at those canonical destinations.
+- `/professionals/:professionalId` redirects to `/profile`, so a public professional detail route is not implemented there.
+- `/services/:serviceId` redirects to `/shop`, not a service-specific detail destination.
+- Many `/medical-lab/*`, `/dental-lab/*`, `/academy/*`, `/employer/*` and `/business/*` declarations intentionally consolidate to a workspace route. They must be counted as implemented only when the selected workspace exposes the relevant queue/tab/action—not just because the redirect resolves.
+
+Do not mechanically create a separate page for every target route. Reconcile each path to one canonical workspace, tab, entity view or explicitly gated capability; preserve one source of domain truth.
+
+### 4. Cross-cabinet findings
+
+**Identity / onboarding.** `src/pages/Onboarding.tsx` is a real unified entry supporting creation of clinic, diagnostic center, medical lab, dental lab, supplier and academy organizations, plus personal professional, patient, jobs, student and employer intents, invite lookup and join. This is a significant implementation, not an absent feature. The remaining gaps are the incomplete Master Spec organization taxonomy (e.g. medical organization/professional group/manufacturer as distinct first-class types), and the employer intent's route/API integration into an employer workspace and recruiter lifecycle. `src/components/OrganizationOnboarding.tsx` is an older narrower CENTER/LAB flow and must remain a domain-specific adapter, not be confused with the unified entry.
+
+**Active context / IAM.** The unified Person/PersonRole/Organization foundation and partner role registry exist. The branch contract explicitly states that branch management is ahead of branch propagation to all clinical/operational records; branch objects alone are not proof of cross-branch isolation for patients, appointments, inventory, billing, lab orders and analytics. The full negative matrix remains a release requirement.
+
+**AI operating layer.** The eight operational personas and a registry/orchestrator/tool execution path exist in source, including streamed provider responses and confirmation-aware actions. This is beyond a decorative chatbot. It does not prove every role-specific task has an active tool and E2E path, that every domain receives its own queue-aware AI, or that the entire AI agent DAG/governance/long-term memory contract is complete. Legacy clinic-only fallbacks and all persisted PHI readers/writers remain subject to the RB-029 scope audit.
+
+**Clinical graph.** Clinic → diagnostics and clinic → dental-lab handoff are represented by shared entities and partner workflows. Clinical continuity is not yet proven for every chain in Master Spec §12 (diagnosis → imaging/AI findings → plan approval → procedures → lab/materials → payment → follow-up/outcome).
+
+**Economics.** Financial surfaces exist, and the canonical policy correctly prohibits recognizing dental-lab commission at delivery alone. Dental-lab delivery is operational completion, not a settlement event. The medical-analysis and dental-lab settlement paths still need durable provider-backed evidence and reconciliation.
+
+### 5. Release and security posture
+
+- **RB-037 clinical diagnostic sign-off:** resolved in merged code and exact-head CI/E2E; do not leave older lower sections marking it open. Current evidence is recorded in `docs/security/RB-037_CLINICAL_DIAGNOSTIC_SIGNOFF.md` and the reconciled blocker register.
+- **RB-029 PHI:** remains P0/open. New-write encryption improvements and guarded backfill utilities do not prove historical inventory, key lifecycle, retention/export/deletion, backup/restore, rollback and approved staging reconciliation. No historical PHI backfill was executed as part of this audit.
+- **D1/D2 trial/archive, RB-031 WebKit/CORS/WebSocket, RB-033 repository branch protection, RB-035 full role/tenant/branch/session negative matrix, official Kaspi merchant contract/callback, Android device runtime, and D10 remaining lab operations** remain open/partial pending their specific evidence. Do not close them using an unrelated main CI pass.
+- PR #347 is now merged into main; its source protections and guarded backfill tools are present. RB-029 remains P0/open until worker drain/strict cutover, historical PHI inventory/backfill, key lifecycle, retention/export/deletion, backup/restore and staging reconciliation have operational evidence.
+- No production/staging database, medical record, key, secret, payment provider, live contract or deployed runtime was modified or queried.
+
+### 5A.1 Candidate remediation overlay — PR #348 (not merged)
+
+The preceding Jobs/employer gap analysis is correct for the audited `main` baseline SHA, but the same audit branch now contains a candidate implementation that addresses the structural gap. Do not continue repeating the old main-baseline finding as the current branch state.
+
+- Employer self-service creates an `EMPLOYER` Organization and returns the canonical organization context.
+- Employer owner/recruiter/viewer roles and scoped invitations are wired into IAM.
+- Job vacancies have an additive `employerOrganizationId` relation; employer listing, candidate discovery, application reads and constrained application transitions are organization-scoped and audited.
+- A dedicated employer workspace is mounted at `/employer`; the E2E candidate covers onboarding, invitation, authorization boundaries, legal activation, pipeline and cross-employer isolation.
+- Publication/candidate discovery require verified lifecycle and legal owner/platform signature state. The repository's legal templates are still DRAFT, so the gate is intentionally closed until authorized legal approval and signature evidence exist.
+- Candidate verification on the previous PR #348 HEAD: backend/frontend lint, lint-test and Quality Gate passed; the E2E job's first suite failed while later role/context and visual/owner gates were still in progress. The documentation-only follow-up changes require a fresh exact-HEAD CI. Employer status therefore remains **candidate implemented / E2E not yet certified**.
+
+This overlay does not change the historical main-baseline inventory above, and it does not authorize merging PR #348 or activating real employers before legal review.
+
+
+### 5A.2 Latest candidate correction — PR #348 (2026-11-17)
+
+- On pre-sync HEAD `f05a38ccdefc292c90008f3411f2fe601e84709f`, Quality Gate [44126395133](https://github.com/drtamirlan911-cell/DentVision1/actions/runs/44126395133) passed and Vercel Preview was SUCCESS. Full CI/E2E, Android and RB-034 were not verified on that exact SHA.
+- The concurrent Jobs application E2E exposed a real runtime defect: `pg_advisory_xact_lock` returns PostgreSQL `void`; using Prisma `$queryRaw` caused deserialization failure and HTTP 500. The route now uses `$executeRaw`; the route contract test matches Prisma semantics and the employer E2E still verifies duplicate submission behavior.
+- Partner onboarding E2E now waits for HTTP 201 and verifies the persisted canonical IAM context, organization scope, owner role and default branch after navigation. It tests durable state rather than a response-body timing assumption.
+- The candidate branch is being reconciled with merged main history without dropping the EMPLOYER Organization/vacancy relation or legal-owner controls. Fresh exact-head CI/E2E/Android/RB-034 evidence is required after synchronization.
+- Candidate remains **Partial / not release-certified**: approved employer/partner legal templates, interview scheduling, formal offer/contract records, vacancy edit/close, consent-aware candidate communications, vacancy-specific matching and Android employer workspace remain incomplete.
+
+### 5A. Additional cross-cutting findings — documents, Jobs and AI Employee
+
+**Legal documents and partner activation.** The repository contains 16 Legal Engine Markdown files: the registry, patient personal-data/AI consents, partner agreements, DPA, NDA, SLA, marketplace offer and public policies. The inspected registry and templates declare `status: DRAFT` and `requires_legal_review: true`. These are template assets, not approved/effective agreements or proof of a valid signature/consent workflow. The legal partner lifecycle must remain a release blocker until counsel approves applicable versions, published-only template selection is verified, signer authority/evidence is tested, and an appropriate Kazakhstan-compliant signature/acceptance method is approved. Never auto-promote a draft to published/approved in code.
+
+**Jobs / employer identity is a structural gap, not just missing tabs.** Current `JobEmployer` bootstrap creates an Organization with `type: CORPORATE`, `originalType: JobEmployer`, a Person, and a PersonRole. However:
+- `dentvision-backend/src/modules/iam/contexts.ts` does not map `CORPORATE` / `JobEmployer` to a first-class employer scope.
+- The employer bootstrap creates PersonRole without organization `scopeType`, `scopeId` or canonical `scopeKey`, while the current organization-context resolver expects organization-scoped roles.
+- `JobVacancy` has only `userId` and optional `clinicId`; it does not have a canonical employer Organization relation/owner field.
+- Generic authenticated `POST /api/jobs` creates a vacancy or resume from caller-supplied `clinicName` without a verified employer/recruiter context. The backend has no employer-owned vacancy inbox, application status mutation, interview, offer or hire lifecycle endpoints.
+- The frontend employer intent routes to `/jobs`, and current generic post UI does not prove integration with `/api/jobs/employers/register`.
+
+This requires a bounded identity/schema/API/UI/E2E implementation before claiming an employer workspace. Do not fix by trusting a clinic/company name string or adding a global role fallback. Preserve candidate resume posting as a separate, privacy-scoped capability.
+
+**AI Employee work queue exists, but is not ecosystem-wide.** The durable `ai_employee_tasks` table/migrations, service, event subscriber, idempotency index, clinic-scoped approval routes and frontend API/panel component exist. The subscriber preserves event provenance and intentionally avoids copying the raw event payload into another JSONB row. However the task input/table require `clinicId`, the subscriber ignores events without `event.clinicId`, and both task API endpoints require `req.user.clinicId`. This does not provide first-class work queues for independent diagnostic centers, medical/dental laboratories, suppliers, academies or employers. The task panel/component exists, but mounting as the default home surface in every participant workspace is not proven by the audited route component. Keep classification **implemented clinic slice / ecosystem coverage partial**.
+
+**Document-age reconciliation.** `docs/AI_REPORT.md`, `docs/REFACTOR_PLAN.md` and `docs/TECH_DEBT.md` originate from July 2026 and contain pre-migration architecture/backlog claims that no longer match current paths/runtime; the AI report and the June/July technical debt list must not be used as live defect inventories. `docs/CONTINUATION_STATE.md` is a September 14 checkpoint for branch `feat/iam-role-matrix-v2` / PR #275 and is historical, not the active continuation source. The October/November RBAC, auth and compliance audit tables also contain historical gap rows; each requires current-source revalidation before reopening a defect.
+
+### 6. Audit conclusions and execution priority
+
+**The repository is a substantial platform foundation, but it does not yet meet all Master Spec 5.0 Definition-of-Done requirements.** The main gaps are end-to-end workflow depth, first-class partner operations, employer/job lifecycle, public discovery, role/branch isolation, full financial settlement and measured runtime parity—not merely missing screens.
+
+Execution order:
+
+1. Keep RB-029/P0, active-context IAM and all clinical/financial write boundaries fail-closed; complete historical PHI inventory and approved staging plan before backfill.
+2. Complete the partner/branch negative IAM matrix and verify WebKit, CORS/WebSocket and repository protection separately.
+3. Close medical-lab chain-of-custody/validation/release and diagnostic-center modality/worklist/report lifecycle.
+4. Finish dental-lab remake, delivery logistics, service/pricing, invoice/settlement/payout and durable notifications; preserve the settlement-only economics boundary.
+5. Complete employer/recruiter onboarding, permissions and application pipeline; correct vacancy publication authorization before expanding Jobs.
+6. Complete Marketplace refund/fulfillment and Academy economics/credential lifecycle.
+7. Reconcile public organization/professional/service discovery routes with real pages or explicit product decisions.
+8. Verify Android preview install/runtime and compare the same role/workflow matrix with web.
+9. Finish route/visual/accessibility/performance and all remaining release evidence on one exact final HEAD.
+
+A document-only source audit does not qualify any cabinet as production-ready. Use the Master Spec DoD chain for every new closure claim.
+
+---
+
+
 **Date:** 2026-09-28  
 **Audited ref:** `refactor/master-spec-v5-organization-scope`  
 **Audited HEAD:** `b976272185cd7222c479a3bb0d237ec1523c2505`
@@ -430,6 +573,52 @@ Additional implementation now in the branch:
 - Critical inventory restock now enters the existing Marketplace cart and checkout when a deterministic product match exists.
 - Mobile workspace switching copy no longer tells non-clinic users to “create a clinic”; it uses organization-neutral terminology.
 - AI optional sidecars no longer invalidate the authenticated session when their best-effort requests receive an authorization error.
+
+## 9.2 Jobs employer vertical slice — candidate branch PR #348
+
+This section records candidate-branch implementation, not the audited `main` baseline above and not a production/release certification. The branch remains a Draft pull request until exact-head checks and review are complete.
+
+**Implemented in the candidate source**
+- Employer onboarding creates a first-class `EMPLOYER` Organization through the canonical self-service Organization flow and issues an active organization context.
+- Employer access is organization-scoped. The owner/recruiter/viewer role family is governed by the existing IAM permission model; invitations cannot grant owner or platform roles.
+- Vacancy publication and employer candidate discovery require the employer lifecycle/verification state and the required owner/platform signature flags. Public employer vacancy discovery independently checks active lifecycle, verification, ecosystem visibility and both legal signature flags.
+- The employer workspace supports status display, vacancy creation/listing, per-vacancy applicant inbox and valid application-stage transitions: `new → reviewing → interview → offer → hired`, with rejection available from the allowed stages.
+- Candidate resume publication remains a separate `kind=resume` flow. The employer resume API returns a limited field projection rather than candidate email/user identifiers.
+- Vacancy creation and application-status changes write their audit events inside the same Prisma transaction as the business mutation. Candidate resume creation and first application submission have now been brought under the same transaction/audit contract; idempotent retries that return an existing application do not create duplicate audit events. Dedicated route tests cover all four write paths and audit failure behavior. Exact-head CI remains the release verification gate.
+- Candidate application retries are serialized with a transaction-scoped PostgreSQL advisory lock keyed by vacancy and user. This closes the concurrent double-submit race without assuming historical duplicate rows can be safely deleted or applying an unverified unique-index migration. The route contract test checks lock-before-read ordering; the employer E2E now submits two requests concurrently and expects one persisted application (201 + 200 with the same ID).
+- Legacy clinic employer context is now revalidated against `Clinic.active` even when a canonical Organization context is present. Public Jobs discovery includes legacy clinic vacancies only while their clinic is active; unscoped historical user-created vacancies are excluded, while ownerless platform seed listings remain visible. Contract tests cover the inactive-context denial and public-query predicates.
+
+**Android parity correction (candidate branch)**
+- The web Jobs page now exposes a separate candidate entry point for resume publication and an owned-resume list with an open/closed visibility control. Backend `GET /api/jobs/me/resumes` and `PATCH /api/jobs/me/resumes/:id/status` are owner-scoped; visibility changes and their audit events share one Prisma transaction. The E2E lifecycle covers owner isolation, close/hide from employer discovery, and re-opening.
+- Candidate application tracking is now connected to the backend pipeline: `GET /api/jobs/me/applications` returns only the authenticated user's applications plus a restricted public vacancy summary; the web Jobs page renders each current stage (new, reviewing, interview, offer, hired or rejected). The employer stage mutation remains the single source of truth. E2E checks the candidate-visible status before the pipeline starts and after every employer transition; the response omits candidate user IDs/emails and employer organization internals.
+- The Android Jobs screen exposes the public market, text/city search, own applications, application submission and candidate resume publication. It still lacks the owned-resume list/visibility control and the employer workspace, verification status, employer vacancy inbox and pipeline.
+- Source review found that the former Android post form also exposed a “Вакансия” choice but sent it to generic `POST /api/jobs`. That route deliberately rejects vacancy creation; only candidate resumes are accepted there. The Android form is now explicitly resume-only, its generic request defaults to `kind=resume`, and the non-persisted free-text “your name” field was removed because the backend derives the candidate name from the authenticated account.
+- A second response-contract mismatch was corrected: the resume-create route returns `{ ok, data }`, unlike the flat Jobs list/apply routes. Android now decodes the `ApiEnvelope<JobVacancy>` and unwraps it via `apiCall`; a decoder contract test covers the actual response shape.
+- Candidate visibility changes accept only `open` or `closed`; the update is constrained by both the authenticated user ID and `kind=resume`. Another user's resume, or a vacancy, returns 404. Repeating an unchanged status does not write a duplicate audit event.
+- Added `JobsRequestContractTest` to protect the mobile generic-post contract. This is a safety correction, **not** completion of the Android employer cabinet. A mobile employer workspace must later bind to the active Organization context and use the verification-gated employer endpoints; it must not bypass legal/RBAC gates.
+
+**Evidence and remaining limits**
+- `e2e/tests/jobs-employer.spec.ts` contains `JOBS-EMPLOYER-001`: employer onboarding, recruiter invitation/context, legal activation gate, vacancy creation, candidate resume publication/discovery, application pipeline, cross-employer isolation and public-visibility revocation.
+- Candidate discovery is now integrated into the verified web employer workspace: it loads open resumes and supports client-side filtering by title, name field, city, description and tags. It deliberately does not expose candidate email/user IDs in the resume catalogue. However, this is not AI matching: `GET /api/jobs/employer/resumes` still returns all open resumes ordered by creation time, without vacancy-specific ranking, server-side filters, saved searches or candidate contact/consent workflow.
+- `JobApplication` persists a status string; the current data model does not establish separate interview scheduling/calendar records or structured offer/acceptance/contract records. The `interview` and `offer` values are pipeline statuses, not completed interview/offer workflows.
+- Vacancy edit, close/archive and a complete vacancy lifecycle are not present in the current employer route/UI slice.
+- `interview` and `offer` are pipeline status values only: there are no separate interview scheduling/calendar or formal offer/acceptance/contract records yet.
+- Messaging and candidate-facing status notifications, saved searches, favorites, job alerts and a complete communication/consent lifecycle are not proven by the current Jobs E2E.
+- The E2E legal activation step changes settings directly in its isolated CI database. It proves the publication gate but does not prove real signer-authority verification, an effective legal-package lifecycle or a Kazakhstan electronic-signature provider. The legal/trust release blocker above remains open.
+
+**Classification:** the employer vertical slice has advanced from the main-baseline `Incomplete / Partial` description to **Partial with a verified source/E2E candidate implementation**. It is not a complete Professional/Jobs cabinet under Master Spec §20–21 until the remaining discovery, interview/offer, vacancy-lifecycle, communication, audit and mobile acceptance criteria are closed.
+
+## 9.3 Organization-scoped legal authority — candidate branch
+
+- Legal partner onboarding, document regeneration, partner data mutation and document signing now require explicit legal-owner authority in the active Organization scope. Generic clinic administration or ordinary membership does not implicitly confer signing rights.
+- Owner resolution is type-specific: clinic owner/org-owner; diagnostic-center owner; medical/dental laboratory owner; employer owner; partner org-owner; supplier owner membership plus scoped seller identity; Academy canonical `ownerId` plus scoped lecturer identity.
+- Legal package type now follows the canonical Organization type: diagnostic center, medical laboratory vs dental laboratory, supplier company and Academy no longer silently receive a clinic agreement profile. Employer and generic Partner retain their actual type but currently have no approved matching agreement template; this remains a legal/product blocker rather than being disguised as a clinic contract.
+- A legacy unscoped legal partner record is no longer used as a fallback when an active Organization context exists. This prevents an owner of Organization A from accidentally reading or mutating an unrelated legacy legal package while operating in A. Legacy unscoped reads remain possible only when no Organization context can be resolved; write routes still require a resolved Organization and authorized owner.
+- The `/onboard` endpoint now checks organization legal-owner authority **before** returning an already-existing legal package; previously, the existing-package fast path could disclose the package to any authenticated organization member. Regression coverage verifies the denial.
+- Contract test `legal.partner.routes.context.test.ts` verifies both organization-context isolation and the owner check before returning an existing package.
+- This is an authorization correction, **not** legal-readiness certification. The legal registry documents remain drafts pending counsel approval, actual signer-authority verification, effective consent/versioning and Kazakhstan EDS/provider integration.
+
+---
 
 ## 9. Audit conclusion
 

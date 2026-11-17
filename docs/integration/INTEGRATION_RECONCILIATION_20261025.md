@@ -1,5 +1,8 @@
 # DentVision1 integration reconciliation — 2026-10-25
 
+> **Historical integration snapshot — 2026-10-25.** The baseline SHA, integration branch, PR census, branch refs, run IDs and open-status list below are a read-only snapshot of that date. They are not the current open-PR list or current blocker state. Do not merge any branch using this document as approval. Current repository state and source findings: `docs/SYSTEM_AUDIT.md`; current blocker authority: `docs/RELEASE_BLOCKERS.md`; active sequence: `DENTVISION_EXECUTION_PLAN.md`.
+
+
 ## Purpose
 This file is an integration checkpoint on `integration/merge-all-20261025`. It is not a competing roadmap and is not evidence of release readiness. Preserve source branches until the complete integration is verified.
 

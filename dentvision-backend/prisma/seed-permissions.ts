@@ -12,6 +12,9 @@ const LEGACY_ROLES: { key: string; name: string; description: string; permission
   { key: 'nurse', name: 'Ассистент / Медсестра', description: 'Support clinical access', permissionKeys: ROLE_PERMISSIONS['ASSISTANT'] },
   { key: 'seller', name: 'Продавец (поставщик)', description: 'Supplier management access', permissionKeys: ['supplier.manage', 'shop.manage', 'shop.read', 'inventory.read'] },
   { key: 'lecturer', name: 'Лектор', description: 'Academy course management', permissionKeys: ['academy.manage', 'academy.read'] },
+  { key: 'employer_owner', name: 'Работодатель — владелец', description: 'Owns employer workspace, vacancies and hiring pipeline', permissionKeys: [PERMISSIONS.JOBS_READ, PERMISSIONS.JOBS_WRITE, PERMISSIONS.JOBS_MANAGE] },
+  { key: 'employer_recruiter', name: 'Работодатель — рекрутер', description: 'Manages assigned vacancies and candidate pipeline within the employer workspace', permissionKeys: [PERMISSIONS.JOBS_READ, PERMISSIONS.JOBS_WRITE] },
+  { key: 'employer_viewer', name: 'Работодатель — наблюдатель', description: 'Read-only access to employer vacancies and hiring activity', permissionKeys: [PERMISSIONS.JOBS_READ] },
 ];
 
 const CLINIC_ROLES = CLINIC_ROLE_DEFINITIONS.map((definition) => ({

@@ -23,6 +23,7 @@ import {
   canManageMembers,
   generateInviteCode,
   normalizeDiagnosticInviteRole,
+  normalizeEmployerInviteRole,
   rejectInvitation,
 } from './invitations.service.js';
 
@@ -110,6 +111,20 @@ describe('normalizeDiagnosticInviteRole', () => {
 
   it('is case-insensitive about a role it does recognise', () => {
     expect(normalizeDiagnosticInviteRole('Radiologist')).toBe('radiologist');
+  });
+});
+
+describe('normalizeEmployerInviteRole', () => {
+  it('allows only recruiter and read-only employer roles', () => {
+    expect(normalizeEmployerInviteRole('employer_recruiter')).toBe('employer_recruiter');
+    expect(normalizeEmployerInviteRole('employer_viewer')).toBe('employer_viewer');
+  });
+
+  it('does not allow invitees to grant themselves owner or platform roles', () => {
+    expect(normalizeEmployerInviteRole('employer_owner')).toBe('employer_viewer');
+    expect(normalizeEmployerInviteRole('OWNER')).toBe('employer_viewer');
+    expect(normalizeEmployerInviteRole('SUPERADMIN')).toBe('employer_viewer');
+    expect(normalizeEmployerInviteRole(undefined)).toBe('employer_viewer');
   });
 });
 

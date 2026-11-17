@@ -8,9 +8,9 @@
 ## Implementation
 
 ### AI Action Logging
-- Every AI interaction logged to `ai_action_logs` table
-- Fields: userId, patientId, agent, model, request, response, doctorConfirmed
-- UI: Security & Compliance page shows recent AI actions with confirm button
+- Actual AI tool/action execution is evidenced through the current Agentic OS activity/evidence model: `AgentActivity` records allowed/denied/executed tool attempts and `ActionEvidence` records bounded read/write evidence. `AiApproval` records gated high-risk actions and approval decisions; Event OS / AI Employee task records retain event/action provenance. These are distinct record types and must not be collapsed into one generic “every AI interaction” log.
+- Do not write raw chain-of-thought, unrestricted prompts, or duplicate PHI into activity evidence. Use the dedicated redaction/encryption and active-context scope boundaries.
+- The legacy `ai_action_logs` table/UI assertion below is not the canonical current audit contract. The Security & Compliance UI and each record reader must be verified against the current AgentActivity/ActionEvidence/AiApproval sources.
 
 ### Doctor Confirmation
 - AI actions requiring clinical decisions flagged `doctorConfirmed: false`

@@ -33,6 +33,8 @@ const ROLE_OPTIONS = [
   { value: 'director', label: 'Руководитель' },
 ]
 
+const isOwnerStaff = (role?: string) => ['owner', 'director'].includes(String(role || '').toLowerCase());
+
 const INVITE_ROLE_OPTIONS = [
   { value: 'doctor', label: 'Врач' },
   { value: 'assistant', label: 'Ассистент' },
@@ -172,6 +174,10 @@ export default function Staff() {
   const filtered = filter === 'all' ? staff : staff.filter(s => s.role === filter)
 
   const canManage = !!roleInfo?.canAddStaff || iam.can('canManageClinicSettings')
+  const canGrantOwner = String(activeMembership?.role || '').toUpperCase() === 'OWNER' || String(role || '').toUpperCase() === 'SUPERADMIN'
+  const staffRoleOptions = canGrantOwner ? ROLE_OPTIONS : ROLE_OPTIONS.filter((option) => option.value !== 'director')
+  const inviteRoleOptions = canGrantOwner ? INVITE_ROLE_OPTIONS : INVITE_ROLE_OPTIONS.filter((option) => option.value !== 'director')
+  const canManageMember = (member: UserType | null) => canManage && !!member && (!isOwnerStaff(member.role) || canGrantOwner)
 
   const handleInvite = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -239,7 +245,6 @@ export default function Staff() {
           phone: form.phone || undefined,
           role: form.role,
           spec: form.spec || undefined,
-          password: form.password && form.password.length >= 6 ? form.password : undefined,
           commissionPercent: Number(form.commissionPercent) || 0,
           baseSalary: Number(form.baseSalary) || 0,
           payType: form.payType || 'commission',
@@ -384,7 +389,7 @@ export default function Staff() {
             label="Роль *"
             value={inviteForm.role}
             onChange={e => setInviteForm({ ...inviteForm, role: e.target.value })}
-            options={INVITE_ROLE_OPTIONS}
+            options={inviteRoleOptions}
           />
           <div className={cn(
             'p-3 rounded-lg border text-xs text-txt-secondary',
@@ -432,7 +437,7 @@ export default function Staff() {
           label="Роль *"
           value={form.role}
           onChange={e => setForm({ ...form, role: e.target.value })}
-          options={ROLE_OPTIONS}
+          options={staffRoleOptions}
         />
 
         <Select
@@ -653,14 +658,9 @@ export default function Staff() {
             />
           )}
           {editingStaff && (
-            <Input
-              label="Новый пароль (необязательно)"
-              type="password"
-              value={form.password}
-              onChange={e => setForm({ ...form, password: e.target.value })}
-              placeholder="Оставьте пустым, чтобы не менять"
-              icon={<Lock size={16} />}
-            />
+            <p className="text-xs text-txt-muted rounded-lg border border-bdr-subtle bg-surface-2 p-3">
+              Пароль нельзя менять из кабинета клиники. Сотрудник использует безопасную процедуру восстановления доступа.
+            </p>
           )}
         </div>
 
@@ -723,12 +723,12 @@ export default function Staff() {
           </div>
 
           <div className="flex flex-col sm:flex-row gap-2 mt-5">
-            {canManage && (
+            {canManageMember(profileModal) && (
               <Button className="w-full sm:flex-1 min-h-11" icon={<Edit size={16} />} onClick={() => { setProfileModal(null); openEditStaff(profileModal) }}>
                 Редактировать
               </Button>
             )}
-            {canManage && profileModal.id !== user?.id && (
+            {canManageMember(profileModal) && profileModal.id !== user?.id && (
               <Button
                 className="w-full sm:w-auto min-h-11"
                 variant="danger"
@@ -915,7 +915,7 @@ export default function Staff() {
                     </div>
 
                     {/* Actions */}
-                    {canManage && (
+                    {canManageMember(member) && (
                       <div className="mt-3 flex flex-col sm:flex-row gap-2">
                         <Button
                           variant="ghost"

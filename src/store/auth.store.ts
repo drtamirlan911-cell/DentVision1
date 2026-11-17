@@ -46,6 +46,9 @@ export const ORG_ROLES: Record<string, RoleConfig> = {
 }
 
 const PARTNER_ROLE_LABELS: Record<string, string> = {
+  employer_owner: 'Владелец работодателя',
+  employer_recruiter: 'Рекрутер',
+  employer_viewer: 'Наблюдатель работодателя',
   diagnostic_owner: 'Владелец диагностического центра',
   diagnostic_admin: 'Администратор диагностического центра',
   diagnostic_manager: 'Управляющий диагностического центра',

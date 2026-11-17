@@ -16,7 +16,7 @@
 - Role-based: UserRole enum (OWNER/ADMIN/DOCTOR/ASSISTANT/...)
 - Permission-based: granular `domain.action` keys for fine-grained access
 - Middleware: `requirePermission()`, `requireRole()`, `requireMinRole()`, `requireSuperadmin()`
-- Multi-tenant isolation: `clinicId` scoping on all CRM queries
+- Multi-tenant isolation: enforce the verified active `Organization`/workspace context, organization-scoped role and permission, branch/assignment scope, ownership and resource state in server-side queries. `clinicId` remains a clinic-domain compatibility selector where applicable; it is not the universal tenant boundary.
 
 ## Audit
 - All mutating operations logged to `audit_logs` table

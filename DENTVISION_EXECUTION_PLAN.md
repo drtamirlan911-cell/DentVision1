@@ -1,3 +1,29 @@
+## Current execution checkpoint — 2026-11-17 (Master Spec v5.0)
+
+The current cabinet evidence is in `docs/SYSTEM_AUDIT.md`; operational release/security blockers are in `docs/RELEASE_BLOCKERS.md`. Do not create duplicate roadmaps or infer completion from routes, models or screenshots alone.
+
+### Repository and integration state
+- `main` is `462c6fcc1994c345b51feabff5f2357debdfffba`; PR #347 is merged. RB-029 implementation is present in main, but its operational data/key/retention/backup/staging closure remains P0 and open.
+- PR #348 remains the existing ecosystem-parity remediation line. It now incorporates current main history and preserves the employer/Jobs and organization-legal changes. The combined branch needs fresh CI/E2E, Android and RB-034 checks.
+- Pre-sync candidate Quality Gate [44126395133](https://github.com/drtamirlan911-cell/DentVision1/actions/runs/44126395133) and Vercel Preview passed. Full CI/E2E and RB-034 were not verified on that pre-sync SHA.
+- Confirmed Jobs fix: advisory locking uses Prisma `$executeRaw`, not `$queryRaw`, to avoid deserializing PostgreSQL `void`. The onboarding E2E checks persisted Organization/Branch context after redirect.
+- Release remains **NOT READY** until P0/P1 gates and applicable cabinet Definition-of-Done sequences are evidenced.
+
+### Next execution order from verified gaps
+1. **RB-029 / P0:** finish reader/writer/derived-copy inventory, compatibility-worker drain and strict-write cutover plan, key lifecycle/rotation/old-key handling, retention/export/deletion, backup/restore/rollback and approved staging dry-run/reconciliation. Do not run historical PHI writes without explicit target/backup approval.
+2. **IAM/security:** finish RB-035 role × organization × clinic × branch × active/revoked/expired-session negative matrix; verify RB-031 WebKit/CORS/WebSocket evidence and RB-033 main branch protection with repository-admin evidence.
+3. **Diagnostic center and medical laboratory:** complete modality/worklist/reporting and sample accession → chain-of-custody → QC → validation → release, with role gates, result delivery, audit and finance.
+4. **Dental laboratory / D10:** close remake authorization/feedback, dispatch/shipping/proof of delivery, services/pricing, invoices, payment/settlement/payout/refunds, durable notifications and full owner/manager/technician/designer/QC/finance/mobile matrix.
+5. **Employer / Jobs:** keep legal publication closed until approved employer template and signer evidence exist; finish vacancy edit/close, actual interview scheduling, formal offers/contracts, candidate communication/consent, vacancy-specific matching and Android employer workspace.
+6. **Marketplace / Supplier:** complete seller KYB and publication, multi-seller fulfillment, paid-order provider void/refund, returns, payout and CRM procurement reconciliation.
+7. **Academy / Community:** finish academy owner/cohort/content/assessment/certificate/finance loop and community follow/nested-thread/media-consent/moderation workflows.
+8. **Public discovery and clinical UX:** resolve organization/professional/service public detail routes; implement and verify the actual 32-tooth WebGL/3D odontogram with accessible 2D fallback.
+9. **Mobile parity:** verify install/runtime on physical Android devices and role/workflow parity; keep offline PHI boundary explicit.
+10. Run the complete Master Spec matrix on one exact final HEAD: onboarding → context → permission → home → queue → entity → workflow → persistence → notification → finance/outcome → audit → mobile → E2E.
+
+Continue the required loop: `Inspect → implement → test → fix → verify → document → continue`.
+
+
 ## 2026-11-15 — RB-029 staged AI Admin writes and retained queue backfill candidate
 
 - Continued on existing PR #347 / security/rb029-ai-admin-external-id-20261114; no new branch or PR.

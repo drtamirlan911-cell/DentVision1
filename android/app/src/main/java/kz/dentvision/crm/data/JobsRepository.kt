@@ -7,6 +7,7 @@ import kotlinx.serialization.json.JsonElement
 import kz.dentvision.crm.data.api.ApiClient
 import kz.dentvision.crm.data.api.ApiEnvelope
 import kz.dentvision.crm.data.api.ApiException
+import kz.dentvision.crm.data.api.apiCall
 import kz.dentvision.crm.data.model.ApplyJobRequest
 import kz.dentvision.crm.data.model.CreateJobRequest
 import kz.dentvision.crm.data.model.JobApplication
@@ -16,12 +17,10 @@ import java.io.IOException
 import java.net.SocketTimeoutException
 
 /**
- * `POST /api/jobs`, `GET /api/jobs`, `POST /api/jobs/:id/apply` — как
- * `getJobs`/`createJob`/`applyToJob` в `src/utils/api.ts`. Ответы плоские
- * (см. `JobsApi.kt`), поэтому не через общий `apiCall` — тот разворачивает
- * `ApiEnvelope`, которого здесь нет; та же обёртка ошибок, что в
- * `GuestRepository`, просто не общая с ней функция (`toApiException()` в
- * `Calls.kt` приватная).
+ * `GET /api/jobs`, `GET /api/jobs/me/applications` и
+ * `POST /api/jobs/:id/apply` возвращают плоские ответы. Только создание
+ * резюме через `POST /api/jobs` возвращает `ApiEnvelope`, поэтому этот
+ * метод отдельно разворачивается через общий `apiCall`.
  */
 class JobsRepository(private val api: ApiClient = ServiceLocator.api) {
     private val json = Json { ignoreUnknownKeys = true }
@@ -30,7 +29,7 @@ class JobsRepository(private val api: ApiClient = ServiceLocator.api) {
 
     suspend fun myApplications(): List<JobApplication> = call { api.jobs.myApplications() }
 
-    suspend fun create(request: CreateJobRequest): JobVacancy = call { api.jobs.create(request) }
+    suspend fun create(request: CreateJobRequest): JobVacancy = apiCall { api.jobs.create(request) }
 
     suspend fun apply(vacancyId: String, coverNote: String = ""): JobApplication =
         call { api.jobs.apply(vacancyId, ApplyJobRequest(coverNote)) }

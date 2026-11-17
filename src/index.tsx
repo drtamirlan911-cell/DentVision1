@@ -39,6 +39,7 @@ const SettingsPage = lazyWithRetry(() => import('./pages/Settings'));
 const NotificationPreferences = lazyWithRetry(() => import('./pages/NotificationPreferences'));
 const Profile = lazyWithRetry(() => import('./pages/Profile'));
 const Jobs = lazyWithRetry(() => import('./pages/Jobs'));
+const EmployerWorkspace = lazyWithRetry(() => import('./pages/JobsEmployerWorkspace'));
 const Community = lazyWithRetry(() => import('./pages/Community'));
 const Help = lazyWithRetry(() => import('./pages/Help'));
 const Demo = lazyWithRetry(() => import('./pages/Demo'));
@@ -289,10 +290,10 @@ if (container) {
                 <Route path="jobs/matches" element={<Navigate to="/jobs" replace />} />
                 <Route path="jobs/applications" element={<Navigate to="/jobs" replace />} />
                 <Route path="jobs/messages" element={<Navigate to="/jobs" replace />} />
-                <Route path="employer" element={<Navigate to="/jobs" replace />} />
-                <Route path="employer/vacancies" element={<Navigate to="/jobs" replace />} />
-                <Route path="employer/candidates" element={<Navigate to="/jobs" replace />} />
-                <Route path="employer/hiring" element={<Navigate to="/jobs" replace />} />
+                <Route path="employer" element={guarded('employer', <EmployerWorkspace />)} />
+                <Route path="employer/vacancies" element={<Navigate to="/employer" replace />} />
+                <Route path="employer/candidates" element={<Navigate to="/employer" replace />} />
+                <Route path="employer/hiring" element={<Navigate to="/employer" replace />} />
 
                 <Route path="dashboard" element={<Navigate to="/" replace />} />
                 <Route path="intelligence" element={<Navigate to="/ai" replace />} />

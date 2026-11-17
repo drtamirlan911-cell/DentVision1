@@ -29,11 +29,13 @@ test.describe('Academy / Course Workflow', () => {
   /**
    * `api` is a context this file owns, created here and disposed in `afterAll`.
    *
-   * It used to be Playwright's `request` fixture, captured in `beforeAll` and
-   * reused from the tests — which Playwright refuses outright:
-   * "Fixture { request } from beforeAll cannot be reused in a test." Every test
-   * in this file threw that at its first call. Nothing noticed, because the suite
-   * was never run: `test:e2e` is in package.json and in no CI workflow.
+   * It previously captured Playwright's `request` fixture in `beforeAll`,
+   * which Playwright does not allow to be reused from tests. The suite now owns
+   * a dedicated APIRequestContext and disposes it in `afterAll`.
+   *
+   * Current CI's core E2E command includes this file through the
+   * `e2e/tests/*.spec.ts` glob (only explicitly excluded suites are omitted).
+   * Do not reintroduce the old claim that Academy is absent from CI.
    */
   test.beforeAll(async () => {
     api = await apiRequest.newContext();

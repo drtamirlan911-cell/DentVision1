@@ -67,6 +67,9 @@ const PARTNER_ROLE_PRIORITY: Record<string, number> = {
   DIAGNOSTIC_MANAGER: 70,
   MEDICAL_LAB_MANAGER: 70,
   DENTAL_LAB_MANAGER: 70,
+  EMPLOYER_OWNER: 100,
+  EMPLOYER_RECRUITER: 70,
+  EMPLOYER_VIEWER: 40,
 };
 
 export async function resolveOrganizationRoleKey(userId: string, organizationId: string): Promise<string | undefined> {
@@ -171,7 +174,7 @@ export async function resolveAuthContext(
     if (!ctx || ctx.organizationId !== branch.organization_id) return {};
     const person = await prisma.person.findFirst({ where: { userId, organizationId: branch.organization_id }, select: { id: true, personRoles: { select: { role: { select: { key: true } } } }, branchMemberships: { where: { branchId: preferred.branchId }, select: { branchId: true } } } });
     const roleKeys = (person?.personRoles || []).map((r) => r.role.key.toLowerCase());
-    const orgManager = roleKeys.some((key) => ['owner', 'org_owner', 'admin', 'org_admin'].includes(key));
+    const orgManager = roleKeys.some((key) => ['owner', 'org_owner', 'admin', 'org_admin', 'employer_owner'].includes(key));
     const assigned = (person?.branchMemberships?.length || 0) > 0;
     if (!orgManager && !assigned) return {};
     return { ...ctx, branchId: preferred.branchId };

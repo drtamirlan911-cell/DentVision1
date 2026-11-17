@@ -14,10 +14,45 @@ import { PageHeader } from '@/components/ui/ds/StatCard'
 import { Modal } from '@/components/ui/ds/Modal'
 import { CityFilter } from '@/components/ui/CityFilter'
 import { useAuth } from '@/store/auth.store'
-import { applyToJob, createJob, getJobs, getMyJobApplications } from '@/utils/api'
+import { applyToJob, createJob, createEmployerVacancy, getJobs, getMyJobApplications, getMyJobResumes, updateMyJobResumeStatus } from '@/utils/api'
 import { useToast } from '@/components/ui/ds/Toast'
 
 type PostKind = 'vacancy' | 'resume'
+type JobApplicationSummary = {
+  id: string;
+  vacancyId: string;
+  coverNote?: string;
+  status: string;
+  createdAt?: string;
+  vacancy?: {
+    id: string;
+    title: string;
+    clinicName?: string;
+    city?: string;
+    salary?: string;
+    employmentType?: string;
+    status?: string;
+  };
+}
+const APPLICATION_STATUS_LABEL: Record<string, string> = {
+  new: 'Новый',
+  reviewing: 'На рассмотрении',
+  interview: 'Собеседование',
+  offer: 'Предложение',
+  hired: 'Принят',
+  rejected: 'Отклонён',
+}
+type JobResume = {
+  id: string;
+  title: string;
+  city: string;
+  salary?: string;
+  employmentType?: string;
+  description?: string;
+  tags?: string[];
+  status: 'open' | 'closed' | string;
+  createdAt?: string;
+}
 
 const EMPTY_FORM = {
   title: '',
@@ -31,7 +66,7 @@ const EMPTY_FORM = {
 
 export default function JobsPage() {
   const navigate = useNavigate()
-  const { user, clinic, isAuthenticated } = useAuth()
+  const { user, clinic, isAuthenticated, activeWorkspace } = useAuth()
   const { showToast } = useToast()
   const [search, setSearch] = useState(() => {
     try {
@@ -43,6 +78,9 @@ export default function JobsPage() {
   const [city, setCity] = useState('')
   const [vacancies, setVacancies] = useState<any[]>([])
   const [applied, setApplied] = useState<string[]>([])
+  const [myApplications, setMyApplications] = useState<JobApplicationSummary[]>([])
+  const [myResumes, setMyResumes] = useState<JobResume[]>([])
+  const [resumeBusyId, setResumeBusyId] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
 
   const [postOpen, setPostOpen] = useState(false)
@@ -66,8 +104,17 @@ export default function JobsPage() {
       })
       setVacancies(Array.isArray(list) ? list : [])
       if (isAuthenticated) {
-        const apps = await getMyJobApplications().catch(() => [])
+        const [apps, resumes] = await Promise.all([
+          getMyJobApplications().catch(() => []),
+          getMyJobResumes().catch(() => []),
+        ])
         setApplied((apps || []).map((a: any) => a.vacancyId))
+        setMyApplications(Array.isArray(apps) ? apps as JobApplicationSummary[] : [])
+        setMyResumes(Array.isArray(resumes) ? resumes : [])
+      } else {
+        setApplied([])
+        setMyApplications([])
+        setMyResumes([])
       }
     } catch {
       setVacancies([])
@@ -88,10 +135,20 @@ export default function JobsPage() {
       navigate('/login')
       return
     }
+    if (kind === 'vacancy') {
+      const hasEmployerContext = activeWorkspace?.scopeType === 'EMPLOYER';
+      const hasClinicContext = activeWorkspace?.scopeType === 'CLINIC' || !!clinic?.id;
+      if (!hasEmployerContext && !hasClinicContext) {
+        navigate('/onboarding?mode=create&kind=employer')
+        return
+      }
+      navigate('/employer')
+      return
+    }
     setPostKind(kind)
     setForm({
       ...EMPTY_FORM,
-      clinicName: kind === 'vacancy' ? (clinic?.name || '') : (user?.name || ''),
+      clinicName: user?.name || '',
       city: city || clinic?.city || '',
       employmentType: kind === 'resume' ? 'Ищу работу' : 'Полная занятость',
     })
@@ -109,16 +166,16 @@ export default function JobsPage() {
     }
     setSaving(true)
     try {
-      await createJob({
+      const payload = {
         title: form.title.trim(),
-        clinicName: form.clinicName.trim() || undefined,
         city: form.city.trim(),
         salary: form.salary.trim() || undefined,
-        employmentType: form.employmentType,
+        employmentType: postKind === 'resume' ? 'Ищу работу' : form.employmentType,
         description: form.description.trim() || undefined,
         tags: form.tags.split(',').map((t) => t.trim()).filter(Boolean),
-        kind: postKind,
-      })
+      }
+      if (postKind === 'resume') await createJob({ ...payload, kind: 'resume' })
+      else await createEmployerVacancy(payload)
       showToast(postKind === 'resume' ? 'Резюме опубликовано' : 'Вакансия размещена', 'success')
       setPostOpen(false)
       setForm({ ...EMPTY_FORM })
@@ -131,6 +188,20 @@ export default function JobsPage() {
     }
   }
 
+  const changeResumeVisibility = async (resume: JobResume) => {
+    const nextStatus = resume.status === 'open' ? 'closed' : 'open'
+    setResumeBusyId(resume.id)
+    try {
+      await updateMyJobResumeStatus(resume.id, nextStatus)
+      setMyResumes((current) => current.map((item) => item.id === resume.id ? { ...item, status: nextStatus } : item))
+      showToast(nextStatus === 'open' ? 'Резюме снова видно работодателям' : 'Резюме снято с публикации', 'success')
+    } catch (e: any) {
+      showToast(e?.message || 'Не удалось изменить видимость резюме', 'error')
+    } finally {
+      setResumeBusyId(null)
+    }
+  }
+
   const onApply = async (id: string) => {
     if (!isAuthenticated) {
       showToast('Войдите, чтобы откликнуться', 'info')
@@ -140,6 +211,8 @@ export default function JobsPage() {
     try {
       await applyToJob(id)
       setApplied((a) => [...a, id])
+      const applications = await getMyJobApplications().catch(() => [])
+      setMyApplications(Array.isArray(applications) ? applications as JobApplicationSummary[] : [])
       showToast('Отклик отправлен', 'success')
     } catch (e: any) {
       showToast(e?.message || 'Не удалось откликнуться', 'error')
@@ -157,11 +230,22 @@ export default function JobsPage() {
             <Button className="min-h-11" size="sm" variant="secondary" onClick={() => navigate('/', { state: { aiQuery: 'Найди вакансии ортодонта' } })}>
               Спросить AI
             </Button>
-            {user && (
-              <Button className="min-h-11" size="sm" onClick={() => openPost('vacancy')}>
-                <Plus size={14} className="mr-1.5" />
-                Разместить
+            {(activeWorkspace?.scopeType === 'EMPLOYER' || activeWorkspace?.scopeType === 'CLINIC') && (
+              <Button className="min-h-11" size="sm" variant="secondary" onClick={() => navigate('/employer')}>
+                Кабинет работодателя
               </Button>
+            )}
+            {user && (
+              <>
+                <Button className="min-h-11" size="sm" variant="secondary" onClick={() => openPost('resume')}>
+                  <Plus size={14} className="mr-1.5" />
+                  Опубликовать резюме
+                </Button>
+                <Button className="min-h-11" size="sm" onClick={() => openPost('vacancy')}>
+                  <Plus size={14} className="mr-1.5" />
+                  Разместить вакансию
+                </Button>
+              </>
             )}
           </div>
         }
@@ -234,6 +318,95 @@ export default function JobsPage() {
         </div>
       )}
 
+      {isAuthenticated && (
+        <Card className="border border-bdr-subtle">
+          <CardContent className="p-4 space-y-3">
+            <div>
+              <h2 className="text-sm font-semibold text-txt-primary">Мои отклики</h2>
+              <p className="text-xs text-txt-muted">Актуальные этапы рассмотрения от работодателей</p>
+            </div>
+            {myApplications.length === 0 ? (
+              <p className="text-sm text-txt-muted">Вы ещё не откликались на вакансии.</p>
+            ) : (
+              <div className="space-y-2">
+                {myApplications.map((application) => (
+                  <div key={application.id} className="rounded-xl border border-bdr-subtle p-3">
+                    <div className="flex flex-wrap items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium text-txt-primary">
+                          {application.vacancy?.title || 'Вакансия'}
+                        </p>
+                        <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-txt-muted">
+                          {application.vacancy?.clinicName && <span>{application.vacancy.clinicName}</span>}
+                          {application.vacancy?.city && <span>{application.vacancy.city}</span>}
+                          {application.createdAt && <span>{String(application.createdAt).slice(0, 10)}</span>}
+                        </div>
+                      </div>
+                      <Badge variant="outline" size="xs">
+                        {APPLICATION_STATUS_LABEL[application.status] || application.status}
+                      </Badge>
+                    </div>
+                    {application.coverNote && (
+                      <p className="mt-2 whitespace-pre-wrap text-xs text-txt-secondary">{application.coverNote}</p>
+                    )}
+                    {application.vacancy?.status === 'closed' && (
+                      <p className="mt-2 text-xs text-txt-muted">Вакансия закрыта</p>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+      {isAuthenticated && (
+        <Card className="border border-bdr-subtle">
+          <CardContent className="p-4 space-y-3">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div>
+                <h2 className="text-sm font-semibold text-txt-primary">Мои резюме</h2>
+                <p className="text-xs text-txt-muted">Управляйте видимостью резюме для работодателей</p>
+              </div>
+              <Button className="min-h-11" size="sm" variant="secondary" onClick={() => openPost('resume')}>
+                <Plus size={14} className="mr-1.5" /> Новое резюме
+              </Button>
+            </div>
+            {myResumes.length === 0 ? (
+              <p className="text-sm text-txt-muted">Вы ещё не публиковали резюме.</p>
+            ) : (
+              <div className="space-y-2">
+                {myResumes.map((resume) => (
+                  <div key={resume.id} className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-bdr-subtle p-3">
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium text-txt-primary">{resume.title}</p>
+                      <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-txt-muted">
+                        {resume.city && <span>{resume.city}</span>}
+                        {resume.salary && <span>{resume.salary}</span>}
+                        <Badge variant="outline" size="xs">
+                          {resume.status === 'open' ? 'Опубликовано' : 'Скрыто'}
+                        </Badge>
+                      </div>
+                    </div>
+                    <Button
+                      className="min-h-11"
+                      size="sm"
+                      variant="secondary"
+                      loading={resumeBusyId === resume.id}
+                      disabled={!!resumeBusyId}
+                      onClick={() => void changeResumeVisibility(resume)}
+                    >
+                      {resume.status === 'open' ? 'Снять с публикации' : 'Опубликовать'}
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            )}
+            <p className="text-xs text-txt-muted">Скрытые резюме остаются в вашем аккаунте, но не показываются работодателям.</p>
+          </CardContent>
+        </Card>
+      )}
+
       <Modal
         open={postOpen}
         onClose={() => setPostOpen(false)}
@@ -243,7 +416,7 @@ export default function JobsPage() {
       >
         <div className="space-y-3">
           <div className="flex gap-2 mb-1">
-            <Button className="min-h-11" size="sm" variant={postKind === 'vacancy' ? 'primary' : 'secondary'} onClick={() => setPostKind('vacancy')}>
+            <Button className="min-h-11" size="sm" variant={postKind === 'vacancy' ? 'primary' : 'secondary'} onClick={() => { setPostOpen(false); openPost('vacancy') }}>
               Вакансия
             </Button>
             <Button className="min-h-11" size="sm" variant={postKind === 'resume' ? 'primary' : 'secondary'} onClick={() => setPostKind('resume')}>

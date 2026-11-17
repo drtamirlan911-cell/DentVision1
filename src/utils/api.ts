@@ -197,7 +197,7 @@ export interface CommercialTermsResponse { version:string; effectiveDate:string;
 export async function getPublicCommercialTerms():Promise<CommercialTermsResponse>{ const res=await apiRequest('/api/public/commercial-terms'); return res.data??res; }
 export async function getPublicCommercialDocuments(type?:string):Promise<any[]>{ const res=await apiRequest(`/api/public/commercial-documents${type?`?type=${encodeURIComponent(type)}`:''}`); return res.data??res??[]; }
 
-export type SelfServiceOrganizationType = 'clinic' | 'dental_lab' | 'medical_lab' | 'diagnostic_center' | 'supplier' | 'academy';
+export type SelfServiceOrganizationType = 'clinic' | 'dental_lab' | 'medical_lab' | 'diagnostic_center' | 'supplier' | 'academy' | 'employer';
 export async function createSelfServiceOrganization(data: { type: SelfServiceOrganizationType; name: string; city?: string; address?: string; phone?: string; email?: string; taxId?: string }): Promise<any> { return apiRequest('/api/organizations/self-service', { method: 'POST', body: JSON.stringify(data) }); }
 export async function joinClinic(data: { code?: string; clinicId?: string }): Promise<any> { return apiRequest('/api/auth/join-clinic', { method: 'POST', body: JSON.stringify(data) }); }
 export async function lookupInvitation(code: string): Promise<any> { return apiRequest(`/api/auth/invitations/lookup?code=${encodeURIComponent(code)}`); }
@@ -207,7 +207,7 @@ export async function checkoutClinicBilling(plan: string, months = 1): Promise<a
 export async function confirmClinicBilling(paymentId: string): Promise<any> { return apiRequest('/api/clinic-billing/confirm', { method: 'POST', body: JSON.stringify({ paymentId }) }); }
 export async function getClinicBillingPayment(paymentId: string): Promise<any> { return apiRequest(`/api/clinic-billing/payments/${paymentId}`); }
 export function toBackendInviteRole(role?: string): string { const raw = String(role || 'doctor').toLowerCase(); if (raw === 'owner' || raw === 'director') return 'OWNER'; if (raw === 'admin' || raw === 'cashier') return 'ADMIN'; if (raw === 'assistant') return 'ASSISTANT'; if (raw === 'manager') return 'MANAGER'; if (raw === 'lab' || raw === 'laboratory') return 'LAB'; if (raw === 'student' || raw === 'intern') return 'STUDENT'; return 'DOCTOR'; }
-export async function createInvitation(data: { clinicId: string; email?: string; role?: string; spec?: string; expiresInDays?: number }): Promise<any> { return apiRequest('/api/auth/invitations', { method: 'POST', body: JSON.stringify({ clinicId: data.clinicId, email: data.email || undefined, role: toBackendInviteRole(data.role), expiresInDays: data.expiresInDays ?? 7 }) }); }
+export async function createInvitation(data: { clinicId: string; email?: string; role?: string; spec?: string; expiresInDays?: number }): Promise<any> { return apiRequest(`/api/clinics/${encodeURIComponent(data.clinicId)}/invite`, { method: 'POST', body: JSON.stringify({ email: data.email || undefined, role: toBackendInviteRole(data.role), expiresInDays: data.expiresInDays ?? 7 }) }); }
 export async function getInvitation(code: string): Promise<any> { return apiRequest(`/api/auth/invitations/lookup?code=${code}`); }
 export async function getClinics(): Promise<Clinic[]> { const res = await apiRequest('/api/clinics'); return res.data || res; }
 export async function getClinic(clinicId: string): Promise<Clinic> { return apiRequest(`/api/clinics/${clinicId}`); }
@@ -625,8 +625,21 @@ export async function aiDigitalTwin(): Promise<any> { return apiRequest('/api/ai
 export async function aiBriefing(): Promise<AIChatResponse> { const tz = clientTimezoneHeader(); const qs = tz ? `?timezone=${encodeURIComponent(tz)}` : ''; const res = await apiRequestOptional(`/api/ai/briefing${qs}`); const data = res?.data || res || {}; return { reply: data.reply || data.message || '', skill: data.skill || data.intent || 'practice', suggestions: Array.isArray(data.suggestions) ? data.suggestions : [], actions: data.action ? [{ type: data.action.type, label: data.action.type, params: data.action.payload || {}, confidence: 1, requiresConfirmation: false }] : [], proactive: [], conversationContext: { turnCount: 0, entities: {} } }; }
 export async function getJobs(params: Record<string, string> = {}): Promise<any[]> { const q = new URLSearchParams(); Object.entries(params).forEach(([k, v]) => { if (v) q.set(k, v); }); return apiRequest(`/api/jobs?${q}`); }
 export async function createJob(data: any): Promise<any> { return apiRequest('/api/jobs', { method: 'POST', body: JSON.stringify(data) }); }
+export async function createEmployerVacancy(data: any): Promise<any> { return apiRequest('/api/jobs/employer/vacancies', { method: 'POST', body: JSON.stringify(data) }); }
+export async function getEmployerStatus(): Promise<{ organizationType: string; organizationName: string; verificationStatus: string; canPublish: boolean }> { return apiRequest('/api/jobs/employer/status'); }
+export async function getEmployerVacancies(): Promise<any[]> { const data = await apiRequest('/api/jobs/employer/vacancies'); return Array.isArray(data) ? data : []; }
+export async function getEmployerResumes(): Promise<any[]> { const data = await apiRequest('/api/jobs/employer/resumes'); return Array.isArray(data) ? data : []; }
+export async function getEmployerVacancyApplications(id: string): Promise<any[]> { const data = await apiRequest(`/api/jobs/employer/vacancies/${encodeURIComponent(id)}/applications`); return Array.isArray(data) ? data : []; }
+export async function updateEmployerApplicationStatus(id: string, status: string): Promise<any> { return apiRequest(`/api/jobs/employer/applications/${encodeURIComponent(id)}/status`, { method: 'PATCH', body: JSON.stringify({ status }) }); }
 export async function applyToJob(id: string, coverNote = ''): Promise<any> { return apiRequest(`/api/jobs/${id}/apply`, { method: 'POST', body: JSON.stringify({ coverNote }) }); }
 export async function getMyJobApplications(): Promise<any[]> { return apiRequest('/api/jobs/me/applications'); }
+export async function getMyJobResumes(): Promise<any[]> { return apiRequest('/api/jobs/me/resumes'); }
+export async function updateMyJobResumeStatus(id: string, status: 'open' | 'closed'): Promise<any> {
+  return apiRequest(`/api/jobs/me/resumes/${encodeURIComponent(id)}/status`, {
+    method: 'PATCH',
+    body: JSON.stringify({ status }),
+  });
+}
 export async function getCommunityPosts(topic?: string, opts?: { saved?: boolean }): Promise<any[]> { const params = new URLSearchParams(); if (topic && topic !== 'Все') params.set('topic', topic); if (opts?.saved) params.set('saved', '1'); const q = params.toString() ? `?${params.toString()}` : ''; return apiRequest(`/api/community/posts${q}`); }
 export async function createCommunityPost(data: { content: string; tags?: string[]; kind?: string }): Promise<any> { return apiRequest('/api/community/posts', { method: 'POST', body: JSON.stringify(data) }); }
 export async function likeCommunityPost(id: string): Promise<any> { return apiRequest(`/api/community/posts/${id}/like`, { method: 'POST' }); }

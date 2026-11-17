@@ -23,6 +23,9 @@ const ROLE_KEY_MAP: Record<string, UserRole> = {
   // actual seller/lecturer permissions remain authoritative in PersonRole.
   SELLER: 'STUDENT', seller: 'STUDENT',
   LECTURER: 'STUDENT', lecturer: 'STUDENT',
+  EMPLOYER_OWNER: 'OWNER', employer_owner: 'OWNER',
+  EMPLOYER_RECRUITER: 'MANAGER', employer_recruiter: 'MANAGER',
+  EMPLOYER_VIEWER: 'ASSISTANT', employer_viewer: 'ASSISTANT',
   DIAGNOSTIC_OWNER: 'STUDENT', diagnostic_owner: 'STUDENT',
   DIAGNOSTIC_ADMIN: 'STUDENT', diagnostic_admin: 'STUDENT',
   DIAGNOSTIC_MANAGER: 'STUDENT', diagnostic_manager: 'STUDENT',

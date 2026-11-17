@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import type { UserRole } from '@prisma/client';
 import prisma from '../../lib/prisma.js';
 import { authenticate } from '../../middleware/auth.js';
 import type { AuthRequest, ApiResponse } from '../../types/index.js';
@@ -18,6 +19,8 @@ import { resolveClinicAccess } from '../../lib/orgContext.js';
 import { auditFromReq } from '../compliance/audit.service.js';
 import { ClinicPaymentsError, validateClinicGatewayUrl } from '../payments/clinicPayments.js';
 import { createClinicForOwner, normalizeClinicInput } from './clinicCreation.service.js';
+import { authorizeClinicStaffMutation } from './clinicStaffAuthorization.js';
+import { createClinicInvitation } from '../auth/clinicInvitations.service.js';
 
 export const clinicsRouter = Router();
 
@@ -443,28 +446,57 @@ clinicsRouter.put('/:id/settings', authenticate, requireTargetClinicWritable, as
 
 clinicsRouter.post('/:id/invite', authenticate, requireTargetClinicWritable, guardUserCreate, async (req: AuthRequest, res) => {
   try {
-    const id = req.params.id as string;
-
-    const membership = await resolveClinicAccess(req.user!.id, id);
-
-    if (!membership) {
-      return res.status(403).json({ ok: false, error: 'Вы не являетесь участником этой клиники' });
-    }
-
+    const clinicId = req.params.id as string;
+    const membership = await resolveClinicAccess(req.user!.id, clinicId);
+    if (!membership) return res.status(403).json({ ok: false, error: 'Вы не являетесь участником этой клиники' } satisfies ApiResponse);
     if (!['OWNER', 'ADMIN', 'SUPERADMIN'].includes(membership.role)) {
-      return res.status(403).json({ ok: false, error: 'Недостаточно прав для создания приглашений' });
+      return res.status(403).json({ ok: false, error: 'Недостаточно прав для создания приглашений' } satisfies ApiResponse);
     }
 
-    const code = uid().slice(0, 8).toUpperCase();
+    const rawRole = String(req.body?.role || 'DOCTOR').trim().toLowerCase();
+    const allowedInviteRoles = new Set(['owner', 'director', 'admin', 'cashier', 'doctor', 'assistant', 'manager', 'lab', 'laboratory', 'student', 'intern']);
+    if (!allowedInviteRoles.has(rawRole)) {
+      return res.status(400).json({ ok: false, error: 'Недопустимая роль для приглашения', code: 'INVALID_INVITATION_ROLE' } satisfies ApiResponse);
+    }
+    const role = normalizeStaffRole(rawRole);
+    const ownerDecision = authorizeClinicStaffMutation({
+      actorRole: membership.role,
+      nextMemberRole: role,
+      isSuperadmin: req.user?.role === 'SUPERADMIN',
+    });
+    if (ownerDecision.ok === false) {
+      return res.status(ownerDecision.status).json({
+        ok: false,
+        error: 'Назначать владельца клиники может только действующий владелец или Superadmin',
+        code: ownerDecision.code,
+      } satisfies ApiResponse);
+    }
 
-    const response: ApiResponse = {
+    const rawDays = Number(req.body?.expiresInDays ?? 7);
+    const expiresInDays = Number.isFinite(rawDays) ? Math.max(1, Math.min(90, Math.floor(rawDays))) : 7;
+    const expiresAt = new Date(Date.now() + expiresInDays * 24 * 60 * 60 * 1000);
+    const email = String(req.body?.email || '').trim().toLowerCase() || null;
+    if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      return res.status(400).json({ ok: false, error: 'Укажите корректный email для приглашения', code: 'INVALID_INVITATION_EMAIL' } satisfies ApiResponse);
+    }
+    const code = await createClinicInvitation({ clinicId, email, role: role as UserRole, expiresAt });
+    await auditFromReq(req, {
+      action: 'clinic.invitation.created',
+      entity: 'clinic_invitation',
+      entityId: code,
+      details: {
+        clinicId,
+        role,
+        emailBound: Boolean(email),
+        expiresAt: expiresAt.toISOString(),
+      },
+    });
+    return res.status(201).json({
       ok: true,
-      data: { code, clinicId: id },
-    };
-
-    res.status(201).json(response);
+      data: { code, clinicId, email, role, expiresAt: expiresAt.toISOString() },
+    } satisfies ApiResponse);
   } catch (error) {
-    res.status(500).json({ ok: false, error: 'Ошибка при создании приглашения' });
+    return res.status(500).json({ ok: false, error: 'Ошибка при создании приглашения' } satisfies ApiResponse);
   }
 });
 
@@ -479,6 +511,18 @@ clinicsRouter.post('/:id/staff', authenticate, requireTargetClinicWritable, guar
     const email = String(body.email || body.login || '').trim().toLowerCase();
     const password = String(body.password || '');
     const role = normalizeStaffRole(body.role);
+    const ownerDecision = authorizeClinicStaffMutation({
+      actorRole: gate.membership.role,
+      nextMemberRole: role,
+      isSuperadmin: req.user?.role === 'SUPERADMIN',
+    });
+    if (ownerDecision.ok === false) {
+      return res.status(ownerDecision.status).json({
+        ok: false,
+        error: ownerDecision.code === 'OWNER_REQUIRED' ? 'Только владелец клиники может назначать другого владельца' : 'Нельзя удалить последнего владельца клиники',
+        code: ownerDecision.code,
+      } satisfies ApiResponse);
+    }
     const rawName = String(body.name || '').trim();
     const parts = rawName.split(/\s+/).filter(Boolean);
     const firstName = String(body.firstName || parts[0] || 'Сотрудник').trim();
@@ -589,6 +633,34 @@ clinicsRouter.patch('/:id/staff/:userId', authenticate, requireTargetClinicWrita
     }
 
     const body = req.body || {};
+    if (body.password != null) {
+      return res.status(400).json({
+        ok: false,
+        error: 'Пароль сотрудника меняется только через безопасную процедуру восстановления',
+        code: 'PASSWORD_RESET_REQUIRED',
+      } satisfies ApiResponse);
+    }
+    const nextRole = body.role != null ? normalizeStaffRole(body.role) : member.role;
+    const ownerCount = member.role === 'OWNER' && nextRole !== 'OWNER'
+      ? await prisma.clinicMember.count({ where: { clinicId, role: 'OWNER' } })
+      : undefined;
+    const ownerDecision = authorizeClinicStaffMutation({
+      actorRole: gate.membership.role,
+      currentMemberRole: member.role,
+      nextMemberRole: nextRole,
+      ownerCount,
+      isSuperadmin: req.user?.role === 'SUPERADMIN',
+    });
+    if (ownerDecision.ok === false) {
+      return res.status(ownerDecision.status).json({
+        ok: false,
+        error: ownerDecision.code === 'LAST_OWNER'
+          ? 'Нельзя понизить последнего владельца клиники'
+          : 'Изменять профиль владельца или назначать нового владельца может только владелец клиники',
+        code: ownerDecision.code,
+      } satisfies ApiResponse);
+    }
+
     const rawName = body.name != null ? String(body.name).trim() : '';
     const parts = rawName.split(/\s+/).filter(Boolean);
     const firstName = body.firstName != null ? String(body.firstName) : parts[0];
@@ -599,20 +671,14 @@ clinicsRouter.patch('/:id/staff/:userId', authenticate, requireTargetClinicWrita
     if (lastName !== undefined) userData.lastName = lastName;
     if (body.phone !== undefined) userData.phone = body.phone || null;
     if (body.spec !== undefined) userData.spec = body.spec || null;
-    if (body.password && String(body.password).length >= 6) {
-      userData.password = await hashPassword(String(body.password));
-    }
 
     if (Object.keys(userData).length) {
       await prisma.user.update({ where: { id: userId }, data: userData as any });
     }
 
-    let role = member.role;
+    const role = nextRole;
     const memberData: Record<string, unknown> = {};
-    if (body.role != null) {
-      role = normalizeStaffRole(body.role);
-      memberData.role = role;
-    }
+    if (body.role != null) memberData.role = role;
     if (body.commissionPercent != null && Number.isFinite(Number(body.commissionPercent))) {
       memberData.commissionPercent = Math.min(100, Math.max(0, Math.round(Number(body.commissionPercent))));
     }

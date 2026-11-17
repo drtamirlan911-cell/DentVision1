@@ -39,7 +39,7 @@ describe('clinic workspace role matrix', () => {
     const allowedPrefixes = [
       'patients.', 'appointments.', 'medical.', 'billing.', 'inventory.', 'lab.',
       'staff.', 'settings.', 'analytics.', 'diagnostics.', 'shop.', 'academy.',
-      'community.', 'audit.', 'bi.', 'backup.', 'dashboard.',
+      'community.', 'audit.', 'bi.', 'backup.', 'dashboard.', 'jobs.',
     ];
     for (const role of CLINIC_ROLE_DEFINITIONS) {
       expect(role.permissions).not.toContain('*');

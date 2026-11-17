@@ -163,6 +163,37 @@ describe('additional D1 clinical write guard boundaries', () => {
   });
 });
 
+describe('Jobs clinic write boundary', () => {
+  it('blocks expired clinic vacancy and pipeline mutations without applying clinic trials to independent employers', async () => {
+    const text = await source('dentvision-backend/src/modules/jobs/jobs.routes.ts');
+    expect(text).toContain("import { resolveClinicAccess } from '../billing/planEntitlements.js'");
+    expect(text).toContain('async function ensureJobWriteAllowed(scope: JobEmployerScope, res: Response)');
+    expect(text).toContain('if (!scope.clinicId) return true');
+    expect(text).toContain('if (access.writeBlocked)');
+    expect(text).toContain("code: 'SUBSCRIPTION_EXPIRED'");
+    const vacancyRoute = text.indexOf("jobsRouter.post('/employer/vacancies'");
+    const vacancyGuard = text.indexOf('ensureJobWriteAllowed(scope, res)', vacancyRoute);
+    const vacancyWrite = text.indexOf('jobVacancy.create', vacancyRoute);
+    expect(vacancyGuard).toBeGreaterThan(vacancyRoute);
+    expect(vacancyGuard).toBeLessThan(vacancyWrite);
+    const applicationRoute = text.indexOf("jobsRouter.patch('/employer/applications/:id/status'");
+    const applicationGuard = text.indexOf('ensureJobWriteAllowed(scope, res)', applicationRoute);
+    const applicationWrite = text.indexOf('jobApplication.updateMany', applicationRoute);
+    expect(applicationGuard).toBeGreaterThan(applicationRoute);
+    expect(applicationGuard).toBeLessThan(applicationWrite);
+  });
+
+  it('hides employer vacancies from public discovery when organization verification or legal activation is revoked', async () => {
+    const text = await source('dentvision-backend/src/modules/jobs/jobs.routes.ts');
+    expect(text).toContain("path: ['lifecycle'], equals: 'ACTIVE_VERIFIED'");
+    expect(text).toContain("path: ['verification'], equals: 'APPROVED'");
+    expect(text).toContain("path: ['ecosystemVisible'], equals: true");
+    expect(text).toContain("path: ['legal', 'ownerSigned'], equals: true");
+    expect(text).toContain("path: ['legal', 'platformSigned'], equals: true");
+    expect(text).toContain('archivedAt: null');
+  });
+});
+
 describe('trial backfill contract', () => {
   it('does not deactivate Clinic tenancy when an administrative subscription update marks it expired', async () => {
     const text = await source('dentvision-backend/src/modules/billing/subscriptions.routes.ts');
@@ -230,29 +261,29 @@ describe('trial backfill contract', () => {
     expect(text).toContain("where: { id: user.organizationId, archivedAt: null }");
   });
 
-  it('reserves organization archive for owner-level roles, not generic administrators', async () => {
+  it('reserves organization archive for canonical legal owners, not generic administrators or operational staff', async () => {
     const text = await source('dentvision-backend/src/modules/organizations/organizations.routes.ts');
-    const match = text.match(/const archiveOwnerRoles = \[([^\]]+)\]/);
-    expect(match).not.toBeNull();
-    const roles = [...(match?.[1] || '').matchAll(/'([^']+)'/g)].map((entry) => entry[1]);
-    expect(roles).toEqual([
-      'owner', 'org_owner', 'seller', 'lecturer',
-      'diagnostic_owner', 'medical_lab_owner', 'dental_lab_owner',
-    ]);
-    const archiveRoute = text.slice(text.indexOf("organizationsRouter.delete('/:id'"), text.indexOf('organizationsRouter.use(requireSuperadmin)'));
-    expect(archiveRoute).toContain('role: { key: { in: archiveOwnerRoles } }');
+    const archiveStart = text.indexOf("organizationsRouter.delete('/:id'");
+    const archiveEnd = text.indexOf('organizationsRouter.use(requireSuperadmin)', archiveStart);
+    const archiveRoute = text.slice(archiveStart, archiveEnd);
+    expect(archiveRoute).toContain('hasOrganizationLegalOwnerAuthority(req.user!.id, org.id, org.type)');
+    expect(archiveRoute).not.toContain('archiveOwnerRoles');
+    const access = await source('dentvision-backend/src/lib/organizationLegalAccess.ts');
+    expect(access).toContain("membership?.role || '').toLowerCase() !== 'owner'");
+    expect(access).toContain("academy?.ownerId !== userId");
   });
 
-  it('blocks clinic invitation creation and new joins after archive or trial expiry', async () => {
-    const text = await source('dentvision-backend/src/modules/auth/me.routes.ts');
-    expect(text).toContain('ensureClinicContextWritableForInvitation(clinicId, res)');
-    expect(text).toContain("where: { originalType: 'Clinic', originalId: invitation.clinicId, archivedAt: { not: null } }");
-    expect(text).toContain('const subscription = await tx.subscription.findUnique');
-    expect(text).toContain("subscription?.status === 'expired'");
-    expect(text).toContain("subscription?.status === 'suspended'");
-    expect(text).toContain("invitation.clinic.plan === 'DEMO'");
-    expect(text).toContain('TRIAL_DAYS * 24 * 60 * 60 * 1000');
-    expect(text).toContain("new ClinicInvitationError('Пробный период клиники завершён. Присоединение временно недоступно.', 402)");
+  it('blocks clinic invitation creation and canonical joins after archive or trial expiry', async () => {
+    const legacyAuth = await source('dentvision-backend/src/modules/auth/me.routes.ts');
+    const canonicalAuth = await source('dentvision-backend/src/modules/auth/auth.routes.ts');
+    expect(legacyAuth).toContain('ensureClinicContextWritableForInvitation(clinicId, res)');
+    expect(canonicalAuth).toContain("where: { originalType: 'Clinic', originalId: invitation.clinicId, archivedAt: { not: null } }");
+    expect(canonicalAuth).toContain('const subscription = await tx.subscription.findUnique');
+    expect(canonicalAuth).toContain("subscription?.status === 'expired'");
+    expect(canonicalAuth).toContain("subscription?.status === 'suspended'");
+    expect(canonicalAuth).toContain("invitation.clinic.plan === 'DEMO'");
+    expect(canonicalAuth).toContain('TRIAL_DAYS * 24 * 60 * 60 * 1000');
+    expect(canonicalAuth).toContain("code: 'SUBSCRIPTION_EXPIRED'");
   });
 
 

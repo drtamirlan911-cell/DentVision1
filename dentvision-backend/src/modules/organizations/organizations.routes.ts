@@ -4,6 +4,7 @@ import type { Prisma, UserRole } from '@prisma/client';
 import prisma from '../../lib/prisma.js';
 import { authenticate } from '../../middleware/auth.js';
 import { requireSuperadmin } from '../../middleware/rbac.js';
+import { hasOrganizationLegalOwnerAuthority } from '../../lib/organizationLegalAccess.js';
 import type { AuthRequest, ApiResponse } from '../../types/index.js';
 import { uid, paginate, paginatedResponse } from '../../lib/helpers.js';
 import branchesRouter from '../branches/branches.routes.js';
@@ -28,6 +29,7 @@ const SELF_SERVICE_TYPES = {
   diagnostic_center: { orgType: 'DIAGNOSTIC_CENTER', nextPath: '/diagnostics/center' },
   academy: { orgType: 'ACADEMY', nextPath: '/school' },
   supplier: { orgType: 'SUPPLIER_COMPANY', nextPath: '/supplier' },
+  employer: { orgType: 'EMPLOYER', nextPath: '/employer' },
 } as const;
 
 type SelfServiceType = keyof typeof SELF_SERVICE_TYPES;
@@ -40,12 +42,13 @@ function selfServiceRoleKey(type: SelfServiceType): string {
     case 'dental_lab': return 'dental_lab_owner';
     case 'supplier': return 'seller';
     case 'academy': return 'lecturer';
+    case 'employer': return 'employer_owner';
   }
 }
 
 function selfServiceType(value: unknown): SelfServiceType | null {
   const key = String(value || '').trim().toLowerCase() as SelfServiceType;
-  return key in SELF_SERVICE_TYPES ? key : null;
+  return Object.prototype.hasOwnProperty.call(SELF_SERVICE_TYPES, key) ? key : null;
 }
 
 async function ensurePersonRole(
@@ -215,11 +218,31 @@ organizationsRouter.post('/self-service', async (req: AuthRequest, res) => {
         entity = await tx.supplier.create({ data: { id: entityId, name, kind: 'SUPPLIER', bin: taxId, legalAddress: address, contactPerson: `${req.user!.firstName} ${req.user!.lastName}`.trim() || null, phone, email, status: 'pending', commissionRate: 800, members: { create: { userId: req.user!.id, role: 'owner' } } } });
         organizationId = uid();
         await tx.organization.create({ data: { id: organizationId, name, type: 'SUPPLIER_COMPANY' as any, taxId, address, phone, email, originalType: 'Supplier', originalId: entityId, settings: { lifecycle: 'PENDING_VERIFICATION', verification: 'PENDING', ecosystemVisible: false, legal: { status: 'PENDING' }, onboardingKey: idempotencyKey, selfServiceType: type } as any } });
-      } else {
+      } else if (type === 'academy') {
         entityId = uid();
         entity = await tx.academy.create({ data: { id: entityId, name, city: city || null, ownerId: req.user!.id } });
         organizationId = uid();
         await tx.organization.create({ data: { id: organizationId, name, type: 'ACADEMY' as any, taxId, address, phone, email, originalType: 'Academy', originalId: entityId, settings: { lifecycle: 'PENDING_VERIFICATION', verification: 'PENDING', ecosystemVisible: false, legal: { status: 'PENDING' }, onboardingKey: idempotencyKey, selfServiceType: type } as any } });
+      } else {
+        // Employer is a first-class organization workspace, not a clinicName field
+        // or a platform-global job poster. The canonical owner role is scoped
+        // below by ensurePersonRole() and the initial branch is assigned to that owner.
+        entityId = uid();
+        organizationId = uid();
+        entity = await tx.organization.create({
+          data: {
+            id: organizationId,
+            name,
+            type: 'EMPLOYER',
+            taxId,
+            address,
+            phone,
+            email,
+            originalType: 'JobEmployer',
+            originalId: entityId,
+            settings: { lifecycle: 'PENDING_VERIFICATION', verification: 'PENDING', ecosystemVisible: false, legal: { status: 'PENDING' }, onboardingKey: idempotencyKey, selfServiceType: type, hiringEnabled: false } as any,
+          },
+        });
       }
 
       const scopedRoleKey = selfServiceRoleKey(type);
@@ -361,6 +384,9 @@ organizationsRouter.post('/me/legal', requireOrganizationClinicWritable, async (
     const person = await currentOrganizationPerson(req.user!.id, requestedOrganizationId);
     if (!person?.organization) return res.status(404).json({ ok: false, error: 'У вас нет организации' });
     const org = person.organization; const body = req.body || {};
+    if (!(await hasOrganizationLegalOwnerAuthority(req.user!.id, org.id, org.type))) {
+      return res.status(403).json({ ok: false, error: 'Юридические документы может оформлять только уполномоченный владелец организации', code: 'ORGANIZATION_LEGAL_OWNER_REQUIRED' });
+    }
     const legalName = String(body.legalName || org.name).trim(); const bin = String(body.bin || org.taxId || '').trim();
     const director = String(body.director || `${req.user!.firstName} ${req.user!.lastName}`).trim(); const address = String(body.address || org.address || '').trim(); const iban = String(body.iban || '').trim();
     if (!legalName || !bin || !director || !address || !iban) return res.status(400).json({ ok: false, error: 'Заполните юридическое наименование, БИН/ИИН, руководителя, юридический адрес и IBAN.' });
@@ -385,7 +411,11 @@ organizationsRouter.post('/me/verification', requireOrganizationClinicWritable, 
     ).trim();
     const person = await currentOrganizationPerson(req.user!.id, requestedOrganizationId);
     if (!person?.organization) return res.status(404).json({ ok: false, error: 'У вас нет организации' });
-    const org = person.organization; const partner = await getLegalPartnerForContext(req.user!.id, org.id);
+    const org = person.organization;
+    if (!(await hasOrganizationLegalOwnerAuthority(req.user!.id, org.id, org.type))) {
+      return res.status(403).json({ ok: false, error: 'Юридическую подпись может подтвердить только уполномоченный владелец организации', code: 'ORGANIZATION_LEGAL_OWNER_REQUIRED' });
+    }
+    const partner = await getLegalPartnerForContext(req.user!.id, org.id);
     if (!partner) return res.status(400).json({ ok: false, error: 'Сначала заполните юридические реквизиты и сформируйте документы.' });
     const docs = await prisma.legalDocument.findMany({ where: { partnerId: partner.id } });
     const unsigned = docs.filter((d) => String(d.ecpStatus || '') !== 'signed');
@@ -406,21 +436,13 @@ organizationsRouter.delete('/:id', async (req: AuthRequest, res) => {
   try {
     const id = String(req.params.id || '').trim();
     // Organization lifecycle/archiving is owner governance, not routine ADMIN work.
-    // seller/lecturer are the initial scoped owner roles for self-service Supplier/Academy contexts.
-    const archiveOwnerRoles = ['owner', 'org_owner', 'seller', 'lecturer', 'diagnostic_owner', 'medical_lab_owner', 'dental_lab_owner'];
-    const person = req.user?.role === 'SUPERADMIN' ? null : await prisma.person.findFirst({
-      where: {
-        userId: req.user!.id,
-        organizationId: id,
-        organization: { archivedAt: null },
-        personRoles: { some: { scopeType: 'organization', scopeId: id, role: { key: { in: archiveOwnerRoles } } } },
-      },
-      include: { organization: true },
-    });
-    const org = req.user?.role === 'SUPERADMIN'
-      ? await prisma.organization.findFirst({ where: { id, archivedAt: null } })
-      : person?.organization;
+    // Use the same canonical legal-owner contract as document signing. In
+    // particular, an Academy lecturer is not automatically the Academy owner.
+    const org = await prisma.organization.findFirst({ where: { id, archivedAt: null } });
     if (!org) return res.status(404).json({ ok: false, error: 'Организация не найдена или нет прав владельца' } satisfies ApiResponse);
+    if (req.user?.role !== 'SUPERADMIN' && !(await hasOrganizationLegalOwnerAuthority(req.user!.id, org.id, org.type))) {
+      return res.status(404).json({ ok: false, error: 'Организация не найдена или нет прав владельца' } satisfies ApiResponse);
+    }
 
     // Resolve owner authorization before subscription status. This avoids
     // exposing another tenant's trial state to a caller who cannot archive it.
@@ -496,7 +518,7 @@ organizationsRouter.post('/:id/restore', async (req: AuthRequest, res) => {
   }
 });
 
-organizationsRouter.get('/verification/queue', async (req: AuthRequest, res) => {
+organizationsRouter.get('/verification/queue', requireSuperadmin, async (req: AuthRequest, res) => {
   try {
     const organizations = await prisma.organization.findMany({ where: { archivedAt: null }, orderBy: { updatedAt: 'asc' } });
     const data = organizations
@@ -504,7 +526,7 @@ organizationsRouter.get('/verification/queue', async (req: AuthRequest, res) => 
         const settings = (org.settings && typeof org.settings === 'object' && !Array.isArray(org.settings)) ? org.settings as Record<string, unknown> : {};
         return { ...org, verification: String(settings.verification || 'PENDING').toUpperCase() };
       })
-      .filter((org) => org.verification === 'SUBMITTED' || org.verification === 'PENDING');
+      .filter((org) => ['SUBMITTED', 'OWNER_SIGNED', 'PENDING'].includes(org.verification));
     return res.json({ ok: true, data } satisfies ApiResponse);
   } catch (error) {
     console.error('[organizations] verification queue error:', error);
@@ -512,7 +534,7 @@ organizationsRouter.get('/verification/queue', async (req: AuthRequest, res) => 
   }
 });
 
-organizationsRouter.post('/:id/verification', async (req: AuthRequest, res) => {
+organizationsRouter.post('/:id/verification', requireSuperadmin, async (req: AuthRequest, res) => {
   try {
     const id = String(req.params.id); const status = String(req.body?.status || '').toUpperCase();
     const org = await prisma.organization.findUnique({ where: { id } }); if (!org) return res.status(404).json({ ok: false, error: 'Организация не найдена' });
