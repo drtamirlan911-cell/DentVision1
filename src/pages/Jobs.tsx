@@ -18,6 +18,30 @@ import { applyToJob, createJob, createEmployerVacancy, getJobs, getMyJobApplicat
 import { useToast } from '@/components/ui/ds/Toast'
 
 type PostKind = 'vacancy' | 'resume'
+type JobApplicationSummary = {
+  id: string;
+  vacancyId: string;
+  coverNote?: string;
+  status: string;
+  createdAt?: string;
+  vacancy?: {
+    id: string;
+    title: string;
+    clinicName?: string;
+    city?: string;
+    salary?: string;
+    employmentType?: string;
+    status?: string;
+  };
+}
+const APPLICATION_STATUS_LABEL: Record<string, string> = {
+  new: 'Новый',
+  reviewing: 'На рассмотрении',
+  interview: 'Собеседование',
+  offer: 'Предложение',
+  hired: 'Принят',
+  rejected: 'Отклонён',
+}
 type JobResume = {
   id: string;
   title: string;
@@ -54,6 +78,7 @@ export default function JobsPage() {
   const [city, setCity] = useState('')
   const [vacancies, setVacancies] = useState<any[]>([])
   const [applied, setApplied] = useState<string[]>([])
+  const [myApplications, setMyApplications] = useState<JobApplicationSummary[]>([])
   const [myResumes, setMyResumes] = useState<JobResume[]>([])
   const [resumeBusyId, setResumeBusyId] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
@@ -84,9 +109,11 @@ export default function JobsPage() {
           getMyJobResumes().catch(() => []),
         ])
         setApplied((apps || []).map((a: any) => a.vacancyId))
+        setMyApplications(Array.isArray(apps) ? apps as JobApplicationSummary[] : [])
         setMyResumes(Array.isArray(resumes) ? resumes : [])
       } else {
         setApplied([])
+        setMyApplications([])
         setMyResumes([])
       }
     } catch {
@@ -184,6 +211,8 @@ export default function JobsPage() {
     try {
       await applyToJob(id)
       setApplied((a) => [...a, id])
+      const applications = await getMyJobApplications().catch(() => [])
+      setMyApplications(Array.isArray(applications) ? applications as JobApplicationSummary[] : [])
       showToast('Отклик отправлен', 'success')
     } catch (e: any) {
       showToast(e?.message || 'Не удалось откликнуться', 'error')
@@ -287,6 +316,48 @@ export default function JobsPage() {
             </Card>
           ))}
         </div>
+      )}
+
+      {isAuthenticated && (
+        <Card className="border border-bdr-subtle">
+          <CardContent className="p-4 space-y-3">
+            <div>
+              <h2 className="text-sm font-semibold text-txt-primary">Мои отклики</h2>
+              <p className="text-xs text-txt-muted">Актуальные этапы рассмотрения от работодателей</p>
+            </div>
+            {myApplications.length === 0 ? (
+              <p className="text-sm text-txt-muted">Вы ещё не откликались на вакансии.</p>
+            ) : (
+              <div className="space-y-2">
+                {myApplications.map((application) => (
+                  <div key={application.id} className="rounded-xl border border-bdr-subtle p-3">
+                    <div className="flex flex-wrap items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium text-txt-primary">
+                          {application.vacancy?.title || 'Вакансия'}
+                        </p>
+                        <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-txt-muted">
+                          {application.vacancy?.clinicName && <span>{application.vacancy.clinicName}</span>}
+                          {application.vacancy?.city && <span>{application.vacancy.city}</span>}
+                          {application.createdAt && <span>{String(application.createdAt).slice(0, 10)}</span>}
+                        </div>
+                      </div>
+                      <Badge variant="outline" size="xs">
+                        {APPLICATION_STATUS_LABEL[application.status] || application.status}
+                      </Badge>
+                    </div>
+                    {application.coverNote && (
+                      <p className="mt-2 whitespace-pre-wrap text-xs text-txt-secondary">{application.coverNote}</p>
+                    )}
+                    {application.vacancy?.status === 'closed' && (
+                      <p className="mt-2 text-xs text-txt-muted">Вакансия закрыта</p>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
       )}
 
       {isAuthenticated && (
