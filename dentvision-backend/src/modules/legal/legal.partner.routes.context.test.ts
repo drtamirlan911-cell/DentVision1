@@ -5,13 +5,18 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vites
 
 const mocks = vi.hoisted(() => ({
   organizationFindUnique: vi.fn(),
+  organizationFindFirst: vi.fn(),
   legalPartnerFindUnique: vi.fn(),
   getLegalPartnerForContext: vi.fn(),
+  hasOrganizationLegalOwnerAuthority: vi.fn(),
 }));
 
 vi.mock('../../lib/prisma.js', () => ({
   default: {
-    organization: { findUnique: mocks.organizationFindUnique },
+    organization: {
+      findUnique: mocks.organizationFindUnique,
+      findFirst: mocks.organizationFindFirst,
+    },
     legalPartner: { findUnique: mocks.legalPartnerFindUnique },
   },
 }));
@@ -34,9 +39,10 @@ vi.mock('./legal.trust.service.js', () => ({
 }));
 vi.mock('../../lib/orgContext.js', () => ({ resolveAnyClinicMembership: vi.fn() }));
 vi.mock('../../lib/organizationLegalAccess.js', () => ({
-  hasOrganizationLegalOwnerAuthority: vi.fn(),
+  hasOrganizationLegalOwnerAuthority: mocks.hasOrganizationLegalOwnerAuthority,
 }));
 
+import { hasOrganizationLegalOwnerAuthority } from '../../lib/organizationLegalAccess.js';
 import { legalPartnerRouter } from './legal.partner.routes.js';
 
 let server: Server;
@@ -60,6 +66,18 @@ afterAll(async () => {
 beforeEach(() => {
   vi.clearAllMocks();
   mocks.organizationFindUnique.mockResolvedValue({ id: 'org-1' });
+  mocks.organizationFindFirst.mockResolvedValue({
+    id: 'org-1',
+    name: 'Clinic',
+    type: 'CLINIC',
+    originalType: 'Clinic',
+    originalId: 'clinic-1',
+    taxId: '000000000000',
+    address: 'Taraz',
+    phone: '',
+    email: 'clinic@example.test',
+  });
+  mocks.hasOrganizationLegalOwnerAuthority.mockResolvedValue(false);
   mocks.legalPartnerFindUnique.mockResolvedValue({
     id: 'legacy-partner',
     legalName: 'Legacy legal entity',
@@ -87,5 +105,19 @@ describe('legal partner organization context isolation', () => {
     expect(mocks.getLegalPartnerForContext).toHaveBeenCalledTimes(1);
     expect(mocks.getLegalPartnerForContext).toHaveBeenCalledWith('user-1', 'org-1');
     expect(mocks.legalPartnerFindUnique).not.toHaveBeenCalled();
+  });
+
+  it('does not return an existing legal package before checking owner authority', async () => {
+    mocks.getLegalPartnerForContext.mockResolvedValueOnce({ id: 'org-1-partner', legalName: 'Sensitive entity' });
+
+    const response = await fetch(`${baseUrl}/onboard`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({}),
+    });
+
+    expect(response.status).toBe(403);
+    expect((await response.json()).code).toBe('ORGANIZATION_LEGAL_OWNER_REQUIRED');
+    expect(hasOrganizationLegalOwnerAuthority).toHaveBeenCalledWith('user-1', 'org-1', 'CLINIC');
   });
 });
