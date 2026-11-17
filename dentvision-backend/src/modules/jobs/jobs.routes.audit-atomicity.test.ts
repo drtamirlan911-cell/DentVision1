@@ -22,6 +22,7 @@ const mocks = vi.hoisted(() => {
   return {
     tx,
     organizationFindFirst: vi.fn(),
+    clinicFindUnique: vi.fn(),
     vacancyFindUnique: vi.fn(),
     vacancyFindMany: vi.fn(),
     applicationFindUnique: vi.fn(),
@@ -34,6 +35,7 @@ const mocks = vi.hoisted(() => {
 vi.mock('../../lib/prisma.js', () => ({
   default: {
     organization: { findFirst: mocks.organizationFindFirst },
+    clinic: { findUnique: mocks.clinicFindUnique },
     jobVacancy: {
       findUnique: mocks.vacancyFindUnique,
       findMany: mocks.vacancyFindMany,
@@ -110,6 +112,7 @@ beforeEach(() => {
       legal: { ownerSigned: true, platformSigned: true },
     },
   });
+  mocks.clinicFindUnique.mockResolvedValue({ id: 'clinic-1', name: 'Legacy Clinic', active: true });
   mocks.transaction.mockImplementation(async (callback) => callback(mocks.tx));
   mocks.tx.$queryRaw.mockResolvedValue([{ pg_advisory_xact_lock: null }]);
   mocks.auditFromReq.mockResolvedValue(undefined);
@@ -169,6 +172,26 @@ beforeEach(() => {
 });
 
 describe('Jobs mutation audit atomicity', () => {
+  it('rejects an inactive clinic even when its Organization context still exists', async () => {
+    mocks.organizationFindFirst.mockResolvedValueOnce({
+      id: 'clinic-org',
+      name: 'Inactive Clinic',
+      type: 'CLINIC',
+      originalId: 'clinic-1',
+      settings: {},
+    });
+    mocks.clinicFindUnique.mockResolvedValueOnce({ id: 'clinic-1', name: 'Inactive Clinic', active: false });
+
+    const response = await fetch(`${baseUrl}/api/jobs/employer/status`);
+
+    expect(response.status).toBe(403);
+    expect((await response.json()).code).toBe('EMPLOYER_CONTEXT_REQUIRED');
+    expect(mocks.clinicFindUnique).toHaveBeenCalledWith({
+      where: { id: 'clinic-1' },
+      select: { id: true, name: true, active: true },
+    });
+  });
+
   it('returns the authenticated candidate own applications with a limited vacancy summary', async () => {
     const response = await fetch(`${baseUrl}/api/jobs/me/applications`);
 
