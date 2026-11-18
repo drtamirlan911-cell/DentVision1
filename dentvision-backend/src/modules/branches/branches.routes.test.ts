@@ -63,4 +63,21 @@ describe('branch route authorization contract', () => {
     expect(source).toContain("if (!branch.active && !['OWNER', 'ADMIN'].includes(member.role))");
   });
 
+  it('authorizes branch access before disclosing archive state', () => {
+    const workspaceStart = source.indexOf("branchesRouter.post('/:id/workspace'");
+    const workspaceEnd = source.indexOf("branchesRouter.get('/:id/members'", workspaceStart);
+    const workspaceRoute = source.slice(workspaceStart, workspaceEnd);
+    expect(workspaceRoute.indexOf('if (!authz.allowed)')).toBeLessThan(workspaceRoute.indexOf("code: 'BRANCH_ARCHIVED'"));
+
+    const assignmentStart = source.indexOf("branchesRouter.post('/:id/members/:userId'");
+    const assignmentEnd = source.indexOf("branchesRouter.patch('/:id/members/:userId/status'", assignmentStart);
+    const assignmentRoute = source.slice(assignmentStart, assignmentEnd);
+    expect(assignmentRoute.indexOf('if(!authz.allowed)')).toBeLessThan(assignmentRoute.indexOf('Нельзя назначать сотрудников в архивный филиал'));
+
+    const statusStart = source.indexOf("branchesRouter.patch('/:id/members/:userId/status'");
+    const statusEnd = source.indexOf("branchesRouter.delete('/:id/members/:userId'", statusStart);
+    const statusRoute = source.slice(statusStart, statusEnd);
+    expect(statusRoute.indexOf('if(!authz.allowed)')).toBeLessThan(statusRoute.indexOf('Нельзя включить сотрудника в архивном филиале'));
+  });
+
 });
