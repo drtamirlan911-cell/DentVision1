@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { mergeBranchIds, shouldUseLegacyClinicFallback } from './auth.js';
+import { isBranchContextRecoveryPath, isOrganizationBranchManagerRoleKey, mergeBranchIds, shouldUseLegacyClinicFallback } from './auth.js';
 
 describe('mergeBranchIds', () => {
   it('combines universal and legacy branch assignments without duplicates', () => {
@@ -30,5 +30,27 @@ describe('legacy clinic claim fallback', () => {
   it('does not re-resolve a clinic when a clinic context is already active', () => {
     expect(shouldUseLegacyClinicFallback('org-clinic', 'clinic-1')).toBe(false);
     expect(shouldUseLegacyClinicFallback(null, 'clinic-1')).toBe(false);
+  });
+});
+
+
+describe('archived branch recovery policy', () => {
+  it('allows identity/context recovery but not operational APIs', () => {
+    expect(isBranchContextRecoveryPath('/api/auth/me')).toBe(true);
+    expect(isBranchContextRecoveryPath('/api/auth/refresh')).toBe(true);
+    expect(isBranchContextRecoveryPath('/api/auth/logout')).toBe(true);
+    expect(isBranchContextRecoveryPath('/api/iam/me/contexts')).toBe(true);
+    expect(isBranchContextRecoveryPath('/api/iam/switch-context')).toBe(true);
+    expect(isBranchContextRecoveryPath('/api/patients')).toBe(false);
+    expect(isBranchContextRecoveryPath('/api/appointments')).toBe(false);
+    expect(isBranchContextRecoveryPath('/api/finance/invoices')).toBe(false);
+  });
+
+  it('recognizes organization owners/admins but not branch staff as archive managers', () => {
+    expect(isOrganizationBranchManagerRoleKey('owner')).toBe(true);
+    expect(isOrganizationBranchManagerRoleKey('diagnostic_owner')).toBe(true);
+    expect(isOrganizationBranchManagerRoleKey('medical_lab_admin')).toBe(true);
+    expect(isOrganizationBranchManagerRoleKey('doctor')).toBe(false);
+    expect(isOrganizationBranchManagerRoleKey('employer_recruiter')).toBe(false);
   });
 });

@@ -1,11 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { personFindFirst, personFindMany, organizationFindFirst, clinicMemberFindUnique, clinicMemberFindFirst } = vi.hoisted(() => ({
+const { personFindFirst, personFindMany, organizationFindFirst, clinicMemberFindUnique, clinicMemberFindFirst, queryRaw } = vi.hoisted(() => ({
   personFindFirst: vi.fn(),
   personFindMany: vi.fn(),
   organizationFindFirst: vi.fn(),
   clinicMemberFindUnique: vi.fn(),
   clinicMemberFindFirst: vi.fn(),
+  queryRaw: vi.fn(),
 }));
 
 vi.mock('./prisma.js', () => ({
@@ -13,6 +14,7 @@ vi.mock('./prisma.js', () => ({
     person: { findFirst: personFindFirst, findMany: personFindMany },
     organization: { findFirst: organizationFindFirst },
     clinicMember: { findUnique: clinicMemberFindUnique, findFirst: clinicMemberFindFirst },
+    $queryRaw: queryRaw,
   },
 }));
 
@@ -30,6 +32,7 @@ beforeEach(() => {
   organizationFindFirst.mockReset().mockResolvedValue(null);
   clinicMemberFindUnique.mockReset().mockResolvedValue(null);
   clinicMemberFindFirst.mockReset().mockResolvedValue(null);
+  queryRaw.mockReset().mockResolvedValue([]);
 });
 
 describe('resolveAuthContext — preferred organization', () => {
@@ -101,6 +104,29 @@ describe('resolveAuthContext — preferred clinic', () => {
     clinicMemberFindUnique.mockResolvedValueOnce({ id: 'legacy-1' });
     const ctx = await resolveAuthContext(USER_ID, { clinicId: CLINIC_ID });
     expect(ctx).toEqual({});
+  });
+});
+
+describe('resolveAuthContext — archived preferred branch', () => {
+  it('drops an archived preferred branch while retaining the authorized organization context', async () => {
+    personFindFirst.mockResolvedValueOnce({
+      personType: 'CLINIC_STAFF',
+      organizationId: ORG_ID,
+      organization: clinicOrg,
+      personRoles: activeClinicRole,
+    });
+    queryRaw.mockResolvedValueOnce([{ id: 'branch-archived', organization_id: ORG_ID, active: false }]);
+
+    const ctx = await resolveAuthContext(USER_ID, { organizationId: ORG_ID, branchId: 'branch-archived' });
+
+    expect(ctx).toMatchObject({
+      organizationId: ORG_ID,
+      organizationOriginalId: CLINIC_ID,
+      organizationType: 'CLINIC',
+      clinicId: CLINIC_ID,
+    });
+    expect(ctx).not.toHaveProperty('branchId');
+    expect(personFindFirst).toHaveBeenCalledTimes(1);
   });
 });
 

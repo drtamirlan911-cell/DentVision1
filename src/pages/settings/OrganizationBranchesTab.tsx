@@ -95,6 +95,10 @@ export default function OrganizationBranchesTab() {
   }
 
   const switchBranch = async (branch: Branch) => {
+    if (!branch.active) {
+      setError('Филиал архивирован. Сначала восстановите его или выберите активный филиал.')
+      return
+    }
     setBusy(true); setError('')
     try {
       const result = await api.switchContext('organization', organization.id, branch.id)
@@ -123,8 +127,16 @@ export default function OrganizationBranchesTab() {
     finally { setBusy(false) }
   }
 
+  const restore = async () => {
+    if (!selectedBranch || selectedBranch.active) return
+    setBusy(true); setError('')
+    try { await api.updateBranch(selectedBranch.id, { active: true }); await load() }
+    catch (e: any) { setError(e?.message || 'Не удалось восстановить филиал') }
+    finally { setBusy(false) }
+  }
+
   const assign = async (userId: string) => {
-    if (!selectedBranch || !userId) return
+    if (!selectedBranch || !selectedBranch.active || !userId) return
     setBusy(true); setError('')
     try { await api.assignBranchMember(selectedBranch.id, userId); await loadMembers(selectedBranch.id) }
     catch (e: any) { setError(e?.message || 'Не удалось назначить сотрудника') }
@@ -132,7 +144,7 @@ export default function OrganizationBranchesTab() {
   }
 
   const toggleMember = async (userId: string, active: boolean) => {
-    if (!selectedBranch || !userId) return
+    if (!selectedBranch || !userId || (active && !selectedBranch.active)) return
     setBusy(true); setError('')
     try { await api.setBranchMemberActive(selectedBranch.id, userId, active); await loadMembers(selectedBranch.id) }
     catch (e: any) { setError(e?.message || 'Не удалось изменить доступ сотрудника') }
@@ -199,6 +211,7 @@ export default function OrganizationBranchesTab() {
             <Button size="sm" icon={<Plus size={14} />} onClick={() => { setCreating(true); setEditing({ id: '', name: '', code: '', city: '', address: '', phone: '', active: true }) }}>Новый филиал</Button>
             {selectedBranch && <Button size="sm" variant="secondary" icon={<Edit3 size={14} />} onClick={() => setEditing({ ...selectedBranch })}>Редактировать</Button>}
             {selectedBranch && selectedBranch.active && <Button size="sm" variant="ghost" onClick={() => void archive()}>Архивировать</Button>}
+            {selectedBranch && !selectedBranch.active && <Button size="sm" variant="secondary" onClick={() => void restore()} disabled={busy}>Восстановить филиал</Button>}
             {selectedBranch && selectedBranch.active && !selectedBranch.isDefault && <Button size="sm" variant="ghost" onClick={() => void makeDefault()}>Сделать основным</Button>}
             {selectedBranch && selectedBranch.active && <Button size="sm" variant="ghost" onClick={() => void switchBranch(selectedBranch)}>Открыть филиал</Button>}
           </div>
@@ -239,7 +252,7 @@ export default function OrganizationBranchesTab() {
                 </div>}
               </div>
             )) : <p className="text-sm text-txt-muted">В филиале пока нет сотрудников.</p>}
-            {assignable.length > 0 && (
+            {selectedBranch.active && assignable.length > 0 && (
               <div>
                 <p className="text-xs text-txt-muted mb-2">Назначить сотрудника</p>
                 <div className="flex flex-wrap gap-2">

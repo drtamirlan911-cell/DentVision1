@@ -56,4 +56,11 @@ describe('branch route authorization contract', () => {
     expect(source).toContain("BRANCH_MEMBER_ASSIGNED_ELSEWHERE");
   });
 
+  it('keeps archived branches out of operational workspace and staff assignment', () => {
+    expect(source).toContain("if (!branch.active) return res.status(409)");
+    expect(source).toContain("code: 'BRANCH_ARCHIVED'");
+    expect(source).toContain("if (active && !branch.active)");
+    expect(source).toContain("if (!branch.active && !['OWNER', 'ADMIN'].includes(member.role))");
+  });
+
 });
