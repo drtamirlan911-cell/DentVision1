@@ -23,7 +23,8 @@ const clinicDoctor = {
 
 describe('diagnostic referral branch archive enforcement', () => {
   it('denies a doctor whose only legacy clinic-member assignment points to an archived branch', async () => {
-    queryRaw.mockResolvedValueOnce([{ branch_id: 'branch-old', branch_active: false }]);
+    queryRaw.mockResolvedValueOnce([{ branch_id: 'branch-old', branch_active: false }])
+      .mockResolvedValueOnce([]);
 
     await expect(canAccessReferralBranch(clinicDoctor, {
       clinicId: 'clinic-1',
@@ -42,7 +43,8 @@ describe('diagnostic referral branch archive enforcement', () => {
   });
 
   it('continues to allow an assigned doctor in an active branch', async () => {
-    queryRaw.mockResolvedValueOnce([{ branch_id: 'branch-active', branch_active: true }]);
+    queryRaw.mockResolvedValueOnce([{ branch_id: 'branch-active', branch_active: true }])
+      .mockResolvedValueOnce([{ id: 'branch-active' }]);
 
     await expect(canAccessReferralBranch(clinicDoctor, {
       clinicId: 'clinic-1',
