@@ -186,7 +186,8 @@ async function authorizeMemberBranch(userId: string, clinicId: string, branch: B
   if (archivedOrganization) return { allowed: false as const, status: 404, error: 'Клиника не найдена' };
   const member = await membership(userId, clinicId);
   if (!member) return { allowed: false as const, status: 403, error: 'Вы не являетесь участником этой клиники' };
-  if (member.branch_id && member.branch_active === false) return { allowed: false as const, status: 403, error: 'Доступ сотрудника к филиалу отключён' };
+  if (member.branch_id && member.branch_active === false && !['OWNER', 'ADMIN'].includes(member.role)) return { allowed: false as const, status: 403, error: 'Доступ сотрудника к филиалу отключён' };
+  if (!branch.active && !['OWNER', 'ADMIN'].includes(member.role)) return { allowed: false as const, status: 403, error: 'Филиал архивирован' };
   const clinicOrganizationId = await resolveOrganizationIdForClinic(clinicId);
   const expectedOrganizationId = clinicOrganizationId ?? `legacy:${clinicId}`;
   if (branch.organization_id && branch.organization_id !== expectedOrganizationId) return { allowed: false as const, status: 403, error: 'Филиал принадлежит другой организации' };
@@ -420,6 +421,7 @@ branchesRouter.post('/:id/workspace', async (req: AuthRequest, res) => {
   try {
     const branch = await loadBranch(branchId);
     if (!branch) return res.status(404).json({ ok: false, error: 'Филиал не найден' });
+    if (!branch.active) return res.status(409).json({ ok: false, error: 'Архивный филиал нельзя открыть как рабочее пространство', code: 'BRANCH_ARCHIVED' });
     const authz = branch.organization_id && !branch.clinic_id
       ? await authorizeOrganizationBranch(req.user!.id, branch.organization_id, branch)
       : branch.clinic_id
@@ -465,6 +467,7 @@ branchesRouter.post('/:id/members/:userId', enforceTargetClinicTrial, async (req
   try {
     const branch=await loadBranch(branchId);
     if(!branch)return res.status(404).json({ok:false,error:'Филиал не найден'});
+    if(!branch.active)return res.status(409).json({ok:false,error:'Нельзя назначать сотрудников в архивный филиал',code:'BRANCH_ARCHIVED'});
     if(branch.clinic_id){
       const authz=await authorizeMemberBranch(req.user!.id,branch.clinic_id,branch,true);
       if(!authz.allowed)return res.status(authz.status).json({ok:false,error:authz.error});
@@ -493,6 +496,7 @@ branchesRouter.patch('/:id/members/:userId/status', enforceTargetClinicTrial, as
   try {
     const branch=await loadBranch(branchId);
     if(!branch)return res.status(404).json({ok:false,error:'Филиал не найден'});
+    if(active && !branch.active)return res.status(409).json({ok:false,error:'Нельзя включить сотрудника в архивном филиале',code:'BRANCH_ARCHIVED'});
     if(branch.clinic_id){
       const authz=await authorizeMemberBranch(req.user!.id,branch.clinic_id,branch,true);
       if(!authz.allowed)return res.status(authz.status).json({ok:false,error:authz.error});
@@ -547,6 +551,7 @@ branchesRouter.post('/:id/default', enforceTargetClinicTrial, async (req: AuthRe
   try {
     const branch = await loadBranch(branchId);
     if (!branch) return res.status(404).json({ ok: false, error: 'Филиал не найден' });
+    if (!branch.active) return res.status(409).json({ ok: false, error: 'Архивный филиал нельзя назначить основным', code: 'BRANCH_ARCHIVED' });
     if (branch.organization_id && !branch.clinic_id) {
       const authz = await authorizeOrganizationBranch(req.user!.id, branch.organization_id, branch, true);
       if (!authz.allowed) return res.status(authz.status).json({ ok: false, error: authz.error });

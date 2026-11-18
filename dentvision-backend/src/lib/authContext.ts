@@ -167,14 +167,22 @@ export async function resolveAuthContext(
   }
 
   if (preferred?.branchId) {
-    const rows = await prisma.$queryRaw<Array<{ id: string; organization_id: string | null }>>`SELECT "id", "organization_id" FROM "branches" WHERE "id" = ${preferred.branchId} LIMIT 1`;
+    const rows = await prisma.$queryRaw<Array<{ id: string; organization_id: string | null; active: boolean }>>`SELECT "id", "organization_id", "active" FROM "branches" WHERE "id" = ${preferred.branchId} LIMIT 1`;
     const branch = rows[0];
     if (!branch?.organization_id) return {};
     const ctx = await contextForOrganization(userId, preferred.organizationId || branch.organization_id);
     if (!ctx || ctx.organizationId !== branch.organization_id) return {};
-    const person = await prisma.person.findFirst({ where: { userId, organizationId: branch.organization_id }, select: { id: true, personRoles: { select: { role: { select: { key: true } } } }, branchMemberships: { where: { branchId: preferred.branchId }, select: { branchId: true } } } });
+    if (!branch.active) return ctx;
+    const person = await prisma.person.findFirst({
+      where: { userId, organizationId: branch.organization_id },
+      select: {
+        id: true,
+        personRoles: { where: { scopeType: 'organization', scopeId: branch.organization_id }, select: { role: { select: { key: true } } } },
+        branchMemberships: { where: { branchId: preferred.branchId, active: true, branch: { is: { active: true } } }, select: { branchId: true } },
+      },
+    });
     const roleKeys = (person?.personRoles || []).map((r) => r.role.key.toLowerCase());
-    const orgManager = roleKeys.some((key) => ['owner', 'org_owner', 'admin', 'org_admin', 'employer_owner'].includes(key));
+    const orgManager = roleKeys.some((key) => ['owner', 'org_owner', 'admin', 'org_admin'].includes(key) || /_(owner|admin)$/.test(key));
     const assigned = (person?.branchMemberships?.length || 0) > 0;
     if (!orgManager && !assigned) return {};
     return { ...ctx, branchId: preferred.branchId };

@@ -301,8 +301,15 @@ iamRouter.get('/me/contexts', async (req: AuthRequest, res) => {
       `;
       const defaultBranchByOrg = new Map(branchRows.map((row) => [row.organizationId, row.branchId]));
       for (const context of contexts) {
-        if (context.organizationId === req.user?.organizationId && req.user?.branchId) {
-          context.branchId = String(req.user.branchId);
+        const isCurrentContext = context.organizationId === req.user?.organizationId || (context.scopeType === 'CLINIC' && context.scopeId === req.user?.clinicId);
+        if (isCurrentContext) {
+          if (req.user?.branchId) context.branchId = String(req.user.branchId);
+          else if (req.user?.branchIds?.length) context.branchId = req.user.branchIds[0];
+          else {
+            const roleKey = String(context.roleKey || '').split(',')[0].trim().toLowerCase();
+            const manager = ['owner', 'org_owner', 'admin', 'org_admin'].includes(roleKey) || /_(owner|admin)$/.test(roleKey) || ['OWNER', 'ADMIN', 'SUPERADMIN'].includes(String(req.user?.role || '').toUpperCase());
+            context.branchId = manager && context.organizationId ? defaultBranchByOrg.get(context.organizationId) : undefined;
+          }
           continue;
         }
         if (!context.branchId && context.organizationId) {
@@ -365,14 +372,18 @@ iamRouter.post('/switch-context', async (req: AuthRequest, res) => {
         }
         let selectedBranchId: string | undefined;
         if (branchId) {
-          const rows = await prisma.$queryRaw<Array<{ id: string; organization_id: string | null }>>`SELECT "id", "organization_id" FROM "branches" WHERE "id" = ${branchId} LIMIT 1`;
+          const rows = await prisma.$queryRaw<Array<{ id: string; organization_id: string | null; active: boolean }>>`SELECT "id", "organization_id", "active" FROM "branches" WHERE "id" = ${branchId} LIMIT 1`;
           if (!rows[0] || rows[0].organization_id !== org.id) return res.status(403).json({ ok: false, error: 'Филиал не относится к выбранной организации' });
+          if (!rows[0].active) return res.status(409).json({ ok: false, error: 'Архивный филиал нельзя выбрать рабочим контекстом', code: 'BRANCH_ARCHIVED' });
           const roleRows = await prisma.personRole.findMany({
             where: { personId: person.id, scopeType: 'organization', scopeId: org.id },
             include: { role: true },
           });
-          const orgManager = roleRows.some((pr) => ['owner', 'org_owner', 'admin', 'org_admin', 'employer_owner'].includes(pr.role.key.toLowerCase()));
-          const assigned = await prisma.branchMember.findUnique({ where: { personId_branchId: { personId: person.id, branchId } } });
+          const orgManager = roleRows.some((pr) => {
+            const key = pr.role.key.toLowerCase();
+            return ['owner', 'org_owner', 'admin', 'org_admin'].includes(key) || /_(owner|admin)$/.test(key);
+          });
+          const assigned = await prisma.branchMember.findFirst({ where: { personId: person.id, branchId, active: true, branch: { is: { active: true } } } });
           if (!orgManager && !assigned) return res.status(403).json({ ok: false, error: 'У вас нет доступа к выбранному филиалу' });
           selectedBranchId = branchId;
         }
