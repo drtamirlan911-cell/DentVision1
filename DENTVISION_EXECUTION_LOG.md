@@ -2985,3 +2985,13 @@ Added route-contract tests covering all write routes and the laboratory-context 
 - Kept the source branch and PR #333 unchanged; only the two AI implementation/test files are being ported here. The existing D1–D10 execution log was preserved and this compact entry was appended rather than attempting a blind merge of two diverged historical logs.
 - The implementation now uses the existing `providerFetch` adapter, sends reasoning settings only when supported by the selected model, and records provider-reported token usage with the existing estimate as fallback. Deterministic fallback remains intact.
 - This is not a claim of exact-head verification. Fresh CI, AI regression tests and the full release/E2E gates are required before merge. No provider key, environment variable, database, deployment or production behavior was changed.
+
+
+## 2026-11-18 — PR #348 merge verification and RB-029 AI Admin log hardening
+
+- Confirmed current main `7289f369b1effa28db94e3e1e4541e4500bc5ee0`; PR #346 merged at `4bbd61a339d5f3c4d40d1d5990f633a7b9a87864`, PR #347 at `ad2b8651432073ba3c1426a59f3b31f704479557`, and PR #348 at `7289f369b1effa28db94e3e1e4541e4500bc5ee0`. PR #322 is devcontainer/Codespaces-only.
+- PR #348 exact-head `3647184c2f082486614d676981eab55b99546f99` passed CI [44128085041], Quality Gate [44128084855], RB-034 [44128084888], Android [44128085039] and Vercel Preview. Unit suite 2,702/2,702 in 303 files; E2E Core 253 passed / 5 skipped, Browser UX 4, Mobile Design 16, Role/Context 139 passed / 28 skipped, Visual Agent 48, Business Owner 11, Organization Owner 8, Playwright CLI smoke and Visual Release Gate passed.
+- PR #348 introduces first-class EMPLOYER organization/workspace, scoped Jobs roles/invitations, organization-bound vacancies, owner-scoped application/candidate lifecycle, audit and legal publication gating. Employer remains partial because interview, offer, vacancy-management, matching, legal approval/EDS and Android workflows are incomplete.
+- Reconciled old branches: PR #328/#329 work was merged into PR #330 via #331/#332, then #330 was merged; PR #333 itself was not merged, but its provider-polish implementation and focused tests exist on main. Do not merge the stale PR #333 branch wholesale.
+- RB-029 audit found a raw exception logger in AI Admin `book_appointment.tool.ts`. Candidate removes raw error details and adds an E2E-independent unit regression proving patient name/phone are absent from logs. Branch `security/rb029-ai-admin-booking-log-redaction-20261118`; exact-head CI pending.
+- No staging/production DB, PHI, secret/key, payment provider, legal signature, backup/restore or production deployment was accessed or changed.
