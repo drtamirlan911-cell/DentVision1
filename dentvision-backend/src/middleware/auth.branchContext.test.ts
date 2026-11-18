@@ -1,4 +1,6 @@
 import { describe, expect, it } from 'vitest';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { isBranchContextRecoveryPath, isOrganizationBranchManagerRoleKey, mergeBranchIds, shouldUseLegacyClinicFallback } from './auth.js';
 
 describe('mergeBranchIds', () => {
@@ -52,5 +54,17 @@ describe('archived branch recovery policy', () => {
     expect(isOrganizationBranchManagerRoleKey('medical_lab_admin')).toBe(true);
     expect(isOrganizationBranchManagerRoleKey('doctor')).toBe(false);
     expect(isOrganizationBranchManagerRoleKey('employer_recruiter')).toBe(false);
+  });
+});
+
+
+describe('organization-wide active branch context', () => {
+  it('hydrates OWNER/ADMIN branch lists from active branches only', () => {
+    const source = readFileSync(resolve(process.cwd(), 'dentvision-backend/src/middleware/auth.ts'), 'utf8');
+    expect(source).toContain("if (['OWNER', 'ADMIN'].includes(String(effectiveRole).toUpperCase()))");
+    expect(source).toContain('organizationWideBranchIds');
+    expect(source).toContain('WHERE "organization_id" = ${effectiveOrgId} AND "active" = true');
+    expect(source).toContain('WHERE "clinic_id" = ${effectiveClinicId} AND "active" = true');
+    expect(source).toContain('mergeBranchIds(mergeBranchIds(unifiedBranchIds, legacyBranchIds), organizationWideBranchIds)');
   });
 });

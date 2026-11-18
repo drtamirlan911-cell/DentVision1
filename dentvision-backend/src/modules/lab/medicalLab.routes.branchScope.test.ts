@@ -5,8 +5,10 @@ import { resolve } from 'node:path';
 describe('medical lab branch isolation contract', () => {
   const source = readFileSync(resolve(process.cwd(), 'dentvision-backend/src/modules/lab/medicalLab.routes.ts'), 'utf8');
 
-  it('checks branch membership for clinic medical-lab orders', () => {
+  it('checks branch membership for clinic medical-lab orders, including OWNER/ADMIN', () => {
     expect(source).toContain('user?.branchIds ?? []');
+    expect(source).toContain("if (role !== 'SUPERADMIN')");
+    expect(source).not.toContain("if (['OWNER', 'ADMIN'].includes(role)) return true");
     expect(source).toContain('o."clinicId" = $1');
     expect(source).not.toContain('o."clinicId" = ${args.length}');
     expect(source).toContain('o."labId" = $1');
