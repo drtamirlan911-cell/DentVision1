@@ -22,6 +22,15 @@ describe('diagnostics referral branch enforcement', () => {
     expect(source).toContain('Нет доступа к филиалам клиники');
   });
 
+  it('does not reintroduce an archived legacy clinic-member branch into referral lists', () => {
+    const start = source.indexOf('async function referralListBranchIds');
+    const end = source.indexOf('export function requireReferralAccess', start);
+    const resolver = source.slice(start, end);
+    expect(resolver).toContain('LEFT JOIN "branches" b ON b."id" = cm."branch_id"');
+    expect(resolver).toContain('COALESCE(b."active", false) AS branch_active');
+    expect(resolver).toContain('membership[0].branch_active ? membership[0].branch_id : null');
+  });
+
   it('keeps signed diagnostic results behind referral access', () => {
     expect(source).toContain("/referrals/:id/results/sign");
     expect(source).toContain('requireReferralAccess()');
