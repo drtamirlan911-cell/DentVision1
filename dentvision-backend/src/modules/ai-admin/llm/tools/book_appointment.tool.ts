@@ -130,8 +130,9 @@ export async function bookAppointment(
       success: true,
       confirmationText: `Готово! Вы записаны на ${args.service_name}, ${dateStr}. Если нужно перенести — напишите нам.`,
     }
-  } catch (err) {
-    console.error('[book_appointment] Error:', err)
+  } catch {
+    // Prisma/provider exceptions can embed patient/contact fields; keep logs PHI-free.
+    console.error('[book_appointment] Booking failed; diagnostic details redacted')
     return {
       success: false,
       confirmationText: 'Не удалось создать запись. Позвоните нам и мы запишем вас вручную.',

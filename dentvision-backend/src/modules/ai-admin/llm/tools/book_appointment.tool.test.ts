@@ -129,4 +129,29 @@ describe('bookAppointment', () => {
     expect(result.success).toBe(false);
     expect(appointmentCreate).not.toHaveBeenCalled();
   });
+
+  it('does not log patient or contact details from a booking exception', async () => {
+    clinicMemberFindMany.mockResolvedValue([{ userId: 'doc-1' }]);
+    appointmentFindMany.mockResolvedValueOnce([]);
+    appointmentFindFirst.mockResolvedValueOnce(null);
+    appointmentCreate.mockRejectedValueOnce(
+      new Error(`Database failure for ${BASE_ARGS.patient_name} ${BASE_ARGS.patient_phone}`),
+    );
+
+    const logger = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    try {
+      const result = await bookAppointment({ ...BASE_ARGS, doctor_id: 'doc-1' }, SESSION);
+
+      expect(result.success).toBe(false);
+      expect(logger).toHaveBeenCalledTimes(1);
+      expect(logger).toHaveBeenCalledWith(
+        '[book_appointment] Booking failed; diagnostic details redacted',
+      );
+      expect(JSON.stringify(logger.mock.calls)).not.toContain(BASE_ARGS.patient_name);
+      expect(JSON.stringify(logger.mock.calls)).not.toContain(BASE_ARGS.patient_phone);
+    } finally {
+      logger.mockRestore();
+    }
+  });
+
 });

@@ -1,3 +1,32 @@
+## Current execution checkpoint — 2026-11-18 (post-merge reconciliation, Master Spec v5.0)
+
+The previous 2026-11-17 checkpoint is historical. Current source is `main=7289f369b1effa28db94e3e1e4541e4500bc5ee0`. PR #346, #347 and #348 are merged; PR #322 is merged as developer-environment setup only. No open PRs were returned by the current repository query.
+
+### Exact verification now recorded
+- PR #348 head `3647184c2f082486614d676981eab55b99546f99`: CI [44128085041](https://github.com/drtamirlan911-cell/DentVision1/actions/runs/44128085041) SUCCESS (all four jobs); Quality Gate [44128084855](https://github.com/drtamirlan911-cell/DentVision1/actions/runs/44128084855) SUCCESS; RB-034 [44128084888](https://github.com/drtamirlan911-cell/DentVision1/actions/runs/44128084888) SUCCESS; Android [44128085039](https://github.com/drtamirlan911-cell/DentVision1/actions/runs/44128085039) SUCCESS; Vercel Preview SUCCESS.
+- Unit tests: 2,702 passed / 303 files. E2E: Core 253 passed / 5 skipped; Browser UX 4; Mobile Design 16; Role/Context 139 passed / 28 skipped; Visual Agent 48; Business Owner 11; Organization Owner 8; Playwright CLI smoke and Visual Release Gate passed.
+- Main merge commit is `7289f369b1effa28db94e3e1e4541e4500bc5ee0`; post-merge Vercel status is SUCCESS. PR-head CI evidence is used for code gates; it does not certify staging or production.
+
+### Cabinet parity correction
+Employer is no longer “missing registration/workspace” at source level: PR #348 added first-class EMPLOYER Organization and IAM roles, vacancies tied to the Organization, scoped candidate/application APIs, constrained hiring transitions, audit events, legal activation gate and /employer workspace. Classification is now **Partial**. Outstanding: approved employer templates/EDS, interview scheduling, formal offers/contracts, vacancy edit/close, candidate communication and consent, real vacancy matching, and employer Android workflow.
+
+PR #333 was closed without merging, but its AI response-polish source and five focused tests are already present on current main (the main `llm.service.ts` uses shared `providerFetch`, model-dependent reasoning and provider token usage). Do not merge its stale branch wholesale: it is 24 commits behind current main. PR #328/#329 work was integrated into PR #330 through PRs #331/#332; PR #330 is merged. These histories are preserved.
+
+### Next execution order
+1. **RB-029 / P0:** finish source-level PHI reader/writer/derived-copy inventory, including error/log paths; keep compatibility dual-write until all old AI Admin webhook/queue workers are verified drained. Prepare strict cutover, key rotation/reindex, retention/export/deletion, backup/restore and exception reconciliation runbooks. No live backfill or strict cutover without approved staging target, backup/restore proof and explicit operator approval.
+2. **Current RB-029 log-redaction candidate:** branch `security/rb029-ai-admin-booking-log-redaction-20261118` removes raw exception logging from AI Admin booking and adds a PHI-redaction regression test. Run exact-head CI, Quality Gate and E2E; fix any failure without weakening the test; merge only after verification.
+3. **IAM/security:** complete RB-035 patient-route × role × organization × clinic × branch × active/revoked/expired-session negative matrix. Obtain repository-admin proof for RB-033 required branch checks; current GitHub integration cannot read classic branch protection (403), and rulesets response is empty. Capture real WebKit OPTIONS/request headers and production CORS/WebSocket evidence for RB-031.
+4. **Diagnostics / Medical Lab:** complete modality/equipment/room worklists, DICOM/RIS/PACS/report validation and medical-lab accession → chain-of-custody → QC → result release, with traceability, audit, notifications and settlement evidence.
+5. **Dental Lab / D10:** close remake authorization, dispatch/shipping/proof of delivery, services/pricing, invoices, provider-backed payment/settlement/payout/refund/chargeback and owner/manager/technician/designer/QC/finance/mobile coverage. Preserve settlement-only economics recognition.
+6. **Employer / Jobs:** retain legal publication gate until approved documents and signer evidence exist; finish real interviews/offers, vacancy edit/close, candidate consent/communications, matching and Android.
+7. **Marketplace / Supplier and Academy / Community:** complete KYB/publication, multi-seller fulfillment/refunds/returns/payout/procurement reconciliation; academy owner/cohort/content/assessment/certificate/finance; community follows/nested threads/media consent/moderation.
+8. **Public discovery / clinical UX / mobile:** make organization/professional/service detail routes real rather than redirects; implement true 32-tooth WebGL/3D odontogram with accessible 2D fallback; verify physical Android install/runtime and the same role/workflow matrix.
+9. Run the Master Spec DoD chain on one exact final HEAD: entry → context → permission → home → queue → entity → workflow → persistence → notification → finance/outcome → audit → mobile → E2E.
+
+Release remains **NOT READY**. Keep data/provider/legal/device operations separated from source CI and do not mark a cabinet complete from route/screen existence.
+
+---
+
 ## Current execution checkpoint — 2026-11-17 (Master Spec v5.0)
 
 The current cabinet evidence is in `docs/SYSTEM_AUDIT.md`; operational release/security blockers are in `docs/RELEASE_BLOCKERS.md`. Do not create duplicate roadmaps or infer completion from routes, models or screenshots alone.
