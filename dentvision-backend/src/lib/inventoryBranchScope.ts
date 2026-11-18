@@ -15,13 +15,13 @@ export async function resolveInventoryBranchContext(
   clinicId: string,
   role: string,
 ): Promise<InventoryBranchContext> {
-  const membership = await prisma.$queryRaw<Array<{ branch_id: string | null }>>`
-    SELECT branch_id
-    FROM clinic_members
-    WHERE "userId" = ${userId} AND "clinicId" = ${clinicId}
+  const membership = await prisma.$queryRaw<Array<{ branch_id: string | null; branch_active: boolean }>>`
+    SELECT cm."branch_id", CASE WHEN cm."branch_id" IS NULL THEN true ELSE COALESCE(b."active", false) END AS branch_active
+    FROM "clinic_members" cm LEFT JOIN "branches" b ON b."id" = cm."branch_id"
+    WHERE cm."userId" = ${userId} AND cm."clinicId" = ${clinicId}
     LIMIT 1
   `;
-  const branchId = membership[0]?.branch_id ?? null;
+  const branchId = membership[0]?.branch_active ? (membership[0]?.branch_id ?? null) : null;
 
   if (ORGANIZATION_ROLES.has(role)) {
     const branches = await prisma.$queryRaw<Array<{ id: string }>>`
