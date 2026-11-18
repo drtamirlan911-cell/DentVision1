@@ -170,6 +170,32 @@ test.describe('Canonical organization branch management', () => {
     const branches = Array.isArray(payload) ? payload : payload?.data ?? [];
     const archived = branches.find((item: { id?: string }) => item.id === branchId);
     expect(archived?.active).toBe(false);
+
+    const headers = await bearerHeaders(page);
+    const workspace = await page.request.post(`/api/branches/${branchId}/workspace`, { headers });
+    expect(workspace.status()).toBe(409);
+    expect((await workspace.json()).code).toBe('BRANCH_ARCHIVED');
+
+    const switchArchived = await page.request.post('/api/iam/switch-context', {
+      headers,
+      data: { scopeType: 'CLINIC', scopeId: ownerOrganizationId, branchId },
+    });
+    expect(switchArchived.status()).toBe(409);
+    expect((await switchArchived.json()).code).toBe('BRANCH_ARCHIVED');
+
+    await page.getByRole('button', { name: 'Восстановить филиал', exact: true }).click();
+    await expect(branchRow(page, branchName)).not.toContainText('Архив', { timeout: 15000 });
+
+    const afterRestore = await page.request.get(`/api/branches?organizationId=${encodeURIComponent(ownerOrganizationId)}`, { headers });
+    const restorePayload = await afterRestore.json();
+    const restoredBranches = Array.isArray(restorePayload) ? restorePayload : restorePayload?.data ?? [];
+    expect(restoredBranches.find((item: { id?: string }) => item.id === branchId)?.active).toBe(true);
+
+    const switchRestored = await page.request.post('/api/iam/switch-context', {
+      headers,
+      data: { scopeType: 'CLINIC', scopeId: ownerOrganizationId, branchId },
+    });
+    expect(switchRestored.status()).toBe(200);
   });
   test('BRANCH-003: workspace switcher selects a branch and propagates branch scope', async ({ page }) => {
     await login(page);
