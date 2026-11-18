@@ -104,8 +104,6 @@ async function canAccessOrder(user: AuthRequest['user'], order: OrderRow, write 
   }
 
   if (order.clinicId === user?.clinicId) {
-    const role = String(user?.role || '').toUpperCase();
-    if (['OWNER', 'ADMIN'].includes(role)) return true;
     const branchIds = (user?.branchIds ?? []).filter(Boolean);
     if (branchIds.length === 0 || !order.patientId) return false;
     const patient = await prisma.patient.findFirst({
@@ -143,7 +141,7 @@ medicalLabLifecycleRouter.get('/orders', async (req: AuthRequest, res) => {
       args.push(clinicId); where.push(`o."clinicId" = $1`);
       const role = String(req.user?.role || '').toUpperCase();
       const branchIds = (req.user?.branchIds ?? []).filter(Boolean);
-      if (!['SUPERADMIN', 'OWNER', 'ADMIN'].includes(role)) {
+      if (role !== 'SUPERADMIN') {
         if (branchIds.length === 0) return res.json({ ok: true, data: [] } satisfies ApiResponse);
         args.push(branchIds); where.push(`EXISTS (SELECT 1 FROM "patients" p WHERE p."id" = o."patientId" AND p."branchId" = ANY(${args.length}::text[]))`);
       }
@@ -170,7 +168,7 @@ medicalLabLifecycleRouter.post('/orders', requirePermission('patient.read'), asy
       const role = String(req.user?.role || '').toUpperCase();
       const branchIds = (req.user?.branchIds ?? []).filter(Boolean);
       const patient = await prisma.patient.findFirst({
-        where: { id: String(patientId), clinicId, ...(['SUPERADMIN', 'OWNER', 'ADMIN'].includes(role) ? {} : { branchId: branchIds.length > 0 ? { in: branchIds } : '__NO_BRANCH_ACCESS__' }) },
+        where: { id: String(patientId), clinicId, ...(role === 'SUPERADMIN' ? {} : { branchId: branchIds.length > 0 ? { in: branchIds } : '__NO_BRANCH_ACCESS__' }) },
         select: { id: true },
       });
       if (!patient) return res.status(400).json({ ok: false, error: 'Пациент не относится к выбранной клинике' });

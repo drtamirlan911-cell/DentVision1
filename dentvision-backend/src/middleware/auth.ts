@@ -145,6 +145,7 @@ export async function authenticate(req: AuthRequest, res: Response, next: NextFu
     let effectiveClinicId: string | undefined;
     let effectiveSupplierId: string | undefined;
     let unifiedBranchIds: string[] = [];
+    let organizationWideBranchIds: string[] = [];
     let effectiveRole = user.role;
     let effectiveBranchId: string | undefined;
 
@@ -223,13 +224,27 @@ export async function authenticate(req: AuthRequest, res: Response, next: NextFu
       if (!effectiveOrgId && payload.supplierId) effectiveSupplierId = payload.supplierId;
     }
 
+    // Organization owners/admins are scoped to every ACTIVE branch in their
+    // current organization. This is a positive branch list, not a wildcard:
+    // archived branches remain excluded from normal operational routes.
+    if (['OWNER', 'ADMIN'].includes(String(effectiveRole).toUpperCase())) {
+      const activeBranches = effectiveOrgType === 'CLINIC' && effectiveOrgOriginalId && effectiveOrgId
+        ? await prisma.$queryRaw<Array<{ id: string }>>`SELECT "id" FROM "branches" WHERE "organization_id" = ${effectiveOrgId} AND "active" = true`
+        : effectiveClinicId
+          ? await prisma.$queryRaw<Array<{ id: string }>>`SELECT "id" FROM "branches" WHERE "clinic_id" = ${effectiveClinicId} AND "active" = true`
+          : effectiveOrgId
+            ? await prisma.$queryRaw<Array<{ id: string }>>`SELECT "id" FROM "branches" WHERE "organization_id" = ${effectiveOrgId} AND "active" = true`
+            : [];
+      organizationWideBranchIds = activeBranches.map((branch) => branch.id);
+    }
+
     const activeMembership = effectiveClinicId
       ? user.memberships?.find((m) => m.clinicId === effectiveClinicId)
       : undefined;
     const legacyBranchIds = user.memberships
       ?.filter((membership) => membership.clinicId === effectiveClinicId && membership.branchId && membership.branch?.active === true)
       .map((membership) => membership.branchId as string) || [];
-    const branchIds = mergeBranchIds(unifiedBranchIds, legacyBranchIds);
+    const branchIds = mergeBranchIds(mergeBranchIds(unifiedBranchIds, legacyBranchIds), organizationWideBranchIds);
     const legacyAssignedBranchId = activeMembership?.branchId && activeMembership.branch?.active === true ? activeMembership.branchId : undefined;
     const assignedBranchId = unifiedBranchIds[0] || legacyAssignedBranchId;
 
