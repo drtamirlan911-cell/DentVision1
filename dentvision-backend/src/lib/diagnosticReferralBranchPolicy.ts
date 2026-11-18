@@ -39,12 +39,11 @@ export async function canAccessReferralBranch(
   );
 
   if (user.role === 'OWNER' || user.role === 'ADMIN') {
-    return resource.branchId !== null && assigned.has(resource.branchId)
-      ? true
-      : await branchBelongsToClinic(resource.branchId, resource.clinicId);
+    return branchBelongsToClinic(resource.branchId, resource.clinicId);
   }
 
   if (!resource.branchId) return false;
+  if (!(await branchBelongsToClinic(resource.branchId, resource.clinicId))) return false;
   return assigned.has(resource.branchId);
 }
 

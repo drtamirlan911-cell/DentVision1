@@ -49,4 +49,33 @@ describe('diagnostic referral branch archive enforcement', () => {
       branchId: 'branch-active',
     })).resolves.toBe(true);
   });
+
+  it('rechecks branch active state even when a stale token still lists the branch', async () => {
+    queryRaw.mockResolvedValueOnce([{ branch_id: 'branch-old', branch_active: false }])
+      .mockResolvedValueOnce([]);
+
+    await expect(canAccessReferralBranch({
+      ...clinicDoctor,
+      assignedBranchId: 'branch-old',
+      branchIds: ['branch-old'],
+    }, {
+      clinicId: 'clinic-1',
+      branchId: 'branch-old',
+    })).resolves.toBe(false);
+  });
+
+  it('does not let an owner use a stale assignment to access an inactive branch', async () => {
+    queryRaw.mockResolvedValueOnce([{ branch_id: 'branch-old', branch_active: false }])
+      .mockResolvedValueOnce([]);
+
+    await expect(canAccessReferralBranch({
+      ...clinicDoctor,
+      role: 'OWNER',
+      assignedBranchId: 'branch-old',
+      branchIds: ['branch-old'],
+    }, {
+      clinicId: 'clinic-1',
+      branchId: 'branch-old',
+    })).resolves.toBe(false);
+  });
 });
