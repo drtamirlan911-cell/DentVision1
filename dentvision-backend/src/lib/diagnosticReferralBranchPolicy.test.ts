@@ -8,6 +8,9 @@ describe('diagnostic referral branch policy contract', () => {
   it('requires clinic membership and an assigned branch for scoped access', () => {
     expect(source).toContain('if (!resource.clinicId) return false');
     expect(source).toContain('WHERE "userId" = ${user.id} AND "clinicId" = ${resource.clinicId}');
+    expect(source).toContain('LEFT JOIN "branches" b ON b."id" = cm."branch_id"');
+    expect(source).toContain('COALESCE(b."active", false) AS branch_active');
+    expect(source).toContain('const activeMemberBranchId = membership[0].branch_active ? membership[0].branch_id : null');
     expect(source).toContain('if (!membership[0]) return false');
     expect(source).toContain('if (!resource.branchId) return false');
     expect(source).toContain('DIAGNOSTIC_REFERRAL_BRANCH_FORBIDDEN');

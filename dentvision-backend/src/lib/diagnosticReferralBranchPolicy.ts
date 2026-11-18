@@ -22,16 +22,19 @@ export async function canAccessReferralBranch(
   // a JWT clinicId to be populated as a second, independent prerequisite: tokens
   // created before active-clinic context restoration can legitimately omit it,
   // while the membership row still proves the caller belongs to this clinic.
-  const membership = await prisma.$queryRaw<Array<{ branch_id: string | null }>>`
-    SELECT "branch_id"
-    FROM "clinic_members"
-    WHERE "userId" = ${user.id} AND "clinicId" = ${resource.clinicId}
+  const membership = await prisma.$queryRaw<Array<{ branch_id: string | null; branch_active: boolean }>>`
+    SELECT cm."branch_id",
+      CASE WHEN cm."branch_id" IS NULL THEN true ELSE COALESCE(b."active", false) END AS branch_active
+    FROM "clinic_members" cm
+    LEFT JOIN "branches" b ON b."id" = cm."branch_id"
+    WHERE cm."userId" = ${user.id} AND cm."clinicId" = ${resource.clinicId}
     LIMIT 1
   `;
   if (!membership[0]) return false;
 
+  const activeMemberBranchId = membership[0].branch_active ? membership[0].branch_id : null;
   const assigned = new Set(
-    [membership[0].branch_id, user.assignedBranchId, ...(user.branchIds ?? [])]
+    [activeMemberBranchId, user.assignedBranchId, ...(user.branchIds ?? [])]
       .filter((id): id is string => Boolean(id)),
   );
 
