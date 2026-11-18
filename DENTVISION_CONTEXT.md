@@ -1,3 +1,14 @@
+## Continuation checkpoint — 2026-11-19
+
+- Canonical repo: `drtamirlan911-cell/DentVision1`; current main: `da1257fc650f536c76583bdff570906290b92bcd`.
+- PR #349 merged as `da1257fc650f536c76583bdff570906290b92bcd`. Exact PR HEAD `3dd1d17bc1978a0f7d695adbadc59969950505cf` passed CI [44376106619], Quality Gate [44376106517] and Vercel Preview. The raw AI Admin booking exception is redacted; RB-029 overall remains P0/open for historical PHI lifecycle and staging evidence.
+- RB-035 candidate is on `security/rb035-inactive-branch-access-main-20261119`, based on post-#349 main. It validates active branch state, drops inactive branch context from refresh, blocks stale-branch operational access, filters four data scopes, blocks open/switch/default/assignment and adds owner/admin restore without deleting history.
+- Candidate tests cover recovery policy, auth refresh, patient/finance/diagnostic/inventory helper execution, branch route contract and E2E direct API denial/owner restore. Exact-head CI has not yet run.
+- No schema migration, historical patient data move, PHI read/backfill, staging/production write, key/secret/provider/legal signature change or production deployment was made.
+- Remaining blockers: RB-029 historical PHI lifecycle; RB-035 broad IAM matrix; RB-031 WebKit/CORS/WebSocket; RB-033 branch protection; D1/D2 staging; diagnostic/medical lab; Dental Lab D10; Marketplace/Supplier; Academy/Community; employer workflow depth; public discovery; 32-tooth WebGL; physical Android runtime.
+- Release remains **NOT READY**.
+
+---
 ## Current continuation checkpoint — 2026-11-18
 
 - Canonical repository: `drtamirlan911-cell/DentVision1`; current `main`: `7289f369b1effa28db94e3e1e4541e4500bc5ee0`.

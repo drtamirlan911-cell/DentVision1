@@ -1,3 +1,31 @@
+## Execution checkpoint — 2026-11-19 (RB-029 merge; RB-035 archived branch hardening)
+
+Current main is `da1257fc650f536c76583bdff570906290b92bcd`. PR #349 merged on exact CI-green HEAD `3dd1d17bc1978a0f7d695adbadc59969950505cf` as `da1257fc650f536c76583bdff570906290b92bcd`. Its PHI-free AI Admin booking diagnostic and patient-name/phone logging regression test are now in main. RB-029 overall remains P0/open for historical PHI inventory/backfill, worker drain/strict cutover, key lifecycle, retention and verified staging backup/restore.
+
+### RB-035 — archived branch access candidate
+Branch `security/rb035-inactive-branch-access-main-20261119` is based on the post-#349 main. The candidate:
+- validates branch active state for stale JWT claims and drops inactive branch claims on refresh;
+- blocks operational requests with stale archived-branch tokens;
+- filters inactive assignments from Patient, Finance, Diagnostics and Inventory scope readers;
+- rejects archived workspace open, context switch, default selection, staff assignment and membership re-enable;
+- leaves owner/admin settings access intact, adds restore UI and preserves history/assignments;
+- adds executable tests for four scope readers, auth refresh/recovery, branch route behavior and E2E direct API denial/owner restore.
+Exact candidate-head CI, Quality Gate and E2E have not run yet. Do not close or merge RB-035 before those gates pass.
+
+### Execution order
+1. Complete RB-029 historical PHI inventory/backfill plan, retention/deletion, key lifecycle, worker drain, backup/restore and approved staging reconciliation. No live backfill without approved runbook, verified restore and explicit operator approval.
+2. Complete RB-035 exact candidate-head verification, then full patient route × role × tenant × clinic × branch × active/revoked/expired-session matrix including partner organizations and authorized historical archive reads.
+3. Obtain repository-admin evidence for RB-033 required checks; capture RB-031 WebKit OPTIONS/CORS/WebSocket evidence.
+4. D1/D2 staging migrations and before/after/restore/rollback proof.
+5. Diagnostic center/medical lab modality, specimen, QC, authorized result and settlement.
+6. Dental Lab D10 remake, dispatch/POD, pricing/invoice/payment, paid settlement/payout/refund/chargeback and role/mobile lifecycle.
+7. Marketplace/Supplier KYB, multi-seller fulfillment, refunds/returns/payouts; Academy and Community lifecycle.
+8. Employer interview/offer/vacancy lifecycle/candidate consent/matching/Android; public discovery detail pages; 32-tooth WebGL odontogram and physical Android runtime.
+9. Master Spec DoD: entry → context → permission → home → queue → entity → workflow → persistence → notification → finance/outcome → audit → mobile → E2E.
+
+Release remains **NOT READY**.
+
+---
 ## Current execution checkpoint — 2026-11-18 (post-merge reconciliation, Master Spec v5.0)
 
 The previous 2026-11-17 checkpoint is historical. Current source is `main=7289f369b1effa28db94e3e1e4541e4500bc5ee0`. PR #346, #347 and #348 are merged; PR #322 is merged as developer-environment setup only. No open PRs were returned by the current repository query.
