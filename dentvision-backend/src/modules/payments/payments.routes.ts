@@ -561,8 +561,9 @@ async function assertPaymentOwner(
   // order's actual owner when reading, confirming, refunding, or replaying a
   // payment. Fail closed if the referenced order is missing or DB lookup fails.
   if (payment.refType === 'medical_lab_order') {
-    if (!payment.refId || !meta.userId || meta.userId !== req.user!.id) return false;
+    if (!payment.refId) return false;
     if (req.user?.role === 'SUPERADMIN') return true;
+    if (!meta.userId || meta.userId !== req.user!.id) return false;
     try {
       const order = await medicalLabOrderAmountMinor(payment.refId);
       return Boolean(
