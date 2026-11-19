@@ -21,13 +21,14 @@ beforeEach(() => {
 });
 
 describe('archived branch operational scope', () => {
-  it('removes an archived legacy assignment from patient, finance, diagnostic and inventory scope', async () => {
-    queryRaw.mockResolvedValueOnce([{ branch_id: ARCHIVED_BRANCH_ID, branch_active: false, role: 'DOCTOR' }]);
-    const patient = await resolvePatientBranchContext(USER_ID, CLINIC_ID, 'DOCTOR');
+  it('fails closed when authentication supplies no active patient branch assignment', async () => {
+    const patient = await resolvePatientBranchContext(USER_ID, CLINIC_ID, 'DOCTOR', [], null);
     expect(patient.branchId).toBeNull();
     expect(patient.scope.branchIds).toEqual([]);
+  });
 
-    queryRaw.mockReset().mockResolvedValueOnce([{ branch_id: ARCHIVED_BRANCH_ID, branch_active: false, role: 'DOCTOR' }]);
+  it('removes an archived legacy assignment from finance, diagnostic and inventory scope', async () => {
+    queryRaw.mockResolvedValueOnce([{ branch_id: ARCHIVED_BRANCH_ID, branch_active: false, role: 'DOCTOR' }]);
     const finance = await resolveFinanceBranchContext(USER_ID, CLINIC_ID, 'DOCTOR');
     expect(finance.branchId).toBeNull();
     expect(finance.branchIds).toEqual([]);
@@ -46,14 +47,13 @@ describe('archived branch operational scope', () => {
     expect(inventory.organizationWide).toBe(false);
   });
 
-  it('keeps organization-wide roles limited to active branches only', async () => {
-    queryRaw.mockResolvedValueOnce([{ branch_id: ARCHIVED_BRANCH_ID, branch_active: false, role: 'OWNER' }])
-      .mockResolvedValueOnce([{ id: ACTIVE_BRANCH_ID }]);
-    const patients = await resolvePatientBranchContext(USER_ID, CLINIC_ID, 'OWNER');
+  it('limits organization-wide visibility to the trusted active branch allow-list', async () => {
+    const patients = await resolvePatientBranchContext(
+      USER_ID, CLINIC_ID, 'OWNER', [ACTIVE_BRANCH_ID], ACTIVE_BRANCH_ID,
+    );
     expect(patients.scope.branchIds).toEqual([ACTIVE_BRANCH_ID]);
 
-    queryRaw.mockReset()
-      .mockResolvedValueOnce([{ branch_id: ARCHIVED_BRANCH_ID, branch_active: false, role: 'OWNER' }])
+    queryRaw.mockResolvedValueOnce([{ branch_id: ARCHIVED_BRANCH_ID, branch_active: false, role: 'OWNER' }])
       .mockResolvedValueOnce([{ id: ACTIVE_BRANCH_ID }]);
     const finance = await resolveFinanceBranchContext(USER_ID, CLINIC_ID, 'OWNER');
     expect(finance.branchIds).toEqual([ACTIVE_BRANCH_ID]);
