@@ -58,14 +58,25 @@ export async function canAccessReferralBranch(
   if (user.role === 'SUPERADMIN') return true;
   if (!isActiveClinicContext(user, resource.clinicId)) return false;
 
-  // The auth middleware has already resolved PersonRole and active
-  // BranchMember assignments from the selected organization. ClinicMember is
-  // only merged into this positive allow-list for legacy, non-canonical data.
-  // Requiring a legacy row here would deny valid canonical-only clinic users.
   if (!resource.branchId) return false;
 
+  // Canonical active BranchMember assignments are supplied by authenticate.
+  // Also recheck an exact ClinicMember mapping for compatibility with existing
+  // clinic sessions; the joined branch must still be active.
+  const legacyMembership = await prisma.$queryRaw<Array<{
+    branch_id: string | null;
+    branch_active: boolean;
+  }>>`
+    SELECT cm."branch_id",
+      CASE WHEN cm."branch_id" IS NULL THEN false ELSE COALESCE(b."active", false) END AS branch_active
+    FROM "clinic_members" cm
+    LEFT JOIN "branches" b ON b."id" = cm."branch_id"
+    WHERE cm."userId" = ${user.id} AND cm."clinicId" = ${resource.clinicId}
+    LIMIT 1
+  `;
+  const legacyBranchId = legacyMembership[0]?.branch_active ? legacyMembership[0].branch_id : null;
   const allowedBranchIds = new Set(
-    [user.assignedBranchId, ...(user.branchIds ?? [])]
+    [user.assignedBranchId, ...(user.branchIds ?? []), legacyBranchId]
       .filter((id): id is string => Boolean(id)),
   );
   if (!allowedBranchIds.has(resource.branchId)) return false;
