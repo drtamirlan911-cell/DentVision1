@@ -12,6 +12,6 @@ export function canAccessClinicPaymentBranch(input: {
   if (String(input.role || '').toUpperCase() === 'SUPERADMIN') return true;
   const allowed = new Set((input.activeBranchIds ?? []).filter((id) => typeof id === 'string' && id.length > 0));
   if (allowed.size === 0) return false;
-  const branchId = input.referenceBranchId || input.persistedBranchId;
+  const branchId = input.referenceBranchId !== undefined ? input.referenceBranchId : input.persistedBranchId;
   return Boolean(branchId && allowed.has(branchId));
 }
