@@ -31,6 +31,11 @@ describe('legacy clinic claim fallback', () => {
     expect(shouldUseLegacyClinicFallback(undefined, undefined)).toBe(true);
   });
 
+  it('does not fall back to a retained clinic membership when a supplied organization claim is no longer verified', () => {
+    expect(shouldUseLegacyClinicFallback(null, null, true)).toBe(false);
+    expect(shouldUseLegacyClinicFallback(undefined, undefined, true)).toBe(false);
+  });
+
   it('does not re-resolve a clinic when a clinic context is already active', () => {
     expect(shouldUseLegacyClinicFallback('org-clinic', 'clinic-1')).toBe(false);
     expect(shouldUseLegacyClinicFallback(null, 'clinic-1')).toBe(false);
