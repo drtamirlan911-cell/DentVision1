@@ -66,9 +66,16 @@ function normalizeScopedRole(roleKey: string): UserRole | undefined {
 }
 
 /** Merge canonical BranchMember assignments with legacy clinic memberships. */
-export function shouldUseLegacyClinicFallback(effectiveOrganizationId?: string | null, effectiveClinicId?: string | null): boolean {
-  // A verified active organization is authoritative even when an old JWT still carries clinicId.
-  return !effectiveOrganizationId && !effectiveClinicId;
+export function shouldUseLegacyClinicFallback(
+  effectiveOrganizationId?: string | null,
+  effectiveClinicId?: string | null,
+  hasOrganizationClaim = false,
+): boolean {
+  // A supplied organization claim is authoritative. If that organization or
+  // PersonRole cannot be revalidated, never fall back to a retained clinicId.
+  // This prevents a stale/revoked partner token from re-entering a clinic via
+  // an unrelated legacy ClinicMember row.
+  return !hasOrganizationClaim && !effectiveOrganizationId && !effectiveClinicId;
 }
 
 export function mergeBranchIds(unifiedBranchIds: readonly string[], legacyBranchIds: readonly string[]): string[] {
@@ -219,7 +226,7 @@ export async function authenticate(req: AuthRequest, res: Response, next: NextFu
         }
       }
 
-      if (shouldUseLegacyClinicFallback(effectiveOrgId, effectiveClinicId) && payload.clinicId) {
+      if (shouldUseLegacyClinicFallback(effectiveOrgId, effectiveClinicId, Boolean(payload.organizationId)) && payload.clinicId) {
         const activeMember = user.memberships?.find((m) => m.clinicId === payload.clinicId);
         if (activeMember) {
           const requestPath = String(req.originalUrl || req.url || '').split('?')[0];
