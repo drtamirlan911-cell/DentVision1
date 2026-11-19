@@ -192,6 +192,23 @@ test.describe('Canonical organization branch management', () => {
     expect(staleBranchAccessToken).toBeTruthy();
     expect(doctorRefreshToken).toBeTruthy();
 
+    // Keep a real patient record on the branch being archived. The database row
+    // must survive, while ordinary owner patient APIs must stop returning it.
+    const archivedPatient = await prisma.patient.create({
+      data: {
+        clinicId: ownerClinicId,
+        branchId,
+        firstName: 'Archived Branch',
+        lastName: `E2E Patient ${Date.now()}`,
+        notes: 'RB-035 archive isolation fixture',
+      },
+      select: { id: true, branchId: true, lastName: true },
+    });
+    const patientBeforeArchive = await page.request.get(`/api/patients/${archivedPatient.id}`, {
+      headers: ownerHeaders,
+    });
+    expect(patientBeforeArchive.status(), await patientBeforeArchive.text()).toBe(200);
+
     await branchRow(page, branchName).click();
     await page.getByRole('button', { name: 'Архивировать', exact: true }).click();
     await expect(branchRow(page, branchName)).toContainText('Архив', { timeout: 15000 });
@@ -201,6 +218,28 @@ test.describe('Canonical organization branch management', () => {
     const branches = Array.isArray(payload) ? payload : payload?.data ?? [];
     const archived = branches.find((item: { id?: string }) => item.id === branchId);
     expect(archived?.active).toBe(false);
+
+    // Archiving is a permission change, not a data deletion: keep the record
+    // but remove it from normal patient search and direct patient reads, even
+    // when an owner reuses the access token issued before the archive.
+    const retainedPatient = await prisma.patient.findUnique({
+      where: { id: archivedPatient.id },
+      select: { id: true, branchId: true, lastName: true },
+    });
+    expect(retainedPatient).toEqual(archivedPatient);
+
+    const ownerPatientSearch = await page.request.get(
+      `/api/patients?search=${encodeURIComponent(archivedPatient.lastName)}`,
+      { headers: ownerHeaders },
+    );
+    expect(ownerPatientSearch.status(), await ownerPatientSearch.text()).toBe(200);
+    const ownerPatientSearchBody = await ownerPatientSearch.json();
+    expect(ownerPatientSearchBody.data?.data ?? []).toEqual([]);
+
+    const ownerDirectPatientRead = await page.request.get(`/api/patients/${archivedPatient.id}`, {
+      headers: ownerHeaders,
+    });
+    expect(ownerDirectPatientRead.status()).toBe(404);
 
     const workspace = await page.request.post(`/api/branches/${branchId}/workspace`, { headers: ownerHeaders });
     expect(workspace.status()).toBe(409);
