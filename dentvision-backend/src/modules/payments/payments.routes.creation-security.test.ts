@@ -5,7 +5,7 @@ import type { Server } from 'node:http';
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const m = vi.hoisted(() => ({
-  user: { id: 'authenticated-user', role: 'DOCTOR', clinicId: 'clinic-owned' } as any,
+  user: { id: 'authenticated-user', role: 'DOCTOR', clinicId: 'clinic-owned', branchIds: ['branch-1'], branchId: 'branch-1', assignedBranchId: 'branch-1' } as any,
   paymentCreate: vi.fn(),
   paymentFindUnique: vi.fn(),
   paymentUpdateMany: vi.fn(),
@@ -129,7 +129,7 @@ afterAll(async () => {
 
 beforeEach(() => {
   vi.clearAllMocks();
-  m.user = { id: 'authenticated-user', role: 'DOCTOR', clinicId: 'clinic-owned' };
+  m.user = { id: 'authenticated-user', role: 'DOCTOR', clinicId: 'clinic-owned', branchIds: ['branch-1'], branchId: 'branch-1', assignedBranchId: 'branch-1' };
   m.reserveIdempotencyKey.mockResolvedValue({ status: 'reserved' });
   m.completeIdempotencyKey.mockResolvedValue(undefined);
   m.deleteIdempotencyKey.mockResolvedValue(undefined);
@@ -139,8 +139,8 @@ beforeEach(() => {
   m.assertClinicOrgAccess.mockResolvedValue(true);
   m.resolveOrganizationIdForClinic.mockImplementation((clinicId: string) => clinicId);
   m.resolveClinicMemberAccess.mockResolvedValue({ role: 'OWNER' });
-  m.appointmentFindFirst.mockResolvedValue({ id: 'appointment-1', clinicId: 'clinic-owned' });
-  m.invoiceFindFirst.mockResolvedValue({ id: 'invoice-1', clinicId: 'clinic-owned', amount: 1000, paidAmount: 0, status: 'unpaid' });
+  m.appointmentFindFirst.mockResolvedValue({ id: 'appointment-1', clinicId: 'clinic-owned', branchId: 'branch-1' });
+  m.invoiceFindFirst.mockResolvedValue({ id: 'invoice-1', clinicId: 'clinic-owned', amount: 1000, paidAmount: 0, status: 'unpaid', patient: { branchId: 'branch-1' } });
   m.orderFindUnique.mockResolvedValue(null);
   m.courseFindUnique.mockResolvedValue({ id: 'course-1', price: 39900, lecturerId: 'lecturer-1', academyId: 'academy-1' });
   m.providerCreate.mockResolvedValue({ externalId: 'gateway-payment-1', qr: 'https://pay.example/qr' });
@@ -344,8 +344,8 @@ describe('clinic cashier reference boundaries', () => {
     expect(response.status).toBe(404);
     expect(body.ok).toBe(false);
     expect(m.appointmentFindFirst).toHaveBeenCalledWith({
-      where: { id: 'foreign-appointment', clinicId: 'clinic-owned' },
-      select: { id: true, clinicId: true },
+      where: { id: 'foreign-appointment', clinicId: 'clinic-owned', branchId: { in: ['branch-1'] } },
+      select: { id: true, clinicId: true, branchId: true },
     });
     expect(m.reserveIdempotencyKey).not.toHaveBeenCalled();
     expect(m.createClinicKaspiPayment).not.toHaveBeenCalled();
@@ -366,8 +366,8 @@ describe('clinic cashier reference boundaries', () => {
     expect(response.status).toBe(404);
     expect(body.ok).toBe(false);
     expect(m.invoiceFindFirst).toHaveBeenCalledWith({
-      where: { id: 'foreign-invoice', clinicId: 'clinic-owned', deletedAt: null },
-      select: { id: true, clinicId: true, amount: true, paidAmount: true, status: true },
+      where: { id: 'foreign-invoice', clinicId: 'clinic-owned', deletedAt: null, patient: { branchId: { in: ['branch-1'] } } },
+      select: { id: true, clinicId: true, amount: true, paidAmount: true, status: true, patient: { select: { branchId: true } } },
     });
     expect(m.reserveIdempotencyKey).not.toHaveBeenCalled();
     expect(m.createClinicKaspiPayment).not.toHaveBeenCalled();
@@ -379,6 +379,7 @@ describe('clinic cashier reference boundaries', () => {
       id: 'invoice-1',
       clinicId: 'clinic-owned',
       amount: 1000,
+      patient: { branchId: 'branch-1' },
       paidAmount: 800,
       status: 'partial',
     });
@@ -403,6 +404,7 @@ describe('clinic cashier reference boundaries', () => {
       id: 'invoice-1',
       clinicId: 'clinic-owned',
       amount: 1000,
+      patient: { branchId: 'branch-1' },
       paidAmount: 200,
       status: 'partial',
     });
