@@ -28,12 +28,16 @@ describe('medical lab branch isolation contract', () => {
   });
 
 
-  it('uses the canonical Clinic.id → Organization.id resolver for clinic-scoped access', () => {
+  it('requires the active clinic context and branch allow-list for clinic-originated order reads', () => {
+    const start = source.indexOf('async function canAccessOrder');
+    const end = source.indexOf('async function recordEvent', start);
+    const policy = source.slice(start, end);
+    expect(policy).toContain('order.clinicId !== user?.clinicId');
+    expect(policy).toContain('user?.branchIds ?? []');
+    expect(policy).toContain('branchIds.length === 0');
+    expect(policy).not.toContain('assertClinicOrgAccess');
     expect(source).toContain("import { assertClinicOrgAccess } from '../../lib/orgContext.js';");
-    expect(source).toContain('assertClinicOrgAccess(user!, order.clinicId)');
     expect(source).toContain('assertClinicOrgAccess(req.user!, clinicId)');
-    expect(source).not.toContain('assertOrgAccess(user!, order.clinicId)');
-    expect(source).not.toContain('assertOrgAccess(req.user!, clinicId)');
   });
 
   it('resolves laboratory scope from the original organization entity id', () => {
