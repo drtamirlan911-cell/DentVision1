@@ -392,6 +392,22 @@ async function settlePaidPayment(
     settled = (await settleMedicalLabOrderPayment(payment, db)) || settled;
   }
 
+  if (payment.refType === 'medical_lab_order') {
+    if (!payment.refId || !meta.userId || meta.userId !== req.user!.id) return false;
+    if (req.user?.role === 'SUPERADMIN') return true;
+    try {
+      const order = await medicalLabOrderAmountMinor(payment.refId);
+      return Boolean(
+        order &&
+        order.clinicId === req.user?.clinicId &&
+        order.branchId &&
+        (req.user?.branchIds ?? []).includes(order.branchId),
+      );
+    } catch {
+      return false;
+    }
+  }
+
   if (payment.refType === 'order' || payment.refType === 'shop_order') {
     settled = (await settleOrderPayment(payment, db)) || settled;
   }
@@ -757,6 +773,13 @@ paymentsRouter.post('/', authenticate, async (req: AuthRequest, res) => {
       const medicalOrder = await medicalLabOrderAmountMinor(refId);
       if (!medicalOrder) return res.status(404).json({ ok: false, error: 'Медицинский лабораторный заказ не найден или не назначен лаборатории' } satisfies ApiResponse);
       if (!(await assertClinicOrgAccess(req.user!, medicalOrder.clinicId))) return res.status(403).json({ ok: false, error: 'Нет доступа к этому медицинскому заказу' } satisfies ApiResponse);
+      if (req.user?.role !== 'SUPERADMIN' && (
+        req.user?.clinicId !== medicalOrder.clinicId ||
+        !medicalOrder.branchId ||
+        !(req.user?.branchIds ?? []).includes(medicalOrder.branchId)
+      )) {
+        return res.status(403).json({ ok: false, error: 'Нет доступа к активному филиалу медицинского заказа' } satisfies ApiResponse);
+      }
       if (medicalOrder.amountMinor <= 0n) return res.status(400).json({ ok: false, error: 'В медицинском заказе отсутствуют оплачиваемые анализы' } satisfies ApiResponse);
       if (medicalOrder.amountMinor !== minor) return res.status(409).json({ ok: false, error: `Сумма не совпадает с медицинским заказом: ожидалось ${medicalOrder.amountMinor}, получено ${minor}` } satisfies ApiResponse);
     }
