@@ -430,12 +430,24 @@ describe('clinic cashier reference boundaries', () => {
     expect(m.transaction).not.toHaveBeenCalled();
   });
 
+  it('rejects a client-selected clinic that differs from the authenticated clinic context', async () => {
+    const { response } = await postPayment({
+      amountMinor: '10000',
+      domain: 'crm',
+      clinicId: 'clinic-owned',
+      meta: { clinicId: 'another-clinic' },
+    });
+    expect(response.status).toBe(403);
+    expect(m.createClinicKaspiPayment).not.toHaveBeenCalled();
+    expect(m.paymentCreate).not.toHaveBeenCalled();
+  });
+
   it('persists the authenticated active branch rather than a client-supplied payment branch', async () => {
     const { response } = await postPayment({
       amountMinor: '10000',
       domain: 'crm',
       clinicId: 'clinic-owned',
-      meta: { branchId: 'branch-attacker', clinicId: 'other-clinic' },
+      meta: { branchId: 'branch-attacker' },
     });
     expect(response.status).toBe(201);
     expect(m.paymentCreate.mock.calls[0][0].data.meta.branchId).toBe('branch-1');
